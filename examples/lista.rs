@@ -1,19 +1,11 @@
-use xml_ui::{UiEngine, EngineMessage};
+use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
-/// Demonstra um componente (`CartaoUsuario`) que recebe props e é instanciado
-/// dentro de um loop `<ForEach>`, um cartão por item da lista.
 struct Membro {
     nome: String,
     cargo: String,
     cor: String,
-}
-
-struct AppLista {
-    motor: UiEngine,
-    membros: Vec<Membro>,
-    proximo: usize,
 }
 
 /// Cores de avatar usadas em rodízio conforme a lista cresce.
@@ -27,30 +19,18 @@ const CANDIDATOS: [(&str, &str); 4] = [
     ("Diego Alves", "DevOps"),
 ];
 
-impl AppLista {
-    fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+/// Componente que encapsula UI + comportamento de uma lista de membros.
+/// Demonstra um sub-componente (`CartaoUsuario`) instanciado num `<ForEach>`;
+/// o estado da lista vive no próprio componente e é serializado para o contexto.
+struct Lista {
+    membros: Vec<Membro>,
+    proximo: usize,
+}
 
-        // Só o componente de entrada é registrado; CartaoUsuario é carregado
-        // pelo <import> declarado no topo de lista_usuarios.xml.
-        if let Err(e) = motor.register_component("lista", "templates/lista_usuarios.xml") {
-            eprintln!("Erro ao registrar 'lista': {}", e);
-        }
-
-        let membros = vec![
-            Membro { nome: "Clara Silva".into(), cargo: "Engenheira de Software".into(), cor: PALETA[0].into() },
-            Membro { nome: "Sophia Martins".into(), cargo: "Designer UI/UX".into(), cor: PALETA[1].into() },
-        ];
-
-        let mut app = Self { motor, membros, proximo: 0 };
-        app.sincronizar();
-
-        (app, Task::none())
-    }
-
-    /// Serializa a lista de membros para JSON e publica no contexto do motor.
+impl Lista {
+    /// Serializa a lista de membros para JSON e publica no contexto.
     /// O `<ForEach items="usuarios">` consome esse array.
-    fn sincronizar(&mut self) {
+    fn sincronizar(&self, ctx: &mut Context) {
         let arr: Vec<serde_json::Value> = self
             .membros
             .iter()
@@ -66,36 +46,70 @@ impl AppLista {
             .collect();
 
         let json = serde_json::Value::Array(arr).to_string();
-        self.motor.define_data("usuarios", &json);
-        self.motor.define_data("total", &self.membros.len().to_string());
+        ctx.set("usuarios", json);
+        ctx.set("total", self.membros.len().to_string());
+    }
+}
+
+impl Component for Lista {
+    fn name(&self) -> &str {
+        "lista"
+    }
+
+    fn template(&self) -> Template {
+        // CartaoUsuario é carregado pelo <import> no topo de lista_usuarios.xml.
+        Template::File("templates/lista_usuarios.xml".into())
+    }
+
+    fn init(&mut self, ctx: &mut Context) {
+        self.sincronizar(ctx);
+    }
+
+    fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
+        if action == "adicionar" {
+            let (nome, cargo) = CANDIDATOS[self.proximo % CANDIDATOS.len()];
+            let cor = PALETA[self.membros.len() % PALETA.len()];
+            self.membros.push(Membro {
+                nome: nome.into(),
+                cargo: cargo.into(),
+                cor: cor.into(),
+            });
+            self.proximo += 1;
+            self.sincronizar(ctx);
+        }
+    }
+}
+
+struct AppLista {
+    motor: UiEngine,
+}
+
+impl AppLista {
+    fn new() -> (Self, Task<EngineMessage>) {
+        let mut motor = UiEngine::new();
+
+        let membros = vec![
+            Membro { nome: "Clara Silva".into(), cargo: "Engenheira de Software".into(), cor: PALETA[0].into() },
+            Membro { nome: "Sophia Martins".into(), cargo: "Designer UI/UX".into(), cor: PALETA[1].into() },
+        ];
+
+        if let Err(e) = motor.register(Box::new(Lista { membros, proximo: 0 })) {
+            eprintln!("Erro ao registrar 'lista': {}", e);
+        }
+        motor.set_initial_screen("lista");
+
+        (Self { motor }, Task::none())
     }
 
     fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
-        match message {
-            EngineMessage::XmlClick(acao) if acao == "adicionar" => {
-                let (nome, cargo) = CANDIDATOS[self.proximo % CANDIDATOS.len()];
-                let cor = PALETA[self.membros.len() % PALETA.len()];
-                self.membros.push(Membro {
-                    nome: nome.into(),
-                    cargo: cargo.into(),
-                    cor: cor.into(),
-                });
-                self.proximo += 1;
-                self.sincronizar();
-            }
-            EngineMessage::FileChanged(_) => {
-                let reloaded = self.motor.check_reload();
-                if !reloaded.is_empty() {
-                    println!("Componentes recarregados: {:?}", reloaded);
-                }
-            }
-            _ => {}
+        if let Err(e) = self.motor.dispatch(&message) {
+            eprintln!("Erro no dispatch: {}", e);
         }
         Task::none()
     }
 
     fn view(&self) -> Element<'_, EngineMessage> {
-        match self.motor.render("lista") {
+        match self.motor.render_current() {
             Ok(elem) => elem,
             Err(e) => iced::widget::text(format!("Erro ao render: {}", e))
                 .color(iced::Color::from_rgb(1.0, 0.0, 0.0))

@@ -1,84 +1,94 @@
-use xml_ui::{UiEngine, EngineMessage};
+use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
 use iced::{Element, Task, Color, widget::text};
 use std::time::Duration;
 
+/// Componente que encapsula UI + comportamento de um cartão de perfil editável.
+/// Mantém seu próprio estado (`seguindo`) e reage a inputs e cliques.
+struct Perfil {
+    seguindo: bool,
+}
+
+impl Component for Perfil {
+    fn name(&self) -> &str {
+        "perfil"
+    }
+
+    fn template(&self) -> Template {
+        // Só o componente de entrada precisa ser declarado; PerfilCard é puxado
+        // pelo <import> no topo de perfil.xml.
+        Template::File("templates/perfil.xml".into())
+    }
+
+    fn init(&mut self, ctx: &mut Context) {
+        ctx.set("user_name", "Clara Silva");
+        ctx.set("user_role", "Engenheira de Software Senior");
+        ctx.set("texto_botao", "Seguir");
+        ctx.set("btn_color", "#313244"); // Sleek base button color
+    }
+
+    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
+        match action {
+            "mudar_nome" => {
+                if let Some(v) = value {
+                    ctx.set("user_name", v);
+                }
+            }
+            "mudar_cargo" => {
+                if let Some(v) = value {
+                    ctx.set("user_role", v);
+                }
+            }
+            "seguir_usuario" => {
+                self.seguindo = !self.seguindo;
+                if self.seguindo {
+                    ctx.set("texto_botao", "Seguindo ✓");
+                    ctx.set("btn_color", "#A6E3A1"); // Light green for active/following
+                } else {
+                    ctx.set("texto_botao", "Seguir");
+                    ctx.set("btn_color", "#313244"); // Back to default dark
+                }
+            }
+            "set_dev" => {
+                ctx.set("user_name", "Clara Silva");
+                ctx.set("user_role", "Engenheira de Software Senior");
+            }
+            "set_designer" => {
+                ctx.set("user_name", "Sophia Martins");
+                ctx.set("user_role", "Designer de Interface (UI/UX)");
+            }
+            other => println!("Action clicked: {}", other),
+        }
+    }
+}
+
 struct AppPerfil {
     motor: UiEngine,
-    seguindo: bool,
 }
 
 impl AppPerfil {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = UiEngine::new();
-
-        // Only the entry component is registered; PerfilCard is pulled in via the
-        // <import> declared at the top of perfil.xml.
-        if let Err(e) = motor.register_component("perfil", "templates/perfil.xml") {
+        if let Err(e) = motor.register(Box::new(Perfil { seguindo: false })) {
             eprintln!("Error registering component 'perfil': {}", e);
         }
+        motor.set_initial_screen("perfil");
 
-        // Initialize state variables
-        motor.define_data("user_name", "Clara Silva");
-        motor.define_data("user_role", "Engenheira de Software Senior");
-        motor.define_data("texto_botao", "Seguir");
-        motor.define_data("btn_color", "#313244"); // Sleek base button color
-
-        ( Self { motor, seguindo: false }, Task::none())
+        (Self { motor }, Task::none())
     }
 
     fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
-        match message {
-            EngineMessage::XmlInputChanged { action, value } => {
-                match action.as_str() {
-                    "mudar_nome" => { self.motor.define_data("user_name", &value); }
-                    "mudar_cargo" => { self.motor.define_data("user_role", &value); }
-                    _ => {}
-                }
-            }
-            EngineMessage::XmlClick(acao) => {
-                match acao.as_str() {
-                    "seguir_usuario" => {
-                        self.seguindo = !self.seguindo;
-                        if self.seguindo {
-                            self.motor.define_data("texto_botao", "Seguindo ✓");
-                            self.motor.define_data("btn_color", "#A6E3A1"); // Light green for active/following
-                        } else {
-                            self.motor.define_data("texto_botao", "Seguir");
-                            self.motor.define_data("btn_color", "#313244"); // Back to default dark
-                        }
-                    }
-                    "set_dev" => {
-                        self.motor.define_data("user_name", "Clara Silva");
-                        self.motor.define_data("user_role", "Engenheira de Software Senior");
-                    }
-                    "set_designer" => {
-                        self.motor.define_data("user_name", "Sophia Martins");
-                        self.motor.define_data("user_role", "Designer de Interface (UI/UX)");
-                    }
-                    _ => println!("Action clicked: {}", acao),
-                }
-            }
-            EngineMessage::FileChanged(_) => {
-                // Hot reloading check
-                let reloaded = self.motor.check_reload();
-                if !reloaded.is_empty() {
-                    println!("Reloaded components: {:?}", reloaded);
-                }
-            }
-            // Este exemplo não usa navegação entre telas.
-            EngineMessage::Navigate(_) | EngineMessage::NavigateBack => {}
+        if let Err(e) = self.motor.dispatch(&message) {
+            eprintln!("Error dispatching message: {}", e);
         }
         Task::none()
     }
 
     fn view(&self) -> Element<'_, EngineMessage> {
-        match self.motor.render("perfil") {
+        match self.motor.render_current() {
             Ok(elem) => elem,
-            Err(e) => {
-                text(format!("Error rendering UI: {}", e))
-                    .color(Color::from_rgb(1.0, 0.0, 0.0))
-                    .into()
-            }
+            Err(e) => text(format!("Error rendering UI: {}", e))
+                .color(Color::from_rgb(1.0, 0.0, 0.0))
+                .into(),
         }
     }
 

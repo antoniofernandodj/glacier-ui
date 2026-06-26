@@ -1,60 +1,63 @@
-use xml_ui::{UiEngine, EngineMessage};
+use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
 use iced::{Element, Task, widget::text, Color, Subscription};
 use std::time::Duration;
 
+/// Componente que encapsula UI (template XML) + comportamento + estado.
+struct Contador {
+    valor: i32,
+}
+
+impl Component for Contador {
+    fn name(&self) -> &str {
+        "contador"
+    }
+
+    fn template(&self) -> Template {
+        Template::File("templates/contador.xml".into())
+    }
+
+    fn init(&mut self, ctx: &mut Context) {
+        ctx.set("contador", self.valor.to_string());
+    }
+
+    fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
+        match action {
+            "incrementar" => self.valor += 1,
+            "decrementar" => self.valor -= 1,
+            _ => return,
+        }
+        ctx.set("contador", self.valor.to_string());
+    }
+}
+
 struct AppContador {
     motor: UiEngine,
-    contador: i32,
 }
 
 impl AppContador {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = UiEngine::new();
-        if let Err(e) = motor.register_component("contador", "templates/contador.xml") {
+        if let Err(e) = motor.register(Box::new(Contador { valor: 0 })) {
             eprintln!("Error registering component: {}", e);
         }
-        
-        let contador = 0;
-        motor.define_data("contador", &contador.to_string());
+        motor.set_initial_screen("contador");
 
-        ( Self { motor, contador }, Task::none() )
+        (Self { motor }, Task::none())
     }
 
     fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
-        match message {
-            EngineMessage::XmlClick(acao) => {
-                match acao.as_str() {
-                    "incrementar" => {
-                        self.contador += 1;
-                        self.motor.define_data("contador", &self.contador.to_string());
-                    }
-                    "decrementar" => {
-                        self.contador -= 1;
-                        self.motor.define_data("contador", &self.contador.to_string());
-                    }
-                    _ => {}
-                }
-            }
-            EngineMessage::FileChanged(_) => {
-                // Check if any template files changed and reload them
-                let reloaded = self.motor.check_reload();
-                if !reloaded.is_empty() {
-                    println!("Reloaded components: {:?}", reloaded);
-                }
-            }
-            _ => {}
+        if let Err(e) = self.motor.dispatch(&message) {
+            eprintln!("Error dispatching message: {}", e);
         }
         Task::none()
     }
 
     fn view(&self) -> Element<'_, EngineMessage> {
-        match self.motor.render("contador") {
+        match self.motor.render_current() {
             Ok(elem) => elem,
-            Err(e) => {
-                text(format!("Error rendering UI: {}", e))
-                    .color(Color::from_rgb(1.0, 0.0, 0.0))
-                    .into()
-            }
+            Err(e) => text(format!("Error rendering UI: {}", e))
+                .color(Color::from_rgb(1.0, 0.0, 0.0))
+                .into(),
         }
     }
 

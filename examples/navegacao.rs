@@ -1,10 +1,37 @@
-use xml_ui::{UiEngine, EngineMessage};
+use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
-/// Demonstra navegação entre telas: cada tela é um componente registrado,
-/// e os botões declaram o destino no próprio XML via `navigateTo`/`navigateBack`.
-/// O estado (`user_name`) é compartilhado entre todas as telas.
+/// Demonstra navegação entre telas: cada tela é um componente registrado, e os
+/// botões declaram o destino no próprio XML via `navigateTo`/`navigateBack` — a
+/// navegação é tratada pelo motor em `dispatch`. O estado (`user_name`) é
+/// compartilhado entre todas as telas.
+///
+/// As três telas reaproveitam o mesmo tipo `Tela`, instanciado com nomes e
+/// templates diferentes.
+struct Tela {
+    nome: &'static str,
+    template: &'static str,
+}
+
+impl Component for Tela {
+    fn name(&self) -> &str {
+        self.nome
+    }
+
+    fn template(&self) -> Template {
+        Template::File(self.template.into())
+    }
+
+    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
+        if action == "mudar_nome" {
+            if let Some(v) = value {
+                ctx.set("user_name", v);
+            }
+        }
+    }
+}
+
 struct AppNav {
     motor: UiEngine,
 }
@@ -13,17 +40,19 @@ impl AppNav {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = UiEngine::new();
 
-        for (nome, caminho) in [
-            ("home", "templates/nav_home.xml"),
-            ("perfil", "templates/nav_perfil.xml"),
-            ("config", "templates/nav_config.xml"),
-        ] {
-            if let Err(e) = motor.register_component(nome, caminho) {
+        let telas = [
+            Tela { nome: "home", template: "templates/nav_home.xml" },
+            Tela { nome: "perfil", template: "templates/nav_perfil.xml" },
+            Tela { nome: "config", template: "templates/nav_config.xml" },
+        ];
+        for tela in telas {
+            let nome = tela.nome;
+            if let Err(e) = motor.register(Box::new(tela)) {
                 eprintln!("Erro ao registrar '{}': {}", nome, e);
             }
         }
 
-        // Estado compartilhado entre as telas.
+        // Estado compartilhado entre as telas (não pertence a uma tela só).
         motor.define_data("user_name", "Clara Silva");
         motor.define_data("user_role", "Engenheira de Software");
 
@@ -34,18 +63,8 @@ impl AppNav {
     }
 
     fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
-        match message {
-            EngineMessage::Navigate(destino) => self.motor.navigate_to(&destino),
-            EngineMessage::NavigateBack => self.motor.navigate_back(),
-            EngineMessage::XmlInputChanged { action, value } => {
-                if action == "mudar_nome" {
-                    self.motor.define_data("user_name", &value);
-                }
-            }
-            EngineMessage::XmlClick(_) => {}
-            EngineMessage::FileChanged(_) => {
-                let _ = self.motor.check_reload();
-            }
+        if let Err(e) = self.motor.dispatch(&message) {
+            eprintln!("Erro no dispatch: {}", e);
         }
         Task::none()
     }

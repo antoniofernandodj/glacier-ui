@@ -17,12 +17,26 @@
             alignX="Center"
             alignY="Center"
         >
-            <Text content="{inicial}" size="22" bold="true" color="#11111B" />
+            <Text
+                content="{inicial}"
+                size="22"
+                bold="true"
+                color="#11111B"
+            />
         </Container>
 
         <Column spacing="3">
-            <Text content="{nome}" size="18" bold="true" color="#CDD6F4" />
-            <Text content="{cargo}" size="13" color="#A6ADC8" />
+            <Text
+                content="{nome}"
+                size="18"
+                bold="true"
+                color="#CDD6F4"
+            />
+            <Text
+                content="{cargo}"
+                size="13"
+                color="#A6ADC8"
+            />
         </Column>
     </Row>
 </Container>

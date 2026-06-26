@@ -1,16 +1,17 @@
 pub mod parser;
 pub mod eval;
 pub mod widget;
+pub mod component;
 
 pub use parser::{UiNode, NodeType};
 pub use eval::{evaluate_node, process_template};
 pub use widget::{render_node, EngineMessage};
+pub use component::{Component, Context, Nav, Template};
 
 use std::collections::HashMap;
 use std::time::{SystemTime, Duration};
 
 /// The XML-to-UI rendering engine
-#[derive(Debug, Clone)]
 pub struct UiEngine {
     /// Maps a component name (e.g. "perfil") to its XML file path
     pub registered_components: HashMap<String, String>,
@@ -26,6 +27,8 @@ pub struct UiEngine {
     pub current_screen: Option<String>,
     /// Navigation history (stack of previous screens) used by `navigate_back`
     pub history: Vec<String>,
+    /// Registered components (UI + behavior), keyed by component name.
+    pub components: HashMap<String, Box<dyn component::Component>>,
 }
 
 impl UiEngine {
@@ -39,6 +42,7 @@ impl UiEngine {
             file_mod_times: HashMap::new(),
             current_screen: None,
             history: Vec::new(),
+            components: HashMap::new(),
         }
     }
 
@@ -81,6 +85,95 @@ impl UiEngine {
         // Evaluate once, after the whole import graph has been loaded.
         let _ = self.reevaluate_all();
         Ok(())
+    }
+
+    /// Registers a [`Component`] that bundles its UI (template) and behavior.
+    ///
+    /// The engine resolves and parses the template, seeds the context with the
+    /// component's initial state via [`Component::init`], and stores the
+    /// component so that [`UiEngine::dispatch`] can later route actions to it.
+    pub fn register(&mut self, mut comp: Box<dyn component::Component>) -> Result<(), String> {
+        use component::Template;
+
+        let name = comp.name().to_string();
+
+        // (a) UI: resolve the template and feed it through the existing parse
+        //     pipeline. `File` templates keep hot-reload support.
+        let xml = match comp.template() {
+            Template::File(path) => {
+                let content = std::fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read XML file at '{}': {}", path, e))?;
+                let mod_time = std::fs::metadata(&path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or_else(|_| SystemTime::now());
+                self.registered_components.insert(name.clone(), path);
+                self.file_mod_times.insert(name.clone(), mod_time);
+                content
+            }
+            Template::Inline(s) => s,
+        };
+
+        let ast = UiNode::parse_xml(&xml)
+            .map_err(|e| format!("Failed to parse XML for component '{}': {}", name, e))?;
+        self.parsed_templates.insert(name.clone(), ast.clone());
+        self.load_imports(&ast)?;
+
+        // (b) Behavior: let the component seed its initial state.
+        {
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None };
+            comp.init(&mut ctx);
+        }
+
+        self.components.insert(name, comp);
+        self.reevaluate_all()
+    }
+
+    /// Routes an [`EngineMessage`] to the owning component (the one backing the
+    /// active screen) and applies any navigation it requested, then
+    /// re-evaluates the templates.
+    ///
+    /// Apps that use [`UiEngine::register`] just forward every message here from
+    /// their `update()` instead of matching on actions themselves.
+    pub fn dispatch(&mut self, msg: &EngineMessage) -> Result<(), String> {
+        let (action, value) = match msg {
+            EngineMessage::XmlClick(a) => (a.as_str(), None),
+            EngineMessage::XmlInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
+            EngineMessage::Navigate(s) => {
+                self.navigate_to(s);
+                return self.reevaluate_all();
+            }
+            EngineMessage::NavigateBack => {
+                self.navigate_back();
+                return self.reevaluate_all();
+            }
+            EngineMessage::FileChanged(_) => {
+                self.check_reload();
+                return Ok(());
+            }
+        };
+
+        let owner = match &self.current_screen {
+            Some(name) => name.clone(),
+            None => return Ok(()),
+        };
+
+        // Disjoint per-field borrows (`components` vs `context_data`) are
+        // accepted by the borrow checker when done inline like this.
+        let nav = if let Some(comp) = self.components.get_mut(&owner) {
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None };
+            comp.update(action, value, &mut ctx);
+            ctx.nav
+        } else {
+            None
+        };
+
+        match nav {
+            Some(component::Nav::To(s)) => self.navigate_to(&s),
+            Some(component::Nav::Back) => self.navigate_back(),
+            None => {}
+        }
+
+        self.reevaluate_all()
     }
 
     /// Parses and stores a component plus its imports, without re-evaluating.
