@@ -62,6 +62,16 @@ pub trait Component {
     /// Semeia o contexto com o estado inicial (opcional).
     fn init(&mut self, _ctx: &mut Context) {}
 
+    /// Sub-componentes que este componente possui. Ao registrar o pai, o motor
+    /// registra cada filho em cascata (template + `init`), e as ações vindas da
+    /// UI de um filho (referenciado por `<Component name="...">`) são roteadas
+    /// para o `update` do próprio filho.
+    ///
+    /// Padrão: sem filhos.
+    fn children(&self) -> Vec<Box<dyn Component>> {
+        Vec::new()
+    }
+
     /// Reage a uma ação vinda da sua própria UI.
     ///
     /// `value` vem preenchido em inputs (`XmlInputChanged`); é `None` em

@@ -430,3 +430,80 @@ fn test_foreach() {
     std::fs::remove_file(path).ok();
 }
 
+
+// --- Nested components: behavior composition -------------------------------
+
+use xml_ui::{Component, Context, Template, EngineMessage};
+
+/// Child component with its own behavior. Its button action is `ping`.
+struct ChildComp;
+impl Component for ChildComp {
+    fn name(&self) -> &str { "ChildComp" }
+    fn template(&self) -> Template {
+        Template::Inline(r#"<Container><Button text="C" onClick="ping" /></Container>"#.into())
+    }
+    fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+        if action == "ping" { ctx.set("child_pinged", "true"); }
+    }
+}
+
+/// Parent owns ChildComp and references it in its own template.
+struct ParentComp;
+impl Component for ParentComp {
+    fn name(&self) -> &str { "parent" }
+    fn template(&self) -> Template {
+        Template::Inline(
+            r#"<Container><Button text="P" onClick="parent_act" /><ChildComp /></Container>"#.into(),
+        )
+    }
+    fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+        if action == "parent_act" { ctx.set("parent_acted", "true"); }
+    }
+    fn children(&self) -> Vec<Box<dyn Component>> {
+        vec![Box::new(ChildComp)]
+    }
+}
+
+/// Collects every `Button.on_click` in an evaluated tree.
+fn collect_clicks(node: &UiNode, out: &mut Vec<String>) {
+    if let NodeType::Button { on_click: Some(a), .. } = &node.kind {
+        out.push(a.clone());
+    }
+    for c in &node.children {
+        collect_clicks(c, out);
+    }
+}
+
+#[test]
+fn test_nested_component_action_namespacing() {
+    let mut motor = UiEngine::new();
+    motor.register(Box::new(ParentComp)).unwrap();
+    motor.set_initial_screen("parent");
+
+    // Both the child template (registered in cascade) and the parent exist.
+    assert!(motor.parsed_templates.contains_key("parent"));
+    assert!(motor.parsed_templates.contains_key("ChildComp"));
+
+    // The child's action got namespaced; the parent's stayed plain.
+    let evaluated = motor.evaluated_templates.get("parent").unwrap();
+    let mut clicks = Vec::new();
+    collect_clicks(evaluated, &mut clicks);
+    assert!(clicks.contains(&"parent_act".to_string()), "got {:?}", clicks);
+    assert!(clicks.contains(&"ChildComp::ping".to_string()), "got {:?}", clicks);
+}
+
+#[test]
+fn test_nested_component_action_routing() {
+    let mut motor = UiEngine::new();
+    motor.register(Box::new(ParentComp)).unwrap();
+    motor.set_initial_screen("parent");
+
+    // A namespaced action reaches the child's update, not the parent's.
+    motor.dispatch(&EngineMessage::XmlClick("ChildComp::ping".into())).unwrap();
+    assert_eq!(motor.get_data("child_pinged").map(String::as_str), Some("true"));
+    assert_eq!(motor.get_data("parent_acted"), None);
+
+    // A plain action falls back to the active screen (the parent).
+    motor.dispatch(&EngineMessage::XmlClick("parent_act".into())).unwrap();
+    assert_eq!(motor.get_data("parent_acted").map(String::as_str), Some("true"));
+}

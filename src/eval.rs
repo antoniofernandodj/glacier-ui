@@ -67,6 +67,27 @@ pub fn evaluate_node(
     context: &HashMap<String, String>,
     templates: &HashMap<String, UiNode>,
 ) -> Result<UiNode, String> {
+    eval_owned(node, context, templates, None)
+}
+
+/// Prefixes an action with its owning component, so `dispatch` can route it.
+/// Actions inside a `<Component name="X">` subtree become `X::action`.
+/// Empty actions and navigation are left untouched.
+fn namespace_action(action: String, owner: Option<&str>) -> String {
+    match owner {
+        Some(name) if !action.is_empty() => format!("{}::{}", name, action),
+        _ => action,
+    }
+}
+
+/// Core of [`evaluate_node`]. `owner` is the name of the nearest enclosing
+/// `<Component>`/`<Include>` reference, used to namespace its actions.
+fn eval_owned(
+    node: &UiNode,
+    context: &HashMap<String, String>,
+    templates: &HashMap<String, UiNode>,
+    owner: Option<&str>,
+) -> Result<UiNode, String> {
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
@@ -86,8 +107,8 @@ pub fn evaluate_node(
             local_context.insert(key.clone(), evaluated_val);
         }
 
-        // Recursively evaluate the referenced template root node
-        return evaluate_node(template_ast, &local_context, templates);
+        // The referenced subtree's actions belong to `name` (innermost wins).
+        return eval_owned(template_ast, &local_context, templates, Some(name));
     }
 
     // Evaluate current node attributes
@@ -106,7 +127,8 @@ pub fn evaluate_node(
         NodeType::Button { text, on_click, navigate_to, navigate_back, color } => {
             NodeType::Button {
                 text: process_template(text, context),
-                on_click: on_click.as_ref().map(|o| process_template(o, context)),
+                on_click: on_click.as_ref()
+                    .map(|o| namespace_action(process_template(o, context), owner)),
                 navigate_to: navigate_to.as_ref().map(|n| process_template(n, context)),
                 navigate_back: *navigate_back,
                 color: color.as_ref().map(|c| process_template(c, context)),
@@ -116,7 +138,7 @@ pub fn evaluate_node(
             NodeType::TextInput {
                 placeholder: process_template(placeholder, context),
                 value_var: process_template(value_var, context),
-                on_change: process_template(on_change, context),
+                on_change: namespace_action(process_template(on_change, context), owner),
             }
         }
         NodeType::Image { source, clip_circle } => {
@@ -173,7 +195,7 @@ pub fn evaluate_node(
                                 }
                             }
                             for sub_child in &child.children {
-                                children_eval.push(evaluate_node(sub_child, &local_context, templates)?);
+                                children_eval.push(eval_owned(sub_child, &local_context, templates, owner)?);
                             }
                         }
                     }
@@ -184,7 +206,7 @@ pub fn evaluate_node(
                 let truthy = eval_condition(cond, equals, not_equals, context);
                 if truthy {
                     for sub_child in &child.children {
-                        children_eval.push(evaluate_node(sub_child, context, templates)?);
+                        children_eval.push(eval_owned(sub_child, context, templates, owner)?);
                     }
                 }
                 last_if = Some(truthy);
@@ -192,13 +214,13 @@ pub fn evaluate_node(
             NodeType::Else => {
                 if last_if == Some(false) {
                     for sub_child in &child.children {
-                        children_eval.push(evaluate_node(sub_child, context, templates)?);
+                        children_eval.push(eval_owned(sub_child, context, templates, owner)?);
                     }
                 }
                 last_if = None;
             }
             _ => {
-                children_eval.push(evaluate_node(child, context, templates)?);
+                children_eval.push(eval_owned(child, context, templates, owner)?);
                 last_if = None;
             }
         }

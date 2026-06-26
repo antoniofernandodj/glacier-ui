@@ -8,6 +8,12 @@ struct Perfil {
     seguindo: bool,
 }
 
+impl Perfil {
+    fn new() -> Self {
+        Self { seguindo: false }
+    }
+}
+
 impl Component for Perfil {
     fn name(&self) -> &str {
         "perfil"
@@ -68,7 +74,7 @@ struct AppPerfil {
 impl AppPerfil {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = UiEngine::new();
-        if let Err(e) = motor.register(Box::new(Perfil { seguindo: false })) {
+        if let Err(e) = motor.register(Box::new(Perfil::new())) {
             eprintln!("Error registering component 'perfil': {}", e);
         }
         motor.set_initial_screen("perfil");

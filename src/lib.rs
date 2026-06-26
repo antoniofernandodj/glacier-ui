@@ -92,7 +92,15 @@ impl UiEngine {
     /// The engine resolves and parses the template, seeds the context with the
     /// component's initial state via [`Component::init`], and stores the
     /// component so that [`UiEngine::dispatch`] can later route actions to it.
-    pub fn register(&mut self, mut comp: Box<dyn component::Component>) -> Result<(), String> {
+    pub fn register(&mut self, comp: Box<dyn component::Component>) -> Result<(), String> {
+        self.register_one(comp)?;
+        // Evaluate once, after the whole component tree has been registered.
+        self.reevaluate_all()
+    }
+
+    /// Registers a single component and its `children()` recursively, without
+    /// re-evaluating. Used by [`UiEngine::register`].
+    fn register_one(&mut self, mut comp: Box<dyn component::Component>) -> Result<(), String> {
         use component::Template;
 
         let name = comp.name().to_string();
@@ -124,8 +132,14 @@ impl UiEngine {
             comp.init(&mut ctx);
         }
 
+        // (c) Children: collect before moving `comp` into the map, then register
+        //     each recursively so their templates/behavior are available too.
+        let children = comp.children();
         self.components.insert(name, comp);
-        self.reevaluate_all()
+        for child in children {
+            self.register_one(child)?;
+        }
+        Ok(())
     }
 
     /// Routes an [`EngineMessage`] to the owning component (the one backing the
@@ -152,9 +166,22 @@ impl UiEngine {
             }
         };
 
-        let owner = match &self.current_screen {
-            Some(name) => name.clone(),
-            None => return Ok(()),
+        // Resolve which component owns the action. An action namespaced as
+        // `Child::act` (produced when a `<Component>` subtree is inlined) routes
+        // to `Child` when it has registered behavior; otherwise — and for plain,
+        // un-namespaced actions — it falls back to the active screen.
+        let (owner, action) = match action.split_once("::") {
+            Some((prefix, rest)) if self.components.contains_key(prefix) => {
+                (prefix.to_string(), rest)
+            }
+            Some((_, rest)) => match &self.current_screen {
+                Some(screen) => (screen.clone(), rest),
+                None => return Ok(()),
+            },
+            None => match &self.current_screen {
+                Some(screen) => (screen.clone(), action),
+                None => return Ok(()),
+            },
         };
 
         // Disjoint per-field borrows (`components` vs `context_data`) are
