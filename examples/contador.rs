@@ -7,6 +7,12 @@ struct Contador {
     valor: i32,
 }
 
+impl Contador {
+    fn new() -> Self {
+        Self { valor: 0 }
+    }
+}
+
 impl Component for Contador {
     fn name(&self) -> &str {
         "contador"
@@ -37,7 +43,7 @@ struct AppContador {
 impl AppContador {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = UiEngine::new();
-        if let Err(e) = motor.register(Box::new(Contador { valor: 0 })) {
+        if let Err(e) = motor.register(Box::new(Contador::new())) {
             eprintln!("Error registering component: {}", e);
         }
         motor.set_initial_screen("contador");
