@@ -1,0 +1,28 @@
+<!-- Componente reutilizável: recebe as props nome, cargo, inicial e cor -->
+<Container
+    padding="15"
+    width="fill"
+    background="#181825"
+    border_radius="12"
+    border_width="1"
+    border_color="#313244"
+>
+    <Row spacing="15" align="Center">
+        <!-- Avatar circular com a inicial do nome -->
+        <Container
+            width="50"
+            height="50"
+            background="{cor}"
+            border_radius="25"
+            alignX="Center"
+            alignY="Center"
+        >
+            <Text content="{inicial}" size="22" bold="true" color="#11111B" />
+        </Container>
+
+        <Column spacing="3">
+            <Text content="{nome}" size="18" bold="true" color="#CDD6F4" />
+            <Text content="{cargo}" size="13" color="#A6ADC8" />
+        </Column>
+    </Row>
+</Container>

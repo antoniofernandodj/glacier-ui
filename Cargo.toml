@@ -1,0 +1,10 @@
+[package]
+name = "xml-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.13", features = ["image", "tokio"] }
+roxmltree = "0.21"
+image = "0.25"
+serde_json = "1.0"

@@ -1,0 +1,32 @@
+<Container
+    padding="30"
+    width="fill"
+    height="fill"
+    background="#11111B"
+    alignX="Center"
+>
+    <Column spacing="20" width="420" align="Center">
+        <Text content="Equipe ({total})" size="26" bold="true" color="#F5E0DC" />
+
+        <!-- O componente CartaoUsuario é instanciado uma vez por item do loop,
+             recebendo os campos de cada item como props. -->
+        <Column spacing="12" width="fill">
+            <ForEach items="usuarios" var="u">
+                <CartaoUsuario
+                    nome="{u.nome}"
+                    cargo="{u.cargo}"
+                    inicial="{u.inicial}"
+                    cor="{u.cor}"
+                />
+            </ForEach>
+        </Column>
+
+        <Button
+            text="Adicionar membro"
+            onClick="adicionar"
+            color="#89B4FA"
+            width="fill"
+            padding="12"
+        />
+    </Column>
+</Container>
