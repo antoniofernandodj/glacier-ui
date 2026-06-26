@@ -1,46 +1,43 @@
-use xml_ui::{MotorUI, MensagemMotor};
-use iced::{Element, Task};
+use xml_ui::{UiEngine, EngineMessage};
+use iced::{Element, Task, widget::text, Color, Subscription};
 use std::time::Duration;
 
 struct AppContador {
-    motor: MotorUI,
+    motor: UiEngine,
     contador: i32,
 }
 
 impl AppContador {
-    fn new() -> (Self, Task<MensagemMotor>) {
-        let mut motor = MotorUI::new();
-        if let Err(e) = motor.registrar_componente("contador", "templates/contador.xml") {
+    fn new() -> (Self, Task<EngineMessage>) {
+        let mut motor = UiEngine::new();
+        if let Err(e) = motor.register_component("contador", "templates/contador.xml") {
             eprintln!("Error registering component: {}", e);
         }
         
         let contador = 0;
-        motor.definir_dado("contador", &contador.to_string());
+        motor.define_data("contador", &contador.to_string());
 
-        (
-            Self { motor, contador },
-            Task::none(),
-        )
+        ( Self { motor, contador }, Task::none() )
     }
 
-    fn update(&mut self, message: MensagemMotor) -> Task<MensagemMotor> {
+    fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
         match message {
-            MensagemMotor::XmlClick(acao) => {
+            EngineMessage::XmlClick(acao) => {
                 match acao.as_str() {
                     "incrementar" => {
                         self.contador += 1;
-                        self.motor.definir_dado("contador", &self.contador.to_string());
+                        self.motor.define_data("contador", &self.contador.to_string());
                     }
                     "decrementar" => {
                         self.contador -= 1;
-                        self.motor.definir_dado("contador", &self.contador.to_string());
+                        self.motor.define_data("contador", &self.contador.to_string());
                     }
                     _ => {}
                 }
             }
-            MensagemMotor::FileChanged(_) => {
+            EngineMessage::FileChanged(_) => {
                 // Check if any template files changed and reload them
-                let reloaded = self.motor.verificar_recarregamento();
+                let reloaded = self.motor.check_reload();
                 if !reloaded.is_empty() {
                     println!("Reloaded components: {:?}", reloaded);
                 }
@@ -50,19 +47,19 @@ impl AppContador {
         Task::none()
     }
 
-    fn view(&self) -> Element<'_, MensagemMotor> {
-        match self.motor.renderizar("contador") {
+    fn view(&self) -> Element<'_, EngineMessage> {
+        match self.motor.render("contador") {
             Ok(elem) => elem,
             Err(e) => {
-                iced::widget::text(format!("Error rendering UI: {}", e))
-                    .color(iced::Color::from_rgb(1.0, 0.0, 0.0))
+                text(format!("Error rendering UI: {}", e))
+                    .color(Color::from_rgb(1.0, 0.0, 0.0))
                     .into()
             }
         }
     }
 
-    fn subscription(&self) -> iced::Subscription<MensagemMotor> {
-        MotorUI::subscricao_recarregamento(Duration::from_millis(500))
+    fn subscription(&self) -> Subscription<EngineMessage> {
+        UiEngine::reload_subscription(Duration::from_millis(500))
     }
 }
 

@@ -1,4 +1,4 @@
-use xml_ui::{MotorUI, MensagemMotor};
+use xml_ui::{UiEngine, EngineMessage};
 use iced::{Element, Task};
 use std::time::Duration;
 
@@ -11,7 +11,7 @@ struct Membro {
 }
 
 struct AppLista {
-    motor: MotorUI,
+    motor: UiEngine,
     membros: Vec<Membro>,
     proximo: usize,
 }
@@ -28,16 +28,13 @@ const CANDIDATOS: [(&str, &str); 4] = [
 ];
 
 impl AppLista {
-    fn new() -> (Self, Task<MensagemMotor>) {
-        let mut motor = MotorUI::new();
+    fn new() -> (Self, Task<EngineMessage>) {
+        let mut motor = UiEngine::new();
 
-        // Componente principal (com o ForEach) e o componente reutilizável.
-        if let Err(e) = motor.registrar_componente("lista", "templates/lista_usuarios.xml") {
+        // Só o componente de entrada é registrado; CartaoUsuario é carregado
+        // pelo <import> declarado no topo de lista_usuarios.xml.
+        if let Err(e) = motor.register_component("lista", "templates/lista_usuarios.xml") {
             eprintln!("Erro ao registrar 'lista': {}", e);
-        }
-        // O nome registrado precisa bater com a tag <CartaoUsuario> usada no XML.
-        if let Err(e) = motor.registrar_componente("CartaoUsuario", "templates/cartao_usuario.xml") {
-            eprintln!("Erro ao registrar 'CartaoUsuario': {}", e);
         }
 
         let membros = vec![
@@ -69,13 +66,13 @@ impl AppLista {
             .collect();
 
         let json = serde_json::Value::Array(arr).to_string();
-        self.motor.definir_dado("usuarios", &json);
-        self.motor.definir_dado("total", &self.membros.len().to_string());
+        self.motor.define_data("usuarios", &json);
+        self.motor.define_data("total", &self.membros.len().to_string());
     }
 
-    fn update(&mut self, message: MensagemMotor) -> Task<MensagemMotor> {
+    fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
         match message {
-            MensagemMotor::XmlClick(acao) if acao == "adicionar" => {
+            EngineMessage::XmlClick(acao) if acao == "adicionar" => {
                 let (nome, cargo) = CANDIDATOS[self.proximo % CANDIDATOS.len()];
                 let cor = PALETA[self.membros.len() % PALETA.len()];
                 self.membros.push(Membro {
@@ -86,8 +83,8 @@ impl AppLista {
                 self.proximo += 1;
                 self.sincronizar();
             }
-            MensagemMotor::FileChanged(_) => {
-                let reloaded = self.motor.verificar_recarregamento();
+            EngineMessage::FileChanged(_) => {
+                let reloaded = self.motor.check_reload();
                 if !reloaded.is_empty() {
                     println!("Componentes recarregados: {:?}", reloaded);
                 }
@@ -97,17 +94,17 @@ impl AppLista {
         Task::none()
     }
 
-    fn view(&self) -> Element<'_, MensagemMotor> {
-        match self.motor.renderizar("lista") {
+    fn view(&self) -> Element<'_, EngineMessage> {
+        match self.motor.render("lista") {
             Ok(elem) => elem,
-            Err(e) => iced::widget::text(format!("Erro ao renderizar: {}", e))
+            Err(e) => iced::widget::text(format!("Erro ao render: {}", e))
                 .color(iced::Color::from_rgb(1.0, 0.0, 0.0))
                 .into(),
         }
     }
 
-    fn subscription(&self) -> iced::Subscription<MensagemMotor> {
-        MotorUI::subscricao_recarregamento(Duration::from_millis(500))
+    fn subscription(&self) -> iced::Subscription<EngineMessage> {
+        UiEngine::reload_subscription(Duration::from_millis(500))
     }
 }
 

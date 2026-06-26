@@ -1,3 +1,5 @@
+<import name="PerfilCard" from="templates/perfil_card.xml" />
+
 <Container
     padding="30"
     width="fill"

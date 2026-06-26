@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use roxmltree::Node;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TipoNo {
+pub enum NodeType {
     Container,
     Column,
     Row,
@@ -15,6 +15,10 @@ pub enum TipoNo {
     Button {
         text: String,
         on_click: Option<String>,
+        /// Destination screen on click (`navigateTo` attribute).
+        navigate_to: Option<String>,
+        /// If `true`, goes back to the previous screen (`navigateBack` attribute).
+        navigate_back: bool,
         color: Option<String>,
     },
     TextInput {
@@ -36,6 +40,13 @@ pub enum TipoNo {
         name: String,
         props: HashMap<String, String>,
     },
+    /// Declares that a component named `name` should be loaded from the XML
+    /// file at `from`, e.g. `<import name="PerfilCard" from="templates/perfil_card.xml" />`.
+    /// Processed at registration time and stripped before rendering.
+    Import {
+        name: String,
+        from: String,
+    },
     ForEach {
         items: String,
         var: String,
@@ -43,11 +54,11 @@ pub enum TipoNo {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NoUI {
-    pub tipo: TipoNo,
-    pub filhos: Vec<NoUI>,
-    pub largura: Option<String>,
-    pub altura: Option<String>,
+pub struct UiNode {
+    pub kind: NodeType,
+    pub children: Vec<UiNode>,
+    pub width: Option<String>,
+    pub height: Option<String>,
     pub padding: Option<String>,
     pub align_x: Option<String>,
     pub align_y: Option<String>,
@@ -58,7 +69,7 @@ pub struct NoUI {
     pub border_color: Option<String>,
 }
 
-impl NoUI {
+impl UiNode {
     /// Helper to find a specific attribute case-insensitively
     fn get_attr(node: &Node, keys: &[&str]) -> Option<String> {
         for key in keys {
@@ -81,7 +92,7 @@ impl NoUI {
             .unwrap_or(false)
     }
 
-    /// Recursively parse a roxmltree Node into NoUI
+    /// Recursively parse a roxmltree Node into UiNode
     pub fn from_node(node: Node) -> Option<Self> {
         if !node.is_element() {
             return None;
@@ -90,8 +101,8 @@ impl NoUI {
         let tag = node.tag_name().name();
         
         // Parse standard layout/style attributes
-        let largura = Self::get_attr(&node, &["width", "largura", "w"]);
-        let altura = Self::get_attr(&node, &["height", "altura", "h"]);
+        let width = Self::get_attr(&node, &["width", "largura", "w"]);
+        let height = Self::get_attr(&node, &["height", "altura", "h"]);
         let padding = Self::get_attr(&node, &["padding", "espacamento_interno"]);
         let align_x = Self::get_attr(&node, &["alignX", "align_x", "align-x", "alinhamento_x"]);
         let align_y = Self::get_attr(&node, &["alignY", "align_y", "align-y", "alinhamento_y"]);
@@ -101,34 +112,36 @@ impl NoUI {
         let border_width = Self::get_attr_f32(&node, &["borderWidth", "border_width", "border-width", "largura_borda"]);
         let border_color = Self::get_attr(&node, &["borderColor", "border_color", "border-color", "cor_borda"]);
 
-        let tipo = match tag {
-            "Container" | "container" => TipoNo::Container,
-            "Column" | "column" => TipoNo::Column,
-            "Row" | "row" => TipoNo::Row,
+        let kind = match tag {
+            "Container" | "container" => NodeType::Container,
+            "Column" | "column" => NodeType::Column,
+            "Row" | "row" => NodeType::Row,
             "Text" | "text" => {
                 let content = Self::get_attr(&node, &["content", "conteudo", "text", "texto"]).unwrap_or_default();
                 let size = Self::get_attr_f32(&node, &["size", "tamanho"]);
                 let bold = Self::get_attr_bool(&node, &["bold", "negrito"]);
                 let color = Self::get_attr(&node, &["color", "cor"]);
-                TipoNo::Text { content, size, bold, color }
+                NodeType::Text { content, size, bold, color }
             }
             "Button" | "button" | "Botao" | "botao" => {
                 let text = Self::get_attr(&node, &["text", "texto", "content", "conteudo"]).unwrap_or_default();
                 let on_click = Self::get_attr(&node, &["onClick", "on_click", "on-click", "aoClicar", "ao_clicar"]);
+                let navigate_to = Self::get_attr(&node, &["navigateTo", "navigate_to", "navigate-to", "irPara", "ir_para"]);
+                let navigate_back = Self::get_attr_bool(&node, &["navigateBack", "navigate_back", "navigate-back", "voltar"]);
                 let color = Self::get_attr(&node, &["color", "cor"]);
-                TipoNo::Button { text, on_click, color }
+                NodeType::Button { text, on_click, navigate_to, navigate_back, color }
             }
             "TextInput" | "textinput" | "Input" | "input" | "EntradaTexto" | "entrada_texto" => {
                 let placeholder = Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();
                 let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
                 let on_change = Self::get_attr(&node, &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"]).unwrap_or_default();
-                TipoNo::TextInput { placeholder, value_var, on_change }
+                NodeType::TextInput { placeholder, value_var, on_change }
             }
             "Image" | "image" | "Imagem" | "imagem" => {
                 let source = Self::get_attr(&node, &["source", "src", "origem", "caminho"]).unwrap_or_default();
                 let clip = Self::get_attr(&node, &["clip", "corte"]);
                 let clip_circle = clip.map(|s| s.eq_ignore_ascii_case("Circle") || s.eq_ignore_ascii_case("circle")).unwrap_or(false);
-                TipoNo::Image { source, clip_circle }
+                NodeType::Image { source, clip_circle }
             }
             "Include" | "include" | "Incluir" | "incluir" => {
                 let src = Self::get_attr(&node, &["src", "fonte"]).unwrap_or_default();
@@ -140,12 +153,17 @@ impl NoUI {
                         props.insert(attr_name.to_string(), attr.value().to_string());
                     }
                 }
-                TipoNo::Include { src, props }
+                NodeType::Include { src, props }
+            }
+            "import" | "Import" | "importar" | "Importar" => {
+                let name = Self::get_attr(&node, &["name", "nome", "as"]).unwrap_or_default();
+                let from = Self::get_attr(&node, &["from", "de", "src", "path", "caminho"]).unwrap_or_default();
+                NodeType::Import { name, from }
             }
             "ForEach" | "foreach" | "For" | "for" => {
                 let items = Self::get_attr(&node, &["items", "itens", "source", "origem"]).unwrap_or_default();
                 let var = Self::get_attr(&node, &["var", "variavel"]).unwrap_or_default();
-                TipoNo::ForEach { items, var }
+                NodeType::ForEach { items, var }
             }
             _ => {
                 // Any unknown tag is treated as a reference to another component
@@ -155,7 +173,7 @@ impl NoUI {
                 for attr in node.attributes() {
                     props.insert(attr.name().to_string(), attr.value().to_string());
                 }
-                TipoNo::Component {
+                NodeType::Component {
                     name: tag.to_string(),
                     props,
                 }
@@ -163,18 +181,18 @@ impl NoUI {
         };
 
         // Recursively parse children
-        let mut filhos = Vec::new();
+        let mut children = Vec::new();
         for child in node.children() {
             if let Some(child_node) = Self::from_node(child) {
-                filhos.push(child_node);
+                children.push(child_node);
             }
         }
 
         Some(Self {
-            tipo,
-            filhos,
-            largura,
-            altura,
+            kind,
+            children,
+            width,
+            height,
             padding,
             align_x,
             align_y,
@@ -186,9 +204,32 @@ impl NoUI {
         })
     }
 
-    /// Parse a full XML string into NoUI
+    /// Parse a full XML string into UiNode.
+    ///
+    /// A file may declare `<import name="..." from="..." />` at the top level,
+    /// before its actual root element. To allow these sibling declarations the
+    /// content is wrapped in a synthetic root before parsing; the imports are
+    /// then attached to the real root as children (they are stripped before
+    /// rendering, so they have no visual effect but remain discoverable).
     pub fn parse_xml(xml: &str) -> Result<Self, String> {
-        let doc = roxmltree::Document::parse(xml).map_err(|e| e.to_string())?;
-        Self::from_node(doc.root_element()).ok_or_else(|| "Failed to parse root element".to_string())
+        let wrapped = format!("<__xmlui_fragment__>{}</__xmlui_fragment__>", xml);
+        let doc = roxmltree::Document::parse(&wrapped).map_err(|e| e.to_string())?;
+        let fragment = doc.root_element();
+
+        let mut imports = Vec::new();
+        let mut root: Option<Self> = None;
+        for child in fragment.children() {
+            if let Some(node) = Self::from_node(child) {
+                if matches!(node.kind, NodeType::Import { .. }) {
+                    imports.push(node);
+                } else if root.is_none() {
+                    root = Some(node);
+                }
+            }
+        }
+
+        let mut root = root.ok_or_else(|| "No root element found".to_string())?;
+        root.children.extend(imports);
+        Ok(root)
     }
 }

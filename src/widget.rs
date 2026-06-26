@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 use iced::widget::{button, column, row, text, container, text_input, image};
 use iced::{Element, Length, Alignment, Color, Border, Padding, Background};
-use crate::parser::{NoUI, TipoNo};
+use crate::parser::{UiNode, NodeType};
 
 #[derive(Debug, Clone)]
-pub enum MensagemMotor {
+pub enum EngineMessage {
     XmlClick(String),
     XmlInputChanged { action: String, value: String },
+    /// Navigate to the given screen (button with `navigateTo`).
+    Navigate(String),
+    /// Go back to the previous screen (button with `navigateBack`).
+    NavigateBack,
     FileChanged(String),
 }
 
@@ -83,14 +87,14 @@ fn parse_hex_color(s: &str) -> Option<Color> {
     }
 }
 
-/// Generate Iced widgets recursively from NoUI tree.
+/// Generate Iced widgets recursively from UiNode tree.
 /// References to strings are borrowed directly from the AST node with lifetime 'a.
-pub fn renderizar_no<'a>(
-    no: &'a NoUI,
-    contexto: &'a HashMap<String, String>,
-) -> Element<'a, MensagemMotor> {
-    let mut element: Element<'a, MensagemMotor> = match &no.tipo {
-        TipoNo::Text { content, size, bold, color } => {
+pub fn render_node<'a>(
+    node: &'a UiNode,
+    context: &'a HashMap<String, String>,
+) -> Element<'a, EngineMessage> {
+    let mut element: Element<'a, EngineMessage> = match &node.kind {
+        NodeType::Text { content, size, bold, color } => {
             let mut t = text(content.as_str());
             if let Some(s) = size {
                 t = t.size(*s);
@@ -106,15 +110,20 @@ pub fn renderizar_no<'a>(
                     t = t.color(col);
                 }
             }
-            t.width(parse_length(&no.largura))
-             .height(parse_length(&no.altura))
+            t.width(parse_length(&node.width))
+             .height(parse_length(&node.height))
              .into()
         }
-        TipoNo::Button { text: btn_text, on_click, color } => {
+        NodeType::Button { text: btn_text, on_click, navigate_to, navigate_back, color } => {
             let t = text(btn_text.as_str());
             let mut btn = button(t);
-            if let Some(action) = on_click {
-                btn = btn.on_press(MensagemMotor::XmlClick(action.clone()));
+            // Navigation takes priority over the generic on_click.
+            if *navigate_back {
+                btn = btn.on_press(EngineMessage::NavigateBack);
+            } else if let Some(destination) = navigate_to {
+                btn = btn.on_press(EngineMessage::Navigate(destination.clone()));
+            } else if let Some(action) = on_click {
+                btn = btn.on_press(EngineMessage::XmlClick(action.clone()));
             }
             
             if let Some(c_str) = color {
@@ -145,44 +154,44 @@ pub fn renderizar_no<'a>(
                 }
             }
             
-            btn.width(parse_length(&no.largura))
-               .height(parse_length(&no.altura))
-               .padding(parse_padding(&no.padding))
+            btn.width(parse_length(&node.width))
+               .height(parse_length(&node.height))
+               .padding(parse_padding(&node.padding))
                .into()
         }
-        TipoNo::TextInput { placeholder, value_var, on_change } => {
-            let current_value = contexto.get(value_var).map(|s| s.as_str()).unwrap_or("");
+        NodeType::TextInput { placeholder, value_var, on_change } => {
+            let current_value = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
             let action_clone = on_change.clone();
             
             let mut input = text_input(placeholder.as_str(), current_value)
-                .on_input(move |val| MensagemMotor::XmlInputChanged {
+                .on_input(move |val| EngineMessage::XmlInputChanged {
                     action: action_clone.clone(),
                     value: val,
                 });
             
-            input = input.width(parse_length(&no.largura))
-                         .padding(parse_padding(&no.padding));
+            input = input.width(parse_length(&node.width))
+                         .padding(parse_padding(&node.padding));
 
-            let mut elem: Element<'a, MensagemMotor> = input.into();
+            let mut elem: Element<'a, EngineMessage> = input.into();
             
-            if no.altura.is_some() {
+            if node.height.is_some() {
                 elem = container(elem)
-                    .height(parse_length(&no.altura))
+                    .height(parse_length(&node.height))
                     .align_y(Alignment::Center)
                     .into();
             }
             elem
         }
-        TipoNo::Image { source, clip_circle } => {
+        NodeType::Image { source, clip_circle } => {
             let handle = image::Handle::from_path(source.clone());
             let img = image(handle);
             
-            let w_len = parse_length(&no.largura);
-            let h_len = parse_length(&no.altura);
+            let w_len = parse_length(&node.width);
+            let h_len = parse_length(&node.height);
 
             if *clip_circle {
-                let w_val = no.largura.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(80.0);
-                let h_val = no.altura.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(80.0);
+                let w_val = node.width.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(80.0);
+                let h_val = node.height.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(80.0);
                 let radius = w_val.min(h_val) / 2.0;
 
                 let clipped_img = img.width(Length::Fixed(w_val)).height(Length::Fixed(h_val));
@@ -205,71 +214,71 @@ pub fn renderizar_no<'a>(
                 img.width(w_len).height(h_len).into()
             }
         }
-        TipoNo::Column => {
+        NodeType::Column => {
             let mut col = column![];
             
-            if let Some(align_val) = parse_alignment(&no.align_x) {
+            if let Some(align_val) = parse_alignment(&node.align_x) {
                 col = col.align_x(align_val);
             }
             
-            if let Some(sp) = no.spacing {
+            if let Some(sp) = node.spacing {
                 col = col.spacing(sp);
             }
             
-            col = col.padding(parse_padding(&no.padding));
+            col = col.padding(parse_padding(&node.padding));
 
-            for filho in &no.filhos {
-                col = col.push(renderizar_no(filho, contexto));
+            for child in &node.children {
+                col = col.push(render_node(child, context));
             }
             
-            col.width(parse_length(&no.largura))
-               .height(parse_length(&no.altura))
+            col.width(parse_length(&node.width))
+               .height(parse_length(&node.height))
                .into()
         }
-        TipoNo::Row => {
+        NodeType::Row => {
             let mut r = row![];
             
-            if let Some(align_val) = parse_alignment(&no.align_y) {
+            if let Some(align_val) = parse_alignment(&node.align_y) {
                 r = r.align_y(align_val);
             }
             
-            if let Some(sp) = no.spacing {
+            if let Some(sp) = node.spacing {
                 r = r.spacing(sp);
             }
             
-            r = r.padding(parse_padding(&no.padding));
+            r = r.padding(parse_padding(&node.padding));
 
-            for filho in &no.filhos {
-                r = r.push(renderizar_no(filho, contexto));
+            for child in &node.children {
+                r = r.push(render_node(child, context));
             }
             
-            r.width(parse_length(&no.largura))
-             .height(parse_length(&no.altura))
+            r.width(parse_length(&node.width))
+             .height(parse_length(&node.height))
              .into()
         }
-        TipoNo::Container => {
-            let child: Element<'a, MensagemMotor> = if let Some(first_child) = no.filhos.first() {
-                renderizar_no(first_child, contexto)
+        NodeType::Container => {
+            let child: Element<'a, EngineMessage> = if let Some(first_child) = node.children.first() {
+                render_node(first_child, context)
             } else {
                 column![].into()
             };
 
             let mut c = container(child);
-            c = c.width(parse_length(&no.largura))
-                 .height(parse_length(&no.altura))
-                 .padding(parse_padding(&no.padding));
+            c = c.width(parse_length(&node.width))
+                 .height(parse_length(&node.height))
+                 .padding(parse_padding(&node.padding));
 
-            if let Some(ax) = parse_alignment(&no.align_x) {
+            if let Some(ax) = parse_alignment(&node.align_x) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&no.align_y) {
+            if let Some(ay) = parse_alignment(&node.align_y) {
                 c = c.align_y(ay);
             }
 
-            let bg_opt = no.background.as_ref().and_then(|bg| parse_hex_color(bg));
-            let br_opt = no.border_radius;
-            let bw_opt = no.border_width.unwrap_or(0.0);
-            let bc_opt = no.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
+            let bg_opt = node.background.as_ref().and_then(|bg| parse_hex_color(bg));
+            let br_opt = node.border_radius;
+            let bw_opt = node.border_width.unwrap_or(0.0);
+            let bc_opt = node.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
 
             if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
                 c = c.style(move |_theme| {
@@ -287,34 +296,38 @@ pub fn renderizar_no<'a>(
             
             c.into()
         }
-        TipoNo::Include { .. } => {
+        NodeType::Include { .. } => {
             container(text("Unresolved Include").color(Color::from_rgb(1.0, 0.0, 0.0))).into()
         }
-        TipoNo::Component { name, .. } => {
+        NodeType::Component { name, .. } => {
             container(text(format!("Unresolved component <{}>", name)).color(Color::from_rgb(1.0, 0.0, 0.0))).into()
         }
-        TipoNo::ForEach { .. } => {
+        NodeType::ForEach { .. } => {
             // ForEach is expanded during evaluation; nothing to render directly.
+            column![].into()
+        }
+        NodeType::Import { .. } => {
+            // Import declarations are stripped during evaluation; render nothing.
             column![].into()
         }
     };
 
     // Wrap elements other than Container in a Container if background/borders are specified
-    if no.tipo != TipoNo::Container {
-        let bg_opt = no.background.as_ref().and_then(|bg| parse_hex_color(bg));
-        let br_opt = no.border_radius;
-        let bw_opt = no.border_width.unwrap_or(0.0);
-        let bc_opt = no.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
+    if node.kind != NodeType::Container {
+        let bg_opt = node.background.as_ref().and_then(|bg| parse_hex_color(bg));
+        let br_opt = node.border_radius;
+        let bw_opt = node.border_width.unwrap_or(0.0);
+        let bc_opt = node.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
 
         if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
             let mut c = container(element);
-            c = c.width(parse_length(&no.largura))
-                 .height(parse_length(&no.altura));
+            c = c.width(parse_length(&node.width))
+                 .height(parse_length(&node.height));
             
-            if let Some(ax) = parse_alignment(&no.align_x) {
+            if let Some(ax) = parse_alignment(&node.align_x) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&no.align_y) {
+            if let Some(ay) = parse_alignment(&node.align_y) {
                 c = c.align_y(ay);
             }
 

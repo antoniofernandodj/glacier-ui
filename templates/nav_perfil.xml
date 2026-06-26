@@ -1,0 +1,16 @@
+<Container padding="40" width="fill" height="fill" background="#11111B" alignX="Center" alignY="Center">
+    <Column spacing="18" align="Center">
+        <Text content="Perfil" size="32" bold="true" color="#F5E0DC" />
+
+        <Container padding="24" width="320" background="#181825" border_radius="16" border_width="1" border_color="#313244" alignX="Center">
+            <Column spacing="8" align="Center">
+                <!-- Lê o mesmo estado compartilhado editado na tela de Configurações -->
+                <Text content="{user_name}" size="22" bold="true" color="#CDD6F4" />
+                <Text content="{user_role}" size="14" color="#A6ADC8" />
+            </Column>
+        </Container>
+
+        <!-- navigateBack volta para a tela anterior do histórico -->
+        <Button text="Voltar" navigateBack="true" color="#313244" width="240" padding="12" />
+    </Column>
+</Container>

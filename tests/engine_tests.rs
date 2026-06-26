@@ -1,4 +1,4 @@
-use xml_ui::{MotorUI, NoUI, TipoNo};
+use xml_ui::{UiEngine, UiNode, NodeType};
 
 #[test]
 fn test_parser_basic() {
@@ -11,22 +11,22 @@ fn test_parser_basic() {
     </Container>
     "##;
 
-    let ast = NoUI::parse_xml(xml).unwrap();
+    let ast = UiNode::parse_xml(xml).unwrap();
     
-    assert_eq!(ast.tipo, TipoNo::Container);
+    assert_eq!(ast.kind, NodeType::Container);
     assert_eq!(ast.padding.as_deref(), Some("15"));
-    assert_eq!(ast.largura.as_deref(), Some("200"));
+    assert_eq!(ast.width.as_deref(), Some("200"));
     assert_eq!(ast.background.as_deref(), Some("#FFFFFF"));
     
-    assert_eq!(ast.filhos.len(), 1);
-    let column = &ast.filhos[0];
-    assert_eq!(column.tipo, TipoNo::Column);
+    assert_eq!(ast.children.len(), 1);
+    let column = &ast.children[0];
+    assert_eq!(column.kind, NodeType::Column);
     assert_eq!(column.spacing, Some(10.0));
     
-    assert_eq!(column.filhos.len(), 2);
+    assert_eq!(column.children.len(), 2);
     
-    let text = &column.filhos[0];
-    if let TipoNo::Text { content, size, bold, .. } = &text.tipo {
+    let text = &column.children[0];
+    if let NodeType::Text { content, size, bold, .. } = &text.kind {
         assert_eq!(content, "Hello World");
         assert_eq!(*size, Some(20.0));
         assert!(bold);
@@ -34,8 +34,8 @@ fn test_parser_basic() {
         panic!("First child of Column should be Text");
     }
 
-    let button = &column.filhos[1];
-    if let TipoNo::Button { text, on_click, .. } = &button.tipo {
+    let button = &column.children[1];
+    if let NodeType::Button { text, on_click, .. } = &button.kind {
         assert_eq!(text, "Click Me");
         assert_eq!(on_click.as_deref(), Some("btn_click"));
     } else {
@@ -45,7 +45,7 @@ fn test_parser_basic() {
 
 #[test]
 fn test_interpolation() {
-    let mut motor = MotorUI::new();
+    let mut motor = UiEngine::new();
     
     let temp_xml_path = "templates/test_temp.xml";
     std::fs::create_dir_all("templates").ok();
@@ -54,13 +54,13 @@ fn test_interpolation() {
         r##"<Text content="Welcome, {user_name}! Role: {user_role}" />"##
     ).unwrap();
 
-    motor.registrar_componente("test_comp", temp_xml_path).unwrap();
+    motor.register_component("test_comp", temp_xml_path).unwrap();
     
-    motor.definir_dado("user_name", "Bob");
-    motor.definir_dado("user_role", "Admin");
+    motor.define_data("user_name", "Bob");
+    motor.define_data("user_role", "Admin");
 
     let evaluated = motor.evaluated_templates.get("test_comp").unwrap();
-    if let TipoNo::Text { content, .. } = &evaluated.tipo {
+    if let NodeType::Text { content, .. } = &evaluated.kind {
         assert_eq!(content, "Welcome, Bob! Role: Admin");
     } else {
         panic!("Root node should be evaluated Text");
@@ -71,7 +71,7 @@ fn test_interpolation() {
 
 #[test]
 fn test_includes() {
-    let mut motor = MotorUI::new();
+    let mut motor = UiEngine::new();
     
     std::fs::create_dir_all("templates").ok();
     
@@ -93,23 +93,23 @@ fn test_includes() {
         "##
     ).unwrap();
 
-    motor.registrar_componente("test_card", card_path).unwrap();
-    motor.registrar_componente("test_main", main_path).unwrap();
+    motor.register_component("test_card", card_path).unwrap();
+    motor.register_component("test_main", main_path).unwrap();
 
     let evaluated = motor.evaluated_templates.get("test_main").unwrap();
-    assert_eq!(evaluated.tipo, TipoNo::Column);
-    assert_eq!(evaluated.filhos.len(), 2);
+    assert_eq!(evaluated.kind, NodeType::Column);
+    assert_eq!(evaluated.children.len(), 2);
 
-    let first_child = &evaluated.filhos[0];
-    assert_eq!(first_child.tipo, TipoNo::Container);
-    if let TipoNo::Text { content, .. } = &first_child.filhos[0].tipo {
+    let first_child = &evaluated.children[0];
+    assert_eq!(first_child.kind, NodeType::Container);
+    if let NodeType::Text { content, .. } = &first_child.children[0].kind {
         assert_eq!(content, "User: Alice");
     } else {
         panic!("Included first child should contain text 'User: Alice'");
     }
 
-    let second_child = &evaluated.filhos[1];
-    if let TipoNo::Text { content, .. } = &second_child.filhos[0].tipo {
+    let second_child = &evaluated.children[1];
+    if let NodeType::Text { content, .. } = &second_child.children[0].kind {
         assert_eq!(content, "User: Charlie");
     } else {
         panic!("Included second child should contain text 'User: Charlie'");
@@ -120,8 +120,79 @@ fn test_includes() {
 }
 
 #[test]
+fn test_import_recursivo() {
+    let mut motor = UiEngine::new();
+
+    std::fs::create_dir_all("templates").ok();
+
+    let main_path = "templates/test_imp_main.xml";
+    let card_path = "templates/test_imp_card.xml";
+    let badge_path = "templates/test_imp_badge.xml";
+
+    // badge: folha, sem imports.
+    std::fs::write(
+        badge_path,
+        r##"<Text content="[{label}]" />"##
+    ).unwrap();
+
+    // card: importa badge e o usa pelo nome.
+    std::fs::write(
+        card_path,
+        r##"<import name="Badge" from="templates/test_imp_badge.xml" />
+        <Container background="#222">
+            <Column>
+                <Text content="User: {name}" />
+                <Badge label="ok" />
+            </Column>
+        </Container>"##
+    ).unwrap();
+
+    // main: importa card (que por sua vez importa badge — recursivo).
+    std::fs::write(
+        main_path,
+        r##"<import name="Card" from="templates/test_imp_card.xml" />
+        <Column>
+            <Card name="Alice" />
+        </Column>"##
+    ).unwrap();
+
+    // Apenas o componente de entrada é registrado.
+    motor.register_component("main", main_path).unwrap();
+
+    // Os imports recursivos devem ter sido carregados automaticamente.
+    assert!(motor.parsed_templates.contains_key("Card"), "Card deveria ter sido importado");
+    assert!(motor.parsed_templates.contains_key("Badge"), "Badge deveria ter sido importado recursivamente");
+
+    let evaluated = motor.evaluated_templates.get("main").unwrap();
+    assert_eq!(evaluated.kind, NodeType::Column);
+    // O Card expande para um Container; o import declarado não deve virar filho visível.
+    assert_eq!(evaluated.children.len(), 1);
+    let card = &evaluated.children[0];
+    assert_eq!(card.kind, NodeType::Container);
+
+    let inner_col = &card.children[0];
+    assert_eq!(inner_col.kind, NodeType::Column);
+    // Column interna: Text "User: Alice" + Badge expandido para Text "[ok]".
+    assert_eq!(inner_col.children.len(), 2);
+    if let NodeType::Text { content, .. } = &inner_col.children[0].kind {
+        assert_eq!(content, "User: Alice");
+    } else {
+        panic!("Esperava Text 'User: Alice'");
+    }
+    if let NodeType::Text { content, .. } = &inner_col.children[1].kind {
+        assert_eq!(content, "[ok]");
+    } else {
+        panic!("Esperava Badge expandido em Text '[ok]'");
+    }
+
+    std::fs::remove_file(main_path).ok();
+    std::fs::remove_file(card_path).ok();
+    std::fs::remove_file(badge_path).ok();
+}
+
+#[test]
 fn test_componente_por_nome() {
-    let mut motor = MotorUI::new();
+    let mut motor = UiEngine::new();
 
     std::fs::create_dir_all("templates").ok();
 
@@ -145,22 +216,22 @@ fn test_componente_por_nome() {
     ).unwrap();
 
     // The registered name must match the tag used in the XML.
-    motor.registrar_componente("UserCard", card_path).unwrap();
-    motor.registrar_componente("test_main_comp", main_path).unwrap();
+    motor.register_component("UserCard", card_path).unwrap();
+    motor.register_component("test_main_comp", main_path).unwrap();
 
     let evaluated = motor.evaluated_templates.get("test_main_comp").unwrap();
-    assert_eq!(evaluated.tipo, TipoNo::Column);
-    assert_eq!(evaluated.filhos.len(), 2);
+    assert_eq!(evaluated.kind, NodeType::Column);
+    assert_eq!(evaluated.children.len(), 2);
 
-    let first_child = &evaluated.filhos[0];
-    assert_eq!(first_child.tipo, TipoNo::Container);
-    if let TipoNo::Text { content, .. } = &first_child.filhos[0].tipo {
+    let first_child = &evaluated.children[0];
+    assert_eq!(first_child.kind, NodeType::Container);
+    if let NodeType::Text { content, .. } = &first_child.children[0].kind {
         assert_eq!(content, "User: Alice");
     } else {
         panic!("Component first child should contain text 'User: Alice'");
     }
 
-    if let TipoNo::Text { content, .. } = &evaluated.filhos[1].filhos[0].tipo {
+    if let NodeType::Text { content, .. } = &evaluated.children[1].children[0].kind {
         assert_eq!(content, "User: Charlie");
     } else {
         panic!("Component second child should contain text 'User: Charlie'");
@@ -172,7 +243,7 @@ fn test_componente_por_nome() {
 
 #[test]
 fn test_foreach_com_componente() {
-    let mut motor = MotorUI::new();
+    let mut motor = UiEngine::new();
 
     std::fs::create_dir_all("templates").ok();
 
@@ -197,30 +268,30 @@ fn test_foreach_com_componente() {
         "##
     ).unwrap();
 
-    motor.registrar_componente("Cartao", card_path).unwrap();
-    motor.registrar_componente("test_lista", main_path).unwrap();
+    motor.register_component("Cartao", card_path).unwrap();
+    motor.register_component("test_lista", main_path).unwrap();
 
     let data = r#"[
         {"nome": "Ana", "cargo": "Dev"},
         {"nome": "Bruno", "cargo": "Design"}
     ]"#;
-    motor.definir_dado("membros", data);
+    motor.define_data("membros", data);
 
     let evaluated = motor.evaluated_templates.get("test_lista").unwrap();
-    assert_eq!(evaluated.tipo, TipoNo::Column);
-    assert_eq!(evaluated.filhos.len(), 2);
+    assert_eq!(evaluated.kind, NodeType::Column);
+    assert_eq!(evaluated.children.len(), 2);
 
     // Cada iteração do loop deve produzir o Container do componente,
     // com as props já substituídas pelos valores do item.
-    let primeiro = &evaluated.filhos[0];
-    assert_eq!(primeiro.tipo, TipoNo::Container);
-    if let TipoNo::Text { content, .. } = &primeiro.filhos[0].tipo {
+    let primeiro = &evaluated.children[0];
+    assert_eq!(primeiro.kind, NodeType::Container);
+    if let NodeType::Text { content, .. } = &primeiro.children[0].kind {
         assert_eq!(content, "Ana - Dev");
     } else {
         panic!("Esperava Text dentro do primeiro cartão");
     }
 
-    if let TipoNo::Text { content, .. } = &evaluated.filhos[1].filhos[0].tipo {
+    if let NodeType::Text { content, .. } = &evaluated.children[1].children[0].kind {
         assert_eq!(content, "Bruno - Design");
     } else {
         panic!("Esperava Text dentro do segundo cartão");
@@ -231,8 +302,35 @@ fn test_foreach_com_componente() {
 }
 
 #[test]
+fn test_navegacao_historico() {
+    let mut motor = UiEngine::new();
+
+    motor.set_initial_screen("home");
+    assert_eq!(motor.current_screen.as_deref(), Some("home"));
+
+    motor.navigate_to("config");
+    motor.navigate_to("perfil");
+    assert_eq!(motor.current_screen.as_deref(), Some("perfil"));
+
+    // NavigateBack desempilha o histórico na ordem inversa.
+    motor.navigate_back();
+    assert_eq!(motor.current_screen.as_deref(), Some("config"));
+    motor.navigate_back();
+    assert_eq!(motor.current_screen.as_deref(), Some("home"));
+
+    // Histórico vazio: navigate_back não muda a tela.
+    motor.navigate_back();
+    assert_eq!(motor.current_screen.as_deref(), Some("home"));
+
+    // Navigate para a tela já ativa não empilha duplicado.
+    motor.navigate_to("home");
+    motor.navigate_back();
+    assert_eq!(motor.current_screen.as_deref(), Some("home"));
+}
+
+#[test]
 fn test_foreach() {
-    let mut motor = MotorUI::new();
+    let mut motor = UiEngine::new();
     
     let path = "templates/test_foreach.xml";
     std::fs::create_dir_all("templates").ok();
@@ -247,25 +345,25 @@ fn test_foreach() {
         "##
     ).unwrap();
 
-    motor.registrar_componente("test_for", path).unwrap();
+    motor.register_component("test_for", path).unwrap();
     
     let data = r#"[
         {"name": "X", "val": "1"},
         {"name": "Y", "val": "2"}
     ]"#;
-    motor.definir_dado("items", data);
+    motor.define_data("items", data);
 
     let evaluated = motor.evaluated_templates.get("test_for").unwrap();
-    assert_eq!(evaluated.tipo, TipoNo::Column);
-    assert_eq!(evaluated.filhos.len(), 2);
+    assert_eq!(evaluated.kind, NodeType::Column);
+    assert_eq!(evaluated.children.len(), 2);
 
-    if let TipoNo::Text { content, .. } = &evaluated.filhos[0].tipo {
+    if let NodeType::Text { content, .. } = &evaluated.children[0].kind {
         assert_eq!(content, "Item: X (1)");
     } else {
         panic!("First child should be Text Item: X (1)");
     }
 
-    if let TipoNo::Text { content, .. } = &evaluated.filhos[1].tipo {
+    if let NodeType::Text { content, .. } = &evaluated.children[1].kind {
         assert_eq!(content, "Item: Y (2)");
     } else {
         panic!("Second child should be Text Item: Y (2)");
