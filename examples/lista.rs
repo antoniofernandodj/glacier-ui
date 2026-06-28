@@ -102,10 +102,7 @@ impl AppLista {
     }
 
     fn update(&mut self, message: EngineMessage) -> Task<EngineMessage> {
-        if let Err(e) = self.motor.dispatch(&message) {
-            eprintln!("Erro no dispatch: {}", e);
-        }
-        Task::none()
+        self.motor.dispatch(&message)
     }
 
     fn view(&self) -> Element<'_, EngineMessage> {

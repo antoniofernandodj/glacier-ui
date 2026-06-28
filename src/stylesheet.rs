@@ -39,6 +39,9 @@ pub struct StyleRule {
     pub color: Option<String>,
     pub size: Option<f32>,
     pub bold: Option<bool>,
+    pub font: Option<String>,
+    pub gradient: Option<String>,
+    pub text_align: Option<String>,
 }
 
 impl StyleRule {
@@ -58,6 +61,9 @@ impl StyleRule {
         if other.color.is_some() { self.color = other.color.clone(); }
         if other.size.is_some() { self.size = other.size; }
         if other.bold.is_some() { self.bold = other.bold; }
+        if other.font.is_some() { self.font = other.font.clone(); }
+        if other.gradient.is_some() { self.gradient = other.gradient.clone(); }
+        if other.text_align.is_some() { self.text_align = other.text_align.clone(); }
     }
 }
 
@@ -221,6 +227,9 @@ fn parse_rule_body(body: &str, selector: &str) -> Result<StyleRule, String> {
             "color" => rule.color = Some(value),
             "size" => rule.size = Some(parse_f32(&value)?),
             "bold" => rule.bold = Some(value.eq_ignore_ascii_case("true") || value == "1"),
+            "font" | "font-family" | "font_family" => rule.font = Some(value),
+            "gradient" => rule.gradient = Some(value),
+            "text-align" | "text_align" | "textAlign" => rule.text_align = Some(value),
             other => {
                 return Err(format!(
                     "Unknown style property '{}' in '.{}'",

@@ -5,6 +5,20 @@
 //! motor registra de uma vez via [`crate::GlacierUI::register`].
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+
+/// Um efeito assíncrono que um componente solicita durante o `update`.
+///
+/// O motor o transforma num [`iced::Task`]; quando o future completa, seus
+/// pares `(chave, valor)` são mesclados no contexto (via
+/// [`crate::EngineMessage::ContextPatch`]) e a UI é reavaliada. É a peça que
+/// deixa um componente disparar I/O (rede, disco, timers) e refletir o
+/// resultado no estado sem bloquear a thread de UI.
+pub enum Effect {
+    /// Executa um future e mescla o `Vec<(chave, valor)>` resultante no contexto.
+    Perform(Pin<Box<dyn Future<Output = Vec<(String, String)>> + Send>>),
+}
 
 /// De onde vem o XML de um componente.
 pub enum Template {
@@ -52,6 +66,7 @@ impl ContextVar {
 pub struct Context<'a> {
     pub(crate) data: &'a mut HashMap<String, String>,
     pub(crate) nav: Option<Nav>,
+    pub(crate) effects: Vec<Effect>,
 }
 
 impl<'a> Context<'a> {
@@ -78,6 +93,37 @@ impl<'a> Context<'a> {
     /// Pede ao motor para voltar à tela anterior após o `update`.
     pub fn navigate_back(&mut self) {
         self.nav = Some(Nav::Back);
+    }
+
+    /// Agenda um efeito assíncrono: o `future` roda no executor do `iced` e,
+    /// ao completar, seus pares `(chave, valor)` são mesclados no contexto e a
+    /// UI é reavaliada. Use para rede, disco e qualquer I/O sem bloquear a UI.
+    ///
+    /// ```ignore
+    /// fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+    ///     if action == "load" {
+    ///         ctx.perform(async {
+    ///             let body = fetch().await;
+    ///             vec![("status".into(), "ok".into()), ("body".into(), body)]
+    ///         });
+    ///     }
+    /// }
+    /// ```
+    pub fn perform<F>(&mut self, future: F)
+    where
+        F: Future<Output = Vec<(String, String)>> + Send + 'static,
+    {
+        self.effects.push(Effect::Perform(Box::pin(future)));
+    }
+
+    /// Agenda um efeito que produz um único par `(chave, valor)`.
+    pub fn perform_one<F>(&mut self, future: F)
+    where
+        F: Future<Output = (String, String)> + Send + 'static,
+    {
+        self.effects.push(Effect::Perform(Box::pin(async move {
+            vec![future.await]
+        })));
     }
 }
 
@@ -107,4 +153,15 @@ pub trait Component {
     /// `value` vem preenchido em inputs (`XmlInputChanged`); é `None` em
     /// cliques (`XmlClick`).
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
+
+    /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
+    /// alimentam o contexto. Mapeie cada stream para
+    /// [`crate::EngineMessage::ContextPatch`] e o motor mesclará os pares no
+    /// contexto e reavaliará a UI a cada item. O motor agrega as subscriptions
+    /// de todos os componentes registrados em [`crate::GlacierUI::subscription`].
+    ///
+    /// Padrão: nenhuma subscription.
+    fn subscription(&self) -> iced::Subscription<crate::EngineMessage> {
+        iced::Subscription::none()
+    }
 }

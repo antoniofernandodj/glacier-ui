@@ -210,6 +210,11 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Button>` | `button`, `Botao` | `text`/`texto`, `onClick`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
 | `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar` |
 | `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
+| `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
+| `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange` |
+| `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` |
+| `<Scrollable>` | `Scroll`, `Rolagem` | `direction`: `vertical` (padrão), `horizontal`, `both` — viewport rolável de 1 filho |
+| `<Rule>` | `Divider`, `Divisoria` | `direction`: `horizontal` (padrão) ou `vertical` — linha separadora |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -242,6 +247,9 @@ Disponíveis em **qualquer** tag:
 | `borderWidth` | `border_width`, `largura_borda` | número |
 | `borderColor` | `border_color`, `cor_borda` | cor hex |
 | `class` | `classe` | classes `.iss` separadas por espaço (veja [Stylesheets](#stylesheets-iss)) |
+| `font` | `fonte`, `font-family` | `mono`/`monospace`/`code` (fonte monoespaçada) ou `bold` — em `Text`/`Button` |
+| `gradient` | `gradiente` | gradiente linear de fundo: `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"` (graus); vence `background` |
+| `textAlign` | `text_align`, `text-align` | alinhamento horizontal de `Text`: `start`/`center`/`end` |
 
 - **Eixos:** o alinhamento do eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
 - **Cores:** hex `#RRGGBB` ou `#RRGGBBAA`.
@@ -653,6 +661,61 @@ recompilar. (A lógica de um `<script>` é a exceção — veja o tradeoff da ma
 
 ---
 
+## Rede e async
+
+Um componente não fica preso à thread de UI: ele pode disparar I/O (rede, disco,
+timers) por **efeitos** e receber fluxos contínuos por **subscriptions**. O
+motor faz a ponte com o executor do `iced`.
+
+**Efeitos pontuais** — dentro do `update`, chame `ctx.perform(future)`. Quando o
+future completa, seus pares `(chave, valor)` são mesclados no contexto e a UI é
+reavaliada:
+
+```rust
+fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+    if action == "carregar" {
+        ctx.set("status", "carregando…");
+        ctx.perform(async {
+            let corpo = buscar_do_servidor().await;
+            vec![("status".into(), "ok".into()), ("corpo".into(), corpo)]
+        });
+    }
+}
+```
+
+Para isso, `dispatch` agora devolve uma `iced::Task<EngineMessage>` — repasse-a
+no `update` da app:
+
+```rust
+fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
+    self.motor.dispatch(&msg)   // efeitos viram Tasks automaticamente
+}
+```
+
+**Fluxos contínuos (sockets, watchers)** — implemente `Component::subscription`
+devolvendo uma `iced::Subscription` que emita
+`EngineMessage::ContextPatch(pares)`. O motor agrega as subscriptions de todos os
+componentes em `GlacierUI::subscription`, que você liga à sua app:
+
+```rust
+fn subscription(&self) -> iced::Subscription<EngineMessage> {
+    Subscription::batch([
+        self.motor.subscription(),                       // componentes (rede)
+        GlacierUI::reload_subscription(Duration::from_millis(500)), // hot-reload
+    ])
+}
+```
+
+Cada item recebido vira um `ContextPatch`: o motor mescla os pares no contexto e
+reavalia a UI. Assim um daemon remoto, um stream de logs ou métricas atualizam a
+tela sem você escrever nenhum `match` de mensagens.
+
+> `EngineMessage::ContextPatch(Vec<(String, String)>)` também pode ser produzido
+> pela própria app e repassado a `dispatch` — é a porta de entrada genérica para
+> empurrar estado externo para dentro do contexto.
+
+---
+
 ## Referência da API
 
 ### `GlacierUI`
@@ -664,7 +727,8 @@ recompilar. (A lógica de um `<script>` é a exceção — veja o tradeoff da ma
 | `register_component(name, path)` | API de baixo nível: registra só a UI a partir de um arquivo. |
 | `load_stylesheet(path)` | carrega/recarrega um `.iss` **global** e reavalia tudo. |
 | `theme()` | o `iced::Theme` do `<link rel="theme">`, ou `Theme::Dark`. |
-| `dispatch(&EngineMessage)` | roteia a mensagem ao componente dono e aplica navegação/reload. |
+| `dispatch(&EngineMessage)` | roteia a mensagem ao componente dono, aplica navegação/reload/patch e devolve uma `iced::Task` com os efeitos pedidos. |
+| `subscription()` | agrega as `Component::subscription` de todos os componentes numa só `iced::Subscription`. |
 | `set_initial_screen(name)` | define a tela ativa inicial e limpa o histórico. |
 | `navigate_to(name)` / `navigate_back()` | navegação imperativa. |
 | `render_current()` | renderiza a tela ativa para um `Element` do `iced`. |
@@ -683,6 +747,7 @@ pub enum EngineMessage {
     Navigate(String),                                  // navigateTo
     NavigateBack,                                      // navigateBack
     FileChanged(String),                               // tick do hot-reload
+    ContextPatch(Vec<(String, String)>),               // efeitos/subscriptions -> contexto
 }
 ```
 

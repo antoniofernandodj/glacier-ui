@@ -30,6 +30,35 @@ pub enum NodeType {
         source: String,
         clip_circle: bool,
     },
+    /// A vector (SVG) image, e.g. `<Svg source="icons/rocket.svg" />`. Rendered
+    /// with `iced`'s svg widget; `color` (inline/class) tints it.
+    Svg {
+        source: String,
+        color: Option<String>,
+    },
+    /// A scrollable viewport wrapping a single child (like `Container`).
+    /// `direction` is `vertical` (default), `horizontal` or `both`.
+    Scrollable {
+        direction: String,
+    },
+    /// A checkbox bound to a context key. `checked_var` holds the truthy state;
+    /// toggling emits `on_toggle` as an `XmlInputChanged` carrying `"true"`/`"false"`.
+    Checkbox {
+        label: String,
+        checked_var: String,
+        on_toggle: String,
+    },
+    /// An on/off toggler. Same binding semantics as [`NodeType::Checkbox`].
+    Toggle {
+        label: String,
+        checked_var: String,
+        on_toggle: String,
+    },
+    /// A separator line. `horizontal` true draws a horizontal rule (default),
+    /// false a vertical one. Thickness comes from `width`/`height`.
+    Rule {
+        horizontal: bool,
+    },
     Include {
         src: String,
         props: HashMap<String, String>,
@@ -99,6 +128,15 @@ pub struct UiNode {
     /// Space-separated stylesheet classes (`class="card centered"`), resolved
     /// against the loaded `.iss` stylesheets during evaluation.
     pub class: Option<String>,
+    /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
+    /// monospaced font; anything else (or `None`) uses the default.
+    pub font: Option<String>,
+    /// A linear gradient background, overriding `background` when present.
+    /// Syntax: `"#RRGGBB #RRGGBB"` (top→bottom) or `"<angle> #a #b [#c ...]"`
+    /// where `<angle>` is in degrees.
+    pub gradient: Option<String>,
+    /// Horizontal text alignment for `Text`: `start`/`center`/`end`.
+    pub text_align: Option<String>,
 }
 
 impl UiNode {
@@ -144,6 +182,9 @@ impl UiNode {
         let border_width = Self::get_attr_f32(&node, &["borderWidth", "border_width", "border-width", "largura_borda"]);
         let border_color = Self::get_attr(&node, &["borderColor", "border_color", "border-color", "cor_borda"]);
         let class = Self::get_attr(&node, &["class", "classe"]);
+        let font = Self::get_attr(&node, &["font", "fonte", "fontFamily", "font-family"]);
+        let gradient = Self::get_attr(&node, &["gradient", "gradiente"]);
+        let text_align = Self::get_attr(&node, &["textAlign", "text_align", "text-align", "alinhamento_texto"]);
 
         let kind = match tag {
             "Container" | "container" => NodeType::Container,
@@ -175,6 +216,34 @@ impl UiNode {
                 let clip = Self::get_attr(&node, &["clip", "corte"]);
                 let clip_circle = clip.map(|s| s.eq_ignore_ascii_case("Circle") || s.eq_ignore_ascii_case("circle")).unwrap_or(false);
                 NodeType::Image { source, clip_circle }
+            }
+            "Svg" | "svg" | "Icon" | "icon" | "Icone" | "icone" => {
+                let source = Self::get_attr(&node, &["source", "src", "origem", "caminho"]).unwrap_or_default();
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::Svg { source, color }
+            }
+            "Scrollable" | "scrollable" | "Scroll" | "scroll" | "Rolagem" | "rolagem" => {
+                let direction = Self::get_attr(&node, &["direction", "direcao", "axis", "eixo"])
+                    .unwrap_or_else(|| "vertical".to_string());
+                NodeType::Scrollable { direction }
+            }
+            "Checkbox" | "checkbox" | "Check" | "check" => {
+                let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"]).unwrap_or_default();
+                let checked_var = Self::get_attr(&node, &["checked", "value", "valor", "marcado"]).unwrap_or_default();
+                let on_toggle = Self::get_attr(&node, &["onToggle", "on_toggle", "on-toggle", "onChange", "aoMudar"]).unwrap_or_default();
+                NodeType::Checkbox { label, checked_var, on_toggle }
+            }
+            "Toggle" | "toggle" | "Toggler" | "toggler" | "Switch" | "switch" => {
+                let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"]).unwrap_or_default();
+                let checked_var = Self::get_attr(&node, &["checked", "value", "valor", "marcado"]).unwrap_or_default();
+                let on_toggle = Self::get_attr(&node, &["onToggle", "on_toggle", "on-toggle", "onChange", "aoMudar"]).unwrap_or_default();
+                NodeType::Toggle { label, checked_var, on_toggle }
+            }
+            "Rule" | "rule" | "Divider" | "divider" | "Divisoria" | "divisoria" => {
+                let horizontal = Self::get_attr(&node, &["direction", "direcao", "axis", "eixo"])
+                    .map(|s| !s.eq_ignore_ascii_case("vertical") && !s.eq_ignore_ascii_case("v"))
+                    .unwrap_or(true);
+                NodeType::Rule { horizontal }
             }
             "Include" | "include" | "Incluir" | "incluir" => {
                 let src = Self::get_attr(&node, &["src", "fonte"]).unwrap_or_default();
@@ -249,6 +318,9 @@ impl UiNode {
             border_width,
             border_color,
             class,
+            font,
+            gradient,
+            text_align,
         })
     }
 

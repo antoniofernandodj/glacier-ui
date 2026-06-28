@@ -499,12 +499,12 @@ fn test_nested_component_action_routing() {
     motor.set_initial_screen("parent");
 
     // A namespaced action reaches the child's update, not the parent's.
-    motor.dispatch(&EngineMessage::XmlClick("ChildComp::ping".into())).unwrap();
+    let _ = motor.dispatch(&EngineMessage::XmlClick("ChildComp::ping".into()));
     assert_eq!(motor.get_data("child_pinged").map(String::as_str), Some("true"));
     assert_eq!(motor.get_data("parent_acted"), None);
 
     // A plain action falls back to the active screen (the parent).
-    motor.dispatch(&EngineMessage::XmlClick("parent_act".into())).unwrap();
+    let _ = motor.dispatch(&EngineMessage::XmlClick("parent_act".into()));
     assert_eq!(motor.get_data("parent_acted").map(String::as_str), Some("true"));
 }
 
@@ -698,4 +698,64 @@ fn test_link_rel_theme() {
 
     std::fs::remove_file(theme).ok();
     std::fs::remove_file(tpl).ok();
+}
+
+// ── New widgets & async bridge (v0.2) ───────────────────────────────────────
+
+#[test]
+fn parses_new_widget_tags() {
+    let xml = r##"
+    <Column>
+        <Scrollable direction="vertical"><Text content="a" /></Scrollable>
+        <Checkbox label="Remember" checked="remember" onToggle="toggle_remember" />
+        <Toggle label="Enabled" checked="enabled" onToggle="toggle_enabled" />
+        <Rule direction="horizontal" />
+        <Svg source="icons/rocket.svg" color="#89B4FA" />
+    </Column>
+    "##;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    let kinds: Vec<&NodeType> = ast.children.iter().map(|c| &c.kind).collect();
+    assert!(matches!(kinds[0], NodeType::Scrollable { .. }));
+    assert!(matches!(kinds[1], NodeType::Checkbox { .. }));
+    assert!(matches!(kinds[2], NodeType::Toggle { .. }));
+    assert!(matches!(kinds[3], NodeType::Rule { horizontal: true }));
+    assert!(matches!(kinds[4], NodeType::Svg { .. }));
+
+    if let NodeType::Checkbox { label, checked_var, on_toggle } = &ast.children[1].kind {
+        assert_eq!(label, "Remember");
+        assert_eq!(checked_var, "remember");
+        assert_eq!(on_toggle, "toggle_remember");
+    } else {
+        panic!("expected checkbox");
+    }
+}
+
+#[test]
+fn parses_font_gradient_text_align() {
+    let xml = r##"<Text content="Hi" font="mono" gradient="180 #000000 #FFFFFF" textAlign="center" />"##;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    assert_eq!(ast.font.as_deref(), Some("mono"));
+    assert_eq!(ast.gradient.as_deref(), Some("180 #000000 #FFFFFF"));
+    assert_eq!(ast.text_align.as_deref(), Some("center"));
+}
+
+#[test]
+fn context_patch_merges_into_context() {
+    use glacier_ui::EngineMessage;
+    let mut motor = GlacierUI::new();
+    let _task = motor.dispatch(&EngineMessage::ContextPatch(vec![
+        ("status".into(), "ok".into()),
+        ("count".into(), "3".into()),
+    ]));
+    assert_eq!(motor.get_data("status").map(String::as_str), Some("ok"));
+    assert_eq!(motor.get_data("count").map(String::as_str), Some("3"));
+}
+
+#[test]
+fn iss_supports_font_and_text_align() {
+    use glacier_ui::StyleSheet;
+    let sheet = StyleSheet::parse(".mono { font: mono; text-align: center; }").unwrap();
+    let rule = sheet.rules.get("mono").unwrap();
+    assert_eq!(rule.font.as_deref(), Some("mono"));
+    assert_eq!(rule.text_align.as_deref(), Some("center"));
 }

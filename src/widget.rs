@@ -1,7 +1,74 @@
 use std::collections::HashMap;
-use iced::widget::{button, column, row, text, container, text_input, image};
-use iced::{Element, Length, Alignment, Color, Border, Padding, Background};
+use iced::widget::{
+    button, column, row, text, container, text_input, image, svg, scrollable,
+    checkbox, toggler, horizontal_rule, vertical_rule,
+};
+use iced::{Element, Length, Alignment, Color, Border, Padding, Background, Font, Gradient};
+use iced::gradient::Linear;
+use iced::Radians;
 use crate::parser::{UiNode, NodeType};
+
+/// Selects an `iced::Font` from a `font="..."` hint. `mono`/`monospace`/`code`
+/// map to the monospaced font; anything else returns `None` (default font).
+fn font_for(hint: &Option<String>) -> Option<Font> {
+    match hint.as_deref().map(|s| s.to_ascii_lowercase()) {
+        Some(ref s) if s == "mono" || s == "monospace" || s == "code" => Some(Font::MONOSPACE),
+        Some(ref s) if s == "bold" => Some(Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+        _ => None,
+    }
+}
+
+/// Whether a context string should count as "checked"/true.
+fn is_truthy(s: &str) -> bool {
+    matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "on" | "sim")
+}
+
+/// Maps `start`/`center`/`end` (and aliases) to a horizontal text alignment.
+fn parse_text_align(s: &Option<String>) -> Option<iced::alignment::Horizontal> {
+    use iced::alignment::Horizontal;
+    match s.as_deref().map(|v| v.to_ascii_lowercase()) {
+        Some(ref v) if v == "start" || v == "left" => Some(Horizontal::Left),
+        Some(ref v) if v == "center" || v == "centre" => Some(Horizontal::Center),
+        Some(ref v) if v == "end" || v == "right" => Some(Horizontal::Right),
+        _ => None,
+    }
+}
+
+/// Parses a gradient spec into an `iced::Gradient`.
+///
+/// Forms: `"#a #b"` (top→bottom, 180deg) or `"<angle> #a #b [#c ...]"` where
+/// `<angle>` is in degrees (0 = upward). Needs at least two color stops.
+fn parse_gradient(spec: &str) -> Option<Gradient> {
+    let mut tokens = spec.split_whitespace().peekable();
+    let mut angle_deg = 180.0_f32;
+    // An optional leading numeric token is the angle in degrees.
+    if let Some(first) = tokens.peek() {
+        if !first.starts_with('#') {
+            if let Ok(a) = first.trim_end_matches("deg").parse::<f32>() {
+                angle_deg = a;
+                tokens.next();
+            }
+        }
+    }
+    let colors: Vec<Color> = tokens.filter_map(parse_hex_color).collect();
+    if colors.len() < 2 {
+        return None;
+    }
+    let mut linear = Linear::new(Radians(angle_deg.to_radians()));
+    let last = colors.len() - 1;
+    for (i, c) in colors.into_iter().enumerate() {
+        linear = linear.add_stop(i as f32 / last as f32, c);
+    }
+    Some(Gradient::Linear(linear))
+}
+
+/// Resolves the background of a node: a `gradient` wins over a solid `background`.
+fn background_for(node: &UiNode) -> Option<Background> {
+    if let Some(g) = node.gradient.as_ref().and_then(|s| parse_gradient(s)) {
+        return Some(Background::Gradient(g));
+    }
+    node.background.as_ref().and_then(|bg| parse_hex_color(bg)).map(Background::Color)
+}
 
 #[derive(Debug, Clone)]
 pub enum EngineMessage {
@@ -12,6 +79,10 @@ pub enum EngineMessage {
     /// Go back to the previous screen (button with `navigateBack`).
     NavigateBack,
     FileChanged(String),
+    /// Merge `(key, value)` pairs into the context and re-evaluate. Produced by
+    /// async effects ([`crate::component::Effect`]) completing and by component
+    /// subscriptions; the host app just forwards it to [`crate::GlacierUI::dispatch`].
+    ContextPatch(Vec<(String, String)>),
 }
 
 /// Helper to parse iced::Length from optional string
@@ -99,23 +170,29 @@ pub fn render_node<'a>(
             if let Some(s) = size {
                 t = t.size(*s);
             }
+            // `bold` and `font` both influence the font; bold wins, else the hint.
             if *bold {
-                t = t.font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                });
+                t = t.font(Font { weight: iced::font::Weight::Bold, ..Default::default() });
+            } else if let Some(f) = font_for(&node.font) {
+                t = t.font(f);
             }
             if let Some(c_str) = color {
                 if let Some(col) = parse_hex_color(c_str) {
                     t = t.color(col);
                 }
             }
+            if let Some(align) = parse_text_align(&node.text_align) {
+                t = t.align_x(align);
+            }
             t.width(parse_length(&node.width))
              .height(parse_length(&node.height))
              .into()
         }
         NodeType::Button { text: btn_text, on_click, navigate_to, navigate_back, color } => {
-            let t = text(btn_text.as_str());
+            let mut t = text(btn_text.as_str());
+            if let Some(f) = font_for(&node.font) {
+                t = t.font(f);
+            }
             let mut btn = button(t);
             // Navigation takes priority over the generic on_click.
             if *navigate_back {
@@ -214,6 +291,71 @@ pub fn render_node<'a>(
                 img.width(w_len).height(h_len).into()
             }
         }
+        NodeType::Svg { source, color } => {
+            let handle = svg::Handle::from_path(source.clone());
+            let mut s = svg(handle)
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height));
+            if let Some(col) = color.as_ref().and_then(|c| parse_hex_color(c)) {
+                s = s.style(move |_theme, _status| svg::Style { color: Some(col) });
+            }
+            s.into()
+        }
+        NodeType::Scrollable { direction } => {
+            let child: Element<'a, EngineMessage> = if let Some(first) = node.children.first() {
+                render_node(first, context)
+            } else {
+                column![].into()
+            };
+            let dir = match direction.to_ascii_lowercase().as_str() {
+                "horizontal" | "h" | "x" => scrollable::Direction::Horizontal(scrollable::Scrollbar::new()),
+                "both" | "xy" => scrollable::Direction::Both {
+                    vertical: scrollable::Scrollbar::new(),
+                    horizontal: scrollable::Scrollbar::new(),
+                },
+                _ => scrollable::Direction::Vertical(scrollable::Scrollbar::new()),
+            };
+            scrollable(child)
+                .direction(dir)
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height))
+                .into()
+        }
+        NodeType::Checkbox { label, checked_var, on_toggle } => {
+            let checked = context.get(checked_var).map(|s| is_truthy(s)).unwrap_or(false);
+            let action = on_toggle.clone();
+            let mut c = checkbox(label.as_str(), checked)
+                .on_toggle(move |v| EngineMessage::XmlInputChanged {
+                    action: action.clone(),
+                    value: v.to_string(),
+                });
+            if let Some(s) = node.text_align.as_ref().and_then(|_| node.spacing) {
+                c = c.spacing(s);
+            }
+            c.into()
+        }
+        NodeType::Toggle { label, checked_var, on_toggle } => {
+            let checked = context.get(checked_var).map(|s| is_truthy(s)).unwrap_or(false);
+            let action = on_toggle.clone();
+            let mut t = toggler(checked).on_toggle(move |v| EngineMessage::XmlInputChanged {
+                action: action.clone(),
+                value: v.to_string(),
+            });
+            if !label.is_empty() {
+                t = t.label(label.as_str());
+            }
+            t.into()
+        }
+        NodeType::Rule { horizontal } => {
+            // Thickness comes from the cross dimension; default 1px.
+            if *horizontal {
+                let h = node.height.as_ref().and_then(|s| s.parse::<u16>().ok()).unwrap_or(1);
+                horizontal_rule(h).into()
+            } else {
+                let w = node.width.as_ref().and_then(|s| s.parse::<u16>().ok()).unwrap_or(1);
+                vertical_rule(w).into()
+            }
+        }
         NodeType::Column => {
             let mut col = column![];
             
@@ -275,7 +417,7 @@ pub fn render_node<'a>(
                 c = c.align_y(ay);
             }
 
-            let bg_opt = node.background.as_ref().and_then(|bg| parse_hex_color(bg));
+            let bg_opt = background_for(node);
             let br_opt = node.border_radius;
             let bw_opt = node.border_width.unwrap_or(0.0);
             let bc_opt = node.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
@@ -283,7 +425,7 @@ pub fn render_node<'a>(
             if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
                 c = c.style(move |_theme| {
                     container::Style {
-                        background: bg_opt.map(|col| Background::Color(col)),
+                        background: bg_opt.clone(),
                         border: Border {
                             radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
                             width: bw_opt,
@@ -293,7 +435,7 @@ pub fn render_node<'a>(
                     }
                 });
             }
-            
+
             c.into()
         }
         NodeType::Include { .. } => {
@@ -320,9 +462,10 @@ pub fn render_node<'a>(
         }
     };
 
-    // Wrap elements other than Container in a Container if background/borders are specified
+    // Wrap elements other than Container in a Container if a background/gradient
+    // or borders are specified.
     if node.kind != NodeType::Container {
-        let bg_opt = node.background.as_ref().and_then(|bg| parse_hex_color(bg));
+        let bg_opt = background_for(node);
         let br_opt = node.border_radius;
         let bw_opt = node.border_width.unwrap_or(0.0);
         let bc_opt = node.border_color.as_ref().and_then(|bc| parse_hex_color(bc));
@@ -331,7 +474,7 @@ pub fn render_node<'a>(
             let mut c = container(element);
             c = c.width(parse_length(&node.width))
                  .height(parse_length(&node.height));
-            
+
             if let Some(ax) = parse_alignment(&node.align_x) {
                 c = c.align_x(ax);
             }
@@ -341,7 +484,7 @@ pub fn render_node<'a>(
 
             c = c.style(move |_theme| {
                 container::Style {
-                    background: bg_opt.map(|col| Background::Color(col)),
+                    background: bg_opt.clone(),
                     border: Border {
                         radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
                         width: bw_opt,

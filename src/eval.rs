@@ -228,6 +228,30 @@ fn eval_owned(
                 clip_circle: *clip_circle,
             }
         }
+        NodeType::Svg { source, color } => {
+            NodeType::Svg {
+                source: process_template(source, context),
+                color: color.as_ref()
+                    .map(|c| process_template(c, context))
+                    .or_else(|| style.color.clone()),
+            }
+        }
+        NodeType::Scrollable { direction } => NodeType::Scrollable { direction: direction.clone() },
+        NodeType::Checkbox { label, checked_var, on_toggle } => {
+            NodeType::Checkbox {
+                label: process_template(label, context),
+                checked_var: process_template(checked_var, context),
+                on_toggle: namespace_action(process_template(on_toggle, context), owner),
+            }
+        }
+        NodeType::Toggle { label, checked_var, on_toggle } => {
+            NodeType::Toggle {
+                label: process_template(label, context),
+                checked_var: process_template(checked_var, context),
+                on_toggle: namespace_action(process_template(on_toggle, context), owner),
+            }
+        }
+        NodeType::Rule { horizontal } => NodeType::Rule { horizontal: *horizontal },
         NodeType::Include { .. } | NodeType::Component { .. } | NodeType::Import { .. }
         | NodeType::ForEach { .. } | NodeType::If { .. } | NodeType::Else
         | NodeType::Link { .. } => {
@@ -254,6 +278,9 @@ fn eval_owned(
     let spacing_eval = node.spacing.or(style.spacing);
     let border_radius_eval = node.border_radius.or(style.border_radius);
     let border_width_eval = node.border_width.or(style.border_width);
+    let font_eval = resolve(&node.font, &style.font);
+    let gradient_eval = resolve(&node.gradient, &style.gradient);
+    let text_align_eval = resolve(&node.text_align, &style.text_align);
 
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
@@ -336,5 +363,8 @@ fn eval_owned(
         border_color: border_color_eval,
         // Classes are fully resolved into the fields above; nothing to carry on.
         class: None,
+        font: font_eval,
+        gradient: gradient_eval,
+        text_align: text_align_eval,
     })
 }

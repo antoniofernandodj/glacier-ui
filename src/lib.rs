@@ -7,7 +7,7 @@ pub mod stylesheet;
 pub use parser::{UiNode, NodeType};
 pub use eval::{evaluate_node, process_template, strip_script, StyleContext};
 pub use widget::{render_node, EngineMessage};
-pub use component::{Component, Context, ContextVar, Nav, Template};
+pub use component::{Component, Context, ContextVar, Effect, Nav, Template};
 pub use stylesheet::{StyleSheet, StyleRule};
 
 /// Derives `impl Component` from a struct plus the `<script>` block of an XML
@@ -199,7 +199,7 @@ impl GlacierUI {
 
         // (b) Behavior: let the component seed its initial state.
         {
-            let mut ctx = component::Context { data: &mut self.context_data, nav: None };
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new() };
             comp.init(&mut ctx);
         }
 
@@ -219,21 +219,30 @@ impl GlacierUI {
     ///
     /// Apps that use [`GlacierUI::register`] just forward every message here from
     /// their `update()` instead of matching on actions themselves.
-    pub fn dispatch(&mut self, msg: &EngineMessage) -> Result<(), String> {
+    pub fn dispatch(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
         let (action, value) = match msg {
             EngineMessage::XmlClick(a) => (a.as_str(), None),
             EngineMessage::XmlInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
             EngineMessage::Navigate(s) => {
                 self.navigate_to(s);
-                return self.reevaluate_all();
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
             }
             EngineMessage::NavigateBack => {
                 self.navigate_back();
-                return self.reevaluate_all();
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
             }
             EngineMessage::FileChanged(_) => {
                 self.check_reload();
-                return Ok(());
+                return iced::Task::none();
+            }
+            EngineMessage::ContextPatch(pairs) => {
+                for (k, v) in pairs {
+                    self.context_data.insert(k.clone(), v.clone());
+                }
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
             }
         };
 
@@ -247,22 +256,22 @@ impl GlacierUI {
             }
             Some((_, rest)) => match &self.current_screen {
                 Some(screen) => (screen.clone(), rest),
-                None => return Ok(()),
+                None => return iced::Task::none(),
             },
             None => match &self.current_screen {
                 Some(screen) => (screen.clone(), action),
-                None => return Ok(()),
+                None => return iced::Task::none(),
             },
         };
 
         // Disjoint per-field borrows (`components` vs `context_data`) are
         // accepted by the borrow checker when done inline like this.
-        let nav = if let Some(comp) = self.components.get_mut(&owner) {
-            let mut ctx = component::Context { data: &mut self.context_data, nav: None };
+        let (nav, effects) = if let Some(comp) = self.components.get_mut(&owner) {
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new() };
             comp.update(action, value, &mut ctx);
-            ctx.nav
+            (ctx.nav, ctx.effects)
         } else {
-            None
+            (None, Vec::new())
         };
 
         match nav {
@@ -271,7 +280,26 @@ impl GlacierUI {
             None => {}
         }
 
-        self.reevaluate_all()
+        let _ = self.reevaluate_all();
+
+        // Turn each requested effect into an iced Task whose completion feeds a
+        // ContextPatch back through dispatch.
+        let tasks = effects.into_iter().map(|effect| match effect {
+            component::Effect::Perform(future) => {
+                iced::Task::perform(future, EngineMessage::ContextPatch)
+            }
+        });
+        iced::Task::batch(tasks)
+    }
+
+    /// Aggregates the [`Component::subscription`] of every registered component
+    /// into a single `iced::Subscription`. Wire it into your app's
+    /// `subscription(&self)` so component-owned event sources (sockets, timers)
+    /// stay live; their emitted [`EngineMessage::ContextPatch`] values are just
+    /// forwarded to [`GlacierUI::dispatch`].
+    pub fn subscription(&self) -> iced::Subscription<EngineMessage> {
+        let subs: Vec<_> = self.components.values().map(|c| c.subscription()).collect();
+        iced::Subscription::batch(subs)
     }
 
     /// Parses and stores a component plus its imports, without re-evaluating.
