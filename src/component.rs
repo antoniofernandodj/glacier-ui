@@ -2,7 +2,7 @@
 //!
 //! Em vez de o app registrar a UI (`register_component`) e tratar o comportamento
 //! à parte no seu `update()`, um [`Component`] junta os dois num único tipo que o
-//! motor registra de uma vez via [`crate::UiEngine::register`].
+//! motor registra de uma vez via [`crate::GlacierUI::register`].
 
 use std::collections::HashMap;
 
@@ -48,7 +48,7 @@ impl ContextVar {
 /// Acesso restrito ao estado do motor entregue ao componente durante
 /// `init`/`update`. Expõe só o necessário (ler/escrever dados e pedir
 /// navegação), evitando o conflito de borrow que existiria ao passar o
-/// `UiEngine` inteiro.
+/// `GlacierUI` inteiro.
 pub struct Context<'a> {
     pub(crate) data: &'a mut HashMap<String, String>,
     pub(crate) nav: Option<Nav>,

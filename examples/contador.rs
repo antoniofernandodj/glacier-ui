@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task, widget::text, Color, Subscription};
 use std::time::Duration;
 
@@ -37,12 +37,12 @@ impl Component for Contador {
 }
 
 struct AppContador {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppContador {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         if let Err(e) = motor.register(Box::new(Contador::new())) {
             eprintln!("Error registering component: {}", e);
         }
@@ -68,12 +68,12 @@ impl AppContador {
     }
 
     fn subscription(&self) -> Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Contador", AppContador::update, AppContador::view)
+    iced::application("Glacier - Contador", AppContador::update, AppContador::view)
         .subscription(AppContador::subscription)
         .run_with(|| AppContador::new())
 }

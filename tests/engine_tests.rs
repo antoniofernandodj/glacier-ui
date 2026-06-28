@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, UiNode, NodeType};
+use glacier_ui::{GlacierUI, UiNode, NodeType};
 
 #[test]
 fn test_parser_basic() {
@@ -45,7 +45,7 @@ fn test_parser_basic() {
 
 #[test]
 fn test_interpolation() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     
     let temp_xml_path = "templates/test_temp.xml";
     std::fs::create_dir_all("templates").ok();
@@ -71,7 +71,7 @@ fn test_interpolation() {
 
 #[test]
 fn test_includes() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     
     std::fs::create_dir_all("templates").ok();
     
@@ -121,7 +121,7 @@ fn test_includes() {
 
 #[test]
 fn test_if_else() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
 
     std::fs::create_dir_all("templates").ok();
     let path = "templates/test_if.xml";
@@ -179,7 +179,7 @@ fn test_if_else() {
 
 #[test]
 fn test_import_recursivo() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
 
     std::fs::create_dir_all("templates").ok();
 
@@ -250,7 +250,7 @@ fn test_import_recursivo() {
 
 #[test]
 fn test_componente_por_nome() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
 
     std::fs::create_dir_all("templates").ok();
 
@@ -301,7 +301,7 @@ fn test_componente_por_nome() {
 
 #[test]
 fn test_foreach_com_componente() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
 
     std::fs::create_dir_all("templates").ok();
 
@@ -361,7 +361,7 @@ fn test_foreach_com_componente() {
 
 #[test]
 fn test_navegacao_historico() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
 
     motor.set_initial_screen("home");
     assert_eq!(motor.current_screen.as_deref(), Some("home"));
@@ -388,7 +388,7 @@ fn test_navegacao_historico() {
 
 #[test]
 fn test_foreach() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     
     let path = "templates/test_foreach.xml";
     std::fs::create_dir_all("templates").ok();
@@ -433,7 +433,7 @@ fn test_foreach() {
 
 // --- Nested components: behavior composition -------------------------------
 
-use xml_ui::{Component, Context, Template, EngineMessage};
+use glacier_ui::{Component, Context, Template, EngineMessage};
 
 /// Child component with its own behavior. Its button action is `ping`.
 struct ChildComp;
@@ -476,7 +476,7 @@ fn collect_clicks(node: &UiNode, out: &mut Vec<String>) {
 
 #[test]
 fn test_nested_component_action_namespacing() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     motor.register(Box::new(ParentComp)).unwrap();
     motor.set_initial_screen("parent");
 
@@ -494,7 +494,7 @@ fn test_nested_component_action_namespacing() {
 
 #[test]
 fn test_nested_component_action_routing() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     motor.register(Box::new(ParentComp)).unwrap();
     motor.set_initial_screen("parent");
 
@@ -519,7 +519,7 @@ fn text_color(node: &NodeType) -> Option<String> {
 
 #[test]
 fn test_link_scoped_stylesheet() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     // Global sheet: applies everywhere.
@@ -569,7 +569,7 @@ fn test_link_scoped_stylesheet() {
 
 #[test]
 fn test_inline_attribute_wins_over_class() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     let iss = "templates/test_inline.iss";
@@ -592,7 +592,7 @@ fn test_inline_attribute_wins_over_class() {
 
 #[test]
 fn test_link_rel_import() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     let child = "templates/test_li_child.xml";
@@ -628,7 +628,7 @@ fn test_link_rel_import() {
 
 #[test]
 fn test_link_rel_data() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     let data = "templates/test_data.json";
@@ -667,7 +667,7 @@ fn test_link_rel_data() {
 
 #[test]
 fn test_link_rel_theme() {
-    let mut motor = UiEngine::new();
+    let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     let theme = "templates/test_theme.json";

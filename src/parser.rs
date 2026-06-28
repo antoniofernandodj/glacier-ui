@@ -261,7 +261,7 @@ impl UiNode {
     /// attached to the real root as children (they are stripped before
     /// rendering, so they have no visual effect but remain discoverable).
     pub fn parse_xml(xml: &str) -> Result<Self, String> {
-        let wrapped = format!("<__xmlui_fragment__>{}</__xmlui_fragment__>", xml);
+        let wrapped = format!("<__glacier_fragment__>{}</__glacier_fragment__>", xml);
         let doc = roxmltree::Document::parse(&wrapped).map_err(|e| e.to_string())?;
         let fragment = doc.root_element();
 

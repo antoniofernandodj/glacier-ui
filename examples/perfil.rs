@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, ContextVar, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, ContextVar, Template};
 use iced::{Element, Task, Color, widget::text};
 use std::time::Duration;
 
@@ -77,12 +77,12 @@ impl Component for Perfil {
 }
 
 struct AppPerfil {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppPerfil {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         if let Err(e) = motor.register(Box::new(Perfil::new())) {
             eprintln!("Error registering component 'perfil': {}", e);
         }
@@ -108,12 +108,12 @@ impl AppPerfil {
     }
 
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(250))
+        GlacierUI::reload_subscription(Duration::from_millis(250))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Painel de Perfil", AppPerfil::update, AppPerfil::view)
+    iced::application("Glacier - Painel de Perfil", AppPerfil::update, AppPerfil::view)
         .subscription(AppPerfil::subscription)
         .run_with(|| AppPerfil::new())
 }

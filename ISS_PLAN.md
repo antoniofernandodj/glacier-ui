@@ -91,7 +91,7 @@ pub struct StyleSheet {
 |---|---|
 | `src/parser.rs` | Adicionar `class: Option<String>` em `UiNode`; parsear atributo `class` |
 | `src/widget.rs` | Receber `&StyleSheet`; resolver classes antes de aplicar attrs inline; mesclagem `class < inline` |
-| `src/lib.rs` | Adicionar `stylesheets: Vec<StyleSheet>` em `UiEngine`; método `load_stylesheet(path)` |
+| `src/lib.rs` | Adicionar `stylesheets: Vec<StyleSheet>` em `GlacierUI`; método `load_stylesheet(path)` |
 | `src/eval.rs` | Passar stylesheet na pipeline de avaliação |
 | `src/stylesheet.rs` | Novo: parser `.iss` + structs |
 

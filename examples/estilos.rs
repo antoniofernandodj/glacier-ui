@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
@@ -39,12 +39,12 @@ impl Component for Estilos {
 }
 
 struct AppEstilos {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppEstilos {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         if let Err(e) = motor.register(Box::new(Estilos)) {
             eprintln!("Erro ao registrar 'estilos': {}", e);
         }
@@ -74,7 +74,7 @@ impl AppEstilos {
     }
 
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 
     /// Tema da janela: o que foi carregado via `<link rel="theme">`, ou Dark.
@@ -84,7 +84,7 @@ impl AppEstilos {
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Estilos (.iss)", AppEstilos::update, AppEstilos::view)
+    iced::application("Glacier - Estilos (.iss)", AppEstilos::update, AppEstilos::view)
         .subscription(AppEstilos::subscription)
         .theme(AppEstilos::theme)
         .run_with(|| AppEstilos::new())

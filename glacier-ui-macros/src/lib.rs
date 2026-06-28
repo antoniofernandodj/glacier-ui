@@ -1,4 +1,4 @@
-//! Proc-macro backing `xml_ui::component`.
+//! Proc-macro backing `glacier_ui::component`.
 //!
 //! `#[component(path = "...", name = "...")]` on a struct reads the XML template
 //! at compile time, extracts its `<script>` block (real Rust), and generates the
@@ -18,7 +18,7 @@ use syn::{
 };
 
 /// Splits `<script>...</script>` out of XML, returning the script body if found.
-/// Mirrors `xml_ui::strip_script` (the macro can't depend on the engine crate).
+/// Mirrors `glacier_ui::strip_script` (the macro can't depend on the engine crate).
 fn extract_script(xml: &str) -> Option<String> {
     let lower = xml.to_ascii_lowercase();
     let open = lower.find("<script")?;
@@ -102,14 +102,14 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
         #item_struct
         #methods_impl
 
-        impl ::xml_ui::Component for #ident {
+        impl ::glacier_ui::Component for #ident {
             fn name(&self) -> &str { #name }
 
-            fn template(&self) -> ::xml_ui::Template {
-                ::xml_ui::Template::File(#path.into())
+            fn template(&self) -> ::glacier_ui::Template {
+                ::glacier_ui::Template::File(#path.into())
             }
 
-            fn init(&mut self, ctx: &mut ::xml_ui::Context) {
+            fn init(&mut self, ctx: &mut ::glacier_ui::Context) {
                 #sync
             }
 
@@ -117,7 +117,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
                 &mut self,
                 action: &str,
                 value: ::core::option::Option<&str>,
-                ctx: &mut ::xml_ui::Context,
+                ctx: &mut ::glacier_ui::Context,
             ) {
                 let _ = value;
                 match action {

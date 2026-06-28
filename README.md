@@ -1,4 +1,4 @@
-# xml-ui
+# glacier-ui
 
 Um motor de UI declarativa para Rust: você descreve a interface em **XML** e o
 motor a renderiza com [`iced`](https://iced.rs), com **hot-reload**, **data
@@ -21,7 +21,7 @@ Rust (ou embutido no próprio XML via `<script>`).
 
 ## Sumário
 
-- [xml-ui](#xml-ui)
+- [glacier-ui](#glacier-ui)
   - [Sumário](#sumário)
   - [Instalação](#instalação)
   - [Conceitos](#conceitos)
@@ -43,7 +43,7 @@ Rust (ou embutido no próprio XML via `<script>`).
   - [Navegação entre telas](#navegação-entre-telas)
   - [Hot-reload](#hot-reload)
   - [Referência da API do motor](#referência-da-api-do-motor)
-    - [`UiEngine`](#uiengine)
+    - [`GlacierUI`](#glacierui)
     - [`EngineMessage`](#enginemessage)
     - [Tipos de apoio](#tipos-de-apoio)
   - [Exemplos](#exemplos)
@@ -54,8 +54,8 @@ Rust (ou embutido no próprio XML via `<script>`).
 
 O projeto é um workspace com dois crates:
 
-- `xml-ui` — o motor.
-- `xml-ui-macros` — a proc-macro `#[component]`.
+- `glacier-ui` — o motor.
+- `glacier-ui-macros` — a proc-macro `#[component]`.
 
 Dependências (já no `Cargo.toml`): `iced 0.13`, `roxmltree`, `image`,
 `serde_json`.
@@ -74,7 +74,7 @@ cargo run --example contador
 |---|---|
 | **Template XML** | descreve a árvore de UI (layout, texto, botões, …). |
 | **Contexto** (`context_data`) | mapa `String -> String` com o estado; templates leem dele via `{chave}`. |
-| **`UiEngine`** | registra templates/componentes, avalia o contexto e renderiza para `iced`. |
+| **`GlacierUI`** | registra templates/componentes, avalia o contexto e renderiza para `iced`. |
 | **`Component`** | tipo Rust que junta **UI** (template) + **comportamento** (reação às ações) + **estado** próprio. |
 | **`EngineMessage`** | mensagens que o `iced` entrega ao motor (cliques, inputs, navegação, reload). |
 
@@ -87,7 +87,7 @@ viram `EngineMessage`, que o motor roteia ao `Component` dono.
 ## Início rápido
 
 ```rust
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task, widget::text, Color};
 
 struct Contador { valor: i32 }
@@ -110,11 +110,11 @@ impl Component for Contador {
     }
 }
 
-struct App { motor: UiEngine }
+struct App { motor: GlacierUI }
 
 impl App {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         motor.register(Box::new(Contador { valor: 0 })).unwrap();
         motor.set_initial_screen("contador");
         (Self { motor }, Task::none())
@@ -349,7 +349,7 @@ fn decrementar(&mut self) { self.contador -= 1; }
 ```
 
 ```rust
-use xml_ui::component;
+use glacier_ui::component;
 
 #[component(path = "templates/contador_macro.xml", name = "contador")]
 #[derive(Default)]
@@ -419,7 +419,7 @@ mudam em disco. Ligue a subscription do `iced` ao motor:
 
 ```rust
 fn subscription(&self) -> iced::Subscription<EngineMessage> {
-    UiEngine::reload_subscription(std::time::Duration::from_millis(500))
+    GlacierUI::reload_subscription(std::time::Duration::from_millis(500))
 }
 
 fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
@@ -436,7 +436,7 @@ Edite o XML e veja a UI atualizar sem recompilar. (A lógica de um `<script>`
 
 ## Referência da API do motor
 
-### `UiEngine`
+### `GlacierUI`
 
 | Método | Descrição |
 |---|---|

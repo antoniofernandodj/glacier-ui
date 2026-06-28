@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task, widget::text, Color, Subscription};
 use std::time::Duration;
 
@@ -85,12 +85,12 @@ impl Component for Painel {
 }
 
 struct App {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl App {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         // Registra só o pai; o filho entra em cascata via children().
         if let Err(e) = motor.register(Box::new(Painel { escuro: false })) {
             eprintln!("Erro ao registrar 'painel': {}", e);
@@ -116,12 +116,12 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Componentes Aninhados", App::update, App::view)
+    iced::application("Glacier - Componentes Aninhados", App::update, App::view)
         .subscription(App::subscription)
         .run_with(|| App::new())
 }

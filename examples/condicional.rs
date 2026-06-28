@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
@@ -30,12 +30,12 @@ impl Component for Condicional {
 }
 
 struct AppCond {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppCond {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
         if let Err(e) = motor.register(Box::new(Condicional)) {
             eprintln!("Erro ao registrar 'condicional': {}", e);
         }
@@ -60,12 +60,12 @@ impl AppCond {
     }
 
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Condicional", AppCond::update, AppCond::view)
+    iced::application("Glacier - Condicional", AppCond::update, AppCond::view)
         .subscription(AppCond::subscription)
         .run_with(|| AppCond::new())
 }

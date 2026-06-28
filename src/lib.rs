@@ -12,13 +12,13 @@ pub use stylesheet::{StyleSheet, StyleRule};
 
 /// Derives `impl Component` from a struct plus the `<script>` block of an XML
 /// template. See the `contador_macro` example.
-pub use xml_ui_macros::component;
+pub use glacier_ui_macros::component;
 
 use std::collections::HashMap;
 use std::time::{SystemTime, Duration};
 
 /// The XML-to-UI rendering engine
-pub struct UiEngine {
+pub struct GlacierUI {
     /// Maps a component name (e.g. "perfil") to its XML file path
     pub registered_components: HashMap<String, String>,
     /// Cache of parsed component AST trees
@@ -49,7 +49,7 @@ pub struct UiEngine {
     /// kept for hot-reload.
     pub component_stylesheet_paths: HashMap<String, Vec<String>>,
     /// The custom `iced::Theme` loaded via `<link rel="theme">`, if any.
-    /// Apps read it through [`UiEngine::theme`].
+    /// Apps read it through [`GlacierUI::theme`].
     pub custom_theme: Option<iced::Theme>,
     /// Path of the loaded theme file, kept for hot-reload.
     theme_path: Option<String>,
@@ -58,8 +58,8 @@ pub struct UiEngine {
     data_sources: Vec<(String, String)>,
 }
 
-impl UiEngine {
-    /// Creates a new, empty UiEngine instance
+impl GlacierUI {
+    /// Creates a new, empty GlacierUI instance
     pub fn new() -> Self {
         Self {
             registered_components: HashMap::new(),
@@ -159,7 +159,7 @@ impl UiEngine {
     ///
     /// The engine resolves and parses the template, seeds the context with the
     /// component's initial state via [`Component::init`], and stores the
-    /// component so that [`UiEngine::dispatch`] can later route actions to it.
+    /// component so that [`GlacierUI::dispatch`] can later route actions to it.
     pub fn register(&mut self, comp: Box<dyn component::Component>) -> Result<(), String> {
         self.register_one(comp)?;
         // Evaluate once, after the whole component tree has been registered.
@@ -167,7 +167,7 @@ impl UiEngine {
     }
 
     /// Registers a single component and its `children()` recursively, without
-    /// re-evaluating. Used by [`UiEngine::register`].
+    /// re-evaluating. Used by [`GlacierUI::register`].
     fn register_one(&mut self, mut comp: Box<dyn component::Component>) -> Result<(), String> {
         use component::Template;
 
@@ -217,7 +217,7 @@ impl UiEngine {
     /// active screen) and applies any navigation it requested, then
     /// re-evaluates the templates.
     ///
-    /// Apps that use [`UiEngine::register`] just forward every message here from
+    /// Apps that use [`GlacierUI::register`] just forward every message here from
     /// their `update()` instead of matching on actions themselves.
     pub fn dispatch(&mut self, msg: &EngineMessage) -> Result<(), String> {
         let (action, value) = match msg {

@@ -91,7 +91,7 @@ fn eval_condition(
 
 /// The stylesheets in effect during evaluation, split by scope.
 ///
-/// `global` sheets (loaded via `UiEngine::load_stylesheet`) apply everywhere.
+/// `global` sheets (loaded via `GlacierUI::load_stylesheet`) apply everywhere.
 /// `by_component` holds the sheets a component declared with
 /// `<link rel="stylesheet">`, keyed by component name; they apply only inside
 /// that component's subtree, layered *on top of* the global ones so a scoped

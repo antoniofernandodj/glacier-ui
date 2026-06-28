@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
@@ -81,12 +81,12 @@ impl Component for Lista {
 }
 
 struct AppLista {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppLista {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
 
         let membros = vec![
             Membro { nome: "Clara Silva".into(), cargo: "Engenheira de Software".into(), cor: PALETA[0].into() },
@@ -118,12 +118,12 @@ impl AppLista {
     }
 
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Lista de Membros", AppLista::update, AppLista::view)
+    iced::application("Glacier - Lista de Membros", AppLista::update, AppLista::view)
         .subscription(AppLista::subscription)
         .run_with(|| AppLista::new())
 }

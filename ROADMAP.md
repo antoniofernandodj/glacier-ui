@@ -1,6 +1,6 @@
 # Roadmap — rumo a um `1.0` publicável
 
-Roteiro para levar o `xml-ui` de protótipo enxuto a um framework maduro e
+Roteiro para levar o `glacier-ui` de protótipo enxuto a um framework maduro e
 distribuível publicamente no crates.io.
 
 ## Onde estamos hoje
@@ -29,7 +29,7 @@ Barato e de alto valor; viável em ~1 dia.
 - [ ] **Metadata no `Cargo.toml`** dos dois crates: `description`, `license`,
       `repository`, `keywords`, `categories`, `readme`, `rust-version` (MSRV).
       A macro deve publicar junto, com versão casada (`=x.y.z`).
-- [ ] **Nome único no crates.io** — conferir disponibilidade de `xml-ui`;
+- [ ] **Nome único no crates.io** — conferir disponibilidade de `glacier-ui`;
       considerar rebatizar para algo de marca.
 - [ ] **CI** (GitHub Actions): `build` + `test` + `clippy -D warnings` +
       `fmt --check` + `cargo doc`. Zerar os ~10 warnings de clippy da lib.
@@ -40,7 +40,7 @@ Barato e de alto valor; viável em ~1 dia.
 - [ ] **Tipo de erro real** — substituir os 12 `Result<_, String>` por um
       `enum XmlUiError` com `thiserror` (arquivo ausente, XML inválido,
       componente não registrado, …). **Maior alavancagem.**
-- [ ] **Encapsular o `UiEngine`** — campos hoje são todos `pub`; torná-los
+- [ ] **Encapsular o `GlacierUI`** — campos hoje são todos `pub`; torná-los
       privados (+ getters) e marcar enums públicos com `#[non_exhaustive]`.
 - [ ] **Política de semver** — crates em lockstep; documentar superfície estável.
 - [ ] **Render sem panic** — degradar input malformado para um nó de erro

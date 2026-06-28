@@ -1,4 +1,4 @@
-use xml_ui::{UiEngine, EngineMessage, Component, Context, Template};
+use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
@@ -33,12 +33,12 @@ impl Component for Tela {
 }
 
 struct AppNav {
-    motor: UiEngine,
+    motor: GlacierUI,
 }
 
 impl AppNav {
     fn new() -> (Self, Task<EngineMessage>) {
-        let mut motor = UiEngine::new();
+        let mut motor = GlacierUI::new();
 
         let telas = [
             Tela { nome: "home", template: "templates/nav_home.xml" },
@@ -78,12 +78,12 @@ impl AppNav {
     }
 
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
-        UiEngine::reload_subscription(Duration::from_millis(500))
+        GlacierUI::reload_subscription(Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("XML UI - Navegação", AppNav::update, AppNav::view)
+    iced::application("Glacier - Navegação", AppNav::update, AppNav::view)
         .subscription(AppNav::subscription)
         .run_with(|| AppNav::new())
 }
