@@ -26,6 +26,14 @@ pub enum NodeType {
         value_var: String,
         on_change: String,
     },
+    /// A multi-line text editor bound to a context key. Unlike [`NodeType::TextInput`]
+    /// the engine keeps a stateful `text_editor::Content` for it (keyed by
+    /// `value_var`); edits are written back to the context and emit `on_change`.
+    TextArea {
+        placeholder: String,
+        value_var: String,
+        on_change: String,
+    },
     Image {
         source: String,
         clip_circle: bool,
@@ -210,6 +218,12 @@ impl UiNode {
                 let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
                 let on_change = Self::get_attr(&node, &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"]).unwrap_or_default();
                 NodeType::TextInput { placeholder, value_var, on_change }
+            }
+            "TextArea" | "textarea" | "TextEditor" | "texteditor" | "Editor" | "editor" | "AreaTexto" | "area_texto" => {
+                let placeholder = Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();
+                let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let on_change = Self::get_attr(&node, &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"]).unwrap_or_default();
+                NodeType::TextArea { placeholder, value_var, on_change }
             }
             "Image" | "image" | "Imagem" | "imagem" => {
                 let source = Self::get_attr(&node, &["source", "src", "origem", "caminho"]).unwrap_or_default();

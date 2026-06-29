@@ -1,8 +1,13 @@
 use std::collections::HashMap;
 use iced::widget::{
-    button, column, row, text, container, text_input, image, svg, scrollable,
+    button, column, row, text, container, text_input, text_editor, image, svg, scrollable,
     checkbox, toggler, horizontal_rule, vertical_rule,
 };
+
+/// Stateful `text_editor` buffers, keyed by a `<TextArea>`'s `value` binding.
+/// Owned by [`crate::GlacierUI`] and borrowed during render so the editors keep
+/// their content/cursor across frames (glacier is otherwise stateless).
+pub type EditorMap = HashMap<String, text_editor::Content>;
 use iced::{Element, Length, Alignment, Color, Border, Padding, Background, Font, Gradient};
 use iced::gradient::Linear;
 use iced::Radians;
@@ -74,6 +79,10 @@ fn background_for(node: &UiNode) -> Option<Background> {
 pub enum EngineMessage {
     XmlClick(String),
     XmlInputChanged { action: String, value: String },
+    /// An edit on a `<TextArea>`: `binding` is its `value` key, `action` is the
+    /// editor action to apply to the kept `Content`, `on_change` is the action
+    /// dispatched (with the new full text) after applying it.
+    XmlEditorAction { binding: String, on_change: String, action: text_editor::Action },
     /// Navigate to the given screen (button with `navigateTo`).
     Navigate(String),
     /// Go back to the previous screen (button with `navigateBack`).
@@ -163,6 +172,7 @@ pub fn parse_hex_color(s: &str) -> Option<Color> {
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a HashMap<String, String>,
+    editors: &'a EditorMap,
 ) -> Element<'a, EngineMessage> {
     let mut element: Element<'a, EngineMessage> = match &node.kind {
         NodeType::Text { content, size, bold, color } => {
@@ -259,7 +269,7 @@ pub fn render_node<'a>(
                          .padding(parse_padding(&node.padding));
 
             let mut elem: Element<'a, EngineMessage> = input.into();
-            
+
             if node.height.is_some() {
                 elem = container(elem)
                     .height(parse_length(&node.height))
@@ -267,6 +277,33 @@ pub fn render_node<'a>(
                     .into();
             }
             elem
+        }
+        NodeType::TextArea { placeholder, value_var, on_change } => {
+            // The engine keeps the `Content` for this binding (created by
+            // `sync_editors` before render). If it is somehow missing on a first
+            // frame, fall back to a static placeholder rather than panicking.
+            match editors.get(value_var) {
+                Some(content) => {
+                    let binding = value_var.clone();
+                    let on_change = on_change.clone();
+                    let mut ed = text_editor(content)
+                        .placeholder(placeholder.as_str())
+                        .on_action(move |action| EngineMessage::XmlEditorAction {
+                            binding: binding.clone(),
+                            on_change: on_change.clone(),
+                            action,
+                        })
+                        .padding(parse_padding(&node.padding));
+                    if let Some(f) = font_for(&node.font) {
+                        ed = ed.font(f);
+                    }
+                    ed.height(parse_length(&node.height)).into()
+                }
+                None => text(placeholder.as_str())
+                    .width(parse_length(&node.width))
+                    .height(parse_length(&node.height))
+                    .into(),
+            }
         }
         NodeType::Image { source, clip_circle } => {
             let handle = image::Handle::from_path(source.clone());
@@ -312,7 +349,7 @@ pub fn render_node<'a>(
         }
         NodeType::Scrollable { direction } => {
             let child: Element<'a, EngineMessage> = if let Some(first) = node.children.first() {
-                render_node(first, context)
+                render_node(first, context, editors)
             } else {
                 column![].into()
             };
@@ -379,7 +416,7 @@ pub fn render_node<'a>(
             col = col.padding(parse_padding(&node.padding));
 
             for child in &node.children {
-                col = col.push(render_node(child, context));
+                col = col.push(render_node(child, context, editors));
             }
             
             col.width(parse_length(&node.width))
@@ -400,7 +437,7 @@ pub fn render_node<'a>(
             r = r.padding(parse_padding(&node.padding));
 
             for child in &node.children {
-                r = r.push(render_node(child, context));
+                r = r.push(render_node(child, context, editors));
             }
             
             r.width(parse_length(&node.width))
@@ -409,7 +446,7 @@ pub fn render_node<'a>(
         }
         NodeType::Container => {
             let child: Element<'a, EngineMessage> = if let Some(first_child) = node.children.first() {
-                render_node(first_child, context)
+                render_node(first_child, context, editors)
             } else {
                 column![].into()
             };

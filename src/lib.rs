@@ -56,6 +56,11 @@ pub struct GlacierUI {
     /// Data files loaded via `<link rel="data">`, as `(context key, path)`,
     /// kept for hot-reload.
     data_sources: Vec<(String, String)>,
+    /// Stateful `text_editor` buffers for `<TextArea>` widgets, keyed by binding.
+    editors: widget::EditorMap,
+    /// Last text each editor pushed into the context, to tell an external context
+    /// change (reload editor) from the editor's own edit (leave it alone).
+    editor_synced: HashMap<String, String>,
 }
 
 impl GlacierUI {
@@ -77,6 +82,8 @@ impl GlacierUI {
             custom_theme: None,
             theme_path: None,
             data_sources: Vec::new(),
+            editors: HashMap::new(),
+            editor_synced: HashMap::new(),
         }
     }
 
@@ -243,6 +250,29 @@ impl GlacierUI {
                 }
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
+            }
+            EngineMessage::XmlEditorAction { binding, on_change, action } => {
+                // Apply the edit to the kept editor buffer, then mirror its full
+                // text into the context (and `editor_synced`, so the sync step
+                // doesn't treat this as an external change).
+                let seed = self.context_data.get(binding).cloned().unwrap_or_default();
+                let content = self
+                    .editors
+                    .entry(binding.clone())
+                    .or_insert_with(|| iced::widget::text_editor::Content::with_text(&seed));
+                content.perform(action.clone());
+                let text = content.text();
+                self.context_data.insert(binding.clone(), text.clone());
+                self.editor_synced.insert(binding.clone(), text.clone());
+                if on_change.is_empty() {
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                // Let the owning component react to the change as well.
+                return self.dispatch(&EngineMessage::XmlInputChanged {
+                    action: on_change.clone(),
+                    value: text,
+                });
             }
         };
 
@@ -477,7 +507,27 @@ impl GlacierUI {
             evals.insert(name.clone(), evaluated_ast);
         }
         self.evaluated_templates = evals;
+        self.sync_editors();
         Ok(())
+    }
+
+    /// Keeps the stateful `<TextArea>` buffers in step with the context: creates
+    /// a buffer the first time a binding appears, and reloads it when the context
+    /// value changed from outside the editor (e.g. a fetch). The editor's own
+    /// edits set `editor_synced`, so they are not mistaken for external changes.
+    fn sync_editors(&mut self) {
+        let mut bindings: Vec<String> = Vec::new();
+        for ast in self.evaluated_templates.values() {
+            collect_textarea_bindings(ast, &mut bindings);
+        }
+        for b in bindings {
+            let ctx_val = self.context_data.get(&b).cloned().unwrap_or_default();
+            let last = self.editor_synced.get(&b);
+            if !self.editors.contains_key(&b) || last != Some(&ctx_val) {
+                self.editors.insert(b.clone(), iced::widget::text_editor::Content::with_text(&ctx_val));
+                self.editor_synced.insert(b, ctx_val);
+            }
+        }
     }
 
     /// Recursively evaluates the component and translates it into an Iced Element
@@ -486,7 +536,7 @@ impl GlacierUI {
             .ok_or_else(|| format!("Component '{}' is not evaluated or registered", component_name))?;
 
         // Render the evaluated AST to Iced Widgets
-        Ok(render_node(evaluated_ast, &self.context_data))
+        Ok(render_node(evaluated_ast, &self.context_data, &self.editors))
     }
 
     /// Checks registered XML files for changes and re-parses them if modified.
@@ -634,6 +684,19 @@ fn data_key(path: &str) -> String {
 }
 fn theme_key(path: &str) -> String {
     format!("theme::{}", path)
+}
+
+/// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
+/// the engine can keep a stateful editor buffer per binding.
+fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
+    if let NodeType::TextArea { value_var, .. } = &node.kind {
+        if !value_var.is_empty() && !out.contains(value_var) {
+            out.push(value_var.clone());
+        }
+    }
+    for child in &node.children {
+        collect_textarea_bindings(child, out);
+    }
 }
 
 /// The file stem of a path (`templates/perfil_card.xml` -> `perfil_card`),

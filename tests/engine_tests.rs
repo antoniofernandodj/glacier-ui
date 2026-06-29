@@ -627,6 +627,34 @@ fn test_link_rel_import() {
 }
 
 #[test]
+fn test_textarea_parses_and_syncs() {
+    // A `<TextArea>` parses to its own node and the engine seeds a stateful
+    // editor buffer from the bound context value.
+    let xml = r##"<TextArea value="dotenv" placeholder="KEY=VALUE" onChange="env_changed" />"##;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    match &ast.kind {
+        NodeType::TextArea { value_var, placeholder, on_change } => {
+            assert_eq!(value_var, "dotenv");
+            assert_eq!(placeholder, "KEY=VALUE");
+            assert_eq!(on_change, "env_changed");
+        }
+        other => panic!("expected TextArea, got {other:?}"),
+    }
+
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_textarea.xml";
+    std::fs::write(tpl, xml).unwrap();
+    motor.register_component("tacomp", tpl).unwrap();
+    motor.define_data("dotenv", "FOO=1\nBAR=2");
+    // A reevaluation seeds the editor buffer from the context without panicking.
+    motor.reevaluate_all().unwrap();
+    assert!(motor.render("tacomp").is_ok());
+
+    std::fs::remove_file(tpl).ok();
+}
+
+#[test]
 fn test_if_else_inside_foreach() {
     // Regression: `<if>`/`<else>` nested directly under a `<ForEach>` must be
     // resolved per item (only the matching branch renders), not emitted as
