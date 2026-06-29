@@ -80,7 +80,8 @@ impl AppNav {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Navegação", AppNav::update, AppNav::view)
+    iced::application(|| AppNav::new(), AppNav::update, AppNav::view)
         .subscription(AppNav::subscription)
-        .run_with(|| AppNav::new())
+        .title("Glacier - Navegação")
+        .run()
 }

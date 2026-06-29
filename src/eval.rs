@@ -583,6 +583,7 @@ fn eval_owned(
     // `on_press` is behavior, not a style field; interpolate it directly so
     // actions like `onPress="window:{cmd}"` can bind context values.
     let on_press_eval = node.on_press.as_ref().map(|s| process_template(s, context));
+    let cursor_eval = resolve(&node.cursor, &style.cursor);
 
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
@@ -608,6 +609,7 @@ fn eval_owned(
         gradient: gradient_eval,
         text_align: text_align_eval,
         on_press: on_press_eval,
+        cursor: cursor_eval,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,

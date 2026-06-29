@@ -204,6 +204,7 @@ fn blank(kind: NodeType) -> UiNode {
         gradient: None,
         text_align: None,
         on_press: None,
+        cursor: None,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,
@@ -268,6 +269,7 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
     let gradient = attrs.get(&["gradient", "gradiente"]);
     let text_align = attrs.get(&["textAlign", "text_align", "text-align", "alinhamento_texto"]);
     let on_press = attrs.get(&["onPress", "on_press", "on-press", "aoPressionar", "ao_pressionar"]);
+    let cursor = attrs.get(&["cursor", "cursorIcon", "cursor-icon"]);
 
     // Structural directives expressed as attributes (Vue/Angular style).
     let if_cond = attrs.get(&["if", "se"]);
@@ -444,6 +446,7 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
         gradient,
         text_align,
         on_press,
+        cursor,
         if_cond,
         if_equals,
         if_not_equals,

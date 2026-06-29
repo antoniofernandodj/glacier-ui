@@ -80,7 +80,8 @@ impl AppContador {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Contador (KDL)", AppContador::update, AppContador::view)
+    iced::application(|| AppContador::new(), AppContador::update, AppContador::view)
         .subscription(AppContador::subscription)
-        .run_with(|| AppContador::new())
+        .title("Glacier - Contador (KDL)")
+        .run()
 }

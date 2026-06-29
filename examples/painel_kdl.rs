@@ -73,7 +73,8 @@ impl AppPainel {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Painel (KDL + .gss)", AppPainel::update, AppPainel::view)
+    iced::application(|| AppPainel::new(), AppPainel::update, AppPainel::view)
         .subscription(AppPainel::subscription)
-        .run_with(|| AppPainel::new())
+        .title("Glacier - Painel (KDL + .gss)")
+        .run()
 }

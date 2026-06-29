@@ -62,7 +62,8 @@ impl AppCond {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Condicional", AppCond::update, AppCond::view)
+    iced::application(|| AppCond::new(), AppCond::update, AppCond::view)
         .subscription(AppCond::subscription)
-        .run_with(|| AppCond::new())
+        .title("Glacier - Condicional")
+        .run()
 }

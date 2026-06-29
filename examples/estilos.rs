@@ -81,8 +81,9 @@ impl AppEstilos {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Estilos (.gss)", AppEstilos::update, AppEstilos::view)
+    iced::application(|| AppEstilos::new(), AppEstilos::update, AppEstilos::view)
         .subscription(AppEstilos::subscription)
         .theme(AppEstilos::theme)
-        .run_with(|| AppEstilos::new())
+        .title("Glacier - Estilos (.gss)")
+        .run()
 }

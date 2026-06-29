@@ -239,19 +239,26 @@ impl GlacierUI {
             }
             // Built-in window controls: drive the host window without any
             // component code, so a borderless app can wire its custom titlebar
-            // straight from markup — `onClick="window:close"` for the buttons
-            // and `onPress="window:drag"` for the draggable region. The window
-            // `Id` is resolved lazily via `get_latest`, keeping this independent
-            // of how the app opened its window.
+            // straight from markup — `onClick="window:close"` for the buttons,
+            // `onPress="window:drag"` for the draggable region and
+            // `onPress="window:resize:se"` for the edge/corner resize handles.
+            // The window `Id` is resolved lazily via `latest`, keeping this
+            // independent of how the app opened its window.
             if let Some(action) = a.strip_prefix("window:") {
                 use iced::window;
+                if let Some(dir) = action.strip_prefix("resize:") {
+                    return match resize_direction(dir) {
+                        Some(d) => window::latest().and_then(move |id| window::drag_resize(id, d)),
+                        None => iced::Task::none(),
+                    };
+                }
                 return match action {
-                    "minimize" => window::get_latest().and_then(|id| window::minimize(id, true)),
+                    "minimize" => window::latest().and_then(|id| window::minimize(id, true)),
                     "maximize" | "toggle_maximize" => {
-                        window::get_latest().and_then(|id| window::toggle_maximize(id))
+                        window::latest().and_then(|id| window::toggle_maximize(id))
                     }
-                    "close" => window::get_latest().and_then(|id| window::close(id)),
-                    "drag" => window::get_latest().and_then(|id| window::drag(id)),
+                    "close" => window::latest().and_then(|id| window::close(id)),
+                    "drag" => window::latest().and_then(|id| window::drag(id)),
                     _ => iced::Task::none(),
                 };
             }
@@ -816,7 +823,30 @@ fn parse_theme(content: &str) -> Result<iced::Theme, String> {
         text: color("text")?,
         primary: color("primary")?,
         success: color("success")?,
+        // `warning` was added to the palette in iced 0.14; keep it optional in
+        // the theme JSON and fall back to a sensible amber when absent.
+        warning: color("warning")
+            .unwrap_or_else(|_| widget::parse_hex_color("#D29922").unwrap()),
         danger: color("danger")?,
     };
     Ok(iced::Theme::custom(name, palette))
+}
+
+/// Parses a resize-handle direction token (used by the built-in
+/// `window:resize:<dir>` action) into an [`iced::window::Direction`].
+/// Accepts compass abbreviations (`n`,`s`,`e`,`w`,`ne`,`nw`,`se`,`sw`) and
+/// their full names (`north`, `south-east`, …).
+fn resize_direction(s: &str) -> Option<iced::window::Direction> {
+    use iced::window::Direction::*;
+    Some(match s.trim().to_ascii_lowercase().as_str() {
+        "n" | "north" | "top" => North,
+        "s" | "south" | "bottom" => South,
+        "e" | "east" | "right" => East,
+        "w" | "west" | "left" => West,
+        "ne" | "northeast" | "north-east" => NorthEast,
+        "nw" | "northwest" | "north-west" => NorthWest,
+        "se" | "southeast" | "south-east" => SouthEast,
+        "sw" | "southwest" | "south-west" => SouthWest,
+        _ => return None,
+    })
 }

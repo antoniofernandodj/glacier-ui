@@ -120,7 +120,8 @@ impl AppLista {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Lista de Membros", AppLista::update, AppLista::view)
+    iced::application(|| AppLista::new(), AppLista::update, AppLista::view)
         .subscription(AppLista::subscription)
-        .run_with(|| AppLista::new())
+        .title("Glacier - Lista de Membros")
+        .run()
 }

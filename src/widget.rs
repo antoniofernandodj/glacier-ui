@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use iced::widget::{
     button, column, row, text, container, text_input, text_editor, image, svg, scrollable,
-    checkbox, toggler, horizontal_rule, vertical_rule, pick_list, mouse_area,
+    checkbox, toggler, rule, pick_list, mouse_area,
 };
 
 /// One option of a `<Select>`: `label` is shown, `value` is dispatched. Equality
@@ -198,13 +198,13 @@ pub fn parse_hex_color(s: &str) -> Option<Color> {
         let r = u8::from_str_radix(&s[0..2], 16).ok()? as f32 / 255.0;
         let g = u8::from_str_radix(&s[2..4], 16).ok()? as f32 / 255.0;
         let b = u8::from_str_radix(&s[4..6], 16).ok()? as f32 / 255.0;
-        Some(Color::new(r, g, b, 1.0))
+        Some(Color { r, g, b, a: 1.0 })
     } else if s.len() == 8 {
         let r = u8::from_str_radix(&s[0..2], 16).ok()? as f32 / 255.0;
         let g = u8::from_str_radix(&s[2..4], 16).ok()? as f32 / 255.0;
         let b = u8::from_str_radix(&s[4..6], 16).ok()? as f32 / 255.0;
         let a = u8::from_str_radix(&s[6..8], 16).ok()? as f32 / 255.0;
-        Some(Color::new(r, g, b, a))
+        Some(Color { r, g, b, a })
     } else {
         None
     }
@@ -288,6 +288,7 @@ pub fn render_node<'a>(
                             text_color: Color::WHITE,
                             border: Border::default(),
                             shadow: iced::Shadow::default(),
+                            snap: false,
                         }
                     });
                 }
@@ -414,7 +415,8 @@ pub fn render_node<'a>(
         NodeType::Checkbox { label, checked_var, on_toggle } => {
             let checked = context.get(checked_var).map(|s| is_truthy(s)).unwrap_or(false);
             let action = on_toggle.clone();
-            let mut c = checkbox(label.as_str(), checked)
+            let mut c = checkbox(checked)
+                .label(label.as_str())
                 .on_toggle(move |v| EngineMessage::XmlInputChanged {
                     action: action.clone(),
                     value: v.to_string(),
@@ -472,7 +474,7 @@ pub fn render_node<'a>(
                     width: br_width.unwrap_or(1.0),
                     color: br_color.unwrap_or(pal.background.strong.color),
                 };
-                if matches!(status, pick_list::Status::Hovered | pick_list::Status::Opened) {
+                if matches!(status, pick_list::Status::Hovered | pick_list::Status::Opened { .. }) {
                     border.color = txt_color.unwrap_or(pal.primary.base.color);
                 }
                 pick_list::Style {
@@ -510,11 +512,11 @@ pub fn render_node<'a>(
         NodeType::Rule { horizontal } => {
             // Thickness comes from the cross dimension; default 1px.
             if *horizontal {
-                let h = node.height.as_ref().and_then(|s| s.parse::<u16>().ok()).unwrap_or(1);
-                horizontal_rule(h).into()
+                let h = node.height.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
+                rule::horizontal(h).into()
             } else {
-                let w = node.width.as_ref().and_then(|s| s.parse::<u16>().ok()).unwrap_or(1);
-                vertical_rule(w).into()
+                let w = node.width.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
+                rule::vertical(w).into()
             }
         }
         NodeType::Column => {
@@ -660,15 +662,53 @@ pub fn render_node<'a>(
         }
     }
 
-    // Any node with `on_press` becomes a press surface: the action fires on
-    // mouse-button-down (not release like a `Button`), which the engine needs
-    // for window dragging (`onPress="window:drag"`). Applied last so the whole
-    // styled element — including its background wrap — is draggable.
-    if let Some(action) = &node.on_press {
-        element = mouse_area(element)
-            .on_press(EngineMessage::XmlClick(action.clone()))
-            .into();
+    // A node with `on_press` and/or `cursor` is wrapped in a `mouse_area`:
+    // `on_press` fires the action on mouse-button-down (not release like a
+    // `Button`) — needed for window drag/resize (`onPress="window:drag"`) — and
+    // `cursor` sets the hover pointer (e.g. resize arrows on edge handles).
+    // Applied last so the whole styled element is the interactive surface.
+    if node.on_press.is_some() || node.cursor.is_some() {
+        let mut ma = mouse_area(element);
+        if let Some(action) = &node.on_press {
+            ma = ma.on_press(EngineMessage::XmlClick(action.clone()));
+        }
+        if let Some(interaction) = node.cursor.as_deref().and_then(cursor_interaction) {
+            ma = ma.interaction(interaction);
+        }
+        element = ma.into();
     }
 
     element
+}
+
+/// Maps a `cursor="…"` value to an [`iced::mouse::Interaction`]. Covers the
+/// common pointers plus the window-resize arrows used by borderless titlebars.
+/// Returns `None` for unknown names (the default cursor is kept).
+fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
+    // Not glob-importing the variants: `Interaction::None` would shadow
+    // `Option::None` below.
+    use iced::mouse::Interaction::{
+        Pointer, Text, Grab, Grabbing, Move, Crosshair, Wait, Progress, Help,
+        NotAllowed, Hidden, ResizingHorizontally, ResizingVertically,
+        ResizingDiagonallyUp, ResizingDiagonallyDown,
+    };
+    Some(match name.trim().to_ascii_lowercase().as_str() {
+        "pointer" | "hand" => Pointer,
+        "text" => Text,
+        "grab" => Grab,
+        "grabbing" => Grabbing,
+        "move" | "all-scroll" => Move,
+        "crosshair" => Crosshair,
+        "wait" => Wait,
+        "progress" => Progress,
+        "help" => Help,
+        "not-allowed" | "no-drop" => NotAllowed,
+        "none" | "hidden" => Hidden,
+        // Window-resize handles (compass + axis aliases).
+        "resize-h" | "ew" | "ew-resize" | "e" | "w" | "col-resize" => ResizingHorizontally,
+        "resize-v" | "ns" | "ns-resize" | "n" | "s" | "row-resize" => ResizingVertically,
+        "resize-ne" | "ne" | "sw" | "nesw" | "nesw-resize" => ResizingDiagonallyUp,
+        "resize-nw" | "nw" | "se" | "nwse" | "nwse-resize" => ResizingDiagonallyDown,
+        _ => return None,
+    })
 }

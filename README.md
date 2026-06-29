@@ -266,6 +266,7 @@ Disponíveis em **qualquer** tag:
 | `gradient` | `gradiente` | gradiente linear de fundo: `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"` (graus); vence `background` |
 | `textAlign` | `text_align`, `text-align` | alinhamento horizontal de `Text`: `start`/`center`/`end` |
 | `onPress` | `on_press`, `on-press`, `aoPressionar` | ação disparada no **pressionar** (botão do mouse para baixo) sobre o elemento — envolve-o em um `mouse_area`. Diferente do clique de `<Button>` (que dispara ao soltar); a semântica de pressionar é o que viabiliza arrastar a janela (`onPress="window:drag"`). |
+| `cursor` | `cursorIcon`, `cursor-icon` | ícone do cursor ao pairar sobre o elemento: `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not-allowed`, `none`, e os de redimensionar janela `resize-h`/`resize-v`/`resize-ne`/`resize-nw` (envolve em `mouse_area` com a `mouse::Interaction`). |
 
 - **Eixos:** o alinhamento do eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
 - **Cores:** hex `#RRGGBB` ou `#RRGGBBAA`.
@@ -284,6 +285,7 @@ precisar de código no componente — basta referenciá-las no markup:
 | `window:maximize` | alterna maximizar/restaurar (alias `window:toggle_maximize`) |
 | `window:close` | fecha a janela |
 | `window:drag` | inicia o arraste da janela — use em `onPress` de uma região da barra de título |
+| `window:resize:<dir>` | inicia o redimensionamento interativo — `<dir>` ∈ `n`,`s`,`e`,`w`,`ne`,`nw`,`se`,`sw`. Use em `onPress` das alças de borda/canto, junto com `cursor="resize-…"` para o ícone. Requer iced 0.14+. |
 
 As ações `window:*` permitem montar uma barra de título customizada para uma
 janela sem decorações (`decorations: false` nas `window::Settings` do iced):

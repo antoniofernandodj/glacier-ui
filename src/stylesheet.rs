@@ -42,6 +42,7 @@ pub struct StyleRule {
     pub font: Option<String>,
     pub gradient: Option<String>,
     pub text_align: Option<String>,
+    pub cursor: Option<String>,
 }
 
 impl StyleRule {
@@ -64,6 +65,7 @@ impl StyleRule {
         if other.font.is_some() { self.font = other.font.clone(); }
         if other.gradient.is_some() { self.gradient = other.gradient.clone(); }
         if other.text_align.is_some() { self.text_align = other.text_align.clone(); }
+        if other.cursor.is_some() { self.cursor = other.cursor.clone(); }
     }
 }
 
@@ -230,6 +232,7 @@ fn parse_rule_body(body: &str, selector: &str) -> Result<StyleRule, String> {
             "font" | "font-family" | "font_family" => rule.font = Some(value),
             "gradient" => rule.gradient = Some(value),
             "text-align" | "text_align" | "textAlign" => rule.text_align = Some(value),
+            "cursor" | "cursor-icon" | "cursorIcon" => rule.cursor = Some(value),
             other => {
                 return Err(format!(
                     "Unknown style property '{}' in '.{}'",

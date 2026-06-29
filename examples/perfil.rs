@@ -110,7 +110,8 @@ impl AppPerfil {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Painel de Perfil", AppPerfil::update, AppPerfil::view)
+    iced::application(|| AppPerfil::new(), AppPerfil::update, AppPerfil::view)
         .subscription(AppPerfil::subscription)
-        .run_with(|| AppPerfil::new())
+        .title("Glacier - Painel de Perfil")
+        .run()
 }

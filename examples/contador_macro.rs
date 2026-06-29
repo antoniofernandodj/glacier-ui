@@ -47,7 +47,8 @@ impl App {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Contador (script)", App::update, App::view)
+    iced::application(|| App::new(), App::update, App::view)
         .subscription(App::subscription)
-        .run_with(|| App::new())
+        .title("Glacier - Contador (script)")
+        .run()
 }

@@ -166,6 +166,10 @@ pub struct UiNode {
     /// release), press semantics are required for window dragging
     /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::XmlClick`].
     pub on_press: Option<String>,
+    /// Mouse cursor shown while hovering this element (`cursor="pointer"`,
+    /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
+    /// corresponding `mouse::Interaction`. Useful for window resize handles.
+    pub cursor: Option<String>,
     // Structural directives as attributes (Vue/Angular style)
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
@@ -222,6 +226,7 @@ impl UiNode {
         let gradient = Self::get_attr(&node, &["gradient", "gradiente"]);
         let text_align = Self::get_attr(&node, &["textAlign", "text_align", "text-align", "alinhamento_texto"]);
         let on_press = Self::get_attr(&node, &["onPress", "on_press", "on-press", "aoPressionar", "ao_pressionar"]);
+        let cursor = Self::get_attr(&node, &["cursor", "cursor_", "cursorIcon"]);
 
         // Structural directives as attributes (Vue/Angular style)
         let if_cond = Self::get_attr(&node, &["if", "se"]);
@@ -385,6 +390,7 @@ impl UiNode {
             gradient,
             text_align,
             on_press,
+            cursor,
             if_cond,
             if_equals,
             if_not_equals,
