@@ -627,6 +627,61 @@ fn test_link_rel_import() {
 }
 
 #[test]
+fn test_if_else_inside_foreach() {
+    // Regression: `<if>`/`<else>` nested directly under a `<ForEach>` must be
+    // resolved per item (only the matching branch renders), not emitted as
+    // plain nodes with both branches expanded.
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let data = "templates/test_ifforeach.json";
+    std::fs::write(
+        data,
+        r##"{ "rows": [ {"filler":"0","name":"api"}, {"filler":"1","name":"x"}, {"filler":"0","name":"web"} ] }"##,
+    )
+    .unwrap();
+
+    let tpl = "templates/test_ifforeach.xml";
+    std::fs::write(
+        tpl,
+        r##"
+        <link rel="data" href="templates/test_ifforeach.json" as="d" />
+        <Column>
+            <ForEach items="d.rows" var="r">
+                <if cond="{r.filler}" equals="1">
+                    <Text content="GAP" />
+                </if>
+                <else>
+                    <Text content="{r.name}" />
+                </else>
+            </ForEach>
+        </Column>
+        "##,
+    )
+    .unwrap();
+
+    motor.register_component("ifforeach", tpl).unwrap();
+
+    let ev = motor.evaluated_templates.get("ifforeach").unwrap();
+    let texts: Vec<String> = ev
+        .children
+        .iter()
+        .filter_map(|c| {
+            if let NodeType::Text { content, .. } = &c.kind {
+                Some(content.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Exactly one node per item, picking the right branch.
+    assert_eq!(texts, vec!["api", "GAP", "web"]);
+
+    std::fs::remove_file(data).ok();
+    std::fs::remove_file(tpl).ok();
+}
+
+#[test]
 fn test_link_rel_data() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();

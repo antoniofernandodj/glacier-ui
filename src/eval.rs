@@ -115,6 +115,93 @@ impl<'a> StyleContext<'a> {
     }
 }
 
+/// Expands a sibling list of children into evaluated nodes, applying the
+/// structural rules: `<if>`/`<else>` are resolved against the context (binding
+/// `<else>` to the immediately preceding `<if>`), `<ForEach>` is unrolled over
+/// its JSON array (re-expanding its own body so nested `if`/`else`/`ForEach`
+/// work at any depth), and `<import>`/`<link>` are dropped. Everything else is
+/// evaluated normally and pushed to `out`.
+#[allow(clippy::too_many_arguments)]
+fn expand_children(
+    children: &[UiNode],
+    context: &HashMap<String, String>,
+    templates: &HashMap<String, UiNode>,
+    styles: &StyleContext,
+    scope: Option<&str>,
+    owner: Option<&str>,
+    out: &mut Vec<UiNode>,
+) -> Result<(), String> {
+    // Tracks the result of the immediately preceding `<if>`, so an `<else>`
+    // can bind to it. Reset by any other (non-else) node.
+    let mut last_if: Option<bool> = None;
+    for child in children {
+        match &child.kind {
+            // `<import>`/`<link>` declarations are processed at registration
+            // time; drop them here.
+            NodeType::Import { .. } | NodeType::Link { .. } => {}
+            NodeType::ForEach { items, var } => {
+                let items_evaluated = process_template(items, context);
+                if let Some(json_str) = context.get(&items_evaluated) {
+                    if let Ok(serde_json::Value::Array(arr)) =
+                        serde_json::from_str::<serde_json::Value>(json_str)
+                    {
+                        for item in arr {
+                            let mut local_context = context.clone();
+                            match item {
+                                serde_json::Value::Object(obj) => {
+                                    for (key, val) in obj {
+                                        let str_val = match val {
+                                            serde_json::Value::String(s) => s,
+                                            other => other.to_string(),
+                                        };
+                                        local_context.insert(format!("{}.{}", var, key), str_val);
+                                    }
+                                }
+                                serde_json::Value::String(s) => {
+                                    local_context.insert(var.clone(), s);
+                                }
+                                other => {
+                                    local_context.insert(var.clone(), other.to_string());
+                                }
+                            }
+                            // Re-run the structural expansion on the body so that
+                            // nested `if`/`else`/`ForEach` are honoured per item.
+                            expand_children(
+                                &child.children,
+                                &local_context,
+                                templates,
+                                styles,
+                                scope,
+                                owner,
+                                out,
+                            )?;
+                        }
+                    }
+                }
+                last_if = None;
+            }
+            NodeType::If { cond, equals, not_equals } => {
+                let truthy = eval_condition(cond, equals, not_equals, context);
+                if truthy {
+                    expand_children(&child.children, context, templates, styles, scope, owner, out)?;
+                }
+                last_if = Some(truthy);
+            }
+            NodeType::Else => {
+                if last_if == Some(false) {
+                    expand_children(&child.children, context, templates, styles, scope, owner, out)?;
+                }
+                last_if = None;
+            }
+            _ => {
+                out.push(eval_owned(child, context, templates, styles, scope, owner)?);
+                last_if = None;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Recursively evaluate a UiNode tree, resolving templates and placeholders.
 ///
 /// `styles` are the loaded `.iss` documents; any `class="..."` on a node is
@@ -285,68 +372,7 @@ fn eval_owned(
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
     let mut children_eval = Vec::new();
-    // Tracks the result of the immediately preceding `<if>`, so an `<else>`
-    // can bind to it. Reset by any other (non-else) node.
-    let mut last_if: Option<bool> = None;
-    for child in &node.children {
-        match &child.kind {
-            // `<import>`/`<link>` declarations are processed at registration
-            // time; drop them here.
-            NodeType::Import { .. } | NodeType::Link { .. } => {}
-            NodeType::ForEach { items, var } => {
-                let items_evaluated = process_template(items, context);
-                if let Some(json_str) = context.get(&items_evaluated) {
-                    if let Ok(serde_json::Value::Array(arr)) = serde_json::from_str::<serde_json::Value>(json_str) {
-                        for item in arr {
-                            let mut local_context = context.clone();
-                            match item {
-                                serde_json::Value::Object(obj) => {
-                                    for (key, val) in obj {
-                                        let str_val = match val {
-                                            serde_json::Value::String(s) => s,
-                                            other => other.to_string(),
-                                        };
-                                        local_context.insert(format!("{}.{}", var, key), str_val);
-                                    }
-                                }
-                                serde_json::Value::String(s) => {
-                                    local_context.insert(var.clone(), s);
-                                }
-                                other => {
-                                    local_context.insert(var.clone(), other.to_string());
-                                }
-                            }
-                            for sub_child in &child.children {
-                                children_eval.push(eval_owned(sub_child, &local_context, templates, styles, scope, owner)?);
-                            }
-                        }
-                    }
-                }
-                last_if = None;
-            }
-            NodeType::If { cond, equals, not_equals } => {
-                let truthy = eval_condition(cond, equals, not_equals, context);
-                if truthy {
-                    for sub_child in &child.children {
-                        children_eval.push(eval_owned(sub_child, context, templates, styles, scope, owner)?);
-                    }
-                }
-                last_if = Some(truthy);
-            }
-            NodeType::Else => {
-                if last_if == Some(false) {
-                    for sub_child in &child.children {
-                        children_eval.push(eval_owned(sub_child, context, templates, styles, scope, owner)?);
-                    }
-                }
-                last_if = None;
-            }
-            _ => {
-                children_eval.push(eval_owned(child, context, templates, styles, scope, owner)?);
-                last_if = None;
-            }
-        }
-    }
+    expand_children(&node.children, context, templates, styles, scope, owner, &mut children_eval)?;
 
     Ok(UiNode {
         kind: kind_eval,
