@@ -227,6 +227,14 @@ impl GlacierUI {
     /// Apps that use [`GlacierUI::register`] just forward every message here from
     /// their `update()` instead of matching on actions themselves.
     pub fn dispatch(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
+        // Built-in: `clipboard:<key>` copies a context value to the system
+        // clipboard without involving a component.
+        if let EngineMessage::XmlClick(a) = msg {
+            if let Some(key) = a.strip_prefix("clipboard:") {
+                let value = self.context_data.get(key).cloned().unwrap_or_default();
+                return iced::clipboard::write(value);
+            }
+        }
         let (action, value) = match msg {
             EngineMessage::XmlClick(a) => (a.as_str(), None),
             EngineMessage::XmlInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
