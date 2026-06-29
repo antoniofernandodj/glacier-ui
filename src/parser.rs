@@ -25,6 +25,8 @@ pub enum NodeType {
         placeholder: String,
         value_var: String,
         on_change: String,
+        /// Masks the input (passwords/tokens) when true (`secure`/`password`).
+        secure: bool,
     },
     /// A multi-line text editor bound to a context key. Unlike [`NodeType::TextInput`]
     /// the engine keeps a stateful `text_editor::Content` for it (keyed by
@@ -246,7 +248,8 @@ impl UiNode {
                 let placeholder = Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();
                 let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
                 let on_change = Self::get_attr(&node, &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"]).unwrap_or_default();
-                NodeType::TextInput { placeholder, value_var, on_change }
+                let secure = Self::get_attr_bool(&node, &["secure", "password", "seguro", "senha"]);
+                NodeType::TextInput { placeholder, value_var, on_change, secure }
             }
             "TextArea" | "textarea" | "TextEditor" | "texteditor" | "Editor" | "editor" | "AreaTexto" | "area_texto" => {
                 let placeholder = Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();

@@ -493,11 +493,12 @@ fn eval_owned(
                     .or_else(|| style.color.clone()),
             }
         }
-        NodeType::TextInput { placeholder, value_var, on_change } => {
+        NodeType::TextInput { placeholder, value_var, on_change, secure } => {
             NodeType::TextInput {
                 placeholder: process_template(placeholder, context),
                 value_var: process_template(value_var, context),
                 on_change: namespace_action(process_template(on_change, context), owner),
+                secure: *secure,
             }
         }
         NodeType::TextArea { placeholder, value_var, on_change } => {

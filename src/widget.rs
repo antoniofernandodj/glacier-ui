@@ -298,16 +298,17 @@ pub fn render_node<'a>(
                .padding(parse_padding(&node.padding))
                .into()
         }
-        NodeType::TextInput { placeholder, value_var, on_change } => {
+        NodeType::TextInput { placeholder, value_var, on_change, secure } => {
             let current_value = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
             let action_clone = on_change.clone();
-            
+
             let mut input = text_input(placeholder.as_str(), current_value)
                 .on_input(move |val| EngineMessage::XmlInputChanged {
                     action: action_clone.clone(),
                     value: val,
-                });
-            
+                })
+                .secure(*secure);
+
             input = input.width(parse_length(&node.width))
                          .padding(parse_padding(&node.padding));
 
