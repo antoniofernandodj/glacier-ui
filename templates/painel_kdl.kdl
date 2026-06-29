@@ -13,9 +13,23 @@ Container class="painel" {
         // Cada CartaoKdl é o componente importado; as props viram o contexto
         // dele. O cartão se estiliza por conta própria (atributos inline).
         Column class="lista" {
-            CartaoKdl nome="Clara Silva" cargo="Engenheira de Software" inicial="C" cor="#89B4FA"
-            CartaoKdl nome="Sophia Martins" cargo="Designer de Interface" inicial="S" cor="#F5C2E7"
-            CartaoKdl nome="Mateus Rocha" cargo="Gerente de Produto" inicial="M" cor="#A6E3A1"
+            CartaoKdl \
+                nome="Clara Silva" \
+                cargo="Engenheira de Software" \
+                inicial="C" \
+                cor="#89B4FA"
+
+            CartaoKdl \
+                nome="Sophia Martins" \
+                cargo="Designer de Interface" \
+                inicial="S" \
+                cor="#F5C2E7"
+
+            CartaoKdl \
+                nome="Mateus Rocha" \
+                cargo="Gerente de Produto" \
+                inicial="M" \
+                cor="#A6E3A1"
         }
     }
 }
