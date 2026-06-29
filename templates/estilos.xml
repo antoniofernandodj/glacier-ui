@@ -2,11 +2,11 @@
 <link rel="theme" href="styles/theme.json" />
 
 <!-- Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente. -->
-<link rel="stylesheet" href="styles/estilos.iss" />
+<link rel="stylesheet" href="styles/estilos.gss" />
 
 <Container class="card">
     <Column class="stack">
-        <Text class="title" content="Estilos via .iss" />
+        <Text class="title" content="Estilos via .gss" />
 
         <!-- A classe define size/color; nada inline aqui. -->
         <Text class="subtitle" content="Contador: {valor}" />
@@ -20,7 +20,7 @@
         <!-- Atributo inline vence a classe: cor explícita ganha de `subtitle`. -->
         <Text
             class="subtitle"
-            content="(edite styles/app.iss e veja o hot-reload)"
+            content="(edite styles/app.gss e veja o hot-reload)"
             color="#6C7086"
         />
     </Column>

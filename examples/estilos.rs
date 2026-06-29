@@ -2,10 +2,10 @@ use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
 use iced::{Element, Task};
 use std::time::Duration;
 
-/// Demonstra stylesheets `.iss` e `<link>` no template:
-/// - GLOBAL: `styles/app.iss`, carregada via `motor.load_stylesheet(...)`,
+/// Demonstra stylesheets `.gss` e `<link>` no template:
+/// - GLOBAL: `styles/app.gss`, carregada via `motor.load_stylesheet(...)`,
 ///   vale para todos os componentes (card, title, subtitle, stack, actions).
-/// - ESCOPADA: `<link rel="stylesheet" href="styles/estilos.iss">`, válida só
+/// - ESCOPADA: `<link rel="stylesheet" href="styles/estilos.gss">`, válida só
 ///   neste componente (as classes `.btn*`).
 /// - TEMA: `<link rel="theme" href="styles/theme.json">` define a paleta do
 ///   `iced` (lido por `motor.theme()` e ligado em `.theme(...)`).
@@ -50,7 +50,7 @@ impl AppEstilos {
         }
         // Carrega a stylesheet depois do componente: `load_stylesheet`
         // re-avalia todos os templates já registrados com as classes.
-        if let Err(e) = motor.load_stylesheet("styles/app.iss") {
+        if let Err(e) = motor.load_stylesheet("styles/app.gss") {
             eprintln!("Erro ao carregar stylesheet: {}", e);
         }
         motor.set_initial_screen("estilos");
@@ -81,7 +81,7 @@ impl AppEstilos {
 }
 
 fn main() -> iced::Result {
-    iced::application("Glacier - Estilos (.iss)", AppEstilos::update, AppEstilos::view)
+    iced::application("Glacier - Estilos (.gss)", AppEstilos::update, AppEstilos::view)
         .subscription(AppEstilos::subscription)
         .theme(AppEstilos::theme)
         .run_with(|| AppEstilos::new())

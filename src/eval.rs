@@ -395,7 +395,7 @@ fn expand_children(
 
 /// Recursively evaluate a UiNode tree, resolving templates and placeholders.
 ///
-/// `styles` are the loaded `.iss` documents; any `class="..."` on a node is
+/// `styles` are the loaded `.gss` documents; any `class="..."` on a node is
 /// resolved against them and merged underneath the node's inline attributes.
 /// `scope` is the name of the component being evaluated, used to pick up its
 /// `<link>`-scoped stylesheets.

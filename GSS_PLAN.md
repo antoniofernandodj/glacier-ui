@@ -1,4 +1,4 @@
-# Plano: Iced Stylesheet (`.iss`)
+# Plano: Glacier Stylesheet (`.gss`)
 
 ## Problema atual
 
@@ -12,12 +12,12 @@ Isso causa repetição, dificulta manutenção e mistura layout com aparência.
 
 ---
 
-## Formato `.iss` proposto
+## Formato `.gss` proposto
 
 Sintaxe CSS-like, simples de parsear e familiar:
 
-```iss
-// styles/app.iss
+```gss
+// styles/app.gss
 
 .card {
     background: #2E3440;
@@ -93,7 +93,7 @@ pub struct StyleSheet {
 | `src/widget.rs` | Receber `&StyleSheet`; resolver classes antes de aplicar attrs inline; mesclagem `class < inline` |
 | `src/lib.rs` | Adicionar `stylesheets: Vec<StyleSheet>` em `GlacierUI`; método `load_stylesheet(path)` |
 | `src/eval.rs` | Passar stylesheet na pipeline de avaliação |
-| `src/stylesheet.rs` | Novo: parser `.iss` + structs |
+| `src/stylesheet.rs` | Novo: parser `.gss` + structs |
 
 ---
 
@@ -114,18 +114,18 @@ pub struct StyleSheet {
 
 ```rust
 // Carregamento de arquivo
-engine.load_stylesheet("styles/app.iss");
+engine.load_stylesheet("styles/app.gss");
 
 // Ou inline no XML com tag especial (fase futura)
-// <link stylesheet="styles/app.iss" />
+// <link stylesheet="styles/app.gss" />
 ```
 
 ---
 
 ## Fases de implementação
 
-### Fase 1 — Parser `.iss`
-- Criar `src/stylesheet.rs` com `parse_iss()` e structs
+### Fase 1 — Parser `.gss`
+- Criar `src/stylesheet.rs` com `parse_gss()` e structs
 - Suporte a: seletores `.nome`, propriedades `chave: valor;`, comentários `//`
 
 ### Fase 2 — Integração com `UiNode`
@@ -134,8 +134,8 @@ engine.load_stylesheet("styles/app.iss");
 - Implementar mesclagem em `widget.rs`
 
 ### Fase 3 — UX e hot-reload
-- Múltiplos arquivos `.iss` carregados por ordem de prioridade
-- Observar mudanças em `.iss` no modo hot-reload (já existe o watcher em `lib.rs`)
+- Múltiplos arquivos `.gss` carregados por ordem de prioridade
+- Observar mudanças em `.gss` no modo hot-reload (já existe o watcher em `lib.rs`)
 - Erros de classe inválida com mensagem clara (classe `"foo"` não encontrada)
 
 ---

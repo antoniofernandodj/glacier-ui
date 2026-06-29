@@ -80,7 +80,7 @@ pub enum NodeType {
         placeholder: String,
         label_field: String,
         value_field: String,
-        /// Text color (inline `color`/`cor` or resolved from a `.iss` class).
+        /// Text color (inline `color`/`cor` or resolved from a `.gss` class).
         color: Option<String>,
     },
     Include {
@@ -115,9 +115,9 @@ pub enum NodeType {
     /// Renders its children when the immediately preceding `<if>` was false.
     Else,
     /// Declares an external resource to load, e.g.
-    /// `<link rel="stylesheet" href="styles/card.iss" />`. `rel` selects the
+    /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
     /// kind of resource:
-    /// - `stylesheet` (default): an `.iss` sheet, scoped to the declaring
+    /// - `stylesheet` (default): an `.gss` sheet, scoped to the declaring
     ///   component's subtree (on top of any global sheets);
     /// - `import`/`component`: another component template (declarative
     ///   equivalent of `<import>`); `name`/`as` names it (defaults to the file
@@ -150,7 +150,7 @@ pub struct UiNode {
     pub border_width: Option<f32>,
     pub border_color: Option<String>,
     /// Space-separated stylesheet classes (`class="card centered"`), resolved
-    /// against the loaded `.iss` stylesheets during evaluation.
+    /// against the loaded `.gss` stylesheets during evaluation.
     pub class: Option<String>,
     /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
     /// monospaced font; anything else (or `None`) uses the default.

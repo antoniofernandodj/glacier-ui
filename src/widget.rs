@@ -456,7 +456,7 @@ pub fn render_node<'a>(
             let selected = opts.iter().find(|o| o.value == current).cloned();
             let action = on_change.clone();
 
-            // Style fields resolved from inline attrs / `.iss` class; anything
+            // Style fields resolved from inline attrs / `.gss` class; anything
             // unset falls back to the active theme palette so it stays consistent.
             let bg = background_for(node);
             let br_radius = node.border_radius;

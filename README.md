@@ -3,7 +3,7 @@
 **Glacier** é um motor de UI declarativa para Rust: você descreve a interface em
 **XML** e o motor a renderiza com [`iced`](https://iced.rs). Tudo com
 **hot-reload**, **data binding**, **componentes** reutilizáveis, **navegação**,
-**stylesheets `.iss`** (CSS-like) e **comportamento** encapsulado em tipos Rust
+**stylesheets `.gss`** (CSS-like) e **comportamento** encapsulado em tipos Rust
 (ou embutido no próprio XML via `<script>`).
 
 ```xml
@@ -40,41 +40,55 @@ impl Component for Contador {
 
 ## Sumário
 
-- [Por que Glacier](#por-que-glacier)
-- [Instalação](#instalação)
-- [Conceitos e arquitetura](#conceitos-e-arquitetura)
-- [Início rápido](#início-rápido)
-- [Referência de tags](#referência-de-tags)
-- [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
-- [Data binding e templating](#data-binding-e-templating)
-- [Controle de fluxo (`if`/`else`, `ForEach`)](#controle-de-fluxo)
-- [Inputs de texto](#inputs-de-texto)
-- [Imagens](#imagens)
-- [Componentes e composição](#componentes-e-composição)
-  - [`<import>` e referência por nome](#import-e-referência-por-nome)
-  - [O trait `Component`](#o-trait-component)
-  - [Componentes aninhados e roteamento de ações](#componentes-aninhados-e-roteamento-de-ações)
-  - [`ContextVar`](#contextvar)
-- [Navegação entre telas](#navegação-entre-telas)
-- [`<script>` + a macro `#[component]`](#script--a-macro-component)
-- [Stylesheets `.iss`](#stylesheets-iss)
-- [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
-- [Temas](#temas)
-- [Hot-reload](#hot-reload)
-- [Referência da API](#referência-da-api)
-- [Exemplos](#exemplos)
-- [Publicação no crates.io](#publicação-no-cratesio)
-- [Licença](#licença)
+- [glacier-ui](#glacier-ui)
+  - [Sumário](#sumário)
+  - [Por que Glacier](#por-que-glacier)
+  - [Instalação](#instalação)
+  - [Conceitos e arquitetura](#conceitos-e-arquitetura)
+  - [Início rápido](#início-rápido)
+  - [Referência de tags](#referência-de-tags)
+    - [Layout](#layout)
+    - [Conteúdo e controles](#conteúdo-e-controles)
+    - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
+  - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
+  - [Data binding e templating](#data-binding-e-templating)
+  - [Controle de fluxo](#controle-de-fluxo)
+    - [Atributos Diretivas (Recomendado)](#atributos-diretivas-recomendado)
+      - [`if` / `else` / `equals` / `notEquals`](#if--else--equals--notequals)
+      - [`for-each` e `var`](#for-each-e-var)
+      - [Precedência: `for-each` + `if` no mesmo elemento](#precedência-for-each--if-no-mesmo-elemento)
+    - [Tags-Invólucro (Legado)](#tags-invólucro-legado)
+  - [Inputs de texto](#inputs-de-texto)
+  - [Imagens](#imagens)
+  - [Componentes e composição](#componentes-e-composição)
+    - [`<import>` e referência por nome](#import-e-referência-por-nome)
+    - [O trait `Component`](#o-trait-component)
+    - [Componentes aninhados e roteamento de ações](#componentes-aninhados-e-roteamento-de-ações)
+    - [`ContextVar`](#contextvar)
+  - [Navegação entre telas](#navegação-entre-telas)
+  - [`<script>` + a macro `#[component]`](#script--a-macro-component)
+  - [Stylesheets `.gss`](#stylesheets-gss)
+  - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
+  - [Temas](#temas)
+  - [Hot-reload](#hot-reload)
+  - [Rede e async](#rede-e-async)
+  - [Referência da API](#referência-da-api)
+    - [`GlacierUI`](#glacierui)
+    - [`EngineMessage`](#enginemessage)
+    - [Tipos de apoio](#tipos-de-apoio)
+  - [Exemplos](#exemplos)
+  - [Publicação no crates.io](#publicação-no-cratesio)
+  - [Licença](#licença)
 
 ---
 
 ## Por que Glacier
 
 - **Declarativo de verdade** — a UI é um arquivo XML, não uma árvore de chamadas Rust.
-- **Hot-reload** — edite o XML, os estilos `.iss`, os dados JSON ou o tema com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
+- **Hot-reload** — edite o XML, os estilos `.gss`, os dados JSON ou o tema com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
 - **Data binding por placeholders** — `{chave}` em qualquer atributo, resolvido contra um contexto de estado.
 - **Componentes** — encapsulam UI + comportamento + estado num único tipo Rust, compostos por `<import>`, referência por nome ou `children()`.
-- **Estilos reutilizáveis** — classes `.iss` (CSS-like) globais ou com escopo por componente, com a mesma precedência do CSS (inline vence classe).
+- **Estilos reutilizáveis** — classes `.gss` (CSS-like) globais ou com escopo por componente, com a mesma precedência do CSS (inline vence classe).
 - **Renderiza com `iced`** — widgets nativos, multiplataforma, tema configurável.
 
 ---
@@ -111,7 +125,7 @@ cargo run --example contador
 | **`GlacierUI`** | o motor: registra templates/componentes/estilos, avalia o contexto e renderiza para `iced`. |
 | **`Component`** | tipo Rust que junta **UI** (template) + **comportamento** (reação a ações) + **estado** próprio. |
 | **`EngineMessage`** | mensagens que o `iced` entrega ao motor (cliques, inputs, navegação, reload). |
-| **Stylesheet `.iss`** | classes de estilo reutilizáveis (CSS-like), globais ou por componente. |
+| **Stylesheet `.gss`** | classes de estilo reutilizáveis (CSS-like), globais ou por componente. |
 
 O fluxo de cada frame de estado é:
 
@@ -209,7 +223,7 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Text>` | `text` | `content`/`texto`, `size`/`tamanho`, `bold`/`negrito`, `color`/`cor` |
 | `<Button>` | `button`, `Botao` | `text`/`texto`, `onClick`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
 | `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara o texto) |
-| `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave de contexto com array JSON), `value`/`valor` (chave com o valor selecionado), `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`), `color`/`cor`. Estilizável via `.iss` (`background`, `border*`, `color`). |
+| `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave de contexto com array JSON), `value`/`valor` (chave com o valor selecionado), `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`), `color`/`cor`. Estilizável via `.gss` (`background`, `border*`, `color`). |
 | `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
 | `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
 | `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange` |
@@ -247,7 +261,7 @@ Disponíveis em **qualquer** tag:
 | `borderRadius` | `border_radius`, `raio_borda` | número |
 | `borderWidth` | `border_width`, `largura_borda` | número |
 | `borderColor` | `border_color`, `cor_borda` | cor hex |
-| `class` | `classe` | classes `.iss` separadas por espaço (veja [Stylesheets](#stylesheets-iss)) |
+| `class` | `classe` | classes `.gss` separadas por espaço (veja [Stylesheets](#stylesheets-gss)) |
 | `font` | `fonte`, `font-family` | `mono`/`monospace`/`code` (fonte monoespaçada) ou `bold` — em `Text`/`Button` |
 | `gradient` | `gradiente` | gradiente linear de fundo: `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"` (graus); vence `background` |
 | `textAlign` | `text_align`, `text-align` | alinhamento horizontal de `Text`: `start`/`center`/`end` |
@@ -553,14 +567,14 @@ raiz sem invalidar o documento.
 
 ---
 
-## Stylesheets `.iss`
+## Stylesheets `.gss`
 
-Um `.iss` (*iced stylesheet*) é um arquivo CSS-like que tira estilos repetidos
+Um `.gss` (*glacier stylesheet*) é um arquivo CSS-like que tira estilos repetidos
 da markup e os agrupa em **classes** reutilizáveis. Aplique-as com
 `class="..."`:
 
-```iss
-// styles/app.iss
+```gss
+// styles/app.gss
 /* Comentários de linha (//) e de bloco (/* ... */, multilinha) são suportados.
    '#' nunca é comentário, então cores #RRGGBB ficam intactas. */
 
@@ -595,7 +609,7 @@ da markup e os agrupa em **classes** reutilizáveis. Aplique-as com
 Carregue uma stylesheet **global** por código:
 
 ```rust
-motor.load_stylesheet("styles/app.iss")?; // vale para todos os componentes
+motor.load_stylesheet("styles/app.gss")?; // vale para todos os componentes
 ```
 
 …ou uma **com escopo** via `<link>` no template (próxima seção). Veja
@@ -610,14 +624,14 @@ tipo:
 
 | `rel` | O que faz | Escopo | Atributos |
 |---|---|---|---|
-| `stylesheet` (padrão) | carrega um `.iss` | **por componente** | `href` |
+| `stylesheet` (padrão) | carrega um `.gss` | **por componente** | `href` |
 | `import` / `component` | carrega outro template (igual a `<import>`) | global | `href`, `as`/`name` (default = nome do arquivo) |
 | `data` | faz merge de um JSON no contexto | global | `href`, `as`/`name` (obrigatório) |
 | `theme` | aplica uma paleta como `iced::Theme` | global (app) | `href` |
 
 ```xml
 <!-- stylesheet COM ESCOPO: as classes só valem dentro deste componente -->
-<link rel="stylesheet" href="styles/estilos.iss" />
+<link rel="stylesheet" href="styles/estilos.gss" />
 
 <!-- carregar um componente declarativamente -->
 <link rel="import" href="templates/perfil_card.xml" as="PerfilCard" />
@@ -679,7 +693,7 @@ iced::application("Glacier", AppEstilos::update, AppEstilos::view)
 Recursos carregados de arquivo são recarregados quando mudam em disco:
 
 - **templates** (`Template::File`) — inclusive `<import>`/`<link>` novos;
-- **stylesheets `.iss`** — globais e com escopo;
+- **stylesheets `.gss`** — globais e com escopo;
 - **dados** (`<link rel="data">`) — re-merge no contexto;
 - **tema** (`<link rel="theme">`) — re-aplicado no próximo redraw.
 
@@ -697,7 +711,7 @@ fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
 }
 ```
 
-Edite o XML, o `.iss`, o JSON de dados ou o tema e veja a UI atualizar sem
+Edite o XML, o `.gss`, o JSON de dados ou o tema e veja a UI atualizar sem
 recompilar. (A lógica de um `<script>` é a exceção — veja o tradeoff da macro.)
 
 ---
@@ -766,7 +780,7 @@ tela sem você escrever nenhum `match` de mensagens.
 | `new()` | cria um motor vazio. |
 | `register(Box<dyn Component>)` | registra um componente (UI + comportamento + `children()` em cascata). |
 | `register_component(name, path)` | API de baixo nível: registra só a UI a partir de um arquivo. |
-| `load_stylesheet(path)` | carrega/recarrega um `.iss` **global** e reavalia tudo. |
+| `load_stylesheet(path)` | carrega/recarrega um `.gss` **global** e reavalia tudo. |
 | `theme()` | o `iced::Theme` do `<link rel="theme">`, ou `Theme::Dark`. |
 | `dispatch(&EngineMessage)` | roteia a mensagem ao componente dono, aplica navegação/reload/patch e devolve uma `iced::Task` com os efeitos pedidos. |
 | `subscription()` | agrega as `Component::subscription` de todos os componentes numa só `iced::Subscription`. |
@@ -812,7 +826,7 @@ pub enum EngineMessage {
 | `condicional` | `<if>` / `<else>` (truthy e comparação). | `cargo run --example condicional` |
 | `navegacao` | múltiplas telas, histórico e `navigateTo`/`navigateBack` com estado compartilhado. | `cargo run --example navegacao` |
 | `aninhado` | componente registrado dentro de outro (`children()`), com roteamento por namespace. | `cargo run --example aninhado` |
-| `estilos` | stylesheets `.iss` (globais e com escopo via `<link>`), classes e tema. | `cargo run --example estilos` |
+| `estilos` | stylesheets `.gss` (globais e com escopo via `<link>`), classes e tema. | `cargo run --example estilos` |
 
 ---
 

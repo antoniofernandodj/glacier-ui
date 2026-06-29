@@ -24,12 +24,12 @@ aspas.
 **XML (atual — 27 linhas):**
 ```xml
 <link rel="theme"      href="styles/theme.json" />
-<link rel="stylesheet" href="styles/estilos.iss" />
+<link rel="stylesheet" href="styles/estilos.gss" />
 <import name="PerfilCard" from="templates/perfil_card.xml" />
 
 <Container class="card">
     <Column class="stack">
-        <Text class="title" content="Estilos via .iss" />
+        <Text class="title" content="Estilos via .gss" />
         <Text class="subtitle" content="Contador: {valor}" />
         <Row class="actions">
             <Button class="btn btn-danger" text="-" onClick="decrementar" />
@@ -42,7 +42,7 @@ aspas.
 **GlacierView (`.gv` — 22 linhas):**
 ```gv
 theme  "styles/theme.json"
-style  "styles/estilos.iss"
+style  "styles/estilos.gss"
 import "PerfilCard" from="templates/perfil_card.xml"
 
 Container {
@@ -51,7 +51,7 @@ Container {
     Column {
         class: stack
 
-        Text "Estilos via .iss" { class: title }
+        Text "Estilos via .gss" { class: title }
         Text "Contador: {valor}" { class: subtitle }
 
         Row {
@@ -73,7 +73,7 @@ Idênticas ao KDL — nó simples com argumento posicional:
 
 ```gv
 theme  "styles/theme.json"
-style  "styles/app.iss"
+style  "styles/app.gss"
 import "PerfilCard" from="templates/perfil_card.xml"
 data   "data/team.json" as="team"
 ```
@@ -287,7 +287,7 @@ externos).
 
 **3.1** `templates/contador.gv` — porta do contador XML, valida o parser base.
 
-**3.2** `templates/estilos.gv` — valida `theme`, `style` e classes `.iss`.
+**3.2** `templates/estilos.gv` — valida `theme`, `style` e classes `.gss`.
 
 **3.3** `templates/condicional.gv` — valida `if`/`else` em bloco e como prop.
 

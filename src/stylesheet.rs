@@ -1,8 +1,8 @@
-//! Iced Stylesheet (`.iss`): a small, CSS-like format that lifts repeated
+//! Glacier Stylesheet (`.gss`): a small, CSS-like format that lifts repeated
 //! style attributes out of the XML markup and into reusable classes.
 //!
-//! ```iss
-//! // styles/app.iss
+//! ```gss
+//! // styles/app.gss
 //! /* Comentários de bloco também são suportados,
 //!    inclusive em várias linhas. */
 //! .card {
@@ -67,7 +67,7 @@ impl StyleRule {
     }
 }
 
-/// A parsed `.iss` document: a map from class name (without the leading `.`)
+/// A parsed `.gss` document: a map from class name (without the leading `.`)
 /// to its [`StyleRule`].
 #[derive(Debug, Clone, Default)]
 pub struct StyleSheet {
@@ -75,9 +75,9 @@ pub struct StyleSheet {
 }
 
 impl StyleSheet {
-    /// Parses an `.iss` source string into a [`StyleSheet`].
+    /// Parses an `.gss` source string into a [`StyleSheet`].
     pub fn parse(input: &str) -> Result<Self, String> {
-        parse_iss(input)
+        parse_gss(input)
     }
 }
 
@@ -100,7 +100,7 @@ pub fn resolve_classes(classes: &str, sheets: &[&StyleSheet]) -> StyleRule {
     merged
 }
 
-/// Removes `//` line comments and `/* ... */` block comments from an `.iss`
+/// Removes `//` line comments and `/* ... */` block comments from an `.gss`
 /// source, leaving everything else (including `#RRGGBB` colors and newlines)
 /// intact. Each block comment is replaced by a single space so it can't glue
 /// adjacent tokens together. Errors on an unterminated block comment.
@@ -146,7 +146,7 @@ fn strip_comments(input: &str) -> Result<String, String> {
     Ok(out)
 }
 
-/// Parses an `.iss` document.
+/// Parses an `.gss` document.
 ///
 /// Grammar (intentionally tiny):
 /// - Comments: `//` to end of line, and `/* ... */` blocks (which may span
@@ -154,7 +154,7 @@ fn strip_comments(input: &str) -> Result<String, String> {
 ///   kept verbatim.
 /// - Rules: `.name { prop: value; prop: value; }`
 /// - Properties: `key: value;` where the value may contain spaces (`padding: 8 16`).
-pub fn parse_iss(input: &str) -> Result<StyleSheet, String> {
+pub fn parse_gss(input: &str) -> Result<StyleSheet, String> {
     // Strip comments first; '#' inside a value (hex colors) survives.
     let cleaned = strip_comments(input)?;
 
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn parses_basic_rule() {
-        let css = "
+        let gss = "
             // a comment
             .card {
                 background: #2E3440;
@@ -255,7 +255,7 @@ mod tests {
                 padding: 16;
             }
         ";
-        let sheet = parse_iss(css).unwrap();
+        let sheet = parse_gss(gss).unwrap();
         let card = sheet.rules.get("card").unwrap();
         assert_eq!(card.background.as_deref(), Some("#2E3440"));
         assert_eq!(card.border_radius, Some(12.0));
@@ -273,7 +273,7 @@ mod tests {
             }
             /* a /*-looking thing that is just text */
         ";
-        let sheet = parse_iss(css).unwrap();
+        let sheet = parse_gss(css).unwrap();
         let card = sheet.rules.get("card").unwrap();
         assert_eq!(card.padding.as_deref(), Some("16"));
         assert_eq!(card.color.as_deref(), Some("#2E3440"));
@@ -282,26 +282,26 @@ mod tests {
     #[test]
     fn block_comment_does_not_glue_tokens() {
         // The comment between `.a` rules must not merge them into one selector.
-        let sheet = parse_iss(".a { padding: 1; }/* x */.b { padding: 2; }").unwrap();
+        let sheet = parse_gss(".a { padding: 1; }/* x */.b { padding: 2; }").unwrap();
         assert_eq!(sheet.rules["a"].padding.as_deref(), Some("1"));
         assert_eq!(sheet.rules["b"].padding.as_deref(), Some("2"));
     }
 
     #[test]
     fn unterminated_block_comment_is_an_error() {
-        assert!(parse_iss(".a { padding: 1; } /* oops").is_err());
+        assert!(parse_gss(".a { padding: 1; } /* oops").is_err());
     }
 
     #[test]
     fn multi_value_padding_is_preserved() {
-        let sheet = parse_iss(".btn { padding: 8 16; }").unwrap();
+        let sheet = parse_gss(".btn { padding: 8 16; }").unwrap();
         assert_eq!(sheet.rules["btn"].padding.as_deref(), Some("8 16"));
     }
 
     #[test]
     fn classes_merge_left_to_right_then_files() {
-        let base = parse_iss(".a { padding: 4; color: #111; }").unwrap();
-        let over = parse_iss(".b { color: #222; } .a { padding: 8; }").unwrap();
+        let base = parse_gss(".a { padding: 4; color: #111; }").unwrap();
+        let over = parse_gss(".b { color: #222; } .a { padding: 8; }").unwrap();
         let merged = resolve_classes("a b", &[&base, &over]);
         // `.a` padding is overridden by the later sheet; `.b` color wins over `.a`.
         assert_eq!(merged.padding.as_deref(), Some("8"));
@@ -310,11 +310,11 @@ mod tests {
 
     #[test]
     fn unknown_property_is_an_error() {
-        assert!(parse_iss(".x { wibble: 1; }").is_err());
+        assert!(parse_gss(".x { wibble: 1; }").is_err());
     }
 
     #[test]
     fn selector_must_be_a_class() {
-        assert!(parse_iss("card { padding: 1; }").is_err());
+        assert!(parse_gss("card { padding: 1; }").is_err());
     }
 }

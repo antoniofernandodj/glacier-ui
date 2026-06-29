@@ -1,10 +1,12 @@
 pub mod parser;
+pub mod kdl_parser;
 pub mod eval;
 pub mod widget;
 pub mod component;
 pub mod stylesheet;
 
 pub use parser::{UiNode, NodeType};
+pub use kdl_parser::parse_kdl;
 pub use eval::{evaluate_node, process_template, strip_script, normalize_bare_directives, StyleContext};
 pub use widget::{render_node, EngineMessage};
 pub use component::{Component, Context, ContextVar, Effect, Nav, Template};
@@ -35,10 +37,10 @@ pub struct GlacierUI {
     pub history: Vec<String>,
     /// Registered components (UI + behavior), keyed by component name.
     pub components: HashMap<String, Box<dyn component::Component>>,
-    /// Globally-loaded `.iss` stylesheets, in ascending priority order (a class
+    /// Globally-loaded `.gss` stylesheets, in ascending priority order (a class
     /// defined in a later sheet overrides the same class in an earlier one).
     pub stylesheets: Vec<stylesheet::StyleSheet>,
-    /// Paths of loaded global `.iss` files (parallel to `stylesheets`), kept for
+    /// Paths of loaded global `.gss` files (parallel to `stylesheets`), kept for
     /// hot-reload along with their last-seen modification times.
     pub stylesheet_paths: Vec<String>,
     /// Per-component (scoped) stylesheets declared via `<link rel="stylesheet">`,
@@ -94,7 +96,7 @@ impl GlacierUI {
         self.custom_theme.clone().unwrap_or(iced::Theme::Dark)
     }
 
-    /// Loads (or reloads) an `.iss` stylesheet from disk and re-evaluates all
+    /// Loads (or reloads) an `.gss` stylesheet from disk and re-evaluates all
     /// templates so the new classes take effect.
     ///
     /// Stylesheets are layered in load order: a class defined in a file loaded
@@ -180,27 +182,27 @@ impl GlacierUI {
 
         let name = comp.name().to_string();
 
-        // (a) UI: resolve the template and feed it through the existing parse
-        //     pipeline. `File` templates keep hot-reload support.
-        let xml = match comp.template() {
+        // (a) UI: resolve the template and feed it through the parse pipeline,
+        //     which picks XML or KDL by the file extension. `File` templates
+        //     keep hot-reload support.
+        let (markup, path) = match comp.template() {
             Template::File(path) => {
                 let content = std::fs::read_to_string(&path)
-                    .map_err(|e| format!("Failed to read XML file at '{}': {}", path, e))?;
+                    .map_err(|e| format!("Failed to read template file at '{}': {}", path, e))?;
                 let mod_time = std::fs::metadata(&path)
                     .and_then(|m| m.modified())
                     .unwrap_or_else(|_| SystemTime::now());
-                self.registered_components.insert(name.clone(), path);
+                self.registered_components.insert(name.clone(), path.clone());
                 self.file_mod_times.insert(name.clone(), mod_time);
-                content
+                (content, Some(path))
             }
-            Template::Inline(s) => s,
+            Template::Inline(s) => (s, None),
         };
 
-        // Strip any `<script>` block (behavior is compiled in by `#[component]`).
-        let (markup, _script) = eval::strip_script(&xml);
-        let markup = eval::normalize_bare_directives(&markup);
-        let ast = UiNode::parse_xml(&markup)
-            .map_err(|e| format!("Failed to parse XML for component '{}': {}", name, e))?;
+        // Parse via XML (with `<script>` stripped, behavior compiled in by
+        // `#[component]`) or KDL, depending on the extension.
+        let (ast, _script) = parse_markup(path.as_deref(), &markup)
+            .map_err(|e| format!("Failed to parse template for component '{}': {}", name, e))?;
         self.parsed_templates.insert(name.clone(), ast.clone());
         self.load_imports(&ast)?;
         self.process_links(&name, &ast)?;
@@ -343,13 +345,11 @@ impl GlacierUI {
 
     /// Parses and stores a component plus its imports, without re-evaluating.
     fn register_component_inner(&mut self, name: &str, path: &str) -> Result<(), String> {
-        let xml_content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read XML file at '{}': {}", path, e))?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read template file at '{}': {}", path, e))?;
 
-        let (markup, _script) = eval::strip_script(&xml_content);
-        let markup = eval::normalize_bare_directives(&markup);
-        let ast = UiNode::parse_xml(&markup)
-            .map_err(|e| format!("Failed to parse XML for component '{}': {}", name, e))?;
+        let (ast, _script) = parse_markup(Some(path), &content)
+            .map_err(|e| format!("Failed to parse template for component '{}': {}", name, e))?;
 
         let mod_time = std::fs::metadata(path)
             .and_then(|m| m.modified())
@@ -560,11 +560,9 @@ impl GlacierUI {
                 if let Ok(modified) = metadata.modified() {
                     let last_modified = self.file_mod_times.get(name);
                     if last_modified.map_or(true, |&last| modified > last) {
-                        // File changed, reload it
-                        if let Ok(xml_content) = std::fs::read_to_string(path) {
-                            let (markup, _script) = eval::strip_script(&xml_content);
-                            let markup = eval::normalize_bare_directives(&markup);
-                            if let Ok(new_ast) = UiNode::parse_xml(&markup) {
+                        // File changed, reload it (XML or KDL by extension).
+                        if let Ok(content) = std::fs::read_to_string(path) {
+                            if let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content) {
                                 updates.push((name.clone(), new_ast, modified));
                                 reloaded.push(name.clone());
                             }
@@ -574,7 +572,7 @@ impl GlacierUI {
             }
         }
 
-        // Detect changed `.iss` stylesheets the same way. Both global sheets and
+        // Detect changed `.gss` stylesheets the same way. Both global sheets and
         // per-component (`<link>`-scoped) sheets are watched; a path used in more
         // than one place is only re-parsed once.
         let mut all_paths: Vec<String> = self.stylesheet_paths.clone();
@@ -684,11 +682,28 @@ impl GlacierUI {
     }
 }
 
+/// Parses a template's source into a [`UiNode`], picking the parser by the
+/// file extension: `.kdl` uses the KDL parser, anything else (including unknown
+/// extensions and inline templates with no path) falls back to XML.
+///
+/// `path` is `None` for inline templates. The returned tuple carries the
+/// `<script>` body for XML templates (KDL strips its `script` block internally
+/// and never surfaces one here).
+fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode, Option<String>), String> {
+    if path.is_some_and(|p| p.to_ascii_lowercase().ends_with(".kdl")) {
+        Ok((parse_kdl(content)?, None))
+    } else {
+        let (markup, script) = eval::strip_script(content);
+        let markup = eval::normalize_bare_directives(&markup);
+        Ok((UiNode::parse_xml(&markup)?, script))
+    }
+}
+
 /// Namespaced keys under which a resource's modification time is stored in
 /// `file_mod_times`, so they never collide with a component of the same name
 /// (or with each other across resource kinds).
 fn stylesheet_key(path: &str) -> String {
-    format!("iss::{}", path)
+    format!("gss::{}", path)
 }
 fn data_key(path: &str) -> String {
     format!("data::{}", path)

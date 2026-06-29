@@ -523,13 +523,13 @@ fn test_link_scoped_stylesheet() {
     std::fs::create_dir_all("templates").ok();
 
     // Global sheet: applies everywhere.
-    let global_iss = "templates/test_global.iss";
-    std::fs::write(global_iss, ".box { padding: 5; color: #111111; }").unwrap();
+    let global_gss = "templates/test_global.gss";
+    std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
 
     // Scoped sheet: only component A links it. It overrides `.box`'s padding
     // and adds a `.scoped` class.
-    let scoped_iss = "templates/test_scoped.iss";
-    std::fs::write(scoped_iss, ".box { padding: 9; } .scoped { color: #abcabc; }").unwrap();
+    let scoped_gss = "templates/test_scoped.gss";
+    std::fs::write(scoped_gss, ".box { padding: 9; } .scoped { color: #abcabc; }").unwrap();
 
     // A links the scoped sheet (as a top-level sibling, before its root, to
     // exercise the <link> hoisting in parse_xml).
@@ -537,7 +537,7 @@ fn test_link_scoped_stylesheet() {
     std::fs::write(
         a_path,
         r##"
-        <link rel="stylesheet" href="templates/test_scoped.iss" />
+        <link rel="stylesheet" href="templates/test_scoped.gss" />
         <Text class="box scoped" content="A" />
         "##,
     ).unwrap();
@@ -546,7 +546,7 @@ fn test_link_scoped_stylesheet() {
     let b_path = "templates/test_scoped_b.xml";
     std::fs::write(b_path, r##"<Text class="box scoped" content="B" />"##).unwrap();
 
-    motor.load_stylesheet(global_iss).unwrap();
+    motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
     motor.register_component("b", b_path).unwrap();
 
@@ -561,8 +561,8 @@ fn test_link_scoped_stylesheet() {
     assert_eq!(b.padding.as_deref(), Some("5"), "B uses global padding");
     assert_eq!(text_color(&b.kind).as_deref(), Some("#111111"), "B uses global color; scoped class has no effect");
 
-    std::fs::remove_file(global_iss).ok();
-    std::fs::remove_file(scoped_iss).ok();
+    std::fs::remove_file(global_gss).ok();
+    std::fs::remove_file(scoped_gss).ok();
     std::fs::remove_file(a_path).ok();
     std::fs::remove_file(b_path).ok();
 }
@@ -572,21 +572,21 @@ fn test_inline_attribute_wins_over_class() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
-    let iss = "templates/test_inline.iss";
-    std::fs::write(iss, ".tag { color: #aaaaaa; padding: 3; }").unwrap();
+    let gss = "templates/test_inline.gss";
+    std::fs::write(gss, ".tag { color: #aaaaaa; padding: 3; }").unwrap();
 
     let path = "templates/test_inline.xml";
     // Inline color overrides the class; padding falls back to the class.
     std::fs::write(path, r##"<Text class="tag" content="x" color="#ff0000" />"##).unwrap();
 
-    motor.load_stylesheet(iss).unwrap();
+    motor.load_stylesheet(gss).unwrap();
     motor.register_component("inline", path).unwrap();
 
     let n = motor.evaluated_templates.get("inline").unwrap();
     assert_eq!(text_color(&n.kind).as_deref(), Some("#ff0000"), "inline color wins");
     assert_eq!(n.padding.as_deref(), Some("3"), "padding comes from the class");
 
-    std::fs::remove_file(iss).ok();
+    std::fs::remove_file(gss).ok();
     std::fs::remove_file(path).ok();
 }
 
@@ -869,7 +869,7 @@ fn context_patch_merges_into_context() {
 }
 
 #[test]
-fn iss_supports_font_and_text_align() {
+fn gss_supports_font_and_text_align() {
     use glacier_ui::StyleSheet;
     let sheet = StyleSheet::parse(".mono { font: mono; text-align: center; }").unwrap();
     let rule = sheet.rules.get("mono").unwrap();
@@ -975,6 +975,267 @@ fn test_precedence_foreach_if_attributes() {
         assert_eq!(content, "Item: Mateus");
     } else {
         panic!("esperava o segundo item");
+    }
+
+    std::fs::remove_file(path).ok();
+}
+
+// ---------------------------------------------------------------------------
+// KDL parser
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_kdl_basic_layout() {
+    let kdl = r##"
+    Container padding=15 width=200 background="#FFFFFF" {
+        Column spacing=10 {
+            Text "Hello World" size=20 bold
+            Button "Click Me" onClick="btn_click"
+        }
+    }
+    "##;
+
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+
+    assert_eq!(ast.kind, NodeType::Container);
+    assert_eq!(ast.padding.as_deref(), Some("15"));
+    assert_eq!(ast.width.as_deref(), Some("200"));
+    assert_eq!(ast.background.as_deref(), Some("#FFFFFF"));
+
+    assert_eq!(ast.children.len(), 1);
+    let column = &ast.children[0];
+    assert_eq!(column.kind, NodeType::Column);
+    assert_eq!(column.spacing, Some(10.0));
+    assert_eq!(column.children.len(), 2);
+
+    if let NodeType::Text { content, size, bold, .. } = &column.children[0].kind {
+        assert_eq!(content, "Hello World");
+        assert_eq!(*size, Some(20.0));
+        assert!(bold, "o flag abreviado `bold` deve virar bold=true");
+    } else {
+        panic!("primeiro filho do Column deveria ser Text");
+    }
+
+    if let NodeType::Button { text, on_click, .. } = &column.children[1].kind {
+        assert_eq!(text, "Click Me");
+        assert_eq!(on_click.as_deref(), Some("btn_click"));
+    } else {
+        panic!("segundo filho do Column deveria ser Button");
+    }
+}
+
+#[test]
+fn test_kdl_declarations_hoisted() {
+    // theme/style/import/data viram nós Link/Import anexados como filhos da raiz.
+    let kdl = r#"
+    theme "styles/theme.json"
+    style "styles/estilos.iss"
+    import "PerfilCard" from="templates/perfil_card.xml"
+    data "styles/dados.json" as="perfil"
+
+    Container {
+        Text "ola"
+    }
+    "#;
+
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Container);
+
+    let mut found_theme = false;
+    let mut found_style = false;
+    let mut found_data = false;
+    let mut found_import = false;
+    for child in &ast.children {
+        match &child.kind {
+            NodeType::Link { rel, href, name } if rel == "theme" => {
+                found_theme = true;
+                assert_eq!(href, "styles/theme.json");
+                assert!(name.is_none());
+            }
+            NodeType::Link { rel, href, .. } if rel == "stylesheet" => {
+                found_style = true;
+                assert_eq!(href, "styles/estilos.iss");
+            }
+            NodeType::Link { rel, href, name } if rel == "data" => {
+                found_data = true;
+                assert_eq!(href, "styles/dados.json");
+                assert_eq!(name.as_deref(), Some("perfil"));
+            }
+            NodeType::Import { name, from } => {
+                found_import = true;
+                assert_eq!(name, "PerfilCard");
+                assert_eq!(from, "templates/perfil_card.xml");
+            }
+            _ => {}
+        }
+    }
+    assert!(found_theme && found_style && found_data && found_import,
+        "todas as declarações deveriam ser anexadas como filhos da raiz");
+}
+
+#[test]
+fn test_kdl_flow_control_attributes() {
+    // if/else/for-each como atributos, igual ao XML.
+    // `else` aceita o flag abreviado (bare) ou a forma KDL v2 `else=#true`.
+    let kdl = r#"
+    Column {
+        Text "Bem-vindo, {usuario}" if="{logado}"
+        Text "Faça login" else
+        CartaoUsuario for-each="usuarios" var="u" nome="{u.nome}"
+    }
+    "#;
+
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    let c = &ast.children;
+    assert_eq!(c.len(), 3);
+
+    assert_eq!(c[0].if_cond.as_deref(), Some("{logado}"));
+    assert!(c[1].is_else, "o flag `else` deveria marcar is_else");
+    assert_eq!(c[2].for_each.as_deref(), Some("usuarios"));
+    assert_eq!(c[2].for_each_var.as_deref(), Some("u"));
+    if let NodeType::Component { name, props } = &c[2].kind {
+        assert_eq!(name, "CartaoUsuario");
+        assert_eq!(props.get("nome").map(String::as_str), Some("{u.nome}"));
+    } else {
+        panic!("esperava um Component CartaoUsuario");
+    }
+}
+
+#[test]
+fn test_kdl_script_block_stripped() {
+    // O bloco `script { ... }` (corpo Rust) é removido antes do parse KDL.
+    let kdl = r#"
+    Container {
+        Text "ola"
+    }
+
+    script {
+        fn incrementar(self) {
+            self.contador += 1;
+        }
+    }
+    "#;
+
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Container);
+    assert_eq!(ast.children.len(), 1);
+}
+
+#[test]
+fn test_kdl_file_end_to_end() {
+    // Um arquivo .kdl roda no motor exatamente como um .xml: o parser é
+    // escolhido pela extensão.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let path = "templates/test_e2e.kdl";
+    std::fs::write(
+        path,
+        r#"
+        Column {
+            Text "Contador: {contador}" size=24 bold
+            Button "+" onClick="incrementar"
+        }
+        "#,
+    ).unwrap();
+
+    motor.register_component("kdl_e2e", path).unwrap();
+    motor.define_data("contador", "7");
+
+    let ev = motor.evaluated_templates.get("kdl_e2e").unwrap();
+    assert_eq!(ev.kind, NodeType::Column);
+    if let NodeType::Text { content, size, bold, .. } = &ev.children[0].kind {
+        assert_eq!(content, "Contador: 7");
+        assert_eq!(*size, Some(24.0));
+        assert!(bold);
+    } else {
+        panic!("esperava o Text interpolado");
+    }
+
+    std::fs::remove_file(path).ok();
+}
+
+#[test]
+fn test_kdl_import_and_scoped_stylesheet() {
+    // Usa os arquivos reais do exemplo `painel_kdl`: o template importa um
+    // componente KDL e declara uma folha .gss escopada.
+    let mut motor = GlacierUI::new();
+    motor.register_component("painel_kdl", "templates/painel_kdl.kdl").unwrap();
+
+    // O `import "CartaoKdl"` deve ter registrado o componente importado.
+    assert!(
+        motor.parsed_templates.contains_key("CartaoKdl"),
+        "o import do CartaoKdl deveria ter sido carregado"
+    );
+
+    // Árvore avaliada: a classe escopada `.painel` foi resolvida nos campos da
+    // raiz (após a avaliação `class` vira None — as classes viram atributos).
+    let ev = motor.evaluated_templates.get("painel_kdl").unwrap();
+    assert_eq!(ev.padding.as_deref(), Some("30"), ".painel (escopada) aplica padding");
+    assert_eq!(ev.background.as_deref(), Some("#11111B"), ".painel aplica background");
+
+    // Os 3 CartaoKdl foram inlinados: cada um vira o Container raiz do cartão
+    // (width 320, background #181825 vindos dos atributos inline do componente).
+    let cards = collect_cards(ev);
+    assert_eq!(cards.len(), 3, "esperava 3 cartões inlinados");
+    assert_eq!(cards[0].width.as_deref(), Some("320"), "o cartão importado aplica seu width inline");
+    assert_eq!(cards[0].background.as_deref(), Some("#181825"));
+
+    // As props nome/cargo foram interpoladas no contexto local de cada cartão.
+    let textos = collect_texts(ev);
+    assert!(textos.iter().any(|t| t == "Clara Silva"), "prop nome deveria ser interpolada");
+    assert!(textos.iter().any(|t| t == "Designer de Interface"), "prop cargo deveria ser interpolada");
+}
+
+// Os cartões inlinados são os Containers de width 320 (assinatura do CartaoKdl).
+fn collect_cards(node: &UiNode) -> Vec<&UiNode> {
+    let mut out = Vec::new();
+    fn walk<'a>(node: &'a UiNode, out: &mut Vec<&'a UiNode>) {
+        if matches!(node.kind, NodeType::Container) && node.width.as_deref() == Some("320") {
+            out.push(node);
+        }
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    walk(node, &mut out);
+    out
+}
+
+// Coleta o conteúdo de todo Text na árvore avaliada.
+fn collect_texts(node: &UiNode) -> Vec<String> {
+    let mut out = Vec::new();
+    fn walk(node: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &node.kind {
+            out.push(content.clone());
+        }
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    walk(node, &mut out);
+    out
+}
+
+#[test]
+fn test_unknown_extension_falls_back_to_xml() {
+    // Extensão desconhecida (.tmpl) deve usar o parser XML.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let path = "templates/test_fallback.tmpl";
+    std::fs::write(
+        path,
+        r##"<Text content="via XML fallback" size="18" />"##,
+    ).unwrap();
+
+    motor.register_component("fallback", path).unwrap();
+
+    let ev = motor.evaluated_templates.get("fallback").unwrap();
+    if let NodeType::Text { content, .. } = &ev.kind {
+        assert_eq!(content, "via XML fallback");
+    } else {
+        panic!("esperava um Text parseado pelo fallback XML");
     }
 
     std::fs::remove_file(path).ok();

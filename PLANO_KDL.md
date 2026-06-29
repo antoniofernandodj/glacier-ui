@@ -13,12 +13,12 @@ nomeadas — tudo com parser Rust já disponível no crates.io (`kdl` crate).
 **XML (atual):**
 ```xml
 <link rel="theme"      href="styles/theme.json" />
-<link rel="stylesheet" href="styles/estilos.iss" />
+<link rel="stylesheet" href="styles/estilos.gss" />
 <import name="PerfilCard" from="templates/perfil_card.xml" />
 
 <Container class="card">
     <Column class="stack">
-        <Text class="title" content="Estilos via .iss" />
+        <Text class="title" content="Estilos via .gss" />
         <Text class="subtitle" content="Contador: {valor}" />
         <Row class="actions">
             <Button class="btn btn-danger" text="-" onClick="decrementar" />
@@ -31,12 +31,12 @@ nomeadas — tudo com parser Rust já disponível no crates.io (`kdl` crate).
 **KDL (proposto):**
 ```kdl
 theme  "styles/theme.json"
-style  "styles/estilos.iss"
+style  "styles/estilos.gss"
 import "PerfilCard" from="templates/perfil_card.xml"
 
 Container class="card" {
     Column class="stack" {
-        Text "Estilos via .iss" class="title"
+        Text "Estilos via .gss" class="title"
         Text "Contador: {valor}" class="subtitle"
         Row class="actions" {
             Button "-" onClick="decrementar" class="btn btn-danger"
@@ -55,7 +55,7 @@ Container class="card" {
 | Nó KDL | Equivalente XML | Descrição |
 |--------|----------------|-----------|
 | `theme "path.json"` | `<link rel="theme" href="...">` | Paleta global do iced |
-| `style "path.iss"` | `<link rel="stylesheet" href="...">` | Stylesheet escopada ao componente |
+| `style "path.gss"` | `<link rel="stylesheet" href="...">` | Stylesheet escopada ao componente |
 | `import "Nome" from="path.xml"` | `<import name="..." from="...">` | Importa componente externo |
 | `data "path.json" as="chave"` | `<link rel="data" href="..." as="...">` | JSON injetado no contexto |
 
@@ -63,10 +63,10 @@ Container class="card" {
 
 ```kdl
 // Conteúdo de texto/botão como primeiro argumento posicional
-Text "Olá, {nome}!" size=28 bold=true color="#ECEFF4"
+Text "Olá, {nome}!" size=28 bold color="#ECEFF4"
 Button "Clique" onClick="acao" color="#A3BE8C"
 
-// Propriedades booleanas abreviadas: bold=true → apenas bold
+// Booleano: flag abreviado (nu) — equivale a bold=#true
 Text "Título" bold size=32
 
 // Filhos dentro de chaves
@@ -83,10 +83,12 @@ Text "Simples" size=16
 ### Regras de atributos
 
 - Strings com espaço ou caracteres especiais exigem aspas: `padding="10 20"`
-- Cores hexadecimais sem espaço não precisam de aspas: `color=#2E3440` (o parser
-  trata como string)
+- Cores hexadecimais **precisam de aspas**: `color="#2E3440"` — em KDL v2 o `#`
+  inicia uma palavra-chave, então hex nu não é válido
 - Valores numéricos sem aspas: `size=28`, `spacing=15`
 - Strings simples sem espaço sem aspas: `align=Center`, `width=fill`
+- Booleanos: use o flag abreviado (nu) — `bold`, `else` — ou a forma KDL v2 com
+  `#`: `bold=#true`. `bold=true` **não** é válido (`true` é palavra reservada)
 
 ### Controle de fluxo
 
@@ -95,7 +97,7 @@ Text "Simples" size=16
 Column if="{logado}" {
     Text "Bem-vindo!"
 }
-Column else=true {
+Column else {
     Text "Faça login"
 }
 
@@ -178,7 +180,7 @@ para validar o parser.
 
 - Migração automática de templates XML existentes para KDL
 - Deprecação do suporte XML (os dois formatos coexistem indefinidamente)
-- Novo formato de stylesheet `.iss` — o KDL é só para templates de UI
+- Novo formato de stylesheet `.gss` — o KDL é só para templates de UI
 - Ferramenta de formatação/linting de `.kdl` (o `kdl` crate já tem `fmt`)
 
 ---

@@ -1,9 +1,9 @@
 /*
-styles/app.iss
+styles/app.gss
 Stylesheet GLOBAL, carregada via `motor.load_stylesheet(...)`.
 Aplica-se a todos os componentes. Atributos inline no nó sempre vencem a
 classe (mesma precedência do CSS). As classes de botão ficam em uma
-stylesheet COM ESCOPO do componente (styles/estilos.iss), carregada pelo
+stylesheet COM ESCOPO do componente (styles/estilos.gss), carregada pelo
 `<link rel="stylesheet">` dentro do template.
 Edite este arquivo com o exemplo rodando: o hot-reload aplica na hora.
 */

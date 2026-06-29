@@ -1,0 +1,23 @@
+// Tema da janela (paleta do iced) — também elimina o fundo branco padrão.
+theme "styles/theme.json"
+
+// Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente.
+style "styles/estilos.gss"
+
+Container class="card" {
+    Column class="stack" {
+        Text "Estilos via .iss (KDL)" class="title"
+
+        // A classe define size/color; nada inline aqui.
+        Text "Contador: {valor}" class="subtitle"
+
+        Row class="actions" {
+            // `btn` (escopada) dá padding + cor base; `btn-danger` sobrescreve a cor.
+            Button "-" onClick="decrementar" class="btn btn-danger"
+            Button "+" onClick="incrementar" class="btn btn-success"
+        }
+
+        // Atributo inline vence a classe: cor explícita ganha de `subtitle`.
+        Text "(edite styles/estilos.gss e veja o hot-reload)" class="subtitle" color="#6C7086"
+    }
+}
