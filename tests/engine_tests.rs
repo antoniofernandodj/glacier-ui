@@ -499,12 +499,12 @@ fn test_nested_component_action_routing() {
     motor.set_initial_screen("parent");
 
     // A namespaced action reaches the child's update, not the parent's.
-    let _ = motor.dispatch(&EngineMessage::XmlClick("ChildComp::ping".into()));
+    let _ = motor.dispatch(&EngineMessage::UiClick("ChildComp::ping".into()));
     assert_eq!(motor.get_data("child_pinged").map(String::as_str), Some("true"));
     assert_eq!(motor.get_data("parent_acted"), None);
 
     // A plain action falls back to the active screen (the parent).
-    let _ = motor.dispatch(&EngineMessage::XmlClick("parent_act".into()));
+    let _ = motor.dispatch(&EngineMessage::UiClick("parent_act".into()));
     assert_eq!(motor.get_data("parent_acted").map(String::as_str), Some("true"));
 }
 

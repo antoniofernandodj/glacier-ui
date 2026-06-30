@@ -232,7 +232,7 @@ impl GlacierUI {
     pub fn dispatch(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
-        if let EngineMessage::XmlClick(a) = msg {
+        if let EngineMessage::UiClick(a) = msg {
             if let Some(key) = a.strip_prefix("clipboard:") {
                 let value = self.context_data.get(key).cloned().unwrap_or_default();
                 return iced::clipboard::write(value);
@@ -264,8 +264,8 @@ impl GlacierUI {
             }
         }
         let (action, value) = match msg {
-            EngineMessage::XmlClick(a) => (a.as_str(), None),
-            EngineMessage::XmlInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
+            EngineMessage::UiClick(a) => (a.as_str(), None),
+            EngineMessage::UiInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
             EngineMessage::Navigate(s) => {
                 self.navigate_to(s);
                 let _ = self.reevaluate_all();
@@ -287,7 +287,7 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
-            EngineMessage::XmlEditorAction { binding, on_change, action } => {
+            EngineMessage::UiEditorAction { binding, on_change, action } => {
                 // Apply the edit to the kept editor buffer, then mirror its full
                 // text into the context (and `editor_synced`, so the sync step
                 // doesn't treat this as an external change).
@@ -305,7 +305,7 @@ impl GlacierUI {
                     return iced::Task::none();
                 }
                 // Let the owning component react to the change as well.
-                return self.dispatch(&EngineMessage::XmlInputChanged {
+                return self.dispatch(&EngineMessage::UiInputChanged {
                     action: on_change.clone(),
                     value: text,
                 });

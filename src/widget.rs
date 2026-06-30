@@ -120,12 +120,12 @@ fn background_for(node: &UiNode) -> Option<Background> {
 
 #[derive(Debug, Clone)]
 pub enum EngineMessage {
-    XmlClick(String),
-    XmlInputChanged { action: String, value: String },
+    UiClick(String),
+    UiInputChanged { action: String, value: String },
     /// An edit on a `<TextArea>`: `binding` is its `value` key, `action` is the
     /// editor action to apply to the kept `Content`, `on_change` is the action
     /// dispatched (with the new full text) after applying it.
-    XmlEditorAction { binding: String, on_change: String, action: text_editor::Action },
+    UiEditorAction { binding: String, on_change: String, action: text_editor::Action },
     /// Navigate to the given screen (button with `navigateTo`).
     Navigate(String),
     /// Go back to the previous screen (button with `navigateBack`).
@@ -262,7 +262,7 @@ pub fn render_node<'a>(
             } else if let Some(destination) = navigate_to {
                 btn = btn.on_press(EngineMessage::Navigate(destination.clone()));
             } else if let Some(action) = on_click {
-                btn = btn.on_press(EngineMessage::XmlClick(action.clone()));
+                btn = btn.on_press(EngineMessage::UiClick(action.clone()));
             }
             
             if let Some(c_str) = color {
@@ -304,7 +304,7 @@ pub fn render_node<'a>(
             let action_clone = on_change.clone();
 
             let mut input = text_input(placeholder.as_str(), current_value)
-                .on_input(move |val| EngineMessage::XmlInputChanged {
+                .on_input(move |val| EngineMessage::UiInputChanged {
                     action: action_clone.clone(),
                     value: val,
                 })
@@ -333,7 +333,7 @@ pub fn render_node<'a>(
                     let on_change = on_change.clone();
                     let mut ed = text_editor(content)
                         .placeholder(placeholder.as_str())
-                        .on_action(move |action| EngineMessage::XmlEditorAction {
+                        .on_action(move |action| EngineMessage::UiEditorAction {
                             binding: binding.clone(),
                             on_change: on_change.clone(),
                             action,
@@ -417,7 +417,7 @@ pub fn render_node<'a>(
             let action = on_toggle.clone();
             let mut c = checkbox(checked)
                 .label(label.as_str())
-                .on_toggle(move |v| EngineMessage::XmlInputChanged {
+                .on_toggle(move |v| EngineMessage::UiInputChanged {
                     action: action.clone(),
                     value: v.to_string(),
                 });
@@ -429,7 +429,7 @@ pub fn render_node<'a>(
         NodeType::Toggle { label, checked_var, on_toggle } => {
             let checked = context.get(checked_var).map(|s| is_truthy(s)).unwrap_or(false);
             let action = on_toggle.clone();
-            let mut t = toggler(checked).on_toggle(move |v| EngineMessage::XmlInputChanged {
+            let mut t = toggler(checked).on_toggle(move |v| EngineMessage::UiInputChanged {
                 action: action.clone(),
                 value: v.to_string(),
             });
@@ -487,7 +487,7 @@ pub fn render_node<'a>(
             };
 
             let mut pl = pick_list(opts, selected, move |chosen: SelectOption| {
-                EngineMessage::XmlInputChanged { action: action.clone(), value: chosen.value }
+                EngineMessage::UiInputChanged { action: action.clone(), value: chosen.value }
             })
             .style(style_fn)
             .width(parse_length(&node.width))
@@ -671,10 +671,10 @@ pub fn render_node<'a>(
     if node.on_press.is_some() || node.on_double_click.is_some() || node.cursor.is_some() {
         let mut ma = mouse_area(element);
         if let Some(action) = &node.on_press {
-            ma = ma.on_press(EngineMessage::XmlClick(action.clone()));
+            ma = ma.on_press(EngineMessage::UiClick(action.clone()));
         }
         if let Some(action) = &node.on_double_click {
-            ma = ma.on_double_click(EngineMessage::XmlClick(action.clone()));
+            ma = ma.on_double_click(EngineMessage::UiClick(action.clone()));
         }
         if let Some(interaction) = node.cursor.as_deref().and_then(cursor_interaction) {
             ma = ma.interaction(interaction);

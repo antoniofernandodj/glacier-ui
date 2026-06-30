@@ -150,8 +150,8 @@ pub trait Component {
 
     /// Reage a uma ação vinda da sua própria UI.
     ///
-    /// `value` vem preenchido em inputs (`XmlInputChanged`); é `None` em
-    /// cliques (`XmlClick`).
+    /// `value` vem preenchido em inputs (`UiInputChanged`); é `None` em
+    /// cliques (`UiClick`).
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
 
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que

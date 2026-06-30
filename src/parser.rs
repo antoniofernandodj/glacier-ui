@@ -52,7 +52,7 @@ pub enum NodeType {
         direction: String,
     },
     /// A checkbox bound to a context key. `checked_var` holds the truthy state;
-    /// toggling emits `on_toggle` as an `XmlInputChanged` carrying `"true"`/`"false"`.
+    /// toggling emits `on_toggle` as an `UiInputChanged` carrying `"true"`/`"false"`.
     Checkbox {
         label: String,
         checked_var: String,
@@ -72,7 +72,7 @@ pub enum NodeType {
     /// A dropdown (`pick_list`) bound to context. `options` is a context key
     /// holding a JSON array (objects with `label_field`/`value_field`, or plain
     /// strings); `value_var` holds the selected value; selecting an option emits
-    /// `on_change` as an `XmlInputChanged` carrying the chosen option's value.
+    /// `on_change` as an `UiInputChanged` carrying the chosen option's value.
     Select {
         options: String,
         value_var: String,
@@ -164,7 +164,7 @@ pub struct UiNode {
     /// Action dispatched on mouse press (button-down) over this element, which
     /// wraps it in a `mouse_area`. Unlike a `Button`'s click (which fires on
     /// release), press semantics are required for window dragging
-    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::XmlClick`].
+    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::UiClick`].
     pub on_press: Option<String>,
     /// Action dispatched on a double-click over this element (wraps it in a
     /// `mouse_area`). Common for titlebars (`onDoubleClick="window:maximize"`).
