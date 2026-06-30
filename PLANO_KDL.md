@@ -112,6 +112,21 @@ A forma legada com `\` no fim da linha continua válida e equivalente. O conteú
 de uma string multilinha (`""" … """`, p.ex. um `style` inline) **não** é tocado
 pelo pré-processador.
 
+Também é aceito fechar um bloco e abrir o próximo nó **na mesma linha** — o KDL
+puro exige um terminador depois do bloco de filhos, então o pré-processador
+insere a quebra automaticamente:
+
+```kdl
+node1 {
+    Text "a"
+} node2 {
+    Text "b"
+}
+```
+
+(`}` seguido apenas de espaço, `;` ou comentário é deixado como está; `}` dentro
+de strings ou comentários é ignorado.)
+
 ### Regras de atributos
 
 - Strings com espaço ou caracteres especiais exigem aspas: `padding="10 20"`

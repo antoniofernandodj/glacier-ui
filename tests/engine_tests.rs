@@ -1431,6 +1431,65 @@ fn test_kdl_multiline_preserves_inline_style_block() {
     assert!(style.contains("color: #CDD6F4;"));
 }
 
+#[test]
+fn test_kdl_close_brace_then_sibling_same_line() {
+    // `} node2 {` na mesma linha: o KDL exige terminador após o bloco de filhos;
+    // o pré-processador quebra a linha para que ambos os nós sejam parseados.
+    let kdl = r#"
+    Column {
+        Container {
+            Text "a"
+        } Container {
+            Text "b"
+        }
+    }
+    "#;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Column);
+    assert_eq!(ast.children.len(), 2, "os dois Containers irmãos devem ser parseados");
+    assert!(matches!(ast.children[0].kind, NodeType::Container));
+    assert!(matches!(ast.children[1].kind, NodeType::Container));
+    let textos = collect_texts(&ast);
+    assert_eq!(textos, vec!["a".to_string(), "b".to_string()]);
+}
+
+#[test]
+fn test_kdl_close_brace_chain_and_compact() {
+    // Forma compacta numa só linha, com fechamentos encadeados `} }`.
+    let kdl = r#"
+    Row { Container { Text "x" } Container { Text "y" } }
+    "#;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Row);
+    assert_eq!(ast.children.len(), 2);
+    assert_eq!(collect_texts(&ast), vec!["x".to_string(), "y".to_string()]);
+}
+
+#[test]
+fn test_kdl_close_brace_inside_strings_not_split() {
+    // Um `}` dentro de string normal e dentro de `"""` (corpo GSS) não pode
+    // disparar a quebra de linha.
+    let kdl = r##"
+    style """
+    .a { color: #fff; } .b { color: #000; }
+    """
+    Column {
+        Text "tem } chave" class="a"
+    }
+    "##;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Column);
+    // O Text com `}` literal no conteúdo continua um único nó intacto.
+    let textos = collect_texts(&ast);
+    assert_eq!(textos, vec!["tem } chave".to_string()]);
+    // O style inline preservou o GSS (inclusive duas regras na mesma linha).
+    let style = ast.children.iter().find_map(|c| match &c.kind {
+        NodeType::Style { css } => Some(css.clone()),
+        _ => None,
+    }).expect("esperava o nó Style inline");
+    assert!(style.contains(".a { color: #fff; } .b { color: #000; }"));
+}
+
 /// Helper: props de um nó referência de componente (`<NomeComp .../>`).
 fn component_props(node: &UiNode) -> std::collections::HashMap<String, String> {
     if let NodeType::Component { props, .. } = &node.kind {

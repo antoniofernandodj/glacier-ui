@@ -37,7 +37,8 @@ use crate::parser::{UiNode, NodeType};
 /// textually before parsing, mirroring `strip_script` for XML.
 pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
     let stripped = strip_kdl_script(input);
-    let joined = join_kdl_continuations(&stripped);
+    let split = split_after_close_braces(&stripped);
+    let joined = join_kdl_continuations(&split);
     let doc = KdlDocument::parse(&joined).map_err(|e| e.to_string())?;
 
     let mut decls = Vec::new();
@@ -115,6 +116,129 @@ fn matching_brace(s: &str, open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// Inserts a newline after a children-block `}` that is followed by more node
+/// content on the same line, so siblings can share a line with the closing
+/// brace:
+///
+/// ```kdl
+/// node1 {
+///     Text "a"
+/// } node2 {
+///     Text "b"
+/// }
+/// ```
+///
+/// KDL requires a node-terminator (newline, `;`, comment or EOF) after a node's
+/// children block, so `} node2 {` is otherwise a parse error. A `}` is left
+/// untouched when followed only by whitespace, a `;`, or a comment — those are
+/// already valid terminators. Braces inside `"…"` or `"""…"""` strings (e.g. the
+/// `.gss` body of an inline `style`) and inside `//` / `/* … */` comments are
+/// ignored.
+fn split_after_close_braces(input: &str) -> String {
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = String::with_capacity(input.len() + 16);
+    let mut i = 0;
+    let mut in_str = false; // inside a "…" single-line string
+    let mut in_ml = false; // inside a """…""" multi-line string
+    let mut in_line_comment = false; // inside a `//` comment, until newline
+    let mut in_block_comment = false; // inside a `/* … */` comment
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        // Comments: pass through; their braces must never trigger a split.
+        if in_line_comment {
+            out.push(c);
+            i += 1;
+            if c == '\n' {
+                in_line_comment = false;
+            }
+            continue;
+        }
+        if in_block_comment {
+            out.push(c);
+            if c == '*' && chars.get(i + 1) == Some(&'/') {
+                out.push('/');
+                i += 2;
+                in_block_comment = false;
+            } else {
+                i += 1;
+            }
+            continue;
+        }
+
+        // A `"""` toggles the multi-line string state (never while in a `"…"`).
+        if c == '"' && !in_str && i + 2 < chars.len() && chars[i + 1] == '"' && chars[i + 2] == '"' {
+            in_ml = !in_ml;
+            out.push_str("\"\"\"");
+            i += 3;
+            continue;
+        }
+        if in_ml {
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if in_str {
+            // Keep escape sequences intact so `\"` doesn't close the string.
+            if c == '\\' && i + 1 < chars.len() {
+                out.push(c);
+                out.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+            if c == '"' {
+                in_str = false;
+            }
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if c == '"' {
+            in_str = true;
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        // Comment openers (outside any string).
+        if c == '/' && chars.get(i + 1) == Some(&'/') {
+            in_line_comment = true;
+            out.push_str("//");
+            i += 2;
+            continue;
+        }
+        if c == '/' && chars.get(i + 1) == Some(&'*') {
+            in_block_comment = true;
+            out.push_str("/*");
+            i += 2;
+            continue;
+        }
+
+        out.push(c);
+        i += 1;
+
+        if c == '}' {
+            // Peek past spaces/tabs on the same line.
+            let mut j = i;
+            while j < chars.len() && (chars[j] == ' ' || chars[j] == '\t') {
+                j += 1;
+            }
+            // Break only before more node content — not before a `;`, a newline,
+            // a comment, or end of input (all already valid terminators).
+            let breaks = match chars.get(j) {
+                None | Some('\n') | Some('\r') | Some(';') => false,
+                Some('/') if matches!(chars.get(j + 1), Some('/') | Some('*')) => false,
+                Some(_) => true,
+            };
+            if breaks {
+                out.push('\n');
+            }
+        }
+    }
+
+    out
 }
 
 /// Folds a node's entries that were written across several lines back onto the
