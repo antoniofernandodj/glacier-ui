@@ -37,7 +37,8 @@ use crate::parser::{UiNode, NodeType};
 /// textually before parsing, mirroring `strip_script` for XML.
 pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
     let stripped = strip_kdl_script(input);
-    let doc = KdlDocument::parse(&stripped).map_err(|e| e.to_string())?;
+    let joined = join_kdl_continuations(&stripped);
+    let doc = KdlDocument::parse(&joined).map_err(|e| e.to_string())?;
 
     let mut decls = Vec::new();
     let mut root: Option<UiNode> = None;
@@ -49,7 +50,7 @@ pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
             continue;
         }
         if let Some(ui) = node_from_kdl(node) {
-            if matches!(ui.kind, NodeType::Import { .. } | NodeType::Link { .. }) {
+            if matches!(ui.kind, NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. }) {
                 decls.push(ui);
             } else if root.is_none() {
                 root = Some(ui);
@@ -114,6 +115,152 @@ fn matching_brace(s: &str, open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// Folds a node's entries that were written across several lines back onto the
+/// node's first line, so KDL templates can break a long node over multiple lines
+/// **without** trailing `\` continuations:
+///
+/// ```kdl
+/// CartaoKdl
+///     nome="Mateus Rocha"
+///     cargo="Gerente de Produto"
+///     cor="#A6E3A1"            // closes at the dedent / next sibling
+///
+/// CartaoKdl
+///     nome="Ana"
+///     cor="#89B4FA";           // or close explicitly with `;`
+///
+/// CartaoKdl
+///     nome="Léo"
+///     cor="#F38BA8" {          // or open a children block
+///         Text "extra"
+///     }
+/// ```
+///
+/// A line is treated as a **continuation** of the node started above it when its
+/// first token is a property (`key=…`) or an opening `{`. The node closes on a
+/// `;`, a `{ … }` block, a blank line, or the next line that is itself a new
+/// node. The legacy `\` line-continuation is still honoured (the backslash is
+/// stripped and the next line is folded unconditionally), so old templates keep
+/// working.
+///
+/// Lines inside a `"""` multi-line string (e.g. an inline `style` block whose
+/// body is `.gss`) are passed through untouched.
+fn join_kdl_continuations(input: &str) -> String {
+    let mut out: Vec<String> = Vec::new();
+    // Index in `out` of the node line currently eligible to absorb continuations.
+    let mut open: Option<usize> = None;
+    // Set by a trailing `\`: the next line folds in regardless of its first token.
+    let mut forced = false;
+    // Inside a `"""` multi-line string, where nothing is folded.
+    let mut in_ml = false;
+
+    for raw in input.lines() {
+        let trimmed = raw.trim();
+        let toggles_ml = trimmed.matches("\"\"\"").count() % 2 == 1;
+
+        // Pass multi-line string contents (and the delimiters) through verbatim.
+        if in_ml {
+            out.push(raw.to_string());
+            if toggles_ml { in_ml = false; }
+            open = None;
+            forced = false;
+            continue;
+        }
+        if toggles_ml {
+            out.push(raw.to_string());
+            in_ml = true;
+            open = None;
+            forced = false;
+            continue;
+        }
+
+        // A blank line ends any open node.
+        if trimmed.is_empty() {
+            out.push(raw.to_string());
+            open = None;
+            forced = false;
+            continue;
+        }
+
+        // Comments are emitted as-is and don't disturb the open node.
+        if trimmed.starts_with("//") || trimmed.starts_with("/*") {
+            out.push(raw.to_string());
+            continue;
+        }
+
+        let is_cont = open.is_some()
+            && (forced || starts_with_property(trimmed) || trimmed.starts_with('{'));
+
+        if is_cont {
+            let idx = open.unwrap();
+            out[idx].push(' ');
+            out[idx].push_str(trimmed);
+            (open, forced) = classify_node_line(&mut out[idx], idx);
+        } else {
+            out.push(raw.to_string());
+            let last = out.len() - 1;
+            (open, forced) = classify_node_line(&mut out[last], last);
+        }
+    }
+
+    out.join("\n")
+}
+
+/// Strips a trailing `\` line-continuation from `line` (an emitted node line) and
+/// reports, for the folding pass: whether the node stays open to further
+/// continuations (`Some(idx)`), and whether the next line must be folded
+/// unconditionally (`true` only right after a `\`). A node that ends in `;`,
+/// `{`, or `}` — or that is a lone `}` — is closed.
+fn classify_node_line(line: &mut String, idx: usize) -> (Option<usize>, bool) {
+    let t = line.trim_end();
+    if let Some(without) = t.strip_suffix('\\') {
+        *line = without.trim_end().to_string();
+        return (Some(idx), true);
+    }
+    if t.starts_with('}') || t.ends_with('{') || t.ends_with(';') || t.ends_with('}') {
+        return (None, false);
+    }
+    (Some(idx), false)
+}
+
+/// Whether a line begins with a KDL **property** (`key=value`) — i.e. its first
+/// token is a bare identifier or quoted string immediately followed by `=`. A
+/// node name is never followed by `=`, so this distinguishes a continuation
+/// (`nome="Ana"`) from the start of a new node (`Text "Ana"`).
+fn starts_with_property(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    if bytes.first() == Some(&b'"') {
+        // Quoted key: skip to the closing quote.
+        i += 1;
+        while i < bytes.len() && bytes[i] != b'"' {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            return false;
+        }
+        i += 1; // consume the closing quote
+    } else {
+        let start = i;
+        while i < bytes.len() {
+            let c = bytes[i] as char;
+            if c.is_alphanumeric() || matches!(c, '_' | '-' | '.') {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        if i == start {
+            return false;
+        }
+    }
+    // Optional spaces, then an `=` makes it a property.
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    bytes.get(i) == Some(&b'=')
 }
 
 /// The entries of a KDL node split into positional arguments and named
@@ -228,8 +375,19 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
             return Some(blank(NodeType::Link { rel: "theme".to_string(), href, name: None }));
         }
         "style" | "Style" | "stylesheet" | "Stylesheet" => {
-            let href = decl_href(&attrs);
-            return Some(blank(NodeType::Link { rel: "stylesheet".to_string(), href, name: None }));
+            // `style "styles/app.gss"` links an external sheet; a multi-line
+            // argument carrying actual `.gss` source (recognised by a `{` or a
+            // newline, neither of which appears in a path) is an inline,
+            // component-scoped sheet:
+            //
+            //     style """
+            //     .card { padding: 16; }
+            //     """
+            let arg = decl_href(&attrs);
+            if arg.contains('{') || arg.contains('\n') {
+                return Some(blank(NodeType::Style { css: arg }));
+            }
+            return Some(blank(NodeType::Link { rel: "stylesheet".to_string(), href: arg, name: None }));
         }
         "data" | "Data" => {
             let href = decl_href(&attrs);

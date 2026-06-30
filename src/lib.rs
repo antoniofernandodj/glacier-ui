@@ -43,13 +43,15 @@ pub struct GlacierUI {
     /// Paths of loaded global `.gss` files (parallel to `stylesheets`), kept for
     /// hot-reload along with their last-seen modification times.
     pub stylesheet_paths: Vec<String>,
-    /// Per-component (scoped) stylesheets declared via `<link rel="stylesheet">`,
-    /// keyed by component name. Applied on top of the global sheets, but only
-    /// inside that component's subtree.
+    /// Per-component (scoped) stylesheets declared via `<link rel="stylesheet">`
+    /// or an inline `<style>` block, keyed by component name. Applied on top of
+    /// the global sheets, but only inside that component's subtree, in document
+    /// order.
     pub component_stylesheets: HashMap<String, Vec<stylesheet::StyleSheet>>,
-    /// Paths of each component's scoped sheets (parallel to the vecs above),
-    /// kept for hot-reload.
-    pub component_stylesheet_paths: HashMap<String, Vec<String>>,
+    /// Source path of each component's scoped sheets (parallel to the vecs
+    /// above), kept for hot-reload. An inline `<style>` block has no file, so its
+    /// slot is `None` — it is rebuilt from the markup when the template reloads.
+    pub component_stylesheet_paths: HashMap<String, Vec<Option<String>>>,
     /// The custom `iced::Theme` loaded via `<link rel="theme">`, if any.
     /// Apps read it through [`GlacierUI::theme`].
     pub custom_theme: Option<iced::Theme>,
@@ -401,12 +403,13 @@ impl GlacierUI {
         let mut links = Vec::new();
         collect_links(ast, &mut links);
 
-        // Stylesheet links are scoped to `component`; the rest are global
-        // side effects applied immediately.
-        let mut sheet_hrefs = Vec::new();
+        // The rest of the `<link>` kinds are global side effects applied
+        // immediately. Scoped stylesheets (linked or inline `<style>`) are
+        // gathered separately below, preserving document order.
         for (rel, href, name) in &links {
             match rel.as_str() {
-                "stylesheet" => sheet_hrefs.push(href.clone()),
+                // Scoped styles are handled by `collect_scoped_styles` below.
+                "stylesheet" => {}
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
                     if !self.parsed_templates.contains_key(&comp_name) {
@@ -430,25 +433,41 @@ impl GlacierUI {
             }
         }
 
-        // Apply (rebuild or clear) this component's scoped stylesheets.
-        if sheet_hrefs.is_empty() {
+        // Apply (rebuild or clear) this component's scoped stylesheets. Both
+        // linked `.gss` files and inline `<style>` blocks contribute, in the
+        // order they appear in the markup, so later rules win on a tie.
+        let mut scoped = Vec::new();
+        collect_scoped_styles(ast, &mut scoped);
+        if scoped.is_empty() {
             self.component_stylesheets.remove(component);
             self.component_stylesheet_paths.remove(component);
         } else {
-            let mut sheets = Vec::with_capacity(sheet_hrefs.len());
-            for href in &sheet_hrefs {
-                let content = std::fs::read_to_string(href)
-                    .map_err(|e| format!("Failed to read stylesheet '{}' linked by '{}': {}", href, component, e))?;
-                let sheet = stylesheet::StyleSheet::parse(&content)
-                    .map_err(|e| format!("Failed to parse stylesheet '{}' linked by '{}': {}", href, component, e))?;
-                let mod_time = std::fs::metadata(href)
-                    .and_then(|m| m.modified())
-                    .unwrap_or_else(|_| SystemTime::now());
-                self.file_mod_times.insert(stylesheet_key(href), mod_time);
-                sheets.push(sheet);
+            let mut sheets = Vec::with_capacity(scoped.len());
+            let mut paths: Vec<Option<String>> = Vec::with_capacity(scoped.len());
+            for source in &scoped {
+                match source {
+                    ScopedStyle::Linked(href) => {
+                        let content = std::fs::read_to_string(href)
+                            .map_err(|e| format!("Failed to read stylesheet '{}' linked by '{}': {}", href, component, e))?;
+                        let sheet = stylesheet::StyleSheet::parse(&content)
+                            .map_err(|e| format!("Failed to parse stylesheet '{}' linked by '{}': {}", href, component, e))?;
+                        let mod_time = std::fs::metadata(href)
+                            .and_then(|m| m.modified())
+                            .unwrap_or_else(|_| SystemTime::now());
+                        self.file_mod_times.insert(stylesheet_key(href), mod_time);
+                        sheets.push(sheet);
+                        paths.push(Some(href.clone()));
+                    }
+                    ScopedStyle::Inline(css) => {
+                        let sheet = stylesheet::StyleSheet::parse(css)
+                            .map_err(|e| format!("Failed to parse inline <style> of '{}': {}", component, e))?;
+                        sheets.push(sheet);
+                        paths.push(None);
+                    }
+                }
             }
             self.component_stylesheets.insert(component.to_string(), sheets);
-            self.component_stylesheet_paths.insert(component.to_string(), sheet_hrefs);
+            self.component_stylesheet_paths.insert(component.to_string(), paths);
         }
         Ok(())
     }
@@ -602,7 +621,7 @@ impl GlacierUI {
         // than one place is only re-parsed once.
         let mut all_paths: Vec<String> = self.stylesheet_paths.clone();
         for paths in self.component_stylesheet_paths.values() {
-            for p in paths {
+            for p in paths.iter().flatten() {
                 if !all_paths.contains(p) {
                     all_paths.push(p.clone());
                 }
@@ -648,7 +667,7 @@ impl GlacierUI {
             let targets: Vec<(String, usize)> = self.component_stylesheet_paths.iter()
                 .flat_map(|(comp, paths)| {
                     paths.iter().enumerate()
-                        .filter(|(_, p)| **p == path)
+                        .filter(|(_, p)| p.as_deref() == Some(path.as_str()))
                         .map(move |(i, _)| (comp.clone(), i))
                 })
                 .collect();
@@ -758,6 +777,32 @@ fn file_stem(path: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or(path)
         .to_string()
+}
+
+/// A component-scoped stylesheet source, in document order: either an external
+/// `.gss` file linked via `<link rel="stylesheet">` / `style "path"`, or the
+/// inline `.gss` body of a `<style>` block.
+enum ScopedStyle {
+    Linked(String),
+    Inline(String),
+}
+
+/// Collects a component's scoped stylesheet sources (linked `.gss` files and
+/// inline `<style>` blocks) in document order, so they can be layered with the
+/// later ones winning. Empty hrefs / blank inline bodies are skipped.
+fn collect_scoped_styles(node: &UiNode, out: &mut Vec<ScopedStyle>) {
+    match &node.kind {
+        NodeType::Link { rel, href, .. } if rel == "stylesheet" && !href.is_empty() => {
+            out.push(ScopedStyle::Linked(href.clone()));
+        }
+        NodeType::Style { css } if !css.trim().is_empty() => {
+            out.push(ScopedStyle::Inline(css.clone()));
+        }
+        _ => {}
+    }
+    for child in &node.children {
+        collect_scoped_styles(child, out);
+    }
 }
 
 /// Collects every `<link>` in a parsed tree as `(rel, href, name)`, in

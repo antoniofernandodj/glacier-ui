@@ -568,6 +568,154 @@ fn test_link_scoped_stylesheet() {
 }
 
 #[test]
+fn test_inline_style_block_is_scoped() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    // Global sheet seen by everyone.
+    let global_gss = "templates/test_istyle_global.gss";
+    std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
+
+    // A declares an inline <style> that overrides `.box` and adds `.scoped`.
+    let a_path = "templates/test_istyle_a.xml";
+    std::fs::write(
+        a_path,
+        r##"
+        <style>
+            .box { padding: 9; }
+            .scoped { color: #abcabc; }
+        </style>
+        <Text class="box scoped" content="A" />
+        "##,
+    ).unwrap();
+
+    // B declares nothing: it only sees the global sheet.
+    let b_path = "templates/test_istyle_b.xml";
+    std::fs::write(b_path, r##"<Text class="box scoped" content="B" />"##).unwrap();
+
+    motor.load_stylesheet(global_gss).unwrap();
+    motor.register_component("a", a_path).unwrap();
+    motor.register_component("b", b_path).unwrap();
+
+    let a = motor.evaluated_templates.get("a").unwrap();
+    let b = motor.evaluated_templates.get("b").unwrap();
+
+    // A: inline `.box` overrides the global padding; `.scoped` provides a color.
+    assert_eq!(a.padding.as_deref(), Some("9"), "inline <style> overrides global padding");
+    assert_eq!(text_color(&a.kind).as_deref(), Some("#abcabc"), "inline scoped class color applies in A");
+
+    // B: only the global `.box` applies; A's inline classes are invisible here.
+    assert_eq!(b.padding.as_deref(), Some("5"), "B uses global padding");
+    assert_eq!(text_color(&b.kind).as_deref(), Some("#111111"), "B uses global color; inline class has no effect");
+
+    std::fs::remove_file(global_gss).ok();
+    std::fs::remove_file(a_path).ok();
+    std::fs::remove_file(b_path).ok();
+}
+
+#[test]
+fn test_inline_style_overrides_linked_by_document_order() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    // A linked sheet sets the color; a later inline <style> overrides it,
+    // because scoped sheets layer in document order (last one wins).
+    let linked = "templates/test_istyle_order.gss";
+    std::fs::write(linked, ".tag { color: #aaaaaa; padding: 3; }").unwrap();
+
+    let path = "templates/test_istyle_order.xml";
+    std::fs::write(
+        path,
+        r##"
+        <link rel="stylesheet" href="templates/test_istyle_order.gss" />
+        <style>.tag { color: #bbbbbb; }</style>
+        <Text class="tag" content="x" />
+        "##,
+    ).unwrap();
+
+    motor.register_component("ord", path).unwrap();
+
+    let n = motor.evaluated_templates.get("ord").unwrap();
+    assert_eq!(text_color(&n.kind).as_deref(), Some("#bbbbbb"), "later inline <style> wins over the linked sheet");
+    assert_eq!(n.padding.as_deref(), Some("3"), "padding still comes from the linked sheet");
+
+    std::fs::remove_file(linked).ok();
+    std::fs::remove_file(path).ok();
+}
+
+#[test]
+fn test_kdl_inline_style_parses_to_style_node() {
+    // A multi-line `style` argument carrying `.gss` source is an inline,
+    // scoped sheet; a single-line path stays a `stylesheet` link.
+    let kdl = r#"
+        style """
+        .card { background: #1E1E2E; padding: 16; }
+        """
+        style "styles/app.gss"
+
+        Container class="card" {
+            Text "hi"
+        }
+    "#;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+
+    let mut found_inline = false;
+    let mut found_linked = false;
+    for child in &ast.children {
+        match &child.kind {
+            NodeType::Style { css } => {
+                found_inline = true;
+                assert!(css.contains(".card"), "inline style keeps its gss body");
+            }
+            NodeType::Link { rel, href, .. } if rel == "stylesheet" => {
+                found_linked = true;
+                assert_eq!(href, "styles/app.gss");
+            }
+            _ => {}
+        }
+    }
+    assert!(found_inline, "multi-line style arg should parse to a Style node");
+    assert!(found_linked, "single-line style arg should stay a stylesheet Link");
+}
+
+#[test]
+fn test_inline_style_reloads_with_template() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let path = "templates/test_istyle_reload.xml";
+    std::fs::write(
+        path,
+        r##"<style>.t { color: #010101; }</style><Text class="t" content="x" />"##,
+    ).unwrap();
+    motor.register_component("rel", path).unwrap();
+    let n = motor.evaluated_templates.get("rel").unwrap();
+    assert_eq!(text_color(&n.kind).as_deref(), Some("#010101"));
+
+    // Edit the inline style; bump mtime so the reload check picks it up.
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::fs::write(
+        path,
+        r##"<style>.t { color: #020202; }</style><Text class="t" content="x" />"##,
+    ).unwrap();
+    let _ = filetime_touch(path);
+    motor.check_reload();
+
+    let n = motor.evaluated_templates.get("rel").unwrap();
+    assert_eq!(text_color(&n.kind).as_deref(), Some("#020202"), "inline style rebuilds when the template reloads");
+
+    std::fs::remove_file(path).ok();
+}
+
+/// Sets a file's mtime to now, so `check_reload` reliably sees it as changed
+/// even on filesystems with coarse timestamps.
+fn filetime_touch(path: &str) -> std::io::Result<()> {
+    use std::time::SystemTime;
+    let f = std::fs::OpenOptions::new().write(true).open(path)?;
+    f.set_modified(SystemTime::now())
+}
+
+#[test]
 fn test_inline_attribute_wins_over_class() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
@@ -1174,10 +1322,11 @@ fn test_kdl_import_and_scoped_stylesheet() {
     assert_eq!(ev.padding.as_deref(), Some("30"), ".painel (escopada) aplica padding");
     assert_eq!(ev.background.as_deref(), Some("#11111B"), ".painel aplica background");
 
-    // Os 3 CartaoKdl foram inlinados: cada um vira o Container raiz do cartão
+    // Os CartaoKdl foram inlinados: cada um vira o Container raiz do cartão
     // (width 320, background #181825 vindos dos atributos inline do componente).
+    // O template usa as duas formas (continuação com `\` e em múltiplas linhas).
     let cards = collect_cards(ev);
-    assert_eq!(cards.len(), 3, "esperava 3 cartões inlinados");
+    assert_eq!(cards.len(), 4, "esperava 4 cartões inlinados (formas `\\` + multilinha)");
     assert_eq!(cards[0].width.as_deref(), Some("320"), "o cartão importado aplica seu width inline");
     assert_eq!(cards[0].background.as_deref(), Some("#181825"));
 
@@ -1185,6 +1334,110 @@ fn test_kdl_import_and_scoped_stylesheet() {
     let textos = collect_texts(ev);
     assert!(textos.iter().any(|t| t == "Clara Silva"), "prop nome deveria ser interpolada");
     assert!(textos.iter().any(|t| t == "Designer de Interface"), "prop cargo deveria ser interpolada");
+    // Cartões escritos na forma multilinha (sem `\`) também foram parseados.
+    assert!(textos.iter().any(|t| t == "Mateus Rocha"), "cartão multilinha (com filhos) deveria existir");
+    assert!(textos.iter().any(|t| t == "Helena Dias"), "cartão multilinha (com `;`) deveria existir");
+}
+
+#[test]
+fn test_kdl_multiline_node_props() {
+    // Props em linhas próprias, sem `\`. O primeiro nó fecha no dedent (próximo
+    // irmão); o segundo fecha explicitamente com `;`.
+    let kdl = r##"
+    Column {
+        CartaoKdl
+            nome="Mateus Rocha"
+            cargo="Gerente de Produto"
+            cor="#A6E3A1"
+        CartaoKdl
+            nome="Ana Lima"
+            cor="#89B4FA";
+    }
+    "##;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Column);
+    assert_eq!(ast.children.len(), 2, "duas referências de componente irmãs");
+
+    let props0 = component_props(&ast.children[0]);
+    assert_eq!(props0.get("nome").map(String::as_str), Some("Mateus Rocha"));
+    assert_eq!(props0.get("cargo").map(String::as_str), Some("Gerente de Produto"));
+    assert_eq!(props0.get("cor").map(String::as_str), Some("#A6E3A1"));
+
+    let props1 = component_props(&ast.children[1]);
+    assert_eq!(props1.get("nome").map(String::as_str), Some("Ana Lima"));
+    assert_eq!(props1.get("cor").map(String::as_str), Some("#89B4FA"));
+}
+
+#[test]
+fn test_kdl_multiline_node_with_children() {
+    // Props em múltiplas linhas terminadas por um bloco de filhos `{ ... }`.
+    let kdl = r#"
+    Container
+        class="card"
+        padding=20 {
+            Text "dentro"
+        }
+    "#;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Container);
+    assert_eq!(ast.class.as_deref(), Some("card"));
+    assert_eq!(ast.padding.as_deref(), Some("20"));
+    assert_eq!(ast.children.len(), 1);
+    if let NodeType::Text { content, .. } = &ast.children[0].kind {
+        assert_eq!(content, "dentro");
+    } else {
+        panic!("esperava o Text filho");
+    }
+}
+
+#[test]
+fn test_kdl_backslash_continuation_still_works() {
+    // A forma legada com `\` continua válida e equivale à multilinha.
+    let kdl = "
+    CartaoKdl \\
+        nome=\"Clara Silva\" \\
+        cargo=\"Engenheira\" \\
+        cor=\"#89B4FA\"
+    ";
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    let props = component_props(&ast);
+    assert_eq!(props.get("nome").map(String::as_str), Some("Clara Silva"));
+    assert_eq!(props.get("cargo").map(String::as_str), Some("Engenheira"));
+    assert_eq!(props.get("cor").map(String::as_str), Some("#89B4FA"));
+}
+
+#[test]
+fn test_kdl_multiline_preserves_inline_style_block() {
+    // O conteúdo da string multilinha (GSS de um `style` inline) não é tocado
+    // pelo pré-processador de continuação, mesmo com chaves/`:`/`;` por linha.
+    let kdl = r##"
+    style """
+    .card {
+        padding: 16;
+        color: #CDD6F4;
+    }
+    """
+    Container class="card" {
+        Text "oi"
+    }
+    "##;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    // O nó de estilo inline foi içado como filho da raiz, com o GSS intacto.
+    let style = ast.children.iter().find_map(|c| match &c.kind {
+        NodeType::Style { css } => Some(css.clone()),
+        _ => None,
+    }).expect("esperava um nó Style inline");
+    assert!(style.contains("padding: 16;"), "o corpo GSS deve ficar intacto");
+    assert!(style.contains("color: #CDD6F4;"));
+}
+
+/// Helper: props de um nó referência de componente (`<NomeComp .../>`).
+fn component_props(node: &UiNode) -> std::collections::HashMap<String, String> {
+    if let NodeType::Component { props, .. } = &node.kind {
+        props.clone()
+    } else {
+        panic!("esperava um NodeType::Component, veio {:?}", node.kind);
+    }
 }
 
 // Os cartões inlinados são os Containers de width 320 (assinatura do CartaoKdl).

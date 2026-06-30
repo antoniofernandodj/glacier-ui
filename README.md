@@ -68,6 +68,7 @@ impl Component for Contador {
   - [Navegação entre telas](#navegação-entre-telas)
   - [`<script>` + a macro `#[component]`](#script--a-macro-component)
   - [Stylesheets `.gss`](#stylesheets-gss)
+  - [Estilos escopados inline: `<style>` / `style`](#estilos-escopados-inline-style--style)
   - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
   - [Temas](#temas)
   - [Hot-reload](#hot-reload)
@@ -242,6 +243,7 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema (veja [`<link>`](#link-rel-stylesheet-import-data-theme)). |
+| `<style>` | `style`, `Style` | classes `.gss` inline, com escopo no componente (veja [Estilos escopados inline](#estilos-escopados-inline-style--style)). |
 
 ---
 
@@ -650,6 +652,58 @@ motor.load_stylesheet("styles/app.gss")?; // vale para todos os componentes
 
 ---
 
+## Estilos escopados inline: `<style>` / `style`
+
+Além de carregar um `.gss` externo, você pode escrever as classes **direto no
+template**, num bloco `<style>`. O conteúdo é `.gss` (mesma gramática) e fica
+**com escopo no componente** que o declarou — exatamente como um
+`<link rel="stylesheet">`, mas sem arquivo separado. Ótimo para estilos
+específicos de uma página/cartão que não valem reutilizar.
+
+```xml
+<!-- XML: o corpo do <style> é GSS, escopado a este componente -->
+<style>
+    .card  { padding: 24; background: #1E1E2E; border-radius: 16; }
+    .title { size: 26; bold: true; color: #CDD6F4; }
+</style>
+
+<Container class="card">
+    <Text class="title" content="Olá" />
+</Container>
+```
+
+Em **KDL** não há tag de fechamento; use uma *string multilinha* (`"""…"""`)
+como argumento do nó `style`. O parser distingue **inline** de **arquivo** pela
+presença de `{`/quebra de linha (um caminho não tem nenhum dos dois):
+
+```kdl
+// inline: corpo GSS numa string multilinha
+style """
+.card  { padding: 24; background: #1E1E2E; border-radius: 16; }
+.title { size: 26; bold: true; color: #CDD6F4; }
+"""
+
+// arquivo externo (continua válido): vira um stylesheet link
+style "styles/estilos.gss"
+
+Container class="card" {
+    Text "Olá" class="title"
+}
+```
+
+- **Escopo:** as classes só valem na subárvore do componente declarante, **em
+  cima** das globais — uma classe inline de mesmo nome vence a global,
+  localmente (igual ao `<link rel="stylesheet">`).
+- **Ordem de documento:** se um componente tiver `<link>` e `<style>` (ou
+  vários), eles se sobrepõem na ordem em que aparecem — o **último vence** num
+  empate de propriedade.
+- **Hot-reload:** como o `<style>` mora no template, editar o bloco recarrega
+  junto com o markup, sem recompilar.
+- Como os `<import>`/`<link>`, um `<style>` pode ficar no topo do arquivo, como
+  irmão da raiz, e não renderiza nada.
+
+---
+
 ## `<link rel="…">`: stylesheet, import, data, theme
 
 O `<link>` declara um recurso externo a carregar. O atributo `rel` escolhe o
@@ -830,8 +884,8 @@ tela sem você escrever nenhum `match` de mensagens.
 
 ```rust
 pub enum EngineMessage {
-    XmlClick(String),                                  // onClick
-    XmlInputChanged { action: String, value: String }, // onChange
+    UiClick(String),                                   // onClick
+    UiInputChanged { action: String, value: String },  // onChange
     Navigate(String),                                  // navigateTo
     NavigateBack,                                      // navigateBack
     FileChanged(String),                               // tick do hot-reload
@@ -860,6 +914,8 @@ pub enum EngineMessage {
 | `navegacao` | múltiplas telas, histórico e `navigateTo`/`navigateBack` com estado compartilhado. | `cargo run --example navegacao` |
 | `aninhado` | componente registrado dentro de outro (`children()`), com roteamento por namespace. | `cargo run --example aninhado` |
 | `estilos` | stylesheets `.gss` (globais e com escopo via `<link>`), classes e tema. | `cargo run --example estilos` |
+| `estilos_inline` | classes `.gss` inline e com escopo via bloco `<style>` (XML). | `cargo run --example estilos_inline` |
+| `estilos_inline_kdl` | o mesmo em KDL, com o corpo GSS numa string multilinha de `style`. | `cargo run --example estilos_inline_kdl` |
 
 ---
 

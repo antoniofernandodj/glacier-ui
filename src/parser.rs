@@ -133,6 +133,15 @@ pub enum NodeType {
         /// for `import`/`component`.
         name: Option<String>,
     },
+    /// An inline, component-scoped stylesheet, e.g.
+    /// `<style>.card { padding: 16; }</style>`. The body is `.gss` source (the
+    /// same grammar as a linked `.gss` file); it is parsed and applied only
+    /// inside the declaring component's subtree, layered on top of the global
+    /// sheets exactly like a `<link rel="stylesheet">`. Processed at
+    /// registration time and stripped before rendering.
+    Style {
+        css: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -353,6 +362,21 @@ impl UiNode {
                 let name = Self::get_attr(&node, &["as", "name", "nome"]);
                 NodeType::Link { rel, href, name }
             }
+            "style" | "Style" | "stylesheet" | "Stylesheet" => {
+                // `<style href="...">` (or `src`) is an external sheet, equivalent
+                // to `<link rel="stylesheet">`. A bodied `<style>...</style>` is an
+                // inline, component-scoped sheet whose text content is `.gss`.
+                if let Some(href) = Self::get_attr(&node, &["href", "src", "from", "caminho"]) {
+                    NodeType::Link { rel: "stylesheet".to_string(), href, name: None }
+                } else {
+                    let css = node
+                        .children()
+                        .filter(|c| c.is_text())
+                        .filter_map(|c| c.text())
+                        .collect::<String>();
+                    NodeType::Style { css }
+                }
+            }
             _ => {
                 // Any unknown tag is treated as a reference to another component
                 // by its own name (e.g. <PerfilCard nome="..." />).
@@ -422,7 +446,7 @@ impl UiNode {
         let mut root: Option<Self> = None;
         for child in fragment.children() {
             if let Some(node) = Self::from_node(child) {
-                if matches!(node.kind, NodeType::Import { .. } | NodeType::Link { .. }) {
+                if matches!(node.kind, NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. }) {
                     decls.push(node);
                 } else if root.is_none() {
                     root = Some(node);

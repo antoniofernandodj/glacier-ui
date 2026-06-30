@@ -80,6 +80,38 @@ Column spacing=20 {
 Text "Simples" size=16
 ```
 
+### Nós em múltiplas linhas (sem `\`)
+
+As entradas de um nó (args/propriedades) podem ser quebradas em várias linhas
+**sem** a barra `\` de continuação. Um pré-processador junta as linhas de
+continuação de volta na linha do nó. Uma linha é continuação quando começa com
+uma **propriedade** (`chave=…`) ou com `{`; o nó fecha num `;`, num bloco de
+filhos `{ … }`, numa linha em branco, ou na próxima linha que seja um novo nó.
+
+```kdl
+// Fecha no dedent (o próximo irmão começa um novo nó)
+CartaoUsuario
+    nome="Mateus Rocha"
+    cargo="Gerente de Produto"
+    cor="#A6E3A1"
+
+// Fecha explicitamente com `;`
+CartaoUsuario
+    nome="Ana Lima"
+    cor="#89B4FA";
+
+// Termina abrindo um bloco de filhos
+Container
+    class="card"
+    padding=20 {
+        Text "dentro"
+    }
+```
+
+A forma legada com `\` no fim da linha continua válida e equivalente. O conteúdo
+de uma string multilinha (`""" … """`, p.ex. um `style` inline) **não** é tocado
+pelo pré-processador.
+
 ### Regras de atributos
 
 - Strings com espaço ou caracteres especiais exigem aspas: `padding="10 20"`

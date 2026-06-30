@@ -620,6 +620,10 @@ pub fn render_node<'a>(
             // <link> declarations are stripped during evaluation; render nothing.
             column![].into()
         }
+        NodeType::Style { .. } => {
+            // Inline <style> blocks are stripped during evaluation; render nothing.
+            column![].into()
+        }
         NodeType::If { .. } | NodeType::Else => {
             // TODO(diretivas): forma legada por tag; preferir atributos if/else/for-each. Remover quando templates forem migrados.
             // if/else are expanded during evaluation; nothing to render directly.

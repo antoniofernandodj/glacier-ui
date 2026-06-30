@@ -246,7 +246,7 @@ fn expand_children(
     // can bind to it. Reset by any other (non-else) node.
     let mut last_if: Option<bool> = None;
     for child in children {
-        if matches!(child.kind, NodeType::Import { .. } | NodeType::Link { .. }) {
+        if matches!(child.kind, NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. }) {
             continue;
         }
 
@@ -328,8 +328,8 @@ fn expand_children(
 
         // 4. Fallback to legacy tag-based conditionals/loops
         match &child.kind {
-            // `<import>`/`<link>` declarations are skipped above.
-            NodeType::Import { .. } | NodeType::Link { .. } => {}
+            // `<import>`/`<link>`/`<style>` declarations are skipped above.
+            NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. } => {}
             NodeType::ForEach { items, var } => {
                 let items_evaluated = process_template(items, context);
                 if let Some(json_str) = context.get(&items_evaluated) {
@@ -553,7 +553,7 @@ fn eval_owned(
         }
         NodeType::Include { .. } | NodeType::Component { .. } | NodeType::Import { .. }
         | NodeType::ForEach { .. } | NodeType::If { .. } | NodeType::Else
-        | NodeType::Link { .. } => {
+        | NodeType::Link { .. } | NodeType::Style { .. } => {
             NodeType::Container
         }
     };
