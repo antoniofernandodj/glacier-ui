@@ -1517,13 +1517,11 @@ fn test_kdl_builtin_bare_flag_on_own_continuation_line() {
 }
 
 #[test]
-fn test_kdl_registered_bare_flag_on_own_continuation_line() {
-    // Regressão: flags bare *de aplicação* (`secure`) são registrados pelo
-    // cliente. Uma vez registrados, um flag numa linha de continuação própria
+fn test_kdl_builtin_secure_flag_on_own_continuation_line() {
+    // Regressão: `secure` é um flag *de widget* (intrínseco ao TextInput), então
+    // é built-in — sem registro do cliente. Numa linha de continuação própria ele
     // dobra no nó acima em vez de virar um nó irmão que engole value/onChange.
     // Era o bug do TextInput `secure` nos templates do rustploy.
-    glacier_ui::register_bare_flags(["secure"]);
-
     let kdl = r#"
     Column {
         Text "CLIENT SECRET" class="label_cap"

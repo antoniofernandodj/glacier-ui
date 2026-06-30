@@ -393,16 +393,18 @@ fn starts_with_property(s: &str) -> bool {
 
 /// The built-in bare boolean-flag keywords that may lead a continuation line —
 /// positional arguments rather than `key=value` properties. These are intrinsic
-/// **framework** flags (`bold` on a `Text`, `navigateBack` on a `Button`), so
-/// they fold correctly with no client setup.
+/// **framework/widget** flags read by the node builder itself (`bold` on a
+/// `Text`, `secure` on a `TextInput`, `navigateBack` on a `Button`), so they
+/// fold correctly with no client setup.
 ///
-/// Application-level flags (e.g. `secure`, `else`) are intentionally *not* here:
-/// an app registers the ones its templates place on their own line via
-/// [`register_bare_flags`]. Folding only needs to know a flag when it leads a
-/// continuation line; a flag written inline (`Text "x" bold`) parses natively
-/// regardless, so the built-in set stays minimal.
+/// Purely application-level flags (e.g. a directive like `else` that an app
+/// chooses to place on its own continuation line) are *not* here: an app
+/// registers those via [`register_bare_flags`]. Folding only needs to know a
+/// flag when it leads a continuation line; a flag written inline (`Text "x"
+/// bold`) parses natively regardless, so the built-in set stays minimal.
 const BARE_FLAGS: &[&str] = &[
     "bold", "negrito",
+    "secure", "password", "seguro", "senha",
     "navigateBack", "navigate_back", "navigate-back", "voltar",
 ];
 
