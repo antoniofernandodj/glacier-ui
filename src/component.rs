@@ -154,6 +154,22 @@ pub trait Component {
     /// cliques (`UiClick`).
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
 
+    /// Reage ao `onSubmit` de um `<Form>` (veja [`crate::forms::Form`]). Ao
+    /// contrário de `update` — que recebe todo o resto (cliques, `onChange`,
+    /// drag-and-drop, ...) — Enter num `formControl` ou um botão de submit
+    /// dentro de um `<Form>` chegam aqui, não em `update`: a atualização de
+    /// cada campo e a submissão do formulário nunca competem pelo mesmo
+    /// `match`. `action` é a string do `onSubmit` (já sem o namespace do
+    /// componente). Padrão: no-op — componentes sem formulário não precisam
+    /// implementar. Um jeito comum de implementar é só delegar pra closure
+    /// registrada via `FormBuilder::on_submit`:
+    /// ```ignore
+    /// fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
+    ///     self.form.submit(ctx);
+    /// }
+    /// ```
+    fn on_form_submit(&mut self, _action: &str, _ctx: &mut Context) {}
+
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
     /// alimentam o contexto. Mapeie cada stream para
     /// [`crate::EngineMessage::ContextPatch`] e o motor mesclará os pares no

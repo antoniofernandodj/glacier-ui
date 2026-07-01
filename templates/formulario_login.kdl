@@ -6,15 +6,24 @@
 Container padding=24 width=fill height=fill background="#2E3440" {
     Column spacing=16 width=360 {
         Text "Entrar" size=24 bold color="#ECEFF4"
-        Form onSubmit="entrar" name="login" {
-            Column spacing=6 {
+        Form onSubmit="entrar" name="login" width=fill {
+            Column spacing=6 width=fill {
                 Text "Usuário" size=13 color="#D8DEE9"
-                TextInput formControl="username" placeholder="ao menos 3 caracteres"
+                TextInput
+                    formControl="username"
+                    placeholder="ao menos 3 caracteres"
+                    width=fill
+
                 Text "{erro_username}" size=12 color="#BF616A"
             }
-            Column spacing=6 {
+            Column spacing=6 width=fill {
                 Text "Senha" size=13 color="#D8DEE9"
-                TextInput formControl="password" placeholder="ao menos 6 caracteres" secure
+                TextInput
+                    formControl="password"
+                    placeholder="ao menos 6 caracteres"
+                    secure
+                    width=fill
+
                 Text "{erro_password}" size=12 color="#BF616A"
             }
             Button text="Entrar" onClick="entrar" color="#5E81AC" width=fill

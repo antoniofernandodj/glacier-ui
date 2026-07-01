@@ -359,10 +359,15 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             EngineMessage::UiSubmit { action, next_focus } => {
-                // Always dispatch the form's `onSubmit` (the component decides
-                // what to do based on its own `Form::is_valid()`), then — if
-                // there is a next control — also move focus there.
-                let submit_task = self.dispatch(&EngineMessage::UiClick(action.clone()));
+                // Routed to `Component::on_form_submit`, not `update` — a
+                // form's field changes (`update`, via `UiInputChanged`) and
+                // its submission never compete for the same `match` arm.
+                // Always fires (the component decides what to do based on its
+                // own `Form::is_valid()`); if there is a next control, also
+                // moves focus there.
+                let submit_task = self.route_to_owner(action, |comp, bare_action, ctx| {
+                    comp.on_form_submit(bare_action, ctx);
+                });
                 return match next_focus {
                     Some(id) => iced::Task::batch([
                         submit_task,
@@ -396,11 +401,27 @@ impl GlacierUI {
             }
         };
 
-        // Resolve which component owns the action. An action namespaced as
-        // `Child::act` (produced when a `<Component>` subtree is inlined) routes
-        // to `Child` when it has registered behavior; otherwise — and for plain,
-        // un-namespaced actions — it falls back to the active screen.
-        let (owner, action) = match action.split_once("::") {
+        self.route_to_owner(action, |comp, bare_action, ctx| {
+            comp.update(bare_action, value, ctx);
+        })
+    }
+
+    /// Resolves which component owns `action` (an action namespaced as
+    /// `Child::act`, produced when a `<Component>` subtree is inlined, routes
+    /// to `Child` when it has registered behavior; otherwise — and for plain,
+    /// un-namespaced actions — it falls back to the active screen), then
+    /// calls `route` with that component and the de-namespaced action,
+    /// applies any navigation it requested, re-evaluates, and turns its
+    /// requested effects into `iced::Task`s. Shared by the generic `update()`
+    /// dispatch path and `on_form_submit` ([`EngineMessage::UiSubmit`]), which
+    /// route to different [`component::Component`] methods but need identical
+    /// owner-resolution/nav/reevaluate/effects plumbing.
+    fn route_to_owner(
+        &mut self,
+        action: &str,
+        route: impl FnOnce(&mut dyn component::Component, &str, &mut component::Context),
+    ) -> iced::Task<EngineMessage> {
+        let (owner, bare_action) = match action.split_once("::") {
             Some((prefix, rest)) if self.components.contains_key(prefix) => {
                 (prefix.to_string(), rest)
             }
@@ -418,7 +439,7 @@ impl GlacierUI {
         // accepted by the borrow checker when done inline like this.
         let (nav, effects) = if let Some(comp) = self.components.get_mut(&owner) {
             let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new() };
-            comp.update(action, value, &mut ctx);
+            route(comp.as_mut(), bare_action, &mut ctx);
             (ctx.nav, ctx.effects)
         } else {
             (None, Vec::new())

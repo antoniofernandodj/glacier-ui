@@ -445,6 +445,15 @@ impl Login {
             form: FormBuilder::new("login")
                 .control(FormControl::new("username", "").required().min_length(3))
                 .control(FormControl::new("password", "").required().min_length(6))
+                // A lógica de submissão fica declarada junto com os controles.
+                .on_submit(|form, ctx| {
+                    if form.is_valid() {
+                        ctx.set("status", format!("Bem-vindo, {}!", form.value("username")));
+                    } else {
+                        form.validate(); // mostra erros também nos campos não tocados
+                        form.errors_to_context(ctx, "erro_");
+                    }
+                })
                 .build(),
         }
     }
@@ -452,9 +461,9 @@ impl Login {
 ```
 
 ```kdl
-Form onSubmit="entrar" name="login" {
-    TextInput formControl="username" placeholder="usuário"
-    TextInput formControl="password" placeholder="senha" secure=true
+Form onSubmit="entrar" name="login" width=fill {
+    TextInput formControl="username" placeholder="usuário" width=fill
+    TextInput formControl="password" placeholder="senha" secure width=fill
     Button text="Entrar" onClick="entrar"
 }
 ```
@@ -462,23 +471,21 @@ Form onSubmit="entrar" name="login" {
 `TextInput formControl="username"` sem `value`/`onChange` explícitos usa o
 nome do controle para os dois — ele lê `username` do contexto e dispara a
 ação `"username"` a cada tecla. No `update`, `Form::has_control` reconhece
-essa ação sem precisar de um `match` por campo:
+essa ação sem precisar de um `match` por campo — e a submissão (`onSubmit`)
+**não** passa por `update`, e sim por um método próprio do trait,
+`on_form_submit`, então atualização de campo e submissão nunca competem pelo
+mesmo `match`:
 
 ```rust
 fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
     if self.form.has_control(action) {
         self.form.set_value(action, value.unwrap_or_default());
-        self.form.sync_to_context(ctx); // republica valores/estado no contexto
-        return;
+        self.form.sync_to_context(ctx); // republica valores no contexto
     }
-    if action == "entrar" {
-        if self.form.is_valid() {
-            // ... prossegue com self.form.value("username") etc.
-        } else {
-            self.form.validate(); // mostra erros também nos campos não tocados
-            self.form.sync_to_context(ctx);
-        }
-    }
+}
+
+fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
+    self.form.submit(ctx); // roda a closure registrada em .on_submit(...)
 }
 ```
 
@@ -488,14 +495,25 @@ para qualquer regra própria. `Form::is_valid()` é sempre recalculado na hora
 (seguro chamar antes de qualquer edição, ex. num botão desabilitado);
 `Form::validate()` força a checagem e marca todo campo como tocado, útil num
 handler de submit para exibir erros em campos que o usuário nunca editou.
-`Form::errors(nome)` devolve as mensagens do último `validate`/`set_value`.
+`Form::errors(nome)` devolve as mensagens do último `validate`/`set_value`;
+`Form::errors_to_context(ctx, prefixo)` publica a primeira de cada campo de
+uma vez (`"{prefixo}{nome}"`), para inputs `Text "{erro_username}"` inline.
 
 Pressionar Enter num campo ligado a um `formControl` **sempre** dispara o
-`onSubmit` do `<Form>` (quem decide o que fazer é o `update()`, via
-`Form::is_valid()` — o motor não bloqueia a submissão de um form inválido); se
-houver um próximo campo no mesmo `<Form>`, o foco também avança para ele, como
-um Tab automático — dá para preencher e enviar o formulário inteiro sem tocar
-no mouse.
+`onSubmit` do `<Form>` (quem decide o que fazer é `on_form_submit` (ou a
+closure de `.on_submit()`), via `Form::is_valid()` — o motor não bloqueia a
+submissão de um form inválido); se houver um próximo campo no mesmo `<Form>`,
+o foco também avança para ele, como um Tab automático — dá para preencher e
+enviar o formulário inteiro sem tocar no mouse.
+
+**Attributos `width`/`padding` de widgets com default próprio do `iced`:**
+`<TextInput>` já nasce com `width: fill` e algum padding no `iced` — se o
+template não define `width`/`padding`, o glacier preserva esse default (em vez
+de forçar `Shrink`/zero). Mas `Length::Fill` só "enche" se todo container pai
+até ele também for `width=fill` (`<Column>`, `<Form>` etc. têm default
+`Shrink`, como a maioria dos widgets) — a mesma regra já vale pra `<Row>` (veja
+a nota de layout abaixo). Por isso o `<Form>` do exemplo e os `<Column>` que
+envolvem cada campo também levam `width=fill`.
 
 Veja `examples/formulario_login.rs` e `templates/formulario_login.kdl`.
 
@@ -550,10 +568,12 @@ pub trait Component {
     fn init(&mut self, ctx: &mut Context) {} // estado inicial (opcional)
     fn children(&self) -> Vec<Box<dyn Component>> { Vec::new() } // sub-componentes (opcional)
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
+    fn on_form_submit(&mut self, action: &str, ctx: &mut Context) {} // onSubmit de um <Form> (opcional)
 }
 ```
 
 - `update` recebe a ação (`onClick`/`onChange`); `value` vem preenchido em inputs e é `None` em cliques.
+- `on_form_submit` recebe só o `onSubmit` de um `<Form>` (veja [Formulários](#formulários-reactive-forms)) — nunca passa por `update`, então atualização de campo e submissão não competem pelo mesmo `match`.
 - `Context` expõe `get`, `set`, `set_var`, `navigate_to`, `navigate_back`.
 - O estado próprio mora nos campos do struct; o contexto guarda só a projeção string usada pelos templates.
 
@@ -980,9 +1000,10 @@ pub enum EngineMessage {
 - `Context` — `get`, `set`, `set_var`, `navigate_to`, `navigate_back`
 - `ContextVar::new(key, value)`
 - `Nav::To(String)` | `Nav::Back`
-- `FormBuilder::new(nome).control(FormControl::new(nome, valor_inicial)...)build()`
-- `Form` — `get`/`get_mut`, `has_control`, `value`/`set_value`, `errors`, `is_valid`, `validate`, `reset`, `control_names`, `values`, `sync_to_context`
+- `FormBuilder::new(nome).control(FormControl::new(nome, valor_inicial)...).on_submit(closure).build()`
+- `Form` — `get`/`get_mut`, `has_control`, `value`/`set_value`, `errors`/`errors_to_context`, `is_valid`, `validate`, `reset`, `control_names`, `values`, `sync_to_context`, `submit` (roda a closure de `on_submit`)
 - `FormControl` — `.required()`, `.min_length(n)`, `.max_length(n)`, `.pattern(regex)`, `.validator(f)`
+- `Component::on_form_submit(action, ctx)` — recebe o `onSubmit` de um `<Form>` (default: no-op); `update` nunca vê essa ação
 
 ---
 

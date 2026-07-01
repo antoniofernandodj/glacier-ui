@@ -1841,11 +1841,15 @@ impl Component for FormTestComp {
     }
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
-            "enviar" => { ctx.set("enviado", "true"); }
             "usuario" => { ctx.set("usuario", value.unwrap_or_default()); }
             "senha" => { ctx.set("senha", value.unwrap_or_default()); }
             _ => {}
         }
+    }
+    // `onSubmit` ("enviar") is routed to `on_form_submit`, not `update` — see
+    // `test_ui_submit_always_dispatches_regardless_of_next_focus` below.
+    fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
+        ctx.set("enviado", "true");
     }
 }
 
@@ -1907,7 +1911,7 @@ fn test_ui_submit_always_dispatches_regardless_of_next_focus() {
     assert_eq!(motor.get_data("enviado").map(String::as_str), Some("true"));
 
     // Enter no último campo (sem próximo): ainda assim dispara `onSubmit` — a
-    // decisão de aceitar ou não fica com o `update()` do componente (via
+    // decisão de aceitar ou não fica com o `on_form_submit` do componente (via
     // `Form::is_valid()`), não com o motor.
     let mut motor2 = GlacierUI::new();
     motor2.register(Box::new(FormTestComp)).unwrap();

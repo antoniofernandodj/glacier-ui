@@ -403,6 +403,7 @@ fn starts_with_property(s: &str) -> bool {
 /// flag when it leads a continuation line; a flag written inline (`Text "x"
 /// bold`) parses natively regardless, so the built-in set stays minimal.
 const BARE_FLAGS: &[&str] = &[
+    "if", "If", "else", "Else", "elif", "Elif", "elseif", "ElseIf", "ElseIf",
     "bold", "negrito",
     "secure", "password", "seguro", "senha",
     "navigateBack", "navigate_back", "navigate-back", "voltar",

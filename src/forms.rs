@@ -219,9 +219,16 @@ impl FormControl {
 ///     .build();
 /// assert_eq!(form.control_names().collect::<Vec<_>>(), vec!["email", "password"]);
 /// ```
+/// A `Form`'s registered submit handler (see [`FormBuilder::on_submit`] /
+/// [`Form::submit`]). Takes the form itself (so it can check
+/// [`Form::is_valid`], read values, mark errors via [`Form::validate`], ...)
+/// and the reactive [`Context`] (to publish a result, navigate, etc).
+type SubmitHandler = dyn Fn(&mut Form, &mut Context<'_>) + Send + Sync;
+
 pub struct FormBuilder {
     name: String,
     controls: Vec<FormControl>,
+    on_submit: Option<Arc<SubmitHandler>>,
 }
 
 impl FormBuilder {
@@ -229,7 +236,7 @@ impl FormBuilder {
     /// name="...">`'s `name` attribute when more than one form shares a
     /// component; otherwise it can be any label).
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), controls: Vec::new() }
+        Self { name: name.into(), controls: Vec::new(), on_submit: None }
     }
 
     /// Registers a control, in the order controls should be visited by Enter.
@@ -238,9 +245,38 @@ impl FormBuilder {
         self
     }
 
+    /// Registers the closure [`Form::submit`] runs. Keeps the submit logic
+    /// declared right next to the form's controls, instead of spread across
+    /// a `Component::on_form_submit`/`update` match:
+    /// ```ignore
+    /// let form = FormBuilder::new("login")
+    ///     .control(FormControl::new("username", "").required())
+    ///     .on_submit(|form, ctx| {
+    ///         if form.is_valid() {
+    ///             ctx.set("status", "ok");
+    ///         } else {
+    ///             form.validate();
+    ///         }
+    ///     })
+    ///     .build();
+    /// ```
+    /// Called from `Component::on_form_submit`:
+    /// ```ignore
+    /// fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
+    ///     self.form.submit(ctx);
+    /// }
+    /// ```
+    pub fn on_submit<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&mut Form, &mut Context<'_>) + Send + Sync + 'static,
+    {
+        self.on_submit = Some(Arc::new(f));
+        self
+    }
+
     /// Finishes building the [`Form`].
     pub fn build(self) -> Form {
-        Form { name: self.name, controls: self.controls }
+        Form { name: self.name, controls: self.controls, on_submit: self.on_submit }
     }
 }
 
@@ -251,6 +287,7 @@ impl FormBuilder {
 pub struct Form {
     name: String,
     controls: Vec<FormControl>,
+    on_submit: Option<Arc<SubmitHandler>>,
 }
 
 impl Form {
@@ -298,6 +335,19 @@ impl Form {
     /// hasn't been validated yet).
     pub fn errors(&self, name: &str) -> &[String] {
         self.get(name).map(FormControl::errors).unwrap_or(&[])
+    }
+
+    /// Publishes every control's first cached error (`""` if none) into the
+    /// context under `"{prefix}{name}"` (e.g. `prefix="erro_"` ->
+    /// `"erro_username"`), for a `Text "{erro_username}"` placeholder to show
+    /// inline. Reads the same cache as [`Form::errors`] — populated by
+    /// [`FormControl::set_value`]/[`Form::validate`], so it stays blank until
+    /// the user has actually interacted, instead of showing "required" before
+    /// they've typed anything.
+    pub fn errors_to_context(&self, ctx: &mut Context, prefix: &str) {
+        for c in &self.controls {
+            ctx.set(&format!("{prefix}{}", c.name), c.errors.first().cloned().unwrap_or_default());
+        }
     }
 
     /// Whether every control currently passes its validators. Always fresh —
@@ -349,6 +399,24 @@ impl Form {
     pub fn sync_to_context(&self, ctx: &mut Context) {
         for c in &self.controls {
             ctx.set(&c.name, c.value.clone());
+        }
+    }
+
+    /// Runs the closure registered via [`FormBuilder::on_submit`], if any (a
+    /// no-op otherwise). Typically the entire body of
+    /// `Component::on_form_submit`:
+    /// ```ignore
+    /// fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
+    ///     self.form.submit(ctx);
+    /// }
+    /// ```
+    pub fn submit(&mut self, ctx: &mut Context) {
+        // Taken out for the call so the closure can take `&mut Form` (i.e.
+        // `self`) without also holding a borrow of the very field it's
+        // stored in; put back after, since it's an `Arc` (cheap to move).
+        if let Some(handler) = self.on_submit.take() {
+            handler(self, ctx);
+            self.on_submit = Some(handler);
         }
     }
 }
@@ -493,5 +561,62 @@ mod tests {
         form.set_value("y", "z");
         assert_eq!(form.value("y"), "");
         assert!(form.errors("y").is_empty());
+    }
+
+    fn test_context(data: &mut HashMap<String, String>) -> Context<'_> {
+        Context { data, nav: None, effects: Vec::new() }
+    }
+
+    #[test]
+    fn submit_runs_the_registered_closure() {
+        let mut form = FormBuilder::new("f")
+            .control(FormControl::new("username", "").required())
+            .on_submit(|form, ctx| {
+                if form.is_valid() {
+                    ctx.set("status", "ok");
+                } else {
+                    form.validate();
+                    ctx.set("status", "invalid");
+                }
+            })
+            .build();
+
+        let mut data = HashMap::new();
+        form.submit(&mut test_context(&mut data));
+        assert_eq!(data.get("status").map(String::as_str), Some("invalid"));
+        // `validate()` inside the closure ran against the real `form`, not a copy.
+        assert!(form.get("username").unwrap().touched());
+
+        form.set_value("username", "ana");
+        let mut data = HashMap::new();
+        form.submit(&mut test_context(&mut data));
+        assert_eq!(data.get("status").map(String::as_str), Some("ok"));
+    }
+
+    #[test]
+    fn submit_without_a_registered_closure_is_a_no_op() {
+        let mut form = FormBuilder::new("f").control(FormControl::new("x", "")).build();
+        let mut data = HashMap::new();
+        form.submit(&mut test_context(&mut data)); // must not panic
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn errors_to_context_publishes_first_cached_error_per_control() {
+        let mut form = FormBuilder::new("f")
+            .control(FormControl::new("username", "").required())
+            .control(FormControl::new("bio", ""))
+            .build();
+
+        let mut data = HashMap::new();
+        // Untouched: blank, not "required" — errors are cached, not fresh.
+        form.errors_to_context(&mut test_context(&mut data), "erro_");
+        assert_eq!(data.get("erro_username").map(String::as_str), Some(""));
+        assert_eq!(data.get("erro_bio").map(String::as_str), Some(""));
+
+        form.set_value("username", "");
+        let mut data = HashMap::new();
+        form.errors_to_context(&mut test_context(&mut data), "erro_");
+        assert_eq!(data.get("erro_username").map(String::as_str), Some("\"username\" is required"));
     }
 }
