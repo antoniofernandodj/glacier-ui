@@ -267,6 +267,11 @@ pub fn render_node<'a>(
             
             if let Some(c_str) = color {
                 if let Some(col) = parse_hex_color(c_str) {
+                    let br_radius = node.border_radius.unwrap_or(0.0);
+                    let br_width = node.border_width.unwrap_or(0.0);
+                    let br_color = node.border_color.as_ref()
+                        .and_then(|c| parse_hex_color(c))
+                        .unwrap_or(Color::TRANSPARENT);
                     btn = btn.style(move |_theme, status| {
                         let bg = match status {
                             iced::widget::button::Status::Hovered => Some(Background::Color(Color {
@@ -286,7 +291,11 @@ pub fn render_node<'a>(
                         iced::widget::button::Style {
                             background: bg,
                             text_color: Color::WHITE,
-                            border: Border::default(),
+                            border: Border {
+                                radius: iced::border::Radius::new(br_radius),
+                                width: br_width,
+                                color: br_color,
+                            },
                             shadow: iced::Shadow::default(),
                             snap: false,
                         }
