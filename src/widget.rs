@@ -361,8 +361,21 @@ pub fn render_node<'a>(
                 });
             }
 
-            input = input.width(parse_length(&node.width))
-                         .padding(parse_padding(&node.padding));
+            // `iced`'s own default for `text_input` is `Length::Fill` (unlike
+            // most other widgets, which default to `Shrink`); only override it
+            // when the template actually sets a `width`, so a plain
+            // `<TextInput>` with no `width` attribute still renders at a
+            // sane, editable size instead of collapsing to `Shrink`.
+            if node.width.is_some() {
+                input = input.width(parse_length(&node.width));
+            }
+            // Same story as `width` above: `iced`'s own default padding
+            // (`text_input::DEFAULT_PADDING`, 5px all around) is nonzero;
+            // only override it when the template sets one explicitly, instead
+            // of collapsing to `Padding::ZERO` (text flush against the edges).
+            if node.padding.is_some() {
+                input = input.padding(parse_padding(&node.padding));
+            }
 
             let mut elem: Element<'a, EngineMessage> = input.into();
 

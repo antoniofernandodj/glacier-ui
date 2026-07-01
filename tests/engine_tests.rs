@@ -1957,3 +1957,29 @@ fn test_kdl_form_control_respects_explicit_value_and_on_change() {
         other => panic!("esperava NodeType::TextInput, veio {:?}", other),
     }
 }
+
+/// Sanity check on the actual shipped template (`examples/formulario_login.rs`
+/// uses this same path): parses and evaluates end-to-end and has the two
+/// expected `formControl`-bound inputs in order. A previous release shipped
+/// this file with a bare `secure=true` KDL boolean, which this crate's `kdl`
+/// version (KDL2 grammar — bare `true`/`false` aren't valid property values;
+/// use `secure="true"` or the bare flag `secure`) rejects at parse time, so
+/// the example crashed on startup with nothing failing in `cargo test`. This
+/// test loads the real file so that class of bug fails here instead.
+#[test]
+fn test_formulario_login_example_template_parses_and_evaluates() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("formulario_login_smoke", "templates/formulario_login.kdl")
+        .expect("o template do exemplo formulario_login deve parsear e avaliar sem erro");
+
+    let evaluated = motor.evaluated_templates.get("formulario_login_smoke").unwrap();
+    let mut inputs = Vec::new();
+    collect_form_inputs(evaluated, &mut inputs);
+    assert_eq!(
+        inputs.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
+        vec!["username".to_string(), "password".to_string()],
+    );
+    assert_eq!(inputs[0].1.form_next_focus.as_deref(), Some("password"));
+    assert_eq!(inputs[1].1.form_next_focus, None);
+}

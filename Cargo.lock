@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "glacier-ui"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "glacier-ui-macros",
  "iced",
