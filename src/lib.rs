@@ -286,7 +286,9 @@ impl GlacierUI {
         }
         let (action, value) = match msg {
             EngineMessage::UiClick(a) => (a.as_str(), None),
-            EngineMessage::UiInputChanged { action, value } => (action.as_str(), Some(value.as_str())),
+            EngineMessage::UiInputChanged { action, value } => (
+                action.as_str(), Some(value.as_str())
+            ),
             EngineMessage::Navigate(s) => {
                 self.navigate_to(s);
                 let _ = self.reevaluate_all();
