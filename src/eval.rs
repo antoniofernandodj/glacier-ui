@@ -292,6 +292,10 @@ fn expand_children(
                                 local_context.insert(var.to_string(), other.to_string());
                             }
                         }
+                        // Drag highlight: expose whether THIS item is the one
+                        // being dragged, so the template can style the grabbed
+                        // row (see `crate::DRAG_KEY_CONTEXT`).
+                        set_dragging_flag(&mut local_context, var, this_key.as_deref());
                         // Clone the child without the for_each directive
                         let mut clone = child.clone();
                         clone.for_each = None;
@@ -398,6 +402,9 @@ fn expand_children(
                                     local_context.insert(var.clone(), other.to_string());
                                 }
                             }
+                            // Drag highlight: expose whether THIS item is the
+                            // one being dragged (see `crate::DRAG_KEY_CONTEXT`).
+                            set_dragging_flag(&mut local_context, var, this_key.as_deref());
                             // The `<ForEach>` tag's body isn't a single node like
                             // the attribute form's — clone its children so the
                             // hydration below has somewhere of its own to live.
@@ -750,6 +757,23 @@ fn hydrate_form_controls(nodes: &mut [UiNode], order: &[String], scope: &str, on
 /// in `nodes` also gets the lighter hover-target identity
 /// (`drag_list`/`drag_item_key`), since any of them dropping-over should be a
 /// valid target. Stops at the first handle found (one handle per item).
+/// Injects `{var}.__dragging` = `"true"`/`"false"` into a reorderable list
+/// item's local context, telling the template whether this exact row is the
+/// one currently held (its `this_key` matches [`crate::DRAG_KEY_CONTEXT`]).
+/// No-op for non-reorderable items (`this_key` is `None`), where the flag
+/// would be meaningless. Always sets the key when reorderable so a stale
+/// `"true"` from a previous drag can't linger on a re-render.
+fn set_dragging_flag(local_context: &mut HashMap<String, String>, var: &str, this_key: Option<&str>) {
+    let Some(this_key) = this_key else { return };
+    let dragging = local_context
+        .get(crate::DRAG_KEY_CONTEXT)
+        .is_some_and(|k| k == this_key);
+    local_context.insert(
+        format!("{var}.__dragging"),
+        if dragging { "true".to_string() } else { "false".to_string() },
+    );
+}
+
 fn hydrate_drag_item(
     nodes: &mut [UiNode],
     list: &str,

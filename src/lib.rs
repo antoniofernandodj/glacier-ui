@@ -102,6 +102,13 @@ struct ActiveToast {
     shown_at: std::time::Instant,
 }
 
+/// Reserved context key holding the reorder-key of the item currently being
+/// dragged (set on `DragStart`, cleared on `DragEnd`). A reorderable list's
+/// for-each expansion compares each item's key against it and injects a
+/// per-item `{var}.__dragging` = `"true"`/`"false"` flag, so templates can
+/// visually distinguish the grabbed row without any cursor tracking.
+pub(crate) const DRAG_KEY_CONTEXT: &str = "__drag_key";
+
 /// State of an in-progress drag-and-drop reorder (see `UiNode::drag_*` /
 /// `EngineMessage::DragStart|DragHover|DragEnd`). `order` is mutated live as
 /// the cursor moves over other items, so the list visually reflows as you
@@ -434,6 +441,12 @@ impl GlacierUI {
                     order: order.clone(),
                     dragging: key.clone(),
                 });
+                // Publish the grabbed item's key so the reorderable list's
+                // items can style themselves (`{var}.__dragging`, injected per
+                // item by the for-each expansion). Re-evaluate right away so
+                // the highlight shows on grab, not only after the first hover.
+                self.context_data.insert(DRAG_KEY_CONTEXT.to_string(), key.clone());
+                let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
             EngineMessage::DragHover { list, key } => {
@@ -462,6 +475,9 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             EngineMessage::DragEnd => {
+                // Clear the "what am I dragging" marker so the highlight drops
+                // once the item is released (see `DragStart`).
+                self.context_data.remove(DRAG_KEY_CONTEXT);
                 if let Some(drag) = self.drag.take() {
                     let value = serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
                     return self.dispatch(&EngineMessage::UiInputChanged {
@@ -469,6 +485,7 @@ impl GlacierUI {
                         value,
                     });
                 }
+                let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
             EngineMessage::UiSubmit { action, next_focus } => {
