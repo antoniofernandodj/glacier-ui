@@ -1987,3 +1987,90 @@ fn test_formulario_login_example_template_parses_and_evaluates() {
     assert_eq!(inputs[0].1.form_next_focus.as_deref(), Some("password"));
     assert_eq!(inputs[1].1.form_next_focus, None);
 }
+
+// ── Fragment (multi-root component templates) ───────────────────────────────
+
+/// A KDL template with more than one top-level node parses into a transparent
+/// `Fragment` holding them, instead of silently keeping only the first.
+#[test]
+fn test_parse_kdl_multiple_roots_becomes_fragment() {
+    let kdl = r#"
+        Column class="a"
+        Column class="b"
+    "#;
+    let ast = glacier_ui::parse_kdl(kdl).unwrap();
+    assert_eq!(ast.kind, NodeType::Fragment);
+    assert_eq!(ast.children.len(), 2);
+    assert_eq!(ast.children[0].class.as_deref(), Some("a"));
+    assert_eq!(ast.children[1].class.as_deref(), Some("b"));
+}
+
+/// A single-root template is still returned as that root (no Fragment wrapper),
+/// preserving backwards compatibility.
+#[test]
+fn test_parse_kdl_single_root_unchanged() {
+    let ast = glacier_ui::parse_kdl(r#"Column class="only""#).unwrap();
+    assert_eq!(ast.kind, NodeType::Column);
+    assert_eq!(ast.class.as_deref(), Some("only"));
+}
+
+/// A component whose template is a fragment (an `if`/`else` pair) splices the
+/// matching branch into the parent — no wrapper node, and the branch is chosen
+/// per-instance from the passed prop.
+#[test]
+fn test_fragment_component_splices_if_else_branch() {
+    // `else` is an app-registered bare flag (KDL has no value-less args), same
+    // as the host app does at boot before parsing its templates.
+    glacier_ui::register_bare_flags(["else"]);
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let card = "templates/test_frag_card.kdl";
+    let main = "templates/test_frag_main.kdl";
+    std::fs::write(
+        card,
+        r#"
+        Column if="{filler}" equals="1" class="filler"
+        Column else class="card" {
+          Text "{name}"
+        }
+        "#,
+    )
+    .unwrap();
+    std::fs::write(
+        main,
+        r#"
+        import "FragCard" from="templates/test_frag_card.kdl"
+        Column class="grid" {
+          FragCard filler="0" name="Alice"
+          FragCard filler="1" name="Zzz"
+        }
+        "#,
+    )
+    .unwrap();
+
+    motor.register_component("test_frag_main", main).unwrap();
+    let evaluated = motor.evaluated_templates.get("test_frag_main").unwrap();
+
+    assert_eq!(evaluated.kind, NodeType::Column);
+    // Two spliced siblings — neither is a Fragment wrapper.
+    assert_eq!(evaluated.children.len(), 2, "fragment children should be spliced, not wrapped");
+    assert!(evaluated.children.iter().all(|c| c.kind != NodeType::Fragment));
+
+    // `class` is resolved into style fields (and cleared) during evaluation,
+    // so branches are identified by their structure instead: the `else` card
+    // branch has the name `Text`; the `if` filler branch is empty.
+    //
+    // First instance (filler="0") → the `else` card branch, carrying the name.
+    let first = &evaluated.children[0];
+    assert_eq!(first.children.len(), 1, "card branch has one child (the name Text)");
+    if let NodeType::Text { content, .. } = &first.children[0].kind {
+        assert_eq!(content, "Alice");
+    } else {
+        panic!("card branch should contain the name Text");
+    }
+    // Second instance (filler="1") → the empty `if` filler branch.
+    assert!(evaluated.children[1].children.is_empty(), "filler branch is empty");
+
+    std::fs::remove_file(card).ok();
+    std::fs::remove_file(main).ok();
+}

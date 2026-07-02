@@ -152,6 +152,16 @@ pub enum NodeType {
     Style {
         css: String,
     },
+    /// A transparent grouping node: renders its children inline into the parent,
+    /// adding no layout box of its own. Produced by [`crate::parse_kdl`] when a
+    /// template has more than one top-level node (so a component template can be
+    /// a "fragment" of siblings — e.g. an `if`/`else` pair — without a wrapper),
+    /// and also writable explicitly as `Fragment { … }`. During evaluation
+    /// (`expand_children`) a `Fragment`'s children are spliced into the
+    /// surrounding list, so it normally never reaches rendering; `render_node`
+    /// falls back to stacking them in a `Column` if one ever does (e.g. a
+    /// multi-root screen root).
+    Fragment,
 }
 
 #[derive(Debug, Clone, PartialEq)]

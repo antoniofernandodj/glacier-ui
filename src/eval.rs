@@ -442,7 +442,17 @@ fn expand_children(
                 last_if = None;
             }
             _ => {
-                out.push(eval_owned(child, context, templates, styles, scope, owner)?);
+                let n = eval_owned(child, context, templates, styles, scope, owner)?;
+                // A `Fragment` (a multi-root component template, or an explicit
+                // `Fragment { … }`) is transparent: splice its already-evaluated
+                // children into this list instead of pushing a wrapper node, so
+                // e.g. a component that is an `if`/`else` pair renders as two
+                // siblings of the surrounding layout.
+                if matches!(n.kind, NodeType::Fragment) {
+                    out.extend(n.children);
+                } else {
+                    out.push(n);
+                }
                 last_if = None;
             }
         }
@@ -614,6 +624,10 @@ fn eval_owned(
                 name: name.as_ref().map(|n| process_template(n, context)),
             }
         }
+        // A `Fragment` carries through evaluation as-is; its children are
+        // spliced into the parent by `expand_children` (below), so it stays
+        // transparent instead of collapsing into a `Container` box.
+        NodeType::Fragment => NodeType::Fragment,
         NodeType::Include { .. } | NodeType::Component { .. } | NodeType::Import { .. }
         | NodeType::ForEach { .. } | NodeType::If { .. } | NodeType::Else
         | NodeType::Link { .. } | NodeType::Style { .. } => {

@@ -731,6 +731,22 @@ pub fn render_node<'a>(
             // if/else are expanded during evaluation; nothing to render directly.
             column![].into()
         }
+        NodeType::Fragment => {
+            // A `Fragment`'s children are normally spliced into the parent
+            // during evaluation (`expand_children`), so it seldom reaches
+            // rendering; when it does (e.g. a multi-root screen root), stack
+            // its children in a plain `Column`.
+            let mut col = column![];
+            if let Some(sp) = node.spacing {
+                col = col.spacing(sp);
+            }
+            for child in &node.children {
+                col = col.push(render_node(child, context, editors));
+            }
+            col.width(parse_length(&node.width))
+               .height(parse_length(&node.height))
+               .into()
+        }
     };
 
     // Wrap elements other than Container in a Container if a background/gradient
