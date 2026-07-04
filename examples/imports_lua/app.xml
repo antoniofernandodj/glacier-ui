@@ -1,0 +1,18 @@
+<Container
+    padding="24"
+    alignX="Center"
+    alignY="Center"
+    width="fill"
+    height="fill"
+    background="#2E3440"
+>
+    <Column spacing="16" align="Center">
+        <Text content="imports em Lua (require de bibliotecas)" size="22" bold="true" color="#ECEFF4" />
+        <Text content="a lógica de rede mora em net/http_client.lua" size="13" color="#81A1C1" />
+        <Button text="Buscar meu IP" onClick="buscar" color="#5E81AC" padding="12 24" />
+        <Text content="Status: {status}" size="14" color="#EBCB8B" />
+        <Text content="{resultado}" size="16" color="#A3BE8C" />
+    </Column>
+</Container>
+
+<script src="script.lua"></script>

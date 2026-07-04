@@ -68,6 +68,8 @@ impl Component for Contador {
     - [`ContextVar`](#contextvar)
   - [Navegação entre telas](#navegação-entre-telas)
   - [`<script>` em Lua](#script-em-lua)
+    - [Rede: `fetch`](#rede-fetch-asyncawait-via-corrotina)
+    - [Imports / módulos: `require`](#imports--módulos-require)
   - [Stylesheets `.gss`](#stylesheets-gss)
   - [Estilos escopados inline: `<style>` / `style`](#estilos-escopados-inline-style--style)
   - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
@@ -732,6 +734,47 @@ opcional: `{ method = "POST", body = "...", headers = { ["Authorization"] = "...
 Como cada `fetch` volta ao ponto exato onde parou, dá pra encadear várias em
 sequência. Veja `examples/fetch_lua.rs`.
 
+### Imports / módulos: `require`
+
+Para não amontoar tudo num `<script>`, extraia lógica em **bibliotecas** `.lua`
+e importe com `require` — um client de rede, utilitários, etc., cada peça
+encapsulada e reutilizável entre componentes:
+
+```lua
+-- net/http_client.lua — a lógica de rede mora aqui, isolada
+local Client = {}
+Client.__index = Client
+function Client.new(base) return setmetatable({ base = base }, Client) end
+function Client:get(path) return fetch(self.base .. path) end  -- usa o fetch async
+return Client
+```
+
+```lua
+-- <script> do template
+local http = require("net.http_client")   -- net/http_client.lua
+local api  = http.new("https://api.exemplo")
+
+function carregar()
+    local res = api:get("/dados")          -- suspende a corrotina por baixo
+    if res.ok then ctx.dados = res.body end
+end
+```
+
+`require("a.b")` procura `a/b.lua` (e depois `a/b/init.lua`) nas raízes, **nesta
+ordem**:
+
+1. o **diretório do template** (mesma convenção do `src=`);
+2. um subdiretório **`lib/`** desse diretório (para código compartilhado);
+3. cada caminho em **`GLACIER_LUA_PATH`** (separados por `:`), para bibliotecas
+   fora da árvore do template.
+
+Detalhes: o módulo roda no **mesmo** interpretador do componente, então enxerga
+`fetch` e as globais — um client importado pode suspender a ação como qualquer
+código inline. Cada módulo é carregado **uma vez** e cacheado (como no Lua
+padrão); um módulo sem `return` vira `true`. Módulos são carregados no
+*startup* do componente, então editar um `.lua` importado pede reiniciar o app
+(o hot-reload observa só o template). Veja `examples/imports_lua/`.
+
 ---
 
 ## Stylesheets `.gss`
@@ -1081,6 +1124,7 @@ pub enum EngineMessage {
 | `contador_macro` | comportamento embutido no template via `<script>` Lua (`register_lua`). | `cargo run --example contador_macro` |
 | `contador_externo` | `<script src="...">` apontando para um arquivo `.lua` externo. | `cargo run --example contador_externo` |
 | `fetch_lua` | chamada de rede (`fetch`) a partir do Lua, async via corrotina. | `cargo run --example fetch_lua` |
+| `imports_lua` | `require` de bibliotecas Lua (client de rede + utilitários), lógica modularizada. | `cargo run --example imports_lua` |
 | `perfil` | inputs (`TextInput`), cliques, `<import>` de um cartão, `Image` e `ContextVar`. | `cargo run --example perfil` |
 | `lista` | `<ForEach>` sobre JSON com um componente (`<import>`) por item. | `cargo run --example lista` |
 | `condicional` | `<if>` / `<else>` (truthy e comparação). | `cargo run --example condicional` |

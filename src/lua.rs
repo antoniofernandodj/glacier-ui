@@ -30,9 +30,32 @@
 //!     ctx.nome = v          -- ou: ctx.nome = value
 //! end
 //! ```
+//!
+//! # Imports / módulos
+//!
+//! O `<script>` pode dividir a lógica em **bibliotecas** e importá-las com
+//! `require`, mantendo cada peça encapsulada (um client de rede, utilitários,
+//! etc.):
+//!
+//! ```lua
+//! local http = require("net.http_client")   -- net/http_client.lua
+//! local api  = http.new("https://api.exemplo")
+//!
+//! function carregar()
+//!     local res = api:get("/dados")          -- o módulo pode usar fetch (async)
+//!     if res.ok then ctx.dados = res.body end
+//! end
+//! ```
+//!
+//! `require("a.b")` procura `a/b.lua` (e `a/b/init.lua`) resolvido, na ordem:
+//! diretório do template → `<dir>/lib` → cada caminho em `GLACIER_LUA_PATH`
+//! (separados por `:`). Módulos rodam no **mesmo** interpretador do componente,
+//! então enxergam `fetch` e são carregados uma única vez (cacheados como no Lua
+//! padrão). Ver [`install_module_system`].
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use crate::component::{Component, Context, FetchResult, PendingFetch, Template};
 use mlua::{Function, Lua, MultiValue, Table, Thread, ThreadStatus, Value};
@@ -102,10 +125,15 @@ impl LuaComponent {
         name: impl Into<String>,
     ) -> Result<Self, String> {
         let name = name.into();
+        let path = path.into();
         let lua = Lua::new();
         lua.load(PRELUDE).set_name("<glacier prelude>").exec().map_err(|e| {
             format!("Erro ao carregar prelúdio Lua: {}", e)
         })?;
+        // Habilita `require(...)` resolvendo módulos relativo ao template, para
+        // que o `<script>` possa importar bibliotecas (ex.: clients de rede).
+        install_module_system(&lua, module_roots(&path))
+            .map_err(|e| format!("Erro ao instalar sistema de módulos Lua: {}", e))?;
         lua.load(script)
             .set_name(format!("<script:{name}>"))
             .exec()
@@ -118,7 +146,7 @@ impl LuaComponent {
             .map_err(|e| format!("Erro ao registrar ctx: {}", e))?;
         Ok(Self {
             name,
-            path: path.into(),
+            path,
             lua,
             ctx_table,
             pending: RefCell::new(HashMap::new()),
@@ -477,6 +505,158 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Cria um diretório temporário exclusivo do teste (isolado por nome), útil
+    /// para montar árvores de módulos.
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir()
+            .join(format!("glacier_lua_{}_{}", std::process::id(), tag));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn require_carrega_modulo_relativo_ao_template() {
+        let dir = temp_dir("require_rel");
+        std::fs::create_dir_all(dir.join("util")).unwrap();
+        // Biblioteca pura: sem rede, só lógica encapsulada.
+        std::fs::write(
+            dir.join("util").join("strings.lua"),
+            "local M = {}\nfunction M.shout(s) return s:upper() .. '!' end\nreturn M\n",
+        )
+        .unwrap();
+        let comp = LuaComponent::from_source(
+            "local strings = require('util.strings')\n\
+             function grita() ctx.msg = strings.shout(ctx.msg) end",
+            dir.join("t.xml").to_str().unwrap(),
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        data.insert("msg".into(), "ola".into());
+        let data = drive(&comp, "grita", None, data);
+        assert_eq!(data.get("msg").map(String::as_str), Some("OLA!"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn require_cacheia_modulo_uma_vez() {
+        let dir = temp_dir("require_cache");
+        // O módulo incrementa um contador global A CADA carga; se `require`
+        // cacheasse errado (recarregando), o contador subiria.
+        std::fs::write(
+            dir.join("once.lua"),
+            "_G.__cargas = (_G.__cargas or 0) + 1\nreturn { n = _G.__cargas }\n",
+        )
+        .unwrap();
+        let comp = LuaComponent::from_source(
+            "local a = require('once')\nlocal b = require('once')\n\
+             function checar() ctx.cargas = a.n ctx.mesmo = tostring(a == b) end",
+            dir.join("t.xml").to_str().unwrap(),
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        assert_eq!(data.get("cargas").map(String::as_str), Some("1"));
+        assert_eq!(data.get("mesmo").map(String::as_str), Some("true"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn modulo_importado_pode_chamar_fetch_e_suspender() {
+        let dir = temp_dir("require_fetch");
+        std::fs::create_dir_all(dir.join("net")).unwrap();
+        // Client de rede reutilizável: encapsula base_url e usa `fetch` por baixo.
+        std::fs::write(
+            dir.join("net").join("client.lua"),
+            "local Client = {}\nClient.__index = Client\n\
+             function Client.new(base) return setmetatable({ base = base }, Client) end\n\
+             function Client:get(p) return fetch(self.base .. p) end\n\
+             return Client\n",
+        )
+        .unwrap();
+        let comp = LuaComponent::from_source(
+            "local http = require('net.client')\nlocal api = http.new('http://ex')\n\
+             function carregar() local r = api:get('/x') if r.ok then ctx.dados = r.body end end",
+            dir.join("t.xml").to_str().unwrap(),
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        // A chamada ao módulo suspende a corrotina num fetch — prova de que o
+        // `fetch` do prelúdio funciona dentro do módulo importado.
+        let id;
+        {
+            let mut ctx = Context {
+                data: &mut data,
+                nav: None,
+                effects: Vec::new(),
+                dialog: None,
+                toasts: Vec::new(),
+                fetches: Vec::new(),
+            };
+            comp.run("carregar", None, &mut ctx);
+            assert_eq!(ctx.fetches.len(), 1, "o módulo deveria ter suspendido num fetch");
+            assert_eq!(ctx.fetches[0].url, "http://ex/x");
+            id = ctx.fetches[0].id;
+        }
+        {
+            let mut ctx = Context {
+                data: &mut data,
+                nav: None,
+                effects: Vec::new(),
+                dialog: None,
+                toasts: Vec::new(),
+                fetches: Vec::new(),
+            };
+            let res = FetchResult { ok: true, status: 200, body: "PONG".into(), error: String::new() };
+            comp.resume_inner(id, &res, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("dados").map(String::as_str), Some("PONG"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn require_de_modulo_inexistente_falha_com_mensagem_clara() {
+        let dir = temp_dir("require_missing");
+        let comp = LuaComponent::from_source(
+            "function usar() require('nao.existe') end",
+            dir.join("t.xml").to_str().unwrap(),
+            "c",
+        )
+        .unwrap();
+        // Não deve derrubar o processo: o erro é logado e a ação vira no-op.
+        let data = drive(&comp, "usar", None, HashMap::new());
+        assert!(data.is_empty());
+        // A resolução em si devolve None para um módulo ausente.
+        assert!(resolve_module("nao.existe", &module_roots(dir.join("t.xml").to_str().unwrap())).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn exemplo_imports_lua_carrega_e_importa_os_modulos() {
+        // Exercita a árvore REAL do exemplo: app.xml -> script.lua, que faz
+        // require("net.http_client") e require("util.strings"). Se algum caminho
+        // quebrar, `from_file` (que roda o script no load) falha aqui.
+        let comp = LuaComponent::from_file("examples/imports_lua/app.xml", "app").unwrap();
+        // init() não usa rede; só semeia o estado — prova que os módulos
+        // resolveram e o script rodou.
+        let data = drive(&comp, "init", None, HashMap::new());
+        assert_eq!(data.get("status").map(String::as_str), Some("pronto"));
+    }
+
+    #[test]
+    fn resolve_module_acha_arquivo_e_init() {
+        let dir = temp_dir("resolve");
+        std::fs::create_dir_all(dir.join("pkg")).unwrap();
+        std::fs::write(dir.join("solo.lua"), "return 1").unwrap();
+        std::fs::write(dir.join("pkg").join("init.lua"), "return 2").unwrap();
+        let roots = vec![dir.clone()];
+        assert_eq!(resolve_module("solo", &roots), Some(dir.join("solo.lua")));
+        assert_eq!(resolve_module("pkg", &roots), Some(dir.join("pkg").join("init.lua")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn extrai_script_de_xml_e_kdl() {
         assert_eq!(
@@ -489,6 +669,109 @@ mod tests {
             Some("\n if x then y() end\n")
         );
     }
+}
+
+/// Chave (no registry do interpretador) da tabela que cacheia os módulos já
+/// carregados por `require` — o equivalente ao `package.loaded` do Lua padrão,
+/// mas privado ao motor.
+const LOADED_KEY: &str = "glacier.loaded";
+
+/// Diretórios onde `require` procura módulos, em ordem de prioridade, para um
+/// template em `template_path`:
+///
+/// 1. o **diretório do template** (mesma convenção do `<script src="...">`);
+/// 2. um subdiretório `lib/` desse diretório (convenção para código compartilhado);
+/// 3. cada caminho em `GLACIER_LUA_PATH` (separados por `:`), para bibliotecas
+///    fora da árvore do template.
+fn module_roots(template_path: &str) -> Vec<PathBuf> {
+    let base = Path::new(template_path)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut roots = vec![base.clone(), base.join("lib")];
+    if let Ok(extra) = std::env::var("GLACIER_LUA_PATH") {
+        roots.extend(extra.split(':').filter(|s| !s.is_empty()).map(PathBuf::from));
+    }
+    roots
+}
+
+/// Resolve o nome de módulo `a.b.c` para um arquivo `.lua`, testando
+/// `a/b/c.lua` e depois `a/b/c/init.lua` em cada raiz, na ordem.
+fn resolve_module(modname: &str, roots: &[PathBuf]) -> Option<PathBuf> {
+    let rel = modname.replace('.', "/");
+    for root in roots {
+        let file = root.join(format!("{rel}.lua"));
+        if file.is_file() {
+            return Some(file);
+        }
+        let init = root.join(&rel).join("init.lua");
+        if init.is_file() {
+            return Some(init);
+        }
+    }
+    None
+}
+
+/// Instala um `require` próprio no interpretador, resolvendo módulos pelas
+/// `roots` (ver [`module_roots`]). Substitui o `require` padrão do Lua para dar
+/// resolução previsível (relativa ao template, não ao diretório de trabalho),
+/// erros claros e cache por interpretador.
+///
+/// Como o módulo roda no **mesmo** interpretador do componente, ele enxerga o
+/// prelúdio (`fetch`) e as globais — um client de rede importado pode chamar
+/// `fetch` e suspender a corrotina da ação como qualquer código inline. Cada
+/// módulo é carregado uma vez; chamadas seguintes a `require` devolvem o valor
+/// cacheado. O valor do módulo é o que seu arquivo `return`a (uma tabela, por
+/// convenção); um módulo sem `return` é cacheado como `true`.
+fn install_module_system(lua: &Lua, roots: Vec<PathBuf>) -> mlua::Result<()> {
+    let cache = lua.create_table()?;
+    lua.set_named_registry_value(LOADED_KEY, cache)?;
+
+    let require = lua.create_function(move |lua, modname: String| {
+        let cache: Table = lua.named_registry_value(LOADED_KEY)?;
+        // Já carregado? Devolve o mesmo valor (identidade preservada).
+        match cache.get::<Value>(modname.as_str())? {
+            Value::Nil => {}
+            cached => return Ok(cached),
+        }
+
+        let path = resolve_module(&modname, &roots).ok_or_else(|| {
+            let procurados = roots
+                .iter()
+                .map(|r| r.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            mlua::Error::runtime(format!(
+                "módulo Lua '{modname}' não encontrado (procurado como \
+                 '{rel}.lua' e '{rel}/init.lua' em: {procurados})",
+                rel = modname.replace('.', "/"),
+            ))
+        })?;
+
+        let src = std::fs::read_to_string(&path).map_err(|e| {
+            mlua::Error::runtime(format!(
+                "falha ao ler módulo Lua '{modname}' ({}): {e}",
+                path.display()
+            ))
+        })?;
+
+        let value: Value = lua
+            .load(&src)
+            .set_name(format!("@{}", path.display()))
+            .eval()?;
+        // Módulo sem `return` explícito vira `true`, como no Lua padrão, para
+        // não recarregar a cada chamada.
+        let value = match value {
+            Value::Nil => Value::Boolean(true),
+            v => v,
+        };
+        cache.set(modname.as_str(), value.clone())?;
+        Ok(value)
+    })?;
+
+    lua.globals().set("require", require)?;
+    Ok(())
 }
 
 /// Resolve o corpo Lua de um template: se o `<script>` referencia um arquivo
