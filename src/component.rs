@@ -27,17 +27,18 @@ pub enum Effect {
 /// `update()`, só que aplicado depois que o `future` resolve (quando não há mais
 /// um `Context` vivo para chamar `ctx.show_toast`).
 ///
-/// O caso comum (só dados, sem toast) continua ergonômico: qualquer future que
-/// devolva `Vec<(String, String)>` vira um `EffectOutcome` automaticamente (ver
-/// o `From` abaixo), então [`Context::perform`] segue aceitando o retorno
-/// antigo sem mudança.
+/// Todo `ctx.perform` devolve um `EffectOutcome`. Use os construtores
+/// [`EffectOutcome::data`] / [`EffectOutcome::toast`] e o builder
+/// [`EffectOutcome::with_toast`] para montá-lo:
 ///
 /// ```ignore
-/// ctx.perform(async move {
-///     let msg = run_command().await;
-///     EffectOutcome { patch: vec![("status".into(), "ok".into())],
-///                     toast: Some(ToastSpec::success(msg)) }
-/// });
+/// // só dados
+/// EffectOutcome::data(vec![("status".into(), "ok".into())])
+/// // dados + toast do resultado
+/// EffectOutcome::data(vec![("saved".into(), "true".into())])
+///     .with_toast(ToastSpec::success(msg))
+/// // só toast
+/// EffectOutcome::toast(ToastSpec::error(msg))
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct EffectOutcome {
@@ -48,26 +49,23 @@ pub struct EffectOutcome {
     pub toast: Option<crate::toasts::ToastSpec>,
 }
 
-/// Só dados, sem toast — preserva a compatibilidade de `ctx.perform(async {
-/// vec![...] })`, que continua compilando sem mudar uma linha.
-impl From<Vec<(String, String)>> for EffectOutcome {
-    fn from(patch: Vec<(String, String)>) -> Self {
+impl EffectOutcome {
+    /// Só dados: mescla estes pares `(chave, valor)` no contexto, sem toast.
+    pub fn data(patch: Vec<(String, String)>) -> Self {
         Self { patch, toast: None }
     }
-}
 
-/// Um único par `(chave, valor)`, sem toast — conveniência para efeitos que
-/// produzem só um dado.
-impl From<(String, String)> for EffectOutcome {
-    fn from(pair: (String, String)) -> Self {
-        Self { patch: vec![pair], toast: None }
+    /// Só um toast, sem dados — para um efeito cujo resultado é apenas a
+    /// notificação.
+    pub fn toast(spec: crate::toasts::ToastSpec) -> Self {
+        Self { patch: Vec::new(), toast: Some(spec) }
     }
-}
 
-/// Só um toast, sem dados — para um efeito cujo resultado é apenas a notificação.
-impl From<crate::toasts::ToastSpec> for EffectOutcome {
-    fn from(toast: crate::toasts::ToastSpec) -> Self {
-        Self { patch: Vec::new(), toast: Some(toast) }
+    /// Anexa (ou substitui) o toast deste outcome — encadeável sobre
+    /// [`EffectOutcome::data`].
+    pub fn with_toast(mut self, spec: crate::toasts::ToastSpec) -> Self {
+        self.toast = Some(spec);
+        self
     }
 }
 
@@ -182,11 +180,9 @@ impl<'a> Context<'a> {
     /// toast exibido se houver) e a UI é reavaliada. Use para rede, disco e
     /// qualquer I/O sem bloquear a UI.
     ///
-    /// O `future` pode devolver qualquer coisa que vire um [`EffectOutcome`]:
-    /// `Vec<(String, String)>` (só dados — o caso comum), `(String, String)`,
-    /// uma [`crate::toasts::ToastSpec`] (só toast), ou um `EffectOutcome`
-    /// completo. Assim o código que só mescla dados não muda, e quem quer
-    /// notificar o resultado devolve o toast direto — sem chaves reservadas.
+    /// O `future` devolve um [`EffectOutcome`] — dados a mesclar e, opcionalmente,
+    /// um toast do resultado. Monte-o com [`EffectOutcome::data`] /
+    /// [`EffectOutcome::toast`] / [`EffectOutcome::with_toast`].
     ///
     /// ```ignore
     /// fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
@@ -194,27 +190,27 @@ impl<'a> Context<'a> {
     ///         // só dados
     ///         ctx.perform(async {
     ///             let body = fetch().await;
-    ///             vec![("status".into(), "ok".into()), ("body".into(), body)]
+    ///             EffectOutcome::data(vec![
+    ///                 ("status".into(), "ok".into()),
+    ///                 ("body".into(), body),
+    ///             ])
     ///         });
     ///     }
     ///     if action == "save" {
     ///         // dados + toast do resultado
     ///         ctx.perform(async {
     ///             let msg = save().await;
-    ///             EffectOutcome { patch: vec![("saved".into(), "true".into())],
-    ///                             toast: Some(ToastSpec::success(msg)) }
+    ///             EffectOutcome::data(vec![("saved".into(), "true".into())])
+    ///                 .with_toast(ToastSpec::success(msg))
     ///         });
     ///     }
     /// }
     /// ```
-    pub fn perform<F, T>(&mut self, future: F)
+    pub fn perform<F>(&mut self, future: F)
     where
-        F: Future<Output = T> + Send + 'static,
-        T: Into<EffectOutcome> + Send + 'static,
+        F: Future<Output = EffectOutcome> + Send + 'static,
     {
-        self.effects.push(Effect::Perform(Box::pin(async move {
-            future.await.into()
-        })));
+        self.effects.push(Effect::Perform(Box::pin(future)));
     }
 
     /// Agenda um efeito que produz um único par `(chave, valor)`.
@@ -223,7 +219,7 @@ impl<'a> Context<'a> {
         F: Future<Output = (String, String)> + Send + 'static,
     {
         self.effects.push(Effect::Perform(Box::pin(async move {
-            EffectOutcome::from(future.await)
+            EffectOutcome::data(vec![future.await])
         })));
     }
 }

@@ -588,6 +588,30 @@ fn test_drag_hover_ignores_other_lists_and_self() {
     assert_eq!(motor.get_data("last_order").map(String::as_str), Some(r#"["a","b"]"#));
 }
 
+#[test]
+fn test_gss_fill_and_max_width_resolve_from_class() {
+    // `.panel { width: fill; max-width: N }` — the responsive readability-cap
+    // pattern (fill up to N, shrink below). Both must land on the node.
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let gss = "templates/test_maxw.gss";
+    std::fs::write(gss, ".panel { width: fill; max-width: 640; }").unwrap();
+
+    let path = "templates/test_maxw.xml";
+    std::fs::write(path, r##"<Container class="panel" />"##).unwrap();
+
+    motor.load_stylesheet(gss).unwrap();
+    motor.register_component("maxw", path).unwrap();
+
+    let n = motor.evaluated_templates.get("maxw").unwrap();
+    assert_eq!(n.width.as_deref(), Some("fill"), "width: fill applies from the class");
+    assert_eq!(n.max_width, Some(640.0), "max-width applies from the class");
+
+    std::fs::remove_file(gss).ok();
+    std::fs::remove_file(path).ok();
+}
+
 /// Helper: extract the `color` of an evaluated Text node.
 fn text_color(node: &NodeType) -> Option<String> {
     if let NodeType::Text { color, .. } = node {

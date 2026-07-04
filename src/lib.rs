@@ -1249,20 +1249,22 @@ mod effect_outcome_tests {
     use crate::component::EffectOutcome;
     use crate::toasts::{ToastKind, ToastSpec};
 
-    // `Into<EffectOutcome>` conversions keep `perform` ergonomic: the common
-    // data-only case and the toast-only case both work without boilerplate.
+    // The constructors/builder keep `perform` ergonomic: data-only, toast-only,
+    // and data-plus-toast all read cleanly.
     #[test]
-    fn conversions_cover_data_and_toast() {
-        let from_pairs: EffectOutcome = vec![("a".to_string(), "1".to_string())].into();
-        assert_eq!(from_pairs.patch, vec![("a".to_string(), "1".to_string())]);
-        assert!(from_pairs.toast.is_none());
+    fn constructors_cover_data_and_toast() {
+        let only_data = EffectOutcome::data(vec![("a".to_string(), "1".to_string())]);
+        assert_eq!(only_data.patch, vec![("a".to_string(), "1".to_string())]);
+        assert!(only_data.toast.is_none());
 
-        let from_pair: EffectOutcome = ("k".to_string(), "v".to_string()).into();
-        assert_eq!(from_pair.patch, vec![("k".to_string(), "v".to_string())]);
+        let only_toast = EffectOutcome::toast(ToastSpec::success("done"));
+        assert!(only_toast.patch.is_empty());
+        assert_eq!(only_toast.toast.as_ref().map(|t| t.kind), Some(ToastKind::Success));
 
-        let from_toast: EffectOutcome = ToastSpec::success("done").into();
-        assert!(from_toast.patch.is_empty());
-        assert_eq!(from_toast.toast.as_ref().map(|t| t.kind), Some(ToastKind::Success));
+        let both = EffectOutcome::data(vec![("k".to_string(), "v".to_string())])
+            .with_toast(ToastSpec::error("boom"));
+        assert_eq!(both.patch, vec![("k".to_string(), "v".to_string())]);
+        assert_eq!(both.toast.as_ref().map(|t| t.kind), Some(ToastKind::Error));
     }
 
     // Dispatching an EffectOutcome applies its data patch *and* shows its toast,
@@ -1285,7 +1287,7 @@ mod effect_outcome_tests {
     #[test]
     fn dispatch_data_only_shows_no_toast() {
         let mut motor = GlacierUI::new();
-        let outcome: EffectOutcome = vec![("n".to_string(), "42".to_string())].into();
+        let outcome = EffectOutcome::data(vec![("n".to_string(), "42".to_string())]);
         let _ = motor.dispatch(&EngineMessage::EffectOutcome(outcome));
 
         assert_eq!(motor.get_data("n"), Some(&"42".to_string()));
