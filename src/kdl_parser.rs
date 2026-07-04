@@ -34,8 +34,9 @@ use crate::parser::{UiNode, NodeType, empty_node};
 /// collected and re-attached as children of the root so the engine's
 /// `<link>`/`<import>` processing finds them (they have no visual effect).
 ///
-/// A `script { ... }` block — whose body is Rust, not valid KDL — is stripped
-/// textually before parsing, mirroring `strip_script` for XML.
+/// A `script { ... }` block — whose body is Lua, not valid KDL — is stripped
+/// textually before parsing, mirroring `strip_script` for XML. The body is
+/// interpreted at runtime by [`crate::lua::LuaComponent`].
 pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
     let stripped = strip_kdl_script(input);
     let split = split_after_close_braces(&stripped);
@@ -45,8 +46,8 @@ pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
     let mut decls = Vec::new();
     let mut roots: Vec<UiNode> = Vec::new();
     for node in doc.nodes() {
-        // The `script` node is consumed at compile time by the macro; ignore it
-        // at runtime (its body was already stripped above, but a bodyless
+        // The `script` node's Lua body is handled by `LuaComponent`; the parser
+        // ignores it (its body was already stripped above, but a bodyless
         // `script` node could still appear).
         if node.name().value().eq_ignore_ascii_case("script") {
             continue;
@@ -78,8 +79,9 @@ pub fn parse_kdl(input: &str) -> Result<UiNode, String> {
 
 
 /// Removes a top-level `script { ... }` block from the source, returning the
-/// remaining markup. The body holds Rust code (consumed by `#[component]`), so
-/// it must be stripped before KDL parsing or the document would not parse.
+/// remaining markup. The body holds Lua code (run at runtime by
+/// [`crate::lua::LuaComponent`]), so it must be stripped before KDL parsing or
+/// the document would not parse.
 fn strip_kdl_script(input: &str) -> String {
     let lower = input.to_ascii_lowercase();
     // Find a `script` token followed (after optional whitespace) by `{`.

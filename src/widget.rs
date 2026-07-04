@@ -185,6 +185,9 @@ pub enum EngineMessage {
     /// engine's tracked viewport and re-evaluates so `@media` blocks re-resolve.
     /// `width`/`height` are logical px.
     Viewport { width: f32, height: f32 },
+    /// A `fetch` requested by a component's Lua (`crate::lua`) finished: resume
+    /// the suspended coroutine `id` on component `owner` with the HTTP result.
+    LuaResume { owner: String, id: u64, result: crate::component::FetchResult },
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing

@@ -67,7 +67,7 @@ impl Component for Contador {
     - [Componentes aninhados e roteamento de ações](#componentes-aninhados-e-roteamento-de-ações)
     - [`ContextVar`](#contextvar)
   - [Navegação entre telas](#navegação-entre-telas)
-  - [`<script>` + a macro `#[component]`](#script--a-macro-component)
+  - [`<script>` em Lua](#script-em-lua)
   - [Stylesheets `.gss`](#stylesheets-gss)
   - [Estilos escopados inline: `<style>` / `style`](#estilos-escopados-inline-style--style)
   - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
@@ -97,18 +97,16 @@ impl Component for Contador {
 
 ## Instalação
 
-O projeto é um workspace com dois crates:
-
-- **`glacier-ui`** — o motor.
-- **`glacier-ui-macros`** — a proc-macro `#[component]`.
+O projeto é um único crate, **`glacier-ui`** — o motor.
 
 ```bash
 cargo add glacier-ui
 ```
 
-`glacier-ui` já puxa `glacier-ui-macros`. As demais dependências (`iced 0.13`,
-`roxmltree`, `image`, `serde_json`) vêm junto. Requer Rust **edition 2024**
-(≥ 1.85).
+As dependências (`iced 0.14`, `roxmltree`, `image`, `serde_json`, `mlua` com
+Lua 5.4 vendorizado, e `hyper` + `rustls` para o `fetch`) vêm junto — o Lua é
+compilado a partir do fonte, sem precisar de Lua no sistema. Requer Rust
+**edition 2024** (≥ 1.85).
 
 Rode qualquer exemplo do repositório com:
 
@@ -515,7 +513,7 @@ até ele também for `width=fill` (`<Column>`, `<Form>` etc. têm default
 a nota de layout abaixo). Por isso o `<Form>` do exemplo e os `<Column>` que
 envolvem cada campo também levam `width=fill`.
 
-Veja `examples/formulario_login.rs` e `templates/formulario_login.kdl`.
+Veja `examples/formulario_login/` (`main.rs` + `formulario_login.kdl`).
 
 ---
 
@@ -528,7 +526,7 @@ Veja `examples/formulario_login.rs` e `templates/formulario_login.kdl`.
 <Image source="templates/avatar.png" width="100" height="100" clip="Circle" />
 ```
 
-Veja `templates/perfil_card.xml`.
+Veja `examples/perfil/perfil_card.xml`.
 
 ---
 
@@ -658,14 +656,15 @@ Componentes também podem pedir navegação de dentro do `update` via
 
 ---
 
-## `<script>` + a macro `#[component]`
+## `<script>` em Lua
 
-Dá para colocar o comportamento **dentro do próprio XML**, num bloco `<script>`
-com métodos Rust. A macro `#[component]` lê o XML **em tempo de compilação**,
-extrai o `<script>` e gera o `impl Component`.
+Dá para colocar o comportamento **dentro do próprio template**, num bloco
+`<script>` com funções **Lua** (5.4). `register_lua` lê o arquivo, carrega o
+script e roteia cada ação (`onClick`/`onChange`/`onSubmit`) para a função de
+mesmo nome — tudo **interpretado em tempo de execução**, sem recompilar o app.
 
 ```xml
-<!-- templates/contador_macro.xml -->
+<!-- examples/contador_macro/contador_macro.xml -->
 <Container ...>
     <Text content="Valor: {contador}" />
     <Button text="+" onClick="incrementar" />
@@ -673,31 +672,65 @@ extrai o `<script>` e gera o `impl Component`.
 </Container>
 
 <script>
-fn incrementar(&mut self) { self.contador += 1; }
-fn decrementar(&mut self) { self.contador -= 1; }
+function init()        ctx.contador = ctx.contador or 0 end
+function incrementar() ctx.contador = ctx.contador + 1 end
+function decrementar() ctx.contador = ctx.contador - 1 end
 </script>
 ```
 
 ```rust
-use glacier_ui::component;
-
-#[component(path = "templates/contador_macro.xml", name = "contador")]
-#[derive(Default)]
-struct Contador { contador: i32 }
+let mut motor = GlacierUI::new();
+motor.register_lua("contador", "examples/contador_macro/contador_macro.xml")?;
 ```
 
-A macro gera:
+Como funciona:
 
-- cada `fn` do `<script>` vira um método **e** uma ação de mesmo nome (casada com `onClick`/`onChange`);
-- um método com argumento extra recebe o valor do input (`fn mudar(&mut self, v: &str)`);
-- cada campo nomeado do struct é sincronizado com o contexto (`to_string()`) no `init` e após cada ação — por isso `{contador}` reflete `self.contador`.
+- cada função Lua vira uma ação de mesmo nome (casada com `onClick`/`onChange`/`onSubmit`);
+- o **contexto** do motor é a tabela global `ctx`: ler `ctx.contador` devolve o valor atual e atribuir `ctx.contador = ...` grava de volta. Como Lua coage strings numéricas em aritmética, `ctx.contador + 1` sobre `"0"` volta como `"1"`. Atribuir `ctx.x = nil` **remove** a chave do contexto;
+- ações de `onChange` recebem o texto digitado como 1º argumento **e** na global `value` (`function set_nome(v) ctx.nome = v end`);
+- a função opcional `init()` semeia o estado inicial.
 
-O `<script>` é removido **antes** do parse XML, então pode ficar como irmão da
-raiz sem invalidar o documento.
+Depois de cada chamada, a tabela `ctx` é copiada de volta ao contexto e os
+bindings `{contador}` refletem na próxima avaliação. O `<script>` é removido
+**antes** do parse XML/KDL, então pode ficar como irmão da raiz sem invalidar o
+documento.
 
-**Tradeoff:** é Rust real, type-checado pelo compilador, mas mudar a lógica do
-`<script>` exige **recompilar** (o markup continua com hot-reload). Veja
-`examples/contador_macro.rs`.
+**Arquivo Lua externo:** em vez de embutir o código, aponte para um `.lua`
+separado com `src` (ou `from`) — o caminho é resolvido relativo ao diretório do
+template:
+
+```xml
+<script src="contador.lua"></script>
+```
+
+**Vantagem:** mudar a lógica do `<script>` não exige recompilar — junto com o
+hot-reload do markup, a UI e o comportamento iteram sem build. Veja
+`examples/contador_macro.rs` (inline), `examples/contador_externo.rs` (arquivo
+externo) e o módulo `glacier_ui::lua`.
+
+### Rede: `fetch` (async/await via corrotina)
+
+O Lua tem uma função global `fetch(url, opts)` para chamadas HTTP/HTTPS (via
+`hyper` + `rustls`). Ela **suspende a corrotina** da ação e retoma quando a
+resposta chega — a UI **não trava** durante a requisição, mas o código Lua fica
+com cara de `await`, síncrono e linear:
+
+```lua
+function buscar()
+    ctx.status = "carregando..."                 -- já aparece na tela
+    local res = fetch("https://api.exemplo/dados") -- suspende aqui, sem bloquear
+    if res.ok then
+        ctx.dados = res.body                       -- retomou com a resposta
+    else
+        ctx.erro = res.error
+    end
+end
+```
+
+O resultado é uma tabela `{ ok, status, body, error }`. O 2º argumento `opts` é
+opcional: `{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
+Como cada `fetch` volta ao ponto exato onde parou, dá pra encadear várias em
+sequência. Veja `examples/fetch_lua.rs`.
 
 ---
 
@@ -898,7 +931,8 @@ fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
 ```
 
 Edite o XML, o `.gss`, o JSON de dados ou o tema e veja a UI atualizar sem
-recompilar. (A lógica de um `<script>` é a exceção — veja o tradeoff da macro.)
+recompilar. A lógica Lua de um `<script>` também dispensa recompilar (é
+interpretada), mas só recarrega ao re-registrar o componente.
 
 ---
 
@@ -1044,7 +1078,9 @@ pub enum EngineMessage {
 | Exemplo | Demonstra | Rodar |
 |---|---|---|
 | `contador` | `Component` básico com estado e cliques. | `cargo run --example contador` |
-| `contador_macro` | comportamento embutido no XML via `<script>` + `#[component]`. | `cargo run --example contador_macro` |
+| `contador_macro` | comportamento embutido no template via `<script>` Lua (`register_lua`). | `cargo run --example contador_macro` |
+| `contador_externo` | `<script src="...">` apontando para um arquivo `.lua` externo. | `cargo run --example contador_externo` |
+| `fetch_lua` | chamada de rede (`fetch`) a partir do Lua, async via corrotina. | `cargo run --example fetch_lua` |
 | `perfil` | inputs (`TextInput`), cliques, `<import>` de um cartão, `Image` e `ContextVar`. | `cargo run --example perfil` |
 | `lista` | `<ForEach>` sobre JSON com um componente (`<import>`) por item. | `cargo run --example lista` |
 | `condicional` | `<if>` / `<else>` (truthy e comparação). | `cargo run --example condicional` |
@@ -1059,13 +1095,9 @@ pub enum EngineMessage {
 
 ## Publicação no crates.io
 
-O workspace publica em duas etapas (a proc-macro primeiro, pois o motor depende
-dela):
-
 ```bash
-cargo login                          # token de https://crates.io/settings/tokens
-cargo publish -p glacier-ui-macros   # 1) a macro
-cargo publish -p glacier-ui          # 2) o motor (após o índice atualizar)
+cargo login             # token de https://crates.io/settings/tokens
+cargo publish           # publica glacier-ui
 ```
 
 Valide antes com `cargo publish --dry-run`.

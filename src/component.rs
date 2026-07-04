@@ -69,6 +69,53 @@ impl EffectOutcome {
     }
 }
 
+/// Uma requisição de rede pedida pela camada Lua via `fetch(url, opts)`
+/// (ver [`crate::lua`]). É acumulada no [`Context`] durante o `update` e
+/// convertida pelo motor num efeito assíncrono (HTTP via [`crate::net`]); ao
+/// completar, a corrotina Lua suspensa `id` é retomada com o [`FetchResult`].
+#[derive(Debug, Clone)]
+pub struct PendingFetch {
+    /// Identifica a corrotina suspensa que espera esta resposta.
+    pub(crate) id: u64,
+    pub(crate) url: String,
+    pub(crate) method: String,
+    pub(crate) body: Option<String>,
+    pub(crate) headers: Vec<(String, String)>,
+}
+
+impl PendingFetch {
+    pub(crate) fn new(
+        id: u64,
+        url: String,
+        method: String,
+        body: Option<String>,
+        headers: Vec<(String, String)>,
+    ) -> Self {
+        Self { id, url, method, body, headers }
+    }
+}
+
+/// Resultado de um `fetch`, entregue de volta à corrotina Lua como uma tabela
+/// `{ ok, status, body, error }`.
+#[derive(Debug, Clone)]
+pub struct FetchResult {
+    /// `true` se o status HTTP está em 2xx.
+    pub ok: bool,
+    /// Código de status HTTP (0 quando a requisição nem chegou a responder).
+    pub status: u16,
+    /// Corpo da resposta como texto.
+    pub body: String,
+    /// Mensagem de erro (vazia em caso de sucesso).
+    pub error: String,
+}
+
+impl FetchResult {
+    /// Um resultado de falha (sem resposta): `ok = false`, `status = 0`.
+    pub fn error(msg: impl Into<String>) -> Self {
+        Self { ok: false, status: 0, body: String::new(), error: msg.into() }
+    }
+}
+
 /// De onde vem o XML de um componente.
 pub enum Template {
     /// Caminho em disco — mantém o hot-reload do motor.
@@ -126,6 +173,9 @@ pub struct Context<'a> {
     pub(crate) effects: Vec<Effect>,
     pub(crate) dialog: Option<DialogAction>,
     pub(crate) toasts: Vec<crate::toasts::ToastSpec>,
+    /// Requisições de rede pedidas via `fetch` na camada Lua, transformadas em
+    /// efeitos assíncronos pelo motor após o `update`.
+    pub(crate) fetches: Vec<PendingFetch>,
 }
 
 impl<'a> Context<'a> {
@@ -266,6 +316,13 @@ pub trait Component {
     /// }
     /// ```
     fn on_form_submit(&mut self, _action: &str, _ctx: &mut Context) {}
+
+    /// Retoma um `fetch` assíncrono que completou: o motor entrega o `id` da
+    /// requisição (ver [`PendingFetch`]) e o [`FetchResult`]. Componentes que
+    /// não fazem rede não precisam implementar. A [`crate::lua::LuaComponent`]
+    /// usa isto para retomar a corrotina Lua suspensa no ponto do `fetch`,
+    /// passando o resultado — o que dá a aparência de `async/await`.
+    fn resume_fetch(&mut self, _id: u64, _result: &FetchResult, _ctx: &mut Context) {}
 
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
     /// alimentam o contexto. Mapeie cada stream para

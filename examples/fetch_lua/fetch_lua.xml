@@ -1,0 +1,40 @@
+<Container
+    padding="24"
+    alignX="Center"
+    alignY="Center"
+    width="fill"
+    height="fill"
+    background="#2E3440"
+>
+    <Column spacing="16" align="Center">
+        <Text content="fetch em Lua (async/await via corrotina)" size="22" bold="true" color="#ECEFF4" />
+        <Button text="Buscar meu IP" onClick="buscar" color="#5E81AC" padding="12 24" />
+        <Text content="Status: {status}" size="14" color="#EBCB8B" />
+        <Text content="{resultado}" size="16" color="#A3BE8C" />
+    </Column>
+</Container>
+
+<script>
+
+-- `fetch(url)` SUSPENDE a corrotina (não bloqueia a UI) e retoma quando a
+-- resposta chega. Entre o clique e a resposta, o `ctx.status = "carregando..."`
+-- abaixo já aparece na tela — prova de que a chamada é assíncrona.
+
+function init()
+    ctx.status = "pronto"
+    ctx.resultado = "(clique no botão)"
+end
+
+function buscar()
+    ctx.status = "carregando..."
+    local res = fetch("https://api.ipify.org?format=json")
+    if res.ok then
+        ctx.resultado = res.body
+        ctx.status = "ok (" .. res.status .. ")"
+    else
+        ctx.resultado = res.error
+        ctx.status = "falhou"
+    end
+end
+
+</script>

@@ -3,6 +3,8 @@ pub mod kdl_parser;
 pub mod eval;
 pub mod widget;
 pub mod component;
+pub mod lua;
+pub mod net;
 pub mod stylesheet;
 pub mod forms;
 pub mod dialogs;
@@ -12,15 +14,12 @@ pub use parser::{UiNode, NodeType};
 pub use kdl_parser::{parse_kdl, register_bare_flags};
 pub use eval::{evaluate_node, process_template, strip_script, normalize_bare_directives, StyleContext};
 pub use widget::{render_node, EngineMessage};
-pub use component::{Component, Context, ContextVar, DialogAction, Effect, EffectOutcome, Nav, Template};
+pub use component::{Component, Context, ContextVar, DialogAction, Effect, EffectOutcome, FetchResult, Nav, Template};
+pub use lua::LuaComponent;
 pub use stylesheet::{StyleSheet, StyleRule};
 pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec};
 pub use toasts::{ToastKind, ToastSpec};
-
-/// Derives `impl Component` from a struct plus the `<script>` block of an XML
-/// template. See the `contador_macro` example.
-pub use glacier_ui_macros::component;
 
 use std::collections::HashMap;
 use std::time::{SystemTime, Duration};
@@ -294,6 +293,18 @@ impl GlacierUI {
         self.reevaluate_all()
     }
 
+    /// Registra um componente cujo comportamento é o bloco `<script>` **Lua** do
+    /// próprio template — UI e lógica no mesmo arquivo, interpretado em tempo de
+    /// execução (sem etapa de compilação). Atalho para
+    /// `register(Box::new(LuaComponent::from_file(path, name)?))`.
+    ///
+    /// As funções Lua leem e escrevem o contexto pela tabela global `ctx`; veja
+    /// [`crate::lua`].
+    pub fn register_lua(&mut self, name: &str, path: &str) -> Result<(), String> {
+        let comp = lua::LuaComponent::from_file(path, name)?;
+        self.register(Box::new(comp))
+    }
+
     /// Registers a single component and its `children()` recursively, without
     /// re-evaluating. Used by [`GlacierUI::register`].
     fn register_one(&mut self, mut comp: Box<dyn component::Component>) -> Result<(), String> {
@@ -318,8 +329,8 @@ impl GlacierUI {
             Template::Inline(s) => (s, None),
         };
 
-        // Parse via XML (with `<script>` stripped, behavior compiled in by
-        // `#[component]`) or KDL, depending on the extension.
+        // Parse via XML or KDL (picked by extension), with any `<script>` block
+        // stripped — its Lua body is run at runtime by `LuaComponent`, not here.
         let (ast, _script) = parse_markup(path.as_deref(), &markup)
             .map_err(|e| format!("Failed to parse template for component '{}': {}", name, e))?;
         self.parsed_templates.insert(name.clone(), ast.clone());
@@ -328,7 +339,7 @@ impl GlacierUI {
 
         // (b) Behavior: let the component seed its initial state.
         {
-            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new(), dialog: None, toasts: Vec::new() };
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new(), dialog: None, toasts: Vec::new(), fetches: Vec::new() };
             comp.init(&mut ctx);
         }
 
@@ -469,6 +480,18 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
+            // A `fetch` requested by a component's Lua finished: hand the result
+            // to that component so it can resume the suspended coroutine. The
+            // resumed coroutine may itself issue more `fetch`es (chained
+            // requests), which `run_on_owner` turns into further tasks.
+            EngineMessage::LuaResume { owner, id, result } => {
+                let owner = owner.clone();
+                let id = *id;
+                let result = result.clone();
+                return self.run_on_owner(&owner, move |comp, ctx| {
+                    comp.resume_fetch(id, &result, ctx);
+                });
+            }
             // Drag-and-drop reordering of a `for-each`/`ForEach` list (see
             // `UiNode::drag_*`). `DragStart`/`DragHover` are purely internal —
             // no component ever sees them, same as `window:*` above; only
@@ -594,26 +617,42 @@ impl GlacierUI {
     ) -> iced::Task<EngineMessage> {
         let (owner, bare_action) = match action.split_once("::") {
             Some((prefix, rest)) if self.components.contains_key(prefix) => {
-                (prefix.to_string(), rest)
+                (prefix.to_string(), rest.to_string())
             }
             Some((_, rest)) => match &self.current_screen {
-                Some(screen) => (screen.clone(), rest),
+                Some(screen) => (screen.clone(), rest.to_string()),
                 None => return iced::Task::none(),
             },
             None => match &self.current_screen {
-                Some(screen) => (screen.clone(), action),
+                Some(screen) => (screen.clone(), action.to_string()),
                 None => return iced::Task::none(),
             },
         };
 
+        self.run_on_owner(&owner, move |comp, ctx| route(comp, &bare_action, ctx))
+    }
+
+    /// Borrows the component named `owner`, runs `run` against it and a fresh
+    /// [`component::Context`], then applies everything the context accumulated —
+    /// navigation, dialog, toasts, a re-evaluation — and turns its async
+    /// requests into `iced::Task`s: each [`component::Effect`] into an
+    /// `EffectOutcome` task, and each `fetch` ([`component::PendingFetch`]) into
+    /// an HTTP task ([`crate::net::perform`]) whose completion comes back as
+    /// [`EngineMessage::LuaResume`] to resume the suspended Lua coroutine.
+    /// Shared by [`GlacierUI::route_to_owner`] and the `LuaResume` path.
+    fn run_on_owner(
+        &mut self,
+        owner: &str,
+        run: impl FnOnce(&mut dyn component::Component, &mut component::Context),
+    ) -> iced::Task<EngineMessage> {
         // Disjoint per-field borrows (`components` vs `context_data`) are
         // accepted by the borrow checker when done inline like this.
-        let (nav, effects, dialog, toasts) = if let Some(comp) = self.components.get_mut(&owner) {
-            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new(), dialog: None, toasts: Vec::new() };
-            route(comp.as_mut(), bare_action, &mut ctx);
-            (ctx.nav, ctx.effects, ctx.dialog, ctx.toasts)
+        let (nav, effects, dialog, toasts, fetches) = if let Some(comp) = self.components.get_mut(owner) {
+            let mut ctx = component::Context { data: &mut self.context_data, nav: None, effects: Vec::new(), dialog: None, toasts: Vec::new(), fetches: Vec::new() };
+            run(comp.as_mut(), &mut ctx);
+            (ctx.nav, ctx.effects, ctx.dialog, ctx.toasts, ctx.fetches)
         } else {
-            (None, Vec::new(), None, Vec::new())
+            return iced::Task::none();
         };
 
         match nav {
@@ -636,11 +675,25 @@ impl GlacierUI {
 
         // Turn each requested effect into an iced Task whose completion feeds an
         // EffectOutcome (data patch + optional toast) back through dispatch.
-        let tasks = effects.into_iter().map(|effect| match effect {
-            component::Effect::Perform(future) => {
-                iced::Task::perform(future, EngineMessage::EffectOutcome)
-            }
-        });
+        let mut tasks: Vec<iced::Task<EngineMessage>> = effects
+            .into_iter()
+            .map(|effect| match effect {
+                component::Effect::Perform(future) => {
+                    iced::Task::perform(future, EngineMessage::EffectOutcome)
+                }
+            })
+            .collect();
+
+        // Each `fetch` becomes an async HTTP task; its result is routed back to
+        // this same component to resume the coroutine that awaited it.
+        for req in fetches {
+            let id = req.id;
+            let owner_name = owner.to_string();
+            tasks.push(iced::Task::perform(crate::net::perform(req), move |result| {
+                EngineMessage::LuaResume { owner: owner_name.clone(), id, result }
+            }));
+        }
+
         iced::Task::batch(tasks)
     }
 

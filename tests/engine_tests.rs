@@ -1412,7 +1412,7 @@ fn test_kdl_import_and_scoped_stylesheet() {
     // Usa os arquivos reais do exemplo `painel_kdl`: o template importa um
     // componente KDL e declara uma folha .gss escopada.
     let mut motor = GlacierUI::new();
-    motor.register_component("painel_kdl", "templates/painel_kdl.kdl").unwrap();
+    motor.register_component("painel_kdl", "examples/painel_kdl/painel_kdl.kdl").unwrap();
 
     // O `import "CartaoKdl"` deve ter registrado o componente importado.
     assert!(
@@ -1998,7 +1998,7 @@ fn test_kdl_form_control_respects_explicit_value_and_on_change() {
 fn test_formulario_login_example_template_parses_and_evaluates() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("formulario_login_smoke", "templates/formulario_login.kdl")
+        .register_component("formulario_login_smoke", "examples/formulario_login/formulario_login.kdl")
         .expect("o template do exemplo formulario_login deve parsear e avaliar sem erro");
 
     let evaluated = motor.evaluated_templates.get("formulario_login_smoke").unwrap();
