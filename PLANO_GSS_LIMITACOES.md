@@ -21,7 +21,7 @@ traz problema, benefício, custo estimado, esboço de implementação e status.
 | 5 | **Cor do texto do botão** configurável (desembutir branco) | Médio | Baixo | 1 | ✅ feito |
 | 6 | **Variáveis / design tokens** (`:root` + `var(--x)`) | **Altíssimo** | Médio | 2 | ✅ feito (0.8.0) |
 | 7 | **Pseudo-estados** `:hover` / `:focus` / `:disabled` / `:active` | Alto | Alto | 3 | ⬜ |
-| 8 | **`@media`** (responsivo) | Médio | Alto | 3 | ⬜ |
+| 8 | **`@media`** (responsivo) | Médio | Alto | 3 | ✅ feito (0.9.0) |
 | 9 | Seletores **compostos/descendentes** + especificidade + `!important` | Médio-baixo | Alto | 4 | ⬜ |
 | 10 | Propriedades extras sob demanda (opacity, shadow, borda por-lado, gradiente radial, transform) | Pontual | Médio | 4 | ⬜ |
 
@@ -119,13 +119,25 @@ da regra "só `.classe`", tratada como `classe` + `estado`.
 **Nota.** Maior item de "polish" de UI. Fazer depois dos tokens (6), que ele
 reaproveita.
 
-### 8. `@media` (responsivo)
+### 8. `@media` (responsivo)  ✅ (0.9.0)
 **Problema.** Sem media queries; layout não reage à largura da janela.
-**Fix.** Parsear blocos `@media (max-width: N) { ...regras... }`; plumbar o
-tamanho atual do viewport até a resolução de classes (o motor já conhece o
-`window::size`). Ativar/desativar conjuntos de regras conforme o breakpoint.
-**Arquivos.** `stylesheet.rs` (parse `@media`), `lib.rs`/`eval.rs` (passar
-viewport à resolução). + teste.
+**Fix (feito).**
+- Parse de `@media (min/max-width|height: N) { .a {…} .b {…} }` — chave de
+  fechamento casada por profundidade (`split_balanced_block`), condição por
+  `parse_media_condition` (features `()` com AND; `and`/`screen` ignorados; `px`
+  opcional). `StyleSheet.media: Vec<MediaQuery>`.
+- `resolve_classes(classes, sheets, viewport)`: 2 passos — base, depois as
+  `@media` cuja `MediaCondition::matches(w,h)` casa, POR CIMA da base.
+- Viewport plumbado via `StyleContext.viewport`; o motor guarda
+  `GlacierUI.viewport` (default 1280×800), atualizado por
+  `EngineMessage::Viewport` que o listener `viewport_from_event` (em
+  `subscription()`) emite no `window::Event::Resized`. `dispatch` só re-avalia
+  se `media_set_changes` (cruzou breakpoint) — apps sem `@media` nunca re-avaliam.
+**Arquivos.** `stylesheet.rs` (parse+resolve+3 testes), `eval.rs`
+(StyleContext.viewport), `lib.rs` (viewport state, dispatch, subscription),
+`widget.rs` (EngineMessage::Viewport). 100 testes; exemplo roda com `@media` sem
+erro. **Toggle no resize precisa de verificação manual** (não observável headless,
+como drag/Tab). Turnkey: quem usa `motor.subscription()` já recebe o listener.
 
 ---
 

@@ -181,6 +181,10 @@ pub enum EngineMessage {
     /// on Tab on their own, so the engine drives it (see `tab_focus_from_event`).
     FocusNext,
     FocusPrev,
+    /// Window was resized (global window-event subscription): updates the
+    /// engine's tracked viewport and re-evaluates so `@media` blocks re-resolve.
+    /// `width`/`height` are logical px.
+    Viewport { width: f32, height: f32 },
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing

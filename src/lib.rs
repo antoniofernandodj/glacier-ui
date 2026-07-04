@@ -91,6 +91,11 @@ pub struct GlacierUI {
     /// call, so two toasts with identical content still have distinct
     /// identities to dismiss/expire independently.
     next_toast_id: u64,
+    /// Current viewport size `(width, height)` in logical px, used to evaluate
+    /// `@media` blocks in the stylesheets. Fed by [`EngineMessage::Viewport`]
+    /// (see [`GlacierUI::subscription`]'s window-resize listener) and defaulted
+    /// to a desktop-ish size until the first real `Resized` event arrives.
+    viewport: (f32, f32),
 }
 
 /// A [`toasts::ToastSpec`] actually in exhibition: the spec plus the
@@ -146,6 +151,7 @@ impl GlacierUI {
             dialog: None,
             toasts: Vec::new(),
             next_toast_id: 0,
+            viewport: (1280.0, 800.0),
         }
     }
 
@@ -413,6 +419,19 @@ impl GlacierUI {
             EngineMessage::FocusPrev => {
                 return iced::widget::operation::focus_previous::<EngineMessage>();
             }
+            EngineMessage::Viewport { width, height } => {
+                let new = (*width, *height);
+                // Só re-avalia se o novo tamanho ativa/desativa alguma `@media`
+                // (senão um resize dispararia um re-eval por pixel à toa). Apps
+                // sem `@media` nunca re-avaliam aqui.
+                if new != self.viewport && self.media_set_changes(self.viewport, new) {
+                    self.viewport = new;
+                    let _ = self.reevaluate_all();
+                } else {
+                    self.viewport = new;
+                }
+                return iced::Task::none();
+            }
             EngineMessage::UiInputChanged { action, value } => (
                 action.as_str(), Some(value.as_str())
             ),
@@ -638,6 +657,8 @@ impl GlacierUI {
         // `None`, so this is always safe to keep active.
         subs.push(iced::event::listen_with(drag_end_from_event));
         subs.push(iced::event::listen_with(tab_focus_from_event));
+        // Window resizes → EngineMessage::Viewport, so `@media` blocks re-resolve.
+        subs.push(iced::event::listen_with(viewport_from_event));
         iced::Subscription::batch(subs)
     }
 
@@ -817,6 +838,7 @@ impl GlacierUI {
         let styles = StyleContext {
             global: &self.stylesheets,
             by_component: &self.component_stylesheets,
+            viewport: Some(self.viewport),
         };
         let mut evals = HashMap::new();
         for (name, template_ast) in &self.parsed_templates {
@@ -834,6 +856,24 @@ impl GlacierUI {
         self.evaluated_templates = evals;
         self.sync_editors();
         Ok(())
+    }
+
+    /// `true` se mover o viewport de `old` para `new` ativa ou desativa algum
+    /// bloco `@media` (global ou com escopo) — usado por `dispatch` para só
+    /// re-avaliar quando o resultado das media queries realmente muda.
+    fn media_set_changes(&self, old: (f32, f32), new: (f32, f32)) -> bool {
+        let sheets = self
+            .stylesheets
+            .iter()
+            .chain(self.component_stylesheets.values().flatten());
+        for sheet in sheets {
+            for mq in &sheet.media {
+                if mq.condition.matches(old.0, old.1) != mq.condition.matches(new.0, new.1) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Keeps the stateful `<TextArea>` buffers in step with the context: creates
@@ -1126,6 +1166,22 @@ fn tab_focus_from_event(
     match event {
         iced::Event::Keyboard(Kbd::KeyPressed { key: Key::Named(Named::Tab), modifiers, .. }) => {
             Some(if modifiers.shift() { EngineMessage::FocusPrev } else { EngineMessage::FocusNext })
+        }
+        _ => None,
+    }
+}
+
+/// Maps a window `Resized` event to [`EngineMessage::Viewport`], so `@media`
+/// blocks re-resolve against the new size. A plain `fn` because
+/// `iced::event::listen_with` requires one.
+fn viewport_from_event(
+    event: iced::Event,
+    _status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    match event {
+        iced::Event::Window(iced::window::Event::Resized(size)) => {
+            Some(EngineMessage::Viewport { width: size.width, height: size.height })
         }
         _ => None,
     }

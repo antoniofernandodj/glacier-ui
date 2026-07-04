@@ -210,6 +210,9 @@ fn eval_condition(
 pub struct StyleContext<'a> {
     pub global: &'a [StyleSheet],
     pub by_component: &'a HashMap<String, Vec<StyleSheet>>,
+    /// Tamanho atual do viewport `(largura, altura)` em px lógicos, para avaliar
+    /// blocos `@media`. `None` = sem info (nenhuma media query ativa).
+    pub viewport: Option<(f32, f32)>,
 }
 
 impl<'a> StyleContext<'a> {
@@ -528,7 +531,7 @@ fn eval_owned(
     let style: StyleRule = match &node.class {
         Some(class) => {
             let active = styles.active(scope);
-            resolve_classes(&process_template(class, context), &active)
+            resolve_classes(&process_template(class, context), &active, styles.viewport)
         }
         None => StyleRule::default(),
     };

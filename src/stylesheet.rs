@@ -134,15 +134,45 @@ fn substitute_vars(value: &str, vars: &HashMap<String, String>) -> String {
     out
 }
 
+/// Condição de um bloco `@media` — features `min/max-width` e `min/max-height`
+/// (em px lógicos), combinadas por AND (como no CSS). `None` = sem restrição.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MediaCondition {
+    pub min_width: Option<f32>,
+    pub max_width: Option<f32>,
+    pub min_height: Option<f32>,
+    pub max_height: Option<f32>,
+}
+
+impl MediaCondition {
+    /// `true` se o viewport `(w, h)` satisfaz todas as features declaradas.
+    pub fn matches(&self, w: f32, h: f32) -> bool {
+        self.min_width.is_none_or(|v| w >= v)
+            && self.max_width.is_none_or(|v| w <= v)
+            && self.min_height.is_none_or(|v| h >= v)
+            && self.max_height.is_none_or(|v| h <= v)
+    }
+}
+
+/// Um bloco `@media (cond) { .a {…} .b {…} }`: as regras valem só quando a
+/// condição casa com o viewport atual, aplicadas POR CIMA das regras base.
+#[derive(Debug, Clone)]
+pub struct MediaQuery {
+    pub condition: MediaCondition,
+    pub rules: HashMap<String, StyleRule>,
+}
+
 /// A parsed `.gss` document: a map from class name (without the leading `.`)
 /// to its [`StyleRule`], plus the design tokens declared in a `:root { --x }`
-/// block (referenced elsewhere as `var(--x)`).
+/// block (referenced elsewhere as `var(--x)`), plus any `@media` blocks.
 #[derive(Debug, Clone, Default)]
 pub struct StyleSheet {
     pub rules: HashMap<String, StyleRule>,
     /// Variáveis/design tokens de `:root { --nome: valor; }`, sem o `--`… não:
     /// a chave guarda o `--nome` completo (como aparece em `var(--nome)`).
     pub variables: HashMap<String, String>,
+    /// Blocos `@media` — regras condicionais ao viewport (ver [`MediaQuery`]).
+    pub media: Vec<MediaQuery>,
 }
 
 impl StyleSheet {
@@ -159,12 +189,32 @@ impl StyleSheet {
 /// For a given class name, later stylesheets in the slice take priority, so
 /// callers can layer files by ascending priority (e.g. global sheets first,
 /// then a component's own scoped sheets).
-pub fn resolve_classes(classes: &str, sheets: &[&StyleSheet]) -> StyleRule {
+pub fn resolve_classes(
+    classes: &str,
+    sheets: &[&StyleSheet],
+    viewport: Option<(f32, f32)>,
+) -> StyleRule {
     let mut merged = StyleRule::default();
+    // Passo 1 — regras base.
     for name in classes.split_whitespace() {
         for sheet in sheets {
             if let Some(rule) = sheet.rules.get(name) {
                 merged.merge_from(rule);
+            }
+        }
+    }
+    // Passo 2 — regras de `@media` cuja condição casa com o viewport, POR CIMA
+    // da base (media sempre vence a base, independente da ordem das classes).
+    if let Some((w, h)) = viewport {
+        for name in classes.split_whitespace() {
+            for sheet in sheets {
+                for mq in &sheet.media {
+                    if mq.condition.matches(w, h) {
+                        if let Some(rule) = mq.rules.get(name) {
+                            merged.merge_from(rule);
+                        }
+                    }
+                }
             }
         }
     }
@@ -244,10 +294,25 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet, String> {
 
     let mut rules: HashMap<String, StyleRule> = HashMap::new();
     let mut variables: HashMap<String, String> = HashMap::new();
+    let mut media: Vec<MediaQuery> = Vec::new();
     let mut rest = cleaned.as_str();
     while let Some(open) = rest.find('{') {
         let selector = rest[..open].trim();
         let after_open = &rest[open + 1..];
+
+        // `@media (cond) { .a {…} .b {…} }` — bloco com regras ANINHADAS, então
+        // a chave de fechamento precisa ser casada por profundidade (não o
+        // primeiro `}`, que fecharia a 1ª regra interna). O corpo é reparseado
+        // como um mini-sheet (só as `rules` interessam).
+        if selector.starts_with("@media") {
+            let (inner, remainder) = split_balanced_block(after_open)?;
+            let condition = parse_media_condition(selector)?;
+            let inner_sheet = parse_gss(inner)?;
+            media.push(MediaQuery { condition, rules: inner_sheet.rules });
+            rest = remainder;
+            continue;
+        }
+
         let close = after_open
             .find('}')
             .ok_or_else(|| format!("Unclosed rule for selector '{}'", selector))?;
@@ -284,7 +349,62 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet, String> {
         return Err(format!("Expected '{{' after selector '{}'", rest.trim()));
     }
 
-    Ok(StyleSheet { rules, variables })
+    Ok(StyleSheet { rules, variables, media })
+}
+
+/// Dado o texto logo APÓS o `{` de um bloco, devolve `(interior, resto)` onde
+/// `interior` vai até a `}` que casa (por profundidade de chaves) e `resto` é o
+/// que vem depois dela. Erra se o bloco não fecha.
+fn split_balanced_block(s: &str) -> Result<(&str, &str), String> {
+    let mut depth = 1usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok((&s[..i], &s[i + 1..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    Err("Unclosed `@media { ... }` block".to_string())
+}
+
+/// Parseia a condição de um `@media` a partir do seletor bruto, ex.:
+/// `@media (max-width: 800)` ou `@media (min-width: 600) and (max-width: 900)`.
+/// Coleta todas as features `(chave: número)` com semântica AND; palavras como
+/// `and`/`screen`/`all` fora dos parênteses são ignoradas.
+fn parse_media_condition(selector: &str) -> Result<MediaCondition, String> {
+    let mut cond = MediaCondition::default();
+    let mut s = selector.strip_prefix("@media").unwrap_or(selector);
+    while let Some(open) = s.find('(') {
+        let close = s[open..]
+            .find(')')
+            .ok_or_else(|| format!("Missing ')' in @media condition '{}'", selector))?
+            + open;
+        let feature = &s[open + 1..close];
+        let (key, value) = feature
+            .split_once(':')
+            .ok_or_else(|| format!("Invalid @media feature '{}'", feature))?;
+        let key = key.trim();
+        let val = value
+            .trim()
+            .trim_end_matches("px")
+            .trim()
+            .parse::<f32>()
+            .map_err(|_| format!("@media feature '{}' expects a number", key))?;
+        match key {
+            "min-width" => cond.min_width = Some(val),
+            "max-width" => cond.max_width = Some(val),
+            "min-height" => cond.min_height = Some(val),
+            "max-height" => cond.max_height = Some(val),
+            other => return Err(format!("Unsupported @media feature '{}'", other)),
+        }
+        s = &s[close + 1..];
+    }
+    Ok(cond)
 }
 
 /// Parses the `--nome: valor;` declarations of a `:root { ... }` block into the
@@ -434,7 +554,7 @@ mod tests {
     fn classes_merge_left_to_right_then_files() {
         let base = parse_gss(".a { padding: 4; color: #111; }").unwrap();
         let over = parse_gss(".b { color: #222; } .a { padding: 8; }").unwrap();
-        let merged = resolve_classes("a b", &[&base, &over]);
+        let merged = resolve_classes("a b", &[&base, &over], None);
         // `.a` padding is overridden by the later sheet; `.b` color wins over `.a`.
         assert_eq!(merged.padding.as_deref(), Some("8"));
         assert_eq!(merged.color.as_deref(), Some("#222"));
@@ -483,7 +603,7 @@ mod tests {
         .unwrap();
         assert_eq!(sheet.variables["--bg"].as_str(), "#0D1117");
         // A substituição acontece na resolução (resolve_classes), não no parse.
-        let r = resolve_classes("card", &[&sheet]);
+        let r = resolve_classes("card", &[&sheet], None);
         assert_eq!(r.background.as_deref(), Some("#0D1117"));
         assert_eq!(r.color.as_deref(), Some("#58A6FF"));
     }
@@ -491,7 +611,7 @@ mod tests {
     #[test]
     fn var_fallback_and_undefined() {
         let sheet = parse_gss(".x { color: var(--missing, #FF0000); background: var(--nope); }").unwrap();
-        let r = resolve_classes("x", &[&sheet]);
+        let r = resolve_classes("x", &[&sheet], None);
         assert_eq!(r.color.as_deref(), Some("#FF0000")); // usa o fallback
         assert_eq!(r.background.as_deref(), Some("")); // sem var nem fallback → vazio
     }
@@ -501,7 +621,7 @@ mod tests {
         // Paleta declarada num sheet (global), usada por regra de outro (escopo).
         let global = parse_gss(":root { --ok: #3FB950; }").unwrap();
         let scoped = parse_gss(".state { color: var(--ok); }").unwrap();
-        let r = resolve_classes("state", &[&global, &scoped]);
+        let r = resolve_classes("state", &[&global, &scoped], None);
         assert_eq!(r.color.as_deref(), Some("#3FB950"));
     }
 
@@ -511,7 +631,57 @@ mod tests {
             ":root { --a: #000000; --b: #FFFFFF; } .g { gradient: var(--a) var(--b); }",
         )
         .unwrap();
-        let r = resolve_classes("g", &[&sheet]);
+        let r = resolve_classes("g", &[&sheet], None);
         assert_eq!(r.gradient.as_deref(), Some("#000000 #FFFFFF"));
+    }
+
+    #[test]
+    fn media_max_width_overrides_when_narrow() {
+        let sheet = parse_gss(
+            ".panel { width: 640; } @media (max-width: 800) { .panel { width: fill; } }",
+        )
+        .unwrap();
+        assert_eq!(sheet.media.len(), 1);
+        // Largo (1000 > 800): media inativa → base.
+        let wide = resolve_classes("panel", &[&sheet], Some((1000.0, 700.0)));
+        assert_eq!(wide.width.as_deref(), Some("640"));
+        // Estreito (700 <= 800): media ativa → sobrescreve.
+        let narrow = resolve_classes("panel", &[&sheet], Some((700.0, 700.0)));
+        assert_eq!(narrow.width.as_deref(), Some("fill"));
+        // Sem viewport: media nunca ativa.
+        let none = resolve_classes("panel", &[&sheet], None);
+        assert_eq!(none.width.as_deref(), Some("640"));
+    }
+
+    #[test]
+    fn media_condition_range_and_height() {
+        let c = MediaCondition {
+            min_width: Some(600.0),
+            max_width: Some(900.0),
+            max_height: Some(500.0),
+            ..Default::default()
+        };
+        assert!(c.matches(800.0, 400.0)); // dentro de tudo
+        assert!(!c.matches(500.0, 400.0)); // largura < min
+        assert!(!c.matches(1000.0, 400.0)); // largura > max
+        assert!(!c.matches(800.0, 600.0)); // altura > max
+    }
+
+    #[test]
+    fn media_nested_braces_parse_correctly() {
+        // A `}` da 1ª regra interna não pode fechar o @media (casamento por
+        // profundidade). Duas classes dentro, mais uma fora.
+        let sheet = parse_gss(
+            ".a { color: #111; } \
+             @media (max-width: 500) { .a { color: #222; } .b { size: 9; } } \
+             .c { color: #333; }",
+        )
+        .unwrap();
+        assert_eq!(sheet.rules.len(), 2); // .a e .c fora do media
+        assert_eq!(sheet.media[0].rules.len(), 2); // .a e .b dentro
+        let narrow = resolve_classes("a", &[&sheet], Some((400.0, 400.0)));
+        assert_eq!(narrow.color.as_deref(), Some("#222"));
+        let wide = resolve_classes("a", &[&sheet], Some((900.0, 400.0)));
+        assert_eq!(wide.color.as_deref(), Some("#111"));
     }
 }
