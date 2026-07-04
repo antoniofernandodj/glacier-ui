@@ -49,6 +49,12 @@ pub struct StyleRule {
     /// (Row/Column do iced não capam o próprio tamanho).
     pub max_width: Option<f32>,
     pub max_height: Option<f32>,
+    /// `hidden: true` (ou `display: none`) — remove o elemento do layout, como
+    /// `display:none` do CSS: não ocupa espaço nem gera `spacing` entre irmãos.
+    /// Pensado sobretudo para `@media` esconder cromo de baixa prioridade
+    /// (busca, status, cards) em janelas estreitas, evitando que Rows estourem
+    /// e sobreponham botões/textos (o motor não reflui Row↔Column).
+    pub hidden: Option<bool>,
 }
 
 impl StyleRule {
@@ -75,6 +81,7 @@ impl StyleRule {
         if other.text_color.is_some() { self.text_color = other.text_color.clone(); }
         if other.max_width.is_some() { self.max_width = other.max_width; }
         if other.max_height.is_some() { self.max_height = other.max_height; }
+        if other.hidden.is_some() { self.hidden = other.hidden; }
     }
 
     /// Resolve `var(--x)` em todos os campos String da regra contra `vars`
@@ -477,6 +484,10 @@ fn parse_rule_body(body: &str, selector: &str) -> Result<StyleRule, String> {
             "text-color" | "text_color" | "textColor" => rule.text_color = Some(value),
             "max-width" | "max_width" | "maxWidth" => rule.max_width = Some(parse_f32(&value)?),
             "max-height" | "max_height" | "maxHeight" => rule.max_height = Some(parse_f32(&value)?),
+            // `hidden: true|false` ou `display: none|flex|block` (só `none`
+            // esconde; qualquer outro valor de `display` = visível).
+            "hidden" => rule.hidden = Some(value.eq_ignore_ascii_case("true") || value == "1"),
+            "display" => rule.hidden = Some(value.eq_ignore_ascii_case("none")),
             // Propriedade desconhecida: pular com aviso, sem derrubar o arquivo
             // inteiro. Um typo (`colr:`) não deve apagar todas as regras do
             // sheet — o resto da regra e das outras regras continua válido.
@@ -651,6 +662,31 @@ mod tests {
         // Sem viewport: media nunca ativa.
         let none = resolve_classes("panel", &[&sheet], None);
         assert_eq!(none.width.as_deref(), Some("640"));
+    }
+
+    #[test]
+    fn hidden_property_and_display_none() {
+        let sheet = parse_gss(
+            ".a { hidden: true; } .b { display: none; } .c { display: flex; } .d { hidden: 0; }",
+        )
+        .unwrap();
+        assert_eq!(sheet.rules.get("a").unwrap().hidden, Some(true));
+        assert_eq!(sheet.rules.get("b").unwrap().hidden, Some(true));
+        assert_eq!(sheet.rules.get("c").unwrap().hidden, Some(false));
+        assert_eq!(sheet.rules.get("d").unwrap().hidden, Some(false));
+    }
+
+    #[test]
+    fn media_can_hide_at_narrow_width() {
+        // O caso de uso central: `@media` esconde um elemento em telas estreitas.
+        let sheet = parse_gss(
+            "@media (max-width: 600) { .search { hidden: true; } }",
+        )
+        .unwrap();
+        let wide = resolve_classes("search", &[&sheet], Some((1000.0, 700.0)));
+        assert_eq!(wide.hidden, None); // visível (nada aplicado)
+        let narrow = resolve_classes("search", &[&sheet], Some((500.0, 700.0)));
+        assert_eq!(narrow.hidden, Some(true)); // escondido
     }
 
     #[test]

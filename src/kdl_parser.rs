@@ -574,6 +574,7 @@ fn blank(kind: NodeType) -> UiNode {
         text_color: None,
         max_width: None,
         max_height: None,
+        hidden: None,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,
@@ -666,6 +667,8 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
     let text_color = attrs.get(&["textColor", "text_color", "text-color", "cor_texto"]);
     let max_width = attrs.get_f32(&["maxWidth", "max_width", "max-width", "largura_max"]);
     let max_height = attrs.get_f32(&["maxHeight", "max_height", "max-height", "altura_max"]);
+    let hidden = attrs.get(&["hidden", "oculto"])
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1");
     let form_control = attrs.get(&["formControl", "form_control", "form-control", "controleForm", "controle_form"]);
 
     // Structural directives expressed as attributes (Vue/Angular style).
@@ -867,6 +870,7 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
         text_color,
         max_width,
         max_height,
+        hidden,
         if_cond,
         if_equals,
         if_not_equals,

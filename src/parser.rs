@@ -208,6 +208,10 @@ pub struct UiNode {
     /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
     pub max_width: Option<f32>,
     pub max_height: Option<f32>,
+    /// `hidden`/`oculto` (ou via `.classe { hidden: true }` / `display: none`) —
+    /// remove o elemento do layout sem ocupar espaço nem `spacing`. Uso típico:
+    /// `@media` esconder cromo em janelas estreitas (ver [`crate::stylesheet::StyleRule::hidden`]).
+    pub hidden: Option<bool>,
     // Structural directives as attributes (Vue/Angular style)
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
@@ -308,6 +312,8 @@ impl UiNode {
         let text_color = Self::get_attr(&node, &["textColor", "text_color", "text-color", "cor_texto"]);
         let max_width = Self::get_attr_f32(&node, &["maxWidth", "max_width", "max-width", "largura_max"]);
         let max_height = Self::get_attr_f32(&node, &["maxHeight", "max_height", "max-height", "altura_max"]);
+        let hidden = Self::get_attr(&node, &["hidden", "oculto"])
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1");
         let form_control = Self::get_attr(&node, &["formControl", "form_control", "form-control", "controleForm", "controle_form"]);
 
         // Structural directives as attributes (Vue/Angular style)
@@ -511,6 +517,7 @@ impl UiNode {
             text_color,
             max_width,
             max_height,
+            hidden,
             if_cond,
             if_equals,
             if_not_equals,
@@ -601,6 +608,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         text_color: None,
         max_width: None,
         max_height: None,
+        hidden: None,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,

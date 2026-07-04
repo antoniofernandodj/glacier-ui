@@ -668,6 +668,9 @@ fn eval_owned(
     let text_color_eval = resolve(&node.text_color, &style.text_color);
     let max_width_eval = node.max_width.or(style.max_width);
     let max_height_eval = node.max_height.or(style.max_height);
+    // `hidden` resolvido: inline vence a classe/`@media` (mesma precedência dos
+    // demais campos). Consumido em `widget::render_node` (pulado no layout).
+    let hidden_eval = node.hidden.or(style.hidden);
 
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
@@ -711,6 +714,7 @@ fn eval_owned(
         text_color: text_color_eval,
         max_width: max_width_eval,
         max_height: max_height_eval,
+        hidden: hidden_eval,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use iced::widget::{
     button, column, row, text, container, text_input, text_editor, image, svg, scrollable,
-    checkbox, toggler, rule, pick_list, mouse_area,
+    checkbox, toggler, rule, pick_list, mouse_area, Space,
 };
 
 /// One option of a `<Select>`: `label` is shown, `value` is dispatched. Equality
@@ -289,6 +289,13 @@ pub fn render_node<'a>(
     context: &'a HashMap<String, String>,
     editors: &'a EditorMap,
 ) -> Element<'a, EngineMessage> {
+    // `hidden: true` (`display: none`) — sai do layout por completo. Os
+    // contêineres Row/Column/Form já filtram filhos ocultos (sem `spacing`
+    // fantasma); este retorno cobre os demais caminhos (raiz, filho único de
+    // Container/Scrollable/MouseArea) com um `Space` de tamanho zero.
+    if node.hidden == Some(true) {
+        return Space::new().width(Length::Shrink).height(Length::Shrink).into();
+    }
     let mut element: Element<'a, EngineMessage> = match &node.kind {
         NodeType::Text { content, size, bold, color } => {
             let mut t = text(content.as_str());
@@ -646,7 +653,7 @@ pub fn render_node<'a>(
             
             col = col.padding(parse_padding(&node.padding));
 
-            for child in &node.children {
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
                 col = col.push(render_node(child, context, editors));
             }
             
@@ -667,7 +674,7 @@ pub fn render_node<'a>(
             
             r = r.padding(parse_padding(&node.padding));
 
-            for child in &node.children {
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
                 r = r.push(render_node(child, context, editors));
             }
             
@@ -690,7 +697,7 @@ pub fn render_node<'a>(
             }
             col = col.padding(parse_padding(&node.padding));
 
-            for child in &node.children {
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
                 col = col.push(render_node(child, context, editors));
             }
 
@@ -775,7 +782,7 @@ pub fn render_node<'a>(
             if let Some(sp) = node.spacing {
                 col = col.spacing(sp);
             }
-            for child in &node.children {
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
                 col = col.push(render_node(child, context, editors));
             }
             col.width(parse_length(&node.width))
