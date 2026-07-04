@@ -1,0 +1,154 @@
+# Plano: evolução do GSS — resolver limitações conhecidas
+
+Mapa das limitações do motor `.gss` (diagnóstico feito sobre a 0.4.14) e um
+backlog **ordenado por custo-benefício** para atacá-las uma a uma. Cada item
+traz problema, benefício, custo estimado, esboço de implementação e status.
+
+> Regra do fluxo (ver rustploy `CLAUDE.md`): mudança aqui → bump de versão →
+> `cargo publish` → subir a dep em `rustploy-gui`. Para não fazer um release por
+> item minúsculo, os itens de mesmo tier podem ser **publicados em lote**.
+
+---
+
+## Ordem de ataque (melhor ratio primeiro)
+
+| # | Item | Benefício | Custo | Tier | Status |
+|---|------|-----------|-------|------|--------|
+| 1 | Classe duplicada faz **merge** (não clobber) | Médio | Trivial | 1 | ✅ feito |
+| 2 | Propriedade desconhecida: **skip + warn** (não derruba o arquivo) | Médio | Trivial | 1 | ✅ feito |
+| 3 | `width/height` com **pesos** (`fill N` / FillPortion) | Médio | Baixo | 1 | ✅ feito |
+| 4 | **max** width & height (via wrap em container) | Médio-alto | Baixo-médio | 1 | ✅ feito |
+| 5 | **Cor do texto do botão** configurável (desembutir branco) | Médio | Baixo | 1 | ✅ feito |
+| 6 | **Variáveis / design tokens** (`:root` + `var(--x)`) | **Altíssimo** | Médio | 2 | ⬜ |
+| 7 | **Pseudo-estados** `:hover` / `:focus` / `:disabled` / `:active` | Alto | Alto | 3 | ⬜ |
+| 8 | **`@media`** (responsivo) | Médio | Alto | 3 | ⬜ |
+| 9 | Seletores **compostos/descendentes** + especificidade + `!important` | Médio-baixo | Alto | 4 | ⬜ |
+| 10 | Propriedades extras sob demanda (opacity, shadow, borda por-lado, gradiente radial, transform) | Pontual | Médio | 4 | ⬜ |
+
+Fora de escopo: `margin` (o iced usa `padding`+`spacing`, não há caixa de margem);
+seletor de **tag** puro (`Column {}`) — conflita com o modelo de componentes e o
+ganho é baixo; manter o modelo só-classe.
+
+---
+
+## Tier 1 — Quick wins (baixo custo, bom retorno)
+
+### 1. Classe duplicada → merge em vez de clobber  ✅
+**Problema.** Dois blocos `.card { }` no mesmo arquivo: o segundo **apaga** o
+primeiro inteiro (`rules.insert(name, rule)` em `stylesheet.rs`), em vez de
+mesclar como o CSS faz. Footgun silencioso.
+**Fix.** Em `parse_gss`, ao inserir uma regra cujo nome já existe, `merge_from`
+sobre a existente em vez de substituir.
+**Arquivos.** `src/stylesheet.rs` (`parse_gss`). + teste.
+
+### 2. Propriedade desconhecida → skip + warn  ✅
+**Problema.** Um `wibble: 1;` (ou um typo) faz `parse_gss` retornar `Err` e
+**derruba o arquivo `.gss` inteiro** — todas as regras somem. Áspero demais.
+**Fix.** Em `parse_rule_body`, pular a declaração desconhecida com `eprintln!`
+de aviso (com seletor + chave), mantendo o resto da regra e do arquivo. Erros
+estruturais (sem `:`, valor vazio, número inválido) continuam sendo erro.
+**Arquivos.** `src/stylesheet.rs` (`parse_rule_body`). + ajustar teste
+`unknown_property_is_an_error`.
+
+### 3. Pesos em `width`/`height` (FillPortion)  ✅
+**Problema.** `parse_length` só aceita `fill | shrink | <px>`; sem pesos de flex
+(`Length::FillPortion`) nem `%`. Não dá para fazer "coluna A ocupa 2x a B".
+**Fix (feito).** `parse_length` aceita `fill N` / `fill-N` → `FillPortion(N)`
+(e ficou case-insensitive de brinde; `fill 0` normaliza p/ 1). `%` ficou de fora.
+**Arquivos.** `src/widget.rs` (`parse_length`) + `mod length_tests` (4 testes).
+
+### 4. `max-width` / `max-height`  ✅
+**Problema.** Sem limites de tamanho; `form_panel` fixa `width: 640` na unha.
+**Fix (feito).** Campos `max_width`/`max_height` (f32) em `StyleRule`/`UiNode`
+(GSS `max-width`/`max-height`, attr `maxWidth`/`maxHeight`). Como `Row`/`Column`
+do iced não capam o próprio tamanho, o `render_node` **envolve qualquer nó com
+teto num `container().max_width()/.max_height()`** (ponto único antes do
+`mouse_area`) — vale para todo tipo de nó, não só Container. `min-*` ficou de
+fora (o iced não expõe fácil; usar por ora).
+**Arquivos.** `stylesheet.rs`, `parser.rs`, `kdl_parser.rs`, `eval.rs`,
+`widget.rs`. + teste de parse.
+
+### 5. Cor do texto do botão configurável  ✅
+**Problema.** O rótulo do botão era `Color::WHITE` fixo (`widget.rs`); o `color`
+do botão pinta só o **fundo**. Impossível botão de texto escuro/tema.
+**Fix (feito).** Prop **UiNode-level** `text_color` (GSS `text-color`, attr
+`textColor`) — mesma camada de `font`/`text_align`, sem tocar em
+`NodeType::Button`. Resolvido no `eval` (inline > classe) e aplicado no
+`button::Style.text_color`; default branco (não quebra nada).
+**Arquivos.** `stylesheet.rs`, `parser.rs`, `kdl_parser.rs`, `eval.rs`,
+`widget.rs`.
+
+---
+
+## Tier 2 — Alto valor, custo médio
+
+### 6. Variáveis / design tokens (`:root { --x } ` + `var(--x)`)
+**Problema.** Sem `var()`/custom properties: cada hex é repetido em dezenas de
+regras (ver `app.gss` do rustploy). A paleta não tem fonte única e o `theme.json`
+não é referenciável do `.gss`. Reuso hoje = criar uma classe.
+**Fix.**
+- Aceitar **um** seletor não-classe especial: `:root { --bg: #0D1117; ... }`
+  (declarações `--nome: valor;`), coletadas num mapa de variáveis do sheet.
+- Substituir `var(--nome)` (com fallback opcional `var(--x, #fff)`) nos valores
+  ao resolver as regras.
+- Escopo v1: variáveis **por arquivo**; v2: mapa global mesclado entre sheets
+  (para o layering por prioridade já existente) e ponte opcional com `theme.json`.
+**Arquivos.** `stylesheet.rs` (parse de `:root`/`--x`, resolução de `var()`),
+possivelmente `lib.rs` (mapa global entre sheets). + testes.
+**Impacto no rustploy.** Enorme: colapsa a paleta repetida em ~6 tokens.
+
+---
+
+## Tier 3 — Alto valor, custo alto (arquitetural)
+
+### 7. Pseudo-estados `:hover` / `:focus` / `:disabled` / `:active`
+**Problema.** O estilo é resolvido **uma vez** (estático). Hover/pressed de botão
+são auto-derivados (±10% de luminância) da única `color`; não há hover/focus/
+disabled reais e configuráveis para nenhum elemento.
+**Fix.** Guardar variantes de estilo por estado (ex.: `StyleRule` + mapa
+`state → StyleRule`) e, na camada `widget.rs`, escolher a variante dentro das
+closures de `Status` do iced (`button::Status::Hovered`, etc.). Exige um
+seletor com sufixo de estado no parser (`.btn:hover { }`) — a primeira quebra
+da regra "só `.classe`", tratada como `classe` + `estado`.
+**Arquivos.** `stylesheet.rs` (parse `:estado`), `eval.rs` (propagar variantes),
+`widget.rs` (aplicar por `Status`). + exemplo interativo.
+**Nota.** Maior item de "polish" de UI. Fazer depois dos tokens (6), que ele
+reaproveita.
+
+### 8. `@media` (responsivo)
+**Problema.** Sem media queries; layout não reage à largura da janela.
+**Fix.** Parsear blocos `@media (max-width: N) { ...regras... }`; plumbar o
+tamanho atual do viewport até a resolução de classes (o motor já conhece o
+`window::size`). Ativar/desativar conjuntos de regras conforme o breakpoint.
+**Arquivos.** `stylesheet.rs` (parse `@media`), `lib.rs`/`eval.rs` (passar
+viewport à resolução). + teste.
+
+---
+
+## Tier 4 — Situacional / menor ratio (fazer sob demanda)
+
+### 9. Seletores compostos/descendentes + especificidade + `!important`
+`.a.b`, `.a .b`, `.a > .b`, `+`/`~`, modelo de especificidade e `!important`.
+Grande retrabalho do matcher (hoje o seletor inteiro vira o nome da classe) para
+ganho limitado dado o modelo de componentes. Avaliar só se a dor aparecer.
+
+### 10. Propriedades extras pontuais
+`opacity`, `box-shadow` (hoje sombra de botão é `Shadow::default()`), borda
+**por-lado/por-canto** (hoje raio/leargura/cor únicos, sempre sólida),
+`gradient` **radial/cônico** (hoje só linear), `transform`/`rotate`,
+`line-height`/`letter-spacing`. Adicionar item a item quando um caso real pedir;
+cada um é um campo novo em `StyleRule` + aplicação no `widget.rs`.
+
+---
+
+## Convenções ao mexer
+
+- Toda nova propriedade toca 4 pontos: `StyleRule` (campo + `merge_from`),
+  `parse_rule_body` (chave→campo), `parser.rs` (attr inline), `eval.rs`
+  (`resolve(&node.x, &style.x)`), `widget.rs` (aplicação). Seguir o padrão do
+  `cursor` como referência de "propriedade completa ponta-a-ponta".
+- Todo item ganha teste em `stylesheet.rs` (`#[cfg(test)]`) e, quando visual,
+  um `examples/` rodado antes de publicar (ver memória "rodar exemplo antes de
+  dar por pronto").
+- Atualizar este arquivo (coluna Status) e o `README.md`/`ROADMAP.md` a cada
+  item concluído.

@@ -202,6 +202,12 @@ pub struct UiNode {
     /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
     /// corresponding `mouse::Interaction`. Useful for window resize handles.
     pub cursor: Option<String>,
+    /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
+    pub text_color: Option<String>,
+    /// Teto de largura/altura (`maxWidth`/`maxHeight`) — envolve o elemento num
+    /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
     // Structural directives as attributes (Vue/Angular style)
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
@@ -299,6 +305,9 @@ impl UiNode {
         let on_press = Self::get_attr(&node, &["onPress", "on_press", "on-press", "aoPressionar", "ao_pressionar"]);
         let on_double_click = Self::get_attr(&node, &["onDoubleClick", "on_double_click", "on-double-click", "aoClicarDuplo"]);
         let cursor = Self::get_attr(&node, &["cursor", "cursor_", "cursorIcon"]);
+        let text_color = Self::get_attr(&node, &["textColor", "text_color", "text-color", "cor_texto"]);
+        let max_width = Self::get_attr_f32(&node, &["maxWidth", "max_width", "max-width", "largura_max"]);
+        let max_height = Self::get_attr_f32(&node, &["maxHeight", "max_height", "max-height", "altura_max"]);
         let form_control = Self::get_attr(&node, &["formControl", "form_control", "form-control", "controleForm", "controle_form"]);
 
         // Structural directives as attributes (Vue/Angular style)
@@ -499,6 +508,9 @@ impl UiNode {
             on_press,
             on_double_click,
             cursor,
+            text_color,
+            max_width,
+            max_height,
             if_cond,
             if_equals,
             if_not_equals,
@@ -586,6 +598,9 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         on_press: None,
         on_double_click: None,
         cursor: None,
+        text_color: None,
+        max_width: None,
+        max_height: None,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,

@@ -571,6 +571,9 @@ fn blank(kind: NodeType) -> UiNode {
         on_press: None,
         on_double_click: None,
         cursor: None,
+        text_color: None,
+        max_width: None,
+        max_height: None,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,
@@ -660,6 +663,9 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
     let on_press = attrs.get(&["onPress", "on_press", "on-press", "aoPressionar", "ao_pressionar"]);
     let on_double_click = attrs.get(&["onDoubleClick", "on_double_click", "on-double-click", "aoClicarDuplo"]);
     let cursor = attrs.get(&["cursor", "cursorIcon", "cursor-icon"]);
+    let text_color = attrs.get(&["textColor", "text_color", "text-color", "cor_texto"]);
+    let max_width = attrs.get_f32(&["maxWidth", "max_width", "max-width", "largura_max"]);
+    let max_height = attrs.get_f32(&["maxHeight", "max_height", "max-height", "altura_max"]);
     let form_control = attrs.get(&["formControl", "form_control", "form-control", "controleForm", "controle_form"]);
 
     // Structural directives expressed as attributes (Vue/Angular style).
@@ -858,6 +864,9 @@ fn node_from_kdl(node: &KdlNode) -> Option<UiNode> {
         on_press,
         on_double_click,
         cursor,
+        text_color,
+        max_width,
+        max_height,
         if_cond,
         if_equals,
         if_not_equals,

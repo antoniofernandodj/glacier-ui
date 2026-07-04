@@ -662,6 +662,9 @@ fn eval_owned(
     let on_press_eval = node.on_press.as_ref().map(|s| process_template(s, context));
     let on_double_click_eval = node.on_double_click.as_ref().map(|s| process_template(s, context));
     let cursor_eval = resolve(&node.cursor, &style.cursor);
+    let text_color_eval = resolve(&node.text_color, &style.text_color);
+    let max_width_eval = node.max_width.or(style.max_width);
+    let max_height_eval = node.max_height.or(style.max_height);
 
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
@@ -702,6 +705,9 @@ fn eval_owned(
         on_press: on_press_eval,
         on_double_click: on_double_click_eval,
         cursor: cursor_eval,
+        text_color: text_color_eval,
+        max_width: max_width_eval,
+        max_height: max_height_eval,
         if_cond: None,
         if_equals: None,
         if_not_equals: None,

@@ -43,6 +43,12 @@ pub struct StyleRule {
     pub gradient: Option<String>,
     pub text_align: Option<String>,
     pub cursor: Option<String>,
+    /// Cor do rótulo de um `Button` (o `color` do botão pinta o *fundo*).
+    pub text_color: Option<String>,
+    /// Teto de largura/altura — o elemento é envolto num `container` que limita
+    /// (Row/Column do iced não capam o próprio tamanho).
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
 }
 
 impl StyleRule {
@@ -66,6 +72,9 @@ impl StyleRule {
         if other.gradient.is_some() { self.gradient = other.gradient.clone(); }
         if other.text_align.is_some() { self.text_align = other.text_align.clone(); }
         if other.cursor.is_some() { self.cursor = other.cursor.clone(); }
+        if other.text_color.is_some() { self.text_color = other.text_color.clone(); }
+        if other.max_width.is_some() { self.max_width = other.max_width; }
+        if other.max_height.is_some() { self.max_height = other.max_height; }
     }
 }
 
@@ -160,7 +169,7 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet, String> {
     // Strip comments first; '#' inside a value (hex colors) survives.
     let cleaned = strip_comments(input)?;
 
-    let mut rules = HashMap::new();
+    let mut rules: HashMap<String, StyleRule> = HashMap::new();
     let mut rest = cleaned.as_str();
     while let Some(open) = rest.find('{') {
         let selector = rest[..open].trim();
@@ -182,7 +191,11 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet, String> {
             return Err("Empty class selector '.'".to_string());
         }
         let rule = parse_rule_body(body, &name)?;
-        rules.insert(name, rule);
+        // Classe duplicada no mesmo arquivo faz *merge* (não clobber): o CSS
+        // aplica ambas as regras de mesmo seletor. Sobrescrever a anterior
+        // inteira era um footgun silencioso. Campos `None` do 2º bloco
+        // preservam os do 1º; campos `Some` sobrescrevem.
+        rules.entry(name).or_default().merge_from(&rule);
     }
 
     // Anything left after the last rule that isn't blank is a dangling selector.
@@ -233,11 +246,19 @@ fn parse_rule_body(body: &str, selector: &str) -> Result<StyleRule, String> {
             "gradient" => rule.gradient = Some(value),
             "text-align" | "text_align" | "textAlign" => rule.text_align = Some(value),
             "cursor" | "cursor-icon" | "cursorIcon" => rule.cursor = Some(value),
+            "text-color" | "text_color" | "textColor" => rule.text_color = Some(value),
+            "max-width" | "max_width" | "maxWidth" => rule.max_width = Some(parse_f32(&value)?),
+            "max-height" | "max_height" | "maxHeight" => rule.max_height = Some(parse_f32(&value)?),
+            // Propriedade desconhecida: pular com aviso, sem derrubar o arquivo
+            // inteiro. Um typo (`colr:`) não deve apagar todas as regras do
+            // sheet — o resto da regra e das outras regras continua válido.
+            // Erros *estruturais* (sem `:`, valor vazio, número inválido)
+            // seguem sendo erro fatal.
             other => {
-                return Err(format!(
-                    "Unknown style property '{}' in '.{}'",
+                eprintln!(
+                    "glacier-ui: propriedade GSS desconhecida '{}' em '.{}' (ignorada)",
                     other, selector
-                ))
+                );
             }
         }
     }
@@ -312,12 +333,36 @@ mod tests {
     }
 
     #[test]
-    fn unknown_property_is_an_error() {
-        assert!(parse_gss(".x { wibble: 1; }").is_err());
+    fn unknown_property_is_skipped_not_fatal() {
+        // Um typo/propriedade desconhecida é ignorado (com aviso no stderr),
+        // mas o resto da regra e do arquivo continua válido.
+        let sheet = parse_gss(".x { wibble: 1; color: #123; }").unwrap();
+        assert_eq!(sheet.rules["x"].color.as_deref(), Some("#123"));
+    }
+
+    #[test]
+    fn duplicate_class_merges_not_clobbers() {
+        // Dois blocos `.card`: o 2º mescla sobre o 1º (não apaga). Campos
+        // ausentes no 2º preservam os do 1º; presentes sobrescrevem.
+        let sheet = parse_gss(".card { padding: 4; color: #111; } .card { color: #222; }").unwrap();
+        let card = &sheet.rules["card"];
+        assert_eq!(card.padding.as_deref(), Some("4"));  // preservado do 1º bloco
+        assert_eq!(card.color.as_deref(), Some("#222")); // sobrescrito pelo 2º
     }
 
     #[test]
     fn selector_must_be_a_class() {
         assert!(parse_gss("card { padding: 1; }").is_err());
+    }
+
+    #[test]
+    fn parses_text_color_and_max_size() {
+        let sheet = parse_gss(
+            ".btn { text-color: #0D1117; } .panel { max-width: 640; max-height: 480; }",
+        )
+        .unwrap();
+        assert_eq!(sheet.rules["btn"].text_color.as_deref(), Some("#0D1117"));
+        assert_eq!(sheet.rules["panel"].max_width, Some(640.0));
+        assert_eq!(sheet.rules["panel"].max_height, Some(480.0));
     }
 }

@@ -184,19 +184,34 @@ pub fn form_input_id(scope: &str, control: &str) -> String {
     format!("glacier_form::{scope}::{control}")
 }
 
-/// Helper to parse iced::Length from optional string
+/// Helper to parse iced::Length from optional string.
+///
+/// Aceita: `fill`, `shrink`, um número (px fixo), e **pesos de flex**
+/// `fill N` / `fill-N` → `Length::FillPortion(N)` (divide o espaço livre entre
+/// irmãos proporcionalmente; `fill 2` ocupa o dobro de um `fill`). Tudo
+/// case-insensitive. Valor inválido cai em `shrink`.
 fn parse_length(s: &Option<String>) -> Length {
-    match s.as_deref() {
-        Some("fill") | Some("Fill") | Some("FILL") => Length::Fill,
-        Some("shrink") | Some("Shrink") | Some("SHRINK") => Length::Shrink,
-        Some(val) => {
-            if let Ok(f) = val.parse::<f32>() {
-                Length::Fixed(f)
-            } else {
-                Length::Shrink
+    let Some(raw) = s.as_deref() else {
+        return Length::Shrink;
+    };
+    let v = raw.trim();
+    let lower = v.to_ascii_lowercase();
+    match lower.as_str() {
+        "fill" => Length::Fill,
+        "shrink" => Length::Shrink,
+        _ => {
+            // `fill 2` / `fill-2` → FillPortion(2).
+            if let Some(rest) = lower.strip_prefix("fill") {
+                let n = rest.trim_start_matches([' ', '-']).trim();
+                if let Ok(p) = n.parse::<u16>() {
+                    return Length::FillPortion(p.max(1));
+                }
+            }
+            match v.parse::<f32>() {
+                Ok(f) => Length::Fixed(f),
+                Err(_) => Length::Shrink,
             }
         }
-        None => Length::Shrink,
     }
 }
 
@@ -319,6 +334,11 @@ pub fn render_node<'a>(
                     let br_color = node.border_color.as_ref()
                         .and_then(|c| parse_hex_color(c))
                         .unwrap_or(Color::TRANSPARENT);
+                    // Cor do rótulo: `textColor`/`.classe { text-color }`, senão
+                    // branco (default histórico). O `color` do botão é o fundo.
+                    let label_col = node.text_color.as_deref()
+                        .and_then(parse_hex_color)
+                        .unwrap_or(Color::WHITE);
                     btn = btn.style(move |_theme, status| {
                         let bg = match status {
                             iced::widget::button::Status::Hovered => Some(Background::Color(Color {
@@ -337,7 +357,7 @@ pub fn render_node<'a>(
                         };
                         iced::widget::button::Style {
                             background: bg,
-                            text_color: Color::WHITE,
+                            text_color: label_col,
                             border: Border {
                                 radius: iced::border::Radius::new(br_radius),
                                 width: br_width,
@@ -789,6 +809,21 @@ pub fn render_node<'a>(
         }
     }
 
+    // `maxWidth`/`maxHeight`: `Row`/`Column` do iced não capam o próprio
+    // tamanho, então qualquer nó que declare um teto é envolto num `container`
+    // que limita (inerte fora isso). Antes do `mouse_area`, para a superfície
+    // interativa cobrir o elemento já restrito.
+    if node.max_width.is_some() || node.max_height.is_some() {
+        let mut c = container(element);
+        if let Some(mw) = node.max_width {
+            c = c.max_width(mw);
+        }
+        if let Some(mh) = node.max_height {
+            c = c.max_height(mh);
+        }
+        element = c.into();
+    }
+
     // A node with `on_press`, `on_double_click` and/or `cursor` is wrapped in a
     // `mouse_area`: `on_press` fires on mouse-button-down (not release like a
     // `Button`) — needed for window drag/resize (`onPress="window:drag"`);
@@ -868,4 +903,42 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
         "resize-nw" | "nw" | "se" | "nwse" | "nwse-resize" => ResizingDiagonallyDown,
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod length_tests {
+    use super::parse_length;
+    use iced::Length;
+
+    fn len(s: &str) -> Length {
+        parse_length(&Some(s.to_string()))
+    }
+
+    #[test]
+    fn keywords_and_case() {
+        assert_eq!(len("fill"), Length::Fill);
+        assert_eq!(len("FILL"), Length::Fill);
+        assert_eq!(len("Shrink"), Length::Shrink);
+        assert_eq!(parse_length(&None), Length::Shrink);
+    }
+
+    #[test]
+    fn fixed_px() {
+        assert_eq!(len("640"), Length::Fixed(640.0));
+        assert_eq!(len("  34 "), Length::Fixed(34.0));
+    }
+
+    #[test]
+    fn fill_portion_weights() {
+        assert_eq!(len("fill 2"), Length::FillPortion(2));
+        assert_eq!(len("fill-3"), Length::FillPortion(3));
+        assert_eq!(len("FILL 4"), Length::FillPortion(4));
+        // `fill 0` não faz sentido; normaliza para 1 (== Fill).
+        assert_eq!(len("fill 0"), Length::FillPortion(1));
+    }
+
+    #[test]
+    fn garbage_falls_back_to_shrink() {
+        assert_eq!(len("wibble"), Length::Shrink);
+    }
 }
