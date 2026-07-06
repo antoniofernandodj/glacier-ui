@@ -242,15 +242,47 @@ impl LuauComponent {
         self.sync_to_luau(ctx)?;
         self.luau.globals().set("value", value)?;
 
-        // Ações sem função correspondente são ignoradas (como o `_ => {}` antigo).
-        let Ok(f) = self.luau.globals().get::<Function>(func) else {
-            return Ok(());
+        // Resolve a ação para uma função global. Primeiro tenta o nome exato;
+        // se não houver e a ação for `nome:sufixo`, cai para `nome(sufixo, value)`
+        // — a convenção que templates parametrizados usam para ações por-linha
+        // (`open_service:<id>`, `field:<chave>`, `proj_tab:<aba>`), espelhando o
+        // que um componente Rust faria fatiando a própria string.
+        //
+        // Fallback final: uma ação simples (sem função e sem ':') que carrega um
+        // `value` é tratada como binding de input — grava `ctx[ação] = value`.
+        // É o que fecha o loop de um `formControl="url"` (cujo onChange implícito
+        // é o próprio nome do controle) sem exigir um handler por campo, papel
+        // que o `Form` do Rust cumpria via `sync_to_context`. Ações sem função
+        // e sem value continuam ignoradas (como o `_ => {}` antigo).
+        let globals = self.luau.globals();
+        let (f, lead) = match globals.get::<Function>(func) {
+            Ok(f) => (f, None),
+            Err(_) => match func.split_once(':') {
+                Some((name, suffix)) => match globals.get::<Function>(name) {
+                    Ok(f) => (f, Some(suffix.to_string())),
+                    Err(_) => return Ok(()),
+                },
+                None => {
+                    if let Some(v) = value {
+                        ctx.set(func, v);
+                    }
+                    return Ok(());
+                }
+            },
         };
+
         let thread = self.luau.create_thread(f)?;
-        let args = match value {
-            Some(v) => MultiValue::from_iter([Value::String(self.luau.create_string(v)?)]),
-            None => MultiValue::new(),
-        };
+        // Args na ordem: [sufixo?, value?]. Para `nome:sufixo` o sufixo vem
+        // primeiro; o `value` de um onChange/onToggle segue (permite
+        // `field(chave, texto)`). Sem sufixo, só o `value` (comportamento antigo).
+        let mut items: Vec<Value> = Vec::new();
+        if let Some(s) = &lead {
+            items.push(Value::String(self.luau.create_string(s)?));
+        }
+        if let Some(v) = value {
+            items.push(Value::String(self.luau.create_string(v)?));
+        }
+        let args = MultiValue::from_iter(items);
         self.drive(thread, args, ctx)
     }
 
@@ -565,6 +597,67 @@ mod tests {
         data.insert("x".into(), "keep".into());
         let data = drive(&comp, "inexistente", None, data);
         assert_eq!(data.get("x").map(String::as_str), Some("keep"));
+    }
+
+    #[test]
+    fn acao_com_sufixo_passa_o_sufixo_como_argumento() {
+        // `open_service:<id>` deve chamar open_service("abc") quando não existe
+        // uma função com o nome exato "open_service:abc".
+        let comp = LuauComponent::from_source(
+            "function open_service(id) ctx.aberto = id end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "open_service:abc", None, HashMap::new());
+        assert_eq!(data.get("aberto").map(String::as_str), Some("abc"));
+    }
+
+    #[test]
+    fn acao_com_sufixo_e_value_passa_ambos() {
+        // `field:<chave>` num onChange chama field(chave, texto): sufixo 1º, o
+        // valor do input em seguida.
+        let comp = LuauComponent::from_source(
+            "function field(k, v) ctx[k] = v end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "field:nome", Some("Ana"), HashMap::new());
+        assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
+    }
+
+    #[test]
+    fn nome_exato_tem_precedencia_sobre_o_split() {
+        // Se existe função com o nome literal (sem interpretar ':'), ela ganha.
+        // (Nomes Lua não contêm ':', então na prática o exato é sempre sem ':'.)
+        let comp = LuauComponent::from_source(
+            "function salvar(v) ctx.via = 'exato' end \
+             function salvar_x() ctx.via = 'split' end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "salvar", None, HashMap::new());
+        assert_eq!(data.get("via").map(String::as_str), Some("exato"));
+    }
+
+    #[test]
+    fn form_control_sem_handler_escreve_no_contexto() {
+        // Um `formControl="url"` (onChange implícito = "url") sem função `url`
+        // no script deve gravar ctx.url com o texto digitado — o loop que o
+        // Form do Rust fechava, agora nativo para componentes Luau.
+        let comp = LuauComponent::from_source("function init() end", "t.xml", "c").unwrap();
+        let data = drive(&comp, "url", Some("https://x.tech"), HashMap::new());
+        assert_eq!(data.get("url").map(String::as_str), Some("https://x.tech"));
+    }
+
+    #[test]
+    fn acao_simples_sem_value_e_sem_funcao_e_ignorada() {
+        // Sem função e sem value, nada acontece (não cria chave espúria).
+        let comp = LuauComponent::from_source("function a() end", "t.xml", "c").unwrap();
+        let data = drive(&comp, "inexistente", None, HashMap::new());
+        assert_eq!(data.get("inexistente"), None);
     }
 
     #[test]

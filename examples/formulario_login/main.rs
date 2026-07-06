@@ -25,22 +25,22 @@ impl Login {
     fn new() -> Self {
 
         let form = FormBuilder::new("login")
-                .control(FormControl::new("username", "").required().min_length(3))
-                .control(FormControl::new("password", "").required().min_length(6))
-                // A lógica de submissão fica declarada junto com os controles,
-                // em vez de competir com a atualização de campo num único
-                // `update()`: veja `Component::on_form_submit` abaixo.
-                .on_submit(|form, ctx| {
-                    if form.is_valid() {
-                        ctx.set("status", format!("Bem-vindo, {}!", form.value("username")));
-                    } else {
-                        // Mostra erros também nos campos que o usuário nunca tocou.
-                        form.validate();
-                        sincronizar(form, ctx);
-                        ctx.set("status", "Corrija os campos destacados.");
-                    }
-                })
-                .build();
+            .control(FormControl::new("username", "").required().min_length(3))
+            .control(FormControl::new("password", "").required().min_length(6))
+            // A lógica de submissão fica declarada junto com os controles,
+            // em vez de competir com a atualização de campo num único
+            // `update()`: veja `Component::on_form_submit` abaixo.
+            .on_submit(|form, ctx| {
+                if form.is_valid() {
+                    ctx.set("status", format!("Bem-vindo, {}!", form.value("username")));
+                } else {
+                    // Mostra erros também nos campos que o usuário nunca tocou.
+                    form.validate();
+                    sincronizar(form, ctx);
+                    ctx.set("status", "Corrija os campos destacados.");
+                }
+            })
+            .build();
 
         Self { form: form }
     }

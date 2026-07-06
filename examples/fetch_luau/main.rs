@@ -13,10 +13,7 @@ use std::time::Duration;
 /// receber a resposta, **retoma a corrotina** no ponto do `fetch` com a tabela
 /// `{ ok, status, body, error }`. Do lado do Lua, parece `await` — mas a thread
 /// de UI nunca trava (o "carregando..." aparece enquanto a rede responde).
-struct App {
-    motor: GlacierUI,
-}
-
+struct App { motor: GlacierUI }
 impl App {
     fn new() -> (Self, Task<EngineMessage>) {
         let mut motor = GlacierUI::new();

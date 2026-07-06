@@ -30,6 +30,6 @@ function buscar()
 end
 
 function ola_mundo()
-    local resultado: string = "Olá, mundo!";
+    local resultado = json.encode({ ola = "mundo" , greetings = { "ola", "hello" }});
     print(resultado);
 end
