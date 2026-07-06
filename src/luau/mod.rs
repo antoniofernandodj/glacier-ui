@@ -356,6 +356,12 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_toast").unwrap_or(false) {
+                ctx.show_toast(build_toast(&req)?);
+                args = MultiValue::new();
+                continue;
+            }
+
             return Ok(()); // tabela cedida sem marcador conhecido
         }
     }
@@ -540,6 +546,24 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
         .dismissible(false))
 }
 
+/// Constrói o [`ToastSpec`] a partir do pedido `toast(opts)` do prelúdio.
+/// `kind` = "success"/"warning"/"error"/"info" (default info); `title` opcional.
+fn build_toast(req: &Table) -> mlua::Result<crate::toasts::ToastSpec> {
+    use crate::toasts::{ToastKind, ToastSpec};
+    let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
+    let kind = match req.get::<Option<String>>("kind")?.as_deref() {
+        Some("success") => ToastKind::Success,
+        Some("warning") => ToastKind::Warning,
+        Some("error") => ToastKind::Error,
+        _ => ToastKind::Info,
+    };
+    let mut spec = ToastSpec::new(kind, message);
+    if let Some(title) = req.get::<Option<String>>("title")? {
+        spec = spec.with_title(title);
+    }
+    Ok(spec)
+}
+
 /// Converte um [`Value`] Luau na string que o contexto do motor guarda. Números
 /// inteiros e floats de valor inteiro viram `"3"` (não `"3.0"`); `nil` devolve
 /// `None` para não sobrescrever chaves com valor vazio à toa.
@@ -667,6 +691,35 @@ mod tests {
         .unwrap();
         let data = drive(&comp, "salvar", None, HashMap::new());
         assert_eq!(data.get("via").map(String::as_str), Some("exato"));
+    }
+
+    #[test]
+    fn toast_empilha_no_contexto() {
+        let comp = LuauComponent::from_source(
+            "function go() toast({ message='falhou', kind='error', title='Erro' }) end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("go", None, &mut ctx);
+        assert_eq!(ctx.toasts.len(), 1);
+        assert_eq!(ctx.toasts[0].message, "falhou");
+        assert_eq!(ctx.toasts[0].kind, crate::toasts::ToastKind::Error);
+    }
+
+    #[test]
+    fn toast_aceita_string_curta() {
+        let comp = LuauComponent::from_source(
+            "function go() toast('oi') end", "t.xml", "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("go", None, &mut ctx);
+        assert_eq!(ctx.toasts.len(), 1);
+        assert_eq!(ctx.toasts[0].message, "oi");
     }
 
     #[test]

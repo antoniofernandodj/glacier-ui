@@ -28,6 +28,22 @@ function sse(url, opts)
     }
 end
 
+-- Toast (notificação efêmera) a partir do Luau. NÃO suspende: cede um pedido, o
+-- motor o exibe (via Context::show_toast) e retoma na hora. `opts` = string
+-- (mensagem, kind "info") ou tabela `{ message, kind?, title? }` — kind é
+-- "info"|"success"|"warning"|"error".
+function toast(opts)
+    if type(opts) == "string" then
+        opts = { message = opts }
+    end
+    return coroutine.yield({
+        __glacier_toast = true,
+        message = opts.message,
+        kind = opts.kind,
+        title = opts.title,
+    })
+end
+
 -- Diálogo modal de confirmação. NÃO suspende: cede um pedido, o motor mostra o
 -- diálogo (via Context::show_dialog) e retoma na hora. O botão de confirmação
 -- despacha `opts.confirm_action` (nome de uma função) como um clique normal; o
