@@ -693,6 +693,28 @@ mod tests {
     }
 
     #[test]
+    fn json_decode_null_vira_nil_nao_userdata() {
+        // Campo `null` deve virar `nil` (ausente), não o sentinel userdata do
+        // mlua — senão `x ~= nil`/`x and …` falham e ops de string quebram
+        // ("string expected, got userdata").
+        let comp = LuauComponent::from_source(
+            "function go()\n\
+               local t = json.decode('{\"d\":null,\"n\":\"x\"}')\n\
+               ctx.d_nil = tostring(t.d == nil)\n\
+               ctx.d_type = type(t.d)\n\
+               -- não deve erro: gsub num campo null-que-virou-nil guardado com fallback\n\
+               ctx.safe = (t.d or 'vazio')\n\
+             end",
+            "t.xml", "c",
+        )
+        .unwrap();
+        let d = drive(&comp, "go", None, HashMap::new());
+        assert_eq!(d.get("d_nil").map(String::as_str), Some("true"));
+        assert_eq!(d.get("d_type").map(String::as_str), Some("nil"));
+        assert_eq!(d.get("safe").map(String::as_str), Some("vazio"));
+    }
+
+    #[test]
     fn json_array_forca_colchetes_em_tabela_vazia() {
         let comp = LuauComponent::from_source(
             "function go()\n\
@@ -1209,7 +1231,16 @@ fn install_json(luau: &Lua) -> mlua::Result<()> {
     let decode = luau.create_function(|luau, s: String| {
         let v: serde_json::Value = serde_json::from_str(&s)
             .map_err(|e| mlua::Error::runtime(format!("json.decode: {e}")))?;
-        luau.to_value(&v)
+        // `null` → `nil` (não o sentinel userdata `null` do mlua): campos
+        // ausentes/Option None viram `nil` em Lua, para os checks `x ~= nil` /
+        // `x and …` funcionarem. Sem isto, `json.decode('{"d":null}').d` seria um
+        // userdata (truthy!) e quebraria (ex.: `string.gsub(d, …)` → "got
+        // userdata"). `set_array_metatable` fica ligado (default) para arrays
+        // seguirem marcados (round-trip / `json.array`).
+        let opts = mlua::SerializeOptions::new()
+            .serialize_none_to_null(false)
+            .serialize_unit_to_null(false);
+        luau.to_value_with(&v, opts)
     })?;
 
     let encode = luau.create_function(|luau, v: Value| {
