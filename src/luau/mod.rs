@@ -143,26 +143,41 @@ impl LuauComponent {
         let name = name.into();
         let content = std::fs::read_to_string(&path)
             .map_err(|e| format!("Falha ao ler template Luau em '{}': {}", path, e))?;
-        let script = resolve_script(&content, &path)?;
-        Self::from_source(&script, path, name)
+        let (script, script_path) = resolve_script(&content, &path)?;
+        // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do
+        // SCRIPT (permite separar `views/` de `views/scripts/` e ainda
+        // `require("net/api")` a partir do script); inline, relativo ao template.
+        let module_base = script_path.unwrap_or_else(|| PathBuf::from(&path));
+        Self::build(&script, path, name, &module_base)
     }
 
     /// Cria um componente Luau a partir do código-fonte já extraído, associando-o
     /// a um `path` de template (para o motor renderizar a UI e manter hot-reload).
+    /// Resolve `require` relativo ao diretório do próprio `path`.
     pub fn from_source(
         script: &str,
         path: impl Into<String>,
         name: impl Into<String>,
     ) -> Result<Self, String> {
-        let name = name.into();
         let path = path.into();
+        let base = PathBuf::from(&path);
+        Self::build(script, path, name.into(), &base)
+    }
+
+    /// Núcleo compartilhado: `module_base` é o arquivo cujo diretório ancora a
+    /// resolução de `require` (o script externo, ou o template para inline).
+    fn build(
+        script: &str,
+        path: String,
+        name: String,
+        module_base: &Path,
+    ) -> Result<Self, String> {
         let luau = Lua::new();
         luau.load(PRELUDE).set_name("<glacier prelude>").exec().map_err(|e| {
             format!("Erro ao carregar prelúdio Luau: {}", e)
         })?;
-        // Habilita `require(...)` resolvendo módulos relativo ao template, para
-        // que o `<script>` possa importar bibliotecas (ex.: clients de rede).
-        install_module_system(&luau, module_roots(&path))
+        // Habilita `require(...)` resolvendo módulos relativo ao script/template.
+        install_module_system(&luau, module_roots(module_base))
             .map_err(|e| format!("Erro ao instalar sistema de módulos Luau: {}", e))?;
         // Expõe o global `json` (encode/decode) para o script e seus módulos —
         // essencial para consumir/produzir os payloads JSON das APIs via `fetch`.
@@ -1120,7 +1135,34 @@ mod tests {
         let data = drive(&comp, "usar", None, HashMap::new());
         assert!(data.is_empty());
         // A resolução em si devolve None para um módulo ausente.
-        assert!(resolve_module("nao.existe", &module_roots(dir.join("t.xml").to_str().unwrap())).is_none());
+        assert!(resolve_module("nao.existe", &module_roots(&dir.join("t.xml"))).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn require_de_script_externo_resolve_relativo_ao_script() {
+        // Template em <dir>/app.xml com `<script src="scripts/app.luau">`; o
+        // script faz `require("m")` que deve resolver <dir>/scripts/m.luau
+        // (relativo ao SCRIPT, não ao template) — permite separar views/scripts.
+        let dir = std::env::temp_dir().join(format!("glacier_ext_{}", std::process::id()));
+        let scripts = dir.join("scripts");
+        std::fs::create_dir_all(&scripts).unwrap();
+        std::fs::write(
+            dir.join("app.xml"),
+            "<Column></Column>\n<script src=\"scripts/app.luau\"></script>",
+        )
+        .unwrap();
+        std::fs::write(
+            scripts.join("app.luau"),
+            "local m = require(\"m\")\nfunction go() ctx.v = m.hi end",
+        )
+        .unwrap();
+        std::fs::write(scripts.join("m.luau"), "return { hi = \"ok\" }").unwrap();
+
+        let comp =
+            LuauComponent::from_file(dir.join("app.xml").to_str().unwrap(), "app").unwrap();
+        let data = drive(&comp, "go", None, HashMap::new());
+        assert_eq!(data.get("v").map(String::as_str), Some("ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1171,8 +1213,13 @@ const LOADED_KEY: &str = "glacier.loaded";
 /// 2. um subdiretório `lib/` desse diretório (convenção para código compartilhado);
 /// 3. cada caminho em `GLACIER_LUAU_PATH` (separados por `:`), para bibliotecas
 ///    fora da árvore do template.
-fn module_roots(template_path: &str) -> Vec<PathBuf> {
-    let base = Path::new(template_path)
+/// Raízes de resolução de `require`, a partir do arquivo `base_file` (o SCRIPT
+/// externo `<script src>`, ou o próprio template quando o script é inline): o
+/// diretório do arquivo, depois `<dir>/lib`, depois `GLACIER_LUAU_PATH`. Usar o
+/// dir do script (não do template) permite separar `views/` de `views/scripts/`
+/// e ainda `require("net/api")` relativo ao script.
+fn module_roots(base_file: &Path) -> Vec<PathBuf> {
+    let base = base_file
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .map(Path::to_path_buf)
@@ -1335,17 +1382,22 @@ pub(crate) fn has_script(markup: &str) -> bool {
 /// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo
 /// externo via `src="..."` (ou `from="..."`), lê esse arquivo (caminho relativo
 /// ao diretório do `template_path`); senão, usa o corpo inline do bloco.
-fn resolve_script(markup: &str, template_path: &str) -> Result<String, String> {
+/// Devolve `(conteúdo, Option<caminho do script externo>)`. Para um
+/// `<script src>` externo, o caminho é resolvido relativo ao diretório do
+/// template e devolvido para ancorar a resolução de `require` (ver
+/// [`LuauComponent::from_file`]). Inline → `(corpo, None)`.
+fn resolve_script(markup: &str, template_path: &str) -> Result<(String, Option<PathBuf>), String> {
     if let Some(src) = extract_script_src(markup) {
         let base = std::path::Path::new(template_path)
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
         let luau_path = base.join(&src);
-        return std::fs::read_to_string(&luau_path).map_err(|e| {
+        let content = std::fs::read_to_string(&luau_path).map_err(|e| {
             format!("Falha ao ler script Luau externo '{}': {}", luau_path.display(), e)
-        });
+        })?;
+        return Ok((content, Some(luau_path)));
     }
-    Ok(extract_script(markup).unwrap_or_default())
+    Ok((extract_script(markup).unwrap_or_default(), None))
 }
 
 /// Lê o atributo `src`/`from` da tag de abertura `<script ...>`, se houver — o
