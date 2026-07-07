@@ -202,11 +202,13 @@ fn eval_condition(
 
 /// The stylesheets in effect during evaluation, split by scope.
 ///
-/// `global` sheets (loaded via `GlacierUI::load_stylesheet`) apply everywhere.
-/// `by_component` holds the sheets a component declared with
-/// `<link rel="stylesheet">`, keyed by component name; they apply only inside
-/// that component's subtree, layered *on top of* the global ones so a scoped
-/// class can override a global one locally.
+/// `global` sheets apply everywhere: loaded via `GlacierUI::load_stylesheet`,
+/// via a `<link rel="stylesheet">`, or an inline `<style>` block without
+/// `scoped="true"` — all three land in the same set. `by_component` holds only
+/// the sheets a component declared with `<style scoped="true">`, keyed by
+/// component name; they apply only inside that component's subtree, layered
+/// *on top of* the global ones so a scoped class can override a global one
+/// locally.
 pub struct StyleContext<'a> {
     pub global: &'a [StyleSheet],
     pub by_component: &'a HashMap<String, Vec<StyleSheet>>,

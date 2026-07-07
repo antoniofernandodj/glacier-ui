@@ -127,8 +127,10 @@ pub enum NodeType {
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
     /// kind of resource:
-    /// - `stylesheet` (default): an `.gss` sheet, scoped to the declaring
-    ///   component's subtree (on top of any global sheets);
+    /// - `stylesheet` (default): an `.gss` sheet, applied **globally** (every
+    ///   component, regardless of where it's declared) — same as calling
+    ///   [`crate::GlacierUI::load_stylesheet`] from Rust. There is no scoped
+    ///   form of a linked sheet; use an inline `<style scoped="true">` for that;
     /// - `import`/`component`: another component template (declarative
     ///   equivalent of `<import>`); `name`/`as` names it (defaults to the file
     ///   stem);
@@ -143,14 +145,18 @@ pub enum NodeType {
         /// for `import`/`component`.
         name: Option<String>,
     },
-    /// An inline, component-scoped stylesheet, e.g.
-    /// `<style>.card { padding: 16; }</style>`. The body is `.gss` source (the
-    /// same grammar as a linked `.gss` file); it is parsed and applied only
-    /// inside the declaring component's subtree, layered on top of the global
-    /// sheets exactly like a `<link rel="stylesheet">`. Processed at
-    /// registration time and stripped before rendering.
+    /// An inline stylesheet, e.g. `<style>.card { padding: 16; }</style>`. The
+    /// body is `.gss` source (the same grammar as a linked `.gss` file).
+    ///
+    /// By default (`scoped: false`) it is promoted to the **global** sheet
+    /// set, exactly like `<link rel="stylesheet">` — the only difference is
+    /// the source is inline instead of an external file. Marking it
+    /// `<style scoped="true">` keeps the old behavior: applied only inside the
+    /// declaring component's subtree, layered on top of the global sheets.
+    /// Processed at registration time and stripped before rendering.
     Style {
         css: String,
+        scoped: bool,
     },
     /// A transparent grouping node: renders its children inline into the parent,
     /// adding no layout box of its own. Produced by [`UiNode::parse_xml`] when a
@@ -458,8 +464,9 @@ impl UiNode {
             }
             "style" | "Style" | "stylesheet" | "Stylesheet" => {
                 // `<style href="...">` (or `src`) is an external sheet, equivalent
-                // to `<link rel="stylesheet">`. A bodied `<style>...</style>` is an
-                // inline, component-scoped sheet whose text content is `.gss`.
+                // to `<link rel="stylesheet">` (always global). A bodied
+                // `<style>...</style>` is inline `.gss` source, global by default
+                // unless marked `scoped="true"`.
                 if let Some(href) = Self::get_attr(&node, &["href", "src", "from", "caminho"]) {
                     NodeType::Link { rel: "stylesheet".to_string(), href, name: None }
                 } else {
@@ -468,7 +475,8 @@ impl UiNode {
                         .filter(|c| c.is_text())
                         .filter_map(|c| c.text())
                         .collect::<String>();
-                    NodeType::Style { css }
+                    let scoped = Self::get_attr_bool(&node, &["scoped", "escopado"]);
+                    NodeType::Style { css, scoped }
                 }
             }
             _ => {

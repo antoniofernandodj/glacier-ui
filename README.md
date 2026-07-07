@@ -72,7 +72,7 @@ impl Component for Contador {
     - [Rede: `fetch` (async/await via corrotina)](#rede-fetch-asyncawait-via-corrotina)
     - [Imports / módulos: `require`](#imports--módulos-require)
   - [Stylesheets `.gss`](#stylesheets-gss)
-  - [Estilos escopados inline: `<style>` / `style`](#estilos-escopados-inline-style--style)
+  - [Estilos inline: `<style>` / `<style scoped="true">`](#estilos-inline-style--style-scopedtrue)
   - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
   - [Temas](#temas)
   - [Hot-reload](#hot-reload)
@@ -246,7 +246,7 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema (veja [`<link>`](#link-rel-stylesheet-import-data-theme)). |
-| `<style>` | `style`, `Style` | classes `.gss` inline, com escopo no componente (veja [Estilos escopados inline](#estilos-escopados-inline-style--style)). |
+| `<style>` | `style`, `Style` | classes `.gss` inline, global por padrão, ou escopado com `scoped="true"` (veja [Estilos inline](#estilos-inline-style--style-scopedtrue)). |
 
 ---
 
@@ -814,7 +814,7 @@ da markup e os agrupa em **classes** reutilizáveis. Aplique-as com
 
 1. um **atributo inline** no nó sempre vence a classe;
 2. classes são aplicadas da **esquerda para a direita** (`class="a b"` → `b` sobrepõe `a`);
-3. estilos **globais** primeiro, depois os **com escopo** do componente (veja `<link>`).
+3. estilos **globais** primeiro, depois os **com escopo** do componente (`<style scoped="true">`).
 
 **Propriedades reconhecidas:** `width`/`w`, `height`/`h`, `padding`, `spacing`,
 `align-x`/`align_x`/`alignX`, `align-y`/`align_y`/`alignY`, `background`/`bg`,
@@ -826,24 +826,34 @@ Carregue uma stylesheet **global** por código:
 motor.load_stylesheet("styles/app.gss")?; // vale para todos os componentes
 ```
 
-…ou uma **com escopo** via `<link>` no template (próxima seção). Veja
-`examples/estilos.rs`.
+…ou declare-a no template com `<link rel="stylesheet">` — também global (é
+equivalente ao `load_stylesheet` acima, só que declarado no XML em vez de no
+Rust). O único jeito de ter um estilo **com escopo** é um `<style scoped="true">`
+inline (próxima seção). Veja `examples/estilos.rs`.
 
 ---
 
-## Estilos escopados inline: `<style>` / `style`
+## Estilos inline: `<style>` / `<style scoped="true">`
 
 Além de carregar um `.gss` externo, você pode escrever as classes **direto no
-template**, num bloco `<style>`. O conteúdo é `.gss` (mesma gramática) e fica
-**com escopo no componente** que o declarou — exatamente como um
-`<link rel="stylesheet">`, mas sem arquivo separado. Ótimo para estilos
-específicos de uma página/cartão que não valem reutilizar.
+template**, num bloco `<style>`. O conteúdo é `.gss` (mesma gramática).
+
+Por padrão esse bloco é **global** — vale em qualquer componente do app,
+exatamente como `<link rel="stylesheet">` ou `motor.load_stylesheet()`, só que
+sem arquivo separado. Para restringir ao componente declarante (e às classes
+que só ele usa, sem risco de vazar/colidir em outro lugar), marque
+`scoped="true"`:
 
 ```xml
-<!-- XML: o corpo do <style> é GSS, escopado a este componente -->
+<!-- XML: bloco GLOBAL por padrão -->
 <style>
     .card  { padding: 24; background: #1E1E2E; border-radius: 16; }
     .title { size: 26; bold: true; color: #CDD6F4; }
+</style>
+
+<!-- XML: bloco COM ESCOPO, só vale na subárvore deste componente -->
+<style scoped="true">
+    .only_here { color: red; }
 </style>
 
 <Container class="card">
@@ -851,9 +861,11 @@ específicos de uma página/cartão que não valem reutilizar.
 </Container>
 ```
 
-- **Escopo:** as classes só valem na subárvore do componente declarante, **em
-  cima** das globais — uma classe inline de mesmo nome vence a global,
-  localmente (igual ao `<link rel="stylesheet">`).
+- **Escopo:** sem `scoped`, o bloco entra no mesmo conjunto de sheets globais
+  (`GlacierUI::stylesheets`) — qualquer componente enxerga essas classes. Com
+  `scoped="true"`, as classes só valem na subárvore do componente declarante,
+  **em cima** das globais — uma classe escopada de mesmo nome vence a global,
+  localmente.
 - **Ordem de documento:** se um componente tiver `<link>` e `<style>` (ou
   vários), eles se sobrepõem na ordem em que aparecem — o **último vence** num
   empate de propriedade.
@@ -871,13 +883,13 @@ tipo:
 
 | `rel` | O que faz | Escopo | Atributos |
 |---|---|---|---|
-| `stylesheet` (padrão) | carrega um `.gss` | **por componente** | `href` |
+| `stylesheet` (padrão) | carrega um `.gss` | **global** | `href` |
 | `import` / `component` | carrega outro template (igual a `<import>`) | global | `href`, `as`/`name` (default = nome do arquivo) |
 | `data` | faz merge de um JSON no contexto | global | `href`, `as`/`name` (obrigatório) |
 | `theme` | aplica uma paleta como `iced::Theme` | global (app) | `href` |
 
 ```xml
-<!-- stylesheet COM ESCOPO: as classes só valem dentro deste componente -->
+<!-- stylesheet GLOBAL: equivalente a motor.load_stylesheet() -->
 <link rel="stylesheet" href="styles/estilos.gss" />
 
 <!-- carregar um componente declarativamente -->
@@ -890,7 +902,7 @@ tipo:
 <link rel="theme" href="styles/theme.json" />
 ```
 
-- **`stylesheet`** — a sheet vale só na subárvore do componente que a declarou, **em cima** das globais (uma classe escopada de mesmo nome vence a global, localmente).
+- **`stylesheet`** — a sheet é sempre **global**, igual a `motor.load_stylesheet()`; não há forma escopada de um `.gss` externo. Para escopo, use um `<style scoped="true">` inline (seção anterior).
 - **`import`/`component`** — equivalente declarativo do `<import>`; reusa o registro recursivo. Sem `as`, o nome vem do *stem* do arquivo.
 - **`data`** — lê e valida o JSON e faz merge no contexto: um **objeto** vira chaves `app.campo`; um **array** ou escalar fica em `app`. Isso alimenta `{app.campo}` e `<ForEach items="app.lista">`.
 - **`theme`** — veja a próxima seção.

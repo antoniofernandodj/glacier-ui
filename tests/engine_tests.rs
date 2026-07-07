@@ -622,32 +622,124 @@ fn text_color(node: &NodeType) -> Option<String> {
 }
 
 #[test]
-fn test_link_scoped_stylesheet() {
+fn test_link_stylesheet_is_global() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
-    // Global sheet: applies everywhere.
     let global_gss = "templates/test_global.gss";
     std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
 
-    // Scoped sheet: only component A links it. It overrides `.box`'s padding
-    // and adds a `.scoped` class.
-    let scoped_gss = "templates/test_scoped.gss";
-    std::fs::write(scoped_gss, ".box { padding: 9; } .scoped { color: #abcabc; }").unwrap();
+    // Only component A declares this <link>, but it must still reach B: a
+    // `<link rel="stylesheet">` is always global, regardless of which
+    // template declares it. It overrides `.box`'s padding and adds `.linked`.
+    let linked_gss = "templates/test_linked.gss";
+    std::fs::write(linked_gss, ".box { padding: 9; } .linked { color: #abcabc; }").unwrap();
 
-    // A links the scoped sheet (as a top-level sibling, before its root, to
+    // A links the sheet (as a top-level sibling, before its root, to
     // exercise the <link> hoisting in parse_xml).
     let a_path = "templates/test_scoped_a.xml";
     std::fs::write(
         a_path,
         r##"
-        <link rel="stylesheet" href="templates/test_scoped.gss" />
+        <link rel="stylesheet" href="templates/test_linked.gss" />
+        <Text class="box linked" content="A" />
+        "##,
+    ).unwrap();
+
+    // B doesn't declare the <link> itself, but should see its effect anyway.
+    let b_path = "templates/test_scoped_b.xml";
+    std::fs::write(b_path, r##"<Text class="box linked" content="B" />"##).unwrap();
+
+    motor.load_stylesheet(global_gss).unwrap();
+    motor.register_component("a", a_path).unwrap();
+    motor.register_component("b", b_path).unwrap();
+
+    let a = motor.evaluated_templates.get("a").unwrap();
+    let b = motor.evaluated_templates.get("b").unwrap();
+
+    assert_eq!(a.padding.as_deref(), Some("9"), "linked class overrides global padding in A");
+    assert_eq!(text_color(&a.kind).as_deref(), Some("#abcabc"), "linked class color applies in A");
+
+    // B: the sheet A linked applies here too, since <link rel="stylesheet"> is global.
+    assert_eq!(b.padding.as_deref(), Some("9"), "linked sheet reaches B even though only A declared the <link>");
+    assert_eq!(text_color(&b.kind).as_deref(), Some("#abcabc"), "linked class color reaches B too");
+
+    std::fs::remove_file(global_gss).ok();
+    std::fs::remove_file(linked_gss).ok();
+    std::fs::remove_file(a_path).ok();
+    std::fs::remove_file(b_path).ok();
+}
+
+#[test]
+fn test_inline_style_block_default_is_global() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let global_gss = "templates/test_istyle_global.gss";
+    std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
+
+    // A declares a plain (unscoped) inline <style>, which is global by
+    // default — it overrides `.box` and adds `.inlined` for every component.
+    let a_path = "templates/test_istyle_a.xml";
+    std::fs::write(
+        a_path,
+        r##"
+        <style>
+            .box { padding: 9; }
+            .inlined { color: #abcabc; }
+        </style>
+        <Text class="box inlined" content="A" />
+        "##,
+    ).unwrap();
+
+    // B declares nothing, but should see A's plain <style> anyway.
+    let b_path = "templates/test_istyle_b.xml";
+    std::fs::write(b_path, r##"<Text class="box inlined" content="B" />"##).unwrap();
+
+    motor.load_stylesheet(global_gss).unwrap();
+    motor.register_component("a", a_path).unwrap();
+    motor.register_component("b", b_path).unwrap();
+
+    let a = motor.evaluated_templates.get("a").unwrap();
+    let b = motor.evaluated_templates.get("b").unwrap();
+
+    assert_eq!(a.padding.as_deref(), Some("9"), "inline <style> overrides global padding");
+    assert_eq!(text_color(&a.kind).as_deref(), Some("#abcabc"), "inline class color applies in A");
+
+    // B: A's plain inline <style> reaches it too, since it's global by default.
+    assert_eq!(b.padding.as_deref(), Some("9"), "B sees A's unscoped inline <style> too");
+    assert_eq!(text_color(&b.kind).as_deref(), Some("#abcabc"), "B sees A's unscoped inline class color too");
+
+    std::fs::remove_file(global_gss).ok();
+    std::fs::remove_file(a_path).ok();
+    std::fs::remove_file(b_path).ok();
+}
+
+#[test]
+fn test_inline_style_block_scoped_true_is_scoped() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    // Global sheet seen by everyone.
+    let global_gss = "templates/test_istyle_scoped_global.gss";
+    std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
+
+    // A declares an inline <style scoped="true">, which overrides `.box` and
+    // adds `.scoped` only within A's own subtree.
+    let a_path = "templates/test_istyle_scoped_a.xml";
+    std::fs::write(
+        a_path,
+        r##"
+        <style scoped="true">
+            .box { padding: 9; }
+            .scoped { color: #abcabc; }
+        </style>
         <Text class="box scoped" content="A" />
         "##,
     ).unwrap();
 
-    // B does not link anything: it only sees the global sheet.
-    let b_path = "templates/test_scoped_b.xml";
+    // B declares nothing: it only sees the global sheet.
+    let b_path = "templates/test_istyle_scoped_b.xml";
     std::fs::write(b_path, r##"<Text class="box scoped" content="B" />"##).unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
@@ -666,53 +758,6 @@ fn test_link_scoped_stylesheet() {
     assert_eq!(text_color(&b.kind).as_deref(), Some("#111111"), "B uses global color; scoped class has no effect");
 
     std::fs::remove_file(global_gss).ok();
-    std::fs::remove_file(scoped_gss).ok();
-    std::fs::remove_file(a_path).ok();
-    std::fs::remove_file(b_path).ok();
-}
-
-#[test]
-fn test_inline_style_block_is_scoped() {
-    let mut motor = GlacierUI::new();
-    std::fs::create_dir_all("templates").ok();
-
-    // Global sheet seen by everyone.
-    let global_gss = "templates/test_istyle_global.gss";
-    std::fs::write(global_gss, ".box { padding: 5; color: #111111; }").unwrap();
-
-    // A declares an inline <style> that overrides `.box` and adds `.scoped`.
-    let a_path = "templates/test_istyle_a.xml";
-    std::fs::write(
-        a_path,
-        r##"
-        <style>
-            .box { padding: 9; }
-            .scoped { color: #abcabc; }
-        </style>
-        <Text class="box scoped" content="A" />
-        "##,
-    ).unwrap();
-
-    // B declares nothing: it only sees the global sheet.
-    let b_path = "templates/test_istyle_b.xml";
-    std::fs::write(b_path, r##"<Text class="box scoped" content="B" />"##).unwrap();
-
-    motor.load_stylesheet(global_gss).unwrap();
-    motor.register_component("a", a_path).unwrap();
-    motor.register_component("b", b_path).unwrap();
-
-    let a = motor.evaluated_templates.get("a").unwrap();
-    let b = motor.evaluated_templates.get("b").unwrap();
-
-    // A: inline `.box` overrides the global padding; `.scoped` provides a color.
-    assert_eq!(a.padding.as_deref(), Some("9"), "inline <style> overrides global padding");
-    assert_eq!(text_color(&a.kind).as_deref(), Some("#abcabc"), "inline scoped class color applies in A");
-
-    // B: only the global `.box` applies; A's inline classes are invisible here.
-    assert_eq!(b.padding.as_deref(), Some("5"), "B uses global padding");
-    assert_eq!(text_color(&b.kind).as_deref(), Some("#111111"), "B uses global color; inline class has no effect");
-
-    std::fs::remove_file(global_gss).ok();
     std::fs::remove_file(a_path).ok();
     std::fs::remove_file(b_path).ok();
 }
@@ -722,8 +767,9 @@ fn test_inline_style_overrides_linked_by_document_order() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
-    // A linked sheet sets the color; a later inline <style> overrides it,
-    // because scoped sheets layer in document order (last one wins).
+    // A linked sheet sets the color; a later inline <style> overrides it —
+    // both are global, but a component's own <link>s are installed before its
+    // own inline blocks, so document order still determines who wins.
     let linked = "templates/test_istyle_order.gss";
     std::fs::write(linked, ".tag { color: #aaaaaa; padding: 3; }").unwrap();
 

@@ -3,12 +3,13 @@
 
 <!--
   Estilos COM ESCOPO, escritos INLINE no próprio template.
-  O corpo do <style> é GSS (mesma gramática do .gss), e as classes só valem
-  dentro deste componente — sem precisar de um arquivo .gss separado.
+  O corpo do <style> é GSS (mesma gramática do .gss); scoped="true" restringe
+  as classes a este componente — sem `scoped`, um <style> vale globalmente
+  (igual a <link rel="stylesheet"> ou motor.load_stylesheet()).
   Edite os valores abaixo com a app rodando: o hot-reload recarrega junto.
 -->
 
-<style>
+<style scoped="true">
   .card {
     padding: 28;
     background: #1E1E2E;
