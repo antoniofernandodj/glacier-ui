@@ -1,3 +1,4 @@
+pub mod app;
 pub mod parser;
 pub mod eval;
 pub mod widget;
@@ -9,6 +10,13 @@ pub mod forms;
 pub mod dialogs;
 pub mod toasts;
 
+/// Re-exported so a host app can depend on `glacier-ui` alone: `iced` types
+/// (`Task`, `Element`, `Theme`, `Font`, ...) and `iced::application` itself
+/// are reachable as `glacier_ui::iced::*` without adding `iced` as a
+/// separate dependency.
+pub use iced;
+
+pub use app::GlacierApp;
 pub use parser::{UiNode, NodeType};
 pub use eval::{evaluate_node, process_template, strip_script, normalize_bare_directives, StyleContext};
 pub use widget::{render_node, EngineMessage};
