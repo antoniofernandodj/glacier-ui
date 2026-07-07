@@ -61,6 +61,46 @@ function confirm(opts)
     })
 end
 
+-- Navegação. NÃO suspendem: cedem um pedido, o motor troca de tela (via
+-- Context::navigate_to/navigate_back) e retoma na hora.
+function navigate(screen)
+    return coroutine.yield({
+        __glacier_nav = true,
+        screen = screen,
+    })
+end
+
+function navigate_back()
+    return coroutine.yield({
+        __glacier_nav_back = true,
+    })
+end
+
+-- Temporizador de disparo único (equivalente a setTimeout). NÃO suspende: cede
+-- um pedido, o motor agenda `fn` (função ou nome de função global) para daqui
+-- a `ms` milissegundos e retoma na hora devolvendo um handle cancelável.
+function after(ms, fn)
+    local id = coroutine.yield({
+        __glacier_after = true,
+        ms = ms,
+        fn = fn,
+    })
+    return {
+        id = id,
+        cancel = function(self)
+            return coroutine.yield({
+                __glacier_after_cancel = true,
+                id = self.id,
+            })
+        end,
+    }
+end
+
+-- Tamanho atual da janela em px lógicos: `{ width, height }`.
+function viewport()
+    return { width = __glacier_viewport.width, height = __glacier_viewport.height }
+end
+
 function websocket(url, opts)
     local id = coroutine.yield({
         __glacier_stream_open = true,

@@ -1,0 +1,17 @@
+<Container padding="40" width="fill" height="fill" background="#11111B" alignX="Center" alignY="Center">
+    <Column spacing="18" alignX="Center">
+        <Text content="Painel" size="32" bold="true" color="#F5E0DC" />
+        <Text content="Bem-vindo, {usuario}!" size="18" color="#A6ADC8" />
+        <Button text="Sair" on_click="sair" color="#313244" width="240" padding="12" />
+    </Column>
+</Container>
+
+<script>
+-- `navigate_back()` é o equivalente Lua do atributo `navigateBack`: volta
+-- para a tela anterior do histórico do motor. Aqui também limpa a senha do
+-- contexto antes de voltar — algo que o atributo declarativo não permite.
+function sair()
+    ctx.senha = nil
+    navigate_back()
+end
+</script>

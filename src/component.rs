@@ -154,6 +154,26 @@ impl StreamRequest {
     }
 }
 
+/// Um temporizador de disparo único pedido pela camada Lua via
+/// `after(ms, fn)` (ver [`crate::luau`]). Acumulado no [`Context`] durante o
+/// `update` e convertido pelo motor num efeito assíncrono
+/// (`tokio::time::sleep`); ao vencer, o handler Lua registrado sob `id` é
+/// chamado via [`Component::resume_timer`] — mesmo espírito de
+/// [`PendingFetch`], mas sem suspender a corrotina que o agendou (o script
+/// que chama `after` continua no mesmo turno, como `sse`/`websocket`).
+#[derive(Debug, Clone)]
+pub struct PendingTimer {
+    /// Identifica o handler Lua registrado que este temporizador dispara.
+    pub(crate) id: u64,
+    pub(crate) delay_ms: u64,
+}
+
+impl PendingTimer {
+    pub(crate) fn new(id: u64, delay_ms: u64) -> Self {
+        Self { id, delay_ms }
+    }
+}
+
 /// Comando de saída para um stream já aberto, pedido pela camada Lua via
 /// `conn:send(texto)` / `conn:close()`. Acumulado no [`Context`] e entregue
 /// pelo motor à conexão viva (canal `mpsc` guardado quando o stream ficou
@@ -259,6 +279,13 @@ pub struct Context<'a> {
     pub(crate) streams: Vec<StreamRequest>,
     /// Comandos de saída (`conn:send`/`conn:close`) para streams já abertos.
     pub(crate) stream_cmds: Vec<StreamCommand>,
+    /// Temporizadores (`after`) pedidos pela camada Lua; o motor os agenda
+    /// como efeitos assíncronos após o `update`.
+    pub(crate) timers: Vec<PendingTimer>,
+    /// Viewport atual `(largura, altura)` em px lógicos, lido por
+    /// `Context::viewport` (a camada Lua expõe isto via `viewport()`). Só o
+    /// motor escreve aqui (ver [`Context::set_viewport`]); um componente lê.
+    pub(crate) viewport: (f32, f32),
 }
 
 impl<'a> Context<'a> {
@@ -275,7 +302,16 @@ impl<'a> Context<'a> {
             fetches: Vec::new(),
             streams: Vec::new(),
             stream_cmds: Vec::new(),
+            timers: Vec::new(),
+            viewport: (0.0, 0.0),
         }
+    }
+
+    /// Define o viewport atual `(largura, altura)`, lido por scripts Luau via
+    /// `viewport()`. Chamado pelo motor antes de rodar o componente — não é
+    /// para uso de código de `update()`.
+    pub(crate) fn set_viewport(&mut self, vp: (f32, f32)) {
+        self.viewport = vp;
     }
 
     /// Lê um valor do contexto de estado.
@@ -438,6 +474,13 @@ pub trait Component {
         _ctx: &mut Context,
     ) {
     }
+
+    /// Dispara o handler de um temporizador (`after(ms, fn)`, ver
+    /// [`PendingTimer`]) cujo prazo venceu: o motor entrega o `id` do
+    /// temporizador. Componentes sem timers não precisam implementar. A
+    /// [`crate::luau::LuauComponent`] usa isto para chamar o handler Lua
+    /// registrado, exatamente como um evento de stream.
+    fn resume_timer(&mut self, _id: u64, _ctx: &mut Context) {}
 
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
     /// alimentam o contexto. Mapeie cada stream para

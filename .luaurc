@@ -7,6 +7,13 @@
         "websocket",
         "sse",
         "require",
-        "json"
+        "json",
+        "toast",
+        "confirm",
+        "navigate",
+        "navigate_back",
+        "after",
+        "viewport",
+        "storage"
     ]
 }

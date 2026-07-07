@@ -1,0 +1,28 @@
+<Container padding="40" width="fill" height="fill" background="#11111B" alignX="Center" alignY="Center">
+    <Column spacing="18" alignX="Center">
+        <Text content="Entrar" size="32" bold="true" color="#F5E0DC" />
+        <Text content="dica: admin / 123" size="12" color="#6C7086" />
+
+        <Column spacing="8" width="280">
+            <TextInput placeholder="usuário" value="usuario" onChange="usuario" width="fill" padding="10" />
+            <TextInput placeholder="senha" value="senha" onChange="senha" secure="true" width="fill" padding="10" />
+        </Column>
+
+        <Button text="Entrar" on_click="entrar" color="#89B4FA" width="280" padding="12" />
+        <Text content="{erro}" size="13" color="#F38BA8" />
+    </Column>
+</Container>
+
+<script>
+-- Ao contrário do atributo declarativo `navigateTo` (troca de tela sempre que
+-- o botão é clicado), `navigate(tela)` deixa o SCRIPT decidir: aqui só troca
+-- de tela se a validação passar — o botão em si não sabe para onde vai.
+function entrar()
+    if ctx.usuario == "admin" and ctx.senha == "123" then
+        ctx.erro = ""
+        navigate("dashboard_luau")
+    else
+        ctx.erro = "Usuário ou senha inválidos."
+    end
+end
+</script>

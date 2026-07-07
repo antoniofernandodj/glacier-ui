@@ -391,6 +391,7 @@ impl GlacierUI {
     fn install_component(&mut self, name: &str, mut comp: Box<dyn component::Component>) {
         let init_streams = {
             let mut ctx = component::Context::new(&mut self.context_data);
+            ctx.set_viewport(self.viewport);
             comp.init(&mut ctx);
             ctx.streams
         };
@@ -576,6 +577,16 @@ impl GlacierUI {
                     comp.on_stream_event(id, kind, &data, ctx);
                 });
             }
+            // A `after(ms, fn)` requested by a component's Lua came due: hand
+            // the timer id to that component so it can call the registered
+            // handler. Same shape as `LuauStream`, but one-shot.
+            EngineMessage::LuauTimer { owner, id } => {
+                let owner = owner.clone();
+                let id = *id;
+                return self.run_on_owner(&owner, move |comp, ctx| {
+                    comp.resume_timer(id, ctx);
+                });
+            }
             // Drag-and-drop reordering of a `for-each`/`ForEach` list (see
             // `UiNode::drag_*`). `DragStart`/`DragHover` are purely internal —
             // no component ever sees them, same as `window:*` above; only
@@ -731,10 +742,11 @@ impl GlacierUI {
     ) -> iced::Task<EngineMessage> {
         // Disjoint per-field borrows (`components` vs `context_data`) are
         // accepted by the borrow checker when done inline like this.
-        let (nav, effects, dialog, toasts, fetches, streams, stream_cmds) = if let Some(comp) = self.components.get_mut(owner) {
+        let (nav, effects, dialog, toasts, fetches, streams, stream_cmds, timers) = if let Some(comp) = self.components.get_mut(owner) {
             let mut ctx = component::Context::new(&mut self.context_data);
+            ctx.set_viewport(self.viewport);
             run(comp.as_mut(), &mut ctx);
-            (ctx.nav, ctx.effects, ctx.dialog, ctx.toasts, ctx.fetches, ctx.streams, ctx.stream_cmds)
+            (ctx.nav, ctx.effects, ctx.dialog, ctx.toasts, ctx.fetches, ctx.streams, ctx.stream_cmds, ctx.timers)
         } else {
             return iced::Task::none();
         };
@@ -776,6 +788,20 @@ impl GlacierUI {
             tasks.push(iced::Task::perform(crate::net::perform(req), move |result| {
                 EngineMessage::LuauResume { owner: owner_name.clone(), id, result }
             }));
+        }
+
+        // Each `after(ms, fn)` becomes a `tokio::time::sleep` task; on firing it
+        // routes back to this same component's `resume_timer` (cancellation is
+        // handled Lua-side, by dropping the handler — see `LuauComponent::timers`
+        // — so a cancelled id's task still fires here but is a no-op).
+        for t in timers {
+            let id = t.id;
+            let owner_name = owner.to_string();
+            let dur = std::time::Duration::from_millis(t.delay_ms);
+            tasks.push(iced::Task::perform(
+                async move { tokio::time::sleep(dur).await },
+                move |()| EngineMessage::LuauTimer { owner: owner_name.clone(), id },
+            ));
         }
 
         // Newly opened streams are just recorded; `subscription()` (re-evaluated

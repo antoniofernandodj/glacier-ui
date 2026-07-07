@@ -1,0 +1,49 @@
+<Container padding="30" width="fill" height="fill" background="#1E1E2E" alignX="Center" alignY="Center">
+    <Column spacing="16" alignX="Center" width="560">
+        <Text content="Robustez da camada Luau" size="24" bold="true" color="#F5E0DC" />
+
+        <!-- storage: persiste em disco, sobrevive a fechar e reabrir o app -->
+        <Column spacing="6" width="fill">
+            <Text content="Rascunho (storage.get/set — sobrevive a reiniciar o app)" size="12" color="#A6ADC8" />
+            <TextInput placeholder="Escreva algo e clique em Salvar..." value="rascunho" onChange="rascunho" width="fill" padding="10" />
+            <Button text="Salvar rascunho" on_click="salvar_rascunho" color="#89B4FA" padding="8 16" />
+        </Column>
+
+        <Rule width="500" />
+
+        <!-- after(): temporizador de disparo único, cancelável -->
+        <Column spacing="6" alignX="Center">
+            <Text content="Status: {status}" size="14" color="#F9E2AF" />
+            <Row spacing="10">
+                <Button text="Iniciar contagem (3s)" on_click="iniciar_temporizador" color="#A6E3A1" padding="8 16" />
+                <Button text="Cancelar" on_click="cancelar_temporizador" color="#313244" padding="8 16" />
+            </Row>
+        </Column>
+
+        <Rule width="500" />
+
+        <!-- viewport(): tamanho atual da janela, lido pelo script -->
+        <Column spacing="6" alignX="Center">
+            <Text content="Janela na última leitura: {largura}x{altura}" size="14" color="#89DCEB" />
+            <Button text="Ler tamanho da janela" on_click="ler_viewport" color="#89B4FA" padding="8 16" />
+        </Column>
+
+        <Rule width="500" />
+
+        <!-- ctx aceita tabela: serializada via json.encode automaticamente -->
+        <Column spacing="6" alignX="Center">
+            <Text content="Preferências (tabela -> JSON): {prefs}" size="12" color="#CDD6F4" />
+            <Button text="Gerar preferências (tabela Lua)" on_click="gerar_prefs" color="#CBA6F7" padding="8 16" />
+        </Column>
+
+        <Rule width="500" />
+
+        <!-- erro de script agora é visível: on_error customiza o toast -->
+        <Column spacing="6" alignX="Center">
+            <Text content="Último erro capturado: {ultimo_erro}" size="11" color="#6C7086" />
+            <Button text="Provocar erro (veja o toast)" on_click="provocar_erro" color="#F38BA8" padding="8 16" />
+        </Column>
+    </Column>
+</Container>
+
+<script src="robustez.luau"></script>

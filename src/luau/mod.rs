@@ -58,7 +58,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::component::{
-    Component, Context, FetchResult, PendingFetch, StreamCommand, StreamCommandKind,
+    Component, Context, FetchResult, PendingFetch, PendingTimer, StreamCommand, StreamCommandKind,
     StreamEventKind, StreamKind, StreamRequest, Template,
 };
 use mlua::{Function, Lua, LuaSerdeExt, MultiValue, RegistryKey, Table, Thread, ThreadStatus, Value};
@@ -101,9 +101,17 @@ pub struct LuauComponent {
     /// Streams de vida longa abertos (`sse`/`websocket`), por `id`: os handlers
     /// Lua registrados (`on_message`, …) que o motor chama a cada evento.
     streams: RefCell<HashMap<u64, StreamRegistration>>,
-    /// Gerador de `id`, compartilhado por `fetch`es e streams (ids únicos no
-    /// componente).
+    /// Temporizadores (`after`) agendados e ainda não disparados/cancelados,
+    /// por `id`: o handler Lua a chamar quando o motor retomar via
+    /// [`Component::resume_timer`].
+    timers: RefCell<HashMap<u64, RegistryKey>>,
+    /// Gerador de `id`, compartilhado por `fetch`es, streams e timers (ids
+    /// únicos no componente).
     next_id: Cell<u64>,
+    /// Tabela `__glacier_viewport` persistente (o mesmo objeto entre
+    /// chamadas), atualizada em [`Self::sync_to_luau`] com o viewport atual do
+    /// motor — é o que o `viewport()` do prelúdio lê.
+    viewport_table: Table,
 }
 
 /// Handlers Lua de um stream aberto, guardados como referências no registry do
@@ -182,6 +190,20 @@ impl LuauComponent {
         // Expõe o global `json` (encode/decode) para o script e seus módulos —
         // essencial para consumir/produzir os payloads JSON das APIs via `fetch`.
         install_json(&luau).map_err(|e| format!("Erro ao instalar `json` Luau: {}", e))?;
+        // Expõe o global `storage` (persistência local em JSON, análoga a
+        // `localStorage`), num arquivo próprio deste componente.
+        install_storage(&luau, storage_path(module_base, &name))
+            .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
+        // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
+        // execução em `sync_to_luau`.
+        let viewport_table = luau
+            .create_table()
+            .map_err(|e| format!("Erro ao criar tabela de viewport: {}", e))?;
+        viewport_table.set("width", 0.0).ok();
+        viewport_table.set("height", 0.0).ok();
+        luau.globals()
+            .set("__glacier_viewport", &viewport_table)
+            .map_err(|e| format!("Erro ao registrar __glacier_viewport: {}", e))?;
         // A tabela `ctx` precisa existir ANTES de rodar o script do usuário: o
         // corpo de topo pode referenciá-la (ex.: `Console.new(ctx)`). Ela é o
         // mesmo objeto entre chamadas (só limpa/repopulada em `sync_to_luau`),
@@ -203,7 +225,9 @@ impl LuauComponent {
             ctx_table,
             pending: RefCell::new(HashMap::new()),
             streams: RefCell::new(HashMap::new()),
+            timers: RefCell::new(HashMap::new()),
             next_id: Cell::new(1),
+            viewport_table,
         })
     }
 
@@ -217,6 +241,8 @@ impl LuauComponent {
         for (k, v) in ctx.data.iter() {
             self.ctx_table.set(k.as_str(), v.as_str())?;
         }
+        self.viewport_table.set("width", ctx.viewport.0)?;
+        self.viewport_table.set("height", ctx.viewport.1)?;
         Ok(())
     }
 
@@ -232,8 +258,18 @@ impl LuauComponent {
         for pair in self.ctx_table.pairs::<String, Value>() {
             let (k, val) = pair?;
             present.insert(k.clone());
-            if let Some(s) = luau_value_to_string(&val) {
-                ctx.set(&k, s);
+            match luau_value_to_string(&self.luau, &val) {
+                Some(s) => ctx.set(&k, s),
+                // `nil` é remoção deliberada (tratada abaixo via `present`);
+                // qualquer outro tipo que não virou string é descartado, mas
+                // avisado — ao contrário do silêncio total de antes.
+                None if !matches!(val, Value::Nil) => eprintln!(
+                    "[glacier-ui] aviso: <script> Lua '{}' descartou ctx.{} ao sincronizar \
+                     (valor do tipo '{}' não é serializável — funções/threads/userdata não \
+                     podem ir para o contexto; tabelas com esses tipos dentro também falham)",
+                    self.name, k, val.type_name()
+                ),
+                None => {}
             }
         }
         // Chaves que existiam no contexto mas não estão mais na tabela (o Luau as
@@ -249,7 +285,42 @@ impl LuauComponent {
     /// Roda a função `func` (se existir) como uma corrotina, passando `value`.
     fn run(&self, func: &str, value: Option<&str>, ctx: &mut Context) {
         if let Err(e) = self.run_inner(func, value, ctx) {
-            eprintln!("[glacier-ui] erro em <script> Lua '{}::{}': {}", self.name, func, e);
+            self.report_error(func, e, ctx);
+        }
+    }
+
+    /// Relata um erro de execução do script: sempre loga em `stderr` (o
+    /// equivalente ao console do DevTools) e, além disso —
+    ///
+    /// - se o script define um `on_error(msg)` global, chama-o como
+    ///   corrotina (pode, ele mesmo, mostrar um `toast`/abrir um `confirm`);
+    /// - senão, promove automaticamente a mensagem a um toast de erro, para
+    ///   que o usuário final veja *algo* em vez de "o botão não faz nada".
+    ///
+    /// Nunca propaga: se o próprio `on_error` falhar, só loga (evita loop).
+    fn report_error(&self, where_: &str, err: impl std::fmt::Display, ctx: &mut Context) {
+        let msg = format!("[glacier-ui] erro em <script> Lua '{}::{}': {}", self.name, where_, err);
+        eprintln!("{msg}");
+        match self.luau.globals().get::<Function>("on_error") {
+            Ok(f) => {
+                if let Ok(thread) = self.luau.create_thread(f) {
+                    let arg = match self.luau.create_string(&msg) {
+                        Ok(s) => Value::String(s),
+                        Err(_) => Value::Nil,
+                    };
+                    if let Err(e2) = self.drive(thread, MultiValue::from_iter([arg]), ctx) {
+                        eprintln!(
+                            "[glacier-ui] erro dentro do próprio on_error de '{}': {}",
+                            self.name, e2
+                        );
+                    }
+                }
+            }
+            Err(_) => {
+                ctx.show_toast(
+                    crate::toasts::ToastSpec::error(msg).with_title("Erro de script"),
+                );
+            }
         }
     }
 
@@ -309,6 +380,19 @@ impl LuauComponent {
         self.sync_to_luau(ctx)?;
         let res = self.result_to_luau(result)?;
         self.drive(thread, MultiValue::from_iter([Value::Table(res)]), ctx)
+    }
+
+    /// Dispara o handler de um temporizador (`after`) vencido: se ainda
+    /// registrado (não cancelado, não já disparado — é de disparo único),
+    /// chama-o numa corrotina nova, como um evento de stream.
+    fn resume_timer_inner(&self, id: u64, ctx: &mut Context) -> mlua::Result<()> {
+        let Some(key) = self.timers.borrow_mut().remove(&id) else {
+            return Ok(()); // cancelado, ou id desconhecido
+        };
+        let func: Function = self.luau.registry_value(&key)?;
+        self.sync_to_luau(ctx)?;
+        let thread = self.luau.create_thread(func)?;
+        self.drive(thread, MultiValue::new(), ctx)
     }
 
     /// Aloca o próximo `id` (único no componente, compartilhado por fetch/stream).
@@ -377,6 +461,39 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_nav").unwrap_or(false) {
+                let screen: String = req.get("screen")?;
+                ctx.navigate_to(&screen);
+                args = MultiValue::new();
+                continue;
+            }
+
+            if req.get::<bool>("__glacier_nav_back").unwrap_or(false) {
+                ctx.navigate_back();
+                args = MultiValue::new();
+                continue;
+            }
+
+            if req.get::<bool>("__glacier_after").unwrap_or(false) {
+                let id = self.alloc_id();
+                let ms: u64 = req.get("ms")?;
+                if let Some(key) = self.resolve_handler_value(req.get("fn")?)? {
+                    self.timers.borrow_mut().insert(id, key);
+                }
+                ctx.timers.push(PendingTimer::new(id, ms));
+                // Retoma devolvendo o id como handle (cancelável) — não bloqueia
+                // como `fetch`, no mesmo espírito de `sse`/`websocket`.
+                args = MultiValue::from_iter([Value::Integer(id as i64)]);
+                continue;
+            }
+
+            if req.get::<bool>("__glacier_after_cancel").unwrap_or(false) {
+                let id: u64 = req.get("id")?;
+                self.timers.borrow_mut().remove(&id);
+                args = MultiValue::new();
+                continue;
+            }
+
             return Ok(()); // tabela cedida sem marcador conhecido
         }
     }
@@ -417,6 +534,23 @@ impl LuauComponent {
     /// nome sem global correspondente, ou um valor de outro tipo, vira `None`.
     fn handler_key(&self, opts: &Table, name: &str) -> mlua::Result<Option<RegistryKey>> {
         match opts.get::<Value>(name)? {
+            Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
+            Value::String(s) => match self.luau.globals().get::<Value>(s.to_string_lossy())? {
+                Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// Resolve um valor de handler (o `fn` de `after(ms, fn)`) num
+    /// [`RegistryKey`]: aceita uma função direta ou o **nome** de uma função
+    /// global (resolvida agora), igual a [`Self::handler_key`] mas para um
+    /// valor solto em vez de um campo de `opts`. Um nome sem global
+    /// correspondente, ou um valor de outro tipo, vira `None` (o
+    /// temporizador ainda dispara, só não chama nada).
+    fn resolve_handler_value(&self, v: Value) -> mlua::Result<Option<RegistryKey>> {
+        match v {
             Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
             Value::String(s) => match self.luau.globals().get::<Value>(s.to_string_lossy())? {
                 Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
@@ -518,13 +652,19 @@ impl Component for LuauComponent {
 
     fn resume_fetch(&mut self, id: u64, result: &FetchResult, ctx: &mut Context) {
         if let Err(e) = self.resume_inner(id, result, ctx) {
-            eprintln!("[glacier-ui] erro ao retomar fetch em '{}': {}", self.name, e);
+            self.report_error(&format!("fetch #{id}"), e, ctx);
         }
     }
 
     fn on_stream_event(&mut self, id: u64, kind: StreamEventKind, data: &str, ctx: &mut Context) {
         if let Err(e) = self.on_stream_event_inner(id, kind, data, ctx) {
-            eprintln!("[glacier-ui] erro em stream Luau '{}' (id {}): {}", self.name, id, e);
+            self.report_error(&format!("stream #{id}"), e, ctx);
+        }
+    }
+
+    fn resume_timer(&mut self, id: u64, ctx: &mut Context) {
+        if let Err(e) = self.resume_timer_inner(id, ctx) {
+            self.report_error(&format!("after #{id}"), e, ctx);
         }
     }
 }
@@ -581,8 +721,12 @@ fn build_toast(req: &Table) -> mlua::Result<crate::toasts::ToastSpec> {
 
 /// Converte um [`Value`] Luau na string que o contexto do motor guarda. Números
 /// inteiros e floats de valor inteiro viram `"3"` (não `"3.0"`); `nil` devolve
-/// `None` para não sobrescrever chaves com valor vazio à toa.
-fn luau_value_to_string(v: &Value) -> Option<String> {
+/// `None` para não sobrescrever chaves com valor vazio à toa. Uma **tabela**
+/// é serializada via `json.encode` por baixo (o mesmo caminho que `json`
+/// expõe ao script) — `ctx.foo = {1,2,3}` grava `"[1,2,3]"` em vez de
+/// desaparecer; uma tabela com função/thread/userdata dentro ainda falha
+/// (devolve `None`, e quem chama loga o motivo — ver [`LuauComponent::sync_from_luau`]).
+fn luau_value_to_string(lua: &Lua, v: &Value) -> Option<String> {
     match v {
         Value::Nil => None,
         Value::Boolean(b) => Some(b.to_string()),
@@ -595,6 +739,10 @@ fn luau_value_to_string(v: &Value) -> Option<String> {
             }
         }
         Value::String(s) => Some(s.to_string_lossy()),
+        Value::Table(_) => {
+            let json: serde_json::Value = lua.from_value(v.clone()).ok()?;
+            serde_json::to_string(&json).ok()
+        }
         _ => None,
     }
 }
@@ -1274,6 +1422,330 @@ mod tests {
         // Sem bloco <script>: nada a extrair.
         assert_eq!(extract_script("<Text/>"), None);
     }
+
+    #[test]
+    fn navigate_pede_navegacao_ao_motor() {
+        let comp = LuauComponent::from_source("function ir() navigate('perfil') end", "t.xml", "c").unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("ir", None, &mut ctx);
+        match ctx.nav {
+            Some(crate::component::Nav::To(ref s)) => assert_eq!(s, "perfil"),
+            _ => panic!("esperava Nav::To(\"perfil\")"),
+        }
+    }
+
+    #[test]
+    fn navigate_back_pede_volta_ao_motor() {
+        let comp = LuauComponent::from_source("function voltar() navigate_back() end", "t.xml", "c").unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("voltar", None, &mut ctx);
+        assert!(matches!(ctx.nav, Some(crate::component::Nav::Back)));
+    }
+
+    #[test]
+    fn after_agenda_sem_suspender_e_dispara_o_handler() {
+        let comp = LuauComponent::from_source(
+            "function iniciar() after(50, 'disparou') end\n\
+             function disparou() ctx.tocou = 'sim' end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("iniciar", None, &mut ctx);
+            assert_eq!(ctx.timers.len(), 1, "after não deveria suspender a corrotina");
+            assert_eq!(ctx.timers[0].delay_ms, 50);
+            id = ctx.timers[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_timer_inner(id, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("tocou").map(String::as_str), Some("sim"));
+    }
+
+    #[test]
+    fn after_cancelado_pelo_handle_nao_dispara() {
+        let comp = LuauComponent::from_source(
+            "function iniciar() local t = after(50, 'disparou') t:cancel() end\n\
+             function disparou() ctx.tocou = 'sim' end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("iniciar", None, &mut ctx);
+            id = ctx.timers[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_timer_inner(id, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("tocou"), None, "cancelado antes de vencer não deveria disparar");
+    }
+
+    #[test]
+    fn on_error_hook_e_chamado_quando_definido_em_vez_de_promover_a_toast() {
+        let comp = LuauComponent::from_source(
+            "function quebra() error('deu ruim') end\n\
+             function on_error(msg) ctx.capturado = msg end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("quebra", None, &mut ctx);
+            assert!(ctx.toasts.is_empty(), "on_error definido não deveria também promover a um toast");
+        }
+        assert!(
+            data.get("capturado").map(|s| s.contains("deu ruim")).unwrap_or(false),
+            "on_error deveria ter recebido a mensagem do erro"
+        );
+    }
+
+    #[test]
+    fn erro_sem_on_error_e_promovido_a_toast() {
+        let comp = LuauComponent::from_source("function quebra() error('deu ruim') end", "t.xml", "c").unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("quebra", None, &mut ctx);
+        assert_eq!(ctx.toasts.len(), 1, "sem on_error, o erro deveria virar toast visível");
+        assert_eq!(ctx.toasts[0].kind, crate::toasts::ToastKind::Error);
+    }
+
+    #[test]
+    fn ctx_aceita_tabela_serializando_via_json() {
+        let comp = LuauComponent::from_source("function ir() ctx.obj = { a = 1, b = 'x' } end", "t.xml", "c").unwrap();
+        let data = drive(&comp, "ir", None, HashMap::new());
+        let raw = data.get("obj").expect("ctx.obj deveria ter sido gravado (serializado como JSON)");
+        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+        assert_eq!(v["a"], 1);
+        assert_eq!(v["b"], "x");
+    }
+
+    #[test]
+    fn ctx_com_funcao_dentro_da_tabela_e_descartado_sem_afetar_o_resto() {
+        let comp = LuauComponent::from_source(
+            "function ir() ctx.ruim = { f = function() end } ctx.bom = 'ok' end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "ir", None, HashMap::new());
+        assert_eq!(data.get("ruim"), None, "tabela com função dentro não é serializável");
+        assert_eq!(data.get("bom").map(String::as_str), Some("ok"));
+    }
+
+    #[test]
+    fn viewport_reflete_o_tamanho_atual_do_motor() {
+        let comp = LuauComponent::from_source(
+            "function ler() local v = viewport() ctx.w = v.width ctx.h = v.height end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        {
+            let mut ctx = Context::new(&mut data);
+            ctx.set_viewport((1024.0, 768.0));
+            comp.run("ler", None, &mut ctx);
+        }
+        assert_eq!(data.get("w").map(String::as_str), Some("1024"));
+        assert_eq!(data.get("h").map(String::as_str), Some("768"));
+    }
+
+    #[test]
+    fn storage_persiste_entre_instancias_do_componente() {
+        let dir = temp_dir("storage");
+        let path = dir.join("t.xml");
+        let script = "function salvar() storage.set('contador', ctx.contador) end\n\
+                      function carregar() ctx.contador = storage.get('contador') end";
+
+        let comp1 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
+        let mut data = HashMap::new();
+        data.insert("contador".into(), "7".into());
+        let _ = drive(&comp1, "salvar", None, data);
+
+        // Nova instância (simula reiniciar o processo): mesmo `path`/nome, então
+        // o mesmo arquivo `.glacier-storage/app.json` — deveria ler o valor salvo.
+        let comp2 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
+        let data2 = drive(&comp2, "carregar", None, HashMap::new());
+        assert_eq!(data2.get("contador").map(String::as_str), Some("7"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn storage_remove_apaga_a_chave() {
+        let dir = temp_dir("storage_remove");
+        let path = dir.join("t.xml");
+        let comp = LuauComponent::from_source(
+            "function fluxo()\n\
+               storage.set('k', 'v')\n\
+               storage.remove('k')\n\
+               ctx.depois = storage.get('k')\n\
+               ctx.tipo = type(ctx.depois)\n\
+             end",
+            path.to_str().unwrap(),
+            "app",
+        )
+        .unwrap();
+        let data = drive(&comp, "fluxo", None, HashMap::new());
+        assert_eq!(data.get("depois"), None, "storage.get de uma chave removida deveria ser nil");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sandbox_nao_expoe_io_nem_os_execute() {
+        // Fixa o contrato de segurança implícito do Luau (dialeto Roblox): sem
+        // `io`, sem `os.execute` — um script não deveria conseguir abrir
+        // arquivo arbitrário nem rodar processo.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.tem_io = tostring(io ~= nil)\n\
+               local ok = pcall(function() return os.execute('echo oi') end)\n\
+               ctx.os_execute_ok = tostring(ok)\n\
+             end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        assert_eq!(data.get("tem_io").map(String::as_str), Some("false"), "io não deveria estar disponível");
+        assert_eq!(
+            data.get("os_execute_ok").map(String::as_str),
+            Some("false"),
+            "os.execute não deveria existir/funcionar"
+        );
+    }
+
+    #[test]
+    fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
+        let comp = LuauComponent::from_file("examples/navegacao_luau/login.xml", "login_luau").unwrap();
+        let mut data = HashMap::new();
+        data.insert("usuario".into(), "admin".into());
+        data.insert("senha".into(), "123".into());
+        let mut ctx = Context::new(&mut data);
+        comp.run("entrar", None, &mut ctx);
+        match ctx.nav {
+            Some(crate::component::Nav::To(ref s)) => assert_eq!(s, "dashboard_luau"),
+            _ => panic!("credenciais corretas deveriam navegar para dashboard_luau"),
+        }
+    }
+
+    #[test]
+    fn exemplo_navegacao_luau_login_errado_nao_navega_e_seta_erro() {
+        let comp = LuauComponent::from_file("examples/navegacao_luau/login.xml", "login_luau").unwrap();
+        let mut data = HashMap::new();
+        data.insert("usuario".into(), "quemquer".into());
+        data.insert("senha".into(), "errada".into());
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("entrar", None, &mut ctx);
+            assert!(ctx.nav.is_none(), "credenciais erradas não deveriam navegar");
+        }
+        assert!(data.get("erro").map(|s| !s.is_empty()).unwrap_or(false));
+    }
+
+    #[test]
+    fn exemplo_navegacao_luau_dashboard_sai_volta_e_limpa_senha() {
+        let comp =
+            LuauComponent::from_file("examples/navegacao_luau/dashboard.xml", "dashboard_luau").unwrap();
+        let mut data = HashMap::new();
+        data.insert("senha".into(), "123".into());
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("sair", None, &mut ctx);
+            assert!(matches!(ctx.nav, Some(crate::component::Nav::Back)));
+        }
+        assert_eq!(data.get("senha"), None, "sair deveria limpar ctx.senha");
+    }
+
+    #[test]
+    fn exemplo_robustez_luau_exercita_timers_storage_viewport_ctx_tabela_e_erro() {
+        let storage_file =
+            PathBuf::from("examples/robustez_luau/.glacier-storage/robustez.json");
+        let _ = std::fs::remove_file(&storage_file);
+
+        let comp =
+            LuauComponent::from_file("examples/robustez_luau/robustez.xml", "robustez").unwrap();
+        let mut data = HashMap::new();
+
+        // init() lê o storage (vazio na primeira vez) e semeia os defaults.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("init", None, &mut ctx);
+        }
+        assert_eq!(data.get("rascunho").map(String::as_str), Some(""));
+
+        // after(): agenda sem suspender; cancelar impede o disparo.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("iniciar_temporizador", None, &mut ctx);
+            assert_eq!(ctx.timers.len(), 1);
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("cancelar_temporizador", None, &mut ctx);
+        }
+        assert_eq!(data.get("status").map(String::as_str), Some("cancelado"));
+
+        // viewport(): reflete o que o motor informou via Context::set_viewport.
+        {
+            let mut ctx = Context::new(&mut data);
+            ctx.set_viewport((800.0, 600.0));
+            comp.run("ler_viewport", None, &mut ctx);
+        }
+        assert_eq!(data.get("largura").map(String::as_str), Some("800"));
+        assert_eq!(data.get("altura").map(String::as_str), Some("600"));
+
+        // ctx aceita tabela: gerar_prefs grava JSON, não desaparece.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("gerar_prefs", None, &mut ctx);
+        }
+        let prefs: serde_json::Value =
+            serde_json::from_str(data.get("prefs").expect("prefs deveria ter sido gravado")).unwrap();
+        assert_eq!(prefs["tema"], "escuro");
+        assert_eq!(prefs["volume"], 7);
+
+        // erro visível: provocar_erro falha, on_error captura e mostra um toast.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("provocar_erro", None, &mut ctx);
+            assert_eq!(ctx.toasts.len(), 1, "on_error do exemplo deveria mostrar um toast");
+        }
+        assert!(data.get("ultimo_erro").map(|s| s != "(nenhum ainda)").unwrap_or(false));
+
+        // storage: salvar e reler numa instância NOVA (simula reiniciar o app).
+        data.insert("rascunho".into(), "anotação importante".into());
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("salvar_rascunho", None, &mut ctx);
+        }
+        let comp2 =
+            LuauComponent::from_file("examples/robustez_luau/robustez.xml", "robustez").unwrap();
+        let mut data2 = HashMap::new();
+        {
+            let mut ctx2 = Context::new(&mut data2);
+            comp2.run("init", None, &mut ctx2);
+        }
+        assert_eq!(data2.get("rascunho").map(String::as_str), Some("anotação importante"));
+
+        let _ = std::fs::remove_file(&storage_file);
+    }
 }
 
 /// Chave (no registry do interpretador) da tabela que cacheia os módulos já
@@ -1522,6 +1994,105 @@ fn install_json(luau: &Lua) -> mlua::Result<()> {
     json.set("encode", encode)?;
     json.set("array", array)?;
     luau.globals().set("json", json)?;
+    Ok(())
+}
+
+/// Caminho do arquivo de persistência de um componente: um `.json` por
+/// componente sob `.glacier-storage/`, ao lado do arquivo que ancora
+/// `require` (`module_base`, ver [`module_roots`]) — mesma convenção de
+/// vizinhança que `lib/`. `name` é sanitizado (só `[A-Za-z0-9_-]`, resto vira
+/// `_`) para nunca produzir um caminho fora do diretório esperado.
+fn storage_path(module_base: &Path, name: &str) -> PathBuf {
+    let base = module_base
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect();
+    base.join(".glacier-storage").join(format!("{safe}.json"))
+}
+
+/// Lê o arquivo de persistência como um objeto JSON (vazio se ausente ou
+/// corrompido — persistência é "best effort", não deve derrubar o script).
+fn read_storage_file(path: &Path) -> serde_json::Map<String, serde_json::Value> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| match v {
+            serde_json::Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Grava o objeto JSON de volta no arquivo de persistência, criando o
+/// diretório `.glacier-storage/` se necessário. Falhas de I/O são logadas,
+/// não propagadas — `storage.set` não deveria poder derrubar um script.
+fn write_storage_file(path: &Path, map: &serde_json::Map<String, serde_json::Value>) {
+    if let Some(parent) = path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("[glacier-ui] storage: falha ao criar '{}': {}", parent.display(), e);
+            return;
+        }
+    }
+    match serde_json::to_string_pretty(&serde_json::Value::Object(map.clone())) {
+        Ok(s) => {
+            if let Err(e) = std::fs::write(path, s) {
+                eprintln!("[glacier-ui] storage: falha ao gravar '{}': {}", path.display(), e);
+            }
+        }
+        Err(e) => eprintln!("[glacier-ui] storage: falha ao serializar: {}", e),
+    }
+}
+
+/// Instala o global `storage` (`get`/`set`/`remove`), persistência local em
+/// JSON análoga ao `localStorage` do browser — o que sobrevive a um restart
+/// do processo (ao contrário de `ctx`, que é só memória). Cada chamada lê/
+/// grava o arquivo inteiro (simples e correto para o volume de dados que um
+/// `<script>` de UI guarda; não pensado para alta frequência/concorrência).
+///
+/// - `storage.get(key)`: devolve o valor guardado (qualquer tipo
+///   JSON-serializável — string, número, booleano, tabela) ou `nil`.
+/// - `storage.set(key, value)`: grava `value` sob `key`, sobrescrevendo.
+/// - `storage.remove(key)`: apaga `key`, se existir.
+fn install_storage(luau: &Lua, path: PathBuf) -> mlua::Result<()> {
+    let storage = luau.create_table()?;
+
+    let get_path = path.clone();
+    let get = luau.create_function(move |luau, key: String| {
+        let map = read_storage_file(&get_path);
+        match map.get(&key) {
+            Some(v) => luau.to_value(v),
+            None => Ok(Value::Nil),
+        }
+    })?;
+
+    let set_path = path.clone();
+    let set = luau.create_function(move |luau, (key, value): (String, Value)| {
+        let mut map = read_storage_file(&set_path);
+        let json: serde_json::Value = luau
+            .from_value(value)
+            .map_err(|e| mlua::Error::runtime(format!("storage.set: {e}")))?;
+        map.insert(key, json);
+        write_storage_file(&set_path, &map);
+        Ok(())
+    })?;
+
+    let remove_path = path.clone();
+    let remove = luau.create_function(move |_, key: String| {
+        let mut map = read_storage_file(&remove_path);
+        map.remove(&key);
+        write_storage_file(&remove_path, &map);
+        Ok(())
+    })?;
+
+    storage.set("get", get)?;
+    storage.set("set", set)?;
+    storage.set("remove", remove)?;
+    luau.globals().set("storage", storage)?;
     Ok(())
 }
 

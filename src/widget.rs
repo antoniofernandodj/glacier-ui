@@ -194,6 +194,10 @@ pub enum EngineMessage {
     /// outbound command channel for WebSocket sends. See
     /// [`crate::GlacierUI::subscription`] and [`crate::net`].
     LuauStream { owner: String, id: u64, event: crate::net::StreamEvent },
+    /// Um temporizador pedido por `after(ms, fn)` na Lua de um componente
+    /// venceu: chama [`crate::Component::resume_timer`] com o `id` do
+    /// temporizador em `owner`. Ver [`crate::component::PendingTimer`].
+    LuauTimer { owner: String, id: u64 },
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing
