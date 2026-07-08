@@ -1,16 +1,19 @@
 # glacier-ui
 
 **Glacier** é um motor de UI declarativa para Rust: você descreve a interface em
-**XML** e o motor a renderiza com [`iced`](https://iced.rs). Tudo com
-**hot-reload**, **data binding**, **componentes** reutilizáveis, **navegação**,
-**stylesheets `.gss`** (CSS-like) e **comportamento** encapsulado em tipos Rust
-(ou embutido no próprio XML via `<script>`).
+**XML** e o motor a renderiza com [`iced`](https://iced.rs). O comportamento pode
+morar em **Rust** (o trait `Component`) ou **dentro do próprio template**, num
+bloco `<script>` em **[Luau](https://luau.org)** interpretado em tempo de execução
+— com **hot-reload**, **data binding**, **componentes**, **navegação**,
+**formulários reativos**, **stylesheets `.gss`** (CSS-like), **rede assíncrona**
+(`fetch`/SSE/WebSocket), **toasts** e **diálogos**.
 
 ```xml
+<!-- examples/contador/contador.xml -->
 <Container padding="20" alignX="Center" alignY="Center" width="fill" height="fill" background="#2E3440">
-    <Column spacing="20" alignX="Center">
+    <Column spacing="20" align="Center">
         <Text content="Valor do Contador: {contador}" size="28" bold="true" color="#ECEFF4" />
-        <Row spacing="15" alignY="Center">
+        <Row spacing="15" align="Center">
             <Button text="Diminuir" on_click="decrementar" color="#BF616A" padding="10 20" />
             <Button text="Aumentar" on_click="incrementar" color="#A3BE8C" padding="10 20" />
         </Row>
@@ -18,12 +21,13 @@
 </Container>
 ```
 
-```rust
-struct Contador { valor: i32 }
+Duas formas de dar comportamento a esse XML — escolha por caso de uso:
 
+```rust
+// 1) Em Rust: um Component tipado, com estado próprio.
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("templates/contador.xml".into()) }
+    fn template(&self) -> Template { Template::File("examples/contador/contador.xml".into()) }
     fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
         match action {
@@ -36,64 +40,62 @@ impl Component for Contador {
 }
 ```
 
+```lua
+-- 2) No próprio template, num <script> Luau (sem recompilar):
+function init()        ctx.contador = ctx.contador or 0 end
+function incrementar() ctx.contador = ctx.contador + 1 end
+function decrementar() ctx.contador = ctx.contador - 1 end
+```
+
 ---
 
 ## Sumário
 
-- [glacier-ui](#glacier-ui)
-  - [Sumário](#sumário)
-  - [Por que Glacier](#por-que-glacier)
-  - [Instalação](#instalação)
-  - [Conceitos e arquitetura](#conceitos-e-arquitetura)
-  - [Início rápido](#início-rápido)
-  - [Referência de tags](#referência-de-tags)
-    - [Layout](#layout)
-    - [Conteúdo e controles](#conteúdo-e-controles)
-    - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
-  - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
-  - [Ações built-in](#ações-built-in)
-  - [Data binding e templating](#data-binding-e-templating)
-  - [Controle de fluxo](#controle-de-fluxo)
-    - [Atributos Diretivas (Recomendado)](#atributos-diretivas-recomendado)
-      - [`if` / `else` / `equals` / `notEquals`](#if--else--equals--notequals)
-      - [`for-each` e `var`](#for-each-e-var)
-      - [Precedência: `for-each` + `if` no mesmo elemento](#precedência-for-each--if-no-mesmo-elemento)
-    - [Tags-Invólucro (Legado)](#tags-invólucro-legado)
-  - [Inputs de texto](#inputs-de-texto)
-  - [Formulários (Reactive Forms)](#formulários-reactive-forms)
-  - [Imagens](#imagens)
-  - [Componentes e composição](#componentes-e-composição)
-    - [`<import>` e referência por nome](#import-e-referência-por-nome)
-    - [O trait `Component`](#o-trait-component)
-    - [Componentes aninhados e roteamento de ações](#componentes-aninhados-e-roteamento-de-ações)
-    - [`ContextVar`](#contextvar)
-  - [Navegação entre telas](#navegação-entre-telas)
-  - [`<script>` em Lua](#script-em-lua)
-    - [Rede: `fetch` (async/await via corrotina)](#rede-fetch-asyncawait-via-corrotina)
-    - [Imports / módulos: `require`](#imports--módulos-require)
-  - [Stylesheets `.gss`](#stylesheets-gss)
-  - [Estilos inline: `<style>` / `<style scoped="true">`](#estilos-inline-style--style-scopedtrue)
-  - [`<link rel="…">`: stylesheet, import, data, theme](#link-rel-stylesheet-import-data-theme)
-  - [Temas](#temas)
-  - [Hot-reload](#hot-reload)
-  - [Rede e async](#rede-e-async)
-  - [Referência da API](#referência-da-api)
-    - [`GlacierUI`](#glacierui)
-    - [`EngineMessage`](#enginemessage)
-    - [Tipos de apoio](#tipos-de-apoio)
-  - [Exemplos](#exemplos)
-  - [Publicação no crates.io](#publicação-no-cratesio)
-  - [Licença](#licença)
+- [Por que Glacier](#por-que-glacier)
+- [Instalação](#instalação)
+- [Conceitos e arquitetura](#conceitos-e-arquitetura)
+- [Início rápido](#início-rápido)
+  - [Ligando ao `iced`: `GlacierApp::bootstrap`](#ligando-ao-iced-glacierappbootstrap)
+- [Referência de tags](#referência-de-tags)
+- [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
+- [Data binding](#data-binding)
+- [Controle de fluxo](#controle-de-fluxo)
+- [Inputs de texto](#inputs-de-texto)
+- [Formulários (Reactive Forms)](#formulários-reactive-forms)
+- [Navegação entre telas](#navegação-entre-telas)
+- [Componentes e composição](#componentes-e-composição)
+- [Comportamento em `<script>` Luau](#comportamento-em-script-luau)
+  - [`fetch`: rede async via corrotina](#fetch-rede-async-via-corrotina)
+  - [`require`: módulos Luau](#require-módulos-luau)
+  - [Timers: `after` e `every`](#timers-after-e-every)
+  - [`storage`: persistência local](#storage-persistência-local)
+  - [`viewport`, `toast`, `confirm`, `navigate`](#viewport-toast-confirm-navigate)
+  - [Erros visíveis: `on_error`](#erros-visíveis-on_error)
+  - [Streams: SSE e WebSocket](#streams-sse-e-websocket)
+- [Estilos `.gss`](#estilos-gss)
+  - [Pseudo-estados](#pseudo-estados-hover--focus--active--disabled)
+- [`<link rel="…">` e temas](#link-rel--e-temas)
+- [Toasts e diálogos (em Rust)](#toasts-e-diálogos-em-rust)
+- [Drag-and-drop: listas reordenáveis](#drag-and-drop-listas-reordenáveis)
+- [Ações built-in (`window:*`, `clipboard:`)](#ações-built-in)
+- [Hot-reload](#hot-reload)
+- [Rede e async em Rust](#rede-e-async-em-rust)
+- [Referência da API](#referência-da-api)
+- [Exemplos](#exemplos)
+- [Publicação no crates.io](#publicação-no-cratesio)
+- [Licença](#licença)
 
 ---
 
 ## Por que Glacier
 
 - **Declarativo de verdade** — a UI é um arquivo XML, não uma árvore de chamadas Rust.
-- **Hot-reload** — edite o XML, os estilos `.gss`, os dados JSON ou o tema com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
-- **Data binding por placeholders** — `{chave}` em qualquer atributo, resolvido contra um contexto de estado.
+- **Comportamento onde couber melhor** — em Rust (tipado, com estado forte) ou em Luau dentro do `<script>` (interpretado, sem recompilar).
+- **Hot-reload** — edite o XML, os estilos `.gss`, os dados JSON, o tema ou a lógica Luau com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
+- **Data binding por placeholders** — `{chave}` em qualquer atributo, resolvido contra um contexto de estado compartilhado.
 - **Componentes** — encapsulam UI + comportamento + estado num único tipo Rust, compostos por `<import>`, referência por nome ou `children()`.
-- **Estilos reutilizáveis** — classes `.gss` (CSS-like) globais ou com escopo por componente, com a mesma precedência do CSS (inline vence classe).
+- **Assíncrono sem travar a UI** — `fetch` (HTTP), `sse`/`websocket` (streams) na camada Luau; `ctx.perform` e `Component::subscription` na camada Rust.
+- **Estilos reutilizáveis** — classes `.gss` (CSS-like) globais ou com escopo por componente, com a precedência do CSS e pseudo-estados (`:hover`/`:focus`/`:active`/`:disabled`).
 - **Renderiza com `iced`** — widgets nativos, multiplataforma, tema configurável.
 
 ---
@@ -106,10 +108,12 @@ O projeto é um único crate, **`glacier-ui`** — o motor.
 cargo add glacier-ui
 ```
 
-As dependências (`iced 0.14`, `roxmltree`, `image`, `serde_json`, `mlua` com
-Lua 5.4 vendorizado, e `hyper` + `rustls` para o `fetch`) vêm junto — o Lua é
-compilado a partir do fonte, sem precisar de Lua no sistema. Requer Rust
-**edition 2024** (≥ 1.85).
+As dependências vêm junto: `iced 0.14`, `roxmltree`, `image`, `serde_json`,
+`regex`, `mlua` (com **Luau** vendorizado — compilado do fonte, sem precisar de
+Lua/Luau no sistema), `hyper` + `rustls` para `fetch`, e `tokio-tungstenite` para
+WebSocket. O `iced` é re-exportado em `glacier_ui::iced`, então a sua `main`
+pode nem listar `iced` como dependência direta. Requer Rust **edition 2024**
+(≥ 1.85).
 
 Rode qualquer exemplo do repositório com:
 
@@ -127,24 +131,29 @@ cargo run --example contador
 | **Contexto** | mapa `String -> String` com o estado; templates leem dele via `{chave}`. |
 | **`GlacierUI`** | o motor: registra templates/componentes/estilos, avalia o contexto e renderiza para `iced`. |
 | **`Component`** | tipo Rust que junta **UI** (template) + **comportamento** (reação a ações) + **estado** próprio. |
-| **`EngineMessage`** | mensagens que o `iced` entrega ao motor (cliques, inputs, navegação, reload). |
+| **`<script>` Luau** | comportamento embutido no template, alternativa interpretada ao `Component`. |
+| **`EngineMessage`** | mensagens que o `iced` entrega ao motor (cliques, inputs, navegação, reload, efeitos). |
 | **Stylesheet `.gss`** | classes de estilo reutilizáveis (CSS-like), globais ou por componente. |
 
-O fluxo de cada frame de estado é:
+O fluxo de cada frame de estado:
 
 ```
-XML  ──parse──▶  AST  ──avalia (contexto + estilos + includes + if/ForEach)──▶  AST resolvido  ──render──▶  widgets iced
+XML  ──parse──▶  AST  ──avalia (contexto + estilos + includes + if/for-each)──▶  AST resolvido  ──render──▶  widgets iced
                                                    ▲                                                            │
                                                    └────────── ação vira EngineMessage, roteada ao Component ◀──┘
 ```
 
-A integração com o `iced` segue o padrão `application(title, update, view)`:
-o `update` da app só repassa a mensagem para `motor.dispatch(...)`, e o `view`
+A integração com o `iced` segue o padrão `application(init, update, view)`: o
+`update` da app só repassa a mensagem para `motor.dispatch(...)`, e o `view`
 chama `motor.render_current()`.
 
 ---
 
 ## Início rápido
+
+Um app é uma casca fina em volta de um `GlacierUI`: registra os componentes,
+repassa mensagens a `dispatch` e renderiza com `render_current`. Toda a lógica
+vive nos componentes (Rust) ou nos `<script>` (Luau).
 
 ```rust
 use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
@@ -154,12 +163,8 @@ struct Contador { valor: i32 }
 
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("templates/contador.xml".into()) }
-
-    fn init(&mut self, ctx: &mut Context) {
-        ctx.set("contador", self.valor.to_string());
-    }
-
+    fn template(&self) -> Template { Template::File("examples/contador/contador.xml".into()) }
+    fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
         match action {
             "incrementar" => self.valor += 1,
@@ -179,31 +184,58 @@ impl App {
         motor.set_initial_screen("contador");
         (Self { motor }, Task::none())
     }
-
-    fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
-        let _ = self.motor.dispatch(&msg);
-        Task::none()
-    }
-
+    fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> { self.motor.dispatch(&msg) }
     fn view(&self) -> Element<'_, EngineMessage> {
         self.motor.render_current()
             .unwrap_or_else(|e| text(e).color(Color::from_rgb(1.0, 0.0, 0.0)).into())
     }
-
     fn subscription(&self) -> iced::Subscription<EngineMessage> {
         GlacierUI::reload_subscription(std::time::Duration::from_millis(500))
     }
 }
 
 fn main() -> iced::Result {
-    iced::application("Contador", App::update, App::view)
+    iced::application(App::new, App::update, App::view)
         .subscription(App::subscription)
-        .run_with(|| App::new())
+        .title("Contador")
+        .run()
 }
 ```
 
-A app fica enxuta: registra o componente, repassa as mensagens a `dispatch` e
-renderiza com `render_current`. Toda a lógica vive no `Component`.
+Para um comportamento embutido no template, troque `register(Box::new(...))` por
+`register_component("contador", "caminho/para/contador.xml")`: se o template tiver
+um `<script>`, o motor liga a lógica **Luau** automaticamente (ver
+[`examples/contador_macro`](examples/contador_macro)).
+
+### Ligando ao `iced`: `GlacierApp::bootstrap`
+
+Para não repetir `iced::application(App::init, App::update, App::view).subscription(...)`
+na mão, implemente o trait `GlacierApp` e chame `App::bootstrap()` — ele pré-liga
+os quatro métodos e devolve o builder do `iced` (ainda aceita `.title`, `.theme`,
+`.window`, …):
+
+```rust
+use glacier_ui::{EngineMessage, GlacierUI, GlacierApp};
+use iced::{Element, Subscription, Task};
+
+struct App { motor: GlacierUI }
+
+impl GlacierApp for App {
+    type Message = EngineMessage;
+    fn init() -> (Self, Task<EngineMessage>) { /* ... */ }
+    fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> { self.motor.dispatch(&msg) }
+    fn view(&self) -> Element<'_, EngineMessage> { /* ... */ }
+    fn subscription(&self) -> Subscription<EngineMessage> {
+        GlacierUI::reload_subscription(std::time::Duration::from_millis(500))
+    }
+}
+
+fn main() -> iced::Result {
+    App::bootstrap().title("Glacier - navegação via script Lua").run()
+}
+```
+
+Veja [`examples/navegacao_luau`](examples/navegacao_luau).
 
 ---
 
@@ -218,35 +250,37 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Container>` | `container` | caixa única (1 filho lógico); base para cartões/painéis. |
 | `<Column>` | `column` | empilha os filhos verticalmente. |
 | `<Row>` | `row` | dispõe os filhos horizontalmente. |
+| `<Scrollable>` | `Scroll`, `Rolagem` | viewport rolável de 1 filho; `direction`: `vertical` (padrão), `horizontal`, `both`. |
+| `<Rule>` | `Divider`, `Divisoria` | linha separadora; `direction`: `horizontal` (padrão) ou `vertical`. |
 
 ### Conteúdo e controles
 
 | Tag | Aliases | Atributos próprios |
 |---|---|---|
-| `<Text>` | `text` | `content`/`texto`, `size`/`tamanho`, `bold`/`negrito`, `color`/`cor` |
+| `<Text>` | `text` | `content`/`texto`, `size`/`tamanho`, `bold`/`negrito`, `color`/`cor`, `textAlign` |
 | `<Button>` | `button`, `Botao` | `text`/`texto`, `on_click`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
-| `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara o texto), `formControl` (liga a um `FormControl` pelo nome — veja [Formulários](#formulários-reactive-forms)) |
-| `<Form>` | `Formulario` | `onSubmit`/`aoSubmeter`, `name`/`nome` (opcional, só necessário com dois `<Form>`s de controles homônimos no mesmo componente) — renderiza como `<Column>` |
-| `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave de contexto com array JSON), `value`/`valor` (chave com o valor selecionado), `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`), `color`/`cor`. Estilizável via `.gss` (`background`, `border*`, `color`). |
+| `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara), `formControl` (liga a um `FormControl`) |
+| `<TextArea>` | `TextEditor`, `Editor`, `AreaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar` (editor multilinha) |
+| `<Form>` | `Formulario` | `onSubmit`/`aoSubmeter`, `name`/`nome` — renderiza como `<Column>` |
+| `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave com array JSON), `value`/`valor`, `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`) |
 | `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
 | `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
 | `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange` |
 | `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` |
-| `<Scrollable>` | `Scroll`, `Rolagem` | `direction`: `vertical` (padrão), `horizontal`, `both` — viewport rolável de 1 filho |
-| `<Rule>` | `Divider`, `Divisoria` | `direction`: `horizontal` (padrão) ou `vertical` — linha separadora |
 
 ### Estruturais (composição, fluxo, recursos)
 
 | Tag | Aliases | Descrição |
 |---|---|---|
-| `<import>` | `Importar` | declara um componente carregado de um arquivo: `name`/`nome`, `from`/`de`. |
-| `<Include>` | `Incluir` | inclui outro template; demais atributos viram props. |
+| `<import>` | `Import`, `Importar` | declara um componente carregado de um arquivo: `name`/`nome`/`as`, `from`/`de`/`src`. |
+| `<Include>` | `Incluir` | inclui outro template: `src`/`fonte`; demais atributos viram props. |
 | `<NomeDoComponente .../>` | — | qualquer tag desconhecida referencia um componente por nome; atributos viram props. |
 | `<ForEach>` | `For` | repete os filhos por item: `items`/`itens`, `var`/`variavel`. |
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
-| `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema (veja [`<link>`](#link-rel-stylesheet-import-data-theme)). |
-| `<style>` | `style`, `Style` | classes `.gss` inline, global por padrão, ou escopado com `scoped="true"` (veja [Estilos inline](#estilos-inline-style--style-scopedtrue)). |
+| `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
+| `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
+| `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
 
 ---
 
@@ -258,158 +292,93 @@ Disponíveis em **qualquer** tag:
 |---|---|---|
 | `width` | `largura`, `w` | `fill`, `shrink` ou número (px) |
 | `height` | `altura`, `h` | `fill`, `shrink` ou número (px) |
-| `padding` | `espacamento_interno` | `"10"`, `"10 20"` (vertical horizontal) ou `"10 20 30 40"` (top right bottom left) |
-| `alignX` | `align_x`, `alinhamento_x` | `start`, `center`, `end` |
-| `alignY` | `align_y`, `alinhamento_y` | `start`, `center`, `end` |
+| `padding` | `espacamento_interno` | `"10"`, `"10 20"` (vert. horiz.) ou `"10 20 30 40"` (top right bottom left) |
+| `alignX` | `align_x`, `align` | `start`, `center`, `end` |
+| `alignY` | `align_y` | `start`, `center`, `end` |
 | `spacing` | `espacamento` | número (espaço entre filhos de `Row`/`Column`) |
 | `background` | `bg`, `fundo` | cor hex |
+| `gradient` | `gradiente` | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background` |
 | `borderRadius` | `border_radius`, `raio_borda` | número |
-| `borderWidth` | `border_width`, `largura_borda` | número |
-| `borderColor` | `border_color`, `cor_borda` | cor hex |
-| `class` | `classe` | classes `.gss` separadas por espaço (veja [Stylesheets](#stylesheets-gss)) |
-| `font` | `fonte`, `font-family` | `mono`/`monospace`/`code` (fonte monoespaçada) ou `bold` — em `Text`/`Button` |
-| `gradient` | `gradiente` | gradiente linear de fundo: `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"` (graus); vence `background` |
-| `textAlign` | `text_align`, `text-align` | alinhamento horizontal de `Text`: `start`/`center`/`end` |
-| `onPress` | `on_press`, `on-press`, `aoPressionar` | ação disparada no **pressionar** (botão do mouse para baixo) sobre o elemento — envolve-o em um `mouse_area`. Diferente do clique de `<Button>` (que dispara ao soltar); a semântica de pressionar é o que viabiliza arrastar a janela (`onPress="window:drag"`). |
-| `onDoubleClick` | `on_double_click`, `on-double-click`, `aoClicarDuplo` | ação disparada no **duplo-clique** sobre o elemento (envolve em `mouse_area`). Ex.: duplo-clique na barra de título para maximizar (`onDoubleClick="window:maximize"`). |
-| `cursor` | `cursorIcon`, `cursor-icon` | ícone do cursor ao pairar sobre o elemento: `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not-allowed`, `none`, e os de redimensionar janela `resize-h`/`resize-v`/`resize-ne`/`resize-nw` (envolve em `mouse_area` com a `mouse::Interaction`). |
-| `hidden` | `oculto` | `true`/`false` — remove o elemento do layout (não ocupa espaço nem `spacing`), também disponível via classe `.gss` (`hidden: true` / `display: none`). |
-| `disabled` | `desabilitado` | `true`/`false` — desativa a interação de `Button`/`TextInput`/`Checkbox`/`Toggle` (sem handler anexado, o `Status::Disabled` nativo do iced entra em vigor sozinho). Só existe como atributo inline; veja [Pseudo-estados](#pseudo-estados-hover--focus--active--disabled). |
+| `borderWidth` | `border_width` | número |
+| `borderColor` | `border_color` | cor hex |
+| `class` | `classe` | classes `.gss` separadas por espaço |
+| `font` | `fonte`, `font-family` | `mono`/`monospace`/`code` ou `bold` — em `Text`/`Button` |
+| `onPress` | `aoPressionar` | ação no **pressionar** (envolve em `mouse_area`); viabiliza `onPress="window:drag"` |
+| `onDoubleClick` | `aoClicarDuplo` | ação no **duplo-clique** (ex.: `window:maximize` na barra de título) |
+| `cursor` | `cursorIcon` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `not-allowed`, `resize-h/v/ne/nw`, … |
+| `hidden` | `oculto` | `true`/`false` — remove do layout (não ocupa espaço) |
+| `disabled` | `desabilitado` | `true`/`false` — desativa a interação de `Button`/`TextInput`/`Checkbox`/`Toggle` |
 
-- **Eixos:** o alinhamento do eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
+- **Eixos:** o eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
 - **Cores:** hex `#RRGGBB` ou `#RRGGBBAA`.
+- **`fill` só "enche"** se todo container pai até ele também for `width=fill` (o default da maioria dos widgets é `shrink`).
 
 ---
 
-## Ações built-in
+## Data binding
 
-Algumas ações de `on_click`/`onPress` são tratadas pelo próprio motor, sem
-precisar de código no componente — basta referenciá-las no markup:
-
-| Ação | Efeito |
-|---|---|
-| `clipboard:<chave>` | copia o valor de contexto `<chave>` para a área de transferência |
-| `window:minimize` | minimiza a janela |
-| `window:maximize` | alterna maximizar/restaurar (alias `window:toggle_maximize`) |
-| `window:close` | fecha a janela |
-| `window:drag` | inicia o arraste da janela — use em `onPress` de uma região da barra de título |
-| `window:resize:<dir>` | inicia o redimensionamento interativo — `<dir>` ∈ `n`,`s`,`e`,`w`,`ne`,`nw`,`se`,`sw`. Use em `onPress` das alças de borda/canto, junto com `cursor="resize-…"` para o ícone. Requer iced 0.14+. |
-
-As ações `window:*` permitem montar uma barra de título customizada para uma
-janela sem decorações (`decorations: false` nas `window::Settings` do iced):
-
-```xml
-<Row class="titlebar" width="fill">
-    <Row width="fill" onPress="window:drag">      <!-- região de arraste -->
-        <Text content="Meu App" />
-    </Row>
-    <Button text="—" on_click="window:minimize" />
-    <Button text="▢" on_click="window:maximize" />
-    <Button text="✕" on_click="window:close" />
-</Row>
-```
-
----
-
-## Data binding e templating
-
-Qualquer valor de atributo pode conter placeholders `{chave}`, substituídos
-pelos valores do contexto durante a avaliação:
+Qualquer valor de atributo pode conter placeholders `{chave}`, substituídos pelos
+valores do contexto durante a avaliação:
 
 ```xml
 <Text content="Olá, {user_name}!" color="{cor_texto}" />
 <Container background="{painel_bg}"> ... </Container>
 ```
 
-O componente publica valores com `ctx.set("user_name", "Clara")` (ou
-`motor.define_data("user_name", "Clara")` por fora). Sempre que o contexto muda,
-o motor reavalia os templates e a UI reflete o novo valor. **Chaves ausentes
-viram string vazia.**
+O componente publica valores com `ctx.set("user_name", "Clara")` (Rust) ou
+`ctx.user_name = "Clara"` (Luau) — ou `motor.define_data("user_name", "Clara")`
+por fora. Sempre que o contexto muda, o motor reavalia os templates e a UI
+reflete o novo valor. **Chaves ausentes viram string vazia.** O estado é
+compartilhado entre todas as telas.
 
 ---
 
 ## Controle de fluxo
 
-A forma recomendada de controlar o fluxo (condicionais e loops) é através de **atributos diretivas** aplicados diretamente em qualquer elemento (estilo Vue/Angular). Também é suportada a sintaxe antiga de tags-invólucro `<if>`, `<else>` e `<ForEach>` por retrocompatibilidade.
+A forma recomendada são **atributos diretiva** aplicados em qualquer elemento
+(estilo Vue/Angular). A sintaxe antiga de tags-invólucro (`<if>`, `<else>`,
+`<ForEach>`) continua suportada por retrocompatibilidade.
 
-### Atributos Diretivas (Recomendado)
-
-#### `if` / `else` / `equals` / `notEquals`
-
-Você pode usar o atributo `if` em qualquer elemento para renderizá-lo condicionalmente. O atributo `else` (pelado) se conecta ao `if` anterior.
+**Condicional** — `if` renderiza truthy (`true`/`1`/`yes`/`on`/`sim`); `else`
+(pelado) se conecta ao `if` anterior; `equals`/`notEquals` comparam explicitamente:
 
 ```xml
-<!-- Checagem truthy simples (true / 1 / yes / on / sim) -->
-<Column if="{logado}">
-    <Text content="Bem-vindo!" />
-</Column>
-<Column else>
-    <Text content="Por favor, conecte-se." />
-</Column>
+<Column if="{logado}"><Text content="Bem-vindo!" /></Column>
+<Column else><Text content="Por favor, conecte-se." /></Column>
 
-<!-- Comparação explícita de igualdade ou diferença -->
-<Text content="Painel Admin" if="{papel}" equals="admin" />
-<Text content="Acesso Comum" if="{papel}" notEquals="admin" />
+<Text content="Painel Admin"  if="{papel}" equals="admin" />
+<Text content="Acesso Comum"  if="{papel}" notEquals="admin" />
 ```
 
-*Nota sobre XML estrito:* Atributos pelados como `else` não são aceitos pelo padrão XML. O Glacier UI faz um pré-processamento transparente convertendo `else` para `else=""` antes do parseamento. Ambos `else` e `senao` são suportados.
+> *XML estrito:* atributos pelados como `else` não são válidos no padrão; o
+> Glacier faz um pré-processamento transparente convertendo `else` → `else=""`.
 
-#### `for-each` e `var`
-
-O atributo `for-each` itera sobre um **array JSON** publicado no contexto. Use o atributo `var` para definir a variável do loop (padrão é `item` se omitido). Cada item vira variáveis prefixadas pelo nome declarado em `var` (`u.nome`, `u.cargo`, etc.); strings/números simples ficam disponíveis diretamente como `{u}`:
+**Loop** — `for-each` itera sobre um **array JSON** do contexto; `var` nomeia a
+variável (padrão `item`). Objetos viram `{u.campo}`; escalares ficam em `{u}`:
 
 ```xml
-<CartaoUsuario
-    for-each="usuarios"
-    var="u"
-    nome="{u.nome}"
-    cargo="{u.cargo}"
-    cor="{u.cor}"
-/>
+<CartaoUsuario for-each="usuarios" var="u"
+    nome="{u.nome}" cargo="{u.cargo}" cor="{u.cor}" />
 ```
 
 ```rust
-let json = serde_json::json!([
+ctx.set("usuarios", serde_json::json!([
     { "nome": "Clara",  "cargo": "Engenheira", "cor": "#89B4FA" },
     { "nome": "Sophia", "cargo": "Designer",   "cor": "#F5C2E7" },
-]).to_string();
-ctx.set("usuarios", json);
+]).to_string());
 ```
 
-#### Precedência: `for-each` + `if` no mesmo elemento
-
-Quando combinados no mesmo elemento, o `for-each` tem precedência maior. Ele desenrola o loop primeiro e depois o `if` filtra individualmente cada item gerado usando o contexto local do loop.
-
----
-
-### Tags-Invólucro (Legado)
-
-Abaixo está a sintaxe legada baseada em tags, mantida para retrocompatibilidade:
-
-```xml
-<!-- Condicional legada -->
-<if cond="{logado}">
-    <Text content="Olá, {usuario}" />
-</if>
-<else>
-    <Text content="Entre" />
-</else>
-
-<!-- Loop legado -->
-<ForEach items="usuarios" var="u">
-    <CartaoUsuario nome="{u.nome}" cargo="{u.cargo}" />
-</ForEach>
-```
-
-Veja `examples/condicional.rs` e `examples/lista.rs`.
+Combinados no mesmo elemento, `for-each` tem precedência: desenrola o loop
+primeiro e o `if` filtra cada item gerado no contexto local. Veja
+[`examples/condicional`](examples/condicional) e [`examples/lista`](examples/lista).
 
 ---
 
 ## Inputs de texto
 
-`<TextInput>` faz binding bidirecional: `value` aponta para a chave de contexto
-exibida, e `onChange` dispara uma ação com o novo texto a cada digitação. No
-`update`, o texto chega em `value: Option<&str>`:
+`<TextInput>` faz binding bidirecional: `value` aponta para a chave exibida e
+`onChange` dispara uma ação com o novo texto a cada tecla. No `update`, o texto
+chega em `value: Option<&str>`:
 
 ```xml
 <TextInput placeholder="Seu nome..." value="user_name" onChange="mudar_nome" width="fill" padding="10" />
@@ -423,44 +392,32 @@ fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
 }
 ```
 
-Veja `examples/perfil.rs` e `examples/navegacao.rs`.
+Veja [`examples/perfil`](examples/perfil) e [`examples/navegacao`](examples/navegacao).
 
 ---
 
 ## Formulários (Reactive Forms)
 
 Inspirado no Angular Reactive Forms: `FormBuilder` declara os `FormControl`s
-(nome, valor inicial, validadores) do lado Rust; o componente guarda o `Form`
-construído no seu próprio estado; e o template liga cada input a um controle
-pelo atributo `formControl` — o motor cuida do resto (o texto digitado vai
-para o controle certo, Enter sempre submete e avança para o próximo campo).
+(nome, valor inicial, validadores) do lado Rust; o componente guarda o `Form` no
+seu estado; e o template liga cada input a um controle pelo atributo `formControl`
+— o motor cuida do resto (o texto vai para o controle certo, Enter submete e
+avança para o próximo campo).
 
 ```rust
-use glacier_ui::{Form, FormBuilder, FormControl};
-
-struct Login {
-    form: Form,
-}
-
-impl Login {
-    fn new() -> Self {
-        Self {
-            form: FormBuilder::new("login")
-                .control(FormControl::new("username", "").required().min_length(3))
-                .control(FormControl::new("password", "").required().min_length(6))
-                // A lógica de submissão fica declarada junto com os controles.
-                .on_submit(|form, ctx| {
-                    if form.is_valid() {
-                        ctx.set("status", format!("Bem-vindo, {}!", form.value("username")));
-                    } else {
-                        form.validate(); // mostra erros também nos campos não tocados
-                        form.errors_to_context(ctx, "erro_");
-                    }
-                })
-                .build(),
+let form = FormBuilder::new("login")
+    .control(FormControl::new("username", "").required().min_length(3))
+    .control(FormControl::new("password", "").required().min_length(6))
+    // A lógica de submissão fica junto dos controles.
+    .on_submit(|form, ctx| {
+        if form.is_valid() {
+            ctx.set("status", format!("Bem-vindo, {}!", form.value("username")));
+        } else {
+            form.validate();                 // marca também campos não tocados
+            form.errors_to_context(ctx, "erro_");
         }
-    }
-}
+    })
+    .build();
 ```
 
 ```xml
@@ -471,98 +428,80 @@ impl Login {
 </Form>
 ```
 
-`TextInput formControl="username"` sem `value`/`onChange` explícitos usa o
-nome do controle para os dois — ele lê `username` do contexto e dispara a
-ação `"username"` a cada tecla. No `update`, `Form::has_control` reconhece
-essa ação sem precisar de um `match` por campo — e a submissão (`onSubmit`)
-**não** passa por `update`, e sim por um método próprio do trait,
-`on_form_submit`, então atualização de campo e submissão nunca competem pelo
-mesmo `match`:
+`TextInput formControl="username"` sem `value`/`onChange` usa o nome do controle
+para os dois. No `update`, `Form::has_control` reconhece a ação de campo sem um
+`match` por campo — e a **submissão** vai por um método próprio, `on_form_submit`,
+então atualização de campo e submissão nunca competem pelo mesmo `match`:
 
 ```rust
 fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
     if self.form.has_control(action) {
         self.form.set_value(action, value.unwrap_or_default());
-        self.form.sync_to_context(ctx); // republica valores no contexto
+        self.form.sync_to_context(ctx);
     }
 }
-
 fn on_form_submit(&mut self, _action: &str, ctx: &mut Context) {
-    self.form.submit(ctx); // roda a closure registrada em .on_submit(...)
+    self.form.submit(ctx);   // roda a closure registrada em .on_submit(...)
 }
 ```
 
-Validadores disponíveis em `FormControl`: `.required()`, `.min_length(n)`,
-`.max_length(n)`, `.pattern(regex)` e `.validator(|valor| Ok(()) | Err(msg))`
-para qualquer regra própria. `Form::is_valid()` é sempre recalculado na hora
-(seguro chamar antes de qualquer edição, ex. num botão desabilitado);
-`Form::validate()` força a checagem e marca todo campo como tocado, útil num
-handler de submit para exibir erros em campos que o usuário nunca editou.
-`Form::errors(nome)` devolve as mensagens do último `validate`/`set_value`;
-`Form::errors_to_context(ctx, prefixo)` publica a primeira de cada campo de
-uma vez (`"{prefixo}{nome}"`), para inputs `Text "{erro_username}"` inline.
-
-Pressionar Enter num campo ligado a um `formControl` **sempre** dispara o
-`onSubmit` do `<Form>` (quem decide o que fazer é `on_form_submit` (ou a
-closure de `.on_submit()`), via `Form::is_valid()` — o motor não bloqueia a
-submissão de um form inválido); se houver um próximo campo no mesmo `<Form>`,
-o foco também avança para ele, como um Tab automático — dá para preencher e
-enviar o formulário inteiro sem tocar no mouse.
-
-**Attributos `width`/`padding` de widgets com default próprio do `iced`:**
-`<TextInput>` já nasce com `width: fill` e algum padding no `iced` — se o
-template não define `width`/`padding`, o glacier preserva esse default (em vez
-de forçar `Shrink`/zero). Mas `Length::Fill` só "enche" se todo container pai
-até ele também for `width=fill` (`<Column>`, `<Form>` etc. têm default
-`Shrink`, como a maioria dos widgets) — a mesma regra já vale pra `<Row>` (veja
-a nota de layout abaixo). Por isso o `<Form>` do exemplo e os `<Column>` que
-envolvem cada campo também levam `width=fill`.
-
-Veja `examples/formulario_login/` (`main.rs` + `formulario_login.xml`).
+Validadores: `.required()`, `.min_length(n)`, `.max_length(n)`,
+`.pattern(regex)`, `.validator(|v| Ok(()) | Err(msg))`. `Form::errors_to_context`
+publica o primeiro erro de cada campo (`"{prefixo}{nome}"`) para exibir inline com
+`Text "{erro_username}"`. Enter em qualquer campo dispara o `onSubmit` **e** avança
+o foco — dá para preencher e enviar o formulário sem tocar no mouse. Veja
+[`examples/formulario_login`](examples/formulario_login).
 
 ---
 
-## Imagens
+## Navegação entre telas
 
-`<Image>` carrega um arquivo de imagem; `clip="Circle"` recorta em círculo
-(ótimo para avatares). `width`/`height` definem o tamanho.
+Cada tela é um componente registrado. Há três formas de trocar de tela:
+
+**1. Declarativa (atributos no XML):**
 
 ```xml
-<Image source="templates/avatar.png" width="100" height="100" clip="Circle" />
+<Button text="Ver perfil" navigateTo="perfil" />
+<Button text="Voltar" navigateBack="true" />
 ```
 
-Veja `examples/perfil/perfil_card.xml`.
+**2. Imperativa (Rust):** de dentro do `update`, via `ctx.navigate_to(...)` /
+`ctx.navigate_back()`; ou no motor, `motor.navigate_to(...)`.
+
+**3. Decidida por script (Luau):** `navigate(tela)` / `navigate_back()` — o
+script decide se navega (ex.: só depois de validar o login):
+
+```lua
+function entrar()
+    if ctx.usuario == "admin" and ctx.senha == "123" then
+        navigate("dashboard_luau")
+    else
+        ctx.erro = "Usuário ou senha inválidos."
+    end
+end
+```
+
+O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual;
+`navigateBack` volta. O estado de contexto é compartilhado entre telas. Veja
+[`examples/navegacao`](examples/navegacao) (declarativa) e
+[`examples/navegacao_luau`](examples/navegacao_luau) (via script).
 
 ---
 
 ## Componentes e composição
 
-### `<import>` e referência por nome
-
-Há duas formas de compor UI **a nível de template**:
-
-**1. `<import>` + referência por nome** (recomendado):
+**Composição a nível de template** — duas formas equivalentes; os atributos viram
+**props** interpoladas no contexto local do filho:
 
 ```xml
-<import name="PerfilCard" from="templates/perfil_card.xml" />
-<Container>
-    <PerfilCard nome="{user_name}" cargo="{user_role}" />
-</Container>
+<import name="PerfilCard" from="examples/perfil/perfil_card.xml" />
+<PerfilCard nome="{user_name}" cargo="{user_role}" />
+
+<!-- ou -->
+<Include src="perfil_card.xml" nome="{user_name}" />
 ```
 
-**2. `<Include src="..." />`** — inclusão equivalente, com os demais atributos
-como props.
-
-Em ambos os casos os atributos viram **props**, interpoladas no contexto local
-do componente incluído — então o filho usa `{nome}`, `{cargo}` etc. O `<import>`
-pode aparecer no topo do arquivo, como irmão da raiz.
-
-> Também é possível carregar um componente declarativamente via
-> `<link rel="import" .../>` — veja [`<link>`](#link-rel-stylesheet-import-data-theme).
-
-### O trait `Component`
-
-Encapsula **UI + comportamento + estado** num único tipo Rust:
+**O trait `Component`** — encapsula UI + comportamento + estado:
 
 ```rust
 pub trait Component {
@@ -571,113 +510,46 @@ pub trait Component {
     fn init(&mut self, ctx: &mut Context) {} // estado inicial (opcional)
     fn children(&self) -> Vec<Box<dyn Component>> { Vec::new() } // sub-componentes (opcional)
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
-    fn on_form_submit(&mut self, action: &str, ctx: &mut Context) {} // onSubmit de um <Form> (opcional)
+    fn on_form_submit(&mut self, action: &str, ctx: &mut Context) {} // onSubmit de um <Form>
+    fn subscription(&self) -> iced::Subscription<EngineMessage> { /* streams/rede */ }
 }
 ```
 
-- `update` recebe a ação (`on_click`/`onChange`); `value` vem preenchido em inputs e é `None` em cliques.
-- `on_form_submit` recebe só o `onSubmit` de um `<Form>` (veja [Formulários](#formulários-reactive-forms)) — nunca passa por `update`, então atualização de campo e submissão não competem pelo mesmo `match`.
-- `Context` expõe `get`, `set`, `set_var`, `navigate_to`, `navigate_back`.
-- O estado próprio mora nos campos do struct; o contexto guarda só a projeção string usada pelos templates.
+**Componentes aninhados e roteamento** — um `Component` pode **possuir** outros
+via `children()`. Ao registrar o pai, o motor registra os filhos em cascata, e as
+ações que saem da UI de um filho são roteadas para o `update` **do filho**. O motor
+prefixa as ações da subárvore com o nome do componente
+(`incrementar` → `CartaoContador::incrementar`); no `dispatch`:
 
-Registre com `motor.register(Box::new(MeuComponente { .. }))`: o motor parseia o
-template, processa `<import>`/`<link>`, chama `init` e passa a rotear ações para
-o `update`.
+- prefixo de um componente com comportamento → vai para ele;
+- ação sem prefixo, ou prefixo só de UI → cai na **tela ativa** (fallback) — é o
+  que mantém includes puramente visuais funcionando.
 
-> Há também `register_component(name, path)`, que registra um componente a
-> partir de um arquivo: se o template tiver um `<script>`, o comportamento
-> **Luau** é ligado automaticamente; senão fica só a UI (o comportamento, se
-> houver, vem do `update()` do app ou de um `Component` em Rust via `register`).
+> **Limite conhecido:** um filho referenciado N vezes (ex.: dentro de `<ForEach>`)
+> compartilha um único objeto e um único `update`.
 
-### Componentes aninhados e roteamento de ações
-
-Um `Component` pode **possuir** outros via `children()`. Ao registrar o pai, o
-motor registra os filhos em cascata (template + `init`), e as ações que saem da
-UI de um filho são roteadas para o `update` **do filho**:
+**`ContextVar`** — açúcar para declarar variáveis legíveis em vez de chaves soltas:
 
 ```rust
-impl Component for Painel {
-    fn name(&self) -> &str { "painel" }
-    fn template(&self) -> Template { Template::File("templates/painel.xml".into()) }
-    fn children(&self) -> Vec<Box<dyn Component>> {
-        vec![Box::new(CartaoContador { valor: 0 })]
-    }
-    fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) { /* ... */ }
-}
+ctx.set_var(&ContextVar::new("user_name", "Clara Silva"));
 ```
 
-No `painel.xml`, basta referenciar `<CartaoContador />` — sem `<import>`, porque
-o `children()` já registrou o template e o comportamento do filho.
-
-**Como o roteamento funciona:** ao inlinar a subárvore de `<CartaoContador />`,
-o motor prefixa as ações daquela subárvore com o nome do componente
-(`incrementar` → `CartaoContador::incrementar`). No `dispatch`:
-
-- prefixo que corresponde a um componente com comportamento → vai para ele;
-- ação sem prefixo, ou prefixo só de UI (sem `Component` registrado) → cai na **tela ativa** (fallback). É isso que mantém includes puramente visuais funcionando.
-
-> **Limite conhecido:** um filho referenciado N vezes (ex.: dentro de
-> `<ForEach>`) compartilha um único objeto e um único `update` — ótimo para
-> filhos sem estado próprio. Veja `examples/aninhado.rs` e `examples/lista.rs`.
-
-### `ContextVar`
-
-Açúcar para declarar variáveis de contexto de forma legível, em vez de chaves
-string soltas:
-
-```rust
-fn init(&mut self, ctx: &mut Context) {
-    ctx.set_var(&ContextVar::new("user_name", "Clara Silva"));
-    ctx.set_var(&ContextVar::new("btn_color", "#313244"));
-}
-```
-
-`ctx.set("chave", "valor")` (forma direta) continua disponível. Veja
-`examples/perfil.rs`.
+Veja [`examples/aninhado`](examples/aninhado), [`examples/lista`](examples/lista)
+e [`examples/perfil`](examples/perfil).
 
 ---
 
-## Navegação entre telas
-
-Cada tela é um componente registrado. Botões declaram o destino no próprio XML:
-
-```xml
-<Button text="Abrir perfil" navigateTo="perfil" />
-<Button text="Voltar" navigateBack="true" />
-```
-
-O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual e
-troca para o destino; `navigateBack` volta para a anterior. O estado de contexto
-é **compartilhado** entre telas — o que você edita numa aparece na outra.
-
-No código:
-
-```rust
-motor.set_initial_screen("home"); // tela inicial, limpa o histórico
-motor.navigate_to("perfil");      // empilha a atual
-motor.navigate_back();            // volta à anterior
-```
-
-Componentes também podem pedir navegação de dentro do `update` via
-`ctx.navigate_to(...)` / `ctx.navigate_back()`. Veja `examples/navegacao.rs`.
-
----
-
-## `<script>` em Lua
+## Comportamento em `<script>` Luau
 
 Dá para colocar o comportamento **dentro do próprio template**, num bloco
-`<script>` com funções **Lua** (5.4). Ao registrar o template com
-`register_component`, o motor detecta o `<script>`, carrega o script e roteia
-cada ação (`on_click`/`onChange`/`onSubmit`) para a função de mesmo nome — tudo
-**interpretado em tempo de execução**, sem recompilar o app.
+`<script>` com funções **Luau**. Ao registrar com `register_component`, o motor
+detecta o `<script>`, carrega o script e roteia cada ação
+(`on_click`/`onChange`/`onSubmit`) para a função de mesmo nome — tudo
+**interpretado em tempo de execução**, sem recompilar.
 
 ```xml
-<!-- examples/contador_macro/contador_macro.xml -->
-<Container ...>
-    <Text content="Valor: {contador}" />
-    <Button text="+" on_click="incrementar" />
-    <Button text="-" on_click="decrementar" />
-</Container>
+<Button text="+" on_click="incrementar" />
+<Button text="-" on_click="decrementar" />
 
 <script>
 function init()        ctx.contador = ctx.contador or 0 end
@@ -687,386 +559,371 @@ function decrementar() ctx.contador = ctx.contador - 1 end
 ```
 
 ```rust
-let mut motor = GlacierUI::new();
 motor.register_component("contador", "examples/contador_macro/contador_macro.xml")?;
 ```
 
 Como funciona:
 
-- cada função Lua vira uma ação de mesmo nome (casada com `on_click`/`onChange`/`onSubmit`);
-- o **contexto** do motor é a tabela global `ctx`: ler `ctx.contador` devolve o valor atual e atribuir `ctx.contador = ...` grava de volta. Como Lua coage strings numéricas em aritmética, `ctx.contador + 1` sobre `"0"` volta como `"1"`. Atribuir `ctx.x = nil` **remove** a chave do contexto;
-- ações de `onChange` recebem o texto digitado como 1º argumento **e** na global `value` (`function set_nome(v) ctx.nome = v end`);
-- a função opcional `init()` semeia o estado inicial.
+- cada função Luau vira uma ação homônima (casada com `on_click`/`onChange`/`onSubmit`);
+- o **contexto** do motor é a tabela global `ctx`: ler `ctx.contador` devolve o valor atual, atribuir grava de volta. Luau coage strings numéricas, então `ctx.contador + 1` sobre `"0"` volta `"1"`. Atribuir `ctx.x = nil` **remove** a chave;
+- atribuir uma **tabela** a `ctx.x` serializa via `json.encode` automaticamente;
+- ações de `onChange` recebem o texto digitado como 1º argumento **e** na global `value`;
+- `init()` (opcional) semeia o estado inicial.
 
-Depois de cada chamada, a tabela `ctx` é copiada de volta ao contexto e os
-bindings `{contador}` refletem na próxima avaliação. O `<script>` é removido
-**antes** do parse XML, então pode ficar como irmão da raiz sem invalidar o
-documento.
-
-**Arquivo Lua externo:** em vez de embutir o código, aponte para um `.luau`
-separado com `src` (ou `from`) — o caminho é resolvido relativo ao diretório do
-template:
+**Arquivo externo** — aponte para um `.luau` separado com `src` (resolvido
+relativo ao diretório do template):
 
 ```xml
-<script src="contador.luau"></script>
+<script src="contador_externo.luau"></script>
 ```
 
-**Vantagem:** mudar a lógica do `<script>` não exige recompilar — junto com o
-hot-reload do markup, a UI e o comportamento iteram sem build. Veja
-`examples/contador_macro.rs` (inline), `examples/contador_externo.rs` (arquivo
-externo) e o módulo `glacier_ui::luau`.
+Veja [`examples/contador_macro`](examples/contador_macro) (inline) e
+[`examples/contador_externo`](examples/contador_externo) (externo).
 
-### Rede: `fetch` (async/await via corrotina)
+### `fetch`: rede async via corrotina
 
-O Lua tem uma função global `fetch(url, opts)` para chamadas HTTP/HTTPS (via
-`hyper` + `rustls`). Ela **suspende a corrotina** da ação e retoma quando a
-resposta chega — a UI **não trava** durante a requisição, mas o código Lua fica
-com cara de `await`, síncrono e linear:
+`fetch(url, opts)` faz HTTP/HTTPS (via `hyper` + `rustls`). Ela **suspende a
+corrotina** da ação e retoma quando a resposta chega — a UI **não trava**, mas o
+código fica com cara de `await`, linear:
 
-```luau
+```lua
 function buscar()
-    ctx.status = "carregando..."                 -- já aparece na tela
-    local res = fetch("https://api.exemplo/dados") -- suspende aqui, sem bloquear
+    ctx.status = "carregando..."                     -- já aparece na tela
+    local res = fetch("https://api.ipify.org?format=json") -- suspende aqui
     if res.ok then
-        ctx.dados = res.body                       -- retomou com a resposta
+        ctx.resultado = res.body                     -- retomou com a resposta
+        ctx.status = "ok (" .. res.status .. ")"
     else
-        ctx.erro = res.error
+        ctx.status = "falhou"
     end
 end
 ```
 
-O resultado é uma tabela `{ ok, status, body, error }`. O 2º argumento `opts` é
-opcional: `{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
-Como cada `fetch` volta ao ponto exato onde parou, dá pra encadear várias em
-sequência. Veja `examples/fetch_luau.rs`.
+O retorno é `{ ok, status, body, error }`. O 2º argumento `opts` é opcional:
+`{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
+Veja [`examples/fetch_luau`](examples/fetch_luau).
 
-### Imports / módulos: `require`
+### `require`: módulos Luau
 
-Para não amontoar tudo num `<script>`, extraia lógica em **bibliotecas** `.luau`
-e importe com `require` — um client de rede, utilitários, etc., cada peça
-encapsulada e reutilizável entre componentes:
+Extraia lógica em **bibliotecas** `.luau` e importe com `require` — encapsuladas e
+reutilizáveis entre componentes:
 
-```luau
--- net/http_client.luau — a lógica de rede mora aqui, isolada
+```lua
+-- net/http_client.luau
 local Client = {}
 Client.__index = Client
-function Client.new(base) return setmetatable({ base = base }, Client) end
-function Client:get(path) return fetch(self.base .. path) end  -- usa o fetch async
+function Client.new(base) return setmetatable({ base = base, headers = {} }, Client) end
+function Client:get(path) return fetch(self.base .. path, { headers = self.headers }) end
 return Client
 ```
 
-```luau
--- <script> do template
-local http = require("net.http_client")   -- net/http_client.luau
+```lua
+local http = require("net/http_client")
 local api  = http.new("https://api.exemplo")
+function carregar() local res = api:get("/dados"); if res.ok then ctx.dados = res.body end end
+```
 
-function carregar()
-    local res = api:get("/dados")          -- suspende a corrotina por baixo
-    if res.ok then ctx.dados = res.body end
+`require("a/b")` procura `a/b.luau` (e `a/b/init.luau`) **nesta ordem**: (1) o
+diretório do template; (2) um subdir `lib/`; (3) cada caminho em
+`GLACIER_LUA_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
+então enxerga `fetch` e as globais; é carregado **uma vez** e cacheado. Veja
+[`examples/imports_luau`](examples/imports_luau).
+
+### Timers: `after` e `every`
+
+- **`after(ms, fn)`** — temporizador de **disparo único** (setTimeout). Não suspende: agenda `fn` (função ou nome de global) e devolve um handle cancelável.
+- **`every(ms, fn)`** — temporizador **repetitivo** (setInterval), construído sobre `after`: reagenda a si mesmo a cada disparo, com `:cancel()` estável entre repetições.
+
+```lua
+-- dispara uma vez após 3s, cancelável antes disso
+local t = after(3000, "tempo_esgotado")
+t:cancel()
+
+-- repete a cada 1s até cancelar
+cronometro = every(1000, "tique")
+function tique() ctx.tiques = ctx.tiques + 1 end
+function parar() cronometro:cancel() end
+```
+
+Veja [`examples/robustez_luau`](examples/robustez_luau).
+
+### `storage`: persistência local
+
+`storage.get/set/remove` guardam JSON em disco por componente, sobrevivendo a
+reiniciar o processo:
+
+```lua
+function init()   ctx.rascunho = storage.get("rascunho") or "" end
+function salvar() storage.set("rascunho", ctx.rascunho) end
+```
+
+### `viewport`, `toast`, `confirm`, `navigate`
+
+- **`viewport()`** → `{ width, height }` em px lógicos (tamanho atual da janela).
+- **`toast(opts)`** — notificação efêmera; `opts` = string ou `{ message, kind?, title? }` (kind: `info`/`success`/`warning`/`error`).
+- **`confirm(opts)`** — diálogo modal; o botão de confirmação despacha `opts.confirm_action`.
+- **`navigate(tela)` / `navigate_back()`** — navegação (ver [Navegação](#navegação-entre-telas)).
+
+Nenhuma delas suspende a corrotina — o motor aplica o efeito e retoma na hora.
+
+### Erros visíveis: `on_error`
+
+Um erro de runtime no script vira **visível** em vez de sumir num `eprintln!`.
+Defina `on_error(msg)` opcional para controlar a mensagem ao usuário (e guardar o
+erro técnico); sem ele, o motor promove a mensagem crua a um **toast** automático:
+
+```lua
+function on_error(msg)
+    ctx.ultimo_erro = msg
+    toast({ title = "Erro no script", message = "Algo deu errado.", kind = "error" })
 end
 ```
 
-`require("a.b")` procura `a/b.luau` (e depois `a/b/init.luau`) nas raízes, **nesta
-ordem**:
+### Streams: SSE e WebSocket
 
-1. o **diretório do template** (mesma convenção do `src=`);
-2. um subdiretório **`lib/`** desse diretório (para código compartilhado);
-3. cada caminho em **`GLACIER_LUA_PATH`** (separados por `:`), para bibliotecas
-   fora da árvore do template.
+Ao contrário do `fetch` (one-shot), `sse` e `websocket` são streams de **vida
+longa**: NÃO suspendem — registram o stream e devolvem um handle na hora. Cada
+evento recebido chama o handler nomeado em `opts` (`on_open`, `on_message`,
+`on_error`, `on_close`), que escreve em `ctx` como qualquer ação:
 
-Detalhes: o módulo roda no **mesmo** interpretador do componente, então enxerga
-`fetch` e as globais — um client importado pode suspender a ação como qualquer
-código inline. Cada módulo é carregado **uma vez** e cacheado (como no Lua
-padrão); um módulo sem `return` vira `true`. Módulos são carregados no
-*startup* do componente, então editar um `.luau` importado pede reiniciar o app
-(o hot-reload observa só o template). Veja `examples/imports_luau/`.
+```lua
+sse_conn = sse("https://sse.dev/test", {
+    on_open = "sse_aberto", on_message = "sse_recebeu", on_close = "sse_fechou",
+})
+function sse_recebeu(data) ctx.sse_msg = data end
+function fechar() sse_conn:close() end
+
+ws_conn = websocket("wss://echo.websocket.org", { on_message = "ws_recebeu" })
+ws_conn:send("ping")   -- envia pela conexão viva
+```
+
+**Importante:** os streams viram `iced::Subscription`s produzidas por
+`GlacierUI::subscription`. O `subscription()` do app precisa incluir
+`self.motor.subscription()` — sem isso, nenhuma conexão é aberta. Veja
+[`examples/stream_lua`](examples/stream_lua).
 
 ---
 
-## Stylesheets `.gss`
+## Estilos `.gss`
 
 Um `.gss` (*glacier stylesheet*) é um arquivo CSS-like que tira estilos repetidos
-da markup e os agrupa em **classes** reutilizáveis. Aplique-as com
-`class="..."`:
+da markup e os agrupa em **classes**. Aplique com `class="..."`:
 
 ```gss
-// styles/app.gss
-/* Comentários de linha (//) e de bloco (/* ... */, multilinha) são suportados.
-   '#' nunca é comentário, então cores #RRGGBB ficam intactas. */
-
-.card {
-    padding: 24;
-    background: #1E1E2E;
-    border-radius: 16;
-    border-width: 1;
-    border-color: #313244;
-    align-x: Center;
-}
-
+/* Comentários // de linha e de bloco. '#' nunca é comentário (cores ficam intactas). */
+.card  { padding: 24; background: #1E1E2E; border-radius: 16; border-width: 1; border-color: #313244; align-x: Center; }
 .title { size: 26; bold: true; color: #CDD6F4; }
 ```
 
 ```xml
-<Container class="card">
-    <Text class="title" content="Olá" />
-</Container>
+<Container class="card"><Text class="title" content="Olá" /></Container>
 ```
 
 **Precedência (igual à do CSS):**
 
 1. um **atributo inline** no nó sempre vence a classe;
-2. classes são aplicadas da **esquerda para a direita** (`class="a b"` → `b` sobrepõe `a`);
-3. estilos **globais** primeiro, depois os **com escopo** do componente (`<style scoped="true">`).
+2. classes aplicam da **esquerda para a direita** (`class="a b"` → `b` sobrepõe `a`);
+3. estilos **globais** primeiro, depois os **com escopo** do componente.
 
 **Propriedades reconhecidas:** `width`/`w`, `height`/`h`, `padding`, `spacing`,
-`align-x`/`align_x`/`alignX`, `align-y`/`align_y`/`alignY`, `background`/`bg`,
-`border-radius`, `border-width`, `border-color`, `color`, `size`, `bold`.
+`align-x`/`align-y`, `background`/`bg`, `border-radius`, `border-width`,
+`border-color`, `color`, `text-color`, `size`, `bold`, `hidden`.
+
+Carregue por código (`motor.load_stylesheet("styles/app.gss")` — sempre **global**)
+ou declare no template. Um `<style>` inline é **global** por padrão, ou **com
+escopo** ao componente com `scoped="true"` — a única forma de escopar um `.gss`:
+
+```xml
+<style>
+    .card  { padding: 24; background: #1E1E2E; border-radius: 16; }
+</style>
+<style scoped="true">
+    .only_here { color: red; }
+</style>
+```
+
+Veja [`examples/estilos`](examples/estilos) (arquivo + `<link>`) e
+[`examples/estilos_inline`](examples/estilos_inline) (bloco `<style>`).
 
 ### Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`
 
-Além da regra base `.classe { }`, uma classe pode declarar overlays por
-pseudo-estado — a única outra quebra (além de `:root`) da regra "seletor =
-classe":
+Uma classe pode declarar overlays por pseudo-estado — cada bloco sobrescreve só os
+campos que declara, por cima da regra base (igual ao CSS):
 
 ```gss
-.btn {
-    background: #313244;
-    text-color: #CDD6F4;
-    border-radius: 8;
-}
+.btn          { background: #313244; text-color: #CDD6F4; border-radius: 8; }
 .btn:hover    { background: #45475A; }
 .btn:active   { background: #1E1E2E; }
 .btn:disabled { background: #181825; text-color: #6C7086; }
 ```
 
-```xml
-<Button class="btn" text="Enviar" onClick="enviar" />
-<Button class="btn" text="Aguarde" disabled="true" />
-```
+Cada pseudo-estado é mapeado para o `Status` nativo do widget do iced — nada de
+rastrear hover manualmente. **Cobertura atual:**
 
-- Cada bloco `:estado` sobrescreve só os campos que declara (mesma semântica
-  de merge de uma classe normal), por cima da regra base — igual ao CSS.
-- Resolvidos com o mesmo pipeline da regra base: `var(--x)`/tokens de
-  `:root` e `@media` funcionam normalmente dentro de um bloco `:estado`.
-- **Nada de rastrear hover manualmente:** cada pseudo-estado é mapeado para o
-  `Status` nativo do widget do iced (`button::Status::Hovered`,
-  `text_input::Status::Focused`, …), então só reage quando aquele widget
-  realmente suporta o estado.
-- **Cobertura atual:**
-  - **`Button`** — `:hover`/`:active`/`:disabled` completos (`background`,
-    `text-color`, `border-*`). Requer uma `color` base na classe (senão não
-    há closure de estilo customizada para o overlay entrar). Sem overlay
-    declarado, cai no comportamento histórico (±10% de luminância no
-    hover/pressed; 50% de alfa quando `disabled`).
-  - **`TextInput`** — `:hover`/`:focus`/`:disabled` completos, por cima do
-    estilo padrão do tema (só sobrescreve os campos declarados).
-  - **`Select`** — só `:hover` (borda/fundo/texto); o iced não tem um
-    `Status::Disabled` para `pick_list`.
-  - **`Checkbox`/`Toggle`** — só o atributo `disabled` (desliga a
-    interação; usa o visual de desabilitado padrão do tema). Overlay de cor
-    por pseudo-estado ainda não está implementado para esses dois.
-- `disabled="true"` (ou `.gss`-independente, sempre inline) desativa o
-  handler do elemento (`on_press`/`on_input`/`on_toggle`), o que também é o
-  que faz `:disabled` disparar — ao contrário de `hidden`, o elemento
-  continua ocupando espaço e renderizando.
+- **`Button`** — `:hover`/`:active`/`:disabled` completos (requer uma `color` base na classe).
+- **`TextInput`** — `:hover`/`:focus`/`:disabled` completos.
+- **`Select`** — só `:hover` (o `pick_list` do iced não tem `Status::Disabled`).
+- **`Checkbox`/`Toggle`** — só o atributo `disabled` (usam o visual padrão do tema).
 
-Carregue uma stylesheet **global** por código:
-
-```rust
-motor.load_stylesheet("styles/app.gss")?; // vale para todos os componentes
-```
-
-…ou declare-a no template com `<link rel="stylesheet">` — também global (é
-equivalente ao `load_stylesheet` acima, só que declarado no XML em vez de no
-Rust). O único jeito de ter um estilo **com escopo** é um `<style scoped="true">`
-inline (próxima seção). Veja `examples/estilos.rs`.
+Veja [`examples/pseudo_estados`](examples/pseudo_estados).
 
 ---
 
-## Estilos inline: `<style>` / `<style scoped="true">`
+## `<link rel="…">` e temas
 
-Além de carregar um `.gss` externo, você pode escrever as classes **direto no
-template**, num bloco `<style>`. O conteúdo é `.gss` (mesma gramática).
+O `<link>` declara um recurso externo; `rel` escolhe o tipo:
 
-Por padrão esse bloco é **global** — vale em qualquer componente do app,
-exatamente como `<link rel="stylesheet">` ou `motor.load_stylesheet()`, só que
-sem arquivo separado. Para restringir ao componente declarante (e às classes
-que só ele usa, sem risco de vazar/colidir em outro lugar), marque
-`scoped="true"`:
-
-```xml
-<!-- XML: bloco GLOBAL por padrão -->
-<style>
-    .card  { padding: 24; background: #1E1E2E; border-radius: 16; }
-    .title { size: 26; bold: true; color: #CDD6F4; }
-</style>
-
-<!-- XML: bloco COM ESCOPO, só vale na subárvore deste componente -->
-<style scoped="true">
-    .only_here { color: red; }
-</style>
-
-<Container class="card">
-    <Text class="title" content="Olá" />
-</Container>
-```
-
-- **Escopo:** sem `scoped`, o bloco entra no mesmo conjunto de sheets globais
-  (`GlacierUI::stylesheets`) — qualquer componente enxerga essas classes. Com
-  `scoped="true"`, as classes só valem na subárvore do componente declarante,
-  **em cima** das globais — uma classe escopada de mesmo nome vence a global,
-  localmente.
-- **Ordem de documento:** se um componente tiver `<link>` e `<style>` (ou
-  vários), eles se sobrepõem na ordem em que aparecem — o **último vence** num
-  empate de propriedade.
-- **Hot-reload:** como o `<style>` mora no template, editar o bloco recarrega
-  junto com o markup, sem recompilar.
-- Como os `<import>`/`<link>`, um `<style>` pode ficar no topo do arquivo, como
-  irmão da raiz, e não renderiza nada.
-
----
-
-## `<link rel="…">`: stylesheet, import, data, theme
-
-O `<link>` declara um recurso externo a carregar. O atributo `rel` escolhe o
-tipo:
-
-| `rel` | O que faz | Escopo | Atributos |
-|---|---|---|---|
-| `stylesheet` (padrão) | carrega um `.gss` | **global** | `href` |
-| `import` / `component` | carrega outro template (igual a `<import>`) | global | `href`, `as`/`name` (default = nome do arquivo) |
-| `data` | faz merge de um JSON no contexto | global | `href`, `as`/`name` (obrigatório) |
-| `theme` | aplica uma paleta como `iced::Theme` | global (app) | `href` |
+| `rel` | O que faz | Atributos |
+|---|---|---|
+| `stylesheet` (padrão) | carrega um `.gss` **global** | `href` |
+| `import` / `component` | carrega outro template (igual a `<import>`) | `href`, `as`/`name` |
+| `data` | faz merge de um JSON no contexto | `href`, `as`/`name` |
+| `theme` | aplica uma paleta como `iced::Theme` | `href` |
 
 ```xml
-<!-- stylesheet GLOBAL: equivalente a motor.load_stylesheet() -->
 <link rel="stylesheet" href="styles/estilos.gss" />
-
-<!-- carregar um componente declarativamente -->
 <link rel="import" href="templates/perfil_card.xml" as="PerfilCard" />
-
-<!-- injetar dados de um JSON no contexto -->
-<link rel="data" href="data/equipe.json" as="app" />
-
-<!-- definir o tema da janela -->
+<link rel="data" href="data/equipe.json" as="app" />   <!-- {app.campo}, <ForEach items="app.lista"> -->
 <link rel="theme" href="styles/theme.json" />
 ```
 
-- **`stylesheet`** — a sheet é sempre **global**, igual a `motor.load_stylesheet()`; não há forma escopada de um `.gss` externo. Para escopo, use um `<style scoped="true">` inline (seção anterior).
-- **`import`/`component`** — equivalente declarativo do `<import>`; reusa o registro recursivo. Sem `as`, o nome vem do *stem* do arquivo.
-- **`data`** — lê e valida o JSON e faz merge no contexto: um **objeto** vira chaves `app.campo`; um **array** ou escalar fica em `app`. Isso alimenta `{app.campo}` e `<ForEach items="app.lista">`.
-- **`theme`** — veja a próxima seção.
+**Tema** — um JSON de cores hex aplicado como `iced::Theme`:
 
-Como os `<import>`, os `<link>` podem ficar no topo do arquivo, como irmãos da
-raiz, e não renderizam nada.
+```json
+{ "name": "Mocha", "background": "#181825", "text": "#CDD6F4",
+  "primary": "#89B4FA", "success": "#A6E3A1", "danger": "#F38BA8" }
+```
+
+Ligue-o na `application` via `motor.theme()` (devolve `Theme::Dark` se nenhum foi
+carregado) — também resolve o "fundo branco" padrão do `iced`:
+
+```rust
+iced::application(App::new, App::update, App::view)
+    .theme(|app| app.motor.theme())
+    .run()
+```
+
+Como os `<import>`, os `<link>`/`<style>`/`<script>` podem ficar no topo do
+arquivo, como irmãos da raiz, e não renderizam nada.
 
 ---
 
-## Temas
+## Toasts e diálogos (em Rust)
 
-`<link rel="theme" href="...">` carrega um JSON de cores e o aplica como
-`iced::Theme`. O JSON tem cores hex e um `name` opcional:
-
-```json
-{
-    "name": "Mocha",
-    "background": "#181825",
-    "text": "#CDD6F4",
-    "primary": "#89B4FA",
-    "success": "#A6E3A1",
-    "danger": "#F38BA8"
-}
-```
-
-O motor expõe o tema por `motor.theme()` (que devolve `Theme::Dark` se nenhum
-foi carregado). Ligue-o na sua `application`:
+**Toasts** — notificações efêmeras empilhadas no canto, dispensadas sozinhas após
+alguns segundos (ou pelo "×"):
 
 ```rust
-impl AppEstilos {
-    fn theme(&self) -> iced::Theme { self.motor.theme() }
-}
-
-iced::application("Glacier", AppEstilos::update, AppEstilos::view)
-    .subscription(AppEstilos::subscription)
-    .theme(AppEstilos::theme)   // <- aplica o tema do <link rel="theme">
-    .run_with(|| AppEstilos::new())
+ctx.show_toast(ToastSpec::success("Serviço publicado."));
+ctx.show_toast(ToastSpec::warning("Fica 10s.").with_title("Custom").with_duration(Duration::from_secs(10)));
 ```
 
-> Definir um tema também resolve o "fundo branco" padrão do `iced` em áreas que
-> o seu layout não cobre. Veja `examples/estilos.rs`.
+Requer `GlacierUI::toast_subscription(...)` no `subscription()` do app — sem ele,
+os toasts só fecham no "×". Veja [`examples/toasts`](examples/toasts).
+
+**Diálogos** — modais estilo `QMessageBox` (informação, aviso, erro, pergunta,
+confirmação), sobrepostos pelo motor:
+
+```rust
+ctx.show_dialog(DialogSpec::error("Falha no deploy", "Porta 8080 já em uso."));
+ctx.show_dialog(
+    DialogSpec::confirm("Excluir projeto", "Essa ação não pode ser desfeita.")
+        .with_detail("3 serviços serão removidos.")
+        .with_button(DialogButton::discard("excluir_confirmado")),
+);
+```
+
+Os botões despacham ações (`"ok"`, `"yes"`, `"no"`, `"cancel"`, ou a ação
+customizada) roteadas ao `update` — o motor já fechou o diálogo antes. Veja
+[`examples/dialogs`](examples/dialogs). (Da camada Luau, use `confirm(opts)`.)
+
+---
+
+## Drag-and-drop: listas reordenáveis
+
+Um `<ForEach>` com `onReorder` + `reorderKey` vira uma lista reordenável por
+arrasto: arraste pelo elemento marcado `dragHandle="true"`. Ao soltar, `onReorder`
+entrega a nova ordem (array JSON dos valores de `reorderKey`). Durante o arrasto,
+o item agarrado recebe `{t.__dragging} = "true"` para destacá-lo:
+
+```xml
+<ForEach items="tarefas" var="t" onReorder="reordenar" reorderKey="id">
+    <Row if="{t.__dragging}" equals="true" background="#434C5E" borderColor="#88C0D0" ...>
+        <Text content="⋮⋮" dragHandle="true" cursor="grabbing" />
+        <Text content="{t.nome}" width="fill" />
+    </Row>
+    <Row else="true" background="#3B4252" ...>
+        <Text content="⋮⋮" dragHandle="true" cursor="grab" />
+        <Text content="{t.nome}" width="fill" />
+    </Row>
+</ForEach>
+```
+
+Requer `self.motor.subscription()` no `subscription()` do app (carrega o listener
+global de "soltar o mouse" que encerra o drag). Veja
+[`examples/lista_reordenavel`](examples/lista_reordenavel).
+
+---
+
+## Ações built-in
+
+Algumas ações de `on_click`/`onPress` são tratadas pelo motor, sem código no
+componente:
+
+| Ação | Efeito |
+|---|---|
+| `clipboard:<chave>` | copia o valor de contexto `<chave>` para a área de transferência |
+| `window:minimize` | minimiza a janela |
+| `window:maximize` | alterna maximizar/restaurar (alias `window:toggle_maximize`) |
+| `window:close` | fecha a janela |
+| `window:drag` | inicia o arraste — use em `onPress` de uma região da barra de título |
+| `window:resize:<dir>` | inicia o redimensionamento — `<dir>` ∈ `n,s,e,w,ne,nw,se,sw` |
+
+Permitem montar uma barra de título customizada para uma janela sem decorações
+(`decorations: false` nas `window::Settings`):
+
+```xml
+<Row width="fill" onPress="window:drag"><Text content="Meu App" /></Row>
+<Button text="—" on_click="window:minimize" />
+<Button text="✕" on_click="window:close" />
+```
 
 ---
 
 ## Hot-reload
 
-Recursos carregados de arquivo são recarregados quando mudam em disco:
-
-- **templates** (`Template::File`) — inclusive `<import>`/`<link>` novos;
-- **stylesheets `.gss`** — globais e com escopo;
-- **dados** (`<link rel="data">`) — re-merge no contexto;
-- **tema** (`<link rel="theme">`) — re-aplicado no próximo redraw.
-
-Ligue a subscription do `iced` ao motor:
+Recursos carregados de arquivo são recarregados quando mudam em disco: **templates**
+(inclusive `<import>`/`<link>` novos), **stylesheets `.gss`**, **dados**
+(`<link rel="data">`), **tema** e a **lógica Luau** de um `<script src>`. Ligue a
+subscription:
 
 ```rust
 fn subscription(&self) -> iced::Subscription<EngineMessage> {
     GlacierUI::reload_subscription(std::time::Duration::from_millis(500))
 }
-
-fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
-    // dispatch trata EngineMessage::FileChanged chamando check_reload()
-    let _ = self.motor.dispatch(&msg);
-    Task::none()
-}
 ```
 
-Edite o XML, o `.gss`, o JSON de dados ou o tema e veja a UI atualizar sem
-recompilar. A lógica Lua de um `<script>` também dispensa recompilar (é
-interpretada), mas só recarrega ao re-registrar o componente.
+Edite o XML, o `.gss`, o JSON, o tema ou o `.luau` e veja a UI atualizar sem
+recompilar. Só a lógica em Rust exige um novo build.
 
 ---
 
-## Rede e async
+## Rede e async em Rust
 
-Um componente não fica preso à thread de UI: ele pode disparar I/O (rede, disco,
-timers) por **efeitos** e receber fluxos contínuos por **subscriptions**. O
-motor faz a ponte com o executor do `iced`.
+Além da camada Luau, um `Component` pode disparar I/O por **efeitos** e receber
+fluxos por **subscriptions**.
 
-**Efeitos pontuais** — dentro do `update`, chame `ctx.perform(future)`. Quando o
-future completa, seus pares `(chave, valor)` são mesclados no contexto e a UI é
-reavaliada:
-
-```rust
-use glacier_ui::EffectOutcome;
-
-fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
-    if action == "carregar" {
-        ctx.set("status", "carregando…");
-        ctx.perform(async {
-            let corpo = buscar_do_servidor().await;
-            EffectOutcome::data(vec![
-                ("status".into(), "ok".into()),
-                ("corpo".into(), corpo),
-            ])
-        });
-    }
-}
-```
-
-**Efeito que também notifica (toast)** — o `EffectOutcome` carrega, além dos
-dados, um toast opcional, e aí o motor mostra o toast do resultado — o mesmo
-`ctx.show_toast` do código síncrono, só que aplicado quando o `future` resolve
-(quando não há mais um `Context` vivo):
+**Efeitos pontuais** — dentro do `update`, `ctx.perform(future)`. Ao completar,
+os pares `(chave, valor)` são mesclados no contexto e a UI reavalia. O
+`EffectOutcome` também carrega um **toast** opcional:
 
 ```rust
-use glacier_ui::{EffectOutcome, ToastSpec};
-
 fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
     if action == "salvar" {
         ctx.perform(async {
             match salvar_no_servidor().await {
                 Ok(_)  => EffectOutcome::data(vec![("salvo".into(), "true".into())])
-                    .with_toast(ToastSpec::success("Salvo com sucesso.")),
+                    .with_toast(ToastSpec::success("Salvo.")),
                 Err(e) => EffectOutcome::toast(ToastSpec::error(format!("Falha: {e}"))),
             }
         });
@@ -1074,40 +931,22 @@ fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
 }
 ```
 
-Todo `ctx.perform` devolve um `EffectOutcome` (`EffectOutcome::data(...)`,
-`::toast(...)` e o builder `.with_toast(...)`). Assim o efeito pede o toast pelo
-caminho normal do motor, sem chaves reservadas nem interceptação no app host.
+Para isso, `dispatch` devolve `iced::Task<EngineMessage>` — repasse-a no `update`
+da app (`self.motor.dispatch(&msg)`).
 
-Para isso, `dispatch` agora devolve uma `iced::Task<EngineMessage>` — repasse-a
-no `update` da app:
-
-```rust
-fn update(&mut self, msg: EngineMessage) -> Task<EngineMessage> {
-    self.motor.dispatch(&msg)   // efeitos viram Tasks automaticamente
-}
-```
-
-**Fluxos contínuos (sockets, watchers)** — implemente `Component::subscription`
-devolvendo uma `iced::Subscription` que emita
-`EngineMessage::ContextPatch(pares)`. O motor agrega as subscriptions de todos os
-componentes em `GlacierUI::subscription`, que você liga à sua app:
+**Fluxos contínuos** — implemente `Component::subscription` devolvendo uma
+`iced::Subscription` que emita `EngineMessage::ContextPatch(pares)`. O motor agrega
+tudo em `GlacierUI::subscription`, que você liga à app. Cada item recebido mescla
+no contexto e reavalia — sem escrever `match` de mensagens.
 
 ```rust
 fn subscription(&self) -> iced::Subscription<EngineMessage> {
     Subscription::batch([
-        self.motor.subscription(),                       // componentes (rede)
-        GlacierUI::reload_subscription(Duration::from_millis(500)), // hot-reload
+        self.motor.subscription(),                                    // rede/streams dos componentes
+        GlacierUI::reload_subscription(Duration::from_millis(500)),   // hot-reload
     ])
 }
 ```
-
-Cada item recebido vira um `ContextPatch`: o motor mescla os pares no contexto e
-reavalia a UI. Assim um daemon remoto, um stream de logs ou métricas atualizam a
-tela sem você escrever nenhum `match` de mensagens.
-
-> `EngineMessage::ContextPatch(Vec<(String, String)>)` também pode ser produzido
-> pela própria app e repassado a `dispatch` — é a porta de entrada genérica para
-> empurrar estado externo para dentro do contexto.
 
 ---
 
@@ -1119,19 +958,17 @@ tela sem você escrever nenhum `match` de mensagens.
 |---|---|
 | `new()` | cria um motor vazio. |
 | `register(Box<dyn Component>)` | registra um componente (UI + comportamento + `children()` em cascata). |
-| `register_component(name, path)` | registra um componente de um arquivo; liga o comportamento Luau se o template tiver `<script>`, senão só a UI. |
+| `register_component(name, path)` | registra de um arquivo; liga o comportamento Luau se houver `<script>`. |
 | `load_stylesheet(path)` | carrega/recarrega um `.gss` **global** e reavalia tudo. |
 | `theme()` | o `iced::Theme` do `<link rel="theme">`, ou `Theme::Dark`. |
-| `dispatch(&EngineMessage)` | roteia a mensagem ao componente dono, aplica navegação/reload/patch e devolve uma `iced::Task` com os efeitos pedidos. |
-| `subscription()` | agrega as `Component::subscription` de todos os componentes numa só `iced::Subscription`. |
+| `dispatch(&EngineMessage)` | roteia a mensagem, aplica navegação/reload/patch e devolve uma `iced::Task` com os efeitos. |
+| `subscription()` | agrega as `Component::subscription` (rede, streams, drag) numa `iced::Subscription`. |
 | `set_initial_screen(name)` | define a tela ativa inicial e limpa o histórico. |
 | `navigate_to(name)` / `navigate_back()` | navegação imperativa. |
-| `render_current()` | renderiza a tela ativa para um `Element` do `iced`. |
-| `render(name)` | renderiza um componente específico. |
-| `define_data(k, v)` / `get_data(k)` / `get_data_mut(k)` | manipulam o contexto. |
-| `reevaluate_all()` | reavalia todos os templates com o contexto atual. |
-| `check_reload()` | recarrega arquivos alterados; retorna os nomes recarregados. |
-| `reload_subscription(period)` | subscription do `iced` que dispara a checagem de reload. |
+| `render_current()` / `render(name)` | renderiza a tela ativa / um componente. |
+| `define_data(k, v)` / `get_data(k)` | manipulam o contexto por fora. |
+| `reevaluate_all()` / `check_reload()` | reavalia tudo / recarrega arquivos alterados. |
+| `reload_subscription(period)` / `toast_subscription(period)` | subscriptions de hot-reload / expiração de toasts. |
 
 ### `EngineMessage`
 
@@ -1145,41 +982,71 @@ pub enum EngineMessage {
     ContextPatch(Vec<(String, String)>),               // subscriptions -> contexto
     EffectOutcome(EffectOutcome),                      // efeito async: patch + toast
     UiSubmit { action: String, next_focus: Option<String> }, // Enter num formControl
-    // ... DragStart/DragHover/DragEnd (drag-and-drop) e UiEditorAction (TextArea)
+    // ... DragStart/DragHover/DragEnd (drag-and-drop), UiEditorAction (TextArea),
+    //     LuauStream / LuauTimer (streams e timers da camada Luau)
 }
 ```
 
-### Tipos de apoio
+### Tipos de apoio (re-exportados na raiz do crate)
 
-- `Template::File(String)` | `Template::Inline(String)`
-- `Context` — `get`, `set`, `set_var`, `navigate_to`, `navigate_back`, `perform`, `show_toast`, `show_dialog`
-- `EffectOutcome { patch, toast }` — retorno de um `ctx.perform` (dados + toast opcional); construa com `EffectOutcome::data(...)` / `::toast(...)` / `.with_toast(...)`
-- `ContextVar::new(key, value)`
-- `Nav::To(String)` | `Nav::Back`
-- `FormBuilder::new(nome).control(FormControl::new(nome, valor_inicial)...).on_submit(closure).build()`
-- `Form` — `get`/`get_mut`, `has_control`, `value`/`set_value`, `errors`/`errors_to_context`, `is_valid`, `validate`, `reset`, `control_names`, `values`, `sync_to_context`, `submit` (roda a closure de `on_submit`)
-- `FormControl` — `.required()`, `.min_length(n)`, `.max_length(n)`, `.pattern(regex)`, `.validator(f)`
-- `Component::on_form_submit(action, ctx)` — recebe o `onSubmit` de um `<Form>` (default: no-op); `update` nunca vê essa ação
+- `GlacierApp` — trait com `bootstrap()` (atalho para `iced::application`).
+- `Template::File(String)` | `Template::Inline(String)`.
+- `Context` — `get`, `set`, `set_var`, `navigate_to`, `navigate_back`, `perform`, `show_toast`, `show_dialog`, `close_dialog`.
+- `EffectOutcome` — `::data(...)` / `::toast(...)` / `.with_toast(...)`.
+- `ContextVar::new(key, value)` · `Nav::To(String)` | `Nav::Back`.
+- `FormBuilder` / `Form` / `FormControl` / `Validator` (ver [Formulários](#formulários-reactive-forms)).
+- `DialogSpec` / `DialogButton` / `DialogIcon` / `ButtonRole` (ver [Diálogos](#toasts-e-diálogos-em-rust)).
+- `ToastSpec` / `ToastKind`.
+- `iced` re-exportado como `glacier_ui::iced` (e `Element`, `Task`, `Subscription`, `Font`, `Point`, `Size`, `window`).
+
+### Globais da camada Luau
+
+| Global | Assinatura | Suspende? |
+|---|---|---|
+| `ctx` | tabela = contexto do motor (ler/escrever `{chave}`) | — |
+| `value` | texto do `onChange` (1º arg das ações de input) | — |
+| `fetch(url, opts?)` | HTTP → `{ ok, status, body, error }` | **sim** |
+| `sse(url, opts)` | abre SSE, devolve handle `{ :close() }` | não |
+| `websocket(url, opts)` | abre WS, devolve handle `{ :send(t), :close() }` | não |
+| `after(ms, fn)` | timer único, devolve handle `{ :cancel() }` | não |
+| `every(ms, fn)` | timer repetitivo, devolve handle `{ :cancel() }` | não |
+| `viewport()` | `{ width, height }` | não |
+| `toast(opts)` | notificação efêmera | não |
+| `confirm(opts)` | diálogo modal | não |
+| `navigate(tela)` / `navigate_back()` | navegação | não |
+| `storage.get/set/remove` | persistência local em JSON | não |
+| `json.encode/decode/array` | (de)serialização JSON | não |
+| `require(mod)` | importa uma biblioteca `.luau` | não |
+| `on_error(msg)` | hook opcional de erro de script | — |
 
 ---
 
 ## Exemplos
 
-| Exemplo | Demonstra | Rodar |
-|---|---|---|
-| `contador` | `Component` básico com estado e cliques. | `cargo run --example contador` |
-| `contador_macro` | comportamento embutido no template via `<script>` Luau (`register_component`). | `cargo run --example contador_macro` |
-| `contador_externo` | `<script src="...">` apontando para um arquivo `.luau` externo. | `cargo run --example contador_externo` |
-| `fetch_luau` | chamada de rede (`fetch`) a partir do Lua, async via corrotina. | `cargo run --example fetch_luau` |
-| `imports_luau` | `require` de bibliotecas Lua (client de rede + utilitários), lógica modularizada. | `cargo run --example imports_luau` |
-| `perfil` | inputs (`TextInput`), cliques, `<import>` de um cartão, `Image` e `ContextVar`. | `cargo run --example perfil` |
-| `lista` | `<ForEach>` sobre JSON com um componente (`<import>`) por item. | `cargo run --example lista` |
-| `condicional` | `<if>` / `<else>` (truthy e comparação). | `cargo run --example condicional` |
-| `navegacao` | múltiplas telas, histórico e `navigateTo`/`navigateBack` com estado compartilhado. | `cargo run --example navegacao` |
-| `aninhado` | componente registrado dentro de outro (`children()`), com roteamento por namespace. | `cargo run --example aninhado` |
-| `estilos` | stylesheets `.gss` (globais e com escopo via `<link>`), classes e tema. | `cargo run --example estilos` |
-| `estilos_inline` | classes `.gss` inline e com escopo via bloco `<style>` (XML). | `cargo run --example estilos_inline` |
-| `formulario_login` | `Form`/`FormBuilder`/`FormControl`: validação, Enter para submeter/avançar campo. | `cargo run --example formulario_login` |
+Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
+
+| Exemplo | Demonstra |
+|---|---|
+| `contador` | `Component` básico com estado e cliques (Rust). |
+| `contador_macro` | comportamento embutido via `<script>` Luau + `<style>` inline. |
+| `contador_externo` | `<script src="...luau">` externo; `onChange` num input define o passo. |
+| `perfil` | inputs, `<import>` de um cartão, `Image` circular e `ContextVar`. |
+| `lista` | `<ForEach>` sobre JSON com um componente (`<import>`) por item. |
+| `lista_reordenavel` | drag-and-drop: `onReorder`/`reorderKey`/`dragHandle`. |
+| `condicional` | `<if>`/`<else>` (truthy e comparação). |
+| `aninhado` | componente dentro de outro via `children()`, roteamento por namespace. |
+| `navegacao` | múltiplas telas, histórico e `navigateTo`/`navigateBack` declarativos. |
+| `navegacao_luau` | navegação decidida pelo script (`navigate` após validar); `GlacierApp::bootstrap`. |
+| `formulario_login` | `Form`/`FormBuilder`/`FormControl`: validação, Enter para submeter/avançar. |
+| `estilos` | `.gss` de arquivo (global + escopado via `<link>`), classes e tema. |
+| `estilos_inline` | classes `.gss` inline e escopadas via bloco `<style>`. |
+| `pseudo_estados` | `:hover`/`:focus`/`:active`/`:disabled` em Button/TextInput/Select. |
+| `dialogs` | diálogos modais estilo QMessageBox (Rust). |
+| `toasts` | toasts info/sucesso/aviso/erro, com título e duração customizados. |
+| `fetch_luau` | chamada HTTP (`fetch`) do Luau, async via corrotina. |
+| `imports_luau` | `require` de bibliotecas Luau (client de rede + utilitários). |
+| `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
+| `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
 
 ---
 
@@ -1187,10 +1054,9 @@ pub enum EngineMessage {
 
 ```bash
 cargo login             # token de https://crates.io/settings/tokens
+cargo publish --dry-run # valida o empacotamento
 cargo publish           # publica glacier-ui
 ```
-
-Valide antes com `cargo publish --dry-run`.
 
 ---
 
