@@ -338,6 +338,19 @@ impl UiNode {
         }
     }
 
+    /// Collect the direct text children of `node`, HTML-style: concatenate every
+    /// text child, trim the ends, and collapse any run of whitespace (including
+    /// newlines from multi-line indented source) into a single space. Returns an
+    /// empty string when there is no text content.
+    fn collect_child_text(node: &Node) -> String {
+        let raw = node
+            .children()
+            .filter(|c| c.is_text())
+            .filter_map(|c| c.text())
+            .collect::<String>();
+        raw.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
     /// Helper to parse a bool attribute
     fn get_attr_bool(node: &Node, keys: &[&str]) -> bool {
         Self::get_attr(node, keys)
@@ -397,7 +410,17 @@ impl UiNode {
             "Column" | "column" => NodeType::Column,
             "Row" | "row" => NodeType::Row,
             "Text" | "text" => {
-                let content = Self::get_attr(&node, &["content", "conteudo", "text", "texto"]).unwrap_or_default();
+                // Text accepts its content either via the `content` attribute or
+                // as a text child (`<Text>lorem ipsum</Text>`). The child wins when
+                // both are present. Like HTML, child text is trimmed and any run of
+                // whitespace is collapsed to a single space, so long texts can be
+                // written across multiple indented lines.
+                let child_content = Self::collect_child_text(&node);
+                let content = if !child_content.is_empty() {
+                    child_content
+                } else {
+                    Self::get_attr(&node, &["content", "conteudo", "text", "texto"]).unwrap_or_default()
+                };
                 let size = Self::get_attr_num(&node, &["size", "tamanho"], NumAttr::Size, &mut numeric_templates);
                 let bold = Self::get_attr_bool(&node, &["bold", "negrito"]);
                 let color = Self::get_attr(&node, &["color", "cor"]);

@@ -1678,3 +1678,38 @@ fn test_register_component_ui_only_when_no_script() {
 
     std::fs::remove_file(path).ok();
 }
+
+#[test]
+fn test_text_child_content() {
+    // Child text is accepted and normalized (trim + collapse whitespace).
+    let xml = "<Text>  lorem   ipsum \n  dolor  </Text>";
+    let ast = UiNode::parse_xml(xml).unwrap();
+    if let NodeType::Text { content, .. } = &ast.kind {
+        assert_eq!(content, "lorem ipsum dolor");
+    } else {
+        panic!("Root should be Text");
+    }
+}
+
+#[test]
+fn test_text_child_wins_over_attribute() {
+    // When both are given, the child takes precedence.
+    let xml = r#"<Text content="from attr">from child</Text>"#;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    if let NodeType::Text { content, .. } = &ast.kind {
+        assert_eq!(content, "from child");
+    } else {
+        panic!("Root should be Text");
+    }
+}
+
+#[test]
+fn test_text_attribute_fallback_when_no_child() {
+    let xml = r#"<Text content="only attr" />"#;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    if let NodeType::Text { content, .. } = &ast.kind {
+        assert_eq!(content, "only attr");
+    } else {
+        panic!("Root should be Text");
+    }
+}
