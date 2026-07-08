@@ -338,17 +338,47 @@ impl UiNode {
         }
     }
 
-    /// Collect the direct text children of `node`, HTML-style: concatenate every
-    /// text child, trim the ends, and collapse any run of whitespace (including
-    /// newlines from multi-line indented source) into a single space. Returns an
-    /// empty string when there is no text content.
+    /// Normalize text content HTML-style: trim the ends and collapse any run of
+    /// whitespace (including newlines from multi-line indented source) into a
+    /// single space — *except* the non-breaking space (U+00A0, written
+    /// `&nbsp;`), which is a hard, literal space. NBSP is never collapsed nor
+    /// trimmed, and it absorbs adjacent collapsible whitespace so it stays a
+    /// single space; the parser rewrites `&nbsp;` to U+00A0 before parsing (see
+    /// [`UiNode::parse_xml`]).
+    fn normalize_text(raw: &str) -> String {
+        let mut out = String::new();
+        let mut pending_space = false; // a run of collapsible whitespace is pending
+        for ch in raw.chars() {
+            if ch == '\u{00A0}' {
+                // Hard space: always emitted, and it consumes any pending
+                // collapsible run so `space + nbsp + space` stays one space.
+                out.push(' ');
+                pending_space = false;
+            } else if ch.is_whitespace() {
+                pending_space = true;
+            } else {
+                // Flush the pending run as a single space, unless it would be a
+                // leading space (out empty) or double a space already emitted by
+                // an adjacent NBSP.
+                if pending_space && !out.is_empty() && !out.ends_with(' ') {
+                    out.push(' ');
+                }
+                pending_space = false;
+                out.push(ch);
+            }
+        }
+        out
+    }
+
+    /// Collect the direct text children of `node`, HTML-style. See
+    /// [`UiNode::normalize_text`] for the whitespace/`&nbsp;` rules.
     fn collect_child_text(node: &Node) -> String {
         let raw = node
             .children()
             .filter(|c| c.is_text())
             .filter_map(|c| c.text())
             .collect::<String>();
-        raw.split_whitespace().collect::<Vec<_>>().join(" ")
+        Self::normalize_text(&raw)
     }
 
     /// Helper to parse a bool attribute
@@ -588,12 +618,7 @@ impl UiNode {
             if let Some(child_node) = Self::from_node(child) {
                 children.push(child_node);
             } else if wrap_loose_text && child.is_text() {
-                let text = child
-                    .text()
-                    .unwrap_or_default()
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                let text = Self::normalize_text(child.text().unwrap_or_default());
                 if !text.is_empty() {
                     children.push(empty_node(
                         NodeType::Text { content: text, size: None, bold: false, color: None },
@@ -663,6 +688,10 @@ impl UiNode {
     /// attached to the real root as children (they are stripped before
     /// rendering, so they have no visual effect but remain discoverable).
     pub fn parse_xml(xml: &str) -> Result<Self, String> {
+        // `&nbsp;` isn't a predefined XML entity, so roxmltree would reject it.
+        // Rewrite it to a literal non-breaking space (U+00A0) up front; the text
+        // normalizer then preserves it as a hard space (see `normalize_text`).
+        let xml = xml.replace("&nbsp;", "\u{00A0}");
         let wrapped = format!("<__glacier_fragment__>{}</__glacier_fragment__>", xml);
         let doc = roxmltree::Document::parse(&wrapped).map_err(|e| e.to_string())?;
         let fragment = doc.root_element();
@@ -741,6 +770,33 @@ mod loose_text_tests {
         let root = UiNode::parse_xml("<Column>\n  <Text content=\"a\"/>\n</Column>").unwrap();
         assert_eq!(root.children.len(), 1);
         assert_eq!(text_of(&root.children[0]), Some("a"));
+    }
+
+    // `&nbsp;` becomes a literal space that survives trimming and collapsing.
+    #[test]
+    fn nbsp_is_a_hard_space_and_not_trimmed() {
+        // Leading/trailing NBSP is preserved (not trimmed).
+        let root = UiNode::parse_xml("<Text>&nbsp;ola&nbsp;</Text>").unwrap();
+        assert_eq!(text_of(&root), Some(" ola "));
+
+        // Multiple NBSP are all preserved as spaces (hard, non-collapsing).
+        let root = UiNode::parse_xml("<Text>a&nbsp;&nbsp;&nbsp;b</Text>").unwrap();
+        assert_eq!(text_of(&root), Some("a   b"));
+    }
+
+    // A NBSP absorbs adjacent collapsible whitespace so it stays a single space.
+    #[test]
+    fn nbsp_absorbs_adjacent_whitespace() {
+        let root = UiNode::parse_xml("<Text>a &nbsp; b</Text>").unwrap();
+        assert_eq!(text_of(&root), Some("a b"));
+    }
+
+    // `&nbsp;` also works in loose text wrapped into an implicit `Text`.
+    #[test]
+    fn nbsp_in_loose_text() {
+        let root = UiNode::parse_xml("<Column>&nbsp;ola&nbsp;mundo&nbsp;</Column>").unwrap();
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(text_of(&root.children[0]), Some(" ola mundo "));
     }
 }
 
