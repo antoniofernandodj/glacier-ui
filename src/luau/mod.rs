@@ -1495,6 +1495,74 @@ mod tests {
     }
 
     #[test]
+    fn every_reagenda_apos_cada_disparo() {
+        let comp = LuauComponent::from_source(
+            "function iniciar() ctx.contador = 0 every(50, 'tique') end\n\
+             function tique() ctx.contador = ctx.contador + 1 end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let first_id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("iniciar", None, &mut ctx);
+            assert_eq!(ctx.timers.len(), 1, "every não deveria suspender a corrotina");
+            first_id = ctx.timers[0].id;
+        }
+
+        let second_id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_timer_inner(first_id, &mut ctx).unwrap();
+            assert_eq!(ctx.timers.len(), 1, "cada disparo deveria reagendar o próximo");
+            second_id = ctx.timers[0].id;
+        }
+        assert_ne!(first_id, second_id, "a repetição usa um novo handle a cada disparo");
+        assert_eq!(data.get("contador").map(String::as_str), Some("1"));
+
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_timer_inner(second_id, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("contador").map(String::as_str), Some("2"));
+    }
+
+    #[test]
+    fn every_cancelado_para_de_reagendar() {
+        let comp = LuauComponent::from_source(
+            "function iniciar() ctx.contador = 0 handle = every(50, 'tique') end\n\
+             function tique() ctx.contador = ctx.contador + 1 end\n\
+             function parar() handle:cancel() end",
+            "t.xml",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let first_id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("iniciar", None, &mut ctx);
+            first_id = ctx.timers[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_timer_inner(first_id, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("contador").map(String::as_str), Some("1"));
+
+        // Cancela antes do próximo disparo: não deve reagendar nem incrementar de novo.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("parar", None, &mut ctx);
+        }
+        assert_eq!(data.get("contador").map(String::as_str), Some("1"));
+    }
+
+    #[test]
     fn on_error_hook_e_chamado_quando_definido_em_vez_de_promover_a_toast() {
         let comp = LuauComponent::from_source(
             "function quebra() error('deu ruim') end\n\

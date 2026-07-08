@@ -22,6 +22,17 @@
 
         <Rule width="500" />
 
+        <!-- every(): temporizador repetitivo (equivalente a setInterval), construído em cima de after() -->
+        <Column spacing="6" alignX="Center">
+            <Text content="Tiques: {tiques}" size="14" color="#F9E2AF" />
+            <Row spacing="10">
+                <Button text="Iniciar cronômetro (1s)" on_click="iniciar_cronometro" color="#A6E3A1" padding="8 16" />
+                <Button text="Parar" on_click="parar_cronometro" color="#313244" padding="8 16" />
+            </Row>
+        </Column>
+
+        <Rule width="500" />
+
         <!-- viewport(): tamanho atual da janela, lido pelo script -->
         <Column spacing="6" alignX="Center">
             <Text content="Janela na última leitura: {largura}x{altura}" size="14" color="#89DCEB" />

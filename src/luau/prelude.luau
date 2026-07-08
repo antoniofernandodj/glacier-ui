@@ -96,6 +96,36 @@ function after(ms, fn)
     }
 end
 
+-- Temporizador repetitivo (equivalente a setInterval), construído em cima de
+-- `after`: a cada disparo, reagenda a si mesmo, até que `:cancel()` seja
+-- chamado no handle devolvido (interrompe só as próximas repetições — o
+-- disparo em curso, se já cedido, ainda roda).
+function every(ms, fn)
+    local invoke = fn
+    if type(fn) == "string" then
+        invoke = function() _G[fn]() end
+    end
+
+    local handle = { cancelled = false }
+    local function tick()
+        if handle.cancelled then
+            return
+        end
+        invoke()
+        if not handle.cancelled then
+            handle.timer = after(ms, tick)
+        end
+    end
+    handle.timer = after(ms, tick)
+    handle.cancel = function(self)
+        self.cancelled = true
+        if self.timer then
+            self.timer:cancel()
+        end
+    end
+    return handle
+end
+
 -- Tamanho atual da janela em px lógicos: `{ width, height }`.
 function viewport()
     return { width = __glacier_viewport.width, height = __glacier_viewport.height }

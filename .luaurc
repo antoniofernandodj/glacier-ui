@@ -14,6 +14,7 @@
         "navigate_back",
         "after",
         "viewport",
-        "storage"
+        "storage",
+        "every"
     ]
 }

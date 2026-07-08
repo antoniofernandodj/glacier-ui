@@ -6,6 +6,9 @@
 -- entre chamadas porque o interpretador Luau do componente é o mesmo).
 local temporizador = nil
 
+-- Handle do cronômetro repetitivo (`every`), mesma ideia de `temporizador`.
+local cronometro = nil
+
 function init()
     -- `storage.get` lê do disco: se o app foi fechado e reaberto, o rascunho
     -- da última sessão volta aqui.
@@ -15,6 +18,7 @@ function init()
     ctx.altura = "?"
     ctx.prefs = ""
     ctx.ultimo_erro = "(nenhum ainda)"
+    ctx.tiques = 0
 end
 
 function salvar_rascunho()
@@ -40,6 +44,28 @@ end
 function tempo_esgotado()
     ctx.status = "tempo esgotado!"
     toast({ message = "A contagem regressiva terminou.", kind = "info" })
+end
+
+-- every(): igual a `after`, mas se reagenda sozinho a cada disparo (equivalente
+-- a setInterval). `:cancel()` no handle devolvido interrompe as próximas
+-- repetições.
+function iniciar_cronometro()
+    if cronometro then
+        return
+    end
+    ctx.tiques = 0
+    cronometro = every(1000, "tique")
+end
+
+function parar_cronometro()
+    if cronometro then
+        cronometro:cancel()
+        cronometro = nil
+    end
+end
+
+function tique()
+    ctx.tiques = ctx.tiques + 1
 end
 
 function ler_viewport()
