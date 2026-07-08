@@ -409,7 +409,7 @@ impl UiNode {
             "Container" | "container" => NodeType::Container,
             "Column" | "column" => NodeType::Column,
             "Row" | "row" => NodeType::Row,
-            "Text" | "text" => {
+            "Text" | "text" | "Span" | "span" => {
                 // Text accepts its content either via the `content` attribute or
                 // as a text child (`<Text>lorem ipsum</Text>`). The child wins when
                 // both are present. Like HTML, child text is trimmed and any run of
@@ -576,11 +576,30 @@ impl UiNode {
             }
         };
 
-        // Recursively parse children
+        // Recursively parse children. Bare text nodes aren't elements, so
+        // `from_node` skips them; instead we wrap any non-empty loose text in
+        // an implicit `Text` node (HTML-style), collapsing whitespace runs the
+        // same way `collect_child_text` does. Nodes that already consume their
+        // text child (`Text`/`Span`) are excluded so the content isn't
+        // duplicated.
+        let wrap_loose_text = !matches!(kind, NodeType::Text { .. });
         let mut children = Vec::new();
         for child in node.children() {
             if let Some(child_node) = Self::from_node(child) {
                 children.push(child_node);
+            } else if wrap_loose_text && child.is_text() {
+                let text = child
+                    .text()
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if !text.is_empty() {
+                    children.push(empty_node(
+                        NodeType::Text { content: text, size: None, bold: false, color: None },
+                        Vec::new(),
+                    ));
+                }
             }
         }
 
@@ -674,6 +693,54 @@ impl UiNode {
         };
         root.children.extend(decls);
         Ok(root)
+    }
+}
+
+#[cfg(test)]
+mod loose_text_tests {
+    use super::*;
+
+    fn text_of(node: &UiNode) -> Option<&str> {
+        match &node.kind {
+            NodeType::Text { content, .. } => Some(content.as_str()),
+            _ => None,
+        }
+    }
+
+    // Bare text inside a layout node is wrapped in an implicit `Text` child,
+    // with whitespace collapsed HTML-style.
+    #[test]
+    fn loose_text_becomes_implicit_text() {
+        let root = UiNode::parse_xml("<Column>  ola   mundo  </Column>").unwrap();
+        assert!(matches!(root.kind, NodeType::Column));
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(text_of(&root.children[0]), Some("ola mundo"));
+    }
+
+    // Text interleaved with elements yields one implicit `Text` per run.
+    #[test]
+    fn loose_text_interleaved_with_elements() {
+        let root = UiNode::parse_xml("<Row>antes<Text content=\"meio\"/>depois</Row>").unwrap();
+        let contents: Vec<_> = root.children.iter().filter_map(text_of).collect();
+        assert_eq!(contents, vec!["antes", "meio", "depois"]);
+    }
+
+    // A real `Text`/`Span` still consumes its own text child; no duplicate
+    // implicit node is inserted alongside the parsed `content`.
+    #[test]
+    fn text_node_does_not_double_wrap() {
+        let root = UiNode::parse_xml("<Text>ola</Text>").unwrap();
+        assert_eq!(text_of(&root), Some("ola"));
+        assert!(root.children.is_empty(), "text child was consumed, not re-wrapped");
+    }
+
+    // Whitespace-only text between elements is dropped, not turned into an
+    // empty `Text`.
+    #[test]
+    fn whitespace_only_text_is_ignored() {
+        let root = UiNode::parse_xml("<Column>\n  <Text content=\"a\"/>\n</Column>").unwrap();
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(text_of(&root.children[0]), Some("a"));
     }
 }
 
