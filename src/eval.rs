@@ -494,9 +494,21 @@ pub fn evaluate_node(
 /// Prefixes an action with its owning component, so `dispatch` can route it.
 /// Actions inside a `<Component name="X">` subtree become `X::action`.
 /// Empty actions and navigation are left untouched.
+/// Prefixos de ações built-in tratadas pelo próprio motor (`dispatch`) antes de
+/// qualquer roteamento a componente — ver `GlacierUI::dispatch`. São globais, não
+/// pertencem a componente algum, então **não** podem ser namespaceadas: senão o
+/// `strip_prefix("clipboard:")`/`"open:"`/`"window:"` erra dentro de um
+/// componente importado (ex.: `ServiceDetail::clipboard:foo`).
+const BUILTIN_ACTION_PREFIXES: [&str; 3] = ["clipboard:", "open:", "window:"];
+
 fn namespace_action(action: String, owner: Option<&str>) -> String {
     match owner {
-        Some(name) if !action.is_empty() => format!("{}::{}", name, action),
+        Some(name)
+            if !action.is_empty()
+                && !BUILTIN_ACTION_PREFIXES.iter().any(|p| action.starts_with(p)) =>
+        {
+            format!("{}::{}", name, action)
+        }
         _ => action,
     }
 }
@@ -881,5 +893,38 @@ fn hydrate_drag_item(
     }
     for node in nodes.iter_mut() {
         hydrate_handles(node, list, key, order, on_reorder, reorder_key);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn namespace_action_prefixes_component_actions() {
+        assert_eq!(
+            namespace_action("connect".to_string(), Some("Login")),
+            "Login::connect"
+        );
+    }
+
+    #[test]
+    fn namespace_action_leaves_top_level_actions_untouched() {
+        assert_eq!(namespace_action("connect".to_string(), None), "connect");
+    }
+
+    #[test]
+    fn namespace_action_never_namespaces_builtin_prefixes() {
+        // Built-ins (`clipboard:`/`open:`/`window:`) são globais e resolvidos por
+        // `GlacierUI::dispatch` via `strip_prefix` — se um componente importado os
+        // namespaceasse (ex.: `ServiceDetail::clipboard:foo`), o strip falharia e o
+        // clipboard/open/window nunca dispararia. Trava essa regressão.
+        for action in ["clipboard:svc_external_url", "open:my_url", "window:close"] {
+            assert_eq!(
+                namespace_action(action.to_string(), Some("ServiceDetail")),
+                action,
+                "ação built-in não pode ser namespaceada"
+            );
+        }
     }
 }
