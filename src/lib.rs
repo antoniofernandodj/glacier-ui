@@ -525,6 +525,20 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
+            // Built-in: `textarea_top:<binding>` rola o <textarea> até o TOPO (e
+            // leva o cursor pro começo) — o par de `textarea_end`, para um botão
+            // "ao topo". Faz Scroll por -line_count (clampa no topo) +
+            // Move(DocumentStart). Útil quando não há barra de rolagem visível.
+            if let Some(binding) = a.strip_prefix("textarea_top:") {
+                use iced::widget::text_editor::{Action, Motion};
+                if let Some(content) = self.editors.get_mut(binding) {
+                    let lines = content.line_count() as i32;
+                    content.perform(Action::Scroll { lines: -lines });
+                    content.perform(Action::Move(Motion::DocumentStart));
+                }
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
             // Built-in window controls: drive the host window without any
             // component code, so a borderless app can wire its custom titlebar
             // straight from markup — `on_click="window:close"` for the buttons,
