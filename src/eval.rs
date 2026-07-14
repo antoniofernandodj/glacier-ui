@@ -205,6 +205,9 @@ pub struct EvalCtx<'a> {
     /// caminhos distintos — sem isso, uma sobrescreveria a entrada de cache da
     /// outra e o cache nunca acertaria.
     path: u64,
+    /// Quantas camadas há sobre a base. É o que dá sentido à profundidade
+    /// registrada em cada leitura (ver [`Frame`]).
+    depth: u32,
 }
 
 /// Coleta as chaves de contexto lidas durante a avaliação, em **quadros**
@@ -219,43 +222,71 @@ pub struct EvalCtx<'a> {
 /// estática do template, que poderia esquecer um caso.
 #[derive(Default)]
 pub struct Reads {
-    frames: std::cell::RefCell<Vec<HashMap<String, Option<String>>>>,
+    frames: std::cell::RefCell<Vec<Frame>>,
+}
+
+/// Um quadro de leituras: as chaves lidas por uma subárvore, cada uma com o
+/// valor visto e a **profundidade da camada que a resolveu** (0 = a base).
+///
+/// A profundidade é o que impede uma variável local de contaminar quem está por
+/// fora. `{l.nome}` só existe na camada do item; se ela subisse até o conjunto de
+/// dependências do *template*, o motor iria perguntar "o contexto ainda tem
+/// `l.nome` com o valor X?" — e a resposta é sempre não, porque `l.nome` nunca
+/// esteve no contexto. O template ficaria **eternamente sujo** e nunca
+/// reaproveitaria nada. Ao fechar um quadro de profundidade `d`, só sobem as
+/// leituras resolvidas *fora* dele (`src < d`).
+struct Frame {
+    depth: u32,
+    reads: HashMap<String, (Option<String>, u32)>,
 }
 
 impl Reads {
-    /// Anota a leitura de `key` (com o valor visto) no quadro corrente.
-    fn record(&self, key: &str, value: Option<&str>) {
+    /// Anota a leitura de `key` (o valor visto e a profundidade que a resolveu)
+    /// no quadro corrente.
+    fn record(&self, key: &str, value: Option<&str>, src: u32) {
         if let Some(frame) = self.frames.borrow_mut().last_mut() {
             frame
+                .reads
                 .entry(key.to_string())
-                .or_insert_with(|| value.map(str::to_string));
+                .or_insert_with(|| (value.map(str::to_string), src));
         }
     }
 
-    fn push(&self) {
-        self.frames.borrow_mut().push(HashMap::new());
+    fn push(&self, depth: u32) {
+        self.frames.borrow_mut().push(Frame { depth, reads: HashMap::new() });
     }
 
-    /// Fecha o quadro corrente, devolvendo suas dependências e propagando-as
-    /// para o quadro de fora.
+    /// Fecha o quadro corrente, devolvendo **todas** as suas dependências (é o
+    /// que valida a entrada de cache dele, avaliada com as camadas em vigor) e
+    /// propagando para o quadro de fora só as que vêm de fora dele.
     fn pop(&self) -> Vec<(String, Option<String>)> {
         let mut frames = self.frames.borrow_mut();
         let Some(frame) = frames.pop() else { return Vec::new() };
         if let Some(parent) = frames.last_mut() {
-            for (k, v) in &frame {
-                parent.entry(k.clone()).or_insert_with(|| v.clone());
+            for (k, (v, src)) in &frame.reads {
+                if *src < frame.depth {
+                    parent.reads.entry(k.clone()).or_insert_with(|| (v.clone(), *src));
+                }
             }
         }
-        frame.into_iter().collect()
+        frame.reads.into_iter().map(|(k, (v, _))| (k, v)).collect()
     }
 
     /// Propaga as dependências de uma subárvore **reaproveitada do cache** (que
     /// portanto não foi reavaliada, e não registrou leitura nenhuma) para o
     /// quadro corrente — senão o ancestral acharia que não depende delas.
-    fn merge(&self, deps: &[(String, Option<String>)]) {
-        if let Some(frame) = self.frames.borrow_mut().last_mut() {
-            for (k, v) in deps {
-                frame.entry(k.clone()).or_insert_with(|| v.clone());
+    ///
+    /// `depth` é a profundidade da subárvore reusada: mesma regra do `pop`, só
+    /// sobe o que foi resolvido fora dela.
+    fn merge(&self, deps: &[(String, Option<String>)], depth: u32, ctx: &EvalCtx) {
+        let mut frames = self.frames.borrow_mut();
+        let Some(frame) = frames.last_mut() else { return };
+        for (k, v) in deps {
+            // A entrada de cache guarda o valor, não a origem — recalculamos a
+            // profundidade contra as camadas de agora (as mesmas contra as quais
+            // as dependências acabaram de ser validadas).
+            if ctx.src_depth(k) < depth {
+                frame.reads.entry(k.clone()).or_insert_with(|| (v.clone(), ctx.src_depth(k)));
             }
         }
     }
@@ -320,13 +351,18 @@ impl<'a> Layer<'a> {
         }
     }
 
-    fn get(&self, key: &str) -> Option<&str> {
+    /// O valor de `key` e a **profundidade** da camada que o resolveu, sabendo
+    /// que `self` está em `depth`. Cada passo para fora desce um nível; 0 é a
+    /// base. Ver [`Frame`].
+    fn get(&self, key: &str, depth: u32) -> Option<(&str, u32)> {
         let mut cur = Some(self);
+        let mut d = depth;
         while let Some(l) = cur {
             if let Some((_, v)) = l.vars.iter().find(|(k, _)| k == key) {
-                return Some(v);
+                return Some((v, d));
             }
             cur = l.outer;
+            d = d.saturating_sub(1);
         }
         None
     }
@@ -335,12 +371,26 @@ impl<'a> Layer<'a> {
 impl<'a> EvalCtx<'a> {
     /// Contexto de avaliação sobre `base`, sem camadas nem rastreamento.
     pub fn new(base: &'a HashMap<String, String>) -> Self {
-        Self { base, layer: None, reads: None, path: 0 }
+        Self { base, layer: None, reads: None, path: 0, depth: 0 }
     }
 
     /// O mesmo, rastreando as leituras em `reads` (o que habilita o cache).
     fn tracked(base: &'a HashMap<String, String>, reads: &'a Reads) -> Self {
-        Self { base, layer: None, reads: Some(reads), path: 0 }
+        Self { base, layer: None, reads: Some(reads), path: 0, depth: 0 }
+    }
+
+    /// Resolve `key` sem registrar a leitura: o valor e a profundidade da camada
+    /// que o deu (0 = base).
+    fn lookup(&self, key: &str) -> (Option<&str>, u32) {
+        match self.layer.and_then(|l| l.get(key, self.depth)) {
+            Some((v, d)) => (Some(v), d),
+            None => (self.base.get(key).map(String::as_str), 0),
+        }
+    }
+
+    /// A profundidade da camada que resolve `key` hoje (0 = base/ausente).
+    fn src_depth(&self, key: &str) -> u32 {
+        self.lookup(key).1
     }
 
     /// O valor de `key`: camadas locais (da mais interna para a mais externa)
@@ -350,20 +400,17 @@ impl<'a> EvalCtx<'a> {
     /// permite ao rastreamento ser completo por construção, em vez de depender
     /// de eu ter lembrado de anotar cada call-site.
     pub fn get(&self, key: &str) -> Option<&str> {
-        let value = match self.layer.and_then(|l| l.get(key)) {
-            Some(v) => Some(v),
-            None => self.base.get(key).map(String::as_str),
-        };
+        let (value, src) = self.lookup(key);
         if let Some(reads) = self.reads {
-            reads.record(key, value);
+            reads.record(key, value, src);
         }
         value
     }
 
     /// O mesmo contexto com `layer` empilhada por cima (a camada precisa viver
-    /// no frame do chamador — é isso que torna a operação O(1), sem cópia), e o
+    /// no frame do chamador — é isso que torna a operação O(1), sem cópia), o
     /// caminho estendido por `step` (a identidade desta instância; ver
-    /// [`EvalCtx::path`]).
+    /// [`EvalCtx::path`]) e a profundidade incrementada.
     fn with<'c>(&self, layer: &'c Layer<'c>, step: u64) -> EvalCtx<'c>
     where
         'a: 'c,
@@ -373,6 +420,7 @@ impl<'a> EvalCtx<'a> {
             layer: Some(layer),
             reads: self.reads,
             path: mix(self.path, step),
+            depth: self.depth + 1,
         }
     }
 
@@ -385,13 +433,7 @@ impl<'a> EvalCtx<'a> {
     /// com o contexto de agora. É a pergunta "algo de que essa subárvore depende
     /// mudou?" — e nada além disso decide um acerto de cache.
     fn deps_hold(&self, deps: &[(String, Option<String>)]) -> bool {
-        deps.iter().all(|(k, v)| {
-            let now = match self.layer.and_then(|l| l.get(k)) {
-                Some(v) => Some(v),
-                None => self.base.get(k).map(String::as_str),
-            };
-            now == v.as_deref()
-        })
+        deps.iter().all(|(k, v)| self.lookup(k).0 == v.as_deref())
     }
 }
 
@@ -400,7 +442,7 @@ impl EvalCtx<'_> {
     /// não há rastreamento).
     fn push_frame(&self) {
         if let Some(r) = self.reads {
-            r.push();
+            r.push(self.depth);
         }
     }
 }
@@ -419,7 +461,7 @@ fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
 
     let Some((deps, nodes)) = hit else { return false };
     if let Some(r) = ctx.reads {
-        r.merge(&deps);
+        r.merge(&deps, ctx.depth, ctx);
     }
     out.extend(nodes);
     cache.live.insert(ctx.path);
@@ -870,7 +912,7 @@ pub fn evaluate_template(
     cache: &mut EvalCache,
 ) -> Result<(UiNode, Vec<(String, Option<String>)>)> {
     let reads = Reads::default();
-    reads.push();
+    reads.push(0);
     let ctx = EvalCtx::tracked(context, &reads);
     let tree = eval_owned(node, &ctx, templates, styles, scope, None, None, None, cache)?;
     let deps = reads.pop();

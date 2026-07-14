@@ -2185,7 +2185,31 @@ mod dirty_tracking_tests {
         );
     }
 
-    // 5. Recarregar o ESTILO invalida o cache — o rastreamento só enxerga chaves
+    // 5. A variável de item (`{l.nome}`) NÃO pode virar dependência do template.
+    //    Ela só existe na camada do item, nunca no contexto — se subisse, o motor
+    //    perguntaria "o contexto ainda tem `l.nome` = a?", ouviria "não" para
+    //    sempre, e a tela ficaria eternamente suja: o cache existiria e nunca
+    //    acertaria. Foi exatamente o bug que a medição pegou.
+    #[test]
+    fn var_de_item_nao_suja_o_template_para_sempre() {
+        let mut m = tela_com(&[
+            ("titulo", "t"),
+            ("linhas", r#"[{"nome":"a"},{"nome":"b"}]"#),
+        ]);
+        let antes = m.evaluated_templates.get("tela").unwrap() as *const UiNode;
+
+        // Uma chave que ninguém lê. A tela tem uma lista, logo variáveis de item.
+        m.define_data("__ninguem_le_isso", "1");
+
+        let depois = m.evaluated_templates.get("tela").unwrap() as *const UiNode;
+        assert_eq!(
+            antes, depois,
+            "a tela com lista foi reconstruída à toa — a var de item vazou para as \
+             dependências do template e o deixou permanentemente sujo"
+        );
+    }
+
+    // 6. Recarregar o ESTILO invalida o cache — o rastreamento só enxerga chaves
     //    de contexto, então um `.gss` novo com o cache quente serviria os nós com
     //    o estilo velho. É a armadilha mais fácil de errar neste desenho.
     #[test]
