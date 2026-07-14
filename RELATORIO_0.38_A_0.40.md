@@ -325,3 +325,6 @@ a sidebar são reaproveitadas.
   geometria não foram exercitados (a sessão é Wayland; só há `import`, que é X11).
   O caminho de código é o mesmo de antes, mas quem confirma é abrir o app.
 - CI, `CHANGELOG.md` e `deny(missing_docs)` seguem pendentes (ver `ROADMAP.md`).
+
+
+next: "agora resolve o 1,6ms residual memoizando subárvores arbitrárias"

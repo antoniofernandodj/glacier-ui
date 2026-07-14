@@ -40,7 +40,7 @@ impl Login {
             })
             .build();
 
-        Self { form: form }
+        Self { form }
     }
 }
 

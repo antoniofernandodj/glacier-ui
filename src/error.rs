@@ -265,11 +265,10 @@ impl GlacierError {
     /// pelas camadas de cima (`register_component`), que sabem o nome que o
     /// parser — que só vê texto — não sabe.
     pub(crate) fn in_component(mut self, name: &str) -> Self {
-        if let Self::Xml(d) | Self::Gss(d) = &mut self {
-            if d.component.is_none() {
+        if let Self::Xml(d) | Self::Gss(d) = &mut self
+            && d.component.is_none() {
                 d.component = Some(name.to_string());
             }
-        }
         self
     }
 }

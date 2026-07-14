@@ -24,6 +24,12 @@ use std::sync::Arc;
 use crate::component::Context;
 
 /// A single validation rule for a [`FormControl`]'s current value.
+/// A regra de um [`Validator::Custom`]: recebe o valor do campo e devolve
+/// `Ok(())` ou a mensagem de erro. A `String` aqui é **de propósito** — é o texto
+/// que o usuário final vê no formulário, não um erro do motor (que seria um
+/// [`crate::GlacierError`]).
+pub type CustomRule = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+
 #[derive(Clone)]
 pub enum Validator {
     /// The value must not be empty (after trimming whitespace).
@@ -37,7 +43,7 @@ pub enum Validator {
     /// is reported as its own error instead of silently passing).
     Pattern(String),
     /// Any other rule: `Ok(())` when valid, `Err(message)` otherwise.
-    Custom(Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>),
+    Custom(CustomRule),
 }
 
 impl std::fmt::Debug for Validator {

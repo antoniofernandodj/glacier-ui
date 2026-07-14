@@ -8,7 +8,7 @@
 //! # Acesso ao contexto
 //!
 //! Cada função Luau enxerga uma tabela global `ctx` espelhando o
-//! [`Context`](crate::Context) do motor. Ler `ctx.contador` devolve o valor
+//! [`Context`] do motor. Ler `ctx.contador` devolve o valor
 //! atual (string); atribuir `ctx.contador = ...` grava de volta. Como Luau
 //! coage strings numéricas em aritmética, um contador é só:
 //!
@@ -51,12 +51,13 @@
 //! diretório do template → `<dir>/lib` → cada caminho em `GLACIER_LUAU_PATH`
 //! (separados por `:`). Módulos rodam no **mesmo** interpretador do componente,
 //! então enxergam `fetch` e são carregados uma única vez (cacheados como no Luau
-//! padrão). Ver [`install_module_system`].
+//! padrão). Ver `install_module_system`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::error::{GlacierError, Result};
 use crate::component::{
     Component, Context, FetchResult, PendingFetch, PendingTimer, StreamCommand, StreamCommandKind,
     StreamEventKind, StreamKind, StreamRequest, Template,
@@ -79,7 +80,7 @@ use mlua::{Function, Lua, LuaSerdeExt, MultiValue, RegistryKey, Table, Thread, T
 /// function on_msg(data) ctx.ultima = data end
 /// function enviar() conn:send(ctx.texto) end
 /// ```
-const PRELUDE: &'static str = include_str!("prelude.luau");
+const PRELUDE: &str = include_str!("prelude.luau");
 
 /// Um [`Component`] cujo comportamento vem de um bloco `<script>` em Luav.
 ///
@@ -145,18 +146,31 @@ impl LuauComponent {
     /// - **inline**: senão, o corpo do próprio bloco `<script>...</script>`.
     ///
     /// O script é executado uma vez para definir as funções. Erros de I/O ou de
-    /// sintaxe Luau viram `Err`.
-    pub fn from_file(path: impl Into<String>, name: impl Into<String>) -> Result<Self, String> {
+    /// sintaxe Luau viram [`GlacierError::Luau`], já anotados com o componente
+    /// dono — quem chama daqui de fora recebe o mesmo tipo de erro que o resto da
+    /// API, não uma `String` solta.
+    ///
+    /// (Por dentro, a construção segue trocando `String`: as mensagens vêm do
+    /// mlua e já dizem arquivo e linha *do Luau*, que é a informação que importa.
+    /// O tipo entra na fronteira pública, que é onde ele tem valor.)
+    pub fn from_file(path: impl Into<String>, name: impl Into<String>) -> Result<Self> {
         let path = path.into();
         let name = name.into();
-        let content = std::fs::read_to_string(&path)
+        Self::from_file_inner(&path, &name).map_err(|message| GlacierError::Luau {
+            component: name,
+            message,
+        })
+    }
+
+    fn from_file_inner(path: &str, name: &str) -> std::result::Result<Self, String> {
+        let content = std::fs::read_to_string(path)
             .map_err(|e| format!("Falha ao ler template Luau em '{}': {}", path, e))?;
-        let (script, script_path) = resolve_script(&content, &path)?;
+        let (script, script_path) = resolve_script(&content, path)?;
         // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do
         // SCRIPT (permite separar `views/` de `views/scripts/` e ainda
         // `require("net/api")` a partir do script); inline, relativo ao template.
-        let module_base = script_path.unwrap_or_else(|| PathBuf::from(&path));
-        Self::build(&script, path, name, &module_base)
+        let module_base = script_path.unwrap_or_else(|| PathBuf::from(path));
+        Self::build(&script, path.to_string(), name.to_string(), &module_base)
     }
 
     /// Cria um componente Luau a partir do código-fonte já extraído, associando-o
@@ -166,10 +180,14 @@ impl LuauComponent {
         script: &str,
         path: impl Into<String>,
         name: impl Into<String>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self> {
         let path = path.into();
+        let name = name.into();
         let base = PathBuf::from(&path);
-        Self::build(script, path, name.into(), &base)
+        Self::build(script, path, name.clone(), &base).map_err(|message| GlacierError::Luau {
+            component: name,
+            message,
+        })
     }
 
     /// Núcleo compartilhado: `module_base` é o arquivo cujo diretório ancora a
@@ -179,7 +197,7 @@ impl LuauComponent {
         path: String,
         name: String,
         module_base: &Path,
-    ) -> Result<Self, String> {
+    ) -> std::result::Result<Self, String> {
         let luau = Lua::new();
         luau.load(PRELUDE).set_name("<glacier prelude>").exec().map_err(|e| {
             format!("Erro ao carregar prelúdio Luau: {}", e)
@@ -673,11 +691,10 @@ impl LuauComponent {
                 // Atalho `user_agent = "..."`: vira um header User-Agent, a menos
                 // que o chamador já tenha posto um em `headers` (esse vence). Sem
                 // isto, o net aplica o UA padrão (ver DEFAULT_USER_AGENT).
-                if let Some(ua) = o.get::<Option<String>>("user_agent")? {
-                    if !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("user-agent")) {
+                if let Some(ua) = o.get::<Option<String>>("user_agent")?
+                    && !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("user-agent")) {
                         headers.push(("User-Agent".to_string(), ua));
                     }
-                }
                 (method, body, headers)
             }
             None => ("GET".into(), None, Vec::new()),
@@ -857,6 +874,407 @@ fn luau_value_to_string(lua: &Lua, v: &Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Chave (no registry do interpretador) da tabela que cacheia os módulos já
+/// carregados por `require` — o equivalente ao `package.loaded` do Luau padrão,
+/// mas privado ao motor.
+const LOADED_KEY: &str = "glacier.loaded";
+
+/// Diretórios onde `require` procura módulos, em ordem de prioridade, a partir
+/// de `base_file` — o **script externo** (`<script src>`) quando há um, senão o
+/// próprio template (script inline):
+///
+/// 1. o diretório de `base_file`;
+/// 2. um subdiretório `lib/` dele (convenção para código compartilhado);
+/// 3. cada caminho em `GLACIER_LUAU_PATH` (separados por `:`), para bibliotecas
+///    fora da árvore do template.
+///
+/// Ancorar no diretório do *script* (e não no do template) é o que permite
+/// separar `views/` de `views/scripts/` e ainda `require("net/api")` relativo ao
+/// script.
+fn module_roots(base_file: &Path) -> Vec<PathBuf> {
+    let base = base_file
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut roots = vec![base.clone(), base.join("lib")];
+    if let Ok(extra) = std::env::var("GLACIER_LUAU_PATH") {
+        roots.extend(extra.split(':').filter(|s| !s.is_empty()).map(PathBuf::from));
+    }
+    roots
+}
+
+/// Normaliza um `modname` de `require(...)` para uma string de caminho
+/// relativo. Aceita ponto (`"net.http_client"`) OU barra (`"net/http_client"`)
+/// como separador de pacote — como sempre — e agora também um ou mais
+/// prefixos `./`/`../` de navegação explícita (estilo Node.js/Lua padrão), que
+/// NÃO sofrem a conversão ponto→barra (só o restante da string sofre). Nenhum
+/// nome de pacote legítimo começa com `.`, então os dois estilos nunca colidem.
+fn normalize_modname(modname: &str) -> String {
+    let mut prefix = String::new();
+    let mut rest = modname;
+    loop {
+        if let Some(r) = rest.strip_prefix("../") {
+            prefix.push_str("../");
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("./") {
+            rest = r;
+        } else {
+            break;
+        }
+    }
+    format!("{prefix}{}", rest.replace('.', "/"))
+}
+
+/// Resolve o nome de módulo `a.b.c` (ou `a/b/c`, opcionalmente prefixado por
+/// `./`/`../`) para um arquivo `.luau`, testando `a/b/c.luau` e depois
+/// `a/b/c/init.luau` em cada raiz, na ordem.
+fn resolve_module(modname: &str, roots: &[PathBuf]) -> Option<PathBuf> {
+    let rel = normalize_modname(modname);
+    for ext in &["luau", "lua"] {
+        for root in roots {
+            let file = root.join(format!("{rel}.{ext}"));
+            if file.is_file() {
+                return Some(file);
+            }
+            let init = root.join(&rel).join(format!("init.{ext}"));
+            if init.is_file() {
+                return Some(init);
+            }
+        }
+    }
+
+    None
+}
+
+/// Instala um `require` próprio no interpretador, com resolução **relativa ao
+/// arquivo que chama `require`** (como Node.js/Lua padrão) — não ao diretório
+/// de trabalho nem, para módulos aninhados, ao script de entrada. Isso permite
+/// organizar módulos em pacotes (subpastas que se referenciam entre si por
+/// nome nu, como irmãos) e navegação explícita para fora do pacote atual com
+/// `./`/`../`, exatamente como um type-checker Luau externo (ex.: `luau-lsp`)
+/// já resolve — então os dois concordam sem gambiarra de estrutura de arquivo.
+///
+/// Regras de resolução, para cada `require(modname)`:
+/// - **Prefixo `./`/`../` explícito**: busca **só** relativo ao diretório do
+///   arquivo chamador. Sem fallback — igual a um import relativo em qualquer
+///   outra linguagem, que não existindo é erro, não procura em outro lugar.
+///   Erro se chamado de um contexto sem arquivo de origem (o script de nível
+///   superior do componente, cujo chunk nunca tem nome `@arquivo` — ver
+///   [`LuauComponent::build`]).
+/// - **Nome nu** (sem prefixo): tenta primeiro o diretório do chamador (irmão
+///   no mesmo pacote); se não achar, cai nas `roots` fixas de sempre (ver
+///   [`module_roots`]: diretório do script de entrada, `lib/`,
+///   `GLACIER_LUAU_PATH`) — mantém bibliotecas "globais" alcançáveis de
+///   qualquer módulo aninhado, e é o único caminho disponível para requires
+///   feitos direto do script de nível superior (que nunca tem "diretório do
+///   chamador" próprio).
+///
+/// Como o módulo roda no **mesmo** interpretador do componente, ele enxerga o
+/// prelúdio (`fetch`) e as globais — um client de rede importado pode chamar
+/// `fetch` e suspender a corrotina da ação como qualquer código inline. Cada
+/// módulo é carregado uma vez — o cache é por **caminho de arquivo resolvido**
+/// (canonicalizado), não pela string pedida: a mesma string (ex.: `"types"`)
+/// pode resolver a arquivos diferentes dependendo de quem chama, então a
+/// identidade do cache tem que ser pelo arquivo, não pelo texto. O valor do
+/// módulo é o que seu arquivo `return`a (uma tabela, por convenção); um módulo
+/// sem `return` é cacheado como `true`.
+fn install_module_system(luau: &Lua, roots: Vec<PathBuf>) -> mlua::Result<()> {
+    let cache = luau.create_table()?;
+    luau.set_named_registry_value(LOADED_KEY, cache)?;
+
+    let require = luau.create_function(move |luau, modname: String| {
+        let is_explicit_relative = modname.starts_with("./") || modname.starts_with("../");
+
+        // Diretório do chunk que está chamando require() agora (nível 1 acima
+        // desta função nativa). `None` para o script de nível superior (seu
+        // chunk se chama `<script:nome>`, sem prefixo `@`) — nesse caso só as
+        // roots fixas se aplicam.
+        let caller_dir: Option<PathBuf> = luau
+            .inspect_stack(1, |dbg| {
+                dbg.source()
+                    .source
+                    .as_ref()
+                    .and_then(|s| s.strip_prefix('@').map(PathBuf::from))
+            })
+            .flatten()
+            .and_then(|p| p.parent().map(Path::to_path_buf));
+
+        let mut search: Vec<PathBuf> = Vec::new();
+        if let Some(dir) = &caller_dir {
+            search.push(dir.clone());
+        }
+        if is_explicit_relative {
+            if caller_dir.is_none() {
+                return Err(mlua::Error::runtime(format!(
+                    "require('{modname}'): caminho relativo usado fora de um módulo com \
+                     arquivo de origem (ex.: direto do script de nível superior)"
+                )));
+            }
+        } else {
+            search.extend(roots.iter().cloned());
+        }
+
+        let path = resolve_module(&modname, &search).ok_or_else(|| {
+            let procurados = search
+                .iter()
+                .map(|r| r.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            mlua::Error::runtime(format!(
+                "módulo Luau '{modname}' não encontrado (procurado como \
+                 '{rel}.luau' e '{rel}/init.luau' em: {procurados})",
+                rel = normalize_modname(&modname),
+            ))
+        })?;
+
+        // Cache por caminho resolvido (canonicalizado), não pela string
+        // pedida — ver docstring da função.
+        let canon = path.canonicalize().unwrap_or_else(|_| path.clone());
+        let cache_key = canon.to_string_lossy().into_owned();
+
+        let cache: Table = luau.named_registry_value(LOADED_KEY)?;
+        match cache.get::<Value>(cache_key.as_str())? {
+            Value::Nil => {}
+            cached => return Ok(cached),
+        }
+
+        let src = std::fs::read_to_string(&path).map_err(|e| {
+            mlua::Error::runtime(format!(
+                "falha ao ler módulo Luau '{modname}' ({}): {e}",
+                path.display()
+            ))
+        })?;
+
+        let value: Value = luau
+            .load(&src)
+            .set_name(format!("@{}", path.display()))
+            .eval()?;
+        // Módulo sem `return` explícito vira `true`, como no Luau padrão, para
+        // não recarregar a cada chamada.
+        let value = match value {
+            Value::Nil => Value::Boolean(true),
+            v => v,
+        };
+        cache.set(cache_key.as_str(), value.clone())?;
+        Ok(value)
+    })?;
+
+    luau.globals().set("require", require)?;
+    Ok(())
+}
+
+/// Instala o global `json` com `json.encode(value)` e `json.decode(str)`,
+/// ponte para o `serde_json` via [`LuaSerdeExt`] do `mlua`. É o que permite ao
+/// `<script>` consumir a resposta de um `fetch` (`json.decode(res.body)`) e
+/// montar payloads/strings JSON que os templates iteram
+/// (`ctx.lista = json.encode(t)`), sem um parser em Lua puro.
+///
+/// Mapeamento:
+/// - `decode`: string JSON → [`serde_json::Value`] → tabela Luau (objetos viram
+///   tabelas por chave; arrays, tabelas 1-indexadas; `null` vira `nil`).
+/// - `encode`: valor Luau → [`serde_json::Value`] → string JSON. Uma tabela com
+///   chaves `1..n` sequenciais vira array JSON; caso contrário, objeto. Uma
+///   tabela **vazia** é ambígua e serializa como objeto `{}` — quem precisa de
+///   `[]` para uma lista vazia deve tratar esse caso no próprio script.
+fn install_json(luau: &Lua) -> mlua::Result<()> {
+    let json = luau.create_table()?;
+
+    let decode = luau.create_function(|luau, s: String| {
+        let v: serde_json::Value = serde_json::from_str(&s)
+            .map_err(|e| mlua::Error::runtime(format!("json.decode: {e}")))?;
+        // `null` → `nil` (não o sentinel userdata `null` do mlua): campos
+        // ausentes/Option None viram `nil` em Lua, para os checks `x ~= nil` /
+        // `x and …` funcionarem. Sem isto, `json.decode('{"d":null}').d` seria um
+        // userdata (truthy!) e quebraria (ex.: `string.gsub(d, …)` → "got
+        // userdata"). `set_array_metatable` fica ligado (default) para arrays
+        // seguirem marcados (round-trip / `json.array`).
+        let opts = mlua::SerializeOptions::new()
+            .serialize_none_to_null(false)
+            .serialize_unit_to_null(false);
+        luau.to_value_with(&v, opts)
+    })?;
+
+    let encode = luau.create_function(|luau, v: Value| {
+        let json: serde_json::Value = luau
+            .from_value(v)
+            .map_err(|e| mlua::Error::runtime(format!("json.encode: {e}")))?;
+        serde_json::to_string(&json)
+            .map_err(|e| mlua::Error::runtime(format!("json.encode: {e}")))
+    })?;
+
+    // `json.array(t)` marca `t` como ARRAY para o encode, resolvendo a ambiguidade
+    // da tabela vazia: `json.encode({})` produz `{}` (objeto), mas
+    // `json.encode(json.array({}))` produz `[]`. Necessário ao (re)encodar structs
+    // com campos `Vec` que podem ficar vazios (ex.: reencodar um spec editado
+    // cujo `watch_paths`/`domains` esvaziou) — sem isso o servidor recusaria o
+    // `[]` esperado ao ver um `{}`. Tabelas vindas de `json.decode('[]')` já vêm
+    // marcadas; isto é para arrays CRIADOS no Luau. Sem efeito em tabelas com
+    // itens (já detectadas como array). Devolve a própria tabela (encadeável).
+    let array = luau.create_function(|luau, t: Table| {
+        t.set_metatable(Some(luau.array_metatable()))?;
+        Ok(t)
+    })?;
+
+    json.set("decode", decode)?;
+    json.set("encode", encode)?;
+    json.set("array", array)?;
+    luau.globals().set("json", json)?;
+    Ok(())
+}
+
+/// Caminho do arquivo de persistência de um componente: um `.json` por
+/// componente sob `.glacier-storage/`, ao lado do arquivo que ancora
+/// `require` (`module_base`, ver [`module_roots`]) — mesma convenção de
+/// vizinhança que `lib/`. `name` é sanitizado (só `[A-Za-z0-9_-]`, resto vira
+/// `_`) para nunca produzir um caminho fora do diretório esperado.
+fn storage_path(module_base: &Path, name: &str) -> PathBuf {
+    let base = module_base
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect();
+    base.join(".glacier-storage").join(format!("{safe}.json"))
+}
+
+/// Lê o arquivo de persistência como um objeto JSON (vazio se ausente ou
+/// corrompido — persistência é "best effort", não deve derrubar o script).
+fn read_storage_file(path: &Path) -> serde_json::Map<String, serde_json::Value> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| match v {
+            serde_json::Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Grava o objeto JSON de volta no arquivo de persistência, criando o
+/// diretório `.glacier-storage/` se necessário. Falhas de I/O são logadas,
+/// não propagadas — `storage.set` não deveria poder derrubar um script.
+fn write_storage_file(path: &Path, map: &serde_json::Map<String, serde_json::Value>) {
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("[glacier-ui] storage: falha ao criar '{}': {}", parent.display(), e);
+            return;
+        }
+    match serde_json::to_string_pretty(&serde_json::Value::Object(map.clone())) {
+        Ok(s) => {
+            if let Err(e) = std::fs::write(path, s) {
+                eprintln!("[glacier-ui] storage: falha ao gravar '{}': {}", path.display(), e);
+            }
+        }
+        Err(e) => eprintln!("[glacier-ui] storage: falha ao serializar: {}", e),
+    }
+}
+
+/// Instala o global `storage` (`get`/`set`/`remove`), persistência local em
+/// JSON análoga ao `localStorage` do browser — o que sobrevive a um restart
+/// do processo (ao contrário de `ctx`, que é só memória). Cada chamada lê/
+/// grava o arquivo inteiro (simples e correto para o volume de dados que um
+/// `<script>` de UI guarda; não pensado para alta frequência/concorrência).
+///
+/// - `storage.get(key)`: devolve o valor guardado (qualquer tipo
+///   JSON-serializável — string, número, booleano, tabela) ou `nil`.
+/// - `storage.set(key, value)`: grava `value` sob `key`, sobrescrevendo.
+/// - `storage.remove(key)`: apaga `key`, se existir.
+fn install_storage(luau: &Lua, path: PathBuf) -> mlua::Result<()> {
+    let storage = luau.create_table()?;
+
+    let get_path = path.clone();
+    let get = luau.create_function(move |luau, key: String| {
+        let map = read_storage_file(&get_path);
+        match map.get(&key) {
+            Some(v) => luau.to_value(v),
+            None => Ok(Value::Nil),
+        }
+    })?;
+
+    let set_path = path.clone();
+    let set = luau.create_function(move |luau, (key, value): (String, Value)| {
+        let mut map = read_storage_file(&set_path);
+        let json: serde_json::Value = luau
+            .from_value(value)
+            .map_err(|e| mlua::Error::runtime(format!("storage.set: {e}")))?;
+        map.insert(key, json);
+        write_storage_file(&set_path, &map);
+        Ok(())
+    })?;
+
+    let remove_path = path.clone();
+    let remove = luau.create_function(move |_, key: String| {
+        let mut map = read_storage_file(&remove_path);
+        map.remove(&key);
+        write_storage_file(&remove_path, &map);
+        Ok(())
+    })?;
+
+    storage.set("get", get)?;
+    storage.set("set", set)?;
+    storage.set("remove", remove)?;
+    luau.globals().set("storage", storage)?;
+    Ok(())
+}
+
+/// Se o template tem um bloco `<script>` (inline ou apontando para um `.luau`
+/// externo via `src`/`from`) — ou seja, se ele traz comportamento Luau. O motor
+/// usa isto para decidir, ao registrar um componente por arquivo, se liga um
+/// [`LuauComponent`] (há script) ou o mantém só-UI (não há).
+pub(crate) fn has_script(markup: &str) -> bool {
+    extract_script_src(markup).is_some() || extract_script(markup).is_some()
+}
+
+/// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo
+/// externo via `src="..."` (ou `from="..."`), lê esse arquivo (caminho relativo
+/// ao diretório do `template_path`); senão, usa o corpo inline do bloco.
+/// Devolve `(conteúdo, Option<caminho do script externo>)`. Para um
+/// `<script src>` externo, o caminho é resolvido relativo ao diretório do
+/// template e devolvido para ancorar a resolução de `require` (ver
+/// [`LuauComponent::from_file`]). Inline → `(corpo, None)`.
+fn resolve_script(markup: &str, template_path: &str) -> std::result::Result<(String, Option<PathBuf>), String> {
+    if let Some(src) = extract_script_src(markup) {
+        let base = std::path::Path::new(template_path)
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let luau_path = base.join(&src);
+        let content = std::fs::read_to_string(&luau_path).map_err(|e| {
+            format!("Falha ao ler script Luau externo '{}': {}", luau_path.display(), e)
+        })?;
+        return Ok((content, Some(luau_path)));
+    }
+    Ok((extract_script(markup).unwrap_or_default(), None))
+}
+
+/// Lê o atributo `src`/`from` da tag de abertura `<script ...>`, se houver — o
+/// caminho de um arquivo `.luau` externo.
+fn extract_script_src(markup: &str) -> Option<String> {
+    let lower = markup.to_ascii_lowercase();
+    let open = lower.find("<script")?;
+    // Só o texto da tag de abertura (até o primeiro `>`).
+    let gt = lower[open..].find('>')? + open;
+    let tag = &markup[open..gt];
+    let re = regex::Regex::new(r#"(?i)\b(?:src|from)\s*=\s*["']([^"']+)["']"#).ok()?;
+    re.captures(tag)
+        .map(|c| c.get(1).map_or(String::new(), |m| m.as_str().to_string()))
+        .filter(|s| !s.is_empty())
+}
+
+/// Extrai o corpo de um bloco `<script>...</script>` de um template XML.
+/// Espelha a lógica de remoção do parser, mas devolve o conteúdo em vez de
+/// descartá-lo.
+fn extract_script(markup: &str) -> Option<String> {
+    let lower = markup.to_ascii_lowercase();
+    let open = lower.find("<script")?;
+    let gt = lower[open..].find('>')? + open + 1;
+    let close = lower[gt..].find("</script>")? + gt;
+    Some(markup[gt..close].to_string())
 }
 
 #[cfg(test)]
@@ -2047,407 +2465,5 @@ mod tests {
 
         let _ = std::fs::remove_file(&storage_file);
     }
-}
-
-/// Chave (no registry do interpretador) da tabela que cacheia os módulos já
-/// carregados por `require` — o equivalente ao `package.loaded` do Luau padrão,
-/// mas privado ao motor.
-const LOADED_KEY: &str = "glacier.loaded";
-
-/// Diretórios onde `require` procura módulos, em ordem de prioridade, para um
-/// template em `template_path`:
-///
-/// 1. o **diretório do template** (mesma convenção do `<script src="...">`);
-/// 2. um subdiretório `lib/` desse diretório (convenção para código compartilhado);
-/// 3. cada caminho em `GLACIER_LUAU_PATH` (separados por `:`), para bibliotecas
-///    fora da árvore do template.
-/// Raízes de resolução de `require`, a partir do arquivo `base_file` (o SCRIPT
-/// externo `<script src>`, ou o próprio template quando o script é inline): o
-/// diretório do arquivo, depois `<dir>/lib`, depois `GLACIER_LUAU_PATH`. Usar o
-/// dir do script (não do template) permite separar `views/` de `views/scripts/`
-/// e ainda `require("net/api")` relativo ao script.
-fn module_roots(base_file: &Path) -> Vec<PathBuf> {
-    let base = base_file
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let mut roots = vec![base.clone(), base.join("lib")];
-    if let Ok(extra) = std::env::var("GLACIER_LUAU_PATH") {
-        roots.extend(extra.split(':').filter(|s| !s.is_empty()).map(PathBuf::from));
-    }
-    roots
-}
-
-/// Normaliza um `modname` de `require(...)` para uma string de caminho
-/// relativo. Aceita ponto (`"net.http_client"`) OU barra (`"net/http_client"`)
-/// como separador de pacote — como sempre — e agora também um ou mais
-/// prefixos `./`/`../` de navegação explícita (estilo Node.js/Lua padrão), que
-/// NÃO sofrem a conversão ponto→barra (só o restante da string sofre). Nenhum
-/// nome de pacote legítimo começa com `.`, então os dois estilos nunca colidem.
-fn normalize_modname(modname: &str) -> String {
-    let mut prefix = String::new();
-    let mut rest = modname;
-    loop {
-        if let Some(r) = rest.strip_prefix("../") {
-            prefix.push_str("../");
-            rest = r;
-        } else if let Some(r) = rest.strip_prefix("./") {
-            rest = r;
-        } else {
-            break;
-        }
-    }
-    format!("{prefix}{}", rest.replace('.', "/"))
-}
-
-/// Resolve o nome de módulo `a.b.c` (ou `a/b/c`, opcionalmente prefixado por
-/// `./`/`../`) para um arquivo `.luau`, testando `a/b/c.luau` e depois
-/// `a/b/c/init.luau` em cada raiz, na ordem.
-fn resolve_module(modname: &str, roots: &[PathBuf]) -> Option<PathBuf> {
-    let rel = normalize_modname(modname);
-    for ext in &["luau", "lua"] {
-        for root in roots {
-            let file = root.join(format!("{rel}.{ext}"));
-            if file.is_file() {
-                return Some(file);
-            }
-            let init = root.join(&rel).join(format!("init.{ext}"));
-            if init.is_file() {
-                return Some(init);
-            }
-        }
-    }
-
-    None
-}
-
-/// Instala um `require` próprio no interpretador, com resolução **relativa ao
-/// arquivo que chama `require`** (como Node.js/Lua padrão) — não ao diretório
-/// de trabalho nem, para módulos aninhados, ao script de entrada. Isso permite
-/// organizar módulos em pacotes (subpastas que se referenciam entre si por
-/// nome nu, como irmãos) e navegação explícita para fora do pacote atual com
-/// `./`/`../`, exatamente como um type-checker Luau externo (ex.: `luau-lsp`)
-/// já resolve — então os dois concordam sem gambiarra de estrutura de arquivo.
-///
-/// Regras de resolução, para cada `require(modname)`:
-/// - **Prefixo `./`/`../` explícito**: busca **só** relativo ao diretório do
-///   arquivo chamador. Sem fallback — igual a um import relativo em qualquer
-///   outra linguagem, que não existindo é erro, não procura em outro lugar.
-///   Erro se chamado de um contexto sem arquivo de origem (o script de nível
-///   superior do componente, cujo chunk nunca tem nome `@arquivo` — ver
-///   [`LuauComponent::build`]).
-/// - **Nome nu** (sem prefixo): tenta primeiro o diretório do chamador (irmão
-///   no mesmo pacote); se não achar, cai nas `roots` fixas de sempre (ver
-///   [`module_roots`]: diretório do script de entrada, `lib/`,
-///   `GLACIER_LUAU_PATH`) — mantém bibliotecas "globais" alcançáveis de
-///   qualquer módulo aninhado, e é o único caminho disponível para requires
-///   feitos direto do script de nível superior (que nunca tem "diretório do
-///   chamador" próprio).
-///
-/// Como o módulo roda no **mesmo** interpretador do componente, ele enxerga o
-/// prelúdio (`fetch`) e as globais — um client de rede importado pode chamar
-/// `fetch` e suspender a corrotina da ação como qualquer código inline. Cada
-/// módulo é carregado uma vez — o cache é por **caminho de arquivo resolvido**
-/// (canonicalizado), não pela string pedida: a mesma string (ex.: `"types"`)
-/// pode resolver a arquivos diferentes dependendo de quem chama, então a
-/// identidade do cache tem que ser pelo arquivo, não pelo texto. O valor do
-/// módulo é o que seu arquivo `return`a (uma tabela, por convenção); um módulo
-/// sem `return` é cacheado como `true`.
-fn install_module_system(luau: &Lua, roots: Vec<PathBuf>) -> mlua::Result<()> {
-    let cache = luau.create_table()?;
-    luau.set_named_registry_value(LOADED_KEY, cache)?;
-
-    let require = luau.create_function(move |luau, modname: String| {
-        let is_explicit_relative = modname.starts_with("./") || modname.starts_with("../");
-
-        // Diretório do chunk que está chamando require() agora (nível 1 acima
-        // desta função nativa). `None` para o script de nível superior (seu
-        // chunk se chama `<script:nome>`, sem prefixo `@`) — nesse caso só as
-        // roots fixas se aplicam.
-        let caller_dir: Option<PathBuf> = luau
-            .inspect_stack(1, |dbg| {
-                dbg.source()
-                    .source
-                    .as_ref()
-                    .and_then(|s| s.strip_prefix('@').map(PathBuf::from))
-            })
-            .flatten()
-            .and_then(|p| p.parent().map(Path::to_path_buf));
-
-        let mut search: Vec<PathBuf> = Vec::new();
-        if let Some(dir) = &caller_dir {
-            search.push(dir.clone());
-        }
-        if is_explicit_relative {
-            if caller_dir.is_none() {
-                return Err(mlua::Error::runtime(format!(
-                    "require('{modname}'): caminho relativo usado fora de um módulo com \
-                     arquivo de origem (ex.: direto do script de nível superior)"
-                )));
-            }
-        } else {
-            search.extend(roots.iter().cloned());
-        }
-
-        let path = resolve_module(&modname, &search).ok_or_else(|| {
-            let procurados = search
-                .iter()
-                .map(|r| r.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            mlua::Error::runtime(format!(
-                "módulo Luau '{modname}' não encontrado (procurado como \
-                 '{rel}.luau' e '{rel}/init.luau' em: {procurados})",
-                rel = normalize_modname(&modname),
-            ))
-        })?;
-
-        // Cache por caminho resolvido (canonicalizado), não pela string
-        // pedida — ver docstring da função.
-        let canon = path.canonicalize().unwrap_or_else(|_| path.clone());
-        let cache_key = canon.to_string_lossy().into_owned();
-
-        let cache: Table = luau.named_registry_value(LOADED_KEY)?;
-        match cache.get::<Value>(cache_key.as_str())? {
-            Value::Nil => {}
-            cached => return Ok(cached),
-        }
-
-        let src = std::fs::read_to_string(&path).map_err(|e| {
-            mlua::Error::runtime(format!(
-                "falha ao ler módulo Luau '{modname}' ({}): {e}",
-                path.display()
-            ))
-        })?;
-
-        let value: Value = luau
-            .load(&src)
-            .set_name(format!("@{}", path.display()))
-            .eval()?;
-        // Módulo sem `return` explícito vira `true`, como no Luau padrão, para
-        // não recarregar a cada chamada.
-        let value = match value {
-            Value::Nil => Value::Boolean(true),
-            v => v,
-        };
-        cache.set(cache_key.as_str(), value.clone())?;
-        Ok(value)
-    })?;
-
-    luau.globals().set("require", require)?;
-    Ok(())
-}
-
-/// Instala o global `json` com `json.encode(value)` e `json.decode(str)`,
-/// ponte para o `serde_json` via [`LuaSerdeExt`] do `mlua`. É o que permite ao
-/// `<script>` consumir a resposta de um `fetch` (`json.decode(res.body)`) e
-/// montar payloads/strings JSON que os templates iteram
-/// (`ctx.lista = json.encode(t)`), sem um parser em Lua puro.
-///
-/// Mapeamento:
-/// - `decode`: string JSON → [`serde_json::Value`] → tabela Luau (objetos viram
-///   tabelas por chave; arrays, tabelas 1-indexadas; `null` vira `nil`).
-/// - `encode`: valor Luau → [`serde_json::Value`] → string JSON. Uma tabela com
-///   chaves `1..n` sequenciais vira array JSON; caso contrário, objeto. Uma
-///   tabela **vazia** é ambígua e serializa como objeto `{}` — quem precisa de
-///   `[]` para uma lista vazia deve tratar esse caso no próprio script.
-fn install_json(luau: &Lua) -> mlua::Result<()> {
-    let json = luau.create_table()?;
-
-    let decode = luau.create_function(|luau, s: String| {
-        let v: serde_json::Value = serde_json::from_str(&s)
-            .map_err(|e| mlua::Error::runtime(format!("json.decode: {e}")))?;
-        // `null` → `nil` (não o sentinel userdata `null` do mlua): campos
-        // ausentes/Option None viram `nil` em Lua, para os checks `x ~= nil` /
-        // `x and …` funcionarem. Sem isto, `json.decode('{"d":null}').d` seria um
-        // userdata (truthy!) e quebraria (ex.: `string.gsub(d, …)` → "got
-        // userdata"). `set_array_metatable` fica ligado (default) para arrays
-        // seguirem marcados (round-trip / `json.array`).
-        let opts = mlua::SerializeOptions::new()
-            .serialize_none_to_null(false)
-            .serialize_unit_to_null(false);
-        luau.to_value_with(&v, opts)
-    })?;
-
-    let encode = luau.create_function(|luau, v: Value| {
-        let json: serde_json::Value = luau
-            .from_value(v)
-            .map_err(|e| mlua::Error::runtime(format!("json.encode: {e}")))?;
-        serde_json::to_string(&json)
-            .map_err(|e| mlua::Error::runtime(format!("json.encode: {e}")))
-    })?;
-
-    // `json.array(t)` marca `t` como ARRAY para o encode, resolvendo a ambiguidade
-    // da tabela vazia: `json.encode({})` produz `{}` (objeto), mas
-    // `json.encode(json.array({}))` produz `[]`. Necessário ao (re)encodar structs
-    // com campos `Vec` que podem ficar vazios (ex.: reencodar um spec editado
-    // cujo `watch_paths`/`domains` esvaziou) — sem isso o servidor recusaria o
-    // `[]` esperado ao ver um `{}`. Tabelas vindas de `json.decode('[]')` já vêm
-    // marcadas; isto é para arrays CRIADOS no Luau. Sem efeito em tabelas com
-    // itens (já detectadas como array). Devolve a própria tabela (encadeável).
-    let array = luau.create_function(|luau, t: Table| {
-        t.set_metatable(Some(luau.array_metatable()))?;
-        Ok(t)
-    })?;
-
-    json.set("decode", decode)?;
-    json.set("encode", encode)?;
-    json.set("array", array)?;
-    luau.globals().set("json", json)?;
-    Ok(())
-}
-
-/// Caminho do arquivo de persistência de um componente: um `.json` por
-/// componente sob `.glacier-storage/`, ao lado do arquivo que ancora
-/// `require` (`module_base`, ver [`module_roots`]) — mesma convenção de
-/// vizinhança que `lib/`. `name` é sanitizado (só `[A-Za-z0-9_-]`, resto vira
-/// `_`) para nunca produzir um caminho fora do diretório esperado.
-fn storage_path(module_base: &Path, name: &str) -> PathBuf {
-    let base = module_base
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let safe: String = name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
-        .collect();
-    base.join(".glacier-storage").join(format!("{safe}.json"))
-}
-
-/// Lê o arquivo de persistência como um objeto JSON (vazio se ausente ou
-/// corrompido — persistência é "best effort", não deve derrubar o script).
-fn read_storage_file(path: &Path) -> serde_json::Map<String, serde_json::Value> {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-        .and_then(|v| match v {
-            serde_json::Value::Object(m) => Some(m),
-            _ => None,
-        })
-        .unwrap_or_default()
-}
-
-/// Grava o objeto JSON de volta no arquivo de persistência, criando o
-/// diretório `.glacier-storage/` se necessário. Falhas de I/O são logadas,
-/// não propagadas — `storage.set` não deveria poder derrubar um script.
-fn write_storage_file(path: &Path, map: &serde_json::Map<String, serde_json::Value>) {
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            eprintln!("[glacier-ui] storage: falha ao criar '{}': {}", parent.display(), e);
-            return;
-        }
-    }
-    match serde_json::to_string_pretty(&serde_json::Value::Object(map.clone())) {
-        Ok(s) => {
-            if let Err(e) = std::fs::write(path, s) {
-                eprintln!("[glacier-ui] storage: falha ao gravar '{}': {}", path.display(), e);
-            }
-        }
-        Err(e) => eprintln!("[glacier-ui] storage: falha ao serializar: {}", e),
-    }
-}
-
-/// Instala o global `storage` (`get`/`set`/`remove`), persistência local em
-/// JSON análoga ao `localStorage` do browser — o que sobrevive a um restart
-/// do processo (ao contrário de `ctx`, que é só memória). Cada chamada lê/
-/// grava o arquivo inteiro (simples e correto para o volume de dados que um
-/// `<script>` de UI guarda; não pensado para alta frequência/concorrência).
-///
-/// - `storage.get(key)`: devolve o valor guardado (qualquer tipo
-///   JSON-serializável — string, número, booleano, tabela) ou `nil`.
-/// - `storage.set(key, value)`: grava `value` sob `key`, sobrescrevendo.
-/// - `storage.remove(key)`: apaga `key`, se existir.
-fn install_storage(luau: &Lua, path: PathBuf) -> mlua::Result<()> {
-    let storage = luau.create_table()?;
-
-    let get_path = path.clone();
-    let get = luau.create_function(move |luau, key: String| {
-        let map = read_storage_file(&get_path);
-        match map.get(&key) {
-            Some(v) => luau.to_value(v),
-            None => Ok(Value::Nil),
-        }
-    })?;
-
-    let set_path = path.clone();
-    let set = luau.create_function(move |luau, (key, value): (String, Value)| {
-        let mut map = read_storage_file(&set_path);
-        let json: serde_json::Value = luau
-            .from_value(value)
-            .map_err(|e| mlua::Error::runtime(format!("storage.set: {e}")))?;
-        map.insert(key, json);
-        write_storage_file(&set_path, &map);
-        Ok(())
-    })?;
-
-    let remove_path = path.clone();
-    let remove = luau.create_function(move |_, key: String| {
-        let mut map = read_storage_file(&remove_path);
-        map.remove(&key);
-        write_storage_file(&remove_path, &map);
-        Ok(())
-    })?;
-
-    storage.set("get", get)?;
-    storage.set("set", set)?;
-    storage.set("remove", remove)?;
-    luau.globals().set("storage", storage)?;
-    Ok(())
-}
-
-/// Se o template tem um bloco `<script>` (inline ou apontando para um `.luau`
-/// externo via `src`/`from`) — ou seja, se ele traz comportamento Luau. O motor
-/// usa isto para decidir, ao registrar um componente por arquivo, se liga um
-/// [`LuauComponent`] (há script) ou o mantém só-UI (não há).
-pub(crate) fn has_script(markup: &str) -> bool {
-    extract_script_src(markup).is_some() || extract_script(markup).is_some()
-}
-
-/// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo
-/// externo via `src="..."` (ou `from="..."`), lê esse arquivo (caminho relativo
-/// ao diretório do `template_path`); senão, usa o corpo inline do bloco.
-/// Devolve `(conteúdo, Option<caminho do script externo>)`. Para um
-/// `<script src>` externo, o caminho é resolvido relativo ao diretório do
-/// template e devolvido para ancorar a resolução de `require` (ver
-/// [`LuauComponent::from_file`]). Inline → `(corpo, None)`.
-fn resolve_script(markup: &str, template_path: &str) -> Result<(String, Option<PathBuf>), String> {
-    if let Some(src) = extract_script_src(markup) {
-        let base = std::path::Path::new(template_path)
-            .parent()
-            .unwrap_or_else(|| std::path::Path::new("."));
-        let luau_path = base.join(&src);
-        let content = std::fs::read_to_string(&luau_path).map_err(|e| {
-            format!("Falha ao ler script Luau externo '{}': {}", luau_path.display(), e)
-        })?;
-        return Ok((content, Some(luau_path)));
-    }
-    Ok((extract_script(markup).unwrap_or_default(), None))
-}
-
-/// Lê o atributo `src`/`from` da tag de abertura `<script ...>`, se houver — o
-/// caminho de um arquivo `.luau` externo.
-fn extract_script_src(markup: &str) -> Option<String> {
-    let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
-    // Só o texto da tag de abertura (até o primeiro `>`).
-    let gt = lower[open..].find('>')? + open;
-    let tag = &markup[open..gt];
-    let re = regex::Regex::new(r#"(?i)\b(?:src|from)\s*=\s*["']([^"']+)["']"#).ok()?;
-    re.captures(tag)
-        .map(|c| c.get(1).map_or(String::new(), |m| m.as_str().to_string()))
-        .filter(|s| !s.is_empty())
-}
-
-/// Extrai o corpo de um bloco `<script>...</script>` de um template XML.
-/// Espelha a lógica de remoção do parser, mas devolve o conteúdo em vez de
-/// descartá-lo.
-fn extract_script(markup: &str) -> Option<String> {
-    let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
-    let gt = lower[open..].find('>')? + open + 1;
-    let close = lower[gt..].find("</script>")? + gt;
-    Some(markup[gt..close].to_string())
 }
 

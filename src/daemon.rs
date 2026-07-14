@@ -44,6 +44,16 @@ pub struct WindowGeometry {
     pub position: Option<Point>,
 }
 
+/// Ajuste das `window::Settings` de uma janela-filha, recebendo o [`WindowSpec`]
+/// que a pediu. Ver [`GlacierDaemon::child_window`].
+type ChildSettingsHook = Rc<dyn Fn(&WindowSpec, &mut window::Settings)>;
+/// Observador de cada mensagem despachada na janela principal, com o motor no
+/// estado resultante. Ver [`GlacierDaemon::on_message`].
+type MessageHook = Rc<dyn Fn(&EngineMessage, &GlacierUI)>;
+/// Gancho de fechamento da janela principal, com a geometria dela. Ver
+/// [`GlacierDaemon::on_close`].
+type CloseHook = Rc<dyn Fn(&GlacierUI, WindowGeometry)>;
+
 /// Construtor/runner do app multi-janela. Ver [módulo](self).
 pub struct GlacierDaemon {
     /// Título da janela principal (e default das demais que não trazem um).
@@ -55,7 +65,7 @@ pub struct GlacierDaemon {
     main_settings: window::Settings,
     /// Ajuste opcional das `window::Settings` de cada janela-filha, aplicado
     /// sobre o default do daemon. Ver [`GlacierDaemon::child_window`].
-    child_settings: Option<Rc<dyn Fn(&WindowSpec, &mut window::Settings)>>,
+    child_settings: Option<ChildSettingsHook>,
     /// Configura o motor da janela principal (registra componentes, define a
     /// tela inicial, carrega `.gss`, …). Rodado uma vez na inicialização.
     setup: Box<dyn Fn(&mut GlacierUI)>,
@@ -65,9 +75,9 @@ pub struct GlacierDaemon {
     default_font: Option<Font>,
     /// Observador rodado depois de cada `dispatch` na janela principal — é o
     /// gancho de persistência (ver [`GlacierDaemon::on_message`]).
-    on_message: Option<Rc<dyn Fn(&EngineMessage, &GlacierUI)>>,
+    on_message: Option<MessageHook>,
     /// Gancho de fechamento da janela principal (ver [`GlacierDaemon::on_close`]).
-    on_close: Option<Rc<dyn Fn(&GlacierUI, WindowGeometry)>>,
+    on_close: Option<CloseHook>,
     /// Período do tick de hot-reload (checagem de arquivos alterados).
     reload_period: Duration,
     /// Período do tick de expiração de toasts.
@@ -286,9 +296,9 @@ struct Runtime {
     /// pointer-grab ainda vivo, e um round-trip o perde, fazendo o
     /// `onPress="window:drag"` da titlebar custom virar um no-op silencioso.
     main_id: window::Id,
-    child_settings: Option<Rc<dyn Fn(&WindowSpec, &mut window::Settings)>>,
-    on_message: Option<Rc<dyn Fn(&EngineMessage, &GlacierUI)>>,
-    on_close: Option<Rc<dyn Fn(&GlacierUI, WindowGeometry)>>,
+    child_settings: Option<ChildSettingsHook>,
+    on_message: Option<MessageHook>,
+    on_close: Option<CloseHook>,
     reload_period: Duration,
     toast_period: Duration,
 }
@@ -359,14 +369,13 @@ impl Runtime {
         // teria de resolvê-lo via `window::latest()` e perderia o pointer-grab
         // serial no Wayland (ver `Runtime::main_id`). O `close` ainda passa por
         // `Runtime::close`, para o gancho `on_close` poder salvar a geometria.
-        if let EngineMessage::UiClick(action) = &msg {
-            if let Some(cmd) = action.strip_prefix("window:") {
+        if let EngineMessage::UiClick(action) = &msg
+            && let Some(cmd) = action.strip_prefix("window:") {
                 return match cmd {
                     "close" => self.close(id),
                     _ => window_control(id, cmd),
                 };
             }
-        }
 
         // 1. despacha ao motor da janela (borrow escopado)
         let ui_task = match self.windows.get_mut(&id) {
@@ -377,11 +386,10 @@ impl Runtime {
         // Observador de persistência: depois do dispatch (o interesse é o estado
         // resultante), e só na principal — é lá que vive o formulário cujo
         // estado o app quer guardar.
-        if id == self.main_id {
-            if let (Some(hook), Some(engine)) = (&self.on_message, self.windows.get(&id)) {
+        if id == self.main_id
+            && let (Some(hook), Some(engine)) = (&self.on_message, self.windows.get(&id)) {
                 hook(&msg, engine);
             }
-        }
 
         let mut tasks = vec![ui_task];
 

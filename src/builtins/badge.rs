@@ -10,7 +10,6 @@
 /// ```xml
 /// <Badge badge_text="Novo" badge_bg="#A6E3A1" badge_size="15" />
 /// ```
-
 use crate::component::{Component, Context, Template};
 
 pub struct Badge;

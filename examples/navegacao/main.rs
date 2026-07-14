@@ -22,11 +22,10 @@ impl Component for Tela {
     }
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
-        if action == "mudar_nome" {
-            if let Some(v) = value {
+        if action == "mudar_nome"
+            && let Some(v) = value {
                 ctx.set("user_name", v);
             }
-        }
     }
 }
 

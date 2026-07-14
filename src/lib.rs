@@ -4,6 +4,7 @@ pub mod daemon;
 pub mod error;
 pub mod parser;
 pub mod eval;
+pub mod render_inputs;
 pub mod widget;
 pub mod component;
 pub mod luau;
@@ -52,8 +53,12 @@ use std::time::{SystemTime, Duration};
 pub struct GlacierUI {
     /// Maps a component name (e.g. "perfil") to its XML file path
     registered_components: HashMap<String, String>,
-    /// Cache of parsed component AST trees
-    parsed_templates: HashMap<String, UiNode>,
+    /// Tudo de que a avaliação depende e que o rastreamento por chave de contexto
+    /// NÃO enxerga: folhas de estilo, templates parseados e viewport. Atrás de um
+    /// portão que conta as mudanças, para o cache de avaliação se invalidar
+    /// sozinho — ver [`render_inputs`], que explica por que isto não pode ser um
+    /// punhado de campos soltos.
+    inputs: render_inputs::RenderInputs,
     /// Árvores **avaliadas** (placeholders substituídos, componentes inlinados),
     /// por nome. Ao contrário de `parsed_templates`, este cache **não** guarda
     /// todos os templates registrados: guarda os que estão de fato em uso — a
@@ -68,7 +73,7 @@ pub struct GlacierUI {
     /// "o que mudou é lido por esta tela?" e não fazer nada quando a resposta é
     /// não — o caso comum quando um snapshot do servidor mexe em dados de uma
     /// view que não está aberta.
-    eval_deps: HashMap<String, Vec<(String, Option<String>)>>,
+    eval_deps: HashMap<String, eval::Deps>,
     /// Subárvores já avaliadas, reaproveitadas entre reavaliações quando nada de
     /// que dependem mudou (ver [`eval::EvalCache`]). É o que faz uma linha de log
     /// nova não reconstruir a sidebar nem as 45 linhas da tabela ao lado.
@@ -83,20 +88,6 @@ pub struct GlacierUI {
     history: Vec<String>,
     /// Registered components (UI + behavior), keyed by component name.
     components: HashMap<String, Box<dyn component::Component>>,
-    /// Globally-loaded `.gss` stylesheets, in ascending priority order (a class
-    /// defined in a later sheet overrides the same class in an earlier one).
-    stylesheets: Vec<stylesheet::StyleSheet>,
-    /// Paths of loaded global `.gss` files (parallel to `stylesheets`), kept for
-    /// hot-reload along with their last-seen modification times.
-    stylesheet_paths: Vec<String>,
-    /// Per-component (scoped) stylesheets declared via an inline
-    /// `<style scoped="true">` block, keyed by component name. Applied on top
-    /// of the global sheets, but only inside that component's subtree, in
-    /// document order. There is no scoped equivalent for a linked `.gss` file
-    /// — `<link rel="stylesheet">` is always global (see [`GlacierUI::load_stylesheet`]).
-    /// Rebuilt from the markup whenever the declaring template reloads, so it
-    /// needs no separate path/mtime bookkeeping of its own.
-    component_stylesheets: HashMap<String, Vec<stylesheet::StyleSheet>>,
     /// The custom `iced::Theme` loaded via `<link rel="theme">`, if any.
     /// Apps read it through [`GlacierUI::theme`].
     custom_theme: Option<iced::Theme>,
@@ -130,11 +121,6 @@ pub struct GlacierUI {
     /// call, so two toasts with identical content still have distinct
     /// identities to dismiss/expire independently.
     next_toast_id: u64,
-    /// Current viewport size `(width, height)` in logical px, used to evaluate
-    /// `@media` blocks in the stylesheets. Fed by [`EngineMessage::Viewport`]
-    /// (see [`GlacierUI::subscription`]'s window-resize listener) and defaulted
-    /// to a desktop-ish size until the first real `Resized` event arrives.
-    viewport: (f32, f32),
     /// Long-lived streams (`sse`/`websocket`) a component's Lua asked to open,
     /// keyed by `(owner, id)`. [`GlacierUI::subscription`] turns each into an
     /// `iced::Subscription`, so inserting/removing here starts/stops the actual
@@ -224,12 +210,18 @@ struct DragState {
     dragging: String,
 }
 
+impl Default for GlacierUI {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GlacierUI {
     /// Creates a new, empty GlacierUI instance
     pub fn new() -> Self {
         let mut ui = Self {
             registered_components: HashMap::new(),
-            parsed_templates: HashMap::new(),
+            inputs: render_inputs::RenderInputs::default(),
             evaluated_templates: HashMap::new(),
             pinned: std::collections::HashSet::new(),
             eval_deps: HashMap::new(),
@@ -239,9 +231,6 @@ impl GlacierUI {
             current_screen: None,
             history: Vec::new(),
             components: HashMap::new(),
-            stylesheets: Vec::new(),
-            stylesheet_paths: Vec::new(),
-            component_stylesheets: HashMap::new(),
             custom_theme: None,
             theme_path: None,
             data_sources: Vec::new(),
@@ -251,7 +240,6 @@ impl GlacierUI {
             dialog: None,
             toasts: Vec::new(),
             next_toast_id: 0,
-            viewport: (1280.0, 800.0),
             active_streams: HashMap::new(),
             stream_senders: HashMap::new(),
             builtin_component_names: std::collections::HashSet::new(),
@@ -322,17 +310,17 @@ impl GlacierUI {
 
     /// Os `.gss` globais carregados, em ordem de prioridade crescente.
     pub fn stylesheets(&self) -> &[stylesheet::StyleSheet] {
-        &self.stylesheets
+        self.inputs.stylesheets()
     }
 
     /// `true` se `name` está registrado (tem template parseado).
     pub fn is_registered(&self, name: &str) -> bool {
-        self.parsed_templates.contains_key(name)
+        self.inputs.has_template(name)
     }
 
     /// A árvore **parseada** (não avaliada) de um componente registrado.
     pub fn parsed(&self, name: &str) -> Option<&UiNode> {
-        self.parsed_templates.get(name)
+        self.inputs.template(name)
     }
 
     /// A árvore **avaliada** de `name` — placeholders resolvidos contra o
@@ -394,15 +382,9 @@ impl GlacierUI {
     /// [`inline_style_key`]) — either way it is what makes reloading replace
     /// the same slot instead of accumulating duplicates.
     fn install_global_stylesheet(&mut self, key: String, sheet: stylesheet::StyleSheet) {
-        // Estilo mudou: nenhuma subárvore guardada é confiável (o cache só
-        // rastreia chaves de CONTEXTO, não folhas de estilo).
-        self.invalidate_eval_cache();
-        if let Some(idx) = self.stylesheet_paths.iter().position(|p| *p == key) {
-            self.stylesheets[idx] = sheet;
-        } else {
-            self.stylesheets.push(sheet);
-            self.stylesheet_paths.push(key);
-        }
+        // O portão avança a época sozinho, e o cache de avaliação se descarta ao
+        // percebê-la — não há o que lembrar de invalidar aqui. Ver `render_inputs`.
+        self.inputs.install_stylesheet(key, sheet);
     }
 
     /// Sets the initial active screen, clearing any navigation history.
@@ -552,8 +534,7 @@ impl GlacierUI {
         // body is run at runtime by `LuaComponent`, not here.
         let (ast, _script) = parse_markup(path.as_deref(), &markup)
             .map_err(|e| e.in_component(&name))?;
-        self.parsed_templates.insert(name.clone(), ast.clone());
-        self.invalidate_eval_cache();
+        self.inputs.insert_template(name.clone(), ast.clone());
         // An explicit registration of this name means it's no longer a lib
         // builtin (register_builtins re-adds its own names *after* this call, so
         // this stays a no-op for the builtins themselves).
@@ -582,7 +563,7 @@ impl GlacierUI {
     fn install_component(&mut self, name: &str, mut comp: Box<dyn component::Component>) {
         let init_streams = {
             let mut ctx = component::Context::new(&mut self.context_data);
-            ctx.set_viewport(self.viewport);
+            ctx.set_viewport(self.inputs.viewport());
             comp.init(&mut ctx);
             ctx.streams
         };
@@ -663,10 +644,10 @@ impl GlacierUI {
                 return match action {
                     "minimize" => window::latest().and_then(|id| window::minimize(id, true)),
                     "maximize" | "toggle_maximize" => {
-                        window::latest().and_then(|id| window::toggle_maximize(id))
+                        window::latest().and_then(window::toggle_maximize)
                     }
-                    "close" => window::latest().and_then(|id| window::close(id)),
-                    "drag" => window::latest().and_then(|id| window::drag(id)),
+                    "close" => window::latest().and_then(window::close),
+                    "drag" => window::latest().and_then(window::drag),
                     _ => iced::Task::none(),
                 };
             }
@@ -717,14 +698,12 @@ impl GlacierUI {
                 // Só re-avalia se o novo tamanho ativa/desativa alguma `@media`
                 // (senão um resize dispararia um re-eval por pixel à toa). Apps
                 // sem `@media` nunca re-avaliam aqui.
-                if new != self.viewport && self.media_set_changes(self.viewport, new) {
-                    self.viewport = new;
-                    // O resultado das `@media` mudou: o estilo de qualquer nó
-                    // pode ter mudado com ele, e isso o cache não enxerga.
-                    self.invalidate_eval_cache();
+                // `set_viewport` só avança a época se o novo tamanho ativa ou
+                // desativa alguma `@media` — um resize de um pixel que não cruza
+                // breakpoint nenhum não pode custar um cache inteiro. Apps sem
+                // `@media` nunca reavaliam aqui.
+                if self.inputs.set_viewport(new) {
                     let _ = self.reevaluate_all();
-                } else {
-                    self.viewport = new;
                 }
                 return iced::Task::none();
             }
@@ -985,7 +964,7 @@ impl GlacierUI {
         // accepted by the borrow checker when done inline like this.
         let (nav, effects, dialog, toasts, fetches, streams, stream_cmds, timers, windows, broadcasts, close_self, editor_appends) = if let Some(comp) = self.components.get_mut(owner) {
             let mut ctx = component::Context::new(&mut self.context_data);
-            ctx.set_viewport(self.viewport);
+            ctx.set_viewport(self.inputs.viewport());
             run(comp.as_mut(), &mut ctx);
             (ctx.nav, ctx.effects, ctx.dialog, ctx.toasts, ctx.fetches, ctx.streams, ctx.stream_cmds, ctx.timers, ctx.windows, ctx.broadcasts, ctx.close_self, ctx.editor_appends)
         } else {
@@ -1197,8 +1176,7 @@ impl GlacierUI {
             .unwrap_or_else(|_| SystemTime::now());
 
         self.registered_components.insert(name.to_string(), path.to_string());
-        self.parsed_templates.insert(name.to_string(), ast.clone());
-        self.invalidate_eval_cache();
+        self.inputs.insert_template(name.to_string(), ast.clone());
         self.file_mod_times.insert(name.to_string(), mod_time);
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
@@ -1214,12 +1192,7 @@ impl GlacierUI {
         // as before). This is what unifies file-based registration — there is no
         // separate `register_luau`, and imported components can be scripted too.
         if luau::has_script(&content) {
-            // O `luau` guarda o próprio canal de erro (String) porque suas
-            // mensagens vêm do mlua e já dizem arquivo/linha do Luau; aqui elas
-            // só ganham o envelope tipado, com o componente dono.
-            let comp = luau::LuauComponent::from_file(path, name).map_err(|message| {
-                GlacierError::Luau { component: name.to_string(), message }
-            })?;
+            let comp = luau::LuauComponent::from_file(path, name)?;
             self.install_component(name, Box::new(comp));
         }
 
@@ -1243,7 +1216,7 @@ impl GlacierUI {
                 "stylesheet" => self.load_global_stylesheet_file(href)?,
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
-                    if !self.parsed_templates.contains_key(&comp_name) {
+                    if !self.inputs.has_template(&comp_name) {
                         self.register_component_inner(&comp_name, href)?;
                     }
                 }
@@ -1288,17 +1261,11 @@ impl GlacierUI {
                 .map_err(|e| e.in_component(component))
         };
 
-        // Idem para os `<style scoped>`: mexeu no estilo, o cache cai.
-        self.invalidate_eval_cache();
-        if scoped_css.is_empty() {
-            self.component_stylesheets.remove(component);
-        } else {
-            let sheets = scoped_css
-                .iter()
-                .map(|(css, line)| parse_inline(css, *line))
-                .collect::<Result<Vec<_>>>()?;
-            self.component_stylesheets.insert(component.to_string(), sheets);
-        }
+        let sheets = scoped_css
+            .iter()
+            .map(|(css, line)| parse_inline(css, *line))
+            .collect::<Result<Vec<_>>>()?;
+        self.inputs.set_scoped_stylesheets(component, sheets);
 
         for (idx, (css, line)) in global_css.iter().enumerate() {
             let sheet = parse_inline(css, *line)?;
@@ -1353,7 +1320,7 @@ impl GlacierUI {
             // lib builtin). Once overridden, the name is a normal component and
             // later imports of it are skipped as before.
             let is_builtin = self.builtin_component_names.contains(name);
-            if !self.parsed_templates.contains_key(name) || is_builtin {
+            if !self.inputs.has_template(name) || is_builtin {
                 let (name, from) = (name.clone(), from.clone());
                 self.register_component_inner(&name, &from)?;
                 self.builtin_component_names.remove(&name);
@@ -1391,7 +1358,7 @@ impl GlacierUI {
         let now = std::time::Instant::now();
         let due = self
             .last_stream_reeval
-            .map_or(true, |t| now.duration_since(t) >= STREAM_REEVAL_INTERVAL);
+            .is_none_or(|t| now.duration_since(t) >= STREAM_REEVAL_INTERVAL);
         if due {
             self.last_stream_reeval = Some(now);
             self.pending_reeval = false;
@@ -1421,12 +1388,12 @@ impl GlacierUI {
     /// `clipboard:<binding>` copiar tudo e [`GlacierUI::sync_editors`] não
     /// reconstruir (perdendo o insert) na próxima reavaliação.
     fn apply_editor_appends(&mut self, appends: Vec<(String, String)>) {
-        use iced::widget::text_editor::{Action, Content, Edit, Motion};
+        use iced::widget::text_editor::{Action, Edit, Motion};
         for (binding, text) in appends {
             if text.is_empty() {
                 continue;
             }
-            let content = self.editors.entry(binding.clone()).or_insert_with(Content::new);
+            let content = self.editors.entry(binding.clone()).or_default();
             content.perform(Action::Move(Motion::DocumentEnd));
             content.perform(Action::Edit(Edit::Paste(std::sync::Arc::new(text))));
             let full = content.text();
@@ -1455,6 +1422,8 @@ impl GlacierUI {
     /// cache que guarda árvores velhas é um render silenciosamente desatualizado
     /// esperando para acontecer.
     pub fn reevaluate_all(&mut self) -> Result<()> {
+        self.sync_eval_cache();
+
         let names: Vec<String> = self
             .current_screen
             .iter()
@@ -1465,7 +1434,7 @@ impl GlacierUI {
         for name in &names {
             // Um nome fixado que ainda não foi registrado não é erro (o app pode
             // fixá-lo antes de carregá-lo); a tela ativa idem, durante o boot.
-            if !self.parsed_templates.contains_key(name) {
+            if !self.inputs.has_template(name) {
                 continue;
             }
             // **Nada que esta árvore lê mudou?** Então ela não pode ter mudado:
@@ -1499,15 +1468,19 @@ impl GlacierUI {
             .all(|(k, v)| self.context_data.get(k).map(String::as_str) == v.as_deref())
     }
 
-    /// Invalida o cache de avaliação inteiro. Chamado quando muda algo que o
-    /// rastreamento **por chave de contexto não enxerga** — uma folha de estilo
-    /// recarregada, o viewport cruzando um breakpoint de `@media`, um template
-    /// reparseado. Nesses casos qualquer subárvore guardada pode estar obsoleta,
-    /// e reconstruir tudo é o único caminho seguro (e raro).
-    fn invalidate_eval_cache(&mut self) {
-        self.eval_cache.clear();
-        self.eval_deps.clear();
-        self.evaluated_templates.clear();
+    /// Alinha o cache de avaliação com a época dos [`render_inputs`]: se algo que
+    /// o rastreamento por chave **não enxerga** mudou (folha de estilo, viewport
+    /// cruzando `@media`, markup recarregado), descarta tudo o que estava pronto.
+    ///
+    /// Não há nada a "lembrar de chamar" aqui: quem muda esses inputs só consegue
+    /// fazê-lo por um método que avança a época, e esta função confere a conta.
+    /// Ver [`render_inputs`], que explica por que a versão anterior — oito
+    /// lembretes espalhados pelos call-sites — era uma bomba-relógio.
+    fn sync_eval_cache(&mut self) {
+        if self.eval_cache.sync(self.inputs.epoch()) {
+            self.eval_deps.clear();
+            self.evaluated_templates.clear();
+        }
     }
 
     /// Avalia o template `name` contra o contexto atual e o guarda no cache.
@@ -1515,28 +1488,27 @@ impl GlacierUI {
     /// (ansiosa, para a tela ativa) e [`GlacierUI::evaluated`] (preguiçosa, sob
     /// demanda) passam os dois por aqui.
     fn evaluate_into_cache(&mut self, name: &str) -> Result<()> {
+        self.sync_eval_cache();
         let (evaluated, deps) = {
             let ast = self
-                .parsed_templates
-                .get(name)
+                .inputs
+                .template(name)
                 .ok_or_else(|| GlacierError::UnknownComponent(name.to_string()))?;
-            // Qualquer sheet (global ou de escopo) com seletor de tag liga a
-            // resolução de estilo para nós sem class/id — calculado uma vez aqui
-            // para não pagar por nó no caso comum (nenhum seletor de tag).
-            let has_tag_rules = self.stylesheets.iter().any(|s| s.has_tag_rules())
-                || self.component_stylesheets.values().flatten().any(|s| s.has_tag_rules());
             let styles = StyleContext {
-                global: &self.stylesheets,
-                by_component: &self.component_stylesheets,
-                viewport: Some(self.viewport),
-                has_tag_rules,
+                global: self.inputs.stylesheets(),
+                by_component: self.inputs.component_stylesheets(),
+                viewport: Some(self.inputs.viewport()),
+                // Qualquer sheet (global ou de escopo) com seletor de tag liga a
+                // resolução de estilo para nós sem class/id — calculado uma vez
+                // aqui para não pagar por nó no caso comum (nenhum seletor de tag).
+                has_tag_rules: self.inputs.has_tag_rules(),
             };
             // The template's own name is the style scope, so its `<link>`ed
             // sheets apply to its subtree.
             eval::evaluate_template(
                 ast,
                 &self.context_data,
-                &self.parsed_templates,
+                self.inputs.templates(),
                 &styles,
                 Some(name),
                 &mut self.eval_cache,
@@ -1550,11 +1522,14 @@ impl GlacierUI {
     /// `true` se mover o viewport de `old` para `new` ativa ou desativa algum
     /// bloco `@media` (global ou com escopo) — usado por `dispatch` para só
     /// re-avaliar quando o resultado das media queries realmente muda.
+    #[allow(dead_code)] // mantido: `set_viewport` já decide sozinho, mas a
+    // pergunta "cruzou breakpoint?" segue útil a um app que queira antecipá-la.
     fn media_set_changes(&self, old: (f32, f32), new: (f32, f32)) -> bool {
         let sheets = self
-            .stylesheets
+            .inputs
+            .stylesheets()
             .iter()
-            .chain(self.component_stylesheets.values().flatten());
+            .chain(self.inputs.component_stylesheets().values().flatten());
         for sheet in sheets {
             for mq in &sheet.media {
                 if mq.condition.matches(old.0, old.1) != mq.condition.matches(new.0, new.1) {
@@ -1597,7 +1572,7 @@ impl GlacierUI {
             // Distingue "nome errado" de "template fora de uso": são causas
             // diferentes, com saídas diferentes, e confundi-las é o que faz um
             // erro de framework virar meia hora de depuração.
-            if self.parsed_templates.contains_key(component_name) {
+            if self.inputs.has_template(component_name) {
                 GlacierError::NotEvaluated(component_name.to_string())
             } else {
                 GlacierError::UnknownComponent(component_name.to_string())
@@ -1615,20 +1590,18 @@ impl GlacierUI {
         let mut updates = Vec::new();
 
         for (name, path) in &self.registered_components {
-            if let Ok(metadata) = std::fs::metadata(path) {
-                if let Ok(modified) = metadata.modified() {
+            if let Ok(metadata) = std::fs::metadata(path)
+                && let Ok(modified) = metadata.modified() {
                     let last_modified = self.file_mod_times.get(name);
-                    if last_modified.map_or(true, |&last| modified > last) {
+                    if last_modified.is_none_or(|&last| modified > last) {
                         // File changed, reload it (XML).
-                        if let Ok(content) = std::fs::read_to_string(path) {
-                            if let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content) {
+                        if let Ok(content) = std::fs::read_to_string(path)
+                            && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content) {
                                 updates.push((name.clone(), new_ast, modified));
                                 reloaded.push(name.clone());
                             }
-                        }
                     }
                 }
-            }
         }
 
         // Detect changed `.gss` files the same way. Only global sheets carry a
@@ -1636,13 +1609,13 @@ impl GlacierUI {
         // rebuilt when their declaring template reloads, in the loop below.
         // (An inline global block's synthetic key simply misses `fs::metadata`
         // and is skipped here, harmlessly.)
-        let all_paths = self.stylesheet_paths.clone();
+        let all_paths = self.inputs.stylesheet_paths().to_vec();
         let mut sheet_updates = Vec::new();
         for path in &all_paths {
             if let Ok(modified) = std::fs::metadata(path).and_then(|m| m.modified()) {
                 let last_modified = self.file_mod_times.get(&stylesheet_key(path));
-                if last_modified.map_or(true, |&last| modified > last) {
-                    if let Ok(content) = std::fs::read_to_string(path) {
+                if last_modified.is_none_or(|&last| modified > last)
+                    && let Ok(content) = std::fs::read_to_string(path) {
                         match stylesheet::StyleSheet::parse(&content) {
                             Ok(sheet) => {
                                 sheet_updates.push((path.clone(), sheet, modified));
@@ -1651,7 +1624,6 @@ impl GlacierUI {
                             Err(e) => eprintln!("Stylesheet '{}' has an error, keeping the previous version: {}", path, e),
                         }
                     }
-                }
             }
         }
 
@@ -1662,23 +1634,25 @@ impl GlacierUI {
             // Pick up any newly-added `<import>`/`<link>` declarations.
             let _ = self.load_imports(&new_ast);
             let _ = self.process_links(&name, &new_ast);
-            self.parsed_templates.insert(name.clone(), new_ast);
-            self.invalidate_eval_cache();
+            self.inputs.insert_template(name.clone(), new_ast);
             self.file_mod_times.insert(name, modified);
         }
 
         // Apply stylesheet changes in place, preserving load order/priority.
+        // Passa pelo portão (`install_stylesheet` substitui a mesma posição pela
+        // chave), que avança a época e invalida o cache. Antes isto escrevia
+        // direto em `stylesheets[idx]` e só não servia estilo velho porque um
+        // `invalidate` genérico vinha depois — o tipo de furo que este módulo
+        // existe para tornar impossível.
         for (path, sheet, modified) in sheet_updates {
-            if let Some(idx) = self.stylesheet_paths.iter().position(|p| *p == path) {
-                self.stylesheets[idx] = sheet;
-            }
+            self.inputs.install_stylesheet(path.clone(), sheet);
             self.file_mod_times.insert(stylesheet_key(&path), modified);
         }
 
         // Reload a changed `<link rel="data">` JSON file (re-merged into context).
         for (key, path) in self.data_sources.clone() {
             if let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) {
-                let changed = self.file_mod_times.get(&data_key(&path)).map_or(true, |&last| modified > last);
+                let changed = self.file_mod_times.get(&data_key(&path)).is_none_or(|&last| modified > last);
                 if changed {
                     match self.load_data_file(&key, &path) {
                         Ok(()) => {
@@ -1692,9 +1666,9 @@ impl GlacierUI {
         }
 
         // Reload a changed `<link rel="theme">` palette file.
-        if let Some(path) = self.theme_path.clone() {
-            if let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) {
-                let changed = self.file_mod_times.get(&theme_key(&path)).map_or(true, |&last| modified > last);
+        if let Some(path) = self.theme_path.clone()
+            && let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) {
+                let changed = self.file_mod_times.get(&theme_key(&path)).is_none_or(|&last| modified > last);
                 if changed {
                     match self.load_theme_file(&path) {
                         Ok(()) => {
@@ -1705,11 +1679,10 @@ impl GlacierUI {
                     }
                 }
             }
-        }
 
         if dirty {
-            // Re-evaluate all templates against the new markup/styles/data.
-            self.invalidate_eval_cache();
+            // Re-evaluate all templates against the new markup/styles/data. O
+            // cache se alinha sozinho pela época (ver `sync_eval_cache`).
             let _ = self.reevaluate_all();
         }
 
@@ -1769,11 +1742,10 @@ fn theme_key(path: &str) -> String {
 /// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
 /// the engine can keep a stateful editor buffer per binding.
 fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
-    if let NodeType::TextArea { value_var, .. } = &node.kind {
-        if !value_var.is_empty() && !out.contains(value_var) {
+    if let NodeType::TextArea { value_var, .. } = &node.kind
+        && !value_var.is_empty() && !out.contains(value_var) {
             out.push(value_var.clone());
         }
-    }
     for child in &node.children {
         collect_textarea_bindings(child, out);
     }
@@ -1802,15 +1774,14 @@ fn collect_inline_styles(
     scoped_out: &mut Vec<(String, u32)>,
     global_out: &mut Vec<(String, u32)>,
 ) {
-    if let NodeType::Style { css, scoped, line } = &node.kind {
-        if !css.trim().is_empty() {
+    if let NodeType::Style { css, scoped, line } = &node.kind
+        && !css.trim().is_empty() {
             if *scoped {
                 scoped_out.push((css.clone(), *line));
             } else {
                 global_out.push((css.clone(), *line));
             }
         }
-    }
     for child in &node.children {
         collect_inline_styles(child, scoped_out, global_out);
     }
@@ -1819,11 +1790,10 @@ fn collect_inline_styles(
 /// Collects every `<link>` in a parsed tree as `(rel, href, name)`, in
 /// document order. Links with an empty `href` are skipped.
 fn collect_links(node: &UiNode, out: &mut Vec<(String, String, Option<String>)>) {
-    if let NodeType::Link { rel, href, name } = &node.kind {
-        if !href.is_empty() {
+    if let NodeType::Link { rel, href, name } = &node.kind
+        && !href.is_empty() {
             out.push((rel.clone(), href.clone(), name.clone()));
         }
-    }
     for child in &node.children {
         collect_links(child, out);
     }
@@ -1963,8 +1933,10 @@ fn reorder_context_json(
 }
 
 /// Merges a parsed JSON `value` into `context` under `key`:
+///
 /// - an object's top-level fields become `key.field` entries;
 /// - an array or scalar is stored as the single entry `key`.
+///
 /// String values are stored verbatim; everything else as compact JSON (so a
 /// nested array under `key.list` still feeds `<ForEach items="key.list">`).
 fn merge_json(context: &mut HashMap<String, String>, key: &str, value: &serde_json::Value) {
@@ -2235,6 +2207,39 @@ mod dirty_tracking_tests {
         );
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // 7. A época dos `RenderInputs` é o que agora garante a invalidação — e ela
+    //    só avança quando algo que a avaliação enxerga muda. Um resize que NÃO
+    //    cruza `@media` nenhuma não pode custar um cache inteiro (senão arrastar
+    //    a borda da janela reconstruiria a UI a cada pixel).
+    #[test]
+    fn epoca_avanca_no_estilo_e_nao_num_resize_inocuo() {
+        use crate::render_inputs::RenderInputs;
+
+        let mut inputs = RenderInputs::default();
+        let e0 = inputs.epoch();
+
+        // Sem `@media` no sheet, um resize não muda estilo nenhum.
+        assert!(!inputs.set_viewport((800.0, 600.0)), "resize sem @media não cruza nada");
+        assert_eq!(inputs.epoch(), e0, "resize inócuo não pode invalidar o cache");
+
+        // Uma folha nova muda o estilo de qualquer nó: a época avança.
+        inputs.install_stylesheet(
+            "app.gss".into(),
+            stylesheet::StyleSheet::parse("@media (max-width: 500) { .a { padding: 1; } }").unwrap(),
+        );
+        let e1 = inputs.epoch();
+        assert!(e1 > e0, "instalar folha tem de avançar a época");
+
+        // Agora HÁ uma @media em 500: encolher para 400 cruza o breakpoint.
+        assert!(inputs.set_viewport((400.0, 600.0)), "cruzou o breakpoint");
+        assert!(inputs.epoch() > e1, "cruzar @media tem de avançar a época");
+
+        // Mas mover de 400 para 450 (ambos abaixo de 500) não muda nada.
+        let e2 = inputs.epoch();
+        assert!(!inputs.set_viewport((450.0, 600.0)));
+        assert_eq!(inputs.epoch(), e2, "resize dentro da mesma faixa não invalida");
     }
 
     struct TelaClasse;

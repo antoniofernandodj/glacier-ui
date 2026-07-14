@@ -971,14 +971,13 @@ fn protect_style_bodies(xml: &str) -> String {
             out.push_str(rest);
             return out;
         };
-        if let Some(c) = comment {
-            if c < open {
+        if let Some(c) = comment
+            && c < open {
                 let end = rest[c..].find("-->").map(|e| c + e + 3).unwrap_or(rest.len());
                 out.push_str(&rest[..end]);
                 rest = &rest[end..];
                 continue;
             }
-        }
 
         // `<style ...>` — o corpo começa depois do `>` da tag de abertura. Uma
         // tag vazia (`<style href="..."/>`) não tem corpo a proteger.

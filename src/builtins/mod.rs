@@ -18,7 +18,7 @@
 //! registra as telas). O nome de cada builtin também entra num conjunto
 //! (`builtin_component_names`) usado para a regra de override abaixo.
 //!
-//! Todo builtin usa [`Template::Inline`] — XML **compilado no binário**, nunca
+//! Todo builtin usa [`Template::Inline`](crate::Template::Inline) — XML **compilado no binário**, nunca
 //! lido de disco. Isso torna o parse determinístico: se ele falhar é bug *da
 //! lib* (não do app), então `register_builtins` usa `expect`/`panic`, o que
 //! mantém `new()` infalível (devolve `Self`, não `Result`). Um builtin que

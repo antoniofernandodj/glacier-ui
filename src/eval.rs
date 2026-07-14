@@ -220,6 +220,11 @@ pub struct EvalCtx<'a> {
 /// UI, silencioso e intermitente. É por isso que o rastreamento vive no
 /// [`EvalCtx::get`] — o **único** caminho de leitura — e não numa análise
 /// estática do template, que poderia esquecer um caso.
+/// As dependências de uma subárvore: cada chave de contexto que ela leu e o
+/// valor que a chave tinha na avaliação. A entrada de cache só vale enquanto
+/// **todas** ainda casarem.
+pub type Deps = Vec<(String, Option<String>)>;
+
 #[derive(Default)]
 pub struct Reads {
     frames: std::cell::RefCell<Vec<Frame>>,
@@ -259,7 +264,7 @@ impl Reads {
     /// Fecha o quadro corrente, devolvendo **todas** as suas dependências (é o
     /// que valida a entrada de cache dele, avaliada com as camadas em vigor) e
     /// propagando para o quadro de fora só as que vêm de fora dele.
-    fn pop(&self) -> Vec<(String, Option<String>)> {
+    fn pop(&self) -> Deps {
         let mut frames = self.frames.borrow_mut();
         let Some(frame) = frames.pop() else { return Vec::new() };
         if let Some(parent) = frames.last_mut() {
@@ -301,6 +306,12 @@ impl Reads {
 /// campos). É essa razão que faz a memoização valer a pena.
 #[derive(Default)]
 pub struct EvalCache {
+    /// A época dos [`crate::render_inputs::RenderInputs`] em que estas entradas
+    /// foram construídas. Quando ela avança — folha de estilo nova, viewport
+    /// cruzando `@media`, markup recarregado —, tudo aqui pode estar obsoleto e
+    /// o cache se descarta sozinho em [`EvalCache::sync`]. É o que tirou essa
+    /// invariante das mãos de quem escreve o call-site.
+    epoch: u64,
     entries: HashMap<u64, CacheEntry>,
     /// Entradas tocadas na passada corrente. O que sobrar fora daqui ao final é
     /// lixo (uma linha que saiu da lista) e é varrido — senão o cache cresceria
@@ -311,17 +322,28 @@ pub struct EvalCache {
 struct CacheEntry {
     /// As chaves de que a subárvore depende, e o valor que tinham quando ela foi
     /// construída. A entrada só vale enquanto **todos** ainda casarem.
-    deps: Vec<(String, Option<String>)>,
+    deps: Deps,
     nodes: Vec<UiNode>,
 }
 
 impl EvalCache {
-    /// Descarta tudo. Chamado quando muda algo que o rastreamento de chaves não
-    /// enxerga — folha de estilo, viewport (`@media`), markup recarregado —,
-    /// caso em que qualquer subárvore guardada pode estar obsoleta.
-    pub fn clear(&mut self) {
+    /// Alinha o cache com a época atual dos [`crate::render_inputs::RenderInputs`]:
+    /// se ela avançou, **descarta tudo** e devolve `true`.
+    ///
+    /// É o coração da correção do cache. O que ele rastreia são chaves de
+    /// *contexto*; folha de estilo, viewport e markup mudam a árvore sem passar
+    /// por leitura nenhuma. Em vez de pedir a cada call-site que se lembre de
+    /// avisar — oito lembretes espalhados, na primeira versão, e um deles já
+    /// estava furado —, os inputs contam as próprias mudanças e o cache confere a
+    /// conta.
+    pub fn sync(&mut self, epoch: u64) -> bool {
+        if self.epoch == epoch {
+            return false;
+        }
+        self.epoch = epoch;
         self.entries.clear();
         self.live.clear();
+        true
     }
 
     /// Remove as entradas não usadas na última passada (itens que sumiram da
@@ -622,7 +644,7 @@ pub struct StyleContext<'a> {
     pub viewport: Option<(f32, f32)>,
     /// `true` se qualquer sheet ativo (global ou de escopo) declara seletor de
     /// **tag** — atalho para pular a resolução de estilo em nós sem `class`/`id`
-    /// quando não há nenhuma regra de tag para casar (ver [`eval_owned`]).
+    /// quando não há nenhuma regra de tag para casar (ver `eval_owned`).
     pub has_tag_rules: bool,
 }
 
@@ -631,11 +653,10 @@ impl<'a> StyleContext<'a> {
     /// first (lowest priority), then that component's own scoped sheets.
     fn active(&self, scope: Option<&str>) -> Vec<&StyleSheet> {
         let mut sheets: Vec<&StyleSheet> = self.global.iter().collect();
-        if let Some(name) = scope {
-            if let Some(scoped) = self.by_component.get(name) {
+        if let Some(name) = scope
+            && let Some(scoped) = self.by_component.get(name) {
                 sheets.extend(scoped.iter());
             }
-        }
         sheets
     }
 }
@@ -673,8 +694,8 @@ fn expand_children(
             let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
             let on_reorder = child.on_reorder.as_ref()
                 .map(|s| namespace_action(process_tpl(s, context), owner));
-            if let Some(json_str) = context.get(&items_evaluated) {
-                if let Ok(serde_json::Value::Array(arr)) =
+            if let Some(json_str) = context.get(&items_evaluated)
+                && let Ok(serde_json::Value::Array(arr)) =
                     serde_json::from_str::<serde_json::Value>(json_str)
                 {
                     // Full identity snapshot, needed by the handle's `DragStart`.
@@ -743,7 +764,6 @@ fn expand_children(
                         out.extend(item_out);
                     }
                 }
-            }
             last_if = None;
             continue;
         }
@@ -786,8 +806,8 @@ fn expand_children(
                 let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
                 let on_reorder = child.on_reorder.as_ref()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
-                if let Some(json_str) = context.get(&items_evaluated) {
-                    if let Ok(serde_json::Value::Array(arr)) =
+                if let Some(json_str) = context.get(&items_evaluated)
+                    && let Ok(serde_json::Value::Array(arr)) =
                         serde_json::from_str::<serde_json::Value>(json_str)
                     {
                         let full_order: Vec<String> = match &reorder_key {
@@ -839,7 +859,6 @@ fn expand_children(
                             out.extend(item_out);
                         }
                     }
-                }
                 last_if = None;
             }
             NodeType::If { cond, equals, not_equals } => {
@@ -910,7 +929,7 @@ pub fn evaluate_template(
     styles: &StyleContext,
     scope: Option<&str>,
     cache: &mut EvalCache,
-) -> Result<(UiNode, Vec<(String, Option<String>)>)> {
+) -> Result<(UiNode, Deps)> {
     let reads = Reads::default();
     reads.push(0);
     let ctx = EvalCtx::tracked(context, &reads);

@@ -103,7 +103,7 @@ pub enum WsCommand {
 }
 
 /// Um evento de um stream de vida longa, emitido pela tarefa de rede e
-/// convertido pelo motor em [`crate::EngineMessage::LuaStream`]. Precisa ser
+/// convertido pelo motor em [`crate::EngineMessage::LuauStream`]. Precisa ser
 /// `Clone`/`Debug` porque viaja dentro do `EngineMessage`.
 #[derive(Debug, Clone)]
 pub enum StreamEvent {

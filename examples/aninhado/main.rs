@@ -9,7 +9,7 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 ///
 /// O motor faz isso namespaceando as ações da subárvore do filho
 /// (`incrementar` -> `CartaoContador::incrementar`) e roteando no `dispatch`.
-
+///
 /// Filho com comportamento e estado próprios.
 struct CartaoContador {
     valor: i32,

@@ -90,11 +90,10 @@ impl StyleRule {
     /// (os campos numéricos não suportam `var()`).
     fn resolve_var_refs(&mut self, vars: &HashMap<String, String>) {
         let sub = |o: &mut Option<String>| {
-            if let Some(v) = o {
-                if v.contains("var(") {
+            if let Some(v) = o
+                && v.contains("var(") {
                     *v = substitute_vars(v, vars);
                 }
-            }
         };
         sub(&mut self.width);
         sub(&mut self.height);
@@ -347,11 +346,10 @@ pub fn resolve_classes(
         if let Some((w, h)) = viewport {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(rule) = mq.tags.get(tag) {
+                    if mq.condition.matches(w, h)
+                        && let Some(rule) = mq.tags.get(tag) {
                             merged.merge_from(rule);
                         }
-                    }
                 }
             }
         }
@@ -369,11 +367,10 @@ pub fn resolve_classes(
         for name in classes.split_whitespace() {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(rule) = mq.rules.get(name) {
+                    if mq.condition.matches(w, h)
+                        && let Some(rule) = mq.rules.get(name) {
                             merged.merge_from(rule);
                         }
-                    }
                 }
             }
         }
@@ -389,11 +386,10 @@ pub fn resolve_classes(
         if let Some((w, h)) = viewport {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(rule) = mq.ids.get(id) {
+                    if mq.condition.matches(w, h)
+                        && let Some(rule) = mq.ids.get(id) {
                             merged.merge_from(rule);
                         }
-                    }
                 }
             }
         }
@@ -439,13 +435,12 @@ pub fn resolve_state_classes(
         if let Some((w, h)) = viewport {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(by_state) = mq.tag_states.get(tag) {
+                    if mq.condition.matches(w, h)
+                        && let Some(by_state) = mq.tag_states.get(tag) {
                             for (state, rule) in by_state {
                                 out.get_mut(*state).merge_from(rule);
                             }
                         }
-                    }
                 }
             }
         }
@@ -464,13 +459,12 @@ pub fn resolve_state_classes(
         for name in classes.split_whitespace() {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(by_state) = mq.states.get(name) {
+                    if mq.condition.matches(w, h)
+                        && let Some(by_state) = mq.states.get(name) {
                             for (state, rule) in by_state {
                                 out.get_mut(*state).merge_from(rule);
                             }
                         }
-                    }
                 }
             }
         }
@@ -487,13 +481,12 @@ pub fn resolve_state_classes(
         if let Some((w, h)) = viewport {
             for sheet in sheets {
                 for mq in &sheet.media {
-                    if mq.condition.matches(w, h) {
-                        if let Some(by_state) = mq.id_states.get(id) {
+                    if mq.condition.matches(w, h)
+                        && let Some(by_state) = mq.id_states.get(id) {
                             for (state, rule) in by_state {
                                 out.get_mut(*state).merge_from(rule);
                             }
                         }
-                    }
                 }
             }
         }
@@ -524,7 +517,7 @@ pub fn resolve_state_classes(
 /// A troca é 1-para-1 em **caracteres** (não em bytes): um comentário com
 /// acentos vira o mesmo número de espaços, então a *coluna* (contada em chars,
 /// como no [`Diagnostic`]) também sobrevive.
-fn strip_comments(input: &str) -> std::result::Result<String, Diagnostic> {
+fn strip_comments(input: &str) -> std::result::Result<String, Box<Diagnostic>> {
     let mut out = String::with_capacity(input.len());
     let chars: Vec<char> = input.chars().collect();
     let mut i = 0;
@@ -546,10 +539,10 @@ fn strip_comments(input: &str) -> std::result::Result<String, Diagnostic> {
             loop {
                 if i >= chars.len() {
                     let (line, col) = line_col_of(input, start);
-                    return Err(
+                    return Err(Box::new(
                         Diagnostic::new(line, col, "comentário de bloco `/* ... */` nunca fechado")
                             .with_hint("falta um `*/` — o parser leu o resto do arquivo como comentário"),
-                    );
+                    ));
                 }
                 if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
                     out.push(' ');
@@ -695,7 +688,7 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet> {
 pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result<StyleSheet> {
     // Comentários viram espaços — preservando linhas e colunas, para as posições
     // que reportamos serem as do arquivo original (ver `strip_comments`).
-    let cleaned = strip_comments(input).map_err(|d| gss_error(d, input, file, line_offset))?;
+    let cleaned = strip_comments(input).map_err(|d| gss_error(*d, input, file, line_offset))?;
     let lines = LineMap::new(&cleaned);
     let ctx = SheetCtx { input, cleaned: &cleaned, file, line_offset, lines: &lines };
     // Toda posição daqui para baixo nasce local (relativa a `input`) e só vira

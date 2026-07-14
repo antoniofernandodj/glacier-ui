@@ -91,14 +91,12 @@ fn parse_gradient(spec: &str) -> Option<Gradient> {
     let mut tokens = spec.split_whitespace().peekable();
     let mut angle_deg = 180.0_f32;
     // An optional leading numeric token is the angle in degrees.
-    if let Some(first) = tokens.peek() {
-        if !first.starts_with('#') {
-            if let Ok(a) = first.trim_end_matches("deg").parse::<f32>() {
+    if let Some(first) = tokens.peek()
+        && !first.starts_with('#')
+            && let Ok(a) = first.trim_end_matches("deg").parse::<f32>() {
                 angle_deg = a;
                 tokens.next();
             }
-        }
-    }
     let colors: Vec<Color> = tokens.filter_map(parse_hex_color).collect();
     if colors.len() < 2 {
         return None;
@@ -322,11 +320,10 @@ pub fn render_node<'a>(
             } else if let Some(f) = font_for(&node.font) {
                 t = t.font(f);
             }
-            if let Some(c_str) = color {
-                if let Some(col) = parse_hex_color(c_str) {
+            if let Some(c_str) = color
+                && let Some(col) = parse_hex_color(c_str) {
                     t = t.color(col);
                 }
-            }
             if let Some(align) = parse_text_align(&node.text_align) {
                 t = t.align_x(align);
             }
@@ -364,8 +361,8 @@ pub fn render_node<'a>(
                 }
             }
 
-            if let Some(c_str) = color {
-                if let Some(col) = parse_hex_color(c_str) {
+            if let Some(c_str) = color
+                && let Some(col) = parse_hex_color(c_str) {
                     let br_radius = node.border_radius.unwrap_or(0.0);
                     let br_width = node.border_width.unwrap_or(0.0);
                     let br_color = node.border_color.as_ref()
@@ -433,7 +430,6 @@ pub fn render_node<'a>(
                         }
                     });
                 }
-            }
 
             btn.width(parse_length(&node.width))
                .height(parse_length(&node.height))
@@ -460,8 +456,8 @@ pub fn render_node<'a>(
             // set) — a stray `formControl` outside any `<Form>` renders as a
             // plain input, same as before this feature existed. Skipped when
             // `disabled` for the same reason as `on_input` above.
-            if !is_disabled {
-                if let (Some(control), Some(scope), Some(submit_action)) =
+            if !is_disabled
+                && let (Some(control), Some(scope), Some(submit_action)) =
                     (&node.form_control, &node.form_scope, &node.form_submit_action)
                 {
                     input = input.id(form_input_id(scope, control));
@@ -472,7 +468,6 @@ pub fn render_node<'a>(
                         next_focus,
                     });
                 }
-            }
 
             // `iced`'s own default for `text_input` is `Length::Fill` (unlike
             // most other widgets, which default to `Shrink`); only override it
@@ -640,7 +635,7 @@ pub fn render_node<'a>(
                     value: v.to_string(),
                 });
             }
-            if let Some(s) = node.text_align.as_ref().and_then(|_| node.spacing) {
+            if let Some(s) = node.text_align.as_ref().and(node.spacing) {
                 c = c.spacing(s);
             }
             c.into()
@@ -694,7 +689,7 @@ pub fn render_node<'a>(
             let style_fn = move |theme: &iced::Theme, status: pick_list::Status| {
                 let pal = theme.extended_palette();
                 let mut text_color = txt_color.unwrap_or(pal.background.base.text);
-                let mut background = bg.clone().unwrap_or(Background::Color(pal.background.weak.color));
+                let mut background = bg.unwrap_or(Background::Color(pal.background.weak.color));
                 let mut border = Border {
                     radius: iced::border::Radius::new(br_radius.unwrap_or(4.0)),
                     width: br_width.unwrap_or(1.0),
@@ -854,7 +849,7 @@ pub fn render_node<'a>(
             if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
                 c = c.style(move |_theme| {
                     container::Style {
-                        background: bg_opt.clone(),
+                        background: bg_opt,
                         border: Border {
                             radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
                             width: bw_opt,
@@ -935,7 +930,7 @@ pub fn render_node<'a>(
 
             c = c.style(move |_theme| {
                 container::Style {
-                    background: bg_opt.clone(),
+                    background: bg_opt,
                     border: Border {
                         radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
                         width: bw_opt,
@@ -989,8 +984,8 @@ pub fn render_node<'a>(
         if let (Some(list), Some(key)) = (&node.drag_list, &node.drag_item_key) {
             ma = ma.on_enter(EngineMessage::DragHover { list: list.clone(), key: key.clone() });
         }
-        if node.drag_handle {
-            if let (Some(list), Some(key), Some(order), Some(on_reorder), Some(reorder_key)) = (
+        if node.drag_handle
+            && let (Some(list), Some(key), Some(order), Some(on_reorder), Some(reorder_key)) = (
                 &node.drag_list,
                 &node.drag_item_key,
                 &node.drag_order,
@@ -1005,7 +1000,6 @@ pub fn render_node<'a>(
                     key: key.clone(),
                 });
             }
-        }
         element = ma.into();
     }
 
