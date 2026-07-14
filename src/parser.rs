@@ -993,30 +993,36 @@ fn protect_style_bodies(xml: &str) -> String {
 
 /// Índice do próximo `<style`/`<Style` que abre uma tag de verdade (seguido de
 /// espaço, `>` ou `/`, para não casar um `<styles>` qualquer).
+///
+/// A comparação é feita em **bytes**, não fatiando o `&str`: o texto que vem
+/// depois de um `<` pode começar no meio de um caractere multi-byte (um `─` de
+/// régua num comentário, por exemplo), e `&tail[..5]` entraria em pânico ali.
 fn find_style_open(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
     let mut from = 0;
     while let Some(i) = s[from..].find('<').map(|i| from + i) {
-        let tail = &s[i + 1..];
-        let name_len = if tail.len() >= 5 && tail[..5].eq_ignore_ascii_case("style") {
-            5
-        } else {
-            from = i + 1;
-            continue;
-        };
-        match tail.as_bytes().get(name_len) {
-            Some(b' ' | b'\t' | b'\n' | b'\r' | b'>' | b'/') => return Some(i),
-            _ => from = i + 1,
+        let name = bytes.get(i + 1..i + 6);
+        let is_style = name.is_some_and(|n| n.eq_ignore_ascii_case(b"style"));
+        // O caractere logo após o nome tem de terminá-lo (senão é `<styles>`).
+        let terminated = matches!(
+            bytes.get(i + 6),
+            Some(b' ' | b'\t' | b'\n' | b'\r' | b'>' | b'/')
+        );
+        if is_style && terminated {
+            return Some(i);
         }
+        from = i + 1;
     }
     None
 }
 
-/// Índice do `</style>` que fecha o bloco corrente (case-insensitive).
+/// Índice do `</style>` que fecha o bloco corrente (case-insensitive). Compara
+/// em bytes pelo mesmo motivo de [`find_style_open`].
 fn find_style_close(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
     let mut from = 0;
     while let Some(i) = s[from..].find("</").map(|i| from + i) {
-        let tail = &s[i + 2..];
-        if tail.len() >= 5 && tail[..5].eq_ignore_ascii_case("style") {
+        if bytes.get(i + 2..i + 7).is_some_and(|n| n.eq_ignore_ascii_case(b"style")) {
             return Some(i);
         }
         from = i + 2;
@@ -1046,6 +1052,16 @@ mod diagnostic_tests {
     #[test]
     fn menor_que_literal_no_css_nao_quebra_o_parse() {
         let xml = "<Column><style>.a { width: 10; } /* a < b */</style><Text content=\"x\"/></Column>";
+        assert!(UiNode::parse_xml(xml).is_ok());
+    }
+
+    // Regressão: a varredura por `<style` não pode fatiar o `&str` por byte —
+    // o texto após um `<` pode começar no meio de um caractere multi-byte (uma
+    // régua `──` num comentário é o caso real que quebrou), e o fatiamento
+    // entrava em pânico. Agora a comparação é em bytes.
+    #[test]
+    fn caractere_multibyte_apos_menor_que_nao_entra_em_panico() {
+        let xml = "<Column>\n  <!-- ── separador ────── -->\n  <Text content=\"ação\" />\n</Column>";
         assert!(UiNode::parse_xml(xml).is_ok());
     }
 
