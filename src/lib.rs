@@ -27,7 +27,7 @@ pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
 pub use app::GlacierApp;
 pub use error::{Diagnostic, GlacierError, Result};
 pub use parser::{UiNode, NodeType};
-pub use eval::{evaluate_node, process_template, strip_script, normalize_bare_directives, StyleContext};
+pub use eval::{evaluate_node, evaluate_template, process_template, strip_script, normalize_bare_directives, EvalCache, StyleContext};
 pub use widget::{render_node, EngineMessage};
 pub use component::{BroadcastMessage, Component, Context, ContextVar, DialogAction, Effect, EffectOutcome, FetchResult, Nav, Template, WindowSource, WindowSpec};
 pub use daemon::{DaemonMessage, GlacierDaemon, WindowGeometry};
@@ -63,6 +63,16 @@ pub struct GlacierUI {
     /// Templates que o app quer manter avaliados além da tela atual (ver
     /// [`GlacierUI::keep_evaluated`]). Vazio no caso comum.
     pinned: std::collections::HashSet<String>,
+    /// As chaves de contexto que cada árvore avaliada **lê**, com o valor que
+    /// tinham na avaliação. É o que deixa [`GlacierUI::reevaluate_all`] responder
+    /// "o que mudou é lido por esta tela?" e não fazer nada quando a resposta é
+    /// não — o caso comum quando um snapshot do servidor mexe em dados de uma
+    /// view que não está aberta.
+    eval_deps: HashMap<String, Vec<(String, Option<String>)>>,
+    /// Subárvores já avaliadas, reaproveitadas entre reavaliações quando nada de
+    /// que dependem mudou (ver [`eval::EvalCache`]). É o que faz uma linha de log
+    /// nova não reconstruir a sidebar nem as 45 linhas da tabela ao lado.
+    eval_cache: eval::EvalCache,
     /// In-memory context data for state binding
     context_data: HashMap<String, String>,
     /// File modification times to support hot reloading
@@ -222,6 +232,8 @@ impl GlacierUI {
             parsed_templates: HashMap::new(),
             evaluated_templates: HashMap::new(),
             pinned: std::collections::HashSet::new(),
+            eval_deps: HashMap::new(),
+            eval_cache: eval::EvalCache::default(),
             context_data: HashMap::new(),
             file_mod_times: HashMap::new(),
             current_screen: None,
@@ -382,6 +394,9 @@ impl GlacierUI {
     /// [`inline_style_key`]) — either way it is what makes reloading replace
     /// the same slot instead of accumulating duplicates.
     fn install_global_stylesheet(&mut self, key: String, sheet: stylesheet::StyleSheet) {
+        // Estilo mudou: nenhuma subárvore guardada é confiável (o cache só
+        // rastreia chaves de CONTEXTO, não folhas de estilo).
+        self.invalidate_eval_cache();
         if let Some(idx) = self.stylesheet_paths.iter().position(|p| *p == key) {
             self.stylesheets[idx] = sheet;
         } else {
@@ -538,6 +553,7 @@ impl GlacierUI {
         let (ast, _script) = parse_markup(path.as_deref(), &markup)
             .map_err(|e| e.in_component(&name))?;
         self.parsed_templates.insert(name.clone(), ast.clone());
+        self.invalidate_eval_cache();
         // An explicit registration of this name means it's no longer a lib
         // builtin (register_builtins re-adds its own names *after* this call, so
         // this stays a no-op for the builtins themselves).
@@ -703,6 +719,9 @@ impl GlacierUI {
                 // sem `@media` nunca re-avaliam aqui.
                 if new != self.viewport && self.media_set_changes(self.viewport, new) {
                     self.viewport = new;
+                    // O resultado das `@media` mudou: o estilo de qualquer nó
+                    // pode ter mudado com ele, e isso o cache não enxerga.
+                    self.invalidate_eval_cache();
                     let _ = self.reevaluate_all();
                 } else {
                     self.viewport = new;
@@ -1179,6 +1198,7 @@ impl GlacierUI {
 
         self.registered_components.insert(name.to_string(), path.to_string());
         self.parsed_templates.insert(name.to_string(), ast.clone());
+        self.invalidate_eval_cache();
         self.file_mod_times.insert(name.to_string(), mod_time);
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
@@ -1268,6 +1288,8 @@ impl GlacierUI {
                 .map_err(|e| e.in_component(component))
         };
 
+        // Idem para os `<style scoped>`: mexeu no estilo, o cache cai.
+        self.invalidate_eval_cache();
         if scoped_css.is_empty() {
             self.component_stylesheets.remove(component);
         } else {
@@ -1433,24 +1455,59 @@ impl GlacierUI {
     /// cache que guarda árvores velhas é um render silenciosamente desatualizado
     /// esperando para acontecer.
     pub fn reevaluate_all(&mut self) -> Result<()> {
-        self.evaluated_templates.clear();
-
         let names: Vec<String> = self
             .current_screen
             .iter()
             .chain(self.pinned.iter())
             .cloned()
             .collect();
-        for name in names {
+
+        for name in &names {
             // Um nome fixado que ainda não foi registrado não é erro (o app pode
             // fixá-lo antes de carregá-lo); a tela ativa idem, durante o boot.
-            if self.parsed_templates.contains_key(&name) {
-                self.evaluate_into_cache(&name)?;
+            if !self.parsed_templates.contains_key(name) {
+                continue;
             }
+            // **Nada que esta árvore lê mudou?** Então ela não pode ter mudado:
+            // deixe-a exatamente como está, sem reconstruir nem clonar nada. É o
+            // caso comum de um app conectado a um stream — o servidor manda um
+            // snapshot mexendo em chaves de views que não estão abertas, e a tela
+            // em uso não tem por que ser refeita.
+            if self
+                .eval_deps
+                .get(name)
+                .is_some_and(|deps| self.deps_hold(deps))
+                && self.evaluated_templates.contains_key(name)
+            {
+                continue;
+            }
+            self.evaluate_into_cache(name)?;
         }
+
+        // Árvores de templates que saíram de uso (mudou a tela) não devem ficar
+        // ocupando memória nem serem varridas pelo `sync_editors`.
+        self.evaluated_templates.retain(|k, _| names.contains(k));
 
         self.sync_editors();
         Ok(())
+    }
+
+    /// `true` se **todas** as dependências guardadas ainda têm o mesmo valor no
+    /// contexto de agora — a pergunta "posso reaproveitar o que já está pronto?".
+    fn deps_hold(&self, deps: &[(String, Option<String>)]) -> bool {
+        deps.iter()
+            .all(|(k, v)| self.context_data.get(k).map(String::as_str) == v.as_deref())
+    }
+
+    /// Invalida o cache de avaliação inteiro. Chamado quando muda algo que o
+    /// rastreamento **por chave de contexto não enxerga** — uma folha de estilo
+    /// recarregada, o viewport cruzando um breakpoint de `@media`, um template
+    /// reparseado. Nesses casos qualquer subárvore guardada pode estar obsoleta,
+    /// e reconstruir tudo é o único caminho seguro (e raro).
+    fn invalidate_eval_cache(&mut self) {
+        self.eval_cache.clear();
+        self.eval_deps.clear();
+        self.evaluated_templates.clear();
     }
 
     /// Avalia o template `name` contra o contexto atual e o guarda no cache.
@@ -1458,7 +1515,7 @@ impl GlacierUI {
     /// (ansiosa, para a tela ativa) e [`GlacierUI::evaluated`] (preguiçosa, sob
     /// demanda) passam os dois por aqui.
     fn evaluate_into_cache(&mut self, name: &str) -> Result<()> {
-        let evaluated = {
+        let (evaluated, deps) = {
             let ast = self
                 .parsed_templates
                 .get(name)
@@ -1476,9 +1533,17 @@ impl GlacierUI {
             };
             // The template's own name is the style scope, so its `<link>`ed
             // sheets apply to its subtree.
-            evaluate_node(ast, &self.context_data, &self.parsed_templates, &styles, Some(name))?
+            eval::evaluate_template(
+                ast,
+                &self.context_data,
+                &self.parsed_templates,
+                &styles,
+                Some(name),
+                &mut self.eval_cache,
+            )?
         };
         self.evaluated_templates.insert(name.to_string(), evaluated);
+        self.eval_deps.insert(name.to_string(), deps);
         Ok(())
     }
 
@@ -1598,6 +1663,7 @@ impl GlacierUI {
             let _ = self.load_imports(&new_ast);
             let _ = self.process_links(&name, &new_ast);
             self.parsed_templates.insert(name.clone(), new_ast);
+            self.invalidate_eval_cache();
             self.file_mod_times.insert(name, modified);
         }
 
@@ -1643,6 +1709,7 @@ impl GlacierUI {
 
         if dirty {
             // Re-evaluate all templates against the new markup/styles/data.
+            self.invalidate_eval_cache();
             let _ = self.reevaluate_all();
         }
 
@@ -1974,6 +2041,188 @@ fn resize_direction(s: &str) -> Option<iced::window::Direction> {
         "sw" | "southwest" | "south-west" => SouthWest,
         _ => return None,
     })
+}
+
+/// O cache de avaliação é a única parte do motor que pode produzir uma UI
+/// **silenciosamente desatualizada** — o pior tipo de bug daqui. Estes testes
+/// atacam exatamente isso: cada um muda alguma coisa e exige que a árvore reflita
+/// a mudança. Passar nos testes de funcionalidade não bastaria: uma árvore velha
+/// servida do cache é, por definição, uma árvore que já esteve certa.
+#[cfg(test)]
+mod dirty_tracking_tests {
+    use super::*;
+    use crate::component::{Component, Context, Template};
+
+    /// Tela com um COMPONENTE (a fronteira de cache que representa a sidebar) e
+    /// uma LISTA (a outra fronteira), mais uma chave que ninguém lê — para
+    /// simular a linha de log chegando pelo SSE.
+    struct Tela;
+    impl Component for Tela {
+        fn name(&self) -> &str {
+            "tela"
+        }
+        fn template(&self) -> Template {
+            Template::Inline(
+                r#"<Column>
+                     <Cartao rotulo="{titulo}" />
+                     <Text content="titulo: {titulo}" />
+                     <Column for-each="linhas" var="l">
+                       <Text content="{l.nome}" />
+                     </Column>
+                   </Column>"#
+                    .to_string(),
+            )
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+        fn children(&self) -> Vec<Box<dyn Component>> {
+            vec![Box::new(Cartao)]
+        }
+    }
+
+    /// O componente usado pela tela — sua subárvore é memoizada pelas props.
+    struct Cartao;
+    impl Component for Cartao {
+        fn name(&self) -> &str {
+            "Cartao"
+        }
+        fn template(&self) -> Template {
+            Template::Inline(r#"<Column><Text content="cartao: {rotulo}" /></Column>"#.to_string())
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
+
+    fn textos(node: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &node.kind {
+            out.push(content.clone());
+        }
+        for c in &node.children {
+            textos(c, out);
+        }
+    }
+
+    fn tela_com(dados: &[(&str, &str)]) -> GlacierUI {
+        let mut m = GlacierUI::new();
+        m.register(Box::new(Tela)).unwrap();
+        m.set_initial_screen("tela");
+        for (k, v) in dados {
+            m.define_data(k, v);
+        }
+        m
+    }
+
+    fn conteudo(m: &mut GlacierUI) -> Vec<String> {
+        let mut out = Vec::new();
+        textos(m.evaluated("tela").unwrap(), &mut out);
+        out
+    }
+
+    // 1. Mudar uma chave que a tela LÊ tem de refletir. É o teste que pega o
+    //    cache servindo uma árvore velha.
+    #[test]
+    fn mudanca_em_chave_lida_reflete() {
+        let mut m = tela_com(&[("titulo", "antes"), ("linhas", "[]")]);
+        assert!(conteudo(&mut m).contains(&"titulo: antes".to_string()));
+
+        m.define_data("titulo", "depois");
+        let c = conteudo(&mut m);
+        assert!(c.contains(&"titulo: depois".to_string()), "o cache serviu a árvore velha: {c:?}");
+        // E a mudança tem de atravessar a fronteira do componente: `titulo` chega
+        // lá dentro como a prop `rotulo`, então a subárvore memoizada dele
+        // precisa ter sido invalidada pela mudança da PROP, não da chave.
+        assert!(
+            c.contains(&"cartao: depois".to_string()),
+            "o componente ficou com a prop velha: {c:?}"
+        );
+    }
+
+    // 2. Mudar um ITEM da lista reflete só naquele item — e reflete de verdade.
+    #[test]
+    fn mudanca_num_item_da_lista_reflete() {
+        let mut m = tela_com(&[
+            ("titulo", "t"),
+            ("linhas", r#"[{"nome":"a"},{"nome":"b"}]"#),
+        ]);
+        assert!(conteudo(&mut m).contains(&"a".to_string()));
+
+        m.define_data("linhas", r#"[{"nome":"a"},{"nome":"B!"}]"#);
+        let c = conteudo(&mut m);
+        assert!(c.contains(&"a".to_string()), "o item intacto deve continuar lá: {c:?}");
+        assert!(c.contains(&"B!".to_string()), "o item alterado deve refletir: {c:?}");
+        assert!(!c.contains(&"b".to_string()), "o valor velho não pode sobreviver: {c:?}");
+    }
+
+    // 3. Remover um item o tira da árvore (e a entrada órfã do cache é varrida,
+    //    senão o item removido reapareceria — ou o cache cresceria sem fim).
+    #[test]
+    fn item_removido_some_da_arvore() {
+        let mut m = tela_com(&[
+            ("titulo", "t"),
+            ("linhas", r#"[{"nome":"a"},{"nome":"b"}]"#),
+        ]);
+        assert!(conteudo(&mut m).contains(&"b".to_string()));
+
+        m.define_data("linhas", r#"[{"nome":"a"}]"#);
+        let c = conteudo(&mut m);
+        assert!(!c.contains(&"b".to_string()), "o item removido continuou na árvore: {c:?}");
+    }
+
+    // 4. O ganho: mudar uma chave que NINGUÉM lê não reconstrói nada. Se este
+    //    passar mas os de cima falharem, o cache está rápido e errado; é a
+    //    combinação que importa.
+    #[test]
+    fn chave_nao_lida_nao_reconstroi_a_arvore() {
+        let mut m = tela_com(&[("titulo", "t"), ("linhas", r#"[{"nome":"a"}]"#)]);
+        // Identidade da árvore antes: os `node_id` são preservados por clone, mas
+        // uma reconstrução gera um `UiNode` novo — comparamos o ponteiro.
+        let antes = m.evaluated_templates.get("tela").unwrap() as *const UiNode;
+
+        m.define_data("__ninguem_le_isso", "1");
+
+        let depois = m.evaluated_templates.get("tela").unwrap() as *const UiNode;
+        assert_eq!(
+            antes, depois,
+            "a árvore foi reconstruída à toa: nada que a tela lê mudou"
+        );
+    }
+
+    // 5. Recarregar o ESTILO invalida o cache — o rastreamento só enxerga chaves
+    //    de contexto, então um `.gss` novo com o cache quente serviria os nós com
+    //    o estilo velho. É a armadilha mais fácil de errar neste desenho.
+    #[test]
+    fn estilo_novo_invalida_o_cache() {
+        let dir = std::env::temp_dir().join(format!("glacier_cache_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let gss = dir.join("t.gss");
+        std::fs::write(&gss, ".alvo { padding: 4; }").unwrap();
+
+        let mut m = GlacierUI::new();
+        m.load_stylesheet(gss.to_str().unwrap()).unwrap();
+        m.register(Box::new(TelaClasse)).unwrap();
+        m.set_initial_screen("tela_classe");
+        assert_eq!(m.evaluated("tela_classe").unwrap().padding.as_deref(), Some("4"));
+
+        // Mesmo template, mesmo contexto — só o estilo mudou.
+        std::fs::write(&gss, ".alvo { padding: 99; }").unwrap();
+        m.load_stylesheet(gss.to_str().unwrap()).unwrap();
+        assert_eq!(
+            m.evaluated("tela_classe").unwrap().padding.as_deref(),
+            Some("99"),
+            "o cache serviu o nó com o estilo velho"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    struct TelaClasse;
+    impl Component for TelaClasse {
+        fn name(&self) -> &str {
+            "tela_classe"
+        }
+        fn template(&self) -> Template {
+            Template::Inline(r#"<Column class="alvo"><Text content="x" /></Column>"#.to_string())
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
 }
 
 #[cfg(test)]

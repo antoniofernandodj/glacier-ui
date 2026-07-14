@@ -194,6 +194,111 @@ pub struct EvalCtx<'a> {
     /// A camada mais interna; cada uma aponta para a de fora (lista ligada na
     /// pilha, sem alocação).
     layer: Option<&'a Layer<'a>>,
+    /// Registrador de leituras — toda chave consultada por [`EvalCtx::get`] é
+    /// anotada aqui. É o que dá o **conjunto de dependências** de uma subárvore,
+    /// e portanto o que torna possível saber que ela *não* precisa ser
+    /// reconstruída. `None` quando ninguém está rastreando (avaliação avulsa).
+    reads: Option<&'a Reads>,
+    /// Identidade da **instância** desta posição na árvore avaliada: um hash do
+    /// caminho (nó do AST + índice do item, acumulado a cada nível de
+    /// `for-each`). Duas linhas de uma lista compartilham o nó do AST mas têm
+    /// caminhos distintos — sem isso, uma sobrescreveria a entrada de cache da
+    /// outra e o cache nunca acertaria.
+    path: u64,
+}
+
+/// Coleta as chaves de contexto lidas durante a avaliação, em **quadros**
+/// aninhados: um por subárvore candidata a cache.
+///
+/// Ao fechar um quadro, suas leituras são mescladas no quadro de fora — uma
+/// chave lida lá no fundo de uma subárvore também é dependência de todos os
+/// ancestrais dela. Sem essa propagação, o cache do pai acharia que não depende
+/// de algo de que depende, e serviria uma árvore velha: o pior tipo de bug de
+/// UI, silencioso e intermitente. É por isso que o rastreamento vive no
+/// [`EvalCtx::get`] — o **único** caminho de leitura — e não numa análise
+/// estática do template, que poderia esquecer um caso.
+#[derive(Default)]
+pub struct Reads {
+    frames: std::cell::RefCell<Vec<HashMap<String, Option<String>>>>,
+}
+
+impl Reads {
+    /// Anota a leitura de `key` (com o valor visto) no quadro corrente.
+    fn record(&self, key: &str, value: Option<&str>) {
+        if let Some(frame) = self.frames.borrow_mut().last_mut() {
+            frame
+                .entry(key.to_string())
+                .or_insert_with(|| value.map(str::to_string));
+        }
+    }
+
+    fn push(&self) {
+        self.frames.borrow_mut().push(HashMap::new());
+    }
+
+    /// Fecha o quadro corrente, devolvendo suas dependências e propagando-as
+    /// para o quadro de fora.
+    fn pop(&self) -> Vec<(String, Option<String>)> {
+        let mut frames = self.frames.borrow_mut();
+        let Some(frame) = frames.pop() else { return Vec::new() };
+        if let Some(parent) = frames.last_mut() {
+            for (k, v) in &frame {
+                parent.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+        }
+        frame.into_iter().collect()
+    }
+
+    /// Propaga as dependências de uma subárvore **reaproveitada do cache** (que
+    /// portanto não foi reavaliada, e não registrou leitura nenhuma) para o
+    /// quadro corrente — senão o ancestral acharia que não depende delas.
+    fn merge(&self, deps: &[(String, Option<String>)]) {
+        if let Some(frame) = self.frames.borrow_mut().last_mut() {
+            for (k, v) in deps {
+                frame.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+        }
+    }
+}
+
+/// Subárvores já avaliadas, guardadas entre reavaliações e reaproveitadas quando
+/// nada de que dependem mudou.
+///
+/// Reusar custa um `clone` da subárvore; medido na árvore real do rustploy,
+/// clonar é **14× mais barato** que reavaliar (0,75 µs/nó contra 10,5 µs/nó — o
+/// grosso de avaliar um nó é resolver o estilo dele e montar um `UiNode` de ~40
+/// campos). É essa razão que faz a memoização valer a pena.
+#[derive(Default)]
+pub struct EvalCache {
+    entries: HashMap<u64, CacheEntry>,
+    /// Entradas tocadas na passada corrente. O que sobrar fora daqui ao final é
+    /// lixo (uma linha que saiu da lista) e é varrido — senão o cache cresceria
+    /// sem limite ao longo da vida do app.
+    live: std::collections::HashSet<u64>,
+}
+
+struct CacheEntry {
+    /// As chaves de que a subárvore depende, e o valor que tinham quando ela foi
+    /// construída. A entrada só vale enquanto **todos** ainda casarem.
+    deps: Vec<(String, Option<String>)>,
+    nodes: Vec<UiNode>,
+}
+
+impl EvalCache {
+    /// Descarta tudo. Chamado quando muda algo que o rastreamento de chaves não
+    /// enxerga — folha de estilo, viewport (`@media`), markup recarregado —,
+    /// caso em que qualquer subárvore guardada pode estar obsoleta.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.live.clear();
+    }
+
+    /// Remove as entradas não usadas na última passada (itens que sumiram da
+    /// lista). Chamado ao fim de cada avaliação de template.
+    fn sweep(&mut self) {
+        self.entries.retain(|k, _| self.live.contains(k));
+        self.live.clear();
+    }
 }
 
 /// Um conjunto de variáveis locais empilhado sobre o contexto. Ver [`EvalCtx`].
@@ -228,33 +333,117 @@ impl<'a> Layer<'a> {
 }
 
 impl<'a> EvalCtx<'a> {
-    /// Contexto de avaliação sobre `base`, sem nenhuma camada local.
+    /// Contexto de avaliação sobre `base`, sem camadas nem rastreamento.
     pub fn new(base: &'a HashMap<String, String>) -> Self {
-        Self { base, layer: None }
+        Self { base, layer: None, reads: None, path: 0 }
+    }
+
+    /// O mesmo, rastreando as leituras em `reads` (o que habilita o cache).
+    fn tracked(base: &'a HashMap<String, String>, reads: &'a Reads) -> Self {
+        Self { base, layer: None, reads: Some(reads), path: 0 }
     }
 
     /// O valor de `key`: camadas locais (da mais interna para a mais externa)
     /// primeiro, base depois.
+    ///
+    /// **Único** caminho de leitura do contexto durante a avaliação — é o que
+    /// permite ao rastreamento ser completo por construção, em vez de depender
+    /// de eu ter lembrado de anotar cada call-site.
     pub fn get(&self, key: &str) -> Option<&str> {
-        match self.layer.and_then(|l| l.get(key)) {
+        let value = match self.layer.and_then(|l| l.get(key)) {
             Some(v) => Some(v),
             None => self.base.get(key).map(String::as_str),
+        };
+        if let Some(reads) = self.reads {
+            reads.record(key, value);
         }
+        value
     }
 
     /// O mesmo contexto com `layer` empilhada por cima (a camada precisa viver
-    /// no frame do chamador — é isso que torna a operação O(1), sem cópia).
-    fn with<'c>(&self, layer: &'c Layer<'c>) -> EvalCtx<'c>
+    /// no frame do chamador — é isso que torna a operação O(1), sem cópia), e o
+    /// caminho estendido por `step` (a identidade desta instância; ver
+    /// [`EvalCtx::path`]).
+    fn with<'c>(&self, layer: &'c Layer<'c>, step: u64) -> EvalCtx<'c>
     where
         'a: 'c,
     {
-        EvalCtx { base: self.base, layer: Some(layer) }
+        EvalCtx {
+            base: self.base,
+            layer: Some(layer),
+            reads: self.reads,
+            path: mix(self.path, step),
+        }
     }
 
     /// A camada corrente, para uma nova ser encadeada sob ela.
     fn layer(&self) -> Option<&'a Layer<'a>> {
         self.layer
     }
+
+    /// Confere se as dependências guardadas numa entrada de cache ainda batem
+    /// com o contexto de agora. É a pergunta "algo de que essa subárvore depende
+    /// mudou?" — e nada além disso decide um acerto de cache.
+    fn deps_hold(&self, deps: &[(String, Option<String>)]) -> bool {
+        deps.iter().all(|(k, v)| {
+            let now = match self.layer.and_then(|l| l.get(k)) {
+                Some(v) => Some(v),
+                None => self.base.get(k).map(String::as_str),
+            };
+            now == v.as_deref()
+        })
+    }
+}
+
+impl EvalCtx<'_> {
+    /// Abre um quadro de leituras para a subárvore que vem a seguir (no-op se
+    /// não há rastreamento).
+    fn push_frame(&self) {
+        if let Some(r) = self.reads {
+            r.push();
+        }
+    }
+}
+
+/// Tenta reaproveitar do cache a subárvore desta posição: acerta quando **toda**
+/// dependência guardada ainda tem o mesmo valor. Num acerto, empurra os nós
+/// (clonados) em `out` e propaga as dependências para o quadro corrente — quem
+/// reusa não lê nada, mas continua *dependendo* das mesmas chaves, e o ancestral
+/// precisa saber disso.
+fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
+    let hit = cache
+        .entries
+        .get(&ctx.path)
+        .filter(|e| ctx.deps_hold(&e.deps))
+        .map(|e| (e.deps.clone(), e.nodes.clone()));
+
+    let Some((deps, nodes)) = hit else { return false };
+    if let Some(r) = ctx.reads {
+        r.merge(&deps);
+    }
+    out.extend(nodes);
+    cache.live.insert(ctx.path);
+    true
+}
+
+/// Fecha o quadro de leituras aberto por [`EvalCtx::push_frame`] e guarda a
+/// subárvore recém-avaliada com as dependências que ela declarou.
+fn store(ctx: &EvalCtx, cache: &mut EvalCache, nodes: &[UiNode]) {
+    let Some(reads) = ctx.reads else { return };
+    let deps = reads.pop();
+    cache.entries.insert(ctx.path, CacheEntry { deps, nodes: nodes.to_vec() });
+    cache.live.insert(ctx.path);
+}
+
+/// Mistura um passo no hash de caminho (FNV-1a de 64 bits — suficiente para
+/// identidade de instância, não é criptografia).
+fn mix(path: u64, step: u64) -> u64 {
+    let mut h = path ^ 0xcbf2_9ce4_8422_2325;
+    for byte in step.to_le_bytes() {
+        h ^= byte as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
+    h
 }
 
 /// Monta a camada de variáveis de **um item** de `for-each`: `{var.campo}` para
@@ -424,6 +613,7 @@ fn expand_children(
     scope: Option<&str>,
     owner: Option<&str>,
     out: &mut Vec<UiNode>,
+    cache: &mut EvalCache,
 ) -> Result<()> {
     // Tracks the result of the immediately preceding `<if>`, so an `<else>`
     // can bind to it. Reset by any other (non-else) node.
@@ -452,12 +642,25 @@ fn expand_children(
                             .collect(),
                         None => Vec::new(),
                     };
-                    for item in arr {
+                    // Uma lista reordenável NÃO entra no cache: o corpo de cada
+                    // item carrega `drag_order` — a ordem inteira da lista —
+                    // INJETADO por `hydrate_drag_item`, não lido do contexto.
+                    // Como o rastreamento só enxerga leituras, uma entrada de
+                    // cache não teria como perceber que a ordem mudou, e serviria
+                    // um item com a ordem velha. São listas pequenas (env vars);
+                    // reavaliá-las sempre não custa nada.
+                    let cacheable = on_reorder.is_none();
+
+                    for (index, item) in arr.into_iter().enumerate() {
                         // Variáveis do item numa CAMADA sobre o contexto, sem
                         // clonar a base (ver `EvalCtx`).
                         let (layer, this_key) =
                             item_layer(&item, var, reorder_key.as_deref(), context);
-                        let item_ctx = context.with(&layer);
+                        let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
+
+                        if cacheable && reuse(&item_ctx, cache, out) {
+                            continue;
+                        }
 
                         // Clone the child without the for_each directive
                         let mut clone = child.clone();
@@ -478,6 +681,10 @@ fn expand_children(
                         }
 
                         // Expand the single child in the new context (which will evaluate its if condition if present)
+                        let mut item_out = Vec::new();
+                        if cacheable {
+                            item_ctx.push_frame();
+                        }
                         expand_children(
                             std::slice::from_ref(&clone),
                             &item_ctx,
@@ -485,8 +692,13 @@ fn expand_children(
                             styles,
                             scope,
                             owner,
-                            out,
+                            &mut item_out,
+                            cache,
                         )?;
+                        if cacheable {
+                            store(&item_ctx, cache, &item_out);
+                        }
+                        out.extend(item_out);
                     }
                 }
             }
@@ -500,7 +712,7 @@ fn expand_children(
                 // Clone child and clear else directive
                 let mut clone = child.clone();
                 clone.is_else = false;
-                out.push(eval_owned(&clone, context, templates, styles, scope, owner, None, None)?);
+                out.push(eval_owned(&clone, context, templates, styles, scope, owner, None, None, cache)?);
             }
             last_if = None;
             continue;
@@ -515,7 +727,7 @@ fn expand_children(
                 clone.if_cond = None;
                 clone.if_equals = None;
                 clone.if_not_equals = None;
-                out.push(eval_owned(&clone, context, templates, styles, scope, owner, None, None)?);
+                out.push(eval_owned(&clone, context, templates, styles, scope, owner, None, None, cache)?);
             }
             last_if = Some(truthy);
             continue;
@@ -542,12 +754,19 @@ fn expand_children(
                                 .collect(),
                             None => Vec::new(),
                         };
-                        for item in arr {
+                        // Ver o porquê no `for-each` de atributo, acima.
+                        let cacheable = on_reorder.is_none();
+
+                        for (index, item) in arr.into_iter().enumerate() {
                             // Variáveis do item numa CAMADA sobre o contexto, sem
                             // clonar a base (ver `EvalCtx`).
                             let (layer, this_key) =
                                 item_layer(&item, var, reorder_key.as_deref(), context);
-                            let item_ctx = context.with(&layer);
+                            let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
+
+                            if cacheable && reuse(&item_ctx, cache, out) {
+                                continue;
+                            }
 
                             // The `<ForEach>` tag's body isn't a single node like
                             // the attribute form's — clone its children so the
@@ -558,6 +777,10 @@ fn expand_children(
                             }
                             // Re-run the structural expansion on the body so that
                             // nested `if`/`else`/`ForEach` are honoured per item.
+                            let mut item_out = Vec::new();
+                            if cacheable {
+                                item_ctx.push_frame();
+                            }
                             expand_children(
                                 &body,
                                 &item_ctx,
@@ -565,8 +788,13 @@ fn expand_children(
                                 styles,
                                 scope,
                                 owner,
-                                out,
+                                &mut item_out,
+                                cache,
                             )?;
+                            if cacheable {
+                                store(&item_ctx, cache, &item_out);
+                            }
+                            out.extend(item_out);
                         }
                     }
                 }
@@ -575,18 +803,18 @@ fn expand_children(
             NodeType::If { cond, equals, not_equals } => {
                 let truthy = eval_condition(cond, equals, not_equals, context);
                 if truthy {
-                    expand_children(&child.children, context, templates, styles, scope, owner, out)?;
+                    expand_children(&child.children, context, templates, styles, scope, owner, out, cache)?;
                 }
                 last_if = Some(truthy);
             }
             NodeType::Else => {
                 if last_if == Some(false) {
-                    expand_children(&child.children, context, templates, styles, scope, owner, out)?;
+                    expand_children(&child.children, context, templates, styles, scope, owner, out, cache)?;
                 }
                 last_if = None;
             }
             _ => {
-                let n = eval_owned(child, context, templates, styles, scope, owner, None, None)?;
+                let n = eval_owned(child, context, templates, styles, scope, owner, None, None, cache)?;
                 // A `Fragment` (a multi-root component template, or an explicit
                 // `Fragment { … }`) is transparent: splice its already-evaluated
                 // children into this list instead of pushing a wrapper node, so
@@ -619,8 +847,37 @@ pub fn evaluate_node(
 ) -> Result<UiNode> {
     // A fronteira: o motor tem um `HashMap`; a avaliação por dentro trabalha
     // sobre o [`EvalCtx`] em camadas, para não clonar a base por item de lista.
+    // Sem cache nem rastreamento — é a avaliação avulsa, para quem só quer a
+    // árvore uma vez. O motor usa [`evaluate_template`].
     let ctx = EvalCtx::new(context);
-    eval_owned(node, &ctx, templates, styles, scope, None, None, None)
+    let mut cache = EvalCache::default();
+    eval_owned(node, &ctx, templates, styles, scope, None, None, None, &mut cache)
+}
+
+/// Avalia um template **rastreando** as chaves de contexto que ele lê e
+/// reaproveitando de `cache` as subárvores cujas dependências não mudaram.
+///
+/// Devolve a árvore e o conjunto de dependências dela — que é o que permite ao
+/// motor responder, na próxima mudança de contexto, a pergunta que interessa:
+/// *"isto que mudou é lido por esta tela?"*. Se não for, não há o que
+/// reconstruir. Ver [`crate::GlacierUI::reevaluate_all`].
+pub fn evaluate_template(
+    node: &UiNode,
+    context: &HashMap<String, String>,
+    templates: &HashMap<String, UiNode>,
+    styles: &StyleContext,
+    scope: Option<&str>,
+    cache: &mut EvalCache,
+) -> Result<(UiNode, Vec<(String, Option<String>)>)> {
+    let reads = Reads::default();
+    reads.push();
+    let ctx = EvalCtx::tracked(context, &reads);
+    let tree = eval_owned(node, &ctx, templates, styles, scope, None, None, None, cache)?;
+    let deps = reads.pop();
+    // Entradas de subárvores que sumiram (uma linha removida da lista) viram
+    // lixo; varrer aqui mantém o cache do tamanho da tela, não do histórico.
+    cache.sweep();
+    Ok((tree, deps))
 }
 
 /// Prefixes an action with its owning component, so `dispatch` can route it.
@@ -663,6 +920,7 @@ fn eval_owned(
     // comum. Aninhamento: o componente interno recebe o do externo já mesclado.
     underlay: Option<&StyleRule>,
     underlay_states: Option<&StateStyles>,
+    cache: &mut EvalCache,
 ) -> Result<UiNode> {
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
@@ -685,7 +943,21 @@ fn eval_owned(
         for (key, val_template) in props {
             layer.set(key.clone(), process_tpl(val_template, context));
         }
-        let local_context = context.with(&layer);
+        let local_context = context.with(&layer, mix(node.node_id, 0));
+
+        // O uso de um componente é uma fronteira natural de cache: é uma
+        // subárvore inteira com uma entrada de dados bem definida (as props). É
+        // o que faz uma linha de log nova não reconstruir a sidebar — cada
+        // `<NavItem/>` dela é um componente cujas props não mudaram.
+        let mut reused = Vec::new();
+        if reuse(&local_context, cache, &mut reused) {
+            // O cache guarda uma lista de nós; um componente sempre rende
+            // exatamente um (a raiz avaliada do seu template).
+            if let Some(root) = reused.pop() {
+                return Ok(root);
+            }
+        }
+        local_context.push_frame();
 
         // Underlay de tag-de-componente: `Card {}` (minúsculo) casa o *nome* do
         // componente no seu uso. Como o componente é inlinado, o estilo é
@@ -703,10 +975,12 @@ fn eval_owned(
 
         // The referenced subtree's actions and scoped styles belong to `name`
         // (innermost wins).
-        return eval_owned(
+        let root = eval_owned(
             template_ast, &local_context, templates, styles, Some(name), Some(name),
-            Some(&underlay_rule), Some(&underlay_st),
-        );
+            Some(&underlay_rule), Some(&underlay_st), cache,
+        )?;
+        store(&local_context, cache, std::slice::from_ref(&root));
+        return Ok(root);
     }
 
     // Resolve `class="..."` into a merged style rule that sits *underneath* the
@@ -907,7 +1181,7 @@ fn eval_owned(
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
     let mut children_eval = Vec::new();
-    expand_children(&node.children, context, templates, styles, scope, owner, &mut children_eval)?;
+    expand_children(&node.children, context, templates, styles, scope, owner, &mut children_eval, cache)?;
 
     // A `<Form>` hydrates every `formControl`-bound descendant (at any depth,
     // through nested Rows/Columns) with the shared scope, its evaluated
@@ -923,6 +1197,7 @@ fn eval_owned(
     }
 
     Ok(UiNode {
+        node_id: node.node_id,
         kind: kind_eval,
         children: children_eval,
         // Numeric templates are resolved into the f32 fields below; nothing left.

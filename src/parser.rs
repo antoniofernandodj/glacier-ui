@@ -235,8 +235,26 @@ pub enum NumAttr {
     Size,
 }
 
+/// Contador global que dá a cada nó parseado uma identidade única no processo.
+/// Ver [`UiNode::node_id`].
+static NEXT_NODE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// A próxima identidade de nó.
+pub(crate) fn next_node_id() -> u64 {
+    NEXT_NODE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiNode {
+    /// Identidade **do nó no template**, atribuída no parse e preservada pelos
+    /// clones que a avaliação faz. É o que dá ao cache de avaliação uma chave
+    /// estável: sem ela, dois `for-each` irmãos (ou aninhados) não teriam como
+    /// ser distinguidos um do outro entre uma reavaliação e a seguinte. Ver
+    /// [`crate::eval::EvalCache`].
+    ///
+    /// Recarregar o template gera ids novos — as entradas velhas do cache viram
+    /// órfãs e são varridas, que é o comportamento desejado (o markup mudou).
+    pub node_id: u64,
     pub kind: NodeType,
     pub children: Vec<UiNode>,
     /// Raw, still-templated values of numeric attributes whose XML value held a
@@ -703,6 +721,7 @@ impl UiNode {
         }
 
         Some(Self {
+            node_id: next_node_id(),
             kind,
             children,
             numeric_templates,
@@ -1188,6 +1207,7 @@ mod loose_text_tests {
 /// `Fragment` wrapping multiple top-level nodes).
 pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
     UiNode {
+        node_id: next_node_id(),
         kind,
         children,
         numeric_templates: Vec::new(),
