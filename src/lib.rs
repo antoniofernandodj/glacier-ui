@@ -1054,32 +1054,11 @@ impl GlacierUI {
         self.pending_close_self |= close_self;
 
         // Notificações nativas do SO (ver Context::notify): entregues fora da
-        // thread de UI — o backend `notify-rust` é síncrono/bloqueante (abre uma
-        // conexão D-Bus no Linux, chama o WinRT no Windows). São eventos raros e
+        // thread de UI — o backend é síncrono/bloqueante. São eventos raros e
         // fire-and-forget: um thread destacado por notificação, sem realimentar
-        // nada ao componente; falha ao entregar só loga.
+        // nada ao componente; falha ao entregar só loga (ver emit_os_notification).
         for spec in notifications {
-            std::thread::spawn(move || {
-                let mut n = notify_rust::Notification::new();
-                if !spec.title.is_empty() {
-                    n.summary(&spec.title);
-                }
-                if !spec.body.is_empty() {
-                    n.body(&spec.body);
-                }
-                // `app_name`: sobrescreve o padrão do notify-rust (nome do exe).
-                // Necessário quando o nome do binário não é o de exibição, ou
-                // quando o desktop filtra notificações pela identidade do app.
-                if let Some(app) = &spec.app_name {
-                    n.appname(app);
-                }
-                if let Some(icon) = &spec.icon {
-                    n.icon(icon);
-                }
-                if let Err(e) = n.show() {
-                    eprintln!("notify: falha ao emitir notificação do SO: {e}");
-                }
-            });
+            std::thread::spawn(move || emit_os_notification(spec));
         }
 
         // Novas janelas pedidas pelo componente: resolve `Named` para o caminho
@@ -2189,6 +2168,78 @@ fn resize_direction(s: &str) -> Option<iced::window::Direction> {
         "sw" | "southwest" | "south-west" => SouthWest,
         _ => return None,
     })
+}
+
+/// Emite uma notificação nativa do SO (ver [`component::NotificationSpec`]).
+/// Roda num thread destacado (o backend é bloqueante) e é fire-and-forget.
+///
+/// No **Linux**, tenta primeiro o `notify-send` (subprocesso), caindo para o
+/// `notify-rust` in-process se ele não existir. O motivo é sutil mas real: alguns
+/// ambientes (observado num GNOME) **suprimem** notificações fdo enviadas
+/// *in-process* por um app que tem janela — o compositor associa a notificação ao
+/// app pelo PID→janela (`app_id`) e a descarta silenciosamente, mesmo com o app
+/// habilitado nas configurações. Um subprocesso **sem janela** (`notify-send`)
+/// não é associado a nenhum app e é exibido normalmente. Em outros SOs (Windows
+/// WinRT, macOS `NSUserNotification`) o `notify-rust` in-process é o caminho certo.
+fn emit_os_notification(spec: component::NotificationSpec) {
+    #[cfg(target_os = "linux")]
+    {
+        if emit_via_notify_send(&spec) {
+            return;
+        }
+        // notify-send ausente/falhou: cai para o notify-rust in-process.
+    }
+    emit_via_notify_rust(&spec);
+}
+
+/// Dispara a notificação via `notify-send` (libnotify). Devolve `true` se o
+/// comando existiu e retornou sucesso; `false` (não instalado / falhou) sinaliza
+/// para quem chama tentar o fallback in-process.
+#[cfg(target_os = "linux")]
+fn emit_via_notify_send(spec: &component::NotificationSpec) -> bool {
+    // `notify-send [OPÇÕES] RESUMO [CORPO]` — o resumo é obrigatório; se só há
+    // corpo, ele vira o resumo (mesma normalização do prelúdio Luau).
+    let (summary, body) = if spec.title.is_empty() {
+        (spec.body.as_str(), "")
+    } else {
+        (spec.title.as_str(), spec.body.as_str())
+    };
+    let mut cmd = std::process::Command::new("notify-send");
+    if let Some(app) = &spec.app_name {
+        cmd.arg("--app-name").arg(app);
+    }
+    if let Some(icon) = &spec.icon {
+        cmd.arg("--icon").arg(icon);
+    }
+    cmd.arg(summary);
+    if !body.is_empty() {
+        cmd.arg(body);
+    }
+    match cmd.status() {
+        Ok(status) => status.success(),
+        Err(_) => false, // provavelmente não instalado — deixa o fallback tentar.
+    }
+}
+
+/// Dispara a notificação in-process via `notify-rust` (D-Bus no Linux/BSD, WinRT
+/// no Windows, `NSUserNotification` no macOS). Falha só loga.
+fn emit_via_notify_rust(spec: &component::NotificationSpec) {
+    let mut n = notify_rust::Notification::new();
+    if !spec.title.is_empty() {
+        n.summary(&spec.title);
+    }
+    if !spec.body.is_empty() {
+        n.body(&spec.body);
+    }
+    if let Some(app) = &spec.app_name {
+        n.appname(app);
+    }
+    if let Some(icon) = &spec.icon {
+        n.icon(icon);
+    }
+    if let Err(e) = n.show() {
+        eprintln!("notify: falha ao emitir notificação do SO: {e}");
+    }
 }
 
 /// O cache de avaliação é a única parte do motor que pode produzir uma UI

@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.44.0] — 2026-07-15
+
+### Mudado
+- **`notify()` no Linux passa a emitir via `notify-send`** (subprocesso), com
+  fallback automático para o `notify-rust` in-process se o `notify-send` não
+  estiver instalado. Em outros SOs (Windows/macOS) nada muda — segue in-process.
+  Motivo: alguns ambientes de desktop (observado num GNOME 46) **suprimem
+  silenciosamente** notificações fdo enviadas *in-process* por um app que tem
+  janela — o compositor associa a notificação ao app pelo PID→janela (`app_id`)
+  e a descarta mesmo com o app habilitado nas configurações (`.show()` retorna
+  `Ok`, nada aparece). Um subprocesso **sem janela** não é associado a nenhum app
+  e é exibido. `app_name`/`icon`/título/corpo são repassados aos flags do
+  `notify-send`. Ver `emit_os_notification` em `lib.rs`.
+
+---
+
 ## [0.43.0] — 2026-07-15
 
 ### Adicionado
