@@ -213,7 +213,10 @@ impl LuauComponent {
         install_json(&luau).map_err(|e| format!("Erro ao instalar `json` Luau: {}", e))?;
         // Expõe o global `storage` (persistência local em JSON, análoga a
         // `localStorage`), num arquivo próprio deste componente.
-        install_storage(&luau, storage_path(module_base, &name))
+        install_storage(
+            &luau,
+            storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
+        )
             .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
         // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
         // execução em `sync_to_luau`.
@@ -1192,12 +1195,39 @@ fn install_json(luau: &Lua) -> mlua::Result<()> {
 /// `require` (`module_base`, ver [`module_roots`]) — mesma convenção de
 /// vizinhança que `lib/`. `name` é sanitizado (só `[A-Za-z0-9_-]`, resto vira
 /// `_`) para nunca produzir um caminho fora do diretório esperado.
-fn storage_path(module_base: &Path, name: &str) -> PathBuf {
-    let base = module_base
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
+/// Raiz de gravação do global `storage`, definida pelo app hospedeiro (ver
+/// [`set_storage_root`]). Quando presente, todos os motores do processo gravam
+/// seus arquivos de `storage` sob esta pasta em vez de relativo ao diretório do
+/// script — necessário quando os assets moram num diretório read-only (ex.: um
+/// app empacotado que roda de `/usr/share`), onde o local legado não é
+/// gravável. `OnceLock`: é config global do processo, semeada uma vez na
+/// inicialização e compartilhada por todas as janelas.
+static STORAGE_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Define a raiz de gravação do global `storage` (ver [`STORAGE_ROOT`]). Chame
+/// uma única vez, antes de subir os motores (o [`crate::GlacierDaemon`] a chama
+/// a partir de `storage_dir`). Sem isto, `storage` mantém o comportamento
+/// legado: grava em `.glacier-storage/` relativo ao diretório do script.
+pub fn set_storage_root(path: PathBuf) {
+    let _ = STORAGE_ROOT.set(path);
+}
+
+/// Resolve o arquivo de `storage` de um componente. Quando `root` é `Some`
+/// (raiz definida pelo app via [`set_storage_root`]), grava sob ela; senão,
+/// mantém o comportamento legado: relativo ao diretório do script
+/// (`module_base`). Recebe a raiz por parâmetro (resolvida do global no
+/// call-site) em vez de ler o global aqui, para permanecer uma função pura,
+/// testável sem tocar no [`STORAGE_ROOT`] (que é global do processo e só pode
+/// ser semeado uma vez).
+fn storage_path(module_base: &Path, name: &str, root: Option<&Path>) -> PathBuf {
+    let base = match root {
+        Some(root) => root.to_path_buf(),
+        None => module_base
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from(".")),
+    };
     let safe: String = name
         .chars()
         .map(|c| {
@@ -2586,6 +2616,26 @@ mod tests {
             "storage.get de uma chave removida deveria ser nil"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn storage_path_usa_a_raiz_do_app_quando_definida() {
+        let module_base = Path::new("/opt/app/scripts/app.luau");
+
+        // Sem raiz (legado): relativo ao diretório do script.
+        assert_eq!(
+            storage_path(module_base, "app", None),
+            PathBuf::from("/opt/app/scripts/.glacier-storage/app.json")
+        );
+
+        // Com raiz do app: grava sob ela, ignorando o local do script — é o que
+        // torna o `storage` gravável quando os assets moram num caminho
+        // read-only. O nome do componente é sanitizado (`:` vira `_`).
+        let root = Path::new("/home/u/.local/share/rustploy");
+        assert_eq!(
+            storage_path(module_base, "app:main", Some(root)),
+            PathBuf::from("/home/u/.local/share/rustploy/.glacier-storage/app_main.json")
+        );
     }
 
     #[test]

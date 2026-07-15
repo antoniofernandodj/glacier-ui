@@ -22,6 +22,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -82,6 +83,11 @@ pub struct GlacierDaemon {
     reload_period: Duration,
     /// Período do tick de expiração de toasts.
     toast_period: Duration,
+    /// Raiz opcional onde o global `storage` (persistência local em JSON) grava
+    /// seus arquivos, aplicada a todos os motores. Sem isto, `storage` grava
+    /// relativo ao diretório do script — inviável quando os assets moram num
+    /// diretório read-only. Ver [`GlacierDaemon::storage_dir`].
+    storage_dir: Option<PathBuf>,
 }
 
 impl GlacierDaemon {
@@ -102,6 +108,7 @@ impl GlacierDaemon {
             on_close: None,
             reload_period: Duration::from_millis(500),
             toast_period: Duration::from_millis(400),
+            storage_dir: None,
         }
     }
 
@@ -207,6 +214,17 @@ impl GlacierDaemon {
         self
     }
 
+    /// Define o diretório onde o global `storage` (persistência local em JSON,
+    /// análoga a `localStorage`) grava seus arquivos — aplicado a todas as
+    /// janelas do app. Passe um diretório gravável pelo usuário (ex.: o data dir
+    /// do XDG). Sem isto, `storage` grava em `.glacier-storage/` relativo ao
+    /// diretório do script, o que falha silenciosamente quando os assets moram
+    /// num caminho read-only (um app empacotado rodando de `/usr/share`).
+    pub fn storage_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.storage_dir = Some(dir.into());
+        self
+    }
+
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
         let GlacierDaemon {
@@ -220,8 +238,16 @@ impl GlacierDaemon {
             on_close,
             reload_period,
             toast_period,
+            storage_dir,
         } = self;
         let main_title = title.clone();
+
+        // Semeia a raiz do `storage` ANTES de qualquer motor ser construído (o
+        // `boot` abaixo e cada janela-filha em `build_engine` instalam o global
+        // `storage` no registro do componente, lendo esta raiz já definida).
+        if let Some(dir) = storage_dir {
+            crate::luau::set_storage_root(dir);
+        }
 
         // `boot` do iced: constrói o motor principal via `setup` e abre a janela
         // inicial. `window::open` devolve o `Id` de imediato, então já inserimos

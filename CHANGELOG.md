@@ -8,6 +8,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.45.0] — 2026-07-15
+
+### Adicionado
+- **`GlacierDaemon::storage_dir(dir)`**: define o diretório onde o global
+  `storage` (persistência local em JSON, análoga a `localStorage`) grava seus
+  arquivos, aplicado a todas as janelas do app. Sem isto, `storage` mantém o
+  comportamento legado — grava em `.glacier-storage/` **relativo ao diretório do
+  script**, o que falha silenciosamente quando os assets moram num caminho
+  read-only (um app empacotado rodando de `/usr/share`). Passe um diretório
+  gravável pelo usuário (ex.: o data dir do XDG) e o `storage` passa a gravar
+  em `<dir>/.glacier-storage/<componente>.json`. Também exposto o helper de
+  baixo nível `luau::set_storage_root(path)` que o builder usa por baixo.
+
+---
+
 ## [0.44.0] — 2026-07-15
 
 ### Mudado
