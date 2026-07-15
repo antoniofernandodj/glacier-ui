@@ -428,12 +428,22 @@ pub struct Context<'a> {
 /// `NSUserNotification` no macOS — pelo backend `notify-rust`, e sobrevive à
 /// janela estar minimizada ou em outro workspace. Use para eventos que o
 /// usuário quer saber mesmo sem olhar para o app (ex.: um deploy terminou).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NotificationSpec {
     /// Título em negrito da notificação (a primeira linha). Vazio é aceito.
     pub title: String,
     /// Corpo/descrição (as linhas seguintes). Vazio é aceito.
     pub body: String,
+    /// Nome do app exibido/associado à notificação. `None` deixa o padrão do
+    /// backend (`notify-rust` usa o nome do executável). Vale setar quando o
+    /// nome do binário não é o nome de exibição desejado — ou quando o ambiente
+    /// de desktop **filtra** notificações pela identidade do app (alguns
+    /// GNOME/extensões descartam notificações cujo `app_name` casa com um
+    /// `.desktop` instalado); um nome de exibição que não casa evita o descarte.
+    pub app_name: Option<String>,
+    /// Ícone da notificação: um nome de ícone do tema (ex.: `"rustploy-gui"`) ou
+    /// um caminho de arquivo. `None` deixa o padrão do backend.
+    pub icon: Option<String>,
 }
 
 /// Uma mensagem de uma janela para as demais, pedida via [`Context::broadcast`]

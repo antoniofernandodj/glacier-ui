@@ -1067,6 +1067,15 @@ impl GlacierUI {
                 if !spec.body.is_empty() {
                     n.body(&spec.body);
                 }
+                // `app_name`: sobrescreve o padrão do notify-rust (nome do exe).
+                // Necessário quando o nome do binário não é o de exibição, ou
+                // quando o desktop filtra notificações pela identidade do app.
+                if let Some(app) = &spec.app_name {
+                    n.appname(app);
+                }
+                if let Some(icon) = &spec.icon {
+                    n.icon(icon);
+                }
                 if let Err(e) = n.show() {
                     eprintln!("notify: falha ao emitir notificação do SO: {e}");
                 }

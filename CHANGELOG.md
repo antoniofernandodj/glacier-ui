@@ -8,6 +8,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.43.0] — 2026-07-15
+
+### Adicionado
+- **`notify()` ganhou `app_name` e `icon`** (ambos opcionais, na tabela Luau e em
+  `NotificationSpec`). `app_name` sobrescreve o padrão do `notify-rust` (que usa o
+  nome do executável); `icon` é um nome de ícone do tema ou caminho. Motivação
+  real: alguns ambientes de desktop **filtram/descartam** notificações pela
+  identidade do app — um GNOME em que o `app_name` casando com um `.desktop`
+  instalado fazia a notificação ser descartada silenciosamente (o nome do binário
+  virava o `app_name` por padrão). Poder setar um nome de exibição que não casa
+  com um `.desktop` contorna isso. `NotificationSpec` agora deriva `Default`.
+
+---
+
 ## [0.42.0] — 2026-07-15
 
 ### Adicionado

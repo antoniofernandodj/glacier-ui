@@ -49,7 +49,10 @@ end
 -- de notificações do SO (freedesktop/D-Bus no Linux, WinRT no Windows,
 -- NSUserNotification no macOS) e aparece mesmo com o app minimizado. NÃO suspende:
 -- cede um pedido e retoma na hora; o motor a entrega fora da thread de UI. `opts`
--- = string (vira o `body`, sem título) ou tabela `{ title?, body? }`.
+-- = string (vira o `body`, sem título) ou tabela `{ title?, body?, app_name?,
+-- icon? }`. `app_name` = nome do app exibido/associado (default: nome do
+-- executável); útil quando o desktop filtra notificações pela identidade do app.
+-- `icon` = nome de ícone do tema ou caminho.
 function notify(opts)
     if type(opts) == "string" then
         opts = { body = opts }
@@ -58,6 +61,8 @@ function notify(opts)
         __glacier_notify = true,
         title = opts.title,
         body = opts.body,
+        app_name = opts.app_name,
+        icon = opts.icon,
     })
 end
 

@@ -895,12 +895,14 @@ fn build_toast(req: &Table) -> mlua::Result<crate::toasts::ToastSpec> {
 }
 
 /// Constrói uma [`NotificationSpec`] a partir da tabela pedida por `notify(opts)`
-/// na camada Luau: `{ title?, body? }` — ambos opcionais (vazio é aceito, mas o
+/// na camada Luau: `{ title?, body?, app_name?, icon? }` — todos opcionais (o
 /// prelúdio normaliza uma string única para `body`).
 fn build_notification(req: &Table) -> mlua::Result<crate::component::NotificationSpec> {
     Ok(crate::component::NotificationSpec {
         title: req.get::<Option<String>>("title")?.unwrap_or_default(),
         body: req.get::<Option<String>>("body")?.unwrap_or_default(),
+        app_name: req.get::<Option<String>>("app_name")?,
+        icon: req.get::<Option<String>>("icon")?,
     })
 }
 
@@ -2185,6 +2187,25 @@ mod tests {
         );
         assert_eq!(ctx.notifications[0].title, "Deploy");
         assert_eq!(ctx.notifications[0].body, "api no ar");
+        assert_eq!(ctx.notifications[0].app_name, None);
+        assert_eq!(ctx.notifications[0].icon, None);
+    }
+
+    #[test]
+    fn notify_aceita_app_name_e_icon() {
+        // `app_name`/`icon` opcionais chegam à NotificationSpec.
+        let comp = LuauComponent::from_source(
+            "function avisar() notify({ body = 'ok', app_name = 'Rustploy', icon = 'rustploy-gui' }) end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("avisar", None, &mut ctx);
+        assert_eq!(ctx.notifications.len(), 1);
+        assert_eq!(ctx.notifications[0].app_name.as_deref(), Some("Rustploy"));
+        assert_eq!(ctx.notifications[0].icon.as_deref(), Some("rustploy-gui"));
     }
 
     #[test]
