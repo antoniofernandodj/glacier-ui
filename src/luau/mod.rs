@@ -413,6 +413,18 @@ impl LuauComponent {
         self.drive(thread, MultiValue::from_iter([Value::Table(res)]), ctx)
     }
 
+    /// Retoma a corrotina suspensa num `confirm()` (id alocado no `drive`) com a
+    /// escolha do usuário — `true` confirmou, `false` cancelou/dispensou —, que
+    /// vira o valor de retorno do `coroutine.yield` no prelúdio (`local ok =
+    /// confirm{...}`).
+    fn resume_dialog_inner(&self, id: u64, confirmed: bool, ctx: &mut Context) -> mlua::Result<()> {
+        let Some(thread) = self.pending.borrow_mut().remove(&id) else {
+            return Ok(());
+        };
+        self.sync_to_luau(ctx)?;
+        self.drive(thread, MultiValue::from_iter([Value::Boolean(confirmed)]), ctx)
+    }
+
     /// Dispara o handler de um temporizador (`after`) vencido: se ainda
     /// registrado (não cancelado, não já disparado — é de disparo único),
     /// chama-o numa corrotina nova, como um evento de stream.
@@ -479,11 +491,15 @@ impl LuauComponent {
             }
 
             if req.get::<bool>("__glacier_dialog").unwrap_or(false) {
-                ctx.show_dialog(build_dialog(&req)?);
-                // Não suspende: o diálogo é aplicado pelo motor após o turno; a
-                // corrotina segue (o botão de confirmação despacha sua própria ação).
-                args = MultiValue::new();
-                continue;
+                // Suspende igual ao `fetch`: guarda a corrotina e para. O motor
+                // exibe o diálogo e, quando o usuário clica num botão, retoma
+                // esta corrotina com o booleano da escolha (ver
+                // `resume_dialog_inner`) — é o que dá a `confirm()` a aparência
+                // síncrona (`local ok = confirm{...}`).
+                let id = self.alloc_id();
+                ctx.show_dialog_resumable(build_dialog(&req)?, id);
+                self.pending.borrow_mut().insert(id, thread);
+                return Ok(()); // suspende até a escolha do usuário
             }
 
             if req.get::<bool>("__glacier_toast").unwrap_or(false) {
@@ -774,6 +790,12 @@ impl Component for LuauComponent {
         }
     }
 
+    fn resume_dialog(&mut self, id: u64, confirmed: bool, ctx: &mut Context) {
+        if let Err(e) = self.resume_dialog_inner(id, confirmed, ctx) {
+            self.report_error(&format!("confirm #{id}"), e, ctx);
+        }
+    }
+
     fn on_stream_event(&mut self, id: u64, kind: StreamEventKind, data: &str, ctx: &mut Context) {
         if let Err(e) = self.on_stream_event_inner(id, kind, data, ctx) {
             self.report_error(&format!("stream #{id}"), e, ctx);
@@ -807,19 +829,19 @@ fn parse_headers_table(opts: &Table) -> mlua::Result<Vec<(String, String)>> {
 }
 
 /// Constrói o [`DialogSpec`] a partir do pedido `confirm(opts)` do prelúdio:
-/// dois botões (cancelar neutro → só fecha; confirmar → despacha
-/// `confirm_action`), não dispensável clicando fora. `destructive` pinta o botão
-/// de confirmação como perigo.
+/// dois botões (cancelar neutro → retoma com `false`; confirmar → retoma com
+/// `true`), não dispensável clicando fora. Os botões carregam as ações
+/// sentinela [`CONFIRM_NO`]/[`CONFIRM_YES`] em vez de nomes de função — o motor
+/// as reconhece e retoma a corrotina suspensa (ver
+/// [`crate::component::DialogAction::ShowResumable`]) em vez de despachá-las.
+/// `destructive` pinta o botão de confirmação como perigo.
 fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
-    use crate::dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec};
+    use crate::dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec, CONFIRM_NO, CONFIRM_YES};
     let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
     let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
     let confirm_label = req
         .get::<Option<String>>("confirm_label")?
         .unwrap_or_else(|| "OK".into());
-    let confirm_action = req
-        .get::<Option<String>>("confirm_action")?
-        .unwrap_or_default();
     let cancel_label = req
         .get::<Option<String>>("cancel_label")?
         .unwrap_or_else(|| "Cancelar".into());
@@ -830,8 +852,8 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
         ButtonRole::Accept
     };
     Ok(DialogSpec::new(DialogIcon::Question, title, message)
-        .with_button(DialogButton::new(cancel_label, "", ButtonRole::Neutral))
-        .with_button(DialogButton::new(confirm_label, confirm_action, role))
+        .with_button(DialogButton::new(cancel_label, CONFIRM_NO, ButtonRole::Neutral))
+        .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
         .dismissible(false))
 }
 
@@ -1525,10 +1547,10 @@ mod tests {
     }
 
     #[test]
-    fn confirm_abre_dialogo_de_confirmacao() {
+    fn confirm_abre_dialogo_resumivel_e_suspende() {
         let comp = LuauComponent::from_source(
             "function go() confirm({ title='T', message='M', confirm_label='Sim', \
-             confirm_action='fez', destructive=true }) end",
+             destructive=true }) end",
             "t.gv",
             "c",
         )
@@ -1537,16 +1559,49 @@ mod tests {
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         match &ctx.dialog {
-            Some(crate::component::DialogAction::Show(spec)) => {
+            Some(crate::component::DialogAction::ShowResumable(spec, _id)) => {
                 assert_eq!(spec.buttons.len(), 2, "cancelar + confirmar");
-                assert_eq!(spec.buttons[1].action, "fez");
+                assert_eq!(spec.buttons[1].action, crate::dialogs::CONFIRM_YES);
                 assert_eq!(
                     spec.buttons[1].role,
                     crate::dialogs::ButtonRole::Destructive
                 );
-                assert_eq!(spec.buttons[0].action, "", "cancelar só fecha");
+                assert_eq!(spec.buttons[0].action, crate::dialogs::CONFIRM_NO);
             }
-            _ => panic!("esperava um diálogo Show"),
+            _ => panic!("esperava um diálogo ShowResumable"),
+        }
+    }
+
+    #[test]
+    fn confirm_retoma_com_booleano_da_escolha() {
+        // Confirmar (`true`) roda o ramo então; cancelar (`false`) roda o senão.
+        // Exercita o caminho `drive` → suspende no `confirm` → `resume_dialog`.
+        for (confirmed, esperado) in [(true, "sim"), (false, "nao")] {
+            let mut comp = LuauComponent::from_source(
+                "function go()\n\
+                 if confirm({ title='T', message='M' }) then ctx.r = 'sim' \
+                 else ctx.r = 'nao' end\n\
+                 end",
+                "t.gv",
+                "c",
+            )
+            .unwrap();
+            let mut data = HashMap::new();
+            let id = {
+                let mut ctx = Context::new(&mut data);
+                comp.run("go", None, &mut ctx);
+                match ctx.dialog {
+                    Some(crate::component::DialogAction::ShowResumable(_, id)) => id,
+                    _ => panic!("esperava suspender num diálogo resumível"),
+                }
+            };
+            // Ainda não decidiu: o ramo não rodou.
+            assert_eq!(data.get("r"), None, "não deve resolver antes da escolha");
+            {
+                let mut ctx = Context::new(&mut data);
+                comp.resume_dialog(id, confirmed, &mut ctx);
+            }
+            assert_eq!(data.get("r").map(String::as_str), Some(esperado));
         }
     }
 

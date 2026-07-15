@@ -116,6 +116,14 @@ pub struct GlacierUI {
     /// screen; [`GlacierUI::dispatch`] clears it on a button click or a
     /// dismissible backdrop click.
     dialog: Option<dialogs::DialogSpec>,
+    /// Quando o diálogo em exibição é um `confirm()` **suspensivo** da camada
+    /// Lua (ver [`component::DialogAction::ShowResumable`]), guarda o
+    /// `(owner, id)` da corrotina suspensa à espera da escolha. Um clique num
+    /// botão (ou dismiss) retoma essa corrotina com o booleano em vez de
+    /// despachar a `action` do botão como uma ação normal. `None` quando o
+    /// diálogo veio de um `Component::update` Rust (roteamento por `action`,
+    /// comportamento legado).
+    dialog_resume: Option<(String, u64)>,
     /// Toasts currently in exhibition (see [`toasts`]), oldest first.
     /// [`GlacierUI::render_current`] overlays them on top of the active
     /// screen (and the dialog, if any); each expires on its own once
@@ -244,6 +252,7 @@ impl GlacierUI {
             editor_synced: HashMap::new(),
             drag: None,
             dialog: None,
+            dialog_resume: None,
             toasts: Vec::new(),
             next_toast_id: 0,
             active_streams: HashMap::new(),
@@ -683,11 +692,27 @@ impl GlacierUI {
             EngineMessage::DialogDismiss => {
                 if self.dialog.as_ref().is_some_and(|d| d.dismissible) {
                     self.dialog = None;
+                    // Um `confirm()` suspensivo dispensável resolve como `false`
+                    // (cancelou), retomando a corrotina em vez de deixá-la presa.
+                    if let Some((owner, id)) = self.dialog_resume.take() {
+                        return self.run_on_owner(&owner, false, move |comp, ctx| {
+                            comp.resume_dialog(id, false, ctx);
+                        });
+                    }
                 }
                 return iced::Task::none();
             }
             EngineMessage::DialogButton(action) => {
                 self.dialog = None;
+                // Diálogo de um `confirm()` suspensivo (ver `dialog_resume`): o
+                // botão não roteia uma `action`, retoma a corrotina suspensa com
+                // o booleano — confirmar → `true`, cancelar → `false`.
+                if let Some((owner, id)) = self.dialog_resume.take() {
+                    let confirmed = action.as_str() == dialogs::CONFIRM_YES;
+                    return self.run_on_owner(&owner, false, move |comp, ctx| {
+                        comp.resume_dialog(id, confirmed, ctx);
+                    });
+                }
                 return self.route_to_owner(action, |comp, bare_action, ctx| {
                     comp.update(bare_action, None, ctx);
                 });
@@ -1089,8 +1114,20 @@ impl GlacierUI {
         }
 
         match dialog {
-            Some(component::DialogAction::Show(spec)) => self.dialog = Some(spec),
-            Some(component::DialogAction::Close) => self.dialog = None,
+            Some(component::DialogAction::Show(spec)) => {
+                self.dialog = Some(spec);
+                self.dialog_resume = None;
+            }
+            // `confirm()` suspensivo da camada Lua: além de exibir o diálogo,
+            // registra quem retomar (`owner`, `id`) quando o usuário escolher.
+            Some(component::DialogAction::ShowResumable(spec, id)) => {
+                self.dialog = Some(spec);
+                self.dialog_resume = Some((owner.to_string(), id));
+            }
+            Some(component::DialogAction::Close) => {
+                self.dialog = None;
+                self.dialog_resume = None;
+            }
             None => {}
         }
 

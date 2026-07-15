@@ -252,6 +252,12 @@ pub enum Nav {
 /// [`Nav`].
 pub enum DialogAction {
     Show(crate::dialogs::DialogSpec),
+    /// Um diálogo de `confirm()` **suspensivo** (camada Lua): carrega o `id` da
+    /// corrotina que ficou suspensa à espera da escolha do usuário. Ao clicar
+    /// num botão, o motor retoma essa corrotina com um booleano
+    /// ([`Context::show_dialog_resumable`]) em vez de despachar a `action` do
+    /// botão como uma ação normal (o que [`DialogAction::Show`] faz).
+    ShowResumable(crate::dialogs::DialogSpec, u64),
     Close,
 }
 
@@ -522,6 +528,16 @@ impl<'a> Context<'a> {
         self.dialog = Some(DialogAction::Show(spec));
     }
 
+    /// Como [`Context::show_dialog`], mas para um `confirm()` **suspensivo** da
+    /// camada Lua: além de exibir o diálogo, associa-o à corrotina suspensa
+    /// `id`, que o motor retoma com um booleano quando o usuário escolher um
+    /// botão (confirmar → `true`, cancelar/dispensar → `false`). Uso interno da
+    /// [`crate::luau::LuauComponent`]; um `Component` Rust usa
+    /// [`Context::show_dialog`] com botões que roteiam ações.
+    pub(crate) fn show_dialog_resumable(&mut self, spec: crate::dialogs::DialogSpec, id: u64) {
+        self.dialog = Some(DialogAction::ShowResumable(spec, id));
+    }
+
     /// Pede ao motor para fechar o diálogo em exibição (se houver) após o
     /// `update`, sem despachar nenhuma ação de botão.
     pub fn close_dialog(&mut self) {
@@ -700,6 +716,14 @@ pub trait Component {
     /// usa isto para retomar a corrotina Lua suspensa no ponto do `fetch`,
     /// passando o resultado — o que dá a aparência de `async/await`.
     fn resume_fetch(&mut self, _id: u64, _result: &FetchResult, _ctx: &mut Context) {}
+
+    /// Retoma a corrotina suspensa num `confirm()` (ver
+    /// [`Context::show_dialog_resumable`]) com a escolha do usuário: `true`
+    /// confirmou, `false` cancelou/dispensou. Só a
+    /// [`crate::luau::LuauComponent`] implementa — é o que faz `confirm()`
+    /// parecer síncrono (`local ok = confirm{...}`), suspendendo no clique e
+    /// retomando com o booleano. Componentes Rust usam diálogos por-ação.
+    fn resume_dialog(&mut self, _id: u64, _confirmed: bool, _ctx: &mut Context) {}
 
     /// Entrega um evento de um stream de vida longa (`sse`/`websocket`) aberto
     /// pelo componente: o `id` da requisição (ver [`StreamRequest`]), o que

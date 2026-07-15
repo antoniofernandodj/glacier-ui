@@ -56,6 +56,15 @@ impl DialogIcon {
     }
 }
 
+/// Ação sentinela do botão **confirmar** de um `confirm()` suspensivo da camada
+/// Lua (ver [`crate::luau`] e [`crate::component::DialogAction::ShowResumable`]):
+/// o motor a reconhece e retoma a corrotina suspensa com `true` em vez de
+/// despachá-la como ação normal. O botão **cancelar** usa [`CONFIRM_NO`] (→
+/// `false`). Prefixadas com NUL para jamais colidir com um nome de ação real.
+pub(crate) const CONFIRM_YES: &str = "\0glacier:confirm:yes";
+/// Par de [`CONFIRM_YES`] para o botão cancelar (retoma a corrotina com `false`).
+pub(crate) const CONFIRM_NO: &str = "\0glacier:confirm:no";
+
 /// O papel de um botão, usado só para escolher seu estilo visual (destaque
 /// para a ação principal, tom neutro para cancelar, tom de perigo para ações
 /// destrutivas) — não afeta o roteamento, que é sempre por `action`.

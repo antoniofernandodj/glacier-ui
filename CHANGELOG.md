@@ -8,6 +8,37 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.46.0] — 2026-07-15
+
+### Mudado
+- **`confirm()` (Luau) agora é SÍNCRONO e retorna um booleano**, no espírito do
+  `fetch`: suspende a corrotina, exibe o diálogo e só retoma quando o usuário
+  escolhe um botão — devolvendo `true` (confirmou) ou `false`
+  (cancelou/dispensou). Deixa o fluxo linear, sem callback separado:
+  ```lua
+  if confirm({ title = "Remover?", message = "…", confirm_label = "Remover",
+               destructive = true }) then
+      -- fazer a ação aqui mesmo
+  end
+  ```
+
+### Quebras
+- **`confirm{ confirm_action = "…" }` deixou de existir.** Antes, `confirm` não
+  suspendia e o botão de confirmação despachava a função nomeada em
+  `confirm_action` como um clique à parte. Agora não há `confirm_action`: trate
+  o retorno booleano. Migração:
+  ```lua
+  -- antes
+  confirm({ title = "T", message = "M", confirm_action = "do_x" })
+  function do_x() ... end
+  -- depois
+  if confirm({ title = "T", message = "M" }) then ... end
+  ```
+  Diálogos abertos pela API Rust (`Context::show_dialog` com botões que roteiam
+  ações) não mudam — só o `confirm()` da camada Luau passou a suspender.
+
+---
+
 ## [0.45.0] — 2026-07-15
 
 ### Adicionado

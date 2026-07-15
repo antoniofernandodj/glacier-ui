@@ -66,18 +66,21 @@ function notify(opts)
     })
 end
 
--- Diálogo modal de confirmação. NÃO suspende: cede um pedido, o motor mostra o
--- diálogo (via Context::show_dialog) e retoma na hora. O botão de confirmação
--- despacha `opts.confirm_action` (nome de uma função) como um clique normal; o
--- cancelar só fecha. `opts = { title, message, confirm_label?, confirm_action,
--- cancel_label?, destructive? }`.
+-- Diálogo modal de confirmação. SUSPENDE (como `fetch`): cede um pedido, o motor
+-- mostra o diálogo e só retoma quando o usuário escolhe um botão, devolvendo um
+-- booleano — `true` se confirmou, `false` se cancelou/dispensou. Deixa o fluxo
+-- síncrono, sem função de callback separada:
+--   if confirm({ title = "Remover?", message = "...", confirm_label = "Remover",
+--                destructive = true }) then
+--       -- fazer a ação
+--   end
+-- `opts = { title, message, confirm_label?, cancel_label?, destructive? }`.
 function confirm(opts)
     return coroutine.yield({
         __glacier_dialog = true,
         title = opts.title,
         message = opts.message,
         confirm_label = opts.confirm_label,
-        confirm_action = opts.confirm_action,
         cancel_label = opts.cancel_label,
         destructive = opts.destructive,
     })
