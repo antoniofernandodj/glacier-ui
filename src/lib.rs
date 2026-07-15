@@ -1015,6 +1015,7 @@ impl GlacierUI {
             timers,
             windows,
             broadcasts,
+            notifications,
             close_self,
             editor_appends,
         ) = if let Some(comp) = self.components.get_mut(owner) {
@@ -1032,6 +1033,7 @@ impl GlacierUI {
                 ctx.timers,
                 ctx.windows,
                 ctx.broadcasts,
+                ctx.notifications,
                 ctx.close_self,
                 ctx.editor_appends,
             )
@@ -1050,6 +1052,26 @@ impl GlacierUI {
         // / `take_close_requested`) após o `dispatch`.
         self.pending_broadcasts.extend(broadcasts);
         self.pending_close_self |= close_self;
+
+        // Notificações nativas do SO (ver Context::notify): entregues fora da
+        // thread de UI — o backend `notify-rust` é síncrono/bloqueante (abre uma
+        // conexão D-Bus no Linux, chama o WinRT no Windows). São eventos raros e
+        // fire-and-forget: um thread destacado por notificação, sem realimentar
+        // nada ao componente; falha ao entregar só loga.
+        for spec in notifications {
+            std::thread::spawn(move || {
+                let mut n = notify_rust::Notification::new();
+                if !spec.title.is_empty() {
+                    n.summary(&spec.title);
+                }
+                if !spec.body.is_empty() {
+                    n.body(&spec.body);
+                }
+                if let Err(e) = n.show() {
+                    eprintln!("notify: falha ao emitir notificação do SO: {e}");
+                }
+            });
+        }
 
         // Novas janelas pedidas pelo componente: resolve `Named` para o caminho
         // do arquivo (a nova janela sobe um motor independente que o carrega do

@@ -1,0 +1,21 @@
+<!-- Notificações NATIVAS DO SO (ver src/component.rs::NotificationSpec e a
+     função global `notify` no prelúdio Luau). Diferente do exemplo `toasts`
+     (desenhados dentro da janela), estas vão para a central de notificações do
+     sistema operacional. Toda a lógica está em notificacoes.luau. -->
+<Container padding="30" width="fill" height="fill" background="#1E1E2E" alignX="Center" alignY="Center">
+    <Column spacing="16" alignX="Center" width="560">
+        <Text content="Notificações nativas do sistema operacional" size="22" bold="true" color="#F5E0DC" />
+        <Text content="Clique num botão: a notificação aparece na central do SO, não dentro desta janela. Minimize o app e veja que ela chega mesmo assim." size="13" color="#A6ADC8" />
+
+        <Row spacing="10" alignX="Center">
+            <Button text="Título + corpo" on_click="notificar_completo" color="#A6E3A1" padding="8 16" />
+            <Button text="Só corpo (string)" on_click="notificar_simples" color="#89B4FA" padding="8 16" />
+        </Row>
+
+        <Rule width="500" />
+
+        <Text content="Notificações emitidas: {total}" size="14" color="#F9E2AF" />
+    </Column>
+</Container>
+
+<script src="notificacoes.luau"></script>

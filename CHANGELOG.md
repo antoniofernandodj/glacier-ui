@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.42.0] — 2026-07-15
+
+### Adicionado
+- **`notify(...)` (camada Luau) / `Context::notify` + `NotificationSpec` (Rust)**
+  — notificações **nativas do sistema operacional**, entregues à central de
+  notificações do SO (freedesktop/D-Bus no Linux/BSD, WinRT no Windows,
+  `NSUserNotification` no macOS) via `notify-rust`. Diferente de `toast`, que é
+  efêmero e desenhado dentro da própria janela, a notificação sobrevive ao app
+  estar minimizado ou em outro workspace — para eventos que o usuário quer saber
+  sem olhar para o app (ex.: um deploy terminou). Na Luau: `notify({ title, body })`
+  ou `notify("mensagem")` (string vira o corpo). O motor a entrega fora da thread
+  de UI (o backend é síncrono), é acumulativa como o toast e não realimenta nada
+  ao componente. Novo exemplo: `cargo run --example notificacoes`.
+
+---
+
 ## [0.41.0] — 2026-07-14
 
 Rodada de robustez: o que faltava para a lib ser defensável fora do app que a

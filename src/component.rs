@@ -403,6 +403,10 @@ pub struct Context<'a> {
     /// as drena para `pending_broadcasts` e o daemon/runtime as entrega ao
     /// [`Component::on_broadcast`] das demais janelas após o `update`.
     pub(crate) broadcasts: Vec<BroadcastMessage>,
+    /// Notificações **nativas do SO** pedidas via [`Context::notify`]; o motor as
+    /// drena após o `update` e as entrega ao SO (via `notify-rust`, fora da
+    /// thread de UI). Ver [`NotificationSpec`].
+    pub(crate) notifications: Vec<NotificationSpec>,
     /// Pedido de fechar a **própria** janela ([`Context::close_window`]); o motor
     /// o expõe via `take_close_requested` e o daemon/runtime fecha a janela dona
     /// deste motor após o `update` (o motor isolado não conhece o próprio `Id`).
@@ -415,6 +419,21 @@ pub struct Context<'a> {
     /// `Context::viewport` (a camada Lua expõe isto via `viewport()`). Só o
     /// motor escreve aqui (ver [`Context::set_viewport`]); um componente lê.
     pub(crate) viewport: (f32, f32),
+}
+
+/// Uma notificação **nativa do sistema operacional**, pedida via
+/// [`Context::notify`] (`notify(opts)` na camada Lua). Diferente de um toast
+/// (efêmero, desenhado dentro da própria janela pelo iced), esta é entregue ao
+/// SO — central de notificações do freedesktop/D-Bus no Linux, WinRT no Windows,
+/// `NSUserNotification` no macOS — pelo backend `notify-rust`, e sobrevive à
+/// janela estar minimizada ou em outro workspace. Use para eventos que o
+/// usuário quer saber mesmo sem olhar para o app (ex.: um deploy terminou).
+#[derive(Debug, Clone)]
+pub struct NotificationSpec {
+    /// Título em negrito da notificação (a primeira linha). Vazio é aceito.
+    pub title: String,
+    /// Corpo/descrição (as linhas seguintes). Vazio é aceito.
+    pub body: String,
 }
 
 /// Uma mensagem de uma janela para as demais, pedida via [`Context::broadcast`]
@@ -447,6 +466,7 @@ impl<'a> Context<'a> {
             timers: Vec::new(),
             windows: Vec::new(),
             broadcasts: Vec::new(),
+            notifications: Vec::new(),
             close_self: false,
             editor_appends: Vec::new(),
             viewport: (0.0, 0.0),
@@ -530,6 +550,21 @@ impl<'a> Context<'a> {
             event: event.into(),
             payload: payload.into(),
         });
+    }
+
+    /// Pede ao motor para emitir uma **notificação nativa do sistema operacional**
+    /// (ver [`NotificationSpec`]) após o `update`. Ao contrário de
+    /// [`Context::show_toast`] — desenhado dentro da própria janela pelo iced —,
+    /// esta vai para a central de notificações do SO e aparece mesmo com o app
+    /// minimizado ou em outro workspace. O motor a entrega fora da thread de UI
+    /// (o backend `notify-rust` é síncrono/bloqueante); é acumulativa, como o
+    /// toast, e não realimenta nada de volta ao componente.
+    ///
+    /// ```ignore
+    /// ctx.notify(NotificationSpec { title: "Deploy".into(), body: "api está no ar".into() });
+    /// ```
+    pub fn notify(&mut self, spec: NotificationSpec) {
+        self.notifications.push(spec);
     }
 
     /// Pede para fechar a **própria** janela após o `update` (equivalente ao

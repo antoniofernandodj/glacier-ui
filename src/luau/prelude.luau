@@ -44,6 +44,23 @@ function toast(opts)
     })
 end
 
+-- Notificação NATIVA DO SISTEMA OPERACIONAL (via Context::notify). Diferente do
+-- `toast` (efêmero, desenhado dentro da própria janela), esta vai para a central
+-- de notificações do SO (freedesktop/D-Bus no Linux, WinRT no Windows,
+-- NSUserNotification no macOS) e aparece mesmo com o app minimizado. NÃO suspende:
+-- cede um pedido e retoma na hora; o motor a entrega fora da thread de UI. `opts`
+-- = string (vira o `body`, sem título) ou tabela `{ title?, body? }`.
+function notify(opts)
+    if type(opts) == "string" then
+        opts = { body = opts }
+    end
+    return coroutine.yield({
+        __glacier_notify = true,
+        title = opts.title,
+        body = opts.body,
+    })
+end
+
 -- Diálogo modal de confirmação. NÃO suspende: cede um pedido, o motor mostra o
 -- diálogo (via Context::show_dialog) e retoma na hora. O botão de confirmação
 -- despacha `opts.confirm_action` (nome de uma função) como um clique normal; o

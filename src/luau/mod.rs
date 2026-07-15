@@ -489,6 +489,12 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_notify").unwrap_or(false) {
+                ctx.notify(build_notification(&req)?);
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_nav").unwrap_or(false) {
                 let screen: String = req.get("screen")?;
                 ctx.navigate_to(&screen);
@@ -886,6 +892,16 @@ fn build_toast(req: &Table) -> mlua::Result<crate::toasts::ToastSpec> {
         spec = spec.with_title(title);
     }
     Ok(spec)
+}
+
+/// Constrói uma [`NotificationSpec`] a partir da tabela pedida por `notify(opts)`
+/// na camada Luau: `{ title?, body? }` — ambos opcionais (vazio é aceito, mas o
+/// prelúdio normaliza uma string única para `body`).
+fn build_notification(req: &Table) -> mlua::Result<crate::component::NotificationSpec> {
+    Ok(crate::component::NotificationSpec {
+        title: req.get::<Option<String>>("title")?.unwrap_or_default(),
+        body: req.get::<Option<String>>("body")?.unwrap_or_default(),
+    })
 }
 
 /// Converte um [`Value`] Luau na string que o contexto do motor guarda. Números
@@ -2148,6 +2164,41 @@ mod tests {
         assert!(
             matches!(&ctx.windows[0].source, crate::component::WindowSource::File(p) if p == "telas/x.gv")
         );
+    }
+
+    #[test]
+    fn notify_pede_notificacao_do_so() {
+        // Forma tabela: título + corpo viram uma NotificationSpec enfileirada.
+        let comp = LuauComponent::from_source(
+            "function avisar() notify({ title = 'Deploy', body = 'api no ar' }) end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("avisar", None, &mut ctx);
+        assert_eq!(
+            ctx.notifications.len(),
+            1,
+            "notify deveria enfileirar uma notificação"
+        );
+        assert_eq!(ctx.notifications[0].title, "Deploy");
+        assert_eq!(ctx.notifications[0].body, "api no ar");
+    }
+
+    #[test]
+    fn notify_string_vira_corpo_sem_titulo() {
+        // Forma string curta: `notify("...")` = `{ body = "..." }`, sem título.
+        let comp =
+            LuauComponent::from_source("function avisar() notify('build pronto') end", "t.gv", "c")
+                .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("avisar", None, &mut ctx);
+        assert_eq!(ctx.notifications.len(), 1);
+        assert_eq!(ctx.notifications[0].title, "");
+        assert_eq!(ctx.notifications[0].body, "build pronto");
     }
 
     #[test]
