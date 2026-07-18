@@ -678,17 +678,27 @@ impl Runtime {
         open.map(DaemonMessage::Opened)
     }
 
-    /// Fecha a janela `id`. Na principal, e havendo um gancho `on_close`,
-    /// primeiro **consulta** a geometria de verdade (ver
-    /// [`GlacierDaemon::on_close`]) e só fecha depois de entregá-la.
+    /// Fecha a janela `id`. Na principal, quando algo precisa da geometria ao
+    /// fechar — um gancho `on_close` OU a persistência nativa ligada por
+    /// [`GlacierDaemon::remember_window_geometry`] —, primeiro **consulta** a
+    /// geometria de verdade e só fecha depois de entregá-la (ver
+    /// `DaemonMessage::CloseWithGeometry`). Sem nenhum dos dois, fecha direto.
     fn close(&mut self, id: window::Id) -> Task<DaemonMessage> {
-        if id != self.main_id || self.on_close.is_none() {
+        if id != self.main_id || !self.needs_geometry_on_close() {
             return window::close(id);
         }
         window::size(id).then(move |size| {
             window::position(id)
                 .map(move |position| DaemonMessage::CloseWithGeometry(id, size, position))
         })
+    }
+
+    /// Se o fechamento da principal precisa **consultar** a geometria antes de
+    /// fechar: quando há um gancho `on_close` OU a persistência nativa está
+    /// ligada ([`GlacierDaemon::remember_window_geometry`], que semeia o
+    /// `geometry_dir`). Sem nenhum dos dois, fechar não precisa da geometria.
+    fn needs_geometry_on_close(&self) -> bool {
+        self.on_close.is_some() || self.geometry_dir.is_some()
     }
 
     /// Despacha `msg` ao motor da janela `id` e, em seguida, abre quaisquer
@@ -1138,6 +1148,24 @@ mod tests {
         rt.windows.insert(main_id, GlacierUI::new());
         rt.titles.insert(main_id, "T".to_string());
         (rt, main_id)
+    }
+
+    #[test]
+    fn remember_geometry_consulta_geometria_ao_fechar_sem_on_close() {
+        // Regressão: `remember_window_geometry` (que semeia o `geometry_dir`) tem
+        // de fazer o fechamento CONSULTAR a geometria mesmo SEM um gancho
+        // `on_close` — senão o `CloseWithGeometry` (que grava o arquivo) nunca
+        // dispara e a geometria não é persistida.
+        let (mut rt, _main_id) = runtime_de_teste(false);
+        assert!(
+            !rt.needs_geometry_on_close(),
+            "sem on_close nem geometry_dir, fechar não precisa da geometria"
+        );
+        rt.geometry_dir = Some(std::env::temp_dir());
+        assert!(
+            rt.needs_geometry_on_close(),
+            "com geometry_dir (persistência nativa), fechar deve consultar a geometria"
+        );
     }
 
     #[test]

@@ -8,6 +8,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.49.1] — 2026-07-18
+
+### Corrigido
+- **`remember_window_geometry` não persistia nada sem um gancho `on_close`.** O
+  fechamento da principal só **consultava** a geometria (e, portanto, só disparava
+  a gravação) quando havia um `on_close` registrado — a persistência nativa
+  ligada por `remember_window_geometry` era ignorada, o `window-geometry.json`
+  nunca era escrito e o app reabria sempre no tamanho default. Agora o fechamento
+  consulta a geometria quando há `on_close` **ou** a persistência nativa está
+  ligada. Regressão: `remember_geometry_consulta_geometria_ao_fechar_sem_on_close`.
+
 ## [0.49.0] — 2026-07-18
 
 ### Adicionado
