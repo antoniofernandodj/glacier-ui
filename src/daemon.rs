@@ -395,6 +395,17 @@ struct Runtime {
     main_setup: SetupHook,
     main_settings: window::Settings,
     main_title: String,
+    /// A janela principal está **na tela** (`true`) ou **recolhida na bandeja**
+    /// (`false`)? Alternado no ramo `DaemonMessage::Closed` de
+    /// [`Runtime::update`] (recolhe) e em [`Runtime::open_main`] (reabre).
+    ///
+    /// Quando recolhida, a janela do SO foi destruída (no Wayland esconder é
+    /// impossível — a única forma de sumir de verdade é destruir), mas o
+    /// **motor** dela continua vivo em `windows`, sob o `main_id` já morto: assim
+    /// o SSE segue conectado e o login intacto, e as notificações de deploy
+    /// continuam chegando mesmo sem janela. O "Open Rustploy" religa esse mesmo
+    /// motor numa janela nova (ver [`Runtime::open_main`]).
+    main_shown: bool,
 }
 
 impl Runtime {
@@ -420,6 +431,7 @@ impl Runtime {
             main_setup,
             main_settings,
             main_title,
+            main_shown: true,
         }
     }
 
@@ -428,11 +440,19 @@ impl Runtime {
             DaemonMessage::Ui { id, msg } => self.route(id, msg),
             DaemonMessage::Opened(_) => Task::none(),
             DaemonMessage::Closed(id) => {
+                // A janela PRINCIPAL fechando com bandeja: não encerra nem
+                // descarta o motor — **destaca-o** (headless), mantendo SSE +
+                // login vivos para as notificações continuarem chegando. Só o
+                // título sai; o motor fica em `windows` sob o `main_id` morto.
+                if id == self.main_id && self.tray.is_some() {
+                    self.titles.remove(&id);
+                    self.main_shown = false;
+                    return Task::none();
+                }
+                // Demais janelas (filhas), ou sem bandeja: remove o motor. Sem
+                // bandeja, a última janela fechada encerra o app (como sempre).
                 self.windows.remove(&id);
                 self.titles.remove(&id);
-                // Com bandeja, a última janela fechada NÃO encerra o app: ele
-                // recolhe para a bandeja e só sai pelo "Quit" dela. Sem bandeja,
-                // o comportamento é o de sempre.
                 if self.windows.is_empty() && self.tray.is_none() {
                     iced::exit()
                 } else {
@@ -444,6 +464,16 @@ impl Runtime {
             DaemonMessage::CloseWithGeometry(id, size, position) => {
                 if let (Some(hook), Some(engine)) = (&self.on_close, self.windows.get(&id)) {
                     hook(engine, WindowGeometry { size, position });
+                }
+                // Se é a principal, lembra a geometria atual: se ela for recolher
+                // para a bandeja, a reabertura ("Open Rustploy") nasce do mesmo
+                // tamanho/posição em vez do valor do boot. (Posição é `None` no
+                // Wayland — lá só o tamanho é lembrado.)
+                if id == self.main_id {
+                    self.main_settings.size = size;
+                    if let Some(p) = position {
+                        self.main_settings.position = window::Position::Specific(p);
+                    }
                 }
                 window::close(id)
             }
@@ -490,19 +520,32 @@ impl Runtime {
         }
     }
 
-    /// Reabre (ou foca, se já viva) a janela principal — o "Open Rustploy" da
-    /// bandeja. Depois de a principal ter fechado, `main_id` aponta para uma
-    /// janela que não está mais em `windows`, então caímos no ramo de recriar:
-    /// um motor fresco via o `setup` guardado, abrindo a janela com as mesmas
-    /// `settings` (geometria restaurada) do boot.
+    /// Reabre (ou foca, se já visível) a janela principal — o "Open Rustploy" da
+    /// bandeja.
+    ///
+    /// - **Já visível** (`main_shown`): só traz para a frente.
+    /// - **Recolhida na bandeja**: o motor foi destacado e continua vivo em
+    ///   `windows` sob o `main_id` morto (ver o campo `main_shown`).
+    ///   Aqui ele é **religado** numa janela nova — preservando login e a sessão
+    ///   SSE — e o `main_id` migra para o id da janela nova. (O recipe do SSE
+    ///   inclui o id da janela, então a migração provoca um breve reconnect do
+    ///   stream; irrelevante, pois é justamente o momento da reabertura.)
+    /// - **Sem motor retido** (partida a frio, ex.: nunca houve principal): um
+    ///   motor novo é construído via o `setup` guardado.
     fn open_main(&mut self) -> Task<DaemonMessage> {
-        if self.windows.contains_key(&self.main_id) {
+        if self.main_shown {
             return window::gain_focus(self.main_id);
         }
-        let mut engine = GlacierUI::new();
-        (self.main_setup)(&mut engine);
+        // Reusa o motor destacado (login + SSE preservados) ou, se não houver,
+        // constrói do zero.
+        let engine = self.windows.remove(&self.main_id).unwrap_or_else(|| {
+            let mut e = GlacierUI::new();
+            (self.main_setup)(&mut e);
+            e
+        });
         let (id, open) = window::open(self.main_settings.clone());
         self.main_id = id;
+        self.main_shown = true;
         self.titles.insert(id, self.main_title.clone());
         self.windows.insert(id, engine);
         open.map(DaemonMessage::Opened)
@@ -946,5 +989,87 @@ mod tests {
         assert!(a.take_close_requested());
         // Consumido: não persiste.
         assert!(!a.take_close_requested());
+    }
+
+    /// Monta um `Runtime` como o `boot` faria: uma janela principal já com um
+    /// motor, opcionalmente com bandeja. Os `Task` retornados por `open`/`update`
+    /// não são poll-ados (não há loop iced no teste) — só inspecionamos o estado.
+    fn runtime_de_teste(com_bandeja: bool) -> (Runtime, window::Id) {
+        let settings = window::Settings::default();
+        let (main_id, _open) = window::open(settings.clone());
+        let mut rt = Runtime::new(
+            Duration::from_millis(500),
+            Duration::from_millis(400),
+            main_id,
+            Rc::new(|_| {}),
+            settings,
+            "T".to_string(),
+        );
+        if com_bandeja {
+            rt.tray = Some(crate::tray::TrayHandle::for_test());
+        }
+        rt.windows.insert(main_id, GlacierUI::new());
+        rt.titles.insert(main_id, "T".to_string());
+        (rt, main_id)
+    }
+
+    #[test]
+    fn com_bandeja_fechar_principal_destaca_o_motor_e_reabre_reusando_o_mesmo() {
+        let (mut rt, main_id) = runtime_de_teste(true);
+        // Marca o motor para reconhecê-lo depois da migração.
+        rt.windows
+            .get_mut(&main_id)
+            .unwrap()
+            .define_data("marca", "vivo");
+        assert!(rt.main_shown);
+
+        // Fechar a principal com bandeja: destaca (motor segue vivo/headless),
+        // não encerra, tira só o título.
+        let _ = rt.update(DaemonMessage::Closed(main_id));
+        assert!(!rt.main_shown);
+        assert!(
+            rt.windows.contains_key(&main_id),
+            "o motor deve continuar vivo sob o id morto (SSE + login preservados)"
+        );
+        assert!(rt.titles.get(&main_id).is_none());
+
+        // "Open Rustploy": religa o MESMO motor numa janela nova; main_id migra.
+        let _ = rt.open_main();
+        assert!(rt.main_shown);
+        assert_ne!(rt.main_id, main_id, "deve migrar para uma janela nova");
+        assert!(
+            !rt.windows.contains_key(&main_id),
+            "o id antigo (janela morta) deve sair do mapa"
+        );
+        let migrado = rt.windows.get(&rt.main_id).expect("motor na janela nova");
+        assert_eq!(
+            migrado.get_data("marca").map(String::as_str),
+            Some("vivo"),
+            "deve ser o MESMO motor retido, não um recém-construído"
+        );
+    }
+
+    #[test]
+    fn sem_bandeja_fechar_principal_remove_o_motor() {
+        let (mut rt, main_id) = runtime_de_teste(false);
+        // Sem bandeja o comportamento é o clássico: fecha e remove o motor (e o
+        // app encerraria — o `iced::exit()` retornado não é inspecionável aqui).
+        let _ = rt.update(DaemonMessage::Closed(main_id));
+        assert!(!rt.windows.contains_key(&main_id));
+        assert!(rt.main_shown, "sem destacamento, a flag não muda");
+    }
+
+    #[test]
+    fn com_bandeja_fechar_janela_filha_nao_destaca_a_principal() {
+        let (mut rt, main_id) = runtime_de_teste(true);
+        // Uma janela-filha qualquer.
+        let (filha_id, _) = window::open(window::Settings::default());
+        rt.windows.insert(filha_id, GlacierUI::new());
+
+        let _ = rt.update(DaemonMessage::Closed(filha_id));
+        // A filha some; a principal e sua flag ficam intactas.
+        assert!(!rt.windows.contains_key(&filha_id));
+        assert!(rt.windows.contains_key(&main_id));
+        assert!(rt.main_shown);
     }
 }

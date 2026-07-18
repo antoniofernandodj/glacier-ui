@@ -159,6 +159,15 @@ impl TrayHandle {
     pub fn shutdown(&self) {
         self.send(TrayCommand::Shutdown);
     }
+
+    /// Alça de teste sem thread de bandeja por trás — só para o daemon poder
+    /// simular "há bandeja" nos testes de ciclo de vida. Os comandos enviados vão
+    /// para o vazio (o receptor é descartado).
+    #[cfg(test)]
+    pub(crate) fn for_test() -> Self {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        Self { tx }
+    }
 }
 
 /// Ações que o gancho `on_tray` pode disparar. Métodos que dependem do runner

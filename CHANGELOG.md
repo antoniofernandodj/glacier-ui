@@ -8,6 +8,33 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.48.0] — 2026-07-17
+
+### Mudado
+- **Bandeja: fechar a janela principal agora a recolhe SEM matar o motor.**
+  Antes, fechar a última janela (com bandeja) encerrava a janela e **descartava o
+  motor** dela — junto com o login e qualquer stream `sse`/`websocket` vivo. Um
+  app de bandeja que precisa continuar recebendo eventos (ex.: notificar quando um
+  deploy termina) ficava sem conexão nenhuma enquanto recolhido.
+
+  Agora, com bandeja configurada, fechar a principal **destaca** o motor: a janela
+  do SO é destruída (no Wayland esconder/minimizar-restaurar é impossível pelo
+  toolkit — destruir é a única forma de a janela sumir de verdade), mas o **motor
+  segue vivo e headless** — SSE conectado, login intacto, notificações do SO
+  continuam disparando. O `open_main()` (item "abrir" da bandeja) **religa esse
+  mesmo motor** numa janela nova, preservando a sessão; o `main_id` migra para a
+  janela nova (o recipe do `sse`/`websocket` inclui o id da janela, então há um
+  breve reconnect do stream no instante da reabertura — irrelevante).
+
+  Sem bandeja, nada muda: fechar a última janela encerra o app como sempre.
+
+### Compatibilidade
+- Sem quebras de API. É uma mudança de **comportamento** restrita a apps que usam
+  `.tray(...)`: a principal passa a recolher (motor vivo) em vez de destruir. Apps
+  sem bandeja não são afetados.
+
+---
+
 ## [0.47.0] — 2026-07-17
 
 ### Adicionado
