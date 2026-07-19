@@ -276,6 +276,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
 | `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange`, `tristate` (cicla `false → mixed → true`, como o `Qt::CheckState`) |
 | `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
+| `<ProgressBar>` | `Progress`, `BarraProgresso` | `value`/`valor` (chave de contexto numérica), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue` (percentual centralizado), `color`/`cor` (preenchimento; o `background` genérico é o trilho) |
+| `<Spinner>` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
 
 ### Estruturais (composição, fluxo, recursos)
 

@@ -12,6 +12,7 @@ pub mod luau;
 pub mod net;
 pub mod parser;
 pub mod render_inputs;
+pub mod spinner;
 pub mod style;
 pub mod stylesheet;
 pub mod toasts;

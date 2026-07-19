@@ -100,5 +100,18 @@
       </row>
       <textarea class="notas" value="notas" on_change="notas" />
     </column>
+    <rule />
+
+    <!-- QProgressBar (determinado) + QProgressBar "busy" — a segunda não
+         precisa de estado no contexto (a fase da rotação vive no widget), só
+         a primeira está bindada a `progresso`, avançado pelo botão abaixo. -->
+    <column class="grupo cheio">
+      <text class="titulo">Indicadores</text>
+      <row class="linha-inputs">
+        <progressbar value="progresso" min="0" max="1" show_value="true" />
+        <spinner />
+      </row>
+      <button text="Progresso +10%" on_click="avancar_progresso" />
+    </column>
   </column>
 </container>

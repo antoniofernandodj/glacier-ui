@@ -11,6 +11,8 @@ carregam **estrutura** (template), **estilo** (`.gss`) e **comportamento**
 widget nasce, seu status vira ✅ e ele ganha exemplo em `examples/` e doc curta.
 
 Relacionados: [`BUILTINS.md`](BUILTINS.md) (como escrever um builtin),
+[`PRIMITIVAS.md`](PRIMITIVAS.md) (como escrever uma primitiva — inclui a
+armadilha do `Length::Fill` no wrap de background/borda),
 [`DIALOGS.md`](DIALOGS.md) (diálogos modais), [`ROADMAP.md`](ROADMAP.md)
 (maturidade do motor).
 
@@ -98,8 +100,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
 | QDial | `Dial` | Comp | canvas | ● | P2 | ⬜ | knob rotativo |
 | QScrollBar | `ScrollBar` | Motor | scrollable | — | P2 | 🟡 | embutido no `scrollable`; expor avulso é raro |
-| QProgressBar | `ProgressBar` | Prim | progress_bar | — | P1 | 🟡 | existe em `widget.rs`; formalizar como primitiva |
-| QProgressBar (busy) | `Spinner`/`BusyIndicator` | Comp | canvas | ● | P1 | ⬜ | indeterminado (girando) |
+| QProgressBar | `ProgressBar` | Prim | progress_bar | — | P1 | ✅ | `value`/`min`/`max`/`vertical`/`showValue`; `color` = preenchimento |
+| QProgressBar (busy) | `Spinner`/`BusyIndicator` | Prim | fill_quad (sem canvas) | — | P1 | ✅ | indeterminado; fase de rotação no `tree::State` do widget — **não** exige estado por instância no contexto (reclassificado de `●`; ver `src/spinner.rs`) |
 | QLCDNumber | `LcdNumber` | Comp | canvas | — | P3 | ⬜ | dígitos estilo display 7-segmentos |
 | QML Tumbler | `Tumbler` | Comp | scrollable | ● | P3 | ⬜ | roleta de valores |
 | QML Gauge / medidor | `Gauge` | Comp | canvas | ◐ | P2 | ⬜ | medidor circular/arco |
@@ -281,8 +283,10 @@ Ordem sugerida de habilitadores de Motor:
    necessário para pickers de data robustos. **P1.**
 5. **Binding a coleção (model/view)** — `ListView`/`TableView`/`TreeView`
    ligados a uma coleção do contexto, com seleção. **P2.**
-6. **Canvas exposto como primitiva** — destrava `Dial`, `Gauge`, `Spinner`,
-   `ColorDialog`, `LcdNumber`, todos os gráficos. **P2.**
+6. **Canvas exposto como primitiva** — destrava `Dial`, `Gauge`,
+   `ColorDialog`, `LcdNumber`, todos os gráficos. **P2.** (`Spinner` saiu
+   desta lista: acabou não precisando de `canvas` nem de estado por
+   instância — ver a nota da linha `QProgressBar (busy)` na tabela §2.3.)
 7. **Subscriptions de teclado** — `Shortcut`/`Action` globais. **P2.**
 
 ---
@@ -306,7 +310,7 @@ Ordem sugerida de habilitadores de Motor:
 Corte transversal da tabela por prioridade, na ordem que maximiza valor:
 
 **Fase A — fechar o núcleo primitivo (P0/P1 sobre iced direto)**
-`Radio` · `Slider` · `ProgressBar` (formalizar) · `Tooltip` · `Space` ·
+`Radio` · `Slider` · ~~`ProgressBar` (formalizar)~~ ✅ · `Tooltip` · `Space` ·
 `Grid` · `password`/`secure` no `TextInput` · `QrCode`. Baixo custo, tudo
 mapeia a widget nativo do iced.
 
@@ -347,7 +351,7 @@ coleção.
 |---|---|---|---|---|
 | Botões e ações | 10 | 3 | 1 | 6 |
 | Entradas de texto | 9 | 2 | 3 | 4 |
-| Numéricas/valor | 11 | 0 | 2 | 9 |
+| Numéricas/valor | 11 | 2 | 1 | 8 |
 | Seleção/listas/árvores | 11 | 1 | 1 | 9 |
 | Data e hora | 6 | 0 | 0 | 6 |
 | Displays/indicadores | 15 | 7 | 0 | 8 |
@@ -358,8 +362,8 @@ coleção.
 | Layouts | 7 | 3 | 1 | 3 |
 | Overlays/utilitários | 12 | 0 | 1 | 11 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **~124** | **28** | **10** | **86** |
+| **Total** | **~124** | **30** | **9** | **85** |
 
-O motor já entrega ~23% do catálogo Qt de superfície. O gargalo não é volume de
+O motor já entrega ~24% do catálogo Qt de superfície. O gargalo não é volume de
 markup — é o punhado de habilitadores de Motor do §3 (estado por instância +
 overlay ancorado + canvas), que sozinhos destravam a maioria dos 86 pendentes.

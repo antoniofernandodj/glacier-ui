@@ -16,6 +16,10 @@ de `src/builtins.rs`; aqui o foco é o passo a passo.
 | **Builtin** | `src/builtins.rs` | não (a lib registra) | `<Badge/>` e afins |
 | **Componente do app** | código/arquivos do app | sim (`register`/`import`) | `<PerfilCard/>` |
 
+Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
+**Primitiva** nova — inclusive uma armadilha real do motor (`Length::Fill` vs.
+o wrap genérico de background/borda) — ver [`PRIMITIVAS.md`](PRIMITIVAS.md).
+
 Um **builtin** é um componente comum (`impl Component`) — a única diferença é que
 a lib o registra em `GlacierUI::new()`, então ele não exige `register()` do app.
 Uma tag desconhecida no XML vira uma referência de componente resolvida pelo

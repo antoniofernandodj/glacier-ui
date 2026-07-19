@@ -166,6 +166,11 @@ Select {
     padding: 6 10;
 }
 Select:hover { border-color: #0078d7; }
+ProgressBar {
+    background: #e6e6e6;
+    color: #107c10;
+    border-radius: 3;
+}
 "#,
 };
 
@@ -208,6 +213,11 @@ Select {
     padding: 6 10;
 }
 Select:hover { border-color: #308cc6; }
+ProgressBar {
+    background: #d8d8d8;
+    color: #308cc6;
+    border-radius: 2;
+}
 "#,
 };
 
@@ -250,6 +260,11 @@ Select {
     padding: 6 10;
 }
 Select:hover { border-color: #2a82da; }
+ProgressBar {
+    background: #1e1f20;
+    color: #2a82da;
+    border-radius: 2;
+}
 "#,
 };
 
@@ -292,6 +307,11 @@ Select {
     padding: 6 10;
 }
 Select:hover { border-color: #7d9fc4; }
+ProgressBar {
+    background: #2b2d2f;
+    color: #7d9fc4;
+    border-radius: 3;
+}
 "#,
 };
 

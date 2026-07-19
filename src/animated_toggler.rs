@@ -15,6 +15,9 @@
 //!   Enquanto a animação corre, cada `RedrawRequested` agenda o próximo quadro
 //!   via `shell.request_redraw()`; parada a animação, o widget volta a ser
 //!   estático (custo zero por quadro).
+//!
+//! O padrão completo — e o checklist para animar outros widgets — está
+//! documentado em `ANIMACOES.md`, na raiz do repositório.
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;

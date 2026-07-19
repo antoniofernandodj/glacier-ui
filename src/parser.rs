@@ -81,6 +81,30 @@ pub enum NodeType {
     Rule {
         horizontal: bool,
     },
+    /// `QProgressBar`: uma barra determinada, de `min` a `max`. `value_var` é
+    /// uma chave de contexto com o valor numérico atual (mesma convenção de
+    /// `checked_var`/`value_var` dos demais widgets bindados) — ausente ou
+    /// não-numérica conta como `min`. `color` é o preenchimento ("bar"); o
+    /// trilho vem do `background` genérico do nó. `show_value` sobrepõe o
+    /// percentual centralizado, como o `QProgressBar::textVisible` do Qt.
+    ProgressBar {
+        value_var: String,
+        min: f32,
+        max: f32,
+        vertical: bool,
+        show_value: bool,
+        color: Option<String>,
+    },
+    /// `QProgressBar` indeterminado (`setRange(0, 0)`) / `BusyIndicator` do
+    /// QML: um anel girando sem fim, para operações sem duração conhecida.
+    /// Sem `value_var` — não é `●` no sentido do `PLANO_WIDGETS.md` (não
+    /// precisa de estado por instância no contexto global): a fase da
+    /// rotação vive no `tree::State` do próprio widget (ver
+    /// `crate::spinner`), então N instâncias na tela não colidem. `color`
+    /// sem valor cai na `primary` do tema ativo.
+    Spinner {
+        color: Option<String>,
+    },
     /// A dropdown (`pick_list`) bound to context. `options` is a context key
     /// holding a JSON array (objects with `label_field`/`value_field`, or plain
     /// strings); `value_var` holds the selected value; selecting an option emits
@@ -212,6 +236,8 @@ impl NodeType {
             NodeType::Toggle { .. } => "toggle",
             NodeType::Rule { .. } => "rule",
             NodeType::Select { .. } => "select",
+            NodeType::ProgressBar { .. } => "progressbar",
+            NodeType::Spinner { .. } => "spinner",
             NodeType::Form { .. } => "form",
             NodeType::Include { .. }
             | NodeType::Component { .. }
@@ -760,7 +786,13 @@ impl UiNode {
                 .unwrap_or_default();
                 let tristate = Self::get_attr_bool(
                     &node,
-                    &["tristate", "tri_state", "tri-state", "triestado", "tri_estado"],
+                    &[
+                        "tristate",
+                        "tri_state",
+                        "tri-state",
+                        "triestado",
+                        "tri_estado",
+                    ],
                 );
                 NodeType::Checkbox {
                     label,
@@ -790,6 +822,37 @@ impl UiNode {
                     .map(|s| !s.eq_ignore_ascii_case("vertical") && !s.eq_ignore_ascii_case("v"))
                     .unwrap_or(true);
                 NodeType::Rule { horizontal }
+            }
+            "ProgressBar" | "progressbar" | "Progress" | "progress" | "BarraProgresso"
+            | "barra_progresso" => {
+                let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let parse_f32 = |keys: &[&str], default: f32| {
+                    Self::get_attr(&node, keys)
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(default)
+                };
+                let min = parse_f32(&["min", "minimo", "minimum"], 0.0);
+                let max = parse_f32(&["max", "maximo", "maximum"], 100.0);
+                let vertical =
+                    Self::get_attr_bool(&node, &["vertical", "verticalizado", "vertical_"]);
+                let show_value = Self::get_attr_bool(
+                    &node,
+                    &["showValue", "show_value", "mostrarValor", "mostrar_valor"],
+                );
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::ProgressBar {
+                    value_var,
+                    min,
+                    max,
+                    vertical,
+                    show_value,
+                    color,
+                }
+            }
+            "Spinner" | "spinner" | "BusyIndicator" | "busyindicator" | "busy_indicator"
+            | "IndicadorOcupado" | "indicador_ocupado" | "Carregando" | "carregando" => {
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::Spinner { color }
             }
             "Select" | "select" | "Dropdown" | "dropdown" | "PickList" | "picklist"
             | "ComboBox" | "combobox" | "Combo" | "combo" | "Seletor" | "seletor" => {

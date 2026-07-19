@@ -8,6 +8,47 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.53.0] — 2026-07-19
+
+### Adicionado
+- **`<ProgressBar>` formalizado como primitiva** (`QProgressBar` do Qt):
+  `value`/`valor` (chave de contexto numérica — ausente/não-numérica conta
+  como `min`), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue`
+  (percentual centralizado, como o `QProgressBar::textVisible`, default do
+  Qt) e `color`/`cor` (o preenchimento — a track usa o `background` genérico
+  do nó). Os quatro estilos builtin (`crate::style`) ganharam uma regra de
+  tag `ProgressBar { }` — verde no `FROST` (como o Windows/Vista), `primary`
+  nos outros três (como o Fusion do Widget Gallery).
+- **`<Spinner>`/`<BusyIndicator>`** — o `QProgressBar` indeterminado
+  (`setRange(0, 0)`)/`BusyIndicator` do QML: um anel de pontos girando sem
+  fim, para operações sem duração conhecida. Reclassificado de `●` para `—`
+  no `PLANO_WIDGETS.md`: ao contrário de `Tabs`/`SpinBox`/`Calendar`, um
+  indicador indeterminado não guarda **valor** algum — só uma fase de
+  rotação, que mora no `tree::State` do próprio widget (mesmo mecanismo do
+  `AnimatedToggler`, ver `ANIMACOES.md`), então N instâncias na tela giram
+  cada uma com seu relógio sem tocar o contexto global. Desenhado com
+  `fill_quad` (pontos num anel, opacidade decaindo pelo rastro), sem puxar o
+  trait `canvas`/`geometry::Renderer`. `color`/`cor`; sem cor, usa o
+  `primary` do tema ativo (inclusive o de um estilo builtin).
+- Exemplo `galeria_estilos` ganhou a seção "Indicadores" (progress bar
+  bindado + spinner + botão que avança 10% por clique, voltando a 0 ao
+  passar de 100%).
+
+### Corrigido
+- **`<ProgressBar>` sem `width` explícito colapsava a quase-zero** — visível
+  demais quando um estilo builtin (ou classe do app) declara `ProgressBar {
+  background; border-radius }`: como esses são campos **genéricos** do nó, o
+  wrap "embrulha em `Container` se tiver background/borda" (compartilhado por
+  todo `render_node`) entrava em ação e envolvia a barra num `Container` sem
+  `width` — ou seja, `Length::Shrink`. Um `Shrink` ao redor do `Length::Fill`
+  (o default do `progress_bar` do iced) colapsa a barra a quase-nada, sobrando
+  só o `<Spinner>` vizinho visível. `ProgressBar` agora fica de fora desse
+  wrap (já pinta o próprio trilho/borda no `.style()`, então era redundante
+  de qualquer forma). `Button`/`Select` nunca sofreram disso: seu tamanho
+  natural já é `Shrink`, não têm o que colapsar.
+
+---
+
 ## [0.52.0] — 2026-07-18
 
 ### Adicionado

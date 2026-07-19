@@ -1317,6 +1317,30 @@ fn eval_owned(
         NodeType::Rule { horizontal } => NodeType::Rule {
             horizontal: *horizontal,
         },
+        NodeType::ProgressBar {
+            value_var,
+            min,
+            max,
+            vertical,
+            show_value,
+            color,
+        } => NodeType::ProgressBar {
+            value_var: process_tpl(value_var, context),
+            min: *min,
+            max: *max,
+            vertical: *vertical,
+            show_value: *show_value,
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .or_else(|| style.color.clone()),
+        },
+        NodeType::Spinner { color } => NodeType::Spinner {
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .or_else(|| style.color.clone()),
+        },
         NodeType::Select {
             options,
             value_var,

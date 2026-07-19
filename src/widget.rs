@@ -1,7 +1,7 @@
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
-    Space, Tooltip, button, checkbox, column, container, image, mouse_area, pick_list, row, rule,
-    scrollable, svg, text, text_editor, text_input,
+    Space, Tooltip, button, checkbox, column, container, image, mouse_area, pick_list,
+    progress_bar, row, rule, scrollable, svg, text, text_editor, text_input,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -970,6 +970,97 @@ pub fn render_node<'a>(
                 rule::vertical(w).into()
             }
         }
+        NodeType::ProgressBar {
+            value_var,
+            min,
+            max,
+            vertical,
+            show_value,
+            color,
+        } => {
+            let value = context
+                .get(value_var)
+                .and_then(|s| s.trim().parse::<f32>().ok())
+                .unwrap_or(*min)
+                .clamp(*min, *max);
+            let bar_color = color.as_deref().and_then(parse_hex_color);
+            let bg_opt = background_for(node);
+            let br_opt = node.border_radius;
+            let bw_opt = node.border_width;
+            let bc_opt = node.border_color.as_ref().and_then(|c| parse_hex_color(c));
+
+            let mut pb = progress_bar(*min..=*max, value);
+            if *vertical {
+                pb = pb.vertical();
+                if node.height.is_some() {
+                    pb = pb.length(parse_length(&node.height));
+                }
+                if node.width.is_some() {
+                    pb = pb.girth(parse_length(&node.width));
+                }
+            } else {
+                if node.width.is_some() {
+                    pb = pb.length(parse_length(&node.width));
+                }
+                if node.height.is_some() {
+                    pb = pb.girth(parse_length(&node.height));
+                }
+            }
+            // Sem overlay algum, cai no `primary` do tema ativo — inclusive o de
+            // um estilo builtin (`crate::style`), sem precisar de GSS nenhum.
+            pb = pb.style(move |theme: &iced::Theme| {
+                let default_style = progress_bar::primary(theme);
+                progress_bar::Style {
+                    background: bg_opt.unwrap_or(default_style.background),
+                    bar: bar_color
+                        .map(Background::Color)
+                        .unwrap_or(default_style.bar),
+                    border: Border {
+                        radius: br_opt
+                            .map(iced::border::Radius::new)
+                            .unwrap_or(default_style.border.radius),
+                        width: bw_opt.unwrap_or(default_style.border.width),
+                        color: bc_opt.unwrap_or(default_style.border.color),
+                    },
+                }
+            });
+
+            let bar_elem: Element<'a, EngineMessage> = pb.into();
+            if *show_value {
+                // Percentual centralizado sobre a barra, como o
+                // `QProgressBar::textVisible` (default do Qt) do Widget Gallery.
+                let pct = if (*max - *min).abs() > f32::EPSILON {
+                    (((value - *min) / (*max - *min)) * 100.0).round() as i32
+                } else {
+                    0
+                };
+                iced::widget::stack![
+                    bar_elem,
+                    container(text(format!("{pct}%"))).center(Length::Fill)
+                ]
+                .into()
+            } else {
+                bar_elem
+            }
+        }
+        NodeType::Spinner { color } => {
+            // Indicador indeterminado (busy) — ver `crate::spinner`. Não precisa
+            // de `value_var`/estado no contexto: a fase da rotação vive no
+            // `tree::State` do próprio widget do iced, então N instâncias na tela
+            // não colidem (o bloqueio de "estado por instância" do
+            // `PLANO_WIDGETS.md` não se aplica aqui).
+            let size = node
+                .width
+                .as_ref()
+                .and_then(|s| s.parse::<f32>().ok())
+                .or_else(|| node.height.as_ref().and_then(|s| s.parse::<f32>().ok()))
+                .unwrap_or(crate::spinner::Spinner::DEFAULT_SIZE);
+            let mut sp = crate::spinner::spinner().size(size);
+            if let Some(c) = color.as_deref().and_then(parse_hex_color) {
+                sp = sp.color(c);
+            }
+            sp.into()
+        }
         NodeType::Column => {
             let mut col = column![];
 
@@ -1127,7 +1218,20 @@ pub fn render_node<'a>(
 
     // Wrap elements other than Container in a Container if a background/gradient
     // or borders are specified.
-    if node.kind != NodeType::Container {
+    //
+    // `ProgressBar` fica de fora: ele já pinta o próprio trilho/borda no
+    // `.style()` do match acima (a partir dos MESMOS campos genéricos
+    // `background`/`border_*`), então este wrap seria redundante — e, pior,
+    // ativo (o que acontece sempre que um estilo builtin declara `ProgressBar
+    // { background: … }`) ele embrulharia a barra num `Container` sem
+    // `width` explícito, isto é, `Length::Shrink`. Como o `progress_bar` do
+    // iced é `Length::Fill` por padrão, um `Shrink` ao redor de um `Fill`
+    // colapsa a barra a quase-zero — ficando (visualmente) só o `Spinner` ao
+    // lado, se houver um. Button/Select não sofrem disso porque seu tamanho
+    // natural já é `Shrink` (não têm o que "colapsar"). Ao acrescentar uma
+    // primitiva nova cujo default no iced seja `Length::Fill` (ex.: um
+    // futuro `Slider`), aplique a mesma exclusão — ver `PRIMITIVAS.md`.
+    if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressBar { .. }) {
         let bg_opt = background_for(node);
         let br_opt = node.border_radius;
         let bw_opt = node.border_width.unwrap_or(0.0);
