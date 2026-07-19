@@ -14,6 +14,13 @@
 //! como primitiva) e o `<Spinner>` (indicador indeterminado/"busy" — gira
 //! sozinho, sem precisar de estado no contexto; ver `src/spinner.rs`).
 //!
+//! `Galeria` também mostra `<script>` Lua coexistindo com um `Component`
+//! Rust no mesmo `register()`: `galeria.gv` define `avancar_progresso()` em
+//! Lua, que vence sobre o `update()` Rust para essa ação; todo o resto
+//! (checkbox, combos, textarea, ...) não tem função Lua e cai no `update()`
+//! Rust normalmente — a camada por-ação que `GlacierUI::register` liga
+//! automaticamente quando o template carrega `<script>`.
+//!
 //! Rode com: `cargo run --example galeria_estilos`
 use glacier_ui::{Component, Context, GlacierDaemon, Template, style};
 
@@ -58,20 +65,10 @@ impl Component for Galeria {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         // A maioria dos controles liga `on_change`/`on_toggle` direto à sua
-        // própria variável de contexto (ramo genérico no fim); a troca de
-        // estilo nem passa por aqui (é a ação builtin `style:set`). Só o botão
-        // do `<ProgressBar>` precisa de lógica própria: avança 10% e volta a 0
-        // ao passar de 100%, pra ficar num loop demonstrável.
-        if action == "avancar_progresso" {
-            let atual: f64 = ctx
-                .get("progresso")
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let proximo = if atual >= 1.0 { 0.0 } else { atual + 0.1 };
-            ctx.set("progresso", proximo.to_string());
-            return;
-        }
-
+        // própria variável de contexto (ramo genérico abaixo); a troca de
+        // estilo nem passa por aqui (é a ação builtin `style:set`). O botão
+        // do `<ProgressBar>` ("avancar_progresso") tem função Lua homônima em
+        // `galeria.gv` — ela vence e este `update()` nunca vê essa ação.
         if let Some(v) = value {
             ctx.set(action, v.to_string());
         }
@@ -79,7 +76,7 @@ impl Component for Galeria {
 }
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
+    let app = GlacierDaemon::new()
         .title("Glacier — Galeria de Estilos")
         .main_size(560.0, 640.0)
         .style(style::FUSION)
@@ -88,6 +85,7 @@ fn main() -> iced::Result {
                 eprintln!("erro ao registrar: {e}");
             }
             motor.set_initial_screen("galeria");
-        })
-        .run()
+        });
+
+    app.run()
 }

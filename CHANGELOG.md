@@ -8,6 +8,23 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.54.0] — 2026-07-19
+
+### Adicionado
+- **`GlacierUI::register` liga `<script>` Luau, quando houver** — um
+  `Component` Rust registrado via `register(Box<dyn Component>)` deixa de ter
+  seu `<script>` descartado silenciosamente: se o `Template::File` carrega um
+  bloco `<script>`, `LuauComponent::wrap` (`src/luau/mod.rs`) o embrulha, e
+  cada ação passa a resolver por precedência — a função Lua de mesmo nome
+  vence se existir; senão o hook Rust correspondente (`update`, `init`,
+  `on_form_submit`, `on_broadcast`) roda no lugar. Unifica os dois caminhos
+  de registro (`register` vs. `register_component`) quanto a scripting: antes
+  só `register_component(name, path)` (sem `Box<dyn Component>`) aceitava
+  Lua. `Template::Inline` continua sem suporte a `<script>` (sem `path` para
+  resolver `src`/`require`, mesma limitação que `LuauComponent` sempre teve).
+  Não quebra nada existente: nenhum registro via `register` tinha `<script>`
+  até aqui.
+
 ## [0.53.0] — 2026-07-19
 
 ### Adicionado

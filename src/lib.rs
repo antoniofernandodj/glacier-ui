@@ -630,8 +630,9 @@ impl GlacierUI {
             Template::Inline(s) => (s, None),
         };
 
-        // Parse the XML markup, with any `<script>` block stripped — its Lua
-        // body is run at runtime by `LuaComponent`, not here.
+        // Parse the XML markup. A `<script>` block is stripped from the AST
+        // here either way — its Lua body doesn't drive the template — but is
+        // no longer discarded: see the `has_script` check below.
         let (ast, _script) =
             parse_markup(path.as_deref(), &markup).map_err(|e| e.in_component(&name))?;
         self.inputs.insert_template(name.clone(), ast.clone());
@@ -642,10 +643,26 @@ impl GlacierUI {
         self.load_imports(&ast)?;
         self.process_links(&name, &ast)?;
 
-        // (b) Behavior + (c) children: seed initial state (see
-        //     `install_component`), then register each Rust `children()`
-        //     recursively so their templates/behavior are available too.
+        // (b) Behavior + (c) children: grab `children()` from the Rust struct
+        //     *before* any wrapping below (once wrapped there's no more direct
+        //     access to it), then seed initial state (see `install_component`)
+        //     and register each child recursively.
         let children = comp.children();
+
+        // A `Template::File` component whose markup carries a `<script>` gets
+        // Lua wired as a per-action layer over its own hooks (`update`,
+        // `init`, `on_form_submit`, `on_broadcast`): the Lua function of the
+        // same name wins if defined, otherwise the Rust hook runs — see
+        // `luau::LuauComponent::wrap`. `Template::Inline` components can't
+        // carry a `<script>` (no path to resolve `src`/`require` against),
+        // same limitation `LuauComponent` always had.
+        let comp: Box<dyn component::Component> = match &path {
+            Some(p) if luau::has_script(&markup) => {
+                Box::new(luau::LuauComponent::wrap(&name, p, comp, self.assets.clone())?)
+            }
+            _ => comp,
+        };
+
         self.install_component(&name, comp);
         for child in children {
             self.register_one(child)?;

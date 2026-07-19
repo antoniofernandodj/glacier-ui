@@ -5,6 +5,17 @@
 //! [`LuauComponent`] o carrega do arquivo e executa as funções quando uma ação
 //! chega — nada é compilado, então mudar a lógica não exige recompilar o app.
 //!
+//! # Combinando com um `Component` Rust
+//!
+//! `<script>` não exige abrir mão de um [`Component`] Rust: quando
+//! `GlacierUI::register` encontra `<script>` no template de um componente
+//! registrado normalmente (via `Box<dyn Component>`), [`LuauComponent::wrap`]
+//! embrulha esse componente — por ação, a função Lua de mesmo nome vence se
+//! existir; senão o hook Rust correspondente (`update`, `init`,
+//! `on_form_submit`, `on_broadcast`) roda no lugar. `GlacierUI::register_component`
+//! (só nome+caminho, sem `Box<dyn Component>`) continua 100%-script, como
+//! sempre.
+//!
 //! # Acesso ao contexto
 //!
 //! Cada função Luau enxerga uma tabela global `ctx` espelhando o
@@ -117,6 +128,16 @@ pub struct LuauComponent {
     /// chamadas), atualizada em [`Self::sync_to_luau`] com o viewport atual do
     /// motor — é o que o `viewport()` do prelúdio lê.
     viewport_table: Table,
+    /// Componente Rust opcional que este `<script>` **complementa**: por
+    /// ação, a função Lua de mesmo nome vence se existir; senão o hook
+    /// correspondente de `inner` roda (ver [`Self::dispatch`]). `None` no
+    /// caminho 100%-script (`from_file`/`from_source`, usado por
+    /// `register_component` sem `Box<dyn Component>` nenhum); `Some` só via
+    /// [`Self::wrap`], usado por `GlacierUI::register` quando o template de
+    /// um `Component` Rust também carrega `<script>`. `RefCell` porque os
+    /// hooks do `Component` pedem `&mut self`, mas `LuauComponent` só empresta
+    /// `&self` (mesmo padrão de `pending`/`streams`/`timers`).
+    inner: Option<RefCell<Box<dyn Component>>>,
 }
 
 /// Handlers Lua de um stream aberto, guardados como referências no registry do
@@ -296,7 +317,30 @@ impl LuauComponent {
             timers: RefCell::new(HashMap::new()),
             next_id: Cell::new(1),
             viewport_table,
+            inner: None,
         })
+    }
+
+    /// Como [`Self::from_file_with`], mas embrulhando um `Component` Rust já
+    /// pronto (`inner`) em vez de deixá-lo 100%-script: o `<script>` do
+    /// template de `inner` vira uma camada por-ação sobre seus hooks (Lua
+    /// primeiro, `inner` como fallback — ver [`Self::dispatch`]). Usado por
+    /// `GlacierUI::register_one` quando `luau::has_script` encontra
+    /// `<script>` num componente `Template::File` registrado via
+    /// `GlacierUI::register`.
+    pub(crate) fn wrap(
+        name: &str,
+        path: &str,
+        inner: Box<dyn Component>,
+        assets: Arc<dyn AssetSource>,
+    ) -> Result<Self> {
+        let mut built =
+            Self::from_file_inner(path, name, &assets).map_err(|message| GlacierError::Luau {
+                component: name.to_string(),
+                message,
+            })?;
+        built.inner = Some(RefCell::new(inner));
+        Ok(built)
     }
 
     /// Espelha o contexto do motor na tabela Luau `ctx`: limpa a tabela e a
@@ -356,11 +400,40 @@ impl LuauComponent {
         Ok(())
     }
 
-    /// Roda a função `func` (se existir) como uma corrotina, passando `value`.
-    fn run(&self, func: &str, value: Option<&str>, ctx: &mut Context) {
-        if let Err(e) = self.run_inner(func, value, ctx) {
-            self.report_error(func, e, ctx);
+    /// Roda `func` em Lua se existir função global correspondente; senão roda
+    /// `fallback` contra o `inner` (Rust) embrulhado — se houver — ou, num
+    /// componente 100%-script (`inner` ausente), aplica o binding legado
+    /// `ctx[func] = value` (mesmo comportamento de sempre para um
+    /// `formControl` sem handler próprio). É o ponto único onde a
+    /// precedência "Lua por ação, Rust como fallback" (ver [`Self::wrap`])
+    /// é aplicada.
+    fn dispatch(
+        &self,
+        func: &str,
+        value: Option<&str>,
+        ctx: &mut Context,
+        fallback: impl FnOnce(&mut dyn Component, &mut Context),
+    ) {
+        match self.run_inner(func, value, ctx) {
+            Ok(true) => {}
+            Ok(false) => match &self.inner {
+                Some(inner) => fallback(&mut **inner.borrow_mut(), ctx),
+                None => {
+                    if let Some(v) = value {
+                        ctx.set(func, v);
+                    }
+                }
+            },
+            Err(e) => self.report_error(func, e, ctx),
         }
+    }
+
+    /// [`Self::dispatch`] sem fallback Rust — para os testes deste módulo,
+    /// que rodam `LuauComponent` diretamente (sempre `inner = None`, então o
+    /// fallback nunca dispararia mesmo com um).
+    #[cfg(test)]
+    fn run(&self, func: &str, value: Option<&str>, ctx: &mut Context) {
+        self.dispatch(func, value, ctx, |_, _| {});
     }
 
     /// Relata um erro de execução do script: sempre loga em `stderr` (o
@@ -399,7 +472,10 @@ impl LuauComponent {
         }
     }
 
-    fn run_inner(&self, func: &str, value: Option<&str>, ctx: &mut Context) -> mlua::Result<()> {
+    /// Devolve `Ok(true)` se uma função Lua correspondente rodou, `Ok(false)`
+    /// se nenhuma foi encontrada (aí quem chama decide o fallback — ver
+    /// [`Self::dispatch`]).
+    fn run_inner(&self, func: &str, value: Option<&str>, ctx: &mut Context) -> mlua::Result<bool> {
         self.sync_to_luau(ctx)?;
         self.luau.globals().set("value", value)?;
 
@@ -407,28 +483,18 @@ impl LuauComponent {
         // se não houver e a ação for `nome:sufixo`, cai para `nome(sufixo, value)`
         // — a convenção que templates parametrizados usam para ações por-linha
         // (`open_service:<id>`, `field:<chave>`, `proj_tab:<aba>`), espelhando o
-        // que um componente Rust faria fatiando a própria string.
-        //
-        // Fallback final: uma ação simples (sem função e sem ':') que carrega um
-        // `value` é tratada como binding de input — grava `ctx[ação] = value`.
-        // É o que fecha o loop de um `formControl="url"` (cujo onChange implícito
-        // é o próprio nome do controle) sem exigir um handler por campo, papel
-        // que o `Form` do Rust cumpria via `sync_to_context`. Ações sem função
-        // e sem value continuam ignoradas (como o `_ => {}` antigo).
+        // que um componente Rust faria fatiando a própria string. Sem nenhum
+        // match, devolve `Ok(false)` — o fallback (`inner` Rust, ou o binding
+        // legado sem `inner`) é decidido por [`Self::dispatch`].
         let globals = self.luau.globals();
         let (f, lead) = match globals.get::<Function>(func) {
             Ok(f) => (f, None),
             Err(_) => match func.split_once(':') {
                 Some((name, suffix)) => match globals.get::<Function>(name) {
                     Ok(f) => (f, Some(suffix.to_string())),
-                    Err(_) => return Ok(()),
+                    Err(_) => return Ok(false),
                 },
-                None => {
-                    if let Some(v) = value {
-                        ctx.set(func, v);
-                    }
-                    return Ok(());
-                }
+                None => return Ok(false),
             },
         };
 
@@ -444,7 +510,8 @@ impl LuauComponent {
             items.push(Value::String(self.luau.create_string(v)?));
         }
         let args = MultiValue::from_iter(items);
-        self.drive(thread, args, ctx)
+        self.drive(thread, args, ctx)?;
+        Ok(true)
     }
 
     /// Retoma a corrotina suspensa `id` com o resultado do `fetch`.
@@ -815,17 +882,21 @@ impl Component for LuauComponent {
         Template::File(self.path.clone())
     }
 
-    /// Chama uma função Luau opcional `init()` para semear o estado inicial.
+    /// Chama `init()` Lua se existir; senão, `inner.init()` (se houver).
     fn init(&mut self, ctx: &mut Context) {
-        self.run("init", None, ctx);
+        self.dispatch("init", None, ctx, |inner, ctx| inner.init(ctx));
     }
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
-        self.run(action, value, ctx);
+        self.dispatch(action, value, ctx, |inner, ctx| {
+            inner.update(action, value, ctx)
+        });
     }
 
     fn on_form_submit(&mut self, action: &str, ctx: &mut Context) {
-        self.run(action, None, ctx);
+        self.dispatch(action, None, ctx, |inner, ctx| {
+            inner.on_form_submit(action, ctx)
+        });
     }
 
     fn resume_fetch(&mut self, id: u64, result: &FetchResult, ctx: &mut Context) {
@@ -847,14 +918,28 @@ impl Component for LuauComponent {
     }
 
     fn on_broadcast(&mut self, event: &str, payload: &str, ctx: &mut Context) {
-        if let Err(e) = self.on_broadcast_inner(event, payload, ctx) {
-            self.report_error(&format!("on_broadcast '{event}'"), e, ctx);
+        if self.luau.globals().get::<Function>("on_broadcast").is_ok() {
+            if let Err(e) = self.on_broadcast_inner(event, payload, ctx) {
+                self.report_error(&format!("on_broadcast '{event}'"), e, ctx);
+            }
+        } else if let Some(inner) = &self.inner {
+            inner.borrow_mut().on_broadcast(event, payload, ctx);
         }
     }
 
     fn resume_timer(&mut self, id: u64, ctx: &mut Context) {
         if let Err(e) = self.resume_timer_inner(id, ctx) {
             self.report_error(&format!("after #{id}"), e, ctx);
+        }
+    }
+
+    /// Delega ao `inner` (Rust) embrulhado, se houver — o `<script>` em si
+    /// não tem subscriptions próprias fora do que `sse`/`websocket`/`after`
+    /// já cobrem via `Context` (drenados pelo motor, não por este método).
+    fn subscription(&self) -> iced::Subscription<crate::EngineMessage> {
+        match &self.inner {
+            Some(inner) => inner.borrow().subscription(),
+            None => iced::Subscription::none(),
         }
     }
 }

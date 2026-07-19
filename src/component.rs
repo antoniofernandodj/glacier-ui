@@ -668,6 +668,14 @@ impl<'a> Context<'a> {
 }
 
 /// Encapsula a UI, o comportamento e o estado próprio de um componente.
+///
+/// Se o `template()` (`Template::File`) carrega um `<script>` Luau,
+/// `GlacierUI::register` liga esse script como uma camada sobre os hooks
+/// deste `Component`: por ação, a função Lua de mesmo nome vence se
+/// existir; senão o hook Rust correspondente (`update`, `init`,
+/// `on_form_submit`, `on_broadcast`) roda no lugar (ver
+/// [`crate::luau::LuauComponent::wrap`]). Um `Component` sem `<script>`
+/// funciona exatamente como antes.
 pub trait Component {
     /// Nome único, usado para registrar o template e rotear as ações.
     fn name(&self) -> &str;

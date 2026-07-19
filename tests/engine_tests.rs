@@ -1947,6 +1947,65 @@ fn test_register_component_ui_only_when_no_script() {
     std::fs::remove_file(path).ok();
 }
 
+/// `GlacierUI::register` (o caminho `Box<dyn Component>`) também liga o
+/// `<script>` do template, quando houver: por ação, a função Lua de mesmo
+/// nome vence se existir; senão cai no hook Rust correspondente.
+struct HybridComp;
+impl Component for HybridComp {
+    fn name(&self) -> &str {
+        "hybrid"
+    }
+    fn template(&self) -> Template {
+        Template::File("templates/test_hybrid_register.gv".into())
+    }
+    fn init(&mut self, ctx: &mut Context) {
+        // O <script> não define init(): este init() Rust deve rodar no lugar.
+        ctx.set("seeded", "rust-init");
+    }
+    fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+        // O <script> não define "rust_only": esta ação deve cair aqui.
+        if action == "rust_only" {
+            ctx.set("from", "rust");
+        }
+    }
+}
+
+#[test]
+fn test_register_wires_luau_as_layer_over_rust_component() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let path = "templates/test_hybrid_register.gv";
+    std::fs::write(
+        path,
+        r#"
+<Container>
+  <Button text="lua" onClick="lua_only" />
+  <Button text="rust" onClick="rust_only" />
+</Container>
+<script>
+function lua_only() ctx.from = "lua" end
+</script>
+"#,
+    )
+    .unwrap();
+
+    motor.register(Box::new(HybridComp)).unwrap();
+    motor.set_initial_screen("hybrid");
+
+    // init() Rust rodou (o <script> não define init()).
+    assert_eq!(motor.get_data("seeded").map(String::as_str), Some("rust-init"));
+
+    // Ação com função Lua correspondente: o Lua vence.
+    let _ = motor.dispatch(&EngineMessage::UiClick("lua_only".into()));
+    assert_eq!(motor.get_data("from").map(String::as_str), Some("lua"));
+
+    // Ação que o <script> não trata: cai no update() Rust.
+    let _ = motor.dispatch(&EngineMessage::UiClick("rust_only".into()));
+    assert_eq!(motor.get_data("from").map(String::as_str), Some("rust"));
+
+    std::fs::remove_file(path).ok();
+}
+
 #[test]
 fn test_text_child_content() {
     // Child text is accepted and normalized (trim + collapse whitespace).

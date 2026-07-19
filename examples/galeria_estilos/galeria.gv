@@ -115,3 +115,18 @@
     </column>
   </column>
 </container>
+
+<script>
+-- Demonstra a camada Lua sobre o `Component` Rust (`Galeria`, em main.rs):
+-- esta ação tem função Lua de mesmo nome, então ela vence; as demais ações
+-- da galeria (checkbox, combos, textarea, ...) não têm função Lua nenhuma,
+-- então caem no `update()` Rust — mesmo componente, as duas linguagens.
+function avancar_progresso()
+    local atual = tonumber(ctx.progresso) or 0
+    if atual >= 1.0 then
+        ctx.progresso = 0
+    else
+        ctx.progresso = atual + 0.1
+    end
+end
+</script>
