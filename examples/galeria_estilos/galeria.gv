@@ -122,11 +122,12 @@
 -- da galeria (checkbox, combos, textarea, ...) não têm função Lua nenhuma,
 -- então caem no `update()` Rust — mesmo componente, as duas linguagens.
 function avancar_progresso()
-    local atual = tonumber(ctx.progresso) or 0
+    local atual = tonumber(ctx.progresso) or 0;
     if atual >= 1.0 then
-        ctx.progresso = 0
+        ctx.progresso = 0;
     else
-        ctx.progresso = atual + 0.1
+        local novo_valor = atual + 0.1;
+        ctx.progresso = tonumber(string.format("%.1f", novo_valor));
     end
 end
 </script>
