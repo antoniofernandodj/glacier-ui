@@ -8,6 +8,57 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.52.0] — 2026-07-18
+
+### Adicionado
+- **Estilos builtin (`glacier_ui::style`)** — o análogo dos `QStyle` do Qt:
+  quatro estilos prontos (`FROST` claro nativo, `FUSION` claro cinza,
+  `FUSION_DARK` escuro azul e `PHANTOM` escuro grafite), cada um uma
+  `const Style` com paleta (vira o `iced::Theme`) + GSS de regras de tag
+  (`Button { }`, `Select { }`, com `:hover`/`:active`/`:disabled`/`:focus`)
+  instalado como **underlay** — abaixo de qualquer `.gss` do app, então
+  classes/ids/atributos inline e `<link rel="theme">` continuam vencendo.
+  - `GlacierDaemon::style(style::FUSION_DARK)` define o default do app inteiro
+    (todas as janelas: principal, reabertura pela bandeja e filhas de
+    `open_window`) — o análogo do `QApplication::setStyle`.
+  - `GlacierUI::set_style(&Style)` para apps de janela única (ou troca manual).
+  - **Troca em runtime sem componente**: ação builtin `style:<nome>` num botão,
+    ou `onChange="style:set"` num `<Select>` (o valor escolhido é o nome). O
+    nome do estilo ativo fica no contexto em `glacier_style`
+    (`style::CONTEXT_KEY`) — é o `value` que o `<Select>` exibe.
+  - O GSS de cada estilo publica a paleta como variáveis (`var(--primary)`,
+    `var(--surface)`, `var(--border)`, …) para o `.gss` do app se ancorar nas
+    cores do estilo ativo.
+  - Um app pode declarar o próprio `const Style { … }` (campos `&'static str`)
+    e passá-lo aos mesmos pontos.
+  - Novo exemplo `galeria_estilos` — widget gallery com o combo "Style:" do Qt.
+  - Novo `RenderInputs::install_underlay_stylesheet` (folha na posição 0,
+    substituída no lugar pela chave ao trocar de estilo).
+- **`<Toggle>` com animação.** O toggler do iced desenha o knob teleportando;
+  o novo widget `AnimatedToggler` (`crate::animated_toggler`, usado por todo
+  `<Toggle>`) desliza a bolinha e mistura as cores do trilho em 200ms
+  (easeOutCubic), via `iced::animation::Animation` — mesmo catálogo de
+  estilo/paleta do toggler original, então temas e estilos builtin valem sem
+  mudança. Anima só enquanto corre (um `request_redraw` por quadro); parado,
+  custo zero.
+- **`<Checkbox tristate="true">`** — três estados na variável de contexto,
+  ciclados a cada clique na ordem do `Qt::CheckState`: `"false"` → `"mixed"` →
+  `"true"`. O estado `"mixed"` desenha um traço (−) no lugar do check. Sem o
+  atributo, nada muda (binário, como antes).
+
+### Corrigido
+- **`<Select>` sem `padding` ficava com o texto colado na borda** (o motor
+  passava `Padding::ZERO` ao `pick_list`). Os quatro estilos builtin agora
+  declaram `Select { padding: 6 10 }`, alinhando a altura do combo à dos
+  inputs; um `padding` inline ou de classe continua vencendo.
+
+### Quebras
+- `NodeType::Checkbox` ganhou o campo `tristate: bool`. Só afeta quem
+  desestrutura/constrói a variante sem `..` — inclua `tristate` (ou `..`) no
+  padrão; `false` reproduz o comportamento anterior.
+
+---
+
 ## [0.51.0] — 2026-07-18
 
 ### Adicionado

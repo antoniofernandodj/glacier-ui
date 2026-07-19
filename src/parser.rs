@@ -59,10 +59,16 @@ pub enum NodeType {
     },
     /// A checkbox bound to a context key. `checked_var` holds the truthy state;
     /// toggling emits `on_toggle` as an `UiInputChanged` carrying `"true"`/`"false"`.
+    ///
+    /// Com `tristate` (atributo `tristate="true"`), a variável assume **três**
+    /// valores — `"false"` → `"mixed"` → `"true"` — ciclados nessa ordem a cada
+    /// clique (a mesma do `Qt::CheckState`), e `"mixed"` desenha o traço de
+    /// estado parcial em vez do check.
     Checkbox {
         label: String,
         checked_var: String,
         on_toggle: String,
+        tristate: bool,
     },
     /// An on/off toggler. Same binding semantics as [`NodeType::Checkbox`].
     Toggle {
@@ -752,10 +758,15 @@ impl UiNode {
                     &["onToggle", "on_toggle", "on-toggle", "onChange", "aoMudar"],
                 )
                 .unwrap_or_default();
+                let tristate = Self::get_attr_bool(
+                    &node,
+                    &["tristate", "tri_state", "tri-state", "triestado", "tri_estado"],
+                );
                 NodeType::Checkbox {
                     label,
                     checked_var,
                     on_toggle,
+                    tristate,
                 }
             }
             "Toggle" | "toggle" | "Toggler" | "toggler" | "Switch" | "switch" => {

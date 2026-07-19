@@ -1,7 +1,7 @@
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
     Space, Tooltip, button, checkbox, column, container, image, mouse_area, pick_list, row, rule,
-    scrollable, svg, text, text_editor, text_input, toggler,
+    scrollable, svg, text, text_editor, text_input,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -772,19 +772,43 @@ pub fn render_node<'a>(
             label,
             checked_var,
             on_toggle,
+            tristate,
         } => {
-            let checked = context
-                .get(checked_var)
-                .map(|s| is_truthy(s))
-                .unwrap_or(false);
+            let raw = context.get(checked_var).map(String::as_str).unwrap_or("");
+            // Estado parcial (`"mixed"`), só com `tristate`: desenha a caixa
+            // marcada, mas com um traço no lugar do check (como o
+            // `Qt::PartiallyChecked`).
+            let mixed = *tristate && raw.trim().eq_ignore_ascii_case("mixed");
+            let checked = mixed || is_truthy(raw);
             let mut c = checkbox(checked).label(label.as_str());
+            if mixed {
+                c = c.icon(iced::widget::checkbox::Icon {
+                    font: iced::Font::DEFAULT,
+                    code_point: '\u{2212}', // − (sinal de menos, largo)
+                    size: None,
+                    line_height: iced::widget::text::LineHeight::default(),
+                    shaping: iced::widget::text::Shaping::Advanced,
+                });
+            }
             // Sem `disabled`, sem `.on_toggle(...)`: o iced já reporta
             // `checkbox::Status::Disabled` sozinho (mesmo truque do botão).
             if !node.disabled.unwrap_or(false) {
                 let action = on_toggle.clone();
+                // Tri-state cicla `false → mixed → true → false` (a ordem do
+                // Qt); o booleano do iced é ignorado nesse caso — o próximo
+                // estado sai do valor atual da variável.
+                let next = if *tristate {
+                    Some(match (mixed, checked) {
+                        (true, _) => "true",
+                        (false, true) => "false",
+                        (false, false) => "mixed",
+                    })
+                } else {
+                    None
+                };
                 c = c.on_toggle(move |v| EngineMessage::UiInputChanged {
                     action: action.clone(),
-                    value: v.to_string(),
+                    value: next.map(str::to_string).unwrap_or_else(|| v.to_string()),
                 });
             }
             if let Some(s) = node.text_align.as_ref().and(node.spacing) {
@@ -801,7 +825,9 @@ pub fn render_node<'a>(
                 .get(checked_var)
                 .map(|s| is_truthy(s))
                 .unwrap_or(false);
-            let mut t = toggler(checked);
+            // Toggler próprio, com o knob animado (o do iced teleporta) — mesmo
+            // catálogo de estilo/paleta. Ver `crate::animated_toggler`.
+            let mut t = crate::animated_toggler::animated_toggler(checked);
             if !node.disabled.unwrap_or(false) {
                 let action = on_toggle.clone();
                 t = t.on_toggle(move |v| EngineMessage::UiInputChanged {
@@ -809,10 +835,16 @@ pub fn render_node<'a>(
                     value: v.to_string(),
                 });
             }
-            if !label.is_empty() {
-                t = t.label(label.as_str());
+            if label.is_empty() {
+                t.into()
+            } else {
+                // O rótulo é composto aqui (o widget não desenha texto): mesma
+                // folga do toggler do iced (metade do tamanho do trilho).
+                row![t, text(label.as_str())]
+                    .spacing(8)
+                    .align_y(Alignment::Center)
+                    .into()
             }
-            t.into()
         }
         NodeType::Select {
             options,

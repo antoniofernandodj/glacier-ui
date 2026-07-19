@@ -274,8 +274,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave com array JSON), `value`/`valor`, `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`) |
 | `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
 | `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
-| `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange` |
-| `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` |
+| `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange`, `tristate` (cicla `false → mixed → true`, como o `Qt::CheckState`) |
+| `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -892,6 +892,43 @@ arquivo, como irmãos da raiz, e não renderizam nada.
 
 ---
 
+## Estilos builtin (QStyle-like)
+
+Quatro estilos prontos em [`glacier_ui::style`](src/style.rs) — o análogo dos
+`QStyle` do Qt (`Fusion`, `windowsvista`, …): **`FROST`** (claro nativo),
+**`FUSION`** (claro cinza), **`FUSION_DARK`** (escuro azul) e **`PHANTOM`**
+(escuro grafite). Cada um é uma `const Style` com **paleta** (vira o
+`iced::Theme` do app) + **GSS de regras de tag** (`Button { }`, `Select { }`,
+com pseudo-estados), instalado como *underlay* — abaixo de qualquer `.gss` do
+app, então classes, ids, atributos inline e `<link rel="theme">` continuam
+vencendo, exatamente como um stylesheet vence o QStyle no Qt.
+
+```rust
+use glacier_ui::{style, GlacierDaemon};
+
+GlacierDaemon::new()
+    .style(style::FUSION_DARK)   // default de TODAS as janelas (QApplication::setStyle)
+    .main(|motor| { /* como sempre */ })
+    .run()
+```
+
+Num app de janela única, `motor.set_style(&style::FUSION)?`. Para trocar em
+runtime (o combo "Style:" do Widget Gallery do Qt), duas ações builtin — nenhum
+código de componente envolvido:
+
+```xml
+<Button text="Escuro" on_click="style:fusion-dark" />
+<Select options="estilos" value="glacier_style" onChange="style:set" />
+```
+
+O nome do estilo ativo fica no contexto em `glacier_style`
+(`style::CONTEXT_KEY`), e o GSS de cada estilo publica a paleta como variáveis
+(`var(--primary)`, `var(--surface)`, `var(--border)`, …) para o `.gss` do app.
+Um app também pode declarar o próprio `const Style { … }` e passá-lo aos mesmos
+pontos. Demo completa: `cargo run --example galeria_estilos`.
+
+---
+
 ## Toasts e diálogos (em Rust)
 
 **Toasts** — notificações efêmeras empilhadas no canto, dispensadas sozinhas após
@@ -1125,6 +1162,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `estilos` | `.gss` de arquivo (global + escopado via `<link>`), classes e tema. |
 | `estilos_inline` | classes `.gss` inline e escopadas via bloco `<style>`. |
 | `pseudo_estados` | `:hover`/`:focus`/`:active`/`:disabled` em Button/TextInput/Select. |
+| `galeria_estilos` | estilos builtin (`style::FUSION`, …) com troca em runtime via `style:set`. |
 | `dialogs` | diálogos modais estilo QMessageBox (Rust). |
 | `toasts` | toasts info/sucesso/aviso/erro, com título e duração customizados. |
 | `fetch_luau` | chamada HTTP (`fetch`) do Luau, async via corrotina. |

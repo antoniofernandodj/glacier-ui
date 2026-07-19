@@ -115,6 +115,11 @@ pub struct GlacierDaemon {
     /// uma fonte embutida via [`GlacierDaemon::assets`]. Aplicada a **todos** os
     /// motores (principal, reabertura pela bandeja e janelas-filhas).
     assets: Arc<dyn AssetSource>,
+    /// Estilo builtin default de **todos** os motores (ver [`crate::style`]),
+    /// aplicado antes do `setup` de cada janela — para que um `<link
+    /// rel="theme">` ou `.gss` do app continue vencendo. Ver
+    /// [`GlacierDaemon::style`].
+    style: Option<crate::style::Style>,
 }
 
 impl GlacierDaemon {
@@ -140,7 +145,22 @@ impl GlacierDaemon {
             tray_config: None,
             on_tray: None,
             assets: Arc::new(DiskAssets),
+            style: None,
         }
+    }
+
+    /// Define o estilo visual default do app (ver [`crate::style`]) — o análogo
+    /// do `QApplication::setStyle` do Qt. Aplicado a **todas** as janelas
+    /// (principal, reabertura pela bandeja e filhas de `open_window`), antes do
+    /// `setup` de cada uma, então qualquer tema/`.gss` do próprio app vence.
+    ///
+    /// ```no_run
+    /// use glacier_ui::{style, GlacierDaemon};
+    /// GlacierDaemon::new().style(style::FUSION_DARK);
+    /// ```
+    pub fn style(mut self, style: crate::style::Style) -> Self {
+        self.style = Some(style);
+        self
     }
 
     /// Define a fonte de assets de **todos** os motores da aplicação — o que
@@ -325,6 +345,7 @@ impl GlacierDaemon {
             tray_config,
             on_tray,
             assets,
+            style,
         } = self;
         let main_title = title.clone();
 
@@ -361,6 +382,7 @@ impl GlacierDaemon {
         // e guardamos esse `Id` como o da principal — ver `Runtime::main_id`.
         let boot = move || {
             let mut engine = GlacierUI::new().with_asset_source(assets.clone());
+            apply_style(&mut engine, style.as_ref());
             setup(&mut engine);
             let (id, open) = window::open(main_settings.clone());
             let mut rt = Runtime::new(
@@ -376,6 +398,7 @@ impl GlacierDaemon {
             rt.on_message = on_message.clone();
             rt.on_close = on_close.clone();
             rt.geometry_dir = geometry_dir.clone();
+            rt.style = style;
             // Sobe a bandeja (thread própria) uma vez, no boot. Só a
             // configuração é `move`d para cá; a thread devolve a alça de
             // comandos, guardada para as atualizações de menu e o shutdown.
@@ -549,6 +572,9 @@ struct Runtime {
     /// Fonte de assets herdada do [`GlacierDaemon`], injetada em cada motor novo
     /// (reabertura da principal e janelas-filhas).
     assets: Arc<dyn AssetSource>,
+    /// Estilo builtin herdado de [`GlacierDaemon::style`], aplicado a cada
+    /// motor novo (reabertura da principal e janelas-filhas).
+    style: Option<crate::style::Style>,
 }
 
 impl Runtime {
@@ -578,6 +604,7 @@ impl Runtime {
             main_title,
             main_shown: true,
             assets,
+            style: None,
         }
     }
 
@@ -692,6 +719,7 @@ impl Runtime {
         // constrói do zero.
         let engine = self.windows.remove(&self.main_id).unwrap_or_else(|| {
             let mut e = GlacierUI::new().with_asset_source(self.assets.clone());
+            apply_style(&mut e, self.style.as_ref());
             (self.main_setup)(&mut e);
             e
         });
@@ -831,7 +859,8 @@ impl Runtime {
             data,
             ..
         } = spec;
-        let (engine, fallback_title) = build_engine(source, &data, self.assets.clone());
+        let (engine, fallback_title) =
+            build_engine(source, &data, self.assets.clone(), self.style.as_ref());
         let (id, open) = window::open(settings);
         self.titles.insert(id, title.unwrap_or(fallback_title));
         self.windows.insert(id, engine);
@@ -922,8 +951,10 @@ fn build_engine(
     source: WindowSource,
     data: &[(String, String)],
     assets: Arc<dyn AssetSource>,
+    style: Option<&crate::style::Style>,
 ) -> (GlacierUI, String) {
     let mut engine = GlacierUI::new().with_asset_source(assets);
+    apply_style(&mut engine, style);
     for (k, v) in data {
         engine.define_data(k, v);
     }
@@ -951,6 +982,18 @@ fn build_engine(
         }
     };
     (engine, title)
+}
+
+/// Aplica o estilo builtin de [`GlacierDaemon::style`] (quando houver) a um
+/// motor recém-construído — antes do `setup`/registro da janela, para que tema
+/// e `.gss` do app continuem vencendo. Falha é logada, não propagada: um estilo
+/// inválido não deve impedir a janela de abrir.
+fn apply_style(engine: &mut GlacierUI, style: Option<&crate::style::Style>) {
+    if let Some(s) = style
+        && let Err(e) = engine.set_style(s)
+    {
+        eprintln!("[glacier-ui] estilo '{}': falha ao aplicar: {e}", s.name);
+    }
 }
 
 /// Nome de componente derivado do caminho de um arquivo (o stem, sem extensão).
@@ -1073,6 +1116,7 @@ mod tests {
             WindowSource::File("examples/janelas_glacier/detalhe.gv".into()),
             &[],
             Arc::new(DiskAssets),
+            None,
         );
         assert_eq!(title, "detalhe");
         // O motor da nova janela renderiza a tela carregada sem erro.
@@ -1088,6 +1132,7 @@ mod tests {
                 ("token".into(), "abc".into()),
             ],
             Arc::new(DiskAssets),
+            None,
         );
         assert_eq!(engine.get_data("url").map(String::as_str), Some("http://x"));
         assert_eq!(engine.get_data("token").map(String::as_str), Some("abc"));

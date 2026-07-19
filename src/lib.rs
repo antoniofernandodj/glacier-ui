@@ -1,3 +1,4 @@
+pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
 pub mod builtins;
@@ -11,6 +12,7 @@ pub mod luau;
 pub mod net;
 pub mod parser;
 pub mod render_inputs;
+pub mod style;
 pub mod stylesheet;
 pub mod toasts;
 pub mod tray;
@@ -43,6 +45,7 @@ pub use eval::{
 pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use luau::LuauComponent;
 pub use parser::{NodeType, UiNode};
+pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
 pub use toasts::{ToastKind, ToastSpec};
 pub use tray::{
@@ -399,6 +402,46 @@ impl GlacierUI {
         self.reevaluate_all()
     }
 
+    /// Aplica um estilo builtin (ver [`crate::style`]): a paleta vira o tema do
+    /// app (mesmo slot de um `<link rel="theme">`, que portanto o sobrescreve se
+    /// vier depois) e o GSS do estilo entra como **underlay** — abaixo de todo
+    /// `.gss` do app, então classes/ids/atributos inline continuam vencendo.
+    /// Trocar de estilo substitui o anterior no lugar; o nome do ativo é
+    /// publicado no contexto sob [`style::CONTEXT_KEY`].
+    ///
+    /// Num app de daemon, prefira [`GlacierDaemon::style`], que aplica isto a
+    /// todas as janelas. Em runtime, as ações builtin `style:<nome>` (botão) e
+    /// `style:set` (`onChange` de um `<Select>`) chamam este método por baixo.
+    pub fn set_style(&mut self, style: &style::Style) -> Result<()> {
+        self.custom_theme = Some(style.theme()?);
+        let sheet = style.sheet()?;
+        self.inputs
+            .install_underlay_stylesheet(style::UNDERLAY_KEY.to_string(), sheet);
+        self.context_data
+            .insert(style::CONTEXT_KEY.to_string(), style.name.to_string());
+        self.reevaluate_all()
+    }
+
+    /// Resolve `name` num estilo builtin e o aplica — o caminho das ações
+    /// `style:<nome>`/`style:set`. Nome desconhecido ou falha de aplicação são
+    /// logados e ignorados (uma ação de UI não tem para onde propagar `Err`).
+    fn apply_style_by_name(&mut self, name: &str) {
+        match style::by_name(name) {
+            Some(s) => {
+                if let Err(e) = self.set_style(s) {
+                    eprintln!("[glacier-ui] style:{name}: falha ao aplicar: {e}");
+                }
+            }
+            None => {
+                let known: Vec<&str> = style::all().iter().map(|s| s.name).collect();
+                eprintln!(
+                    "[glacier-ui] style:{name}: estilo desconhecido (builtin: {})",
+                    known.join(", ")
+                );
+            }
+        }
+    }
+
     /// Reads, parses and installs (or replaces in place) an external `.gss`
     /// file into the global sheet set, keyed by its own path — shared by the
     /// public [`GlacierUI::load_stylesheet`] and by `<link rel="stylesheet">`
@@ -686,6 +729,16 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
+            // Built-in: `style:<nome>` troca o estilo builtin ativo (ver
+            // `crate::style`) sem envolver um componente — o par de botão do
+            // combo "Style:" do Widget Gallery do Qt. (`style:set` é reservado
+            // para a forma `UiInputChanged` abaixo.)
+            if let Some(name) = a.strip_prefix("style:")
+                && name != "set"
+            {
+                self.apply_style_by_name(name);
+                return iced::Task::none();
+            }
             // Built-in window controls: drive the host window without any
             // component code, so a borderless app can wire its custom titlebar
             // straight from markup — `on_click="window:close"` for the buttons,
@@ -784,6 +837,14 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             EngineMessage::UiInputChanged { action, value } => {
+                // Built-in: `onChange="style:set"` num `<Select>` troca o estilo
+                // builtin para o valor escolhido (ver `crate::style`) — o
+                // `set_style` por baixo republica o nome em `glacier_style`,
+                // que é o `value` que o próprio Select exibe.
+                if action == "style:set" {
+                    self.apply_style_by_name(value);
+                    return iced::Task::none();
+                }
                 (action.as_str(), Some(value.as_str()))
             }
             EngineMessage::Navigate(s) => {

@@ -1438,11 +1438,13 @@ fn parses_new_widget_tags() {
         label,
         checked_var,
         on_toggle,
+        tristate,
     } = &ast.children[1].kind
     {
         assert_eq!(label, "Remember");
         assert_eq!(checked_var, "remember");
         assert_eq!(on_toggle, "toggle_remember");
+        assert!(!tristate, "sem o atributo, um checkbox é binário");
     } else {
         panic!("expected checkbox");
     }
@@ -2032,4 +2034,137 @@ fn tooltip_parses_interpolates_and_renders() {
     );
 
     std::fs::remove_file(tpl).ok();
+}
+
+// --- Estilos builtin (glacier_ui::style) ------------------------------------
+
+/// Componente mínimo com um Button "pelado" (sem class/color inline) — o alvo
+/// típico de uma regra de tag `Button { }` de um estilo builtin.
+struct GaleriaMinima;
+impl Component for GaleriaMinima {
+    fn name(&self) -> &str {
+        "galeria_minima"
+    }
+    fn template(&self) -> Template {
+        Template::Inline(r#"<Container><Button text="Ok" on_click="ok" /></Container>"#.into())
+    }
+    fn update(&mut self, _action: &str, _v: Option<&str>, _ctx: &mut Context) {}
+}
+
+/// Cor de fundo do primeiro Button da tela avaliada (o `color` do nó).
+fn cor_do_botao(motor: &mut GlacierUI, tela: &str) -> Option<String> {
+    fn acha(node: &UiNode) -> Option<String> {
+        if let NodeType::Button { color, .. } = &node.kind {
+            return color.clone();
+        }
+        node.children.iter().find_map(acha)
+    }
+    acha(motor.evaluated(tela).unwrap())
+}
+
+#[test]
+fn set_style_aplica_tag_rule_tema_e_contexto() {
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(GaleriaMinima)).unwrap();
+    motor.set_initial_screen("galeria_minima");
+
+    // Sem estilo: botão pelado não tem cor (fica no default do iced).
+    assert_eq!(cor_do_botao(&mut motor, "galeria_minima"), None);
+
+    motor.set_style(&glacier_ui::style::FUSION_DARK).unwrap();
+
+    // A regra de tag `Button { color }` do estilo pintou o botão…
+    assert_eq!(
+        cor_do_botao(&mut motor, "galeria_minima").as_deref(),
+        Some("#3c3f41")
+    );
+    // …o tema custom foi instalado com a paleta do estilo…
+    assert!(motor.custom_theme().is_some());
+    // …e o nome do ativo foi publicado no contexto.
+    assert_eq!(
+        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        Some("fusion-dark")
+    );
+}
+
+#[test]
+fn estilo_e_underlay_gss_do_app_vence() {
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(GaleriaMinima)).unwrap();
+    motor.set_initial_screen("galeria_minima");
+
+    // App carrega seu próprio `.gss` com uma regra de tag para Button…
+    let gss = "templates/test_estilo_app.gss";
+    std::fs::create_dir_all("templates").ok();
+    std::fs::write(gss, "Button { color: #ff0000; }").unwrap();
+    motor.load_stylesheet(gss).unwrap();
+
+    // …e só então o estilo builtin entra (a ordem não importa: underlay fica
+    // sempre abaixo). A regra do app vence.
+    motor.set_style(&glacier_ui::style::FUSION).unwrap();
+    assert_eq!(
+        cor_do_botao(&mut motor, "galeria_minima").as_deref(),
+        Some("#ff0000")
+    );
+
+    std::fs::remove_file(gss).ok();
+}
+
+#[test]
+fn trocar_estilo_substitui_a_folha_em_vez_de_empilhar() {
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(GaleriaMinima)).unwrap();
+    motor.set_initial_screen("galeria_minima");
+
+    motor.set_style(&glacier_ui::style::FROST).unwrap();
+    let quantas = motor.stylesheets().len();
+    motor.set_style(&glacier_ui::style::PHANTOM).unwrap();
+    assert_eq!(motor.stylesheets().len(), quantas);
+    assert_eq!(
+        cor_do_botao(&mut motor, "galeria_minima").as_deref(),
+        Some("#46494c")
+    );
+}
+
+#[test]
+fn acoes_builtin_style_trocam_o_estilo() {
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(GaleriaMinima)).unwrap();
+    motor.set_initial_screen("galeria_minima");
+
+    // Botão: `on_click="style:<nome>"`.
+    let _ = motor.dispatch(&EngineMessage::UiClick("style:fusion".into()));
+    assert_eq!(
+        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        Some("fusion")
+    );
+
+    // Select: `onChange="style:set"` com o valor escolhido.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "style:set".into(),
+        value: "phantom".into(),
+    });
+    assert_eq!(
+        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        Some("phantom")
+    );
+
+    // Nome desconhecido: ignorado (loga e mantém o estilo atual).
+    let _ = motor.dispatch(&EngineMessage::UiClick("style:nao_existe".into()));
+    assert_eq!(
+        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        Some("phantom")
+    );
+}
+
+#[test]
+fn checkbox_tristate_parseia() {
+    let ast = UiNode::parse_xml(
+        r#"<Checkbox label="Tri" checked="estado" onToggle="estado" tristate="true" />"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        ast.kind,
+        NodeType::Checkbox { tristate: true, .. }
+    ));
 }

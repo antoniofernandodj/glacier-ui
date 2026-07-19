@@ -149,6 +149,21 @@ impl RenderInputs {
         self.touch();
     }
 
+    /// Instala (ou substitui no lugar, pela chave) uma folha **underlay**: entra
+    /// na posição 0 — abaixo de toda folha do app, que sempre empilha por cima
+    /// via [`RenderInputs::install_stylesheet`]. É o slot dos estilos builtin
+    /// (ver [`crate::style`]): o app vence o estilo por ordem, sem regra especial.
+    pub fn install_underlay_stylesheet(&mut self, key: String, sheet: StyleSheet) {
+        match self.stylesheet_paths.iter().position(|p| *p == key) {
+            Some(idx) => self.stylesheets[idx] = sheet,
+            None => {
+                self.stylesheets.insert(0, sheet);
+                self.stylesheet_paths.insert(0, key);
+            }
+        }
+        self.touch();
+    }
+
     /// Define (ou limpa, com uma lista vazia) as folhas com escopo de `component`.
     pub fn set_scoped_stylesheets(&mut self, component: &str, sheets: Vec<StyleSheet>) {
         if sheets.is_empty() {

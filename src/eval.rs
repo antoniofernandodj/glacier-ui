@@ -1048,7 +1048,7 @@ pub fn evaluate_template(
 /// pertencem a componente algum, então **não** podem ser namespaceadas: senão o
 /// `strip_prefix("clipboard:")`/`"open:"`/`"window:"` erra dentro de um
 /// componente importado (ex.: `ServiceDetail::clipboard:foo`).
-const BUILTIN_ACTION_PREFIXES: [&str; 3] = ["clipboard:", "open:", "window:"];
+const BUILTIN_ACTION_PREFIXES: [&str; 4] = ["clipboard:", "open:", "window:", "style:"];
 
 fn namespace_action(action: String, owner: Option<&str>) -> String {
     match owner {
@@ -1298,10 +1298,12 @@ fn eval_owned(
             label,
             checked_var,
             on_toggle,
+            tristate,
         } => NodeType::Checkbox {
             label: process_tpl(label, context),
             checked_var: process_tpl(checked_var, context),
             on_toggle: namespace_action(process_tpl(on_toggle, context), owner),
+            tristate: *tristate,
         },
         NodeType::Toggle {
             label,
