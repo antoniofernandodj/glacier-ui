@@ -83,7 +83,14 @@ pub struct PendingFetch {
     pub(crate) url: String,
     pub(crate) method: String,
     pub(crate) body: Option<String>,
+    /// Corpo binário (de `body_base64` no `fetch`). Quando presente, vence o
+    /// `body` textual — usado para enviar bytes arbitrários (ex.: um .zip) que
+    /// não sobreviveriam à fronteira Lua↔Rust como String UTF-8.
+    pub(crate) body_bytes: Option<Vec<u8>>,
     pub(crate) headers: Vec<(String, String)>,
+    /// `fetch("file://…", { response = "base64" })`: lê o arquivo como bytes crus
+    /// e devolve o conteúdo base64-encodado no `body` (em vez de UTF-8).
+    pub(crate) response_base64: bool,
 }
 
 impl PendingFetch {
@@ -99,7 +106,9 @@ impl PendingFetch {
             url,
             method,
             body,
+            body_bytes: None,
             headers,
+            response_base64: false,
         }
     }
 }

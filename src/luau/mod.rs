@@ -838,12 +838,29 @@ impl LuauComponent {
     fn parse_fetch(&self, id: u64, req: &Table) -> mlua::Result<PendingFetch> {
         let url: String = req.get("url")?;
         let opts: Option<Table> = req.get("opts")?;
+        let mut body_bytes: Option<Vec<u8>> = None;
+        let mut response_base64 = false;
         let (method, body, headers) = match opts {
             Some(o) => {
                 let method = o
                     .get::<Option<String>>("method")?
                     .unwrap_or_else(|| "GET".into());
                 let body = o.get::<Option<String>>("body")?;
+                // `body_base64`: corpo binário (ex.: um .zip) codificado em base64.
+                // Decodifica aqui e vence o `body` textual em `send`.
+                if let Some(b64) = o.get::<Option<String>>("body_base64")? {
+                    use base64::Engine as _;
+                    body_bytes = Some(
+                        base64::prelude::BASE64_STANDARD
+                            .decode(b64.trim())
+                            .map_err(|e| mlua::Error::runtime(format!("body_base64 inválido: {e}")))?,
+                    );
+                }
+                // `response = "base64"`: aplicável a `file://` — devolve o conteúdo
+                // do arquivo como base64 em vez de texto UTF-8 (ver net::read_file).
+                if let Some(r) = o.get::<Option<String>>("response")? {
+                    response_base64 = r.eq_ignore_ascii_case("base64");
+                }
                 let mut headers = parse_headers_table(&o)?;
                 // Atalho `user_agent = "..."`: vira um header User-Agent, a menos
                 // que o chamador já tenha posto um em `headers` (esse vence). Sem
@@ -859,7 +876,10 @@ impl LuauComponent {
             }
             None => ("GET".into(), None, Vec::new()),
         };
-        Ok(PendingFetch::new(id, url, method, body, headers))
+        let mut pf = PendingFetch::new(id, url, method, body, headers);
+        pf.body_bytes = body_bytes;
+        pf.response_base64 = response_base64;
+        Ok(pf)
     }
 
     /// Converte um [`FetchResult`] na tabela Luau `{ ok, status, body, error }`.

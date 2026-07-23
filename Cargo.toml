@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.54.0"
+version = "0.55.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -32,6 +32,12 @@ notify-rust = "4.18"
 # Descompressão gzip das respostas HTTP do `fetch` (Content-Encoding: gzip) — ver
 # net.rs. Backend puro-Rust (miniz_oxide, default), sem dependência de C.
 flate2 = "1"
+
+# Corpo binário em `fetch` (`body_base64`) e leitura de arquivo local em base64
+# (`fetch("file://…", { response = "base64" })`). Necessário porque tanto o corpo
+# da requisição quanto o `body` do FetchResult trafegam como texto (String) na
+# fronteira Rust↔Lua; base64 mantém bytes arbitrários (ex.: um .zip) UTF-8-safe.
+base64 = "0.22"
 
 # ── Bandeja (system tray) — opcional, atrás da feature `tray` ────────────────
 # Só compila quando um app pede `.tray(...)` E habilita `features = ["tray"]`;

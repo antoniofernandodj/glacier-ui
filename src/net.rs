@@ -56,7 +56,7 @@ pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
     // remoto não confiável), aqui o Luau é código do próprio app — acesso ao FS
     // local é esperado.
     if let Some(path) = req.url.strip_prefix("file://") {
-        return read_file(path).await;
+        return read_file(path, req.response_base64).await;
     }
     match send(&req).await {
         Ok(result) => result,
@@ -68,7 +68,27 @@ pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
 /// HTTP: `200`/`ok` com o conteúdo no `body`, `404`/`error` quando o arquivo não
 /// existe ou não pode ser lido. `tokio::fs` roda no executor async, sem bloquear
 /// a thread de UI (igual ao caminho hyper).
-async fn read_file(path: &str) -> FetchResult {
+async fn read_file(path: &str, as_base64: bool) -> FetchResult {
+    // `as_base64`: lê os bytes crus e devolve o conteúdo base64-encodado — para
+    // arquivos binários (ex.: um .zip) que não são UTF-8 válido e por isso não
+    // sobreviveriam como texto no `body: String` do FetchResult.
+    if as_base64 {
+        use base64::Engine as _;
+        return match tokio::fs::read(path).await {
+            Ok(bytes) => FetchResult {
+                ok: true,
+                status: 200,
+                body: base64::prelude::BASE64_STANDARD.encode(&bytes),
+                error: String::new(),
+            },
+            Err(e) => FetchResult {
+                ok: false,
+                status: 404,
+                body: String::new(),
+                error: e.to_string(),
+            },
+        };
+    }
     match tokio::fs::read_to_string(path).await {
         Ok(body) => FetchResult {
             ok: true,
@@ -87,7 +107,13 @@ async fn read_file(path: &str) -> FetchResult {
 
 async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Error + Send + Sync>> {
     let method = Method::from_bytes(req.method.to_uppercase().as_bytes())?;
-    let body = Full::new(Bytes::from(req.body.clone().unwrap_or_default()));
+    // Corpo binário (`body_base64`) vence o textual (`body`); quando nenhum foi
+    // definido, corpo vazio.
+    let raw_body = match &req.body_bytes {
+        Some(bytes) => bytes.clone(),
+        None => req.body.clone().unwrap_or_default().into_bytes(),
+    };
+    let body = Full::new(Bytes::from(raw_body));
 
     let mut builder = hyper::Request::builder().method(method).uri(&req.url);
     for (k, v) in &req.headers {
@@ -433,6 +459,41 @@ mod tests {
         assert!(!missing.ok);
         assert_eq!(missing.status, 404);
         assert!(!missing.error.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `fetch("file://…", { response = "base64" })` lê bytes crus (inclusive não
+    /// UTF-8, como um .zip) e devolve o conteúdo base64-encodado no `body`.
+    #[test]
+    fn fetch_file_scheme_base64_le_bytes_crus() {
+        use base64::Engine as _;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!("glacier-net-b64-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("bin.dat");
+        // Bytes não-UTF-8 de propósito: read_to_string falharia aqui.
+        let raw: &[u8] = &[0x50, 0x4b, 0x03, 0x04, 0xff, 0x00, 0xfe];
+        std::fs::write(&file, raw).unwrap();
+
+        let mut req = PendingFetch::new(
+            1,
+            format!("file://{}", file.display()),
+            "GET".into(),
+            None,
+            Vec::new(),
+        );
+        req.response_base64 = true;
+        let res = rt.block_on(perform(req));
+        assert!(res.ok, "deveria ler: erro={}", res.error);
+        assert_eq!(res.status, 200);
+        assert_eq!(
+            base64::prelude::BASE64_STANDARD.decode(&res.body).unwrap(),
+            raw
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
