@@ -81,9 +81,9 @@
 //! — é o **único** ponto que o motor lê; nada mais precisa mudar. Guia completo,
 //! com checklist e armadilhas, em `BUILTINS.md`.
 mod badge;
-
+mod time_picker;
 use crate::builtins::badge::Badge;
-use crate::component::Component;
+use crate::builtins::time_picker::TimePicker;use crate::component::Component;
 
 /// Todos os componentes embutidos, na ordem em que o motor os registra.
 ///
@@ -92,5 +92,7 @@ use crate::component::Component;
 /// O motor lê só esta lista (em [`crate::GlacierUI::new`]); nenhuma outra parte
 /// da lib precisa saber do widget.
 pub fn builtin_components() -> Vec<Box<dyn Component>> {
-    vec![Box::new(Badge)]
+    vec![
+        Box::new(Badge),
+        Box::new(TimePicker),    ]
 }

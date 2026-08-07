@@ -1,6 +1,6 @@
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
-    Space, Tooltip, button, checkbox, column, container, image, mouse_area, pick_list,
+    Space, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area, pick_list,
     progress_bar, row, rule, scrollable, svg, text, text_editor, text_input,
 };
 use std::cell::RefCell;
@@ -17,7 +17,7 @@ pub struct SelectOption {
 impl SelectOption {
     /// Builds an option from a JSON array element: an object reads `label_field`/
     /// `value_field` (value falls back to label); a bare string is both.
-    fn from_json(item: &serde_json::Value, label_field: &str, value_field: &str) -> Self {
+    pub(crate) fn from_json(item: &serde_json::Value, label_field: &str, value_field: &str) -> Self {
         match item {
             serde_json::Value::Object(o) => {
                 let get = |k: &str| {
@@ -61,6 +61,12 @@ impl PartialEq for SelectOption {
 /// Owned by [`crate::GlacierUI`] and borrowed during render so the editors keep
 /// their content/cursor across frames (glacier is otherwise stateless).
 pub type EditorMap = HashMap<String, text_editor::Content>;
+
+/// Stateful `combo_box::State` buffers, keyed by a `<ComboEdit>`'s `value`
+/// binding — same idea as `EditorMap` above, needed because
+/// `combo_box::State` has no public "replace the options" setter other than
+/// reconstructing it (see [`crate::GlacierUI::sync_combos`]).
+pub type ComboMap = HashMap<String, combo_box::State<SelectOption>>;
 use crate::parser::{NodeType, UiNode};
 use iced::Radians;
 use iced::gradient::Linear;
@@ -151,6 +157,26 @@ pub enum EngineMessage {
         on_change: String,
         action: text_editor::Action,
         readonly: bool,
+    },
+    /// Free text typed into a `<ComboEdit>` (fires on every keystroke):
+    /// `binding` is its `value` key, `on_change` is the action dispatched
+    /// (with the new text, if non-empty) after applying it. Auto-writes
+    /// `binding` into the context and keeps `combo_synced` in step — like
+    /// `UiEditorAction` does for `<TextArea>` — so the persisted
+    /// `combo_box::State` never gets rebuilt mid-keystroke and stomps what
+    /// the user is typing.
+    UiComboInput {
+        binding: String,
+        on_change: String,
+        value: String,
+    },
+    /// An existing option picked from a `<ComboEdit>` (click, or Enter on a
+    /// filtered match): `binding` is its `value` key, `on_select` is the
+    /// action dispatched (with the option's value, if non-empty).
+    UiComboSelected {
+        binding: String,
+        on_select: String,
+        value: String,
     },
     /// Navigate to the given screen (button with `navigateTo`).
     Navigate(String),
@@ -387,6 +413,7 @@ pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a HashMap<String, String>,
     editors: &'a EditorMap,
+    combos: &'a ComboMap,
     assets: &dyn crate::asset_source::AssetSource,
 ) -> Element<'a, EngineMessage> {
     // `hidden: true` (`display: none`) — sai do layout por completo. Os
@@ -748,7 +775,7 @@ pub fn render_node<'a>(
         }
         NodeType::Scrollable { direction } => {
             let child: Element<'a, EngineMessage> = if let Some(first) = node.children.first() {
-                render_node(first, context, editors, assets)
+                render_node(first, context, editors, combos, assets)
             } else {
                 column![].into()
             };
@@ -952,6 +979,104 @@ pub fn render_node<'a>(
             }
             elem
         }
+        NodeType::ComboEdit {
+            value_var,
+            on_change,
+            on_select,
+            placeholder,
+            color,
+            ..
+        } => {
+            // O motor mantém o `combo_box::State` deste binding (criado por
+            // `sync_combos` antes do render). Se estiver faltando num primeiro
+            // frame, cai pra um placeholder estático em vez de gerar um widget
+            // sem estado nenhum — mesmo truque do `<TextArea>` acima.
+            match combos.get(value_var) {
+                Some(state) => {
+                    let current = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
+                    let selected = state.options().iter().find(|o| o.value == current);
+
+                    let binding_sel = value_var.clone();
+                    let on_select_a = on_select.clone();
+                    let binding_inp = value_var.clone();
+                    let on_change_a = on_change.clone();
+
+                    let mut cb = combo_box(state, placeholder.as_str(), selected, move |chosen: SelectOption| {
+                        EngineMessage::UiComboSelected {
+                            binding: binding_sel.clone(),
+                            on_select: on_select_a.clone(),
+                            value: chosen.value,
+                        }
+                    })
+                    .on_input(move |typed: String| EngineMessage::UiComboInput {
+                        binding: binding_inp.clone(),
+                        on_change: on_change_a.clone(),
+                        value: typed,
+                    });
+
+                    if node.width.is_some() {
+                        cb = cb.width(parse_length(&node.width));
+                    }
+                    if node.padding.is_some() {
+                        cb = cb.padding(parse_padding(&node.padding));
+                    }
+                    if let Some(f) = font_for(&node.font) {
+                        cb = cb.font(f);
+                    }
+
+                    // Overlays por pseudo-estado, igual ao `<TextInput>` acima —
+                    // parte do estilo padrão do tema (`text_input::default`,
+                    // já que o campo de digitação do combo é um `text_input`
+                    // por baixo) e sobrescreve só o que o `.gss` declarou.
+                    let txt_color = color.as_ref().and_then(|c| parse_hex_color(c));
+                    let hover_ov = node.hover_style.as_deref().cloned();
+                    let focus_ov = node.focus_style.as_deref().cloned();
+                    cb = cb.input_style(move |theme, status| {
+                        use iced::widget::text_input::Status;
+                        let mut style = iced::widget::text_input::default(theme, status);
+                        if let Some(tc) = txt_color {
+                            style.value = tc;
+                        }
+                        let overlay = match status {
+                            Status::Hovered => hover_ov.as_ref(),
+                            Status::Focused { .. } => focus_ov.as_ref(),
+                            _ => None,
+                        };
+                        if let Some(r) = overlay {
+                            if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                                style.background = Background::Color(bg);
+                            }
+                            if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                                style.border.color = bc;
+                            }
+                            if let Some(bw) = r.border_width {
+                                style.border.width = bw;
+                            }
+                            if let Some(br) = r.border_radius {
+                                style.border.radius = iced::border::Radius::new(br);
+                            }
+                            if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                                style.value = tc;
+                            }
+                        }
+                        style
+                    });
+
+                    let mut elem: Element<'a, EngineMessage> = cb.into();
+                    if node.height.is_some() {
+                        elem = container(elem)
+                            .height(parse_length(&node.height))
+                            .align_y(Alignment::Center)
+                            .into();
+                    }
+                    elem
+                }
+                None => text(placeholder.as_str())
+                    .width(parse_length(&node.width))
+                    .height(parse_length(&node.height))
+                    .into(),
+            }
+        }
         NodeType::Rule { horizontal } => {
             // Thickness comes from the cross dimension; default 1px.
             if *horizontal {
@@ -1075,7 +1200,7 @@ pub fn render_node<'a>(
             col = col.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, assets));
+                col = col.push(render_node(child, context, editors, combos, assets));
             }
 
             col.width(parse_length(&node.width))
@@ -1096,7 +1221,7 @@ pub fn render_node<'a>(
             r = r.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                r = r.push(render_node(child, context, editors, assets));
+                r = r.push(render_node(child, context, editors, combos, assets));
             }
 
             r.width(parse_length(&node.width))
@@ -1119,7 +1244,7 @@ pub fn render_node<'a>(
             col = col.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, assets));
+                col = col.push(render_node(child, context, editors, combos, assets));
             }
 
             col.width(parse_length(&node.width))
@@ -1129,7 +1254,7 @@ pub fn render_node<'a>(
         NodeType::Container => {
             let child: Element<'a, EngineMessage> = if let Some(first_child) = node.children.first()
             {
-                render_node(first_child, context, editors, assets)
+                render_node(first_child, context, editors, combos, assets)
             } else {
                 column![].into()
             };
@@ -1208,7 +1333,7 @@ pub fn render_node<'a>(
                 col = col.spacing(sp);
             }
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, assets));
+                col = col.push(render_node(child, context, editors, combos, assets));
             }
             col.width(parse_length(&node.width))
                 .height(parse_length(&node.height))

@@ -1361,6 +1361,28 @@ fn eval_owned(
                 .map(|c| process_tpl(c, context))
                 .or_else(|| style.color.clone()),
         },
+        NodeType::ComboEdit {
+            options,
+            value_var,
+            on_change,
+            on_select,
+            placeholder,
+            label_field,
+            value_field,
+            color,
+        } => NodeType::ComboEdit {
+            options: process_tpl(options, context),
+            value_var: process_tpl(value_var, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+            placeholder: process_tpl(placeholder, context),
+            label_field: label_field.clone(),
+            value_field: value_field.clone(),
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .or_else(|| style.color.clone()),
+        },
         NodeType::Form { on_submit, name } => NodeType::Form {
             on_submit: on_submit
                 .as_ref()

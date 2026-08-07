@@ -45,6 +45,18 @@ pub trait AssetSource: Send + Sync + std::fmt::Debug {
     /// means "never reloads", so [`GlacierUI::check_reload`](crate::GlacierUI::check_reload)
     /// becomes a no-op for embedded assets.
     fn modified(&self, path: &str) -> Option<SystemTime>;
+
+    /// Whether this source can ever report a file change — i.e. whether
+    /// hot-reload is structurally possible at all. `true` by default (matches
+    /// [`DiskAssets`]). An embedded source should override this to `false`:
+    /// [`GlacierDaemon`](crate::GlacierDaemon)'s hot-reload tick uses it to skip
+    /// scheduling that subscription entirely, instead of firing on a timer
+    /// forever just to call [`modified`](Self::modified) and find `None` every
+    /// time — a real cost on a fully software-rendered fallback, where every
+    /// dispatched message forces a full redraw of the current screen.
+    fn supports_reload(&self) -> bool {
+        true
+    }
 }
 
 /// The default [`AssetSource`]: reads straight from the filesystem, preserving

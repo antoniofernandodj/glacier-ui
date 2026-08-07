@@ -120,6 +120,9 @@ pub struct GlacierDaemon {
     /// rel="theme">` ou `.gss` do app continue vencendo. Ver
     /// [`GlacierDaemon::style`].
     style: Option<crate::style::Style>,
+    /// Liga o antialiasing (MSAAx4) do renderer do iced. Ver
+    /// [`GlacierDaemon::antialiasing`].
+    antialiasing: bool,
 }
 
 impl GlacierDaemon {
@@ -146,6 +149,7 @@ impl GlacierDaemon {
             on_tray: None,
             assets: Arc::new(DiskAssets),
             style: None,
+            antialiasing: true,
         }
     }
 
@@ -160,6 +164,23 @@ impl GlacierDaemon {
     /// ```
     pub fn style(mut self, style: crate::style::Style) -> Self {
         self.style = Some(style);
+        self
+    }
+
+    /// Liga/desliga o antialiasing (MSAAx4) do renderer do iced. Default
+    /// `true` (mesmo default do iced), preservando o comportamento atual dos
+    /// consumidores existentes.
+    ///
+    /// Custa performance real — e num fallback puramente por software (sem
+    /// GPU compatível, ver [`crate::asset_source`] e os logs de
+    /// `iced_wgpu::window::compositor` para diagnosticar isso numa máquina
+    /// específica), o custo é multiplicado várias vezes por não ter
+    /// aceleração de hardware para absorvê-lo. Um app que sabe que vai rodar
+    /// em hardware modesto/antigo, ou que não depende de antialiasing pra
+    /// legibilidade (a maioria das telas de formulário/lista não desenha
+    /// `canvas` com curvas), ganha desligando isto.
+    pub fn antialiasing(mut self, enabled: bool) -> Self {
+        self.antialiasing = enabled;
         self
     }
 
@@ -346,6 +367,7 @@ impl GlacierDaemon {
             on_tray,
             assets,
             style,
+            antialiasing,
         } = self;
         let main_title = title.clone();
 
@@ -414,7 +436,8 @@ impl GlacierDaemon {
         let mut app = iced::daemon(boot, Runtime::update, Runtime::view)
             .title(Runtime::title)
             .theme(Runtime::theme)
-            .subscription(Runtime::subscription);
+            .subscription(Runtime::subscription)
+            .antialiasing(antialiasing);
         for bytes in fonts {
             app = app.font(bytes);
         }
@@ -913,11 +936,26 @@ impl Runtime {
             // consultar a geometria da janela para o gancho `on_close`. Só tem
             // efeito se a janela declarar `exit_on_close_request: false`.
             window::close_requests().map(DaemonMessage::CloseRequested),
-            iced::time::every(self.reload_period)
-                .map(|_| DaemonMessage::TickAll(EngineMessage::FileChanged(String::new()))),
-            iced::time::every(self.toast_period)
-                .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
         ];
+
+        // Cada tick força um redraw da tela inteira em TODAS as janelas (é
+        // como o loop do iced funciona: qualquer Message processada reconstrói
+        // a árvore de widgets via `view()`, ver `iced_winit`). Num fallback
+        // puramente por software (sem GPU compatível) isso é um custo real, e
+        // repetido para nada quando o tick não tinha trabalho a fazer — então
+        // cada ticker só entra quando pode genuinamente ter efeito.
+        if self.windows.values().any(|engine| engine.assets.supports_reload()) {
+            subs.push(
+                iced::time::every(self.reload_period)
+                    .map(|_| DaemonMessage::TickAll(EngineMessage::FileChanged(String::new()))),
+            );
+        }
+        if self.windows.values().any(|engine| !engine.toasts.is_empty()) {
+            subs.push(
+                iced::time::every(self.toast_period)
+                    .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
+            );
+        }
 
         // Eventos da bandeja (cliques de menu/ícone), só quando ela subiu. Drena
         // os canais globais do `tray-icon` (ver [`crate::tray::event_stream`]).

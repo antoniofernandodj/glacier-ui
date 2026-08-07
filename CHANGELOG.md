@@ -8,6 +8,64 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.56.0] — 2026-08-06
+
+### Adicionado
+- **`<ComboEdit>`** — dropdown editável/pesquisável (`combo_box` do iced),
+  primeiro widget do catálogo (`PLANO_WIDGETS.md`) a sair do planejamento:
+  ao contrário de `<Select>`/`pick_list` (sem estado, reconstruído do zero a
+  cada frame a partir do contexto), o `combo_box` do iced é **com estado** —
+  precisa de um `combo_box::State` que sobrevive entre frames pra não perder
+  o texto/filtro em digitação. O motor mantém esse estado num mapa novo
+  (`GlacierUI::combos`/`widget::ComboMap`), keyed pelo binding `value`, com o
+  mesmo mecanismo de "própria edição vs. mudança externa" que o `<TextArea>`
+  já usa pros seus buffers (`combo_synced`/`combo_options_synced`,
+  reconciliados em `GlacierUI::sync_combos`). Atributos: `options`/
+  `label_field`/`value_field` (mesma forma do `<Select>`, array JSON no
+  contexto), `value` (texto atual, digitado ou selecionado), `onChange`
+  (cada tecla digitada — o motor já escreve o texto em `value` sozinho,
+  como o `<TextArea>` faz com o seu buffer) e `onSelect` (só quando um item
+  *já existente* da lista é escolhido — clique ou Enter num item filtrado),
+  para um script reagir diferente a "digitou algo novo" vs. "escolheu algo
+  que já conhecíamos". Caso de uso motivador (ver `examples/combo_edit/`):
+  um campo de servidor com uma lista de pares servidor/token salvos, onde
+  escolher um servidor da lista preenche o token sozinho.
+- **`<TimePicker>`** — builtin composto (`TextInput` + `Button`) para
+  entrada de horário: digitação direta no campo (`value`/`onChange`) ou um
+  botão de ação (`onPick`, tipicamente abrindo um modal/diálogo próprio do
+  app) para um seletor visual. Puramente apresentacional — sem estado
+  próprio, sem `init`; a validação de formato e o modal de seleção ficam a
+  cargo do app consumidor. Ver `examples/timepicker/`.
+- **`GlacierDaemon::antialiasing(bool)`** — liga/desliga o MSAAx4 default do
+  renderer do iced. Default `true` (preserva o comportamento atual). Motivado
+  por uma investigação de scroll travando num app: numa máquina sem GPU
+  compatível com o `wgpu` (Vulkan "não-compliant" recusado pelo driver, GL não
+  enumerando adapter algum — ver `wgpu_hal::vulkan::adapter`), todo o
+  renderizador cai pra software (`llvmpipe` ou o `tiny-skia` do próprio iced),
+  e o antialiasing multiplica esse custo várias vezes por não ter hardware pra
+  absorvê-lo. Confirmado via `perf`: a maior parte do tempo de CPU durante o
+  scroll estava dentro de funções do rasterizador por software
+  (`tiny_skia::pipeline::highp::bicubic`/`gradient`).
+- **`AssetSource::supports_reload(&self) -> bool`** — novo método com corpo
+  default (`true`, não quebra implementações existentes). Uma fonte embutida
+  (assets compilados no binário) deve sobrescrever para `false`: o tick de
+  hot-reload do `GlacierDaemon` agora consulta isto para decidir se inclui a
+  subscription do timer, em vez de rodá-la pra sempre sem nunca ter trabalho
+  de verdade a fazer.
+
+### Corrigido
+- **Tickers de hot-reload e de expiração de toast só rodam quando podem ter
+  efeito** — antes, `GlacierDaemon::subscription` sempre incluía
+  `iced::time::every(reload_period)` e `iced::time::every(toast_period)`,
+  mesmo sem nenhuma janela com asset recarregável ou toast ativo. Cada tick
+  processado força o `iced` a reconstruir a tela inteira via `view()` (é assim
+  que o loop do `iced_winit` funciona — qualquer `Message` implica um redraw
+  completo, não só das janelas afetadas). Num fallback por software (ver
+  acima), isso custava um redraw cheio a cada ~250-500ms mesmo com o app
+  parado. Agora cada ticker só entra na subscription quando
+  `AssetSource::supports_reload()` é `true` em pelo menos uma janela (reload) ou
+  há pelo menos um toast em exibição (toast).
+
 ## [0.54.0] — 2026-07-19
 
 ### Adicionado

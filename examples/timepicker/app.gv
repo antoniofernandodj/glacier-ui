@@ -1,0 +1,38 @@
+<column padding="20" spacing="10">
+    <text content="Horário de Início:" bold="true" />
+    
+    <!-- O builtin já alinha o input e o botão -->
+    <TimePicker 
+        value="inicio" 
+        on_change="formatar_tempo" 
+        on_pick="abrir_seletor_hora" 
+    />
+
+    <!-- Modal customizado que abre quando clica no ⏰ -->
+    <column if="{mostrar_modal_hora}" class="modal-overlay">
+        <column class="modal-card" padding="20" spacing="15">
+            <text bold="true" size="18">Selecione a Hora</text>
+
+            <row spacing="10" align_y="center">
+                <select
+                    options="lista_horas"
+                    value_var="h_sel"
+                    on_change="atualizar_h"
+                    width="80"
+                />
+                <text size="24" bold="true">:</text>
+                <select
+                    options="lista_minutos"
+                    value_var="m_sel"
+                    on_change="atualizar_m"
+                    width="80"
+                />
+            </row>
+
+            <row spacing="10" align_x="end">
+                <button text="Cancelar" on_click="fechar_modal" />
+                <button text="Confirmar" on_click="confirmar_hora" />
+            </row>
+        </column>
+    </column>
+</column>

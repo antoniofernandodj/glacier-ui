@@ -119,6 +119,18 @@ pub struct GlacierUI {
     /// Last text each editor pushed into the context, to tell an external context
     /// change (reload editor) from the editor's own edit (leave it alone).
     editor_synced: HashMap<String, String>,
+    /// Stateful `combo_box::State` buffers for `<ComboEdit>` widgets, keyed by
+    /// `value` binding — same role as `editors` above.
+    combos: widget::ComboMap,
+    /// Last `ctx[value_var]` each combo itself pushed (own keystroke/selection),
+    /// to tell an external context change (rebuild the `State`) from the
+    /// combo's own edit (leave the in-progress `State` alone) — same idea as
+    /// `editor_synced`.
+    combo_synced: HashMap<String, String>,
+    /// Last raw `options` JSON synced into each combo's `State`, keyed by the
+    /// same `value` binding. A `<ComboEdit>`'s option list changing (e.g. a
+    /// new saved server added) needs a rebuild even when `value` didn't.
+    combo_options_synced: HashMap<String, String>,
     /// The reorderable list drag in progress, if any — outside the Context
     /// (like `editors` above) because it's transient render/interaction state,
     /// not something a host app's `Component::update` should see or persist.
@@ -269,6 +281,9 @@ impl GlacierUI {
             data_sources: Vec::new(),
             editors: HashMap::new(),
             editor_synced: HashMap::new(),
+            combos: HashMap::new(),
+            combo_synced: HashMap::new(),
+            combo_options_synced: HashMap::new(),
             drag: None,
             dialog: None,
             dialog_resume: None,
@@ -1075,6 +1090,42 @@ impl GlacierUI {
                     value: text,
                 });
             }
+            EngineMessage::UiComboInput {
+                binding,
+                on_change,
+                value,
+            } => {
+                // Same trick as `UiEditorAction`: write straight into the
+                // context AND `combo_synced` together, so `sync_combos` sees
+                // its own keystroke as already-synced and doesn't rebuild the
+                // `State` (which would reset the in-progress typed text).
+                self.context_data.insert(binding.clone(), value.clone());
+                self.combo_synced.insert(binding.clone(), value.clone());
+                if on_change.is_empty() {
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                return self.dispatch(&EngineMessage::UiInputChanged {
+                    action: on_change.clone(),
+                    value: value.clone(),
+                });
+            }
+            EngineMessage::UiComboSelected {
+                binding,
+                on_select,
+                value,
+            } => {
+                self.context_data.insert(binding.clone(), value.clone());
+                self.combo_synced.insert(binding.clone(), value.clone());
+                if on_select.is_empty() {
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                return self.dispatch(&EngineMessage::UiInputChanged {
+                    action: on_select.clone(),
+                    value: value.clone(),
+                });
+            }
         };
 
         self.route_to_owner(action, |comp, bare_action, ctx| {
@@ -1700,6 +1751,7 @@ impl GlacierUI {
         self.evaluated_templates.retain(|k, _| names.contains(k));
 
         self.sync_editors();
+        self.sync_combos();
         Ok(())
     }
 
@@ -1804,6 +1856,47 @@ impl GlacierUI {
         }
     }
 
+    /// Rebuilds a `<ComboEdit>`'s `combo_box::State` whenever its bound value
+    /// or its options list genuinely changed from *outside* the combo itself
+    /// (its own keystrokes/selections already keep `combo_synced` in step via
+    /// `UiComboInput`/`UiComboSelected` — see `dispatch`). `combo_box::State`
+    /// has no public "replace the options" setter, so a real change means
+    /// reconstructing it from scratch (losing only the in-menu filter
+    /// highlight, not the typed text, which lives in `ctx[value_var]`).
+    fn sync_combos(&mut self) {
+        // (value_var, options_key, label_field, value_field)
+        let mut bindings: Vec<(String, String, String, String)> = Vec::new();
+        for ast in self.evaluated_templates.values() {
+            collect_comboedit_bindings(ast, &mut bindings);
+        }
+        for (value_var, options_key, label_field, value_field) in bindings {
+            let ctx_val = self.context_data.get(&value_var).cloned().unwrap_or_default();
+            let opts_json = self
+                .context_data
+                .get(&options_key)
+                .cloned()
+                .unwrap_or_default();
+            let value_changed = self.combo_synced.get(&value_var) != Some(&ctx_val);
+            let options_changed = self.combo_options_synced.get(&value_var) != Some(&opts_json);
+            if !self.combos.contains_key(&value_var) || value_changed || options_changed {
+                let opts: Vec<widget::SelectOption> = serde_json::from_str::<serde_json::Value>(&opts_json)
+                    .ok()
+                    .and_then(|v| v.as_array().cloned())
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|item| widget::SelectOption::from_json(item, &label_field, &value_field))
+                    .collect();
+                let selected = opts.iter().find(|o| o.value == ctx_val).cloned();
+                self.combos.insert(
+                    value_var.clone(),
+                    iced::widget::combo_box::State::with_selection(opts, selected.as_ref()),
+                );
+                self.combo_synced.insert(value_var.clone(), ctx_val);
+                self.combo_options_synced.insert(value_var, opts_json);
+            }
+        }
+    }
+
     /// Recursively evaluates the component and translates it into an Iced Element
     /// Renderiza a árvore avaliada de `component_name` em widgets do iced.
     ///
@@ -1832,6 +1925,7 @@ impl GlacierUI {
             evaluated_ast,
             &self.context_data,
             &self.editors,
+            &self.combos,
             self.assets.as_ref(),
         ))
     }
@@ -2024,6 +2118,35 @@ fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
     }
     for child in &node.children {
         collect_textarea_bindings(child, out);
+    }
+}
+
+/// Collects `(value_var, options, label_field, value_field)` of every
+/// `<ComboEdit>` in an evaluated tree, so the engine can keep a stateful
+/// `combo_box::State` per binding (see `GlacierUI::sync_combos`).
+fn collect_comboedit_bindings(
+    node: &UiNode,
+    out: &mut Vec<(String, String, String, String)>,
+) {
+    if let NodeType::ComboEdit {
+        value_var,
+        options,
+        label_field,
+        value_field,
+        ..
+    } = &node.kind
+        && !value_var.is_empty()
+        && !out.iter().any(|(v, ..)| v == value_var)
+    {
+        out.push((
+            value_var.clone(),
+            options.clone(),
+            label_field.clone(),
+            value_field.clone(),
+        ));
+    }
+    for child in &node.children {
+        collect_comboedit_bindings(child, out);
     }
 }
 

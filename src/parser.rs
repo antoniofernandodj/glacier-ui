@@ -119,6 +119,31 @@ pub enum NodeType {
         /// Text color (inline `color`/`cor` or resolved from a `.gss` class).
         color: Option<String>,
     },
+    /// A searchable/editable dropdown (`combo_box`), e.g. a "saved servers"
+    /// field the user can either pick from or type a brand-new value into.
+    /// Unlike [`NodeType::Select`]/`pick_list`, this one is stateful (the
+    /// engine keeps a `combo_box::State` for it, keyed by `value_var` — see
+    /// `crate::widget::ComboMap` and `GlacierUI::sync_combos`) because the
+    /// in-progress typed/filtered text has to survive across frames the same
+    /// way a `<TextArea>`'s buffer does. `options`/`label_field`/`value_field`
+    /// mirror `Select`'s shape (a context JSON array). `on_change` fires on
+    /// every keystroke with the raw typed text (auto-written to `value_var`
+    /// by the engine, like `<TextArea>`'s `on_change`); `on_select` fires only
+    /// when an *existing* option is picked (click, or Enter on a filtered
+    /// match), letting a script react differently to "typed something new"
+    /// vs. "picked something we already know" (e.g. auto-filling a token that
+    /// goes with a saved server).
+    ComboEdit {
+        options: String,
+        value_var: String,
+        on_change: String,
+        on_select: String,
+        placeholder: String,
+        label_field: String,
+        value_field: String,
+        /// Text color (inline `color`/`cor` or resolved from a `.gss` class).
+        color: Option<String>,
+    },
     /// A form container, e.g. `<Form onSubmit="entrar">...</Form>`. Its
     /// descendant inputs bind to [`crate::forms::Form`]/`FormControl`s by name
     /// via the generic `formControl` attribute (see [`UiNode::form_control`]);
@@ -236,6 +261,7 @@ impl NodeType {
             NodeType::Toggle { .. } => "toggle",
             NodeType::Rule { .. } => "rule",
             NodeType::Select { .. } => "select",
+            NodeType::ComboEdit { .. } => "comboedit",
             NodeType::ProgressBar { .. } => "progressbar",
             NodeType::Spinner { .. } => "spinner",
             NodeType::Form { .. } => "form",
@@ -905,6 +931,62 @@ impl UiNode {
                     options,
                     value_var,
                     on_change,
+                    placeholder,
+                    label_field,
+                    value_field,
+                    color,
+                }
+            }
+            "ComboEdit" | "comboedit" | "EditableCombo" | "editablecombo" | "EditableSelect"
+            | "editableselect" | "ComboEditavel" | "combo_editavel" => {
+                let options = Self::get_attr(
+                    &node,
+                    &["options", "items", "itens", "source", "origem", "opcoes"],
+                )
+                .unwrap_or_default();
+                let value_var =
+                    Self::get_attr(&node, &["value", "valor", "selected", "selecionado"])
+                        .unwrap_or_default();
+                let on_change = Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default();
+                let on_select = Self::get_attr(
+                    &node,
+                    &["onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar"],
+                )
+                .unwrap_or_default();
+                let placeholder =
+                    Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();
+                let label_field = Self::get_attr(
+                    &node,
+                    &[
+                        "labelField",
+                        "label_field",
+                        "label-field",
+                        "labelKey",
+                        "campo_rotulo",
+                    ],
+                )
+                .unwrap_or_else(|| "label".to_string());
+                let value_field = Self::get_attr(
+                    &node,
+                    &[
+                        "valueField",
+                        "value_field",
+                        "value-field",
+                        "valueKey",
+                        "campo_valor",
+                    ],
+                )
+                .unwrap_or_else(|| "value".to_string());
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::ComboEdit {
+                    options,
+                    value_var,
+                    on_change,
+                    on_select,
                     placeholder,
                     label_field,
                     value_field,
