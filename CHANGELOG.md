@@ -8,6 +8,28 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.2] — 2026-08-19
+
+### Corrigido
+- **`ActivateRequested` (ping do [`single_instance`](GlacierDaemon::single_instance))
+  nunca chegava em `update()`** — a causa real por trás do "nem o foco nem o
+  loading do launcher melhoraram" observado testando a 0.57.1. `event_stream`
+  bloqueava numa thread dedicada em `std::net::TcpListener::accept()`,
+  ponteada pro lado async por um `std::sync::mpsc` (o mesmo padrão que
+  `crate::tray::event_stream` usa pro `tray-icon`, que é síncrono por
+  natureza). O problema: `iced::stream::channel` roda o corpo dentro de
+  `futures::stream::select(receiver, stream::once(corpo))`, e uma chamada de
+  `poll()` que nunca devolve `Poll::Pending` (por bloquear a thread de
+  verdade em vez de ceder via `.await`) morre de fome pro lado `receiver`
+  dentro do mesmo combinator — o item chegava a ser mandado pro canal
+  interno (confirmado com `ss` vendo o accept+close no SO, e depois com
+  `eprintln!` vendo o `output.send` retornar `Ok`), mas a metade que o
+  entregaria pra fora nunca era repolada. Trocado por
+  `tokio::net::TcpListener::accept().await` (feature `net` do tokio, já
+  habilitada) — sem thread dedicada, sem canal síncrono, cede de verdade a
+  cada iteração. Confirmado corrigido via `eprintln!` temporário no
+  `update()`: antes, nada; depois, `ActivateRequested recebido` a cada ping.
+
 ## [0.57.1] — 2026-08-19
 
 ### Corrigido
