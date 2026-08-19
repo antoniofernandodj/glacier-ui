@@ -8,6 +8,32 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.3] — 2026-08-19
+
+### Corrigido
+- **`<ComboEdit>` "piscava" texto sumindo/reaparecendo ao trocar o foco** —
+  dois efeitos compostos do `combo_box::State` do iced (0.14):
+  1. Ao escolher uma opção do dropdown (clique ou Enter), o próprio
+     `combo_box` do iced zera o buffer interno de texto digitado como parte
+     da seleção (pra limpar o filtro de busca) — mas o motor marcava
+     `combo_synced` como já sincronizado nesse mesmo evento (`UiComboSelected`),
+     então `sync_combos()` nunca via motivo pra reconstruir o `State` depois.
+     Resultado: focar o campo de novo mostrava vazio (o buffer zerado),
+     desfocar mostrava certo de novo (fallback pro valor do contexto, que
+     nunca tinha sido tocado) — te dava a piscada. Removida a sincronização
+     prematura só em `UiComboSelected` (mantida em `UiComboInput`, onde é
+     necessária pra não atropelar uma digitação em andamento): agora a
+     seleção força `sync_combos()` a reconstruir o `State`, o que reseeda o
+     buffer certo.
+  2. `sync_combos()` reconstruía o `State` com `with_selection(opts, selected)`,
+     onde `selected` vinha só de `opts.iter().find(|o| o.value == ctx_val)` —
+     se `ctx_val` fosse texto livre digitado (uma URL nova, ainda não salva)
+     que não batia com nenhuma opção salva, `selected` virava `None` e o
+     buffer interno era seedado com string vazia em vez do texto digitado,
+     mesmo com `context_data` guardando o valor certo. Agora, sem match nos
+     `options`, cai numa `SelectOption` sintética (`label = value = ctx_val`)
+     só pro seed do buffer — não entra na lista de opções do dropdown.
+
 ## [0.57.2] — 2026-08-19
 
 ### Corrigido
