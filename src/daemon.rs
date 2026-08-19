@@ -123,6 +123,9 @@ pub struct GlacierDaemon {
     /// Liga o antialiasing (MSAAx4) do renderer do iced. Ver
     /// [`GlacierDaemon::antialiasing`].
     antialiasing: bool,
+    /// `app_id` da trava de instância única, quando ligada. Ver
+    /// [`GlacierDaemon::single_instance`].
+    single_instance_id: Option<String>,
 }
 
 impl GlacierDaemon {
@@ -150,6 +153,7 @@ impl GlacierDaemon {
             assets: Arc::new(DiskAssets),
             style: None,
             antialiasing: true,
+            single_instance_id: None,
         }
     }
 
@@ -273,6 +277,24 @@ impl GlacierDaemon {
         self
     }
 
+    /// Garante uma única instância do app rodando por `app_id`: uma segunda
+    /// tentativa de lançamento sinaliza a primeira — que reabre/foca a janela
+    /// principal, o mesmo caminho do "Open" da bandeja — e [`GlacierDaemon::run`]
+    /// retorna de imediato **sem** construir motor nem abrir janela nenhuma
+    /// nessa segunda tentativa.
+    ///
+    /// A trava é um `TcpListener` em loopback numa porta derivada do `app_id`
+    /// (ver [`crate::single_instance`]); `app_id` deve ser estável e
+    /// razoavelmente único no processo do usuário — o mesmo `application_id` já
+    /// usado em `PlatformSpecific` serve bem.
+    ///
+    /// Sem bandeja configurada, "reabrir" é só focar a janela já aberta — o app
+    /// nunca chega a recolher pra lugar nenhum sem [`GlacierDaemon::tray`].
+    pub fn single_instance(mut self, app_id: impl Into<String>) -> Self {
+        self.single_instance_id = Some(app_id.into());
+        self
+    }
+
     /// Período do tick de hot-reload (checagem de arquivos alterados em disco).
     /// Padrão: 500ms.
     pub fn reload_period(mut self, period: Duration) -> Self {
@@ -350,6 +372,18 @@ impl GlacierDaemon {
 
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
+        // Checagem de instância única ANTES de qualquer coisa (winit, GPU,
+        // motor) — uma segunda tentativa só precisa pingar a primeira e sair,
+        // não vale gastar nada além disso. Ver [`GlacierDaemon::single_instance`].
+        if let Some(app_id) = &self.single_instance_id
+            && matches!(
+                crate::single_instance::acquire(app_id),
+                crate::single_instance::Lock::Secondary
+            )
+        {
+            return Ok(());
+        }
+
         let GlacierDaemon {
             title,
             main_settings,
@@ -368,6 +402,7 @@ impl GlacierDaemon {
             assets,
             style,
             antialiasing,
+            single_instance_id: _,
         } = self;
         let main_title = title.clone();
 
@@ -549,6 +584,9 @@ pub enum DaemonMessage {
     TickAll(EngineMessage),
     /// Um evento da bandeja (clique de menu ou no ícone). Ver [`crate::tray`].
     Tray(TrayMsg),
+    /// Uma segunda tentativa de lançar o app pingou esta instância. Ver
+    /// [`crate::single_instance`] / [`GlacierDaemon::single_instance`].
+    ActivateRequested,
 }
 
 /// Estado do daemon: um motor por janela + seus títulos.
@@ -689,6 +727,7 @@ impl Runtime {
                 Task::batch(tasks)
             }
             DaemonMessage::Tray(msg) => self.on_tray(msg),
+            DaemonMessage::ActivateRequested => self.open_main(),
         }
     }
 
@@ -961,6 +1000,15 @@ impl Runtime {
         // os canais globais do `tray-icon` (ver [`crate::tray::event_stream`]).
         if self.tray.is_some() {
             subs.push(iced::Subscription::run(crate::tray::event_stream).map(DaemonMessage::Tray));
+        }
+
+        // Ping de uma segunda tentativa de lançamento. Só registrada quando
+        // este processo detém a trava (ver [`crate::single_instance`]).
+        if crate::single_instance::has_lock() {
+            subs.push(
+                iced::Subscription::run(crate::single_instance::event_stream)
+                    .map(|_| DaemonMessage::ActivateRequested),
+            );
         }
 
         // Subscriptions por-motor (streams `sse`/`websocket`, `Component::subscription`):

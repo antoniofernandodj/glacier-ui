@@ -8,6 +8,23 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.0] — 2026-08-19
+
+### Adicionado
+- **`GlacierDaemon::single_instance(app_id)`** — trava de instância única por
+  processo do usuário: uma segunda tentativa de lançar o app pinga a primeira
+  instância (que reabre/foca a janela principal — mesmo caminho do "Open" da
+  bandeja) e `run()` retorna de imediato **sem** construir motor nem abrir
+  janela nessa segunda tentativa. Pensado para apps com bandeja
+  ([`GlacierDaemon::tray`]) que sobrevivem à última janela: sem a trava, cada
+  clique perdido no launcher enquanto o app já está recolhido na bandeja abre
+  uma instância nova, e o usuário acumula N processos sem perceber. A trava é
+  um `TcpListener` em loopback numa porta derivada do `app_id` (novo módulo
+  interno `single_instance`, mesmo padrão de thread dedicada + subscription do
+  `tray`) — ver `src/single_instance.rs` para a troca feita (sem depender de
+  mais crates, ao custo de uma chance pequena de colisão de porta com outro
+  processo qualquer).
+
 ## [0.56.0] — 2026-08-06
 
 ### Adicionado
