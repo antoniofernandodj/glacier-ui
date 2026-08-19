@@ -8,6 +8,25 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.1] — 2026-08-19
+
+### Corrigido
+- **"Open"/reabertura da principal não trazia a janela pra frente no Wayland
+  nativo** — `open_main()` (bandeja e [`single_instance`](GlacierDaemon::single_instance))
+  só chamava `window::gain_focus`, que por baixo é o `focus_window()` do
+  winit: no X11 manda `_NET_ACTIVE_WINDOW` e funciona, mas no Wayland nativo é
+  **no-op** (o protocolo não deixa um cliente ativar a janela de outro à
+  força — mesma classe de restrição do `window:drag`, já documentada). Agora
+  soma um `request_user_attention(Critical)`: no Wayland o winit implementa
+  isso via `xdg_activation_v1` (o cliente pede um token pra própria
+  superfície e se auto-ativa), que Mutter/KWin honram; no X11 vira
+  `XUrgencyHint`, inofensivo por cima do `gain_focus` que já resolve ali.
+  Efeito colateral esperado: também deve encurtar o "carregando" que o shell
+  do Wayland mostra ao clicar no launcher com o app já rodando — aquele
+  indicador só some quando o compositor associa uma ativação de janela ao
+  lançamento, o que antes nunca acontecia numa segunda tentativa que só pinga
+  a instância existente e sai sem abrir janela nenhuma.
+
 ## [0.57.0] — 2026-08-19
 
 ### Adicionado

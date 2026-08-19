@@ -764,7 +764,19 @@ impl Runtime {
     /// Reabre (ou foca, se já visível) a janela principal — o "Open Rustploy" da
     /// bandeja.
     ///
-    /// - **Já visível** (`main_shown`): só traz para a frente.
+    /// - **Já visível** (`main_shown`): traz pra frente. `gain_focus` (via
+    ///   `focus_window` do winit) rouba o foco de verdade no X11 (manda
+    ///   `_NET_ACTIVE_WINDOW`), mas é **no-op no Wayland nativo** — o protocolo
+    ///   não deixa um cliente ativar a janela de outro à força, de propósito
+    ///   (mesma classe de restrição do `window:drag`, já documentada no
+    ///   projeto). Por isso soma `request_user_attention(Critical)`: no
+    ///   Wayland o winit implementa isso via `xdg_activation_v1` — o cliente
+    ///   pede um token pra própria superfície e se auto-ativa —, que os
+    ///   compositores (Mutter, KWin) honram; no X11 vira `XUrgencyHint`
+    ///   (inofensivo, já que `gain_focus` ali já resolve sozinho). As duas
+    ///   tasks somadas cobrem os três casos (X11 ativa, Wayland ativa via
+    ///   xdg_activation, e o fallback nas plataformas sem nenhum dos dois é só
+    ///   o pisca de atenção nativo do SO).
     /// - **Recolhida na bandeja**: o motor foi destacado e continua vivo em
     ///   `windows` sob o `main_id` morto (ver o campo `main_shown`).
     ///   Aqui ele é **religado** numa janela nova — preservando login e a sessão
@@ -775,7 +787,13 @@ impl Runtime {
     ///   motor novo é construído via o `setup` guardado.
     fn open_main(&mut self) -> Task<DaemonMessage> {
         if self.main_shown {
-            return window::gain_focus(self.main_id);
+            return Task::batch([
+                window::gain_focus(self.main_id),
+                window::request_user_attention(
+                    self.main_id,
+                    Some(window::UserAttention::Critical),
+                ),
+            ]);
         }
         // Reusa o motor destacado (login + SSE preservados) ou, se não houver,
         // constrói do zero.
