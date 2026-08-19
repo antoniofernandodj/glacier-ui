@@ -994,7 +994,34 @@ pub fn render_node<'a>(
             match combos.get(value_var) {
                 Some(state) => {
                     let current = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
-                    let selected = state.options().iter().find(|o| o.value == current);
+                    // Quando `current` não bate com nenhuma opção salva (texto
+                    // livre digitado, ex. uma URL nova ainda não salva), cai
+                    // numa `SelectOption` sintética (label = value = current)
+                    // em vez de `None`. Isso existe só por causa de um
+                    // mismatch em `iced_widget::combo_box::ComboBox` entre
+                    // `layout()` (usa `Some(&self.selection)` sempre que
+                    // desfocado, ignorando se está vazia) e `draw()` (só usa
+                    // `self.selection` se ela não estiver vazia, senão cai no
+                    // buffer digitado): com `selected = None` e o campo
+                    // desfocado, `self.selection` fica vazia, `layout()`
+                    // ainda assim a aplica e sobrescreve o parágrafo em cache
+                    // do `text_input` (usado por `draw()` pra desenhar) com
+                    // texto vazio — o texto digitado ficava correto no
+                    // contexto e no buffer interno, só não era o que ia pra
+                    // tela. Uma `self.selection` nunca-vazia quando `current`
+                    // não é vazio faz os dois caminhos concordarem.
+                    let synthetic_selected = state
+                        .options()
+                        .iter()
+                        .find(|o| o.value == current)
+                        .cloned()
+                        .or_else(|| {
+                            (!current.is_empty()).then(|| SelectOption {
+                                label: current.to_string(),
+                                value: current.to_string(),
+                            })
+                        });
+                    let selected = synthetic_selected.as_ref();
 
                     let binding_sel = value_var.clone();
                     let on_select_a = on_select.clone();

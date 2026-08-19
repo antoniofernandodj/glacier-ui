@@ -8,6 +8,32 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.4] — 2026-08-19
+
+### Corrigido
+- **`<ComboEdit>` ainda sumia o texto ao desfocar depois de digitar um valor
+  livre (uma URL nova, ainda não salva) do zero** — sobrou depois da 0.57.3,
+  que só cobria o caso de "acabou de selecionar uma opção salva". Causa: um
+  mismatch dentro do próprio `iced_widget::combo_box::ComboBox` (não é código
+  do glacier-ui) entre `layout()` e `draw()`. Os dois recebem um override
+  opcional pro texto a mostrar quando o campo está desfocado
+  (`self.selection`, formatado a partir da opção combinada) — mas com
+  condições diferentes: `draw()` só usa o override se `self.selection` não
+  estiver vazia, senão cai no buffer digitado; `layout()` aplica o override
+  sempre que desfocado, **mesmo vazio**. Como `layout()` roda antes de
+  `draw()` e é quem atualiza o parágrafo em cache que `draw()` de fato
+  desenha (`state.value.raw()`), um valor digitado que não bate com nenhuma
+  opção salva (`self.selection` vazia) fazia `layout()` sobrescrever esse
+  cache com string vazia no frame em que o campo perdia o foco — o texto
+  digitado continuava certo no contexto e no buffer interno do combo, só não
+  era o que ia pra tela. Sem acesso ao código do `iced_widget` (é
+  dependência do crates.io, não faz sentido fork/patch pra isso), a correção
+  ficou no ponto de chamada (`widget.rs`): quando o valor do contexto não
+  bate com nenhuma opção salva, passa pro `combo_box()` uma `SelectOption`
+  sintética (`label = value = current`) em vez de `None`, garantindo que
+  `self.selection` nunca fique vazia enquanto o valor digitado não for vazio
+  — os dois caminhos (`layout()`/`draw()`) passam a concordar.
+
 ## [0.57.3] — 2026-08-19
 
 ### Corrigido
