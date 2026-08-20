@@ -294,6 +294,24 @@ fn tray_thread(config: TrayConfig, rx: std::sync::mpsc::Receiver<TrayCommand>) {
         return;
     }
 
+    // `gtk::init()` chama `setlocale(LC_ALL, "")` — e locale é estado GLOBAL do
+    // processo, não desta thread. Num locale de vírgula decimal (pt_BR, de_DE,
+    // fr_FR…) isso faz o `strtod` da libc parar no ponto de "1024.0", e o lexer
+    // do Luau (que usa `strtod` para converter literais) passa a rejeitar TODO
+    // número decimal com "Malformed number" — qualquer `require` de um módulo
+    // que tenha um `1024.0` falha, e o app quebra de um jeito que não reproduz
+    // em máquina com locale de ponto decimal nem nos testes (que não sobem GTK).
+    //
+    // Devolver só o LC_NUMERIC ao "C" é o remédio padrão: a UI continua no
+    // locale do usuário para datas, ordenação e textos traduzidos; apenas a
+    // conversão numérica volta ao comportamento neutro que o parser exige.
+    // Feito nesta thread mas com efeito global, que é exatamente o necessário —
+    // o `gtk::init()` acima é a única coisa no processo que mexe no locale.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::setlocale(libc::LC_NUMERIC, c"C".as_ptr());
+    }
+
     let built = match build_tray(&config) {
         Ok(b) => b,
         Err(e) => {
