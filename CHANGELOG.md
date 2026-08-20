@@ -8,6 +8,99 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.4] — 2026-08-19
+
+### Corrigido
+- **`<ComboEdit>` ainda sumia o texto ao desfocar depois de digitar um valor
+  livre (uma URL nova, ainda não salva) do zero** — sobrou depois da 0.57.3,
+  que só cobria o caso de "acabou de selecionar uma opção salva". Causa: um
+  mismatch dentro do próprio `iced_widget::combo_box::ComboBox` (não é código
+  do glacier-ui) entre `layout()` e `draw()`. Os dois recebem um override
+  opcional pro texto a mostrar quando o campo está desfocado
+  (`self.selection`, formatado a partir da opção combinada) — mas com
+  condições diferentes: `draw()` só usa o override se `self.selection` não
+  estiver vazia, senão cai no buffer digitado; `layout()` aplica o override
+  sempre que desfocado, **mesmo vazio**. Como `layout()` roda antes de
+  `draw()` e é quem atualiza o parágrafo em cache que `draw()` de fato
+  desenha (`state.value.raw()`), um valor digitado que não bate com nenhuma
+  opção salva (`self.selection` vazia) fazia `layout()` sobrescrever esse
+  cache com string vazia no frame em que o campo perdia o foco — o texto
+  digitado continuava certo no contexto e no buffer interno do combo, só não
+  era o que ia pra tela. Sem acesso ao código do `iced_widget` (é
+  dependência do crates.io, não faz sentido fork/patch pra isso), a correção
+  ficou no ponto de chamada (`widget.rs`): quando o valor do contexto não
+  bate com nenhuma opção salva, passa pro `combo_box()` uma `SelectOption`
+  sintética (`label = value = current`) em vez de `None`, garantindo que
+  `self.selection` nunca fique vazia enquanto o valor digitado não for vazio
+  — os dois caminhos (`layout()`/`draw()`) passam a concordar.
+
+## [0.57.3] — 2026-08-19
+
+### Corrigido
+- **`<ComboEdit>` "piscava" texto sumindo/reaparecendo ao trocar o foco** —
+  dois efeitos compostos do `combo_box::State` do iced (0.14):
+  1. Ao escolher uma opção do dropdown (clique ou Enter), o próprio
+     `combo_box` do iced zera o buffer interno de texto digitado como parte
+     da seleção (pra limpar o filtro de busca) — mas o motor marcava
+     `combo_synced` como já sincronizado nesse mesmo evento (`UiComboSelected`),
+     então `sync_combos()` nunca via motivo pra reconstruir o `State` depois.
+     Resultado: focar o campo de novo mostrava vazio (o buffer zerado),
+     desfocar mostrava certo de novo (fallback pro valor do contexto, que
+     nunca tinha sido tocado) — te dava a piscada. Removida a sincronização
+     prematura só em `UiComboSelected` (mantida em `UiComboInput`, onde é
+     necessária pra não atropelar uma digitação em andamento): agora a
+     seleção força `sync_combos()` a reconstruir o `State`, o que reseeda o
+     buffer certo.
+  2. `sync_combos()` reconstruía o `State` com `with_selection(opts, selected)`,
+     onde `selected` vinha só de `opts.iter().find(|o| o.value == ctx_val)` —
+     se `ctx_val` fosse texto livre digitado (uma URL nova, ainda não salva)
+     que não batia com nenhuma opção salva, `selected` virava `None` e o
+     buffer interno era seedado com string vazia em vez do texto digitado,
+     mesmo com `context_data` guardando o valor certo. Agora, sem match nos
+     `options`, cai numa `SelectOption` sintética (`label = value = ctx_val`)
+     só pro seed do buffer — não entra na lista de opções do dropdown.
+
+## [0.57.2] — 2026-08-19
+
+### Corrigido
+- **`ActivateRequested` (ping do [`single_instance`](GlacierDaemon::single_instance))
+  nunca chegava em `update()`** — a causa real por trás do "nem o foco nem o
+  loading do launcher melhoraram" observado testando a 0.57.1. `event_stream`
+  bloqueava numa thread dedicada em `std::net::TcpListener::accept()`,
+  ponteada pro lado async por um `std::sync::mpsc` (o mesmo padrão que
+  `crate::tray::event_stream` usa pro `tray-icon`, que é síncrono por
+  natureza). O problema: `iced::stream::channel` roda o corpo dentro de
+  `futures::stream::select(receiver, stream::once(corpo))`, e uma chamada de
+  `poll()` que nunca devolve `Poll::Pending` (por bloquear a thread de
+  verdade em vez de ceder via `.await`) morre de fome pro lado `receiver`
+  dentro do mesmo combinator — o item chegava a ser mandado pro canal
+  interno (confirmado com `ss` vendo o accept+close no SO, e depois com
+  `eprintln!` vendo o `output.send` retornar `Ok`), mas a metade que o
+  entregaria pra fora nunca era repolada. Trocado por
+  `tokio::net::TcpListener::accept().await` (feature `net` do tokio, já
+  habilitada) — sem thread dedicada, sem canal síncrono, cede de verdade a
+  cada iteração. Confirmado corrigido via `eprintln!` temporário no
+  `update()`: antes, nada; depois, `ActivateRequested recebido` a cada ping.
+
+## [0.57.1] — 2026-08-19
+
+### Corrigido
+- **"Open"/reabertura da principal não trazia a janela pra frente no Wayland
+  nativo** — `open_main()` (bandeja e [`single_instance`](GlacierDaemon::single_instance))
+  só chamava `window::gain_focus`, que por baixo é o `focus_window()` do
+  winit: no X11 manda `_NET_ACTIVE_WINDOW` e funciona, mas no Wayland nativo é
+  **no-op** (o protocolo não deixa um cliente ativar a janela de outro à
+  força — mesma classe de restrição do `window:drag`, já documentada). Agora
+  soma um `request_user_attention(Critical)`: no Wayland o winit implementa
+  isso via `xdg_activation_v1` (o cliente pede um token pra própria
+  superfície e se auto-ativa), que Mutter/KWin honram; no X11 vira
+  `XUrgencyHint`, inofensivo por cima do `gain_focus` que já resolve ali.
+  Efeito colateral esperado: também deve encurtar o "carregando" que o shell
+  do Wayland mostra ao clicar no launcher com o app já rodando — aquele
+  indicador só some quando o compositor associa uma ativação de janela ao
+  lançamento, o que antes nunca acontecia numa segunda tentativa que só pinga
+  a instância existente e sai sem abrir janela nenhuma.
+
 ## [0.57.0] — 2026-08-19
 
 ### Adicionado

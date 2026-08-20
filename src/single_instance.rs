@@ -71,9 +71,18 @@ pub fn acquire(app_id: &str) -> Lock {
 /// [`crate::tray::event_stream`], pra `Subscription::run` derivar a chave do
 /// tipo a partir do tipo da função.
 ///
-/// `accept()` bloqueia, então roda numa thread dedicada e ponteia pro lado
-/// async por um canal síncrono — mesmo padrão da bandeja (`tray-icon` também é
-/// síncrono ali).
+/// Usa `tokio::net::TcpListener::accept().await` — **não** uma thread dedicada
+/// bloqueando em `std::net::TcpListener::accept()` ponteada por um
+/// `std::sync::mpsc` (como a bandeja faz para o `tray-icon`, que é síncrono por
+/// natureza e não tem alternativa). Aqui a alternativa async existe e é
+/// obrigatória: `iced::stream::channel` roda o corpo dentro de
+/// `futures::stream::select(receiver, stream::once(corpo))` — uma chamada de
+/// `poll()` que nunca devolve `Poll::Pending` (por bloquear a thread de
+/// verdade em vez de ceder via `.await`) morre de fome pro lado `receiver`
+/// dentro do mesmo combinator: o item chega a ser mandado pro canal interno,
+/// mas a metade que o entregaria pra fora nunca é repolada. Só descoberto
+/// depurando com `eprintln!` — o ping chegava (confirmado via `ss` vendo o
+/// accept+close no SO) e nunca surtia efeito nenhum.
 pub fn event_stream() -> impl futures::Stream<Item = ()> {
     use futures::SinkExt;
 
@@ -81,28 +90,23 @@ pub fn event_stream() -> impl futures::Stream<Item = ()> {
         let Some(listener) = LISTENER.get() else {
             return;
         };
-        let Ok(listener) = listener.try_clone() else {
+        let Ok(std_listener) = listener.try_clone() else {
             return;
         };
-        let (tx, rx) = std::sync::mpsc::channel::<()>();
-        std::thread::Builder::new()
-            .name("glacier-single-instance".to_string())
-            .spawn(move || {
-                for stream in listener.incoming() {
-                    drop(stream);
-                    if tx.send(()).is_err() {
-                        break;
-                    }
-                }
-            })
-            .ok();
+        // `tokio::net::TcpListener::from_std` exige um fd não-bloqueante — o
+        // `std::net::TcpListener` de `acquire` nasce bloqueante (default do
+        // `std`).
+        if std_listener.set_nonblocking(true).is_err() {
+            return;
+        }
+        let Ok(listener) = tokio::net::TcpListener::from_std(std_listener) else {
+            return;
+        };
 
-        loop {
-            match rx.recv() {
-                Ok(()) => {
-                    let _ = output.send(()).await;
-                }
-                Err(_) => break,
+        while let Ok((stream, _addr)) = listener.accept().await {
+            drop(stream);
+            if output.send(()).await.is_err() {
+                break;
             }
         }
     })

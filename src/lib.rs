@@ -1117,7 +1117,19 @@ impl GlacierUI {
                 value,
             } => {
                 self.context_data.insert(binding.clone(), value.clone());
-                self.combo_synced.insert(binding.clone(), value.clone());
+                // Deliberately NOT marking `combo_synced` here, unlike
+                // `UiComboInput` above: picking an option (click or Enter) is a
+                // discrete, completed action, not an in-progress keystroke, and
+                // iced's own `combo_box` overlay handler already zeroed the
+                // widget's internal typed-text buffer as part of the pick (see
+                // `combo_box::State`'s selection closure upstream) — without a
+                // rebuild, that empty buffer sits there until the next value/
+                // options change, so refocusing the field renders blank until
+                // you click away and the unfocused fallback (which reads
+                // `context_data` fresh) kicks back in. Leaving `combo_synced`
+                // stale here makes the next `sync_combos()` see a "changed"
+                // value and rebuild the `State` from the just-picked option,
+                // which reseeds the internal buffer correctly.
                 if on_select.is_empty() {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
@@ -1887,7 +1899,24 @@ impl GlacierUI {
                     .iter()
                     .map(|item| widget::SelectOption::from_json(item, &label_field, &value_field))
                     .collect();
-                let selected = opts.iter().find(|o| o.value == ctx_val).cloned();
+                // `with_selection`'s second argument seeds the widget's
+                // internal typed-text buffer from the option's `Display`
+                // (`SelectOption::label`) — it is NOT looked up again from
+                // `ctx_val` at render time. When `ctx_val` is free-typed text
+                // that doesn't match any saved option (a new, not-yet-saved
+                // server URL), falling back to `None` would seed that buffer
+                // with an empty string instead of the text the user actually
+                // typed, which then renders as a blank field until the value
+                // changes again. A synthetic option whose `label` is `ctx_val`
+                // itself keeps the buffer in sync without adding a fake entry
+                // to `opts` (only `options`, not `selection`, populates the
+                // dropdown list).
+                let selected = opts.iter().find(|o| o.value == ctx_val).cloned().or_else(|| {
+                    (!ctx_val.is_empty()).then(|| widget::SelectOption {
+                        label: ctx_val.clone(),
+                        value: ctx_val.clone(),
+                    })
+                });
                 self.combos.insert(
                     value_var.clone(),
                     iced::widget::combo_box::State::with_selection(opts, selected.as_ref()),
