@@ -151,6 +151,26 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                         }
                     }
 
+                    // A longer attribute name that merely STARTS with "else"/
+                    // "senao" (`else-if`, sensor-como-nunca-existiu) must be
+                    // left alone — only a bare "else"/"senao" attribute name
+                    // followed by a name-boundary char (whitespace, `=`, `>`,
+                    // `/`) counts. Without this check, `else-if="…"` got
+                    // rewritten into the invalid `else=""-if="…"` (the
+                    // original bug this comment fixes, found while adding
+                    // `else-if` — ver `docs/plano-convergencia-templates-gui-
+                    // webui.md` Fase 1 item 2 no rustploy).
+                    if let (Some(len), Some(_)) = (matched_len, replaced_with)
+                        && i + len < chars.len()
+                    {
+                        let next_char = chars[i + len];
+                        if next_char.is_ascii_alphanumeric() || next_char == '-' || next_char == '_'
+                        {
+                            matched_len = None;
+                            replaced_with = None;
+                        }
+                    }
+
                     if let (Some(len), Some(replacement)) = (matched_len, replaced_with) {
                         // Check preceding character (must be whitespace for an attribute)
                         let preceded_ok = i > 0 && chars[i - 1].is_ascii_whitespace();
@@ -835,6 +855,32 @@ fn expand_children(
             continue;
         }
 
+        // 2.5. Process else-if attribute directive — chains off the SAME
+        // `last_if` an `<if>`/`<else-if>` before it left behind. Only
+        // evaluates its own condition when the chain is still open
+        // (`last_if == Some(false)`); once something upstream matched
+        // (`Some(true)`), every further `else-if`/`else` in the chain is
+        // skipped without even reading its condition — same short-circuit an
+        // `if/else if/else` chain has in any imperative language. A stray
+        // `else-if` with no `if` before it (`last_if == None`) is likewise a
+        // no-op, matching the defensive behaviour of a stray `else` above.
+        if let Some(cond) = &child.else_if_cond {
+            if last_if == Some(false) {
+                let truthy = eval_condition(cond, &child.if_equals, &child.if_not_equals, context);
+                if truthy {
+                    let mut clone = child.clone();
+                    clone.else_if_cond = None;
+                    clone.if_equals = None;
+                    clone.if_not_equals = None;
+                    out.push(eval_owned(
+                        &clone, context, templates, styles, scope, owner, None, None, cache,
+                    )?);
+                }
+                last_if = Some(truthy);
+            }
+            continue;
+        }
+
         // 3. Process if attribute directive
         if let Some(cond) = &child.if_cond {
             let truthy = eval_condition(cond, &child.if_equals, &child.if_not_equals, context);
@@ -951,6 +997,32 @@ fn expand_children(
                     )?;
                 }
                 last_if = Some(truthy);
+            }
+            NodeType::ElseIf {
+                cond,
+                equals,
+                not_equals,
+            } => {
+                // Same short-circuit as the attribute form (`else-if="…"`
+                // above): only rolls its own condition when the chain is
+                // still open; once something upstream matched, `last_if`
+                // stays `Some(true)` and every further branch is skipped.
+                if last_if == Some(false) {
+                    let truthy = eval_condition(cond, equals, not_equals, context);
+                    if truthy {
+                        expand_children(
+                            &child.children,
+                            context,
+                            templates,
+                            styles,
+                            scope,
+                            owner,
+                            out,
+                            cache,
+                        )?;
+                    }
+                    last_if = Some(truthy);
+                }
             }
             NodeType::Else => {
                 if last_if == Some(false) {
@@ -1399,6 +1471,7 @@ fn eval_owned(
         | NodeType::ForEach { .. }
         | NodeType::If { .. }
         | NodeType::Else
+        | NodeType::ElseIf { .. }
         | NodeType::Link { .. }
         | NodeType::Style { .. } => NodeType::Container,
     };
@@ -1539,6 +1612,7 @@ fn eval_owned(
         if_equals: None,
         if_not_equals: None,
         is_else: false,
+        else_if_cond: None,
         for_each: None,
         for_each_var: None,
         // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
@@ -1645,6 +1719,41 @@ fn hydrate_drag_item(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- normalize_bare_directives ---------------------------------------
+
+    /// `else`/`senao` sem valor viram `else=""`/`senao=""` — o mecanismo que
+    /// deixa `<Text else>` valer como XML.
+    #[test]
+    fn normalize_bare_directives_reescreve_else_sem_valor() {
+        assert_eq!(
+            normalize_bare_directives(r#"<Text else>D</Text>"#),
+            r#"<Text else="">D</Text>"#
+        );
+        assert_eq!(
+            normalize_bare_directives(r#"<Text senao>D</Text>"#),
+            r#"<Text senao="">D</Text>"#
+        );
+    }
+
+    /// Regressão: um atributo mais longo que só COMEÇA com "else"/"senao"
+    /// (`else-if`) não pode ser confundido com o `else` desacompanhado —
+    /// virava `else=""-if="…"`, XML inválido ("expected a whitespace not
+    /// '-'"). Achado ao implementar `else-if` (Fase 1, item 2 do plano de
+    /// convergência de templates do rustploy).
+    #[test]
+    fn normalize_bare_directives_nao_mexe_em_else_if() {
+        let input = r#"<Text else-if="{x}" equals="b">B</Text>"#;
+        assert_eq!(normalize_bare_directives(input), input);
+    }
+
+    /// `else=""` já explícito (com valor) passa direto, sem virar
+    /// `else=""=""`.
+    #[test]
+    fn normalize_bare_directives_nao_mexe_em_else_com_valor_ja_presente() {
+        let input = r#"<Text else="">D</Text>"#;
+        assert_eq!(normalize_bare_directives(input), input);
+    }
 
     #[test]
     fn namespace_action_prefixes_component_actions() {

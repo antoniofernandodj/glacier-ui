@@ -2299,3 +2299,124 @@ fn button_com_filhos_renderiza() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+// --- `else-if` (Fase 1, item 2 do plano de convergência de templates:
+// aplaina cadeias de tela que hoje precisam de um `<if>` aninhado dentro de
+// cada `<else>` — ver `docs/plano-convergencia-templates-gui-webui.md` no
+// rustploy) -----------------------------------------------------------------
+
+/// Todo `Text` avaliado, em ordem de documento — o jeito mais simples de
+/// checar "exatamente esse branch renderizou, e mais nenhum" sem depender de
+/// como o widget final é montado.
+fn all_texts(node: &UiNode) -> Vec<String> {
+    let mut out = Vec::new();
+    fn walk(node: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &node.kind {
+            out.push(content.clone());
+        }
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    walk(node, &mut out);
+    out
+}
+
+/// Forma **atributo** (`else-if="{x}" equals="…"`, em qualquer elemento) —
+/// varre os 4 estados (cada branch + nenhum) e confere que só o certo
+/// renderiza, nunca dois ao mesmo tempo.
+#[test]
+fn else_if_atributo_encadeia_com_if_anterior() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_else_if_attr.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <Text if="{x}" equals="a">A</Text>
+            <Text else-if="{x}" equals="b">B</Text>
+            <Text else-if="{x}" equals="c">C</Text>
+            <Text else>D</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("eiattr", tpl).unwrap();
+    motor.set_initial_screen("eiattr");
+
+    for (x, expected) in [("a", "A"), ("b", "B"), ("c", "C"), ("z", "D")] {
+        motor.define_data("x", x);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("eiattr").unwrap()),
+            vec![expected.to_string()],
+            "x={x} deveria renderizar só {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Forma **tag** (`<ElseIf cond="…" equals="…">`, a mesma sintaxe de
+/// `<If cond="…">`/`<Else>` já usadas em `shell.gv`/`home.gv`) — mesma
+/// varredura da versão em atributo.
+#[test]
+fn else_if_tag_encadeia_com_if_anterior() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_else_if_tag.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <If cond="{x}" equals="a"><Text>A</Text></If>
+            <ElseIf cond="{x}" equals="b"><Text>B</Text></ElseIf>
+            <ElseIf cond="{x}" equals="c"><Text>C</Text></ElseIf>
+            <Else><Text>D</Text></Else>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("eitag", tpl).unwrap();
+    motor.set_initial_screen("eitag");
+
+    for (x, expected) in [("a", "A"), ("b", "B"), ("c", "C"), ("z", "D")] {
+        motor.define_data("x", x);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("eitag").unwrap()),
+            vec![expected.to_string()],
+            "x={x} deveria renderizar só {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Short-circuit: uma vez que um branch já casou, os `else-if` seguintes nem
+/// avaliam a própria condição — mesmo que ela também desse `true` de forma
+/// isolada. Aqui os dois `else-if` têm a MESMA condição (`equals="b"`); se o
+/// short-circuit não existisse os dois renderizariam.
+#[test]
+fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_else_if_short_circuit.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <Text if="{x}" equals="a">A</Text>
+            <Text else-if="{x}" equals="b">B1</Text>
+            <Text else-if="{x}" equals="b">B2</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("eishort", tpl).unwrap();
+    motor.set_initial_screen("eishort");
+    motor.define_data("x", "b");
+    motor.reevaluate_all().unwrap();
+    assert_eq!(
+        all_texts(motor.evaluated("eishort").unwrap()),
+        vec!["B1".to_string()],
+        "só o primeiro else-if que casar deve renderizar, nunca os dois"
+    );
+
+    std::fs::remove_file(tpl).ok();
+}

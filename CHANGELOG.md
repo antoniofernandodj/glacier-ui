@@ -8,6 +8,28 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.7] — 2026-08-21
+
+### Adicionado
+- **`else-if`**, nas duas formas que `if`/`else` já têm: atributo
+  (`else-if="{x}" equals="y"` em qualquer elemento) e tag
+  (`<ElseIf cond="{x}" equals="y">…</ElseIf>`). Encadeia com o `if`/`else-if`
+  imediatamente anterior via o `last_if` que `expand_children` já mantinha —
+  só avalia a própria condição quando o branch anterior deu falso, e
+  short-circuita (nem avalia) quando algum já casou antes. Aplaina cadeias de
+  tela que hoje precisam de um `<if>` aninhado dentro de cada `<else>`
+  (um nível de indentação a mais por branch). Item 2 da Fase 1 do plano de
+  convergência de templates do rustploy.
+
+### Corrigido
+- **`normalize_bare_directives` confundia `else-if`/`senao-if` com um
+  `else`/`senao` desacompanhado.** O preprocessor que reescreve `<Text
+  else>` em `<Text else="">` só checava se o que vinha depois das 4/5 letras
+  era `=` (pulando espaços) — não se era parte de um nome de atributo mais
+  longo. `else-if="{x}"` virava `else=""-if="{x}"`, XML inválido ("expected a
+  whitespace not '-'"). Achado ao implementar o `else-if` acima; agora só
+  reescreve quando o que segue é fronteira de nome (espaço, `=`, `>`, `/`).
+
 ## [0.57.6] — 2026-08-21
 
 ### Adicionado

@@ -185,6 +185,16 @@ pub enum NodeType {
     },
     /// Renders its children when the immediately preceding `<if>` was false.
     Else,
+    /// Chains off the immediately preceding `<if>`/`<else-if>`: only
+    /// evaluates its own `cond` when that one was false, e.g.
+    /// `<if cond="{tab}" equals="a">…</if><else-if cond="{tab}" equals="b">…
+    /// </else-if><else>…</else>`. Flattens what used to need a nested
+    /// `<if>` inside an `<else>` per extra branch.
+    ElseIf {
+        cond: String,
+        equals: Option<String>,
+        not_equals: Option<String>,
+    },
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
     /// kind of resource:
@@ -271,6 +281,7 @@ impl NodeType {
             | NodeType::ForEach { .. }
             | NodeType::If { .. }
             | NodeType::Else
+            | NodeType::ElseIf { .. }
             | NodeType::Link { .. }
             | NodeType::Style { .. }
             | NodeType::Fragment => return None,
@@ -403,6 +414,11 @@ pub struct UiNode {
     pub if_equals: Option<String>,
     pub if_not_equals: Option<String>,
     pub is_else: bool,
+    /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
+    /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
+    /// pro comparador, já que um nó só pode ser `if=` OU `else-if=`, nunca os
+    /// dois). Ver `expand_children` em `eval.rs`.
+    pub else_if_cond: Option<String>,
     pub for_each: Option<String>,
     pub for_each_var: Option<String>,
     /// Action dispatched (with the new order as a JSON array of `reorderKey`
@@ -645,6 +661,10 @@ impl UiNode {
         let if_not_equals =
             Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
         let is_else = node.has_attribute("else") || node.has_attribute("senao");
+        let else_if_cond = Self::get_attr(
+            &node,
+            &["else-if", "elseIf", "else_if", "senaoSe", "senao_se"],
+        );
         let for_each = Self::get_attr(&node, &["for-each", "forEach", "foreach", "each", "repeat"]);
         let for_each_var = Self::get_attr(&node, &["var", "variavel"]);
         let on_reorder = Self::get_attr(
@@ -1045,6 +1065,19 @@ impl UiNode {
                 }
             }
             "Else" | "else" | "Senao" | "senao" => NodeType::Else,
+            "ElseIf" | "elseif" | "else-if" | "SenaoSe" | "senaose" | "senao-se" => {
+                let cond =
+                    Self::get_attr(&node, &["cond", "condition", "when", "quando", "condicao"])
+                        .unwrap_or_default();
+                let equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
+                let not_equals =
+                    Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
+                NodeType::ElseIf {
+                    cond,
+                    equals,
+                    not_equals,
+                }
+            }
             "link" | "Link" => {
                 let rel = Self::get_attr(&node, &["rel", "tipo"])
                     .unwrap_or_else(|| "stylesheet".to_string());
@@ -1161,6 +1194,7 @@ impl UiNode {
             if_equals,
             if_not_equals,
             is_else,
+            else_if_cond,
             for_each,
             for_each_var,
             on_reorder,
@@ -1666,6 +1700,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         if_equals: None,
         if_not_equals: None,
         is_else: false,
+        else_if_cond: None,
         for_each: None,
         for_each_var: None,
         on_reorder: None,
