@@ -8,6 +8,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.11] — 2026-08-21
+
+### Adicionado
+- **`href` de `<link rel="import" href="…">` resolvido relativo ao arquivo
+  importador**, como o `require` do Luau já faz desde a 0.22 (mesmo
+  algoritmo de normalização de caminho, `luau::normalize_key`, agora
+  reaproveitado fora do universo Luau). Um `href` nu (`href="child.gv"`)
+  passa a resolver contra o diretório do `.gv` que declarou o `<link>`, não
+  contra o CWD do processo — permite dois templates vizinhos numa subpasta
+  se referenciarem sem o caminho completo desde a raiz do workspace. O
+  caminho absoluto-do-workspace continua funcionando sem mudança nenhuma:
+  a resolução só troca de candidato quando o relativo ao importador não
+  existe. Mesmo tratamento aplicado à forma tag `<Import from="…">`. Item 6
+  da Fase 1 do plano de convergência de templates do rustploy.
+
 ## [0.57.10] — 2026-08-21
 
 ### Adicionado

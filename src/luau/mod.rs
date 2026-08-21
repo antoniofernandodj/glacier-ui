@@ -1187,13 +1187,17 @@ fn resolve_module(modname: &str, roots: &[PathBuf], assets: &dyn AssetSource) ->
 }
 
 /// Colapsa `.`/`..` **lexicalmente** e unifica separadores em `/`, produzindo
-/// uma chave estável de identidade de módulo sem tocar o filesystem.
+/// uma chave estável de identidade sem tocar o filesystem. Usado tanto pelo
+/// cache de `require` (deste módulo) quanto por
+/// [`GlacierUI::resolve_import_href`](crate::GlacierUI::resolve_import_href)
+/// (`href` de `<link rel="import">` relativo ao arquivo importador — mesma
+/// ideia de resolução, fora do universo Luau).
 ///
 /// Antes o cache de `require` usava [`Path::canonicalize`], que exige o arquivo
 /// existir no disco; com uma fonte de assets embutida não há disco, então a
 /// identidade tem de ser derivada só do texto do caminho. Preserva uma `/`
 /// inicial (caminho absoluto vindo de `GLACIER_LUAU_PATH`).
-fn normalize_key(path: &Path) -> String {
+pub(crate) fn normalize_key(path: &Path) -> String {
     use std::path::Component;
     let mut absolute = false;
     let mut parts: Vec<String> = Vec::new();

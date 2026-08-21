@@ -2597,3 +2597,76 @@ fn hr_e_alias_de_rule() {
         );
     }
 }
+
+// --- `href` de `<link rel="import">` relativo ao arquivo importador (Fase
+// 1, item 6 do plano de convergência de templates: mesma resolução que o
+// `require` do Luau já tem desde a 0.22 — ver docs/plano-convergencia-
+// templates-gui-webui.md no rustploy) ----------------------------------------
+
+/// `href="child.gv"` (nome nu, sem `./` nem caminho completo) resolve
+/// relativo ao DIRETÓRIO do `.gv` que declara o `<link>` — não ao CWD do
+/// processo — mesmo quando o CWD (raiz do workspace, no teste real) é outro
+/// diretório qualquer. Reproduz exatamente o caso que motivou o item: dois
+/// `.gv` vizinhos numa subpasta (`components/`), um importando o outro.
+#[test]
+fn import_href_relativo_ao_arquivo_importador() {
+    let mut motor = GlacierUI::new();
+    let dir = "templates/import_rel_sub";
+    std::fs::create_dir_all(dir).ok();
+    let parent_path = format!("{dir}/parent.gv");
+    let child_path = format!("{dir}/child.gv");
+
+    std::fs::write(&child_path, r#"<Text content="do filho" />"#).unwrap();
+    std::fs::write(
+        &parent_path,
+        r#"<link rel="import" href="child.gv" as="Child" /><Column><Child /></Column>"#,
+    )
+    .unwrap();
+
+    motor.register_component("import_rel_parent", &parent_path).unwrap();
+    let evaluated = motor.evaluated("import_rel_parent").unwrap();
+    assert_eq!(evaluated.children.len(), 1, "esperava o <Child/> ter resolvido e renderizado");
+    match &evaluated.children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "do filho"),
+        other => panic!("esperava Text, veio {other:?}"),
+    }
+
+    std::fs::remove_file(&parent_path).ok();
+    std::fs::remove_file(&child_path).ok();
+}
+
+/// Retrocompatibilidade: um `href` no estilo antigo (caminho completo a
+/// partir da raiz do workspace, como todo `.gv` real do rustploy escreve
+/// hoje) continua funcionando quando o candidato relativo ao importador não
+/// existe — a resolução cai pro `href` literal, igual ao comportamento de
+/// antes deste item.
+#[test]
+fn import_href_absoluto_continua_funcionando_como_fallback() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates/import_abs_sub").ok();
+    // O filho mora numa pasta que NÃO é a do pai — só alcançável pelo
+    // caminho "absoluto" (relativo ao CWD do processo), nunca por um
+    // candidato relativo ao diretório do pai.
+    let child_path = "templates/import_abs_child_only_here.gv";
+    let parent_path = "templates/import_abs_sub/parent.gv";
+
+    std::fs::write(child_path, r#"<Text content="raiz" />"#).unwrap();
+    std::fs::write(
+        parent_path,
+        format!(
+            r#"<link rel="import" href="{child_path}" as="Child" /><Column><Child /></Column>"#
+        ),
+    )
+    .unwrap();
+
+    motor.register_component("import_abs_parent", parent_path).unwrap();
+    let evaluated = motor.evaluated("import_abs_parent").unwrap();
+    assert_eq!(evaluated.children.len(), 1, "esperava o <Child/> ter resolvido pelo caminho absoluto");
+    match &evaluated.children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "raiz"),
+        other => panic!("esperava Text, veio {other:?}"),
+    }
+
+    std::fs::remove_file(child_path).ok();
+    std::fs::remove_file(parent_path).ok();
+}

@@ -57,6 +57,7 @@ pub use tray::{
 pub use widget::{EngineMessage, render_node};
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -656,7 +657,7 @@ impl GlacierUI {
         // builtin (register_builtins re-adds its own names *after* this call, so
         // this stays a no-op for the builtins themselves).
         self.builtin_component_names.remove(&name);
-        self.load_imports(&ast)?;
+        self.load_imports(&ast, path.as_deref())?;
         self.process_links(&name, &ast)?;
 
         // (b) Behavior + (c) children: grab `children()` from the Rust struct
@@ -1485,7 +1486,7 @@ impl GlacierUI {
         self.builtin_component_names.remove(name);
 
         // Recursively load components declared with `<import>`.
-        self.load_imports(&ast)?;
+        self.load_imports(&ast, Some(path))?;
         // Process this component's `<link>` declarations.
         self.process_links(name, &ast)?;
 
@@ -1511,6 +1512,13 @@ impl GlacierUI {
         let mut links = Vec::new();
         collect_links(ast, &mut links);
 
+        // `component`'s own file, if it has one — the anchor for resolving a
+        // relative `href` (`<link rel="import" href="…">`) against, same as
+        // `load_imports`/`resolve_import_href` does for the `<Import>` tag
+        // form. Looked up once, outside the loop below (`process_links` runs
+        // once per component, potentially several `<link>`s).
+        let importer_path = self.registered_components.get(component).cloned();
+
         for (rel, href, name) in &links {
             match rel.as_str() {
                 // Always global — same slot a Rust-side `load_stylesheet` call
@@ -1520,7 +1528,8 @@ impl GlacierUI {
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
                     if !self.inputs.has_template(&comp_name) {
-                        self.register_component_inner(&comp_name, href)?;
+                        let resolved = self.resolve_import_href(href, importer_path.as_deref());
+                        self.register_component_inner(&comp_name, &resolved)?;
                     }
                 }
                 "data" => {
@@ -1618,8 +1627,13 @@ impl GlacierUI {
         Ok(())
     }
 
-    /// Walks a parsed tree and registers every `<import>`ed component not yet loaded.
-    fn load_imports(&mut self, node: &UiNode) -> Result<()> {
+    /// Walks a parsed tree and registers every `<import>`ed component not yet
+    /// loaded. `importer_path` is the `.gv` file `node` itself came from
+    /// (`None` for an inline template, which has no file to resolve a
+    /// relative `href` against) — passed through so each `<link rel="import"
+    /// href="…">` found can resolve `href` relative to it, mirroring Luau's
+    /// `require` (see [`resolve_import_href`](Self::resolve_import_href)).
+    fn load_imports(&mut self, node: &UiNode, importer_path: Option<&str>) -> Result<()> {
         if let NodeType::Import { name, from } = &node.kind {
             // Load if the name is free, or if it currently holds a builtin the
             // app is deliberately shadowing (an explicit `<import>` wins over a
@@ -1627,15 +1641,44 @@ impl GlacierUI {
             // later imports of it are skipped as before.
             let is_builtin = self.builtin_component_names.contains(name);
             if !self.inputs.has_template(name) || is_builtin {
-                let (name, from) = (name.clone(), from.clone());
-                self.register_component_inner(&name, &from)?;
+                let name = name.clone();
+                let resolved = self.resolve_import_href(from, importer_path);
+                self.register_component_inner(&name, &resolved)?;
                 self.builtin_component_names.remove(&name);
             }
         }
         for child in &node.children {
-            self.load_imports(child)?;
+            self.load_imports(child, importer_path)?;
         }
         Ok(())
+    }
+
+    /// Resolves the `href` of a `<link rel="import" href="…">` **relative to
+    /// the importing file's own directory** — the same idea as Luau's
+    /// `require` since 0.22 (see `luau::module_roots`), just outside the Luau
+    /// universe. Falls back to `href` exactly as written — the historical
+    /// behavior, a path taken as-is relative to the process CWD (typically
+    /// the workspace root) — when there's no importer file to anchor to, or
+    /// when the file-relative candidate doesn't actually exist: every `.gv`
+    /// written before this resolution existed already embeds a
+    /// workspace-root path (e.g. `crates/app/views/components/nav_item.gv`),
+    /// and those must keep loading unmodified.
+    fn resolve_import_href(&self, href: &str, importer_path: Option<&str>) -> String {
+        if href.starts_with('/') {
+            return href.to_string(); // filesystem-absolute: never relative.
+        }
+        if let Some(importer) = importer_path {
+            let dir = Path::new(importer)
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty());
+            if let Some(dir) = dir {
+                let candidate = luau::normalize_key(&dir.join(href));
+                if self.assets.exists(&candidate) {
+                    return candidate;
+                }
+            }
+        }
+        href.to_string()
     }
 
     /// Defines or updates a value in the state context and re-evaluates all templates
@@ -1975,7 +2018,7 @@ impl GlacierUI {
                     if let Ok(content) = self.assets.read_to_string(path)
                         && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content)
                     {
-                        updates.push((name.clone(), new_ast, modified));
+                        updates.push((name.clone(), new_ast, modified, path.clone()));
                         reloaded.push(name.clone());
                     }
                 }
@@ -2012,9 +2055,9 @@ impl GlacierUI {
         let mut dirty = !updates.is_empty() || !sheet_updates.is_empty();
 
         // Apply XML template changes.
-        for (name, new_ast, modified) in updates {
+        for (name, new_ast, modified, path) in updates {
             // Pick up any newly-added `<import>`/`<link>` declarations.
-            let _ = self.load_imports(&new_ast);
+            let _ = self.load_imports(&new_ast, Some(&path));
             let _ = self.process_links(&name, &new_ast);
             self.inputs.insert_template(name.clone(), new_ast);
             self.file_mod_times.insert(name, modified);
