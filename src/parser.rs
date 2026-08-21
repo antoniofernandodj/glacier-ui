@@ -902,7 +902,8 @@ impl UiNode {
                     on_toggle,
                 }
             }
-            "Rule" | "rule" | "Divider" | "divider" | "Divisoria" | "divisoria" => {
+            "Rule" | "rule" | "Divider" | "divider" | "Divisoria" | "divisoria" | "Hr" | "hr"
+            | "HR" => {
                 let horizontal = Self::get_attr(&node, &["direction", "direcao", "axis", "eixo"])
                     .map(|s| !s.eq_ignore_ascii_case("vertical") && !s.eq_ignore_ascii_case("v"))
                     .unwrap_or(true);

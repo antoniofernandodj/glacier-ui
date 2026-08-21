@@ -8,6 +8,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.10] — 2026-08-21
+
+### Adicionado
+- **`<hr>`/`<Hr>`/`<HR>` como alias de `<Rule>`.** O parser já tinha o
+  mecanismo de alias (`if`/`se`, `on_change`/`on-change`…); só faltava
+  aplicá-lo aqui. Sem mudança de comportamento — `<hr />` parseia
+  exatamente como `<rule />` já parseava. Item 5 da Fase 1 do plano de
+  convergência de templates do rustploy.
+
 ## [0.57.9] — 2026-08-21
 
 ### Adicionado

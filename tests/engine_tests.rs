@@ -2581,3 +2581,19 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+// --- `<hr>` como alias de `<Rule>` (Fase 1, item 5 do plano de convergência
+// de templates: aliases de tag, o mecanismo já existe (if/se, on_change/
+// on-change…) — só faltava esse — ver docs/plano-convergencia-templates-
+// gui-webui.md no rustploy) --------------------------------------------------
+
+#[test]
+fn hr_e_alias_de_rule() {
+    for tag in ["<hr />", "<Hr />", "<HR />", "<rule />", "<Rule />"] {
+        let ast = UiNode::parse_xml(tag).unwrap_or_else(|e| panic!("{tag}: {e}"));
+        assert!(
+            matches!(ast.kind, NodeType::Rule { horizontal: true }),
+            "{tag} deveria parsear como NodeType::Rule"
+        );
+    }
+}
