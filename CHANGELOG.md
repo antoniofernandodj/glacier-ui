@@ -8,6 +8,23 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.9] — 2026-08-21
+
+### Adicionado
+- **`empty`/`not_empty`** — condição bare (como `else`) que lê `cond` como o
+  JSON cru de uma lista já presente no contexto (`ctx.proj_secrets =
+  "[...]"`) e casa se ela tiver zero elementos (ou não for um array JSON
+  válido — "sem lista ainda" também conta como vazio) ou o oposto. Funciona
+  nas duas formas de `if`/`else-if` (atributo e tag). Aposenta os `*_count`
+  que só existiam pra um template ter algo pra comparar com `equals="0"`.
+  Item 4 da Fase 1 do plano de convergência de templates do rustploy.
+
+### Alterado
+- `normalize_bare_directives` (o preprocessor que reescreve `else`/`senao`
+  desacompanhados) generalizado pra uma tabela de palavras em vez de dois
+  blocos hardcoded — mesma proteção de fronteira de nome que a 0.57.7 deu
+  pro `else-if`, agora reaproveitada pro `empty`/`not_empty` novos.
+
 ## [0.57.8] — 2026-08-21
 
 ### Adicionado

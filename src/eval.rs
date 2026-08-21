@@ -130,36 +130,38 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                     result.push(c);
                     i += 1;
                 } else {
-                    // Check for else or senao
+                    // Bare directives: an attribute name with no `="…"`
+                    // value, rewritten to `name=""` so the XML parser
+                    // accepts it. Longest word first so a shorter word that
+                    // happens to be a PREFIX of a longer one (there isn't
+                    // one today, but keep the invariant) never shadows it.
+                    const BARE_WORDS: &[&str] =
+                        &["not_empty", "senao", "empty", "else", "vazio"];
+
                     let mut matched_len = None;
                     let mut replaced_with = None;
-
-                    // Match "else" or "senao" (case-insensitive)
                     let remaining_len = chars.len() - i;
-                    if remaining_len >= 4 {
-                        let word: String = chars[i..i + 4].iter().collect();
-                        if word.eq_ignore_ascii_case("else") {
-                            matched_len = Some(4);
-                            replaced_with = Some("else=\"\"");
-                        }
-                    }
-                    if matched_len.is_none() && remaining_len >= 5 {
-                        let word: String = chars[i..i + 5].iter().collect();
-                        if word.eq_ignore_ascii_case("senao") {
-                            matched_len = Some(5);
-                            replaced_with = Some("senao=\"\"");
+                    for word in BARE_WORDS {
+                        let len = word.len();
+                        if remaining_len >= len {
+                            let candidate: String = chars[i..i + len].iter().collect();
+                            if candidate.eq_ignore_ascii_case(word) {
+                                matched_len = Some(len);
+                                replaced_with = Some(*word);
+                                break;
+                            }
                         }
                     }
 
-                    // A longer attribute name that merely STARTS with "else"/
-                    // "senao" (`else-if`, sensor-como-nunca-existiu) must be
-                    // left alone — only a bare "else"/"senao" attribute name
-                    // followed by a name-boundary char (whitespace, `=`, `>`,
-                    // `/`) counts. Without this check, `else-if="…"` got
-                    // rewritten into the invalid `else=""-if="…"` (the
-                    // original bug this comment fixes, found while adding
-                    // `else-if` — ver `docs/plano-convergencia-templates-gui-
-                    // webui.md` Fase 1 item 2 no rustploy).
+                    // A longer attribute name that merely STARTS with one of
+                    // `BARE_WORDS` (`else-if`, `not_empty_something`) must be
+                    // left alone — only the bare word followed by a
+                    // name-boundary char (whitespace, `=`, `>`, `/`) counts.
+                    // Without this check, `else-if="…"` got rewritten into
+                    // the invalid `else=""-if="…"` (the bug this comment
+                    // fixes, found while adding `else-if` — ver
+                    // `docs/plano-convergencia-templates-gui-webui.md` Fase 1
+                    // item 2 no rustploy).
                     if let (Some(len), Some(_)) = (matched_len, replaced_with)
                         && i + len < chars.len()
                     {
@@ -171,7 +173,7 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                         }
                     }
 
-                    if let (Some(len), Some(replacement)) = (matched_len, replaced_with) {
+                    if let (Some(len), Some(word)) = (matched_len, replaced_with) {
                         // Check preceding character (must be whitespace for an attribute)
                         let preceded_ok = i > 0 && chars[i - 1].is_ascii_whitespace();
 
@@ -186,7 +188,8 @@ pub fn normalize_bare_directives(xml: &str) -> String {
 
                             if !is_followed_by_equals {
                                 // It is a bare attribute! Replace it.
-                                result.push_str(replacement);
+                                result.push_str(word);
+                                result.push_str("=\"\"");
                                 i += len;
                                 continue;
                             }
@@ -676,11 +679,14 @@ fn is_truthy(s: &str) -> bool {
 
 /// Evaluate an `<if>` condition against the context.
 /// With `equals`/`not_equals` it compares strings; otherwise it is a truthy check.
+#[allow(clippy::too_many_arguments)]
 fn eval_condition(
     cond: &str,
     equals: &Option<String>,
     not_equals: &Option<String>,
     one_of: &Option<String>,
+    empty: bool,
+    not_empty: bool,
     context: &EvalCtx,
 ) -> bool {
     let value = process_tpl(cond, context);
@@ -699,7 +705,25 @@ fn eval_condition(
             .split_whitespace()
             .any(|tok| tok == value);
     }
+    if empty {
+        return json_array_is_empty(&value);
+    }
+    if not_empty {
+        return !json_array_is_empty(&value);
+    }
     is_truthy(&value)
+}
+
+/// `cond` já é o JSON cru de uma lista no contexto (`ctx.proj_secrets =
+/// "[...]"`) — usado por `empty`/`not_empty`. Não é um array JSON válido
+/// (chave ainda não populada, JSON malformado) conta como vazio: é a
+/// leitura honesta de "sem lista nenhuma ainda", o mesmo estado que um
+/// `*_count` inexistente/"0" cobria.
+fn json_array_is_empty(value: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(value) {
+        Ok(serde_json::Value::Array(items)) => items.is_empty(),
+        _ => true,
+    }
 }
 
 /// The stylesheets in effect during evaluation, split by scope.
@@ -877,7 +901,13 @@ fn expand_children(
         if let Some(cond) = &child.else_if_cond {
             if last_if == Some(false) {
                 let truthy = eval_condition(
-                    cond, &child.if_equals, &child.if_not_equals, &child.if_one_of, context,
+                    cond,
+                    &child.if_equals,
+                    &child.if_not_equals,
+                    &child.if_one_of,
+                    child.if_empty,
+                    child.if_not_empty,
+                    context,
                 );
                 if truthy {
                     let mut clone = child.clone();
@@ -885,6 +915,8 @@ fn expand_children(
                     clone.if_equals = None;
                     clone.if_not_equals = None;
                     clone.if_one_of = None;
+                    clone.if_empty = false;
+                    clone.if_not_empty = false;
                     out.push(eval_owned(
                         &clone, context, templates, styles, scope, owner, None, None, cache,
                     )?);
@@ -897,7 +929,13 @@ fn expand_children(
         // 3. Process if attribute directive
         if let Some(cond) = &child.if_cond {
             let truthy = eval_condition(
-                cond, &child.if_equals, &child.if_not_equals, &child.if_one_of, context,
+                cond,
+                &child.if_equals,
+                &child.if_not_equals,
+                &child.if_one_of,
+                child.if_empty,
+                child.if_not_empty,
+                context,
             );
             if truthy {
                 // Clone child and clear if directives
@@ -906,6 +944,8 @@ fn expand_children(
                 clone.if_equals = None;
                 clone.if_not_equals = None;
                 clone.if_one_of = None;
+                clone.if_empty = false;
+                clone.if_not_empty = false;
                 out.push(eval_owned(
                     &clone, context, templates, styles, scope, owner, None, None, cache,
                 )?);
@@ -999,8 +1039,11 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                empty,
+                not_empty,
             } => {
-                let truthy = eval_condition(cond, equals, not_equals, one_of, context);
+                let truthy =
+                    eval_condition(cond, equals, not_equals, one_of, *empty, *not_empty, context);
                 if truthy {
                     expand_children(
                         &child.children,
@@ -1020,13 +1063,17 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                empty,
+                not_empty,
             } => {
                 // Same short-circuit as the attribute form (`else-if="…"`
                 // above): only rolls its own condition when the chain is
                 // still open; once something upstream matched, `last_if`
                 // stays `Some(true)` and every further branch is skipped.
                 if last_if == Some(false) {
-                    let truthy = eval_condition(cond, equals, not_equals, one_of, context);
+                    let truthy = eval_condition(
+                        cond, equals, not_equals, one_of, *empty, *not_empty, context,
+                    );
                     if truthy {
                         expand_children(
                             &child.children,
@@ -1630,6 +1677,8 @@ fn eval_owned(
         if_equals: None,
         if_not_equals: None,
         if_one_of: None,
+        if_empty: false,
+        if_not_empty: false,
         is_else: false,
         else_if_cond: None,
         for_each: None,
@@ -1772,6 +1821,45 @@ mod tests {
     fn normalize_bare_directives_nao_mexe_em_else_com_valor_ja_presente() {
         let input = r#"<Text else="">D</Text>"#;
         assert_eq!(normalize_bare_directives(input), input);
+    }
+
+    /// `empty`/`not_empty` sem valor viram `empty=""`/`not_empty=""` — o
+    /// mesmo mecanismo do `else`, generalizado (Fase 1, item 4 do plano de
+    /// convergência de templates do rustploy).
+    #[test]
+    fn normalize_bare_directives_reescreve_empty_e_not_empty_sem_valor() {
+        assert_eq!(
+            normalize_bare_directives(r#"<Text if="{proj_secrets}" empty>vazio</Text>"#),
+            r#"<Text if="{proj_secrets}" empty="">vazio</Text>"#
+        );
+        assert_eq!(
+            normalize_bare_directives(r#"<Text if="{proj_secrets}" not_empty>tem</Text>"#),
+            r#"<Text if="{proj_secrets}" not_empty="">tem</Text>"#
+        );
+    }
+
+    /// Regressão do mesmo tipo do `else-if`: `not_empty` embute a palavra
+    /// `empty` no meio (`not_€mpty`) — o scanner passa por ela caractere a
+    /// caractere e não pode confundir esse `empty` interno (precedido por
+    /// `_`, não espaço) com um atributo `empty` desacompanhado de verdade.
+    #[test]
+    fn normalize_bare_directives_nao_confunde_empty_dentro_de_not_empty() {
+        let input = r#"<Text if="{x}" not_empty>A</Text>"#;
+        assert_eq!(
+            normalize_bare_directives(input),
+            r#"<Text if="{x}" not_empty="">A</Text>"#
+        );
+    }
+
+    #[test]
+    fn json_array_is_empty_cobre_lista_vazia_cheia_e_json_invalido() {
+        assert!(json_array_is_empty("[]"));
+        assert!(!json_array_is_empty(r#"[{"name":"x"}]"#));
+        // Chave ainda não populada / JSON malformado: "sem lista" também
+        // conta como vazio — é a leitura honesta do estado, não um erro.
+        assert!(json_array_is_empty(""));
+        assert!(json_array_is_empty("not json"));
+        assert!(json_array_is_empty("{}")); // objeto, não array
     }
 
     #[test]

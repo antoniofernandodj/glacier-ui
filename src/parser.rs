@@ -177,16 +177,24 @@ pub enum NodeType {
     },
     /// Conditionally renders its children, e.g.
     /// `<if cond="{logado}">...</if>` (truthy),
-    /// `<if cond="{status}" equals="active">...</if>` (comparison), or
+    /// `<if cond="{status}" equals="active">...</if>` (comparison),
     /// `<if cond="{view}" one_of="projects project new_service">...</if>`
     /// (comparison against a space-separated list — true if `cond` matches
     /// any one of them, e.g. "keep this nav item highlighted across its
-    /// sub-screens" without inventing an expression grammar).
+    /// sub-screens" without inventing an expression grammar), or
+    /// `<if cond="{proj_secrets}" empty>...</if>` (true when `cond` parses
+    /// as a JSON array with zero elements — or isn't valid JSON at all,
+    /// which is the honest reading of "no list here yet"). `cond` is
+    /// already a list's raw JSON string in context (`ctx.proj_secrets =
+    /// "[...]"`), so this retires the `*_count` keys that existed only to
+    /// give templates something to compare against `equals="0"`.
     If {
         cond: String,
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        empty: bool,
+        not_empty: bool,
     },
     /// Renders its children when the immediately preceding `<if>` was false.
     Else,
@@ -200,6 +208,8 @@ pub enum NodeType {
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        empty: bool,
+        not_empty: bool,
     },
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
@@ -425,6 +435,14 @@ pub struct UiNode {
     /// nova. Ex.: manter um item de nav "aceso" em várias sub-telas
     /// (`one_of="projects project new_service service"`).
     pub if_one_of: Option<String>,
+    /// `empty`/`not_empty` (bare, como `else` — ver `normalize_bare_directives`
+    /// em `eval.rs`) — `cond` já é o JSON cru de uma lista no contexto
+    /// (`ctx.proj_secrets = "[...]"`); casa se ela tiver zero elementos (ou
+    /// não for um array JSON válido — "sem lista ainda" também conta como
+    /// vazio) ou o oposto. Aposenta os `*_count` que só existiam pra dar a
+    /// um template algo pra comparar com `equals="0"`.
+    pub if_empty: bool,
+    pub if_not_empty: bool,
     pub is_else: bool,
     /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
     /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
@@ -676,6 +694,11 @@ impl UiNode {
             &node,
             &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
         );
+        let if_empty = node.has_attribute("empty") || node.has_attribute("vazio");
+        let if_not_empty = node.has_attribute("not_empty")
+            || node.has_attribute("notEmpty")
+            || node.has_attribute("not-empty")
+            || node.has_attribute("nao_vazio");
         let is_else = node.has_attribute("else") || node.has_attribute("senao");
         let else_if_cond = Self::get_attr(
             &node,
@@ -1078,11 +1101,18 @@ impl UiNode {
                     &node,
                     &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
                 );
+                let empty = node.has_attribute("empty") || node.has_attribute("vazio");
+                let not_empty = node.has_attribute("not_empty")
+                    || node.has_attribute("notEmpty")
+                    || node.has_attribute("not-empty")
+                    || node.has_attribute("nao_vazio");
                 NodeType::If {
                     cond,
                     equals,
                     not_equals,
                     one_of,
+                    empty,
+                    not_empty,
                 }
             }
             "Else" | "else" | "Senao" | "senao" => NodeType::Else,
@@ -1097,11 +1127,18 @@ impl UiNode {
                     &node,
                     &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
                 );
+                let empty = node.has_attribute("empty") || node.has_attribute("vazio");
+                let not_empty = node.has_attribute("not_empty")
+                    || node.has_attribute("notEmpty")
+                    || node.has_attribute("not-empty")
+                    || node.has_attribute("nao_vazio");
                 NodeType::ElseIf {
                     cond,
                     equals,
                     not_equals,
                     one_of,
+                    empty,
+                    not_empty,
                 }
             }
             "link" | "Link" => {
@@ -1220,6 +1257,8 @@ impl UiNode {
             if_equals,
             if_not_equals,
             if_one_of,
+            if_empty,
+            if_not_empty,
             is_else,
             else_if_cond,
             for_each,
@@ -1727,6 +1766,8 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         if_equals: None,
         if_not_equals: None,
         if_one_of: None,
+        if_empty: false,
+        if_not_empty: false,
         is_else: false,
         else_if_cond: None,
         for_each: None,

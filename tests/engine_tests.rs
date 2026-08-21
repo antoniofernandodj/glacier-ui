@@ -2507,3 +2507,77 @@ fn one_of_tag_funciona_em_if_e_em_else_if() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+// --- `empty`/`not_empty` (Fase 1, item 4 do plano de convergência de
+// templates: aposenta os `*_count` que só existiam pra comparar com
+// `equals="0"` — `cond` já é o JSON cru de uma lista no contexto — ver
+// `docs/plano-convergencia-templates-gui-webui.md` no rustploy) ------------
+
+/// Forma **atributo** — `empty`/`not_empty` (bare, como `else`) direto
+/// sobre uma chave de lista, sem precisar de um `*_count` companheiro.
+/// Cobre lista vazia, lista com item, chave ausente e JSON malformado (os
+/// dois últimos contam como vazio — "sem lista ainda").
+#[test]
+fn empty_e_not_empty_atributo_leem_a_lista_direto() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_empty_attr.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <Text if="{items}" empty>nada</Text>
+            <Text if="{items}" not_empty>tem coisa</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("emptyattr", tpl).unwrap();
+    motor.set_initial_screen("emptyattr");
+
+    for (items, expected) in [
+        ("[]", "nada"),
+        (r#"[{"name":"x"}]"#, "tem coisa"),
+        ("", "nada"),          // chave ausente
+        ("not json", "nada"),  // JSON malformado
+    ] {
+        motor.define_data("items", items);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("emptyattr").unwrap()),
+            vec![expected.to_string()],
+            "items={items:?} deveria renderizar {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Forma **tag** — `<If cond="…" empty>`/`<ElseIf … not_empty>` — mesma
+/// varredura, e confirma que `not_empty` funciona encadeado num `else-if`.
+#[test]
+fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_empty_tag.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <If cond="{items}" empty><Text>nada</Text></If>
+            <ElseIf cond="{items}" not_empty><Text>tem coisa</Text></ElseIf>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("emptytag", tpl).unwrap();
+    motor.set_initial_screen("emptytag");
+
+    for (items, expected) in [("[]", "nada"), (r#"[1,2]"#, "tem coisa")] {
+        motor.define_data("items", items);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("emptytag").unwrap()),
+            vec![expected.to_string()],
+            "items={items:?} deveria renderizar {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
