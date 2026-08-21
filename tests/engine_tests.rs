@@ -2670,3 +2670,78 @@ fn import_href_absoluto_continua_funcionando_como_fallback() {
     std::fs::remove_file(child_path).ok();
     std::fs::remove_file(parent_path).ok();
 }
+
+// --- `platform="desktop"`/`"web"` (Fase 1, item 7 — opcional — do plano de
+// convergência de templates: deixa cromo só-desktop e só-web no MESMO
+// arquivo em vez de forçar dois — ver docs/plano-convergencia-templates-
+// gui-webui.md no rustploy) --------------------------------------------------
+
+/// Nenhum alvo hoje compila a wasm32, então `current_platform()` é
+/// `"desktop"` sempre, em qualquer suíte de teste — trava esse fato (se
+/// algum dia isso rodar num alvo wasm32, o teste avisa em vez de mentir).
+#[test]
+fn current_platform_e_desktop_neste_alvo() {
+    assert_eq!(glacier_ui::eval::current_platform(), "desktop");
+}
+
+/// `platform=` funciona em QUALQUER elemento, sozinho — não precisa de
+/// `cond`/`if=` nenhum pra existir (é um filtro independente da cadeia
+/// if/else-if/else). `web` nunca casa neste alvo; `desktop` sempre casa.
+#[test]
+fn platform_filtra_sozinho_sem_precisar_de_cond() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_platform_bare.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <Text platform="desktop">só desktop</Text>
+            <Text platform="web">só web</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("platformbare", tpl).unwrap();
+    motor.set_initial_screen("platformbare");
+    motor.reevaluate_all().unwrap();
+    assert_eq!(
+        all_texts(motor.evaluated("platformbare").unwrap()),
+        vec!["só desktop".to_string()],
+        "só o nó platform=\"desktop\" deveria sobreviver neste alvo"
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Combinado com `if`/`else-if` no MESMO nó (`platform` filtra primeiro,
+/// sem participar da cadeia — não mexe em `last_if`): um `<else-if
+/// platform="web">` nunca casando não atrapalha o branch seguinte.
+#[test]
+fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_platform_chain.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <Text if="{x}" equals="a">A</Text>
+            <Text else-if="{x}" equals="b" platform="web">B (só web, nunca aqui)</Text>
+            <Text else-if="{x}" equals="b">B</Text>
+            <Text else>C</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("platformchain", tpl).unwrap();
+    motor.set_initial_screen("platformchain");
+
+    for (x, expected) in [("a", "A"), ("b", "B"), ("z", "C")] {
+        motor.define_data("x", x);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("platformchain").unwrap()),
+            vec![expected.to_string()],
+            "x={x} deveria renderizar só {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}

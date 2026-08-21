@@ -443,6 +443,16 @@ pub struct UiNode {
     /// um template algo pra comparar com `equals="0"`.
     pub if_empty: bool,
     pub if_not_empty: bool,
+    /// `platform="desktop"`/`"web"` — filtro independente de `if`/`else-if`/
+    /// `else` (não participa da cadeia, não mexe em `last_if`): um valor que
+    /// não bate com [`crate::eval::current_platform`] some o nó inteiro da
+    /// árvore, como se ele nunca tivesse existido — o mesmo tratamento de
+    /// `<import>`/`<link>`/`<style>`. Funciona em QUALQUER elemento (`<if
+    /// platform="desktop">`, `<column platform="web">`…), sozinho ou
+    /// combinado com outro directive no mesmo nó. Deixa cromo só-desktop
+    /// (titlebar, resize handles) e só-web (PWA) no MESMO arquivo em vez de
+    /// forçar dois — ver `expand_children` em `eval.rs`.
+    pub if_platform: Option<String>,
     pub is_else: bool,
     /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
     /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
@@ -699,6 +709,7 @@ impl UiNode {
             || node.has_attribute("notEmpty")
             || node.has_attribute("not-empty")
             || node.has_attribute("nao_vazio");
+        let if_platform = Self::get_attr(&node, &["platform", "plataforma"]);
         let is_else = node.has_attribute("else") || node.has_attribute("senao");
         let else_if_cond = Self::get_attr(
             &node,
@@ -1260,6 +1271,7 @@ impl UiNode {
             if_one_of,
             if_empty,
             if_not_empty,
+            if_platform,
             is_else,
             else_if_cond,
             for_each,
@@ -1769,6 +1781,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         if_one_of: None,
         if_empty: false,
         if_not_empty: false,
+        if_platform: None,
         is_else: false,
         else_if_cond: None,
         for_each: None,

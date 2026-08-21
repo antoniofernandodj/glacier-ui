@@ -8,6 +8,27 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.0] — 2026-08-21
+
+Sem quebra de API — o bump de *minor* aqui é só a marca da Fase 1 do plano
+de convergência de templates do rustploy fechando (o próprio plano já
+nomeava a versão-alvo da fase como "glacier-ui 0.58"), não o sinal de
+incompatibilidade que a convenção deste changelog normalmente usa.
+
+### Adicionado
+- **`platform="desktop"`/`"web"`** em qualquer elemento — filtro
+  independente de `if`/`else-if`/`else` (não participa da cadeia, não
+  mexe em `last_if`, não precisa de `cond`/`if=` nenhum pra existir):
+  `<if platform="desktop">`/`<column platform="web">`/combinado com outro
+  directive no mesmo nó. Um valor que não bate com o novo
+  `eval::current_platform()` — `"desktop"` para todo alvo de hoje,
+  `"web"` só quando/se um alvo `wasm32` existir — some o nó inteiro, mesmo
+  tratamento do skip de `<import>`/`<link>`/`<style>`. Deixa cromo
+  só-desktop (titlebar borderless, resize handles) e só-web (PWA/service
+  worker) convivendo no MESMO arquivo em vez de forçar dois. Item 7
+  (opcional) da Fase 1 do plano de convergência de templates do rustploy —
+  **fecha a Fase 1** (7/7 itens).
+
 ## [0.57.11] — 2026-08-21
 
 ### Adicionado

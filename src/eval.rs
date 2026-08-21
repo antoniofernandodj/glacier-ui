@@ -726,6 +726,30 @@ fn json_array_is_empty(value: &str) -> bool {
     }
 }
 
+/// The platform glacier-ui is compiled for — `"desktop"` for every target
+/// that exists today (the engine only ever runs via native iced), `"web"`
+/// once/if a browser (`wasm32`) target is added. Backs
+/// `platform="desktop"`/`"web"` on any element (see the gate in
+/// [`expand_children`]) — lets desktop-only chrome (borderless titlebar,
+/// resize handles) and web-only chrome (PWA/service-worker bits) live in
+/// the SAME template instead of forcing a whole second file just for that.
+///
+/// A compile-time `cfg`, not a runtime setting: nothing today builds
+/// glacier-ui for `wasm32`, so this is `"desktop"` unconditionally in
+/// practice — the `cfg` exists so the day a web target shows up, templates
+/// written against `platform=` today start discriminating for free, no
+/// migration.
+pub fn current_platform() -> &'static str {
+    #[cfg(target_arch = "wasm32")]
+    {
+        "web"
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        "desktop"
+    }
+}
+
 /// The stylesheets in effect during evaluation, split by scope.
 ///
 /// `global` sheets apply everywhere: loaded via `GlacierUI::load_stylesheet`,
@@ -786,6 +810,18 @@ fn expand_children(
             child.kind,
             NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. }
         ) {
+            continue;
+        }
+
+        // 0. Platform gate — independent of if/else-if/else (doesn't touch
+        // `last_if`, doesn't need a `cond`): `platform="desktop"`/`"web"` on
+        // ANY element, alone or combined with another directive on the same
+        // node. A mismatch makes the node vanish entirely, same treatment
+        // as the `<import>`/`<link>`/`<style>` skip just above — so it's
+        // checked here, before for-each/else/else-if/if even see the node.
+        if let Some(platform) = &child.if_platform
+            && platform != current_platform()
+        {
             continue;
         }
 
@@ -1679,6 +1715,7 @@ fn eval_owned(
         if_one_of: None,
         if_empty: false,
         if_not_empty: false,
+        if_platform: None,
         is_else: false,
         else_if_cond: None,
         for_each: None,
