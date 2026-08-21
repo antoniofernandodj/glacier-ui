@@ -2420,3 +2420,90 @@ fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+// --- `one_of`/`equals_any` (Fase 1, item 3 do plano de convergência de
+// templates: mantém um item de nav "aceso" em várias sub-telas sem inventar
+// gramática de expressão — ver `docs/plano-convergencia-templates-gui-
+// webui.md` no rustploy) -----------------------------------------------------
+
+/// Forma **atributo** — `one_of="a b c"` casa qualquer token da lista;
+/// qualquer outro valor não casa. Mesmo cenário do plano: manter "Projects"
+/// aceso em `projects`/`project`/`new_service`/`service`.
+#[test]
+fn one_of_atributo_casa_qualquer_token_da_lista() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_one_of_attr.gv";
+    std::fs::write(
+        tpl,
+        // O nó com `if=`/`one_of=` precisa ser FILHO de algo — a filtragem
+        // roda em `expand_children` (quando um pai avalia seus filhos), não
+        // na raiz avaliada diretamente, então a raiz sozinha ignoraria a
+        // condição.
+        r#"<Column><Text if="{view}" one_of="projects project new_service service">aceso</Text></Column>"#,
+    )
+    .unwrap();
+    motor.register_component("oneofattr", tpl).unwrap();
+    motor.set_initial_screen("oneofattr");
+
+    for view in ["projects", "project", "new_service", "service"] {
+        motor.define_data("view", view);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("oneofattr").unwrap()),
+            vec!["aceso".to_string()],
+            "view={view} deveria casar one_of"
+        );
+    }
+
+    for view in ["deployments", "settings", ""] {
+        motor.define_data("view", view);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("oneofattr").unwrap()),
+            Vec::<String>::new(),
+            "view={view:?} não deveria casar one_of"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Forma **tag** — `<If cond="…" one_of="a b c">`/`<ElseIf … one_of="…">` —
+/// mesma varredura, e confirma que `one_of` funciona encadeado num
+/// `else-if` também (não só no `if` inicial da cadeia).
+#[test]
+fn one_of_tag_funciona_em_if_e_em_else_if() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_one_of_tag.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <If cond="{view}" one_of="deployments deploy_engine"><Text>ops</Text></If>
+            <ElseIf cond="{view}" one_of="projects project new_service service"><Text>projects</Text></ElseIf>
+            <Else><Text>outro</Text></Else>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("oneoftag", tpl).unwrap();
+    motor.set_initial_screen("oneoftag");
+
+    for (view, expected) in [
+        ("deployments", "ops"),
+        ("deploy_engine", "ops"),
+        ("project", "projects"),
+        ("service", "projects"),
+        ("settings", "outro"),
+    ] {
+        motor.define_data("view", view);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("oneoftag").unwrap()),
+            vec![expected.to_string()],
+            "view={view} deveria renderizar {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}

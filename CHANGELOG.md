@@ -8,6 +8,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.8] — 2026-08-21
+
+### Adicionado
+- **`one_of`** (alias `equals_any`) — compara `cond` contra uma lista
+  separada por espaço, casando se bater com QUALQUER token dela:
+  `if cond="{view}" one_of="projects project new_service service"`. Funciona
+  nas duas formas de `if`/`else-if` (atributo e tag). Interpola a lista
+  inteira de uma vez (não token a token), então tanto uma lista literal
+  quanto uma vinda de variável (`one_of="{allowed}"`) funcionam — sem
+  inventar gramática de expressão nova. Item 3 da Fase 1 do plano de
+  convergência de templates do rustploy: o caso motivador é manter um item
+  de navegação "aceso" em várias sub-telas ao mesmo tempo.
+
 ## [0.57.7] — 2026-08-21
 
 ### Adicionado

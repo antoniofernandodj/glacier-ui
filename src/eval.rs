@@ -680,6 +680,7 @@ fn eval_condition(
     cond: &str,
     equals: &Option<String>,
     not_equals: &Option<String>,
+    one_of: &Option<String>,
     context: &EvalCtx,
 ) -> bool {
     let value = process_tpl(cond, context);
@@ -688,6 +689,15 @@ fn eval_condition(
     }
     if let Some(ne) = not_equals {
         return value != process_tpl(ne, context);
+    }
+    if let Some(list) = one_of {
+        // Uma única interpolação sobre a lista inteira (não token a token) —
+        // cobre tanto o caso comum (literal: `one_of="a b c"`) quanto uma
+        // lista dinâmica vinda de uma var (`one_of="{allowed}"`), sem
+        // inventar gramática de expressão nova.
+        return process_tpl(list, context)
+            .split_whitespace()
+            .any(|tok| tok == value);
     }
     is_truthy(&value)
 }
@@ -866,12 +876,15 @@ fn expand_children(
         // no-op, matching the defensive behaviour of a stray `else` above.
         if let Some(cond) = &child.else_if_cond {
             if last_if == Some(false) {
-                let truthy = eval_condition(cond, &child.if_equals, &child.if_not_equals, context);
+                let truthy = eval_condition(
+                    cond, &child.if_equals, &child.if_not_equals, &child.if_one_of, context,
+                );
                 if truthy {
                     let mut clone = child.clone();
                     clone.else_if_cond = None;
                     clone.if_equals = None;
                     clone.if_not_equals = None;
+                    clone.if_one_of = None;
                     out.push(eval_owned(
                         &clone, context, templates, styles, scope, owner, None, None, cache,
                     )?);
@@ -883,13 +896,16 @@ fn expand_children(
 
         // 3. Process if attribute directive
         if let Some(cond) = &child.if_cond {
-            let truthy = eval_condition(cond, &child.if_equals, &child.if_not_equals, context);
+            let truthy = eval_condition(
+                cond, &child.if_equals, &child.if_not_equals, &child.if_one_of, context,
+            );
             if truthy {
                 // Clone child and clear if directives
                 let mut clone = child.clone();
                 clone.if_cond = None;
                 clone.if_equals = None;
                 clone.if_not_equals = None;
+                clone.if_one_of = None;
                 out.push(eval_owned(
                     &clone, context, templates, styles, scope, owner, None, None, cache,
                 )?);
@@ -982,8 +998,9 @@ fn expand_children(
                 cond,
                 equals,
                 not_equals,
+                one_of,
             } => {
-                let truthy = eval_condition(cond, equals, not_equals, context);
+                let truthy = eval_condition(cond, equals, not_equals, one_of, context);
                 if truthy {
                     expand_children(
                         &child.children,
@@ -1002,13 +1019,14 @@ fn expand_children(
                 cond,
                 equals,
                 not_equals,
+                one_of,
             } => {
                 // Same short-circuit as the attribute form (`else-if="…"`
                 // above): only rolls its own condition when the chain is
                 // still open; once something upstream matched, `last_if`
                 // stays `Some(true)` and every further branch is skipped.
                 if last_if == Some(false) {
-                    let truthy = eval_condition(cond, equals, not_equals, context);
+                    let truthy = eval_condition(cond, equals, not_equals, one_of, context);
                     if truthy {
                         expand_children(
                             &child.children,
@@ -1611,6 +1629,7 @@ fn eval_owned(
         if_cond: None,
         if_equals: None,
         if_not_equals: None,
+        if_one_of: None,
         is_else: false,
         else_if_cond: None,
         for_each: None,

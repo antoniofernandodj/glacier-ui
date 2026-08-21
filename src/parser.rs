@@ -176,12 +176,17 @@ pub enum NodeType {
         var: String,
     },
     /// Conditionally renders its children, e.g.
-    /// `<if cond="{logado}">...</if>` (truthy) or
-    /// `<if cond="{status}" equals="active">...</if>` (comparison).
+    /// `<if cond="{logado}">...</if>` (truthy),
+    /// `<if cond="{status}" equals="active">...</if>` (comparison), or
+    /// `<if cond="{view}" one_of="projects project new_service">...</if>`
+    /// (comparison against a space-separated list — true if `cond` matches
+    /// any one of them, e.g. "keep this nav item highlighted across its
+    /// sub-screens" without inventing an expression grammar).
     If {
         cond: String,
         equals: Option<String>,
         not_equals: Option<String>,
+        one_of: Option<String>,
     },
     /// Renders its children when the immediately preceding `<if>` was false.
     Else,
@@ -194,6 +199,7 @@ pub enum NodeType {
         cond: String,
         equals: Option<String>,
         not_equals: Option<String>,
+        one_of: Option<String>,
     },
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
@@ -413,6 +419,12 @@ pub struct UiNode {
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
     pub if_not_equals: Option<String>,
+    /// `one_of="a b c"` (aliases `equals_any`) — casa se `if`/`else-if`
+    /// bater com QUALQUER um dos tokens separados por espaço, avaliado uma
+    /// vez via `process_tpl` e então dividido — sem gramática de expressão
+    /// nova. Ex.: manter um item de nav "aceso" em várias sub-telas
+    /// (`one_of="projects project new_service service"`).
+    pub if_one_of: Option<String>,
     pub is_else: bool,
     /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
     /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
@@ -660,6 +672,10 @@ impl UiNode {
         let if_equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
         let if_not_equals =
             Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
+        let if_one_of = Self::get_attr(
+            &node,
+            &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+        );
         let is_else = node.has_attribute("else") || node.has_attribute("senao");
         let else_if_cond = Self::get_attr(
             &node,
@@ -1058,10 +1074,15 @@ impl UiNode {
                 let equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
                 let not_equals =
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
+                let one_of = Self::get_attr(
+                    &node,
+                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                );
                 NodeType::If {
                     cond,
                     equals,
                     not_equals,
+                    one_of,
                 }
             }
             "Else" | "else" | "Senao" | "senao" => NodeType::Else,
@@ -1072,10 +1093,15 @@ impl UiNode {
                 let equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
                 let not_equals =
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
+                let one_of = Self::get_attr(
+                    &node,
+                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                );
                 NodeType::ElseIf {
                     cond,
                     equals,
                     not_equals,
+                    one_of,
                 }
             }
             "link" | "Link" => {
@@ -1193,6 +1219,7 @@ impl UiNode {
             if_cond,
             if_equals,
             if_not_equals,
+            if_one_of,
             is_else,
             else_if_cond,
             for_each,
@@ -1699,6 +1726,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         if_cond: None,
         if_equals: None,
         if_not_equals: None,
+        if_one_of: None,
         is_else: false,
         else_if_cond: None,
         for_each: None,
