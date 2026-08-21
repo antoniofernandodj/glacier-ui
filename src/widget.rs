@@ -465,20 +465,51 @@ pub fn render_node<'a>(
             navigate_back,
             color,
         } => {
-            let mut t = text(btn_text.as_str());
-            if let Some(f) = font_for(&node.font) {
-                t = t.font(f);
-            }
-            // `textAlign` aligns the label inside the button. For a full-width
-            // button the label must fill the button's width to actually move,
-            // so `center`/`end` get `width: fill` on the text.
-            if let Some(align) = parse_text_align(&node.text_align) {
-                t = t.align_x(align);
-                if !matches!(align, iced::alignment::Horizontal::Left) {
-                    t = t.width(Length::Fill);
+            // `<button>` filhos (Fase 1, item 1 do plano de convergência de
+            // templates): quando o nó tem filhos visíveis, eles viram o
+            // conteúdo do botão — `text="…"` continua funcionando como
+            // atalho só quando não há nenhum. Um filho só usa o próprio
+            // elemento direto (mesma ideia do `<Container>`, que também não
+            // embrulha um filho único); mais de um vira um `Row` implícito
+            // (o caso comum é ícone + rótulo lado a lado — era exatamente o
+            // hack que forçava usar `<row on_press>` em vez de `<button>`
+            // de verdade), respeitando `spacing`/`align-y` do próprio nó.
+            let visible_children: Vec<&UiNode> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .collect();
+            let content: Element<'a, EngineMessage> = if visible_children.is_empty() {
+                let mut t = text(btn_text.as_str());
+                if let Some(f) = font_for(&node.font) {
+                    t = t.font(f);
                 }
-            }
-            let mut btn = button(t);
+                // `textAlign` aligns the label inside the button. For a full-width
+                // button the label must fill the button's width to actually move,
+                // so `center`/`end` get `width: fill` on the text.
+                if let Some(align) = parse_text_align(&node.text_align) {
+                    t = t.align_x(align);
+                    if !matches!(align, iced::alignment::Horizontal::Left) {
+                        t = t.width(Length::Fill);
+                    }
+                }
+                t.into()
+            } else if visible_children.len() == 1 {
+                render_node(visible_children[0], context, editors, combos, assets)
+            } else {
+                let mut r = row![];
+                if let Some(align_val) = parse_alignment(&node.align_y) {
+                    r = r.align_y(align_val);
+                }
+                if let Some(sp) = node.spacing {
+                    r = r.spacing(sp);
+                }
+                for child in visible_children {
+                    r = r.push(render_node(child, context, editors, combos, assets));
+                }
+                r.into()
+            };
+            let mut btn = button(content);
             // Um botão `disabled` não recebe handler algum: sem `on_press`, o
             // próprio iced já reporta `button::Status::Disabled` na closure de
             // estilo abaixo — não há necessidade de rastrear isso à parte.

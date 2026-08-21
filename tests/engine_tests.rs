@@ -2227,3 +2227,75 @@ fn checkbox_tristate_parseia() {
         NodeType::Checkbox { tristate: true, .. }
     ));
 }
+
+// --- `<Button>` com filhos (Fase 1, item 1 do plano de convergência de
+// templates GUI↔webui: elimina o hack de `<row on_click>` no lugar de um
+// `<Button>` de verdade — ver `docs/plano-convergencia-templates-gui-webui.md`
+// no rustploy) --------------------------------------------------------------
+
+/// `text="…"` continua funcionando (nenhum filho) — o atalho não quebrou.
+#[test]
+fn button_sem_filhos_usa_o_atalho_text() {
+    let ast = UiNode::parse_xml(r#"<Button text="Salvar" on_click="save" />"#).unwrap();
+    assert_eq!(ast.children.len(), 0);
+    match &ast.kind {
+        NodeType::Button { text, .. } => assert_eq!(text, "Salvar"),
+        other => panic!("esperava Button, veio {other:?}"),
+    }
+}
+
+/// Um filho único (ex.: só um ícone) é capturado como filho do Button, não
+/// jogado fora — antes deste item o parser já guardava `children` (o campo é
+/// genérico pra todo `NodeType`), só o renderer ignorava.
+#[test]
+fn button_com_um_filho_captura_o_filho() {
+    let ast = UiNode::parse_xml(r#"<Button on_click="menu"><Text content="☰" /></Button>"#)
+        .unwrap();
+    assert_eq!(ast.children.len(), 1);
+    match &ast.children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "☰"),
+        other => panic!("esperava Text, veio {other:?}"),
+    }
+}
+
+/// Vários filhos (o caso que `nav_item.gv` cobria com `<row on_press>` em vez
+/// de `<button>`: ícone + rótulo lado a lado) — todos capturados, na ordem.
+#[test]
+fn button_com_varios_filhos_captura_todos_em_ordem() {
+    let ast = UiNode::parse_xml(
+        r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#,
+    )
+    .unwrap();
+    assert_eq!(ast.children.len(), 2);
+    let contents: Vec<&str> = ast
+        .children
+        .iter()
+        .map(|c| match &c.kind {
+            NodeType::Text { content, .. } => content.as_str(),
+            other => panic!("esperava Text, veio {other:?}"),
+        })
+        .collect();
+    assert_eq!(contents, ["▤", "Projects"]);
+}
+
+/// Ponta a ponta: um `<Button>` com filhos (ícone+rótulo, o caso que
+/// `nav_item.gv` cobria com `<row on_press>`) renderiza sem panicar — a
+/// mudança em `widget.rs` (conteúdo do botão vira `children` quando há
+/// algum, em vez de só `text=`) constrói o `Row` implícito sem quebrar.
+#[test]
+fn button_com_filhos_renderiza() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_button_children.gv";
+    std::fs::write(
+        tpl,
+        r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#,
+    )
+    .unwrap();
+    motor.register_component("btncomp", tpl).unwrap();
+    motor.set_initial_screen("btncomp");
+    motor.reevaluate_all().unwrap();
+    assert!(motor.render("btncomp").is_ok());
+
+    std::fs::remove_file(tpl).ok();
+}

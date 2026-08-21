@@ -8,6 +8,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.6] — 2026-08-21
+
+### Adicionado
+- **`<Button>` aceita filhos.** Até aqui o conteúdo do botão só vinha do
+  atalho `text="…"`; qualquer filho declarado era parseado (o campo
+  `children` já é genérico pra todo `NodeType`) mas ignorado na renderização.
+  Agora, quando o nó tem filhos visíveis, eles viram o conteúdo do botão —
+  um filho único é usado direto (mesma ideia do `<Container>`), mais de um
+  vira um `Row` implícito respeitando `spacing`/`align-y` do próprio nó
+  (o caso comum é ícone + rótulo lado a lado). `text="…"` continua
+  funcionando sem mudança quando não há filho nenhum. Item 1 da Fase 1 do
+  plano de convergência de templates do rustploy (elimina o hack de usar
+  `<row on_press>` no lugar de um `<Button>` de verdade, ex.: item de
+  sidebar em `nav_item.gv`).
+
 ## [0.57.5] — 2026-08-20
 
 ### Corrigido
