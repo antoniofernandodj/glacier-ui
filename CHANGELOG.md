@@ -8,6 +8,32 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.57.5] — 2026-08-20
+
+### Corrigido
+- **A bandeja não corrompe mais o parser Luau em locale de vírgula decimal.**
+  `gtk::init()` (usado pela bandeja no Linux, via libappindicator) chama
+  `setlocale(LC_ALL, "")`, e locale é estado **global do processo**. Em `pt_BR`,
+  `de_DE`, `fr_FR` e afins o separador decimal vira vírgula, o `strtod` da libc
+  passa a parar no ponto de `1024.0` — e o lexer do Luau, que usa `strtod` para
+  converter literais numéricos, passa a rejeitar **todo número decimal** com
+  `Malformed number`. Na prática, qualquer `require` de um módulo contendo um
+  literal como `1024.0` falhava e o app quebrava.
+
+  A thread da bandeja agora faz `setlocale(LC_NUMERIC, "C")` logo após o
+  `gtk::init()`: datas, ordenação e textos seguem no locale do usuário, e só a
+  conversão numérica volta ao neutro que o parser exige.
+
+  Por que era difícil de enxergar: o bug **não reproduz** em máquina com locale
+  de ponto decimal, e **não aparece nos testes** (que não sobem GTK, então o
+  processo fica no locale `"C"`). Pior, num binário compilado com
+  `panic = "abort"` o erro de Lua nem chega a ser reportado — ele viaja
+  desenrolando a pilha através dos frames do `mlua`, que aí são `nounwind`, e o
+  processo morre com `SIGABRT` sem mensagem nenhuma. Apps que embarcam a glacier
+  devem manter `panic = "unwind"`, que é o que o `mlua` exige.
+
+---
+
 ## [0.57.4] — 2026-08-19
 
 ### Corrigido

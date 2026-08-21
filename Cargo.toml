@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.57.4"
+version = "0.57.5"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -53,6 +53,13 @@ optional = true
 version = "0.18"
 optional = true
 
+# Só para o `setlocale(LC_NUMERIC, "C")` que desfaz o efeito colateral global do
+# `gtk::init()` (ver `src/tray.rs`). Preferido a declarar o `extern "C"` na mão
+# porque `LC_NUMERIC` é um inteiro mágico que varia entre plataformas/libc.
+[target.'cfg(target_os = "linux")'.dependencies.libc]
+version = "0.2"
+optional = true
+
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
 version = "0.59"
 features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"]
@@ -62,4 +69,4 @@ optional = true
 # Habilita o ícone de bandeja e o app que sobrevive à última janela. `dep:gtk` e
 # `dep:windows-sys` são deps por-alvo: a ativação é no-op nos alvos onde não
 # existem, então a feature é a mesma nas três plataformas.
-tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys"]
+tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys", "dep:libc"]
