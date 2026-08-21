@@ -2745,3 +2745,182 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+// --- `<template>` (estudo pós-Fase-1: unifica `<ForEach>`/`<If>`/
+// `<ElseIf>`/`<Else>` numa tag só, mapeando para os mesmos NodeType — ver
+// docs/plano-convergencia-templates-gui-webui.md no rustploy e o nome
+// `<template x-if>`/`<template x-for>` que a Fase 4 (transpilação p/ Alpine)
+// já teria como alvo) --------------------------------------------------
+
+/// `parse_xml` isolado: cada flavor de `<template>` resolve pro `NodeType`
+/// certo, sem precisar montar um `GlacierUI` inteiro — mesmo estilo de
+/// `hr_e_alias_de_rule`.
+#[test]
+fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
+    let for_each = UiNode::parse_xml(r#"<template for-each="items" var="i"><Text/></template>"#)
+        .expect("for-each");
+    assert!(
+        matches!(for_each.kind, NodeType::ForEach { .. }),
+        "template com for-each deveria virar NodeType::ForEach, foi {:?}",
+        for_each.kind
+    );
+
+    // `else` bare (sem valor) só vira `else=""` via `normalize_bare_directives`,
+    // que roda no carregamento de arquivo — não em `parse_xml` isolado (ver
+    // `normalize_bare_directives_nao_mexe_em_else_com_valor_ja_presente`).
+    let else_node = UiNode::parse_xml(r#"<template else=""><Text/></template>"#).expect("else");
+    assert!(
+        matches!(else_node.kind, NodeType::Else),
+        "template com else bare deveria virar NodeType::Else, foi {:?}",
+        else_node.kind
+    );
+
+    let else_if = UiNode::parse_xml(r#"<template else-if="{x}" equals="a"><Text/></template>"#)
+        .expect("else-if");
+    assert!(
+        matches!(else_if.kind, NodeType::ElseIf { .. }),
+        "template com else-if deveria virar NodeType::ElseIf, foi {:?}",
+        else_if.kind
+    );
+
+    let if_node = UiNode::parse_xml(r#"<template if="{x}" equals="a"><Text/></template>"#)
+        .expect("if");
+    assert!(
+        matches!(if_node.kind, NodeType::If { .. }),
+        "template com if deveria virar NodeType::If, foi {:?}",
+        if_node.kind
+    );
+
+    let bare = UiNode::parse_xml(r#"<template><Text/></template>"#).expect("bare");
+    assert!(
+        matches!(bare.kind, NodeType::If { ref cond, .. } if cond == "true"),
+        "template sem atributo nenhum deveria virar um If sempre-verdadeiro, foi {:?}",
+        bare.kind
+    );
+}
+
+/// `<template if=…>`/`<template else-if=…>`/`<template else>` encadeiam
+/// exatamente como `<If>`/`<ElseIf>`/`<Else>` — e, como essas tags, cada
+/// branch **agrupa múltiplos filhos como irmãos do pai**, sem nenhum
+/// `<Column>`/`<Row>` extra por baixo (é isso que a forma-atributo `if=`
+/// num elemento comum NÃO consegue: ela sempre produz UM nó — o próprio
+/// elemento —, nunca uma lista de irmãos).
+#[test]
+fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_template_if_chain.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <template if="{view}" equals="a">
+                <Text>A1</Text>
+                <Text>A2</Text>
+            </template>
+            <template else-if="{view}" equals="b">
+                <Text>B1</Text>
+            </template>
+            <template else>
+                <Text>C1</Text>
+                <Text>C2</Text>
+            </template>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("templateifchain", tpl).unwrap();
+    motor.set_initial_screen("templateifchain");
+
+    for (view, expected) in [
+        ("a", vec!["A1", "A2"]),
+        ("b", vec!["B1"]),
+        ("z", vec!["C1", "C2"]),
+    ] {
+        motor.define_data("view", view);
+        motor.reevaluate_all().unwrap();
+        let evaluated = motor.evaluated("templateifchain").unwrap();
+        assert_eq!(evaluated.kind, NodeType::Column);
+        // Os filhos do branch que casou estão DIRETO sob o <Column> — sem
+        // nenhum nó intermediário representando o <template>.
+        assert_eq!(
+            evaluated.children.len(),
+            expected.len(),
+            "view={view}: esperava {} filho(s) direto(s) do Column, não um wrapper",
+            expected.len()
+        );
+        assert_eq!(
+            all_texts(evaluated),
+            expected.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            "view={view}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// `<template for-each=… var=…>` itera como `<ForEach>` — cada iteração
+/// pode emitir MAIS de um nó, todos irmãos diretos do pai, sem um wrapper
+/// por item.
+#[test]
+fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_template_foreach.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <template for-each="items" var="it">
+                <Text>{it.name}</Text>
+                <Text>#{it.val}</Text>
+            </template>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("templateforeach", tpl).unwrap();
+
+    let data = r#"[{"name": "X", "val": "1"}, {"name": "Y", "val": "2"}]"#;
+    motor.define_data("items", data);
+
+    let evaluated = motor.evaluated("templateforeach").unwrap();
+    assert_eq!(evaluated.kind, NodeType::Column);
+    // 2 itens × 2 nós cada = 4 filhos diretos, sem wrapper por item.
+    assert_eq!(evaluated.children.len(), 4);
+    assert_eq!(
+        all_texts(evaluated),
+        vec!["X".to_string(), "#1".to_string(), "Y".to_string(), "#2".to_string()]
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// `<template>` sem atributo nenhum é um agrupador incondicional — sempre
+/// hoista os filhos como irmãos. Serve pra um componente devolver mais de
+/// uma raiz sem precisar de um `<Row>`/`<Column>` artificial.
+#[test]
+fn template_bare_agrupa_filhos_incondicionalmente() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_template_bare.gv";
+    std::fs::write(
+        tpl,
+        r#"<Column>
+            <template>
+                <Text>um</Text>
+                <Text>dois</Text>
+            </template>
+            <Text>tres</Text>
+        </Column>"#,
+    )
+    .unwrap();
+    motor.register_component("templatebare", tpl).unwrap();
+    motor.set_initial_screen("templatebare");
+    motor.reevaluate_all().unwrap();
+
+    let evaluated = motor.evaluated("templatebare").unwrap();
+    assert_eq!(evaluated.children.len(), 3, "sem wrapper: 3 filhos diretos do Column");
+    assert_eq!(
+        all_texts(evaluated),
+        vec!["um".to_string(), "dois".to_string(), "tres".to_string()]
+    );
+
+    std::fs::remove_file(tpl).ok();
+}

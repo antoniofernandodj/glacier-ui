@@ -289,6 +289,7 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<ForEach>` | `For` | repete os filhos por item: `items`/`itens`, `var`/`variavel`. |
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
+| `<template>` | `Gabarito` | `<ForEach>`/`<if>`/`<ElseIf>`/`<else>` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
 | `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
 | `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
@@ -382,6 +383,39 @@ ctx.set("usuarios", serde_json::json!([
 Combinados no mesmo elemento, `for-each` tem precedência: desenrola o loop
 primeiro e o `if` filtra cada item gerado no contexto local. Veja
 [`examples/condicional`](examples/condicional) e [`examples/lista`](examples/lista).
+
+**Agrupar sem wrapper (`<template>`)** — nem a forma-atributo nem `for-each`
+num elemento comum resolvem "quero 2+ nós irmãos por condição/iteração, sem
+um `<Row>`/`<Column>` extra por baixo" — `if`/`for-each` num elemento SEMPRE
+produzem aquele elemento (um nó), nunca uma lista solta. Para isso, use
+`<template>` — o mesmo nome e a mesma ideia do `<template v-if>`/`<template
+x-for>` do Vue/Alpine (que hoje já são o alvo de uma futura transpilação
+deste dialeto para o browser):
+
+```xml
+<template if="{aba}" equals="detalhes">
+    <Text content="Detalhes" />
+    <Text content="{descricao}" />
+</template>
+<template else-if="{aba}" equals="historico">
+    <Text content="Histórico" />
+</template>
+<template else>
+    <Text content="Selecione uma aba" />
+</template>
+
+<template for-each="itens" var="i">
+    <Text content="{i.nome}" />
+    <Text content="{i.detalhe}" />
+</template>
+```
+
+Cada `<Text>` acima sai como irmão direto do pai de `<template>` — não há
+nó `<template>` nenhum na árvore renderizada. É a mesma mecânica que
+`<If>`/`<ForEach>` (tags legadas) já tinham; `<template>` só lhes dá um
+nome único e comum aos dois lados (se um dia a `<template>`-condição
+precisar filtrar itens de um `<template for-each>`, aninhe-a no CORPO do
+loop — as duas diretivas não se combinam na mesma tag).
 
 ---
 

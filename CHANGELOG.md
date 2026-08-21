@@ -8,6 +8,39 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.1] — 2026-08-21
+
+### Adicionado
+- **`<template>`** — uma tag unificando `<ForEach>`/`<If>`/`<ElseIf>`/`<Else>`
+  sob um nome só (o nome que Vue/Alpine já usam para a mesma ideia:
+  `<template v-if>`/`<template x-if>`/`<template x-for>`), mapeando pros
+  MESMOS `NodeType` (zero mudança em `eval.rs`/`widget.rs`) — a flavour
+  depende de qual atributo está presente: `for-each="…" var="…"` (aceita
+  também os aliases de `<ForEach>` — `items`/`source`/`itens`/`origem` — e
+  os da forma-atributo — `forEach`/`foreach`/`each`/`repeat`) vira
+  `NodeType::ForEach`; `else` (bare) vira `NodeType::Else`; `else-if="…"`
+  vira `NodeType::ElseIf`; `if="…"`/`cond="…"` vira `NodeType::If`; sem
+  nenhum desses, `<template>` agrupa os filhos incondicionalmente (útil
+  para um componente devolver mais de uma raiz sem `<Row>`/`<Column>`
+  artificial). Como `<If>`/`<ForEach>`, hoista os filhos como irmãos do
+  pai — SEM nó wrapper — o que a forma-atributo `if=`/`for-each=` num
+  elemento comum não faz (ela sempre produz um único nó: o próprio
+  elemento). Combinar `for-each` e `if`/`cond` no MESMO `<template>` não é
+  suportado (a filtragem por item vai num `<template if=…>` ANINHADO no
+  corpo do `for-each`, não em atributos irmãos na mesma tag) — mesma
+  limitação que já existia entre `<ForEach>` e `<If>` como tags separadas.
+  **Nota de implementação**: as quatro tags legadas já tinham exatamente
+  essa semântica de "hoist sem wrapper" (`eval.rs::expand_children`, passo
+  4) — o que faltava era só o NOME `<template>`; por isso `<template>` lê
+  `if`/`else`/`else-if`/`for-each` pelo vocabulário das TAGS (`cond`/
+  `items`), não pelo da forma-atributo (que usa os mesmos nomes de
+  atributo em QUALQUER elemento e teria interceptado o nó antes do
+  despacho por `NodeType` chegar a rodar). Estudo e proposta em
+  `docs/plano-convergencia-templates-gui-webui.md` (rustploy) — é
+  justamente o par sintático que a Fase 4 desse plano (transpilação para
+  Alpine no browser) já ia gerar como SAÍDA; agora o `.gv` fonte pode
+  falar a mesma língua.
+
 ## [0.58.0] — 2026-08-21
 
 Sem quebra de API — o bump de *minor* aqui é só a marca da Fase 1 do plano

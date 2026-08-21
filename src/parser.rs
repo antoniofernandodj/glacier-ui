@@ -695,8 +695,23 @@ impl UiNode {
             ],
         );
 
-        // Structural directives as attributes (Vue/Angular style)
-        let if_cond = Self::get_attr(&node, &["if", "se"]);
+        // Structural directives as attributes (Vue/Angular style).
+        //
+        // `<template>` (see the tag-name match below) is itself a structural
+        // directive host: it reads `if`/`else`/`else-if`/`for-each` through
+        // its OWN arm, to get `<If>`/`<ForEach>`'s hoist-children-without-a-
+        // wrapper behaviour (`eval.rs::expand_children` step 4) instead of
+        // the single-element behaviour these generic fields drive (steps
+        // 1-3). So on a `<template>` node these four stay unset here — if
+        // they were read here too, step 1-3 would intercept the node before
+        // its `NodeType` (built below) was ever reached, and it would render
+        // as a single (empty) element instead of hoisting its children.
+        let is_template_tag = matches!(tag, "template" | "Template" | "gabarito" | "Gabarito");
+        let if_cond = if is_template_tag {
+            None
+        } else {
+            Self::get_attr(&node, &["if", "se"])
+        };
         let if_equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
         let if_not_equals =
             Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
@@ -710,12 +725,21 @@ impl UiNode {
             || node.has_attribute("not-empty")
             || node.has_attribute("nao_vazio");
         let if_platform = Self::get_attr(&node, &["platform", "plataforma"]);
-        let is_else = node.has_attribute("else") || node.has_attribute("senao");
-        let else_if_cond = Self::get_attr(
-            &node,
-            &["else-if", "elseIf", "else_if", "senaoSe", "senao_se"],
-        );
-        let for_each = Self::get_attr(&node, &["for-each", "forEach", "foreach", "each", "repeat"]);
+        let is_else = !is_template_tag
+            && (node.has_attribute("else") || node.has_attribute("senao"));
+        let else_if_cond = if is_template_tag {
+            None
+        } else {
+            Self::get_attr(
+                &node,
+                &["else-if", "elseIf", "else_if", "senaoSe", "senao_se"],
+            )
+        };
+        let for_each = if is_template_tag {
+            None
+        } else {
+            Self::get_attr(&node, &["for-each", "forEach", "foreach", "each", "repeat"])
+        };
         let for_each_var = Self::get_attr(&node, &["var", "variavel"]);
         let on_reorder = Self::get_attr(
             &node,
@@ -1151,6 +1175,82 @@ impl UiNode {
                     one_of,
                     empty,
                     not_empty,
+                }
+            }
+            // `<template>`: a single tag unifying `<ForEach>`/`<If>`/
+            // `<ElseIf>`/`<Else>` under one name (Vue/Alpine's `<template
+            // v-if>`/`<template x-for>`), which flavour it takes depends on
+            // which attribute is present — `for-each`/`items` wins over
+            // `else`/`else-if`/`if`/`cond` (same outer-precedence rule the
+            // `for-each` attribute directive already has on ordinary
+            // elements). A bare `<template>` with none of those hoists its
+            // children unconditionally — for a component that needs more
+            // than one root node without an artificial `<Row>`/`<Column>`.
+            // To condition a loop's items, nest a directive INSIDE the body
+            // rather than combining `for-each` with `if`/`cond` on the same
+            // tag — the two aren't composable on one node here.
+            "template" | "Template" | "gabarito" | "Gabarito" => {
+                let items = Self::get_attr(
+                    &node,
+                    &[
+                        "for-each", "forEach", "foreach", "each", "repeat", "items", "itens",
+                        "source", "origem",
+                    ],
+                );
+                let var = Self::get_attr(&node, &["var", "variavel"]).unwrap_or_default();
+                let equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
+                let not_equals =
+                    Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
+                let one_of = Self::get_attr(
+                    &node,
+                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                );
+                let empty = node.has_attribute("empty") || node.has_attribute("vazio");
+                let not_empty = node.has_attribute("not_empty")
+                    || node.has_attribute("notEmpty")
+                    || node.has_attribute("not-empty")
+                    || node.has_attribute("nao_vazio");
+                let is_else = node.has_attribute("else") || node.has_attribute("senao");
+                let else_if_cond = Self::get_attr(
+                    &node,
+                    &["else-if", "elseIf", "else_if", "senaoSe", "senao_se"],
+                );
+                let if_cond = Self::get_attr(
+                    &node,
+                    &["if", "se", "cond", "condition", "when", "quando", "condicao"],
+                );
+
+                if let Some(items) = items {
+                    NodeType::ForEach { items, var }
+                } else if is_else {
+                    NodeType::Else
+                } else if let Some(cond) = else_if_cond {
+                    NodeType::ElseIf {
+                        cond,
+                        equals,
+                        not_equals,
+                        one_of,
+                        empty,
+                        not_empty,
+                    }
+                } else if let Some(cond) = if_cond {
+                    NodeType::If {
+                        cond,
+                        equals,
+                        not_equals,
+                        one_of,
+                        empty,
+                        not_empty,
+                    }
+                } else {
+                    NodeType::If {
+                        cond: "true".to_string(),
+                        equals: None,
+                        not_equals: None,
+                        one_of: None,
+                        empty: false,
+                        not_empty: false,
+                    }
                 }
             }
             "link" | "Link" => {
