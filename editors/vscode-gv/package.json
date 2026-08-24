@@ -1,8 +1,8 @@
 {
   "name": "glacier-view",
   "displayName": "Glacier View",
-  "description": "Language support for Glacier View (.gv) markup — syntax highlighting plus go-to-definition from on_click/onChange actions to their Lua/Rust handlers and from component tags to their declarations.",
-  "version": "0.1.0",
+  "description": "Language support for Glacier View (.gv) markup — syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, imports and component tags to the files (and functions) they name.",
+  "version": "0.2.0",
   "publisher": "antoniofernandodj",
   "license": "MIT",
   "author": {
@@ -26,7 +26,9 @@
     "glacier view"
   ],
   "icon": "icons/marketplace.png",
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:glacier-view"
+  ],
   "contributes": {
     "languages": [
       {

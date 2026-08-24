@@ -69,8 +69,17 @@ Interruptor. Atributos: `label`, `checked`, `onToggle`.
 ### `<Rule>` (`<Divider>`)
 Divisória. Atributos: `direction`.
 
+### `<ProgressBar>` (`<Progress>`, `<BarraProgresso>`)
+Barra de progresso. Atributos: `value` (chave de contexto com o valor), `min` (0), `max` (100), `vertical`, `showValue`, `color`.
+
+### `<Spinner>` (`<BusyIndicator>`, `<Carregando>`)
+Indicador de atividade indeterminada. Atributo: `color`.
+
 ### `<Select>` (`<Dropdown>`, `<ComboBox>`)
 Seletor. Atributos: `options`, `value`, `onChange`, `placeholder`, `labelField`, `valueField`, `color`.
+
+### `<ComboEdit>` (`<EditableCombo>`, `<ComboEditavel>`)
+Combo editável: campo de texto com lista de sugestões. Atributos: `options`, `value`, `placeholder`, `onChange`, `onSelect`.
 
 ### `<Form>` (`<Formulario>`)
 Formulário. Atributos: `onSubmit`, `name`. Envolve `formControl`s.
@@ -85,6 +94,12 @@ Repete o corpo por item. Atributos: `items`, `var`.
 ### `<If>` (`<Se>`) / `<Else>` (`<Senao>`)
 Condicional. `<If>` aceita `cond`, `equals`, `notEquals`.
 
+### `<ElseIf>` (`<SenaoSe>`)
+Ramo intermediário entre um `<If>` e o `<Else>`. Mesmos atributos de condição do `<If>`.
+
+### `<template>` (`<gabarito>`)
+Tag única que unifica repetição e condição: com `for-each`/`items` repete como `<ForEach>`; com `if`/`equals`/`one-of`/… condiciona como `<If>`. Não desenha caixa nenhuma — só emite os filhos.
+
 ### `<Include>` (`<Incluir>`)
 Inclui outro template. Atributo: `src`; demais atributos viram props.
 
@@ -93,10 +108,48 @@ Registra um componente por nome. Atributos: `name`/`as`, `from`.
 
 ---
 
+## Recursos externos
+
+### `<Script>`
+Comportamento em Lua: `<script>…</script>` (inline) ou `<script src="arquivo.luau"></script>` (externo, resolvido relativo ao template). O valor de cada ação é o nome de uma função definida aqui.
+
+### `<Link>`
+Recurso externo declarado no próprio template. `rel` escolhe o tipo: `stylesheet` (padrão, um `.gss` global), `import`/`component` (outro template, nomeado por `as`/`name`), `data` (JSON no contexto, sob a chave `as`/`name`) e `theme` (paleta JSON). Atributo do caminho: `href`.
+
+### `<Style>`
+`<style>…</style>` é GSS inline — global por padrão, restrito ao componente com `scoped="true"`. `<style href="…">` equivale a `<link rel="stylesheet">`.
+
+---
+
+## Ações built-in
+
+Ações tratadas pelo próprio motor (`GlacierUI::dispatch`), sem código no
+componente. O que vem depois do `:` é uma **chave de contexto** nas quatro
+primeiras, e um comando nas demais.
+
+| Ação | Efeito |
+| --- | --- |
+| `clipboard:<chave>` | copia o valor de contexto `<chave>` para a área de transferência |
+| `open:<alvo>` | abre no navegador do SO — `<alvo>` é uma chave de contexto ou, se ela não existir, a própria URL |
+| `textarea_end:<binding>` | rola o `<TextArea>` de `binding` até o fim (e leva o cursor pro fim) |
+| `textarea_top:<binding>` | o par do anterior: rola até o topo |
+| `window:minimize` / `window:maximize` / `window:close` | controles da janela (`window:toggle_maximize` é alias de `maximize`) |
+| `window:drag` | inicia o arraste — use no `onPress` de uma região da barra de título |
+| `window:resize:<dir>` | inicia o redimensionamento; `<dir>` ∈ `n,s,e,w,ne,nw,se,sw` |
+| `style:<nome>` | troca o estilo builtin ativo (ver `src/style.rs`); `style:set` é reservado para a forma `<Select onChange="style:set">` |
+
+Qualquer outro valor de ação é o nome de uma função: exata, ou `nome:sufixo` —
+sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
+
+---
+
 ## Builtins (registrados pela lib)
 
 ### `<Badge>`
 Rótulo/etiqueta embutido de `src/builtins.rs`. Ver `BUILTINS.md` para estender.
+
+### `<TimePicker>`
+Campo de hora (`HH:MM`) com botão de seleção. Props: `value` (chave de contexto), `on_change`, `on_pick`, `placeholder`, `width`, `pick_icon`.
 
 ---
 
