@@ -8,6 +8,25 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.3] — 2026-08-24
+
+### Corrigido
+- **`hidden`/`disabled` com placeholder** (`hidden="{oculto}"`) agora
+  resolvem de verdade contra o contexto. Eram comparados no PARSE contra a
+  string crua do placeholder (nunca `"true"`/`"false"` ainda), então o data
+  binding que a documentação promete nunca ligava — um `hidden="{parado}"`
+  deixava o elemento visível (ou o spinner girando) pra sempre. O valor com
+  `{...}` agora vai para `UiNode::bool_templates` e é interpolado em
+  `eval.rs` com o mesmo teste de verdade do `if` (`true`/`1`/`yes`/`on`/
+  `sim`), mesma solução que os atributos numéricos (`NumAttr`) já tinham.
+
+### Adicionado
+- **`append_file(path, texto)`** (Luau) — irmão do `write_file` que
+  acrescenta em vez de sobrescrever, criando o arquivo e os diretórios que
+  faltarem na primeira chamada. Sustenta um log que sobrevive a um crash no
+  meio de uma produção longa, sem manter o arquivo inteiro em memória nem
+  suspender a corrotina num read-modify-write via `fetch("file://…")`.
+
 ## [0.58.2] — 2026-08-24
 
 ### Adicionado
