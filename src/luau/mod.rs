@@ -75,6 +75,7 @@ use crate::component::{
     StreamEventKind, StreamKind, StreamRequest, Template,
 };
 use crate::error::{GlacierError, Result};
+use crate::file_dialog::{FileDialogMode, FileDialogResult, FileDialogSpec, FileFilter};
 use mlua::{
     Function, Lua, LuaSerdeExt, MultiValue, RegistryKey, Table, Thread, ThreadStatus, Value,
 };
@@ -536,6 +537,25 @@ impl LuauComponent {
         self.drive(thread, MultiValue::from_iter([Value::Boolean(confirmed)]), ctx)
     }
 
+    /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
+    /// `pick_folder` (id alocado no `drive`) com o resultado do diálogo
+    /// nativo — uma string (caminho único), uma tabela-array de strings
+    /// (`open_files`), ou `nil` se o usuário cancelou —, que vira o valor de
+    /// retorno do `coroutine.yield` no prelúdio.
+    fn resume_file_dialog_inner(
+        &self,
+        id: u64,
+        result: &FileDialogResult,
+        ctx: &mut Context,
+    ) -> mlua::Result<()> {
+        let Some(thread) = self.pending.borrow_mut().remove(&id) else {
+            return Ok(());
+        };
+        self.sync_to_luau(ctx)?;
+        let value = self.file_dialog_result_to_luau(result)?;
+        self.drive(thread, MultiValue::from_iter([value]), ctx)
+    }
+
     /// Dispara o handler de um temporizador (`after`) vencido: se ainda
     /// registrado (não cancelado, não já disparado — é de disparo único),
     /// chama-o numa corrotina nova, como um evento de stream.
@@ -609,6 +629,19 @@ impl LuauComponent {
                 // síncrona (`local ok = confirm{...}`).
                 let id = self.alloc_id();
                 ctx.show_dialog_resumable(build_dialog(&req)?, id);
+                self.pending.borrow_mut().insert(id, thread);
+                return Ok(()); // suspende até a escolha do usuário
+            }
+
+            if req.get::<bool>("__glacier_file_dialog").unwrap_or(false) {
+                // Suspende igual ao `__glacier_dialog`: guarda a corrotina e
+                // para. O motor mostra o diálogo nativo do SO fora da thread
+                // de UI e, quando o usuário escolhe (ou cancela), retoma esta
+                // corrotina com o resultado (ver `resume_file_dialog_inner`)
+                // — a mesma aparência síncrona que `confirm()` dá a
+                // `open_file`/`open_files`/`save_file`/`pick_folder`.
+                let id = self.alloc_id();
+                ctx.show_file_dialog_resumable(build_file_dialog(&req)?, id);
                 self.pending.borrow_mut().insert(id, thread);
                 return Ok(()); // suspende até a escolha do usuário
             }
@@ -891,6 +924,29 @@ impl LuauComponent {
         t.set("error", r.error.as_str())?;
         Ok(t)
     }
+
+    /// Converte um [`FileDialogResult`] no valor Luau que `open_file`/
+    /// `open_files`/`save_file`/`pick_folder` devolve: `Path(Some(p))` vira a
+    /// string `p`; `Paths(Some(v))` vira uma tabela-array de strings
+    /// (1-indexada, como todo array Lua); `Path(None)`/`Paths(None)`
+    /// (cancelado) viram `nil` — o mesmo "silêncio" que `confirm()` dá com
+    /// `false`, só que aqui é a ausência do valor, não um booleano.
+    fn file_dialog_result_to_luau(&self, r: &FileDialogResult) -> mlua::Result<Value> {
+        match r {
+            FileDialogResult::Path(Some(p)) => {
+                Ok(Value::String(self.luau.create_string(p)?))
+            }
+            FileDialogResult::Path(None) => Ok(Value::Nil),
+            FileDialogResult::Paths(Some(paths)) => {
+                let t = self.luau.create_table()?;
+                for (i, p) in paths.iter().enumerate() {
+                    t.set(i + 1, p.as_str())?;
+                }
+                Ok(Value::Table(t))
+            }
+            FileDialogResult::Paths(None) => Ok(Value::Nil),
+        }
+    }
 }
 
 impl Component for LuauComponent {
@@ -928,6 +984,17 @@ impl Component for LuauComponent {
     fn resume_dialog(&mut self, id: u64, confirmed: bool, ctx: &mut Context) {
         if let Err(e) = self.resume_dialog_inner(id, confirmed, ctx) {
             self.report_error(&format!("confirm #{id}"), e, ctx);
+        }
+    }
+
+    fn resume_file_dialog(
+        &mut self,
+        id: u64,
+        result: &crate::file_dialog::FileDialogResult,
+        ctx: &mut Context,
+    ) {
+        if let Err(e) = self.resume_file_dialog_inner(id, result, ctx) {
+            self.report_error(&format!("file_dialog #{id}"), e, ctx);
         }
     }
 
@@ -1004,6 +1071,47 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
         .with_button(DialogButton::new(cancel_label, CONFIRM_NO, ButtonRole::Neutral))
         .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
         .dismissible(false))
+}
+
+/// Constrói o [`FileDialogSpec`] a partir do pedido `open_file`/`open_files`/
+/// `save_file`/`pick_folder(opts)` do prelúdio. `mode` decide o método de
+/// `rfd::AsyncFileDialog` chamado em [`crate::file_dialog::run`];
+/// `filters` é um array Lua de `{ name = "...", extensions = {"png", ...} }`,
+/// ausente/vazio se não informado.
+fn build_file_dialog(req: &Table) -> mlua::Result<FileDialogSpec> {
+    let mode = match req.get::<Option<String>>("mode")?.as_deref() {
+        Some("open_multiple") => FileDialogMode::OpenMultiple,
+        Some("save") => FileDialogMode::Save,
+        Some("directory") => FileDialogMode::Directory,
+        _ => FileDialogMode::Open,
+    };
+    let title = req.get::<Option<String>>("title")?;
+    let starting_dir = req.get::<Option<String>>("starting_dir")?;
+    let default_name = req.get::<Option<String>>("default_name")?;
+    let filters = match req.get::<Option<Table>>("filters")? {
+        Some(list) => list
+            .sequence_values::<Table>()
+            .map(|f| {
+                let f = f?;
+                let name: String = f.get("name")?;
+                let extensions = match f.get::<Option<Table>>("extensions")? {
+                    Some(exts) => exts
+                        .sequence_values::<String>()
+                        .collect::<mlua::Result<Vec<_>>>()?,
+                    None => Vec::new(),
+                };
+                Ok(FileFilter { name, extensions })
+            })
+            .collect::<mlua::Result<Vec<_>>>()?,
+        None => Vec::new(),
+    };
+    Ok(FileDialogSpec {
+        mode,
+        title,
+        starting_dir,
+        default_name,
+        filters,
+    })
 }
 
 /// Constrói o [`WindowSpec`] a partir do pedido `open_window(opts)` do prelúdio.
@@ -1856,6 +1964,103 @@ mod tests {
             }
             assert_eq!(data.get("r").map(String::as_str), Some(esperado));
         }
+    }
+
+    #[test]
+    fn open_file_abre_dialogo_resumivel_e_suspende() {
+        let comp = LuauComponent::from_source(
+            "function go() open_file({ title = 'Escolha' }) end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let mut ctx = Context::new(&mut data);
+        comp.run("go", None, &mut ctx);
+        assert_eq!(ctx.file_dialogs.len(), 1, "deve suspender pedindo um diálogo");
+        assert_eq!(
+            ctx.file_dialogs[0].spec.mode,
+            crate::file_dialog::FileDialogMode::Open
+        );
+        assert_eq!(ctx.file_dialogs[0].spec.title.as_deref(), Some("Escolha"));
+    }
+
+    #[test]
+    fn open_file_retoma_com_caminho_ou_nil() {
+        // Escolheu um arquivo: a variável Lua recebe a string do caminho;
+        // cancelou: recebe nil. Exercita `drive` → suspende no
+        // `open_file` → `resume_file_dialog`.
+        use crate::file_dialog::FileDialogResult;
+        for (resultado, esperado) in [
+            (
+                FileDialogResult::Path(Some("/tmp/x.txt".to_string())),
+                Some("/tmp/x.txt"),
+            ),
+            (FileDialogResult::Path(None), None),
+        ] {
+            let mut comp = LuauComponent::from_source(
+                "function go()\n\
+                 local caminho = open_file({})\n\
+                 ctx.r = caminho or 'cancelado'\n\
+                 end",
+                "t.gv",
+                "c",
+            )
+            .unwrap();
+            let mut data = HashMap::new();
+            let id = {
+                let mut ctx = Context::new(&mut data);
+                comp.run("go", None, &mut ctx);
+                ctx.file_dialogs
+                    .first()
+                    .map(|d| d.id)
+                    .expect("esperava suspender pedindo um diálogo")
+            };
+            assert_eq!(data.get("r"), None, "não deve resolver antes da escolha");
+            {
+                let mut ctx = Context::new(&mut data);
+                comp.resume_file_dialog(id, &resultado, &mut ctx);
+            }
+            assert_eq!(
+                data.get("r").map(String::as_str),
+                Some(esperado.unwrap_or("cancelado"))
+            );
+        }
+    }
+
+    #[test]
+    fn open_files_retoma_com_array_de_caminhos() {
+        use crate::file_dialog::FileDialogResult;
+        let mut comp = LuauComponent::from_source(
+            "function go()\n\
+             local caminhos = open_files({})\n\
+             ctx.total = tostring(#caminhos)\n\
+             ctx.primeiro = caminhos[1]\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("go", None, &mut ctx);
+            assert_eq!(
+                ctx.file_dialogs[0].spec.mode,
+                crate::file_dialog::FileDialogMode::OpenMultiple
+            );
+            ctx.file_dialogs[0].id
+        };
+        {
+            let mut ctx = Context::new(&mut data);
+            let resultado = FileDialogResult::Paths(Some(vec![
+                "/tmp/a.txt".to_string(),
+                "/tmp/b.txt".to_string(),
+            ]));
+            comp.resume_file_dialog(id, &resultado, &mut ctx);
+        }
+        assert_eq!(data.get("total").map(String::as_str), Some("2"));
+        assert_eq!(data.get("primeiro").map(String::as_str), Some("/tmp/a.txt"));
     }
 
     #[test]

@@ -139,6 +139,20 @@ impl FetchResult {
     }
 }
 
+/// Um pedido de diálogo de arquivo/pasta **nativo do SO** feito pela camada
+/// Lua via `open_file`/`open_files`/`save_file`/`pick_folder` (ver
+/// [`crate::file_dialog`]). Acumulado no [`Context`] durante o `update` e
+/// convertido pelo motor num efeito assíncrono; ao o usuário escolher (ou
+/// cancelar), a corrotina Lua suspensa `id` é retomada com o
+/// [`crate::file_dialog::FileDialogResult`] — mesmo papel de [`PendingFetch`]
+/// para `fetch()`.
+#[derive(Debug, Clone)]
+pub struct PendingFileDialog {
+    /// Identifica a corrotina suspensa que espera esta escolha.
+    pub(crate) id: u64,
+    pub(crate) spec: crate::file_dialog::FileDialogSpec,
+}
+
 /// Tipo de stream de vida longa aberto pela camada Lua: `sse` (só leitura,
 /// Server-Sent Events sobre HTTP) ou `websocket` (bidirecional). Faz parte da
 /// identidade da subscription do motor (ver [`crate::net::StreamKey`]).
@@ -403,6 +417,11 @@ pub struct Context<'a> {
     /// Requisições de rede pedidas via `fetch` na camada Lua, transformadas em
     /// efeitos assíncronos pelo motor após o `update`.
     pub(crate) fetches: Vec<PendingFetch>,
+    /// Diálogos de arquivo/pasta nativos pedidos via
+    /// [`Context::show_file_dialog_resumable`]; o motor os converte em
+    /// efeitos assíncronos (via [`crate::file_dialog::run`]) após o
+    /// `update`.
+    pub(crate) file_dialogs: Vec<PendingFileDialog>,
     /// Streams de vida longa (`sse`/`websocket`) que a camada Lua pediu para
     /// abrir; o motor os converte em subscriptions após o `update`.
     pub(crate) streams: Vec<StreamRequest>,
@@ -486,6 +505,7 @@ impl<'a> Context<'a> {
             dialog: None,
             toasts: Vec::new(),
             fetches: Vec::new(),
+            file_dialogs: Vec::new(),
             streams: Vec::new(),
             stream_cmds: Vec::new(),
             timers: Vec::new(),
@@ -551,6 +571,19 @@ impl<'a> Context<'a> {
     /// `update`, sem despachar nenhuma ação de botão.
     pub fn close_dialog(&mut self) {
         self.dialog = Some(DialogAction::Close);
+    }
+
+    /// Pede ao motor para mostrar um diálogo de arquivo/pasta **nativo do
+    /// SO** (ver [`crate::file_dialog`]) e associa-o à corrotina Lua
+    /// suspensa `id` — mesmo papel de [`Context::show_dialog_resumable`],
+    /// para `open_file`/`open_files`/`save_file`/`pick_folder`. Uso interno
+    /// da [`crate::luau::LuauComponent`].
+    pub(crate) fn show_file_dialog_resumable(
+        &mut self,
+        spec: crate::file_dialog::FileDialogSpec,
+        id: u64,
+    ) {
+        self.file_dialogs.push(PendingFileDialog { id, spec });
     }
 
     /// Pede ao motor/daemon para abrir uma **nova janela** após o `update`,
@@ -741,6 +774,20 @@ pub trait Component {
     /// parecer síncrono (`local ok = confirm{...}`), suspendendo no clique e
     /// retomando com o booleano. Componentes Rust usam diálogos por-ação.
     fn resume_dialog(&mut self, _id: u64, _confirmed: bool, _ctx: &mut Context) {}
+
+    /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
+    /// `pick_folder` (ver [`Context::show_file_dialog_resumable`]) com o
+    /// resultado do diálogo de arquivo/pasta nativo — caminho(s) escolhido(s),
+    /// ou nada se o usuário cancelou. Só a [`crate::luau::LuauComponent`]
+    /// implementa; componentes Rust não têm hoje um jeito resumível de pedir
+    /// este diálogo (mesma limitação que `confirm()` tem pro lado Rust).
+    fn resume_file_dialog(
+        &mut self,
+        _id: u64,
+        _result: &crate::file_dialog::FileDialogResult,
+        _ctx: &mut Context,
+    ) {
+    }
 
     /// Entrega um evento de um stream de vida longa (`sse`/`websocket`) aberto
     /// pelo componente: o `id` da requisição (ver [`StreamRequest`]), o que

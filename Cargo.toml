@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.58.3"
+version = "0.58.4"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -38,6 +38,12 @@ flate2 = "1"
 # da requisição quanto o `body` do FetchResult trafegam como texto (String) na
 # fronteira Rust↔Lua; base64 mantém bytes arbitrários (ex.: um .zip) UTF-8-safe.
 base64 = "0.22"
+
+# Diálogo de arquivo/pasta NATIVO do SO (Open/OpenMultiple/Save/Directory) —
+# ver src/file_dialog.rs e `open_file`/`open_files`/`save_file`/`pick_folder`
+# na camada Luau. `AsyncFileDialog` devolve um future `Send`, encaixado em
+# `iced::Task::perform` do mesmo jeito que `net::perform` já é.
+rfd = "0.17"
 
 # ── Bandeja (system tray) — opcional, atrás da feature `tray` ────────────────
 # Só compila quando um app pede `.tray(...)` E habilita `features = ["tray"]`;

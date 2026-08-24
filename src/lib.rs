@@ -7,6 +7,7 @@ pub mod daemon;
 pub mod dialogs;
 pub mod error;
 pub mod eval;
+pub mod file_dialog;
 pub mod forms;
 pub mod luau;
 pub mod menu;
@@ -991,6 +992,18 @@ impl GlacierUI {
                     comp.resume_fetch(id, &result, ctx);
                 });
             }
+            // A native file/folder dialog (`open_file`/`open_files`/
+            // `save_file`/`pick_folder`) was closed by the user: hand the
+            // result back to resume the suspended coroutine — same shape as
+            // `LuauResume` above.
+            EngineMessage::FileDialogResume { owner, id, result } => {
+                let owner = owner.clone();
+                let id = *id;
+                let result = result.clone();
+                return self.run_on_owner(&owner, false, move |comp, ctx| {
+                    comp.resume_file_dialog(id, &result, ctx);
+                });
+            }
             // An event from a long-lived stream (`sse`/`websocket`). `Ready`
             // just stores the outbound channel (WebSocket sends); the others are
             // routed to the owning component to invoke the Lua handler. `Closed`
@@ -1271,6 +1284,7 @@ impl GlacierUI {
             dialog,
             toasts,
             fetches,
+            file_dialogs,
             streams,
             stream_cmds,
             timers,
@@ -1289,6 +1303,7 @@ impl GlacierUI {
                 ctx.dialog,
                 ctx.toasts,
                 ctx.fetches,
+                ctx.file_dialogs,
                 ctx.streams,
                 ctx.stream_cmds,
                 ctx.timers,
@@ -1403,6 +1418,23 @@ impl GlacierUI {
             tasks.push(iced::Task::perform(
                 crate::net::perform(req),
                 move |result| EngineMessage::LuauResume {
+                    owner: owner_name.clone(),
+                    id,
+                    result,
+                },
+            ));
+        }
+
+        // Each native file/folder dialog request becomes an async task (the
+        // OS dialog runs off the UI thread); its result routes back to this
+        // same component to resume the coroutine that awaited it — same
+        // shape as `fetches` above.
+        for req in file_dialogs {
+            let id = req.id;
+            let owner_name = owner.to_string();
+            tasks.push(iced::Task::perform(
+                crate::file_dialog::run(req.spec),
+                move |result| EngineMessage::FileDialogResume {
                     owner: owner_name.clone(),
                     id,
                     result,

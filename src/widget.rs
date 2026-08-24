@@ -276,6 +276,15 @@ pub enum EngineMessage {
         owner: String,
         id: u64,
     },
+    /// Um diálogo de arquivo/pasta nativo do SO (`open_file`/`open_files`/
+    /// `save_file`/`pick_folder` na camada Lua) foi fechado pelo usuário:
+    /// resume a corrotina suspensa `id` em `owner` com o resultado. Ver
+    /// [`crate::file_dialog`] e [`crate::component::PendingFileDialog`].
+    FileDialogResume {
+        owner: String,
+        id: u64,
+        result: crate::file_dialog::FileDialogResult,
+    },
     /// Posição do cursor (espaço da janela), atualizada por um listener
     /// global de movimento do mouse (ver `crate::cursor_from_event`). Existe
     /// só para dar a `OpenMenuBarDropdown`/`OpenContextMenu` um ponto-âncora

@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.4] — 2026-08-24
+
+### Adicionado
+- **`open_file`/`open_files`/`save_file`/`pick_folder`** (Luau) — diálogo de
+  arquivo/pasta **nativo do SO** (via `rfd`), cobrindo os quatro modos:
+  arquivo único, múltiplos arquivos, salvar como e diretório. Segue
+  exatamente o mesmo padrão suspensivo de `confirm()`/`fetch()`: a
+  corrotina Lua cede um pedido (`__glacier_file_dialog`), o motor mostra o
+  diálogo fora da thread de UI (`iced::Task::perform`, sem travar o app) e
+  retoma a corrotina com o resultado — `local caminho = open_file{...}`
+  tem a aparência de `async/await` síncrono. Cancelado vira `nil`;
+  `open_files` devolve um array Lua de caminhos. `opts` aceita `title`,
+  `filters` (`{{name=, extensions={...}}, ...}`), `starting_dir` e (só em
+  `save_file`) `default_name`. Só Lua por enquanto — mesma limitação que
+  `confirm()` já tem pro lado Rust hoje. Exemplo em `examples/file_dialog/`.
+
 ## [0.58.3] — 2026-08-24
 
 ### Corrigido

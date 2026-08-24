@@ -1,0 +1,61 @@
+<!-- Diálogo de arquivo/pasta NATIVO DO SO — arquivo único, múltiplos
+     arquivos, diretório e salvar (ver src/file_dialog.rs). Cada botão chama
+     o sugar Lua correspondente; como é um diálogo de verdade do SO, só dá
+     pra conferir rodando o exemplo file_dialog e clicando. -->
+<style>
+.screen  { background: #2E3440; }
+.title   { color: #ECEFF4; }
+.hint    { color: #D8DEE9; }
+.result  { color: #A3BE8C; }
+</style>
+
+<Column width="fill" height="fill" padding="30" spacing="20" class="screen">
+    <Text content="Diálogos de arquivo (nativos do SO)" size="20" bold="true" class="title" />
+    <Text content="Cada botão abre um diálogo de verdade do sistema operacional." size="13" class="hint" />
+
+    <Row spacing="10">
+        <Button text="Abrir arquivo" on_click="abrir_arquivo" color="#5E81AC" padding="8 16" />
+        <Button text="Abrir vários" on_click="abrir_varios" color="#5E81AC" padding="8 16" />
+        <Button text="Salvar como" on_click="salvar_como" color="#B48EAD" padding="8 16" />
+        <Button text="Escolher pasta" on_click="escolher_pasta" color="#D08770" padding="8 16" />
+    </Row>
+
+    <Rule width="600" />
+    <Text content="Resultado: {resultado}" size="14" class="result" />
+</Column>
+
+<script>
+function init()
+    ctx.resultado = "(nenhum ainda)"
+end
+
+function abrir_arquivo()
+    local caminho = open_file({
+        title = "Escolha um arquivo",
+        filters = { { name = "Texto", extensions = { "txt", "md" } } },
+    })
+    ctx.resultado = caminho or "cancelado"
+end
+
+function abrir_varios()
+    local caminhos = open_files({ title = "Escolha um ou mais arquivos" })
+    if caminhos then
+        ctx.resultado = "(" .. #caminhos .. ") " .. table.concat(caminhos, ", ")
+    else
+        ctx.resultado = "cancelado"
+    end
+end
+
+function salvar_como()
+    local caminho = save_file({
+        title = "Salvar como",
+        default_name = "novo-arquivo.txt",
+    })
+    ctx.resultado = caminho or "cancelado"
+end
+
+function escolher_pasta()
+    local caminho = pick_folder({ title = "Escolha uma pasta" })
+    ctx.resultado = caminho or "cancelado"
+end
+</script>

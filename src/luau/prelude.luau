@@ -86,6 +86,44 @@ function confirm(opts)
     })
 end
 
+-- Diálogo de arquivo/pasta NATIVO DO SO. SUSPENDE (como `confirm`): cede um
+-- pedido, o motor mostra o diálogo do SO (fora da thread de UI) e só retoma
+-- quando o usuário escolhe ou cancela. `opts` (opcional) = { title?,
+-- filters? = {{ name = "Imagens", extensions = {"png","jpg"} }, ...},
+-- starting_dir? }.
+--
+-- open_file    -> string do caminho escolhido, ou nil se cancelou.
+-- open_files   -> tabela-array de strings (um ou mais caminhos), ou nil.
+-- save_file    -> como open_file; `opts.default_name` sugere um nome inicial.
+-- pick_folder  -> como open_file, escolhendo um diretório.
+local function file_dialog(mode, opts)
+    opts = opts or {}
+    return coroutine.yield({
+        __glacier_file_dialog = true,
+        mode = mode,
+        title = opts.title,
+        filters = opts.filters,
+        starting_dir = opts.starting_dir,
+        default_name = opts.default_name,
+    })
+end
+
+function open_file(opts)
+    return file_dialog("open", opts)
+end
+
+function open_files(opts)
+    return file_dialog("open_multiple", opts)
+end
+
+function save_file(opts)
+    return file_dialog("save", opts)
+end
+
+function pick_folder(opts)
+    return file_dialog("directory", opts)
+end
+
 -- Navegação. NÃO suspendem: cedem um pedido, o motor troca de tela (via
 -- Context::navigate_to/navigate_back) e retoma na hora.
 function navigate(screen)
