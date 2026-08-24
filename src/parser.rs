@@ -361,6 +361,18 @@ pub enum NumAttr {
     Size,
 }
 
+/// A boolean attribute that normally parses to `bool` at parse time. Same
+/// problem — e a mesma solução — dos [`NumAttr`]: com um `{...}` no valor, a
+/// string crua ainda não é `"true"`/`"false"`, é o placeholder. Comparar ali
+/// dava sempre `false`, e `hidden="{oculto}"` / `disabled="{ocupado}"` — data
+/// binding que a documentação promete — nunca ligavam. Fica guardada em
+/// [`UiNode::bool_templates`] e é resolvida na avaliação.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoolAttr {
+    Hidden,
+    Disabled,
+}
+
 /// Contador global que dá a cada nó parseado uma identidade única no processo.
 /// Ver [`UiNode::node_id`].
 static NEXT_NODE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -388,6 +400,10 @@ pub struct UiNode {
     /// Resolved and parsed during evaluation; see [`NumAttr`]. Empty for the
     /// common case where every numeric attribute was a literal.
     pub numeric_templates: Vec<(NumAttr, String)>,
+    /// O mesmo que `numeric_templates`, para os booleanos `hidden`/`disabled`
+    /// escritos com placeholder (`hidden="{oculto}"`). Resolvidos na avaliação;
+    /// ver [`BoolAttr`]. Vazio no caso comum (valor literal).
+    pub bool_templates: Vec<(BoolAttr, String)>,
     pub width: Option<String>,
     pub height: Option<String>,
     pub padding: Option<String>,
@@ -574,6 +590,25 @@ impl UiNode {
         }
     }
 
+    /// Parse a boolean attribute. Como [`Self::get_attr_num`]: com um `{...}` no
+    /// valor, guarda a string crua em `templates` (resolvida na avaliação) e
+    /// devolve `None`, para o campo estático não fixar um `false` mentiroso.
+    fn get_attr_bool_opt(
+        node: &Node,
+        keys: &[&str],
+        attr: BoolAttr,
+        templates: &mut Vec<(BoolAttr, String)>,
+    ) -> Option<bool> {
+        match Self::get_attr(node, keys) {
+            Some(s) if s.contains('{') => {
+                templates.push((attr, s));
+                None
+            }
+            Some(s) => Some(s.eq_ignore_ascii_case("true") || s == "1"),
+            None => None,
+        }
+    }
+
     /// Normalize text content HTML-style: trim the ends and collapse any run of
     /// whitespace (including newlines from multi-line indented source) into a
     /// single space — *except* the non-breaking space (U+00A0, written
@@ -721,10 +756,19 @@ impl UiNode {
             NumAttr::MaxHeight,
             &mut numeric_templates,
         );
-        let hidden = Self::get_attr(&node, &["hidden", "oculto"])
-            .map(|v| v.eq_ignore_ascii_case("true") || v == "1");
-        let disabled = Self::get_attr(&node, &["disabled", "desabilitado"])
-            .map(|v| v.eq_ignore_ascii_case("true") || v == "1");
+        let mut bool_templates: Vec<(BoolAttr, String)> = Vec::new();
+        let hidden = Self::get_attr_bool_opt(
+            &node,
+            &["hidden", "oculto"],
+            BoolAttr::Hidden,
+            &mut bool_templates,
+        );
+        let disabled = Self::get_attr_bool_opt(
+            &node,
+            &["disabled", "desabilitado"],
+            BoolAttr::Disabled,
+            &mut bool_templates,
+        );
         let form_control = Self::get_attr(
             &node,
             &[
@@ -1422,6 +1466,7 @@ impl UiNode {
             kind,
             children,
             numeric_templates,
+            bool_templates,
             width,
             height,
             padding,
@@ -1932,6 +1977,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         kind,
         children,
         numeric_templates: Vec::new(),
+        bool_templates: Vec::new(),
         width: None,
         height: None,
         padding: None,

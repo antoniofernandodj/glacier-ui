@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::parser::{NodeType, NumAttr, UiNode};
+use crate::parser::{BoolAttr, NodeType, NumAttr, UiNode};
 use crate::stylesheet::{
     StateStyles, StyleRule, StyleSheet, resolve_classes, resolve_state_classes,
 };
@@ -1391,6 +1391,17 @@ fn eval_owned(
             .and_then(|(_, t)| process_tpl(t, context).trim().parse::<f32>().ok())
     };
 
+    // O mesmo para `hidden`/`disabled` escritos com placeholder (ver
+    // `BoolAttr`): interpola e aplica o mesmo teste de verdade do `if`
+    // (`true`/`1`/`yes`/`on`/`sim`), para os dois concordarem sobre o que é
+    // "ligado". `None` se o nó não tinha template para `attr`.
+    let bool_template = |attr: BoolAttr| -> Option<bool> {
+        node.bool_templates
+            .iter()
+            .find(|(a, _)| *a == attr)
+            .map(|(_, t)| is_truthy(&process_tpl(t, context)))
+    };
+
     // Evaluate current node attributes
     let kind_eval = match &node.kind {
         NodeType::Container => NodeType::Container,
@@ -1655,12 +1666,16 @@ fn eval_owned(
     let max_height_eval = num_template(NumAttr::MaxHeight)
         .or(node.max_height)
         .or(style.max_height);
-    // `hidden` resolvido: inline vence a classe/`@media` (mesma precedência dos
-    // demais campos). Consumido em `widget::render_node` (pulado no layout).
-    let hidden_eval = node.hidden.or(style.hidden);
+    // `hidden` resolvido: o inline vence a classe/`@media` (mesma precedência
+    // dos demais campos), e um `hidden="{chave}"` vence os dois — é o mais
+    // específico que o autor pôde escrever. Consumido em `widget::render_node`
+    // (pulado no layout).
+    let hidden_eval = bool_template(BoolAttr::Hidden)
+        .or(node.hidden)
+        .or(style.hidden);
     // `disabled` só existe como atributo inline (sem equivalente `.classe { }`),
-    // carregado direto, como `drag_handle`.
-    let disabled_eval = node.disabled;
+    // carregado direto, como `drag_handle` — mas também aceita placeholder.
+    let disabled_eval = bool_template(BoolAttr::Disabled).or(node.disabled);
     // Overlays por pseudo-estado: só embrulha num `Box` quando o `.gss`
     // realmente declarou algo para aquele estado, para não pagar uma
     // alocação por nó no caso comum (nenhum `:hover`/`:focus`/etc. no sheet).
@@ -1709,6 +1724,8 @@ fn eval_owned(
         children: children_eval,
         // Numeric templates are resolved into the f32 fields below; nothing left.
         numeric_templates: Vec::new(),
+        // Idem para os booleanos: já viraram `hidden_eval`/`disabled_eval`.
+        bool_templates: Vec::new(),
         width: width_eval,
         height: height_eval,
         padding: padding_eval,
@@ -1977,6 +1994,19 @@ mod tests {
         evaluate_node(&parse(xml), &HashMap::new(), templates, &styles, None).unwrap()
     }
 
+    /// Avalia `node` contra `ctx`, sem stylesheet nenhum.
+    fn eval_ctx(node: &UiNode, ctx: &HashMap<String, String>) -> UiNode {
+        let global: Vec<StyleSheet> = Vec::new();
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::new();
+        let styles = StyleContext {
+            global: &global,
+            by_component: &by_component,
+            viewport: None,
+            has_tag_rules: false,
+        };
+        evaluate_node(node, ctx, &HashMap::new(), &styles, None).unwrap()
+    }
+
     #[test]
     fn builtin_tag_selector_applies_to_node() {
         // `Button { padding: 7 }` casa o kind builtin, sem class/id no nó.
@@ -2028,5 +2058,44 @@ mod tests {
             &HashMap::new(),
         );
         assert_eq!(out.padding, None);
+    }
+
+    /// Regressão: `hidden`/`disabled` com placeholder eram resolvidos no PARSE,
+    /// comparando a string crua (`"{oculto}"` != `"true"`), então o data binding
+    /// que a documentação promete nunca ligava — um `hidden="{parado}"` deixava
+    /// o spinner girando para sempre. Agora a string vai para `bool_templates` e
+    /// é interpolada aqui, com o mesmo teste de verdade do `if`.
+    #[test]
+    fn hidden_e_disabled_resolvem_placeholder_do_contexto() {
+        let mut ctx = HashMap::new();
+        ctx.insert("oculto".to_string(), "true".to_string());
+        ctx.insert("travado".to_string(), "false".to_string());
+
+        let node = parse(r#"<Button text="x" hidden="{oculto}" disabled="{travado}" />"#);
+        let out = eval_ctx(&node, &ctx);
+        assert_eq!(out.hidden, Some(true), "hidden deve seguir o contexto");
+        assert_eq!(out.disabled, Some(false), "disabled deve seguir o contexto");
+
+        // A mesma árvore com o contexto invertido produz o inverso — é o ponto
+        // todo do binding: o valor acompanha o estado, não o texto do template.
+        ctx.insert("oculto".to_string(), "false".to_string());
+        ctx.insert("travado".to_string(), "sim".to_string());
+        let out = eval_ctx(&node, &ctx);
+        assert_eq!(out.hidden, Some(false));
+        assert_eq!(out.disabled, Some(true), "`sim` também é verdade, como no `if`");
+    }
+
+    /// Valor literal continua valendo (o caminho antigo não pode ter regredido),
+    /// e uma chave ausente resolve para vazio, que não é verdade.
+    #[test]
+    fn hidden_literal_e_chave_ausente_seguem_valendo() {
+        let ctx = HashMap::new();
+        let node = parse(r#"<Button text="x" hidden="true" />"#);
+        let out = eval_ctx(&node, &ctx);
+        assert_eq!(out.hidden, Some(true));
+
+        let node = parse(r#"<Button text="x" hidden="{nao_existe}" />"#);
+        let out = eval_ctx(&node, &ctx);
+        assert_eq!(out.hidden, Some(false));
     }
 }

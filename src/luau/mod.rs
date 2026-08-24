@@ -1568,6 +1568,36 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
         }
     })?;
     luau.globals().set("write_file", write_file)?;
+
+    // `append_file(path, texto)` — irmão do `write_file`, mas ACRESCENTA em vez
+    // de sobrescrever. Sem ele, um log em Luau só teria duas saídas ruins:
+    // manter o arquivo inteiro em memória e reescrevê-lo a cada linha, ou
+    // ler-modificar-gravar com `fetch("file://…")`, que suspende a corrotina —
+    // veneno dentro de uma seção crítica. Mesma assinatura de retorno:
+    // `(ok, erro?)`, e também cria os diretórios que faltarem.
+    let append_file = luau.create_function(|_, (path, contents): (String, String)| {
+        use std::io::Write;
+        let path = PathBuf::from(path);
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            return Ok((false, Some(e.to_string())));
+        }
+        let mut arquivo = match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            Ok(f) => f,
+            Err(e) => return Ok((false, Some(e.to_string()))),
+        };
+        match arquivo.write_all(contents.as_bytes()) {
+            Ok(()) => Ok((true, None)),
+            Err(e) => Ok((false, Some(e.to_string()))),
+        }
+    })?;
+    luau.globals().set("append_file", append_file)?;
     Ok(())
 }
 
@@ -3107,5 +3137,32 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&storage_file);
+    }
+
+    /// `append_file` acrescenta em vez de sobrescrever, cria o arquivo na
+    /// primeira chamada e os diretórios que faltarem — é o que sustenta um log
+    /// que sobrevive a um crash no meio de uma produção longa.
+    #[test]
+    fn append_file_cria_e_acrescenta_sem_substituir() {
+        let dir = std::env::temp_dir().join(format!("glacier_append_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let alvo = dir.join("sub").join("log.txt");
+        let comp = LuauComponent::from_source(
+            &format!(
+                "function escrever()\n\
+                   append_file({0:?}, 'linha 1\\n')\n\
+                   append_file({0:?}, 'linha 2\\n')\n\
+                 end",
+                alvo.to_str().unwrap()
+            ),
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        drive(&comp, "escrever", None, HashMap::new());
+
+        let conteudo = std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
+        assert_eq!(conteudo, "linha 1\nlinha 2\n", "a segunda chamada não pode substituir a primeira");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
