@@ -8,6 +8,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.5] — 2026-08-24
+
+### Adicionado
+- **`zip_dir(origem, destino)`** (Luau) — compacta um diretório num `.zip`
+  escrito direto no caminho de destino, criando os diretórios pais que
+  faltarem. Mesmo molde síncrono de `write_file`/`append_file` (não
+  suspende como `confirm()`/`fetch()`/`open_file()` — I/O local, não rede
+  nem diálogo). Recebe o caminho **final** já resolvido em vez de zipar
+  "em algum lugar" pra depois mover — mover um `.zip` pronto exigiria um
+  primitivo binary-safe que não existe (`write_file` só aceita `String`
+  Lua, que precisa ser UTF-8 válido). Combinado com `pick_folder()`
+  (0.58.4), dá o roteiro "escolher pasta → zipar direto lá" sem arquivo
+  intermediário. Nova dependência `zip` (`deflate-flate2`, reaproveitando
+  o `flate2` já existente).
+
 ## [0.58.4] — 2026-08-24
 
 ### Adicionado

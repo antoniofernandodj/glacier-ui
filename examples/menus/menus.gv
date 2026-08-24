@@ -4,68 +4,84 @@
      Lua abaixo, mesma convenção do atributo options de um Select). Ver
      src/menu.rs. -->
 <style>
-.bar        { background: #2E3440; }
-.screen     { background: #3B4252; }
-.card       { background: #434C5E; }
-.hint       { color: #D8DEE9; }
-.title      { color: #ECEFF4; }
+.bar      { background: #2E3440; padding: 4; }
+.screen   { background: #3B4252; width: fill; height: fill; }
+.content  { spacing: 20; padding: 30; }
+.card     { background: #434C5E; width: 260; height: 110; padding: 14; border-radius: 8; }
+.cards    { spacing: 20; }
+.hint     { color: #D8DEE9; size: 13; }
+.title    { color: #ECEFF4; size: 20; bold: true; }
+.divider  { width: 560; }
+.result   { color: #A3BE8C; size: 14; }
 </style>
 
-<Column width="fill" height="fill" class="screen">
-    <Row class="bar" padding="4">
-        <MenuBar>
-            <Menu label="Arquivo">
-                <MenuItem label="Novo" onClick="novo" />
-                <MenuItem label="Abrir" onClick="abrir" />
-                <Menu label="Recentes">
-                    <MenuItem label="projeto-a.gv" onClick="abrir_recente:a" />
-                    <MenuItem label="projeto-b.gv" onClick="abrir_recente:b" />
-                    <MenuItem label="projeto-c.gv" onClick="abrir_recente:c" />
-                </Menu>
-                <MenuSeparator />
-                <MenuItem label="Sair" onClick="sair" />
-            </Menu>
-            <Menu label="Editar">
-                <MenuItem label="Recortar" onClick="recortar" />
-                <MenuItem label="Copiar" onClick="copiar" />
-                <MenuItem label="Colar" onClick="colar" />
-            </Menu>
-        </MenuBar>
-    </Row>
+<column class="screen">
+    <row class="bar">
+        <menubar>
+            <menu label="Arquivo">
+                <menuitem label="Novo" on_click="novo" />
+                <menuitem label="Abrir" on_click="abrir" />
+                <menu label="Recentes">
+                    <menuitem label="projeto-a.gv" on_click="abrir_recente:a" />
+                    <menuitem label="projeto-b.gv" on_click="abrir_recente:b" />
+                    <menuitem label="projeto-c.gv" on_click="abrir_recente:c" />
+                </menu>
+                <menuseparator />
+                <menuitem label="Sair" on_click="sair" />
+            </menu>
+            <menu label="Editar">
+                <menuitem label="Recortar" on_click="recortar" />
+                <menuitem label="Copiar" on_click="copiar" />
+                <menuitem label="Colar" on_click="colar" />
+            </menu>
+        </menubar>
+    </row>
 
-    <Column spacing="20" padding="30">
-        <Text content="Menus (MenuBar ancorada + ContextMenu, com submenus)" size="20" bold="true" class="title" />
-        <Text content="Use os menus 'Arquivo'/'Editar' acima, ou clique com o botão direito nos cartões abaixo." size="13" class="hint" />
+    <column class="content">
+        <text
+            content="Menus (MenuBar ancorada + ContextMenu, com submenus)"
+            class="title"
+        />
+        <text
+            content="Use os menus 'Arquivo'/'Editar' acima, ou clique com o botão direito nos cartões abaixo."
+            class="hint"
+        />
 
-        <Row spacing="20">
-            <ContextMenu>
-                <Container width="260" height="110" padding="14" border_radius="8" class="card">
-                    <Text content="Botão direito: submenu estático de 3 níveis" class="hint" />
-                </Container>
-                <Menu label="Nível 1">
-                    <MenuItem label="Ação A1" onClick="acao_nivel1" />
-                    <Menu label="Nível 2">
-                        <MenuItem label="Ação A2" onClick="acao_nivel2" />
-                        <Menu label="Nível 3">
-                            <MenuItem label="Ação A3 (folha)" onClick="acao_nivel3" />
-                        </Menu>
-                    </Menu>
-                </Menu>
-                <MenuSeparator />
-                <MenuItem label="Ação direta" onClick="acao_direta" />
-            </ContextMenu>
+        <row class="cards">
+            <contextmenu>
+                <container class="card">
+                    <text
+                        content="Botão direito: submenu estático de 3 níveis"
+                        class="hint"
+                    />
+                </container>
+                <menu label="Nível 1">
+                    <menuitem label="Ação A1" on_click="acao_nivel1" />
+                    <menu label="Nível 2">
+                        <menuitem label="Ação A2" on_click="acao_nivel2" />
+                        <menu label="Nível 3">
+                            <menuitem label="Ação A3 (folha)" on_click="acao_nivel3" />
+                        </menu>
+                    </menu>
+                </menu>
+                <menuseparator />
+                <menuitem label="Ação direta" on_click="acao_direta" />
+            </contextmenu>
 
-            <ContextMenu items="dynamic_menu">
-                <Container width="260" height="110" padding="14" border_radius="8" class="card">
-                    <Text content="Botão direito: menu dinâmico (Lua/ctx.dynamic_menu)" class="hint" />
-                </Container>
-            </ContextMenu>
-        </Row>
+            <contextmenu items="dynamic_menu">
+                <container class="card">
+                    <text
+                        content="Botão direito: menu dinâmico (Lua/ctx.dynamic_menu)"
+                        class="hint"
+                    />
+                </container>
+            </contextmenu>
+        </row>
 
-        <Rule width="560" />
-        <Text content="Último resultado: {resultado}" size="14" color="#A3BE8C" />
-    </Column>
-</Column>
+        <rule class="divider" />
+        <text content="Último resultado: {resultado}" class="result" />
+    </column>
+</column>
 
 <script>
 -- Lua behavior, interpreted at runtime. ctx.dynamic_menu segue a mesma

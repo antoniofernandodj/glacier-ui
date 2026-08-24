@@ -284,6 +284,9 @@ impl LuauComponent {
         // A leitura correspondente é `fetch("file://…")` (ver `net::perform`).
         install_write_file(&luau)
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
+        // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
+        install_zip_dir(&luau)
+            .map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
         // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
         // execução em `sync_to_luau`.
         let viewport_table = luau
@@ -1706,6 +1709,83 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
         }
     })?;
     luau.globals().set("append_file", append_file)?;
+    Ok(())
+}
+
+/// Expõe `zip_dir(origem, destino)`: compacta a árvore de arquivos em
+/// `origem` num `.zip` escrito direto em `destino`. Mesma assinatura de
+/// retorno `(ok, erro?)` de `write_file`/`append_file`, e o mesmo raciocínio
+/// pra ser **síncrono** (não suspende como `confirm()`/`fetch()`/
+/// `open_file()`): é I/O local, não rede nem diálogo de usuário — zipar um
+/// punhado de arquivos de texto não é lento o bastante pra justificar
+/// suspensão.
+///
+/// Recebe o caminho FINAL já resolvido (não zipa "em algum lugar" pra depois
+/// mover): mover um `.zip` pronto exigiria um primitivo binary-safe que não
+/// existe hoje (`write_file` só aceita `String` Lua — precisa ser UTF-8
+/// válido, o que um `.zip` não é). O chamador Lua típico já sabe o destino
+/// de antemão (ex.: `pick_folder()` retomou com a pasta escolhida pelo
+/// usuário) — zipar direto ali evita o passo de mover e o arquivo órfão que
+/// sobraria se a cópia falhasse no meio.
+fn install_zip_dir(luau: &Lua) -> mlua::Result<()> {
+    let zip_dir = luau.create_function(|_, (source, dest): (String, String)| {
+        match zip_directory(&source, &dest) {
+            Ok(()) => Ok((true, None)),
+            Err(e) => Ok((false, Some(e.to_string()))),
+        }
+    })?;
+    luau.globals().set("zip_dir", zip_dir)?;
+    Ok(())
+}
+
+/// Compacta `source` (diretório) num `.zip` em `dest`, criando os diretórios
+/// pais de `dest` que faltarem — mesma conveniência de `write_file`.
+fn zip_directory(source: &str, dest: &str) -> std::io::Result<()> {
+    let dest_path = PathBuf::from(dest);
+    if let Some(parent) = dest_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file = std::fs::File::create(&dest_path)?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    let base = Path::new(source);
+    add_dir_recursive(base, base, &mut zip, options)?;
+    zip.finish()?;
+    Ok(())
+}
+
+/// Percorre `dir` recursivamente (relativo a `base`, que ancora os nomes
+/// dentro do `.zip`), escrevendo uma entrada de arquivo por arquivo e uma
+/// entrada de diretório (`nome/`) por subpasta.
+fn add_dir_recursive(
+    base: &Path,
+    dir: &Path,
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    options: zip::write::SimpleFileOptions,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        // Windows usa `\` como separador; um .zip sempre usa `/` — sem essa
+        // troca, um arquivo gerado no Windows abriria com nomes errados em
+        // qualquer outro SO.
+        let rel = path
+            .strip_prefix(base)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if path.is_dir() {
+            zip.add_directory(format!("{rel}/"), options)
+                .map_err(std::io::Error::other)?;
+            add_dir_recursive(base, &path, zip, options)?;
+        } else {
+            zip.start_file(&rel, options)
+                .map_err(std::io::Error::other)?;
+            std::io::copy(&mut std::fs::File::open(&path)?, zip)?;
+        }
+    }
     Ok(())
 }
 
@@ -3369,5 +3449,53 @@ mod tests {
         let conteudo = std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
         assert_eq!(conteudo, "linha 1\nlinha 2\n", "a segunda chamada não pode substituir a primeira");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `zip_dir` compacta a árvore inteira (arquivo no topo + arquivo numa
+    /// subpasta) e escreve o `.zip` já no caminho de destino, criando os
+    /// diretórios pais que faltarem — reabre o resultado com
+    /// `zip::ZipArchive` e confere nomes/conteúdo, provando que o roteiro
+    /// completo (`open_file`/`pick_folder` → `zip_dir` direto no destino
+    /// escolhido) produz um arquivo válido sem precisar de um diálogo real.
+    #[test]
+    fn zip_dir_compacta_arvore_e_escreve_no_destino() {
+        let base = std::env::temp_dir().join(format!("glacier_zip_{}", std::process::id()));
+        let origem = base.join("origem");
+        let destino = base.join("saida").join("obra.zip");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(origem.join("sub")).unwrap();
+        std::fs::write(origem.join("raiz.txt"), "conteúdo raiz").unwrap();
+        std::fs::write(origem.join("sub").join("filho.txt"), "conteúdo filho").unwrap();
+
+        let comp = LuauComponent::from_source(
+            &format!(
+                "function compactar()\n\
+                   local ok, erro = zip_dir({0:?}, {1:?})\n\
+                   ctx.ok = tostring(ok)\n\
+                   ctx.erro = erro or ''\n\
+                 end",
+                origem.to_str().unwrap(),
+                destino.to_str().unwrap()
+            ),
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "compactar", None, HashMap::new());
+        assert_eq!(data.get("ok").map(String::as_str), Some("true"), "{:?}", data.get("erro"));
+
+        let arquivo = std::fs::File::open(&destino).expect("o .zip (e a pasta pai) foi criado");
+        let mut zip = zip::ZipArchive::new(arquivo).unwrap();
+        let mut raiz = zip.by_name("raiz.txt").unwrap();
+        let mut conteudo = String::new();
+        std::io::Read::read_to_string(&mut raiz, &mut conteudo).unwrap();
+        assert_eq!(conteudo, "conteúdo raiz");
+        drop(raiz);
+        let mut filho = zip.by_name("sub/filho.txt").unwrap();
+        let mut conteudo_filho = String::new();
+        std::io::Read::read_to_string(&mut filho, &mut conteudo_filho).unwrap();
+        assert_eq!(conteudo_filho, "conteúdo filho");
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

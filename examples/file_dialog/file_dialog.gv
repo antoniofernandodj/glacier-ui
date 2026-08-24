@@ -3,26 +3,57 @@
      o sugar Lua correspondente; como é um diálogo de verdade do SO, só dá
      pra conferir rodando o exemplo file_dialog e clicando. -->
 <style>
-.screen  { background: #2E3440; }
-.title   { color: #ECEFF4; }
-.hint    { color: #D8DEE9; }
-.result  { color: #A3BE8C; }
+.screen      { background: #2E3440; width: fill; height: fill; padding: 30; spacing: 20; }
+.title       { color: #ECEFF4; size: 20; bold: true; }
+.hint        { color: #D8DEE9; size: 13; }
+.actions     { spacing: 10; }
+.btn         { padding: 8 16; }
+.btn-primary { color: #5E81AC; }
+.btn-accent  { color: #B48EAD; }
+.btn-warn    { color: #D08770; }
+.divider     { width: 600; }
+.result      { color: #A3BE8C; size: 14; }
 </style>
 
-<Column width="fill" height="fill" padding="30" spacing="20" class="screen">
-    <Text content="Diálogos de arquivo (nativos do SO)" size="20" bold="true" class="title" />
-    <Text content="Cada botão abre um diálogo de verdade do sistema operacional." size="13" class="hint" />
+<column class="screen">
+    <text
+        content="Diálogos de arquivo (nativos do SO)"
+        class="title"
+    />
+    <text
+        content="Cada botão abre um diálogo de verdade do sistema operacional."
+        class="hint"
+    />
 
-    <Row spacing="10">
-        <Button text="Abrir arquivo" on_click="abrir_arquivo" color="#5E81AC" padding="8 16" />
-        <Button text="Abrir vários" on_click="abrir_varios" color="#5E81AC" padding="8 16" />
-        <Button text="Salvar como" on_click="salvar_como" color="#B48EAD" padding="8 16" />
-        <Button text="Escolher pasta" on_click="escolher_pasta" color="#D08770" padding="8 16" />
-    </Row>
+    <row class="actions">
+        <button
+            text="Abrir arquivo"
+            on_click="abrir_arquivo"
+            class="btn btn-primary"
+        />
+        <button
+            text="Abrir vários"
+            on_click="abrir_varios"
+            class="btn btn-primary"
+        />
+        <button
+            text="Salvar como"
+            on_click="salvar_como"
+            class="btn btn-accent"
+        />
+        <button
+            text="Escolher pasta"
+            on_click="escolher_pasta"
+            class="btn btn-warn"
+        />
+    </row>
 
-    <Rule width="600" />
-    <Text content="Resultado: {resultado}" size="14" class="result" />
-</Column>
+    <rule class="divider" />
+    <text
+        content="Resultado: {resultado}"
+        class="result"
+    />
+</column>
 
 <script>
 function init()

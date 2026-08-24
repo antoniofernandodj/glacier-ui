@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.58.4"
+version = "0.58.5"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -44,6 +44,12 @@ base64 = "0.22"
 # na camada Luau. `AsyncFileDialog` devolve um future `Send`, encaixado em
 # `iced::Task::perform` do mesmo jeito que `net::perform` já é.
 rfd = "0.17"
+
+# `zip_dir(origem, destino)` na camada Luau (ver src/luau/mod.rs) — compacta
+# um diretório num .zip. Features default do crate ligam bzip2/lzma/zstd/
+# aes/ppmd/xz que não usamos; `deflate-flate2` reaproveita o `flate2` que já
+# é dependência direta deste projeto (gzip do `fetch`, ver `net.rs`).
+zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
 
 # ── Bandeja (system tray) — opcional, atrás da feature `tray` ────────────────
 # Só compila quando um app pede `.tray(...)` E habilita `features = ["tray"]`;
