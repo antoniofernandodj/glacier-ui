@@ -8,6 +8,31 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.2] — 2026-08-24
+
+### Adicionado
+- **`<MenuBar>`/`<Menu>`/`<MenuItem>`/`<MenuSeparator>`/`<ContextMenu>`** —
+  menu bar ancorada (File/Edit-style) e menu de contexto (botão direito),
+  com submenus recursivos a profundidade arbitrária (`crate::menu`, novo
+  módulo). `<Menu>` aninha normalmente dentro de outro `<Menu>`/
+  `<ContextMenu>` (mesma mecânica genérica de filhos que `<Column>`/`<Row>`
+  já tinham — nenhum campo recursivo novo no AST); `items="chave"` alterna/
+  complementa a markup estática com um array JSON dinâmico vindo do
+  contexto, mesma convenção de `<Select options="…">`, permitindo montar o
+  menu inteiro por Luau (`ctx.meu_menu = {...}`). Cliques em `<MenuItem>`
+  reaproveitam 100% do roteamento de ação existente
+  (`route_to_owner`/`LuauComponent::run_inner`) — nenhuma API nova no lado
+  Lua. Estado do menu aberto é um único `Option` global em `GlacierUI`
+  (como `dialog`), não uma instância por widget: só um menu/cascata pode
+  estar aberto por vez no app inteiro, então nenhum dos pré-requisitos de
+  "estado por instância" do `PLANO_WIDGETS.md` §3 se aplica. Overlay
+  próprio (`stack![]` + posicionamento por `padding`, ancorado na última
+  posição de cursor conhecida — não no `iced::advanced::Overlay` nativo,
+  documentado como upgrade de v2 no cabeçalho de `menu.rs`), com flip de
+  borda quando o painel não cabe na tela e destaque de hover por linha
+  (via `button`, não `container` — só widgets com `Status` recebem o hover
+  do iced sozinhos). Exemplo em `examples/menus/`.
+
 ## [0.58.1] — 2026-08-21
 
 ### Adicionado

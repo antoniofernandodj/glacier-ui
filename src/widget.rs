@@ -86,7 +86,7 @@ fn font_for(hint: &Option<String>) -> Option<Font> {
 }
 
 /// Whether a context string should count as "checked"/true.
-fn is_truthy(s: &str) -> bool {
+pub(crate) fn is_truthy(s: &str) -> bool {
     matches!(
         s.trim().to_ascii_lowercase().as_str(),
         "true" | "1" | "yes" | "on" | "sim"
@@ -276,6 +276,35 @@ pub enum EngineMessage {
         owner: String,
         id: u64,
     },
+    /// Posição do cursor (espaço da janela), atualizada por um listener
+    /// global de movimento do mouse (ver `crate::cursor_from_event`). Existe
+    /// só para dar a `OpenMenuBarDropdown`/`OpenContextMenu` um ponto-âncora
+    /// fresco no momento em que disparam — `iced::widget::mouse_area::on_move`
+    /// só expõe uma posição relativa aos PRÓPRIOS limites do widget, não à
+    /// janela, então rastrear globalmente evita cada gatilho precisar saber
+    /// sua própria posição de tela. Ver [`crate::menu`].
+    CursorMoved(iced::Point),
+    /// Um gatilho de `<MenuBar>`/`<Menu>` (topo) foi clicado: abre `tree`
+    /// ancorado na última posição de cursor conhecida.
+    OpenMenuBarDropdown {
+        tree: std::sync::Arc<Vec<crate::menu::MenuNode>>,
+    },
+    /// Um `<ContextMenu>` foi clicado com o botão direito: abre `tree`
+    /// ancorado na última posição de cursor conhecida.
+    OpenContextMenu {
+        tree: std::sync::Arc<Vec<crate::menu::MenuNode>>,
+    },
+    /// Cursor entrou numa linha de menu enquanto um menu/contexto está
+    /// aberto: `path` é a nova cascata de índices abertos (raiz→folha) —
+    /// vazio ao pairar uma linha-folha (fecha qualquer submenu mais fundo),
+    /// mais longo ao pairar uma linha com submenu próprio (abre-o).
+    MenuHoverSubmenu { path: Vec<usize> },
+    /// Um `<MenuItem>` folha foi clicado: despacha `action` como um
+    /// `UiClick` comum, depois fecha o menu/cascata inteiro.
+    MenuItemClick(String),
+    /// Clique-fora ou Escape: fecha o menu/cascata aberto sem despachar
+    /// nenhuma ação.
+    MenuDismiss,
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing
@@ -1380,6 +1409,88 @@ pub fn render_node<'a>(
             // TODO(diretivas): forma legada por tag; preferir atributos if/else/for-each. Remover quando templates forem migrados.
             // if/else are expanded during evaluation; nothing to render directly.
             column![].into()
+        }
+        NodeType::MenuBar => {
+            // Cada filho é um `NodeType::Menu` — renderizado normalmente
+            // (recursão comum), o que já produz o botão-gatilho estilizado
+            // via o próprio arm de `NodeType::Menu` abaixo.
+            let mut r = row![].spacing(2);
+            for child in &node.children {
+                r = r.push(render_node(child, context, editors, combos, assets));
+            }
+            r.into()
+        }
+        NodeType::Menu {
+            label,
+            disabled,
+            items,
+            ..
+        } => {
+            // Gatilho de dropdown: tanto o topo de uma `<MenuBar>` quanto um
+            // `<Menu>` avulso (fora de qualquer `MenuBar`) caem aqui e
+            // renderizam igual — um botão que abre `tree` ancorado no cursor.
+            // A árvore em si (`crate::menu::build_tree`) consome
+            // `node.children`/`items` diretamente; `render_node` nunca
+            // recursa neles (ver o arm de `MenuItem`/`MenuSeparator` abaixo).
+            let tree = std::sync::Arc::new(crate::menu::build_tree(
+                &node.children,
+                items.as_deref(),
+                context,
+            ));
+            let mut btn = button(text(label.as_str()).size(13))
+                .padding(Padding::from([6.0, 12.0]))
+                .style(|theme: &iced::Theme, status: button::Status| {
+                    let pal = theme.extended_palette();
+                    let bg = match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            pal.background.weak.color
+                        }
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        text_color: pal.background.base.text,
+                        border: Border {
+                            radius: iced::border::Radius::new(4.0),
+                            width: 0.0,
+                            color: Color::TRANSPARENT,
+                        },
+                        shadow: iced::Shadow::default(),
+                        snap: false,
+                    }
+                });
+            if !*disabled {
+                btn = btn.on_press(EngineMessage::OpenMenuBarDropdown { tree });
+            }
+            btn.into()
+        }
+        NodeType::ContextMenu { items } => {
+            // `children[0]` é o elemento envolvido (renderizado normalmente);
+            // `children[1..]` é o conteúdo do menu (`Menu`/`MenuItem`/
+            // `MenuSeparator`), consumido por `build_tree` — nunca por
+            // recursão comum de `render_node`.
+            let child_elem: Element<'a, EngineMessage> = node
+                .children
+                .first()
+                .map(|c| render_node(c, context, editors, combos, assets))
+                .unwrap_or_else(|| Space::new().into());
+            let menu_children = node.children.get(1..).unwrap_or(&[]);
+            let tree = std::sync::Arc::new(crate::menu::build_tree(
+                menu_children,
+                items.as_deref(),
+                context,
+            ));
+            mouse_area(child_elem)
+                .on_right_press(EngineMessage::OpenContextMenu { tree })
+                .into()
+        }
+        NodeType::MenuItem { .. } | NodeType::MenuSeparator => {
+            // Só alcançados como filho de `MenuBar`/`Menu`/`ContextMenu`,
+            // consumidos diretamente por `crate::menu::build_tree` — nunca
+            // pela recursão comum de `render_node` acima. Chegar aqui de
+            // verdade seria um bug (um `<MenuItem>` fora de um `<Menu>`);
+            // não ocupa espaço.
+            Space::new().width(Length::Shrink).height(Length::Shrink).into()
         }
         NodeType::Fragment => {
             // A `Fragment`'s children are normally spliced into the parent

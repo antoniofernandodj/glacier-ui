@@ -1556,6 +1556,37 @@ fn eval_owned(
                 .map(|c| process_tpl(c, context))
                 .or_else(|| style.color.clone()),
         },
+        NodeType::MenuBar => NodeType::MenuBar,
+        NodeType::Menu {
+            label,
+            icon,
+            disabled,
+            items,
+        } => NodeType::Menu {
+            label: process_tpl(label, context),
+            icon: icon.as_ref().map(|i| process_tpl(i, context)),
+            disabled: *disabled,
+            items: items.as_ref().map(|i| process_tpl(i, context)),
+        },
+        NodeType::MenuItem {
+            label,
+            icon,
+            on_click,
+            checked_var,
+            disabled,
+        } => NodeType::MenuItem {
+            label: process_tpl(label, context),
+            icon: icon.as_ref().map(|i| process_tpl(i, context)),
+            on_click: on_click
+                .as_ref()
+                .map(|o| namespace_action(process_tpl(o, context), owner)),
+            checked_var: checked_var.as_ref().map(|c| process_tpl(c, context)),
+            disabled: *disabled,
+        },
+        NodeType::MenuSeparator => NodeType::MenuSeparator,
+        NodeType::ContextMenu { items } => NodeType::ContextMenu {
+            items: items.as_ref().map(|i| process_tpl(i, context)),
+        },
         NodeType::Form { on_submit, name } => NodeType::Form {
             on_submit: on_submit
                 .as_ref()

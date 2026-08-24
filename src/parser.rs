@@ -252,6 +252,42 @@ pub enum NodeType {
         /// [`crate::stylesheet::parse_gss_in`].
         line: u32,
     },
+    /// A horizontal bar of top-level `<Menu>` triggers (File/Edit/View-style).
+    /// Each child is expected to be a [`NodeType::Menu`]; rendered as a plain
+    /// row of dropdown-trigger buttons (see `widget::render_node`).
+    MenuBar,
+    /// Either a `<MenuBar>`'s top-level trigger, or a nested submenu (when
+    /// itself a child of another `<Menu>`/`<ContextMenu>`) — which role it
+    /// plays depends only on where it sits, not on anything stored here.
+    /// `items` is a context KEY NAME (same convention as
+    /// [`NodeType::Select::options`], not the JSON itself) holding a JSON
+    /// array to merge in alongside/instead of static `<Menu>`/`<MenuItem>`/
+    /// `<MenuSeparator>` children — see [`crate::menu::build_tree`].
+    Menu {
+        label: String,
+        icon: Option<String>,
+        disabled: bool,
+        items: Option<String>,
+    },
+    /// A leaf, clickable menu row. `on_click` is namespaced exactly like
+    /// [`NodeType::Button::on_click`]. `checked_var` is a context key read as
+    /// a boolean truthy check (like `Checkbox::checked_var`), shown as a
+    /// checkmark — there is no built-in way to toggle it back, the script's
+    /// `on_click` handler is expected to flip it.
+    MenuItem {
+        label: String,
+        icon: Option<String>,
+        on_click: Option<String>,
+        checked_var: Option<String>,
+        disabled: bool,
+    },
+    /// A thin dividing line between menu rows.
+    MenuSeparator,
+    /// Wraps exactly one child (`children[0]`, the trigger) plus menu
+    /// content (`children[1..]`, `<Menu>`/`<MenuItem>`/`<MenuSeparator>`)
+    /// shown at the cursor position on right-click of that child. `items` is
+    /// the same context-key convention as [`NodeType::Menu::items`].
+    ContextMenu { items: Option<String> },
     /// A transparent grouping node: renders its children inline into the parent,
     /// adding no layout box of its own. Produced by [`UiNode::parse_xml`] when a
     /// template has more than one top-level node (so a component template can be
@@ -291,6 +327,11 @@ impl NodeType {
             NodeType::ProgressBar { .. } => "progressbar",
             NodeType::Spinner { .. } => "spinner",
             NodeType::Form { .. } => "form",
+            NodeType::MenuBar => "menubar",
+            NodeType::Menu { .. } => "menu",
+            NodeType::MenuItem { .. } => "menuitem",
+            NodeType::MenuSeparator => "menuseparator",
+            NodeType::ContextMenu { .. } => "contextmenu",
             NodeType::Include { .. }
             | NodeType::Component { .. }
             | NodeType::Import { .. }
@@ -1087,6 +1128,51 @@ impl UiNode {
                     value_field,
                     color,
                 }
+            }
+            "MenuBar" | "menubar" | "BarraMenu" | "barra_menu" => NodeType::MenuBar,
+            "Menu" | "menu" | "Cardapio" | "cardapio" => {
+                let label = Self::get_attr(&node, &["label", "texto", "text", "rotulo"])
+                    .unwrap_or_default();
+                let icon = Self::get_attr(&node, &["icon", "icone"]);
+                let disabled = Self::get_attr_bool(&node, &["disabled", "desabilitado"]);
+                let items = Self::get_attr(
+                    &node,
+                    &["items", "itens", "options", "opcoes", "source", "origem"],
+                );
+                NodeType::Menu {
+                    label,
+                    icon,
+                    disabled,
+                    items,
+                }
+            }
+            "MenuItem" | "menuitem" | "ItemMenu" | "item_menu" => {
+                let label = Self::get_attr(&node, &["label", "texto", "text", "rotulo"])
+                    .unwrap_or_default();
+                let icon = Self::get_attr(&node, &["icon", "icone"]);
+                let on_click = Self::get_attr(
+                    &node,
+                    &["onClick", "on_click", "on-click", "aoClicar", "ao_clicar"],
+                );
+                let checked_var = Self::get_attr(&node, &["checked", "marcado"]);
+                let disabled = Self::get_attr_bool(&node, &["disabled", "desabilitado"]);
+                NodeType::MenuItem {
+                    label,
+                    icon,
+                    on_click,
+                    checked_var,
+                    disabled,
+                }
+            }
+            "MenuSeparator" | "menuseparator" | "SeparadorMenu" | "separador_menu" => {
+                NodeType::MenuSeparator
+            }
+            "ContextMenu" | "contextmenu" | "MenuContexto" | "menu_contexto" => {
+                let items = Self::get_attr(
+                    &node,
+                    &["items", "itens", "options", "opcoes", "source", "origem"],
+                );
+                NodeType::ContextMenu { items }
             }
             "Form" | "form" | "Formulario" | "formulario" => {
                 let on_submit = Self::get_attr(

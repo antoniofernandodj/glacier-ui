@@ -9,6 +9,7 @@ pub mod error;
 pub mod eval;
 pub mod forms;
 pub mod luau;
+pub mod menu;
 pub mod net;
 pub mod parser;
 pub mod render_inputs;
@@ -150,6 +151,21 @@ pub struct GlacierUI {
     /// diálogo veio de um `Component::update` Rust (roteamento por `action`,
     /// comportamento legado).
     dialog_resume: Option<(String, u64)>,
+    /// O menu bar dropdown / menu de contexto atualmente aberto (ver
+    /// [`menu`]), se houver — singleton, como `dialog`: abrir qualquer menu
+    /// (ou outro diferente) substitui este. Nenhum pré-requisito de "estado
+    /// por instância" (`PLANO_WIDGETS.md` §3) se aplica aqui — só um
+    /// menu/cascata pode estar aberto por vez no app inteiro, como diálogos
+    /// reais de SO desktop. [`GlacierUI::render_current`] o sobrepõe por
+    /// cima de tudo (inclusive diálogo e toasts); [`GlacierUI::dispatch`] o
+    /// fecha num clique-fora, Escape, ou ao clicar um `<MenuItem>` folha.
+    active_menu: Option<menu::ActiveMenuState>,
+    /// Última posição de cursor conhecida (espaço da janela), atualizada por
+    /// um listener global de movimento do mouse (ver `cursor_from_event`).
+    /// Serve só de âncora para o próximo `OpenMenuBarDropdown`/
+    /// `OpenContextMenu` — ver o comentário em
+    /// [`widget::EngineMessage::CursorMoved`].
+    last_cursor_pos: iced::Point,
     /// Toasts currently in exhibition (see [`toasts`]), oldest first.
     /// [`GlacierUI::render_current`] overlays them on top of the active
     /// screen (and the dialog, if any); each expires on its own once
@@ -289,6 +305,8 @@ impl GlacierUI {
             drag: None,
             dialog: None,
             dialog_resume: None,
+            active_menu: None,
+            last_cursor_pos: iced::Point::ORIGIN,
             toasts: Vec::new(),
             next_toast_id: 0,
             active_streams: HashMap::new(),
@@ -570,10 +588,14 @@ impl GlacierUI {
             .retain(|t| now.duration_since(t.shown_at) < t.spec.duration);
     }
 
-    /// Renders the current active screen, with the active dialog (if any)
-    /// and any active toasts overlaid on top via [`dialogs::overlay`] and
-    /// [`toasts::overlay`] — toasts on top of the dialog, since they should
-    /// stay visible (and dismissible) even while a modal is up.
+    /// Renders the current active screen, with the active dialog (if any),
+    /// any active toasts, and the open menu/context-menu (if any) overlaid
+    /// on top, in that order — via [`dialogs::overlay`], [`toasts::overlay`]
+    /// and [`menu::overlay`]. Toasts sit above the dialog so they stay
+    /// visible (and dismissible) even while a modal is up; the menu sits
+    /// above BOTH — it's the layer currently being interacted with, and
+    /// shouldn't be obscured by a toast popping in mid-click, matching real
+    /// desktop-OS z-ordering (menus float above notification popups too).
     pub fn render_current(&self) -> Result<iced::Element<'_, EngineMessage>> {
         let name = self
             .current_screen
@@ -586,11 +608,19 @@ impl GlacierUI {
             }
             None => screen,
         };
-        Ok(if self.toasts.is_empty() {
+        let with_toasts = if self.toasts.is_empty() {
             with_dialog
         } else {
             let active = self.toasts.iter().map(|t| (t.id, &t.spec));
             iced::widget::stack![with_dialog, toasts::overlay(active, &self.theme())].into()
+        };
+        Ok(match &self.active_menu {
+            Some(state) => iced::widget::stack![
+                with_toasts,
+                menu::overlay(state, &self.theme(), self.inputs.viewport())
+            ]
+            .into(),
+            None => with_toasts,
         })
     }
 
@@ -833,6 +863,39 @@ impl GlacierUI {
                 return self.route_to_owner(action, |comp, bare_action, ctx| {
                     comp.update(bare_action, None, ctx);
                 });
+            }
+            // Rastreamento global de cursor (ver `cursor_from_event` e o
+            // comentário em `EngineMessage::CursorMoved`) — só guarda a
+            // posição, nunca reavalia nem envolve um componente.
+            EngineMessage::CursorMoved(p) => {
+                self.last_cursor_pos = *p;
+                return iced::Task::none();
+            }
+            EngineMessage::OpenMenuBarDropdown { tree } | EngineMessage::OpenContextMenu { tree } => {
+                self.active_menu = Some(menu::ActiveMenuState {
+                    tree: tree.clone(),
+                    anchor: self.last_cursor_pos,
+                    open_path: Vec::new(),
+                });
+                return iced::Task::none();
+            }
+            EngineMessage::MenuHoverSubmenu { path } => {
+                if let Some(m) = &mut self.active_menu {
+                    m.open_path = path.clone();
+                }
+                return iced::Task::none();
+            }
+            EngineMessage::MenuDismiss => {
+                self.active_menu = None;
+                return iced::Task::none();
+            }
+            // Clique num `<MenuItem>` folha: fecha o menu/cascata inteiro e
+            // roteia `action` exatamente como um `UiClick` comum (mesma
+            // chamada que `DialogButton` já faz) — a prova de que nenhum
+            // código novo de dispatch/Luau é necessário para menus.
+            EngineMessage::MenuItemClick(action) => {
+                self.active_menu = None;
+                (action.as_str(), None)
             }
             // Toasts (see `toasts`) never route to a component: dismissing
             // one (button click or expiry tick) is purely engine-side state.
@@ -2377,6 +2440,45 @@ fn viewport_from_event(
             width: size.width,
             height: size.height,
         }),
+        _ => None,
+    }
+}
+
+/// Rastreia a posição do cursor (espaço da janela) globalmente, publicando
+/// [`EngineMessage::CursorMoved`] a cada movimento — a âncora que
+/// `OpenMenuBarDropdown`/`OpenContextMenu` leem no momento em que abrem (ver
+/// [`crate::menu`]). Um listener global (em vez de um `mouse_area::on_move`
+/// no próprio gatilho) porque `on_move` só expõe uma posição relativa aos
+/// limites do PRÓPRIO widget, não à janela — sem posição absoluta não dá
+/// para posicionar o overlay corretamente. A `fn` livre é exigida por
+/// `iced::event::listen_with`, como os demais listeners globais abaixo.
+fn cursor_from_event(
+    event: iced::Event,
+    _status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    match event {
+        iced::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
+            Some(EngineMessage::CursorMoved(position))
+        }
+        _ => None,
+    }
+}
+
+/// Mapeia a tecla Escape para [`EngineMessage::MenuDismiss`] — fecha o menu/
+/// contexto aberto, se houver (`dispatch` já trata isso como no-op quando
+/// `active_menu` é `None`, então é seguro registrar globalmente e sempre).
+fn menu_escape_from_event(
+    event: iced::Event,
+    _status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    use iced::keyboard::{Event as Kbd, Key, key::Named};
+    match event {
+        iced::Event::Keyboard(Kbd::KeyPressed {
+            key: Key::Named(Named::Escape),
+            ..
+        }) => Some(EngineMessage::MenuDismiss),
         _ => None,
     }
 }

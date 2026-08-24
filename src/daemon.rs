@@ -987,6 +987,12 @@ impl Runtime {
             iced::event::listen_with(|e, s, id| {
                 crate::viewport_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
+            iced::event::listen_with(|e, s, id| {
+                crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
+            iced::event::listen_with(|e, s, id| {
+                crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
             window::close_events().map(DaemonMessage::Closed),
             // O pedido de fechar da WM (Alt+F4, botão da barra, logout) — chega
             // ANTES do fechamento, que é o único momento em que ainda dá para

@@ -1,0 +1,107 @@
+<!-- Menu bar ancorada (File/Edit) + dois menus de contexto (botão direito):
+     um com submenu estático de 3 níveis (prova profundidade arbitrária) e
+     outro cujo conteúdo vem de ctx.dynamic_menu (JSON populado pelo script
+     Lua abaixo, mesma convenção do atributo options de um Select). Ver
+     src/menu.rs. -->
+<style>
+.bar        { background: #2E3440; }
+.screen     { background: #3B4252; }
+.card       { background: #434C5E; }
+.hint       { color: #D8DEE9; }
+.title      { color: #ECEFF4; }
+</style>
+
+<Column width="fill" height="fill" class="screen">
+    <Row class="bar" padding="4">
+        <MenuBar>
+            <Menu label="Arquivo">
+                <MenuItem label="Novo" onClick="novo" />
+                <MenuItem label="Abrir" onClick="abrir" />
+                <Menu label="Recentes">
+                    <MenuItem label="projeto-a.gv" onClick="abrir_recente:a" />
+                    <MenuItem label="projeto-b.gv" onClick="abrir_recente:b" />
+                    <MenuItem label="projeto-c.gv" onClick="abrir_recente:c" />
+                </Menu>
+                <MenuSeparator />
+                <MenuItem label="Sair" onClick="sair" />
+            </Menu>
+            <Menu label="Editar">
+                <MenuItem label="Recortar" onClick="recortar" />
+                <MenuItem label="Copiar" onClick="copiar" />
+                <MenuItem label="Colar" onClick="colar" />
+            </Menu>
+        </MenuBar>
+    </Row>
+
+    <Column spacing="20" padding="30">
+        <Text content="Menus (MenuBar ancorada + ContextMenu, com submenus)" size="20" bold="true" class="title" />
+        <Text content="Use os menus 'Arquivo'/'Editar' acima, ou clique com o botão direito nos cartões abaixo." size="13" class="hint" />
+
+        <Row spacing="20">
+            <ContextMenu>
+                <Container width="260" height="110" padding="14" border_radius="8" class="card">
+                    <Text content="Botão direito: submenu estático de 3 níveis" class="hint" />
+                </Container>
+                <Menu label="Nível 1">
+                    <MenuItem label="Ação A1" onClick="acao_nivel1" />
+                    <Menu label="Nível 2">
+                        <MenuItem label="Ação A2" onClick="acao_nivel2" />
+                        <Menu label="Nível 3">
+                            <MenuItem label="Ação A3 (folha)" onClick="acao_nivel3" />
+                        </Menu>
+                    </Menu>
+                </Menu>
+                <MenuSeparator />
+                <MenuItem label="Ação direta" onClick="acao_direta" />
+            </ContextMenu>
+
+            <ContextMenu items="dynamic_menu">
+                <Container width="260" height="110" padding="14" border_radius="8" class="card">
+                    <Text content="Botão direito: menu dinâmico (Lua/ctx.dynamic_menu)" class="hint" />
+                </Container>
+            </ContextMenu>
+        </Row>
+
+        <Rule width="560" />
+        <Text content="Último resultado: {resultado}" size="14" color="#A3BE8C" />
+    </Column>
+</Column>
+
+<script>
+-- Lua behavior, interpreted at runtime. ctx.dynamic_menu segue a mesma
+-- convenção do options de um Select: um array JSON, aqui com action/items
+-- aninhado para submenu.
+function init()
+    ctx.resultado = "(nenhum ainda)"
+    ctx.dynamic_menu = {
+        { label = "Item dinâmico 1", action = "dyn_item_1" },
+        {
+            label = "Item dinâmico 2 (submenu)",
+            items = {
+                { label = "Sub-dinâmico A", action = "dyn_sub_a" },
+                { label = "Sub-dinâmico B", action = "dyn_sub_b" },
+            },
+        },
+        { separator = true },
+        { label = "Item desabilitado", action = "dyn_disabled", disabled = true },
+    }
+end
+
+function novo() ctx.resultado = "Arquivo > Novo" end
+function abrir() ctx.resultado = "Arquivo > Abrir" end
+function abrir_recente(id) ctx.resultado = "Arquivo > Recentes > " .. id end
+function sair() ctx.resultado = "Arquivo > Sair" end
+function recortar() ctx.resultado = "Editar > Recortar" end
+function copiar() ctx.resultado = "Editar > Copiar" end
+function colar() ctx.resultado = "Editar > Colar" end
+
+function acao_nivel1() ctx.resultado = "Nível 1 clicado" end
+function acao_nivel2() ctx.resultado = "Nível 1 > Nível 2 clicado" end
+function acao_nivel3() ctx.resultado = "Nível 1 > Nível 2 > Nível 3 (folha) clicado" end
+function acao_direta() ctx.resultado = "Ação direta (fora dos submenus)" end
+
+function dyn_item_1() ctx.resultado = "Dinâmico: Item 1" end
+function dyn_sub_a() ctx.resultado = "Dinâmico: Item 2 > Sub A" end
+function dyn_sub_b() ctx.resultado = "Dinâmico: Item 2 > Sub B" end
+function dyn_disabled() ctx.resultado = "(não deveria disparar — item desabilitado)" end
+</script>
