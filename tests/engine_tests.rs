@@ -57,7 +57,7 @@ fn test_interpolation() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         temp_xml_path,
-        r##"<Text content="Welcome, {user_name}! Role: {user_role}" />"##,
+        envolve(r##"<Text content="Welcome, {user_name}! Role: {user_role}" />"##),
     )
     .unwrap();
 
@@ -89,18 +89,18 @@ fn test_includes() {
 
     std::fs::write(
         card_path,
-        r##"<Container background="#222"><Text content="User: {name}" /></Container>"##,
+        envolve(r##"<Container background="#222"><Text content="User: {name}" /></Container>"##),
     )
     .unwrap();
 
     std::fs::write(
         main_path,
-        r##"
+        envolve(r##"
         <Column>
             <Include src="test_card" name="Alice" />
             <Include src="test_card" name="Charlie" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -138,7 +138,7 @@ fn test_if_else() {
     let path = "templates/test_if.gv";
     std::fs::write(
         path,
-        r##"
+        envolve(r##"
         <Column>
             <if cond="{logado}">
                 <Text content="Olá, {usuario}" />
@@ -150,7 +150,7 @@ fn test_if_else() {
                 <Text content="painel admin" />
             </if>
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -200,28 +200,28 @@ fn test_import_recursivo() {
     let badge_path = "templates/test_imp_badge.gv";
 
     // badge: folha, sem imports.
-    std::fs::write(badge_path, r##"<Text content="[{label}]" />"##).unwrap();
+    std::fs::write(badge_path, envolve(r##"<Text content="[{label}]" />"##)).unwrap();
 
     // card: importa badge e o usa pelo nome.
     std::fs::write(
         card_path,
-        r##"<import name="Badge" from="templates/test_imp_badge.gv" />
+        envolve(r##"<import name="Badge" from="templates/test_imp_badge.gv" />
         <Container background="#222">
             <Column>
                 <Text content="User: {name}" />
                 <Badge label="ok" />
             </Column>
-        </Container>"##,
+        </Container>"##),
     )
     .unwrap();
 
     // main: importa card (que por sua vez importa badge — recursivo).
     std::fs::write(
         main_path,
-        r##"<import name="Card" from="templates/test_imp_card.gv" />
+        envolve(r##"<import name="Card" from="templates/test_imp_card.gv" />
         <Column>
             <Card name="Alice" />
-        </Column>"##,
+        </Column>"##),
     )
     .unwrap();
 
@@ -276,19 +276,19 @@ fn test_componente_por_nome() {
 
     std::fs::write(
         card_path,
-        r##"<Container background="#222"><Text content="User: {name}" /></Container>"##,
+        envolve(r##"<Container background="#222"><Text content="User: {name}" /></Container>"##),
     )
     .unwrap();
 
     // Reuse via the component's own tag name instead of <Include>
     std::fs::write(
         main_path,
-        r##"
+        envolve(r##"
         <Column>
             <UserCard name="Alice" />
             <UserCard name="Charlie" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -331,12 +331,12 @@ fn test_builtin_badge_disponivel_sem_registro() {
     let tela_path = "templates/test_builtin_badge.gv";
     std::fs::write(
         tela_path,
-        r##"
+        envolve(r##"
         <Column>
             <Badge />
             <Badge badge_text="Novo" badge_bg="#A6E3A1" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -413,13 +413,13 @@ fn test_atributo_numerico_templado() {
     let card_path = "templates/test_num_card.gv";
     let main_path = "templates/test_num_main.gv";
 
-    std::fs::write(card_path, r##"<Text content="oi" size="{s}" />"##).unwrap();
+    std::fs::write(card_path, envolve(r##"<Text content="oi" size="{s}" />"##)).unwrap();
     std::fs::write(
         main_path,
-        r##"<Column>
+        envolve(r##"<Column>
             <NumCard s="28" />
             <NumCard />
-        </Column>"##,
+        </Column>"##),
     )
     .unwrap();
 
@@ -456,20 +456,20 @@ fn test_foreach_com_componente() {
     // Componente reutilizável que recebe props.
     std::fs::write(
         card_path,
-        r##"<Container background="#222"><Text content="{nome} - {cargo}" /></Container>"##,
+        envolve(r##"<Container background="#222"><Text content="{nome} - {cargo}" /></Container>"##),
     )
     .unwrap();
 
     // Usa o componente pelo nome dentro de um ForEach, passando campos como props.
     std::fs::write(
         main_path,
-        r##"
+        envolve(r##"
         <Column>
             <ForEach items="membros" var="m">
                 <Cartao nome="{m.nome}" cargo="{m.cargo}" />
             </ForEach>
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -541,13 +541,13 @@ fn test_foreach() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         path,
-        r##"
+        envolve(r##"
         <Column>
             <ForEach items="items" var="it">
                 <Text content="Item: {it.name} ({it.val})" />
             </ForEach>
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -581,6 +581,18 @@ fn test_foreach() {
 // --- Nested components: behavior composition -------------------------------
 
 use glacier_ui::{Component, Context, EngineMessage, Template};
+
+/// Embrulha o layout de um template de teste no cabeçalho que todo `.gv` passou
+/// a exigir na 0.61. Os testes escrevem arquivos, e é a arquivo que a regra se
+/// aplica — markup inline (`Template::Inline`) segue sendo fragmento.
+///
+/// **Sem quebra de linha nas emendas** de propósito: alguns testes asseguram a
+/// LINHA de um diagnóstico, e um `\n` depois do `<component>` deslocaria todas
+/// elas em um.
+fn envolve(layout: impl AsRef<str>) -> String {
+    format!("<component>{}</component>", layout.as_ref())
+}
+
 
 /// Child component with its own behavior. Its button action is `ping`.
 struct ChildComp;
@@ -799,7 +811,7 @@ fn test_gss_fill_and_max_width_resolve_from_class() {
     std::fs::write(gss, ".panel { width: fill; max-width: 640; }").unwrap();
 
     let path = "templates/test_maxw.gv";
-    std::fs::write(path, r##"<Container class="panel" />"##).unwrap();
+    std::fs::write(path, envolve(r##"<Container class="panel" />"##)).unwrap();
 
     motor.load_stylesheet(gss).unwrap();
     motor.register_component("maxw", path).unwrap();
@@ -848,16 +860,16 @@ fn test_link_stylesheet_is_global() {
     let a_path = "templates/test_scoped_a.gv";
     std::fs::write(
         a_path,
-        r##"
+        envolve(r##"
         <link rel="stylesheet" href="templates/test_linked.gss" />
         <Text class="box linked" content="A" />
-        "##,
+        "##),
     )
     .unwrap();
 
     // B doesn't declare the <link> itself, but should see its effect anyway.
     let b_path = "templates/test_scoped_b.gv";
-    std::fs::write(b_path, r##"<Text class="box linked" content="B" />"##).unwrap();
+    std::fs::write(b_path, envolve(r##"<Text class="box linked" content="B" />"##)).unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -908,19 +920,19 @@ fn test_inline_style_block_default_is_global() {
     let a_path = "templates/test_istyle_a.gv";
     std::fs::write(
         a_path,
-        r##"
+        envolve(r##"
         <style>
             .box { padding: 9; }
             .inlined { color: #abcabc; }
         </style>
         <Text class="box inlined" content="A" />
-        "##,
+        "##),
     )
     .unwrap();
 
     // B declares nothing, but should see A's plain <style> anyway.
     let b_path = "templates/test_istyle_b.gv";
-    std::fs::write(b_path, r##"<Text class="box inlined" content="B" />"##).unwrap();
+    std::fs::write(b_path, envolve(r##"<Text class="box inlined" content="B" />"##)).unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -971,19 +983,19 @@ fn test_inline_style_block_scoped_true_is_scoped() {
     let a_path = "templates/test_istyle_scoped_a.gv";
     std::fs::write(
         a_path,
-        r##"
+        envolve(r##"
         <style scoped="true">
             .box { padding: 9; }
             .scoped { color: #abcabc; }
         </style>
         <Text class="box scoped" content="A" />
-        "##,
+        "##),
     )
     .unwrap();
 
     // B declares nothing: it only sees the global sheet.
     let b_path = "templates/test_istyle_scoped_b.gv";
-    std::fs::write(b_path, r##"<Text class="box scoped" content="B" />"##).unwrap();
+    std::fs::write(b_path, envolve(r##"<Text class="box scoped" content="B" />"##)).unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -1031,11 +1043,11 @@ fn test_inline_style_overrides_linked_by_document_order() {
     let path = "templates/test_istyle_order.gv";
     std::fs::write(
         path,
-        r##"
+        envolve(r##"
         <link rel="stylesheet" href="templates/test_istyle_order.gss" />
         <style>.tag { color: #bbbbbb; }</style>
         <Text class="tag" content="x" />
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1065,7 +1077,7 @@ fn test_inline_style_reloads_with_template() {
     let path = "templates/test_istyle_reload.gv";
     std::fs::write(
         path,
-        r##"<style>.t { color: #010101; }</style><Text class="t" content="x" />"##,
+        envolve(r##"<style>.t { color: #010101; }</style><Text class="t" content="x" />"##),
     )
     .unwrap();
     motor.register_component("rel", path).unwrap();
@@ -1076,7 +1088,7 @@ fn test_inline_style_reloads_with_template() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     std::fs::write(
         path,
-        r##"<style>.t { color: #020202; }</style><Text class="t" content="x" />"##,
+        envolve(r##"<style>.t { color: #020202; }</style><Text class="t" content="x" />"##),
     )
     .unwrap();
     let _ = filetime_touch(path);
@@ -1112,7 +1124,7 @@ fn test_inline_attribute_wins_over_class() {
     // Inline color overrides the class; padding falls back to the class.
     std::fs::write(
         path,
-        r##"<Text class="tag" content="x" color="#ff0000" />"##,
+        envolve(r##"<Text class="tag" content="x" color="#ff0000" />"##),
     )
     .unwrap();
 
@@ -1141,18 +1153,18 @@ fn test_link_rel_import() {
     std::fs::create_dir_all("templates").ok();
 
     let child = "templates/test_li_child.gv";
-    std::fs::write(child, r##"<Text content="child:{x}" />"##).unwrap();
+    std::fs::write(child, envolve(r##"<Text content="child:{x}" />"##)).unwrap();
 
     let parent = "templates/test_li_parent.gv";
     // Declarative import via <link>; the component is then referenced by name.
     std::fs::write(
         parent,
-        r##"
+        envolve(r##"
         <link rel="import" href="templates/test_li_child.gv" as="ChildLink" />
         <Column>
             <ChildLink x="42" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1206,7 +1218,7 @@ fn test_textarea_parses_and_syncs() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let tpl = "templates/test_textarea.gv";
-    std::fs::write(tpl, xml).unwrap();
+    std::fs::write(tpl, envolve(xml)).unwrap();
     motor.register_component("tacomp", tpl).unwrap();
     // Só a tela ativa (ou um `keep_evaluated`) fica avaliada — ver reevaluate_all.
     motor.set_initial_screen("tacomp");
@@ -1247,7 +1259,7 @@ fn test_select_parses_and_renders() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let tpl = "templates/test_select.gv";
-    std::fs::write(tpl, xml).unwrap();
+    std::fs::write(tpl, envolve(xml)).unwrap();
     motor.register_component("selcomp", tpl).unwrap();
     motor.set_initial_screen("selcomp");
     motor.define_data(
@@ -1279,7 +1291,7 @@ fn test_if_else_inside_foreach() {
     let tpl = "templates/test_ifforeach.gv";
     std::fs::write(
         tpl,
-        r##"
+        envolve(r##"
         <link rel="data" href="templates/test_ifforeach.json" as="d" />
         <Column>
             <ForEach items="d.rows" var="r">
@@ -1291,7 +1303,7 @@ fn test_if_else_inside_foreach() {
                 </else>
             </ForEach>
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1331,7 +1343,7 @@ fn test_link_rel_data() {
     let tpl = "templates/test_data.gv";
     std::fs::write(
         tpl,
-        r##"
+        envolve(r##"
         <link rel="data" href="templates/test_data.json" as="app" />
         <Column>
             <Text content="{app.title}" />
@@ -1339,7 +1351,7 @@ fn test_link_rel_data() {
                 <Text content="{u.name}" />
             </ForEach>
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1382,10 +1394,10 @@ fn test_link_rel_theme() {
     let tpl = "templates/test_theme.gv";
     std::fs::write(
         tpl,
-        r##"
+        envolve(r##"
         <link rel="theme" href="templates/test_theme.json" />
         <Text content="x" />
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1489,14 +1501,14 @@ fn test_directives_as_attributes() {
     let path = "templates/test_directives_attr.gv";
     std::fs::write(
         path,
-        r##"
+        envolve(r##"
         <Column>
             <Text content="Olá, {usuario}" if="{logado}" />
             <Text content="Entre, por favor" senao />
             <Text content="painel admin" if="{papel}" equals="admin" />
             <Text content="painel comum" if="{papel}" notEquals="admin" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1552,11 +1564,11 @@ fn test_precedence_foreach_if_attributes() {
     let path = "templates/test_precedence.gv";
     std::fs::write(
         path,
-        r##"
+        envolve(r##"
         <Column>
             <Text content="Item: {u.nome}" for-each="usuarios" var="u" if="{u.ativo}" />
         </Column>
-        "##,
+        "##),
     )
     .unwrap();
 
@@ -1594,7 +1606,7 @@ fn test_unknown_extension_falls_back_to_xml() {
 
     std::fs::create_dir_all("templates").ok();
     let path = "templates/test_fallback.tmpl";
-    std::fs::write(path, r##"<Text content="via XML fallback" size="18" />"##).unwrap();
+    std::fs::write(path, envolve(r##"<Text content="via XML fallback" size="18" />"##)).unwrap();
 
     motor.register_component("fallback", path).unwrap();
 
@@ -1823,23 +1835,23 @@ fn test_fragment_component_splices_if_else_branch() {
     let main = "templates/test_frag_main.gv";
     std::fs::write(
         card,
-        r#"
+        envolve(r#"
         <Column if="{filler}" equals="1" class="filler" />
         <Column else class="card">
           <Text content="{name}" />
         </Column>
-        "#,
+        "#),
     )
     .unwrap();
     std::fs::write(
         main,
-        r#"
+        envolve(r#"
         <import name="FragCard" from="templates/test_frag_card.gv" />
         <Column class="grid">
           <FragCard filler="0" name="Alice" />
           <FragCard filler="1" name="Zzz" />
         </Column>
-        "#,
+        "#),
     )
     .unwrap();
 
@@ -1899,7 +1911,7 @@ fn test_register_component_wires_luau_when_script_present() {
     let path = "templates/test_scripted_unified.gv";
     std::fs::write(
         path,
-        r#"
+        envolve(r#"
 <Container>
   <Text content="{n}" />
   <Button text="+" onClick="inc" />
@@ -1908,7 +1920,7 @@ fn test_register_component_wires_luau_when_script_present() {
 function init() ctx.n = ctx.n or 0 end
 function inc() ctx.n = ctx.n + 1 end
 </script>
-"#,
+"#),
     )
     .unwrap();
 
@@ -1935,7 +1947,7 @@ fn test_register_component_ui_only_when_no_script() {
     let path = "templates/test_uionly_unified.gv";
     std::fs::write(
         path,
-        r#"<Container><Button text="x" onClick="nada" /></Container>"#,
+        envolve(r#"<Container><Button text="x" onClick="nada" /></Container>"#),
     )
     .unwrap();
 
@@ -1977,7 +1989,7 @@ fn test_register_wires_luau_as_layer_over_rust_component() {
     let path = "templates/test_hybrid_register.gv";
     std::fs::write(
         path,
-        r#"
+        envolve(r#"
 <Container>
   <Button text="lua" onClick="lua_only" />
   <Button text="rust" onClick="rust_only" />
@@ -1985,7 +1997,7 @@ fn test_register_wires_luau_as_layer_over_rust_component() {
 <script>
 function lua_only() ctx.from = "lua" end
 </script>
-"#,
+"#),
     )
     .unwrap();
 
@@ -2075,7 +2087,7 @@ fn tooltip_parses_interpolates_and_renders() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let tpl = "templates/test_tooltip.gv";
-    std::fs::write(tpl, xml).unwrap();
+    std::fs::write(tpl, envolve(xml)).unwrap();
     motor.register_component("tipcomp", tpl).unwrap();
     motor.define_data("help_text", "Ajuda interpolada");
     motor.reevaluate_all().unwrap();
@@ -2289,7 +2301,7 @@ fn button_com_filhos_renderiza() {
     let tpl = "templates/test_button_children.gv";
     std::fs::write(
         tpl,
-        r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#,
+        envolve(r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#),
     )
     .unwrap();
     motor.register_component("btncomp", tpl).unwrap();
@@ -2332,12 +2344,12 @@ fn else_if_atributo_encadeia_com_if_anterior() {
     let tpl = "templates/test_else_if_attr.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b">B</Text>
             <Text else-if="{x}" equals="c">C</Text>
             <Text else>D</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("eiattr", tpl).unwrap();
@@ -2366,12 +2378,12 @@ fn else_if_tag_encadeia_com_if_anterior() {
     let tpl = "templates/test_else_if_tag.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <If cond="{x}" equals="a"><Text>A</Text></If>
             <ElseIf cond="{x}" equals="b"><Text>B</Text></ElseIf>
             <ElseIf cond="{x}" equals="c"><Text>C</Text></ElseIf>
             <Else><Text>D</Text></Else>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("eitag", tpl).unwrap();
@@ -2401,11 +2413,11 @@ fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
     let tpl = "templates/test_else_if_short_circuit.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b">B1</Text>
             <Text else-if="{x}" equals="b">B2</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("eishort", tpl).unwrap();
@@ -2440,7 +2452,9 @@ fn one_of_atributo_casa_qualquer_token_da_lista() {
         // roda em `expand_children` (quando um pai avalia seus filhos), não
         // na raiz avaliada diretamente, então a raiz sozinha ignoraria a
         // condição.
-        r#"<Column><Text if="{view}" one_of="projects project new_service service">aceso</Text></Column>"#,
+        envolve(
+            r#"<Column><Text if="{view}" one_of="projects project new_service service">aceso</Text></Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("oneofattr", tpl).unwrap();
@@ -2479,11 +2493,11 @@ fn one_of_tag_funciona_em_if_e_em_else_if() {
     let tpl = "templates/test_one_of_tag.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <If cond="{view}" one_of="deployments deploy_engine"><Text>ops</Text></If>
             <ElseIf cond="{view}" one_of="projects project new_service service"><Text>projects</Text></ElseIf>
             <Else><Text>outro</Text></Else>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("oneoftag", tpl).unwrap();
@@ -2524,10 +2538,10 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
     let tpl = "templates/test_empty_attr.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <Text if="{items}" empty>nada</Text>
             <Text if="{items}" not_empty>tem coisa</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("emptyattr", tpl).unwrap();
@@ -2560,10 +2574,10 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
     let tpl = "templates/test_empty_tag.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <If cond="{items}" empty><Text>nada</Text></If>
             <ElseIf cond="{items}" not_empty><Text>tem coisa</Text></ElseIf>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("emptytag", tpl).unwrap();
@@ -2616,10 +2630,10 @@ fn import_href_relativo_ao_arquivo_importador() {
     let parent_path = format!("{dir}/parent.gv");
     let child_path = format!("{dir}/child.gv");
 
-    std::fs::write(&child_path, r#"<Text content="do filho" />"#).unwrap();
+    std::fs::write(&child_path, envolve(r#"<Text content="do filho" />"#)).unwrap();
     std::fs::write(
         &parent_path,
-        r#"<link rel="import" href="child.gv" as="Child" /><Column><Child /></Column>"#,
+        envolve(r#"<link rel="import" href="child.gv" as="Child" /><Column><Child /></Column>"#),
     )
     .unwrap();
 
@@ -2650,12 +2664,12 @@ fn import_href_absoluto_continua_funcionando_como_fallback() {
     let child_path = "templates/import_abs_child_only_here.gv";
     let parent_path = "templates/import_abs_sub/parent.gv";
 
-    std::fs::write(child_path, r#"<Text content="raiz" />"#).unwrap();
+    std::fs::write(child_path, envolve(r#"<Text content="raiz" />"#)).unwrap();
     std::fs::write(
         parent_path,
-        format!(
+        envolve(format!(
             r#"<link rel="import" href="{child_path}" as="Child" /><Column><Child /></Column>"#
-        ),
+        )),
     )
     .unwrap();
 
@@ -2694,10 +2708,10 @@ fn platform_filtra_sozinho_sem_precisar_de_cond() {
     let tpl = "templates/test_platform_bare.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <Text platform="desktop">só desktop</Text>
             <Text platform="web">só web</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("platformbare", tpl).unwrap();
@@ -2722,12 +2736,12 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
     let tpl = "templates/test_platform_chain.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b" platform="web">B (só web, nunca aqui)</Text>
             <Text else-if="{x}" equals="b">B</Text>
             <Text else>C</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("platformchain", tpl).unwrap();
@@ -2812,7 +2826,7 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
     let tpl = "templates/test_template_if_chain.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <template if="{view}" equals="a">
                 <Text>A1</Text>
                 <Text>A2</Text>
@@ -2824,7 +2838,7 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
                 <Text>C1</Text>
                 <Text>C2</Text>
             </template>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("templateifchain", tpl).unwrap();
@@ -2867,12 +2881,12 @@ fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
     let tpl = "templates/test_template_foreach.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <template for-each="items" var="it">
                 <Text>{it.name}</Text>
                 <Text>#{it.val}</Text>
             </template>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("templateforeach", tpl).unwrap();
@@ -2902,13 +2916,13 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
     let tpl = "templates/test_template_bare.gv";
     std::fs::write(
         tpl,
-        r#"<Column>
+        envolve(r#"<Column>
             <template>
                 <Text>um</Text>
                 <Text>dois</Text>
             </template>
             <Text>tres</Text>
-        </Column>"#,
+        </Column>"#),
     )
     .unwrap();
     motor.register_component("templatebare", tpl).unwrap();
@@ -2961,9 +2975,10 @@ fn test_screen_meta_reloads_with_template() {
     assert_eq!(meta.title.as_deref(), Some("Depois"));
     assert_eq!(meta.size, Some((900.0, 640.0)));
 
-    // Apagar o cabeçalho no arquivo também tem de apagá-lo no motor.
+    // Trocar o <screen> por um <component> (o cabeçalho sem metadados de
+    // janela) também tem de apagar os metadados no motor.
     std::thread::sleep(std::time::Duration::from_millis(10));
-    std::fs::write(path, r#"<Text content="x" />"#).unwrap();
+    std::fs::write(path, envolve(r#"<Text content="x" />"#)).unwrap();
     let _ = filetime_touch(path);
     motor.check_reload();
     assert!(motor.current_screen_meta().is_none());

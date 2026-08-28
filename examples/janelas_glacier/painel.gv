@@ -1,38 +1,40 @@
-<Container
-    padding="30"
-    alignX="Center"
-    alignY="Center"
-    width="fill"
-    height="fill"
-    background="#2E3440"
->
-    <Column spacing="22" align="Center">
-        <Text content="Painel (Rust)" size="28" bold="true" color="#ECEFF4" />
-        <Text content="Contador desta janela: {valor}" size="18" color="#A3BE8C" />
-        <Text content="Broadcasts recebidos: {recebidos}" size="14" color="#EBCB8B" />
+<screen title="Glacier - Janela principal" size="520 400">
+    <Container
+        padding="30"
+        alignX="Center"
+        alignY="Center"
+        width="fill"
+        height="fill"
+        background="#2E3440"
+    >
+        <Column spacing="22" align="Center">
+            <Text content="Painel (Rust)" size="28" bold="true" color="#ECEFF4" />
+            <Text content="Contador desta janela: {valor}" size="18" color="#A3BE8C" />
+            <Text content="Broadcasts recebidos: {recebidos}" size="14" color="#EBCB8B" />
 
-        <Button
-            text="Incrementar"
-            on_click="incrementar"
-            color="#5E81AC"
-            width="260"
-            padding="10"
-        />
+            <Button
+                text="Incrementar"
+                on_click="incrementar"
+                color="#5E81AC"
+                width="260"
+                padding="10"
+            />
 
-        <Text content="Abrir nova janela:" size="13" color="#81A1C1" />
-        <Row spacing="12" align="Center">
-            <Button
-                text="Component Rust"
-                on_click="nova_rust"
-                color="#B48EAD"
-                padding="10 16"
-            />
-            <Button
-                text="XML (Lua)"
-                on_click="nova_xml"
-                color="#D08770"
-                padding="10 16"
-            />
-        </Row>
-    </Column>
-</Container>
+            <Text content="Abrir nova janela:" size="13" color="#81A1C1" />
+            <Row spacing="12" align="Center">
+                <Button
+                    text="Component Rust"
+                    on_click="nova_rust"
+                    color="#B48EAD"
+                    padding="10 16"
+                />
+                <Button
+                    text="XML (Lua)"
+                    on_click="nova_xml"
+                    color="#D08770"
+                    padding="10 16"
+                />
+            </Row>
+        </Column>
+    </Container>
+</screen>

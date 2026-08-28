@@ -42,6 +42,40 @@ impl ScreenMeta {
     }
 }
 
+/// Uma prop declarada no `<props>` de um `<component>` — o **contrato** do
+/// componente com quem o usa.
+///
+/// ```xml
+/// <component>
+///     <props>
+///         <prop name="label" />
+///         <prop name="accent" default="0" />
+///     </props>
+///     …
+/// </component>
+/// ```
+///
+/// Antes disso o contrato existia só como comentário no topo do arquivo, e
+/// nada o verificava. O custo era pior do que "prop ausente vira vazio": as
+/// props entram como uma **camada** sobre o contexto de quem usa, e um lookup
+/// que falha na camada cai para o contexto de baixo — então `<StatCard
+/// labl="CPU"/>` não renderiza vazio, renderiza o `label` que existir no
+/// contexto global. Um typo era indetectável até alguém ver o valor errado na
+/// tela.
+///
+/// Declarar é **opcional**: um `<component>` sem `<props>` se comporta como
+/// sempre (nada é checado). A partir do momento em que existe um `<props>`, ele
+/// é a verdade — prop passada e não declarada é erro, e prop declarada sem
+/// `default` é obrigatória.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PropDecl {
+    /// Nome da prop, como quem usa o componente a escreve (`label="…"`).
+    pub name: String,
+    /// Valor usado quando quem chama não passa a prop. `None` torna a prop
+    /// **obrigatória**: a ausência vira erro em vez de cair no contexto global.
+    pub default: Option<String>,
+}
+
 /// Os atributos que o `<screen>` aceita, um grupo por campo do [`ScreenMeta`].
 /// A leitura (`from_node`) e a validação (`validate_header`) usam estas mesmas
 /// listas, para não existir um atributo que uma delas conheça e a outra não.
@@ -61,6 +95,35 @@ const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
     SCREEN_MIN_SIZE_ATTRS,
     SCREEN_RESIZABLE_ATTRS,
 ];
+
+/// Atributos que o motor consome como **diretiva** em qualquer nó — inclusive
+/// no uso de um componente (`<Card for-each="itens" var="i" nome="{i.nome}" />`).
+///
+/// Eles entram no mapa de props junto com o resto (todo atributo entra), mas
+/// não são props: quem os lê é o `expand_children`, antes de o componente ser
+/// inlinado. A checagem do `<props>` os pula por isso — do contrário o
+/// `for-each` de um `<ServiceCard>` seria acusado de prop desconhecida.
+#[rustfmt::skip] // agrupado por natureza da diretiva; uma por linha esconde isso
+pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
+    // condicionais
+    "if", "se", "else", "senao", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
+    "cond", "condition", "when", "quando", "condicao",
+    "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
+    "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
+    "platform", "plataforma",
+    // repetição
+    "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // arrastar-e-soltar da lista repetida
+    "onReorder", "on_reorder", "on-reorder", "aoReordenar",
+    "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
+];
+
+/// Os atributos de um `<prop>`, um grupo por campo do [`PropDecl`]. Mesmo
+/// contrato das listas do `<screen>`: leitura e validação partilham a lista.
+const PROP_NAME_ATTRS: &[&str] = &["name", "nome"];
+const PROP_DEFAULT_ATTRS: &[&str] = &["default", "padrao", "padrão"];
+const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS];
 
 /// As tags que podem morar dentro de um `<resources>`. Tudo o mais ali dentro é
 /// erro: um widget num bloco de declarações não desenharia nada, e sumir em
@@ -95,8 +158,9 @@ fn parse_bool_value(raw: &str) -> Option<bool> {
     }
 }
 
-/// Confere o cabeçalho (`<screen>`/`<resources>`) **antes** de o template ser
-/// montado, e devolve o primeiro problema encontrado.
+/// Confere o cabeçalho (`<screen>`/`<component>`, e o `<resources>`/`<props>`
+/// de dentro dele) **antes** de o template ser montado, e devolve o primeiro
+/// problema encontrado.
 ///
 /// O cabeçalho é a parte do template que não desenha nada, e é justamente por
 /// isso que ele precisa de erro alto: um `titel=` trocado, um `size="960"` pela
@@ -104,19 +168,60 @@ fn parse_bool_value(raw: &str) -> Option<bool> {
 /// visual — a tela abre igual, só que sem o que você acabou de escrever. Sem
 /// esta passada, o autor fica olhando para um arquivo que "está certo".
 ///
+/// A partir da 0.61 esta passada também é quem **exige** o cabeçalho num
+/// arquivo (`file.is_some()`) e quem garante que ele envolve o arquivo inteiro.
+/// Antes, um `<screen>` escrito como *irmão* do layout não dava erro: ele caía
+/// no caminho do `Fragment`, os metadados até eram recolhidos, e o layout
+/// ganhava calado um `column![]` implícito por volta — a janela abria com o
+/// título certo e o layout diferente. Um dos vários meios-termos que esta
+/// função agora fecha.
+///
 /// Roda sobre o documento do roxmltree (e não sobre a árvore já convertida) para
 /// citar o nome do atributo como o autor o escreveu e apontar a linha certa.
-fn validate_header(fragment: Node) -> Option<Diagnostic> {
-    for child in fragment.children().filter(Node::is_element) {
+fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
+    let topo: Vec<Node> = fragment.children().filter(Node::is_element).collect();
+    let cabecalho = topo
+        .iter()
+        .find(|n| is_screen_tag(n.tag_name().name()) || is_component_tag(n.tag_name().name()));
+
+    // Um cabeçalho só é cabeçalho se envolve o arquivo inteiro. Escrito ao lado
+    // do layout ele não envolve nada — e é justamente a forma que passava calada.
+    if let Some(h) = cabecalho
+        && topo.len() > 1
+    {
+        let tag = h.tag_name().name();
+        return Some(
+            diagnostic_at(*h, format!("<{tag}> não é a raiz do arquivo")).with_hint(
+                "o cabeçalho envolve o template inteiro: tudo — <resources>, <props> e o \
+                 layout — vai DENTRO dele, e ele é a única tag no topo do arquivo",
+            ),
+        );
+    }
+
+    // Arquivo sem cabeçalho: erro desde a 0.61. Markup inline (`Template::Inline`,
+    // usado pelos builtins) não tem janela nem arquivo a que um cabeçalho se
+    // aplique, e segue sendo um fragmento — por isso a regra olha o `file`.
+    if cabecalho.is_none()
+        && let Some(f) = file
+    {
+        let d = Diagnostic::new(1, 1, format!("{f}: template sem cabeçalho")).with_hint(
+            "todo .gv começa com <screen …> (uma janela: título e tamanho no atributo) \
+             ou <component> (um pedaço de tela importado por outro template), e o resto \
+             do arquivo vai dentro dele — <resources> para <style>/<link>/<import>/<script>, \
+             <props> para as props, e depois o layout",
+        );
+        return Some(d);
+    }
+
+    for child in topo {
         let tag = child.tag_name().name();
-        if is_resources_tag(tag) {
-            // Um `<resources>` solto na raiz não agrupa nada: fora do `<screen>`
-            // ele não é cabeçalho de coisa alguma, e o parse o descartaria.
+        if is_resources_tag(tag) || is_props_tag(tag) {
+            // Solto na raiz não agrupa nada: fora do cabeçalho não é cabeçalho de
+            // coisa alguma, e o parse o descartaria.
             return Some(
                 diagnostic_at(child, format!("<{tag}> fora de um cabeçalho")).with_hint(
-                    "o <resources> só existe dentro do <screen> (uma janela) ou do \
-                     <component> (um pedaço de tela); sem cabeçalho, as declarações ficam \
-                     soltas na raiz mesmo",
+                    "o <resources> e o <props> só existem dentro do <screen> (uma janela) \
+                     ou do <component> (um pedaço de tela)",
                 ),
             );
         }
@@ -131,15 +236,19 @@ fn validate_header(fragment: Node) -> Option<Diagnostic> {
                     "title/size/min-size/resizable descrevem uma JANELA, e um <component> \
                      não é uma — quem é janela usa <screen>"
                 } else {
-                    "o <component> não leva atributos; as props de um componente vêm de quem \
-                     o usa (<MeuCard prop=\"…\" />), não do arquivo"
+                    "o <component> não leva atributos; as props que ele ACEITA se declaram \
+                     no <props> de dentro dele, e os valores vêm de quem o usa \
+                     (<MeuCard prop=\"…\" />)"
                 };
                 return Some(
                     diagnostic_at_attr(child, attr, format!("atributo '{name}' no <{tag}>"))
                         .with_hint(hint),
                 );
             }
-            if let Some(d) = validate_resources(child) {
+            if let Some(d) = validate_resources(child).or_else(|| validate_props(child)) {
+                return Some(d);
+            }
+            if let Some(d) = validate_no_nested_header(child) {
                 return Some(d);
             }
             continue;
@@ -190,8 +299,137 @@ fn validate_header(fragment: Node) -> Option<Diagnostic> {
             }
         }
 
+        // Uma janela não tem quem lhe passe props: ela é aberta, não usada por
+        // outro template. Um `<props>` aqui prometeria uma checagem que não tem
+        // como acontecer.
+        if let Some(p) = child
+            .children()
+            .filter(Node::is_element)
+            .find(|n| is_props_tag(n.tag_name().name()))
+        {
+            return Some(
+                diagnostic_at(p, "<props> num <screen>".to_string()).with_hint(
+                    "props são o contrato de um componente com quem o USA, e ninguém usa \
+                     uma janela — ela é aberta. Um arquivo que é as duas coisas vira \
+                     <component>, e a janela que o abre importa ele",
+                ),
+            );
+        }
+
         if let Some(d) = validate_resources(child) {
             return Some(d);
+        }
+        if let Some(d) = validate_no_nested_header(child) {
+            return Some(d);
+        }
+    }
+    None
+}
+
+/// Recusa um `<screen>`/`<component>`/`<resources>`/`<props>` escrito no meio do
+/// layout, em qualquer profundidade.
+///
+/// Nenhum deles desenha: a avaliação os descarta como declaração fora de lugar,
+/// então o sintoma de escrever um ali é a subárvore inteira sumir da tela sem
+/// uma linha de aviso. É o mesmo raciocínio do widget dentro do `<resources>` —
+/// só que este `validate_header` antigo não descia além do topo.
+fn validate_no_nested_header(header: Node) -> Option<Diagnostic> {
+    fn desce(node: Node, dentro_do_cabecalho: bool) -> Option<Diagnostic> {
+        for child in node.children().filter(Node::is_element) {
+            let tag = child.tag_name().name();
+            // Os blocos legítimos do cabeçalho ficam no primeiro nível dele, e o
+            // conteúdo deles já é conferido por `validate_resources`/`validate_props`.
+            if dentro_do_cabecalho && (is_resources_tag(tag) || is_props_tag(tag)) {
+                continue;
+            }
+            if is_screen_tag(tag) || is_component_tag(tag) || is_resources_tag(tag) {
+                return Some(
+                    diagnostic_at(child, format!("<{tag}> dentro do layout")).with_hint(
+                        "o cabeçalho é a raiz do arquivo, não um widget: <screen>/<component> \
+                         envolvem o template inteiro e só aparecem uma vez, no topo",
+                    ),
+                );
+            }
+            if is_props_tag(tag) {
+                return Some(
+                    diagnostic_at(child, "<props> dentro do layout".to_string()).with_hint(
+                        "o <props> é o primeiro bloco de dentro do <component>, ao lado do \
+                         <resources> — não um nó de layout",
+                    ),
+                );
+            }
+            if let Some(d) = desce(child, false) {
+                return Some(d);
+            }
+        }
+        None
+    }
+    desce(header, true)
+}
+
+/// Confere o `<props>` de um `<component>`: só `<prop name="…">` entra nele,
+/// todo `<prop>` tem nome, e nenhum nome se repete.
+///
+/// Um `<props>` com erro é pior do que nenhum: ele **liga** a checagem de props
+/// do componente (ver [`PropDecl`]), então um nome escrito errado aqui vira uma
+/// prop obrigatória que ninguém passa — e a prop de verdade vira desconhecida.
+fn validate_props(header: Node) -> Option<Diagnostic> {
+    for bloco in header.children().filter(Node::is_element) {
+        if !is_props_tag(bloco.tag_name().name()) {
+            continue;
+        }
+        if let Some(attr) = bloco.attributes().next() {
+            return Some(
+                diagnostic_at_attr(
+                    bloco,
+                    attr,
+                    format!("atributo '{}' no <props>", attr.name()),
+                )
+                .with_hint("o <props> só agrupa <prop>; quem leva atributo é cada <prop>"),
+            );
+        }
+        let mut vistos: Vec<String> = Vec::new();
+        for decl in bloco.children().filter(Node::is_element) {
+            let tag = decl.tag_name().name();
+            if !is_prop_tag(tag) {
+                return Some(
+                    diagnostic_at(decl, format!("<{tag}> não é um <prop>")).with_hint(
+                        "dentro do <props> só entram <prop name=\"…\" /> — um por prop que \
+                         o componente aceita",
+                    ),
+                );
+            }
+            for attr in decl.attributes() {
+                let name = attr.name();
+                if !PROP_ATTR_GROUPS.iter().any(|g| g.contains(&name)) {
+                    return Some(
+                        diagnostic_at_attr(
+                            decl,
+                            attr,
+                            format!("atributo '{name}' desconhecido no <prop>"),
+                        )
+                        .with_hint(
+                            "um <prop> aceita name e default (apelidos: nome, padrao); sem \
+                             default a prop é obrigatória",
+                        ),
+                    );
+                }
+            }
+            let Some(nome) = UiNode::get_attr(&decl, PROP_NAME_ATTRS) else {
+                return Some(
+                    diagnostic_at(decl, "<prop> sem name".to_string()).with_hint(
+                        "toda prop precisa do nome com que quem usa o componente a escreve: \
+                         <prop name=\"label\" />",
+                    ),
+                );
+            };
+            if vistos.contains(&nome) {
+                return Some(
+                    diagnostic_at(decl, format!("prop '{nome}' declarada duas vezes"))
+                        .with_hint("cada prop aparece uma vez; o segundo <prop> não tem efeito"),
+                );
+            }
+            vistos.push(nome);
         }
     }
     None
@@ -239,6 +477,14 @@ fn is_screen_tag(tag: &str) -> bool {
 
 fn is_resources_tag(tag: &str) -> bool {
     tag.eq_ignore_ascii_case("resources") || tag.eq_ignore_ascii_case("recursos")
+}
+
+fn is_props_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("props")
+}
+
+fn is_prop_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("prop")
 }
 
 /// Posição de um nó no arquivo do autor, já descontando a raiz sintética (que
@@ -455,6 +701,15 @@ pub enum NodeType {
     /// então esta variante só existe para o achatamento em
     /// [`UiNode::parse_xml_with_source`].
     Resources,
+    /// O `<props>` de um `<component>`: as props que ele aceita. Como
+    /// [`NodeType::Screen`], é uma **declaração** — viaja pendurada na raiz e é
+    /// descartada na avaliação; quem a consome é o inline de componente, em
+    /// `eval.rs`. Ver [`PropDecl`].
+    Props(Vec<PropDecl>),
+    /// Um `<prop name="…" default="…"/>` de dentro do `<props>`. Vira
+    /// [`PropDecl`] no próprio parse, então esta variante só existe para o
+    /// achatamento — como [`NodeType::Resources`].
+    Prop,
     ForEach {
         items: String,
         var: String,
@@ -628,6 +883,8 @@ impl NodeType {
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
             | NodeType::Resources
+            | NodeType::Props(_)
+            | NodeType::Prop
             | NodeType::Fragment => return None,
         })
     }
@@ -1691,6 +1948,25 @@ impl UiNode {
             }
             "component" | "Component" | "componente" | "Componente" => NodeType::ComponentRoot,
             "resources" | "Resources" | "recursos" | "Recursos" => NodeType::Resources,
+            "props" | "Props" => {
+                // As props são lidas do XML aqui mesmo (como os atributos do
+                // `<screen>`), e não dos `children` montados abaixo: um `<prop>`
+                // não é nó de layout nenhum, é uma linha de contrato. O que
+                // chega aqui já passou por `validate_header` — nome ausente ou
+                // repetido virou erro posicionado antes.
+                NodeType::Props(
+                    node.children()
+                        .filter(Node::is_element)
+                        .filter_map(|p| {
+                            Some(PropDecl {
+                                name: Self::get_attr(&p, PROP_NAME_ATTRS)?,
+                                default: Self::get_attr(&p, PROP_DEFAULT_ATTRS),
+                            })
+                        })
+                        .collect(),
+                )
+            }
+            "prop" | "Prop" => NodeType::Prop,
             "link" | "Link" => {
                 let rel = Self::get_attr(&node, &["rel", "tipo"])
                     .unwrap_or_else(|| "stylesheet".to_string());
@@ -1880,8 +2156,9 @@ impl UiNode {
         let fragment = doc.root_element();
 
         // O cabeçalho não desenha nada, então um engano nele é invisível em
-        // tempo de execução: erra alto, antes de montar a árvore.
-        if let Some(mut d) = validate_header(fragment) {
+        // tempo de execução: erra alto, antes de montar a árvore. É também aqui
+        // que a obrigatoriedade mora — ver `validate_header`.
+        if let Some(mut d) = validate_header(fragment, file) {
             d = match file {
                 Some(f) => d.in_file(f, source),
                 None => d.with_source(source),
@@ -1904,22 +2181,23 @@ impl UiNode {
             }
         }
 
-        // `<screen>` como raiz (a forma com cabeçalho): ele não é layout nem
-        // desenha nada — é uma casca. Aqui ela se abre: os metadados viram mais
-        // uma declaração (como `<style>`), o `<resources>` se dissolve nas
-        // declarações que carrega, e os filhos restantes são o layout de
-        // verdade — que segue daqui para baixo pelo mesmo caminho de sempre.
-        // Por isso as duas formas de escrever um template convergem numa única
-        // árvore: só o parse as distingue.
+        // O cabeçalho não é layout nem desenha nada — é uma casca. Aqui ela se
+        // abre: os metadados do `<screen>` viram mais uma declaração (como um
+        // `<style>`), o `<props>` do `<component>` idem, o `<resources>` se
+        // dissolve nas declarações que carrega, e os filhos restantes são o
+        // layout de verdade — que segue daqui para baixo pelo mesmo caminho de
+        // sempre. É por isso que o resto do motor (eval, widget, daemon) nunca
+        // precisa saber que um cabeçalho existiu: depois deste bloco a árvore é
+        // a mesma que a forma sem cabeçalho produzia até a 0.60.
         let mut header_is_empty = false;
         let mut header_tag = "screen";
         if roots.len() == 1
             && matches!(roots[0].kind, NodeType::Screen(_) | NodeType::ComponentRoot)
         {
             let header = roots.pop().expect("len checked");
-            // O `<component>` é o mesmo cabeçalho sem metadados: um arquivo que
-            // não é janela nenhuma, só um pedaço de tela que outro template
-            // importa. Daqui para baixo os dois se comportam igual.
+            // O `<component>` é o mesmo cabeçalho sem metadados de janela: um
+            // arquivo que não é janela nenhuma, só um pedaço de tela que outro
+            // template importa. Daqui para baixo os dois se comportam igual.
             let meta = match header.kind {
                 NodeType::Screen(meta) => Some(meta),
                 _ => {
@@ -1934,9 +2212,10 @@ impl UiNode {
                     // construção — inclusive o que não for (um widget perdido
                     // ali dentro é stripado na avaliação, não desenha).
                     NodeType::Resources => decls.extend(child.children),
-                    NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. } => {
-                        decls.push(child)
-                    }
+                    NodeType::Import { .. }
+                    | NodeType::Link { .. }
+                    | NodeType::Style { .. }
+                    | NodeType::Props(_) => decls.push(child),
                     _ => {
                         header_is_empty = false;
                         roots.push(child);
@@ -2262,14 +2541,182 @@ mod diagnostic_tests {
     }
 
     // Template sem nó de layout tem mensagem própria (e dica), não um erro
-    // genérico de XML.
+    // genérico de XML. Sem `file`, porque um ARQUIVO sem cabeçalho já erra
+    // antes, com outra mensagem (ver `cabecalho_obrigatorio_tests`).
     #[test]
     fn template_sem_raiz_tem_mensagem_propria() {
-        let err = UiNode::parse_xml_in("<link rel=\"stylesheet\" href=\"a.gss\" />", Some("t.xml"))
-            .unwrap_err();
+        let err = UiNode::parse_xml("<link rel=\"stylesheet\" href=\"a.gss\" />").unwrap_err();
         let d = err.diagnostic().unwrap();
         assert!(d.message.contains("raiz"), "{}", d.message);
         assert!(d.hint.is_some());
+    }
+}
+
+/// A obrigatoriedade do cabeçalho (0.61) e os meios-termos que ela fecha.
+///
+/// A regra distingue pela **origem**, não pelo conteúdo: um arquivo sempre tem
+/// cabeçalho; markup inline (`Template::Inline`, como os builtins da própria
+/// lib) nunca precisa, porque não há arquivo nem janela a que um cabeçalho se
+/// aplique.
+#[cfg(test)]
+mod cabecalho_obrigatorio_tests {
+    use super::*;
+
+    #[test]
+    fn arquivo_sem_cabecalho_erra_ensinando_a_forma() {
+        let err = UiNode::parse_xml_in("<column><text>oi</text></column>", Some("tela.gv"))
+            .expect_err("arquivo sem cabeçalho não passa mais");
+        let d = err.diagnostic().unwrap();
+        assert!(d.message.contains("sem cabeçalho"), "{}", d.message);
+        let hint = d.hint.as_deref().expect("o erro ensina a forma");
+        assert!(hint.contains("<screen"), "{hint}");
+        assert!(hint.contains("<component>"), "{hint}");
+    }
+
+    #[test]
+    fn markup_inline_segue_sendo_fragmento() {
+        // É por aqui que passam os builtins (`Badge`, `TimePicker`): XML
+        // compilado no binário, sem arquivo nem janela.
+        UiNode::parse_xml(r#"<Container><Text content="x" /></Container>"#)
+            .expect("inline não exige cabeçalho");
+    }
+
+    /// O meio-termo que passava calado até a 0.60: o `<screen>` escrito como
+    /// IRMÃO do layout. Os metadados eram recolhidos (a janela abria com o
+    /// título certo), mas o layout virava um `Fragment` e ganhava um `column!`
+    /// implícito em `shrink` por volta — um `height: fill` na raiz mudava de
+    /// comportamento sem uma linha de aviso.
+    #[test]
+    fn cabecalho_irmao_do_layout_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<screen title="X" /><column height="fill" />"#,
+            Some("tela.gv"),
+        )
+        .expect_err("<screen> ao lado do layout não é cabeçalho de nada");
+        let d = err.diagnostic().unwrap();
+        assert!(d.message.contains("não é a raiz do arquivo"), "{}", d.message);
+    }
+
+    #[test]
+    fn cabecalho_no_meio_do_layout_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<component><column><component><text>x</text></component></column></component>"#,
+            Some("c.gv"),
+        )
+        .expect_err("cabeçalho aninhado não desenha nada");
+        let d = err.diagnostic().unwrap();
+        assert!(d.message.contains("dentro do layout"), "{}", d.message);
+    }
+
+    #[test]
+    fn resources_no_meio_do_layout_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<component><column><resources><style>.a{}</style></resources></column></component>"#,
+            Some("c.gv"),
+        )
+        .expect_err("<resources> fundo no layout era stripado em silêncio");
+        let d = err.diagnostic().unwrap();
+        assert!(d.message.contains("dentro do layout"), "{}", d.message);
+    }
+
+    /// As duas formas continuam convergindo na mesma árvore — é o que faz o
+    /// resto do motor não precisar saber que um cabeçalho existiu.
+    #[test]
+    fn com_e_sem_cabecalho_dao_o_mesmo_layout() {
+        let com = UiNode::parse_xml_in(
+            r#"<component><column class="a"><text>oi</text></column></component>"#,
+            Some("c.gv"),
+        )
+        .unwrap();
+        let sem = UiNode::parse_xml(r#"<column class="a"><text>oi</text></column>"#).unwrap();
+        assert_eq!(com.class, sem.class);
+        assert_eq!(com.children.len(), sem.children.len());
+        assert!(matches!(
+            (&com.kind, &sem.kind),
+            (NodeType::Column, NodeType::Column)
+        ));
+    }
+}
+
+/// O `<props>` — o contrato de um componente com quem o usa (0.61).
+#[cfg(test)]
+mod props_tests {
+    use super::*;
+
+    fn props_de(xml: &str) -> Vec<PropDecl> {
+        let ast = UiNode::parse_xml_in(xml, Some("c.gv")).expect("parseia");
+        ast.children
+            .iter()
+            .find_map(|c| match &c.kind {
+                NodeType::Props(p) => Some(p.clone()),
+                _ => None,
+            })
+            .expect("o <props> viaja como declaração da raiz")
+    }
+
+    #[test]
+    fn le_nome_e_default() {
+        let p = props_de(
+            r#"<component>
+                <props>
+                    <prop name="label" />
+                    <prop name="accent" default="0" />
+                </props>
+                <column />
+            </component>"#,
+        );
+        assert_eq!(p.len(), 2);
+        assert_eq!(p[0].name, "label");
+        assert_eq!(p[0].default, None, "sem default é obrigatória");
+        assert_eq!(p[1].default.as_deref(), Some("0"));
+    }
+
+    /// Um `<props>` vazio não é o mesmo que nenhum: ele declara que o
+    /// componente não aceita prop nenhuma (e a checagem passa a valer).
+    #[test]
+    fn props_vazio_e_um_contrato() {
+        assert!(props_de(r#"<component><props></props><column /></component>"#).is_empty());
+    }
+
+    #[test]
+    fn prop_sem_nome_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<component><props><prop default="x" /></props><column /></component>"#,
+            Some("c.gv"),
+        )
+        .expect_err("prop sem name");
+        assert!(err.to_string().contains("<prop> sem name"), "{err}");
+    }
+
+    #[test]
+    fn prop_repetida_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<component><props><prop name="a" /><prop name="a" /></props><column /></component>"#,
+            Some("c.gv"),
+        )
+        .expect_err("prop repetida");
+        assert!(err.to_string().contains("declarada duas vezes"), "{err}");
+    }
+
+    #[test]
+    fn tag_estranha_no_props_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<component><props><text>oi</text></props><column /></component>"#,
+            Some("c.gv"),
+        )
+        .expect_err("só <prop> entra no <props>");
+        assert!(err.to_string().contains("não é um <prop>"), "{err}");
+    }
+
+    /// Uma janela não tem quem lhe passe props — ela é aberta, não usada.
+    #[test]
+    fn props_num_screen_erra() {
+        let err = UiNode::parse_xml_in(
+            r#"<screen title="X"><props><prop name="a" /></props><column /></screen>"#,
+            Some("t.gv"),
+        )
+        .expect_err("<props> não faz sentido numa janela");
+        assert!(err.to_string().contains("<props> num <screen>"), "{err}");
     }
 }
 
@@ -2682,7 +3129,7 @@ mod component_root_tests {
             .expect_err("o <component> não leva atributos")
             .to_string();
         assert!(err.contains("atributo 'class' no <component>"), "{err}");
-        assert!(err.contains("props de um componente vêm de quem o usa"), "{err}");
+        assert!(err.contains("se declaram no <props>"), "{err}");
     }
 
     /// O `<resources>` é conferido nas duas raízes, não só no `<screen>`.

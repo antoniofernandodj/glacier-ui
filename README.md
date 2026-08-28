@@ -63,6 +63,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [Conteúdo e controles](#conteúdo-e-controles)
     - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
   - [Cabeçalho: `<screen>`, `<component>` e `<resources>`](#cabeçalho-screen-component-e-resources)
+    - [`<props>`: o contrato do componente](#props-o-contrato-do-componente)
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
   - [Controle de fluxo](#controle-de-fluxo)
@@ -291,7 +292,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
 | `<template>` | `Gabarito` | `<ForEach>`/`<if>`/`<ElseIf>`/`<else>` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
-| `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho da tela". |
+| `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
+| `<props>` / `<prop>` | — | contrato de props de um `<component>`. Ver "Cabeçalho". |
 | `<component>` | `Component`, `componente`, `Componente` | mesma casca do `<screen>` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
 | `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
@@ -347,10 +349,15 @@ podem ficar soltas dentro do `<screen>` mesmo, que o efeito é o mesmo.
 separados porque esses dois nomes já querem dizer outra coisa no vocabulário de
 layout (`fill`, `shrink`, `fill 2`).
 
-As regras de convivência:
+As regras:
 
-- **O cabeçalho é opcional.** Um template sem `<screen>` funciona como sempre
-  funcionou: declarações e layout soltos na raiz, sem elemento que os envolva.
+- **O cabeçalho é obrigatório num arquivo** (desde a 0.61). Todo `.gv` começa com
+  `<screen>` (uma janela) ou `<component>` (o resto), e ele envolve o arquivo
+  inteiro — `<resources>`, `<props>` e o layout vão dentro. Um arquivo sem
+  cabeçalho não carrega, e o erro ensina a forma. A exceção é markup **inline**
+  (`Template::Inline`, o que os builtins da própria lib usam): ali não há arquivo
+  nem janela a que um cabeçalho se aplique, e ele segue sendo um fragmento — a
+  regra distingue pela origem, não pelo conteúdo.
 - **O template ganha do builder.** `GlacierDaemon::title()`/`main_size()` passam
   a ser o valor de quando o `.gv` não diz nada. Um campo não declarado não
   opina: só o que está escrito no arquivo sobrepõe.
@@ -369,9 +376,9 @@ As regras de convivência:
   título e o tamanho declarados lá dentro, sem repeti-los na chamada — que
   continua podendo sobrepor os dois quando sabe algo que o arquivo não sabe
   (`title = "Editando nginx"`).
-- **Componente importado ignora os metadados.** Um `.gv` trazido por `<import>`
-  é um pedaço de tela, não uma janela; `title`/`size` ali não têm a quem se
-  aplicar.
+- **Componente importado usa `<component>`.** Um `.gv` trazido por `<import>` é
+  um pedaço de tela, não uma janela; `title`/`size` ali não teriam a quem se
+  aplicar, e o `<component>` os recusa em vez de ignorá-los.
 
 ### `<component>`: a mesma casca para quem não é janela
 
@@ -413,10 +420,13 @@ erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
   = dica: o cabeçalho aceita title, size, min-size e resizable (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)
 ```
 
-São erros de parse (o template não carrega): atributo desconhecido no `<screen>`
-ou no `<resources>`, qualquer atributo no `<component>`, `size`/`min-size` que
-não seja um par de números, `resizable` que não seja booleano, um widget dentro
-do `<resources>` e um `<resources>` fora de um cabeçalho.
+São erros de parse (o template não carrega): arquivo sem cabeçalho; cabeçalho
+que não envolve o arquivo inteiro (escrito como *irmão* do layout, ou aninhado
+no meio dele); atributo desconhecido no `<screen>` ou no `<resources>`; qualquer
+atributo no `<component>`; `size`/`min-size` que não seja um par de números;
+`resizable` que não seja booleano; um widget dentro do `<resources>`; um
+`<resources>`/`<props>` fora de um cabeçalho; um `<props>` num `<screen>` (uma
+janela não tem quem lhe passe props); `<prop>` sem `name` ou repetido.
 
 ---
 

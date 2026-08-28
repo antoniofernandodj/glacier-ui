@@ -18,22 +18,29 @@ fn write_tmp(name: &str, content: &str) -> String {
 fn navitem_if_else_por_atributo_em_componente_multi_raiz() {
     let nav_item = write_tmp(
         "nav_item.gv",
-        r#"
+        r#"<component>
+<props>
+  <prop name="label" />
+  <prop name="target" />
+  <prop name="action" />
+</props>
 <Button class="nav_item_on" if="{view}" equals="{target}" on_click="{action}" text="ON {label}" />
 <Button class="nav_item" else on_click="{action}" text="OFF {label}" />
-"#,
+</component>"#,
     );
     let shell = write_tmp(
         "shell.gv",
         &format!(
-            r#"
-<link rel="import" href="{nav_item}" as="NavItem" />
+            r#"<screen title="Shell">
+<resources>
+  <link rel="import" href="{nav_item}" as="NavItem" />
+</resources>
 <Column>
   <NavItem label="Deployments" target="deployments" action="nav_deployments" />
   <NavItem label="Monitoring" target="monitoring" action="nav_monitoring" />
   <NavItem label="Projects" target="projects" action="nav_projects" />
 </Column>
-"#
+</screen>"#
         ),
     );
 

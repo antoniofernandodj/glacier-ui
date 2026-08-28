@@ -11,6 +11,17 @@
 >
 > Onde está a documentação de uso: `README.md`, seção "Cabeçalho".
 >
+> **Adendo (0.61.0):** o cabeçalho virou **obrigatório em arquivo** e as regras
+> de convivência da seção 6 caíram junto — não há mais duas formas de escrever
+> um `.gv`. Markup inline (`Template::Inline`, o que os builtins usam) segue
+> sendo fragmento: a regra distingue pela **origem**, não pelo conteúdo. Os três
+> meios-termos que a seção 4 previu que "coexistiriam sem ambiguidade" viraram
+> erro de parse, porque na prática eles não eram ambíguos para o *parser* e eram
+> para o *autor*: um `<screen>` irmão do layout recolhia os metadados e ainda
+> assim mudava o layout (um `column!` implícito em `shrink`), calado. O
+> `<component>` também ganhou um `<props>` — o contrato de props que até então
+> era um comentário no topo do arquivo que nada verificava.
+>
 > **Adendo (0.60.0):** a mesma casca ganhou uma irmã para os arquivos que **não
 > são janela** — os importados por outro template. `<component>` agrupa igual e
 > não aceita atributo nenhum, porque `title`/`size` ali não teriam a quem se

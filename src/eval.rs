@@ -814,6 +814,8 @@ fn expand_children(
                 | NodeType::Screen(_)
                 | NodeType::ComponentRoot
                 | NodeType::Resources
+                | NodeType::Props(_)
+                | NodeType::Prop
         ) {
             continue;
         }
@@ -1003,7 +1005,9 @@ fn expand_children(
             | NodeType::Style { .. }
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
-            | NodeType::Resources => {}
+            | NodeType::Resources
+            | NodeType::Props(_)
+            | NodeType::Prop => {}
             NodeType::ForEach { items, var } => {
                 let items_evaluated = process_tpl(items, context);
                 // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
@@ -1280,11 +1284,58 @@ fn eval_owned(
             .get(name)
             .ok_or_else(|| crate::error::GlacierError::UnknownComponent(name.clone()))?;
 
+        // Contrato do componente, quando ele declara um (`<props>` no cabeçalho).
+        // Declarar é opcional; a partir do momento em que existe, ele é a
+        // verdade — ver `PropDecl`.
+        let declaradas = template_ast.children.iter().find_map(|c| match &c.kind {
+            NodeType::Props(p) => Some(p),
+            _ => None,
+        });
+
         // As props do componente entram numa CAMADA sobre o contexto do uso (que
         // o template do componente enxerga por baixo), sem clonar a base — ver
         // [`EvalCtx`]. Uma prop de mesmo nome que uma chave global a sombreia,
         // como antes.
         let mut layer = Layer::new(context.layer());
+        if let Some(declaradas) = declaradas {
+            // Prop passada que não existe no contrato: é aqui que um typo para
+            // de ser invisível. Sem isto, `labl="CPU"` não casa com nada, o
+            // `{label}` do template atravessa a camada e pega o `label` do
+            // contexto de baixo — renderizando um valor plausível e errado.
+            for chave in props.keys() {
+                // As diretivas (`for-each`, `var`, `if`…) chegam no mesmo mapa,
+                // porque `from_node` encaminha TODO atributo como prop — mas
+                // quem as lê é o `expand_children`, antes daqui. Ver
+                // `parser::DIRECTIVE_ATTRS`.
+                if crate::parser::DIRECTIVE_ATTRS.contains(&chave.as_str()) {
+                    continue;
+                }
+                if !declaradas.iter().any(|d| &d.name == chave) {
+                    return Err(crate::error::GlacierError::UnknownProp {
+                        component: name.clone(),
+                        prop: chave.clone(),
+                        declaradas: declaradas.iter().map(|d| d.name.clone()).collect(),
+                    });
+                }
+            }
+            // O caminho inverso: prop declarada sem `default` é obrigatória.
+            // Com `default`, ele é semeado na camada — o que também impede a
+            // queda para o contexto de baixo quando quem chama omite a prop.
+            for decl in declaradas {
+                if props.contains_key(&decl.name) {
+                    continue;
+                }
+                match &decl.default {
+                    Some(v) => layer.set(decl.name.clone(), process_tpl(v, context)),
+                    None => {
+                        return Err(crate::error::GlacierError::MissingProp {
+                            component: name.clone(),
+                            prop: decl.name.clone(),
+                        });
+                    }
+                }
+            }
+        }
         for (key, val_template) in props {
             layer.set(key.clone(), process_tpl(val_template, context));
         }
@@ -1629,7 +1680,9 @@ fn eval_owned(
         | NodeType::Style { .. }
         | NodeType::Screen(_)
         | NodeType::ComponentRoot
-        | NodeType::Resources => NodeType::Container,
+        | NodeType::Resources
+        | NodeType::Props(_)
+        | NodeType::Prop => NodeType::Container,
     };
 
     // For each style field, the node's inline attribute wins; a `class` value

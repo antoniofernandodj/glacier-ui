@@ -1414,7 +1414,11 @@ pub fn render_node<'a>(
             // Inline <style> blocks are stripped during evaluation; render nothing.
             column![].into()
         }
-        NodeType::Screen(_) | NodeType::ComponentRoot | NodeType::Resources => {
+        NodeType::Screen(_)
+        | NodeType::ComponentRoot
+        | NodeType::Resources
+        | NodeType::Props(_)
+        | NodeType::Prop => {
             // O cabeçalho (`<screen>`/`<resources>`) é declaração: o daemon lê os
             // metadados, a avaliação strip a; aqui não há o que desenhar.
             column![].into()

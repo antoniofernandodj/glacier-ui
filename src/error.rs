@@ -198,6 +198,19 @@ pub enum GlacierError {
     /// `UnknownComponent` genérico) porque a causa e a saída são outras: não é
     /// um nome errado, é um template fora de uso.
     NotEvaluated(String),
+    /// Quem usa o componente passou uma prop que o `<props>` dele não declara.
+    /// Quase sempre um typo — e sem esta checagem ele seria **invisível**: a
+    /// prop errada não casa com nenhum `{placeholder}` do template, e o
+    /// placeholder de verdade cai para o contexto de baixo, renderizando outro
+    /// valor. Carrega as props declaradas para a mensagem poder listá-las.
+    UnknownProp {
+        component: String,
+        prop: String,
+        declaradas: Vec<String>,
+    },
+    /// O `<props>` declara a prop **sem** `default` — o que a torna obrigatória
+    /// — e quem usou o componente não a passou.
+    MissingProp { component: String, prop: String },
 }
 
 impl fmt::Display for GlacierError {
@@ -229,6 +242,24 @@ impl fmt::Display for GlacierError {
                 "componente '{name}' está registrado mas não avaliado — só a tela ativa fica \
                  avaliada. Chame set_initial_screen(\"{name}\") para exibi-lo, ou \
                  keep_evaluated(\"{name}\") para renderizá-lo em paralelo à tela"
+            ),
+            Self::UnknownProp {
+                component,
+                prop,
+                declaradas,
+            } => write!(
+                f,
+                "'{component}' não aceita a prop '{prop}' — o <props> dele declara: {}",
+                if declaradas.is_empty() {
+                    "nenhuma".to_string()
+                } else {
+                    declaradas.join(", ")
+                }
+            ),
+            Self::MissingProp { component, prop } => write!(
+                f,
+                "'{component}' precisa da prop '{prop}': ela é declarada sem default, então \
+                 é obrigatória (dê um default=\"…\" no <prop> para torná-la opcional)"
             ),
         }
     }

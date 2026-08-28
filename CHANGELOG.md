@@ -8,6 +8,67 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.61.0] — 2026-08-28
+
+### Adicionado
+- **`<props>`: o contrato de um componente.** Um `<component>` pode declarar as
+  props que aceita, e a declaração passa a ser verificada no ponto de **uso**.
+
+  ```xml
+  <component>
+      <props>
+          <prop name="nome" />
+          <prop name="cor" default="#89B4FA" />
+      </props>
+
+      <text content="{nome}" color="{cor}" />
+  </component>
+  ```
+
+  - prop passada e não declarada é erro, citando as que existem;
+  - prop declarada **sem** `default` é obrigatória; com `default`, o valor entra
+    quando quem chama omite;
+  - um `<props>` vazio é um contrato ("não aceito prop nenhuma"), não a ausência
+    de um;
+  - **sem `<props>`, nada muda** — declarar é opcional, e o componente que lê o
+    contexto global em vez de receber props continua funcionando.
+
+  O motivo de isto ser uma feature e não um comentário no topo do arquivo: as
+  props entram como uma **camada** sobre o contexto de quem usa, e um lookup que
+  falha na camada cai para o contexto de baixo. Sem contrato, `<Cartao
+  nomee="Alice" />` não renderiza vazio — renderiza o `nome` que existir no
+  contexto global. O typo era invisível até alguém reparar no valor errado na
+  tela.
+
+### Mudado
+- **O cabeçalho passou a ser obrigatório em arquivo.** Todo `.gv` começa com
+  `<screen>` (uma janela) ou `<component>` (o resto). Markup **inline**
+  (`Template::Inline`, o que os builtins da lib usam) segue sendo fragmento: não
+  há arquivo nem janela a que um cabeçalho se aplique, e a regra distingue pela
+  **origem**, não pelo conteúdo.
+- **O cabeçalho tem de envolver o arquivo inteiro.** Três meios-termos que
+  passavam calados viraram erro de parse:
+  - `<screen>` escrito como **irmão** do layout: os metadados até eram
+    recolhidos (a janela abria com o título certo), mas o layout virava um
+    `Fragment` e ganhava um `column!` implícito em `shrink` por volta — um
+    `height: fill` na raiz mudava de comportamento sem aviso;
+  - `<screen>`/`<component>`/`<resources>` **aninhados no meio do layout**: eram
+    descartados na avaliação, então a subárvore sumia da tela em silêncio (a
+    validação antiga só olhava o nível de topo);
+  - `<props>` num `<screen>`: uma janela é aberta, não usada por outro template
+    — não há quem lhe passe props.
+
+### Quebras
+- Um `.gv` sem cabeçalho não carrega mais. Migrar é envolver o arquivo em
+  `<screen title="…" size="…">` (se for a tela de uma janela) ou `<component>`
+  (se for importado por outro template), e mover `<style>`/`<link>`/`<import>`/
+  `<script>` para um `<resources>` dentro dele. Os 35 `.gv` deste repositório
+  foram migrados nesta versão e servem de referência.
+- `GlacierError` ganhou `UnknownProp` e `MissingProp`; um `match` exaustivo sobre
+  ele precisa dos dois braços novos.
+
+---
+
 ## [0.60.0] — 2026-08-28
 
 ### Adicionado

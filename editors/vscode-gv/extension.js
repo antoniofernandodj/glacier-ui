@@ -73,6 +73,11 @@ const NATIVE_TAGS = {
   Script: ["script"],
   Badge: ["badge"],
   TimePicker: ["timepicker"],
+  Screen: ["screen", "tela"],
+  ComponentRoot: ["component", "componente"],
+  Resources: ["resources", "recursos"],
+  Props: ["props"],
+  Prop: ["prop"],
 };
 
 // Lowercased spelling -> canonical name.
@@ -726,6 +731,48 @@ function localImports(documentUri, text) {
     if (key) map.set(key, p);
   }
   return map;
+}
+
+
+// ---------------------------------------------------------------------------
+// Props declaradas (<props> no cabeçalho de um <component>)
+// ---------------------------------------------------------------------------
+
+const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
+
+/**
+ * O contrato de props de um `.gv`, ou `null` quando o arquivo não declara um.
+ *
+ * `null` e `[]` querem dizer coisas diferentes, e a distinção é a mesma do
+ * motor: sem `<props>` nada é checado; um `<props>` vazio declara que o
+ * componente não aceita prop nenhuma.
+ */
+function declaredProps(fsPath) {
+  const text = readFileCached(fsPath);
+  if (!text) return null;
+  const block = PROPS_BLOCK_RE.exec(text);
+  if (!block) return null;
+  const props = [];
+  const re = /<prop\b([^>]*)>/gi;
+  let m;
+  while ((m = re.exec(block[1])) !== null) {
+    const attrs = {};
+    for (const attr of iterAttrs(m[1], 0)) attrs[attr.name.toLowerCase()] = attr.value;
+    const name = attrs.name || attrs.nome;
+    if (!name) continue;
+    const padrao = attrs.default ?? attrs.padrao ?? attrs["padrão"];
+    props.push({ name, default: padrao });
+  }
+  return props;
+}
+
+/** As props declaradas pelo componente que a tag `name` referencia. */
+async function propsForTag(document, tagName) {
+  if (NATIVE_LOOKUP[tagName.toLowerCase()]) return null;
+  const index = await workspaceIndex();
+  const imports = localImports(document.uri, document.getText());
+  const fsPath = lookupComponent(index, imports, tagName, document.uri);
+  return fsPath ? declaredProps(fsPath) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1427,6 +1474,98 @@ async function resolveDefinition(document, position) {
   return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;
 }
 
+
+// ---------------------------------------------------------------------------
+// Completar e diagnosticar props
+// ---------------------------------------------------------------------------
+
+/** A tag de abertura que contém `offset`, se houver. */
+function openTagAt(text, offset) {
+  for (const tag of iterTags(text)) {
+    if (tag.closing) continue;
+    if (offset > tag.attrsStart && offset <= tag.attrsEnd + 1) return tag;
+  }
+  return null;
+}
+
+const provideCompletion = {
+  async provideCompletionItems(document, position) {
+    const text = document.getText();
+    const tag = openTagAt(text, document.offsetAt(position));
+    if (!tag) return null;
+    const props = await propsForTag(document, tag.name);
+    if (!props || !props.length) return null;
+    const jaEscritas = new Set(
+      [...iterAttrs(tag.attrsText, tag.attrsStart)].map((a) => a.name.toLowerCase())
+    );
+    return props
+      .filter((p) => !jaEscritas.has(p.name.toLowerCase()))
+      .map((p) => {
+        const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Property);
+        item.detail =
+          p.default === undefined
+            ? `${tag.name} — obrigatória`
+            : `${tag.name} — opcional (default: ${p.default})`;
+        item.insertText = new vscode.SnippetString(`${p.name}="$1"`);
+        // Obrigatórias primeiro: são as que, faltando, quebram o render.
+        item.sortText = (p.default === undefined ? "0" : "1") + p.name;
+        return item;
+      });
+  },
+};
+
+/**
+ * Marca no editor as mesmas violações que o motor recusaria no parse: prop
+ * passada que o `<props>` não declara, e prop obrigatória faltando.
+ */
+async function refreshDiagnostics(document, collection) {
+  if (document.languageId !== "glacier-view") return;
+  const text = document.getText();
+  const out = [];
+  for (const tag of iterTags(text)) {
+    if (tag.closing) continue;
+    let props;
+    try {
+      props = await propsForTag(document, tag.name);
+    } catch {
+      continue;
+    }
+    if (!props) continue;
+    const nomes = new Set(props.map((p) => p.name.toLowerCase()));
+    const passadas = new Set();
+    for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+      passadas.add(attr.name.toLowerCase());
+      if (nomes.has(attr.name.toLowerCase())) continue;
+      const range = new vscode.Range(
+        document.positionAt(attr.start - attr.name.length - 2),
+        document.positionAt(attr.end + 1)
+      );
+      const lista = props.map((p) => p.name).join(", ") || "nenhuma";
+      out.push(
+        new vscode.Diagnostic(
+          range,
+          `<${tag.name}> não aceita a prop '${attr.name}' — o <props> dele declara: ${lista}`,
+          vscode.DiagnosticSeverity.Error
+        )
+      );
+    }
+    for (const p of props) {
+      if (p.default !== undefined || passadas.has(p.name.toLowerCase())) continue;
+      out.push(
+        new vscode.Diagnostic(
+          new vscode.Range(
+            document.positionAt(tag.nameStart),
+            document.positionAt(tag.nameStart + tag.name.length)
+          ),
+          `<${tag.name}> precisa da prop '${p.name}': declarada sem default, então é obrigatória`,
+          vscode.DiagnosticSeverity.Error
+        )
+      );
+    }
+  }
+  collection.set(document.uri, out);
+}
+
 function activate(context) {
   const selector = { language: "glacier-view" };
 
@@ -1438,9 +1577,19 @@ function activate(context) {
   watcher.onDidDelete(invalidateWorkspaceIndex);
   watcher.onDidChange(invalidateWorkspaceIndex);
 
+  const props = vscode.languages.createDiagnosticCollection("glacier-view-props");
+  const revalida = (doc) => refreshDiagnostics(doc, props).catch(() => {});
+  vscode.workspace.textDocuments.forEach(revalida);
+
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
     vscode.languages.registerDocumentLinkProvider(selector, { provideDocumentLinks }),
+    // O ` ` fecha o caso de digitar a prop logo após o nome da tag.
+    vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " "),
+    props,
+    vscode.workspace.onDidOpenTextDocument(revalida),
+    vscode.workspace.onDidChangeTextDocument((e) => revalida(e.document)),
+    vscode.workspace.onDidCloseTextDocument((doc) => props.delete(doc.uri)),
     watcher,
     vscode.workspace.onDidChangeWorkspaceFolders(invalidateWorkspaceIndex)
   );

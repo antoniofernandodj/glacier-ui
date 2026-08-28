@@ -1,92 +1,96 @@
-<!-- Diálogo de arquivo/pasta NATIVO DO SO — arquivo único, múltiplos
-     arquivos, diretório e salvar (ver src/file_dialog.rs). Cada botão chama
-     o sugar Lua correspondente; como é um diálogo de verdade do SO, só dá
-     pra conferir rodando o exemplo file_dialog e clicando. -->
-<style>
-.screen      { background: #2E3440; width: fill; height: fill; padding: 30; spacing: 20; }
-.title       { color: #ECEFF4; size: 20; bold: true; }
-.hint        { color: #D8DEE9; size: 13; }
-.actions     { spacing: 10; }
-.btn         { padding: 8 16; }
-.btn-primary { color: #5E81AC; }
-.btn-accent  { color: #B48EAD; }
-.btn-warn    { color: #D08770; }
-.divider     { width: 600; }
-.result      { color: #A3BE8C; size: 14; }
-</style>
+<screen title="Glacier - Diálogos de Arquivo">
+    <resources>
+        <!-- Diálogo de arquivo/pasta NATIVO DO SO — arquivo único, múltiplos
+             arquivos, diretório e salvar (ver src/file_dialog.rs). Cada botão chama
+             o sugar Lua correspondente; como é um diálogo de verdade do SO, só dá
+             pra conferir rodando o exemplo file_dialog e clicando. -->
+        <style>
+        .screen      { background: #2E3440; width: fill; height: fill; padding: 30; spacing: 20; }
+        .title       { color: #ECEFF4; size: 20; bold: true; }
+        .hint        { color: #D8DEE9; size: 13; }
+        .actions     { spacing: 10; }
+        .btn         { padding: 8 16; }
+        .btn-primary { color: #5E81AC; }
+        .btn-accent  { color: #B48EAD; }
+        .btn-warn    { color: #D08770; }
+        .divider     { width: 600; }
+        .result      { color: #A3BE8C; size: 14; }
+        </style>
 
-<column class="screen">
-    <text
-        content="Diálogos de arquivo (nativos do SO)"
-        class="title"
-    />
-    <text
-        content="Cada botão abre um diálogo de verdade do sistema operacional."
-        class="hint"
-    />
+        <script>
+        function init()
+            ctx.resultado = "(nenhum ainda)"
+        end
 
-    <row class="actions">
-        <button
-            text="Abrir arquivo"
-            on_click="abrir_arquivo"
-            class="btn btn-primary"
+        function abrir_arquivo()
+            local caminho = open_file({
+                title = "Escolha um arquivo",
+                filters = { { name = "Texto", extensions = { "txt", "md" } } },
+            })
+            ctx.resultado = caminho or "cancelado"
+        end
+
+        function abrir_varios()
+            local caminhos = open_files({ title = "Escolha um ou mais arquivos" })
+            if caminhos then
+                ctx.resultado = "(" .. #caminhos .. ") " .. table.concat(caminhos, ", ")
+            else
+                ctx.resultado = "cancelado"
+            end
+        end
+
+        function salvar_como()
+            local caminho = save_file({
+                title = "Salvar como",
+                default_name = "novo-arquivo.txt",
+            })
+            ctx.resultado = caminho or "cancelado"
+        end
+
+        function escolher_pasta()
+            local caminho = pick_folder({ title = "Escolha uma pasta" })
+            ctx.resultado = caminho or "cancelado"
+        end
+        </script>
+    </resources>
+
+    <column class="screen">
+        <text
+            content="Diálogos de arquivo (nativos do SO)"
+            class="title"
         />
-        <button
-            text="Abrir vários"
-            on_click="abrir_varios"
-            class="btn btn-primary"
+        <text
+            content="Cada botão abre um diálogo de verdade do sistema operacional."
+            class="hint"
         />
-        <button
-            text="Salvar como"
-            on_click="salvar_como"
-            class="btn btn-accent"
+
+        <row class="actions">
+            <button
+                text="Abrir arquivo"
+                on_click="abrir_arquivo"
+                class="btn btn-primary"
+            />
+            <button
+                text="Abrir vários"
+                on_click="abrir_varios"
+                class="btn btn-primary"
+            />
+            <button
+                text="Salvar como"
+                on_click="salvar_como"
+                class="btn btn-accent"
+            />
+            <button
+                text="Escolher pasta"
+                on_click="escolher_pasta"
+                class="btn btn-warn"
+            />
+        </row>
+
+        <rule class="divider" />
+        <text
+            content="Resultado: {resultado}"
+            class="result"
         />
-        <button
-            text="Escolher pasta"
-            on_click="escolher_pasta"
-            class="btn btn-warn"
-        />
-    </row>
-
-    <rule class="divider" />
-    <text
-        content="Resultado: {resultado}"
-        class="result"
-    />
-</column>
-
-<script>
-function init()
-    ctx.resultado = "(nenhum ainda)"
-end
-
-function abrir_arquivo()
-    local caminho = open_file({
-        title = "Escolha um arquivo",
-        filters = { { name = "Texto", extensions = { "txt", "md" } } },
-    })
-    ctx.resultado = caminho or "cancelado"
-end
-
-function abrir_varios()
-    local caminhos = open_files({ title = "Escolha um ou mais arquivos" })
-    if caminhos then
-        ctx.resultado = "(" .. #caminhos .. ") " .. table.concat(caminhos, ", ")
-    else
-        ctx.resultado = "cancelado"
-    end
-end
-
-function salvar_como()
-    local caminho = save_file({
-        title = "Salvar como",
-        default_name = "novo-arquivo.txt",
-    })
-    ctx.resultado = caminho or "cancelado"
-end
-
-function escolher_pasta()
-    local caminho = pick_folder({ title = "Escolha uma pasta" })
-    ctx.resultado = caminho or "cancelado"
-end
-</script>
+    </column>
+</screen>
