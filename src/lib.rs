@@ -7,6 +7,7 @@ pub mod daemon;
 pub mod dialogs;
 pub mod error;
 pub mod eval;
+pub mod external;
 pub mod file_dialog;
 pub mod forms;
 pub mod luau;
@@ -32,6 +33,7 @@ pub use iced;
 /// for most often (window setup, layout, messaging), so they can come from
 /// `glacier_ui::{..}` directly instead of a separate `use iced::{..}`.
 pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
+pub use external::ExternalSender;
 
 pub use app::GlacierApp;
 pub use asset_source::{AssetSource, DiskAssets};

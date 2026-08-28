@@ -8,6 +8,32 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.58.6] — 2026-08-28
+
+### Adicionado
+- **`external::sender()`** — canal para **injetar ações no motor a partir de
+  qualquer thread**. Até aqui tudo o que acontecia na UI nascia de um evento do
+  loop do iced (clique, tecla, tick), o que deixava de fora um caso legítimo: o
+  app tem uma thread própria — um servidor HTTP local, um watcher de arquivos,
+  uma integração com o SO — que precisa **acionar** a UI, não só ler o estado
+  dela. As saídas eram ruins: espelhar o estado num `Arc<Mutex<…>>` paralelo
+  (que diverge do contexto do motor na primeira ação que esquecerem de
+  replicar) ou simular eventos de entrada no servidor gráfico.
+
+  O remetente ([`ExternalSender`]) é `Clone + Send`, criado **antes** de
+  `run()`, e expõe o mesmo vocabulário dos templates: `click(acao)` (como um
+  `<Button on_click>`), `action(acao, valor)` (como um `onChange`) e
+  `patch(pares)` (escreve no contexto). Por isso **toda** ação que a UI declara
+  já é alcançável de fora — inclusive as que forem adicionadas depois, sem
+  lista para manter em dia.
+
+  As mensagens vão sempre para o motor da janela **principal**, inclusive
+  quando ela está recolhida na bandeja (nesse estado o motor segue vivo e só a
+  janela sumiu, ver 0.48) — então um app de bandeja continua inteiramente
+  dirigível de fora. A subscription que drena o canal só é registrada se alguém
+  chamou `sender()`: quem não usa não paga o poll. Exemplo em
+  `examples/controle_externo/`.
+
 ## [0.58.5] — 2026-08-24
 
 ### Adicionado

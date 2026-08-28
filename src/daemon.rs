@@ -587,6 +587,10 @@ pub enum DaemonMessage {
     /// Uma segunda tentativa de lançar o app pingou esta instância. Ver
     /// [`crate::single_instance`] / [`GlacierDaemon::single_instance`].
     ActivateRequested,
+    /// Uma mensagem injetada de fora do loop do iced, por outra thread do
+    /// próprio app (servidor local, watcher, integração com o SO). Vai sempre
+    /// para o motor da janela PRINCIPAL. Ver [`crate::external`].
+    External(EngineMessage),
 }
 
 /// Estado do daemon: um motor por janela + seus títulos.
@@ -672,6 +676,10 @@ impl Runtime {
     fn update(&mut self, message: DaemonMessage) -> Task<DaemonMessage> {
         match message {
             DaemonMessage::Ui { id, msg } => self.route(id, msg),
+            // Sempre na principal — inclusive quando ela está recolhida na
+            // bandeja, caso em que o motor segue vivo sob o `main_id` e só a
+            // janela sumiu. É o que mantém um app de bandeja dirigível de fora.
+            DaemonMessage::External(msg) => self.route(self.main_id, msg),
             DaemonMessage::Opened(_) => Task::none(),
             DaemonMessage::Closed(id) => {
                 // A janela PRINCIPAL fechando com bandeja: não encerra nem
@@ -1024,6 +1032,15 @@ impl Runtime {
         // os canais globais do `tray-icon` (ver [`crate::tray::event_stream`]).
         if self.tray.is_some() {
             subs.push(iced::Subscription::run(crate::tray::event_stream).map(DaemonMessage::Tray));
+        }
+
+        // Ações injetadas por outra thread do app. Só registrada quando
+        // alguém pediu um `external::sender()` — quem não usa não paga o poll.
+        if crate::external::is_active() {
+            subs.push(
+                iced::Subscription::run(crate::external::event_stream)
+                    .map(DaemonMessage::External),
+            );
         }
 
         // Ping de uma segunda tentativa de lançamento. Só registrada quando
