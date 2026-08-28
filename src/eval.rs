@@ -812,6 +812,7 @@ fn expand_children(
                 | NodeType::Link { .. }
                 | NodeType::Style { .. }
                 | NodeType::Screen(_)
+                | NodeType::ComponentRoot
                 | NodeType::Resources
         ) {
             continue;
@@ -1001,6 +1002,7 @@ fn expand_children(
             | NodeType::Link { .. }
             | NodeType::Style { .. }
             | NodeType::Screen(_)
+            | NodeType::ComponentRoot
             | NodeType::Resources => {}
             NodeType::ForEach { items, var } => {
                 let items_evaluated = process_tpl(items, context);
@@ -1626,6 +1628,7 @@ fn eval_owned(
         | NodeType::Link { .. }
         | NodeType::Style { .. }
         | NodeType::Screen(_)
+        | NodeType::ComponentRoot
         | NodeType::Resources => NodeType::Container,
     };
 

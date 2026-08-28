@@ -9,7 +9,14 @@
 > apelidos `<tela>`/`<recursos>`, como o resto do vocabulário de tags. O tamanho
 > ficou em `size="960 700"`, e o template ganha do builder Rust.
 >
-> Onde está a documentação de uso: `README.md`, seção "Cabeçalho da tela".
+> Onde está a documentação de uso: `README.md`, seção "Cabeçalho".
+>
+> **Adendo (0.60.0):** a mesma casca ganhou uma irmã para os arquivos que **não
+> são janela** — os importados por outro template. `<component>` agrupa igual e
+> não aceita atributo nenhum, porque `title`/`size` ali não teriam a quem se
+> aplicar. Foi o que fechou o buraco que a seção 6 deixava ("componente
+> importado ignora os metadados"): agora ele não os aceita para depois ignorar,
+> ele recusa na cara, explicando a diferença.
 
 ---
 

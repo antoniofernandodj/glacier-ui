@@ -8,6 +8,42 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.60.0] — 2026-08-28
+
+### Adicionado
+- **`<component>`: o cabeçalho de quem não é janela.** A 0.59 deu ao template um
+  cabeçalho (`<screen>` + `<resources>`), mas nem todo `.gv` é uma tela: um
+  arquivo importado por outro (`<import>`) é um pedaço de tela — um card, um
+  item de menu, um badge —, e `title`/`size` ali não têm a quem se aplicar. Usar
+  `<screen>` nesses arquivos funcionaria, e era justamente o problema: a tag
+  prometeria uma janela que não existe.
+
+  ```xml
+  <component>
+      <resources>
+          <style>
+              .stat_card { background: #161B22; padding: 16 22; }
+          </style>
+      </resources>
+
+      <column class="stat_card">
+          <text class="stat_num" content="{value}" />
+      </column>
+  </component>
+  ```
+
+  Mesmo agrupamento do `<screen>` (o `<resources>` vale nas duas raízes, e é
+  igualmente opcional), com uma diferença deliberada: **o `<component>` não leva
+  atributo nenhum**. `title=` ali é erro de parse, com a explicação junto
+  (`title/size descrevem uma JANELA, e um <component> não é uma — quem é janela
+  usa <screen>`); qualquer outro atributo também erra, lembrando que as props de
+  um componente vêm de quem o usa. Apelido em português: `<componente>`.
+
+  Nada é obrigatório: um `.gv` sem cabeçalho continua válido, e um componente
+  pode seguir com as declarações soltas na raiz.
+
+---
+
 ## [0.59.0] — 2026-08-28
 
 ### Adicionado

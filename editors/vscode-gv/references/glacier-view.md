@@ -127,6 +127,9 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 ### `<Screen>` (`<tela>`)
 Raiz opcional que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min-size`/`minSize`, `resizable`/`redimensionavel`. O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Num `.gv` importado como componente, os metadados são ignorados.
 
+### `<Component>` (`<componente>`)
+A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
+
 ### `<Resources>` (`<recursos>`)
 Dentro do `<Screen>`, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>`. O que estiver fora dele (ainda dentro do `<Screen>`) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do `<Screen>`.
 

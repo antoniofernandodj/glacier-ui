@@ -113,10 +113,36 @@ fn validate_header(fragment: Node) -> Option<Diagnostic> {
             // Um `<resources>` solto na raiz não agrupa nada: fora do `<screen>`
             // ele não é cabeçalho de coisa alguma, e o parse o descartaria.
             return Some(
-                diagnostic_at(child, format!("<{tag}> fora de um <screen>")).with_hint(
-                    "o <resources> só existe dentro do <screen>, que é a raiz do template;                      sem cabeçalho, as declarações ficam soltas na raiz mesmo",
+                diagnostic_at(child, format!("<{tag}> fora de um cabeçalho")).with_hint(
+                    "o <resources> só existe dentro do <screen> (uma janela) ou do \
+                     <component> (um pedaço de tela); sem cabeçalho, as declarações ficam \
+                     soltas na raiz mesmo",
                 ),
             );
+        }
+        // O `<component>` é a mesma casca do `<screen>` para um arquivo que não é
+        // janela: agrupa igual, mas não leva atributo nenhum — `title`/`size`
+        // ali não teriam a quem se aplicar, e aceitá-los em silêncio seria
+        // prometer um efeito que não existe.
+        if is_component_tag(tag) {
+            if let Some(attr) = child.attributes().next() {
+                let name = attr.name();
+                let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&name)) {
+                    "title/size/min-size/resizable descrevem uma JANELA, e um <component> \
+                     não é uma — quem é janela usa <screen>"
+                } else {
+                    "o <component> não leva atributos; as props de um componente vêm de quem \
+                     o usa (<MeuCard prop=\"…\" />), não do arquivo"
+                };
+                return Some(
+                    diagnostic_at_attr(child, attr, format!("atributo '{name}' no <{tag}>"))
+                        .with_hint(hint),
+                );
+            }
+            if let Some(d) = validate_resources(child) {
+                return Some(d);
+            }
+            continue;
         }
         if !is_screen_tag(tag) {
             continue;
@@ -164,36 +190,47 @@ fn validate_header(fragment: Node) -> Option<Diagnostic> {
             }
         }
 
-        // Conteúdo do `<resources>`: só declaração entra.
-        for res in child.children().filter(Node::is_element) {
-            if !is_resources_tag(res.tag_name().name()) {
-                continue;
-            }
-            if let Some(attr) = res.attributes().next() {
+        if let Some(d) = validate_resources(child) {
+            return Some(d);
+        }
+    }
+    None
+}
+
+/// Confere o `<resources>` de um cabeçalho: ele não leva atributos, e só
+/// declaração entra nele.
+fn validate_resources(header: Node) -> Option<Diagnostic> {
+    for res in header.children().filter(Node::is_element) {
+        if !is_resources_tag(res.tag_name().name()) {
+            continue;
+        }
+        if let Some(attr) = res.attributes().next() {
+            return Some(
+                diagnostic_at_attr(
+                    res,
+                    attr,
+                    format!("atributo '{}' desconhecido no <resources>", attr.name()),
+                )
+                .with_hint("o <resources> só agrupa declarações; ele não leva atributos"),
+            );
+        }
+        for decl in res.children().filter(Node::is_element) {
+            let name = decl.tag_name().name();
+            if !RESOURCE_TAGS.iter().any(|t| t.eq_ignore_ascii_case(name)) {
                 return Some(
-                    diagnostic_at_attr(
-                        res,
-                        attr,
-                        format!("atributo '{}' desconhecido no <resources>", attr.name()),
-                    )
-                    .with_hint("o <resources> só agrupa declarações; ele não leva atributos"),
+                    diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
+                        "dentro do <resources> só entram <style>, <script>, <link> e \
+                         <import>; um widget vai no layout, depois do </resources>",
+                    ),
                 );
-            }
-            for decl in res.children().filter(Node::is_element) {
-                let name = decl.tag_name().name();
-                if !RESOURCE_TAGS.iter().any(|t| t.eq_ignore_ascii_case(name)) {
-                    return Some(
-                        diagnostic_at(decl, format!("<{name}> não é uma declaração"))
-                            .with_hint(
-                                "dentro do <resources> só entram <style>, <script>, <link> e \
-                                 <import>; um widget vai no layout, depois do </resources>",
-                            ),
-                    );
-                }
             }
         }
     }
     None
+}
+
+fn is_component_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("component") || tag.eq_ignore_ascii_case("componente")
 }
 
 fn is_screen_tag(tag: &str) -> bool {
@@ -408,9 +445,15 @@ pub enum NodeType {
     /// `Style`, é uma **declaração**: viaja pendurada na raiz e é descartada na
     /// avaliação, sem desenhar nada. Ver [`ScreenMeta`].
     Screen(ScreenMeta),
-    /// O `<resources>` de dentro de um `<screen>`: um agrupador puro. Some no
-    /// próprio parse (seus filhos sobem como declarações da raiz), então esta
-    /// variante só existe para o achatamento em [`UiNode::parse_xml_with_source`].
+    /// A raiz `<component>`: o mesmo cabeçalho do [`NodeType::Screen`] para um
+    /// arquivo que **não é uma janela** — um pedaço de tela importado por outro
+    /// template. Agrupa as declarações do mesmo jeito e não leva atributo
+    /// nenhum: título e tamanho não teriam a quem se aplicar.
+    ComponentRoot,
+    /// O `<resources>` de dentro de um `<screen>`/`<component>`: um agrupador
+    /// puro. Some no próprio parse (seus filhos sobem como declarações da raiz),
+    /// então esta variante só existe para o achatamento em
+    /// [`UiNode::parse_xml_with_source`].
     Resources,
     ForEach {
         items: String,
@@ -583,6 +626,7 @@ impl NodeType {
             | NodeType::Link { .. }
             | NodeType::Style { .. }
             | NodeType::Screen(_)
+            | NodeType::ComponentRoot
             | NodeType::Resources
             | NodeType::Fragment => return None,
         })
@@ -1645,6 +1689,7 @@ impl UiNode {
                         .and_then(parse_bool_value),
                 })
             }
+            "component" | "Component" | "componente" | "Componente" => NodeType::ComponentRoot,
             "resources" | "Resources" | "recursos" | "Recursos" => NodeType::Resources,
             "link" | "Link" => {
                 let rel = Self::get_attr(&node, &["rel", "tipo"])
@@ -1866,16 +1911,24 @@ impl UiNode {
         // verdade — que segue daqui para baixo pelo mesmo caminho de sempre.
         // Por isso as duas formas de escrever um template convergem numa única
         // árvore: só o parse as distingue.
-        let mut screen_is_empty = false;
+        let mut header_is_empty = false;
+        let mut header_tag = "screen";
         if roots.len() == 1
-            && let NodeType::Screen(_) = roots[0].kind
+            && matches!(roots[0].kind, NodeType::Screen(_) | NodeType::ComponentRoot)
         {
-            let screen = roots.pop().expect("len checked");
-            let NodeType::Screen(meta) = screen.kind else {
-                unreachable!("checked above")
+            let header = roots.pop().expect("len checked");
+            // O `<component>` é o mesmo cabeçalho sem metadados: um arquivo que
+            // não é janela nenhuma, só um pedaço de tela que outro template
+            // importa. Daqui para baixo os dois se comportam igual.
+            let meta = match header.kind {
+                NodeType::Screen(meta) => Some(meta),
+                _ => {
+                    header_tag = "component";
+                    None
+                }
             };
-            screen_is_empty = true;
-            for child in screen.children {
+            header_is_empty = true;
+            for child in header.children {
                 match child.kind {
                     // Tudo que está dentro do `<resources>` é declaração por
                     // construção — inclusive o que não for (um widget perdido
@@ -1885,12 +1938,14 @@ impl UiNode {
                         decls.push(child)
                     }
                     _ => {
-                        screen_is_empty = false;
+                        header_is_empty = false;
                         roots.push(child);
                     }
                 }
             }
-            decls.push(empty_node(NodeType::Screen(meta), Vec::new()));
+            if let Some(meta) = meta {
+                decls.push(empty_node(NodeType::Screen(meta), Vec::new()));
+            }
         }
 
         // Multiple top-level layout nodes become a `Fragment` (their siblings
@@ -1902,11 +1957,15 @@ impl UiNode {
         // `process_links` still find them.
         let mut root = match roots.len() {
             0 => {
-                let (msg, hint) = if screen_is_empty {
+                let (msg, hint) = if header_is_empty {
                     (
-                        "o <screen> não tem conteúdo",
-                        "dentro do <screen>, o que não está em <resources> é o layout da tela — \
-                         e ele não pode faltar (ex.: <column>…</column> depois do </resources>)",
+                        if header_tag == "screen" {
+                            "o <screen> não tem conteúdo"
+                        } else {
+                            "o <component> não tem conteúdo"
+                        },
+                        "o que não está em <resources> é o layout — e ele não pode faltar \
+                         (ex.: <column>…</column> depois do </resources>)",
                     )
                 } else {
                     (
@@ -2537,7 +2596,8 @@ mod header_diagnostics_tests {
     #[test]
     fn resources_fora_do_screen() {
         let msg = erro(r#"<resources><style>.a { padding: 4; }</style></resources><column />"#);
-        assert!(msg.contains("fora de um <screen>"), "{msg}");
+        assert!(msg.contains("fora de um cabeçalho"), "{msg}");
+        assert!(msg.contains("<component>"), "a dica cita as duas raízes: {msg}");
     }
 
     #[test]
@@ -2568,5 +2628,99 @@ mod header_diagnostics_tests {
                 .any(|c| matches!(c.kind, NodeType::Style { .. })),
             "o <style> sem <resources> continua sendo declaração"
         );
+    }
+}
+
+/// O `<component>`: a mesma casca do `<screen>` para um arquivo que não é
+/// janela nenhuma. Agrupa igual e não promete metadados que não teriam efeito.
+#[cfg(test)]
+mod component_root_tests {
+    use super::*;
+
+    #[test]
+    fn agrupa_declaracoes_como_o_screen() {
+        let xml = r#"<component>
+            <resources><style>.a { padding: 4; }</style></resources>
+            <column><text content="oi" /></column>
+        </component>"#;
+        let root = UiNode::parse_xml(xml).expect("parse");
+        assert!(matches!(root.kind, NodeType::Column), "o layout vira a raiz");
+        assert!(
+            root.children
+                .iter()
+                .any(|c| matches!(c.kind, NodeType::Style { .. })),
+            "o <resources> se dissolve nas declarações da raiz"
+        );
+    }
+
+    /// A diferença que justifica a tag existir: um componente não tem janela, e
+    /// não finge ter.
+    #[test]
+    fn nao_declara_metadados_de_janela() {
+        let root = UiNode::parse_xml("<component><column /></component>").expect("parse");
+        assert!(
+            !root
+                .children
+                .iter()
+                .any(|c| matches!(c.kind, NodeType::Screen(_))),
+            "nada de ScreenMeta num <component>"
+        );
+    }
+
+    #[test]
+    fn title_no_component_erra_explicando_a_diferenca() {
+        let err = UiNode::parse_xml(r#"<component title="Detalhe"><column /></component>"#)
+            .expect_err("title num <component> não faz sentido")
+            .to_string();
+        assert!(err.contains("atributo 'title' no <component>"), "{err}");
+        assert!(err.contains("quem é janela usa <screen>"), "{err}");
+    }
+
+    #[test]
+    fn qualquer_outro_atributo_tambem_erra() {
+        let err = UiNode::parse_xml(r#"<component class="card"><column /></component>"#)
+            .expect_err("o <component> não leva atributos")
+            .to_string();
+        assert!(err.contains("atributo 'class' no <component>"), "{err}");
+        assert!(err.contains("props de um componente vêm de quem o usa"), "{err}");
+    }
+
+    /// O `<resources>` é conferido nas duas raízes, não só no `<screen>`.
+    #[test]
+    fn widget_no_resources_de_um_component() {
+        let xml = r#"<component>
+            <resources><button text="oi" /></resources>
+            <column />
+        </component>"#;
+        let err = UiNode::parse_xml(xml).expect_err("widget não é declaração").to_string();
+        assert!(err.contains("<button> não é uma declaração"), "{err}");
+    }
+
+    #[test]
+    fn component_sem_layout_erra_falando_do_component() {
+        let err = UiNode::parse_xml("<component><resources><style>.a { padding: 4; }</style></resources></component>")
+            .expect_err("um <component> sem conteúdo não é nada")
+            .to_string();
+        assert!(err.contains("<component> não tem conteúdo"), "{err}");
+    }
+
+    /// Um componente que é um par `if`/`else` (o caso do `nav_item`/`project_card`
+    /// do rustploy) continua virando um `Fragment`, com ou sem a casca.
+    #[test]
+    fn par_if_else_continua_fragment() {
+        let xml = r#"<component>
+            <resources><style>.a { padding: 4; }</style></resources>
+            <if cond="{on}"><column /></if>
+            <else><row /></else>
+        </component>"#;
+        let root = UiNode::parse_xml(xml).expect("parse");
+        assert!(matches!(root.kind, NodeType::Fragment));
+    }
+
+    #[test]
+    fn apelido_em_portugues() {
+        let xml = "<componente><recursos><style>.a { padding: 4; }</style></recursos><column /></componente>";
+        let root = UiNode::parse_xml(xml).expect("parse");
+        assert!(matches!(root.kind, NodeType::Column));
     }
 }

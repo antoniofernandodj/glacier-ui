@@ -62,7 +62,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [Layout](#layout)
     - [Conteúdo e controles](#conteúdo-e-controles)
     - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
-  - [Cabeçalho da tela: `<screen>` e `<resources>`](#cabeçalho-da-tela-screen-e-resources)
+  - [Cabeçalho: `<screen>`, `<component>` e `<resources>`](#cabeçalho-screen-component-e-resources)
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
   - [Controle de fluxo](#controle-de-fluxo)
@@ -292,14 +292,15 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
 | `<template>` | `Gabarito` | `<ForEach>`/`<if>`/`<ElseIf>`/`<else>` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
 | `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho da tela". |
-| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
+| `<component>` | `Component`, `componente`, `Componente` | mesma casca do `<screen>` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
+| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
 | `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
 | `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
 
 ---
 
-## Cabeçalho da tela: `<screen>` e `<resources>`
+## Cabeçalho: `<screen>`, `<component>` e `<resources>`
 
 Um template pode declarar, no próprio arquivo, **o que a janela é** — e separar
 o que não desenha do que desenha:
@@ -372,6 +373,34 @@ As regras de convivência:
   é um pedaço de tela, não uma janela; `title`/`size` ali não têm a quem se
   aplicar.
 
+### `<component>`: a mesma casca para quem não é janela
+
+Nem todo `.gv` é uma tela. Um arquivo importado por outro (`<import>`) é um
+pedaço de tela — um card, um item de menu, um badge — e ali `title`/`size` não
+teriam a quem se aplicar. Para esses, a raiz é `<component>` (apelido:
+`<componente>`):
+
+```xml
+<component>
+    <resources>
+        <style>
+            .stat_card { background: #161B22; padding: 16 22; }
+        </style>
+    </resources>
+
+    <column class="stat_card">
+        <text class="stat_num" content="{value}" />
+    </column>
+</component>
+```
+
+É o mesmo agrupamento do `<screen>`, com uma diferença deliberada: **o
+`<component>` não leva atributo nenhum**. Escrever `title=` nele é erro de
+parse, com a explicação junto (`title/size descrevem uma JANELA, e um
+<component> não é uma`) — em vez de aceitar em silêncio um atributo que nunca
+teria efeito. As props de um componente continuam vindo de quem o usa
+(`<MeuCard prop="…" />`), não do arquivo.
+
 E, porque o cabeçalho é a parte do template que **não desenha nada**, um engano
 nele não teria sintoma nenhum — a tela abriria igual, só que sem o que você
 escreveu. Por isso ele erra alto, com linha, coluna e o trecho ofensor:
@@ -385,9 +414,9 @@ erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
 ```
 
 São erros de parse (o template não carrega): atributo desconhecido no `<screen>`
-ou no `<resources>`, `size`/`min-size` que não seja um par de números,
-`resizable` que não seja booleano, um widget dentro do `<resources>` e um
-`<resources>` fora de um `<screen>`.
+ou no `<resources>`, qualquer atributo no `<component>`, `size`/`min-size` que
+não seja um par de números, `resizable` que não seja booleano, um widget dentro
+do `<resources>` e um `<resources>` fora de um cabeçalho.
 
 ---
 
