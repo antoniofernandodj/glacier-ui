@@ -211,6 +211,14 @@ pub enum GlacierError {
     /// O `<props>` declara a prop **sem** `default` — o que a torna obrigatória
     /// — e quem usou o componente não a passou.
     MissingProp { component: String, prop: String },
+    /// O `spread="{…}"` recebeu algo que não é um objeto JSON. Erra em vez de
+    /// ignorar porque o silêncio aqui é indistinguível do acerto: um spread que
+    /// não semeia nada deixa cada prop cair para o contexto de baixo, e a tela
+    /// renderiza valores plausíveis e errados — o mesmo silêncio que o `<props>`
+    /// existe para fechar. Valor **vazio** não chega aqui: é tratado como
+    /// "nenhum campo", e a prop obrigatória que faltar erra como `MissingProp`,
+    /// que aponta o problema com mais precisão.
+    InvalidSpread { component: String, value: String },
 }
 
 impl fmt::Display for GlacierError {
@@ -260,6 +268,17 @@ impl fmt::Display for GlacierError {
                 f,
                 "'{component}' precisa da prop '{prop}': ela é declarada sem default, então \
                  é obrigatória (dê um default=\"…\" no <prop> para torná-la opcional)"
+            ),
+            Self::InvalidSpread { component, value } => write!(
+                f,
+                "o spread de '{component}' precisa de um objeto JSON, e recebeu '{}': \
+                 spread=\"{{item}}\" espera um item de objeto (de um for-each ou de uma \
+                 chave de contexto), não um escalar nem uma lista",
+                if value.chars().count() > 40 {
+                    format!("{}…", value.chars().take(40).collect::<String>())
+                } else {
+                    value.clone()
+                }
             ),
         }
     }

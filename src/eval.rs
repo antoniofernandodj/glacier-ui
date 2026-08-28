@@ -578,6 +578,17 @@ fn mix(path: u64, step: u64) -> u64 {
     h
 }
 
+/// Um valor JSON como o contexto o guarda: a string crua quando é `String`, o
+/// JSON serializado para todo o resto. É o que faz uma lista aninhada
+/// atravessar a fronteira e voltar a ser lista num `for-each` de dentro — ele
+/// reparseia o valor da chave.
+fn json_scalar(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
+
 /// Monta a camada de variáveis de **um item** de `for-each`: `{var.campo}` para
 /// cada campo de um objeto, ou `{var}` para um escalar. Devolve também a
 /// identidade do item (o valor de `reorder_key`), de que o drag-and-drop precisa.
@@ -595,18 +606,23 @@ fn item_layer<'b>(
     match item {
         serde_json::Value::Object(obj) => {
             for (key, val) in obj {
-                let str_val = match val {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                };
+                let str_val = json_scalar(val);
                 if reorder_key == Some(key.as_str()) {
                     this_key = Some(str_val.clone());
                 }
                 layer.set(format!("{var}.{key}"), str_val);
             }
+            // O item INTEIRO, além dos campos: é o que um `spread="{item}"`
+            // repassa a um componente de uma vez. Sem isto `{item}` de um objeto
+            // resolveria para vazio — os campos estavam na camada, o item não.
+            //
+            // Custa uma serialização por item, em cima do clone que o laço acima
+            // já faz campo a campo: é da ordem do que o `item_layer` já gastava.
+            // Um item de lista é pequeno por construção — as listas grandes
+            // deste motor são listas de itens pequenos, não um item grande.
+            layer.set(var.to_string(), item.to_string());
         }
-        serde_json::Value::String(s) => layer.set(var.to_string(), s.clone()),
-        other => layer.set(var.to_string(), other.to_string()),
+        other => layer.set(var.to_string(), json_scalar(other)),
     }
 
     // Drag highlight: expõe se ESTE item é o que está sendo arrastado, para o
@@ -1297,6 +1313,39 @@ fn eval_owned(
         // [`EvalCtx`]. Uma prop de mesmo nome que uma chave global a sombreia,
         // como antes.
         let mut layer = Layer::new(context.layer());
+
+        // `spread="{c}"`: o objeto inteiro no lugar de um atributo por campo.
+        // Existe porque o call-site de um card em lista era uma parede de
+        // mapeamentos IDENTIDADE (`id="{c.id}" nome="{c.nome}" …`) — ruído de
+        // digitação, sem informação nenhuma.
+        //
+        // O que ele deliberadamente NÃO faz é virar uma prop-objeto (`{card.id}`
+        // dentro do componente): ali o `<props>` passaria a declarar `card` e
+        // mais nada, e `{card.nmae}` voltaria a renderizar vazio em silêncio —
+        // o typo invisível que o contrato existe para fechar. Semeando as props
+        // DECLARADAS, o dentro do componente não muda (`{id}`, `{nome}`), todas
+        // seguem verificadas, e a checagem ainda ganha alcance: uma obrigatória
+        // que o DADO não trouxe passa a errar, não só a que o markup esqueceu.
+        let spread_raw = props
+            .iter()
+            .find(|(k, _)| crate::parser::SPREAD_ATTRS.contains(&k.as_str()))
+            .map(|(_, v)| process_tpl(v, context));
+        let spread: serde_json::Map<String, serde_json::Value> = match spread_raw.as_deref() {
+            // Vazio é "nenhum campo", não um erro: a chave ainda não carregou.
+            // Se alguma prop obrigatória depender dela, o `MissingProp` abaixo
+            // erra apontando QUAL — melhor mensagem do que um spread inválido.
+            None | Some("") => serde_json::Map::new(),
+            Some(raw) => match serde_json::from_str(raw.trim()) {
+                Ok(serde_json::Value::Object(obj)) => obj,
+                _ => {
+                    return Err(crate::error::GlacierError::InvalidSpread {
+                        component: name.clone(),
+                        value: raw.to_string(),
+                    });
+                }
+            },
+        };
+
         if let Some(declaradas) = declaradas {
             // Prop passada que não existe no contrato: é aqui que um typo para
             // de ser invisível. Sem isto, `labl="CPU"` não casa com nada, o
@@ -1307,7 +1356,9 @@ fn eval_owned(
                 // porque `from_node` encaminha TODO atributo como prop — mas
                 // quem as lê é o `expand_children`, antes daqui. Ver
                 // `parser::DIRECTIVE_ATTRS`.
-                if crate::parser::DIRECTIVE_ATTRS.contains(&chave.as_str()) {
+                if crate::parser::DIRECTIVE_ATTRS.contains(&chave.as_str())
+                    || crate::parser::SPREAD_ATTRS.contains(&chave.as_str())
+                {
                     continue;
                 }
                 if !declaradas.iter().any(|d| &d.name == chave) {
@@ -1325,6 +1376,14 @@ fn eval_owned(
                 if props.contains_key(&decl.name) {
                     continue;
                 }
+                // O spread entra ANTES do default, e depois do atributo escrito
+                // à mão (que o laço final sobrescreve por cima): escrever a prop
+                // explicitamente ao lado de um `spread` é como se sobrepõe um
+                // campo do objeto.
+                if let Some(v) = spread.get(&decl.name) {
+                    layer.set(decl.name.clone(), json_scalar(v));
+                    continue;
+                }
                 match &decl.default {
                     Some(v) => layer.set(decl.name.clone(), process_tpl(v, context)),
                     None => {
@@ -1335,8 +1394,21 @@ fn eval_owned(
                     }
                 }
             }
+        } else {
+            // Sem `<props>` não há contrato, e portanto não há o que filtrar:
+            // todo campo do objeto entra, do mesmo jeito que o `item_layer` faz
+            // com um item de `for-each`. Mantém valendo a regra da 0.61 — quem
+            // não declara não é checado.
+            for (key, val) in &spread {
+                layer.set(key.clone(), json_scalar(val));
+            }
         }
         for (key, val_template) in props {
+            // O spread não é uma prop: deixá-lo entrar sombrearia uma chave de
+            // mesmo nome do contexto de baixo com um blob de JSON.
+            if crate::parser::SPREAD_ATTRS.contains(&key.as_str()) {
+                continue;
+            }
             layer.set(key.clone(), process_tpl(val_template, context));
         }
         let local_context = context.with(&layer, mix(node.node_id, 0));
