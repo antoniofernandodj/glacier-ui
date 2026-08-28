@@ -1414,6 +1414,11 @@ pub fn render_node<'a>(
             // Inline <style> blocks are stripped during evaluation; render nothing.
             column![].into()
         }
+        NodeType::Screen(_) | NodeType::Resources => {
+            // O cabeçalho (`<screen>`/`<resources>`) é declaração: o daemon lê os
+            // metadados, a avaliação strip a; aqui não há o que desenhar.
+            column![].into()
+        }
         NodeType::If { .. } | NodeType::Else | NodeType::ElseIf { .. } => {
             // TODO(diretivas): forma legada por tag; preferir atributos if/else/for-each. Remover quando templates forem migrados.
             // if/else are expanded during evaluation; nothing to render directly.

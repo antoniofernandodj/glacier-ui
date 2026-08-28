@@ -808,7 +808,11 @@ fn expand_children(
     for child in children {
         if matches!(
             child.kind,
-            NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. }
+            NodeType::Import { .. }
+                | NodeType::Link { .. }
+                | NodeType::Style { .. }
+                | NodeType::Screen(_)
+                | NodeType::Resources
         ) {
             continue;
         }
@@ -993,7 +997,11 @@ fn expand_children(
         // 4. Fallback to legacy tag-based conditionals/loops
         match &child.kind {
             // `<import>`/`<link>`/`<style>` declarations are skipped above.
-            NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. } => {}
+            NodeType::Import { .. }
+            | NodeType::Link { .. }
+            | NodeType::Style { .. }
+            | NodeType::Screen(_)
+            | NodeType::Resources => {}
             NodeType::ForEach { items, var } => {
                 let items_evaluated = process_tpl(items, context);
                 // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
@@ -1616,7 +1624,9 @@ fn eval_owned(
         | NodeType::Else
         | NodeType::ElseIf { .. }
         | NodeType::Link { .. }
-        | NodeType::Style { .. } => NodeType::Container,
+        | NodeType::Style { .. }
+        | NodeType::Screen(_)
+        | NodeType::Resources => NodeType::Container,
     };
 
     // For each style field, the node's inline attribute wins; a `class` value

@@ -50,7 +50,7 @@ pub use eval::{
 };
 pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use luau::LuauComponent;
-pub use parser::{NodeType, UiNode};
+pub use parser::{NodeType, ScreenMeta, UiNode};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
 pub use toasts::{ToastKind, ToastSpec};
@@ -106,6 +106,12 @@ pub struct GlacierUI {
     context_data: HashMap<String, String>,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
+    /// O que o `<screen>` de cada template registrado declarou sobre a janela
+    /// (título, tamanho, …), por nome de componente. Só entra quem declarou
+    /// alguma coisa — um template sem cabeçalho não ocupa espaço aqui. Quem lê é
+    /// o daemon, ao abrir a janela e a cada troca de tela; ver
+    /// [`GlacierUI::current_screen_meta`].
+    screen_meta: HashMap<String, parser::ScreenMeta>,
     /// Name of the component currently shown as the active screen
     current_screen: Option<String>,
     /// Navigation history (stack of previous screens) used by `navigate_back`
@@ -287,6 +293,7 @@ impl GlacierUI {
     pub fn new() -> Self {
         let mut ui = Self {
             registered_components: HashMap::new(),
+            screen_meta: HashMap::new(),
             inputs: render_inputs::RenderInputs::default(),
             evaluated_templates: HashMap::new(),
             pinned: std::collections::HashSet::new(),
@@ -513,6 +520,45 @@ impl GlacierUI {
         self.inputs.install_stylesheet(key, sheet);
     }
 
+    /// Guarda (ou esquece) o que o `<screen>` deste template declara sobre a
+    /// janela. Reescrito a cada registro, que é o mesmo caminho do hot-reload —
+    /// então apagar o `title=` do arquivo e salvar realmente o apaga daqui, em
+    /// vez de deixar o valor velho pendurado.
+    ///
+    /// Só olha os filhos **diretos** da raiz: é lá que o parse deposita as
+    /// declarações. Um `<screen>` perdido no meio do layout não é cabeçalho de
+    /// nada e não vale — some na avaliação como qualquer declaração fora de lugar.
+    fn record_screen_meta(&mut self, name: &str, ast: &UiNode) {
+        let meta = ast.children.iter().find_map(|c| match &c.kind {
+            NodeType::Screen(meta) if !meta.is_empty() => Some(meta.clone()),
+            _ => None,
+        });
+        match meta {
+            Some(meta) => {
+                self.screen_meta.insert(name.to_string(), meta);
+            }
+            None => {
+                self.screen_meta.remove(name);
+            }
+        }
+    }
+
+    /// O que o `<screen>` do template `name` declarou sobre a janela, se algo.
+    pub fn screen_meta(&self, name: &str) -> Option<&parser::ScreenMeta> {
+        self.screen_meta.get(name)
+    }
+
+    /// Idem, para a tela **ativa** — o que o daemon consulta ao abrir a janela e
+    /// a cada troca de tela para acertar o título.
+    pub fn current_screen_meta(&self) -> Option<&parser::ScreenMeta> {
+        self.screen_meta.get(self.current_screen.as_deref()?)
+    }
+
+    /// Nome da tela ativa, se já houver uma.
+    pub fn current_screen_name(&self) -> Option<&str> {
+        self.current_screen.as_deref()
+    }
+
     /// Sets the initial active screen, clearing any navigation history.
     ///
     /// Já avalia a tela: como só a tela ativa fica avaliada (ver
@@ -692,6 +738,7 @@ impl GlacierUI {
         self.builtin_component_names.remove(&name);
         self.load_imports(&ast, path.as_deref())?;
         self.process_links(&name, &ast)?;
+        self.record_screen_meta(&name, &ast);
 
         // (b) Behavior + (c) children: grab `children()` from the Rust struct
         //     *before* any wrapping below (once wrapped there's no more direct
@@ -1586,6 +1633,8 @@ impl GlacierUI {
         self.load_imports(&ast, Some(path))?;
         // Process this component's `<link>` declarations.
         self.process_links(name, &ast)?;
+        // Metadados de janela do `<screen>`, se o template tiver cabeçalho.
+        self.record_screen_meta(name, &ast);
 
         // Presume Luau: if the template carries a `<script>` (inline or an
         // external `src`/`from`), wire that component's Luau behavior; otherwise
@@ -2156,6 +2205,10 @@ impl GlacierUI {
             // Pick up any newly-added `<import>`/`<link>` declarations.
             let _ = self.load_imports(&new_ast, Some(&path));
             let _ = self.process_links(&name, &new_ast);
+            // …e o `<screen>`, que é declaração como as outras: editar o
+            // `title=` do arquivo tem de trocar o título da janela sem
+            // recompilar — é metade do motivo de o cabeçalho existir.
+            self.record_screen_meta(&name, &new_ast);
             self.inputs.insert_template(name.clone(), new_ast);
             self.file_mod_times.insert(name, modified);
         }

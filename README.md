@@ -62,6 +62,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [Layout](#layout)
     - [Conteúdo e controles](#conteúdo-e-controles)
     - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
+  - [Cabeçalho da tela: `<screen>` e `<resources>`](#cabeçalho-da-tela-screen-e-resources)
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
   - [Controle de fluxo](#controle-de-fluxo)
@@ -290,9 +291,103 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
 | `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
 | `<template>` | `Gabarito` | `<ForEach>`/`<if>`/`<ElseIf>`/`<else>` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
+| `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho da tela". |
+| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
 | `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
 | `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
+
+---
+
+## Cabeçalho da tela: `<screen>` e `<resources>`
+
+Um template pode declarar, no próprio arquivo, **o que a janela é** — e separar
+o que não desenha do que desenha:
+
+```xml
+<screen title="Detalhe do serviço" size="960 700" min-size="640 480">
+    <resources>
+        <style scoped="true">
+            .card { padding: 18; background: #161B22; }
+        </style>
+        <script src="detalhe.luau"></script>
+    </resources>
+
+    <container class="card">
+        <text content="{servico}" />
+    </container>
+</screen>
+```
+
+Dentro do `<screen>`, o `<resources>` guarda o que a tela **precisa** (estilo,
+script, `<link>`, `<import>`) e o resto é o layout. Sem ele, um `<style>` fica
+lado a lado com os widgets, no mesmo nível de indentação de algo que aparece na
+tela — que é justamente o que este cabeçalho existe para evitar.
+
+O `<resources>` é **opcional**: num arquivo com uma ou duas declarações, elas
+podem ficar soltas dentro do `<screen>` mesmo, que o efeito é o mesmo.
+
+```xml
+<screen title="Sobre" size="480 320">
+    <style scoped="true"> … </style>
+
+    <column> … </column>
+</screen>
+```
+
+| Atributo | Aliases | O que faz |
+|---|---|---|
+| `title` | `titulo` | título da barra da janela |
+| `size` | `tamanho` | tamanho inicial: `"960 700"`, `"960x700"` ou `"960, 700"` |
+| `min-size` | `minSize`, `min_size`, `tamanho-minimo` | tamanho mínimo |
+| `resizable` | `redimensionavel` | `"false"` trava o redimensionamento |
+
+`size` usa um par de números (como o `padding`) em vez de `width`/`height`
+separados porque esses dois nomes já querem dizer outra coisa no vocabulário de
+layout (`fill`, `shrink`, `fill 2`).
+
+As regras de convivência:
+
+- **O cabeçalho é opcional.** Um template sem `<screen>` funciona como sempre
+  funcionou: declarações e layout soltos na raiz, sem elemento que os envolva.
+- **O template ganha do builder.** `GlacierDaemon::title()`/`main_size()` passam
+  a ser o valor de quando o `.gv` não diz nada. Um campo não declarado não
+  opina: só o que está escrito no arquivo sobrepõe.
+- **O título acompanha a navegação.** Ir para uma tela que declara `title` troca
+  o título da janela; ir para uma que não declara devolve o título base.
+- **O tamanho é de quem abre a janela.** Navegar nunca redimensiona, e salvar o
+  arquivo (hot-reload) só redimensiona quando o número mudou no `<screen>` — do
+  contrário cada `Ctrl+S` desfaria o arrasto que você acabou de dar no canto da
+  janela.
+- **A geometria lembrada ganha do `size`.** Num app com
+  `remember_window_geometry`, o tamanho declarado é o de *primeira* abertura: o
+  tamanho em que o usuário deixou a janela vence, senão abrir o app desfaria o
+  redimensionamento dele todo boot. O `min-size` do template continua valendo
+  como piso dessa geometria.
+- **Janela-filha herda do arquivo.** `open_window({ file = "detalhe.gv" })` usa o
+  título e o tamanho declarados lá dentro, sem repeti-los na chamada — que
+  continua podendo sobrepor os dois quando sabe algo que o arquivo não sabe
+  (`title = "Editando nginx"`).
+- **Componente importado ignora os metadados.** Um `.gv` trazido por `<import>`
+  é um pedaço de tela, não uma janela; `title`/`size` ali não têm a quem se
+  aplicar.
+
+E, porque o cabeçalho é a parte do template que **não desenha nada**, um engano
+nele não teria sintoma nenhum — a tela abriria igual, só que sem o que você
+escreveu. Por isso ele erra alto, com linha, coluna e o trecho ofensor:
+
+```
+erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
+  |
+1 | <screen titel="Detalhe" size="960 700">
+  |         ^
+  = dica: o cabeçalho aceita title, size, min-size e resizable (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)
+```
+
+São erros de parse (o template não carrega): atributo desconhecido no `<screen>`
+ou no `<resources>`, `size`/`min-size` que não seja um par de números,
+`resizable` que não seja booleano, um widget dentro do `<resources>` e um
+`<resources>` fora de um `<screen>`.
 
 ---
 

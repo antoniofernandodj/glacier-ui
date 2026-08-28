@@ -25,6 +25,7 @@ end
 - **Ações**: `on_click`, `onClick`, `on_change`/`onChange`, `on_toggle`, `on_submit`, `on_reorder`, `on_open`/`on_message`/`on_error`/`on_close`, mais as variantes `ao_*`/`aoX`. O valor é o **nome de uma função** definida no `<script>` (inline ou `src=`).
 - **Comportamento**: `<script>…</script>` (Lua inline) ou `<script src="arquivo.luau"></script>` (externo, relativo ao template).
 - **Estilo**: `<style>…</style>` (GSS inline) ou `<link rel="stylesheet" href="app.gss"/>`. Ver a extensão *Glacier GSS*.
+- **Cabeçalho** (opcional): `<screen title="…" size="960 700">` como raiz, com um `<resources>` agrupando `<style>`/`<script>`/`<link>`/`<import>` e o layout depois. Ver `<Screen>` abaixo.
 
 ---
 
@@ -118,6 +119,18 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 
 ### `<Style>`
 `<style>…</style>` é GSS inline — global por padrão, restrito ao componente com `scoped="true"`. `<style href="…">` equivale a `<link rel="stylesheet">`.
+
+---
+
+## Cabeçalho da tela
+
+### `<Screen>` (`<tela>`)
+Raiz opcional que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min-size`/`minSize`, `resizable`/`redimensionavel`. O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Num `.gv` importado como componente, os metadados são ignorados.
+
+### `<Resources>` (`<recursos>`)
+Dentro do `<Screen>`, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>`. O que estiver fora dele (ainda dentro do `<Screen>`) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do `<Screen>`.
+
+O cabeçalho não desenha nada, então engano ali vira **erro de parse** (com linha/coluna) em vez de silêncio: atributo desconhecido, `size`/`min-size` que não seja par de números, `resizable` não booleano, widget dentro do `<Resources>`, `<Resources>` fora de um `<Screen>`.
 
 ---
 

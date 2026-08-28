@@ -413,18 +413,12 @@ impl GlacierDaemon {
             .then(|| storage_dir.clone())
             .flatten();
 
-        // Restaura a geometria salva SOBRE as `main_settings` do app, antes de
-        // abrir a janela — assim ela já nasce no tamanho/posição de onde parou,
-        // sem flash. Respeita o `min_size` (nunca abre menor que o mínimo).
-        let mut main_settings = main_settings;
-        if let Some(dir) = &geometry_dir
-            && let Some(saved) = load_geometry(dir)
-        {
-            main_settings.size = clamp_to_min(saved.size, main_settings.min_size);
-            if let Some(p) = saved.position {
-                main_settings.position = window::Position::Specific(p);
-            }
-        }
+        // A geometria salva, lida uma vez. Ela é aplicada lá dentro do `boot`,
+        // **depois** do `<screen>` do template: o tamanho declarado no arquivo é
+        // o de primeira abertura, enquanto a geometria lembrada é uma decisão que
+        // o usuário tomou arrastando a janela — e essa ganha. (Aplicar depois
+        // também deixa o `min-size` do template valer no clamp.)
+        let saved_geometry = geometry_dir.as_ref().and_then(|dir| load_geometry(dir));
 
         // Semeia a raiz do `storage` ANTES de qualquer motor ser construído (o
         // `boot` abaixo e cada janela-filha em `build_engine` instalam o global
@@ -441,6 +435,21 @@ impl GlacierDaemon {
             let mut engine = GlacierUI::new().with_asset_source(assets.clone());
             apply_style(&mut engine, style.as_ref());
             setup(&mut engine);
+            // O `setup` já registrou os componentes e definiu a tela inicial, e a
+            // janela ainda não existe — esta é a única janela de tempo em que o
+            // `<screen>` do template pode decidir título e tamanho **sem** o pulo
+            // visível de abrir num tamanho e redimensionar depois.
+            let mut main_settings = main_settings.clone();
+            let mut main_title = main_title.clone();
+            let base_title = main_title.clone();
+            let initial_screen = engine.current_screen_name().map(str::to_string);
+            let effective_size = resolve_main_window(
+                engine.current_screen_meta(),
+                saved_geometry.as_ref(),
+                &mut main_settings,
+                &mut main_title,
+            );
+            let sized_by_screen = initial_screen.zip(effective_size);
             let (id, open) = window::open(main_settings.clone());
             let mut rt = Runtime::new(
                 reload_period,
@@ -464,6 +473,10 @@ impl GlacierDaemon {
                 rt.on_tray = on_tray.clone();
             }
             rt.titles.insert(id, main_title.clone());
+            rt.base_titles.insert(id, base_title);
+            if let Some(entry) = sized_by_screen {
+                rt.sized_by.insert(id, entry);
+            }
             rt.windows.insert(id, engine);
             (rt, open.map(DaemonMessage::Opened))
         };
@@ -597,6 +610,15 @@ pub enum DaemonMessage {
 struct Runtime {
     windows: HashMap<window::Id, GlacierUI>,
     titles: HashMap<window::Id, String>,
+    /// O título de cada janela **sem** o que o `<screen>` diz: o do builder, para
+    /// a principal, ou o do `WindowSpec`/nome do arquivo, para as filhas. É para
+    /// cá que o título volta ao navegar para uma tela que não declara `title`.
+    base_titles: HashMap<window::Id, String>,
+    /// Por janela, qual tela ditou o tamanho atual e qual foi o valor aplicado.
+    /// Serve para o hot-reload: salvar o arquivo só redimensiona a janela quando
+    /// o número escrito no `<screen>` mudou de fato — senão cada `Ctrl+S`
+    /// desfaria o arrasto que o usuário acabou de fazer no canto da janela.
+    sized_by: HashMap<window::Id, (String, (f32, f32))>,
     /// `Id` da janela principal, conhecido já no `boot` (`window::open` o
     /// devolve síncrono). Tê-lo em mãos evita um round-trip `window::latest()`
     /// por ação de janela — e no Wayland esse adiamento **quebra** o arrasto:
@@ -655,6 +677,8 @@ impl Runtime {
         Self {
             windows: HashMap::new(),
             titles: HashMap::new(),
+            base_titles: HashMap::new(),
+            sized_by: HashMap::new(),
             main_id,
             child_settings: None,
             on_message: None,
@@ -688,6 +712,8 @@ impl Runtime {
                 // título sai; o motor fica em `windows` sob o `main_id` morto.
                 if id == self.main_id && self.tray.is_some() {
                     self.titles.remove(&id);
+                    self.base_titles.remove(&id);
+                    self.sized_by.remove(&id);
                     self.main_shown = false;
                     return Task::none();
                 }
@@ -695,6 +721,8 @@ impl Runtime {
                 // bandeja, a última janela fechada encerra o app (como sempre).
                 self.windows.remove(&id);
                 self.titles.remove(&id);
+                self.base_titles.remove(&id);
+                self.sized_by.remove(&id);
                 if self.windows.is_empty() && self.tray.is_none() {
                     iced::exit()
                 } else {
@@ -815,6 +843,7 @@ impl Runtime {
         self.main_id = id;
         self.main_shown = true;
         self.titles.insert(id, self.main_title.clone());
+        self.base_titles.insert(id, self.main_title.clone());
         self.windows.insert(id, engine);
         open.map(DaemonMessage::Opened)
     }
@@ -923,34 +952,117 @@ impl Runtime {
             tasks.push(self.close(id));
         }
 
+        // 5. a tela pode ter mudado (navegação) ou o arquivo pode ter sido salvo
+        //    (hot-reload): reacerta o que a janela mostra do que a tela declara.
+        tasks.push(self.sync_window_meta(id));
+
         Task::batch(tasks)
+    }
+
+    /// Reacerta a janela `id` com o que a **tela ativa** declara no `<screen>`.
+    ///
+    /// O título acompanha a navegação: entrar numa tela que declara `title` troca
+    /// o da janela, e sair dela para uma que não declara nada devolve o título
+    /// base (o do builder, ou o de quem abriu a janela).
+    ///
+    /// O tamanho é outra história — quem decide o tamanho de uma janela é quem a
+    /// abre, uma vez. Navegar não redimensiona (seria hostil no meio do uso), e
+    /// o hot-reload só redimensiona quando o número mudou no arquivo, e só para a
+    /// tela que ditou o tamanho desta janela: sem isso, cada `Ctrl+S` desfaria o
+    /// arrasto que o usuário acabou de dar no canto da janela.
+    fn sync_window_meta(&mut self, id: window::Id) -> Task<DaemonMessage> {
+        // A principal recolhida na bandeja mantém o motor vivo sob um `Id` morto
+        // (ver `main_shown`), e continua recebendo ticks. Sem esta guarda, o
+        // primeiro tick devolveria o título dela ao mapa que o `Closed` acabou de
+        // limpar — título de janela que não está na tela.
+        if !self.titles.contains_key(&id) {
+            return Task::none();
+        }
+        let Some(engine) = self.windows.get(&id) else {
+            return Task::none();
+        };
+        let screen = engine.current_screen_name().map(str::to_string);
+        let meta = engine.current_screen_meta().cloned();
+
+        let base = self.base_titles.get(&id).cloned();
+        if let Some(wanted) = meta.as_ref().and_then(|m| m.title.clone()).or(base)
+            && self.titles.get(&id) != Some(&wanted)
+        {
+            self.titles.insert(id, wanted);
+        }
+
+        let (Some(screen), Some(size)) = (screen, meta.and_then(|m| m.size)) else {
+            return Task::none();
+        };
+        match self.sized_by.get(&id) {
+            Some((owner, applied)) if *owner == screen && *applied != size => {
+                self.sized_by.insert(id, (screen, size));
+                window::resize(id, Size::new(size.0, size.1))
+            }
+            _ => Task::none(),
+        }
     }
 
     /// Materializa um [`WindowSpec`] numa janela nova: constrói um motor fresco,
     /// abre a janela (o `Id` vem síncrono) e registra motor + título.
     fn open_child(&mut self, spec: WindowSpec) -> Task<DaemonMessage> {
-        let (w, h) = spec.size.unwrap_or((640.0, 480.0));
+        // O motor primeiro: é ele que sabe o que o `<screen>` do arquivo declara,
+        // e a janela ainda não abriu — mesma janela de tempo que o boot usa para
+        // a principal. Assim `open_window({ file = "detalhe.gv" })` herda título e
+        // tamanho de `detalhe.gv`, em vez de exigir que quem chama os repita.
+        // O hook `child_window` roda depois de o motor existir (é dele que vem o
+        // meta), mas `build_engine` já terá consumido o `source` — um
+        // `Component` é um Box que precisa ser movido para dentro do motor. O
+        // eco recria fielmente as duas formas clonáveis, que são as que um app
+        // olha para decidir a aparência da filha; um `Component` vira o `Named`
+        // do próprio nome.
+        let echo_source = match &spec.source {
+            WindowSource::File(path) => WindowSource::File(path.clone()),
+            WindowSource::Named(name) => WindowSource::Named(name.clone()),
+            WindowSource::Component(comp) => WindowSource::Named(comp.name().to_string()),
+        };
+        let WindowSpec {
+            source,
+            title,
+            size,
+            resizable,
+            data,
+        } = spec;
+        let (engine, fallback_title) =
+            build_engine(source, &data, self.assets.clone(), self.style.as_ref());
+        let meta = engine.current_screen_meta().cloned().unwrap_or_default();
+        let screen = engine.current_screen_name().map(str::to_string);
+
+        // Quem abre a janela ainda manda: sabe do contexto que o arquivo não sabe
+        // ("Editando nginx"). O `<screen>` é o padrão de quando não disseram nada.
+        let (w, h) = size.or(meta.size).unwrap_or((640.0, 480.0));
         let mut settings = window::Settings {
             size: Size::new(w, h),
-            resizable: spec.resizable,
+            resizable: resizable && meta.resizable.unwrap_or(true),
+            min_size: meta.min_size.map(|(w, h)| Size::new(w, h)),
             ..window::Settings::default()
         };
         // O app tem a última palavra sobre a aparência da filha (ex.: também
         // borderless, num app com titlebar própria).
         if let Some(f) = &self.child_settings {
-            f(&spec, &mut settings);
+            let echo = WindowSpec {
+                source: echo_source,
+                title: title.clone(),
+                size,
+                resizable,
+                data,
+            };
+            f(&echo, &mut settings);
         }
 
-        let WindowSpec {
-            source,
-            title,
-            data,
-            ..
-        } = spec;
-        let (engine, fallback_title) =
-            build_engine(source, &data, self.assets.clone(), self.style.as_ref());
         let (id, open) = window::open(settings);
-        self.titles.insert(id, title.unwrap_or(fallback_title));
+        let base_title = title.unwrap_or(fallback_title);
+        self.titles
+            .insert(id, meta.title.clone().unwrap_or_else(|| base_title.clone()));
+        self.base_titles.insert(id, base_title);
+        if let Some(entry) = screen.zip(size.or(meta.size)) {
+            self.sized_by.insert(id, entry);
+        }
         self.windows.insert(id, engine);
         open.map(DaemonMessage::Opened)
     }
@@ -1074,6 +1186,68 @@ impl Runtime {
 /// sido resolvido para `File` no motor de origem (ver `run_on_owner`). `data`
 /// (pares `open_window({ data = ... })`) é semeado no contexto **antes** de
 /// registrar o componente, para que seu `init` já enxergue os valores.
+/// Sobrepõe às `window::Settings`/título da janela o que o `<screen>` do
+/// template declarou.
+///
+/// **O template ganha do builder.** Enquanto nenhum `.gv` tinha cabeçalho, o
+/// builder era o único lugar onde essa informação podia estar; a partir do
+/// momento em que alguém escreve `title=`/`size=` no arquivo, foi uma decisão
+/// explícita e recente — e é o arquivo que está aberto na frente da pessoa e
+/// recarrega a quente. Um campo não declarado (`None`) não opina: o valor do
+/// builder fica.
+/// Decide com que título e tamanho a janela principal nasce, resolvendo as três
+/// camadas que opinam sobre isso — da mais fraca para a mais forte:
+///
+/// 1. o **builder** (`GlacierDaemon::title`/`main_size`/`main_window`), que é o
+///    default de quem escreveu o app;
+/// 2. o **`<screen>` do template**, que é o default de quem escreveu a tela;
+/// 3. a **geometria lembrada** (`remember_window_geometry`), que não é default
+///    nenhum: é o tamanho em que o usuário deixou a janela da última vez.
+///
+/// A ordem importa de verdade num app que lembra geometria: se o `size` do
+/// arquivo viesse por último, toda abertura desfaria o redimensionamento do
+/// usuário — o arquivo mandaria mais que a pessoa usando o programa. Aplicar o
+/// `<screen>` primeiro também faz o `min-size` declarado valer no clamp da
+/// geometria salva.
+///
+/// Devolve o tamanho que de fato ficou, quando alguém opinou — é o valor que o
+/// `sized_by` do runtime guarda para saber se um hot-reload deve redimensionar.
+fn resolve_main_window(
+    meta: Option<&crate::ScreenMeta>,
+    saved: Option<&SavedGeometry>,
+    settings: &mut window::Settings,
+    title: &mut String,
+) -> Option<(f32, f32)> {
+    let mut size = None;
+    if let Some(meta) = meta {
+        apply_screen_meta(meta, settings, title);
+        size = meta.size;
+    }
+    if let Some(saved) = saved {
+        settings.size = clamp_to_min(saved.size, settings.min_size);
+        if let Some(p) = saved.position {
+            settings.position = window::Position::Specific(p);
+        }
+        size = Some((settings.size.width, settings.size.height));
+    }
+    size
+}
+
+fn apply_screen_meta(meta: &crate::ScreenMeta, settings: &mut window::Settings, title: &mut String) {
+    if let Some(t) = &meta.title {
+        *title = t.clone();
+    }
+    if let Some((w, h)) = meta.size {
+        settings.size = Size::new(w, h);
+    }
+    if let Some((w, h)) = meta.min_size {
+        settings.min_size = Some(Size::new(w, h));
+    }
+    if let Some(r) = meta.resizable {
+        settings.resizable = r;
+    }
+}
+
 fn build_engine(
     source: WindowSource,
     data: &[(String, String)],
@@ -1352,6 +1526,214 @@ mod tests {
         rt.windows.insert(main_id, GlacierUI::new());
         rt.titles.insert(main_id, "T".to_string());
         (rt, main_id)
+    }
+
+    /// Uma tela de teste com markup inline — o atalho para registrar um
+    /// `<screen>` sem tocar no disco.
+    struct TelaInline(&'static str, String);
+    impl Component for TelaInline {
+        fn name(&self) -> &str {
+            self.0
+        }
+        fn template(&self) -> Template {
+            Template::Inline(self.1.clone())
+        }
+        fn update(&mut self, _action: &str, _v: Option<&str>, _ctx: &mut Context) {}
+    }
+
+    fn tela(nome: &'static str, markup: &str) -> Box<TelaInline> {
+        Box::new(TelaInline(nome, markup.to_string()))
+    }
+
+    /// O `<screen title>` da tela ativa manda na barra da janela, e a navegação
+    /// leva o título junto — inclusive de volta ao título base quando a tela
+    /// seguinte não declara nenhum.
+    #[test]
+    fn titulo_segue_a_tela_ativa() {
+        let (mut rt, id) = runtime_de_teste(false);
+        let mut motor = GlacierUI::new();
+        motor
+            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .unwrap();
+        motor
+            .register(tela("detalhe", r#"<screen title="Detalhe"><column /></screen>"#))
+            .unwrap();
+        motor.register(tela("anonima", "<column />")).unwrap();
+        motor.set_initial_screen("lista");
+        rt.windows.insert(id, motor);
+        rt.base_titles.insert(id, "T".to_string());
+
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.title(id), "Lista");
+
+        rt.windows.get_mut(&id).unwrap().navigate_to("detalhe");
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.title(id), "Detalhe");
+
+        rt.windows.get_mut(&id).unwrap().navigate_to("anonima");
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(
+            rt.title(id),
+            "T",
+            "tela sem título devolve o título de quem abriu a janela"
+        );
+    }
+
+    /// Apagar o `title=` do arquivo e salvar (o hot-reload re-registra o
+    /// componente) tem de apagar o título também — e não deixar o valor velho
+    /// pendurado no motor.
+    #[test]
+    fn hot_reload_que_apaga_o_titulo_devolve_o_base() {
+        let (mut rt, id) = runtime_de_teste(false);
+        let mut motor = GlacierUI::new();
+        motor
+            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .unwrap();
+        motor.set_initial_screen("lista");
+        rt.windows.insert(id, motor);
+        rt.base_titles.insert(id, "T".to_string());
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.title(id), "Lista");
+
+        // O "arquivo salvo" sem cabeçalho nenhum.
+        rt.windows
+            .get_mut(&id)
+            .unwrap()
+            .register(tela("lista", "<column />"))
+            .unwrap();
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.title(id), "T");
+    }
+
+    /// Tamanho é de quem abre a janela, não da tela: navegar nunca redimensiona,
+    /// e o hot-reload só redimensiona quando o número mudou no arquivo.
+    #[test]
+    fn tamanho_so_muda_quando_o_numero_muda_no_arquivo() {
+        let (mut rt, id) = runtime_de_teste(false);
+        let mut motor = GlacierUI::new();
+        motor
+            .register(tela(
+                "lista",
+                r#"<screen title="L" size="800 600"><column /></screen>"#,
+            ))
+            .unwrap();
+        motor
+            .register(tela(
+                "outra",
+                r#"<screen title="O" size="1200 900"><column /></screen>"#,
+            ))
+            .unwrap();
+        motor.set_initial_screen("lista");
+        rt.windows.insert(id, motor);
+        rt.base_titles.insert(id, "T".to_string());
+        rt.sized_by.insert(id, ("lista".to_string(), (800.0, 600.0)));
+
+        // Mesma tela, mesmo número: nada a fazer.
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.sized_by[&id], ("lista".to_string(), (800.0, 600.0)));
+
+        // Navegar para uma tela maior NÃO redimensiona a janela.
+        rt.windows.get_mut(&id).unwrap().navigate_to("outra");
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(
+            rt.sized_by[&id],
+            ("lista".to_string(), (800.0, 600.0)),
+            "quem ditou o tamanho foi 'lista'; navegar não muda isso"
+        );
+
+        // Já editar o `size` da tela que ditou o tamanho, sim.
+        rt.windows.get_mut(&id).unwrap().navigate_to("lista");
+        rt.windows
+            .get_mut(&id)
+            .unwrap()
+            .register(tela(
+                "lista",
+                r#"<screen title="L" size="900 640"><column /></screen>"#,
+            ))
+            .unwrap();
+        let _ = rt.sync_window_meta(id);
+        assert_eq!(rt.sized_by[&id], ("lista".to_string(), (900.0, 640.0)));
+    }
+
+    /// A geometria que o usuário deixou ganha do `size` do template — senão
+    /// abrir o app desfaria o redimensionamento dele a cada boot.
+    #[test]
+    fn geometria_lembrada_ganha_do_size_do_template() {
+        let meta = crate::ScreenMeta {
+            title: Some("do template".into()),
+            size: Some((1000.0, 700.0)),
+            min_size: Some((480.0, 360.0)),
+            resizable: None,
+        };
+        let saved = SavedGeometry {
+            size: Size::new(1440.0, 900.0),
+            position: None,
+        };
+
+        let mut settings = window::Settings::default();
+        let mut title = "do builder".to_string();
+        let size = resolve_main_window(Some(&meta), Some(&saved), &mut settings, &mut title);
+
+        assert_eq!(settings.size, Size::new(1440.0, 900.0));
+        assert_eq!(size, Some((1440.0, 900.0)));
+        assert_eq!(title, "do template", "o título segue vindo do template");
+        assert_eq!(
+            settings.min_size,
+            Some(Size::new(480.0, 360.0)),
+            "o min-size do template continua valendo"
+        );
+
+        // Sem geometria salva (primeira abertura), o template manda no tamanho.
+        let mut settings = window::Settings::default();
+        let mut title = "do builder".to_string();
+        let size = resolve_main_window(Some(&meta), None, &mut settings, &mut title);
+        assert_eq!(settings.size, Size::new(1000.0, 700.0));
+        assert_eq!(size, Some((1000.0, 700.0)));
+    }
+
+    /// Uma geometria salva menor que o `min-size` declarado no template não
+    /// abre a janela espremida.
+    #[test]
+    fn geometria_lembrada_respeita_o_min_size_do_template() {
+        let meta = crate::ScreenMeta {
+            min_size: Some((800.0, 600.0)),
+            ..Default::default()
+        };
+        let saved = SavedGeometry {
+            size: Size::new(400.0, 300.0),
+            position: None,
+        };
+        let mut settings = window::Settings::default();
+        let mut title = String::new();
+        resolve_main_window(Some(&meta), Some(&saved), &mut settings, &mut title);
+        assert_eq!(settings.size, Size::new(800.0, 600.0));
+    }
+
+    /// O template ganha do builder — e um campo que ele não declara não opina.
+    #[test]
+    fn apply_screen_meta_sobrepoe_so_o_declarado() {
+        let mut settings = window::Settings {
+            size: Size::new(640.0, 480.0),
+            resizable: true,
+            ..window::Settings::default()
+        };
+        let mut title = "do builder".to_string();
+
+        apply_screen_meta(
+            &crate::ScreenMeta {
+                title: Some("do template".into()),
+                size: Some((1000.0, 700.0)),
+                min_size: None,
+                resizable: None,
+            },
+            &mut settings,
+            &mut title,
+        );
+
+        assert_eq!(title, "do template");
+        assert_eq!(settings.size, Size::new(1000.0, 700.0));
+        assert!(settings.resizable, "não declarado, então o builder fica");
+        assert!(settings.min_size.is_none());
     }
 
     #[test]

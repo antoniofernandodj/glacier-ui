@@ -2924,3 +2924,49 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
 
     std::fs::remove_file(tpl).ok();
 }
+
+/// O `title=` do `<screen>` tem de acompanhar o hot-reload: editar o arquivo e
+/// salvar troca o título sem recompilar. (Regressão: o `check_reload` tem um
+/// caminho próprio de aplicação, separado do registro, e no primeiro corte ele
+/// atualizava `<import>`/`<link>` mas esquecia o `<screen>` — o título ficava
+/// congelado no valor com que o app subiu.)
+#[test]
+fn test_screen_meta_reloads_with_template() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let path = "templates/test_screen_reload.gv";
+    std::fs::write(
+        path,
+        r#"<screen title="Antes" size="800 600"><Text content="x" /></screen>"#,
+    )
+    .unwrap();
+    motor.register_component("tela", path).unwrap();
+    motor.set_initial_screen("tela");
+    assert_eq!(
+        motor.current_screen_meta().and_then(|m| m.title.as_deref()),
+        Some("Antes")
+    );
+
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::fs::write(
+        path,
+        r#"<screen title="Depois" size="900 640"><Text content="x" /></screen>"#,
+    )
+    .unwrap();
+    let _ = filetime_touch(path);
+    motor.check_reload();
+
+    let meta = motor.current_screen_meta().expect("metadados após o reload");
+    assert_eq!(meta.title.as_deref(), Some("Depois"));
+    assert_eq!(meta.size, Some((900.0, 640.0)));
+
+    // Apagar o cabeçalho no arquivo também tem de apagá-lo no motor.
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::fs::write(path, r#"<Text content="x" />"#).unwrap();
+    let _ = filetime_touch(path);
+    motor.check_reload();
+    assert!(motor.current_screen_meta().is_none());
+
+    std::fs::remove_file(path).ok();
+}

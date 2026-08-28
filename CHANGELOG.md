@@ -8,6 +8,78 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.59.0] — 2026-08-28
+
+### Adicionado
+- **Cabeçalho da tela: `<screen>` + `<resources>`** — um template pode declarar,
+  no próprio arquivo, o que a **janela** é, e separar o que não desenha do que
+  desenha. Até aqui um `.gv` era uma lista de coisas soltas no mesmo nível: o
+  `<style>`, que não aparece na tela, ficava lado a lado com o `<container>`, que
+  aparece — sem nenhuma fronteira entre "o que a tela precisa para existir" e "o
+  que a tela mostra". E o arquivo que descreve a tela não sabia como ela se chama
+  nem de que tamanho nasce: título e tamanho só existiam no builder Rust, o que
+  obrigava a sair do `.gv`, editar o `main.rs` e recompilar (perdendo o
+  hot-reload) para mudar um título — e dava um título só para todas as telas da
+  mesma janela, porque ele era decidido uma vez no boot.
+
+  ```xml
+  <screen title="Detalhe do serviço" size="960 700" min-size="640 480">
+      <resources>
+          <style scoped="true">
+              .card { padding: 18; background: #161B22; }
+          </style>
+          <script src="detalhe.luau"></script>
+      </resources>
+
+      <container class="card">
+          <text content="{servico}" />
+      </container>
+  </screen>
+  ```
+
+  Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"` ou
+  `"960, 700"` — um par de números, como o `padding`, porque `width`/`height` já
+  querem dizer outra coisa no layout), `min-size`/`minSize` e
+  `resizable`/`redimensionavel`. As tags aceitam apelidos em português
+  (`<tela>`, `<recursos>`), como o resto do vocabulário.
+
+  As regras de convivência:
+  - **O cabeçalho é opcional** — nenhum `.gv` existente precisa mudar; a forma
+    solta continua válida e as duas terminam na mesma árvore.
+  - **O template ganha do builder** — `GlacierDaemon::title()`/`main_size()`
+    viram o valor de quando o arquivo não diz nada; um campo não declarado não
+    opina.
+  - **O título acompanha a navegação** — entrar numa tela que declara `title`
+    troca o da janela; sair para uma que não declara devolve o título base.
+  - **O tamanho é de quem abre a janela** — navegar não redimensiona, e o
+    hot-reload só redimensiona quando o número mudou no arquivo (senão cada
+    `Ctrl+S` desfaria o arrasto que você deu no canto da janela).
+  - **A geometria lembrada ganha do `size`** — num app com
+    `remember_window_geometry`, o `size` do template é o de primeira abertura; o
+    tamanho em que o usuário deixou a janela vence (com o `min-size` declarado
+    valendo de piso).
+  - **Janela-filha herda do arquivo** — `open_window({ file = "detalhe.gv" })`
+    usa o título/tamanho declarados lá dentro, e a chamada ainda pode sobrepô-los.
+  - **Componente importado ignora os metadados** — um `.gv` trazido por
+    `<import>` é pedaço de tela, não janela.
+
+  O `<resources>` é opcional: com uma ou duas declarações, elas podem ficar
+  soltas dentro do próprio `<screen>`.
+
+  **O cabeçalho erra alto.** Ele é a parte do template que não desenha nada, e
+  por isso um engano ali não teria sintoma: a tela abriria igual, só que sem o
+  que o autor escreveu. Viram erro de parse, com linha, coluna e trecho: atributo
+  desconhecido no `<screen>` ou no `<resources>`, `size`/`min-size` que não seja
+  um par de números (`size="960px"`, `size="960"`), `resizable` que não seja
+  booleano, um widget dentro do `<resources>` (com a dica de movê-lo para depois
+  do `</resources>`) e um `<resources>` fora de um `<screen>`.
+
+  API nova: `GlacierUI::screen_meta`, `GlacierUI::current_screen_meta`,
+  `GlacierUI::current_screen_name` e o tipo `ScreenMeta`, re-exportado na raiz.
+  `examples/controle_externo` foi migrado para a forma nova.
+
+---
+
 ## [0.58.6] — 2026-08-28
 
 ### Adicionado

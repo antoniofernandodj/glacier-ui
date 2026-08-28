@@ -3,6 +3,238 @@ use crate::stylesheet::StyleRule;
 use roxmltree::Node;
 use std::collections::HashMap;
 
+/// O que o `<screen>` de um template diz sobre a **janela** que o hospeda.
+///
+/// ```xml
+/// <screen title="Detalhe do serviço" size="960 700" min-size="640 480">
+///     <resources>
+///         <style> … </style>
+///     </resources>
+///
+///     <column> … </column>
+/// </screen>
+/// ```
+///
+/// Tudo é opcional: um campo `None` significa "não opino", e quem abre a janela
+/// decide (o builder do [`crate::GlacierDaemon`] para a principal, o
+/// [`crate::component::WindowSpec`] para as filhas).
+///
+/// Só vale quando o template é a **tela** de uma janela. Num `.gv` usado como
+/// componente (`<import>`), não há janela a que estes valores se apliquem e eles
+/// são ignorados.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ScreenMeta {
+    /// Título da barra de janela. Acompanha a navegação: ir para outra tela que
+    /// declara `title` troca o título da janela.
+    pub title: Option<String>,
+    /// Tamanho inicial `(largura, altura)`, de `size="960 700"`.
+    pub size: Option<(f32, f32)>,
+    /// Tamanho mínimo `(largura, altura)`, de `min-size="640 480"`.
+    pub min_size: Option<(f32, f32)>,
+    /// Se a janela pode ser redimensionada (`resizable="false"`).
+    pub resizable: Option<bool>,
+}
+
+impl ScreenMeta {
+    /// Nenhum atributo declarado — um `<screen>` que só agrupa recursos.
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Os atributos que o `<screen>` aceita, um grupo por campo do [`ScreenMeta`].
+/// A leitura (`from_node`) e a validação (`validate_header`) usam estas mesmas
+/// listas, para não existir um atributo que uma delas conheça e a outra não.
+const SCREEN_TITLE_ATTRS: &[&str] = &["title", "titulo"];
+const SCREEN_SIZE_ATTRS: &[&str] = &["size", "tamanho"];
+const SCREEN_MIN_SIZE_ATTRS: &[&str] = &[
+    "min-size",
+    "minSize",
+    "min_size",
+    "tamanho-minimo",
+    "tamanho_minimo",
+];
+const SCREEN_RESIZABLE_ATTRS: &[&str] = &["resizable", "redimensionavel", "redimensionável"];
+const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
+    SCREEN_TITLE_ATTRS,
+    SCREEN_SIZE_ATTRS,
+    SCREEN_MIN_SIZE_ATTRS,
+    SCREEN_RESIZABLE_ATTRS,
+];
+
+/// As tags que podem morar dentro de um `<resources>`. Tudo o mais ali dentro é
+/// erro: um widget num bloco de declarações não desenharia nada, e sumir em
+/// silêncio é pior do que não compilar.
+const RESOURCE_TAGS: &[&str] = &[
+    "style",
+    "stylesheet",
+    "link",
+    "import",
+    "importar",
+    "script",
+];
+
+/// Lê um par de números de um atributo de tamanho (`size`, `min-size`).
+///
+/// Aceita as três separações que alguém escreveria sem pensar — `960 700`,
+/// `960x700`, `960, 700` — porque nenhuma delas é ambígua. O formato de
+/// referência é o do espaço, o mesmo que o `padding` já usa; `width`/`height`
+/// separados ficariam ambíguos com os atributos de layout de mesmo nome, que
+/// querem dizer outra coisa (`fill`, `shrink`, `fill 2`).
+/// Lê um atributo booleano do cabeçalho. `None` para qualquer coisa que não seja
+/// um booleano reconhecível — o que `validate_header` transforma em erro, em vez
+/// de deixar um `resizable="talvez"` valer silenciosamente como `false`.
+fn parse_bool_value(raw: &str) -> Option<bool> {
+    let v = raw.trim();
+    if v.eq_ignore_ascii_case("true") || v == "1" || v.eq_ignore_ascii_case("sim") {
+        Some(true)
+    } else if v.eq_ignore_ascii_case("false") || v == "0" || v.eq_ignore_ascii_case("nao") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Confere o cabeçalho (`<screen>`/`<resources>`) **antes** de o template ser
+/// montado, e devolve o primeiro problema encontrado.
+///
+/// O cabeçalho é a parte do template que não desenha nada, e é justamente por
+/// isso que ele precisa de erro alto: um `titel=` trocado, um `size="960"` pela
+/// metade ou um `<button>` dentro do `<resources>` não produzem nenhum sintoma
+/// visual — a tela abre igual, só que sem o que você acabou de escrever. Sem
+/// esta passada, o autor fica olhando para um arquivo que "está certo".
+///
+/// Roda sobre o documento do roxmltree (e não sobre a árvore já convertida) para
+/// citar o nome do atributo como o autor o escreveu e apontar a linha certa.
+fn validate_header(fragment: Node) -> Option<Diagnostic> {
+    for child in fragment.children().filter(Node::is_element) {
+        let tag = child.tag_name().name();
+        if is_resources_tag(tag) {
+            // Um `<resources>` solto na raiz não agrupa nada: fora do `<screen>`
+            // ele não é cabeçalho de coisa alguma, e o parse o descartaria.
+            return Some(
+                diagnostic_at(child, format!("<{tag}> fora de um <screen>")).with_hint(
+                    "o <resources> só existe dentro do <screen>, que é a raiz do template;                      sem cabeçalho, as declarações ficam soltas na raiz mesmo",
+                ),
+            );
+        }
+        if !is_screen_tag(tag) {
+            continue;
+        }
+
+        // Atributos do próprio `<screen>`.
+        for attr in child.attributes() {
+            let name = attr.name();
+            let known = SCREEN_ATTR_GROUPS
+                .iter()
+                .find(|group| group.contains(&name));
+            let Some(group) = known else {
+                return Some(
+                    diagnostic_at_attr(child, attr, format!("atributo '{name}' desconhecido no <{tag}>"))
+                        .with_hint(
+                            "o cabeçalho aceita title, size, min-size e resizable \
+                             (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)",
+                        ),
+                );
+            };
+            let value = attr.value();
+            let bad = if std::ptr::eq(*group, SCREEN_SIZE_ATTRS)
+                || std::ptr::eq(*group, SCREEN_MIN_SIZE_ATTRS)
+            {
+                parse_size_pair(value).is_none().then_some(
+                    "um tamanho é um par de números: `960 700`, `960x700` ou `960, 700` \
+                     (em px, sem unidade)",
+                )
+            } else if std::ptr::eq(*group, SCREEN_RESIZABLE_ATTRS) {
+                parse_bool_value(value)
+                    .is_none()
+                    .then_some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
+            } else {
+                None
+            };
+            if let Some(hint) = bad {
+                return Some(
+                    diagnostic_at_attr(
+                        child,
+                        attr,
+                        format!("valor inválido em {name}=\"{value}\""),
+                    )
+                    .with_hint(hint),
+                );
+            }
+        }
+
+        // Conteúdo do `<resources>`: só declaração entra.
+        for res in child.children().filter(Node::is_element) {
+            if !is_resources_tag(res.tag_name().name()) {
+                continue;
+            }
+            if let Some(attr) = res.attributes().next() {
+                return Some(
+                    diagnostic_at_attr(
+                        res,
+                        attr,
+                        format!("atributo '{}' desconhecido no <resources>", attr.name()),
+                    )
+                    .with_hint("o <resources> só agrupa declarações; ele não leva atributos"),
+                );
+            }
+            for decl in res.children().filter(Node::is_element) {
+                let name = decl.tag_name().name();
+                if !RESOURCE_TAGS.iter().any(|t| t.eq_ignore_ascii_case(name)) {
+                    return Some(
+                        diagnostic_at(decl, format!("<{name}> não é uma declaração"))
+                            .with_hint(
+                                "dentro do <resources> só entram <style>, <script>, <link> e \
+                                 <import>; um widget vai no layout, depois do </resources>",
+                            ),
+                    );
+                }
+            }
+        }
+    }
+    None
+}
+
+fn is_screen_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("screen") || tag.eq_ignore_ascii_case("tela")
+}
+
+fn is_resources_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("resources") || tag.eq_ignore_ascii_case("recursos")
+}
+
+/// Posição de um nó no arquivo do autor, já descontando a raiz sintética (que
+/// só desloca a coluna da linha 1 — mesma correção de [`xml_error`]).
+fn diagnostic_at(node: Node, message: String) -> Diagnostic {
+    position_of(node, node.range().start, message)
+}
+
+fn diagnostic_at_attr(node: Node, attr: roxmltree::Attribute, message: String) -> Diagnostic {
+    position_of(node, attr.range().start, message)
+}
+
+fn position_of(node: Node, offset: usize, message: String) -> Diagnostic {
+    let pos = node.document().text_pos_at(offset);
+    let col = if pos.row == 1 {
+        pos.col.saturating_sub(FRAGMENT_OPEN.len() as u32).max(1)
+    } else {
+        pos.col
+    };
+    Diagnostic::new(pos.row, col, message)
+}
+
+fn parse_size_pair(raw: &str) -> Option<(f32, f32)> {
+    let mut parts = raw
+        .split(|c: char| c.is_whitespace() || c == 'x' || c == 'X' || c == ',')
+        .filter(|s| !s.is_empty())
+        .map(str::parse::<f32>);
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some(Ok(w)), Some(Ok(h)), None) => Some((w, h)),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
     Container,
@@ -171,6 +403,15 @@ pub enum NodeType {
         name: String,
         from: String,
     },
+    /// Metadados da janela declarados pelo `<screen>` na raiz do template —
+    /// título, tamanho inicial, mínimo, se redimensiona. Como `Import`/`Link`/
+    /// `Style`, é uma **declaração**: viaja pendurada na raiz e é descartada na
+    /// avaliação, sem desenhar nada. Ver [`ScreenMeta`].
+    Screen(ScreenMeta),
+    /// O `<resources>` de dentro de um `<screen>`: um agrupador puro. Some no
+    /// próprio parse (seus filhos sobem como declarações da raiz), então esta
+    /// variante só existe para o achatamento em [`UiNode::parse_xml_with_source`].
+    Resources,
     ForEach {
         items: String,
         var: String,
@@ -341,6 +582,8 @@ impl NodeType {
             | NodeType::ElseIf { .. }
             | NodeType::Link { .. }
             | NodeType::Style { .. }
+            | NodeType::Screen(_)
+            | NodeType::Resources
             | NodeType::Fragment => return None,
         })
     }
@@ -1383,6 +1626,26 @@ impl UiNode {
                     }
                 }
             }
+            "screen" | "Screen" | "tela" | "Tela" => {
+                // Só os metadados são lidos aqui; o achatamento (recursos viram
+                // declarações da raiz, o resto vira o layout) acontece em
+                // `parse_xml_with_source`, que é quem enxerga a raiz.
+                // Valores mal formados não chegam aqui: `validate_header` roda
+                // antes e transforma cada um num erro posicionado.
+                NodeType::Screen(ScreenMeta {
+                    title: Self::get_attr(&node, SCREEN_TITLE_ATTRS),
+                    size: Self::get_attr(&node, SCREEN_SIZE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_size_pair),
+                    min_size: Self::get_attr(&node, SCREEN_MIN_SIZE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_size_pair),
+                    resizable: Self::get_attr(&node, SCREEN_RESIZABLE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_bool_value),
+                })
+            }
+            "resources" | "Resources" | "recursos" | "Recursos" => NodeType::Resources,
             "link" | "Link" => {
                 let rel = Self::get_attr(&node, &["rel", "tipo"])
                     .unwrap_or_else(|| "stylesheet".to_string());
@@ -1538,6 +1801,12 @@ impl UiNode {
     /// attached to the real root as children (they are stripped before
     /// rendering, so they have no visual effect but remain discoverable).
     ///
+    /// A outra forma de escrever a mesma coisa é a **com cabeçalho**: um
+    /// `<screen title="…" size="…">` como raiz, com as declarações agrupadas num
+    /// `<resources>` e o layout depois dele. As duas convergem para a mesma
+    /// árvore — o `<screen>` vira mais uma declaração ([`NodeType::Screen`],
+    /// lida pelo daemon para o título/tamanho da janela) e o `<resources>` some.
+    ///
     /// **Toda transformação feita aqui antes do parse preserva a contagem de
     /// linhas**, para o `line` que o roxmltree reporta ser o `line` do arquivo
     /// que o autor escreveu (ver [`crate::error::Diagnostic`]). O embrulho na
@@ -1565,6 +1834,16 @@ impl UiNode {
         let doc = roxmltree::Document::parse(&wrapped).map_err(|e| xml_error(e, source, file))?;
         let fragment = doc.root_element();
 
+        // O cabeçalho não desenha nada, então um engano nele é invisível em
+        // tempo de execução: erra alto, antes de montar a árvore.
+        if let Some(mut d) = validate_header(fragment) {
+            d = match file {
+                Some(f) => d.in_file(f, source),
+                None => d.with_source(source),
+            };
+            return Err(GlacierError::Xml(Box::new(d)));
+        }
+
         let mut decls = Vec::new();
         let mut roots: Vec<Self> = Vec::new();
         for child in fragment.children() {
@@ -1580,6 +1859,40 @@ impl UiNode {
             }
         }
 
+        // `<screen>` como raiz (a forma com cabeçalho): ele não é layout nem
+        // desenha nada — é uma casca. Aqui ela se abre: os metadados viram mais
+        // uma declaração (como `<style>`), o `<resources>` se dissolve nas
+        // declarações que carrega, e os filhos restantes são o layout de
+        // verdade — que segue daqui para baixo pelo mesmo caminho de sempre.
+        // Por isso as duas formas de escrever um template convergem numa única
+        // árvore: só o parse as distingue.
+        let mut screen_is_empty = false;
+        if roots.len() == 1
+            && let NodeType::Screen(_) = roots[0].kind
+        {
+            let screen = roots.pop().expect("len checked");
+            let NodeType::Screen(meta) = screen.kind else {
+                unreachable!("checked above")
+            };
+            screen_is_empty = true;
+            for child in screen.children {
+                match child.kind {
+                    // Tudo que está dentro do `<resources>` é declaração por
+                    // construção — inclusive o que não for (um widget perdido
+                    // ali dentro é stripado na avaliação, não desenha).
+                    NodeType::Resources => decls.extend(child.children),
+                    NodeType::Import { .. } | NodeType::Link { .. } | NodeType::Style { .. } => {
+                        decls.push(child)
+                    }
+                    _ => {
+                        screen_is_empty = false;
+                        roots.push(child);
+                    }
+                }
+            }
+            decls.push(empty_node(NodeType::Screen(meta), Vec::new()));
+        }
+
         // Multiple top-level layout nodes become a `Fragment` (their siblings
         // are spliced into the parent at eval time) instead of silently keeping
         // only the first — so a component template can be an `if`/`else` pair
@@ -1589,9 +1902,20 @@ impl UiNode {
         // `process_links` still find them.
         let mut root = match roots.len() {
             0 => {
-                let mut d = Diagnostic::new(1, 1, "o template não tem nenhum elemento raiz")
-                    .with_hint("um template precisa de ao menos um nó de layout (ex.: <Column>…</Column>); \
-                                só <import>/<link>/<style> não basta");
+                let (msg, hint) = if screen_is_empty {
+                    (
+                        "o <screen> não tem conteúdo",
+                        "dentro do <screen>, o que não está em <resources> é o layout da tela — \
+                         e ele não pode faltar (ex.: <column>…</column> depois do </resources>)",
+                    )
+                } else {
+                    (
+                        "o template não tem nenhum elemento raiz",
+                        "um template precisa de ao menos um nó de layout (ex.: <Column>…</Column>); \
+                         só <import>/<link>/<style> não basta",
+                    )
+                };
+                let mut d = Diagnostic::new(1, 1, msg).with_hint(hint);
                 if let Some(f) = file {
                     d = d.in_file(f, source);
                 }
@@ -2030,5 +2354,219 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         form_scope: None,
         form_submit_action: None,
         form_next_focus: None,
+    }
+}
+
+/// A forma **com cabeçalho** (`<screen>` + `<resources>`) e a forma solta, que
+/// existe desde sempre, precisam terminar na mesma árvore — só o parse as
+/// distingue. É o que estes testes fixam.
+#[cfg(test)]
+mod screen_tests {
+    use super::*;
+
+    /// Extrai a declaração de janela de uma raiz parseada.
+    fn meta_of(root: &UiNode) -> Option<&ScreenMeta> {
+        root.children.iter().find_map(|c| match &c.kind {
+            NodeType::Screen(m) => Some(m),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn screen_declara_metadados_da_janela() {
+        let xml = r#"<screen title="Detalhe" size="960 700" min-size="640 480" resizable="false">
+            <resources><style>.a { padding: 4; }</style></resources>
+            <column><text content="oi" /></column>
+        </screen>"#;
+        let root = UiNode::parse_xml(xml).expect("parse");
+        let meta = meta_of(&root).expect("o <screen> vira uma declaração na raiz");
+        assert_eq!(meta.title.as_deref(), Some("Detalhe"));
+        assert_eq!(meta.size, Some((960.0, 700.0)));
+        assert_eq!(meta.min_size, Some((640.0, 480.0)));
+        assert_eq!(meta.resizable, Some(false));
+    }
+
+    /// O ponto da mudança: o layout da raiz é o mesmo com e sem cabeçalho, e as
+    /// declarações continuam penduradas onde o motor já as procura.
+    #[test]
+    fn com_e_sem_cabecalho_dao_o_mesmo_layout() {
+        let solto = r#"<style>.a { padding: 4; }</style>
+            <column><text content="oi" /></column>"#;
+        let com_cabecalho = r#"<screen title="T">
+            <resources><style>.a { padding: 4; }</style></resources>
+            <column><text content="oi" /></column>
+        </screen>"#;
+
+        let a = UiNode::parse_xml(solto).expect("parse solto");
+        let b = UiNode::parse_xml(com_cabecalho).expect("parse com cabeçalho");
+
+        assert!(matches!(a.kind, NodeType::Column));
+        assert!(matches!(b.kind, NodeType::Column), "o layout vira a raiz");
+        assert_eq!(a.children.len(), b.children.len() - 1, "b tem o <screen> a mais");
+
+        let css = |n: &UiNode| {
+            n.children.iter().find_map(|c| match &c.kind {
+                NodeType::Style { css, .. } => Some(css.trim().to_string()),
+                _ => None,
+            })
+        };
+        assert_eq!(css(&a), css(&b), "o <style> chega igual pelos dois caminhos");
+        assert!(meta_of(&a).is_none(), "sem cabeçalho, sem metadados");
+    }
+
+    /// Vários nós de layout dentro do `<screen>` viram um `Fragment`, como já
+    /// acontecia com vários nós soltos na raiz.
+    #[test]
+    fn varios_filhos_de_layout_viram_fragment() {
+        let xml = r#"<screen><column /><column /></screen>"#;
+        let root = UiNode::parse_xml(xml).expect("parse");
+        assert!(matches!(root.kind, NodeType::Fragment));
+        assert_eq!(root.children.len(), 3, "dois layouts + a declaração");
+    }
+
+    #[test]
+    fn separadores_de_tamanho_aceitos() {
+        for raw in ["960 700", "960x700", "960, 700", " 960  700 "] {
+            assert_eq!(parse_size_pair(raw), Some((960.0, 700.0)), "'{raw}'");
+        }
+        for raw in ["960", "960 700 8", "largo alto", ""] {
+            assert_eq!(parse_size_pair(raw), None, "'{raw}'");
+        }
+    }
+
+    /// Um `<screen>` só com recursos não é uma tela — e o erro diz isso, em vez
+    /// de repetir a mensagem genérica de template sem raiz.
+    #[test]
+    fn screen_sem_layout_erra_falando_do_screen() {
+        let xml = r#"<screen title="T"><resources><style>.a { padding: 4; }</style></resources></screen>"#;
+        let err = UiNode::parse_xml(xml).expect_err("um <screen> sem conteúdo não é uma tela");
+        assert!(
+            err.to_string().contains("<screen> não tem conteúdo"),
+            "mensagem inesperada: {err}"
+        );
+    }
+
+    /// Apelidos em português, como no resto do vocabulário de tags.
+    #[test]
+    fn apelidos_em_portugues() {
+        let xml = r#"<tela titulo="Detalhe" tamanho="800 600">
+            <recursos><style>.a { padding: 4; }</style></recursos>
+            <column />
+        </tela>"#;
+        let root = UiNode::parse_xml(xml).expect("parse");
+        let meta = meta_of(&root).expect("declaração");
+        assert_eq!(meta.title.as_deref(), Some("Detalhe"));
+        assert_eq!(meta.size, Some((800.0, 600.0)));
+        assert!(
+            root.children
+                .iter()
+                .any(|c| matches!(c.kind, NodeType::Style { .. })),
+            "o <recursos> se dissolve nas declarações da raiz"
+        );
+    }
+
+    /// O `<screen>` sem atributo nenhum é só uma casca de agrupamento: não vira
+    /// metadado (`is_empty`), e o daemon não tem o que aplicar.
+    #[test]
+    fn screen_sem_atributos_nao_opina() {
+        let xml = "<screen><column /></screen>";
+        let root = UiNode::parse_xml(xml).expect("parse");
+        assert!(meta_of(&root).is_some_and(|m| m.is_empty()));
+    }
+}
+
+/// O cabeçalho é a parte do template que não desenha: um engano ali não produz
+/// sintoma visual nenhum — a tela abre igual, só que sem o que o autor escreveu.
+/// Estes testes fixam que cada engano vira erro, e não silêncio.
+#[cfg(test)]
+mod header_diagnostics_tests {
+    use super::*;
+
+    fn erro(xml: &str) -> String {
+        UiNode::parse_xml(xml)
+            .expect_err("o cabeçalho deveria ser recusado")
+            .to_string()
+    }
+
+    #[test]
+    fn atributo_desconhecido_no_screen() {
+        let msg = erro(r#"<screen titel="Detalhe"><column /></screen>"#);
+        assert!(msg.contains("atributo 'titel' desconhecido"), "{msg}");
+        assert!(msg.contains("title, size, min-size"), "a dica lista os aceitos: {msg}");
+    }
+
+    #[test]
+    fn widget_dentro_do_resources() {
+        let xml = r#"<screen title="T">
+            <resources>
+                <style>.a { padding: 4; }</style>
+                <button text="oi" />
+            </resources>
+            <column />
+        </screen>"#;
+        let msg = erro(xml);
+        assert!(msg.contains("<button> não é uma declaração"), "{msg}");
+        assert!(msg.contains("depois do </resources>"), "a dica diz para onde mover: {msg}");
+    }
+
+    /// A linha citada é a do arquivo do autor, não a do documento embrulhado na
+    /// raiz sintética.
+    #[test]
+    fn erro_aponta_a_linha_do_autor() {
+        let xml = "<screen title=\"T\">\n    <resources>\n        <text content=\"x\" />\n    </resources>\n    <column />\n</screen>";
+        let msg = erro(xml);
+        assert!(msg.contains("3:"), "esperava a linha 3: {msg}");
+    }
+
+    #[test]
+    fn tamanho_pela_metade_ou_com_unidade() {
+        for bad in ["960", "960px 700px", "largo alto"] {
+            let msg = erro(&format!(r#"<screen size="{bad}"><column /></screen>"#));
+            assert!(msg.contains("valor inválido"), "'{bad}': {msg}");
+            assert!(msg.contains("par de números"), "'{bad}': {msg}");
+        }
+    }
+
+    #[test]
+    fn booleano_que_nao_e_booleano() {
+        let msg = erro(r#"<screen resizable="talvez"><column /></screen>"#);
+        assert!(msg.contains("valor inválido"), "{msg}");
+        assert!(msg.contains("`true`/`false`"), "{msg}");
+    }
+
+    #[test]
+    fn resources_fora_do_screen() {
+        let msg = erro(r#"<resources><style>.a { padding: 4; }</style></resources><column />"#);
+        assert!(msg.contains("fora de um <screen>"), "{msg}");
+    }
+
+    #[test]
+    fn resources_nao_leva_atributo() {
+        let msg = erro(r#"<screen><resources scoped="true"><style>.a { padding: 4; }</style></resources><column /></screen>"#);
+        assert!(msg.contains("atributo 'scoped' desconhecido no <resources>"), "{msg}");
+    }
+
+    /// E o que é válido continua válido — inclusive as declarações soltas dentro
+    /// do `<screen>`, sem `<resources>`, que é a forma curta para um arquivo
+    /// pequeno.
+    #[test]
+    fn cabecalho_valido_passa() {
+        let completo = r#"<screen title="T" size="960 700" min-size="640 480" resizable="false">
+            <resources><style>.a { padding: 4; }</style></resources>
+            <column />
+        </screen>"#;
+        UiNode::parse_xml(completo).expect("cabeçalho completo");
+
+        let curto = r#"<screen title="T">
+            <style>.a { padding: 4; }</style>
+            <column />
+        </screen>"#;
+        let root = UiNode::parse_xml(curto).expect("declaração solta dentro do <screen>");
+        assert!(
+            root.children
+                .iter()
+                .any(|c| matches!(c.kind, NodeType::Style { .. })),
+            "o <style> sem <resources> continua sendo declaração"
+        );
     }
 }
