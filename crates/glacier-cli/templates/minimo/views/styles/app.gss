@@ -1,10 +1,3 @@
-/* app.gss — a stylesheet do projeto (glacier stylesheet, CSS-like).
-
-   Precedência, do mais fraco ao mais forte: tag < classe < id < atributo inline
-   no nó. Classes de um `class="a b"` aplicam da esquerda para a direita. */
-
-/* Design tokens: a fonte única da paleta. `var()` atravessa stylesheets, então
-   estes nomes valem também nos <style> dos templates. */
 :root {
     --bg:      #11111B;
     --surface: #1E1E2E;
@@ -30,12 +23,9 @@
 
 .acoes  { spacing: 12; align-y: center; }
 
-/* Num Button, `color` é o fundo e `text-color` é o texto. Os pseudo-estados
-   sobrescrevem só o campo que declaram, por cima da regra base — e mapeiam
-   direto para o Status nativo do widget do iced. */
-.btn          { color: var(--surface); text-color: var(--text); padding: 8 28; border-radius: 8; }
-.btn:hover    { color: var(--border); }
-.btn:active   { color: var(--accent); }
+.btn        { color: var(--surface); text-color: var(--text); padding: 8 28; border-radius: 8; }
+.btn:hover  { color: var(--border); }
+.btn:active { color: var(--accent); }
 
-.btn_ghost         { color: var(--bg); text-color: var(--muted); padding: 6 14; border-radius: 6; }
-.btn_ghost:hover   { text-color: var(--text); }
+.btn_ghost       { color: var(--bg); text-color: var(--muted); padding: 6 14; border-radius: 6; }
+.btn_ghost:hover { text-color: var(--text); }

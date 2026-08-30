@@ -19,7 +19,9 @@ convivem no mesmo app:
 | Mudou o comportamento | recompila | salva o arquivo, e pronto |
 
 Este preset usa o primeiro. O markup continua recarregando a quente: salvar
-`views/contador.gv` ou `views/styles/app.gss` redesenha sem recompilar.
+`views/contador.gv` ou `views/styles/app.gss` redesenha sem recompilar. E um
+`<script>` pode ser acrescentado depois sem tirar o `Component` do lugar — por
+isso o `views/scripts/glacier.d.luau` já vem junto.
 
 ## O mapa
 
@@ -42,5 +44,29 @@ fn children(&self) -> Vec<Box<dyn Component>>;   // sub-componentes, opcional
 fn on_broadcast(&mut self, event: &str, payload: &str, ctx: &mut Context);
 ```
 
-`ctx` é a ponte para o markup: `ctx.set("contador", ...)` é o que o
-`{contador}` do template lê.
+## Como as peças se ligam
+
+**`register` e não `register_component`.** O registro de um `Component` pega o
+template dele por `Component::template()`; `register_component` é a forma para
+um template sem comportamento em Rust.
+
+**`Template::File` mantém o hot-reload.** O caminho é relativo ao diretório de
+onde o app roda (a raiz do projeto, num `cargo run`).
+
+**`publicar` é a ponte.** O estado real são os campos da struct — `passo` é um
+`i32`, não uma string, e trocar o tipo quebra a compilação em vez de virar um
+`nil` em runtime. O `ctx` guarda strings, e a conversão acontece num lugar só:
+`ctx.set("contador", …)` é o que o `{contador}` do template lê.
+
+**`update` recebe todo clique.** `value` traz o texto de um `on_change`/
+`on_toggle` e é `None` num clique simples. Um `TextInput` faz binding de mão
+dupla: `value` aponta para a chave exibida e `onChange` dispara a ação a cada
+tecla.
+
+Duas decisões no `update` que valem copiar:
+
+- **Entrada inválida mantém o valor anterior.** Um campo de texto contém
+  qualquer coisa enquanto é digitado; um passo ilegível não deve zerar o
+  comportamento do app no meio da digitação.
+- **Ação desconhecida não é erro.** Ela pode pertencer a outro componente da
+  árvore, e o motor já cuidou do roteamento — daí o `_ => return`.

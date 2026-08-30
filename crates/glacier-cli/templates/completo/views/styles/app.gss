@@ -1,11 +1,3 @@
-/* app.gss — as classes COMPARTILHADAS por mais de um template.
-   O que é usado por um template só mora no <style scoped="true"> dele: assim o
-   estilo fica ao lado do markup que o usa. */
-
-/* ── Design tokens ─────────────────────────────────────────────────────────
-   Fonte única da paleta. `var()` atravessa stylesheets: estes nomes resolvem
-   também dentro dos <style> com escopo dos templates. Trocar um tom aqui
-   reflete no app inteiro. */
 :root {
     --bg:      #0F1117;
     --surface: #161B22;
@@ -20,21 +12,18 @@
     --danger:  #F85149;
 }
 
-/* ── Esqueleto ─────────────────────────────────────────────────────────── */
 .janela   { width: fill; height: fill; background: var(--bg); }
 .corpo    { width: fill; height: fill; }
 .sidebar  { width: 190; height: fill; background: var(--surface); padding: 16 12; spacing: 6; }
 .marca    { size: 12; bold: true; color: var(--faint); padding: 4 4 14 4; }
 .conteudo { width: fill; height: fill; padding: 26 30; spacing: 20; }
 
-/* ── Tipografia ────────────────────────────────────────────────────────── */
 .cabecalho  { spacing: 4; }
 .titulo     { size: 26; bold: true; color: var(--text); }
 .subtitulo  { size: 12; color: var(--muted); }
 .apagado    { size: 12; color: var(--faint); }
 .rotulo_cap { size: 10; bold: true; color: var(--faint); }
 
-/* ── Painéis e listas ──────────────────────────────────────────────────── */
 .painel      { width: fill; background: var(--surface); border-radius: 7; border-width: 1; border-color: var(--border); padding: 18; spacing: 10; }
 .linha_cards { width: fill; spacing: 14; }
 .barra       { spacing: 12; align-y: center; }
@@ -44,21 +33,14 @@
 .tag_ok      { size: 11; bold: true; color: var(--ok); }
 .tag_off     { size: 11; bold: true; color: var(--faint); }
 
-/* ── Botões ────────────────────────────────────────────────────────────────
-   Em Button, `color` é o fundo e `text-color` é o texto. Cada bloco de
-   pseudo-estado sobrescreve só o campo que declara, por cima da regra base. */
-.btn_primario         { color: var(--accent); text-color: #0B1220; bold: true; padding: 10 18; border-radius: 6; }
-.btn_primario:hover   { color: #79BBFF; }
-.btn_primario:active  { color: #3D8BE0; }
-.btn_primario:disabled{ color: var(--border); text-color: var(--faint); }
+.btn_primario          { color: var(--accent); text-color: #0B1220; bold: true; padding: 10 18; border-radius: 6; }
+.btn_primario:hover    { color: #79BBFF; }
+.btn_primario:active   { color: #3D8BE0; }
+.btn_primario:disabled { color: var(--border); text-color: var(--faint); }
 
-.btn_ghost        { color: var(--surface); text-color: var(--text-2); padding: 10 18; border-radius: 6; }
-.btn_ghost:hover  { color: var(--border); text-color: var(--text); }
+.btn_ghost       { color: var(--surface); text-color: var(--text-2); padding: 10 18; border-radius: 6; }
+.btn_ghost:hover { color: var(--border); text-color: var(--text); }
 
-/* ── Responsivo ────────────────────────────────────────────────────────────
-   @media casa contra o tamanho da janela em px lógicos. O motor não reflui
-   Row para Column, então em janelas estreitas o caminho é esconder o cromo de
-   menor prioridade em vez de tentar recolocá-lo. */
 @media (max-width: 720) {
     .sidebar     { width: 60; }
     .marca       { hidden: true; }

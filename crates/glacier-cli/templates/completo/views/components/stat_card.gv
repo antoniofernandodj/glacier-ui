@@ -1,23 +1,21 @@
-<!-- Cartão de número. Com destaque="1" o valor sai na cor de sucesso; sem ele,
-     na neutra — o default vazio nunca casa com "1". -->
 <component>
-    <props>
-        <prop name="rotulo" />
-        <prop name="valor" />
-        <prop name="destaque" default="" />
-    </props>
+  <props>
+    <prop name="rotulo" />
+    <prop name="valor" />
+    <prop name="destaque" default="" />
+  </props>
 
-    <resources>
-        <style scoped="true">
-            .stat       { width: fill; background: var(--raised); border-radius: 6; border-width: 1; border-color: var(--border); padding: 14 18; spacing: 6; }
-            .stat_num   { size: 24; bold: true; color: var(--accent); }
-            .stat_num_ok{ size: 24; bold: true; color: var(--ok); }
-        </style>
-    </resources>
+  <resources>
+    <style scoped="true">
+      .stat        { width: fill; background: var(--raised); border-radius: 6; border-width: 1; border-color: var(--border); padding: 14 18; spacing: 6; }
+      .stat_num    { size: 24; bold: true; color: var(--accent); }
+      .stat_num_ok { size: 24; bold: true; color: var(--ok); }
+    </style>
+  </resources>
 
-    <column class="stat">
-        <text class="rotulo_cap">{rotulo}</text>
-        <text class="stat_num_ok" if="{destaque}" equals="1">{valor}</text>
-        <text class="stat_num" else>{valor}</text>
-    </column>
+  <column class="stat">
+    <text class="rotulo_cap">{rotulo}</text>
+    <text class="stat_num_ok" if="{destaque}" equals="1">{valor}</text>
+    <text class="stat_num" else>{valor}</text>
+  </column>
 </component>

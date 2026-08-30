@@ -36,6 +36,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   | `janelas` | `open_window`/`broadcast`/`close_window`, bandeja, instância única, geometria lembrada |
   | `rust` | o trait `Component` com estado tipado |
 
+  O código dos presets não leva comentário: `src/main.rs`, os `.gv` e os `.luau`
+  saem enxutos, e toda a explicação (como os caminhos resolvem, o que o `ctx`
+  guarda, por que `main_window` traz o que traz) vive no README de cada preset.
+  Os `.gv` usam recuo de 2 espaços.
+
   `glacier install-extensions` instala as extensões de VS Code (`.gv` e `.gss`).
   Elas vêm embutidas no binário e são empacotadas em `.vsix` na hora — sem Node,
   sem `vsce`. Editores procurados no `PATH`: `code`, `code-insiders`, `cursor`,

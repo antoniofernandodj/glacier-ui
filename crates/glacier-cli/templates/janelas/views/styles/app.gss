@@ -1,8 +1,3 @@
-/* app.gss — compartilhada pelas duas janelas.
-   Uma stylesheet carregada por <link rel="stylesheet"> é sempre GLOBAL dentro
-   do motor que a carrega; como cada janela é um motor, cada uma carrega a sua
-   (ver o <resources> dos dois templates). */
-
 :root {
     --bg:      #0F1117;
     --surface: #161B22;
@@ -26,7 +21,7 @@
 .numero     { size: 40; bold: true; color: var(--accent); }
 .acoes      { width: fill; spacing: 10; }
 
-.btn_primario        { width: fill; color: var(--accent); text-color: #0B1220; bold: true; padding: 11 18; border-radius: 6; }
-.btn_primario:hover  { color: #79BBFF; }
-.btn_ghost           { width: fill; color: var(--surface); text-color: var(--text-2); padding: 11 18; border-radius: 6; }
-.btn_ghost:hover     { color: var(--border); text-color: var(--text); }
+.btn_primario       { width: fill; color: var(--accent); text-color: #0B1220; bold: true; padding: 11 18; border-radius: 6; }
+.btn_primario:hover { color: #79BBFF; }
+.btn_ghost          { width: fill; color: var(--surface); text-color: var(--text-2); padding: 11 18; border-radius: 6; }
+.btn_ghost:hover    { color: var(--border); text-color: var(--text); }

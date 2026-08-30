@@ -1,28 +1,24 @@
-<!-- Janela FILHA. É uma janela de verdade (raiz <screen>, com título e tamanho
-     próprios), aberta por `open_window` do painel — e com motor, contexto e
-     estado isolados dos dele. -->
 <screen title="Detalhe" size="380 300" min-size="300 240">
-    <resources>
-        <link rel="stylesheet" href="views/styles/app.gss" />
-        <script src="scripts/detalhe.luau"></script>
-    </resources>
+  <resources>
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script src="scripts/detalhe.luau"></script>
+  </resources>
 
-    <column class="tela">
-        <column class="cabecalho">
-            <text class="titulo">Detalhe</text>
-            <!-- Semeado pelo `data` do open_window, ANTES do init desta janela. -->
-            <text class="subtitulo">aberta por: {origem}</text>
-        </column>
-
-        <column class="painel">
-            <text class="rotulo_cap">CONTADOR DESTA JANELA</text>
-            <text class="numero">{contador}</text>
-            <text class="apagado">cada janela tem o seu — abra duas e compare</text>
-        </column>
-
-        <column class="acoes">
-            <button class="btn_primario" text="Contar" on_click="contar" />
-            <button class="btn_ghost"    text="Avisar o painel e fechar" on_click="avisar_e_fechar" />
-        </column>
+  <column class="tela">
+    <column class="cabecalho">
+      <text class="titulo">Detalhe</text>
+      <text class="subtitulo">aberta por: {origem}</text>
     </column>
+
+    <column class="painel">
+      <text class="rotulo_cap">CONTADOR DESTA JANELA</text>
+      <text class="numero">{contador}</text>
+      <text class="apagado">cada janela tem o seu — abra duas e compare</text>
+    </column>
+
+    <column class="acoes">
+      <button class="btn_primario" text="Contar" on_click="contar" />
+      <button class="btn_ghost"    text="Avisar o painel e fechar" on_click="avisar_e_fechar" />
+    </column>
+  </column>
 </screen>

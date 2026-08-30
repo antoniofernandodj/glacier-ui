@@ -1,44 +1,36 @@
-<!-- Um .gv trazido por <import> é um PEDAÇO de tela, não uma janela: a raiz é
-     <component>, e ele não aceita atributo nenhum (title/size descreveriam uma
-     janela, e não há janela aqui). -->
 <component>
-    <resources>
-        <link rel="import" href="components/stat_card.gv" as="StatCard" />
-    </resources>
+  <resources>
+    <link rel="import" href="components/stat_card.gv" as="StatCard" />
+  </resources>
 
-    <column class="conteudo">
+  <column class="conteudo">
 
-        <column class="cabecalho">
-            <text class="titulo">Início</text>
-            <text class="subtitulo">tudo nesta tela vem de views/home.gv e views/scripts/handlers/</text>
-        </column>
-
-        <!-- Props chegam como atributos e são interpoladas no contexto local do
-             filho. `destaque` é opcional: ver o <props> de stat_card.gv. -->
-        <row class="linha_cards">
-            <StatCard rotulo="ITENS"  valor="{total}" />
-            <StatCard rotulo="ATIVOS" valor="{ativos}" destaque="1" />
-            <StatCard rotulo="IP"     valor="{ip}" />
-        </row>
-
-        <row class="barra">
-            <button class="btn_primario" text="Buscar meu IP" on_click="buscar_ip" />
-            <button class="btn_ghost"    text="Alternar o primeiro" on_click="alternar_primeiro" />
-            <text class="apagado">{status}</text>
-        </row>
-
-        <!-- for-each itera um ARRAY JSON guardado no contexto (ver
-             handlers/dados.luau: json.encode). `var` nomeia a variável de cada
-             volta; um objeto vira {i.campo}. -->
-        <column class="lista">
-            <row class="item" for-each="itens" var="i">
-                <text class="item_nome">{i.nome}</text>
-                <text class="tag_ok"   if="{i.ativo}" equals="1">ativo</text>
-                <text class="tag_off"  else>parado</text>
-            </row>
-        </column>
-
-        <text class="apagado" if="{total}" equals="0">nenhum item — clique em "Recarregar"</text>
-
+    <column class="cabecalho">
+      <text class="titulo">Início</text>
+      <text class="subtitulo">tudo nesta tela vem de views/home.gv e views/scripts/handlers/</text>
     </column>
+
+    <row class="linha_cards">
+      <StatCard rotulo="ITENS"  valor="{total}" />
+      <StatCard rotulo="ATIVOS" valor="{ativos}" destaque="1" />
+      <StatCard rotulo="IP"     valor="{ip}" />
+    </row>
+
+    <row class="barra">
+      <button class="btn_primario" text="Buscar meu IP" on_click="buscar_ip" />
+      <button class="btn_ghost"    text="Alternar o primeiro" on_click="alternar_primeiro" />
+      <text class="apagado">{status}</text>
+    </row>
+
+    <column class="lista">
+      <row class="item" for-each="itens" var="i">
+        <text class="item_nome">{i.nome}</text>
+        <text class="tag_ok"  if="{i.ativo}" equals="1">ativo</text>
+        <text class="tag_off" else>parado</text>
+      </row>
+    </column>
+
+    <text class="apagado" if="{total}" equals="0">nenhum item</text>
+
+  </column>
 </component>
