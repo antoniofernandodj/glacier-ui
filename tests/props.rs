@@ -198,3 +198,232 @@ fn diretivas_nao_contam_como_prop() {
         "{arvore}"
     );
 }
+
+// ── spread: o objeto inteiro no lugar de um atributo por campo ───────────────
+
+/// Um componente com contrato e uma tela que o usa dentro de um `for-each`, que
+/// é onde o spread ganha a vida dele.
+fn motor_spread(caso: &str, contrato: &str, uso: &str, dados: &str) -> GlacierUI {
+    let cartao = escreve(
+        caso,
+        "cartao_spread.gv",
+        &format!(
+            r##"<component>
+                {contrato}
+                <Text content="{{nome}}/{{cor}}" />
+            </component>"##
+        ),
+    );
+    let tela = escreve(
+        caso,
+        "tela_spread.gv",
+        &format!(
+            r##"<screen title="T">
+                <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
+                <Column>{uso}</Column>
+            </screen>"##
+        ),
+    );
+    let mut motor = GlacierUI::new();
+    motor.register_component("tela", &tela).unwrap();
+    motor.set_initial_screen("tela");
+    motor.define_data("itens", dados);
+    motor
+}
+
+const CONTRATO: &str = r##"<props><prop name="nome" /><prop name="cor" default="azul" /></props>"##;
+
+/// O caso que motiva a feature: onze atributos de mapeamento identidade viram
+/// um. Cada campo do objeto cai na prop declarada de mesmo nome.
+#[test]
+fn spread_preenche_as_props_declaradas() {
+    const CASO: &str = "spread_preenche_as_props_declaradas";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r#"[{"nome":"Alice","cor":"rosa"},{"nome":"Bob","cor":"verde"}]"#,
+    );
+    motor.reevaluate_all().unwrap();
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("Alice/rosa"), "{arv}");
+    assert!(arv.contains("Bob/verde"), "{arv}");
+}
+
+/// O objeto que vem do Luau quase sempre carrega mais do que o card usa.
+/// Recusá-lo por isso tornaria o spread inútil no caso para o qual ele existe —
+/// então campo não declarado é ignorado, não é `UnknownProp`.
+#[test]
+fn spread_ignora_campo_que_o_contrato_nao_declara() {
+    const CASO: &str = "spread_ignora_campo_que_o_contrato_nao_declara";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r#"[{"nome":"Alice","cor":"rosa","id":7,"interno":{"x":1}}]"#,
+    );
+    motor
+        .reevaluate_all()
+        .expect("campo sobrando no dado não é prop desconhecida");
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("Alice/rosa"), "{arv}");
+}
+
+/// Escrever a prop à mão ao lado do spread é como se sobrepõe um campo — o
+/// atributo explícito ganha.
+#[test]
+fn atributo_explicito_ganha_do_spread() {
+    const CASO: &str = "atributo_explicito_ganha_do_spread";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" cor="OVERRIDE" />"##,
+        r#"[{"nome":"Alice","cor":"rosa"}]"#,
+    );
+    motor.reevaluate_all().unwrap();
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("Alice/OVERRIDE"), "{arv}");
+}
+
+/// O contrato não afrouxa por causa do spread: prop obrigatória que o **dado**
+/// não trouxe erra igual. É alcance NOVO — antes só se pegava a que o markup
+/// esquecia, agora também a que o objeto não tem.
+#[test]
+fn spread_nao_dispensa_obrigatoria_ausente_no_dado() {
+    const CASO: &str = "spread_nao_dispensa_obrigatoria_ausente_no_dado";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r#"[{"cor":"rosa"}]"#,
+    );
+    let msg = motor.reevaluate_all().unwrap_err().to_string();
+    assert!(msg.contains("precisa da prop 'nome'"), "{msg}");
+}
+
+/// Campo que o spread não traz cai no `default` do `<prop>`, como se a prop
+/// tivesse sido omitida no markup.
+#[test]
+fn spread_deixa_o_default_valer() {
+    const CASO: &str = "spread_deixa_o_default_valer";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r#"[{"nome":"Alice"}]"#,
+    );
+    motor.reevaluate_all().unwrap();
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("Alice/azul"), "o default do <prop>: {arv}");
+}
+
+/// Spread de um escalar (ou de uma lista) é erro. Ignorar seria pior: sem
+/// semear nada, cada `{prop}` cairia para o contexto de baixo e a tela
+/// renderizaria valores plausíveis e errados.
+#[test]
+fn spread_que_nao_e_objeto_erra() {
+    const CASO: &str = "spread_que_nao_e_objeto_erra";
+    let mut motor = motor_spread(
+        CASO,
+        CONTRATO,
+        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r#"["Alice"]"#,
+    );
+    let msg = motor.reevaluate_all().unwrap_err().to_string();
+    assert!(msg.contains("precisa de um objeto JSON"), "{msg}");
+}
+
+/// Valor **vazio** (a chave ainda não carregou) não é um spread inválido: vale
+/// como "nenhum campo", e o que faltar erra como `MissingProp`, que aponta qual
+/// prop é com muito mais precisão.
+#[test]
+fn spread_vazio_vale_como_nenhum_campo() {
+    const CASO: &str = "spread_vazio_vale_como_nenhum_campo";
+    let cartao = escreve(
+        CASO,
+        "so_opcional.gv",
+        r##"<component>
+            <props><prop name="cor" default="azul" /></props>
+            <Text content="{cor}" />
+        </component>"##,
+    );
+    let tela = escreve(
+        CASO,
+        "tela_vazia.gv",
+        &format!(
+            r##"<screen title="T">
+                <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
+                <Column><Cartao spread="{{nao_carregou}}" /></Column>
+            </screen>"##
+        ),
+    );
+    let mut motor = GlacierUI::new();
+    motor.register_component("tela", &tela).unwrap();
+    motor.set_initial_screen("tela");
+    motor.reevaluate_all().expect("spread vazio não é inválido");
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("azul"), "{arv}");
+}
+
+/// Sem `<props>` não há contrato, e portanto não há o que filtrar: todo campo
+/// do objeto entra na camada. Mantém valendo a regra da 0.61 — quem não declara
+/// não é checado.
+#[test]
+fn spread_sem_contrato_semeia_todo_campo() {
+    const CASO: &str = "spread_sem_contrato_semeia_todo_campo";
+    let livre = escreve(
+        CASO,
+        "livre_spread.gv",
+        r##"<component><Text content="{a}-{b}" /></component>"##,
+    );
+    let tela = escreve(
+        CASO,
+        "tela_livre_spread.gv",
+        &format!(
+            r##"<screen title="T">
+                <resources><link rel="import" href="{livre}" as="Livre" /></resources>
+                <Column><Livre for-each="itens" var="c" spread="{{c}}" /></Column>
+            </screen>"##
+        ),
+    );
+    let mut motor = GlacierUI::new();
+    motor.register_component("tela", &tela).unwrap();
+    motor.set_initial_screen("tela");
+    motor.define_data("itens", r#"[{"a":"1","b":"2"}]"#);
+    motor.reevaluate_all().unwrap();
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("1-2"), "{arv}");
+}
+
+/// Uma lista aninhada atravessa a fronteira como JSON e volta a ser lista no
+/// `for-each` de dentro — o que já valia para uma prop escrita à mão, e o
+/// spread não pode quebrar.
+#[test]
+fn spread_preserva_lista_aninhada() {
+    const CASO: &str = "spread_preserva_lista_aninhada";
+    let card = escreve(
+        CASO,
+        "card_tags.gv",
+        r##"<component>
+            <props><prop name="tags" /></props>
+            <Column><Text for-each="tags" var="t" content="[{t}]" /></Column>
+        </component>"##,
+    );
+    let tela = escreve(
+        CASO,
+        "tela_tags.gv",
+        &format!(
+            r##"<screen title="T">
+                <resources><link rel="import" href="{card}" as="Card" /></resources>
+                <Column><Card for-each="itens" var="c" spread="{{c}}" /></Column>
+            </screen>"##
+        ),
+    );
+    let mut motor = GlacierUI::new();
+    motor.register_component("tela", &tela).unwrap();
+    motor.set_initial_screen("tela");
+    motor.define_data("itens", r#"[{"tags":["a","b"]}]"#);
+    motor.reevaluate_all().unwrap();
+    let arv = format!("{:?}", motor.evaluated("tela").unwrap());
+    assert!(arv.contains("[a]") && arv.contains("[b]"), "{arv}");
+}

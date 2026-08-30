@@ -118,6 +118,36 @@ const ACTION_ATTRS = new Set(
   ].map((s) => s.toLowerCase())
 );
 
+// Atributos que o motor consome como **diretiva** em qualquer nó, inclusive no
+// uso de um componente (`<ServiceCard for-each="r.cards" var="c" … />`). Eles
+// entram no mapa de props junto com o resto, mas NÃO são props: quem os lê é o
+// `expand_children`, antes de o componente ser inlinado, e a checagem do
+// `<props>` os pula. Espelha `DIRECTIVE_ATTRS` de src/parser.rs — sem isto o
+// diagnóstico acusava `for-each`/`var` de prop desconhecida em toda lista.
+const DIRECTIVE_ATTRS = new Set(
+  [
+    // condicionais
+    "if", "se", "else", "senao", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
+    "cond", "condition", "when", "quando", "condicao",
+    "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
+    "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
+    "platform", "plataforma",
+    // repetição
+    "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // arrastar-e-soltar da lista repetida
+    "onReorder", "on_reorder", "on-reorder", "aoReordenar",
+    "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
+  ].map((a) => a.toLowerCase())
+);
+
+// `spread="{c}"` passa um objeto inteiro no lugar de um atributo por campo.
+// Como as diretivas, ele entra no markup mas não é uma prop — e, diferente
+// delas, ele também SUPRIME o diagnóstico de prop obrigatória: quem preenche as
+// props é o dado em tempo de execução, que o editor não tem como ver. Espelha
+// `SPREAD_ATTRS` de src/parser.rs.
+const SPREAD_ATTRS = new Set(["spread", "espalhar"]);
+
 // A component name paired with the template file it renders, as written on the
 // Rust/Lua side. Nothing may sit between the two literals but plain expression
 // text — no quote, no `;`, no brace — so the pair belongs to one statement.
@@ -1533,9 +1563,16 @@ async function refreshDiagnostics(document, collection) {
     if (!props) continue;
     const nomes = new Set(props.map((p) => p.name.toLowerCase()));
     const passadas = new Set();
+    let temSpread = false;
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
-      passadas.add(attr.name.toLowerCase());
-      if (nomes.has(attr.name.toLowerCase())) continue;
+      const nome = attr.name.toLowerCase();
+      if (SPREAD_ATTRS.has(nome)) {
+        temSpread = true;
+        continue;
+      }
+      if (DIRECTIVE_ATTRS.has(nome)) continue;
+      passadas.add(nome);
+      if (nomes.has(nome)) continue;
       const range = new vscode.Range(
         document.positionAt(attr.start - attr.name.length - 2),
         document.positionAt(attr.end + 1)
@@ -1549,6 +1586,9 @@ async function refreshDiagnostics(document, collection) {
         )
       );
     }
+    // Com um spread em jogo, qualquer prop pode estar vindo do objeto; marcar
+    // as que faltam seria um mar de erro falso sobre markup correto.
+    if (temSpread) continue;
     for (const p of props) {
       if (p.default !== undefined || passadas.has(p.name.toLowerCase())) continue;
       out.push(
