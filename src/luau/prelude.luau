@@ -9,6 +9,11 @@ function fetch(url, opts)
     })
 end
 
+-- Server-Sent Events. NÃO suspende: cede um pedido de abertura, o motor
+-- registra o stream e retoma na hora devolvendo um handle com `:close()`.
+-- `opts` = { headers?, on_open?, on_message?, on_error?, on_close? }, cada
+-- callback uma FUNÇÃO (closure e upvalue funcionam). Um nome de função global
+-- também é aceito, como atalho — ver `handler_key` em src/luau/mod.rs.
 function sse(url, opts)
     local id = coroutine.yield({
         __glacier_stream_open = true,
@@ -245,6 +250,8 @@ function viewport()
     return { width = __glacier_viewport.width, height = __glacier_viewport.height }
 end
 
+-- WebSocket. Igual ao `sse` na abertura e nos callbacks; o handle devolvido
+-- também tem `:send(texto)`, que escreve na conexão viva.
 function websocket(url, opts)
     local id = coroutine.yield({
         __glacier_stream_open = true,

@@ -931,19 +931,39 @@ end
 
 Ao contrário do `fetch` (one-shot), `sse` e `websocket` são streams de **vida
 longa**: NÃO suspendem — registram o stream e devolvem um handle na hora. Cada
-evento recebido chama o handler nomeado em `opts` (`on_open`, `on_message`,
+evento chama o callback correspondente em `opts` (`on_open`, `on_message`,
 `on_error`, `on_close`), que escreve em `ctx` como qualquer ação:
 
 ```lua
 sse_conn = sse("https://sse.dev/test", {
-    on_open = "sse_aberto", on_message = "sse_recebeu", on_close = "sse_fechou",
+    on_open    = function() ctx.sse_status = "aberto" end,
+    on_message = function(data) ctx.sse_msg = data end,
+    on_close   = function() sse_conn = nil end,
 })
-function sse_recebeu(data) ctx.sse_msg = data end
 function fechar() sse_conn:close() end
 
-ws_conn = websocket("wss://echo.websocket.org", { on_message = "ws_recebeu" })
+ws_conn = websocket("wss://echo.websocket.org", {
+    on_message = function(data) ctx.ws_msg = data end,
+})
 ws_conn:send("ping")   -- envia pela conexão viva
 ```
+
+O callback é uma **função** — closure, upvalue e método de tabela funcionam, e
+o handler não precisa ser global nem ter nome:
+
+```lua
+local function assinar(canal, destino)
+    return sse("https://ex/" .. canal, {
+        -- `destino` é um upvalue: a mesma função serve a vários canais.
+        on_message = function(data) ctx[destino] = data end,
+    })
+end
+```
+
+Um **nome de função global** (`on_message = "sse_recebeu"`) também é aceito,
+como atalho. Prefira a função: o nome obriga o handler a ser global, não fecha
+sobre nada, e um nome errado falha em silêncio — o evento chega e não chama
+ninguém.
 
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir

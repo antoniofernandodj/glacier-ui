@@ -67,7 +67,40 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   uma stylesheet com caminho relativo errado, um erro de sintaxe no Luau —
   falhas que só apareceriam na primeira vez que alguém rodasse o projeto novo.
 
+### Mudado
+- **`sse`/`websocket`: o callback é a função, não o nome dela.** O motor sempre
+  aceitou as duas formas (`handler_key` casa `Value::Function` antes de tentar
+  resolver uma string como global), mas toda a documentação, o prelúdio e os
+  exemplos ensinavam só a forma por nome — então na prática a API *era* por
+  nome. Agora a função é a forma canônica em todo lugar:
+
+  ```lua
+  sse_conn = sse("https://sse.dev/test", {
+      on_open    = function() ctx.sse_status = "aberto" end,
+      on_message = function(data) ctx.sse_msg = data end,
+  })
+  ```
+
+  Com isso vêm closure, upvalue e método de tabela — o handler não precisa mais
+  ser global nem ter nome. O `glacier.d.luau` dos presets ganhou o tipo
+  `StreamOptions`, que declara cada callback como função, para o luau-lsp guiar
+  para a forma certa.
+
+  O nome de função global **continua aceito**, como atalho: apps escritos antes
+  disto não quebram. Mas ele obriga o handler a ser global, não fecha sobre
+  nada, e falha em silêncio quando o nome está errado — o evento chega e não
+  chama ninguém.
+
 ### Corrigido
+- **`examples/stream_lua` não abria.** Os dois `.gv` apontavam para
+  `stream_lua.luau`/`stream_local.luau` e os arquivos no disco eram `.lua`, então
+  o exemplo morria com "Falha ao ler script Luau externo" na primeira execução.
+  Nenhum teste pegava: o parse de um `.gv` não resolve o `src` (o bloco é
+  recortado por texto antes), e o caminho só é lido quando o motor REGISTRA o
+  componente. Arquivos renomeados, e `tests/exemplos_gv.rs` ganhou
+  `todo_script_src_aponta_para_um_arquivo_existente`, que confere todo
+  `<script src>` de `examples/`, `templates/` e dos presets da CLI.
+
 - **Um `<script>` citado em comentário XML quebrava o template.** Escrever
   `<!-- mova para um arquivo com <script src="x.luau"> -->` num `.gv` derrubava
   o carregamento com um `syntax error: [string "<script:…>"]:1: Incomplete

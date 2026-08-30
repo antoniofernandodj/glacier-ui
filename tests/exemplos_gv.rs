@@ -87,3 +87,66 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
             .unwrap_or_else(|e| panic!("{relativo} não parseia: {e}"));
     }
 }
+
+/// Todo `<script src="…">` aponta para um arquivo que existe.
+///
+/// O parse de um `.gv` não resolve o `src` — o bloco de script é recortado por
+/// texto antes, e o caminho só é lido quando o motor REGISTRA o componente. Um
+/// `src` errado passava por todos os testes e só aparecia ao abrir o app; foi
+/// assim que `examples/stream_lua` ficou apontando para um `.luau` enquanto o
+/// arquivo no disco era `.lua`.
+#[test]
+fn todo_script_src_aponta_para_um_arquivo_existente() {
+    let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut arquivos = Vec::new();
+    gvs(&raiz.join("examples"), &mut arquivos);
+    gvs(&raiz.join("templates"), &mut arquivos);
+    gvs(&raiz.join("crates/glacier-cli/templates"), &mut arquivos);
+
+    let mut conferidos = 0;
+    for arquivo in arquivos {
+        let src = std::fs::read_to_string(&arquivo).expect("ler .gv");
+        for capturado in srcs_de_script(&src) {
+            // O `src` resolve relativo ao diretório do próprio `.gv` (ver
+            // `luau::resolve_script`), não ao diretório de onde o app roda.
+            let alvo = arquivo.parent().unwrap_or(raiz).join(&capturado);
+            assert!(
+                alvo.is_file(),
+                "{}: <script src=\"{capturado}\"> não existe ({})",
+                arquivo.strip_prefix(raiz).unwrap_or(&arquivo).display(),
+                alvo.display()
+            );
+            conferidos += 1;
+        }
+    }
+    assert!(
+        conferidos >= 5,
+        "só {conferidos} <script src> conferidos — o caminho está errado?"
+    );
+}
+
+/// Os valores de `src`/`from` das tags `<script>` de `xml`, na ordem em que
+/// aparecem. Varredura por texto, do mesmo jeito que o motor faz.
+fn srcs_de_script(xml: &str) -> Vec<String> {
+    let minusculo = xml.to_ascii_lowercase();
+    let mut saida = Vec::new();
+    let mut de = 0;
+
+    while let Some(i) = minusculo[de..].find("<script").map(|i| de + i) {
+        let Some(fim) = minusculo[i..].find('>').map(|f| i + f) else {
+            break;
+        };
+        let tag = &xml[i..fim];
+        for atributo in ["src=\"", "from=\""] {
+            if let Some(a) = tag.find(atributo) {
+                let valor = &tag[a + atributo.len()..];
+                if let Some(f) = valor.find('"') {
+                    saida.push(valor[..f].to_string());
+                }
+                break;
+            }
+        }
+        de = fim;
+    }
+    saida
+}

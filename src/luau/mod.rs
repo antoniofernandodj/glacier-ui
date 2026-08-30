@@ -86,16 +86,21 @@ use mlua::{
 /// `fetch` **suspende** a corrotina até a resposta (aparência de `await`).
 /// `sse`/`websocket` **não** suspendem: cedem um pedido de abertura, o motor
 /// registra o stream e retoma na hora devolvendo um handle. A partir daí os
-/// eventos chegam pelos handlers nomeados em `opts` (`on_message`, `on_open`,
+/// eventos chegam pelos callbacks de `opts` (`on_open`, `on_message`,
 /// `on_error`, `on_close`), e o handle permite enviar/fechar:
 ///
 /// ```luau
 /// function init()
-///     conn = websocket("wss://ex/ws", { on_message = "on_msg" })
+///     conn = websocket("wss://ex/ws", {
+///         on_message = function(data) ctx.ultima = data end,
+///     })
 /// end
-/// function on_msg(data) ctx.ultima = data end
 /// function enviar() conn:send(ctx.texto) end
 /// ```
+///
+/// O callback é uma **função**, com tudo que isso implica: closure, upvalue,
+/// um método de uma tabela. Um nome de função global também é aceito
+/// (`on_message = "on_msg"`), como atalho — ver [`LuauComponent::handler_key`].
 const PRELUDE: &str = include_str!("prelude.luau");
 
 /// Um [`Component`] cujo comportamento vem de um bloco `<script>` em Luav.
@@ -769,9 +774,17 @@ impl LuauComponent {
         Ok(())
     }
 
-    /// Resolve um handler de `opts[name]` num [`RegistryKey`]: aceita uma
-    /// função direta ou o **nome** de uma função global (resolvida agora). Um
-    /// nome sem global correspondente, ou um valor de outro tipo, vira `None`.
+    /// Resolve um handler de `opts[name]` num [`RegistryKey`].
+    ///
+    /// A forma normal é a **função** — é o que a referência guardada preserva,
+    /// closure e upvalues inclusive, então `on_message = function(d) … end`
+    /// funciona como em qualquer API de eventos.
+    ///
+    /// Uma **string** também é aceita, e vale como o nome de uma função global,
+    /// resolvido agora. É atalho, não a forma canônica: ela obriga o handler a
+    /// ser global, não fecha sobre nada, e falha em silêncio (um nome sem
+    /// global correspondente vira `None`, e o evento não chama nada). Existe
+    /// porque apps escritos antes da API aceitar função dependem dela.
     fn handler_key(&self, opts: &Table, name: &str) -> mlua::Result<Option<RegistryKey>> {
         match opts.get::<Value>(name)? {
             Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
@@ -2366,6 +2379,78 @@ mod tests {
             comp.streams.borrow().is_empty(),
             "Closed deveria limpar o registro"
         );
+    }
+
+    /// A forma que um usuário escreve primeiro: a função ali mesmo, no lugar do
+    /// callback. `handler_key` casa `Value::Function` antes de tentar resolver
+    /// uma string como nome de global, então closure e upvalue funcionam — o
+    /// nome existe como atalho, não como a única forma.
+    #[test]
+    fn sse_aceita_a_funcao_no_lugar_do_nome() {
+        let mut comp = LuauComponent::from_source(
+            "function init()\n\
+             \x20   local prefixo = 'ev: '\n\
+             \x20   sse('http://ex/stream', {\n\
+             \x20       on_message = function(d) ctx.ultima = prefixo .. d end,\n\
+             \x20       on_close = function() ctx.fim = 'sim' end,\n\
+             \x20   })\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("init", None, &mut ctx);
+            assert_eq!(ctx.streams.len(), 1);
+            id = ctx.streams[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Message, "oi", &mut ctx);
+        }
+        // O prefixo prova que é a closure que rodou, com o upvalue vivo — um
+        // nome de global não teria como capturar `prefixo`.
+        assert_eq!(data.get("ultima").map(String::as_str), Some("ev: oi"));
+
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Closed, "", &mut ctx);
+        }
+        assert_eq!(data.get("fim").map(String::as_str), Some("sim"));
+    }
+
+    /// O mesmo para `websocket`: os dois passam pelo mesmo `register_stream`.
+    #[test]
+    fn websocket_aceita_a_funcao_no_lugar_do_nome() {
+        let mut comp = LuauComponent::from_source(
+            "function init()\n\
+             \x20   conn = websocket('wss://ex/ws', {\n\
+             \x20       on_open = function() ctx.aberto = 'sim' end,\n\
+             \x20   })\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::new();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("init", None, &mut ctx);
+            assert_eq!(ctx.streams.len(), 1);
+            assert_eq!(ctx.streams[0].kind, StreamKind::Ws);
+            id = ctx.streams[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Open, "", &mut ctx);
+        }
+        assert_eq!(data.get("aberto").map(String::as_str), Some("sim"));
     }
 
     #[test]
