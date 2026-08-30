@@ -8,7 +8,7 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## Não lançado
+## [0.62.1] — 2026-08-30
 
 ### Adicionado
 - **`glacier`, a CLI de bootstrap** (`crates/glacier-cli`, publicada como
@@ -1285,9 +1285,9 @@ Medido na árvore real de um app (600 nós):
 
 ---
 
-[0.41.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.41.0
-[0.40.1]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.40.1
-[0.40.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.40.0
-[0.39.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.39.0
-[0.38.1]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.38.1
-[0.38.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.38.0
+[0.41.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.41.0
+[0.40.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.1
+[0.40.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.0
+[0.39.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.39.0
+[0.38.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.1
+[0.38.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.0
