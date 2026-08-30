@@ -46,8 +46,17 @@ sync-extensions: ## Copia editors/ para dentro do crate da CLI (pré-publicaçã
 	find $(CLI)/extensions -name '*.vsix' -delete
 	@echo "extensões copiadas para $(CLI)/extensions"
 
-publish-cli: sync-extensions ## Publica a CLI no crates.io (roda o sync antes)
-	cargo publish -p glacier-cli
+# `--allow-dirty` é necessário e não é cego. O `sync-extensions` acima cria
+# `extensions/`, que o `include` do Cargo.toml empacota mas o `.gitignore`
+# mantém fora do git — e o cargo trata "no pacote, não commitado" como árvore
+# suja. A trava é a linha anterior: se o `git status` não estiver limpo, o alvo
+# para antes de publicar; então os únicos arquivos "sujos" que sobram são
+# exatamente os que o sync acabou de gerar.
+publish-cli: ## Publica a CLI no crates.io (roda o sync antes)
+	@test -z "$$(git status --porcelain)" || \
+		{ echo "árvore de git suja — commite antes de publicar"; exit 1; }
+	$(MAKE) sync-extensions
+	cargo publish -p glacier-cli --allow-dirty
 	$(MAKE) clean-extensions
 
 clean-extensions: ## Remove a cópia vendorizada (ela SOMBREIA editors/ na build local)
