@@ -66,6 +66,25 @@ Este crate não tem nenhuma dependência — nem `clap`, nem `iced`, nem o próp
 `cargo install` que leva minutos derrotaria o propósito. O questionário, o zip
 do `.vsix` e a escrita dos arquivos são std puro.
 
+## Instalar sem o crates.io (.deb)
+
+Para exercitar a CLI como o usuário final a vê — no `PATH`, longe do `target/`:
+
+```bash
+make deb-cli        # constrói em target/debian/ e confere as dependências
+make install-cli    # constrói e instala (usa sudo)
+make uninstall-cli
+```
+
+O pacote é só o binário (~270 KB). O `Depends` sai como `libc6 (>= 2.39)`: o
+binário exige `libc.so.6` e `libgcc_s.so.1`, e o `dpkg-shlibdeps` omite o
+segundo porque `libgcc-s1` já vem por dependência do `libc6`. Nada de GTK nem
+de Node — as extensões vão embutidas e o `.vsix` é montado em tempo de execução.
+`make check-deb` falha se o binário ganhar uma dependência nativa fora da glibc.
+
+O piso `>= 2.39` é o da glibc da máquina que compilou (Ubuntu 24.04+ / Debian
+13+). Para distribuir mais amplamente, compile num ambiente de glibc mais antiga.
+
 ## Desenvolvimento
 
 Os presets vivem em `templates/<id>/` e são embutidos pelo `build.rs`; editar um

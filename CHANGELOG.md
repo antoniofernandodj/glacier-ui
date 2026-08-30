@@ -45,6 +45,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   existe para tirar alguém do zero, e um `cargo install` que leva minutos
   derrotaria o propósito.
 
+- **Pacote Debian da CLI** (`make deb-cli` / `make install-cli`), para exercitar
+  o `glacier` como o usuário final o vê: no `PATH`, longe do `target/`, sem
+  passar pelo crates.io. São ~270 KB, só o binário.
+
+  `make check-deb` (que o `deb-cli` já chama) confere o **DT_NEEDED do ELF
+  empacotado**, e não a linha `Depends`: o `dpkg-shlibdeps` declara o mínimo e
+  omite o que vem por transitividade — `libgcc_s.so.1` é exigido pelo binário e
+  mesmo assim não aparece no `Depends`, porque `libgcc-s1` já vem por `libc6`.
+  Conferir só o `Depends` deixaria passar uma biblioteca nova de verdade. O alvo
+  falha se aparecer qualquer coisa fora da glibc.
+
 - **`tests/presets_cli.rs`** — cada preset é materializado num diretório
   temporário e carregado num `GlacierUI` de verdade. É o que pega o que a
   compilação não pega: um `<link rel="import">` apontando para a pasta errada,
