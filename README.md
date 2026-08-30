@@ -158,7 +158,9 @@ WebSocket. O `iced` é re-exportado em `glacier_ui::iced`, então a sua `main`
 pode nem listar `iced` como dependência direta. Requer Rust **edition 2024**
 (≥ 1.85).
 
-Rode qualquer exemplo do repositório com:
+Os exemplos do repositório (`examples/`) não são compilados por padrão: são 31,
+cada um linka o motor inteiro, e juntos passavam de 15 GiB em `target/`. Para
+rodar um deles, comente o `autoexamples = false` do `Cargo.toml` da raiz:
 
 ```bash
 cargo run --example contador

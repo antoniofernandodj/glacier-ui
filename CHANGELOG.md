@@ -8,6 +8,38 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+### Mudado
+- **Os exemplos deixam de ser compilados por padrão** (`autoexamples = false`).
+  Os 31 arquivos continuam em `examples/`; só a descoberta automática saiu.
+
+  `cargo test` compilava todos eles, cada um linkando o motor inteiro
+  estaticamente (iced + wgpu + naga + Luau + codecs de imagem + resvg). Medido:
+  **31 × 506 MB = 15,2 GiB** em `target/debug/examples`, ~70% de um target de
+  22 GiB. De cada binário, 86% era debuginfo (506 MB → 73 MB depois de `strip`),
+  e como os 31 compartilham as mesmas dependências, boa parte disso era o mesmo
+  debuginfo repetido 31 vezes.
+
+  Depois da mudança, o target a frio vai de **22 GiB para 6,3 GiB**, com os
+  mesmos 366 testes passando — os `.gv` dos exemplos seguem cobertos por
+  `tests/exemplos_gv.rs`, que lê arquivo e não precisa compilar nada.
+
+  Um exemplo novo entra explicitamente:
+
+  ```toml
+  [[example]]
+  name = "contador"
+  path = "examples/contador/main.rs"
+  ```
+
+  Para rodar um dos antigos, comente o `autoexamples = false`.
+
+  **O que se perde:** o `main.rs` dos 31 exemplos não é mais compilado por
+  ninguém, então um deles pode apodrecer sem que a suíte perceba.
+
+---
+
 ## [0.62.1] — 2026-08-30
 
 ### Adicionado

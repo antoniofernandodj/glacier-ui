@@ -9,6 +9,26 @@ readme = "README.md"
 keywords = ["gui", "ui", "iced", "xml", "declarative"]
 categories = ["gui"]
 
+# Desliga a descoberta automática de `examples/`. Os 31 exemplos continuam no
+# disco (e `tests/exemplos_gv.rs` segue conferindo os `.gv` deles, que é leitura
+# de arquivo, não compilação) — o cargo só para de construí-los.
+#
+# O motivo é o custo: `cargo test` compila TODO exemplo, cada um linka o motor
+# inteiro estaticamente (iced + wgpu + naga + Luau + codecs de imagem + resvg), e
+# no perfil dev 86% do binário é debuginfo. Deu 31 x 506 MB = 15,2 GiB em
+# `target/debug/examples`, quase 70% de um target de 22 GiB — e boa parte disso
+# é o MESMO debuginfo das dependências repetido 31 vezes.
+#
+# Exemplo novo daqui em diante entra explicitamente, um bloco por exemplo:
+#
+#     [[example]]
+#     name = "contador"
+#     path = "examples/contador/main.rs"
+#
+# Para rodar um exemplo antigo sem declará-lo, o caminho é reativar a descoberta
+# pontualmente: `cargo run --example contador` depois de comentar a linha abaixo.
+autoexamples = false
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced"] }
 roxmltree = "0.21"
