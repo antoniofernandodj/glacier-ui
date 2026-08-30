@@ -10,6 +10,47 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+### Adicionado
+- **`glacier`, a CLI de bootstrap** (`crates/glacier-cli`, publicada como
+  `glacier-cli`). O repositório vira um workspace: o motor continua sendo o
+  pacote da raiz, e a CLI é um crate à parte.
+
+  ```bash
+  cargo install glacier-cli
+  glacier new
+  ```
+
+  O motivo: um projeto glacier tem `Cargo.toml`, `src/main.rs`, um `.gv` com
+  cabeçalho, um `.gss`, um `.luaurc` e uma árvore de scripts Luau — e montar
+  isso à mão, lendo o README arquivo por arquivo, é a parte mais chata de
+  começar. O `new` faz um questionário, mostra um resumo e **só então** escreve:
+  até a confirmação final, nada foi criado.
+
+  Quatro presets, todos herdando `.gitignore`, `.luaurc` e
+  `views/scripts/glacier.d.luau`:
+
+  | id | O que é |
+  |---|---|
+  | `completo` | janela sem decoração com titlebar própria, tema + `.gss`, componentes com `<props>`, navegação, `fetch`, toasts, `@media` |
+  | `minimo` | uma tela, um `.gss` e um bloco de script Luau |
+  | `janelas` | `open_window`/`broadcast`/`close_window`, bandeja, instância única, geometria lembrada |
+  | `rust` | o trait `Component` com estado tipado |
+
+  `glacier install-extensions` instala as extensões de VS Code (`.gv` e `.gss`).
+  Elas vêm embutidas no binário e são empacotadas em `.vsix` na hora — sem Node,
+  sem `vsce`. Editores procurados no `PATH`: `code`, `code-insiders`, `cursor`,
+  `codium`, `windsurf`.
+
+  A CLI **não tem dependências** (nem `clap`, nem o próprio `glacier-ui`): ela
+  existe para tirar alguém do zero, e um `cargo install` que leva minutos
+  derrotaria o propósito.
+
+- **`tests/presets_cli.rs`** — cada preset é materializado num diretório
+  temporário e carregado num `GlacierUI` de verdade. É o que pega o que a
+  compilação não pega: um `<link rel="import">` apontando para a pasta errada,
+  uma stylesheet com caminho relativo errado, um erro de sintaxe no Luau —
+  falhas que só apareceriam na primeira vez que alguém rodasse o projeto novo.
+
 ### Corrigido
 - **Um `<script>` citado em comentário XML quebrava o template.** Escrever
   `<!-- mova para um arquivo com <script src="x.luau"> -->` num `.gv` derrubava
@@ -30,6 +71,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   regressão em `src/luau/mod.rs`, e os templates do `glacier new` citam a tag
   nos comentários de propósito — `tests/presets_cli.rs` os carrega num motor, o
   que os torna fixture viva do caso.
+
+- **`tests/exemplos_gv.rs` era mais estrito que o motor.** Ele parseava cada
+  `.gv` cru, enquanto o motor faz duas passadas antes (`strip_script` e
+  `normalize_bare_directives`, ver `parse_markup`). Markup que abre sem problema
+  no app — um `else` pelado como atributo, um `<` dentro de um bloco de script —
+  era recusado pelo teste. Agora ele espelha o pré-processamento do motor.
 
 ---
 

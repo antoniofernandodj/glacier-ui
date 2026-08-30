@@ -1,0 +1,28 @@
+/* app.gss — a stylesheet do projeto (glacier stylesheet, CSS-like).
+   Precedência, do mais fraco ao mais forte: tag < classe < id < inline. */
+
+:root {
+    --bg:      #11111B;
+    --surface: #1E1E2E;
+    --border:  #313244;
+    --text:    #CDD6F4;
+    --muted:   #7F849C;
+    --accent:  #89B4FA;
+}
+
+.tela   { width: fill; height: fill; background: var(--bg); padding: 30; spacing: 14; align-x: center; align-y: center; }
+.rotulo { size: 11; bold: true; color: var(--muted); }
+.numero { size: 56; bold: true; color: var(--text); }
+.acoes  { spacing: 12; align-y: center; }
+.campo  { width: 220; spacing: 6; }
+
+.btn          { color: var(--surface); text-color: var(--text); padding: 8 28; border-radius: 8; }
+.btn:hover    { color: var(--border); }
+.btn:active   { color: var(--accent); }
+
+.btn_ghost       { color: var(--bg); text-color: var(--muted); padding: 6 14; border-radius: 6; }
+.btn_ghost:hover { text-color: var(--text); }
+
+/* TextInput tem :hover, :focus e :disabled completos. */
+.entrada        { background: var(--surface); border-radius: 6; border-width: 1; border-color: var(--border); }
+.entrada:focus  { border-color: var(--accent); }

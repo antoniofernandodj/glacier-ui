@@ -1,0 +1,31 @@
+[package]
+name = "glacier-cli"
+version = "0.1.0"
+edition = "2024"
+description = "CLI do glacier-ui: cria um projeto pronto (templates .gv, .gss e scripts Luau) e instala as extensões de VS Code."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/antoniofernandodj/xml-ui"
+readme = "README.md"
+keywords = ["glacier", "gui", "cli", "scaffold", "iced"]
+categories = ["command-line-utilities", "gui"]
+
+# `cargo publish` empacota só o que está listado aqui, ignorando o `.gitignore`
+# da raiz — que é o único jeito de levar junto `extensions/`, a cópia das
+# extensões de VS Code que o `make sync-extensions` gera antes de publicar (ver
+# `build.rs`). Sem `include`, ela ficaria de fora do .crate por ser ignorada.
+include = [
+    "src/**/*",
+    "templates/**/*",
+    "extensions/**/*",
+    "build.rs",
+    "README.md",
+]
+
+[[bin]]
+name = "glacier"
+path = "src/main.rs"
+
+# Sem dependências, de propósito: a CLI existe para tirar alguém do zero, e um
+# `cargo install` que leva minutos derrota o próprio propósito. O questionário,
+# o empacotamento do .vsix (um zip) e a escrita dos arquivos são std puro.
+[dependencies]

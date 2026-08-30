@@ -55,6 +55,8 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Sumário](#sumário)
   - [Por que Glacier](#por-que-glacier)
   - [Instalação](#instalação)
+    - [Começando do zero: `glacier new`](#começando-do-zero-glacier-new)
+    - [Como dependência](#como-dependência)
   - [Conceitos e arquitetura](#conceitos-e-arquitetura)
   - [Início rápido](#início-rápido)
     - [Ligando ao `iced`: `GlacierApp::bootstrap`](#ligando-ao-iced-glacierappbootstrap)
@@ -113,7 +115,36 @@ function decrementar() ctx.contador = ctx.contador - 1 end
 
 ## Instalação
 
-O projeto é um único crate, **`glacier-ui`** — o motor.
+### Começando do zero: `glacier new`
+
+Um projeto glacier tem um `Cargo.toml`, um `src/main.rs`, um `.gv` com
+cabeçalho, um `.gss`, um `.luaurc` e uma árvore de scripts Luau. Montar isso à
+mão, lendo este README arquivo por arquivo, é a parte mais chata de começar — a
+CLI faz um questionário e entrega tudo já ligado e rodando:
+
+```bash
+cargo install glacier-cli
+glacier new
+```
+
+```
+? Nome do projeto (meu-app) painel
+? Qual preset?
+  › 1  App completo      janela sem decoração, tema + .gss, componentes, navegação, fetch
+    2  Mínimo            uma tela, um .gss e um bloco de script Luau
+    3  Multi-janela      open_window/broadcast, bandeja, instância única
+    4  Componente Rust   o trait Component, com estado tipado
+? Instalar as extensões de VS Code (realce e ir-para-definição em .gv/.gss)? [S/n]
+```
+
+Ele mostra um resumo e **só então** escreve: até a confirmação, nada foi criado.
+`glacier install-extensions` instala só as extensões de VS Code (sem precisar de
+Node — o `.vsix` é empacotado na hora). Ver
+[`crates/glacier-cli`](crates/glacier-cli).
+
+### Como dependência
+
+O motor é um crate só, **`glacier-ui`**.
 
 ```bash
 cargo add glacier-ui

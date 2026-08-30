@@ -6,7 +6,7 @@
 //! pega um exemplo quebrado (o erro do parser diz o quê e onde), a segunda diz
 //! qual arquivo ficou para trás numa migração.
 
-use glacier_ui::UiNode;
+use glacier_ui::{UiNode, normalize_bare_directives, strip_script};
 use std::path::{Path, PathBuf};
 
 fn gvs(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -44,6 +44,10 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
     let mut arquivos = Vec::new();
     gvs(&raiz.join("examples"), &mut arquivos);
     gvs(&raiz.join("templates"), &mut arquivos);
+    // Os presets que o `glacier new` materializa. Um `.gv` quebrado ali não
+    // aparece em nenhum exemplo — ele só falha na máquina de quem acabou de
+    // criar o primeiro projeto, que é o pior lugar possível para falhar.
+    gvs(&raiz.join("crates/glacier-cli/templates"), &mut arquivos);
     arquivos.sort();
     assert!(
         arquivos.len() >= 35,
@@ -52,7 +56,12 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
     );
 
     for arquivo in arquivos {
-        let src = std::fs::read_to_string(&arquivo).expect("ler .gv");
+        // Os presets da CLI trazem `{{titulo}}` onde vai o nome do projeto; o
+        // parse não se importa com o texto, mas deixar o marcador cru tornaria
+        // o teste dependente de ele nunca cair dentro de uma tag.
+        let src = std::fs::read_to_string(&arquivo)
+            .expect("ler .gv")
+            .replace("{{titulo}}", "Exemplo");
         let relativo = arquivo.strip_prefix(raiz).unwrap_or(&arquivo).display();
 
         let primeira = sem_comentarios(&src)
@@ -67,10 +76,14 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
             primeira.split_whitespace().next().unwrap_or("?")
         );
 
-        // O `<script>` é recortado por texto antes do parse (`strip_script`), e
-        // é o motor que faz isso — aqui ele é só mais um filho do <resources>,
-        // que a avaliação descarta como qualquer declaração.
-        UiNode::parse_xml_in(&src, Some(&relativo.to_string()))
+        // As mesmas duas passadas que o motor faz antes de parsear (ver
+        // `parse_markup` em src/lib.rs): recortar o `<script>` por texto e
+        // reescrever as diretivas nuas (`else` -> `else=""`). Sem elas o teste
+        // seria mais ESTRITO que o motor, e recusaria markup que abre sem
+        // problema — um `else` pelado, ou um `<` dentro de um script Luau.
+        let (markup, _script) = strip_script(&src);
+        let markup = normalize_bare_directives(&markup);
+        UiNode::parse_xml_in(&markup, Some(&relativo.to_string()))
             .unwrap_or_else(|e| panic!("{relativo} não parseia: {e}"));
     }
 }

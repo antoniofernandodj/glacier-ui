@@ -1,0 +1,41 @@
+<component>
+    <resources>
+        <style scoped="true">
+            .linha_doc { spacing: 10; align-y: center; }
+            .chave     { width: 150; size: 12; bold: true; color: var(--muted); }
+            .valor     { size: 12; color: var(--text-2); }
+        </style>
+    </resources>
+
+    <column class="conteudo">
+        <column class="cabecalho">
+            <text class="titulo">Sobre</text>
+            <text class="subtitulo">o mapa deste projeto</text>
+        </column>
+
+        <column class="painel">
+            <row class="linha_doc">
+                <text class="chave">src/main.rs</text>
+                <text class="valor">a casca: runner, cromo da janela, storage</text>
+            </row>
+            <row class="linha_doc">
+                <text class="chave">views/app.gv</text>
+                <text class="valor">a janela: titlebar própria, sidebar e roteador</text>
+            </row>
+            <row class="linha_doc">
+                <text class="chave">views/components/</text>
+                <text class="valor">pedaços reutilizáveis, com contrato em &lt;props&gt;</text>
+            </row>
+            <row class="linha_doc">
+                <text class="chave">views/scripts/</text>
+                <text class="valor">o comportamento, em Luau — um módulo por domínio</text>
+            </row>
+            <row class="linha_doc">
+                <text class="chave">views/styles/</text>
+                <text class="valor">theme.json (tema do iced) e app.gss (classes)</text>
+            </row>
+        </column>
+
+        <text class="apagado">salve qualquer .gv ou .gss com o app aberto: o hot-reload aplica na hora</text>
+    </column>
+</component>

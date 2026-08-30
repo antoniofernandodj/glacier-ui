@@ -1,0 +1,28 @@
+<screen title="{{titulo}}" size="420 380" min-size="340 320">
+    <resources>
+        <link rel="stylesheet" href="views/styles/app.gss" />
+        <!-- Sem <script>: o comportamento desta tela está em src/contador.rs.
+             O markup continua recarregando a quente — só o Rust exige
+             recompilar. -->
+    </resources>
+
+    <column class="tela">
+        <text class="rotulo">{{titulo}}</text>
+        <text class="numero">{contador}</text>
+
+        <row class="acoes">
+            <button class="btn" text="-" on_click="subtrair" />
+            <button class="btn" text="+" on_click="somar" />
+        </row>
+
+        <!-- Binding de mão dupla: `value` é a chave exibida e `onChange` dispara
+             a ação a cada tecla, com o texto novo em `value: Option<&str>` no
+             update. -->
+        <column class="campo">
+            <text class="rotulo">PASSO</text>
+            <TextInput value="passo_texto" onChange="mudar_passo" placeholder="1" width="fill" padding="9" />
+        </column>
+
+        <button class="btn_ghost" text="zerar" on_click="zerar" />
+    </column>
+</screen>

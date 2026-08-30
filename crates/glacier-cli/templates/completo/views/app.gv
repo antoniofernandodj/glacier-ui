@@ -1,0 +1,105 @@
+<screen title="{{titulo}}" size="980 640" min-size="560 420">
+    <resources>
+        <!-- rel="theme" e rel="stylesheet" resolvem a partir do diretório de onde
+             o app roda (a raiz do projeto). rel="import" resolve relativo a ESTE
+             arquivo, como o `require` do Luau. -->
+        <link rel="theme"      href="views/styles/theme.json" />
+        <link rel="stylesheet" href="views/styles/app.gss" />
+
+        <link rel="import" href="home.gv"  as="Home" />
+        <link rel="import" href="sobre.gv" as="Sobre" />
+        <link rel="import" href="components/nav_item.gv" as="NavItem" />
+
+        <!-- O `src` de um <script> resolve relativo a ESTE arquivo: views/scripts/.
+             É o ÚNICO script do app — o contexto do motor é global, então os
+             templates importados só trazem markup, e os on_click deles caem nas
+             funções declaradas aqui. -->
+        <script src="scripts/app.luau"></script>
+
+        <!-- Um <style> sem `scoped` é global; com scoped="true" vale só na
+             subárvore deste componente. As classes usadas por mais de um
+             template moram no .gss; estas são só do cromo da janela. -->
+        <style scoped="true">
+            /* Titlebar própria (a janela é decorations: false, ver src/main.rs).
+               As ações window:* são built-in do motor — não há handler para elas
+               no Luau. */
+            .titlebar       { width: fill; height: 34; background: var(--surface); align-y: center; }
+            .titlebar_drag  { width: fill; height: fill; align-y: center; padding: 0 0 0 14; spacing: 9; }
+            .titlebar_ponto { size: 10; color: var(--accent); }
+            .titlebar_nome  { size: 12; bold: true; color: var(--muted); }
+            .win_btn        { width: 46; padding: 5 0; color: var(--surface); text-color: var(--muted); text-align: center; }
+            .win_btn:hover  { color: var(--border); text-color: var(--text); }
+            .win_fechar        { width: 46; padding: 5 0; color: var(--surface); text-color: var(--muted); text-align: center; }
+            .win_fechar:hover  { color: var(--danger); text-color: var(--text); }
+
+            /* Moldura de 5px em volta do conteúdo: sem decoração do SO, é ela
+               que dá as alças de redimensionar. O motor não empilha camadas, então
+               a moldura é montada como linha de cima / faixa do meio / linha de
+               baixo, e cada alça declara o cursor e a direção. */
+            .rz_topo   { width: fill; height: 5; }
+            .rz_baixo  { width: fill; height: 5; }
+            .rz_meio   { width: fill; height: fill; }
+            .rz_corpo  { width: fill; height: fill; }
+            .rz_canto  { width: 5; height: fill; }
+            .rz_h      { width: fill; height: fill; cursor: resize-v; }
+            .rz_v      { width: 5; height: fill; cursor: resize-h; }
+            .rz_nw     { cursor: resize-nw; }
+            .rz_ne     { cursor: resize-ne; }
+            .rz_sw     { cursor: resize-sw; }
+            .rz_se     { cursor: resize-se; }
+        </style>
+    </resources>
+
+    <column class="janela">
+
+        <row class="rz_topo">
+            <column class="rz_canto rz_nw" on_press="window:resize:nw" />
+            <column class="rz_h" on_press="window:resize:n" />
+            <column class="rz_canto rz_ne" on_press="window:resize:ne" />
+        </row>
+
+        <row class="rz_meio">
+            <column class="rz_v" on_press="window:resize:w" />
+
+            <column class="rz_corpo">
+
+                <row class="titlebar">
+                    <row class="titlebar_drag" on_press="window:drag" on_double_click="window:maximize">
+                        <text class="titlebar_ponto">*</text>
+                        <text class="titlebar_nome">{{titulo}}</text>
+                    </row>
+                    <button class="win_btn"    text="—" on_click="window:minimize" />
+                    <button class="win_btn"    text="▢" on_click="window:maximize" />
+                    <button class="win_fechar" text="✕" on_click="window:close" />
+                </row>
+
+                <row class="corpo">
+
+                    <!-- Sidebar. Cada NavItem é um componente com <props> (ver
+                         components/nav_item.gv): o `ativo` compara a rota atual
+                         com a dele e escolhe a classe. -->
+                    <column class="sidebar">
+                        <text class="marca">{{titulo}}</text>
+                        <NavItem rotulo="Início" rota="home"  acao="ir_home"  ativo="{view}" />
+                        <NavItem rotulo="Sobre"  rota="sobre" acao="ir_sobre" ativo="{view}" />
+                    </column>
+
+                    <!-- Roteador: a tela é uma chave do contexto, e cada rota é
+                         um componente importado que só renderiza quando casa. -->
+                    <Home  if="{view}" equals="home" />
+                    <Sobre if="{view}" equals="sobre" />
+
+                </row>
+            </column>
+
+            <column class="rz_v" on_press="window:resize:e" />
+        </row>
+
+        <row class="rz_baixo">
+            <column class="rz_canto rz_sw" on_press="window:resize:sw" />
+            <column class="rz_h" on_press="window:resize:s" />
+            <column class="rz_canto rz_se" on_press="window:resize:se" />
+        </row>
+
+    </column>
+</screen>

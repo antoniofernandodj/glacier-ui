@@ -1,0 +1,29 @@
+<!-- Item da sidebar. O <props> é o contrato do componente: declara o que ele
+     aceita e o default de quem for opcional. Uma prop não declarada e não
+     passada vale string vazia. -->
+<component>
+    <props>
+        <prop name="rotulo" />
+        <prop name="rota" />
+        <prop name="acao" />
+        <!-- A rota ATUAL, passada de fora: o componente não lê o contexto
+             global por conta própria, ele compara o que recebeu. -->
+        <prop name="ativo" default="" />
+    </props>
+
+    <resources>
+        <style scoped="true">
+            .nav_on        { width: fill; color: var(--raised); text-color: var(--text); padding: 10 14; border-radius: 6; text-align: left; }
+            .nav_off       { width: fill; color: var(--surface); text-color: var(--muted); padding: 10 14; border-radius: 6; text-align: left; }
+            .nav_off:hover { text-color: var(--text); }
+        </style>
+    </resources>
+
+    <!-- Duas variantes da mesma linha, escolhidas pela comparação. `if`/`else`
+         como ATRIBUTO valem em qualquer elemento — não é preciso uma tag
+         invólucro para condicionar um nó só. -->
+    <column>
+        <button class="nav_on"  if="{ativo}" equals="{rota}" text="{rotulo}" on_click="{acao}" />
+        <button class="nav_off" else                         text="{rotulo}" on_click="{acao}" />
+    </column>
+</component>

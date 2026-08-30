@@ -82,3 +82,11 @@ optional = true
 # `dep:windows-sys` são deps por-alvo: a ativação é no-op nos alvos onde não
 # existem, então a feature é a mesma nas três plataformas.
 tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys", "dep:libc"]
+
+# ── Workspace ────────────────────────────────────────────────────────────────
+# O motor (este pacote) e o `glacier` — a CLI que faz o bootstrap de um projeto
+# novo e instala as extensões de VS Code. A CLI é um crate SEPARADO de propósito:
+# ela não depende de `iced`/`mlua`, então `cargo install glacier-cli` compila em
+# segundos em vez dos minutos que o motor leva.
+[workspace]
+members = ["crates/glacier-cli"]

@@ -1,0 +1,41 @@
+/* app.gss — a stylesheet do projeto (glacier stylesheet, CSS-like).
+
+   Precedência, do mais fraco ao mais forte: tag < classe < id < atributo inline
+   no nó. Classes de um `class="a b"` aplicam da esquerda para a direita. */
+
+/* Design tokens: a fonte única da paleta. `var()` atravessa stylesheets, então
+   estes nomes valem também nos <style> dos templates. */
+:root {
+    --bg:      #11111B;
+    --surface: #1E1E2E;
+    --border:  #313244;
+    --text:    #CDD6F4;
+    --muted:   #7F849C;
+    --accent:  #89B4FA;
+}
+
+.tela {
+    width: fill;
+    height: fill;
+    background: var(--bg);
+    padding: 32;
+    spacing: 16;
+    align-x: center;
+    align-y: center;
+}
+
+.rotulo { size: 12; bold: true; color: var(--muted); }
+.numero { size: 64; bold: true; color: var(--text); }
+.dica   { size: 11; color: var(--muted); }
+
+.acoes  { spacing: 12; align-y: center; }
+
+/* Num Button, `color` é o fundo e `text-color` é o texto. Os pseudo-estados
+   sobrescrevem só o campo que declaram, por cima da regra base — e mapeiam
+   direto para o Status nativo do widget do iced. */
+.btn          { color: var(--surface); text-color: var(--text); padding: 8 28; border-radius: 8; }
+.btn:hover    { color: var(--border); }
+.btn:active   { color: var(--accent); }
+
+.btn_ghost         { color: var(--bg); text-color: var(--muted); padding: 6 14; border-radius: 6; }
+.btn_ghost:hover   { text-color: var(--text); }

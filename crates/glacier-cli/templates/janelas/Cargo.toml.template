@@ -1,0 +1,12 @@
+[package]
+name = "{{nome_projeto}}"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# A feature `tray` liga o ícone de bandeja — e, com ele, o app deixa de encerrar
+# quando a última janela fecha: ele se recolhe, e o menu da bandeja passa a
+# controlar o ciclo de vida. No Linux a bandeja usa libappindicator + GTK em
+# runtime; num .deb, declare `libgtk-3-0` e `libayatana-appindicator3-1`.
+# macOS não é suportado pela bandeja (exige a thread principal).
+glacier-ui = { version = "{{versao_motor}}", features = ["tray"] }
