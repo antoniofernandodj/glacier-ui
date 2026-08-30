@@ -126,6 +126,65 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   `normalize_bare_directives`, ver `parse_markup`). Markup que abre sem problema
   no app — um `else` pelado como atributo, um `<` dentro de um bloco de script —
   era recusado pelo teste. Agora ele espelha o pré-processamento do motor.
+## [0.62.0] — 2026-08-28
+
+### Adicionado
+- **`spread`: passar um objeto inteiro no lugar de um atributo por campo.** O
+  call-site de um card em lista era uma parede de mapeamentos **identidade** —
+  o nome à esquerda igual ao campo à direita, ruído de digitação sem informação
+  nenhuma:
+
+  ```xml
+  <ServiceCard for-each="linhas" var="c"
+      id="{c.id}" nome="{c.nome}" porta="{c.porta}" cpu="{c.cpu}" mem="{c.mem}" />
+  ```
+
+  ```xml
+  <ServiceCard for-each="linhas" var="c" spread="{c}" />
+  ```
+
+  Cada campo do objeto cai na prop declarada de mesmo nome. Apelido em
+  português: `espalhar`.
+
+  O que ele deliberadamente **não** é: uma prop-objeto (`card="{c}"` e
+  `{card.id}` dentro do componente). Ali o `<props>` passaria a declarar `card`
+  e mais nada, e `{card.nmae}` voltaria a renderizar vazio em silêncio — o typo
+  invisível que a 0.61 existe para fechar. Semeando as props **declaradas**, o
+  dentro do componente não muda (`{id}`, `{nome}`), todas seguem verificadas, e
+  a checagem ainda **ganha alcance**: uma prop obrigatória que o *dado* não
+  trouxe passa a errar, não só a que o markup esqueceu.
+
+  - só as props que o `<props>` declara entram; campo sobrando é ignorado (o
+    objeto que vem do Luau quase sempre carrega mais do que o componente usa, e
+    recusá-lo tornaria o spread inútil no caso para o qual ele existe);
+  - atributo escrito à mão **ganha** do spread — é como se sobrepõe um campo;
+  - campo ausente cai no `default` do `<prop>`;
+  - sem `<props>`, não há o que filtrar: todo campo entra na camada (segue
+    valendo a regra da 0.61 — quem não declara não é checado);
+  - valor **vazio** (a chave ainda não carregou) vale como "nenhum campo", e o
+    que faltar erra como `MissingProp`, que aponta *qual* prop com mais
+    precisão; um escalar ou uma lista, aí sim, é `InvalidSpread`.
+
+  Uma **lista** aninhada já atravessava a fronteira de componente sem isto (o
+  valor vai como JSON e o `for-each` de dentro reparseia a chave), e continua:
+  `spread="{c}"` com um `c.tags` dá um `<text for-each="tags" var="t">` dentro
+  do componente.
+
+- **`{item}` de um `for-each` resolve para o item inteiro.** Um objeto expunha
+  só os campos (`{c.nome}`); o item em si não estava na camada, e `{c}`
+  renderizava vazio. Agora ele é o JSON do item — é o que o `spread` repassa.
+
+### Mudado
+- O `README` ganhou a seção `<props>` que o índice já prometia desde a 0.61
+  (o link apontava para uma âncora que não existia), agora com o `spread`.
+
+### Quebras
+- `{item}`, para um item de **objeto** num `for-each`, deixa de cair para o
+  contexto de baixo: antes um `{c}` solto pegava uma chave global `c`, se
+  houvesse; agora resolve para o JSON do item. Só afeta um template que use o
+  nome da variável de laço *também* como chave global — renomeie um dos dois.
+- `GlacierError` ganhou `InvalidSpread`; um `match` exaustivo sobre ele precisa
+  do braço novo.
 
 ---
 

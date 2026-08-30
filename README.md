@@ -66,6 +66,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
   - [Cabeçalho: `<screen>`, `<component>` e `<resources>`](#cabeçalho-screen-component-e-resources)
     - [`<props>`: o contrato do componente](#props-o-contrato-do-componente)
+    - [`spread`: o objeto inteiro de uma vez](#spread-o-objeto-inteiro-de-uma-vez)
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
   - [Controle de fluxo](#controle-de-fluxo)
@@ -458,6 +459,71 @@ atributo no `<component>`; `size`/`min-size` que não seja um par de números;
 `resizable` que não seja booleano; um widget dentro do `<resources>`; um
 `<resources>`/`<props>` fora de um cabeçalho; um `<props>` num `<screen>` (uma
 janela não tem quem lhe passe props); `<prop>` sem `name` ou repetido.
+
+### `<props>`: o contrato do componente
+
+Um `<component>` pode declarar as props que aceita, e a declaração passa a ser
+verificada no ponto de **uso**:
+
+```xml
+<component>
+    <props>
+        <prop name="nome" />
+        <prop name="cor" default="#89B4FA" />
+    </props>
+
+    <text content="{nome}" color="{cor}" />
+</component>
+```
+
+- prop passada e não declarada é erro, citando as que existem;
+- prop declarada **sem** `default` é obrigatória; com `default`, o valor entra
+  quando quem chama omite;
+- um `<props>` vazio é um contrato ("não aceito prop nenhuma"), não a ausência
+  de um;
+- **sem `<props>`, nada é checado** — declarar é opcional.
+
+O motivo de isto ser uma feature e não um comentário no topo do arquivo: as props
+entram como uma **camada** sobre o contexto de quem usa, e um lookup que falha na
+camada cai para o contexto de baixo. Sem contrato, `<Cartao nomee="Alice" />` não
+renderiza vazio — renderiza o `nome` que existir no contexto global, e o typo
+fica invisível até alguém reparar no valor errado na tela.
+
+#### `spread`: o objeto inteiro de uma vez
+
+Um card em lista costuma receber um atributo por campo, e **todos** são
+mapeamentos identidade — o nome à esquerda igual ao campo à direita:
+
+```xml
+<ServiceCard for-each="linhas" var="c"
+    id="{c.id}" nome="{c.nome}" porta="{c.porta}" cpu="{c.cpu}" mem="{c.mem}" />
+```
+
+`spread` passa o item inteiro no lugar dessa parede:
+
+```xml
+<ServiceCard for-each="linhas" var="c" spread="{c}" />
+```
+
+Cada campo do objeto cai na prop declarada de mesmo nome. **Dentro do componente
+nada muda** — continua `{id}`, `{nome}`, `{porta}` —, e é isso que preserva o
+contrato: não existe uma prop-objeto `card` cujo `{card.nmae}` renderizaria vazio
+em silêncio. As regras:
+
+- só as props que o `<props>` **declara** entram; campo sobrando no objeto é
+  ignorado (o dado quase sempre carrega mais do que o componente usa);
+- atributo escrito à mão **ganha** do spread — `spread="{c}" cor="#F00"` sobrepõe
+  aquele campo;
+- campo ausente cai no `default` do `<prop>`; sem default, é `MissingProp` —
+  o contrato ganha alcance, pegando também a obrigatória que o **dado** não
+  trouxe, não só a que o markup esqueceu;
+- sem `<props>`, não há o que filtrar: todo campo do objeto entra na camada;
+- valor **vazio** (a chave ainda não carregou) vale como "nenhum campo"; um
+  escalar ou uma lista, aí sim, é erro;
+- uma lista aninhada atravessa como JSON e volta a ser lista num `for-each` de
+  dentro (`spread="{c}"` com `c.tags` → `<text for-each="tags" var="t">`).
+
+Apelido em português: `espalhar`.
 
 ---
 

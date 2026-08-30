@@ -119,6 +119,16 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
 ];
 
+/// O atributo que passa um objeto **inteiro** no lugar de um atributo por campo
+/// (`<ServiceCard for-each="r.cards" var="c" spread="{c}" />`). Como as
+/// diretivas, ele entra no mapa de props mas **não é** uma prop: quem o lê é a
+/// fronteira de componente do `eval`, e a checagem do `<props>` o pula.
+///
+/// Só os campos que o `<props>` declara entram — o objeto que vem do Luau quase
+/// sempre carrega mais do que o componente usa, e recusá-lo por isso tornaria o
+/// spread inútil justamente no caso para o qual ele existe.
+pub(crate) const SPREAD_ATTRS: &[&str] = &["spread", "espalhar"];
+
 /// Os atributos de um `<prop>`, um grupo por campo do [`PropDecl`]. Mesmo
 /// contrato das listas do `<screen>`: leitura e validação partilham a lista.
 const PROP_NAME_ATTRS: &[&str] = &["name", "nome"];
