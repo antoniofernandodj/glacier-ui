@@ -44,7 +44,9 @@ sync-extensions: ## Copia editors/ para dentro do crate da CLI (pré-publicaçã
 	cp -r $(GV)  $(CLI)/extensions/$(notdir $(GV))
 	cp -r $(GSS) $(CLI)/extensions/$(notdir $(GSS))
 	find $(CLI)/extensions -name '*.vsix' -delete
+	@sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -1 > $(CLI)/engine-version.txt
 	@echo "extensões copiadas para $(CLI)/extensions"
+	@echo "versão do motor gravada em $(CLI)/engine-version.txt: $$(cat $(CLI)/engine-version.txt)"
 
 # `--allow-dirty` é necessário e não é cego. O `sync-extensions` acima cria
 # `extensions/`, que o `include` do Cargo.toml empacota mas o `.gitignore`
@@ -60,7 +62,7 @@ publish-cli: ## Publica a CLI no crates.io (roda o sync antes)
 	$(MAKE) clean-extensions
 
 clean-extensions: ## Remove a cópia vendorizada (ela SOMBREIA editors/ na build local)
-	rm -rf $(CLI)/extensions
+	rm -rf $(CLI)/extensions $(CLI)/engine-version.txt
 
 # ── .deb da CLI ─────────────────────────────────────────────────────────────
 # Para testar o `glacier` como o usuário final o vê: no PATH, longe do target/,

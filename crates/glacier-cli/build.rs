@@ -129,24 +129,37 @@ fn localizar_extensoes(manifest: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Versão do motor que os `Cargo.toml` gerados vão pedir, lida do `Cargo.toml`
-/// da raiz do workspace para não haver duas fontes de verdade. Só o `MAJOR.MINOR`
-/// entra no arquivo gerado: um projeto novo não deve travar no patch.
+/// Versão do motor que os `Cargo.toml` gerados vão pedir, em `MAJOR.MINOR` (um
+/// projeto novo não deve travar no patch).
+///
+/// Duas fontes, na ordem: `engine-version.txt` aqui dentro (gerado por
+/// `make sync-extensions`, listado no `include` do Cargo.toml) e, num checkout,
+/// o `Cargo.toml` da raiz do workspace.
+///
+/// Sem nenhuma das duas, a build **falha**. A versão anterior caía para
+/// `CARGO_PKG_VERSION` — a versão da própria CLI — e foi assim que a 0.1.0
+/// publicada saiu gerando projetos que pedem `glacier-ui = "0.1"`, um crate que
+/// não existe. Um erro de versão aqui não tem sintoma local nenhum: só aparece
+/// no `cargo build` de quem acabou de criar o primeiro projeto.
 fn emitir_versao_do_motor(manifest: &Path) -> String {
+    let vendorizado = manifest.join("engine-version.txt");
     let cargo_raiz = manifest.join("../../Cargo.toml");
+    println!("cargo:rerun-if-changed={}", vendorizado.display());
     println!("cargo:rerun-if-changed={}", cargo_raiz.display());
 
-    let versao = fs::read_to_string(&cargo_raiz)
+    let versao = fs::read_to_string(&vendorizado)
+        .map(|s| s.trim().to_string())
         .ok()
-        .and_then(|txt| {
-            txt.lines()
-                .take_while(|l| !l.starts_with("[dependencies]"))
-                .find_map(|l| {
-                    let v = l.strip_prefix("version")?.trim_start().strip_prefix('=')?;
-                    Some(v.trim().trim_matches('"').to_string())
-                })
-        })
-        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
+        .filter(|s| !s.is_empty())
+        .or_else(|| versao_do_manifesto(&cargo_raiz))
+        .unwrap_or_else(|| {
+            panic!(
+                "não achei a versão do glacier-ui: nem `{}`, nem `{}`. \
+                 Num checkout isso não deveria acontecer; para publicar, rode `make sync-extensions`.",
+                vendorizado.display(),
+                cargo_raiz.display()
+            )
+        });
 
     let mut partes = versao.split('.');
     let curta = match (partes.next(), partes.next()) {
@@ -155,6 +168,18 @@ fn emitir_versao_do_motor(manifest: &Path) -> String {
     };
 
     format!("pub const VERSAO_MOTOR: &str = {curta:?};\n")
+}
+
+/// O `version` do `[package]` de um Cargo.toml (para antes de `[dependencies]`,
+/// onde cada dep tem um `version` próprio).
+fn versao_do_manifesto(caminho: &Path) -> Option<String> {
+    let txt = fs::read_to_string(caminho).ok()?;
+    txt.lines()
+        .take_while(|l| !l.starts_with("[dependencies]"))
+        .find_map(|l| {
+            let v = l.strip_prefix("version")?.trim_start().strip_prefix('=')?;
+            Some(v.trim().trim_matches('"').to_string())
+        })
 }
 
 /// Percorre `dir` recursivamente acumulando `(caminho relativo a `base`, caminho
