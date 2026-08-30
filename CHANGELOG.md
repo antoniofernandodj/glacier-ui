@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.62.2] — 2026-08-30
+
+Publicação de manutenção: **o motor não mudou**. Nenhum arquivo de `src/` é
+diferente da 0.62.1 — a comparação está no commit.
+
+A 0.62.1 saiu junto com a primeira versão da CLI, e desde então o trabalho todo
+foi do lado dela (`glacier-cli` 0.2.0: Makefile, `fazer.bat` e empacotamento nos
+projetos criados). Esta versão existe para que o `engine-version.txt` que a CLI
+grava — e portanto o `glacier-ui = "…"` do `Cargo.toml` de todo projeto novo —
+aponte para uma release publicada no mesmo dia que ela, em vez de para uma
+anterior.
+
+Quem já está em `^0.62` não ganha nem perde nada atualizando.
+
+---
+
 ## glacier-cli 0.2.0 — 2026-08-30
 
 Só a CLI (`crates/glacier-cli`). O motor não mudou e segue em 0.62.1.
