@@ -7,3 +7,13 @@ edition = "2024"
 # O motor. Ele reexporta o `iced` (`glacier_ui::iced`), então este é o único
 # crate de UI que o projeto precisa declarar.
 glacier-ui = "{{versao_motor}}"
+
+# O app lê `views/` em runtime (é o que dá o hot-reload), então o .deb leva a
+# pasta junto. O binário instalado é chamado pelo wrapper que o
+# `packaging/linux/instalar.sh` cria — ver o comentário lá sobre por quê.
+[package.metadata.deb]
+assets = [
+    ["target/release/{{nome_projeto}}", "usr/share/{{nome_projeto}}/", "755"],
+    ["views/**/*", "usr/share/{{nome_projeto}}/views/", "644"],
+    ["packaging/linux/wrapper.sh", "usr/bin/{{nome_projeto}}", "755"],
+]

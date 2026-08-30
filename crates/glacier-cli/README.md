@@ -30,8 +30,43 @@ glacier --version
 | `janelas` | Multi-janela (`open_window`/`broadcast`/`close_window`), ícone de bandeja, instância única, geometria lembrada |
 | `rust` | O trait `Component` com estado tipado em Rust, em vez de comportamento em Luau |
 
-Todos herdam o `.gitignore`, o `.luaurc` e o `views/scripts/glacier.d.luau` (os
-tipos dos globais que o motor injeta, para o luau-lsp).
+Todos herdam o `.gitignore`, o `.luaurc`, o `views/scripts/glacier.d.luau` (os
+tipos dos globais que o motor injeta, para o luau-lsp) e a camada de build e
+empacotamento abaixo.
+
+## Compilar, empacotar e instalar
+
+Todo projeto criado já sai com `Makefile` (Linux) e `fazer.bat` (Windows, onde
+não há make), cobrindo os dois sistemas dos dois lados:
+
+| | Makefile | fazer.bat |
+|---|---|---|
+| compilar | `make build` | `fazer build` |
+| **para Windows** | `make windows` (cross-compile via cargo-xwin) | `fazer build` (MSVC nativo) |
+| empacotar Windows | `make windows-dist` → `.zip` | `fazer dist` |
+| empacotar Linux | `make linux-dist` → `.tar.gz`, `make deb` → `.deb` | — |
+| instalar | `make install` (`~/.local`), `make install-sistema` | `fazer instalar` |
+
+O `.exe` sai com `+crt-static`: sem isso ele exige o Visual C++ Redistributable
+na máquina de destino e falha com uma caixa de erro que não diz qual DLL faltou.
+
+Os pacotes levam `packaging/{windows,linux}/`: no Windows um `instalar.bat` que
+copia para `%LOCALAPPDATA%\Programs` e cria o atalho no menu Iniciar **sem pedir
+administrador**; no Linux um `instalar.sh` que instala em `~/.local` (ou
+`--sistema` para `/usr/local`) e gera a entrada `.desktop`.
+
+### Por que todo alvo de pacote termina numa conferência
+
+O app lê `views/` em **runtime** — é o que dá o hot-reload. Um pacote sem essa
+pasta compila, empacota, instala e abre: numa janela vazia, na máquina de quem
+baixou, sem nenhuma mensagem que aponte a causa. Então `conferir-pacote` compara
+a contagem de arquivos e falha alto antes de o `.zip` existir.
+
+Pelo mesmo motivo, o que vai para `/usr/bin` (no `.deb`) e para `~/.local/bin`
+(no `instalar.sh`) é um **wrapper de três linhas** que faz `cd` para a pasta de
+instalação antes de executar. O programa de verdade fica ao lado do `views/`.
+Sem isso, rodar o app de qualquer outro diretório o faria procurar os templates
+onde eles não estão.
 
 ## Opções de `new`
 

@@ -8,6 +8,60 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.2.0 — 2026-08-30
+
+Só a CLI (`crates/glacier-cli`). O motor não mudou e segue em 0.62.1.
+
+### Adicionado
+- **Todo projeto criado por `glacier new` já sai empacotável e instalável**, nos
+  dois sistemas, pelos dois lados: um `Makefile` (Linux) e um `fazer.bat`
+  (Windows, onde não há make), herdados por todos os presets via `_comum`.
+
+  | | Makefile | fazer.bat |
+  |---|---|---|
+  | para Windows | `make windows` (cross-compile, cargo-xwin) | `fazer build` (MSVC nativo) |
+  | empacotar Windows | `make windows-dist` → `.zip` | `fazer dist` |
+  | empacotar Linux | `make linux-dist` → `.tar.gz`, `make deb` | — |
+  | instalar | `make install` / `install-sistema` | `fazer instalar` |
+
+  O motivo: até aqui o `new` entregava um projeto que roda com `cargo run` e
+  para por aí. Transformá-lo em algo que outra pessoa instala era um problema
+  não resolvido — e um com armadilha, porque a parte que quebra não dá erro.
+
+  O `.exe` sai com `+crt-static`: sem isso ele exige o Visual C++
+  Redistributable na máquina de destino e falha com uma caixa de erro que não
+  diz qual DLL faltou.
+
+- **Instaladores em `packaging/`**, dentro do pacote. No Windows, um
+  `instalar.bat` que copia para `%LOCALAPPDATA%\Programs` e cria o atalho no
+  menu Iniciar **sem pedir administrador** — um app de usuário não precisa de
+  elevação para ser instalado. No Linux, um `instalar.sh` que instala em
+  `~/.local` (ou `--sistema` para `/usr/local`) e gera o `.desktop`.
+
+- **`conferir-pacote`**, em que todo alvo de pacote termina. O app lê `views/`
+  em runtime — é o que dá o hot-reload —, então um pacote sem essa pasta
+  compila, empacota, instala e abre: numa janela vazia, na máquina de quem
+  baixou, sem nenhuma mensagem que aponte a causa. A conferência compara a
+  contagem de arquivos e falha antes de o `.zip` existir. A ideia (e o custo de
+  não a ter) vem do Makefile do rustploy.
+
+- **Um wrapper de três linhas** é o que vai para `/usr/bin` (no `.deb`) e para
+  `~/.local/bin` (no `instalar.sh`); o binário de verdade fica ao lado do
+  `views/`, e o wrapper faz `cd` antes de executar. Sem isso, rodar o app de
+  qualquer outro diretório o faria procurar os templates onde eles não estão —
+  o mesmo bug que a conferência acima previne no empacotamento, só que na
+  instalação. O `.desktop` leva `Path=` pelo mesmo motivo, e o atalho do Windows
+  leva `WorkingDirectory`.
+
+### Corrigido
+- `scaffold` agora substitui os marcadores `{{…}}` em arquivos **sem extensão**
+  (`Makefile`) e em `.bat`/`.sh` — sem isso o Makefile gerado sairia com
+  `{{nome_projeto}}` literal no lugar do nome do app —, e dá `+x` aos `.sh`
+  escritos, que `fs::write` cria em `644`. Um `instalar.sh` sem o bit de
+  execução propagaria a permissão errada para dentro do `.tar.gz`.
+
+---
+
 ## Não lançado
 
 ### Mudado

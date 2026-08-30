@@ -65,8 +65,12 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt",
+    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
 ];
+
+/// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`
+/// sairia com os `{{nome_projeto}}` literais no lugar do nome do app.
+const TEXTUAIS_SEM_EXTENSAO: &[&str] = &["Makefile", "gitignore"];
 
 /// Escreve o preset em `destino`. O diretório não pode existir: sobrescrever um
 /// projeto já começado seria a única operação irreversível desta CLI.
@@ -99,10 +103,12 @@ pub fn criar(
             fs::create_dir_all(pai)?;
         }
 
+        let nome_arquivo = alvo.file_name().and_then(|n| n.to_str()).unwrap_or("");
         let ehtexto = alvo
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| TEXTUAIS.contains(&e))
+            || TEXTUAIS_SEM_EXTENSAO.contains(&nome_arquivo)
             || rel.ends_with(".gitignore")
             || rel.ends_with(".luaurc");
 
@@ -111,10 +117,31 @@ pub fn criar(
         } else {
             fs::write(&alvo, bytes)?;
         }
+        executavel_se_script(&alvo)?;
         escritos.push(PathBuf::from(rel));
     }
     escritos.sort();
     Ok(escritos)
+}
+
+/// Dá o bit de execução a um `.sh` recém-escrito.
+///
+/// `fs::write` cria com a permissão do `umask` — tipicamente `644`. Um
+/// `instalar.sh` sem o `+x` é um instalador que o usuário precisa descobrir que
+/// tem de chamar com `sh instalar.sh`, e o `.tar.gz` gerado pelo Makefile
+/// propagaria a permissão errada para quem baixasse o pacote.
+///
+/// No Windows não há o conceito, e a função não faz nada.
+#[cfg_attr(not(unix), allow(unused_variables))]
+fn executavel_se_script(alvo: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if alvo.extension().and_then(|e| e.to_str()) == Some("sh") {
+            fs::set_permissions(alvo, fs::Permissions::from_mode(0o755))?;
+        }
+    }
+    Ok(())
 }
 
 /// Desfaz os dois disfarces que um arquivo veste dentro de `templates/`, ambos

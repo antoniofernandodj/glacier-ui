@@ -10,3 +10,13 @@ edition = "2024"
 # runtime; num .deb, declare `libgtk-3-0` e `libayatana-appindicator3-1`.
 # macOS não é suportado pela bandeja (exige a thread principal).
 glacier-ui = { version = "{{versao_motor}}", features = ["tray"] }
+
+# O app lê `views/` em runtime (é o que dá o hot-reload), então o .deb leva a
+# pasta junto. O binário instalado é chamado pelo wrapper que o
+# `packaging/linux/instalar.sh` cria — ver o comentário lá sobre por quê.
+[package.metadata.deb]
+assets = [
+    ["target/release/{{nome_projeto}}", "usr/share/{{nome_projeto}}/", "755"],
+    ["views/**/*", "usr/share/{{nome_projeto}}/views/", "644"],
+    ["packaging/linux/wrapper.sh", "usr/bin/{{nome_projeto}}", "755"],
+]
