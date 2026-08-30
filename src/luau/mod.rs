@@ -1833,7 +1833,9 @@ fn resolve_script(
 /// caminho de um arquivo `.luau` externo.
 fn extract_script_src(markup: &str) -> Option<String> {
     let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
+    // `find_script_open` e não `find("<script")`: um `<script src="…">` citado
+    // dentro de um comentário XML não abre bloco nenhum (ver o doc dela).
+    let open = crate::eval::find_script_open(markup)?;
     // Só o texto da tag de abertura (até o primeiro `>`).
     let gt = lower[open..].find('>')? + open;
     let tag = &markup[open..gt];
@@ -1844,11 +1846,12 @@ fn extract_script_src(markup: &str) -> Option<String> {
 }
 
 /// Extrai o corpo de um bloco `<script>...</script>` de um template XML.
-/// Espelha a lógica de remoção do parser, mas devolve o conteúdo em vez de
-/// descartá-lo.
+/// Espelha a lógica de remoção do parser (`eval::strip_script`) — a MESMA
+/// varredura inclusive, para as duas nunca apontarem para blocos diferentes —,
+/// mas devolve o conteúdo em vez de descartá-lo.
 fn extract_script(markup: &str) -> Option<String> {
     let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
+    let open = crate::eval::find_script_open(markup)?;
     let gt = lower[open..].find('>')? + open + 1;
     let close = lower[gt..].find("</script>")? + gt;
     Some(markup[gt..close].to_string())
@@ -3497,5 +3500,81 @@ mod tests {
         assert_eq!(conteudo_filho, "conteúdo filho");
 
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // ── `<script>` citado em comentário XML ──────────────────────────────────
+    //
+    // `eval::strip_script` sempre pulou comentários; estas três funções não —
+    // elas faziam um `find("<script")` cru. O markup ia para o parser sem o
+    // bloco certo enquanto o Luau compilava o texto errado: o corpo "extraído"
+    // começava no `>` da tag CITADA e ia até o `</script>` de verdade,
+    // arrastando o resto do comentário e a tag de abertura real como se fossem
+    // código. O erro saía como um `syntax error` na linha 1, sem nada que
+    // apontasse para o comentário. Encontrado escrevendo os templates do
+    // `glacier new`, que documentavam a própria tag num comentário.
+
+    /// Um `<script>` citado num comentário não abre bloco: o corpo extraído é o
+    /// do bloco de verdade, que vem depois.
+    #[test]
+    fn extract_script_ignora_script_citado_em_comentario() {
+        let markup = r#"<screen>
+            <!-- mova para um arquivo com <script src="a.luau"> quando crescer -->
+            <script>
+            function init() end
+            </script>
+        </screen>"#;
+
+        let corpo = extract_script(markup).expect("o bloco de verdade");
+        assert!(corpo.contains("function init() end"));
+        assert!(
+            !corpo.contains("quando crescer"),
+            "o corpo veio do comentário: {corpo:?}"
+        );
+    }
+
+    /// E o `src` lido é o do bloco de verdade — não o citado no comentário, que
+    /// mandaria o motor ler um arquivo que ninguém escreveu.
+    #[test]
+    fn extract_script_src_ignora_script_citado_em_comentario() {
+        let markup = r#"<screen>
+            <!-- exemplo: <script src="exemplo.luau"></script> -->
+            <script src="real.luau"></script>
+        </screen>"#;
+
+        assert_eq!(extract_script_src(markup).as_deref(), Some("real.luau"));
+    }
+
+    /// Um template cujo ÚNICO `<script` está num comentário não tem script
+    /// nenhum: ele segue só-UI, e suas ações caem na tela que o hospeda.
+    ///
+    /// O par `<script></script>` COMPLETO dentro do comentário é o que dá
+    /// dentes ao teste: com só a tag de abertura citada, a varredura antiga já
+    /// devolvia `None` — por não achar um `</script>` adiante, e não por ter
+    /// entendido o comentário.
+    #[test]
+    fn has_script_e_falso_quando_a_unica_tag_esta_comentada() {
+        let markup = r#"<component>
+            <!-- Sem <script>codigo()</script>: o comportamento vive em Rust. -->
+            <column />
+        </component>"#;
+
+        assert!(!has_script(markup));
+        assert_eq!(extract_script(markup), None);
+        assert_eq!(extract_script_src(markup), None);
+    }
+
+    /// As duas varreduras precisam concordar sobre ONDE o bloco começa: se
+    /// discordarem, o parser tira um trecho e o Luau compila outro.
+    #[test]
+    fn strip_script_e_extract_script_veem_o_mesmo_bloco() {
+        let markup = r#"<screen>
+            <!-- <script src="fantasma.luau"> -->
+            <script>
+            function somar() ctx.n = "1" end
+            </script>
+        </screen>"#;
+
+        let (_markup, do_strip) = crate::eval::strip_script(markup);
+        assert_eq!(do_strip.as_deref(), extract_script(markup).as_deref());
     }
 }

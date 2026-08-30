@@ -8,6 +8,31 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+### Corrigido
+- **Um `<script>` citado em comentário XML quebrava o template.** Escrever
+  `<!-- mova para um arquivo com <script src="x.luau"> -->` num `.gv` derrubava
+  o carregamento com um `syntax error: [string "<script:…>"]:1: Incomplete
+  statement` — uma mensagem sem nenhuma relação visível com o comentário que a
+  causava.
+
+  As duas varreduras que procuram o bloco discordavam: `eval::strip_script`
+  pulava comentários (via `find_script_open`), mas `luau::extract_script` e
+  `luau::extract_script_src` faziam um `find("<script")` cru. O parser de markup
+  tirava o bloco certo enquanto o Luau compilava o texto errado — o corpo
+  "extraído" começava no `>` da tag CITADA e ia até o `</script>` de verdade,
+  arrastando o resto do comentário e a tag de abertura real como se fossem
+  código.
+
+  `find_script_open` virou `pub(crate)` e passou a ser a única definição de onde
+  o bloco começa; as três funções agora concordam sempre. Quatro testes de
+  regressão em `src/luau/mod.rs`, e os templates do `glacier new` citam a tag
+  nos comentários de propósito — `tests/presets_cli.rs` os carrega num motor, o
+  que os torna fixture viva do caso.
+
+---
+
 ## [0.61.0] — 2026-08-28
 
 ### Adicionado

@@ -47,7 +47,19 @@ pub fn strip_script(xml: &str) -> (String, Option<String>) {
 
 /// Índice do `<script` que abre o bloco de script — ignorando um citado dentro
 /// de um comentário XML (`<!-- <script> -->`), que não é um bloco de verdade.
-fn find_script_open(xml: &str) -> Option<usize> {
+///
+/// É a **única** definição de onde o bloco começa, e por isso é `pub(crate)`:
+/// além do [`strip_script`] aqui, a camada Luau precisa exatamente da mesma
+/// resposta (`crate::luau::extract_script`/`extract_script_src`). Enquanto ela
+/// tinha uma varredura própria — um `find("<script")` cru, sem pular
+/// comentários —, as duas discordavam: o parser de markup via o bloco certo e o
+/// Luau via o do comentário, extraindo como código o texto entre a tag citada e
+/// o `</script>` de verdade. O sintoma era um erro de sintaxe Luau na linha 1,
+/// sem relação visível com o comentário que o causou.
+///
+/// O índice vale tanto no texto original quanto no minúsculo: `to_ascii_lowercase`
+/// só troca bytes ASCII, então nenhum deslocamento muda.
+pub(crate) fn find_script_open(xml: &str) -> Option<usize> {
     let lower = xml.to_ascii_lowercase();
     let mut from = 0;
     while let Some(i) = lower[from..].find("<script").map(|i| from + i) {
