@@ -78,9 +78,9 @@ beneficiário.
 - **`examples/spinbox/`** (`cargo run --example spinbox`): cinco `<SpinBox/>` —
   inteiro, decimal, passo grande e duas instâncias lado a lado — com a chave de
   cada um ecoada em texto ao lado, para a independência entre instâncias ficar
-  visível. É o primeiro exemplo declarado com bloco `[[example]]`, como o
-  comentário do `Cargo.toml` pede desde a 0.62.1; ou seja, ele volta a ser
-  compilado pelo `cargo test`.
+  visível. Ele e o `timepicker` são os primeiros exemplos declarados com bloco
+  `[[example]]`, como o comentário do `Cargo.toml` pede desde a 0.62.1 — ou
+  seja, os dois voltam a ser compilados pelo `cargo test`.
 
 ### Corrigido
 - **`<TimePicker/>` não funcionava** — quatro defeitos empilhados, três deles

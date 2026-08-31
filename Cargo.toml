@@ -33,6 +33,10 @@ autoexamples = false
 name = "spinbox"
 path = "examples/spinbox/main.rs"
 
+[[example]]
+name = "timepicker"
+path = "examples/timepicker/main.rs"
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced"] }
 roxmltree = "0.21"
