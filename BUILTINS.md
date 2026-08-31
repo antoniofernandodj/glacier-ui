@@ -1,4 +1,4 @@
-# Widgets embutidos (`src/builtins.rs`)
+# Widgets embutidos (`src/builtins/`)
 
 Biblioteca de componentes que a própria `glacier-ui` registra sozinha, para
 ficarem disponíveis por tag em **qualquer** template sem o app configurar nada —
@@ -6,14 +6,14 @@ o objetivo de longo prazo é uma biblioteca vasta de widgets, no espírito do Qt
 
 Este documento é o guia prático de **como estender** essa biblioteca. As
 garantias e restrições do motor por trás dela estão documentadas nas docstrings
-de `src/builtins.rs`; aqui o foco é o passo a passo.
+de `src/builtins/mod.rs`; aqui o foco é o passo a passo.
 
 ## Três níveis de "componente" no glacier-ui
 
 | | Onde vive | Precisa registrar? | Disponível como |
 |---|---|---|---|
 | **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `<Button/>`, `<Text/>`, … |
-| **Builtin** | `src/builtins.rs` | não (a lib registra) | `<Badge/>` e afins |
+| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `<Badge/>`, `<SpinBox/>` e afins |
 | **Componente do app** | código/arquivos do app | sim (`register`/`import`) | `<PerfilCard/>` |
 
 Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
@@ -27,7 +27,7 @@ nome; como o builtin já está registrado, `<Badge/>` "simplesmente funciona".
 
 ## Passo a passo: adicionar um widget
 
-### 1. Escreva o `impl Component` em `src/builtins.rs`
+### 1. Escreva o `impl Component` num arquivo de `src/builtins/`
 
 ```rust
 /// Um separador horizontal fino — divide seções de uma coluna.
@@ -59,7 +59,8 @@ impl Component for Divider {
 
 ### 2. Registre-o na lista
 
-`builtin_components()` é o **único** ponto que o motor lê. Some o widget lá:
+`builtin_components()` (em `src/builtins/mod.rs`) é o **único** ponto que o motor
+lê. Declare o `mod` e some o widget na lista:
 
 ```rust
 pub fn builtin_components() -> Vec<Box<dyn Component>> {
@@ -175,17 +176,85 @@ resolvidas antes e não são sobrescrevíveis por um componente.
 O estado escrito com `ctx.set` (em `update` ou `init`) vai para **um** contexto
 global — não há estado por instância. Consequências práticas:
 
-- ✅ **Widgets apresentacionais / prop-driven** (Badge, Divider, Avatar, Card):
-  recebem tudo por prop, não guardam estado. Podem ser usados N vezes na mesma
-  tela sem colisão. **É o tipo recomendado hoje.**
+- ✅ **Widgets apresentacionais / prop-driven** (Badge, Divider, Card): recebem
+  tudo por prop, não guardam estado. Podem ser usados N vezes na mesma tela sem
+  colisão.
+- ✅ **Widgets com comportamento cujo valor o app nomeia** (SpinBox): a chave de
+  contexto entra por prop e a ação a carrega — ver a seção adiante. Também são
+  usáveis N vezes.
 - ⚠️ **Widgets com estado** (um contador, um accordion aberto/fechado): duas
   instâncias na mesma tela **compartilhariam** o estado e colidiriam. Não há
   isolamento por instância ainda.
 - ❌ **Não** semeie defaults com `init()` num builtin: isso polui o contexto
   global com as chaves do widget. Use `{prop|default}` no template.
 
-Enquanto o motor não tiver estado por instância, mantenha os builtins
-apresentacionais.
+Enquanto o motor não tiver estado por instância, um builtin pode ter
+comportamento — mas todo valor que ele guarda tem de morar numa chave nomeada
+por quem o usa.
+
+## Widget com comportamento: a chave vem por prop, os parâmetros vêm na ação
+
+A restrição acima diz que builtin não pode guardar estado. Ela **não** diz que
+builtin não pode ter comportamento — e a diferença é o `SpinBox`
+(`src/builtins/spin_box.rs`), que soma, subtrai e satura em Rust.
+
+O truque tem duas partes:
+
+1. **O valor mora numa chave que o app nomeia.** O widget não inventa chave
+   nenhuma: recebe o nome dela por prop (`<SpinBox value="qtd"/>`). Como as
+   chaves são do app, duas instâncias são independentes — o contexto continua
+   global, mas ninguém disputa a mesma posição.
+
+2. **A ação carrega os parâmetros da instância.** O `update` recebe só
+   `(action, value, ctx)` — ele **não** enxerga as props de quem o disparou.
+   Então o template escreve os parâmetros dentro da própria ação:
+
+   ```xml
+   <Button text="▲" on_click="inc:{value}|{min|0}|{max|100}|{step|1}" />
+   ```
+
+   O eval interpola (`inc:qtd|1|99|1`) e prefixa o dono
+   (`namespace_action` → `SpinBox::inc:qtd|1|99|1`). O motor quebra no `::`,
+   encontra `SpinBox` no mapa de componentes — builtin entra lá igual a
+   componente de app — e chama o `update` **do widget**, não o da tela.
+
+   ```rust
+   fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+       let (op, payload) = action.split_once(':')?;      // "inc", "qtd|1|99|1"
+       let mut campos = payload.split('|');
+       let chave = campos.next()?;                        // a chave do app
+       // …lê ctx.get(chave), calcula, ctx.set(chave, novo)
+   }
+   ```
+
+   Cuidado com o `|`: **dentro** de `{…}` ele separa o default inline
+   (`{min|0}`), **fora** é literal e separa os campos do payload. E não comece a
+   ação com `clipboard:`/`open:`/`window:`/`style:` — esses prefixos são globais
+   e escapam do namespacing (`BUILTIN_ACTION_PREFIXES`).
+
+## Widget que delega: `app:` na frente da ação
+
+O padrão acima é para o widget que **age**. O oposto é o widget que **delega** —
+o `<TimePicker/>` recebe `on_pick` por prop e só repassa ao botão interno.
+
+A armadilha: o `namespace_action` prefixa **toda** ação com o dono, então
+`on_click="{on_pick}"` vira `TimePicker::abrir_modal`, o motor acha o
+`TimePicker` no mapa de componentes e chama o `update` **dele** — que não conhece
+ação nenhuma do app. O handler nunca roda e não há erro: o botão só não faz nada.
+
+O escape é o prefixo `app:`, que sai no lugar do prefixo de dono:
+
+```xml
+<Button text="{pick_icon|⏰}" on_click="app:{on_pick}" />
+<TextInput value="{value}" onChange="app:{on_change}" />
+```
+
+`app:` significa **a tela atual** (é onde o `dispatch` cai sem dono), não o
+componente intermediário que porventura tenha usado o widget — delegar de
+componente para componente ainda depende de um `ctx.dispatch` que o motor não
+tem. Do lado Rust a limitação continua: um `update` não consegue despachar outra
+ação, então um builtin que trata o `on_change` para si (como o `SpinBox`) não
+tem como *também* repassá-lo — um `<TextInput>` só tem um `onChange`.
 
 ## Testando
 
@@ -231,5 +300,5 @@ Veja `tests/engine_tests.rs`:
 
 `Badge` é o exemplo canônico — uma "pílula" de rótulo, puramente apresentacional,
 com props string e numérica, todas com default inline. Veja o código-fonte em
-`src/builtins.rs` e o exemplo executável em `examples/builtins/` (`cargo run
+`src/builtins/badge.rs` e o exemplo executável em `examples/builtins/` (`cargo run
 --example builtins`).

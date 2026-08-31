@@ -1265,7 +1265,31 @@ pub fn evaluate_template(
 /// componente importado (ex.: `ServiceDetail::clipboard:foo`).
 const BUILTIN_ACTION_PREFIXES: [&str; 4] = ["clipboard:", "open:", "window:", "style:"];
 
+/// Marca uma ação como **do aplicativo**, não do componente que a escreveu:
+/// `app:` é removido no lugar do prefixo de dono, então a ação sai "nua" da
+/// avaliação e o `dispatch` a entrega à tela atual.
+///
+/// Existe para o caso do **widget composto que delega**: um builtin como o
+/// `<TimePicker/>` recebe `on_pick="abrir_modal"` por prop e repassa ao
+/// `<Button/>` interno. Sem escape, o `namespace_action` prefixaria com o dono
+/// (`TimePicker::abrir_modal`), o `dispatch` acharia o `TimePicker` no mapa de
+/// componentes e chamaria o `update` **dele** — que não conhece ação nenhuma do
+/// app. O handler do app nunca rodava, sem erro nenhum: o botão simplesmente
+/// não fazia nada. Com `on_click="app:{on_pick}"` a ação volta a ser
+/// `abrir_modal` e chega em quem a definiu.
+///
+/// Escopo: "do app" quer dizer **a tela atual** (é onde o `dispatch` cai quando
+/// não há dono), não o componente intermediário que porventura tenha usado o
+/// widget. Um componente que delega para outro componente ainda depende de um
+/// `ctx.dispatch` no motor, que não existe.
+pub const APP_ACTION_PREFIX: &str = "app:";
+
 fn namespace_action(action: String, owner: Option<&str>) -> String {
+    // O escape vem antes de tudo: quem escreveu `app:` está dizendo que a ação
+    // não é dele, então nem o dono nem os prefixos built-in se aplicam.
+    if let Some(bare) = action.strip_prefix(APP_ACTION_PREFIX) {
+        return bare.trim().to_string();
+    }
     match owner {
         Some(name)
             if !action.is_empty()

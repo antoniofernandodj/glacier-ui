@@ -8,6 +8,128 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.63.0] — 2026-08-30
+
+Uma release de **widgets embutidos**: nasce o primeiro builtin que *faz* algo em
+vez de só desenhar, e com ele os dois mecanismos que faltavam para a biblioteca
+crescer — um para o widget que age, outro para o widget que delega. O
+`<TimePicker/>`, que estava quebrado de quatro maneiras diferentes, é o primeiro
+beneficiário.
+
+### Adicionado
+- **`<SpinBox/>` — o `QSpinBox` do Qt, embutido.** Campo numérico com as setas
+  ▼▲: clicar soma ou subtrai `step`, saturando em `min`/`max`. Nenhuma linha de
+  código do lado do app.
+
+  ```xml
+  <SpinBox value="quantidade" min="1" max="99" />
+  <SpinBox value="preco" min="0" max="10" step="0.25" width="90" />
+  ```
+
+  Props: `value` (obrigatória), `min`/`max` (`0`/`100`, a faixa padrão do Qt),
+  `step` (`1`), `width` (`72`), `placeholder`, `dec_text`/`inc_text` (`▼`/`▲`).
+
+  - **As casas decimais saem do `step`.** `step="0.25"` formata com 2 casas — o
+    `QDoubleSpinBox` sem um segundo widget, e de quebra sem o
+    `0.30000000000000004` que somar `f64` produz.
+  - **Chave vazia**: o primeiro clique inicializa no `min`, não em `min + step`.
+  - **Digitação** entra filtrada (só dígitos, um `-` à frente e um `.`) e sem
+    saturar, como o `QSpinBox`, que só valida ao terminar a edição; o clique
+    seguinte satura.
+
+  Ele é o primeiro builtin com **comportamento próprio** — a aritmética roda no
+  `update`, em Rust. Os anteriores (`Badge`, `TimePicker`) só montam markup.
+
+- **O padrão que deixa um builtin ter comportamento sem ter estado.** O `ctx` de
+  um builtin é o contexto global: não há slot por instância. O `SpinBox` contorna
+  isso não guardando valor nenhum — o número mora numa chave que **o app nomeia**
+  (`value="quantidade"`), então duas instâncias com chaves diferentes são
+  independentes.
+
+  O elo que faltava era o `update` saber *qual* chave a instância clicada usa —
+  ele recebe a ação, não as props. A ação passa a carregar os parâmetros:
+
+  ```xml
+  <Button text="▲" on_click="inc:{value}|{min|0}|{max|100}|{step|1}" />
+  ```
+
+  O eval interpola e prefixa o dono, o `dispatch` quebra no `::` e entrega ao
+  `update` do próprio widget, que fatia a string. Documentado em `BUILTINS.md`,
+  com a ressalva do `|` (dentro de `{…}` separa o default inline; fora é
+  literal).
+
+- **`app:` — o escape de namespace, para o widget que delega.** Toda ação escrita
+  no template de um componente é prefixada com o dono. Isso quebra o widget que
+  **repassa** uma ação recebida por prop: `on_click="{on_pick}"` dentro do
+  `<TimePicker/>` virava `TimePicker::abrir_modal`, o motor achava o `TimePicker`
+  no mapa de componentes e chamava o `update` **dele** — que não conhece ação
+  nenhuma do app. E sem erro nenhum: o botão simplesmente não fazia nada.
+
+  ```xml
+  <Button text="{pick_icon|⏰}" on_click="app:{on_pick}" />
+  ```
+
+  O prefixo sai *no lugar* do prefixo de dono, e a ação chega em quem a definiu.
+  `app:` quer dizer **a tela atual** — é onde o `dispatch` cai quando não há
+  dono —, não o componente intermediário que porventura tenha usado o widget:
+  delegar de componente para componente ainda depende de um `ctx.dispatch` que o
+  motor não tem.
+
+- **`examples/spinbox/`** (`cargo run --example spinbox`): cinco `<SpinBox/>` —
+  inteiro, decimal, passo grande e duas instâncias lado a lado — com a chave de
+  cada um ecoada em texto ao lado, para a independência entre instâncias ficar
+  visível. É o primeiro exemplo declarado com bloco `[[example]]`, como o
+  comentário do `Cargo.toml` pede desde a 0.62.1; ou seja, ele volta a ser
+  compilado pelo `cargo test`.
+
+### Corrigido
+- **`<TimePicker/>` não funcionava** — quatro defeitos empilhados, três deles
+  fora do widget:
+
+  1. `value_var="{value}"` no template do builtin: o atributo que o parser lê é
+     `value` (`value_var` é só o nome do campo interno do `NodeType`). O campo
+     ficava ligado a chave nenhuma — não exibia o valor nem o que se digitava.
+  2. `on_change`/`on_pick` eram engolidas pelo namespacing (ver `app:` acima).
+  3. No exemplo, faltava o `<script src="app.luau">` em `<resources>`: o motor
+     liga o comportamento Luau pelo `<script>` do template, não por convenção de
+     nome de arquivo. O `init()` nunca rodava — nem o `09:00` inicial, nem as
+     listas dos `<select>` do modal. Os dois `<select>` repetiam o erro do
+     item 1 (`value_var=`).
+  4. Ainda no exemplo, os handlers Luau liam a chave em vez do argumento
+     (`formatar_tempo()` fazia `ctx.inicio:gsub(…)`). O motor **não** escreve
+     sozinho na chave de um `<TextInput>`: o texto digitado chega como argumento
+     da função (e no global `value`), e é o handler que grava.
+
+  Um teste novo roda o exemplo ponta a ponta — `init()` semeando, `1445` virando
+  `14:45`, o ⏰ abrindo o modal com `h_sel`/`m_sel` preenchidos, o confirmar
+  escrevendo de volta.
+
+### Mudado
+- `BUILTINS.md` ganhou as duas seções novas — o widget que age (chave por prop,
+  parâmetros na ação) e o widget que delega (`app:`) — e a restrição de contexto
+  global deixou de dizer "mantenha os builtins apresentacionais": um builtin pode
+  ter comportamento, desde que todo valor que ele guarda more numa chave nomeada
+  por quem o usa.
+- `PLANO_WIDGETS.md`: `SpinBox` vira ✅ e sai de `Comp`/`●` para `Built`/`◐`;
+  `QDoubleSpinBox` vira 🟡 (coberto pelo `step`, falta a prop `decimals`). O §3
+  ganhou duas correções de rumo:
+  - o `●` estava marcando **duas** coisas — "valor que o app nomeia" (nunca
+    bloqueou nada) e "estado sem nome natural" (esse sim). A mesma correção que
+    a linha do `Spinner` já tinha recebido na 0.53;
+  - o que de fato trava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
+    `StatusBar` é outro item, que não estava na lista: **componente não aceita
+    filhos** (não há `<slot/>`; o conteúdo escrito dentro da tag é descartado na
+    expansão). Entrou como habilitador P1.
+
+### Quebras
+- `app:` passa a ser **prefixo reservado** de ação, ao lado de `clipboard:`,
+  `open:`, `window:` e `style:`. Uma ação que já se chamasse `app:algo` dentro de
+  um componente era entregue ao `update` desse componente com o nome inteiro;
+  agora ela perde o prefixo e vai para a tela atual. Renomeie a ação se for o
+  caso — nenhum exemplo ou template do repositório usava esse nome.
+
+---
+
 ## [0.62.2] — 2026-08-30
 
 Publicação de manutenção: **o motor não mudou**. Nenhum arquivo de `src/` é

@@ -94,8 +94,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QSpinBox | `SpinBox` | Comp | text_input+button | ● | P1 | ⬜ | campo + setas ▲▼, min/max/step |
-| QDoubleSpinBox | `SpinBox decimals` | Comp | text_input+button | ● | P1 | ⬜ | variante float |
+| QSpinBox | `SpinBox` | Built | text_input+button | ◐ | P1 | ✅ | campo + setas ▼▲, `min`/`max`/`step`; a aritmética roda no `update` em Rust — **reclassificado de `●`**: o número mora numa chave que o app nomeia (prop `value`) e a ação carrega essa chave, então N instâncias não colidem (ver `src/builtins/spin_box.rs`) |
+| QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | 🟡 | sai de graça do `SpinBox`: as casas decimais vêm do `step` (`step="0.25"` → 2 casas). Falta uma prop `decimals` explícita |
 | QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ⬜ | min/max/step, orientação |
 | QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
 | QDial | `Dial` | Comp | canvas | ● | P2 | ⬜ | knob rotativo |
@@ -266,28 +266,57 @@ markup. A restrição dominante é a coluna **Estado? = ●**:
 
 > **Estado por instância.** Hoje `ctx.set` grava num **único** contexto global —
 > duas instâncias do mesmo widget com estado colidiriam (documentado em
-> `BUILTINS.md` e no ROADMAP, Fase 2). **Nenhum** widget marcado `●` pode virar
-> builtin usável N× sem isso. É o desbloqueio de maior alavancagem: destrava
-> `Tabs`, `Accordion`, `SpinBox`, `Calendar`, `DatePicker`, `Slider`, todos os
-> pickers de data — o coração do "foco declarado" do projeto.
+> `BUILTINS.md` e no ROADMAP, Fase 2). É o desbloqueio de maior alavancagem:
+> destrava `Calendar`, `DatePicker`, os pickers de data — o coração do "foco
+> declarado" do projeto.
+
+**Ressalva descoberta ao construir o `SpinBox` (0.63):** `●` estava marcando
+duas coisas diferentes, e só uma delas bloqueia de fato.
+
+| O estado é… | Bloqueia? | Porque |
+|---|---|---|
+| um **valor que o app nomeia** (quantidade, preço, aba ativa, página) | **não** | a chave entra por prop e a ação carrega a chave (`inc:qtd\|1\|99\|1`), então o `update` do builtin sabe onde escrever e duas instâncias com chaves diferentes são independentes |
+| um estado **sem nome natural** (posição do cursor, buffer de digitação, fase de animação) | depende | ou vive no `tree::State` do widget nativo (foi assim no `Spinner`), ou espera o estado por instância de verdade |
+
+Ou seja: `SpinBox`, `Pagination`, `Rating` e afins nunca estiveram bloqueados —
+o que faltava era o padrão, não o motor. O mesmo tipo de correção que a linha
+`QProgressBar (busy)` já tinha recebido.
+
+O que **de fato** trava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
+`StatusBar` é outro item, que não estava nesta lista:
+
+> **Componente não aceita filhos.** `NodeType::Component { name, props }` carrega
+> só props; o conteúdo escrito dentro da tag é descartado na expansão
+> (`eval_owned`). Não há `<slot/>`. Todo widget cuja razão de existir é
+> **envolver** conteúdo está fora do nível Builtin até isso existir — e é por
+> isso que várias linhas classificadas `Built` na tabela ainda não podem ser
+> construídas.
 
 Ordem sugerida de habilitadores de Motor:
 
-1. **Estado por instância** (`●`) — pré-requisito de ~40% da tabela. **P0.**
-2. **`Space` + `Grid`** — layout que falta para telas densas. **P1.**
-3. **Sistema de overlay ancorado reutilizável** — `Stack` + posição relativa a
+1. **Estado por instância** (`●` do segundo tipo, acima). **P0.**
+2. **Filhos em componente (`<slot/>`)** — destrava a família dos agrupadores
+   (`Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar`, `StatusBar`,
+   `CommandLink`). Barato perto dos outros itens desta lista. **P1.**
+3. **`ctx.dispatch(acao)`** — repasse de evento **do lado Rust**: um `update`
+   não consegue despachar outra ação, então um builtin que trata um evento para
+   si não pode também repassá-lo. O caso declarativo (widget que só delega, como
+   o `TimePicker`) já está resolvido pelo prefixo `app:` na 0.63 — ver
+   `BUILTINS.md`. **P2.**
+4. **`Space` + `Grid`** — layout que falta para telas densas. **P1.**
+5. **Sistema de overlay ancorado reutilizável** — `Stack` + posição relativa a
    um widget âncora. Destrava `Menu`, `Popup`, `Popover`, `Completer`,
    `DatePicker` (popup), `Tooltip` custom, `ContextMenu`. Lição de `DIALOGS.md`
    já mapeou os cuidados (`Interaction::Idle` + `on_press` sempre presente). **P1.**
-4. **Contexto tipado / valor de data** — reduz `to_string()`/parse manual;
+6. **Contexto tipado / valor de data** — reduz `to_string()`/parse manual;
    necessário para pickers de data robustos. **P1.**
-5. **Binding a coleção (model/view)** — `ListView`/`TableView`/`TreeView`
+7. **Binding a coleção (model/view)** — `ListView`/`TableView`/`TreeView`
    ligados a uma coleção do contexto, com seleção. **P2.**
-6. **Canvas exposto como primitiva** — destrava `Dial`, `Gauge`,
+8. **Canvas exposto como primitiva** — destrava `Dial`, `Gauge`,
    `ColorDialog`, `LcdNumber`, todos os gráficos. **P2.** (`Spinner` saiu
    desta lista: acabou não precisando de `canvas` nem de estado por
    instância — ver a nota da linha `QProgressBar (busy)` na tabela §2.3.)
-7. **Subscriptions de teclado** — `Shortcut`/`Action` globais. **P2.**
+9. **Subscriptions de teclado** — `Shortcut`/`Action` globais. **P2.**
 
 ---
 
@@ -318,7 +347,7 @@ mapeia a widget nativo do iced.
 Sem markup novo; habilita a fase C inteira.
 
 **Fase C — widgets compostos comuns (P1, dependem de estado)**
-`Tabs` · `Accordion` · `SpinBox` · `GroupBox` · `ListView` (com seleção) ·
+`Tabs` · `Accordion` · ~~`SpinBox`~~ ✅ · `GroupBox` · `ListView` (com seleção) ·
 `ToolBar`/`StatusBar` · `Avatar` · `Spinner`/`BusyIndicator`.
 
 **Fase D — data/hora (P1, foco declarado)**
@@ -351,7 +380,7 @@ coleção.
 |---|---|---|---|---|
 | Botões e ações | 10 | 3 | 1 | 6 |
 | Entradas de texto | 9 | 2 | 3 | 4 |
-| Numéricas/valor | 11 | 2 | 1 | 8 |
+| Numéricas/valor | 11 | 3 | 2 | 6 |
 | Seleção/listas/árvores | 11 | 1 | 1 | 9 |
 | Data e hora | 6 | 0 | 0 | 6 |
 | Displays/indicadores | 15 | 7 | 0 | 8 |
@@ -362,8 +391,9 @@ coleção.
 | Layouts | 7 | 3 | 1 | 3 |
 | Overlays/utilitários | 12 | 0 | 1 | 11 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **~124** | **30** | **9** | **85** |
+| **Total** | **~124** | **31** | **10** | **83** |
 
-O motor já entrega ~24% do catálogo Qt de superfície. O gargalo não é volume de
-markup — é o punhado de habilitadores de Motor do §3 (estado por instância +
-overlay ancorado + canvas), que sozinhos destravam a maioria dos 86 pendentes.
+O motor já entrega ~25% do catálogo Qt de superfície. O gargalo não é volume de
+markup — é o punhado de habilitadores de Motor do §3 (filhos em componente +
+estado por instância + overlay ancorado + canvas), que sozinhos destravam a
+maioria dos 83 pendentes.

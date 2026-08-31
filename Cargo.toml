@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.62.2"
+version = "0.63.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -28,6 +28,10 @@ categories = ["gui"]
 # Para rodar um exemplo antigo sem declará-lo, o caminho é reativar a descoberta
 # pontualmente: `cargo run --example contador` depois de comentar a linha abaixo.
 autoexamples = false
+
+[[example]]
+name = "spinbox"
+path = "examples/spinbox/main.rs"
 
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced"] }

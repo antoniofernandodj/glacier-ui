@@ -12,12 +12,15 @@ function init()
     ctx.mostrar_modal_hora = "false"
 end
 
--- Disparado quando o usuário digita direto no TimePicker
-function formatar_tempo()
-    -- Ex: remover caracteres não numéricos e garantir o formato HH:MM
-    local raw = ctx.inicio:gsub("%D", "")
+-- Disparado quando o usuário digita direto no TimePicker.
+-- O texto digitado chega como ARGUMENTO (o motor não escreve a chave de um
+-- `<TextInput>` sozinho) — quem grava em `ctx.inicio` é este handler.
+function formatar_tempo(digitado)
+    local raw = digitado:gsub("%D", "")
     if #raw >= 4 then
         ctx.inicio = raw:sub(1, 2) .. ":" .. raw:sub(3, 4)
+    else
+        ctx.inicio = digitado
     end
 end
 
@@ -30,8 +33,9 @@ function abrir_seletor_hora()
     ctx.mostrar_modal_hora = "true"
 end
 
-function atualizar_h() ctx.h_sel = ctx.h_sel end
-function atualizar_m() ctx.m_sel = ctx.m_sel end
+-- Mesma história dos Selects: a opção escolhida vem como argumento.
+function atualizar_h(escolhido) ctx.h_sel = escolhido end
+function atualizar_m(escolhido) ctx.m_sel = escolhido end
 
 function fechar_modal()
     ctx.mostrar_modal_hora = "false"

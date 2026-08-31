@@ -383,6 +383,303 @@ fn test_builtin_badge_disponivel_sem_registro() {
 }
 
 #[test]
+fn test_builtin_spinbox_soma_satura_e_nao_colide() {
+    // `SpinBox` é o primeiro builtin com comportamento próprio: o `update` dele
+    // faz a aritmética. Como o `ctx` é global, a chave-alvo vem por prop e viaja
+    // DENTRO da ação (`inc:qtd|1|3|1`) — é isso que deixa duas instâncias na
+    // mesma tela independentes. O teste percorre o caminho inteiro: template
+    // avaliado -> ação namespaceada -> `dispatch` -> contexto.
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_spinbox.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <SpinBox value="qtd" min="1" max="3" />
+            <SpinBox value="preco" min="0" max="1" step="0.25" width="90" />
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+
+    motor.register_component("tela_spin", tela_path).unwrap();
+
+    // --- o markup gerado -----------------------------------------------------
+    let avaliado = motor.evaluated("tela_spin").unwrap();
+    let qtd = &avaliado.children[0];
+    assert_eq!(qtd.kind, NodeType::Row);
+    assert_eq!(qtd.children.len(), 3, "▼ + campo + ▲");
+
+    // A ação sai prefixada com o dono (`namespace_action`), que é o que faz o
+    // motor devolvê-la ao `update` do próprio SpinBox e não à tela.
+    let acao_inc = match &qtd.children[2].kind {
+        NodeType::Button { text, on_click, .. } => {
+            assert_eq!(text, "▲");
+            on_click.clone().expect("botão ▲ sem ação")
+        }
+        outro => panic!("esperava o botão ▲, veio {outro:?}"),
+    };
+    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1");
+
+    match &qtd.children[1].kind {
+        NodeType::TextInput {
+            value_var,
+            on_change,
+            ..
+        } => {
+            assert_eq!(value_var, "qtd", "o campo escreve na chave do app");
+            assert_eq!(on_change, "SpinBox::edit:qtd|1|3|1");
+        }
+        outro => panic!("esperava o campo, veio {outro:?}"),
+    }
+    assert_eq!(qtd.children[1].width.as_deref(), Some("72")); // default inline
+
+    // --- a aritmética --------------------------------------------------------
+    // Chave ainda vazia: o primeiro clique inicializa no mínimo (não min+step).
+    let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc.clone()));
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("1"));
+
+    let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc.clone()));
+    let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc.clone()));
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
+
+    // No teto, clicar de novo não passa do `max`.
+    let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc.clone()));
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
+
+    // --- a segunda instância: casas decimais do `step`, e sem colisão ---------
+    let preco = &motor.evaluated("tela_spin").unwrap().children[1];
+    let inc_preco = match &preco.children[2].kind {
+        NodeType::Button { on_click, .. } => on_click.clone().unwrap(),
+        outro => panic!("esperava o botão ▲ do preço, veio {outro:?}"),
+    };
+    assert_eq!(inc_preco, "SpinBox::inc:preco|0|1|0.25");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
+    // `step="0.25"` -> 2 casas, inclusive na inicialização.
+    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.00"));
+    let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
+    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.25"));
+    // Soma de f64 sem lixo de ponto flutuante: 0.25*3 formata como "0.75".
+    let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
+    let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
+    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.75"));
+
+    // A outra instância não se mexeu — o ponto da chave vir por prop.
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
+
+    // --- digitação -----------------------------------------------------------
+    // O `edit` filtra o que não é número e escreve na chave (sem saturar,
+    // como o QSpinBox, que só valida ao terminar a edição).
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "SpinBox::edit:qtd|1|3|1".into(),
+        value: "12a.5x".into(),
+    });
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("12.5"));
+    // E o clique seguinte satura o que a digitação deixou fora da faixa.
+    let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc));
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+/// Tela que só registra o que o motor lhe entregou — para provar que a ação
+/// escrita numa prop do `<TimePicker/>` chega **no app**, e não morre no
+/// `update` do builtin.
+struct TelaHora;
+impl Component for TelaHora {
+    fn name(&self) -> &str {
+        "tela_hora"
+    }
+    fn template(&self) -> Template {
+        Template::Inline(
+            r#"<Column>
+                <TimePicker value="inicio" on_change="validar" on_pick="abrir_modal" />
+            </Column>"#
+                .into(),
+        )
+    }
+    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
+        ctx.set("recebido", format!("{action}/{}", value.unwrap_or("-")));
+        // O handler do app é quem escreve a chave de um `<TextInput>`.
+        if action == "validar" {
+            ctx.set("inicio", value.unwrap_or(""));
+        }
+    }
+}
+
+#[test]
+fn test_builtin_timepicker_delega_acoes_ao_app() {
+    // O `TimePicker` é um builtin que **delega**: quem age é o app. Isso exige
+    // as duas coisas que este teste fixa — o campo ligado à chave (atributo
+    // `value`, não `value_var`) e o escape `app:`, sem o qual as ações viram
+    // `TimePicker::validar` e caem no `update` (vazio) do próprio widget.
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(TelaHora)).unwrap();
+    motor.set_initial_screen("tela_hora");
+
+    let avaliado = motor.evaluated("tela_hora").unwrap();
+    let linha = &avaliado.children[0];
+
+    match &linha.children[0].kind {
+        NodeType::TextInput {
+            value_var,
+            on_change,
+            placeholder,
+            ..
+        } => {
+            assert_eq!(value_var, "inicio", "o campo tem de ler a chave do app");
+            assert_eq!(on_change, "validar", "sem prefixo de dono: é ação do app");
+            assert_eq!(placeholder, "HH:MM"); // default inline preservado
+        }
+        outro => panic!("esperava o campo do TimePicker, veio {outro:?}"),
+    }
+    match &linha.children[1].kind {
+        NodeType::Button { text, on_click, .. } => {
+            assert_eq!(text, "⏰");
+            assert_eq!(on_click.as_deref(), Some("abrir_modal"));
+        }
+        outro => panic!("esperava o botão ⏰, veio {outro:?}"),
+    }
+
+    // E as ações realmente chegam no `update` da tela.
+    let _ = motor.dispatch(&EngineMessage::UiClick("abrir_modal".into()));
+    assert_eq!(
+        motor.context().get("recebido").map(String::as_str),
+        Some("abrir_modal/-")
+    );
+
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "validar".into(),
+        value: "09:30".into(),
+    });
+    assert_eq!(
+        motor.context().get("recebido").map(String::as_str),
+        Some("validar/09:30")
+    );
+    // …e o que o handler escreveu volta para o campo.
+    assert_eq!(
+        motor.context().get("inicio").map(String::as_str),
+        Some("09:30")
+    );
+}
+
+#[test]
+fn test_prefixo_app_escapa_do_namespace_do_dono() {
+    // O escape em si, isolado do TimePicker: dentro de um componente, `app:`
+    // impede o prefixo de dono; sem ele, a ação continua namespaceada.
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let comp_path = "templates/test_app_prefix_comp.gv";
+    let tela_path = "templates/test_app_prefix_tela.gv";
+    std::fs::write(
+        comp_path,
+        envolve(
+            r#"<Column>
+                <Button text="dele" on_click="minha_acao" />
+                <Button text="do app" on_click="app:acao_do_app" />
+            </Column>"#,
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"<Column>
+                <import name="Delegante" from="templates/test_app_prefix_comp.gv" />
+                <Delegante />
+            </Column>"#,
+        ),
+    )
+    .unwrap();
+
+    motor.register_component("tela_app_prefix", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_app_prefix").unwrap();
+    let col = &avaliado.children[0];
+    let acao = |i: usize| match &col.children[i].kind {
+        NodeType::Button { on_click, .. } => on_click.clone().unwrap_or_default(),
+        outro => panic!("esperava botão, veio {outro:?}"),
+    };
+    assert_eq!(acao(0), "Delegante::minha_acao");
+    assert_eq!(acao(1), "acao_do_app");
+
+    std::fs::remove_file(comp_path).ok();
+    std::fs::remove_file(tela_path).ok();
+}
+
+/// Guarda o exemplo `examples/timepicker/` inteiro: `<script>` ligado, `init()`
+/// semeando, digitação formatando e o modal do ⏰ escrevendo de volta. Ele é o
+/// único lugar onde a cadeia builtin -> `app:` -> handler Luau roda ponta a ponta.
+#[test]
+fn test_exemplo_timepicker_ponta_a_ponta() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("timepicker", "examples/timepicker/app.gv")
+        .expect("registrar a tela do exemplo");
+    motor.set_initial_screen("timepicker");
+
+    // O `init()` do Lua só roda se o <script> foi ligado.
+    assert_eq!(
+        motor.context().get("inicio").map(String::as_str),
+        Some("09:00"),
+        "o init() do app.luau precisa ter rodado"
+    );
+    assert!(
+        motor.context().get("lista_horas").is_some_and(|h| h.contains("23")),
+        "as horas do Select têm de estar semeadas"
+    );
+
+    // O campo do TimePicker está ligado à chave e a ação é do app.
+    let tela = motor.evaluated("timepicker").unwrap();
+    let mut achou = false;
+    fn anda(n: &glacier_ui::UiNode, achou: &mut bool) {
+        if let NodeType::TextInput { value_var, on_change, .. } = &n.kind
+            && value_var == "inicio"
+        {
+            assert_eq!(on_change, "formatar_tempo");
+            *achou = true;
+        }
+        for f in &n.children {
+            anda(f, achou);
+        }
+    }
+    anda(&tela, &mut achou);
+    assert!(achou, "campo do TimePicker ligado a 'inicio'");
+
+    // Digitar: o handler Lua recebe o texto e grava a chave já formatada.
+    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiInputChanged {
+        action: "formatar_tempo".into(),
+        value: "1445".into(),
+    });
+    assert_eq!(motor.context().get("inicio").map(String::as_str), Some("14:45"));
+
+    // Clicar no ⏰: abre o modal e popula os selects a partir do valor atual.
+    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick("abrir_seletor_hora".into()));
+    assert_eq!(motor.context().get("mostrar_modal_hora").map(String::as_str), Some("true"));
+    assert_eq!(motor.context().get("h_sel").map(String::as_str), Some("14"));
+    assert_eq!(motor.context().get("m_sel").map(String::as_str), Some("45"));
+
+    // Confirmar escreve de volta.
+    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiInputChanged {
+        action: "atualizar_m".into(),
+        value: "30".into(),
+    });
+    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick("confirmar_hora".into()));
+    assert_eq!(motor.context().get("inicio").map(String::as_str), Some("14:30"));
+    assert_eq!(motor.context().get("mostrar_modal_hora").map(String::as_str), Some("false"));
+}
+
+#[test]
 fn test_template_default_inline() {
     use glacier_ui::process_template;
     use std::collections::HashMap;

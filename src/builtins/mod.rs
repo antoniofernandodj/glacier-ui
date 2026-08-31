@@ -81,9 +81,13 @@
 //! — é o **único** ponto que o motor lê; nada mais precisa mudar. Guia completo,
 //! com checklist e armadilhas, em `BUILTINS.md`.
 mod badge;
+mod spin_box;
 mod time_picker;
+
 use crate::builtins::badge::Badge;
-use crate::builtins::time_picker::TimePicker;use crate::component::Component;
+use crate::builtins::spin_box::SpinBox;
+use crate::builtins::time_picker::TimePicker;
+use crate::component::Component;
 
 /// Todos os componentes embutidos, na ordem em que o motor os registra.
 ///
@@ -94,5 +98,7 @@ use crate::builtins::time_picker::TimePicker;use crate::component::Component;
 pub fn builtin_components() -> Vec<Box<dyn Component>> {
     vec![
         Box::new(Badge),
-        Box::new(TimePicker),    ]
+        Box::new(SpinBox),
+        Box::new(TimePicker),
+    ]
 }

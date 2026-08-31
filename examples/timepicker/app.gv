@@ -1,4 +1,10 @@
 <screen title="Glacier - TimePicker Demo">
+    <resources>
+        <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
+             script pelo `<script>` do template, não por convenção de nome. -->
+        <script src="app.luau"></script>
+    </resources>
+
     <column padding="20" spacing="10">
         <text content="Horário de Início:" bold="true" />
     
@@ -17,14 +23,14 @@
                 <row spacing="10" align_y="center">
                     <select
                         options="lista_horas"
-                        value_var="h_sel"
+                        value="h_sel"
                         on_change="atualizar_h"
                         width="80"
                     />
                     <text size="24" bold="true">:</text>
                     <select
                         options="lista_minutos"
-                        value_var="m_sel"
+                        value="m_sel"
                         on_change="atualizar_m"
                         width="80"
                     />
