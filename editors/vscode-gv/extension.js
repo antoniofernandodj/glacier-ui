@@ -72,6 +72,7 @@ const NATIVE_TAGS = {
   Style: ["style", "stylesheet"],
   Script: ["script"],
   Badge: ["badge"],
+  SpinBox: ["spinbox"],
   TimePicker: ["timepicker"],
   Screen: ["screen", "tela"],
   ComponentRoot: ["component", "componente"],

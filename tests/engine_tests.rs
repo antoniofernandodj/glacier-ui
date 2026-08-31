@@ -414,20 +414,12 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
     let avaliado = motor.evaluated("tela_spin").unwrap();
     let qtd = &avaliado.children[0];
     assert_eq!(qtd.kind, NodeType::Row);
-    assert_eq!(qtd.children.len(), 3, "▼ + campo + ▲");
+    // Forma `stacked` (o default): o campo e, colado nele, a coluna com os dois
+    // degraus. O `<style>` do template não conta como filho (declaração, não
+    // layout) e o `<template if>` não deixa embrulho.
+    assert_eq!(qtd.children.len(), 2, "campo + coluna dos degraus");
 
-    // A ação sai prefixada com o dono (`namespace_action`), que é o que faz o
-    // motor devolvê-la ao `update` do próprio SpinBox e não à tela.
-    let acao_inc = match &qtd.children[2].kind {
-        NodeType::Button { text, on_click, .. } => {
-            assert_eq!(text, "▲");
-            on_click.clone().expect("botão ▲ sem ação")
-        }
-        outro => panic!("esperava o botão ▲, veio {outro:?}"),
-    };
-    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1");
-
-    match &qtd.children[1].kind {
+    match &qtd.children[0].kind {
         NodeType::TextInput {
             value_var,
             on_change,
@@ -438,7 +430,28 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         }
         outro => panic!("esperava o campo, veio {outro:?}"),
     }
-    assert_eq!(qtd.children[1].width.as_deref(), Some("72")); // default inline
+    assert_eq!(qtd.children[0].width.as_deref(), Some("72")); // default inline
+
+    let degraus = &qtd.children[1];
+    assert_eq!(degraus.kind, NodeType::Column);
+    assert_eq!(degraus.children.len(), 2, "▴ em cima, ▾ embaixo");
+    // O glifo é filho do botão (é ele que carrega o `size`), não o `text=`.
+    assert_eq!(
+        degraus.children[0].children[0].kind,
+        NodeType::Text {
+            content: "▴".to_string(),
+            size: Some(11.0),
+            bold: false,
+            color: None,
+        }
+    );
+    // A ação sai prefixada com o dono (`namespace_action`), que é o que faz o
+    // motor devolvê-la ao `update` do próprio SpinBox e não à tela.
+    let acao_inc = match &degraus.children[0].kind {
+        NodeType::Button { on_click, .. } => on_click.clone().expect("degrau ▴ sem ação"),
+        outro => panic!("esperava o degrau ▴, veio {outro:?}"),
+    };
+    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1");
 
     // --- a aritmética --------------------------------------------------------
     // Chave ainda vazia: o primeiro clique inicializa no mínimo (não min+step).
@@ -455,9 +468,9 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
 
     // --- a segunda instância: casas decimais do `step`, e sem colisão ---------
     let preco = &motor.evaluated("tela_spin").unwrap().children[1];
-    let inc_preco = match &preco.children[2].kind {
+    let inc_preco = match &preco.children[1].children[0].kind {
         NodeType::Button { on_click, .. } => on_click.clone().unwrap(),
-        outro => panic!("esperava o botão ▲ do preço, veio {outro:?}"),
+        outro => panic!("esperava o degrau ▴ do preço, veio {outro:?}"),
     };
     assert_eq!(inc_preco, "SpinBox::inc:preco|0|1|0.25");
 
@@ -485,6 +498,45 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
     // E o clique seguinte satura o que a digitação deixou fora da faixa.
     let _ = motor.dispatch(&EngineMessage::UiClick(acao_inc));
     assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_builtin_spinbox_layout_inline() {
+    // A prop `layout="inline"` troca a forma: os dois degraus vão para as
+    // pontas (`−  campo  +`, o SpinBox do Qt Quick) em vez de empilharem à
+    // direita do campo. É um `<template if equals>` dentro do builtin, então o
+    // teste também cobre que o ramo não escolhido não deixa nó nenhum para trás.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_spinbox_inline.gv";
+    std::fs::write(
+        tela_path,
+        envolve(r#"<SpinBox value="zoom" min="25" max="400" step="25" layout="inline" />"#),
+    )
+    .unwrap();
+    motor.register_component("tela_spin_inline", tela_path).unwrap();
+
+    let spin = motor.evaluated("tela_spin_inline").unwrap();
+    assert_eq!(spin.kind, NodeType::Row);
+    assert_eq!(spin.children.len(), 3, "− + campo + +");
+
+    let acao = |n: &UiNode| match &n.kind {
+        NodeType::Button { on_click, .. } => on_click.clone().expect("degrau sem ação"),
+        outro => panic!("esperava um degrau, veio {outro:?}"),
+    };
+    assert_eq!(acao(&spin.children[0]), "SpinBox::dec:zoom|25|400|25");
+    assert_eq!(acao(&spin.children[2]), "SpinBox::inc:zoom|25|400|25");
+    // Os glifos desta forma são `−`/`+` (os `▾`/`▴` são os do `stacked`).
+    let glifo = |n: &UiNode| match &n.children[0].kind {
+        NodeType::Text { content, .. } => content.clone(),
+        outro => panic!("esperava o glifo, veio {outro:?}"),
+    };
+    assert_eq!(glifo(&spin.children[0]), "−");
+    assert_eq!(glifo(&spin.children[2]), "+");
+    assert!(matches!(spin.children[1].kind, NodeType::TextInput { .. }));
 
     std::fs::remove_file(tela_path).ok();
 }

@@ -1,9 +1,9 @@
-<screen title="Glacier - SpinBox" size="560 420">
+<screen title="Glacier - SpinBox" size="560 430">
     <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
         <column spacing="6">
             <text content="SpinBox — o QSpinBox do Qt" size="22" bold="true" color="#CDD6F4" />
             <text
-                content="Nada nesta tela tem código: o app registra só o template. O widget vem embutido na lib e escreve na chave de contexto que cada instância nomeia."
+                content="O app só registra o template e semeia os valores iniciais. Somar, subtrair e saturar é do widget, que vem embutido na lib e escreve na chave de contexto que cada instância nomeia."
                 size="13"
                 color="#A6ADC8"
             />
@@ -25,10 +25,10 @@
             <text content="chave 'preco' = {preco}" size="13" color="#A6ADC8" />
         </row>
 
-        <!-- Passo grande e rótulos trocados. -->
+        <!-- Passo grande e a outra forma: `− campo +`, o SpinBox do Qt Quick. -->
         <row spacing="16" align_y="center">
             <text content="Zoom (%)" width="110" color="#CDD6F4" />
-            <SpinBox value="zoom" min="25" max="400" step="25" dec_text="−" inc_text="+" width="80" />
+            <SpinBox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
             <text content="chave 'zoom' = {zoom}" size="13" color="#A6ADC8" />
         </row>
 

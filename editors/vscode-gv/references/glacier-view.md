@@ -165,7 +165,32 @@ sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
 ## Builtins (registrados pela lib)
 
 ### `<Badge>`
-Rótulo/etiqueta embutido de `src/builtins.rs`. Ver `BUILTINS.md` para estender.
+Rótulo/etiqueta ("pílula") embutido. Props: `badge_text` (`Badge`), `badge_bg` (`#89B4FA`), `badge_fg` (`#11111B`), `badge_size` (`13`). Ver `BUILTINS.md` para estender.
+
+### `<SpinBox>`
+Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar soma ou subtrai `step`, saturando em `min`/`max`; a aritmética roda no widget, em Rust, **sem código do lado do app**.
+
+```gv
+<SpinBox value="quantidade" min="1" max="99" />
+<SpinBox value="preco" min="0" max="10" step="0.25" width="90" />
+<SpinBox value="zoom" min="25" max="400" step="25" layout="inline" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — (**obrigatória**) | **nome** da chave de contexto onde o número mora. É o que torna duas instâncias independentes: o widget não guarda estado, escreve na chave que o app nomeia |
+| `min` / `max` | `0` / `100` | limites; o clique satura neles (a faixa padrão do Qt) |
+| `step` | `1` | passo de cada clique. As **casas decimais da saída saem daqui**: `step="0.25"` formata com 2 casas — é o `QDoubleSpinBox` sem um segundo widget |
+| `layout` | `stacked` | `stacked`: as setinhas `▴▾` empilhadas e coladas à direita do campo (o `QSpinBox` clássico). `inline`: `−  campo  +`, degraus nas pontas (o `SpinBox` do Qt Quick Controls) |
+| `width` | `72` | largura do campo |
+| `placeholder` | vazio | dica quando a chave está vazia |
+| `dec_text` / `inc_text` | `▾`/`▴` (stacked), `−`/`+` (inline) | glifos dos degraus |
+| `glyph_size` | `11` (stacked), `15` (inline) | corpo do glifo |
+
+- **Chave vazia**: o primeiro clique inicializa no `min` (não em `min + step`).
+- **Digitação** entra filtrada (só dígitos, um `-` à frente e um `.`) e **sem saturar** — como o `QSpinBox`, que só valida ao terminar a edição; o clique seguinte satura.
+- **Sem `on_change` para o app**: o `onChange` do campo interno é usado pelo próprio widget para filtrar a digitação. Quem precisa reagir lê a chave de `value`.
+- **Aparência**: os degraus são pintados por uma folha GSS que o próprio widget declara, na classe `.spinbox-step` (com `:hover`/`:active`). Ela é instalada antes de qualquer `.gss` do app, então redefinir `.spinbox-step` numa folha sua vence e repinta os degraus.
 
 ### `<TimePicker>`
 Campo de hora (`HH:MM`) com botão de seleção. Props: `value` (chave de contexto), `on_change`, `on_pick`, `placeholder`, `width`, `pick_icon`.

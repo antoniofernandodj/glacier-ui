@@ -8,6 +8,84 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.64.0] — 2026-08-31
+
+### Mudado
+- **O `<SpinBox/>` ganhou a forma que o Qt tem.** Ele nascia como três blocos
+  soltos — dois botões primários grandes com `▼`/`▲` em corpo de texto normal e
+  um campo no meio, separados por 4px —, o que lia como "dois botões ao lado de
+  um campo" em vez de um widget só. Agora:
+
+  - **Os degraus encostam no campo** (`spacing="0"`): a borda do próprio
+    `<TextInput>` vira a moldura do conjunto.
+  - **Duas formas, via a prop nova `layout`.** `stacked` (default) é o
+    `QSpinBox` clássico: uma coluna com `▴` em cima e `▾` embaixo, colada à
+    direita do campo, ocupando a altura dele e nada mais. `inline` é a forma do
+    `SpinBox` do Qt Quick Controls: `−  campo  +`, alvo de clique grande, para
+    toque e para valores que se ajusta muito.
+  - **Os degraus deixam de ser botões primários.** Não é o que o Qt desenha —
+    lá eles são cromo discreto ao lado do campo, não a ação principal da tela.
+    O visual sai de um `<style>` global declarado no próprio template do widget
+    (classe `.spinbox-step`, com `:hover`/`:active`), instalado em
+    `GlacierUI::new` e portanto **antes** de qualquer `.gss` do app — que por
+    isso o vence por ordem: redefinir `.spinbox-step` numa folha do app é o
+    caminho suportado para repintá-los.
+  - **As cores dessa folha são neutras e translúcidas** (`#8080801f` de fundo):
+    um cinza com alfa clareia sobre um tema escuro e escurece sobre um claro,
+    então o mesmo default atravessa os quatro estilos embutidos sem que o widget
+    precise saber qual está ativo — nenhum hex de paleta viaja no template.
+
+  Props novas: `layout` (`stacked`/`inline`) e `glyph_size` (`11` no `stacked`,
+  `15` no `inline`). Os defaults de `dec_text`/`inc_text` passam a depender da
+  forma: `▾`/`▴` no `stacked`, `−`/`+` no `inline`.
+
+  **Quem inspeciona a árvore avaliada precisa saber:** a raiz continua sendo uma
+  `<Row>`, mas no `stacked` os filhos agora são `[campo, coluna dos degraus]` (2,
+  não 3), e o glifo é um `<Text>` **filho** do `<Button>` (é ele que carrega o
+  `size`), não mais o atributo `text=`.
+
+- **A extensão Glacier View (`editors/vscode-gv`, v0.4.1) documenta o
+  `<SpinBox/>`.** Ele não estava na tabela de tags nativas/builtin do
+  `extension.js`, então era tratado como componente do app: o F12 não achava
+  nada. Agora ele resolve para uma seção nova do doc de referência embutido
+  (`references/glacier-view.md`), com a tabela de props, as duas formas de
+  `layout` e a classe `.spinbox-step`. De quebra, a entrada do `<Badge/>` ganhou
+  as props dele e perdeu a referência a `src/builtins.rs`, que virou diretório.
+
+- **O exemplo `spinbox` semeia os valores iniciais** (`define_data`) e mostra a
+  forma `inline` na linha do zoom. Um `<SpinBox/>` cuja chave nunca foi escrita
+  nasce em branco — correto (o primeiro clique inicializa no `min`), mas um
+  campo numérico vazio parece um campo quebrado numa captura de tela.
+
+- **Os exemplos deixam de ser compilados por padrão** (`autoexamples = false`).
+  Os 31 arquivos continuam em `examples/`; só a descoberta automática saiu.
+
+  `cargo test` compilava todos eles, cada um linkando o motor inteiro
+  estaticamente (iced + wgpu + naga + Luau + codecs de imagem + resvg). Medido:
+  **31 × 506 MB = 15,2 GiB** em `target/debug/examples`, ~70% de um target de
+  22 GiB. De cada binário, 86% era debuginfo (506 MB → 73 MB depois de `strip`),
+  e como os 31 compartilham as mesmas dependências, boa parte disso era o mesmo
+  debuginfo repetido 31 vezes.
+
+  Depois da mudança, o target a frio vai de **22 GiB para 6,3 GiB**, com os
+  mesmos 366 testes passando — os `.gv` dos exemplos seguem cobertos por
+  `tests/exemplos_gv.rs`, que lê arquivo e não precisa compilar nada.
+
+  Um exemplo novo entra explicitamente:
+
+  ```toml
+  [[example]]
+  name = "contador"
+  path = "examples/contador/main.rs"
+  ```
+
+  Para rodar um dos antigos, comente o `autoexamples = false`.
+
+  **O que se perde:** o `main.rs` dos 31 exemplos não é mais compilado por
+  ninguém, então um deles pode apodrecer sem que a suíte perceba.
+
+---
+
 ## [0.63.0] — 2026-08-30
 
 Uma release de **widgets embutidos**: nasce o primeiro builtin que *faz* algo em
@@ -197,40 +275,6 @@ Só a CLI (`crates/glacier-cli`). O motor não mudou e segue em 0.62.1.
   `{{nome_projeto}}` literal no lugar do nome do app —, e dá `+x` aos `.sh`
   escritos, que `fs::write` cria em `644`. Um `instalar.sh` sem o bit de
   execução propagaria a permissão errada para dentro do `.tar.gz`.
-
----
-
-## Não lançado
-
-### Mudado
-- **Os exemplos deixam de ser compilados por padrão** (`autoexamples = false`).
-  Os 31 arquivos continuam em `examples/`; só a descoberta automática saiu.
-
-  `cargo test` compilava todos eles, cada um linkando o motor inteiro
-  estaticamente (iced + wgpu + naga + Luau + codecs de imagem + resvg). Medido:
-  **31 × 506 MB = 15,2 GiB** em `target/debug/examples`, ~70% de um target de
-  22 GiB. De cada binário, 86% era debuginfo (506 MB → 73 MB depois de `strip`),
-  e como os 31 compartilham as mesmas dependências, boa parte disso era o mesmo
-  debuginfo repetido 31 vezes.
-
-  Depois da mudança, o target a frio vai de **22 GiB para 6,3 GiB**, com os
-  mesmos 366 testes passando — os `.gv` dos exemplos seguem cobertos por
-  `tests/exemplos_gv.rs`, que lê arquivo e não precisa compilar nada.
-
-  Um exemplo novo entra explicitamente:
-
-  ```toml
-  [[example]]
-  name = "contador"
-  path = "examples/contador/main.rs"
-  ```
-
-  Para rodar um dos antigos, comente o `autoexamples = false`.
-
-  **O que se perde:** o `main.rs` dos 31 exemplos não é mais compilado por
-  ninguém, então um deles pode apodrecer sem que a suíte perceba.
-
----
 
 ## [0.62.1] — 2026-08-30
 

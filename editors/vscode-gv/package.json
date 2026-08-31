@@ -2,7 +2,7 @@
   "name": "glacier-view",
   "displayName": "Glacier View",
   "description": "Language support for Glacier View (.gv) markup — syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, imports and component tags to the files (and functions) they name.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "antoniofernandodj",
   "license": "MIT",
   "author": {
