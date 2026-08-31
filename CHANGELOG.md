@@ -86,6 +86,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.2.1 — 2026-08-31
+
+Republicação: **o código da CLI não mudou** (`git diff b944ac7 -- crates/glacier-cli`
+é só a linha da versão). O que muda é o que ela carrega dentro:
+
+- **A versão do motor que `glacier new` grava** no `Cargo.toml` do projeto novo.
+  Ela sai do `engine-version.txt` que o `make sync-extensions` gera a partir da
+  raiz — na 0.2.0 isso congelou `glacier-ui = "0.62"`. Agora sai `"0.64"`, então
+  um projeto criado hoje já nasce com o `<SpinBox/>` na forma nova.
+- **A extensão Glacier View embutida** (a CLI a instala sem Node/vsce) passa a
+  ser a v0.4.1, que documenta o `<SpinBox/>`.
+
+---
+
 ## [0.63.0] — 2026-08-30
 
 Uma release de **widgets embutidos**: nasce o primeiro builtin que *faz* algo em
