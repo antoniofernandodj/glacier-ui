@@ -26,6 +26,9 @@
 //   * Definition (F12) — the same targets, plus the bundled syntax reference for
 //     native/builtin tags.
 //
+// Mais o fechamento automático de tag: terminar `<element>` insere
+// `</element>` e deixa o cursor no meio (`tagToClose`/`autoCloseTag`).
+//
 // Intentionally simple and dependency-free (plain JS, no build step). Meant to
 // grow: hovers, diagnostics for unknown handlers, completion, etc.
 
@@ -1638,6 +1641,87 @@ async function refreshDiagnostics(document, collection) {
   collection.set(document.uri, out);
 }
 
+// ---------------------------------------------------------------------------
+// Fechamento automático de tag
+// ---------------------------------------------------------------------------
+
+// Tags nativas folha: o motor lê só os atributos delas, e o markup do projeto
+// inteiro as escreve com `/>`. Fechar `<Image src="…">` em `<Image …></Image>`
+// seria devolver lixo para o usuário apagar, então elas ficam de fora. O que
+// não está aqui fecha — inclusive todo componente do app, que é o caso em que
+// o editor não tem como saber e o par vazio é o palpite certo.
+const VOID_TAGS = new Set([
+  "Image", "Svg", "Rule", "Space", "Slider", "ProgressBar", "Spinner",
+  "Checkbox", "Toggle", "Radio", "RadioGroup", "Select", "ComboEdit",
+  "SpinBox", "TextInput", "DateEdit", "TimeEdit", "DateTimeEdit",
+  "Avatar", "Badge", "MenuItem", "MenuSeparator",
+  "Link", "Import", "Include", "Slot", "Prop",
+]);
+
+/**
+ * O nome da tag que o `>` em `gtOffset` acaba de abrir, ou `null` quando esse
+ * `>` não termina uma abertura que peça par: fim de `</x>` ou de `<x/>`, `>`
+ * solto dentro de um valor de atributo, tag em comentário ou dentro do corpo
+ * de um `<script>`/`<style>`, e as folhas de `VOID_TAGS`.
+ */
+function tagToClose(text, gtOffset) {
+  if (text[gtOffset] !== ">") return null;
+  const lt = text.lastIndexOf("<", gtOffset);
+  if (lt < 0) return null;
+  const body = text.slice(lt + 1, gtOffset);
+  // Um `>` antes deste já fechou aquele `<`: o que se digita agora é texto
+  // solto, não markup.
+  if (body.includes(">")) return null;
+  // `</x>`, `<!-- … -->`, `<?…?>` e `<x/>` já vêm fechados.
+  if (/^[/!?]/.test(body) || body.endsWith("/")) return null;
+  // Aspas ímpares: o `>` caiu dentro de um valor (`title="a > b"`).
+  if ((body.match(/"/g) || []).length % 2 !== 0) return null;
+  const m = /^([A-Za-z_][\w.-]*)/.exec(body);
+  if (!m) return null;
+  const canonica = NATIVE_LOOKUP[m[1].toLowerCase()];
+  if (canonica && VOID_TAGS.has(canonica)) return null;
+  if (inRanges(commentRanges(text), lt)) return null;
+  if (inRanges(embeddedRanges(text), lt)) return null;
+  return m[1];
+}
+
+/**
+ * Ao terminar `<element>`, insere `</element>` e deixa o cursor entre os dois.
+ *
+ * Mora no change, e não num provider, porque o VS Code não tem gancho
+ * declarativo para isto — é o mesmo caminho que a extensão de HTML segue. Por
+ * isso também o par `<`/`>` saiu de `autoClosingPairs` no
+ * language-configuration.json: com o `>` já auto-inserido, digitá-lo apenas
+ * sobrescreve o caractere e change nenhum chega aqui.
+ */
+async function autoCloseTag(event) {
+  const doc = event.document;
+  if (doc.languageId !== "glacier-view") return;
+  if (
+    event.reason === vscode.TextDocumentChangeReason.Undo ||
+    event.reason === vscode.TextDocumentChangeReason.Redo
+  ) {
+    return;
+  }
+  const cfg = vscode.workspace.getConfiguration("glacierView", doc);
+  if (!cfg.get("autoClosingTags", true)) return;
+  // Um cursor só: com multi-cursor cada offset anda conforme o anterior é
+  // editado, e o ganho não paga a conta.
+  if (event.contentChanges.length !== 1) return;
+  const change = event.contentChanges[0];
+  if (change.text !== ">") return;
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document !== doc) return;
+  const nome = tagToClose(doc.getText(), change.rangeOffset);
+  if (!nome) return;
+  // O `$0` do snippet é o que deixa o cursor entre abertura e fechamento.
+  await editor.insertSnippet(
+    new vscode.SnippetString(`$0</${nome}>`),
+    doc.positionAt(change.rangeOffset + 1),
+    { undoStopBefore: false, undoStopAfter: true }
+  );
+}
+
 function activate(context) {
   const selector = { language: "glacier-view" };
 
@@ -1660,7 +1744,10 @@ function activate(context) {
     vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " "),
     props,
     vscode.workspace.onDidOpenTextDocument(revalida),
-    vscode.workspace.onDidChangeTextDocument((e) => revalida(e.document)),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      revalida(e.document);
+      autoCloseTag(e).catch(() => {});
+    }),
     vscode.workspace.onDidCloseTextDocument((doc) => props.delete(doc.uri)),
     watcher,
     vscode.workspace.onDidChangeWorkspaceFolders(invalidateWorkspaceIndex)
