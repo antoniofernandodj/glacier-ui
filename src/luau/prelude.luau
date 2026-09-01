@@ -294,6 +294,20 @@ end
 -- ano e com isso empurra o bissexto para o fim, eliminando o caso especial de
 -- fevereiro.
 --
+-- # Fuso: naive por padrão, explícito quando precisa
+--
+-- Um valor SEM fuso é hora local — é o que `today`/`now` devolvem e o que os
+-- campos de edição guardam. Um valor COM fuso (`...Z`, `...-03:00`) é aceito em
+-- toda entrada, e o offset viaja junto: `add` o preserva, `format` desenha as
+-- componentes como estão escritas. Converter é explícito, com `to_local` e
+-- `to_utc` — o módulo nunca muda um instante por conta própria.
+--
+-- Vale saber que o `os.time` do Luau NÃO é o do Lua: ele usa `timegm`, e não
+-- `mktime`, então uma tabela de componentes é lida como UTC. É por isso que o
+-- truque clássico de achar o offset local (`difftime(t, os.time(os.date("!*t",
+-- t)))`) devolve **zero** aqui, silenciosamente. O que funciona é o contrário:
+-- `os.time(os.date("*t", t)) - t`.
+--
 -- # Estrito aqui, tolerante lá
 --
 -- O `Instante` do lado Rust (`src/widget.rs`) faz o parse TOLERANTE de
@@ -349,10 +363,66 @@ local function de_dias_civis(z: number): (number, number, number)
     return (if m <= 2 then y + 1 else y), m, d
 end
 
--- A FORMA de uma string ISO: quais seções ela trazia. Existe porque `add` tem
--- de devolver no mesmo formato que recebeu — somar um dia a um `YYYY-MM-DD`
--- não pode inventar um `00:00` no fim.
-type Forma = { data: boolean, hora: boolean, seg: boolean }
+-- Componentes <-> segundos, tratando as componentes como se fossem UTC. É a
+-- ponte entre a aritmética civil e o epoch: quem sabe o offset é quem chama.
+local function segundos_civis(p: { [string]: number }): number
+    return para_dias_civis(p.year, p.month, p.day) * 86400
+        + p.hour * 3600
+        + p.min * 60
+        + p.sec
+end
+
+local function partes_civis(s: number): { [string]: number }
+    local dias: number = math.floor(s / 86400)
+    local resto: number = s - dias * 86400
+    local y, m, d = de_dias_civis(dias)
+    return {
+        year = y,
+        month = m,
+        day = d,
+        hour = math.floor(resto / 3600),
+        min = math.floor(resto % 3600 / 60),
+        sec = resto % 60,
+    }
+end
+
+-- Offset local em segundos a leste de UTC (-10800 em São Paulo). Lido do
+-- sistema, não configurado: é o mesmo fuso que o `os.date` do Luau usa para
+-- formatar, então tudo aqui concorda com ele.
+local function offset_em(t: number): number?
+    local tab = os.date("*t", t)
+    if type(tab) ~= "table" then
+        return nil
+    end
+    local ok, off = pcall(function()
+        return (os.time(tab :: any) :: number) - t
+    end)
+    if ok and type(off) == "number" then
+        return off
+    end
+    return nil
+end
+
+-- Fallback para quando o offset do instante pedido não pode ser lido — o
+-- `os.date` do Luau recusa `t < 0`, então qualquer coisa antes de 1970 cai
+-- aqui. Vale o offset de hoje, que é melhor do que um `nil` derrubando a tela.
+local OFFSET_AGORA: number = offset_em(os.time()) or 0
+
+local function offset_local(t: number): number
+    return offset_em(t) or OFFSET_AGORA
+end
+
+-- A FORMA de uma string ISO: quais seções ela trazia, com que separador e com
+-- que fuso. Existe porque `add` tem de devolver no mesmo formato que recebeu —
+-- somar um dia a um `YYYY-MM-DD` não pode inventar um `00:00` no fim, e somar
+-- um dia a um `...T12:00:00Z` não pode perder o `Z`.
+type Forma = {
+    data: boolean,
+    hora: boolean,
+    seg: boolean,
+    t_sep: boolean?,
+    offset: number?,
+}
 
 -- Núcleo compartilhado de tudo aqui: valida e devolve as partes junto com a
 -- forma. `nil` quando a string não é ISO válida — inclusive quando é uma data
@@ -362,18 +432,26 @@ local function analisar(iso: any): ({ [string]: number }?, Forma?)
         return nil, nil
     end
     local texto: string = string.match(iso, "^%s*(.-)%s*$") :: string
-    local parte_data: string?, parte_hora: string? = nil, nil
-    local d, h = string.match(texto, "^(%S+)[ T](%S+)$")
-    if d ~= nil then
-        parte_data, parte_hora = d, h
-    elseif string.find(texto, ":") ~= nil then
-        parte_hora = texto
-    else
-        parte_data = texto
-    end
-
     local p = { year = 2000, month = 1, day = 1, hour = 0, min = 0, sec = 0 }
     local forma: Forma = { data = false, hora = false, seg = false }
+
+    local parte_data: string?, parte_hora: string? = nil, nil
+    -- O `T` do RFC 3339 e o espaço do ISO 8601 estendido são o mesmo
+    -- separador; qual deles veio fica na forma, para `add` devolver igual.
+    local d, h = string.match(texto, "^(%S+)[Tt](%S+)$")
+    if d ~= nil then
+        parte_data, parte_hora = d, h
+        forma.t_sep = true
+    else
+        d, h = string.match(texto, "^(%S+) (%S+)$")
+        if d ~= nil then
+            parte_data, parte_hora = d, h
+        elseif string.find(texto, ":") ~= nil then
+            parte_hora = texto
+        else
+            parte_data = texto
+        end
+    end
 
     if parte_data ~= nil then
         local a, m, dd = string.match(parte_data, "^(%d+)%-(%d+)%-(%d+)$")
@@ -391,9 +469,32 @@ local function analisar(iso: any): ({ [string]: number }?, Forma?)
     end
 
     if parte_hora ~= nil then
-        local hh, mm, ss = string.match(parte_hora, "^(%d+):(%d+):(%d+)$")
+        local corpo: string = parte_hora
+        -- Fuso no fim: `Z`, `±HH:MM`, `±HHMM` ou `±HH`. Sai do corpo e vira
+        -- offset em segundos a leste de UTC.
+        if string.match(corpo, "[Zz]$") ~= nil then
+            forma.offset = 0
+            corpo = string.sub(corpo, 1, #corpo - 1)
+        else
+            local sinal, zh, zm = string.match(corpo, "([+%-])(%d%d):?(%d?%d?)$")
+            if sinal ~= nil then
+                local minutos: number = if zm == "" then 0 else tonumber(zm) :: number
+                local total: number = (tonumber(zh) :: number) * 3600 + minutos * 60
+                if total > 86400 then
+                    return nil, nil
+                end
+                forma.offset = if sinal == "-" then -total else total
+                corpo = (string.gsub(corpo, "([+%-])(%d%d):?(%d?%d?)$", ""))
+            end
+        end
+        -- Fração de segundo é aceita e DESCARTADA: o motor guarda data e hora
+        -- com resolução de segundo, e devolver o milissegundo obrigaria toda
+        -- saída daqui a carregá-lo.
+        corpo = (string.gsub(corpo, "%.%d+$", ""))
+
+        local hh, mm, ss = string.match(corpo, "^(%d+):(%d+):(%d+)$")
         if hh == nil then
-            hh, mm = string.match(parte_hora, "^(%d+):(%d+)$")
+            hh, mm = string.match(corpo, "^(%d+):(%d+)$")
         else
             forma.seg = true
         end
@@ -425,7 +526,25 @@ local function montar(p: { [string]: number }, forma: Forma): string
             table.insert(pedacos, string.format("%02d:%02d", p.hour, p.min))
         end
     end
-    return table.concat(pedacos, " ")
+    local saida: string = table.concat(pedacos, if forma.t_sep then "T" else " ")
+    -- O fuso só faz sentido grudado numa hora; num `YYYY-MM-DD` puro não há o
+    -- que deslocar.
+    local offset: number? = forma.offset
+    if offset ~= nil and forma.hora then
+        if offset == 0 then
+            saida ..= "Z"
+        else
+            local sinal: string = if offset < 0 then "-" else "+"
+            local abs: number = math.abs(offset)
+            saida ..= string.format(
+                "%s%02d:%02d",
+                sinal,
+                math.floor(abs / 3600),
+                math.floor(abs % 3600 / 60)
+            )
+        end
+    end
+    return saida
 end
 
 -- ── Relógio ────────────────────────────────────────────────────────────────
@@ -494,6 +613,96 @@ function date.time_of(iso: any): string?
     return montar(p, { data = false, hora = true, seg = forma.seg })
 end
 
+-- ── Fuso e epoch ───────────────────────────────────────────────────────────
+--
+-- A fronteira com o mundo de fora. Um backend fala RFC 3339 em UTC
+-- (`2026-07-06T12:34:56Z`); uma tela fala hora local. Estas quatro funções são
+-- a tradução, e são EXPLÍCITAS de propósito: nenhuma outra função do módulo
+-- desloca um instante sozinha.
+
+-- Segundos desde a época Unix. Um valor COM fuso usa o fuso dele; um valor SEM
+-- fuso é lido como hora LOCAL — é o que `today`/`now` devolvem, então
+-- `date.epoch(date.now())` bate com `os.time()`.
+function date.epoch(iso: any): number?
+    local p, forma = analisar(iso)
+    if p == nil or forma == nil then
+        return nil
+    end
+    local s: number = segundos_civis(p)
+    local offset: number? = forma.offset
+    if offset ~= nil then
+        return s - offset
+    end
+    -- Sem fuso: acha o epoch cuja hora LOCAL bate com as componentes. Duas
+    -- passadas porque o offset depende do instante (horário de verão), e o
+    -- instante é justamente o que se está procurando.
+    local t: number = s - offset_local(s)
+    return s - offset_local(t)
+end
+
+-- A volta: epoch -> `YYYY-MM-DD HH:MM:SS` na hora de parede local (ou em UTC
+-- com `utc = true`). Sempre com segundos, e sempre sem sufixo de fuso — o
+-- resultado é um valor naive, pronto para `format`.
+function date.from_epoch(segundos: any, utc: boolean?): string?
+    local t = tonumber(segundos)
+    if t == nil then
+        return nil
+    end
+    t = math.floor(t)
+    local parede: number = if utc then t else t + offset_local(t)
+    return montar(partes_civis(parede), { data = true, hora = true, seg = true })
+end
+
+-- Converte para a hora de parede local / UTC, devolvendo um valor NAIVE (sem
+-- `Z`, sem `T`) na mesma forma da entrada — sem segundos se a entrada não
+-- tinha. É o par que uma tela usa para exibir o que veio do backend:
+--
+--   date.format(date.to_local(dep.started_at), "DD/MM HH:mm")
+--
+-- Um valor já naive é devolvido como está: ele JÁ é hora local.
+local function converter(iso: any, para_utc: boolean): string?
+    local p, forma = analisar(iso)
+    if p == nil or forma == nil then
+        return nil
+    end
+    local limpa: Forma = { data = forma.data, hora = forma.hora, seg = forma.seg }
+    if forma.offset == nil and not para_utc then
+        return montar(p, limpa)
+    end
+    local t: number? = date.epoch(iso)
+    if t == nil then
+        return nil
+    end
+    local parede: number = if para_utc then t else t + offset_local(t)
+    return montar(partes_civis(parede), limpa)
+end
+
+function date.to_local(iso: any): string?
+    return converter(iso, false)
+end
+
+function date.to_utc(iso: any): string?
+    return converter(iso, true)
+end
+
+-- As componentes de um valor já na hora local — o que toda comparação usa, para
+-- que um `...Z` vindo de um backend e um `date.today()` da tela sejam
+-- comparáveis sem que quem chama precise converter antes.
+local function partes_locais(iso: any): { [string]: number }?
+    local p, forma = analisar(iso)
+    if p == nil or forma == nil then
+        return nil
+    end
+    if forma.offset == nil then
+        return p
+    end
+    local t: number? = date.epoch(iso)
+    if t == nil then
+        return nil
+    end
+    return partes_civis(t + offset_local(t))
+end
+
 -- ── Comparação ─────────────────────────────────────────────────────────────
 --
 -- ISO ordena como texto, e por isso `a > b` funciona — mas só entre strings da
@@ -501,22 +710,21 @@ end
 -- string é mais longa, ainda que os dois sejam o mesmo dia; é a pegadinha que
 -- estas três funções existem para tirar da frente. Uma seção que falta de um
 -- lado vale zero (uma data pura é a meia-noite dela).
+--
+-- Fuso também: um valor com offset é trazido para a hora local antes da
+-- comparação, então um `...Z` vindo de um backend e um `date.today()` da tela
+-- são comparáveis direto. É a única exceção à regra de que só `to_local`/
+-- `to_utc` deslocam um instante — e ela não muda nenhum valor, só a leitura.
 
 -- -1, 0 ou 1 (`a` antes, igual, depois de `b`); `nil` se alguma não for válida.
 function date.compare(a: any, b: any): number?
-    local pa = analisar(a)
-    local pb = analisar(b)
+    local pa = partes_locais(a)
+    local pb = partes_locais(b)
     if pa == nil or pb == nil then
         return nil
     end
-    local ca = para_dias_civis(pa.year, pa.month, pa.day) * 86400
-        + pa.hour * 3600
-        + pa.min * 60
-        + pa.sec
-    local cb = para_dias_civis(pb.year, pb.month, pb.day) * 86400
-        + pb.hour * 3600
-        + pb.min * 60
-        + pb.sec
+    local ca = segundos_civis(pa)
+    local cb = segundos_civis(pb)
     if ca < cb then
         return -1
     end
@@ -601,8 +809,8 @@ end
 -- é IGNORADA: são dias de calendário, que é o que uma diária de hotel, um
 -- prazo ou "faltam N dias" contam. Para o intervalo exato, `diff_seconds`.
 function date.diff(a: any, b: any): number?
-    local pa = analisar(a)
-    local pb = analisar(b)
+    local pa = partes_locais(a)
+    local pb = partes_locais(b)
     if pa == nil or pb == nil then
         return nil
     end
@@ -610,15 +818,12 @@ function date.diff(a: any, b: any): number?
 end
 
 function date.diff_seconds(a: any, b: any): number?
-    local pa = analisar(a)
-    local pb = analisar(b)
+    local pa = partes_locais(a)
+    local pb = partes_locais(b)
     if pa == nil or pb == nil then
         return nil
     end
-    return (para_dias_civis(pa.year, pa.month, pa.day) - para_dias_civis(pb.year, pb.month, pb.day)) * 86400
-        + (pa.hour - pb.hour) * 3600
-        + (pa.min - pb.min) * 60
-        + (pa.sec - pb.sec)
+    return segundos_civis(pa) - segundos_civis(pb)
 end
 
 -- ── Exibição ───────────────────────────────────────────────────────────────

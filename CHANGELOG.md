@@ -8,6 +8,52 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.73.0] — 2026-09-01
+
+### Adicionado
+- **O `date` passa a falar RFC 3339, e ganha a camada de fuso.** A 0.72 entregou
+  um módulo *naive*, que resolve data e hora de tela mas não a fronteira com um
+  backend — e um backend fala `2026-07-06T12:34:56Z`. Agora toda entrada aceita
+  o separador `T`, sufixo de fuso (`Z`, `±HH:MM`, `±HHMM`, `±HH`) e fração de
+  segundo (aceita e descartada, porque o motor guarda com resolução de segundo).
+
+  Quatro funções novas, e a conversão é **explícita**: nenhuma outra desloca um
+  instante sozinha.
+
+  | | |
+  |---|---|
+  | `date.epoch(iso)` | segundos desde 1970 |
+  | `date.from_epoch(secs, utc?)` | `YYYY-MM-DD HH:MM:SS` |
+  | `date.to_local(iso)` / `date.to_utc(iso)` | o mesmo instante na outra hora de parede |
+
+  ```lua
+  ctx.inicio = date.format(date.to_local(dep.started_at), "DD/MM HH:mm")
+  ```
+
+  A convenção que amarra tudo: **sem fuso é hora local** — é o que `today`/`now`
+  devolvem e o que os campos de edição guardam —, e por isso
+  `date.epoch(date.now())` bate com `os.time()`. O offset viaja na forma do
+  valor, então `add` o preserva: `date.add("…T12:34:56Z", { days = 1 })` devolve
+  `"…T12:34:56Z"`, com o `T` e o `Z` no lugar.
+
+### Alterado
+- **`compare`, `diff` e `diff_seconds` normalizam para a hora local** antes de
+  comparar, para que um `...Z` vindo do backend e um `date.today()` da tela
+  sejam comparáveis sem conversão na chamada. Entre dois valores naive a
+  resposta não muda — é o caso que a 0.72 já cobria.
+
+### Corrigido
+- Nada no motor, mas vale como aviso a quem escreve Luau: **o `os.time` do Luau
+  usa `timegm`, não `mktime`**. Uma tabela de componentes é lida como UTC, e por
+  isso o truque clássico de descobrir o offset local —
+  `os.difftime(t, os.time(os.date("!*t", t)))` — devolve **zero** no dialeto,
+  silenciosamente. O que funciona é `os.time(os.date("*t", t)) - t`, e é o que o
+  `date` usa. Encontrado ao avaliar a adoção da 0.72 num app real, que carregava
+  a versão do Lua desse cálculo há tempos sem sintoma visível (o zero era
+  inofensivo lá, porque o `os.date` seguinte já fazia a conversão sozinho).
+
+---
+
 ## [0.72.0] — 2026-09-01
 
 ### Adicionado

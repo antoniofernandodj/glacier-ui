@@ -3480,6 +3480,81 @@ mod tests {
     }
 
     #[test]
+    fn date_aceita_rfc3339_e_preserva_o_fuso() {
+        // O formato que um backend fala. As asserções são todas
+        // INDEPENDENTES DE FUSO — a máquina que roda o teste não importa.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.epoch_z = tostring(date.epoch('1970-01-01T00:00:00Z'))\n\
+               ctx.epoch_off = tostring(date.epoch('1970-01-01T00:00:00-03:00'))\n\
+               ctx.utc = tostring(date.to_utc('2026-07-06T12:34:56Z'))\n\
+               ctx.utc_de_off = tostring(date.to_utc('2026-07-06T09:34:56-03:00'))\n\
+               ctx.frac = tostring(date.to_utc('2026-07-06T12:34:56.789Z'))\n\
+               ctx.compacto = tostring(date.to_utc('2026-07-06T09:34:56-0300'))\n\
+               ctx.preserva = tostring(date.add('2026-07-06T12:34:56Z', { days = 1 }))\n\
+               ctx.preserva_off = tostring(date.add('2026-07-06T12:34:56-03:00', { hours = 1 }))\n\
+               ctx.from_epoch = tostring(date.from_epoch(0, true))\n\
+               ctx.segundos = tostring(date.diff_seconds('2026-07-06T12:00:00Z', '2026-07-06T10:00:00Z'))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("epoch_z"), Some("0"));
+        // O mesmo relógio de parede três horas a oeste é três horas DEPOIS.
+        assert_eq!(g("epoch_off"), Some("10800"));
+        assert_eq!(g("utc"), Some("2026-07-06 12:34:56"));
+        assert_eq!(
+            g("utc_de_off"),
+            Some("2026-07-06 12:34:56"),
+            "-03:00 tem de bater com o mesmo instante em Z"
+        );
+        // Fração de segundo entra e é descartada; `±HHMM` sem dois-pontos vale.
+        assert_eq!(g("frac"), Some("2026-07-06 12:34:56"));
+        assert_eq!(g("compacto"), Some("2026-07-06 12:34:56"));
+        // `add` devolve na mesma forma: com `T` e com o fuso que entrou.
+        assert_eq!(g("preserva"), Some("2026-07-07T12:34:56Z"));
+        assert_eq!(g("preserva_off"), Some("2026-07-06T13:34:56-03:00"));
+        assert_eq!(g("from_epoch"), Some("1970-01-01 00:00:00"));
+        assert_eq!(g("segundos"), Some("7200"));
+    }
+
+    #[test]
+    fn date_normaliza_para_hora_local_antes_de_comparar() {
+        // A propriedade que importa e que não depende do fuso da máquina: um
+        // valor com fuso e a conversão dele para local são o MESMO instante, e
+        // o módulo tem de enxergar isso sozinho, sem quem chama converter.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               local z = '2026-07-06T12:34:56Z'\n\
+               ctx.mesmo = tostring(date.compare(z, date.to_local(z)))\n\
+               ctx.ida_volta = tostring(date.epoch(date.to_local(z)) - date.epoch(z))\n\
+               ctx.utc_local = tostring(date.to_utc(date.to_local(z)))\n\
+               ctx.relogio = tostring(math.abs(date.epoch(date.now(true)) - os.time()) <= 1)\n\
+               ctx.epoch_hoje = tostring(date.from_epoch(date.epoch(date.today())) ~= nil)\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("mesmo"), Some("0"), "o mesmo instante em duas escritas");
+        assert_eq!(g("ida_volta"), Some("0"));
+        assert_eq!(
+            g("utc_local"),
+            Some("2026-07-06 12:34:56"),
+            "local -> UTC tem de voltar ao valor original"
+        );
+        // `date.now()` é hora local, então `epoch` dela tem de bater com o
+        // relógio do sistema. É o que fixa a convenção "sem fuso = local".
+        assert_eq!(g("relogio"), Some("true"));
+        assert_eq!(g("epoch_hoje"), Some("true"));
+    }
+
+    #[test]
     fn date_le_o_relogio_local_no_formato_dos_campos() {
         // `today`/`now`/`time` saem do os.date do próprio Luau — nenhuma crate
         // de data no motor. O teste fixa o FORMATO (que é o contrato com os

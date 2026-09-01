@@ -975,6 +975,9 @@ end
 | `date.add(iso, delta)` | ISO na **mesma forma** da entrada |
 | `date.diff(a, b)` / `date.diff_seconds(a, b)` | dias de calendário / segundos |
 | `date.format(iso, fmt)` | texto (`YYYY` `YY` `MM` `DD` `HH` `mm` `SS`) |
+| `date.epoch(iso)` | segundos desde 1970 |
+| `date.from_epoch(secs, utc?)` | `YYYY-MM-DD HH:MM:SS` |
+| `date.to_local(iso)` / `date.to_utc(iso)` | o mesmo instante na outra hora de parede |
 
 Três detalhes que economizam bugs:
 
@@ -996,6 +999,36 @@ Três detalhes que economizam bugs:
 
 O relógio é lido **na chamada**: uma tela que precisa andar sozinha combina com
 `every` — `every(1000, function() ctx.agora = date.now(true) end)`.
+
+#### Fuso: RFC 3339 na entrada, hora local na tela
+
+Um valor **sem** fuso é hora local — é o que `today`/`now` devolvem e o que os
+campos de edição guardam. Um valor **com** fuso é aceito em toda entrada:
+`2026-07-06T12:34:56Z`, `...-03:00`, `...-0300`, com fração de segundo opcional
+(aceita e descartada). O offset viaja junto com o valor, então `add` o preserva
+e `format` desenha as componentes como estão escritas.
+
+Deslocar o instante é **explícito** — só `to_local` e `to_utc` fazem isso:
+
+```lua
+-- o que o backend mandou -> o que a tela mostra
+ctx.inicio = date.format(date.to_local(dep.started_at), "DD/MM HH:mm")
+
+-- e a volta, para mandar de novo
+local agora_utc = date.format(date.to_utc(date.now(true)), "YYYY-MM-DDTHH:mm:SSZ")
+```
+
+A exceção é a comparação: `compare`/`diff`/`diff_seconds` trazem um valor com
+fuso para a hora local antes de comparar, para que um `...Z` do backend e um
+`date.today()` da tela sejam comparáveis direto. Isso lê o instante, não muda
+nenhum valor.
+
+> **`os.time` do Luau não é o do Lua.** Ele usa `timegm`, e não `mktime`: uma
+> tabela de componentes é lida como **UTC**. Por isso o truque clássico de achar
+> o offset local — `os.difftime(t, os.time(os.date("!*t", t)))` — devolve
+> **zero** aqui, sem erro nenhum. O que funciona é `os.time(os.date("*t", t)) - t`,
+> e é o que o `date` usa por dentro. Se você tem código que faz a conta na mão,
+> vale conferir.
 
 Veja [`examples/data_hora_luau`](examples/data_hora_luau).
 

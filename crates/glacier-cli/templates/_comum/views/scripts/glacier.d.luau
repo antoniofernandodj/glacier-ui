@@ -103,6 +103,13 @@ declare date: {
     diff_seconds: (a: string, b: string) -> number?,
     -- Exibição: tokens YYYY YY MM DD HH mm SS.
     format: (iso: string, fmt: string) -> string?,
+    -- Fuso e epoch. Um valor sem fuso é hora LOCAL; um com fuso (`...Z`,
+    -- `...-03:00`, fração de segundo opcional) usa o dele. `to_local`/`to_utc`
+    -- devolvem um valor naive, e são as únicas que deslocam um instante.
+    epoch: (iso: string) -> number?,
+    from_epoch: (segundos: number, utc: boolean?) -> string?,
+    to_local: (iso: string) -> string?,
+    to_utc: (iso: string) -> string?,
 }
 
 declare storage: {
