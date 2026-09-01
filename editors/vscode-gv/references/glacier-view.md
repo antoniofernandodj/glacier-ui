@@ -115,6 +115,37 @@ Uma opção de um grupo mutuamente exclusivo — o `QRadioButton`. O grupo **é 
 
 - Como o `<Checkbox>`, **não grava sozinho** — quem grava é o app. Para o caso comum sem handler nenhum, use o builtin `<RadioGroup>`.
 
+### `<DateEdit>` · `<TimeEdit>` · `<DateTimeEdit>`
+Os três campos de data/hora do Qt (`QDateEdit`, `QTimeEdit`, `QDateTimeEdit`) — **uma primitiva só**; a tag decide quais seções aparecem.
+
+Edição por **seções**: clique numa (ano, mês, dia, hora, minuto, segundo) e ela ganha o realce da paleta; as setas ▴▾ passam a mexer **naquela** seção. Um controle cobre o valor inteiro — não há prop de passo.
+
+```gv
+<dateedit value="nascimento" format="br" />
+<timeedit value="alarme" seconds="true" />
+<datetimeedit value="agendado" onChange="validar" />
+```
+
+| tag | seções | o que grava na chave |
+| --- | --- | --- |
+| `<timeedit>` (`<timepicker>`) | hora, minuto \[, segundo\] | `HH:MM[:SS]` |
+| `<dateedit>` (`<datepicker>`) | ano, mês, dia | `YYYY-MM-DD` |
+| `<datetimeedit>` | as duas | `YYYY-MM-DD HH:MM[:SS]` |
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave de contexto com o valor |
+| `seconds` | `false` | acrescenta a seção de segundos |
+| `format` | `iso` | `br` exibe `DD/MM/YYYY`. **Só a exibição** — a chave continua ISO |
+| `onChange` | — | ver abaixo |
+| `width` | natural | largura do campo |
+
+- **A chave é sempre ISO**, mesmo com `format="br"`. É o que um backend espera — e o que faz `a < b` entre duas chaves ser a comparação cronológica, sem parse.
+- **Sem `onChange`, o widget grava a chave sozinho** (nenhuma linha do lado do app). **Com `onChange`, ele só avisa** e quem grava é o handler — o mesmo contrato do `<TextInput>`, e é o que permite validar ou recusar um valor. Ver `examples/data_hora_luau`.
+- **Cada seção vira dentro de si**: mexer no minuto não empurra a hora (o `wrapping` do `QAbstractSpinBox`). O ano satura em vez de virar.
+- **O calendário é respeitado**: 31/01 subindo o mês vira 28/02, ou 29 em ano bissexto.
+- **Não dá para digitar** no campo: a interação é clicar na seção + setas.
+
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
 
@@ -266,8 +297,6 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 - **Sem `on_change` para o app**: o `onChange` do campo interno é usado pelo próprio widget para filtrar a digitação. Quem precisa reagir lê a chave de `value`.
 - **Aparência**: os degraus são pintados por uma folha GSS que o próprio widget declara, na classe `.spinbox-step` (com `:hover`/`:active`). Ela é instalada antes de qualquer `.gss` do app, então redefinir `.spinbox-step` numa folha sua vence e repinta os degraus.
 
-### `<TimePicker>`
-Campo de hora (`HH:MM`) com botão de seleção. Props: `value` (chave de contexto), `on_change`, `on_pick`, `placeholder`, `width`, `pick_icon`.
 
 ### `<Avatar>`
 Foto circular com as **iniciais como reserva** quando não há imagem — ocupa o mesmo espaço nos dois casos, para não quebrar o alinhamento de uma lista.

@@ -504,6 +504,12 @@ impl<'a> EvalCtx<'a> {
     /// no frame do chamador — é isso que torna a operação O(1), sem cópia), o
     /// caminho estendido por `step` (a identidade desta instância; ver
     /// [`EvalCtx::path`]) e a profundidade incrementada.
+    /// Quantas camadas há sobre a base — a profundidade da expansão. Lida pela
+    /// guarda de recursão de `eval_owned`.
+    fn depth(&self) -> u32 {
+        self.depth
+    }
+
     fn with<'c>(&self, layer: &'c Layer<'c>, step: u64) -> EvalCtx<'c>
     where
         'a: 'c,
@@ -1311,6 +1317,25 @@ fn namespace_action(action: String, owner: Option<&str>) -> String {
     }
 }
 
+/// Teto de aninhamento da expansão (componentes + itens de `for-each`, que
+/// compartilham o mesmo contador de profundidade). Ver a guarda em `eval_owned`.
+///
+/// O número é baixo de propósito. `eval_owned` é uma função grande, com muitos
+/// locais gordos (duas `StyleRule`, dezenas de `Option<String>`, vários `Vec`),
+/// e cada nível de componente empilha um quadro dele **mais** um de
+/// `expand_children`. Com 128, a recursão infinita ainda estourava a pilha de
+/// 2 MiB de uma thread de teste antes de a guarda disparar — o teto tem de
+/// caber na pilha, não só existir.
+///
+/// 16 continua folgado para markup honesto: profundidade aqui é
+/// **aninhamento**, não contagem — um `for-each` de 500 itens abre um nível, não
+/// 500. Uma tela densa de verdade chega a uma dúzia.
+///
+/// Este teto é só a rede de segurança para **ciclos indiretos**; a
+/// auto-referência direta (o caso real) é pega por nome, no primeiro nível, sem
+/// gastar pilha nenhuma.
+const PROFUNDIDADE_MAXIMA: u32 = 16;
+
 /// O conteúdo que um uso de componente escreveu entre as tags, **já avaliado**
 /// e repartido pelo destino: o balde anônimo (o que ninguém etiquetou) e um por
 /// `slot="nome"`.
@@ -1409,6 +1434,27 @@ fn eval_owned(
         _ => None,
     };
     if let Some((name, props)) = reference {
+        // Guarda de recursão, em duas camadas. Sem ela, um componente que se
+        // referencia estoura a pilha — `SIGABRT`, sem mensagem nem nome.
+        //
+        // 1. **Auto-referência direta**, o caso que de fato acontece: o dono da
+        //    subárvore que está sendo avaliada é o próprio componente que a tag
+        //    invoca. Pega no primeiro nível, sem gastar pilha, e é exato — não
+        //    depende de teto nenhum.
+        if owner == Some(name.as_str()) {
+            return Err(crate::error::GlacierError::ComponentRecursion {
+                name: name.clone(),
+                limite: PROFUNDIDADE_MAXIMA,
+            });
+        }
+        // 2. **Ciclo indireto** (A usa B, B usa A) e aninhamento absurdo: teto de
+        //    profundidade, como rede de segurança.
+        if context.depth() >= PROFUNDIDADE_MAXIMA {
+            return Err(crate::error::GlacierError::ComponentRecursion {
+                name: name.clone(),
+                limite: PROFUNDIDADE_MAXIMA,
+            });
+        }
         let template_ast = templates
             .get(name)
             .ok_or_else(|| crate::error::GlacierError::UnknownComponent(name.clone()))?;
@@ -1839,6 +1885,21 @@ fn eval_owned(
                 .as_ref()
                 .map(|c| process_tpl(c, context))
                 .or_else(|| style.color.clone()),
+        },
+        NodeType::DateTimeEdit {
+            value_var,
+            date,
+            time,
+            seconds,
+            day_first,
+            on_change,
+        } => NodeType::DateTimeEdit {
+            value_var: process_tpl(value_var, context),
+            date: *date,
+            time: *time,
+            seconds: *seconds,
+            day_first: *day_first,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
         },
         NodeType::Radio {
             label,

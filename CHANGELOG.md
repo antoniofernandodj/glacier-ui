@@ -8,6 +8,95 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.68.0] — 2026-09-01
+
+### Adicionado
+- **`<dateedit>`, `<timeedit>` e `<datetimeedit>`** — o `QDateEdit`, o
+  `QTimeEdit` e o `QDateTimeEdit`, como **uma primitiva só**; a tag decide quais
+  seções aparecem.
+
+  A edição é por **seções**, que é o ponto todo: clicar numa (ano, mês, dia,
+  hora, minuto, segundo) a seleciona — ela ganha o realce da paleta, como o
+  `2001` destacado num `QDateEdit` — e as setas ▴▾ passam a mexer **naquela**
+  seção. Um controle cobre o valor inteiro, sem prop de passo e sem um widget
+  por campo.
+
+  ```gv
+  <dateedit value="nascimento" format="br" />
+  <timeedit value="alarme" seconds="true" />
+  <datetimeedit value="agendado" onChange="validar" />
+  ```
+
+  - **A chave é sempre ISO** (`YYYY-MM-DD`, `HH:MM[:SS]`), mesmo com
+    `format="br"` — que só troca a ordem das seções na tela. É a separação que o
+    Qt faz entre o valor e o `displayFormat`, é o que um backend espera, e é o
+    que faz `a < b` entre duas chaves ser a comparação cronológica, sem parse.
+  - **Sem `onChange` o widget grava a chave sozinho**; **com `onChange` ele só
+    avisa** e quem grava é o handler. É o mesmo contrato do `<TextInput>`, com
+    um default conveniente — e é o que permite validar ou recusar um valor.
+  - **Cada seção vira dentro de si**: mexer no minuto não empurra a hora (o
+    `wrapping` do `QAbstractSpinBox`). O ano satura em vez de virar.
+  - **O calendário é respeitado**: 31/01 subindo o mês vira 28/02, ou 29 em ano
+    bissexto (regra do século inclusive). Sem dependência de datas — a
+    aritmética que seções pedem cabe em vinte linhas; a decisão `chrono` vs.
+    `time` segue em aberto para o `Calendar`, que precisa de dia da semana.
+  - A seção em foco vive numa chave global do motor (`__timeedit`, da família do
+    `__drag_key`) com a identidade da instância no valor. Global não é atalho:
+    só uma seção da tela pode estar selecionada por vez.
+  - **Não dá para digitar** no campo: a interação é clicar na seção + setas.
+
+- **`examples/data_hora_luau`** — as três tags **inteiramente controladas por
+  Luau**: o `main.rs` só registra a tela (nenhum `impl Component`, nenhum
+  `define_data`), e o script recusa uma saída anterior à entrada, avisa com um
+  `toast` e recalcula o resumo. É a outra ponta do `examples/timepicker`, que
+  não tem uma linha de código de app.
+
+  A regra do `<datetimeedit>` do exemplo documenta uma armadilha real: comparar
+  um `YYYY-MM-DD HH:MM` com um `YYYY-MM-DD` como texto puro dá errado
+  (`"2026-09-10 08:00" > "2026-09-10"` é verdadeiro, ainda que sejam o mesmo
+  dia). ISO só ordena entre formatos **iguais** — recortar o dia antes de
+  comparar é o que restabelece isso.
+
+### Corrigido
+- **Todo `<button>` sem `padding` explícito nascia colado no texto.** O
+  `parse_padding(None)` devolve `Padding::ZERO` e o braço do botão chamava
+  `.padding()` incondicionalmente, sobrescrevendo o `DEFAULT_PADDING` (5px) do
+  iced — o fundo grudava nos glifos e o botão lia como texto selecionado. O
+  `<TextInput>` e o `<ComboEdit>` já tinham o guarda contra isso, com o
+  raciocínio no comentário; o `<Button>` e o `<Select>` não. Afeta toda tela que
+  não declarava padding.
+- **Um componente que se referencia estourava a pilha** (`SIGABRT`, sem
+  mensagem, sem nome, sem linha) em vez de errar. Agora a auto-referência direta
+  é detectada por nome no primeiro nível, e um teto de profundidade segura os
+  ciclos indiretos.
+
+  O caso real: uma tela registrada com o mesmo nome de um widget embutido
+  (`timepicker`) e usando a tag dele por dentro. O registro do app vence o
+  builtin — como manda a regra de override —, então a tag passou a apontar para
+  a própria tela. É o risco que a grafia minúscula da 0.66 introduziu.
+- **`examples/lista_reordenavel` e `examples/toasts` não parseavam**: os dois
+  `.gv` estavam sem o cabeçalho `<component>`, e desde a 0.61 um arquivo sem
+  cabeçalho não parseia. Não era só o teste — os exemplos não rodavam.
+
+### Quebras
+- **`<TimePicker>` deixou de ser um builtin delegante e virou primitiva.** As
+  props `on_change` e `on_pick` **não existem mais**, e o widget não é mais um
+  campo de texto com um botão ao lado.
+
+  **Migração:** quem usava `<TimePicker value="hora" on_change="…"
+  on_pick="…"/>` com um seletor próprio pode apagar o seletor inteiro e usar
+  `<timeedit value="hora"/>` — o widget faz o trabalho. Quem precisa reagir à
+  alteração troca `on_change` por `onChange`, com a diferença de que agora o
+  handler é **quem grava a chave** (o widget delega, em vez de gravar sozinho).
+
+  O motivo da quebra: o widget antigo não selecionava hora nenhuma. Ele
+  entregava um `<TextInput>` e um `<Button>` com um emoji, e o app tinha de
+  escrever o seletor — o próprio `examples/timepicker` gastava ~40 linhas de
+  Luau nisso. E a forma correta (seções, como o Qt) é impossível num builtin:
+  o template precisaria ler partes de uma chave cujo *nome* vem de uma prop.
+
+---
+
 ## [0.67.0] — 2026-09-01
 
 ### Adicionado

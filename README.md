@@ -1459,7 +1459,8 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
-| `timepicker` | o builtin `<TimePicker/>` delegando `on_change`/`on_pick` ao app. |
+| `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
+| `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script, zero lógica em Rust. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 

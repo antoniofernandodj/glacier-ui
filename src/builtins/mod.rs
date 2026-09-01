@@ -89,7 +89,6 @@ mod radio_group;
 mod spin_box;
 mod status_bar;
 mod tab_bar;
-mod time_picker;
 mod tool_bar;
 mod tool_button;
 
@@ -102,7 +101,6 @@ use crate::builtins::radio_group::RadioGroup;
 use crate::builtins::spin_box::SpinBox;
 use crate::builtins::status_bar::StatusBar;
 use crate::builtins::tab_bar::TabBar;
-use crate::builtins::time_picker::TimePicker;
 use crate::builtins::tool_bar::ToolBar;
 use crate::builtins::tool_button::ToolButton;
 use crate::component::{Component, Context, Template};
@@ -124,7 +122,6 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(SpinBox),
         Box::new(StatusBar),
         Box::new(TabBar),
-        Box::new(TimePicker),
         Box::new(ToolBar),
         Box::new(ToolButton),
     ]

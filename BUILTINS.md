@@ -267,17 +267,17 @@ O truque tem duas partes:
 ## Widget que delega: `app:` na frente da ação
 
 O padrão acima é para o widget que **age**. O oposto é o widget que **delega** —
-o `<TimePicker/>` recebe `on_pick` por prop e só repassa ao botão interno.
+o `<ToolButton/>` recebe `on_click` por prop e só repassa ao botão interno.
 
 A armadilha: o `namespace_action` prefixa **toda** ação com o dono, então
-`on_click="{on_pick}"` vira `TimePicker::abrir_modal`, o motor acha o
-`TimePicker` no mapa de componentes e chama o `update` **dele** — que não conhece
-ação nenhuma do app. O handler nunca roda e não há erro: o botão só não faz nada.
+`on_click="{on_click}"` vira `ToolButton::salvar`, o motor acha o `ToolButton`
+no mapa de componentes e chama o `update` **dele** — que não conhece ação nenhuma
+do app. O handler nunca roda e não há erro: o botão só não faz nada.
 
 O escape é o prefixo `app:`, que sai no lugar do prefixo de dono:
 
 ```xml
-<Button text="{pick_icon|⏰}" on_click="app:{on_pick}" />
+<Button text="{text}" on_click="app:{on_click}" />
 <TextInput value="{value}" onChange="app:{on_change}" />
 ```
 

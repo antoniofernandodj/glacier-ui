@@ -7,7 +7,129 @@ use iced::widget::{
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
+/// Chave **global** onde vive a seção selecionada de um `<timeedit>`, no
+/// formato `"<chave-do-app>:<h|m|s>"`.
+///
+/// Global porque foco é global: só uma seção da tela inteira pode estar
+/// selecionada por vez. A identidade da instância viaja no valor, e é ela que
+/// mantém dois `<timeedit>` independentes. Mesma família do `__drag_key`.
+pub(crate) const TIMEEDIT_SEL_CONTEXT: &str = "__timeedit";
+
+/// Um instante como as seções do `<datetimeedit>` o tratam. Sem dependência de
+/// datas: o que o widget precisa é somar 1 numa seção e saber quantos dias o mês
+/// tem — quatro linhas de aritmética, não um crate (a escolha `chrono` vs.
+/// `time` do `PLANO_WIDGETS.md` §4 segue em aberto para os pickers de verdade).
+#[derive(Clone, Copy)]
+pub(crate) struct Instante {
+    ano: i64,
+    mes: i64,
+    dia: i64,
+    hora: i64,
+    min: i64,
+    seg: i64,
+}
+
+/// Quantos dias tem o mês — com a regra de bissexto completa (múltiplo de 4,
+/// exceto séculos que não são múltiplos de 400).
+fn dias_no_mes(ano: i64, mes: i64) -> i64 {
+    match mes {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if ano % 4 == 0 && (ano % 100 != 0 || ano % 400 == 0) => 29,
+        2 => 28,
+        _ => 31,
+    }
+}
+
+impl Instante {
+    /// Lê `YYYY-MM-DD`, `HH:MM[:SS]` ou os dois separados por espaço. Tolerante
+    /// de propósito: o que não parseia cai no default, para o campo nunca
+    /// renderizar quebrado nem engolir a digitação de um app que ainda não
+    /// semeou a chave.
+    fn parse(bruto: &str) -> Self {
+        let mut eu = Self {
+            ano: 2000,
+            mes: 1,
+            dia: 1,
+            hora: 0,
+            min: 0,
+            seg: 0,
+        };
+        let bruto = bruto.trim();
+        let (parte_data, parte_hora) = match bruto.split_once([' ', 'T']) {
+            Some((d, h)) => (Some(d), Some(h)),
+            None if bruto.contains(':') => (None, Some(bruto)),
+            None if bruto.contains('-') => (Some(bruto), None),
+            None => (None, None),
+        };
+        if let Some(d) = parte_data {
+            let mut it = d.split('-');
+            eu.ano = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.ano);
+            eu.mes = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.mes);
+            eu.dia = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.dia);
+        }
+        if let Some(h) = parte_hora {
+            let mut it = h.split(':');
+            eu.hora = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+            eu.min = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+            eu.seg = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+        }
+        eu.normalizar();
+        eu
+    }
+
+    /// Puxa cada campo para dentro da sua faixa. O dia é o único que depende
+    /// dos outros: 31 de janeiro vira 28/29 de fevereiro ao trocar o mês, como
+    /// o `QDateEdit` faz.
+    fn normalizar(&mut self) {
+        self.ano = self.ano.clamp(1, 9999);
+        self.mes = self.mes.clamp(1, 12);
+        self.dia = self.dia.clamp(1, dias_no_mes(self.ano, self.mes));
+        self.hora = self.hora.clamp(0, 23);
+        self.min = self.min.clamp(0, 59);
+        self.seg = self.seg.clamp(0, 59);
+    }
+
+    /// O que vai para a chave de contexto — **sempre ISO**, independentemente da
+    /// ordem em que as seções são desenhadas.
+    fn serializa(&self, data: bool, hora: bool, segundos: bool) -> String {
+        let d = format!("{:04}-{:02}-{:02}", self.ano, self.mes, self.dia);
+        let h = if segundos {
+            format!("{:02}:{:02}:{:02}", self.hora, self.min, self.seg)
+        } else {
+            format!("{:02}:{:02}", self.hora, self.min)
+        };
+        match (data, hora) {
+            (true, true) => format!("{d} {h}"),
+            (true, false) => d,
+            _ => h,
+        }
+    }
+
+    /// Soma `delta` numa seção. Cada uma vira **dentro de si** — mexer no
+    /// minuto não empurra a hora —, que é o `wrapping` do `QAbstractSpinBox` e
+    /// o que "editar por seção" quer dizer. O ano é a exceção: satura, porque
+    /// virar de 9999 para 1 nunca é o que alguém quis.
+    fn passo(&self, secao: &str, delta: i64) -> Self {
+        let mut n = *self;
+        match secao {
+            "y" => n.ano = (n.ano + delta).clamp(1, 9999),
+            "M" => n.mes = (n.mes - 1 + delta).rem_euclid(12) + 1,
+            "d" => {
+                let teto = dias_no_mes(n.ano, n.mes);
+                n.dia = (n.dia - 1 + delta).rem_euclid(teto) + 1;
+            }
+            "m" => n.min = (n.min + delta).rem_euclid(60),
+            "s" => n.seg = (n.seg + delta).rem_euclid(60),
+            _ => n.hora = (n.hora + delta).rem_euclid(24),
+        }
+        // Trocar mês/ano pode ter deixado o dia fora da faixa (31/03 -> 31/02).
+        n.dia = n.dia.min(dias_no_mes(n.ano, n.mes));
+        n
+    }
+}
+
+/// Casas decimais que a saída de um `<Slider>` deve ter/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
 /// **como escrito no markup** (`"0.05"` → 2). Sem isto, arrastar um passo
 /// fracionário grava `0.30000001192092896` na chave de contexto.
 ///
@@ -666,10 +788,19 @@ pub fn render_node<'a>(
                 });
             }
 
-            btn.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .padding(parse_padding(&node.padding))
-                .into()
+            let mut btn = btn
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height));
+            // Mesma história do `<TextInput>` logo abaixo: o padding default do
+            // `button` do iced é `DEFAULT_PADDING` (5px), não zero. Chamar
+            // `.padding()` incondicionalmente colapsava para `Padding::ZERO`
+            // todo botão que não declarasse um — o fundo colado nos glifos, que
+            // lê como texto selecionado em vez de botão. Só sobrescreve quando
+            // o markup pede.
+            if node.padding.is_some() {
+                btn = btn.padding(parse_padding(&node.padding));
+            }
+            btn.into()
         }
         NodeType::TextInput {
             placeholder,
@@ -1054,8 +1185,12 @@ pub fn render_node<'a>(
                 }
             })
             .style(style_fn)
-            .width(parse_length(&node.width))
-            .padding(parse_padding(&node.padding));
+            .width(parse_length(&node.width));
+
+            // Idem: o `pick_list` do iced herda o `button::DEFAULT_PADDING`.
+            if node.padding.is_some() {
+                pl = pl.padding(parse_padding(&node.padding));
+            }
 
             if !placeholder.is_empty() {
                 pl = pl.placeholder(placeholder.clone());
@@ -1293,6 +1428,204 @@ pub fn render_node<'a>(
             } else {
                 bar_elem
             }
+        }
+        NodeType::DateTimeEdit {
+            value_var,
+            date,
+            time,
+            seconds,
+            day_first,
+            on_change,
+        } => {
+            let atual = Instante::parse(context.get(value_var).map(String::as_str).unwrap_or(""));
+
+            // Qual seção está selecionada — e se ela é DESTA instância. A chave
+            // é global de propósito (só uma seção da tela pode estar em foco),
+            // e carrega a identidade da instância junto: `inicio:h`.
+            let foco = context
+                .get(TIMEEDIT_SEL_CONTEXT)
+                .and_then(|s| s.split_once(':'))
+                .filter(|(chave, _)| *chave == value_var.as_str())
+                .map(|(_, sec)| sec.to_string());
+
+            // As seções na ordem de exibição, cada uma com o texto que mostra e
+            // o separador que a segue. A ordem da data é a única coisa que
+            // `day_first` muda — o valor gravado continua ISO.
+            let (sep_data, ordem_data): (&str, [(&'static str, String); 3]) = if *day_first {
+                (
+                    "/",
+                    [
+                        ("d", format!("{:02}", atual.dia)),
+                        ("M", format!("{:02}", atual.mes)),
+                        ("y", format!("{:04}", atual.ano)),
+                    ],
+                )
+            } else {
+                (
+                    "-",
+                    [
+                        ("y", format!("{:04}", atual.ano)),
+                        ("M", format!("{:02}", atual.mes)),
+                        ("d", format!("{:02}", atual.dia)),
+                    ],
+                )
+            };
+
+            let mut secoes: Vec<(&'static str, String, &'static str)> = Vec::new();
+            if *date {
+                for (i, (id, txt)) in ordem_data.into_iter().enumerate() {
+                    secoes.push((id, txt, if i < 2 { sep_data } else { "" }));
+                }
+            }
+            if *time {
+                if *date {
+                    // O espaço entre data e hora vira o separador da última
+                    // seção da data.
+                    if let Some(ultima) = secoes.last_mut() {
+                        ultima.2 = " ";
+                    }
+                }
+                secoes.push(("h", format!("{:02}", atual.hora), ":"));
+                secoes.push((
+                    "m",
+                    format!("{:02}", atual.min),
+                    if *seconds { ":" } else { "" },
+                ));
+                if *seconds {
+                    secoes.push(("s", format!("{:02}", atual.seg), ""));
+                }
+            }
+            // Sem foco, a primeira seção — como o Qt, que já abre com a
+            // esquerda selecionada.
+            let ativa =
+                foco.unwrap_or_else(|| secoes.first().map(|s| s.0).unwrap_or("h").to_string());
+
+            let chave = value_var.clone();
+            let (com_data, com_hora, com_seg) = (*date, *time, *seconds);
+
+            // Uma linha com as seções e os separadores. Clicar numa seção só
+            // move o foco — quem muda o valor são as setas, como no Qt.
+            let mut campo = row![].spacing(0).align_y(iced::Alignment::Center);
+            for (id, txt, sep) in &secoes {
+                let selecionada = ativa == *id;
+                let alvo = format!("{chave}:{id}");
+                campo = campo.push(
+                    button(text(txt.clone()).size(15))
+                        .padding(Padding {
+                            top: 1.0,
+                            right: 3.0,
+                            bottom: 1.0,
+                            left: 3.0,
+                        })
+                        .on_press(EngineMessage::ContextPatch(vec![(
+                            TIMEEDIT_SEL_CONTEXT.to_string(),
+                            alvo,
+                        )]))
+                        .style(move |theme: &iced::Theme, _status| {
+                            let palette = theme.extended_palette();
+                            // O realce da seção ativa é o da paleta primária —
+                            // é assim que o Qt marca a seção selecionada.
+                            button::Style {
+                                background: selecionada
+                                    .then_some(Background::Color(palette.primary.base.color)),
+                                text_color: if selecionada {
+                                    palette.primary.base.text
+                                } else {
+                                    palette.background.base.text
+                                },
+                                border: Border::default().rounded(2),
+                                ..button::Style::default()
+                            }
+                        }),
+                );
+                if !sep.is_empty() {
+                    campo = campo.push(text((*sep).to_string()).size(15));
+                }
+            }
+
+            // Dois modos, e é o mesmo contrato do `<TextInput>`: **sem**
+            // `onChange` o widget grava a chave sozinho (nenhuma linha do lado
+            // do app); **com** `onChange`, ele só avisa, e quem grava é o
+            // handler — que é o que deixa o app validar um intervalo ou recusar
+            // o valor antes de aceitá-lo.
+            let acao = on_change.clone();
+            let passo = |delta: i64| -> EngineMessage {
+                let novo = atual
+                    .passo(&ativa, delta)
+                    .serializa(com_data, com_hora, com_seg);
+                if acao.is_empty() {
+                    EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
+                } else {
+                    EngineMessage::UiInputChanged {
+                        action: acao.clone(),
+                        value: novo,
+                    }
+                }
+            };
+            let seta = |glifo: &'static str, msg: EngineMessage| {
+                button(text(glifo).size(9))
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 4.0,
+                        bottom: 0.0,
+                        left: 4.0,
+                    })
+                    .on_press(msg)
+                    .style(|theme: &iced::Theme, status| {
+                        let palette = theme.extended_palette();
+                        button::Style {
+                            background: match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    Some(Background::Color(palette.background.weak.color))
+                                }
+                                _ => None,
+                            },
+                            text_color: palette.background.strong.text,
+                            border: Border::default().rounded(2),
+                            ..button::Style::default()
+                        }
+                    })
+            };
+
+            let corpo = row![
+                campo,
+                Space::new().width(Length::Fill),
+                column![seta("▴", passo(1)), seta("▾", passo(-1))].spacing(0),
+            ]
+            .align_y(iced::Alignment::Center)
+            .spacing(6);
+
+            // Uma caixa só em volta de tudo — seções e setas dentro da mesma
+            // borda, como o `QDateTimeEdit`.
+            let largura_natural = 46.0
+                + if com_data { 92.0 } else { 0.0 }
+                + if com_hora { 52.0 } else { 0.0 }
+                + if com_seg { 26.0 } else { 0.0 };
+            container(corpo)
+                .padding(Padding {
+                    top: 3.0,
+                    right: 4.0,
+                    bottom: 3.0,
+                    left: 6.0,
+                })
+                .width(if node.width.is_some() {
+                    parse_length(&node.width)
+                } else {
+                    Length::Fixed(largura_natural)
+                })
+                .style(|theme: &iced::Theme| {
+                    let palette = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(palette.background.base.color)),
+                        border: Border {
+                            color: palette.background.strong.color,
+                            width: 1.0,
+                            radius: 4.0.into(),
+                        },
+                        ..container::Style::default()
+                    }
+                })
+                .into()
         }
         NodeType::Radio {
             label,
@@ -1883,7 +2216,7 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 
 #[cfg(test)]
 mod length_tests {
-    use super::parse_length;
+    use super::{Instante, dias_no_mes, parse_length};
     use iced::Length;
 
     fn len(s: &str) -> Length {
@@ -1916,5 +2249,96 @@ mod length_tests {
     #[test]
     fn garbage_falls_back_to_shrink() {
         assert_eq!(len("wibble"), Length::Shrink);
+    }
+
+    // --- Instante: a aritmética de seção do `<datetimeedit>` -----------------
+
+    #[test]
+    fn instante_le_as_tres_formas() {
+        let so_data = Instante::parse("2026-09-01");
+        assert_eq!((so_data.ano, so_data.mes, so_data.dia), (2026, 9, 1));
+
+        let so_hora = Instante::parse("13:45:02");
+        assert_eq!((so_hora.hora, so_hora.min, so_hora.seg), (13, 45, 2));
+
+        let ambos = Instante::parse("2026-09-01 09:30");
+        assert_eq!((ambos.ano, ambos.mes, ambos.dia), (2026, 9, 1));
+        assert_eq!((ambos.hora, ambos.min), (9, 30));
+
+        // E o `T` do ISO 8601 separa igual ao espaço.
+        assert_eq!(Instante::parse("2026-09-01T07:05").hora, 7);
+    }
+
+    #[test]
+    fn instante_tolera_lixo_em_vez_de_quebrar() {
+        // Um campo que ainda não foi semeado não pode renderizar quebrado.
+        let vazio = Instante::parse("");
+        assert_eq!(vazio.serializa(true, true, false), "2000-01-01 00:00");
+        // Fora de faixa satura em vez de propagar.
+        let absurdo = Instante::parse("2026-99-99 77:88:99");
+        assert_eq!(absurdo.serializa(true, true, true), "2026-12-31 23:59:59");
+    }
+
+    #[test]
+    fn instante_vira_dentro_da_secao_sem_carregar() {
+        // O ponto do "editar por seção": mexer no minuto NÃO empurra a hora.
+        let meia = Instante::parse("09:59");
+        assert_eq!(meia.passo("m", 1).serializa(false, true, false), "09:00");
+        assert_eq!(meia.passo("h", 1).serializa(false, true, false), "10:59");
+
+        // E vira nos dois sentidos.
+        let zero = Instante::parse("00:00");
+        assert_eq!(zero.passo("h", -1).serializa(false, true, false), "23:00");
+        assert_eq!(zero.passo("m", -1).serializa(false, true, false), "00:59");
+    }
+
+    #[test]
+    fn instante_respeita_o_calendario() {
+        // Dia vira dentro do mês: 30 de abril + 1 volta para o dia 1.
+        let abril = Instante::parse("2026-04-30");
+        assert_eq!(
+            abril.passo("d", 1).serializa(true, false, false),
+            "2026-04-01"
+        );
+
+        // Trocar de mês satura o dia — 31 de janeiro vira 28 em fevereiro…
+        let jan31 = Instante::parse("2026-01-31");
+        assert_eq!(
+            jan31.passo("M", 1).serializa(true, false, false),
+            "2026-02-28"
+        );
+        // …e 29 num ano bissexto.
+        let jan31_bis = Instante::parse("2024-01-31");
+        assert_eq!(
+            jan31_bis.passo("M", 1).serializa(true, false, false),
+            "2024-02-29"
+        );
+
+        // A regra do século: 1900 não é bissexto, 2000 é.
+        assert_eq!(dias_no_mes(1900, 2), 28);
+        assert_eq!(dias_no_mes(2000, 2), 29);
+
+        // Mês vira 12 -> 1 sem mexer no ano (seção é seção).
+        let dez = Instante::parse("2026-12-05");
+        assert_eq!(
+            dez.passo("M", 1).serializa(true, false, false),
+            "2026-01-05"
+        );
+        // O ano é a exceção: satura, porque virar 9999 -> 1 nunca é o desejado.
+        let fim = Instante::parse("9999-06-01");
+        assert_eq!(
+            fim.passo("y", 1).serializa(true, false, false),
+            "9999-06-01"
+        );
+    }
+
+    #[test]
+    fn instante_serializa_sempre_em_iso() {
+        // A ordem de exibição (`format="br"`) não toca no que é gravado.
+        let i = Instante::parse("2026-09-01 13:45:02");
+        assert_eq!(i.serializa(true, false, false), "2026-09-01");
+        assert_eq!(i.serializa(false, true, false), "13:45");
+        assert_eq!(i.serializa(false, true, true), "13:45:02");
+        assert_eq!(i.serializa(true, true, true), "2026-09-01 13:45:02");
     }
 }

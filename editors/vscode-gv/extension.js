@@ -56,6 +56,12 @@ const NATIVE_TAGS = {
     "indicadorocupado", "indicador_ocupado", "carregando",
   ],
   Slider: ["slider", "deslizante"],
+  // Uma primitiva só; a tag decide quais seções o campo mostra.
+  TimeEdit: ["timeedit", "timepicker", "editorhora", "editor_hora"],
+  DateEdit: ["dateedit", "datepicker", "editordata", "editor_data"],
+  DateTimeEdit: [
+    "datetimeedit", "datetimepicker", "editordatahora", "editor_data_hora",
+  ],
   Radio: ["radio", "radiobutton", "opcao"],
   Space: ["space", "espaco", "espaço", "spacer"],
   Select: ["select", "dropdown", "picklist", "combobox", "combo", "seletor"],
@@ -91,7 +97,6 @@ const NATIVE_TAGS = {
   SpinBox: ["spinbox"],
   StatusBar: ["statusbar"],
   TabBar: ["tabbar"],
-  TimePicker: ["timepicker"],
   ToolBar: ["toolbar"],
   ToolButton: ["toolbutton"],
   Screen: ["screen", "tela"],
@@ -238,8 +243,8 @@ const NOT_ACTION_ATTRS = new Set(["oneof", "one_of", "one-of"]);
 /**
  * Whether `name` is an attribute whose value is a handler name. Beyond the
  * spellings the parser knows, any `on…`/`ao…` attribute counts: a component
- * takes its actions as plain props (`<TimePicker on_pick="abrir_modal"/>`
- * forwards `{on_pick}` into a nested `on_click`), so the set is open-ended. A
+ * takes its actions as plain props (`<ToolButton on_click="salvar"/>` forwards
+ * `{on_click}` into a nested `on_click`), so the set is open-ended. A
  * false positive costs nothing — a name that resolves to no function is simply
  * not linked.
  */

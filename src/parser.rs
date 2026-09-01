@@ -913,6 +913,71 @@ pub enum NodeType {
         group_var: String,
         on_change: String,
     },
+    /// `QDateEdit` / `QTimeEdit` / `QDateTimeEdit`: **um** campo que edita a
+    /// data e/ou a hora inteira por **seções**.
+    ///
+    /// É a forma que o Qt usa, e a diferença dela para um spin box comum é o
+    /// ponto todo: clicar numa seção (dia, mês, ano, hora, minuto, segundo) a
+    /// **seleciona** — ela ganha o realce da paleta, como o `2001` destacado
+    /// num `QDateEdit` — e as setas ▴▾ passam a mexer naquela seção. Um
+    /// controle só cobre o valor completo, sem uma prop de passo e sem um
+    /// widget por campo.
+    ///
+    /// As três tags do Qt são a mesma primitiva com seções diferentes:
+    ///
+    /// | tag | seções | chave |
+    /// |---|---|---|
+    /// | `<timeedit>` (`<timepicker>`) | hora, minuto \[, segundo\] | `HH:MM[:SS]` |
+    /// | `<dateedit>` (`<datepicker>`) | ano, mês, dia | `YYYY-MM-DD` |
+    /// | `<datetimeedit>` | as duas | `YYYY-MM-DD HH:MM[:SS]` |
+    ///
+    /// # Armazenamento é sempre ISO; exibição é que varia
+    ///
+    /// A chave guarda `YYYY-MM-DD` — ordenável, sem ambiguidade e o que um
+    /// backend espera — independentemente de como o campo desenha. `day_first`
+    /// (`format="br"`) só troca a **ordem das seções na tela** e o separador,
+    /// para `DD/MM/YYYY`. É a separação que o Qt faz entre o valor e o
+    /// `displayFormat`.
+    ///
+    /// # Por que primitiva, e não builtin
+    ///
+    /// O `TimePicker` foi builtin até a 0.67 e não podia continuar. Um template
+    /// de builtin exibiria o valor inteiro (`{inicio}`) num campo só; para
+    /// desenhar `13` e `45` em seções separadas ele precisaria ler partes de
+    /// uma chave cujo **nome** vem de uma prop — a indireção `{{value}}` que o
+    /// interpolador não tem (o mesmo limite que obriga o `<tabbar>` a receber
+    /// `value` e `active` em par). Em Rust, no `render_node`, partir a string é
+    /// trivial.
+    ///
+    /// # Onde mora a seção selecionada
+    ///
+    /// Numa chave **global** do motor (`__timeedit`), com o valor
+    /// `"<chave>:<seção>"`. Global não é atalho: só uma seção da tela inteira
+    /// pode estar selecionada por vez — é o que "foco" significa —, e guardar a
+    /// identidade da instância junto (`inicio:h`) é o que mantém duas
+    /// instâncias independentes.
+    DateTimeEdit {
+        /// Nome da chave de contexto com o valor.
+        value_var: String,
+        /// Mostra as seções de data (ano, mês, dia).
+        date: bool,
+        /// Mostra as seções de hora (hora, minuto).
+        time: bool,
+        /// Acrescenta a seção de segundos ao tempo.
+        seconds: bool,
+        /// Exibe a data como `DD/MM/YYYY` em vez de `YYYY-MM-DD`. **Só a
+        /// exibição** — a chave continua ISO.
+        day_first: bool,
+        /// Ação disparada a cada alteração, com o valor novo. Vazio = o widget
+        /// **grava a chave sozinho**.
+        ///
+        /// Os dois modos são o mesmo contrato que o `<TextInput>` sempre teve,
+        /// com um default conveniente: sem `onChange` ninguém precisa escrever
+        /// código para o campo funcionar; com `onChange`, quem grava é o
+        /// handler — que é o que permite validar um intervalo, recusar um valor
+        /// ou derivar outra chave antes de aceitar.
+        on_change: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -975,6 +1040,7 @@ impl NodeType {
             NodeType::ComboEdit { .. } => "comboedit",
             NodeType::ProgressBar { .. } => "progressbar",
             NodeType::Radio { .. } => "radio",
+            NodeType::DateTimeEdit { .. } => "timeedit",
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -1739,6 +1805,33 @@ impl UiNode {
                     vertical,
                     show_value,
                     color,
+                }
+            }
+            // As três tags do Qt, uma primitiva só — muda quais seções entram.
+            "TimeEdit" | "timeedit" | "TimePicker" | "timepicker" | "EditorHora"
+            | "editor_hora" | "DateEdit" | "dateedit" | "DatePicker" | "datepicker"
+            | "EditorData" | "editor_data" | "DateTimeEdit" | "datetimeedit" | "DateTimePicker"
+            | "datetimepicker" | "EditorDataHora" | "editor_data_hora" => {
+                let baixo = tag.to_ascii_lowercase();
+                let tem_data = baixo.starts_with("date") || baixo.starts_with("editor_data");
+                let tem_hora = !baixo.starts_with("date")
+                    || baixo.starts_with("datetime")
+                    || baixo.starts_with("editor_data_hora");
+                NodeType::DateTimeEdit {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    date: tem_data,
+                    time: tem_hora,
+                    seconds: Self::get_attr_bool(&node, &["seconds", "segundos", "com_segundos"]),
+                    // `format="br"` é só a ordem de exibição; a chave é ISO.
+                    day_first: Self::get_attr(&node, &["format", "formato"]).is_some_and(|f| {
+                        let f = f.trim().to_ascii_lowercase();
+                        f == "br" || f == "dmy" || f == "dd/mm/yyyy"
+                    }),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
                 }
             }
             "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {

@@ -117,7 +117,10 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
 > São **dois** casos hoje, e o segundo confirmou a regra: `ProgressBar` e
-> `Slider` (0.66). O `slider`/`vertical_slider` do iced também nasce
+> `Slider` (0.66). O `DateTimeEdit` (0.68) não entra na lista por outro motivo:
+> ele não é um widget do `iced` embrulhado, é uma **composição montada em
+> Rust** (`row`/`button`/`container`), então já controla o próprio tamanho e
+> pinta a própria borda — o wrap genérico nunca chega a decidir por ele. O `slider`/`vertical_slider` do iced também nasce
 > `Length::Fill` no eixo principal, então ele entrou na mesma exclusão do wrap
 > e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
 > a `color` — exatamente o que esta seção mandava fazer.
@@ -127,6 +130,29 @@ o tamanho natural deles é `Shrink` (ou, no caso do `TextInput`, `Fill` mas já
 tratado à parte — ver o comentário "iced's own default for `text_input` é
 `Length::Fill`" em `render_node`, que só chama `.width(...)` quando
 `node.width.is_some()`, nunca deixando o wrap genérico decidir por ele).
+
+## Nem toda primitiva embrulha um widget do `iced`
+
+O passo 3 acima pergunta "qual o tamanho natural deste widget no `iced`?" e
+pressupõe que exista um widget do `iced` por trás. Nem sempre existe.
+
+O `DateTimeEdit` (`<dateedit>`/`<timeedit>`/`<datetimeedit>`, 0.68) é uma
+primitiva que o `render_node` **compõe**: uma `row` de `button`s (as seções),
+`text` (os separadores), uma `column` com as setas, tudo dentro de um
+`container` que desenha a borda. Nada disso é um widget novo do `iced`.
+
+Vale saber quando esse caminho é o certo, porque ele parece "coisa de builtin":
+
+- Se dá para compor **em markup**, com props, é **builtin** — é mais barato e o
+  app pode sobrescrever.
+- Se a composição precisa de dados que o **template não consegue derivar**, é
+  primitiva. Foi o caso aqui: para desenhar `13` e `45` em seções separadas, um
+  template precisaria ler partes de uma chave cujo *nome* vem de uma prop — a
+  indireção `{{value}}` que o interpolador não tem. Em Rust, partir a string é
+  uma linha.
+
+O sinal prático: **um builtin que só funcionaria se o interpolador tivesse mais
+uma capacidade é, quase sempre, uma primitiva mal classificada.**
 
 ## Checklist para uma primitiva nova
 

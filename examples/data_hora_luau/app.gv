@@ -1,0 +1,65 @@
+<screen title="Glacier - Data e Hora (Luau)" size="660 520">
+    <resources>
+        <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
+             script pelo <script> do template, não por convenção de nome. -->
+        <script src="app.luau"></script>
+    </resources>
+
+    <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+
+        <column spacing="6">
+            <text content="Reserva — regras em Luau" size="22" bold="true" color="#CDD6F4" />
+            <text
+                content="Cada campo tem onChange, então o widget NÃO grava a chave: ele avisa, e o script decide. É o que permite recusar uma saída anterior à entrada — uma regra de negócio, que não cabe dentro do widget."
+                size="13"
+                color="#A6ADC8"
+            />
+        </column>
+
+        <rule />
+
+        <row spacing="16" align_y="center">
+            <text content="Entrada" width="90" color="#CDD6F4" />
+            <dateedit value="checkin" format="br" onChange="set_checkin" />
+            <timeedit value="chegada" onChange="set_chegada" />
+            <text content="dia e hora da chegada" size="12" color="#6C7086" />
+        </row>
+
+        <row spacing="16" align_y="center">
+            <text content="Saída" width="90" color="#CDD6F4" />
+            <dateedit value="checkout" format="br" onChange="set_checkout" />
+            <text content="tem de ser depois da entrada" size="12" color="#6C7086" />
+        </row>
+
+        <!-- O <datetimeedit> junta as duas famílias de seção no mesmo campo.
+             A regra dele é a mais sutil da tela: comparar um `YYYY-MM-DD HH:MM`
+             com um `YYYY-MM-DD` não dá certo como texto puro — ver o script. -->
+        <row spacing="16" align_y="center">
+            <text content="Lembrete" width="90" color="#CDD6F4" />
+            <datetimeedit value="lembrete" onChange="set_lembrete" />
+            <text content="tem de cair até o dia da entrada" size="12" color="#6C7086" />
+        </row>
+
+        <!-- Presets: o script escreve as chaves direto, sem passar pelo widget. -->
+        <row spacing="10" align_y="center">
+            <text content="Chegada" width="90" color="#CDD6F4" />
+            <button text="Manhã" on_click="turno_manha" padding="6 14" />
+            <button text="Tarde" on_click="turno_tarde" padding="6 14" />
+            <button text="Noite" on_click="turno_noite" padding="6 14" />
+        </row>
+
+        <rule />
+
+        <!-- O resumo é recalculado no script a cada alteração aceita. -->
+        <column spacing="6">
+            <text content="{resumo}" size="15" bold="true" color="#CDD6F4" />
+            <text if="{aviso}" notEquals="" content="{aviso}" size="13" color="#F38BA8" />
+        </column>
+
+        <text
+            content="Tente puxar a saída para antes da entrada: o script recusa, avisa e o campo volta ao valor anterior."
+            size="12"
+            color="#6C7086"
+        />
+    </column>
+</screen>

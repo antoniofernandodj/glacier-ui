@@ -1104,89 +1104,6 @@ fn test_builtin_spinbox_layout_inline() {
     std::fs::remove_file(tela_path).ok();
 }
 
-/// Tela que só registra o que o motor lhe entregou — para provar que a ação
-/// escrita numa prop do `<TimePicker/>` chega **no app**, e não morre no
-/// `update` do builtin.
-struct TelaHora;
-impl Component for TelaHora {
-    fn name(&self) -> &str {
-        "tela_hora"
-    }
-    fn template(&self) -> Template {
-        Template::Inline(
-            r#"<Column>
-                <TimePicker value="inicio" on_change="validar" on_pick="abrir_modal" />
-            </Column>"#
-                .into(),
-        )
-    }
-    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
-        ctx.set("recebido", format!("{action}/{}", value.unwrap_or("-")));
-        // O handler do app é quem escreve a chave de um `<TextInput>`.
-        if action == "validar" {
-            ctx.set("inicio", value.unwrap_or(""));
-        }
-    }
-}
-
-#[test]
-fn test_builtin_timepicker_delega_acoes_ao_app() {
-    // O `TimePicker` é um builtin que **delega**: quem age é o app. Isso exige
-    // as duas coisas que este teste fixa — o campo ligado à chave (atributo
-    // `value`, não `value_var`) e o escape `app:`, sem o qual as ações viram
-    // `TimePicker::validar` e caem no `update` (vazio) do próprio widget.
-    use glacier_ui::EngineMessage;
-
-    let mut motor = GlacierUI::new();
-    motor.register(Box::new(TelaHora)).unwrap();
-    motor.set_initial_screen("tela_hora");
-
-    let avaliado = motor.evaluated("tela_hora").unwrap();
-    let linha = &avaliado.children[0];
-
-    match &linha.children[0].kind {
-        NodeType::TextInput {
-            value_var,
-            on_change,
-            placeholder,
-            ..
-        } => {
-            assert_eq!(value_var, "inicio", "o campo tem de ler a chave do app");
-            assert_eq!(on_change, "validar", "sem prefixo de dono: é ação do app");
-            assert_eq!(placeholder, "HH:MM"); // default inline preservado
-        }
-        outro => panic!("esperava o campo do TimePicker, veio {outro:?}"),
-    }
-    match &linha.children[1].kind {
-        NodeType::Button { text, on_click, .. } => {
-            assert_eq!(text, "⏰");
-            assert_eq!(on_click.as_deref(), Some("abrir_modal"));
-        }
-        outro => panic!("esperava o botão ⏰, veio {outro:?}"),
-    }
-
-    // E as ações realmente chegam no `update` da tela.
-    let _ = motor.dispatch(&EngineMessage::UiClick("abrir_modal".into()));
-    assert_eq!(
-        motor.context().get("recebido").map(String::as_str),
-        Some("abrir_modal/-")
-    );
-
-    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "validar".into(),
-        value: "09:30".into(),
-    });
-    assert_eq!(
-        motor.context().get("recebido").map(String::as_str),
-        Some("validar/09:30")
-    );
-    // …e o que o handler escreveu volta para o campo.
-    assert_eq!(
-        motor.context().get("inicio").map(String::as_str),
-        Some("09:30")
-    );
-}
-
 #[test]
 fn test_prefixo_app_escapa_do_namespace_do_dono() {
     // O escape em si, isolado do TimePicker: dentro de um componente, `app:`
@@ -1234,92 +1151,179 @@ fn test_prefixo_app_escapa_do_namespace_do_dono() {
     std::fs::remove_file(tela_path).ok();
 }
 
-/// Guarda o exemplo `examples/timepicker/` inteiro: `<script>` ligado, `init()`
-/// semeando, digitação formatando e o modal do ⏰ escrevendo de volta. Ele é o
-/// único lugar onde a cadeia builtin -> `app:` -> handler Luau roda ponta a ponta.
+/// Guarda o exemplo `examples/timepicker/`: as três tags do Qt, ligadas às
+/// chaves certas, e nenhum script.
+///
+/// Até a 0.67 este exemplo tinha ~40 linhas de Luau montando um seletor à mão,
+/// porque o `TimePicker` era um builtin que só delegava. Virou primitiva.
 #[test]
 fn test_exemplo_timepicker_ponta_a_ponta() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("timepicker", "examples/timepicker/app.gv")
+        .register_component("tela_hora", "examples/timepicker/app.gv")
         .expect("registrar a tela do exemplo");
-    motor.set_initial_screen("timepicker");
+    motor.define_data("data", "2026-09-01");
+    motor.define_data("hora", "13:45:02");
+    motor.set_initial_screen("tela_hora");
 
-    // O `init()` do Lua só roda se o <script> foi ligado.
+    let tela = motor.evaluated("tela_hora").unwrap();
+    let mut achados: Vec<(String, bool, bool)> = Vec::new();
+    fn anda(n: &UiNode, out: &mut Vec<(String, bool, bool)>) {
+        if let NodeType::DateTimeEdit {
+            value_var,
+            date,
+            time,
+            ..
+        } = &n.kind
+        {
+            out.push((value_var.clone(), *date, *time));
+        }
+        for f in &n.children {
+            anda(f, out);
+        }
+    }
+    anda(tela, &mut achados);
+
+    // Um `<dateedit>`, um `<timeedit>` e um `<datetimeedit>`, no mínimo.
+    assert!(
+        achados.iter().any(|(k, d, t)| k == "data" && *d && !*t),
+        "faltou o QDateEdit ligado a 'data': {achados:?}"
+    );
+    assert!(
+        achados.iter().any(|(k, d, t)| k == "hora" && !*d && *t),
+        "faltou o QTimeEdit ligado a 'hora': {achados:?}"
+    );
+    assert!(
+        achados.iter().any(|(k, d, t)| k == "quando" && *d && *t),
+        "faltou o QDateTimeEdit ligado a 'quando': {achados:?}"
+    );
+}
+
+/// O exemplo `data_hora_luau`: os campos com `onChange` **delegam**, e é o
+/// script que decide se o valor entra. Guarda as duas metades — a regra que
+/// aceita e a que recusa.
+#[test]
+fn test_exemplo_data_hora_luau_valida_no_script() {
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("reserva", "examples/data_hora_luau/app.gv")
+        .expect("registrar a tela do exemplo");
+    motor.set_initial_screen("reserva");
+
+    // O `init()` do Luau semeou tudo — o `main.rs` não chama `define_data`.
     assert_eq!(
-        motor.context().get("inicio").map(String::as_str),
-        Some("09:00"),
+        motor.context().get("checkin").map(String::as_str),
+        Some("2026-09-10"),
         "o init() do app.luau precisa ter rodado"
     );
     assert!(
         motor
             .context()
-            .get("lista_horas")
-            .is_some_and(|h| h.contains("23")),
-        "as horas do Select têm de estar semeadas"
+            .get("resumo")
+            .is_some_and(|r| r.contains("2 noites")),
+        "o resumo é calculado no script: {:?}",
+        motor.context().get("resumo")
     );
 
-    // O campo do TimePicker está ligado à chave e a ação é do app.
-    let tela = motor.evaluated("timepicker").unwrap();
-    let mut achou = false;
-    fn anda(n: &glacier_ui::UiNode, achou: &mut bool) {
-        if let NodeType::TextInput {
-            value_var,
-            on_change,
-            ..
-        } = &n.kind
-            && value_var == "inicio"
-        {
-            assert_eq!(on_change, "formatar_tempo");
-            *achou = true;
-        }
-        for f in &n.children {
-            anda(f, achou);
-        }
-    }
-    anda(tela, &mut achou);
-    assert!(achou, "campo do TimePicker ligado a 'inicio'");
-
-    // Digitar: o handler Lua recebe o texto e grava a chave já formatada.
-    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiInputChanged {
-        action: "formatar_tempo".into(),
-        value: "1445".into(),
+    // Uma saída DEPOIS da entrada é aceita e o resumo acompanha.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "set_checkout".into(),
+        value: "2026-09-15".into(),
     });
     assert_eq!(
-        motor.context().get("inicio").map(String::as_str),
-        Some("14:45")
+        motor.context().get("checkout").map(String::as_str),
+        Some("2026-09-15")
     );
-
-    // Clicar no ⏰: abre o modal e popula os selects a partir do valor atual.
-    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick(
-        "abrir_seletor_hora".into(),
-    ));
-    assert_eq!(
+    assert!(
         motor
             .context()
-            .get("mostrar_modal_hora")
-            .map(String::as_str),
-        Some("true")
+            .get("resumo")
+            .is_some_and(|r| r.contains("5 noites"))
     );
-    assert_eq!(motor.context().get("h_sel").map(String::as_str), Some("14"));
-    assert_eq!(motor.context().get("m_sel").map(String::as_str), Some("45"));
+    assert_eq!(motor.context().get("aviso").map(String::as_str), Some(""));
 
-    // Confirmar escreve de volta.
-    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiInputChanged {
-        action: "atualizar_m".into(),
-        value: "30".into(),
+    // Uma saída ANTES da entrada é recusada: a chave não muda e o aviso aparece.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "set_checkout".into(),
+        value: "2026-09-01".into(),
     });
-    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick("confirmar_hora".into()));
     assert_eq!(
-        motor.context().get("inicio").map(String::as_str),
-        Some("14:30")
+        motor.context().get("checkout").map(String::as_str),
+        Some("2026-09-15"),
+        "o valor recusado não pode ter sido gravado"
     );
-    assert_eq!(
+    assert!(
         motor
             .context()
-            .get("mostrar_modal_hora")
-            .map(String::as_str),
-        Some("false")
+            .get("aviso")
+            .is_some_and(|a| a.contains("depois da entrada")),
+        "o script tem de explicar a recusa"
+    );
+
+    // E um preset escreve a chave direto, sem passar pelo widget.
+    let _ = motor.dispatch(&EngineMessage::UiClick("turno_manha".into()));
+    assert_eq!(
+        motor.context().get("chegada").map(String::as_str),
+        Some("08:00")
+    );
+
+    // O `<datetimeedit>` do lembrete tem a regra mais sutil: ele carrega hora e
+    // o check-in não, então a comparação é entre os DIAS. Um lembrete no próprio
+    // dia da entrada entra, mesmo com hora — que é o que a comparação de string
+    // inteira recusaria (`"2026-09-10 08:00" > "2026-09-10"`).
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "set_lembrete".into(),
+        value: "2026-09-10 08:00".into(),
+    });
+    assert_eq!(
+        motor.context().get("lembrete").map(String::as_str),
+        Some("2026-09-10 08:00"),
+        "um lembrete no dia da entrada é válido"
+    );
+
+    // Um dia depois da entrada é recusado.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "set_lembrete".into(),
+        value: "2026-09-11 08:00".into(),
+    });
+    assert_eq!(
+        motor.context().get("lembrete").map(String::as_str),
+        Some("2026-09-10 08:00"),
+        "o valor recusado não pode ter sido gravado"
+    );
+}
+
+/// A cadeia `<script src="…luau">` -> `init()` -> `ctx` -> binding, ponta a
+/// ponta, num exemplo de verdade.
+///
+/// Morava no teste do `timepicker` até a 0.68, quando aquele exemplo perdeu o
+/// script (o widget passou a fazer o trabalho). Mudou de exemplo para a
+/// cobertura não sumir junto.
+#[test]
+fn test_exemplo_luau_externo_ponta_a_ponta() {
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("contador", "examples/contador_externo/contador_externo.gv")
+        .expect("registrar a tela do exemplo");
+    motor.set_initial_screen("contador");
+
+    // O `init()` do Lua só roda se o `<script src>` foi ligado e resolvido
+    // relativo ao template.
+    assert_eq!(
+        motor.context().get("contador").map(String::as_str),
+        Some("0"),
+        "o init() do .luau precisa ter rodado"
+    );
+
+    // E um handler do script responde a uma ação vinda da UI.
+    let _ = motor.dispatch(&EngineMessage::UiClick("incrementar".into()));
+    assert_eq!(
+        motor.context().get("contador").map(String::as_str),
+        Some("1")
     );
 }
 

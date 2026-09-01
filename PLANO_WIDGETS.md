@@ -134,14 +134,22 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QCalendarWidget | `Calendar` | Comp | column+row+button | ● | P1 | ⬜ | grade de mês, navegação, dia selecionado |
-| QDateEdit / QDatePicker | `DatePicker` | Comp | text_input+Calendar(overlay) | ● | P1 | ⬜ | campo + popup de calendário |
-| QTimeEdit | `TimePicker` | Built | text_input+button | ◐ | P1 | 🟡 | existe como **orquestrador delegante** (campo `HH:MM` + botão, tudo repassado ao app via `app:` — `src/builtins/time_picker.rs`); falta o seletor de verdade (roleta ou SpinBox×3) |
-| QDateTimeEdit | `DateTimePicker` | Comp | DatePicker+TimePicker | ● | P1 | ⬜ | combinação dos dois |
+| QDateEdit | `DateEdit` / `DatePicker` | Prim | compõe | ◐ | P1 | ✅ | edição por **seções** (ano/mês/dia), com o realce da paleta na seção ativa e ▴▾ agindo sobre ela. Calendário respeitado: 31/01 + 1 mês satura em 28 ou 29. `format="br"` troca só a exibição — a chave é sempre ISO. Falta a variante `calendarPopup`, que espera o overlay ancorado (§3) |
+| QTimeEdit | `TimeEdit` / `TimePicker` | Prim | compõe | ◐ | P1 | ✅ | as mesmas seções, para hora/minuto\[/segundo\]. Cada seção vira **dentro de si** (o `wrapping` do `QAbstractSpinBox`): mexer no minuto não empurra a hora |
+| QDateTimeEdit | `DateTimeEdit` | Prim | compõe | ◐ | P1 | ✅ | as duas famílias de seção no mesmo campo. É **a mesma primitiva** dos dois acima — a tag só decide quais seções aparecem |
 | — (range) | `DateRangePicker` | Comp | 2×Calendar | ● | P2 | ⬜ | intervalo início→fim |
 | — (mês/ano) | `MonthYearPicker` | Comp | pick_list×2 | ● | P3 | ⬜ | seleção só de mês/ano |
 
-> Precisará de uma dependência de datas (`chrono` ou `time`) e provavelmente de
-> um tipo de valor de contexto para data (ver "contexto tipado" no ROADMAP).
+> **A dependência de datas não foi necessária** para os três campos de edição: a
+> aritmética que eles pedem é somar 1 numa seção e saber quantos dias tem o mês
+> — bissexto incluído, regra do século incluída —, o que cabe em vinte linhas
+> (`Instante`, em `src/widget.rs`). A decisão `chrono` vs. `time` (§4) segue em
+> aberto e passa a valer para o que realmente precisa dela: o `Calendar`, que
+> tem de saber em que **dia da semana** um mês começa, e qualquer aritmética de
+> intervalo.
+>
+> Os três campos **também não precisaram de estado por instância** — ver a
+> correção na §3.
 
 ### 2.6 Displays e indicadores (apresentacionais)
 
@@ -293,8 +301,30 @@ Há ainda um terceiro caso, descoberto ao ordenar a fila do §6: o estado **tem*
 nome (`<Calendar value="data" month="mes_visivel"/>`), mas o widget precisa
 **semear** esse contexto antes do primeiro clique — e `Component::init(&mut
 self, ctx)` não recebe as props da instância, só o contexto global. Um
-`Calendar` renderizaria vazio até alguém clicar. É por isso que a §2.5 inteira
-continua atrás do estado por instância, e não pôde entrar na fila do §6.
+`Calendar` renderizaria vazio até alguém clicar.
+
+> **Correção (0.68).** Este documento dizia que "a §2.5 inteira continua atrás
+> do estado por instância". Errado — e a lição é sobre o **nível**, não sobre o
+> motor. O terceiro caso só existe para um **builtin**, cujo template precisa
+> semear e depois ler o contexto para desenhar. Uma **primitiva** não tem esse
+> problema: ela lê e escreve na hora do render, em Rust.
+>
+> Foi o que destravou `DateEdit`/`TimeEdit`/`DateTimeEdit`. Eles nasceram
+> builtin, e a forma correta (editar por **seções**, como o Qt) era impossível
+> ali: o template exibiria o valor inteiro, e para desenhar `13` e `45`
+> separados precisaria ler partes de uma chave cujo *nome* vem de uma prop — a
+> indireção `{{value}}` que o interpolador não tem. Como primitiva, partir a
+> string é uma linha.
+>
+> Sobrou só o estado de **foco** (qual seção está selecionada), que nem é por
+> instância: é global por natureza — uma seção da tela inteira por vez —, e vive
+> numa chave do motor com a identidade da instância no valor (`__timeedit` =
+> `"inicio:h"`).
+>
+> O que **de fato** espera o estado por instância na §2.5 é o `Calendar`: uma
+> grade de mês tem estado de navegação (que mês estou vendo) que é dele, não do
+> app. Regra prática que fica: **antes de declarar um widget bloqueado, pergunte
+> se ele não é uma primitiva.**
 
 O que **de fato** travava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
 `StatusBar` era outro item, que não estava nesta lista — e que **caiu na 0.65**:
@@ -426,7 +456,7 @@ duplicata — 121 widgets distintos, não 122.
 | Entradas de texto | 9 | 4 | 1 | 4 |
 | Numéricas/valor | 11 | 4 | 2 | 5 |
 | Seleção/listas/árvores | 10 | 1 | 1 | 8 |
-| Data e hora | 6 | 0 | 1 | 5 |
+| Data e hora | 6 | 3 | 0 | 3 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
 | Containers | 9 | 4 | 0 | 5 |
 | Navegação | 6 | 1 | 2 | 3 |
@@ -435,19 +465,24 @@ duplicata — 121 widgets distintos, não 122.
 | Layouts | 7 | 4 | 1 | 2 |
 | Overlays/utilitários | 11 | 2 | 1 | 8 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **122** | **52** | **10** | **60** |
+| **Total** | **122** | **55** | **9** | **58** |
 
-O motor já entrega ~43% do catálogo Qt de superfície (34% antes da onda 2, 39%
-antes da onda 1). O gargalo não é volume de markup — é o punhado de
-habilitadores de Motor do §3 (estado por instância + **nome dinâmico de slot** +
-`Grid` + overlay ancorado genérico + canvas), que sozinhos destravam a maioria
-dos 60 pendentes.
+O motor já entrega ~45% do catálogo Qt de superfície (34% antes da onda 2, 39%
+antes da onda 1, 43% antes dos campos de data/hora). O gargalo não é volume de
+markup — é o punhado de habilitadores de Motor do §3 (estado por instância +
+**nome dinâmico de slot** + `Grid` + overlay ancorado genérico + canvas), que
+sozinhos destravam a maioria dos 58 pendentes.
 
-Onde os 60 se concentram: **data e hora** (5, todos atrás do estado por
-instância), **model/view** (8, atrás do binding a coleção), **gráficos** (6,
-atrás do canvas) e **overlays** (8, atrás do overlay ancorado genérico). Ou
-seja, 27 dos 60 estão presos a quatro itens de motor — e o resto é, em boa
-medida, a bandeja de troco da §6.2.
+Onde os 58 se concentram: **model/view** (8, atrás do binding a coleção),
+**gráficos** (6, atrás do canvas) e **overlays** (8, atrás do overlay ancorado
+genérico). São 22 presos a três itens de motor; o resto é, em boa medida, a
+bandeja de troco da §6.2.
+
+A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6 e passou
+a 3 de 6 **sem** nenhum habilitador novo — só reclassificando os widgets de
+builtin para primitiva (ver a correção na §3). Nem toda linha ⬜ está esperando
+o motor; algumas estão esperando alguém perguntar em que nível elas deveriam
+estar.
 
 As duas ondas mostram os dois regimes de custo. A onda 2 dependia de **um**
 habilitador de motor (`<slot/>`) e, uma vez feito, valeu seis widgets — a §2.9,
@@ -579,9 +614,15 @@ delas é este item. Duas já se resolveram sem ele — o valor que o app nomeia 
 padrão do `SpinBox`) e o estado sem nome que cabe no `tree::State` do widget
 nativo (o `Spinner`).
 
-#### Onda 4 — data e hora (o foco declarado)
+#### Onda 4 — data e hora (o foco declarado) — 🟡 **metade feita (0.68)**
 
-`Calendar` → `DatePicker` → `TimePicker` de verdade → `DateTimePicker`. Depende
-do estado por instância, de uma decisão sobre a dependência de datas (§4) e, para
-o popup do `DatePicker`, do overlay ancorado genérico (§3, item 5). É o maior
-compromisso do documento e o que ele diz existir para entregar.
+Os três **campos de edição** saíram: `<dateedit>`, `<timeedit>` e
+`<datetimeedit>`, como uma primitiva só com edição por seções (§2.5). Não
+precisaram de habilitador nenhum — ver a correção na §3.
+
+Sobra a metade **calendário**: `Calendar` (a grade de mês, que precisa de estado
+de navegação por instância e de saber em que dia da semana o mês começa — é ela
+que puxa a decisão `chrono` vs. `time` da §4) e, sobre ela, a variante
+`calendarPopup` do `QDateEdit`, que espera o overlay ancorado genérico (§3, item
+5). Mais o `DateRangePicker` e o `MonthYearPicker`, que vêm de graça depois do
+`Calendar`.
