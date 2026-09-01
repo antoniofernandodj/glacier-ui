@@ -1,52 +1,52 @@
 <screen title="Glacier - SpinBox" size="560 430">
-    <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
-        <column spacing="6">
-            <text content="SpinBox — o QSpinBox do Qt" size="22" bold="true" color="#CDD6F4" />
-            <text
-                content="O app só registra o template e semeia os valores iniciais. Somar, subtrair e saturar é do widget, que vem embutido na lib e escreve na chave de contexto que cada instância nomeia."
-                size="13"
-                color="#A6ADC8"
-            />
-        </column>
-
-        <rule />
-
-        <!-- Inteiro simples: a faixa satura em 1..10. -->
-        <row spacing="16" align_y="center">
-            <text content="Quantidade" width="110" color="#CDD6F4" />
-            <SpinBox value="quantidade" min="1" max="10" />
-            <text content="chave 'quantidade' = {quantidade}" size="13" color="#A6ADC8" />
-        </row>
-
-        <!-- Decimal: as duas casas saem do próprio step, sem prop nova. -->
-        <row spacing="16" align_y="center">
-            <text content="Preço" width="110" color="#CDD6F4" />
-            <SpinBox value="preco" min="0" max="20" step="0.25" width="90" />
-            <text content="chave 'preco' = {preco}" size="13" color="#A6ADC8" />
-        </row>
-
-        <!-- Passo grande e a outra forma: `− campo +`, o SpinBox do Qt Quick. -->
-        <row spacing="16" align_y="center">
-            <text content="Zoom (%)" width="110" color="#CDD6F4" />
-            <SpinBox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
-            <text content="chave 'zoom' = {zoom}" size="13" color="#A6ADC8" />
-        </row>
-
-        <rule />
-
-        <!-- Duas instâncias da MESMA tag, lado a lado: chaves diferentes, nenhum
-             estado compartilhado. É o ponto do padrão "a chave vem por prop". -->
-        <text content="Duas instâncias independentes:" size="13" bold="true" color="#CDD6F4" />
-        <row spacing="24" align_y="center">
-            <row spacing="10" align_y="center">
-                <text content="Adultos" color="#CDD6F4" />
-                <SpinBox value="adultos" min="1" max="9" width="56" />
-            </row>
-            <row spacing="10" align_y="center">
-                <text content="Crianças" color="#CDD6F4" />
-                <SpinBox value="criancas" min="0" max="9" width="56" />
-            </row>
-            <text content="{adultos} adulto(s), {criancas} criança(s)" size="13" color="#A6ADC8" />
-        </row>
+  <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+    <column spacing="6">
+      <text content="SpinBox — o QSpinBox do Qt" size="22" bold="true" color="#CDD6F4" />
+      <text
+        content="O app só registra o template e semeia os valores iniciais. Somar, subtrair e saturar é do widget, que vem embutido na lib e escreve na chave de contexto que cada instância nomeia."
+        size="13"
+        color="#A6ADC8"
+      />
     </column>
+
+    <rule />
+
+    <!-- Inteiro simples: a faixa satura em 1..10. -->
+    <row spacing="16" align_y="center">
+      <text content="Quantidade" width="110" color="#CDD6F4" />
+      <SpinBox value="quantidade" min="1" max="10" />
+      <text content="chave 'quantidade' = {quantidade}" size="13" color="#A6ADC8" />
+    </row>
+
+    <!-- Decimal: as duas casas saem do próprio step, sem prop nova. -->
+    <row spacing="16" align_y="center">
+      <text content="Preço" width="110" color="#CDD6F4" />
+      <SpinBox value="preco" min="0" max="20" step="0.25" width="90" />
+      <text content="chave 'preco' = {preco}" size="13" color="#A6ADC8" />
+    </row>
+
+    <!-- Passo grande e a outra forma: `− campo +`, o SpinBox do Qt Quick. -->
+    <row spacing="16" align_y="center">
+      <text content="Zoom (%)" width="110" color="#CDD6F4" />
+      <SpinBox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
+      <text content="chave 'zoom' = {zoom}" size="13" color="#A6ADC8" />
+    </row>
+
+    <rule />
+
+    <!-- Duas instâncias da MESMA tag, lado a lado: chaves diferentes, nenhum
+       estado compartilhado. É o ponto do padrão "a chave vem por prop". -->
+    <text content="Duas instâncias independentes:" size="13" bold="true" color="#CDD6F4" />
+    <row spacing="24" align_y="center">
+      <row spacing="10" align_y="center">
+        <text content="Adultos" color="#CDD6F4" />
+        <SpinBox value="adultos" min="1" max="9" width="56" />
+      </row>
+      <row spacing="10" align_y="center">
+        <text content="Crianças" color="#CDD6F4" />
+        <SpinBox value="criancas" min="0" max="9" width="56" />
+      </row>
+      <text content="{adultos} adulto(s), {criancas} criança(s)" size="13" color="#A6ADC8" />
+    </row>
+  </column>
 </screen>

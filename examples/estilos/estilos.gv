@@ -1,31 +1,31 @@
 <screen title="Glacier - Estilos (.gss)">
-    <resources>
-        <!-- Tema da janela (paleta do iced) — também elimina o fundo branco padrão. -->
-        <link rel="theme" href="examples/estilos/theme.json" />
+  <resources>
+    <!-- Tema da janela (paleta do iced) — também elimina o fundo branco padrão. -->
+    <link rel="theme" href="examples/estilos/theme.json" />
 
-        <!-- Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente. -->
-        <link rel="stylesheet" href="examples/estilos/estilos.gss" />
-    </resources>
+    <!-- Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente. -->
+    <link rel="stylesheet" href="examples/estilos/estilos.gss" />
+  </resources>
 
-    <container class="card">
-        <column class="stack">
-            <!-- `id` casa `#hero { }` no app.gss: id > classe, então a cor do
-                 `#hero` vence a de `.title` (mas ainda perde para inline). -->
-            <text id="hero" class="title">Estilos via .gss</text>
+  <container class="card">
+    <column class="stack">
+      <!-- `id` casa `#hero { }` no app.gss: id > classe, então a cor do
+         `#hero` vence a de `.title` (mas ainda perde para inline). -->
+      <text id="hero" class="title">Estilos via .gss</text>
 
-            <!-- A classe define size/color; nada inline aqui. -->
-            <text class="subtitle">Contador: {valor}</text>
+      <!-- A classe define size/color; nada inline aqui. -->
+      <text class="subtitle">Contador: {valor}</text>
 
-            <row class="actions">
-                <!-- `btn` (escopada) dá padding + cor base; `btn-danger` sobrescreve a cor. -->
-                <button class="btn btn-danger" text="-" on_click="decrementar" />
-                <button class="btn btn-success" text="+" on_click="incrementar" />
-            </row>
+      <row class="actions">
+        <!-- `btn` (escopada) dá padding + cor base; `btn-danger` sobrescreve a cor. -->
+        <button class="btn btn-danger" text="-" on_click="decrementar" />
+        <button class="btn btn-success" text="+" on_click="incrementar" />
+      </row>
 
-            <!-- Atributo inline vence a classe: cor explícita ganha de `subtitle`. -->
-            <text class="subtitle" color="#6C7086">
-                (edite examples/estilos/app.gss e veja o hot-reload)
-            </text>
-        </column>
-    </container>
+      <!-- Atributo inline vence a classe: cor explícita ganha de `subtitle`. -->
+      <text class="subtitle" color="#6C7086">
+        (edite examples/estilos/app.gss e veja o hot-reload)
+      </text>
+    </column>
+  </container>
 </screen>
