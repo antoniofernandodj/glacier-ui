@@ -962,7 +962,7 @@ fn expand_children(
                 let mut clone = child.clone();
                 clone.is_else = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, slot, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
                 )?);
             }
             last_if = None;
@@ -998,7 +998,7 @@ fn expand_children(
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
-                        &clone, context, templates, styles, scope, owner, None, None, slot, cache,
+                        &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
                     )?);
                 }
                 last_if = Some(truthy);
@@ -1027,7 +1027,7 @@ fn expand_children(
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, slot, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
                 )?);
             }
             last_if = Some(truthy);
@@ -1198,7 +1198,7 @@ fn expand_children(
             }
             _ => {
                 let n = eval_owned(
-                    child, context, templates, styles, scope, owner, None, None, slot, cache,
+                    child, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
                 )?;
                 // A `Fragment` (a multi-root component template, or an explicit
                 // `Fragment { … }`) is transparent: splice its already-evaluated
@@ -1237,7 +1237,7 @@ pub fn evaluate_node(
     let ctx = EvalCtx::new(context);
     let mut cache = EvalCache::default();
     eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, None, &mut cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, None, None, &mut cache,
     )
 }
 
@@ -1260,7 +1260,7 @@ pub fn evaluate_template(
     reads.push(0);
     let ctx = EvalCtx::tracked(context, &reads);
     let tree = eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, None, cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, None, None, cache,
     )?;
     let deps = reads.pop();
     // Entradas de subárvores que sumiram (uma linha removida da lista) viram
@@ -1390,6 +1390,14 @@ fn eval_owned(
     // comum. Aninhamento: o componente interno recebe o do externo já mesclado.
     underlay: Option<&StyleRule>,
     underlay_states: Option<&StateStyles>,
+    // Overlay de **classe/id escritos no USO** de um componente, passado só para
+    // a raiz avaliada do template dele. Gêmeo do `underlay` acima, no outro
+    // extremo: entra ACIMA da classe do template e ABAIXO dos atributos inline
+    // dele. A regra em uma frase: a classe escrita no uso vence as classes do
+    // template, e perde para o que o template cravou inline. `None` no caso
+    // comum. Ver `PLANO_CLASS_EM_COMPONENTE.md`.
+    overlay: Option<&StyleRule>,
+    overlay_states: Option<&StateStyles>,
     // Conteúdo escrito entre as tags do componente que está sendo expandido —
     // **já avaliado**, no contexto e com o dono de QUEM USOU, repartido por
     // destino. É o que um `<slot/>` no template devolve. `None` fora de um
@@ -1634,7 +1642,40 @@ fn eval_owned(
                 layer.set(format!("slot_{nome}"), "true".to_string());
             }
         }
-        let local_context = context.with(&layer, mix(node.node_id, 0));
+        // Classe/id escritos NO USO (`<spinbox class="campo_num"/>`). Resolvidos
+        // aqui, no escopo de QUEM USOU — é lá que a folha com `.campo_num` mora,
+        // não no escopo do componente — e entregues à raiz do template como
+        // `overlay`. Sem isto, `class` numa tag de componente era lida pelo
+        // parser, viajava no mapa de props e não pintava nada: falha silenciosa.
+        // Ver `PLANO_CLASS_EM_COMPONENTE.md`.
+        //
+        // A interpolação acontece contra o contexto de FORA (`context`), então
+        // um `class="{estado}"` registra a leitura no quadro de quem chamou,
+        // que é a quem a dependência de fato pertence.
+        let uso_class = node
+            .class
+            .as_deref()
+            .map(|c| process_tpl(c, context))
+            .unwrap_or_default();
+        let uso_id = node.id.as_deref().map(|i| process_tpl(i, context));
+
+        // A classe do uso entra na CHAVE do cache. O cache de componente é
+        // indexado pelo caminho (derivado do `node_id`), e as dependências que
+        // ele guarda são as lidas DENTRO da expansão — a leitura de `{estado}`
+        // acima ficou no quadro de fora e não estaria entre elas. Sem misturar
+        // o valor resolvido aqui, um `class="{estado}"` que mudasse serviria a
+        // árvore antiga, com o estilo velho, para sempre. Mesma armadilha que
+        // tirou o uso COM conteúdo de slot do cache na 0.65 — aqui, porém, dá
+        // para manter o cache: basta que valores diferentes ocupem entradas
+        // diferentes.
+        let mut assinatura_estilo = 0u64;
+        if !uso_class.is_empty() || uso_id.is_some() {
+            for b in uso_class.bytes().chain(uso_id.iter().flat_map(|i| i.bytes())) {
+                assinatura_estilo ^= b as u64;
+                assinatura_estilo = assinatura_estilo.wrapping_mul(0x100_0000_01b3);
+            }
+        }
+        let local_context = context.with(&layer, mix(node.node_id, assinatura_estilo));
 
         // O uso de um componente é uma fronteira natural de cache: é uma
         // subárvore inteira com uma entrada de dados bem definida (as props). É
@@ -1684,6 +1725,31 @@ fn eval_owned(
             ));
         }
 
+        // Overlay: a classe/id do uso, resolvida no escopo do uso (`scope`), no
+        // outro extremo da escada de especificidade em relação ao underlay
+        // acima. Só custa a busca quando alguém de fato escreveu uma.
+        let (overlay_rule, overlay_st) = if uso_class.is_empty() && uso_id.is_none() {
+            (None, None)
+        } else {
+            let active = styles.active(scope);
+            (
+                Some(resolve_classes(
+                    None,
+                    &uso_class,
+                    uso_id.as_deref(),
+                    &active,
+                    styles.viewport,
+                )),
+                Some(resolve_state_classes(
+                    None,
+                    &uso_class,
+                    uso_id.as_deref(),
+                    &active,
+                    styles.viewport,
+                )),
+            )
+        };
+
         // The referenced subtree's actions and scoped styles belong to `name`
         // (innermost wins).
         let root = eval_owned(
@@ -1695,6 +1761,8 @@ fn eval_owned(
             Some(name),
             Some(&underlay_rule),
             Some(&underlay_st),
+            overlay_rule.as_ref(),
+            overlay_st.as_ref(),
             (!slot_conteudo.is_empty()).then_some(&slot_conteudo),
             cache,
         )?;
@@ -1744,6 +1812,17 @@ fn eval_owned(
                 &active,
                 styles.viewport,
             ));
+        }
+        // O overlay entra por ÚLTIMO entre os tiers de folha — depois da classe
+        // e do id deste nó — porque ele é a classe que quem USOU o componente
+        // escreveu, e ela precisa poder redefinir o que o template deixou como
+        // padrão. Os atributos inline do template ainda vencem: eles são
+        // aplicados no `match` por campo mais abaixo, sobre este resultado.
+        if let Some(o) = overlay {
+            base.merge_from(o);
+        }
+        if let Some(o) = overlay_states {
+            states.merge_from(o);
         }
         (base, states)
     };

@@ -62,6 +62,22 @@
 /// - `layout`      — `stacked` (default) ou `inline`; ver acima.
 /// - `width`       — largura do campo. Default: `72`.
 /// - `placeholder` — dica quando a chave está vazia. Default: vazio.
+/// - `field_class` — classe aplicada **ao campo de dentro**, não ao widget.
+///   Não se chama `class` de propósito: desde a 0.69 `class` numa tag de
+///   componente estiliza a **raiz expandida** — aqui, a `Row` inteira (campo +
+///   degraus), que é o que estilizar um `QSpinBox` significa no Qt. As duas
+///   coisas são legítimas e diferentes; colapsá-las no mesmo nome seria criar
+///   uma ambiguidade que não dá para desfazer depois.
+/// - `form_control` — repassado ao campo de dentro, o que o liga à `<Form>` que
+///   o envolve: o campo ganha um id de foco estável e passa a responder ao
+///   **Enter** — submetendo, e avançando para o controle seguinte. Sem ele o
+///   campo engolia o Enter. Não confundir com **Tab**: a travessia por Tab é um
+///   listener global do motor (`focus_next`) e já alcançava este campo antes,
+///   com ou sem `form_control`. Sem prefixo `field_` porque não há ambiguidade:
+///   só existe um nó focável aqui dentro.
+///   Funciona porque a hidratação da `<Form>` roda **depois** da expansão de
+///   componente (`eval.rs`), então ela enxerga um `formControl` que só passou a
+///   existir na expansão.
 /// - `dec_text` / `inc_text` — glifos dos degraus. Default: `▾` / `▴` no
 ///   `stacked`, `−` / `+` no `inline`.
 /// - `glyph_size`  — corpo do glifo. Default: `11` no `stacked` (é a altura
@@ -157,6 +173,8 @@ impl Component for SpinBox {
                             <Text content="{dec_text|−}" size="{glyph_size|15}" />
                         </Button>
                         <TextInput
+                            class="{field_class}"
+                            formControl="{form_control}"
                             value="{value}"
                             onChange="edit:{value}|{min|0}|{max|100}|{step|1}"
                             placeholder="{placeholder}"
@@ -173,6 +191,8 @@ impl Component for SpinBox {
 
                     <template else>
                         <TextInput
+                            class="{field_class}"
+                            formControl="{form_control}"
                             value="{value}"
                             onChange="edit:{value}|{min|0}|{max|100}|{step|1}"
                             placeholder="{placeholder}"

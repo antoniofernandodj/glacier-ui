@@ -1098,6 +1098,40 @@ Card   { padding: 24; }        /* default de todo uso de <Card> (componente) */
 > quiser mirar um caso específico. Um componente de template **multi-raiz**
 > (`Fragment`) não recebe o underlay de `Card {}` — use uma raiz única.
 
+#### `class` no **uso** de um componente (0.69)
+
+O outro extremo da escada. `Card {}` acima é o *default* de todo uso; a `class`
+escrita **num** uso mira só aquele, e também aplica na **raiz** expandida:
+
+```gv
+<Card class="destaque" />
+```
+
+```gss
+.destaque { background: #3B1F1F; }
+```
+
+A escada completa, do mais fraco ao mais forte:
+
+```
+tag de componente (Card {})  <  tag builtin  <  classe do template  <
+classe do USO  <  id do template  <  inline do template
+```
+
+Ou seja: **a classe escrita no uso vence as classes do template, e perde para os
+atributos inline do template.** É a intuição do CSS — a classe do autor do
+componente é um *default*, o atributo que ele cravou inline é uma *decisão*.
+
+> Antes da 0.69 escrever `class` num componente era um **no-op silencioso**: a
+> classe era lida, viajava no mapa de props e não pintava nada, sem erro nem
+> aviso. Se você contornou isso embrulhando o componente numa `<Column
+> class="…">`, o embrulho pode sair.
+
+Ela aplica **só na raiz**. Para estilizar um nó específico lá dentro, o
+componente expõe uma prop com nome próprio — como o `field_class` do
+`<SpinBox>`, que mira o campo de texto interno enquanto o `class` dele mira o
+widget inteiro.
+
 **Propriedades reconhecidas:** `width`/`w`, `height`/`h`, `padding`, `spacing`,
 `align-x`/`align-y`, `background`/`bg`, `border-radius`, `border-width`,
 `border-color`, `color`, `text-color`, `size`, `bold`, `hidden`.

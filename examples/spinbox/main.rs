@@ -32,6 +32,9 @@ fn main() -> iced::Result {
             motor.define_data("zoom", "100");
             motor.define_data("adultos", "2");
             motor.define_data("criancas", "0");
+            // A dupla da 0.69: `class` na Row, `field_class` no campo.
+            motor.define_data("mesas", "2");
+            motor.define_data("obs", "");
             motor.set_initial_screen("spinbox");
         })
         .run()

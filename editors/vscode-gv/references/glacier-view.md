@@ -269,6 +269,26 @@ sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
 
 ## Builtins (registrados pela lib)
 
+> **`class` num componente** (0.69). Escrever `class` na tag de um componente —
+> builtin da lib ou do seu app — estiliza a **raiz expandida** do template dele.
+> Antes da 0.69 isso era um **no-op silencioso**: a classe era lida, viajava no
+> mapa de props e não pintava nada, sem erro nem aviso.
+>
+> A escada de especificidade, do mais fraco ao mais forte:
+>
+> ```
+> seletor de tag do componente  <  tag builtin  <  classe do template  <
+> classe do USO  <  id do template  <  inline do template
+> ```
+>
+> Em uma frase: **a classe escrita no uso vence as classes do template, e perde
+> para os atributos inline do template.** É a intuição do CSS — classe é
+> default do autor, inline é decisão dele.
+>
+> Ela aplica **só na raiz**. Estilizar um nó específico lá dentro continua sendo
+> decisão do componente, que expõe uma prop com nome próprio para isso — como o
+> `field_class` do `<SpinBox>` abaixo.
+
 ### `<Badge>`
 Rótulo/etiqueta ("pílula") embutido. Props: `badge_text` (`Badge`), `badge_bg` (`#89B4FA`), `badge_fg` (`#11111B`), `badge_size` (`13`). Ver `BUILTINS.md` para estender.
 
@@ -289,6 +309,8 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 | `layout` | `stacked` | `stacked`: as setinhas `▴▾` empilhadas e coladas à direita do campo (o `QSpinBox` clássico). `inline`: `−  campo  +`, degraus nas pontas (o `SpinBox` do Qt Quick Controls) |
 | `width` | `72` | largura do campo |
 | `placeholder` | vazio | dica quando a chave está vazia |
+| `field_class` | vazio | classe aplicada **ao campo de dentro**, não ao widget inteiro. Ver a nota abaixo sobre por que não se chama `class` |
+| `form_control` | vazio | repassado ao campo de dentro: dá a ele um id de foco estável e liga o **Enter** da `<Form>` que o envolve (submeter + avançar para o próximo controle). **Tab não depende disto** — a travessia por Tab é um listener global do motor e já alcança qualquer widget focável |
 | `dec_text` / `inc_text` | `▾`/`▴` (stacked), `−`/`+` (inline) | glifos dos degraus |
 | `glyph_size` | `11` (stacked), `15` (inline) | corpo do glifo |
 
@@ -296,6 +318,14 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 - **Digitação** entra filtrada (só dígitos, um `-` à frente e um `.`) e **sem saturar** — como o `QSpinBox`, que só valida ao terminar a edição; o clique seguinte satura.
 - **Sem `on_change` para o app**: o `onChange` do campo interno é usado pelo próprio widget para filtrar a digitação. Quem precisa reagir lê a chave de `value`.
 - **Aparência**: os degraus são pintados por uma folha GSS que o próprio widget declara, na classe `.spinbox-step` (com `:hover`/`:active`). Ela é instalada antes de qualquer `.gss` do app, então redefinir `.spinbox-step` numa folha sua vence e repinta os degraus.
+- **`class` × `field_class`** (0.69): `class` estiliza a **raiz do widget** — a `Row` inteira, campo mais degraus, que é o que estilizar um `QSpinBox` significa no Qt. `field_class` estiliza **só o `<TextInput>` de dentro**. As duas são legítimas e diferentes; por isso têm nomes diferentes, em vez de um só ambíguo.
+
+```gv
+<SpinBox value="qtd" min="1" max="9"
+         class="moldura"          <!-- a Row: campo + degraus -->
+         field_class="campo_num"  <!-- só o campo -->
+         form_control="qtd" />    <!-- só o campo -->
+```
 
 
 ### `<Avatar>`

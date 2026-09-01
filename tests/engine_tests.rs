@@ -4035,3 +4035,158 @@ fn test_screen_meta_reloads_with_template() {
 
     std::fs::remove_file(path).ok();
 }
+
+/// `class` escrita no USO de um componente aplica na raiz expandida — e a
+/// escada de especificidade que a 0.69 fixou: ela VENCE a classe do template e
+/// PERDE para os atributos inline do template. Antes da 0.69 isto era um no-op
+/// silencioso: a classe era lida, viajava no mapa de props e não pintava nada.
+#[test]
+fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    // O template do componente declara `background` por CLASSE e `padding`
+    // inline — os dois lados da regra, num nó só.
+    let comp = "templates/class_uso_comp.gv";
+    std::fs::write(
+        comp,
+        r#"<component>
+            <resources><style>
+            .interno { background: #111111; border-radius: 3; }
+            </style></resources>
+            <Column class="interno" padding="7">
+                <Text content="oi" />
+            </Column>
+        </component>"#,
+    )
+    .unwrap();
+
+    let tela = "templates/class_uso_tela.gv";
+    std::fs::write(
+        tela,
+        envolve(
+            r#"
+        <style>
+        .de_fora { background: #abcdef; padding: 99; }
+        </style>
+        <Column>
+            <Caixa class="de_fora" />
+            <Caixa />
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+
+    motor.register_component("Caixa", comp).unwrap();
+    motor.register_component("tela", tela).unwrap();
+
+    let raiz = motor.evaluated("tela").unwrap();
+    fn achar_col(n: &glacier_ui::UiNode) -> Option<&glacier_ui::UiNode> {
+        if matches!(n.kind, NodeType::Column) && n.children.len() == 2 {
+            return Some(n);
+        }
+        n.children.iter().find_map(achar_col)
+    }
+    let lista = achar_col(&raiz).expect("a Column com os dois usos");
+    let com = &lista.children[0];
+    let sem = &lista.children[1];
+
+    // 1. A classe do uso VENCE a classe do template.
+    assert_eq!(
+        com.background.as_deref(),
+        Some("#abcdef"),
+        "a classe do uso deve vencer a classe do template"
+    );
+    // 2. E PERDE para o atributo inline do template.
+    assert_eq!(
+        com.padding.as_deref(),
+        Some("7"),
+        "o inline do template deve vencer a classe do uso"
+    );
+    // 3. O que só o template declara sobrevive (não houve clobber).
+    assert_eq!(com.border_radius, Some(3.0), "o resto do template sobrevive");
+    // 4. A instância SEM classe não é contaminada pela irmã — é o teste do
+    //    cache: as duas têm o mesmo template e node_ids diferentes.
+    assert_eq!(
+        sem.background.as_deref(),
+        Some("#111111"),
+        "a instância sem classe fica com o estilo do template"
+    );
+
+    std::fs::remove_file(comp).ok();
+    std::fs::remove_file(tela).ok();
+}
+
+/// O mesmo, mas num BUILTIN da lib (`spinbox`), que é o caso que originou a
+/// mudança — e junto as duas props novas: `field_class` e `form_control`
+/// chegam ao `<TextInput>` de dentro, e a `<Form>` que envolve o widget
+/// hidrata esse campo (id de foco + ação de submit + qual é o controle
+/// seguinte, para onde o Enter avança), porque a hidratação roda depois da
+/// expansão de componente. Nada disto tem a ver com Tab: a travessia por Tab é
+/// um listener global do motor e independe de `formControl`.
+#[test]
+fn spinbox_repassa_field_class_e_form_control() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/spin_repasse.gv";
+    std::fs::write(
+        p,
+        envolve(
+            r#"
+        <style>
+        .campo_num { background: #123456; }
+        .moldura   { border-radius: 9; }
+        </style>
+        <Form name="f" on_submit="salvar">
+            <TextInput formControl="antes" value="antes" />
+            <SpinBox value="qtd" min="1" max="9"
+                     class="moldura" field_class="campo_num" form_control="qtd" />
+            <TextInput formControl="depois" value="depois" />
+        </Form>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("proto", p).unwrap();
+
+    let raiz = motor.evaluated("proto").unwrap();
+    fn achar_form(n: &glacier_ui::UiNode) -> Option<&glacier_ui::UiNode> {
+        if matches!(n.kind, NodeType::Form { .. }) {
+            return Some(n);
+        }
+        n.children.iter().find_map(achar_form)
+    }
+    let form = achar_form(&raiz).expect("Form");
+    let linha = &form.children[1];
+    let campo = &linha.children[0];
+
+    // `class` no uso → a Row inteira (o widget), que antes da 0.69 não recebia
+    // nada.
+    assert_eq!(
+        linha.border_radius,
+        Some(9.0),
+        "class no uso estiliza a raiz do builtin (a Row)"
+    );
+    // `field_class` → só o campo de dentro. (A classe não sobrevive como
+    // string: o eval a resolve em campos de estilo, daí olharmos a cor.)
+    assert_eq!(
+        campo.background.as_deref(),
+        Some("#123456"),
+        "field_class estiliza o campo de dentro"
+    );
+    // `form_control` → o campo entra na Form.
+    assert_eq!(campo.form_control.as_deref(), Some("qtd"));
+    assert_eq!(
+        campo.form_submit_action.as_deref(),
+        Some("salvar"),
+        "a Form hidrata um controle que só existe depois da expansão"
+    );
+    assert_eq!(
+        campo.form_next_focus.as_deref(),
+        Some("depois"),
+        "e o Enter avança para o controle seguinte, na ordem do documento"
+    );
+
+    std::fs::remove_file(p).ok();
+}

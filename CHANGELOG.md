@@ -8,6 +8,106 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.69.0] — 2026-09-01
+
+Uma release de **duas correções de contrato**: uma coisa que o motor deixava
+escrever sem fazer nada, e um widget que engolia o que recebia.
+
+### Corrigido
+- **`class` numa tag de componente não fazia nada — e não avisava.** Escrever
+  `<spinbox class="campo_num"/>` (ou o mesmo em qualquer componente, builtin da
+  lib ou do app) era um **no-op silencioso**: a classe era lida pelo parser (é
+  atributo genérico de nó), viajava no mapa de props do `NodeType::Component` e
+  depois ninguém a usava. Nenhum erro, nenhum aviso, nenhum log — o
+  `background` da raiz expandida saía `None`.
+
+  É a pior forma de falhar, e a mesma família do seletor por vírgula no GSS e
+  da auto-referência que dava `SIGABRT` sem mensagem antes da 0.68: quem
+  escreve tem toda a razão de esperar que funcione, porque é o que funciona em
+  qualquer outra tag do motor.
+
+  Agora a classe (e o `id`) escritos **no uso** aplicam na **raiz expandida** do
+  template. A escada de especificidade, do mais fraco ao mais forte:
+
+  ```
+  seletor de tag do componente  <  tag builtin  <  classe do template  <
+  classe do USO  <  id do template  <  inline do template
+  ```
+
+  Em uma frase: **a classe escrita no uso vence as classes do template, e perde
+  para os atributos inline do template.** É a intuição do CSS — a classe do
+  autor do componente é um *default*, o atributo inline dele é uma *decisão*. E
+  é o que faz `<card class="destaque"/>` conseguir repintar um cartão sem que o
+  `.card-surface` do template precise sair da frente.
+
+  A infraestrutura já existia inteira: o seletor de tag de componente
+  (`spinbox { }`, item 12 do `PLANO_GSS_LIMITACOES.md`) já resolvia estilo **no
+  escopo do uso** e o entregava à raiz do template como `underlay`. A classe do
+  uso é o gêmeo dele no outro extremo da escada — um `overlay`, resolvido no
+  mesmo lugar, mesclado depois do `resolve_classes` da raiz.
+
+  **A classe do uso entra na chave do cache.** O cache de componente é indexado
+  pelo caminho (derivado do `node_id`) e guarda as dependências lidas **dentro**
+  da expansão; a interpolação de um `class="{estado}"` acontece no quadro de
+  fora, então não estaria entre elas. Sem misturar o valor resolvido na chave,
+  um `class` dinâmico que mudasse serviria a árvore antiga para sempre. Mesma
+  armadilha que tirou o uso *com conteúdo de slot* do cache na 0.65 — só que
+  aqui dá para manter o cache: basta valores diferentes ocuparem entradas
+  diferentes.
+
+  Ela aplica **só na raiz**. Estilizar um nó específico lá dentro continua sendo
+  decisão do componente, que expõe uma prop com nome próprio — ver o item
+  seguinte. Um seletor que fura a fronteira do componente (algo como o
+  `::part()` do CSS) é uma porta muito maior, e nada hoje pede.
+
+- **O `<SpinBox>` não repassava nada ao campo que ele monta.** Ele entregava ao
+  `<TextInput>` interno só `value`, `onChange`, `placeholder` e `width`. Duas
+  consequências, e a segunda é a que dói:
+
+  - não dava para estilizar o campo — a classe do app não chegava nele;
+  - **o campo ficava fora da `<Form>`**: sem `form_control` ele não tinha id de
+    foco estável e **engolia o Enter** — não submetia o formulário nem avançava
+    para o campo seguinte, ao contrário de todos os `<TextInput>` ao lado dele.
+    Num formulário de seis campos numéricos, seis buracos no fluxo de teclado.
+
+    Para não plantar folclore: **Tab não era o problema.** A travessia por Tab é
+    um listener global do motor (`focus_next`/`focus_previous`, `lib.rs`), que
+    percorre todo widget focável independentemente de `formControl` — o campo do
+    `SpinBox` já era alcançado por ela antes desta release. O que `form_control`
+    liga é o **Enter**.
+
+  Props novas: **`field_class`** e **`form_control`**.
+
+  ```gv
+  <spinbox value="qtd" min="1" max="9"
+           class="moldura"          <!-- a Row inteira: campo + degraus -->
+           field_class="campo_num"  <!-- só o <TextInput> de dentro -->
+           form_control="qtd" />    <!-- só o <TextInput> de dentro -->
+  ```
+
+  `field_class` **não se chama `class`** de propósito: com o item acima, `class`
+  num `<spinbox>` passou a significar "estilize o widget inteiro" — a `Row`, que
+  é o que estilizar um `QSpinBox` significa no Qt. As duas coisas são legítimas
+  e diferentes; colapsá-las num nome só criaria a ambiguidade que esta release
+  existe para matar. `form_control` não precisa do prefixo `field_` porque não
+  há ambiguidade a desfazer: só existe um nó focável ali dentro.
+
+  O que fez isto ser barato — e não era óbvio: **a hidratação da `<Form>` roda
+  depois da expansão de componente**, sobre a árvore já avaliada. Um
+  `formControl` que só passa a existir na expansão é encontrado normalmente, e o
+  campo recebe `form_submit_action` e `form_next_focus` como qualquer outro.
+
+### Notas
+- O repasse **não** foi estendido aos outros builtins. Só o `SpinBox` tem um
+  caso concreto (um campo focável, dentro de um formulário, com estilo do app);
+  quando o segundo aparecer, o padrão já está estabelecido por ele.
+- `PLANO_CLASS_EM_COMPONENTE.md` registra as duas decisões de projeto e o que
+  ficou de fora.
+- Extensão de VS Code **0.7.0**: a nota de `class` em componente abre a seção de
+  builtins da referência, e o `<SpinBox>` ganha as duas props novas na tabela.
+
+---
+
 ## [0.68.0] — 2026-09-01
 
 ### Adicionado
