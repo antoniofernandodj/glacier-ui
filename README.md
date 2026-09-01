@@ -935,6 +935,70 @@ function init()   ctx.rascunho = storage.get("rascunho") or "" end
 function salvar() storage.set("rascunho", ctx.rascunho) end
 ```
 
+### `date`: data e hora sobre strings ISO
+
+Os campos `<dateedit>`/`<timeedit>`/`<datetimeedit>` gravam **sempre em ISO** —
+`YYYY-MM-DD`, `HH:MM[:SS]`, ou os dois separados por espaço. O global `date`
+opera nesse mesmo formato: recebe string, devolve string, e por isso nada de
+"objeto data" vaza para uma chave de contexto (que é sempre texto).
+
+Não há dependência nova no motor: `today`/`now`/`time` saem do `os.date` que o
+próprio Luau já tem (hora **local**), e o resto é aritmética civil.
+
+```lua
+function init()
+    ctx.entrada = date.today()                          -- "2026-09-01"
+    ctx.saida   = date.add(ctx.entrada, { days = 2 })   -- "2026-09-03"
+    ctx.aviso   = date.now()                            -- "2026-09-01 14:30"
+end
+
+function recalcular()
+    -- Dias de CALENDÁRIO (a hora não entra) — a conta de uma diária, um prazo.
+    ctx.noites = date.diff(ctx.saida, ctx.entrada)
+    -- A chave continua ISO; isto é só o que vai para a tela.
+    ctx.rotulo = date.format(ctx.entrada, "DD/MM/YYYY")
+end
+```
+
+| Função | Devolve |
+|---|---|
+| `date.today()` | hoje, `YYYY-MM-DD` |
+| `date.now(segundos?)` | agora, `YYYY-MM-DD HH:MM[:SS]` |
+| `date.time(segundos?)` | hora do relógio, `HH:MM[:SS]` |
+| `date.parse(iso)` | `{ year, month, day, hour, min, sec }` ou `nil` |
+| `date.valid(iso)` | booleano |
+| `date.weekday(iso)` | `1`–`7`, **1 = domingo** (a base do `os.date("*t").wday`) |
+| `date.date_of(iso)` / `date.time_of(iso)` | uma seção do valor, ou `nil` se ela não existe |
+| `date.days_in_month(ano, mes)` | `28`–`31`, com bissexto |
+| `date.compare(a, b)` | `-1` / `0` / `1` |
+| `date.is_before(a, b)` / `date.is_after(a, b)` | booleano |
+| `date.add(iso, delta)` | ISO na **mesma forma** da entrada |
+| `date.diff(a, b)` / `date.diff_seconds(a, b)` | dias de calendário / segundos |
+| `date.format(iso, fmt)` | texto (`YYYY` `YY` `MM` `DD` `HH` `mm` `SS`) |
+
+Três detalhes que economizam bugs:
+
+- **Comparar é pelo instante, não pelo texto.** ISO ordena como string, mas só
+  entre valores da **mesma forma**: `"2026-09-10 08:00" > "2026-09-10"` é
+  verdadeiro só porque a string é mais longa, ainda que os dois sejam o mesmo
+  dia. `date.is_after` e `date.compare` tiram essa pegadinha da frente — uma
+  data pura vale a meia-noite dela.
+- **`add` preserva a forma.** Somar um dia a um `YYYY-MM-DD` não inventa um
+  `00:00` no fim; somar uma hora a um `HH:MM` vira dentro do dia, porque não há
+  data para onde transbordar. `months`/`years` andam pelo **calendário** e
+  grudam no fim do mês (31/01 + 1 mês = 28/02, como o `QDateEdit` ao trocar a
+  seção do mês); `days`/`hours`/`minutes`/`seconds` são duração pura.
+- **O parse aqui é estrito.** Entrada inválida — inclusive uma data que não
+  existe, como `2026-02-31` — devolve `nil`. É o oposto do parse do widget, que
+  é tolerante de propósito para não renderizar quebrado enquanto a pessoa
+  digita; um script pode escolher o que fazer com o `nil`, um widget no meio de
+  um quadro não pode.
+
+O relógio é lido **na chamada**: uma tela que precisa andar sozinha combina com
+`every` — `every(1000, function() ctx.agora = date.now(true) end)`.
+
+Veja [`examples/data_hora_luau`](examples/data_hora_luau).
+
 ### `viewport`, `toast`, `confirm`, `navigate`
 
 - **`viewport()`** → `{ width, height }` em px lógicos (tamanho atual da janela).
@@ -1459,6 +1523,7 @@ pub enum EngineMessage {
 | `confirm(opts)` | diálogo modal | não |
 | `navigate(tela)` / `navigate_back()` | navegação | não |
 | `storage.get/set/remove` | persistência local em JSON | não |
+| `date.today/now/add/diff/format/…` | data e hora sobre strings ISO | não |
 | `json.encode/decode/array` | (de)serialização JSON | não |
 | `require(mod)` | importa uma biblioteca `.luau` | não |
 | `on_error(msg)` | hook opcional de erro de script | — |
@@ -1494,7 +1559,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
-| `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script, zero lógica em Rust. |
+| `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 

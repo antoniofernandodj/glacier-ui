@@ -57,6 +57,54 @@ declare json: {
     array: <T>(t: { T }) -> { T },
 }
 
+-- Aritmética de data/hora sobre strings ISO (`YYYY-MM-DD`, `HH:MM[:SS]`, ou as
+-- duas separadas por espaço) — o formato que os <dateedit>/<timeedit>/
+-- <datetimeedit> gravam na chave. Devolve `nil` quando a entrada não é ISO
+-- válida, inclusive para uma data que não existe (31/02).
+export type DateParts = {
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    min: number,
+    sec: number,
+}
+
+export type DateDelta = {
+    years: number?,
+    months: number?,
+    days: number?,
+    hours: number?,
+    minutes: number?,
+    seconds: number?,
+}
+
+declare date: {
+    -- Relógio local do sistema, no formato de cada campo.
+    today: () -> string,
+    now: (segundos: boolean?) -> string,
+    time: (segundos: boolean?) -> string,
+    -- Leitura.
+    parse: (iso: string) -> DateParts?,
+    valid: (iso: string) -> boolean,
+    weekday: (iso: string) -> number?, -- 1 = domingo, como os.date("*t").wday
+    date_of: (iso: string) -> string?,
+    time_of: (iso: string) -> string?,
+    days_in_month: (ano: number, mes: number) -> number,
+    -- Comparação pelo INSTANTE, e não pelo texto: funciona entre formas
+    -- diferentes ("2026-09-10 08:00" vs. "2026-09-10").
+    compare: (a: string, b: string) -> number?,
+    is_before: (a: string, b: string) -> boolean,
+    is_after: (a: string, b: string) -> boolean,
+    -- Aritmética. `add` devolve na MESMA forma da entrada; meses e anos andam
+    -- pelo calendário (31/01 + 1 mês = 28/02).
+    add: (iso: string, delta: DateDelta?) -> string?,
+    diff: (a: string, b: string) -> number?, -- dias de calendário
+    diff_seconds: (a: string, b: string) -> number?,
+    -- Exibição: tokens YYYY YY MM DD HH mm SS.
+    format: (iso: string, fmt: string) -> string?,
+}
+
 declare storage: {
     get: (key: string) -> any,
     set: (key: string, value: any) -> (),

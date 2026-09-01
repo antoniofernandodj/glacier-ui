@@ -6,6 +6,14 @@
 -- widget só avisa — quem decide se o valor entra é este script. É o mesmo
 -- contrato do `<TextInput>`, e é o que torna possível recusar um valor.
 --
+-- O segundo ponto é o global `date` (prelúdio, `src/luau/prelude.luau`): as
+-- regras aqui embaixo são de negócio, mas as contas que elas fazem — quantas
+-- noites, que dia da semana, um dia antes — não são. Antes da 0.72 este exemplo
+-- carregava um `days_from_civil` escrito à mão só para não puxar uma crate de
+-- data para dentro do motor; ele não precisa mais, e o motor continua sem a
+-- crate: o `date` é Luau puro sobre strings ISO, e o relógio sai do `os.date`
+-- que o próprio Luau já tem.
+--
 -- O `.luaurc` da raiz põe o projeto em `languageMode: strict`, então vale
 -- anotar: `ctx` é declarado como `{ [string]: string }`, e é dele que sai o
 -- tipo de tudo que atravessa a fronteira com o motor.
@@ -16,86 +24,46 @@
 -- para silenciar quebraria a busca. Todos os scripts de `examples/` têm o mesmo
 -- ruído. O que **não** se tolera é `TypeError`.
 
--- ── Comparação ──────────────────────────────────────────────────────────────
+-- ── Exibição ────────────────────────────────────────────────────────────────
 --
--- O widget grava SEMPRE em ISO (`YYYY-MM-DD`, `HH:MM`), independentemente de o
--- campo estar exibindo `DD/MM/YYYY`. E ISO ordena como texto: comparar duas
--- strings dessas É comparar as datas, sem parse e sem biblioteca. É a razão
--- prática de o widget nunca gravar no formato de exibição.
-local function depois_de(a: string, b: string): boolean
-    return a > b
-end
+-- 1 = domingo, a mesma base do `date.weekday` e do `os.date("*t").wday`.
+local SEMANA: { string } = {
+    "domingo",
+    "segunda",
+    "terça",
+    "quarta",
+    "quinta",
+    "sexta",
+    "sábado",
+}
 
--- ── Calendário ──────────────────────────────────────────────────────────────
---
--- Aritmética à mão de propósito: o motor não depende de `chrono`/`time` (a
--- decisão segue em aberto no PLANO_WIDGETS.md §4), e um exemplo não deveria ser
--- o que força essa escolha.
-
--- Dias desde a época Unix, pelo `days_from_civil` de Howard Hinnant: tratar
--- março como primeiro mês do ano joga o bissexto para o fim e elimina o caso
--- especial de fevereiro.
-local function dias_civis(ano: number, mes: number, dia: number): number
-    local y: number = if mes <= 2 then ano - 1 else ano
-    local era: number = math.floor(y / 400)
-    local yoe: number = y - era * 400
-    local mp: number = (mes + 9) % 12
-    local doy: number = math.floor((153 * mp + 2) / 5) + dia - 1
-    local doe: number = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
-    return era * 146097 + doe - 719468
-end
-
--- `nil` quando a string não é uma data ISO — o campo pode estar vazio antes do
--- `init`, e o resumo precisa sobreviver a isso.
-local function para_dias(iso: string): number?
-    local a, m, d = string.match(iso, "(%d+)-(%d+)-(%d+)")
-    if a == nil or m == nil or d == nil then
-        return nil
+-- `DD/MM` mais o dia da semana. A chave continua ISO o tempo todo: isto é só o
+-- que vai para a tela, a mesma separação que o widget faz entre o valor e o
+-- `format="br"`.
+local function por_extenso(iso: string): string
+    local dia: number? = date.weekday(iso)
+    if dia == nil then
+        return "—"
     end
-    local ano, mes, dia = tonumber(a), tonumber(m), tonumber(d)
-    if ano == nil or mes == nil or dia == nil then
-        return nil
-    end
-    return dias_civis(ano, mes, dia)
-end
-
--- A parte de data de um `YYYY-MM-DD HH:MM`. Existe porque comparar um valor de
--- `<datetimeedit>` com um de `<dateedit>` como texto puro dá errado:
--- `"2026-09-10 08:00" > "2026-09-10"` é verdadeiro (a string é mais longa),
--- ainda que os dois sejam o mesmo dia. ISO só ordena entre formatos **iguais** —
--- recortar antes de comparar é o que restabelece isso.
-local function dia_de(iso: string): string
-    return string.sub(iso, 1, 10)
+    return `{date.format(iso, "DD/MM")} ({SEMANA[dia]})`
 end
 
 -- ── Estado derivado ─────────────────────────────────────────────────────────
 
 local function recalcular(): ()
-    local entrada: number? = para_dias(ctx.checkin)
-    local saida: number? = para_dias(ctx.checkout)
-    -- Dois `if` separados, e não `if not entrada or not saida`: o refinamento
-    -- de tipo do Luau estreita uma variável por vez, então a forma com `or`
-    -- deixa as duas como `number?` depois do `return` e a subtração não compila.
-    if entrada == nil then
+    -- Uma chamada faz o que antes eram três funções e vinte linhas de
+    -- aritmética civil. `diff` conta dias de CALENDÁRIO — a hora não entra,
+    -- que é exatamente como uma diária é contada.
+    local noites: number? = date.diff(ctx.checkout, ctx.checkin)
+    if noites == nil then
         ctx.resumo = "—"
-        return
-    end
-    if saida == nil then
-        ctx.resumo = "—"
+        ctx.periodo = ""
         return
     end
 
-    local noites: number = saida - entrada
     local plural: string = if noites == 1 then "noite" else "noites"
-    ctx.resumo = string.format(
-        "%d %s · entrada %s às %s · saída %s · lembrete %s",
-        noites,
-        plural,
-        ctx.checkin,
-        ctx.chegada,
-        ctx.checkout,
-        ctx.lembrete
-    )
+    ctx.resumo = `{noites} {plural} · chegada às {ctx.chegada} · lembrete {date.format(ctx.lembrete, "DD/MM HHhmm")}`
+    ctx.periodo = `{por_extenso(ctx.checkin)} → {por_extenso(ctx.checkout)}`
 end
 
 local function recusar(motivo: string): ()
@@ -113,18 +81,30 @@ end
 -- ── Handlers (chamados pelo motor, pelo nome) ───────────────────────────────
 
 function init(): ()
-    ctx.checkin = "2026-09-10"
-    ctx.checkout = "2026-09-12"
+    -- Semeado a partir do relógio do sistema, não de datas fixas: `today` e
+    -- `add` já devolvem no formato que o `<dateedit>` espera, então o valor sai
+    -- daqui e entra no widget sem conversão nenhuma no meio.
+    ctx.checkin = date.today()
+    ctx.checkout = date.add(ctx.checkin, { days = 2 })
     ctx.chegada = "14:00"
-    ctx.lembrete = "2026-09-09 18:00"
+    -- Véspera da entrada, às 18h — a forma da entrada manda: como a string tem
+    -- data e hora, a saída também tem.
+    ctx.lembrete = date.add(`{ctx.checkin} 18:00`, { days = -1 })
     ctx.aviso = ""
     recalcular()
 end
 
--- Só aceita a entrada se ela continuar antes da saída. As duas regras são a
--- mesma comparação vista dos dois lados, e por isso passam pelo mesmo helper.
+-- Duas regras, e é aqui que o `date` paga o aluguel: `is_before` compara pelo
+-- INSTANTE, não pelo texto. Comparar as strings direto funcionaria entre dois
+-- `<dateedit>` (ISO ordena), mas quebra assim que uma das pontas tem hora —
+-- `"2026-09-10 08:00" > "2026-09-10"` é verdadeiro só porque a string é mais
+-- longa. Uma comparação só, sem recortar nada antes.
 function set_checkin(novo: string): ()
-    if not depois_de(ctx.checkout, novo) then
+    if date.is_before(novo, date.today()) then
+        recusar("A entrada não pode ser no passado.")
+        return
+    end
+    if not date.is_before(novo, ctx.checkout) then
         recusar("A entrada precisa ser antes da saída.")
         return
     end
@@ -134,7 +114,7 @@ end
 
 -- Mesma regra pelo outro lado.
 function set_checkout(novo: string): ()
-    if not depois_de(novo, ctx.checkin) then
+    if not date.is_after(novo, ctx.checkin) then
         recusar("A saída precisa ser depois da entrada.")
         return
     end
@@ -142,11 +122,11 @@ function set_checkout(novo: string): ()
     aceitar()
 end
 
--- O lembrete tem de cair até o dia da entrada. Repare que a comparação é entre
--- os **dias**, não entre as strings inteiras: o lembrete carrega hora e o
--- check-in não.
+-- O lembrete carrega hora e o check-in não, e o `is_after` resolve os dois
+-- formatos sem o recorte manual que este exemplo fazia antes: uma data pura
+-- vale a meia-noite dela, então "até o dia da entrada" cai naturalmente.
 function set_lembrete(novo: string): ()
-    if depois_de(dia_de(novo), ctx.checkin) then
+    if date.is_after(novo, `{ctx.checkin} 23:59`) then
         recusar("O lembrete tem de ser até o dia da entrada.")
         return
     end
@@ -176,4 +156,21 @@ end
 function turno_noite(): ()
     ctx.chegada = "20:00"
     recalcular()
+end
+
+-- Atalhos de período: `add` sobre o valor corrente, na mesma forma dele. É o
+-- caso em que a aritmética não é do widget nem do negócio — é só data.
+function mais_uma_noite(): ()
+    ctx.checkout = date.add(ctx.checkout, { days = 1 })
+    aceitar()
+end
+
+-- Meses andam pelo calendário e grudam no fim: 31/01 + 1 mês é 28/02. Vale
+-- experimentar com uma entrada em 31 de janeiro.
+function daqui_um_mes(): ()
+    local entrada: string = date.add(ctx.checkin, { months = 1 })
+    ctx.checkout = date.add(entrada, { days = date.diff(ctx.checkout, ctx.checkin) })
+    ctx.checkin = entrada
+    ctx.lembrete = date.add(`{date.date_of(ctx.checkin)} 18:00`, { days = -1 })
+    aceitar()
 end

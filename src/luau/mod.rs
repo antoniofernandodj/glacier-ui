@@ -3393,6 +3393,120 @@ mod tests {
     }
 
     #[test]
+    fn date_do_prelude_faz_aritmetica_de_calendario_sobre_iso() {
+        // O contrato do módulo `date`: entra string ISO, sai string ISO, na
+        // MESMA forma da entrada. Os casos abaixo são os que a aritmética à mão
+        // costuma errar — fim de mês, bissexto, e a virada de dia pela hora.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.mes = date.add('2026-01-31', { months = 1 })\n\
+               ctx.bissexto = date.add('2024-01-31', { months = 1 })\n\
+               ctx.dia = date.add('2026-12-31', { days = 1 })\n\
+               ctx.vira = date.add('2026-09-10 23:30', { minutes = 45 })\n\
+               ctx.so_hora = date.add('23:30', { hours = 1 })\n\
+               ctx.com_seg = date.add('2026-09-10 08:00:05', { seconds = 60 })\n\
+               ctx.invalido = tostring(date.add('2026-02-31', { days = 1 }))\n\
+               ctx.recua = date.add('2026-01-01', { days = -1 })\n\
+               ctx.recua_mes = date.add('2026-03-31', { months = -1 })\n\
+               local p = date.parse('2026-09-10 18:05:30')\n\
+               ctx.partes = `{p.year}/{p.month}/{p.day} {p.hour}:{p.min}:{p.sec}`\n\
+               ctx.seculo = tostring(date.days_in_month(2100, 2))\n\
+               ctx.seculo_400 = tostring(date.days_in_month(2000, 2))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        // 31/01 + 1 mês gruda no fim de fevereiro, como o QDateEdit ao trocar
+        // a seção do mês — e o ano bissexto muda a resposta.
+        assert_eq!(g("mes"), Some("2026-02-28"));
+        assert_eq!(g("bissexto"), Some("2024-02-29"));
+        assert_eq!(g("dia"), Some("2027-01-01"));
+        // A hora transborda para o dia quando há data...
+        assert_eq!(g("vira"), Some("2026-09-11 00:15"));
+        // ...e vira dentro do dia quando não há para onde transbordar.
+        assert_eq!(g("so_hora"), Some("00:30"));
+        // A forma da entrada é preservada: com segundos, sai com segundos.
+        assert_eq!(g("com_seg"), Some("2026-09-10 08:01:05"));
+        // Data que não existe é recusada (o parse do Luau é estrito, ao
+        // contrário do `Instante` do widget).
+        assert_eq!(g("invalido"), Some("nil"));
+        // Delta negativo atravessa o ano para trás...
+        assert_eq!(g("recua"), Some("2025-12-31"));
+        // ...e o mês para trás gruda igual (31/03 - 1 mês = 28/02).
+        assert_eq!(g("recua_mes"), Some("2026-02-28"));
+        assert_eq!(g("partes"), Some("2026/9/10 18:5:30"));
+        // A regra do século, que um `% 4` ingênuo erraria.
+        assert_eq!(g("seculo"), Some("28"), "2100 não é bissexto");
+        assert_eq!(g("seculo_400"), Some("29"), "2000 é bissexto");
+    }
+
+    #[test]
+    fn date_compara_formas_diferentes_e_conta_dias() {
+        // A pegadinha que o módulo existe para tirar da frente: como texto,
+        // "2026-09-10 08:00" > "2026-09-10" só porque a string é mais longa.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.texto = tostring('2026-09-10 08:00' > '2026-09-10')\n\
+               ctx.certo = tostring(date.is_after('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.mesmo_dia = tostring(date.diff('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.noites = tostring(date.diff('2026-09-12', '2026-09-10'))\n\
+               ctx.segundos = tostring(date.diff_seconds('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.wday = tostring(date.weekday('1970-01-01'))\n\
+               ctx.fmt = date.format('2026-09-10 18:05', 'DD/MM/YYYY HHhmm')\n\
+               ctx.recorte = tostring(date.date_of('2026-09-10 18:05'))\n\
+               ctx.sem_hora = tostring(date.time_of('2026-09-10'))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("texto"), Some("true"), "a comparação ingênua mente");
+        assert_eq!(g("certo"), Some("true"), "08:00 é depois da meia-noite");
+        // `diff` conta dias de CALENDÁRIO: mesmo dia, ainda que a hora difira.
+        assert_eq!(g("mesmo_dia"), Some("0"));
+        assert_eq!(g("noites"), Some("2"));
+        assert_eq!(g("segundos"), Some("28800"));
+        // 1970-01-01 foi quinta — wday 5, a mesma base do os.date("*t").
+        assert_eq!(g("wday"), Some("5"));
+        assert_eq!(g("fmt"), Some("10/09/2026 18h05"));
+        assert_eq!(g("recorte"), Some("2026-09-10"));
+        // Seção que a string não tem devolve nil, e não um "00:00" inventado.
+        assert_eq!(g("sem_hora"), Some("nil"));
+    }
+
+    #[test]
+    fn date_le_o_relogio_local_no_formato_dos_campos() {
+        // `today`/`now`/`time` saem do os.date do próprio Luau — nenhuma crate
+        // de data no motor. O teste fixa o FORMATO (que é o contrato com os
+        // widgets), não o instante.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.hoje = date.today()\n\
+               ctx.agora = date.now()\n\
+               ctx.agora_s = date.now(true)\n\
+               ctx.hora = date.time()\n\
+               ctx.ida_e_volta = tostring(date.diff(date.today(), date.today()))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::new());
+        let hoje = data.get("hoje").expect("date.today()");
+        assert_eq!(hoje.len(), 10, "today = YYYY-MM-DD, deu {hoje}");
+        assert_eq!(data.get("agora").map(String::len), Some(16));
+        assert_eq!(data.get("agora_s").map(String::len), Some(19));
+        assert_eq!(data.get("hora").map(String::len), Some(5));
+        // O que o relógio devolve tem de voltar a entrar no módulo.
+        assert_eq!(data.get("ida_e_volta").map(String::as_str), Some("0"));
+    }
+
+    #[test]
     fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();

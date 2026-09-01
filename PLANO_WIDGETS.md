@@ -143,10 +143,10 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 > **A dependência de datas não foi necessária** para os três campos de edição: a
 > aritmética que eles pedem é somar 1 numa seção e saber quantos dias tem o mês
 > — bissexto incluído, regra do século incluída —, o que cabe em vinte linhas
-> (`Instante`, em `src/widget.rs`). A decisão `chrono` vs. `time` (§4) segue em
-> aberto e passa a valer para o que realmente precisa dela: o `Calendar`, que
-> tem de saber em que **dia da semana** um mês começa, e qualquer aritmética de
-> intervalo.
+> (`Instante`, em `src/widget.rs`). E não foi necessária **nem para o resto**: a
+> 0.72 fechou a decisão `chrono` vs. `time` (§4) pela negativa, com o global
+> `date` do prelúdio Luau cobrindo intervalo, dia da semana e formatação sobre
+> strings ISO, sem crate nenhuma.
 >
 > Os três campos **também não precisaram de estado por instância** — ver a
 > correção na §3.
@@ -387,7 +387,22 @@ Ordem sugerida de habilitadores de Motor:
   nativo do SO, em `src/file_dialog.rs`, exposto ao Luau como
   `open_file`/`open_files`/`save_file`/`pick_folder`. A versão própria
   estilizável segue em P3. Cor e fonte continuam em aberto pela mesma pergunta.
-- **Dependência de datas**: `chrono` vs. `time` para o módulo de data/hora.
+- ~~**Dependência de datas**: `chrono` vs. `time` para o módulo de data/hora.~~
+  — **respondida pela negativa na 0.72**: o motor não puxa nenhuma das duas. O
+  lado Luau ganhou o global `date` (`src/luau/prelude.luau`), Luau puro sobre
+  strings ISO, com `today`/`now` saindo do `os.date` que o dialeto já tem — o
+  `io`/`os.execute` é que está fora do sandbox, o relógio não. O lado Rust já
+  tinha o `Instante` (`src/widget.rs`), e a semântica dele é *anti*-calendário
+  de propósito (cada seção vira dentro de si, sem carry), que é o oposto do que
+  um `NaiveDateTime` faz — trocar seria desarmar a crate o tempo todo.
+
+  Sobra **um** caso que a `std` não cobre: o *offset local* em Rust (a `std` só
+  dá epoch UTC), necessário se o `Calendar` for marcar "hoje" sem receber a data
+  por chave de contexto. Se um dia precisar, é **`chrono`**, não `time`:
+  `time::OffsetDateTime::now_local()` devolve `Err` em processo multithread no
+  Unix (o problema do `localtime_r`/`setenv`), e o motor é tokio — falharia
+  justo no caso de uso. O dia da semana, esse, não pede crate: é
+  `days_from_civil`, seis linhas, já em uso nos dois lados.
 - **Gráficos**: `canvas` na mão vs. integrar `plotters`.
 - **Convenção de nomes**: manter aliases PT-BR (`botao`, `seletor`, `rolagem`…)
   para todo widget novo, ou só para o núcleo? (hoje o núcleo tem os dois.)
@@ -621,8 +636,9 @@ Os três **campos de edição** saíram: `<dateedit>`, `<timeedit>` e
 precisaram de habilitador nenhum — ver a correção na §3.
 
 Sobra a metade **calendário**: `Calendar` (a grade de mês, que precisa de estado
-de navegação por instância e de saber em que dia da semana o mês começa — é ela
-que puxa a decisão `chrono` vs. `time` da §4) e, sobre ela, a variante
+de navegação por instância e de saber em que dia da semana o mês começa — e isso
+NÃO puxa mais a decisão `chrono` vs. `time`, ver a §4: dia da semana é
+`days_from_civil`) e, sobre ela, a variante
 `calendarPopup` do `QDateEdit`, que espera o overlay ancorado genérico (§3, item
 5). Mais o `DateRangePicker` e o `MonthYearPicker`, que vêm de graça depois do
 `Calendar`.

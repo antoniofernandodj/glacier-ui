@@ -1,4 +1,4 @@
-<screen title="Glacier - Data e Hora (Luau)" size="660 520">
+<screen title="Glacier - Data e Hora (Luau)" size="700 580">
     <resources>
         <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
              script pelo <script> do template, não por convenção de nome. -->
@@ -11,6 +11,11 @@
             <text content="Reserva — regras em Luau" size="22" bold="true" color="#CDD6F4" />
             <text
                 content="Cada campo tem onChange, então o widget NÃO grava a chave: ele avisa, e o script decide. É o que permite recusar uma saída anterior à entrada — uma regra de negócio, que não cabe dentro do widget."
+                size="13"
+                color="#A6ADC8"
+            />
+            <text
+                content="As contas de data ficam com o global `date` do prelúdio (Luau puro sobre strings ISO): os valores iniciais saem do relógio do sistema, e as comparações não olham o texto, olham o instante."
                 size="13"
                 color="#A6ADC8"
             />
@@ -48,16 +53,26 @@
             <button text="Noite" on_click="turno_noite" padding="6 14" />
         </row>
 
+        <!-- Estes dois são `date.add` puro: deslocam o valor corrente sem que o
+             script precise saber quantos dias tem o mês. -->
+        <row spacing="10" align_y="center">
+            <text content="Período" width="90" color="#CDD6F4" />
+            <button text="+1 noite" on_click="mais_uma_noite" padding="6 14" />
+            <button text="Adiar 1 mês" on_click="daqui_um_mes" padding="6 14" />
+            <text content="mês anda pelo calendário: 31/01 + 1 mês = 28/02" size="12" color="#6C7086" />
+        </row>
+
         <rule />
 
         <!-- O resumo é recalculado no script a cada alteração aceita. -->
         <column spacing="6">
-            <text content="{resumo}" size="15" bold="true" color="#CDD6F4" />
+            <text content="{periodo}" size="15" bold="true" color="#CDD6F4" />
+            <text content="{resumo}" size="14" color="#A6ADC8" />
             <text if="{aviso}" notEquals="" content="{aviso}" size="13" color="#F38BA8" />
         </column>
 
         <text
-            content="Tente puxar a saída para antes da entrada: o script recusa, avisa e o campo volta ao valor anterior."
+            content="Tente puxar a saída para antes da entrada, ou a entrada para ontem: o script recusa, avisa e o campo volta ao valor anterior."
             size="12"
             color="#6C7086"
         />

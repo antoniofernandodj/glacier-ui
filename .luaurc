@@ -15,6 +15,7 @@
         "after",
         "viewport",
         "storage",
+        "date",
         "every"
     ]
 }

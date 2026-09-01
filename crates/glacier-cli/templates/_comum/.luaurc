@@ -21,6 +21,7 @@
         "after",
         "every",
         "viewport",
-        "storage"
+        "storage",
+        "date"
     ]
 }

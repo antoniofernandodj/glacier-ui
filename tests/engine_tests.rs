@@ -1202,6 +1202,11 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
 /// O exemplo `data_hora_luau`: os campos com `onChange` **delegam**, e é o
 /// script que decide se o valor entra. Guarda as duas metades — a regra que
 /// aceita e a que recusa.
+///
+/// Desde a 0.72 o exemplo semeia tudo a partir do relógio (`date.today()`), e
+/// por isso este teste é RELATIVO: nada de data fixa, que envelheceria junto
+/// com o calendário. O que ele fixa são as relações — quantas noites, o que é
+/// aceito, o que é recusado.
 #[test]
 fn test_exemplo_data_hora_luau_valida_no_script() {
     use glacier_ui::EngineMessage;
@@ -1213,10 +1218,19 @@ fn test_exemplo_data_hora_luau_valida_no_script() {
     motor.set_initial_screen("reserva");
 
     // O `init()` do Luau semeou tudo — o `main.rs` não chama `define_data`.
+    let checkin = motor
+        .context()
+        .get("checkin")
+        .cloned()
+        .expect("o init() do app.luau precisa ter rodado");
     assert_eq!(
-        motor.context().get("checkin").map(String::as_str),
-        Some("2026-09-10"),
-        "o init() do app.luau precisa ter rodado"
+        checkin.len(),
+        10,
+        "o `date.today()` tem de sair no formato do <dateedit>: {checkin}"
+    );
+    assert!(
+        checkin.chars().all(|c| c.is_ascii_digit() || c == '-'),
+        "ISO puro, sem formato de exibição: {checkin}"
     );
     assert!(
         motor
@@ -1226,32 +1240,38 @@ fn test_exemplo_data_hora_luau_valida_no_script() {
         "o resumo é calculado no script: {:?}",
         motor.context().get("resumo")
     );
-
-    // Uma saída DEPOIS da entrada é aceita e o resumo acompanha.
-    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "set_checkout".into(),
-        value: "2026-09-15".into(),
-    });
-    assert_eq!(
-        motor.context().get("checkout").map(String::as_str),
-        Some("2026-09-15")
+    assert!(
+        motor
+            .context()
+            .get("periodo")
+            .is_some_and(|p| p.contains('→')),
+        "o período mostra as duas pontas por extenso: {:?}",
+        motor.context().get("periodo")
     );
+
+    // `date.add` puro: mais uma noite, sem o script saber quantos dias tem o mês.
+    let _ = motor.dispatch(&EngineMessage::UiClick("mais_uma_noite".into()));
     assert!(
         motor
             .context()
             .get("resumo")
-            .is_some_and(|r| r.contains("5 noites"))
+            .is_some_and(|r| r.contains("3 noites"))
     );
+    let checkout = motor
+        .context()
+        .get("checkout")
+        .cloned()
+        .expect("checkout semeado");
     assert_eq!(motor.context().get("aviso").map(String::as_str), Some(""));
 
     // Uma saída ANTES da entrada é recusada: a chave não muda e o aviso aparece.
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
         action: "set_checkout".into(),
-        value: "2026-09-01".into(),
+        value: checkin.clone(),
     });
     assert_eq!(
-        motor.context().get("checkout").map(String::as_str),
-        Some("2026-09-15"),
+        motor.context().get("checkout"),
+        Some(&checkout),
         "o valor recusado não pode ter sido gravado"
     );
     assert!(
@@ -1262,7 +1282,24 @@ fn test_exemplo_data_hora_luau_valida_no_script() {
         "o script tem de explicar a recusa"
     );
 
-    // E um preset escreve a chave direto, sem passar pelo widget.
+    // E a regra que só existe porque o script sabe que dia é hoje.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "set_checkin".into(),
+        value: "2000-01-01".into(),
+    });
+    assert_eq!(
+        motor.context().get("checkin"),
+        Some(&checkin),
+        "uma entrada no passado não pode ter sido gravada"
+    );
+    assert!(
+        motor
+            .context()
+            .get("aviso")
+            .is_some_and(|a| a.contains("no passado"))
+    );
+
+    // Um preset escreve a chave direto, sem passar pelo widget.
     let _ = motor.dispatch(&EngineMessage::UiClick("turno_manha".into()));
     assert_eq!(
         motor.context().get("chegada").map(String::as_str),
@@ -1270,28 +1307,47 @@ fn test_exemplo_data_hora_luau_valida_no_script() {
     );
 
     // O `<datetimeedit>` do lembrete tem a regra mais sutil: ele carrega hora e
-    // o check-in não, então a comparação é entre os DIAS. Um lembrete no próprio
-    // dia da entrada entra, mesmo com hora — que é o que a comparação de string
-    // inteira recusaria (`"2026-09-10 08:00" > "2026-09-10"`).
+    // o check-in não. Um lembrete no próprio dia da entrada entra, mesmo com
+    // hora — que é o que a comparação de string inteira recusaria
+    // (`"…-10 08:00" > "…-10"` é verdadeiro só porque a string é mais longa).
+    // Quem resolve isso é o `date.is_after`, que compara o instante.
+    let no_dia = format!("{checkin} 08:00");
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
         action: "set_lembrete".into(),
-        value: "2026-09-10 08:00".into(),
+        value: no_dia.clone(),
     });
     assert_eq!(
-        motor.context().get("lembrete").map(String::as_str),
-        Some("2026-09-10 08:00"),
+        motor.context().get("lembrete"),
+        Some(&no_dia),
         "um lembrete no dia da entrada é válido"
     );
 
     // Um dia depois da entrada é recusado.
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
         action: "set_lembrete".into(),
-        value: "2026-09-11 08:00".into(),
+        value: format!("{checkout} 08:00"),
     });
     assert_eq!(
-        motor.context().get("lembrete").map(String::as_str),
-        Some("2026-09-10 08:00"),
+        motor.context().get("lembrete"),
+        Some(&no_dia),
         "o valor recusado não pode ter sido gravado"
+    );
+
+    // Adiar um mês anda pelo CALENDÁRIO e preserva o intervalo — a conta que
+    // ninguém quer escrever à mão no script de uma tela.
+    let _ = motor.dispatch(&EngineMessage::UiClick("daqui_um_mes".into()));
+    assert_ne!(
+        motor.context().get("checkin"),
+        Some(&checkin),
+        "adiar um mês tem de mover a entrada"
+    );
+    assert!(
+        motor
+            .context()
+            .get("resumo")
+            .is_some_and(|r| r.contains("3 noites")),
+        "o número de noites tem de sobreviver ao adiamento: {:?}",
+        motor.context().get("resumo")
     );
 }
 

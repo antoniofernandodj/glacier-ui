@@ -8,6 +8,74 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.72.0] — 2026-09-01
+
+### Adicionado
+- **`date`: aritmética de data e hora no Luau, sem dependência nova.** Novo
+  global do prelúdio (`src/luau/prelude.luau`) que opera sobre as **strings
+  ISO** que os `<dateedit>`/`<timeedit>`/`<datetimeedit>` já gravam na chave de
+  contexto — recebe string, devolve string, e por isso nada de "objeto data"
+  vaza para uma chave (que é sempre texto).
+
+  ```lua
+  ctx.entrada = date.today()                          -- "2026-09-01"
+  ctx.saida   = date.add(ctx.entrada, { days = 2 })   -- "2026-09-03"
+  ctx.noites  = date.diff(ctx.saida, ctx.entrada)     -- 2
+  ctx.rotulo  = date.format(ctx.entrada, "DD/MM/YYYY")
+  ```
+
+  Relógio: `today`, `now(segundos?)`, `time(segundos?)`. Leitura: `parse`,
+  `valid`, `weekday` (1 = domingo, a base do `os.date("*t").wday`), `date_of`,
+  `time_of`, `days_in_month`. Comparação: `compare`, `is_before`, `is_after`.
+  Aritmética: `add`, `diff` (dias de calendário), `diff_seconds`. Exibição:
+  `format` (`YYYY` `YY` `MM` `DD` `HH` `mm` `SS`).
+
+  Três decisões que valem saber:
+
+  - **Comparar é pelo instante, não pelo texto.** ISO ordena como string, mas só
+    entre valores da mesma forma: `"2026-09-10 08:00" > "2026-09-10"` é
+    verdadeiro só porque a string é mais longa, ainda que os dois sejam o mesmo
+    dia. `is_after`/`compare` tiram isso da frente — uma data pura vale a
+    meia-noite dela.
+  - **`add` preserva a forma da entrada.** Somar um dia a um `YYYY-MM-DD` não
+    inventa `00:00` no fim; somar uma hora a um `HH:MM` vira dentro do dia,
+    porque não há data para onde transbordar. `months`/`years` andam pelo
+    calendário e grudam no fim do mês (31/01 + 1 mês = 28/02, como o `QDateEdit`
+    ao trocar a seção do mês); `days`/`hours`/`minutes`/`seconds` são duração.
+  - **O parse é estrito**, ao contrário do `Instante` do widget: entrada
+    inválida — inclusive uma data que não existe, como `2026-02-31` — devolve
+    `nil`. O widget é tolerante porque não pode renderizar quebrado enquanto a
+    pessoa digita; um script pode escolher o que fazer com o `nil`.
+
+  Tipos em `views/scripts/glacier.d.luau` (templates da CLI) e `date` na lista
+  de globais do `.luaurc`.
+
+### Decidido
+- **`chrono` vs. `time` (PLANO_WIDGETS.md §4): nenhuma das duas.** A pergunta
+  estava aberta desde a 0.68 e a resposta é que o motor não precisa de crate de
+  data. O lado Luau é o `date` acima — `today`/`now` saem do `os.date` que o
+  dialeto Luau já tem (o sandbox tira `io` e `os.execute`, não o relógio), e o
+  resto é `days_from_civil`. O lado Rust já tinha o `Instante`
+  (`src/widget.rs`), cuja semântica é *anti*-calendário de propósito (cada seção
+  vira dentro de si, sem carry) — exatamente o oposto de um `NaiveDateTime`.
+
+  Isso destrava o `Calendar` da Onda 4, que se acreditava bloqueado por esta
+  decisão: dia da semana é `days_from_civil`, não crate. Sobra um único caso
+  para reabrir a pergunta, se um dia aparecer: o *offset local* em Rust (a `std`
+  só dá epoch UTC). Se precisar, é **`chrono`** — o `time` devolve `Err` em
+  `now_local()` dentro de processo multithread no Unix, e o motor é tokio.
+
+### Alterado
+- **`examples/data_hora_luau` reescrito sobre o `date`.** O script carregava um
+  `days_from_civil` escrito à mão (e um recorte manual de `YYYY-MM-DD` para
+  comparar formas diferentes) só para o exemplo não ser o que forçava a escolha
+  da crate; nada disso é mais necessário. Os valores iniciais passam a sair do
+  relógio em vez de datas fixas, entraram duas regras que só existem porque o
+  script sabe que dia é hoje, e dois botões novos (`+1 noite`, `Adiar 1 mês`)
+  mostram `date.add` andando pelo calendário.
+
+---
+
 ## [0.71.0] — 2026-09-01
 
 Release de ferramenta: **o motor não mudou** — `src/` é byte a byte o da 0.70.0.

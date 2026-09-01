@@ -97,8 +97,13 @@ impl TimeEditSel {
 
 /// Um instante como as seções do `<datetimeedit>` o tratam. Sem dependência de
 /// datas: o que o widget precisa é somar 1 numa seção e saber quantos dias o mês
-/// tem — quatro linhas de aritmética, não um crate (a escolha `chrono` vs.
-/// `time` do `PLANO_WIDGETS.md` §4 segue em aberto para os pickers de verdade).
+/// tem — quatro linhas de aritmética, não um crate.
+///
+/// E é aritmética *anti*-calendário de propósito: cada seção vira dentro de si
+/// (ver [`Instante::passo`]), que é o oposto do que um `NaiveDateTime` faria.
+/// Foi um dos dois motivos de a decisão `chrono` vs. `time` (`PLANO_WIDGETS.md`
+/// §4) ter sido fechada pela negativa na 0.72 — o outro é o global `date` do
+/// prelúdio Luau, que cobre a aritmética de verdade sem crate nenhuma.
 #[derive(Clone, Copy)]
 pub(crate) struct Instante {
     ano: i64,
