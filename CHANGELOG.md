@@ -8,6 +8,34 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.71.0] — 2026-09-01
+
+Release de ferramenta: **o motor não mudou** — `src/` é byte a byte o da 0.70.0.
+A versão sobe para que a extensão de VS Code e a CLI que a embute tenham um
+número de motor correspondente para apontar.
+
+### Adicionado
+- **A extensão Glacier View fecha a tag sozinha** (v0.9.0). Terminar uma
+  abertura com `>` escreve o par e deixa o cursor no meio: `<Column>` vira
+  `<Column></Column>`. Vale para componente do app também.
+
+  Fica de fora o que o motor lê como folha — `<Image>`, `<Badge>`, `<Radio>`,
+  `<Slider>`, `<TextInput>`, `<MenuItem>`, … —, que o markup do projeto inteiro
+  escreve com `/>`: fechar `<Image src="a.png">` num par vazio seria devolver
+  lixo para apagar. Também não dispara em `</x>`, `<x/>`, `>` dentro de valor de
+  atributo (`title="a > b"`), `>` solto em texto, tag em comentário, nem dentro
+  do corpo de um `<script>`/`<style>`.
+
+  Desliga em `glacierView.autoClosingTags`.
+
+### Quebras
+- **O par `<`/`>` saiu de `autoClosingPairs`** da extensão. Com o `>`
+  auto-inserido, digitá-lo apenas sobrescrevia o caractere e o editor não
+  emitia mudança nenhuma — era ele ou o fechamento de tag. Na prática não se
+  perde nada: o `>` agora vem junto do `</tag>`.
+
+---
+
 ## [0.70.0] — 2026-09-01
 
 ### Adicionado
