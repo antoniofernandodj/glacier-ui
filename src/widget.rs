@@ -1684,7 +1684,7 @@ pub fn render_node<'a>(
         }
         // Um `<slot/>` some na avaliação (vira `Fragment`, ver `eval`), então
         // aqui ele é tratado igual — se algum dia chegar, empilha o que embrulha.
-        NodeType::Slot | NodeType::Fragment => {
+        NodeType::Slot { .. } | NodeType::Fragment => {
             // A `Fragment`'s children are normally spliced into the parent
             // during evaluation (`expand_children`), so it seldom reaches
             // rendering; when it does (e.g. a multi-root screen root), stack

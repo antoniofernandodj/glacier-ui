@@ -38,6 +38,12 @@
                         <!-- A forma caixa, com controles de verdade dentro —
                              inclusive outro builtin (SpinBox) aninhado. -->
                         <groupbox title="Rede">
+                            <!-- slot NOMEADO: o conteúdo etiquetado `actions`
+                                 vai para a direita da linha do título, não
+                                 para dentro da moldura. -->
+                            <template slot="actions">
+                                <toolbutton icon="↻" tooltip="Recarregar" on_click="novo" />
+                            </template>
                             <checkbox label="Usar proxy" checked="usar_proxy" onToggle="nada" />
                             <row spacing="12" align_y="center">
                                 <text content="Host" width="70" color="#CDD6F4" />
@@ -106,7 +112,7 @@
                 <template else-if="{aba}" equals="cartoes">
                     <column spacing="18" width="fill">
                         <text
-                            content="Card — a superfície de um item: fundo próprio, cantos redondos e um cabeçalho com hierarquia. É a peça de uma lista ou grade, não de um formulário."
+                            content="Card — a superfície de um item: fundo próprio, cantos redondos e um cabeçalho com hierarquia. É a peça de uma lista ou grade, não de um formulário. O primeiro cartão tem rodapé (slot nomeado); os outros não pagam nem a linha."
                             size="13"
                             color="#A6ADC8"
                         />
@@ -117,6 +123,12 @@
                             <card title="Servidor" subtitle="produção" width="250">
                                 <text content="uptime 31 dias" size="13" color="#CDD6F4" />
                                 <badge badge_text="online" badge_bg="#A6E3A1" />
+                                <!-- O rodapé só existe quando alguém o
+                                     preenche: os dois cartões ao lado não
+                                     pagam nem a linha divisória. -->
+                                <template slot="footer">
+                                    <button text="Reiniciar" on_click="salvar" padding="6 12" />
+                                </template>
                             </card>
 
                             <card title="Banco" subtitle="réplica" width="250">

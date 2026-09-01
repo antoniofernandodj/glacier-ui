@@ -114,6 +114,8 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     "platform", "plataforma",
     // repetição
     "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // destino num slot nomeado do componente
+    "slot",
     // arrastar-e-soltar da lista repetida
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
     "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
@@ -926,7 +928,25 @@ pub enum NodeType {
     ///
     /// Os filhos do próprio `<slot>` são o **conteúdo de reserva**: aparecem
     /// quando quem usou o componente não escreveu nada dentro dele.
-    Slot,
+    ///
+    /// Com `name`, o componente abre **mais de um** buraco e escolhe o que vai
+    /// em cada um — o rodapé de um `<card>`, as ações no cabeçalho de um
+    /// `<groupbox>`. Quem usa etiqueta o conteúdo com o atributo `slot`:
+    ///
+    /// ```xml
+    /// <card title="Servidor">
+    ///     <text content="uptime 31 dias" />            <!-- vai no anônimo -->
+    ///     <template slot="footer">
+    ///         <button text="Reiniciar" on_click="reiniciar" />
+    ///     </template>
+    /// </card>
+    /// ```
+    ///
+    /// `None` é o slot **anônimo**, que recebe tudo que não foi etiquetado. Um
+    /// nome que ninguém preencheu cai no conteúdo de reserva dele, como sempre.
+    Slot {
+        name: Option<String>,
+    },
 }
 
 impl NodeType {
@@ -978,7 +998,7 @@ impl NodeType {
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop
-            | NodeType::Slot
+            | NodeType::Slot { .. }
             | NodeType::Fragment => return None,
         })
     }
@@ -1156,6 +1176,15 @@ pub struct UiNode {
     pub else_if_cond: Option<String>,
     pub for_each: Option<String>,
     pub for_each_var: Option<String>,
+    /// `slot="footer"` — em qual buraco **nomeado** do componente este nó entra.
+    /// É a contraparte, do lado de quem usa, do `<slot name="footer"/>` que o
+    /// template do componente escreve (ver [`NodeType::Slot`]). `None` = vai
+    /// para o slot anônimo.
+    ///
+    /// Como as outras diretivas, é lido pela fronteira de componente do `eval`
+    /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
+    /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
+    pub slot_name: Option<String>,
     /// Action dispatched (with the new order as a JSON array of `reorderKey`
     /// identities) when a reorderable `for-each`/`ForEach` item is dropped in a
     /// new position. Set on the same node that carries `for_each`/`for_each_var`.
@@ -1471,6 +1500,18 @@ impl UiNode {
             Self::get_attr(&node, &["for-each", "forEach", "foreach", "each", "repeat"])
         };
         let for_each_var = Self::get_attr(&node, &["var", "variavel"]);
+        // `slot="footer"` no USO. Num `<slot name="footer"/>` (a declaração, do
+        // lado do componente) quem carrega o nome é o `NodeType`, não isto — a
+        // tag `slot` usa o atributo `name`, e o atributo `slot` é de qualquer
+        // outra tag.
+        let slot_name = if matches!(
+            tag,
+            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo"
+        ) {
+            None
+        } else {
+            Self::get_attr(&node, &["slot", "espaco", "espaço"]).filter(|n| !n.trim().is_empty())
+        };
         let on_reorder = Self::get_attr(
             &node,
             &["onReorder", "on_reorder", "on-reorder", "aoReordenar"],
@@ -2202,7 +2243,11 @@ impl UiNode {
             // `<slot/>` — ver [`NodeType::Slot`]. Os filhos escritos dentro dele
             // ficam no nó (são o conteúdo de reserva); é o `eval` que decide
             // entre eles e o que veio do uso do componente.
-            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo" => NodeType::Slot,
+            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo" => {
+                NodeType::Slot {
+                    name: Self::get_attr(&node, &["name", "nome"]).filter(|n| !n.trim().is_empty()),
+                }
+            }
             "style" | "Style" | "stylesheet" | "Stylesheet" => {
                 // `<style href="...">` (or `src`) is an external sheet, equivalent
                 // to `<link rel="stylesheet">` (always global). A bodied
@@ -2319,6 +2364,7 @@ impl UiNode {
             else_if_cond,
             for_each,
             for_each_var,
+            slot_name,
             on_reorder,
             reorder_key,
             drag_handle,
@@ -3080,6 +3126,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         else_if_cond: None,
         for_each: None,
         for_each_var: None,
+        slot_name: None,
         on_reorder: None,
         reorder_key: None,
         drag_handle: false,

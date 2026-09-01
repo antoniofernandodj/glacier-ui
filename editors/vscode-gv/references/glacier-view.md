@@ -158,7 +158,22 @@ O buraco que o conteúdo escrito **entre as tags** de um componente preenche: `<
 
 - O conteúdo é avaliado no contexto e com o **dono de quem escreveu**: um `on_click="salvar"` escrito dentro de um `<groupbox>` chega no handler da **tela**, não do widget. Não escreva `app:` nele.
 - Os filhos do próprio `<slot>` são o **conteúdo de reserva**, usado quando quem chama não escreve nada dentro da tag. Esses são do componente e enxergam as props dele.
-- Um slot por componente, sem nome — `<slot name="…">` ainda não existe.
+
+**Mais de um buraco:** `<slot name="footer"/>` no template, e o atributo `slot` no uso. O que não for etiquetado vai para o `<slot/>` anônimo.
+
+```gv
+<card title="Servidor">
+    <text content="uptime 31 dias" />
+    <template slot="footer">
+        <button text="Reiniciar" on_click="reiniciar" />
+    </template>
+</card>
+```
+
+- `<template slot="…">` agrupa vários nós; para um nó só, o atributo direto (`<button slot="footer" …/>`) evita o embrulho.
+- Vários blocos com o mesmo nome se concatenam na ordem escrita; o conteúdo anônimo preserva a ordem de documento mesmo com um bloco nomeado no meio dele.
+- Dentro do componente, `{slot_<nome>}` vale `true` quando aquele slot foi preenchido — é o que permite decorar uma região opcional (a linha divisória que só existe quando existe rodapé).
+- O nome é **fixo**, resolvido no template: `<slot name="{aba}"/>` (nome vindo do contexto) ainda não existe.
 
 ### `<Include>` (`<Incluir>`)
 Inclui outro template. Atributo: `src`; demais atributos viram props.
@@ -305,6 +320,7 @@ Moldura com título — o `QGroupBox`.
 | prop | default | o que faz |
 | --- | --- | --- |
 | `title` | vazio | rótulo do grupo; vazio = sem cabeçalho (sobra a moldura pura) |
+| `slot="actions"` | — | controles à direita da linha do título — onde vai o `<checkbox>` que faz o papel do `QGroupBox::setCheckable` |
 | `flat` | `false` | `true` = título + linha, sem caixa (o `QGroupBox::flat`) |
 | `padding` / `spacing` | `12` / `8` | espaço interno e entre os filhos |
 | `title_size` | `13` | corpo do título |
@@ -335,10 +351,16 @@ Superfície de um item, com cabeçalho de título e subtítulo independentes.
 | prop | default | o que faz |
 | --- | --- | --- |
 | `title` / `subtitle` | vazio | o cabeçalho aparece se **um dos dois** existir |
+| `slot="footer"` | — | faixa de ações no pé, com linha divisória; só se paga quando preenchida |
 | `padding` / `spacing` | `16` / `12` | espaço interno e entre os filhos |
 | `width` | `fill` | numa grade, dê uma largura fixa a cada cartão |
 
-- **Sem rodapé**: exigiria um segundo buraco no template (slot nomeado).
+```gv
+<card title="Servidor">
+    <text content="uptime 31 dias" />
+    <template slot="footer"><button text="Reiniciar" on_click="reiniciar" /></template>
+</card>
+```
 
 ### `<ToolBar>` e `<ToolButton>`
 A faixa de ações e o botão-ícone dela — o `QToolBar` e o `QToolButton`.

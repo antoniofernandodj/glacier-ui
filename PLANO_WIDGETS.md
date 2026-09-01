@@ -151,7 +151,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QLabel (imagem) | `Image` | Prim | image | — | P0 | ✅ | já existe |
 | — (ícone SVG) | `Svg` / `icone` | Prim | svg | — | P0 | ✅ | já existe |
 | — (pílula/rótulo) | `Badge` | Built | container+text | — | P1 | ✅ | builtin canônico |
-| — (cartão) | `Card` | Built | container+col | — | P1 | ✅ | builtin de verdade a partir da 0.65: superfície com cabeçalho (título/subtítulo) e corpo por `<slot/>`. Sem rodapé — precisaria de slot **nomeado** |
+| — (cartão) | `Card` | Built | container+col | — | P1 | ✅ | builtin de verdade a partir da 0.65: cabeçalho (título/subtítulo), corpo por `<slot/>` e rodapé por `<slot name="footer"/>` (0.67), que só se paga quando preenchido |
 | — (avatar) | `Avatar` | Built | container+image | — | P1 | ✅ | foto circular ou iniciais como reserva, com cores por instância. Sem indicador de presença (pediria `Stack` dentro do builtin) |
 | — (chip removível) | `Chip` | Built | row+button | — | P2 | ⬜ | badge com "×" |
 | — (separador) | `Divider` / `Rule` | Prim | rule | — | P0 | ✅ | `Rule` existe |
@@ -167,7 +167,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QWidget/QFrame | `Container` | Prim | container | — | P0 | ✅ | já existe |
-| QGroupBox | `GroupBox` | Built | container+text | — | P1 | ✅ | moldura com título + `flat="true"` (o `QGroupBox::flat`). Falta o checkbox no título (`setCheckable`) |
+| QGroupBox | `GroupBox` | Built | container+text | — | P1 | ✅ | moldura com título + `flat="true"` (o `QGroupBox::flat`), e ações no cabeçalho por `<slot name="actions"/>` — onde vai o `<checkbox>` que faz o papel do `setCheckable` |
 | QScrollArea | `Scrollable` / `rolagem` | Prim | scrollable | — | P0 | ✅ | já existe |
 | QSplitter | `Splitter` / `PaneGrid` | Prim | pane_grid | ● | P2 | ⬜ | painéis redimensionáveis |
 | QToolBox | `ToolBox` | Comp | column+button | ● | P2 | ⬜ | seções empilhadas expansíveis |
@@ -305,17 +305,24 @@ O que **de fato** travava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
 > então `on_click="salvar"` dentro de um `<GroupBox>` chega na tela e não vira
 > `GroupBox::salvar`. Ver `BUILTINS.md`.
 >
-> O que ainda não existe é **slot nomeado** (`<slot name="footer"/>`): um único
-> buraco anônimo por componente. É ele que separa o `TabBar` de hoje do
-> `QTabWidget` inteiro, e o `Card` de um cartão com rodapé.
+> **Slot nomeado** (`<slot name="footer"/>`) veio logo depois, com nomes fixos:
+> um componente abre quantas regiões quiser e quem usa etiqueta o conteúdo com
+> `slot="footer"`. Mais o marcador `{slot_<nome>}`, que deixa o template decorar
+> uma região opcional (a linha divisória que só existe quando existe rodapé).
+>
+> O que **ainda** falta é o nome **dinâmico** (`<slot name="{aba}"/>`, resolvido
+> contra o contexto). É só isso que separa o `TabBar` de hoje de um `QTabWidget`
+> inteiro — e o `Accordion` continua atrás do estado por instância, porque quer
+> várias seções abertas ao mesmo tempo.
 
 Ordem sugerida de habilitadores de Motor:
 
 1. **Estado por instância** (`●` do segundo tipo, acima). **P0.**
 2. ~~**Filhos em componente (`<slot/>`)**~~ ✅ **feito na 0.65** — destravou
    `GroupBox`, `Frame`, `Card`, `ToolBar` e `StatusBar`, todos construídos na
-   mesma leva (§6). Sobra o **slot nomeado**, que é o que falta para `Tabs`
-   completo, `Accordion`, `ToolBox` e um `Card` com rodapé. **P1.**
+   mesma leva (§6). O **slot nomeado com nomes fixos** saiu na 0.67, e com ele o
+   `Card` ganhou rodapé e o `GroupBox` ganhou ações no cabeçalho. Sobra o nome
+   **dinâmico**, que é o que falta para o `Tabs` completo. **P1.**
 3. **`ctx.dispatch(acao)`** — repasse de evento **do lado Rust**: um `update`
    não consegue despachar outra ação, então um builtin que trata um evento para
    si não pode também repassá-lo. O caso declarativo (widget que só delega, como
@@ -508,6 +515,7 @@ esqueleto de uma janela: barra de ferramentas, abas, conteúdo e rodapé.
   não tem grade: é composição de `Row`/`Column` com medição, um item caro perto
   de qualquer outro da fila. Entra logo depois dela, e o `Form` cobre boa parte
   dos casos até lá.
-- **`Tabs` completo, `Accordion`, `ToolBox`** — esperam slot **nomeado**
-  (múltiplos buracos por instância), um degrau acima do `<slot/>` único do
-  portão.
+- **`Tabs` completo** — o slot nomeado existe (0.67), mas com **nome fixo**; a
+  página visível de um `QTabWidget` depende do valor de uma chave, o que pede
+  `<slot name="{aba}"/>`. **`Accordion`/`ToolBox`** pedem, além disso, estado por
+  instância: várias seções abertas ao mesmo tempo.

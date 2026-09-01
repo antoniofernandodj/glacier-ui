@@ -157,6 +157,8 @@ const DIRECTIVE_ATTRS = new Set(
     "platform", "plataforma",
     // repetição
     "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // destino num slot nomeado do componente (`<template slot="footer">`)
+    "slot",
     // arrastar-e-soltar da lista repetida
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
     "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",

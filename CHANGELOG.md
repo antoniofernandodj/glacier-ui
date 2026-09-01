@@ -8,6 +8,52 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.67.0] — 2026-09-01
+
+### Adicionado
+- **Slot nomeado, com nomes fixos.** O `<slot/>` da 0.65 era um buraco anônimo
+  por componente, o que bastava para um widget de uma região só (`<groupbox>`,
+  `<toolbar>`) e travava qualquer um com duas. Agora um componente declara
+  `<slot name="footer"/>` e quem usa etiqueta o conteúdo:
+
+  ```xml
+  <card title="Servidor">
+      <text content="uptime 31 dias" />
+      <template slot="footer">
+          <button text="Reiniciar" on_click="reiniciar" />
+      </template>
+  </card>
+  ```
+
+  `<template slot="…">` agrupa vários nós; para um nó só, o atributo direto
+  (`<button slot="footer" …/>`) evita o embrulho. Vários blocos com o mesmo nome
+  se concatenam, e o conteúdo anônimo preserva a ordem de documento mesmo com um
+  bloco nomeado escrito no meio dele. A regra de posse não muda: a ação de dentro
+  continua sendo de quem a escreveu.
+
+  A partição roda sobre os filhos **crus** — é neles que o atributo `slot` ainda
+  existe — e cada balde é expandido por conta própria, então um `<if>` ou um
+  `for-each` dentro de um slot nomeado funciona como em qualquer outro lugar.
+
+- **`{slot_<nome>}`: o marcador que permite decorar um slot opcional.** Um
+  rodapé quer uma linha divisória acima dele, e só quando existe rodapé — mas o
+  template não tinha como perguntar isso (o nome do slot não é uma prop, e o
+  conteúdo não chega ao interpolador). O motor agora semeia, na fronteira do
+  componente, um booleano por slot nomeado preenchido. Entra na camada **depois**
+  das props, então uma prop de mesmo nome vence.
+
+- **`<card>` ganhou rodapé** (`slot="footer"`) e **`<groupbox>` ganhou ações no
+  cabeçalho** (`slot="actions"`, à direita da linha do título — onde vai o
+  `<checkbox>` que faz o papel do `QGroupBox::setCheckable`). Nos dois, a região
+  só se paga quando alguém a preenche.
+
+### Notas
+- O nome do slot é **fixo, resolvido no template**. `<slot name="{aba}"/>` —
+  nome vindo do contexto — continua não existindo, e é só isso que separa o
+  `<tabbar>` de hoje de um `QTabWidget` inteiro.
+
+---
+
 ## [0.66.0] — 2026-08-31
 
 ### Adicionado

@@ -38,12 +38,22 @@
 ///   `width="280"` a cada um é o caminho para a grade).
 /// - `title_size` / `subtitle_size` — corpos. Default: `16` / `13`.
 ///
-/// # Limite conhecido
+/// # O rodapé: o slot nomeado
 ///
-/// **Sem rodapé.** A faixa de ações no pé de um cartão precisaria de um
-/// **segundo** buraco no template, e o `<slot/>` de hoje é único e anônimo —
-/// dois slots exigiriam slot nomeado (`<slot name="footer"/>`), o degrau
-/// seguinte. Enquanto isso, o rodapé é uma `<Row>` no fim do conteúdo.
+/// A faixa de ações do pé é um **segundo** buraco, etiquetado `footer`:
+///
+/// ```xml
+/// <card title="Servidor" subtitle="produção">
+///     <text content="uptime 31 dias" />
+///     <template slot="footer">
+///         <button text="Reiniciar" on_click="reiniciar" />
+///     </template>
+/// </card>
+/// ```
+///
+/// Ele só aparece quando alguém o preenche — um cartão sem `footer` não paga
+/// nem a linha divisória. Como todo conteúdo de slot, o `on_click` acima é da
+/// tela, não do `Card`.
 use crate::component::{Component, Context, Template};
 
 pub struct Card;
@@ -96,6 +106,19 @@ impl Component for Card {
                         <Column spacing="{spacing|12}" width="{width|fill}">
                             <slot/>
                         </Column>
+
+                        <!-- O rodapé inteiro (linha + faixa) só existe quando
+                             alguém o preenche. `{slot_footer}` é o marcador que
+                             o motor semeia na fronteira do componente para cada
+                             slot nomeado que recebeu conteúdo — sem ele, o
+                             template não teria como perguntar "veio rodapé?",
+                             porque o nome do slot não é uma prop. -->
+                        <template if="{slot_footer|false}" equals="true">
+                            <Rule />
+                            <Row spacing="8" align_y="center">
+                                <slot name="footer"/>
+                            </Row>
+                        </template>
                     </Column>
                 </Container>"#
                 .to_string(),

@@ -339,11 +339,57 @@ as props da instância:
 <slot><Text content="Nada em {title}" /></slot>
 ```
 
+### Mais de um buraco: o slot nomeado
+
+Um widget com duas regiões distintas — corpo e rodapé, título e ações —
+declara um `<slot name="…"/>` por região, e quem usa etiqueta o conteúdo com o
+atributo `slot`:
+
+```xml
+<!-- no template do builtin -->
+<column>
+    <slot/>                       <!-- o anônimo: tudo que não foi etiquetado -->
+    <rule />
+    <row><slot name="footer"/></row>
+</column>
+```
+```xml
+<!-- no uso -->
+<card title="Servidor">
+    <text content="uptime 31 dias" />
+    <template slot="footer">
+        <button text="Reiniciar" on_click="reiniciar" />
+    </template>
+</card>
+```
+
+`<template slot="…">` agrupa vários nós; para um nó só, o atributo direto
+(`<button slot="footer" …/>`) evita o embrulho. Vários blocos com o mesmo nome
+se concatenam na ordem em que foram escritos, e o conteúdo anônimo preserva a
+ordem de documento mesmo quando um bloco nomeado é escrito no meio dele.
+
+### Decorar um slot opcional: `{slot_<nome>}`
+
+Um rodapé quer uma linha divisória **acima dele**, e só quando existe rodapé.
+O template não consegue perguntar isso sozinho: o nome do slot não é uma prop, e
+o conteúdo nem chega ao interpolador. Por isso o motor semeia, na fronteira do
+componente, um marcador por slot nomeado preenchido:
+
+```xml
+<template if="{slot_footer|false}" equals="true">
+    <rule />
+    <row><slot name="footer"/></row>
+</template>
+```
+
+Ele entra na camada **depois** das props, então uma prop escrita à mão com o
+mesmo nome vence. Não existe marcador para o slot anônimo.
+
 ### Limites
 
-- **Um slot, sem nome.** `<slot name="footer"/>` não existe, então um widget com
-  dois buracos (cartão com corpo e rodapé, `QTabWidget` com uma página por aba)
-  ainda não é construtível como builtin. É o degrau seguinte.
+- **Nome fixo, resolvido no template.** `<slot name="{aba}"/>` — nome vindo do
+  contexto — ainda não existe. É o que separa o `<tabbar>` de hoje de um
+  `QTabWidget` inteiro, cuja página visível depende do valor de uma chave.
 - **Um uso com conteúdo não entra no cache de componente.** As dependências do
   conteúdo pertencem ao quadro de quem chamou, e uma entrada de cache não teria
   como perceber que ele mudou. Custo desprezível — são os containers da tela —,

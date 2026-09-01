@@ -37,6 +37,21 @@
 /// O título é **opcional**: sem `title`, nem o texto nem a linha do `flat`
 /// aparecem, e sobra a moldura pura — que é exatamente o [`super::frame::Frame`].
 ///
+/// # Ações no cabeçalho
+///
+/// O slot nomeado `actions` põe controles na direita da linha do título — é
+/// onde vai o "Mostrar tudo" de um grupo, ou o `<checkbox>` que faz o papel do
+/// `QGroupBox::setCheckable`:
+///
+/// ```xml
+/// <groupbox title="Rede">
+///     <template slot="actions">
+///         <checkbox label="Ativado" checked="rede_ativa" />
+///     </template>
+///     <input value="host" />
+/// </groupbox>
+/// ```
+///
 /// # Props
 ///
 /// - `title`      — o rótulo do grupo. Vazio = sem cabeçalho.
@@ -85,13 +100,27 @@ impl Component for GroupBox {
                         .groupbox-title { color: #80868d; }
                     </style>
 
-                    <template if="{title}" notEquals="">
-                        <Text
-                            class="groupbox-title"
-                            content="{title}"
-                            size="{title_size|13}"
-                            bold="true"
-                        />
+                    <!-- Cabeçalho: o título à esquerda e, quando o uso
+                         preenche `slot="actions"`, os controles à direita —
+                         o "Mostrar tudo" de um grupo, o `setCheckable` do Qt
+                         feito com um `<checkbox>` de verdade. O `<Space/>` é
+                         quem empurra; o marcador `{slot_actions}` evita pagar
+                         a `<Row>` quando não há ação nenhuma. -->
+                    <template if="{title}{slot_actions|}" notEquals="">
+                        <Row align_y="center" width="{width|fill}">
+                            <Text
+                                class="groupbox-title"
+                                content="{title}"
+                                size="{title_size|13}"
+                                bold="true"
+                            />
+                            <template if="{slot_actions|false}" equals="true">
+                                <Space />
+                                <Row spacing="8" align_y="center">
+                                    <slot name="actions"/>
+                                </Row>
+                            </template>
+                        </Row>
                     </template>
 
                     <template if="{flat|false}" equals="true">

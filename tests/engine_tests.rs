@@ -819,6 +819,93 @@ fn test_slot_conteudo_do_uso_pertence_a_quem_escreveu() {
 }
 
 #[test]
+fn test_slot_nomeado_reparte_o_conteudo_por_destino() {
+    // Um slot anônimo não bastava para um widget com mais de uma região. Com
+    // `slot="footer"` no uso e `<slot name="footer"/>` no template, o conteúdo
+    // é repartido — e o que não foi etiquetado continua indo para o anônimo.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_slot_nomeado.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Card title="Servidor">
+            <Text content="corpo A" />
+            <template slot="footer"><Button text="Reiniciar" on_click="reiniciar" /></template>
+            <Text content="corpo B" />
+        </Card>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor
+        .register_component("tela_slot_nom", tela_path)
+        .unwrap();
+
+    let avaliado = motor.evaluated("tela_slot_nom").unwrap();
+    // O corpo ficou com os DOIS textos anônimos, em ordem de documento, mesmo
+    // com o bloco `footer` escrito entre eles.
+    assert!(contem_texto(avaliado, "corpo A"));
+    assert!(contem_texto(avaliado, "corpo B"));
+
+    // A ação do rodapé é da tela — a regra de posse do slot vale igual para o
+    // conteúdo etiquetado.
+    let acao = encontra_acao(avaliado).expect("o botão do rodapé");
+    assert_eq!(acao, "reiniciar");
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_slot_nomeado_marcador_permite_decorar_o_opcional() {
+    // O template não tem como perguntar "veio rodapé?" — o nome do slot não é
+    // uma prop. O motor semeia `{slot_<nome>}` na fronteira do componente para
+    // cada slot nomeado preenchido, e é isso que deixa o `<Card>` pagar a linha
+    // divisória do rodapé só quando existe rodapé.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_slot_marcador.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <Card title="Com"><Text content="c" /><template slot="footer"><Text content="pe" /></template></Card>
+            <Card title="Sem"><Text content="c" /></Card>
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor
+        .register_component("tela_marcador", tela_path)
+        .unwrap();
+
+    let avaliado = motor.evaluated("tela_marcador").unwrap();
+    let com = &avaliado.children[0];
+    let sem = &avaliado.children[1];
+
+    assert!(contem_texto(com, "pe"));
+    assert!(
+        conta_regras(com) > conta_regras(sem),
+        "o cartão com rodapé paga uma <Rule> a mais que o sem"
+    );
+    // E o marcador não vaza para o contexto global do app.
+    assert!(!motor.context().contains_key("slot_footer"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+/// Quantas `<Rule>` a subárvore tem.
+fn conta_regras(no: &UiNode) -> usize {
+    let eu = usize::from(matches!(no.kind, NodeType::Rule { .. }));
+    eu + no.children.iter().map(conta_regras).sum::<usize>()
+}
+
+#[test]
 fn test_slot_reserva_quando_o_uso_nao_passa_nada() {
     // Os filhos do próprio `<slot>` são o conteúdo de reserva: entram só quando
     // quem usou não escreveu nada dentro da tag. Ao contrário do conteúdo do

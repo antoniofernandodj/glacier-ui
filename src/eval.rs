@@ -829,7 +829,7 @@ fn expand_children(
     out: &mut Vec<UiNode>,
     // Repassado a cada filho para que um `<slot/>` a qualquer profundidade do
     // template (dentro de um `<if>`, de um `<Row>`, …) ainda o enxergue.
-    slot: Option<&[UiNode]>,
+    slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<()> {
     // Tracks the result of the immediately preceding `<if>`, so an `<else>`
@@ -1311,6 +1311,42 @@ fn namespace_action(action: String, owner: Option<&str>) -> String {
     }
 }
 
+/// O conteúdo que um uso de componente escreveu entre as tags, **já avaliado**
+/// e repartido pelo destino: o balde anônimo (o que ninguém etiquetou) e um por
+/// `slot="nome"`.
+///
+/// Existe porque um único `Vec` não bastava a partir do momento em que um
+/// widget passou a ter mais de uma região — o rodapé de um `<card>`, as ações
+/// no cabeçalho de um `<groupbox>`. A partição acontece uma vez, na fronteira
+/// do componente, sobre os filhos **crus** (é neles que o atributo `slot`
+/// ainda existe); cada balde é expandido no contexto e com o dono de quem
+/// escreveu, exatamente como antes.
+#[derive(Default)]
+pub(crate) struct SlotContent {
+    /// O que não foi etiquetado — o que um `<slot/>` sem `name` recebe.
+    anonimo: Vec<UiNode>,
+    /// `nome -> conteúdo`. Vec de pares, não mapa: são dois ou três slots por
+    /// widget, e a busca linear numa lista desse tamanho é mais barata que o
+    /// hash (além de preservar a ordem em que o uso escreveu).
+    nomeados: Vec<(String, Vec<UiNode>)>,
+}
+
+impl SlotContent {
+    /// O conteúdo de um slot, ou `None` se o uso não preencheu esse destino —
+    /// caso em que o `<slot>` cai no conteúdo de reserva dele.
+    fn get(&self, name: Option<&str>) -> Option<&[UiNode]> {
+        let bucket = match name {
+            None => &self.anonimo,
+            Some(n) => &self.nomeados.iter().find(|(k, _)| k == n).map(|(_, v)| v)?[..],
+        };
+        (!bucket.is_empty()).then_some(bucket)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.anonimo.is_empty() && self.nomeados.iter().all(|(_, v)| v.is_empty())
+    }
+}
+
 /// Core of [`evaluate_node`]. `owner` is the name of the nearest enclosing
 /// `<Component>`/`<Include>` reference, used to namespace its actions. `scope`
 /// is the component whose `<link>`-scoped stylesheets are currently in effect
@@ -1330,10 +1366,10 @@ fn eval_owned(
     underlay: Option<&StyleRule>,
     underlay_states: Option<&StateStyles>,
     // Conteúdo escrito entre as tags do componente que está sendo expandido —
-    // **já avaliado**, no contexto e com o dono de QUEM USOU. É o que um
-    // `<slot/>` no template devolve. `None` fora de um componente. Ver
-    // [`crate::parser::NodeType::Slot`].
-    slot: Option<&[UiNode]>,
+    // **já avaliado**, no contexto e com o dono de QUEM USOU, repartido por
+    // destino. É o que um `<slot/>` no template devolve. `None` fora de um
+    // componente. Ver [`SlotContent`] e [`crate::parser::NodeType::Slot`].
+    slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<UiNode> {
     // `<slot/>`: devolve o conteúdo do uso (ou, se ele não veio, o conteúdo de
@@ -1341,9 +1377,9 @@ fn eval_owned(
     // que `expand_children` espalha na lista do pai. Vem antes de tudo porque
     // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
     // desta vez com o dono errado (o componente, não quem chamou).
-    if matches!(node.kind, NodeType::Slot) {
-        let conteudo: Vec<UiNode> = match slot {
-            Some(nodes) if !nodes.is_empty() => nodes.to_vec(),
+    if let NodeType::Slot { name } = &node.kind {
+        let conteudo: Vec<UiNode> = match slot.and_then(|s| s.get(name.as_deref())) {
+            Some(nodes) => nodes.to_vec(),
             // Reserva: os filhos do `<slot>` são do componente, então avaliam
             // no contexto dele — inclusive enxergando as props da instância.
             _ => {
@@ -1386,19 +1422,42 @@ fn eval_owned(
         // Nada de `slot` do nível de fora atravessa: um `<slot/>` escrito no
         // uso pertence ao componente que envolve ESTE uso, e já foi resolvido
         // pela chamada que nos trouxe até aqui.
-        let mut slot_conteudo = Vec::new();
+        //
+        // A partição por destino roda sobre os filhos **crus**, porque é neles
+        // que o atributo `slot="footer"` ainda existe (a avaliação o consome).
+        // Cada balde é expandido por sua conta, o que preserva a semântica de
+        // um `<if>`/`<for-each>` dentro de um slot nomeado.
+        let mut slot_conteudo = SlotContent::default();
         if !node.children.is_empty() {
-            expand_children(
-                &node.children,
-                context,
-                templates,
-                styles,
-                scope,
-                owner,
-                &mut slot_conteudo,
-                None,
-                cache,
-            )?;
+            let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
+            for filho in &node.children {
+                let destino = filho.slot_name.clone();
+                match baldes.iter_mut().find(|(k, _)| *k == destino) {
+                    Some((_, v)) => v.push(filho),
+                    None => baldes.push((destino, vec![filho])),
+                }
+            }
+            for (destino, filhos) in baldes {
+                let crus: Vec<UiNode> = filhos
+                    .into_iter()
+                    .map(|f| {
+                        // A diretiva já foi consumida pela partição; deixá-la
+                        // no clone faria um `<card slot="footer">` aninhado
+                        // reetiquetar o conteúdo do componente de dentro.
+                        let mut c = f.clone();
+                        c.slot_name = None;
+                        c
+                    })
+                    .collect();
+                let mut saida = Vec::new();
+                expand_children(
+                    &crus, context, templates, styles, scope, owner, &mut saida, None, cache,
+                )?;
+                match destino {
+                    None => slot_conteudo.anonimo = saida,
+                    Some(nome) => slot_conteudo.nomeados.push((nome, saida)),
+                }
+            }
         }
 
         // Contrato do componente, quando ele declara um (`<props>` no cabeçalho).
@@ -1512,6 +1571,23 @@ fn eval_owned(
             }
             layer.set(key.clone(), process_tpl(val_template, context));
         }
+
+        // `{slot_footer}` = "true" quando o uso preencheu `slot="footer"`.
+        //
+        // Sem isto, um widget não consegue **decorar** um slot opcional: o
+        // `<card>` quer uma linha divisória acima do rodapé só quando existe
+        // rodapé, e o template não tem como perguntar isso — o nome do slot não
+        // é uma prop, e o conteúdo dele nem chega ao interpolador. O marcador é
+        // a resposta mínima: um booleano por slot nomeado preenchido, que o
+        // `<template if>` já sabe ler.
+        //
+        // Entra DEPOIS das props de propósito: uma prop escrita à mão com o
+        // mesmo nome vence, em vez de o motor sobrescrever o que o app pediu.
+        for (nome, conteudo) in &slot_conteudo.nomeados {
+            if !conteudo.is_empty() {
+                layer.set(format!("slot_{nome}"), "true".to_string());
+            }
+        }
         let local_context = context.with(&layer, mix(node.node_id, 0));
 
         // O uso de um componente é uma fronteira natural de cache: é uma
@@ -1573,7 +1649,7 @@ fn eval_owned(
             Some(name),
             Some(&underlay_rule),
             Some(&underlay_st),
-            (!slot_conteudo.is_empty()).then_some(slot_conteudo.as_slice()),
+            (!slot_conteudo.is_empty()).then_some(&slot_conteudo),
             cache,
         )?;
         if slot_conteudo.is_empty() {
@@ -1899,7 +1975,7 @@ fn eval_owned(
         // (tratado no topo de `eval_owned`). Chegar aqui significa `<slot/>`
         // escrito fora de um componente: vira `Fragment`, ou seja, some e
         // deixa no lugar o próprio conteúdo de reserva que ele embrulha.
-        NodeType::Slot => NodeType::Fragment,
+        NodeType::Slot { .. } => NodeType::Fragment,
         NodeType::Include { .. }
         | NodeType::Component { .. }
         | NodeType::Import { .. }
@@ -2068,6 +2144,9 @@ fn eval_owned(
         else_if_cond: None,
         for_each: None,
         for_each_var: None,
+        // A diretiva de destino é consumida na fronteira do componente, ao
+        // repartir o conteúdo do uso — nada dela sobrevive à avaliação.
+        slot_name: None,
         // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
         // consumed (and interpolated) directly by `expand_children`'s for-each
         // handling below — nothing to carry on past evaluation.
