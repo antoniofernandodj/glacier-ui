@@ -29,11 +29,11 @@ pub mod widget;
 /// separate dependency.
 pub use iced;
 
+pub use external::ExternalSender;
 /// Flattened re-exports of the `iced` items a host app's `main`/`App` reach
 /// for most often (window setup, layout, messaging), so they can come from
 /// `glacier_ui::{..}` directly instead of a separate `use iced::{..}`.
 pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
-pub use external::ExternalSender;
 
 pub use app::GlacierApp;
 pub use asset_source::{AssetSource, DiskAssets};
@@ -357,7 +357,14 @@ impl GlacierUI {
     /// [`Template::Inline`] — XML compilado na crate — uma falha de parse é bug
     /// da própria lib, então `expect` mantém `new` infalível.
     fn register_builtins(&mut self) {
-        for comp in builtins::builtin_components() {
+        // Os canônicos (`<GroupBox/>`) e, logo depois, os apelidos em
+        // minúsculas (`<groupbox/>`) — ver `builtins::builtin_aliases`, que
+        // explica por que um builtin precisa de um segundo registro para ter a
+        // grafia minúscula que toda primitiva já tem de graça.
+        let todos = builtins::builtin_components()
+            .into_iter()
+            .chain(builtins::builtin_aliases());
+        for comp in todos {
             let name = comp.name().to_string();
             self.register_one(comp).unwrap_or_else(|e| {
                 panic!("built-in component '{}' failed to register: {}", name, e)
@@ -754,9 +761,12 @@ impl GlacierUI {
         // carry a `<script>` (no path to resolve `src`/`require` against),
         // same limitation `LuauComponent` always had.
         let comp: Box<dyn component::Component> = match &path {
-            Some(p) if luau::has_script(&markup) => {
-                Box::new(luau::LuauComponent::wrap(&name, p, comp, self.assets.clone())?)
-            }
+            Some(p) if luau::has_script(&markup) => Box::new(luau::LuauComponent::wrap(
+                &name,
+                p,
+                comp,
+                self.assets.clone(),
+            )?),
             _ => comp,
         };
 
@@ -921,7 +931,8 @@ impl GlacierUI {
                 self.last_cursor_pos = *p;
                 return iced::Task::none();
             }
-            EngineMessage::OpenMenuBarDropdown { tree } | EngineMessage::OpenContextMenu { tree } => {
+            EngineMessage::OpenMenuBarDropdown { tree }
+            | EngineMessage::OpenContextMenu { tree } => {
                 self.active_menu = Some(menu::ActiveMenuState {
                     tree: tree.clone(),
                     anchor: self.last_cursor_pos,
@@ -1673,9 +1684,21 @@ impl GlacierUI {
                 "stylesheet" => self.load_global_stylesheet_file(href)?,
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
-                    if !self.inputs.has_template(&comp_name) {
+                    // Mesma regra do `<import>` em `load_imports`: carrega se o
+                    // nome está livre **ou** se ele hoje guarda um builtin da
+                    // lib, que o app está deliberadamente sombreando.
+                    //
+                    // Faltava aqui, e ficou invisível enquanto os builtins se
+                    // chamavam `Badge`/`SpinBox`/`TimePicker` — nomes que um app
+                    // não disputa. A onda 2 trouxe `Card`, `Frame`, `Avatar`,
+                    // `ToolBar`: aí um `<link rel="import" as="Card">` do app
+                    // passou a ser engolido em silêncio, com o builtin
+                    // renderizando no lugar do componente importado.
+                    let is_builtin = self.builtin_component_names.contains(&comp_name);
+                    if !self.inputs.has_template(&comp_name) || is_builtin {
                         let resolved = self.resolve_import_href(href, importer_path.as_deref());
                         self.register_component_inner(&comp_name, &resolved)?;
+                        self.builtin_component_names.remove(&comp_name);
                     }
                 }
                 "data" => {
@@ -2072,7 +2095,11 @@ impl GlacierUI {
             collect_comboedit_bindings(ast, &mut bindings);
         }
         for (value_var, options_key, label_field, value_field) in bindings {
-            let ctx_val = self.context_data.get(&value_var).cloned().unwrap_or_default();
+            let ctx_val = self
+                .context_data
+                .get(&value_var)
+                .cloned()
+                .unwrap_or_default();
             let opts_json = self
                 .context_data
                 .get(&options_key)
@@ -2081,13 +2108,16 @@ impl GlacierUI {
             let value_changed = self.combo_synced.get(&value_var) != Some(&ctx_val);
             let options_changed = self.combo_options_synced.get(&value_var) != Some(&opts_json);
             if !self.combos.contains_key(&value_var) || value_changed || options_changed {
-                let opts: Vec<widget::SelectOption> = serde_json::from_str::<serde_json::Value>(&opts_json)
-                    .ok()
-                    .and_then(|v| v.as_array().cloned())
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|item| widget::SelectOption::from_json(item, &label_field, &value_field))
-                    .collect();
+                let opts: Vec<widget::SelectOption> =
+                    serde_json::from_str::<serde_json::Value>(&opts_json)
+                        .ok()
+                        .and_then(|v| v.as_array().cloned())
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|item| {
+                            widget::SelectOption::from_json(item, &label_field, &value_field)
+                        })
+                        .collect();
                 // `with_selection`'s second argument seeds the widget's
                 // internal typed-text buffer from the option's `Display`
                 // (`SelectOption::label`) — it is NOT looked up again from
@@ -2100,12 +2130,16 @@ impl GlacierUI {
                 // itself keeps the buffer in sync without adding a fake entry
                 // to `opts` (only `options`, not `selection`, populates the
                 // dropdown list).
-                let selected = opts.iter().find(|o| o.value == ctx_val).cloned().or_else(|| {
-                    (!ctx_val.is_empty()).then(|| widget::SelectOption {
-                        label: ctx_val.clone(),
-                        value: ctx_val.clone(),
-                    })
-                });
+                let selected = opts
+                    .iter()
+                    .find(|o| o.value == ctx_val)
+                    .cloned()
+                    .or_else(|| {
+                        (!ctx_val.is_empty()).then(|| widget::SelectOption {
+                            label: ctx_val.clone(),
+                            value: ctx_val.clone(),
+                        })
+                    });
                 self.combos.insert(
                     value_var.clone(),
                     iced::widget::combo_box::State::with_selection(opts, selected.as_ref()),
@@ -2347,10 +2381,7 @@ fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
 /// Collects `(value_var, options, label_field, value_field)` of every
 /// `<ComboEdit>` in an evaluated tree, so the engine can keep a stateful
 /// `combo_box::State` per binding (see `GlacierUI::sync_combos`).
-fn collect_comboedit_bindings(
-    node: &UiNode,
-    out: &mut Vec<(String, String, String, String)>,
-) {
+fn collect_comboedit_bindings(node: &UiNode, out: &mut Vec<(String, String, String, String)>) {
     if let NodeType::ComboEdit {
         value_var,
         options,

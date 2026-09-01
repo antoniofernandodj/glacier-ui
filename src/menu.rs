@@ -102,7 +102,9 @@ impl MenuNode {
             return Some(Self::separator_node());
         }
 
-        let label = get_str("label").or_else(|| get_str("text")).unwrap_or_default();
+        let label = get_str("label")
+            .or_else(|| get_str("text"))
+            .unwrap_or_default();
         let icon = get_str("icon");
         let on_click = get_str("action")
             .or_else(|| get_str("onClick"))
@@ -215,7 +217,11 @@ const PANEL_WIDTH: f32 = 200.0;
 const PANEL_PADDING: f32 = 4.0;
 
 fn row_h(n: &MenuNode) -> f32 {
-    if n.separator { SEPARATOR_HEIGHT } else { ROW_HEIGHT }
+    if n.separator {
+        SEPARATOR_HEIGHT
+    } else {
+        ROW_HEIGHT
+    }
 }
 
 fn panel_height(nodes: &[MenuNode]) -> f32 {
@@ -390,10 +396,17 @@ fn render_row<'a>(
     } else {
         palette.background.base.text
     };
-    let check_glyph = if node.checked == Some(true) { "✓" } else { "" };
+    let check_glyph = if node.checked == Some(true) {
+        "✓"
+    } else {
+        ""
+    };
 
     let mut r = row![
-        text(check_glyph).size(13).width(Length::Fixed(16.0)).color(text_color),
+        text(check_glyph)
+            .size(13)
+            .width(Length::Fixed(16.0))
+            .color(text_color),
         text(node.label.as_str())
             .size(13)
             .width(Length::Fill)

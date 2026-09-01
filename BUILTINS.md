@@ -13,7 +13,7 @@ de `src/builtins/mod.rs`; aqui o foco é o passo a passo.
 | | Onde vive | Precisa registrar? | Disponível como |
 |---|---|---|---|
 | **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `<Button/>`, `<Text/>`, … |
-| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `<Badge/>`, `<SpinBox/>` e afins |
+| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `<Badge/>`, `<SpinBox/>`, `<GroupBox/>` e afins |
 | **Componente do app** | código/arquivos do app | sim (`register`/`import`) | `<PerfilCard/>` |
 
 Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
@@ -155,6 +155,28 @@ Do mais forte ao mais fraco:
 2. Literal inline no atributo (`padding="4 10"`)
 3. Valor herdado de uma classe `.gss` (`class="..."`)
 
+## Grafia da tag: `<GroupBox/>` e `<groupbox/>`
+
+Todo builtin é publicado sob **dois** nomes: o canônico e o mesmo em minúsculas
+coladas. É a convenção que as primitivas já tinham (`<textinput/>`,
+`<progressbar/>`, `<contextmenu/>`); o `snake_case` no motor é a convenção dos
+apelidos em **português** (`entrada_texto`, `barra_progresso`).
+
+Você não faz nada para isso: `register_builtins` registra a lista de
+[`builtin_components`] e, em seguida, os apelidos que `builtin_aliases` deriva
+dela. Vale saber **por que** o segundo registro é necessário, porque o mecanismo
+difere do das primitivas: uma primitiva casa num `match` de tags que lista as
+grafias à mão, enquanto um builtin resolve por `parsed_templates.get(name)` —
+igualdade exata de string. Sem o alias, `<groupbox/>` seria `UnknownComponent`.
+
+O alias é uma **instância própria** no mapa de componentes, e isso importa para
+quem escreve um widget com comportamento: a ação carrega o nome pelo qual a tag
+foi resolvida, então `<tabbar/>` produz `tabbar::pick:…` e é a instância do
+alias que recebe esse `update`. Como todo builtin da lib é sem estado (o estado
+mora em chaves que o app nomeia), as duas instâncias serem separadas não muda
+nada — mas um builtin que **guardasse** estado em `self` teria dois estados
+independentes, um por grafia. É mais uma razão para não guardar.
+
 ## Espaço de nomes e override
 
 Builtins compartilham o espaço de nomes dos componentes do app. Para não
@@ -163,8 +185,15 @@ nome:
 
 - `register(Box::new(MeuBadge))` ou `register_component("Badge", …)` inserem por
   cima.
-- `<import name="Badge" from="…"/>` também sobrescreve (o guarda de imports abre
-  exceção para nomes que ainda são builtin).
+- `<import name="Badge" from="…"/>` e `<link rel="import" href="…" as="Badge"/>`
+  também sobrescrevem (os dois guardas abrem exceção para nomes que ainda são
+  builtin). O caminho do `<link>` só ganhou essa exceção na 0.66 — até então ele
+  era engolido em silêncio, o que ninguém notava enquanto nenhum builtin tinha
+  um nome que um app fosse querer.
+
+As duas grafias entram no conjunto de nomes builtin, então a regra vale igual
+para `Badge` e `badge` — mas **uma de cada vez**: registrar `Badge` não desativa
+`badge`. Um app que queira mesmo cobrir o nome inteiro registra as duas.
 
 Ou seja: escolha nomes bons, mas saiba que o app sempre pode substituir. Evite
 colidir com **primitivas** (`Button`, `Text`, `Column`, `Row`, `Container`,
@@ -176,9 +205,12 @@ resolvidas antes e não são sobrescrevíveis por um componente.
 O estado escrito com `ctx.set` (em `update` ou `init`) vai para **um** contexto
 global — não há estado por instância. Consequências práticas:
 
-- ✅ **Widgets apresentacionais / prop-driven** (Badge, Divider, Card): recebem
+- ✅ **Widgets apresentacionais / prop-driven** (Badge, Divider): recebem
   tudo por prop, não guardam estado. Podem ser usados N vezes na mesma tela sem
   colisão.
+- ✅ **Recipientes** (GroupBox, Frame, Card, ToolBar, StatusBar): o que eles
+  mostram nem é deles — é o conteúdo que quem usa escreve entre as tags, via
+  `<slot/>` (seção adiante). Sem estado nenhum, usáveis N vezes.
 - ✅ **Widgets com comportamento cujo valor o app nomeia** (SpinBox): a chave de
   contexto entra por prop e a ação a carrega — ver a seção adiante. Também são
   usáveis N vezes.
@@ -256,6 +288,67 @@ tem. Do lado Rust a limitação continua: um `update` não consegue despachar ou
 ação, então um builtin que trata o `on_change` para si (como o `SpinBox`) não
 tem como *também* repassá-lo — um `<TextInput>` só tem um `onChange`.
 
+## Widget que embrulha conteúdo: o `<slot/>`
+
+As duas seções acima são sobre widgets que recebem **valores**. Um recipiente
+recebe outra coisa: **markup**. `<GroupBox>` não tem prop nenhuma que descreva o
+que ele mostra — o que ele mostra é o que se escreve entre as tags dele.
+
+```xml
+<GroupBox title="Rede">
+    <Checkbox label="Usar proxy" checked="proxy" />
+    <Button text="Salvar" on_click="salvar" />
+</GroupBox>
+```
+
+Escreva `<slot/>` no template do builtin onde esse conteúdo deve entrar:
+
+```xml
+<Container class="groupbox-frame" padding="{padding|12}">
+    <Column spacing="{spacing|8}">
+        <slot/>
+    </Column>
+</Container>
+```
+
+Até a 0.64 isso não existia: `NodeType::Component` carregava só props e os
+filhos do uso eram **descartados** na expansão, o que mantinha toda a família
+dos recipientes fora do nível Builtin (era o item 2 dos habilitadores de motor
+do `PLANO_WIDGETS.md`).
+
+### A regra que importa: o conteúdo é de quem o escreveu
+
+O conteúdo do slot é avaliado no **contexto** e com o **dono** de quem usou o
+widget — antes de qualquer prop entrar em cena. Consequências práticas:
+
+- `on_click="salvar"` lá em cima chega no `update` da **tela**, não no do
+  `GroupBox`. **Não** se escreve `app:` no conteúdo — esse prefixo é para o
+  outro caso, o da ação recebida por prop (seção anterior).
+- `{host}` dentro do conteúdo lê o contexto da tela, e **não** enxerga as props
+  do recipiente (`{title}` ali dentro não resolve para o título do GroupBox).
+- Um recipiente dentro de outro funciona sem cerimônia: cada `<slot/>` recebe o
+  conteúdo do **seu** uso.
+
+### Conteúdo de reserva
+
+Os filhos escritos dentro do próprio `<slot>` aparecem quando quem usou não
+escreveu nada. Esses são do componente — avaliam no contexto dele e **enxergam**
+as props da instância:
+
+```xml
+<slot><Text content="Nada em {title}" /></slot>
+```
+
+### Limites
+
+- **Um slot, sem nome.** `<slot name="footer"/>` não existe, então um widget com
+  dois buracos (cartão com corpo e rodapé, `QTabWidget` com uma página por aba)
+  ainda não é construtível como builtin. É o degrau seguinte.
+- **Um uso com conteúdo não entra no cache de componente.** As dependências do
+  conteúdo pertencem ao quadro de quem chamou, e uma entrada de cache não teria
+  como perceber que ele mudou. Custo desprezível — são os containers da tela —,
+  mesma exceção que uma lista reordenável já tinha.
+
 ## Testando
 
 Um teste de integração exercita o caminho completo (parse → builtin
@@ -283,6 +376,10 @@ fn test_divider_disponivel_sem_registro() {
 
 Veja `tests/engine_tests.rs`:
 - `test_builtin_badge_disponivel_sem_registro` — disponibilidade sem registro + defaults + não-poluição do contexto.
+- `test_slot_conteudo_do_uso_pertence_a_quem_escreveu` — a garantia central do `<slot/>`.
+- `test_slot_reserva_quando_o_uso_nao_passa_nada` — o conteúdo de reserva.
+- `test_builtins_onda2_disponiveis_sem_registro` — os quatro recipientes embrulhando conteúdo.
+- `test_builtin_tabbar_escreve_a_chave_do_app` — a barra de abas pelo padrão do `SpinBox`.
 - `test_atributo_numerico_templado` — prop num atributo numérico.
 - `test_template_default_inline` — a sintaxe `{prop|default}`.
 
@@ -295,6 +392,8 @@ Veja `tests/engine_tests.rs`:
 - [ ] Adicionado a `builtin_components()`.
 - [ ] Docstring no `struct` listando as props e seus defaults.
 - [ ] Teste de disponibilidade-sem-registro em `tests/engine_tests.rs`.
+- [ ] Se embrulha conteúdo: `<slot/>` no template, e um teste de que a ação de
+      dentro chega na tela sem o prefixo do dono.
 
 ## Referência: o `Badge`
 

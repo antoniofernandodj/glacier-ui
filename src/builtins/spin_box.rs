@@ -212,7 +212,8 @@ impl Component for SpinBox {
             return;
         };
         let num = |s: Option<&str>, padrao: f64| {
-            s.and_then(|s| s.trim().parse::<f64>().ok()).unwrap_or(padrao)
+            s.and_then(|s| s.trim().parse::<f64>().ok())
+                .unwrap_or(padrao)
         };
         let min = num(campos.next(), 0.0);
         let max = num(campos.next(), 100.0);

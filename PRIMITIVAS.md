@@ -116,10 +116,11 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > `node.border_width`/`node.border_color` como o `ProgressBar` já faz) — é
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
-> Hoje, `ProgressBar` é o único caso (`progress_bar` do iced é o único
-> primitivo builtin com esse default). Um `Slider`/`vertical_slider` (P1 no
-> `PLANO_WIDGETS.md`) também nasce `Length::Fill` no eixo principal — aplique
-> a mesma exclusão quando ele for implementado.
+> São **dois** casos hoje, e o segundo confirmou a regra: `ProgressBar` e
+> `Slider` (0.66). O `slider`/`vertical_slider` do iced também nasce
+> `Length::Fill` no eixo principal, então ele entrou na mesma exclusão do wrap
+> e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
+> a `color` — exatamente o que esta seção mandava fazer.
 
 `Button`/`TextInput`/`Select`/`Checkbox`/`Toggle` não precisam dessa exclusão:
 o tamanho natural deles é `Shrink` (ou, no caso do `TextInput`, `Fill` mas já

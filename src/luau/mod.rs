@@ -284,14 +284,13 @@ impl LuauComponent {
             &luau,
             storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
         )
-            .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
+        .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
         // Expõe o global `write_file(path, conteúdo)` (escrita de arquivo local).
         // A leitura correspondente é `fetch("file://…")` (ver `net::perform`).
         install_write_file(&luau)
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
         // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
-        install_zip_dir(&luau)
-            .map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
+        install_zip_dir(&luau).map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
         // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
         // execução em `sync_to_luau`.
         let viewport_table = luau
@@ -542,7 +541,11 @@ impl LuauComponent {
             return Ok(());
         };
         self.sync_to_luau(ctx)?;
-        self.drive(thread, MultiValue::from_iter([Value::Boolean(confirmed)]), ctx)
+        self.drive(
+            thread,
+            MultiValue::from_iter([Value::Boolean(confirmed)]),
+            ctx,
+        )
     }
 
     /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
@@ -902,7 +905,9 @@ impl LuauComponent {
                     body_bytes = Some(
                         base64::prelude::BASE64_STANDARD
                             .decode(b64.trim())
-                            .map_err(|e| mlua::Error::runtime(format!("body_base64 inválido: {e}")))?,
+                            .map_err(|e| {
+                                mlua::Error::runtime(format!("body_base64 inválido: {e}"))
+                            })?,
                     );
                 }
                 // `response = "base64"`: aplicável a `file://` — devolve o conteúdo
@@ -949,9 +954,7 @@ impl LuauComponent {
     /// `false`, só que aqui é a ausência do valor, não um booleano.
     fn file_dialog_result_to_luau(&self, r: &FileDialogResult) -> mlua::Result<Value> {
         match r {
-            FileDialogResult::Path(Some(p)) => {
-                Ok(Value::String(self.luau.create_string(p)?))
-            }
+            FileDialogResult::Path(Some(p)) => Ok(Value::String(self.luau.create_string(p)?)),
             FileDialogResult::Path(None) => Ok(Value::Nil),
             FileDialogResult::Paths(Some(paths)) => {
                 let t = self.luau.create_table()?;
@@ -1068,7 +1071,9 @@ fn parse_headers_table(opts: &Table) -> mlua::Result<Vec<(String, String)>> {
 /// [`crate::component::DialogAction::ShowResumable`]) em vez de despachá-las.
 /// `destructive` pinta o botão de confirmação como perigo.
 fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
-    use crate::dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec, CONFIRM_NO, CONFIRM_YES};
+    use crate::dialogs::{
+        ButtonRole, CONFIRM_NO, CONFIRM_YES, DialogButton, DialogIcon, DialogSpec,
+    };
     let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
     let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
     let confirm_label = req
@@ -1084,7 +1089,11 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
         ButtonRole::Accept
     };
     Ok(DialogSpec::new(DialogIcon::Question, title, message)
-        .with_button(DialogButton::new(cancel_label, CONFIRM_NO, ButtonRole::Neutral))
+        .with_button(DialogButton::new(
+            cancel_label,
+            CONFIRM_NO,
+            ButtonRole::Neutral,
+        ))
         .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
         .dismissible(false))
 }
@@ -1741,12 +1750,13 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
 /// usuário) — zipar direto ali evita o passo de mover e o arquivo órfão que
 /// sobraria se a cópia falhasse no meio.
 fn install_zip_dir(luau: &Lua) -> mlua::Result<()> {
-    let zip_dir = luau.create_function(|_, (source, dest): (String, String)| {
-        match zip_directory(&source, &dest) {
-            Ok(()) => Ok((true, None)),
-            Err(e) => Ok((false, Some(e.to_string()))),
-        }
-    })?;
+    let zip_dir =
+        luau.create_function(|_, (source, dest): (String, String)| {
+            match zip_directory(&source, &dest) {
+                Ok(()) => Ok((true, None)),
+                Err(e) => Ok((false, Some(e.to_string()))),
+            }
+        })?;
     luau.globals().set("zip_dir", zip_dir)?;
     Ok(())
 }
@@ -2073,7 +2083,11 @@ mod tests {
         let mut data = HashMap::new();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
-        assert_eq!(ctx.file_dialogs.len(), 1, "deve suspender pedindo um diálogo");
+        assert_eq!(
+            ctx.file_dialogs.len(),
+            1,
+            "deve suspender pedindo um diálogo"
+        );
         assert_eq!(
             ctx.file_dialogs[0].spec.mode,
             crate::file_dialog::FileDialogMode::Open
@@ -2538,10 +2552,7 @@ mod tests {
 
         assert_eq!(data.get("ok").map(String::as_str), Some("true"));
         assert_eq!(data.get("err").map(String::as_str), Some(""));
-        assert_eq!(
-            std::fs::read_to_string(&alvo).unwrap(),
-            "conteúdo do luau"
-        );
+        assert_eq!(std::fs::read_to_string(&alvo).unwrap(), "conteúdo do luau");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -2663,7 +2674,9 @@ mod tests {
         let data = drive(&comp, "usar", None, HashMap::new());
         assert!(data.is_empty());
         // A resolução em si devolve None para um módulo ausente.
-        assert!(resolve_module("nao.existe", &module_roots(&dir.join("t.gv")), &DiskAssets).is_none());
+        assert!(
+            resolve_module("nao.existe", &module_roots(&dir.join("t.gv")), &DiskAssets).is_none()
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3534,8 +3547,12 @@ mod tests {
         .unwrap();
         drive(&comp, "escrever", None, HashMap::new());
 
-        let conteudo = std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
-        assert_eq!(conteudo, "linha 1\nlinha 2\n", "a segunda chamada não pode substituir a primeira");
+        let conteudo =
+            std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
+        assert_eq!(
+            conteudo, "linha 1\nlinha 2\n",
+            "a segunda chamada não pode substituir a primeira"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3570,7 +3587,12 @@ mod tests {
         )
         .unwrap();
         let data = drive(&comp, "compactar", None, HashMap::new());
-        assert_eq!(data.get("ok").map(String::as_str), Some("true"), "{:?}", data.get("erro"));
+        assert_eq!(
+            data.get("ok").map(String::as_str),
+            Some("true"),
+            "{:?}",
+            data.get("erro")
+        );
 
         let arquivo = std::fs::File::open(&destino).expect("o .zip (e a pasta pai) foi criado");
         let mut zip = zip::ZipArchive::new(arquivo).unwrap();

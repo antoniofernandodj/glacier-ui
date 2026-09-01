@@ -324,9 +324,9 @@ mod tests {
     #[test]
     fn gss_de_todos_os_builtin_parseia() {
         for style in all() {
-            let sheet = style.sheet().unwrap_or_else(|e| {
-                panic!("GSS do estilo '{}' não parseia: {e}", style.name)
-            });
+            let sheet = style
+                .sheet()
+                .unwrap_or_else(|e| panic!("GSS do estilo '{}' não parseia: {e}", style.name));
             // Todo estilo estiliza ao menos o Button (regra de tag).
             assert!(
                 sheet.tags.contains_key("button"),

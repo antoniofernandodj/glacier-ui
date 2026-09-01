@@ -275,11 +275,15 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                 .find(|group| group.contains(&name));
             let Some(group) = known else {
                 return Some(
-                    diagnostic_at_attr(child, attr, format!("atributo '{name}' desconhecido no <{tag}>"))
-                        .with_hint(
-                            "o cabeçalho aceita title, size, min-size e resizable \
+                    diagnostic_at_attr(
+                        child,
+                        attr,
+                        format!("atributo '{name}' desconhecido no <{tag}>"),
+                    )
+                    .with_hint(
+                        "o cabeçalho aceita title, size, min-size e resizable \
                              (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)",
-                        ),
+                    ),
                 );
             };
             let value = attr.value();
@@ -836,7 +840,9 @@ pub enum NodeType {
     /// content (`children[1..]`, `<Menu>`/`<MenuItem>`/`<MenuSeparator>`)
     /// shown at the cursor position on right-click of that child. `items` is
     /// the same context-key convention as [`NodeType::Menu::items`].
-    ContextMenu { items: Option<String> },
+    ContextMenu {
+        items: Option<String>,
+    },
     /// A transparent grouping node: renders its children inline into the parent,
     /// adding no layout box of its own. Produced by [`UiNode::parse_xml`] when a
     /// template has more than one top-level node (so a component template can be
@@ -847,6 +853,80 @@ pub enum NodeType {
     /// falls back to stacking them in a `Column` if one ever does (e.g. a
     /// multi-root screen root).
     Fragment,
+    /// `QSlider`: arrastar um cursor por uma faixa. O par do `SpinBox` — no Qt
+    /// os dois costumam editar o mesmo valor —, e como ele, o número mora numa
+    /// chave que o app nomeia (`value_var`), não num estado do widget.
+    ///
+    /// `step` é guardado como **f32 e como o texto cru** do markup: o f32 vai
+    /// para o `.step()` do iced, e o texto é quem sabe quantas casas decimais a
+    /// saída deve ter (`step="0.05"` → 2). Sem isso, arrastar grava
+    /// `0.30000001192092896` na chave — o mesmo cuidado que o `SpinBox` toma
+    /// (ver `crate::builtins::spin_box`), só que ali o step já chega como texto.
+    Slider {
+        value_var: String,
+        on_change: String,
+        /// Ação disparada só ao SOLTAR o cursor, para quem não quer um efeito
+        /// colateral (rede, disco) por pixel arrastado. `None` = não usa.
+        on_release: Option<String>,
+        min: f32,
+        max: f32,
+        step: f32,
+        step_raw: String,
+        /// Passo fino com Shift segurado (`shift_step` do iced). `None` = o iced
+        /// decide.
+        shift_step: Option<f32>,
+        /// Valor para onde um clique duplo devolve o cursor (`default` do iced).
+        default: Option<f32>,
+        vertical: bool,
+        color: Option<String>,
+    },
+    /// `QRadioButton`: uma opção de um grupo mutuamente exclusivo.
+    ///
+    /// O que forma o grupo não é um nó pai (como o `QButtonGroup`), é a chave:
+    /// todo `<Radio>` que aponta para o mesmo `group_var` é do mesmo grupo, e
+    /// fica marcado quando o valor guardado ali é igual ao `value` dele. Dois
+    /// grupos na mesma tela são duas chaves — a mesma regra que deixa dois
+    /// `SpinBox` independentes.
+    ///
+    /// ```xml
+    /// <radio label="Grátis" value="free" group="plano" onChange="escolher" />
+    /// <radio label="Pro"    value="pro"  group="plano" onChange="escolher" />
+    /// ```
+    ///
+    /// `group="plano"` — sem chaves. Escrever `group="{plano}"` passa o *valor*
+    /// no lugar do nome, e aí a busca é por uma chave chamada `free`, que não
+    /// existe: nenhuma opção casa e o grupo inteiro aparece desmarcado.
+    ///
+    /// Como o `<Checkbox>`, ele **não escreve** a chave sozinho: dispara
+    /// `on_change` e quem grava é o app — ou o [`crate::builtins::radio_group`],
+    /// que existe para poupar esse handler.
+    Radio {
+        label: String,
+        /// O valor que ESTA opção representa.
+        value: String,
+        /// **Nome** da chave de contexto que guarda a escolha do grupo — não o
+        /// valor dela. A mesma convenção do `checked=` do `<Checkbox>` e do
+        /// `value=` do `<TextInput>`: no motor, esses atributos sempre apontam
+        /// para uma chave. É o render que faz `ctx.get(group_var) == value`.
+        group_var: String,
+        on_change: String,
+    },
+    /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
+    /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
+    /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
+    Space,
+    /// O buraco que o conteúdo escrito **entre as tags** de um componente
+    /// preenche: `<GroupBox>…</GroupBox>` renderiza esse `…` onde o template do
+    /// `GroupBox` escreveu `<slot/>`.
+    ///
+    /// Antes disto, `NodeType::Component` carregava só props e os filhos do uso
+    /// eram descartados na expansão — o que deixava fora do nível Builtin todo
+    /// widget cuja razão de existir é **envolver** conteúdo (`GroupBox`,
+    /// `Frame`, `Card`, `ToolBar`, `StatusBar`). Ver `PLANO_WIDGETS.md` §3.
+    ///
+    /// Os filhos do próprio `<slot>` são o **conteúdo de reserva**: aparecem
+    /// quando quem usou o componente não escreveu nada dentro dele.
+    Slot,
 }
 
 impl NodeType {
@@ -874,6 +954,9 @@ impl NodeType {
             NodeType::Select { .. } => "select",
             NodeType::ComboEdit { .. } => "comboedit",
             NodeType::ProgressBar { .. } => "progressbar",
+            NodeType::Radio { .. } => "radio",
+            NodeType::Slider { .. } => "slider",
+            NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
             NodeType::Form { .. } => "form",
             NodeType::MenuBar => "menubar",
@@ -895,6 +978,7 @@ impl NodeType {
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop
+            | NodeType::Slot
             | NodeType::Fragment => return None,
         })
     }
@@ -1356,7 +1440,14 @@ impl UiNode {
             Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
         let if_one_of = Self::get_attr(
             &node,
-            &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+            &[
+                "one_of",
+                "oneOf",
+                "one-of",
+                "equals_any",
+                "equalsAny",
+                "algum_de",
+            ],
         );
         let if_empty = node.has_attribute("empty") || node.has_attribute("vazio");
         let if_not_empty = node.has_attribute("not_empty")
@@ -1364,8 +1455,8 @@ impl UiNode {
             || node.has_attribute("not-empty")
             || node.has_attribute("nao_vazio");
         let if_platform = Self::get_attr(&node, &["platform", "plataforma"]);
-        let is_else = !is_template_tag
-            && (node.has_attribute("else") || node.has_attribute("senao"));
+        let is_else =
+            !is_template_tag && (node.has_attribute("else") || node.has_attribute("senao"));
         let else_if_cond = if is_template_tag {
             None
         } else {
@@ -1609,6 +1700,94 @@ impl UiNode {
                     color,
                 }
             }
+            "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {
+                let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"])
+                    .unwrap_or_default();
+                let value = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let group_var = Self::get_attr(
+                    &node,
+                    &[
+                        "group",
+                        "grupo",
+                        "checked",
+                        "marcado",
+                        "selected",
+                        "selecionado",
+                    ],
+                )
+                .unwrap_or_default();
+                let on_change = Self::get_attr(
+                    &node,
+                    &[
+                        "onChange",
+                        "on_change",
+                        "on-change",
+                        "aoMudar",
+                        "ao_mudar",
+                        "onClick",
+                        "on_click",
+                    ],
+                )
+                .unwrap_or_default();
+                NodeType::Radio {
+                    label,
+                    value,
+                    group_var,
+                    on_change,
+                }
+            }
+            "Slider" | "slider" | "Deslizante" | "deslizante" => {
+                let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let on_change = Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default();
+                let on_release = Self::get_attr(
+                    &node,
+                    &[
+                        "onRelease",
+                        "on_release",
+                        "on-release",
+                        "aoSoltar",
+                        "ao_soltar",
+                    ],
+                );
+                let parse_f32 = |keys: &[&str], default: f32| {
+                    Self::get_attr(&node, keys)
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(default)
+                };
+                let min = parse_f32(&["min", "minimo", "minimum"], 0.0);
+                let max = parse_f32(&["max", "maximo", "maximum"], 100.0);
+                // O texto cru do `step` sobrevive ao parse: é dele que saem as
+                // casas decimais da saída (ver `NodeType::Slider`).
+                let step_raw =
+                    Self::get_attr(&node, &["step", "passo"]).unwrap_or_else(|| "1".to_string());
+                let step = step_raw.trim().parse::<f32>().unwrap_or(1.0);
+                let shift_step = Self::get_attr(&node, &["shiftStep", "shift_step", "passo_fino"])
+                    .and_then(|s| s.trim().parse::<f32>().ok());
+                let default = Self::get_attr(&node, &["default", "padrao", "padrão"])
+                    .and_then(|s| s.trim().parse::<f32>().ok());
+                let vertical = Self::get_attr_bool(&node, &["vertical", "verticalizado"]);
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::Slider {
+                    value_var,
+                    on_change,
+                    on_release,
+                    min,
+                    max,
+                    step,
+                    step_raw,
+                    shift_step,
+                    default,
+                    vertical,
+                    color,
+                }
+            }
+            "Space" | "space" | "Espaco" | "espaco" | "Espaço" | "espaço" | "Spacer" | "spacer" => {
+                NodeType::Space
+            }
             "Spinner" | "spinner" | "BusyIndicator" | "busyindicator" | "busy_indicator"
             | "IndicadorOcupado" | "indicador_ocupado" | "Carregando" | "carregando" => {
                 let color = Self::get_attr(&node, &["color", "cor"]);
@@ -1688,7 +1867,13 @@ impl UiNode {
                 .unwrap_or_default();
                 let on_select = Self::get_attr(
                     &node,
-                    &["onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar"],
+                    &[
+                        "onSelect",
+                        "on_select",
+                        "on-select",
+                        "aoSelecionar",
+                        "ao_selecionar",
+                    ],
                 )
                 .unwrap_or_default();
                 let placeholder =
@@ -1819,7 +2004,14 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
@@ -1845,7 +2037,14 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
@@ -1887,7 +2086,14 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
@@ -1901,7 +2107,15 @@ impl UiNode {
                 );
                 let if_cond = Self::get_attr(
                     &node,
-                    &["if", "se", "cond", "condition", "when", "quando", "condicao"],
+                    &[
+                        "if",
+                        "se",
+                        "cond",
+                        "condition",
+                        "when",
+                        "quando",
+                        "condicao",
+                    ],
                 );
 
                 if let Some(items) = items {
@@ -1985,6 +2199,10 @@ impl UiNode {
                 let name = Self::get_attr(&node, &["as", "name", "nome"]);
                 NodeType::Link { rel, href, name }
             }
+            // `<slot/>` — ver [`NodeType::Slot`]. Os filhos escritos dentro dele
+            // ficam no nó (são o conteúdo de reserva); é o `eval` que decide
+            // entre eles e o que veio do uso do componente.
+            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo" => NodeType::Slot,
             "style" | "Style" | "stylesheet" | "Stylesheet" => {
                 // `<style href="...">` (or `src`) is an external sheet, equivalent
                 // to `<link rel="stylesheet">` (always global). A bodied
@@ -2604,7 +2822,11 @@ mod cabecalho_obrigatorio_tests {
         )
         .expect_err("<screen> ao lado do layout não é cabeçalho de nada");
         let d = err.diagnostic().unwrap();
-        assert!(d.message.contains("não é a raiz do arquivo"), "{}", d.message);
+        assert!(
+            d.message.contains("não é a raiz do arquivo"),
+            "{}",
+            d.message
+        );
     }
 
     #[test]
@@ -2918,7 +3140,11 @@ mod screen_tests {
 
         assert!(matches!(a.kind, NodeType::Column));
         assert!(matches!(b.kind, NodeType::Column), "o layout vira a raiz");
-        assert_eq!(a.children.len(), b.children.len() - 1, "b tem o <screen> a mais");
+        assert_eq!(
+            a.children.len(),
+            b.children.len() - 1,
+            "b tem o <screen> a mais"
+        );
 
         let css = |n: &UiNode| {
             n.children.iter().find_map(|c| match &c.kind {
@@ -2926,7 +3152,11 @@ mod screen_tests {
                 _ => None,
             })
         };
-        assert_eq!(css(&a), css(&b), "o <style> chega igual pelos dois caminhos");
+        assert_eq!(
+            css(&a),
+            css(&b),
+            "o <style> chega igual pelos dois caminhos"
+        );
         assert!(meta_of(&a).is_none(), "sem cabeçalho, sem metadados");
     }
 
@@ -3008,7 +3238,10 @@ mod header_diagnostics_tests {
     fn atributo_desconhecido_no_screen() {
         let msg = erro(r#"<screen titel="Detalhe"><column /></screen>"#);
         assert!(msg.contains("atributo 'titel' desconhecido"), "{msg}");
-        assert!(msg.contains("title, size, min-size"), "a dica lista os aceitos: {msg}");
+        assert!(
+            msg.contains("title, size, min-size"),
+            "a dica lista os aceitos: {msg}"
+        );
     }
 
     #[test]
@@ -3022,7 +3255,10 @@ mod header_diagnostics_tests {
         </screen>"#;
         let msg = erro(xml);
         assert!(msg.contains("<button> não é uma declaração"), "{msg}");
-        assert!(msg.contains("depois do </resources>"), "a dica diz para onde mover: {msg}");
+        assert!(
+            msg.contains("depois do </resources>"),
+            "a dica diz para onde mover: {msg}"
+        );
     }
 
     /// A linha citada é a do arquivo do autor, não a do documento embrulhado na
@@ -3054,13 +3290,21 @@ mod header_diagnostics_tests {
     fn resources_fora_do_screen() {
         let msg = erro(r#"<resources><style>.a { padding: 4; }</style></resources><column />"#);
         assert!(msg.contains("fora de um cabeçalho"), "{msg}");
-        assert!(msg.contains("<component>"), "a dica cita as duas raízes: {msg}");
+        assert!(
+            msg.contains("<component>"),
+            "a dica cita as duas raízes: {msg}"
+        );
     }
 
     #[test]
     fn resources_nao_leva_atributo() {
-        let msg = erro(r#"<screen><resources scoped="true"><style>.a { padding: 4; }</style></resources><column /></screen>"#);
-        assert!(msg.contains("atributo 'scoped' desconhecido no <resources>"), "{msg}");
+        let msg = erro(
+            r#"<screen><resources scoped="true"><style>.a { padding: 4; }</style></resources><column /></screen>"#,
+        );
+        assert!(
+            msg.contains("atributo 'scoped' desconhecido no <resources>"),
+            "{msg}"
+        );
     }
 
     /// E o que é válido continua válido — inclusive as declarações soltas dentro
@@ -3101,7 +3345,10 @@ mod component_root_tests {
             <column><text content="oi" /></column>
         </component>"#;
         let root = UiNode::parse_xml(xml).expect("parse");
-        assert!(matches!(root.kind, NodeType::Column), "o layout vira a raiz");
+        assert!(
+            matches!(root.kind, NodeType::Column),
+            "o layout vira a raiz"
+        );
         assert!(
             root.children
                 .iter()
@@ -3149,15 +3396,19 @@ mod component_root_tests {
             <resources><button text="oi" /></resources>
             <column />
         </component>"#;
-        let err = UiNode::parse_xml(xml).expect_err("widget não é declaração").to_string();
+        let err = UiNode::parse_xml(xml)
+            .expect_err("widget não é declaração")
+            .to_string();
         assert!(err.contains("<button> não é uma declaração"), "{err}");
     }
 
     #[test]
     fn component_sem_layout_erra_falando_do_component() {
-        let err = UiNode::parse_xml("<component><resources><style>.a { padding: 4; }</style></resources></component>")
-            .expect_err("um <component> sem conteúdo não é nada")
-            .to_string();
+        let err = UiNode::parse_xml(
+            "<component><resources><style>.a { padding: 4; }</style></resources></component>",
+        )
+        .expect_err("um <component> sem conteúdo não é nada")
+        .to_string();
         assert!(err.contains("<component> não tem conteúdo"), "{err}");
     }
 

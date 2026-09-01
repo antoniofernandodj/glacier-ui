@@ -9,6 +9,12 @@ carregam **estrutura** (template), **estilo** (`.gss`) e **comportamento**
 
 É um documento vivo. Cada linha da tabela é um item de backlog; conforme um
 widget nasce, seu status vira ✅ e ele ganha exemplo em `examples/` e doc curta.
+A **fila de execução** — o que construir a seguir, em ordem — está na §6.
+
+**Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
+(`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
+convenção que as primitivas do motor já tinham (`<textinput/>`,
+`<progressbar/>`). Os exemplos usam a forma minúscula.
 
 Relacionados: [`BUILTINS.md`](BUILTINS.md) (como escrever um builtin),
 [`PRIMITIVAS.md`](PRIMITIVAS.md) (como escrever uma primitiva — inclui a
@@ -66,10 +72,10 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QPushButton | `Button` | Prim | button | — | P0 | ✅ | já existe (`on_click`, estilos GSS) |
-| QToolButton | `ToolButton` | Built | button+svg | — | P1 | ⬜ | botão-ícone, variantes flat/menu |
-| QRadioButton | `Radio` | Prim | radio | ◐ | P1 | ⬜ | precisa de grupo (valor selecionado compartilhado) |
+| QToolButton | `ToolButton` | Built | button+svg | — | P1 | ✅ | botão-ícone com `autoRaise` (fundo só no hover); glifo ou `.svg`, e as três formas do `Qt::ToolButtonStyle` (`icon`/`beside`/`under`) |
+| QRadioButton | `Radio` | Prim | radio | ◐ | P1 | ✅ | o grupo **é a chave**: `group="plano"` é o *nome* dela (convenção do `checked=`), e todo `<radio>` que aponta para a mesma chave é do mesmo grupo. Não grava sozinho (regra do `<Checkbox>`) — para isso, o `RadioGroup` |
 | QCheckBox | `Checkbox` | Prim | checkbox | ◐ | P0 | ✅ | já existe |
-| QCheckBox (tristate) | `Checkbox tristate` | Prim | checkbox | ◐ | P2 | ⬜ | 3º estado indeterminado |
+| QCheckBox (tristate) | `Checkbox tristate` | Prim | checkbox | ◐ | P2 | ✅ | flag `tristate` no `<Checkbox>`; cicla `false → mixed → true` (a ordem do Qt) e desenha `−` no lugar do check, como `Qt::PartiallyChecked` |
 | QCommandLinkButton | `CommandLink` | Built | button+col | — | P2 | ⬜ | título + descrição + seta |
 | QDialogButtonBox | `ButtonBox` | Built | row+button | — | P1 | 🟡 | existe nos diálogos; expor como builtin de tela |
 | (switch/QML Switch) | `Toggle`/`Toggler` | Prim | toggler | ◐ | P0 | ✅ | já existe |
@@ -81,13 +87,13 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QLineEdit | `TextInput` | Prim | text_input | ◐ | P0 | ✅ | já existe |
-| QLineEdit (password) | `TextInput password` | Prim | text_input | ◐ | P1 | 🟡 | flag `secure` do iced |
+| QLineEdit (password) | `TextInput password` | Prim | text_input | ◐ | P1 | ✅ | flag `secure`/`password`/`seguro`/`senha` no `<TextInput>`, sobre o `.secure()` do iced |
 | QLineEdit (mask/validator) | `MaskedInput` | Comp | text_input | ● | P2 | ⬜ | máscara + validação (CPF, telefone…) |
 | QTextEdit (rich) | `TextEditor` | Prim | text_editor | ● | P1 | ✅ | multi-linha; rich text é limitado |
 | QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação |
 | QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links |
 | QKeySequenceEdit | `ShortcutInput` | Comp | text_input | ● | P3 | ⬜ | captura combinação de teclas |
-| QComboBox (editable) | `ComboEdit` | Prim | combo_box | ● | P1 | 🟡 | `combo_box` do iced permite editar+filtrar |
+| QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
 | — (autocomplete) | `Autocomplete` | Comp | text_input+overlay | ● | P2 | ⬜ | ver QCompleter (§2.12) |
 
 ### 2.3 Entradas numéricas e de valor
@@ -96,7 +102,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|---|
 | QSpinBox | `SpinBox` | Built | text_input+button | ◐ | P1 | ✅ | campo + degraus, `min`/`max`/`step`, `layout="stacked"` (as setinhas ▴▾ coladas no campo, o QSpinBox clássico) ou `"inline"` (`− campo +`, o SpinBox do Qt Quick); a aritmética roda no `update` em Rust — **reclassificado de `●`**: o número mora numa chave que o app nomeia (prop `value`) e a ação carrega essa chave, então N instâncias não colidem (ver `src/builtins/spin_box.rs`) |
 | QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | 🟡 | sai de graça do `SpinBox`: as casas decimais vêm do `step` (`step="0.25"` → 2 casas). Falta uma prop `decimals` explícita |
-| QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ⬜ | min/max/step, orientação |
+| QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ✅ | `min`/`max`/`step`, `vertical`, mais `default` (duplo clique), `on_release` e `shift_step`. Casas decimais da saída vêm do `step` como escrito. `disabled` deixa inerte, sem esmaecer: o `slider::Status` do iced 0.14 não tem `Disabled` |
 | QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
 | QDial | `Dial` | Comp | canvas | ● | P2 | ⬜ | knob rotativo |
 | QScrollBar | `ScrollBar` | Motor | scrollable | — | P2 | 🟡 | embutido no `scrollable`; expor avulso é raro |
@@ -128,7 +134,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|---|
 | QCalendarWidget | `Calendar` | Comp | column+row+button | ● | P1 | ⬜ | grade de mês, navegação, dia selecionado |
 | QDateEdit / QDatePicker | `DatePicker` | Comp | text_input+Calendar(overlay) | ● | P1 | ⬜ | campo + popup de calendário |
-| QTimeEdit | `TimePicker` | Comp | SpinBox×3 / roleta | ● | P1 | ⬜ | hora/min/seg |
+| QTimeEdit | `TimePicker` | Built | text_input+button | ◐ | P1 | 🟡 | existe como **orquestrador delegante** (campo `HH:MM` + botão, tudo repassado ao app via `app:` — `src/builtins/time_picker.rs`); falta o seletor de verdade (roleta ou SpinBox×3) |
 | QDateTimeEdit | `DateTimePicker` | Comp | DatePicker+TimePicker | ● | P1 | ⬜ | combinação dos dois |
 | — (range) | `DateRangePicker` | Comp | 2×Calendar | ● | P2 | ⬜ | intervalo início→fim |
 | — (mês/ano) | `MonthYearPicker` | Comp | pick_list×2 | ● | P3 | ⬜ | seleção só de mês/ano |
@@ -145,11 +151,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QLabel (imagem) | `Image` | Prim | image | — | P0 | ✅ | já existe |
 | — (ícone SVG) | `Svg` / `icone` | Prim | svg | — | P0 | ✅ | já existe |
 | — (pílula/rótulo) | `Badge` | Built | container+text | — | P1 | ✅ | builtin canônico |
-| — (cartão) | `Card` | Built/Comp | container+col | — | P1 | ✅ | existe (commit 0.35) |
-| — (avatar) | `Avatar` | Built | container+image | — | P1 | ⬜ | círculo com imagem/iniciais |
+| — (cartão) | `Card` | Built | container+col | — | P1 | ✅ | builtin de verdade a partir da 0.65: superfície com cabeçalho (título/subtítulo) e corpo por `<slot/>`. Sem rodapé — precisaria de slot **nomeado** |
+| — (avatar) | `Avatar` | Built | container+image | — | P1 | ✅ | foto circular ou iniciais como reserva, com cores por instância. Sem indicador de presença (pediria `Stack` dentro do builtin) |
 | — (chip removível) | `Chip` | Built | row+button | — | P2 | ⬜ | badge com "×" |
 | — (separador) | `Divider` / `Rule` | Prim | rule | — | P0 | ✅ | `Rule` existe |
-| QFrame | `Frame` | Built | container | — | P2 | ⬜ | borda/relevo configurável |
+| QFrame | `Frame` | Built | container | — | P2 | ✅ | três formas: `box` (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem `Raised`/`Sunken`: o `UiNode` não tem campo de sombra |
 | — (skeleton) | `Skeleton` | Built | container | — | P2 | ⬜ | placeholder de carregamento |
 | — (QR) | `QrCode` | Prim | qr_code | — | P3 | ⬜ | iced tem nativo |
 | QGraphicsView | `Canvas` | Prim | canvas | ● | P3 | ⬜ | superfície de desenho livre |
@@ -161,20 +167,20 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QWidget/QFrame | `Container` | Prim | container | — | P0 | ✅ | já existe |
-| QGroupBox | `GroupBox` | Built | container+text | — | P1 | ⬜ | moldura com título (e checkbox opcional) |
+| QGroupBox | `GroupBox` | Built | container+text | — | P1 | ✅ | moldura com título + `flat="true"` (o `QGroupBox::flat`). Falta o checkbox no título (`setCheckable`) |
 | QScrollArea | `Scrollable` / `rolagem` | Prim | scrollable | — | P0 | ✅ | já existe |
 | QSplitter | `Splitter` / `PaneGrid` | Prim | pane_grid | ● | P2 | ⬜ | painéis redimensionáveis |
 | QToolBox | `ToolBox` | Comp | column+button | ● | P2 | ⬜ | seções empilhadas expansíveis |
 | — (accordion) | `Accordion` | Comp | column+button | ● | P1 | ⬜ | itens abre/fecha — **precisa estado** |
 | QMdiArea/QMdiSubWindow | `MdiArea` | Comp | canvas/stack | ● | P3 | ⬜ | janelas MDI internas |
 | QDockWidget | `Dock` | Comp | pane_grid | ● | P3 | ⬜ | painéis acopláveis |
-| — (grupo com scroll) | `Space` | Prim | space | — | P1 | ⬜ | espaçador flexível (iced `space`) |
+| — (grupo com scroll) | `Space` | Prim | space | — | P1 | ✅ | sem `width`/`height` é `Fill` nos dois eixos (o espaçador flexível); com eles, vão fixo |
 
 ### 2.8 Navegação (abas, wizard, stacks)
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QTabWidget/QTabBar | `Tabs` | Comp | row+button+stack | ● | P1 | ⬜ | aba ativa = estado |
+| QTabWidget/QTabBar | `TabBar` | Built | row+button | ◐ | P1 | 🟡 | a **barra** existe (0.65): abas de uma coleção do contexto, ativa numa chave que o app nomeia (padrão `SpinBox`). O empilhado de páginas continua sendo `se`/`senao` — o `QTabWidget` inteiro espera slot **nomeado** |
 | QStackedWidget | `Stack`/`StackView` | Comp | condicional (`se`) | ◐ | P1 | 🟡 | já dá com `se`; formalizar |
 | QWizard/QWizardPage | `Wizard` | Comp | Stack+ButtonBox | ● | P2 | ⬜ | passos com voltar/avançar/finalizar |
 | QML SwipeView | `SwipeView` | Comp | stack | ● | P3 | ⬜ | páginas deslizáveis |
@@ -186,12 +192,12 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QMainWindow | `Window`/`App` | Motor | app | ● | P0 | ✅ | app já é a janela |
-| QMenuBar | `MenuBar` | Comp | row+overlay | ● | P2 | ⬜ | menus suspensos |
-| QMenu | `Menu` | Comp | overlay+ListView | ● | P2 | ⬜ | popup de itens/ações/submenus |
-| — (menu de contexto) | `ContextMenu` | Comp | mouse_area+overlay | ● | P2 | ⬜ | botão direito |
-| QToolBar | `ToolBar` | Built | row+ToolButton | — | P2 | ⬜ | faixa de ações |
-| QStatusBar | `StatusBar` | Built | row+text | — | P2 | ⬜ | rodapé de status |
-| QSystemTrayIcon | `SystemTray` | Motor | (SO) | ● | P3 | ⬜ | depende de suporte do SO/iced |
+| QMenuBar | `MenuBar` | Prim | row+overlay | — | P2 | ✅ | `<MenuBar>` + `<Menu>`; overlay próprio em `src/menu.rs` |
+| QMenu | `Menu` | Prim | overlay próprio | — | P2 | ✅ | `<Menu>`/`<MenuItem>`/`<MenuSeparator>`, com ícone, item marcável, `disabled` e **submenus aninhados a profundidade arbitrária**; itens também por `items=` (coleção do contexto) |
+| — (menu de contexto) | `ContextMenu` | Prim | mouse_area+overlay | — | P2 | ✅ | `<ContextMenu items="…">`, botão direito (ver `examples/menus`) |
+| QToolBar | `ToolBar` | Built | row+ToolButton | — | P2 | ✅ | faixa de ações por `<slot/>` (aceita qualquer widget, como o `addWidget` do Qt), com `divider` opcional |
+| QStatusBar | `StatusBar` | Built | row+text | — | P2 | ✅ | mensagem à esquerda (`showMessage`) e permanentes à direita por `<slot/>` (`addPermanentWidget`) |
+| QSystemTrayIcon | `SystemTray` | Motor | (SO) | — | P3 | ✅ | `src/tray.rs` (feature `tray-icon`, thread dedicada): app sobrevive à última janela, menu de bandeja e interruptor de notificações (ver `examples/bandeja`) |
 | QSizeGrip | — | Motor | — | — | P3 | ⬜ | canto de redimensionamento |
 
 ### 2.10 Diálogos (módulo `dialogs.rs`)
@@ -205,9 +211,9 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | — (confirm) | `DialogSpec::confirm` | Diál | stack | — | P0 | ✅ | existe |
 | QInputDialog | `InputDialog` | Diál | stack+TextInput | ● | P1 | ⬜ | pede texto/número/item |
 | QProgressDialog | `ProgressDialog` | Diál | stack+ProgressBar | ● | P1 | ⬜ | progresso cancelável |
-| QFileDialog (abrir arquivo) | `FileDialog::open` | Diál | **`rfd`** ou nativo | ● | P1 | ⬜ | **foco declarado**; nativo do SO via `rfd` é o caminho pragmático |
-| QFileDialog (salvar) | `FileDialog::save` | Diál | `rfd` | ● | P1 | ⬜ | idem |
-| QFileDialog (diretório) | `FileDialog::directory` | Diál | `rfd` | ● | P1 | ⬜ | **foco declarado** |
+| QFileDialog (abrir arquivo) | `FileDialog::open` | Diál | **`rfd`** (nativo do SO) | — | P1 | ✅ | `src/file_dialog.rs`; Luau `open_file()`/`open_files()`, suspensivo como `confirm()`/`fetch()` (ver `examples/file_dialog`) |
+| QFileDialog (salvar) | `FileDialog::save` | Diál | `rfd` | — | P1 | ✅ | Luau `save_file()` |
+| QFileDialog (diretório) | `FileDialog::directory` | Diál | `rfd` | — | P1 | ✅ | Luau `pick_folder()` |
 | QColorDialog | `ColorDialog` | Diál | stack+canvas | ● | P2 | ⬜ | roda/HSV/hex |
 | QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho |
 | QErrorMessage | (coberto por `error`) | Diál | — | — | — | ✅ | redundante |
@@ -227,15 +233,15 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QGridLayout | `Grid` | Prim/Motor | — | P1 | ⬜ | grade linhas×colunas — falta no iced, compor |
 | QFormLayout | `Form` / `formulario` | Prim | — | P1 | ✅ | `Form` existe |
 | QStackedLayout | `se`/`senao` + Stack | Motor | ◐ | P1 | 🟡 | condicional existe |
-| QSpacerItem | `Space` | Prim | — | P1 | ⬜ | espaçador |
+| QSpacerItem | `Space` | Prim | — | P1 | ✅ | ver §2.7 |
 | (flow layout) | `Flow`/`Wrap` | Comp | row+quebra | — | P2 | ⬜ | quebra automática de linha |
 
 ### 2.12 Overlays, dicas e utilitários
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QToolTip | `Tooltip` | Prim | tooltip | — | P1 | ⬜ | iced tem nativo |
-| QML ToolTip | (idem) | Prim | tooltip | — | P1 | ⬜ | — |
+| QToolTip | `tooltip=` | Prim | tooltip | — | P1 | ✅ | **atributo universal**, não tag: `tooltip`/`title`/`dica` em *qualquer* nó, com `tooltip_position` |
+| QML ToolTip | (idem) | Prim | tooltip | — | P1 | ✅ | mesmo atributo |
 | QWhatsThis | — | — | — | — | P3 | ⬜ | ajuda contextual (raro) |
 | QCompleter | `Completer` | Comp | text_input+overlay | ● | P2 | ⬜ | sugestões enquanto digita |
 | QML Popup | `Popup` | Comp | stack | ● | P2 | ⬜ | genérico ancorado |
@@ -282,22 +288,34 @@ Ou seja: `SpinBox`, `Pagination`, `Rating` e afins nunca estiveram bloqueados �
 o que faltava era o padrão, não o motor. O mesmo tipo de correção que a linha
 `QProgressBar (busy)` já tinha recebido.
 
-O que **de fato** trava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
-`StatusBar` é outro item, que não estava nesta lista:
+Há ainda um terceiro caso, descoberto ao ordenar a fila do §6: o estado **tem**
+nome (`<Calendar value="data" month="mes_visivel"/>`), mas o widget precisa
+**semear** esse contexto antes do primeiro clique — e `Component::init(&mut
+self, ctx)` não recebe as props da instância, só o contexto global. Um
+`Calendar` renderizaria vazio até alguém clicar. É por isso que a §2.5 inteira
+continua atrás do estado por instância, e não pôde entrar na fila do §6.
 
-> **Componente não aceita filhos.** `NodeType::Component { name, props }` carrega
-> só props; o conteúdo escrito dentro da tag é descartado na expansão
-> (`eval_owned`). Não há `<slot/>`. Todo widget cuja razão de existir é
-> **envolver** conteúdo está fora do nível Builtin até isso existir — e é por
-> isso que várias linhas classificadas `Built` na tabela ainda não podem ser
-> construídas.
+O que **de fato** travava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
+`StatusBar` era outro item, que não estava nesta lista — e que **caiu na 0.65**:
+
+> ~~**Componente não aceita filhos.**~~ **Resolvido.** `NodeType::Slot` existe:
+> `<slot/>` no template de um componente recebe o conteúdo escrito entre as tags
+> do uso, com conteúdo de reserva quando não vem nada. O ponto fino é a
+> **posse**: o conteúdo é avaliado no contexto e com o dono de *quem escreveu*,
+> então `on_click="salvar"` dentro de um `<GroupBox>` chega na tela e não vira
+> `GroupBox::salvar`. Ver `BUILTINS.md`.
+>
+> O que ainda não existe é **slot nomeado** (`<slot name="footer"/>`): um único
+> buraco anônimo por componente. É ele que separa o `TabBar` de hoje do
+> `QTabWidget` inteiro, e o `Card` de um cartão com rodapé.
 
 Ordem sugerida de habilitadores de Motor:
 
 1. **Estado por instância** (`●` do segundo tipo, acima). **P0.**
-2. **Filhos em componente (`<slot/>`)** — destrava a família dos agrupadores
-   (`Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar`, `StatusBar`,
-   `CommandLink`). Barato perto dos outros itens desta lista. **P1.**
+2. ~~**Filhos em componente (`<slot/>`)**~~ ✅ **feito na 0.65** — destravou
+   `GroupBox`, `Frame`, `Card`, `ToolBar` e `StatusBar`, todos construídos na
+   mesma leva (§6). Sobra o **slot nomeado**, que é o que falta para `Tabs`
+   completo, `Accordion`, `ToolBox` e um `Card` com rodapé. **P1.**
 3. **`ctx.dispatch(acao)`** — repasse de evento **do lado Rust**: um `update`
    não consegue despachar outra ação, então um builtin que trata um evento para
    si não pode também repassá-lo. O caso declarativo (widget que só delega, como
@@ -305,9 +323,13 @@ Ordem sugerida de habilitadores de Motor:
    `BUILTINS.md`. **P2.**
 4. **`Space` + `Grid`** — layout que falta para telas densas. **P1.**
 5. **Sistema de overlay ancorado reutilizável** — `Stack` + posição relativa a
-   um widget âncora. Destrava `Menu`, `Popup`, `Popover`, `Completer`,
-   `DatePicker` (popup), `Tooltip` custom, `ContextMenu`. Lição de `DIALOGS.md`
-   já mapeou os cuidados (`Interaction::Idle` + `on_press` sempre presente). **P1.**
+   um widget âncora. **Meio resolvido:** `src/menu.rs` já construiu um overlay
+   ancorado com cascata de submenus, mas fechado sobre `MenuNode` — não é um
+   mecanismo genérico. Generalizá-lo (ou trocá-lo por um
+   `iced::advanced::{Widget, Overlay}` custom, o caminho que o próprio
+   `menu.rs` documenta como o "certo") destrava `Popup`, `Popover`,
+   `Completer` e o popup do `DatePicker`. Lição de `DIALOGS.md` já mapeou os
+   cuidados (`Interaction::Idle` + `on_press` sempre presente). **P1.**
 6. **Contexto tipado / valor de data** — reduz `to_string()`/parse manual;
    necessário para pickers de data robustos. **P1.**
 7. **Binding a coleção (model/view)** — `ListView`/`TableView`/`TreeView`
@@ -322,9 +344,10 @@ Ordem sugerida de habilitadores de Motor:
 
 ## 4. Decisões em aberto
 
-- **Diálogos nativos vs. próprios** (arquivo, cor, fonte): usar o crate `rfd`
-  (nativo do SO, pronto) primeiro, ou investir já na versão estilizável própria?
-  Recomendação: `rfd` em P1, própria em P3.
+- ~~**Diálogos nativos vs. próprios** (arquivo)~~ — **decidido e feito**: `rfd`
+  nativo do SO, em `src/file_dialog.rs`, exposto ao Luau como
+  `open_file`/`open_files`/`save_file`/`pick_folder`. A versão própria
+  estilizável segue em P3. Cor e fonte continuam em aberto pela mesma pergunta.
 - **Dependência de datas**: `chrono` vs. `time` para o módulo de data/hora.
 - **Gráficos**: `canvas` na mão vs. integrar `plotters`.
 - **Convenção de nomes**: manter aliases PT-BR (`botao`, `seletor`, `rolagem`…)
@@ -339,26 +362,30 @@ Ordem sugerida de habilitadores de Motor:
 Corte transversal da tabela por prioridade, na ordem que maximiza valor:
 
 **Fase A — fechar o núcleo primitivo (P0/P1 sobre iced direto)**
-`Radio` · `Slider` · ~~`ProgressBar` (formalizar)~~ ✅ · `Tooltip` · `Space` ·
-`Grid` · `password`/`secure` no `TextInput` · `QrCode`. Baixo custo, tudo
-mapeia a widget nativo do iced.
+~~`Radio`~~ ✅ · ~~`Slider`~~ ✅ · ~~`ProgressBar` (formalizar)~~ ✅ ·
+~~`Tooltip`~~ ✅ · ~~`Space`~~ ✅ · `Grid` · ~~`password`/`secure` no
+`TextInput`~~ ✅ · `QrCode`. Sobram dois: o `QrCode` (nativo do iced, barato) e
+o `Grid`, que é o caro — o iced não tem grade.
 
 **Fase B — destravar estado por instância (Motor P0)**
 Sem markup novo; habilita a fase C inteira.
 
 **Fase C — widgets compostos comuns (P1, dependem de estado)**
-`Tabs` · `Accordion` · ~~`SpinBox`~~ ✅ · `GroupBox` · `ListView` (com seleção) ·
-`ToolBar`/`StatusBar` · `Avatar` · `Spinner`/`BusyIndicator`.
+`Tabs` (só a barra ✅; o empilhado espera slot nomeado) · `Accordion` ·
+~~`SpinBox`~~ ✅ · ~~`GroupBox`~~ ✅ · `ListView` (com seleção) ·
+~~`ToolBar`/`StatusBar`~~ ✅ · `Avatar` · ~~`Spinner`/`BusyIndicator`~~ ✅.
 
 **Fase D — data/hora (P1, foco declarado)**
 `Calendar` → `DatePicker` → `TimePicker` → `DateTimePicker`. Depende de estado
 + overlay ancorado + valor de data.
 
 **Fase E — diálogos ricos (P1)**
-`FileDialog` (open/save/directory via `rfd`) · `InputDialog` · `ProgressDialog`.
+~~`FileDialog` (open/save/directory via `rfd`)~~ ✅ · `InputDialog` ·
+`ProgressDialog`.
 
 **Fase F — overlays e menus (P2)**
-Overlay ancorado → `Menu` · `ContextMenu` · `Popover` · `Completer` · `MenuBar`.
+~~`Menu` · `ContextMenu` · `MenuBar`~~ ✅ (overlay próprio em `src/menu.rs`) →
+generalizar esse overlay → `Popover` · `Popup` · `Completer`.
 
 **Fase G — model/view pesado (P2)**
 `TableView` · `TreeView` · `ColumnView`. O maior investimento; requer binding a
@@ -376,24 +403,111 @@ coleção.
 
 ### Resumo numérico
 
+Contagem sobre as linhas que têm status (a §2.4 tem uma linha — `QListWidgetItem`
+— que é dado, não widget, e fica de fora).
+
 | Categoria | Widgets catalogados | ✅ prontos | 🟡 parciais | ⬜ a fazer |
 |---|---|---|---|---|
-| Botões e ações | 10 | 3 | 1 | 6 |
-| Entradas de texto | 9 | 2 | 3 | 4 |
-| Numéricas/valor | 11 | 3 | 2 | 6 |
-| Seleção/listas/árvores | 11 | 1 | 1 | 9 |
-| Data e hora | 6 | 0 | 0 | 6 |
-| Displays/indicadores | 15 | 7 | 0 | 8 |
-| Containers | 9 | 3 | 0 | 6 |
-| Navegação | 6 | 2 | 1 | 3 |
-| Janela/barras | 8 | 1 | 0 | 7 |
-| Diálogos | 14 | 6 | 0 | 8 |
-| Layouts | 7 | 3 | 1 | 3 |
-| Overlays/utilitários | 12 | 0 | 1 | 11 |
+| Botões e ações | 10 | 6 | 1 | 3 |
+| Entradas de texto | 9 | 4 | 1 | 4 |
+| Numéricas/valor | 11 | 4 | 2 | 5 |
+| Seleção/listas/árvores | 10 | 1 | 1 | 8 |
+| Data e hora | 6 | 0 | 1 | 5 |
+| Displays/indicadores | 15 | 10 | 0 | 5 |
+| Containers | 9 | 4 | 0 | 5 |
+| Navegação | 6 | 1 | 2 | 3 |
+| Janela/barras | 8 | 7 | 0 | 1 |
+| Diálogos | 14 | 9 | 0 | 5 |
+| Layouts | 7 | 4 | 1 | 2 |
+| Overlays/utilitários | 11 | 2 | 1 | 8 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **~124** | **31** | **10** | **83** |
+| **Total** | **122** | **52** | **10** | **60** |
 
-O motor já entrega ~25% do catálogo Qt de superfície. O gargalo não é volume de
-markup — é o punhado de habilitadores de Motor do §3 (filhos em componente +
-estado por instância + overlay ancorado + canvas), que sozinhos destravam a
-maioria dos 83 pendentes.
+O motor já entrega ~43% do catálogo Qt de superfície (34% antes da onda 2, 39%
+antes da onda 1). O gargalo não é volume de markup — é o punhado de
+habilitadores de Motor do §3 (estado por instância + **slot nomeado** + overlay
+ancorado genérico + canvas), que sozinhos destravam a maioria dos 60 pendentes.
+
+As duas ondas mostram os dois regimes de custo. A onda 2 dependia de **um**
+habilitador de motor (`<slot/>`) e, uma vez feito, valeu seis widgets — a §2.9,
+o esqueleto da `QMainWindow`, passou de 1/8 para 7/8. A onda 1 não dependia de
+nada: eram quatro widgets que o `iced` já sustentava e que só faltava expor.
+Nenhuma das duas foi limitada por esforço de markup.
+
+---
+
+## 6. A fila: as próximas dez
+
+O §5 ordena por fase; esta seção ordena por **execução**. Todo item abaixo é
+construtível **hoje**, com o motor como está — a única exceção é o portão do
+`<slot/>`, que aparece explicitamente no meio da fila porque seis dos dez itens
+dependem dele.
+
+Dois critérios ordenam a lista: primeiro o que não tem bloqueio nenhum e mapeia
+a widget nativo do `iced` (barato e imediato), depois o portão, depois a família
+que ele destrava — cada item consumindo o anterior.
+
+### Onda 1 — o que o `iced` já entrega (sem bloqueio) — ✅ **feita (0.66)**
+
+Construída **depois** da onda 2, fora da ordem proposta, a pedido. Exemplo
+executável em `examples/onda1` (`cargo run --example onda1`), que mostra os
+quatro e — de propósito — a diferença entre primitiva e builtin com o mesmo
+dado: `<slider>`/`<radio>` disparam a ação e o app grava a chave; `<radiogroup>`
+grava sozinho.
+
+Uma correção de rota no item 3: além do builtin `RadioGroup` planejado, nasceu
+também a **primitiva `Radio`**. Desenhar a bolinha com glifos num builtin seria
+pior do que usar o `radio` que o `iced` já tem — e com os dois, a divisão fica a
+do Qt (`QRadioButton` + `QButtonGroup`).
+
+| # | Widget | Nível | Por que aqui |
+|---|---|---|---|
+| 1 ✅ | **`Slider`** (`QSlider`) | Prim | A metade que falta do par que o `SpinBox` abriu — no Qt os dois quase sempre editam o mesmo valor. `◐`: valor numa chave nomeada + `on_change`, a forma do `<TextInput>`. Atributos saem iguais aos do `ProgressBar`; o evento é o `UiInputChanged` que o `<Checkbox>` já usa. Inclui `vertical_slider`, e as props baratas que o iced 0.14 dá de graça: `default` (duplo-clique reseta), `on_release` e `shift_step` |
+| 2 ✅ | **`Space`** (`QSpacerItem`) | Prim | O espaçador flexível — custo quase zero (o `iced::widget::Space` já é usado internamente em `menu.rs`) e pré-requisito de layout das barras do item 9 |
+| 3 ✅ | **`Radio`** + **`RadioGroup`** (`QRadioButton`/`QButtonGroup`) | Prim + Built | A última entrada de formulário básica que falta ao lado de `Checkbox`/`Toggle`. O grupo é o padrão do `SpinBox`: a chave nomeada guarda o **valor selecionado**, e cada opção escreve nela — nunca esteve bloqueado |
+| 4 ✅ | **`Avatar`** | Built | O builtin apresentacional mais barato que resta (imagem ou iniciais num círculo), 100% prop-driven. Fecha a §2.6 ao lado de `Badge` |
+
+### Portão — `<slot/>`: filhos em componente (Motor, P1) — ✅ **feito (0.65)**
+
+Não é widget, mas os seis itens seguintes são todos "envolver conteúdo", e
+nenhum deles existiria sem isto. Foi o item mais barato do §3 e o de maior
+alavancagem depois do estado por instância — sozinho, converteu seis linhas ⬜
+da tabela em construídas.
+
+Como ficou: `NodeType::Slot` no parser, e a expansão de componente em
+`eval_owned` avalia os filhos do uso **antes** de entrar no template, no
+contexto e com o dono de quem escreveu — é o que faz `on_click="salvar"` dentro
+de um `<GroupBox>` chegar na tela em vez de virar `GroupBox::salvar`. Os filhos
+do próprio `<slot>` são o conteúdo de reserva. Um uso com conteúdo fica fora do
+cache de componente (as dependências dele são do quadro de quem chamou).
+Detalhes e armadilhas em `BUILTINS.md`.
+
+### Onda 2 — a família dos agrupadores (depois do portão) — ✅ **feita (0.65)**
+
+Todos os seis nasceram na mesma leva, com exemplo executável em
+`examples/onda2` (`cargo run --example onda2`), que os mostra juntos montando o
+esqueleto de uma janela: barra de ferramentas, abas, conteúdo e rodapé.
+
+| # | Widget | Nível | Por que aqui |
+|---|---|---|---|
+| 5 ✅ | **`GroupBox`** (`QGroupBox`) | Built | O primeiro consumidor do `<slot/>` — moldura com título, o caso mais simples possível. Serve de validação do mecanismo antes dos outros cinco |
+| 6 ✅ | **`Frame`** (`QFrame`) | Built | Irmão do 5 (borda/relevo configurável, sem título); sai quase de graça depois dele |
+| 7 ✅ | **`Card`** | Built | Promove a componente do `examples/perfil` a builtin — é o que a tabela §2.6 afirmava existir e não existia. Com `<slot/>`, é `Frame` + convenções de padding/sombra |
+| 8 ✅ | **`ToolButton`** (`QToolButton`) | Built | Botão-ícone com variantes flat/menu. Útil sozinho, e é a peça que o item 9 monta em série |
+| 9 ✅ | **`ToolBar` + `StatusBar`** | Built | As duas faixas da janela principal. A `ToolBar` consome o `ToolButton` do 8 e o `Space` do 2; a `StatusBar` é o mesmo padrão invertido. Com elas, `MenuBar` (já ✅) + `ToolBar` + `StatusBar` fecham o esqueleto de uma `QMainWindow` |
+| 10 ✅ | **`TabBar`** (`QTabBar`) | Built | A barra de abas com a aba ativa numa chave nomeada (padrão `SpinBox`), enquanto o conteúdo continua trocando por `se`/`senao`. É o `QTabWidget` entregue em duas etapas: a barra agora, o container de páginas quando houver slot **nomeado** — sem esperar o estado por instância |
+
+### O que ficou de fora, e por quê
+
+- **`Calendar`/`DatePicker` (§2.5, foco declarado)** — o item mais desejado do
+  documento continua fora do alcance, e agora sabemos exatamente por quê: além
+  da dependência de datas em aberto (§4), `Component::init` não recebe as props
+  da instância, então o widget não consegue semear a grade do mês na chave que o
+  app nomeou (ver §3). É o próximo **projeto**, não o próximo widget.
+- **`Grid`** (`QGridLayout`, P1) — alto valor para telas densas, mas o `iced`
+  não tem grade: é composição de `Row`/`Column` com medição, um item caro perto
+  de qualquer outro da fila. Entra logo depois dela, e o `Form` cobre boa parte
+  dos casos até lá.
+- **`Tabs` completo, `Accordion`, `ToolBox`** — esperam slot **nomeado**
+  (múltiplos buracos por instância), um degrau acima do `<slot/>` único do
+  portão.

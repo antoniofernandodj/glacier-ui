@@ -8,6 +8,159 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.66.0] — 2026-08-31
+
+### Adicionado
+- **Quatro widgets da "onda 1"** (`PLANO_WIDGETS.md` §6) — os que o `iced` já
+  sustentava e que só faltava expor. Ao contrário da onda 2, nenhum dependia de
+  habilitador de motor.
+
+  - **`<slider>`** (`QSlider`) — primitiva sobre `slider`/`vertical_slider`.
+    `min`/`max`/`step`/`vertical`, mais o que o iced 0.14 dá barato: `default`
+    (duplo clique devolve o cursor), `on_release` (a ação só ao soltar, para
+    quem não quer efeito colateral por pixel arrastado) e `shift_step`. As casas
+    decimais da saída vêm do `step` **como escrito no markup** (`step="0.05"` →
+    2 casas), então a chave nunca recebe `0.30000001192092896` — o `step` é
+    guardado como `f32` e como texto para isso.
+  - **`<space>`** (`QSpacerItem`) — sem `width`/`height` é `Length::Fill` nos
+    dois eixos (o espaçador flexível que empurra o resto para a borda); com
+    eles, um vão fixo.
+  - **`<radio>`** (`QRadioButton`) — primitiva sobre o `radio` do iced. O grupo
+    **é a chave**, sem nó pai: `group="plano"` é o *nome* da chave (a mesma
+    convenção do `checked=` do `<checkbox>` e do `value=` do `<textinput>`), e
+    todo `<radio>` que aponta para ela é do mesmo grupo — dois grupos são duas
+    chaves. Escrever `group="{plano}"` passaria o valor no lugar do nome e
+    deixaria o grupo inteiro desmarcado. Como o `<checkbox>`, não grava sozinho:
+    dispara a ação com o valor da opção e quem grava é o app.
+  - **`<radiogroup>`** (`QButtonGroup`) — builtin sobre a primitiva, para o caso
+    comum: as opções vêm de uma coleção do contexto e o `update` dele grava a
+    chave sozinho (padrão do `SpinBox`), então o app não escreve handler nenhum.
+    Uma prop só (`value`, o nome da chave) — e **não** o par `value`/`active`
+    que o `<tabbar>` precisa, porque aqui quem resolve a marcação é a primitiva,
+    em Rust, onde ler a chave cujo nome está numa prop é uma linha. No `tabbar`
+    quem resolve é o template, que não consegue fazer essa indireção.
+  - **`<avatar>`** — foto circular com as iniciais como reserva. Ocupa o mesmo
+    espaço com foto ou sem, porque numa lista de usuários a foto que falta é o
+    caso comum e um buraco vazio quebra o alinhamento da linha.
+
+- **Toda tag de widget aceita minúsculas.** `<GroupBox/>` e `<groupbox/>`,
+  `<ToolButton/>` e `<toolbutton/>` — a mesma convenção que as primitivas do
+  motor já tinham (`<textinput/>`, `<progressbar/>`), agora também para os
+  builtins, e a forma que os exemplos passam a usar.
+
+  Uma primitiva casa num `match` de tags que lista as grafias à mão; um builtin
+  resolve por igualdade exata de nome, então cada um passou a ser publicado sob
+  dois registros (ver `builtins::builtin_aliases`). O alias é uma instância
+  própria, o que importa para o roteamento: `<tabbar/>` produz `tabbar::pick:…`
+  e é essa instância que recebe o `update`. Como todo builtin da lib é sem
+  estado, ter duas instâncias não muda nada.
+
+- **`examples/onda1`** (`cargo run --example onda1`) — os quatro juntos, e de
+  propósito a diferença entre primitiva e builtin com o mesmo dado: o grupo
+  "Plano" tem um `<radio>` escrito à mão (com handler no app) ao lado de um
+  `<radiogroup>` (sem handler nenhum), os dois gravando na mesma chave. O grupo
+  "Zoom" põe um `<slider>` e um `<spinbox>` na mesma chave — o par que o Qt usa
+  o tempo todo.
+
+### Corrigido
+- **`<link rel="import" as="Card">` do app era engolido pelo builtin.** A regra
+  da lib é "registro explícito do app vence o builtin", e ela valia para o
+  `<import>` mas não para o `<link rel="import">`, que só checava se o nome
+  estava livre. O furo era antigo e invisível: enquanto os builtins se chamavam
+  `Badge`, `SpinBox` e `TimePicker`, nenhum app disputava esses nomes. A onda 2
+  trouxe `Card`, `Frame`, `Avatar` e `ToolBar` — nomes comuns —, e aí um app que
+  importasse o próprio `Card` por `<link>` via o builtin renderizar no lugar
+  dele, sem erro nenhum. Os dois caminhos agora abrem a mesma exceção.
+- **`<frame shape="filled">` saía sem fundo**, indistinguível do `shape="none"`.
+  A causa vale a regra geral: o eval resolve um campo com
+  `inline.map(process_tpl).or_else(classe)`, então um atributo escrito no
+  template vence a classe **mesmo quando resolve para vazio** — um
+  `background="{background|}"` gravava `""` em vez de cair para `.frame-filled`.
+  Agora o atributo só é emitido quando a prop existe. Mesma armadilha evitada no
+  `<avatar>`, que por isso usa defaults literais em vez de folha.
+
+---
+
+## [0.65.0] — 2026-08-31
+
+### Adicionado
+- **`<slot/>`: componente agora aceita filhos.** Até aqui,
+  `NodeType::Component` carregava só props e o conteúdo escrito entre as tags de
+  um componente era **descartado** na expansão. O efeito colateral era grande:
+  todo widget cuja razão de existir é *envolver* conteúdo estava fora do nível
+  Builtin — `GroupBox`, `Frame`, `Card`, `ToolBar`, `StatusBar` — e por isso
+  apareciam na tabela do `PLANO_WIDGETS.md` como construíveis quando não eram.
+
+  Agora `<slot/>` no template de um componente recebe esse conteúdo:
+
+  ```xml
+  <GroupBox title="Rede">
+      <Checkbox label="Usar proxy" checked="proxy" />
+      <Button text="Salvar" on_click="salvar" />
+  </GroupBox>
+  ```
+
+  O ponto fino é a **posse**: o conteúdo é avaliado no contexto e com o dono de
+  *quem escreveu*, antes de qualquer camada de props entrar em cena. Por isso o
+  `on_click="salvar"` acima chega no `update` da tela e **não** vira
+  `GroupBox::salvar` — não se escreve `app:` no conteúdo de um slot (esse
+  prefixo continua sendo para a ação recebida por prop, como no `TimePicker`).
+  Os filhos do próprio `<slot>` são o **conteúdo de reserva**, usado quando quem
+  chama não escreve nada; esses sim são do componente e enxergam as props dele.
+
+  Um uso **com** conteúdo fica fora do cache de componente: as dependências do
+  conteúdo pertencem ao quadro de quem chamou, e uma entrada de cache não teria
+  como perceber que ele mudou (mesma exceção que uma lista reordenável já
+  tinha). São os containers da tela — o custo é desprezível.
+
+  Ainda **não** existe slot **nomeado** (`<slot name="footer"/>`): um buraco
+  anônimo por componente. É o que separa o `TabBar` novo de um `QTabWidget`
+  inteiro, e o `Card` de um cartão com rodapé.
+
+- **Seis widgets embutidos novos** — a "onda 2" do `PLANO_WIDGETS.md` §6, toda
+  destravada pelo item acima. Nenhum precisa de registro: a lib os registra em
+  `GlacierUI::new()`, como o `<Badge/>` e o `<SpinBox/>`.
+
+  - **`<GroupBox/>`** (`QGroupBox`) — moldura com título, mais a forma
+    `flat="true"` (título + linha, sem caixa) do `QGroupBox::flat`. Sem título,
+    sobra a moldura pura.
+  - **`<Frame/>`** (`QFrame`) — a moldura sozinha, em três formas: `box`
+    (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem
+    `Raised`/`Sunken`: o `UiNode` não tem campo de sombra.
+  - **`<Card/>`** — superfície de item com cabeçalho opcional (título e
+    subtítulo, independentes) e corpo por slot. Substitui a linha que a tabela
+    do plano dava como pronta desde a 0.35 e que na verdade era um componente
+    específico do `examples/perfil`.
+  - **`<ToolButton/>`** (`QToolButton`) — botão-ícone com `autoRaise` (fundo só
+    no hover), glifo ou `.svg`, e as três formas do `Qt::ToolButtonStyle`
+    (`icon`, `beside`, `under`). Delega o clique ao app pelo prefixo `app:`.
+  - **`<ToolBar/>`** e **`<StatusBar/>`** (`QToolBar`/`QStatusBar`) — as duas
+    faixas da janela. A `StatusBar` separa a mensagem da esquerda (a prop
+    `message`, o `showMessage`) dos permanentes da direita (o slot, o
+    `addPermanentWidget`). Com o `<MenuBar>`, que já era nativo, fecham o
+    esqueleto de uma `QMainWindow`.
+  - **`<TabBar/>`** (`QTabBar`) — a barra de abas, com as abas vindo de uma
+    coleção do contexto e a ativa gravada numa chave que o app nomeia (o padrão
+    do `SpinBox`: a chave vem por prop e viaja dentro da ação). `value` e
+    `active` andam em par porque o template não consegue ler o valor da chave
+    cujo *nome* está numa prop. O empilhado de páginas continua sendo
+    `se`/`senao` — o `QTabWidget` inteiro espera slot nomeado.
+
+- **`examples/onda2`** (`cargo run --example onda2`) — os seis juntos montando
+  uma janela: barra de ferramentas, abas, conteúdo rolável e rodapé. O botão
+  "Salvar rede", escrito dentro de um `<GroupBox>`, é a demonstração da regra de
+  posse do slot.
+
+### Corrigido
+- **`PLANO_WIDGETS.md` batia com o código em onze linhas.** Dez estavam
+  marcadas como pendentes ou parciais quando já existiam — `Checkbox tristate`,
+  `TextInput secure`, `ComboEdit`, `MenuBar`/`Menu`/`ContextMenu`, `SystemTray`,
+  os três `FileDialog` e o `tooltip` — e uma (`Card`) estava marcada como pronta
+  sem existir. O resumo numérico também tinha erros de contagem próprios em
+  quatro seções. Recontado: **47 ✅ / 10 🟡 / 65 ⬜** em 122 linhas.
+
+---
+
 ## [0.64.0] — 2026-08-31
 
 ### Mudado

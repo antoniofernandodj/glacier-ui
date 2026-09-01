@@ -137,23 +137,26 @@ pub(crate) fn event_stream() -> impl futures::Stream<Item = EngineMessage> {
     use futures::SinkExt;
     use std::time::Duration;
 
-    iced::stream::channel(64, |mut output: futures::channel::mpsc::Sender<EngineMessage>| async move {
-        loop {
-            // O lock é solto entre uma mensagem e outra de propósito: `send`
-            // abaixo é `await`, e segurar o mutex através dele bloquearia todo
-            // emissor pelo tempo de um redraw.
-            let proxima = RX
-                .get()
-                .and_then(|rx| rx.lock().ok().and_then(|g| g.try_recv().ok()));
+    iced::stream::channel(
+        64,
+        |mut output: futures::channel::mpsc::Sender<EngineMessage>| async move {
+            loop {
+                // O lock é solto entre uma mensagem e outra de propósito: `send`
+                // abaixo é `await`, e segurar o mutex através dele bloquearia todo
+                // emissor pelo tempo de um redraw.
+                let proxima = RX
+                    .get()
+                    .and_then(|rx| rx.lock().ok().and_then(|g| g.try_recv().ok()));
 
-            match proxima {
-                Some(msg) => {
-                    let _ = output.send(msg).await;
+                match proxima {
+                    Some(msg) => {
+                        let _ = output.send(msg).await;
+                    }
+                    None => tokio::time::sleep(Duration::from_millis(120)).await,
                 }
-                None => tokio::time::sleep(Duration::from_millis(120)).await,
             }
-        }
-    })
+        },
+    )
 }
 
 #[cfg(test)]
@@ -167,7 +170,10 @@ mod tests {
     fn canal_externo() {
         // Antes de qualquer `sender()`, o daemon não deve registrar a
         // subscription — quem não usa não paga o poll.
-        assert!(!is_active(), "o canal não pode existir antes de alguém pedir");
+        assert!(
+            !is_active(),
+            "o canal não pode existir antes de alguém pedir"
+        );
 
         let a = sender();
         assert!(is_active());

@@ -80,14 +80,32 @@
 //! Escreva o `impl Component` neste arquivo e inclua-o em [`builtin_components`]
 //! — é o **único** ponto que o motor lê; nada mais precisa mudar. Guia completo,
 //! com checklist e armadilhas, em `BUILTINS.md`.
+mod avatar;
 mod badge;
+mod card;
+mod frame;
+mod group_box;
+mod radio_group;
 mod spin_box;
+mod status_bar;
+mod tab_bar;
 mod time_picker;
+mod tool_bar;
+mod tool_button;
 
+use crate::builtins::avatar::Avatar;
 use crate::builtins::badge::Badge;
+use crate::builtins::card::Card;
+use crate::builtins::frame::Frame;
+use crate::builtins::group_box::GroupBox;
+use crate::builtins::radio_group::RadioGroup;
 use crate::builtins::spin_box::SpinBox;
+use crate::builtins::status_bar::StatusBar;
+use crate::builtins::tab_bar::TabBar;
 use crate::builtins::time_picker::TimePicker;
-use crate::component::Component;
+use crate::builtins::tool_bar::ToolBar;
+use crate::builtins::tool_button::ToolButton;
+use crate::component::{Component, Context, Template};
 
 /// Todos os componentes embutidos, na ordem em que o motor os registra.
 ///
@@ -97,8 +115,95 @@ use crate::component::Component;
 /// da lib precisa saber do widget.
 pub fn builtin_components() -> Vec<Box<dyn Component>> {
     vec![
+        Box::new(Avatar),
         Box::new(Badge),
+        Box::new(Card),
+        Box::new(Frame),
+        Box::new(GroupBox),
+        Box::new(RadioGroup),
         Box::new(SpinBox),
+        Box::new(StatusBar),
+        Box::new(TabBar),
         Box::new(TimePicker),
+        Box::new(ToolBar),
+        Box::new(ToolButton),
     ]
+}
+
+/// O mesmo widget publicado sob um **segundo nome, todo em minúsculas**:
+/// `<groupbox/>` além de `<GroupBox/>`, `<toolbutton/>` além de `<ToolButton/>`.
+///
+/// # Por que precisa de um wrapper
+///
+/// Primitiva e builtin resolvem por caminhos diferentes. Uma primitiva casa num
+/// `match` de tags que já lista as grafias à mão (`"TextInput" | "textinput" |
+/// "Input" | …` em `parser.rs`), então `<textinput/>` sempre funcionou. Um
+/// builtin, não: a tag desconhecida vira uma referência de componente resolvida
+/// por `parsed_templates.get(name)` — igualdade exata de string. Sem um segundo
+/// registro, `<groupbox/>` não seria um widget em minúsculas, seria um
+/// `UnknownComponent`.
+///
+/// A grafia escolhida é a **concatenada** (`groupbox`, `toolbutton`), não
+/// `group_box`: é a que as primitivas do motor já usam para os nomes em inglês
+/// (`textinput`, `progressbar`, `contextmenu`, `menuitem`). O `snake_case` no
+/// motor é a convenção dos apelidos em **português** (`barra_progresso`,
+/// `entrada_texto`).
+///
+/// # O que o alias delega
+///
+/// Tudo o que tem efeito: `template`, `init` e todos os hooks de comportamento.
+/// O alias é um registro independente no mapa de componentes, com sua própria
+/// instância — o que importa porque as ações carregam o nome pelo qual a tag
+/// foi resolvida (`namespace_action`): escrever `<tabbar/>` produz
+/// `tabbar::pick:aba|rede`, e é a instância registrada sob `tabbar` que recebe
+/// esse `update`. Como todo builtin desta lib é sem estado (o estado mora em
+/// chaves que o app nomeia), as duas instâncias serem separadas não muda nada.
+///
+/// `children()` **não** é delegado: os filhos já são registrados pelo cadastro
+/// do nome canônico, e repassá-los aqui os registraria duas vezes. Nenhum
+/// builtin da lib tem filhos hoje.
+struct Alias {
+    nome: String,
+    inner: Box<dyn Component>,
+}
+
+impl Component for Alias {
+    fn name(&self) -> &str {
+        &self.nome
+    }
+    fn template(&self) -> Template {
+        self.inner.template()
+    }
+    fn init(&mut self, ctx: &mut Context) {
+        self.inner.init(ctx);
+    }
+    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
+        self.inner.update(action, value, ctx);
+    }
+    fn on_form_submit(&mut self, action: &str, ctx: &mut Context) {
+        self.inner.on_form_submit(action, ctx);
+    }
+    fn on_broadcast(&mut self, event: &str, payload: &str, ctx: &mut Context) {
+        self.inner.on_broadcast(event, payload, ctx);
+    }
+}
+
+/// Os aliases em minúsculas de [`builtin_components`] — um por widget cujo nome
+/// canônico tenha maiúscula. `GlacierUI::new` registra estes **depois** dos
+/// canônicos, e ambos entram no conjunto de nomes builtin, então a regra de
+/// override vale igual para as duas grafias: um `register`/`import` do app com
+/// esse nome vence.
+pub fn builtin_aliases() -> Vec<Box<dyn Component>> {
+    builtin_components()
+        .into_iter()
+        .filter_map(|c| {
+            let minusculo = c.name().to_lowercase();
+            (minusculo != c.name()).then(|| {
+                Box::new(Alias {
+                    nome: minusculo,
+                    inner: c,
+                }) as Box<dyn Component>
+            })
+        })
+        .collect()
 }

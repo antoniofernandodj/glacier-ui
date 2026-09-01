@@ -95,12 +95,14 @@ fn test_includes() {
 
     std::fs::write(
         main_path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <Include src="test_card" name="Alice" />
             <Include src="test_card" name="Charlie" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -138,7 +140,8 @@ fn test_if_else() {
     let path = "templates/test_if.gv";
     std::fs::write(
         path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <if cond="{logado}">
                 <Text content="Olá, {usuario}" />
@@ -150,7 +153,8 @@ fn test_if_else() {
                 <Text content="painel admin" />
             </if>
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -205,23 +209,27 @@ fn test_import_recursivo() {
     // card: importa badge e o usa pelo nome.
     std::fs::write(
         card_path,
-        envolve(r##"<import name="Badge" from="templates/test_imp_badge.gv" />
+        envolve(
+            r##"<import name="Badge" from="templates/test_imp_badge.gv" />
         <Container background="#222">
             <Column>
                 <Text content="User: {name}" />
                 <Badge label="ok" />
             </Column>
-        </Container>"##),
+        </Container>"##,
+        ),
     )
     .unwrap();
 
     // main: importa card (que por sua vez importa badge — recursivo).
     std::fs::write(
         main_path,
-        envolve(r##"<import name="Card" from="templates/test_imp_card.gv" />
+        envolve(
+            r##"<import name="Card" from="templates/test_imp_card.gv" />
         <Column>
             <Card name="Alice" />
-        </Column>"##),
+        </Column>"##,
+        ),
     )
     .unwrap();
 
@@ -283,12 +291,14 @@ fn test_componente_por_nome() {
     // Reuse via the component's own tag name instead of <Include>
     std::fs::write(
         main_path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <UserCard name="Alice" />
             <UserCard name="Charlie" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -331,12 +341,14 @@ fn test_builtin_badge_disponivel_sem_registro() {
     let tela_path = "templates/test_builtin_badge.gv";
     std::fs::write(
         tela_path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <Badge />
             <Badge badge_text="Novo" badge_bg="#A6E3A1" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -476,13 +488,22 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
 
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
     // `step="0.25"` -> 2 casas, inclusive na inicialização.
-    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.00"));
+    assert_eq!(
+        motor.context().get("preco").map(String::as_str),
+        Some("0.00")
+    );
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
-    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.25"));
+    assert_eq!(
+        motor.context().get("preco").map(String::as_str),
+        Some("0.25")
+    );
     // Soma de f64 sem lixo de ponto flutuante: 0.25*3 formata como "0.75".
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
-    assert_eq!(motor.context().get("preco").map(String::as_str), Some("0.75"));
+    assert_eq!(
+        motor.context().get("preco").map(String::as_str),
+        Some("0.75")
+    );
 
     // A outra instância não se mexeu — o ponto da chave vir por prop.
     assert_eq!(motor.context().get("qtd").map(String::as_str), Some("3"));
@@ -503,6 +524,459 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
 }
 
 #[test]
+fn test_primitivas_onda1_slider_space_radio() {
+    // As três primitivas da onda 1 (`PLANO_WIDGETS.md` §6). O `Slider` e o
+    // `Radio` seguem o contrato do `<TextInput>`/`<Checkbox>`: disparam a ação
+    // com o valor novo e NÃO gravam a chave — quem grava é o app.
+    let mut motor = GlacierUI::new();
+    motor.define_data("volume", "42");
+    motor.define_data("plano", "pro");
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_onda1_primitivas.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <Slider value="volume" min="0" max="100" step="5" onChange="ajustar" />
+            <Space />
+            <Radio label="Free" value="free" group="plano" onChange="escolher" />
+            <Radio label="Pro" value="pro" group="plano" onChange="escolher" />
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_onda1", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_onda1").unwrap();
+    assert_eq!(avaliado.children.len(), 4);
+
+    match &avaliado.children[0].kind {
+        NodeType::Slider {
+            value_var,
+            on_change,
+            min,
+            max,
+            step,
+            step_raw,
+            vertical,
+            ..
+        } => {
+            assert_eq!(value_var, "volume");
+            assert_eq!(on_change, "ajustar", "a ação é da tela, não namespaceada");
+            assert_eq!((*min, *max, *step), (0.0, 100.0, 5.0));
+            // O texto cru do step sobrevive ao parse: é dele que saem as casas
+            // decimais da saída (ver `NodeType::Slider`).
+            assert_eq!(step_raw, "5");
+            assert!(!*vertical);
+        }
+        outro => panic!("esperava o Slider, veio {outro:?}"),
+    }
+    assert_eq!(avaliado.children[1].kind, NodeType::Space);
+
+    // `group` é o NOME da chave, não o valor — a mesma convenção do `checked=`
+    // do `<Checkbox>`. Quem compara é o render (`ctx.get(group) == value`).
+    // Interpolar aqui (`group="{plano}"`) faria a busca cair numa chave chamada
+    // "free", que não existe, e o grupo inteiro apareceria desmarcado.
+    match (&avaliado.children[2].kind, &avaliado.children[3].kind) {
+        (
+            NodeType::Radio {
+                value: v_free,
+                group_var: g_free,
+                ..
+            },
+            NodeType::Radio {
+                value: v_pro,
+                group_var: g_pro,
+                ..
+            },
+        ) => {
+            assert_eq!((v_free.as_str(), g_free.as_str()), ("free", "plano"));
+            assert_eq!((v_pro.as_str(), g_pro.as_str()), ("pro", "plano"));
+        }
+        outros => panic!("esperava os dois Radio, veio {outros:?}"),
+    }
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_builtin_radiogroup_escreve_a_chave_do_app() {
+    // Ao contrário da primitiva `<Radio>`, o builtin grava a chave sozinho —
+    // padrão do `SpinBox`: a chave vem por prop e viaja dentro da ação.
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "planos",
+        r#"[{"id":"free","label":"Grátis"},{"id":"pro","label":"Pro"}]"#,
+    );
+    motor.define_data("plano", "free");
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_radiogroup.gv";
+    std::fs::write(
+        tela_path,
+        envolve(r#"<RadioGroup value="plano" items="planos" />"#),
+    )
+    .unwrap();
+    motor.register_component("tela_rg", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_rg").unwrap();
+    // Column (a raiz do builtin) com uma opção por item da coleção.
+    assert_eq!(avaliado.kind, NodeType::Column);
+    assert_eq!(avaliado.children.len(), 2);
+
+    let acao_pro = match &avaliado.children[1].kind {
+        NodeType::Radio {
+            on_change,
+            value,
+            group_var,
+            ..
+        } => {
+            assert_eq!(value, "pro");
+            // O builtin repassa o NOME da chave para a primitiva, que resolve a
+            // marcação sozinha — é por isso que ele não precisa de um `active`
+            // como o `TabBar` (ver a docstring do RadioGroup).
+            assert_eq!(group_var, "plano");
+            on_change.clone()
+        }
+        outro => panic!("esperava a opção Pro, veio {outro:?}"),
+    };
+    assert_eq!(acao_pro, "RadioGroup::pick:plano|pro");
+
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: acao_pro,
+        value: "pro".into(),
+    });
+    assert_eq!(
+        motor.context().get("plano").map(String::as_str),
+        Some("pro")
+    );
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_link_import_sobrescreve_builtin_de_mesmo_nome() {
+    // A regra é "registro explícito do app vence o builtin", e ela valia para o
+    // `<import>` mas NÃO para o `<link rel="import" as="…">`, que só checava se
+    // o nome estava livre. Ficou invisível enquanto os builtins se chamavam
+    // `Badge`/`SpinBox`/`TimePicker`; com `Card`/`Frame`/`Avatar` na biblioteca,
+    // um app que importasse o próprio `Card` via `<link>` era silenciosamente
+    // ignorado e via o builtin renderizar no lugar dele.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let meu_card = "templates/test_meu_card.gv";
+    std::fs::write(
+        meu_card,
+        r#"<component><Text content="CARD DO APP" /></component>"#,
+    )
+    .unwrap();
+
+    let tela_path = "templates/test_link_import_card.gv";
+    std::fs::write(
+        tela_path,
+        format!(
+            r#"<screen title="T">
+                <resources><link rel="import" href="{meu_card}" as="Card" /></resources>
+                <Column><Card /></Column>
+            </screen>"#
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_card", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_card").unwrap();
+    match &avaliado.children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(
+            content, "CARD DO APP",
+            "o import do app tem de vencer o builtin `Card`"
+        ),
+        outro => panic!("veio o builtin no lugar do componente do app: {outro:?}"),
+    }
+
+    std::fs::remove_file(tela_path).ok();
+    std::fs::remove_file(meu_card).ok();
+}
+
+#[test]
+fn test_builtin_em_minusculas_resolve_e_roteia() {
+    // Toda primitiva sempre aceitou a grafia minúscula (o `match` de tags lista
+    // as variantes à mão); um builtin resolve por igualdade exata de nome, e por
+    // isso precisa de um segundo registro — ver `builtins::builtin_aliases`.
+    // O teste cobre as duas metades: a tag resolve, E a ação que ela produz
+    // (namespaceada com o nome minúsculo) chega no `update` do widget.
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor.define_data("qtd", "1");
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_minusculo.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <groupbox title="Grupo">
+                <spinbox value="qtd" min="1" max="3" />
+            </groupbox>
+            <avatar initials="AF" />
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_min", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_min").unwrap();
+    assert_eq!(
+        avaliado.children.len(),
+        2,
+        "o groupbox e o avatar resolveram"
+    );
+
+    // A ação sai prefixada com o nome pelo qual a tag foi resolvida.
+    let inc = encontra_acao(avaliado).expect("o degrau ▴ do spinbox minúsculo");
+    assert_eq!(inc, "spinbox::inc:qtd|1|3|1");
+
+    // E o roteamento acha o alias no mapa de componentes e delega ao widget.
+    let _ = motor.dispatch(&EngineMessage::UiClick(inc));
+    assert_eq!(motor.context().get("qtd").map(String::as_str), Some("2"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+/// Primeira ação de botão encontrada na subárvore, em ordem de documento.
+fn encontra_acao(no: &UiNode) -> Option<String> {
+    if let NodeType::Button {
+        on_click: Some(a), ..
+    } = &no.kind
+        && !a.is_empty()
+    {
+        return Some(a.clone());
+    }
+    no.children.iter().find_map(encontra_acao)
+}
+
+#[test]
+fn test_slot_conteudo_do_uso_pertence_a_quem_escreveu() {
+    // O `<slot/>` (0.65) é o que destrancou a família dos recipientes. A
+    // garantia que o faz valer a pena não é "o conteúdo aparece" — é DE QUEM
+    // ele é: avaliado no contexto e com o dono de quem escreveu, não do
+    // componente que o embrulha. Sem isso, `on_click="salvar"` viraria
+    // `GroupBox::salvar` e morreria no `update` do widget.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_slot_dono.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <GroupBox title="Rede">
+            <Button text="Salvar" on_click="salvar" />
+            <Text content="{host}" />
+        </GroupBox>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.define_data("host", "127.0.0.1");
+    motor.register_component("tela_slot", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_slot").unwrap();
+    // `GroupBox` = Column[ título, Container[ Column[ …conteúdo… ] ] ].
+    assert_eq!(avaliado.kind, NodeType::Column);
+    let moldura = avaliado
+        .children
+        .iter()
+        .find(|c| c.kind == NodeType::Container)
+        .expect("a moldura do GroupBox");
+    let corpo = &moldura.children[0];
+    assert_eq!(corpo.kind, NodeType::Column);
+    assert_eq!(corpo.children.len(), 2, "os dois filhos do uso");
+
+    match &corpo.children[0].kind {
+        NodeType::Button { on_click, .. } => assert_eq!(
+            on_click.as_deref(),
+            Some("salvar"),
+            "a ação é da TELA — não pode virar `GroupBox::salvar`"
+        ),
+        outro => panic!("esperava o botão do conteúdo, veio {outro:?}"),
+    }
+    // E o conteúdo enxerga o contexto de quem o escreveu, não o do componente.
+    match &corpo.children[1].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "127.0.0.1"),
+        outro => panic!("esperava o texto do conteúdo, veio {outro:?}"),
+    }
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_slot_reserva_quando_o_uso_nao_passa_nada() {
+    // Os filhos do próprio `<slot>` são o conteúdo de reserva: entram só quando
+    // quem usou não escreveu nada dentro da tag. Ao contrário do conteúdo do
+    // uso, esses são do COMPONENTE — avaliam no contexto dele e enxergam as
+    // props da instância.
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(CaixaComReserva)).unwrap();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_slot_reserva.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <CaixaComReserva titulo="Rede" />
+            <CaixaComReserva titulo="Disco"><Text content="conteudo do uso" /></CaixaComReserva>
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_reserva", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_reserva").unwrap();
+    match &avaliado.children[0].children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "vazio: Rede"),
+        outro => panic!("esperava a reserva, veio {outro:?}"),
+    }
+    match &avaliado.children[1].children[0].kind {
+        NodeType::Text { content, .. } => assert_eq!(content, "conteudo do uso"),
+        outro => panic!("esperava o conteúdo do uso, veio {outro:?}"),
+    }
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_builtins_onda2_disponiveis_sem_registro() {
+    // Os seis recipientes da "onda 2" (`PLANO_WIDGETS.md` §6) resolvem por tag
+    // sem o app registrar nada, e cada um embrulha o conteúdo do uso.
+    let mut motor = GlacierUI::new();
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtins_onda2.gv";
+    std::fs::write(
+        tela_path,
+        envolve(
+            r#"
+        <Column>
+            <Frame shape="none"><Text content="F" /></Frame>
+            <Card title="T" subtitle="S"><Text content="C" /></Card>
+            <ToolBar><Text content="TB" /></ToolBar>
+            <StatusBar message="Pronto"><Text content="SB" /></StatusBar>
+        </Column>
+        "#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_onda2", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_onda2").unwrap();
+    assert_eq!(avaliado.children.len(), 4);
+
+    // Cada um dos quatro tem de conter, em algum lugar, o texto do uso.
+    for (i, esperado) in ["F", "C", "TB", "SB"].iter().enumerate() {
+        assert!(
+            contem_texto(&avaliado.children[i], esperado),
+            "o widget {i} deveria ter embrulhado o conteúdo {esperado:?}"
+        );
+    }
+    // O cabeçalho do Card sai do par título/subtítulo, que são props.
+    assert!(contem_texto(&avaliado.children[1], "T"));
+    assert!(contem_texto(&avaliado.children[1], "S"));
+    // A mensagem da StatusBar também é prop, não conteúdo.
+    assert!(contem_texto(&avaliado.children[3], "Pronto"));
+
+    // Nenhum default de prop vazou para o contexto global.
+    assert!(!motor.context().contains_key("shape"));
+    assert!(!motor.context().contains_key("message"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
+fn test_builtin_tabbar_escreve_a_chave_do_app() {
+    // `TabBar` usa o padrão do `SpinBox`: a chave vem por prop e viaja dentro
+    // da ação (`pick:aba|rede`), então o `update` do widget sabe onde escrever
+    // e duas barras na mesma tela não colidem.
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "abas",
+        r#"[{"id":"geral","label":"Geral"},{"id":"rede","label":"Rede"}]"#,
+    );
+    motor.define_data("aba", "geral");
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_tabbar.gv";
+    std::fs::write(
+        tela_path,
+        envolve(r#"<TabBar value="aba" active="{aba}" items="abas" />"#),
+    )
+    .unwrap();
+    motor.register_component("tela_tabs", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_tabs").unwrap();
+    assert_eq!(avaliado.kind, NodeType::Row);
+    assert_eq!(avaliado.children.len(), 2, "uma aba por item da coleção");
+
+    // A ativa é a que veio em `active` — o destaque sai do `bold` do rótulo.
+    match &avaliado.children[0].children[0].kind {
+        NodeType::Text { bold, .. } => assert!(*bold, "a aba ativa vem em negrito"),
+        outro => panic!("esperava o rótulo da aba, veio {outro:?}"),
+    }
+    match &avaliado.children[1].children[0].kind {
+        NodeType::Text { bold, .. } => assert!(!*bold, "a inativa não"),
+        outro => panic!("esperava o rótulo da aba, veio {outro:?}"),
+    }
+
+    let clique_rede = match &avaliado.children[1].kind {
+        NodeType::Button { on_click, .. } => on_click.clone().expect("aba sem ação"),
+        outro => panic!("esperava a aba, veio {outro:?}"),
+    };
+    assert_eq!(clique_rede, "TabBar::pick:aba|rede");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick(clique_rede));
+    assert_eq!(motor.context().get("aba").map(String::as_str), Some("rede"));
+
+    std::fs::remove_file(tela_path).ok();
+}
+
+/// Componente de teste cujo `<slot>` traz conteúdo de reserva.
+struct CaixaComReserva;
+impl glacier_ui::Component for CaixaComReserva {
+    fn name(&self) -> &str {
+        "CaixaComReserva"
+    }
+    fn template(&self) -> glacier_ui::Template {
+        glacier_ui::Template::Inline(
+            r#"<Column><slot><Text content="vazio: {titulo}" /></slot></Column>"#.into(),
+        )
+    }
+    fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut glacier_ui::Context) {}
+}
+
+/// Procura um `Text` com este conteúdo em qualquer profundidade da subárvore.
+fn contem_texto(no: &UiNode, alvo: &str) -> bool {
+    if let NodeType::Text { content, .. } = &no.kind
+        && content == alvo
+    {
+        return true;
+    }
+    no.children.iter().any(|f| contem_texto(f, alvo))
+}
+
+#[test]
 fn test_builtin_spinbox_layout_inline() {
     // A prop `layout="inline"` troca a forma: os dois degraus vão para as
     // pontas (`−  campo  +`, o SpinBox do Qt Quick) em vez de empilharem à
@@ -517,7 +991,9 @@ fn test_builtin_spinbox_layout_inline() {
         envolve(r#"<SpinBox value="zoom" min="25" max="400" step="25" layout="inline" />"#),
     )
     .unwrap();
-    motor.register_component("tela_spin_inline", tela_path).unwrap();
+    motor
+        .register_component("tela_spin_inline", tela_path)
+        .unwrap();
 
     let spin = motor.evaluated("tela_spin_inline").unwrap();
     assert_eq!(spin.kind, NodeType::Row);
@@ -654,7 +1130,9 @@ fn test_prefixo_app_escapa_do_namespace_do_dono() {
     )
     .unwrap();
 
-    motor.register_component("tela_app_prefix", tela_path).unwrap();
+    motor
+        .register_component("tela_app_prefix", tela_path)
+        .unwrap();
 
     let avaliado = motor.evaluated("tela_app_prefix").unwrap();
     let col = &avaliado.children[0];
@@ -687,7 +1165,10 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
         "o init() do app.luau precisa ter rodado"
     );
     assert!(
-        motor.context().get("lista_horas").is_some_and(|h| h.contains("23")),
+        motor
+            .context()
+            .get("lista_horas")
+            .is_some_and(|h| h.contains("23")),
         "as horas do Select têm de estar semeadas"
     );
 
@@ -695,7 +1176,11 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
     let tela = motor.evaluated("timepicker").unwrap();
     let mut achou = false;
     fn anda(n: &glacier_ui::UiNode, achou: &mut bool) {
-        if let NodeType::TextInput { value_var, on_change, .. } = &n.kind
+        if let NodeType::TextInput {
+            value_var,
+            on_change,
+            ..
+        } = &n.kind
             && value_var == "inicio"
         {
             assert_eq!(on_change, "formatar_tempo");
@@ -705,7 +1190,7 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
             anda(f, achou);
         }
     }
-    anda(&tela, &mut achou);
+    anda(tela, &mut achou);
     assert!(achou, "campo do TimePicker ligado a 'inicio'");
 
     // Digitar: o handler Lua recebe o texto e grava a chave já formatada.
@@ -713,11 +1198,22 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
         action: "formatar_tempo".into(),
         value: "1445".into(),
     });
-    assert_eq!(motor.context().get("inicio").map(String::as_str), Some("14:45"));
+    assert_eq!(
+        motor.context().get("inicio").map(String::as_str),
+        Some("14:45")
+    );
 
     // Clicar no ⏰: abre o modal e popula os selects a partir do valor atual.
-    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick("abrir_seletor_hora".into()));
-    assert_eq!(motor.context().get("mostrar_modal_hora").map(String::as_str), Some("true"));
+    let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick(
+        "abrir_seletor_hora".into(),
+    ));
+    assert_eq!(
+        motor
+            .context()
+            .get("mostrar_modal_hora")
+            .map(String::as_str),
+        Some("true")
+    );
     assert_eq!(motor.context().get("h_sel").map(String::as_str), Some("14"));
     assert_eq!(motor.context().get("m_sel").map(String::as_str), Some("45"));
 
@@ -727,8 +1223,17 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
         value: "30".into(),
     });
     let _ = motor.dispatch(&glacier_ui::EngineMessage::UiClick("confirmar_hora".into()));
-    assert_eq!(motor.context().get("inicio").map(String::as_str), Some("14:30"));
-    assert_eq!(motor.context().get("mostrar_modal_hora").map(String::as_str), Some("false"));
+    assert_eq!(
+        motor.context().get("inicio").map(String::as_str),
+        Some("14:30")
+    );
+    assert_eq!(
+        motor
+            .context()
+            .get("mostrar_modal_hora")
+            .map(String::as_str),
+        Some("false")
+    );
 }
 
 #[test]
@@ -765,10 +1270,12 @@ fn test_atributo_numerico_templado() {
     std::fs::write(card_path, envolve(r##"<Text content="oi" size="{s}" />"##)).unwrap();
     std::fs::write(
         main_path,
-        envolve(r##"<Column>
+        envolve(
+            r##"<Column>
             <NumCard s="28" />
             <NumCard />
-        </Column>"##),
+        </Column>"##,
+        ),
     )
     .unwrap();
 
@@ -805,20 +1312,24 @@ fn test_foreach_com_componente() {
     // Componente reutilizável que recebe props.
     std::fs::write(
         card_path,
-        envolve(r##"<Container background="#222"><Text content="{nome} - {cargo}" /></Container>"##),
+        envolve(
+            r##"<Container background="#222"><Text content="{nome} - {cargo}" /></Container>"##,
+        ),
     )
     .unwrap();
 
     // Usa o componente pelo nome dentro de um ForEach, passando campos como props.
     std::fs::write(
         main_path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <ForEach items="membros" var="m">
                 <Cartao nome="{m.nome}" cargo="{m.cargo}" />
             </ForEach>
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -890,13 +1401,15 @@ fn test_foreach() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <ForEach items="items" var="it">
                 <Text content="Item: {it.name} ({it.val})" />
             </ForEach>
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -941,7 +1454,6 @@ use glacier_ui::{Component, Context, EngineMessage, Template};
 fn envolve(layout: impl AsRef<str>) -> String {
     format!("<component>{}</component>", layout.as_ref())
 }
-
 
 /// Child component with its own behavior. Its button action is `ping`.
 struct ChildComp;
@@ -1209,16 +1721,22 @@ fn test_link_stylesheet_is_global() {
     let a_path = "templates/test_scoped_a.gv";
     std::fs::write(
         a_path,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="stylesheet" href="templates/test_linked.gss" />
         <Text class="box linked" content="A" />
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
     // B doesn't declare the <link> itself, but should see its effect anyway.
     let b_path = "templates/test_scoped_b.gv";
-    std::fs::write(b_path, envolve(r##"<Text class="box linked" content="B" />"##)).unwrap();
+    std::fs::write(
+        b_path,
+        envolve(r##"<Text class="box linked" content="B" />"##),
+    )
+    .unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -1269,19 +1787,25 @@ fn test_inline_style_block_default_is_global() {
     let a_path = "templates/test_istyle_a.gv";
     std::fs::write(
         a_path,
-        envolve(r##"
+        envolve(
+            r##"
         <style>
             .box { padding: 9; }
             .inlined { color: #abcabc; }
         </style>
         <Text class="box inlined" content="A" />
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
     // B declares nothing, but should see A's plain <style> anyway.
     let b_path = "templates/test_istyle_b.gv";
-    std::fs::write(b_path, envolve(r##"<Text class="box inlined" content="B" />"##)).unwrap();
+    std::fs::write(
+        b_path,
+        envolve(r##"<Text class="box inlined" content="B" />"##),
+    )
+    .unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -1332,19 +1856,25 @@ fn test_inline_style_block_scoped_true_is_scoped() {
     let a_path = "templates/test_istyle_scoped_a.gv";
     std::fs::write(
         a_path,
-        envolve(r##"
+        envolve(
+            r##"
         <style scoped="true">
             .box { padding: 9; }
             .scoped { color: #abcabc; }
         </style>
         <Text class="box scoped" content="A" />
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
     // B declares nothing: it only sees the global sheet.
     let b_path = "templates/test_istyle_scoped_b.gv";
-    std::fs::write(b_path, envolve(r##"<Text class="box scoped" content="B" />"##)).unwrap();
+    std::fs::write(
+        b_path,
+        envolve(r##"<Text class="box scoped" content="B" />"##),
+    )
+    .unwrap();
 
     motor.load_stylesheet(global_gss).unwrap();
     motor.register_component("a", a_path).unwrap();
@@ -1392,11 +1922,13 @@ fn test_inline_style_overrides_linked_by_document_order() {
     let path = "templates/test_istyle_order.gv";
     std::fs::write(
         path,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="stylesheet" href="templates/test_istyle_order.gss" />
         <style>.tag { color: #bbbbbb; }</style>
         <Text class="tag" content="x" />
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1508,12 +2040,14 @@ fn test_link_rel_import() {
     // Declarative import via <link>; the component is then referenced by name.
     std::fs::write(
         parent,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="import" href="templates/test_li_child.gv" as="ChildLink" />
         <Column>
             <ChildLink x="42" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1640,7 +2174,8 @@ fn test_if_else_inside_foreach() {
     let tpl = "templates/test_ifforeach.gv";
     std::fs::write(
         tpl,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="data" href="templates/test_ifforeach.json" as="d" />
         <Column>
             <ForEach items="d.rows" var="r">
@@ -1652,7 +2187,8 @@ fn test_if_else_inside_foreach() {
                 </else>
             </ForEach>
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1692,7 +2228,8 @@ fn test_link_rel_data() {
     let tpl = "templates/test_data.gv";
     std::fs::write(
         tpl,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="data" href="templates/test_data.json" as="app" />
         <Column>
             <Text content="{app.title}" />
@@ -1700,7 +2237,8 @@ fn test_link_rel_data() {
                 <Text content="{u.name}" />
             </ForEach>
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1743,10 +2281,12 @@ fn test_link_rel_theme() {
     let tpl = "templates/test_theme.gv";
     std::fs::write(
         tpl,
-        envolve(r##"
+        envolve(
+            r##"
         <link rel="theme" href="templates/test_theme.json" />
         <Text content="x" />
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1850,14 +2390,16 @@ fn test_directives_as_attributes() {
     let path = "templates/test_directives_attr.gv";
     std::fs::write(
         path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <Text content="Olá, {usuario}" if="{logado}" />
             <Text content="Entre, por favor" senao />
             <Text content="painel admin" if="{papel}" equals="admin" />
             <Text content="painel comum" if="{papel}" notEquals="admin" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1913,11 +2455,13 @@ fn test_precedence_foreach_if_attributes() {
     let path = "templates/test_precedence.gv";
     std::fs::write(
         path,
-        envolve(r##"
+        envolve(
+            r##"
         <Column>
             <Text content="Item: {u.nome}" for-each="usuarios" var="u" if="{u.ativo}" />
         </Column>
-        "##),
+        "##,
+        ),
     )
     .unwrap();
 
@@ -1955,7 +2499,11 @@ fn test_unknown_extension_falls_back_to_xml() {
 
     std::fs::create_dir_all("templates").ok();
     let path = "templates/test_fallback.tmpl";
-    std::fs::write(path, envolve(r##"<Text content="via XML fallback" size="18" />"##)).unwrap();
+    std::fs::write(
+        path,
+        envolve(r##"<Text content="via XML fallback" size="18" />"##),
+    )
+    .unwrap();
 
     motor.register_component("fallback", path).unwrap();
 
@@ -2184,23 +2732,27 @@ fn test_fragment_component_splices_if_else_branch() {
     let main = "templates/test_frag_main.gv";
     std::fs::write(
         card,
-        envolve(r#"
+        envolve(
+            r#"
         <Column if="{filler}" equals="1" class="filler" />
         <Column else class="card">
           <Text content="{name}" />
         </Column>
-        "#),
+        "#,
+        ),
     )
     .unwrap();
     std::fs::write(
         main,
-        envolve(r#"
+        envolve(
+            r#"
         <import name="FragCard" from="templates/test_frag_card.gv" />
         <Column class="grid">
           <FragCard filler="0" name="Alice" />
           <FragCard filler="1" name="Zzz" />
         </Column>
-        "#),
+        "#,
+        ),
     )
     .unwrap();
 
@@ -2260,7 +2812,8 @@ fn test_register_component_wires_luau_when_script_present() {
     let path = "templates/test_scripted_unified.gv";
     std::fs::write(
         path,
-        envolve(r#"
+        envolve(
+            r#"
 <Container>
   <Text content="{n}" />
   <Button text="+" onClick="inc" />
@@ -2269,7 +2822,8 @@ fn test_register_component_wires_luau_when_script_present() {
 function init() ctx.n = ctx.n or 0 end
 function inc() ctx.n = ctx.n + 1 end
 </script>
-"#),
+"#,
+        ),
     )
     .unwrap();
 
@@ -2338,7 +2892,8 @@ fn test_register_wires_luau_as_layer_over_rust_component() {
     let path = "templates/test_hybrid_register.gv";
     std::fs::write(
         path,
-        envolve(r#"
+        envolve(
+            r#"
 <Container>
   <Button text="lua" onClick="lua_only" />
   <Button text="rust" onClick="rust_only" />
@@ -2346,7 +2901,8 @@ fn test_register_wires_luau_as_layer_over_rust_component() {
 <script>
 function lua_only() ctx.from = "lua" end
 </script>
-"#),
+"#,
+        ),
     )
     .unwrap();
 
@@ -2354,7 +2910,10 @@ function lua_only() ctx.from = "lua" end
     motor.set_initial_screen("hybrid");
 
     // init() Rust rodou (o <script> não define init()).
-    assert_eq!(motor.get_data("seeded").map(String::as_str), Some("rust-init"));
+    assert_eq!(
+        motor.get_data("seeded").map(String::as_str),
+        Some("rust-init")
+    );
 
     // Ação com função Lua correspondente: o Lua vence.
     let _ = motor.dispatch(&EngineMessage::UiClick("lua_only".into()));
@@ -2502,7 +3061,9 @@ fn set_style_aplica_tag_rule_tema_e_contexto() {
     assert!(motor.custom_theme().is_some());
     // …e o nome do ativo foi publicado no contexto.
     assert_eq!(
-        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        motor
+            .get_data(glacier_ui::style::CONTEXT_KEY)
+            .map(String::as_str),
         Some("fusion-dark")
     );
 }
@@ -2555,7 +3116,9 @@ fn acoes_builtin_style_trocam_o_estilo() {
     // Botão: `on_click="style:<nome>"`.
     let _ = motor.dispatch(&EngineMessage::UiClick("style:fusion".into()));
     assert_eq!(
-        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        motor
+            .get_data(glacier_ui::style::CONTEXT_KEY)
+            .map(String::as_str),
         Some("fusion")
     );
 
@@ -2565,14 +3128,18 @@ fn acoes_builtin_style_trocam_o_estilo() {
         value: "phantom".into(),
     });
     assert_eq!(
-        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        motor
+            .get_data(glacier_ui::style::CONTEXT_KEY)
+            .map(String::as_str),
         Some("phantom")
     );
 
     // Nome desconhecido: ignorado (loga e mantém o estilo atual).
     let _ = motor.dispatch(&EngineMessage::UiClick("style:nao_existe".into()));
     assert_eq!(
-        motor.get_data(glacier_ui::style::CONTEXT_KEY).map(String::as_str),
+        motor
+            .get_data(glacier_ui::style::CONTEXT_KEY)
+            .map(String::as_str),
         Some("phantom")
     );
 }
@@ -2610,8 +3177,8 @@ fn button_sem_filhos_usa_o_atalho_text() {
 /// genérico pra todo `NodeType`), só o renderer ignorava.
 #[test]
 fn button_com_um_filho_captura_o_filho() {
-    let ast = UiNode::parse_xml(r#"<Button on_click="menu"><Text content="☰" /></Button>"#)
-        .unwrap();
+    let ast =
+        UiNode::parse_xml(r#"<Button on_click="menu"><Text content="☰" /></Button>"#).unwrap();
     assert_eq!(ast.children.len(), 1);
     match &ast.children[0].kind {
         NodeType::Text { content, .. } => assert_eq!(content, "☰"),
@@ -2693,12 +3260,14 @@ fn else_if_atributo_encadeia_com_if_anterior() {
     let tpl = "templates/test_else_if_attr.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b">B</Text>
             <Text else-if="{x}" equals="c">C</Text>
             <Text else>D</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("eiattr", tpl).unwrap();
@@ -2727,12 +3296,14 @@ fn else_if_tag_encadeia_com_if_anterior() {
     let tpl = "templates/test_else_if_tag.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <If cond="{x}" equals="a"><Text>A</Text></If>
             <ElseIf cond="{x}" equals="b"><Text>B</Text></ElseIf>
             <ElseIf cond="{x}" equals="c"><Text>C</Text></ElseIf>
             <Else><Text>D</Text></Else>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("eitag", tpl).unwrap();
@@ -2762,11 +3333,13 @@ fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
     let tpl = "templates/test_else_if_short_circuit.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b">B1</Text>
             <Text else-if="{x}" equals="b">B2</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("eishort", tpl).unwrap();
@@ -2887,10 +3460,12 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
     let tpl = "templates/test_empty_attr.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <Text if="{items}" empty>nada</Text>
             <Text if="{items}" not_empty>tem coisa</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("emptyattr", tpl).unwrap();
@@ -2899,8 +3474,8 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
     for (items, expected) in [
         ("[]", "nada"),
         (r#"[{"name":"x"}]"#, "tem coisa"),
-        ("", "nada"),          // chave ausente
-        ("not json", "nada"),  // JSON malformado
+        ("", "nada"),         // chave ausente
+        ("not json", "nada"), // JSON malformado
     ] {
         motor.define_data("items", items);
         motor.reevaluate_all().unwrap();
@@ -2923,10 +3498,12 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
     let tpl = "templates/test_empty_tag.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <If cond="{items}" empty><Text>nada</Text></If>
             <ElseIf cond="{items}" not_empty><Text>tem coisa</Text></ElseIf>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("emptytag", tpl).unwrap();
@@ -2986,9 +3563,15 @@ fn import_href_relativo_ao_arquivo_importador() {
     )
     .unwrap();
 
-    motor.register_component("import_rel_parent", &parent_path).unwrap();
+    motor
+        .register_component("import_rel_parent", &parent_path)
+        .unwrap();
     let evaluated = motor.evaluated("import_rel_parent").unwrap();
-    assert_eq!(evaluated.children.len(), 1, "esperava o <Child/> ter resolvido e renderizado");
+    assert_eq!(
+        evaluated.children.len(),
+        1,
+        "esperava o <Child/> ter resolvido e renderizado"
+    );
     match &evaluated.children[0].kind {
         NodeType::Text { content, .. } => assert_eq!(content, "do filho"),
         other => panic!("esperava Text, veio {other:?}"),
@@ -3022,9 +3605,15 @@ fn import_href_absoluto_continua_funcionando_como_fallback() {
     )
     .unwrap();
 
-    motor.register_component("import_abs_parent", parent_path).unwrap();
+    motor
+        .register_component("import_abs_parent", parent_path)
+        .unwrap();
     let evaluated = motor.evaluated("import_abs_parent").unwrap();
-    assert_eq!(evaluated.children.len(), 1, "esperava o <Child/> ter resolvido pelo caminho absoluto");
+    assert_eq!(
+        evaluated.children.len(),
+        1,
+        "esperava o <Child/> ter resolvido pelo caminho absoluto"
+    );
     match &evaluated.children[0].kind {
         NodeType::Text { content, .. } => assert_eq!(content, "raiz"),
         other => panic!("esperava Text, veio {other:?}"),
@@ -3057,10 +3646,12 @@ fn platform_filtra_sozinho_sem_precisar_de_cond() {
     let tpl = "templates/test_platform_bare.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <Text platform="desktop">só desktop</Text>
             <Text platform="web">só web</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("platformbare", tpl).unwrap();
@@ -3085,12 +3676,14 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
     let tpl = "templates/test_platform_chain.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <Text if="{x}" equals="a">A</Text>
             <Text else-if="{x}" equals="b" platform="web">B (só web, nunca aqui)</Text>
             <Text else-if="{x}" equals="b">B</Text>
             <Text else>C</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("platformchain", tpl).unwrap();
@@ -3146,8 +3739,8 @@ fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
         else_if.kind
     );
 
-    let if_node = UiNode::parse_xml(r#"<template if="{x}" equals="a"><Text/></template>"#)
-        .expect("if");
+    let if_node =
+        UiNode::parse_xml(r#"<template if="{x}" equals="a"><Text/></template>"#).expect("if");
     assert!(
         matches!(if_node.kind, NodeType::If { .. }),
         "template com if deveria virar NodeType::If, foi {:?}",
@@ -3175,7 +3768,8 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
     let tpl = "templates/test_template_if_chain.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <template if="{view}" equals="a">
                 <Text>A1</Text>
                 <Text>A2</Text>
@@ -3187,7 +3781,8 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
                 <Text>C1</Text>
                 <Text>C2</Text>
             </template>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("templateifchain", tpl).unwrap();
@@ -3230,12 +3825,14 @@ fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
     let tpl = "templates/test_template_foreach.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <template for-each="items" var="it">
                 <Text>{it.name}</Text>
                 <Text>#{it.val}</Text>
             </template>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("templateforeach", tpl).unwrap();
@@ -3249,7 +3846,12 @@ fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
     assert_eq!(evaluated.children.len(), 4);
     assert_eq!(
         all_texts(evaluated),
-        vec!["X".to_string(), "#1".to_string(), "Y".to_string(), "#2".to_string()]
+        vec![
+            "X".to_string(),
+            "#1".to_string(),
+            "Y".to_string(),
+            "#2".to_string()
+        ]
     );
 
     std::fs::remove_file(tpl).ok();
@@ -3265,13 +3867,15 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
     let tpl = "templates/test_template_bare.gv";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
+        envolve(
+            r#"<Column>
             <template>
                 <Text>um</Text>
                 <Text>dois</Text>
             </template>
             <Text>tres</Text>
-        </Column>"#),
+        </Column>"#,
+        ),
     )
     .unwrap();
     motor.register_component("templatebare", tpl).unwrap();
@@ -3279,7 +3883,11 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
     motor.reevaluate_all().unwrap();
 
     let evaluated = motor.evaluated("templatebare").unwrap();
-    assert_eq!(evaluated.children.len(), 3, "sem wrapper: 3 filhos diretos do Column");
+    assert_eq!(
+        evaluated.children.len(),
+        3,
+        "sem wrapper: 3 filhos diretos do Column"
+    );
     assert_eq!(
         all_texts(evaluated),
         vec!["um".to_string(), "dois".to_string(), "tres".to_string()]
@@ -3320,7 +3928,9 @@ fn test_screen_meta_reloads_with_template() {
     let _ = filetime_touch(path);
     motor.check_reload();
 
-    let meta = motor.current_screen_meta().expect("metadados após o reload");
+    let meta = motor
+        .current_screen_meta()
+        .expect("metadados após o reload");
     assert_eq!(meta.title.as_deref(), Some("Depois"));
     assert_eq!(meta.size, Some((900.0, 640.0)));
 

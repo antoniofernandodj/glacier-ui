@@ -147,8 +147,7 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                     // accepts it. Longest word first so a shorter word that
                     // happens to be a PREFIX of a longer one (there isn't
                     // one today, but keep the invariant) never shadows it.
-                    const BARE_WORDS: &[&str] =
-                        &["not_empty", "senao", "empty", "else", "vazio"];
+                    const BARE_WORDS: &[&str] = &["not_empty", "senao", "empty", "else", "vazio"];
 
                     let mut matched_len = None;
                     let mut replaced_with = None;
@@ -828,6 +827,9 @@ fn expand_children(
     scope: Option<&str>,
     owner: Option<&str>,
     out: &mut Vec<UiNode>,
+    // Repassado a cada filho para que um `<slot/>` a qualquer profundidade do
+    // template (dentro de um `<if>`, de um `<Row>`, …) ainda o enxergue.
+    slot: Option<&[UiNode]>,
     cache: &mut EvalCache,
 ) -> Result<()> {
     // Tracks the result of the immediately preceding `<if>`, so an `<else>`
@@ -934,6 +936,7 @@ fn expand_children(
                         scope,
                         owner,
                         &mut item_out,
+                        slot,
                         cache,
                     )?;
                     if cacheable {
@@ -953,7 +956,7 @@ fn expand_children(
                 let mut clone = child.clone();
                 clone.is_else = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, slot, cache,
                 )?);
             }
             last_if = None;
@@ -989,7 +992,7 @@ fn expand_children(
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
-                        &clone, context, templates, styles, scope, owner, None, None, cache,
+                        &clone, context, templates, styles, scope, owner, None, None, slot, cache,
                     )?);
                 }
                 last_if = Some(truthy);
@@ -1018,7 +1021,7 @@ fn expand_children(
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, slot, cache,
                 )?);
             }
             last_if = Some(truthy);
@@ -1102,6 +1105,7 @@ fn expand_children(
                             scope,
                             owner,
                             &mut item_out,
+                            slot,
                             cache,
                         )?;
                         if cacheable {
@@ -1120,8 +1124,9 @@ fn expand_children(
                 empty,
                 not_empty,
             } => {
-                let truthy =
-                    eval_condition(cond, equals, not_equals, one_of, *empty, *not_empty, context);
+                let truthy = eval_condition(
+                    cond, equals, not_equals, one_of, *empty, *not_empty, context,
+                );
                 if truthy {
                     expand_children(
                         &child.children,
@@ -1131,6 +1136,7 @@ fn expand_children(
                         scope,
                         owner,
                         out,
+                        slot,
                         cache,
                     )?;
                 }
@@ -1161,6 +1167,7 @@ fn expand_children(
                             scope,
                             owner,
                             out,
+                            slot,
                             cache,
                         )?;
                     }
@@ -1177,6 +1184,7 @@ fn expand_children(
                         scope,
                         owner,
                         out,
+                        slot,
                         cache,
                     )?;
                 }
@@ -1184,7 +1192,7 @@ fn expand_children(
             }
             _ => {
                 let n = eval_owned(
-                    child, context, templates, styles, scope, owner, None, None, cache,
+                    child, context, templates, styles, scope, owner, None, None, slot, cache,
                 )?;
                 // A `Fragment` (a multi-root component template, or an explicit
                 // `Fragment { … }`) is transparent: splice its already-evaluated
@@ -1223,7 +1231,7 @@ pub fn evaluate_node(
     let ctx = EvalCtx::new(context);
     let mut cache = EvalCache::default();
     eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, &mut cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, &mut cache,
     )
 }
 
@@ -1246,7 +1254,7 @@ pub fn evaluate_template(
     reads.push(0);
     let ctx = EvalCtx::tracked(context, &reads);
     let tree = eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, cache,
     )?;
     let deps = reads.pop();
     // Entradas de subárvores que sumiram (uma linha removida da lista) viram
@@ -1321,8 +1329,41 @@ fn eval_owned(
     // comum. Aninhamento: o componente interno recebe o do externo já mesclado.
     underlay: Option<&StyleRule>,
     underlay_states: Option<&StateStyles>,
+    // Conteúdo escrito entre as tags do componente que está sendo expandido —
+    // **já avaliado**, no contexto e com o dono de QUEM USOU. É o que um
+    // `<slot/>` no template devolve. `None` fora de um componente. Ver
+    // [`crate::parser::NodeType::Slot`].
+    slot: Option<&[UiNode]>,
     cache: &mut EvalCache,
 ) -> Result<UiNode> {
+    // `<slot/>`: devolve o conteúdo do uso (ou, se ele não veio, o conteúdo de
+    // reserva escrito dentro do próprio `<slot>`) embrulhado num `Fragment`,
+    // que `expand_children` espalha na lista do pai. Vem antes de tudo porque
+    // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
+    // desta vez com o dono errado (o componente, não quem chamou).
+    if matches!(node.kind, NodeType::Slot) {
+        let conteudo: Vec<UiNode> = match slot {
+            Some(nodes) if !nodes.is_empty() => nodes.to_vec(),
+            // Reserva: os filhos do `<slot>` são do componente, então avaliam
+            // no contexto dele — inclusive enxergando as props da instância.
+            _ => {
+                let mut reserva = Vec::new();
+                expand_children(
+                    &node.children,
+                    context,
+                    templates,
+                    styles,
+                    scope,
+                    owner,
+                    &mut reserva,
+                    None,
+                    cache,
+                )?;
+                reserva
+            }
+        };
+        return Ok(crate::parser::empty_node(NodeType::Fragment, conteudo));
+    }
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
@@ -1335,6 +1376,30 @@ fn eval_owned(
         let template_ast = templates
             .get(name)
             .ok_or_else(|| crate::error::GlacierError::UnknownComponent(name.clone()))?;
+
+        // O conteúdo entre as tags (`<GroupBox>ISTO</GroupBox>`) é avaliado
+        // AQUI, ainda no contexto e com o dono de quem escreveu — antes de
+        // qualquer camada de props entrar em cena. É o que garante que
+        // `<GroupBox><Button on_click="salvar"/></GroupBox>` despache `salvar`
+        // para a tela, e não `GroupBox::salvar` para o `update` do builtin.
+        //
+        // Nada de `slot` do nível de fora atravessa: um `<slot/>` escrito no
+        // uso pertence ao componente que envolve ESTE uso, e já foi resolvido
+        // pela chamada que nos trouxe até aqui.
+        let mut slot_conteudo = Vec::new();
+        if !node.children.is_empty() {
+            expand_children(
+                &node.children,
+                context,
+                templates,
+                styles,
+                scope,
+                owner,
+                &mut slot_conteudo,
+                None,
+                cache,
+            )?;
+        }
 
         // Contrato do componente, quando ele declara um (`<props>` no cabeçalho).
         // Declarar é opcional; a partir do momento em que existe, ele é a
@@ -1453,8 +1518,16 @@ fn eval_owned(
         // subárvore inteira com uma entrada de dados bem definida (as props). É
         // o que faz uma linha de log nova não reconstruir a sidebar — cada
         // `<NavItem/>` dela é um componente cujas props não mudaram.
+        //
+        // **Exceção do `<slot/>`:** um uso COM conteúdo fica de fora do cache.
+        // A entrada é chaveada pelas dependências lidas dentro da expansão, e
+        // o conteúdo do slot foi avaliado do lado de fora — suas leituras
+        // pertencem ao quadro de quem chamou. Uma entrada aqui não teria como
+        // perceber que o conteúdo mudou e serviria a versão velha. Mesmo
+        // raciocínio (e mesmo custo desprezível: são os containers da tela) da
+        // lista reordenável em `expand_children`.
         let mut reused = Vec::new();
-        if reuse(&local_context, cache, &mut reused) {
+        if slot_conteudo.is_empty() && reuse(&local_context, cache, &mut reused) {
             // O cache guarda uma lista de nós; um componente sempre rende
             // exatamente um (a raiz avaliada do seu template).
             if let Some(root) = reused.pop() {
@@ -1500,9 +1573,12 @@ fn eval_owned(
             Some(name),
             Some(&underlay_rule),
             Some(&underlay_st),
+            (!slot_conteudo.is_empty()).then_some(slot_conteudo.as_slice()),
             cache,
         )?;
-        store(&local_context, cache, std::slice::from_ref(&root));
+        if slot_conteudo.is_empty() {
+            store(&local_context, cache, std::slice::from_ref(&root));
+        }
         return Ok(root);
     }
 
@@ -1688,6 +1764,48 @@ fn eval_owned(
                 .map(|c| process_tpl(c, context))
                 .or_else(|| style.color.clone()),
         },
+        NodeType::Radio {
+            label,
+            value,
+            group_var,
+            on_change,
+        } => NodeType::Radio {
+            label: process_tpl(label, context),
+            value: process_tpl(value, context),
+            group_var: process_tpl(group_var, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Slider {
+            value_var,
+            on_change,
+            on_release,
+            min,
+            max,
+            step,
+            step_raw,
+            shift_step,
+            default,
+            vertical,
+            color,
+        } => NodeType::Slider {
+            value_var: process_tpl(value_var, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_release: on_release
+                .as_ref()
+                .map(|a| namespace_action(process_tpl(a, context), owner)),
+            min: *min,
+            max: *max,
+            step: *step,
+            step_raw: step_raw.clone(),
+            shift_step: *shift_step,
+            default: *default,
+            vertical: *vertical,
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .or_else(|| style.color.clone()),
+        },
+        NodeType::Space => NodeType::Space,
         NodeType::Spinner { color } => NodeType::Spinner {
             color: color
                 .as_ref()
@@ -1777,6 +1895,11 @@ fn eval_owned(
         // spliced into the parent by `expand_children` (below), so it stays
         // transparent instead of collapsing into a `Container` box.
         NodeType::Fragment => NodeType::Fragment,
+        // Um `<slot/>` só vira conteúdo dentro da expansão de um componente
+        // (tratado no topo de `eval_owned`). Chegar aqui significa `<slot/>`
+        // escrito fora de um componente: vira `Fragment`, ou seja, some e
+        // deixa no lugar o próprio conteúdo de reserva que ele embrulha.
+        NodeType::Slot => NodeType::Fragment,
         NodeType::Include { .. }
         | NodeType::Component { .. }
         | NodeType::Import { .. }
@@ -1876,6 +1999,9 @@ fn eval_owned(
         scope,
         owner,
         &mut children_eval,
+        // Um `<slot/>` a qualquer profundidade do template do componente ainda
+        // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
+        slot,
         cache,
     )?;
 
@@ -2256,7 +2382,11 @@ mod tests {
         ctx.insert("travado".to_string(), "sim".to_string());
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(false));
-        assert_eq!(out.disabled, Some(true), "`sim` também é verdade, como no `if`");
+        assert_eq!(
+            out.disabled,
+            Some(true),
+            "`sim` também é verdade, como no `if`"
+        );
     }
 
     /// Valor literal continua valendo (o caminho antigo não pode ter regredido),

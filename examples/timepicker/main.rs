@@ -4,8 +4,6 @@
 
 use glacier_ui::GlacierDaemon;
 
-
-
 fn main() -> iced::Result {
     GlacierDaemon::new()
         .title("Glacier - TimePicker Demo")

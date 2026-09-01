@@ -1,10 +1,26 @@
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
     Space, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area, pick_list,
-    progress_bar, row, rule, scrollable, svg, text, text_editor, text_input,
+    progress_bar, radio, row, rule, scrollable, slider, svg, text, text_editor, text_input,
+    vertical_slider,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
+/// **como escrito no markup** (`"0.05"` → 2). Sem isto, arrastar um passo
+/// fracionário grava `0.30000001192092896` na chave de contexto.
+///
+/// Irmã da `casas_decimais` de [`crate::builtins::spin_box`] — mesma ideia,
+/// entradas diferentes: lá o `step` já é texto o tempo todo, aqui ele também
+/// vira `f32` para o `.step()` do iced, e o texto é preservado só para isto
+/// (ver `NodeType::Slider::step_raw`). Deduzir do `f32` daria `0.1` → `0.1000000015`.
+fn casas_decimais_do_step(step: &str) -> usize {
+    match step.trim().split_once('.') {
+        Some((_, decimais)) => decimais.trim().len().min(6),
+        None => 0,
+    }
+}
 
 /// One option of a `<Select>`: `label` is shown, `value` is dispatched. Equality
 /// (used by `pick_list` to mark the current selection) is by `value` only.
@@ -17,7 +33,11 @@ pub struct SelectOption {
 impl SelectOption {
     /// Builds an option from a JSON array element: an object reads `label_field`/
     /// `value_field` (value falls back to label); a bare string is both.
-    pub(crate) fn from_json(item: &serde_json::Value, label_field: &str, value_field: &str) -> Self {
+    pub(crate) fn from_json(
+        item: &serde_json::Value,
+        label_field: &str,
+        value_field: &str,
+    ) -> Self {
         match item {
             serde_json::Value::Object(o) => {
                 let get = |k: &str| {
@@ -307,7 +327,9 @@ pub enum EngineMessage {
     /// aberto: `path` é a nova cascata de índices abertos (raiz→folha) —
     /// vazio ao pairar uma linha-folha (fecha qualquer submenu mais fundo),
     /// mais longo ao pairar uma linha com submenu próprio (abre-o).
-    MenuHoverSubmenu { path: Vec<usize> },
+    MenuHoverSubmenu {
+        path: Vec<usize>,
+    },
     /// Um `<MenuItem>` folha foi clicado: despacha `action` como um
     /// `UiClick` comum, depois fecha o menu/cascata inteiro.
     MenuItemClick(String),
@@ -426,7 +448,10 @@ thread_local! {
 
 /// `image::Handle` para `source`, do cache ou construído (uma vez) a partir dos
 /// bytes da fonte de assets. Leitura falha → handle vazio (degrada, não quebra).
-fn cached_image_handle(source: &str, assets: &dyn crate::asset_source::AssetSource) -> image::Handle {
+fn cached_image_handle(
+    source: &str,
+    assets: &dyn crate::asset_source::AssetSource,
+) -> image::Handle {
     if let Some(h) = IMAGE_HANDLES.with(|c| c.borrow().get(source).cloned()) {
         return h;
     }
@@ -1097,17 +1122,22 @@ pub fn render_node<'a>(
                     let binding_inp = value_var.clone();
                     let on_change_a = on_change.clone();
 
-                    let mut cb = combo_box(state, placeholder.as_str(), selected, move |chosen: SelectOption| {
-                        EngineMessage::UiComboSelected {
+                    let mut cb = combo_box(
+                        state,
+                        placeholder.as_str(),
+                        selected,
+                        move |chosen: SelectOption| EngineMessage::UiComboSelected {
                             binding: binding_sel.clone(),
                             on_select: on_select_a.clone(),
                             value: chosen.value,
+                        },
+                    )
+                    .on_input(move |typed: String| {
+                        EngineMessage::UiComboInput {
+                            binding: binding_inp.clone(),
+                            on_change: on_change_a.clone(),
+                            value: typed,
                         }
-                    })
-                    .on_input(move |typed: String| EngineMessage::UiComboInput {
-                        binding: binding_inp.clone(),
-                        on_change: on_change_a.clone(),
-                        value: typed,
                     });
 
                     if node.width.is_some() {
@@ -1263,6 +1293,145 @@ pub fn render_node<'a>(
             } else {
                 bar_elem
             }
+        }
+        NodeType::Radio {
+            label,
+            value,
+            group_var,
+            on_change,
+        } => {
+            // O grupo é a chave, não um nó pai: marcado quando o valor guardado
+            // em `group_var` é este `value`. O `V: Eq + Copy` do `radio` do iced
+            // pede um valor comparável — comparamos as strings aqui e passamos
+            // o resultado como um `bool`, que é o `V` mais barato possível.
+            let marcado = context.get(group_var).map(String::as_str) == Some(value.as_str());
+            let acao = on_change.clone();
+            let escolhido = value.clone();
+            let mut r = radio(label.as_str(), true, Some(marcado), move |_| {
+                EngineMessage::UiInputChanged {
+                    action: acao.clone(),
+                    // O valor desta opção vai junto: é o que o handler do app
+                    // grava na chave do grupo, sem precisar reler o markup.
+                    value: escolhido.clone(),
+                }
+            });
+            // `spacing` é o vão entre a bolinha e o rótulo. Não há atributo de
+            // corpo do texto: o `size` do motor mora dentro do `NodeType::Text`,
+            // não no nó genérico — o rótulo do radio herda o do tema.
+            if let Some(sp) = node.spacing {
+                r = r.spacing(sp);
+            }
+            r.into()
+        }
+        NodeType::Slider {
+            value_var,
+            on_change,
+            on_release,
+            min,
+            max,
+            step,
+            step_raw,
+            shift_step,
+            default,
+            vertical,
+            color,
+        } => {
+            // Widget CONTROLADO: a posição do cursor é sempre o que a chave de
+            // contexto diz, nunca um estado interno do widget. É isso que faz
+            // `disabled` funcionar sem o iced ter um `Status::Disabled` — sem
+            // ninguém escrever na chave, o cursor não sai do lugar por mais que
+            // se arraste.
+            let atual = context
+                .get(value_var)
+                .and_then(|s| s.trim().parse::<f32>().ok())
+                .unwrap_or(*min)
+                .clamp(*min, *max);
+
+            let casas = casas_decimais_do_step(step_raw);
+            let acao = on_change.clone();
+            let inerte = node.disabled.unwrap_or(false);
+            let ao_mudar = move |v: f32| EngineMessage::UiInputChanged {
+                // Desabilitado: a ação some, e uma ação vazia não casa com
+                // handler nenhum. O cursor fica parado porque a chave não muda.
+                action: if inerte { String::new() } else { acao.clone() },
+                value: format!("{v:.casas$}"),
+            };
+
+            let cor = color.as_deref().and_then(parse_hex_color);
+            // O `.style()` lê os MESMOS campos genéricos que o wrap de
+            // background/borda leria — e é por isso que o `Slider` fica de fora
+            // daquele wrap (ver o comentário dele, e `PRIMITIVAS.md`): o
+            // `slider` do iced é `Length::Fill` no eixo principal, então um
+            // `Container` `Shrink` em volta o colapsaria.
+            let trilho = background_for(node);
+            let estilo = move |theme: &iced::Theme, status: slider::Status| {
+                let mut base = slider::default(theme, status);
+                if let Some(c) = cor {
+                    base.rail.backgrounds.0 = Background::Color(c);
+                    base.handle.background = Background::Color(c);
+                }
+                if let Some(bg) = trilho {
+                    base.rail.backgrounds.1 = bg;
+                }
+                base
+            };
+
+            if *vertical {
+                let mut sl = vertical_slider(*min..=*max, atual, ao_mudar).step(*step);
+                if let Some(ss) = shift_step {
+                    sl = sl.shift_step(*ss);
+                }
+                if let Some(d) = default {
+                    sl = sl.default(*d);
+                }
+                if let Some(a) = on_release
+                    && !inerte
+                {
+                    sl = sl.on_release(EngineMessage::UiClick(a.clone()));
+                }
+                if node.height.is_some() {
+                    sl = sl.height(parse_length(&node.height));
+                }
+                sl.style(estilo).into()
+            } else {
+                let mut sl = slider(*min..=*max, atual, ao_mudar).step(*step);
+                if let Some(ss) = shift_step {
+                    sl = sl.shift_step(*ss);
+                }
+                if let Some(d) = default {
+                    sl = sl.default(*d);
+                }
+                if let Some(a) = on_release
+                    && !inerte
+                {
+                    sl = sl.on_release(EngineMessage::UiClick(a.clone()));
+                }
+                if node.width.is_some() {
+                    sl = sl.width(parse_length(&node.width));
+                }
+                sl.style(estilo).into()
+            }
+        }
+        NodeType::Space => {
+            // Sem `width`/`height` no markup, `Length::Fill` nos dois eixos: um
+            // `<Space/>` pelado é o espaçador FLEXÍVEL (o que empurra o resto
+            // para a borda), não um vão de zero pixel — que é o que o
+            // `parse_length(&None) == Shrink` genérico daria, e que não serve
+            // para nada. Com `width="24"` vira o vão fixo.
+            Space::new()
+                .width(
+                    node.width
+                        .as_ref()
+                        .map(|_| parse_length(&node.width))
+                        .unwrap_or(Length::Fill),
+                )
+                .height(
+                    node.height
+                        .as_ref()
+                        .map(|_| parse_length(&node.height))
+                        .unwrap_or(Length::Fill),
+                )
+                .into()
         }
         NodeType::Spinner { color } => {
             // Indicador indeterminado (busy) — ver `crate::spinner`. Não precisa
@@ -1508,9 +1677,14 @@ pub fn render_node<'a>(
             // pela recursão comum de `render_node` acima. Chegar aqui de
             // verdade seria um bug (um `<MenuItem>` fora de um `<Menu>`);
             // não ocupa espaço.
-            Space::new().width(Length::Shrink).height(Length::Shrink).into()
+            Space::new()
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .into()
         }
-        NodeType::Fragment => {
+        // Um `<slot/>` some na avaliação (vira `Fragment`, ver `eval`), então
+        // aqui ele é tratado igual — se algum dia chegar, empilha o que embrulha.
+        NodeType::Slot | NodeType::Fragment => {
             // A `Fragment`'s children are normally spliced into the parent
             // during evaluation (`expand_children`), so it seldom reaches
             // rendering; when it does (e.g. a multi-root screen root), stack
@@ -1541,9 +1715,15 @@ pub fn render_node<'a>(
     // colapsa a barra a quase-zero — ficando (visualmente) só o `Spinner` ao
     // lado, se houver um. Button/Select não sofrem disso porque seu tamanho
     // natural já é `Shrink` (não têm o que "colapsar"). Ao acrescentar uma
-    // primitiva nova cujo default no iced seja `Length::Fill` (ex.: um
-    // futuro `Slider`), aplique a mesma exclusão — ver `PRIMITIVAS.md`.
-    if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressBar { .. }) {
+    // primitiva nova cujo default no iced seja `Length::Fill`, aplique a mesma
+    // exclusão — ver `PRIMITIVAS.md`. O `Slider` (0.66) é o segundo caso: o
+    // `slider`/`vertical_slider` do iced também é `Fill` no eixo principal.
+    if node.kind != NodeType::Container
+        && !matches!(
+            &node.kind,
+            NodeType::ProgressBar { .. } | NodeType::Slider { .. }
+        )
+    {
         let bg_opt = background_for(node);
         let br_opt = node.border_radius;
         let bw_opt = node.border_width.unwrap_or(0.0);

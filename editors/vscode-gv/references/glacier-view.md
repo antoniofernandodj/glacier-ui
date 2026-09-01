@@ -76,6 +76,53 @@ Barra de progresso. Atributos: `value` (chave de contexto com o valor), `min` (0
 ### `<Spinner>` (`<BusyIndicator>`, `<Carregando>`)
 Indicador de atividade indeterminada. Atributo: `color`.
 
+### `<Slider>` (`<Deslizante>`)
+Cursor arrastável numa faixa — o `QSlider`. Como o `<TextInput>`, **não grava a chave sozinho**: dispara `onChange` com o valor novo e quem grava é o app.
+
+```gv
+<slider value="volume" min="0" max="100" onChange="ajustar" width="320" />
+<slider value="brilho" min="0" max="1" step="0.05" onChange="mudar" />
+<slider value="graves" min="-10" max="10" default="0" onChange="eq" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave de contexto com o número |
+| `min` / `max` | `0` / `100` | a faixa |
+| `step` | `1` | granularidade do arraste. As **casas decimais da saída saem daqui**: `step="0.05"` grava `0.60`, não `0.6000000238418579` |
+| `default` | — | valor para onde o **duplo clique** devolve o cursor |
+| `onRelease` | — | ação disparada só ao SOLTAR, para quem não quer efeito colateral por pixel arrastado |
+| `shiftStep` | — | passo fino com Shift segurado |
+| `vertical` | `false` | usa o `vertical_slider` (peça uma `height`) |
+| `color` | — | cor do trilho preenchido e do cursor |
+
+- **`disabled` deixa inerte, mas não esmaece**: o `slider::Status` do iced 0.14 não tem `Disabled`. O cursor não se move porque a chave não muda.
+
+### `<Radio>` (`<RadioButton>`, `<Opcao>`)
+Uma opção de um grupo mutuamente exclusivo — o `QRadioButton`. O grupo **é a chave**, não um nó pai: `group` é o **nome** da chave (como o `checked` do `<Checkbox>`), e a opção fica marcada quando o valor guardado ali é igual ao `value` dela.
+
+```gv
+<radio label="Grátis" value="free" group="plano" onChange="escolher" />
+<radio label="Pro"    value="pro"  group="plano" onChange="escolher" />
+```
+
+| prop | o que faz |
+| --- | --- |
+| `label` | o rótulo ao lado da bolinha |
+| `value` | o valor que **esta** opção representa |
+| `group` | **nome** da chave que guarda a escolha. Sem `{}`: escrever `group="{plano}"` passa o *valor* no lugar do nome, e aí nenhuma opção casa e o grupo inteiro aparece desmarcado |
+| `onChange` | ação disparada no clique, com o `value` da opção junto |
+
+- Como o `<Checkbox>`, **não grava sozinho** — quem grava é o app. Para o caso comum sem handler nenhum, use o builtin `<RadioGroup>`.
+
+### `<Space>` (`<Espaco>`, `<Spacer>`)
+Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
+
+```gv
+<row><text content="esquerda" /><space /><text content="direita" /></row>
+<row><text content="a" /><space width="80" /><text content="b" /></row>
+```
+
 ### `<Select>` (`<Dropdown>`, `<ComboBox>`)
 Seletor. Atributos: `options`, `value`, `onChange`, `placeholder`, `labelField`, `valueField`, `color`.
 
@@ -100,6 +147,18 @@ Ramo intermediário entre um `<If>` e o `<Else>`. Mesmos atributos de condição
 
 ### `<template>` (`<gabarito>`)
 Tag única que unifica repetição e condição: com `for-each`/`items` repete como `<ForEach>`; com `if`/`equals`/`one-of`/… condiciona como `<If>`. Não desenha caixa nenhuma — só emite os filhos.
+
+### `<slot>` (`<conteudo>`)
+O buraco que o conteúdo escrito **entre as tags** de um componente preenche: `<groupbox>…</groupbox>` renderiza esse `…` onde o template do `<groupbox>` escreveu `<slot/>`.
+
+```gv
+<!-- no template do componente -->
+<container><column><slot/></column></container>
+```
+
+- O conteúdo é avaliado no contexto e com o **dono de quem escreveu**: um `on_click="salvar"` escrito dentro de um `<groupbox>` chega no handler da **tela**, não do widget. Não escreva `app:` nele.
+- Os filhos do próprio `<slot>` são o **conteúdo de reserva**, usado quando quem chama não escreve nada dentro da tag. Esses são do componente e enxergam as props dele.
+- Um slot por componente, sem nome — `<slot name="…">` ainda não existe.
 
 ### `<Include>` (`<Incluir>`)
 Inclui outro template. Atributo: `src`; demais atributos viram props.
@@ -194,6 +253,142 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 
 ### `<TimePicker>`
 Campo de hora (`HH:MM`) com botão de seleção. Props: `value` (chave de contexto), `on_change`, `on_pick`, `placeholder`, `width`, `pick_icon`.
+
+### `<Avatar>`
+Foto circular com as **iniciais como reserva** quando não há imagem — ocupa o mesmo espaço nos dois casos, para não quebrar o alinhamento de uma lista.
+
+```gv
+<avatar src="fotos/ana.png" size="56" />
+<avatar initials="AF" bg="#89B4FA" fg="#11111B" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `src` | — | caminho/URL da imagem; presente, vence as iniciais |
+| `initials` | `?` | 1–2 letras da reserva |
+| `size` | `40` | diâmetro em px |
+| `bg` / `fg` | `#8080803d` / `#cdd6f4` | cores do círculo de iniciais |
+
+### `<RadioGroup>`
+Um grupo de opções exclusivas montado de uma coleção do contexto — o `QButtonGroup`. Ao contrário da primitiva `<radio>`, ele **grava a chave sozinho**: nenhum handler no app.
+
+```gv
+<radiogroup value="plano" items="planos" />
+<radiogroup value="plano" items="planos" layout="row" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — (**obrigatória**) | **nome** da chave com o array de `{id, label}` |
+| `value` | — (**obrigatória**) | **nome** da chave que guarda o `id` escolhido — lida para marcar, escrita no clique |
+| `layout` | `column` | `column` ou `row` (o `Qt::Orientation` do grupo) |
+| `spacing` | `8` | espaço entre as opções |
+
+- Não precisa de um `active` como o `<tabbar>`: aqui quem resolve a marcação é a primitiva `<radio>`, em Rust, onde ler a chave cujo nome está numa prop é uma linha.
+
+---
+
+## Builtins que embrulham conteúdo (`<slot/>`)
+
+Os cinco abaixo renderizam o que se escreve **entre as tags** deles. A ação de dentro pertence a quem a escreveu — um `on_click="salvar"` dentro de um `<groupbox>` chega no handler da tela.
+
+### `<GroupBox>`
+Moldura com título — o `QGroupBox`.
+
+```gv
+<groupbox title="Rede">
+    <checkbox label="Usar proxy" checked="usar_proxy" />
+    <button text="Salvar" on_click="salvar" />
+</groupbox>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `title` | vazio | rótulo do grupo; vazio = sem cabeçalho (sobra a moldura pura) |
+| `flat` | `false` | `true` = título + linha, sem caixa (o `QGroupBox::flat`) |
+| `padding` / `spacing` | `12` / `8` | espaço interno e entre os filhos |
+| `title_size` | `13` | corpo do título |
+| `width` | `fill` | largura do conjunto |
+
+- **Aparência**: classes `.groupbox-frame` e `.groupbox-title`, redefiníveis numa `.gss` do app.
+
+### `<Frame>`
+A moldura sozinha, sem título — o `QFrame`.
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `shape` | `box` | `box` (contorno), `filled` (contraste, o `QFrame::Panel`) ou `none` |
+| `background` | — | cor do `filled` por instância; omitida, vem da classe `.frame-filled` |
+| `padding` / `spacing` | `12` / `8` | idem `<GroupBox>` |
+
+- Sem `Raised`/`Sunken`: o motor não tem campo de sombra.
+
+### `<Card>`
+Superfície de um item, com cabeçalho de título e subtítulo independentes.
+
+```gv
+<card title="Servidor" subtitle="produção" width="250">
+    <text content="uptime 31 dias" />
+</card>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `title` / `subtitle` | vazio | o cabeçalho aparece se **um dos dois** existir |
+| `padding` / `spacing` | `16` / `12` | espaço interno e entre os filhos |
+| `width` | `fill` | numa grade, dê uma largura fixa a cada cartão |
+
+- **Sem rodapé**: exigiria um segundo buraco no template (slot nomeado).
+
+### `<ToolBar>` e `<ToolButton>`
+A faixa de ações e o botão-ícone dela — o `QToolBar` e o `QToolButton`.
+
+```gv
+<toolbar>
+    <toolbutton icon="📄" text="Novo" layout="beside" tooltip="Novo" on_click="novo" />
+    <rule direction="vertical" />
+    <toolbutton icon="🗑" tooltip="Excluir" on_click="excluir" />
+</toolbar>
+```
+
+| prop de `<ToolButton>` | default | o que faz |
+| --- | --- | --- |
+| `on_click` | — | **ação do app** (o widget delega) |
+| `icon` / `icon_src` | `●` | glifo, ou caminho de um `.svg` (que vence o glifo) |
+| `text` | vazio | rótulo, usado por `layout="beside"`/`"under"` |
+| `layout` | `icon` | as três formas do `Qt::ToolButtonStyle` |
+| `icon_size` / `text_size` | `16` / `12` | corpos |
+| `tooltip` | vazio | num botão só-ícone, é ela que diz o que ele faz |
+
+`<ToolBar>` aceita `padding` (`6 8`), `spacing` (`4`), `divider` (`true`) e `width` (`fill`).
+
+### `<StatusBar>`
+O rodapé de status — o `QStatusBar`. A prop `message` é a zona da **esquerda** (o `showMessage`); o conteúdo do slot são os permanentes da **direita** (o `addPermanentWidget`).
+
+```gv
+<statusbar message="{status}">
+    <badge badge_text="3 erros" badge_bg="#F38BA8" />
+</statusbar>
+```
+
+Props: `message`, `padding` (`4 10`), `spacing` (`10`), `size` (`12`), `divider` (`true`), `width` (`fill`).
+
+### `<TabBar>`
+A fileira de abas — o `QTabBar`. Só a **barra**: o empilhado de páginas continua sendo `se`/`senao` na tela, porque cada página precisaria do seu próprio slot nomeado.
+
+```gv
+<tabbar value="aba" active="{aba}" items="abas" />
+<template if="{aba}" equals="geral"> … </template>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — (**obrigatória**) | **nome** da chave com o array de `{id, label}` |
+| `value` | — (**obrigatória**) | **nome** da chave que recebe o `id` clicado |
+| `active` | — | o **valor atual** dessa chave, para o destaque. Sem ele a barra aparece inteira apagada |
+| `padding` / `spacing` / `size` | `7 14` / `2` / `13` | área de clique, vão entre abas, corpo do rótulo |
+
+- `value` e `active` andam em par porque quem decide o destaque aqui é o **template**, que não consegue ler o valor da chave cujo nome está numa prop.
 
 ---
 

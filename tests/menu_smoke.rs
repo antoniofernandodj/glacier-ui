@@ -3,8 +3,8 @@
 //! component, dispara `OpenMenuBarDropdown`/`OpenContextMenu`/
 //! `MenuHoverSubmenu`/`MenuItemClick`/`MenuDismiss` diretamente e confirma
 //! que `render_current` não entra em pânico em nenhum estado intermediário.
-use glacier_ui::widget::EngineMessage;
 use glacier_ui::GlacierUI;
+use glacier_ui::widget::EngineMessage;
 use std::sync::Arc;
 
 #[test]
@@ -55,10 +55,12 @@ fn menu_open_hover_render_smoke() {
     ui.render_current().expect("render com submenu aberto");
 
     let _ = ui.dispatch(&EngineMessage::MenuHoverSubmenu { path: vec![1, 0] });
-    ui.render_current().expect("render com sub-submenu aberto (2 níveis)");
+    ui.render_current()
+        .expect("render com sub-submenu aberto (2 níveis)");
 
     let _ = ui.dispatch(&EngineMessage::MenuItemClick("acao_filho".into()));
-    ui.render_current().expect("render após clique (menu fechado)");
+    ui.render_current()
+        .expect("render após clique (menu fechado)");
 
     let _ = ui.dispatch(&EngineMessage::OpenContextMenu {
         tree: Arc::new(vec![glacier_ui::menu::MenuNode {

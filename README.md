@@ -1458,6 +1458,10 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `imports_luau` | `require` de bibliotecas Luau (client de rede + utilitários). |
 | `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
+| `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
+| `timepicker` | o builtin `<TimePicker/>` delegando `on_change`/`on_pick` ao app. |
+| `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
+| `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 
 ---
 

@@ -409,9 +409,7 @@ impl GlacierDaemon {
         // Diretório onde a geometria da principal é persistida (só quando o app
         // ligou `remember_window_geometry` E definiu um `storage_dir` — é lá que
         // o arquivo mora). Guardado para o `Runtime` gravar ao fechar.
-        let geometry_dir = remember_geometry
-            .then(|| storage_dir.clone())
-            .flatten();
+        let geometry_dir = remember_geometry.then(|| storage_dir.clone()).flatten();
 
         // A geometria salva, lida uma vez. Ela é aplicada lá dentro do `boot`,
         // **depois** do `<screen>` do template: o tamanho declarado no arquivo é
@@ -552,7 +550,10 @@ fn load_geometry(dir: &std::path::Path) -> Option<SavedGeometry> {
 /// são logadas, não propagadas — não devem impedir a janela de fechar.
 fn save_geometry(dir: &std::path::Path, size: Size, position: Option<Point>) {
     if let Err(e) = std::fs::create_dir_all(dir) {
-        eprintln!("[glacier-ui] geometria: falha ao criar '{}': {e}", dir.display());
+        eprintln!(
+            "[glacier-ui] geometria: falha ao criar '{}': {e}",
+            dir.display()
+        );
         return;
     }
     let json = serde_json::json!({
@@ -565,7 +566,10 @@ fn save_geometry(dir: &std::path::Path, size: Size, position: Option<Point>) {
     match serde_json::to_string_pretty(&json) {
         Ok(s) => {
             if let Err(e) = std::fs::write(&path, s) {
-                eprintln!("[glacier-ui] geometria: falha ao gravar '{}': {e}", path.display());
+                eprintln!(
+                    "[glacier-ui] geometria: falha ao gravar '{}': {e}",
+                    path.display()
+                );
             }
         }
         Err(e) => eprintln!("[glacier-ui] geometria: falha ao serializar: {e}"),
@@ -825,10 +829,7 @@ impl Runtime {
         if self.main_shown {
             return Task::batch([
                 window::gain_focus(self.main_id),
-                window::request_user_attention(
-                    self.main_id,
-                    Some(window::UserAttention::Critical),
-                ),
+                window::request_user_attention(self.main_id, Some(window::UserAttention::Critical)),
             ]);
         }
         // Reusa o motor destacado (login + SSE preservados) ou, se não houver,
@@ -1127,13 +1128,21 @@ impl Runtime {
         // puramente por software (sem GPU compatível) isso é um custo real, e
         // repetido para nada quando o tick não tinha trabalho a fazer — então
         // cada ticker só entra quando pode genuinamente ter efeito.
-        if self.windows.values().any(|engine| engine.assets.supports_reload()) {
+        if self
+            .windows
+            .values()
+            .any(|engine| engine.assets.supports_reload())
+        {
             subs.push(
                 iced::time::every(self.reload_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::FileChanged(String::new()))),
             );
         }
-        if self.windows.values().any(|engine| !engine.toasts.is_empty()) {
+        if self
+            .windows
+            .values()
+            .any(|engine| !engine.toasts.is_empty())
+        {
             subs.push(
                 iced::time::every(self.toast_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
@@ -1150,8 +1159,7 @@ impl Runtime {
         // alguém pediu um `external::sender()` — quem não usa não paga o poll.
         if crate::external::is_active() {
             subs.push(
-                iced::Subscription::run(crate::external::event_stream)
-                    .map(DaemonMessage::External),
+                iced::Subscription::run(crate::external::event_stream).map(DaemonMessage::External),
             );
         }
 
@@ -1233,7 +1241,11 @@ fn resolve_main_window(
     size
 }
 
-fn apply_screen_meta(meta: &crate::ScreenMeta, settings: &mut window::Settings, title: &mut String) {
+fn apply_screen_meta(
+    meta: &crate::ScreenMeta,
+    settings: &mut window::Settings,
+    title: &mut String,
+) {
     if let Some(t) = &meta.title {
         *title = t.clone();
     }
@@ -1553,10 +1565,16 @@ mod tests {
         let (mut rt, id) = runtime_de_teste(false);
         let mut motor = GlacierUI::new();
         motor
-            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .register(tela(
+                "lista",
+                r#"<screen title="Lista"><column /></screen>"#,
+            ))
             .unwrap();
         motor
-            .register(tela("detalhe", r#"<screen title="Detalhe"><column /></screen>"#))
+            .register(tela(
+                "detalhe",
+                r#"<screen title="Detalhe"><column /></screen>"#,
+            ))
             .unwrap();
         motor.register(tela("anonima", "<column />")).unwrap();
         motor.set_initial_screen("lista");
@@ -1587,7 +1605,10 @@ mod tests {
         let (mut rt, id) = runtime_de_teste(false);
         let mut motor = GlacierUI::new();
         motor
-            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .register(tela(
+                "lista",
+                r#"<screen title="Lista"><column /></screen>"#,
+            ))
             .unwrap();
         motor.set_initial_screen("lista");
         rt.windows.insert(id, motor);
@@ -1626,7 +1647,8 @@ mod tests {
         motor.set_initial_screen("lista");
         rt.windows.insert(id, motor);
         rt.base_titles.insert(id, "T".to_string());
-        rt.sized_by.insert(id, ("lista".to_string(), (800.0, 600.0)));
+        rt.sized_by
+            .insert(id, ("lista".to_string(), (800.0, 600.0)));
 
         // Mesma tela, mesmo número: nada a fazer.
         let _ = rt.sync_window_meta(id);
@@ -1772,7 +1794,7 @@ mod tests {
             rt.windows.contains_key(&main_id),
             "o motor deve continuar vivo sob o id morto (SSE + login preservados)"
         );
-        assert!(rt.titles.get(&main_id).is_none());
+        assert!(!rt.titles.contains_key(&main_id));
 
         // "Open Rustploy": religa o MESMO motor numa janela nova; main_id migra.
         let _ = rt.open_main();
