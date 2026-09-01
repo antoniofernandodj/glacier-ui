@@ -8,6 +8,52 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.70.0] — 2026-09-01
+
+### Adicionado
+- **O `<dateedit>`/`<timeedit>`/`<datetimeedit>` ganhou teclado.** A 0.68
+  entregou a edição por seções mas só no mouse — "não dá para digitar no campo"
+  era uma limitação declarada. Com uma seção selecionada:
+
+  | tecla | o que faz |
+  |---|---|
+  | ▲ / ▼ | mesmo passo dos botões de seta, na seção selecionada |
+  | ← / → | troca de seção, sem alterar valor |
+  | `0`–`9` | digita na seção, com o avanço automático do Qt |
+
+  Digitar `0930` numa hora atravessa hora e minuto sozinho: cada seção **avança
+  quando enche** (`09`) ou quando nenhum próximo algarismo caberia (`5` numa
+  hora — não existe `5X` válido). Um engano recomeça a seção em vez de ser
+  recusado, que é o que deixa corrigir sem apagar.
+
+  O algarismo sai do **texto que a tecla produz**, não do código dela, então o
+  teclado numérico e um layout não-ABNT entram igual.
+
+  **Como funciona, e por que não é um widget focável.** A seleção já morava numa
+  chave global (`__timeedit`); ela passou a carregar também a *configuração da
+  instância* (quais seções existem, a ordem, e o `onChange`), porque quem trata
+  a tecla é o `update` do motor — que recebe a tecla solta, sem o nó em mãos.
+  O contrato de gravação não muda: sem `onChange` o widget grava a chave
+  sozinho, com ele delega.
+
+  **O guarda contra roubar teclas:** o listener é global e não sabe o que está
+  focado, então ele só age quando **nenhum widget consumiu o evento**
+  (`event::Status::Ignored`). Um `<TextInput>` focado captura os algarismos e o
+  ← →, e eles não chegam aqui. Além disso, clicar em qualquer outro widget
+  larga a seção selecionada.
+
+  **Limite conhecido, e é honesto declarar:** com um `<TextInput>` de linha
+  única focado, **▲▼ ainda alcançam** uma seção que tenha sido selecionada
+  antes e não largada por um clique. O `text_input` do iced não usa ▲▼, então o
+  evento chega como `Ignored` e é indistinguível de "ninguém quis". Fechar isso
+  de vez exige o widget virar um nó focável de verdade, o que é outra obra.
+
+### Notas
+- `TimeEditKey` é exportado na raiz do crate, junto de `EngineMessage`: é o que
+  permite um teste dirigir o teclado sem display.
+
+---
+
 ## [0.69.0] — 2026-09-01
 
 Uma release de **duas correções de contrato**: uma coisa que o motor deixava

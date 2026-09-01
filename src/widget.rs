@@ -15,6 +15,86 @@ use std::collections::HashMap;
 /// mantém dois `<timeedit>` independentes. Mesma família do `__drag_key`.
 pub(crate) const TIMEEDIT_SEL_CONTEXT: &str = "__timeedit";
 
+/// A seção selecionada de um `<datetimeedit>`, com a configuração da instância
+/// dona dela — tudo numa chave global do motor (`__timeedit`), porque só uma
+/// seção da tela pode estar selecionada por vez.
+///
+/// Ela carrega mais do que a identidade porque o **teclado** é tratado no
+/// `update` do motor, que recebe a tecla solta e não tem o nó do widget em mãos:
+/// sem `data`/`hora`/`segundos` ele não sabe serializar o valor, sem
+/// `dia_primeiro` não sabe a ordem das seções para o ← →, e sem `acao` não sabe
+/// se grava a chave ou delega ao app.
+///
+/// Formato: `chave|secao|dtsf|buf|acao` (`dtsf` = quatro `0`/`1`). `acao` vem
+/// por último e é o resto da string, então uma ação com `|` no nome não quebra.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct TimeEditSel {
+    pub chave: String,
+    pub secao: String,
+    pub data: bool,
+    pub hora: bool,
+    pub segundos: bool,
+    pub dia_primeiro: bool,
+    /// Algarismos já digitados nesta seção desde que ela foi selecionada.
+    pub buf: String,
+    pub acao: String,
+}
+
+/// O que o teclado pode fazer com a seção selecionada de um
+/// `<datetimeedit>` — o teclado do `QDateTimeEdit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeEditKey {
+    /// ▲ / ▼: mesmo passo dos botões de seta, na seção selecionada.
+    Passo(i8),
+    /// ← / →: move a seleção entre as seções, sem alterar valor.
+    Move(i8),
+    /// Um algarismo digitado na seção selecionada.
+    Algarismo(u8),
+}
+
+impl TimeEditSel {
+    pub fn serializa(&self) -> String {
+        let b = |v: bool| if v { '1' } else { '0' };
+        format!(
+            "{}|{}|{}{}{}{}|{}|{}",
+            self.chave,
+            self.secao,
+            b(self.data),
+            b(self.hora),
+            b(self.segundos),
+            b(self.dia_primeiro),
+            self.buf,
+            self.acao
+        )
+    }
+
+    pub fn parse(bruto: Option<&String>) -> Option<Self> {
+        let bruto = bruto?.as_str();
+        if bruto.is_empty() {
+            return None;
+        }
+        let mut it = bruto.splitn(5, '|');
+        let chave = it.next()?.to_string();
+        let secao = it.next()?.to_string();
+        let flags: Vec<char> = it.next()?.chars().collect();
+        if flags.len() < 4 || chave.is_empty() || secao.is_empty() {
+            return None;
+        }
+        let buf = it.next().unwrap_or("").to_string();
+        let acao = it.next().unwrap_or("").to_string();
+        Some(Self {
+            chave,
+            secao,
+            data: flags[0] == '1',
+            hora: flags[1] == '1',
+            segundos: flags[2] == '1',
+            dia_primeiro: flags[3] == '1',
+            buf,
+            acao,
+        })
+    }
+}
+
 /// Um instante como as seções do `<datetimeedit>` o tratam. Sem dependência de
 /// datas: o que o widget precisa é somar 1 numa seção e saber quantos dias o mês
 /// tem — quatro linhas de aritmética, não um crate (a escolha `chrono` vs.
@@ -46,7 +126,7 @@ impl Instante {
     /// de propósito: o que não parseia cai no default, para o campo nunca
     /// renderizar quebrado nem engolir a digitação de um app que ainda não
     /// semeou a chave.
-    fn parse(bruto: &str) -> Self {
+    pub(crate) fn parse(bruto: &str) -> Self {
         let mut eu = Self {
             ano: 2000,
             mes: 1,
@@ -92,7 +172,7 @@ impl Instante {
 
     /// O que vai para a chave de contexto — **sempre ISO**, independentemente da
     /// ordem em que as seções são desenhadas.
-    fn serializa(&self, data: bool, hora: bool, segundos: bool) -> String {
+    pub(crate) fn serializa(&self, data: bool, hora: bool, segundos: bool) -> String {
         let d = format!("{:04}-{:02}-{:02}", self.ano, self.mes, self.dia);
         let h = if segundos {
             format!("{:02}:{:02}:{:02}", self.hora, self.min, self.seg)
@@ -110,7 +190,7 @@ impl Instante {
     /// minuto não empurra a hora —, que é o `wrapping` do `QAbstractSpinBox` e
     /// o que "editar por seção" quer dizer. O ano é a exceção: satura, porque
     /// virar de 9999 para 1 nunca é o que alguém quis.
-    fn passo(&self, secao: &str, delta: i64) -> Self {
+    pub(crate) fn passo(&self, secao: &str, delta: i64) -> Self {
         let mut n = *self;
         match secao {
             "y" => n.ano = (n.ano + delta).clamp(1, 9999),
@@ -127,6 +207,94 @@ impl Instante {
         n.dia = n.dia.min(dias_no_mes(n.ano, n.mes));
         n
     }
+
+    /// Faixa válida de uma seção, e quantos dígitos ela comporta. O dia depende
+    /// do mês corrente — 31/01 aceita "31", 31/02 não.
+    fn faixa(&self, secao: &str) -> (i64, i64, usize) {
+        match secao {
+            "y" => (1, 9999, 4),
+            "M" => (1, 12, 2),
+            "d" => (1, dias_no_mes(self.ano, self.mes), 2),
+            "m" | "s" => (0, 59, 2),
+            _ => (0, 23, 2),
+        }
+    }
+
+    /// Grava um valor cru numa seção, sem mexer nas outras.
+    fn com_secao(&self, secao: &str, valor: i64) -> Self {
+        let mut n = *self;
+        match secao {
+            "y" => n.ano = valor,
+            "M" => n.mes = valor,
+            "d" => n.dia = valor,
+            "m" => n.min = valor,
+            "s" => n.seg = valor,
+            _ => n.hora = valor,
+        }
+        n.normalizar();
+        n
+    }
+
+    /// Digita um algarismo na seção selecionada, no modelo do `QDateTimeEdit`.
+    ///
+    /// `buf` são os algarismos já digitados NESTA seção desde que ela foi
+    /// selecionada — ele existe porque o valor gravado na chave é normalizado
+    /// (um "0" digitado num mês vira 1) e portanto não serve para reconstruir o
+    /// que a pessoa está no meio de digitar.
+    ///
+    /// Devolve `(instante, buf_novo, avancar)`. `avancar` é verdadeiro quando a
+    /// seção não comporta mais nenhum algarismo — ou porque encheu (`23` numa
+    /// hora), ou porque qualquer próximo algarismo estouraria a faixa (`5` numa
+    /// hora: não existe `5X` válido). É o que faz digitar "0930" numa hora
+    /// atravessar as duas seções sozinho, como no Qt.
+    pub(crate) fn digita(&self, secao: &str, algarismo: u8, buf: &str) -> (Self, String, bool) {
+        let (min, max, max_digitos) = self.faixa(secao);
+        let candidato_txt = format!("{buf}{algarismo}");
+        // Estourou a faixa (ou o número de casas): recomeça a seção com este
+        // algarismo, em vez de recusar a tecla — é o que o Qt faz, e é o que
+        // deixa corrigir um engano sem apagar nada.
+        let (valor, buf_novo) = match candidato_txt.parse::<i64>() {
+            Ok(v) if v <= max && candidato_txt.len() <= max_digitos => (v, candidato_txt),
+            _ => (i64::from(algarismo), algarismo.to_string()),
+        };
+        let cheio = buf_novo.len() >= max_digitos;
+        let sem_futuro = valor * 10 > max;
+        // O valor vai para a chave sempre dentro da faixa: um "0" digitado num
+        // mês mostra 01 e não um mês zero. O `buf` guarda o "0" cru, então o
+        // algarismo seguinte ainda compõe "05" corretamente.
+        (
+            self.com_secao(secao, valor.clamp(min, max)),
+            buf_novo,
+            cheio || sem_futuro,
+        )
+    }
+}
+
+/// As seções de um `<datetimeedit>` na ordem em que aparecem na tela — a mesma
+/// que o render monta. Existe à parte porque o teclado (setas ← →, e o avanço
+/// automático ao encher uma seção) precisa da ordem sem ter o nó em mãos.
+pub(crate) fn secoes_visiveis(
+    data: bool,
+    hora: bool,
+    segundos: bool,
+    dia_primeiro: bool,
+) -> Vec<&'static str> {
+    let mut v = Vec::new();
+    if data {
+        v.extend_from_slice(if dia_primeiro {
+            &["d", "M", "y"][..]
+        } else {
+            &["y", "M", "d"][..]
+        });
+    }
+    if hora {
+        v.push("h");
+        v.push("m");
+        if segundos {
+            v.push("s");
+        }
+    }
+    v
 }
 
 /// Casas decimais que a saída de um `<Slider>` deve ter/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
@@ -287,6 +455,11 @@ fn background_for(node: &UiNode) -> Option<Background> {
 #[derive(Debug, Clone)]
 pub enum EngineMessage {
     UiClick(String),
+    /// Uma tecla dirigida ao `<datetimeedit>` cuja seção está selecionada (a
+    /// chave global `__timeedit`). Só chega aqui quando **nenhum** widget
+    /// consumiu o evento (`event::Status::Ignored`) — é isso que impede a
+    /// seta de um `<TextInput>` focado de virar um passo de hora.
+    TimeEditKey(TimeEditKey),
     UiInputChanged {
         action: String,
         value: String,
@@ -1442,11 +1615,9 @@ pub fn render_node<'a>(
             // Qual seção está selecionada — e se ela é DESTA instância. A chave
             // é global de propósito (só uma seção da tela pode estar em foco),
             // e carrega a identidade da instância junto: `inicio:h`.
-            let foco = context
-                .get(TIMEEDIT_SEL_CONTEXT)
-                .and_then(|s| s.split_once(':'))
-                .filter(|(chave, _)| *chave == value_var.as_str())
-                .map(|(_, sec)| sec.to_string());
+            let foco = TimeEditSel::parse(context.get(TIMEEDIT_SEL_CONTEXT))
+                .filter(|sel| sel.chave == *value_var)
+                .map(|sel| sel.secao);
 
             // As seções na ordem de exibição, cada uma com o texto que mostra e
             // o separador que a segue. A ordem da data é a única coisa que
@@ -1508,7 +1679,21 @@ pub fn render_node<'a>(
             let mut campo = row![].spacing(0).align_y(iced::Alignment::Center);
             for (id, txt, sep) in &secoes {
                 let selecionada = ativa == *id;
-                let alvo = format!("{chave}:{id}");
+                // O descritor carrega a CONFIGURAÇÃO da instância, não só o
+                // nome da seção: quem trata as teclas é o `update` do motor,
+                // que recebe a tecla e não tem o nó em mãos. `buf` nasce vazio
+                // — clicar numa seção recomeça a digitação dela.
+                let alvo = TimeEditSel {
+                    chave: chave.clone(),
+                    secao: (*id).to_string(),
+                    data: com_data,
+                    hora: com_hora,
+                    segundos: com_seg,
+                    dia_primeiro: *day_first,
+                    buf: String::new(),
+                    acao: on_change.clone(),
+                }
+                .serializa();
                 campo = campo.push(
                     button(text(txt.clone()).size(15))
                         .padding(Padding {

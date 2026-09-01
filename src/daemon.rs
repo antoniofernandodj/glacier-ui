@@ -1103,6 +1103,9 @@ impl Runtime {
                 crate::drag_end_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
+                crate::timeedit_key_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
+            iced::event::listen_with(|e, s, id| {
                 crate::tab_focus_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {

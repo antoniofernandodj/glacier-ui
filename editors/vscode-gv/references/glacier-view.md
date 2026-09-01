@@ -143,6 +143,7 @@ Edição por **seções**: clique numa (ano, mês, dia, hora, minuto, segundo) e
 - **A chave é sempre ISO**, mesmo com `format="br"`. É o que um backend espera — e o que faz `a < b` entre duas chaves ser a comparação cronológica, sem parse.
 - **Sem `onChange`, o widget grava a chave sozinho** (nenhuma linha do lado do app). **Com `onChange`, ele só avisa** e quem grava é o handler — o mesmo contrato do `<TextInput>`, e é o que permite validar ou recusar um valor. Ver `examples/data_hora_luau`.
 - **Cada seção vira dentro de si**: mexer no minuto não empurra a hora (o `wrapping` do `QAbstractSpinBox`). O ano satura em vez de virar.
+- **Teclado** (0.70), com uma seção selecionada: `▲`/`▼` dão o passo, `←`/`→` trocam de seção, e `0`–`9` digitam nela. Digitar `0930` numa hora atravessa hora e minuto sozinho — a seção avança quando enche ou quando nenhum próximo algarismo caberia. Um `<TextInput>` focado captura os algarismos e o `←`/`→`, que por isso não chegam ao widget; `▲`/`▼`, que o campo de texto não usa, ainda alcançam uma seção selecionada e não largada por um clique.
 - **O calendário é respeitado**: 31/01 subindo o mês vira 28/02, ou 29 em ano bissexto.
 - **Não dá para digitar** no campo: a interação é clicar na seção + setas.
 

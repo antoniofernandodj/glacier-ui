@@ -4190,3 +4190,158 @@ fn spinbox_repassa_field_class_e_form_control() {
 
     std::fs::remove_file(p).ok();
 }
+
+/// O teclado do `<datetimeedit>` (0.70): digitar algarismos numa seção, com o
+/// avanço automático do `QDateTimeEdit`. O caminho todo — tecla -> descritor
+/// `__timeedit` -> chave de contexto — sem depender de um display.
+#[test]
+fn timeedit_teclado_digita_e_avanca() {
+    use glacier_ui::{EngineMessage, TimeEditKey};
+
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/te_teclado.gv";
+    std::fs::write(
+        p,
+        envolve(r#"<datetimeedit value="quando" />"#),
+    )
+    .unwrap();
+    motor.register_component("te", p).unwrap();
+    motor.define_data("quando", "2026-03-10 08:30");
+    // Seleciona a seção da HORA: é o que um clique nela grava.
+    motor.define_data("__timeedit", "quando|h|1100||");
+    motor.reevaluate_all().unwrap();
+
+    let tecla = |m: &mut GlacierUI, k: TimeEditKey| {
+        let _ = m.dispatch(&EngineMessage::TimeEditKey(k));
+    };
+
+    // "0" depois "9" -> 09h, e a seção enche: avança sozinha para o minuto.
+    tecla(&mut motor, TimeEditKey::Algarismo(0));
+    tecla(&mut motor, TimeEditKey::Algarismo(9));
+    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:30"));
+    assert!(
+        motor.context().get("__timeedit").unwrap().starts_with("quando|m|"),
+        "encheu a hora -> pula para o minuto, como no Qt: {:?}",
+        motor.context().get("__timeedit")
+    );
+
+    // "4" no minuto: 4 cabe, mas "4X" não passa de 59 em todo X? passa (45),
+    // então fica na seção. "5" compõe 45.
+    tecla(&mut motor, TimeEditKey::Algarismo(4));
+    tecla(&mut motor, TimeEditKey::Algarismo(5));
+    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:45"));
+
+    // ▲ na seção do minuto: 45 -> 46, e a digitação recomeça (o "4" anterior
+    // não pode compor "464").
+    tecla(&mut motor, TimeEditKey::Passo(1));
+    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:46"));
+    tecla(&mut motor, TimeEditKey::Algarismo(7));
+    assert_eq!(
+        motor.context().get("quando").map(String::as_str),
+        Some("2026-03-10 09:07"),
+        "depois de uma seta, o algarismo recomeça a seção"
+    );
+
+    std::fs::remove_file(p).ok();
+}
+
+/// ← → andam entre as seções sem alterar valor, e cada seção vira dentro de si.
+#[test]
+fn timeedit_teclado_move_secao_e_seta_satura() {
+    use glacier_ui::{EngineMessage, TimeEditKey};
+
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/te_move.gv";
+    std::fs::write(p, envolve(r#"<timeedit value="hora" />"#)).unwrap();
+    motor.register_component("te2", p).unwrap();
+    motor.define_data("hora", "23:59");
+    motor.define_data("__timeedit", "hora|h|0100||");
+    motor.reevaluate_all().unwrap();
+
+    let tecla = |m: &mut GlacierUI, k: TimeEditKey| {
+        let _ = m.dispatch(&EngineMessage::TimeEditKey(k));
+    };
+
+    // ▲ na hora: 23 vira 00 (cada seção vira DENTRO de si — o minuto não muda).
+    tecla(&mut motor, TimeEditKey::Passo(1));
+    assert_eq!(motor.context().get("hora").map(String::as_str), Some("00:59"));
+
+    // → move para o minuto sem tocar no valor.
+    tecla(&mut motor, TimeEditKey::Move(1));
+    assert_eq!(motor.context().get("hora").map(String::as_str), Some("00:59"));
+    assert!(motor.context().get("__timeedit").unwrap().starts_with("hora|m|"));
+
+    // ▲ no minuto: 59 vira 00, e a hora continua onde estava.
+    tecla(&mut motor, TimeEditKey::Passo(1));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("00:00"),
+        "o minuto vira dentro de si, sem empurrar a hora"
+    );
+
+    std::fs::remove_file(p).ok();
+}
+
+/// Sem seção selecionada, a tecla não é do widget: o motor a ignora em vez de
+/// mexer em alguma chave por conta própria.
+#[test]
+fn timeedit_teclado_sem_selecao_nao_faz_nada() {
+    use glacier_ui::{EngineMessage, TimeEditKey};
+
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/te_sem_sel.gv";
+    std::fs::write(p, envolve(r#"<timeedit value="hora" />"#)).unwrap();
+    motor.register_component("te3", p).unwrap();
+    motor.define_data("hora", "08:30");
+    motor.reevaluate_all().unwrap();
+
+    let _ = motor.dispatch(&EngineMessage::TimeEditKey(TimeEditKey::Passo(1)));
+    assert_eq!(motor.context().get("hora").map(String::as_str), Some("08:30"));
+
+    std::fs::remove_file(p).ok();
+}
+
+/// Clicar em outra coisa abandona a seção selecionada — senão as setas ▲▼
+/// continuariam mexendo num `<datetimeedit>` de longe, depois de o usuário já
+/// ter saído dele.
+#[test]
+fn timeedit_clique_em_outro_widget_larga_a_secao() {
+    use glacier_ui::{EngineMessage, TimeEditKey};
+
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/te_larga.gv";
+    std::fs::write(
+        p,
+        envolve(
+            r#"<column>
+                 <timeedit value="hora" />
+                 <button text="Outro" on_click="nada" />
+               </column>"#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("te4", p).unwrap();
+    motor.define_data("hora", "08:30");
+    motor.define_data("__timeedit", "hora|h|0100||");
+    motor.reevaluate_all().unwrap();
+
+    // Com a seção selecionada, a seta funciona.
+    let _ = motor.dispatch(&EngineMessage::TimeEditKey(TimeEditKey::Passo(1)));
+    assert_eq!(motor.context().get("hora").map(String::as_str), Some("09:30"));
+
+    // Um clique em outro widget larga a seleção...
+    let _ = motor.dispatch(&EngineMessage::UiClick("nada".to_string()));
+    // ...e a partir daí a seta não é mais dela.
+    let _ = motor.dispatch(&EngineMessage::TimeEditKey(TimeEditKey::Passo(1)));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("09:30"),
+        "depois de clicar fora, ▲ não mexe mais no widget"
+    );
+
+    std::fs::remove_file(p).ok();
+}

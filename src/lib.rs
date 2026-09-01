@@ -58,7 +58,7 @@ pub use tray::{
     TrayActions, TrayConfig, TrayHandle, TrayItem, TrayMsg, TrayRequest, notifications_enabled,
     set_notifications_enabled,
 };
-pub use widget::{EngineMessage, render_node};
+pub use widget::{EngineMessage, TimeEditKey, render_node};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -890,6 +890,20 @@ impl GlacierUI {
                 };
             }
         }
+        // Clicar em QUALQUER outra coisa abandona a seção de `<datetimeedit>`
+        // que estivesse selecionada. Sem isto, a seleção sobrevive à saída do
+        // widget e as setas ▲▼ continuariam mexendo nela de longe — o clique
+        // numa seção usa `ContextPatch`, não `UiClick`, então ele não se
+        // auto-limpa aqui.
+        if matches!(msg, EngineMessage::UiClick(_))
+            && self
+                .context_data
+                .get(crate::widget::TIMEEDIT_SEL_CONTEXT)
+                .is_some_and(|v| !v.is_empty())
+        {
+            self.context_data
+                .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), String::new());
+        }
         let (action, value) = match msg {
             EngineMessage::UiClick(a) => (a.as_str(), None),
             // Dialog buttons and backdrop dismissal (see `dialogs`) always
@@ -980,6 +994,96 @@ impl GlacierUI {
             }
             EngineMessage::FocusPrev => {
                 return iced::widget::operation::focus_previous::<EngineMessage>();
+            }
+            // Teclado do `<datetimeedit>`: setas ▲▼ mexem na seção selecionada,
+            // ← → trocam de seção, e um algarismo digita nela. Quem trata é o
+            // motor, e não o widget, porque a seleção é uma chave global
+            // (`__timeedit`) e o listener de teclado é global também — o widget
+            // não existe como nó focável para receber a tecla por conta própria.
+            //
+            // A chave carrega a configuração da instância (ver `TimeEditSel`),
+            // que é o que permite serializar o valor e conhecer a ordem das
+            // seções sem ter o nó em mãos.
+            EngineMessage::TimeEditKey(tecla) => {
+                let Some(mut sel) = crate::widget::TimeEditSel::parse(
+                    self.context_data.get(crate::widget::TIMEEDIT_SEL_CONTEXT),
+                ) else {
+                    // Nenhuma seção selecionada: a tecla não é nossa.
+                    return iced::Task::none();
+                };
+                let atual = crate::widget::Instante::parse(
+                    self.context_data
+                        .get(&sel.chave)
+                        .map(String::as_str)
+                        .unwrap_or(""),
+                );
+                let ordem = crate::widget::secoes_visiveis(
+                    sel.data,
+                    sel.hora,
+                    sel.segundos,
+                    sel.dia_primeiro,
+                );
+
+                // ← →: só move a seleção. Nada é gravado, e o `buf` zera —
+                // entrar numa seção recomeça a digitação dela.
+                if let crate::widget::TimeEditKey::Move(d) = tecla {
+                    if let Some(i) = ordem.iter().position(|s| *s == sel.secao) {
+                        let n = ordem.len() as i64;
+                        let j = ((i as i64) + i64::from(*d)).rem_euclid(n) as usize;
+                        sel.secao = ordem[j].to_string();
+                        sel.buf.clear();
+                        self.context_data
+                            .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), sel.serializa());
+                        let _ = self.reevaluate_all();
+                    }
+                    return iced::Task::none();
+                }
+
+                let (novo, avancar) = match tecla {
+                    crate::widget::TimeEditKey::Passo(d) => {
+                        // Uma seta recomeça a digitação: 09 + ▲ é 10, e o
+                        // algarismo seguinte não deve compor "109".
+                        sel.buf.clear();
+                        (atual.passo(&sel.secao, i64::from(*d)), false)
+                    }
+                    crate::widget::TimeEditKey::Algarismo(a) => {
+                        let (n, buf, cheio) = atual.digita(&sel.secao, *a, &sel.buf);
+                        sel.buf = buf;
+                        (n, cheio)
+                    }
+                    crate::widget::TimeEditKey::Move(_) => unreachable!("tratado acima"),
+                };
+
+                // Encheu a seção: pula para a seguinte, como o Qt. Na última,
+                // fica onde está (não dá a volta) — voltar ao ano depois de
+                // digitar os segundos nunca é o que alguém quis.
+                if avancar
+                    && let Some(i) = ordem.iter().position(|s| *s == sel.secao)
+                    && i + 1 < ordem.len()
+                {
+                    sel.secao = ordem[i + 1].to_string();
+                    sel.buf.clear();
+                }
+
+                let texto = novo.serializa(sel.data, sel.hora, sel.segundos);
+                self.context_data
+                    .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), sel.serializa());
+
+                // Mesmo contrato do render: sem `onChange` o widget grava a
+                // chave sozinho; com ele, delega e quem grava é o handler.
+                if sel.acao.is_empty() {
+                    self.context_data.insert(sel.chave.clone(), texto);
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                // Delegar é exatamente o que os botões de seta já fazem —
+                // mesma mensagem, mesmo caminho de roteamento.
+                let delegada = EngineMessage::UiInputChanged {
+                    action: sel.acao.clone(),
+                    value: texto,
+                };
+                let _ = self.reevaluate_all();
+                return self.dispatch(&delegada);
             }
             EngineMessage::Viewport { width, height } => {
                 let new = (*width, *height);
@@ -2543,6 +2647,48 @@ fn tab_focus_from_event(
         }),
         _ => None,
     }
+}
+
+/// Teclado do `<datetimeedit>`: ▲▼ mexem na seção selecionada, ← → trocam de
+/// seção e um algarismo digita nela — o teclado do `QDateTimeEdit`.
+///
+/// **O guarda que importa é o `status`.** Este listener é global e não sabe o
+/// que está focado; sem o filtro, a seta de um `<TextInput>` focado (que move o
+/// cursor) e cada dígito digitado nele virariam TAMBÉM um passo de hora. O
+/// `iced` já entrega `Status::Captured` quando algum widget consumiu o evento,
+/// então só tratamos o que ninguém quis. Quem decide se a tecla é mesmo para um
+/// `<datetimeedit>` é o `update` do motor, que enxerga a chave `__timeedit`.
+///
+/// Uma `fn` simples porque `iced::event::listen_with` exige uma.
+fn timeedit_key_from_event(
+    event: iced::Event,
+    status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    use crate::widget::TimeEditKey;
+    use iced::keyboard::{Event as Kbd, Key, key::Named};
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    let iced::Event::Keyboard(Kbd::KeyPressed { key, text, .. }) = event else {
+        return None;
+    };
+    let tecla = match key {
+        Key::Named(Named::ArrowUp) => TimeEditKey::Passo(1),
+        Key::Named(Named::ArrowDown) => TimeEditKey::Passo(-1),
+        Key::Named(Named::ArrowLeft) => TimeEditKey::Move(-1),
+        Key::Named(Named::ArrowRight) => TimeEditKey::Move(1),
+        // O algarismo sai do `text` (o que a tecla PRODUZ), não do código da
+        // tecla: assim o teclado numérico e um layout não-ABNT entram igual.
+        _ => {
+            let d = text
+                .as_deref()
+                .and_then(|t| t.chars().next())
+                .and_then(|c| c.to_digit(10))?;
+            TimeEditKey::Algarismo(d as u8)
+        }
+    };
+    Some(EngineMessage::TimeEditKey(tecla))
 }
 
 /// Maps a window `Resized` event to [`EngineMessage::Viewport`], so `@media`
