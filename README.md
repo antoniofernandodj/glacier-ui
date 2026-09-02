@@ -903,7 +903,7 @@ function carregar() local res = api:get("/dados"); if res.ok then ctx.dados = re
 
 `require("a/b")` procura `a/b.luau` (e `a/b/init.luau`) **nesta ordem**: (1) o
 diretório do template; (2) um subdir `lib/`; (3) cada caminho em
-`GLACIER_LUA_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
+`GLACIER_LUAU_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
 então enxerga `fetch` e as globais; é carregado **uma vez** e cacheado. Veja
 [`examples/imports_luau`](examples/imports_luau).
 
