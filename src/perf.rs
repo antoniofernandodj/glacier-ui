@@ -93,11 +93,14 @@ struct Janela {
     /// A mensagem mais cara da janela: é ela que trava um quadro sozinha.
     dispatch_max: Duration,
     mensagens: u32,
-    /// Quantas de cada tipo. No `iced` **toda mensagem provoca um quadro**, e
-    /// uma tela parada que recebe cento e cinquenta mensagens por segundo está
-    /// redesenhando cento e cinquenta vezes sem nada ter mudado. Saber qual
-    /// mensagem é essa é a diferença entre consertar e adivinhar.
-    por_tipo: Vec<(&'static str, u32)>,
+    /// Por tipo de mensagem: quantas, quanto tempo somado e a pior.
+    ///
+    /// A contagem sozinha diz **quem** está pedindo quadro; o tempo diz **quanto
+    /// custa**. Uma sem a outra engana nos dois sentidos: uma mensagem barata
+    /// que chega cem vezes por segundo e uma cara que chega três vezes são
+    /// problemas diferentes, com consertos diferentes, e no total agregado as
+    /// duas somam igual.
+    por_tipo: Vec<(&'static str, u32, Duration, Duration)>,
     /// Tempo somado nos **ganchos do app** (`GlacierDaemon::on_message` e
     /// afins), que rodam na thread da UI logo depois do `dispatch`.
     ///
@@ -194,11 +197,13 @@ fn relata(j: &Janela, decorrido: Duration) {
         0.0
     };
     let mut tipos = j.por_tipo.clone();
-    tipos.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
+    // Ordena pelo que mais **custa**, não pelo que mais aparece: é o tempo que
+    // trava o quadro.
+    tipos.sort_unstable_by_key(|(_, _, soma, _)| std::cmp::Reverse(*soma));
     let quais: Vec<String> = tipos
         .iter()
         .take(4)
-        .map(|(t, n)| format!("{t}×{n}"))
+        .map(|(t, n, soma, pior)| format!("{t}×{n} {:.1}ms tot/{:.1} pior", ms(*soma), ms(*pior)))
         .collect();
     eprintln!(
         "[glacier perf] {n} quadros {:.2}s ({fps:.1}/s) | nós {} | quadro MIN {quadro_min:.1}ms \
@@ -230,9 +235,13 @@ pub(crate) fn anota_dispatch(duracao: Duration, tipo: &'static str) {
         j.mensagens += 1;
         // Busca linear numa lista de no máximo algumas dezenas de tipos, e só
         // com a instrumentação ligada: mais barato que um mapa aqui.
-        match j.por_tipo.iter_mut().find(|(t, _)| *t == tipo) {
-            Some((_, n)) => *n += 1,
-            None => j.por_tipo.push((tipo, 1)),
+        match j.por_tipo.iter_mut().find(|(t, ..)| *t == tipo) {
+            Some((_, n, soma, pior)) => {
+                *n += 1;
+                *soma += duracao;
+                *pior = (*pior).max(duracao);
+            }
+            None => j.por_tipo.push((tipo, 1, duracao, duracao)),
         }
     });
 }

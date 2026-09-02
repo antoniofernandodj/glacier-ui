@@ -8,6 +8,30 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.83.0] — 2026-09-02
+
+### Alterado
+- **O `GLACIER_PERF` diz quanto custa cada tipo de mensagem**, não só quantas
+  chegaram:
+
+  ```text
+  msgs: LuauStream×8 152.3ms tot/19.1 pior  Scrolled×10 0.1ms tot/0.0 pior
+  ```
+
+  A contagem sozinha diz **quem** está pedindo quadro; o tempo diz **quanto
+  custa**. Uma sem a outra engana nos dois sentidos — uma mensagem barata que
+  chega cem vezes por segundo e uma cara que chega três vezes são problemas
+  diferentes, com consertos diferentes, e no total agregado as duas somam igual.
+
+  A lista sai ordenada pelo que mais **custa**, não pelo que mais aparece.
+
+  O caso que motivou: um app alimentado por um stream SSE, em que `LuauStream`
+  aparecia em toda janela lenta e o `dispatch` chegava a 19 ms — mas o relatório
+  não permitia atribuir aquele tempo àquela mensagem, porque contagem e tempo
+  eram números separados.
+
+---
+
 ## [0.82.0] — 2026-09-02
 
 Correção de **leitura**: o relatório do `GLACIER_PERF` media o intervalo entre
