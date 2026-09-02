@@ -4432,3 +4432,184 @@ fn timeedit_clique_em_outro_widget_larga_a_secao() {
 
     std::fs::remove_file(p).ok();
 }
+
+// --- A camada preguiçosa de um item de `for-each` (0.75) ------------------
+//
+// O `item_layer` deixou de materializar todo campo de todo item antes da
+// consulta ao cache: agora cada `{item.campo}` se resolve na leitura, e um
+// campo de texto sai emprestado do JSON sem alocar. Estes testes fixam o que
+// a preguiça NÃO pode mudar — que é nada do que se vê na tela.
+
+/// Monta uma tela com um `for-each` sobre `dados` e devolve os textos gerados.
+fn textos_do_foreach(dados: &str, corpo: &str) -> Vec<String> {
+    let mut motor = GlacierUI::new();
+    let caminho = format!("templates/lazy_{}.gv", corpo.len() + dados.len());
+    std::fs::create_dir_all("templates").ok();
+    std::fs::write(
+        &caminho,
+        format!(r#"<component><Column><ForEach items="dados" var="l">{corpo}</ForEach></Column></component>"#),
+    )
+    .unwrap();
+    motor.register_component("Tela", &caminho).unwrap();
+    motor.define_data("dados", dados);
+    motor.navigate_to("Tela");
+    motor.reevaluate_all().unwrap();
+    let arv = motor.evaluated("Tela").unwrap().clone();
+    std::fs::remove_file(&caminho).ok();
+    let mut out = Vec::new();
+    fn colhe(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &n.kind {
+            out.push(content.clone());
+        }
+        for c in n.children.iter() {
+            colhe(c, out);
+        }
+    }
+    colhe(&arv, &mut out);
+    out
+}
+
+/// Campo de texto: o caso que agora sai emprestado do JSON em vez de clonado.
+#[test]
+fn foreach_preguicoso_campo_de_texto() {
+    assert_eq!(
+        textos_do_foreach(
+            r#"[{"nome":"Ana"},{"nome":"Beto"}]"#,
+            r#"<Text content="{l.nome}" />"#
+        ),
+        vec!["Ana", "Beto"]
+    );
+}
+
+/// Número, booleano e nulo **não** saem emprestados (não são string no JSON):
+/// materializam sob demanda, e têm de dar exatamente o mesmo texto de antes.
+#[test]
+fn foreach_preguicoso_escalares_nao_texto() {
+    assert_eq!(
+        textos_do_foreach(
+            r#"[{"n":42,"b":true,"z":null,"f":1.5}]"#,
+            r#"<Text content="{l.n}|{l.b}|{l.z}|{l.f}" />"#
+        ),
+        vec!["42|true|null|1.5"]
+    );
+}
+
+/// `{l}` sozinho num item de OBJETO é o item inteiro serializado — é o que um
+/// `spread="{l}"` repassa a um componente. É o valor cuja serialização a
+/// preguiça adia, então é o que mais importa não ter quebrado.
+#[test]
+fn foreach_preguicoso_item_inteiro_de_objeto() {
+    assert_eq!(
+        textos_do_foreach(r#"[{"a":1,"b":"x"}]"#, r#"<Text content="{l}" />"#),
+        vec![r#"{"a":1,"b":"x"}"#]
+    );
+}
+
+/// Item ESCALAR (lista de strings/números): só `{l}` resolve, e vale o escalar
+/// — não o JSON. A distinção existia na versão ansiosa e continua existindo.
+#[test]
+fn foreach_preguicoso_item_escalar() {
+    assert_eq!(
+        textos_do_foreach(r#"["um","dois",3]"#, r#"<Text content="{l}" />"#),
+        vec!["um", "dois", "3"]
+    );
+}
+
+/// Uma chave que só **começa** com o nome da variável não é campo dele: com
+/// `var="l"`, nem `{lista}` nem `{lx.y}` podem cair na camada do item. É a
+/// armadilha do `strip_prefix`, e o motivo de o corte exigir o ponto.
+#[test]
+fn foreach_preguicoso_prefixo_nao_e_campo() {
+    // `{lista}` é chave de contexto, e o item não pode sequestrá-la.
+    let mut motor = GlacierUI::new();
+    let caminho = "templates/lazy_prefixo.gv";
+    std::fs::create_dir_all("templates").ok();
+    std::fs::write(
+        caminho,
+        r#"<component><Column><ForEach items="dados" var="l"><Text content="{lista}/{l.nome}" /></ForEach></Column></component>"#,
+    )
+    .unwrap();
+    motor.register_component("Tela", caminho).unwrap();
+    // O item tem um campo `ista`: com `var="l"`, um corte de prefixo que não
+    // exigisse o ponto leria `{lista}` como `l` + `ista` e serviria o campo do
+    // item no lugar da chave de contexto. É essa confusão que o teste vigia.
+    motor.define_data("dados", r#"[{"nome":"Ana","ista":"DO-ITEM"}]"#);
+    motor.define_data("lista", "DE-FORA");
+    motor.navigate_to("Tela");
+    motor.reevaluate_all().unwrap();
+    let arv = motor.evaluated("Tela").unwrap().clone();
+    std::fs::remove_file(caminho).ok();
+    let mut out = Vec::new();
+    fn colhe(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &n.kind {
+            out.push(content.clone());
+        }
+        for c in n.children.iter() {
+            colhe(c, out);
+        }
+    }
+    colhe(&arv, &mut out);
+    assert_eq!(out, vec!["DE-FORA/Ana"]);
+}
+
+/// Campo inexistente continua não resolvendo (o `{l.zzz}` fica como veio) —
+/// a preguiça não pode inventar valor vazio onde antes não havia chave.
+#[test]
+fn foreach_preguicoso_campo_inexistente() {
+    assert_eq!(
+        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#),
+        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#)
+    );
+    let v = textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#);
+    assert_eq!(v.len(), 1, "o item renderiza mesmo com campo ausente");
+}
+
+/// O ponto todo da mudança: o cache de item continua **correto** depois dela.
+/// Mudar um campo de UM item tem de mudar aquele item e só ele — se a
+/// validação de dependências deixasse de enxergar os campos (que é o risco de
+/// resolvê-los sob demanda), a linha velha ficaria na tela.
+#[test]
+fn foreach_preguicoso_cache_por_item_continua_correto() {
+    let mut motor = GlacierUI::new();
+    let caminho = "templates/lazy_cache.gv";
+    std::fs::create_dir_all("templates").ok();
+    std::fs::write(
+        caminho,
+        r#"<component><Column><ForEach items="dados" var="l"><Text content="{l.nome}" /></ForEach></Column></component>"#,
+    )
+    .unwrap();
+    motor.register_component("Tela", caminho).unwrap();
+    motor.define_data(
+        "dados",
+        r#"[{"nome":"Ana"},{"nome":"Beto"},{"nome":"Cida"}]"#,
+    );
+    motor.navigate_to("Tela");
+    motor.reevaluate_all().unwrap();
+
+    fn colhe(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &n.kind {
+            out.push(content.clone());
+        }
+        for c in n.children.iter() {
+            colhe(c, out);
+        }
+    }
+    let mut antes = Vec::new();
+    colhe(motor.evaluated("Tela").unwrap(), &mut antes);
+    assert_eq!(antes, vec!["Ana", "Beto", "Cida"]);
+
+    // Só o do meio muda. Os outros dois vêm do cache; este NÃO pode vir.
+    motor.define_data(
+        "dados",
+        r#"[{"nome":"Ana"},{"nome":"BETO!"},{"nome":"Cida"}]"#,
+    );
+    motor.reevaluate_all().unwrap();
+    let mut depois = Vec::new();
+    colhe(motor.evaluated("Tela").unwrap(), &mut depois);
+    std::fs::remove_file(caminho).ok();
+    assert_eq!(
+        depois,
+        vec!["Ana", "BETO!", "Cida"],
+        "o item alterado tem de ser reavaliado, não servido do cache"
+    );
+}

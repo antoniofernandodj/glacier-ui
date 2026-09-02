@@ -8,6 +8,86 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.75.0] — 2026-09-01
+
+A continuação direta da 0.74, e o item que ela mesma deixou anotado como "a
+conta que sobra": numa lista, a camada de variáveis de **cada** item era
+montada **antes** da consulta ao cache — ou seja, também para o item que ia ser
+reaproveitado inteiro e jogada fora em seguida.
+
+### Alterado
+- **A camada de um item de `for-each` ficou preguiçosa.** O item permanece como
+  JSON e cada `{item.campo}` se resolve na leitura, não na montagem.
+
+  A versão ansiosa fazia, por item e por reavaliação: um `format!("{var}.{k}")`
+  e um clone do valor para **cada** campo, mais uma serialização do item inteiro
+  para o `{item}` que um `spread=` repassa. Numa lista de 2000 linhas de 4
+  campos, 8000 `format!` + 8000 clones + 2000 serializações — em boa parte
+  descartados no `continue` do acerto de cache, três linhas abaixo.
+
+  Agora um campo de **texto** — o caso esmagadoramente comum — sai emprestado do
+  próprio JSON, sem alocar nada. O que não é texto (número, booleano, o item
+  inteiro) materializa uma vez numa `OnceCell` e fica.
+
+  **Por que não bastava consultar o cache antes de montar a camada**, que era o
+  conserto óbvio: as dependências de um item incluem os campos dele
+  (`("l.nome", "Ana")`) — é exatamente isso que faz o cache perceber que a linha
+  3 mudou —, e validá-las exige a camada montada. A preguiça resolve os dois
+  lados: a validação lê o que precisa, e só isso.
+
+### Corrigido
+- **Menções a KDL na documentação viva.** O motor não parseia KDL — não há
+  dependência nem parser —, mas `src/component.rs` e `src/asset_source.rs` ainda
+  anunciavam `.kdl` ao lado de `.gv`. As entradas antigas do changelog ficam
+  como estão: são registro do que era verdade quando foram escritas.
+- **A coluna `RSS` do `tests/perf_arvore.rs` virou `processo`.** Era *Resident
+  Set Size*, a memória residente do processo, mas a sigla se lê como nome de
+  formato de arquivo ao lado de `.gv` e `.gss` numa tabela. Mesma correção na
+  tabela de números da 0.74.
+
+### Adicionado
+- **Sete testes que fixam a semântica da camada preguiçosa** (`engine_tests`):
+  campo de texto, escalares que não são texto (número/booleano/nulo/decimal),
+  o item inteiro de um objeto, o item escalar, campo inexistente, e duas
+  armadilhas que só existem porque a resolução virou sob demanda:
+
+  - **prefixo não é campo**: com `var="l"` e um item que tem um campo `ista`, a
+    chave de contexto `{lista}` não pode ser lida como `l` + `ista`. O corte de
+    prefixo exige o ponto, e o teste vigia isso com o campo homônimo montado de
+    propósito.
+  - **o cache por item continua correto**: mudar o nome do item do meio de uma
+    lista de três muda aquele item e só ele.
+
+  Os dois foram **verificados por mutação**: quebrando o corte de prefixo, e
+  fazendo a entrada de cache deixar de listar os campos do item como
+  dependência (o erro clássico de quem resolve sob demanda e esquece de
+  validar), cada um derruba o seu teste. Um teste que passa dos dois jeitos não
+  estava protegendo nada — foi o que aconteceu na primeira versão deles.
+
+### Números
+
+Mesmo aparelho (`tests/perf_arvore.rs`, `--release`), 0.74 → 0.75, e a coluna
+de referência da 0.73 para o acumulado das duas releases:
+
+| N linhas | acerto de cache | reavaliação completa |
+|---|---|---|
+| 100 | 358 → **242 µs** (0.73: 834 µs) | 1,33 → **1,22 ms** (0.73: 2,03 ms) |
+| 500 | 1,95 → **1,30 ms** (0.73: 5,59 ms) | 7,60 → **6,74 ms** (0.73: 12,2 ms) |
+| 2000 | 12,8 → **10,1 ms** (0.73: 26,6 ms) | 37,7 → **33,7 ms** (0.73: 53,8 ms) |
+
+O acerto de cache — o caminho de uma mudança de estado que não mexe na lista —
+ficou **2,6× mais rápido que a 0.73** numa lista de 2000 linhas, e **4,3× numa
+de 500**. Memória não muda nesta release: a 0.74 já tinha feito essa parte.
+
+### Notas
+- Continua fora a **virtualização** da lista, pelo mesmo motivo da 0.74: é
+  funcionalidade, não otimização (pede realimentação de rolagem, que o motor não
+  plumba), e o lugar dela é junto do `TableView` — Onda 6 do `PLANO_WIDGETS.md`.
+  Depois destas duas releases, uma lista de 2000 linhas custa ~10 ms por
+  mudança de estado que não a toca; é ela quem tira isso de vez.
+
+---
+
 ## [0.74.0] — 2026-09-01
 
 Release de **custo**: o motor não ganhou nenhum widget nem nenhuma sintaxe — a
@@ -61,7 +141,8 @@ caro era o `dispatch`, que reavalia a árvore a cada mensagem.
 
   Agora clonar um nó é um incremento de contador para tudo abaixo dele, e a
   árvore avaliada **divide** memória com a entrada de cache em vez de duplicá-la
-  — que é de onde vem a maior parte da queda de RSS. A escrita continua correta
+  — que é de onde vem a maior parte da queda de memória residente. A escrita
+  continua correta
   e continua possível: `Children::to_mut()` é copy-on-write (`Arc::make_mut`).
 
 - **As dependências de uma entrada de cache também são compartilhadas**
@@ -73,7 +154,7 @@ caro era o `dispatch`, que reavalia a árvore a cada mensagem.
 
 Medidos com `tests/perf_arvore.rs` em `--release`, mesma máquina, 0.73 → 0.74:
 
-| N linhas | nós | árvore | RSS | render/frame | reavaliação | idem, c/ cache |
+| N linhas | nós | árvore | processo | render/frame | reavaliação | idem, c/ cache |
 |---|---|---|---|---|---|---|
 | 25 | 179 | 324 → **166 KB** | 2,9 → **2,6 MB** | 55 → 56 µs | 598 → **411 µs** | 200 → **108 µs** |
 | 100 | 704 | 1281 → **653 KB** | 1,5 → **0,6 MB** | 199 → 202 µs | 2,03 → **1,33 ms** | 834 → **358 µs** |
@@ -88,7 +169,7 @@ para uma tela de 500 nós é 1,1 ms de um orçamento de 16,67 ms.
 ### Quebras
 
 Só para quem lê ou escreve campos do `UiNode` **em Rust** (um componente que
-inspeciona a árvore). Markup `.gv`, `.gss`, KDL e Luau não mudaram em nada — os
+inspeciona a árvore). Markup `.gv`, `.gss` e Luau não mudaram em nada — os
 atributos são exatamente os mesmos.
 
 - **Os 36 campos dos grupos acima viraram acessor.** A leitura devolve

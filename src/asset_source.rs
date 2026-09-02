@@ -1,7 +1,7 @@
 //! Asset resolution seam — the layer between a logical asset *path* and its
 //! *bytes*.
 //!
-//! Every template (`.gv`/`.kdl`), stylesheet (`.gss`), theme/data JSON, Luau
+//! Every template (`.gv`), stylesheet (`.gss`), theme/data JSON, Luau
 //! script and binary asset (SVG/image) the engine loads at runtime goes through
 //! an [`AssetSource`] instead of touching `std::fs` directly. The default
 //! [`DiskAssets`] reads from the filesystem exactly as the engine always did,

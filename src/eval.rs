@@ -3,6 +3,7 @@ use crate::parser::{BoolAttr, NodeType, NumAttr, UiNode};
 use crate::stylesheet::{
     StateStyles, StyleRule, StyleSheet, resolve_classes, resolve_state_classes,
 };
+use std::cell::OnceCell;
 use std::collections::HashMap;
 
 /// Splits a `<script>...</script>` block out of an XML document, returning the
@@ -415,9 +416,55 @@ impl EvalCache {
     }
 }
 
+/// O item de um `for-each` **ainda como JSON**, resolvido campo a campo só
+/// quando alguém lê.
+///
+/// A versão ansiosa disto — materializar `{item.campo}` para todo campo, mais
+/// uma serialização do item inteiro para o `{item}` de um `spread=` — rodava
+/// por item **antes** da consulta ao cache, ou seja, também para o item que ia
+/// ser reaproveitado inteiro. Numa lista de 2000 linhas de 4 campos eram 8000
+/// `format!` mais 8000 clones mais 2000 serializações, jogados fora em seguida.
+///
+/// Preguiçoso, cada leitura paga só por si — e o caso comum não paga nada: um
+/// campo de **texto** sai emprestado direto do JSON, sem alocar. O que sobra
+/// (número, booleano, o item inteiro) materializa uma vez, numa [`OnceCell`],
+/// e fica.
+struct ItemVars<'a> {
+    /// O nome da variável do laço (`var="l"` → `"l"`).
+    var: &'a str,
+    /// Os campos do objeto: o nome **emprestado do próprio JSON**, o valor cru,
+    /// e a materialização sob demanda de quem não for string.
+    campos: Vec<(&'a str, &'a serde_json::Value, OnceCell<String>)>,
+    /// O item inteiro (`{item}`, o que um `spread=` repassa a um componente),
+    /// serializado só se for lido.
+    inteiro: (&'a serde_json::Value, OnceCell<String>),
+}
+
+impl ItemVars<'_> {
+    /// O valor de `key` neste item, ou `None` se a chave não é dele.
+    fn get(&self, key: &str) -> Option<&str> {
+        if key == self.var {
+            let (v, memo) = &self.inteiro;
+            // `json_scalar` já faz a distinção que importa: uma string sai crua
+            // (item escalar), e todo o resto — objeto incluído — sai como JSON,
+            // que é o que um `spread=` espera receber de volta.
+            return Some(memo.get_or_init(|| json_scalar(v)));
+        }
+        let campo = key.strip_prefix(self.var)?.strip_prefix('.')?;
+        let (_, val, memo) = self.campos.iter().find(|(k, _, _)| *k == campo)?;
+        Some(match val {
+            // O caso esmagadoramente comum: sai emprestado, zero alocação.
+            serde_json::Value::String(s) => s.as_str(),
+            outro => memo.get_or_init(|| json_scalar(outro)),
+        })
+    }
+}
+
 /// Um conjunto de variáveis locais empilhado sobre o contexto. Ver [`EvalCtx`].
 pub struct Layer<'a> {
     vars: Vec<(String, String)>,
+    /// As variáveis de um item de `for-each`, preguiçosas. Ver [`ItemVars`].
+    item: Option<ItemVars<'a>>,
     outer: Option<&'a Layer<'a>>,
 }
 
@@ -425,6 +472,7 @@ impl<'a> Layer<'a> {
     fn new(outer: Option<&'a Layer<'a>>) -> Self {
         Self {
             vars: Vec::new(),
+            item: None,
             outer,
         }
     }
@@ -444,7 +492,13 @@ impl<'a> Layer<'a> {
         let mut cur = Some(self);
         let mut d = depth;
         while let Some(l) = cur {
+            // `vars` primeiro: é onde mora o que foi escrito por cima do item
+            // (o `{var.__dragging}`, por exemplo, que sobrescreve um campo
+            // homônimo — a mesma precedência que o `set` ansioso dava).
             if let Some((_, v)) = l.vars.iter().find(|(k, _)| k == key) {
+                return Some((v, d));
+            }
+            if let Some(v) = l.item.as_ref().and_then(|i| i.get(key)) {
                 return Some((v, d));
             }
             cur = l.outer;
@@ -617,35 +671,33 @@ fn json_scalar(v: &serde_json::Value) -> String {
 ///
 /// Substitui o antigo `context.clone()` + `insert` por item — ver [`EvalCtx`].
 fn item_layer<'b>(
-    item: &serde_json::Value,
-    var: &str,
+    item: &'b serde_json::Value,
+    var: &'b str,
     reorder_key: Option<&str>,
     context: &EvalCtx<'b>,
 ) -> (Layer<'b>, Option<String>) {
     let mut layer = Layer::new(context.layer());
-    let mut this_key: Option<String> = None;
 
-    match item {
-        serde_json::Value::Object(obj) => {
-            for (key, val) in obj {
-                let str_val = json_scalar(val);
-                if reorder_key == Some(key.as_str()) {
-                    this_key = Some(str_val.clone());
-                }
-                layer.set(format!("{var}.{key}"), str_val);
-            }
-            // O item INTEIRO, além dos campos: é o que um `spread="{item}"`
-            // repassa a um componente de uma vez. Sem isto `{item}` de um objeto
-            // resolveria para vazio — os campos estavam na camada, o item não.
-            //
-            // Custa uma serialização por item, em cima do clone que o laço acima
-            // já faz campo a campo: é da ordem do que o `item_layer` já gastava.
-            // Um item de lista é pequeno por construção — as listas grandes
-            // deste motor são listas de itens pequenos, não um item grande.
-            layer.set(var.to_string(), item.to_string());
-        }
-        other => layer.set(var.to_string(), json_scalar(other)),
-    }
+    // Só o campo do `reorder_key` é materializado na hora — o drag precisa da
+    // identidade do item antes de qualquer leitura, e é UM campo, numa lista
+    // que nem entra no cache.
+    let this_key = match (item, reorder_key) {
+        (serde_json::Value::Object(obj), Some(rk)) => obj.get(rk).map(json_scalar),
+        _ => None,
+    };
+
+    layer.item = Some(ItemVars {
+        var,
+        campos: match item {
+            serde_json::Value::Object(obj) => obj
+                .iter()
+                .map(|(k, v)| (k.as_str(), v, OnceCell::new()))
+                .collect(),
+            // Escalar não tem campo: só o `{var}` resolve, como sempre resolveu.
+            _ => Vec::new(),
+        },
+        inteiro: (item, OnceCell::new()),
+    });
 
     // Drag highlight: expõe se ESTE item é o que está sendo arrastado, para o
     // template poder estilizar a linha agarrada (ver `crate::DRAG_KEY_CONTEXT`).

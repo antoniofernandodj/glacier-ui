@@ -8,8 +8,9 @@
 //! cargo test --release --test perf_arvore -- --ignored --nocapture
 //! ```
 //!
-//! Os números da 0.73 (antes) e da 0.74 (depois), com o que cada coluna
-//! significa, estão no `CHANGELOG.md` da 0.74.0.
+//! Os números de cada release, com o que cada coluna significa, estão no
+//! `CHANGELOG.md` — a 0.74 (o nó menor e o cache sem cópia) e a 0.75 (a camada
+//! preguiçosa de item), contra a 0.73 como linha de base.
 
 use glacier_ui::{Component, Context, GlacierUI, NodeType, Template, UiNode};
 use std::time::Instant;
@@ -92,7 +93,10 @@ fn pesa(n: &UiNode, nos: &mut usize, bytes: &mut usize) {
     }
 }
 
-fn rss_kb() -> usize {
+/// Memória residente do processo em KB (o `VmRSS` do `/proc`), que é o número
+/// que se vê num monitor de sistema — a soma da árvore, do cache e de tudo
+/// mais que o motor segura.
+fn memoria_do_processo_kb() -> usize {
     std::fs::read_to_string("/proc/self/status")
         .unwrap_or_default()
         .lines()
@@ -108,7 +112,7 @@ fn custo_da_arvore() {
     println!("size_of::<NodeType>() = {} B\n", size_of::<NodeType>());
     println!(
         "{:>5} {:>7} {:>9} {:>9} {:>11} {:>11} {:>11} {:>11}",
-        "N", "nós", "árvore", "RSS", "render", "reaval.", "c/ cache", "iced"
+        "N", "nós", "árvore", "processo", "render", "reaval.", "c/ cache", "iced"
     );
     for n in [25usize, 100, 500, 2000] {
         rodada(n);
@@ -117,14 +121,14 @@ fn custo_da_arvore() {
 }
 
 fn rodada(n: usize) {
-    let rss0 = rss_kb();
+    let mem0 = memoria_do_processo_kb();
     let mut m = GlacierUI::new();
     m.register(Box::new(Tela)).unwrap();
     m.define_data("total", &n.to_string());
     m.define_data("linhas", &linhas(n, "a"));
     m.navigate_to("Tela");
     m.reevaluate_all().unwrap();
-    let rss1 = rss_kb();
+    let mem1 = memoria_do_processo_kb();
 
     let (mut nos, mut bytes) = (0, 0);
     pesa(m.evaluated("Tela").unwrap(), &mut nos, &mut bytes);
@@ -178,7 +182,7 @@ fn rodada(n: usize) {
     println!(
         "{n:>5} {nos:>7} {:>7} KB {:>6} KB {:>11} {:>11} {:>11} {:>11}",
         bytes / 1024,
-        rss1.saturating_sub(rss0),
+        mem1.saturating_sub(mem0),
         format!("{render:?}"),
         format!("{reaval:?}"),
         format!("{com_cache:?}"),

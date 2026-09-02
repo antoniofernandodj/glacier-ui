@@ -294,7 +294,7 @@ pub enum WindowSource {
     /// inicial da nova janela. Caminho da API Rust
     /// ([`Context::open_window_component`]).
     Component(Box<dyn Component>),
-    /// Um arquivo de template (`.gv`/`.xml`/`.kdl`) carregado como tela inicial
+    /// Um arquivo de template (`.gv`/`.xml`) carregado como tela inicial
     /// da nova janela. Caminho principal da API Lua (`open_window{ file = ... }`).
     File(String),
     /// O **nome** de um componente já registrado no motor de origem. Resolvido
