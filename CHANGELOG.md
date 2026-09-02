@@ -8,6 +8,49 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.79.0] — 2026-09-02
+
+Correção da ferramenta que a 0.78 acabou de entregar: ela media uma parcela e
+chamava o resto de "fora do motor", atribuindo ao `iced` trabalho que era do
+próprio motor e dos handlers do app.
+
+### Alterado
+- **`GLACIER_PERF` separa `dispatch` de `resto`.** O intervalo entre dois `view`
+  não é só layout e desenho: ele inclui o `update` — o `dispatch` do motor, os
+  handlers Luau, a reavaliação da árvore. Chamar tudo isso de "fora do motor"
+  era apontar para o `iced` um custo que muitas vezes é do app.
+
+  ```text
+  [glacier perf] 58 quadros 1.00s 58.0fps | nós 1682 | quadro 17.2ms méd 21.0 p95 34.1 máx
+                 render 0.43 méd 0.71 p95 | dispatch 1.20/quadro (14 msgs, 4.9 máx)
+                 resto 15.6ms/quadro (90.7%)
+  ```
+
+  Agora são três parcelas, e cada uma aponta para um lugar diferente:
+
+  | Parcela grande | Onde está o problema |
+  |---|---|
+  | `render` | o motor monta `Element` demais → menos nós (`virtualize`) |
+  | `dispatch` | tratamento de mensagem: `update`, Luau, reavaliação |
+  | `resto`, com árvore pequena | `iced`/`wgpu`: layout, texto, rasterização |
+
+  Entraram também o **máximo** do quadro e a **mensagem mais cara** da janela:
+  uma travada episódica não aparece na média nem no p95, e é justamente ela que
+  faz o mesmo conteúdo render a 40 quadros por segundo num instante e a 5 no
+  seguinte.
+
+  As chamadas recursivas de `dispatch` (o repasse de ação, a reordenação) vão
+  direto ao corpo interno, senão o tempo delas entraria duas vezes.
+
+### Notas
+- O que motivou: num app real, com **301 nós**, o relatório da 0.78 mostrava
+  render de 0,2 ms e "fora do motor" de 100–190 ms, oscilando entre 40 e 5
+  quadros por segundo com a mesma árvore. Custo de pixel não oscila assim — mas
+  a ferramenta não sabia dizer se aquilo era `iced` ou `update`, porque somava
+  os dois. Agora sabe.
+
+---
+
 ## [0.78.0] — 2026-09-02
 
 Release de **ferramenta**: o motor não mudou de comportamento, ganhou um jeito

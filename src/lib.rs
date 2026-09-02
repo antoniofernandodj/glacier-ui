@@ -836,6 +836,19 @@ impl GlacierUI {
     /// Apps that use [`GlacierUI::register`] just forward every message here from
     /// their `update()` instead of matching on actions themselves.
     pub fn dispatch(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
+        // Com `GLACIER_PERF`, o custo de tratar a mensagem entra no relatório
+        // como parcela própria — sem isto ele se esconderia no "resto" e seria
+        // lido como custo do `iced` (ver `crate::perf`).
+        if perf::ligado() {
+            let t0 = std::time::Instant::now();
+            let tarefa = self.dispatch_interno(msg);
+            perf::anota_dispatch(t0.elapsed());
+            return tarefa;
+        }
+        self.dispatch_interno(msg)
+    }
+
+    fn dispatch_interno(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
         if let EngineMessage::UiClick(a) = msg {
@@ -1127,7 +1140,7 @@ impl GlacierUI {
                     value: texto,
                 };
                 let _ = self.reevaluate_all();
-                return self.dispatch(&delegada);
+                return self.dispatch_interno(&delegada);
             }
             EngineMessage::Viewport { width, height } => {
                 let new = (*width, *height);
@@ -1316,7 +1329,7 @@ impl GlacierUI {
                 if let Some(drag) = self.drag.take() {
                     let value =
                         serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
-                    return self.dispatch(&EngineMessage::UiInputChanged {
+                    return self.dispatch_interno(&EngineMessage::UiInputChanged {
                         action: drag.on_reorder.clone(),
                         value,
                     });
@@ -1371,7 +1384,7 @@ impl GlacierUI {
                     return iced::Task::none();
                 }
                 // Let the owning component react to the change as well.
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_change.clone(),
                     value: text,
                 });
@@ -1391,7 +1404,7 @@ impl GlacierUI {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
                 }
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_change.clone(),
                     value: value.clone(),
                 });
@@ -1419,7 +1432,7 @@ impl GlacierUI {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
                 }
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_select.clone(),
                     value: value.clone(),
                 });

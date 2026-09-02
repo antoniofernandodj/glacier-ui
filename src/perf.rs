@@ -3,26 +3,37 @@
 //! Existe para responder **uma** pergunta, que nenhuma medida fora do app
 //! consegue responder: de um quadro lento, quanto é o motor e quanto é o resto?
 //!
-//! O motor sabe cronometrar a parte dele — percorrer a árvore avaliada e montar
-//! os `Element` do `iced`. O que vem depois (medir o layout, moldar o texto,
-//! desenhar na GPU) acontece dentro do `iced` e do `wgpu`, fora do alcance
-//! daqui. Mas dá para medi-lo **por diferença**: o intervalo entre duas
-//! chamadas de `view` é o quadro inteiro, e o que sobra depois de descontar o
-//! render é tudo que não é o motor.
+//! O motor cronometra **duas** coisas suas: o `render` (percorrer a árvore
+//! avaliada e montar os `Element`) e o `dispatch` (tratar uma mensagem — o
+//! `update` do componente, os handlers Luau, a reavaliação da árvore). O que
+//! sobra do intervalo entre duas chamadas de `view` é o **resto**: layout,
+//! moldagem de texto e desenho, tudo dentro do `iced` e do `wgpu`.
+//!
+//! A separação existe porque a primeira versão desta instrumentação media só o
+//! render e chamava todo o resto de "fora do motor" — o que atribuía ao `iced`
+//! trabalho que era do `dispatch` e dos handlers do app. Um quadro que oscila
+//! entre 40 e 5 quadros por segundo com a mesma árvore não é custo de pixel, é
+//! travada de `update`; sem separar as duas, não dava para ver a diferença.
 //!
 //! ```sh
 //! GLACIER_PERF=1 ./meu-app
 //! ```
 //!
 //! ```text
-//! [glacier perf] 58 quadros em 1.00s = 58.0 fps  |  render 0.43ms méd, 0.71ms p95
-//!                nós 1682  |  motor 2.5% do quadro  |  fora do motor 16.8ms/quadro
+//! [glacier perf] 58 quadros 1.00s 58.0fps | nós 1682 | quadro 17.2ms méd 21.0 p95 34.1 máx
+//!                render 0.43 méd 0.71 p95 | dispatch 1.20/quadro (14 msgs, 4.9 máx)
+//!                resto 15.6ms/quadro (90.7%)
 //! ```
 //!
-//! A linha que decide é a última: **fora do motor**. Se ela for a quase
-//! totalidade do quadro, otimizar o glacier não vai adiantar — o tempo está no
-//! layout/desenho do `iced`, e a saída é entregar menos nós a ele (ver
-//! `virtualize` em `PRIMITIVAS.md`).
+//! Como decidir, olhando as três parcelas:
+//!
+//! - **`render` grande** → é o motor montando `Element` demais. Menos nós
+//!   (`virtualize`, ver `PRIMITIVAS.md`).
+//! - **`dispatch` grande** → é tratamento de mensagem: `update`, handlers Luau,
+//!   reavaliação. Olhe quantas mensagens por quadro e qual a mais cara.
+//! - **`resto` grande com árvore pequena** → é o `iced`/`wgpu`: layout,
+//!   moldagem de texto, rasterização. Aí o motor não tem o que fazer, e a
+//!   investigação vira qual adaptador o `wgpu` escolheu.
 //!
 //! **Como ler.** Num app que não dá conta do quadro não há tempo ocioso, então
 //! o "fora do motor" é trabalho de verdade — layout, moldagem de texto, GPU. Num
@@ -67,6 +78,13 @@ struct Janela {
     renders: Vec<Duration>,
     /// Intervalo entre quadros consecutivos.
     quadros: Vec<Duration>,
+    /// Tempo somado em `dispatch` desde o início da janela, e quantas mensagens
+    /// foram tratadas — o custo do `update` do app, que antes se escondia
+    /// dentro do "resto".
+    dispatch: Duration,
+    /// A mensagem mais cara da janela: é ela que trava um quadro sozinha.
+    dispatch_max: Duration,
+    mensagens: u32,
     /// Nós da última árvore renderizada.
     nos: usize,
 }
@@ -120,29 +138,45 @@ fn med_p95(amostra: &mut [Duration]) -> (f64, f64) {
 }
 
 fn relata(j: &Janela, decorrido: Duration) {
+    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
     let mut renders = j.renders.clone();
     let mut quadros = j.quadros.clone();
     let (render_med, render_p95) = med_p95(&mut renders);
     let (quadro_med, quadro_p95) = med_p95(&mut quadros);
-    let fps = j.renders.len() as f64 / decorrido.as_secs_f64();
-    // O quadro é o intervalo entre dois renders; o que não é render é tudo o
-    // que acontece depois dele — layout, texto, GPU, e o tempo ocioso à espera
-    // do vsync. Num app que não dá conta do quadro, não há ocioso: o que
-    // aparecer aqui é trabalho.
-    let fora = (quadro_med - render_med).max(0.0);
-    let parte = if quadro_med > 0.0 {
-        render_med / quadro_med * 100.0
+    let quadro_max = quadros.iter().copied().max().map(ms).unwrap_or(0.0);
+    let n = j.renders.len();
+    let fps = n as f64 / decorrido.as_secs_f64();
+    // O `dispatch` acontece entre dois quadros, então o custo dele se dilui
+    // por quadro — é assim que ele se compara com o render e com o resto.
+    let disp_por_quadro = ms(j.dispatch) / n as f64;
+    // O que sobra do intervalo depois de tirar as duas parcelas do motor:
+    // layout, texto, GPU e, num app folgado, a espera pelo vsync.
+    let resto = (quadro_med - render_med - disp_por_quadro).max(0.0);
+    let parte_resto = if quadro_med > 0.0 {
+        resto / quadro_med * 100.0
     } else {
         0.0
     };
     eprintln!(
-        "[glacier perf] {} quadros em {:.2}s = {fps:.1} fps  |  render {render_med:.3}ms méd, \
-         {render_p95:.3}ms p95  |  nós {}  |  motor {parte:.1}% do quadro  |  \
-         fora do motor {fora:.3}ms/quadro (p95 do quadro {quadro_p95:.3}ms)",
-        j.renders.len(),
+        "[glacier perf] {n} quadros {:.2}s {fps:.1}fps | nós {} | quadro {quadro_med:.1}ms méd \
+         {quadro_p95:.1} p95 {quadro_max:.1} máx\n               render {render_med:.3} méd \
+         {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
+         resto {resto:.1}ms/quadro ({parte_resto:.1}%)",
         decorrido.as_secs_f64(),
         j.nos,
+        j.mensagens,
+        ms(j.dispatch_max),
     );
+}
+
+/// Anota uma mensagem tratada. Chamada só quando [`ligado`] é verdadeiro.
+pub(crate) fn anota_dispatch(duracao: Duration) {
+    JANELA.with(|j| {
+        let mut j = j.borrow_mut();
+        j.dispatch += duracao;
+        j.dispatch_max = j.dispatch_max.max(duracao);
+        j.mensagens += 1;
+    });
 }
 
 /// Conta os nós de uma árvore avaliada. Só roda com a instrumentação ligada.
