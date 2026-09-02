@@ -19,7 +19,7 @@
         <text size="12" color="#A6ADC8">
           Rascunho (storage.get/set — sobrevive a reiniciar o app)
         </text>
-        <textinput
+        <input
           placeholder="Escreva algo e clique em Salvar..."
           value="rascunho"
           on_change="rascunho"

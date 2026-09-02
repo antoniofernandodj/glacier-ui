@@ -16,6 +16,7 @@
         "viewport",
         "storage",
         "date",
-        "every"
+        "every",
+        "notify"
     ]
 }

@@ -63,7 +63,7 @@
          class       -> a RAIZ do widget: a Row inteira, campo + degraus. É o
                         que estilizar um QSpinBox significa no Qt, e antes da
                         0.69 era um no-op silencioso aqui.
-         field_class -> só o <textinput> de dentro.
+         field_class -> só o <input> de dentro.
 
        form_control põe o campo na cadeia de tabulação da <form> que o envolve
        — sem ele o Tab pula o widget inteiro. -->
@@ -84,7 +84,7 @@
       </row>
       <row spacing="16" align_y="center">
         <text width="110" color="#CDD6F4">Observação</text>
-        <textinput value="obs" form_control="obs" width="220" placeholder="Tab vem parar aqui" />
+        <input value="obs" form_control="obs" width="220" placeholder="Tab vem parar aqui" />
       </row>
     </form>
   </column>

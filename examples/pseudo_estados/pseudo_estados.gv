@@ -24,14 +24,14 @@
       <column class="stack" spacing="8">
         <text class="label">TextInput — hover / focus / disabled</text>
         <row class="row">
-          <textinput
+          <input
             class="input"
             width="200"
             placeholder="Clique aqui"
             value="texto"
             on_change="texto"
           />
-          <textinput class="input" width="200" placeholder="Desabilitado" disabled="true" />
+          <input class="input" width="200" placeholder="Desabilitado" disabled="true" />
         </row>
       </column>
 

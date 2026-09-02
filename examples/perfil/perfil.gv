@@ -26,7 +26,7 @@
         >
           <column spacing="15">
             <text size="14" bold="true" color="#A6ADC8">Editar Nome:</text>
-            <textinput
+            <input
               placeholder="Digite o nome..."
               value="user_name"
               on_change="mudar_nome"
@@ -35,7 +35,7 @@
             />
 
             <text size="14" bold="true" color="#A6ADC8">Editar Cargo:</text>
-            <textinput
+            <input
               placeholder="Digite o cargo..."
               value="user_role"
               on_change="mudar_cargo"
