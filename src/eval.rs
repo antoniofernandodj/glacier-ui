@@ -378,8 +378,13 @@ pub struct EvalCache {
 struct CacheEntry {
     /// As chaves de que a subárvore depende, e o valor que tinham quando ela foi
     /// construída. A entrada só vale enquanto **todos** ainda casarem.
-    deps: Deps,
-    nodes: Vec<UiNode>,
+    ///
+    /// Compartilhada por `Arc` porque um acerto de cache precisa dela **e** do
+    /// `&mut` no cache ao mesmo tempo: antes, o jeito de sair dessa disputa era
+    /// clonar o vetor inteiro de pares de `String` a cada acerto — trabalho puro
+    /// de empréstimo, invisível e pago por item de lista.
+    deps: std::sync::Arc<Deps>,
+    nodes: crate::parser::Children,
 }
 
 impl EvalCache {
@@ -556,7 +561,7 @@ fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
         .entries
         .get(&ctx.path)
         .filter(|e| ctx.deps_hold(&e.deps))
-        .map(|e| (e.deps.clone(), e.nodes.clone()));
+        .map(|e| (std::sync::Arc::clone(&e.deps), e.nodes.clone()));
 
     let Some((deps, nodes)) = hit else {
         return false;
@@ -564,7 +569,7 @@ fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
     if let Some(r) = ctx.reads {
         r.merge(&deps, ctx.depth, ctx);
     }
-    out.extend(nodes);
+    out.extend(nodes.iter().cloned());
     cache.live.insert(ctx.path);
     true
 }
@@ -577,8 +582,8 @@ fn store(ctx: &EvalCtx, cache: &mut EvalCache, nodes: &[UiNode]) {
     cache.entries.insert(
         ctx.path,
         CacheEntry {
-            deps,
-            nodes: nodes.to_vec(),
+            deps: std::sync::Arc::new(deps),
+            nodes: nodes.to_vec().into(),
         },
     );
     cache.live.insert(ctx.path);
@@ -715,9 +720,9 @@ fn is_truthy(s: &str) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn eval_condition(
     cond: &str,
-    equals: &Option<String>,
-    not_equals: &Option<String>,
-    one_of: &Option<String>,
+    equals: Option<&str>,
+    not_equals: Option<&str>,
+    one_of: Option<&str>,
     empty: bool,
     not_empty: bool,
     context: &EvalCtx,
@@ -862,21 +867,20 @@ fn expand_children(
         // node. A mismatch makes the node vanish entirely, same treatment
         // as the `<import>`/`<link>`/`<style>` skip just above — so it's
         // checked here, before for-each/else/else-if/if even see the node.
-        if let Some(platform) = &child.if_platform
+        if let Some(platform) = child.if_platform()
             && platform != current_platform()
         {
             continue;
         }
 
         // 1. Process for-each attribute directive (outer precedence)
-        if let Some(items) = &child.for_each {
-            let var = child.for_each_var.as_deref().unwrap_or("item");
+        if let Some(items) = child.for_each() {
+            let var = child.for_each_var().unwrap_or("item");
             let items_evaluated = process_tpl(items, context);
             // Drag-and-drop: resolved once per for-each, reused by every item.
-            let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
+            let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
             let on_reorder = child
-                .on_reorder
-                .as_ref()
+                .on_reorder()
                 .map(|s| namespace_action(process_tpl(s, context), owner));
             if let Some(json_str) = context.get(&items_evaluated)
                 && let Ok(serde_json::Value::Array(arr)) =
@@ -911,10 +915,10 @@ fn expand_children(
 
                     // Clone the child without the for_each directive
                     let mut clone = child.clone();
-                    clone.for_each = None;
-                    clone.for_each_var = None;
-                    clone.on_reorder = None;
-                    clone.reorder_key = None;
+                    clone.set_for_each(None);
+                    clone.set_for_each_var(None);
+                    clone.set_on_reorder(None);
+                    clone.set_reorder_key(None);
 
                     if let (Some(on_reorder), Some(key), Some(rk)) =
                         (&on_reorder, &this_key, &reorder_key)
@@ -962,7 +966,8 @@ fn expand_children(
                 let mut clone = child.clone();
                 clone.is_else = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?);
             }
             last_if = None;
@@ -978,27 +983,28 @@ fn expand_children(
         // `if/else if/else` chain has in any imperative language. A stray
         // `else-if` with no `if` before it (`last_if == None`) is likewise a
         // no-op, matching the defensive behaviour of a stray `else` above.
-        if let Some(cond) = &child.else_if_cond {
+        if let Some(cond) = child.else_if_cond() {
             if last_if == Some(false) {
                 let truthy = eval_condition(
                     cond,
-                    &child.if_equals,
-                    &child.if_not_equals,
-                    &child.if_one_of,
+                    child.if_equals(),
+                    child.if_not_equals(),
+                    child.if_one_of(),
                     child.if_empty,
                     child.if_not_empty,
                     context,
                 );
                 if truthy {
                     let mut clone = child.clone();
-                    clone.else_if_cond = None;
-                    clone.if_equals = None;
-                    clone.if_not_equals = None;
-                    clone.if_one_of = None;
+                    clone.set_else_if_cond(None);
+                    clone.set_if_equals(None);
+                    clone.set_if_not_equals(None);
+                    clone.set_if_one_of(None);
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
-                        &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
+                        &clone, context, templates, styles, scope, owner, None, None, None, None,
+                        slot, cache,
                     )?);
                 }
                 last_if = Some(truthy);
@@ -1007,12 +1013,12 @@ fn expand_children(
         }
 
         // 3. Process if attribute directive
-        if let Some(cond) = &child.if_cond {
+        if let Some(cond) = child.if_cond() {
             let truthy = eval_condition(
                 cond,
-                &child.if_equals,
-                &child.if_not_equals,
-                &child.if_one_of,
+                child.if_equals(),
+                child.if_not_equals(),
+                child.if_one_of(),
                 child.if_empty,
                 child.if_not_empty,
                 context,
@@ -1020,14 +1026,15 @@ fn expand_children(
             if truthy {
                 // Clone child and clear if directives
                 let mut clone = child.clone();
-                clone.if_cond = None;
-                clone.if_equals = None;
-                clone.if_not_equals = None;
-                clone.if_one_of = None;
+                clone.set_if_cond(None);
+                clone.set_if_equals(None);
+                clone.set_if_not_equals(None);
+                clone.set_if_one_of(None);
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?);
             }
             last_if = Some(truthy);
@@ -1049,10 +1056,9 @@ fn expand_children(
                 let items_evaluated = process_tpl(items, context);
                 // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
                 // itself (a plain node attribute, same as `onPress`/`cursor`).
-                let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
+                let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
                 let on_reorder = child
-                    .on_reorder
-                    .as_ref()
+                    .on_reorder()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
                 if let Some(json_str) = context.get(&items_evaluated)
                     && let Ok(serde_json::Value::Array(arr)) =
@@ -1084,7 +1090,7 @@ fn expand_children(
                         // The `<ForEach>` tag's body isn't a single node like
                         // the attribute form's — clone its children so the
                         // hydration below has somewhere of its own to live.
-                        let mut body: Vec<UiNode> = child.children.clone();
+                        let mut body: Vec<UiNode> = child.children.to_vec();
                         if let (Some(on_reorder), Some(key), Some(rk)) =
                             (&on_reorder, &this_key, &reorder_key)
                         {
@@ -1131,7 +1137,13 @@ fn expand_children(
                 not_empty,
             } => {
                 let truthy = eval_condition(
-                    cond, equals, not_equals, one_of, *empty, *not_empty, context,
+                    cond,
+                    equals.as_deref(),
+                    not_equals.as_deref(),
+                    one_of.as_deref(),
+                    *empty,
+                    *not_empty,
+                    context,
                 );
                 if truthy {
                     expand_children(
@@ -1162,7 +1174,13 @@ fn expand_children(
                 // stays `Some(true)` and every further branch is skipped.
                 if last_if == Some(false) {
                     let truthy = eval_condition(
-                        cond, equals, not_equals, one_of, *empty, *not_empty, context,
+                        cond,
+                        equals.as_deref(),
+                        not_equals.as_deref(),
+                        one_of.as_deref(),
+                        *empty,
+                        *not_empty,
+                        context,
                     );
                     if truthy {
                         expand_children(
@@ -1198,7 +1216,8 @@ fn expand_children(
             }
             _ => {
                 let n = eval_owned(
-                    child, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
+                    child, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?;
                 // A `Fragment` (a multi-root component template, or an explicit
                 // `Fragment { … }`) is transparent: splice its already-evaluated
@@ -1206,7 +1225,7 @@ fn expand_children(
                 // e.g. a component that is an `if`/`else` pair renders as two
                 // siblings of the surrounding layout.
                 if matches!(n.kind, NodeType::Fragment) {
-                    out.extend(n.children);
+                    out.extend(n.children.into_vec());
                 } else {
                     out.push(n);
                 }
@@ -1485,7 +1504,7 @@ fn eval_owned(
         if !node.children.is_empty() {
             let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
             for filho in &node.children {
-                let destino = filho.slot_name.clone();
+                let destino = filho.slot_name().map(str::to_string);
                 match baldes.iter_mut().find(|(k, _)| *k == destino) {
                     Some((_, v)) => v.push(filho),
                     None => baldes.push((destino, vec![filho])),
@@ -1499,7 +1518,7 @@ fn eval_owned(
                         // no clone faria um `<card slot="footer">` aninhado
                         // reetiquetar o conteúdo do componente de dentro.
                         let mut c = f.clone();
-                        c.slot_name = None;
+                        c.set_slot_name(None);
                         c
                     })
                     .collect();
@@ -1670,7 +1689,10 @@ fn eval_owned(
         // diferentes.
         let mut assinatura_estilo = 0u64;
         if !uso_class.is_empty() || uso_id.is_some() {
-            for b in uso_class.bytes().chain(uso_id.iter().flat_map(|i| i.bytes())) {
+            for b in uso_class
+                .bytes()
+                .chain(uso_id.iter().flat_map(|i| i.bytes()))
+            {
                 assinatura_estilo ^= b as u64;
                 assinatura_estilo = assinatura_estilo.wrapping_mul(0x100_0000_01b3);
             }
@@ -2134,20 +2156,19 @@ fn eval_owned(
 
     // For each style field, the node's inline attribute wins; a `class` value
     // (if any) fills in only where the inline attribute is absent.
-    let resolve = |inline: &Option<String>, class: &Option<String>| -> Option<String> {
+    let resolve = |inline: Option<&str>, class: &Option<String>| -> Option<String> {
         inline
-            .as_ref()
             .map(|s| process_tpl(s, context))
             .or_else(|| class.clone())
     };
 
-    let width_eval = resolve(&node.width, &style.width);
-    let height_eval = resolve(&node.height, &style.height);
-    let padding_eval = resolve(&node.padding, &style.padding);
-    let align_x_eval = resolve(&node.align_x, &style.align_x);
-    let align_y_eval = resolve(&node.align_y, &style.align_y);
-    let background_eval = resolve(&node.background, &style.background);
-    let border_color_eval = resolve(&node.border_color, &style.border_color);
+    let width_eval = resolve(node.width.as_deref(), &style.width);
+    let height_eval = resolve(node.height.as_deref(), &style.height);
+    let padding_eval = resolve(node.padding.as_deref(), &style.padding);
+    let align_x_eval = resolve(node.align_x(), &style.align_x);
+    let align_y_eval = resolve(node.align_y(), &style.align_y);
+    let background_eval = resolve(node.background.as_deref(), &style.background);
+    let border_color_eval = resolve(node.border_color(), &style.border_color);
     let spacing_eval = num_template(NumAttr::Spacing)
         .or(node.spacing)
         .or(style.spacing);
@@ -2157,22 +2178,19 @@ fn eval_owned(
     let border_width_eval = num_template(NumAttr::BorderWidth)
         .or(node.border_width)
         .or(style.border_width);
-    let font_eval = resolve(&node.font, &style.font);
-    let gradient_eval = resolve(&node.gradient, &style.gradient);
-    let text_align_eval = resolve(&node.text_align, &style.text_align);
+    let font_eval = resolve(node.font(), &style.font);
+    let gradient_eval = resolve(node.gradient(), &style.gradient);
+    let text_align_eval = resolve(node.text_align(), &style.text_align);
     // `on_press` is behavior, not a style field; interpolate it directly so
     // actions like `onPress="window:{cmd}"` can bind context values.
-    let on_press_eval = node.on_press.as_ref().map(|s| process_tpl(s, context));
-    let on_double_click_eval = node
-        .on_double_click
-        .as_ref()
-        .map(|s| process_tpl(s, context));
-    let cursor_eval = resolve(&node.cursor, &style.cursor);
-    let text_color_eval = resolve(&node.text_color, &style.text_color);
+    let on_press_eval = node.on_press().map(|s| process_tpl(s, context));
+    let on_double_click_eval = node.on_double_click().map(|s| process_tpl(s, context));
+    let cursor_eval = resolve(node.cursor(), &style.cursor);
+    let text_color_eval = resolve(node.text_color(), &style.text_color);
     // `tooltip` é conteúdo, não estilo (sem equivalente `.classe { }`, como
     // `on_press`) — interpolado direto pra suportar `tooltip="{var}"`.
-    let tooltip_eval = node.tooltip.as_ref().map(|s| process_tpl(s, context));
-    let tooltip_position_eval = node.tooltip_position.clone();
+    let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
+    let tooltip_position_eval = node.tooltip_position().map(str::to_string);
     let max_width_eval = num_template(NumAttr::MaxWidth)
         .or(node.max_width)
         .or(style.max_width);
@@ -2237,7 +2255,7 @@ fn eval_owned(
     Ok(UiNode {
         node_id: node.node_id,
         kind: kind_eval,
-        children: children_eval,
+        children: children_eval.into(),
         // Numeric templates are resolved into the f32 fields below; nothing left.
         numeric_templates: Vec::new(),
         // Idem para os booleanos: já viraram `hidden_eval`/`disabled_eval`.
@@ -2245,71 +2263,77 @@ fn eval_owned(
         width: width_eval,
         height: height_eval,
         padding: padding_eval,
-        align_x: align_x_eval,
-        align_y: align_y_eval,
         spacing: spacing_eval,
         background: background_eval,
         border_radius: border_radius_eval,
         border_width: border_width_eval,
-        border_color: border_color_eval,
         // Classes and id are fully resolved into the fields above; nothing to
         // carry on.
         class: None,
         id: None,
-        font: font_eval,
-        gradient: gradient_eval,
-        text_align: text_align_eval,
-        on_press: on_press_eval,
-        on_double_click: on_double_click_eval,
-        cursor: cursor_eval,
-        text_color: text_color_eval,
-        tooltip: tooltip_eval,
-        tooltip_position: tooltip_position_eval,
         max_width: max_width_eval,
         max_height: max_height_eval,
         hidden: hidden_eval,
         disabled: disabled_eval,
-        hover_style: hover_style_eval,
-        focus_style: focus_style_eval,
-        active_style: active_style_eval,
-        disabled_style: disabled_style_eval,
-        if_cond: None,
-        if_equals: None,
-        if_not_equals: None,
-        if_one_of: None,
         if_empty: false,
         if_not_empty: false,
-        if_platform: None,
         is_else: false,
-        else_if_cond: None,
-        for_each: None,
-        for_each_var: None,
-        // A diretiva de destino é consumida na fronteira do componente, ao
-        // repartir o conteúdo do uso — nada dela sobrevive à avaliação.
-        slot_name: None,
-        // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
-        // consumed (and interpolated) directly by `expand_children`'s for-each
-        // handling below — nothing to carry on past evaluation.
-        on_reorder: None,
-        reorder_key: None,
         // `drag_handle` is a static marker (no template to resolve); carried
         // through unevaluated so a reorderable item's handle survives eval.
         drag_handle: node.drag_handle,
+        look: crate::parser::caixa(crate::parser::Look {
+            align_x: align_x_eval,
+            align_y: align_y_eval,
+            border_color: border_color_eval,
+            font: font_eval,
+            gradient: gradient_eval,
+            text_align: text_align_eval,
+            text_color: text_color_eval,
+            // A diretiva de destino é consumida na fronteira do componente, ao
+            // repartir o conteúdo do uso — nada dela sobrevive à avaliação.
+            slot_name: None,
+        }),
+        interact: crate::parser::caixa(crate::parser::Interact {
+            on_press: on_press_eval,
+            on_double_click: on_double_click_eval,
+            cursor: cursor_eval,
+            tooltip: tooltip_eval,
+            tooltip_position: tooltip_position_eval,
+        }),
+        pseudo: crate::parser::caixa(crate::parser::Pseudo {
+            hover_style: hover_style_eval,
+            focus_style: focus_style_eval,
+            active_style: active_style_eval,
+            disabled_style: disabled_style_eval,
+        }),
+        // As diretivas de fluxo são consumidas pela própria avaliação — o que
+        // sai daqui já é o resultado delas, nunca a condição.
+        cond: None,
         // Hydrated (if at all) by the *parent* for-each's expansion, onto this
         // very node, before it reached this call — carried through as-is
         // (nothing here to interpolate; identities are already resolved).
-        drag_list: node.drag_list.clone(),
-        drag_item_key: node.drag_item_key.clone(),
-        drag_order: node.drag_order.clone(),
-        drag_on_reorder: node.drag_on_reorder.clone(),
-        drag_reorder_key: node.drag_reorder_key.clone(),
-        form_control: node.form_control.as_ref().map(|s| process_tpl(s, context)),
-        // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above, on
-        // this very (already evaluated) node — carried through as a default of
-        // `None` here, same as the drag_* fields are for a plain for-each item.
-        form_scope: node.form_scope.clone(),
-        form_submit_action: node.form_submit_action.clone(),
-        form_next_focus: node.form_next_focus.clone(),
+        // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
+        // consumed (and interpolated) directly by `expand_children`'s for-each
+        // handling below — nothing to carry on past evaluation.
+        drag: crate::parser::caixa(crate::parser::Drag {
+            on_reorder: None,
+            reorder_key: None,
+            drag_list: node.drag_list().map(str::to_string),
+            drag_item_key: node.drag_item_key().map(str::to_string),
+            drag_order: node.drag_order().map(<[String]>::to_vec),
+            drag_on_reorder: node.drag_on_reorder().map(str::to_string),
+            drag_reorder_key: node.drag_reorder_key().map(str::to_string),
+        }),
+        form: crate::parser::caixa(crate::parser::FormBits {
+            form_control: node.form_control().map(|s| process_tpl(s, context)),
+            // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above,
+            // on this very (already evaluated) node — carried through as a
+            // default of `None` here, same as the drag_* fields are for a plain
+            // for-each item.
+            form_scope: node.form_scope().map(str::to_string),
+            form_submit_action: node.form_submit_action().map(str::to_string),
+            form_next_focus: node.form_next_focus().map(str::to_string),
+        }),
     })
 }
 
@@ -2318,8 +2342,8 @@ fn eval_owned(
 /// find each control's "next" one.
 fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
     for node in nodes {
-        if let Some(name) = &node.form_control {
-            out.push(name.clone());
+        if let Some(name) = node.form_control() {
+            out.push(name.to_string());
         }
         collect_form_control_names(&node.children, out);
     }
@@ -2331,17 +2355,17 @@ fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
 /// the last one).
 fn hydrate_form_controls(nodes: &mut [UiNode], order: &[String], scope: &str, on_submit: &str) {
     for node in nodes.iter_mut() {
-        if let Some(name) = &node.form_control {
+        if let Some(name) = node.form_control() {
             let next = order
                 .iter()
                 .position(|n| n == name)
                 .and_then(|i| order.get(i + 1))
                 .cloned();
-            node.form_scope = Some(scope.to_string());
-            node.form_submit_action = Some(on_submit.to_string());
-            node.form_next_focus = next;
+            node.set_form_scope(Some(scope.to_string()));
+            node.set_form_submit_action(Some(on_submit.to_string()));
+            node.set_form_next_focus(next);
         }
-        hydrate_form_controls(&mut node.children, order, scope, on_submit);
+        hydrate_form_controls(node.children.to_mut(), order, scope, on_submit);
     }
 }
 
@@ -2354,8 +2378,8 @@ fn hydrate_drag_item(
     reorder_key: &str,
 ) {
     for node in nodes.iter_mut() {
-        node.drag_list = Some(list.to_string());
-        node.drag_item_key = Some(key.to_string());
+        node.set_drag_list(Some(list.to_string()));
+        node.set_drag_item_key(Some(key.to_string()));
     }
     // Hydrate EVERY `dragHandle` in the item body, not just the first. An item
     // whose body branches on a directive — e.g. `if {e.__dragging} { …handle… }
@@ -2373,13 +2397,13 @@ fn hydrate_drag_item(
         reorder_key: &str,
     ) {
         if node.drag_handle {
-            node.drag_list = Some(list.to_string());
-            node.drag_item_key = Some(key.to_string());
-            node.drag_reorder_key = Some(reorder_key.to_string());
-            node.drag_order = Some(order.to_vec());
-            node.drag_on_reorder = Some(on_reorder.to_string());
+            node.set_drag_list(Some(list.to_string()));
+            node.set_drag_item_key(Some(key.to_string()));
+            node.set_drag_reorder_key(Some(reorder_key.to_string()));
+            node.set_drag_order(Some(order.to_vec()));
+            node.set_drag_on_reorder(Some(on_reorder.to_string()));
         }
-        for c in node.children.iter_mut() {
+        for c in node.children.to_mut().iter_mut() {
             hydrate_handles(c, list, key, order, on_reorder, reorder_key);
         }
     }

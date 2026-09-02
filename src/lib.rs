@@ -901,8 +901,10 @@ impl GlacierUI {
                 .get(crate::widget::TIMEEDIT_SEL_CONTEXT)
                 .is_some_and(|v| !v.is_empty())
         {
-            self.context_data
-                .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), String::new());
+            self.context_data.insert(
+                crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                String::new(),
+            );
         }
         let (action, value) = match msg {
             EngineMessage::UiClick(a) => (a.as_str(), None),
@@ -1032,8 +1034,10 @@ impl GlacierUI {
                         let j = ((i as i64) + i64::from(*d)).rem_euclid(n) as usize;
                         sel.secao = ordem[j].to_string();
                         sel.buf.clear();
-                        self.context_data
-                            .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), sel.serializa());
+                        self.context_data.insert(
+                            crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                            sel.serializa(),
+                        );
                         let _ = self.reevaluate_all();
                     }
                     return iced::Task::none();
@@ -1066,8 +1070,10 @@ impl GlacierUI {
                 }
 
                 let texto = novo.serializa(sel.data, sel.hora, sel.segundos);
-                self.context_data
-                    .insert(crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(), sel.serializa());
+                self.context_data.insert(
+                    crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                    sel.serializa(),
+                );
 
                 // Mesmo contrato do render: sem `onChange` o widget grava a
                 // chave sozinho; com ele, delega e quem grava é o handler.
@@ -1273,7 +1279,7 @@ impl GlacierUI {
                     let value =
                         serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
                     return self.dispatch(&EngineMessage::UiInputChanged {
-                        action: drag.on_reorder,
+                        action: drag.on_reorder.clone(),
                         value,
                     });
                 }

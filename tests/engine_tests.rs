@@ -2503,9 +2503,9 @@ fn parses_font_gradient_text_align() {
     let xml =
         r##"<Text content="Hi" font="mono" gradient="180 #000000 #FFFFFF" textAlign="center" />"##;
     let ast = UiNode::parse_xml(xml).unwrap();
-    assert_eq!(ast.font.as_deref(), Some("mono"));
-    assert_eq!(ast.gradient.as_deref(), Some("180 #000000 #FFFFFF"));
-    assert_eq!(ast.text_align.as_deref(), Some("center"));
+    assert_eq!(ast.font(), Some("mono"));
+    assert_eq!(ast.gradient(), Some("180 #000000 #FFFFFF"));
+    assert_eq!(ast.text_align(), Some("center"));
 }
 
 #[test]
@@ -2670,8 +2670,8 @@ fn test_unknown_extension_falls_back_to_xml() {
 /// do controle e o próprio nó (já avaliado/hidratado), clonado para escapar do
 /// empréstimo da árvore.
 fn collect_form_inputs(node: &UiNode, out: &mut Vec<(String, UiNode)>) {
-    if let Some(name) = &node.form_control {
-        out.push((name.clone(), node.clone()));
+    if let Some(name) = node.form_control() {
+        out.push((name.to_string(), node.clone()));
     }
     for child in &node.children {
         collect_form_inputs(child, out);
@@ -2737,18 +2737,18 @@ fn test_form_hydrates_scope_submit_and_next_focus() {
 
     // O `onSubmit` do `<Form>` chega em todo controle, para o Enter sempre
     // disparar a submissão — independente de qual campo está com foco.
-    assert_eq!(usuario.form_submit_action.as_deref(), Some("enviar"));
-    assert_eq!(senha.form_submit_action.as_deref(), Some("enviar"));
+    assert_eq!(usuario.form_submit_action(), Some("enviar"));
+    assert_eq!(senha.form_submit_action(), Some("enviar"));
 
     // Mesmo `scope` (prefixo do id de foco) em ambos, por pertencerem ao
     // mesmo `<Form>`.
-    assert!(usuario.form_scope.is_some());
-    assert_eq!(usuario.form_scope, senha.form_scope);
+    assert!(usuario.form_scope().is_some());
+    assert_eq!(usuario.form_scope(), senha.form_scope());
 
     // Enter em "usuario" também avança o foco para "senha"; em "senha" (o
     // último campo) não há próximo.
-    assert_eq!(usuario.form_next_focus.as_deref(), Some("senha"));
-    assert_eq!(senha.form_next_focus, None);
+    assert_eq!(usuario.form_next_focus(), Some("senha"));
+    assert_eq!(senha.form_next_focus(), None);
 }
 
 #[test]
@@ -2805,7 +2805,7 @@ fn test_form_control_defaults_value_and_on_change() {
     }
 
     let input = &ast.children[0];
-    assert_eq!(input.form_control.as_deref(), Some("usuario"));
+    assert_eq!(input.form_control(), Some("usuario"));
     match &input.kind {
         NodeType::TextInput {
             value_var,
@@ -2862,8 +2862,8 @@ fn test_formulario_login_example_template_parses_and_evaluates() {
         inputs.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
         vec!["username".to_string(), "password".to_string()],
     );
-    assert_eq!(inputs[0].1.form_next_focus.as_deref(), Some("password"));
-    assert_eq!(inputs[1].1.form_next_focus, None);
+    assert_eq!(inputs[0].1.form_next_focus(), Some("password"));
+    assert_eq!(inputs[1].1.form_next_focus(), None);
 }
 
 // ── Fragment (multi-root component templates) ───────────────────────────────
@@ -3114,18 +3114,18 @@ fn tooltip_parses_interpolates_and_renders() {
     // campo; `tooltipPosition` é opcional (default resolvido em widget.rs, não
     // no parser — aqui só confere que o valor cru sobrevive).
     let ast = UiNode::parse_xml(r#"<Button text="x" tooltip="Ajuda" />"#).unwrap();
-    assert_eq!(ast.tooltip.as_deref(), Some("Ajuda"));
+    assert_eq!(ast.tooltip(), Some("Ajuda"));
 
     let ast_alias = UiNode::parse_xml(r#"<Button text="x" title="Ajuda 2" />"#).unwrap();
-    assert_eq!(ast_alias.tooltip.as_deref(), Some("Ajuda 2"));
+    assert_eq!(ast_alias.tooltip(), Some("Ajuda 2"));
 
     let ast_pos =
         UiNode::parse_xml(r#"<Button text="x" tooltip="Ajuda" tooltipPosition="left" />"#).unwrap();
-    assert_eq!(ast_pos.tooltip_position.as_deref(), Some("left"));
+    assert_eq!(ast_pos.tooltip_position(), Some("left"));
 
     // Sem tooltip, o campo fica None (não vira string vazia nem afeta o render).
     let ast_none = UiNode::parse_xml(r#"<Button text="x" />"#).unwrap();
-    assert_eq!(ast_none.tooltip, None);
+    assert_eq!(ast_none.tooltip(), None);
 
     // Interpolação (`tooltip="{var}"`) + render de ponta a ponta, com um botão
     // (mouse_area) E um nó puro (row, sem on_press) — o wrap de tooltip fica
@@ -3149,10 +3149,10 @@ fn tooltip_parses_interpolates_and_renders() {
 
     let evaluated = motor.evaluated("tipcomp").unwrap();
     let button_node = &evaluated.children[0];
-    assert_eq!(button_node.tooltip.as_deref(), Some("Ajuda interpolada"));
+    assert_eq!(button_node.tooltip(), Some("Ajuda interpolada"));
     let row_node = &evaluated.children[1];
-    assert_eq!(row_node.tooltip.as_deref(), Some("linha sem clique"));
-    assert_eq!(row_node.tooltip_position.as_deref(), Some("bottom"));
+    assert_eq!(row_node.tooltip(), Some("linha sem clique"));
+    assert_eq!(row_node.tooltip_position(), Some("bottom"));
 
     assert!(
         motor.render("tipcomp").is_ok(),
@@ -4144,7 +4144,7 @@ fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
         }
         n.children.iter().find_map(achar_col)
     }
-    let lista = achar_col(&raiz).expect("a Column com os dois usos");
+    let lista = achar_col(raiz).expect("a Column com os dois usos");
     let com = &lista.children[0];
     let sem = &lista.children[1];
 
@@ -4161,7 +4161,11 @@ fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
         "o inline do template deve vencer a classe do uso"
     );
     // 3. O que só o template declara sobrevive (não houve clobber).
-    assert_eq!(com.border_radius, Some(3.0), "o resto do template sobrevive");
+    assert_eq!(
+        com.border_radius,
+        Some(3.0),
+        "o resto do template sobrevive"
+    );
     // 4. A instância SEM classe não é contaminada pela irmã — é o teste do
     //    cache: as duas têm o mesmo template e node_ids diferentes.
     assert_eq!(
@@ -4213,7 +4217,7 @@ fn spinbox_repassa_field_class_e_form_control() {
         }
         n.children.iter().find_map(achar_form)
     }
-    let form = achar_form(&raiz).expect("Form");
+    let form = achar_form(raiz).expect("Form");
     let linha = &form.children[1];
     let campo = &linha.children[0];
 
@@ -4232,14 +4236,14 @@ fn spinbox_repassa_field_class_e_form_control() {
         "field_class estiliza o campo de dentro"
     );
     // `form_control` → o campo entra na Form.
-    assert_eq!(campo.form_control.as_deref(), Some("qtd"));
+    assert_eq!(campo.form_control(), Some("qtd"));
     assert_eq!(
-        campo.form_submit_action.as_deref(),
+        campo.form_submit_action(),
         Some("salvar"),
         "a Form hidrata um controle que só existe depois da expansão"
     );
     assert_eq!(
-        campo.form_next_focus.as_deref(),
+        campo.form_next_focus(),
         Some("depois"),
         "e o Enter avança para o controle seguinte, na ordem do documento"
     );
@@ -4257,11 +4261,7 @@ fn timeedit_teclado_digita_e_avanca() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let p = "templates/te_teclado.gv";
-    std::fs::write(
-        p,
-        envolve(r#"<datetimeedit value="quando" />"#),
-    )
-    .unwrap();
+    std::fs::write(p, envolve(r#"<datetimeedit value="quando" />"#)).unwrap();
     motor.register_component("te", p).unwrap();
     motor.define_data("quando", "2026-03-10 08:30");
     // Seleciona a seção da HORA: é o que um clique nela grava.
@@ -4275,9 +4275,16 @@ fn timeedit_teclado_digita_e_avanca() {
     // "0" depois "9" -> 09h, e a seção enche: avança sozinha para o minuto.
     tecla(&mut motor, TimeEditKey::Algarismo(0));
     tecla(&mut motor, TimeEditKey::Algarismo(9));
-    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:30"));
+    assert_eq!(
+        motor.context().get("quando").map(String::as_str),
+        Some("2026-03-10 09:30")
+    );
     assert!(
-        motor.context().get("__timeedit").unwrap().starts_with("quando|m|"),
+        motor
+            .context()
+            .get("__timeedit")
+            .unwrap()
+            .starts_with("quando|m|"),
         "encheu a hora -> pula para o minuto, como no Qt: {:?}",
         motor.context().get("__timeedit")
     );
@@ -4286,12 +4293,18 @@ fn timeedit_teclado_digita_e_avanca() {
     // então fica na seção. "5" compõe 45.
     tecla(&mut motor, TimeEditKey::Algarismo(4));
     tecla(&mut motor, TimeEditKey::Algarismo(5));
-    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:45"));
+    assert_eq!(
+        motor.context().get("quando").map(String::as_str),
+        Some("2026-03-10 09:45")
+    );
 
     // ▲ na seção do minuto: 45 -> 46, e a digitação recomeça (o "4" anterior
     // não pode compor "464").
     tecla(&mut motor, TimeEditKey::Passo(1));
-    assert_eq!(motor.context().get("quando").map(String::as_str), Some("2026-03-10 09:46"));
+    assert_eq!(
+        motor.context().get("quando").map(String::as_str),
+        Some("2026-03-10 09:46")
+    );
     tecla(&mut motor, TimeEditKey::Algarismo(7));
     assert_eq!(
         motor.context().get("quando").map(String::as_str),
@@ -4322,12 +4335,24 @@ fn timeedit_teclado_move_secao_e_seta_satura() {
 
     // ▲ na hora: 23 vira 00 (cada seção vira DENTRO de si — o minuto não muda).
     tecla(&mut motor, TimeEditKey::Passo(1));
-    assert_eq!(motor.context().get("hora").map(String::as_str), Some("00:59"));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("00:59")
+    );
 
     // → move para o minuto sem tocar no valor.
     tecla(&mut motor, TimeEditKey::Move(1));
-    assert_eq!(motor.context().get("hora").map(String::as_str), Some("00:59"));
-    assert!(motor.context().get("__timeedit").unwrap().starts_with("hora|m|"));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("00:59")
+    );
+    assert!(
+        motor
+            .context()
+            .get("__timeedit")
+            .unwrap()
+            .starts_with("hora|m|")
+    );
 
     // ▲ no minuto: 59 vira 00, e a hora continua onde estava.
     tecla(&mut motor, TimeEditKey::Passo(1));
@@ -4355,7 +4380,10 @@ fn timeedit_teclado_sem_selecao_nao_faz_nada() {
     motor.reevaluate_all().unwrap();
 
     let _ = motor.dispatch(&EngineMessage::TimeEditKey(TimeEditKey::Passo(1)));
-    assert_eq!(motor.context().get("hora").map(String::as_str), Some("08:30"));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("08:30")
+    );
 
     std::fs::remove_file(p).ok();
 }
@@ -4387,7 +4415,10 @@ fn timeedit_clique_em_outro_widget_larga_a_secao() {
 
     // Com a seção selecionada, a seta funciona.
     let _ = motor.dispatch(&EngineMessage::TimeEditKey(TimeEditKey::Passo(1)));
-    assert_eq!(motor.context().get("hora").map(String::as_str), Some("09:30"));
+    assert_eq!(
+        motor.context().get("hora").map(String::as_str),
+        Some("09:30")
+    );
 
     // Um clique em outro widget larga a seleção...
     let _ = motor.dispatch(&EngineMessage::UiClick("nada".to_string()));

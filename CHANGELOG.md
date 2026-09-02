@@ -8,6 +8,137 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.74.0] — 2026-09-01
+
+Release de **custo**: o motor não ganhou nenhum widget nem nenhuma sintaxe — a
+árvore avaliada passou a ocupar menos da metade da memória e a reagir a uma
+mudança de estado no dobro da velocidade. Saiu de uma pergunta direta: *"essa
+abstração sobre o iced faz o app consumir muito mais memória? compromete o
+desempenho?"*.
+
+A resposta honesta era **em parte sim**, e a medição apontou dois culpados
+estruturais — nenhum deles no lugar onde se suspeitava. Montar os `Element` do
+iced a partir da árvore (o `view()`, que roda por frame) sempre foi barato:
+~2× o mesmo layout escrito à mão, dentro do orçamento de 60 fps com folga. O
+caro era o `dispatch`, que reavalia a árvore a cada mensagem.
+
+### Adicionado
+- **`tests/perf_arvore.rs`**: o aparelho de medida, `#[ignore]` para não medir
+  ruído no `cargo test` comum. Uma tela realista (lista de pedidos, 7 nós por
+  linha) em quatro tamanhos, comparada com o mesmo layout montado à mão em iced.
+
+  ```sh
+  cargo test --release --test perf_arvore -- --ignored --nocapture
+  ```
+
+### Alterado
+- **O `UiNode` encolheu de 1264 para 512 bytes.** Ele tinha 37 campos
+  `Option<String>` no corpo, e um `Option<String>` custa 24 bytes **esteja ou
+  não preenchido**: 888 bytes por nó reservados para atributos que um `<Text>`
+  usa três ou quatro. Os raros foram para **grupos em caixa**, alocados só
+  quando algum campo do grupo é usado:
+
+  | Grupo | Campos | Quando existe |
+  |---|---|---|
+  | `Look` | `align_x` `align_y` `border_color` `font` `gradient` `text_align` `text_color` `slot_name` | aparência de segunda ordem |
+  | `Interact` | `on_press` `on_double_click` `cursor` `tooltip` `tooltip_position` | interação de ponteiro |
+  | `Cond` | `if_cond` `if_equals` `if_not_equals` `if_one_of` `if_platform` `else_if_cond` `for_each` `for_each_var` | nós de diretiva |
+  | `Drag` | os seis `drag_*`/`*reorder*` | itens de lista reordenável |
+  | `FormBits` | `form_control` `form_scope` `form_submit_action` `form_next_focus` | entradas dentro de um `<Form>` |
+  | `Pseudo` | `hover_style` `focus_style` `active_style` `disabled_style` | nós com `:hover`/`:focus`/… resolvido |
+
+  Os campos **quentes** (`width`, `height`, `padding`, `background`, `class`,
+  `id`, os numéricos, os booleanos) ficaram onde estavam: eles são preenchidos
+  o tempo todo, e uma indireção só os deixaria mais lentos sem economizar nada.
+
+- **Os filhos de um nó passaram a ser compartilhados por contagem de
+  referência** (`children: Children`, um `Arc<Vec<UiNode>>` com `Deref` e
+  `IntoIterator`). O motivo é o cache de avaliação: um **acerto** de cache
+  devolvia a subárvore guardada por **cópia profunda** — a árvore inteira
+  memcpy'ada nó a nó, a cada mudança de estado, mesmo quando nada nela tinha
+  mudado. Era o pior tipo de custo: pago justamente no caminho que existe para
+  não pagar nada.
+
+  Agora clonar um nó é um incremento de contador para tudo abaixo dele, e a
+  árvore avaliada **divide** memória com a entrada de cache em vez de duplicá-la
+  — que é de onde vem a maior parte da queda de RSS. A escrita continua correta
+  e continua possível: `Children::to_mut()` é copy-on-write (`Arc::make_mut`).
+
+- **As dependências de uma entrada de cache também são compartilhadas**
+  (`Arc<Deps>`). O acerto clonava o vetor inteiro de pares de `String` só para
+  contornar o empréstimo do `&mut` no cache — trabalho puro de borrow checker,
+  invisível, pago uma vez por item de lista.
+
+### Números
+
+Medidos com `tests/perf_arvore.rs` em `--release`, mesma máquina, 0.73 → 0.74:
+
+| N linhas | nós | árvore | RSS | render/frame | reavaliação | idem, c/ cache |
+|---|---|---|---|---|---|---|
+| 25 | 179 | 324 → **166 KB** | 2,9 → **2,6 MB** | 55 → 56 µs | 598 → **411 µs** | 200 → **108 µs** |
+| 100 | 704 | 1281 → **653 KB** | 1,5 → **0,6 MB** | 199 → 202 µs | 2,03 → **1,33 ms** | 834 → **358 µs** |
+| 500 | 3.504 | 6229 → **3188 KB** | 9,8 → **3,6 MB** | 1,33 → **1,14 ms** | 12,2 → **7,6 ms** | 5,59 → **1,95 ms** |
+| 2000 | 14.004 | 24,9 → **12,7 MB** | 33,4 → **13,9 MB** | 7,27 → **5,98 ms** | 53,8 → **37,7 ms** | 26,6 → **12,8 ms** |
+
+Em uma linha: **memória pela metade, acerto de cache 2,1× a 2,9× mais rápido,
+reavaliação completa 1,4× mais rápida.** O `render` por frame mudou pouco
+porque nunca foi o problema — ele continua em ~1,8× o iced escrito à mão, o que
+para uma tela de 500 nós é 1,1 ms de um orçamento de 16,67 ms.
+
+### Quebras
+
+Só para quem lê ou escreve campos do `UiNode` **em Rust** (um componente que
+inspeciona a árvore). Markup `.gv`, `.gss`, KDL e Luau não mudaram em nada — os
+atributos são exatamente os mesmos.
+
+- **Os 36 campos dos grupos acima viraram acessor.** A leitura devolve
+  `Option<&str>` (antes `&Option<String>`), e a escrita ganhou um `set_`:
+
+  ```rust
+  // antes                          // agora
+  node.on_press.as_deref()          node.on_press()
+  node.tooltip.clone()              node.tooltip().map(str::to_string)
+  node.font.is_some()               node.font().is_some()
+  node.align_x = Some(v)            node.set_align_x(Some(v))
+  ```
+
+  Os grupos são públicos (`parser::{Look, Interact, Cond, Drag, FormBits,
+  Pseudo}`) para quem preferir mexer neles direto.
+
+- **`UiNode::children` é `Children`, não `Vec<UiNode>`.** Leitura não muda
+  (`len()`, indexação, `iter()`, `for c in &node.children` continuam iguais, por
+  `Deref` e `IntoIterator`). Muda quem escreve ou consome:
+
+  ```rust
+  // antes                          // agora
+  node.children.push(x)             node.children.to_mut().push(x)
+  node.children.iter_mut()          node.children.to_mut().iter_mut()
+  for c in node.children { }        for c in node.children.into_vec() { }
+  UiNode { children: v, .. }        UiNode { children: v.into(), .. }
+  ```
+
+- **`eval_condition` e os ajudantes `font_for`/`parse_text_align`/
+  `parse_alignment` recebem `Option<&str>`** no lugar de `&Option<String>`.
+  Internos, listados por completude.
+
+### Notas
+- **O que não foi feito, e por quê.** A terceira ideia da análise era
+  **virtualizar** a lista — avaliar só as linhas visíveis, o que é o único
+  conserto de verdade para 2000 linhas. Ela não entra aqui porque não é uma
+  otimização, é uma funcionalidade: precisa de realimentação de rolagem
+  (`scrollable::on_scroll`, que o motor não plumba hoje), de uma decisão sobre
+  altura de item e de conviver com o arrasto de reordenação. O lugar dela é
+  junto do `TableView` (Onda 6 do `PLANO_WIDGETS.md`), não antes de um release.
+- **A conta que sobra**, para quem for continuar: numa lista, o `item_layer`
+  monta a camada de variáveis de **cada** item (um `format!` e um
+  `json_scalar` por campo, mais uma serialização do item inteiro) **antes** de
+  consultar o cache — ou seja, mesmo quando o item vai ser reaproveitado.
+  Inverter as duas coisas é o próximo ganho grande, e não foi feito agora porque
+  mexe na ordem em que as dependências de uma entrada são validadas — o tipo de
+  mudança que erra silencioso, servindo tela velha, se for feita com pressa.
+
+---
+
 ## [0.73.0] — 2026-09-01
 
 ### Adicionado

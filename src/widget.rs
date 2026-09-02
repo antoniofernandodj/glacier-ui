@@ -389,8 +389,8 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Gradient, Length
 
 /// Selects an `iced::Font` from a `font="..."` hint. `mono`/`monospace`/`code`
 /// map to the monospaced font; anything else returns `None` (default font).
-fn font_for(hint: &Option<String>) -> Option<Font> {
-    match hint.as_deref().map(|s| s.to_ascii_lowercase()) {
+fn font_for(hint: Option<&str>) -> Option<Font> {
+    match hint.map(|s| s.to_ascii_lowercase()) {
         Some(ref s) if s == "mono" || s == "monospace" || s == "code" => Some(Font::MONOSPACE),
         Some(ref s) if s == "bold" => Some(Font {
             weight: iced::font::Weight::Bold,
@@ -409,9 +409,9 @@ pub(crate) fn is_truthy(s: &str) -> bool {
 }
 
 /// Maps `start`/`center`/`end` (and aliases) to a horizontal text alignment.
-fn parse_text_align(s: &Option<String>) -> Option<iced::alignment::Horizontal> {
+fn parse_text_align(s: Option<&str>) -> Option<iced::alignment::Horizontal> {
     use iced::alignment::Horizontal;
-    match s.as_deref().map(|v| v.to_ascii_lowercase()) {
+    match s.map(|v| v.to_ascii_lowercase()) {
         Some(ref v) if v == "start" || v == "left" => Some(Horizontal::Left),
         Some(ref v) if v == "center" || v == "centre" => Some(Horizontal::Center),
         Some(ref v) if v == "end" || v == "right" => Some(Horizontal::Right),
@@ -448,7 +448,7 @@ fn parse_gradient(spec: &str) -> Option<Gradient> {
 
 /// Resolves the background of a node: a `gradient` wins over a solid `background`.
 fn background_for(node: &UiNode) -> Option<Background> {
-    if let Some(g) = node.gradient.as_ref().and_then(|s| parse_gradient(s)) {
+    if let Some(g) = node.gradient().and_then(parse_gradient) {
         return Some(Background::Gradient(g));
     }
     node.background
@@ -705,8 +705,8 @@ fn parse_padding(s: &Option<String>) -> Padding {
 }
 
 /// Helper to parse alignment
-fn parse_alignment(s: &Option<String>) -> Option<Alignment> {
-    match s.as_deref() {
+fn parse_alignment(s: Option<&str>) -> Option<Alignment> {
+    match s {
         Some("start") | Some("Start") | Some("START") => Some(Alignment::Start),
         Some("center") | Some("Center") | Some("CENTER") => Some(Alignment::Center),
         Some("end") | Some("End") | Some("END") => Some(Alignment::End),
@@ -806,7 +806,7 @@ pub fn render_node<'a>(
                     weight: iced::font::Weight::Bold,
                     ..Default::default()
                 });
-            } else if let Some(f) = font_for(&node.font) {
+            } else if let Some(f) = font_for(node.font()) {
                 t = t.font(f);
             }
             if let Some(c_str) = color
@@ -814,7 +814,7 @@ pub fn render_node<'a>(
             {
                 t = t.color(col);
             }
-            if let Some(align) = parse_text_align(&node.text_align) {
+            if let Some(align) = parse_text_align(node.text_align()) {
                 t = t.align_x(align);
             }
             t.width(parse_length(&node.width))
@@ -844,13 +844,13 @@ pub fn render_node<'a>(
                 .collect();
             let content: Element<'a, EngineMessage> = if visible_children.is_empty() {
                 let mut t = text(btn_text.as_str());
-                if let Some(f) = font_for(&node.font) {
+                if let Some(f) = font_for(node.font()) {
                     t = t.font(f);
                 }
                 // `textAlign` aligns the label inside the button. For a full-width
                 // button the label must fill the button's width to actually move,
                 // so `center`/`end` get `width: fill` on the text.
-                if let Some(align) = parse_text_align(&node.text_align) {
+                if let Some(align) = parse_text_align(node.text_align()) {
                     t = t.align_x(align);
                     if !matches!(align, iced::alignment::Horizontal::Left) {
                         t = t.width(Length::Fill);
@@ -861,7 +861,7 @@ pub fn render_node<'a>(
                 render_node(visible_children[0], context, editors, combos, assets)
             } else {
                 let mut r = row![];
-                if let Some(align_val) = parse_alignment(&node.align_y) {
+                if let Some(align_val) = parse_alignment(node.align_y()) {
                     r = r.align_y(align_val);
                 }
                 if let Some(sp) = node.spacing {
@@ -894,24 +894,22 @@ pub fn render_node<'a>(
                 let br_radius = node.border_radius.unwrap_or(0.0);
                 let br_width = node.border_width.unwrap_or(0.0);
                 let br_color = node
-                    .border_color
-                    .as_ref()
-                    .and_then(|c| parse_hex_color(c))
+                    .border_color()
+                    .and_then(parse_hex_color)
                     .unwrap_or(Color::TRANSPARENT);
                 // Cor do rótulo: `textColor`/`.classe { text-color }`, senão
                 // branco (default histórico). O `color` do botão é o fundo.
                 let label_col = node
-                    .text_color
-                    .as_deref()
+                    .text_color()
                     .and_then(parse_hex_color)
                     .unwrap_or(Color::WHITE);
                 // Overlays por pseudo-estado (`.classe:hover/:active/:disabled { }`),
                 // já resolvidos em `eval.rs`; `None` quando o `.gss` não declara
                 // aquele estado — nesse caso cai no auto-derive histórico
                 // (±10% de luminância) ou, para `disabled`, 50% de alfa.
-                let hover_ov = node.hover_style.as_deref().cloned();
-                let active_ov = node.active_style.as_deref().cloned();
-                let disabled_ov = node.disabled_style.as_deref().cloned();
+                let hover_ov = node.hover_style().cloned();
+                let active_ov = node.active_style().cloned();
+                let disabled_ov = node.disabled_style().cloned();
                 btn = btn.style(move |_theme, status| {
                     use iced::widget::button::Status;
                     let overlay = match status {
@@ -1007,18 +1005,17 @@ pub fn render_node<'a>(
             // `disabled` for the same reason as `on_input` above.
             if !is_disabled
                 && let (Some(control), Some(scope), Some(submit_action)) = (
-                    &node.form_control,
-                    &node.form_scope,
-                    &node.form_submit_action,
+                    node.form_control(),
+                    node.form_scope(),
+                    node.form_submit_action(),
                 )
             {
                 input = input.id(form_input_id(scope, control));
                 let next_focus = node
-                    .form_next_focus
-                    .as_ref()
+                    .form_next_focus()
                     .map(|next| form_input_id(scope, next));
                 input = input.on_submit(EngineMessage::UiSubmit {
-                    action: submit_action.clone(),
+                    action: submit_action.to_string(),
                     next_focus,
                 });
             }
@@ -1042,13 +1039,13 @@ pub fn render_node<'a>(
             // Overlays por pseudo-estado (`:hover`/`:focus`/`:disabled`);
             // parte do estilo padrão do tema (`text_input::default`) e
             // sobrescreve só os campos que o `.gss` realmente declarou.
-            if node.hover_style.is_some()
-                || node.focus_style.is_some()
-                || node.disabled_style.is_some()
+            if node.hover_style().is_some()
+                || node.focus_style().is_some()
+                || node.disabled_style().is_some()
             {
-                let hover_ov = node.hover_style.as_deref().cloned();
-                let focus_ov = node.focus_style.as_deref().cloned();
-                let disabled_ov = node.disabled_style.as_deref().cloned();
+                let hover_ov = node.hover_style().cloned();
+                let focus_ov = node.focus_style().cloned();
+                let disabled_ov = node.disabled_style().cloned();
                 input = input.style(move |theme, status| {
                     use iced::widget::text_input::Status;
                     let mut style = iced::widget::text_input::default(theme, status);
@@ -1112,7 +1109,7 @@ pub fn render_node<'a>(
                             readonly,
                         })
                         .padding(parse_padding(&node.padding));
-                    if let Some(f) = font_for(&node.font) {
+                    if let Some(f) = font_for(node.font()) {
                         ed = ed.font(f);
                     }
                     ed.height(parse_length(&node.height)).into()
@@ -1241,7 +1238,7 @@ pub fn render_node<'a>(
                     value: next.map(str::to_string).unwrap_or_else(|| v.to_string()),
                 });
             }
-            if let Some(s) = node.text_align.as_ref().and(node.spacing) {
+            if let Some(s) = node.text_align().and(node.spacing) {
                 c = c.spacing(s);
             }
             c.into()
@@ -1309,12 +1306,12 @@ pub fn render_node<'a>(
             let bg = background_for(node);
             let br_radius = node.border_radius;
             let br_width = node.border_width;
-            let br_color = node.border_color.as_ref().and_then(|c| parse_hex_color(c));
+            let br_color = node.border_color().and_then(parse_hex_color);
             let txt_color = color.as_ref().and_then(|c| parse_hex_color(c));
 
             // `Select`/`pick_list` não tem `Status::Disabled` no iced (o handler
             // é obrigatório), então só o overlay de `:hover` faz sentido aqui.
-            let hover_ov = node.hover_style.as_deref().cloned();
+            let hover_ov = node.hover_style().cloned();
             let style_fn = move |theme: &iced::Theme, status: pick_list::Status| {
                 let pal = theme.extended_palette();
                 let mut text_color = txt_color.unwrap_or(pal.background.base.text);
@@ -1373,7 +1370,7 @@ pub fn render_node<'a>(
             if !placeholder.is_empty() {
                 pl = pl.placeholder(placeholder.clone());
             }
-            if let Some(f) = font_for(&node.font) {
+            if let Some(f) = font_for(node.font()) {
                 pl = pl.font(f);
             }
 
@@ -1459,7 +1456,7 @@ pub fn render_node<'a>(
                     if node.padding.is_some() {
                         cb = cb.padding(parse_padding(&node.padding));
                     }
-                    if let Some(f) = font_for(&node.font) {
+                    if let Some(f) = font_for(node.font()) {
                         cb = cb.font(f);
                     }
 
@@ -1468,8 +1465,8 @@ pub fn render_node<'a>(
                     // já que o campo de digitação do combo é um `text_input`
                     // por baixo) e sobrescreve só o que o `.gss` declarou.
                     let txt_color = color.as_ref().and_then(|c| parse_hex_color(c));
-                    let hover_ov = node.hover_style.as_deref().cloned();
-                    let focus_ov = node.focus_style.as_deref().cloned();
+                    let hover_ov = node.hover_style().cloned();
+                    let focus_ov = node.focus_style().cloned();
                     cb = cb.input_style(move |theme, status| {
                         use iced::widget::text_input::Status;
                         let mut style = iced::widget::text_input::default(theme, status);
@@ -1551,7 +1548,7 @@ pub fn render_node<'a>(
             let bg_opt = background_for(node);
             let br_opt = node.border_radius;
             let bw_opt = node.border_width;
-            let bc_opt = node.border_color.as_ref().and_then(|c| parse_hex_color(c));
+            let bc_opt = node.border_color().and_then(parse_hex_color);
 
             let mut pb = progress_bar(*min..=*max, value);
             if *vertical {
@@ -1977,7 +1974,7 @@ pub fn render_node<'a>(
         NodeType::Column => {
             let mut col = column![];
 
-            if let Some(align_val) = parse_alignment(&node.align_x) {
+            if let Some(align_val) = parse_alignment(node.align_x()) {
                 col = col.align_x(align_val);
             }
 
@@ -1998,7 +1995,7 @@ pub fn render_node<'a>(
         NodeType::Row => {
             let mut r = row![];
 
-            if let Some(align_val) = parse_alignment(&node.align_y) {
+            if let Some(align_val) = parse_alignment(node.align_y()) {
                 r = r.align_y(align_val);
             }
 
@@ -2023,7 +2020,7 @@ pub fn render_node<'a>(
             // render here beyond stacking its children.
             let mut col = column![];
 
-            if let Some(align_val) = parse_alignment(&node.align_x) {
+            if let Some(align_val) = parse_alignment(node.align_x()) {
                 col = col.align_x(align_val);
             }
             if let Some(sp) = node.spacing {
@@ -2053,20 +2050,17 @@ pub fn render_node<'a>(
                 .height(parse_length(&node.height))
                 .padding(parse_padding(&node.padding));
 
-            if let Some(ax) = parse_alignment(&node.align_x) {
+            if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&node.align_y) {
+            if let Some(ay) = parse_alignment(node.align_y()) {
                 c = c.align_y(ay);
             }
 
             let bg_opt = background_for(node);
             let br_opt = node.border_radius;
             let bw_opt = node.border_width.unwrap_or(0.0);
-            let bc_opt = node
-                .border_color
-                .as_ref()
-                .and_then(|bc| parse_hex_color(bc));
+            let bc_opt = node.border_color().and_then(parse_hex_color);
 
             if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
                 c = c.style(move |_theme| container::Style {
@@ -2250,10 +2244,7 @@ pub fn render_node<'a>(
         let bg_opt = background_for(node);
         let br_opt = node.border_radius;
         let bw_opt = node.border_width.unwrap_or(0.0);
-        let bc_opt = node
-            .border_color
-            .as_ref()
-            .and_then(|bc| parse_hex_color(bc));
+        let bc_opt = node.border_color().and_then(parse_hex_color);
 
         if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
             let mut c = container(element);
@@ -2261,10 +2252,10 @@ pub fn render_node<'a>(
                 .width(parse_length(&node.width))
                 .height(parse_length(&node.height));
 
-            if let Some(ax) = parse_alignment(&node.align_x) {
+            if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&node.align_y) {
+            if let Some(ay) = parse_alignment(node.align_y()) {
                 c = c.align_y(ay);
             }
 
@@ -2302,46 +2293,46 @@ pub fn render_node<'a>(
     // `on_double_click` covers e.g. titlebar double-click to maximize; and
     // `cursor` sets the hover pointer (resize arrows on edge handles). Applied
     // last so the whole styled element is the interactive surface.
-    if node.on_press.is_some()
-        || node.on_double_click.is_some()
-        || node.cursor.is_some()
-        || node.drag_item_key.is_some()
+    if node.on_press().is_some()
+        || node.on_double_click().is_some()
+        || node.cursor().is_some()
+        || node.drag_item_key().is_some()
     {
         let mut ma = mouse_area(element);
-        if let Some(action) = &node.on_press {
-            ma = ma.on_press(EngineMessage::UiClick(action.clone()));
+        if let Some(action) = node.on_press() {
+            ma = ma.on_press(EngineMessage::UiClick(action.to_string()));
         }
-        if let Some(action) = &node.on_double_click {
-            ma = ma.on_double_click(EngineMessage::UiClick(action.clone()));
+        if let Some(action) = node.on_double_click() {
+            ma = ma.on_double_click(EngineMessage::UiClick(action.to_string()));
         }
-        if let Some(interaction) = node.cursor.as_deref().and_then(cursor_interaction) {
+        if let Some(interaction) = node.cursor().and_then(cursor_interaction) {
             ma = ma.interaction(interaction);
         }
         // Drag-and-drop reordering (see `UiNode::drag_*`, hydrated by the
         // for-each expansion of a reorderable list in `eval.rs`): every item of
         // such a list is a valid drop/hover target; only its `dragHandle`
         // descendant also starts the drag on press.
-        if let (Some(list), Some(key)) = (&node.drag_list, &node.drag_item_key) {
+        if let (Some(list), Some(key)) = (node.drag_list(), node.drag_item_key()) {
             ma = ma.on_enter(EngineMessage::DragHover {
-                list: list.clone(),
-                key: key.clone(),
+                list: list.to_string(),
+                key: key.to_string(),
             });
         }
         if node.drag_handle
             && let (Some(list), Some(key), Some(order), Some(on_reorder), Some(reorder_key)) = (
-                &node.drag_list,
-                &node.drag_item_key,
-                &node.drag_order,
-                &node.drag_on_reorder,
-                &node.drag_reorder_key,
+                node.drag_list(),
+                node.drag_item_key(),
+                node.drag_order(),
+                node.drag_on_reorder(),
+                node.drag_reorder_key(),
             )
         {
             ma = ma.on_press(EngineMessage::DragStart {
-                list: list.clone(),
-                reorder_key: reorder_key.clone(),
-                on_reorder: on_reorder.clone(),
-                order: order.clone(),
-                key: key.clone(),
+                list: list.to_string(),
+                reorder_key: reorder_key.to_string(),
+                on_reorder: on_reorder.to_string(),
+                order: order.to_vec(),
+                key: key.to_string(),
             });
         }
         element = ma.into();
@@ -2353,8 +2344,8 @@ pub fn render_node<'a>(
     // helper embutido do iced, independente do tema ativo (fundo quase preto +
     // texto branco) — não precisa de fiação nova com o `theme.json` do app
     // pra ficar legível em qualquer paleta.
-    if let Some(tip) = node.tooltip.as_deref().filter(|s| !s.is_empty()) {
-        let position = match node.tooltip_position.as_deref() {
+    if let Some(tip) = node.tooltip().filter(|s| !s.is_empty()) {
+        let position = match node.tooltip_position() {
             Some("bottom") => TooltipPosition::Bottom,
             Some("left") => TooltipPosition::Left,
             Some("follow") | Some("follow_cursor") | Some("cursor") => {

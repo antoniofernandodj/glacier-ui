@@ -1101,112 +1101,84 @@ pub enum BoolAttr {
 /// Ver [`UiNode::node_id`].
 static NEXT_NODE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+/// Os filhos de um [`UiNode`], **compartilhados** por contagem de referência.
+///
+/// A razão é o cache de avaliação (`eval.rs`): um acerto de cache devolve a
+/// subárvore guardada, e antes disto isso era uma cópia profunda — a árvore
+/// inteira memcpy'ada nó a nó, a cada mudança de estado, mesmo quando nada
+/// naquela subárvore tinha mudado. Com o `Arc`, clonar um nó custa um
+/// incremento de contador, e a árvore avaliada passa a **dividir** a memória
+/// com a entrada de cache em vez de duplicá-la.
+///
+/// A escrita continua possível e continua correta: [`Children::to_mut`] é
+/// copy-on-write (`Arc::make_mut`), então quem altera filhos compartilhados
+/// paga a cópia **daquele** vetor, uma vez, e ninguém mais enxerga a mudança.
+///
+/// Deref para `Vec<UiNode>` e `IntoIterator` para `&Children` existem para que
+/// todo o código de leitura — `node.children.len()`, `node.children[0]`,
+/// `for c in &node.children` — continue escrito como sempre foi.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Children(std::sync::Arc<Vec<UiNode>>);
+
+impl Children {
+    /// Acesso mutável aos filhos, copiando o vetor **só** se ele estiver
+    /// compartilhado com outro dono (`Arc::make_mut`).
+    pub fn to_mut(&mut self) -> &mut Vec<UiNode> {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+
+    /// Consome e devolve o vetor, sem copiar quando este é o único dono.
+    pub fn into_vec(self) -> Vec<UiNode> {
+        std::sync::Arc::try_unwrap(self.0).unwrap_or_else(|a| (*a).clone())
+    }
+}
+
+impl std::ops::Deref for Children {
+    type Target = Vec<UiNode>;
+    fn deref(&self) -> &Vec<UiNode> {
+        &self.0
+    }
+}
+
+impl From<Vec<UiNode>> for Children {
+    fn from(v: Vec<UiNode>) -> Self {
+        Self(std::sync::Arc::new(v))
+    }
+}
+
+impl FromIterator<UiNode> for Children {
+    fn from_iter<I: IntoIterator<Item = UiNode>>(it: I) -> Self {
+        Self(std::sync::Arc::new(it.into_iter().collect()))
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = &'a UiNode;
+    type IntoIter = std::slice::Iter<'a, UiNode>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+/// Embrulha um grupo de campos opcionais do [`UiNode`] numa caixa — e devolve
+/// `None` quando **nenhum** deles foi usado, que é o caso da esmagadora maioria
+/// dos nós. É o que faz o grupo custar 8 bytes no nó em vez do tamanho somado
+/// dos campos dele.
+pub(crate) fn caixa<T: Default + PartialEq>(v: T) -> Option<Box<T>> {
+    (v != T::default()).then(|| Box::new(v))
+}
+
 /// A próxima identidade de nó.
 pub(crate) fn next_node_id() -> u64 {
     NEXT_NODE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct UiNode {
-    /// Identidade **do nó no template**, atribuída no parse e preservada pelos
-    /// clones que a avaliação faz. É o que dá ao cache de avaliação uma chave
-    /// estável: sem ela, dois `for-each` irmãos (ou aninhados) não teriam como
-    /// ser distinguidos um do outro entre uma reavaliação e a seguinte. Ver
-    /// [`crate::eval::EvalCache`].
-    ///
-    /// Recarregar o template gera ids novos — as entradas velhas do cache viram
-    /// órfãs e são varridas, que é o comportamento desejado (o markup mudou).
-    pub node_id: u64,
-    pub kind: NodeType,
-    pub children: Vec<UiNode>,
-    /// Raw, still-templated values of numeric attributes whose XML value held a
-    /// `{...}` placeholder (so they couldn't be parsed to `f32` at parse time).
-    /// Resolved and parsed during evaluation; see [`NumAttr`]. Empty for the
-    /// common case where every numeric attribute was a literal.
-    pub numeric_templates: Vec<(NumAttr, String)>,
-    /// O mesmo que `numeric_templates`, para os booleanos `hidden`/`disabled`
-    /// escritos com placeholder (`hidden="{oculto}"`). Resolvidos na avaliação;
-    /// ver [`BoolAttr`]. Vazio no caso comum (valor literal).
-    pub bool_templates: Vec<(BoolAttr, String)>,
-    pub width: Option<String>,
-    pub height: Option<String>,
-    pub padding: Option<String>,
-    pub align_x: Option<String>,
-    pub align_y: Option<String>,
-    pub spacing: Option<f32>,
-    pub background: Option<String>,
-    pub border_radius: Option<f32>,
-    pub border_width: Option<f32>,
-    pub border_color: Option<String>,
-    /// Space-separated stylesheet classes (`class="card centered"`), resolved
-    /// against the loaded `.gss` stylesheets during evaluation.
-    pub class: Option<String>,
-    /// Element id (`id="save"`), matched against `#id { }` GSS selectors during
-    /// evaluation. Higher specificity than `class` (applied on top of it, still
-    /// under inline attributes). Uniqueness isn't enforced — several nodes may
-    /// share an id and all pick up the same `#id` rule.
-    pub id: Option<String>,
-    /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
-    /// monospaced font; anything else (or `None`) uses the default.
-    pub font: Option<String>,
-    /// A linear gradient background, overriding `background` when present.
-    /// Syntax: `"#RRGGBB #RRGGBB"` (top→bottom) or `"<angle> #a #b [#c ...]"`
-    /// where `<angle>` is in degrees.
-    pub gradient: Option<String>,
-    /// Horizontal text alignment for `Text`: `start`/`center`/`end`.
-    pub text_align: Option<String>,
-    /// Action dispatched on mouse press (button-down) over this element, which
-    /// wraps it in a `mouse_area`. Unlike a `Button`'s click (which fires on
-    /// release), press semantics are required for window dragging
-    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::UiClick`].
-    pub on_press: Option<String>,
-    /// Action dispatched on a double-click over this element (wraps it in a
-    /// `mouse_area`). Common for titlebars (`onDoubleClick="window:maximize"`).
-    pub on_double_click: Option<String>,
-    /// Mouse cursor shown while hovering this element (`cursor="pointer"`,
-    /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
-    /// corresponding `mouse::Interaction`. Useful for window resize handles.
-    pub cursor: Option<String>,
-    /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
-    pub text_color: Option<String>,
-    /// Texto exibido num balão flutuante ao pairar o mouse sobre o elemento
-    /// (`tooltip="..."`/`title="..."`), via `iced::widget::Tooltip`. Só
-    /// atributo inline (sem `.classe { }` equivalente — é conteúdo, não
-    /// estilo). Útil sobretudo em ícones sem rótulo visível (ex.: a sidebar
-    /// colapsada de rustploy-gui).
-    pub tooltip: Option<String>,
-    /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
-    /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
-    pub tooltip_position: Option<String>,
-    /// Teto de largura/altura (`maxWidth`/`maxHeight`) — envolve o elemento num
-    /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
-    pub max_width: Option<f32>,
-    pub max_height: Option<f32>,
-    /// `hidden`/`oculto` (ou via `.classe { hidden: true }` / `display: none`) —
-    /// remove o elemento do layout sem ocupar espaço nem `spacing`. Uso típico:
-    /// `@media` esconder cromo em janelas estreitas (ver [`crate::stylesheet::StyleRule::hidden`]).
-    pub hidden: Option<bool>,
-    /// `disabled`/`desabilitado` — desativa a interação (Button/TextInput/
-    /// Checkbox/Toggle deixam de anexar seus handlers `on_press`/`on_input`/
-    /// `on_toggle`, então o `Status::Disabled` nativo do iced entra em vigor
-    /// sozinho, sem o motor precisar rastrear estado). Ao contrário de
-    /// `hidden`, o elemento continua ocupando espaço e renderizando — só perde
-    /// a interatividade. Só existe como atributo inline (sem `.classe { }`
-    /// equivalente, ao contrário de `hidden`).
-    pub disabled: Option<bool>,
-    /// Overlays de estilo por pseudo-estado (`.classe:hover { }`,
-    /// `:focus`, `:active`, `:disabled`), resolvidos em `eval.rs` a partir
-    /// da(s) classe(s) do nó — nunca vêm de atributo inline, sempre `None`
-    /// logo após o parse do XML. `None` quando o `.gss` não declara aquele
-    /// estado para nenhuma classe do nó (custo zero no caso comum). Aplicados
-    /// por `widget.rs` dentro da closure de `Status` do widget correspondente
-    /// (ex.: `button::Status::Hovered`); hoje só `Button` e `TextInput`
-    /// consultam esses campos — `Select` só usa `hover_style` para a borda.
-    pub hover_style: Option<Box<StyleRule>>,
-    pub focus_style: Option<Box<StyleRule>>,
-    pub active_style: Option<Box<StyleRule>>,
-    pub disabled_style: Option<Box<StyleRule>>,
-    // Structural directives as attributes (Vue/Angular style)
+/// Diretivas de fluxo (`if`/`else-if`/`for-each`) — presentes em
+/// pouquíssimos nós, e por isso fora do corpo do [`UiNode`].
+///
+/// Ver [`UiNode::cond`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Cond {
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
     pub if_not_equals: Option<String>,
@@ -1216,14 +1188,6 @@ pub struct UiNode {
     /// nova. Ex.: manter um item de nav "aceso" em várias sub-telas
     /// (`one_of="projects project new_service service"`).
     pub if_one_of: Option<String>,
-    /// `empty`/`not_empty` (bare, como `else` — ver `normalize_bare_directives`
-    /// em `eval.rs`) — `cond` já é o JSON cru de uma lista no contexto
-    /// (`ctx.proj_secrets = "[...]"`); casa se ela tiver zero elementos (ou
-    /// não for um array JSON válido — "sem lista ainda" também conta como
-    /// vazio) ou o oposto. Aposenta os `*_count` que só existiam pra dar a
-    /// um template algo pra comparar com `equals="0"`.
-    pub if_empty: bool,
-    pub if_not_empty: bool,
     /// `platform="desktop"`/`"web"` — filtro independente de `if`/`else-if`/
     /// `else` (não participa da cadeia, não mexe em `last_if`): um valor que
     /// não bate com [`crate::eval::current_platform`] some o nó inteiro da
@@ -1234,7 +1198,6 @@ pub struct UiNode {
     /// (titlebar, resize handles) e só-web (PWA) no MESMO arquivo em vez de
     /// forçar dois — ver `expand_children` em `eval.rs`.
     pub if_platform: Option<String>,
-    pub is_else: bool,
     /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
     /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
     /// pro comparador, já que um nó só pode ser `if=` OU `else-if=`, nunca os
@@ -1242,15 +1205,14 @@ pub struct UiNode {
     pub else_if_cond: Option<String>,
     pub for_each: Option<String>,
     pub for_each_var: Option<String>,
-    /// `slot="footer"` — em qual buraco **nomeado** do componente este nó entra.
-    /// É a contraparte, do lado de quem usa, do `<slot name="footer"/>` que o
-    /// template do componente escreve (ver [`NodeType::Slot`]). `None` = vai
-    /// para o slot anônimo.
-    ///
-    /// Como as outras diretivas, é lido pela fronteira de componente do `eval`
-    /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
-    /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
-    pub slot_name: Option<String>,
+}
+
+/// Metadados de arrasto de uma lista reordenável, hidratados pela expansão
+/// do `for-each` — nulos em todo nó que não seja item de lista.
+///
+/// Ver [`UiNode::drag`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Drag {
     /// Action dispatched (with the new order as a JSON array of `reorderKey`
     /// identities) when a reorderable `for-each`/`ForEach` item is dropped in a
     /// new position. Set on the same node that carries `for_each`/`for_each_var`.
@@ -1258,9 +1220,6 @@ pub struct UiNode {
     /// Field name (within each item's JSON object) used as its stable identity
     /// for reordering — the array itself has no positional index of its own.
     pub reorder_key: Option<String>,
-    /// Marks a descendant of a reorderable item as the "grab handle": only it
-    /// starts a drag on mouse-press. Doesn't interpolate; a plain marker.
-    pub drag_handle: bool,
     /// Internal, evaluation-only fields hydrated by the for-each expansion of a
     /// reorderable list (never set from raw markup): which list (`items` key)
     /// and which item (`reorder_key` value) a node belongs to, used to attach
@@ -1268,11 +1227,19 @@ pub struct UiNode {
     /// full drag payload (`drag_order`+`drag_on_reorder`) the handle gets.
     pub drag_list: Option<String>,
     pub drag_item_key: Option<String>,
-    pub drag_order: Option<Vec<String>>,
     pub drag_on_reorder: Option<String>,
     /// Same, for the `reorderKey` field name — needed by [`crate::GlacierUI`]
     /// to reorder the context's JSON array by identity as the drag moves.
     pub drag_reorder_key: Option<String>,
+    pub drag_order: Option<Vec<String>>,
+}
+
+/// Ligação a um [`crate::forms::Form`] — só nos nós de entrada dentro de um
+/// `<Form>`.
+///
+/// Ver [`UiNode::form`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FormBits {
     /// Binds this input to a [`crate::forms::Form`]'s `FormControl` by name
     /// (Angular's `formControlName`, e.g. `TextInput formControl="email"`). A
     /// `TextInput` with no explicit `value`/`onChange` uses this name for
@@ -1292,7 +1259,585 @@ pub struct UiNode {
     pub form_next_focus: Option<String>,
 }
 
+/// Interação de ponteiro (press, duplo clique, cursor, tooltip) — atributos
+/// raros, que quase nenhum nó de uma tela usa.
+///
+/// Ver [`UiNode::interact`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Interact {
+    /// Action dispatched on mouse press (button-down) over this element, which
+    /// wraps it in a `mouse_area`. Unlike a `Button`'s click (which fires on
+    /// release), press semantics are required for window dragging
+    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::UiClick`].
+    pub on_press: Option<String>,
+    /// Action dispatched on a double-click over this element (wraps it in a
+    /// `mouse_area`). Common for titlebars (`onDoubleClick="window:maximize"`).
+    pub on_double_click: Option<String>,
+    /// Mouse cursor shown while hovering this element (`cursor="pointer"`,
+    /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
+    /// corresponding `mouse::Interaction`. Useful for window resize handles.
+    pub cursor: Option<String>,
+    /// Texto exibido num balão flutuante ao pairar o mouse sobre o elemento
+    /// (`tooltip="..."`/`title="..."`), via `iced::widget::Tooltip`. Só
+    /// atributo inline (sem `.classe { }` equivalente — é conteúdo, não
+    /// estilo). Útil sobretudo em ícones sem rótulo visível (ex.: a sidebar
+    /// colapsada de rustploy-gui).
+    pub tooltip: Option<String>,
+    /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
+    /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
+    pub tooltip_position: Option<String>,
+}
+
+/// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
+///
+/// Ver [`UiNode::pseudo`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Pseudo {
+    /// Overlays de estilo por pseudo-estado (`.classe:hover { }`,
+    /// `:focus`, `:active`, `:disabled`), resolvidos em `eval.rs` a partir
+    /// da(s) classe(s) do nó — nunca vêm de atributo inline, sempre `None`
+    /// logo após o parse do XML. `None` quando o `.gss` não declara aquele
+    /// estado para nenhuma classe do nó (custo zero no caso comum). Aplicados
+    /// por `widget.rs` dentro da closure de `Status` do widget correspondente
+    /// (ex.: `button::Status::Hovered`); hoje só `Button` e `TextInput`
+    /// consultam esses campos — `Select` só usa `hover_style` para a borda.
+    pub hover_style: Option<Box<StyleRule>>,
+    pub focus_style: Option<Box<StyleRule>>,
+    pub active_style: Option<Box<StyleRule>>,
+    pub disabled_style: Option<Box<StyleRule>>,
+}
+
+/// Aparência de segunda ordem: alinhamento, fonte, gradiente e cores que
+/// não são o `background`. Fora do corpo do nó porque a maioria é `None`.
+///
+/// Ver [`UiNode::look`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Look {
+    pub align_x: Option<String>,
+    pub align_y: Option<String>,
+    pub border_color: Option<String>,
+    /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
+    /// monospaced font; anything else (or `None`) uses the default.
+    pub font: Option<String>,
+    /// A linear gradient background, overriding `background` when present.
+    /// Syntax: `"#RRGGBB #RRGGBB"` (top→bottom) or `"<angle> #a #b [#c ...]"`
+    /// where `<angle>` is in degrees.
+    pub gradient: Option<String>,
+    /// Horizontal text alignment for `Text`: `start`/`center`/`end`.
+    pub text_align: Option<String>,
+    /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
+    pub text_color: Option<String>,
+    /// `slot="footer"` — em qual buraco **nomeado** do componente este nó entra.
+    /// É a contraparte, do lado de quem usa, do `<slot name="footer"/>` que o
+    /// template do componente escreve (ver [`NodeType::Slot`]). `None` = vai
+    /// para o slot anônimo.
+    ///
+    /// Como as outras diretivas, é lido pela fronteira de componente do `eval`
+    /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
+    /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
+    pub slot_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UiNode {
+    /// Identidade **do nó no template**, atribuída no parse e preservada pelos
+    /// clones que a avaliação faz. É o que dá ao cache de avaliação uma chave
+    /// estável: sem ela, dois `for-each` irmãos (ou aninhados) não teriam como
+    /// ser distinguidos um do outro entre uma reavaliação e a seguinte. Ver
+    /// [`crate::eval::EvalCache`].
+    ///
+    /// Recarregar o template gera ids novos — as entradas velhas do cache viram
+    /// órfãs e são varridas, que é o comportamento desejado (o markup mudou).
+    pub node_id: u64,
+    pub kind: NodeType,
+    pub children: Children,
+    /// Raw, still-templated values of numeric attributes whose XML value held a
+    /// `{...}` placeholder (so they couldn't be parsed to `f32` at parse time).
+    /// Resolved and parsed during evaluation; see [`NumAttr`]. Empty for the
+    /// common case where every numeric attribute was a literal.
+    pub numeric_templates: Vec<(NumAttr, String)>,
+    /// O mesmo que `numeric_templates`, para os booleanos `hidden`/`disabled`
+    /// escritos com placeholder (`hidden="{oculto}"`). Resolvidos na avaliação;
+    /// ver [`BoolAttr`]. Vazio no caso comum (valor literal).
+    pub bool_templates: Vec<(BoolAttr, String)>,
+    pub width: Option<String>,
+    pub height: Option<String>,
+    pub padding: Option<String>,
+    pub spacing: Option<f32>,
+    pub background: Option<String>,
+    pub border_radius: Option<f32>,
+    pub border_width: Option<f32>,
+    /// Space-separated stylesheet classes (`class="card centered"`), resolved
+    /// against the loaded `.gss` stylesheets during evaluation.
+    pub class: Option<String>,
+    /// Element id (`id="save"`), matched against `#id { }` GSS selectors during
+    /// evaluation. Higher specificity than `class` (applied on top of it, still
+    /// under inline attributes). Uniqueness isn't enforced — several nodes may
+    /// share an id and all pick up the same `#id` rule.
+    pub id: Option<String>,
+    /// Teto de largura/altura (`maxWidth`/`maxHeight`) — envolve o elemento num
+    /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
+    /// `hidden`/`oculto` (ou via `.classe { hidden: true }` / `display: none`) —
+    /// remove o elemento do layout sem ocupar espaço nem `spacing`. Uso típico:
+    /// `@media` esconder cromo em janelas estreitas (ver [`crate::stylesheet::StyleRule::hidden`]).
+    pub hidden: Option<bool>,
+    /// `disabled`/`desabilitado` — desativa a interação (Button/TextInput/
+    /// Checkbox/Toggle deixam de anexar seus handlers `on_press`/`on_input`/
+    /// `on_toggle`, então o `Status::Disabled` nativo do iced entra em vigor
+    /// sozinho, sem o motor precisar rastrear estado). Ao contrário de
+    /// `hidden`, o elemento continua ocupando espaço e renderizando — só perde
+    /// a interatividade. Só existe como atributo inline (sem `.classe { }`
+    /// equivalente, ao contrário de `hidden`).
+    pub disabled: Option<bool>,
+    // Structural directives as attributes (Vue/Angular style)
+    /// `empty`/`not_empty` (bare, como `else` — ver `normalize_bare_directives`
+    /// em `eval.rs`) — `cond` já é o JSON cru de uma lista no contexto
+    /// (`ctx.proj_secrets = "[...]"`); casa se ela tiver zero elementos (ou
+    /// não for um array JSON válido — "sem lista ainda" também conta como
+    /// vazio) ou o oposto. Aposenta os `*_count` que só existiam pra dar a
+    /// um template algo pra comparar com `equals="0"`.
+    pub if_empty: bool,
+    pub if_not_empty: bool,
+    pub is_else: bool,
+    /// Marks a descendant of a reorderable item as the "grab handle": only it
+    /// starts a drag on mouse-press. Doesn't interpolate; a plain marker.
+    pub drag_handle: bool,
+    /// Diretivas de fluxo (`if`/`else-if`/`for-each`) — presentes em
+    /// Alocado só quando algum dos campos de [`Cond`] é usado.
+    pub cond: Option<Box<Cond>>,
+    /// Metadados de arrasto de uma lista reordenável, hidratados pela expansão
+    /// Alocado só quando algum dos campos de [`Drag`] é usado.
+    pub drag: Option<Box<Drag>>,
+    /// Ligação a um [`crate::forms::Form`] — só nos nós de entrada dentro de um
+    /// Alocado só quando algum dos campos de [`FormBits`] é usado.
+    pub form: Option<Box<FormBits>>,
+    /// Interação de ponteiro (press, duplo clique, cursor, tooltip) — atributos
+    /// Alocado só quando algum dos campos de [`Interact`] é usado.
+    pub interact: Option<Box<Interact>>,
+    /// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
+    /// Alocado só quando algum dos campos de [`Pseudo`] é usado.
+    pub pseudo: Option<Box<Pseudo>>,
+    /// Aparência de segunda ordem: alinhamento, fonte, gradiente e cores que
+    /// Alocado só quando algum dos campos de [`Look`] é usado.
+    pub look: Option<Box<Look>>,
+}
+
 impl UiNode {
+    /// Ver [`Cond::if_cond`].
+    pub fn if_cond(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_cond.as_deref()
+    }
+    /// Escreve [`Cond::if_cond`], alocando o grupo se preciso.
+    pub fn set_if_cond(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_cond = v;
+    }
+    /// Ver [`Cond::if_equals`].
+    pub fn if_equals(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_equals.as_deref()
+    }
+    /// Escreve [`Cond::if_equals`], alocando o grupo se preciso.
+    pub fn set_if_equals(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_equals = v;
+    }
+    /// Ver [`Cond::if_not_equals`].
+    pub fn if_not_equals(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_not_equals.as_deref()
+    }
+    /// Escreve [`Cond::if_not_equals`], alocando o grupo se preciso.
+    pub fn set_if_not_equals(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_not_equals = v;
+    }
+    /// Ver [`Cond::if_one_of`].
+    pub fn if_one_of(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_one_of.as_deref()
+    }
+    /// Escreve [`Cond::if_one_of`], alocando o grupo se preciso.
+    pub fn set_if_one_of(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_one_of = v;
+    }
+    /// Ver [`Cond::if_platform`].
+    pub fn if_platform(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_platform.as_deref()
+    }
+    /// Escreve [`Cond::if_platform`], alocando o grupo se preciso.
+    pub fn set_if_platform(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_platform = v;
+    }
+    /// Ver [`Cond::else_if_cond`].
+    pub fn else_if_cond(&self) -> Option<&str> {
+        self.cond.as_ref()?.else_if_cond.as_deref()
+    }
+    /// Escreve [`Cond::else_if_cond`], alocando o grupo se preciso.
+    pub fn set_else_if_cond(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).else_if_cond = v;
+    }
+    /// Ver [`Cond::for_each`].
+    pub fn for_each(&self) -> Option<&str> {
+        self.cond.as_ref()?.for_each.as_deref()
+    }
+    /// Escreve [`Cond::for_each`], alocando o grupo se preciso.
+    pub fn set_for_each(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).for_each = v;
+    }
+    /// Ver [`Cond::for_each_var`].
+    pub fn for_each_var(&self) -> Option<&str> {
+        self.cond.as_ref()?.for_each_var.as_deref()
+    }
+    /// Escreve [`Cond::for_each_var`], alocando o grupo se preciso.
+    pub fn set_for_each_var(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).for_each_var = v;
+    }
+    /// Ver [`Drag::on_reorder`].
+    pub fn on_reorder(&self) -> Option<&str> {
+        self.drag.as_ref()?.on_reorder.as_deref()
+    }
+    /// Escreve [`Drag::on_reorder`], alocando o grupo se preciso.
+    pub fn set_on_reorder(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).on_reorder = v;
+    }
+    /// Ver [`Drag::reorder_key`].
+    pub fn reorder_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.reorder_key.as_deref()
+    }
+    /// Escreve [`Drag::reorder_key`], alocando o grupo se preciso.
+    pub fn set_reorder_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).reorder_key = v;
+    }
+    /// Ver [`Drag::drag_list`].
+    pub fn drag_list(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_list.as_deref()
+    }
+    /// Escreve [`Drag::drag_list`], alocando o grupo se preciso.
+    pub fn set_drag_list(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_list = v;
+    }
+    /// Ver [`Drag::drag_item_key`].
+    pub fn drag_item_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_item_key.as_deref()
+    }
+    /// Escreve [`Drag::drag_item_key`], alocando o grupo se preciso.
+    pub fn set_drag_item_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_item_key = v;
+    }
+    /// Ver [`Drag::drag_on_reorder`].
+    pub fn drag_on_reorder(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_on_reorder.as_deref()
+    }
+    /// Escreve [`Drag::drag_on_reorder`], alocando o grupo se preciso.
+    pub fn set_drag_on_reorder(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag
+            .get_or_insert_with(Default::default)
+            .drag_on_reorder = v;
+    }
+    /// Ver [`Drag::drag_reorder_key`].
+    pub fn drag_reorder_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_reorder_key.as_deref()
+    }
+    /// Escreve [`Drag::drag_reorder_key`], alocando o grupo se preciso.
+    pub fn set_drag_reorder_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag
+            .get_or_insert_with(Default::default)
+            .drag_reorder_key = v;
+    }
+    /// Ver [`Drag::drag_order`].
+    pub fn drag_order(&self) -> Option<&[String]> {
+        self.drag.as_ref()?.drag_order.as_deref()
+    }
+    /// Escreve [`Drag::drag_order`], alocando o grupo se preciso.
+    pub fn set_drag_order(&mut self, v: Option<Vec<String>>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_order = v;
+    }
+    /// Ver [`FormBits::form_control`].
+    pub fn form_control(&self) -> Option<&str> {
+        self.form.as_ref()?.form_control.as_deref()
+    }
+    /// Escreve [`FormBits::form_control`], alocando o grupo se preciso.
+    pub fn set_form_control(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).form_control = v;
+    }
+    /// Ver [`FormBits::form_scope`].
+    pub fn form_scope(&self) -> Option<&str> {
+        self.form.as_ref()?.form_scope.as_deref()
+    }
+    /// Escreve [`FormBits::form_scope`], alocando o grupo se preciso.
+    pub fn set_form_scope(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).form_scope = v;
+    }
+    /// Ver [`FormBits::form_submit_action`].
+    pub fn form_submit_action(&self) -> Option<&str> {
+        self.form.as_ref()?.form_submit_action.as_deref()
+    }
+    /// Escreve [`FormBits::form_submit_action`], alocando o grupo se preciso.
+    pub fn set_form_submit_action(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_submit_action = v;
+    }
+    /// Ver [`FormBits::form_next_focus`].
+    pub fn form_next_focus(&self) -> Option<&str> {
+        self.form.as_ref()?.form_next_focus.as_deref()
+    }
+    /// Escreve [`FormBits::form_next_focus`], alocando o grupo se preciso.
+    pub fn set_form_next_focus(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_next_focus = v;
+    }
+    /// Ver [`Interact::on_press`].
+    pub fn on_press(&self) -> Option<&str> {
+        self.interact.as_ref()?.on_press.as_deref()
+    }
+    /// Escreve [`Interact::on_press`], alocando o grupo se preciso.
+    pub fn set_on_press(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).on_press = v;
+    }
+    /// Ver [`Interact::on_double_click`].
+    pub fn on_double_click(&self) -> Option<&str> {
+        self.interact.as_ref()?.on_double_click.as_deref()
+    }
+    /// Escreve [`Interact::on_double_click`], alocando o grupo se preciso.
+    pub fn set_on_double_click(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact
+            .get_or_insert_with(Default::default)
+            .on_double_click = v;
+    }
+    /// Ver [`Interact::cursor`].
+    pub fn cursor(&self) -> Option<&str> {
+        self.interact.as_ref()?.cursor.as_deref()
+    }
+    /// Escreve [`Interact::cursor`], alocando o grupo se preciso.
+    pub fn set_cursor(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).cursor = v;
+    }
+    /// Ver [`Interact::tooltip`].
+    pub fn tooltip(&self) -> Option<&str> {
+        self.interact.as_ref()?.tooltip.as_deref()
+    }
+    /// Escreve [`Interact::tooltip`], alocando o grupo se preciso.
+    pub fn set_tooltip(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).tooltip = v;
+    }
+    /// Ver [`Interact::tooltip_position`].
+    pub fn tooltip_position(&self) -> Option<&str> {
+        self.interact.as_ref()?.tooltip_position.as_deref()
+    }
+    /// Escreve [`Interact::tooltip_position`], alocando o grupo se preciso.
+    pub fn set_tooltip_position(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact
+            .get_or_insert_with(Default::default)
+            .tooltip_position = v;
+    }
+    /// Ver [`Pseudo::hover_style`].
+    pub fn hover_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.hover_style.as_deref()
+    }
+    /// Escreve [`Pseudo::hover_style`], alocando o grupo se preciso.
+    pub fn set_hover_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo.get_or_insert_with(Default::default).hover_style = v;
+    }
+    /// Ver [`Pseudo::focus_style`].
+    pub fn focus_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.focus_style.as_deref()
+    }
+    /// Escreve [`Pseudo::focus_style`], alocando o grupo se preciso.
+    pub fn set_focus_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo.get_or_insert_with(Default::default).focus_style = v;
+    }
+    /// Ver [`Pseudo::active_style`].
+    pub fn active_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.active_style.as_deref()
+    }
+    /// Escreve [`Pseudo::active_style`], alocando o grupo se preciso.
+    pub fn set_active_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo
+            .get_or_insert_with(Default::default)
+            .active_style = v;
+    }
+    /// Ver [`Pseudo::disabled_style`].
+    pub fn disabled_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.disabled_style.as_deref()
+    }
+    /// Escreve [`Pseudo::disabled_style`], alocando o grupo se preciso.
+    pub fn set_disabled_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo
+            .get_or_insert_with(Default::default)
+            .disabled_style = v;
+    }
+    /// Ver [`Look::align_x`].
+    pub fn align_x(&self) -> Option<&str> {
+        self.look.as_ref()?.align_x.as_deref()
+    }
+    /// Escreve [`Look::align_x`], alocando o grupo se preciso.
+    pub fn set_align_x(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).align_x = v;
+    }
+    /// Ver [`Look::align_y`].
+    pub fn align_y(&self) -> Option<&str> {
+        self.look.as_ref()?.align_y.as_deref()
+    }
+    /// Escreve [`Look::align_y`], alocando o grupo se preciso.
+    pub fn set_align_y(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).align_y = v;
+    }
+    /// Ver [`Look::border_color`].
+    pub fn border_color(&self) -> Option<&str> {
+        self.look.as_ref()?.border_color.as_deref()
+    }
+    /// Escreve [`Look::border_color`], alocando o grupo se preciso.
+    pub fn set_border_color(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).border_color = v;
+    }
+    /// Ver [`Look::font`].
+    pub fn font(&self) -> Option<&str> {
+        self.look.as_ref()?.font.as_deref()
+    }
+    /// Escreve [`Look::font`], alocando o grupo se preciso.
+    pub fn set_font(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).font = v;
+    }
+    /// Ver [`Look::gradient`].
+    pub fn gradient(&self) -> Option<&str> {
+        self.look.as_ref()?.gradient.as_deref()
+    }
+    /// Escreve [`Look::gradient`], alocando o grupo se preciso.
+    pub fn set_gradient(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).gradient = v;
+    }
+    /// Ver [`Look::text_align`].
+    pub fn text_align(&self) -> Option<&str> {
+        self.look.as_ref()?.text_align.as_deref()
+    }
+    /// Escreve [`Look::text_align`], alocando o grupo se preciso.
+    pub fn set_text_align(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).text_align = v;
+    }
+    /// Ver [`Look::text_color`].
+    pub fn text_color(&self) -> Option<&str> {
+        self.look.as_ref()?.text_color.as_deref()
+    }
+    /// Escreve [`Look::text_color`], alocando o grupo se preciso.
+    pub fn set_text_color(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).text_color = v;
+    }
+    /// Ver [`Look::slot_name`].
+    pub fn slot_name(&self) -> Option<&str> {
+        self.look.as_ref()?.slot_name.as_deref()
+    }
+    /// Escreve [`Look::slot_name`], alocando o grupo se preciso.
+    pub fn set_slot_name(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).slot_name = v;
+    }
+
     /// Helper to find a specific attribute case-insensitively
     fn get_attr(node: &Node, keys: &[&str]) -> Option<String> {
         for key in keys {
@@ -2414,62 +2959,63 @@ impl UiNode {
         Some(Self {
             node_id: next_node_id(),
             kind,
-            children,
+            children: children.into(),
             numeric_templates,
             bool_templates,
             width,
             height,
             padding,
-            align_x,
-            align_y,
             spacing,
             background,
             border_radius,
             border_width,
-            border_color,
             class,
             id,
-            font,
-            gradient,
-            text_align,
-            on_press,
-            on_double_click,
-            cursor,
-            text_color,
-            tooltip,
-            tooltip_position,
             max_width,
             max_height,
             hidden,
             disabled,
-            hover_style: None,
-            focus_style: None,
-            active_style: None,
-            disabled_style: None,
-            if_cond,
-            if_equals,
-            if_not_equals,
-            if_one_of,
             if_empty,
             if_not_empty,
-            if_platform,
             is_else,
-            else_if_cond,
-            for_each,
-            for_each_var,
-            slot_name,
-            on_reorder,
-            reorder_key,
             drag_handle,
-            drag_list: None,
-            drag_item_key: None,
-            drag_order: None,
-            drag_on_reorder: None,
-            drag_reorder_key: None,
-            form_control,
-            form_scope: None,
-            form_submit_action: None,
-            form_next_focus: None,
+            look: caixa(Look {
+                align_x,
+                align_y,
+                border_color,
+                font,
+                gradient,
+                text_align,
+                text_color,
+                slot_name,
+            }),
+            interact: caixa(Interact {
+                on_press,
+                on_double_click,
+                cursor,
+                tooltip,
+                tooltip_position,
+            }),
+            pseudo: None,
+            cond: caixa(Cond {
+                if_cond,
+                if_equals,
+                if_not_equals,
+                if_one_of,
+                if_platform,
+                else_if_cond,
+                for_each,
+                for_each_var,
+            }),
+            drag: caixa(Drag {
+                on_reorder,
+                reorder_key,
+                ..Default::default()
+            }),
+            form: caixa(FormBits {
+                form_control,
+                ..Default::default()
+            }),
         })
     }
 
@@ -2573,12 +3119,12 @@ impl UiNode {
                 }
             };
             header_is_empty = true;
-            for child in header.children {
+            for child in header.children.into_vec() {
                 match child.kind {
                     // Tudo que está dentro do `<resources>` é declaração por
                     // construção — inclusive o que não for (um widget perdido
                     // ali dentro é stripado na avaliação, não desenha).
-                    NodeType::Resources => decls.extend(child.children),
+                    NodeType::Resources => decls.extend(child.children.into_vec()),
                     NodeType::Import { .. }
                     | NodeType::Link { .. }
                     | NodeType::Style { .. }
@@ -2629,7 +3175,7 @@ impl UiNode {
             1 => roots.pop().expect("len checked"),
             _ => empty_node(NodeType::Fragment, roots),
         };
-        root.children.extend(decls);
+        root.children.to_mut().extend(decls);
         Ok(root)
     }
 }
@@ -3176,62 +3722,32 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
     UiNode {
         node_id: next_node_id(),
         kind,
-        children,
+        children: children.into(),
         numeric_templates: Vec::new(),
         bool_templates: Vec::new(),
         width: None,
         height: None,
         padding: None,
-        align_x: None,
-        align_y: None,
         spacing: None,
         background: None,
         border_radius: None,
         border_width: None,
-        border_color: None,
         class: None,
         id: None,
-        font: None,
-        gradient: None,
-        text_align: None,
-        on_press: None,
-        on_double_click: None,
-        cursor: None,
-        text_color: None,
-        tooltip: None,
-        tooltip_position: None,
         max_width: None,
         max_height: None,
         hidden: None,
         disabled: None,
-        hover_style: None,
-        focus_style: None,
-        active_style: None,
-        disabled_style: None,
-        if_cond: None,
-        if_equals: None,
-        if_not_equals: None,
-        if_one_of: None,
         if_empty: false,
         if_not_empty: false,
-        if_platform: None,
         is_else: false,
-        else_if_cond: None,
-        for_each: None,
-        for_each_var: None,
-        slot_name: None,
-        on_reorder: None,
-        reorder_key: None,
         drag_handle: false,
-        drag_list: None,
-        drag_item_key: None,
-        drag_order: None,
-        drag_on_reorder: None,
-        drag_reorder_key: None,
-        form_control: None,
-        form_scope: None,
-        form_submit_action: None,
-        form_next_focus: None,
+        look: None,
+        interact: None,
+        pseudo: None,
+        cond: None,
+        drag: None,
+        form: None,
     }
 }
 

@@ -64,13 +64,35 @@ implementar isso por conta própria — um atalho genuinamente útil, usado o
 tempo todo (é assim que uma classe `.card { background: #222; border-radius: 12; }`
 funciona em qualquer coisa).
 
-`node.background`/`node.border_radius`/`node.border_width`/`node.border_color`
+`node.background`/`node.border_radius`/`node.border_width`/`node.border_color()`
 são campos **genéricos** do `UiNode` — resolvidos **uma vez por nó**, iguais
 para todo `NodeType` (não são exclusivos de nenhum widget). Uma regra `.gss`
 de **tag** (`ProgressBar { background: #ccc; border-radius: 3; }`) escreve
 exatamente nesses campos genéricos — não existe um jeito de "escopar" essa
 regra só para o `.style()` interno do widget, porque o resolvedor de
 `.gss`/`eval.rs` não sabe (nem precisa saber) que tipo de nó está resolvendo.
+
+## Campo direto ou acessor? (0.74)
+
+Nem todo atributo genérico é um campo do `UiNode`. Os quentes — `width`,
+`height`, `padding`, `background`, `class`, `id`, os numéricos — continuam
+campos; os raros vivem em **grupos** alocados só quando usados
+(`Look`, `Interact`, `Cond`, `Drag`, `FormBits`, `Pseudo`) e se leem por
+**acessor**:
+
+```rust
+node.width.as_deref()      // campo:   width, height, padding, background, class, id, …
+node.border_color()        // acessor: align_x, align_y, border_color, font, gradient,
+                           //          text_align, text_color, slot_name          (Look)
+node.on_press()            // acessor: on_press, on_double_click, cursor, tooltip,
+                           //          tooltip_position                       (Interact)
+node.set_tooltip(Some(s))  // escrita: sempre `set_<campo>`, aloca o grupo se preciso
+```
+
+A regra para escolher, ao acrescentar um atributo genérico novo: **se quase todo
+nó de uma tela vai preenchê-lo, é campo; se quase nenhum, é grupo.** O motivo
+está no CHANGELOG da 0.74 — cada `Option<String>` no corpo do nó custava 24
+bytes em *todos* os nós da árvore, usados ou não.
 
 ## A armadilha do `Length::Fill`
 
