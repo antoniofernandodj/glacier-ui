@@ -8,6 +8,56 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.81.0] — 2026-09-02
+
+A release em que a instrumentação achou um problema do **próprio motor** — e não
+onde se procurava.
+
+### Corrigido
+- **O movimento do mouse deixa de forçar um quadro quando não há menu na tela.**
+
+  O motor registrava um listener global de `CursorMoved`, sempre, só para ter a
+  âncora de posição de um `<MenuBar>`/`<ContextMenu>`. No `iced`, **cada
+  mensagem provoca um quadro**: com o listener ligado, atravessar a tela com o
+  cursor fazia o app redesenhar cem, cento e cinquenta vezes por segundo, sem
+  nada ter mudado.
+
+  Medido num app real, com a mesma árvore de 301 nós:
+
+  | `CursorMoved`/s | quadros/s |
+  |---|---|
+  | 63–70 | 60–66 |
+  | 89–99 | 6,9–7,9 |
+  | 111–147 | 9,3–12,4 |
+
+  Agora o listener só é assinado quando alguma janela tem menu em jogo — um
+  `<MenuBar>`, `<Menu>` ou `<ContextMenu>` na árvore avaliada, ou um menu já
+  aberto. A varredura acontece junto da coleta que a 0.76 já fazia por árvore,
+  sem passada nova. Nova consulta pública: `GlacierUI::precisa_do_cursor`.
+
+  A âncora continua correta: para clicar num menu o cursor precisa chegar até
+  ele, e o `subscription` é reavaliado a cada `update`, então o listener já está
+  no ar quando o clique acontece.
+
+### Adicionado
+- **`GLACIER_PERF` ganha a parcela `app`**: o tempo dos ganchos do aplicativo
+  (`GlacierDaemon::on_message`), que rodam na thread da UI logo depois do
+  `dispatch`. Antes caíam no `resto` e eram lidos como custo do `iced` — o que
+  esconde a pior categoria de travamento: um gancho que pega um lock disputado
+  com outra thread para a UI por segundos sem gastar um microssegundo de render
+  nem de dispatch.
+
+  As quatro parcelas agora são `render`, `dispatch`, `app` e `resto`.
+
+### Notas
+- O que motivou: um app com **45 nós** na tela e o mouse parado registrou um
+  quadro de **11,5 segundos** (média 356 ms, p95 30 ms — ou seja, um único
+  travamento). Render 0,1 ms, dispatch 0,001 ms. Sem separar os ganchos do app
+  do resto, não havia como saber se aquilo era `iced`, driver ou o próprio
+  aplicativo.
+
+---
+
 ## [0.80.0] — 2026-09-02
 
 ### Adicionado

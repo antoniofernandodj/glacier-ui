@@ -904,7 +904,16 @@ impl Runtime {
         if id == self.main_id
             && let (Some(hook), Some(engine)) = (&self.on_message, self.windows.get(&id))
         {
-            hook(&msg, engine);
+            // Com `GLACIER_PERF`, o gancho tem parcela própria: ele roda na
+            // thread da UI, e um que bloqueie (um lock disputado, um I/O
+            // síncrono) trava o quadro sem aparecer no render nem no dispatch.
+            if crate::perf::ligado() {
+                let t0 = std::time::Instant::now();
+                hook(&msg, engine);
+                crate::perf::anota_app(t0.elapsed());
+            } else {
+                hook(&msg, engine);
+            }
         }
 
         let mut tasks = vec![ui_task];
@@ -1112,9 +1121,6 @@ impl Runtime {
                 crate::viewport_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
-                crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
-            }),
-            iced::event::listen_with(|e, s, id| {
                 crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             window::close_events().map(DaemonMessage::Closed),
@@ -1124,6 +1130,17 @@ impl Runtime {
             // efeito se a janela declarar `exit_on_close_request: false`.
             window::close_requests().map(DaemonMessage::CloseRequested),
         ];
+
+        // O movimento do mouse só é escutado quando alguma janela tem menu em
+        // jogo. Cada evento vira mensagem, e no `iced` cada mensagem vira um
+        // quadro: escutar sempre fazia o app redesenhar ~100 vezes por segundo
+        // enquanto o cursor atravessava a tela, sem nada ter mudado. Ver
+        // `GlacierUI::precisa_do_cursor`.
+        if self.windows.values().any(|e| e.precisa_do_cursor()) {
+            subs.push(iced::event::listen_with(|e, s, id| {
+                crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }));
+        }
 
         // Cada tick força um redraw da tela inteira em TODAS as janelas (é
         // como o loop do iced funciona: qualquer Message processada reconstrói

@@ -90,6 +90,14 @@ struct Janela {
     /// redesenhando cento e cinquenta vezes sem nada ter mudado. Saber qual
     /// mensagem é essa é a diferença entre consertar e adivinhar.
     por_tipo: Vec<(&'static str, u32)>,
+    /// Tempo somado nos **ganchos do app** (`GlacierDaemon::on_message` e
+    /// afins), que rodam na thread da UI logo depois do `dispatch`.
+    ///
+    /// Tem parcela própria porque antes caía no "resto" e era lido como custo
+    /// do `iced`: um gancho que pega um lock disputado com outra thread trava a
+    /// UI por segundos sem gastar um microssegundo de render nem de dispatch.
+    app: Duration,
+    app_max: Duration,
     /// Nós da última árvore renderizada.
     nos: usize,
 }
@@ -154,9 +162,10 @@ fn relata(j: &Janela, decorrido: Duration) {
     // O `dispatch` acontece entre dois quadros, então o custo dele se dilui
     // por quadro — é assim que ele se compara com o render e com o resto.
     let disp_por_quadro = ms(j.dispatch) / n as f64;
+    let app_por_quadro = ms(j.app) / n as f64;
     // O que sobra do intervalo depois de tirar as duas parcelas do motor:
     // layout, texto, GPU e, num app folgado, a espera pelo vsync.
-    let resto = (quadro_med - render_med - disp_por_quadro).max(0.0);
+    let resto = (quadro_med - render_med - disp_por_quadro - app_por_quadro).max(0.0);
     let parte_resto = if quadro_med > 0.0 {
         resto / quadro_med * 100.0
     } else {
@@ -173,11 +182,13 @@ fn relata(j: &Janela, decorrido: Duration) {
         "[glacier perf] {n} quadros {:.2}s {fps:.1}fps | nós {} | quadro {quadro_med:.1}ms méd \
          {quadro_p95:.1} p95 {quadro_max:.1} máx\n               render {render_med:.3} méd \
          {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
-         resto {resto:.1}ms/quadro ({parte_resto:.1}%)\n               msgs: {}",
+         app {app_por_quadro:.3}/quadro ({:.3} máx) | resto {resto:.1}ms/quadro \
+         ({parte_resto:.1}%)\n               msgs: {}",
         decorrido.as_secs_f64(),
         j.nos,
         j.mensagens,
         ms(j.dispatch_max),
+        ms(j.app_max),
         if quais.is_empty() {
             "—".to_string()
         } else {
@@ -199,6 +210,15 @@ pub(crate) fn anota_dispatch(duracao: Duration, tipo: &'static str) {
             Some((_, n)) => *n += 1,
             None => j.por_tipo.push((tipo, 1)),
         }
+    });
+}
+
+/// Anota o tempo de um gancho do app. Chamada só quando [`ligado`].
+pub(crate) fn anota_app(duracao: Duration) {
+    JANELA.with(|j| {
+        let mut j = j.borrow_mut();
+        j.app += duracao;
+        j.app_max = j.app_max.max(duracao);
     });
 }
 

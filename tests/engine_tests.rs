@@ -4613,3 +4613,57 @@ fn foreach_preguicoso_cache_por_item_continua_correto() {
         "o item alterado tem de ser reavaliado, não servido do cache"
     );
 }
+
+// --- rastreio de cursor sob demanda (0.81) --------------------------------
+//
+// O motor escutava o movimento do mouse sempre, só para ter a âncora de um
+// menu. Cada evento vira mensagem, e no iced cada mensagem vira um quadro:
+// escutando sempre, o app redesenhava ~100 vezes por segundo enquanto o cursor
+// atravessava a tela. Agora só escuta quando há menu em jogo — e é isso que
+// estes testes fixam, porque errar para o lado do "não escuta" quebra a âncora
+// do menu em silêncio.
+
+fn motor_com(layout: &str) -> GlacierUI {
+    let mut motor = GlacierUI::new();
+    let caminho = format!("templates/cursor_{}.gv", layout.len());
+    std::fs::create_dir_all("templates").ok();
+    std::fs::write(&caminho, format!("<component>{layout}</component>")).unwrap();
+    motor.register_component("Tela", &caminho).unwrap();
+    motor.navigate_to("Tela");
+    motor.reevaluate_all().unwrap();
+    std::fs::remove_file(&caminho).ok();
+    motor
+}
+
+/// Uma tela sem menu nenhum não paga o rastreio.
+#[test]
+fn tela_sem_menu_nao_rastreia_o_cursor() {
+    let motor =
+        motor_com(r#"<Column><Text content="oi" /><Button text="b" on_click="x" /></Column>"#);
+    assert!(
+        !motor.precisa_do_cursor(),
+        "sem menu na árvore, escutar o mouse só gera quadro à toa"
+    );
+}
+
+/// Um `<MenuBar>` precisa: a âncora do dropdown é onde o cursor está.
+#[test]
+fn menubar_rastreia_o_cursor() {
+    let motor = motor_com(
+        r#"<Column><MenuBar><Menu label="Arquivo"><MenuItem label="Sair" on_click="sair" /></Menu></MenuBar></Column>"#,
+    );
+    assert!(motor.precisa_do_cursor());
+}
+
+/// Um `<ContextMenu>` idem — e ele costuma estar fundo na árvore, então a
+/// varredura tem de ser recursiva.
+#[test]
+fn context_menu_fundo_na_arvore_rastreia_o_cursor() {
+    let motor = motor_com(
+        r#"<Column><Container><Row><ContextMenu items="acoes"><Text content="clique com o direito" /></ContextMenu></Row></Container></Column>"#,
+    );
+    assert!(
+        motor.precisa_do_cursor(),
+        "o ContextMenu estava a quatro níveis de profundidade"
+    );
+}

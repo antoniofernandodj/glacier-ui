@@ -2142,6 +2142,22 @@ impl GlacierUI {
         Ok(())
     }
 
+    /// O motor precisa acompanhar a posição do mouse nesta janela?
+    ///
+    /// Só quando há um abridor de menu na tela (ou um menu já aberto): a âncora
+    /// de um `<ContextMenu>`/`<MenuBar>` é a posição do cursor no instante do
+    /// clique, e a única forma de sabê-la é escutar o movimento.
+    ///
+    /// **Por que isso é caro quando não precisa.** No `iced`, cada mensagem
+    /// provoca um quadro. Um listener global de movimento do mouse emite uma
+    /// centena de mensagens por segundo enquanto se arrasta o cursor — e o app
+    /// redesenha uma centena de vezes, sem nada ter mudado na tela. Num
+    /// hardware modesto, é isso que estrangula a rolagem: medido num app real,
+    /// 70 movimentos por segundo davam 65 quadros por segundo, e 110 davam 10.
+    pub fn precisa_do_cursor(&self) -> bool {
+        self.active_menu.is_some() || self.tree_bindings.values().any(|b| b.usa_cursor)
+    }
+
     /// `true` se **todas** as dependências guardadas ainda têm o mesmo valor no
     /// contexto de agora — a pergunta "posso reaproveitar o que já está pronto?".
     fn deps_hold(&self, deps: &[(String, Option<String>)]) -> bool {
@@ -2552,6 +2568,10 @@ fn theme_key(path: &str) -> String {
 /// the engine can keep a stateful editor buffer per binding.
 #[derive(Default)]
 struct TreeBindings {
+    /// A árvore tem algum abridor de menu (`<MenuBar>`, `<Menu>`,
+    /// `<ContextMenu>`)? Só então o motor precisa saber onde o cursor está —
+    /// ver [`GlacierUI::precisa_do_cursor`].
+    usa_cursor: bool,
     /// `value_var` de cada `<TextArea>` da árvore.
     textareas: Vec<String>,
     /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
@@ -2562,6 +2582,12 @@ struct TreeBindings {
 /// guarda fora da árvore. Antes eram duas recursões independentes sobre a
 /// árvore inteira, rodadas a cada reavaliação; ver [`GlacierUI::tree_bindings`].
 fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
+    if matches!(
+        node.kind,
+        NodeType::MenuBar | NodeType::Menu { .. } | NodeType::ContextMenu { .. }
+    ) {
+        out.usa_cursor = true;
+    }
     match &node.kind {
         NodeType::TextArea { value_var, .. }
             if !value_var.is_empty() && !out.textareas.contains(value_var) =>
