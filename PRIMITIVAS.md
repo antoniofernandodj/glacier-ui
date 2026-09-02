@@ -94,6 +94,52 @@ nó de uma tela vai preenchê-lo, é campo; se quase nenhum, é grupo.** O motiv
 está no CHANGELOG da 0.74 — cada `Option<String>` no corpo do nó custava 24
 bytes em *todos* os nós da árvore, usados ou não.
 
+## Virtualizar uma lista longa (0.77)
+
+Um `<scrollable>` entrega ao `iced` **todos** os filhos, e o `iced` mede e
+desenha todos — inclusive os que estão fora da tela. Numa lista de 300 cartões
+isso é o custo dominante de cada quadro, e nenhuma otimização do motor alcança
+(o trabalho é do layout do `iced`, não do render do glacier).
+
+`virtualize` na coluna resolve: o motor monta só os filhos visíveis.
+
+```xml
+<scrollable height="fill">
+  <column spacing="12" virtualize="300">   <!-- 300 = altura de CADA cartão -->
+    <ForEach items="servicos" var="s">
+      <container ...>…</container>
+    </ForEach>
+  </column>
+</scrollable>
+```
+
+Três coisas para acertar:
+
+1. **A altura é declarada, não medida.** Descobrir a altura real exige o layout,
+   que é justamente o trabalho a evitar — a mesma troca do `uniformItemSizes` do
+   `QListView`. Todo filho precisa ter a mesma altura, e o valor é a do
+   **cartão**; o `spacing` da coluna o motor soma sozinho.
+2. **A coluna precisa ser filha direta do `<scrollable>`.** É onde o motor
+   procura, e é o que decide se ele pendura o aviso de rolagem.
+3. **Errar a altura não quebra**, só desalinha a barra de rolagem: os vãos de
+   cima e de baixo são calculados com o valor declarado.
+
+Sem `<scrollable>` acima, com `virtualize="0"` ou com a lista já cabendo inteira
+na tela, o nó renderiza normalmente — a virtualização degrada para o
+comportamento de sempre, nunca para uma tela vazia.
+
+**Quanto vale** (`tests/perf_arvore.rs`, cartão de ~300px):
+
+| Cartões | Sem | Com |
+|---|---|---|
+| 40 | 182 µs | 48 µs |
+| 80 | 364 µs | 47 µs |
+| 300 | 1,81 ms | **47 µs** |
+
+O custo do render vira **constante**: 300 itens custam o mesmo que 10, porque só
+10 são montados. E o ganho maior é o que não aparece nessa tabela — o `iced`
+deixa de medir e desenhar 290 cartões.
+
 ## A armadilha do `Length::Fill`
 
 O `container(element).width(parse_length(&node.width))` do wrap acima usa

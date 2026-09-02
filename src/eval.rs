@@ -576,6 +576,9 @@ pub type Fx = std::hash::BuildHasherDefault<FxHasher>;
 /// `HashMap` com o hash rápido.
 pub(crate) type FxMap<K, V> = HashMap<K, V, Fx>;
 
+/// O mesmo, visível fora do avaliador.
+pub type FxMapPub<K, V> = HashMap<K, V, Fx>;
+
 /// Um conjunto de variáveis locais empilhado sobre o contexto. Ver [`EvalCtx`].
 pub struct Layer<'a> {
     vars: Vec<(String, String)>,
@@ -2432,6 +2435,7 @@ fn eval_owned(
         height: height_eval,
         padding: padding_eval,
         spacing: spacing_eval,
+        virtualize: num_template(NumAttr::Virtualize).or(node.virtualize),
         background: background_eval,
         border_radius: border_radius_eval,
         border_width: border_width_eval,

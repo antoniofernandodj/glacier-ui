@@ -631,6 +631,17 @@ pub enum EngineMessage {
     /// janela, então rastrear globalmente evita cada gatilho precisar saber
     /// sua própria posição de tela. Ver [`crate::menu`].
     CursorMoved(iced::Point),
+    /// Um `<scrollable>` rolou. `key` é o `node_id` dele (estável no template),
+    /// `offset` é o deslocamento absoluto no eixo principal.
+    ///
+    /// Existe só para a **virtualização**: guardar o deslocamento é o que
+    /// permite ao render seguinte saber quais filhos de um `virtualize=` caem na
+    /// janela visível. O `dispatch` grava e volta — **sem reavaliar nada**, que é
+    /// a diferença entre rolar a 60 quadros e rolar a 6.
+    Scrolled {
+        key: u64,
+        offset: f32,
+    },
     /// Um gatilho de `<MenuBar>`/`<Menu>` (topo) foi clicado: abre `tree`
     /// ancorado na última posição de cursor conhecida.
     OpenMenuBarDropdown {
@@ -789,12 +800,78 @@ fn cached_svg_handle(source: &str, assets: &dyn crate::asset_source::AssetSource
 
 /// Generate Iced widgets recursively from UiNode tree.
 /// References to strings are borrowed directly from the AST node with lifetime 'a.
+/// O que o render sabe da **janela**, e que não está na árvore: onde cada
+/// `<scrollable>` está rolado e qual a altura da área visível.
+///
+/// Desce junto com a recursão porque a virtualização de um `Column` precisa
+/// saber a janela do `<scrollable>` que o envolve — informação que só existe um
+/// nível acima dele.
+#[derive(Clone, Copy)]
+pub struct RenderView<'a> {
+    /// Deslocamento de cada `<scrollable>`, pelo `node_id`.
+    pub scroll: &'a crate::eval::FxMapPub<u64, f32>,
+    /// Altura da janela do app — o teto de quanto um `<scrollable>` pode
+    /// mostrar. Usar a altura da janela (e não a do próprio scrollable, que só
+    /// o layout do iced conhece) faz a conta pecar **por excesso**: monta-se
+    /// alguns itens a mais, nunca de menos.
+    pub altura_janela: f32,
+    /// A janela do `<scrollable>` mais próximo acima: `(deslocamento, altura)`.
+    /// `None` fora de um scrollable — e aí não há o que virtualizar.
+    pub janela: Option<(f32, f32)>,
+}
+
+impl RenderView<'_> {
+    /// A fatia de filhos que cai na janela visível deste `<scrollable>`.
+    fn fatia(&self, total: usize, passo: f32) -> Option<(usize, usize)> {
+        let (deslocamento, altura) = self.janela?;
+        janela_visivel(total, passo, deslocamento, altura, MARGEM_VIRTUAL)
+    }
+}
+
+/// Itens montados **fora** da tela, de cada lado. É o que evita a faixa branca
+/// de um quadro quando a rolagem anda mais rápido que o render.
+const MARGEM_VIRTUAL: usize = 3;
+
+/// Quais filhos montar, dado que cada um ocupa `passo` pixels (altura mais o
+/// `spacing`), a rolagem está em `deslocamento` e a área visível tem `altura`.
+///
+/// Devolve `(quantos pular, quantos mostrar)`, ou `None` quando não vale a pena
+/// virtualizar — lista vazia, passo inválido, ou tudo já cabendo na tela (aí a
+/// virtualização só acrescentaria dois vãos e nenhum ganho).
+///
+/// Separada do render por ser a única parte com aritmética que pode errar: um
+/// deslocamento maior que a lista (a lista encolheu e a rolagem não acompanhou)
+/// precisa sair pelo lado seguro, não estourar um `usize`.
+fn janela_visivel(
+    total: usize,
+    passo: f32,
+    deslocamento: f32,
+    altura: f32,
+    margem: usize,
+) -> Option<(usize, usize)> {
+    if total == 0 || !(passo > 0.0) || !altura.is_finite() || altura <= 0.0 {
+        return None;
+    }
+    let bruto = (deslocamento.max(0.0) / passo).floor();
+    // Um deslocamento absurdo (lista encolheu, `f32` sujo) não pode virar um
+    // `primeiro` maior que a lista — daí o `min` antes de qualquer subtração.
+    let primeiro = if bruto.is_finite() && bruto >= 0.0 {
+        (bruto as usize).min(total).saturating_sub(margem)
+    } else {
+        0
+    };
+    let cabem = (altura / passo).ceil() as usize + 1 + margem * 2;
+    let quantos = cabem.min(total - primeiro);
+    (primeiro > 0 || quantos < total).then_some((primeiro, quantos))
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
     editors: &'a EditorMap,
     combos: &'a ComboMap,
     assets: &dyn crate::asset_source::AssetSource,
+    view: RenderView<'a>,
 ) -> Element<'a, EngineMessage> {
     // `hidden: true` (`display: none`) — sai do layout por completo. Os
     // contêineres Row/Column/Form já filtram filhos ocultos (sem `spacing`
@@ -875,7 +952,7 @@ pub fn render_node<'a>(
                 }
                 t.into()
             } else if visible_children.len() == 1 {
-                render_node(visible_children[0], context, editors, combos, assets)
+                render_node(visible_children[0], context, editors, combos, assets, view)
             } else {
                 let mut r = row![];
                 if let Some(align_val) = parse_alignment(node.align_y()) {
@@ -885,7 +962,7 @@ pub fn render_node<'a>(
                     r = r.spacing(sp);
                 }
                 for child in visible_children {
-                    r = r.push(render_node(child, context, editors, combos, assets));
+                    r = r.push(render_node(child, context, editors, combos, assets, view));
                 }
                 r.into()
             };
@@ -1191,8 +1268,17 @@ pub fn render_node<'a>(
             s.into()
         }
         NodeType::Scrollable { direction } => {
+            // A janela deste scrollable, para quem estiver abaixo virtualizar.
+            // A altura é a da janela do app: quem sabe a altura real deste
+            // widget é o layout do iced, e pedi-la aqui seria circular — então
+            // erra-se por excesso, montando alguns itens a mais.
+            let deslocamento = view.scroll.get(&node.node_id).copied().unwrap_or(0.0);
+            let interno = RenderView {
+                janela: Some((deslocamento, view.altura_janela)),
+                ..view
+            };
             let child: Element<'a, EngineMessage> = if let Some(first) = node.children.first() {
-                render_node(first, context, editors, combos, assets)
+                render_node(first, context, editors, combos, assets, interno)
             } else {
                 column![].into()
             };
@@ -1206,9 +1292,27 @@ pub fn render_node<'a>(
                 },
                 _ => scrollable::Direction::Vertical(scrollable::Scrollbar::new()),
             };
-            scrollable(child)
-                .direction(dir)
-                .width(parse_length(&node.width))
+            let chave = node.node_id;
+            let mut s = scrollable(child).direction(dir);
+            // O aviso de rolagem só é pendurado quando há o que virtualizar
+            // **logo abaixo**: cada evento vira uma mensagem, que passa pelo
+            // `dispatch` e por qualquer gancho que o app tenha pendurado nele.
+            // Cobrar isso de quem não virtualiza seria piorar o caso comum.
+            if node
+                .children
+                .first()
+                .and_then(|c| c.virtualize)
+                .is_some_and(|h| h > 0.0)
+            {
+                s = s.on_scroll(move |vp| {
+                    let o = vp.absolute_offset();
+                    EngineMessage::Scrolled {
+                        key: chave,
+                        offset: o.y.max(o.x),
+                    }
+                });
+            }
+            s.width(parse_length(&node.width))
                 .height(parse_length(&node.height))
                 .into()
         }
@@ -2001,8 +2105,45 @@ pub fn render_node<'a>(
 
             col = col.padding(parse_padding(&node.padding));
 
-            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+            let visiveis: Vec<&UiNode> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .collect();
+            // O passo de um item é a altura declarada mais o `spacing` que o
+            // `Column` põe entre um e outro.
+            let passo = node
+                .virtualize
+                .filter(|h| *h > 0.0)
+                .map(|h| h + node.spacing.unwrap_or(0.0));
+            match passo.and_then(|p| view.fatia(visiveis.len(), p).map(|f| (p, f))) {
+                Some((passo, (pular, quantos))) => {
+                    // Os vãos de cima e de baixo mantêm a barra de rolagem
+                    // proporcional e a rolagem contínua: o conteúdo continua com
+                    // a altura total, só que quase todo ele é vazio.
+                    //
+                    // A altura de um vão é `n * passo - spacing`: o `Column` já
+                    // põe um `spacing` entre o vão e o primeiro item montado, e
+                    // sem descontá-lo a lista cresceria um `spacing` de cada
+                    // lado — a barra de rolagem mentiria por 2×spacing.
+                    let s = node.spacing.unwrap_or(0.0);
+                    let vao = |n: usize| Space::new().height((n as f32 * passo - s).max(0.0));
+                    if pular > 0 {
+                        col = col.push(vao(pular));
+                    }
+                    for child in visiveis.iter().skip(pular).take(quantos) {
+                        col = col.push(render_node(child, context, editors, combos, assets, view));
+                    }
+                    let sobra = visiveis.len() - pular - quantos;
+                    if sobra > 0 {
+                        col = col.push(vao(sobra));
+                    }
+                }
+                None => {
+                    for child in visiveis {
+                        col = col.push(render_node(child, context, editors, combos, assets, view));
+                    }
+                }
             }
 
             col.width(parse_length(&node.width))
@@ -2023,7 +2164,7 @@ pub fn render_node<'a>(
             r = r.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                r = r.push(render_node(child, context, editors, combos, assets));
+                r = r.push(render_node(child, context, editors, combos, assets, view));
             }
 
             r.width(parse_length(&node.width))
@@ -2046,7 +2187,7 @@ pub fn render_node<'a>(
             col = col.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+                col = col.push(render_node(child, context, editors, combos, assets, view));
             }
 
             col.width(parse_length(&node.width))
@@ -2056,7 +2197,7 @@ pub fn render_node<'a>(
         NodeType::Container => {
             let child: Element<'a, EngineMessage> = if let Some(first_child) = node.children.first()
             {
-                render_node(first_child, context, editors, combos, assets)
+                render_node(first_child, context, editors, combos, assets, view)
             } else {
                 column![].into()
             };
@@ -2137,7 +2278,7 @@ pub fn render_node<'a>(
             // via o próprio arm de `NodeType::Menu` abaixo.
             let mut r = row![].spacing(2);
             for child in &node.children {
-                r = r.push(render_node(child, context, editors, combos, assets));
+                r = r.push(render_node(child, context, editors, combos, assets, view));
             }
             r.into()
         }
@@ -2193,7 +2334,7 @@ pub fn render_node<'a>(
             let child_elem: Element<'a, EngineMessage> = node
                 .children
                 .first()
-                .map(|c| render_node(c, context, editors, combos, assets))
+                .map(|c| render_node(c, context, editors, combos, assets, view))
                 .unwrap_or_else(|| Space::new().into());
             let menu_children = node.children.get(1..).unwrap_or(&[]);
             let tree = std::sync::Arc::new(crate::menu::build_tree(
@@ -2228,7 +2369,7 @@ pub fn render_node<'a>(
                 col = col.spacing(sp);
             }
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+                col = col.push(render_node(child, context, editors, combos, assets, view));
             }
             col.width(parse_length(&node.width))
                 .height(parse_length(&node.height))
@@ -2416,6 +2557,79 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 mod length_tests {
     use super::{Instante, dias_no_mes, parse_length};
     use iced::Length;
+
+    use super::janela_visivel;
+
+    // --- virtualização: a janela visível (0.77) --------------------------
+    //
+    // A aritmética é curta e cheia de canto: rolagem no topo, no fim, além do
+    // fim (a lista encolheu e o deslocamento guardado não acompanhou) e lista
+    // que já cabe inteira. É a única parte da virtualização que erra em
+    // silêncio — ou estoura um `usize` —, então é a que tem teste.
+
+    /// No topo: não pula nada, e mostra o que cabe mais a margem.
+    #[test]
+    fn janela_no_topo() {
+        // 100 itens de 50px, área de 500px → 10 na tela, +1 de borda, +margem.
+        let (pular, quantos) = janela_visivel(100, 50.0, 0.0, 500.0, 3).unwrap();
+        assert_eq!(pular, 0);
+        assert_eq!(quantos, 17, "10 na tela + 1 de borda + 2x3 de margem");
+    }
+
+    /// Rolado até o meio: pula o que passou, menos a margem de cima.
+    #[test]
+    fn janela_no_meio() {
+        let (pular, quantos) = janela_visivel(100, 50.0, 1000.0, 500.0, 3).unwrap();
+        assert_eq!(pular, 17, "item 20 no topo da tela, menos 3 de margem");
+        assert_eq!(quantos, 17);
+    }
+
+    /// No fim da lista, `quantos` encolhe em vez de passar do total.
+    #[test]
+    fn janela_no_fim_nao_passa_do_total() {
+        let (pular, quantos) = janela_visivel(100, 50.0, 4750.0, 500.0, 3).unwrap();
+        assert!(pular + quantos <= 100, "{pular}+{quantos} passou de 100");
+        assert_eq!(pular + quantos, 100, "chega até a última linha");
+    }
+
+    /// **Regressão**: deslocamento maior que a lista inteira — ela encolheu (um
+    /// filtro, um item removido) e a rolagem guardada ficou para trás. Sem o
+    /// `min` antes da subtração isto estourava o `usize`, e o app caía ao
+    /// filtrar uma lista rolada até o fim.
+    #[test]
+    fn janela_com_deslocamento_alem_do_fim() {
+        let (pular, quantos) = janela_visivel(10, 50.0, 99_999.0, 500.0, 3).unwrap();
+        assert!(pular <= 10, "pular={pular} não pode passar do total");
+        assert!(pular + quantos <= 10, "{pular}+{quantos} passou de 10");
+    }
+
+    /// Uma lista que já cabe inteira na tela não vira janela: ali a
+    /// virtualização só acrescentaria dois vãos e nenhum ganho.
+    #[test]
+    fn lista_que_cabe_inteira_nao_virtualiza() {
+        assert_eq!(janela_visivel(5, 50.0, 0.0, 500.0, 3), None);
+    }
+
+    /// Entradas degeneradas saem pelo lado seguro: renderiza tudo.
+    #[test]
+    fn entradas_degeneradas_nao_virtualizam() {
+        assert_eq!(janela_visivel(0, 50.0, 0.0, 500.0, 3), None, "lista vazia");
+        assert_eq!(janela_visivel(100, 0.0, 0.0, 500.0, 3), None, "passo zero");
+        assert_eq!(
+            janela_visivel(100, -5.0, 0.0, 500.0, 3),
+            None,
+            "passo negativo"
+        );
+        assert_eq!(janela_visivel(100, 50.0, 0.0, 0.0, 3), None, "sem altura");
+        assert_eq!(janela_visivel(100, f32::NAN, 0.0, 500.0, 3), None, "NaN");
+    }
+
+    /// Deslocamento negativo (o iced dá isso no efeito elástico de borda) conta
+    /// como topo, não como pular "menos um".
+    #[test]
+    fn deslocamento_negativo_conta_como_topo() {
+        assert_eq!(janela_visivel(100, 50.0, -80.0, 500.0, 3).unwrap().0, 0);
+    }
 
     fn len(s: &str) -> Length {
         parse_length(&Some(s.to_string()))

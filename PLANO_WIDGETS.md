@@ -445,11 +445,13 @@ Ordem sugerida de habilitadores de Motor:
 9. **Subscriptions de teclado** — `Shortcut`/`Action` globais. **P2.** (O
    `<datetimeedit>` já lê teclado desde a 0.70, mas por um listener global que
    só age quando ninguém consumiu o evento — não é este item.)
-10. **Virtualizar a lista** — avaliar só as linhas visíveis de um `for-each`
-    dentro de um `<scrollable>`, em vez de todas. Pede a realimentação de
-    rolagem (`on_scroll`), que o motor não plumba, e uma decisão sobre altura de
-    linha. **P1**, e é o único teto de tamanho de lista que sobrou depois das
-    releases de custo 0.74/0.75. Vai na **Onda 6** (§6.2), junto do `TableView`.
+10. ~~**Virtualizar a lista**~~ ✅ **feito na 0.77** — `virtualize="<altura>"`
+    numa coluna dentro de um `<scrollable>` monta só os filhos visíveis, com
+    vãos do tamanho exato nas pontas. O motor passou a plumbar o `on_scroll`
+    (só quando há o que virtualizar) e a altura da linha é **declarada**, não
+    medida — a troca do `uniformItemSizes` do `QListView`. O render de uma lista
+    de 300 cartões caiu de 1,81 ms para 47 µs por quadro, e o custo virou
+    constante. Ver `PRIMITIVAS.md`.
 11. **`contains` no condicional** — `<template if="{abertas}" contains="rede">`,
     o simétrico do `one_of` que já existe. **P1**, e é o menor da lista: destrava
     `Accordion` e a seleção múltipla do `ListView`. Ver §6.2.
@@ -923,33 +925,34 @@ instância — que é onde o §3 ainda o coloca.
 | 5 | **`TreeView`** | Prim | P2 | Recursão sobre a coleção + conjunto nomeado de nós abertos. Sai do estado por instância pela mesma porta que o `Accordion` |
 | 6 | **`ColumnView`** | Prim | P3 | Navegação Miller (o Finder): uma `ListView` por nível, o nível escolhido numa chave. Quase de graça depois do 5 |
 
-**Habilitador desta onda — virtualizar a lista (Motor, P1). A FAZER.**
+**Habilitador desta onda — virtualizar a lista (Motor, P1). ✅ FEITO (0.77).**
 
-Hoje o motor constrói **todas** as linhas de uma lista, mesmo que só vinte
-caibam na tela: numa lista de 2000, as outras 1980 são avaliadas, ocupam
-memória e são desenhadas para fora da área visível. Virtualizar é construir só
-as que aparecem, descartando as que saem e montando as que entram conforme se
-rola — o que toda lista grande faz.
+Saiu antes da onda, e fora de ordem, porque apareceu em produção: uma tela do
+`rustploy` com algumas dezenas de cartões de serviço rolava a poucos quadros por
+segundo. O perfil mostrou que o motor não era o gargalo (montar os `Element` de
+1.682 nós custa 431 µs, 2,6% do orçamento de 60 fps) — o custo estava no `iced`
+medindo e desenhando **todos** os filhos, inclusive os fora da tela.
 
-As duas releases de custo (0.74 e 0.75) chegaram até onde dava sem isto:
-encolheram o nó, tiraram a cópia do cache e adiaram a montagem das variáveis de
-item. Uma lista de 2000 linhas saiu de 26,6 ms para ~10 ms por mudança de
-estado que nem toca nela. **O que falta para tirar esse custo de vez é a
-virtualização** — e as duas releases deixaram registrado, no CHANGELOG, que o
-lugar dela é aqui.
+`virtualize="<altura>"` numa coluna dentro de um `<scrollable>` monta só os
+filhos visíveis, com vãos do tamanho exato nas pontas para a barra de rolagem
+continuar honesta. O motor passou a plumbar o `on_scroll` do `iced` (só quando
+há o que virtualizar logo abaixo, para não cobrar do caso comum) e guarda o
+deslocamento numa chave interna — que **não** dispara reavaliação, senão rolar
+custaria uma árvore nova por pixel.
 
-Por que ela não é ajuste e sim obra:
+A altura da linha é **declarada**, não medida: descobri-la exige o layout, que é
+o trabalho a evitar. É a troca do `uniformItemSizes` do `QListView`. Ver
+`PRIMITIVAS.md` para a forma e as três armadilhas.
 
-| O que falta | Por quê |
-|---|---|
-| saber **quanto** já se rolou | o `scrollable` do iced sabe (`on_scroll`), mas o motor não plumba esse evento hoje: não há mensagem, não há chave de contexto, ninguém escuta |
-| saber a **altura** de uma linha | para calcular quais índices caem na janela visível. Ou se assume altura fixa (simples, e cobre a tabela) ou se mede (geral, e caro) |
-| conviver com o que já existe | o arrasto de reordenação guarda a ordem inteira da lista, e o cache de avaliação é indexado por `mix(node_id, índice)` — os dois precisam continuar corretos com só uma fatia dos itens avaliada |
+Render de uma lista de 300 cartões: **1,81 ms → 47 µs por quadro**, e o custo
+virou constante — 300 itens custam o mesmo que 10. Serve `ListView`, `TreeView`
+e qualquer `for-each` dentro de um `<scrollable>`, que é por que valia
+construir como capacidade do motor e não como detalhe do `TableView`.
 
-Sai junto do `TableView` (item 4) porque é ele quem precisa disso de verdade —
-mas serve `ListView`, `TreeView` e qualquer `for-each` dentro de um
-`<scrollable>`, então vale construir como capacidade do motor, não como
-detalhe de um widget.
+Fica de fora, com motivo: a virtualização é de **render**, não de avaliação — a
+árvore inteira continua avaliada e na memória. Fazer a avaliação também seguir a
+janela economizaria memória, mas exigiria reavaliar a cada rolagem, que é
+exatamente o que esta versão evita.
 
 **O que fecha:** a §2.4 (seleção/listas/árvores) sai de 1/11 — a categoria mais
 atrasada do catálogo desde o começo — para 8/11, e a §2.11 (layouts) fecha. É a

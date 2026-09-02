@@ -1084,6 +1084,8 @@ pub enum NumAttr {
     MaxHeight,
     /// `size` of a `Text` node.
     Size,
+    /// `virtualize` de um `Column`/`Row`: a altura (ou largura) de cada filho.
+    Virtualize,
 }
 
 /// A boolean attribute that normally parses to `bool` at parse time. Same
@@ -1365,6 +1367,19 @@ pub struct UiNode {
     pub height: Option<String>,
     pub padding: Option<String>,
     pub spacing: Option<f32>,
+    /// **Virtualização**: a altura (num `Column`) ou largura (num `Row`) que
+    /// **todo** filho tem, em pixels. Presente = o motor só monta os filhos que
+    /// caem na janela visível do `<scrollable>` que envolve este nó, e substitui
+    /// os de fora por um vão do tamanho exato — a barra de rolagem continua
+    /// proporcional e a rolagem, contínua.
+    ///
+    /// Por que a altura é declarada em vez de medida: descobrir a altura real
+    /// exige o layout, e o layout é justamente o trabalho que se quer evitar.
+    /// É a mesma troca do `uniformItemSizes` do `QListView`.
+    ///
+    /// Sem um `<scrollable>` acima, ou com valor não positivo, o nó renderiza
+    /// inteiro — a virtualização degrada para o comportamento de sempre.
+    pub virtualize: Option<f32>,
     pub background: Option<String>,
     pub border_radius: Option<f32>,
     pub border_width: Option<f32>,
@@ -1957,6 +1972,18 @@ impl UiNode {
             &node,
             &["spacing", "espacamento"],
             NumAttr::Spacing,
+            &mut numeric_templates,
+        );
+        let virtualize = Self::get_attr_num(
+            &node,
+            &[
+                "virtualize",
+                "virtualizar",
+                "itemHeight",
+                "item_height",
+                "item-height",
+            ],
+            NumAttr::Virtualize,
             &mut numeric_templates,
         );
         let background = Self::get_attr(&node, &["background", "bg", "fundo"]);
@@ -2967,6 +2994,7 @@ impl UiNode {
             height,
             padding,
             spacing,
+            virtualize,
             background,
             border_radius,
             border_width,
@@ -3730,6 +3758,7 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
         height: None,
         padding: None,
         spacing: None,
+        virtualize: None,
         background: None,
         border_radius: None,
         border_width: None,

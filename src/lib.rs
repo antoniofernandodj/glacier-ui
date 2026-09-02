@@ -89,6 +89,11 @@ pub struct GlacierUI {
     /// tela atual e os fixados por [`GlacierUI::keep_evaluated`]. Ver
     /// [`GlacierUI::reevaluate_all`] para o porquê.
     evaluated_templates: HashMap<String, UiNode>,
+    /// Deslocamento de rolagem de cada `<scrollable>`, pelo `node_id` dele.
+    /// Lido pelo render para decidir a janela visível de um `virtualize=`
+    /// (ver [`crate::parser::UiNode::virtualize`]); escrito por
+    /// [`EngineMessage::Scrolled`], que não dispara reavaliação.
+    scroll_offsets: crate::eval::FxMapPub<u64, f32>,
     /// Os widgets **com buffer próprio** encontrados em cada árvore avaliada:
     /// os `value_var` dos `<TextArea>` e as quatro pontas de cada `<ComboEdit>`.
     ///
@@ -320,6 +325,7 @@ impl GlacierUI {
             screen_meta: HashMap::default(),
             inputs: render_inputs::RenderInputs::default(),
             evaluated_templates: HashMap::default(),
+            scroll_offsets: Default::default(),
             tree_bindings: HashMap::default(),
             pinned: std::collections::HashSet::new(),
             eval_deps: HashMap::default(),
@@ -970,6 +976,12 @@ impl GlacierUI {
             // posição, nunca reavalia nem envolve um componente.
             EngineMessage::CursorMoved(p) => {
                 self.last_cursor_pos = *p;
+                return iced::Task::none();
+            }
+            // Rolagem: guarda e volta. Reavaliar aqui seria refazer a árvore a
+            // cada pixel rolado — e a árvore não mudou, só a janela sobre ela.
+            EngineMessage::Scrolled { key, offset } => {
+                self.scroll_offsets.insert(*key, *offset);
                 return iced::Task::none();
             }
             EngineMessage::OpenMenuBarDropdown { tree }
@@ -2322,6 +2334,11 @@ impl GlacierUI {
             &self.editors,
             &self.combos,
             self.assets.as_ref(),
+            crate::widget::RenderView {
+                scroll: &self.scroll_offsets,
+                altura_janela: self.inputs.viewport().1,
+                janela: None,
+            },
         ))
     }
 

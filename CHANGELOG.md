@@ -8,6 +8,87 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.77.0] — 2026-09-02
+
+**Virtualização de lista.** A quarta release de custo, e a primeira que sai de
+um sintoma em produção em vez de um perfil: uma tela do `rustploy` com algumas
+dezenas de cartões de serviço rolava a poucos quadros por segundo.
+
+O perfil disse que o motor **não** era o culpado — montar os `Element` de 1.682
+nós custa 431 µs, 2,6% do orçamento de 60 fps, e as micro-otimizações que
+tentei antes moveram isso para 427 µs. O custo estava um andar abaixo: o `iced`
+mede e desenha **todos** os filhos de um `<scrollable>`, inclusive os que estão
+fora da tela. Nenhuma otimização do avaliador alcança isso; a única saída é não
+entregar os invisíveis.
+
+### Adicionado
+- **`virtualize="<altura>"`** (`virtualizar`, `itemHeight`) numa coluna dentro
+  de um `<scrollable>`: o motor monta só os filhos que caem na janela visível e
+  põe, nas pontas, vãos do tamanho exato do que ficou de fora.
+
+  ```xml
+  <scrollable height="fill">
+    <column spacing="12" virtualize="300">
+      <ForEach items="servicos" var="s"> … </ForEach>
+    </column>
+  </scrollable>
+  ```
+
+  | Cartões | Render por quadro, sem | Com |
+  |---|---|---|
+  | 40 | 182 µs | 48 µs |
+  | 80 | 364 µs | 47 µs |
+  | 300 | 1,81 ms | **47 µs** |
+
+  O custo do render vira **constante** — 300 itens custam o mesmo que 10 —, e o
+  ganho maior é o que a tabela não mostra: o `iced` deixa de medir e desenhar
+  290 cartões.
+
+  **A altura é declarada, não medida.** Descobrir a altura real exige o layout,
+  que é justamente o trabalho a evitar; é a troca que o `uniformItemSizes` do
+  `QListView` faz. Errar o valor não quebra nada — só desalinha a barra de
+  rolagem.
+
+  **Três degradações seguras**, todas para "renderiza tudo, como antes": sem
+  `<scrollable>` acima, com `virtualize="0"`, ou com a lista já cabendo inteira
+  na tela (ali a virtualização só acrescentaria dois vãos).
+
+- **`EngineMessage::Scrolled`**, e o deslocamento de cada `<scrollable>` guardado
+  no motor. O `dispatch` grava e volta — **sem reavaliar**, que é a diferença
+  entre rolar a 60 quadros e rolar a 6. O aviso de rolagem (`on_scroll` do
+  `iced`) só é pendurado quando há uma coluna com `virtualize` logo abaixo:
+  cada evento vira uma mensagem, que passa pelo `dispatch` e por qualquer gancho
+  que o app tenha ali, e cobrar isso de quem não virtualiza seria piorar o caso
+  comum.
+
+### Alterado
+- **`parse_length`, `font_for`, `parse_text_align` e `is_truthy` pararam de
+  alocar.** Faziam `to_ascii_lowercase()` só para comparar sem diferenciar
+  maiúsculas — uma `String` por atributo, por nó, por quadro; numa tela de 800
+  nós a 60 fps, ~150 mil alocações por segundo. Trocado por
+  `eq_ignore_ascii_case`. Ganho honesto: 431 → 427 µs. Real, grátis, e
+  irrelevante perto da virtualização — fica registrado porque a tentação de
+  medir o motor pelo que é fácil de otimizar foi exatamente o erro que o perfil
+  desfez.
+
+### Quebras
+- **`widget::render_node` recebe um `RenderView`** — a sexta posição, com o
+  deslocamento de cada `<scrollable>` e a altura da janela. Só alcança quem
+  chama `render_node` direto; o caminho normal (`GlacierUI::render`) não muda.
+
+### Notas
+- A virtualização é de **render**, não de avaliação: a árvore inteira continua
+  avaliada e na memória. Fazer a avaliação seguir a janela economizaria memória,
+  mas exigiria reavaliar a cada rolagem — exatamente o que esta versão evita.
+- A altura usada como "área visível" é a da **janela do app**, não a do
+  `<scrollable>` (que só o layout do `iced` conhece, e perguntar seria
+  circular). A conta erra por excesso: monta-se alguns itens a mais, nunca de
+  menos.
+- Só `Column` virtualiza. `Row` (lista horizontal) usa a mesma aritmética e
+  entra quando houver caso de uso.
+
+---
+
 ## [0.76.0] — 2026-09-02
 
 A terceira release de custo, e a primeira guiada por **perfil** em vez de
