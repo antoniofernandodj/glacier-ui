@@ -35,10 +35,18 @@
 //!   moldagem de texto, rasterização. Aí o motor não tem o que fazer, e a
 //!   investigação vira qual adaptador o `wgpu` escolheu.
 //!
-//! **Como ler.** Num app que não dá conta do quadro não há tempo ocioso, então
-//! o "fora do motor" é trabalho de verdade — layout, moldagem de texto, GPU. Num
-//! app folgado, boa parte dele é espera pelo vsync, e o número não quer dizer
-//! nada: compare os dois casos rolando e parado.
+//! **Como ler — e o erro que isto já causou.** O intervalo entre dois `view` é,
+//! num app orientado a evento, quase todo **espera**: sem mensagem não há
+//! quadro, e o relógio corre. A média e o máximo do intervalo medem o quanto o
+//! app ficou **parado**, não o quanto ele demora. Um app ocioso por dezenove
+//! segundos apareceu, numa versão anterior deste relatório, como "quadro de
+//! 19004 ms" — e foi lido como travamento.
+//!
+//! Por isso o número que decide é o **MIN**: o menor intervalo da janela é o
+//! quadro que saiu colado no anterior, ou seja, o app trabalhando sem folga.
+//! Se ele for 16 ms, o app dá conta de 60 por segundo e o resto é ócio; se for
+//! 200 ms, são 200 ms de trabalho. O `colados` diz de quantos quadros essa
+//! amostra é feita — com poucos, o MIN é frágil.
 //!
 //! A conta supõe que o `iced` chama `view` **uma vez por quadro**, que é o que
 //! ele faz. Com mais de uma janela aberta, as medidas se somam num relatório só
@@ -157,6 +165,20 @@ fn relata(j: &Janela, decorrido: Duration) {
     let (render_med, render_p95) = med_p95(&mut renders);
     let (quadro_med, quadro_p95) = med_p95(&mut quadros);
     let quadro_max = quadros.iter().copied().max().map(ms).unwrap_or(0.0);
+    // **O número que decide.** O intervalo entre dois `view` é quase todo
+    // ESPERA num app orientado a evento: sem mensagem, não há quadro, e o
+    // relógio corre. A média e o máximo medem o quanto o app ficou parado, não
+    // o quanto ele demora — foi assim que um app ocioso por 19 segundos
+    // apareceu como "quadro de 19004 ms".
+    //
+    // O **menor** intervalo da janela é imune a isso: é o quadro que saiu
+    // colado no anterior, ou seja, o app trabalhando sem folga. Se ele for
+    // 16 ms, o app dá conta de 60 por segundo e todo o resto é ócio; se for
+    // 200 ms, aí sim são 200 ms de trabalho.
+    let quadro_min = quadros.iter().copied().min().map(ms).unwrap_or(0.0);
+    // Quantos quadros saíram em sequência (menos de 50 ms um do outro) — a
+    // amostra em que o app esteve de fato ocupado.
+    let colados = quadros.iter().filter(|d| ms(**d) < 50.0).count();
     let n = j.renders.len();
     let fps = n as f64 / decorrido.as_secs_f64();
     // O `dispatch` acontece entre dois quadros, então o custo dele se dilui
@@ -179,13 +201,15 @@ fn relata(j: &Janela, decorrido: Duration) {
         .map(|(t, n)| format!("{t}×{n}"))
         .collect();
     eprintln!(
-        "[glacier perf] {n} quadros {:.2}s {fps:.1}fps | nós {} | quadro {quadro_med:.1}ms méd \
-         {quadro_p95:.1} p95 {quadro_max:.1} máx\n               render {render_med:.3} méd \
+        "[glacier perf] {n} quadros {:.2}s ({fps:.1}/s) | nós {} | quadro MIN {quadro_min:.1}ms \
+         ({} colados) | intervalo {quadro_med:.1} méd {quadro_p95:.1} p95 {quadro_max:.1} máx \
+         [inclui ócio]\n               render {render_med:.3} méd \
          {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
          app {app_por_quadro:.3}/quadro ({:.3} máx) | resto {resto:.1}ms/quadro \
          ({parte_resto:.1}%)\n               msgs: {}",
         decorrido.as_secs_f64(),
         j.nos,
+        colados,
         j.mensagens,
         ms(j.dispatch_max),
         ms(j.app_max),

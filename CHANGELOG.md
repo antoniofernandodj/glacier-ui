@@ -8,6 +8,40 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.82.0] — 2026-09-02
+
+Correção de **leitura**: o relatório do `GLACIER_PERF` media o intervalo entre
+quadros e o apresentava como se fosse custo. Num app orientado a evento esse
+intervalo é quase todo **espera** — sem mensagem não há quadro, e o relógio
+corre.
+
+### Corrigido
+- **O relatório mostra o MIN do intervalo, e quantos quadros saíram colados.**
+
+  ```text
+  [glacier perf] 6 quadros 1.15s (5.2/s) | nós 301 | quadro MIN 15.8ms (5 colados)
+                 | intervalo 192.5 méd 447.0 p95 447.0 máx [inclui ócio]
+  ```
+
+  O **MIN** é o menor intervalo da janela: o quadro que saiu colado no anterior,
+  ou seja, o app trabalhando sem folga. Se ele for 16 ms, o app dá conta de
+  sessenta por segundo e todo o resto é ócio; se for 200 ms, são 200 ms de
+  trabalho. O `colados` diz de quantos quadros essa amostra é feita — com
+  poucos, o MIN é frágil.
+
+  A média e o p95 do intervalo continuam no relatório, agora rotulados
+  `[inclui ócio]`, porque medem o quanto o app ficou **parado**, não o quanto
+  ele demora.
+
+  **O erro que isto causou**, e vale registrar: um app ocioso por dezenove
+  segundos apareceu como "quadro de 19004 ms máx" e foi lido — por quem escreveu
+  a ferramenta — como um travamento de dezenove segundos. Duas rodadas de
+  diagnóstico saíram dessa leitura. A ressalva estava escrita na doc do módulo
+  desde a 0.78; escrever a ressalva não impede de ignorá-la, um número que não
+  se presta à confusão impede.
+
+---
+
 ## [0.81.0] — 2026-09-02
 
 A release em que a instrumentação achou um problema do **próprio motor** — e não
