@@ -391,32 +391,49 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Gradient, Length
 /// Selects an `iced::Font` from a `font="..."` hint. `mono`/`monospace`/`code`
 /// map to the monospaced font; anything else returns `None` (default font).
 fn font_for(hint: Option<&str>) -> Option<Font> {
-    match hint.map(|s| s.to_ascii_lowercase()) {
-        Some(ref s) if s == "mono" || s == "monospace" || s == "code" => Some(Font::MONOSPACE),
-        Some(ref s) if s == "bold" => Some(Font {
+    let s = hint?;
+    if igual_ci(s, "mono") || igual_ci(s, "monospace") || igual_ci(s, "code") {
+        Some(Font::MONOSPACE)
+    } else if igual_ci(s, "bold") {
+        Some(Font {
             weight: iced::font::Weight::Bold,
             ..Default::default()
-        }),
-        _ => None,
+        })
+    } else {
+        None
     }
+}
+
+/// Compara sem diferenciar maiúsculas **e sem alocar**.
+///
+/// A forma óbvia — `s.to_ascii_lowercase() == "fill"` — aloca uma `String` por
+/// chamada, e estas comparações rodam no caminho de render: largura, altura,
+/// padding, fonte e alinhamento de **cada nó, a cada quadro**. Numa tela de 800
+/// nós a 60 fps são ~150 mil alocações por segundo, jogadas fora em seguida —
+/// e a alocação era 44% de todo o custo do render.
+#[inline]
+fn igual_ci(a: &str, b: &str) -> bool {
+    a.eq_ignore_ascii_case(b)
 }
 
 /// Whether a context string should count as "checked"/true.
 pub(crate) fn is_truthy(s: &str) -> bool {
-    matches!(
-        s.trim().to_ascii_lowercase().as_str(),
-        "true" | "1" | "yes" | "on" | "sim"
-    )
+    let s = s.trim();
+    igual_ci(s, "true") || igual_ci(s, "yes") || igual_ci(s, "on") || igual_ci(s, "sim") || s == "1"
 }
 
 /// Maps `start`/`center`/`end` (and aliases) to a horizontal text alignment.
 fn parse_text_align(s: Option<&str>) -> Option<iced::alignment::Horizontal> {
     use iced::alignment::Horizontal;
-    match s.map(|v| v.to_ascii_lowercase()) {
-        Some(ref v) if v == "start" || v == "left" => Some(Horizontal::Left),
-        Some(ref v) if v == "center" || v == "centre" => Some(Horizontal::Center),
-        Some(ref v) if v == "end" || v == "right" => Some(Horizontal::Right),
-        _ => None,
+    let v = s?;
+    if igual_ci(v, "start") || igual_ci(v, "left") {
+        Some(Horizontal::Left)
+    } else if igual_ci(v, "center") || igual_ci(v, "centre") {
+        Some(Horizontal::Center)
+    } else if igual_ci(v, "end") || igual_ci(v, "right") {
+        Some(Horizontal::Right)
+    } else {
+        None
     }
 }
 
@@ -657,23 +674,22 @@ fn parse_length(s: &Option<String>) -> Length {
         return Length::Shrink;
     };
     let v = raw.trim();
-    let lower = v.to_ascii_lowercase();
-    match lower.as_str() {
-        "fill" => Length::Fill,
-        "shrink" => Length::Shrink,
-        _ => {
-            // `fill 2` / `fill-2` → FillPortion(2).
-            if let Some(rest) = lower.strip_prefix("fill") {
-                let n = rest.trim_start_matches([' ', '-']).trim();
-                if let Ok(p) = n.parse::<u16>() {
-                    return Length::FillPortion(p.max(1));
-                }
-            }
-            match v.parse::<f32>() {
-                Ok(f) => Length::Fixed(f),
-                Err(_) => Length::Shrink,
-            }
-        }
+    if igual_ci(v, "fill") {
+        return Length::Fill;
+    }
+    if igual_ci(v, "shrink") {
+        return Length::Shrink;
+    }
+    // `fill 2` / `fill-2` → FillPortion(2).
+    if v.len() > 4
+        && igual_ci(&v[..4], "fill")
+        && let Ok(p) = v[4..].trim_start_matches([' ', '-']).trim().parse::<u16>()
+    {
+        return Length::FillPortion(p.max(1));
+    }
+    match v.parse::<f32>() {
+        Ok(f) => Length::Fixed(f),
+        Err(_) => Length::Shrink,
     }
 }
 
