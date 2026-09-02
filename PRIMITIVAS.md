@@ -94,6 +94,35 @@ nó de uma tela vai preenchê-lo, é campo; se quase nenhum, é grupo.** O motiv
 está no CHANGELOG da 0.74 — cada `Option<String>` no corpo do nó custava 24
 bytes em *todos* os nós da árvore, usados ou não.
 
+## Descobrir onde o quadro está indo (0.78)
+
+Antes de otimizar, meça — e meça **dentro do app**, porque o motor é só uma
+parte do quadro. `GLACIER_PERF=1` liga um relatório por segundo no `stderr`:
+
+```sh
+GLACIER_PERF=1 ./meu-app
+```
+
+```text
+[glacier perf] 58 quadros em 1.00s = 58.0 fps  |  render 0.43ms méd, 0.71ms p95
+               nós 1682  |  motor 2.5% do quadro  |  fora do motor 16.8ms/quadro
+```
+
+O motor cronometra a parte dele (percorrer a árvore e montar os `Element`); o
+que vem depois — medir o layout, moldar o texto, desenhar na GPU — acontece
+dentro do `iced` e do `wgpu`, e sai **por diferença**, do intervalo entre duas
+chamadas de `view`.
+
+A linha que decide é **fora do motor**. Se ela come quase todo o quadro,
+otimizar o glacier não vai adiantar: a saída é entregar menos nós ao `iced`
+(`virtualize`, logo abaixo), reduzir o tamanho da tela, ou aceitar o hardware.
+
+Duas ressalvas para não ler errado: num app folgado boa parte do "fora do motor"
+é espera pelo vsync, não trabalho — compare rolando e parado; e com mais de uma
+janela aberta as medidas se somam num relatório só.
+
+Desligada, a instrumentação custa a leitura de um `bool` já resolvido por quadro.
+
 ## Virtualizar uma lista longa (0.77)
 
 Um `<scrollable>` entrega ao `iced` **todos** os filhos, e o `iced` mede e

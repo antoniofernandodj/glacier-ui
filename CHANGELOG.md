@@ -8,6 +8,42 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.78.0] — 2026-09-02
+
+Release de **ferramenta**: o motor não mudou de comportamento, ganhou um jeito
+de responder a pergunta que as três releases de custo anteriores só souberam
+responder por inferência — *de um quadro lento, quanto é o motor e quanto é o
+resto?*
+
+### Adicionado
+- **`GLACIER_PERF=1`**: um relatório por segundo no `stderr`, com o custo do
+  render, quantos nós, e — por diferença — quanto do quadro **não** é do motor.
+
+  ```text
+  [glacier perf] 58 quadros em 1.00s = 58.0 fps  |  render 0.43ms méd, 0.71ms p95
+                 nós 1682  |  motor 2.5% do quadro  |  fora do motor 16.8ms/quadro
+  ```
+
+  O motor cronometra a parte dele — percorrer a árvore avaliada e montar os
+  `Element`. O que vem depois (medir o layout, moldar o texto, desenhar na GPU)
+  acontece dentro do `iced` e do `wgpu`, fora do alcance daqui; mas o intervalo
+  entre duas chamadas de `view` é o quadro inteiro, e o que sobra ao descontar o
+  render é tudo que não é motor.
+
+  **Por que isso faltava.** A 0.77 nasceu de um sintoma — uma tela rolando a
+  poucos quadros por segundo — e o diagnóstico teve de ser montado de fora, com
+  medidas sintéticas e eliminação: o render do motor era 2,6% do orçamento, o
+  gancho do app 19 µs, a GPU era de 2012. Concluiu-se que o tempo estava no
+  layout do `iced`, mas **por inferência**, não por medida. Esta variável mede.
+
+  Ressalvas, que estão na doc do módulo: num app folgado boa parte do "fora do
+  motor" é espera pelo vsync, não trabalho (compare rolando e parado); e com
+  mais de uma janela as medidas se somam num relatório só.
+
+  Desligada, custa a leitura de um `bool` já resolvido por quadro.
+
+---
+
 ## [0.77.0] — 2026-09-02
 
 **Virtualização de lista.** A quarta release de custo, e a primeira que sai de

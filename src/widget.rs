@@ -849,7 +849,7 @@ fn janela_visivel(
     altura: f32,
     margem: usize,
 ) -> Option<(usize, usize)> {
-    if total == 0 || !(passo > 0.0) || !altura.is_finite() || altura <= 0.0 {
+    if total == 0 || !passo.is_finite() || passo <= 0.0 || !altura.is_finite() || altura <= 0.0 {
         return None;
     }
     let bruto = (deslocamento.max(0.0) / passo).floor();

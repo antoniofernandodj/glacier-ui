@@ -14,6 +14,7 @@ pub mod luau;
 pub mod menu;
 pub mod net;
 pub mod parser;
+mod perf;
 pub mod render_inputs;
 mod single_instance;
 pub mod spinner;
@@ -2327,19 +2328,30 @@ impl GlacierUI {
                 }
             })?;
 
-        // Render the evaluated AST to Iced Widgets
-        Ok(render_node(
-            evaluated_ast,
-            &self.context_data,
-            &self.editors,
-            &self.combos,
-            self.assets.as_ref(),
-            crate::widget::RenderView {
-                scroll: &self.scroll_offsets,
-                altura_janela: self.inputs.viewport().1,
-                janela: None,
-            },
-        ))
+        let montar = || {
+            render_node(
+                evaluated_ast,
+                &self.context_data,
+                &self.editors,
+                &self.combos,
+                self.assets.as_ref(),
+                crate::widget::RenderView {
+                    scroll: &self.scroll_offsets,
+                    altura_janela: self.inputs.viewport().1,
+                    janela: None,
+                },
+            )
+        };
+        // Com `GLACIER_PERF` ligada, cronometra o que é do motor e deixa o
+        // resto do quadro sair por diferença — ver `crate::perf`. Desligada,
+        // sobra a leitura de um `bool` já resolvido.
+        if perf::ligado() {
+            let t0 = std::time::Instant::now();
+            let elemento = montar();
+            perf::anota(t0.elapsed(), perf::conta_nos(evaluated_ast));
+            return Ok(elemento);
+        }
+        Ok(montar())
     }
 
     /// Checks registered XML files for changes and re-parses them if modified.
