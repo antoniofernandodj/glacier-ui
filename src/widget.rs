@@ -667,6 +667,52 @@ pub enum EngineMessage {
     MenuDismiss,
 }
 
+impl EngineMessage {
+    /// O nome da variante, para o relatório de [`crate::perf`].
+    ///
+    /// Saber **qual** mensagem chega 150 vezes por segundo é a diferença entre
+    /// diagnosticar e adivinhar: no `iced`, toda mensagem provoca um quadro, e
+    /// uma que o motor emite sozinho (a posição do cursor, por exemplo) faz o
+    /// app redesenhar sem nada ter mudado.
+    pub(crate) fn nome(&self) -> &'static str {
+        match self {
+            Self::UiClick { .. } => "UiClick",
+            Self::TimeEditKey { .. } => "TimeEditKey",
+            Self::UiInputChanged { .. } => "UiInputChanged",
+            Self::UiEditorAction { .. } => "UiEditorAction",
+            Self::UiComboInput { .. } => "UiComboInput",
+            Self::UiComboSelected { .. } => "UiComboSelected",
+            Self::Navigate { .. } => "Navigate",
+            Self::NavigateBack { .. } => "NavigateBack",
+            Self::FileChanged { .. } => "FileChanged",
+            Self::ContextPatch { .. } => "ContextPatch",
+            Self::EffectOutcome { .. } => "EffectOutcome",
+            Self::DragStart { .. } => "DragStart",
+            Self::DragHover { .. } => "DragHover",
+            Self::DragEnd { .. } => "DragEnd",
+            Self::UiSubmit { .. } => "UiSubmit",
+            Self::DialogButton { .. } => "DialogButton",
+            Self::DialogDismiss { .. } => "DialogDismiss",
+            Self::ToastDismiss { .. } => "ToastDismiss",
+            Self::ToastTick { .. } => "ToastTick",
+            Self::FocusNext { .. } => "FocusNext",
+            Self::FocusPrev { .. } => "FocusPrev",
+            Self::Viewport { .. } => "Viewport",
+            Self::LuauResume { .. } => "LuauResume",
+            Self::LuauStream { .. } => "LuauStream",
+            Self::LuauTimer { .. } => "LuauTimer",
+            Self::FileDialogResume { .. } => "FileDialogResume",
+            Self::CursorMoved { .. } => "CursorMoved",
+            Self::Scrolled { .. } => "Scrolled",
+            Self::OpenMenuBarDropdown { .. } => "OpenMenuBarDropdown",
+            Self::OpenContextMenu { .. } => "OpenContextMenu",
+            Self::MenuHoverSubmenu { .. } => "MenuHoverSubmenu",
+            Self::MenuItemClick { .. } => "MenuItemClick",
+            Self::MenuDismiss { .. } => "MenuDismiss",
+        }
+    }
+}
+
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing
 /// `<Form>`'s `"{owner}::{form name}"` prefix (shared by every control in that
 /// form), `control` its own `formControl` name.

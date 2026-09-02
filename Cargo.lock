@@ -1560,7 +1560,7 @@ version = "0.2.6"
 
 [[package]]
 name = "glacier-ui"
-version = "0.78.0"
+version = "0.79.0"
 dependencies = [
  "base64",
  "flate2",

@@ -8,6 +8,30 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.80.0] — 2026-09-02
+
+### Adicionado
+- **`GLACIER_PERF` diz agora quais mensagens chegam**, e quantas de cada tipo:
+
+  ```text
+  msgs: CursorMoved×148  ToastTick×4  UiClick×2
+  ```
+
+  No `iced`, **toda mensagem provoca um quadro**. Uma tela parada que recebe
+  cento e cinquenta mensagens por segundo está redesenhando cento e cinquenta
+  vezes sem nada ter mudado — e numa GPU fraca é isso, e não o conteúdo, que
+  satura o quadro. Sem saber *qual* mensagem é essa, o diagnóstico para no
+  "alguma coisa está pedindo quadro demais".
+
+  A motivação é um caso real: um app com **45 nós na tela** rendendo 3,6 quadros
+  por segundo, com 67 a 155 mensagens por segundo e o `resto` (layout, texto,
+  GPU) em 99,9% do quadro. Nem o `render` (0,1 ms) nem o `dispatch` (0,001 ms)
+  explicavam; a contagem de mensagens é o próximo fio.
+
+  `EngineMessage::nome()` (interno) dá o nome da variante para o relatório.
+
+---
+
 ## [0.79.0] — 2026-09-02
 
 Correção da ferramenta que a 0.78 acabou de entregar: ela media uma parcela e

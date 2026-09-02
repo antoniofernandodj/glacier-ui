@@ -842,7 +842,7 @@ impl GlacierUI {
         if perf::ligado() {
             let t0 = std::time::Instant::now();
             let tarefa = self.dispatch_interno(msg);
-            perf::anota_dispatch(t0.elapsed());
+            perf::anota_dispatch(t0.elapsed(), msg.nome());
             return tarefa;
         }
         self.dispatch_interno(msg)

@@ -85,6 +85,11 @@ struct Janela {
     /// A mensagem mais cara da janela: é ela que trava um quadro sozinha.
     dispatch_max: Duration,
     mensagens: u32,
+    /// Quantas de cada tipo. No `iced` **toda mensagem provoca um quadro**, e
+    /// uma tela parada que recebe cento e cinquenta mensagens por segundo está
+    /// redesenhando cento e cinquenta vezes sem nada ter mudado. Saber qual
+    /// mensagem é essa é a diferença entre consertar e adivinhar.
+    por_tipo: Vec<(&'static str, u32)>,
     /// Nós da última árvore renderizada.
     nos: usize,
 }
@@ -157,25 +162,43 @@ fn relata(j: &Janela, decorrido: Duration) {
     } else {
         0.0
     };
+    let mut tipos = j.por_tipo.clone();
+    tipos.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
+    let quais: Vec<String> = tipos
+        .iter()
+        .take(4)
+        .map(|(t, n)| format!("{t}×{n}"))
+        .collect();
     eprintln!(
         "[glacier perf] {n} quadros {:.2}s {fps:.1}fps | nós {} | quadro {quadro_med:.1}ms méd \
          {quadro_p95:.1} p95 {quadro_max:.1} máx\n               render {render_med:.3} méd \
          {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
-         resto {resto:.1}ms/quadro ({parte_resto:.1}%)",
+         resto {resto:.1}ms/quadro ({parte_resto:.1}%)\n               msgs: {}",
         decorrido.as_secs_f64(),
         j.nos,
         j.mensagens,
         ms(j.dispatch_max),
+        if quais.is_empty() {
+            "—".to_string()
+        } else {
+            quais.join("  ")
+        },
     );
 }
 
 /// Anota uma mensagem tratada. Chamada só quando [`ligado`] é verdadeiro.
-pub(crate) fn anota_dispatch(duracao: Duration) {
+pub(crate) fn anota_dispatch(duracao: Duration, tipo: &'static str) {
     JANELA.with(|j| {
         let mut j = j.borrow_mut();
         j.dispatch += duracao;
         j.dispatch_max = j.dispatch_max.max(duracao);
         j.mensagens += 1;
+        // Busca linear numa lista de no máximo algumas dezenas de tipos, e só
+        // com a instrumentação ligada: mais barato que um mapa aqui.
+        match j.por_tipo.iter_mut().find(|(t, _)| *t == tipo) {
+            Some((_, n)) => *n += 1,
+            None => j.por_tipo.push((tipo, 1)),
+        }
     });
 }
 
