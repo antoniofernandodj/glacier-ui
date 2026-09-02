@@ -1,4 +1,4 @@
-//! `<ComboEdit>`: um dropdown editável (`combo_box` do iced) — dá pra digitar
+//! `<comboedit>`: um dropdown editável (`combo_box` do iced) — dá pra digitar
 //! um valor novo (não precisa estar na lista) ou escolher um já conhecido.
 //! Este exemplo é o caso de uso que motivou o widget: uma lista de
 //! servidor/token salvos, onde escolher um servidor da lista preenche o
@@ -26,7 +26,7 @@ impl Servidores {
         }
     }
 
-    /// Publica a lista de URLs salvas (pro `options` do `<ComboEdit>`) e o
+    /// Publica a lista de URLs salvas (pro `options` do `<comboedit>`) e o
     /// texto de depuração exibido embaixo.
     fn sincronizar(&self, ctx: &mut Context) {
         let urls: Vec<String> = self

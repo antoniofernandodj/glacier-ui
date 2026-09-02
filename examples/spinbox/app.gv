@@ -1,52 +1,58 @@
 <screen title="Glacier - SpinBox" size="620 560">
+  <resources>
+    <style>
+      .moldura   { border-width: 1; border-color: #89B4FA; border-radius: 6; padding: 4; }
+      .campo_num { background: #11111B; }
+    </style>
+  </resources>
+
   <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
     <column spacing="6">
-      <text content="SpinBox — o QSpinBox do Qt" size="22" bold="true" color="#CDD6F4" />
-      <text
-        content="O app só registra o template e semeia os valores iniciais. Somar, subtrair e saturar é do widget, que vem embutido na lib e escreve na chave de contexto que cada instância nomeia."
-        size="13"
-        color="#A6ADC8"
-      />
+      <text size="22" bold="true" color="#CDD6F4">SpinBox — o QSpinBox do Qt</text>
+      <text size="13" color="#A6ADC8">
+        O app só registra o template e semeia os valores iniciais. Somar, subtrair e saturar é do
+        widget, que vem embutido na lib e escreve na chave de contexto que cada instância nomeia.
+      </text>
     </column>
 
     <rule />
 
     <!-- Inteiro simples: a faixa satura em 1..10. -->
     <row spacing="16" align_y="center">
-      <text content="Quantidade" width="110" color="#CDD6F4" />
-      <SpinBox value="quantidade" min="1" max="10" />
-      <text content="chave 'quantidade' = {quantidade}" size="13" color="#A6ADC8" />
+      <text width="110" color="#CDD6F4">Quantidade</text>
+      <spinbox value="quantidade" min="1" max="10" />
+      <text size="13" color="#A6ADC8">chave 'quantidade' = {quantidade}</text>
     </row>
 
     <!-- Decimal: as duas casas saem do próprio step, sem prop nova. -->
     <row spacing="16" align_y="center">
-      <text content="Preço" width="110" color="#CDD6F4" />
-      <SpinBox value="preco" min="0" max="20" step="0.25" width="90" />
-      <text content="chave 'preco' = {preco}" size="13" color="#A6ADC8" />
+      <text width="110" color="#CDD6F4">Preço</text>
+      <spinbox value="preco" min="0" max="20" step="0.25" width="90" />
+      <text size="13" color="#A6ADC8">chave 'preco' = {preco}</text>
     </row>
 
     <!-- Passo grande e a outra forma: `− campo +`, o SpinBox do Qt Quick. -->
     <row spacing="16" align_y="center">
-      <text content="Zoom (%)" width="110" color="#CDD6F4" />
-      <SpinBox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
-      <text content="chave 'zoom' = {zoom}" size="13" color="#A6ADC8" />
+      <text width="110" color="#CDD6F4">Zoom (%)</text>
+      <spinbox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
+      <text size="13" color="#A6ADC8">chave 'zoom' = {zoom}</text>
     </row>
 
     <rule />
 
     <!-- Duas instâncias da MESMA tag, lado a lado: chaves diferentes, nenhum
        estado compartilhado. É o ponto do padrão "a chave vem por prop". -->
-    <text content="Duas instâncias independentes:" size="13" bold="true" color="#CDD6F4" />
+    <text size="13" bold="true" color="#CDD6F4">Duas instâncias independentes:</text>
     <row spacing="24" align_y="center">
       <row spacing="10" align_y="center">
-        <text content="Adultos" color="#CDD6F4" />
-        <SpinBox value="adultos" min="1" max="9" width="56" />
+        <text color="#CDD6F4">Adultos</text>
+        <spinbox value="adultos" min="1" max="9" width="56" />
       </row>
       <row spacing="10" align_y="center">
-        <text content="Crianças" color="#CDD6F4" />
-        <SpinBox value="criancas" min="0" max="9" width="56" />
+        <text color="#CDD6F4">Crianças</text>
+        <spinbox value="criancas" min="0" max="9" width="56" />
       </row>
-      <text content="{adultos} adulto(s), {criancas} criança(s)" size="13" color="#A6ADC8" />
+      <text size="13" color="#A6ADC8">{adultos} adulto(s), {criancas} criança(s)</text>
     </row>
 
     <rule />
@@ -57,15 +63,15 @@
          class       -> a RAIZ do widget: a Row inteira, campo + degraus. É o
                         que estilizar um QSpinBox significa no Qt, e antes da
                         0.69 era um no-op silencioso aqui.
-         field_class -> só o <TextInput> de dentro.
+         field_class -> só o <textinput> de dentro.
 
-       form_control põe o campo na cadeia de tabulação da <Form> que o envolve
+       form_control põe o campo na cadeia de tabulação da <form> que o envolve
        — sem ele o Tab pula o widget inteiro. -->
-    <text content="class × field_class (0.69):" size="13" bold="true" color="#CDD6F4" />
+    <text size="13" bold="true" color="#CDD6F4">class × field_class (0.69):</text>
     <form name="reserva" on_submit="salvar" spacing="10">
       <row spacing="16" align_y="center">
-        <text content="Mesas" width="110" color="#CDD6F4" />
-        <SpinBox
+        <text width="110" color="#CDD6F4">Mesas</text>
+        <spinbox
           value="mesas"
           min="1"
           max="20"
@@ -74,17 +80,12 @@
           field_class="campo_num"
           form_control="mesas"
         />
-        <text content="a moldura é a Row; o fundo escuro é só o campo" size="13" color="#A6ADC8" />
+        <text size="13" color="#A6ADC8">a moldura é a Row; o fundo escuro é só o campo</text>
       </row>
       <row spacing="16" align_y="center">
-        <text content="Observação" width="110" color="#CDD6F4" />
-        <TextInput value="obs" formControl="obs" width="220" placeholder="Tab vem parar aqui" />
+        <text width="110" color="#CDD6F4">Observação</text>
+        <textinput value="obs" form_control="obs" width="220" placeholder="Tab vem parar aqui" />
       </row>
     </form>
-
-    <style>
-    .moldura   { border-width: 1; border-color: #89B4FA; border-radius: 6; padding: 4; }
-    .campo_num { background: #11111B; }
-    </style>
   </column>
 </screen>

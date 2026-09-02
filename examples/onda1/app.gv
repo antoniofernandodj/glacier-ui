@@ -5,7 +5,7 @@
        nada de especial: o conteúdo de um slot pode ser qualquer widget,
        embutido ou não. -->
     <toolbar divider="true">
-      <text content="Onda 1 — Slider, Space, Radio e Avatar" size="14" bold="true" color="#CDD6F4" />
+      <text size="14" bold="true" color="#CDD6F4">Onda 1 — Slider, Space, Radio e Avatar</text>
       <!-- 2. Space: aqui é o espaçador FLEXÍVEL. Sem width, ele é
          Length::Fill e come toda a sobra, empurrando o avatar para a
          borda direita. É o QSpacerItem de um QHBoxLayout. -->
@@ -18,49 +18,48 @@
 
         <!-- 1. Slider =============================================== -->
         <groupbox title="Slider — o QSlider">
-          <text
-            content="Primitiva: dispara onChange com o valor novo, e quem grava a chave é o update da tela. Sem esse handler, o cursor não sairia do lugar."
-            size="13"
-            color="#A6ADC8"
-          />
+          <text size="13" color="#A6ADC8">
+            Primitiva: dispara onChange com o valor novo, e quem grava a chave é o update da tela.
+            Sem esse handler, o cursor não sairia do lugar.
+          </text>
 
           <row spacing="16" align_y="center">
-            <text content="Volume" width="90" color="#CDD6F4" />
-            <slider value="volume" min="0" max="100" onChange="ajustar_volume" width="320" />
-            <text content="{volume}" size="13" color="#A6ADC8" />
+            <text width="90" color="#CDD6F4">Volume</text>
+            <slider value="volume" min="0" max="100" on_change="ajustar_volume" width="320" />
+            <text size="13" color="#A6ADC8">{volume}</text>
           </row>
 
           <!-- Passo fracionário: as casas decimais da saída saem do
              próprio step ("0.05" -> 2 casas), então a chave nunca
              recebe 0.6000000238418579. -->
           <row spacing="16" align_y="center">
-            <text content="Brilho" width="90" color="#CDD6F4" />
+            <text width="90" color="#CDD6F4">Brilho</text>
             <slider
               value="brilho"
               min="0"
               max="1"
               step="0.05"
-              onChange="ajustar_brilho"
+              on_change="ajustar_brilho"
               width="320"
               color="#A6E3A1"
             />
-            <text content="{brilho}" size="13" color="#A6ADC8" />
+            <text size="13" color="#A6ADC8">{brilho}</text>
           </row>
 
           <!-- default: clique duplo devolve o cursor ao valor neutro.
              on_release: a ação só dispara ao SOLTAR, para quem não
              quer um efeito colateral por pixel arrastado. -->
           <row spacing="16" align_y="center">
-            <text content="Graves" width="90" color="#CDD6F4" />
+            <text width="90" color="#CDD6F4">Graves</text>
             <slider
               value="graves"
               min="-10"
               max="10"
               default="0"
-              onChange="ajustar_graves"
+              on_change="ajustar_graves"
               width="320"
             />
-            <text content="{graves} dB (duplo clique volta a 0)" size="13" color="#A6ADC8" />
+            <text size="13" color="#A6ADC8">{graves} dB (duplo clique volta a 0)</text>
           </row>
         </groupbox>
 
@@ -70,84 +69,99 @@
            andam juntos. -->
         <groupbox title="Slider + SpinBox na mesma chave" flat="true">
           <row spacing="16" align_y="center">
-            <text content="Zoom (%)" width="90" color="#CDD6F4" />
-            <slider value="zoom" min="25" max="400" step="25" onChange="ajustar_zoom" width="260" />
+            <text width="90" color="#CDD6F4">Zoom (%)</text>
+            <slider
+              value="zoom"
+              min="25"
+              max="400"
+              step="25"
+              on_change="ajustar_zoom"
+              width="260"
+            />
             <spinbox value="zoom" min="25" max="400" step="25" width="80" />
-            <text content="{zoom}%" size="13" color="#A6ADC8" />
+            <text size="13" color="#A6ADC8">{zoom}%</text>
           </row>
 
           <row spacing="16" align_y="center">
-            <text content="Vertical" width="90" color="#CDD6F4" />
-            <slider value="volume" min="0" max="100" vertical="true" onChange="ajustar_volume" height="120" />
-            <text content="o mesmo 'volume' do grupo acima, no vertical_slider" size="13" color="#A6ADC8" />
+            <text width="90" color="#CDD6F4">Vertical</text>
+            <slider
+              value="volume"
+              min="0"
+              max="100"
+              vertical="true"
+              on_change="ajustar_volume"
+              height="120"
+            />
+            <text size="13" color="#A6ADC8">
+              o mesmo 'volume' do grupo acima, no vertical_slider
+            </text>
           </row>
         </groupbox>
 
         <!-- 3. Radio / RadioGroup ==================================== -->
         <groupbox title="Radio e RadioGroup — o QRadioButton e o QButtonGroup">
-          <text
-            content="Os dois caminhos escrevendo na MESMA chave 'plano'. O grupo é a chave, não um nó pai: todo Radio que aponta para o mesmo valor é do mesmo grupo."
-            size="13"
-            color="#A6ADC8"
-          />
+          <text size="13" color="#A6ADC8">
+            Os dois caminhos escrevendo na MESMA chave 'plano'. O grupo é a chave, não um nó pai:
+            todo Radio que aponta para o mesmo valor é do mesmo grupo.
+          </text>
 
           <row spacing="40" align_y="start">
             <column spacing="8">
-              <text content="Primitiva, escrita à mão:" size="13" bold="true" color="#CDD6F4" />
-              <radio label="Grátis" value="free" group="plano" onChange="escolher_plano" />
-              <radio label="Pro" value="pro" group="plano" onChange="escolher_plano" />
-              <radio label="Time" value="team" group="plano" onChange="escolher_plano" />
-              <text content="+ 1 braço no update da tela" size="12" color="#6C7086" />
+              <text size="13" bold="true" color="#CDD6F4">Primitiva, escrita à mão:</text>
+              <radio label="Grátis" value="free" group="plano" on_change="escolher_plano" />
+              <radio label="Pro" value="pro" group="plano" on_change="escolher_plano" />
+              <radio label="Time" value="team" group="plano" on_change="escolher_plano" />
+              <text size="12" color="#6C7086">+ 1 braço no update da tela</text>
             </column>
 
             <column spacing="8">
-              <text content="Builtin, de uma coleção:" size="13" bold="true" color="#CDD6F4" />
+              <text size="13" bold="true" color="#CDD6F4">Builtin, de uma coleção:</text>
               <radiogroup value="plano" items="planos" />
-              <text content="nenhum handler no app" size="12" color="#6C7086" />
+              <text size="12" color="#6C7086">nenhum handler no app</text>
             </column>
 
             <column spacing="8">
-              <text content="O mesmo builtin, deitado:" size="13" bold="true" color="#CDD6F4" />
+              <text size="13" bold="true" color="#CDD6F4">O mesmo builtin, deitado:</text>
               <radiogroup value="plano" items="planos" layout="row" />
-              <text content="plano escolhido: {plano}" size="13" color="#A6ADC8" />
+              <text size="13" color="#A6ADC8">plano escolhido: {plano}</text>
             </column>
           </row>
         </groupbox>
 
         <!-- 4. Avatar ================================================ -->
         <groupbox title="Avatar">
-          <text
-            content="Sempre ocupa o mesmo espaço, com foto ou sem: numa lista de usuários a foto que falta é o caso comum, e um buraco vazio quebraria o alinhamento da linha."
-            size="13"
-            color="#A6ADC8"
-          />
+          <text size="13" color="#A6ADC8">
+            Sempre ocupa o mesmo espaço, com foto ou sem: numa lista de usuários a foto que falta é
+            o caso comum, e um buraco vazio quebraria o alinhamento da linha.
+          </text>
           <row spacing="16" align_y="center">
             <avatar src="examples/perfil/avatar.png" size="56" />
             <avatar initials="AF" size="56" />
             <avatar initials="MS" size="56" bg="#A6E3A1" fg="#11111B" />
             <avatar size="56" />
-            <text content="foto · iniciais · cores por instância · sem nada (o '?')" size="13" color="#A6ADC8" />
+            <text size="13" color="#A6ADC8">
+              foto · iniciais · cores por instância · sem nada (o '?')
+            </text>
           </row>
         </groupbox>
 
         <!-- 2. Space (fixo) ========================================== -->
         <groupbox title="Space — o QSpacerItem" flat="true">
-          <text
-            content="Sem width/height é Length::Fill nos dois eixos (o espaçador flexível, como no topo desta janela); com eles, vira um vão fixo."
-            size="13"
-            color="#A6ADC8"
-          />
+          <text size="13" color="#A6ADC8">
+            Sem width/height é Length::Fill nos dois eixos (o espaçador flexível, como no topo desta
+            janela); com eles, vira um vão fixo.
+          </text>
           <row align_y="center">
-            <text content="esquerda" color="#CDD6F4" />
+            <text color="#CDD6F4">esquerda</text>
             <space />
-            <text content="centro (empurrado por dois Space fill)" color="#CDD6F4" />
+            <text color="#CDD6F4">centro (empurrado por dois Space fill)</text>
             <space />
-            <text content="direita" color="#CDD6F4" />
+            <text color="#CDD6F4">direita</text>
           </row>
           <row align_y="center">
-            <text content="a" color="#CDD6F4" />
+            <text color="#CDD6F4">a</text>
             <space width="80" />
-            <text content="b (80px fixos entre nós)" color="#CDD6F4" />
+            <text color="#CDD6F4">b (80px fixos entre nós)</text>
           </row>
         </groupbox>
 

@@ -7,7 +7,7 @@
   O `main.rs` deste exemplo também chama `.title(...)`/`.main_size(...)`; o que
   está escrito aqui vence, porque é o arquivo que recarrega a quente.
 -->
-<screen title="Controle externo" size="1000 700" min-size="480 360">
+<screen title="Controle externo" size="1000 700" min_size="480 360">
   <resources>
     <style scoped="true">
       .tela {
@@ -51,17 +51,16 @@
 
   <container class="tela">
     <column class="conteudo">
-      <text class="titulo" content="Controle externo" />
-      <text
-        class="subtitulo"
-        content="Ninguém toca nesta janela. Uma thread do próprio programa manda as ações pelo canal `external`."
-      />
-
+      <text class="titulo">Controle externo</text>
+      <text class="subtitulo">
+        Ninguém toca nesta janela.
+        Uma thread do próprio programa manda as ações pelo canal `external`.
+      </text>
       <container class="painel">
         <column class="painel-col">
-          <text class="campo" content="nome:  {nome}" />
-          <text class="campo" content="busca: {busca}" />
-          <text class="estado" content="{estado}" />
+          <text class="campo">nome:  {nome}</text>
+          <text class="campo">busca: {busca}</text>
+          <text class="estado">{estado}</text>
         </column>
       </container>
 

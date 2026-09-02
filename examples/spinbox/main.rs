@@ -1,4 +1,4 @@
-//! O builtin `<SpinBox/>` — campo numérico com os degraus ▴▾, o `QSpinBox` do Qt.
+//! O builtin `<spinbox/>` — campo numérico com os degraus ▴▾, o `QSpinBox` do Qt.
 //!
 //! Rode com: `cargo run --example spinbox`
 //!
@@ -19,7 +19,7 @@ fn main() -> iced::Result {
                 .register_component("spinbox", "examples/spinbox/app.gv")
                 .expect("registrar a tela do exemplo");
             // Valor inicial de cada chave. É a única coisa que o app faz além
-            // de registrar a tela: um `<SpinBox/>` cuja chave nunca foi escrita
+            // de registrar a tela: um `<spinbox/>` cuja chave nunca foi escrita
             // nasce em branco (o primeiro clique num degrau o inicializa no
             // `min`), e um campo numérico vazio parece um campo quebrado.
             //

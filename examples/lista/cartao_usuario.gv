@@ -14,7 +14,7 @@
     <prop name="cor" default="#89B4FA" />
   </props>
 
-  <Container
+  <container
     padding="15"
     width="fill"
     background="#181825"
@@ -22,37 +22,23 @@
     border_width="1"
     border_color="#313244"
   >
-    <Row spacing="15" align="Center">
+    <row spacing="15" align="Center">
       <!-- Avatar circular com a inicial do nome -->
-      <Container
+      <container
         width="50"
         height="50"
         background="{cor}"
         border_radius="25"
-        alignX="Center"
-        alignY="Center"
+        align_x="Center"
+        align_y="Center"
       >
-        <Text
-          content="{inicial}"
-          size="22"
-          bold="true"
-          color="#11111B"
-        />
-      </Container>
+        <text size="22" bold="true" color="#11111B">{inicial}</text>
+      </container>
 
-      <Column spacing="3">
-        <Text
-          content="{nome}"
-          size="18"
-          bold="true"
-          color="#CDD6F4"
-        />
-        <Text
-          content="{cargo}"
-          size="13"
-          color="#A6ADC8"
-        />
-      </Column>
-    </Row>
-  </Container>
+      <column spacing="3">
+        <text size="18" bold="true" color="#CDD6F4">{nome}</text>
+        <text size="13" color="#A6ADC8">{cargo}</text>
+      </column>
+    </row>
+  </container>
 </component>

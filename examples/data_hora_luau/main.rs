@@ -6,7 +6,7 @@
 //! Compare com `examples/timepicker`, que é a outra ponta: lá os campos gravam
 //! a chave sozinhos e o app não escreve nada. Aqui cada campo tem `onChange`, e
 //! isso **inverte quem manda**: o widget passa a só avisar, e quem decide se o
-//! valor entra é o script. É o mesmo contrato do `<TextInput>`.
+//! valor entra é o script. É o mesmo contrato do `<textinput>`.
 //!
 //! É essa inversão que permite as regras deste exemplo — recusar uma saída
 //! anterior à entrada, avisar com um `toast`, recalcular o resumo a cada

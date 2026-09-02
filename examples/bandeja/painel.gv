@@ -1,18 +1,18 @@
 <screen title="Glacier — Bandeja" size="460 300">
-  <Container
+  <container
     padding="30"
-    alignX="Center"
-    alignY="Center"
+    align_x="Center"
+    align_y="Center"
     width="fill"
     height="fill"
     background="#2E3440"
   >
-    <Column spacing="20" align="Center">
-      <Text content="Exemplo de bandeja" size="26" bold="true" color="#ECEFF4" />
-      <Text content="Feche esta janela: o app continua na bandeja." size="14" color="#A3BE8C" />
-      <Text content="Reabra pelo item 'Open' do menu do ícone." size="13" color="#81A1C1" />
+    <column spacing="20" align="Center">
+      <text size="26" bold="true" color="#ECEFF4">Exemplo de bandeja</text>
+      <text size="14" color="#A3BE8C">Feche esta janela: o app continua na bandeja.</text>
+      <text size="13" color="#81A1C1">Reabra pelo item 'Open' do menu do ícone.</text>
 
-      <Button
+      <button
         text="Disparar notificação do SO"
         on_click="notificar"
         color="#5E81AC"
@@ -20,7 +20,9 @@
         padding="12"
       />
 
-      <Text content="(o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)" size="11" color="#4C566A" />
-    </Column>
-  </Container>
+      <text size="11" color="#4C566A">
+        (o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)
+      </text>
+    </column>
+  </container>
 </screen>

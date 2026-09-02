@@ -13,12 +13,12 @@
     </style>
 
     <script>
-    -- Lua behavior, interpreted at runtime (no compilation).
-    -- The engine context is the global `ctx` table: read/write `ctx.contador`
-    -- updates the {contador} binding in the markup below.
-    function init() ctx.contador = ctx.contador or 0 end
-    function increment() ctx.contador = ctx.contador + 1 end
-    function decrement() ctx.contador = ctx.contador - 1 end
+      -- Lua behavior, interpreted at runtime (no compilation).
+      -- The engine context is the global `ctx` table: read/write `ctx.contador`
+      -- updates the {contador} binding in the markup below.
+      function init() ctx.contador = ctx.contador or 0 end
+      function increment() ctx.contador = ctx.contador + 1 end
+      function decrement() ctx.contador = ctx.contador - 1 end
     </script>
   </resources>
 

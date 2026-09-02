@@ -18,79 +18,56 @@
     </style>
 
     <script>
-    function init()
-      ctx.resultado = "(nenhum ainda)"
-    end
-
-    function abrir_arquivo()
-      local caminho = open_file({
-        title = "Escolha um arquivo",
-        filters = { { name = "Texto", extensions = { "txt", "md" } } },
-      })
-      ctx.resultado = caminho or "cancelado"
-    end
-
-    function abrir_varios()
-      local caminhos = open_files({ title = "Escolha um ou mais arquivos" })
-      if caminhos then
-        ctx.resultado = "(" .. #caminhos .. ") " .. table.concat(caminhos, ", ")
-      else
-        ctx.resultado = "cancelado"
+      function init()
+        ctx.resultado="(nenhum ainda)"
       end
-    end
 
-    function salvar_como()
-      local caminho = save_file({
-        title = "Salvar como",
-        default_name = "novo-arquivo.txt",
-      })
-      ctx.resultado = caminho or "cancelado"
-    end
+      function abrir_arquivo()
+        local caminho = open_file({
+          title="Escolha um arquivo",
+          filters = { { name="Texto", extensions = { "txt", "md" } } },
+        })
+        ctx.resultado = caminho or "cancelado"
+      end
 
-    function escolher_pasta()
-      local caminho = pick_folder({ title = "Escolha uma pasta" })
-      ctx.resultado = caminho or "cancelado"
-    end
+      function abrir_varios()
+        local caminhos = open_files({ title="Escolha um ou mais arquivos" })
+        if caminhos then
+          ctx.resultado="(" .. #caminhos .. ") " .. table.concat(caminhos, ", ")
+        else
+          ctx.resultado="cancelado"
+        end
+      end
+
+      function salvar_como()
+        local caminho = save_file({
+          title="Salvar como",
+          default_name="novo-arquivo.txt",
+        })
+        ctx.resultado = caminho or "cancelado"
+      end
+
+      function escolher_pasta()
+        local caminho = pick_folder({ title="Escolha uma pasta" })
+        ctx.resultado = caminho or "cancelado"
+      end
     </script>
   </resources>
 
   <column class="screen">
-    <text
-      content="Diálogos de arquivo (nativos do SO)"
-      class="title"
-    />
-    <text
-      content="Cada botão abre um diálogo de verdade do sistema operacional."
-      class="hint"
-    />
+    <text class="title">Diálogos de arquivo (nativos do SO)</text>
+    <text class="hint">
+      Cada botão abre um diálogo de verdade do sistema operacional.
+    </text>
 
     <row class="actions">
-      <button
-        text="Abrir arquivo"
-        on_click="abrir_arquivo"
-        class="btn btn-primary"
-      />
-      <button
-        text="Abrir vários"
-        on_click="abrir_varios"
-        class="btn btn-primary"
-      />
-      <button
-        text="Salvar como"
-        on_click="salvar_como"
-        class="btn btn-accent"
-      />
-      <button
-        text="Escolher pasta"
-        on_click="escolher_pasta"
-        class="btn btn-warn"
-      />
+      <button text="Abrir arquivo" on_click="abrir_arquivo" class="btn btn-primary" />
+      <button text="Abrir vários" on_click="abrir_varios" class="btn btn-primary" />
+      <button text="Salvar como" on_click="salvar_como" class="btn btn-accent" />
+      <button text="Escolher pasta" on_click="escolher_pasta" class="btn btn-warn" />
     </row>
 
     <rule class="divider" />
-    <text
-      content="Resultado: {resultado}"
-      class="result"
-    />
+    <text class="result">Resultado: {resultado}</text>
   </column>
 </screen>

@@ -47,24 +47,22 @@
     </style>
   </resources>
 
-  <Container padding="40" alignX="Center" alignY="Center" width="fill" height="fill">
-    <Container class="card">
-      <Column class="stack">
-        <Text class="title" content="Estilos inline (XML)" />
-        <Text class="valor" content="{valor}" />
+  <container padding="40" align_x="Center" align_y="Center" width="fill" height="fill">
+    <container class="card">
+      <column class="stack">
+        <text class="title">Estilos inline (XML)</text>
+        <text class="valor">{valor}</text>
 
-        <Row class="actions">
-          <Button class="btn btn-menos" text="−" on_click="decrementar" />
-          <Button class="btn btn-mais" text="+" on_click="incrementar" />
-        </Row>
+        <row class="actions">
+          <button class="btn btn-menos" text="−" on_click="decrementar" />
+          <button class="btn btn-mais" text="+" on_click="incrementar" />
+        </row>
 
         <!-- Atributo inline vence a classe: esta cor ganha de `.dica`. -->
-        <Text
-          class="dica"
-          content="edite o bloco style e veja o hot-reload"
-          color="#7F849C"
-        />
-      </Column>
-    </Container>
-  </Container>
+        <text class="dica" color="#7F849C">
+          edite o bloco style e veja o hot-reload
+        </text>
+      </column>
+    </container>
+  </container>
 </screen>

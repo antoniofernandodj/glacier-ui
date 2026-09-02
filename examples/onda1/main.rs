@@ -9,15 +9,15 @@
 //! Ela existe para deixar visível a diferença entre **primitiva** e **builtin**,
 //! que aqui aparece lado a lado com o mesmo dado:
 //!
-//! - `<Slider>` e `<Radio>` são **primitivas**. Como o `<TextInput>` e o
-//!   `<Checkbox>`, elas **não escrevem** a chave de contexto sozinhas: disparam
+//! - `<slider>` e `<radio>` são **primitivas**. Como o `<textinput>` e o
+//!   `<checkbox>`, elas **não escrevem** a chave de contexto sozinhas: disparam
 //!   a ação com o valor novo, e quem grava é o `update` abaixo. É por isso que
 //!   esta tela tem handlers — sem eles, arrastar o cursor não moveria nada.
-//! - `<RadioGroup>` é um **builtin** sobre `<Radio>`. Ele tem `update` próprio,
+//! - `<radiogroup>` é um **builtin** sobre `<radio>`. Ele tem `update` próprio,
 //!   grava a chave sozinho, e por isso não aparece handler nenhum aqui para ele.
 //!
 //! O grupo "Plano" mostra os dois caminhos escrevendo na **mesma** chave, e o
-//! grupo "Zoom" mostra um `<Slider>` e um `<SpinBox>` (da onda anterior) também
+//! grupo "Zoom" mostra um `<slider>` e um `<spinbox>` (da onda anterior) também
 //! na mesma chave — o par que o Qt usa o tempo todo.
 
 use glacier_ui::{Component, Context, GlacierDaemon, Template};
@@ -37,12 +37,12 @@ impl Component for Onda1 {
         ctx.set("volume", "42".to_string());
         ctx.set("brilho", "0.60".to_string());
         ctx.set("graves", "3".to_string());
-        // A mesma chave que o `<SpinBox>` da onda 2 edita, para os dois
+        // A mesma chave que o `<spinbox>` da onda 2 edita, para os dois
         // andarem juntos.
         ctx.set("zoom", "100".to_string());
 
-        // As opções do `<RadioGroup>` vêm de uma coleção do contexto, como as
-        // abas do `<TabBar>`: o `for-each` do motor lê chave, não texto solto.
+        // As opções do `<radiogroup>` vêm de uma coleção do contexto, como as
+        // abas do `<tabbar>`: o `for-each` do motor lê chave, não texto solto.
         ctx.set(
             "planos",
             r#"[{"id":"free","label":"Grátis"},
@@ -55,8 +55,8 @@ impl Component for Onda1 {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         // O segundo parâmetro é o valor novo que a primitiva mandou junto — o
-        // número do `<Slider>`, o `value` da opção do `<Radio>`. Guardar é
-        // literalmente isto; o widget já formatou (o `<Slider>` arredonda pelas
+        // número do `<slider>`, o `value` da opção do `<radio>`. Guardar é
+        // literalmente isto; o widget já formatou (o `<slider>` arredonda pelas
         // casas do `step`, então `step="0.05"` chega como "0.60", não como
         // "0.6000000238418579").
         let Some(novo) = value else { return };
@@ -65,8 +65,8 @@ impl Component for Onda1 {
             "ajustar_brilho" => "brilho",
             "ajustar_graves" => "graves",
             "ajustar_zoom" => "zoom",
-            // O `<Radio>` escrito à mão: o valor que chega é o `value` da opção
-            // clicada. Compare com o `<RadioGroup>` ao lado, que não precisa
+            // O `<radio>` escrito à mão: o valor que chega é o `value` da opção
+            // clicada. Compare com o `<radiogroup>` ao lado, que não precisa
             // deste braço.
             "escolher_plano" => "plano",
             _ => return,

@@ -60,7 +60,7 @@ impl Component for Login {
     }
 
     /// Só lida com atualização de campo: qualquer `TextInput
-    /// formControl="x"` dispara a ação "x" a cada tecla; `Form::has_control`
+    /// form_control="x"` dispara a ação "x" a cada tecla; `Form::has_control`
     /// reconhece isso sem precisar de um match por campo. A submissão vai
     /// para `on_form_submit`, não aqui.
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {

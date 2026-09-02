@@ -1,59 +1,58 @@
 <screen title="Glacier - Data e Hora" size="640 480">
-    <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+  <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
 
-        <column spacing="6">
-            <text content="QDateEdit · QTimeEdit · QDateTimeEdit" size="22" bold="true" color="#CDD6F4" />
-            <text
-                content="Um campo por valor, editado por seções: clique numa seção para selecioná-la (ela ganha o realce) e use ▴▾ para alterá-la. Cada seção vira dentro de si — mexer no minuto não empurra a hora."
-                size="13"
-                color="#A6ADC8"
-            />
-        </column>
-
-        <rule />
-
-        <row spacing="16" align_y="center">
-            <text content="QDateEdit" width="120" color="#CDD6F4" />
-            <dateedit value="data" />
-            <text content="chave = {data}" size="13" color="#A6ADC8" />
-        </row>
-
-        <row spacing="16" align_y="center">
-            <text content="QTimeEdit" width="120" color="#CDD6F4" />
-            <timeedit value="hora" seconds="true" />
-            <text content="chave = {hora}" size="13" color="#A6ADC8" />
-        </row>
-
-        <row spacing="16" align_y="center">
-            <text content="QDateTimeEdit" width="120" color="#CDD6F4" />
-            <datetimeedit value="quando" />
-            <text content="chave = {quando}" size="13" color="#A6ADC8" />
-        </row>
-
-        <rule />
-
-        <!-- `format="br"` só troca a ORDEM das seções na tela; a chave continua
-             ISO, que é o que um backend espera. -->
-        <row spacing="16" align_y="center">
-            <text content="Exibição BR" width="120" color="#CDD6F4" />
-            <dateedit value="data_br" format="br" />
-            <text content="mostra DD/MM/YYYY, grava {data_br}" size="13" color="#A6ADC8" />
-        </row>
-
-        <!-- Duas instâncias da MESMA tag: só uma seção da tela fica selecionada
-             por vez, e cada campo guarda o seu próprio valor. -->
-        <row spacing="16" align_y="center">
-            <text content="Período" width="120" color="#CDD6F4" />
-            <timeedit value="de" />
-            <text content="até" size="13" color="#A6ADC8" />
-            <timeedit value="ate" />
-            <text content="{de} — {ate}" size="13" color="#A6ADC8" />
-        </row>
-
-        <text
-            content="Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29 (bissexto), como no QDateEdit."
-            size="12"
-            color="#6C7086"
-        />
+    <column spacing="6">
+      <text size="22" bold="true" color="#CDD6F4">QDateEdit · QTimeEdit · QDateTimeEdit</text>
+      <text size="13" color="#A6ADC8">
+        Um campo por valor, editado por seções: clique numa seção para selecioná-la (ela ganha
+        o realce) e use ▴▾ para alterá-la. Cada seção vira dentro de si — mexer no minuto não
+        empurra a hora.
+      </text>
     </column>
+
+    <rule />
+
+    <row spacing="16" align_y="center">
+      <text width="120" color="#CDD6F4">QDateEdit</text>
+      <dateedit value="data" />
+      <text size="13" color="#A6ADC8">chave = {data}</text>
+    </row>
+
+    <row spacing="16" align_y="center">
+      <text width="120" color="#CDD6F4">QTimeEdit</text>
+      <timeedit value="hora" seconds="true" />
+      <text size="13" color="#A6ADC8">chave = {hora}</text>
+    </row>
+
+    <row spacing="16" align_y="center">
+      <text width="120" color="#CDD6F4">QDateTimeEdit</text>
+      <datetimeedit value="quando" />
+      <text size="13" color="#A6ADC8">chave = {quando}</text>
+    </row>
+
+    <rule />
+
+    <!-- `format="br"` só troca a ORDEM das seções na tela; a chave continua
+         ISO, que é o que um backend espera. -->
+    <row spacing="16" align_y="center">
+      <text width="120" color="#CDD6F4">Exibição BR</text>
+      <dateedit value="data_br" format="br" />
+      <text size="13" color="#A6ADC8">mostra DD/MM/YYYY, grava {data_br}</text>
+    </row>
+
+    <!-- Duas instâncias da MESMA tag: só uma seção da tela fica selecionada
+         por vez, e cada campo guarda o seu próprio valor. -->
+    <row spacing="16" align_y="center">
+      <text width="120" color="#CDD6F4">Período</text>
+      <timeedit value="de" />
+      <text size="13" color="#A6ADC8">até</text>
+      <timeedit value="ate" />
+      <text size="13" color="#A6ADC8">{de} — {ate}</text>
+    </row>
+
+    <text size="12" color="#6C7086">
+      Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29 (bissexto), como
+      no QDateEdit.
+    </text>
+  </column>
 </screen>

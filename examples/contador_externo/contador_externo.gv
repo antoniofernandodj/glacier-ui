@@ -4,36 +4,27 @@
     <script src="contador_externo.luau"></script>
   </resources>
 
-  <Container
+  <container
     padding="20"
-    alignX="Center"
-    alignY="Center"
+    align_x="Center"
+    align_y="Center"
     width="fill"
     height="fill"
     background="#2E3440"
   >
-    <Column spacing="20" align="Center">
-      <Text
-        content="Valor do Contador: {contador}"
-        size="28"
-        bold="true"
-        color="#ECEFF4"
-      />
-      <Row spacing="10" align="Center">
-        <Text content="Passo:" color="#D8DEE9" />
-        <TextInput
-          value="passo"
-          placeholder="1"
-          onChange="definir_passo"
-          width="80"
-          padding="8"
-        />
-      </Row>
-      <Row spacing="15" align="Center">
-        <Button text="Diminuir" on_click="decrementar" color="#BF616A" padding="10 20" />
-        <Button text="Zerar"    on_click="zerar"       color="#4C566A" padding="10 20" />
-        <Button text="Aumentar" on_click="incrementar" color="#A3BE8C" padding="10 20" />
-      </Row>
-    </Column>
-  </Container>
+    <column spacing="20" align="Center">
+      <text size="28" bold="true" color="#ECEFF4">
+        Valor do Contador: {contador}
+      </text>
+      <row spacing="10" align="Center">
+        <text color="#D8DEE9">Passo:</text>
+        <input value="passo" placeholder="1" on_change="definir_passo" width="80" padding="8" />
+      </row>
+      <row spacing="15" align="Center">
+        <button text="Diminuir" on_click="decrementar" color="#BF616A" padding="10 20" />
+        <button text="Zerar" on_click="zerar" color="#4C566A" padding="10 20" />
+        <button text="Aumentar" on_click="incrementar" color="#A3BE8C" padding="10 20" />
+      </row>
+    </column>
+  </container>
 </screen>

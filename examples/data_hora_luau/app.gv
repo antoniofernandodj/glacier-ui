@@ -1,80 +1,84 @@
 <screen title="Glacier - Data e Hora (Luau)" size="700 580">
-    <resources>
-        <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
-             script pelo <script> do template, não por convenção de nome. -->
-        <script src="app.luau"></script>
-    </resources>
+  <resources>
+    <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
+       script pelo <script> do template, não por convenção de nome. -->
+    <script src="app.luau"></script>
+  </resources>
 
-    <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+  <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
 
-        <column spacing="6">
-            <text content="Reserva — regras em Luau" size="22" bold="true" color="#CDD6F4" />
-            <text
-                content="Cada campo tem onChange, então o widget NÃO grava a chave: ele avisa, e o script decide. É o que permite recusar uma saída anterior à entrada — uma regra de negócio, que não cabe dentro do widget."
-                size="13"
-                color="#A6ADC8"
-            />
-            <text
-                content="As contas de data ficam com o global `date` do prelúdio (Luau puro sobre strings ISO): os valores iniciais saem do relógio do sistema, e as comparações não olham o texto, olham o instante."
-                size="13"
-                color="#A6ADC8"
-            />
-        </column>
-
-        <rule />
-
-        <row spacing="16" align_y="center">
-            <text content="Entrada" width="90" color="#CDD6F4" />
-            <dateedit value="checkin" format="br" onChange="set_checkin" />
-            <timeedit value="chegada" onChange="set_chegada" />
-            <text content="dia e hora da chegada" size="12" color="#6C7086" />
-        </row>
-
-        <row spacing="16" align_y="center">
-            <text content="Saída" width="90" color="#CDD6F4" />
-            <dateedit value="checkout" format="br" onChange="set_checkout" />
-            <text content="tem de ser depois da entrada" size="12" color="#6C7086" />
-        </row>
-
-        <!-- O <datetimeedit> junta as duas famílias de seção no mesmo campo.
-             A regra dele é a mais sutil da tela: comparar um `YYYY-MM-DD HH:MM`
-             com um `YYYY-MM-DD` não dá certo como texto puro — ver o script. -->
-        <row spacing="16" align_y="center">
-            <text content="Lembrete" width="90" color="#CDD6F4" />
-            <datetimeedit value="lembrete" onChange="set_lembrete" />
-            <text content="tem de cair até o dia da entrada" size="12" color="#6C7086" />
-        </row>
-
-        <!-- Presets: o script escreve as chaves direto, sem passar pelo widget. -->
-        <row spacing="10" align_y="center">
-            <text content="Chegada" width="90" color="#CDD6F4" />
-            <button text="Manhã" on_click="turno_manha" padding="6 14" />
-            <button text="Tarde" on_click="turno_tarde" padding="6 14" />
-            <button text="Noite" on_click="turno_noite" padding="6 14" />
-        </row>
-
-        <!-- Estes dois são `date.add` puro: deslocam o valor corrente sem que o
-             script precise saber quantos dias tem o mês. -->
-        <row spacing="10" align_y="center">
-            <text content="Período" width="90" color="#CDD6F4" />
-            <button text="+1 noite" on_click="mais_uma_noite" padding="6 14" />
-            <button text="Adiar 1 mês" on_click="daqui_um_mes" padding="6 14" />
-            <text content="mês anda pelo calendário: 31/01 + 1 mês = 28/02" size="12" color="#6C7086" />
-        </row>
-
-        <rule />
-
-        <!-- O resumo é recalculado no script a cada alteração aceita. -->
-        <column spacing="6">
-            <text content="{periodo}" size="15" bold="true" color="#CDD6F4" />
-            <text content="{resumo}" size="14" color="#A6ADC8" />
-            <text if="{aviso}" notEquals="" content="{aviso}" size="13" color="#F38BA8" />
-        </column>
-
-        <text
-            content="Tente puxar a saída para antes da entrada, ou a entrada para ontem: o script recusa, avisa e o campo volta ao valor anterior."
-            size="12"
-            color="#6C7086"
-        />
+    <column spacing="6">
+      <text size="22" bold="true" color="#CDD6F4">
+        Reserva — regras em Luau
+      </text>
+      <text size="13" color="#A6ADC8">
+        Cada campo tem on_change, então o widget NÃO grava a chave: ele
+        avisa, e o script decide. É o que permite recusar uma saída
+        anterior à entrada — uma regra de negócio, que não cabe dentro do widget.
+      </text>
+      <text size="13" color="#A6ADC8">
+        As contas de data ficam com o global `date` do prelúdio
+        (Luau puro sobre strings ISO): os valores iniciais saem do relógio do sistema,
+        e as comparações não olham o texto, olham o instante.
+      </text>
     </column>
+
+    <rule />
+
+    <row spacing="16" align_y="center">
+      <text width="90" color="#CDD6F4">Entrada</text>
+      <dateedit value="checkin" format="br" on_change="set_checkin" />
+      <timeedit value="chegada" on_change="set_chegada" />
+      <text size="12" color="#6C7086">dia e hora da chegada</text>
+    </row>
+
+    <row spacing="16" align_y="center">
+      <text width="90" color="#CDD6F4">Saída</text>
+      <dateedit value="checkout" format="br" on_change="set_checkout" />
+      <text size="12" color="#6C7086">tem de ser depois da entrada</text>
+    </row>
+
+    <!-- O <datetimeedit> junta as duas famílias de seção no mesmo campo.
+       A regra dele é a mais sutil da tela: comparar um `YYYY-MM-DD HH:MM`
+       com um `YYYY-MM-DD` não dá certo como texto puro — ver o script. -->
+    <row spacing="16" align_y="center">
+      <text width="90" color="#CDD6F4">Lembrete</text>
+      <datetimeedit value="lembrete" on_change="set_lembrete" />
+      <text size="12" color="#6C7086">tem de cair até o dia da entrada</text>
+    </row>
+
+    <!-- Presets: o script escreve as chaves direto, sem passar pelo widget. -->
+    <row spacing="10" align_y="center">
+      <text width="90" color="#CDD6F4">Chegada</text>
+      <button text="Manhã" on_click="turno_manha" padding="6 14" />
+      <button text="Tarde" on_click="turno_tarde" padding="6 14" />
+      <button text="Noite" on_click="turno_noite" padding="6 14" />
+    </row>
+
+    <!-- Estes dois são `date.add` puro: deslocam o valor corrente sem que o
+       script precise saber quantos dias tem o mês. -->
+    <row spacing="10" align_y="center">
+      <text width="90" color="#CDD6F4">Período</text>
+      <button text="+1 noite" on_click="mais_uma_noite" padding="6 14" />
+      <button text="Adiar 1 mês" on_click="daqui_um_mes" padding="6 14" />
+      <text size="12" color="#6C7086">
+        mês anda pelo calendário: 31/01 + 1 mês = 28/02
+      </text>
+    </row>
+
+    <rule />
+
+    <!-- O resumo é recalculado no script a cada alteração aceita. -->
+    <column spacing="6">
+      <text size="15" bold="true" color="#CDD6F4">{periodo}</text>
+      <text size="14" color="#A6ADC8">{resumo}</text>
+      <text if="{aviso}" not_equals="" size="13" color="#F38BA8">{aviso}</text>
+    </column>
+
+    <text size="12" color="#6C7086">
+      Tente puxar a saída para antes da entrada,
+      ou a entrada para ontem: o script recusa,
+      avisa e o campo volta ao valor anterior.
+    </text>
+  </column>
 </screen>

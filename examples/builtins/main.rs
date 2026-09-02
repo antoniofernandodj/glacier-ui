@@ -1,4 +1,4 @@
-//! Demonstra um componente **embutido** da própria `glacier-ui`: `<Badge/>`.
+//! Demonstra um componente **embutido** da própria `glacier-ui`: `<badge/>`.
 //!
 //! O app registra só a sua tela (`Home`). Ele nunca registra `Badge` — a lib já
 //! o registrou sozinha em `GlacierUI::new()`, então a tag fica disponível em
@@ -14,20 +14,22 @@ impl Component for Home {
     }
 
     fn template(&self) -> Template {
-        // `<Badge/>` não é registrado por este app — vem embutido na lib.
+        // `<badge/>` não é registrado por este app — vem embutido na lib.
         Template::Inline(
-            r##"<Container padding="40" width="fill" height="fill" background="#1E1E2E" alignX="Center" alignY="Center">
-                <Column spacing="20" align="Center">
-                    <Text content="Widgets embutidos da glacier-ui" size="24" bold="true" color="#CDD6F4" />
-                    <Row spacing="12" align="Center">
-                        <Badge />
-                        <Badge badge_text="Novo" badge_bg="#A6E3A1" />
-                        <Badge badge_text="Beta" badge_bg="#F9E2AF" />
-                        <Badge badge_text="3" badge_bg="#F38BA8" />
-                        <Badge badge_text="Grande" badge_bg="#CBA6F7" badge_size="20" />
-                    </Row>
-                </Column>
-            </Container>"##
+            r##"<container padding="40" width="fill" height="fill" background="#1E1E2E" align_x="Center" align_y="Center">
+                <column spacing="20" align="Center">
+                    <text size="24" bold="true" color="#CDD6F4">
+                      Widgets embutidos da glacier-ui
+                    </text>
+                    <row spacing="12" align="Center">
+                        <badge />
+                        <badge badge_text="Novo" badge_bg="#A6E3A1" />
+                        <badge badge_text="Beta" badge_bg="#F9E2AF" />
+                        <badge badge_text="3" badge_bg="#F38BA8" />
+                        <badge badge_text="Grande" badge_bg="#CBA6F7" badge_size="20" />
+                    </row>
+                </column>
+            </container>"##
                 .to_string(),
         )
     }

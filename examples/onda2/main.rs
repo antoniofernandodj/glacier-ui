@@ -12,7 +12,7 @@
 //!
 //! O `<slot/>`: até a 0.64 os filhos escritos dentro de uma tag de componente
 //! eram **descartados** na expansão, e por isso nenhum widget-recipiente podia
-//! ser builtin. Repare no `on_click="salvar"` de dentro do `<GroupBox>` no
+//! ser builtin. Repare no `on_click="salvar"` de dentro do `<groupbox>` no
 //! template: ele chega no `update` **desta tela**, não no do `GroupBox`. O
 //! conteúdo do slot é avaliado no contexto e com o dono de quem o escreveu.
 
@@ -30,8 +30,8 @@ impl Component for Onda2 {
     }
 
     fn init(&mut self, ctx: &mut Context) {
-        // As abas do `<TabBar>` vêm de uma coleção do contexto, como as de um
-        // `<Menu items="…">` — o `for-each` do motor lê chave, não texto solto
+        // As abas do `<tabbar>` vêm de uma coleção do contexto, como as de um
+        // `<menu items="…">` — o `for-each` do motor lê chave, não texto solto
         // no atributo.
         ctx.set(
             "abas",
@@ -41,12 +41,12 @@ impl Component for Onda2 {
                 .to_string(),
         );
         // A chave da aba ativa. Quem escreve nela dali em diante é o próprio
-        // `<TabBar>` (padrão SpinBox: a chave vem por prop, a ação a carrega) —
+        // `<tabbar>` (padrão SpinBox: a chave vem por prop, a ação a carrega) —
         // o app só dá o valor inicial.
         ctx.set("aba", "grupos".to_string());
         ctx.set("status", "Pronto".to_string());
 
-        // Chaves dos controles que moram dentro dos recipientes. Um `<SpinBox>`
+        // Chaves dos controles que moram dentro dos recipientes. Um `<spinbox>`
         // cuja chave nunca foi escrita nasce em branco.
         ctx.set("usar_proxy", "true".to_string());
         ctx.set("host", "127.0.0.1".to_string());
@@ -56,8 +56,8 @@ impl Component for Onda2 {
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
         // Só as ações que ESTA tela escreveu. As dos widgets não passam por
-        // aqui: o `<TabBar>` trata o clique de aba no `update` dele, e o
-        // `<GroupBox>`/`<ToolBar>` não tratam nada (são recipientes puros).
+        // aqui: o `<tabbar>` trata o clique de aba no `update` dele, e o
+        // `<groupbox>`/`<toolbar>` não tratam nada (são recipientes puros).
         let recado = match action {
             "novo" => "Novo documento",
             "salvar" => "Configuração salva",
