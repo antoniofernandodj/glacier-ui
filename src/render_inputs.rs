@@ -59,8 +59,8 @@ impl Default for RenderInputs {
         Self {
             stylesheets: Vec::new(),
             stylesheet_paths: Vec::new(),
-            component_stylesheets: HashMap::new(),
-            templates: HashMap::new(),
+            component_stylesheets: HashMap::default(),
+            templates: HashMap::default(),
             viewport: (1280.0, 800.0),
             epoch: 0,
         }

@@ -1388,7 +1388,7 @@ fn test_template_default_inline() {
     use glacier_ui::process_template;
     use std::collections::HashMap;
 
-    let mut ctx = HashMap::new();
+    let mut ctx = HashMap::default();
     ctx.insert("nome".to_string(), "Ana".to_string());
 
     // Chave presente: usa o valor (o default é ignorado).

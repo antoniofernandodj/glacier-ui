@@ -35,11 +35,11 @@
 //! de "estado por instância" do `PLANO_WIDGETS.md` §3 (que bloqueia
 //! `Tabs`/`Accordion`) se aplica aqui.
 
+use crate::ContextMap;
 use crate::parser::{NodeType, UiNode};
 use crate::widget::{EngineMessage, is_truthy};
 use iced::widget::{Space, button, column, container, mouse_area, row, rule, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Um nó já resolvido da árvore de menu — independente de ter vindo de
@@ -140,7 +140,7 @@ impl MenuNode {
 pub fn build_tree(
     children: &[UiNode],
     items_key: Option<&str>,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
 ) -> Vec<MenuNode> {
     let mut out = Vec::new();
     for child in children {

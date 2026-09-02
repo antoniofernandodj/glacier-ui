@@ -76,7 +76,7 @@ use std::time::{Duration, SystemTime};
 /// compilador diga nada.
 pub struct GlacierUI {
     /// Maps a component name (e.g. "perfil") to its XML file path
-    registered_components: HashMap<String, String>,
+    registered_components: ContextMap,
     /// Tudo de que a avaliação depende e que o rastreamento por chave de contexto
     /// NÃO enxerga: folhas de estilo, templates parseados e viewport. Atrás de um
     /// portão que conta as mudanças, para o cache de avaliação se invalidar
@@ -89,6 +89,16 @@ pub struct GlacierUI {
     /// tela atual e os fixados por [`GlacierUI::keep_evaluated`]. Ver
     /// [`GlacierUI::reevaluate_all`] para o porquê.
     evaluated_templates: HashMap<String, UiNode>,
+    /// Os widgets **com buffer próprio** encontrados em cada árvore avaliada:
+    /// os `value_var` dos `<TextArea>` e as quatro pontas de cada `<ComboEdit>`.
+    ///
+    /// Existe para não varrer a árvore inteira atrás deles a cada reavaliação.
+    /// Eram duas varreduras completas — uma por tipo de widget —, ~5% de todo o
+    /// trabalho de uma mudança de estado numa lista grande, e quase sempre para
+    /// não achar nada: a tela típica não tem `<TextArea>` nenhum. Agora a coleta
+    /// acontece uma vez só, junto da avaliação que produziu a árvore, e uma
+    /// árvore reaproveitada não é varrida de novo.
+    tree_bindings: HashMap<String, TreeBindings>,
     /// Templates que o app quer manter avaliados além da tela atual (ver
     /// [`GlacierUI::keep_evaluated`]). Vazio no caso comum.
     pinned: std::collections::HashSet<String>,
@@ -103,7 +113,7 @@ pub struct GlacierUI {
     /// nova não reconstruir a sidebar nem as 45 linhas da tabela ao lado.
     eval_cache: eval::EvalCache,
     /// In-memory context data for state binding
-    context_data: HashMap<String, String>,
+    context_data: ContextMap,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
     /// O que o `<screen>` de cada template registrado declarou sobre a janela
@@ -130,7 +140,7 @@ pub struct GlacierUI {
     editors: widget::EditorMap,
     /// Last text each editor pushed into the context, to tell an external context
     /// change (reload editor) from the editor's own edit (leave it alone).
-    editor_synced: HashMap<String, String>,
+    editor_synced: ContextMap,
     /// Stateful `combo_box::State` buffers for `<ComboEdit>` widgets, keyed by
     /// `value` binding — same role as `editors` above.
     combos: widget::ComboMap,
@@ -138,11 +148,11 @@ pub struct GlacierUI {
     /// to tell an external context change (rebuild the `State`) from the
     /// combo's own edit (leave the in-progress `State` alone) — same idea as
     /// `editor_synced`.
-    combo_synced: HashMap<String, String>,
+    combo_synced: ContextMap,
     /// Last raw `options` JSON synced into each combo's `State`, keyed by the
     /// same `value` binding. A `<ComboEdit>`'s option list changing (e.g. a
     /// new saved server added) needs a rebuild even when `value` didn't.
-    combo_options_synced: HashMap<String, String>,
+    combo_options_synced: ContextMap,
     /// The reorderable list drag in progress, if any — outside the Context
     /// (like `editors` above) because it's transient render/interaction state,
     /// not something a host app's `Component::update` should see or persist.
@@ -288,30 +298,45 @@ impl Default for GlacierUI {
     }
 }
 
+/// O contexto do motor: as chaves que o markup interpola e que o app escreve.
+///
+/// É um `HashMap<String, String>` com o hash rápido do avaliador no lugar do
+/// SipHash da `std` — a leitura de contexto é o caminho mais quente do motor
+/// (uma por `{chave}` de cada nó, mais uma por dependência de cada entrada de
+/// cache), e o SipHash sozinho respondia por ~18% do trabalho de uma mudança de
+/// estado. A resistência a colisão hostil que ele compra não vale nada aqui:
+/// as chaves são nomes de variável escritos pelo próprio app.
+///
+/// Para quem usa: `get`, `contains_key`, `iter` e companhia são os mesmos — só
+/// não dá mais para anotar o tipo como `HashMap<String, String>` sem o terceiro
+/// parâmetro.
+pub type ContextMap = std::collections::HashMap<String, String, eval::Fx>;
+
 impl GlacierUI {
     /// Creates a new, empty GlacierUI instance
     pub fn new() -> Self {
         let mut ui = Self {
-            registered_components: HashMap::new(),
-            screen_meta: HashMap::new(),
+            registered_components: HashMap::default(),
+            screen_meta: HashMap::default(),
             inputs: render_inputs::RenderInputs::default(),
-            evaluated_templates: HashMap::new(),
+            evaluated_templates: HashMap::default(),
+            tree_bindings: HashMap::default(),
             pinned: std::collections::HashSet::new(),
-            eval_deps: HashMap::new(),
+            eval_deps: HashMap::default(),
             eval_cache: eval::EvalCache::default(),
-            context_data: HashMap::new(),
-            file_mod_times: HashMap::new(),
+            context_data: HashMap::default(),
+            file_mod_times: HashMap::default(),
             current_screen: None,
             history: Vec::new(),
-            components: HashMap::new(),
+            components: HashMap::default(),
             custom_theme: None,
             theme_path: None,
             data_sources: Vec::new(),
-            editors: HashMap::new(),
-            editor_synced: HashMap::new(),
-            combos: HashMap::new(),
-            combo_synced: HashMap::new(),
-            combo_options_synced: HashMap::new(),
+            editors: HashMap::default(),
+            editor_synced: HashMap::default(),
+            combos: HashMap::default(),
+            combo_synced: HashMap::default(),
+            combo_options_synced: HashMap::default(),
             drag: None,
             dialog: None,
             dialog_resume: None,
@@ -319,8 +344,8 @@ impl GlacierUI {
             last_cursor_pos: iced::Point::ORIGIN,
             toasts: Vec::new(),
             next_toast_id: 0,
-            active_streams: HashMap::new(),
-            stream_senders: HashMap::new(),
+            active_streams: HashMap::default(),
+            stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
             engine_id: NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             pending_windows: Vec::new(),
@@ -383,7 +408,7 @@ impl GlacierUI {
     // ── Acesso ao estado (os campos são privados; ver o doc do struct) ───────
 
     /// Todo o contexto, só leitura. Para uma chave só, [`GlacierUI::get_data`].
-    pub fn context(&self) -> &HashMap<String, String> {
+    pub fn context(&self) -> &ContextMap {
         &self.context_data
     }
 
@@ -2084,6 +2109,7 @@ impl GlacierUI {
         // Árvores de templates que saíram de uso (mudou a tela) não devem ficar
         // ocupando memória nem serem varridas pelo `sync_editors`.
         self.evaluated_templates.retain(|k, _| names.contains(k));
+        self.tree_bindings.retain(|k, _| names.contains(k));
 
         self.sync_editors();
         self.sync_combos();
@@ -2109,6 +2135,7 @@ impl GlacierUI {
         if self.eval_cache.sync(self.inputs.epoch()) {
             self.eval_deps.clear();
             self.evaluated_templates.clear();
+            self.tree_bindings.clear();
         }
     }
 
@@ -2143,6 +2170,9 @@ impl GlacierUI {
                 &mut self.eval_cache,
             )?
         };
+        let mut bindings = TreeBindings::default();
+        collect_tree_bindings(&evaluated, &mut bindings);
+        self.tree_bindings.insert(name.to_string(), bindings);
         self.evaluated_templates.insert(name.to_string(), evaluated);
         self.eval_deps.insert(name.to_string(), deps);
         Ok(())
@@ -2174,10 +2204,11 @@ impl GlacierUI {
     /// value changed from outside the editor (e.g. a fetch). The editor's own
     /// edits set `editor_synced`, so they are not mistaken for external changes.
     fn sync_editors(&mut self) {
-        let mut bindings: Vec<String> = Vec::new();
-        for ast in self.evaluated_templates.values() {
-            collect_textarea_bindings(ast, &mut bindings);
-        }
+        let bindings: Vec<String> = self
+            .tree_bindings
+            .values()
+            .flat_map(|b| b.textareas.iter().cloned())
+            .collect();
         for b in bindings {
             let ctx_val = self.context_data.get(&b).cloned().unwrap_or_default();
             let last = self.editor_synced.get(&b);
@@ -2200,10 +2231,11 @@ impl GlacierUI {
     /// highlight, not the typed text, which lives in `ctx[value_var]`).
     fn sync_combos(&mut self) {
         // (value_var, options_key, label_field, value_field)
-        let mut bindings: Vec<(String, String, String, String)> = Vec::new();
-        for ast in self.evaluated_templates.values() {
-            collect_comboedit_bindings(ast, &mut bindings);
-        }
+        let bindings: Vec<(String, String, String, String)> = self
+            .tree_bindings
+            .values()
+            .flat_map(|b| b.combos.iter().cloned())
+            .collect();
         for (value_var, options_key, label_field, value_field) in bindings {
             let ctx_val = self
                 .context_data
@@ -2476,41 +2508,42 @@ fn theme_key(path: &str) -> String {
 
 /// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
 /// the engine can keep a stateful editor buffer per binding.
-fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
-    if let NodeType::TextArea { value_var, .. } = &node.kind
-        && !value_var.is_empty()
-        && !out.contains(value_var)
-    {
-        out.push(value_var.clone());
-    }
-    for child in &node.children {
-        collect_textarea_bindings(child, out);
-    }
+#[derive(Default)]
+struct TreeBindings {
+    /// `value_var` de cada `<TextArea>` da árvore.
+    textareas: Vec<String>,
+    /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
+    combos: Vec<(String, String, String, String)>,
 }
 
-/// Collects `(value_var, options, label_field, value_field)` of every
-/// `<ComboEdit>` in an evaluated tree, so the engine can keep a stateful
-/// `combo_box::State` per binding (see `GlacierUI::sync_combos`).
-fn collect_comboedit_bindings(node: &UiNode, out: &mut Vec<(String, String, String, String)>) {
-    if let NodeType::ComboEdit {
-        value_var,
-        options,
-        label_field,
-        value_field,
-        ..
-    } = &node.kind
-        && !value_var.is_empty()
-        && !out.iter().any(|(v, ..)| v == value_var)
-    {
-        out.push((
-            value_var.clone(),
-            options.clone(),
-            label_field.clone(),
-            value_field.clone(),
-        ));
+/// Colhe, numa **única** passada, os dois tipos de widget cujo estado o motor
+/// guarda fora da árvore. Antes eram duas recursões independentes sobre a
+/// árvore inteira, rodadas a cada reavaliação; ver [`GlacierUI::tree_bindings`].
+fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
+    match &node.kind {
+        NodeType::TextArea { value_var, .. }
+            if !value_var.is_empty() && !out.textareas.contains(value_var) =>
+        {
+            out.textareas.push(value_var.clone());
+        }
+        NodeType::ComboEdit {
+            value_var,
+            options,
+            label_field,
+            value_field,
+            ..
+        } if !value_var.is_empty() && !out.combos.iter().any(|(v, ..)| v == value_var) => {
+            out.combos.push((
+                value_var.clone(),
+                options.clone(),
+                label_field.clone(),
+                value_field.clone(),
+            ));
+        }
+        _ => {}
     }
     for child in &node.children {
-        collect_comboedit_bindings(child, out);
+        collect_tree_bindings(child, out);
     }
 }
 
@@ -2758,12 +2791,7 @@ fn menu_escape_from_event(
 /// while a drag is in progress. Elements whose identity isn't in `order`
 /// (shouldn't happen — `order` is a snapshot of the same array) are kept, in
 /// their original relative order, after the ones that are.
-fn reorder_context_json(
-    context: &mut HashMap<String, String>,
-    list: &str,
-    reorder_key: &str,
-    order: &[String],
-) {
+fn reorder_context_json(context: &mut ContextMap, list: &str, reorder_key: &str, order: &[String]) {
     let Some(json_str) = context.get(list) else {
         return;
     };
@@ -2772,7 +2800,7 @@ fn reorder_context_json(
         return;
     };
 
-    let mut by_key: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut by_key: HashMap<String, serde_json::Value> = HashMap::default();
     let mut leftovers: Vec<serde_json::Value> = Vec::new();
     for item in arr {
         match item
@@ -2803,7 +2831,7 @@ fn reorder_context_json(
 ///
 /// String values are stored verbatim; everything else as compact JSON (so a
 /// nested array under `key.list` still feeds `<ForEach items="key.list">`).
-fn merge_json(context: &mut HashMap<String, String>, key: &str, value: &serde_json::Value) {
+fn merge_json(context: &mut ContextMap, key: &str, value: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             for (k, v) in map {

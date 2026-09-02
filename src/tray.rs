@@ -370,7 +370,7 @@ fn build_tray(config: &TrayConfig) -> Result<BuiltTray, String> {
     let icon = Icon::from_rgba(img.into_raw(), w, h).map_err(|e| format!("ícone inválido: {e}"))?;
 
     let menu = Menu::new();
-    let mut items = std::collections::HashMap::new();
+    let mut items = std::collections::HashMap::default();
     for item in &config.items {
         match item {
             TrayItem::Button { id, label } => {

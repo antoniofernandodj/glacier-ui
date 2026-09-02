@@ -1,3 +1,4 @@
+use crate::ContextMap;
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
     Space, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area, pick_list,
@@ -742,8 +743,8 @@ thread_local! {
     /// os motores/janelas (mesma imagem = mesmo handle). Por-thread, o que casa
     /// com a thread única da UI (e isola threads de teste).
     static IMAGE_HANDLES: RefCell<HashMap<String, image::Handle>> =
-        RefCell::new(HashMap::new());
-    static SVG_HANDLES: RefCell<HashMap<String, svg::Handle>> = RefCell::new(HashMap::new());
+        RefCell::new(HashMap::default());
+    static SVG_HANDLES: RefCell<HashMap<String, svg::Handle>> = RefCell::new(HashMap::default());
 }
 
 /// `image::Handle` para `source`, do cache ou construído (uma vez) a partir dos
@@ -774,7 +775,7 @@ fn cached_svg_handle(source: &str, assets: &dyn crate::asset_source::AssetSource
 /// References to strings are borrowed directly from the AST node with lifetime 'a.
 pub fn render_node<'a>(
     node: &'a UiNode,
-    context: &'a HashMap<String, String>,
+    context: &'a ContextMap,
     editors: &'a EditorMap,
     combos: &'a ComboMap,
     assets: &dyn crate::asset_source::AssetSource,

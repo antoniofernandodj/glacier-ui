@@ -1,3 +1,4 @@
+use crate::ContextMap;
 use crate::error::{Diagnostic, GlacierError, Result};
 use crate::stylesheet::StyleRule;
 use roxmltree::Node;
@@ -687,13 +688,13 @@ pub enum NodeType {
     },
     Include {
         src: String,
-        props: HashMap<String, String>,
+        props: ContextMap,
     },
     /// A reference to another registered component by its own tag name,
     /// e.g. `<PerfilCard nome="..." />`. Attributes become props.
     Component {
         name: String,
-        props: HashMap<String, String>,
+        props: ContextMap,
     },
     /// Declares that a component named `name` should be loaded from the XML
     /// file at `from`, e.g. `<import name="PerfilCard" from="templates/perfil_card.gv" />`.
@@ -2653,7 +2654,7 @@ impl UiNode {
             "Include" | "include" | "Incluir" | "incluir" => {
                 let src = Self::get_attr(&node, &["src", "fonte"]).unwrap_or_default();
                 // Extract all other attributes as custom parameters
-                let mut props = HashMap::new();
+                let mut props = HashMap::default();
                 for attr in node.attributes() {
                     let attr_name = attr.name();
                     if attr_name != "src" && attr_name != "fonte" {
@@ -2918,7 +2919,7 @@ impl UiNode {
                 // Any unknown tag is treated as a reference to another component
                 // by its own name (e.g. <PerfilCard nome="..." />).
                 // All attributes are forwarded as props.
-                let mut props = HashMap::new();
+                let mut props = HashMap::default();
                 for attr in node.attributes() {
                     props.insert(attr.name().to_string(), attr.value().to_string());
                 }

@@ -447,7 +447,7 @@ pub fn resolve_classes(
     // vence — assim uma paleta declarada uma vez (ex.: no `app.gss` global)
     // resolve `var(--x)` em qualquer regra, inclusive de sheets com escopo.
     // Substituição no fim (já com a regra mesclada), uma única vez.
-    let mut vars: HashMap<String, String> = HashMap::new();
+    let mut vars: HashMap<String, String> = HashMap::default();
     for sheet in sheets {
         for (k, v) in &sheet.variables {
             vars.insert(k.clone(), v.clone());
@@ -543,7 +543,7 @@ pub fn resolve_state_classes(
             }
         }
     }
-    let mut vars: HashMap<String, String> = HashMap::new();
+    let mut vars: HashMap<String, String> = HashMap::default();
     for sheet in sheets {
         for (k, v) in &sheet.variables {
             vars.insert(k.clone(), v.clone());

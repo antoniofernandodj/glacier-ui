@@ -1,3 +1,4 @@
+use crate::ContextMap;
 use crate::error::Result;
 use crate::parser::{BoolAttr, NodeType, NumAttr, UiNode};
 use crate::stylesheet::{
@@ -234,7 +235,7 @@ pub fn normalize_bare_directives(xml: &str) -> String {
 /// um item), então a varredura linear é mais barata que um `HashMap`.
 #[derive(Clone, Copy)]
 pub struct EvalCtx<'a> {
-    base: &'a HashMap<String, String>,
+    base: &'a ContextMap,
     /// A camada mais interna; cada uma aponta para a de fora (lista ligada na
     /// pilha, sem alocação).
     layer: Option<&'a Layer<'a>>,
@@ -286,7 +287,7 @@ pub struct Reads {
 /// leituras resolvidas *fora* dele (`src < d`).
 struct Frame {
     depth: u32,
-    reads: HashMap<String, (Option<String>, u32)>,
+    reads: FxMap<String, (Option<String>, u32)>,
 }
 
 impl Reads {
@@ -294,17 +295,24 @@ impl Reads {
     /// no quadro corrente.
     fn record(&self, key: &str, value: Option<&str>, src: u32) {
         if let Some(frame) = self.frames.borrow_mut().last_mut() {
+            // A mesma chave é lida muitas vezes por subárvore, e o `entry` da
+            // `std` exige a chave **possuída** — ou seja, alocava uma `String`
+            // a cada leitura só para descobrir que já havia uma igual guardada.
+            // A consulta antes da inserção troca essa alocação por um segundo
+            // hash, e o hash aqui é o [`FxHasher`].
+            if frame.reads.contains_key(key) {
+                return;
+            }
             frame
                 .reads
-                .entry(key.to_string())
-                .or_insert_with(|| (value.map(str::to_string), src));
+                .insert(key.to_string(), (value.map(str::to_string), src));
         }
     }
 
     fn push(&self, depth: u32) {
         self.frames.borrow_mut().push(Frame {
             depth,
-            reads: HashMap::new(),
+            reads: FxMap::default(),
         });
     }
 
@@ -369,11 +377,26 @@ pub struct EvalCache {
     /// o cache se descarta sozinho em [`EvalCache::sync`]. É o que tirou essa
     /// invariante das mãos de quem escreve o call-site.
     epoch: u64,
-    entries: HashMap<u64, CacheEntry>,
+    entries: FxMap<u64, CacheEntry>,
     /// Entradas tocadas na passada corrente. O que sobrar fora daqui ao final é
     /// lixo (uma linha que saiu da lista) e é varrido — senão o cache cresceria
     /// sem limite ao longo da vida do app.
-    live: std::collections::HashSet<u64>,
+    live: std::collections::HashSet<u64, Fx>,
+    /// Arrays de `for-each` **já parseados**, por chave de contexto.
+    ///
+    /// Uma coleção mora no contexto como **texto** (`"[{...},{...}]"`), e o
+    /// `for-each` precisava dela como `Value` — então parseava a lista inteira
+    /// a cada reavaliação, mesmo quando nada nela tinha mudado e todos os itens
+    /// vinham do cache. Numa lista de 300 linhas isso era ~14% de todo o
+    /// trabalho de uma mudança de estado: parse, um `BTreeMap` por objeto, e o
+    /// descarte de tudo em seguida.
+    ///
+    /// A validade é conferida **comparando o texto**, não um hash: a cópia
+    /// guardada aqui e a do contexto têm de ser iguais byte a byte. Um `memcmp`
+    /// de 20 KB é ordens de grandeza mais barato que o parse, e não abre a
+    /// porta para o que um hash de 64 bits abriria — servir a lista velha por
+    /// colisão, silenciosamente.
+    json: FxMap<String, (String, std::sync::Arc<Vec<serde_json::Value>>)>,
 }
 
 struct CacheEntry {
@@ -405,6 +428,7 @@ impl EvalCache {
         self.epoch = epoch;
         self.entries.clear();
         self.live.clear();
+        self.json.clear();
         true
     }
 
@@ -413,6 +437,31 @@ impl EvalCache {
     fn sweep(&mut self) {
         self.entries.retain(|k, _| self.live.contains(k));
         self.live.clear();
+    }
+
+    /// O array de `chave` já parseado, reaproveitando o parse anterior quando o
+    /// texto no contexto é **exatamente** o mesmo. Devolve `None` quando a
+    /// chave não existe ou não guarda um array JSON.
+    fn array(
+        &mut self,
+        chave: &str,
+        bruto: &str,
+    ) -> Option<std::sync::Arc<Vec<serde_json::Value>>> {
+        if let Some((texto, arr)) = self.json.get(chave)
+            && texto == bruto
+        {
+            return Some(std::sync::Arc::clone(arr));
+        }
+        let serde_json::Value::Array(arr) = serde_json::from_str(bruto).ok()? else {
+            // Não é array: não guarda nada (e limpa o que houvesse), para não
+            // manter viva a lista antiga de uma chave que virou outra coisa.
+            self.json.remove(chave);
+            return None;
+        };
+        let arr = std::sync::Arc::new(arr);
+        self.json
+            .insert(chave.to_string(), (bruto.to_string(), arr.clone()));
+        Some(arr)
     }
 }
 
@@ -459,6 +508,73 @@ impl ItemVars<'_> {
         })
     }
 }
+
+/// O hash da `std` é o SipHash, escolhido para resistir a ataque de colisão em
+/// mapa alimentado por entrada hostil — um servidor web. Aqui não há nada
+/// disso: as chaves são nomes de variável do próprio app e caminhos de nó
+/// gerados pelo motor, e o custo aparece no perfil como **18% de todo o
+/// trabalho** de uma mudança de estado (hashar um `u64` com SipHash, uma vez
+/// por consulta ao cache, é o caso mais absurdo).
+///
+/// Este é o FxHash do rustc: uma multiplicação e um shift por palavra. Trocado
+/// só nos mapas **internos** do avaliador — o `HashMap` do contexto é tipo
+/// público (`GlacierUI::context`) e fica como está.
+#[derive(Default, Clone, Copy)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl FxHasher {
+    const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+
+    #[inline]
+    fn adiciona(&mut self, palavra: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ palavra).wrapping_mul(Self::SEED);
+    }
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        let mut resto = bytes;
+        while resto.len() >= 8 {
+            let (a, b) = resto.split_at(8);
+            self.adiciona(u64::from_ne_bytes(a.try_into().unwrap()));
+            resto = b;
+        }
+        if !resto.is_empty() {
+            let mut buf = [0u8; 8];
+            buf[..resto.len()].copy_from_slice(resto);
+            self.adiciona(u64::from_ne_bytes(buf));
+        }
+    }
+
+    #[inline]
+    fn write_u64(&mut self, n: u64) {
+        self.adiciona(n);
+    }
+
+    #[inline]
+    fn write_usize(&mut self, n: usize) {
+        self.adiciona(n as u64);
+    }
+
+    #[inline]
+    fn write_u8(&mut self, n: u8) {
+        self.adiciona(n as u64);
+    }
+
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+}
+
+/// `BuildHasher` do [`FxHasher`], para os mapas internos do avaliador.
+pub type Fx = std::hash::BuildHasherDefault<FxHasher>;
+
+/// `HashMap` com o hash rápido.
+pub(crate) type FxMap<K, V> = HashMap<K, V, Fx>;
 
 /// Um conjunto de variáveis locais empilhado sobre o contexto. Ver [`EvalCtx`].
 pub struct Layer<'a> {
@@ -510,7 +626,7 @@ impl<'a> Layer<'a> {
 
 impl<'a> EvalCtx<'a> {
     /// Contexto de avaliação sobre `base`, sem camadas nem rastreamento.
-    pub fn new(base: &'a HashMap<String, String>) -> Self {
+    pub fn new(base: &'a ContextMap) -> Self {
         Self {
             base,
             layer: None,
@@ -521,7 +637,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     /// O mesmo, rastreando as leituras em `reads` (o que habilita o cache).
-    fn tracked(base: &'a HashMap<String, String>, reads: &'a Reads) -> Self {
+    fn tracked(base: &'a ContextMap, reads: &'a Reads) -> Self {
         Self {
             base,
             layer: None,
@@ -710,7 +826,7 @@ fn item_layer<'b>(
 }
 
 /// Process string template by replacing `{key}` placeholders with values from context
-pub fn process_template(template: &str, context: &HashMap<String, String>) -> String {
+pub fn process_template(template: &str, context: &ContextMap) -> String {
     process_tpl(template, &EvalCtx::new(context))
 }
 
@@ -934,9 +1050,9 @@ fn expand_children(
             let on_reorder = child
                 .on_reorder()
                 .map(|s| namespace_action(process_tpl(s, context), owner));
-            if let Some(json_str) = context.get(&items_evaluated)
-                && let Ok(serde_json::Value::Array(arr)) =
-                    serde_json::from_str::<serde_json::Value>(json_str)
+            if let Some(arr) = context
+                .get(&items_evaluated)
+                .and_then(|bruto| cache.array(&items_evaluated, bruto))
             {
                 // Full identity snapshot, needed by the handle's `DragStart`.
                 let full_order: Vec<String> = match &reorder_key {
@@ -955,10 +1071,10 @@ fn expand_children(
                 // reavaliá-las sempre não custa nada.
                 let cacheable = on_reorder.is_none();
 
-                for (index, item) in arr.into_iter().enumerate() {
+                for (index, item) in arr.iter().enumerate() {
                     // Variáveis do item numa CAMADA sobre o contexto, sem
                     // clonar a base (ver `EvalCtx`).
-                    let (layer, this_key) = item_layer(&item, var, reorder_key.as_deref(), context);
+                    let (layer, this_key) = item_layer(item, var, reorder_key.as_deref(), context);
                     let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
 
                     if cacheable && reuse(&item_ctx, cache, out) {
@@ -1112,9 +1228,9 @@ fn expand_children(
                 let on_reorder = child
                     .on_reorder()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
-                if let Some(json_str) = context.get(&items_evaluated)
-                    && let Ok(serde_json::Value::Array(arr)) =
-                        serde_json::from_str::<serde_json::Value>(json_str)
+                if let Some(arr) = context
+                    .get(&items_evaluated)
+                    .and_then(|bruto| cache.array(&items_evaluated, bruto))
                 {
                     let full_order: Vec<String> = match &reorder_key {
                         Some(rk) => arr
@@ -1128,11 +1244,11 @@ fn expand_children(
                     // Ver o porquê no `for-each` de atributo, acima.
                     let cacheable = on_reorder.is_none();
 
-                    for (index, item) in arr.into_iter().enumerate() {
+                    for (index, item) in arr.iter().enumerate() {
                         // Variáveis do item numa CAMADA sobre o contexto, sem
                         // clonar a base (ver `EvalCtx`).
                         let (layer, this_key) =
-                            item_layer(&item, var, reorder_key.as_deref(), context);
+                            item_layer(item, var, reorder_key.as_deref(), context);
                         let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
 
                         if cacheable && reuse(&item_ctx, cache, out) {
@@ -1296,7 +1412,7 @@ fn expand_children(
 /// `<link>`-scoped stylesheets.
 pub fn evaluate_node(
     node: &UiNode,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
     templates: &HashMap<String, UiNode>,
     styles: &StyleContext,
     scope: Option<&str>,
@@ -1321,7 +1437,7 @@ pub fn evaluate_node(
 /// reconstruir. Ver [`crate::GlacierUI::reevaluate_all`].
 pub fn evaluate_template(
     node: &UiNode,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
     templates: &HashMap<String, UiNode>,
     styles: &StyleContext,
     scope: Option<&str>,
@@ -1507,7 +1623,7 @@ fn eval_owned(
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
-    let reference: Option<(&String, &HashMap<String, String>)> = match &node.kind {
+    let reference: Option<(&String, &ContextMap)> = match &node.kind {
         NodeType::Include { src, props } => Some((src, props)),
         NodeType::Component { name, props } => Some((name, props)),
         _ => None,
@@ -2579,27 +2695,27 @@ mod tests {
     /// Avalia `xml` com `sheet` como sheet global e um mapa de componentes.
     fn eval_with(xml: &str, gss: &str, templates: &HashMap<String, UiNode>) -> UiNode {
         let global = vec![StyleSheet::parse(gss).unwrap()];
-        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::new();
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::default();
         let styles = StyleContext {
             global: &global,
             by_component: &by_component,
             viewport: None,
             has_tag_rules: global.iter().any(|s| s.has_tag_rules()),
         };
-        evaluate_node(&parse(xml), &HashMap::new(), templates, &styles, None).unwrap()
+        evaluate_node(&parse(xml), &HashMap::default(), templates, &styles, None).unwrap()
     }
 
     /// Avalia `node` contra `ctx`, sem stylesheet nenhum.
-    fn eval_ctx(node: &UiNode, ctx: &HashMap<String, String>) -> UiNode {
+    fn eval_ctx(node: &UiNode, ctx: &ContextMap) -> UiNode {
         let global: Vec<StyleSheet> = Vec::new();
-        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::new();
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::default();
         let styles = StyleContext {
             global: &global,
             by_component: &by_component,
             viewport: None,
             has_tag_rules: false,
         };
-        evaluate_node(node, ctx, &HashMap::new(), &styles, None).unwrap()
+        evaluate_node(node, ctx, &HashMap::default(), &styles, None).unwrap()
     }
 
     #[test]
@@ -2608,7 +2724,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" />"#,
             "Button { padding: 7; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding.as_deref(), Some("7"));
     }
@@ -2618,7 +2734,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" padding="20" />"#,
             "Button { padding: 7; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding.as_deref(), Some("20"));
     }
@@ -2628,7 +2744,7 @@ mod tests {
         // `Card {}` casa o NOME do componente e vira underlay na raiz (Column) do
         // template inlinado. O `background` da raiz (via classe) vence o underlay,
         // mas o `padding`, que só o underlay declara, sobrevive.
-        let mut templates = HashMap::new();
+        let mut templates = HashMap::default();
         templates.insert(
             "Card".to_string(),
             parse(r#"<Column class="root"><Text content="oi" /></Column>"#),
@@ -2650,7 +2766,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" />"#,
             ".unused { padding: 9; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding, None);
     }
@@ -2662,7 +2778,7 @@ mod tests {
     /// é interpolada aqui, com o mesmo teste de verdade do `if`.
     #[test]
     fn hidden_e_disabled_resolvem_placeholder_do_contexto() {
-        let mut ctx = HashMap::new();
+        let mut ctx = HashMap::default();
         ctx.insert("oculto".to_string(), "true".to_string());
         ctx.insert("travado".to_string(), "false".to_string());
 
@@ -2688,7 +2804,7 @@ mod tests {
     /// e uma chave ausente resolve para vazio, que não é verdade.
     #[test]
     fn hidden_literal_e_chave_ausente_seguem_valendo() {
-        let ctx = HashMap::new();
+        let ctx = HashMap::default();
         let node = parse(r#"<Button text="x" hidden="true" />"#);
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(true));

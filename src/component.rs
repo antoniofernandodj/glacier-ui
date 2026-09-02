@@ -4,7 +4,7 @@
 //! à parte no seu `update()`, um [`Component`] junta os dois num único tipo que o
 //! motor registra de uma vez via [`crate::GlacierUI::register`].
 
-use std::collections::HashMap;
+use crate::ContextMap;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -409,7 +409,7 @@ impl ContextVar {
 /// navegação), evitando o conflito de borrow que existiria ao passar o
 /// `GlacierUI` inteiro.
 pub struct Context<'a> {
-    pub(crate) data: &'a mut HashMap<String, String>,
+    pub(crate) data: &'a mut ContextMap,
     pub(crate) nav: Option<Nav>,
     pub(crate) effects: Vec<Effect>,
     pub(crate) dialog: Option<DialogAction>,
@@ -497,7 +497,7 @@ impl<'a> Context<'a> {
     /// Cria um contexto novo espelhando `data`, com todos os acumuladores
     /// (efeitos, fetches, streams, …) vazios. Ponto único de construção para
     /// que adicionar um acumulador não force editar cada call-site.
-    pub(crate) fn new(data: &'a mut HashMap<String, String>) -> Self {
+    pub(crate) fn new(data: &'a mut ContextMap) -> Self {
         Self {
             data,
             nav: None,

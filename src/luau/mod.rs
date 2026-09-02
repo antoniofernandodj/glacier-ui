@@ -320,9 +320,9 @@ impl LuauComponent {
             path,
             luau,
             ctx_table,
-            pending: RefCell::new(HashMap::new()),
-            streams: RefCell::new(HashMap::new()),
-            timers: RefCell::new(HashMap::new()),
+            pending: RefCell::new(HashMap::default()),
+            streams: RefCell::new(HashMap::default()),
+            timers: RefCell::new(HashMap::default()),
             next_id: Cell::new(1),
             viewport_table,
             inner: None,
@@ -1883,6 +1883,7 @@ fn extract_script(markup: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ContextMap;
     use std::collections::HashMap;
 
     /// Roda `func`/`value` contra um mapa de contexto e devolve o mapa mutado,
@@ -1891,8 +1892,8 @@ mod tests {
         comp: &LuauComponent,
         func: &str,
         value: Option<&str>,
-        mut data: HashMap<String, String>,
-    ) -> HashMap<String, String> {
+        mut data: ContextMap,
+    ) -> ContextMap {
         let mut ctx = Context::new(&mut data);
         comp.run(func, value, &mut ctx);
         data
@@ -1906,7 +1907,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("contador".into(), "0".into());
         let data = drive(&comp, "incrementar", None, data);
         // Coerção de string numérica + volta a inteiro (não "1.0").
@@ -1917,7 +1918,7 @@ mod tests {
     fn onchange_recebe_o_valor() {
         let comp = LuauComponent::from_source("function set_nome(v) ctx.nome = v end", "t.gv", "c")
             .unwrap();
-        let data = drive(&comp, "set_nome", Some("Ana"), HashMap::new());
+        let data = drive(&comp, "set_nome", Some("Ana"), HashMap::default());
         assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
     }
 
@@ -1925,7 +1926,7 @@ mod tests {
     fn atribuir_nil_remove_a_chave_no_contexto() {
         let comp = LuauComponent::from_source("function limpar() ctx.temp = nil end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("temp".into(), "algo".into());
         data.insert("manter".into(), "ok".into());
         let data = drive(&comp, "limpar", None, data);
@@ -1941,7 +1942,7 @@ mod tests {
     #[test]
     fn acao_sem_funcao_e_ignorada() {
         let comp = LuauComponent::from_source("function a() end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("x".into(), "keep".into());
         let data = drive(&comp, "inexistente", None, data);
         assert_eq!(data.get("x").map(String::as_str), Some("keep"));
@@ -1957,7 +1958,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "open_service:abc", None, HashMap::new());
+        let data = drive(&comp, "open_service:abc", None, HashMap::default());
         assert_eq!(data.get("aberto").map(String::as_str), Some("abc"));
     }
 
@@ -1967,7 +1968,7 @@ mod tests {
         // valor do input em seguida.
         let comp =
             LuauComponent::from_source("function field(k, v) ctx[k] = v end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "field:nome", Some("Ana"), HashMap::new());
+        let data = drive(&comp, "field:nome", Some("Ana"), HashMap::default());
         assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
     }
 
@@ -1982,7 +1983,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "salvar", None, HashMap::new());
+        let data = drive(&comp, "salvar", None, HashMap::default());
         assert_eq!(data.get("via").map(String::as_str), Some("exato"));
     }
 
@@ -1994,7 +1995,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         assert_eq!(ctx.toasts.len(), 1);
@@ -2006,7 +2007,7 @@ mod tests {
     fn toast_aceita_string_curta() {
         let comp =
             LuauComponent::from_source("function go() toast('oi') end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         assert_eq!(ctx.toasts.len(), 1);
@@ -2022,7 +2023,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         match &ctx.dialog {
@@ -2053,7 +2054,7 @@ mod tests {
                 "c",
             )
             .unwrap();
-            let mut data = HashMap::new();
+            let mut data = HashMap::default();
             let id = {
                 let mut ctx = Context::new(&mut data);
                 comp.run("go", None, &mut ctx);
@@ -2080,7 +2081,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         assert_eq!(
@@ -2117,7 +2118,7 @@ mod tests {
                 "c",
             )
             .unwrap();
-            let mut data = HashMap::new();
+            let mut data = HashMap::default();
             let id = {
                 let mut ctx = Context::new(&mut data);
                 comp.run("go", None, &mut ctx);
@@ -2151,7 +2152,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let id = {
             let mut ctx = Context::new(&mut data);
             comp.run("go", None, &mut ctx);
@@ -2190,7 +2191,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let d = drive(&comp, "go", None, HashMap::new());
+        let d = drive(&comp, "go", None, HashMap::default());
         assert_eq!(d.get("d_nil").map(String::as_str), Some("true"));
         assert_eq!(d.get("d_type").map(String::as_str), Some("nil"));
         assert_eq!(d.get("safe").map(String::as_str), Some("vazio"));
@@ -2208,7 +2209,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let d = drive(&comp, "go", None, HashMap::new());
+        let d = drive(&comp, "go", None, HashMap::default());
         assert_eq!(d.get("obj").map(String::as_str), Some("{}"));
         assert_eq!(d.get("arr").map(String::as_str), Some("[]"));
         assert_eq!(
@@ -2223,7 +2224,7 @@ mod tests {
         // no script deve gravar ctx.url com o texto digitado — o loop que o
         // Form do Rust fechava, agora nativo para componentes Luau.
         let comp = LuauComponent::from_source("function init() end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "url", Some("https://x.tech"), HashMap::new());
+        let data = drive(&comp, "url", Some("https://x.tech"), HashMap::default());
         assert_eq!(data.get("url").map(String::as_str), Some("https://x.tech"));
     }
 
@@ -2231,7 +2232,7 @@ mod tests {
     fn acao_simples_sem_value_e_sem_funcao_e_ignorada() {
         // Sem função e sem value, nada acontece (não cria chave espúria).
         let comp = LuauComponent::from_source("function a() end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "inexistente", None, HashMap::new());
+        let data = drive(&comp, "inexistente", None, HashMap::default());
         assert_eq!(data.get("inexistente"), None);
     }
 
@@ -2243,7 +2244,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "init", None, HashMap::new());
+        let data = drive(&comp, "init", None, HashMap::default());
         assert_eq!(data.get("contador").map(String::as_str), Some("5"));
     }
 
@@ -2255,7 +2256,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("raw".into(), r#"{"nome":"web","n":3}"#.into());
         let data = drive(&comp, "go", None, data);
         assert_eq!(data.get("nome").map(String::as_str), Some("web"));
@@ -2271,7 +2272,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         // Tabela 1-indexada sequencial → array JSON, na ordem.
         assert_eq!(
             data.get("out").map(String::as_str),
@@ -2294,7 +2295,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert(
             "raw".into(),
             r#"[{"name":"web","running":true},{"name":"db","running":false}]"#.into(),
@@ -2322,7 +2323,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // 1) roda a ação: `fetch` cede, a corrotina suspende e um PendingFetch aparece.
         let id;
@@ -2361,7 +2362,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // init abre o stream: um StreamRequest aparece e a corrotina NÃO fica
         // suspensa (sse não bloqueia como fetch).
@@ -2413,7 +2414,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -2450,7 +2451,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -2479,7 +2480,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         // Abriu um WebSocket e enfileirou um `send` — sem suspender.
@@ -2522,7 +2523,7 @@ mod tests {
         std::fs::write(&tpl, r#"<Text/><script src="beh.luau"></script>"#).unwrap();
 
         let comp = LuauComponent::from_file(tpl.to_str().unwrap(), "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("n".into(), "41".into());
         let data = drive(&comp, "incrementar", None, data);
         assert_eq!(data.get("n").map(String::as_str), Some("42"));
@@ -2546,7 +2547,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("path".into(), alvo.to_str().unwrap().to_string());
         let data = drive(&comp, "gravar", None, data);
 
@@ -2581,7 +2582,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("msg".into(), "ola".into());
         let data = drive(&comp, "grita", None, data);
         assert_eq!(data.get("msg").map(String::as_str), Some("OLA!"));
@@ -2605,7 +2606,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         assert_eq!(data.get("cargas").map(String::as_str), Some("1"));
         assert_eq!(data.get("mesmo").map(String::as_str), Some("true"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2631,7 +2632,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // A chamada ao módulo suspende a corrotina num fetch — prova de que o
         // `fetch` do prelúdio funciona dentro do módulo importado.
@@ -2671,7 +2672,7 @@ mod tests {
         )
         .unwrap();
         // Não deve derrubar o processo: o erro é logado e a ação vira no-op.
-        let data = drive(&comp, "usar", None, HashMap::new());
+        let data = drive(&comp, "usar", None, HashMap::default());
         assert!(data.is_empty());
         // A resolução em si devolve None para um módulo ausente.
         assert!(
@@ -2701,7 +2702,7 @@ mod tests {
         std::fs::write(scripts.join("m.luau"), "return { hi = \"ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2736,7 +2737,7 @@ mod tests {
         std::fs::write(pkg.join("b.luau"), "return { msg = \"irmao-ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("irmao-ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2768,7 +2769,7 @@ mod tests {
         std::fs::write(scripts.join("shared.luau"), "return { msg = \"subiu-ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("subiu-ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2811,7 +2812,7 @@ mod tests {
         std::fs::write(pb.join("x.luau"), "return { name = \"de-b\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("a").map(String::as_str), Some("de-a"));
         assert_eq!(data.get("b").map(String::as_str), Some("de-b"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2825,7 +2826,7 @@ mod tests {
         let comp = LuauComponent::from_file("examples/imports_luau/app.gv", "app").unwrap();
         // init() não usa rede; só semeia o estado — prova que os módulos
         // resolveram e o script rodou.
-        let data = drive(&comp, "init", None, HashMap::new());
+        let data = drive(&comp, "init", None, HashMap::default());
         assert_eq!(data.get("status").map(String::as_str), Some("pronto"));
     }
 
@@ -2861,7 +2862,7 @@ mod tests {
     fn navigate_pede_navegacao_ao_motor() {
         let comp = LuauComponent::from_source("function ir() navigate('perfil') end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("ir", None, &mut ctx);
         match ctx.nav {
@@ -2874,7 +2875,7 @@ mod tests {
     fn navigate_back_pede_volta_ao_motor() {
         let comp = LuauComponent::from_source("function voltar() navigate_back() end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("voltar", None, &mut ctx);
         assert!(matches!(ctx.nav, Some(crate::component::Nav::Back)));
@@ -2889,7 +2890,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(
@@ -2915,7 +2916,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -2933,7 +2934,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(
@@ -2956,7 +2957,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(ctx.notifications.len(), 1);
@@ -2970,7 +2971,7 @@ mod tests {
         let comp =
             LuauComponent::from_source("function avisar() notify('build pronto') end", "t.gv", "c")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(ctx.notifications.len(), 1);
@@ -2986,7 +2987,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -3005,7 +3006,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -3023,7 +3024,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("enviar", None, &mut ctx);
         assert_eq!(ctx.broadcasts.len(), 1);
@@ -3037,7 +3038,7 @@ mod tests {
     fn close_window_pede_fechar_a_propria_janela() {
         let comp =
             LuauComponent::from_source("function sair() close_window() end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         assert!(!ctx.close_self);
         comp.run("sair", None, &mut ctx);
@@ -3057,7 +3058,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.on_broadcast_inner("project_created", "{\"name\":\"api\"}", &mut ctx)
             .unwrap();
@@ -3077,7 +3078,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -3107,7 +3108,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -3135,7 +3136,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let first_id;
         {
@@ -3183,7 +3184,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let first_id;
         {
@@ -3214,7 +3215,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         {
             let mut ctx = Context::new(&mut data);
             comp.run("quebra", None, &mut ctx);
@@ -3236,7 +3237,7 @@ mod tests {
         let comp =
             LuauComponent::from_source("function quebra() error('deu ruim') end", "t.gv", "c")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("quebra", None, &mut ctx);
         assert_eq!(
@@ -3255,7 +3256,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "ir", None, HashMap::new());
+        let data = drive(&comp, "ir", None, HashMap::default());
         let raw = data
             .get("obj")
             .expect("ctx.obj deveria ter sido gravado (serializado como JSON)");
@@ -3272,7 +3273,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "ir", None, HashMap::new());
+        let data = drive(&comp, "ir", None, HashMap::default());
         assert_eq!(
             data.get("ruim"),
             None,
@@ -3289,7 +3290,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         {
             let mut ctx = Context::new(&mut data);
             ctx.set_viewport((1024.0, 768.0));
@@ -3307,14 +3308,14 @@ mod tests {
                       function carregar() ctx.contador = storage.get('contador') end";
 
         let comp1 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("contador".into(), "7".into());
         let _ = drive(&comp1, "salvar", None, data);
 
         // Nova instância (simula reiniciar o processo): mesmo `path`/nome, então
         // o mesmo arquivo `.glacier-storage/app.json` — deveria ler o valor salvo.
         let comp2 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
-        let data2 = drive(&comp2, "carregar", None, HashMap::new());
+        let data2 = drive(&comp2, "carregar", None, HashMap::default());
         assert_eq!(data2.get("contador").map(String::as_str), Some("7"));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -3335,7 +3336,7 @@ mod tests {
             "app",
         )
         .unwrap();
-        let data = drive(&comp, "fluxo", None, HashMap::new());
+        let data = drive(&comp, "fluxo", None, HashMap::default());
         assert_eq!(
             data.get("depois"),
             None,
@@ -3379,7 +3380,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         assert_eq!(
             data.get("tem_io").map(String::as_str),
             Some("false"),
@@ -3417,7 +3418,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         let g = |k: &str| data.get(k).map(String::as_str);
         // 31/01 + 1 mês gruda no fim de fevereiro, como o QDateEdit ao trocar
         // a seção do mês — e o ano bissexto muda a resposta.
@@ -3463,7 +3464,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         let g = |k: &str| data.get(k).map(String::as_str);
         assert_eq!(g("texto"), Some("true"), "a comparação ingênua mente");
         assert_eq!(g("certo"), Some("true"), "08:00 é depois da meia-noite");
@@ -3500,7 +3501,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         let g = |k: &str| data.get(k).map(String::as_str);
         assert_eq!(g("epoch_z"), Some("0"));
         // O mesmo relógio de parede três horas a oeste é três horas DEPOIS.
@@ -3539,7 +3540,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         let g = |k: &str| data.get(k).map(String::as_str);
         assert_eq!(g("mesmo"), Some("0"), "o mesmo instante em duas escritas");
         assert_eq!(g("ida_volta"), Some("0"));
@@ -3571,7 +3572,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         let hoje = data.get("hoje").expect("date.today()");
         assert_eq!(hoje.len(), 10, "today = YYYY-MM-DD, deu {hoje}");
         assert_eq!(data.get("agora").map(String::len), Some(16));
@@ -3585,7 +3586,7 @@ mod tests {
     fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("usuario".into(), "admin".into());
         data.insert("senha".into(), "123".into());
         let mut ctx = Context::new(&mut data);
@@ -3600,7 +3601,7 @@ mod tests {
     fn exemplo_navegacao_luau_login_errado_nao_navega_e_seta_erro() {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("usuario".into(), "quemquer".into());
         data.insert("senha".into(), "errada".into());
         {
@@ -3619,7 +3620,7 @@ mod tests {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/dashboard.gv", "dashboard_luau")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("senha".into(), "123".into());
         {
             let mut ctx = Context::new(&mut data);
@@ -3636,7 +3637,7 @@ mod tests {
 
         let comp =
             LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // init() lê o storage (vazio na primeira vez) e semeia os defaults.
         {
@@ -3701,7 +3702,7 @@ mod tests {
         }
         let comp2 =
             LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
-        let mut data2 = HashMap::new();
+        let mut data2 = HashMap::default();
         {
             let mut ctx2 = Context::new(&mut data2);
             comp2.run("init", None, &mut ctx2);
@@ -3734,7 +3735,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        drive(&comp, "escrever", None, HashMap::new());
+        drive(&comp, "escrever", None, HashMap::default());
 
         let conteudo =
             std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
@@ -3775,7 +3776,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "compactar", None, HashMap::new());
+        let data = drive(&comp, "compactar", None, HashMap::default());
         assert_eq!(
             data.get("ok").map(String::as_str),
             Some("true"),

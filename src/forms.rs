@@ -18,7 +18,7 @@
 //! assert!(form.is_valid());
 //! ```
 
-use std::collections::HashMap;
+use crate::ContextMap;
 use std::sync::Arc;
 
 use crate::component::Context;
@@ -403,7 +403,7 @@ impl Form {
     }
 
     /// A snapshot of every control's current value, keyed by name.
-    pub fn values(&self) -> HashMap<String, String> {
+    pub fn values(&self) -> ContextMap {
         self.controls
             .iter()
             .map(|c| (c.name.clone(), c.value.clone()))
@@ -444,6 +444,7 @@ impl Form {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn required_control_is_invalid_until_set() {
@@ -584,7 +585,7 @@ mod tests {
         assert!(form.errors("y").is_empty());
     }
 
-    fn test_context(data: &mut HashMap<String, String>) -> Context<'_> {
+    fn test_context(data: &mut ContextMap) -> Context<'_> {
         Context::new(data)
     }
 
@@ -602,14 +603,14 @@ mod tests {
             })
             .build();
 
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         form.submit(&mut test_context(&mut data));
         assert_eq!(data.get("status").map(String::as_str), Some("invalid"));
         // `validate()` inside the closure ran against the real `form`, not a copy.
         assert!(form.get("username").unwrap().touched());
 
         form.set_value("username", "ana");
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         form.submit(&mut test_context(&mut data));
         assert_eq!(data.get("status").map(String::as_str), Some("ok"));
     }
@@ -619,7 +620,7 @@ mod tests {
         let mut form = FormBuilder::new("f")
             .control(FormControl::new("x", ""))
             .build();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         form.submit(&mut test_context(&mut data)); // must not panic
         assert!(data.is_empty());
     }
@@ -631,14 +632,14 @@ mod tests {
             .control(FormControl::new("bio", ""))
             .build();
 
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         // Untouched: blank, not "required" — errors are cached, not fresh.
         form.errors_to_context(&mut test_context(&mut data), "erro_");
         assert_eq!(data.get("erro_username").map(String::as_str), Some(""));
         assert_eq!(data.get("erro_bio").map(String::as_str), Some(""));
 
         form.set_value("username", "");
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         form.errors_to_context(&mut test_context(&mut data), "erro_");
         assert_eq!(
             data.get("erro_username").map(String::as_str),

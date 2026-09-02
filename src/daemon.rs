@@ -679,10 +679,10 @@ impl Runtime {
         assets: Arc<dyn AssetSource>,
     ) -> Self {
         Self {
-            windows: HashMap::new(),
-            titles: HashMap::new(),
-            base_titles: HashMap::new(),
-            sized_by: HashMap::new(),
+            windows: HashMap::default(),
+            titles: HashMap::default(),
+            base_titles: HashMap::default(),
+            sized_by: HashMap::default(),
             main_id,
             child_settings: None,
             on_message: None,

@@ -8,6 +8,108 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.76.0] — 2026-09-02
+
+A terceira release de custo, e a primeira guiada por **perfil** em vez de
+suspeita. As duas anteriores atacaram o que se via lendo o código; esta rodou o
+avaliador sob `callgrind` e foi atrás do que a contagem de instrução apontou —
+que não foi o que se esperava.
+
+O caminho medido é o mais comum de todos: uma mudança de estado que **não** toca
+a lista da tela (mexer num contador, trocar uma aba, chegar um dado de outra
+chave). Antes: 1.986M de instruções. Depois: **1.008M** — metade.
+
+### Alterado
+- **A lista deixou de ser reparseada a cada avaliação.** Uma coleção mora no
+  contexto como texto (`"[{...},{...}]"`) e o `for-each` precisa dela como
+  `Value`, então parseava a lista inteira — com um `BTreeMap` por objeto — a
+  cada reavaliação, mesmo quando nada nela tinha mudado e **todos** os itens
+  vinham do cache. Era **13,8%** de todo o trabalho, jogado fora em seguida.
+
+  Agora o array parseado fica guardado no `EvalCache`, por chave de contexto. A
+  validade é conferida **comparando o texto**, não um hash: um `memcmp` de 20 KB
+  é ordens de grandeza mais barato que o parse, e não abre a porta que um hash
+  de 64 bits abriria — servir a lista velha por colisão, em silêncio.
+
+- **Os mapas internos do avaliador trocaram o SipHash pelo FxHash.** O hash da
+  `std` é escolhido para resistir a colisão hostil em mapa alimentado por
+  entrada de rede; aqui as chaves são nomes de variável do próprio app e
+  caminhos de nó gerados pelo motor. Ele respondia por **18%** do trabalho — com
+  o caso mais absurdo sendo hashar um `u64` (o caminho de uma entrada de cache)
+  com SipHash.
+
+  São ~30 linhas em `eval.rs`, sem dependência nova. Trocado no cache de
+  avaliação, no rastreador de leituras, no cache de JSON acima e **no contexto**
+  (ver Quebras).
+
+- **`Reads::record` parou de alocar a cada leitura.** A mesma chave é lida
+  muitas vezes por subárvore, e o `entry` da `std` exige a chave *possuída* —
+  alocava uma `String` a cada leitura só para descobrir que já havia uma igual.
+  Agora consulta antes de inserir: um segundo hash (barato, com o Fx) no lugar
+  de uma alocação.
+
+- **As duas varreduras completas da árvore viraram uma, e só quando a árvore
+  muda.** A cada reavaliação, o motor percorria a árvore inteira duas vezes —
+  uma atrás de `<TextArea>`, outra atrás de `<ComboEdit>` — para sincronizar os
+  buffers desses widgets. Quase sempre para não achar nada: a tela típica não
+  tem nenhum dos dois. Eram **5,3%**.
+
+  A coleta passou a acontecer **uma vez, junto da avaliação que produziu a
+  árvore** (`GlacierUI::tree_bindings`), numa passada só para os dois tipos. Uma
+  árvore reaproveitada não é varrida de novo.
+
+### Números
+
+`tests/perf_arvore.rs`, `--release`, mesma máquina. A coluna da 0.73 é a linha de
+base de antes das três releases de custo:
+
+| N linhas | acerto de cache | reavaliação completa | memória do processo |
+|---|---|---|---|
+| 100 | 97 µs (0.75: 242 · 0.73: 834) | 1,09 ms (1,22 · 2,03) | 0,7 MB |
+| 500 | **545 µs** (0.75: 1.300 · 0.73: 5.590) | 6,15 ms (6,74 · 12,2) | 4,0 MB (3,5 · 9,8) |
+| 2000 | **4,46 ms** (0.75: 10,06 · 0.73: 26,6) | 31,8 ms (33,7 · 53,8) | 15,2 MB (13,9 · 33,4) |
+
+O acerto de cache ficou **2,3× mais rápido que a 0.75** e **6,0× mais rápido que
+a 0.73** numa lista de 2000 linhas; numa de 500, **10,3×** contra a 0.73.
+
+**O preço, e ele é real:** guardar a lista parseada custa memória. Numa lista de
+2000 linhas o processo subiu de 13,9 para 15,2 MB (+9%) — o array de `Value`
+retido, mais uma cópia do texto para a comparação exata. Continua **2,2× abaixo**
+da 0.73 (33,4 MB), e a troca é 1,3 MB por 2,3× no caminho mais percorrido do
+motor. Se um dia incomodar, o lugar de mexer é a política de descarte do
+`EvalCache::json`, que hoje só limpa quando a época avança.
+
+### Quebras
+
+Uma só, e é de **tipo**, não de uso.
+
+- **O contexto virou `glacier_ui::ContextMap`** — o mesmo `HashMap<String,
+  String>` de sempre, com o hasher rápido no terceiro parâmetro. Isso alcança
+  `GlacierUI::context()`, `eval::process_template` e `EvalCtx::new`.
+
+  `get`, `contains_key`, `insert`, `iter` e companhia **não mudam** — todos os
+  52 usos de `.context()` nos testes deste repositório passaram sem edição. Só
+  quebra quem **anota o tipo à mão**:
+
+  ```rust
+  // antes                                     // agora
+  let ctx: &HashMap<String, String> = ...      let ctx: &ContextMap = ...
+  fn f(c: &HashMap<String, String>) { }        fn f(c: &ContextMap) { }
+  ```
+
+  E, num literal, `HashMap::new()` vira `HashMap::default()` (o `new` só existe
+  para o hasher da `std`).
+
+### Notas
+- **O que o perfil ainda mostra**, para quem continuar: `EvalCtx::lookup` é
+  agora o item isolado mais caro (17%), e é o preço de a resolução de uma chave
+  percorrer as camadas antes de cair no mapa. Depois dele vêm as comparações de
+  string (6,7%) e a cópia de nós no acerto de cache (5%).
+- Continua fora a **virtualização** da lista, pelo mesmo motivo das duas
+  anteriores — é funcionalidade, não otimização. Ver `PLANO_WIDGETS.md`, Onda 6.
+
+---
+
 ## [0.75.0] — 2026-09-01
 
 A continuação direta da 0.74, e o item que ela mesma deixou anotado como "a
