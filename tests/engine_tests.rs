@@ -1199,6 +1199,376 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
     );
 }
 
+// --- Componente declarado no `<resources>` (`<component name="…">`) ----------
+
+/// A **terceira forma** de ter um componente: declará-lo no próprio template.
+/// O corpo é o mesmo que estaria num `.gv` — `<props>` e layout —, e a tag
+/// passa a existir dali para baixo como qualquer outra.
+#[test]
+fn componente_declarado_no_resources_vira_tag() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_define_basico.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Local">
+            <resources>
+                <component name="Linha">
+                    <props>
+                        <prop name="nome" />
+                        <prop name="estado" default="ok" />
+                    </props>
+                    <row>
+                        <text content="{nome}" />
+                        <text content="{estado}" />
+                    </row>
+                </component>
+            </resources>
+
+            <column>
+                <Linha nome="api" />
+                <Linha nome="db" estado="lento" />
+            </column>
+        </screen>"#,
+    )
+    .unwrap();
+    motor.register_component("tela_define", tpl).unwrap();
+    motor.set_initial_screen("tela_define");
+
+    // As props funcionam como as de um componente de arquivo, `default`
+    // incluído — o `<props>` é o mesmo bloco, lido pelo mesmo caminho.
+    assert_eq!(
+        all_texts(motor.evaluated("tela_define").unwrap()),
+        vec![
+            "api".to_string(),
+            "ok".to_string(),
+            "db".to_string(),
+            "lento".to_string()
+        ]
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// A declaração local **não desenha por si**: ela é declaração, como um
+/// `<style>` ou um `<import>`, e o `<resources>` inteiro é stripado na
+/// avaliação. Sem isto, o corpo do componente apareceria uma vez a mais na
+/// tela — o sintoma mais óbvio de a tag não ter entrado na lista de nós
+/// descartados.
+#[test]
+fn declaracao_local_nao_desenha_sozinha() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_define_nao_desenha.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Local">
+            <resources>
+                <component name="Aviso">
+                    <text content="corpo do componente" />
+                </component>
+            </resources>
+            <column><text content="layout" /></column>
+        </screen>"#,
+    )
+    .unwrap();
+    motor.register_component("tela_define2", tpl).unwrap();
+    motor.set_initial_screen("tela_define2");
+
+    assert_eq!(
+        all_texts(motor.evaluated("tela_define2").unwrap()),
+        vec!["layout".to_string()],
+        "o corpo da declaração não pode aparecer na tela que a declarou"
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// A ação escrita dentro de um componente local cai no `update` da **tela que
+/// o declarou**, e não num dono novo.
+///
+/// Isso não é acaso nem exceção: a ação é prefixada com o nome do componente,
+/// como em qualquer outro (`BotaoLinha::salvar`), e o roteamento do motor cai
+/// para a tela atual quando o prefixo não é um componente **com
+/// comportamento** — que é sempre o caso aqui, porque uma declaração inline não
+/// tem arquivo, logo não tem `<script>`, logo não tem `update` próprio.
+///
+/// É o comportamento desejado, e é o que torna a declaração local útil para as
+/// peças pequenas de uma tela só: quem trata o clique é quem escreveu a tela.
+#[test]
+fn acao_de_componente_local_cai_na_tela() {
+    /// A tela, com um `update` que registra o que recebeu.
+    struct TelaComDefine;
+    impl Component for TelaComDefine {
+        fn name(&self) -> &str {
+            "tela_define3"
+        }
+        fn template(&self) -> Template {
+            Template::File("templates/test_define_acao.gv".into())
+        }
+        fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+            ctx.set("recebi", action.to_string());
+        }
+    }
+
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_define_acao.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Local">
+            <resources>
+                <component name="BotaoLinha">
+                    <props><prop name="acao" /></props>
+                    <button text="ir" on_click="{acao}" />
+                </component>
+            </resources>
+            <column><BotaoLinha acao="salvar" /></column>
+        </screen>"#,
+    )
+    .unwrap();
+
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(TelaComDefine)).unwrap();
+    motor.set_initial_screen("tela_define3");
+
+    // Na árvore, a ação carrega o nome do componente — como a de qualquer
+    // outro. O que decide não é a string; é para onde ela é roteada.
+    let mut acoes = Vec::new();
+    fn anda(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Button {
+            on_click: Some(a), ..
+        } = &n.kind
+        {
+            out.push(a.clone());
+        }
+        for f in &n.children {
+            anda(f, out);
+        }
+    }
+    anda(motor.evaluated("tela_define3").unwrap(), &mut acoes);
+    assert_eq!(acoes, vec!["BotaoLinha::salvar".to_string()]);
+
+    let _ = motor.dispatch(&EngineMessage::UiClick(acoes[0].clone()));
+    assert_eq!(
+        motor.context().get("recebi").map(String::as_str),
+        Some("salvar"),
+        "o clique tem de chegar na TELA, com o nome sem prefixo"
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Um componente local pode usar outro componente local — e um `<import>` do
+/// mesmo arquivo continua funcionando ao lado. As três formas de ter um
+/// componente convivem no mesmo `<resources>`.
+#[test]
+fn componentes_locais_se_compoem() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_define_composto.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Local">
+            <resources>
+                <component name="Rotulo">
+                    <props><prop name="txt" /></props>
+                    <text content="[{txt}]" />
+                </component>
+                <component name="Linha">
+                    <props><prop name="nome" /></props>
+                    <row><Rotulo txt="{nome}" /></row>
+                </component>
+            </resources>
+            <column><Linha nome="api" /></column>
+        </screen>"#,
+    )
+    .unwrap();
+    motor.register_component("tela_define4", tpl).unwrap();
+    motor.set_initial_screen("tela_define4");
+
+    assert_eq!(
+        all_texts(motor.evaluated("tela_define4").unwrap()),
+        vec!["[api]".to_string()]
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Um componente **de verdade** (registrado pelo app) não é atropelado por uma
+/// declaração local de mesmo nome — a mesma regra do `<import>`. Um builtin da
+/// lib, ao contrário, é: sombrear um builtin é justamente o que essa regra
+/// permite.
+#[test]
+fn declaracao_local_respeita_o_registro_do_app_e_sombreia_o_builtin() {
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(ChildComp)).unwrap();
+
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_define_colisao.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Local">
+            <resources>
+                <component name="ChildComp">
+                    <text content="local venceu" />
+                </component>
+                <component name="Badge">
+                    <text content="badge local" />
+                </component>
+            </resources>
+            <column><ChildComp /><Badge /></column>
+        </screen>"#,
+    )
+    .unwrap();
+    motor.register_component("tela_define5", tpl).unwrap();
+    motor.set_initial_screen("tela_define5");
+
+    let textos = all_texts(motor.evaluated("tela_define5").unwrap());
+    assert!(
+        !textos.iter().any(|t| t == "local venceu"),
+        "o componente registrado pelo app tem de vencer a declaração local: {textos:?}"
+    );
+    assert!(
+        textos.iter().any(|t| t == "badge local"),
+        "a declaração local tem de sombrear o builtin de mesmo nome: {textos:?}"
+    );
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Os erros do bloco: sem `name`, com atributo estranho, e sem layout. Todos
+/// posicionados, porque o sintoma de deixá-los passar é silencioso — a tag
+/// simplesmente não existe, e quem escreveu fica olhando para um arquivo que
+/// "está certo".
+#[test]
+fn declaracao_local_mal_escrita_da_erro_posicionado() {
+    let casos: [(&str, &str); 3] = [
+        (
+            r#"<screen title="x"><resources><component><text content="a" /></component></resources><column /></screen>"#,
+            "sem `name`",
+        ),
+        (
+            r#"<screen title="x"><resources><component name="A" title="oi"><text content="a" /></component></resources><column /></screen>"#,
+            "atributo 'title'",
+        ),
+        (
+            r#"<screen title="x"><resources><component name="A"><props><prop name="p" /></props></component></resources><column /></screen>"#,
+            "sem conteúdo",
+        ),
+    ];
+
+    for (i, (markup, esperado)) in casos.iter().enumerate() {
+        let mut motor = GlacierUI::new();
+        std::fs::create_dir_all("templates").ok();
+        let tpl = format!("templates/test_define_erro_{i}.gv");
+        std::fs::write(&tpl, markup).unwrap();
+        let Err(erro) = motor.register_component("tela_erro", &tpl) else {
+            panic!("o caso {esperado:?} deveria falhar");
+        };
+        let msg = erro.to_string();
+        assert!(
+            msg.contains(esperado),
+            "o erro do caso {esperado:?} deveria dizê-lo: {msg}"
+        );
+        std::fs::remove_file(&tpl).ok();
+    }
+}
+
+/// Guarda o exemplo `examples/componentes_locais/`: as duas formas — a
+/// declarada no `<resources>` e a trazida por `<import>` — produzem a mesma
+/// árvore e se usam do mesmo jeito.
+///
+/// O que ele fixa de verdade é a **equivalência**: se um dia a declaração
+/// inline deixar de passar pelo mesmo caminho do arquivo (props, defaults,
+/// `for-each`, composição), este teste cai.
+#[test]
+fn test_exemplo_componentes_locais_ponta_a_ponta() {
+    struct TelaLocais;
+    impl Component for TelaLocais {
+        fn name(&self) -> &str {
+            "componentes_locais"
+        }
+        fn template(&self) -> Template {
+            Template::File("examples/componentes_locais/app.gv".into())
+        }
+        fn init(&mut self, ctx: &mut Context) {
+            ctx.set(
+                "servicos",
+                r##"[{"id":"api","nome":"API","estado":"online","cor":"#A6E3A1","uptime":"31 dias"}]"##
+                    .to_string(),
+            );
+            ctx.set(
+                "log",
+                r#"[{"hora":"09:14","nivel":"info","texto":"ok"},
+                    {"hora":"09:47","nivel":"erro","texto":"caiu"}]"#
+                    .to_string(),
+            );
+            ctx.set(
+                "metricas",
+                r#"[{"rotulo":"p95","valor":"310 ms","delta":"+8%"},
+                    {"rotulo":"Erros","valor":"3"}]"#
+                    .to_string(),
+            );
+            ctx.set("selecionado", "api".to_string());
+            ctx.set("status", "Pronto".to_string());
+        }
+        fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+            ctx.set("recebi", action.to_string());
+        }
+    }
+
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(TelaLocais)).unwrap();
+    motor.set_initial_screen("componentes_locais");
+
+    let textos = all_texts(motor.evaluated("componentes_locais").unwrap());
+
+    // `Metrica` — um componente local com vários nós de raiz (vira Fragment) e
+    // um `default=""` que apaga o terceiro nó quando a prop não vem.
+    assert!(textos.iter().any(|t| t == "310 ms"), "{textos:?}");
+    assert!(textos.iter().any(|t| t == "+8%"), "{textos:?}");
+    assert!(
+        textos.iter().filter(|t| t.as_str() == "Erros").count() == 1,
+        "a segunda métrica não tem delta, e o nó dele não pode aparecer: {textos:?}"
+    );
+
+    // `LinhaLog` — um componente local que usa OUTRO componente local
+    // (`Rotulo`), com um `if`/`else-if` decidindo o badge.
+    assert!(textos.iter().any(|t| t == "09:47"), "{textos:?}");
+    assert!(textos.iter().any(|t| t == "caiu"), "{textos:?}");
+    assert!(textos.iter().any(|t| t == "erro"), "{textos:?}");
+    assert!(textos.iter().any(|t| t == "info"), "{textos:?}");
+
+    // `CartaoServico` — o mesmo mecanismo, mas vindo de um arquivo por
+    // `<import>`. As duas formas convivem no mesmo `<resources>`.
+    assert!(textos.iter().any(|t| t == "API"), "{textos:?}");
+    assert!(textos.iter().any(|t| t == "uptime 31 dias"), "{textos:?}");
+
+    // E a ação escrita dentro do componente de arquivo chega na tela sem
+    // prefixo, com o id que a prop montou — o padrão `SpinBox`.
+    let mut acoes = Vec::new();
+    fn anda(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Button {
+            on_click: Some(a), ..
+        } = &n.kind
+        {
+            out.push(a.clone());
+        }
+        for f in &n.children {
+            anda(f, out);
+        }
+    }
+    anda(motor.evaluated("componentes_locais").unwrap(), &mut acoes);
+    let Some(reiniciar) = acoes.iter().find(|a| a.ends_with("reiniciar:api")).cloned() else {
+        panic!("faltou o botão do cartão: {acoes:?}");
+    };
+    let _ = motor.dispatch(&EngineMessage::UiClick(reiniciar));
+    assert_eq!(
+        motor.context().get("recebi").map(String::as_str),
+        Some("reiniciar:api")
+    );
+}
+
 /// Guarda o exemplo `examples/onda4/`: os sete itens da onda, cada um pela sua
 /// marca — a primitiva pelo `NodeType`, o builtin pela ação que ele emite.
 ///

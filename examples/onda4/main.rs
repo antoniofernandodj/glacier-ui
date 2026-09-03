@@ -146,11 +146,11 @@ impl Component for Onda4 {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
-            // A paginação de cima tem `onChange`, então ela **delega**: quem
+            // A paginação de cima tem `on_change`, então ela **delega**: quem
             // grava `pagina` é este braço. É o mesmo contrato do `<textinput>`
             // e do `<calendar>`, e aqui ele paga o aluguel — o app precisa
             // recortar a lista no mesmo passo em que a página muda, e não há
-            // gancho melhor. A paginação de baixo, sem `onChange`, grava
+            // gancho melhor. A paginação de baixo, sem `on_change`, grava
             // sozinha e não passa por aqui.
             "repaginar" => {
                 if let Some(p) = value {

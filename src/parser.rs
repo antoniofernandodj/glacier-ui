@@ -166,6 +166,10 @@ const PROP_NAME_ATTRS: &[&str] = &["name", "nome"];
 const PROP_DEFAULT_ATTRS: &[&str] = &["default", "padrao", "padrão"];
 const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS];
 
+/// O único atributo de um `<component name="…">` declarado no `<resources>` —
+/// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
+const DEFINE_NAME_ATTRS: &[&str] = &["name", "nome", "as", "como"];
+
 /// As tags que podem morar dentro de um `<resources>`. Tudo o mais ali dentro é
 /// erro: um widget num bloco de declarações não desenharia nada, e sumir em
 /// silêncio é pior do que não compilar.
@@ -176,6 +180,13 @@ const RESOURCE_TAGS: &[&str] = &[
     "import",
     "importar",
     "script",
+    // A **declaração local** de um componente: `<component name="X">…</component>`
+    // dentro do `<resources>`. É a terceira forma de ter um componente (as
+    // outras duas trazem de um arquivo), e usa a mesma casca da primeira — o
+    // que se escreve aqui é byte a byte o que se escreveria num `.gv` próprio.
+    // Ver [`NodeType::Define`].
+    "component",
+    "componente",
 ];
 
 /// Lê um par de números de um atributo de tamanho (`size`, `min-size`).
@@ -384,6 +395,8 @@ fn validate_no_nested_header(header: Node) -> Option<Diagnostic> {
             let tag = child.tag_name().name();
             // Os blocos legítimos do cabeçalho ficam no primeiro nível dele, e o
             // conteúdo deles já é conferido por `validate_resources`/`validate_props`.
+            // O `<resources>` inclui, desde a 0.86, `<component name="…">` — que
+            // é declaração, não cabeçalho aninhado, e por isso não desce daqui.
             if dentro_do_cabecalho && (is_resources_tag(tag) || is_props_tag(tag)) {
                 continue;
             }
@@ -502,14 +515,87 @@ fn validate_resources(header: Node) -> Option<Diagnostic> {
             if !RESOURCE_TAGS.iter().any(|t| t.eq_ignore_ascii_case(name)) {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
-                        "dentro do <resources> só entram <style>, <script>, <link> e \
-                         <import>; um widget vai no layout, depois do </resources>",
+                        "dentro do <resources> só entram <style>, <script>, <link>, \
+                         <import> e <component name=\"…\">; um widget vai no layout, \
+                         depois do </resources>",
                     ),
                 );
+            }
+            if is_component_tag(name)
+                && let Some(d) = validate_define(decl)
+            {
+                return Some(d);
             }
         }
     }
     None
+}
+
+/// Confere um `<component name="X">` declarado dentro do `<resources>`.
+///
+/// A regra é o espelho da do cabeçalho, e por um motivo: lá o `<component>` é a
+/// raiz de um arquivo e **não leva atributo nenhum** (não há a quem dar um
+/// nome — o nome é o do registro); aqui ele é uma declaração no meio de outra
+/// tela, e o `name` é justamente o que a torna utilizável. É por isso que a
+/// mesma tag aceita atributos num lugar e não no outro, e é a única diferença
+/// entre as duas formas.
+fn validate_define(decl: Node) -> Option<Diagnostic> {
+    let mut tem_nome = false;
+    for attr in decl.attributes() {
+        let a = attr.name();
+        if DEFINE_NAME_ATTRS.contains(&a) {
+            tem_nome = true;
+            if attr.value().trim().is_empty() {
+                return Some(
+                    diagnostic_at_attr(decl, attr, format!("'{a}' vazio no <component>"))
+                        .with_hint(
+                            "o nome é a TAG pela qual o componente passa a ser usado \
+                             (name=\"CartaoServico\" → <CartaoServico/>)",
+                        ),
+                );
+            }
+            continue;
+        }
+        let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&a)) {
+            "title/size/min-size/resizable descrevem uma JANELA, e um <component> não é uma"
+        } else {
+            "um <component> declarado no <resources> leva só o `name`; as props que ele \
+             ACEITA se declaram no <props> de dentro dele, e os valores vêm de quem o usa"
+        };
+        return Some(
+            diagnostic_at_attr(decl, attr, format!("atributo '{a}' no <component>"))
+                .with_hint(hint),
+        );
+    }
+    if !tem_nome {
+        return Some(
+            diagnostic_at(
+                decl,
+                "<component> sem `name` dentro do <resources>".to_string(),
+            )
+            .with_hint(
+                "no <resources>, o <component> DECLARA um componente e precisa do nome \
+                     pelo qual ele será usado (<component name=\"CartaoServico\">…); sem nome, \
+                     use <import>/<link rel=\"component\"> para trazer um de um arquivo",
+            ),
+        );
+    }
+    // O corpo: `<props>` opcional e ao menos um nó de layout. Sem layout, o
+    // componente existe e não desenha nada — o mesmo sintoma silencioso que o
+    // `<screen>` vazio já rejeitava.
+    let tem_layout = decl
+        .children()
+        .filter(Node::is_element)
+        .any(|c| !is_props_tag(c.tag_name().name()) && !is_resources_tag(c.tag_name().name()));
+    if !tem_layout {
+        return Some(
+            diagnostic_at(decl, "<component> declarado sem conteúdo".to_string()).with_hint(
+                "o que não está no <props> é o layout do componente — e ele não pode \
+                 faltar (ex.: <row>…</row> dentro do <component name=\"…\">)",
+            ),
+        );
+    }
+    validate_props(decl)
 }
 
 fn is_component_tag(tag: &str) -> bool {
@@ -799,6 +885,65 @@ pub enum NodeType {
         contains: Option<String>,
         empty: bool,
         not_empty: bool,
+    },
+    /// **Declara um componente ali mesmo**, dentro do `<resources>`, sem um
+    /// arquivo para ele:
+    ///
+    /// ```xml
+    /// <screen title="Serviços">
+    ///     <resources>
+    ///         <component name="CartaoServico">
+    ///             <props>
+    ///                 <prop name="nome" />
+    ///                 <prop name="estado" default="ok" />
+    ///             </props>
+    ///             <card title="{nome}">
+    ///                 <badge badge_text="{estado}" />
+    ///             </card>
+    ///         </component>
+    ///     </resources>
+    ///
+    ///     <column>
+    ///         <CartaoServico for-each="servicos" var="s" nome="{s.nome}" estado="{s.estado}" />
+    ///     </column>
+    /// </screen>
+    /// ```
+    ///
+    /// # A terceira forma de ter um componente
+    ///
+    /// As outras duas trazem de um arquivo — `<import name="X" from="x.gv"/>` e
+    /// `<link rel="component" href="x.gv" as="X"/>`. Esta não traz de lugar
+    /// nenhum: o componente **é** o que está escrito entre as tags.
+    ///
+    /// Ela existe porque a maior parte dos componentes de uma tela é pequena e
+    /// **só serve àquela tela** — a linha de um item, o cabeçalho de um cartão,
+    /// o rótulo com um `<badge>` do lado. Obrigar cada um a virar arquivo troca
+    /// três linhas de markup por um arquivo, um caminho relativo e um
+    /// `<import>`, e espalha por seis arquivos o que se lê melhor num. É a
+    /// mesma razão de existir um `<style>` inline ao lado do
+    /// `<link rel="stylesheet">`.
+    ///
+    /// # É a mesma casca do arquivo, de propósito
+    ///
+    /// O que se escreve aqui é **byte a byte** o que se escreveria num `.gv`
+    /// próprio: `<component>`, o `<props>` dentro dele, o layout depois. A
+    /// única diferença é o `name` — no arquivo o nome vem do registro, aqui ele
+    /// precisa ser dito. Promover uma declaração a arquivo (ou o contrário) é
+    /// recortar e colar, sem reescrever nada.
+    ///
+    /// # O que ele **não** tem
+    ///
+    /// - **`<script>` próprio.** Não há arquivo contra o qual resolver um
+    ///   `src`/`require`, a mesma limitação que o `Template::Inline` dos
+    ///   builtins sempre teve. Na prática isso é o comportamento desejado: as
+    ///   ações escritas dentro de um componente local caem no `update` da tela
+    ///   que o declarou, que é de quem elas são.
+    /// - **Escopo.** O nome entra no mesmo espaço de nomes de tudo o mais
+    ///   (`<import>`, builtins, `register`), pela mesma regra: declara se o nome
+    ///   está livre **ou** se hoje ele guarda um builtin da lib.
+    Define {
+        /// A tag pela qual o componente passa a ser usado.
+        name: String,
     },
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
@@ -1290,6 +1435,7 @@ impl NodeType {
             | NodeType::Style { .. }
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
+            | NodeType::Define { .. }
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop
@@ -3257,7 +3403,23 @@ impl UiNode {
                         .and_then(parse_bool_value),
                 })
             }
-            "component" | "Component" | "componente" | "Componente" => NodeType::ComponentRoot,
+            // A MESMA tag em dois papéis, e o `name` é o que os separa.
+            //
+            // Sem atributo, ela é o **cabeçalho** de um arquivo que não é
+            // janela — a casca do `.gv` importado por outro. Com `name`, ela é
+            // uma **declaração** dentro do `<resources>`: o mesmo componente,
+            // escrito ali em vez de num arquivo próprio. `validate_resources` /
+            // `validate_header` já garantiram que cada forma está no lugar
+            // certo (raiz sem nome, `<resources>` com nome), então aqui a
+            // distinção é só a presença do atributo.
+            "component" | "Component" | "componente" | "Componente" => {
+                match Self::get_attr(&node, DEFINE_NAME_ATTRS) {
+                    Some(nome) => NodeType::Define {
+                        name: nome.trim().to_string(),
+                    },
+                    None => NodeType::ComponentRoot,
+                }
+            }
             "resources" | "Resources" | "recursos" | "Recursos" => NodeType::Resources,
             "props" | "Props" => {
                 // As props são lidas do XML aqui mesmo (como os atributos do
@@ -3363,6 +3525,18 @@ impl UiNode {
                 }
             }
         }
+
+        // O corpo de um `<component name="…">` declarado no `<resources>` é
+        // montado com a **mesma** regra do arquivo — o `<props>` desce como
+        // declaração, o layout vira a raiz, vários irmãos viram um `Fragment`.
+        // É isso que faz promover a declaração a arquivo (ou o contrário) ser
+        // recortar e colar, sem reescrever nada. O `Define` fica com um filho
+        // só: a árvore pronta para virar template.
+        let children = if matches!(kind, NodeType::Define { .. }) {
+            vec![corpo_de_componente(children)]
+        } else {
+            children
+        };
 
         Some(Self {
             node_id: next_node_id(),
@@ -3588,6 +3762,39 @@ impl UiNode {
         root.children.to_mut().extend(decls);
         Ok(root)
     }
+}
+
+/// Monta o **corpo** de um componente a partir dos filhos escritos dentro dele:
+/// o `<props>` (e qualquer outra declaração) desce como filho-declaração, o
+/// layout vira a raiz, e vários irmãos viram um [`NodeType::Fragment`].
+///
+/// É a mesma regra que [`UiNode::parse_xml_with_source`] aplica ao arquivo
+/// inteiro, extraída para os dois caminhos partilharem: é isso que faz um
+/// `<component name="X">` declarado no `<resources>` e um `x.gv` produzirem a
+/// **mesma** árvore, e portanto promover um ao outro ser recortar e colar.
+///
+/// Um corpo sem layout nenhum sai como `Fragment` vazio — não desenha nada, mas
+/// não quebra; quem transforma esse caso em erro posicionado é o
+/// `validate_define`, que roda antes e enxerga o arquivo do autor.
+pub(crate) fn corpo_de_componente(filhos: Vec<UiNode>) -> UiNode {
+    let mut decls = Vec::new();
+    let mut roots = Vec::new();
+    for filho in filhos {
+        match filho.kind {
+            NodeType::Resources => decls.extend(filho.children.into_vec()),
+            NodeType::Import { .. }
+            | NodeType::Link { .. }
+            | NodeType::Style { .. }
+            | NodeType::Props(_) => decls.push(filho),
+            _ => roots.push(filho),
+        }
+    }
+    let mut raiz = match roots.len() {
+        1 => roots.pop().expect("len checked"),
+        _ => empty_node(NodeType::Fragment, roots),
+    };
+    raiz.children.to_mut().extend(decls);
+    raiz
 }
 
 /// Raiz sintética que envolve o documento para permitir declarações irmãs da

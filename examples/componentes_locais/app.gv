@@ -1,0 +1,149 @@
+<screen title="Glacier - Componentes locais" size="900 720">
+  <resources>
+    <!-- ======================================================================
+       A TERCEIRA FORMA DE TER UM COMPONENTE.
+
+       As duas primeiras trazem de um arquivo:
+
+           <import name="X" from="x.gv" />
+           <link rel="component" href="x.gv" as="X" />
+
+       Esta declara aqui mesmo. O que vai entre <component name="X"> e
+       </component> é BYTE A BYTE o que iria num .gv próprio: <props> e depois
+       o layout. A única diferença é o `name`.
+
+       Ela existe porque a maior parte dos componentes de uma tela é pequena e
+       só serve àquela tela. Obrigar cada um a virar arquivo troca três linhas
+       de markup por um arquivo, um caminho relativo e um <import>.
+       ====================================================================== -->
+
+    <!-- 1. Um componente de uma linha só. Este é o caso que a forma de arquivo
+       atende mal: um `.gv` inteiro para isto seria mais cerimônia do que
+       conteúdo. -->
+    <component name="Rotulo">
+      <props>
+        <prop name="texto" />
+        <prop name="cor" default="#A6ADC8" />
+        <prop name="tamanho" default="12" />
+      </props>
+      <text content="{texto}" color="{cor}" size="{tamanho}" />
+    </component>
+
+    <!-- 2. Um componente que usa OUTRO componente local. Eles se compõem como
+       quaisquer outros — o nome entra no mesmo espaço de nomes, e a ordem de
+       declaração não importa. -->
+    <component name="LinhaLog">
+      <props>
+        <prop name="hora" />
+        <prop name="nivel" />
+        <prop name="texto" />
+      </props>
+      <row spacing="12" align_y="center" width="fill" padding="6 10">
+        <Rotulo texto="{hora}" cor="#6C7086" tamanho="11" />
+
+        <!-- O nível vira uma cor. Um `if`/`else-if` dentro de um componente
+           local funciona igual ao de qualquer template — não há nada de
+           especial na declaração inline além de onde ela mora. -->
+        <template if="{nivel}" equals="erro">
+          <badge badge_text="erro" badge_bg="#F38BA8" badge_size="10" />
+        </template>
+        <template else-if="{nivel}" equals="aviso">
+          <badge badge_text="aviso" badge_bg="#F9E2AF" badge_size="10" />
+        </template>
+        <template else>
+          <badge badge_text="info" badge_bg="#89B4FA" badge_size="10" />
+        </template>
+
+        <Rotulo texto="{texto}" cor="#CDD6F4" tamanho="13" />
+      </row>
+    </component>
+
+    <!-- 3. Um componente com mais de um nó de layout na raiz. Vira um
+       Fragment, exatamente como num arquivo: os irmãos são costurados no lugar
+       de quem usou a tag, sem uma <Column> fantasma por volta. -->
+    <component name="Metrica">
+      <props>
+        <prop name="rotulo" />
+        <prop name="valor" />
+        <prop name="delta" default="" />
+      </props>
+      <frame shape="filled" padding="14" width="200">
+        <Rotulo texto="{rotulo}" cor="#80868D" tamanho="11" />
+        <text content="{valor}" size="22" bold="true" color="#CDD6F4" />
+        <template if="{delta}" notEquals="">
+          <Rotulo texto="{delta}" cor="#A6E3A1" tamanho="11" />
+        </template>
+      </frame>
+    </component>
+
+    <!-- E a forma de ARQUIVO, ao lado, para comparar. Abra
+       `cartao_servico.gv`: ele tem a mesma casca dos três blocos acima. -->
+    <import name="CartaoServico" from="cartao_servico.gv" />
+  </resources>
+
+  <column spacing="0" width="fill" height="fill" background="#1E1E2E">
+    <column padding="24 28 8 28" spacing="8" width="fill">
+      <text size="20" bold="true" color="#CDD6F4">Componentes declarados na própria tela</text>
+      <Rotulo
+        texto="Os três componentes desta tela (Rotulo, LinhaLog, Metrica) estão declarados no &lt;resources&gt; acima. O CartaoServico veio de um arquivo. Os quatro se usam do mesmo jeito."
+        tamanho="13"
+      />
+    </column>
+
+    <scrollable width="fill" height="fill">
+      <column padding="20 28" spacing="22" width="fill">
+
+        <groupbox title="Métricas — um componente com vários nós de raiz">
+          <row spacing="14" align_y="start">
+            <Metrica
+              for-each="metricas"
+              var="m"
+              rotulo="{m.rotulo}"
+              valor="{m.valor}"
+              delta="{m.delta}"
+            />
+          </row>
+        </groupbox>
+
+        <groupbox title="Serviços — o mesmo componente, mas de um arquivo">
+          <Rotulo
+            texto="Este veio de cartao_servico.gv por &lt;import&gt;. Compare os dois arquivos: mesma casca, mesma forma de usar."
+            tamanho="12"
+          />
+          <row spacing="16" align_y="start">
+            <CartaoServico
+              for-each="servicos"
+              var="s"
+              id="{s.id}"
+              nome="{s.nome}"
+              estado="{s.estado}"
+              cor="{s.cor}"
+              uptime="{s.uptime}"
+            />
+          </row>
+        </groupbox>
+
+        <groupbox title="Log — um componente local que usa outro componente local">
+          <Rotulo
+            texto="LinhaLog usa Rotulo três vezes. Componentes locais se compõem como quaisquer outros."
+            tamanho="12"
+          />
+          <frame shape="box" padding="8">
+            <LinhaLog
+              for-each="log"
+              var="l"
+              hora="{l.hora}"
+              nivel="{l.nivel}"
+              texto="{l.texto}"
+            />
+          </frame>
+        </groupbox>
+
+      </column>
+    </scrollable>
+
+    <statusbar message="{status}">
+      <badge badge_text="selecionado: {selecionado}" badge_bg="#89B4FA" badge_size="11" />
+    </statusbar>
+  </column>
+</screen>

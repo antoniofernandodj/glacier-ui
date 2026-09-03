@@ -26,7 +26,7 @@
             <row spacing="18" align_y="start">
               <groupbox title="O caso simples" width="shrink">
                 <text size="12" color="#A6ADC8" max_width="290">
-                  Sem onChange, o widget grava a chave sozinho — nenhuma linha de script para o
+                  Sem on_change, o widget grava a chave sozinho — nenhuma linha de script para o
                   calendário funcionar. `today` é prop: é `date.today()` no init.
                 </text>
                 <calendar value="dia" today="{hoje}" />
@@ -42,13 +42,13 @@
 
               <groupbox title="Com validação e limites" width="shrink">
                 <text size="12" color="#A6ADC8" max_width="290">
-                  Com onChange quem grava é o handler — e é isso que permite recusar um valor. Aqui
+                  Com `on_change` quem grava é o handler — e é isso que permite recusar um valor. Aqui
                   a entrega não pode cair num fim de semana, e min/max apagam o que está fora da
                   faixa.
                 </text>
                 <calendar
                   value="entrega"
-                  onChange="set_entrega"
+                  on_change="set_entrega"
                   today="{hoje}"
                   min="{hoje}"
                   max="{limite}"
@@ -93,7 +93,7 @@
 
             <row spacing="18" align_y="start">
               <groupbox title="Competência (YYYY-MM)" width="shrink">
-                <monthyearpicker value="competencia" onChange="set_competencia" today="{hoje}" />
+                <monthyearpicker value="competencia" on_change="set_competencia" today="{hoje}" />
                 <row spacing="8" align_y="center">
                   <badge badge_text="competencia" badge_bg="#CBA6F7" badge_size="11" />
                   <text size="13" color="#CDD6F4">{competencia_txt}</text>
@@ -128,7 +128,7 @@
               <daterangepicker
                 start="entrada"
                 end="saida"
-                onChange="set_periodo"
+                on_change="set_periodo"
                 months="2"
                 today="{hoje}"
                 min="{hoje}"

@@ -1,0 +1,27 @@
+<component>
+  <!-- Um componente de ARQUIVO. Repare que este arquivo e o bloco
+     `<component name="LinhaLog">` do app.gv têm exatamente a mesma forma:
+     <component>, <props>, layout. A única diferença é o `name` — aqui o nome
+     vem do <import> que o traz; lá ele precisa ser dito.
+
+     É o que torna a promoção reversível: recortar este arquivo para dentro do
+     <resources> (ou o contrário) não pede uma linha de reescrita. Este arquivo
+     existe no exemplo para você poder comparar os dois lado a lado. -->
+  <props>
+    <prop name="id" />
+    <prop name="nome" />
+    <prop name="estado" />
+    <prop name="cor" />
+    <prop name="uptime" default="—" />
+  </props>
+
+  <card title="{nome}" subtitle="uptime {uptime}" width="260">
+    <badge badge_text="{estado}" badge_bg="{cor}" />
+    <template slot="footer">
+      <row spacing="8">
+        <button text="Detalhes" on_click="detalhar:{id}" padding="6 12" />
+        <button text="Reiniciar" on_click="reiniciar:{id}" padding="6 12" />
+      </row>
+    </template>
+  </card>
+</component>

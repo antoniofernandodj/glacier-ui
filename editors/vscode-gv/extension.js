@@ -835,7 +835,58 @@ const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
  */
 function declaredProps(fsPath) {
   const text = readFileCached(fsPath);
-  if (!text) return null;
+  return text ? propsFromText(text) : null;
+}
+
+/**
+ * O bloco de um componente **declarado no próprio documento** —
+ * `<component name="X"> … </component>` dentro do `<resources>`.
+ *
+ * Devolve `{ start, end, nameStart }` (deslocamentos no texto) ou `null`. O
+ * casamento do fechamento conta os `<component>` aninhados, que na prática não
+ * existem, mas custam três linhas a menos do que um parser de verdade e evitam
+ * que um `</component>` de dentro corte o bloco no lugar errado.
+ */
+function localDefine(text, tagName) {
+  const alvo = tagName.toLowerCase();
+  const abre = /<(component|componente)\b([^>]*)>/gi;
+  let m;
+  while ((m = abre.exec(text)) !== null) {
+    // Auto-fechada (`<component name="X"/>`) não tem corpo: não é declaração.
+    if (m[0].endsWith("/>")) continue;
+    let nome = null;
+    for (const attr of iterAttrs(m[2], 0)) {
+      const n = attr.name.toLowerCase();
+      if (n === "name" || n === "nome" || n === "as" || n === "como") nome = attr.value;
+    }
+    if (!nome || nome.toLowerCase() !== alvo) continue;
+
+    // Fim do bloco, contando aninhamento.
+    const dentro = /<(component|componente)\b[^>]*>|<\/(component|componente)\s*>/gi;
+    dentro.lastIndex = m.index + m[0].length;
+    let nivel = 1;
+    let fim;
+    while ((fim = dentro.exec(text)) !== null) {
+      if (fim[0].startsWith("</")) {
+        if (--nivel === 0) {
+          return { start: m.index, end: fim.index + fim[0].length, nameStart: m.index + 1 };
+        }
+      } else if (!fim[0].endsWith("/>")) {
+        nivel++;
+      }
+    }
+    return { start: m.index, end: text.length, nameStart: m.index + 1 };
+  }
+  return null;
+}
+
+/**
+ * As props de um `<props>` avulso, dado o texto que o contém. Partilhada entre
+ * o componente de arquivo ([`declaredProps`]) e o declarado no próprio
+ * documento ([`localDefine`]) — as duas formas escrevem o MESMO bloco, e ler
+ * cada uma com o seu parser seria pedir para elas divergirem.
+ */
+function propsFromText(text) {
   const block = PROPS_BLOCK_RE.exec(text);
   if (!block) return null;
   const props = [];
@@ -855,6 +906,15 @@ function declaredProps(fsPath) {
 /** As props declaradas pelo componente que a tag `name` referencia. */
 async function propsForTag(document, tagName) {
   if (NATIVE_LOOKUP[tagName.toLowerCase()]) return null;
+  // Um componente declarado no próprio documento (`<component name="X">` no
+  // `<resources>`) vem primeiro: ele não tem arquivo, então o índice do
+  // workspace nunca o encontraria — e sem isto a tag ficaria sem completação
+  // nem diagnóstico de prop, que é metade do que o editor faz por um
+  // componente importado.
+  const texto = document.getText();
+  const local = localDefine(texto, tagName);
+  if (local) return propsFromText(texto.slice(local.start, local.end));
+
   const index = await workspaceIndex();
   const imports = localImports(document.uri, document.getText());
   const fsPath = lookupComponent(index, imports, tagName, document.uri);
@@ -1555,6 +1615,13 @@ async function resolveDefinition(document, position) {
 
   // tag
   if (hit.canonical) return resolveNative(hit.canonical);
+  // Declarado no próprio arquivo (`<component name="X">` no `<resources>`):
+  // o destino é o bloco, algumas linhas acima — não há arquivo para abrir, e
+  // sem este ramo o F12 numa tag local simplesmente não faria nada.
+  const local = localDefine(text, hit.name);
+  if (local) {
+    return [new vscode.Location(document.uri, document.positionAt(local.nameStart))];
+  }
   const index = await workspaceIndex();
   const p = lookupComponent(index, localImports(document.uri, text), hit.name, document.uri);
   return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;

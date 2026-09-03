@@ -334,7 +334,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
 | `<props>` / `<prop>` | — | contrato de props de um `<component>`. Ver "Cabeçalho". |
 | `<component>` | `Component`, `componente`, `Componente` | mesma casca do `<screen>` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
-| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
+| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. |
+| `<component name="…">` | `Componente` | **dentro do `<resources>`**, declara um componente na própria tela, sem arquivo: `<props>` + layout, a mesma casca de um `.gv`. Ver "Cabeçalho". |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
 | `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
 | `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
@@ -462,10 +463,76 @@ erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
 São erros de parse (o template não carrega): arquivo sem cabeçalho; cabeçalho
 que não envolve o arquivo inteiro (escrito como *irmão* do layout, ou aninhado
 no meio dele); atributo desconhecido no `<screen>` ou no `<resources>`; qualquer
-atributo no `<component>`; `size`/`min-size` que não seja um par de números;
+atributo no `<component>` de raiz (o declarado no `<resources>` aceita só o
+`name`, e sem ele é erro); `size`/`min-size` que não seja um par de números;
 `resizable` que não seja booleano; um widget dentro do `<resources>`; um
 `<resources>`/`<props>` fora de um cabeçalho; um `<props>` num `<screen>` (uma
 janela não tem quem lhe passe props); `<prop>` sem `name` ou repetido.
+
+### `<component name="…">`: declarar um componente na própria tela
+
+A terceira forma de ter um componente. As outras duas trazem de um arquivo:
+
+```xml
+<import name="LinhaLog" from="linha_log.gv" />
+<link rel="component" href="linha_log.gv" as="LinhaLog" />
+```
+
+Esta declara ali mesmo, dentro do `<resources>` — o componente **é** o que está
+escrito entre as tags:
+
+```xml
+<screen title="Serviços" size="900 700">
+    <resources>
+        <component name="LinhaLog">
+            <props>
+                <prop name="hora" />
+                <prop name="texto" />
+                <prop name="nivel" default="info" />
+            </props>
+            <row spacing="12" align_y="center">
+                <text content="{hora}" color="#6C7086" size="11" />
+                <badge badge_text="{nivel}" />
+                <text content="{texto}" />
+            </row>
+        </component>
+    </resources>
+
+    <column>
+        <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
+    </column>
+</screen>
+```
+
+**Por que ela existe:** a maior parte dos componentes de uma tela é pequena e só
+serve àquela tela — a linha de um item, o cabeçalho de um cartão, um rótulo com
+um `<badge>` do lado. Obrigar cada um a virar arquivo troca três linhas de
+markup por um arquivo, um caminho relativo e um `<import>`, e espalha por seis
+arquivos o que se lê melhor num. É a mesma razão de existir um `<style>` inline
+ao lado do `<link rel="stylesheet">`: a forma curta para o que é local, o
+arquivo para o que é compartilhado.
+
+**A casca é a mesma, de propósito.** O que vai entre `<component name="X">` e
+`</component>` é *byte a byte* o que iria num `.gv` próprio: `<props>` e depois
+o layout. A única diferença é o `name` — no arquivo o nome vem do `<import>` que
+o traz; aqui ele precisa ser dito. Promover uma declaração a arquivo (ou o
+contrário) é recortar e colar, sem reescrever uma linha.
+
+O que ele **não** tem:
+
+- **`<script>` próprio.** Não há arquivo contra o qual resolver um
+  `src`/`require` — a mesma limitação do markup inline dos builtins. Na prática
+  é o comportamento desejado: as ações escritas dentro de um componente local
+  caem no `update` da **tela que o declarou**, que é de quem elas são. O id do
+  item viaja dentro da ação, como no `<SpinBox>`: `on_click="detalhar:{s.id}"`.
+- **Escopo.** O nome entra no mesmo espaço de nomes de tudo o mais
+  (`<import>`, builtins, `register`), com a mesma regra: declara se o nome está
+  livre **ou** se hoje ele guarda um builtin da lib. Um componente registrado
+  pelo app vence a declaração local.
+
+Componentes locais se compõem entre si e convivem com `<import>` no mesmo
+`<resources>`. Ver [`examples/componentes_locais`](examples/componentes_locais),
+que põe as duas formas lado a lado no mesmo arquivo.
 
 ### `<props>`: o contrato do componente
 
@@ -1620,6 +1687,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
+| `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
 | `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. |
 | `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |

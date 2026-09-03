@@ -8,6 +8,92 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.86.0] — 2026-09-02
+
+### Adicionado
+- **`<component name="X">` dentro do `<resources>`: declarar um componente na
+  própria tela.** A terceira forma de ter um componente — as outras duas trazem
+  de um arquivo (`<import>`, `<link rel="component">`); esta não traz de lugar
+  nenhum, o componente **é** o que está escrito entre as tags.
+
+  ```xml
+  <screen title="Serviços" size="900 700">
+      <resources>
+          <component name="LinhaLog">
+              <props>
+                  <prop name="hora" />
+                  <prop name="texto" />
+                  <prop name="nivel" default="info" />
+              </props>
+              <row spacing="12" align_y="center">
+                  <text content="{hora}" color="#6C7086" size="11" />
+                  <badge badge_text="{nivel}" />
+                  <text content="{texto}" />
+              </row>
+          </component>
+      </resources>
+
+      <column>
+          <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
+      </column>
+  </screen>
+  ```
+
+  **Por que.** A maior parte dos componentes de uma tela é pequena e só serve
+  àquela tela — a linha de um item, o cabeçalho de um cartão, um rótulo com um
+  `<badge>` do lado. Obrigar cada um a virar arquivo troca três linhas de markup
+  por um arquivo, um caminho relativo e um `<import>`, e espalha por seis
+  arquivos o que se lê melhor num. É a mesma razão de existir um `<style>`
+  inline ao lado do `<link rel="stylesheet">`: a forma curta para o que é local,
+  o arquivo para o que é compartilhado.
+
+  **A casca é a mesma, de propósito.** O que vai entre `<component name="X">` e
+  `</component>` é *byte a byte* o que iria num `.gv` próprio: `<props>` e
+  depois o layout, montados pela **mesma** função
+  (`parser::corpo_de_componente`, extraída do caminho de arquivo justamente para
+  os dois partilharem). A única diferença é o `name` — no arquivo o nome vem do
+  `<import>` que o traz; aqui ele precisa ser dito. Promover uma declaração a
+  arquivo, ou o contrário, é recortar e colar.
+
+  A mesma tag em dois papéis, e o `name` é o que os separa: na **raiz** do
+  arquivo, `<component>` é o cabeçalho e não leva atributo nenhum; no
+  `<resources>`, leva só o `name` — e sem ele é erro.
+
+  **O que ele não tem:**
+  - **`<script>` próprio** — não há arquivo contra o qual resolver um
+    `src`/`require`, a mesma limitação do markup inline dos builtins. Na prática
+    é o comportamento desejado: as ações escritas dentro de um componente local
+    caem no `update` da **tela que o declarou**, que é de quem elas são. O id do
+    item viaja dentro da ação, como no `<SpinBox>` (`on_click="detalhar:{s.id}"`).
+  - **Escopo** — o nome entra no mesmo espaço de nomes de tudo o mais, com a
+    mesma regra do `<import>`: declara se o nome está livre **ou** se hoje ele
+    guarda um builtin da lib. Um componente registrado pelo app vence a
+    declaração local; um builtin, não.
+
+  Componentes locais se compõem entre si e convivem com `<import>` no mesmo
+  `<resources>`. O hot-reload reescreve a declaração ao editar o arquivo — o
+  motor guarda quais nomes vieram de uma declaração, e é isso que separa
+  "reescrever a minha" de "atropelar o componente de verdade do app".
+
+  Erros de parse, todos posicionados (o sintoma de deixá-los passar é
+  silencioso — a tag simplesmente não existe): `<component>` sem `name` dentro
+  do `<resources>`, `name` vazio, qualquer outro atributo, e declaração sem
+  layout.
+
+- **`examples/componentes_locais`** (`cargo run --example componentes_locais`) —
+  três componentes declarados na tela (`Rotulo`, `LinhaLog`, `Metrica`, o
+  segundo usando o primeiro) e um quarto vindo de arquivo por `<import>`, lado a
+  lado no mesmo `<resources>`, para comparar as duas formas.
+
+- **Extensão do VS Code (v0.12.0)**: completação e diagnóstico de props e
+  **ir-para-definição** passam a enxergar um componente declarado no próprio
+  documento — sem isso a tag ficaria sem metade do que o editor faz por um
+  componente importado. O leitor de `<props>` virou um só, partilhado entre a
+  forma de arquivo e a declarada, pelo mesmo motivo do lado do motor: ler cada
+  uma com o seu parser é pedir para elas divergirem.
+
+---
+
 ## [0.85.0] — 2026-09-02
 
 **Onda 4 do `PLANO_WIDGETS.md`: os widgets que têm função.** Sete itens do

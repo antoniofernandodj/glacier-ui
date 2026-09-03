@@ -1045,6 +1045,7 @@ fn expand_children(
                 | NodeType::Style { .. }
                 | NodeType::Screen(_)
                 | NodeType::ComponentRoot
+                | NodeType::Define { .. }
                 | NodeType::Resources
                 | NodeType::Props(_)
                 | NodeType::Prop
@@ -1244,6 +1245,7 @@ fn expand_children(
             | NodeType::Style { .. }
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
+            | NodeType::Define { .. }
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop => {}
@@ -2431,6 +2433,7 @@ fn eval_owned(
         | NodeType::Style { .. }
         | NodeType::Screen(_)
         | NodeType::ComponentRoot
+        | NodeType::Define { .. }
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => NodeType::Container,

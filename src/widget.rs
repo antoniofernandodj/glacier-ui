@@ -3430,11 +3430,15 @@ pub fn render_node<'a>(
         }
         NodeType::Screen(_)
         | NodeType::ComponentRoot
+        | NodeType::Define { .. }
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => {
             // O cabeçalho (`<screen>`/`<resources>`) é declaração: o daemon lê os
-            // metadados, a avaliação strip a; aqui não há o que desenhar.
+            // metadados, a avaliação strip a; aqui não há o que desenhar. O
+            // `<component name="…">` entra aqui pela mesma razão — quem o lê é
+            // o `load_defines` do registro, e o corpo dele só desenha através
+            // da tag que ele publica.
             column![].into()
         }
         NodeType::If { .. } | NodeType::Else | NodeType::ElseIf { .. } => {

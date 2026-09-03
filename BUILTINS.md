@@ -14,11 +14,17 @@ de `src/builtins/mod.rs`; aqui o foco é o passo a passo.
 |---|---|---|---|
 | **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `<Button/>`, `<Text/>`, … |
 | **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `<Badge/>`, `<SpinBox/>`, `<GroupBox/>` e afins |
-| **Componente do app** | código/arquivos do app | sim (`register`/`import`) | `<PerfilCard/>` |
+| **Componente do app** | código/arquivos do app, ou o `<resources>` de um template | sim (`register`/`import`), exceto a forma declarada | `<PerfilCard/>` |
 
 Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
 **Primitiva** nova — inclusive uma armadilha real do motor (`Length::Fill` vs.
 o wrap genérico de background/borda) — ver [`PRIMITIVAS.md`](PRIMITIVAS.md).
+
+Um componente do app tem **três** formas de existir, e a terceira dispensa
+arquivo: `<component name="X">…</component>` dentro do `<resources>` de um
+template declara o componente ali mesmo (ver `README.md`). Ela usa a mesma casca
+de um `.gv` — `<props>` e layout — e serve às peças pequenas de uma tela só; um
+builtin continua sendo o caminho para o que a **lib** publica a todos os apps.
 
 ### Como saber se o widget é builtin ou primitiva
 

@@ -340,7 +340,40 @@ Raiz que declara os metadados da **janela** e separa o que não desenha do que d
 A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
 
 ### `<Resources>` (`<recursos>`)
-Dentro do cabeçalho, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>`. O que estiver fora dele (ainda dentro do cabeçalho) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do cabeçalho.
+Dentro do cabeçalho, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. O que estiver fora dele (ainda dentro do cabeçalho) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do cabeçalho.
+
+### `<component name="…">` — declarar um componente na própria tela
+A **terceira forma** de ter um componente. As outras duas trazem de um arquivo (`<import>`, `<link rel="component">`); esta declara ali mesmo, dentro do `<resources>`.
+
+```gv
+<screen title="Serviços">
+    <resources>
+        <component name="LinhaLog">
+            <props>
+                <prop name="hora" />
+                <prop name="texto" />
+                <prop name="nivel" default="info" />
+            </props>
+            <row spacing="12" align_y="center">
+                <text content="{hora}" size="11" />
+                <badge badge_text="{nivel}" />
+                <text content="{texto}" />
+            </row>
+        </component>
+    </resources>
+
+    <column>
+        <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
+    </column>
+</screen>
+```
+
+- **A casca é a mesma de um arquivo, de propósito**: `<props>` e depois o layout. A única diferença é o `name` — no arquivo o nome vem do `<import>`; aqui ele precisa ser dito. Promover a declaração a arquivo (ou o contrário) é recortar e colar.
+- **Para que serve**: a maior parte dos componentes de uma tela é pequena e só serve àquela tela. É a mesma razão de existir um `<style>` inline ao lado do `<link rel="stylesheet">`.
+- **Sem `<script>` próprio** (não há arquivo contra o qual resolver `src`/`require`): as ações escritas dentro dele caem no `update` da **tela que o declarou**. O id do item viaja dentro da ação, como no `<SpinBox>` — `on_click="detalhar:{s.id}"`.
+- **Mesmo espaço de nomes** que `<import>`/builtins/`register`, com a mesma regra: declara se o nome está livre ou se hoje ele guarda um builtin. Um componente registrado pelo app vence.
+- Componentes locais **se compõem** entre si e convivem com `<import>` no mesmo `<resources>`.
+- Na **raiz** do arquivo, `<component>` é o cabeçalho e não leva atributo nenhum; no `<resources>`, leva só o `name` — e sem ele é erro.
 
 ### `<Props>` / `<Prop>`
 O contrato de um `<Component>`: quais props ele aceita. `<prop name="label" />` é obrigatória; `<prop name="cor" default="#89B4FA" />` é opcional e o default entra quando quem chama omite. Passar uma prop não declarada é erro (a extensão marca no editor e completa os nomes ao digitar dentro da tag). Declarar é opcional: sem `<props>` nada é checado. Um `<props>` vazio é um contrato — "não aceito prop nenhuma". Não vale num `<Screen>`: ninguém *usa* uma janela, ela é aberta.

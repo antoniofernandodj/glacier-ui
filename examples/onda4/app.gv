@@ -38,13 +38,13 @@
                 `spinbox`, por ser builtin, não consegue fazer.
               </text>
               <text size="12" color="#A6ADC8">
-                Esta tem `onChange`, então DELEGA: quem grava `pagina` é o update da tela, que
+                Esta tem `on_change`, então DELEGA: quem grava `pagina` é o update da tela, que
                 precisa recortar a lista no mesmo passo.
               </text>
               <pagination
                 value="pagina"
                 total="{total_paginas}"
-                onChange="repaginar"
+                on_change="repaginar"
               />
               <text size="12" color="#A6ADC8">mostrando {faixa}</text>
             </groupbox>
@@ -229,7 +229,7 @@
 
     <statusbar message="{status}">
       <badge badge_text="onda 4" badge_bg="#89B4FA" badge_size="11" />
-      <!-- Sem `onChange`, esta paginação grava `pagina` sozinha — e a tela
+      <!-- Sem `on_change`, esta paginação grava `pagina` sozinha — e a tela
          não recorta a lista, porque nada a avisou. É a diferença entre os
          dois modos, visível lado a lado. -->
       <pagination value="pagina" total="{total_paginas}" ends="false" window="3" />

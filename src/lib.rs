@@ -218,6 +218,17 @@ pub struct GlacierUI {
     /// guard in [`GlacierUI::load_imports`]. A name is dropped from the set once
     /// the app overrides it.
     builtin_component_names: std::collections::HashSet<String>,
+    /// Nomes registrados por uma **declaração local** — o
+    /// `<component name="X">` de um `<resources>` (ver
+    /// [`crate::parser::NodeType::Define`]).
+    ///
+    /// Existe por causa do hot-reload. A regra de instalação é a mesma do
+    /// `<import>` ("o nome está livre?"), e no *reload* o nome nunca está: ele
+    /// foi tomado pela versão anterior da própria declaração, e editar o corpo
+    /// não teria efeito nenhum. Este conjunto responde a pergunta que falta —
+    /// *este nome é meu?* — e é o que separa "reescrever a minha declaração"
+    /// de "atropelar o componente de verdade que o app registrou".
+    defined_components: std::collections::HashSet<String>,
     /// Identidade única deste motor entre todos os motores do processo (um por
     /// janela no modelo daemon). Dobrada na [`net::StreamKey`] para que streams
     /// de janelas distintas não colidam como o mesmo recipe do iced. Ver
@@ -354,6 +365,7 @@ impl GlacierUI {
             active_streams: HashMap::default(),
             stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
+            defined_components: std::collections::HashSet::new(),
             engine_id: NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             pending_windows: Vec::new(),
             pending_broadcasts: Vec::new(),
@@ -775,6 +787,7 @@ impl GlacierUI {
         // builtin (register_builtins re-adds its own names *after* this call, so
         // this stays a no-op for the builtins themselves).
         self.builtin_component_names.remove(&name);
+        self.load_defines(&ast);
         self.load_imports(&ast, path.as_deref())?;
         self.process_links(&name, &ast)?;
         self.record_screen_meta(&name, &ast);
@@ -1801,6 +1814,9 @@ impl GlacierUI {
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
 
+        // Componentes declarados no próprio arquivo (`<component name="…">`),
+        // depois os trazidos de fora (`<import>`).
+        self.load_defines(&ast);
         // Recursively load components declared with `<import>`.
         self.load_imports(&ast, Some(path))?;
         // Process this component's `<link>` declarations.
@@ -1981,6 +1997,46 @@ impl GlacierUI {
             self.load_imports(child, importer_path)?;
         }
         Ok(())
+    }
+
+    /// Registra cada componente **declarado no próprio template**
+    /// (`<component name="X">…</component>` dentro do `<resources>`), a
+    /// terceira forma de ter um componente — ver [`crate::parser::NodeType::Define`].
+    ///
+    /// Roda **antes** do `load_imports` de propósito: assim um `<import>` do
+    /// mesmo arquivo consegue sombrear uma declaração local, e não o contrário.
+    /// A ordem importa pouco na prática (é raro alguém escrever as duas para o
+    /// mesmo nome), mas escolher uma explicitamente é melhor do que depender de
+    /// qual passada roda primeiro.
+    ///
+    /// A regra de nome é a mesma do `<import>`: declara se o nome está livre
+    /// **ou** se hoje ele guarda um builtin da lib que o app está
+    /// deliberadamente sombreando. Um nome já tomado por um componente de
+    /// verdade não é redefinido — e não é erro: é o que permite um `.gv`
+    /// incluído duas vezes não brigar consigo mesmo.
+    fn load_defines(&mut self, node: &UiNode) {
+        if let NodeType::Define { name } = &node.kind
+            && !name.is_empty()
+        {
+            // Três casos em que a declaração vale: o nome está livre, o nome
+            // hoje é um builtin da lib que o app sombreia de propósito, ou o
+            // nome já é **desta mesma declaração** — que é o caso do
+            // hot-reload, e o único motivo de `defined_components` existir.
+            let meu = self.defined_components.contains(name);
+            let is_builtin = self.builtin_component_names.contains(name);
+            if !self.inputs.has_template(name) || is_builtin || meu {
+                // O `Define` tem um filho só: o corpo já montado com a mesma
+                // regra do arquivo (ver `parser::corpo_de_componente`).
+                if let Some(corpo) = node.children.first() {
+                    self.inputs.insert_template(name.clone(), corpo.clone());
+                    self.builtin_component_names.remove(name);
+                    self.defined_components.insert(name.clone());
+                }
+            }
+        }
+        for child in &node.children {
+            self.load_defines(child);
+        }
     }
 
     /// Resolves the `href` of a `<link rel="import" href="…">` **relative to
@@ -2436,7 +2492,10 @@ impl GlacierUI {
 
         // Apply XML template changes.
         for (name, new_ast, modified, path) in updates {
-            // Pick up any newly-added `<import>`/`<link>` declarations.
+            // Pick up any newly-added `<import>`/`<link>` declarations — e as
+            // declarações locais (`<component name="…">`), que o `load_defines`
+            // reescreve porque o nome é dele (ver `defined_components`).
+            self.load_defines(&new_ast);
             let _ = self.load_imports(&new_ast, Some(&path));
             let _ = self.process_links(&name, &new_ast);
             // …e o `<screen>`, que é declaração como as outras: editar o
