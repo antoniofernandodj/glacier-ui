@@ -8,6 +8,55 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.87.0] — 2026-09-03
+
+Duas variáveis de diagnóstico — e, com elas, a resposta de uma investigação que
+já tinha passado por seis hipóteses erradas.
+
+### Adicionado
+- **`GLACIER_PERF_STRESS=1`** — pede um quadro por vsync, para o relatório medir
+  **capacidade** em vez de demanda. Sem isto, um app orientado a evento fica
+  ocioso entre eventos e o intervalo medido é a espera, não o custo. É o buraco
+  que fez a instrumentação apontar "travamento de 19 segundos" para um app
+  parado.
+
+- **`GLACIER_NO_PAINT=1`** — o render pula todo fundo, borda e canto
+  arredondado. Separa "lento por número de nós" de "lento por área pintada",
+  que nenhuma contagem distingue. A tela fica feia de propósito.
+
+  Os dois juntos resolvem em dois minutos o que aqui levou muitas rodadas: rode
+  com `STRESS`, anote o intervalo; rode com `NO_PAINT` junto e compare.
+
+### O que eles mediram
+
+Intel HD 2500 (Ivy Bridge, 2012), `examples/componentes_locais` — **111 nós, 20
+caixas pintadas**, janela de 900×720:
+
+| | intervalo por quadro |
+|---|---|
+| Com pintura | 84–111 ms |
+| Sem pintura | 49–63 ms |
+| Render do motor | **0,07 ms** |
+
+As vinte caixas custam **~45 ms por quadro**: metade do total, e seiscentas
+vezes o motor inteiro. Uma tela de 300 nós **sem** fundo roda mais rápido que uma
+de 111 nós pintada — o custo é da **área** rasterizada, não do número de nós, e
+as camadas se somam por sobreposição.
+
+Isto não é limitação do motor: o mesmo custo aparece em `iced` puro com o mesmo
+estilo. O que fazer está em `PRIMITIVAS.md` ("O que custa num quadro") — em
+resumo: não pintar a janela inteira por cima do tema, menos camadas sobrepostas,
+canto arredondado só nas caixas pequenas.
+
+### Notas
+- Vale registrar o erro que atrasou este diagnóstico: o app de controle em
+  `iced` puro, usado para dizer "o motor não é o gargalo", **não pintava nada** —
+  `container` com padding, sem fundo, sem borda. Comparava-se uma tela crua com
+  uma pintada, e a conclusão ("é o hardware") saiu certa pelo motivo errado, o
+  que fechou a porta para a causa real por várias rodadas.
+
+---
+
 ## [0.86.0] — 2026-09-02
 
 ### Adicionado

@@ -1169,6 +1169,17 @@ impl Runtime {
             );
         }
 
+        // `GLACIER_PERF_STRESS`: pede um quadro por vsync para medir a
+        // CAPACIDADE do app, não a demanda. Sem isto o relatório mede o quanto
+        // ele ficou parado esperando evento — o que já se leu como travamento
+        // mais de uma vez. O `ToastTick` é o portador porque, sem toast na tela,
+        // ele é um no-op: força o quadro sem alterar estado nenhum.
+        if crate::perf::estresse() {
+            subs.push(
+                iced::window::frames().map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
+            );
+        }
+
         // Eventos da bandeja (cliques de menu/ícone), só quando ela subiu. Drena
         // os canais globais do `tray-icon` (ver [`crate::tray::event_stream`]).
         if self.tray.is_some() {

@@ -94,6 +94,47 @@ nó de uma tela vai preenchê-lo, é campo; se quase nenhum, é grupo.** O motiv
 está no CHANGELOG da 0.74 — cada `Option<String>` no corpo do nó custava 24
 bytes em *todos* os nós da árvore, usados ou não.
 
+## O que custa num quadro: caixas pintadas (0.87)
+
+Numa GPU integrada antiga, **pintar** é o item mais caro de uma tela glacier — e
+não tem relação com quantos nós ela tem.
+
+Medido numa Intel HD 2500 (Ivy Bridge, 2012), no `examples/componentes_locais`:
+**111 nós, 20 caixas pintadas**, janela de 900×720.
+
+| | intervalo por quadro |
+|---|---|
+| Com pintura | 84–111 ms |
+| Sem pintura (`GLACIER_NO_PAINT=1`) | 49–63 ms |
+| Render do motor | **0,07 ms** |
+
+As 20 caixas custam **~45 ms por quadro** — metade do total, e seiscentas vezes o
+custo do motor inteiro. Uma tela de 300 nós **sem** fundo nenhum roda mais rápido
+que uma de 111 nós pintada.
+
+**Por que.** Toda caixa com fundo, borda ou canto arredondado vira um quad que o
+`wgpu` sombreia **por pixel** — e canto arredondado é matemática de distância em
+cada um deles. O custo é da **área**, não do número: uma caixa que cobre a janela
+custa mais que vinte pequenas. E elas se somam por sobreposição: fundo da tela,
+mais o do `groupbox`, mais o do `frame` dentro dele são três camadas no mesmo
+pixel.
+
+**O que fazer, em ordem de retorno:**
+
+1. **Não pinte a janela inteira.** O tema já pinta o fundo; um
+   `<column background="…" width="fill" height="fill">` por cima é uma camada
+   redobrada em cada pixel. Prefira `theme` ou `<style>` no `<screen>`.
+2. **Menos camadas sobrepostas.** `groupbox` dentro de `frame` dentro de
+   container pintado são três passadas na mesma área. Escolha uma.
+3. **Canto arredondado só onde se vê.** Numa área grande ele custa o dobro de um
+   canto reto e não se nota; guarde-o para as caixas pequenas.
+4. **Área importa mais que quantidade.** Vinte crachás pequenos são baratos; um
+   painel pintado do tamanho da tela, não.
+
+Isto não é limitação do motor — o mesmo custo aparece em `iced` puro com o mesmo
+estilo. Numa GPU moderna, some. Vale medir antes de reescrever estilo: os dois
+interruptores abaixo dizem em trinta segundos se é este o seu caso.
+
 ## Descobrir onde o quadro está indo (0.78)
 
 Antes de otimizar, meça — e meça **dentro do app**, porque o motor é só uma
@@ -122,6 +163,20 @@ Duas ressalvas para não ler errado: num app folgado boa parte do "fora do motor
 janela aberta as medidas se somam num relatório só.
 
 Desligada, a instrumentação custa a leitura de um `bool` já resolvido por quadro.
+
+### Dois interruptores para isolar a causa (0.87)
+
+O relatório sozinho diz *quanto*, não *por quê*. Estes dois dizem por quê:
+
+| Variável | O que faz | Para que serve |
+|---|---|---|
+| `GLACIER_PERF_STRESS=1` | pede um quadro por vsync | mede **capacidade**, não demanda. Sem ela, um app orientado a evento fica ocioso entre eventos e o relatório mede a espera — erro que já se cometeu aqui mais de uma vez |
+| `GLACIER_NO_PAINT=1` | pula todo fundo, borda e canto arredondado | separa "lento por nós" de "lento por área pintada". A tela fica feia de propósito |
+
+O procedimento que resolve em dois minutos: rode com `STRESS` ligado, anote o
+`intervalo méd`; rode de novo com `NO_PAINT` junto e compare. Se o intervalo cair
+bastante, o gargalo é rasterização — e a saída é a seção acima, não otimizar o
+motor.
 
 ## Virtualizar uma lista longa (0.77)
 

@@ -72,6 +72,51 @@ pub(crate) fn ligado() -> bool {
     })
 }
 
+/// `GLACIER_NO_PAINT` — **diagnóstico**: o render pula todo fundo, borda e
+/// canto arredondado, desenhando só texto e widgets nativos.
+///
+/// Existe para separar duas causas que o relatório não distingue: um quadro
+/// lento por **quantidade de nós** e um quadro lento por **área pintada**. Uma
+/// caixa com borda e raio é desenhada com matemática por pixel na GPU, e várias
+/// grandes sobrepostas custam pela área, não pelo número — numa GPU integrada
+/// antiga isso domina o quadro sem aparecer em contagem nenhuma.
+///
+/// Rodar o mesmo app com e sem a variável responde direto: se ficar rápido sem
+/// pintura, o gargalo é a rasterização, e o conserto é estilo mais barato (menos
+/// caixas grandes sobrepostas, menos canto arredondado) — não otimização de
+/// motor.
+///
+/// A tela fica feia de propósito. Não é para usar em produção.
+pub(crate) fn sem_pintura() -> bool {
+    static SEM: OnceLock<bool> = OnceLock::new();
+    *SEM.get_or_init(|| {
+        std::env::var("GLACIER_NO_PAINT").is_ok_and(|v| {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        })
+    })
+}
+
+/// `GLACIER_PERF_STRESS` — pede um quadro por vsync, para medir **capacidade**
+/// em vez de demanda.
+///
+/// Sem isto, um app orientado a evento só desenha quando alguém lhe pede, e o
+/// relatório mede o quanto ele ficou **parado**. Ligado, o app desenha o mais
+/// rápido que consegue e o intervalo passa a ser o custo real do quadro —
+/// diretamente comparável entre duas configurações (com e sem pintura, com e
+/// sem virtualização, telas diferentes).
+///
+/// Gasta GPU de propósito. É para medir, não para rodar assim.
+pub(crate) fn estresse() -> bool {
+    static E: OnceLock<bool> = OnceLock::new();
+    *E.get_or_init(|| {
+        std::env::var("GLACIER_PERF_STRESS").is_ok_and(|v| {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        })
+    })
+}
+
 /// De quanto em quanto tempo uma linha é impressa. Curto demais polui a saída;
 /// longo demais esconde uma travada que dura pouco.
 const INTERVALO: Duration = Duration::from_secs(1);

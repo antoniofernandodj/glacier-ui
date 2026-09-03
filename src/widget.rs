@@ -3578,7 +3578,10 @@ pub fn render_node<'a>(
         let bw_opt = node.border_width.unwrap_or(0.0);
         let bc_opt = node.border_color().and_then(parse_hex_color);
 
-        if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
+        // `GLACIER_NO_PAINT` pula o embrulho inteiro: sem fundo, sem borda,
+        // sem raio. É o interruptor que separa "lento por nó" de "lento por
+        // área pintada" — ver `crate::perf::sem_pintura`.
+        if (bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0) && !crate::perf::sem_pintura() {
             let mut c = container(element);
             c = c
                 .width(parse_length(&node.width))
