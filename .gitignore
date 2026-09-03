@@ -3,3 +3,8 @@
 
 # Pacotes de extensão VS Code gerados
 editors/**/*.vsix
+
+# Cópia das extensões dentro do crate da CLI, gerada por `make sync-extensions`
+# só para o `cargo publish` (ver crates/glacier-cli/build.rs). A fonte é editors/.
+crates/glacier-cli/extensions/
+crates/glacier-cli/engine-version.txt

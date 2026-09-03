@@ -1,10 +1,344 @@
+use crate::ContextMap;
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
     Space, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area, pick_list,
-    progress_bar, row, rule, scrollable, svg, text, text_editor, text_input,
+    progress_bar, radio, row, rule, scrollable, slider, svg, text, text_editor, text_input,
+    vertical_slider,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+/// Chave **global** onde vive a seção selecionada de um `<timeedit>`, no
+/// formato `"<chave-do-app>:<h|m|s>"`.
+///
+/// Global porque foco é global: só uma seção da tela inteira pode estar
+/// selecionada por vez. A identidade da instância viaja no valor, e é ela que
+/// mantém dois `<timeedit>` independentes. Mesma família do `__drag_key`.
+pub(crate) const TIMEEDIT_SEL_CONTEXT: &str = "__timeedit";
+
+/// A seção selecionada de um `<datetimeedit>`, com a configuração da instância
+/// dona dela — tudo numa chave global do motor (`__timeedit`), porque só uma
+/// seção da tela pode estar selecionada por vez.
+///
+/// Ela carrega mais do que a identidade porque o **teclado** é tratado no
+/// `update` do motor, que recebe a tecla solta e não tem o nó do widget em mãos:
+/// sem `data`/`hora`/`segundos` ele não sabe serializar o valor, sem
+/// `dia_primeiro` não sabe a ordem das seções para o ← →, e sem `acao` não sabe
+/// se grava a chave ou delega ao app.
+///
+/// Formato: `chave|secao|dtsf|buf|acao` (`dtsf` = quatro `0`/`1`). `acao` vem
+/// por último e é o resto da string, então uma ação com `|` no nome não quebra.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct TimeEditSel {
+    pub chave: String,
+    pub secao: String,
+    pub data: bool,
+    pub hora: bool,
+    pub segundos: bool,
+    pub dia_primeiro: bool,
+    /// Algarismos já digitados nesta seção desde que ela foi selecionada.
+    pub buf: String,
+    pub acao: String,
+}
+
+/// O que o teclado pode fazer com a seção selecionada de um
+/// `<datetimeedit>` — o teclado do `QDateTimeEdit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeEditKey {
+    /// ▲ / ▼: mesmo passo dos botões de seta, na seção selecionada.
+    Passo(i8),
+    /// ← / →: move a seleção entre as seções, sem alterar valor.
+    Move(i8),
+    /// Um algarismo digitado na seção selecionada.
+    Algarismo(u8),
+}
+
+impl TimeEditSel {
+    pub fn serializa(&self) -> String {
+        let b = |v: bool| if v { '1' } else { '0' };
+        format!(
+            "{}|{}|{}{}{}{}|{}|{}",
+            self.chave,
+            self.secao,
+            b(self.data),
+            b(self.hora),
+            b(self.segundos),
+            b(self.dia_primeiro),
+            self.buf,
+            self.acao
+        )
+    }
+
+    pub fn parse(bruto: Option<&String>) -> Option<Self> {
+        let bruto = bruto?.as_str();
+        if bruto.is_empty() {
+            return None;
+        }
+        let mut it = bruto.splitn(5, '|');
+        let chave = it.next()?.to_string();
+        let secao = it.next()?.to_string();
+        let flags: Vec<char> = it.next()?.chars().collect();
+        if flags.len() < 4 || chave.is_empty() || secao.is_empty() {
+            return None;
+        }
+        let buf = it.next().unwrap_or("").to_string();
+        let acao = it.next().unwrap_or("").to_string();
+        Some(Self {
+            chave,
+            secao,
+            data: flags[0] == '1',
+            hora: flags[1] == '1',
+            segundos: flags[2] == '1',
+            dia_primeiro: flags[3] == '1',
+            buf,
+            acao,
+        })
+    }
+}
+
+/// Um instante como as seções do `<datetimeedit>` o tratam. Sem dependência de
+/// datas: o que o widget precisa é somar 1 numa seção e saber quantos dias o mês
+/// tem — quatro linhas de aritmética, não um crate.
+///
+/// E é aritmética *anti*-calendário de propósito: cada seção vira dentro de si
+/// (ver [`Instante::passo`]), que é o oposto do que um `NaiveDateTime` faria.
+/// Foi um dos dois motivos de a decisão `chrono` vs. `time` (`PLANO_WIDGETS.md`
+/// §4) ter sido fechada pela negativa na 0.72 — o outro é o global `date` do
+/// prelúdio Luau, que cobre a aritmética de verdade sem crate nenhuma.
+#[derive(Clone, Copy)]
+pub(crate) struct Instante {
+    ano: i64,
+    mes: i64,
+    dia: i64,
+    hora: i64,
+    min: i64,
+    seg: i64,
+}
+
+/// Quantos dias tem o mês — com a regra de bissexto completa (múltiplo de 4,
+/// exceto séculos que não são múltiplos de 400).
+fn dias_no_mes(ano: i64, mes: i64) -> i64 {
+    match mes {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if ano % 4 == 0 && (ano % 100 != 0 || ano % 400 == 0) => 29,
+        2 => 28,
+        _ => 31,
+    }
+}
+
+/// Dias decorridos desde 1970-01-01 — o `days_from_civil` de Howard Hinnant,
+/// que é a forma fechada de contar dias sem tabela nem laço.
+///
+/// Existe por uma razão só: descobrir **em que dia da semana um mês começa**,
+/// que é a única coisa que a grade do `<calendar>` precisa e que o `Instante`
+/// não sabia dizer. O `PLANO_WIDGETS.md` §4 afirmava que isto já existia do
+/// lado Rust; não existia — só no `prelude.luau`.
+pub(crate) fn days_from_civil(ano: i64, mes: i64, dia: i64) -> i64 {
+    let ano = if mes <= 2 { ano - 1 } else { ano };
+    let era = if ano >= 0 { ano } else { ano - 399 } / 400;
+    let yoe = ano - era * 400; // [0, 399]
+    let mp = (mes + 9) % 12; // março = 0 — é o que faz o bissexto cair no fim
+    let doy = (153 * mp + 2) / 5 + dia - 1; // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
+    era * 146097 + doe - 719468
+}
+
+/// 0 = domingo … 6 = sábado. (1970-01-01 foi uma quinta: `0 + 4 = 4`.)
+pub(crate) fn dia_da_semana(ano: i64, mes: i64, dia: i64) -> i64 {
+    (days_from_civil(ano, mes, dia) + 4).rem_euclid(7)
+}
+
+impl Instante {
+    /// Lê `YYYY-MM-DD`, `HH:MM[:SS]` ou os dois separados por espaço. Tolerante
+    /// de propósito: o que não parseia cai no default, para o campo nunca
+    /// renderizar quebrado nem engolir a digitação de um app que ainda não
+    /// semeou a chave.
+    pub(crate) fn parse(bruto: &str) -> Self {
+        let mut eu = Self {
+            ano: 2000,
+            mes: 1,
+            dia: 1,
+            hora: 0,
+            min: 0,
+            seg: 0,
+        };
+        let bruto = bruto.trim();
+        let (parte_data, parte_hora) = match bruto.split_once([' ', 'T']) {
+            Some((d, h)) => (Some(d), Some(h)),
+            None if bruto.contains(':') => (None, Some(bruto)),
+            None if bruto.contains('-') => (Some(bruto), None),
+            None => (None, None),
+        };
+        if let Some(d) = parte_data {
+            let mut it = d.split('-');
+            eu.ano = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.ano);
+            eu.mes = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.mes);
+            eu.dia = it.next().and_then(|v| v.parse().ok()).unwrap_or(eu.dia);
+        }
+        if let Some(h) = parte_hora {
+            let mut it = h.split(':');
+            eu.hora = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+            eu.min = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+            eu.seg = it.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+        }
+        eu.normalizar();
+        eu
+    }
+
+    /// Puxa cada campo para dentro da sua faixa. O dia é o único que depende
+    /// dos outros: 31 de janeiro vira 28/29 de fevereiro ao trocar o mês, como
+    /// o `QDateEdit` faz.
+    fn normalizar(&mut self) {
+        self.ano = self.ano.clamp(1, 9999);
+        self.mes = self.mes.clamp(1, 12);
+        self.dia = self.dia.clamp(1, dias_no_mes(self.ano, self.mes));
+        self.hora = self.hora.clamp(0, 23);
+        self.min = self.min.clamp(0, 59);
+        self.seg = self.seg.clamp(0, 59);
+    }
+
+    /// O que vai para a chave de contexto — **sempre ISO**, independentemente da
+    /// ordem em que as seções são desenhadas.
+    pub(crate) fn serializa(&self, data: bool, hora: bool, segundos: bool) -> String {
+        let d = format!("{:04}-{:02}-{:02}", self.ano, self.mes, self.dia);
+        let h = if segundos {
+            format!("{:02}:{:02}:{:02}", self.hora, self.min, self.seg)
+        } else {
+            format!("{:02}:{:02}", self.hora, self.min)
+        };
+        match (data, hora) {
+            (true, true) => format!("{d} {h}"),
+            (true, false) => d,
+            _ => h,
+        }
+    }
+
+    /// Soma `delta` numa seção. Cada uma vira **dentro de si** — mexer no
+    /// minuto não empurra a hora —, que é o `wrapping` do `QAbstractSpinBox` e
+    /// o que "editar por seção" quer dizer. O ano é a exceção: satura, porque
+    /// virar de 9999 para 1 nunca é o que alguém quis.
+    pub(crate) fn passo(&self, secao: &str, delta: i64) -> Self {
+        let mut n = *self;
+        match secao {
+            "y" => n.ano = (n.ano + delta).clamp(1, 9999),
+            "M" => n.mes = (n.mes - 1 + delta).rem_euclid(12) + 1,
+            "d" => {
+                let teto = dias_no_mes(n.ano, n.mes);
+                n.dia = (n.dia - 1 + delta).rem_euclid(teto) + 1;
+            }
+            "m" => n.min = (n.min + delta).rem_euclid(60),
+            "s" => n.seg = (n.seg + delta).rem_euclid(60),
+            _ => n.hora = (n.hora + delta).rem_euclid(24),
+        }
+        // Trocar mês/ano pode ter deixado o dia fora da faixa (31/03 -> 31/02).
+        n.dia = n.dia.min(dias_no_mes(n.ano, n.mes));
+        n
+    }
+
+    /// Faixa válida de uma seção, e quantos dígitos ela comporta. O dia depende
+    /// do mês corrente — 31/01 aceita "31", 31/02 não.
+    fn faixa(&self, secao: &str) -> (i64, i64, usize) {
+        match secao {
+            "y" => (1, 9999, 4),
+            "M" => (1, 12, 2),
+            "d" => (1, dias_no_mes(self.ano, self.mes), 2),
+            "m" | "s" => (0, 59, 2),
+            _ => (0, 23, 2),
+        }
+    }
+
+    /// Grava um valor cru numa seção, sem mexer nas outras.
+    fn com_secao(&self, secao: &str, valor: i64) -> Self {
+        let mut n = *self;
+        match secao {
+            "y" => n.ano = valor,
+            "M" => n.mes = valor,
+            "d" => n.dia = valor,
+            "m" => n.min = valor,
+            "s" => n.seg = valor,
+            _ => n.hora = valor,
+        }
+        n.normalizar();
+        n
+    }
+
+    /// Digita um algarismo na seção selecionada, no modelo do `QDateTimeEdit`.
+    ///
+    /// `buf` são os algarismos já digitados NESTA seção desde que ela foi
+    /// selecionada — ele existe porque o valor gravado na chave é normalizado
+    /// (um "0" digitado num mês vira 1) e portanto não serve para reconstruir o
+    /// que a pessoa está no meio de digitar.
+    ///
+    /// Devolve `(instante, buf_novo, avancar)`. `avancar` é verdadeiro quando a
+    /// seção não comporta mais nenhum algarismo — ou porque encheu (`23` numa
+    /// hora), ou porque qualquer próximo algarismo estouraria a faixa (`5` numa
+    /// hora: não existe `5X` válido). É o que faz digitar "0930" numa hora
+    /// atravessar as duas seções sozinho, como no Qt.
+    pub(crate) fn digita(&self, secao: &str, algarismo: u8, buf: &str) -> (Self, String, bool) {
+        let (min, max, max_digitos) = self.faixa(secao);
+        let candidato_txt = format!("{buf}{algarismo}");
+        // Estourou a faixa (ou o número de casas): recomeça a seção com este
+        // algarismo, em vez de recusar a tecla — é o que o Qt faz, e é o que
+        // deixa corrigir um engano sem apagar nada.
+        let (valor, buf_novo) = match candidato_txt.parse::<i64>() {
+            Ok(v) if v <= max && candidato_txt.len() <= max_digitos => (v, candidato_txt),
+            _ => (i64::from(algarismo), algarismo.to_string()),
+        };
+        let cheio = buf_novo.len() >= max_digitos;
+        let sem_futuro = valor * 10 > max;
+        // O valor vai para a chave sempre dentro da faixa: um "0" digitado num
+        // mês mostra 01 e não um mês zero. O `buf` guarda o "0" cru, então o
+        // algarismo seguinte ainda compõe "05" corretamente.
+        (
+            self.com_secao(secao, valor.clamp(min, max)),
+            buf_novo,
+            cheio || sem_futuro,
+        )
+    }
+}
+
+/// As seções de um `<datetimeedit>` na ordem em que aparecem na tela — a mesma
+/// que o render monta. Existe à parte porque o teclado (setas ← →, e o avanço
+/// automático ao encher uma seção) precisa da ordem sem ter o nó em mãos.
+pub(crate) fn secoes_visiveis(
+    data: bool,
+    hora: bool,
+    segundos: bool,
+    dia_primeiro: bool,
+) -> Vec<&'static str> {
+    let mut v = Vec::new();
+    if data {
+        v.extend_from_slice(if dia_primeiro {
+            &["d", "M", "y"][..]
+        } else {
+            &["y", "M", "d"][..]
+        });
+    }
+    if hora {
+        v.push("h");
+        v.push("m");
+        if segundos {
+            v.push("s");
+        }
+    }
+    v
+}
+
+/// Casas decimais que a saída de um `<Slider>` deve ter/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
+/// **como escrito no markup** (`"0.05"` → 2). Sem isto, arrastar um passo
+/// fracionário grava `0.30000001192092896` na chave de contexto.
+///
+/// Irmã da `casas_decimais` de [`crate::builtins::spin_box`] — mesma ideia,
+/// entradas diferentes: lá o `step` já é texto o tempo todo, aqui ele também
+/// vira `f32` para o `.step()` do iced, e o texto é preservado só para isto
+/// (ver `NodeType::Slider::step_raw`). Deduzir do `f32` daria `0.1` → `0.1000000015`.
+fn casas_decimais_do_step(step: &str) -> usize {
+    match step.trim().split_once('.') {
+        Some((_, decimais)) => decimais.trim().len().min(6),
+        None => 0,
+    }
+}
 
 /// One option of a `<Select>`: `label` is shown, `value` is dispatched. Equality
 /// (used by `pick_list` to mark the current selection) is by `value` only.
@@ -17,7 +351,11 @@ pub struct SelectOption {
 impl SelectOption {
     /// Builds an option from a JSON array element: an object reads `label_field`/
     /// `value_field` (value falls back to label); a bare string is both.
-    pub(crate) fn from_json(item: &serde_json::Value, label_field: &str, value_field: &str) -> Self {
+    pub(crate) fn from_json(
+        item: &serde_json::Value,
+        label_field: &str,
+        value_field: &str,
+    ) -> Self {
         match item {
             serde_json::Value::Object(o) => {
                 let get = |k: &str| {
@@ -74,33 +412,50 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Gradient, Length
 
 /// Selects an `iced::Font` from a `font="..."` hint. `mono`/`monospace`/`code`
 /// map to the monospaced font; anything else returns `None` (default font).
-fn font_for(hint: &Option<String>) -> Option<Font> {
-    match hint.as_deref().map(|s| s.to_ascii_lowercase()) {
-        Some(ref s) if s == "mono" || s == "monospace" || s == "code" => Some(Font::MONOSPACE),
-        Some(ref s) if s == "bold" => Some(Font {
+fn font_for(hint: Option<&str>) -> Option<Font> {
+    let s = hint?;
+    if igual_ci(s, "mono") || igual_ci(s, "monospace") || igual_ci(s, "code") {
+        Some(Font::MONOSPACE)
+    } else if igual_ci(s, "bold") {
+        Some(Font {
             weight: iced::font::Weight::Bold,
             ..Default::default()
-        }),
-        _ => None,
+        })
+    } else {
+        None
     }
+}
+
+/// Compara sem diferenciar maiúsculas **e sem alocar**.
+///
+/// A forma óbvia — `s.to_ascii_lowercase() == "fill"` — aloca uma `String` por
+/// chamada, e estas comparações rodam no caminho de render: largura, altura,
+/// padding, fonte e alinhamento de **cada nó, a cada quadro**. Numa tela de 800
+/// nós a 60 fps são ~150 mil alocações por segundo, jogadas fora em seguida —
+/// e a alocação era 44% de todo o custo do render.
+#[inline]
+fn igual_ci(a: &str, b: &str) -> bool {
+    a.eq_ignore_ascii_case(b)
 }
 
 /// Whether a context string should count as "checked"/true.
 pub(crate) fn is_truthy(s: &str) -> bool {
-    matches!(
-        s.trim().to_ascii_lowercase().as_str(),
-        "true" | "1" | "yes" | "on" | "sim"
-    )
+    let s = s.trim();
+    igual_ci(s, "true") || igual_ci(s, "yes") || igual_ci(s, "on") || igual_ci(s, "sim") || s == "1"
 }
 
 /// Maps `start`/`center`/`end` (and aliases) to a horizontal text alignment.
-fn parse_text_align(s: &Option<String>) -> Option<iced::alignment::Horizontal> {
+fn parse_text_align(s: Option<&str>) -> Option<iced::alignment::Horizontal> {
     use iced::alignment::Horizontal;
-    match s.as_deref().map(|v| v.to_ascii_lowercase()) {
-        Some(ref v) if v == "start" || v == "left" => Some(Horizontal::Left),
-        Some(ref v) if v == "center" || v == "centre" => Some(Horizontal::Center),
-        Some(ref v) if v == "end" || v == "right" => Some(Horizontal::Right),
-        _ => None,
+    let v = s?;
+    if igual_ci(v, "start") || igual_ci(v, "left") {
+        Some(Horizontal::Left)
+    } else if igual_ci(v, "center") || igual_ci(v, "centre") {
+        Some(Horizontal::Center)
+    } else if igual_ci(v, "end") || igual_ci(v, "right") {
+        Some(Horizontal::Right)
+    } else {
+        None
     }
 }
 
@@ -133,7 +488,7 @@ fn parse_gradient(spec: &str) -> Option<Gradient> {
 
 /// Resolves the background of a node: a `gradient` wins over a solid `background`.
 fn background_for(node: &UiNode) -> Option<Background> {
-    if let Some(g) = node.gradient.as_ref().and_then(|s| parse_gradient(s)) {
+    if let Some(g) = node.gradient().and_then(parse_gradient) {
         return Some(Background::Gradient(g));
     }
     node.background
@@ -145,6 +500,11 @@ fn background_for(node: &UiNode) -> Option<Background> {
 #[derive(Debug, Clone)]
 pub enum EngineMessage {
     UiClick(String),
+    /// Uma tecla dirigida ao `<datetimeedit>` cuja seção está selecionada (a
+    /// chave global `__timeedit`). Só chega aqui quando **nenhum** widget
+    /// consumiu o evento (`event::Status::Ignored`) — é isso que impede a
+    /// seta de um `<TextInput>` focado de virar um passo de hora.
+    TimeEditKey(TimeEditKey),
     UiInputChanged {
         action: String,
         value: String,
@@ -293,6 +653,17 @@ pub enum EngineMessage {
     /// janela, então rastrear globalmente evita cada gatilho precisar saber
     /// sua própria posição de tela. Ver [`crate::menu`].
     CursorMoved(iced::Point),
+    /// Um `<scrollable>` rolou. `key` é o `node_id` dele (estável no template),
+    /// `offset` é o deslocamento absoluto no eixo principal.
+    ///
+    /// Existe só para a **virtualização**: guardar o deslocamento é o que
+    /// permite ao render seguinte saber quais filhos de um `virtualize=` caem na
+    /// janela visível. O `dispatch` grava e volta — **sem reavaliar nada**, que é
+    /// a diferença entre rolar a 60 quadros e rolar a 6.
+    Scrolled {
+        key: u64,
+        offset: f32,
+    },
     /// Um gatilho de `<MenuBar>`/`<Menu>` (topo) foi clicado: abre `tree`
     /// ancorado na última posição de cursor conhecida.
     OpenMenuBarDropdown {
@@ -307,13 +678,61 @@ pub enum EngineMessage {
     /// aberto: `path` é a nova cascata de índices abertos (raiz→folha) —
     /// vazio ao pairar uma linha-folha (fecha qualquer submenu mais fundo),
     /// mais longo ao pairar uma linha com submenu próprio (abre-o).
-    MenuHoverSubmenu { path: Vec<usize> },
+    MenuHoverSubmenu {
+        path: Vec<usize>,
+    },
     /// Um `<MenuItem>` folha foi clicado: despacha `action` como um
     /// `UiClick` comum, depois fecha o menu/cascata inteiro.
     MenuItemClick(String),
     /// Clique-fora ou Escape: fecha o menu/cascata aberto sem despachar
     /// nenhuma ação.
     MenuDismiss,
+}
+
+impl EngineMessage {
+    /// O nome da variante, para o relatório de [`crate::perf`].
+    ///
+    /// Saber **qual** mensagem chega 150 vezes por segundo é a diferença entre
+    /// diagnosticar e adivinhar: no `iced`, toda mensagem provoca um quadro, e
+    /// uma que o motor emite sozinho (a posição do cursor, por exemplo) faz o
+    /// app redesenhar sem nada ter mudado.
+    pub(crate) fn nome(&self) -> &'static str {
+        match self {
+            Self::UiClick { .. } => "UiClick",
+            Self::TimeEditKey { .. } => "TimeEditKey",
+            Self::UiInputChanged { .. } => "UiInputChanged",
+            Self::UiEditorAction { .. } => "UiEditorAction",
+            Self::UiComboInput { .. } => "UiComboInput",
+            Self::UiComboSelected { .. } => "UiComboSelected",
+            Self::Navigate { .. } => "Navigate",
+            Self::NavigateBack { .. } => "NavigateBack",
+            Self::FileChanged { .. } => "FileChanged",
+            Self::ContextPatch { .. } => "ContextPatch",
+            Self::EffectOutcome { .. } => "EffectOutcome",
+            Self::DragStart { .. } => "DragStart",
+            Self::DragHover { .. } => "DragHover",
+            Self::DragEnd { .. } => "DragEnd",
+            Self::UiSubmit { .. } => "UiSubmit",
+            Self::DialogButton { .. } => "DialogButton",
+            Self::DialogDismiss { .. } => "DialogDismiss",
+            Self::ToastDismiss { .. } => "ToastDismiss",
+            Self::ToastTick { .. } => "ToastTick",
+            Self::FocusNext { .. } => "FocusNext",
+            Self::FocusPrev { .. } => "FocusPrev",
+            Self::Viewport { .. } => "Viewport",
+            Self::LuauResume { .. } => "LuauResume",
+            Self::LuauStream { .. } => "LuauStream",
+            Self::LuauTimer { .. } => "LuauTimer",
+            Self::FileDialogResume { .. } => "FileDialogResume",
+            Self::CursorMoved { .. } => "CursorMoved",
+            Self::Scrolled { .. } => "Scrolled",
+            Self::OpenMenuBarDropdown { .. } => "OpenMenuBarDropdown",
+            Self::OpenContextMenu { .. } => "OpenContextMenu",
+            Self::MenuHoverSubmenu { .. } => "MenuHoverSubmenu",
+            Self::MenuItemClick { .. } => "MenuItemClick",
+            Self::MenuDismiss { .. } => "MenuDismiss",
+        }
+    }
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing
@@ -334,23 +753,22 @@ fn parse_length(s: &Option<String>) -> Length {
         return Length::Shrink;
     };
     let v = raw.trim();
-    let lower = v.to_ascii_lowercase();
-    match lower.as_str() {
-        "fill" => Length::Fill,
-        "shrink" => Length::Shrink,
-        _ => {
-            // `fill 2` / `fill-2` → FillPortion(2).
-            if let Some(rest) = lower.strip_prefix("fill") {
-                let n = rest.trim_start_matches([' ', '-']).trim();
-                if let Ok(p) = n.parse::<u16>() {
-                    return Length::FillPortion(p.max(1));
-                }
-            }
-            match v.parse::<f32>() {
-                Ok(f) => Length::Fixed(f),
-                Err(_) => Length::Shrink,
-            }
-        }
+    if igual_ci(v, "fill") {
+        return Length::Fill;
+    }
+    if igual_ci(v, "shrink") {
+        return Length::Shrink;
+    }
+    // `fill 2` / `fill-2` → FillPortion(2).
+    if v.len() > 4
+        && igual_ci(&v[..4], "fill")
+        && let Ok(p) = v[4..].trim_start_matches([' ', '-']).trim().parse::<u16>()
+    {
+        return Length::FillPortion(p.max(1));
+    }
+    match v.parse::<f32>() {
+        Ok(f) => Length::Fixed(f),
+        Err(_) => Length::Shrink,
     }
 }
 
@@ -383,8 +801,8 @@ fn parse_padding(s: &Option<String>) -> Padding {
 }
 
 /// Helper to parse alignment
-fn parse_alignment(s: &Option<String>) -> Option<Alignment> {
-    match s.as_deref() {
+fn parse_alignment(s: Option<&str>) -> Option<Alignment> {
+    match s {
         Some("start") | Some("Start") | Some("START") => Some(Alignment::Start),
         Some("center") | Some("Center") | Some("CENTER") => Some(Alignment::Center),
         Some("end") | Some("End") | Some("END") => Some(Alignment::End),
@@ -420,13 +838,16 @@ thread_local! {
     /// os motores/janelas (mesma imagem = mesmo handle). Por-thread, o que casa
     /// com a thread única da UI (e isola threads de teste).
     static IMAGE_HANDLES: RefCell<HashMap<String, image::Handle>> =
-        RefCell::new(HashMap::new());
-    static SVG_HANDLES: RefCell<HashMap<String, svg::Handle>> = RefCell::new(HashMap::new());
+        RefCell::new(HashMap::default());
+    static SVG_HANDLES: RefCell<HashMap<String, svg::Handle>> = RefCell::new(HashMap::default());
 }
 
 /// `image::Handle` para `source`, do cache ou construído (uma vez) a partir dos
 /// bytes da fonte de assets. Leitura falha → handle vazio (degrada, não quebra).
-fn cached_image_handle(source: &str, assets: &dyn crate::asset_source::AssetSource) -> image::Handle {
+fn cached_image_handle(
+    source: &str,
+    assets: &dyn crate::asset_source::AssetSource,
+) -> image::Handle {
     if let Some(h) = IMAGE_HANDLES.with(|c| c.borrow().get(source).cloned()) {
         return h;
     }
@@ -447,12 +868,1124 @@ fn cached_svg_handle(source: &str, assets: &dyn crate::asset_source::AssetSource
 
 /// Generate Iced widgets recursively from UiNode tree.
 /// References to strings are borrowed directly from the AST node with lifetime 'a.
+/// O que o render sabe da **janela**, e que não está na árvore: onde cada
+/// `<scrollable>` está rolado e qual a altura da área visível.
+///
+/// Desce junto com a recursão porque a virtualização de um `Column` precisa
+/// saber a janela do `<scrollable>` que o envolve — informação que só existe um
+/// nível acima dele.
+#[derive(Clone, Copy)]
+pub struct RenderView<'a> {
+    /// Deslocamento de cada `<scrollable>`, pelo `node_id`.
+    pub scroll: &'a crate::eval::FxMapPub<u64, f32>,
+    /// Altura da janela do app — o teto de quanto um `<scrollable>` pode
+    /// mostrar. Usar a altura da janela (e não a do próprio scrollable, que só
+    /// o layout do iced conhece) faz a conta pecar **por excesso**: monta-se
+    /// alguns itens a mais, nunca de menos.
+    pub altura_janela: f32,
+    /// A janela do `<scrollable>` mais próximo acima: `(deslocamento, altura)`.
+    /// `None` fora de um scrollable — e aí não há o que virtualizar.
+    pub janela: Option<(f32, f32)>,
+}
+
+impl RenderView<'_> {
+    /// A fatia de filhos que cai na janela visível deste `<scrollable>`.
+    fn fatia(&self, total: usize, passo: f32) -> Option<(usize, usize)> {
+        let (deslocamento, altura) = self.janela?;
+        janela_visivel(total, passo, deslocamento, altura, MARGEM_VIRTUAL)
+    }
+}
+
+/// Itens montados **fora** da tela, de cada lado. É o que evita a faixa branca
+/// de um quadro quando a rolagem anda mais rápido que o render.
+const MARGEM_VIRTUAL: usize = 3;
+
+/// Quais filhos montar, dado que cada um ocupa `passo` pixels (altura mais o
+/// `spacing`), a rolagem está em `deslocamento` e a área visível tem `altura`.
+///
+/// Devolve `(quantos pular, quantos mostrar)`, ou `None` quando não vale a pena
+/// virtualizar — lista vazia, passo inválido, ou tudo já cabendo na tela (aí a
+/// virtualização só acrescentaria dois vãos e nenhum ganho).
+///
+/// Separada do render por ser a única parte com aritmética que pode errar: um
+/// deslocamento maior que a lista (a lista encolheu e a rolagem não acompanhou)
+/// precisa sair pelo lado seguro, não estourar um `usize`.
+fn janela_visivel(
+    total: usize,
+    passo: f32,
+    deslocamento: f32,
+    altura: f32,
+    margem: usize,
+) -> Option<(usize, usize)> {
+    if total == 0 || !passo.is_finite() || passo <= 0.0 || !altura.is_finite() || altura <= 0.0 {
+        return None;
+    }
+    let bruto = (deslocamento.max(0.0) / passo).floor();
+    // Um deslocamento absurdo (lista encolheu, `f32` sujo) não pode virar um
+    // `primeiro` maior que a lista — daí o `min` antes de qualquer subtração.
+    let primeiro = if bruto.is_finite() && bruto >= 0.0 {
+        (bruto as usize).min(total).saturating_sub(margem)
+    } else {
+        0
+    };
+    let cabem = (altura / passo).ceil() as usize + 1 + margem * 2;
+    let quantos = cabem.min(total - primeiro);
+    (primeiro > 0 || quantos < total).then_some((primeiro, quantos))
+}
+
+// ── O calendário: uma primitiva, três tags ───────────────────────────────────
+
+/// Chave **global** com o dia sob o cursor num `<daterangepicker>` cujo fim
+/// ainda não foi escolhido — é ela que pinta a faixa provisória entre o início
+/// e o cursor.
+///
+/// Global, e legitimamente: só uma célula da tela inteira está sob o cursor por
+/// vez. Mesma família do [`TIMEEDIT_SEL_CONTEXT`] e do `__drag_key`.
+pub(crate) const CAL_HOVER_CONTEXT: &str = "__cal_hover";
+
+/// Prefixo da chave (por instância, não global) onde mora o mês visível e o
+/// nível da escada de drill-up: `__cal_<chave-do-app>`.
+pub(crate) const CAL_VIEW_PREFIX: &str = "__cal_";
+
+/// Rótulos padrão, em pt-BR. Sobrescritíveis por prop (`month_names`,
+/// `day_names`) — o motor não tem camada de i18n, e inventar uma para três
+/// tags seria o rabo abanando o cachorro.
+const MESES_PT: [&str; 12] = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+];
+const DIAS_PT: [&str; 7] = ["D", "S", "T", "Q", "Q", "S", "S"];
+
+/// O que a chave `__cal_<chave>` guarda: o mês visível e o degrau da escada.
+#[derive(Clone, Copy)]
+struct CalView {
+    ano: i64,
+    mes: i64,
+    /// `d` dia · `M` mês · `y` ano.
+    nivel: char,
+}
+
+impl CalView {
+    /// `"2026-09|M"`. O nível vai junto porque o drill-up é navegação, não
+    /// valor: subir para a tela de meses não pode mexer na chave do app.
+    fn serializa(&self) -> String {
+        format!("{:04}-{:02}|{}", self.ano, self.mes, self.nivel)
+    }
+
+    /// Tolerante como todo parse deste arquivo: o que faltar cai no default,
+    /// para uma chave semeada à mão (ou não semeada) nunca desenhar quebrado.
+    fn parse(bruto: Option<&String>, padrao_ano: i64, padrao_mes: i64, padrao_nivel: char) -> Self {
+        let mut eu = Self {
+            ano: padrao_ano,
+            mes: padrao_mes,
+            nivel: padrao_nivel,
+        };
+        let Some(bruto) = bruto.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+            return eu;
+        };
+        let (data, nivel) = match bruto.split_once('|') {
+            Some((d, n)) => (d, n.chars().next()),
+            None => (bruto, None),
+        };
+        let mut it = data.split('-');
+        if let Some(a) = it.next().and_then(|v| v.parse::<i64>().ok()) {
+            eu.ano = a.clamp(1, 9999);
+        }
+        if let Some(m) = it.next().and_then(|v| v.parse::<i64>().ok()) {
+            eu.mes = m.clamp(1, 12);
+        }
+        if let Some(n) = nivel.filter(|n| matches!(n, 'd' | 'M' | 'y')) {
+            eu.nivel = n;
+        }
+        eu
+    }
+}
+
+/// `YYYY-MM-DD` (ou `YYYY-MM`, ou `YYYY`) → `(ano, mês, dia)`. `None` quando a
+/// chave está vazia ou não é uma data — a diferença que o [`Instante`] apaga de
+/// propósito (lá, o vazio vira 2000-01-01) e que aqui importa: uma chave sem
+/// data escolhida não pode acender célula nenhuma.
+fn iso_ymd(bruto: &str) -> Option<(i64, i64, i64)> {
+    let bruto = bruto.trim();
+    if bruto.is_empty() {
+        return None;
+    }
+    // Um `YYYY-MM-DD HH:MM` também entra: quem grava a mesma chave com um
+    // `<datetimeedit>` do lado não devia perder o realce por causa da hora.
+    let data = bruto.split([' ', 'T']).next().unwrap_or(bruto);
+    let mut it = data.split('-');
+    let ano = it.next()?.trim().parse::<i64>().ok()?;
+    let mes = it
+        .next()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(1);
+    let dia = it
+        .next()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(1);
+    (1..=9999)
+        .contains(&ano)
+        .then_some((ano, mes.clamp(1, 12), dia.clamp(1, 31)))
+}
+
+/// Chave de ordenação de uma data — o dia absoluto. Comparar `(a, m, d)` como
+/// tupla daria o mesmo, mas o intervalo precisa de "está entre", e isso é mais
+/// legível sobre um número só.
+fn ordem(ymd: (i64, i64, i64)) -> i64 {
+    days_from_civil(ymd.0, ymd.1, ymd.2)
+}
+
+/// O papel visual de uma célula do calendário. Uma enum, e não três `bool`s,
+/// porque os estados são mutuamente exclusivos e a pintura é um `match` só.
+#[derive(Clone, Copy, PartialEq)]
+enum CelEstado {
+    /// Fora do mês visível, fora de `min`/`max`, ou o cabeçalho da semana.
+    Inerte,
+    Normal,
+    /// A ponta de um intervalo, ou o dia escolhido.
+    Selecionada,
+    /// O miolo de um intervalo (escolhido ou provisório, sob o cursor).
+    Faixa,
+    /// Hoje, quando não está selecionado — só o contorno.
+    Hoje,
+}
+
+/// Uma célula da grade: um botão de tamanho fixo (é o que alinha as colunas sem
+/// um `Grid`) pintado conforme o estado.
+fn cal_celula<'a>(
+    rotulo: String,
+    estado: CelEstado,
+    largura: f32,
+    msg: Option<EngineMessage>,
+) -> Element<'a, EngineMessage> {
+    let mut b = button(
+        text(rotulo)
+            .size(13)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .width(Length::Fixed(largura))
+    .padding(Padding {
+        top: 5.0,
+        right: 0.0,
+        bottom: 5.0,
+        left: 0.0,
+    })
+    .style(move |theme: &iced::Theme, status| {
+        let p = theme.extended_palette();
+        let pairado = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let (fundo, cor, borda) = match estado {
+            CelEstado::Inerte => (None, p.background.weak.color, None),
+            CelEstado::Selecionada => (Some(p.primary.base.color), p.primary.base.text, None),
+            CelEstado::Faixa => (Some(p.primary.weak.color), p.primary.weak.text, None),
+            CelEstado::Hoje => (
+                pairado.then_some(p.background.weak.color),
+                p.background.base.text,
+                Some(p.primary.base.color),
+            ),
+            CelEstado::Normal => (
+                pairado.then_some(p.background.weak.color),
+                p.background.base.text,
+                None,
+            ),
+        };
+        button::Style {
+            background: fundo.map(Background::Color),
+            text_color: cor,
+            border: match borda {
+                Some(c) => Border {
+                    color: c,
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                None => Border::default().rounded(4),
+            },
+            ..button::Style::default()
+        }
+    });
+    if let Some(m) = msg {
+        b = b.on_press(m);
+    }
+    b.into()
+}
+
+/// O `<calendar>` / `<monthyearpicker>` / `<daterangepicker>`: a grade, a
+/// navegação e a escada de drill-up.
+///
+/// Longa porque a grade é um laço e os três níveis são três laços — mas é tudo
+/// aritmética local: o único estado que sai daqui são as duas chaves do motor
+/// (`__cal_<chave>`, `__cal_hover`) e a(s) chave(s) que o app nomeou.
+#[allow(clippy::too_many_arguments)]
+fn render_calendar<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    value_var: &'a str,
+    end_var: &'a str,
+    month_var: &'a str,
+    today: &'a str,
+    min: &'a str,
+    max: &'a str,
+    mode: char,
+    monday_first: bool,
+    months: u8,
+    range: bool,
+    month_names: &'a str,
+    day_names: &'a str,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    let hoje = iso_ymd(today);
+    let inicio_sel = iso_ymd(context.get(value_var).map(String::as_str).unwrap_or(""));
+    let fim_sel = if range {
+        iso_ymd(context.get(end_var).map(String::as_str).unwrap_or(""))
+    } else {
+        None
+    };
+    let piso_min = iso_ymd(min).map(ordem);
+    let teto_max = iso_ymd(max).map(ordem);
+
+    // O mês visível: a chave do app quando `month=` a nomeia, senão a do motor.
+    // As duas guardam o mesmo formato, então trocar de uma para a outra não
+    // muda uma linha do resto.
+    let chave_view = if month_var.is_empty() {
+        format!("{CAL_VIEW_PREFIX}{value_var}")
+    } else {
+        month_var.to_string()
+    };
+    // Sem nada gravado, a grade abre no mês da data escolhida — e, sem data, no
+    // de hoje. Abrir em 2000-01 seria tecnicamente correto e inútil.
+    let (pa, pm) = inicio_sel
+        .or(hoje)
+        .map(|(a, m, _)| (a, m))
+        .unwrap_or((2000, 1));
+    let view = CalView::parse(context.get(&chave_view), pa, pm, mode);
+
+    let nomes_mes: Vec<&str> = if month_names.trim().is_empty() {
+        MESES_PT.to_vec()
+    } else {
+        month_names.split_whitespace().collect()
+    };
+    let nome_mes = |m: i64| -> String {
+        nomes_mes
+            .get((m - 1).clamp(0, 11) as usize)
+            .copied()
+            .unwrap_or("?")
+            .to_string()
+    };
+    let nomes_dia: Vec<&str> = if day_names.trim().is_empty() {
+        DIAS_PT.to_vec()
+    } else {
+        day_names.split_whitespace().collect()
+    };
+
+    let acao = on_change.to_string();
+    let chave = value_var.to_string();
+    let chave_fim = end_var.to_string();
+    let chave_view_c = chave_view.clone();
+
+    // Gravar é sempre a mesma decisão, e é o contrato do `<TextInput>`: sem
+    // `onChange` o widget escreve; com ele, avisa. `extra` são os pares do
+    // MOTOR (mês visível, nível, hover) — esses vão junto no modo que grava, e
+    // sozinhos no modo que delega, porque navegar não é escolher.
+    let commit = move |valor: Vec<(String, String)>, delegado: String| -> EngineMessage {
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(valor)
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: delegado,
+            }
+        }
+    };
+
+    // ‹ › e o título. O passo depende do degrau: um mês na grade de dias, um
+    // ano na de meses, um bloco de 16 na de anos — a mesma escada do Qt.
+    let passo_nav = move |delta: i64| -> (i64, i64) {
+        match view.nivel {
+            'M' => (view.ano + delta, view.mes),
+            'y' => (view.ano + delta * 16, view.mes),
+            _ => {
+                let bruto = (view.ano * 12 + view.mes - 1) + delta;
+                (bruto.div_euclid(12), bruto.rem_euclid(12) + 1)
+            }
+        }
+    };
+    let nav = |delta: i64| -> EngineMessage {
+        let (a, m) = passo_nav(delta);
+        EngineMessage::ContextPatch(vec![(
+            chave_view_c.clone(),
+            CalView {
+                ano: a.clamp(1, 9999),
+                mes: m,
+                nivel: view.nivel,
+            }
+            .serializa(),
+        )])
+    };
+
+    let titulo = match view.nivel {
+        'M' => format!("{}", view.ano),
+        'y' => {
+            let base = view.ano - view.ano.rem_euclid(16);
+            format!("{}–{}", base, base + 15)
+        }
+        _ if months > 1 => {
+            let bruto = view.ano * 12 + view.mes - 1 + (months as i64 - 1);
+            format!(
+                "{} {} – {} {}",
+                nome_mes(view.mes),
+                view.ano,
+                nome_mes(bruto.rem_euclid(12) + 1),
+                bruto.div_euclid(12)
+            )
+        }
+        _ => format!("{} {}", nome_mes(view.mes), view.ano),
+    };
+
+    // Subir a escada é navegação pura: sempre um `ContextPatch`, mesmo quando o
+    // widget delega a escrita da chave.
+    let sobe = (view.nivel != 'y').then(|| {
+        EngineMessage::ContextPatch(vec![(
+            chave_view.clone(),
+            CalView {
+                ano: view.ano,
+                mes: view.mes,
+                nivel: if view.nivel == 'd' { 'M' } else { 'y' },
+            }
+            .serializa(),
+        )])
+    });
+
+    let seta = |glifo: &'static str, msg: EngineMessage| {
+        button(text(glifo).size(14))
+            .padding(Padding {
+                top: 2.0,
+                right: 9.0,
+                bottom: 2.0,
+                left: 9.0,
+            })
+            .on_press(msg)
+            .style(|theme: &iced::Theme, status| {
+                let p = theme.extended_palette();
+                button::Style {
+                    background: matches!(status, button::Status::Hovered | button::Status::Pressed)
+                        .then_some(Background::Color(p.background.weak.color)),
+                    text_color: p.background.strong.text,
+                    border: Border::default().rounded(4),
+                    ..button::Style::default()
+                }
+            })
+    };
+
+    let mut btn_titulo = button(
+        text(titulo)
+            .size(14)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .padding(Padding {
+        top: 2.0,
+        right: 6.0,
+        bottom: 2.0,
+        left: 6.0,
+    })
+    .style(|theme: &iced::Theme, status| {
+        let p = theme.extended_palette();
+        button::Style {
+            background: matches!(status, button::Status::Hovered | button::Status::Pressed)
+                .then_some(Background::Color(p.background.weak.color)),
+            text_color: p.background.base.text,
+            border: Border::default().rounded(4),
+            ..button::Style::default()
+        }
+    });
+    if let Some(m) = sobe {
+        btn_titulo = btn_titulo.on_press(m);
+    }
+
+    let cabecalho = row![seta("‹", nav(-1)), btn_titulo, seta("›", nav(1))]
+        .spacing(2)
+        .align_y(iced::Alignment::Center);
+
+    const CEL: f32 = 34.0;
+    let largura_grade = CEL * 7.0;
+
+    // Um dia é escolhível? Fora de `min`/`max` a célula fica inerte — que é o
+    // que "limite" significa aqui: nem clique, nem realce de hover.
+    let na_faixa =
+        |o: i64| -> bool { piso_min.is_none_or(|p| o >= p) && teto_max.is_none_or(|t| o <= t) };
+
+    let corpo: Element<'a, EngineMessage> = match view.nivel {
+        // ── a grade de dias ─────────────────────────────────────────────────
+        'd' => {
+            let hover = if range {
+                iso_ymd(
+                    context
+                        .get(CAL_HOVER_CONTEXT)
+                        .map(String::as_str)
+                        .unwrap_or(""),
+                )
+                .map(ordem)
+            } else {
+                None
+            };
+            let o_inicio = inicio_sel.map(ordem);
+            let o_fim = fim_sel.map(ordem);
+            // A faixa provisória: do início até o cursor, enquanto o fim não
+            // foi escolhido. É o único motivo de o hover existir.
+            let (faixa_a, faixa_b) = match (o_inicio, o_fim, hover) {
+                (Some(a), Some(b), _) => (Some(a.min(b)), Some(a.max(b))),
+                (Some(a), None, Some(h)) if h >= a => (Some(a), Some(h)),
+                _ => (None, None),
+            };
+
+            let mut grades = row![].spacing(14).align_y(iced::Alignment::Start);
+            for k in 0..months as i64 {
+                let bruto = view.ano * 12 + view.mes - 1 + k;
+                let (ano, mes) = (bruto.div_euclid(12), bruto.rem_euclid(12) + 1);
+                let mut grade = column![].spacing(2);
+
+                if months > 1 {
+                    grade = grade.push(
+                        text(format!("{} {}", nome_mes(mes), ano))
+                            .size(12)
+                            .width(Length::Fixed(largura_grade))
+                            .align_x(iced::alignment::Horizontal::Center),
+                    );
+                }
+
+                // O cabeçalho da semana. `monday_first` gira a lista de sete
+                // iniciais, em vez de exigir uma segunda lista na prop.
+                let mut semana = row![].spacing(0);
+                for i in 0..7usize {
+                    let idx = if monday_first { (i + 1) % 7 } else { i };
+                    semana = semana.push(cal_celula(
+                        nomes_dia.get(idx).copied().unwrap_or("?").to_string(),
+                        CelEstado::Inerte,
+                        CEL,
+                        None,
+                    ));
+                }
+                grade = grade.push(semana);
+
+                let primeiro = dia_da_semana(ano, mes, 1);
+                let vao = if monday_first {
+                    (primeiro + 6).rem_euclid(7)
+                } else {
+                    primeiro
+                };
+                let total = dias_no_mes(ano, mes);
+                for linha in 0..6i64 {
+                    let mut r = row![].spacing(0);
+                    for col in 0..7i64 {
+                        let dia = linha * 7 + col - vao + 1;
+                        if dia < 1 || dia > total {
+                            // Célula do mês vizinho: aparece vazia e inerte.
+                            // Deixá-la clicável exigiria mover o mês visível
+                            // junto com a escolha, e no modo que DELEGA a
+                            // escrita o widget não pode fazer as duas coisas
+                            // numa mensagem só — as setas ‹ › cobrem o caso.
+                            r = r.push(cal_celula(String::new(), CelEstado::Inerte, CEL, None));
+                            continue;
+                        }
+                        let o = days_from_civil(ano, mes, dia);
+                        let iso = format!("{ano:04}-{mes:02}-{dia:02}");
+                        let selecionado = o_inicio == Some(o) || o_fim == Some(o);
+                        let estado = if !na_faixa(o) {
+                            CelEstado::Inerte
+                        } else if selecionado {
+                            CelEstado::Selecionada
+                        } else if faixa_a.is_some_and(|a| o > a) && faixa_b.is_some_and(|b| o < b) {
+                            CelEstado::Faixa
+                        } else if hoje.map(ordem) == Some(o) {
+                            CelEstado::Hoje
+                        } else {
+                            CelEstado::Normal
+                        };
+
+                        let msg = na_faixa(o).then(|| {
+                            if range {
+                                // Início e fim numa mordida: primeiro clique
+                                // (ou clique depois de um par fechado, ou antes
+                                // do início) recomeça; o segundo fecha.
+                                let recomeca = o_inicio.is_none()
+                                    || o_fim.is_some()
+                                    || o_inicio.is_some_and(|a| o < a);
+                                let (ini, fim) = if recomeca {
+                                    (iso.clone(), String::new())
+                                } else {
+                                    (
+                                        context.get(&chave).cloned().unwrap_or_default(),
+                                        iso.clone(),
+                                    )
+                                };
+                                commit(
+                                    vec![
+                                        (chave.clone(), ini.clone()),
+                                        (chave_fim.clone(), fim.clone()),
+                                    ],
+                                    format!("{ini} {fim}").trim_end().to_string(),
+                                )
+                            } else {
+                                commit(vec![(chave.clone(), iso.clone())], iso.clone())
+                            }
+                        });
+
+                        let cel = cal_celula(dia.to_string(), estado, CEL, msg);
+                        // O hover só é rastreado enquanto há uma ponta aberta:
+                        // fora disso seria uma mensagem por célula visitada,
+                        // 42 por grade, sem nada para pintar com ela.
+                        let rastreia_hover =
+                            range && o_inicio.is_some() && o_fim.is_none() && na_faixa(o);
+                        r = r.push(if rastreia_hover {
+                            mouse_area(cel)
+                                .on_enter(EngineMessage::ContextPatch(vec![(
+                                    CAL_HOVER_CONTEXT.to_string(),
+                                    iso,
+                                )]))
+                                .into()
+                        } else {
+                            cel
+                        });
+                    }
+                    grade = grade.push(r);
+                }
+                grades = grades.push(grade);
+            }
+            grades.into()
+        }
+        // ── a grade de meses (o drill-up do Qt, promovido a tag) ────────────
+        'M' => {
+            let sel_mes = inicio_sel
+                .filter(|(a, _, _)| *a == view.ano)
+                .map(|(_, m, _)| m);
+            let mut grade = column![].spacing(4);
+            for linha in 0..4i64 {
+                let mut r = row![].spacing(4);
+                for col in 0..3i64 {
+                    let m = linha * 3 + col + 1;
+                    let estado = if sel_mes == Some(m) && mode == 'M' {
+                        CelEstado::Selecionada
+                    } else if hoje.is_some_and(|(a, hm, _)| a == view.ano && hm == m) {
+                        CelEstado::Hoje
+                    } else {
+                        CelEstado::Normal
+                    };
+                    // Clicar num mês GRAVA quando o piso da escada é o mês
+                    // (`<monthyearpicker>`); senão só desce um degrau.
+                    let msg = if mode == 'M' {
+                        let iso = format!("{:04}-{m:02}", view.ano);
+                        Some(commit(vec![(chave.clone(), iso.clone())], iso))
+                    } else {
+                        Some(EngineMessage::ContextPatch(vec![(
+                            chave_view.clone(),
+                            CalView {
+                                ano: view.ano,
+                                mes: m,
+                                nivel: 'd',
+                            }
+                            .serializa(),
+                        )]))
+                    };
+                    r = r.push(cal_celula(
+                        nome_mes(m).chars().take(3).collect::<String>(),
+                        estado,
+                        (largura_grade - 8.0) / 3.0,
+                        msg,
+                    ));
+                }
+                grade = grade.push(r);
+            }
+            grade.into()
+        }
+        // ── a grade de anos ─────────────────────────────────────────────────
+        _ => {
+            let base = view.ano - view.ano.rem_euclid(16);
+            let sel_ano = inicio_sel.map(|(a, _, _)| a);
+            let mut grade = column![].spacing(4);
+            for linha in 0..4i64 {
+                let mut r = row![].spacing(4);
+                for col in 0..4i64 {
+                    let a = base + linha * 4 + col;
+                    let estado = if sel_ano == Some(a) && mode == 'y' {
+                        CelEstado::Selecionada
+                    } else if hoje.is_some_and(|(ha, _, _)| ha == a) {
+                        CelEstado::Hoje
+                    } else {
+                        CelEstado::Normal
+                    };
+                    let msg = if mode == 'y' {
+                        let iso = format!("{a:04}");
+                        Some(commit(vec![(chave.clone(), iso.clone())], iso))
+                    } else {
+                        Some(EngineMessage::ContextPatch(vec![(
+                            chave_view.clone(),
+                            CalView {
+                                ano: a,
+                                mes: view.mes,
+                                nivel: 'M',
+                            }
+                            .serializa(),
+                        )]))
+                    };
+                    r = r.push(cal_celula(
+                        a.to_string(),
+                        estado,
+                        (largura_grade - 12.0) / 4.0,
+                        msg,
+                    ));
+                }
+                grade = grade.push(r);
+            }
+            grade.into()
+        }
+    };
+
+    // Uma caixa só em volta de tudo, como o `QCalendarWidget` — e, como o
+    // `DateTimeEdit`, pintada aqui dentro: a primitiva é uma composição em
+    // Rust, então ela já controla o próprio tamanho e o wrap genérico de
+    // background/borda nunca precisa decidir por ela (ver `PRIMITIVAS.md`).
+    container(column![cabecalho, corpo].spacing(6))
+        .padding(8)
+        .width(if node.width.is_some() {
+            parse_length(&node.width)
+        } else {
+            Length::Shrink
+        })
+        .style(|theme: &iced::Theme| {
+            let p = theme.extended_palette();
+            container::Style {
+                background: Some(Background::Color(p.background.base.color)),
+                border: Border {
+                    color: p.background.strong.color,
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                ..container::Style::default()
+            }
+        })
+        .into()
+}
+
+// ── Paginação, nota por estrelas e campo mascarado ───────────────────────────
+
+/// Chave **global** com a estrela sob o cursor num `<rating>`, no formato
+/// `"<chave>:<n>"`.
+///
+/// Global pelo mesmo motivo do [`CAL_HOVER_CONTEXT`]: só uma estrela da tela
+/// inteira está sob o cursor por vez. A identidade da instância viaja no valor,
+/// e é ela que mantém dois `<rating>` independentes.
+pub(crate) const RATING_HOVER_CONTEXT: &str = "__rating";
+
+/// A janela de números de uma paginação: quais páginas aparecem, dado o total,
+/// a atual e quantos números cabem.
+///
+/// A janela **anda** com a página, mas gruda nas pontas: perto do começo ela
+/// não sai de 1, perto do fim não passa do total. É o que evita o efeito de
+/// ver `3 4 5 6 7` quando se está na página 1.
+///
+/// Isto é a razão de o `Pagination` ser primitiva e não builtin: é repetição
+/// dirigida por um **número**, e o `for-each` do motor lê uma coleção.
+fn janela_paginas(pagina: usize, total: usize, largura: usize) -> std::ops::RangeInclusive<usize> {
+    // `total = 0` não chega aqui pelo render (ele esconde o widget antes), mas
+    // a função é pública para o teste e um `max(1)` custa menos do que um
+    // intervalo vazio que o chamador teria de tratar.
+    let total = total.max(1);
+    let largura = largura.clamp(1, total);
+    let meia = largura / 2;
+    let inicio = pagina
+        .saturating_sub(meia)
+        .max(1)
+        .min(total.saturating_sub(largura) + 1);
+    inicio..=(inicio + largura - 1).min(total)
+}
+
+/// Aplica a máscara a um valor **cru**, parando no primeiro símbolo que o cru
+/// não alimenta.
+///
+/// Os literais entram **antes** do dado seguinte, não depois do anterior: com
+/// `"###.###"` e o cru `"123"` a saída é `"123"`, não `"123."` — um separador
+/// pendurado no fim faz o cursor parecer estar no lugar errado enquanto se
+/// digita.
+fn aplica_mascara(cru: &str, mascara: &str) -> String {
+    let mut saida = String::with_capacity(mascara.len());
+    let mut fonte = cru.chars().peekable();
+    let mut pendentes = String::new();
+    for simbolo in mascara.chars() {
+        match simbolo {
+            '#' | 'A' | '*' => {
+                let Some(c) = fonte.next() else { break };
+                saida.push_str(&pendentes);
+                pendentes.clear();
+                saida.push(c);
+            }
+            // Literal: só entra se ainda houver dado depois dele.
+            literal => pendentes.push(literal),
+        }
+    }
+    saida
+}
+
+/// Extrai de um texto **qualquer** os caracteres que a máscara aceita, na
+/// ordem, respeitando o tipo de cada posição.
+///
+/// É a volta do [`aplica_mascara`]: o `on_input` do `iced` entrega a string
+/// exibida já editada (com os separadores dentro), e o que a chave guarda é o
+/// cru. Filtrar por posição — e não só "tira o que não é dígito" — é o que faz
+/// uma máscara mista (`AAA#*##`, a placa Mercosul) aceitar letra e dígito no
+/// lugar certo.
+fn extrai_cru(texto: &str, mascara: &str) -> String {
+    let tipos: Vec<char> = mascara
+        .chars()
+        .filter(|c| matches!(c, '#' | 'A' | '*'))
+        .collect();
+    // Sem símbolos, a máscara é toda literal: nada a guardar.
+    if tipos.is_empty() {
+        return String::new();
+    }
+    let mut cru = String::with_capacity(tipos.len());
+    for c in texto.chars() {
+        let Some(tipo) = tipos.get(cru.chars().count()) else {
+            break; // a máscara encheu — o resto da digitação cai fora
+        };
+        let serve = match tipo {
+            '#' => c.is_ascii_digit(),
+            'A' => c.is_alphabetic(),
+            _ => c.is_alphanumeric(),
+        };
+        if serve {
+            cru.push(if *tipo == 'A' || *tipo == '*' {
+                c.to_ascii_uppercase()
+            } else {
+                c
+            });
+        }
+    }
+    cru
+}
+
+/// Por que **não** existe um tratamento especial de backspace aqui.
+///
+/// A tentação é óbvia: apagar um **separador** não muda o cru (ele não estava
+/// lá), então a remascaração devolveria a tela ao estado anterior e a tecla
+/// pareceria não funcionar. A correção usual é "se o texto encolheu e o cru
+/// não, come um caractere do cru".
+///
+/// Duas razões para não fazer isso:
+///
+/// 1. **O caso comum não acontece.** O [`aplica_mascara`] nunca emite um
+///    separador pendurado no fim (`"123"`, não `"123."`), então apagar no fim
+///    da string — que é onde se digita — sempre remove um caractere do cru.
+/// 2. **O caso raro não tem conserto honesto.** Apagar o `.` do *meio* de
+///    `"123.456"` deveria remover o `3`, e saber isso exige a posição do
+///    cursor, que o `on_input` do `iced` não entrega. Comer o **último**
+///    caractere em vez disso apagaria o `6` — destrutivo, e num lugar onde a
+///    pessoa não estava olhando.
+///
+/// Sem cursor, não fazer nada é o comportamento seguro: a tecla seguinte
+/// remove o dígito de verdade.
+/// `<pagination>`: primeira · anterior · a janela de números · próxima · última.
+fn render_pagination<'a>(
+    context: &'a ContextMap,
+    value_var: &'a str,
+    total: &'a str,
+    window: usize,
+    ends: bool,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    // `total` chega como texto (ver o campo em `NodeType::Pagination`): o que
+    // não é número conta como zero, e zero esconde o widget — que é a mesma
+    // degradação de uma chave ainda não semeada.
+    let total = total.trim().parse::<usize>().unwrap_or(0);
+    // Uma paginação de zero ou uma página é ruído, não informação — o Qt
+    // esconde a barra de rolagem pelo mesmo motivo.
+    if total <= 1 {
+        return Space::new()
+            .width(Length::Shrink)
+            .height(Length::Shrink)
+            .into();
+    }
+    let atual = context
+        .get(value_var)
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(1)
+        .clamp(1, total);
+
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+    let ir = move |n: usize| -> EngineMessage {
+        let n = n.to_string();
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![(chave.clone(), n)])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: n,
+            }
+        }
+    };
+
+    // Um degrau (‹ › « ») ou um número. `destaque` é a página atual; `None` em
+    // `msg` deixa o botão inerte — é como as pontas se desabilitam no limite,
+    // que é justamente o que o `SpinBox` **não** consegue fazer por ser builtin
+    // (ver os limites conhecidos dele).
+    let celula = |rotulo: String, destaque: bool, msg: Option<EngineMessage>| {
+        // `ativo` é lido dentro do `.style()`, que é `move` e não pode tomar a
+        // mensagem emprestada — daí o `bool` extraído antes.
+        let ativo = msg.is_some();
+        let mut b = button(text(rotulo).size(13))
+            .padding(Padding {
+                top: 5.0,
+                right: 10.0,
+                bottom: 5.0,
+                left: 10.0,
+            })
+            .style(move |theme: &iced::Theme, status| {
+                let p = theme.extended_palette();
+                let pairado = matches!(status, button::Status::Hovered | button::Status::Pressed);
+                button::Style {
+                    background: if destaque {
+                        Some(Background::Color(p.primary.base.color))
+                    } else if pairado {
+                        Some(Background::Color(p.background.weak.color))
+                    } else {
+                        None
+                    },
+                    text_color: match (destaque, ativo) {
+                        (true, _) => p.primary.base.text,
+                        (_, true) => p.background.base.text,
+                        // Inerte: o cinza fraco, que é a única pista de que
+                        // clicar ali não faz nada.
+                        (_, false) => p.background.weak.color,
+                    },
+                    border: Border::default().rounded(5),
+                    ..button::Style::default()
+                }
+            });
+        if let Some(m) = msg {
+            b = b.on_press(m);
+        }
+        b
+    };
+
+    let mut linha = row![].spacing(2).align_y(iced::Alignment::Center);
+    if ends {
+        linha = linha.push(celula("«".into(), false, (atual > 1).then(|| ir(1))));
+    }
+    linha = linha.push(celula(
+        "‹".into(),
+        false,
+        (atual > 1).then(|| ir(atual - 1)),
+    ));
+
+    let janela = janela_paginas(atual, total, window);
+    // As reticências só aparecem quando há mesmo algo escondido — e são texto
+    // inerte, não botão: um "…" clicável não tem destino óbvio.
+    if *janela.start() > 1 {
+        linha = linha.push(celula("1".into(), false, Some(ir(1))));
+        if *janela.start() > 2 {
+            linha = linha.push(celula("…".into(), false, None));
+        }
+    }
+    for n in janela.clone() {
+        linha = linha.push(celula(
+            n.to_string(),
+            n == atual,
+            (n != atual).then(|| ir(n)),
+        ));
+    }
+    if *janela.end() < total {
+        if *janela.end() + 1 < total {
+            linha = linha.push(celula("…".into(), false, None));
+        }
+        linha = linha.push(celula(total.to_string(), false, Some(ir(total))));
+    }
+
+    linha = linha.push(celula(
+        "›".into(),
+        false,
+        (atual < total).then(|| ir(atual + 1)),
+    ));
+    if ends {
+        linha = linha.push(celula(
+            "»".into(),
+            false,
+            (atual < total).then(|| ir(total)),
+        ));
+    }
+    linha.into()
+}
+
+/// `<rating>`: N alvos numa linha, com pré-visualização no hover.
+#[allow(clippy::too_many_arguments)]
+fn render_rating<'a>(
+    context: &'a ContextMap,
+    value_var: &'a str,
+    max: &'a str,
+    filled: &'a str,
+    empty: &'a str,
+    size: f32,
+    color: &'a str,
+    readonly: bool,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    // Como o `total` da paginação, `max` chega como texto para poder
+    // interpolar. Preso em `[1, 20]`: um `max="0"` não desenharia nada e um
+    // `max="500"` não é uma nota, é uma régua.
+    let max = max.trim().parse::<usize>().unwrap_or(5).clamp(1, 20);
+    let nota = context
+        .get(value_var)
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .unwrap_or(0.0)
+        .round()
+        .clamp(0.0, max as f64) as usize;
+
+    // O hover é da instância certa? A chave é global, e carrega a identidade
+    // junto (`avaliacao:4`) — a mesma forma do `__timeedit`.
+    let previa = (!readonly)
+        .then(|| {
+            context
+                .get(RATING_HOVER_CONTEXT)
+                .and_then(|v| v.split_once(':'))
+                .filter(|(chave, _)| *chave == value_var)
+                .and_then(|(_, n)| n.parse::<usize>().ok())
+        })
+        .flatten();
+    // Enquanto o cursor está sobre uma estrela, é ELA que a linha desenha —
+    // que é o ponto todo da pré-visualização.
+    let ate = previa.unwrap_or(nota);
+
+    let cor = parse_hex_color(color);
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+
+    let mut linha = row![].spacing(2).align_y(iced::Alignment::Center);
+    for n in 1..=max {
+        let cheia = n <= ate;
+        let glifo = if cheia { filled } else { empty }.to_string();
+        let mut alvo = button(text(glifo).size(size))
+            .padding(Padding {
+                top: 0.0,
+                right: 1.0,
+                bottom: 0.0,
+                left: 1.0,
+            })
+            .style(move |theme: &iced::Theme, _status| button::Style {
+                background: None,
+                text_color: match (cheia, cor) {
+                    (true, Some(c)) => c,
+                    (true, None) => theme.extended_palette().primary.base.color,
+                    (false, _) => theme.extended_palette().background.strong.color,
+                },
+                border: Border::default(),
+                ..button::Style::default()
+            });
+
+        if readonly {
+            // Sem `on_press` e sem `mouse_area`: o `Status::Disabled` nativo do
+            // iced entra em vigor sozinho, e nenhuma mensagem de hover é
+            // emitida por uma lista de avaliações que ninguém vai editar.
+            linha = linha.push(alvo);
+            continue;
+        }
+
+        // Clicar na estrela já marcada **zera** a nota: é como se tira uma
+        // avaliação sem um botão "limpar" ao lado, e é o que todo site de
+        // resenha faz.
+        let novo = if n == nota { 0 } else { n }.to_string();
+        alvo = alvo.on_press(if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![
+                (chave.clone(), novo),
+                (RATING_HOVER_CONTEXT.to_string(), String::new()),
+            ])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: novo,
+            }
+        });
+        linha = linha.push(
+            mouse_area(alvo)
+                .on_enter(EngineMessage::ContextPatch(vec![(
+                    RATING_HOVER_CONTEXT.to_string(),
+                    format!("{chave}:{n}"),
+                )]))
+                .on_exit(EngineMessage::ContextPatch(vec![(
+                    RATING_HOVER_CONTEXT.to_string(),
+                    String::new(),
+                )])),
+        );
+    }
+    linha.into()
+}
+
+/// `<maskedinput>`: cru na chave, mascarado na tela.
+fn render_masked_input<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    value_var: &'a str,
+    mask: &'a str,
+    placeholder: &'a str,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    let cru = context.get(value_var).cloned().unwrap_or_default();
+    let exibido = aplica_mascara(&cru, mask);
+
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+    let mascara = mask.to_string();
+
+    // A dica default é a própria máscara com os símbolos virados `_`: ela diz
+    // o formato sem o app precisar repetir "000.000.000-00" em toda tela.
+    let dica = if placeholder.is_empty() {
+        mask.chars()
+            .map(|c| if matches!(c, '#' | 'A' | '*') { '_' } else { c })
+            .collect::<String>()
+    } else {
+        placeholder.to_string()
+    };
+
+    let mut campo = text_input(&dica, &exibido).on_input(move |digitado| {
+        let novo = extrai_cru(&digitado, &mascara);
+        // O mesmo contrato do `<TextInput>`: sem `onChange` o widget grava a
+        // chave sozinho; com ele, entrega o valor **cru** — nunca o mascarado,
+        // que é exatamente a separação que o widget existe para manter.
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: novo,
+            }
+        }
+    });
+    campo = campo.padding(8);
+    // Como o `text_input` do iced é `Length::Fill` por padrão, só chamamos
+    // `.width()` quando o nó declara uma — a mesma ressalva que o `<TextInput>`
+    // já carregava (ver `PRIMITIVAS.md`).
+    if node.width.is_some() {
+        campo = campo.width(parse_length(&node.width));
+    }
+    campo.into()
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
-    context: &'a HashMap<String, String>,
+    context: &'a ContextMap,
     editors: &'a EditorMap,
     combos: &'a ComboMap,
     assets: &dyn crate::asset_source::AssetSource,
+    view: RenderView<'a>,
 ) -> Element<'a, EngineMessage> {
     // `hidden: true` (`display: none`) — sai do layout por completo. Os
     // contêineres Row/Column/Form já filtram filhos ocultos (sem `spacing`
@@ -481,7 +2014,7 @@ pub fn render_node<'a>(
                     weight: iced::font::Weight::Bold,
                     ..Default::default()
                 });
-            } else if let Some(f) = font_for(&node.font) {
+            } else if let Some(f) = font_for(node.font()) {
                 t = t.font(f);
             }
             if let Some(c_str) = color
@@ -489,7 +2022,7 @@ pub fn render_node<'a>(
             {
                 t = t.color(col);
             }
-            if let Some(align) = parse_text_align(&node.text_align) {
+            if let Some(align) = parse_text_align(node.text_align()) {
                 t = t.align_x(align);
             }
             t.width(parse_length(&node.width))
@@ -519,13 +2052,13 @@ pub fn render_node<'a>(
                 .collect();
             let content: Element<'a, EngineMessage> = if visible_children.is_empty() {
                 let mut t = text(btn_text.as_str());
-                if let Some(f) = font_for(&node.font) {
+                if let Some(f) = font_for(node.font()) {
                     t = t.font(f);
                 }
                 // `textAlign` aligns the label inside the button. For a full-width
                 // button the label must fill the button's width to actually move,
                 // so `center`/`end` get `width: fill` on the text.
-                if let Some(align) = parse_text_align(&node.text_align) {
+                if let Some(align) = parse_text_align(node.text_align()) {
                     t = t.align_x(align);
                     if !matches!(align, iced::alignment::Horizontal::Left) {
                         t = t.width(Length::Fill);
@@ -533,17 +2066,17 @@ pub fn render_node<'a>(
                 }
                 t.into()
             } else if visible_children.len() == 1 {
-                render_node(visible_children[0], context, editors, combos, assets)
+                render_node(visible_children[0], context, editors, combos, assets, view)
             } else {
                 let mut r = row![];
-                if let Some(align_val) = parse_alignment(&node.align_y) {
+                if let Some(align_val) = parse_alignment(node.align_y()) {
                     r = r.align_y(align_val);
                 }
                 if let Some(sp) = node.spacing {
                     r = r.spacing(sp);
                 }
                 for child in visible_children {
-                    r = r.push(render_node(child, context, editors, combos, assets));
+                    r = r.push(render_node(child, context, editors, combos, assets, view));
                 }
                 r.into()
             };
@@ -569,24 +2102,22 @@ pub fn render_node<'a>(
                 let br_radius = node.border_radius.unwrap_or(0.0);
                 let br_width = node.border_width.unwrap_or(0.0);
                 let br_color = node
-                    .border_color
-                    .as_ref()
-                    .and_then(|c| parse_hex_color(c))
+                    .border_color()
+                    .and_then(parse_hex_color)
                     .unwrap_or(Color::TRANSPARENT);
                 // Cor do rótulo: `textColor`/`.classe { text-color }`, senão
                 // branco (default histórico). O `color` do botão é o fundo.
                 let label_col = node
-                    .text_color
-                    .as_deref()
+                    .text_color()
                     .and_then(parse_hex_color)
                     .unwrap_or(Color::WHITE);
                 // Overlays por pseudo-estado (`.classe:hover/:active/:disabled { }`),
                 // já resolvidos em `eval.rs`; `None` quando o `.gss` não declara
                 // aquele estado — nesse caso cai no auto-derive histórico
                 // (±10% de luminância) ou, para `disabled`, 50% de alfa.
-                let hover_ov = node.hover_style.as_deref().cloned();
-                let active_ov = node.active_style.as_deref().cloned();
-                let disabled_ov = node.disabled_style.as_deref().cloned();
+                let hover_ov = node.hover_style().cloned();
+                let active_ov = node.active_style().cloned();
+                let disabled_ov = node.disabled_style().cloned();
                 btn = btn.style(move |_theme, status| {
                     use iced::widget::button::Status;
                     let overlay = match status {
@@ -641,10 +2172,19 @@ pub fn render_node<'a>(
                 });
             }
 
-            btn.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .padding(parse_padding(&node.padding))
-                .into()
+            let mut btn = btn
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height));
+            // Mesma história do `<TextInput>` logo abaixo: o padding default do
+            // `button` do iced é `DEFAULT_PADDING` (5px), não zero. Chamar
+            // `.padding()` incondicionalmente colapsava para `Padding::ZERO`
+            // todo botão que não declarasse um — o fundo colado nos glifos, que
+            // lê como texto selecionado em vez de botão. Só sobrescreve quando
+            // o markup pede.
+            if node.padding.is_some() {
+                btn = btn.padding(parse_padding(&node.padding));
+            }
+            btn.into()
         }
         NodeType::TextInput {
             placeholder,
@@ -673,18 +2213,17 @@ pub fn render_node<'a>(
             // `disabled` for the same reason as `on_input` above.
             if !is_disabled
                 && let (Some(control), Some(scope), Some(submit_action)) = (
-                    &node.form_control,
-                    &node.form_scope,
-                    &node.form_submit_action,
+                    node.form_control(),
+                    node.form_scope(),
+                    node.form_submit_action(),
                 )
             {
                 input = input.id(form_input_id(scope, control));
                 let next_focus = node
-                    .form_next_focus
-                    .as_ref()
+                    .form_next_focus()
                     .map(|next| form_input_id(scope, next));
                 input = input.on_submit(EngineMessage::UiSubmit {
-                    action: submit_action.clone(),
+                    action: submit_action.to_string(),
                     next_focus,
                 });
             }
@@ -708,13 +2247,13 @@ pub fn render_node<'a>(
             // Overlays por pseudo-estado (`:hover`/`:focus`/`:disabled`);
             // parte do estilo padrão do tema (`text_input::default`) e
             // sobrescreve só os campos que o `.gss` realmente declarou.
-            if node.hover_style.is_some()
-                || node.focus_style.is_some()
-                || node.disabled_style.is_some()
+            if node.hover_style().is_some()
+                || node.focus_style().is_some()
+                || node.disabled_style().is_some()
             {
-                let hover_ov = node.hover_style.as_deref().cloned();
-                let focus_ov = node.focus_style.as_deref().cloned();
-                let disabled_ov = node.disabled_style.as_deref().cloned();
+                let hover_ov = node.hover_style().cloned();
+                let focus_ov = node.focus_style().cloned();
+                let disabled_ov = node.disabled_style().cloned();
                 input = input.style(move |theme, status| {
                     use iced::widget::text_input::Status;
                     let mut style = iced::widget::text_input::default(theme, status);
@@ -778,7 +2317,7 @@ pub fn render_node<'a>(
                             readonly,
                         })
                         .padding(parse_padding(&node.padding));
-                    if let Some(f) = font_for(&node.font) {
+                    if let Some(f) = font_for(node.font()) {
                         ed = ed.font(f);
                     }
                     ed.height(parse_length(&node.height)).into()
@@ -843,8 +2382,17 @@ pub fn render_node<'a>(
             s.into()
         }
         NodeType::Scrollable { direction } => {
+            // A janela deste scrollable, para quem estiver abaixo virtualizar.
+            // A altura é a da janela do app: quem sabe a altura real deste
+            // widget é o layout do iced, e pedi-la aqui seria circular — então
+            // erra-se por excesso, montando alguns itens a mais.
+            let deslocamento = view.scroll.get(&node.node_id).copied().unwrap_or(0.0);
+            let interno = RenderView {
+                janela: Some((deslocamento, view.altura_janela)),
+                ..view
+            };
             let child: Element<'a, EngineMessage> = if let Some(first) = node.children.first() {
-                render_node(first, context, editors, combos, assets)
+                render_node(first, context, editors, combos, assets, interno)
             } else {
                 column![].into()
             };
@@ -858,9 +2406,27 @@ pub fn render_node<'a>(
                 },
                 _ => scrollable::Direction::Vertical(scrollable::Scrollbar::new()),
             };
-            scrollable(child)
-                .direction(dir)
-                .width(parse_length(&node.width))
+            let chave = node.node_id;
+            let mut s = scrollable(child).direction(dir);
+            // O aviso de rolagem só é pendurado quando há o que virtualizar
+            // **logo abaixo**: cada evento vira uma mensagem, que passa pelo
+            // `dispatch` e por qualquer gancho que o app tenha pendurado nele.
+            // Cobrar isso de quem não virtualiza seria piorar o caso comum.
+            if node
+                .children
+                .first()
+                .and_then(|c| c.virtualize)
+                .is_some_and(|h| h > 0.0)
+            {
+                s = s.on_scroll(move |vp| {
+                    let o = vp.absolute_offset();
+                    EngineMessage::Scrolled {
+                        key: chave,
+                        offset: o.y.max(o.x),
+                    }
+                });
+            }
+            s.width(parse_length(&node.width))
                 .height(parse_length(&node.height))
                 .into()
         }
@@ -907,7 +2473,7 @@ pub fn render_node<'a>(
                     value: next.map(str::to_string).unwrap_or_else(|| v.to_string()),
                 });
             }
-            if let Some(s) = node.text_align.as_ref().and(node.spacing) {
+            if let Some(s) = node.text_align().and(node.spacing) {
                 c = c.spacing(s);
             }
             c.into()
@@ -975,12 +2541,12 @@ pub fn render_node<'a>(
             let bg = background_for(node);
             let br_radius = node.border_radius;
             let br_width = node.border_width;
-            let br_color = node.border_color.as_ref().and_then(|c| parse_hex_color(c));
+            let br_color = node.border_color().and_then(parse_hex_color);
             let txt_color = color.as_ref().and_then(|c| parse_hex_color(c));
 
             // `Select`/`pick_list` não tem `Status::Disabled` no iced (o handler
             // é obrigatório), então só o overlay de `:hover` faz sentido aqui.
-            let hover_ov = node.hover_style.as_deref().cloned();
+            let hover_ov = node.hover_style().cloned();
             let style_fn = move |theme: &iced::Theme, status: pick_list::Status| {
                 let pal = theme.extended_palette();
                 let mut text_color = txt_color.unwrap_or(pal.background.base.text);
@@ -1029,13 +2595,17 @@ pub fn render_node<'a>(
                 }
             })
             .style(style_fn)
-            .width(parse_length(&node.width))
-            .padding(parse_padding(&node.padding));
+            .width(parse_length(&node.width));
+
+            // Idem: o `pick_list` do iced herda o `button::DEFAULT_PADDING`.
+            if node.padding.is_some() {
+                pl = pl.padding(parse_padding(&node.padding));
+            }
 
             if !placeholder.is_empty() {
                 pl = pl.placeholder(placeholder.clone());
             }
-            if let Some(f) = font_for(&node.font) {
+            if let Some(f) = font_for(node.font()) {
                 pl = pl.font(f);
             }
 
@@ -1097,17 +2667,22 @@ pub fn render_node<'a>(
                     let binding_inp = value_var.clone();
                     let on_change_a = on_change.clone();
 
-                    let mut cb = combo_box(state, placeholder.as_str(), selected, move |chosen: SelectOption| {
-                        EngineMessage::UiComboSelected {
+                    let mut cb = combo_box(
+                        state,
+                        placeholder.as_str(),
+                        selected,
+                        move |chosen: SelectOption| EngineMessage::UiComboSelected {
                             binding: binding_sel.clone(),
                             on_select: on_select_a.clone(),
                             value: chosen.value,
+                        },
+                    )
+                    .on_input(move |typed: String| {
+                        EngineMessage::UiComboInput {
+                            binding: binding_inp.clone(),
+                            on_change: on_change_a.clone(),
+                            value: typed,
                         }
-                    })
-                    .on_input(move |typed: String| EngineMessage::UiComboInput {
-                        binding: binding_inp.clone(),
-                        on_change: on_change_a.clone(),
-                        value: typed,
                     });
 
                     if node.width.is_some() {
@@ -1116,7 +2691,7 @@ pub fn render_node<'a>(
                     if node.padding.is_some() {
                         cb = cb.padding(parse_padding(&node.padding));
                     }
-                    if let Some(f) = font_for(&node.font) {
+                    if let Some(f) = font_for(node.font()) {
                         cb = cb.font(f);
                     }
 
@@ -1125,8 +2700,8 @@ pub fn render_node<'a>(
                     // já que o campo de digitação do combo é um `text_input`
                     // por baixo) e sobrescreve só o que o `.gss` declarou.
                     let txt_color = color.as_ref().and_then(|c| parse_hex_color(c));
-                    let hover_ov = node.hover_style.as_deref().cloned();
-                    let focus_ov = node.focus_style.as_deref().cloned();
+                    let hover_ov = node.hover_style().cloned();
+                    let focus_ov = node.focus_style().cloned();
                     cb = cb.input_style(move |theme, status| {
                         use iced::widget::text_input::Status;
                         let mut style = iced::widget::text_input::default(theme, status);
@@ -1208,7 +2783,7 @@ pub fn render_node<'a>(
             let bg_opt = background_for(node);
             let br_opt = node.border_radius;
             let bw_opt = node.border_width;
-            let bc_opt = node.border_color.as_ref().and_then(|c| parse_hex_color(c));
+            let bc_opt = node.border_color().and_then(parse_hex_color);
 
             let mut pb = progress_bar(*min..=*max, value);
             if *vertical {
@@ -1264,6 +2839,411 @@ pub fn render_node<'a>(
                 bar_elem
             }
         }
+        NodeType::DateTimeEdit {
+            value_var,
+            date,
+            time,
+            seconds,
+            day_first,
+            on_change,
+        } => {
+            let atual = Instante::parse(context.get(value_var).map(String::as_str).unwrap_or(""));
+
+            // Qual seção está selecionada — e se ela é DESTA instância. A chave
+            // é global de propósito (só uma seção da tela pode estar em foco),
+            // e carrega a identidade da instância junto: `inicio:h`.
+            let foco = TimeEditSel::parse(context.get(TIMEEDIT_SEL_CONTEXT))
+                .filter(|sel| sel.chave == *value_var)
+                .map(|sel| sel.secao);
+
+            // As seções na ordem de exibição, cada uma com o texto que mostra e
+            // o separador que a segue. A ordem da data é a única coisa que
+            // `day_first` muda — o valor gravado continua ISO.
+            let (sep_data, ordem_data): (&str, [(&'static str, String); 3]) = if *day_first {
+                (
+                    "/",
+                    [
+                        ("d", format!("{:02}", atual.dia)),
+                        ("M", format!("{:02}", atual.mes)),
+                        ("y", format!("{:04}", atual.ano)),
+                    ],
+                )
+            } else {
+                (
+                    "-",
+                    [
+                        ("y", format!("{:04}", atual.ano)),
+                        ("M", format!("{:02}", atual.mes)),
+                        ("d", format!("{:02}", atual.dia)),
+                    ],
+                )
+            };
+
+            let mut secoes: Vec<(&'static str, String, &'static str)> = Vec::new();
+            if *date {
+                for (i, (id, txt)) in ordem_data.into_iter().enumerate() {
+                    secoes.push((id, txt, if i < 2 { sep_data } else { "" }));
+                }
+            }
+            if *time {
+                if *date {
+                    // O espaço entre data e hora vira o separador da última
+                    // seção da data.
+                    if let Some(ultima) = secoes.last_mut() {
+                        ultima.2 = " ";
+                    }
+                }
+                secoes.push(("h", format!("{:02}", atual.hora), ":"));
+                secoes.push((
+                    "m",
+                    format!("{:02}", atual.min),
+                    if *seconds { ":" } else { "" },
+                ));
+                if *seconds {
+                    secoes.push(("s", format!("{:02}", atual.seg), ""));
+                }
+            }
+            // Sem foco, a primeira seção — como o Qt, que já abre com a
+            // esquerda selecionada.
+            let ativa =
+                foco.unwrap_or_else(|| secoes.first().map(|s| s.0).unwrap_or("h").to_string());
+
+            let chave = value_var.clone();
+            let (com_data, com_hora, com_seg) = (*date, *time, *seconds);
+
+            // Uma linha com as seções e os separadores. Clicar numa seção só
+            // move o foco — quem muda o valor são as setas, como no Qt.
+            let mut campo = row![].spacing(0).align_y(iced::Alignment::Center);
+            for (id, txt, sep) in &secoes {
+                let selecionada = ativa == *id;
+                // O descritor carrega a CONFIGURAÇÃO da instância, não só o
+                // nome da seção: quem trata as teclas é o `update` do motor,
+                // que recebe a tecla e não tem o nó em mãos. `buf` nasce vazio
+                // — clicar numa seção recomeça a digitação dela.
+                let alvo = TimeEditSel {
+                    chave: chave.clone(),
+                    secao: (*id).to_string(),
+                    data: com_data,
+                    hora: com_hora,
+                    segundos: com_seg,
+                    dia_primeiro: *day_first,
+                    buf: String::new(),
+                    acao: on_change.clone(),
+                }
+                .serializa();
+                campo = campo.push(
+                    button(text(txt.clone()).size(15))
+                        .padding(Padding {
+                            top: 1.0,
+                            right: 3.0,
+                            bottom: 1.0,
+                            left: 3.0,
+                        })
+                        .on_press(EngineMessage::ContextPatch(vec![(
+                            TIMEEDIT_SEL_CONTEXT.to_string(),
+                            alvo,
+                        )]))
+                        .style(move |theme: &iced::Theme, _status| {
+                            let palette = theme.extended_palette();
+                            // O realce da seção ativa é o da paleta primária —
+                            // é assim que o Qt marca a seção selecionada.
+                            button::Style {
+                                background: selecionada
+                                    .then_some(Background::Color(palette.primary.base.color)),
+                                text_color: if selecionada {
+                                    palette.primary.base.text
+                                } else {
+                                    palette.background.base.text
+                                },
+                                border: Border::default().rounded(2),
+                                ..button::Style::default()
+                            }
+                        }),
+                );
+                if !sep.is_empty() {
+                    campo = campo.push(text((*sep).to_string()).size(15));
+                }
+            }
+
+            // Dois modos, e é o mesmo contrato do `<TextInput>`: **sem**
+            // `onChange` o widget grava a chave sozinho (nenhuma linha do lado
+            // do app); **com** `onChange`, ele só avisa, e quem grava é o
+            // handler — que é o que deixa o app validar um intervalo ou recusar
+            // o valor antes de aceitá-lo.
+            let acao = on_change.clone();
+            let passo = |delta: i64| -> EngineMessage {
+                let novo = atual
+                    .passo(&ativa, delta)
+                    .serializa(com_data, com_hora, com_seg);
+                if acao.is_empty() {
+                    EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
+                } else {
+                    EngineMessage::UiInputChanged {
+                        action: acao.clone(),
+                        value: novo,
+                    }
+                }
+            };
+            let seta = |glifo: &'static str, msg: EngineMessage| {
+                button(text(glifo).size(9))
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 4.0,
+                        bottom: 0.0,
+                        left: 4.0,
+                    })
+                    .on_press(msg)
+                    .style(|theme: &iced::Theme, status| {
+                        let palette = theme.extended_palette();
+                        button::Style {
+                            background: match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    Some(Background::Color(palette.background.weak.color))
+                                }
+                                _ => None,
+                            },
+                            text_color: palette.background.strong.text,
+                            border: Border::default().rounded(2),
+                            ..button::Style::default()
+                        }
+                    })
+            };
+
+            let corpo = row![
+                campo,
+                Space::new().width(Length::Fill),
+                column![seta("▴", passo(1)), seta("▾", passo(-1))].spacing(0),
+            ]
+            .align_y(iced::Alignment::Center)
+            .spacing(6);
+
+            // Uma caixa só em volta de tudo — seções e setas dentro da mesma
+            // borda, como o `QDateTimeEdit`.
+            let largura_natural = 46.0
+                + if com_data { 92.0 } else { 0.0 }
+                + if com_hora { 52.0 } else { 0.0 }
+                + if com_seg { 26.0 } else { 0.0 };
+            container(corpo)
+                .padding(Padding {
+                    top: 3.0,
+                    right: 4.0,
+                    bottom: 3.0,
+                    left: 6.0,
+                })
+                .width(if node.width.is_some() {
+                    parse_length(&node.width)
+                } else {
+                    Length::Fixed(largura_natural)
+                })
+                .style(|theme: &iced::Theme| {
+                    let palette = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(palette.background.base.color)),
+                        border: Border {
+                            color: palette.background.strong.color,
+                            width: 1.0,
+                            radius: 4.0.into(),
+                        },
+                        ..container::Style::default()
+                    }
+                })
+                .into()
+        }
+        NodeType::Calendar {
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            mode,
+            monday_first,
+            months,
+            range,
+            month_names,
+            day_names,
+            on_change,
+        } => render_calendar(
+            node,
+            context,
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            *mode,
+            *monday_first,
+            *months,
+            *range,
+            month_names,
+            day_names,
+            on_change,
+        ),
+        NodeType::Pagination {
+            value_var,
+            total,
+            window,
+            ends,
+            on_change,
+        } => render_pagination(context, value_var, total, *window, *ends, on_change),
+        NodeType::Rating {
+            value_var,
+            max,
+            filled,
+            empty,
+            size,
+            color,
+            readonly,
+            on_change,
+        } => render_rating(
+            context, value_var, max, filled, empty, *size, color, *readonly, on_change,
+        ),
+        NodeType::MaskedInput {
+            value_var,
+            mask,
+            placeholder,
+            on_change,
+        } => render_masked_input(node, context, value_var, mask, placeholder, on_change),
+        NodeType::Radio {
+            label,
+            value,
+            group_var,
+            on_change,
+        } => {
+            // O grupo é a chave, não um nó pai: marcado quando o valor guardado
+            // em `group_var` é este `value`. O `V: Eq + Copy` do `radio` do iced
+            // pede um valor comparável — comparamos as strings aqui e passamos
+            // o resultado como um `bool`, que é o `V` mais barato possível.
+            let marcado = context.get(group_var).map(String::as_str) == Some(value.as_str());
+            let acao = on_change.clone();
+            let escolhido = value.clone();
+            let mut r = radio(label.as_str(), true, Some(marcado), move |_| {
+                EngineMessage::UiInputChanged {
+                    action: acao.clone(),
+                    // O valor desta opção vai junto: é o que o handler do app
+                    // grava na chave do grupo, sem precisar reler o markup.
+                    value: escolhido.clone(),
+                }
+            });
+            // `spacing` é o vão entre a bolinha e o rótulo. Não há atributo de
+            // corpo do texto: o `size` do motor mora dentro do `NodeType::Text`,
+            // não no nó genérico — o rótulo do radio herda o do tema.
+            if let Some(sp) = node.spacing {
+                r = r.spacing(sp);
+            }
+            r.into()
+        }
+        NodeType::Slider {
+            value_var,
+            on_change,
+            on_release,
+            min,
+            max,
+            step,
+            step_raw,
+            shift_step,
+            default,
+            vertical,
+            color,
+        } => {
+            // Widget CONTROLADO: a posição do cursor é sempre o que a chave de
+            // contexto diz, nunca um estado interno do widget. É isso que faz
+            // `disabled` funcionar sem o iced ter um `Status::Disabled` — sem
+            // ninguém escrever na chave, o cursor não sai do lugar por mais que
+            // se arraste.
+            let atual = context
+                .get(value_var)
+                .and_then(|s| s.trim().parse::<f32>().ok())
+                .unwrap_or(*min)
+                .clamp(*min, *max);
+
+            let casas = casas_decimais_do_step(step_raw);
+            let acao = on_change.clone();
+            let inerte = node.disabled.unwrap_or(false);
+            let ao_mudar = move |v: f32| EngineMessage::UiInputChanged {
+                // Desabilitado: a ação some, e uma ação vazia não casa com
+                // handler nenhum. O cursor fica parado porque a chave não muda.
+                action: if inerte { String::new() } else { acao.clone() },
+                value: format!("{v:.casas$}"),
+            };
+
+            let cor = color.as_deref().and_then(parse_hex_color);
+            // O `.style()` lê os MESMOS campos genéricos que o wrap de
+            // background/borda leria — e é por isso que o `Slider` fica de fora
+            // daquele wrap (ver o comentário dele, e `PRIMITIVAS.md`): o
+            // `slider` do iced é `Length::Fill` no eixo principal, então um
+            // `Container` `Shrink` em volta o colapsaria.
+            let trilho = background_for(node);
+            let estilo = move |theme: &iced::Theme, status: slider::Status| {
+                let mut base = slider::default(theme, status);
+                if let Some(c) = cor {
+                    base.rail.backgrounds.0 = Background::Color(c);
+                    base.handle.background = Background::Color(c);
+                }
+                if let Some(bg) = trilho {
+                    base.rail.backgrounds.1 = bg;
+                }
+                base
+            };
+
+            if *vertical {
+                let mut sl = vertical_slider(*min..=*max, atual, ao_mudar).step(*step);
+                if let Some(ss) = shift_step {
+                    sl = sl.shift_step(*ss);
+                }
+                if let Some(d) = default {
+                    sl = sl.default(*d);
+                }
+                if let Some(a) = on_release
+                    && !inerte
+                {
+                    sl = sl.on_release(EngineMessage::UiClick(a.clone()));
+                }
+                if node.height.is_some() {
+                    sl = sl.height(parse_length(&node.height));
+                }
+                sl.style(estilo).into()
+            } else {
+                let mut sl = slider(*min..=*max, atual, ao_mudar).step(*step);
+                if let Some(ss) = shift_step {
+                    sl = sl.shift_step(*ss);
+                }
+                if let Some(d) = default {
+                    sl = sl.default(*d);
+                }
+                if let Some(a) = on_release
+                    && !inerte
+                {
+                    sl = sl.on_release(EngineMessage::UiClick(a.clone()));
+                }
+                if node.width.is_some() {
+                    sl = sl.width(parse_length(&node.width));
+                }
+                sl.style(estilo).into()
+            }
+        }
+        NodeType::Space => {
+            // Sem `width`/`height` no markup, `Length::Fill` nos dois eixos: um
+            // `<Space/>` pelado é o espaçador FLEXÍVEL (o que empurra o resto
+            // para a borda), não um vão de zero pixel — que é o que o
+            // `parse_length(&None) == Shrink` genérico daria, e que não serve
+            // para nada. Com `width="24"` vira o vão fixo.
+            Space::new()
+                .width(
+                    node.width
+                        .as_ref()
+                        .map(|_| parse_length(&node.width))
+                        .unwrap_or(Length::Fill),
+                )
+                .height(
+                    node.height
+                        .as_ref()
+                        .map(|_| parse_length(&node.height))
+                        .unwrap_or(Length::Fill),
+                )
+                .into()
+        }
         NodeType::Spinner { color } => {
             // Indicador indeterminado (busy) — ver `crate::spinner`. Não precisa
             // de `value_var`/estado no contexto: a fase da rotação vive no
@@ -1282,10 +3262,37 @@ pub fn render_node<'a>(
             }
             sp.into()
         }
+        NodeType::Reveal { open, duration } => {
+            // Abre/fecha animando a altura — ver `crate::reveal`. O filho vive
+            // na árvore mesmo com a seção FECHADA (é de onde a altura encolhe
+            // ao fechar); o widget é que decide quanto dele mostrar.
+            let mut corpo = column![];
+            if let Some(sp) = node.spacing {
+                corpo = corpo.spacing(sp);
+            }
+            corpo = corpo.padding(parse_padding(&node.padding));
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
+                corpo = corpo.push(render_node(child, context, editors, combos, assets, view));
+            }
+            let corpo = corpo
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height));
+
+            let mut rv = crate::reveal::reveal(corpo, is_truthy(open));
+            // `duration="0"` desliga a animação (abre de estalo, como era antes
+            // da 0.90) — é o escape para quem não a quer.
+            if let Some(ms) = duration
+                .as_deref()
+                .and_then(|d| d.trim().parse::<f32>().ok())
+            {
+                rv = rv.duration(std::time::Duration::from_millis(ms.max(0.0) as u64));
+            }
+            rv.into()
+        }
         NodeType::Column => {
             let mut col = column![];
 
-            if let Some(align_val) = parse_alignment(&node.align_x) {
+            if let Some(align_val) = parse_alignment(node.align_x()) {
                 col = col.align_x(align_val);
             }
 
@@ -1295,8 +3302,45 @@ pub fn render_node<'a>(
 
             col = col.padding(parse_padding(&node.padding));
 
-            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+            let visiveis: Vec<&UiNode> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .collect();
+            // O passo de um item é a altura declarada mais o `spacing` que o
+            // `Column` põe entre um e outro.
+            let passo = node
+                .virtualize
+                .filter(|h| *h > 0.0)
+                .map(|h| h + node.spacing.unwrap_or(0.0));
+            match passo.and_then(|p| view.fatia(visiveis.len(), p).map(|f| (p, f))) {
+                Some((passo, (pular, quantos))) => {
+                    // Os vãos de cima e de baixo mantêm a barra de rolagem
+                    // proporcional e a rolagem contínua: o conteúdo continua com
+                    // a altura total, só que quase todo ele é vazio.
+                    //
+                    // A altura de um vão é `n * passo - spacing`: o `Column` já
+                    // põe um `spacing` entre o vão e o primeiro item montado, e
+                    // sem descontá-lo a lista cresceria um `spacing` de cada
+                    // lado — a barra de rolagem mentiria por 2×spacing.
+                    let s = node.spacing.unwrap_or(0.0);
+                    let vao = |n: usize| Space::new().height((n as f32 * passo - s).max(0.0));
+                    if pular > 0 {
+                        col = col.push(vao(pular));
+                    }
+                    for child in visiveis.iter().skip(pular).take(quantos) {
+                        col = col.push(render_node(child, context, editors, combos, assets, view));
+                    }
+                    let sobra = visiveis.len() - pular - quantos;
+                    if sobra > 0 {
+                        col = col.push(vao(sobra));
+                    }
+                }
+                None => {
+                    for child in visiveis {
+                        col = col.push(render_node(child, context, editors, combos, assets, view));
+                    }
+                }
             }
 
             col.width(parse_length(&node.width))
@@ -1306,7 +3350,7 @@ pub fn render_node<'a>(
         NodeType::Row => {
             let mut r = row![];
 
-            if let Some(align_val) = parse_alignment(&node.align_y) {
+            if let Some(align_val) = parse_alignment(node.align_y()) {
                 r = r.align_y(align_val);
             }
 
@@ -1317,7 +3361,7 @@ pub fn render_node<'a>(
             r = r.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                r = r.push(render_node(child, context, editors, combos, assets));
+                r = r.push(render_node(child, context, editors, combos, assets, view));
             }
 
             r.width(parse_length(&node.width))
@@ -1331,7 +3375,7 @@ pub fn render_node<'a>(
             // render here beyond stacking its children.
             let mut col = column![];
 
-            if let Some(align_val) = parse_alignment(&node.align_x) {
+            if let Some(align_val) = parse_alignment(node.align_x()) {
                 col = col.align_x(align_val);
             }
             if let Some(sp) = node.spacing {
@@ -1340,7 +3384,7 @@ pub fn render_node<'a>(
             col = col.padding(parse_padding(&node.padding));
 
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+                col = col.push(render_node(child, context, editors, combos, assets, view));
             }
 
             col.width(parse_length(&node.width))
@@ -1350,7 +3394,7 @@ pub fn render_node<'a>(
         NodeType::Container => {
             let child: Element<'a, EngineMessage> = if let Some(first_child) = node.children.first()
             {
-                render_node(first_child, context, editors, combos, assets)
+                render_node(first_child, context, editors, combos, assets, view)
             } else {
                 column![].into()
             };
@@ -1361,20 +3405,17 @@ pub fn render_node<'a>(
                 .height(parse_length(&node.height))
                 .padding(parse_padding(&node.padding));
 
-            if let Some(ax) = parse_alignment(&node.align_x) {
+            if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&node.align_y) {
+            if let Some(ay) = parse_alignment(node.align_y()) {
                 c = c.align_y(ay);
             }
 
             let bg_opt = background_for(node);
             let br_opt = node.border_radius;
             let bw_opt = node.border_width.unwrap_or(0.0);
-            let bc_opt = node
-                .border_color
-                .as_ref()
-                .and_then(|bc| parse_hex_color(bc));
+            let bc_opt = node.border_color().and_then(parse_hex_color);
 
             if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
                 c = c.style(move |_theme| container::Style {
@@ -1416,11 +3457,15 @@ pub fn render_node<'a>(
         }
         NodeType::Screen(_)
         | NodeType::ComponentRoot
+        | NodeType::Define { .. }
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => {
             // O cabeçalho (`<screen>`/`<resources>`) é declaração: o daemon lê os
-            // metadados, a avaliação strip a; aqui não há o que desenhar.
+            // metadados, a avaliação strip a; aqui não há o que desenhar. O
+            // `<component name="…">` entra aqui pela mesma razão — quem o lê é
+            // o `load_defines` do registro, e o corpo dele só desenha através
+            // da tag que ele publica.
             column![].into()
         }
         NodeType::If { .. } | NodeType::Else | NodeType::ElseIf { .. } => {
@@ -1434,7 +3479,7 @@ pub fn render_node<'a>(
             // via o próprio arm de `NodeType::Menu` abaixo.
             let mut r = row![].spacing(2);
             for child in &node.children {
-                r = r.push(render_node(child, context, editors, combos, assets));
+                r = r.push(render_node(child, context, editors, combos, assets, view));
             }
             r.into()
         }
@@ -1490,7 +3535,7 @@ pub fn render_node<'a>(
             let child_elem: Element<'a, EngineMessage> = node
                 .children
                 .first()
-                .map(|c| render_node(c, context, editors, combos, assets))
+                .map(|c| render_node(c, context, editors, combos, assets, view))
                 .unwrap_or_else(|| Space::new().into());
             let menu_children = node.children.get(1..).unwrap_or(&[]);
             let tree = std::sync::Arc::new(crate::menu::build_tree(
@@ -1508,9 +3553,14 @@ pub fn render_node<'a>(
             // pela recursão comum de `render_node` acima. Chegar aqui de
             // verdade seria um bug (um `<MenuItem>` fora de um `<Menu>`);
             // não ocupa espaço.
-            Space::new().width(Length::Shrink).height(Length::Shrink).into()
+            Space::new()
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .into()
         }
-        NodeType::Fragment => {
+        // Um `<slot/>` some na avaliação (vira `Fragment`, ver `eval`), então
+        // aqui ele é tratado igual — se algum dia chegar, empilha o que embrulha.
+        NodeType::Slot { .. } | NodeType::Fragment => {
             // A `Fragment`'s children are normally spliced into the parent
             // during evaluation (`expand_children`), so it seldom reaches
             // rendering; when it does (e.g. a multi-root screen root), stack
@@ -1520,7 +3570,7 @@ pub fn render_node<'a>(
                 col = col.spacing(sp);
             }
             for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
-                col = col.push(render_node(child, context, editors, combos, assets));
+                col = col.push(render_node(child, context, editors, combos, assets, view));
             }
             col.width(parse_length(&node.width))
                 .height(parse_length(&node.height))
@@ -1541,27 +3591,37 @@ pub fn render_node<'a>(
     // colapsa a barra a quase-zero — ficando (visualmente) só o `Spinner` ao
     // lado, se houver um. Button/Select não sofrem disso porque seu tamanho
     // natural já é `Shrink` (não têm o que "colapsar"). Ao acrescentar uma
-    // primitiva nova cujo default no iced seja `Length::Fill` (ex.: um
-    // futuro `Slider`), aplique a mesma exclusão — ver `PRIMITIVAS.md`.
-    if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressBar { .. }) {
+    // primitiva nova cujo default no iced seja `Length::Fill`, aplique a mesma
+    // exclusão — ver `PRIMITIVAS.md`. O `Slider` (0.66) é o segundo caso: o
+    // `slider`/`vertical_slider` do iced também é `Fill` no eixo principal. O
+    // `Reveal` (0.90) é o terceiro, por um motivo mais forte: a altura dele é
+    // a animação, e um `Container` por fora com `Length::Shrink` mediria o
+    // filho por conta própria — desfazendo o recorte. Fundo/borda de um
+    // `<reveal>` vão no filho, que é onde precisam ser recortados junto.
+    if node.kind != NodeType::Container
+        && !matches!(
+            &node.kind,
+            NodeType::ProgressBar { .. } | NodeType::Slider { .. } | NodeType::Reveal { .. }
+        )
+    {
         let bg_opt = background_for(node);
         let br_opt = node.border_radius;
         let bw_opt = node.border_width.unwrap_or(0.0);
-        let bc_opt = node
-            .border_color
-            .as_ref()
-            .and_then(|bc| parse_hex_color(bc));
+        let bc_opt = node.border_color().and_then(parse_hex_color);
 
-        if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
+        // `GLACIER_NO_PAINT` pula o embrulho inteiro: sem fundo, sem borda,
+        // sem raio. É o interruptor que separa "lento por nó" de "lento por
+        // área pintada" — ver `crate::perf::sem_pintura`.
+        if (bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0) && !crate::perf::sem_pintura() {
             let mut c = container(element);
             c = c
                 .width(parse_length(&node.width))
                 .height(parse_length(&node.height));
 
-            if let Some(ax) = parse_alignment(&node.align_x) {
+            if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
             }
-            if let Some(ay) = parse_alignment(&node.align_y) {
+            if let Some(ay) = parse_alignment(node.align_y()) {
                 c = c.align_y(ay);
             }
 
@@ -1599,46 +3659,46 @@ pub fn render_node<'a>(
     // `on_double_click` covers e.g. titlebar double-click to maximize; and
     // `cursor` sets the hover pointer (resize arrows on edge handles). Applied
     // last so the whole styled element is the interactive surface.
-    if node.on_press.is_some()
-        || node.on_double_click.is_some()
-        || node.cursor.is_some()
-        || node.drag_item_key.is_some()
+    if node.on_press().is_some()
+        || node.on_double_click().is_some()
+        || node.cursor().is_some()
+        || node.drag_item_key().is_some()
     {
         let mut ma = mouse_area(element);
-        if let Some(action) = &node.on_press {
-            ma = ma.on_press(EngineMessage::UiClick(action.clone()));
+        if let Some(action) = node.on_press() {
+            ma = ma.on_press(EngineMessage::UiClick(action.to_string()));
         }
-        if let Some(action) = &node.on_double_click {
-            ma = ma.on_double_click(EngineMessage::UiClick(action.clone()));
+        if let Some(action) = node.on_double_click() {
+            ma = ma.on_double_click(EngineMessage::UiClick(action.to_string()));
         }
-        if let Some(interaction) = node.cursor.as_deref().and_then(cursor_interaction) {
+        if let Some(interaction) = node.cursor().and_then(cursor_interaction) {
             ma = ma.interaction(interaction);
         }
         // Drag-and-drop reordering (see `UiNode::drag_*`, hydrated by the
         // for-each expansion of a reorderable list in `eval.rs`): every item of
         // such a list is a valid drop/hover target; only its `dragHandle`
         // descendant also starts the drag on press.
-        if let (Some(list), Some(key)) = (&node.drag_list, &node.drag_item_key) {
+        if let (Some(list), Some(key)) = (node.drag_list(), node.drag_item_key()) {
             ma = ma.on_enter(EngineMessage::DragHover {
-                list: list.clone(),
-                key: key.clone(),
+                list: list.to_string(),
+                key: key.to_string(),
             });
         }
         if node.drag_handle
             && let (Some(list), Some(key), Some(order), Some(on_reorder), Some(reorder_key)) = (
-                &node.drag_list,
-                &node.drag_item_key,
-                &node.drag_order,
-                &node.drag_on_reorder,
-                &node.drag_reorder_key,
+                node.drag_list(),
+                node.drag_item_key(),
+                node.drag_order(),
+                node.drag_on_reorder(),
+                node.drag_reorder_key(),
             )
         {
             ma = ma.on_press(EngineMessage::DragStart {
-                list: list.clone(),
-                reorder_key: reorder_key.clone(),
-                on_reorder: on_reorder.clone(),
-                order: order.clone(),
-                key: key.clone(),
+                list: list.to_string(),
+                reorder_key: reorder_key.to_string(),
+                on_reorder: on_reorder.to_string(),
+                order: order.to_vec(),
+                key: key.to_string(),
             });
         }
         element = ma.into();
@@ -1650,8 +3710,8 @@ pub fn render_node<'a>(
     // helper embutido do iced, independente do tema ativo (fundo quase preto +
     // texto branco) — não precisa de fiação nova com o `theme.json` do app
     // pra ficar legível em qualquer paleta.
-    if let Some(tip) = node.tooltip.as_deref().filter(|s| !s.is_empty()) {
-        let position = match node.tooltip_position.as_deref() {
+    if let Some(tip) = node.tooltip().filter(|s| !s.is_empty()) {
+        let position = match node.tooltip_position() {
             Some("bottom") => TooltipPosition::Bottom,
             Some("left") => TooltipPosition::Left,
             Some("follow") | Some("follow_cursor") | Some("cursor") => {
@@ -1703,8 +3763,84 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 
 #[cfg(test)]
 mod length_tests {
-    use super::parse_length;
+    use super::{
+        CalView, Instante, aplica_mascara, days_from_civil, dia_da_semana, dias_no_mes, extrai_cru,
+        iso_ymd, janela_paginas, parse_length,
+    };
     use iced::Length;
+
+    use super::janela_visivel;
+
+    // --- virtualização: a janela visível (0.77) --------------------------
+    //
+    // A aritmética é curta e cheia de canto: rolagem no topo, no fim, além do
+    // fim (a lista encolheu e o deslocamento guardado não acompanhou) e lista
+    // que já cabe inteira. É a única parte da virtualização que erra em
+    // silêncio — ou estoura um `usize` —, então é a que tem teste.
+
+    /// No topo: não pula nada, e mostra o que cabe mais a margem.
+    #[test]
+    fn janela_no_topo() {
+        // 100 itens de 50px, área de 500px → 10 na tela, +1 de borda, +margem.
+        let (pular, quantos) = janela_visivel(100, 50.0, 0.0, 500.0, 3).unwrap();
+        assert_eq!(pular, 0);
+        assert_eq!(quantos, 17, "10 na tela + 1 de borda + 2x3 de margem");
+    }
+
+    /// Rolado até o meio: pula o que passou, menos a margem de cima.
+    #[test]
+    fn janela_no_meio() {
+        let (pular, quantos) = janela_visivel(100, 50.0, 1000.0, 500.0, 3).unwrap();
+        assert_eq!(pular, 17, "item 20 no topo da tela, menos 3 de margem");
+        assert_eq!(quantos, 17);
+    }
+
+    /// No fim da lista, `quantos` encolhe em vez de passar do total.
+    #[test]
+    fn janela_no_fim_nao_passa_do_total() {
+        let (pular, quantos) = janela_visivel(100, 50.0, 4750.0, 500.0, 3).unwrap();
+        assert!(pular + quantos <= 100, "{pular}+{quantos} passou de 100");
+        assert_eq!(pular + quantos, 100, "chega até a última linha");
+    }
+
+    /// **Regressão**: deslocamento maior que a lista inteira — ela encolheu (um
+    /// filtro, um item removido) e a rolagem guardada ficou para trás. Sem o
+    /// `min` antes da subtração isto estourava o `usize`, e o app caía ao
+    /// filtrar uma lista rolada até o fim.
+    #[test]
+    fn janela_com_deslocamento_alem_do_fim() {
+        let (pular, quantos) = janela_visivel(10, 50.0, 99_999.0, 500.0, 3).unwrap();
+        assert!(pular <= 10, "pular={pular} não pode passar do total");
+        assert!(pular + quantos <= 10, "{pular}+{quantos} passou de 10");
+    }
+
+    /// Uma lista que já cabe inteira na tela não vira janela: ali a
+    /// virtualização só acrescentaria dois vãos e nenhum ganho.
+    #[test]
+    fn lista_que_cabe_inteira_nao_virtualiza() {
+        assert_eq!(janela_visivel(5, 50.0, 0.0, 500.0, 3), None);
+    }
+
+    /// Entradas degeneradas saem pelo lado seguro: renderiza tudo.
+    #[test]
+    fn entradas_degeneradas_nao_virtualizam() {
+        assert_eq!(janela_visivel(0, 50.0, 0.0, 500.0, 3), None, "lista vazia");
+        assert_eq!(janela_visivel(100, 0.0, 0.0, 500.0, 3), None, "passo zero");
+        assert_eq!(
+            janela_visivel(100, -5.0, 0.0, 500.0, 3),
+            None,
+            "passo negativo"
+        );
+        assert_eq!(janela_visivel(100, 50.0, 0.0, 0.0, 3), None, "sem altura");
+        assert_eq!(janela_visivel(100, f32::NAN, 0.0, 500.0, 3), None, "NaN");
+    }
+
+    /// Deslocamento negativo (o iced dá isso no efeito elástico de borda) conta
+    /// como topo, não como pular "menos um".
+    #[test]
+    fn deslocamento_negativo_conta_como_topo() {
+        assert_eq!(janela_visivel(100, 50.0, -80.0, 500.0, 3).unwrap().0, 0);
+    }
 
     fn len(s: &str) -> Length {
         parse_length(&Some(s.to_string()))
@@ -1736,5 +3872,239 @@ mod length_tests {
     #[test]
     fn garbage_falls_back_to_shrink() {
         assert_eq!(len("wibble"), Length::Shrink);
+    }
+
+    // --- Paginação e máscara: a aritmética da Onda 4 -------------------------
+
+    /// A janela anda com a página, mas **gruda nas pontas**: perto do começo
+    /// não sai de 1, perto do fim não passa do total. Sem isso, estar na
+    /// página 1 mostraria `3 4 5 6 7`, com o atual fora do quadro.
+    #[test]
+    fn janela_de_paginas_anda_e_gruda_nas_pontas() {
+        let v = |p, t, w| janela_paginas(p, t, w).collect::<Vec<_>>();
+        assert_eq!(v(1, 20, 5), vec![1, 2, 3, 4, 5]);
+        assert_eq!(v(2, 20, 5), vec![1, 2, 3, 4, 5]);
+        assert_eq!(v(10, 20, 5), vec![8, 9, 10, 11, 12]);
+        assert_eq!(v(19, 20, 5), vec![16, 17, 18, 19, 20]);
+        assert_eq!(v(20, 20, 5), vec![16, 17, 18, 19, 20]);
+        // Lista menor que a janela: aparece inteira, sem vãos.
+        assert_eq!(v(2, 3, 5), vec![1, 2, 3]);
+        assert_eq!(v(1, 1, 5), vec![1]);
+    }
+
+    /// A máscara é função pura da string, nos dois sentidos — é isso que fez o
+    /// `MaskedInput` ser primitiva em vez de builtin.
+    #[test]
+    fn mascara_vai_e_volta() {
+        let cpf = "###.###.###-##";
+        assert_eq!(aplica_mascara("12345678901", cpf), "123.456.789-01");
+        // O separador entra ANTES do dado seguinte, nunca pendurado no fim:
+        // um "123." faria o cursor parecer estar no lugar errado.
+        assert_eq!(aplica_mascara("123", cpf), "123");
+        assert_eq!(aplica_mascara("1234", cpf), "123.4");
+        assert_eq!(aplica_mascara("", cpf), "");
+        // Sobra de dado não estoura a máscara.
+        assert_eq!(aplica_mascara("123456789012345", cpf), "123.456.789-01");
+
+        // A volta: o que chega do `on_input` vem com os separadores dentro.
+        assert_eq!(extrai_cru("123.456.789-01", cpf), "12345678901");
+        assert_eq!(extrai_cru("abc123", cpf), "123");
+        // Máscara mista (placa Mercosul): letra onde é letra, dígito onde é
+        // dígito — filtrar só por "não é dígito" erraria aqui.
+        assert_eq!(extrai_cru("brA1b23", "AAA#*##"), "BRA1B23");
+        assert_eq!(aplica_mascara("BRA1B23", "AAA#*##"), "BRA1B23");
+    }
+
+    /// A digitação normal e o apagar no **fim** — que é onde se digita — não
+    /// precisam de nenhum caso especial, porque a máscara nunca deixa um
+    /// separador pendurado. Ver a nota acima de `extrai_cru`.
+    #[test]
+    fn digitar_e_apagar_no_fim_nao_precisam_de_caso_especial() {
+        let cpf = "###.###.###-##";
+        // Digitar: o dígito entra e o separador aparece junto com o próximo.
+        assert_eq!(aplica_mascara(&extrai_cru("1234", cpf), cpf), "123.4");
+        // Apagar no fim: o texto exibido nunca termina em separador, então
+        // cada backspace remove mesmo um caractere do cru.
+        assert_eq!(extrai_cru("123.4", cpf), "1234");
+        assert_eq!(extrai_cru("123.", cpf), "123");
+        assert_eq!(extrai_cru("12", cpf), "12");
+        assert_eq!(aplica_mascara("123", cpf), "123");
+    }
+
+    // --- O calendário: dia da semana, mês visível e a leitura de uma data ----
+
+    /// `days_from_civil` contra âncoras conhecidas — a época, o bug do ano 2000
+    /// (que é bissexto) e 1900 (que não é). Errar isto desloca a grade inteira
+    /// de um mês em silêncio, que é o pior modo de falha possível para um
+    /// calendário.
+    #[test]
+    fn days_from_civil_bate_com_as_ancoras() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(1969, 12, 31), -1);
+        assert_eq!(days_from_civil(2000, 3, 1), 11017);
+        // 2000 é bissexto (múltiplo de 400) e 1900 não é (século sem 400):
+        // a diferença entre 28/02 e 01/03 prova as duas regras.
+        assert_eq!(
+            days_from_civil(2000, 3, 1) - days_from_civil(2000, 2, 28),
+            2
+        );
+        assert_eq!(
+            days_from_civil(1900, 3, 1) - days_from_civil(1900, 2, 28),
+            1
+        );
+    }
+
+    /// 0 = domingo. 1970-01-01 foi quinta (4); 2026-09-01 é terça (2).
+    #[test]
+    fn dia_da_semana_conta_do_domingo() {
+        assert_eq!(dia_da_semana(1970, 1, 1), 4);
+        assert_eq!(dia_da_semana(2026, 9, 1), 2);
+        assert_eq!(dia_da_semana(2026, 9, 6), 0);
+        assert_eq!(dia_da_semana(2024, 2, 29), 4);
+    }
+
+    /// `iso_ymd` distingue "sem data" de "data inválida" de uma data de
+    /// verdade — a diferença que o `Instante` apaga de propósito (lá o vazio
+    /// vira 2000-01-01) e que aqui decide se alguma célula acende.
+    #[test]
+    fn iso_ymd_devolve_none_para_o_que_nao_e_data() {
+        assert_eq!(iso_ymd("2026-09-01"), Some((2026, 9, 1)));
+        assert_eq!(iso_ymd("  2026-09-01  "), Some((2026, 9, 1)));
+        // A hora de um `<datetimeedit>` gravando a mesma chave não pode
+        // apagar o realce do dia.
+        assert_eq!(iso_ymd("2026-09-01 13:45"), Some((2026, 9, 1)));
+        // `YYYY-MM` e `YYYY` completam com 1 — é o que o modo mês/ano grava.
+        assert_eq!(iso_ymd("2026-09"), Some((2026, 9, 1)));
+        assert_eq!(iso_ymd("2026"), Some((2026, 1, 1)));
+        assert_eq!(iso_ymd(""), None);
+        assert_eq!(iso_ymd("   "), None);
+        assert_eq!(iso_ymd("ontem"), None);
+    }
+
+    /// O mês visível vai e volta pela chave `__cal_<chave>`, e o parse é
+    /// tolerante: o que faltar cai no default recebido, para uma chave semeada
+    /// à mão nunca desenhar quebrado.
+    #[test]
+    fn calview_serializa_e_tolera_lixo() {
+        let v = CalView {
+            ano: 2026,
+            mes: 9,
+            nivel: 'M',
+        };
+        assert_eq!(v.serializa(), "2026-09|M");
+
+        let lido = CalView::parse(Some(&"2026-09|M".to_string()), 2000, 1, 'd');
+        assert_eq!((lido.ano, lido.mes, lido.nivel), (2026, 9, 'M'));
+
+        // Sem nível: fica o default do chamador (o `mode` da tag).
+        let sem_nivel = CalView::parse(Some(&"2030-12".to_string()), 2000, 1, 'y');
+        assert_eq!(
+            (sem_nivel.ano, sem_nivel.mes, sem_nivel.nivel),
+            (2030, 12, 'y')
+        );
+
+        // Nada, lixo e um nível que não existe caem todos no default.
+        for bruto in ["", "   ", "|x"] {
+            let d = CalView::parse(Some(&bruto.to_string()), 2026, 9, 'd');
+            assert_eq!((d.ano, d.mes, d.nivel), (2026, 9, 'd'), "bruto={bruto:?}");
+        }
+        let nenhum = CalView::parse(None, 2026, 9, 'd');
+        assert_eq!((nenhum.ano, nenhum.mes, nenhum.nivel), (2026, 9, 'd'));
+
+        // Mês fora da faixa é preso, não propagado: um `13` não pode virar
+        // índice de um vetor de doze nomes.
+        let preso = CalView::parse(Some(&"2026-13|d".to_string()), 2000, 1, 'd');
+        assert_eq!(preso.mes, 12);
+    }
+
+    // --- Instante: a aritmética de seção do `<datetimeedit>` -----------------
+
+    #[test]
+    fn instante_le_as_tres_formas() {
+        let so_data = Instante::parse("2026-09-01");
+        assert_eq!((so_data.ano, so_data.mes, so_data.dia), (2026, 9, 1));
+
+        let so_hora = Instante::parse("13:45:02");
+        assert_eq!((so_hora.hora, so_hora.min, so_hora.seg), (13, 45, 2));
+
+        let ambos = Instante::parse("2026-09-01 09:30");
+        assert_eq!((ambos.ano, ambos.mes, ambos.dia), (2026, 9, 1));
+        assert_eq!((ambos.hora, ambos.min), (9, 30));
+
+        // E o `T` do ISO 8601 separa igual ao espaço.
+        assert_eq!(Instante::parse("2026-09-01T07:05").hora, 7);
+    }
+
+    #[test]
+    fn instante_tolera_lixo_em_vez_de_quebrar() {
+        // Um campo que ainda não foi semeado não pode renderizar quebrado.
+        let vazio = Instante::parse("");
+        assert_eq!(vazio.serializa(true, true, false), "2000-01-01 00:00");
+        // Fora de faixa satura em vez de propagar.
+        let absurdo = Instante::parse("2026-99-99 77:88:99");
+        assert_eq!(absurdo.serializa(true, true, true), "2026-12-31 23:59:59");
+    }
+
+    #[test]
+    fn instante_vira_dentro_da_secao_sem_carregar() {
+        // O ponto do "editar por seção": mexer no minuto NÃO empurra a hora.
+        let meia = Instante::parse("09:59");
+        assert_eq!(meia.passo("m", 1).serializa(false, true, false), "09:00");
+        assert_eq!(meia.passo("h", 1).serializa(false, true, false), "10:59");
+
+        // E vira nos dois sentidos.
+        let zero = Instante::parse("00:00");
+        assert_eq!(zero.passo("h", -1).serializa(false, true, false), "23:00");
+        assert_eq!(zero.passo("m", -1).serializa(false, true, false), "00:59");
+    }
+
+    #[test]
+    fn instante_respeita_o_calendario() {
+        // Dia vira dentro do mês: 30 de abril + 1 volta para o dia 1.
+        let abril = Instante::parse("2026-04-30");
+        assert_eq!(
+            abril.passo("d", 1).serializa(true, false, false),
+            "2026-04-01"
+        );
+
+        // Trocar de mês satura o dia — 31 de janeiro vira 28 em fevereiro…
+        let jan31 = Instante::parse("2026-01-31");
+        assert_eq!(
+            jan31.passo("M", 1).serializa(true, false, false),
+            "2026-02-28"
+        );
+        // …e 29 num ano bissexto.
+        let jan31_bis = Instante::parse("2024-01-31");
+        assert_eq!(
+            jan31_bis.passo("M", 1).serializa(true, false, false),
+            "2024-02-29"
+        );
+
+        // A regra do século: 1900 não é bissexto, 2000 é.
+        assert_eq!(dias_no_mes(1900, 2), 28);
+        assert_eq!(dias_no_mes(2000, 2), 29);
+
+        // Mês vira 12 -> 1 sem mexer no ano (seção é seção).
+        let dez = Instante::parse("2026-12-05");
+        assert_eq!(
+            dez.passo("M", 1).serializa(true, false, false),
+            "2026-01-05"
+        );
+        // O ano é a exceção: satura, porque virar 9999 -> 1 nunca é o desejado.
+        let fim = Instante::parse("9999-06-01");
+        assert_eq!(
+            fim.passo("y", 1).serializa(true, false, false),
+            "9999-06-01"
+        );
+    }
+
+    #[test]
+    fn instante_serializa_sempre_em_iso() {
+        // A ordem de exibição (`format="br"`) não toca no que é gravado.
+        let i = Instante::parse("2026-09-01 13:45:02");
+        assert_eq!(i.serializa(true, false, false), "2026-09-01");
+        assert_eq!(i.serializa(false, true, false), "13:45");
+        assert_eq!(i.serializa(false, true, true), "13:45:02");
+        assert_eq!(i.serializa(true, true, true), "2026-09-01 13:45:02");
     }
 }

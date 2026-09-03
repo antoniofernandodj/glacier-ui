@@ -1,0 +1,21 @@
+<component>
+  <props>
+    <prop name="rotulo" />
+    <prop name="rota" />
+    <prop name="acao" />
+    <prop name="ativo" default="" />
+  </props>
+
+  <resources>
+    <style scoped="true">
+      .nav_on        { width: fill; color: var(--raised); text-color: var(--text); padding: 10 14; border-radius: 6; text-align: left; }
+      .nav_off       { width: fill; color: var(--surface); text-color: var(--muted); padding: 10 14; border-radius: 6; text-align: left; }
+      .nav_off:hover { text-color: var(--text); }
+    </style>
+  </resources>
+
+  <column>
+    <button class="nav_on"  if="{ativo}" equals="{rota}" text="{rotulo}" on_click="{acao}" />
+    <button class="nav_off" else                        text="{rotulo}" on_click="{acao}" />
+  </column>
+</component>

@@ -1,3 +1,4 @@
+use crate::ContextMap;
 use crate::error::{Diagnostic, GlacierError, Result};
 use crate::stylesheet::StyleRule;
 use roxmltree::Node;
@@ -96,6 +97,33 @@ const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
     SCREEN_RESIZABLE_ATTRS,
 ];
 
+/// Um nome de preset vira a máscara que ele nomeia; qualquer outra coisa passa
+/// intacta e é lida como máscara literal.
+///
+/// Os presets existem porque nenhum app brasileiro escapa deles — CPF, CNPJ,
+/// telefone, CEP, placa — e porque escrever `###.###.###-##` à mão em toda tela
+/// é a classe de erro que ninguém revisa. Um nome desconhecido **não** é erro:
+/// ele simplesmente é a máscara, o que mantém `mask="##/##"` funcionando sem
+/// registro nenhum.
+pub(crate) fn mascara_preset(bruta: &str) -> String {
+    match bruta.trim().to_ascii_lowercase().as_str() {
+        "cpf" => "###.###.###-##",
+        "cnpj" => "##.###.###/####-##",
+        // Celular brasileiro, com o nono dígito. Fixo cabe na mesma máscara
+        // com um caractere a menos digitado.
+        "phone" | "telefone" | "celular" => "(##) #####-####",
+        "cep" => "#####-###",
+        // Mercosul: três letras, um dígito, uma letra, dois dígitos. A antiga
+        // (`AAA-####`) também cabe aqui, com o `*` no lugar da 5ª posição.
+        "placa" => "AAA#*##",
+        "date" | "data" => "##/##/####",
+        "time" | "hora" => "##:##",
+        "card" | "cartao" | "cartão" => "#### #### #### ####",
+        _ => return bruta.to_string(),
+    }
+    .to_string()
+}
+
 /// Atributos que o motor consome como **diretiva** em qualquer nó — inclusive
 /// no uso de um componente (`<Card for-each="itens" var="i" nome="{i.nome}" />`).
 ///
@@ -110,10 +138,13 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     "cond", "condition", "when", "quando", "condicao",
     "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
     "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "contains", "contem", "contém", "has", "inclui",
     "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
     "platform", "plataforma",
     // repetição
     "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // destino num slot nomeado do componente
+    "slot",
     // arrastar-e-soltar da lista repetida
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
     "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
@@ -135,6 +166,10 @@ const PROP_NAME_ATTRS: &[&str] = &["name", "nome"];
 const PROP_DEFAULT_ATTRS: &[&str] = &["default", "padrao", "padrão"];
 const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS];
 
+/// O único atributo de um `<component name="…">` declarado no `<resources>` —
+/// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
+const DEFINE_NAME_ATTRS: &[&str] = &["name", "nome", "as", "como"];
+
 /// As tags que podem morar dentro de um `<resources>`. Tudo o mais ali dentro é
 /// erro: um widget num bloco de declarações não desenharia nada, e sumir em
 /// silêncio é pior do que não compilar.
@@ -145,6 +180,13 @@ const RESOURCE_TAGS: &[&str] = &[
     "import",
     "importar",
     "script",
+    // A **declaração local** de um componente: `<component name="X">…</component>`
+    // dentro do `<resources>`. É a terceira forma de ter um componente (as
+    // outras duas trazem de um arquivo), e usa a mesma casca da primeira — o
+    // que se escreve aqui é byte a byte o que se escreveria num `.gv` próprio.
+    // Ver [`NodeType::Define`].
+    "component",
+    "componente",
 ];
 
 /// Lê um par de números de um atributo de tamanho (`size`, `min-size`).
@@ -275,11 +317,15 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                 .find(|group| group.contains(&name));
             let Some(group) = known else {
                 return Some(
-                    diagnostic_at_attr(child, attr, format!("atributo '{name}' desconhecido no <{tag}>"))
-                        .with_hint(
-                            "o cabeçalho aceita title, size, min-size e resizable \
+                    diagnostic_at_attr(
+                        child,
+                        attr,
+                        format!("atributo '{name}' desconhecido no <{tag}>"),
+                    )
+                    .with_hint(
+                        "o cabeçalho aceita title, size, min-size e resizable \
                              (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)",
-                        ),
+                    ),
                 );
             };
             let value = attr.value();
@@ -349,6 +395,8 @@ fn validate_no_nested_header(header: Node) -> Option<Diagnostic> {
             let tag = child.tag_name().name();
             // Os blocos legítimos do cabeçalho ficam no primeiro nível dele, e o
             // conteúdo deles já é conferido por `validate_resources`/`validate_props`.
+            // O `<resources>` inclui, desde a 0.86, `<component name="…">` — que
+            // é declaração, não cabeçalho aninhado, e por isso não desce daqui.
             if dentro_do_cabecalho && (is_resources_tag(tag) || is_props_tag(tag)) {
                 continue;
             }
@@ -467,14 +515,87 @@ fn validate_resources(header: Node) -> Option<Diagnostic> {
             if !RESOURCE_TAGS.iter().any(|t| t.eq_ignore_ascii_case(name)) {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
-                        "dentro do <resources> só entram <style>, <script>, <link> e \
-                         <import>; um widget vai no layout, depois do </resources>",
+                        "dentro do <resources> só entram <style>, <script>, <link>, \
+                         <import> e <component name=\"…\">; um widget vai no layout, \
+                         depois do </resources>",
                     ),
                 );
+            }
+            if is_component_tag(name)
+                && let Some(d) = validate_define(decl)
+            {
+                return Some(d);
             }
         }
     }
     None
+}
+
+/// Confere um `<component name="X">` declarado dentro do `<resources>`.
+///
+/// A regra é o espelho da do cabeçalho, e por um motivo: lá o `<component>` é a
+/// raiz de um arquivo e **não leva atributo nenhum** (não há a quem dar um
+/// nome — o nome é o do registro); aqui ele é uma declaração no meio de outra
+/// tela, e o `name` é justamente o que a torna utilizável. É por isso que a
+/// mesma tag aceita atributos num lugar e não no outro, e é a única diferença
+/// entre as duas formas.
+fn validate_define(decl: Node) -> Option<Diagnostic> {
+    let mut tem_nome = false;
+    for attr in decl.attributes() {
+        let a = attr.name();
+        if DEFINE_NAME_ATTRS.contains(&a) {
+            tem_nome = true;
+            if attr.value().trim().is_empty() {
+                return Some(
+                    diagnostic_at_attr(decl, attr, format!("'{a}' vazio no <component>"))
+                        .with_hint(
+                            "o nome é a TAG pela qual o componente passa a ser usado \
+                             (name=\"CartaoServico\" → <CartaoServico/>)",
+                        ),
+                );
+            }
+            continue;
+        }
+        let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&a)) {
+            "title/size/min-size/resizable descrevem uma JANELA, e um <component> não é uma"
+        } else {
+            "um <component> declarado no <resources> leva só o `name`; as props que ele \
+             ACEITA se declaram no <props> de dentro dele, e os valores vêm de quem o usa"
+        };
+        return Some(
+            diagnostic_at_attr(decl, attr, format!("atributo '{a}' no <component>"))
+                .with_hint(hint),
+        );
+    }
+    if !tem_nome {
+        return Some(
+            diagnostic_at(
+                decl,
+                "<component> sem `name` dentro do <resources>".to_string(),
+            )
+            .with_hint(
+                "no <resources>, o <component> DECLARA um componente e precisa do nome \
+                     pelo qual ele será usado (<component name=\"CartaoServico\">…); sem nome, \
+                     use <import>/<link rel=\"component\"> para trazer um de um arquivo",
+            ),
+        );
+    }
+    // O corpo: `<props>` opcional e ao menos um nó de layout. Sem layout, o
+    // componente existe e não desenha nada — o mesmo sintoma silencioso que o
+    // `<screen>` vazio já rejeitava.
+    let tem_layout = decl
+        .children()
+        .filter(Node::is_element)
+        .any(|c| !is_props_tag(c.tag_name().name()) && !is_resources_tag(c.tag_name().name()));
+    if !tem_layout {
+        return Some(
+            diagnostic_at(decl, "<component> declarado sem conteúdo".to_string()).with_hint(
+                "o que não está no <props> é o layout do componente — e ele não pode \
+                 faltar (ex.: <row>…</row> dentro do <component name=\"…\">)",
+            ),
+        );
+    }
+    validate_props(decl)
 }
 
 fn is_component_tag(tag: &str) -> bool {
@@ -630,6 +751,22 @@ pub enum NodeType {
     Spinner {
         color: Option<String>,
     },
+    /// `<Reveal>`/`<Collapse>`: um corpo que **abre e fecha animado** — a
+    /// altura do filho interpolada de 0 até a natural (e de volta), com o que
+    /// transborda recortado. Ver [`crate::reveal`].
+    ///
+    /// `open` é o valor **cru** (`"true"`/`"false"`, ou um `{var}` já
+    /// interpolado), não o nome de uma chave: ao contrário de
+    /// `Checkbox`/`ProgressBar`, o que abre a seção quase nunca é uma chave
+    /// booleana solta — é uma comparação (`contains`/`equals`) que só o
+    /// `<template if>` sabe fazer, e que chega aqui já resolvida como literal.
+    /// É o que o `<accordionitem>` faz (ver `crate::builtins::accordion`).
+    ///
+    /// `duration` é em milissegundos; `0` desliga a animação.
+    Reveal {
+        open: String,
+        duration: Option<String>,
+    },
     /// A dropdown (`pick_list`) bound to context. `options` is a context key
     /// holding a JSON array (objects with `label_field`/`value_field`, or plain
     /// strings); `value_var` holds the selected value; selecting an option emits
@@ -681,13 +818,13 @@ pub enum NodeType {
     },
     Include {
         src: String,
-        props: HashMap<String, String>,
+        props: ContextMap,
     },
     /// A reference to another registered component by its own tag name,
     /// e.g. `<PerfilCard nome="..." />`. Attributes become props.
     Component {
         name: String,
-        props: HashMap<String, String>,
+        props: ContextMap,
     },
     /// Declares that a component named `name` should be loaded from the XML
     /// file at `from`, e.g. `<import name="PerfilCard" from="templates/perfil_card.gv" />`.
@@ -742,6 +879,9 @@ pub enum NodeType {
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        /// `contains="rede"` — o simétrico de `one_of`: a lista está na chave,
+        /// o item está no markup. Ver [`Cond::if_contains`].
+        contains: Option<String>,
         empty: bool,
         not_empty: bool,
     },
@@ -757,8 +897,69 @@ pub enum NodeType {
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        /// Ver [`NodeType::If::contains`].
+        contains: Option<String>,
         empty: bool,
         not_empty: bool,
+    },
+    /// **Declara um componente ali mesmo**, dentro do `<resources>`, sem um
+    /// arquivo para ele:
+    ///
+    /// ```xml
+    /// <screen title="Serviços">
+    ///     <resources>
+    ///         <component name="CartaoServico">
+    ///             <props>
+    ///                 <prop name="nome" />
+    ///                 <prop name="estado" default="ok" />
+    ///             </props>
+    ///             <card title="{nome}">
+    ///                 <badge badge_text="{estado}" />
+    ///             </card>
+    ///         </component>
+    ///     </resources>
+    ///
+    ///     <column>
+    ///         <CartaoServico for-each="servicos" var="s" nome="{s.nome}" estado="{s.estado}" />
+    ///     </column>
+    /// </screen>
+    /// ```
+    ///
+    /// # A terceira forma de ter um componente
+    ///
+    /// As outras duas trazem de um arquivo — `<import name="X" from="x.gv"/>` e
+    /// `<link rel="component" href="x.gv" as="X"/>`. Esta não traz de lugar
+    /// nenhum: o componente **é** o que está escrito entre as tags.
+    ///
+    /// Ela existe porque a maior parte dos componentes de uma tela é pequena e
+    /// **só serve àquela tela** — a linha de um item, o cabeçalho de um cartão,
+    /// o rótulo com um `<badge>` do lado. Obrigar cada um a virar arquivo troca
+    /// três linhas de markup por um arquivo, um caminho relativo e um
+    /// `<import>`, e espalha por seis arquivos o que se lê melhor num. É a
+    /// mesma razão de existir um `<style>` inline ao lado do
+    /// `<link rel="stylesheet">`.
+    ///
+    /// # É a mesma casca do arquivo, de propósito
+    ///
+    /// O que se escreve aqui é **byte a byte** o que se escreveria num `.gv`
+    /// próprio: `<component>`, o `<props>` dentro dele, o layout depois. A
+    /// única diferença é o `name` — no arquivo o nome vem do registro, aqui ele
+    /// precisa ser dito. Promover uma declaração a arquivo (ou o contrário) é
+    /// recortar e colar, sem reescrever nada.
+    ///
+    /// # O que ele **não** tem
+    ///
+    /// - **`<script>` próprio.** Não há arquivo contra o qual resolver um
+    ///   `src`/`require`, a mesma limitação que o `Template::Inline` dos
+    ///   builtins sempre teve. Na prática isso é o comportamento desejado: as
+    ///   ações escritas dentro de um componente local caem no `update` da tela
+    ///   que o declarou, que é de quem elas são.
+    /// - **Escopo.** O nome entra no mesmo espaço de nomes de tudo o mais
+    ///   (`<import>`, builtins, `register`), pela mesma regra: declara se o nome
+    ///   está livre **ou** se hoje ele guarda um builtin da lib.
+    Define {
+        /// A tag pela qual o componente passa a ser usado.
+        name: String,
     },
     /// Declares an external resource to load, e.g.
     /// `<link rel="stylesheet" href="styles/card.gss" />`. `rel` selects the
@@ -836,7 +1037,9 @@ pub enum NodeType {
     /// content (`children[1..]`, `<Menu>`/`<MenuItem>`/`<MenuSeparator>`)
     /// shown at the cursor position on right-click of that child. `items` is
     /// the same context-key convention as [`NodeType::Menu::items`].
-    ContextMenu { items: Option<String> },
+    ContextMenu {
+        items: Option<String>,
+    },
     /// A transparent grouping node: renders its children inline into the parent,
     /// adding no layout box of its own. Produced by [`UiNode::parse_xml`] when a
     /// template has more than one top-level node (so a component template can be
@@ -847,6 +1050,354 @@ pub enum NodeType {
     /// falls back to stacking them in a `Column` if one ever does (e.g. a
     /// multi-root screen root).
     Fragment,
+    /// `QSlider`: arrastar um cursor por uma faixa. O par do `SpinBox` — no Qt
+    /// os dois costumam editar o mesmo valor —, e como ele, o número mora numa
+    /// chave que o app nomeia (`value_var`), não num estado do widget.
+    ///
+    /// `step` é guardado como **f32 e como o texto cru** do markup: o f32 vai
+    /// para o `.step()` do iced, e o texto é quem sabe quantas casas decimais a
+    /// saída deve ter (`step="0.05"` → 2). Sem isso, arrastar grava
+    /// `0.30000001192092896` na chave — o mesmo cuidado que o `SpinBox` toma
+    /// (ver `crate::builtins::spin_box`), só que ali o step já chega como texto.
+    Slider {
+        value_var: String,
+        on_change: String,
+        /// Ação disparada só ao SOLTAR o cursor, para quem não quer um efeito
+        /// colateral (rede, disco) por pixel arrastado. `None` = não usa.
+        on_release: Option<String>,
+        min: f32,
+        max: f32,
+        step: f32,
+        step_raw: String,
+        /// Passo fino com Shift segurado (`shift_step` do iced). `None` = o iced
+        /// decide.
+        shift_step: Option<f32>,
+        /// Valor para onde um clique duplo devolve o cursor (`default` do iced).
+        default: Option<f32>,
+        vertical: bool,
+        color: Option<String>,
+    },
+    /// `QRadioButton`: uma opção de um grupo mutuamente exclusivo.
+    ///
+    /// O que forma o grupo não é um nó pai (como o `QButtonGroup`), é a chave:
+    /// todo `<Radio>` que aponta para o mesmo `group_var` é do mesmo grupo, e
+    /// fica marcado quando o valor guardado ali é igual ao `value` dele. Dois
+    /// grupos na mesma tela são duas chaves — a mesma regra que deixa dois
+    /// `SpinBox` independentes.
+    ///
+    /// ```xml
+    /// <radio label="Grátis" value="free" group="plano" onChange="escolher" />
+    /// <radio label="Pro"    value="pro"  group="plano" onChange="escolher" />
+    /// ```
+    ///
+    /// `group="plano"` — sem chaves. Escrever `group="{plano}"` passa o *valor*
+    /// no lugar do nome, e aí a busca é por uma chave chamada `free`, que não
+    /// existe: nenhuma opção casa e o grupo inteiro aparece desmarcado.
+    ///
+    /// Como o `<Checkbox>`, ele **não escreve** a chave sozinho: dispara
+    /// `on_change` e quem grava é o app — ou o [`crate::builtins::radio_group`],
+    /// que existe para poupar esse handler.
+    Radio {
+        label: String,
+        /// O valor que ESTA opção representa.
+        value: String,
+        /// **Nome** da chave de contexto que guarda a escolha do grupo — não o
+        /// valor dela. A mesma convenção do `checked=` do `<Checkbox>` e do
+        /// `value=` do `<TextInput>`: no motor, esses atributos sempre apontam
+        /// para uma chave. É o render que faz `ctx.get(group_var) == value`.
+        group_var: String,
+        on_change: String,
+    },
+    /// `QDateEdit` / `QTimeEdit` / `QDateTimeEdit`: **um** campo que edita a
+    /// data e/ou a hora inteira por **seções**.
+    ///
+    /// É a forma que o Qt usa, e a diferença dela para um spin box comum é o
+    /// ponto todo: clicar numa seção (dia, mês, ano, hora, minuto, segundo) a
+    /// **seleciona** — ela ganha o realce da paleta, como o `2001` destacado
+    /// num `QDateEdit` — e as setas ▴▾ passam a mexer naquela seção. Um
+    /// controle só cobre o valor completo, sem uma prop de passo e sem um
+    /// widget por campo.
+    ///
+    /// As três tags do Qt são a mesma primitiva com seções diferentes:
+    ///
+    /// | tag | seções | chave |
+    /// |---|---|---|
+    /// | `<timeedit>` (`<timepicker>`) | hora, minuto \[, segundo\] | `HH:MM[:SS]` |
+    /// | `<dateedit>` (`<datepicker>`) | ano, mês, dia | `YYYY-MM-DD` |
+    /// | `<datetimeedit>` | as duas | `YYYY-MM-DD HH:MM[:SS]` |
+    ///
+    /// # Armazenamento é sempre ISO; exibição é que varia
+    ///
+    /// A chave guarda `YYYY-MM-DD` — ordenável, sem ambiguidade e o que um
+    /// backend espera — independentemente de como o campo desenha. `day_first`
+    /// (`format="br"`) só troca a **ordem das seções na tela** e o separador,
+    /// para `DD/MM/YYYY`. É a separação que o Qt faz entre o valor e o
+    /// `displayFormat`.
+    ///
+    /// # Por que primitiva, e não builtin
+    ///
+    /// O `TimePicker` foi builtin até a 0.67 e não podia continuar. Um template
+    /// de builtin exibiria o valor inteiro (`{inicio}`) num campo só; para
+    /// desenhar `13` e `45` em seções separadas ele precisaria ler partes de
+    /// uma chave cujo **nome** vem de uma prop — a indireção `{{value}}` que o
+    /// interpolador não tem (o mesmo limite que obriga o `<tabbar>` a receber
+    /// `value` e `active` em par). Em Rust, no `render_node`, partir a string é
+    /// trivial.
+    ///
+    /// # Onde mora a seção selecionada
+    ///
+    /// Numa chave **global** do motor (`__timeedit`), com o valor
+    /// `"<chave>:<seção>"`. Global não é atalho: só uma seção da tela inteira
+    /// pode estar selecionada por vez — é o que "foco" significa —, e guardar a
+    /// identidade da instância junto (`inicio:h`) é o que mantém duas
+    /// instâncias independentes.
+    DateTimeEdit {
+        /// Nome da chave de contexto com o valor.
+        value_var: String,
+        /// Mostra as seções de data (ano, mês, dia).
+        date: bool,
+        /// Mostra as seções de hora (hora, minuto).
+        time: bool,
+        /// Acrescenta a seção de segundos ao tempo.
+        seconds: bool,
+        /// Exibe a data como `DD/MM/YYYY` em vez de `YYYY-MM-DD`. **Só a
+        /// exibição** — a chave continua ISO.
+        day_first: bool,
+        /// Ação disparada a cada alteração, com o valor novo. Vazio = o widget
+        /// **grava a chave sozinho**.
+        ///
+        /// Os dois modos são o mesmo contrato que o `<TextInput>` sempre teve,
+        /// com um default conveniente: sem `onChange` ninguém precisa escrever
+        /// código para o campo funcionar; com `onChange`, quem grava é o
+        /// handler — que é o que permite validar um intervalo, recusar um valor
+        /// ou derivar outra chave antes de aceitar.
+        on_change: String,
+    },
+    /// `QCalendarWidget`: a **grade** de um mês, com navegação e drill-up —
+    /// e, pelas mesmas quatro linhas de render, o seletor de mês/ano e o de
+    /// intervalo.
+    ///
+    /// Três tags, uma primitiva só, exatamente como `<dateedit>`/`<timeedit>`
+    /// são um `DateTimeEdit` só:
+    ///
+    /// | tag | o que grava | chave |
+    /// |---|---|---|
+    /// | `<calendar>` | um dia | `YYYY-MM-DD` |
+    /// | `<monthyearpicker>` | um mês | `YYYY-MM` |
+    /// | `<daterangepicker>` | duas datas, em **duas chaves** | `start` e `end` |
+    ///
+    /// # Por que primitiva, e não builtin
+    ///
+    /// Mesma resposta do `DateTimeEdit`, e é a quarta vez que ela aparece: a
+    /// grade precisa saber em que dia da semana o mês começa, quantos dias ele
+    /// tem e quais células são do mês vizinho — dados que **o template não
+    /// consegue derivar** de uma chave cujo *nome* vem de uma prop. Em Rust, a
+    /// grade é um `for`; é por isso que o `Grid` (`QGridLayout`) nunca foi
+    /// pré-requisito deste widget, ao contrário do que o `PLANO_WIDGETS.md`
+    /// afirmou por três revisões.
+    ///
+    /// # Onde mora o mês visível
+    ///
+    /// Numa chave do motor derivada da chave editada (`__cal_<chave>`), no
+    /// formato `YYYY-MM|<nível>` — o nível é a escada de drill-up do Qt (`d`
+    /// dia, `M` mês, `y` ano). O app não configura nada; quem quiser dirigir o
+    /// mês de fora passa `month="<chave>"` e escreve nela.
+    ///
+    /// Ao contrário do `__timeedit`, esta chave **não** é global: duas grades
+    /// na mesma tela navegam meses diferentes ao mesmo tempo, e é isso que a
+    /// diferencia de foco (do qual só existe um). O que é global é o **hover**
+    /// do intervalo (`__cal_hover`) — aí sim, só uma célula da tela inteira
+    /// está sob o cursor por vez.
+    Calendar {
+        /// Nome da chave com o dia (ou, em `range`, com o **início**).
+        value_var: String,
+        /// Nome da chave com o **fim** do intervalo. Só em `range`.
+        end_var: String,
+        /// Nome da chave que dirige o mês visível. Vazio = o motor usa a dele
+        /// (`__cal_<value_var>`).
+        month_var: String,
+        /// A data de hoje (`YYYY-MM-DD`), para o realce. **Prop, não relógio**:
+        /// o motor não lê o hora do sistema em lugar nenhum, e `date.today()` é
+        /// uma linha de Luau. Vazia = nenhum dia fica destacado.
+        today: String,
+        /// Limites da faixa (ISO). Dias fora saem inertes.
+        min: String,
+        max: String,
+        /// O que um clique **grava**: `d` (dia), `M` (mês), `y` (ano). É o piso
+        /// da escada de drill-up, não o nível visível.
+        mode: char,
+        /// Semana começando na segunda em vez de no domingo.
+        monday_first: bool,
+        /// Quantas grades desenhar lado a lado. Default 1.
+        months: u8,
+        /// Modo intervalo: grava `value_var` e `end_var`.
+        range: bool,
+        /// Rótulos dos meses, separados por espaço (12). Vazio = pt-BR.
+        month_names: String,
+        /// Iniciais dos dias da semana, **sempre a partir de domingo** (7).
+        /// Vazio = pt-BR. `monday_first` gira a lista sozinho.
+        day_names: String,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega, com
+        /// o mesmo contrato do `<datetimeedit>` e do `<TextInput>`. Em `range`,
+        /// o valor entregue é `"<início> <fim>"` (o fim pode vir vazio).
+        on_change: String,
+    },
+    /// A paginação de uma lista longa: `« ‹ 1 … 4 [5] 6 … 20 › »`.
+    ///
+    /// **Reclassificada de builtin para primitiva na 0.85**, e vale registrar
+    /// por quê: a janela de números é *repetição dirigida por um número*, não
+    /// por uma coleção. O `for-each` do motor lê uma chave de contexto com um
+    /// array; aqui o array não existe em lugar nenhum — ele é **derivado** da
+    /// página atual e do total, e derivar é justamente o que um template não
+    /// faz. É o mesmo sinal que o `PRIMITIVAS.md` já registrava: *um builtin
+    /// que só funcionaria se o interpolador tivesse mais uma capacidade é,
+    /// quase sempre, uma primitiva mal classificada.*
+    ///
+    /// A alternativa seria o app calcular a janela em Luau e passá-la por
+    /// `items=` — que é exatamente o trabalho que este widget existe para
+    /// poupar.
+    ///
+    /// # A convenção da chave é a do `SpinBox`
+    ///
+    /// `value` é o **nome** da chave com a página atual; o widget a escreve
+    /// sozinho, saturando em `[1, total]`. Com `onChange`, ele só avisa.
+    Pagination {
+        /// Nome da chave com a página atual (base 1).
+        value_var: String,
+        /// Total de páginas, **como escrito no markup** — é uma `String` porque
+        /// ele quase sempre vem do dado (`total="{total_paginas}"`), e um campo
+        /// já convertido no parse não teria como interpolar. A conversão
+        /// acontece no render.
+        ///
+        /// Zero ou um esconde o widget inteiro: uma paginação de uma página é
+        /// ruído, não informação.
+        total: String,
+        /// Quantos números aparecem em volta do atual. Default 5.
+        window: usize,
+        /// Mostra `«` / `»` (primeira/última) além de `‹` / `›`.
+        ends: bool,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+    },
+    /// A nota por estrelas: N alvos numa linha, com pré-visualização no hover.
+    ///
+    /// **Também reclassificada de builtin para primitiva na 0.85**, e por dois
+    /// motivos independentes — o que é o mais interessante deles:
+    ///
+    /// 1. a mesma repetição dirigida por número da [`NodeType::Pagination`]
+    ///    (`max="5"` são cinco alvos que não vêm de coleção nenhuma);
+    /// 2. o **hover**, que o markup não expõe: o motor tem `on_press`,
+    ///    `on_double_click`, `cursor` e `tooltip` num nó qualquer, mas não um
+    ///    `on_enter`. E a pré-visualização ao passar o mouse é metade do que
+    ///    um `Rating` faz.
+    ///
+    /// O hover mora numa chave **global** (`__rating`), como o do
+    /// `<daterangepicker>` e pelo mesmo motivo: só uma estrela da tela inteira
+    /// está sob o cursor por vez. A identidade da instância viaja no valor.
+    Rating {
+        /// Nome da chave com a nota.
+        value_var: String,
+        /// Quantos alvos desenhar, como escrito no markup. `String` pelo mesmo
+        /// motivo do `total` da [`NodeType::Pagination`]: `max="{estrelas}"`
+        /// precisa interpolar. Default 5, e preso em `[1, 20]` no render.
+        max: String,
+        /// Glifos cheio/vazio. Default `★`/`☆`.
+        filled: String,
+        empty: String,
+        /// Corpo do glifo. Default 20.
+        size: f32,
+        /// Cor do glifo cheio. Vazia = a primária do tema.
+        color: String,
+        /// Só leitura: desenha a nota e não aceita clique nem hover. É o
+        /// `Rating` de uma **lista** de avaliações, que é onde ele mais
+        /// aparece.
+        readonly: bool,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+    },
+    /// `QLineEdit` com `setInputMask`: guarda o valor **cru** na chave e exibe
+    /// mascarado.
+    ///
+    /// A quarta aplicação da lição do `DateEdit`, e a mais direta: a máscara é
+    /// função pura da string, aplicada no `on_input`. O que impedia isso de ser
+    /// um builtin era ler o valor de uma chave cujo *nome* vem de uma prop — a
+    /// indireção `{{value}}` que o interpolador não tem. Em Rust, mascarar é
+    /// uma passada por dois iteradores.
+    ///
+    /// # Cru na chave, mascarado na tela
+    ///
+    /// A mesma separação valor/`displayFormat` do `<dateedit>`, e pelo mesmo
+    /// motivo: `"12345678901"` é o que um backend espera e o que compara sem
+    /// surpresa; `"123.456.789-01"` é o que uma pessoa lê.
+    ///
+    /// # A gramática da máscara
+    ///
+    /// | símbolo | aceita |
+    /// |---|---|
+    /// | `#` | dígito |
+    /// | `A` | letra |
+    /// | `*` | letra ou dígito |
+    ///
+    /// Qualquer outro caractere é **literal** e aparece sozinho na hora certa.
+    /// Os presets (`cpf`, `cnpj`, `phone`, `cep`, `placa`, `date`, `card`) são
+    /// só nomes para máscaras escritas nessa gramática.
+    ///
+    /// # Limite conhecido: apagar um separador do **meio**
+    ///
+    /// No fim da string — que é onde se digita — apagar funciona sempre, porque
+    /// a máscara nunca deixa um separador pendurado (`"123"`, não `"123."`).
+    /// Apagar o `.` do meio de `"123.456"`, porém, não muda o valor cru, e a
+    /// remascaração devolve a tela ao estado anterior: a tecla parece não fazer
+    /// nada, e a seguinte remove o dígito.
+    ///
+    /// Consertar isso exigiria a **posição do cursor**, que o `on_input` do
+    /// `iced` não entrega. A alternativa — comer o último caractere do cru — é
+    /// destrutiva num lugar onde a pessoa não está olhando; ver a nota acima de
+    /// `extrai_cru` em `src/widget.rs`.
+    MaskedInput {
+        /// Nome da chave com o valor **cru**.
+        value_var: String,
+        /// A máscara já resolvida (um preset vira a máscara dele no parse).
+        mask: String,
+        placeholder: String,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega,
+        /// **com o valor cru** — nunca com o mascarado.
+        on_change: String,
+    },
+    /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
+    /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
+    /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
+    Space,
+    /// O buraco que o conteúdo escrito **entre as tags** de um componente
+    /// preenche: `<GroupBox>…</GroupBox>` renderiza esse `…` onde o template do
+    /// `GroupBox` escreveu `<slot/>`.
+    ///
+    /// Antes disto, `NodeType::Component` carregava só props e os filhos do uso
+    /// eram descartados na expansão — o que deixava fora do nível Builtin todo
+    /// widget cuja razão de existir é **envolver** conteúdo (`GroupBox`,
+    /// `Frame`, `Card`, `ToolBar`, `StatusBar`). Ver `PLANO_WIDGETS.md` §3.
+    ///
+    /// Os filhos do próprio `<slot>` são o **conteúdo de reserva**: aparecem
+    /// quando quem usou o componente não escreveu nada dentro dele.
+    ///
+    /// Com `name`, o componente abre **mais de um** buraco e escolhe o que vai
+    /// em cada um — o rodapé de um `<card>`, as ações no cabeçalho de um
+    /// `<groupbox>`. Quem usa etiqueta o conteúdo com o atributo `slot`:
+    ///
+    /// ```xml
+    /// <card title="Servidor">
+    ///     <text content="uptime 31 dias" />            <!-- vai no anônimo -->
+    ///     <template slot="footer">
+    ///         <button text="Reiniciar" on_click="reiniciar" />
+    ///     </template>
+    /// </card>
+    /// ```
+    ///
+    /// `None` é o slot **anônimo**, que recebe tudo que não foi etiquetado. Um
+    /// nome que ninguém preencheu cai no conteúdo de reserva dele, como sempre.
+    Slot {
+        name: Option<String>,
+    },
 }
 
 impl NodeType {
@@ -874,7 +1425,16 @@ impl NodeType {
             NodeType::Select { .. } => "select",
             NodeType::ComboEdit { .. } => "comboedit",
             NodeType::ProgressBar { .. } => "progressbar",
+            NodeType::Radio { .. } => "radio",
+            NodeType::DateTimeEdit { .. } => "timeedit",
+            NodeType::Calendar { .. } => "calendar",
+            NodeType::Pagination { .. } => "pagination",
+            NodeType::Rating { .. } => "rating",
+            NodeType::MaskedInput { .. } => "maskedinput",
+            NodeType::Slider { .. } => "slider",
+            NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
+            NodeType::Reveal { .. } => "reveal",
             NodeType::Form { .. } => "form",
             NodeType::MenuBar => "menubar",
             NodeType::Menu { .. } => "menu",
@@ -892,9 +1452,11 @@ impl NodeType {
             | NodeType::Style { .. }
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
+            | NodeType::Define { .. }
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop
+            | NodeType::Slot { .. }
             | NodeType::Fragment => return None,
         })
     }
@@ -913,6 +1475,8 @@ pub enum NumAttr {
     MaxHeight,
     /// `size` of a `Text` node.
     Size,
+    /// `virtualize` de um `Column`/`Row`: a altura (ou largura) de cada filho.
+    Virtualize,
 }
 
 /// A boolean attribute that normally parses to `bool` at parse time. Same
@@ -931,112 +1495,84 @@ pub enum BoolAttr {
 /// Ver [`UiNode::node_id`].
 static NEXT_NODE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+/// Os filhos de um [`UiNode`], **compartilhados** por contagem de referência.
+///
+/// A razão é o cache de avaliação (`eval.rs`): um acerto de cache devolve a
+/// subárvore guardada, e antes disto isso era uma cópia profunda — a árvore
+/// inteira memcpy'ada nó a nó, a cada mudança de estado, mesmo quando nada
+/// naquela subárvore tinha mudado. Com o `Arc`, clonar um nó custa um
+/// incremento de contador, e a árvore avaliada passa a **dividir** a memória
+/// com a entrada de cache em vez de duplicá-la.
+///
+/// A escrita continua possível e continua correta: [`Children::to_mut`] é
+/// copy-on-write (`Arc::make_mut`), então quem altera filhos compartilhados
+/// paga a cópia **daquele** vetor, uma vez, e ninguém mais enxerga a mudança.
+///
+/// Deref para `Vec<UiNode>` e `IntoIterator` para `&Children` existem para que
+/// todo o código de leitura — `node.children.len()`, `node.children[0]`,
+/// `for c in &node.children` — continue escrito como sempre foi.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Children(std::sync::Arc<Vec<UiNode>>);
+
+impl Children {
+    /// Acesso mutável aos filhos, copiando o vetor **só** se ele estiver
+    /// compartilhado com outro dono (`Arc::make_mut`).
+    pub fn to_mut(&mut self) -> &mut Vec<UiNode> {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+
+    /// Consome e devolve o vetor, sem copiar quando este é o único dono.
+    pub fn into_vec(self) -> Vec<UiNode> {
+        std::sync::Arc::try_unwrap(self.0).unwrap_or_else(|a| (*a).clone())
+    }
+}
+
+impl std::ops::Deref for Children {
+    type Target = Vec<UiNode>;
+    fn deref(&self) -> &Vec<UiNode> {
+        &self.0
+    }
+}
+
+impl From<Vec<UiNode>> for Children {
+    fn from(v: Vec<UiNode>) -> Self {
+        Self(std::sync::Arc::new(v))
+    }
+}
+
+impl FromIterator<UiNode> for Children {
+    fn from_iter<I: IntoIterator<Item = UiNode>>(it: I) -> Self {
+        Self(std::sync::Arc::new(it.into_iter().collect()))
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = &'a UiNode;
+    type IntoIter = std::slice::Iter<'a, UiNode>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+/// Embrulha um grupo de campos opcionais do [`UiNode`] numa caixa — e devolve
+/// `None` quando **nenhum** deles foi usado, que é o caso da esmagadora maioria
+/// dos nós. É o que faz o grupo custar 8 bytes no nó em vez do tamanho somado
+/// dos campos dele.
+pub(crate) fn caixa<T: Default + PartialEq>(v: T) -> Option<Box<T>> {
+    (v != T::default()).then(|| Box::new(v))
+}
+
 /// A próxima identidade de nó.
 pub(crate) fn next_node_id() -> u64 {
     NEXT_NODE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct UiNode {
-    /// Identidade **do nó no template**, atribuída no parse e preservada pelos
-    /// clones que a avaliação faz. É o que dá ao cache de avaliação uma chave
-    /// estável: sem ela, dois `for-each` irmãos (ou aninhados) não teriam como
-    /// ser distinguidos um do outro entre uma reavaliação e a seguinte. Ver
-    /// [`crate::eval::EvalCache`].
-    ///
-    /// Recarregar o template gera ids novos — as entradas velhas do cache viram
-    /// órfãs e são varridas, que é o comportamento desejado (o markup mudou).
-    pub node_id: u64,
-    pub kind: NodeType,
-    pub children: Vec<UiNode>,
-    /// Raw, still-templated values of numeric attributes whose XML value held a
-    /// `{...}` placeholder (so they couldn't be parsed to `f32` at parse time).
-    /// Resolved and parsed during evaluation; see [`NumAttr`]. Empty for the
-    /// common case where every numeric attribute was a literal.
-    pub numeric_templates: Vec<(NumAttr, String)>,
-    /// O mesmo que `numeric_templates`, para os booleanos `hidden`/`disabled`
-    /// escritos com placeholder (`hidden="{oculto}"`). Resolvidos na avaliação;
-    /// ver [`BoolAttr`]. Vazio no caso comum (valor literal).
-    pub bool_templates: Vec<(BoolAttr, String)>,
-    pub width: Option<String>,
-    pub height: Option<String>,
-    pub padding: Option<String>,
-    pub align_x: Option<String>,
-    pub align_y: Option<String>,
-    pub spacing: Option<f32>,
-    pub background: Option<String>,
-    pub border_radius: Option<f32>,
-    pub border_width: Option<f32>,
-    pub border_color: Option<String>,
-    /// Space-separated stylesheet classes (`class="card centered"`), resolved
-    /// against the loaded `.gss` stylesheets during evaluation.
-    pub class: Option<String>,
-    /// Element id (`id="save"`), matched against `#id { }` GSS selectors during
-    /// evaluation. Higher specificity than `class` (applied on top of it, still
-    /// under inline attributes). Uniqueness isn't enforced — several nodes may
-    /// share an id and all pick up the same `#id` rule.
-    pub id: Option<String>,
-    /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
-    /// monospaced font; anything else (or `None`) uses the default.
-    pub font: Option<String>,
-    /// A linear gradient background, overriding `background` when present.
-    /// Syntax: `"#RRGGBB #RRGGBB"` (top→bottom) or `"<angle> #a #b [#c ...]"`
-    /// where `<angle>` is in degrees.
-    pub gradient: Option<String>,
-    /// Horizontal text alignment for `Text`: `start`/`center`/`end`.
-    pub text_align: Option<String>,
-    /// Action dispatched on mouse press (button-down) over this element, which
-    /// wraps it in a `mouse_area`. Unlike a `Button`'s click (which fires on
-    /// release), press semantics are required for window dragging
-    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::UiClick`].
-    pub on_press: Option<String>,
-    /// Action dispatched on a double-click over this element (wraps it in a
-    /// `mouse_area`). Common for titlebars (`onDoubleClick="window:maximize"`).
-    pub on_double_click: Option<String>,
-    /// Mouse cursor shown while hovering this element (`cursor="pointer"`,
-    /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
-    /// corresponding `mouse::Interaction`. Useful for window resize handles.
-    pub cursor: Option<String>,
-    /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
-    pub text_color: Option<String>,
-    /// Texto exibido num balão flutuante ao pairar o mouse sobre o elemento
-    /// (`tooltip="..."`/`title="..."`), via `iced::widget::Tooltip`. Só
-    /// atributo inline (sem `.classe { }` equivalente — é conteúdo, não
-    /// estilo). Útil sobretudo em ícones sem rótulo visível (ex.: a sidebar
-    /// colapsada de rustploy-gui).
-    pub tooltip: Option<String>,
-    /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
-    /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
-    pub tooltip_position: Option<String>,
-    /// Teto de largura/altura (`maxWidth`/`maxHeight`) — envolve o elemento num
-    /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
-    pub max_width: Option<f32>,
-    pub max_height: Option<f32>,
-    /// `hidden`/`oculto` (ou via `.classe { hidden: true }` / `display: none`) —
-    /// remove o elemento do layout sem ocupar espaço nem `spacing`. Uso típico:
-    /// `@media` esconder cromo em janelas estreitas (ver [`crate::stylesheet::StyleRule::hidden`]).
-    pub hidden: Option<bool>,
-    /// `disabled`/`desabilitado` — desativa a interação (Button/TextInput/
-    /// Checkbox/Toggle deixam de anexar seus handlers `on_press`/`on_input`/
-    /// `on_toggle`, então o `Status::Disabled` nativo do iced entra em vigor
-    /// sozinho, sem o motor precisar rastrear estado). Ao contrário de
-    /// `hidden`, o elemento continua ocupando espaço e renderizando — só perde
-    /// a interatividade. Só existe como atributo inline (sem `.classe { }`
-    /// equivalente, ao contrário de `hidden`).
-    pub disabled: Option<bool>,
-    /// Overlays de estilo por pseudo-estado (`.classe:hover { }`,
-    /// `:focus`, `:active`, `:disabled`), resolvidos em `eval.rs` a partir
-    /// da(s) classe(s) do nó — nunca vêm de atributo inline, sempre `None`
-    /// logo após o parse do XML. `None` quando o `.gss` não declara aquele
-    /// estado para nenhuma classe do nó (custo zero no caso comum). Aplicados
-    /// por `widget.rs` dentro da closure de `Status` do widget correspondente
-    /// (ex.: `button::Status::Hovered`); hoje só `Button` e `TextInput`
-    /// consultam esses campos — `Select` só usa `hover_style` para a borda.
-    pub hover_style: Option<Box<StyleRule>>,
-    pub focus_style: Option<Box<StyleRule>>,
-    pub active_style: Option<Box<StyleRule>>,
-    pub disabled_style: Option<Box<StyleRule>>,
-    // Structural directives as attributes (Vue/Angular style)
+/// Diretivas de fluxo (`if`/`else-if`/`for-each`) — presentes em
+/// pouquíssimos nós, e por isso fora do corpo do [`UiNode`].
+///
+/// Ver [`UiNode::cond`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Cond {
     pub if_cond: Option<String>,
     pub if_equals: Option<String>,
     pub if_not_equals: Option<String>,
@@ -1046,14 +1582,21 @@ pub struct UiNode {
     /// nova. Ex.: manter um item de nav "aceso" em várias sub-telas
     /// (`one_of="projects project new_service service"`).
     pub if_one_of: Option<String>,
-    /// `empty`/`not_empty` (bare, como `else` — ver `normalize_bare_directives`
-    /// em `eval.rs`) — `cond` já é o JSON cru de uma lista no contexto
-    /// (`ctx.proj_secrets = "[...]"`); casa se ela tiver zero elementos (ou
-    /// não for um array JSON válido — "sem lista ainda" também conta como
-    /// vazio) ou o oposto. Aposenta os `*_count` que só existiam pra dar a
-    /// um template algo pra comparar com `equals="0"`.
-    pub if_empty: bool,
-    pub if_not_empty: bool,
+    /// `contains="rede"` — o **caso simétrico** do [`Self::if_one_of`]: lá a
+    /// lista está no markup e o valor da chave é um item; aqui a lista está na
+    /// chave (`abertas="rede,proxy"`) e o item está no markup.
+    ///
+    /// É o que dá ao motor o **conjunto nomeado**: um `Accordion` com várias
+    /// seções abertas, um `ListView` de seleção múltipla, um campo de filtros
+    /// por tags — coisas que o `PLANO_WIDGETS.md` §3 declarava presas ao estado
+    /// por instância e que nunca estiveram. Uma chave, uma string, e uma
+    /// comparação invertida.
+    ///
+    /// Separadores: vírgula, ponto-e-vírgula ou espaço, todos ao mesmo tempo —
+    /// o conjunto é montado por código de app (`"a,b"` sai de um `concat`, `"a
+    /// b"` de um `table.concat` com espaço) e exigir um deles só seria uma
+    /// pegadinha sem contrapartida.
+    pub if_contains: Option<String>,
     /// `platform="desktop"`/`"web"` — filtro independente de `if`/`else-if`/
     /// `else` (não participa da cadeia, não mexe em `last_if`): um valor que
     /// não bate com [`crate::eval::current_platform`] some o nó inteiro da
@@ -1064,7 +1607,6 @@ pub struct UiNode {
     /// (titlebar, resize handles) e só-web (PWA) no MESMO arquivo em vez de
     /// forçar dois — ver `expand_children` em `eval.rs`.
     pub if_platform: Option<String>,
-    pub is_else: bool,
     /// `else-if="{cond}"` — encadeia com o `if`/`else-if` anterior (só avalia
     /// quando o anterior deu falso; reaproveita `if_equals`/`if_not_equals`
     /// pro comparador, já que um nó só pode ser `if=` OU `else-if=`, nunca os
@@ -1072,6 +1614,14 @@ pub struct UiNode {
     pub else_if_cond: Option<String>,
     pub for_each: Option<String>,
     pub for_each_var: Option<String>,
+}
+
+/// Metadados de arrasto de uma lista reordenável, hidratados pela expansão
+/// do `for-each` — nulos em todo nó que não seja item de lista.
+///
+/// Ver [`UiNode::drag`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Drag {
     /// Action dispatched (with the new order as a JSON array of `reorderKey`
     /// identities) when a reorderable `for-each`/`ForEach` item is dropped in a
     /// new position. Set on the same node that carries `for_each`/`for_each_var`.
@@ -1079,9 +1629,6 @@ pub struct UiNode {
     /// Field name (within each item's JSON object) used as its stable identity
     /// for reordering — the array itself has no positional index of its own.
     pub reorder_key: Option<String>,
-    /// Marks a descendant of a reorderable item as the "grab handle": only it
-    /// starts a drag on mouse-press. Doesn't interpolate; a plain marker.
-    pub drag_handle: bool,
     /// Internal, evaluation-only fields hydrated by the for-each expansion of a
     /// reorderable list (never set from raw markup): which list (`items` key)
     /// and which item (`reorder_key` value) a node belongs to, used to attach
@@ -1089,11 +1636,19 @@ pub struct UiNode {
     /// full drag payload (`drag_order`+`drag_on_reorder`) the handle gets.
     pub drag_list: Option<String>,
     pub drag_item_key: Option<String>,
-    pub drag_order: Option<Vec<String>>,
     pub drag_on_reorder: Option<String>,
     /// Same, for the `reorderKey` field name — needed by [`crate::GlacierUI`]
     /// to reorder the context's JSON array by identity as the drag moves.
     pub drag_reorder_key: Option<String>,
+    pub drag_order: Option<Vec<String>>,
+}
+
+/// Ligação a um [`crate::forms::Form`] — só nos nós de entrada dentro de um
+/// `<Form>`.
+///
+/// Ver [`UiNode::form`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FormBits {
     /// Binds this input to a [`crate::forms::Form`]'s `FormControl` by name
     /// (Angular's `formControlName`, e.g. `TextInput formControl="email"`). A
     /// `TextInput` with no explicit `value`/`onChange` uses this name for
@@ -1113,7 +1668,609 @@ pub struct UiNode {
     pub form_next_focus: Option<String>,
 }
 
+/// Interação de ponteiro (press, duplo clique, cursor, tooltip) — atributos
+/// raros, que quase nenhum nó de uma tela usa.
+///
+/// Ver [`UiNode::interact`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Interact {
+    /// Action dispatched on mouse press (button-down) over this element, which
+    /// wraps it in a `mouse_area`. Unlike a `Button`'s click (which fires on
+    /// release), press semantics are required for window dragging
+    /// (`onPress="window:drag"`). Emitted as an [`crate::EngineMessage::UiClick`].
+    pub on_press: Option<String>,
+    /// Action dispatched on a double-click over this element (wraps it in a
+    /// `mouse_area`). Common for titlebars (`onDoubleClick="window:maximize"`).
+    pub on_double_click: Option<String>,
+    /// Mouse cursor shown while hovering this element (`cursor="pointer"`,
+    /// `cursor="resize-h"`, …). Wraps the element in a `mouse_area` with the
+    /// corresponding `mouse::Interaction`. Useful for window resize handles.
+    pub cursor: Option<String>,
+    /// Texto exibido num balão flutuante ao pairar o mouse sobre o elemento
+    /// (`tooltip="..."`/`title="..."`), via `iced::widget::Tooltip`. Só
+    /// atributo inline (sem `.classe { }` equivalente — é conteúdo, não
+    /// estilo). Útil sobretudo em ícones sem rótulo visível (ex.: a sidebar
+    /// colapsada de rustploy-gui).
+    pub tooltip: Option<String>,
+    /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
+    /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
+    pub tooltip_position: Option<String>,
+}
+
+/// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
+///
+/// Ver [`UiNode::pseudo`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Pseudo {
+    /// Overlays de estilo por pseudo-estado (`.classe:hover { }`,
+    /// `:focus`, `:active`, `:disabled`), resolvidos em `eval.rs` a partir
+    /// da(s) classe(s) do nó — nunca vêm de atributo inline, sempre `None`
+    /// logo após o parse do XML. `None` quando o `.gss` não declara aquele
+    /// estado para nenhuma classe do nó (custo zero no caso comum). Aplicados
+    /// por `widget.rs` dentro da closure de `Status` do widget correspondente
+    /// (ex.: `button::Status::Hovered`); hoje só `Button` e `TextInput`
+    /// consultam esses campos — `Select` só usa `hover_style` para a borda.
+    pub hover_style: Option<Box<StyleRule>>,
+    pub focus_style: Option<Box<StyleRule>>,
+    pub active_style: Option<Box<StyleRule>>,
+    pub disabled_style: Option<Box<StyleRule>>,
+}
+
+/// Aparência de segunda ordem: alinhamento, fonte, gradiente e cores que
+/// não são o `background`. Fora do corpo do nó porque a maioria é `None`.
+///
+/// Ver [`UiNode::look`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Look {
+    pub align_x: Option<String>,
+    pub align_y: Option<String>,
+    pub border_color: Option<String>,
+    /// Font family hint for text-bearing nodes: `mono`/`monospace` selects the
+    /// monospaced font; anything else (or `None`) uses the default.
+    pub font: Option<String>,
+    /// A linear gradient background, overriding `background` when present.
+    /// Syntax: `"#RRGGBB #RRGGBB"` (top→bottom) or `"<angle> #a #b [#c ...]"`
+    /// where `<angle>` is in degrees.
+    pub gradient: Option<String>,
+    /// Horizontal text alignment for `Text`: `start`/`center`/`end`.
+    pub text_align: Option<String>,
+    /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
+    pub text_color: Option<String>,
+    /// `slot="footer"` — em qual buraco **nomeado** do componente este nó entra.
+    /// É a contraparte, do lado de quem usa, do `<slot name="footer"/>` que o
+    /// template do componente escreve (ver [`NodeType::Slot`]). `None` = vai
+    /// para o slot anônimo.
+    ///
+    /// Como as outras diretivas, é lido pela fronteira de componente do `eval`
+    /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
+    /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
+    pub slot_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UiNode {
+    /// Identidade **do nó no template**, atribuída no parse e preservada pelos
+    /// clones que a avaliação faz. É o que dá ao cache de avaliação uma chave
+    /// estável: sem ela, dois `for-each` irmãos (ou aninhados) não teriam como
+    /// ser distinguidos um do outro entre uma reavaliação e a seguinte. Ver
+    /// [`crate::eval::EvalCache`].
+    ///
+    /// Recarregar o template gera ids novos — as entradas velhas do cache viram
+    /// órfãs e são varridas, que é o comportamento desejado (o markup mudou).
+    pub node_id: u64,
+    pub kind: NodeType,
+    pub children: Children,
+    /// Raw, still-templated values of numeric attributes whose XML value held a
+    /// `{...}` placeholder (so they couldn't be parsed to `f32` at parse time).
+    /// Resolved and parsed during evaluation; see [`NumAttr`]. Empty for the
+    /// common case where every numeric attribute was a literal.
+    pub numeric_templates: Vec<(NumAttr, String)>,
+    /// O mesmo que `numeric_templates`, para os booleanos `hidden`/`disabled`
+    /// escritos com placeholder (`hidden="{oculto}"`). Resolvidos na avaliação;
+    /// ver [`BoolAttr`]. Vazio no caso comum (valor literal).
+    pub bool_templates: Vec<(BoolAttr, String)>,
+    pub width: Option<String>,
+    pub height: Option<String>,
+    pub padding: Option<String>,
+    pub spacing: Option<f32>,
+    /// **Virtualização**: a altura (num `Column`) ou largura (num `Row`) que
+    /// **todo** filho tem, em pixels. Presente = o motor só monta os filhos que
+    /// caem na janela visível do `<scrollable>` que envolve este nó, e substitui
+    /// os de fora por um vão do tamanho exato — a barra de rolagem continua
+    /// proporcional e a rolagem, contínua.
+    ///
+    /// Por que a altura é declarada em vez de medida: descobrir a altura real
+    /// exige o layout, e o layout é justamente o trabalho que se quer evitar.
+    /// É a mesma troca do `uniformItemSizes` do `QListView`.
+    ///
+    /// Sem um `<scrollable>` acima, ou com valor não positivo, o nó renderiza
+    /// inteiro — a virtualização degrada para o comportamento de sempre.
+    pub virtualize: Option<f32>,
+    pub background: Option<String>,
+    pub border_radius: Option<f32>,
+    pub border_width: Option<f32>,
+    /// Space-separated stylesheet classes (`class="card centered"`), resolved
+    /// against the loaded `.gss` stylesheets during evaluation.
+    pub class: Option<String>,
+    /// Element id (`id="save"`), matched against `#id { }` GSS selectors during
+    /// evaluation. Higher specificity than `class` (applied on top of it, still
+    /// under inline attributes). Uniqueness isn't enforced — several nodes may
+    /// share an id and all pick up the same `#id` rule.
+    pub id: Option<String>,
+    /// Teto de largura/altura (`maxWidth`/`maxHeight`) — envolve o elemento num
+    /// `container` que limita, já que `Row`/`Column` não capam o próprio tamanho.
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
+    /// `hidden`/`oculto` (ou via `.classe { hidden: true }` / `display: none`) —
+    /// remove o elemento do layout sem ocupar espaço nem `spacing`. Uso típico:
+    /// `@media` esconder cromo em janelas estreitas (ver [`crate::stylesheet::StyleRule::hidden`]).
+    pub hidden: Option<bool>,
+    /// `disabled`/`desabilitado` — desativa a interação (Button/TextInput/
+    /// Checkbox/Toggle deixam de anexar seus handlers `on_press`/`on_input`/
+    /// `on_toggle`, então o `Status::Disabled` nativo do iced entra em vigor
+    /// sozinho, sem o motor precisar rastrear estado). Ao contrário de
+    /// `hidden`, o elemento continua ocupando espaço e renderizando — só perde
+    /// a interatividade. Só existe como atributo inline (sem `.classe { }`
+    /// equivalente, ao contrário de `hidden`).
+    pub disabled: Option<bool>,
+    // Structural directives as attributes (Vue/Angular style)
+    /// `empty`/`not_empty` (bare, como `else` — ver `normalize_bare_directives`
+    /// em `eval.rs`) — `cond` já é o JSON cru de uma lista no contexto
+    /// (`ctx.proj_secrets = "[...]"`); casa se ela tiver zero elementos (ou
+    /// não for um array JSON válido — "sem lista ainda" também conta como
+    /// vazio) ou o oposto. Aposenta os `*_count` que só existiam pra dar a
+    /// um template algo pra comparar com `equals="0"`.
+    pub if_empty: bool,
+    pub if_not_empty: bool,
+    pub is_else: bool,
+    /// Marks a descendant of a reorderable item as the "grab handle": only it
+    /// starts a drag on mouse-press. Doesn't interpolate; a plain marker.
+    pub drag_handle: bool,
+    /// Diretivas de fluxo (`if`/`else-if`/`for-each`) — presentes em
+    /// Alocado só quando algum dos campos de [`Cond`] é usado.
+    pub cond: Option<Box<Cond>>,
+    /// Metadados de arrasto de uma lista reordenável, hidratados pela expansão
+    /// Alocado só quando algum dos campos de [`Drag`] é usado.
+    pub drag: Option<Box<Drag>>,
+    /// Ligação a um [`crate::forms::Form`] — só nos nós de entrada dentro de um
+    /// Alocado só quando algum dos campos de [`FormBits`] é usado.
+    pub form: Option<Box<FormBits>>,
+    /// Interação de ponteiro (press, duplo clique, cursor, tooltip) — atributos
+    /// Alocado só quando algum dos campos de [`Interact`] é usado.
+    pub interact: Option<Box<Interact>>,
+    /// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
+    /// Alocado só quando algum dos campos de [`Pseudo`] é usado.
+    pub pseudo: Option<Box<Pseudo>>,
+    /// Aparência de segunda ordem: alinhamento, fonte, gradiente e cores que
+    /// Alocado só quando algum dos campos de [`Look`] é usado.
+    pub look: Option<Box<Look>>,
+}
+
 impl UiNode {
+    /// Ver [`Cond::if_cond`].
+    pub fn if_cond(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_cond.as_deref()
+    }
+    /// Escreve [`Cond::if_cond`], alocando o grupo se preciso.
+    pub fn set_if_cond(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_cond = v;
+    }
+    /// Ver [`Cond::if_equals`].
+    pub fn if_equals(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_equals.as_deref()
+    }
+    /// Escreve [`Cond::if_equals`], alocando o grupo se preciso.
+    pub fn set_if_equals(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_equals = v;
+    }
+    /// Ver [`Cond::if_not_equals`].
+    pub fn if_not_equals(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_not_equals.as_deref()
+    }
+    /// Escreve [`Cond::if_not_equals`], alocando o grupo se preciso.
+    pub fn set_if_not_equals(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_not_equals = v;
+    }
+    /// Ver [`Cond::if_one_of`].
+    pub fn if_one_of(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_one_of.as_deref()
+    }
+    /// Escreve [`Cond::if_one_of`], alocando o grupo se preciso.
+    pub fn set_if_one_of(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_one_of = v;
+    }
+    /// Ver [`Cond::if_contains`].
+    pub fn if_contains(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_contains.as_deref()
+    }
+    /// Escreve [`Cond::if_contains`], alocando o grupo se preciso.
+    pub fn set_if_contains(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_contains = v;
+    }
+    /// Ver [`Cond::if_platform`].
+    pub fn if_platform(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_platform.as_deref()
+    }
+    /// Escreve [`Cond::if_platform`], alocando o grupo se preciso.
+    pub fn set_if_platform(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_platform = v;
+    }
+    /// Ver [`Cond::else_if_cond`].
+    pub fn else_if_cond(&self) -> Option<&str> {
+        self.cond.as_ref()?.else_if_cond.as_deref()
+    }
+    /// Escreve [`Cond::else_if_cond`], alocando o grupo se preciso.
+    pub fn set_else_if_cond(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).else_if_cond = v;
+    }
+    /// Ver [`Cond::for_each`].
+    pub fn for_each(&self) -> Option<&str> {
+        self.cond.as_ref()?.for_each.as_deref()
+    }
+    /// Escreve [`Cond::for_each`], alocando o grupo se preciso.
+    pub fn set_for_each(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).for_each = v;
+    }
+    /// Ver [`Cond::for_each_var`].
+    pub fn for_each_var(&self) -> Option<&str> {
+        self.cond.as_ref()?.for_each_var.as_deref()
+    }
+    /// Escreve [`Cond::for_each_var`], alocando o grupo se preciso.
+    pub fn set_for_each_var(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).for_each_var = v;
+    }
+    /// Ver [`Drag::on_reorder`].
+    pub fn on_reorder(&self) -> Option<&str> {
+        self.drag.as_ref()?.on_reorder.as_deref()
+    }
+    /// Escreve [`Drag::on_reorder`], alocando o grupo se preciso.
+    pub fn set_on_reorder(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).on_reorder = v;
+    }
+    /// Ver [`Drag::reorder_key`].
+    pub fn reorder_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.reorder_key.as_deref()
+    }
+    /// Escreve [`Drag::reorder_key`], alocando o grupo se preciso.
+    pub fn set_reorder_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).reorder_key = v;
+    }
+    /// Ver [`Drag::drag_list`].
+    pub fn drag_list(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_list.as_deref()
+    }
+    /// Escreve [`Drag::drag_list`], alocando o grupo se preciso.
+    pub fn set_drag_list(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_list = v;
+    }
+    /// Ver [`Drag::drag_item_key`].
+    pub fn drag_item_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_item_key.as_deref()
+    }
+    /// Escreve [`Drag::drag_item_key`], alocando o grupo se preciso.
+    pub fn set_drag_item_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_item_key = v;
+    }
+    /// Ver [`Drag::drag_on_reorder`].
+    pub fn drag_on_reorder(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_on_reorder.as_deref()
+    }
+    /// Escreve [`Drag::drag_on_reorder`], alocando o grupo se preciso.
+    pub fn set_drag_on_reorder(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag
+            .get_or_insert_with(Default::default)
+            .drag_on_reorder = v;
+    }
+    /// Ver [`Drag::drag_reorder_key`].
+    pub fn drag_reorder_key(&self) -> Option<&str> {
+        self.drag.as_ref()?.drag_reorder_key.as_deref()
+    }
+    /// Escreve [`Drag::drag_reorder_key`], alocando o grupo se preciso.
+    pub fn set_drag_reorder_key(&mut self, v: Option<String>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag
+            .get_or_insert_with(Default::default)
+            .drag_reorder_key = v;
+    }
+    /// Ver [`Drag::drag_order`].
+    pub fn drag_order(&self) -> Option<&[String]> {
+        self.drag.as_ref()?.drag_order.as_deref()
+    }
+    /// Escreve [`Drag::drag_order`], alocando o grupo se preciso.
+    pub fn set_drag_order(&mut self, v: Option<Vec<String>>) {
+        if v.is_none() && self.drag.is_none() {
+            return;
+        }
+        self.drag.get_or_insert_with(Default::default).drag_order = v;
+    }
+    /// Ver [`FormBits::form_control`].
+    pub fn form_control(&self) -> Option<&str> {
+        self.form.as_ref()?.form_control.as_deref()
+    }
+    /// Escreve [`FormBits::form_control`], alocando o grupo se preciso.
+    pub fn set_form_control(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).form_control = v;
+    }
+    /// Ver [`FormBits::form_scope`].
+    pub fn form_scope(&self) -> Option<&str> {
+        self.form.as_ref()?.form_scope.as_deref()
+    }
+    /// Escreve [`FormBits::form_scope`], alocando o grupo se preciso.
+    pub fn set_form_scope(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).form_scope = v;
+    }
+    /// Ver [`FormBits::form_submit_action`].
+    pub fn form_submit_action(&self) -> Option<&str> {
+        self.form.as_ref()?.form_submit_action.as_deref()
+    }
+    /// Escreve [`FormBits::form_submit_action`], alocando o grupo se preciso.
+    pub fn set_form_submit_action(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_submit_action = v;
+    }
+    /// Ver [`FormBits::form_next_focus`].
+    pub fn form_next_focus(&self) -> Option<&str> {
+        self.form.as_ref()?.form_next_focus.as_deref()
+    }
+    /// Escreve [`FormBits::form_next_focus`], alocando o grupo se preciso.
+    pub fn set_form_next_focus(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_next_focus = v;
+    }
+    /// Ver [`Interact::on_press`].
+    pub fn on_press(&self) -> Option<&str> {
+        self.interact.as_ref()?.on_press.as_deref()
+    }
+    /// Escreve [`Interact::on_press`], alocando o grupo se preciso.
+    pub fn set_on_press(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).on_press = v;
+    }
+    /// Ver [`Interact::on_double_click`].
+    pub fn on_double_click(&self) -> Option<&str> {
+        self.interact.as_ref()?.on_double_click.as_deref()
+    }
+    /// Escreve [`Interact::on_double_click`], alocando o grupo se preciso.
+    pub fn set_on_double_click(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact
+            .get_or_insert_with(Default::default)
+            .on_double_click = v;
+    }
+    /// Ver [`Interact::cursor`].
+    pub fn cursor(&self) -> Option<&str> {
+        self.interact.as_ref()?.cursor.as_deref()
+    }
+    /// Escreve [`Interact::cursor`], alocando o grupo se preciso.
+    pub fn set_cursor(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).cursor = v;
+    }
+    /// Ver [`Interact::tooltip`].
+    pub fn tooltip(&self) -> Option<&str> {
+        self.interact.as_ref()?.tooltip.as_deref()
+    }
+    /// Escreve [`Interact::tooltip`], alocando o grupo se preciso.
+    pub fn set_tooltip(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).tooltip = v;
+    }
+    /// Ver [`Interact::tooltip_position`].
+    pub fn tooltip_position(&self) -> Option<&str> {
+        self.interact.as_ref()?.tooltip_position.as_deref()
+    }
+    /// Escreve [`Interact::tooltip_position`], alocando o grupo se preciso.
+    pub fn set_tooltip_position(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact
+            .get_or_insert_with(Default::default)
+            .tooltip_position = v;
+    }
+    /// Ver [`Pseudo::hover_style`].
+    pub fn hover_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.hover_style.as_deref()
+    }
+    /// Escreve [`Pseudo::hover_style`], alocando o grupo se preciso.
+    pub fn set_hover_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo.get_or_insert_with(Default::default).hover_style = v;
+    }
+    /// Ver [`Pseudo::focus_style`].
+    pub fn focus_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.focus_style.as_deref()
+    }
+    /// Escreve [`Pseudo::focus_style`], alocando o grupo se preciso.
+    pub fn set_focus_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo.get_or_insert_with(Default::default).focus_style = v;
+    }
+    /// Ver [`Pseudo::active_style`].
+    pub fn active_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.active_style.as_deref()
+    }
+    /// Escreve [`Pseudo::active_style`], alocando o grupo se preciso.
+    pub fn set_active_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo
+            .get_or_insert_with(Default::default)
+            .active_style = v;
+    }
+    /// Ver [`Pseudo::disabled_style`].
+    pub fn disabled_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.disabled_style.as_deref()
+    }
+    /// Escreve [`Pseudo::disabled_style`], alocando o grupo se preciso.
+    pub fn set_disabled_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo
+            .get_or_insert_with(Default::default)
+            .disabled_style = v;
+    }
+    /// Ver [`Look::align_x`].
+    pub fn align_x(&self) -> Option<&str> {
+        self.look.as_ref()?.align_x.as_deref()
+    }
+    /// Escreve [`Look::align_x`], alocando o grupo se preciso.
+    pub fn set_align_x(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).align_x = v;
+    }
+    /// Ver [`Look::align_y`].
+    pub fn align_y(&self) -> Option<&str> {
+        self.look.as_ref()?.align_y.as_deref()
+    }
+    /// Escreve [`Look::align_y`], alocando o grupo se preciso.
+    pub fn set_align_y(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).align_y = v;
+    }
+    /// Ver [`Look::border_color`].
+    pub fn border_color(&self) -> Option<&str> {
+        self.look.as_ref()?.border_color.as_deref()
+    }
+    /// Escreve [`Look::border_color`], alocando o grupo se preciso.
+    pub fn set_border_color(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).border_color = v;
+    }
+    /// Ver [`Look::font`].
+    pub fn font(&self) -> Option<&str> {
+        self.look.as_ref()?.font.as_deref()
+    }
+    /// Escreve [`Look::font`], alocando o grupo se preciso.
+    pub fn set_font(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).font = v;
+    }
+    /// Ver [`Look::gradient`].
+    pub fn gradient(&self) -> Option<&str> {
+        self.look.as_ref()?.gradient.as_deref()
+    }
+    /// Escreve [`Look::gradient`], alocando o grupo se preciso.
+    pub fn set_gradient(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).gradient = v;
+    }
+    /// Ver [`Look::text_align`].
+    pub fn text_align(&self) -> Option<&str> {
+        self.look.as_ref()?.text_align.as_deref()
+    }
+    /// Escreve [`Look::text_align`], alocando o grupo se preciso.
+    pub fn set_text_align(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).text_align = v;
+    }
+    /// Ver [`Look::text_color`].
+    pub fn text_color(&self) -> Option<&str> {
+        self.look.as_ref()?.text_color.as_deref()
+    }
+    /// Escreve [`Look::text_color`], alocando o grupo se preciso.
+    pub fn set_text_color(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).text_color = v;
+    }
+    /// Ver [`Look::slot_name`].
+    pub fn slot_name(&self) -> Option<&str> {
+        self.look.as_ref()?.slot_name.as_deref()
+    }
+    /// Escreve [`Look::slot_name`], alocando o grupo se preciso.
+    pub fn set_slot_name(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).slot_name = v;
+    }
+
     /// Helper to find a specific attribute case-insensitively
     fn get_attr(node: &Node, keys: &[&str]) -> Option<String> {
         for key in keys {
@@ -1232,6 +2389,18 @@ impl UiNode {
             &node,
             &["spacing", "espacamento"],
             NumAttr::Spacing,
+            &mut numeric_templates,
+        );
+        let virtualize = Self::get_attr_num(
+            &node,
+            &[
+                "virtualize",
+                "virtualizar",
+                "itemHeight",
+                "item_height",
+                "item-height",
+            ],
+            NumAttr::Virtualize,
             &mut numeric_templates,
         );
         let background = Self::get_attr(&node, &["background", "bg", "fundo"]);
@@ -1356,16 +2525,24 @@ impl UiNode {
             Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
         let if_one_of = Self::get_attr(
             &node,
-            &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+            &[
+                "one_of",
+                "oneOf",
+                "one-of",
+                "equals_any",
+                "equalsAny",
+                "algum_de",
+            ],
         );
+        let if_contains = Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
         let if_empty = node.has_attribute("empty") || node.has_attribute("vazio");
         let if_not_empty = node.has_attribute("not_empty")
             || node.has_attribute("notEmpty")
             || node.has_attribute("not-empty")
             || node.has_attribute("nao_vazio");
         let if_platform = Self::get_attr(&node, &["platform", "plataforma"]);
-        let is_else = !is_template_tag
-            && (node.has_attribute("else") || node.has_attribute("senao"));
+        let is_else =
+            !is_template_tag && (node.has_attribute("else") || node.has_attribute("senao"));
         let else_if_cond = if is_template_tag {
             None
         } else {
@@ -1380,6 +2557,18 @@ impl UiNode {
             Self::get_attr(&node, &["for-each", "forEach", "foreach", "each", "repeat"])
         };
         let for_each_var = Self::get_attr(&node, &["var", "variavel"]);
+        // `slot="footer"` no USO. Num `<slot name="footer"/>` (a declaração, do
+        // lado do componente) quem carrega o nome é o `NodeType`, não isto — a
+        // tag `slot` usa o atributo `name`, e o atributo `slot` é de qualquer
+        // outra tag.
+        let slot_name = if matches!(
+            tag,
+            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo"
+        ) {
+            None
+        } else {
+            Self::get_attr(&node, &["slot", "espaco", "espaço"]).filter(|n| !n.trim().is_empty())
+        };
         let on_reorder = Self::get_attr(
             &node,
             &["onReorder", "on_reorder", "on-reorder", "aoReordenar"],
@@ -1609,10 +2798,251 @@ impl UiNode {
                     color,
                 }
             }
+            // As três tags do Qt, uma primitiva só — muda quais seções entram.
+            "TimeEdit" | "timeedit" | "TimePicker" | "timepicker" | "EditorHora"
+            | "editor_hora" | "DateEdit" | "dateedit" | "DatePicker" | "datepicker"
+            | "EditorData" | "editor_data" | "DateTimeEdit" | "datetimeedit" | "DateTimePicker"
+            | "datetimepicker" | "EditorDataHora" | "editor_data_hora" => {
+                let baixo = tag.to_ascii_lowercase();
+                let tem_data = baixo.starts_with("date") || baixo.starts_with("editor_data");
+                let tem_hora = !baixo.starts_with("date")
+                    || baixo.starts_with("datetime")
+                    || baixo.starts_with("editor_data_hora");
+                NodeType::DateTimeEdit {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    date: tem_data,
+                    time: tem_hora,
+                    seconds: Self::get_attr_bool(&node, &["seconds", "segundos", "com_segundos"]),
+                    // `format="br"` é só a ordem de exibição; a chave é ISO.
+                    day_first: Self::get_attr(&node, &["format", "formato"]).is_some_and(|f| {
+                        let f = f.trim().to_ascii_lowercase();
+                        f == "br" || f == "dmy" || f == "dd/mm/yyyy"
+                    }),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            // As três tags do calendário, uma primitiva só — muda o que um
+            // clique grava e quantas grades aparecem.
+            "Calendar" | "calendar" | "Calendario" | "calendario" | "MonthYearPicker"
+            | "monthyearpicker" | "SeletorMesAno" | "seletor_mes_ano" | "DateRangePicker"
+            | "daterangepicker" | "SeletorIntervalo" | "seletor_intervalo" => {
+                let baixo = tag.to_ascii_lowercase();
+                let mes_ano = baixo.starts_with("monthyear") || baixo.starts_with("seletor_mes");
+                let range = baixo.starts_with("daterange") || baixo.starts_with("seletor_interv");
+                // `mode` sobrescreve o piso que a tag escolheu — é a escada do
+                // Qt (dia → mês → ano) exposta como prop.
+                let mode = Self::get_attr(&node, &["mode", "modo"])
+                    .map(|m| match m.trim().to_ascii_lowercase().as_str() {
+                        "month" | "mes" | "mês" | "monthyear" => 'M',
+                        "year" | "ano" => 'y',
+                        _ => 'd',
+                    })
+                    .unwrap_or(if mes_ano { 'M' } else { 'd' });
+                NodeType::Calendar {
+                    value_var: Self::get_attr(
+                        &node,
+                        &["value", "valor", "start", "inicio", "início"],
+                    )
+                    .unwrap_or_default(),
+                    end_var: Self::get_attr(&node, &["end", "fim", "final"]).unwrap_or_default(),
+                    month_var: Self::get_attr(&node, &["month", "mes_visivel", "mês_visível"])
+                        .unwrap_or_default(),
+                    today: Self::get_attr(&node, &["today", "hoje"]).unwrap_or_default(),
+                    min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
+                    max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
+                    mode,
+                    monday_first: Self::get_attr(&node, &["first_day", "firstDay", "primeiro_dia"])
+                        .is_some_and(|d| {
+                            let d = d.trim().to_ascii_lowercase();
+                            d == "monday" || d == "segunda" || d == "1"
+                        }),
+                    months: Self::get_attr(&node, &["months", "meses", "grades"])
+                        .and_then(|m| m.trim().parse::<u8>().ok())
+                        .unwrap_or(1)
+                        .clamp(1, 4),
+                    range,
+                    month_names: Self::get_attr(
+                        &node,
+                        &["month_names", "monthNames", "nomes_meses"],
+                    )
+                    .unwrap_or_default(),
+                    day_names: Self::get_attr(&node, &["day_names", "dayNames", "nomes_dias"])
+                        .unwrap_or_default(),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Pagination" | "pagination" | "Paginacao" | "paginacao" | "paginação" => {
+                NodeType::Pagination {
+                    value_var: Self::get_attr(&node, &["value", "valor", "page", "pagina"])
+                        .unwrap_or_default(),
+                    total: Self::get_attr(&node, &["total", "pages", "paginas", "páginas"])
+                        .unwrap_or_default(),
+                    // Ímpar de propósito: uma janela par não tem centro, e o
+                    // número atual ficaria fora do meio.
+                    window: Self::get_attr(&node, &["window", "janela", "around"])
+                        .and_then(|w| w.trim().parse::<usize>().ok())
+                        .unwrap_or(5)
+                        .clamp(1, 21),
+                    ends: !Self::get_attr(&node, &["ends", "pontas", "extremos"]).is_some_and(
+                        |e| {
+                            let e = e.trim().to_ascii_lowercase();
+                            e == "false" || e == "0" || e == "nao" || e == "não"
+                        },
+                    ),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Rating" | "rating" | "Nota" | "nota" | "Estrelas" | "estrelas" => NodeType::Rating {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                max: Self::get_attr(&node, &["max", "maximo", "máximo", "count", "estrelas"])
+                    .unwrap_or_default(),
+                filled: Self::get_attr(&node, &["filled", "icon", "cheio", "icone"])
+                    .unwrap_or_else(|| "★".to_string()),
+                empty: Self::get_attr(&node, &["empty_icon", "emptyIcon", "vazio"])
+                    .unwrap_or_else(|| "☆".to_string()),
+                size: Self::get_attr(&node, &["size", "tamanho"])
+                    .and_then(|s| s.trim().parse::<f32>().ok())
+                    .unwrap_or(20.0),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                readonly: Self::get_attr_bool(&node, &["readonly", "readOnly", "somente_leitura"]),
+                on_change: Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default(),
+            },
+            "MaskedInput" | "maskedinput" | "EntradaMascarada" | "entrada_mascarada"
+            | "Mascara" | "mascara" | "máscara" => {
+                let bruta = Self::get_attr(&node, &["mask", "mascara", "máscara", "format"])
+                    .unwrap_or_default();
+                NodeType::MaskedInput {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    mask: mascara_preset(&bruta),
+                    placeholder: Self::get_attr(&node, &["placeholder", "dica"])
+                        .unwrap_or_default(),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {
+                let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"])
+                    .unwrap_or_default();
+                let value = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let group_var = Self::get_attr(
+                    &node,
+                    &[
+                        "group",
+                        "grupo",
+                        "checked",
+                        "marcado",
+                        "selected",
+                        "selecionado",
+                    ],
+                )
+                .unwrap_or_default();
+                let on_change = Self::get_attr(
+                    &node,
+                    &[
+                        "onChange",
+                        "on_change",
+                        "on-change",
+                        "aoMudar",
+                        "ao_mudar",
+                        "onClick",
+                        "on_click",
+                    ],
+                )
+                .unwrap_or_default();
+                NodeType::Radio {
+                    label,
+                    value,
+                    group_var,
+                    on_change,
+                }
+            }
+            "Slider" | "slider" | "Deslizante" | "deslizante" => {
+                let value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let on_change = Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default();
+                let on_release = Self::get_attr(
+                    &node,
+                    &[
+                        "onRelease",
+                        "on_release",
+                        "on-release",
+                        "aoSoltar",
+                        "ao_soltar",
+                    ],
+                );
+                let parse_f32 = |keys: &[&str], default: f32| {
+                    Self::get_attr(&node, keys)
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(default)
+                };
+                let min = parse_f32(&["min", "minimo", "minimum"], 0.0);
+                let max = parse_f32(&["max", "maximo", "maximum"], 100.0);
+                // O texto cru do `step` sobrevive ao parse: é dele que saem as
+                // casas decimais da saída (ver `NodeType::Slider`).
+                let step_raw =
+                    Self::get_attr(&node, &["step", "passo"]).unwrap_or_else(|| "1".to_string());
+                let step = step_raw.trim().parse::<f32>().unwrap_or(1.0);
+                let shift_step = Self::get_attr(&node, &["shiftStep", "shift_step", "passo_fino"])
+                    .and_then(|s| s.trim().parse::<f32>().ok());
+                let default = Self::get_attr(&node, &["default", "padrao", "padrão"])
+                    .and_then(|s| s.trim().parse::<f32>().ok());
+                let vertical = Self::get_attr_bool(&node, &["vertical", "verticalizado"]);
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::Slider {
+                    value_var,
+                    on_change,
+                    on_release,
+                    min,
+                    max,
+                    step,
+                    step_raw,
+                    shift_step,
+                    default,
+                    vertical,
+                    color,
+                }
+            }
+            "Space" | "space" | "Espaco" | "espaco" | "Espaço" | "espaço" | "Spacer" | "spacer" => {
+                NodeType::Space
+            }
             "Spinner" | "spinner" | "BusyIndicator" | "busyindicator" | "busy_indicator"
             | "IndicadorOcupado" | "indicador_ocupado" | "Carregando" | "carregando" => {
                 let color = Self::get_attr(&node, &["color", "cor"]);
                 NodeType::Spinner { color }
+            }
+            "Reveal" | "reveal" | "Collapse" | "collapse" | "Revelar" | "revelar" | "Sanfona"
+            | "sanfona" => {
+                // `open` e `duration` ficam CRUS (`Option<String>`): os dois
+                // chegam com `{…}` quando quem escreve é um builtin (o
+                // `<accordionitem>` passa `duration="{duration|180}"`), e quem
+                // resolve interpolação é o `eval`, não o parser.
+                let open = Self::get_attr(&node, &["open", "aberto", "show", "mostrar", "visible"])
+                    .unwrap_or_default();
+                let duration =
+                    Self::get_attr(&node, &["duration", "duracao", "duração", "ms", "tempo"]);
+                NodeType::Reveal { open, duration }
             }
             "Select" | "select" | "Dropdown" | "dropdown" | "PickList" | "picklist"
             | "ComboBox" | "combobox" | "Combo" | "combo" | "Seletor" | "seletor" => {
@@ -1688,7 +3118,13 @@ impl UiNode {
                 .unwrap_or_default();
                 let on_select = Self::get_attr(
                     &node,
-                    &["onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar"],
+                    &[
+                        "onSelect",
+                        "on_select",
+                        "on-select",
+                        "aoSelecionar",
+                        "ao_selecionar",
+                    ],
                 )
                 .unwrap_or_default();
                 let placeholder =
@@ -1789,7 +3225,7 @@ impl UiNode {
             "Include" | "include" | "Incluir" | "incluir" => {
                 let src = Self::get_attr(&node, &["src", "fonte"]).unwrap_or_default();
                 // Extract all other attributes as custom parameters
-                let mut props = HashMap::new();
+                let mut props = HashMap::default();
                 for attr in node.attributes() {
                     let attr_name = attr.name();
                     if attr_name != "src" && attr_name != "fonte" {
@@ -1819,8 +3255,17 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -1831,6 +3276,7 @@ impl UiNode {
                     equals,
                     not_equals,
                     one_of,
+                    contains,
                     empty,
                     not_empty,
                 }
@@ -1845,8 +3291,17 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -1857,6 +3312,7 @@ impl UiNode {
                     equals,
                     not_equals,
                     one_of,
+                    contains,
                     empty,
                     not_empty,
                 }
@@ -1887,8 +3343,17 @@ impl UiNode {
                     Self::get_attr(&node, &["notEquals", "not_equals", "ne", "diferente_de"]);
                 let one_of = Self::get_attr(
                     &node,
-                    &["one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de"],
+                    &[
+                        "one_of",
+                        "oneOf",
+                        "one-of",
+                        "equals_any",
+                        "equalsAny",
+                        "algum_de",
+                    ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -1901,7 +3366,15 @@ impl UiNode {
                 );
                 let if_cond = Self::get_attr(
                     &node,
-                    &["if", "se", "cond", "condition", "when", "quando", "condicao"],
+                    &[
+                        "if",
+                        "se",
+                        "cond",
+                        "condition",
+                        "when",
+                        "quando",
+                        "condicao",
+                    ],
                 );
 
                 if let Some(items) = items {
@@ -1914,6 +3387,7 @@ impl UiNode {
                         equals,
                         not_equals,
                         one_of,
+                        contains,
                         empty,
                         not_empty,
                     }
@@ -1923,6 +3397,7 @@ impl UiNode {
                         equals,
                         not_equals,
                         one_of,
+                        contains,
                         empty,
                         not_empty,
                     }
@@ -1932,6 +3407,7 @@ impl UiNode {
                         equals: None,
                         not_equals: None,
                         one_of: None,
+                        contains: None,
                         empty: false,
                         not_empty: false,
                     }
@@ -1956,7 +3432,23 @@ impl UiNode {
                         .and_then(parse_bool_value),
                 })
             }
-            "component" | "Component" | "componente" | "Componente" => NodeType::ComponentRoot,
+            // A MESMA tag em dois papéis, e o `name` é o que os separa.
+            //
+            // Sem atributo, ela é o **cabeçalho** de um arquivo que não é
+            // janela — a casca do `.gv` importado por outro. Com `name`, ela é
+            // uma **declaração** dentro do `<resources>`: o mesmo componente,
+            // escrito ali em vez de num arquivo próprio. `validate_resources` /
+            // `validate_header` já garantiram que cada forma está no lugar
+            // certo (raiz sem nome, `<resources>` com nome), então aqui a
+            // distinção é só a presença do atributo.
+            "component" | "Component" | "componente" | "Componente" => {
+                match Self::get_attr(&node, DEFINE_NAME_ATTRS) {
+                    Some(nome) => NodeType::Define {
+                        name: nome.trim().to_string(),
+                    },
+                    None => NodeType::ComponentRoot,
+                }
+            }
             "resources" | "Resources" | "recursos" | "Recursos" => NodeType::Resources,
             "props" | "Props" => {
                 // As props são lidas do XML aqui mesmo (como os atributos do
@@ -1984,6 +3476,14 @@ impl UiNode {
                     Self::get_attr(&node, &["href", "src", "from", "caminho"]).unwrap_or_default();
                 let name = Self::get_attr(&node, &["as", "name", "nome"]);
                 NodeType::Link { rel, href, name }
+            }
+            // `<slot/>` — ver [`NodeType::Slot`]. Os filhos escritos dentro dele
+            // ficam no nó (são o conteúdo de reserva); é o `eval` que decide
+            // entre eles e o que veio do uso do componente.
+            "slot" | "Slot" | "conteudo" | "Conteudo" | "conteúdo" | "Conteúdo" => {
+                NodeType::Slot {
+                    name: Self::get_attr(&node, &["name", "nome"]).filter(|n| !n.trim().is_empty()),
+                }
             }
             "style" | "Style" | "stylesheet" | "Stylesheet" => {
                 // `<style href="...">` (or `src`) is an external sheet, equivalent
@@ -2017,7 +3517,7 @@ impl UiNode {
                 // Any unknown tag is treated as a reference to another component
                 // by its own name (e.g. <PerfilCard nome="..." />).
                 // All attributes are forwarded as props.
-                let mut props = HashMap::new();
+                let mut props = HashMap::default();
                 for attr in node.attributes() {
                     props.insert(attr.name().to_string(), attr.value().to_string());
                 }
@@ -2055,64 +3555,80 @@ impl UiNode {
             }
         }
 
+        // O corpo de um `<component name="…">` declarado no `<resources>` é
+        // montado com a **mesma** regra do arquivo — o `<props>` desce como
+        // declaração, o layout vira a raiz, vários irmãos viram um `Fragment`.
+        // É isso que faz promover a declaração a arquivo (ou o contrário) ser
+        // recortar e colar, sem reescrever nada. O `Define` fica com um filho
+        // só: a árvore pronta para virar template.
+        let children = if matches!(kind, NodeType::Define { .. }) {
+            vec![corpo_de_componente(children)]
+        } else {
+            children
+        };
+
         Some(Self {
             node_id: next_node_id(),
             kind,
-            children,
+            children: children.into(),
             numeric_templates,
             bool_templates,
             width,
             height,
             padding,
-            align_x,
-            align_y,
             spacing,
+            virtualize,
             background,
             border_radius,
             border_width,
-            border_color,
             class,
             id,
-            font,
-            gradient,
-            text_align,
-            on_press,
-            on_double_click,
-            cursor,
-            text_color,
-            tooltip,
-            tooltip_position,
             max_width,
             max_height,
             hidden,
             disabled,
-            hover_style: None,
-            focus_style: None,
-            active_style: None,
-            disabled_style: None,
-            if_cond,
-            if_equals,
-            if_not_equals,
-            if_one_of,
             if_empty,
             if_not_empty,
-            if_platform,
             is_else,
-            else_if_cond,
-            for_each,
-            for_each_var,
-            on_reorder,
-            reorder_key,
             drag_handle,
-            drag_list: None,
-            drag_item_key: None,
-            drag_order: None,
-            drag_on_reorder: None,
-            drag_reorder_key: None,
-            form_control,
-            form_scope: None,
-            form_submit_action: None,
-            form_next_focus: None,
+            look: caixa(Look {
+                align_x,
+                align_y,
+                border_color,
+                font,
+                gradient,
+                text_align,
+                text_color,
+                slot_name,
+            }),
+            interact: caixa(Interact {
+                on_press,
+                on_double_click,
+                cursor,
+                tooltip,
+                tooltip_position,
+            }),
+            pseudo: None,
+            cond: caixa(Cond {
+                if_cond,
+                if_equals,
+                if_not_equals,
+                if_one_of,
+                if_contains,
+                if_platform,
+                else_if_cond,
+                for_each,
+                for_each_var,
+            }),
+            drag: caixa(Drag {
+                on_reorder,
+                reorder_key,
+                ..Default::default()
+            }),
+            form: caixa(FormBits {
+                form_control,
+                ..Default::default()
+            }),
         })
     }
 
@@ -2216,12 +3732,12 @@ impl UiNode {
                 }
             };
             header_is_empty = true;
-            for child in header.children {
+            for child in header.children.into_vec() {
                 match child.kind {
                     // Tudo que está dentro do `<resources>` é declaração por
                     // construção — inclusive o que não for (um widget perdido
                     // ali dentro é stripado na avaliação, não desenha).
-                    NodeType::Resources => decls.extend(child.children),
+                    NodeType::Resources => decls.extend(child.children.into_vec()),
                     NodeType::Import { .. }
                     | NodeType::Link { .. }
                     | NodeType::Style { .. }
@@ -2272,9 +3788,42 @@ impl UiNode {
             1 => roots.pop().expect("len checked"),
             _ => empty_node(NodeType::Fragment, roots),
         };
-        root.children.extend(decls);
+        root.children.to_mut().extend(decls);
         Ok(root)
     }
+}
+
+/// Monta o **corpo** de um componente a partir dos filhos escritos dentro dele:
+/// o `<props>` (e qualquer outra declaração) desce como filho-declaração, o
+/// layout vira a raiz, e vários irmãos viram um [`NodeType::Fragment`].
+///
+/// É a mesma regra que [`UiNode::parse_xml_with_source`] aplica ao arquivo
+/// inteiro, extraída para os dois caminhos partilharem: é isso que faz um
+/// `<component name="X">` declarado no `<resources>` e um `x.gv` produzirem a
+/// **mesma** árvore, e portanto promover um ao outro ser recortar e colar.
+///
+/// Um corpo sem layout nenhum sai como `Fragment` vazio — não desenha nada, mas
+/// não quebra; quem transforma esse caso em erro posicionado é o
+/// `validate_define`, que roda antes e enxerga o arquivo do autor.
+pub(crate) fn corpo_de_componente(filhos: Vec<UiNode>) -> UiNode {
+    let mut decls = Vec::new();
+    let mut roots = Vec::new();
+    for filho in filhos {
+        match filho.kind {
+            NodeType::Resources => decls.extend(filho.children.into_vec()),
+            NodeType::Import { .. }
+            | NodeType::Link { .. }
+            | NodeType::Style { .. }
+            | NodeType::Props(_) => decls.push(filho),
+            _ => roots.push(filho),
+        }
+    }
+    let mut raiz = match roots.len() {
+        1 => roots.pop().expect("len checked"),
+        _ => empty_node(NodeType::Fragment, roots),
+    };
+    raiz.children.to_mut().extend(decls);
+    raiz
 }
 
 /// Raiz sintética que envolve o documento para permitir declarações irmãs da
@@ -2604,7 +4153,11 @@ mod cabecalho_obrigatorio_tests {
         )
         .expect_err("<screen> ao lado do layout não é cabeçalho de nada");
         let d = err.diagnostic().unwrap();
-        assert!(d.message.contains("não é a raiz do arquivo"), "{}", d.message);
+        assert!(
+            d.message.contains("não é a raiz do arquivo"),
+            "{}",
+            d.message
+        );
     }
 
     #[test]
@@ -2815,61 +4368,33 @@ pub(crate) fn empty_node(kind: NodeType, children: Vec<UiNode>) -> UiNode {
     UiNode {
         node_id: next_node_id(),
         kind,
-        children,
+        children: children.into(),
         numeric_templates: Vec::new(),
         bool_templates: Vec::new(),
         width: None,
         height: None,
         padding: None,
-        align_x: None,
-        align_y: None,
         spacing: None,
+        virtualize: None,
         background: None,
         border_radius: None,
         border_width: None,
-        border_color: None,
         class: None,
         id: None,
-        font: None,
-        gradient: None,
-        text_align: None,
-        on_press: None,
-        on_double_click: None,
-        cursor: None,
-        text_color: None,
-        tooltip: None,
-        tooltip_position: None,
         max_width: None,
         max_height: None,
         hidden: None,
         disabled: None,
-        hover_style: None,
-        focus_style: None,
-        active_style: None,
-        disabled_style: None,
-        if_cond: None,
-        if_equals: None,
-        if_not_equals: None,
-        if_one_of: None,
         if_empty: false,
         if_not_empty: false,
-        if_platform: None,
         is_else: false,
-        else_if_cond: None,
-        for_each: None,
-        for_each_var: None,
-        on_reorder: None,
-        reorder_key: None,
         drag_handle: false,
-        drag_list: None,
-        drag_item_key: None,
-        drag_order: None,
-        drag_on_reorder: None,
-        drag_reorder_key: None,
-        form_control: None,
-        form_scope: None,
-        form_submit_action: None,
-        form_next_focus: None,
+        look: None,
+        interact: None,
+        pseudo: None,
+        cond: None,
+        drag: None,
+        form: None,
     }
 }
 
@@ -2918,7 +4443,11 @@ mod screen_tests {
 
         assert!(matches!(a.kind, NodeType::Column));
         assert!(matches!(b.kind, NodeType::Column), "o layout vira a raiz");
-        assert_eq!(a.children.len(), b.children.len() - 1, "b tem o <screen> a mais");
+        assert_eq!(
+            a.children.len(),
+            b.children.len() - 1,
+            "b tem o <screen> a mais"
+        );
 
         let css = |n: &UiNode| {
             n.children.iter().find_map(|c| match &c.kind {
@@ -2926,7 +4455,11 @@ mod screen_tests {
                 _ => None,
             })
         };
-        assert_eq!(css(&a), css(&b), "o <style> chega igual pelos dois caminhos");
+        assert_eq!(
+            css(&a),
+            css(&b),
+            "o <style> chega igual pelos dois caminhos"
+        );
         assert!(meta_of(&a).is_none(), "sem cabeçalho, sem metadados");
     }
 
@@ -3008,7 +4541,10 @@ mod header_diagnostics_tests {
     fn atributo_desconhecido_no_screen() {
         let msg = erro(r#"<screen titel="Detalhe"><column /></screen>"#);
         assert!(msg.contains("atributo 'titel' desconhecido"), "{msg}");
-        assert!(msg.contains("title, size, min-size"), "a dica lista os aceitos: {msg}");
+        assert!(
+            msg.contains("title, size, min-size"),
+            "a dica lista os aceitos: {msg}"
+        );
     }
 
     #[test]
@@ -3022,7 +4558,10 @@ mod header_diagnostics_tests {
         </screen>"#;
         let msg = erro(xml);
         assert!(msg.contains("<button> não é uma declaração"), "{msg}");
-        assert!(msg.contains("depois do </resources>"), "a dica diz para onde mover: {msg}");
+        assert!(
+            msg.contains("depois do </resources>"),
+            "a dica diz para onde mover: {msg}"
+        );
     }
 
     /// A linha citada é a do arquivo do autor, não a do documento embrulhado na
@@ -3054,13 +4593,21 @@ mod header_diagnostics_tests {
     fn resources_fora_do_screen() {
         let msg = erro(r#"<resources><style>.a { padding: 4; }</style></resources><column />"#);
         assert!(msg.contains("fora de um cabeçalho"), "{msg}");
-        assert!(msg.contains("<component>"), "a dica cita as duas raízes: {msg}");
+        assert!(
+            msg.contains("<component>"),
+            "a dica cita as duas raízes: {msg}"
+        );
     }
 
     #[test]
     fn resources_nao_leva_atributo() {
-        let msg = erro(r#"<screen><resources scoped="true"><style>.a { padding: 4; }</style></resources><column /></screen>"#);
-        assert!(msg.contains("atributo 'scoped' desconhecido no <resources>"), "{msg}");
+        let msg = erro(
+            r#"<screen><resources scoped="true"><style>.a { padding: 4; }</style></resources><column /></screen>"#,
+        );
+        assert!(
+            msg.contains("atributo 'scoped' desconhecido no <resources>"),
+            "{msg}"
+        );
     }
 
     /// E o que é válido continua válido — inclusive as declarações soltas dentro
@@ -3101,7 +4648,10 @@ mod component_root_tests {
             <column><text content="oi" /></column>
         </component>"#;
         let root = UiNode::parse_xml(xml).expect("parse");
-        assert!(matches!(root.kind, NodeType::Column), "o layout vira a raiz");
+        assert!(
+            matches!(root.kind, NodeType::Column),
+            "o layout vira a raiz"
+        );
         assert!(
             root.children
                 .iter()
@@ -3149,15 +4699,19 @@ mod component_root_tests {
             <resources><button text="oi" /></resources>
             <column />
         </component>"#;
-        let err = UiNode::parse_xml(xml).expect_err("widget não é declaração").to_string();
+        let err = UiNode::parse_xml(xml)
+            .expect_err("widget não é declaração")
+            .to_string();
         assert!(err.contains("<button> não é uma declaração"), "{err}");
     }
 
     #[test]
     fn component_sem_layout_erra_falando_do_component() {
-        let err = UiNode::parse_xml("<component><resources><style>.a { padding: 4; }</style></resources></component>")
-            .expect_err("um <component> sem conteúdo não é nada")
-            .to_string();
+        let err = UiNode::parse_xml(
+            "<component><resources><style>.a { padding: 4; }</style></resources></component>",
+        )
+        .expect_err("um <component> sem conteúdo não é nada")
+        .to_string();
         assert!(err.contains("<component> não tem conteúdo"), "{err}");
     }
 

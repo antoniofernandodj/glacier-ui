@@ -1,0 +1,9 @@
+{
+    "name": "{{titulo}}",
+    "background": "#0F1117",
+    "text": "#E6EDF3",
+    "primary": "#58A6FF",
+    "success": "#3FB950",
+    "warning": "#D29922",
+    "danger": "#F85149"
+}

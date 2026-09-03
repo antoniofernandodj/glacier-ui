@@ -1,23 +1,28 @@
 <screen title="Glacier - imports em Luau">
-    <resources>
-        <script src="script.luau"></script>
-    </resources>
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/imports_luau/theme.json" />
+    <script src="script.luau"></script>
+  </resources>
 
-    <Container
-        padding="24"
-        alignX="Center"
-        alignY="Center"
-        width="fill"
-        height="fill"
-        background="#2E3440"
-    >
-        <Column spacing="16" align="Center">
-            <Text content="imports em Lua (require de bibliotecas)" size="22" bold="true" color="#ECEFF4" />
-            <Text content="a lógica de rede mora em net/http_client.luau" size="13" color="#81A1C1" />
-            <Button text="Buscar meu IP" on_click="buscar" color="#5E81AC" padding="12 24" />
-            <Button text="ola mundo!" on_click="ola_mundo" color="#5E81AC" padding="12 24" />
-            <Text content="Status: {status}" size="14" color="#EBCB8B" />
-            <Text content="{resultado}" size="16" color="#A3BE8C" />
-        </Column>
-    </Container>
+  <container
+    padding="24"
+    align_x="Center"
+    align_y="Center"
+    width="fill"
+    height="fill"
+  >
+    <column spacing="16" align="Center">
+      <text size="22" bold="true" color="#ECEFF4">
+        imports em Lua (require de bibliotecas)
+      </text>
+      <text size="13" color="#81A1C1">a lógica de rede mora em net/http_client.luau</text>
+      <button text="Buscar meu IP" on_click="buscar" color="#5E81AC" padding="12 24" />
+      <button text="ola mundo!" on_click="ola_mundo" color="#5E81AC" padding="12 24" />
+      <text size="14" color="#EBCB8B">Status: {status}</text>
+      <text size="16" color="#A3BE8C">{resultado}</text>
+    </column>
+  </container>
 </screen>

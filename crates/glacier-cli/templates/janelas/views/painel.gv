@@ -1,0 +1,27 @@
+<screen title="{{titulo}}" size="520 460" min-size="420 380">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script src="scripts/painel.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <column class="cabecalho">
+      <text class="titulo">{{titulo}}</text>
+      <text class="subtitulo">janela principal</text>
+    </column>
+
+    <column class="painel">
+      <text class="rotulo_cap">RECEBIDO DAS FILHAS</text>
+      <text class="numero">{recebidos}</text>
+      <text class="apagado">{ultimo}</text>
+    </column>
+
+    <column class="acoes">
+      <button class="btn_primario" text="Abrir uma janela filha" on_click="abrir_detalhe" />
+      <button class="btn_ghost"    text="Notificação do sistema" on_click="avisar" />
+    </column>
+
+    <text class="apagado">feche esta janela: o app continua vivo na bandeja</text>
+  </column>
+</screen>

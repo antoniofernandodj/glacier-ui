@@ -26,6 +26,9 @@
 //   * Definition (F12) — the same targets, plus the bundled syntax reference for
 //     native/builtin tags.
 //
+// Mais o fechamento automático de tag: terminar `<element>` insere
+// `</element>` e deixa o cursor no meio (`tagToClose`/`autoCloseTag`).
+//
 // Intentionally simple and dependency-free (plain JS, no build step). Meant to
 // grow: hovers, diagnostics for unknown handlers, completion, etc.
 
@@ -55,12 +58,38 @@ const NATIVE_TAGS = {
     "spinner", "busyindicator", "busy_indicator",
     "indicadorocupado", "indicador_ocupado", "carregando",
   ],
+  Slider: ["slider", "deslizante"],
+  Reveal: ["reveal", "collapse", "revelar", "sanfona"],
+  // Uma primitiva só; a tag decide quais seções o campo mostra.
+  TimeEdit: ["timeedit", "timepicker", "editorhora", "editor_hora"],
+  DateEdit: ["dateedit", "datepicker", "editordata", "editor_data"],
+  DateTimeEdit: [
+    "datetimeedit", "datetimepicker", "editordatahora", "editor_data_hora",
+  ],
+  // Idem: uma primitiva só (a grade), e a tag decide o que um clique grava.
+  Calendar: ["calendar", "calendario"],
+  MonthYearPicker: ["monthyearpicker", "seletormesano", "seletor_mes_ano"],
+  DateRangePicker: [
+    "daterangepicker", "seletorintervalo", "seletor_intervalo",
+  ],
+  MaskedInput: [
+    "maskedinput", "entradamascarada", "entrada_mascarada", "mascara", "máscara",
+  ],
+  Pagination: ["pagination", "paginacao", "paginação"],
+  Rating: ["rating", "nota", "estrelas"],
+  Radio: ["radio", "radiobutton", "opcao"],
+  Space: ["space", "espaco", "espaço", "spacer"],
   Select: ["select", "dropdown", "picklist", "combobox", "combo", "seletor"],
   ComboEdit: [
     "comboedit", "editablecombo", "editableselect", "comboeditavel",
     "combo_editavel",
   ],
   Form: ["form", "formulario"],
+  MenuBar: ["menubar", "barramenu", "barra_menu"],
+  Menu: ["menu", "cardapio"],
+  MenuItem: ["menuitem", "itemmenu", "item_menu"],
+  MenuSeparator: ["menuseparator", "separadormenu", "separador_menu"],
+  ContextMenu: ["contextmenu", "menucontexto", "menu_contexto"],
   Include: ["include", "incluir"],
   Import: ["import", "importar"],
   ForEach: ["foreach", "for"],
@@ -71,8 +100,26 @@ const NATIVE_TAGS = {
   Link: ["link"],
   Style: ["style", "stylesheet"],
   Script: ["script"],
+  Slot: ["slot", "conteudo", "conteúdo"],
+  // Builtins da lib (`src/builtins/`). Cada um é publicado sob o nome canônico
+  // e sob a grafia minúscula colada — ver `builtins::builtin_aliases`.
+  Accordion: ["accordion"],
+  AccordionItem: ["accordionitem"],
+  Avatar: ["avatar"],
   Badge: ["badge"],
-  TimePicker: ["timepicker"],
+  ButtonBox: ["buttonbox"],
+  Card: ["card"],
+  Frame: ["frame"],
+  GroupBox: ["groupbox"],
+  ListView: ["listview"],
+  RadioGroup: ["radiogroup"],
+  SpinBox: ["spinbox"],
+  StatusBar: ["statusbar"],
+  TabBar: ["tabbar"],
+  ToolBar: ["toolbar"],
+  ToolBox: ["toolbox"],
+  ToolBoxItem: ["toolboxitem"],
+  ToolButton: ["toolbutton"],
   Screen: ["screen", "tela"],
   ComponentRoot: ["component", "componente"],
   Resources: ["resources", "recursos"],
@@ -111,6 +158,7 @@ const ACTION_ATTRS = new Set(
     "onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar",
     "onSubmit", "on_submit", "on-submit", "aoSubmeter", "ao_submeter",
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
+    "onRelease", "on_release", "on-release", "aoSoltar", "ao_soltar",
     "onOpen", "on_open", "on-open",
     "onMessage", "on_message", "on-message",
     "onError", "on_error", "on-error",
@@ -131,10 +179,13 @@ const DIRECTIVE_ATTRS = new Set(
     "cond", "condition", "when", "quando", "condicao",
     "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
     "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "contains", "contem", "contém", "has", "inclui",
     "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
     "platform", "plataforma",
     // repetição
     "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
+    // destino num slot nomeado do componente (`<template slot="footer">`)
+    "slot",
     // arrastar-e-soltar da lista repetida
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
     "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
@@ -168,7 +219,13 @@ const BINDING_ATTRS = new Set(
   [
     "value", "valor", "value_var", "selected", "selecionado",
     "checked", "marcado",
+    // `<Radio group="plano">` — o NOME da chave que guarda a escolha do grupo,
+    // não o valor dela (por isso sem `{}`).
+    "group", "grupo",
     "items", "itens", "options", "opcoes", "source", "origem",
+    // `<daterangepicker start="entrada" end="saida" month="mes_visivel">` — os
+    // três nomeiam chaves, como o `value` de qualquer outro widget bindado.
+    "start", "inicio", "end", "fim", "final", "month", "mes_visivel",
     "cond", "condition", "when", "quando", "condicao",
     "if", "se", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
     "for-each", "forEach", "foreach", "each", "repeat",
@@ -211,8 +268,8 @@ const NOT_ACTION_ATTRS = new Set(["oneof", "one_of", "one-of"]);
 /**
  * Whether `name` is an attribute whose value is a handler name. Beyond the
  * spellings the parser knows, any `on…`/`ao…` attribute counts: a component
- * takes its actions as plain props (`<TimePicker on_pick="abrir_modal"/>`
- * forwards `{on_pick}` into a nested `on_click`), so the set is open-ended. A
+ * takes its actions as plain props (`<ToolButton on_click="salvar"/>` forwards
+ * `{on_click}` into a nested `on_click`), so the set is open-ended. A
  * false positive costs nothing — a name that resolves to no function is simply
  * not linked.
  */
@@ -779,7 +836,58 @@ const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
  */
 function declaredProps(fsPath) {
   const text = readFileCached(fsPath);
-  if (!text) return null;
+  return text ? propsFromText(text) : null;
+}
+
+/**
+ * O bloco de um componente **declarado no próprio documento** —
+ * `<component name="X"> … </component>` dentro do `<resources>`.
+ *
+ * Devolve `{ start, end, nameStart }` (deslocamentos no texto) ou `null`. O
+ * casamento do fechamento conta os `<component>` aninhados, que na prática não
+ * existem, mas custam três linhas a menos do que um parser de verdade e evitam
+ * que um `</component>` de dentro corte o bloco no lugar errado.
+ */
+function localDefine(text, tagName) {
+  const alvo = tagName.toLowerCase();
+  const abre = /<(component|componente)\b([^>]*)>/gi;
+  let m;
+  while ((m = abre.exec(text)) !== null) {
+    // Auto-fechada (`<component name="X"/>`) não tem corpo: não é declaração.
+    if (m[0].endsWith("/>")) continue;
+    let nome = null;
+    for (const attr of iterAttrs(m[2], 0)) {
+      const n = attr.name.toLowerCase();
+      if (n === "name" || n === "nome" || n === "as" || n === "como") nome = attr.value;
+    }
+    if (!nome || nome.toLowerCase() !== alvo) continue;
+
+    // Fim do bloco, contando aninhamento.
+    const dentro = /<(component|componente)\b[^>]*>|<\/(component|componente)\s*>/gi;
+    dentro.lastIndex = m.index + m[0].length;
+    let nivel = 1;
+    let fim;
+    while ((fim = dentro.exec(text)) !== null) {
+      if (fim[0].startsWith("</")) {
+        if (--nivel === 0) {
+          return { start: m.index, end: fim.index + fim[0].length, nameStart: m.index + 1 };
+        }
+      } else if (!fim[0].endsWith("/>")) {
+        nivel++;
+      }
+    }
+    return { start: m.index, end: text.length, nameStart: m.index + 1 };
+  }
+  return null;
+}
+
+/**
+ * As props de um `<props>` avulso, dado o texto que o contém. Partilhada entre
+ * o componente de arquivo ([`declaredProps`]) e o declarado no próprio
+ * documento ([`localDefine`]) — as duas formas escrevem o MESMO bloco, e ler
+ * cada uma com o seu parser seria pedir para elas divergirem.
+ */
+function propsFromText(text) {
   const block = PROPS_BLOCK_RE.exec(text);
   if (!block) return null;
   const props = [];
@@ -799,6 +907,15 @@ function declaredProps(fsPath) {
 /** As props declaradas pelo componente que a tag `name` referencia. */
 async function propsForTag(document, tagName) {
   if (NATIVE_LOOKUP[tagName.toLowerCase()]) return null;
+  // Um componente declarado no próprio documento (`<component name="X">` no
+  // `<resources>`) vem primeiro: ele não tem arquivo, então o índice do
+  // workspace nunca o encontraria — e sem isto a tag ficaria sem completação
+  // nem diagnóstico de prop, que é metade do que o editor faz por um
+  // componente importado.
+  const texto = document.getText();
+  const local = localDefine(texto, tagName);
+  if (local) return propsFromText(texto.slice(local.start, local.end));
+
   const index = await workspaceIndex();
   const imports = localImports(document.uri, document.getText());
   const fsPath = lookupComponent(index, imports, tagName, document.uri);
@@ -1499,6 +1616,13 @@ async function resolveDefinition(document, position) {
 
   // tag
   if (hit.canonical) return resolveNative(hit.canonical);
+  // Declarado no próprio arquivo (`<component name="X">` no `<resources>`):
+  // o destino é o bloco, algumas linhas acima — não há arquivo para abrir, e
+  // sem este ramo o F12 numa tag local simplesmente não faria nada.
+  const local = localDefine(text, hit.name);
+  if (local) {
+    return [new vscode.Location(document.uri, document.positionAt(local.nameStart))];
+  }
   const index = await workspaceIndex();
   const p = lookupComponent(index, localImports(document.uri, text), hit.name, document.uri);
   return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;
@@ -1606,6 +1730,87 @@ async function refreshDiagnostics(document, collection) {
   collection.set(document.uri, out);
 }
 
+// ---------------------------------------------------------------------------
+// Fechamento automático de tag
+// ---------------------------------------------------------------------------
+
+// Tags nativas folha: o motor lê só os atributos delas, e o markup do projeto
+// inteiro as escreve com `/>`. Fechar `<Image src="…">` em `<Image …></Image>`
+// seria devolver lixo para o usuário apagar, então elas ficam de fora. O que
+// não está aqui fecha — inclusive todo componente do app, que é o caso em que
+// o editor não tem como saber e o par vazio é o palpite certo.
+const VOID_TAGS = new Set([
+  "Image", "Svg", "Rule", "Space", "Slider", "ProgressBar", "Spinner",
+  "Checkbox", "Toggle", "Radio", "RadioGroup", "Select", "ComboEdit",
+  "SpinBox", "TextInput", "DateEdit", "TimeEdit", "DateTimeEdit",
+  "Avatar", "Badge", "MenuItem", "MenuSeparator",
+  "Link", "Import", "Include", "Slot", "Prop",
+]);
+
+/**
+ * O nome da tag que o `>` em `gtOffset` acaba de abrir, ou `null` quando esse
+ * `>` não termina uma abertura que peça par: fim de `</x>` ou de `<x/>`, `>`
+ * solto dentro de um valor de atributo, tag em comentário ou dentro do corpo
+ * de um `<script>`/`<style>`, e as folhas de `VOID_TAGS`.
+ */
+function tagToClose(text, gtOffset) {
+  if (text[gtOffset] !== ">") return null;
+  const lt = text.lastIndexOf("<", gtOffset);
+  if (lt < 0) return null;
+  const body = text.slice(lt + 1, gtOffset);
+  // Um `>` antes deste já fechou aquele `<`: o que se digita agora é texto
+  // solto, não markup.
+  if (body.includes(">")) return null;
+  // `</x>`, `<!-- … -->`, `<?…?>` e `<x/>` já vêm fechados.
+  if (/^[/!?]/.test(body) || body.endsWith("/")) return null;
+  // Aspas ímpares: o `>` caiu dentro de um valor (`title="a > b"`).
+  if ((body.match(/"/g) || []).length % 2 !== 0) return null;
+  const m = /^([A-Za-z_][\w.-]*)/.exec(body);
+  if (!m) return null;
+  const canonica = NATIVE_LOOKUP[m[1].toLowerCase()];
+  if (canonica && VOID_TAGS.has(canonica)) return null;
+  if (inRanges(commentRanges(text), lt)) return null;
+  if (inRanges(embeddedRanges(text), lt)) return null;
+  return m[1];
+}
+
+/**
+ * Ao terminar `<element>`, insere `</element>` e deixa o cursor entre os dois.
+ *
+ * Mora no change, e não num provider, porque o VS Code não tem gancho
+ * declarativo para isto — é o mesmo caminho que a extensão de HTML segue. Por
+ * isso também o par `<`/`>` saiu de `autoClosingPairs` no
+ * language-configuration.json: com o `>` já auto-inserido, digitá-lo apenas
+ * sobrescreve o caractere e change nenhum chega aqui.
+ */
+async function autoCloseTag(event) {
+  const doc = event.document;
+  if (doc.languageId !== "glacier-view") return;
+  if (
+    event.reason === vscode.TextDocumentChangeReason.Undo ||
+    event.reason === vscode.TextDocumentChangeReason.Redo
+  ) {
+    return;
+  }
+  const cfg = vscode.workspace.getConfiguration("glacierView", doc);
+  if (!cfg.get("autoClosingTags", true)) return;
+  // Um cursor só: com multi-cursor cada offset anda conforme o anterior é
+  // editado, e o ganho não paga a conta.
+  if (event.contentChanges.length !== 1) return;
+  const change = event.contentChanges[0];
+  if (change.text !== ">") return;
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document !== doc) return;
+  const nome = tagToClose(doc.getText(), change.rangeOffset);
+  if (!nome) return;
+  // O `$0` do snippet é o que deixa o cursor entre abertura e fechamento.
+  await editor.insertSnippet(
+    new vscode.SnippetString(`$0</${nome}>`),
+    doc.positionAt(change.rangeOffset + 1),
+    { undoStopBefore: false, undoStopAfter: true }
+  );
+}
+
 function activate(context) {
   const selector = { language: "glacier-view" };
 
@@ -1628,7 +1833,10 @@ function activate(context) {
     vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " "),
     props,
     vscode.workspace.onDidOpenTextDocument(revalida),
-    vscode.workspace.onDidChangeTextDocument((e) => revalida(e.document)),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      revalida(e.document);
+      autoCloseTag(e).catch(() => {});
+    }),
     vscode.workspace.onDidCloseTextDocument((doc) => props.delete(doc.uri)),
     watcher,
     vscode.workspace.onDidChangeWorkspaceFolders(invalidateWorkspaceIndex)

@@ -1,0 +1,36 @@
+<component>
+  <resources>
+    <link rel="import" href="components/stat_card.gv" as="StatCard" />
+  </resources>
+
+  <column class="conteudo">
+
+    <column class="cabecalho">
+      <text class="titulo">Início</text>
+      <text class="subtitulo">tudo nesta tela vem de views/home.gv e views/scripts/handlers/</text>
+    </column>
+
+    <row class="linha_cards">
+      <StatCard rotulo="ITENS"  valor="{total}" />
+      <StatCard rotulo="ATIVOS" valor="{ativos}" destaque="1" />
+      <StatCard rotulo="IP"     valor="{ip}" />
+    </row>
+
+    <row class="barra">
+      <button class="btn_primario" text="Buscar meu IP" on_click="buscar_ip" />
+      <button class="btn_ghost"    text="Alternar o primeiro" on_click="alternar_primeiro" />
+      <text class="apagado">{status}</text>
+    </row>
+
+    <column class="lista">
+      <row class="item" for-each="itens" var="i">
+        <text class="item_nome">{i.nome}</text>
+        <text class="tag_ok"  if="{i.ativo}" equals="1">ativo</text>
+        <text class="tag_off" else>parado</text>
+      </row>
+    </column>
+
+    <text class="apagado" if="{total}" equals="0">nenhum item</text>
+
+  </column>
+</component>

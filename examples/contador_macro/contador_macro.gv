@@ -1,34 +1,34 @@
 <screen title="Glacier - Contador (script)">
-    <resources>
-        <style>
-        .center-xy  { align-x: Center; align-y: Center; }
-        .center     { align: Center; }
-        .fill       { width: fill; height: fill; }
-        .gray       { color: #2E3440; }
-        .p-20       { padding: 20; }
-        .red        { color: #BF616A; }
-        .green      { color: #A3BE8C; }
-        .btn        { padding: 10 20; }
-        .txt        { color: #ECEFF4; bold: true; size: 28; }
-        </style>
+  <resources>
+    <style>
+      .center-xy  { align-x: Center; align-y: Center; }
+      .center     { align: Center; }
+      .fill       { width: fill; height: fill; }
+      .gray       { color: #2E3440; }
+      .p-20       { padding: 20; }
+      .red        { color: #BF616A; }
+      .green      { color: #A3BE8C; }
+      .btn        { padding: 10 20; }
+      .txt        { color: #ECEFF4; bold: true; size: 28; }
+    </style>
 
-        <script>
-        -- Lua behavior, interpreted at runtime (no compilation).
-        -- The engine context is the global `ctx` table: read/write `ctx.contador`
-        -- updates the {contador} binding in the markup below.
-        function init() ctx.contador = ctx.contador or 0 end
-        function increment() ctx.contador = ctx.contador + 1 end
-        function decrement() ctx.contador = ctx.contador - 1 end
-        </script>
-    </resources>
+    <script>
+      -- Lua behavior, interpreted at runtime (no compilation).
+      -- The engine context is the global `ctx` table: read/write `ctx.contador`
+      -- updates the {contador} binding in the markup below.
+      function init() ctx.contador = ctx.contador or 0 end
+      function increment() ctx.contador = ctx.contador + 1 end
+      function decrement() ctx.contador = ctx.contador - 1 end
+    </script>
+  </resources>
 
-    <container class="center-xy fill gray p-20">
-        <column spacing="20" class="center">
-            <text class="txt">Valor do Contador: {contador}</text>
-            <row spacing="15" align="Center">
-                <button text="Diminuir" on_click="decrement" class="btn red" />
-                <button text="Aumentar" on_click="increment" class="btn green" />
-            </row>
-        </column>
-    </container>
+  <container class="center-xy fill gray p-20">
+    <column spacing="20" class="center">
+      <text class="txt">Valor do Contador: {contador}</text>
+      <row spacing="15" align="Center">
+        <button text="Diminuir" on_click="decrement" class="btn red" />
+        <button text="Aumentar" on_click="increment" class="btn green" />
+      </row>
+    </column>
+  </container>
 </screen>

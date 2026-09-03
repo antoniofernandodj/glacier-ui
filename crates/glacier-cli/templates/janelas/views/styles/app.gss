@@ -1,0 +1,30 @@
+:root {
+    --bg:      #0F1117;
+    --surface: #161B22;
+    --raised:  #1C2129;
+    --border:  #2A313C;
+    --text:    #E6EDF3;
+    --text-2:  #C9D1D9;
+    --muted:   #8B949E;
+    --faint:   #6E7681;
+    --accent:  #58A6FF;
+}
+
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. Um `background`
+   de mesma cor num nó `fill/fill` é uma camada redobrada em cada pixel da
+   tela — invisível e cara (ver AGENTS.md). */
+.tela       { width: fill; height: fill; padding: 24; spacing: 18; }
+.cabecalho  { spacing: 4; }
+.titulo     { size: 22; bold: true; color: var(--text); }
+.subtitulo  { size: 12; color: var(--muted); }
+.apagado    { size: 11; color: var(--faint); }
+.rotulo_cap { size: 10; bold: true; color: var(--faint); }
+
+.painel     { width: fill; background: var(--surface); border-radius: 7; border-width: 1; border-color: var(--border); padding: 18; spacing: 6; }
+.numero     { size: 40; bold: true; color: var(--accent); }
+.acoes      { width: fill; spacing: 10; }
+
+.btn_primario       { width: fill; color: var(--accent); text-color: #0B1220; bold: true; padding: 11 18; border-radius: 6; }
+.btn_primario:hover { color: #79BBFF; }
+.btn_ghost          { width: fill; color: var(--surface); text-color: var(--text-2); padding: 11 18; border-radius: 6; }
+.btn_ghost:hover    { color: var(--border); text-color: var(--text); }

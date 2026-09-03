@@ -86,30 +86,33 @@ pub fn acquire(app_id: &str) -> Lock {
 pub fn event_stream() -> impl futures::Stream<Item = ()> {
     use futures::SinkExt;
 
-    iced::stream::channel(16, |mut output: futures::channel::mpsc::Sender<()>| async move {
-        let Some(listener) = LISTENER.get() else {
-            return;
-        };
-        let Ok(std_listener) = listener.try_clone() else {
-            return;
-        };
-        // `tokio::net::TcpListener::from_std` exige um fd não-bloqueante — o
-        // `std::net::TcpListener` de `acquire` nasce bloqueante (default do
-        // `std`).
-        if std_listener.set_nonblocking(true).is_err() {
-            return;
-        }
-        let Ok(listener) = tokio::net::TcpListener::from_std(std_listener) else {
-            return;
-        };
-
-        while let Ok((stream, _addr)) = listener.accept().await {
-            drop(stream);
-            if output.send(()).await.is_err() {
-                break;
+    iced::stream::channel(
+        16,
+        |mut output: futures::channel::mpsc::Sender<()>| async move {
+            let Some(listener) = LISTENER.get() else {
+                return;
+            };
+            let Ok(std_listener) = listener.try_clone() else {
+                return;
+            };
+            // `tokio::net::TcpListener::from_std` exige um fd não-bloqueante — o
+            // `std::net::TcpListener` de `acquire` nasce bloqueante (default do
+            // `std`).
+            if std_listener.set_nonblocking(true).is_err() {
+                return;
             }
-        }
-    })
+            let Ok(listener) = tokio::net::TcpListener::from_std(std_listener) else {
+                return;
+            };
+
+            while let Ok((stream, _addr)) = listener.accept().await {
+                drop(stream);
+                if output.send(()).await.is_err() {
+                    break;
+                }
+            }
+        },
+    )
 }
 
 /// `true` quando este processo detém a trava (chamado por

@@ -14,7 +14,9 @@ pub mod luau;
 pub mod menu;
 pub mod net;
 pub mod parser;
+mod perf;
 pub mod render_inputs;
+pub mod reveal;
 mod single_instance;
 pub mod spinner;
 pub mod style;
@@ -29,11 +31,11 @@ pub mod widget;
 /// separate dependency.
 pub use iced;
 
+pub use external::ExternalSender;
 /// Flattened re-exports of the `iced` items a host app's `main`/`App` reach
 /// for most often (window setup, layout, messaging), so they can come from
 /// `glacier_ui::{..}` directly instead of a separate `use iced::{..}`.
 pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
-pub use external::ExternalSender;
 
 pub use app::GlacierApp;
 pub use asset_source::{AssetSource, DiskAssets};
@@ -58,7 +60,7 @@ pub use tray::{
     TrayActions, TrayConfig, TrayHandle, TrayItem, TrayMsg, TrayRequest, notifications_enabled,
     set_notifications_enabled,
 };
-pub use widget::{EngineMessage, render_node};
+pub use widget::{EngineMessage, TimeEditKey, render_node};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -76,7 +78,7 @@ use std::time::{Duration, SystemTime};
 /// compilador diga nada.
 pub struct GlacierUI {
     /// Maps a component name (e.g. "perfil") to its XML file path
-    registered_components: HashMap<String, String>,
+    registered_components: ContextMap,
     /// Tudo de que a avaliação depende e que o rastreamento por chave de contexto
     /// NÃO enxerga: folhas de estilo, templates parseados e viewport. Atrás de um
     /// portão que conta as mudanças, para o cache de avaliação se invalidar
@@ -89,6 +91,21 @@ pub struct GlacierUI {
     /// tela atual e os fixados por [`GlacierUI::keep_evaluated`]. Ver
     /// [`GlacierUI::reevaluate_all`] para o porquê.
     evaluated_templates: HashMap<String, UiNode>,
+    /// Deslocamento de rolagem de cada `<scrollable>`, pelo `node_id` dele.
+    /// Lido pelo render para decidir a janela visível de um `virtualize=`
+    /// (ver [`crate::parser::UiNode::virtualize`]); escrito por
+    /// [`EngineMessage::Scrolled`], que não dispara reavaliação.
+    scroll_offsets: crate::eval::FxMapPub<u64, f32>,
+    /// Os widgets **com buffer próprio** encontrados em cada árvore avaliada:
+    /// os `value_var` dos `<TextArea>` e as quatro pontas de cada `<ComboEdit>`.
+    ///
+    /// Existe para não varrer a árvore inteira atrás deles a cada reavaliação.
+    /// Eram duas varreduras completas — uma por tipo de widget —, ~5% de todo o
+    /// trabalho de uma mudança de estado numa lista grande, e quase sempre para
+    /// não achar nada: a tela típica não tem `<TextArea>` nenhum. Agora a coleta
+    /// acontece uma vez só, junto da avaliação que produziu a árvore, e uma
+    /// árvore reaproveitada não é varrida de novo.
+    tree_bindings: HashMap<String, TreeBindings>,
     /// Templates que o app quer manter avaliados além da tela atual (ver
     /// [`GlacierUI::keep_evaluated`]). Vazio no caso comum.
     pinned: std::collections::HashSet<String>,
@@ -103,7 +120,7 @@ pub struct GlacierUI {
     /// nova não reconstruir a sidebar nem as 45 linhas da tabela ao lado.
     eval_cache: eval::EvalCache,
     /// In-memory context data for state binding
-    context_data: HashMap<String, String>,
+    context_data: ContextMap,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
     /// O que o `<screen>` de cada template registrado declarou sobre a janela
@@ -130,7 +147,7 @@ pub struct GlacierUI {
     editors: widget::EditorMap,
     /// Last text each editor pushed into the context, to tell an external context
     /// change (reload editor) from the editor's own edit (leave it alone).
-    editor_synced: HashMap<String, String>,
+    editor_synced: ContextMap,
     /// Stateful `combo_box::State` buffers for `<ComboEdit>` widgets, keyed by
     /// `value` binding — same role as `editors` above.
     combos: widget::ComboMap,
@@ -138,11 +155,11 @@ pub struct GlacierUI {
     /// to tell an external context change (rebuild the `State`) from the
     /// combo's own edit (leave the in-progress `State` alone) — same idea as
     /// `editor_synced`.
-    combo_synced: HashMap<String, String>,
+    combo_synced: ContextMap,
     /// Last raw `options` JSON synced into each combo's `State`, keyed by the
     /// same `value` binding. A `<ComboEdit>`'s option list changing (e.g. a
     /// new saved server added) needs a rebuild even when `value` didn't.
-    combo_options_synced: HashMap<String, String>,
+    combo_options_synced: ContextMap,
     /// The reorderable list drag in progress, if any — outside the Context
     /// (like `editors` above) because it's transient render/interaction state,
     /// not something a host app's `Component::update` should see or persist.
@@ -202,6 +219,17 @@ pub struct GlacierUI {
     /// guard in [`GlacierUI::load_imports`]. A name is dropped from the set once
     /// the app overrides it.
     builtin_component_names: std::collections::HashSet<String>,
+    /// Nomes registrados por uma **declaração local** — o
+    /// `<component name="X">` de um `<resources>` (ver
+    /// [`crate::parser::NodeType::Define`]).
+    ///
+    /// Existe por causa do hot-reload. A regra de instalação é a mesma do
+    /// `<import>` ("o nome está livre?"), e no *reload* o nome nunca está: ele
+    /// foi tomado pela versão anterior da própria declaração, e editar o corpo
+    /// não teria efeito nenhum. Este conjunto responde a pergunta que falta —
+    /// *este nome é meu?* — e é o que separa "reescrever a minha declaração"
+    /// de "atropelar o componente de verdade que o app registrou".
+    defined_components: std::collections::HashSet<String>,
     /// Identidade única deste motor entre todos os motores do processo (um por
     /// janela no modelo daemon). Dobrada na [`net::StreamKey`] para que streams
     /// de janelas distintas não colidam como o mesmo recipe do iced. Ver
@@ -288,30 +316,46 @@ impl Default for GlacierUI {
     }
 }
 
+/// O contexto do motor: as chaves que o markup interpola e que o app escreve.
+///
+/// É um `HashMap<String, String>` com o hash rápido do avaliador no lugar do
+/// SipHash da `std` — a leitura de contexto é o caminho mais quente do motor
+/// (uma por `{chave}` de cada nó, mais uma por dependência de cada entrada de
+/// cache), e o SipHash sozinho respondia por ~18% do trabalho de uma mudança de
+/// estado. A resistência a colisão hostil que ele compra não vale nada aqui:
+/// as chaves são nomes de variável escritos pelo próprio app.
+///
+/// Para quem usa: `get`, `contains_key`, `iter` e companhia são os mesmos — só
+/// não dá mais para anotar o tipo como `HashMap<String, String>` sem o terceiro
+/// parâmetro.
+pub type ContextMap = std::collections::HashMap<String, String, eval::Fx>;
+
 impl GlacierUI {
     /// Creates a new, empty GlacierUI instance
     pub fn new() -> Self {
         let mut ui = Self {
-            registered_components: HashMap::new(),
-            screen_meta: HashMap::new(),
+            registered_components: HashMap::default(),
+            screen_meta: HashMap::default(),
             inputs: render_inputs::RenderInputs::default(),
-            evaluated_templates: HashMap::new(),
+            evaluated_templates: HashMap::default(),
+            scroll_offsets: Default::default(),
+            tree_bindings: HashMap::default(),
             pinned: std::collections::HashSet::new(),
-            eval_deps: HashMap::new(),
+            eval_deps: HashMap::default(),
             eval_cache: eval::EvalCache::default(),
-            context_data: HashMap::new(),
-            file_mod_times: HashMap::new(),
+            context_data: HashMap::default(),
+            file_mod_times: HashMap::default(),
             current_screen: None,
             history: Vec::new(),
-            components: HashMap::new(),
+            components: HashMap::default(),
             custom_theme: None,
             theme_path: None,
             data_sources: Vec::new(),
-            editors: HashMap::new(),
-            editor_synced: HashMap::new(),
-            combos: HashMap::new(),
-            combo_synced: HashMap::new(),
-            combo_options_synced: HashMap::new(),
+            editors: HashMap::default(),
+            editor_synced: HashMap::default(),
+            combos: HashMap::default(),
+            combo_synced: HashMap::default(),
+            combo_options_synced: HashMap::default(),
             drag: None,
             dialog: None,
             dialog_resume: None,
@@ -319,9 +363,10 @@ impl GlacierUI {
             last_cursor_pos: iced::Point::ORIGIN,
             toasts: Vec::new(),
             next_toast_id: 0,
-            active_streams: HashMap::new(),
-            stream_senders: HashMap::new(),
+            active_streams: HashMap::default(),
+            stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
+            defined_components: std::collections::HashSet::new(),
             engine_id: NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             pending_windows: Vec::new(),
             pending_broadcasts: Vec::new(),
@@ -357,7 +402,14 @@ impl GlacierUI {
     /// [`Template::Inline`] — XML compilado na crate — uma falha de parse é bug
     /// da própria lib, então `expect` mantém `new` infalível.
     fn register_builtins(&mut self) {
-        for comp in builtins::builtin_components() {
+        // Os canônicos (`<GroupBox/>`) e, logo depois, os apelidos em
+        // minúsculas (`<groupbox/>`) — ver `builtins::builtin_aliases`, que
+        // explica por que um builtin precisa de um segundo registro para ter a
+        // grafia minúscula que toda primitiva já tem de graça.
+        let todos = builtins::builtin_components()
+            .into_iter()
+            .chain(builtins::builtin_aliases());
+        for comp in todos {
             let name = comp.name().to_string();
             self.register_one(comp).unwrap_or_else(|e| {
                 panic!("built-in component '{}' failed to register: {}", name, e)
@@ -376,7 +428,7 @@ impl GlacierUI {
     // ── Acesso ao estado (os campos são privados; ver o doc do struct) ───────
 
     /// Todo o contexto, só leitura. Para uma chave só, [`GlacierUI::get_data`].
-    pub fn context(&self) -> &HashMap<String, String> {
+    pub fn context(&self) -> &ContextMap {
         &self.context_data
     }
 
@@ -736,6 +788,7 @@ impl GlacierUI {
         // builtin (register_builtins re-adds its own names *after* this call, so
         // this stays a no-op for the builtins themselves).
         self.builtin_component_names.remove(&name);
+        self.load_defines(&ast);
         self.load_imports(&ast, path.as_deref())?;
         self.process_links(&name, &ast)?;
         self.record_screen_meta(&name, &ast);
@@ -754,9 +807,12 @@ impl GlacierUI {
         // carry a `<script>` (no path to resolve `src`/`require` against),
         // same limitation `LuauComponent` always had.
         let comp: Box<dyn component::Component> = match &path {
-            Some(p) if luau::has_script(&markup) => {
-                Box::new(luau::LuauComponent::wrap(&name, p, comp, self.assets.clone())?)
-            }
+            Some(p) if luau::has_script(&markup) => Box::new(luau::LuauComponent::wrap(
+                &name,
+                p,
+                comp,
+                self.assets.clone(),
+            )?),
             _ => comp,
         };
 
@@ -794,6 +850,19 @@ impl GlacierUI {
     /// Apps that use [`GlacierUI::register`] just forward every message here from
     /// their `update()` instead of matching on actions themselves.
     pub fn dispatch(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
+        // Com `GLACIER_PERF`, o custo de tratar a mensagem entra no relatório
+        // como parcela própria — sem isto ele se esconderia no "resto" e seria
+        // lido como custo do `iced` (ver `crate::perf`).
+        if perf::ligado() {
+            let t0 = std::time::Instant::now();
+            let tarefa = self.dispatch_interno(msg);
+            perf::anota_dispatch(t0.elapsed(), msg.nome());
+            return tarefa;
+        }
+        self.dispatch_interno(msg)
+    }
+
+    fn dispatch_interno(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
         if let EngineMessage::UiClick(a) = msg {
@@ -880,6 +949,22 @@ impl GlacierUI {
                 };
             }
         }
+        // Clicar em QUALQUER outra coisa abandona a seção de `<datetimeedit>`
+        // que estivesse selecionada. Sem isto, a seleção sobrevive à saída do
+        // widget e as setas ▲▼ continuariam mexendo nela de longe — o clique
+        // numa seção usa `ContextPatch`, não `UiClick`, então ele não se
+        // auto-limpa aqui.
+        if matches!(msg, EngineMessage::UiClick(_))
+            && self
+                .context_data
+                .get(crate::widget::TIMEEDIT_SEL_CONTEXT)
+                .is_some_and(|v| !v.is_empty())
+        {
+            self.context_data.insert(
+                crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                String::new(),
+            );
+        }
         let (action, value) = match msg {
             EngineMessage::UiClick(a) => (a.as_str(), None),
             // Dialog buttons and backdrop dismissal (see `dialogs`) always
@@ -921,7 +1006,14 @@ impl GlacierUI {
                 self.last_cursor_pos = *p;
                 return iced::Task::none();
             }
-            EngineMessage::OpenMenuBarDropdown { tree } | EngineMessage::OpenContextMenu { tree } => {
+            // Rolagem: guarda e volta. Reavaliar aqui seria refazer a árvore a
+            // cada pixel rolado — e a árvore não mudou, só a janela sobre ela.
+            EngineMessage::Scrolled { key, offset } => {
+                self.scroll_offsets.insert(*key, *offset);
+                return iced::Task::none();
+            }
+            EngineMessage::OpenMenuBarDropdown { tree }
+            | EngineMessage::OpenContextMenu { tree } => {
                 self.active_menu = Some(menu::ActiveMenuState {
                     tree: tree.clone(),
                     anchor: self.last_cursor_pos,
@@ -969,6 +1061,100 @@ impl GlacierUI {
             }
             EngineMessage::FocusPrev => {
                 return iced::widget::operation::focus_previous::<EngineMessage>();
+            }
+            // Teclado do `<datetimeedit>`: setas ▲▼ mexem na seção selecionada,
+            // ← → trocam de seção, e um algarismo digita nela. Quem trata é o
+            // motor, e não o widget, porque a seleção é uma chave global
+            // (`__timeedit`) e o listener de teclado é global também — o widget
+            // não existe como nó focável para receber a tecla por conta própria.
+            //
+            // A chave carrega a configuração da instância (ver `TimeEditSel`),
+            // que é o que permite serializar o valor e conhecer a ordem das
+            // seções sem ter o nó em mãos.
+            EngineMessage::TimeEditKey(tecla) => {
+                let Some(mut sel) = crate::widget::TimeEditSel::parse(
+                    self.context_data.get(crate::widget::TIMEEDIT_SEL_CONTEXT),
+                ) else {
+                    // Nenhuma seção selecionada: a tecla não é nossa.
+                    return iced::Task::none();
+                };
+                let atual = crate::widget::Instante::parse(
+                    self.context_data
+                        .get(&sel.chave)
+                        .map(String::as_str)
+                        .unwrap_or(""),
+                );
+                let ordem = crate::widget::secoes_visiveis(
+                    sel.data,
+                    sel.hora,
+                    sel.segundos,
+                    sel.dia_primeiro,
+                );
+
+                // ← →: só move a seleção. Nada é gravado, e o `buf` zera —
+                // entrar numa seção recomeça a digitação dela.
+                if let crate::widget::TimeEditKey::Move(d) = tecla {
+                    if let Some(i) = ordem.iter().position(|s| *s == sel.secao) {
+                        let n = ordem.len() as i64;
+                        let j = ((i as i64) + i64::from(*d)).rem_euclid(n) as usize;
+                        sel.secao = ordem[j].to_string();
+                        sel.buf.clear();
+                        self.context_data.insert(
+                            crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                            sel.serializa(),
+                        );
+                        let _ = self.reevaluate_all();
+                    }
+                    return iced::Task::none();
+                }
+
+                let (novo, avancar) = match tecla {
+                    crate::widget::TimeEditKey::Passo(d) => {
+                        // Uma seta recomeça a digitação: 09 + ▲ é 10, e o
+                        // algarismo seguinte não deve compor "109".
+                        sel.buf.clear();
+                        (atual.passo(&sel.secao, i64::from(*d)), false)
+                    }
+                    crate::widget::TimeEditKey::Algarismo(a) => {
+                        let (n, buf, cheio) = atual.digita(&sel.secao, *a, &sel.buf);
+                        sel.buf = buf;
+                        (n, cheio)
+                    }
+                    crate::widget::TimeEditKey::Move(_) => unreachable!("tratado acima"),
+                };
+
+                // Encheu a seção: pula para a seguinte, como o Qt. Na última,
+                // fica onde está (não dá a volta) — voltar ao ano depois de
+                // digitar os segundos nunca é o que alguém quis.
+                if avancar
+                    && let Some(i) = ordem.iter().position(|s| *s == sel.secao)
+                    && i + 1 < ordem.len()
+                {
+                    sel.secao = ordem[i + 1].to_string();
+                    sel.buf.clear();
+                }
+
+                let texto = novo.serializa(sel.data, sel.hora, sel.segundos);
+                self.context_data.insert(
+                    crate::widget::TIMEEDIT_SEL_CONTEXT.to_string(),
+                    sel.serializa(),
+                );
+
+                // Mesmo contrato do render: sem `onChange` o widget grava a
+                // chave sozinho; com ele, delega e quem grava é o handler.
+                if sel.acao.is_empty() {
+                    self.context_data.insert(sel.chave.clone(), texto);
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                // Delegar é exatamente o que os botões de seta já fazem —
+                // mesma mensagem, mesmo caminho de roteamento.
+                let delegada = EngineMessage::UiInputChanged {
+                    action: sel.acao.clone(),
+                    value: texto,
+                };
+                let _ = self.reevaluate_all();
+                return self.dispatch_interno(&delegada);
             }
             EngineMessage::Viewport { width, height } => {
                 let new = (*width, *height);
@@ -1157,8 +1343,8 @@ impl GlacierUI {
                 if let Some(drag) = self.drag.take() {
                     let value =
                         serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
-                    return self.dispatch(&EngineMessage::UiInputChanged {
-                        action: drag.on_reorder,
+                    return self.dispatch_interno(&EngineMessage::UiInputChanged {
+                        action: drag.on_reorder.clone(),
                         value,
                     });
                 }
@@ -1212,7 +1398,7 @@ impl GlacierUI {
                     return iced::Task::none();
                 }
                 // Let the owning component react to the change as well.
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_change.clone(),
                     value: text,
                 });
@@ -1232,7 +1418,7 @@ impl GlacierUI {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
                 }
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_change.clone(),
                     value: value.clone(),
                 });
@@ -1260,7 +1446,7 @@ impl GlacierUI {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
                 }
-                return self.dispatch(&EngineMessage::UiInputChanged {
+                return self.dispatch_interno(&EngineMessage::UiInputChanged {
                     action: on_select.clone(),
                     value: value.clone(),
                 });
@@ -1629,6 +1815,9 @@ impl GlacierUI {
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
 
+        // Componentes declarados no próprio arquivo (`<component name="…">`),
+        // depois os trazidos de fora (`<import>`).
+        self.load_defines(&ast);
         // Recursively load components declared with `<import>`.
         self.load_imports(&ast, Some(path))?;
         // Process this component's `<link>` declarations.
@@ -1673,9 +1862,21 @@ impl GlacierUI {
                 "stylesheet" => self.load_global_stylesheet_file(href)?,
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
-                    if !self.inputs.has_template(&comp_name) {
+                    // Mesma regra do `<import>` em `load_imports`: carrega se o
+                    // nome está livre **ou** se ele hoje guarda um builtin da
+                    // lib, que o app está deliberadamente sombreando.
+                    //
+                    // Faltava aqui, e ficou invisível enquanto os builtins se
+                    // chamavam `Badge`/`SpinBox`/`TimePicker` — nomes que um app
+                    // não disputa. A onda 2 trouxe `Card`, `Frame`, `Avatar`,
+                    // `ToolBar`: aí um `<link rel="import" as="Card">` do app
+                    // passou a ser engolido em silêncio, com o builtin
+                    // renderizando no lugar do componente importado.
+                    let is_builtin = self.builtin_component_names.contains(&comp_name);
+                    if !self.inputs.has_template(&comp_name) || is_builtin {
                         let resolved = self.resolve_import_href(href, importer_path.as_deref());
                         self.register_component_inner(&comp_name, &resolved)?;
+                        self.builtin_component_names.remove(&comp_name);
                     }
                 }
                 "data" => {
@@ -1797,6 +1998,46 @@ impl GlacierUI {
             self.load_imports(child, importer_path)?;
         }
         Ok(())
+    }
+
+    /// Registra cada componente **declarado no próprio template**
+    /// (`<component name="X">…</component>` dentro do `<resources>`), a
+    /// terceira forma de ter um componente — ver [`crate::parser::NodeType::Define`].
+    ///
+    /// Roda **antes** do `load_imports` de propósito: assim um `<import>` do
+    /// mesmo arquivo consegue sombrear uma declaração local, e não o contrário.
+    /// A ordem importa pouco na prática (é raro alguém escrever as duas para o
+    /// mesmo nome), mas escolher uma explicitamente é melhor do que depender de
+    /// qual passada roda primeiro.
+    ///
+    /// A regra de nome é a mesma do `<import>`: declara se o nome está livre
+    /// **ou** se hoje ele guarda um builtin da lib que o app está
+    /// deliberadamente sombreando. Um nome já tomado por um componente de
+    /// verdade não é redefinido — e não é erro: é o que permite um `.gv`
+    /// incluído duas vezes não brigar consigo mesmo.
+    fn load_defines(&mut self, node: &UiNode) {
+        if let NodeType::Define { name } = &node.kind
+            && !name.is_empty()
+        {
+            // Três casos em que a declaração vale: o nome está livre, o nome
+            // hoje é um builtin da lib que o app sombreia de propósito, ou o
+            // nome já é **desta mesma declaração** — que é o caso do
+            // hot-reload, e o único motivo de `defined_components` existir.
+            let meu = self.defined_components.contains(name);
+            let is_builtin = self.builtin_component_names.contains(name);
+            if !self.inputs.has_template(name) || is_builtin || meu {
+                // O `Define` tem um filho só: o corpo já montado com a mesma
+                // regra do arquivo (ver `parser::corpo_de_componente`).
+                if let Some(corpo) = node.children.first() {
+                    self.inputs.insert_template(name.clone(), corpo.clone());
+                    self.builtin_component_names.remove(name);
+                    self.defined_components.insert(name.clone());
+                }
+            }
+        }
+        for child in &node.children {
+            self.load_defines(child);
+        }
     }
 
     /// Resolves the `href` of a `<link rel="import" href="…">` **relative to
@@ -1951,10 +2192,27 @@ impl GlacierUI {
         // Árvores de templates que saíram de uso (mudou a tela) não devem ficar
         // ocupando memória nem serem varridas pelo `sync_editors`.
         self.evaluated_templates.retain(|k, _| names.contains(k));
+        self.tree_bindings.retain(|k, _| names.contains(k));
 
         self.sync_editors();
         self.sync_combos();
         Ok(())
+    }
+
+    /// O motor precisa acompanhar a posição do mouse nesta janela?
+    ///
+    /// Só quando há um abridor de menu na tela (ou um menu já aberto): a âncora
+    /// de um `<ContextMenu>`/`<MenuBar>` é a posição do cursor no instante do
+    /// clique, e a única forma de sabê-la é escutar o movimento.
+    ///
+    /// **Por que isso é caro quando não precisa.** No `iced`, cada mensagem
+    /// provoca um quadro. Um listener global de movimento do mouse emite uma
+    /// centena de mensagens por segundo enquanto se arrasta o cursor — e o app
+    /// redesenha uma centena de vezes, sem nada ter mudado na tela. Num
+    /// hardware modesto, é isso que estrangula a rolagem: medido num app real,
+    /// 70 movimentos por segundo davam 65 quadros por segundo, e 110 davam 10.
+    pub fn precisa_do_cursor(&self) -> bool {
+        self.active_menu.is_some() || self.tree_bindings.values().any(|b| b.usa_cursor)
     }
 
     /// `true` se **todas** as dependências guardadas ainda têm o mesmo valor no
@@ -1976,6 +2234,7 @@ impl GlacierUI {
         if self.eval_cache.sync(self.inputs.epoch()) {
             self.eval_deps.clear();
             self.evaluated_templates.clear();
+            self.tree_bindings.clear();
         }
     }
 
@@ -2010,6 +2269,9 @@ impl GlacierUI {
                 &mut self.eval_cache,
             )?
         };
+        let mut bindings = TreeBindings::default();
+        collect_tree_bindings(&evaluated, &mut bindings);
+        self.tree_bindings.insert(name.to_string(), bindings);
         self.evaluated_templates.insert(name.to_string(), evaluated);
         self.eval_deps.insert(name.to_string(), deps);
         Ok(())
@@ -2041,10 +2303,11 @@ impl GlacierUI {
     /// value changed from outside the editor (e.g. a fetch). The editor's own
     /// edits set `editor_synced`, so they are not mistaken for external changes.
     fn sync_editors(&mut self) {
-        let mut bindings: Vec<String> = Vec::new();
-        for ast in self.evaluated_templates.values() {
-            collect_textarea_bindings(ast, &mut bindings);
-        }
+        let bindings: Vec<String> = self
+            .tree_bindings
+            .values()
+            .flat_map(|b| b.textareas.iter().cloned())
+            .collect();
         for b in bindings {
             let ctx_val = self.context_data.get(&b).cloned().unwrap_or_default();
             let last = self.editor_synced.get(&b);
@@ -2067,12 +2330,17 @@ impl GlacierUI {
     /// highlight, not the typed text, which lives in `ctx[value_var]`).
     fn sync_combos(&mut self) {
         // (value_var, options_key, label_field, value_field)
-        let mut bindings: Vec<(String, String, String, String)> = Vec::new();
-        for ast in self.evaluated_templates.values() {
-            collect_comboedit_bindings(ast, &mut bindings);
-        }
+        let bindings: Vec<(String, String, String, String)> = self
+            .tree_bindings
+            .values()
+            .flat_map(|b| b.combos.iter().cloned())
+            .collect();
         for (value_var, options_key, label_field, value_field) in bindings {
-            let ctx_val = self.context_data.get(&value_var).cloned().unwrap_or_default();
+            let ctx_val = self
+                .context_data
+                .get(&value_var)
+                .cloned()
+                .unwrap_or_default();
             let opts_json = self
                 .context_data
                 .get(&options_key)
@@ -2081,13 +2349,16 @@ impl GlacierUI {
             let value_changed = self.combo_synced.get(&value_var) != Some(&ctx_val);
             let options_changed = self.combo_options_synced.get(&value_var) != Some(&opts_json);
             if !self.combos.contains_key(&value_var) || value_changed || options_changed {
-                let opts: Vec<widget::SelectOption> = serde_json::from_str::<serde_json::Value>(&opts_json)
-                    .ok()
-                    .and_then(|v| v.as_array().cloned())
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|item| widget::SelectOption::from_json(item, &label_field, &value_field))
-                    .collect();
+                let opts: Vec<widget::SelectOption> =
+                    serde_json::from_str::<serde_json::Value>(&opts_json)
+                        .ok()
+                        .and_then(|v| v.as_array().cloned())
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|item| {
+                            widget::SelectOption::from_json(item, &label_field, &value_field)
+                        })
+                        .collect();
                 // `with_selection`'s second argument seeds the widget's
                 // internal typed-text buffer from the option's `Display`
                 // (`SelectOption::label`) — it is NOT looked up again from
@@ -2100,12 +2371,16 @@ impl GlacierUI {
                 // itself keeps the buffer in sync without adding a fake entry
                 // to `opts` (only `options`, not `selection`, populates the
                 // dropdown list).
-                let selected = opts.iter().find(|o| o.value == ctx_val).cloned().or_else(|| {
-                    (!ctx_val.is_empty()).then(|| widget::SelectOption {
-                        label: ctx_val.clone(),
-                        value: ctx_val.clone(),
-                    })
-                });
+                let selected = opts
+                    .iter()
+                    .find(|o| o.value == ctx_val)
+                    .cloned()
+                    .or_else(|| {
+                        (!ctx_val.is_empty()).then(|| widget::SelectOption {
+                            label: ctx_val.clone(),
+                            value: ctx_val.clone(),
+                        })
+                    });
                 self.combos.insert(
                     value_var.clone(),
                     iced::widget::combo_box::State::with_selection(opts, selected.as_ref()),
@@ -2139,14 +2414,30 @@ impl GlacierUI {
                 }
             })?;
 
-        // Render the evaluated AST to Iced Widgets
-        Ok(render_node(
-            evaluated_ast,
-            &self.context_data,
-            &self.editors,
-            &self.combos,
-            self.assets.as_ref(),
-        ))
+        let montar = || {
+            render_node(
+                evaluated_ast,
+                &self.context_data,
+                &self.editors,
+                &self.combos,
+                self.assets.as_ref(),
+                crate::widget::RenderView {
+                    scroll: &self.scroll_offsets,
+                    altura_janela: self.inputs.viewport().1,
+                    janela: None,
+                },
+            )
+        };
+        // Com `GLACIER_PERF` ligada, cronometra o que é do motor e deixa o
+        // resto do quadro sair por diferença — ver `crate::perf`. Desligada,
+        // sobra a leitura de um `bool` já resolvido.
+        if perf::ligado() {
+            let t0 = std::time::Instant::now();
+            let elemento = montar();
+            perf::anota(t0.elapsed(), perf::conta_nos(evaluated_ast));
+            return Ok(elemento);
+        }
+        Ok(montar())
     }
 
     /// Checks registered XML files for changes and re-parses them if modified.
@@ -2202,7 +2493,10 @@ impl GlacierUI {
 
         // Apply XML template changes.
         for (name, new_ast, modified, path) in updates {
-            // Pick up any newly-added `<import>`/`<link>` declarations.
+            // Pick up any newly-added `<import>`/`<link>` declarations — e as
+            // declarações locais (`<component name="…">`), que o `load_defines`
+            // reescreve porque o nome é dele (ver `defined_components`).
+            self.load_defines(&new_ast);
             let _ = self.load_imports(&new_ast, Some(&path));
             let _ = self.process_links(&name, &new_ast);
             // …e o `<screen>`, que é declaração como as outras: editar o
@@ -2332,44 +2626,52 @@ fn theme_key(path: &str) -> String {
 
 /// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
 /// the engine can keep a stateful editor buffer per binding.
-fn collect_textarea_bindings(node: &UiNode, out: &mut Vec<String>) {
-    if let NodeType::TextArea { value_var, .. } = &node.kind
-        && !value_var.is_empty()
-        && !out.contains(value_var)
-    {
-        out.push(value_var.clone());
-    }
-    for child in &node.children {
-        collect_textarea_bindings(child, out);
-    }
+#[derive(Default)]
+struct TreeBindings {
+    /// A árvore tem algum abridor de menu (`<MenuBar>`, `<Menu>`,
+    /// `<ContextMenu>`)? Só então o motor precisa saber onde o cursor está —
+    /// ver [`GlacierUI::precisa_do_cursor`].
+    usa_cursor: bool,
+    /// `value_var` de cada `<TextArea>` da árvore.
+    textareas: Vec<String>,
+    /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
+    combos: Vec<(String, String, String, String)>,
 }
 
-/// Collects `(value_var, options, label_field, value_field)` of every
-/// `<ComboEdit>` in an evaluated tree, so the engine can keep a stateful
-/// `combo_box::State` per binding (see `GlacierUI::sync_combos`).
-fn collect_comboedit_bindings(
-    node: &UiNode,
-    out: &mut Vec<(String, String, String, String)>,
-) {
-    if let NodeType::ComboEdit {
-        value_var,
-        options,
-        label_field,
-        value_field,
-        ..
-    } = &node.kind
-        && !value_var.is_empty()
-        && !out.iter().any(|(v, ..)| v == value_var)
-    {
-        out.push((
-            value_var.clone(),
-            options.clone(),
-            label_field.clone(),
-            value_field.clone(),
-        ));
+/// Colhe, numa **única** passada, os dois tipos de widget cujo estado o motor
+/// guarda fora da árvore. Antes eram duas recursões independentes sobre a
+/// árvore inteira, rodadas a cada reavaliação; ver [`GlacierUI::tree_bindings`].
+fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
+    if matches!(
+        node.kind,
+        NodeType::MenuBar | NodeType::Menu { .. } | NodeType::ContextMenu { .. }
+    ) {
+        out.usa_cursor = true;
+    }
+    match &node.kind {
+        NodeType::TextArea { value_var, .. }
+            if !value_var.is_empty() && !out.textareas.contains(value_var) =>
+        {
+            out.textareas.push(value_var.clone());
+        }
+        NodeType::ComboEdit {
+            value_var,
+            options,
+            label_field,
+            value_field,
+            ..
+        } if !value_var.is_empty() && !out.combos.iter().any(|(v, ..)| v == value_var) => {
+            out.combos.push((
+                value_var.clone(),
+                options.clone(),
+                label_field.clone(),
+                value_field.clone(),
+            ));
+        }
+        _ => {}
     }
     for child in &node.children {
-        collect_comboedit_bindings(child, out);
+        collect_tree_bindings(child, out);
     }
 }
 
@@ -2514,6 +2816,48 @@ fn tab_focus_from_event(
     }
 }
 
+/// Teclado do `<datetimeedit>`: ▲▼ mexem na seção selecionada, ← → trocam de
+/// seção e um algarismo digita nela — o teclado do `QDateTimeEdit`.
+///
+/// **O guarda que importa é o `status`.** Este listener é global e não sabe o
+/// que está focado; sem o filtro, a seta de um `<TextInput>` focado (que move o
+/// cursor) e cada dígito digitado nele virariam TAMBÉM um passo de hora. O
+/// `iced` já entrega `Status::Captured` quando algum widget consumiu o evento,
+/// então só tratamos o que ninguém quis. Quem decide se a tecla é mesmo para um
+/// `<datetimeedit>` é o `update` do motor, que enxerga a chave `__timeedit`.
+///
+/// Uma `fn` simples porque `iced::event::listen_with` exige uma.
+fn timeedit_key_from_event(
+    event: iced::Event,
+    status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    use crate::widget::TimeEditKey;
+    use iced::keyboard::{Event as Kbd, Key, key::Named};
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    let iced::Event::Keyboard(Kbd::KeyPressed { key, text, .. }) = event else {
+        return None;
+    };
+    let tecla = match key {
+        Key::Named(Named::ArrowUp) => TimeEditKey::Passo(1),
+        Key::Named(Named::ArrowDown) => TimeEditKey::Passo(-1),
+        Key::Named(Named::ArrowLeft) => TimeEditKey::Move(-1),
+        Key::Named(Named::ArrowRight) => TimeEditKey::Move(1),
+        // O algarismo sai do `text` (o que a tecla PRODUZ), não do código da
+        // tecla: assim o teclado numérico e um layout não-ABNT entram igual.
+        _ => {
+            let d = text
+                .as_deref()
+                .and_then(|t| t.chars().next())
+                .and_then(|c| c.to_digit(10))?;
+            TimeEditKey::Algarismo(d as u8)
+        }
+    };
+    Some(EngineMessage::TimeEditKey(tecla))
+}
+
 /// Maps a window `Resized` event to [`EngineMessage::Viewport`], so `@media`
 /// blocks re-resolve against the new size. A plain `fn` because
 /// `iced::event::listen_with` requires one.
@@ -2575,12 +2919,7 @@ fn menu_escape_from_event(
 /// while a drag is in progress. Elements whose identity isn't in `order`
 /// (shouldn't happen — `order` is a snapshot of the same array) are kept, in
 /// their original relative order, after the ones that are.
-fn reorder_context_json(
-    context: &mut HashMap<String, String>,
-    list: &str,
-    reorder_key: &str,
-    order: &[String],
-) {
+fn reorder_context_json(context: &mut ContextMap, list: &str, reorder_key: &str, order: &[String]) {
     let Some(json_str) = context.get(list) else {
         return;
     };
@@ -2589,7 +2928,7 @@ fn reorder_context_json(
         return;
     };
 
-    let mut by_key: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut by_key: HashMap<String, serde_json::Value> = HashMap::default();
     let mut leftovers: Vec<serde_json::Value> = Vec::new();
     for item in arr {
         match item
@@ -2620,7 +2959,7 @@ fn reorder_context_json(
 ///
 /// String values are stored verbatim; everything else as compact JSON (so a
 /// nested array under `key.list` still feeds `<ForEach items="key.list">`).
-fn merge_json(context: &mut HashMap<String, String>, key: &str, value: &serde_json::Value) {
+fn merge_json(context: &mut ContextMap, key: &str, value: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             for (k, v) in map {

@@ -1,0 +1,45 @@
+<screen title="{{titulo}}" size="420 340" min-size="320 280">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+
+    <script>
+    --!strict
+
+    function init()
+      ctx.contador = "0"
+    end
+
+    local function passo(delta: number)
+      ctx.contador = tostring((tonumber(ctx.contador) or 0) + delta)
+    end
+
+    function somar()
+      passo(1)
+    end
+
+    function subtrair()
+      passo(-1)
+    end
+
+    function zerar()
+      ctx.contador = "0"
+      toast({ message = "Contador zerado", kind = "info" })
+    end
+    </script>
+  </resources>
+
+  <column class="tela">
+    <text class="rotulo">{{titulo}}</text>
+    <text class="numero">{contador}</text>
+
+    <row class="acoes">
+      <button class="btn" text="-" on_click="subtrair" />
+      <button class="btn" text="+" on_click="somar" />
+    </row>
+
+    <button class="btn_ghost" text="zerar" on_click="zerar" />
+
+    <text class="dica">edite este arquivo ou o .gss e salve: o hot-reload aplica</text>
+  </column>
+</screen>

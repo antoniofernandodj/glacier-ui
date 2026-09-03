@@ -1,0 +1,12 @@
+- investigar e resolver o bug de dependências do eval.rs: numa tela mínima
+  cujo conteúdo é só <accordion>, mudar a chave depois da primeira avaliação
+  (por define_data OU por dispatch) atualiza o contexto mas NÃO reavalia a
+  árvore — evaluated() devolve a versão velha para sempre. <groupbox> na mesma
+  forma atualiza normal, e o examples/onda4 inteiro também. Suspeita: as
+  leituras feitas dentro da expansão do builtin não sobem para o eval_deps da
+  tela (Frame::pop em src/eval.rs só propaga quem tem src < frame.depth), então
+  deps_hold responde "nada mudou". É pré-existente (confirmado com git stash),
+  não veio da 0.90.
+- bug nas estrelas do exemplo de onda4
+- corrigir erro de quando pinta muitas vezes um toast no mesmo local
+- precisa corrigir funcionamento de máscara

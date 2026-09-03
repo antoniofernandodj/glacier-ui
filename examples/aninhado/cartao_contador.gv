@@ -3,36 +3,21 @@
   `title`/`size` — não há janela nenhuma a que eles se aplicariam. Aqui não há o
   que declarar, então a casca entra sozinha, sem `<resources>`. -->
 <component>
-    <Container
-        padding="20"
-        width="fill"
-        background="#1E1E2E"
-        border_radius="16"
-        border_width="1"
-        border_color="#313244"
-        alignX="Center"
-    >
-        <Column spacing="15" align="Center">
-            <Text
-                content="Contador: {valor}"
-                size="22"
-                bold="true"
-                color="#CDD6F4"
-            />
-            <Row spacing="15" align="Center">
-                <Button
-                    text="-"
-                    on_click="decrementar"
-                    color="#BF616A"
-                    padding="10 20"
-                />
-                <Button
-                    text="+"
-                    on_click="incrementar"
-                    color="#A3BE8C"
-                    padding="10 20"
-                />
-            </Row>
-        </Column>
-    </Container>
+  <container
+    padding="20"
+    width="fill"
+    background="#1E1E2E"
+    border_radius="16"
+    border_width="1"
+    border_color="#313244"
+    align_x="Center"
+  >
+    <column spacing="15" align="Center">
+      <text size="22" bold="true" color="#CDD6F4">Contador: {valor}</text>
+      <row spacing="15" align="Center">
+        <button text="-" on_click="decrementar" color="#BF616A" padding="10 20" />
+        <button text="+" on_click="incrementar" color="#A3BE8C" padding="10 20" />
+      </row>
+    </column>
+  </container>
 </component>

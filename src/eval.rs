@@ -1,8 +1,10 @@
+use crate::ContextMap;
 use crate::error::Result;
 use crate::parser::{BoolAttr, NodeType, NumAttr, UiNode};
 use crate::stylesheet::{
     StateStyles, StyleRule, StyleSheet, resolve_classes, resolve_state_classes,
 };
+use std::cell::OnceCell;
 use std::collections::HashMap;
 
 /// Splits a `<script>...</script>` block out of an XML document, returning the
@@ -47,7 +49,19 @@ pub fn strip_script(xml: &str) -> (String, Option<String>) {
 
 /// Índice do `<script` que abre o bloco de script — ignorando um citado dentro
 /// de um comentário XML (`<!-- <script> -->`), que não é um bloco de verdade.
-fn find_script_open(xml: &str) -> Option<usize> {
+///
+/// É a **única** definição de onde o bloco começa, e por isso é `pub(crate)`:
+/// além do [`strip_script`] aqui, a camada Luau precisa exatamente da mesma
+/// resposta (`crate::luau::extract_script`/`extract_script_src`). Enquanto ela
+/// tinha uma varredura própria — um `find("<script")` cru, sem pular
+/// comentários —, as duas discordavam: o parser de markup via o bloco certo e o
+/// Luau via o do comentário, extraindo como código o texto entre a tag citada e
+/// o `</script>` de verdade. O sintoma era um erro de sintaxe Luau na linha 1,
+/// sem relação visível com o comentário que o causou.
+///
+/// O índice vale tanto no texto original quanto no minúsculo: `to_ascii_lowercase`
+/// só troca bytes ASCII, então nenhum deslocamento muda.
+pub(crate) fn find_script_open(xml: &str) -> Option<usize> {
     let lower = xml.to_ascii_lowercase();
     let mut from = 0;
     while let Some(i) = lower[from..].find("<script").map(|i| from + i) {
@@ -135,8 +149,7 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                     // accepts it. Longest word first so a shorter word that
                     // happens to be a PREFIX of a longer one (there isn't
                     // one today, but keep the invariant) never shadows it.
-                    const BARE_WORDS: &[&str] =
-                        &["not_empty", "senao", "empty", "else", "vazio"];
+                    const BARE_WORDS: &[&str] = &["not_empty", "senao", "empty", "else", "vazio"];
 
                     let mut matched_len = None;
                     let mut replaced_with = None;
@@ -222,7 +235,7 @@ pub fn normalize_bare_directives(xml: &str) -> String {
 /// um item), então a varredura linear é mais barata que um `HashMap`.
 #[derive(Clone, Copy)]
 pub struct EvalCtx<'a> {
-    base: &'a HashMap<String, String>,
+    base: &'a ContextMap,
     /// A camada mais interna; cada uma aponta para a de fora (lista ligada na
     /// pilha, sem alocação).
     layer: Option<&'a Layer<'a>>,
@@ -274,7 +287,7 @@ pub struct Reads {
 /// leituras resolvidas *fora* dele (`src < d`).
 struct Frame {
     depth: u32,
-    reads: HashMap<String, (Option<String>, u32)>,
+    reads: FxMap<String, (Option<String>, u32)>,
 }
 
 impl Reads {
@@ -282,17 +295,24 @@ impl Reads {
     /// no quadro corrente.
     fn record(&self, key: &str, value: Option<&str>, src: u32) {
         if let Some(frame) = self.frames.borrow_mut().last_mut() {
+            // A mesma chave é lida muitas vezes por subárvore, e o `entry` da
+            // `std` exige a chave **possuída** — ou seja, alocava uma `String`
+            // a cada leitura só para descobrir que já havia uma igual guardada.
+            // A consulta antes da inserção troca essa alocação por um segundo
+            // hash, e o hash aqui é o [`FxHasher`].
+            if frame.reads.contains_key(key) {
+                return;
+            }
             frame
                 .reads
-                .entry(key.to_string())
-                .or_insert_with(|| (value.map(str::to_string), src));
+                .insert(key.to_string(), (value.map(str::to_string), src));
         }
     }
 
     fn push(&self, depth: u32) {
         self.frames.borrow_mut().push(Frame {
             depth,
-            reads: HashMap::new(),
+            reads: FxMap::default(),
         });
     }
 
@@ -357,18 +377,38 @@ pub struct EvalCache {
     /// o cache se descarta sozinho em [`EvalCache::sync`]. É o que tirou essa
     /// invariante das mãos de quem escreve o call-site.
     epoch: u64,
-    entries: HashMap<u64, CacheEntry>,
+    entries: FxMap<u64, CacheEntry>,
     /// Entradas tocadas na passada corrente. O que sobrar fora daqui ao final é
     /// lixo (uma linha que saiu da lista) e é varrido — senão o cache cresceria
     /// sem limite ao longo da vida do app.
-    live: std::collections::HashSet<u64>,
+    live: std::collections::HashSet<u64, Fx>,
+    /// Arrays de `for-each` **já parseados**, por chave de contexto.
+    ///
+    /// Uma coleção mora no contexto como **texto** (`"[{...},{...}]"`), e o
+    /// `for-each` precisava dela como `Value` — então parseava a lista inteira
+    /// a cada reavaliação, mesmo quando nada nela tinha mudado e todos os itens
+    /// vinham do cache. Numa lista de 300 linhas isso era ~14% de todo o
+    /// trabalho de uma mudança de estado: parse, um `BTreeMap` por objeto, e o
+    /// descarte de tudo em seguida.
+    ///
+    /// A validade é conferida **comparando o texto**, não um hash: a cópia
+    /// guardada aqui e a do contexto têm de ser iguais byte a byte. Um `memcmp`
+    /// de 20 KB é ordens de grandeza mais barato que o parse, e não abre a
+    /// porta para o que um hash de 64 bits abriria — servir a lista velha por
+    /// colisão, silenciosamente.
+    json: FxMap<String, (String, std::sync::Arc<Vec<serde_json::Value>>)>,
 }
 
 struct CacheEntry {
     /// As chaves de que a subárvore depende, e o valor que tinham quando ela foi
     /// construída. A entrada só vale enquanto **todos** ainda casarem.
-    deps: Deps,
-    nodes: Vec<UiNode>,
+    ///
+    /// Compartilhada por `Arc` porque um acerto de cache precisa dela **e** do
+    /// `&mut` no cache ao mesmo tempo: antes, o jeito de sair dessa disputa era
+    /// clonar o vetor inteiro de pares de `String` a cada acerto — trabalho puro
+    /// de empréstimo, invisível e pago por item de lista.
+    deps: std::sync::Arc<Deps>,
+    nodes: crate::parser::Children,
 }
 
 impl EvalCache {
@@ -388,6 +428,7 @@ impl EvalCache {
         self.epoch = epoch;
         self.entries.clear();
         self.live.clear();
+        self.json.clear();
         true
     }
 
@@ -397,11 +438,152 @@ impl EvalCache {
         self.entries.retain(|k, _| self.live.contains(k));
         self.live.clear();
     }
+
+    /// O array de `chave` já parseado, reaproveitando o parse anterior quando o
+    /// texto no contexto é **exatamente** o mesmo. Devolve `None` quando a
+    /// chave não existe ou não guarda um array JSON.
+    fn array(
+        &mut self,
+        chave: &str,
+        bruto: &str,
+    ) -> Option<std::sync::Arc<Vec<serde_json::Value>>> {
+        if let Some((texto, arr)) = self.json.get(chave)
+            && texto == bruto
+        {
+            return Some(std::sync::Arc::clone(arr));
+        }
+        let serde_json::Value::Array(arr) = serde_json::from_str(bruto).ok()? else {
+            // Não é array: não guarda nada (e limpa o que houvesse), para não
+            // manter viva a lista antiga de uma chave que virou outra coisa.
+            self.json.remove(chave);
+            return None;
+        };
+        let arr = std::sync::Arc::new(arr);
+        self.json
+            .insert(chave.to_string(), (bruto.to_string(), arr.clone()));
+        Some(arr)
+    }
 }
+
+/// O item de um `for-each` **ainda como JSON**, resolvido campo a campo só
+/// quando alguém lê.
+///
+/// A versão ansiosa disto — materializar `{item.campo}` para todo campo, mais
+/// uma serialização do item inteiro para o `{item}` de um `spread=` — rodava
+/// por item **antes** da consulta ao cache, ou seja, também para o item que ia
+/// ser reaproveitado inteiro. Numa lista de 2000 linhas de 4 campos eram 8000
+/// `format!` mais 8000 clones mais 2000 serializações, jogados fora em seguida.
+///
+/// Preguiçoso, cada leitura paga só por si — e o caso comum não paga nada: um
+/// campo de **texto** sai emprestado direto do JSON, sem alocar. O que sobra
+/// (número, booleano, o item inteiro) materializa uma vez, numa [`OnceCell`],
+/// e fica.
+struct ItemVars<'a> {
+    /// O nome da variável do laço (`var="l"` → `"l"`).
+    var: &'a str,
+    /// Os campos do objeto: o nome **emprestado do próprio JSON**, o valor cru,
+    /// e a materialização sob demanda de quem não for string.
+    campos: Vec<(&'a str, &'a serde_json::Value, OnceCell<String>)>,
+    /// O item inteiro (`{item}`, o que um `spread=` repassa a um componente),
+    /// serializado só se for lido.
+    inteiro: (&'a serde_json::Value, OnceCell<String>),
+}
+
+impl ItemVars<'_> {
+    /// O valor de `key` neste item, ou `None` se a chave não é dele.
+    fn get(&self, key: &str) -> Option<&str> {
+        if key == self.var {
+            let (v, memo) = &self.inteiro;
+            // `json_scalar` já faz a distinção que importa: uma string sai crua
+            // (item escalar), e todo o resto — objeto incluído — sai como JSON,
+            // que é o que um `spread=` espera receber de volta.
+            return Some(memo.get_or_init(|| json_scalar(v)));
+        }
+        let campo = key.strip_prefix(self.var)?.strip_prefix('.')?;
+        let (_, val, memo) = self.campos.iter().find(|(k, _, _)| *k == campo)?;
+        Some(match val {
+            // O caso esmagadoramente comum: sai emprestado, zero alocação.
+            serde_json::Value::String(s) => s.as_str(),
+            outro => memo.get_or_init(|| json_scalar(outro)),
+        })
+    }
+}
+
+/// O hash da `std` é o SipHash, escolhido para resistir a ataque de colisão em
+/// mapa alimentado por entrada hostil — um servidor web. Aqui não há nada
+/// disso: as chaves são nomes de variável do próprio app e caminhos de nó
+/// gerados pelo motor, e o custo aparece no perfil como **18% de todo o
+/// trabalho** de uma mudança de estado (hashar um `u64` com SipHash, uma vez
+/// por consulta ao cache, é o caso mais absurdo).
+///
+/// Este é o FxHash do rustc: uma multiplicação e um shift por palavra. Trocado
+/// só nos mapas **internos** do avaliador — o `HashMap` do contexto é tipo
+/// público (`GlacierUI::context`) e fica como está.
+#[derive(Default, Clone, Copy)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl FxHasher {
+    const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+
+    #[inline]
+    fn adiciona(&mut self, palavra: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ palavra).wrapping_mul(Self::SEED);
+    }
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        let mut resto = bytes;
+        while resto.len() >= 8 {
+            let (a, b) = resto.split_at(8);
+            self.adiciona(u64::from_ne_bytes(a.try_into().unwrap()));
+            resto = b;
+        }
+        if !resto.is_empty() {
+            let mut buf = [0u8; 8];
+            buf[..resto.len()].copy_from_slice(resto);
+            self.adiciona(u64::from_ne_bytes(buf));
+        }
+    }
+
+    #[inline]
+    fn write_u64(&mut self, n: u64) {
+        self.adiciona(n);
+    }
+
+    #[inline]
+    fn write_usize(&mut self, n: usize) {
+        self.adiciona(n as u64);
+    }
+
+    #[inline]
+    fn write_u8(&mut self, n: u8) {
+        self.adiciona(n as u64);
+    }
+
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+}
+
+/// `BuildHasher` do [`FxHasher`], para os mapas internos do avaliador.
+pub type Fx = std::hash::BuildHasherDefault<FxHasher>;
+
+/// `HashMap` com o hash rápido.
+pub(crate) type FxMap<K, V> = HashMap<K, V, Fx>;
+
+/// O mesmo, visível fora do avaliador.
+pub type FxMapPub<K, V> = HashMap<K, V, Fx>;
 
 /// Um conjunto de variáveis locais empilhado sobre o contexto. Ver [`EvalCtx`].
 pub struct Layer<'a> {
     vars: Vec<(String, String)>,
+    /// As variáveis de um item de `for-each`, preguiçosas. Ver [`ItemVars`].
+    item: Option<ItemVars<'a>>,
     outer: Option<&'a Layer<'a>>,
 }
 
@@ -409,6 +591,7 @@ impl<'a> Layer<'a> {
     fn new(outer: Option<&'a Layer<'a>>) -> Self {
         Self {
             vars: Vec::new(),
+            item: None,
             outer,
         }
     }
@@ -428,7 +611,13 @@ impl<'a> Layer<'a> {
         let mut cur = Some(self);
         let mut d = depth;
         while let Some(l) = cur {
+            // `vars` primeiro: é onde mora o que foi escrito por cima do item
+            // (o `{var.__dragging}`, por exemplo, que sobrescreve um campo
+            // homônimo — a mesma precedência que o `set` ansioso dava).
             if let Some((_, v)) = l.vars.iter().find(|(k, _)| k == key) {
+                return Some((v, d));
+            }
+            if let Some(v) = l.item.as_ref().and_then(|i| i.get(key)) {
                 return Some((v, d));
             }
             cur = l.outer;
@@ -440,7 +629,7 @@ impl<'a> Layer<'a> {
 
 impl<'a> EvalCtx<'a> {
     /// Contexto de avaliação sobre `base`, sem camadas nem rastreamento.
-    pub fn new(base: &'a HashMap<String, String>) -> Self {
+    pub fn new(base: &'a ContextMap) -> Self {
         Self {
             base,
             layer: None,
@@ -451,7 +640,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     /// O mesmo, rastreando as leituras em `reads` (o que habilita o cache).
-    fn tracked(base: &'a HashMap<String, String>, reads: &'a Reads) -> Self {
+    fn tracked(base: &'a ContextMap, reads: &'a Reads) -> Self {
         Self {
             base,
             layer: None,
@@ -493,6 +682,12 @@ impl<'a> EvalCtx<'a> {
     /// no frame do chamador — é isso que torna a operação O(1), sem cópia), o
     /// caminho estendido por `step` (a identidade desta instância; ver
     /// [`EvalCtx::path`]) e a profundidade incrementada.
+    /// Quantas camadas há sobre a base — a profundidade da expansão. Lida pela
+    /// guarda de recursão de `eval_owned`.
+    fn depth(&self) -> u32 {
+        self.depth
+    }
+
     fn with<'c>(&self, layer: &'c Layer<'c>, step: u64) -> EvalCtx<'c>
     where
         'a: 'c,
@@ -539,7 +734,7 @@ fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
         .entries
         .get(&ctx.path)
         .filter(|e| ctx.deps_hold(&e.deps))
-        .map(|e| (e.deps.clone(), e.nodes.clone()));
+        .map(|e| (std::sync::Arc::clone(&e.deps), e.nodes.clone()));
 
     let Some((deps, nodes)) = hit else {
         return false;
@@ -547,7 +742,7 @@ fn reuse(ctx: &EvalCtx, cache: &mut EvalCache, out: &mut Vec<UiNode>) -> bool {
     if let Some(r) = ctx.reads {
         r.merge(&deps, ctx.depth, ctx);
     }
-    out.extend(nodes);
+    out.extend(nodes.iter().cloned());
     cache.live.insert(ctx.path);
     true
 }
@@ -560,8 +755,8 @@ fn store(ctx: &EvalCtx, cache: &mut EvalCache, nodes: &[UiNode]) {
     cache.entries.insert(
         ctx.path,
         CacheEntry {
-            deps,
-            nodes: nodes.to_vec(),
+            deps: std::sync::Arc::new(deps),
+            nodes: nodes.to_vec().into(),
         },
     );
     cache.live.insert(ctx.path);
@@ -595,35 +790,33 @@ fn json_scalar(v: &serde_json::Value) -> String {
 ///
 /// Substitui o antigo `context.clone()` + `insert` por item — ver [`EvalCtx`].
 fn item_layer<'b>(
-    item: &serde_json::Value,
-    var: &str,
+    item: &'b serde_json::Value,
+    var: &'b str,
     reorder_key: Option<&str>,
     context: &EvalCtx<'b>,
 ) -> (Layer<'b>, Option<String>) {
     let mut layer = Layer::new(context.layer());
-    let mut this_key: Option<String> = None;
 
-    match item {
-        serde_json::Value::Object(obj) => {
-            for (key, val) in obj {
-                let str_val = json_scalar(val);
-                if reorder_key == Some(key.as_str()) {
-                    this_key = Some(str_val.clone());
-                }
-                layer.set(format!("{var}.{key}"), str_val);
-            }
-            // O item INTEIRO, além dos campos: é o que um `spread="{item}"`
-            // repassa a um componente de uma vez. Sem isto `{item}` de um objeto
-            // resolveria para vazio — os campos estavam na camada, o item não.
-            //
-            // Custa uma serialização por item, em cima do clone que o laço acima
-            // já faz campo a campo: é da ordem do que o `item_layer` já gastava.
-            // Um item de lista é pequeno por construção — as listas grandes
-            // deste motor são listas de itens pequenos, não um item grande.
-            layer.set(var.to_string(), item.to_string());
-        }
-        other => layer.set(var.to_string(), json_scalar(other)),
-    }
+    // Só o campo do `reorder_key` é materializado na hora — o drag precisa da
+    // identidade do item antes de qualquer leitura, e é UM campo, numa lista
+    // que nem entra no cache.
+    let this_key = match (item, reorder_key) {
+        (serde_json::Value::Object(obj), Some(rk)) => obj.get(rk).map(json_scalar),
+        _ => None,
+    };
+
+    layer.item = Some(ItemVars {
+        var,
+        campos: match item {
+            serde_json::Value::Object(obj) => obj
+                .iter()
+                .map(|(k, v)| (k.as_str(), v, OnceCell::new()))
+                .collect(),
+            // Escalar não tem campo: só o `{var}` resolve, como sempre resolveu.
+            _ => Vec::new(),
+        },
+        inteiro: (item, OnceCell::new()),
+    });
 
     // Drag highlight: expõe se ESTE item é o que está sendo arrastado, para o
     // template poder estilizar a linha agarrada (ver `crate::DRAG_KEY_CONTEXT`).
@@ -636,7 +829,7 @@ fn item_layer<'b>(
 }
 
 /// Process string template by replacing `{key}` placeholders with values from context
-pub fn process_template(template: &str, context: &HashMap<String, String>) -> String {
+pub fn process_template(template: &str, context: &ContextMap) -> String {
     process_tpl(template, &EvalCtx::new(context))
 }
 
@@ -698,9 +891,10 @@ fn is_truthy(s: &str) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn eval_condition(
     cond: &str,
-    equals: &Option<String>,
-    not_equals: &Option<String>,
-    one_of: &Option<String>,
+    equals: Option<&str>,
+    not_equals: Option<&str>,
+    one_of: Option<&str>,
+    contains: Option<&str>,
     empty: bool,
     not_empty: bool,
     context: &EvalCtx,
@@ -720,6 +914,25 @@ fn eval_condition(
         return process_tpl(list, context)
             .split_whitespace()
             .any(|tok| tok == value);
+    }
+    if let Some(item) = contains {
+        // O **simétrico** do `one_of` acima: lá a lista está no markup e o
+        // valor da chave é um item; aqui a lista está na chave
+        // (`abertas="rede,proxy"`) e o item está no markup. Mesmo ponto do
+        // eval, comparação invertida — e é isso que dá ao motor o conjunto
+        // nomeado (`Accordion`, seleção múltipla, filtros por tag) sem estado
+        // por instância.
+        //
+        // Os três separadores valem ao mesmo tempo porque quem monta o
+        // conjunto é código de app: um `concat` com vírgula e um `table.concat`
+        // com espaço são igualmente naturais, e escolher um só seria uma
+        // pegadinha sem contrapartida.
+        let alvo = process_tpl(item, context);
+        let alvo = alvo.trim();
+        return value
+            .split([',', ';', ' ', '\t', '\n'])
+            .map(str::trim)
+            .any(|tok| !tok.is_empty() && tok == alvo);
     }
     if empty {
         return json_array_is_empty(&value);
@@ -816,6 +1029,9 @@ fn expand_children(
     scope: Option<&str>,
     owner: Option<&str>,
     out: &mut Vec<UiNode>,
+    // Repassado a cada filho para que um `<slot/>` a qualquer profundidade do
+    // template (dentro de um `<if>`, de um `<Row>`, …) ainda o enxergue.
+    slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<()> {
     // Tracks the result of the immediately preceding `<if>`, so an `<else>`
@@ -829,6 +1045,7 @@ fn expand_children(
                 | NodeType::Style { .. }
                 | NodeType::Screen(_)
                 | NodeType::ComponentRoot
+                | NodeType::Define { .. }
                 | NodeType::Resources
                 | NodeType::Props(_)
                 | NodeType::Prop
@@ -842,25 +1059,24 @@ fn expand_children(
         // node. A mismatch makes the node vanish entirely, same treatment
         // as the `<import>`/`<link>`/`<style>` skip just above — so it's
         // checked here, before for-each/else/else-if/if even see the node.
-        if let Some(platform) = &child.if_platform
+        if let Some(platform) = child.if_platform()
             && platform != current_platform()
         {
             continue;
         }
 
         // 1. Process for-each attribute directive (outer precedence)
-        if let Some(items) = &child.for_each {
-            let var = child.for_each_var.as_deref().unwrap_or("item");
+        if let Some(items) = child.for_each() {
+            let var = child.for_each_var().unwrap_or("item");
             let items_evaluated = process_tpl(items, context);
             // Drag-and-drop: resolved once per for-each, reused by every item.
-            let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
+            let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
             let on_reorder = child
-                .on_reorder
-                .as_ref()
+                .on_reorder()
                 .map(|s| namespace_action(process_tpl(s, context), owner));
-            if let Some(json_str) = context.get(&items_evaluated)
-                && let Ok(serde_json::Value::Array(arr)) =
-                    serde_json::from_str::<serde_json::Value>(json_str)
+            if let Some(arr) = context
+                .get(&items_evaluated)
+                .and_then(|bruto| cache.array(&items_evaluated, bruto))
             {
                 // Full identity snapshot, needed by the handle's `DragStart`.
                 let full_order: Vec<String> = match &reorder_key {
@@ -879,10 +1095,10 @@ fn expand_children(
                 // reavaliá-las sempre não custa nada.
                 let cacheable = on_reorder.is_none();
 
-                for (index, item) in arr.into_iter().enumerate() {
+                for (index, item) in arr.iter().enumerate() {
                     // Variáveis do item numa CAMADA sobre o contexto, sem
                     // clonar a base (ver `EvalCtx`).
-                    let (layer, this_key) = item_layer(&item, var, reorder_key.as_deref(), context);
+                    let (layer, this_key) = item_layer(item, var, reorder_key.as_deref(), context);
                     let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
 
                     if cacheable && reuse(&item_ctx, cache, out) {
@@ -891,10 +1107,10 @@ fn expand_children(
 
                     // Clone the child without the for_each directive
                     let mut clone = child.clone();
-                    clone.for_each = None;
-                    clone.for_each_var = None;
-                    clone.on_reorder = None;
-                    clone.reorder_key = None;
+                    clone.set_for_each(None);
+                    clone.set_for_each_var(None);
+                    clone.set_on_reorder(None);
+                    clone.set_reorder_key(None);
 
                     if let (Some(on_reorder), Some(key), Some(rk)) =
                         (&on_reorder, &this_key, &reorder_key)
@@ -922,6 +1138,7 @@ fn expand_children(
                         scope,
                         owner,
                         &mut item_out,
+                        slot,
                         cache,
                     )?;
                     if cacheable {
@@ -941,7 +1158,8 @@ fn expand_children(
                 let mut clone = child.clone();
                 clone.is_else = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?);
             }
             last_if = None;
@@ -957,27 +1175,30 @@ fn expand_children(
         // `if/else if/else` chain has in any imperative language. A stray
         // `else-if` with no `if` before it (`last_if == None`) is likewise a
         // no-op, matching the defensive behaviour of a stray `else` above.
-        if let Some(cond) = &child.else_if_cond {
+        if let Some(cond) = child.else_if_cond() {
             if last_if == Some(false) {
                 let truthy = eval_condition(
                     cond,
-                    &child.if_equals,
-                    &child.if_not_equals,
-                    &child.if_one_of,
+                    child.if_equals(),
+                    child.if_not_equals(),
+                    child.if_one_of(),
+                    child.if_contains(),
                     child.if_empty,
                     child.if_not_empty,
                     context,
                 );
                 if truthy {
                     let mut clone = child.clone();
-                    clone.else_if_cond = None;
-                    clone.if_equals = None;
-                    clone.if_not_equals = None;
-                    clone.if_one_of = None;
+                    clone.set_else_if_cond(None);
+                    clone.set_if_equals(None);
+                    clone.set_if_not_equals(None);
+                    clone.set_if_one_of(None);
+                    clone.set_if_contains(None);
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
-                        &clone, context, templates, styles, scope, owner, None, None, cache,
+                        &clone, context, templates, styles, scope, owner, None, None, None, None,
+                        slot, cache,
                     )?);
                 }
                 last_if = Some(truthy);
@@ -986,12 +1207,13 @@ fn expand_children(
         }
 
         // 3. Process if attribute directive
-        if let Some(cond) = &child.if_cond {
+        if let Some(cond) = child.if_cond() {
             let truthy = eval_condition(
                 cond,
-                &child.if_equals,
-                &child.if_not_equals,
-                &child.if_one_of,
+                child.if_equals(),
+                child.if_not_equals(),
+                child.if_one_of(),
+                child.if_contains(),
                 child.if_empty,
                 child.if_not_empty,
                 context,
@@ -999,14 +1221,16 @@ fn expand_children(
             if truthy {
                 // Clone child and clear if directives
                 let mut clone = child.clone();
-                clone.if_cond = None;
-                clone.if_equals = None;
-                clone.if_not_equals = None;
-                clone.if_one_of = None;
+                clone.set_if_cond(None);
+                clone.set_if_equals(None);
+                clone.set_if_not_equals(None);
+                clone.set_if_one_of(None);
+                clone.set_if_contains(None);
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
-                    &clone, context, templates, styles, scope, owner, None, None, cache,
+                    &clone, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?);
             }
             last_if = Some(truthy);
@@ -1021,6 +1245,7 @@ fn expand_children(
             | NodeType::Style { .. }
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
+            | NodeType::Define { .. }
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop => {}
@@ -1028,14 +1253,13 @@ fn expand_children(
                 let items_evaluated = process_tpl(items, context);
                 // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
                 // itself (a plain node attribute, same as `onPress`/`cursor`).
-                let reorder_key = child.reorder_key.as_ref().map(|s| process_tpl(s, context));
+                let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
                 let on_reorder = child
-                    .on_reorder
-                    .as_ref()
+                    .on_reorder()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
-                if let Some(json_str) = context.get(&items_evaluated)
-                    && let Ok(serde_json::Value::Array(arr)) =
-                        serde_json::from_str::<serde_json::Value>(json_str)
+                if let Some(arr) = context
+                    .get(&items_evaluated)
+                    .and_then(|bruto| cache.array(&items_evaluated, bruto))
                 {
                     let full_order: Vec<String> = match &reorder_key {
                         Some(rk) => arr
@@ -1049,11 +1273,11 @@ fn expand_children(
                     // Ver o porquê no `for-each` de atributo, acima.
                     let cacheable = on_reorder.is_none();
 
-                    for (index, item) in arr.into_iter().enumerate() {
+                    for (index, item) in arr.iter().enumerate() {
                         // Variáveis do item numa CAMADA sobre o contexto, sem
                         // clonar a base (ver `EvalCtx`).
                         let (layer, this_key) =
-                            item_layer(&item, var, reorder_key.as_deref(), context);
+                            item_layer(item, var, reorder_key.as_deref(), context);
                         let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
 
                         if cacheable && reuse(&item_ctx, cache, out) {
@@ -1063,7 +1287,7 @@ fn expand_children(
                         // The `<ForEach>` tag's body isn't a single node like
                         // the attribute form's — clone its children so the
                         // hydration below has somewhere of its own to live.
-                        let mut body: Vec<UiNode> = child.children.clone();
+                        let mut body: Vec<UiNode> = child.children.to_vec();
                         if let (Some(on_reorder), Some(key), Some(rk)) =
                             (&on_reorder, &this_key, &reorder_key)
                         {
@@ -1090,6 +1314,7 @@ fn expand_children(
                             scope,
                             owner,
                             &mut item_out,
+                            slot,
                             cache,
                         )?;
                         if cacheable {
@@ -1105,11 +1330,20 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                contains,
                 empty,
                 not_empty,
             } => {
-                let truthy =
-                    eval_condition(cond, equals, not_equals, one_of, *empty, *not_empty, context);
+                let truthy = eval_condition(
+                    cond,
+                    equals.as_deref(),
+                    not_equals.as_deref(),
+                    one_of.as_deref(),
+                    contains.as_deref(),
+                    *empty,
+                    *not_empty,
+                    context,
+                );
                 if truthy {
                     expand_children(
                         &child.children,
@@ -1119,6 +1353,7 @@ fn expand_children(
                         scope,
                         owner,
                         out,
+                        slot,
                         cache,
                     )?;
                 }
@@ -1129,6 +1364,7 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                contains,
                 empty,
                 not_empty,
             } => {
@@ -1138,7 +1374,14 @@ fn expand_children(
                 // stays `Some(true)` and every further branch is skipped.
                 if last_if == Some(false) {
                     let truthy = eval_condition(
-                        cond, equals, not_equals, one_of, *empty, *not_empty, context,
+                        cond,
+                        equals.as_deref(),
+                        not_equals.as_deref(),
+                        one_of.as_deref(),
+                        contains.as_deref(),
+                        *empty,
+                        *not_empty,
+                        context,
                     );
                     if truthy {
                         expand_children(
@@ -1149,6 +1392,7 @@ fn expand_children(
                             scope,
                             owner,
                             out,
+                            slot,
                             cache,
                         )?;
                     }
@@ -1165,6 +1409,7 @@ fn expand_children(
                         scope,
                         owner,
                         out,
+                        slot,
                         cache,
                     )?;
                 }
@@ -1172,7 +1417,8 @@ fn expand_children(
             }
             _ => {
                 let n = eval_owned(
-                    child, context, templates, styles, scope, owner, None, None, cache,
+                    child, context, templates, styles, scope, owner, None, None, None, None, slot,
+                    cache,
                 )?;
                 // A `Fragment` (a multi-root component template, or an explicit
                 // `Fragment { … }`) is transparent: splice its already-evaluated
@@ -1180,7 +1426,7 @@ fn expand_children(
                 // e.g. a component that is an `if`/`else` pair renders as two
                 // siblings of the surrounding layout.
                 if matches!(n.kind, NodeType::Fragment) {
-                    out.extend(n.children);
+                    out.extend(n.children.into_vec());
                 } else {
                     out.push(n);
                 }
@@ -1199,7 +1445,7 @@ fn expand_children(
 /// `<link>`-scoped stylesheets.
 pub fn evaluate_node(
     node: &UiNode,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
     templates: &HashMap<String, UiNode>,
     styles: &StyleContext,
     scope: Option<&str>,
@@ -1211,7 +1457,7 @@ pub fn evaluate_node(
     let ctx = EvalCtx::new(context);
     let mut cache = EvalCache::default();
     eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, &mut cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, None, None, &mut cache,
     )
 }
 
@@ -1224,7 +1470,7 @@ pub fn evaluate_node(
 /// reconstruir. Ver [`crate::GlacierUI::reevaluate_all`].
 pub fn evaluate_template(
     node: &UiNode,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
     templates: &HashMap<String, UiNode>,
     styles: &StyleContext,
     scope: Option<&str>,
@@ -1234,7 +1480,7 @@ pub fn evaluate_template(
     reads.push(0);
     let ctx = EvalCtx::tracked(context, &reads);
     let tree = eval_owned(
-        node, &ctx, templates, styles, scope, None, None, None, cache,
+        node, &ctx, templates, styles, scope, None, None, None, None, None, None, cache,
     )?;
     let deps = reads.pop();
     // Entradas de subárvores que sumiram (uma linha removida da lista) viram
@@ -1253,7 +1499,31 @@ pub fn evaluate_template(
 /// componente importado (ex.: `ServiceDetail::clipboard:foo`).
 const BUILTIN_ACTION_PREFIXES: [&str; 4] = ["clipboard:", "open:", "window:", "style:"];
 
+/// Marca uma ação como **do aplicativo**, não do componente que a escreveu:
+/// `app:` é removido no lugar do prefixo de dono, então a ação sai "nua" da
+/// avaliação e o `dispatch` a entrega à tela atual.
+///
+/// Existe para o caso do **widget composto que delega**: um builtin como o
+/// `<TimePicker/>` recebe `on_pick="abrir_modal"` por prop e repassa ao
+/// `<Button/>` interno. Sem escape, o `namespace_action` prefixaria com o dono
+/// (`TimePicker::abrir_modal`), o `dispatch` acharia o `TimePicker` no mapa de
+/// componentes e chamaria o `update` **dele** — que não conhece ação nenhuma do
+/// app. O handler do app nunca rodava, sem erro nenhum: o botão simplesmente
+/// não fazia nada. Com `on_click="app:{on_pick}"` a ação volta a ser
+/// `abrir_modal` e chega em quem a definiu.
+///
+/// Escopo: "do app" quer dizer **a tela atual** (é onde o `dispatch` cai quando
+/// não há dono), não o componente intermediário que porventura tenha usado o
+/// widget. Um componente que delega para outro componente ainda depende de um
+/// `ctx.dispatch` no motor, que não existe.
+pub const APP_ACTION_PREFIX: &str = "app:";
+
 fn namespace_action(action: String, owner: Option<&str>) -> String {
+    // O escape vem antes de tudo: quem escreveu `app:` está dizendo que a ação
+    // não é dele, então nem o dono nem os prefixos built-in se aplicam.
+    if let Some(bare) = action.strip_prefix(APP_ACTION_PREFIX) {
+        return bare.trim().to_string();
+    }
     match owner {
         Some(name)
             if !action.is_empty()
@@ -1264,6 +1534,61 @@ fn namespace_action(action: String, owner: Option<&str>) -> String {
             format!("{}::{}", name, action)
         }
         _ => action,
+    }
+}
+
+/// Teto de aninhamento da expansão (componentes + itens de `for-each`, que
+/// compartilham o mesmo contador de profundidade). Ver a guarda em `eval_owned`.
+///
+/// O número é baixo de propósito. `eval_owned` é uma função grande, com muitos
+/// locais gordos (duas `StyleRule`, dezenas de `Option<String>`, vários `Vec`),
+/// e cada nível de componente empilha um quadro dele **mais** um de
+/// `expand_children`. Com 128, a recursão infinita ainda estourava a pilha de
+/// 2 MiB de uma thread de teste antes de a guarda disparar — o teto tem de
+/// caber na pilha, não só existir.
+///
+/// 16 continua folgado para markup honesto: profundidade aqui é
+/// **aninhamento**, não contagem — um `for-each` de 500 itens abre um nível, não
+/// 500. Uma tela densa de verdade chega a uma dúzia.
+///
+/// Este teto é só a rede de segurança para **ciclos indiretos**; a
+/// auto-referência direta (o caso real) é pega por nome, no primeiro nível, sem
+/// gastar pilha nenhuma.
+const PROFUNDIDADE_MAXIMA: u32 = 16;
+
+/// O conteúdo que um uso de componente escreveu entre as tags, **já avaliado**
+/// e repartido pelo destino: o balde anônimo (o que ninguém etiquetou) e um por
+/// `slot="nome"`.
+///
+/// Existe porque um único `Vec` não bastava a partir do momento em que um
+/// widget passou a ter mais de uma região — o rodapé de um `<card>`, as ações
+/// no cabeçalho de um `<groupbox>`. A partição acontece uma vez, na fronteira
+/// do componente, sobre os filhos **crus** (é neles que o atributo `slot`
+/// ainda existe); cada balde é expandido no contexto e com o dono de quem
+/// escreveu, exatamente como antes.
+#[derive(Default)]
+pub(crate) struct SlotContent {
+    /// O que não foi etiquetado — o que um `<slot/>` sem `name` recebe.
+    anonimo: Vec<UiNode>,
+    /// `nome -> conteúdo`. Vec de pares, não mapa: são dois ou três slots por
+    /// widget, e a busca linear numa lista desse tamanho é mais barata que o
+    /// hash (além de preservar a ordem em que o uso escreveu).
+    nomeados: Vec<(String, Vec<UiNode>)>,
+}
+
+impl SlotContent {
+    /// O conteúdo de um slot, ou `None` se o uso não preencheu esse destino —
+    /// caso em que o `<slot>` cai no conteúdo de reserva dele.
+    fn get(&self, name: Option<&str>) -> Option<&[UiNode]> {
+        let bucket = match name {
+            None => &self.anonimo,
+            Some(n) => &self.nomeados.iter().find(|(k, _)| k == n).map(|(_, v)| v)?[..],
+        };
+        (!bucket.is_empty()).then_some(bucket)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.anonimo.is_empty() && self.nomeados.iter().all(|(_, v)| v.is_empty())
     }
 }
 
@@ -1285,20 +1610,129 @@ fn eval_owned(
     // comum. Aninhamento: o componente interno recebe o do externo já mesclado.
     underlay: Option<&StyleRule>,
     underlay_states: Option<&StateStyles>,
+    // Overlay de **classe/id escritos no USO** de um componente, passado só para
+    // a raiz avaliada do template dele. Gêmeo do `underlay` acima, no outro
+    // extremo: entra ACIMA da classe do template e ABAIXO dos atributos inline
+    // dele. A regra em uma frase: a classe escrita no uso vence as classes do
+    // template, e perde para o que o template cravou inline. `None` no caso
+    // comum. Ver `PLANO_CLASS_EM_COMPONENTE.md`.
+    overlay: Option<&StyleRule>,
+    overlay_states: Option<&StateStyles>,
+    // Conteúdo escrito entre as tags do componente que está sendo expandido —
+    // **já avaliado**, no contexto e com o dono de QUEM USOU, repartido por
+    // destino. É o que um `<slot/>` no template devolve. `None` fora de um
+    // componente. Ver [`SlotContent`] e [`crate::parser::NodeType::Slot`].
+    slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<UiNode> {
+    // `<slot/>`: devolve o conteúdo do uso (ou, se ele não veio, o conteúdo de
+    // reserva escrito dentro do próprio `<slot>`) embrulhado num `Fragment`,
+    // que `expand_children` espalha na lista do pai. Vem antes de tudo porque
+    // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
+    // desta vez com o dono errado (o componente, não quem chamou).
+    if let NodeType::Slot { name } = &node.kind {
+        let conteudo: Vec<UiNode> = match slot.and_then(|s| s.get(name.as_deref())) {
+            Some(nodes) => nodes.to_vec(),
+            // Reserva: os filhos do `<slot>` são do componente, então avaliam
+            // no contexto dele — inclusive enxergando as props da instância.
+            _ => {
+                let mut reserva = Vec::new();
+                expand_children(
+                    &node.children,
+                    context,
+                    templates,
+                    styles,
+                    scope,
+                    owner,
+                    &mut reserva,
+                    None,
+                    cache,
+                )?;
+                reserva
+            }
+        };
+        return Ok(crate::parser::empty_node(NodeType::Fragment, conteudo));
+    }
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
-    let reference: Option<(&String, &HashMap<String, String>)> = match &node.kind {
+    let reference: Option<(&String, &ContextMap)> = match &node.kind {
         NodeType::Include { src, props } => Some((src, props)),
         NodeType::Component { name, props } => Some((name, props)),
         _ => None,
     };
     if let Some((name, props)) = reference {
+        // Guarda de recursão, em duas camadas. Sem ela, um componente que se
+        // referencia estoura a pilha — `SIGABRT`, sem mensagem nem nome.
+        //
+        // 1. **Auto-referência direta**, o caso que de fato acontece: o dono da
+        //    subárvore que está sendo avaliada é o próprio componente que a tag
+        //    invoca. Pega no primeiro nível, sem gastar pilha, e é exato — não
+        //    depende de teto nenhum.
+        if owner == Some(name.as_str()) {
+            return Err(crate::error::GlacierError::ComponentRecursion {
+                name: name.clone(),
+                limite: PROFUNDIDADE_MAXIMA,
+            });
+        }
+        // 2. **Ciclo indireto** (A usa B, B usa A) e aninhamento absurdo: teto de
+        //    profundidade, como rede de segurança.
+        if context.depth() >= PROFUNDIDADE_MAXIMA {
+            return Err(crate::error::GlacierError::ComponentRecursion {
+                name: name.clone(),
+                limite: PROFUNDIDADE_MAXIMA,
+            });
+        }
         let template_ast = templates
             .get(name)
             .ok_or_else(|| crate::error::GlacierError::UnknownComponent(name.clone()))?;
+
+        // O conteúdo entre as tags (`<GroupBox>ISTO</GroupBox>`) é avaliado
+        // AQUI, ainda no contexto e com o dono de quem escreveu — antes de
+        // qualquer camada de props entrar em cena. É o que garante que
+        // `<GroupBox><Button on_click="salvar"/></GroupBox>` despache `salvar`
+        // para a tela, e não `GroupBox::salvar` para o `update` do builtin.
+        //
+        // Nada de `slot` do nível de fora atravessa: um `<slot/>` escrito no
+        // uso pertence ao componente que envolve ESTE uso, e já foi resolvido
+        // pela chamada que nos trouxe até aqui.
+        //
+        // A partição por destino roda sobre os filhos **crus**, porque é neles
+        // que o atributo `slot="footer"` ainda existe (a avaliação o consome).
+        // Cada balde é expandido por sua conta, o que preserva a semântica de
+        // um `<if>`/`<for-each>` dentro de um slot nomeado.
+        let mut slot_conteudo = SlotContent::default();
+        if !node.children.is_empty() {
+            let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
+            for filho in &node.children {
+                let destino = filho.slot_name().map(str::to_string);
+                match baldes.iter_mut().find(|(k, _)| *k == destino) {
+                    Some((_, v)) => v.push(filho),
+                    None => baldes.push((destino, vec![filho])),
+                }
+            }
+            for (destino, filhos) in baldes {
+                let crus: Vec<UiNode> = filhos
+                    .into_iter()
+                    .map(|f| {
+                        // A diretiva já foi consumida pela partição; deixá-la
+                        // no clone faria um `<card slot="footer">` aninhado
+                        // reetiquetar o conteúdo do componente de dentro.
+                        let mut c = f.clone();
+                        c.set_slot_name(None);
+                        c
+                    })
+                    .collect();
+                let mut saida = Vec::new();
+                expand_children(
+                    &crus, context, templates, styles, scope, owner, &mut saida, None, cache,
+                )?;
+                match destino {
+                    None => slot_conteudo.anonimo = saida,
+                    Some(nome) => slot_conteudo.nomeados.push((nome, saida)),
+                }
+            }
+        }
 
         // Contrato do componente, quando ele declara um (`<props>` no cabeçalho).
         // Declarar é opcional; a partir do momento em que existe, ele é a
@@ -1411,14 +1845,75 @@ fn eval_owned(
             }
             layer.set(key.clone(), process_tpl(val_template, context));
         }
-        let local_context = context.with(&layer, mix(node.node_id, 0));
+
+        // `{slot_footer}` = "true" quando o uso preencheu `slot="footer"`.
+        //
+        // Sem isto, um widget não consegue **decorar** um slot opcional: o
+        // `<card>` quer uma linha divisória acima do rodapé só quando existe
+        // rodapé, e o template não tem como perguntar isso — o nome do slot não
+        // é uma prop, e o conteúdo dele nem chega ao interpolador. O marcador é
+        // a resposta mínima: um booleano por slot nomeado preenchido, que o
+        // `<template if>` já sabe ler.
+        //
+        // Entra DEPOIS das props de propósito: uma prop escrita à mão com o
+        // mesmo nome vence, em vez de o motor sobrescrever o que o app pediu.
+        for (nome, conteudo) in &slot_conteudo.nomeados {
+            if !conteudo.is_empty() {
+                layer.set(format!("slot_{nome}"), "true".to_string());
+            }
+        }
+        // Classe/id escritos NO USO (`<spinbox class="campo_num"/>`). Resolvidos
+        // aqui, no escopo de QUEM USOU — é lá que a folha com `.campo_num` mora,
+        // não no escopo do componente — e entregues à raiz do template como
+        // `overlay`. Sem isto, `class` numa tag de componente era lida pelo
+        // parser, viajava no mapa de props e não pintava nada: falha silenciosa.
+        // Ver `PLANO_CLASS_EM_COMPONENTE.md`.
+        //
+        // A interpolação acontece contra o contexto de FORA (`context`), então
+        // um `class="{estado}"` registra a leitura no quadro de quem chamou,
+        // que é a quem a dependência de fato pertence.
+        let uso_class = node
+            .class
+            .as_deref()
+            .map(|c| process_tpl(c, context))
+            .unwrap_or_default();
+        let uso_id = node.id.as_deref().map(|i| process_tpl(i, context));
+
+        // A classe do uso entra na CHAVE do cache. O cache de componente é
+        // indexado pelo caminho (derivado do `node_id`), e as dependências que
+        // ele guarda são as lidas DENTRO da expansão — a leitura de `{estado}`
+        // acima ficou no quadro de fora e não estaria entre elas. Sem misturar
+        // o valor resolvido aqui, um `class="{estado}"` que mudasse serviria a
+        // árvore antiga, com o estilo velho, para sempre. Mesma armadilha que
+        // tirou o uso COM conteúdo de slot do cache na 0.65 — aqui, porém, dá
+        // para manter o cache: basta que valores diferentes ocupem entradas
+        // diferentes.
+        let mut assinatura_estilo = 0u64;
+        if !uso_class.is_empty() || uso_id.is_some() {
+            for b in uso_class
+                .bytes()
+                .chain(uso_id.iter().flat_map(|i| i.bytes()))
+            {
+                assinatura_estilo ^= b as u64;
+                assinatura_estilo = assinatura_estilo.wrapping_mul(0x100_0000_01b3);
+            }
+        }
+        let local_context = context.with(&layer, mix(node.node_id, assinatura_estilo));
 
         // O uso de um componente é uma fronteira natural de cache: é uma
         // subárvore inteira com uma entrada de dados bem definida (as props). É
         // o que faz uma linha de log nova não reconstruir a sidebar — cada
         // `<NavItem/>` dela é um componente cujas props não mudaram.
+        //
+        // **Exceção do `<slot/>`:** um uso COM conteúdo fica de fora do cache.
+        // A entrada é chaveada pelas dependências lidas dentro da expansão, e
+        // o conteúdo do slot foi avaliado do lado de fora — suas leituras
+        // pertencem ao quadro de quem chamou. Uma entrada aqui não teria como
+        // perceber que o conteúdo mudou e serviria a versão velha. Mesmo
+        // raciocínio (e mesmo custo desprezível: são os containers da tela) da
+        // lista reordenável em `expand_children`.
         let mut reused = Vec::new();
-        if reuse(&local_context, cache, &mut reused) {
+        if slot_conteudo.is_empty() && reuse(&local_context, cache, &mut reused) {
             // O cache guarda uma lista de nós; um componente sempre rende
             // exatamente um (a raiz avaliada do seu template).
             if let Some(root) = reused.pop() {
@@ -1453,6 +1948,31 @@ fn eval_owned(
             ));
         }
 
+        // Overlay: a classe/id do uso, resolvida no escopo do uso (`scope`), no
+        // outro extremo da escada de especificidade em relação ao underlay
+        // acima. Só custa a busca quando alguém de fato escreveu uma.
+        let (overlay_rule, overlay_st) = if uso_class.is_empty() && uso_id.is_none() {
+            (None, None)
+        } else {
+            let active = styles.active(scope);
+            (
+                Some(resolve_classes(
+                    None,
+                    &uso_class,
+                    uso_id.as_deref(),
+                    &active,
+                    styles.viewport,
+                )),
+                Some(resolve_state_classes(
+                    None,
+                    &uso_class,
+                    uso_id.as_deref(),
+                    &active,
+                    styles.viewport,
+                )),
+            )
+        };
+
         // The referenced subtree's actions and scoped styles belong to `name`
         // (innermost wins).
         let root = eval_owned(
@@ -1464,9 +1984,14 @@ fn eval_owned(
             Some(name),
             Some(&underlay_rule),
             Some(&underlay_st),
+            overlay_rule.as_ref(),
+            overlay_st.as_ref(),
+            (!slot_conteudo.is_empty()).then_some(&slot_conteudo),
             cache,
         )?;
-        store(&local_context, cache, std::slice::from_ref(&root));
+        if slot_conteudo.is_empty() {
+            store(&local_context, cache, std::slice::from_ref(&root));
+        }
         return Ok(root);
     }
 
@@ -1481,21 +2006,30 @@ fn eval_owned(
     // (this node's builtin kind), classes and id are merged on top by
     // `resolve_classes`; inline attrs win last, in the per-field match below.
     // `class`/`id` are interpolated (`id="item-{i}"` works). The `styles.active`
-    // allocation is skipped for a plain node unless a tag rule is in play.
+    // allocation is skipped for a node whose class list resolves to nothing,
+    // unless a tag rule is in play.
     let (style, state_styles): (StyleRule, StateStyles) = {
         let mut base = underlay.cloned().unwrap_or_default();
         let mut states = underlay_states.cloned().unwrap_or_default();
         let tag = node.kind.tag_name();
+        // A interpolação vem ANTES da decisão de buscar folhas: os builtins
+        // escrevem `class="{item_class}"` em nós internos para que o app possa
+        // injetar uma classe neles, e na esmagadora maioria dos usos essa prop
+        // não vem — o `class` existe, mas resolve para vazio. Decidir por
+        // `node.class.is_some()` faria cada um desses nós pagar o `Vec` do
+        // `styles.active` e duas varreduras de folha por quadro, sem nenhuma
+        // classe para casar. Interpolar primeiro custa uma `String` curta e
+        // devolve o nó ao caminho barato quando ninguém injetou nada.
+        let processed = node
+            .class
+            .as_deref()
+            .map(|c| process_tpl(c, context))
+            .unwrap_or_default();
+        let id = node.id.as_deref().map(|i| process_tpl(i, context));
         let needs_lookup =
-            node.class.is_some() || node.id.is_some() || (tag.is_some() && styles.has_tag_rules);
+            !processed.trim().is_empty() || id.is_some() || (tag.is_some() && styles.has_tag_rules);
         if needs_lookup {
             let active = styles.active(scope);
-            let processed = node
-                .class
-                .as_deref()
-                .map(|c| process_tpl(c, context))
-                .unwrap_or_default();
-            let id = node.id.as_deref().map(|i| process_tpl(i, context));
             base.merge_from(&resolve_classes(
                 tag,
                 &processed,
@@ -1510,6 +2044,17 @@ fn eval_owned(
                 &active,
                 styles.viewport,
             ));
+        }
+        // O overlay entra por ÚLTIMO entre os tiers de folha — depois da classe
+        // e do id deste nó — porque ele é a classe que quem USOU o componente
+        // escreveu, e ela precisa poder redefinir o que o template deixou como
+        // padrão. Os atributos inline do template ainda vencem: eles são
+        // aplicados no `match` por campo mais abaixo, sobre este resultado.
+        if let Some(o) = overlay {
+            base.merge_from(o);
+        }
+        if let Some(o) = overlay_states {
+            states.merge_from(o);
         }
         (base, states)
     };
@@ -1552,6 +2097,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Button {
@@ -1570,6 +2116,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::TextInput {
@@ -1606,6 +2153,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Scrollable { direction } => NodeType::Scrollable {
@@ -1650,13 +2198,165 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
+        NodeType::DateTimeEdit {
+            value_var,
+            date,
+            time,
+            seconds,
+            day_first,
+            on_change,
+        } => NodeType::DateTimeEdit {
+            value_var: process_tpl(value_var, context),
+            date: *date,
+            time: *time,
+            seconds: *seconds,
+            day_first: *day_first,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Calendar {
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            mode,
+            monday_first,
+            months,
+            range,
+            month_names,
+            day_names,
+            on_change,
+        } => NodeType::Calendar {
+            value_var: process_tpl(value_var, context),
+            end_var: process_tpl(end_var, context),
+            month_var: process_tpl(month_var, context),
+            today: process_tpl(today, context),
+            min: process_tpl(min, context),
+            max: process_tpl(max, context),
+            mode: *mode,
+            monday_first: *monday_first,
+            months: *months,
+            range: *range,
+            month_names: process_tpl(month_names, context),
+            day_names: process_tpl(day_names, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Pagination {
+            value_var,
+            total,
+            window,
+            ends,
+            on_change,
+        } => NodeType::Pagination {
+            value_var: process_tpl(value_var, context),
+            total: process_tpl(total, context),
+            window: *window,
+            ends: *ends,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Rating {
+            value_var,
+            max,
+            filled,
+            empty,
+            size,
+            color,
+            readonly,
+            on_change,
+        } => NodeType::Rating {
+            value_var: process_tpl(value_var, context),
+            max: process_tpl(max, context),
+            filled: process_tpl(filled, context),
+            empty: process_tpl(empty, context),
+            size: *size,
+            // A cor cai na classe `.gss` quando o atributo não a dá — o mesmo
+            // fallback do `color` do `Button` e do `ProgressBar`.
+            color: {
+                let c = process_tpl(color, context);
+                if c.is_empty() {
+                    style.color.clone().unwrap_or_default()
+                } else {
+                    c
+                }
+            },
+            readonly: *readonly,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::MaskedInput {
+            value_var,
+            mask,
+            placeholder,
+            on_change,
+        } => NodeType::MaskedInput {
+            value_var: process_tpl(value_var, context),
+            // A máscara também interpola, e o resultado volta a passar pelos
+            // presets: `mask="{formato}"` com `formato="cpf"` funciona.
+            mask: crate::parser::mascara_preset(&process_tpl(mask, context)),
+            placeholder: process_tpl(placeholder, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Radio {
+            label,
+            value,
+            group_var,
+            on_change,
+        } => NodeType::Radio {
+            label: process_tpl(label, context),
+            value: process_tpl(value, context),
+            group_var: process_tpl(group_var, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Slider {
+            value_var,
+            on_change,
+            on_release,
+            min,
+            max,
+            step,
+            step_raw,
+            shift_step,
+            default,
+            vertical,
+            color,
+        } => NodeType::Slider {
+            value_var: process_tpl(value_var, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_release: on_release
+                .as_ref()
+                .map(|a| namespace_action(process_tpl(a, context), owner)),
+            min: *min,
+            max: *max,
+            step: *step,
+            step_raw: step_raw.clone(),
+            shift_step: *shift_step,
+            default: *default,
+            vertical: *vertical,
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
+                .or_else(|| style.color.clone()),
+        },
+        NodeType::Space => NodeType::Space,
         NodeType::Spinner { color } => NodeType::Spinner {
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
+        },
+        NodeType::Reveal { open, duration } => NodeType::Reveal {
+            // `open` guarda o VALOR (`"true"`, ou um `{var}` a interpolar), não
+            // o nome de uma chave — ver o comentário da variante em `parser.rs`.
+            open: process_tpl(open, context),
+            duration: duration
+                .as_ref()
+                .map(|d| process_tpl(d, context))
+                .filter(|d| !d.trim().is_empty()),
         },
         NodeType::Select {
             options,
@@ -1676,6 +2376,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::ComboEdit {
@@ -1698,6 +2399,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::MenuBar => NodeType::MenuBar,
@@ -1741,6 +2443,11 @@ fn eval_owned(
         // spliced into the parent by `expand_children` (below), so it stays
         // transparent instead of collapsing into a `Container` box.
         NodeType::Fragment => NodeType::Fragment,
+        // Um `<slot/>` só vira conteúdo dentro da expansão de um componente
+        // (tratado no topo de `eval_owned`). Chegar aqui significa `<slot/>`
+        // escrito fora de um componente: vira `Fragment`, ou seja, some e
+        // deixa no lugar o próprio conteúdo de reserva que ele embrulha.
+        NodeType::Slot { .. } => NodeType::Fragment,
         NodeType::Include { .. }
         | NodeType::Component { .. }
         | NodeType::Import { .. }
@@ -1752,27 +2459,39 @@ fn eval_owned(
         | NodeType::Style { .. }
         | NodeType::Screen(_)
         | NodeType::ComponentRoot
+        | NodeType::Define { .. }
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => NodeType::Container,
     };
 
     // For each style field, the node's inline attribute wins; a `class` value
-    // (if any) fills in only where the inline attribute is absent.
-    let resolve = |inline: &Option<String>, class: &Option<String>| -> Option<String> {
+    // (if any) fills in only where the inline attribute is absent — or onde ele
+    // resolveu para **vazio**, que é o caso de um `background="{bg}"` cuja prop
+    // não veio.
+    //
+    // O `filter` é o que torna a injeção de classe num builtin utilizável. Sem
+    // ele, um template que escreve `background="{bg}"` para aceitar a prop
+    // apagava a classe mesmo quando `bg` não existia: o campo ficava `Some("")`
+    // e o `or_else` nem era consultado — o widget saía sem fundo nenhum, e uma
+    // classe injetada nunca pintava nada. Vazio não é um valor para nenhum
+    // destes campos (largura, cor, padding, alinhamento…), então tratá-lo como
+    // ausência não perde nada e devolve a escada documentada: templado →
+    // inline → classe.
+    let resolve = |inline: Option<&str>, class: &Option<String>| -> Option<String> {
         inline
-            .as_ref()
             .map(|s| process_tpl(s, context))
+            .filter(|s| !s.trim().is_empty())
             .or_else(|| class.clone())
     };
 
-    let width_eval = resolve(&node.width, &style.width);
-    let height_eval = resolve(&node.height, &style.height);
-    let padding_eval = resolve(&node.padding, &style.padding);
-    let align_x_eval = resolve(&node.align_x, &style.align_x);
-    let align_y_eval = resolve(&node.align_y, &style.align_y);
-    let background_eval = resolve(&node.background, &style.background);
-    let border_color_eval = resolve(&node.border_color, &style.border_color);
+    let width_eval = resolve(node.width.as_deref(), &style.width);
+    let height_eval = resolve(node.height.as_deref(), &style.height);
+    let padding_eval = resolve(node.padding.as_deref(), &style.padding);
+    let align_x_eval = resolve(node.align_x(), &style.align_x);
+    let align_y_eval = resolve(node.align_y(), &style.align_y);
+    let background_eval = resolve(node.background.as_deref(), &style.background);
+    let border_color_eval = resolve(node.border_color(), &style.border_color);
     let spacing_eval = num_template(NumAttr::Spacing)
         .or(node.spacing)
         .or(style.spacing);
@@ -1782,22 +2501,19 @@ fn eval_owned(
     let border_width_eval = num_template(NumAttr::BorderWidth)
         .or(node.border_width)
         .or(style.border_width);
-    let font_eval = resolve(&node.font, &style.font);
-    let gradient_eval = resolve(&node.gradient, &style.gradient);
-    let text_align_eval = resolve(&node.text_align, &style.text_align);
+    let font_eval = resolve(node.font(), &style.font);
+    let gradient_eval = resolve(node.gradient(), &style.gradient);
+    let text_align_eval = resolve(node.text_align(), &style.text_align);
     // `on_press` is behavior, not a style field; interpolate it directly so
     // actions like `onPress="window:{cmd}"` can bind context values.
-    let on_press_eval = node.on_press.as_ref().map(|s| process_tpl(s, context));
-    let on_double_click_eval = node
-        .on_double_click
-        .as_ref()
-        .map(|s| process_tpl(s, context));
-    let cursor_eval = resolve(&node.cursor, &style.cursor);
-    let text_color_eval = resolve(&node.text_color, &style.text_color);
+    let on_press_eval = node.on_press().map(|s| process_tpl(s, context));
+    let on_double_click_eval = node.on_double_click().map(|s| process_tpl(s, context));
+    let cursor_eval = resolve(node.cursor(), &style.cursor);
+    let text_color_eval = resolve(node.text_color(), &style.text_color);
     // `tooltip` é conteúdo, não estilo (sem equivalente `.classe { }`, como
     // `on_press`) — interpolado direto pra suportar `tooltip="{var}"`.
-    let tooltip_eval = node.tooltip.as_ref().map(|s| process_tpl(s, context));
-    let tooltip_position_eval = node.tooltip_position.clone();
+    let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
+    let tooltip_position_eval = node.tooltip_position().map(str::to_string);
     let max_width_eval = num_template(NumAttr::MaxWidth)
         .or(node.max_width)
         .or(style.max_width);
@@ -1840,6 +2556,9 @@ fn eval_owned(
         scope,
         owner,
         &mut children_eval,
+        // Um `<slot/>` a qualquer profundidade do template do componente ainda
+        // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
+        slot,
         cache,
     )?;
 
@@ -1859,7 +2578,7 @@ fn eval_owned(
     Ok(UiNode {
         node_id: node.node_id,
         kind: kind_eval,
-        children: children_eval,
+        children: children_eval.into(),
         // Numeric templates are resolved into the f32 fields below; nothing left.
         numeric_templates: Vec::new(),
         // Idem para os booleanos: já viraram `hidden_eval`/`disabled_eval`.
@@ -1867,68 +2586,78 @@ fn eval_owned(
         width: width_eval,
         height: height_eval,
         padding: padding_eval,
-        align_x: align_x_eval,
-        align_y: align_y_eval,
         spacing: spacing_eval,
+        virtualize: num_template(NumAttr::Virtualize).or(node.virtualize),
         background: background_eval,
         border_radius: border_radius_eval,
         border_width: border_width_eval,
-        border_color: border_color_eval,
         // Classes and id are fully resolved into the fields above; nothing to
         // carry on.
         class: None,
         id: None,
-        font: font_eval,
-        gradient: gradient_eval,
-        text_align: text_align_eval,
-        on_press: on_press_eval,
-        on_double_click: on_double_click_eval,
-        cursor: cursor_eval,
-        text_color: text_color_eval,
-        tooltip: tooltip_eval,
-        tooltip_position: tooltip_position_eval,
         max_width: max_width_eval,
         max_height: max_height_eval,
         hidden: hidden_eval,
         disabled: disabled_eval,
-        hover_style: hover_style_eval,
-        focus_style: focus_style_eval,
-        active_style: active_style_eval,
-        disabled_style: disabled_style_eval,
-        if_cond: None,
-        if_equals: None,
-        if_not_equals: None,
-        if_one_of: None,
         if_empty: false,
         if_not_empty: false,
-        if_platform: None,
         is_else: false,
-        else_if_cond: None,
-        for_each: None,
-        for_each_var: None,
-        // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
-        // consumed (and interpolated) directly by `expand_children`'s for-each
-        // handling below — nothing to carry on past evaluation.
-        on_reorder: None,
-        reorder_key: None,
         // `drag_handle` is a static marker (no template to resolve); carried
         // through unevaluated so a reorderable item's handle survives eval.
         drag_handle: node.drag_handle,
+        look: crate::parser::caixa(crate::parser::Look {
+            align_x: align_x_eval,
+            align_y: align_y_eval,
+            border_color: border_color_eval,
+            font: font_eval,
+            gradient: gradient_eval,
+            text_align: text_align_eval,
+            text_color: text_color_eval,
+            // A diretiva de destino é consumida na fronteira do componente, ao
+            // repartir o conteúdo do uso — nada dela sobrevive à avaliação.
+            slot_name: None,
+        }),
+        interact: crate::parser::caixa(crate::parser::Interact {
+            on_press: on_press_eval,
+            on_double_click: on_double_click_eval,
+            cursor: cursor_eval,
+            tooltip: tooltip_eval,
+            tooltip_position: tooltip_position_eval,
+        }),
+        pseudo: crate::parser::caixa(crate::parser::Pseudo {
+            hover_style: hover_style_eval,
+            focus_style: focus_style_eval,
+            active_style: active_style_eval,
+            disabled_style: disabled_style_eval,
+        }),
+        // As diretivas de fluxo são consumidas pela própria avaliação — o que
+        // sai daqui já é o resultado delas, nunca a condição.
+        cond: None,
         // Hydrated (if at all) by the *parent* for-each's expansion, onto this
         // very node, before it reached this call — carried through as-is
         // (nothing here to interpolate; identities are already resolved).
-        drag_list: node.drag_list.clone(),
-        drag_item_key: node.drag_item_key.clone(),
-        drag_order: node.drag_order.clone(),
-        drag_on_reorder: node.drag_on_reorder.clone(),
-        drag_reorder_key: node.drag_reorder_key.clone(),
-        form_control: node.form_control.as_ref().map(|s| process_tpl(s, context)),
-        // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above, on
-        // this very (already evaluated) node — carried through as a default of
-        // `None` here, same as the drag_* fields are for a plain for-each item.
-        form_scope: node.form_scope.clone(),
-        form_submit_action: node.form_submit_action.clone(),
-        form_next_focus: node.form_next_focus.clone(),
+        // `on_reorder`/`reorder_key` are only meaningful on a for-each node,
+        // consumed (and interpolated) directly by `expand_children`'s for-each
+        // handling below — nothing to carry on past evaluation.
+        drag: crate::parser::caixa(crate::parser::Drag {
+            on_reorder: None,
+            reorder_key: None,
+            drag_list: node.drag_list().map(str::to_string),
+            drag_item_key: node.drag_item_key().map(str::to_string),
+            drag_order: node.drag_order().map(<[String]>::to_vec),
+            drag_on_reorder: node.drag_on_reorder().map(str::to_string),
+            drag_reorder_key: node.drag_reorder_key().map(str::to_string),
+        }),
+        form: crate::parser::caixa(crate::parser::FormBits {
+            form_control: node.form_control().map(|s| process_tpl(s, context)),
+            // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above,
+            // on this very (already evaluated) node — carried through as a
+            // default of `None` here, same as the drag_* fields are for a plain
+            // for-each item.
+            form_scope: node.form_scope().map(str::to_string),
+            form_submit_action: node.form_submit_action().map(str::to_string),
+            form_next_focus: node.form_next_focus().map(str::to_string),
+        }),
     })
 }
 
@@ -1937,8 +2666,8 @@ fn eval_owned(
 /// find each control's "next" one.
 fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
     for node in nodes {
-        if let Some(name) = &node.form_control {
-            out.push(name.clone());
+        if let Some(name) = node.form_control() {
+            out.push(name.to_string());
         }
         collect_form_control_names(&node.children, out);
     }
@@ -1950,17 +2679,17 @@ fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
 /// the last one).
 fn hydrate_form_controls(nodes: &mut [UiNode], order: &[String], scope: &str, on_submit: &str) {
     for node in nodes.iter_mut() {
-        if let Some(name) = &node.form_control {
+        if let Some(name) = node.form_control() {
             let next = order
                 .iter()
                 .position(|n| n == name)
                 .and_then(|i| order.get(i + 1))
                 .cloned();
-            node.form_scope = Some(scope.to_string());
-            node.form_submit_action = Some(on_submit.to_string());
-            node.form_next_focus = next;
+            node.set_form_scope(Some(scope.to_string()));
+            node.set_form_submit_action(Some(on_submit.to_string()));
+            node.set_form_next_focus(next);
         }
-        hydrate_form_controls(&mut node.children, order, scope, on_submit);
+        hydrate_form_controls(node.children.to_mut(), order, scope, on_submit);
     }
 }
 
@@ -1973,8 +2702,8 @@ fn hydrate_drag_item(
     reorder_key: &str,
 ) {
     for node in nodes.iter_mut() {
-        node.drag_list = Some(list.to_string());
-        node.drag_item_key = Some(key.to_string());
+        node.set_drag_list(Some(list.to_string()));
+        node.set_drag_item_key(Some(key.to_string()));
     }
     // Hydrate EVERY `dragHandle` in the item body, not just the first. An item
     // whose body branches on a directive — e.g. `if {e.__dragging} { …handle… }
@@ -1992,13 +2721,13 @@ fn hydrate_drag_item(
         reorder_key: &str,
     ) {
         if node.drag_handle {
-            node.drag_list = Some(list.to_string());
-            node.drag_item_key = Some(key.to_string());
-            node.drag_reorder_key = Some(reorder_key.to_string());
-            node.drag_order = Some(order.to_vec());
-            node.drag_on_reorder = Some(on_reorder.to_string());
+            node.set_drag_list(Some(list.to_string()));
+            node.set_drag_item_key(Some(key.to_string()));
+            node.set_drag_reorder_key(Some(reorder_key.to_string()));
+            node.set_drag_order(Some(order.to_vec()));
+            node.set_drag_on_reorder(Some(on_reorder.to_string()));
         }
-        for c in node.children.iter_mut() {
+        for c in node.children.to_mut().iter_mut() {
             hydrate_handles(c, list, key, order, on_reorder, reorder_key);
         }
     }
@@ -2122,27 +2851,27 @@ mod tests {
     /// Avalia `xml` com `sheet` como sheet global e um mapa de componentes.
     fn eval_with(xml: &str, gss: &str, templates: &HashMap<String, UiNode>) -> UiNode {
         let global = vec![StyleSheet::parse(gss).unwrap()];
-        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::new();
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::default();
         let styles = StyleContext {
             global: &global,
             by_component: &by_component,
             viewport: None,
             has_tag_rules: global.iter().any(|s| s.has_tag_rules()),
         };
-        evaluate_node(&parse(xml), &HashMap::new(), templates, &styles, None).unwrap()
+        evaluate_node(&parse(xml), &HashMap::default(), templates, &styles, None).unwrap()
     }
 
     /// Avalia `node` contra `ctx`, sem stylesheet nenhum.
-    fn eval_ctx(node: &UiNode, ctx: &HashMap<String, String>) -> UiNode {
+    fn eval_ctx(node: &UiNode, ctx: &ContextMap) -> UiNode {
         let global: Vec<StyleSheet> = Vec::new();
-        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::new();
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::default();
         let styles = StyleContext {
             global: &global,
             by_component: &by_component,
             viewport: None,
             has_tag_rules: false,
         };
-        evaluate_node(node, ctx, &HashMap::new(), &styles, None).unwrap()
+        evaluate_node(node, ctx, &HashMap::default(), &styles, None).unwrap()
     }
 
     #[test]
@@ -2151,7 +2880,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" />"#,
             "Button { padding: 7; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding.as_deref(), Some("7"));
     }
@@ -2161,7 +2890,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" padding="20" />"#,
             "Button { padding: 7; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding.as_deref(), Some("20"));
     }
@@ -2171,7 +2900,7 @@ mod tests {
         // `Card {}` casa o NOME do componente e vira underlay na raiz (Column) do
         // template inlinado. O `background` da raiz (via classe) vence o underlay,
         // mas o `padding`, que só o underlay declara, sobrevive.
-        let mut templates = HashMap::new();
+        let mut templates = HashMap::default();
         templates.insert(
             "Card".to_string(),
             parse(r#"<Column class="root"><Text content="oi" /></Column>"#),
@@ -2193,7 +2922,7 @@ mod tests {
         let out = eval_with(
             r#"<Button text="x" />"#,
             ".unused { padding: 9; }",
-            &HashMap::new(),
+            &HashMap::default(),
         );
         assert_eq!(out.padding, None);
     }
@@ -2205,7 +2934,7 @@ mod tests {
     /// é interpolada aqui, com o mesmo teste de verdade do `if`.
     #[test]
     fn hidden_e_disabled_resolvem_placeholder_do_contexto() {
-        let mut ctx = HashMap::new();
+        let mut ctx = HashMap::default();
         ctx.insert("oculto".to_string(), "true".to_string());
         ctx.insert("travado".to_string(), "false".to_string());
 
@@ -2220,14 +2949,18 @@ mod tests {
         ctx.insert("travado".to_string(), "sim".to_string());
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(false));
-        assert_eq!(out.disabled, Some(true), "`sim` também é verdade, como no `if`");
+        assert_eq!(
+            out.disabled,
+            Some(true),
+            "`sim` também é verdade, como no `if`"
+        );
     }
 
     /// Valor literal continua valendo (o caminho antigo não pode ter regredido),
     /// e uma chave ausente resolve para vazio, que não é verdade.
     #[test]
     fn hidden_literal_e_chave_ausente_seguem_valendo() {
-        let ctx = HashMap::new();
+        let ctx = HashMap::default();
         let node = parse(r#"<Button text="x" hidden="true" />"#);
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(true));

@@ -1,25 +1,51 @@
 <screen title="Glacier - notificações do SO">
-    <resources>
-        <script src="notificacoes.luau"></script>
-    </resources>
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/notificacoes/theme.json" />
+    <script src="notificacoes.luau"></script>
+  </resources>
 
-    <!-- Notificações NATIVAS DO SO (ver src/component.rs::NotificationSpec e a
-         função global `notify` no prelúdio Luau). Diferente do exemplo `toasts`
-         (desenhados dentro da janela), estas vão para a central de notificações do
-         sistema operacional. Toda a lógica está em notificacoes.luau. -->
-    <Container padding="30" width="fill" height="fill" background="#1E1E2E" alignX="Center" alignY="Center">
-        <Column spacing="16" alignX="Center" width="560">
-            <Text content="Notificações nativas do sistema operacional" size="22" bold="true" color="#F5E0DC" />
-            <Text content="Clique num botão: a notificação aparece na central do SO, não dentro desta janela. Minimize o app e veja que ela chega mesmo assim." size="13" color="#A6ADC8" />
+  <!-- Notificações NATIVAS DO SO (ver src/component.rs::NotificationSpec e a
+     função global `notify` no prelúdio Luau). Diferente do exemplo `toasts`
+     (desenhados dentro da janela), estas vão para a central de notificações do
+     sistema operacional. Toda a lógica está em notificacoes.luau. -->
+  <container
+    padding="30"
+    width="fill"
+    height="fill"
+    align_x="Center"
+    align_y="Center"
+  >
+    <column spacing="16" align_x="Center" width="560">
+      <text size="22" bold="true" color="#F5E0DC">
+        Notificações nativas do sistema operacional
+      </text>
+      <text size="13" color="#A6ADC8">
+        Clique num botão: a notificação aparece na central do SO,
+        não dentro desta janela. Minimize o app e veja que
+        ela chega mesmo assim.
+      </text>
 
-            <Row spacing="10" alignX="Center">
-                <Button text="Título + corpo" on_click="notificar_completo" color="#A6E3A1" padding="8 16" />
-                <Button text="Só corpo (string)" on_click="notificar_simples" color="#89B4FA" padding="8 16" />
-            </Row>
+      <row spacing="10" align_x="Center">
+        <button
+          text="Título + corpo"
+          on_click="notificar_completo"
+          color="#A6E3A1"
+          padding="8 16"
+        />
+        <button
+          text="Só corpo (string)"
+          on_click="notificar_simples"
+          color="#89B4FA"
+          padding="8 16"
+        />
+      </row>
 
-            <Rule width="500" />
+      <rule width="500" />
 
-            <Text content="Notificações emitidas: {total}" size="14" color="#F9E2AF" />
-        </Column>
-    </Container>
+      <text size="14" color="#F9E2AF">Notificações emitidas: {total}</text>
+    </column>
+  </container>
 </screen>

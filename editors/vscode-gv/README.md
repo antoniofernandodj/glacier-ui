@@ -45,6 +45,12 @@ Language support for **Glacier View** (`.gv`), the XML markup of `glacier-ui`.
   missing file, a handler defined nowhere — is deliberately left unlinked, so a
   typo shows up as a missing underline.
 
+- **Fechamento automático de tag** — terminar uma abertura com `>` já escreve o
+  par: `<Column>` vira `<Column></Column>` com o cursor no meio. Vale para
+  componentes do app também; fica de fora só o que o motor lê como folha
+  (`<Image>`, `<Badge>`, `<Radio>`, …), que o markup sempre escreve com `/>`.
+  Desliga em `glacierView.autoClosingTags`.
+
 Starts simple, meant to grow (hovers, unknown-handler diagnostics, completion).
 
 ## Install (local)

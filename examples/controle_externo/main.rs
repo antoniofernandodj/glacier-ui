@@ -8,7 +8,7 @@
 //!
 //! O vocabulário é o mesmo dos templates:
 //!
-//! - `patch` escreve pares no contexto (o que um `<TextInput>` faria);
+//! - `patch` escreve pares no contexto (o que um `<textinput>` faria);
 //! - `click` dispara uma ação pelo nome (o que um `<button on_click>` faria);
 //! - `action` dispara uma ação com valor (o que um `on_change` faria).
 //!

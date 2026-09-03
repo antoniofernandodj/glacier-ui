@@ -4,8 +4,8 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 ///
 /// O pai (`Painel`) possui o filho (`CartaoContador`) via `children()`, e cada
 /// um trata as ações que saem da sua própria UI:
-///   - `+` / `-`  (UI do filho)  -> `CartaoContador::update`
-///   - "Trocar tema" (UI do pai) -> `Painel::update`
+///   - `+` / `-`          (UI do filho) -> `CartaoContador::update`
+///   - "Trocar destaque"  (UI do pai)   -> `Painel::update`
 ///
 /// O motor faz isso namespaceando as ações da subárvore do filho
 /// (`incrementar` -> `CartaoContador::incrementar`) e roteando no `dispatch`.
@@ -38,21 +38,27 @@ impl Component for CartaoContador {
     }
 }
 
-/// Pai: controla o tema e possui o `CartaoContador`.
+/// Pai: tem uma ação própria e possui o `CartaoContador`.
+///
+/// O botão do pai já trocava o **fundo da janela** por uma chave de contexto
+/// (`painel_bg`), pintando a raiz `fill/fill`. Era a camada mais cara da tela —
+/// um retângulo sombreado por pixel em toda a janela, por cima do que o tema já
+/// pinta. O fundo agora é do `theme.json`, e o que sobra aqui é o que o exemplo
+/// existe para mostrar: uma ação que sai da UI do **pai** e cai no `update` do
+/// pai. Trocar a cor da janela em runtime é a ação builtin `style:<nome>`, que
+/// não passa por componente nenhum (ver `examples/galeria_estilos`).
 struct Painel {
-    escuro: bool,
+    quente: bool,
 }
 
 impl Painel {
-    fn aplicar_tema(&self, ctx: &mut Context) {
-        if self.escuro {
-            ctx.set("tema", "escuro");
-            ctx.set("painel_bg", "#11111B");
+    fn aplicar_destaque(&self, ctx: &mut Context) {
+        if self.quente {
+            ctx.set("destaque", "quente");
             ctx.set("cor_texto", "#F5E0DC");
         } else {
-            ctx.set("tema", "claro");
-            ctx.set("painel_bg", "#2E3440");
-            ctx.set("cor_texto", "#ECEFF4");
+            ctx.set("destaque", "frio");
+            ctx.set("cor_texto", "#89B4FA");
         }
     }
 }
@@ -67,13 +73,13 @@ impl Component for Painel {
     }
 
     fn init(&mut self, ctx: &mut Context) {
-        self.aplicar_tema(ctx);
+        self.aplicar_destaque(ctx);
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
-        if action == "trocar_tema" {
-            self.escuro = !self.escuro;
-            self.aplicar_tema(ctx);
+        if action == "trocar_destaque" {
+            self.quente = !self.quente;
+            self.aplicar_destaque(ctx);
         }
     }
 
@@ -87,7 +93,7 @@ fn main() -> iced::Result {
         .title("Glacier - Componentes Aninhados")
         .main(|motor| {
             // Registra só o pai; o filho entra em cascata via children().
-            if let Err(e) = motor.register(Box::new(Painel { escuro: false })) {
+            if let Err(e) = motor.register(Box::new(Painel { quente: false })) {
                 eprintln!("Erro ao registrar 'painel': {}", e);
             }
             motor.set_initial_screen("painel");

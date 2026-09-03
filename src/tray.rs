@@ -257,24 +257,27 @@ pub fn event_stream() -> impl futures::Stream<Item = TrayMsg> {
     use tray_icon::menu::MenuEvent;
     use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 
-    iced::stream::channel(64, |mut output: futures::channel::mpsc::Sender<TrayMsg>| async move {
-        loop {
-            while let Ok(ev) = MenuEvent::receiver().try_recv() {
-                let _ = output.send(TrayMsg::Menu(ev.id.0)).await;
-            }
-            while let Ok(ev) = TrayIconEvent::receiver().try_recv() {
-                if let TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } = ev
-                {
-                    let _ = output.send(TrayMsg::IconLeftClick).await;
+    iced::stream::channel(
+        64,
+        |mut output: futures::channel::mpsc::Sender<TrayMsg>| async move {
+            loop {
+                while let Ok(ev) = MenuEvent::receiver().try_recv() {
+                    let _ = output.send(TrayMsg::Menu(ev.id.0)).await;
                 }
+                while let Ok(ev) = TrayIconEvent::receiver().try_recv() {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = ev
+                    {
+                        let _ = output.send(TrayMsg::IconLeftClick).await;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(120)).await;
             }
-            tokio::time::sleep(Duration::from_millis(120)).await;
-        }
-    })
+        },
+    )
 }
 
 /// Sem a feature `tray`: um stream que nunca emite. Só existe para o daemon
@@ -364,11 +367,10 @@ fn build_tray(config: &TrayConfig) -> Result<BuiltTray, String> {
         .map_err(|e| format!("ícone inválido: {e}"))?
         .into_rgba8();
     let (w, h) = img.dimensions();
-    let icon =
-        Icon::from_rgba(img.into_raw(), w, h).map_err(|e| format!("ícone inválido: {e}"))?;
+    let icon = Icon::from_rgba(img.into_raw(), w, h).map_err(|e| format!("ícone inválido: {e}"))?;
 
     let menu = Menu::new();
-    let mut items = std::collections::HashMap::new();
+    let mut items = std::collections::HashMap::default();
     for item in &config.items {
         match item {
             TrayItem::Button { id, label } => {
@@ -378,11 +380,7 @@ fn build_tray(config: &TrayConfig) -> Result<BuiltTray, String> {
                 }
                 items.insert(id.clone(), ItemHandle::Button(mi));
             }
-            TrayItem::Check {
-                id,
-                label,
-                checked,
-            } => {
+            TrayItem::Check { id, label, checked } => {
                 let ci = CheckMenuItem::with_id(id.clone(), label, true, *checked, None);
                 if let Err(e) = menu.append(&ci) {
                     eprintln!("tray: falha ao anexar item '{id}': {e}");
@@ -409,10 +407,7 @@ fn build_tray(config: &TrayConfig) -> Result<BuiltTray, String> {
         .build()
         .map_err(|e| format!("falha ao criar o ícone da bandeja: {e}"))?;
 
-    Ok(BuiltTray {
-        _tray: tray,
-        items,
-    })
+    Ok(BuiltTray { _tray: tray, items })
 }
 
 /// Aplica um comando de menu recebido do daemon. Compartilhado entre as
@@ -475,7 +470,7 @@ fn run_loop(built: BuiltTray, rx: std::sync::mpsc::Receiver<TrayCommand>) {
 fn run_loop(built: BuiltTray, rx: std::sync::mpsc::Receiver<TrayCommand>) {
     use std::time::Duration;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
     };
 
     let mut msg: MSG = unsafe { std::mem::zeroed() };
@@ -527,11 +522,7 @@ mod tests {
             _ => panic!("esperava Button"),
         }
         match TrayItem::check("notif", "Notificações", true) {
-            TrayItem::Check {
-                id,
-                label,
-                checked,
-            } => {
+            TrayItem::Check { id, label, checked } => {
                 assert_eq!(id, "notif");
                 assert_eq!(label, "Notificações");
                 assert!(checked);

@@ -35,11 +35,11 @@
 //! de "estado por instância" do `PLANO_WIDGETS.md` §3 (que bloqueia
 //! `Tabs`/`Accordion`) se aplica aqui.
 
+use crate::ContextMap;
 use crate::parser::{NodeType, UiNode};
 use crate::widget::{EngineMessage, is_truthy};
 use iced::widget::{Space, button, column, container, mouse_area, row, rule, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Um nó já resolvido da árvore de menu — independente de ter vindo de
@@ -102,7 +102,9 @@ impl MenuNode {
             return Some(Self::separator_node());
         }
 
-        let label = get_str("label").or_else(|| get_str("text")).unwrap_or_default();
+        let label = get_str("label")
+            .or_else(|| get_str("text"))
+            .unwrap_or_default();
         let icon = get_str("icon");
         let on_click = get_str("action")
             .or_else(|| get_str("onClick"))
@@ -138,7 +140,7 @@ impl MenuNode {
 pub fn build_tree(
     children: &[UiNode],
     items_key: Option<&str>,
-    context: &HashMap<String, String>,
+    context: &ContextMap,
 ) -> Vec<MenuNode> {
     let mut out = Vec::new();
     for child in children {
@@ -215,7 +217,11 @@ const PANEL_WIDTH: f32 = 200.0;
 const PANEL_PADDING: f32 = 4.0;
 
 fn row_h(n: &MenuNode) -> f32 {
-    if n.separator { SEPARATOR_HEIGHT } else { ROW_HEIGHT }
+    if n.separator {
+        SEPARATOR_HEIGHT
+    } else {
+        ROW_HEIGHT
+    }
 }
 
 fn panel_height(nodes: &[MenuNode]) -> f32 {
@@ -390,10 +396,17 @@ fn render_row<'a>(
     } else {
         palette.background.base.text
     };
-    let check_glyph = if node.checked == Some(true) { "✓" } else { "" };
+    let check_glyph = if node.checked == Some(true) {
+        "✓"
+    } else {
+        ""
+    };
 
     let mut r = row![
-        text(check_glyph).size(13).width(Length::Fixed(16.0)).color(text_color),
+        text(check_glyph)
+            .size(13)
+            .width(Length::Fixed(16.0))
+            .color(text_color),
         text(node.label.as_str())
             .size(13)
             .width(Length::Fill)

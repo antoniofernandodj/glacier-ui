@@ -1,35 +1,40 @@
 <screen title="Glacier - SSE + WebSocket em Lua (local)">
-    <resources>
-        <script src="stream_local.luau"></script>
-    </resources>
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/stream_lua/theme.json" />
+    <script src="stream_local.luau"></script>
+  </resources>
 
-    <Container
-        padding="24"
-        alignX="Center"
-        alignY="Center"
-        width="fill"
-        height="fill"
-        background="#2E3440"
-    >
-        <Column spacing="14" align="Center" width="500">
-            <Text content="SSE + WebSocket em Lua → API Python (localhost:8000)" size="18" bold="true" color="#ECEFF4" />
+  <container
+    padding="24"
+    align_x="Center"
+    align_y="Center"
+    width="fill"
+    height="fill"
+  >
+    <column spacing="14" align="Center" width="500">
+      <text size="18" bold="true" color="#ECEFF4">
+        SSE + WebSocket em Lua → API Python (localhost:8000)
+      </text>
 
-            <Text content="— Server-Sent Events (/sse) —" size="13" bold="true" color="#88C0D0" />
-            <Row spacing="10" align="Center">
-                <Button text="Abrir SSE" on_click="abrir_sse" color="#5E81AC" padding="10 18" />
-                <Button text="Fechar SSE" on_click="fechar_sse" color="#BF616A" padding="10 18" />
-            </Row>
-            <Text content="SSE: {sse_status}" size="13" color="#EBCB8B" />
-            <Text content="{sse_msg}" size="15" color="#A3BE8C" />
+      <text size="13" bold="true" color="#88C0D0">— Server-Sent Events (/sse) —</text>
+      <row spacing="10" align="Center">
+        <button text="Abrir SSE" on_click="abrir_sse" color="#5E81AC" padding="10 18" />
+        <button text="Fechar SSE" on_click="fechar_sse" color="#BF616A" padding="10 18" />
+      </row>
+      <text size="13" color="#EBCB8B">SSE: {sse_status}</text>
+      <text size="15" color="#A3BE8C">{sse_msg}</text>
 
-            <Text content="— WebSocket echo (/ws) —" size="13" bold="true" color="#88C0D0" />
-            <Row spacing="10" align="Center">
-                <Button text="Conectar" on_click="abrir_ws" color="#5E81AC" padding="10 18" />
-                <Button text="Enviar ping" on_click="enviar_ws" color="#A3BE8C" padding="10 18" />
-                <Button text="Fechar" on_click="fechar_ws" color="#BF616A" padding="10 18" />
-            </Row>
-            <Text content="WS: {ws_status}" size="13" color="#EBCB8B" />
-            <Text content="{ws_msg}" size="15" color="#A3BE8C" />
-        </Column>
-    </Container>
+      <text size="13" bold="true" color="#88C0D0">— WebSocket echo (/ws) —</text>
+      <row spacing="10" align="Center">
+        <button text="Conectar" on_click="abrir_ws" color="#5E81AC" padding="10 18" />
+        <button text="Enviar ping" on_click="enviar_ws" color="#A3BE8C" padding="10 18" />
+        <button text="Fechar" on_click="fechar_ws" color="#BF616A" padding="10 18" />
+      </row>
+      <text size="13" color="#EBCB8B">WS: {ws_status}</text>
+      <text size="15" color="#A3BE8C">{ws_msg}</text>
+    </column>
+  </container>
 </screen>

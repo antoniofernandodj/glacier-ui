@@ -1,0 +1,176 @@
+<screen title="Glacier - Onda 3" size="960 760">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/onda3/theme.json" />
+    <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
+       script pelo <script> do template, não por convenção de nome. -->
+    <script src="app.luau"></script>
+  </resources>
+
+  <column spacing="0" width="fill" height="fill">
+
+    <column padding="20 24 0 24" spacing="8" width="fill">
+      <text size="20" bold="true" color="#CDD6F4">Onda 3 — o calendário</text>
+      <text size="13" color="#A6ADC8">
+        Uma primitiva, três tags. O que muda de uma para a outra é o que um clique grava — e é a
+        mesma economia que fez `dateedit`/`timeedit`/`datetimeedit` serem um nó só.
+      </text>
+      <tabbar value="aba" active="{aba}" items="abas" />
+    </column>
+
+    <scrollable width="fill" height="fill">
+      <column padding="20 24" spacing="18" width="fill">
+
+        <!-- ABA 1 — <calendar> ================================================ -->
+        <template if="{aba}" equals="dia">
+          <column spacing="18" width="fill">
+
+            <row spacing="18" align_y="start">
+              <groupbox title="O caso simples" width="shrink">
+                <text size="12" color="#A6ADC8" max_width="290">
+                  Sem on_change, o widget grava a chave sozinho — nenhuma linha de script para o
+                  calendário funcionar. `today` é prop: é `date.today()` no init.
+                </text>
+                <calendar value="dia" today="{hoje}" />
+                <row spacing="8" align_y="center">
+                  <badge badge_text="dia" badge_bg="#89B4FA" badge_size="11" />
+                  <text size="13" color="#CDD6F4">{dia}</text>
+                </row>
+                <text size="12" color="#A6ADC8" max_width="290">
+                  Clique no TÍTULO para subir a escada de drill-up: dia → mês → ano, a mesma do
+                  QCalendarWidget. Descer de volta escolhe o mês/ano visível, sem tocar na chave.
+                </text>
+              </groupbox>
+
+              <groupbox title="Com validação e limites" width="shrink">
+                <text size="12" color="#A6ADC8" max_width="290">
+                  Com `on_change` quem grava é o handler — e é isso que permite recusar um valor. Aqui
+                  a entrega não pode cair num fim de semana, e min/max apagam o que está fora da
+                  faixa.
+                </text>
+                <calendar
+                  value="entrega"
+                  on_change="set_entrega"
+                  today="{hoje}"
+                  min="{hoje}"
+                  max="{limite}"
+                  first_day="monday"
+                />
+                <row spacing="8" align_y="center">
+                  <badge badge_text="entrega" badge_bg="#A6E3A1" badge_size="11" />
+                  <text size="13" color="#CDD6F4">{entrega_txt}</text>
+                </row>
+                <text size="12" color="#F9E2AF" max_width="290">{aviso}</text>
+              </groupbox>
+            </row>
+
+            <groupbox title="A semana começa onde o app disser" flat="true">
+              <text size="12" color="#A6ADC8">
+                `first_day="monday"` gira o cabeçalho de sete iniciais; o calendário da esquerda usa
+                o default (domingo), o da direita, segunda. E os rótulos vêm por prop: sem elas, o
+                pt-BR embutido.
+              </text>
+              <row spacing="18" align_y="start">
+                <calendar value="dia" today="{hoje}" />
+                <calendar
+                  value="dia"
+                  today="{hoje}"
+                  first_day="monday"
+                  day_names="Su Mo Tu We Th Fr Sa"
+                  month_names="January February March April May June July August September October November December"
+                />
+              </row>
+            </groupbox>
+          </column>
+        </template>
+
+        <!-- ABA 2 — <monthyearpicker> ========================================= -->
+        <template else_if="{aba}" equals="mes">
+          <column spacing="18" width="fill">
+            <text size="13" color="#A6ADC8">
+              A tela de drill-up do QCalendarWidget, promovida a tag. É a MESMA primitiva em
+              `mode="month"` — custo marginal quase zero depois da grade de dias, e é por isso que
+              esta linha subiu de P3 para P2 no plano.
+            </text>
+
+            <row spacing="18" align_y="start">
+              <groupbox title="Competência (YYYY-MM)" width="shrink">
+                <monthyearpicker value="competencia" on_change="set_competencia" today="{hoje}" />
+                <row spacing="8" align_y="center">
+                  <badge badge_text="competencia" badge_bg="#CBA6F7" badge_size="11" />
+                  <text size="13" color="#CDD6F4">{competencia_txt}</text>
+                </row>
+              </groupbox>
+
+              <groupbox title="Só o ano (mode=&quot;year&quot;)" width="shrink">
+                <text size="12" color="#A6ADC8" max_width="260">
+                  O terceiro degrau da mesma escada. `mode` diz onde o clique PARA de navegar e
+                  passa a gravar.
+                </text>
+                <calendar value="exercicio" mode="year" today="{hoje}" />
+                <row spacing="8" align_y="center">
+                  <badge badge_text="exercicio" badge_bg="#F9E2AF" badge_size="11" />
+                  <text size="13" color="#CDD6F4">{exercicio}</text>
+                </row>
+              </groupbox>
+            </row>
+          </column>
+        </template>
+
+        <!-- ABA 3 — <daterangepicker> ========================================= -->
+        <template else_if="{aba}" equals="intervalo">
+          <column spacing="18" width="fill">
+            <text size="13" color="#A6ADC8">
+              Duas datas em DUAS chaves — não `"a/b"` numa só, para o `date.diff` do Luau ler as
+              duas direto. O primeiro clique marca o início; o segundo fecha o intervalo. Passe o
+              mouse entre um e outro para ver a faixa provisória.
+            </text>
+
+            <groupbox title="Reserva" width="shrink">
+              <daterangepicker
+                start="entrada"
+                end="saida"
+                on_change="set_periodo"
+                months="2"
+                today="{hoje}"
+                min="{hoje}"
+              />
+              <row spacing="10" align_y="center">
+                <badge badge_text="entrada" badge_bg="#89B4FA" badge_size="11" />
+                <text size="13" color="#CDD6F4">{entrada_txt}</text>
+                <badge badge_text="saida" badge_bg="#F38BA8" badge_size="11" />
+                <text size="13" color="#CDD6F4">{saida_txt}</text>
+              </row>
+              <text size="14" bold="true" color="#A6E3A1">{noites}</text>
+              <button text="Limpar" on_click="limpar" padding="7 14" />
+            </groupbox>
+
+            <groupbox title="O mês visível pode vir de fora" flat="true">
+              <text size="12" color="#A6ADC8">
+                Sem `month`, o mês visível mora numa chave do motor derivada da chave editada
+                (`__cal_&lt;chave&gt;`) e o app não configura nada. Com `month="chave"`, quem manda
+                é o app — e dois botões bastam para dirigir a grade.
+              </text>
+              <row spacing="12" align_y="start">
+                <calendar value="dia" month="mes_visivel" today="{hoje}" />
+                <column spacing="8">
+                  <button text="Ir para janeiro" on_click="ir_janeiro" padding="7 14" />
+                  <button text="Ir para dezembro" on_click="ir_dezembro" padding="7 14" />
+                  <text size="12" color="#A6ADC8">mes_visivel = {mes_visivel}</text>
+                </column>
+              </row>
+            </groupbox>
+          </column>
+        </template>
+
+      </column>
+    </scrollable>
+
+    <statusbar message="{status}">
+      <badge badge_text="onda 3" badge_bg="#89B4FA" badge_size="11" />
+      <text size="12" color="#A6ADC8">hoje: {hoje}</text>
+    </statusbar>
+  </column>
+</screen>

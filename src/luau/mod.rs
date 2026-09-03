@@ -86,16 +86,21 @@ use mlua::{
 /// `fetch` **suspende** a corrotina até a resposta (aparência de `await`).
 /// `sse`/`websocket` **não** suspendem: cedem um pedido de abertura, o motor
 /// registra o stream e retoma na hora devolvendo um handle. A partir daí os
-/// eventos chegam pelos handlers nomeados em `opts` (`on_message`, `on_open`,
+/// eventos chegam pelos callbacks de `opts` (`on_open`, `on_message`,
 /// `on_error`, `on_close`), e o handle permite enviar/fechar:
 ///
 /// ```luau
 /// function init()
-///     conn = websocket("wss://ex/ws", { on_message = "on_msg" })
+///     conn = websocket("wss://ex/ws", {
+///         on_message = function(data) ctx.ultima = data end,
+///     })
 /// end
-/// function on_msg(data) ctx.ultima = data end
 /// function enviar() conn:send(ctx.texto) end
 /// ```
+///
+/// O callback é uma **função**, com tudo que isso implica: closure, upvalue,
+/// um método de uma tabela. Um nome de função global também é aceito
+/// (`on_message = "on_msg"`), como atalho — ver [`LuauComponent::handler_key`].
 const PRELUDE: &str = include_str!("prelude.luau");
 
 /// Um [`Component`] cujo comportamento vem de um bloco `<script>` em Luav.
@@ -279,14 +284,13 @@ impl LuauComponent {
             &luau,
             storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
         )
-            .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
+        .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
         // Expõe o global `write_file(path, conteúdo)` (escrita de arquivo local).
         // A leitura correspondente é `fetch("file://…")` (ver `net::perform`).
         install_write_file(&luau)
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
         // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
-        install_zip_dir(&luau)
-            .map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
+        install_zip_dir(&luau).map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
         // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
         // execução em `sync_to_luau`.
         let viewport_table = luau
@@ -316,9 +320,9 @@ impl LuauComponent {
             path,
             luau,
             ctx_table,
-            pending: RefCell::new(HashMap::new()),
-            streams: RefCell::new(HashMap::new()),
-            timers: RefCell::new(HashMap::new()),
+            pending: RefCell::new(HashMap::default()),
+            streams: RefCell::new(HashMap::default()),
+            timers: RefCell::new(HashMap::default()),
             next_id: Cell::new(1),
             viewport_table,
             inner: None,
@@ -537,7 +541,11 @@ impl LuauComponent {
             return Ok(());
         };
         self.sync_to_luau(ctx)?;
-        self.drive(thread, MultiValue::from_iter([Value::Boolean(confirmed)]), ctx)
+        self.drive(
+            thread,
+            MultiValue::from_iter([Value::Boolean(confirmed)]),
+            ctx,
+        )
     }
 
     /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
@@ -769,9 +777,17 @@ impl LuauComponent {
         Ok(())
     }
 
-    /// Resolve um handler de `opts[name]` num [`RegistryKey`]: aceita uma
-    /// função direta ou o **nome** de uma função global (resolvida agora). Um
-    /// nome sem global correspondente, ou um valor de outro tipo, vira `None`.
+    /// Resolve um handler de `opts[name]` num [`RegistryKey`].
+    ///
+    /// A forma normal é a **função** — é o que a referência guardada preserva,
+    /// closure e upvalues inclusive, então `on_message = function(d) … end`
+    /// funciona como em qualquer API de eventos.
+    ///
+    /// Uma **string** também é aceita, e vale como o nome de uma função global,
+    /// resolvido agora. É atalho, não a forma canônica: ela obriga o handler a
+    /// ser global, não fecha sobre nada, e falha em silêncio (um nome sem
+    /// global correspondente vira `None`, e o evento não chama nada). Existe
+    /// porque apps escritos antes da API aceitar função dependem dela.
     fn handler_key(&self, opts: &Table, name: &str) -> mlua::Result<Option<RegistryKey>> {
         match opts.get::<Value>(name)? {
             Value::Function(f) => Ok(Some(self.luau.create_registry_value(f)?)),
@@ -889,7 +905,9 @@ impl LuauComponent {
                     body_bytes = Some(
                         base64::prelude::BASE64_STANDARD
                             .decode(b64.trim())
-                            .map_err(|e| mlua::Error::runtime(format!("body_base64 inválido: {e}")))?,
+                            .map_err(|e| {
+                                mlua::Error::runtime(format!("body_base64 inválido: {e}"))
+                            })?,
                     );
                 }
                 // `response = "base64"`: aplicável a `file://` — devolve o conteúdo
@@ -936,9 +954,7 @@ impl LuauComponent {
     /// `false`, só que aqui é a ausência do valor, não um booleano.
     fn file_dialog_result_to_luau(&self, r: &FileDialogResult) -> mlua::Result<Value> {
         match r {
-            FileDialogResult::Path(Some(p)) => {
-                Ok(Value::String(self.luau.create_string(p)?))
-            }
+            FileDialogResult::Path(Some(p)) => Ok(Value::String(self.luau.create_string(p)?)),
             FileDialogResult::Path(None) => Ok(Value::Nil),
             FileDialogResult::Paths(Some(paths)) => {
                 let t = self.luau.create_table()?;
@@ -1055,7 +1071,9 @@ fn parse_headers_table(opts: &Table) -> mlua::Result<Vec<(String, String)>> {
 /// [`crate::component::DialogAction::ShowResumable`]) em vez de despachá-las.
 /// `destructive` pinta o botão de confirmação como perigo.
 fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
-    use crate::dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec, CONFIRM_NO, CONFIRM_YES};
+    use crate::dialogs::{
+        ButtonRole, CONFIRM_NO, CONFIRM_YES, DialogButton, DialogIcon, DialogSpec,
+    };
     let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
     let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
     let confirm_label = req
@@ -1071,7 +1089,11 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
         ButtonRole::Accept
     };
     Ok(DialogSpec::new(DialogIcon::Question, title, message)
-        .with_button(DialogButton::new(cancel_label, CONFIRM_NO, ButtonRole::Neutral))
+        .with_button(DialogButton::new(
+            cancel_label,
+            CONFIRM_NO,
+            ButtonRole::Neutral,
+        ))
         .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
         .dismissible(false))
 }
@@ -1728,12 +1750,13 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
 /// usuário) — zipar direto ali evita o passo de mover e o arquivo órfão que
 /// sobraria se a cópia falhasse no meio.
 fn install_zip_dir(luau: &Lua) -> mlua::Result<()> {
-    let zip_dir = luau.create_function(|_, (source, dest): (String, String)| {
-        match zip_directory(&source, &dest) {
-            Ok(()) => Ok((true, None)),
-            Err(e) => Ok((false, Some(e.to_string()))),
-        }
-    })?;
+    let zip_dir =
+        luau.create_function(|_, (source, dest): (String, String)| {
+            match zip_directory(&source, &dest) {
+                Ok(()) => Ok((true, None)),
+                Err(e) => Ok((false, Some(e.to_string()))),
+            }
+        })?;
     luau.globals().set("zip_dir", zip_dir)?;
     Ok(())
 }
@@ -1833,7 +1856,9 @@ fn resolve_script(
 /// caminho de um arquivo `.luau` externo.
 fn extract_script_src(markup: &str) -> Option<String> {
     let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
+    // `find_script_open` e não `find("<script")`: um `<script src="…">` citado
+    // dentro de um comentário XML não abre bloco nenhum (ver o doc dela).
+    let open = crate::eval::find_script_open(markup)?;
     // Só o texto da tag de abertura (até o primeiro `>`).
     let gt = lower[open..].find('>')? + open;
     let tag = &markup[open..gt];
@@ -1844,11 +1869,12 @@ fn extract_script_src(markup: &str) -> Option<String> {
 }
 
 /// Extrai o corpo de um bloco `<script>...</script>` de um template XML.
-/// Espelha a lógica de remoção do parser, mas devolve o conteúdo em vez de
-/// descartá-lo.
+/// Espelha a lógica de remoção do parser (`eval::strip_script`) — a MESMA
+/// varredura inclusive, para as duas nunca apontarem para blocos diferentes —,
+/// mas devolve o conteúdo em vez de descartá-lo.
 fn extract_script(markup: &str) -> Option<String> {
     let lower = markup.to_ascii_lowercase();
-    let open = lower.find("<script")?;
+    let open = crate::eval::find_script_open(markup)?;
     let gt = lower[open..].find('>')? + open + 1;
     let close = lower[gt..].find("</script>")? + gt;
     Some(markup[gt..close].to_string())
@@ -1857,6 +1883,7 @@ fn extract_script(markup: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ContextMap;
     use std::collections::HashMap;
 
     /// Roda `func`/`value` contra um mapa de contexto e devolve o mapa mutado,
@@ -1865,8 +1892,8 @@ mod tests {
         comp: &LuauComponent,
         func: &str,
         value: Option<&str>,
-        mut data: HashMap<String, String>,
-    ) -> HashMap<String, String> {
+        mut data: ContextMap,
+    ) -> ContextMap {
         let mut ctx = Context::new(&mut data);
         comp.run(func, value, &mut ctx);
         data
@@ -1880,7 +1907,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("contador".into(), "0".into());
         let data = drive(&comp, "incrementar", None, data);
         // Coerção de string numérica + volta a inteiro (não "1.0").
@@ -1891,7 +1918,7 @@ mod tests {
     fn onchange_recebe_o_valor() {
         let comp = LuauComponent::from_source("function set_nome(v) ctx.nome = v end", "t.gv", "c")
             .unwrap();
-        let data = drive(&comp, "set_nome", Some("Ana"), HashMap::new());
+        let data = drive(&comp, "set_nome", Some("Ana"), HashMap::default());
         assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
     }
 
@@ -1899,7 +1926,7 @@ mod tests {
     fn atribuir_nil_remove_a_chave_no_contexto() {
         let comp = LuauComponent::from_source("function limpar() ctx.temp = nil end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("temp".into(), "algo".into());
         data.insert("manter".into(), "ok".into());
         let data = drive(&comp, "limpar", None, data);
@@ -1915,7 +1942,7 @@ mod tests {
     #[test]
     fn acao_sem_funcao_e_ignorada() {
         let comp = LuauComponent::from_source("function a() end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("x".into(), "keep".into());
         let data = drive(&comp, "inexistente", None, data);
         assert_eq!(data.get("x").map(String::as_str), Some("keep"));
@@ -1931,7 +1958,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "open_service:abc", None, HashMap::new());
+        let data = drive(&comp, "open_service:abc", None, HashMap::default());
         assert_eq!(data.get("aberto").map(String::as_str), Some("abc"));
     }
 
@@ -1941,7 +1968,7 @@ mod tests {
         // valor do input em seguida.
         let comp =
             LuauComponent::from_source("function field(k, v) ctx[k] = v end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "field:nome", Some("Ana"), HashMap::new());
+        let data = drive(&comp, "field:nome", Some("Ana"), HashMap::default());
         assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
     }
 
@@ -1956,7 +1983,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "salvar", None, HashMap::new());
+        let data = drive(&comp, "salvar", None, HashMap::default());
         assert_eq!(data.get("via").map(String::as_str), Some("exato"));
     }
 
@@ -1968,7 +1995,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         assert_eq!(ctx.toasts.len(), 1);
@@ -1980,7 +2007,7 @@ mod tests {
     fn toast_aceita_string_curta() {
         let comp =
             LuauComponent::from_source("function go() toast('oi') end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         assert_eq!(ctx.toasts.len(), 1);
@@ -1996,7 +2023,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         match &ctx.dialog {
@@ -2027,7 +2054,7 @@ mod tests {
                 "c",
             )
             .unwrap();
-            let mut data = HashMap::new();
+            let mut data = HashMap::default();
             let id = {
                 let mut ctx = Context::new(&mut data);
                 comp.run("go", None, &mut ctx);
@@ -2054,10 +2081,14 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
-        assert_eq!(ctx.file_dialogs.len(), 1, "deve suspender pedindo um diálogo");
+        assert_eq!(
+            ctx.file_dialogs.len(),
+            1,
+            "deve suspender pedindo um diálogo"
+        );
         assert_eq!(
             ctx.file_dialogs[0].spec.mode,
             crate::file_dialog::FileDialogMode::Open
@@ -2087,7 +2118,7 @@ mod tests {
                 "c",
             )
             .unwrap();
-            let mut data = HashMap::new();
+            let mut data = HashMap::default();
             let id = {
                 let mut ctx = Context::new(&mut data);
                 comp.run("go", None, &mut ctx);
@@ -2121,7 +2152,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let id = {
             let mut ctx = Context::new(&mut data);
             comp.run("go", None, &mut ctx);
@@ -2160,7 +2191,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let d = drive(&comp, "go", None, HashMap::new());
+        let d = drive(&comp, "go", None, HashMap::default());
         assert_eq!(d.get("d_nil").map(String::as_str), Some("true"));
         assert_eq!(d.get("d_type").map(String::as_str), Some("nil"));
         assert_eq!(d.get("safe").map(String::as_str), Some("vazio"));
@@ -2178,7 +2209,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let d = drive(&comp, "go", None, HashMap::new());
+        let d = drive(&comp, "go", None, HashMap::default());
         assert_eq!(d.get("obj").map(String::as_str), Some("{}"));
         assert_eq!(d.get("arr").map(String::as_str), Some("[]"));
         assert_eq!(
@@ -2193,7 +2224,7 @@ mod tests {
         // no script deve gravar ctx.url com o texto digitado — o loop que o
         // Form do Rust fechava, agora nativo para componentes Luau.
         let comp = LuauComponent::from_source("function init() end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "url", Some("https://x.tech"), HashMap::new());
+        let data = drive(&comp, "url", Some("https://x.tech"), HashMap::default());
         assert_eq!(data.get("url").map(String::as_str), Some("https://x.tech"));
     }
 
@@ -2201,7 +2232,7 @@ mod tests {
     fn acao_simples_sem_value_e_sem_funcao_e_ignorada() {
         // Sem função e sem value, nada acontece (não cria chave espúria).
         let comp = LuauComponent::from_source("function a() end", "t.gv", "c").unwrap();
-        let data = drive(&comp, "inexistente", None, HashMap::new());
+        let data = drive(&comp, "inexistente", None, HashMap::default());
         assert_eq!(data.get("inexistente"), None);
     }
 
@@ -2213,7 +2244,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "init", None, HashMap::new());
+        let data = drive(&comp, "init", None, HashMap::default());
         assert_eq!(data.get("contador").map(String::as_str), Some("5"));
     }
 
@@ -2225,7 +2256,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("raw".into(), r#"{"nome":"web","n":3}"#.into());
         let data = drive(&comp, "go", None, data);
         assert_eq!(data.get("nome").map(String::as_str), Some("web"));
@@ -2241,7 +2272,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         // Tabela 1-indexada sequencial → array JSON, na ordem.
         assert_eq!(
             data.get("out").map(String::as_str),
@@ -2264,7 +2295,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert(
             "raw".into(),
             r#"[{"name":"web","running":true},{"name":"db","running":false}]"#.into(),
@@ -2292,7 +2323,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // 1) roda a ação: `fetch` cede, a corrotina suspende e um PendingFetch aparece.
         let id;
@@ -2331,7 +2362,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // init abre o stream: um StreamRequest aparece e a corrotina NÃO fica
         // suspensa (sse não bloqueia como fetch).
@@ -2365,6 +2396,78 @@ mod tests {
         );
     }
 
+    /// A forma que um usuário escreve primeiro: a função ali mesmo, no lugar do
+    /// callback. `handler_key` casa `Value::Function` antes de tentar resolver
+    /// uma string como nome de global, então closure e upvalue funcionam — o
+    /// nome existe como atalho, não como a única forma.
+    #[test]
+    fn sse_aceita_a_funcao_no_lugar_do_nome() {
+        let mut comp = LuauComponent::from_source(
+            "function init()\n\
+             \x20   local prefixo = 'ev: '\n\
+             \x20   sse('http://ex/stream', {\n\
+             \x20       on_message = function(d) ctx.ultima = prefixo .. d end,\n\
+             \x20       on_close = function() ctx.fim = 'sim' end,\n\
+             \x20   })\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("init", None, &mut ctx);
+            assert_eq!(ctx.streams.len(), 1);
+            id = ctx.streams[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Message, "oi", &mut ctx);
+        }
+        // O prefixo prova que é a closure que rodou, com o upvalue vivo — um
+        // nome de global não teria como capturar `prefixo`.
+        assert_eq!(data.get("ultima").map(String::as_str), Some("ev: oi"));
+
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Closed, "", &mut ctx);
+        }
+        assert_eq!(data.get("fim").map(String::as_str), Some("sim"));
+    }
+
+    /// O mesmo para `websocket`: os dois passam pelo mesmo `register_stream`.
+    #[test]
+    fn websocket_aceita_a_funcao_no_lugar_do_nome() {
+        let mut comp = LuauComponent::from_source(
+            "function init()\n\
+             \x20   conn = websocket('wss://ex/ws', {\n\
+             \x20       on_open = function() ctx.aberto = 'sim' end,\n\
+             \x20   })\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+
+        let id;
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("init", None, &mut ctx);
+            assert_eq!(ctx.streams.len(), 1);
+            assert_eq!(ctx.streams[0].kind, StreamKind::Ws);
+            id = ctx.streams[0].id;
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.on_stream_event(id, StreamEventKind::Open, "", &mut ctx);
+        }
+        assert_eq!(data.get("aberto").map(String::as_str), Some("sim"));
+    }
+
     #[test]
     fn websocket_handle_envia_comando_de_saida() {
         let comp = LuauComponent::from_source(
@@ -2377,7 +2480,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         // Abriu um WebSocket e enfileirou um `send` — sem suspender.
@@ -2420,7 +2523,7 @@ mod tests {
         std::fs::write(&tpl, r#"<Text/><script src="beh.luau"></script>"#).unwrap();
 
         let comp = LuauComponent::from_file(tpl.to_str().unwrap(), "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("n".into(), "41".into());
         let data = drive(&comp, "incrementar", None, data);
         assert_eq!(data.get("n").map(String::as_str), Some("42"));
@@ -2444,16 +2547,13 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("path".into(), alvo.to_str().unwrap().to_string());
         let data = drive(&comp, "gravar", None, data);
 
         assert_eq!(data.get("ok").map(String::as_str), Some("true"));
         assert_eq!(data.get("err").map(String::as_str), Some(""));
-        assert_eq!(
-            std::fs::read_to_string(&alvo).unwrap(),
-            "conteúdo do luau"
-        );
+        assert_eq!(std::fs::read_to_string(&alvo).unwrap(), "conteúdo do luau");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -2482,7 +2582,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("msg".into(), "ola".into());
         let data = drive(&comp, "grita", None, data);
         assert_eq!(data.get("msg").map(String::as_str), Some("OLA!"));
@@ -2506,7 +2606,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         assert_eq!(data.get("cargas").map(String::as_str), Some("1"));
         assert_eq!(data.get("mesmo").map(String::as_str), Some("true"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2532,7 +2632,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // A chamada ao módulo suspende a corrotina num fetch — prova de que o
         // `fetch` do prelúdio funciona dentro do módulo importado.
@@ -2572,10 +2672,12 @@ mod tests {
         )
         .unwrap();
         // Não deve derrubar o processo: o erro é logado e a ação vira no-op.
-        let data = drive(&comp, "usar", None, HashMap::new());
+        let data = drive(&comp, "usar", None, HashMap::default());
         assert!(data.is_empty());
         // A resolução em si devolve None para um módulo ausente.
-        assert!(resolve_module("nao.existe", &module_roots(&dir.join("t.gv")), &DiskAssets).is_none());
+        assert!(
+            resolve_module("nao.existe", &module_roots(&dir.join("t.gv")), &DiskAssets).is_none()
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -2600,7 +2702,7 @@ mod tests {
         std::fs::write(scripts.join("m.luau"), "return { hi = \"ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2635,7 +2737,7 @@ mod tests {
         std::fs::write(pkg.join("b.luau"), "return { msg = \"irmao-ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("irmao-ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2667,7 +2769,7 @@ mod tests {
         std::fs::write(scripts.join("shared.luau"), "return { msg = \"subiu-ok\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("v").map(String::as_str), Some("subiu-ok"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2710,7 +2812,7 @@ mod tests {
         std::fs::write(pb.join("x.luau"), "return { name = \"de-b\" }").unwrap();
 
         let comp = LuauComponent::from_file(dir.join("app.gv").to_str().unwrap(), "app").unwrap();
-        let data = drive(&comp, "go", None, HashMap::new());
+        let data = drive(&comp, "go", None, HashMap::default());
         assert_eq!(data.get("a").map(String::as_str), Some("de-a"));
         assert_eq!(data.get("b").map(String::as_str), Some("de-b"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2724,7 +2826,7 @@ mod tests {
         let comp = LuauComponent::from_file("examples/imports_luau/app.gv", "app").unwrap();
         // init() não usa rede; só semeia o estado — prova que os módulos
         // resolveram e o script rodou.
-        let data = drive(&comp, "init", None, HashMap::new());
+        let data = drive(&comp, "init", None, HashMap::default());
         assert_eq!(data.get("status").map(String::as_str), Some("pronto"));
     }
 
@@ -2760,7 +2862,7 @@ mod tests {
     fn navigate_pede_navegacao_ao_motor() {
         let comp = LuauComponent::from_source("function ir() navigate('perfil') end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("ir", None, &mut ctx);
         match ctx.nav {
@@ -2773,7 +2875,7 @@ mod tests {
     fn navigate_back_pede_volta_ao_motor() {
         let comp = LuauComponent::from_source("function voltar() navigate_back() end", "t.gv", "c")
             .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("voltar", None, &mut ctx);
         assert!(matches!(ctx.nav, Some(crate::component::Nav::Back)));
@@ -2788,7 +2890,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(
@@ -2814,7 +2916,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -2832,7 +2934,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(
@@ -2855,7 +2957,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(ctx.notifications.len(), 1);
@@ -2869,7 +2971,7 @@ mod tests {
         let comp =
             LuauComponent::from_source("function avisar() notify('build pronto') end", "t.gv", "c")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("avisar", None, &mut ctx);
         assert_eq!(ctx.notifications.len(), 1);
@@ -2885,7 +2987,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -2904,7 +3006,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("abrir", None, &mut ctx);
         assert_eq!(ctx.windows.len(), 1);
@@ -2922,7 +3024,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("enviar", None, &mut ctx);
         assert_eq!(ctx.broadcasts.len(), 1);
@@ -2936,7 +3038,7 @@ mod tests {
     fn close_window_pede_fechar_a_propria_janela() {
         let comp =
             LuauComponent::from_source("function sair() close_window() end", "t.gv", "c").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         assert!(!ctx.close_self);
         comp.run("sair", None, &mut ctx);
@@ -2956,7 +3058,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.on_broadcast_inner("project_created", "{\"name\":\"api\"}", &mut ctx)
             .unwrap();
@@ -2976,7 +3078,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -3006,7 +3108,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let id;
         {
@@ -3034,7 +3136,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let first_id;
         {
@@ -3082,7 +3184,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         let first_id;
         {
@@ -3113,7 +3215,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         {
             let mut ctx = Context::new(&mut data);
             comp.run("quebra", None, &mut ctx);
@@ -3135,7 +3237,7 @@ mod tests {
         let comp =
             LuauComponent::from_source("function quebra() error('deu ruim') end", "t.gv", "c")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("quebra", None, &mut ctx);
         assert_eq!(
@@ -3154,7 +3256,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "ir", None, HashMap::new());
+        let data = drive(&comp, "ir", None, HashMap::default());
         let raw = data
             .get("obj")
             .expect("ctx.obj deveria ter sido gravado (serializado como JSON)");
@@ -3171,7 +3273,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "ir", None, HashMap::new());
+        let data = drive(&comp, "ir", None, HashMap::default());
         assert_eq!(
             data.get("ruim"),
             None,
@@ -3188,7 +3290,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         {
             let mut ctx = Context::new(&mut data);
             ctx.set_viewport((1024.0, 768.0));
@@ -3206,14 +3308,14 @@ mod tests {
                       function carregar() ctx.contador = storage.get('contador') end";
 
         let comp1 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("contador".into(), "7".into());
         let _ = drive(&comp1, "salvar", None, data);
 
         // Nova instância (simula reiniciar o processo): mesmo `path`/nome, então
         // o mesmo arquivo `.glacier-storage/app.json` — deveria ler o valor salvo.
         let comp2 = LuauComponent::from_source(script, path.to_str().unwrap(), "app").unwrap();
-        let data2 = drive(&comp2, "carregar", None, HashMap::new());
+        let data2 = drive(&comp2, "carregar", None, HashMap::default());
         assert_eq!(data2.get("contador").map(String::as_str), Some("7"));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -3234,7 +3336,7 @@ mod tests {
             "app",
         )
         .unwrap();
-        let data = drive(&comp, "fluxo", None, HashMap::new());
+        let data = drive(&comp, "fluxo", None, HashMap::default());
         assert_eq!(
             data.get("depois"),
             None,
@@ -3278,7 +3380,7 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "checar", None, HashMap::new());
+        let data = drive(&comp, "checar", None, HashMap::default());
         assert_eq!(
             data.get("tem_io").map(String::as_str),
             Some("false"),
@@ -3292,10 +3394,199 @@ mod tests {
     }
 
     #[test]
+    fn date_do_prelude_faz_aritmetica_de_calendario_sobre_iso() {
+        // O contrato do módulo `date`: entra string ISO, sai string ISO, na
+        // MESMA forma da entrada. Os casos abaixo são os que a aritmética à mão
+        // costuma errar — fim de mês, bissexto, e a virada de dia pela hora.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.mes = date.add('2026-01-31', { months = 1 })\n\
+               ctx.bissexto = date.add('2024-01-31', { months = 1 })\n\
+               ctx.dia = date.add('2026-12-31', { days = 1 })\n\
+               ctx.vira = date.add('2026-09-10 23:30', { minutes = 45 })\n\
+               ctx.so_hora = date.add('23:30', { hours = 1 })\n\
+               ctx.com_seg = date.add('2026-09-10 08:00:05', { seconds = 60 })\n\
+               ctx.invalido = tostring(date.add('2026-02-31', { days = 1 }))\n\
+               ctx.recua = date.add('2026-01-01', { days = -1 })\n\
+               ctx.recua_mes = date.add('2026-03-31', { months = -1 })\n\
+               local p = date.parse('2026-09-10 18:05:30')\n\
+               ctx.partes = `{p.year}/{p.month}/{p.day} {p.hour}:{p.min}:{p.sec}`\n\
+               ctx.seculo = tostring(date.days_in_month(2100, 2))\n\
+               ctx.seculo_400 = tostring(date.days_in_month(2000, 2))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::default());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        // 31/01 + 1 mês gruda no fim de fevereiro, como o QDateEdit ao trocar
+        // a seção do mês — e o ano bissexto muda a resposta.
+        assert_eq!(g("mes"), Some("2026-02-28"));
+        assert_eq!(g("bissexto"), Some("2024-02-29"));
+        assert_eq!(g("dia"), Some("2027-01-01"));
+        // A hora transborda para o dia quando há data...
+        assert_eq!(g("vira"), Some("2026-09-11 00:15"));
+        // ...e vira dentro do dia quando não há para onde transbordar.
+        assert_eq!(g("so_hora"), Some("00:30"));
+        // A forma da entrada é preservada: com segundos, sai com segundos.
+        assert_eq!(g("com_seg"), Some("2026-09-10 08:01:05"));
+        // Data que não existe é recusada (o parse do Luau é estrito, ao
+        // contrário do `Instante` do widget).
+        assert_eq!(g("invalido"), Some("nil"));
+        // Delta negativo atravessa o ano para trás...
+        assert_eq!(g("recua"), Some("2025-12-31"));
+        // ...e o mês para trás gruda igual (31/03 - 1 mês = 28/02).
+        assert_eq!(g("recua_mes"), Some("2026-02-28"));
+        assert_eq!(g("partes"), Some("2026/9/10 18:5:30"));
+        // A regra do século, que um `% 4` ingênuo erraria.
+        assert_eq!(g("seculo"), Some("28"), "2100 não é bissexto");
+        assert_eq!(g("seculo_400"), Some("29"), "2000 é bissexto");
+    }
+
+    #[test]
+    fn date_compara_formas_diferentes_e_conta_dias() {
+        // A pegadinha que o módulo existe para tirar da frente: como texto,
+        // "2026-09-10 08:00" > "2026-09-10" só porque a string é mais longa.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.texto = tostring('2026-09-10 08:00' > '2026-09-10')\n\
+               ctx.certo = tostring(date.is_after('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.mesmo_dia = tostring(date.diff('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.noites = tostring(date.diff('2026-09-12', '2026-09-10'))\n\
+               ctx.segundos = tostring(date.diff_seconds('2026-09-10 08:00', '2026-09-10'))\n\
+               ctx.wday = tostring(date.weekday('1970-01-01'))\n\
+               ctx.fmt = date.format('2026-09-10 18:05', 'DD/MM/YYYY HHhmm')\n\
+               ctx.recorte = tostring(date.date_of('2026-09-10 18:05'))\n\
+               ctx.sem_hora = tostring(date.time_of('2026-09-10'))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::default());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("texto"), Some("true"), "a comparação ingênua mente");
+        assert_eq!(g("certo"), Some("true"), "08:00 é depois da meia-noite");
+        // `diff` conta dias de CALENDÁRIO: mesmo dia, ainda que a hora difira.
+        assert_eq!(g("mesmo_dia"), Some("0"));
+        assert_eq!(g("noites"), Some("2"));
+        assert_eq!(g("segundos"), Some("28800"));
+        // 1970-01-01 foi quinta — wday 5, a mesma base do os.date("*t").
+        assert_eq!(g("wday"), Some("5"));
+        assert_eq!(g("fmt"), Some("10/09/2026 18h05"));
+        assert_eq!(g("recorte"), Some("2026-09-10"));
+        // Seção que a string não tem devolve nil, e não um "00:00" inventado.
+        assert_eq!(g("sem_hora"), Some("nil"));
+    }
+
+    #[test]
+    fn date_aceita_rfc3339_e_preserva_o_fuso() {
+        // O formato que um backend fala. As asserções são todas
+        // INDEPENDENTES DE FUSO — a máquina que roda o teste não importa.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.epoch_z = tostring(date.epoch('1970-01-01T00:00:00Z'))\n\
+               ctx.epoch_off = tostring(date.epoch('1970-01-01T00:00:00-03:00'))\n\
+               ctx.utc = tostring(date.to_utc('2026-07-06T12:34:56Z'))\n\
+               ctx.utc_de_off = tostring(date.to_utc('2026-07-06T09:34:56-03:00'))\n\
+               ctx.frac = tostring(date.to_utc('2026-07-06T12:34:56.789Z'))\n\
+               ctx.compacto = tostring(date.to_utc('2026-07-06T09:34:56-0300'))\n\
+               ctx.preserva = tostring(date.add('2026-07-06T12:34:56Z', { days = 1 }))\n\
+               ctx.preserva_off = tostring(date.add('2026-07-06T12:34:56-03:00', { hours = 1 }))\n\
+               ctx.from_epoch = tostring(date.from_epoch(0, true))\n\
+               ctx.segundos = tostring(date.diff_seconds('2026-07-06T12:00:00Z', '2026-07-06T10:00:00Z'))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::default());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("epoch_z"), Some("0"));
+        // O mesmo relógio de parede três horas a oeste é três horas DEPOIS.
+        assert_eq!(g("epoch_off"), Some("10800"));
+        assert_eq!(g("utc"), Some("2026-07-06 12:34:56"));
+        assert_eq!(
+            g("utc_de_off"),
+            Some("2026-07-06 12:34:56"),
+            "-03:00 tem de bater com o mesmo instante em Z"
+        );
+        // Fração de segundo entra e é descartada; `±HHMM` sem dois-pontos vale.
+        assert_eq!(g("frac"), Some("2026-07-06 12:34:56"));
+        assert_eq!(g("compacto"), Some("2026-07-06 12:34:56"));
+        // `add` devolve na mesma forma: com `T` e com o fuso que entrou.
+        assert_eq!(g("preserva"), Some("2026-07-07T12:34:56Z"));
+        assert_eq!(g("preserva_off"), Some("2026-07-06T13:34:56-03:00"));
+        assert_eq!(g("from_epoch"), Some("1970-01-01 00:00:00"));
+        assert_eq!(g("segundos"), Some("7200"));
+    }
+
+    #[test]
+    fn date_normaliza_para_hora_local_antes_de_comparar() {
+        // A propriedade que importa e que não depende do fuso da máquina: um
+        // valor com fuso e a conversão dele para local são o MESMO instante, e
+        // o módulo tem de enxergar isso sozinho, sem quem chama converter.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               local z = '2026-07-06T12:34:56Z'\n\
+               ctx.mesmo = tostring(date.compare(z, date.to_local(z)))\n\
+               ctx.ida_volta = tostring(date.epoch(date.to_local(z)) - date.epoch(z))\n\
+               ctx.utc_local = tostring(date.to_utc(date.to_local(z)))\n\
+               ctx.relogio = tostring(math.abs(date.epoch(date.now(true)) - os.time()) <= 1)\n\
+               ctx.epoch_hoje = tostring(date.from_epoch(date.epoch(date.today())) ~= nil)\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::default());
+        let g = |k: &str| data.get(k).map(String::as_str);
+        assert_eq!(g("mesmo"), Some("0"), "o mesmo instante em duas escritas");
+        assert_eq!(g("ida_volta"), Some("0"));
+        assert_eq!(
+            g("utc_local"),
+            Some("2026-07-06 12:34:56"),
+            "local -> UTC tem de voltar ao valor original"
+        );
+        // `date.now()` é hora local, então `epoch` dela tem de bater com o
+        // relógio do sistema. É o que fixa a convenção "sem fuso = local".
+        assert_eq!(g("relogio"), Some("true"));
+        assert_eq!(g("epoch_hoje"), Some("true"));
+    }
+
+    #[test]
+    fn date_le_o_relogio_local_no_formato_dos_campos() {
+        // `today`/`now`/`time` saem do os.date do próprio Luau — nenhuma crate
+        // de data no motor. O teste fixa o FORMATO (que é o contrato com os
+        // widgets), não o instante.
+        let comp = LuauComponent::from_source(
+            "function checar()\n\
+               ctx.hoje = date.today()\n\
+               ctx.agora = date.now()\n\
+               ctx.agora_s = date.now(true)\n\
+               ctx.hora = date.time()\n\
+               ctx.ida_e_volta = tostring(date.diff(date.today(), date.today()))\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "checar", None, HashMap::default());
+        let hoje = data.get("hoje").expect("date.today()");
+        assert_eq!(hoje.len(), 10, "today = YYYY-MM-DD, deu {hoje}");
+        assert_eq!(data.get("agora").map(String::len), Some(16));
+        assert_eq!(data.get("agora_s").map(String::len), Some(19));
+        assert_eq!(data.get("hora").map(String::len), Some(5));
+        // O que o relógio devolve tem de voltar a entrar no módulo.
+        assert_eq!(data.get("ida_e_volta").map(String::as_str), Some("0"));
+    }
+
+    #[test]
     fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("usuario".into(), "admin".into());
         data.insert("senha".into(), "123".into());
         let mut ctx = Context::new(&mut data);
@@ -3310,7 +3601,7 @@ mod tests {
     fn exemplo_navegacao_luau_login_errado_nao_navega_e_seta_erro() {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("usuario".into(), "quemquer".into());
         data.insert("senha".into(), "errada".into());
         {
@@ -3329,7 +3620,7 @@ mod tests {
         let comp =
             LuauComponent::from_file("examples/navegacao_luau/dashboard.gv", "dashboard_luau")
                 .unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
         data.insert("senha".into(), "123".into());
         {
             let mut ctx = Context::new(&mut data);
@@ -3346,7 +3637,7 @@ mod tests {
 
         let comp =
             LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
-        let mut data = HashMap::new();
+        let mut data = HashMap::default();
 
         // init() lê o storage (vazio na primeira vez) e semeia os defaults.
         {
@@ -3411,7 +3702,7 @@ mod tests {
         }
         let comp2 =
             LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
-        let mut data2 = HashMap::new();
+        let mut data2 = HashMap::default();
         {
             let mut ctx2 = Context::new(&mut data2);
             comp2.run("init", None, &mut ctx2);
@@ -3444,10 +3735,14 @@ mod tests {
             "c",
         )
         .unwrap();
-        drive(&comp, "escrever", None, HashMap::new());
+        drive(&comp, "escrever", None, HashMap::default());
 
-        let conteudo = std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
-        assert_eq!(conteudo, "linha 1\nlinha 2\n", "a segunda chamada não pode substituir a primeira");
+        let conteudo =
+            std::fs::read_to_string(&alvo).expect("o arquivo (e o diretório) foi criado");
+        assert_eq!(
+            conteudo, "linha 1\nlinha 2\n",
+            "a segunda chamada não pode substituir a primeira"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3481,8 +3776,13 @@ mod tests {
             "c",
         )
         .unwrap();
-        let data = drive(&comp, "compactar", None, HashMap::new());
-        assert_eq!(data.get("ok").map(String::as_str), Some("true"), "{:?}", data.get("erro"));
+        let data = drive(&comp, "compactar", None, HashMap::default());
+        assert_eq!(
+            data.get("ok").map(String::as_str),
+            Some("true"),
+            "{:?}",
+            data.get("erro")
+        );
 
         let arquivo = std::fs::File::open(&destino).expect("o .zip (e a pasta pai) foi criado");
         let mut zip = zip::ZipArchive::new(arquivo).unwrap();
@@ -3497,5 +3797,81 @@ mod tests {
         assert_eq!(conteudo_filho, "conteúdo filho");
 
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // ── `<script>` citado em comentário XML ──────────────────────────────────
+    //
+    // `eval::strip_script` sempre pulou comentários; estas três funções não —
+    // elas faziam um `find("<script")` cru. O markup ia para o parser sem o
+    // bloco certo enquanto o Luau compilava o texto errado: o corpo "extraído"
+    // começava no `>` da tag CITADA e ia até o `</script>` de verdade,
+    // arrastando o resto do comentário e a tag de abertura real como se fossem
+    // código. O erro saía como um `syntax error` na linha 1, sem nada que
+    // apontasse para o comentário. Encontrado escrevendo os templates do
+    // `glacier new`, que documentavam a própria tag num comentário.
+
+    /// Um `<script>` citado num comentário não abre bloco: o corpo extraído é o
+    /// do bloco de verdade, que vem depois.
+    #[test]
+    fn extract_script_ignora_script_citado_em_comentario() {
+        let markup = r#"<screen>
+            <!-- mova para um arquivo com <script src="a.luau"> quando crescer -->
+            <script>
+            function init() end
+            </script>
+        </screen>"#;
+
+        let corpo = extract_script(markup).expect("o bloco de verdade");
+        assert!(corpo.contains("function init() end"));
+        assert!(
+            !corpo.contains("quando crescer"),
+            "o corpo veio do comentário: {corpo:?}"
+        );
+    }
+
+    /// E o `src` lido é o do bloco de verdade — não o citado no comentário, que
+    /// mandaria o motor ler um arquivo que ninguém escreveu.
+    #[test]
+    fn extract_script_src_ignora_script_citado_em_comentario() {
+        let markup = r#"<screen>
+            <!-- exemplo: <script src="exemplo.luau"></script> -->
+            <script src="real.luau"></script>
+        </screen>"#;
+
+        assert_eq!(extract_script_src(markup).as_deref(), Some("real.luau"));
+    }
+
+    /// Um template cujo ÚNICO `<script` está num comentário não tem script
+    /// nenhum: ele segue só-UI, e suas ações caem na tela que o hospeda.
+    ///
+    /// O par `<script></script>` COMPLETO dentro do comentário é o que dá
+    /// dentes ao teste: com só a tag de abertura citada, a varredura antiga já
+    /// devolvia `None` — por não achar um `</script>` adiante, e não por ter
+    /// entendido o comentário.
+    #[test]
+    fn has_script_e_falso_quando_a_unica_tag_esta_comentada() {
+        let markup = r#"<component>
+            <!-- Sem <script>codigo()</script>: o comportamento vive em Rust. -->
+            <column />
+        </component>"#;
+
+        assert!(!has_script(markup));
+        assert_eq!(extract_script(markup), None);
+        assert_eq!(extract_script_src(markup), None);
+    }
+
+    /// As duas varreduras precisam concordar sobre ONDE o bloco começa: se
+    /// discordarem, o parser tira um trecho e o Luau compila outro.
+    #[test]
+    fn strip_script_e_extract_script_veem_o_mesmo_bloco() {
+        let markup = r#"<screen>
+            <!-- <script src="fantasma.luau"> -->
+            <script>
+            function somar() ctx.n = "1" end
+            </script>
+        </screen>"#;
+
+        let (_markup, do_strip) = crate::eval::strip_script(markup);
+        assert_eq!(do_strip.as_deref(), extract_script(markup).as_deref());
     }
 }

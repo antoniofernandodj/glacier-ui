@@ -84,18 +84,14 @@ pub async fn run(spec: FileDialogSpec) -> FileDialogResult {
     let path_of = |handle: rfd::FileHandle| handle.path().to_string_lossy().into_owned();
 
     match spec.mode {
-        FileDialogMode::Open => {
-            FileDialogResult::Path(dialog.pick_file().await.map(path_of))
-        }
+        FileDialogMode::Open => FileDialogResult::Path(dialog.pick_file().await.map(path_of)),
         FileDialogMode::OpenMultiple => FileDialogResult::Paths(
             dialog
                 .pick_files()
                 .await
                 .map(|handles| handles.into_iter().map(path_of).collect()),
         ),
-        FileDialogMode::Save => {
-            FileDialogResult::Path(dialog.save_file().await.map(path_of))
-        }
+        FileDialogMode::Save => FileDialogResult::Path(dialog.save_file().await.map(path_of)),
         FileDialogMode::Directory => {
             FileDialogResult::Path(dialog.pick_folder().await.map(path_of))
         }

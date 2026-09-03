@@ -1,0 +1,180 @@
+<screen title="Glacier - Onda 2" size="880 660">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/onda2/theme.json" />
+  </resources>
+
+  <!-- A janela inteira: barra de ferramentas, abas, conteúdo rolável e
+     rodapé. É o esqueleto de uma QMainWindow — o <menubar> (que já era
+     nativo antes desta onda) entraria acima da <toolbar>. -->
+  <column spacing="0" width="fill" height="fill">
+
+    <!-- 8. ToolButton dentro de 9. ToolBar ===
+       Os botões são do app: `on_click="novo"` chega no update desta tela,
+       porque o ToolButton é um widget que DELEGA (prefixo `app:` no
+       template dele). A ToolBar não trata nada: só embrulha. -->
+    <toolbar>
+      <toolbutton icon="📄" text="Novo" layout="beside" tooltip="Novo documento" on_click="novo" />
+      <toolbutton icon="💾" text="Salvar" layout="beside" tooltip="Salvar" on_click="salvar" />
+      <rule direction="vertical" />
+      <toolbutton icon="🗑" tooltip="Excluir (só ícone)" on_click="excluir" />
+    </toolbar>
+
+    <!-- 10. TabBar ===
+       `value` é o NOME da chave que recebe a aba clicada; `active` é o
+       VALOR atual dela, para o destaque. Os dois andam em par porque o
+       template não consegue ler a chave cujo nome está numa prop. -->
+    <container padding="14 20 0 20" width="fill">
+      <tabbar value="aba" active="{aba}" items="abas" />
+    </container>
+
+    <scrollable width="fill" height="fill">
+      <column padding="20" spacing="18" width="fill">
+
+        <!-- ABA 1 — GroupBox -->
+        <template if="{aba}" equals="grupos">
+          <column spacing="18" width="fill">
+            <text size="13" color="#A6ADC8">
+              GroupBox — a moldura com título do Qt. O que ele desenha não vem de prop: vem do que
+              está escrito entre as tags dele.
+            </text>
+
+            <!-- A forma caixa, com controles de verdade dentro —
+               inclusive outro builtin (SpinBox) aninhado. -->
+            <groupbox title="Rede">
+              <!-- slot NOMEADO: o conteúdo etiquetado `actions`
+                 vai para a direita da linha do título, não
+                 para dentro da moldura. -->
+              <template slot="actions">
+                <toolbutton icon="↻" tooltip="Recarregar" on_click="novo" />
+              </template>
+              <checkbox label="Usar proxy" checked="usar_proxy" on_toggle="nada" />
+              <row spacing="12" align_y="center">
+                <text width="70" color="#CDD6F4">Host</text>
+                <input value="host" width="200" />
+              </row>
+              <row spacing="12" align_y="center">
+                <text width="70" color="#CDD6F4">Porta</text>
+                <spinbox value="porta" min="1" max="65535" width="90" />
+              </row>
+              <!-- ESTE é o ponto do slot: a ação sai de dentro do
+                 GroupBox e chega no update da TELA, sem virar
+                 `GroupBox::salvar_rede`. -->
+              <button text="Salvar rede" on_click="salvar_rede" padding="8 16" />
+            </groupbox>
+
+            <!-- A forma flat: título, linha e conteúdo solto. É o
+               QGroupBox::flat, para separar seções de uma tela
+               longa sem uma moldura por grupo. -->
+            <groupbox title="Avançado" flat="true">
+              <row spacing="12" align_y="center">
+                <text width="90" color="#CDD6F4">Timeout (s)</text>
+                <spinbox value="timeout" min="5" max="300" step="5" width="90" />
+              </row>
+            </groupbox>
+
+            <!-- Sem título sobra a moldura pura — que é o Frame. -->
+            <groupbox>
+              <text size="13" color="#A6ADC8">GroupBox sem title: só a caixa.</text>
+            </groupbox>
+          </column>
+        </template>
+
+        <!-- ABA 2 — Frame -->
+        <template else_if="{aba}" equals="molduras">
+          <column spacing="18" width="fill">
+            <text size="13" color="#A6ADC8">
+              Frame — a moldura sozinha, sem título e sem semântica de grupo. As três formas cobrem
+              o QFrame::Shape: contorno, contraste ou nada.
+            </text>
+
+            <frame shape="box">
+              <text color="#CDD6F4">
+                shape=&quot;box&quot; (default) — borda de 1px, o QFrame::Box.
+              </text>
+            </frame>
+
+            <frame shape="filled">
+              <text color="#CDD6F4">
+                shape=&quot;filled&quot; — sem borda, com fundo próprio: o QFrame::Panel. A caixa se
+                destaca por contraste.
+              </text>
+            </frame>
+
+            <frame shape="none">
+              <text color="#CDD6F4">
+                shape=&quot;none&quot; — nem borda nem fundo: o QFrame::NoFrame. Sobra o padding e o
+                spacing padronizados.
+              </text>
+            </frame>
+
+            <!-- Recipiente dentro de recipiente: o slot de um
+               builtin aceita outro builtin sem cerimônia. -->
+            <frame shape="box" padding="16">
+              <text size="13" color="#A6ADC8">Frame com um Card dentro:</text>
+              <card title="Aninhado" subtitle="slot dentro de slot">
+                <text size="13" color="#CDD6F4">
+                  O conteúdo continua pertencendo a quem o escreveu.
+                </text>
+              </card>
+            </frame>
+          </column>
+        </template>
+
+        <!-- ABA 3 — Card -->
+        <template else_if="{aba}" equals="cartoes">
+          <column spacing="18" width="fill">
+            <text size="13" color="#A6ADC8">
+              Card — a superfície de um item: fundo próprio, cantos redondos e um cabeçalho com
+              hierarquia. É a peça de uma lista ou grade, não de um formulário. O primeiro cartão
+              tem rodapé (slot nomeado); os outros não pagam nem a linha.
+            </text>
+
+            <!-- Largura explícita por cartão é o que forma a grade:
+               o default é `fill`, para o cartão de coluna única. -->
+            <row spacing="16" align_y="start">
+              <card title="Servidor" subtitle="produção" width="250">
+                <text size="13" color="#CDD6F4">uptime 31 dias</text>
+                <badge badge_text="online" badge_bg="#A6E3A1" />
+                <!-- O rodapé só existe quando alguém o
+                   preenche: os dois cartões ao lado não
+                   pagam nem a linha divisória. -->
+                <template slot="footer">
+                  <button text="Reiniciar" on_click="salvar" padding="6 12" />
+                </template>
+              </card>
+
+              <card title="Banco" subtitle="réplica" width="250">
+                <text size="13" color="#CDD6F4">lag 240 ms</text>
+                <badge badge_text="atenção" badge_bg="#F9E2AF" />
+              </card>
+
+              <card title="Fila" width="250">
+                <text size="13" color="#CDD6F4">Cartão só com título.</text>
+                <badge badge_text="3 pendentes" badge_bg="#89B4FA" />
+              </card>
+            </row>
+
+            <card subtitle="cartão sem título, largura fill">
+              <text size="13" color="#CDD6F4">
+                O cabeçalho aparece se houver título OU subtítulo — os dois são independentes.
+              </text>
+            </card>
+          </column>
+        </template>
+
+      </column>
+    </scrollable>
+
+    <!-- 9. StatusBar ===
+       `message` é a esquerda (o showMessage do Qt); o conteúdo do slot
+       são os permanentes da direita (o addPermanentWidget). Clique nos
+       botões da barra de ferramentas para ver a mensagem mudar. -->
+    <statusbar message="{status}">
+      <badge badge_text="onda 2" badge_bg="#89B4FA" badge_size="11" />
+      <text size="12" color="#A6ADC8">UTF-8</text>
+    </statusbar>
+  </column>
+</screen>

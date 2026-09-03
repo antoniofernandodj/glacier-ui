@@ -1,0 +1,330 @@
+//! Instrumentação de quadro, ligada por variável de ambiente.
+//!
+//! Existe para responder **uma** pergunta, que nenhuma medida fora do app
+//! consegue responder: de um quadro lento, quanto é o motor e quanto é o resto?
+//!
+//! O motor cronometra **duas** coisas suas: o `render` (percorrer a árvore
+//! avaliada e montar os `Element`) e o `dispatch` (tratar uma mensagem — o
+//! `update` do componente, os handlers Luau, a reavaliação da árvore). O que
+//! sobra do intervalo entre duas chamadas de `view` é o **resto**: layout,
+//! moldagem de texto e desenho, tudo dentro do `iced` e do `wgpu`.
+//!
+//! A separação existe porque a primeira versão desta instrumentação media só o
+//! render e chamava todo o resto de "fora do motor" — o que atribuía ao `iced`
+//! trabalho que era do `dispatch` e dos handlers do app. Um quadro que oscila
+//! entre 40 e 5 quadros por segundo com a mesma árvore não é custo de pixel, é
+//! travada de `update`; sem separar as duas, não dava para ver a diferença.
+//!
+//! ```sh
+//! GLACIER_PERF=1 ./meu-app
+//! ```
+//!
+//! ```text
+//! [glacier perf] 58 quadros 1.00s 58.0fps | nós 1682 | quadro 17.2ms méd 21.0 p95 34.1 máx
+//!                render 0.43 méd 0.71 p95 | dispatch 1.20/quadro (14 msgs, 4.9 máx)
+//!                resto 15.6ms/quadro (90.7%)
+//! ```
+//!
+//! Como decidir, olhando as três parcelas:
+//!
+//! - **`render` grande** → é o motor montando `Element` demais. Menos nós
+//!   (`virtualize`, ver `PRIMITIVAS.md`).
+//! - **`dispatch` grande** → é tratamento de mensagem: `update`, handlers Luau,
+//!   reavaliação. Olhe quantas mensagens por quadro e qual a mais cara.
+//! - **`resto` grande com árvore pequena** → é o `iced`/`wgpu`: layout,
+//!   moldagem de texto, rasterização. Aí o motor não tem o que fazer, e a
+//!   investigação vira qual adaptador o `wgpu` escolheu.
+//!
+//! **Como ler — e o erro que isto já causou.** O intervalo entre dois `view` é,
+//! num app orientado a evento, quase todo **espera**: sem mensagem não há
+//! quadro, e o relógio corre. A média e o máximo do intervalo medem o quanto o
+//! app ficou **parado**, não o quanto ele demora. Um app ocioso por dezenove
+//! segundos apareceu, numa versão anterior deste relatório, como "quadro de
+//! 19004 ms" — e foi lido como travamento.
+//!
+//! Por isso o número que decide é o **MIN**: o menor intervalo da janela é o
+//! quadro que saiu colado no anterior, ou seja, o app trabalhando sem folga.
+//! Se ele for 16 ms, o app dá conta de 60 por segundo e o resto é ócio; se for
+//! 200 ms, são 200 ms de trabalho. O `colados` diz de quantos quadros essa
+//! amostra é feita — com poucos, o MIN é frágil.
+//!
+//! A conta supõe que o `iced` chama `view` **uma vez por quadro**, que é o que
+//! ele faz. Com mais de uma janela aberta, as medidas se somam num relatório só
+//! (o coletor é por thread, e a UI toda roda numa).
+//!
+//! Desligado, o custo é uma leitura de `bool` já resolvida por quadro.
+
+use std::cell::RefCell;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
+/// `GLACIER_PERF` definida e diferente de `0`/`false`/vazio.
+///
+/// Lida **uma vez** por processo: a variável não muda em tempo de execução, e
+/// consultar o ambiente por quadro seria a instrumentação virando o problema.
+pub(crate) fn ligado() -> bool {
+    static LIGADO: OnceLock<bool> = OnceLock::new();
+    *LIGADO.get_or_init(|| {
+        std::env::var("GLACIER_PERF").is_ok_and(|v| {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        })
+    })
+}
+
+/// `GLACIER_NO_PAINT` — **diagnóstico**: o render pula todo fundo, borda e
+/// canto arredondado, desenhando só texto e widgets nativos.
+///
+/// Existe para separar duas causas que o relatório não distingue: um quadro
+/// lento por **quantidade de nós** e um quadro lento por **área pintada**. Uma
+/// caixa com borda e raio é desenhada com matemática por pixel na GPU, e várias
+/// grandes sobrepostas custam pela área, não pelo número — numa GPU integrada
+/// antiga isso domina o quadro sem aparecer em contagem nenhuma.
+///
+/// Rodar o mesmo app com e sem a variável responde direto: se ficar rápido sem
+/// pintura, o gargalo é a rasterização, e o conserto é estilo mais barato (menos
+/// caixas grandes sobrepostas, menos canto arredondado) — não otimização de
+/// motor.
+///
+/// A tela fica feia de propósito. Não é para usar em produção.
+pub(crate) fn sem_pintura() -> bool {
+    static SEM: OnceLock<bool> = OnceLock::new();
+    *SEM.get_or_init(|| {
+        std::env::var("GLACIER_NO_PAINT").is_ok_and(|v| {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        })
+    })
+}
+
+/// `GLACIER_PERF_STRESS` — pede um quadro por vsync, para medir **capacidade**
+/// em vez de demanda.
+///
+/// Sem isto, um app orientado a evento só desenha quando alguém lhe pede, e o
+/// relatório mede o quanto ele ficou **parado**. Ligado, o app desenha o mais
+/// rápido que consegue e o intervalo passa a ser o custo real do quadro —
+/// diretamente comparável entre duas configurações (com e sem pintura, com e
+/// sem virtualização, telas diferentes).
+///
+/// Gasta GPU de propósito. É para medir, não para rodar assim.
+pub(crate) fn estresse() -> bool {
+    static E: OnceLock<bool> = OnceLock::new();
+    *E.get_or_init(|| {
+        std::env::var("GLACIER_PERF_STRESS").is_ok_and(|v| {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        })
+    })
+}
+
+/// De quanto em quanto tempo uma linha é impressa. Curto demais polui a saída;
+/// longo demais esconde uma travada que dura pouco.
+const INTERVALO: Duration = Duration::from_secs(1);
+
+#[derive(Default)]
+struct Janela {
+    /// Quando esta janela de medida começou.
+    inicio: Option<Instant>,
+    /// Fim do render anterior — a origem do intervalo entre quadros.
+    ultimo_quadro: Option<Instant>,
+    /// Duração de cada render desta janela, para tirar média e p95.
+    renders: Vec<Duration>,
+    /// Intervalo entre quadros consecutivos.
+    quadros: Vec<Duration>,
+    /// Tempo somado em `dispatch` desde o início da janela, e quantas mensagens
+    /// foram tratadas — o custo do `update` do app, que antes se escondia
+    /// dentro do "resto".
+    dispatch: Duration,
+    /// A mensagem mais cara da janela: é ela que trava um quadro sozinha.
+    dispatch_max: Duration,
+    mensagens: u32,
+    /// Por tipo de mensagem: quantas, quanto tempo somado e a pior.
+    ///
+    /// A contagem sozinha diz **quem** está pedindo quadro; o tempo diz **quanto
+    /// custa**. Uma sem a outra engana nos dois sentidos: uma mensagem barata
+    /// que chega cem vezes por segundo e uma cara que chega três vezes são
+    /// problemas diferentes, com consertos diferentes, e no total agregado as
+    /// duas somam igual.
+    por_tipo: Vec<(&'static str, u32, Duration, Duration)>,
+    /// Tempo somado nos **ganchos do app** (`GlacierDaemon::on_message` e
+    /// afins), que rodam na thread da UI logo depois do `dispatch`.
+    ///
+    /// Tem parcela própria porque antes caía no "resto" e era lido como custo
+    /// do `iced`: um gancho que pega um lock disputado com outra thread trava a
+    /// UI por segundos sem gastar um microssegundo de render nem de dispatch.
+    app: Duration,
+    app_max: Duration,
+    /// Nós da última árvore renderizada.
+    nos: usize,
+}
+
+thread_local! {
+    /// Por thread porque a UI do `iced` roda numa só, e isso dispensa
+    /// sincronização no caminho de quadro.
+    static JANELA: RefCell<Janela> = RefCell::new(Janela::default());
+}
+
+/// Anota um render concluído: quanto ele levou e de quantos nós.
+///
+/// Imprime uma linha quando a janela de medida fecha. Chamada só quando
+/// [`ligado`] é verdadeiro.
+pub(crate) fn anota(duracao: Duration, nos: usize) {
+    let agora = Instant::now();
+    JANELA.with(|j| {
+        let mut j = j.borrow_mut();
+        let inicio = *j.inicio.get_or_insert(agora);
+        if let Some(anterior) = j.ultimo_quadro {
+            j.quadros.push(agora.saturating_duration_since(anterior));
+        }
+        j.ultimo_quadro = Some(agora);
+        j.renders.push(duracao);
+        j.nos = nos;
+
+        let decorrido = agora.saturating_duration_since(inicio);
+        if decorrido >= INTERVALO && j.renders.len() > 1 {
+            relata(&j, decorrido);
+            *j = Janela {
+                // A janela nova continua de onde esta parou: sem isto, o
+                // primeiro intervalo dela sairia como zero.
+                ultimo_quadro: Some(agora),
+                ..Default::default()
+            };
+        }
+    });
+}
+
+/// Média e percentil 95 de uma amostra, em milissegundos.
+fn med_p95(amostra: &mut [Duration]) -> (f64, f64) {
+    if amostra.is_empty() {
+        return (0.0, 0.0);
+    }
+    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+    let media = amostra.iter().copied().map(ms).sum::<f64>() / amostra.len() as f64;
+    amostra.sort_unstable();
+    // `len-1` no pior caso, então o índice nunca passa do fim.
+    let i = ((amostra.len() as f64 * 0.95).ceil() as usize).min(amostra.len()) - 1;
+    (media, ms(amostra[i]))
+}
+
+fn relata(j: &Janela, decorrido: Duration) {
+    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+    let mut renders = j.renders.clone();
+    let mut quadros = j.quadros.clone();
+    let (render_med, render_p95) = med_p95(&mut renders);
+    let (quadro_med, quadro_p95) = med_p95(&mut quadros);
+    let quadro_max = quadros.iter().copied().max().map(ms).unwrap_or(0.0);
+    // **O número que decide.** O intervalo entre dois `view` é quase todo
+    // ESPERA num app orientado a evento: sem mensagem, não há quadro, e o
+    // relógio corre. A média e o máximo medem o quanto o app ficou parado, não
+    // o quanto ele demora — foi assim que um app ocioso por 19 segundos
+    // apareceu como "quadro de 19004 ms".
+    //
+    // O **menor** intervalo da janela é imune a isso: é o quadro que saiu
+    // colado no anterior, ou seja, o app trabalhando sem folga. Se ele for
+    // 16 ms, o app dá conta de 60 por segundo e todo o resto é ócio; se for
+    // 200 ms, aí sim são 200 ms de trabalho.
+    let quadro_min = quadros.iter().copied().min().map(ms).unwrap_or(0.0);
+    // Quantos quadros saíram em sequência (menos de 50 ms um do outro) — a
+    // amostra em que o app esteve de fato ocupado.
+    let colados = quadros.iter().filter(|d| ms(**d) < 50.0).count();
+    let n = j.renders.len();
+    let fps = n as f64 / decorrido.as_secs_f64();
+    // O `dispatch` acontece entre dois quadros, então o custo dele se dilui
+    // por quadro — é assim que ele se compara com o render e com o resto.
+    let disp_por_quadro = ms(j.dispatch) / n as f64;
+    let app_por_quadro = ms(j.app) / n as f64;
+    // O que sobra do intervalo depois de tirar as duas parcelas do motor:
+    // layout, texto, GPU e, num app folgado, a espera pelo vsync.
+    let resto = (quadro_med - render_med - disp_por_quadro - app_por_quadro).max(0.0);
+    let parte_resto = if quadro_med > 0.0 {
+        resto / quadro_med * 100.0
+    } else {
+        0.0
+    };
+    let mut tipos = j.por_tipo.clone();
+    // Ordena pelo que mais **custa**, não pelo que mais aparece: é o tempo que
+    // trava o quadro.
+    tipos.sort_unstable_by_key(|(_, _, soma, _)| std::cmp::Reverse(*soma));
+    let quais: Vec<String> = tipos
+        .iter()
+        .take(4)
+        .map(|(t, n, soma, pior)| format!("{t}×{n} {:.1}ms tot/{:.1} pior", ms(*soma), ms(*pior)))
+        .collect();
+    eprintln!(
+        "[glacier perf] {n} quadros {:.2}s ({fps:.1}/s) | nós {} | quadro MIN {quadro_min:.1}ms \
+         ({} colados) | intervalo {quadro_med:.1} méd {quadro_p95:.1} p95 {quadro_max:.1} máx \
+         [inclui ócio]\n               render {render_med:.3} méd \
+         {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
+         app {app_por_quadro:.3}/quadro ({:.3} máx) | resto {resto:.1}ms/quadro \
+         ({parte_resto:.1}%)\n               msgs: {}",
+        decorrido.as_secs_f64(),
+        j.nos,
+        colados,
+        j.mensagens,
+        ms(j.dispatch_max),
+        ms(j.app_max),
+        if quais.is_empty() {
+            "—".to_string()
+        } else {
+            quais.join("  ")
+        },
+    );
+}
+
+/// Anota uma mensagem tratada. Chamada só quando [`ligado`] é verdadeiro.
+pub(crate) fn anota_dispatch(duracao: Duration, tipo: &'static str) {
+    JANELA.with(|j| {
+        let mut j = j.borrow_mut();
+        j.dispatch += duracao;
+        j.dispatch_max = j.dispatch_max.max(duracao);
+        j.mensagens += 1;
+        // Busca linear numa lista de no máximo algumas dezenas de tipos, e só
+        // com a instrumentação ligada: mais barato que um mapa aqui.
+        match j.por_tipo.iter_mut().find(|(t, ..)| *t == tipo) {
+            Some((_, n, soma, pior)) => {
+                *n += 1;
+                *soma += duracao;
+                *pior = (*pior).max(duracao);
+            }
+            None => j.por_tipo.push((tipo, 1, duracao, duracao)),
+        }
+    });
+}
+
+/// Anota o tempo de um gancho do app. Chamada só quando [`ligado`].
+pub(crate) fn anota_app(duracao: Duration) {
+    JANELA.with(|j| {
+        let mut j = j.borrow_mut();
+        j.app += duracao;
+        j.app_max = j.app_max.max(duracao);
+    });
+}
+
+/// Conta os nós de uma árvore avaliada. Só roda com a instrumentação ligada.
+pub(crate) fn conta_nos(no: &crate::parser::UiNode) -> usize {
+    1 + no.children.iter().map(conta_nos).sum::<usize>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// O p95 tem de cair numa amostra existente, e o índice nunca passar do
+    /// fim — inclusive com um elemento só (onde média e p95 coincidem).
+    #[test]
+    fn p95_nao_passa_do_fim() {
+        let mut um = [Duration::from_millis(7)];
+        assert_eq!(med_p95(&mut um), (7.0, 7.0));
+
+        let mut cem: Vec<Duration> = (1..=100).map(Duration::from_millis).collect();
+        let (media, p95) = med_p95(&mut cem);
+        assert_eq!(media, 50.5);
+        assert_eq!(p95, 95.0, "o 95º de 1..=100");
+    }
+
+    /// Amostra vazia não pode dividir por zero nem indexar nada.
+    #[test]
+    fn p95_de_amostra_vazia() {
+        assert_eq!(med_p95(&mut []), (0.0, 0.0));
+    }
+}

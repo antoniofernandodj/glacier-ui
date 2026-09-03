@@ -1,0 +1,54 @@
+<!-- Lista de tarefas reordenável por drag-and-drop: arraste pelo "⋮⋮" (o
+   `dragHandle`) de um item até a posição de outro para trocá-los de lugar.
+   `on_reorder` dispara quando o item é solto, carregando a nova ordem como um
+   array JSON dos valores de `reorderKey` (aqui, o campo "id" de cada tarefa). -->
+<component>
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/lista_reordenavel/theme.json" />
+  </resources>
+
+  <container padding="20" width="fill" height="fill">
+    <column spacing="16">
+      <text size="20" bold="true" color="#ECEFF4">
+        Tarefas ({total}) — arraste pelo ⋮⋮ para reordenar
+      </text>
+      <column spacing="8" width="fill">
+        <!-- Durante o arrasto, cada item recebe `{t.__dragging}` = "true" no
+           item que está sendo segurado (injetado pelo engine). Trocamos o
+           fundo/borda para destacar a linha agarrada — o resto da lista
+           reflui em volta. -->
+        <foreach items="tarefas" var="t" on_reorder="reordenar" reorder_key="id">
+          <row
+            if="{t.__dragging}"
+            equals="true"
+            spacing="10"
+            padding="10 14"
+            background="#434C5E"
+            border_radius="8"
+            border_width="1"
+            border_color="#88C0D0"
+            align_y="Center"
+          >
+            <text drag_handle="true" cursor="grabbing" color="#88C0D0" size="18">⋮⋮</text>
+            <text color="#ECEFF4" width="fill">{t.nome}</text>
+          </row>
+          <row
+            else="true"
+            spacing="10"
+            padding="10 14"
+            background="#3B4252"
+            border_radius="8"
+            align_y="Center"
+          >
+            <text drag_handle="true" cursor="grab" color="#88C0D0" size="18">⋮⋮</text>
+            <text color="#ECEFF4" width="fill">{t.nome}</text>
+          </row>
+        </foreach>
+      </column>
+      <text size="13" color="#81A1C1">Última ordem confirmada: {ultima_ordem}</text>
+    </column>
+  </container>
+</component>

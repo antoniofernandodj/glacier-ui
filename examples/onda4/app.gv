@@ -1,0 +1,433 @@
+<screen title="Glacier - Onda 4" size="960 780">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme"      href="examples/onda4/theme.json" />
+
+    <!-- Todo o visual mora aqui. O que sobra abaixo é estrutura e
+         comportamento: nome de chave, ação, `if`/`else`. -->
+    <link rel="stylesheet" href="examples/onda4/app.gss" />
+  </resources>
+
+  <column class="tela" spacing="0">
+
+    <column class="cabecalho">
+      <text class="titulo">Onda 4 — os widgets que têm função</text>
+      <text class="intro">
+        O que une estas sete linhas do catálogo não é a aparência: é o `update`. Todas fazem conta —
+        a janela de números de uma paginação, a alternância de um item num conjunto, a máscara de um
+        CPF, o clamp de um preço com duas casas.
+      </text>
+
+      <!-- `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
+           barra; `class` sozinho pintaria a Row que as segura. -->
+      <tabbar
+        value="aba"
+        active="{aba}"
+        items="abas"
+        tab_class="aba"
+        tab_active_class="aba_ativa"
+      />
+    </column>
+
+    <scrollable
+      width="fill"
+      height="fill"
+    >
+      <column class="corpo">
+
+        <!-- ABA 1 — Pagination + ListView ===================================== -->
+        <template
+          if="{aba}"
+          equals="listas"
+        >
+          <column class="secao">
+
+            <groupbox title="ListView — seleção simples">
+              <text class="nota">
+                A coleção numa chave, o item escolhido noutra: é o `tabbar` na vertical, com scroll.
+                `value` é o NOME da chave e `selected` é o VALOR dela — o par que todo widget desta
+                biblioteca repete, porque o template não lê a chave cujo nome está numa prop.
+              </text>
+
+              <listview
+                items="servicos"
+                value="servico"
+                selected="{servico}"
+                height="196"
+                item_class="item"
+                selected_class="item_ativo"
+                sub_class="item_sub"
+              />
+
+              <row class="linha">
+                <badge
+                  badge_text="servico"
+                  class="selo_azul"
+                  badge_size="11"
+                />
+                <text class="valor">{servico}</text>
+              </row>
+            </groupbox>
+
+            <groupbox title="Pagination — a aritmética de página">
+              <text class="nota">
+                A janela de números anda com a página e gruda nas pontas; as reticências só aparecem
+                quando há mesmo algo escondido, e as setas ficam INERTES no limite — o que o
+                `spinbox`, por ser builtin, não consegue fazer.
+              </text>
+              <text class="nota">
+                Esta tem `on_change`, então DELEGA: quem grava `pagina` é o update da tela, que
+                precisa recortar a lista no mesmo passo.
+              </text>
+
+              <pagination
+                value="pagina"
+                total="{total_paginas}"
+                on_change="repaginar"
+              />
+
+              <text class="nota">mostrando {faixa}</text>
+            </groupbox>
+
+            <groupbox
+              title="ListView — seleção múltipla (o conjunto nomeado)"
+              flat="true"
+            >
+              <text class="nota">
+                `mode="multi"` guarda um CONJUNTO numa chave só (`"api,cache"`) e o destaque testa
+                `contains`, o habilitador da 0.84. Sem ele, cada item precisaria da própria chave —
+                que é exatamente o "estado por instância" que o plano dizia faltar, e que não
+                faltava.
+              </text>
+
+              <listview
+                items="servicos"
+                value="marcados"
+                selected="{marcados}"
+                mode="multi"
+                height="196"
+                item_class="item"
+                selected_class="item_ativo"
+                sub_class="item_sub"
+              />
+
+              <row class="linha_media">
+                <badge
+                  badge_text="marcados"
+                  class="selo_verde"
+                  badge_size="11"
+                />
+                <text class="valor">{marcados}</text>
+                <space />
+                <button
+                  class="btn"
+                  text="Limpar"
+                  on_click="limpar_marcados"
+                />
+              </row>
+            </groupbox>
+          </column>
+        </template>
+
+        <!-- ABA 2 — Accordion + ToolBox ======================================= -->
+        <template
+          else_if="{aba}"
+          equals="secoes"
+        >
+          <column class="secao">
+            <text class="intro">
+              Os dois modos do mesmo widget, e a diferença cabe numa linha: o accordion guarda um
+              CONJUNTO de seções abertas, o tool box guarda UMA. Uma tag por seção porque o conteúdo
+              de cada uma é diferente — e conteúdo é de quem escreve a tela, o que só o `slot` (0.65)
+              tornou possível.
+            </text>
+
+            <row class="par">
+              <groupbox
+                title="Accordion — várias abertas"
+                width="440"
+              >
+                <accordion>
+                  <accordionitem
+                    title="Rede"
+                    sub="host, porta e proxy"
+                    value="abertas"
+                    open="{abertas}"
+                    id="rede"
+                    head_class="secao_topo"
+                  >
+                    <row class="linha_larga">
+                      <text class="rotulo_sm">Servidor</text>
+                      <text class="nota">api.exemplo.com</text>
+                    </row>
+                    <checkbox
+                      label="Usar proxy"
+                      checked="usar_proxy"
+                      on_toggle="usar_proxy"
+                    />
+                  </accordionitem>
+
+                  <accordionitem
+                    title="Disco"
+                    sub="volumes e limites"
+                    value="abertas"
+                    open="{abertas}"
+                    id="disco"
+                    head_class="secao_topo"
+                  >
+                    <text class="nota">2 volumes, 41% em uso.</text>
+                    <progressbar
+                      value="uso_disco"
+                      min="0"
+                      max="100"
+                      width="fill"
+                    />
+                  </accordionitem>
+
+                  <accordionitem
+                    title="Notificações"
+                    value="abertas"
+                    open="{abertas}"
+                    id="notif"
+                    head_class="secao_topo"
+                  >
+                    <toggle
+                      label="Avisar por e-mail"
+                      checked="avisar"
+                      on_toggle="avisar"
+                    />
+                  </accordionitem>
+                </accordion>
+
+                <row class="linha">
+                  <badge
+                    badge_text="abertas"
+                    class="selo_roxo"
+                    badge_size="11"
+                  />
+                  <text class="valor">{abertas}</text>
+                </row>
+              </groupbox>
+
+              <groupbox
+                title="ToolBox — uma por vez"
+                width="380"
+              >
+                <toolbox>
+                  <toolboxitem
+                    title="Medidas"
+                    value="ferramenta"
+                    open="{ferramenta}"
+                    id="medidas"
+                    head_class="secao_topo"
+                  >
+                    <text class="nota">Régua, transferidor, área.</text>
+                  </toolboxitem>
+
+                  <toolboxitem
+                    title="Camadas"
+                    value="ferramenta"
+                    open="{ferramenta}"
+                    id="camadas"
+                    head_class="secao_topo"
+                  >
+                    <text class="nota">Fundo, guias, anotações.</text>
+                  </toolboxitem>
+
+                  <toolboxitem
+                    title="Exportar"
+                    value="ferramenta"
+                    open="{ferramenta}"
+                    id="exportar"
+                    head_class="secao_topo"
+                  >
+                    <text class="nota">PNG, SVG, PDF.</text>
+                  </toolboxitem>
+                </toolbox>
+
+                <text class="nota">
+                  Clicar na seção já aberta a FECHA — a chave vira vazia. É o `toolbox` sendo gentil,
+                  e é o que se espera de um cabeçalho clicável.
+                </text>
+
+                <row class="linha">
+                  <badge
+                    badge_text="ferramenta"
+                    class="selo_ambar"
+                    badge_size="11"
+                  />
+                  <text class="valor">{ferramenta}</text>
+                </row>
+              </groupbox>
+            </row>
+          </column>
+        </template>
+
+        <!-- ABA 3 — MaskedInput + Rating + decimals =========================== -->
+        <template
+          else_if="{aba}"
+          equals="campos"
+        >
+          <column class="secao">
+
+            <groupbox title="MaskedInput — cru na chave, mascarado na tela">
+              <text class="nota">
+                A mesma separação valor/exibição do `dateedit`: a chave guarda `"12345678901"`, que é
+                o que um backend espera; a tela mostra `"123.456.789-01"`, que é o que uma pessoa lê.
+                A dica default é a própria máscara com `_` no lugar dos símbolos.
+              </text>
+
+              <row class="linha_campo">
+                <text class="rotulo">CPF</text>
+                <maskedinput
+                  value="cpf"
+                  mask="cpf"
+                  class="campo"
+                />
+                <text class="crua">cru: “{cpf}”</text>
+              </row>
+
+              <row class="linha_campo">
+                <text class="rotulo">Telefone</text>
+                <maskedinput
+                  value="telefone"
+                  mask="telefone"
+                  class="campo"
+                />
+                <text class="crua">cru: “{telefone}”</text>
+              </row>
+
+              <row class="linha_campo">
+                <text class="rotulo">Placa</text>
+                <maskedinput
+                  value="placa"
+                  mask="placa"
+                  class="campo"
+                />
+                <text class="crua">cru: “{placa}”</text>
+              </row>
+
+              <text class="nota">
+                A placa é máscara MISTA (`AAA#*##`, o padrão Mercosul): letra onde é letra, dígito
+                onde é dígito. Filtrar só por “não é dígito” erraria aqui.
+              </text>
+            </groupbox>
+
+            <row class="par">
+              <groupbox
+                title="Rating"
+                width="380"
+              >
+                <text class="nota">
+                  Passe o mouse: a prévia acende até a estrela sob o cursor. Clicar na que já está
+                  marcada ZERA a nota — é como se tira uma avaliação sem um botão “limpar” ao lado.
+                </text>
+
+                <row class="linha_larga">
+                  <rating value="nota" />
+                  <text class="valor">{nota} de 5</text>
+                </row>
+
+                <row class="linha_larga">
+                  <rating
+                    value="nota"
+                    max="10"
+                    size="15"
+                    class="estrelas_ambar"
+                  />
+                  <text class="nota">max=10, cor própria</text>
+                </row>
+
+                <row class="linha_larga">
+                  <rating
+                    value="nota"
+                    readonly="true"
+                    size="14"
+                  />
+                  <text class="nota">readonly: nem clique nem hover</text>
+                </row>
+              </groupbox>
+
+              <groupbox
+                title="SpinBox com decimals"
+                width="380"
+              >
+                <text class="nota">
+                  Fecha o QDoubleSpinBox. Antes as casas saíam do `step`, o que acertava por acidente
+                  e errava em `step="1"` sobre um preço: 10 em vez de 10,00.
+                </text>
+
+                <row class="linha_larga">
+                  <text class="rotulo_md">Preço</text>
+                  <spinbox
+                    value="preco"
+                    min="0"
+                    max="999"
+                    step="1"
+                    decimals="2"
+                    width="100"
+                  />
+                </row>
+
+                <row class="linha_larga">
+                  <text class="rotulo_md">Desconto</text>
+                  <spinbox
+                    value="desconto"
+                    min="0"
+                    max="100"
+                    step="5"
+                    width="100"
+                  />
+                </row>
+
+                <text class="nota">
+                  O de baixo não tem `decimals`: as casas continuam saindo do `step`, como sempre.
+                </text>
+              </groupbox>
+            </row>
+
+            <groupbox title="ButtonBox — papéis, e a ordem é da plataforma">
+              <text class="nota">
+                Onde fica o botão principal é convenção do sistema, não decisão de quem escreve a
+                tela — é por isso que o Qt tem um QDialogButtonBox em vez de um QHBoxLayout com dois
+                botões. Aqui a escolha é feita em Rust, no `template()`, por `cfg!(target_os)`.
+              </text>
+
+              <buttonbox
+                accept="Salvar"
+                on_accept="salvar"
+                reject="Cancelar"
+                on_reject="cancelar"
+                destructive="Excluir"
+                on_destructive="excluir"
+              >
+                <text class="crua">o slot fica à esquerda, longe das ações</text>
+              </buttonbox>
+            </groupbox>
+          </column>
+        </template>
+
+      </column>
+    </scrollable>
+
+    <statusbar message="{status}">
+      <badge
+        badge_text="onda 4"
+        class="selo_azul"
+        badge_size="11"
+      />
+
+      <!-- Sem `on_change`, esta paginação grava `pagina` sozinha — e a tela
+           não recorta a lista, porque nada a avisou. É a diferença entre os
+           dois modos, visível lado a lado. -->
+      <pagination
+        value="pagina"
+        total="{total_paginas}"
+        ends="false"
+        window="3"
+      />
+    </statusbar>
+  </column>
+</screen>

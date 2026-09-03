@@ -22,7 +22,7 @@ struct ListaReordenavel {
 
 impl ListaReordenavel {
     /// Serializa a lista para JSON e publica no contexto — é isso que o
-    /// `<ForEach items="tarefas">` do template consome.
+    /// `<foreach items="tarefas">` do template consome.
     fn sincronizar(&self, ctx: &mut Context) {
         let arr: Vec<serde_json::Value> = self
             .tarefas

@@ -1,91 +1,74 @@
 <screen title="Glacier - Painel de Perfil">
-    <resources>
-        <import name="PerfilCard" from="examples/perfil/perfil_card.gv" />
-    </resources>
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/perfil/theme.json" />
+    <import name="PerfilCard" from="examples/perfil/perfil_card.gv" />
+  </resources>
 
-    <Container
-        padding="30"
-        width="fill"
-        height="fill"
-        background="#11111B"
-        alignX="Center"
-        alignY="Center"
-    >
-        <Column spacing="25" align="Center">
-            <Text
-                content="Painel de Controle de Usuário"
-                size="28"
-                bold="true"
-                color="#F5E0DC"
+  <container
+    padding="30"
+    width="fill"
+    height="fill"
+    align_x="Center"
+    align_y="Center"
+  >
+    <column spacing="25" align="Center">
+      <text size="28" bold="true" color="#F5E0DC">Painel de Controle de Usuário</text>
+
+      <row spacing="30" align="Center">
+        <!-- Left control panel -->
+        <container
+          padding="20"
+          width="320"
+          background="#181825"
+          border_radius="12"
+          border_width="1"
+          border_color="#313244"
+        >
+          <column spacing="15">
+            <text size="14" bold="true" color="#A6ADC8">Editar Nome:</text>
+            <input
+              placeholder="Digite o nome..."
+              value="user_name"
+              on_change="mudar_nome"
+              width="fill"
+              padding="10"
             />
-        
-            <Row spacing="30" align="Center">
-                <!-- Left control panel -->
-                <Container
-                    padding="20"
-                    width="320"
-                    background="#181825"
-                    border_radius="12"
-                    border_width="1"
-                    border_color="#313244"
-                >
-                    <Column spacing="15">
-                        <Text
-                            content="Editar Nome:"
-                            size="14"
-                            bold="true"
-                            color="#A6ADC8"
-                        />
-                        <TextInput
-                            placeholder="Digite o nome..."
-                            value="user_name"
-                            onChange="mudar_nome"
-                            width="fill"
-                            padding="10"
-                        />
 
-                        <Text
-                            content="Editar Cargo:"
-                            size="14"
-                            bold="true"
-                            color="#A6ADC8"
-                        />
-                        <TextInput
-                            placeholder="Digite o cargo..."
-                            value="user_role"
-                            onChange="mudar_cargo"
-                            width="fill"
-                            padding="10"
-                        />
+            <text size="14" bold="true" color="#A6ADC8">Editar Cargo:</text>
+            <input
+              placeholder="Digite o cargo..."
+              value="user_role"
+              on_change="mudar_cargo"
+              width="fill"
+              padding="10"
+            />
 
-                        <Text
-                            content="Atalhos de Cargo:"
-                            size="14"
-                            bold="true"
-                            color="#A6ADC8"
-                        />
-                        <Row spacing="10" width="fill">
-                            <Button
-                                text="Desenvolvedora"
-                                on_click="set_dev"
-                                color="#89B4FA"
-                                width="fill"
-                                padding="8"
-                            />
-                            <Button
-                                text="Designer"
-                                on_click="set_designer"
-                                color="#F5C2E7"
-                                width="fill"
-                                padding="8"
-                            />
-                        </Row>
-                    </Column>
-                </Container>
+            <text size="14" bold="true" color="#A6ADC8">Atalhos de Cargo:</text>
+            <row spacing="10" width="fill">
+              <button
+                text="Desenvolvedora"
+                on_click="set_dev"
+                color="#89B4FA"
+                width="fill"
+                padding="8"
+              />
+              <button
+                text="Designer"
+                on_click="set_designer"
+                color="#F5C2E7"
+                width="fill"
+                padding="8"
+              />
+            </row>
+          </column>
+        </container>
 
-                <!-- Right preview card -->
-                <PerfilCard />
-            </Row>
-        </Column>
-    </Container>
+        <!-- Right preview card -->
+        <PerfilCard />
+      </row>
+    </column>
+  </container>
 </screen>

@@ -2,7 +2,7 @@
   "name": "glacier-view",
   "displayName": "Glacier View",
   "description": "Language support for Glacier View (.gv) markup — syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, imports and component tags to the files (and functions) they name.",
-  "version": "0.4.0",
+  "version": "0.13.0",
   "publisher": "antoniofernandodj",
   "license": "MIT",
   "author": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/antoniofernandodj/xml-ui.git"
+    "url": "https://github.com/antoniofernandodj/glacier-ui.git"
   },
   "engines": {
     "vscode": "^1.75.0"
@@ -58,6 +58,16 @@
           "meta.embedded.block.gss": "gss"
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Glacier View",
+      "properties": {
+        "glacierView.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ao terminar uma tag de abertura com `>`, inserir a tag de fechamento correspondente e deixar o cursor entre as duas."
+        }
+      }
+    }
   }
 }

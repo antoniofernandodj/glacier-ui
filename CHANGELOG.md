@@ -8,6 +8,2133 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.90.0] — 2026-09-03
+
+### Adicionado
+- **`<accordion>` e `<toolbox>` abrem e fecham animados.** O corpo de uma seção
+  deslizava para dentro e para fora entre dois quadros — aparecia e sumia de
+  estalo, porque era um `<template if>` que existia ou não existia. Agora ele
+  desliza em **180ms** (`EaseOutCubic`), com o que transborda recortado.
+
+  `duration="0"` no item desliga a animação e devolve o comportamento anterior;
+  qualquer outro valor (em ms) muda o tempo.
+
+- **`<Reveal>`** (aliases `<Collapse>`, `<Revelar>`, `<Sanfona>`): a primitiva
+  por trás disso, disponível solta para qualquer conteúdo dobrável.
+
+  ```xml
+  <Reveal open="{mostrar}" duration="180">
+      <Column padding="12">…</Column>
+  </Reveal>
+  ```
+
+  `open` é o **valor** (`true`/`false`, ou um `{var}` interpolado), não o nome
+  de uma chave: o que abre uma seção quase nunca é um booleano solto — é uma
+  comparação (`contains`/`equals`) que o `<template if>` resolve e entrega
+  aqui já como literal.
+
+  É a terceira animação do motor (depois do knob do `<Toggle>`, 0.52, e do
+  `<Spinner>`, 0.53) e a **primeira que anima o layout** em vez do desenho:
+  a altura do nó muda a cada quadro, o que exige `shell.invalidate_layout()`
+  junto do `request_redraw()` — sem isso o `iced` reusa a medida do primeiro
+  quadro e a tela fica parada. `ANIMACOES.md` ganhou essa quinta peça do
+  padrão, e `PRIMITIVAS.md` a regra que a resume: **se o widget precisa de um
+  relógio, é primitiva** — um builtin não tem onde guardar progresso entre
+  rebuilds da view nem como pedir o quadro seguinte.
+
+### Ferramenta
+- **A extensão Glacier View reconhece `<reveal>`** (v0.13.0): a tag entra na
+  lista de nativas — realce, autocompletar e o verbete no manual embutido, com
+  o par `open`/`duration` e as duas ressalvas que se paga por não saber (o
+  filho existe fechado; fundo e borda vão nele, não no `<reveal>`). A CLI que a
+  embute sobe junto (**glacier-cli 0.3.1**).
+
+### Mudou
+- **O corpo de uma seção fechada agora existe na árvore avaliada**, dentro de
+  um `<Reveal open="false">`. É o que a animação de **fechar** exige: um nó que
+  não está na árvore não tem altura de onde encolher. Ele não é desenhado nem
+  recebe clique/foco, mas é montado e medido a cada quadro — para um corpo
+  caro, `virtualize` na lista lá dentro continua sendo a saída.
+
+  Quem inspeciona a árvore (teste, script, ferramenta) e usava "o texto do
+  corpo apareceu?" como sinal de seção aberta precisa passar a olhar o `open`
+  do `<Reveal>`. Os dois braços do `<accordionitem>` têm de propósito a **mesma
+  forma** — cabeçalho + `<Reveal>` —, porque o `iced` casa o estado do widget
+  por posição na árvore; um braço com um filho a mais e a animação some.
+
+## [0.89.0] — 2026-09-03
+
+### Adicionado
+- **Todo builtin aceita uma classe por nó de dentro.** `class` no uso de um
+  componente aplica na raiz expandida e só nela (0.69) — o que é o certo, mas
+  deixava sem resposta o pedido mais comum de quem adota a biblioteca: *"quero
+  este item de lista com a cor do meu tema"*. O `<SpinBox>` tinha `field_class`
+  desde a 0.69 e ficou sozinho nele por vinte versões; agora é o padrão dos
+  quatorze widgets.
+
+  O sufixo é sempre `_class` e o prefixo nomeia o alvo:
+
+  | widget | props |
+  |---|---|
+  | `<Badge>` | `text_class` |
+  | `<Avatar>` | `image_class`, `fallback_class`, `initials_class` |
+  | `<AccordionItem>` / `<ToolBoxItem>` | `head_class`, `mark_class`, `title_class`, `sub_class`, `body_class` |
+  | `<ButtonBox>` | `accept_class`, `reject_class`, `destructive_class` |
+  | `<Card>` | `header_class`, `title_class`, `subtitle_class`, `body_class`, `footer_class` |
+  | `<Frame>` | `box_class`, `content_class` |
+  | `<GroupBox>` | `frame_class`, `header_class`, `title_class`, `actions_class`, `content_class` |
+  | `<ListView>` | `list_class`, `item_class`, `selected_class`, `label_class`, `sub_class` |
+  | `<RadioGroup>` | `option_class`, `options_class` |
+  | `<SpinBox>` | `field_class`, `step_class`, `glyph_class` |
+  | `<StatusBar>` | `bar_class`, `message_class`, `content_class` |
+  | `<TabBar>` | `tab_class`, `tab_active_class`, `label_class` |
+  | `<ToolBar>` | `bar_class`, `content_class` |
+  | `<ToolButton>` | `icon_class`, `label_class`, `content_class` |
+
+  A classe injetada entra **depois** da classe da lib na mesma lista, então ela
+  redefine o que declara e herda o resto — inclusive os `:hover`. Onde há par
+  base/refinamento (`item_class` + `selected_class`, `tab_class` +
+  `tab_active_class`), o segundo vence o primeiro. Nó de **raiz** não ganha
+  prop: o `class` do uso já o alcança, e é por isso que o `<ToolButton>` — cuja
+  raiz *é* o `<Button>` — não tem `button_class`.
+
+- **`examples/onda4_luau`**: a mesma tela da Onda 4 sem um `Component` em Rust.
+  O `main.rs` só registra o `.gv`; `init`, as cinco ações e o recorte da página
+  moram em `scripts/app.luau`. O markup é o mesmo arquivo, linha por linha — que
+  é o ponto: com o Rust reduzido a um `register_component`, fica visível que
+  **nenhum dos sete widgets pede script nenhum**.
+
+### Corrigido
+- **Um atributo inline que resolve para vazio cai na classe**, em vez de
+  apagá-la. `background="{bg}"` num template de builtin vencia a classe mesmo
+  quando `bg` não existia — o campo virava `Some("")` e o `or_else` nem era
+  consultado, então o widget saía sem fundo nenhum e nenhuma classe (injetada ou
+  da lib) pintava. Vale para os campos de estilo resolvidos por classe (largura,
+  cor, `padding`, alinhamento, `background`, `border-color`, `cursor`, …), onde
+  vazio nunca foi um valor.
+
+  Duas cicatrizes disto sumiram junto: o `<Frame shape="filled">` tinha o braço
+  **duplicado** (um com o atributo, outro sem) só para contornar o problema, e o
+  `<Avatar>` era o único builtin sem folha `<style>` pela mesma razão. Os dois
+  voltaram à forma simples, e os defaults de cor do `<Badge>` e do `<Avatar>`
+  saíram do `{prop|#aabbcc}` para uma classe — um default inline resolve sempre,
+  e resolvendo sempre ele vencia toda classe. Idem a cor do ícone do
+  `<ToolButton>`, que agora sai de `.toolbutton-icon` para o glifo **e** para o
+  `<Svg>`, e por isso responde a `icon_class`.
+
+### Mudado
+- **Nenhum exemplo pinta mais a janela inteira**, e um teste passa a impedir a
+  volta (`tests/exemplos_gv.rs`). Era a regra 1 do `AGENTS.md` que a 0.88
+  publicou, e o próprio repositório a violava em **33** `.gv` mais quatro folhas
+  — inclusive nos presets do `glacier new`, que ensinavam o hábito a todo projeto
+  novo. Cada exemplo ganhou um `theme.json` com a cor que ele pintava; o
+  resultado na tela é o mesmo, sem a camada redobrada em cada pixel.
+
+  O `examples/aninhado` era o caso extremo: o botão "Trocar tema" repintava a
+  raiz `fill/fill` a cada clique. Trocar a cor da **janela** em runtime é a ação
+  builtin `style:<nome>`, que não passa por componente nenhum — o exemplo voltou
+  a mostrar só o que existe para mostrar (uma ação do pai que cai no `update` do
+  pai), e o `galeria_estilos` continua sendo o da troca de estilo.
+
+- **`examples/onda4` separou markup de estilo.** O `.gv` não tem mais uma cor:
+  tudo saiu para `app.gss`, e widget com vários atributos passou a um atributo
+  por linha. As classes de nó interno acima são o que tornou a separação
+  possível — sem elas, o item de um `<listview>` e a aba de um `<tabbar>`
+  continuariam presos aos defaults da lib.
+
+  O que **não** vai para a folha é o que o widget documenta como prop:
+  `width` de um `<groupbox>`, `height` de um `<listview>`, `width` de um
+  `<spinbox>`. O template deles escreve o campo inline com default
+  (`width="{width|fill}"`), e um default inline resolve sempre — a classe do uso
+  perde em silêncio. Quando o default é `fill`, o estrago passa do cosmético:
+  dois filhos `fill` numa `<row>` sem largura colapsam para zero e a seção some
+  da tela, com a árvore avaliada intacta. A armadilha está descrita em
+  `BUILTINS.md` e coberta por teste.
+
+- **O `resolve` de estilo interpola a classe antes de decidir buscar folhas.**
+  Um `class="{item_class}"` que resolve para vazio devolve o nó ao caminho
+  barato, sem o `Vec` de folhas ativas nem as varreduras de regra — é o que faz
+  as props novas custarem zero em quem não as usa.
+
+---
+
+## [0.88.0] — 2026-09-03
+
+### Adicionado
+- **A CLI passa a gerar um `AGENTS.md`** em todo projeto novo (`glacier-cli`
+  0.3.0), com o que a instrumentação da 0.87 mediu — em ordem de retorno, e com
+  os números que justificam a ordem.
+
+  O que ele diz, em resumo: **quase nunca é o motor.** Numa tela de 111 nós com
+  20 caixas pintadas, pintar custou ~45 ms por quadro e o motor 0,07 ms — seis
+  centenas de vezes menos. As três regras que pagam são não repintar a janela
+  inteira por cima do tema, empilhar menos camadas na mesma área, e guardar o
+  canto arredondado para as caixas pequenas.
+
+  Traz também o procedimento de medida (`GLACIER_PERF` + `GLACIER_PERF_STRESS` +
+  `GLACIER_NO_PAINT`) e as **duas armadilhas de leitura** que já custaram
+  diagnósticos errados neste próprio repositório: julgar velocidade sem o modo
+  estresse (um app ocioso apareceu como "quadro de 19 segundos") e comparar sem
+  desligar a pintura.
+
+  Vai no `_comum`, então todo preset o herda; um teste fixa isso.
+
+### Notas
+- Aplicado num app real (o `rustploy`), o item 1 sozinho removeu **nove** camadas
+  de pintura redundante — a mesma cor do tema repintada por cima, em nove
+  regras, com duas empilhadas no mesmo arquivo. Nenhuma mudança visual, e a
+  rolagem melhorou de forma perceptível.
+
+---
+
+## [0.87.0] — 2026-09-03
+
+Duas variáveis de diagnóstico — e, com elas, a resposta de uma investigação que
+já tinha passado por seis hipóteses erradas.
+
+### Adicionado
+- **`GLACIER_PERF_STRESS=1`** — pede um quadro por vsync, para o relatório medir
+  **capacidade** em vez de demanda. Sem isto, um app orientado a evento fica
+  ocioso entre eventos e o intervalo medido é a espera, não o custo. É o buraco
+  que fez a instrumentação apontar "travamento de 19 segundos" para um app
+  parado.
+
+- **`GLACIER_NO_PAINT=1`** — o render pula todo fundo, borda e canto
+  arredondado. Separa "lento por número de nós" de "lento por área pintada",
+  que nenhuma contagem distingue. A tela fica feia de propósito.
+
+  Os dois juntos resolvem em dois minutos o que aqui levou muitas rodadas: rode
+  com `STRESS`, anote o intervalo; rode com `NO_PAINT` junto e compare.
+
+### O que eles mediram
+
+Intel HD 2500 (Ivy Bridge, 2012), `examples/componentes_locais` — **111 nós, 20
+caixas pintadas**, janela de 900×720:
+
+| | intervalo por quadro |
+|---|---|
+| Com pintura | 84–111 ms |
+| Sem pintura | 49–63 ms |
+| Render do motor | **0,07 ms** |
+
+As vinte caixas custam **~45 ms por quadro**: metade do total, e seiscentas
+vezes o motor inteiro. Uma tela de 300 nós **sem** fundo roda mais rápido que uma
+de 111 nós pintada — o custo é da **área** rasterizada, não do número de nós, e
+as camadas se somam por sobreposição.
+
+Isto não é limitação do motor: o mesmo custo aparece em `iced` puro com o mesmo
+estilo. O que fazer está em `PRIMITIVAS.md` ("O que custa num quadro") — em
+resumo: não pintar a janela inteira por cima do tema, menos camadas sobrepostas,
+canto arredondado só nas caixas pequenas.
+
+### Notas
+- Vale registrar o erro que atrasou este diagnóstico: o app de controle em
+  `iced` puro, usado para dizer "o motor não é o gargalo", **não pintava nada** —
+  `container` com padding, sem fundo, sem borda. Comparava-se uma tela crua com
+  uma pintada, e a conclusão ("é o hardware") saiu certa pelo motivo errado, o
+  que fechou a porta para a causa real por várias rodadas.
+
+---
+
+## [0.86.0] — 2026-09-02
+
+### Adicionado
+- **`<component name="X">` dentro do `<resources>`: declarar um componente na
+  própria tela.** A terceira forma de ter um componente — as outras duas trazem
+  de um arquivo (`<import>`, `<link rel="component">`); esta não traz de lugar
+  nenhum, o componente **é** o que está escrito entre as tags.
+
+  ```xml
+  <screen title="Serviços" size="900 700">
+      <resources>
+          <component name="LinhaLog">
+              <props>
+                  <prop name="hora" />
+                  <prop name="texto" />
+                  <prop name="nivel" default="info" />
+              </props>
+              <row spacing="12" align_y="center">
+                  <text content="{hora}" color="#6C7086" size="11" />
+                  <badge badge_text="{nivel}" />
+                  <text content="{texto}" />
+              </row>
+          </component>
+      </resources>
+
+      <column>
+          <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
+      </column>
+  </screen>
+  ```
+
+  **Por que.** A maior parte dos componentes de uma tela é pequena e só serve
+  àquela tela — a linha de um item, o cabeçalho de um cartão, um rótulo com um
+  `<badge>` do lado. Obrigar cada um a virar arquivo troca três linhas de markup
+  por um arquivo, um caminho relativo e um `<import>`, e espalha por seis
+  arquivos o que se lê melhor num. É a mesma razão de existir um `<style>`
+  inline ao lado do `<link rel="stylesheet">`: a forma curta para o que é local,
+  o arquivo para o que é compartilhado.
+
+  **A casca é a mesma, de propósito.** O que vai entre `<component name="X">` e
+  `</component>` é *byte a byte* o que iria num `.gv` próprio: `<props>` e
+  depois o layout, montados pela **mesma** função
+  (`parser::corpo_de_componente`, extraída do caminho de arquivo justamente para
+  os dois partilharem). A única diferença é o `name` — no arquivo o nome vem do
+  `<import>` que o traz; aqui ele precisa ser dito. Promover uma declaração a
+  arquivo, ou o contrário, é recortar e colar.
+
+  A mesma tag em dois papéis, e o `name` é o que os separa: na **raiz** do
+  arquivo, `<component>` é o cabeçalho e não leva atributo nenhum; no
+  `<resources>`, leva só o `name` — e sem ele é erro.
+
+  **O que ele não tem:**
+  - **`<script>` próprio** — não há arquivo contra o qual resolver um
+    `src`/`require`, a mesma limitação do markup inline dos builtins. Na prática
+    é o comportamento desejado: as ações escritas dentro de um componente local
+    caem no `update` da **tela que o declarou**, que é de quem elas são. O id do
+    item viaja dentro da ação, como no `<SpinBox>` (`on_click="detalhar:{s.id}"`).
+  - **Escopo** — o nome entra no mesmo espaço de nomes de tudo o mais, com a
+    mesma regra do `<import>`: declara se o nome está livre **ou** se hoje ele
+    guarda um builtin da lib. Um componente registrado pelo app vence a
+    declaração local; um builtin, não.
+
+  Componentes locais se compõem entre si e convivem com `<import>` no mesmo
+  `<resources>`. O hot-reload reescreve a declaração ao editar o arquivo — o
+  motor guarda quais nomes vieram de uma declaração, e é isso que separa
+  "reescrever a minha" de "atropelar o componente de verdade do app".
+
+  Erros de parse, todos posicionados (o sintoma de deixá-los passar é
+  silencioso — a tag simplesmente não existe): `<component>` sem `name` dentro
+  do `<resources>`, `name` vazio, qualquer outro atributo, e declaração sem
+  layout.
+
+- **`examples/componentes_locais`** (`cargo run --example componentes_locais`) —
+  três componentes declarados na tela (`Rotulo`, `LinhaLog`, `Metrica`, o
+  segundo usando o primeiro) e um quarto vindo de arquivo por `<import>`, lado a
+  lado no mesmo `<resources>`, para comparar as duas formas.
+
+- **Extensão do VS Code (v0.12.0)**: completação e diagnóstico de props e
+  **ir-para-definição** passam a enxergar um componente declarado no próprio
+  documento — sem isso a tag ficaria sem metade do que o editor faz por um
+  componente importado. O leitor de `<props>` virou um só, partilhado entre a
+  forma de arquivo e a declarada, pelo mesmo motivo do lado do motor: ler cada
+  uma com o seu parser é pedir para elas divergirem.
+
+---
+
+## [0.85.0] — 2026-09-02
+
+**Onda 4 do `PLANO_WIDGETS.md`: os widgets que têm função.** Sete itens do
+catálogo, e o que os une não é a aparência — é o `update`. Com a onda anterior,
+o motor passa de metade do catálogo Qt de superfície pela primeira vez (53%),
+tendo consumido **um** habilitador de motor no caminho (o `contains`).
+
+### Adicionado
+- **`<pagination>`** — `« ‹ 1 … 4 [5] 6 … 20 › »`. A janela de números anda com
+  a página e **gruda nas pontas** (estar na página 1 mostra `1 2 3 4 5`, não
+  `3 4 5 6 7`), as reticências só aparecem quando há mesmo algo escondido, e as
+  setas ficam **inertes** no limite — o que o `<spinbox>`, por ser builtin, não
+  consegue fazer.
+
+  ```xml
+  <pagination value="pagina" total="{total_paginas}" />
+  <pagination value="pagina" total="{total}" window="3" ends="false" onChange="repaginar" />
+  ```
+
+  O widget conta **páginas**, não itens: recortar a lista é do app, porque só o
+  app sabe o que é um item.
+
+- **`<listview>`** — a lista rolável cujo item escolhido mora numa chave; o
+  `<tabbar>` na vertical, com scroll. Fecha o 🟡 mais antigo da §2.4.
+
+  ```xml
+  <listview items="servicos" value="servico" selected="{servico}" />
+  <listview items="servicos" value="marcados" selected="{marcados}" mode="multi" />
+  ```
+
+  `mode="multi"` guarda um **conjunto** numa chave só (`"api,cache"`) e é o
+  primeiro consumidor do `contains` (0.84) — a demonstração de que a seleção
+  múltipla nunca precisou de estado por instância, que é o que o
+  `PLANO_WIDGETS.md` §3 dizia. Repassa `virtualize` para listas longas.
+
+- **`<accordion>`/`<accordionitem>` e `<toolbox>`/`<toolboxitem>`** — os dois
+  modos do mesmo widget: o accordion guarda um **conjunto** de seções abertas,
+  o tool box guarda **uma** (e clicar na aberta a fecha).
+
+  ```xml
+  <accordion>
+      <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
+          <input value="host" />
+      </accordionitem>
+  </accordion>
+  ```
+
+  **Uma tag por seção, e não uma coleção**, porque o *conteúdo* de cada seção é
+  diferente — e nomes de slot são fixos no template do componente (0.67), então
+  o widget não pode inventar um por item. É a mesma forma que o Qt usa:
+  `QToolBox::addItem(widget, "Título")` também recebe uma seção por chamada.
+
+- **`<buttonbox>`** — `QDialogButtonBox` como widget de tela. Fecha o outro 🟡
+  da §2.1.
+
+  ```xml
+  <buttonbox accept="Salvar"  on_accept="salvar"
+             reject="Cancelar" on_reject="cancelar"
+             destructive="Excluir" on_destructive="excluir" />
+  ```
+
+  **A ordem é da plataforma, não da tela** — é a razão de o Qt ter um
+  `QDialogButtonBox` em vez de um `QHBoxLayout` com dois botões. GNOME/macOS
+  põem o afirmativo por último; Windows, primeiro. O widget escolhe por
+  `cfg!(target_os)` **em Rust**, dentro do `template()` (que é uma função, não
+  uma constante); `order="gnome"`/`"windows"` força. O destrutivo fica na ponta
+  oposta em qualquer ordem, junto com o `<slot/>`.
+
+- **`<maskedinput>`** — `QLineEdit` com `setInputMask`: guarda **cru** na chave,
+  exibe mascarado. A mesma separação valor/`displayFormat` do `<dateedit>`, e
+  pelo mesmo motivo: `"12345678901"` é o que um backend espera, `"123.456.789-01"`
+  é o que uma pessoa lê.
+
+  ```xml
+  <maskedinput value="cpf" mask="cpf" />
+  <maskedinput value="placa" mask="AAA#*##" />
+  ```
+
+  Gramática: `#` dígito, `A` letra, `*` alfanumérico; o resto é literal e entra
+  **antes** do dado seguinte, nunca pendurado no fim. Presets: `cpf`, `cnpj`,
+  `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`. A dica default é a
+  própria máscara com `_` no lugar dos símbolos.
+
+- **`<rating>`** — a nota por estrelas, com pré-visualização ao passar o mouse
+  (chave global `__rating`, como o hover do `<daterangepicker>`). Clicar na
+  estrela já marcada **zera** a nota; `readonly="true"` desenha sem clique nem
+  hover, que é o `Rating` de uma lista de avaliações.
+
+- **`decimals` no `<spinbox>`** — fecha o `QDoubleSpinBox`. Sem a prop, as casas
+  continuam saindo do `step` como escrito, que é o comportamento de sempre e
+  acerta quase sempre; ele errava justamente onde importa: `step="1"` sobre um
+  preço formatava `10`, não `10.00`.
+
+- **`examples/onda4`** (`cargo run --example onda4`) — os sete em três abas.
+
+### Notas de projeto
+
+**Dois dos sete não eram builtins.** O plano marcava `Pagination` e `Rating`
+como builtins; os dois viraram **primitivas**, pela mesma causa — e é a primeira
+vez que uma causa de reclassificação se repete nesta base:
+
+> **Repetição dirigida por um número, não por uma coleção.** O `for-each` do
+> motor lê uma chave que guarda um array JSON. A janela `4 5 6` de uma paginação
+> e as cinco estrelas de uma nota não existem em array nenhum — são *derivadas*
+> de `pagina`/`total` e de `max`. A saída de builtin seria o app calcular o
+> array e passá-lo por `items=`, que é exatamente o trabalho que estes widgets
+> existem para poupar. Em Rust, é um `for` de uma linha.
+
+A regra fica registrada no `PRIMITIVAS.md` e no `BUILTINS.md`, junto dos outros
+dois sinais já conhecidos, porque ela **prevê**: `PageIndicator`, `Grid`
+(`columns="3"`) e `Flow`/`Wrap` caem nela antes de alguém escrever uma linha
+deles.
+
+O `Rating` teve ainda um segundo motivo, independente e igualmente definitivo: o
+**hover**. O motor expõe `on_press`, `on_double_click`, `cursor` e `tooltip` em
+qualquer nó, mas não um `on_enter` — e a pré-visualização ao passar o mouse é
+metade do que um `Rating` faz.
+
+Com isso, são **seis** widgets que este documento classificou no nível errado
+(`TimePicker`, `DateEdit`, `Calendar`, `Accordion`, `Pagination`, `Rating`),
+sempre para o mesmo lado: o de superestimar o bloqueio.
+
+### Compatibilidade
+- O payload interno do `SpinBox` ganhou um quinto campo
+  (`inc:qtd|1|99|1|<decimals>`). Ele pode vir **vazio**, e um payload de quatro
+  campos continua sendo lido — um template que o app tenha copiado do widget
+  não quebra.
+
+---
+
+## [0.84.0] — 2026-09-02
+
+**Onda 3 do `PLANO_WIDGETS.md`: o calendário.** O foco declarado do projeto —
+a §2.5 do catálogo — fecha em **6 de 6**, e fecha do jeito que o plano previu:
+uma primitiva, três tags, **zero habilitadores de motor**.
+
+### Adicionado
+- **`<calendar>`, `<monthyearpicker>` e `<daterangepicker>`** — a grade do
+  `QCalendarWidget`, o seletor de mês/ano e o de intervalo, todos o **mesmo**
+  `NodeType::Calendar`, exatamente como `<dateedit>`/`<timeedit>`/
+  `<datetimeedit>` são um `NodeType::DateTimeEdit` só:
+
+  ```xml
+  <!-- o caso simples: o widget grava a chave sozinho -->
+  <calendar value="entrada" today="{hoje}" />
+
+  <!-- com validação: quem grava é o handler -->
+  <calendar value="entrada" onChange="validar_entrada" min="{hoje}" />
+
+  <!-- só mês e ano -->
+  <monthyearpicker value="competencia" />
+
+  <!-- intervalo, dois meses visíveis -->
+  <daterangepicker start="entrada" end="saida" months="2" today="{hoje}" />
+  ```
+
+  | tag | o que grava | chave |
+  |---|---|---|
+  | `<calendar>` | um dia | `YYYY-MM-DD` |
+  | `<monthyearpicker>` | um mês | `YYYY-MM` |
+  | `<daterangepicker>` | duas datas, em **duas chaves** | `start` e `end` |
+
+  Props: `value`/`start`/`end` (nomes de chave), `onChange`, `today` (o realce
+  de hoje), `min`/`max` (dias fora saem inertes), `mode` (`day`/`month`/`year`
+  — onde o clique para de navegar e passa a gravar), `month` (chave que dirige
+  o mês visível), `first_day`, `months`, `month_names`/`day_names`.
+
+  **A escada de drill-up do Qt** está inteira: clicar no título sobe um degrau
+  (dia → mês → ano), descer escolhe o mês/ano visível sem tocar na chave. O
+  `<monthyearpicker>` é literalmente essa tela do meio promovida a tag — custo
+  marginal zero, que é por que a linha dele subiu de P3 para P2 no plano.
+
+  **O intervalo grava duas chaves separadas**, não `"a/b"` numa só: é o que
+  deixa o `date.diff` do Luau ler as duas direto. Entre o primeiro clique e o
+  segundo, a faixa sob o cursor é pintada — o hover mora numa chave global
+  (`__cal_hover`) e é rastreado **só** enquanto há uma ponta aberta, para não
+  cobrar uma mensagem por célula visitada no resto do tempo.
+
+  **O mês visível não é global**, ao contrário do foco de seção do
+  `<datetimeedit>`: ele mora em `__cal_<chave>`, derivado da chave editada, e
+  duas grades na mesma tela navegam meses diferentes ao mesmo tempo. Sem
+  `month=`, o app não configura nada.
+
+- **`contains` no condicional** — o **simétrico** do `one_of` que já existia:
+  lá a lista está no markup e o valor da chave é um item; aqui a lista está na
+  **chave** e o item está no markup.
+
+  ```xml
+  <!-- ctx.abertas = "rede,disco" -->
+  <template if="{abertas}" contains="rede"> … </template>
+  ```
+
+  É o que dá ao motor o **conjunto nomeado**: várias seções de um accordion
+  abertas, uma seleção múltipla, um filtro por tags — coisas que o
+  `PLANO_WIDGETS.md` §3 declarava presas ao estado por instância e que nunca
+  estiveram. Vírgula, ponto-e-vírgula e espaço valem como separador ao mesmo
+  tempo (quem monta o conjunto é código de app), e o item comparado também
+  interpola — `contains="{s.id}"` dentro de um `for-each` é a forma que a Onda
+  4 vai usar.
+
+  Aliases: `contem`, `contém`, `has`, `inclui`.
+
+- **`days_from_civil`/`dia_da_semana` no lado Rust** (`src/widget.rs`), oito
+  linhas ao lado do `dias_no_mes` que o `Instante` já tinha. Com teste contra
+  1970, 1900 e 2000: errar a regra do século desloca a grade inteira em
+  silêncio, que é o pior modo de falha possível para um calendário.
+
+- **`examples/onda3`** (`cargo run --example onda3`) — as três tags nas três
+  abas, todo em Luau. E é em Luau por causa de **uma prop**: `today`. O realce
+  de hoje é prop, não relógio — o motor não lê a hora do sistema em lugar
+  nenhum, de propósito, e `date.today()` do prelúdio é a linha que fecha esse
+  buraco sem uma crate de data no motor.
+
+### Notas de projeto
+
+Três coisas que o `PLANO_WIDGETS.md` afirmava e que a construção corrigiu:
+
+1. O `Grid` (`QGridLayout`) **não era pré-requisito** do calendário. Ele só
+   seria, para um *builtin*, cujo template é markup. Em Rust, grade é um `for`
+   — é a quarta vez que este projeto descobre que um widget "bloqueado" era, na
+   verdade, uma primitiva mal classificada (`TimePicker`, `DateEdit`,
+   `Calendar`, `Accordion`).
+2. `days_from_civil` **não existia** do lado Rust, ao contrário do que a §4
+   dizia; existia só no `prelude.luau`.
+3. As células dos meses vizinhos ficaram **inertes**, não
+   esmaecidas-e-clicáveis: escolher um dia do mês seguinte teria de mover o mês
+   visível *junto com* a escolha, e no modo que delega a escrita o widget não
+   pode fazer as duas coisas numa mensagem só.
+
+---
+
+## [0.83.0] — 2026-09-02
+
+### Alterado
+- **O `GLACIER_PERF` diz quanto custa cada tipo de mensagem**, não só quantas
+  chegaram:
+
+  ```text
+  msgs: LuauStream×8 152.3ms tot/19.1 pior  Scrolled×10 0.1ms tot/0.0 pior
+  ```
+
+  A contagem sozinha diz **quem** está pedindo quadro; o tempo diz **quanto
+  custa**. Uma sem a outra engana nos dois sentidos — uma mensagem barata que
+  chega cem vezes por segundo e uma cara que chega três vezes são problemas
+  diferentes, com consertos diferentes, e no total agregado as duas somam igual.
+
+  A lista sai ordenada pelo que mais **custa**, não pelo que mais aparece.
+
+  O caso que motivou: um app alimentado por um stream SSE, em que `LuauStream`
+  aparecia em toda janela lenta e o `dispatch` chegava a 19 ms — mas o relatório
+  não permitia atribuir aquele tempo àquela mensagem, porque contagem e tempo
+  eram números separados.
+
+---
+
+## [0.82.0] — 2026-09-02
+
+Correção de **leitura**: o relatório do `GLACIER_PERF` media o intervalo entre
+quadros e o apresentava como se fosse custo. Num app orientado a evento esse
+intervalo é quase todo **espera** — sem mensagem não há quadro, e o relógio
+corre.
+
+### Corrigido
+- **O relatório mostra o MIN do intervalo, e quantos quadros saíram colados.**
+
+  ```text
+  [glacier perf] 6 quadros 1.15s (5.2/s) | nós 301 | quadro MIN 15.8ms (5 colados)
+                 | intervalo 192.5 méd 447.0 p95 447.0 máx [inclui ócio]
+  ```
+
+  O **MIN** é o menor intervalo da janela: o quadro que saiu colado no anterior,
+  ou seja, o app trabalhando sem folga. Se ele for 16 ms, o app dá conta de
+  sessenta por segundo e todo o resto é ócio; se for 200 ms, são 200 ms de
+  trabalho. O `colados` diz de quantos quadros essa amostra é feita — com
+  poucos, o MIN é frágil.
+
+  A média e o p95 do intervalo continuam no relatório, agora rotulados
+  `[inclui ócio]`, porque medem o quanto o app ficou **parado**, não o quanto
+  ele demora.
+
+  **O erro que isto causou**, e vale registrar: um app ocioso por dezenove
+  segundos apareceu como "quadro de 19004 ms máx" e foi lido — por quem escreveu
+  a ferramenta — como um travamento de dezenove segundos. Duas rodadas de
+  diagnóstico saíram dessa leitura. A ressalva estava escrita na doc do módulo
+  desde a 0.78; escrever a ressalva não impede de ignorá-la, um número que não
+  se presta à confusão impede.
+
+---
+
+## [0.81.0] — 2026-09-02
+
+A release em que a instrumentação achou um problema do **próprio motor** — e não
+onde se procurava.
+
+### Corrigido
+- **O movimento do mouse deixa de forçar um quadro quando não há menu na tela.**
+
+  O motor registrava um listener global de `CursorMoved`, sempre, só para ter a
+  âncora de posição de um `<MenuBar>`/`<ContextMenu>`. No `iced`, **cada
+  mensagem provoca um quadro**: com o listener ligado, atravessar a tela com o
+  cursor fazia o app redesenhar cem, cento e cinquenta vezes por segundo, sem
+  nada ter mudado.
+
+  Medido num app real, com a mesma árvore de 301 nós:
+
+  | `CursorMoved`/s | quadros/s |
+  |---|---|
+  | 63–70 | 60–66 |
+  | 89–99 | 6,9–7,9 |
+  | 111–147 | 9,3–12,4 |
+
+  Agora o listener só é assinado quando alguma janela tem menu em jogo — um
+  `<MenuBar>`, `<Menu>` ou `<ContextMenu>` na árvore avaliada, ou um menu já
+  aberto. A varredura acontece junto da coleta que a 0.76 já fazia por árvore,
+  sem passada nova. Nova consulta pública: `GlacierUI::precisa_do_cursor`.
+
+  A âncora continua correta: para clicar num menu o cursor precisa chegar até
+  ele, e o `subscription` é reavaliado a cada `update`, então o listener já está
+  no ar quando o clique acontece.
+
+### Adicionado
+- **`GLACIER_PERF` ganha a parcela `app`**: o tempo dos ganchos do aplicativo
+  (`GlacierDaemon::on_message`), que rodam na thread da UI logo depois do
+  `dispatch`. Antes caíam no `resto` e eram lidos como custo do `iced` — o que
+  esconde a pior categoria de travamento: um gancho que pega um lock disputado
+  com outra thread para a UI por segundos sem gastar um microssegundo de render
+  nem de dispatch.
+
+  As quatro parcelas agora são `render`, `dispatch`, `app` e `resto`.
+
+### Notas
+- O que motivou: um app com **45 nós** na tela e o mouse parado registrou um
+  quadro de **11,5 segundos** (média 356 ms, p95 30 ms — ou seja, um único
+  travamento). Render 0,1 ms, dispatch 0,001 ms. Sem separar os ganchos do app
+  do resto, não havia como saber se aquilo era `iced`, driver ou o próprio
+  aplicativo.
+
+---
+
+## [0.80.0] — 2026-09-02
+
+### Adicionado
+- **`GLACIER_PERF` diz agora quais mensagens chegam**, e quantas de cada tipo:
+
+  ```text
+  msgs: CursorMoved×148  ToastTick×4  UiClick×2
+  ```
+
+  No `iced`, **toda mensagem provoca um quadro**. Uma tela parada que recebe
+  cento e cinquenta mensagens por segundo está redesenhando cento e cinquenta
+  vezes sem nada ter mudado — e numa GPU fraca é isso, e não o conteúdo, que
+  satura o quadro. Sem saber *qual* mensagem é essa, o diagnóstico para no
+  "alguma coisa está pedindo quadro demais".
+
+  A motivação é um caso real: um app com **45 nós na tela** rendendo 3,6 quadros
+  por segundo, com 67 a 155 mensagens por segundo e o `resto` (layout, texto,
+  GPU) em 99,9% do quadro. Nem o `render` (0,1 ms) nem o `dispatch` (0,001 ms)
+  explicavam; a contagem de mensagens é o próximo fio.
+
+  `EngineMessage::nome()` (interno) dá o nome da variante para o relatório.
+
+---
+
+## [0.79.0] — 2026-09-02
+
+Correção da ferramenta que a 0.78 acabou de entregar: ela media uma parcela e
+chamava o resto de "fora do motor", atribuindo ao `iced` trabalho que era do
+próprio motor e dos handlers do app.
+
+### Alterado
+- **`GLACIER_PERF` separa `dispatch` de `resto`.** O intervalo entre dois `view`
+  não é só layout e desenho: ele inclui o `update` — o `dispatch` do motor, os
+  handlers Luau, a reavaliação da árvore. Chamar tudo isso de "fora do motor"
+  era apontar para o `iced` um custo que muitas vezes é do app.
+
+  ```text
+  [glacier perf] 58 quadros 1.00s 58.0fps | nós 1682 | quadro 17.2ms méd 21.0 p95 34.1 máx
+                 render 0.43 méd 0.71 p95 | dispatch 1.20/quadro (14 msgs, 4.9 máx)
+                 resto 15.6ms/quadro (90.7%)
+  ```
+
+  Agora são três parcelas, e cada uma aponta para um lugar diferente:
+
+  | Parcela grande | Onde está o problema |
+  |---|---|
+  | `render` | o motor monta `Element` demais → menos nós (`virtualize`) |
+  | `dispatch` | tratamento de mensagem: `update`, Luau, reavaliação |
+  | `resto`, com árvore pequena | `iced`/`wgpu`: layout, texto, rasterização |
+
+  Entraram também o **máximo** do quadro e a **mensagem mais cara** da janela:
+  uma travada episódica não aparece na média nem no p95, e é justamente ela que
+  faz o mesmo conteúdo render a 40 quadros por segundo num instante e a 5 no
+  seguinte.
+
+  As chamadas recursivas de `dispatch` (o repasse de ação, a reordenação) vão
+  direto ao corpo interno, senão o tempo delas entraria duas vezes.
+
+### Notas
+- O que motivou: num app real, com **301 nós**, o relatório da 0.78 mostrava
+  render de 0,2 ms e "fora do motor" de 100–190 ms, oscilando entre 40 e 5
+  quadros por segundo com a mesma árvore. Custo de pixel não oscila assim — mas
+  a ferramenta não sabia dizer se aquilo era `iced` ou `update`, porque somava
+  os dois. Agora sabe.
+
+---
+
+## [0.78.0] — 2026-09-02
+
+Release de **ferramenta**: o motor não mudou de comportamento, ganhou um jeito
+de responder a pergunta que as três releases de custo anteriores só souberam
+responder por inferência — *de um quadro lento, quanto é o motor e quanto é o
+resto?*
+
+### Adicionado
+- **`GLACIER_PERF=1`**: um relatório por segundo no `stderr`, com o custo do
+  render, quantos nós, e — por diferença — quanto do quadro **não** é do motor.
+
+  ```text
+  [glacier perf] 58 quadros em 1.00s = 58.0 fps  |  render 0.43ms méd, 0.71ms p95
+                 nós 1682  |  motor 2.5% do quadro  |  fora do motor 16.8ms/quadro
+  ```
+
+  O motor cronometra a parte dele — percorrer a árvore avaliada e montar os
+  `Element`. O que vem depois (medir o layout, moldar o texto, desenhar na GPU)
+  acontece dentro do `iced` e do `wgpu`, fora do alcance daqui; mas o intervalo
+  entre duas chamadas de `view` é o quadro inteiro, e o que sobra ao descontar o
+  render é tudo que não é motor.
+
+  **Por que isso faltava.** A 0.77 nasceu de um sintoma — uma tela rolando a
+  poucos quadros por segundo — e o diagnóstico teve de ser montado de fora, com
+  medidas sintéticas e eliminação: o render do motor era 2,6% do orçamento, o
+  gancho do app 19 µs, a GPU era de 2012. Concluiu-se que o tempo estava no
+  layout do `iced`, mas **por inferência**, não por medida. Esta variável mede.
+
+  Ressalvas, que estão na doc do módulo: num app folgado boa parte do "fora do
+  motor" é espera pelo vsync, não trabalho (compare rolando e parado); e com
+  mais de uma janela as medidas se somam num relatório só.
+
+  Desligada, custa a leitura de um `bool` já resolvido por quadro.
+
+---
+
+## [0.77.0] — 2026-09-02
+
+**Virtualização de lista.** A quarta release de custo, e a primeira que sai de
+um sintoma em produção em vez de um perfil: uma tela do `rustploy` com algumas
+dezenas de cartões de serviço rolava a poucos quadros por segundo.
+
+O perfil disse que o motor **não** era o culpado — montar os `Element` de 1.682
+nós custa 431 µs, 2,6% do orçamento de 60 fps, e as micro-otimizações que
+tentei antes moveram isso para 427 µs. O custo estava um andar abaixo: o `iced`
+mede e desenha **todos** os filhos de um `<scrollable>`, inclusive os que estão
+fora da tela. Nenhuma otimização do avaliador alcança isso; a única saída é não
+entregar os invisíveis.
+
+### Adicionado
+- **`virtualize="<altura>"`** (`virtualizar`, `itemHeight`) numa coluna dentro
+  de um `<scrollable>`: o motor monta só os filhos que caem na janela visível e
+  põe, nas pontas, vãos do tamanho exato do que ficou de fora.
+
+  ```xml
+  <scrollable height="fill">
+    <column spacing="12" virtualize="300">
+      <ForEach items="servicos" var="s"> … </ForEach>
+    </column>
+  </scrollable>
+  ```
+
+  | Cartões | Render por quadro, sem | Com |
+  |---|---|---|
+  | 40 | 182 µs | 48 µs |
+  | 80 | 364 µs | 47 µs |
+  | 300 | 1,81 ms | **47 µs** |
+
+  O custo do render vira **constante** — 300 itens custam o mesmo que 10 —, e o
+  ganho maior é o que a tabela não mostra: o `iced` deixa de medir e desenhar
+  290 cartões.
+
+  **A altura é declarada, não medida.** Descobrir a altura real exige o layout,
+  que é justamente o trabalho a evitar; é a troca que o `uniformItemSizes` do
+  `QListView` faz. Errar o valor não quebra nada — só desalinha a barra de
+  rolagem.
+
+  **Três degradações seguras**, todas para "renderiza tudo, como antes": sem
+  `<scrollable>` acima, com `virtualize="0"`, ou com a lista já cabendo inteira
+  na tela (ali a virtualização só acrescentaria dois vãos).
+
+- **`EngineMessage::Scrolled`**, e o deslocamento de cada `<scrollable>` guardado
+  no motor. O `dispatch` grava e volta — **sem reavaliar**, que é a diferença
+  entre rolar a 60 quadros e rolar a 6. O aviso de rolagem (`on_scroll` do
+  `iced`) só é pendurado quando há uma coluna com `virtualize` logo abaixo:
+  cada evento vira uma mensagem, que passa pelo `dispatch` e por qualquer gancho
+  que o app tenha ali, e cobrar isso de quem não virtualiza seria piorar o caso
+  comum.
+
+### Alterado
+- **`parse_length`, `font_for`, `parse_text_align` e `is_truthy` pararam de
+  alocar.** Faziam `to_ascii_lowercase()` só para comparar sem diferenciar
+  maiúsculas — uma `String` por atributo, por nó, por quadro; numa tela de 800
+  nós a 60 fps, ~150 mil alocações por segundo. Trocado por
+  `eq_ignore_ascii_case`. Ganho honesto: 431 → 427 µs. Real, grátis, e
+  irrelevante perto da virtualização — fica registrado porque a tentação de
+  medir o motor pelo que é fácil de otimizar foi exatamente o erro que o perfil
+  desfez.
+
+### Quebras
+- **`widget::render_node` recebe um `RenderView`** — a sexta posição, com o
+  deslocamento de cada `<scrollable>` e a altura da janela. Só alcança quem
+  chama `render_node` direto; o caminho normal (`GlacierUI::render`) não muda.
+
+### Notas
+- A virtualização é de **render**, não de avaliação: a árvore inteira continua
+  avaliada e na memória. Fazer a avaliação seguir a janela economizaria memória,
+  mas exigiria reavaliar a cada rolagem — exatamente o que esta versão evita.
+- A altura usada como "área visível" é a da **janela do app**, não a do
+  `<scrollable>` (que só o layout do `iced` conhece, e perguntar seria
+  circular). A conta erra por excesso: monta-se alguns itens a mais, nunca de
+  menos.
+- Só `Column` virtualiza. `Row` (lista horizontal) usa a mesma aritmética e
+  entra quando houver caso de uso.
+
+---
+
+## [0.76.0] — 2026-09-02
+
+A terceira release de custo, e a primeira guiada por **perfil** em vez de
+suspeita. As duas anteriores atacaram o que se via lendo o código; esta rodou o
+avaliador sob `callgrind` e foi atrás do que a contagem de instrução apontou —
+que não foi o que se esperava.
+
+O caminho medido é o mais comum de todos: uma mudança de estado que **não** toca
+a lista da tela (mexer num contador, trocar uma aba, chegar um dado de outra
+chave). Antes: 1.986M de instruções. Depois: **1.008M** — metade.
+
+### Alterado
+- **A lista deixou de ser reparseada a cada avaliação.** Uma coleção mora no
+  contexto como texto (`"[{...},{...}]"`) e o `for-each` precisa dela como
+  `Value`, então parseava a lista inteira — com um `BTreeMap` por objeto — a
+  cada reavaliação, mesmo quando nada nela tinha mudado e **todos** os itens
+  vinham do cache. Era **13,8%** de todo o trabalho, jogado fora em seguida.
+
+  Agora o array parseado fica guardado no `EvalCache`, por chave de contexto. A
+  validade é conferida **comparando o texto**, não um hash: um `memcmp` de 20 KB
+  é ordens de grandeza mais barato que o parse, e não abre a porta que um hash
+  de 64 bits abriria — servir a lista velha por colisão, em silêncio.
+
+- **Os mapas internos do avaliador trocaram o SipHash pelo FxHash.** O hash da
+  `std` é escolhido para resistir a colisão hostil em mapa alimentado por
+  entrada de rede; aqui as chaves são nomes de variável do próprio app e
+  caminhos de nó gerados pelo motor. Ele respondia por **18%** do trabalho — com
+  o caso mais absurdo sendo hashar um `u64` (o caminho de uma entrada de cache)
+  com SipHash.
+
+  São ~30 linhas em `eval.rs`, sem dependência nova. Trocado no cache de
+  avaliação, no rastreador de leituras, no cache de JSON acima e **no contexto**
+  (ver Quebras).
+
+- **`Reads::record` parou de alocar a cada leitura.** A mesma chave é lida
+  muitas vezes por subárvore, e o `entry` da `std` exige a chave *possuída* —
+  alocava uma `String` a cada leitura só para descobrir que já havia uma igual.
+  Agora consulta antes de inserir: um segundo hash (barato, com o Fx) no lugar
+  de uma alocação.
+
+- **As duas varreduras completas da árvore viraram uma, e só quando a árvore
+  muda.** A cada reavaliação, o motor percorria a árvore inteira duas vezes —
+  uma atrás de `<TextArea>`, outra atrás de `<ComboEdit>` — para sincronizar os
+  buffers desses widgets. Quase sempre para não achar nada: a tela típica não
+  tem nenhum dos dois. Eram **5,3%**.
+
+  A coleta passou a acontecer **uma vez, junto da avaliação que produziu a
+  árvore** (`GlacierUI::tree_bindings`), numa passada só para os dois tipos. Uma
+  árvore reaproveitada não é varrida de novo.
+
+### Números
+
+`tests/perf_arvore.rs`, `--release`, mesma máquina. A coluna da 0.73 é a linha de
+base de antes das três releases de custo:
+
+| N linhas | acerto de cache | reavaliação completa | memória do processo |
+|---|---|---|---|
+| 100 | 97 µs (0.75: 242 · 0.73: 834) | 1,09 ms (1,22 · 2,03) | 0,7 MB |
+| 500 | **545 µs** (0.75: 1.300 · 0.73: 5.590) | 6,15 ms (6,74 · 12,2) | 4,0 MB (3,5 · 9,8) |
+| 2000 | **4,46 ms** (0.75: 10,06 · 0.73: 26,6) | 31,8 ms (33,7 · 53,8) | 15,2 MB (13,9 · 33,4) |
+
+O acerto de cache ficou **2,3× mais rápido que a 0.75** e **6,0× mais rápido que
+a 0.73** numa lista de 2000 linhas; numa de 500, **10,3×** contra a 0.73.
+
+**O preço, e ele é real:** guardar a lista parseada custa memória. Numa lista de
+2000 linhas o processo subiu de 13,9 para 15,2 MB (+9%) — o array de `Value`
+retido, mais uma cópia do texto para a comparação exata. Continua **2,2× abaixo**
+da 0.73 (33,4 MB), e a troca é 1,3 MB por 2,3× no caminho mais percorrido do
+motor. Se um dia incomodar, o lugar de mexer é a política de descarte do
+`EvalCache::json`, que hoje só limpa quando a época avança.
+
+### Quebras
+
+Uma só, e é de **tipo**, não de uso.
+
+- **O contexto virou `glacier_ui::ContextMap`** — o mesmo `HashMap<String,
+  String>` de sempre, com o hasher rápido no terceiro parâmetro. Isso alcança
+  `GlacierUI::context()`, `eval::process_template` e `EvalCtx::new`.
+
+  `get`, `contains_key`, `insert`, `iter` e companhia **não mudam** — todos os
+  52 usos de `.context()` nos testes deste repositório passaram sem edição. Só
+  quebra quem **anota o tipo à mão**:
+
+  ```rust
+  // antes                                     // agora
+  let ctx: &HashMap<String, String> = ...      let ctx: &ContextMap = ...
+  fn f(c: &HashMap<String, String>) { }        fn f(c: &ContextMap) { }
+  ```
+
+  E, num literal, `HashMap::new()` vira `HashMap::default()` (o `new` só existe
+  para o hasher da `std`).
+
+### Notas
+- **O que o perfil ainda mostra**, para quem continuar: `EvalCtx::lookup` é
+  agora o item isolado mais caro (17%), e é o preço de a resolução de uma chave
+  percorrer as camadas antes de cair no mapa. Depois dele vêm as comparações de
+  string (6,7%) e a cópia de nós no acerto de cache (5%).
+- Continua fora a **virtualização** da lista, pelo mesmo motivo das duas
+  anteriores — é funcionalidade, não otimização. Ver `PLANO_WIDGETS.md`, Onda 6.
+
+---
+
+## [0.75.0] — 2026-09-01
+
+A continuação direta da 0.74, e o item que ela mesma deixou anotado como "a
+conta que sobra": numa lista, a camada de variáveis de **cada** item era
+montada **antes** da consulta ao cache — ou seja, também para o item que ia ser
+reaproveitado inteiro e jogada fora em seguida.
+
+### Alterado
+- **A camada de um item de `for-each` ficou preguiçosa.** O item permanece como
+  JSON e cada `{item.campo}` se resolve na leitura, não na montagem.
+
+  A versão ansiosa fazia, por item e por reavaliação: um `format!("{var}.{k}")`
+  e um clone do valor para **cada** campo, mais uma serialização do item inteiro
+  para o `{item}` que um `spread=` repassa. Numa lista de 2000 linhas de 4
+  campos, 8000 `format!` + 8000 clones + 2000 serializações — em boa parte
+  descartados no `continue` do acerto de cache, três linhas abaixo.
+
+  Agora um campo de **texto** — o caso esmagadoramente comum — sai emprestado do
+  próprio JSON, sem alocar nada. O que não é texto (número, booleano, o item
+  inteiro) materializa uma vez numa `OnceCell` e fica.
+
+  **Por que não bastava consultar o cache antes de montar a camada**, que era o
+  conserto óbvio: as dependências de um item incluem os campos dele
+  (`("l.nome", "Ana")`) — é exatamente isso que faz o cache perceber que a linha
+  3 mudou —, e validá-las exige a camada montada. A preguiça resolve os dois
+  lados: a validação lê o que precisa, e só isso.
+
+### Corrigido
+- **Menções a KDL na documentação viva.** O motor não parseia KDL — não há
+  dependência nem parser —, mas `src/component.rs` e `src/asset_source.rs` ainda
+  anunciavam `.kdl` ao lado de `.gv`. As entradas antigas do changelog ficam
+  como estão: são registro do que era verdade quando foram escritas.
+- **A coluna `RSS` do `tests/perf_arvore.rs` virou `processo`.** Era *Resident
+  Set Size*, a memória residente do processo, mas a sigla se lê como nome de
+  formato de arquivo ao lado de `.gv` e `.gss` numa tabela. Mesma correção na
+  tabela de números da 0.74.
+
+### Adicionado
+- **Sete testes que fixam a semântica da camada preguiçosa** (`engine_tests`):
+  campo de texto, escalares que não são texto (número/booleano/nulo/decimal),
+  o item inteiro de um objeto, o item escalar, campo inexistente, e duas
+  armadilhas que só existem porque a resolução virou sob demanda:
+
+  - **prefixo não é campo**: com `var="l"` e um item que tem um campo `ista`, a
+    chave de contexto `{lista}` não pode ser lida como `l` + `ista`. O corte de
+    prefixo exige o ponto, e o teste vigia isso com o campo homônimo montado de
+    propósito.
+  - **o cache por item continua correto**: mudar o nome do item do meio de uma
+    lista de três muda aquele item e só ele.
+
+  Os dois foram **verificados por mutação**: quebrando o corte de prefixo, e
+  fazendo a entrada de cache deixar de listar os campos do item como
+  dependência (o erro clássico de quem resolve sob demanda e esquece de
+  validar), cada um derruba o seu teste. Um teste que passa dos dois jeitos não
+  estava protegendo nada — foi o que aconteceu na primeira versão deles.
+
+### Números
+
+Mesmo aparelho (`tests/perf_arvore.rs`, `--release`), 0.74 → 0.75, e a coluna
+de referência da 0.73 para o acumulado das duas releases:
+
+| N linhas | acerto de cache | reavaliação completa |
+|---|---|---|
+| 100 | 358 → **242 µs** (0.73: 834 µs) | 1,33 → **1,22 ms** (0.73: 2,03 ms) |
+| 500 | 1,95 → **1,30 ms** (0.73: 5,59 ms) | 7,60 → **6,74 ms** (0.73: 12,2 ms) |
+| 2000 | 12,8 → **10,1 ms** (0.73: 26,6 ms) | 37,7 → **33,7 ms** (0.73: 53,8 ms) |
+
+O acerto de cache — o caminho de uma mudança de estado que não mexe na lista —
+ficou **2,6× mais rápido que a 0.73** numa lista de 2000 linhas, e **4,3× numa
+de 500**. Memória não muda nesta release: a 0.74 já tinha feito essa parte.
+
+### Notas
+- Continua fora a **virtualização** da lista, pelo mesmo motivo da 0.74: é
+  funcionalidade, não otimização (pede realimentação de rolagem, que o motor não
+  plumba), e o lugar dela é junto do `TableView` — Onda 6 do `PLANO_WIDGETS.md`.
+  Depois destas duas releases, uma lista de 2000 linhas custa ~10 ms por
+  mudança de estado que não a toca; é ela quem tira isso de vez.
+
+---
+
+## [0.74.0] — 2026-09-01
+
+Release de **custo**: o motor não ganhou nenhum widget nem nenhuma sintaxe — a
+árvore avaliada passou a ocupar menos da metade da memória e a reagir a uma
+mudança de estado no dobro da velocidade. Saiu de uma pergunta direta: *"essa
+abstração sobre o iced faz o app consumir muito mais memória? compromete o
+desempenho?"*.
+
+A resposta honesta era **em parte sim**, e a medição apontou dois culpados
+estruturais — nenhum deles no lugar onde se suspeitava. Montar os `Element` do
+iced a partir da árvore (o `view()`, que roda por frame) sempre foi barato:
+~2× o mesmo layout escrito à mão, dentro do orçamento de 60 fps com folga. O
+caro era o `dispatch`, que reavalia a árvore a cada mensagem.
+
+### Adicionado
+- **`tests/perf_arvore.rs`**: o aparelho de medida, `#[ignore]` para não medir
+  ruído no `cargo test` comum. Uma tela realista (lista de pedidos, 7 nós por
+  linha) em quatro tamanhos, comparada com o mesmo layout montado à mão em iced.
+
+  ```sh
+  cargo test --release --test perf_arvore -- --ignored --nocapture
+  ```
+
+### Alterado
+- **O `UiNode` encolheu de 1264 para 512 bytes.** Ele tinha 37 campos
+  `Option<String>` no corpo, e um `Option<String>` custa 24 bytes **esteja ou
+  não preenchido**: 888 bytes por nó reservados para atributos que um `<Text>`
+  usa três ou quatro. Os raros foram para **grupos em caixa**, alocados só
+  quando algum campo do grupo é usado:
+
+  | Grupo | Campos | Quando existe |
+  |---|---|---|
+  | `Look` | `align_x` `align_y` `border_color` `font` `gradient` `text_align` `text_color` `slot_name` | aparência de segunda ordem |
+  | `Interact` | `on_press` `on_double_click` `cursor` `tooltip` `tooltip_position` | interação de ponteiro |
+  | `Cond` | `if_cond` `if_equals` `if_not_equals` `if_one_of` `if_platform` `else_if_cond` `for_each` `for_each_var` | nós de diretiva |
+  | `Drag` | os seis `drag_*`/`*reorder*` | itens de lista reordenável |
+  | `FormBits` | `form_control` `form_scope` `form_submit_action` `form_next_focus` | entradas dentro de um `<Form>` |
+  | `Pseudo` | `hover_style` `focus_style` `active_style` `disabled_style` | nós com `:hover`/`:focus`/… resolvido |
+
+  Os campos **quentes** (`width`, `height`, `padding`, `background`, `class`,
+  `id`, os numéricos, os booleanos) ficaram onde estavam: eles são preenchidos
+  o tempo todo, e uma indireção só os deixaria mais lentos sem economizar nada.
+
+- **Os filhos de um nó passaram a ser compartilhados por contagem de
+  referência** (`children: Children`, um `Arc<Vec<UiNode>>` com `Deref` e
+  `IntoIterator`). O motivo é o cache de avaliação: um **acerto** de cache
+  devolvia a subárvore guardada por **cópia profunda** — a árvore inteira
+  memcpy'ada nó a nó, a cada mudança de estado, mesmo quando nada nela tinha
+  mudado. Era o pior tipo de custo: pago justamente no caminho que existe para
+  não pagar nada.
+
+  Agora clonar um nó é um incremento de contador para tudo abaixo dele, e a
+  árvore avaliada **divide** memória com a entrada de cache em vez de duplicá-la
+  — que é de onde vem a maior parte da queda de memória residente. A escrita
+  continua correta
+  e continua possível: `Children::to_mut()` é copy-on-write (`Arc::make_mut`).
+
+- **As dependências de uma entrada de cache também são compartilhadas**
+  (`Arc<Deps>`). O acerto clonava o vetor inteiro de pares de `String` só para
+  contornar o empréstimo do `&mut` no cache — trabalho puro de borrow checker,
+  invisível, pago uma vez por item de lista.
+
+### Números
+
+Medidos com `tests/perf_arvore.rs` em `--release`, mesma máquina, 0.73 → 0.74:
+
+| N linhas | nós | árvore | processo | render/frame | reavaliação | idem, c/ cache |
+|---|---|---|---|---|---|---|
+| 25 | 179 | 324 → **166 KB** | 2,9 → **2,6 MB** | 55 → 56 µs | 598 → **411 µs** | 200 → **108 µs** |
+| 100 | 704 | 1281 → **653 KB** | 1,5 → **0,6 MB** | 199 → 202 µs | 2,03 → **1,33 ms** | 834 → **358 µs** |
+| 500 | 3.504 | 6229 → **3188 KB** | 9,8 → **3,6 MB** | 1,33 → **1,14 ms** | 12,2 → **7,6 ms** | 5,59 → **1,95 ms** |
+| 2000 | 14.004 | 24,9 → **12,7 MB** | 33,4 → **13,9 MB** | 7,27 → **5,98 ms** | 53,8 → **37,7 ms** | 26,6 → **12,8 ms** |
+
+Em uma linha: **memória pela metade, acerto de cache 2,1× a 2,9× mais rápido,
+reavaliação completa 1,4× mais rápida.** O `render` por frame mudou pouco
+porque nunca foi o problema — ele continua em ~1,8× o iced escrito à mão, o que
+para uma tela de 500 nós é 1,1 ms de um orçamento de 16,67 ms.
+
+### Quebras
+
+Só para quem lê ou escreve campos do `UiNode` **em Rust** (um componente que
+inspeciona a árvore). Markup `.gv`, `.gss` e Luau não mudaram em nada — os
+atributos são exatamente os mesmos.
+
+- **Os 36 campos dos grupos acima viraram acessor.** A leitura devolve
+  `Option<&str>` (antes `&Option<String>`), e a escrita ganhou um `set_`:
+
+  ```rust
+  // antes                          // agora
+  node.on_press.as_deref()          node.on_press()
+  node.tooltip.clone()              node.tooltip().map(str::to_string)
+  node.font.is_some()               node.font().is_some()
+  node.align_x = Some(v)            node.set_align_x(Some(v))
+  ```
+
+  Os grupos são públicos (`parser::{Look, Interact, Cond, Drag, FormBits,
+  Pseudo}`) para quem preferir mexer neles direto.
+
+- **`UiNode::children` é `Children`, não `Vec<UiNode>`.** Leitura não muda
+  (`len()`, indexação, `iter()`, `for c in &node.children` continuam iguais, por
+  `Deref` e `IntoIterator`). Muda quem escreve ou consome:
+
+  ```rust
+  // antes                          // agora
+  node.children.push(x)             node.children.to_mut().push(x)
+  node.children.iter_mut()          node.children.to_mut().iter_mut()
+  for c in node.children { }        for c in node.children.into_vec() { }
+  UiNode { children: v, .. }        UiNode { children: v.into(), .. }
+  ```
+
+- **`eval_condition` e os ajudantes `font_for`/`parse_text_align`/
+  `parse_alignment` recebem `Option<&str>`** no lugar de `&Option<String>`.
+  Internos, listados por completude.
+
+### Notas
+- **O que não foi feito, e por quê.** A terceira ideia da análise era
+  **virtualizar** a lista — avaliar só as linhas visíveis, o que é o único
+  conserto de verdade para 2000 linhas. Ela não entra aqui porque não é uma
+  otimização, é uma funcionalidade: precisa de realimentação de rolagem
+  (`scrollable::on_scroll`, que o motor não plumba hoje), de uma decisão sobre
+  altura de item e de conviver com o arrasto de reordenação. O lugar dela é
+  junto do `TableView` (Onda 6 do `PLANO_WIDGETS.md`), não antes de um release.
+- **A conta que sobra**, para quem for continuar: numa lista, o `item_layer`
+  monta a camada de variáveis de **cada** item (um `format!` e um
+  `json_scalar` por campo, mais uma serialização do item inteiro) **antes** de
+  consultar o cache — ou seja, mesmo quando o item vai ser reaproveitado.
+  Inverter as duas coisas é o próximo ganho grande, e não foi feito agora porque
+  mexe na ordem em que as dependências de uma entrada são validadas — o tipo de
+  mudança que erra silencioso, servindo tela velha, se for feita com pressa.
+
+---
+
+## [0.73.0] — 2026-09-01
+
+### Adicionado
+- **O `date` passa a falar RFC 3339, e ganha a camada de fuso.** A 0.72 entregou
+  um módulo *naive*, que resolve data e hora de tela mas não a fronteira com um
+  backend — e um backend fala `2026-07-06T12:34:56Z`. Agora toda entrada aceita
+  o separador `T`, sufixo de fuso (`Z`, `±HH:MM`, `±HHMM`, `±HH`) e fração de
+  segundo (aceita e descartada, porque o motor guarda com resolução de segundo).
+
+  Quatro funções novas, e a conversão é **explícita**: nenhuma outra desloca um
+  instante sozinha.
+
+  | | |
+  |---|---|
+  | `date.epoch(iso)` | segundos desde 1970 |
+  | `date.from_epoch(secs, utc?)` | `YYYY-MM-DD HH:MM:SS` |
+  | `date.to_local(iso)` / `date.to_utc(iso)` | o mesmo instante na outra hora de parede |
+
+  ```lua
+  ctx.inicio = date.format(date.to_local(dep.started_at), "DD/MM HH:mm")
+  ```
+
+  A convenção que amarra tudo: **sem fuso é hora local** — é o que `today`/`now`
+  devolvem e o que os campos de edição guardam —, e por isso
+  `date.epoch(date.now())` bate com `os.time()`. O offset viaja na forma do
+  valor, então `add` o preserva: `date.add("…T12:34:56Z", { days = 1 })` devolve
+  `"…T12:34:56Z"`, com o `T` e o `Z` no lugar.
+
+### Alterado
+- **`compare`, `diff` e `diff_seconds` normalizam para a hora local** antes de
+  comparar, para que um `...Z` vindo do backend e um `date.today()` da tela
+  sejam comparáveis sem conversão na chamada. Entre dois valores naive a
+  resposta não muda — é o caso que a 0.72 já cobria.
+
+### Corrigido
+- Nada no motor, mas vale como aviso a quem escreve Luau: **o `os.time` do Luau
+  usa `timegm`, não `mktime`**. Uma tabela de componentes é lida como UTC, e por
+  isso o truque clássico de descobrir o offset local —
+  `os.difftime(t, os.time(os.date("!*t", t)))` — devolve **zero** no dialeto,
+  silenciosamente. O que funciona é `os.time(os.date("*t", t)) - t`, e é o que o
+  `date` usa. Encontrado ao avaliar a adoção da 0.72 num app real, que carregava
+  a versão do Lua desse cálculo há tempos sem sintoma visível (o zero era
+  inofensivo lá, porque o `os.date` seguinte já fazia a conversão sozinho).
+
+---
+
+## [0.72.0] — 2026-09-01
+
+### Adicionado
+- **`date`: aritmética de data e hora no Luau, sem dependência nova.** Novo
+  global do prelúdio (`src/luau/prelude.luau`) que opera sobre as **strings
+  ISO** que os `<dateedit>`/`<timeedit>`/`<datetimeedit>` já gravam na chave de
+  contexto — recebe string, devolve string, e por isso nada de "objeto data"
+  vaza para uma chave (que é sempre texto).
+
+  ```lua
+  ctx.entrada = date.today()                          -- "2026-09-01"
+  ctx.saida   = date.add(ctx.entrada, { days = 2 })   -- "2026-09-03"
+  ctx.noites  = date.diff(ctx.saida, ctx.entrada)     -- 2
+  ctx.rotulo  = date.format(ctx.entrada, "DD/MM/YYYY")
+  ```
+
+  Relógio: `today`, `now(segundos?)`, `time(segundos?)`. Leitura: `parse`,
+  `valid`, `weekday` (1 = domingo, a base do `os.date("*t").wday`), `date_of`,
+  `time_of`, `days_in_month`. Comparação: `compare`, `is_before`, `is_after`.
+  Aritmética: `add`, `diff` (dias de calendário), `diff_seconds`. Exibição:
+  `format` (`YYYY` `YY` `MM` `DD` `HH` `mm` `SS`).
+
+  Três decisões que valem saber:
+
+  - **Comparar é pelo instante, não pelo texto.** ISO ordena como string, mas só
+    entre valores da mesma forma: `"2026-09-10 08:00" > "2026-09-10"` é
+    verdadeiro só porque a string é mais longa, ainda que os dois sejam o mesmo
+    dia. `is_after`/`compare` tiram isso da frente — uma data pura vale a
+    meia-noite dela.
+  - **`add` preserva a forma da entrada.** Somar um dia a um `YYYY-MM-DD` não
+    inventa `00:00` no fim; somar uma hora a um `HH:MM` vira dentro do dia,
+    porque não há data para onde transbordar. `months`/`years` andam pelo
+    calendário e grudam no fim do mês (31/01 + 1 mês = 28/02, como o `QDateEdit`
+    ao trocar a seção do mês); `days`/`hours`/`minutes`/`seconds` são duração.
+  - **O parse é estrito**, ao contrário do `Instante` do widget: entrada
+    inválida — inclusive uma data que não existe, como `2026-02-31` — devolve
+    `nil`. O widget é tolerante porque não pode renderizar quebrado enquanto a
+    pessoa digita; um script pode escolher o que fazer com o `nil`.
+
+  Tipos em `views/scripts/glacier.d.luau` (templates da CLI) e `date` na lista
+  de globais do `.luaurc`.
+
+### Decidido
+- **`chrono` vs. `time` (PLANO_WIDGETS.md §4): nenhuma das duas.** A pergunta
+  estava aberta desde a 0.68 e a resposta é que o motor não precisa de crate de
+  data. O lado Luau é o `date` acima — `today`/`now` saem do `os.date` que o
+  dialeto Luau já tem (o sandbox tira `io` e `os.execute`, não o relógio), e o
+  resto é `days_from_civil`. O lado Rust já tinha o `Instante`
+  (`src/widget.rs`), cuja semântica é *anti*-calendário de propósito (cada seção
+  vira dentro de si, sem carry) — exatamente o oposto de um `NaiveDateTime`.
+
+  Isso destrava o `Calendar` da Onda 4, que se acreditava bloqueado por esta
+  decisão: dia da semana é `days_from_civil`, não crate. Sobra um único caso
+  para reabrir a pergunta, se um dia aparecer: o *offset local* em Rust (a `std`
+  só dá epoch UTC). Se precisar, é **`chrono`** — o `time` devolve `Err` em
+  `now_local()` dentro de processo multithread no Unix, e o motor é tokio.
+
+### Alterado
+- **`examples/data_hora_luau` reescrito sobre o `date`.** O script carregava um
+  `days_from_civil` escrito à mão (e um recorte manual de `YYYY-MM-DD` para
+  comparar formas diferentes) só para o exemplo não ser o que forçava a escolha
+  da crate; nada disso é mais necessário. Os valores iniciais passam a sair do
+  relógio em vez de datas fixas, entraram duas regras que só existem porque o
+  script sabe que dia é hoje, e dois botões novos (`+1 noite`, `Adiar 1 mês`)
+  mostram `date.add` andando pelo calendário.
+
+---
+
+## [0.71.0] — 2026-09-01
+
+Release de ferramenta: **o motor não mudou** — `src/` é byte a byte o da 0.70.0.
+A versão sobe para que a extensão de VS Code e a CLI que a embute tenham um
+número de motor correspondente para apontar.
+
+### Adicionado
+- **A extensão Glacier View fecha a tag sozinha** (v0.9.0). Terminar uma
+  abertura com `>` escreve o par e deixa o cursor no meio: `<Column>` vira
+  `<Column></Column>`. Vale para componente do app também.
+
+  Fica de fora o que o motor lê como folha — `<Image>`, `<Badge>`, `<Radio>`,
+  `<Slider>`, `<TextInput>`, `<MenuItem>`, … —, que o markup do projeto inteiro
+  escreve com `/>`: fechar `<Image src="a.png">` num par vazio seria devolver
+  lixo para apagar. Também não dispara em `</x>`, `<x/>`, `>` dentro de valor de
+  atributo (`title="a > b"`), `>` solto em texto, tag em comentário, nem dentro
+  do corpo de um `<script>`/`<style>`.
+
+  Desliga em `glacierView.autoClosingTags`.
+
+### Quebras
+- **O par `<`/`>` saiu de `autoClosingPairs`** da extensão. Com o `>`
+  auto-inserido, digitá-lo apenas sobrescrevia o caractere e o editor não
+  emitia mudança nenhuma — era ele ou o fechamento de tag. Na prática não se
+  perde nada: o `>` agora vem junto do `</tag>`.
+
+---
+
+## [0.70.0] — 2026-09-01
+
+### Adicionado
+- **O `<dateedit>`/`<timeedit>`/`<datetimeedit>` ganhou teclado.** A 0.68
+  entregou a edição por seções mas só no mouse — "não dá para digitar no campo"
+  era uma limitação declarada. Com uma seção selecionada:
+
+  | tecla | o que faz |
+  |---|---|
+  | ▲ / ▼ | mesmo passo dos botões de seta, na seção selecionada |
+  | ← / → | troca de seção, sem alterar valor |
+  | `0`–`9` | digita na seção, com o avanço automático do Qt |
+
+  Digitar `0930` numa hora atravessa hora e minuto sozinho: cada seção **avança
+  quando enche** (`09`) ou quando nenhum próximo algarismo caberia (`5` numa
+  hora — não existe `5X` válido). Um engano recomeça a seção em vez de ser
+  recusado, que é o que deixa corrigir sem apagar.
+
+  O algarismo sai do **texto que a tecla produz**, não do código dela, então o
+  teclado numérico e um layout não-ABNT entram igual.
+
+  **Como funciona, e por que não é um widget focável.** A seleção já morava numa
+  chave global (`__timeedit`); ela passou a carregar também a *configuração da
+  instância* (quais seções existem, a ordem, e o `onChange`), porque quem trata
+  a tecla é o `update` do motor — que recebe a tecla solta, sem o nó em mãos.
+  O contrato de gravação não muda: sem `onChange` o widget grava a chave
+  sozinho, com ele delega.
+
+  **O guarda contra roubar teclas:** o listener é global e não sabe o que está
+  focado, então ele só age quando **nenhum widget consumiu o evento**
+  (`event::Status::Ignored`). Um `<TextInput>` focado captura os algarismos e o
+  ← →, e eles não chegam aqui. Além disso, clicar em qualquer outro widget
+  larga a seção selecionada.
+
+  **Limite conhecido, e é honesto declarar:** com um `<TextInput>` de linha
+  única focado, **▲▼ ainda alcançam** uma seção que tenha sido selecionada
+  antes e não largada por um clique. O `text_input` do iced não usa ▲▼, então o
+  evento chega como `Ignored` e é indistinguível de "ninguém quis". Fechar isso
+  de vez exige o widget virar um nó focável de verdade, o que é outra obra.
+
+### Notas
+- `TimeEditKey` é exportado na raiz do crate, junto de `EngineMessage`: é o que
+  permite um teste dirigir o teclado sem display.
+
+---
+
+## [0.69.0] — 2026-09-01
+
+Uma release de **duas correções de contrato**: uma coisa que o motor deixava
+escrever sem fazer nada, e um widget que engolia o que recebia.
+
+### Corrigido
+- **`class` numa tag de componente não fazia nada — e não avisava.** Escrever
+  `<spinbox class="campo_num"/>` (ou o mesmo em qualquer componente, builtin da
+  lib ou do app) era um **no-op silencioso**: a classe era lida pelo parser (é
+  atributo genérico de nó), viajava no mapa de props do `NodeType::Component` e
+  depois ninguém a usava. Nenhum erro, nenhum aviso, nenhum log — o
+  `background` da raiz expandida saía `None`.
+
+  É a pior forma de falhar, e a mesma família do seletor por vírgula no GSS e
+  da auto-referência que dava `SIGABRT` sem mensagem antes da 0.68: quem
+  escreve tem toda a razão de esperar que funcione, porque é o que funciona em
+  qualquer outra tag do motor.
+
+  Agora a classe (e o `id`) escritos **no uso** aplicam na **raiz expandida** do
+  template. A escada de especificidade, do mais fraco ao mais forte:
+
+  ```
+  seletor de tag do componente  <  tag builtin  <  classe do template  <
+  classe do USO  <  id do template  <  inline do template
+  ```
+
+  Em uma frase: **a classe escrita no uso vence as classes do template, e perde
+  para os atributos inline do template.** É a intuição do CSS — a classe do
+  autor do componente é um *default*, o atributo inline dele é uma *decisão*. E
+  é o que faz `<card class="destaque"/>` conseguir repintar um cartão sem que o
+  `.card-surface` do template precise sair da frente.
+
+  A infraestrutura já existia inteira: o seletor de tag de componente
+  (`spinbox { }`, item 12 do `PLANO_GSS_LIMITACOES.md`) já resolvia estilo **no
+  escopo do uso** e o entregava à raiz do template como `underlay`. A classe do
+  uso é o gêmeo dele no outro extremo da escada — um `overlay`, resolvido no
+  mesmo lugar, mesclado depois do `resolve_classes` da raiz.
+
+  **A classe do uso entra na chave do cache.** O cache de componente é indexado
+  pelo caminho (derivado do `node_id`) e guarda as dependências lidas **dentro**
+  da expansão; a interpolação de um `class="{estado}"` acontece no quadro de
+  fora, então não estaria entre elas. Sem misturar o valor resolvido na chave,
+  um `class` dinâmico que mudasse serviria a árvore antiga para sempre. Mesma
+  armadilha que tirou o uso *com conteúdo de slot* do cache na 0.65 — só que
+  aqui dá para manter o cache: basta valores diferentes ocuparem entradas
+  diferentes.
+
+  Ela aplica **só na raiz**. Estilizar um nó específico lá dentro continua sendo
+  decisão do componente, que expõe uma prop com nome próprio — ver o item
+  seguinte. Um seletor que fura a fronteira do componente (algo como o
+  `::part()` do CSS) é uma porta muito maior, e nada hoje pede.
+
+- **O `<SpinBox>` não repassava nada ao campo que ele monta.** Ele entregava ao
+  `<TextInput>` interno só `value`, `onChange`, `placeholder` e `width`. Duas
+  consequências, e a segunda é a que dói:
+
+  - não dava para estilizar o campo — a classe do app não chegava nele;
+  - **o campo ficava fora da `<Form>`**: sem `form_control` ele não tinha id de
+    foco estável e **engolia o Enter** — não submetia o formulário nem avançava
+    para o campo seguinte, ao contrário de todos os `<TextInput>` ao lado dele.
+    Num formulário de seis campos numéricos, seis buracos no fluxo de teclado.
+
+    Para não plantar folclore: **Tab não era o problema.** A travessia por Tab é
+    um listener global do motor (`focus_next`/`focus_previous`, `lib.rs`), que
+    percorre todo widget focável independentemente de `formControl` — o campo do
+    `SpinBox` já era alcançado por ela antes desta release. O que `form_control`
+    liga é o **Enter**.
+
+  Props novas: **`field_class`** e **`form_control`**.
+
+  ```gv
+  <spinbox value="qtd" min="1" max="9"
+           class="moldura"          <!-- a Row inteira: campo + degraus -->
+           field_class="campo_num"  <!-- só o <TextInput> de dentro -->
+           form_control="qtd" />    <!-- só o <TextInput> de dentro -->
+  ```
+
+  `field_class` **não se chama `class`** de propósito: com o item acima, `class`
+  num `<spinbox>` passou a significar "estilize o widget inteiro" — a `Row`, que
+  é o que estilizar um `QSpinBox` significa no Qt. As duas coisas são legítimas
+  e diferentes; colapsá-las num nome só criaria a ambiguidade que esta release
+  existe para matar. `form_control` não precisa do prefixo `field_` porque não
+  há ambiguidade a desfazer: só existe um nó focável ali dentro.
+
+  O que fez isto ser barato — e não era óbvio: **a hidratação da `<Form>` roda
+  depois da expansão de componente**, sobre a árvore já avaliada. Um
+  `formControl` que só passa a existir na expansão é encontrado normalmente, e o
+  campo recebe `form_submit_action` e `form_next_focus` como qualquer outro.
+
+### Notas
+- O repasse **não** foi estendido aos outros builtins. Só o `SpinBox` tem um
+  caso concreto (um campo focável, dentro de um formulário, com estilo do app);
+  quando o segundo aparecer, o padrão já está estabelecido por ele.
+- `PLANO_CLASS_EM_COMPONENTE.md` registra as duas decisões de projeto e o que
+  ficou de fora.
+- Extensão de VS Code **0.7.0**: a nota de `class` em componente abre a seção de
+  builtins da referência, e o `<SpinBox>` ganha as duas props novas na tabela.
+
+---
+
+## [0.68.0] — 2026-09-01
+
+### Adicionado
+- **`<dateedit>`, `<timeedit>` e `<datetimeedit>`** — o `QDateEdit`, o
+  `QTimeEdit` e o `QDateTimeEdit`, como **uma primitiva só**; a tag decide quais
+  seções aparecem.
+
+  A edição é por **seções**, que é o ponto todo: clicar numa (ano, mês, dia,
+  hora, minuto, segundo) a seleciona — ela ganha o realce da paleta, como o
+  `2001` destacado num `QDateEdit` — e as setas ▴▾ passam a mexer **naquela**
+  seção. Um controle cobre o valor inteiro, sem prop de passo e sem um widget
+  por campo.
+
+  ```gv
+  <dateedit value="nascimento" format="br" />
+  <timeedit value="alarme" seconds="true" />
+  <datetimeedit value="agendado" onChange="validar" />
+  ```
+
+  - **A chave é sempre ISO** (`YYYY-MM-DD`, `HH:MM[:SS]`), mesmo com
+    `format="br"` — que só troca a ordem das seções na tela. É a separação que o
+    Qt faz entre o valor e o `displayFormat`, é o que um backend espera, e é o
+    que faz `a < b` entre duas chaves ser a comparação cronológica, sem parse.
+  - **Sem `onChange` o widget grava a chave sozinho**; **com `onChange` ele só
+    avisa** e quem grava é o handler. É o mesmo contrato do `<TextInput>`, com
+    um default conveniente — e é o que permite validar ou recusar um valor.
+  - **Cada seção vira dentro de si**: mexer no minuto não empurra a hora (o
+    `wrapping` do `QAbstractSpinBox`). O ano satura em vez de virar.
+  - **O calendário é respeitado**: 31/01 subindo o mês vira 28/02, ou 29 em ano
+    bissexto (regra do século inclusive). Sem dependência de datas — a
+    aritmética que seções pedem cabe em vinte linhas; a decisão `chrono` vs.
+    `time` segue em aberto para o `Calendar`, que precisa de dia da semana.
+  - A seção em foco vive numa chave global do motor (`__timeedit`, da família do
+    `__drag_key`) com a identidade da instância no valor. Global não é atalho:
+    só uma seção da tela pode estar selecionada por vez.
+  - **Não dá para digitar** no campo: a interação é clicar na seção + setas.
+
+- **`examples/data_hora_luau`** — as três tags **inteiramente controladas por
+  Luau**: o `main.rs` só registra a tela (nenhum `impl Component`, nenhum
+  `define_data`), e o script recusa uma saída anterior à entrada, avisa com um
+  `toast` e recalcula o resumo. É a outra ponta do `examples/timepicker`, que
+  não tem uma linha de código de app.
+
+  A regra do `<datetimeedit>` do exemplo documenta uma armadilha real: comparar
+  um `YYYY-MM-DD HH:MM` com um `YYYY-MM-DD` como texto puro dá errado
+  (`"2026-09-10 08:00" > "2026-09-10"` é verdadeiro, ainda que sejam o mesmo
+  dia). ISO só ordena entre formatos **iguais** — recortar o dia antes de
+  comparar é o que restabelece isso.
+
+### Corrigido
+- **Todo `<button>` sem `padding` explícito nascia colado no texto.** O
+  `parse_padding(None)` devolve `Padding::ZERO` e o braço do botão chamava
+  `.padding()` incondicionalmente, sobrescrevendo o `DEFAULT_PADDING` (5px) do
+  iced — o fundo grudava nos glifos e o botão lia como texto selecionado. O
+  `<TextInput>` e o `<ComboEdit>` já tinham o guarda contra isso, com o
+  raciocínio no comentário; o `<Button>` e o `<Select>` não. Afeta toda tela que
+  não declarava padding.
+- **Um componente que se referencia estourava a pilha** (`SIGABRT`, sem
+  mensagem, sem nome, sem linha) em vez de errar. Agora a auto-referência direta
+  é detectada por nome no primeiro nível, e um teto de profundidade segura os
+  ciclos indiretos.
+
+  O caso real: uma tela registrada com o mesmo nome de um widget embutido
+  (`timepicker`) e usando a tag dele por dentro. O registro do app vence o
+  builtin — como manda a regra de override —, então a tag passou a apontar para
+  a própria tela. É o risco que a grafia minúscula da 0.66 introduziu.
+- **`examples/lista_reordenavel` e `examples/toasts` não parseavam**: os dois
+  `.gv` estavam sem o cabeçalho `<component>`, e desde a 0.61 um arquivo sem
+  cabeçalho não parseia. Não era só o teste — os exemplos não rodavam.
+
+### Quebras
+- **`<TimePicker>` deixou de ser um builtin delegante e virou primitiva.** As
+  props `on_change` e `on_pick` **não existem mais**, e o widget não é mais um
+  campo de texto com um botão ao lado.
+
+  **Migração:** quem usava `<TimePicker value="hora" on_change="…"
+  on_pick="…"/>` com um seletor próprio pode apagar o seletor inteiro e usar
+  `<timeedit value="hora"/>` — o widget faz o trabalho. Quem precisa reagir à
+  alteração troca `on_change` por `onChange`, com a diferença de que agora o
+  handler é **quem grava a chave** (o widget delega, em vez de gravar sozinho).
+
+  O motivo da quebra: o widget antigo não selecionava hora nenhuma. Ele
+  entregava um `<TextInput>` e um `<Button>` com um emoji, e o app tinha de
+  escrever o seletor — o próprio `examples/timepicker` gastava ~40 linhas de
+  Luau nisso. E a forma correta (seções, como o Qt) é impossível num builtin:
+  o template precisaria ler partes de uma chave cujo *nome* vem de uma prop.
+
+---
+
+## [0.67.0] — 2026-09-01
+
+### Adicionado
+- **Slot nomeado, com nomes fixos.** O `<slot/>` da 0.65 era um buraco anônimo
+  por componente, o que bastava para um widget de uma região só (`<groupbox>`,
+  `<toolbar>`) e travava qualquer um com duas. Agora um componente declara
+  `<slot name="footer"/>` e quem usa etiqueta o conteúdo:
+
+  ```xml
+  <card title="Servidor">
+      <text content="uptime 31 dias" />
+      <template slot="footer">
+          <button text="Reiniciar" on_click="reiniciar" />
+      </template>
+  </card>
+  ```
+
+  `<template slot="…">` agrupa vários nós; para um nó só, o atributo direto
+  (`<button slot="footer" …/>`) evita o embrulho. Vários blocos com o mesmo nome
+  se concatenam, e o conteúdo anônimo preserva a ordem de documento mesmo com um
+  bloco nomeado escrito no meio dele. A regra de posse não muda: a ação de dentro
+  continua sendo de quem a escreveu.
+
+  A partição roda sobre os filhos **crus** — é neles que o atributo `slot` ainda
+  existe — e cada balde é expandido por conta própria, então um `<if>` ou um
+  `for-each` dentro de um slot nomeado funciona como em qualquer outro lugar.
+
+- **`{slot_<nome>}`: o marcador que permite decorar um slot opcional.** Um
+  rodapé quer uma linha divisória acima dele, e só quando existe rodapé — mas o
+  template não tinha como perguntar isso (o nome do slot não é uma prop, e o
+  conteúdo não chega ao interpolador). O motor agora semeia, na fronteira do
+  componente, um booleano por slot nomeado preenchido. Entra na camada **depois**
+  das props, então uma prop de mesmo nome vence.
+
+- **`<card>` ganhou rodapé** (`slot="footer"`) e **`<groupbox>` ganhou ações no
+  cabeçalho** (`slot="actions"`, à direita da linha do título — onde vai o
+  `<checkbox>` que faz o papel do `QGroupBox::setCheckable`). Nos dois, a região
+  só se paga quando alguém a preenche.
+
+### Notas
+- O nome do slot é **fixo, resolvido no template**. `<slot name="{aba}"/>` —
+  nome vindo do contexto — continua não existindo, e é só isso que separa o
+  `<tabbar>` de hoje de um `QTabWidget` inteiro.
+
+---
+
+## [0.66.0] — 2026-08-31
+
+### Adicionado
+- **Quatro widgets da "onda 1"** (`PLANO_WIDGETS.md` §6) — os que o `iced` já
+  sustentava e que só faltava expor. Ao contrário da onda 2, nenhum dependia de
+  habilitador de motor.
+
+  - **`<slider>`** (`QSlider`) — primitiva sobre `slider`/`vertical_slider`.
+    `min`/`max`/`step`/`vertical`, mais o que o iced 0.14 dá barato: `default`
+    (duplo clique devolve o cursor), `on_release` (a ação só ao soltar, para
+    quem não quer efeito colateral por pixel arrastado) e `shift_step`. As casas
+    decimais da saída vêm do `step` **como escrito no markup** (`step="0.05"` →
+    2 casas), então a chave nunca recebe `0.30000001192092896` — o `step` é
+    guardado como `f32` e como texto para isso.
+  - **`<space>`** (`QSpacerItem`) — sem `width`/`height` é `Length::Fill` nos
+    dois eixos (o espaçador flexível que empurra o resto para a borda); com
+    eles, um vão fixo.
+  - **`<radio>`** (`QRadioButton`) — primitiva sobre o `radio` do iced. O grupo
+    **é a chave**, sem nó pai: `group="plano"` é o *nome* da chave (a mesma
+    convenção do `checked=` do `<checkbox>` e do `value=` do `<textinput>`), e
+    todo `<radio>` que aponta para ela é do mesmo grupo — dois grupos são duas
+    chaves. Escrever `group="{plano}"` passaria o valor no lugar do nome e
+    deixaria o grupo inteiro desmarcado. Como o `<checkbox>`, não grava sozinho:
+    dispara a ação com o valor da opção e quem grava é o app.
+  - **`<radiogroup>`** (`QButtonGroup`) — builtin sobre a primitiva, para o caso
+    comum: as opções vêm de uma coleção do contexto e o `update` dele grava a
+    chave sozinho (padrão do `SpinBox`), então o app não escreve handler nenhum.
+    Uma prop só (`value`, o nome da chave) — e **não** o par `value`/`active`
+    que o `<tabbar>` precisa, porque aqui quem resolve a marcação é a primitiva,
+    em Rust, onde ler a chave cujo nome está numa prop é uma linha. No `tabbar`
+    quem resolve é o template, que não consegue fazer essa indireção.
+  - **`<avatar>`** — foto circular com as iniciais como reserva. Ocupa o mesmo
+    espaço com foto ou sem, porque numa lista de usuários a foto que falta é o
+    caso comum e um buraco vazio quebra o alinhamento da linha.
+
+- **Toda tag de widget aceita minúsculas.** `<GroupBox/>` e `<groupbox/>`,
+  `<ToolButton/>` e `<toolbutton/>` — a mesma convenção que as primitivas do
+  motor já tinham (`<textinput/>`, `<progressbar/>`), agora também para os
+  builtins, e a forma que os exemplos passam a usar.
+
+  Uma primitiva casa num `match` de tags que lista as grafias à mão; um builtin
+  resolve por igualdade exata de nome, então cada um passou a ser publicado sob
+  dois registros (ver `builtins::builtin_aliases`). O alias é uma instância
+  própria, o que importa para o roteamento: `<tabbar/>` produz `tabbar::pick:…`
+  e é essa instância que recebe o `update`. Como todo builtin da lib é sem
+  estado, ter duas instâncias não muda nada.
+
+- **`examples/onda1`** (`cargo run --example onda1`) — os quatro juntos, e de
+  propósito a diferença entre primitiva e builtin com o mesmo dado: o grupo
+  "Plano" tem um `<radio>` escrito à mão (com handler no app) ao lado de um
+  `<radiogroup>` (sem handler nenhum), os dois gravando na mesma chave. O grupo
+  "Zoom" põe um `<slider>` e um `<spinbox>` na mesma chave — o par que o Qt usa
+  o tempo todo.
+
+### Corrigido
+- **`<link rel="import" as="Card">` do app era engolido pelo builtin.** A regra
+  da lib é "registro explícito do app vence o builtin", e ela valia para o
+  `<import>` mas não para o `<link rel="import">`, que só checava se o nome
+  estava livre. O furo era antigo e invisível: enquanto os builtins se chamavam
+  `Badge`, `SpinBox` e `TimePicker`, nenhum app disputava esses nomes. A onda 2
+  trouxe `Card`, `Frame`, `Avatar` e `ToolBar` — nomes comuns —, e aí um app que
+  importasse o próprio `Card` por `<link>` via o builtin renderizar no lugar
+  dele, sem erro nenhum. Os dois caminhos agora abrem a mesma exceção.
+- **`<frame shape="filled">` saía sem fundo**, indistinguível do `shape="none"`.
+  A causa vale a regra geral: o eval resolve um campo com
+  `inline.map(process_tpl).or_else(classe)`, então um atributo escrito no
+  template vence a classe **mesmo quando resolve para vazio** — um
+  `background="{background|}"` gravava `""` em vez de cair para `.frame-filled`.
+  Agora o atributo só é emitido quando a prop existe. Mesma armadilha evitada no
+  `<avatar>`, que por isso usa defaults literais em vez de folha.
+
+---
+
+## [0.65.0] — 2026-08-31
+
+### Adicionado
+- **`<slot/>`: componente agora aceita filhos.** Até aqui,
+  `NodeType::Component` carregava só props e o conteúdo escrito entre as tags de
+  um componente era **descartado** na expansão. O efeito colateral era grande:
+  todo widget cuja razão de existir é *envolver* conteúdo estava fora do nível
+  Builtin — `GroupBox`, `Frame`, `Card`, `ToolBar`, `StatusBar` — e por isso
+  apareciam na tabela do `PLANO_WIDGETS.md` como construíveis quando não eram.
+
+  Agora `<slot/>` no template de um componente recebe esse conteúdo:
+
+  ```xml
+  <GroupBox title="Rede">
+      <Checkbox label="Usar proxy" checked="proxy" />
+      <Button text="Salvar" on_click="salvar" />
+  </GroupBox>
+  ```
+
+  O ponto fino é a **posse**: o conteúdo é avaliado no contexto e com o dono de
+  *quem escreveu*, antes de qualquer camada de props entrar em cena. Por isso o
+  `on_click="salvar"` acima chega no `update` da tela e **não** vira
+  `GroupBox::salvar` — não se escreve `app:` no conteúdo de um slot (esse
+  prefixo continua sendo para a ação recebida por prop, como no `TimePicker`).
+  Os filhos do próprio `<slot>` são o **conteúdo de reserva**, usado quando quem
+  chama não escreve nada; esses sim são do componente e enxergam as props dele.
+
+  Um uso **com** conteúdo fica fora do cache de componente: as dependências do
+  conteúdo pertencem ao quadro de quem chamou, e uma entrada de cache não teria
+  como perceber que ele mudou (mesma exceção que uma lista reordenável já
+  tinha). São os containers da tela — o custo é desprezível.
+
+  Ainda **não** existe slot **nomeado** (`<slot name="footer"/>`): um buraco
+  anônimo por componente. É o que separa o `TabBar` novo de um `QTabWidget`
+  inteiro, e o `Card` de um cartão com rodapé.
+
+- **Seis widgets embutidos novos** — a "onda 2" do `PLANO_WIDGETS.md` §6, toda
+  destravada pelo item acima. Nenhum precisa de registro: a lib os registra em
+  `GlacierUI::new()`, como o `<Badge/>` e o `<SpinBox/>`.
+
+  - **`<GroupBox/>`** (`QGroupBox`) — moldura com título, mais a forma
+    `flat="true"` (título + linha, sem caixa) do `QGroupBox::flat`. Sem título,
+    sobra a moldura pura.
+  - **`<Frame/>`** (`QFrame`) — a moldura sozinha, em três formas: `box`
+    (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem
+    `Raised`/`Sunken`: o `UiNode` não tem campo de sombra.
+  - **`<Card/>`** — superfície de item com cabeçalho opcional (título e
+    subtítulo, independentes) e corpo por slot. Substitui a linha que a tabela
+    do plano dava como pronta desde a 0.35 e que na verdade era um componente
+    específico do `examples/perfil`.
+  - **`<ToolButton/>`** (`QToolButton`) — botão-ícone com `autoRaise` (fundo só
+    no hover), glifo ou `.svg`, e as três formas do `Qt::ToolButtonStyle`
+    (`icon`, `beside`, `under`). Delega o clique ao app pelo prefixo `app:`.
+  - **`<ToolBar/>`** e **`<StatusBar/>`** (`QToolBar`/`QStatusBar`) — as duas
+    faixas da janela. A `StatusBar` separa a mensagem da esquerda (a prop
+    `message`, o `showMessage`) dos permanentes da direita (o slot, o
+    `addPermanentWidget`). Com o `<MenuBar>`, que já era nativo, fecham o
+    esqueleto de uma `QMainWindow`.
+  - **`<TabBar/>`** (`QTabBar`) — a barra de abas, com as abas vindo de uma
+    coleção do contexto e a ativa gravada numa chave que o app nomeia (o padrão
+    do `SpinBox`: a chave vem por prop e viaja dentro da ação). `value` e
+    `active` andam em par porque o template não consegue ler o valor da chave
+    cujo *nome* está numa prop. O empilhado de páginas continua sendo
+    `se`/`senao` — o `QTabWidget` inteiro espera slot nomeado.
+
+- **`examples/onda2`** (`cargo run --example onda2`) — os seis juntos montando
+  uma janela: barra de ferramentas, abas, conteúdo rolável e rodapé. O botão
+  "Salvar rede", escrito dentro de um `<GroupBox>`, é a demonstração da regra de
+  posse do slot.
+
+### Corrigido
+- **`PLANO_WIDGETS.md` batia com o código em onze linhas.** Dez estavam
+  marcadas como pendentes ou parciais quando já existiam — `Checkbox tristate`,
+  `TextInput secure`, `ComboEdit`, `MenuBar`/`Menu`/`ContextMenu`, `SystemTray`,
+  os três `FileDialog` e o `tooltip` — e uma (`Card`) estava marcada como pronta
+  sem existir. O resumo numérico também tinha erros de contagem próprios em
+  quatro seções. Recontado: **47 ✅ / 10 🟡 / 65 ⬜** em 122 linhas.
+
+---
+
+## [0.64.0] — 2026-08-31
+
+### Mudado
+- **O `<SpinBox/>` ganhou a forma que o Qt tem.** Ele nascia como três blocos
+  soltos — dois botões primários grandes com `▼`/`▲` em corpo de texto normal e
+  um campo no meio, separados por 4px —, o que lia como "dois botões ao lado de
+  um campo" em vez de um widget só. Agora:
+
+  - **Os degraus encostam no campo** (`spacing="0"`): a borda do próprio
+    `<TextInput>` vira a moldura do conjunto.
+  - **Duas formas, via a prop nova `layout`.** `stacked` (default) é o
+    `QSpinBox` clássico: uma coluna com `▴` em cima e `▾` embaixo, colada à
+    direita do campo, ocupando a altura dele e nada mais. `inline` é a forma do
+    `SpinBox` do Qt Quick Controls: `−  campo  +`, alvo de clique grande, para
+    toque e para valores que se ajusta muito.
+  - **Os degraus deixam de ser botões primários.** Não é o que o Qt desenha —
+    lá eles são cromo discreto ao lado do campo, não a ação principal da tela.
+    O visual sai de um `<style>` global declarado no próprio template do widget
+    (classe `.spinbox-step`, com `:hover`/`:active`), instalado em
+    `GlacierUI::new` e portanto **antes** de qualquer `.gss` do app — que por
+    isso o vence por ordem: redefinir `.spinbox-step` numa folha do app é o
+    caminho suportado para repintá-los.
+  - **As cores dessa folha são neutras e translúcidas** (`#8080801f` de fundo):
+    um cinza com alfa clareia sobre um tema escuro e escurece sobre um claro,
+    então o mesmo default atravessa os quatro estilos embutidos sem que o widget
+    precise saber qual está ativo — nenhum hex de paleta viaja no template.
+
+  Props novas: `layout` (`stacked`/`inline`) e `glyph_size` (`11` no `stacked`,
+  `15` no `inline`). Os defaults de `dec_text`/`inc_text` passam a depender da
+  forma: `▾`/`▴` no `stacked`, `−`/`+` no `inline`.
+
+  **Quem inspeciona a árvore avaliada precisa saber:** a raiz continua sendo uma
+  `<Row>`, mas no `stacked` os filhos agora são `[campo, coluna dos degraus]` (2,
+  não 3), e o glifo é um `<Text>` **filho** do `<Button>` (é ele que carrega o
+  `size`), não mais o atributo `text=`.
+
+- **A extensão Glacier View (`editors/vscode-gv`, v0.4.1) documenta o
+  `<SpinBox/>`.** Ele não estava na tabela de tags nativas/builtin do
+  `extension.js`, então era tratado como componente do app: o F12 não achava
+  nada. Agora ele resolve para uma seção nova do doc de referência embutido
+  (`references/glacier-view.md`), com a tabela de props, as duas formas de
+  `layout` e a classe `.spinbox-step`. De quebra, a entrada do `<Badge/>` ganhou
+  as props dele e perdeu a referência a `src/builtins.rs`, que virou diretório.
+
+- **O exemplo `spinbox` semeia os valores iniciais** (`define_data`) e mostra a
+  forma `inline` na linha do zoom. Um `<SpinBox/>` cuja chave nunca foi escrita
+  nasce em branco — correto (o primeiro clique inicializa no `min`), mas um
+  campo numérico vazio parece um campo quebrado numa captura de tela.
+
+- **Os exemplos deixam de ser compilados por padrão** (`autoexamples = false`).
+  Os 31 arquivos continuam em `examples/`; só a descoberta automática saiu.
+
+  `cargo test` compilava todos eles, cada um linkando o motor inteiro
+  estaticamente (iced + wgpu + naga + Luau + codecs de imagem + resvg). Medido:
+  **31 × 506 MB = 15,2 GiB** em `target/debug/examples`, ~70% de um target de
+  22 GiB. De cada binário, 86% era debuginfo (506 MB → 73 MB depois de `strip`),
+  e como os 31 compartilham as mesmas dependências, boa parte disso era o mesmo
+  debuginfo repetido 31 vezes.
+
+  Depois da mudança, o target a frio vai de **22 GiB para 6,3 GiB**, com os
+  mesmos 366 testes passando — os `.gv` dos exemplos seguem cobertos por
+  `tests/exemplos_gv.rs`, que lê arquivo e não precisa compilar nada.
+
+  Um exemplo novo entra explicitamente:
+
+  ```toml
+  [[example]]
+  name = "contador"
+  path = "examples/contador/main.rs"
+  ```
+
+  Para rodar um dos antigos, comente o `autoexamples = false`.
+
+  **O que se perde:** o `main.rs` dos 31 exemplos não é mais compilado por
+  ninguém, então um deles pode apodrecer sem que a suíte perceba.
+
+---
+
+## glacier-cli 0.2.1 — 2026-08-31
+
+Republicação: **o código da CLI não mudou** (`git diff b944ac7 -- crates/glacier-cli`
+é só a linha da versão). O que muda é o que ela carrega dentro:
+
+- **A versão do motor que `glacier new` grava** no `Cargo.toml` do projeto novo.
+  Ela sai do `engine-version.txt` que o `make sync-extensions` gera a partir da
+  raiz — na 0.2.0 isso congelou `glacier-ui = "0.62"`. Agora sai `"0.64"`, então
+  um projeto criado hoje já nasce com o `<SpinBox/>` na forma nova.
+- **A extensão Glacier View embutida** (a CLI a instala sem Node/vsce) passa a
+  ser a v0.4.1, que documenta o `<SpinBox/>`.
+
+---
+
+## [0.63.0] — 2026-08-30
+
+Uma release de **widgets embutidos**: nasce o primeiro builtin que *faz* algo em
+vez de só desenhar, e com ele os dois mecanismos que faltavam para a biblioteca
+crescer — um para o widget que age, outro para o widget que delega. O
+`<TimePicker/>`, que estava quebrado de quatro maneiras diferentes, é o primeiro
+beneficiário.
+
+### Adicionado
+- **`<SpinBox/>` — o `QSpinBox` do Qt, embutido.** Campo numérico com as setas
+  ▼▲: clicar soma ou subtrai `step`, saturando em `min`/`max`. Nenhuma linha de
+  código do lado do app.
+
+  ```xml
+  <SpinBox value="quantidade" min="1" max="99" />
+  <SpinBox value="preco" min="0" max="10" step="0.25" width="90" />
+  ```
+
+  Props: `value` (obrigatória), `min`/`max` (`0`/`100`, a faixa padrão do Qt),
+  `step` (`1`), `width` (`72`), `placeholder`, `dec_text`/`inc_text` (`▼`/`▲`).
+
+  - **As casas decimais saem do `step`.** `step="0.25"` formata com 2 casas — o
+    `QDoubleSpinBox` sem um segundo widget, e de quebra sem o
+    `0.30000000000000004` que somar `f64` produz.
+  - **Chave vazia**: o primeiro clique inicializa no `min`, não em `min + step`.
+  - **Digitação** entra filtrada (só dígitos, um `-` à frente e um `.`) e sem
+    saturar, como o `QSpinBox`, que só valida ao terminar a edição; o clique
+    seguinte satura.
+
+  Ele é o primeiro builtin com **comportamento próprio** — a aritmética roda no
+  `update`, em Rust. Os anteriores (`Badge`, `TimePicker`) só montam markup.
+
+- **O padrão que deixa um builtin ter comportamento sem ter estado.** O `ctx` de
+  um builtin é o contexto global: não há slot por instância. O `SpinBox` contorna
+  isso não guardando valor nenhum — o número mora numa chave que **o app nomeia**
+  (`value="quantidade"`), então duas instâncias com chaves diferentes são
+  independentes.
+
+  O elo que faltava era o `update` saber *qual* chave a instância clicada usa —
+  ele recebe a ação, não as props. A ação passa a carregar os parâmetros:
+
+  ```xml
+  <Button text="▲" on_click="inc:{value}|{min|0}|{max|100}|{step|1}" />
+  ```
+
+  O eval interpola e prefixa o dono, o `dispatch` quebra no `::` e entrega ao
+  `update` do próprio widget, que fatia a string. Documentado em `BUILTINS.md`,
+  com a ressalva do `|` (dentro de `{…}` separa o default inline; fora é
+  literal).
+
+- **`app:` — o escape de namespace, para o widget que delega.** Toda ação escrita
+  no template de um componente é prefixada com o dono. Isso quebra o widget que
+  **repassa** uma ação recebida por prop: `on_click="{on_pick}"` dentro do
+  `<TimePicker/>` virava `TimePicker::abrir_modal`, o motor achava o `TimePicker`
+  no mapa de componentes e chamava o `update` **dele** — que não conhece ação
+  nenhuma do app. E sem erro nenhum: o botão simplesmente não fazia nada.
+
+  ```xml
+  <Button text="{pick_icon|⏰}" on_click="app:{on_pick}" />
+  ```
+
+  O prefixo sai *no lugar* do prefixo de dono, e a ação chega em quem a definiu.
+  `app:` quer dizer **a tela atual** — é onde o `dispatch` cai quando não há
+  dono —, não o componente intermediário que porventura tenha usado o widget:
+  delegar de componente para componente ainda depende de um `ctx.dispatch` que o
+  motor não tem.
+
+- **`examples/spinbox/`** (`cargo run --example spinbox`): cinco `<SpinBox/>` —
+  inteiro, decimal, passo grande e duas instâncias lado a lado — com a chave de
+  cada um ecoada em texto ao lado, para a independência entre instâncias ficar
+  visível. Ele e o `timepicker` são os primeiros exemplos declarados com bloco
+  `[[example]]`, como o comentário do `Cargo.toml` pede desde a 0.62.1 — ou
+  seja, os dois voltam a ser compilados pelo `cargo test`.
+
+### Corrigido
+- **`<TimePicker/>` não funcionava** — quatro defeitos empilhados, três deles
+  fora do widget:
+
+  1. `value_var="{value}"` no template do builtin: o atributo que o parser lê é
+     `value` (`value_var` é só o nome do campo interno do `NodeType`). O campo
+     ficava ligado a chave nenhuma — não exibia o valor nem o que se digitava.
+  2. `on_change`/`on_pick` eram engolidas pelo namespacing (ver `app:` acima).
+  3. No exemplo, faltava o `<script src="app.luau">` em `<resources>`: o motor
+     liga o comportamento Luau pelo `<script>` do template, não por convenção de
+     nome de arquivo. O `init()` nunca rodava — nem o `09:00` inicial, nem as
+     listas dos `<select>` do modal. Os dois `<select>` repetiam o erro do
+     item 1 (`value_var=`).
+  4. Ainda no exemplo, os handlers Luau liam a chave em vez do argumento
+     (`formatar_tempo()` fazia `ctx.inicio:gsub(…)`). O motor **não** escreve
+     sozinho na chave de um `<TextInput>`: o texto digitado chega como argumento
+     da função (e no global `value`), e é o handler que grava.
+
+  Um teste novo roda o exemplo ponta a ponta — `init()` semeando, `1445` virando
+  `14:45`, o ⏰ abrindo o modal com `h_sel`/`m_sel` preenchidos, o confirmar
+  escrevendo de volta.
+
+### Mudado
+- `BUILTINS.md` ganhou as duas seções novas — o widget que age (chave por prop,
+  parâmetros na ação) e o widget que delega (`app:`) — e a restrição de contexto
+  global deixou de dizer "mantenha os builtins apresentacionais": um builtin pode
+  ter comportamento, desde que todo valor que ele guarda more numa chave nomeada
+  por quem o usa.
+- `PLANO_WIDGETS.md`: `SpinBox` vira ✅ e sai de `Comp`/`●` para `Built`/`◐`;
+  `QDoubleSpinBox` vira 🟡 (coberto pelo `step`, falta a prop `decimals`). O §3
+  ganhou duas correções de rumo:
+  - o `●` estava marcando **duas** coisas — "valor que o app nomeia" (nunca
+    bloqueou nada) e "estado sem nome natural" (esse sim). A mesma correção que
+    a linha do `Spinner` já tinha recebido na 0.53;
+  - o que de fato trava `Tabs`, `Accordion`, `GroupBox`, `Frame`, `ToolBar` e
+    `StatusBar` é outro item, que não estava na lista: **componente não aceita
+    filhos** (não há `<slot/>`; o conteúdo escrito dentro da tag é descartado na
+    expansão). Entrou como habilitador P1.
+
+### Quebras
+- `app:` passa a ser **prefixo reservado** de ação, ao lado de `clipboard:`,
+  `open:`, `window:` e `style:`. Uma ação que já se chamasse `app:algo` dentro de
+  um componente era entregue ao `update` desse componente com o nome inteiro;
+  agora ela perde o prefixo e vai para a tela atual. Renomeie a ação se for o
+  caso — nenhum exemplo ou template do repositório usava esse nome.
+
+---
+
+## [0.62.2] — 2026-08-30
+
+Publicação de manutenção: **o motor não mudou**. Nenhum arquivo de `src/` é
+diferente da 0.62.1 — a comparação está no commit.
+
+A 0.62.1 saiu junto com a primeira versão da CLI, e desde então o trabalho todo
+foi do lado dela (`glacier-cli` 0.2.0: Makefile, `fazer.bat` e empacotamento nos
+projetos criados). Esta versão existe para que o `engine-version.txt` que a CLI
+grava — e portanto o `glacier-ui = "…"` do `Cargo.toml` de todo projeto novo —
+aponte para uma release publicada no mesmo dia que ela, em vez de para uma
+anterior.
+
+Quem já está em `^0.62` não ganha nem perde nada atualizando.
+
+---
+
+## glacier-cli 0.2.0 — 2026-08-30
+
+Só a CLI (`crates/glacier-cli`). O motor não mudou e segue em 0.62.1.
+
+### Adicionado
+- **Todo projeto criado por `glacier new` já sai empacotável e instalável**, nos
+  dois sistemas, pelos dois lados: um `Makefile` (Linux) e um `fazer.bat`
+  (Windows, onde não há make), herdados por todos os presets via `_comum`.
+
+  | | Makefile | fazer.bat |
+  |---|---|---|
+  | para Windows | `make windows` (cross-compile, cargo-xwin) | `fazer build` (MSVC nativo) |
+  | empacotar Windows | `make windows-dist` → `.zip` | `fazer dist` |
+  | empacotar Linux | `make linux-dist` → `.tar.gz`, `make deb` | — |
+  | instalar | `make install` / `install-sistema` | `fazer instalar` |
+
+  O motivo: até aqui o `new` entregava um projeto que roda com `cargo run` e
+  para por aí. Transformá-lo em algo que outra pessoa instala era um problema
+  não resolvido — e um com armadilha, porque a parte que quebra não dá erro.
+
+  O `.exe` sai com `+crt-static`: sem isso ele exige o Visual C++
+  Redistributable na máquina de destino e falha com uma caixa de erro que não
+  diz qual DLL faltou.
+
+- **Instaladores em `packaging/`**, dentro do pacote. No Windows, um
+  `instalar.bat` que copia para `%LOCALAPPDATA%\Programs` e cria o atalho no
+  menu Iniciar **sem pedir administrador** — um app de usuário não precisa de
+  elevação para ser instalado. No Linux, um `instalar.sh` que instala em
+  `~/.local` (ou `--sistema` para `/usr/local`) e gera o `.desktop`.
+
+- **`conferir-pacote`**, em que todo alvo de pacote termina. O app lê `views/`
+  em runtime — é o que dá o hot-reload —, então um pacote sem essa pasta
+  compila, empacota, instala e abre: numa janela vazia, na máquina de quem
+  baixou, sem nenhuma mensagem que aponte a causa. A conferência compara a
+  contagem de arquivos e falha antes de o `.zip` existir. A ideia (e o custo de
+  não a ter) vem do Makefile do rustploy.
+
+- **Um wrapper de três linhas** é o que vai para `/usr/bin` (no `.deb`) e para
+  `~/.local/bin` (no `instalar.sh`); o binário de verdade fica ao lado do
+  `views/`, e o wrapper faz `cd` antes de executar. Sem isso, rodar o app de
+  qualquer outro diretório o faria procurar os templates onde eles não estão —
+  o mesmo bug que a conferência acima previne no empacotamento, só que na
+  instalação. O `.desktop` leva `Path=` pelo mesmo motivo, e o atalho do Windows
+  leva `WorkingDirectory`.
+
+### Corrigido
+- `scaffold` agora substitui os marcadores `{{…}}` em arquivos **sem extensão**
+  (`Makefile`) e em `.bat`/`.sh` — sem isso o Makefile gerado sairia com
+  `{{nome_projeto}}` literal no lugar do nome do app —, e dá `+x` aos `.sh`
+  escritos, que `fs::write` cria em `644`. Um `instalar.sh` sem o bit de
+  execução propagaria a permissão errada para dentro do `.tar.gz`.
+
+## [0.62.1] — 2026-08-30
+
+### Adicionado
+- **`glacier`, a CLI de bootstrap** (`crates/glacier-cli`, publicada como
+  `glacier-cli`). O repositório vira um workspace: o motor continua sendo o
+  pacote da raiz, e a CLI é um crate à parte.
+
+  ```bash
+  cargo install glacier-cli
+  glacier new
+  ```
+
+  O motivo: um projeto glacier tem `Cargo.toml`, `src/main.rs`, um `.gv` com
+  cabeçalho, um `.gss`, um `.luaurc` e uma árvore de scripts Luau — e montar
+  isso à mão, lendo o README arquivo por arquivo, é a parte mais chata de
+  começar. O `new` faz um questionário, mostra um resumo e **só então** escreve:
+  até a confirmação final, nada foi criado.
+
+  Quatro presets, todos herdando `.gitignore`, `.luaurc` e
+  `views/scripts/glacier.d.luau`:
+
+  | id | O que é |
+  |---|---|
+  | `completo` | janela sem decoração com titlebar própria, tema + `.gss`, componentes com `<props>`, navegação, `fetch`, toasts, `@media` |
+  | `minimo` | uma tela, um `.gss` e um bloco de script Luau |
+  | `janelas` | `open_window`/`broadcast`/`close_window`, bandeja, instância única, geometria lembrada |
+  | `rust` | o trait `Component` com estado tipado |
+
+  O código dos presets não leva comentário: `src/main.rs`, os `.gv` e os `.luau`
+  saem enxutos, e toda a explicação (como os caminhos resolvem, o que o `ctx`
+  guarda, por que `main_window` traz o que traz) vive no README de cada preset.
+  Os `.gv` usam recuo de 2 espaços.
+
+  `glacier install-extensions` instala as extensões de VS Code (`.gv` e `.gss`).
+  Elas vêm embutidas no binário e são empacotadas em `.vsix` na hora — sem Node,
+  sem `vsce`. Editores procurados no `PATH`: `code`, `code-insiders`, `cursor`,
+  `codium`, `windsurf`.
+
+  A CLI **não tem dependências** (nem `clap`, nem o próprio `glacier-ui`): ela
+  existe para tirar alguém do zero, e um `cargo install` que leva minutos
+  derrotaria o propósito.
+
+- **Pacote Debian da CLI** (`make deb-cli` / `make install-cli`), para exercitar
+  o `glacier` como o usuário final o vê: no `PATH`, longe do `target/`, sem
+  passar pelo crates.io. São ~270 KB, só o binário.
+
+  `make check-deb` (que o `deb-cli` já chama) confere o **DT_NEEDED do ELF
+  empacotado**, e não a linha `Depends`: o `dpkg-shlibdeps` declara o mínimo e
+  omite o que vem por transitividade — `libgcc_s.so.1` é exigido pelo binário e
+  mesmo assim não aparece no `Depends`, porque `libgcc-s1` já vem por `libc6`.
+  Conferir só o `Depends` deixaria passar uma biblioteca nova de verdade. O alvo
+  falha se aparecer qualquer coisa fora da glibc.
+
+- **`tests/presets_cli.rs`** — cada preset é materializado num diretório
+  temporário e carregado num `GlacierUI` de verdade. É o que pega o que a
+  compilação não pega: um `<link rel="import">` apontando para a pasta errada,
+  uma stylesheet com caminho relativo errado, um erro de sintaxe no Luau —
+  falhas que só apareceriam na primeira vez que alguém rodasse o projeto novo.
+
+### Mudado
+- **`sse`/`websocket`: o callback é a função, não o nome dela.** O motor sempre
+  aceitou as duas formas (`handler_key` casa `Value::Function` antes de tentar
+  resolver uma string como global), mas toda a documentação, o prelúdio e os
+  exemplos ensinavam só a forma por nome — então na prática a API *era* por
+  nome. Agora a função é a forma canônica em todo lugar:
+
+  ```lua
+  sse_conn = sse("https://sse.dev/test", {
+      on_open    = function() ctx.sse_status = "aberto" end,
+      on_message = function(data) ctx.sse_msg = data end,
+  })
+  ```
+
+  Com isso vêm closure, upvalue e método de tabela — o handler não precisa mais
+  ser global nem ter nome. O `glacier.d.luau` dos presets ganhou o tipo
+  `StreamOptions`, que declara cada callback como função, para o luau-lsp guiar
+  para a forma certa.
+
+  O nome de função global **continua aceito**, como atalho: apps escritos antes
+  disto não quebram. Mas ele obriga o handler a ser global, não fecha sobre
+  nada, e falha em silêncio quando o nome está errado — o evento chega e não
+  chama ninguém.
+
+### Corrigido
+- **`examples/stream_lua` não abria.** Os dois `.gv` apontavam para
+  `stream_lua.luau`/`stream_local.luau` e os arquivos no disco eram `.lua`, então
+  o exemplo morria com "Falha ao ler script Luau externo" na primeira execução.
+  Nenhum teste pegava: o parse de um `.gv` não resolve o `src` (o bloco é
+  recortado por texto antes), e o caminho só é lido quando o motor REGISTRA o
+  componente. Arquivos renomeados, e `tests/exemplos_gv.rs` ganhou
+  `todo_script_src_aponta_para_um_arquivo_existente`, que confere todo
+  `<script src>` de `examples/`, `templates/` e dos presets da CLI.
+
+- **Um `<script>` citado em comentário XML quebrava o template.** Escrever
+  `<!-- mova para um arquivo com <script src="x.luau"> -->` num `.gv` derrubava
+  o carregamento com um `syntax error: [string "<script:…>"]:1: Incomplete
+  statement` — uma mensagem sem nenhuma relação visível com o comentário que a
+  causava.
+
+  As duas varreduras que procuram o bloco discordavam: `eval::strip_script`
+  pulava comentários (via `find_script_open`), mas `luau::extract_script` e
+  `luau::extract_script_src` faziam um `find("<script")` cru. O parser de markup
+  tirava o bloco certo enquanto o Luau compilava o texto errado — o corpo
+  "extraído" começava no `>` da tag CITADA e ia até o `</script>` de verdade,
+  arrastando o resto do comentário e a tag de abertura real como se fossem
+  código.
+
+  `find_script_open` virou `pub(crate)` e passou a ser a única definição de onde
+  o bloco começa; as três funções agora concordam sempre. Quatro testes de
+  regressão em `src/luau/mod.rs`, e os templates do `glacier new` citam a tag
+  nos comentários de propósito — `tests/presets_cli.rs` os carrega num motor, o
+  que os torna fixture viva do caso.
+
+- **`tests/exemplos_gv.rs` era mais estrito que o motor.** Ele parseava cada
+  `.gv` cru, enquanto o motor faz duas passadas antes (`strip_script` e
+  `normalize_bare_directives`, ver `parse_markup`). Markup que abre sem problema
+  no app — um `else` pelado como atributo, um `<` dentro de um bloco de script —
+  era recusado pelo teste. Agora ele espelha o pré-processamento do motor.
 ## [0.62.0] — 2026-08-28
 
 ### Adicionado
@@ -1167,9 +3294,9 @@ Medido na árvore real de um app (600 nós):
 
 ---
 
-[0.41.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.41.0
-[0.40.1]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.40.1
-[0.40.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.40.0
-[0.39.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.39.0
-[0.38.1]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.38.1
-[0.38.0]: https://github.com/antoniofernandodj/xml-ui/releases/tag/v0.38.0
+[0.41.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.41.0
+[0.40.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.1
+[0.40.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.0
+[0.39.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.39.0
+[0.38.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.1
+[0.38.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.0

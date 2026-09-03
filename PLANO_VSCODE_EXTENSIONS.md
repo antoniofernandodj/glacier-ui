@@ -76,6 +76,9 @@ Azure, ver seção final).
 ## Roadmap
 
 ### Curto prazo
+- [x] **Fechamento automático de tag** — terminar `<element>` com `>` insere
+      `</element>` e deixa o cursor no meio. Fora as folhas (`<Image>`,
+      `<Badge>`, `<Radio>`, …), que o markup escreve com `/>`. *(v0.9.0)*
 - [ ] **Hover** — assinatura/props do widget nativo; corpo/1ª linha da função Lua
       referenciada por uma ação.
 - [ ] **Diagnóstico** — sublinhar `on_click="x"` quando não existe `function x`

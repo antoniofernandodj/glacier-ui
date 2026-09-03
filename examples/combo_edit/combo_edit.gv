@@ -1,34 +1,51 @@
 <screen title="Glacier - ComboEdit (servidores salvos)">
-    <!-- `<ComboEdit>`: dropdown editável (combo_box do iced). Digite um servidor
-         novo à vontade, ou escolha um dos já salvos na lista — escolher um
-         preenche o token sozinho (veja `servidor_selecionado` em main.rs). -->
-    <Container padding="24" width="fill" height="fill" background="#2E3440">
-        <Column spacing="16" width="420">
-            <Text content="Servidores salvos" size="24" bold="true" color="#ECEFF4" />
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/combo_edit/theme.json" />
+  </resources>
 
-            <Column spacing="6" width="fill">
-                <Text content="Servidor" size="13" color="#D8DEE9" />
-                <ComboEdit
-                    options="servidores"
-                    value="url"
-                    placeholder="https://servidor.exemplo.com"
-                    onChange="url_changed"
-                    onSelect="servidor_selecionado"
-                    width="fill"
-                />
-            </Column>
+  <!-- `<comboedit>`: dropdown editável (combo_box do iced). Digite um servidor
+     novo à vontade, ou escolha um dos já salvos na lista — escolher um
+     preenche o token sozinho (veja `servidor_selecionado` em main.rs). -->
+  <container padding="24" width="fill" height="fill">
+    <column spacing="16" width="420">
+      <text size="24" bold="true" color="#ECEFF4">
+        Servidores salvos
+      </text>
 
-            <Column spacing="6" width="fill">
-                <Text content="Token" size="13" color="#D8DEE9" />
-                <TextInput value="token" onChange="token_changed" placeholder="token de acesso" secure="true" width="fill" />
-            </Column>
+      <column spacing="6" width="fill">
+        <text size="13" color="#D8DEE9">
+          Servidor
+        </text>
+        <comboedit
+          options="servidores"
+          value="url"
+          placeholder="https://servidor.exemplo.com"
+          on_change="url_changed"
+          on_select="servidor_selecionado"
+          width="fill"
+        />
+      </column>
 
-            <Button text="Salvar este par" on_click="salvar" color="#5E81AC" width="fill" />
+      <column spacing="6" width="fill">
+        <text size="13" color="#D8DEE9">Token</text>
+        <input
+          value="token"
+          on_change="token_changed"
+          placeholder="token de acesso"
+          secure="true"
+          width="fill"
+        />
+      </column>
 
-            <Rule />
+      <button text="Salvar este par" on_click="salvar" color="#5E81AC" width="fill" />
 
-            <Text content="Pares salvos:" size="13" color="#D8DEE9" />
-            <Text content="{pares_txt}" size="12" color="#A3BE8C" />
-        </Column>
-    </Container>
+      <rule />
+
+      <text size="13" color="#D8DEE9">Pares salvos:</text>
+      <text size="12" color="#A3BE8C">{pares_txt}</text>
+    </column>
+  </container>
 </screen>

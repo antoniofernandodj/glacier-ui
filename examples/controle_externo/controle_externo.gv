@@ -7,73 +7,68 @@
   O `main.rs` deste exemplo também chama `.title(...)`/`.main_size(...)`; o que
   está escrito aqui vence, porque é o arquivo que recarrega a quente.
 -->
-<screen title="Controle externo" size="1000 700" min-size="480 360">
-    <resources>
-        <style scoped="true">
-            .tela {
-                padding: 28;
-                width: fill;
-                height: fill;
-                background: #0D1117;
-            }
+<screen title="Controle externo" size="1000 700" min_size="480 360">
+  <resources>
+    <link rel="theme" href="examples/controle_externo/theme.json" />
 
-            .conteudo {
-                spacing: 16;
-            }
+    <style scoped="true">
+      /* Sem `background`: a cor da janela é do TEMA (theme.json). Pintar um nó
+         `fill/fill` com a cor que o tema já pinta é uma camada a mais em cada
+         pixel da tela, e ela custa (ver AGENTS.md). */
+      .tela {
+          padding: 28;
+          width: fill;
+          height: fill;
+      }
+      .conteudo {
+          spacing: 16;
+      }
+      .titulo {
+          size: 24; bold: true; color: #58A6FF;
+      }
+      .subtitulo {
+          size: 13; color: #8B949E;
+      }
+      .painel {
+          padding: 18;
+          background: #161B22;
+      }
+      .painel-col {
+          spacing: 10;
+      }
+      .campo {
+          size: 16; color: #C9D1D9;
+      }
+      .estado {
+          size: 18; bold: true; color: #3FB950;
+      }
+      /* Num botão, `color` é o fundo (o rótulo sai em `text-color`). */
+      .btn {
+          color: #4C566A;
+          padding: 10 20;
+      }
+    </style>
 
-            .titulo {
-                size: 24; bold: true; color: #58A6FF;
-            }
+    <!-- Ações em Lua, num arquivo separado (resolvido relativo a este template). -->
+    <script src="controle_externo.luau"></script>
+  </resources>
 
-            .subtitulo {
-                size: 13; color: #8B949E;
-            }
-
-            .painel {
-                padding: 18;
-                background: #161B22;
-            }
-
-            .painel-col {
-                spacing: 10;
-            }
-
-            .campo {
-                size: 16; color: #C9D1D9;
-            }
-
-            .estado {
-                size: 18; bold: true; color: #3FB950;
-            }
-
-            /* Num botão, `color` é o fundo (o rótulo sai em `text-color`). */
-            .btn {
-                color: #4C566A;
-                padding: 10 20;
-            }
-        </style>
-
-        <!-- Ações em Lua, num arquivo separado (resolvido relativo a este template). -->
-        <script src="controle_externo.luau"></script>
-    </resources>
-
-    <container class="tela">
-        <column class="conteudo">
-            <text class="titulo" content="Controle externo" />
-            <text
-                class="subtitulo"
-                content="Ninguém toca nesta janela. Uma thread do próprio programa manda as ações pelo canal `external`."
-            />
-
-            <container class="painel">
-                <column class="painel-col">
-                    <text class="campo" content="nome:  {nome}" />
-                    <text class="campo" content="busca: {busca}" />
-                    <text class="estado" content="{estado}" />
-                </column>
-            </container>
-
-            <button class="btn" text="Reiniciar (clique humano)" on_click="reiniciar" />
+  <container class="tela">
+    <column class="conteudo">
+      <text class="titulo">Controle externo</text>
+      <text class="subtitulo">
+        Ninguém toca nesta janela.
+        Uma thread do próprio programa manda as ações pelo canal `external`.
+      </text>
+      <container class="painel">
+        <column class="painel-col">
+          <text class="campo">nome:  {nome}</text>
+          <text class="campo">busca: {busca}</text>
+          <text class="estado">{estado}</text>
         </column>
-    </container>
+      </container>
+
+      <button class="btn" text="Reiniciar (clique humano)" on_click="reiniciar" />
+    </column>
+  </container>
 </screen>

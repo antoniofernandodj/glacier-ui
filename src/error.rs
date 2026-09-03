@@ -193,6 +193,17 @@ pub enum GlacierError {
     /// Pediram para renderizar/navegar para um componente que não foi
     /// registrado (ou cujo nome está escrito diferente).
     UnknownComponent(String),
+    /// A expansão de componentes passou do limite de aninhamento — na prática,
+    /// um componente que se referencia (direta ou transitivamente) e se
+    /// expandiria para sempre.
+    ///
+    /// Existe porque a alternativa é um **stack overflow**: `SIGABRT` sem
+    /// mensagem, sem linha, sem nome de componente. O caso que motivou foi uma
+    /// tela registrada com o mesmo nome de um widget embutido (`timepicker`) e
+    /// usando a tag dele por dentro: o registro do app vence o builtin — como
+    /// manda a regra de override —, então a tag passou a resolver para a
+    /// própria tela.
+    ComponentRecursion { name: String, limite: u32 },
     /// O componente existe e está registrado, mas não está **avaliado** — só a
     /// tela ativa e os templates fixados ficam. Erro próprio (e não um
     /// `UnknownComponent` genérico) porque a causa e a saída são outras: não é
@@ -244,6 +255,13 @@ impl fmt::Display for GlacierError {
             Self::UnknownComponent(name) => write!(
                 f,
                 "componente '{name}' não registrado: confira o nome no <import>/register"
+            ),
+            Self::ComponentRecursion { name, limite } => write!(
+                f,
+                "componente '{name}' se expandiu além de {limite} níveis: quase sempre um \
+                 componente que usa a si mesmo. Verifique se o nome registrado não colide \
+                 com o de um widget embutido usado dentro do próprio template — o registro \
+                 do app vence o builtin, e a tag passa a apontar para ele mesmo"
             ),
             Self::NotEvaluated(name) => write!(
                 f,

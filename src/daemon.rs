@@ -409,9 +409,7 @@ impl GlacierDaemon {
         // Diretório onde a geometria da principal é persistida (só quando o app
         // ligou `remember_window_geometry` E definiu um `storage_dir` — é lá que
         // o arquivo mora). Guardado para o `Runtime` gravar ao fechar.
-        let geometry_dir = remember_geometry
-            .then(|| storage_dir.clone())
-            .flatten();
+        let geometry_dir = remember_geometry.then(|| storage_dir.clone()).flatten();
 
         // A geometria salva, lida uma vez. Ela é aplicada lá dentro do `boot`,
         // **depois** do `<screen>` do template: o tamanho declarado no arquivo é
@@ -552,7 +550,10 @@ fn load_geometry(dir: &std::path::Path) -> Option<SavedGeometry> {
 /// são logadas, não propagadas — não devem impedir a janela de fechar.
 fn save_geometry(dir: &std::path::Path, size: Size, position: Option<Point>) {
     if let Err(e) = std::fs::create_dir_all(dir) {
-        eprintln!("[glacier-ui] geometria: falha ao criar '{}': {e}", dir.display());
+        eprintln!(
+            "[glacier-ui] geometria: falha ao criar '{}': {e}",
+            dir.display()
+        );
         return;
     }
     let json = serde_json::json!({
@@ -565,7 +566,10 @@ fn save_geometry(dir: &std::path::Path, size: Size, position: Option<Point>) {
     match serde_json::to_string_pretty(&json) {
         Ok(s) => {
             if let Err(e) = std::fs::write(&path, s) {
-                eprintln!("[glacier-ui] geometria: falha ao gravar '{}': {e}", path.display());
+                eprintln!(
+                    "[glacier-ui] geometria: falha ao gravar '{}': {e}",
+                    path.display()
+                );
             }
         }
         Err(e) => eprintln!("[glacier-ui] geometria: falha ao serializar: {e}"),
@@ -675,10 +679,10 @@ impl Runtime {
         assets: Arc<dyn AssetSource>,
     ) -> Self {
         Self {
-            windows: HashMap::new(),
-            titles: HashMap::new(),
-            base_titles: HashMap::new(),
-            sized_by: HashMap::new(),
+            windows: HashMap::default(),
+            titles: HashMap::default(),
+            base_titles: HashMap::default(),
+            sized_by: HashMap::default(),
             main_id,
             child_settings: None,
             on_message: None,
@@ -825,10 +829,7 @@ impl Runtime {
         if self.main_shown {
             return Task::batch([
                 window::gain_focus(self.main_id),
-                window::request_user_attention(
-                    self.main_id,
-                    Some(window::UserAttention::Critical),
-                ),
+                window::request_user_attention(self.main_id, Some(window::UserAttention::Critical)),
             ]);
         }
         // Reusa o motor destacado (login + SSE preservados) ou, se não houver,
@@ -903,7 +904,16 @@ impl Runtime {
         if id == self.main_id
             && let (Some(hook), Some(engine)) = (&self.on_message, self.windows.get(&id))
         {
-            hook(&msg, engine);
+            // Com `GLACIER_PERF`, o gancho tem parcela própria: ele roda na
+            // thread da UI, e um que bloqueie (um lock disputado, um I/O
+            // síncrono) trava o quadro sem aparecer no render nem no dispatch.
+            if crate::perf::ligado() {
+                let t0 = std::time::Instant::now();
+                hook(&msg, engine);
+                crate::perf::anota_app(t0.elapsed());
+            } else {
+                hook(&msg, engine);
+            }
         }
 
         let mut tasks = vec![ui_task];
@@ -1102,13 +1112,13 @@ impl Runtime {
                 crate::drag_end_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
+                crate::timeedit_key_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
+            iced::event::listen_with(|e, s, id| {
                 crate::tab_focus_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
                 crate::viewport_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
-            }),
-            iced::event::listen_with(|e, s, id| {
-                crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
                 crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
@@ -1121,22 +1131,52 @@ impl Runtime {
             window::close_requests().map(DaemonMessage::CloseRequested),
         ];
 
+        // O movimento do mouse só é escutado quando alguma janela tem menu em
+        // jogo. Cada evento vira mensagem, e no `iced` cada mensagem vira um
+        // quadro: escutar sempre fazia o app redesenhar ~100 vezes por segundo
+        // enquanto o cursor atravessava a tela, sem nada ter mudado. Ver
+        // `GlacierUI::precisa_do_cursor`.
+        if self.windows.values().any(|e| e.precisa_do_cursor()) {
+            subs.push(iced::event::listen_with(|e, s, id| {
+                crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }));
+        }
+
         // Cada tick força um redraw da tela inteira em TODAS as janelas (é
         // como o loop do iced funciona: qualquer Message processada reconstrói
         // a árvore de widgets via `view()`, ver `iced_winit`). Num fallback
         // puramente por software (sem GPU compatível) isso é um custo real, e
         // repetido para nada quando o tick não tinha trabalho a fazer — então
         // cada ticker só entra quando pode genuinamente ter efeito.
-        if self.windows.values().any(|engine| engine.assets.supports_reload()) {
+        if self
+            .windows
+            .values()
+            .any(|engine| engine.assets.supports_reload())
+        {
             subs.push(
                 iced::time::every(self.reload_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::FileChanged(String::new()))),
             );
         }
-        if self.windows.values().any(|engine| !engine.toasts.is_empty()) {
+        if self
+            .windows
+            .values()
+            .any(|engine| !engine.toasts.is_empty())
+        {
             subs.push(
                 iced::time::every(self.toast_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
+            );
+        }
+
+        // `GLACIER_PERF_STRESS`: pede um quadro por vsync para medir a
+        // CAPACIDADE do app, não a demanda. Sem isto o relatório mede o quanto
+        // ele ficou parado esperando evento — o que já se leu como travamento
+        // mais de uma vez. O `ToastTick` é o portador porque, sem toast na tela,
+        // ele é um no-op: força o quadro sem alterar estado nenhum.
+        if crate::perf::estresse() {
+            subs.push(
+                iced::window::frames().map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
             );
         }
 
@@ -1150,8 +1190,7 @@ impl Runtime {
         // alguém pediu um `external::sender()` — quem não usa não paga o poll.
         if crate::external::is_active() {
             subs.push(
-                iced::Subscription::run(crate::external::event_stream)
-                    .map(DaemonMessage::External),
+                iced::Subscription::run(crate::external::event_stream).map(DaemonMessage::External),
             );
         }
 
@@ -1233,7 +1272,11 @@ fn resolve_main_window(
     size
 }
 
-fn apply_screen_meta(meta: &crate::ScreenMeta, settings: &mut window::Settings, title: &mut String) {
+fn apply_screen_meta(
+    meta: &crate::ScreenMeta,
+    settings: &mut window::Settings,
+    title: &mut String,
+) {
     if let Some(t) = &meta.title {
         *title = t.clone();
     }
@@ -1553,10 +1596,16 @@ mod tests {
         let (mut rt, id) = runtime_de_teste(false);
         let mut motor = GlacierUI::new();
         motor
-            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .register(tela(
+                "lista",
+                r#"<screen title="Lista"><column /></screen>"#,
+            ))
             .unwrap();
         motor
-            .register(tela("detalhe", r#"<screen title="Detalhe"><column /></screen>"#))
+            .register(tela(
+                "detalhe",
+                r#"<screen title="Detalhe"><column /></screen>"#,
+            ))
             .unwrap();
         motor.register(tela("anonima", "<column />")).unwrap();
         motor.set_initial_screen("lista");
@@ -1587,7 +1636,10 @@ mod tests {
         let (mut rt, id) = runtime_de_teste(false);
         let mut motor = GlacierUI::new();
         motor
-            .register(tela("lista", r#"<screen title="Lista"><column /></screen>"#))
+            .register(tela(
+                "lista",
+                r#"<screen title="Lista"><column /></screen>"#,
+            ))
             .unwrap();
         motor.set_initial_screen("lista");
         rt.windows.insert(id, motor);
@@ -1626,7 +1678,8 @@ mod tests {
         motor.set_initial_screen("lista");
         rt.windows.insert(id, motor);
         rt.base_titles.insert(id, "T".to_string());
-        rt.sized_by.insert(id, ("lista".to_string(), (800.0, 600.0)));
+        rt.sized_by
+            .insert(id, ("lista".to_string(), (800.0, 600.0)));
 
         // Mesma tela, mesmo número: nada a fazer.
         let _ = rt.sync_window_meta(id);
@@ -1772,7 +1825,7 @@ mod tests {
             rt.windows.contains_key(&main_id),
             "o motor deve continuar vivo sob o id morto (SSE + login preservados)"
         );
-        assert!(rt.titles.get(&main_id).is_none());
+        assert!(!rt.titles.contains_key(&main_id));
 
         // "Open Rustploy": religa o MESMO motor numa janela nova; main_id migra.
         let _ = rt.open_main();

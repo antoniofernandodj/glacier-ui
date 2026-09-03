@@ -1,0 +1,65 @@
+[package]
+name = "glacier-cli"
+version = "0.3.1"
+edition = "2024"
+description = "CLI do glacier-ui: cria um projeto pronto (templates .gv, .gss e scripts Luau) e instala as extensões de VS Code."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/antoniofernandodj/glacier-ui"
+readme = "README.md"
+keywords = ["glacier", "gui", "cli", "scaffold", "iced"]
+categories = ["command-line-utilities", "gui"]
+
+# `cargo publish` empacota só o que está listado aqui, ignorando o `.gitignore`
+# da raiz — que é o único jeito de levar junto `extensions/`, a cópia das
+# extensões de VS Code que o `make sync-extensions` gera antes de publicar (ver
+# `build.rs`). Sem `include`, ela ficaria de fora do .crate por ser ignorada.
+include = [
+    "src/**/*",
+    "templates/**/*",
+    "extensions/**/*",
+    "engine-version.txt",
+    "build.rs",
+    "README.md",
+    "LICENSE-DEB",
+]
+
+[[bin]]
+name = "glacier"
+path = "src/main.rs"
+
+# Sem dependências, de propósito: a CLI existe para tirar alguém do zero, e um
+# `cargo install` que leva minutos derrota o próprio propósito. O questionário,
+# o empacotamento do .vsix (um zip) e a escrita dos arquivos são std puro.
+[dependencies]
+
+# ── Pacote Debian (`make deb-cli`) ───────────────────────────────────────────
+# Um .deb para instalar a CLI no sistema sem passar pelo crates.io — é o
+# caminho para testar o `glacier` de verdade (no PATH, longe do target/) antes
+# de publicar.
+#
+# `$auto` deixa o `dpkg-shlibdeps` derivar o `Depends` do ELF. O binário exige
+# `libc.so.6` e `libgcc_s.so.1`, e mesmo assim a linha sai como só
+# `libc6 (>= 2.39)`: o shlibdeps declara o mínimo, e `libgcc-s1` já vem por
+# dependência do próprio `libc6`. Nada de GTK nem de Node aqui — as extensões de
+# VS Code vão EMBUTIDAS no binário, e o .vsix é montado em tempo de execução
+# (ver build.rs e src/vsix.rs). O `make check-deb` falha se isso deixar de valer.
+#
+# O piso `>= 2.39` é o da glibc da máquina que compilou: o pacote instala em
+# Ubuntu 24.04+ / Debian 13+. Para distribuir mais amplamente, compile num
+# ambiente de glibc mais antiga.
+[package.metadata.deb]
+name                 = "glacier-cli"
+maintainer           = "Antonio Fernando <antoniofernando2723@gmail.com>"
+copyright            = "2026, Antonio Fernando"
+license-file         = "LICENSE-DEB"
+extended-description = """\
+Cria um projeto glacier-ui pronto para rodar (templates .gv, stylesheets .gss e \
+scripts Luau) a partir de um questionário, e instala as extensões de VS Code \
+para .gv e .gss."""
+section              = "devel"
+priority             = "optional"
+depends              = "$auto"
+assets = [
+    ["target/release/glacier", "usr/bin/glacier", "755"],
+    ["README.md", "usr/share/doc/glacier-cli/README.md", "644"],
+]

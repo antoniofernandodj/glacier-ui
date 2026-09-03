@@ -1,26 +1,34 @@
 <screen title="Glacier — Bandeja" size="460 300">
-    <Container
-        padding="30"
-        alignX="Center"
-        alignY="Center"
-        width="fill"
-        height="fill"
-        background="#2E3440"
-    >
-        <Column spacing="20" align="Center">
-            <Text content="Exemplo de bandeja" size="26" bold="true" color="#ECEFF4" />
-            <Text content="Feche esta janela: o app continua na bandeja." size="14" color="#A3BE8C" />
-            <Text content="Reabra pelo item 'Open' do menu do ícone." size="13" color="#81A1C1" />
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/bandeja/theme.json" />
+  </resources>
 
-            <Button
-                text="Disparar notificação do SO"
-                on_click="notificar"
-                color="#5E81AC"
-                width="300"
-                padding="12"
-            />
+  <container
+    padding="30"
+    align_x="Center"
+    align_y="Center"
+    width="fill"
+    height="fill"
+  >
+    <column spacing="20" align="Center">
+      <text size="26" bold="true" color="#ECEFF4">Exemplo de bandeja</text>
+      <text size="14" color="#A3BE8C">Feche esta janela: o app continua na bandeja.</text>
+      <text size="13" color="#81A1C1">Reabra pelo item 'Open' do menu do ícone.</text>
 
-            <Text content="(o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)" size="11" color="#4C566A" />
-        </Column>
-    </Container>
+      <button
+        text="Disparar notificação do SO"
+        on_click="notificar"
+        color="#5E81AC"
+        width="300"
+        padding="12"
+      />
+
+      <text size="11" color="#4C566A">
+        (o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)
+      </text>
+    </column>
+  </container>
 </screen>

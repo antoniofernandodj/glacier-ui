@@ -1,0 +1,33 @@
+:root {
+    --bg:      #11111B;
+    --surface: #1E1E2E;
+    --border:  #313244;
+    --text:    #CDD6F4;
+    --muted:   #7F849C;
+    --accent:  #89B4FA;
+}
+
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. Um `background`
+   de mesma cor num nó `fill/fill` é uma camada redobrada em cada pixel da
+   tela — invisível e cara (ver AGENTS.md). */
+.tela {
+    width: fill;
+    height: fill;
+    padding: 32;
+    spacing: 16;
+    align-x: center;
+    align-y: center;
+}
+
+.rotulo { size: 12; bold: true; color: var(--muted); }
+.numero { size: 64; bold: true; color: var(--text); }
+.dica   { size: 11; color: var(--muted); }
+
+.acoes  { spacing: 12; align-y: center; }
+
+.btn        { color: var(--surface); text-color: var(--text); padding: 8 28; border-radius: 8; }
+.btn:hover  { color: var(--border); }
+.btn:active { color: var(--accent); }
+
+.btn_ghost       { color: var(--bg); text-color: var(--muted); padding: 6 14; border-radius: 6; }
+.btn_ghost:hover { text-color: var(--text); }

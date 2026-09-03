@@ -55,6 +55,8 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Sumário](#sumário)
   - [Por que Glacier](#por-que-glacier)
   - [Instalação](#instalação)
+    - [Começando do zero: `glacier new`](#começando-do-zero-glacier-new)
+    - [Como dependência](#como-dependência)
   - [Conceitos e arquitetura](#conceitos-e-arquitetura)
   - [Início rápido](#início-rápido)
     - [Ligando ao `iced`: `GlacierApp::bootstrap`](#ligando-ao-iced-glacierappbootstrap)
@@ -114,7 +116,36 @@ function decrementar() ctx.contador = ctx.contador - 1 end
 
 ## Instalação
 
-O projeto é um único crate, **`glacier-ui`** — o motor.
+### Começando do zero: `glacier new`
+
+Um projeto glacier tem um `Cargo.toml`, um `src/main.rs`, um `.gv` com
+cabeçalho, um `.gss`, um `.luaurc` e uma árvore de scripts Luau. Montar isso à
+mão, lendo este README arquivo por arquivo, é a parte mais chata de começar — a
+CLI faz um questionário e entrega tudo já ligado e rodando:
+
+```bash
+cargo install glacier-cli
+glacier new
+```
+
+```
+? Nome do projeto (meu-app) painel
+? Qual preset?
+  › 1  App completo      janela sem decoração, tema + .gss, componentes, navegação, fetch
+    2  Mínimo            uma tela, um .gss e um bloco de script Luau
+    3  Multi-janela      open_window/broadcast, bandeja, instância única
+    4  Componente Rust   o trait Component, com estado tipado
+? Instalar as extensões de VS Code (realce e ir-para-definição em .gv/.gss)? [S/n]
+```
+
+Ele mostra um resumo e **só então** escreve: até a confirmação, nada foi criado.
+`glacier install-extensions` instala só as extensões de VS Code (sem precisar de
+Node — o `.vsix` é empacotado na hora). Ver
+[`crates/glacier-cli`](crates/glacier-cli).
+
+### Como dependência
+
+O motor é um crate só, **`glacier-ui`**.
 
 ```bash
 cargo add glacier-ui
@@ -127,7 +158,9 @@ WebSocket. O `iced` é re-exportado em `glacier_ui::iced`, então a sua `main`
 pode nem listar `iced` como dependência direta. Requer Rust **edition 2024**
 (≥ 1.85).
 
-Rode qualquer exemplo do repositório com:
+Os exemplos do repositório (`examples/`) não são compilados por padrão: são 31,
+cada um linka o motor inteiro, e juntos passavam de 15 GiB em `target/`. Para
+rodar um deles, comente o `autoexamples = false` do `Cargo.toml` da raiz:
 
 ```bash
 cargo run --example contador
@@ -281,6 +314,12 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
 | `<ProgressBar>` | `Progress`, `BarraProgresso` | `value`/`valor` (chave de contexto numérica), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue` (percentual centralizado), `color`/`cor` (preenchimento; o `background` genérico é o trilho) |
 | `<Spinner>` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
+| `<Reveal>` | `Collapse`, `Revelar`, `Sanfona` | abre e fecha o conteúdo **animando a altura** (o que transborda é recortado): `open`/`aberto` (valor, não chave: `true`/`false` ou um `{var}`), `duration`/`duracao` em ms (padrão `180`; `0` desliga). O filho fica na árvore fechado ou aberto — é o que o `<accordion>`/`<toolbox>` usa por dentro |
+| `<DateEdit>` · `<TimeEdit>` · `<DateTimeEdit>` | `DatePicker`, `TimePicker`, `EditorData`, `EditorHora` | edição por **seções** (`QDateTimeEdit`): `value`/`valor` (chave), `onChange`/`aoMudar` (vazio = o widget grava sozinho), `seconds`/`segundos`, `format="br"` (só a exibição — a chave é sempre ISO). A tag decide quais seções aparecem |
+| `<Calendar>` · `<MonthYearPicker>` · `<DateRangePicker>` | `Calendario`, `SeletorMesAno`, `SeletorIntervalo` | a **grade** (`QCalendarWidget`): `value`/`valor` (chave; `start`/`end` no intervalo), `onChange`, `today`/`hoje` (realce — **prop, não relógio**: `date.today()`), `min`/`max`, `mode` (`day`/`month`/`year`, a escada de drill-up), `first_day="monday"`, `months="2"`, `month`/`mes_visivel` (chave que dirige o mês visível), `month_names`/`day_names`. A tag decide o que um clique grava |
+| `<MaskedInput>` | `EntradaMascarada`, `Mascara` | `QLineEdit` com `setInputMask`: guarda **cru** na chave e exibe mascarado. `value`/`valor`, `mask`/`mascara` (gramática `#` dígito · `A` letra · `*` alfanumérico + literais, ou um preset: `cpf`, `cnpj`, `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`), `onChange` (recebe o **cru**), `placeholder` (default: a máscara com `_`) |
+| `<Pagination>` | `Paginacao` | `« ‹ 1 … 4 [5] 6 … 20 › »`: `value`/`valor` (chave com a página, base 1), `total`/`paginas`, `window`/`janela` (quantos números, default `5`), `ends="false"` (esconde `«`/`»`), `onChange`. Um total de 0 ou 1 esconde o widget |
+| `<Rating>` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -296,7 +335,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
 | `<props>` / `<prop>` | — | contrato de props de um `<component>`. Ver "Cabeçalho". |
 | `<component>` | `Component`, `componente`, `Componente` | mesma casca do `<screen>` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
-| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>`. |
+| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. |
+| `<component name="…">` | `Componente` | **dentro do `<resources>`**, declara um componente na própria tela, sem arquivo: `<props>` + layout, a mesma casca de um `.gv`. Ver "Cabeçalho". |
 | `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
 | `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
 | `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
@@ -424,10 +464,76 @@ erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
 São erros de parse (o template não carrega): arquivo sem cabeçalho; cabeçalho
 que não envolve o arquivo inteiro (escrito como *irmão* do layout, ou aninhado
 no meio dele); atributo desconhecido no `<screen>` ou no `<resources>`; qualquer
-atributo no `<component>`; `size`/`min-size` que não seja um par de números;
+atributo no `<component>` de raiz (o declarado no `<resources>` aceita só o
+`name`, e sem ele é erro); `size`/`min-size` que não seja um par de números;
 `resizable` que não seja booleano; um widget dentro do `<resources>`; um
 `<resources>`/`<props>` fora de um cabeçalho; um `<props>` num `<screen>` (uma
 janela não tem quem lhe passe props); `<prop>` sem `name` ou repetido.
+
+### `<component name="…">`: declarar um componente na própria tela
+
+A terceira forma de ter um componente. As outras duas trazem de um arquivo:
+
+```xml
+<import name="LinhaLog" from="linha_log.gv" />
+<link rel="component" href="linha_log.gv" as="LinhaLog" />
+```
+
+Esta declara ali mesmo, dentro do `<resources>` — o componente **é** o que está
+escrito entre as tags:
+
+```xml
+<screen title="Serviços" size="900 700">
+    <resources>
+        <component name="LinhaLog">
+            <props>
+                <prop name="hora" />
+                <prop name="texto" />
+                <prop name="nivel" default="info" />
+            </props>
+            <row spacing="12" align_y="center">
+                <text content="{hora}" color="#6C7086" size="11" />
+                <badge badge_text="{nivel}" />
+                <text content="{texto}" />
+            </row>
+        </component>
+    </resources>
+
+    <column>
+        <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
+    </column>
+</screen>
+```
+
+**Por que ela existe:** a maior parte dos componentes de uma tela é pequena e só
+serve àquela tela — a linha de um item, o cabeçalho de um cartão, um rótulo com
+um `<badge>` do lado. Obrigar cada um a virar arquivo troca três linhas de
+markup por um arquivo, um caminho relativo e um `<import>`, e espalha por seis
+arquivos o que se lê melhor num. É a mesma razão de existir um `<style>` inline
+ao lado do `<link rel="stylesheet">`: a forma curta para o que é local, o
+arquivo para o que é compartilhado.
+
+**A casca é a mesma, de propósito.** O que vai entre `<component name="X">` e
+`</component>` é *byte a byte* o que iria num `.gv` próprio: `<props>` e depois
+o layout. A única diferença é o `name` — no arquivo o nome vem do `<import>` que
+o traz; aqui ele precisa ser dito. Promover uma declaração a arquivo (ou o
+contrário) é recortar e colar, sem reescrever uma linha.
+
+O que ele **não** tem:
+
+- **`<script>` próprio.** Não há arquivo contra o qual resolver um
+  `src`/`require` — a mesma limitação do markup inline dos builtins. Na prática
+  é o comportamento desejado: as ações escritas dentro de um componente local
+  caem no `update` da **tela que o declarou**, que é de quem elas são. O id do
+  item viaja dentro da ação, como no `<SpinBox>`: `on_click="detalhar:{s.id}"`.
+- **Escopo.** O nome entra no mesmo espaço de nomes de tudo o mais
+  (`<import>`, builtins, `register`), com a mesma regra: declara se o nome está
+  livre **ou** se hoje ele guarda um builtin da lib. Um componente registrado
+  pelo app vence a declaração local.
+
+Componentes locais se compõem entre si e convivem com `<import>` no mesmo
+`<resources>`. Ver [`examples/componentes_locais`](examples/componentes_locais),
+que põe as duas formas lado a lado no mesmo arquivo.
 
 ### `<props>`: o contrato do componente
 
@@ -564,6 +670,27 @@ A forma recomendada são **atributos diretiva** aplicados em qualquer elemento
 
 > *XML estrito:* atributos pelados como `else` não são válidos no padrão; o
 > Glacier faz um pré-processamento transparente convertendo `else` → `else=""`.
+
+Mais quatro comparadores, todos sobre o mesmo `if`/`else-if`:
+
+| Atributo | Casa quando |
+|---|---|
+| `one_of="a b c"` (`equals_any`) | o valor da chave é **um dos** tokens escritos no markup |
+| `contains="rede"` (`contem`, `has`) | o **valor da chave é uma lista** (`"geral,rede"`) que tem esse item — o simétrico do `one_of` |
+| `empty` / `not_empty` (pelados) | a chave é (ou não é) um array JSON de zero elementos |
+
+`contains` é o que dá ao motor o **conjunto nomeado**: várias seções de um
+accordion abertas, uma seleção múltipla, um filtro por tags — tudo numa chave
+de texto que o app nomeia, sem estado por instância. Os separadores aceitos são
+vírgula, ponto-e-vírgula e espaço, os três ao mesmo tempo, e o item comparado
+também interpola:
+
+```xml
+<!-- ctx.abertas = "rede,disco" -->
+<template for-each="secoes" var="s">
+    <Column if="{abertas}" contains="{s.id}"> … </Column>
+</template>
+```
 
 **Loop** — `for-each` itera sobre um **array JSON** do contexto; `var` nomeia a
 variável (padrão `item`). Objetos viram `{u.campo}`; escalares ficam em `{u}`:
@@ -870,7 +997,7 @@ function carregar() local res = api:get("/dados"); if res.ok then ctx.dados = re
 
 `require("a/b")` procura `a/b.luau` (e `a/b/init.luau`) **nesta ordem**: (1) o
 diretório do template; (2) um subdir `lib/`; (3) cada caminho em
-`GLACIER_LUA_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
+`GLACIER_LUAU_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
 então enxerga `fetch` e as globais; é carregado **uma vez** e cacheado. Veja
 [`examples/imports_luau`](examples/imports_luau).
 
@@ -901,6 +1028,104 @@ reiniciar o processo:
 function init()   ctx.rascunho = storage.get("rascunho") or "" end
 function salvar() storage.set("rascunho", ctx.rascunho) end
 ```
+
+### `date`: data e hora sobre strings ISO
+
+Os campos `<dateedit>`/`<timeedit>`/`<datetimeedit>` e as grades
+`<calendar>`/`<monthyearpicker>`/`<daterangepicker>` gravam **sempre em ISO** —
+`YYYY-MM-DD`, `HH:MM[:SS]`, ou os dois separados por espaço. O global `date`
+opera nesse mesmo formato: recebe string, devolve string, e por isso nada de
+"objeto data" vaza para uma chave de contexto (que é sempre texto).
+
+Não há dependência nova no motor: `today`/`now`/`time` saem do `os.date` que o
+próprio Luau já tem (hora **local**), e o resto é aritmética civil.
+
+```lua
+function init()
+    ctx.entrada = date.today()                          -- "2026-09-01"
+    ctx.saida   = date.add(ctx.entrada, { days = 2 })   -- "2026-09-03"
+    ctx.aviso   = date.now()                            -- "2026-09-01 14:30"
+end
+
+function recalcular()
+    -- Dias de CALENDÁRIO (a hora não entra) — a conta de uma diária, um prazo.
+    ctx.noites = date.diff(ctx.saida, ctx.entrada)
+    -- A chave continua ISO; isto é só o que vai para a tela.
+    ctx.rotulo = date.format(ctx.entrada, "DD/MM/YYYY")
+end
+```
+
+| Função | Devolve |
+|---|---|
+| `date.today()` | hoje, `YYYY-MM-DD` |
+| `date.now(segundos?)` | agora, `YYYY-MM-DD HH:MM[:SS]` |
+| `date.time(segundos?)` | hora do relógio, `HH:MM[:SS]` |
+| `date.parse(iso)` | `{ year, month, day, hour, min, sec }` ou `nil` |
+| `date.valid(iso)` | booleano |
+| `date.weekday(iso)` | `1`–`7`, **1 = domingo** (a base do `os.date("*t").wday`) |
+| `date.date_of(iso)` / `date.time_of(iso)` | uma seção do valor, ou `nil` se ela não existe |
+| `date.days_in_month(ano, mes)` | `28`–`31`, com bissexto |
+| `date.compare(a, b)` | `-1` / `0` / `1` |
+| `date.is_before(a, b)` / `date.is_after(a, b)` | booleano |
+| `date.add(iso, delta)` | ISO na **mesma forma** da entrada |
+| `date.diff(a, b)` / `date.diff_seconds(a, b)` | dias de calendário / segundos |
+| `date.format(iso, fmt)` | texto (`YYYY` `YY` `MM` `DD` `HH` `mm` `SS`) |
+| `date.epoch(iso)` | segundos desde 1970 |
+| `date.from_epoch(secs, utc?)` | `YYYY-MM-DD HH:MM:SS` |
+| `date.to_local(iso)` / `date.to_utc(iso)` | o mesmo instante na outra hora de parede |
+
+Três detalhes que economizam bugs:
+
+- **Comparar é pelo instante, não pelo texto.** ISO ordena como string, mas só
+  entre valores da **mesma forma**: `"2026-09-10 08:00" > "2026-09-10"` é
+  verdadeiro só porque a string é mais longa, ainda que os dois sejam o mesmo
+  dia. `date.is_after` e `date.compare` tiram essa pegadinha da frente — uma
+  data pura vale a meia-noite dela.
+- **`add` preserva a forma.** Somar um dia a um `YYYY-MM-DD` não inventa um
+  `00:00` no fim; somar uma hora a um `HH:MM` vira dentro do dia, porque não há
+  data para onde transbordar. `months`/`years` andam pelo **calendário** e
+  grudam no fim do mês (31/01 + 1 mês = 28/02, como o `QDateEdit` ao trocar a
+  seção do mês); `days`/`hours`/`minutes`/`seconds` são duração pura.
+- **O parse aqui é estrito.** Entrada inválida — inclusive uma data que não
+  existe, como `2026-02-31` — devolve `nil`. É o oposto do parse do widget, que
+  é tolerante de propósito para não renderizar quebrado enquanto a pessoa
+  digita; um script pode escolher o que fazer com o `nil`, um widget no meio de
+  um quadro não pode.
+
+O relógio é lido **na chamada**: uma tela que precisa andar sozinha combina com
+`every` — `every(1000, function() ctx.agora = date.now(true) end)`.
+
+#### Fuso: RFC 3339 na entrada, hora local na tela
+
+Um valor **sem** fuso é hora local — é o que `today`/`now` devolvem e o que os
+campos de edição guardam. Um valor **com** fuso é aceito em toda entrada:
+`2026-07-06T12:34:56Z`, `...-03:00`, `...-0300`, com fração de segundo opcional
+(aceita e descartada). O offset viaja junto com o valor, então `add` o preserva
+e `format` desenha as componentes como estão escritas.
+
+Deslocar o instante é **explícito** — só `to_local` e `to_utc` fazem isso:
+
+```lua
+-- o que o backend mandou -> o que a tela mostra
+ctx.inicio = date.format(date.to_local(dep.started_at), "DD/MM HH:mm")
+
+-- e a volta, para mandar de novo
+local agora_utc = date.format(date.to_utc(date.now(true)), "YYYY-MM-DDTHH:mm:SSZ")
+```
+
+A exceção é a comparação: `compare`/`diff`/`diff_seconds` trazem um valor com
+fuso para a hora local antes de comparar, para que um `...Z` do backend e um
+`date.today()` da tela sejam comparáveis direto. Isso lê o instante, não muda
+nenhum valor.
+
+> **`os.time` do Luau não é o do Lua.** Ele usa `timegm`, e não `mktime`: uma
+> tabela de componentes é lida como **UTC**. Por isso o truque clássico de achar
+> o offset local — `os.difftime(t, os.time(os.date("!*t", t)))` — devolve
+> **zero** aqui, sem erro nenhum. O que funciona é `os.time(os.date("*t", t)) - t`,
+> e é o que o `date` usa por dentro. Se você tem código que faz a conta na mão,
+> vale conferir.
+
+Veja [`examples/data_hora_luau`](examples/data_hora_luau).
 
 ### `viewport`, `toast`, `confirm`, `navigate`
 
@@ -966,19 +1191,39 @@ end
 
 Ao contrário do `fetch` (one-shot), `sse` e `websocket` são streams de **vida
 longa**: NÃO suspendem — registram o stream e devolvem um handle na hora. Cada
-evento recebido chama o handler nomeado em `opts` (`on_open`, `on_message`,
+evento chama o callback correspondente em `opts` (`on_open`, `on_message`,
 `on_error`, `on_close`), que escreve em `ctx` como qualquer ação:
 
 ```lua
 sse_conn = sse("https://sse.dev/test", {
-    on_open = "sse_aberto", on_message = "sse_recebeu", on_close = "sse_fechou",
+    on_open    = function() ctx.sse_status = "aberto" end,
+    on_message = function(data) ctx.sse_msg = data end,
+    on_close   = function() sse_conn = nil end,
 })
-function sse_recebeu(data) ctx.sse_msg = data end
 function fechar() sse_conn:close() end
 
-ws_conn = websocket("wss://echo.websocket.org", { on_message = "ws_recebeu" })
+ws_conn = websocket("wss://echo.websocket.org", {
+    on_message = function(data) ctx.ws_msg = data end,
+})
 ws_conn:send("ping")   -- envia pela conexão viva
 ```
+
+O callback é uma **função** — closure, upvalue e método de tabela funcionam, e
+o handler não precisa ser global nem ter nome:
+
+```lua
+local function assinar(canal, destino)
+    return sse("https://ex/" .. canal, {
+        -- `destino` é um upvalue: a mesma função serve a vários canais.
+        on_message = function(data) ctx[destino] = data end,
+    })
+end
+```
+
+Um **nome de função global** (`on_message = "sse_recebeu"`) também é aceito,
+como atalho. Prefira a função: o nome obriga o handler a ser global, não fecha
+sobre nada, e um nome errado falha em silêncio — o evento chega e não chama
+ninguém.
 
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir
@@ -1044,6 +1289,68 @@ Card   { padding: 24; }        /* default de todo uso de <Card> (componente) */
 > **todos** os componentes (não é opt-in como a classe). Prefira id/classe quando
 > quiser mirar um caso específico. Um componente de template **multi-raiz**
 > (`Fragment`) não recebe o underlay de `Card {}` — use uma raiz única.
+
+#### `class` no **uso** de um componente (0.69)
+
+O outro extremo da escada. `Card {}` acima é o *default* de todo uso; a `class`
+escrita **num** uso mira só aquele, e também aplica na **raiz** expandida:
+
+```gv
+<Card class="destaque" />
+```
+
+```gss
+.destaque { background: #3B1F1F; }
+```
+
+A escada completa, do mais fraco ao mais forte:
+
+```
+tag de componente (Card {})  <  tag builtin  <  classe do template  <
+classe do USO  <  id do template  <  inline do template
+```
+
+Ou seja: **a classe escrita no uso vence as classes do template, e perde para os
+atributos inline do template.** É a intuição do CSS — a classe do autor do
+componente é um *default*, o atributo que ele cravou inline é uma *decisão*.
+
+> Antes da 0.69 escrever `class` num componente era um **no-op silencioso**: a
+> classe era lida, viajava no mapa de props e não pintava nada, sem erro nem
+> aviso. Se você contornou isso embrulhando o componente numa `<Column
+> class="…">`, o embrulho pode sair.
+
+Ela aplica **só na raiz**. Para estilizar um nó específico lá dentro, o
+componente expõe uma prop com nome próprio — e **todo builtin da lib tem as
+suas** desde a 0.89:
+
+```gv
+<listview items="servicos" value="qual" selected="{qual}"
+          item_class="linha" selected_class="linha_ativa" />
+
+<card title="Servidor" class="destaque" title_class="titulo_card" />
+```
+
+O sufixo é sempre `_class` e o prefixo nomeia o alvo (`field_class`,
+`item_class`, `title_class`, `bar_class`, `head_class`…). Três regras que a
+biblioteca inteira segue, e que valem para um componente seu:
+
+1. **A classe injetada entra depois da classe da lib no mesmo nó**, então ela
+   redefine o que declara e herda o resto — inclusive os `:hover`.
+2. **Num par base/refinamento, o refinamento vem por último**:
+   `item_class` primeiro, `selected_class` depois, e o segundo vence no item
+   selecionado.
+3. **Nó de raiz não ganha prop** — o `class` do uso já o alcança. É por isso que
+   o `<toolbutton>`, cuja raiz *é* o `<Button>`, não tem `button_class`.
+
+A tabela por widget está em [`BUILTINS.md`](BUILTINS.md).
+
+> **Um atributo inline que resolve para vazio cai na classe** (0.89). Um
+> `background="{bg}"` no template de um componente vencia a classe mesmo quando
+> a prop não vinha — o campo virava `Some("")` e o widget saía sem fundo nenhum.
+> É o que permite um template aceitar a cor por prop **e** ter um default por
+> classe; o corolário para quem escreve um componente é que o default de uma cor
+> vai numa classe, não num `{prop|#aabbcc}` (que resolve sempre, e resolvendo
+> sempre vence toda classe).
 
 **Propriedades reconhecidas:** `width`/`w`, `height`/`h`, `padding`, `spacing`,
 `align-x`/`align-y`, `background`/`bg`, `border-radius`, `border-width`,
@@ -1372,6 +1679,7 @@ pub enum EngineMessage {
 | `confirm(opts)` | diálogo modal | não |
 | `navigate(tela)` / `navigate_back()` | navegação | não |
 | `storage.get/set/remove` | persistência local em JSON | não |
+| `date.today/now/add/diff/format/…` | data e hora sobre strings ISO | não |
 | `json.encode/decode/array` | (de)serialização JSON | não |
 | `require(mod)` | importa uma biblioteca `.luau` | não |
 | `on_error(msg)` | hook opcional de erro de script | — |
@@ -1405,6 +1713,15 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `imports_luau` | `require` de bibliotecas Luau (client de rede + utilitários). |
 | `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
+| `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
+| `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
+| `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
+| `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
+| `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. O `.gv` não tem uma cor — tudo em `app.gss`, inclusive os nós de dentro dos builtins. |
+| `onda4_luau` | a **mesma tela**, sem `impl Component`: o `main.rs` só registra o `.gv` e todo o comportamento vive em `scripts/app.luau`. Lado a lado com o `onda4`, mostra que nenhum dos sete widgets pede script. |
+| `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
+| `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
+| `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 
 ---
 
