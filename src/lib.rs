@@ -16,6 +16,7 @@ pub mod net;
 pub mod parser;
 mod perf;
 pub mod render_inputs;
+pub mod reveal;
 mod single_instance;
 pub mod spinner;
 pub mod style;

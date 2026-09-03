@@ -3,6 +3,12 @@
 Como o `<Toggle>` ganhou a bolinha deslizante (`src/animated_toggler.rs`,
 0.52.0) — e o padrão a reutilizar para animar qualquer outro widget.
 
+Três widgets seguem este padrão hoje: o `AnimatedToggler` (transição pontual),
+o `Spinner` (rotação sem fim, `src/spinner.rs`) e o `Reveal` (o corpo de um
+accordion abrindo e fechando, `src/reveal.rs`) — este último acrescenta uma
+**quinta peça**, a única que muda o layout em vez do desenho. Ver as duas
+seções finais.
+
 ## O problema
 
 O iced redesenha **sob demanda**: nada acontece entre um evento e outro, e a
@@ -181,3 +187,71 @@ relógio (cada um tem seu `tree::State`), sem escrever nada no contexto do
 app — o que também é a razão de o `PLANO_WIDGETS.md` ter reclassificado esse
 widget: ele não precisa do desbloqueio de "estado por instância" que trava
 boa parte do catálogo Qt, porque não guarda valor nenhum, só fase.
+
+## Uma terceira variante: animar o **layout** (`<Reveal>`, 0.90)
+
+O toggler e o spinner animam o que **desenham**. O `<Reveal>`
+(`src/reveal.rs` — o corpo de um `<accordion>`/`<toolbox>` abrindo e fechando)
+anima o que **mede**: a altura do nó, e portanto o layout de tudo que está
+abaixo dele na tela.
+
+As quatro peças continuam valendo palavra por palavra. O que se acrescenta é
+uma quinta, e ela é obrigatória:
+
+### 5. `shell.invalidate_layout()` a cada quadro da transição
+
+O `iced` mede a árvore **uma vez**, quando a view é reconstruída, e reusa essa
+medida em todos os quadros seguintes. Um widget que só muda o `draw` não se
+importa; um que muda de tamanho, sim — sem invalidar o layout, a animação corre
+no relógio interno e a tela fica parada, com a altura do primeiro quadro.
+
+```rust
+if let Event::Window(window::Event::RedrawRequested(now)) = event {
+    state.now = *now;
+    if state.animation.is_animating(*now) {
+        shell.invalidate_layout();   // ← a quinta peça
+        shell.request_redraw();
+    }
+}
+```
+
+`invalidate_layout` faz o `UserInterface::update` remedir a árvore inteira
+**antes de desenhar, no mesmo quadro** (é o mesmo gancho que um `text_input`
+usa quando o texto digitado muda a largura dele). Terminada a transição,
+`is_animating` vira `false` e as duas chamadas param juntas.
+
+O `layout()` então projeta a altura pelo progresso, e o filho continua medido
+inteiro:
+
+```rust
+let child = self.content.as_widget_mut().layout(&mut tree.children[0], renderer, &limits.loose());
+let natural = child.size();
+let progress = tree.state.downcast_ref::<State>().progress();
+layout::Node::with_children(
+    Size::new(natural.width, natural.height * progress),
+    vec![child],          // ancorado no topo: o corpo é descoberto, não empurrado
+)
+```
+
+### O que vem de brinde com isso, e precisa ser tratado
+
+Um filho maior que o pai transborda — e transborda de **três** jeitos:
+
+| Transbordo | Sintoma se ignorado | Tratamento |
+|---|---|---|
+| Desenho | o corpo aparece por cima do que vem depois | `renderer.with_layer(bounds, …)` no `draw`, como o `scrollable` faz |
+| Ponteiro | um clique abaixo da dobra cai no filho invisível, não no widget que se vê ali | entregar `mouse::Cursor::Unavailable` ao filho fora da parte visível |
+| Overlay | o menu de um `<select>` escapa da dobra (overlay não é recortado por camada) | devolver `None` em `overlay()` enquanto `progress < 1.0` |
+
+E uma consequência de projeto que não tem tratamento, só escolha: **o filho
+existe mesmo fechado**. É de onde a altura encolhe ao fechar — um nó que não
+está na árvore não tem de onde animar. O preço é montá-lo e medi-lo a cada
+quadro; o que ele não faz é desenhar nem receber clique.
+
+Para um builtin, isso vira uma regra dura no template: os dois braços do
+`if`/`else` precisam ter a **mesma forma** de árvore (o `<accordionitem>` tem
+cabeçalho + `<Reveal>` nos dois), porque o `iced` casa o estado do widget por
+posição. Um braço com um filho a mais e o `<Reveal>` do outro braço nasce
+zerado em vez de continuar de onde o antigo parou — a animação simplesmente
+some. `tests/engine_tests.rs::accordion_tem_a_mesma_forma_aberto_e_fechado`
+existe para pegar isso.

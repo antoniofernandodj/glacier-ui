@@ -268,8 +268,11 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > `node.border_width`/`node.border_color` como o `ProgressBar` já faz) — é
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
-> São **dois** casos hoje, e o segundo confirmou a regra: `ProgressBar` e
-> `Slider` (0.66). O `DateTimeEdit` (0.68), o `Calendar` (0.84) e o
+> São **três** casos hoje: `ProgressBar`, `Slider` (0.66) e `Reveal` (0.90).
+> O terceiro entra por um motivo mais forte que o tamanho natural: a altura
+> dele **é** a animação, e um `Container` por fora mediria o filho por conta
+> própria, desfazendo o recorte. Fundo e borda de um `<reveal>` vão no filho,
+> que é onde precisam ser recortados junto. O `DateTimeEdit` (0.68), o `Calendar` (0.84) e o
 > `Pagination`/`Rating` (0.85) não entram na lista por outro motivo: eles não
 > são widgets do `iced` embrulhados, são **composições montadas em Rust**
 > (`row`/`column`/`button`), então já controlam o próprio tamanho — o wrap
@@ -342,6 +345,26 @@ O contrário também vale, e a Onda 4 tem o exemplo: `ListView`, `Accordion`,
 `ToolBox` e `ButtonBox` são **builtins** porque nenhum dos três sinais aparece
 neles — repetem sobre uma coleção de verdade, comparam com `equals`/`contains`
 e reagem a clique.
+
+## Uma primitiva que anima o **layout** (0.90)
+
+O `<Reveal>` (`src/reveal.rs` — o corpo de um `<accordion>`/`<toolbox>`
+abrindo e fechando) é o primeiro nó cujo **tamanho** muda entre um quadro e
+outro sem que a view seja reconstruída. Isso muda duas coisas no passo 3:
+
+1. **O `layout()` lê o estado da animação**, e o `update()` precisa chamar
+   `shell.invalidate_layout()` a cada quadro da transição — sem isso o `iced`
+   reusa a medida do primeiro quadro e a tela fica parada. O padrão completo
+   (as cinco peças) está em [`ANIMACOES.md`](ANIMACOES.md).
+2. **O filho transborda**, e tem que ser contido em três frentes: desenho
+   (`renderer.with_layer`), ponteiro (cursor mascarado fora da parte visível) e
+   overlay (`None` enquanto a transição corre). A tabela em `ANIMACOES.md`
+   lista o sintoma de cada uma.
+
+O sinal para reconhecer o caso, quando aparecer o próximo: **se o widget
+precisa de um relógio, é primitiva** — não importa o quanto o markup pareça
+suficiente. Um builtin não tem onde guardar progresso entre rebuilds da view
+nem como pedir o quadro seguinte.
 
 ## Checklist para uma primitiva nova
 

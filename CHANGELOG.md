@@ -8,6 +8,60 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.90.0] — 2026-09-03
+
+### Adicionado
+- **`<accordion>` e `<toolbox>` abrem e fecham animados.** O corpo de uma seção
+  deslizava para dentro e para fora entre dois quadros — aparecia e sumia de
+  estalo, porque era um `<template if>` que existia ou não existia. Agora ele
+  desliza em **180ms** (`EaseOutCubic`), com o que transborda recortado.
+
+  `duration="0"` no item desliga a animação e devolve o comportamento anterior;
+  qualquer outro valor (em ms) muda o tempo.
+
+- **`<Reveal>`** (aliases `<Collapse>`, `<Revelar>`, `<Sanfona>`): a primitiva
+  por trás disso, disponível solta para qualquer conteúdo dobrável.
+
+  ```xml
+  <Reveal open="{mostrar}" duration="180">
+      <Column padding="12">…</Column>
+  </Reveal>
+  ```
+
+  `open` é o **valor** (`true`/`false`, ou um `{var}` interpolado), não o nome
+  de uma chave: o que abre uma seção quase nunca é um booleano solto — é uma
+  comparação (`contains`/`equals`) que o `<template if>` resolve e entrega
+  aqui já como literal.
+
+  É a terceira animação do motor (depois do knob do `<Toggle>`, 0.52, e do
+  `<Spinner>`, 0.53) e a **primeira que anima o layout** em vez do desenho:
+  a altura do nó muda a cada quadro, o que exige `shell.invalidate_layout()`
+  junto do `request_redraw()` — sem isso o `iced` reusa a medida do primeiro
+  quadro e a tela fica parada. `ANIMACOES.md` ganhou essa quinta peça do
+  padrão, e `PRIMITIVAS.md` a regra que a resume: **se o widget precisa de um
+  relógio, é primitiva** — um builtin não tem onde guardar progresso entre
+  rebuilds da view nem como pedir o quadro seguinte.
+
+### Ferramenta
+- **A extensão Glacier View reconhece `<reveal>`** (v0.13.0): a tag entra na
+  lista de nativas — realce, autocompletar e o verbete no manual embutido, com
+  o par `open`/`duration` e as duas ressalvas que se paga por não saber (o
+  filho existe fechado; fundo e borda vão nele, não no `<reveal>`). A CLI que a
+  embute sobe junto (**glacier-cli 0.3.1**).
+
+### Mudou
+- **O corpo de uma seção fechada agora existe na árvore avaliada**, dentro de
+  um `<Reveal open="false">`. É o que a animação de **fechar** exige: um nó que
+  não está na árvore não tem altura de onde encolher. Ele não é desenhado nem
+  recebe clique/foco, mas é montado e medido a cada quadro — para um corpo
+  caro, `virtualize` na lista lá dentro continua sendo a saída.
+
+  Quem inspeciona a árvore (teste, script, ferramenta) e usava "o texto do
+  corpo apareceu?" como sinal de seção aberta precisa passar a olhar o `open`
+  do `<Reveal>`. Os dois braços do `<accordionitem>` têm de propósito a **mesma
+  forma** — cabeçalho + `<Reveal>` —, porque o `iced` casa o estado do widget
+  por posição na árvore; um braço com um filho a mais e a animação some.
+
 ## [0.89.0] — 2026-09-03
 
 ### Adicionado

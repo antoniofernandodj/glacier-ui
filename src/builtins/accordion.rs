@@ -1,4 +1,5 @@
-/// `Accordion` / `QToolBox`: seções empilhadas que abrem e fecham.
+/// `Accordion` / `QToolBox`: seções empilhadas que abrem e fecham — animadas
+/// desde a 0.90.
 ///
 /// São **os dois modos do mesmo widget**, e a diferença cabe numa linha: o
 /// accordion guarda um **conjunto** de seções abertas, o tool box guarda **uma**
@@ -46,15 +47,32 @@
 /// interpolador não tem. `value` é o **nome** da chave; `open` é o **valor**
 /// atual dela.
 ///
+/// # Abre e fecha animado (0.90)
+///
+/// O corpo desliza para dentro e para fora em 180ms, em vez de aparecer e
+/// sumir entre dois quadros. Quem faz isso é a primitiva `<Reveal>`
+/// (ver [`crate::reveal`]), que o item já embrulha sozinho: o corpo está
+/// **sempre** na árvore — é de onde a altura encolhe ao fechar — e o widget é
+/// que decide quanto dele mostrar a cada quadro.
+///
+/// A consequência prática é uma só, e vale saber: o conteúdo de uma seção
+/// **fechada** continua sendo montado e medido (só não é desenhado nem recebe
+/// clique). Para um corpo caro, `virtualize` na lista lá dentro continua sendo
+/// a saída (ver `PRIMITIVAS.md`).
+///
+/// `duration="0"` no item desliga a animação e devolve o comportamento de
+/// antes.
+///
 /// # Props do item
 ///
-/// - `title`   — o rótulo do cabeçalho.
-/// - `value`   — **nome** da chave que guarda o que está aberto.
-/// - `open`    — o valor atual dessa chave.
-/// - `id`      — o identificador desta seção dentro da chave.
-/// - `sub`     — segunda linha do cabeçalho, menor. Opcional.
-/// - `padding` — espaço interno do corpo. Default: `12`.
-/// - `spacing` — espaço entre os filhos do corpo. Default: `8`.
+/// - `title`    — o rótulo do cabeçalho.
+/// - `value`    — **nome** da chave que guarda o que está aberto.
+/// - `open`     — o valor atual dessa chave.
+/// - `id`       — o identificador desta seção dentro da chave.
+/// - `sub`      — segunda linha do cabeçalho, menor. Opcional.
+/// - `padding`  — espaço interno do corpo. Default: `12`.
+/// - `spacing`  — espaço entre os filhos do corpo. Default: `8`.
+/// - `duration` — duração do abre/fecha em ms. Default: `180`; `0` desliga.
 ///
 /// # Aparência
 ///
@@ -73,7 +91,7 @@
 /// - `mark_class`  — o glifo `▾`/`▸`.
 /// - `title_class` — o título.
 /// - `sub_class`   — a segunda linha.
-/// - `body_class`  — a coluna do corpo, que só existe quando aberto.
+/// - `body_class`  — a coluna do corpo (dentro do `<Reveal>` que a anima).
 ///
 /// ```xml
 /// <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede"
@@ -98,12 +116,39 @@ fn moldura(largura_padrao: &str) -> Template {
     ))
 }
 
-/// O item: um cabeçalho clicável e um corpo que só existe quando aberto.
+/// O item: um cabeçalho clicável e um corpo que **abre e fecha animado**.
 ///
 /// `op` é a operação que o `update` executa — `toggle` (conjunto) ou `only`
-/// (um por vez) —, e `teste` é a diretiva que decide o destaque: `contains`
+/// (um por vez) —, e `teste` é a diretiva que decide o estado: `contains`
 /// para o conjunto, `equals` para o único.
-fn item(op: &str, aberto: &str, fechado: &str) -> Template {
+///
+/// # Por que os dois braços repetem o corpo inteiro
+///
+/// Porque o `<Reveal>` precisa de um `open` **booleano**, e derivá-lo de um
+/// `contains`/`equals` é exatamente a indireção que o interpolador não tem
+/// (a mesma razão de `value`/`open` andarem em par, lá em cima). Então quem
+/// decide continua sendo o `<template if>`, e cada braço escreve o literal
+/// que lhe cabe: `open="true"` num, `open="false"` no outro.
+///
+/// O que **não** muda entre os dois braços é a FORMA da árvore — cabeçalho e
+/// `<Reveal>`, nessa ordem, nos dois. É disso que a animação depende: o
+/// `iced` casa o estado da árvore por posição, então o `<Reveal>` do braço
+/// aberto e o do braço fechado são o MESMO widget para ele, e a transição de
+/// `open` é o que o `diff()` dele enxerga (ver `ANIMACOES.md`). Um braço com
+/// um filho a mais que o outro desalinharia as posições e a animação sumiria
+/// — o corpo voltaria a piscar.
+fn item(op: &str, teste: &str) -> Template {
+    let corpo = r#"<Reveal open="{ABERTO}" duration="{duration|180}" width="fill">
+                        <Column
+                            class="accordion-body {body_class}"
+                            spacing="{spacing|8}"
+                            padding="{padding|12}"
+                            width="fill"
+                        >
+                            <slot/>
+                        </Column>
+                    </Reveal>"#;
+
     Template::Inline(format!(
         r#"<Column spacing="0" width="{{width|fill}}">
                 <style>
@@ -118,12 +163,21 @@ fn item(op: &str, aberto: &str, fechado: &str) -> Template {
                     .accordion-sub  {{ color: #80868d; }}
                 </style>
 
-                {aberto}
+                <template if="{{open}}" {teste}>
+                    {aberto}
+                    {corpo_aberto}
+                </template>
 
-                {fechado}
+                <template else>
+                    {fechado}
+                    {corpo_fechado}
+                </template>
             </Column>"#,
-        aberto = aberto.replace("{OP}", op),
-        fechado = fechado.replace("{OP}", op),
+        teste = teste,
+        aberto = cabecalho("▾").replace("{OP}", op),
+        fechado = cabecalho("▸").replace("{OP}", op),
+        corpo_aberto = corpo.replace("{ABERTO}", "true"),
+        corpo_fechado = corpo.replace("{ABERTO}", "false"),
     ))
 }
 
@@ -183,29 +237,7 @@ impl Component for AccordionItem {
         // que o habilitador da 0.84 paga o aluguel — sem ele, cada seção
         // precisaria da sua própria chave, que é exatamente o "estado por
         // instância" que o plano dizia faltar.
-        item(
-            "toggle",
-            &format!(
-                r#"<template if="{{open}}" contains="{{id}}">
-                    {}
-                    <Column
-                        class="accordion-body {{body_class}}"
-                        spacing="{{spacing|8}}"
-                        padding="{{padding|12}}"
-                        width="fill"
-                    >
-                        <slot/>
-                    </Column>
-                </template>"#,
-                cabecalho("▾")
-            ),
-            &format!(
-                r#"<template else>
-                    {}
-                </template>"#,
-                cabecalho("▸")
-            ),
-        )
+        item("toggle", r#"contains="{id}""#)
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
@@ -233,29 +265,7 @@ impl Component for ToolBoxItem {
     fn template(&self) -> Template {
         // `equals`: a chave guarda UMA seção. É o `TabBar` na vertical, e por
         // isso nunca precisou do `contains` — nem esteve bloqueado por nada.
-        item(
-            "only",
-            &format!(
-                r#"<template if="{{open}}" equals="{{id}}">
-                    {}
-                    <Column
-                        class="accordion-body {{body_class}}"
-                        spacing="{{spacing|8}}"
-                        padding="{{padding|12}}"
-                        width="fill"
-                    >
-                        <slot/>
-                    </Column>
-                </template>"#,
-                cabecalho("▾")
-            ),
-            &format!(
-                r#"<template else>
-                    {}
-                </template>"#,
-                cabecalho("▸")
-            ),
-        )
+        item("only", r#"equals="{id}""#)
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {

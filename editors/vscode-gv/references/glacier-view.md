@@ -76,6 +76,23 @@ Barra de progresso. Atributos: `value` (chave de contexto com o valor), `min` (0
 ### `<Spinner>` (`<BusyIndicator>`, `<Carregando>`)
 Indicador de atividade indeterminada. Atributo: `color`.
 
+### `<Reveal>` (`<Collapse>`, `<Revelar>`, `<Sanfona>`)
+Conteúdo que **abre e fecha animando a altura** (o que transborda é recortado). É o que o `<accordion>`/`<toolbox>` usa por dentro, e serve solto para qualquer coisa dobrável.
+
+```gv
+<reveal open="{mostrar}" duration="180">
+  <column padding="12" spacing="8">…</column>
+</reveal>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `open` | `false` | o **valor** (`true`/`false` ou um `{var}`), não o nome de uma chave |
+| `duration` | `180` | duração do abre/fecha em ms; `0` desliga a animação |
+
+- **O filho existe fechado também** — é de onde a altura encolhe ao fechar. Ele não é desenhado nem recebe clique/foco, mas é montado e medido; para um corpo caro, use `virtualize` na lista lá dentro.
+- **Fundo e borda vão no filho**, não no `<reveal>`: é lá que eles são recortados junto com o conteúdo.
+
 ### `<Slider>` (`<Deslizante>`)
 Cursor arrastável numa faixa — o `QSlider`. Como o `<TextInput>`, **não grava a chave sozinho**: dispara `onChange` com o valor novo e quem grava é o app.
 

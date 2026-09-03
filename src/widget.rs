@@ -3262,6 +3262,33 @@ pub fn render_node<'a>(
             }
             sp.into()
         }
+        NodeType::Reveal { open, duration } => {
+            // Abre/fecha animando a altura — ver `crate::reveal`. O filho vive
+            // na árvore mesmo com a seção FECHADA (é de onde a altura encolhe
+            // ao fechar); o widget é que decide quanto dele mostrar.
+            let mut corpo = column![];
+            if let Some(sp) = node.spacing {
+                corpo = corpo.spacing(sp);
+            }
+            corpo = corpo.padding(parse_padding(&node.padding));
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
+                corpo = corpo.push(render_node(child, context, editors, combos, assets, view));
+            }
+            let corpo = corpo
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height));
+
+            let mut rv = crate::reveal::reveal(corpo, is_truthy(open));
+            // `duration="0"` desliga a animação (abre de estalo, como era antes
+            // da 0.90) — é o escape para quem não a quer.
+            if let Some(ms) = duration
+                .as_deref()
+                .and_then(|d| d.trim().parse::<f32>().ok())
+            {
+                rv = rv.duration(std::time::Duration::from_millis(ms.max(0.0) as u64));
+            }
+            rv.into()
+        }
         NodeType::Column => {
             let mut col = column![];
 
@@ -3566,11 +3593,15 @@ pub fn render_node<'a>(
     // natural já é `Shrink` (não têm o que "colapsar"). Ao acrescentar uma
     // primitiva nova cujo default no iced seja `Length::Fill`, aplique a mesma
     // exclusão — ver `PRIMITIVAS.md`. O `Slider` (0.66) é o segundo caso: o
-    // `slider`/`vertical_slider` do iced também é `Fill` no eixo principal.
+    // `slider`/`vertical_slider` do iced também é `Fill` no eixo principal. O
+    // `Reveal` (0.90) é o terceiro, por um motivo mais forte: a altura dele é
+    // a animação, e um `Container` por fora com `Length::Shrink` mediria o
+    // filho por conta própria — desfazendo o recorte. Fundo/borda de um
+    // `<reveal>` vão no filho, que é onde precisam ser recortados junto.
     if node.kind != NodeType::Container
         && !matches!(
             &node.kind,
-            NodeType::ProgressBar { .. } | NodeType::Slider { .. }
+            NodeType::ProgressBar { .. } | NodeType::Slider { .. } | NodeType::Reveal { .. }
         )
     {
         let bg_opt = background_for(node);

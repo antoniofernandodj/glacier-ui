@@ -1647,16 +1647,44 @@ fn test_exemplo_onda4_ponta_a_ponta() {
             .any(|a| a == "toolboxitem::only:ferramenta|medidas"),
         "faltou o cabeçalho do toolbox: {acoes:?}"
     );
-    // `abertas="rede"` — só a seção "rede" desdobra o corpo. As outras duas
-    // mostram só o cabeçalho, e é o `contains` que decide isso.
-    let textos = all_texts(motor.evaluated("onda4").unwrap());
+    // `abertas="rede"` — só a seção "rede" está aberta, e é o `contains` que
+    // decide isso. Desde a 0.90 o corpo das FECHADAS também está na árvore
+    // (dentro de um `<Reveal open="false">`, que é de onde a altura encolhe ao
+    // fechar), então quem responde "aberta ou não" é o `open` do reveal, não
+    // mais a presença do texto.
+    let reveals = todos_os_reveals(motor.evaluated("onda4").unwrap());
     assert!(
-        textos.iter().any(|t| t.contains("api.exemplo.com")),
-        "a seção aberta deveria mostrar o corpo: {textos:?}"
+        reveals
+            .iter()
+            .any(|(open, textos)| open == "true"
+                && textos.iter().any(|t| t.contains("api.exemplo.com"))),
+        "a seção aberta deveria estar com o reveal aberto: {reveals:?}"
     );
     assert!(
-        !textos.iter().any(|t| t.contains("2 volumes")),
-        "a seção fechada não deveria mostrar o corpo: {textos:?}"
+        reveals
+            .iter()
+            .any(|(open, textos)| open == "false"
+                && textos.iter().any(|t| t.contains("2 volumes"))),
+        "a seção fechada deveria estar na árvore, mas com o reveal fechado: {reveals:?}"
+    );
+    // O toolbox abre UMA: "medidas" aberta, as outras duas fechadas.
+    let ferramentas: Vec<&(String, Vec<String>)> = reveals
+        .iter()
+        .filter(|(_, textos)| {
+            textos
+                .iter()
+                .any(|t| t.contains("Régua") || t.contains("Fundo, guias") || t.contains("PNG"))
+        })
+        .collect();
+    assert_eq!(
+        ferramentas.len(),
+        3,
+        "o toolbox tem três seções: {reveals:?}"
+    );
+    assert_eq!(
+        ferramentas.iter().filter(|(o, _)| o == "true").count(),
+        1,
+        "o toolbox só pode ter uma seção aberta: {ferramentas:?}"
     );
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
         action: "usar_proxy".to_string(),
@@ -4089,6 +4117,164 @@ fn all_texts(node: &UiNode) -> Vec<String> {
     }
     walk(node, &mut out);
     out
+}
+
+/// Cada `<Reveal>` da árvore como `(open, textos que ele embrulha)` — é assim
+/// que se pergunta "esta seção do accordion/toolbox está aberta?" desde a 0.90,
+/// quando o corpo passou a existir aberto OU fechado (ver `src/reveal.rs`).
+fn todos_os_reveals(node: &UiNode) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    fn walk(node: &UiNode, out: &mut Vec<(String, Vec<String>)>) {
+        if let NodeType::Reveal { open, .. } = &node.kind {
+            out.push((open.clone(), all_texts(node)));
+        }
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    walk(node, &mut out);
+    out
+}
+
+// --- `<Reveal>`: a primitiva que abre e fecha animado (0.90) ---------------
+
+/// `open` e `duration` são **valores**, não nomes de chave — os dois passam
+/// pelo interpolador na avaliação, que é o que permite ao `<accordionitem>`
+/// escrever `duration="{duration|180}"` e deixar o app trocar o tempo.
+#[test]
+fn reveal_interpola_open_e_duration() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_reveal.gv";
+    std::fs::write(
+        tpl,
+        envolve(
+            r#"<Column>
+            <Reveal open="{mostrar}" duration="{ms}">
+                <Text>corpo</Text>
+            </Reveal>
+        </Column>"#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("rev", tpl).unwrap();
+    motor.set_initial_screen("rev");
+
+    for (mostrar, ms) in [("true", "300"), ("false", "0")] {
+        motor.define_data("mostrar", mostrar);
+        motor.define_data("ms", ms);
+        motor.reevaluate_all().unwrap();
+        let tela = motor.evaluated("rev").unwrap();
+        let mut achou = false;
+        fn walk(n: &UiNode, achou: &mut bool, mostrar: &str, ms: &str) {
+            if let NodeType::Reveal { open, duration } = &n.kind {
+                assert_eq!(open, mostrar, "o `open` do reveal precisa vir interpolado");
+                assert_eq!(
+                    duration.as_deref(),
+                    Some(ms),
+                    "a `duration` do reveal precisa vir interpolada"
+                );
+                *achou = true;
+            }
+            for f in &n.children {
+                walk(f, achou, mostrar, ms);
+            }
+        }
+        walk(tela, &mut achou, mostrar, ms);
+        assert!(achou, "cadê o <Reveal> na árvore?");
+        // Aberto ou fechado, o corpo está SEMPRE na árvore: é de onde a altura
+        // encolhe ao fechar (um nó que não existe não tem de onde animar).
+        assert!(
+            all_texts(tela).iter().any(|t| t == "corpo"),
+            "o corpo do reveal tem que existir nos dois estados"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// O invariante de que a animação depende: os dois braços do `<accordionitem>`
+/// (aberto e fechado) precisam produzir a MESMA forma de árvore —
+/// cabeçalho + `<Reveal>` —, porque o `iced` casa o estado do widget por
+/// posição na árvore. Um braço com um filho a mais que o outro e a transição
+/// some: o `<Reveal>` do braço novo nasceria zerado em vez de continuar de onde
+/// o antigo parou.
+#[test]
+fn accordion_tem_a_mesma_forma_aberto_e_fechado() {
+    /// As tags dos filhos diretos da coluna do item, em ordem.
+    fn forma(n: &UiNode) -> Vec<&'static str> {
+        fn acha(n: &UiNode, out: &mut Vec<&'static str>) {
+            if n.children
+                .iter()
+                .any(|f| matches!(f.kind, NodeType::Reveal { .. }))
+            {
+                *out = n
+                    .children
+                    .iter()
+                    .filter_map(|f| f.kind.tag_name())
+                    .collect();
+                return;
+            }
+            for f in &n.children {
+                acha(f, out);
+            }
+        }
+        let mut out = Vec::new();
+        acha(n, &mut out);
+        out
+    }
+
+    // Um motor por estado (e o dado posto antes da primeira avaliação): o que
+    // se compara aqui é a FORMA que cada braço produz, não a transição entre
+    // eles — essa é a `test_exemplo_onda4_ponta_a_ponta`, no clique de verdade.
+    let avalia = |abertas: &str, nome: &str| {
+        let mut motor = GlacierUI::new();
+        std::fs::create_dir_all("templates").ok();
+        let tpl = format!("templates/test_{nome}.gv");
+        std::fs::write(
+            &tpl,
+            envolve(
+                r#"<accordion>
+                <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
+                    <Text>corpo</Text>
+                </accordionitem>
+            </accordion>"#,
+            ),
+        )
+        .unwrap();
+        motor.define_data("abertas", abertas);
+        motor.register_component(nome, &tpl).unwrap();
+        motor.set_initial_screen(nome);
+        let tela = motor.evaluated(nome).unwrap();
+        let saida = (forma(tela), todos_os_reveals(tela));
+        std::fs::remove_file(&tpl).ok();
+        saida
+    };
+
+    let (forma_aberta, reveals_abertos) = avalia("rede", "accforma_on");
+    let (forma_fechada, reveals_fechados) = avalia("", "accforma_off");
+
+    assert_eq!(
+        forma_aberta, forma_fechada,
+        "os dois braços do accordionitem têm que ter a mesma forma, senão o \
+         <Reveal> perde o estado da animação ao trocar de branch"
+    );
+    assert_eq!(
+        forma_aberta,
+        vec!["button", "reveal"],
+        "o item é cabeçalho + reveal, nessa ordem"
+    );
+
+    // O que muda entre os dois é só o `open` do reveal — o corpo está na árvore
+    // nos dois casos, que é de onde a altura encolhe ao fechar.
+    assert_eq!(
+        reveals_abertos,
+        vec![("true".to_string(), vec!["corpo".to_string()])]
+    );
+    assert_eq!(
+        reveals_fechados,
+        vec![("false".to_string(), vec!["corpo".to_string()])]
+    );
 }
 
 /// Forma **atributo** (`else-if="{x}" equals="…"`, em qualquer elemento) —

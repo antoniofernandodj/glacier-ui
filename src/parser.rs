@@ -751,6 +751,22 @@ pub enum NodeType {
     Spinner {
         color: Option<String>,
     },
+    /// `<Reveal>`/`<Collapse>`: um corpo que **abre e fecha animado** — a
+    /// altura do filho interpolada de 0 até a natural (e de volta), com o que
+    /// transborda recortado. Ver [`crate::reveal`].
+    ///
+    /// `open` é o valor **cru** (`"true"`/`"false"`, ou um `{var}` já
+    /// interpolado), não o nome de uma chave: ao contrário de
+    /// `Checkbox`/`ProgressBar`, o que abre a seção quase nunca é uma chave
+    /// booleana solta — é uma comparação (`contains`/`equals`) que só o
+    /// `<template if>` sabe fazer, e que chega aqui já resolvida como literal.
+    /// É o que o `<accordionitem>` faz (ver `crate::builtins::accordion`).
+    ///
+    /// `duration` é em milissegundos; `0` desliga a animação.
+    Reveal {
+        open: String,
+        duration: Option<String>,
+    },
     /// A dropdown (`pick_list`) bound to context. `options` is a context key
     /// holding a JSON array (objects with `label_field`/`value_field`, or plain
     /// strings); `value_var` holds the selected value; selecting an option emits
@@ -1418,6 +1434,7 @@ impl NodeType {
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
+            NodeType::Reveal { .. } => "reveal",
             NodeType::Form { .. } => "form",
             NodeType::MenuBar => "menubar",
             NodeType::Menu { .. } => "menu",
@@ -3014,6 +3031,18 @@ impl UiNode {
             | "IndicadorOcupado" | "indicador_ocupado" | "Carregando" | "carregando" => {
                 let color = Self::get_attr(&node, &["color", "cor"]);
                 NodeType::Spinner { color }
+            }
+            "Reveal" | "reveal" | "Collapse" | "collapse" | "Revelar" | "revelar" | "Sanfona"
+            | "sanfona" => {
+                // `open` e `duration` ficam CRUS (`Option<String>`): os dois
+                // chegam com `{…}` quando quem escreve é um builtin (o
+                // `<accordionitem>` passa `duration="{duration|180}"`), e quem
+                // resolve interpolação é o `eval`, não o parser.
+                let open = Self::get_attr(&node, &["open", "aberto", "show", "mostrar", "visible"])
+                    .unwrap_or_default();
+                let duration =
+                    Self::get_attr(&node, &["duration", "duracao", "duração", "ms", "tempo"]);
+                NodeType::Reveal { open, duration }
             }
             "Select" | "select" | "Dropdown" | "dropdown" | "PickList" | "picklist"
             | "ComboBox" | "combobox" | "Combo" | "combo" | "Seletor" | "seletor" => {

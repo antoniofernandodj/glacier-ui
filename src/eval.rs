@@ -2349,6 +2349,15 @@ fn eval_owned(
                 .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
+        NodeType::Reveal { open, duration } => NodeType::Reveal {
+            // `open` guarda o VALOR (`"true"`, ou um `{var}` a interpolar), não
+            // o nome de uma chave — ver o comentário da variante em `parser.rs`.
+            open: process_tpl(open, context),
+            duration: duration
+                .as_ref()
+                .map(|d| process_tpl(d, context))
+                .filter(|d| !d.trim().is_empty()),
+        },
         NodeType::Select {
             options,
             value_var,

@@ -59,6 +59,7 @@ const NATIVE_TAGS = {
     "indicadorocupado", "indicador_ocupado", "carregando",
   ],
   Slider: ["slider", "deslizante"],
+  Reveal: ["reveal", "collapse", "revelar", "sanfona"],
   // Uma primitiva só; a tag decide quais seções o campo mostra.
   TimeEdit: ["timeedit", "timepicker", "editorhora", "editor_hora"],
   DateEdit: ["dateedit", "datepicker", "editordata", "editor_data"],
