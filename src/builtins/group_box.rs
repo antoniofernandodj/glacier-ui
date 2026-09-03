@@ -68,7 +68,21 @@
 /// **global** declarado no próprio template — instalado em `GlacierUI::new`,
 /// portanto antes de qualquer `.gss` do app, que por isso vence por ordem.
 /// Redefinir `.groupbox-frame` / `.groupbox-title` numa folha do app é o
-/// caminho suportado para repintar.
+/// caminho suportado para repintar **todos**. Para repintar um só, uma prop de
+/// classe por nó — `class` no uso aplica na raiz, que aqui é a coluna externa e
+/// não desenha nada:
+///
+/// - `frame_class`   — a moldura (só na forma caixa; no `flat` não há moldura).
+/// - `header_class`  — a linha do título.
+/// - `title_class`   — o texto do título.
+/// - `actions_class` — a faixa do `slot="actions"`.
+/// - `content_class` — a coluna dos filhos, nas duas formas.
+///
+/// ```xml
+/// <groupbox title="Rede" frame_class="painel" title_class="rotulo_cap">
+///     <input value="host" />
+/// </groupbox>
+/// ```
 ///
 /// O cinza translúcido (`#80808059`) é deliberado: clareia sobre tema escuro e
 /// escurece sobre tema claro, então o mesmo default atravessa os quatro estilos
@@ -107,16 +121,16 @@ impl Component for GroupBox {
                          quem empurra; o marcador `{slot_actions}` evita pagar
                          a `<Row>` quando não há ação nenhuma. -->
                     <template if="{title}{slot_actions|}" notEquals="">
-                        <Row align_y="center" width="{width|fill}">
+                        <Row class="{header_class}" align_y="center" width="{width|fill}">
                             <Text
-                                class="groupbox-title"
+                                class="groupbox-title {title_class}"
                                 content="{title}"
                                 size="{title_size|13}"
                                 bold="true"
                             />
                             <template if="{slot_actions|false}" equals="true">
                                 <Space />
-                                <Row spacing="8" align_y="center">
+                                <Row class="{actions_class}" spacing="8" align_y="center">
                                     <slot name="actions"/>
                                 </Row>
                             </template>
@@ -125,18 +139,23 @@ impl Component for GroupBox {
 
                     <template if="{flat|false}" equals="true">
                         <Rule />
-                        <Column spacing="{spacing|8}" padding="{padding|8 2}" width="{width|fill}">
+                        <Column
+                            class="{content_class}"
+                            spacing="{spacing|8}"
+                            padding="{padding|8 2}"
+                            width="{width|fill}"
+                        >
                             <slot/>
                         </Column>
                     </template>
 
                     <template else>
                         <Container
-                            class="groupbox-frame"
+                            class="groupbox-frame {frame_class}"
                             padding="{padding|12}"
                             width="{width|fill}"
                         >
-                            <Column spacing="{spacing|8}" width="{width|fill}">
+                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
                                 <slot/>
                             </Column>
                         </Container>

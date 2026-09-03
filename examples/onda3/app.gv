@@ -1,11 +1,15 @@
 <screen title="Glacier - Onda 3" size="960 760">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/onda3/theme.json" />
     <!-- Sem isto o comportamento em Lua nunca é carregado: o motor liga o
        script pelo <script> do template, não por convenção de nome. -->
     <script src="app.luau"></script>
   </resources>
 
-  <column spacing="0" width="fill" height="fill" background="#1E1E2E">
+  <column spacing="0" width="fill" height="fill">
 
     <column padding="20 24 0 24" spacing="8" width="fill">
       <text size="20" bold="true" color="#CDD6F4">Onda 3 — o calendário</text>

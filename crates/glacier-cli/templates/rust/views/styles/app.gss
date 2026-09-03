@@ -7,7 +7,10 @@
     --accent:  #89B4FA;
 }
 
-.tela   { width: fill; height: fill; background: var(--bg); padding: 30; spacing: 14; align-x: center; align-y: center; }
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. Um `background`
+   de mesma cor num nó `fill/fill` é uma camada redobrada em cada pixel da
+   tela — invisível e cara (ver AGENTS.md). */
+.tela   { width: fill; height: fill; padding: 30; spacing: 14; align-x: center; align-y: center; }
 .rotulo { size: 11; bold: true; color: var(--muted); }
 .numero { size: 56; bold: true; color: var(--text); }
 .acoes  { spacing: 12; align-y: center; }

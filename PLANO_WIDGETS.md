@@ -891,7 +891,8 @@ espaço são igualmente naturais.
 > É a quinta e a sexta aplicação da lição do `DateEdit`, e a primeira vez que a
 > mesma causa aparece duas vezes seguidas — o que sugere que ela merece um
 > nome. Fica registrada abaixo, depois da tabela. Exemplo:
-> `cargo run --example onda4`.
+> `cargo run --example onda4` — e `cargo run --example onda4_luau`, a mesma tela
+> sem `impl Component`, que é a prova de que nenhum dos sete pede script.
 
 Todos **builtins** (exceto o 5), todos pelo padrão do `SpinBox`: a chave é
 nomeada pelo app, a ação carrega o nome, o `update` faz a conta. Nenhum precisa

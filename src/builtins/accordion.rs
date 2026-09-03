@@ -61,6 +61,26 @@
 /// `.accordion-head` / `.accordion-body` na folha global do template. O
 /// indicador é `▾`/`▸` — texto, não ícone: o widget não pode depender de um
 /// arquivo `.svg` que o app talvez não tenha.
+///
+/// # Classes nos nós de dentro
+///
+/// `class` no uso aplica na **raiz** do item (a coluna que empilha cabeçalho e
+/// corpo). Para alcançar um nó lá dentro, uma prop por nó — o padrão da
+/// biblioteca, e o que faz um accordion caber num tema do app sem reescrever o
+/// widget:
+///
+/// - `head_class`  — o `<Button>` do cabeçalho (aceita `:hover`).
+/// - `mark_class`  — o glifo `▾`/`▸`.
+/// - `title_class` — o título.
+/// - `sub_class`   — a segunda linha.
+/// - `body_class`  — a coluna do corpo, que só existe quando aberto.
+///
+/// ```xml
+/// <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede"
+///                head_class="sec_cabecalho" body_class="sec_corpo">
+///     <input value="host" />
+/// </accordionitem>
+/// ```
 use crate::component::{Component, Context, Template};
 
 pub struct Accordion;
@@ -113,17 +133,17 @@ fn item(op: &str, aberto: &str, fechado: &str) -> Template {
 fn cabecalho(marca: &str) -> String {
     format!(
         r#"<Button
-                        class="accordion-head"
+                        class="accordion-head {{head_class}}"
                         on_click="{{OP}}:{{value}}|{{id}}"
                         padding="{{head_padding|9 12}}"
                         width="fill"
                     >
                         <Row spacing="8" align_y="center" width="fill">
-                            <Text class="accordion-mark" content="{marca}" size="12" />
+                            <Text class="accordion-mark {{mark_class}}" content="{marca}" size="12" />
                             <Column spacing="1" width="fill">
-                                <Text content="{{title}}" size="{{size|13}}" bold="true" />
+                                <Text class="{{title_class}}" content="{{title}}" size="{{size|13}}" bold="true" />
                                 <template if="{{sub}}" notEquals="">
-                                    <Text class="accordion-sub" content="{{sub}}" size="11" />
+                                    <Text class="accordion-sub {{sub_class}}" content="{{sub}}" size="11" />
                                 </template>
                             </Column>
                         </Row>
@@ -169,7 +189,7 @@ impl Component for AccordionItem {
                 r#"<template if="{{open}}" contains="{{id}}">
                     {}
                     <Column
-                        class="accordion-body"
+                        class="accordion-body {{body_class}}"
                         spacing="{{spacing|8}}"
                         padding="{{padding|12}}"
                         width="fill"
@@ -219,7 +239,7 @@ impl Component for ToolBoxItem {
                 r#"<template if="{{open}}" equals="{{id}}">
                     {}
                     <Column
-                        class="accordion-body"
+                        class="accordion-body {{body_class}}"
                         spacing="{{spacing|8}}"
                         padding="{{padding|12}}"
                         width="fill"

@@ -1,12 +1,16 @@
 <screen title="Glacier - SpinBox" size="620 560">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/spinbox/theme.json" />
     <style>
       .moldura   { border-width: 1; border-color: #89B4FA; border-radius: 6; padding: 4; }
       .campo_num { background: #11111B; }
     </style>
   </resources>
 
-  <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+  <column padding="28" spacing="20" width="fill" height="fill">
     <column spacing="6">
       <text size="22" bold="true" color="#CDD6F4">SpinBox — o QSpinBox do Qt</text>
       <text size="13" color="#A6ADC8">

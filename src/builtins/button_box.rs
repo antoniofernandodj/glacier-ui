@@ -57,6 +57,18 @@
 /// - `order` — `gnome` ou `windows`. Default: o alvo de compilação.
 /// - `spacing` — espaço entre os botões. Default: `8`.
 /// - `padding` — área de clique de cada botão. Default: `8 16`.
+/// - `accept_class` / `reject_class` / `destructive_class` — classe aplicada
+///   **a cada botão**, por papel. `class` no uso pinta a `<Row>` inteira, que
+///   não é o que se quer quando o app tem um botão primário próprio.
+///
+/// ```xml
+/// <buttonbox accept="Salvar"   on_accept="salvar"   accept_class="btn_primario"
+///            reject="Cancelar" on_reject="cancelar" reject_class="btn_ghost" />
+/// ```
+///
+/// A classe injetada entra **depois** da classe da lib na mesma lista, então
+/// ela redefine o que quiser de `.bbox-accept` e herda o resto — inclusive os
+/// `:hover`, que continuam valendo se o app não declarar os seus.
 use crate::component::{Component, Context, Template};
 
 pub struct ButtonBox;
@@ -68,7 +80,7 @@ fn botao(papel: &str, classe: &str) -> String {
     format!(
         r#"<template if="{{{papel}}}" notEquals="">
                     <Button
-                        class="{classe}"
+                        class="{classe} {{{papel}_class}}"
                         on_click="app:{{on_{papel}}}"
                         padding="{{padding|8 16}}"
                     >

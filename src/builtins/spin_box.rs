@@ -69,6 +69,8 @@
 /// - `width`       — largura do campo. Default: `72`.
 /// - `placeholder` — dica quando a chave está vazia. Default: vazio.
 /// - `field_class` — classe aplicada **ao campo de dentro**, não ao widget.
+/// - `step_class`  — classe dos dois botões de degrau (aceita `:hover`).
+/// - `glyph_class` — classe do glifo dentro de cada degrau.
 ///   Não se chama `class` de propósito: desde a 0.69 `class` numa tag de
 ///   componente estiliza a **raiz expandida** — aqui, a `Row` inteira (campo +
 ///   degraus), que é o que estilizar um `QSpinBox` significa no Qt. As duas
@@ -185,11 +187,11 @@ impl Component for SpinBox {
 
                     <template if="{layout|stacked}" equals="inline">
                         <Button
-                            class="spinbox-step"
+                            class="spinbox-step {step_class}"
                             on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             padding="6 12"
                         >
-                            <Text content="{dec_text|−}" size="{glyph_size|15}" />
+                            <Text class="{glyph_class}" content="{dec_text|−}" size="{glyph_size|15}" />
                         </Button>
                         <TextInput
                             class="{field_class}"
@@ -200,11 +202,11 @@ impl Component for SpinBox {
                             width="{width|72}"
                         />
                         <Button
-                            class="spinbox-step"
+                            class="spinbox-step {step_class}"
                             on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             padding="6 12"
                         >
-                            <Text content="{inc_text|+}" size="{glyph_size|15}" />
+                            <Text class="{glyph_class}" content="{inc_text|+}" size="{glyph_size|15}" />
                         </Button>
                     </template>
 
@@ -219,18 +221,18 @@ impl Component for SpinBox {
                         />
                         <Column spacing="1">
                             <Button
-                                class="spinbox-step"
+                                class="spinbox-step {step_class}"
                                 on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                                 padding="0 7"
                             >
-                                <Text content="{inc_text|▴}" size="{glyph_size|11}" />
+                                <Text class="{glyph_class}" content="{inc_text|▴}" size="{glyph_size|11}" />
                             </Button>
                             <Button
-                                class="spinbox-step"
+                                class="spinbox-step {step_class}"
                                 on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                                 padding="0 7"
                             >
-                                <Text content="{dec_text|▾}" size="{glyph_size|11}" />
+                                <Text class="{glyph_class}" content="{dec_text|▾}" size="{glyph_size|11}" />
                             </Button>
                         </Column>
                     </template>

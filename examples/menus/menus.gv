@@ -1,5 +1,10 @@
 <screen title="Glacier - Menus">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` numa classe
+         `fill/fill`: pintar a tela inteira com a cor que o tema já pinta é
+         uma camada a mais em cada pixel, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/menus/theme.json" />
+
     <!-- Menu bar ancorada (File/Edit) + dois menus de contexto (botão direito):
        um com submenu estático de 3 níveis (prova profundidade arbitrária) e
        outro cujo conteúdo vem de ctx.dynamic_menu (JSON populado pelo script
@@ -7,7 +12,7 @@
        src/menu.rs. -->
     <style>
     .bar      { background: #2E3440; padding: 4; }
-    .screen   { background: #3B4252; width: fill; height: fill; }
+    .screen   { width: fill; height: fill; }
     .content  { spacing: 20; padding: 30; }
     .card     { background: #434C5E; width: 260; height: 110; padding: 14; border-radius: 8; }
     .cards    { spacing: 20; }

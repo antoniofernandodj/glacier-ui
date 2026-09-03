@@ -60,6 +60,18 @@
 /// `.tab` (aba comum) e `.tab-active` (a selecionada) na folha global do
 /// template. A ativa se distingue por **fundo**, não por sublinhado: uma linha
 /// sob a aba precisaria de borda por lado, que o motor não tem.
+///
+/// Para repintar uma barra só, sem mexer nas outras, uma prop por nó — `class`
+/// no uso aplica na `<Row>` que as segura, não nas abas:
+///
+/// - `tab_class`        — toda aba, ativa ou não.
+/// - `tab_active_class` — só a ativa, **por cima** de `tab_class`.
+/// - `label_class`      — o rótulo dentro da aba.
+///
+/// ```xml
+/// <tabbar value="aba" active="{aba}" items="abas"
+///         tab_class="aba" tab_active_class="aba_ativa" />
+/// ```
 use crate::component::{Component, Context, Template};
 
 pub struct TabBar;
@@ -95,20 +107,20 @@ impl Component for TabBar {
                     <template for-each="{items}" var="tab">
                         <template if="{tab.id}" equals="{active}">
                             <Button
-                                class="tab tab-active"
+                                class="tab tab-active {tab_class} {tab_active_class}"
                                 on_click="pick:{value}|{tab.id}"
                                 padding="{padding|7 14}"
                             >
-                                <Text content="{tab.label}" size="{size|13}" bold="true" />
+                                <Text class="{label_class}" content="{tab.label}" size="{size|13}" bold="true" />
                             </Button>
                         </template>
                         <template else>
                             <Button
-                                class="tab"
+                                class="tab {tab_class}"
                                 on_click="pick:{value}|{tab.id}"
                                 padding="{padding|7 14}"
                             >
-                                <Text content="{tab.label}" size="{size|13}" />
+                                <Text class="{label_class}" content="{tab.label}" size="{size|13}" />
                             </Button>
                         </template>
                     </template>

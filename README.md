@@ -1319,9 +1319,37 @@ componente é um *default*, o atributo que ele cravou inline é uma *decisão*.
 > class="…">`, o embrulho pode sair.
 
 Ela aplica **só na raiz**. Para estilizar um nó específico lá dentro, o
-componente expõe uma prop com nome próprio — como o `field_class` do
-`<SpinBox>`, que mira o campo de texto interno enquanto o `class` dele mira o
-widget inteiro.
+componente expõe uma prop com nome próprio — e **todo builtin da lib tem as
+suas** desde a 0.89:
+
+```gv
+<listview items="servicos" value="qual" selected="{qual}"
+          item_class="linha" selected_class="linha_ativa" />
+
+<card title="Servidor" class="destaque" title_class="titulo_card" />
+```
+
+O sufixo é sempre `_class` e o prefixo nomeia o alvo (`field_class`,
+`item_class`, `title_class`, `bar_class`, `head_class`…). Três regras que a
+biblioteca inteira segue, e que valem para um componente seu:
+
+1. **A classe injetada entra depois da classe da lib no mesmo nó**, então ela
+   redefine o que declara e herda o resto — inclusive os `:hover`.
+2. **Num par base/refinamento, o refinamento vem por último**:
+   `item_class` primeiro, `selected_class` depois, e o segundo vence no item
+   selecionado.
+3. **Nó de raiz não ganha prop** — o `class` do uso já o alcança. É por isso que
+   o `<toolbutton>`, cuja raiz *é* o `<Button>`, não tem `button_class`.
+
+A tabela por widget está em [`BUILTINS.md`](BUILTINS.md).
+
+> **Um atributo inline que resolve para vazio cai na classe** (0.89). Um
+> `background="{bg}"` no template de um componente vencia a classe mesmo quando
+> a prop não vinha — o campo virava `Some("")` e o widget saía sem fundo nenhum.
+> É o que permite um template aceitar a cor por prop **e** ter um default por
+> classe; o corolário para quem escreve um componente é que o default de uma cor
+> vai numa classe, não num `{prop|#aabbcc}` (que resolve sempre, e resolvendo
+> sempre vence toda classe).
 
 **Propriedades reconhecidas:** `width`/`w`, `height`/`h`, `padding`, `spacing`,
 `align-x`/`align-y`, `background`/`bg`, `border-radius`, `border-width`,
@@ -1688,7 +1716,8 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
 | `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
-| `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. |
+| `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. O `.gv` não tem uma cor — tudo em `app.gss`, inclusive os nós de dentro dos builtins. |
+| `onda4_luau` | a **mesma tela**, sem `impl Component`: o `main.rs` só registra o `.gv` e todo o comportamento vive em `scripts/app.luau`. Lado a lado com o `onda4`, mostra que nenhum dos sete widgets pede script. |
 | `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |

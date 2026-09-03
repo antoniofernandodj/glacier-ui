@@ -38,6 +38,24 @@
 ///   `width="280"` a cada um é o caminho para a grade).
 /// - `title_size` / `subtitle_size` — corpos. Default: `16` / `13`.
 ///
+/// # Classes nos nós de dentro
+///
+/// `class` no uso pinta a **superfície** (a raiz), que é o caso comum — um
+/// `<card class="destaque">` já muda fundo, borda e raio. As props abaixo
+/// alcançam o que a classe do uso não atinge, um nó por prop:
+///
+/// - `header_class`   — a coluna de título + subtítulo.
+/// - `title_class`    — o título.
+/// - `subtitle_class` — a linha secundária.
+/// - `body_class`     — a coluna que recebe o `<slot/>`.
+/// - `footer_class`   — a faixa do rodapé.
+///
+/// ```xml
+/// <card title="Servidor" class="destaque" title_class="titulo_card">
+///     <text content="uptime 31 dias" />
+/// </card>
+/// ```
+///
 /// # O rodapé: o slot nomeado
 ///
 /// A faixa de ações do pé é um **segundo** buraco, etiquetado `footer`:
@@ -85,9 +103,10 @@ impl Component for Card {
 
                     <Column spacing="{spacing|12}" width="{width|fill}">
                         <template if="{title}{subtitle}" notEquals="">
-                            <Column spacing="2" width="{width|fill}">
+                            <Column class="{header_class}" spacing="2" width="{width|fill}">
                                 <template if="{title}" notEquals="">
                                     <Text
+                                        class="{title_class}"
                                         content="{title}"
                                         size="{title_size|16}"
                                         bold="true"
@@ -95,7 +114,7 @@ impl Component for Card {
                                 </template>
                                 <template if="{subtitle}" notEquals="">
                                     <Text
-                                        class="card-subtitle"
+                                        class="card-subtitle {subtitle_class}"
                                         content="{subtitle}"
                                         size="{subtitle_size|13}"
                                     />
@@ -103,7 +122,7 @@ impl Component for Card {
                             </Column>
                         </template>
 
-                        <Column spacing="{spacing|12}" width="{width|fill}">
+                        <Column class="{body_class}" spacing="{spacing|12}" width="{width|fill}">
                             <slot/>
                         </Column>
 
@@ -115,7 +134,7 @@ impl Component for Card {
                              porque o nome do slot não é uma prop. -->
                         <template if="{slot_footer|false}" equals="true">
                             <Rule />
-                            <Row spacing="8" align_y="center">
+                            <Row class="{footer_class}" spacing="8" align_y="center">
                                 <slot name="footer"/>
                             </Row>
                         </template>

@@ -1,5 +1,12 @@
 <screen title="Glacier - Onda 1" size="900 700">
-  <column spacing="0" width="fill" height="fill" background="#1E1E2E">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/onda1/theme.json" />
+  </resources>
+
+  <column spacing="0" width="fill" height="fill">
 
     <!-- A StatusBar e o GroupBox são da onda 2; as duas ondas compõem sem
        nada de especial: o conteúdo de um slot pode ser qualquer widget,

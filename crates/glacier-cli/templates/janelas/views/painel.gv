@@ -1,5 +1,6 @@
 <screen title="{{titulo}}" size="520 460" min-size="420 380">
   <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
     <script src="scripts/painel.luau"></script>
   </resources>

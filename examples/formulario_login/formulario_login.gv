@@ -1,10 +1,17 @@
 <screen title="Glacier - Formulário (Reactive Forms)">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/formulario_login/theme.json" />
+  </resources>
+
   <!-- Formulário de login: `Form` agrupa os `TextInput`s ligados aos
      `FormControl`s do componente (por `formControl`, veja formulario_login.rs).
      Enter em qualquer campo sempre dispara `onSubmit`; se houver um próximo
      campo, o foco também avança para ele — dá para preencher e submeter o
      formulário inteiro sem tocar no mouse. -->
-  <container padding="24" width="fill" height="fill" background="#2E3440">
+  <container padding="24" width="fill" height="fill">
     <column spacing="16" width="360">
       <text size="24" bold="true" color="#ECEFF4">Entrar</text>
       <form on_submit="entrar" name="login" width="fill">

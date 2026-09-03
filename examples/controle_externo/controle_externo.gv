@@ -9,12 +9,16 @@
 -->
 <screen title="Controle externo" size="1000 700" min_size="480 360">
   <resources>
+    <link rel="theme" href="examples/controle_externo/theme.json" />
+
     <style scoped="true">
+      /* Sem `background`: a cor da janela é do TEMA (theme.json). Pintar um nó
+         `fill/fill` com a cor que o tema já pinta é uma camada a mais em cada
+         pixel da tela, e ela custa (ver AGENTS.md). */
       .tela {
           padding: 28;
           width: fill;
           height: fill;
-          background: #0D1117;
       }
       .conteudo {
           spacing: 16;

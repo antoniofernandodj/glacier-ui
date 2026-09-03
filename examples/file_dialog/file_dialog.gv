@@ -1,11 +1,16 @@
 <screen title="Glacier - Diálogos de Arquivo">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` numa classe
+         `fill/fill`: pintar a tela inteira com a cor que o tema já pinta é
+         uma camada a mais em cada pixel, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/file_dialog/theme.json" />
+
     <!-- Diálogo de arquivo/pasta NATIVO DO SO — arquivo único, múltiplos
        arquivos, diretório e salvar (ver src/file_dialog.rs). Cada botão chama
        o sugar Lua correspondente; como é um diálogo de verdade do SO, só dá
        pra conferir rodando o exemplo file_dialog e clicando. -->
     <style>
-      .screen      { background: #2E3440; width: fill; height: fill; padding: 30; spacing: 20; }
+      .screen      { width: fill; height: fill; padding: 30; spacing: 20; }
       .title       { color: #ECEFF4; size: 20; bold: true; }
       .hint        { color: #D8DEE9; size: 13; }
       .actions     { spacing: 10; }

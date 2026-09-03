@@ -42,6 +42,22 @@
 /// Mesma regra dos outros builtins: as cores vêm de um `<style>` global do
 /// próprio template, instalado antes de qualquer `.gss` do app — redefinir
 /// `.frame-box` / `.frame-filled` numa folha do app repinta os dois.
+///
+/// # Classes nos nós de dentro
+///
+/// `class` no uso aplica na raiz — que aqui é um `<Container>` sem desenho
+/// nenhum, só largura. Quem tem borda e fundo é a caixa de dentro, e é por
+/// isso que este widget precisa das props mais do que os outros:
+///
+/// - `box_class`     — a caixa que desenha (`filled` e `box`; no `none` não há
+///   caixa a estilizar).
+/// - `content_class` — a coluna dos filhos, nas três formas.
+///
+/// ```xml
+/// <frame shape="filled" box_class="painel">
+///     <text content="dentro" />
+/// </frame>
+/// ```
 use crate::component::{Component, Context, Template};
 
 pub struct Frame;
@@ -52,15 +68,16 @@ impl Component for Frame {
     }
 
     fn template(&self) -> Template {
-        // O braço `filled` é duplicado por causa do `background`, e a razão é
-        // sutil: o eval resolve um campo com
-        // `inline.map(process_tpl).or_else(classe)`, então um atributo escrito
-        // no markup vence a classe **mesmo quando resolve para vazio**. Um
-        // `background="{background|}"` único não cairia para `.frame-filled` —
-        // gravaria `""` e o `filled` sairia sem fundo nenhum, idêntico ao
-        // `none` (foi o que aconteceu na primeira versão). Só emitindo o
-        // atributo quando a prop existe é que os dois caminhos convivem: prop
-        // por instância, classe quando ela não vem.
+        // O braço `filled` já foi DOIS, e a causa era do motor: um campo
+        // resolvia por `inline.or_else(classe)`, então `background="{background}"`
+        // vencia `.frame-filled` **mesmo resolvendo para vazio** — o `filled`
+        // sem prop saía sem fundo nenhum, idêntico ao `none`. A saída da época
+        // foi emitir o atributo só quando a prop existisse, o que custou um
+        // `if`/`else` e uma cópia do braço inteiro.
+        //
+        // Desde a 0.89 o `resolve` do eval descarta o vazio antes de consultar
+        // a classe, e o mesmo atributo cobre os dois casos: prop por instância,
+        // classe quando ela não vem. Os dois braços viraram um.
         Template::Inline(
             r#"<Container width="{width|fill}">
                     <style>
@@ -76,33 +93,21 @@ impl Component for Frame {
                     </style>
 
                     <template if="{shape|box}" equals="filled">
-                        <template if="{background}" notEquals="">
-                            <Container
-                                class="frame-filled"
-                                background="{background}"
-                                padding="{padding|12}"
-                                width="{width|fill}"
-                            >
-                                <Column spacing="{spacing|8}" width="{width|fill}">
-                                    <slot/>
-                                </Column>
-                            </Container>
-                        </template>
-                        <template else>
-                            <Container
-                                class="frame-filled"
-                                padding="{padding|12}"
-                                width="{width|fill}"
-                            >
-                                <Column spacing="{spacing|8}" width="{width|fill}">
-                                    <slot/>
-                                </Column>
-                            </Container>
-                        </template>
+                        <Container
+                            class="frame-filled {box_class}"
+                            background="{background}"
+                            padding="{padding|12}"
+                            width="{width|fill}"
+                        >
+                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
+                                <slot/>
+                            </Column>
+                        </Container>
                     </template>
 
                     <template else-if="{shape|box}" equals="none">
                         <Column
+                            class="{content_class}"
                             spacing="{spacing|8}"
                             padding="{padding|12}"
                             width="{width|fill}"
@@ -113,11 +118,11 @@ impl Component for Frame {
 
                     <template else>
                         <Container
-                            class="frame-box"
+                            class="frame-box {box_class}"
                             padding="{padding|12}"
                             width="{width|fill}"
                         >
-                            <Column spacing="{spacing|8}" width="{width|fill}">
+                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
                                 <slot/>
                             </Column>
                         </Container>

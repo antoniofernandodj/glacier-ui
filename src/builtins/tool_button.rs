@@ -40,7 +40,7 @@
 /// - `on_click`   — **ação do app** disparada no clique.
 /// - `icon`       — glifo do ícone. Default: `●`.
 /// - `icon_src`   — caminho de um `.svg`; vence o `icon` quando presente.
-/// - `icon_color` — cor do SVG. Default: o cinza neutro da folha.
+/// - `icon_color` — cor do ícone (SVG ou glifo). Default: `.toolbutton-icon`.
 /// - `text`       — rótulo, usado por `layout="beside"`/`"under"`.
 /// - `layout`     — `icon` (default), `beside` ou `under`.
 /// - `icon_size`  — corpo do glifo / lado do SVG. Default: `16`.
@@ -48,6 +48,12 @@
 /// - `padding`    — área de clique em volta. Default: `6 8`.
 /// - `tooltip`    — dica; num botão só-ícone é ela que diz o que ele faz, então
 ///   vale sempre preencher em `layout="icon"`.
+/// - `icon_class`    — classe do glifo ou do `<Svg>`, nos três layouts.
+/// - `label_class`   — classe do rótulo.
+/// - `content_class` — a `<Row>`/`<Column>` de `beside`/`under`.
+///
+/// A raiz **é** o `<Button>`, então um `class` no uso já o alcança (e vence
+/// `.toolbutton`) — não há prop para ele.
 ///
 /// # Aparência
 ///
@@ -87,29 +93,37 @@ impl Component for ToolButton {
                         }
                         .toolbutton:hover  { background: #8080803d; }
                         .toolbutton:active { background: #80808066; }
+                        /* O default da cor mora AQUI, não num `{icon_color|…}`
+                           inline: um default inline resolve sempre, e um valor
+                           inline vence toda classe — inclusive a que o app
+                           injetou por `icon_class`. Com a prop vazia caindo na
+                           classe (ver `resolve` em `eval.rs`), a escada fica
+                           prop > classe injetada > default da lib, e vale igual
+                           para o glifo de texto e para o `<Svg>`. */
                         .toolbutton-icon   { color: #80868d; }
                         .toolbutton-label  { color: #80868d; }
                     </style>
 
                     <template if="{layout|icon}" equals="beside">
-                        <Row spacing="6" align_y="center">
+                        <Row class="{content_class}" spacing="6" align_y="center">
                             <template if="{icon_src}" notEquals="">
                                 <Svg
+                                    class="toolbutton-icon {icon_class}"
                                     source="{icon_src}"
-                                    color="{icon_color|#80868d}"
+                                    color="{icon_color}"
                                     width="{icon_size|16}"
                                     height="{icon_size|16}"
                                 />
                             </template>
                             <template else>
                                 <Text
-                                    class="toolbutton-icon"
+                                    class="toolbutton-icon {icon_class}"
                                     content="{icon|●}"
                                     size="{icon_size|16}"
                                 />
                             </template>
                             <Text
-                                class="toolbutton-label"
+                                class="toolbutton-label {label_class}"
                                 content="{text}"
                                 size="{text_size|12}"
                             />
@@ -117,24 +131,25 @@ impl Component for ToolButton {
                     </template>
 
                     <template else-if="{layout|icon}" equals="under">
-                        <Column spacing="3" align_x="center">
+                        <Column class="{content_class}" spacing="3" align_x="center">
                             <template if="{icon_src}" notEquals="">
                                 <Svg
+                                    class="toolbutton-icon {icon_class}"
                                     source="{icon_src}"
-                                    color="{icon_color|#80868d}"
+                                    color="{icon_color}"
                                     width="{icon_size|16}"
                                     height="{icon_size|16}"
                                 />
                             </template>
                             <template else>
                                 <Text
-                                    class="toolbutton-icon"
+                                    class="toolbutton-icon {icon_class}"
                                     content="{icon|●}"
                                     size="{icon_size|16}"
                                 />
                             </template>
                             <Text
-                                class="toolbutton-label"
+                                class="toolbutton-label {label_class}"
                                 content="{text}"
                                 size="{text_size|12}"
                             />
@@ -144,15 +159,16 @@ impl Component for ToolButton {
                     <template else>
                         <template if="{icon_src}" notEquals="">
                             <Svg
+                                class="toolbutton-icon {icon_class}"
                                 source="{icon_src}"
-                                color="{icon_color|#80868d}"
+                                color="{icon_color}"
                                 width="{icon_size|16}"
                                 height="{icon_size|16}"
                             />
                         </template>
                         <template else>
                             <Text
-                                class="toolbutton-icon"
+                                class="toolbutton-icon {icon_class}"
                                 content="{icon|●}"
                                 size="{icon_size|16}"
                             />

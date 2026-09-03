@@ -7,10 +7,12 @@
     --accent:  #89B4FA;
 }
 
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. Um `background`
+   de mesma cor num nó `fill/fill` é uma camada redobrada em cada pixel da
+   tela — invisível e cara (ver AGENTS.md). */
 .tela {
     width: fill;
     height: fill;
-    background: var(--bg);
     padding: 32;
     spacing: 16;
     align-x: center;

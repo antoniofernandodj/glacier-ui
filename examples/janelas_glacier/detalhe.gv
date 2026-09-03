@@ -1,5 +1,9 @@
 <screen title="Detalhe (Lua)" size="420 320">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/janelas_glacier/theme_detalhe.json" />
     <script>
       -- Semeia o estado inicial desta janela (contador próprio, isolado das demais).
       -- `origem` vem semeado por open_window({ data = { origem = ... } }); default se
@@ -40,7 +44,6 @@
     align_y="Center"
     width="fill"
     height="fill"
-    background="#11111B"
   >
     <column spacing="20" align_x="Center">
       <text size="24" bold="true" color="#F5E0DC">Detalhe (XML + Lua)</text>

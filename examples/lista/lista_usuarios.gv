@@ -1,9 +1,13 @@
 <screen title="Glacier - Lista de Membros">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/lista/theme.json" />
     <import name="CartaoUsuario" from="examples/lista/cartao_usuario.gv" />
   </resources>
 
-  <container padding="30" width="fill" height="fill" background="#11111B" align_x="Center">
+  <container padding="30" width="fill" height="fill" align_x="Center">
     <column spacing="20" width="420" align="Center">
       <text size="26" bold="true" color="#F5E0DC">Equipe ({total})</text>
 

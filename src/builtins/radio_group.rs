@@ -44,6 +44,13 @@
 ///   lida para marcar a opção certa, e escrita no clique.
 /// - `layout`  — `column` (default) ou `row`, o `Qt::Orientation` do grupo.
 /// - `spacing` — espaço entre as opções. Default: `8`.
+/// - `option_class`  — classe aplicada **a cada `<Radio>`**.
+/// - `options_class` — a `<Row>` das opções, só no `layout="row"` (no `column`
+///   as opções são filhas diretas da raiz, que o `class` do uso já alcança).
+///
+/// ```xml
+/// <radiogroup items="planos" value="plano" option_class="opcao" />
+/// ```
 use crate::component::{Component, Context, Template};
 
 pub struct RadioGroup;
@@ -60,9 +67,10 @@ impl Component for RadioGroup {
         Template::Inline(
             r#"<Column spacing="{spacing|8}">
                     <template if="{layout|column}" equals="row">
-                        <Row spacing="{spacing|16}" align_y="center">
+                        <Row class="{options_class}" spacing="{spacing|16}" align_y="center">
                             <template for-each="{items}" var="opt">
                                 <Radio
+                                    class="{option_class}"
                                     label="{opt.label}"
                                     value="{opt.id}"
                                     group="{value}"
@@ -75,6 +83,7 @@ impl Component for RadioGroup {
                     <template else>
                         <template for-each="{items}" var="opt">
                             <Radio
+                                class="{option_class}"
                                 label="{opt.label}"
                                 value="{opt.id}"
                                 group="{value}"

@@ -2006,21 +2006,30 @@ fn eval_owned(
     // (this node's builtin kind), classes and id are merged on top by
     // `resolve_classes`; inline attrs win last, in the per-field match below.
     // `class`/`id` are interpolated (`id="item-{i}"` works). The `styles.active`
-    // allocation is skipped for a plain node unless a tag rule is in play.
+    // allocation is skipped for a node whose class list resolves to nothing,
+    // unless a tag rule is in play.
     let (style, state_styles): (StyleRule, StateStyles) = {
         let mut base = underlay.cloned().unwrap_or_default();
         let mut states = underlay_states.cloned().unwrap_or_default();
         let tag = node.kind.tag_name();
+        // A interpolação vem ANTES da decisão de buscar folhas: os builtins
+        // escrevem `class="{item_class}"` em nós internos para que o app possa
+        // injetar uma classe neles, e na esmagadora maioria dos usos essa prop
+        // não vem — o `class` existe, mas resolve para vazio. Decidir por
+        // `node.class.is_some()` faria cada um desses nós pagar o `Vec` do
+        // `styles.active` e duas varreduras de folha por quadro, sem nenhuma
+        // classe para casar. Interpolar primeiro custa uma `String` curta e
+        // devolve o nó ao caminho barato quando ninguém injetou nada.
+        let processed = node
+            .class
+            .as_deref()
+            .map(|c| process_tpl(c, context))
+            .unwrap_or_default();
+        let id = node.id.as_deref().map(|i| process_tpl(i, context));
         let needs_lookup =
-            node.class.is_some() || node.id.is_some() || (tag.is_some() && styles.has_tag_rules);
+            !processed.trim().is_empty() || id.is_some() || (tag.is_some() && styles.has_tag_rules);
         if needs_lookup {
             let active = styles.active(scope);
-            let processed = node
-                .class
-                .as_deref()
-                .map(|c| process_tpl(c, context))
-                .unwrap_or_default();
-            let id = node.id.as_deref().map(|i| process_tpl(i, context));
             base.merge_from(&resolve_classes(
                 tag,
                 &processed,
@@ -2088,6 +2097,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Button {
@@ -2106,6 +2116,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::TextInput {
@@ -2142,6 +2153,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Scrollable { direction } => NodeType::Scrollable {
@@ -2186,6 +2198,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::DateTimeEdit {
@@ -2325,6 +2338,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Space => NodeType::Space,
@@ -2332,6 +2346,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::Select {
@@ -2352,6 +2367,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::ComboEdit {
@@ -2374,6 +2390,7 @@ fn eval_owned(
             color: color
                 .as_ref()
                 .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
         NodeType::MenuBar => NodeType::MenuBar,
@@ -2440,10 +2457,22 @@ fn eval_owned(
     };
 
     // For each style field, the node's inline attribute wins; a `class` value
-    // (if any) fills in only where the inline attribute is absent.
+    // (if any) fills in only where the inline attribute is absent — or onde ele
+    // resolveu para **vazio**, que é o caso de um `background="{bg}"` cuja prop
+    // não veio.
+    //
+    // O `filter` é o que torna a injeção de classe num builtin utilizável. Sem
+    // ele, um template que escreve `background="{bg}"` para aceitar a prop
+    // apagava a classe mesmo quando `bg` não existia: o campo ficava `Some("")`
+    // e o `or_else` nem era consultado — o widget saía sem fundo nenhum, e uma
+    // classe injetada nunca pintava nada. Vazio não é um valor para nenhum
+    // destes campos (largura, cor, padding, alinhamento…), então tratá-lo como
+    // ausência não perde nada e devolve a escada documentada: templado →
+    // inline → classe.
     let resolve = |inline: Option<&str>, class: &Option<String>| -> Option<String> {
         inline
             .map(|s| process_tpl(s, context))
+            .filter(|s| !s.trim().is_empty())
             .or_else(|| class.clone())
     };
 

@@ -422,12 +422,44 @@ sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
 > para os atributos inline do template.** É a intuição do CSS — classe é
 > default do autor, inline é decisão dele.
 >
-> Ela aplica **só na raiz**. Estilizar um nó específico lá dentro continua sendo
-> decisão do componente, que expõe uma prop com nome próprio para isso — como o
-> `field_class` do `<SpinBox>` abaixo.
+> Ela aplica **só na raiz**. Estilizar um nó específico lá dentro é uma prop com
+> nome próprio, e **todo builtin da lib tem as suas** desde a 0.89 — o
+> `field_class` do `<SpinBox>` foi o primeiro, hoje é o padrão da biblioteca.
+
+### Injetar classe nos nós de dentro de um builtin
+
+Toda prop de classe termina em `_class` e o prefixo nomeia o alvo. A classe
+injetada é aplicada **depois** da classe da lib no mesmo nó, então ela redefine
+o que quiser do default e herda o resto — inclusive os `:hover`.
+
+| widget | props de classe |
+| --- | --- |
+| `<Badge>` | `text_class` |
+| `<Avatar>` | `image_class`, `fallback_class`, `initials_class` |
+| `<AccordionItem>` / `<ToolBoxItem>` | `head_class`, `mark_class`, `title_class`, `sub_class`, `body_class` |
+| `<ButtonBox>` | `accept_class`, `reject_class`, `destructive_class` |
+| `<Card>` | `header_class`, `title_class`, `subtitle_class`, `body_class`, `footer_class` |
+| `<Frame>` | `box_class`, `content_class` |
+| `<GroupBox>` | `frame_class`, `header_class`, `title_class`, `actions_class`, `content_class` |
+| `<ListView>` | `list_class`, `item_class`, `selected_class`, `label_class`, `sub_class` |
+| `<RadioGroup>` | `option_class`, `options_class` |
+| `<SpinBox>` | `field_class`, `step_class`, `glyph_class` |
+| `<StatusBar>` | `bar_class`, `message_class`, `content_class` |
+| `<TabBar>` | `tab_class`, `tab_active_class`, `label_class` |
+| `<ToolBar>` | `bar_class`, `content_class` |
+| `<ToolButton>` | `icon_class`, `label_class`, `content_class` |
+
+Onde há um par base/refinamento (`item_class` + `selected_class`, `tab_class` +
+`tab_active_class`), o segundo vence o primeiro. A raiz de cada widget não tem
+prop: `class` no uso já a alcança.
+
+```gv
+<listview items="servicos" value="qual" selected="{qual}"
+          item_class="linha" selected_class="linha_ativa" />
+```
 
 ### `<Badge>`
-Rótulo/etiqueta ("pílula") embutido. Props: `badge_text` (`Badge`), `badge_bg` (`#89B4FA`), `badge_fg` (`#11111B`), `badge_size` (`13`). Ver `BUILTINS.md` para estender.
+Rótulo/etiqueta ("pílula") embutido. Props: `badge_text` (`Badge`), `badge_bg`, `badge_fg`, `badge_size` (`13`), `text_class`. As duas cores têm default numa classe da lib (`.badge-pill` / `.badge-text`), não no atributo — é o que deixa uma classe injetada pintar. Ver `BUILTINS.md` para estender.
 
 ### `<SpinBox>`
 Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar soma ou subtrai `step`, saturando em `min`/`max`; a aritmética roda no widget, em Rust, **sem código do lado do app**.
@@ -448,6 +480,7 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 | `width` | `72` | largura do campo |
 | `placeholder` | vazio | dica quando a chave está vazia |
 | `field_class` | vazio | classe aplicada **ao campo de dentro**, não ao widget inteiro. Ver a nota abaixo sobre por que não se chama `class` |
+| `step_class` / `glyph_class` | vazio | classe dos botões de degrau e do glifo dentro deles |
 | `form_control` | vazio | repassado ao campo de dentro: dá a ele um id de foco estável e liga o **Enter** da `<Form>` que o envolve (submeter + avançar para o próximo controle). **Tab não depende disto** — a travessia por Tab é um listener global do motor e já alcança qualquer widget focável |
 | `dec_text` / `inc_text` | `▾`/`▴` (stacked), `−`/`+` (inline) | glifos dos degraus |
 | `glyph_size` | `11` (stacked), `15` (inline) | corpo do glifo |

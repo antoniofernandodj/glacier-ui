@@ -1,0 +1,10 @@
+- em todos os builtins precisa injetar classe para os widgets por dentro poderem ser estilizados
+- precisa readaptar todos os exemplos com as novas recomendações de estilo
+- corrigir erro de quando pinta muitas vezes um toast no mesmo local
+- precisa corrigir funcionamento de máscara
+- accordion precisa de animação
+- melhorar identação do exemplo onda4, widgets com multiplos atributos passam a ser um
+  atributo por linha. mover os estilos dos elementos para um gss 
+- alguns inputs de exemplo onda4 não funcionando:
+  -> checkbox "usar proxy", toogle "avisar por email" progressbar não renderizou progresso
+- refazer a onda4 em uma nova versão toda em luau

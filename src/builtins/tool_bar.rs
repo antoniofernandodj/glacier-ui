@@ -27,6 +27,11 @@
 /// - `width`    — largura. Default: `fill` — uma barra de ferramentas que não
 ///   atravessa a janela não lê como barra.
 /// - `align_y`  — alinhamento vertical dos itens. Default: `center`.
+/// - `bar_class`     — classe da faixa pintada (o `<Container>`).
+/// - `content_class` — classe da `<Row>` que segura os itens.
+///
+/// Como na `<statusbar>`, `class` no uso aplica na coluna externa (faixa +
+/// divisória); quem tem fundo é a faixa, e é `bar_class` que a alcança.
 ///
 /// # Aparência
 ///
@@ -50,8 +55,9 @@ impl Component for ToolBar {
                         .toolbar { background: #8080801f; }
                     </style>
 
-                    <Container class="toolbar" padding="{padding|6 8}" width="{width|fill}">
+                    <Container class="toolbar {bar_class}" padding="{padding|6 8}" width="{width|fill}">
                         <Row
+                            class="{content_class}"
                             spacing="{spacing|4}"
                             align_y="{align_y|center}"
                             width="{width|fill}"

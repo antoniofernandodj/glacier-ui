@@ -1,5 +1,6 @@
 <screen title="Detalhe" size="380 300" min-size="300 240">
   <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
     <script src="scripts/detalhe.luau"></script>
   </resources>

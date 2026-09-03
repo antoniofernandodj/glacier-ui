@@ -50,6 +50,27 @@
 /// `.listview-item` e `.listview-item-sel`, na folha global do template —
 /// instalada em `GlacierUI::new` e portanto **antes** de qualquer `.gss` do
 /// app, que por isso vence por ordem.
+///
+/// # Classes nos nós de dentro
+///
+/// `class` no uso aplica no `<Scrollable>` (a raiz). O que uma lista precisa
+/// mesmo estilizar é o **item**, e para isso há uma prop por nó:
+///
+/// - `list_class`     — a coluna que empilha os itens.
+/// - `item_class`     — cada item, selecionado ou não.
+/// - `selected_class` — só o selecionado, **por cima** de `item_class`.
+/// - `label_class`    — a primeira linha do item.
+/// - `sub_class`      — a segunda linha (`it.sub`).
+///
+/// ```xml
+/// <listview items="servicos" value="servico" selected="{servico}"
+///           item_class="linha" selected_class="linha_ativa" />
+/// ```
+///
+/// As classes injetadas entram **depois** das da lib na mesma lista, na ordem
+/// em que estão escritas acima — então `selected_class` redefine `item_class`,
+/// que redefine `.listview-item`, e o que nenhuma delas declarar continua vindo
+/// do default.
 use crate::component::{Component, Context, Template};
 
 pub struct ListView;
@@ -107,6 +128,7 @@ impl Component for ListView {
                     </style>
 
                     <Column
+                        class="{list_class}"
                         spacing="{spacing|2}"
                         width="fill"
                         virtualize="{virtualize|0}"
@@ -115,30 +137,30 @@ impl Component for ListView {
                             <template if="{mode|single}" equals="multi">
                                 <template if="{selected}" contains="{it.id}">
                                     <Button
-                                        class="listview-item listview-item-sel"
+                                        class="listview-item listview-item-sel {item_class} {selected_class}"
                                         on_click="pick:{mode|single}|{value}|{it.id}"
                                         padding="{padding|8 12}"
                                         width="fill"
                                     >
                                         <Column spacing="1" width="fill">
-                                            <Text content="{it.label}" size="{size|13}" bold="true" />
+                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" bold="true" />
                                             <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub" content="{it.sub}" size="11" />
+                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
                                             </template>
                                         </Column>
                                     </Button>
                                 </template>
                                 <template else>
                                     <Button
-                                        class="listview-item"
+                                        class="listview-item {item_class}"
                                         on_click="pick:{mode|single}|{value}|{it.id}"
                                         padding="{padding|8 12}"
                                         width="fill"
                                     >
                                         <Column spacing="1" width="fill">
-                                            <Text content="{it.label}" size="{size|13}" />
+                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" />
                                             <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub" content="{it.sub}" size="11" />
+                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
                                             </template>
                                         </Column>
                                     </Button>
@@ -148,30 +170,30 @@ impl Component for ListView {
                             <template else>
                                 <template if="{it.id}" equals="{selected}">
                                     <Button
-                                        class="listview-item listview-item-sel"
+                                        class="listview-item listview-item-sel {item_class} {selected_class}"
                                         on_click="pick:{mode|single}|{value}|{it.id}"
                                         padding="{padding|8 12}"
                                         width="fill"
                                     >
                                         <Column spacing="1" width="fill">
-                                            <Text content="{it.label}" size="{size|13}" bold="true" />
+                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" bold="true" />
                                             <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub" content="{it.sub}" size="11" />
+                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
                                             </template>
                                         </Column>
                                     </Button>
                                 </template>
                                 <template else>
                                     <Button
-                                        class="listview-item"
+                                        class="listview-item {item_class}"
                                         on_click="pick:{mode|single}|{value}|{it.id}"
                                         padding="{padding|8 12}"
                                         width="fill"
                                     >
                                         <Column spacing="1" width="fill">
-                                            <Text content="{it.label}" size="{size|13}" />
+                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" />
                                             <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub" content="{it.sub}" size="11" />
+                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
                                             </template>
                                         </Column>
                                     </Button>

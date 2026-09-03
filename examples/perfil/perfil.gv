@@ -1,5 +1,9 @@
 <screen title="Glacier - Painel de Perfil">
   <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/perfil/theme.json" />
     <import name="PerfilCard" from="examples/perfil/perfil_card.gv" />
   </resources>
 
@@ -7,7 +11,6 @@
     padding="30"
     width="fill"
     height="fill"
-    background="#11111B"
     align_x="Center"
     align_y="Center"
   >

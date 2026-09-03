@@ -24,6 +24,13 @@
 /// - `size`     — corpo do texto da mensagem. Default: `12`.
 /// - `divider`  — linha de separação sobre a barra. Default: `true`.
 /// - `width`    — largura. Default: `fill`.
+/// - `bar_class`     — classe da faixa pintada (o `<Container>`).
+/// - `message_class` — classe do texto da esquerda.
+/// - `content_class` — classe da linha que segura mensagem e `<slot/>`.
+///
+/// `class` no uso aplica na raiz, que aqui é a coluna que empilha a linha
+/// divisória e a faixa — quem tem fundo é a faixa, e é `bar_class` que a
+/// alcança.
 ///
 /// # Aparência
 ///
@@ -53,10 +60,10 @@ impl Component for StatusBar {
                         <Rule />
                     </template>
 
-                    <Container class="statusbar" padding="{padding|4 10}" width="{width|fill}">
-                        <Row spacing="{spacing|10}" align_y="center" width="{width|fill}">
+                    <Container class="statusbar {bar_class}" padding="{padding|4 10}" width="{width|fill}">
+                        <Row class="{content_class}" spacing="{spacing|10}" align_y="center" width="{width|fill}">
                             <Text
-                                class="statusbar-message"
+                                class="statusbar-message {message_class}"
                                 content="{message}"
                                 size="{size|12}"
                                 width="fill"

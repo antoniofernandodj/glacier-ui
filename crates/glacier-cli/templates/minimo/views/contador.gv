@@ -1,5 +1,6 @@
 <screen title="{{titulo}}" size="420 340" min-size="320 280">
   <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
 
     <script>

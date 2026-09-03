@@ -100,7 +100,7 @@ mede e desenha todos. `virtualize` monta só os visíveis:
 ```xml
 <scrollable height="fill">
   <column spacing="12" virtualize="300">   <!-- 300 = altura de CADA item -->
-    <ForEach items="servicos" var="s"> … </ForEach>
+    <foreach items="servicos" var="s"> … </foreach>
   </column>
 </scrollable>
 ```

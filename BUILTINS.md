@@ -179,9 +179,94 @@ atributo fica sem valor — herda o default do widget nativo do `iced`.
 
 Do mais forte ao mais fraco:
 
-1. Valor templado (`{…}` já resolvido)
+1. Valor templado (`{…}` já resolvido) — **desde que resolva para algo**
 2. Literal inline no atributo (`padding="4 10"`)
 3. Valor herdado de uma classe `.gss` (`class="..."`)
+
+A ressalva do degrau 1 é o que faz prop e classe conviverem no mesmo campo. Um
+`background="{bg}"` cuja prop não veio resolve para vazio, e vazio **não é um
+valor**: o campo cai para a classe. Antes da 0.89 ele vencia mesmo vazio, e o
+efeito era um widget sem fundo nenhum — o `<Frame shape="filled">` chegou a ter
+o braço inteiro duplicado (um com o atributo, outro sem) só para contornar isso,
+e o `<Avatar>` foi o único builtin sem folha `<style>` pela mesma razão. Os dois
+voltaram à forma simples.
+
+O corolário para quem escreve um builtin: **o default de uma cor vai numa
+classe da lib, não num `{prop|#aabbcc}`**. Um default inline resolve sempre, e
+resolvendo sempre ele vence toda classe — inclusive a que o app injetou.
+
+## Deixar o app estilizar o que está DENTRO do widget
+
+`class` no uso de um componente aplica na **raiz expandida** e só nela (0.69).
+É o certo — `<card class="destaque">` deve pintar o cartão, não o subtítulo —
+mas deixa sem resposta o pedido mais comum de quem adota a biblioteca: *"quero
+este item de lista com a cor do meu tema"*.
+
+A resposta é uma **prop por nó**, com nome que diz o alvo, encaminhada à `class`
+daquele nó no template:
+
+```rust
+// no template do builtin
+r#"<Button class="listview-item {item_class}" …>
+       <Text class="{label_class}" content="{it.label}" />
+   </Button>"#
+```
+
+```xml
+<!-- no uso -->
+<listview items="servicos" value="qual" selected="{qual}"
+          item_class="linha" selected_class="linha_ativa" />
+```
+
+Três regras que a biblioteca inteira segue desde a 0.89:
+
+1. **A injetada vem por último na lista de classes.** Classes resolvem da
+   esquerda para a direita, então `class="listview-item {item_class}"` deixa o
+   app redefinir o que quiser do default e herdar o resto — inclusive os
+   `:hover`, que continuam valendo se ele não declarar os seus.
+2. **Um par base/refinamento se escreve na ordem em que se aplica.**
+   `class="listview-item listview-item-sel {item_class} {selected_class}"`:
+   `selected_class` vence `item_class` porque está à direita.
+3. **Nó de raiz não ganha prop.** O `class` do uso já o alcança, e uma prop a
+   mais ali seria um segundo jeito de fazer a mesma coisa. É por isso que o
+   `<toolbutton>` — cuja raiz *é* o `<Button>` — não tem `button_class`.
+
+Um nó sem classe própria da lib recebe `class="{alguma_class}"` puro. Isso não
+custa nada quando ninguém injeta: o eval interpola a classe **antes** de decidir
+buscar folhas, então um `class` que resolve para vazio devolve o nó ao caminho
+barato, sem o `Vec` de folhas ativas nem as varreduras de regra.
+
+O nome da prop segue o alvo, não o tipo: `field_class`, `item_class`,
+`title_class`, `bar_class`, `head_class`. O sufixo é sempre `_class`.
+
+### A armadilha: uma classe não substitui uma prop do widget
+
+Injetar classe resolve **estilo**. O que o widget documenta como **prop**
+continua prop — e trocar uma pela outra falha em silêncio, porque a precedência
+está do lado do template:
+
+```gv
+<groupbox title="Rede" class="col_larga" />   <!-- NÃO: .col_larga { width: 440 } é ignorada -->
+<groupbox title="Rede" width="440" />          <!-- sim -->
+```
+
+O template do `<GroupBox>` escreve `width="{width|fill}"` inline. Um default
+inline **resolve sempre**, e um valor inline vence toda classe — inclusive a do
+uso. A classe não pinta nada, e o `width` cai no default `fill`.
+
+O estrago passa do cosmético quando o default é `fill`: dois filhos `fill`
+dentro de uma `<row>` sem largura colapsam para zero, e a seção inteira some da
+tela — sem erro, sem aviso, com a árvore avaliada intacta. Foi o que aconteceu
+com a aba "Accordion + ToolBox" do `examples/onda4` ao migrar os estilos para o
+`.gss`; `tests/engine_tests.rs` tem o teste que o pega agora.
+
+As três props de geometria que hoje se comportam assim, e que portanto ficam no
+markup: `width` do `<GroupBox>`/`<Frame>`/`<Card>`, `height` do `<ListView>`
+(`{height|240}`) e `width` do `<SpinBox>` (`{width|72}`, que é o campo interno —
+uma classe no uso pinta a `Row` de fora e deixa o campo em 72).
+
+Numa **primitiva** o problema não existe: não há template no caminho, então
+`<maskedinput class="campo">` com `.campo { width: 200 }` funciona.
 
 ## Grafia da tag: `<GroupBox/>` e `<groupbox/>`
 

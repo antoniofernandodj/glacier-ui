@@ -1,8 +1,15 @@
 <screen title="Glacier - Onda 2" size="880 660">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/onda2/theme.json" />
+  </resources>
+
   <!-- A janela inteira: barra de ferramentas, abas, conteúdo rolável e
      rodapé. É o esqueleto de uma QMainWindow — o <menubar> (que já era
      nativo antes desta onda) entraria acima da <toolbar>. -->
-  <column spacing="0" width="fill" height="fill" background="#1E1E2E">
+  <column spacing="0" width="fill" height="fill">
 
     <!-- 8. ToolButton dentro de 9. ToolBar ===
        Os botões são do app: `on_click="novo"` chega no update desta tela,

@@ -8,6 +8,102 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.89.0] — 2026-09-03
+
+### Adicionado
+- **Todo builtin aceita uma classe por nó de dentro.** `class` no uso de um
+  componente aplica na raiz expandida e só nela (0.69) — o que é o certo, mas
+  deixava sem resposta o pedido mais comum de quem adota a biblioteca: *"quero
+  este item de lista com a cor do meu tema"*. O `<SpinBox>` tinha `field_class`
+  desde a 0.69 e ficou sozinho nele por vinte versões; agora é o padrão dos
+  quatorze widgets.
+
+  O sufixo é sempre `_class` e o prefixo nomeia o alvo:
+
+  | widget | props |
+  |---|---|
+  | `<Badge>` | `text_class` |
+  | `<Avatar>` | `image_class`, `fallback_class`, `initials_class` |
+  | `<AccordionItem>` / `<ToolBoxItem>` | `head_class`, `mark_class`, `title_class`, `sub_class`, `body_class` |
+  | `<ButtonBox>` | `accept_class`, `reject_class`, `destructive_class` |
+  | `<Card>` | `header_class`, `title_class`, `subtitle_class`, `body_class`, `footer_class` |
+  | `<Frame>` | `box_class`, `content_class` |
+  | `<GroupBox>` | `frame_class`, `header_class`, `title_class`, `actions_class`, `content_class` |
+  | `<ListView>` | `list_class`, `item_class`, `selected_class`, `label_class`, `sub_class` |
+  | `<RadioGroup>` | `option_class`, `options_class` |
+  | `<SpinBox>` | `field_class`, `step_class`, `glyph_class` |
+  | `<StatusBar>` | `bar_class`, `message_class`, `content_class` |
+  | `<TabBar>` | `tab_class`, `tab_active_class`, `label_class` |
+  | `<ToolBar>` | `bar_class`, `content_class` |
+  | `<ToolButton>` | `icon_class`, `label_class`, `content_class` |
+
+  A classe injetada entra **depois** da classe da lib na mesma lista, então ela
+  redefine o que declara e herda o resto — inclusive os `:hover`. Onde há par
+  base/refinamento (`item_class` + `selected_class`, `tab_class` +
+  `tab_active_class`), o segundo vence o primeiro. Nó de **raiz** não ganha
+  prop: o `class` do uso já o alcança, e é por isso que o `<ToolButton>` — cuja
+  raiz *é* o `<Button>` — não tem `button_class`.
+
+- **`examples/onda4_luau`**: a mesma tela da Onda 4 sem um `Component` em Rust.
+  O `main.rs` só registra o `.gv`; `init`, as cinco ações e o recorte da página
+  moram em `scripts/app.luau`. O markup é o mesmo arquivo, linha por linha — que
+  é o ponto: com o Rust reduzido a um `register_component`, fica visível que
+  **nenhum dos sete widgets pede script nenhum**.
+
+### Corrigido
+- **Um atributo inline que resolve para vazio cai na classe**, em vez de
+  apagá-la. `background="{bg}"` num template de builtin vencia a classe mesmo
+  quando `bg` não existia — o campo virava `Some("")` e o `or_else` nem era
+  consultado, então o widget saía sem fundo nenhum e nenhuma classe (injetada ou
+  da lib) pintava. Vale para os campos de estilo resolvidos por classe (largura,
+  cor, `padding`, alinhamento, `background`, `border-color`, `cursor`, …), onde
+  vazio nunca foi um valor.
+
+  Duas cicatrizes disto sumiram junto: o `<Frame shape="filled">` tinha o braço
+  **duplicado** (um com o atributo, outro sem) só para contornar o problema, e o
+  `<Avatar>` era o único builtin sem folha `<style>` pela mesma razão. Os dois
+  voltaram à forma simples, e os defaults de cor do `<Badge>` e do `<Avatar>`
+  saíram do `{prop|#aabbcc}` para uma classe — um default inline resolve sempre,
+  e resolvendo sempre ele vencia toda classe. Idem a cor do ícone do
+  `<ToolButton>`, que agora sai de `.toolbutton-icon` para o glifo **e** para o
+  `<Svg>`, e por isso responde a `icon_class`.
+
+### Mudado
+- **Nenhum exemplo pinta mais a janela inteira**, e um teste passa a impedir a
+  volta (`tests/exemplos_gv.rs`). Era a regra 1 do `AGENTS.md` que a 0.88
+  publicou, e o próprio repositório a violava em **33** `.gv` mais quatro folhas
+  — inclusive nos presets do `glacier new`, que ensinavam o hábito a todo projeto
+  novo. Cada exemplo ganhou um `theme.json` com a cor que ele pintava; o
+  resultado na tela é o mesmo, sem a camada redobrada em cada pixel.
+
+  O `examples/aninhado` era o caso extremo: o botão "Trocar tema" repintava a
+  raiz `fill/fill` a cada clique. Trocar a cor da **janela** em runtime é a ação
+  builtin `style:<nome>`, que não passa por componente nenhum — o exemplo voltou
+  a mostrar só o que existe para mostrar (uma ação do pai que cai no `update` do
+  pai), e o `galeria_estilos` continua sendo o da troca de estilo.
+
+- **`examples/onda4` separou markup de estilo.** O `.gv` não tem mais uma cor:
+  tudo saiu para `app.gss`, e widget com vários atributos passou a um atributo
+  por linha. As classes de nó interno acima são o que tornou a separação
+  possível — sem elas, o item de um `<listview>` e a aba de um `<tabbar>`
+  continuariam presos aos defaults da lib.
+
+  O que **não** vai para a folha é o que o widget documenta como prop:
+  `width` de um `<groupbox>`, `height` de um `<listview>`, `width` de um
+  `<spinbox>`. O template deles escreve o campo inline com default
+  (`width="{width|fill}"`), e um default inline resolve sempre — a classe do uso
+  perde em silêncio. Quando o default é `fill`, o estrago passa do cosmético:
+  dois filhos `fill` numa `<row>` sem largura colapsam para zero e a seção some
+  da tela, com a árvore avaliada intacta. A armadilha está descrita em
+  `BUILTINS.md` e coberta por teste.
+
+- **O `resolve` de estilo interpola a classe antes de decidir buscar folhas.**
+  Um `class="{item_class}"` que resolve para vazio devolve o nó ao caminho
+  barato, sem o `Vec` de folhas ativas nem as varreduras de regra — é o que faz
+  as props novas custarem zero em quem não as usa.
+
+---
+
 ## [0.88.0] — 2026-09-03
 
 ### Adicionado

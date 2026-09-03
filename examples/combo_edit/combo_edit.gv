@@ -1,8 +1,15 @@
 <screen title="Glacier - ComboEdit (servidores salvos)">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/combo_edit/theme.json" />
+  </resources>
+
   <!-- `<comboedit>`: dropdown editável (combo_box do iced). Digite um servidor
      novo à vontade, ou escolha um dos já salvos na lista — escolher um
      preenche o token sozinho (veja `servidor_selecionado` em main.rs). -->
-  <container padding="24" width="fill" height="fill" background="#2E3440">
+  <container padding="24" width="fill" height="fill">
     <column spacing="16" width="420">
       <text size="24" bold="true" color="#ECEFF4">
         Servidores salvos

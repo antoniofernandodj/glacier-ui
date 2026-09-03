@@ -12,7 +12,10 @@
     --danger:  #F85149;
 }
 
-.janela   { width: fill; height: fill; background: var(--bg); }
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. Um `background`
+   de mesma cor num nó `fill/fill` é uma camada redobrada em cada pixel da
+   tela — invisível e cara (ver AGENTS.md). */
+.janela   { width: fill; height: fill; }
 .corpo    { width: fill; height: fill; }
 .sidebar  { width: 190; height: fill; background: var(--surface); padding: 16 12; spacing: 6; }
 .marca    { size: 12; bold: true; color: var(--faint); padding: 4 4 14 4; }

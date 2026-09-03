@@ -1,5 +1,12 @@
 <screen title="Glacier - Data e Hora" size="640 480">
-  <column padding="28" spacing="20" background="#1E1E2E" width="fill" height="fill">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/timepicker/theme.json" />
+  </resources>
+
+  <column padding="28" spacing="20" width="fill" height="fill">
 
     <column spacing="6">
       <text size="22" bold="true" color="#CDD6F4">QDateEdit · QTimeEdit · QDateTimeEdit</text>
