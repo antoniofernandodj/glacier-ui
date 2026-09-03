@@ -1,0 +1,104 @@
+/*
+examples/onda4_luau/app.gss
+
+Todo o visual desta tela. O `app.gv` ao lado ficou com estrutura e
+comportamento — nome de chave, ação, `if`/`else` — e nenhuma cor.
+
+Três coisas que a separação torna visíveis, e que o markup misturado escondia:
+
+ 1. A tela usa **cinco** cores de texto, não quinze. Repetidas inline, elas
+    pareciam quinze decisões; num arquivo só, viram uma paleta.
+ 2. O fundo da janela não está aqui. É do `theme.json` — pintar um nó
+    `fill/fill` com a cor que o tema já pinta é uma camada redobrada em cada
+    pixel da tela (ver AGENTS.md).
+ 3. `border-radius` só aparece em caixa pequena (o selo). Arredondar exige
+    matemática de distância por pixel do retângulo inteiro, inclusive longe dos
+    cantos — barato num crachá, caro numa caixa que ocupa a tela.
+
+As classes de nó interno de builtin (`.item`, `.item_ativo`, `.aba`, …) são a
+capacidade da 0.89: um builtin aceita uma classe por nó de dentro, então esta
+folha alcança o item de um `<listview>` sem reescrever o widget.
+*/
+
+:root {
+    --texto:  #CDD6F4;
+    --suave:  #A6ADC8;
+    --fraco:  #80868D;
+    --azul:   #89B4FA;
+    --verde:  #A6E3A1;
+    --roxo:   #CBA6F7;
+    --ambar:  #F9E2AF;
+    --realce: #8080803D;
+}
+
+/* ── Esqueleto ─────────────────────────────────────────────────────────── */
+
+.tela      { width: fill; height: fill; }
+.cabecalho { width: fill; padding: 20 24 0 24; spacing: 8; }
+.corpo     { width: fill; padding: 20 24; spacing: 18; }
+.secao     { width: fill; spacing: 18; }
+
+/* Duas colunas lado a lado.
+   A largura das colunas NÃO está aqui: ela é `width="440"` no próprio
+   `<groupbox>`, e tem de ser. `width` é uma PROP do widget, e o template dele
+   escreve `width="{width|fill}"` inline — um default inline resolve sempre, e um
+   valor inline vence toda classe, então `.col_larga { width: 440 }` seria
+   ignorada em silêncio. Pior: o default `fill` dentro desta `<row>` sem largura
+   colapsa a coluna para zero, e as duas seções somem da tela.
+   A regra, que vale para todo builtin: **o que o widget documenta como prop
+   continua prop; a folha fica com o que é estilo.** */
+.par { spacing: 18; align-y: start; }
+
+/* ── Texto ─────────────────────────────────────────────────────────────── */
+
+.titulo { size: 20; bold: true; color: var(--texto); }
+.intro  { size: 13; color: var(--suave); }
+.nota   { size: 12; color: var(--suave); }
+.crua   { size: 12; color: var(--fraco); }
+.valor  { size: 13; color: var(--texto); }
+
+/* Rótulo de campo: a largura fixa é o que alinha os campos numa coluna, e é por
+   isso que ela é do rótulo e não do campo. */
+.rotulo    { size: 13; color: var(--texto); width: 80; }
+.rotulo_md { size: 13; color: var(--texto); width: 90; }
+.rotulo_sm { size: 13; color: var(--texto); width: 70; }
+
+/* ── Linhas ────────────────────────────────────────────────────────────── */
+
+.linha       { spacing: 8;  align-y: center; }
+.linha_media { spacing: 10; align-y: center; }
+.linha_larga { spacing: 12; align-y: center; }
+.linha_campo { spacing: 14; align-y: center; }
+
+/* ── Widgets ───────────────────────────────────────────────────────────── */
+
+/* `<maskedinput>` é PRIMITIVA: não há template com `width` inline no caminho,
+   então a classe pinta normalmente. `<listview height>` e `<spinbox width>` são
+   props de builtin e ficaram no markup, pelo motivo acima. */
+.campo { width: 200; }
+.btn   { padding: 6 12; }
+
+/* Nós de DENTRO dos builtins (0.89). A classe injetada entra depois da classe
+   da lib no mesmo nó, então ela redefine o que declara e herda o resto —
+   inclusive o `:hover`, que continua sendo o da lib. */
+
+.aba       { border-radius: 6; }
+.aba_ativa { color: var(--realce); text-color: var(--texto); }
+
+.item       { border-radius: 5; }
+.item_ativo { color: var(--realce); }
+.item_sub   { color: var(--fraco); }
+
+/* A cor de um `<rating>` cai na classe quando o atributo não a dá — o mesmo
+   fallback do `color` de um `<button>`. É por isso que a estrela de cor própria
+   não precisa de um atributo inline aqui. */
+.estrelas_ambar { color: var(--ambar); }
+
+.secao_topo { border-radius: 5; }
+
+/* Cada selo nomeia a chave que o widget ao lado escreve; a cor é o código dessa
+   chave, repetido no `<badge>` e em nada mais. */
+.selo_azul  { background: var(--azul); }
+.selo_verde { background: var(--verde); }
+.selo_roxo  { background: var(--roxo); }
+.selo_ambar { background: var(--ambar); }

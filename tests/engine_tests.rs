@@ -1658,6 +1658,24 @@ fn test_exemplo_onda4_ponta_a_ponta() {
         !textos.iter().any(|t| t.contains("2 volumes")),
         "a seção fechada não deveria mostrar o corpo: {textos:?}"
     );
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "usar_proxy".to_string(),
+        value: "true".to_string(),
+    });
+    assert_eq!(
+        motor.context().get("usar_proxy").map(String::as_str),
+        Some("true"),
+        "o checkbox dentro do accordion precisa gravar a própria chave"
+    );
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "avisar".to_string(),
+        value: "false".to_string(),
+    });
+    assert_eq!(
+        motor.context().get("avisar").map(String::as_str),
+        Some("false"),
+        "o toggle dentro do accordion precisa gravar a própria chave"
+    );
 
     // --- Aba 3: MaskedInput, Rating, SpinBox decimals, ButtonBox -------------
     motor.define_data("aba", "campos");
@@ -1757,8 +1775,10 @@ impl glacier_ui::Component for TelaOnda4 {
         ctx.set("preco", "19.90".to_string());
         ctx.set("desconto", "0".to_string());
     }
-    fn update(&mut self, _action: &str, _value: Option<&str>, _ctx: &mut glacier_ui::Context) {
-        // O teste não clica em nada: o que ele fixa é a árvore avaliada.
+    fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut glacier_ui::Context) {
+        if let Some(value) = value {
+            ctx.set(action, value.to_string());
+        }
     }
 }
 
@@ -5011,6 +5031,390 @@ fn spinbox_repassa_field_class_e_form_control() {
         campo.form_next_focus(),
         Some("depois"),
         "e o Enter avança para o controle seguinte, na ordem do documento"
+    );
+
+    std::fs::remove_file(p).ok();
+}
+
+/// Uma classe no uso **não** substitui uma prop de geometria de um builtin, e a
+/// aba "Accordion + ToolBox" da Onda 4 é onde isso aparece na cara.
+///
+/// A armadilha, que já quebrou esta tela: mover `width="440"` de prop para
+/// `class="col_larga"` parece a mesma coisa e não é. O template do `<GroupBox>`
+/// escreve `width="{width|fill}"` **inline**, e um default inline resolve
+/// sempre — a classe do uso perde. O `width` vira `fill`, e dois filhos `fill`
+/// dentro de uma `<row>` sem largura colapsam para zero: as duas seções somem da
+/// tela, sem erro nem aviso.
+///
+/// Por isso o teste olha o número e não a estrutura. A árvore continuava
+/// inteirinha quando a tela estava em branco.
+#[test]
+fn onda4_secoes_tem_largura_e_nao_colapsa() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda4_luau", "examples/onda4_luau/app.gv")
+        .expect("registrar a tela Luau");
+    motor.set_initial_screen("onda4_luau");
+    let _ = motor.dispatch(&EngineMessage::UiClick("tabbar::pick:aba|secoes".into()));
+
+    fn larguras(n: &glacier_ui::UiNode, out: &mut Vec<String>) {
+        if let Some(w) = &n.width {
+            out.push(w.clone());
+        }
+        for f in n.children.iter() {
+            larguras(f, out);
+        }
+    }
+    let mut w = Vec::new();
+    larguras(motor.evaluated("onda4_luau").unwrap(), &mut w);
+
+    assert!(
+        w.iter().any(|x| x == "440"),
+        "o groupbox do accordion perdeu a largura e vai colapsar: {w:?}"
+    );
+    assert!(
+        w.iter().any(|x| x == "380"),
+        "o groupbox do toolbox perdeu a largura e vai colapsar: {w:?}"
+    );
+
+    // As outras duas props de geometria que a mesma troca engoliria: a altura do
+    // `<listview>` (`height="{height|240}"` no template) e a largura do campo do
+    // `<spinbox>` (`width="{width|72}"`).
+    let mut w2 = Vec::new();
+    let _ = motor.dispatch(&EngineMessage::UiClick("tabbar::pick:aba|listas".into()));
+    fn alturas(n: &glacier_ui::UiNode, out: &mut Vec<String>) {
+        if let Some(h) = &n.height {
+            out.push(h.clone());
+        }
+        for f in n.children.iter() {
+            alturas(f, out);
+        }
+    }
+    alturas(motor.evaluated("onda4_luau").unwrap(), &mut w2);
+    assert!(
+        w2.iter().any(|x| x == "196"),
+        "o listview voltou para a altura default da lib: {w2:?}"
+    );
+}
+
+/// O `examples/onda4_luau` faz o mesmo que o `examples/onda4`, sem Rust.
+///
+/// A promessa do exemplo é forte e vale um teste: **o markup é o mesmo e os
+/// sete widgets não pedem script nenhum** — o que mudou de lado foi só o que é
+/// do app (o recorte da página e as ações da `<buttonbox>`).
+///
+/// Aqui o teste é o `init` do script: ele semeia as mesmas chaves que o
+/// `Component::init` de Rust, inclusive a página recortada, que é a única que
+/// não é literal. Se o Luau não tivesse rodado, `servicos` viria vazia e a
+/// lista sairia sem uma linha.
+#[test]
+fn exemplo_onda4_luau_faz_o_mesmo_sem_rust() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda4_luau", "examples/onda4_luau/app.gv")
+        .expect("registrar a tela Luau");
+    motor.set_initial_screen("onda4_luau");
+
+    // `init()` do script rodou: as chaves literais estão lá…
+    let ctx = motor.context();
+    assert_eq!(ctx.get("aba").map(String::as_str), Some("listas"));
+    assert_eq!(ctx.get("total_paginas").map(String::as_str), Some("3"));
+    assert_eq!(ctx.get("marcados").map(String::as_str), Some("api,cache"));
+    // …e a que é DERIVADA também, que é a prova de que `recortar()` correu.
+    assert_eq!(
+        ctx.get("faixa").map(String::as_str),
+        Some("1–4 de 12"),
+        "o recorte da primeira página não rodou"
+    );
+
+    // A página recortada chega ao `<listview>` como as mesmas ações por linha
+    // da versão Rust — mesmo payload, mesmo prefixo de dono.
+    let acoes = todas_as_acoes(motor.evaluated("onda4_luau").unwrap());
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "listview::pick:single|servico|api"),
+        "faltou a linha do listview simples: {acoes:?}"
+    );
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "listview::pick:multi|marcados|cache"),
+        "faltou a linha do listview múltiplo: {acoes:?}"
+    );
+
+    // E a ação que DELEGA cai no script: `repaginar` grava a página e recorta
+    // no mesmo passo — o gancho que a paginação com `on_change` existe para dar.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "repaginar".to_string(),
+        value: "2".to_string(),
+    });
+    assert_eq!(motor.context().get("pagina").map(String::as_str), Some("2"));
+    assert_eq!(
+        motor.context().get("faixa").map(String::as_str),
+        Some("5–8 de 12"),
+        "o recorte não acompanhou a troca de página"
+    );
+    assert_eq!(
+        motor.context().get("status").map(String::as_str),
+        Some("Página 2")
+    );
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "usar_proxy".to_string(),
+        value: "true".to_string(),
+    });
+    assert_eq!(
+        motor.context().get("usar_proxy").map(String::as_str),
+        Some("true"),
+        "o checkbox Luau dentro do accordion precisa gravar a própria chave"
+    );
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: "avisar".to_string(),
+        value: "false".to_string(),
+    });
+    assert_eq!(
+        motor.context().get("avisar").map(String::as_str),
+        Some("false"),
+        "o toggle Luau dentro do accordion precisa gravar a própria chave"
+    );
+}
+
+/// O `examples/onda4` depois da separação markup/estilo, ponta a ponta.
+///
+/// O `.gv` dele não tem mais uma cor sequer: tudo saiu para `app.gss`, e as
+/// classes de nó interno de builtin (0.89) são o que tornou isso possível — sem
+/// elas, o item de um `<listview>` e a aba de um `<tabbar>` continuariam
+/// dependendo dos defaults da lib, e "mover os estilos para um gss" seria meia
+/// mudança.
+///
+/// O teste prova as duas metades: a folha alcança um nó da TELA (o título) e um
+/// nó de DENTRO de dois builtins diferentes (o item de lista, a aba ativa).
+#[test]
+fn exemplo_onda4_pega_todo_o_estilo_do_gss() {
+    struct Onda4;
+    impl Component for Onda4 {
+        fn name(&self) -> &str {
+            "onda4"
+        }
+        fn template(&self) -> Template {
+            Template::File("examples/onda4/app.gv".into())
+        }
+        fn init(&mut self, ctx: &mut Context) {
+            ctx.set(
+                "abas",
+                r#"[{"id":"listas","label":"Pagination + ListView"},
+                    {"id":"secoes","label":"Accordion + ToolBox"}]"#
+                    .to_string(),
+            );
+            ctx.set("aba", "listas".to_string());
+            ctx.set(
+                "servicos",
+                r#"[{"id":"api","label":"API pública","sub":"id: api"},
+                    {"id":"db","label":"Banco primário","sub":"id: db"}]"#
+                    .to_string(),
+            );
+            ctx.set("servico", "api".to_string());
+            ctx.set("marcados", "api".to_string());
+            ctx.set("pagina", "1".to_string());
+            ctx.set("total_paginas", "3".to_string());
+            ctx.set("status", "Pronto".to_string());
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
+
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(Onda4)).unwrap();
+    motor.set_initial_screen("onda4");
+    let raiz = motor.evaluated("onda4").unwrap();
+
+    fn coleta(n: &glacier_ui::UiNode, fundos: &mut Vec<String>, cores: &mut Vec<String>) {
+        if let Some(b) = &n.background {
+            fundos.push(b.clone());
+        }
+        match &n.kind {
+            NodeType::Text { color: Some(c), .. } => cores.push(c.clone()),
+            // O fundo de um `<Button>` não é `background`: é o campo `color` do
+            // próprio nó (é assim que `.tab`/`.listview-item` o pintam).
+            NodeType::Button { color: Some(c), .. } => fundos.push(c.clone()),
+            _ => {}
+        }
+        for f in n.children.iter() {
+            coleta(f, fundos, cores);
+        }
+    }
+    let (mut fundos, mut cores) = (Vec::new(), Vec::new());
+    coleta(raiz, &mut fundos, &mut cores);
+
+    // `.titulo { color: var(--texto) }` — um nó da própria tela.
+    assert!(
+        cores.iter().any(|c| c.eq_ignore_ascii_case("#CDD6F4")),
+        "o título não pegou a cor do .gss: {cores:?}"
+    );
+    // `.item_ativo`/`.aba_ativa { color: var(--realce) }` — nós de DENTRO do
+    // `<listview>` e do `<tabbar>`, que só a injeção de classe alcança. O campo
+    // `color` de um `<Button>` é o fundo dele.
+    assert!(
+        fundos.iter().any(|c| c.eq_ignore_ascii_case("#8080803D")),
+        "o realce injetado não chegou ao item/aba: {fundos:?}"
+    );
+    // `.selo_azul { background: var(--azul) }` — a raiz de um `<badge>`, pela
+    // classe do USO (que aplica na raiz expandida, desde a 0.69).
+    assert!(
+        fundos.iter().any(|c| c.eq_ignore_ascii_case("#89B4FA")),
+        "o selo não pegou o fundo do .gss: {fundos:?}"
+    );
+}
+
+/// A generalização da 0.89: **todo** builtin aceita uma classe por nó interno.
+///
+/// O `SpinBox` abriu o padrão com `field_class` (0.69) e ficou sozinho nele por
+/// vinte versões — o que deixava o resto da biblioteca sem resposta para "quero
+/// este item de lista com a cor do meu tema". Aqui um representante de cada
+/// forma do padrão prova o contrato:
+///
+/// - nó com classe própria da lib (`.listview-item`) + classe injetada;
+/// - nó **sem** classe nenhuma no template (o título de um `<card>`);
+/// - a dupla base/refinamento (`item_class` + `selected_class`), onde a segunda
+///   precisa vencer a primeira.
+#[test]
+fn builtins_aceitam_classe_nos_nos_de_dentro() {
+    struct Tela;
+    impl Component for Tela {
+        fn name(&self) -> &str {
+            "classes_internas"
+        }
+        fn template(&self) -> Template {
+            Template::Inline(
+                r##"<component>
+        <style>
+        .linha       { background: #101010; }
+        .linha_ativa { background: #202020; }
+        .titulo_card { color: #303030; }
+        .selo_txt    { color: #404040; }
+        </style>
+        <column>
+            <listview items="itens" value="qual" selected="{qual}"
+                      item_class="linha" selected_class="linha_ativa" />
+            <card title="Servidor" title_class="titulo_card" />
+            <badge badge_text="Novo" text_class="selo_txt" />
+        </column>
+    </component>"##
+                    .to_string(),
+            )
+        }
+        fn init(&mut self, ctx: &mut Context) {
+            ctx.set(
+                "itens",
+                r#"[{"id":"a","label":"A"},{"id":"b","label":"B"}]"#.to_string(),
+            );
+            ctx.set("qual", "b".to_string());
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
+
+    let mut motor = GlacierUI::new();
+    motor.register(Box::new(Tela)).unwrap();
+    motor.set_initial_screen("classes_internas");
+
+    let raiz = motor.evaluated("classes_internas").unwrap();
+
+    // Um `.gss` resolve em campos de estilo, não sobrevive como string: a prova
+    // de que a classe chegou é a cor que ela declarou.
+    fn cores(
+        n: &glacier_ui::UiNode,
+        campo: fn(&glacier_ui::UiNode) -> Option<String>,
+    ) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some(c) = campo(n) {
+            out.push(c);
+        }
+        for f in n.children.iter() {
+            out.extend(cores(f, campo));
+        }
+        out
+    }
+    let fundos = cores(raiz, |n| n.background.clone());
+    let textos = cores(raiz, |n| match &n.kind {
+        NodeType::Text { color, .. } => color.clone(),
+        _ => None,
+    });
+
+    // `item_class` alcança os DOIS itens, por cima de `.listview-item`.
+    assert_eq!(
+        fundos.iter().filter(|c| *c == "#101010").count(),
+        1,
+        "item_class pinta o item não selecionado: {fundos:?}"
+    );
+    // `selected_class` vence `item_class` no item selecionado — é a ordem em
+    // que as duas estão escritas na lista de classes do template.
+    assert_eq!(
+        fundos.iter().filter(|c| *c == "#202020").count(),
+        1,
+        "selected_class refina só o selecionado: {fundos:?}"
+    );
+    // Nó SEM classe própria no template: o `class="{title_class}"` existe só
+    // para receber a injeção.
+    assert!(
+        textos.iter().any(|c| c == "#303030"),
+        "title_class pinta o título do card: {textos:?}"
+    );
+    // E o mesmo num builtin cujo default de cor mora numa classe da lib
+    // (`.badge-text`), que a injetada redefine.
+    assert!(
+        textos.iter().any(|c| c == "#404040"),
+        "text_class pinta o texto do badge: {textos:?}"
+    );
+}
+
+/// Um atributo inline que resolve para **vazio** cai na classe, em vez de
+/// apagá-la.
+///
+/// É o que torna a injeção acima utilizável num builtin que aceita a cor por
+/// prop: o template escreve `background="{bg}"` para honrar a prop, e sem esta
+/// regra esse atributo vencia a classe mesmo sem prop nenhuma — o widget saía
+/// sem fundo, e nenhuma classe (injetada ou da lib) pintava. O `<frame
+/// shape="filled">` é o caso concreto: ele chegou a ter o braço duplicado só
+/// para não emitir o atributo.
+#[test]
+fn atributo_vazio_cai_na_classe() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let p = "templates/vazio_cai_na_classe.gv";
+    std::fs::write(
+        p,
+        envolve(
+            r##"
+        <style>
+        .painel { background: #0a0a0a; }
+        </style>
+        <column>
+            <container class="painel" background="{nao_existe}" />
+            <container class="painel" background="#ffffff" />
+        </column>
+        "##,
+        ),
+    )
+    .unwrap();
+    motor.register_component("proto", p).unwrap();
+
+    let raiz = motor.evaluated("proto").unwrap();
+    fn fundos(n: &glacier_ui::UiNode, out: &mut Vec<String>) {
+        if let Some(b) = &n.background {
+            out.push(b.clone());
+        }
+        for f in n.children.iter() {
+            fundos(f, out);
+        }
+    }
+    let mut cores = Vec::new();
+    fundos(raiz, &mut cores);
+    assert!(
+        cores.iter().any(|c| c == "#0a0a0a"),
+        "prop ausente -> a classe pinta: {cores:?}"
+    );
+    assert!(
+        cores.iter().any(|c| c == "#ffffff"),
+        "e um valor de verdade continua vencendo a classe: {cores:?}"
     );
 
     std::fs::remove_file(p).ok();

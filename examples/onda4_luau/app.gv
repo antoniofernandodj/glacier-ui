@@ -1,23 +1,33 @@
-<screen title="Glacier - Onda 4" size="960 780">
+<screen title="Glacier - Onda 4 (Luau)" size="960 780">
   <resources>
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
-    <link rel="theme"      href="examples/onda4/theme.json" />
+    <link rel="theme"      href="examples/onda4_luau/theme.json" />
 
     <!-- Todo o visual mora aqui. O que sobra abaixo é estrutura e
          comportamento: nome de chave, ação, `if`/`else`. -->
-    <link rel="stylesheet" href="examples/onda4/app.gss" />
+    <link rel="stylesheet" href="examples/onda4_luau/app.gss" />
+
+    <!-- E todo o COMPORTAMENTO aqui. É a única diferença entre este exemplo e
+         o `examples/onda4`: lá as mesmas cinco ações e o mesmo recorte de
+         página são um `impl Component` em Rust; o markup abaixo é idêntico,
+         linha por linha. -->
+    <script src="scripts/app.luau"></script>
   </resources>
 
   <column class="tela" spacing="0">
 
     <column class="cabecalho">
-      <text class="titulo">Onda 4 — os widgets que têm função</text>
+      <text class="titulo">Onda 4 em Luau — os widgets que têm função</text>
       <text class="intro">
         O que une estas sete linhas do catálogo não é a aparência: é o `update`. Todas fazem conta —
         a janela de números de uma paginação, a alternância de um item num conjunto, a máscara de um
         CPF, o clamp de um preço com duas casas.
+      </text>
+      <text class="crua">
+        Mesma tela do exemplo `onda4`, com o `impl Component` de Rust trocado por
+        `scripts/app.luau`. O markup não mudou — é o que o exemplo existe para mostrar.
       </text>
 
       <!-- `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
@@ -165,7 +175,7 @@
                     <checkbox
                       label="Usar proxy"
                       checked="usar_proxy"
-                      on_toggle="usar_proxy"
+                      on_toggle="avisar"
                     />
                   </accordionitem>
 

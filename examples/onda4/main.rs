@@ -38,7 +38,7 @@
 //! sozinhos — o app só nomeia as chaves e reage ao que quer.
 
 use glacier_ui::{Component, Context, GlacierDaemon, Template};
-
+use serde_json::Value::Array as SerdeArray;
 struct Onda4;
 
 /// A lista inteira, da qual a paginação recorta uma página. Em app de verdade
@@ -84,7 +84,7 @@ impl Onda4 {
                 serde_json::json!({ "id": id, "label": label, "sub": format!("id: {id}") })
             })
             .collect();
-        ctx.set("servicos", serde_json::Value::Array(itens).to_string());
+        ctx.set("servicos", SerdeArray(itens).to_string());
         ctx.set(
             "faixa",
             format!(
@@ -132,6 +132,15 @@ impl Component for Onda4 {
         ctx.set("abertas", "rede".to_string());
         ctx.set("ferramenta", "medidas".to_string());
 
+        // As três chaves que o conteúdo das seções lê. Sem semeá-las, o
+        // `<checkbox>` e o `<toggle>` nascem desmarcados e — o que é pior —
+        // NÃO alternam: o clique escreve `true`, mas a chave que o widget lê
+        // continua ausente no primeiro quadro. E a `<progressbar>` sem chave
+        // desenha a barra vazia, que parece um bug de render e não é.
+        ctx.set("usar_proxy", "false".to_string());
+        ctx.set("avisar", "true".to_string());
+        ctx.set("uso_disco", "41".to_string());
+
         // Campos.
         ctx.set("cpf", String::new());
         ctx.set("telefone", String::new());
@@ -169,6 +178,9 @@ impl Component for Onda4 {
             "limpar_marcados" => {
                 ctx.set("marcados", String::new());
                 ctx.set("status", "Seleção múltipla limpa".to_string());
+            }
+            chave if value.is_some() => {
+                ctx.set(chave, value.unwrap_or_default().to_string());
             }
             _ => {}
         }
