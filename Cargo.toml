@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.83.0"
+version = "0.84.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -40,6 +40,10 @@ path = "examples/timepicker/main.rs"
 [[example]]
 name = "data_hora_luau"
 path = "examples/data_hora_luau/main.rs"
+
+[[example]]
+name = "onda3"
+path = "examples/onda3/main.rs"
 
 [[example]]
 name = "onda1"

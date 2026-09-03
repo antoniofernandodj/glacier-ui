@@ -13,7 +13,7 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-01**, sobre a 0.73. Ela passou a ordenar por
+Última revisão da fila: **2026-09-02**, sobre a 0.84 (Onda 3 fechada). Ela passou a ordenar por
 **função** — widgets que carregam lógica — em vez de por custo; o motivo está no
 alto da §6.2.
 
@@ -140,12 +140,12 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QCalendarWidget | `Calendar` | **Prim** | compõe | ◐ | P1 | ⬜ | grade de mês, navegação, dia selecionado. **Reclassificado de `Comp ●` para `Prim ◐`** — ver a nota abaixo da tabela; deixou de estar bloqueado. Onda 3 |
+| QCalendarWidget | `Calendar` | **Prim** | compõe | ◐ | P1 | ✅ | `<calendar value="dia" today="{hoje}" />` — grade 7×6, navegação ‹ ›, escada de drill-up (dia → mês → ano) no clique do título, `min`/`max` deixando os dias de fora inertes, `first_day` girando o cabeçalho da semana e rótulos de mês/dia por prop (pt-BR embutido). **A previsão se confirmou**: nenhum habilitador de motor, nenhum `Grid`, nenhuma crate de data — `days_from_civil` são oito linhas ao lado do `dias_no_mes`. Onda 3 (0.84) |
 | QDateEdit | `DateEdit` / `DatePicker` | Prim | compõe | ◐ | P1 | ✅ | edição por **seções** (ano/mês/dia), com o realce da paleta na seção ativa e ▴▾ agindo sobre ela. Calendário respeitado: 31/01 + 1 mês satura em 28 ou 29. `format="br"` troca só a exibição — a chave é sempre ISO. Teclado completo na 0.70 (▲▼ na seção, ←→ para trocar, dígitos com avanço automático). Falta a variante `calendarPopup`, que espera o overlay ancorado (§3) |
 | QTimeEdit | `TimeEdit` / `TimePicker` | Prim | compõe | ◐ | P1 | ✅ | as mesmas seções, para hora/minuto\[/segundo\]. Cada seção vira **dentro de si** (o `wrapping` do `QAbstractSpinBox`): mexer no minuto não empurra a hora |
 | QDateTimeEdit | `DateTimeEdit` | Prim | compõe | ◐ | P1 | ✅ | as duas famílias de seção no mesmo campo. É **a mesma primitiva** dos dois acima — a tag só decide quais seções aparecem |
-| — (range) | `DateRangePicker` | **Prim** | compõe | ◐ | P2 | ⬜ | intervalo início→fim: **a mesma primitiva** com `range`, duas chaves (`start`/`end`) e `months="2"` para as duas grades lado a lado. Onda 3 |
-| — (mês/ano) | `MonthYearPicker` | **Prim** | compõe | ◐ | **P2** | ⬜ | seleção só de mês/ano: **a mesma primitiva** em `mode="month"` — a tela de drill-up que o `QCalendarWidget` abre ao clicar no título, promovida a tag. Grava `YYYY-MM`. Sobe de P3 porque sai junto do `Calendar`, não depois. Onda 3 |
+| — (range) | `DateRangePicker` | **Prim** | compõe | ◐ | P2 | ✅ | intervalo início→fim: **a mesma primitiva** com `range`, duas chaves (`start`/`end`) e `months="2"` desenhando as duas grades lado a lado. A faixa provisória entre o início e o cursor sai de uma chave global (`__cal_hover`), rastreada só enquanto há uma ponta aberta. Onda 3 (0.84) |
+| — (mês/ano) | `MonthYearPicker` | **Prim** | compõe | ◐ | **P2** | ✅ | seleção só de mês/ano: **a mesma primitiva** em `mode="month"` — a tela de drill-up que o `QCalendarWidget` abre ao clicar no título, promovida a tag. Grava `YYYY-MM`; `mode="year"` grava `YYYY`. Custo marginal medido: **zero linhas de render próprias** — os dois níveis já existiam para a escada. Onda 3 (0.84) |
 
 > **A dependência de datas não foi necessária** para os três campos de edição: a
 > aritmética que eles pedem é somar 1 numa seção e saber quantos dias tem o mês
@@ -172,7 +172,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 > |---|---|
 > | estado de navegação (que mês estou vendo) por instância | é **um valor que se nomeia**, e o nome sai de graça: a identidade da instância já é o nome da chave que ela edita, então o mês visível mora em `__cal_<chave>` (do motor, sem o app configurar nada), e uma prop `month=` opcional deixa o app dirigir os dois calendários de um intervalo |
 > | `Grid` (`QGridLayout`) como pré-requisito | só valeria para um **builtin**, cujo template é markup e precisaria de uma grade declarativa. Uma primitiva monta `Column` de `Row`s num laço em Rust — o `Grid` continua valendo por si, mas deixa de estar no caminho crítico da §2.5 |
-> | a decisão `chrono` vs. `time` | fechada na 0.72 (§4). Dia da semana é `days_from_civil`, seis linhas ao lado do `dias_no_mes` que o `Instante` já tem |
+> | a decisão `chrono` vs. `time` | fechada na 0.72 (§4). Dia da semana é `days_from_civil`, oito linhas ao lado do `dias_no_mes` que o `Instante` já tem |
 >
 > Sobra um item honesto: marcar **hoje** exige o offset local, que a `std` não
 > dá. A saída é não pedir: `today="{hoje}"` como prop, preenchida com
@@ -183,6 +183,13 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 > O resultado é que a §2.5 inteira sai por **uma primitiva com três tags**, do
 > mesmo jeito que `<dateedit>`/`<timeedit>`/`<datetimeedit>` são uma só. Ver a
 > Onda 3 na §6.2.
+>
+> **Fechado na 0.84**, e as três previsões acima se confirmaram uma a uma: a
+> primitiva é um `NodeType::Calendar` só, o mês visível mora em `__cal_<chave>`
+> sem o app configurar nada, e o `days_from_civil` que faltava tem oito linhas.
+> A §2.5 fecha em **6 de 6**. O que sobra não é uma linha da tabela: é a
+> variante `calendarPopup` do `<dateedit>` — uma *composição* das duas
+> primitivas que já existem, esperando o overlay ancorado da Onda 5.
 
 ### 2.6 Displays e indicadores (apresentacionais)
 
@@ -485,10 +492,13 @@ Ordem sugerida de habilitadores de Motor:
   justo no caso de uso.
 
   Uma correção de fato: o dia da semana não pede crate — é `days_from_civil`,
-  seis linhas —, mas este documento dizia que ele já estava "em uso nos dois
-  lados", e **não está**. Existe só no Luau (`date.weekday`, em
-  `src/luau/prelude.luau`); o lado Rust tem o `dias_no_mes` e mais nada. As seis
-  linhas entram junto do `Calendar`, ao lado dele em `src/widget.rs`.
+  oito linhas —, mas este documento dizia que ele já estava "em uso nos dois
+  lados", e **não estava**. Existia só no Luau (`date.weekday`, em
+  `src/luau/prelude.luau`); o lado Rust tinha o `dias_no_mes` e mais nada. As
+  oito linhas entraram junto do `Calendar` na 0.84, ao lado dele em
+  `src/widget.rs`, com teste contra 1970, 1900 e 2000 — errar a regra do século
+  desloca a grade inteira em silêncio, que é o pior modo de falha possível para
+  um calendário.
 - **Gráficos**: `canvas` na mão vs. integrar `plotters`.
 - **Convenção de nomes**: manter aliases PT-BR (`botao`, `seletor`, `rolagem`…)
   para todo widget novo, ou só para o núcleo? (hoje o núcleo tem os dois.)
@@ -520,13 +530,14 @@ padrão da chave nomeada)**
 continua atrás de um habilitador (o nome dinâmico de slot); o resto sai com o
 motor como está.
 
-**Fase D — data/hora (P1, foco declarado)**
+**Fase D — data/hora (P1, foco declarado) — ✅ fechada (0.84)**
 ~~`Calendar` → `DatePicker` → `TimePicker` → `DateTimePicker`. Depende de estado
-+ overlay ancorado + valor de data.~~ **Metade feita, e a outra metade não
-depende de nada disso.** Os três campos de edição saíram na 0.68 (teclado na
-0.70). Sobram `Calendar`, `MonthYearPicker` e `DateRangePicker`, que são **uma
-primitiva com três tags** e nenhum habilitador — é a **Onda 3** da §6.2. Só a
-variante `calendarPopup` do `QDateEdit` continua atrás do overlay ancorado.
++ overlay ancorado + valor de data.~~ Não dependia de nenhum dos três. Os campos
+de edição saíram na 0.68 (teclado na 0.70) e o `Calendar`/`MonthYearPicker`/
+`DateRangePicker` na 0.84 — **uma primitiva com três tags** e zero
+habilitadores, como a Onda 3 da §6.2 previu. Só a variante `calendarPopup` do
+`QDateEdit` continua atrás do overlay ancorado (Onda 5): ela é uma composição
+das duas primitivas, não uma sétima linha.
 
 **Fase E — diálogos ricos (P1)**
 ~~`FileDialog` (open/save/directory via `rfd`)~~ ✅ · `InputDialog` ·
@@ -557,7 +568,7 @@ catalogado como item de motor.
 
 ### Resumo numérico
 
-Contagem sobre as linhas que têm status, atualizada em 2026-09-01. Duas
+Contagem sobre as linhas que têm status, atualizada em 2026-09-02 (0.84). Duas
 ressalvas: a §2.4 tem uma linha (`QListWidgetItem`) que é dado, não widget, e
 fica de fora; e o `Space` aparece duas vezes (§2.7 como container, §2.11 como
 layout), então o total tem uma duplicata — 123 widgets distintos, não 124. O
@@ -570,7 +581,7 @@ como exemplos de widget que nunca esteve bloqueado, não tinham linha.
 | Entradas de texto | 9 | 4 | 1 | 4 |
 | Numéricas/valor | 12 | 4 | 2 | 6 |
 | Seleção/listas/árvores | 11 | 1 | 1 | 9 |
-| Data e hora | 6 | 3 | 0 | 3 |
+| Data e hora | 6 | **6** | 0 | 0 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
 | Containers | 9 | 4 | 0 | 5 |
 | Navegação | 6 | 1 | 2 | 3 |
@@ -579,11 +590,12 @@ como exemplos de widget que nunca esteve bloqueado, não tinham linha.
 | Layouts | 7 | 4 | 1 | 2 |
 | Overlays/utilitários | 11 | 2 | 1 | 8 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **124** | **55** | **9** | **60** |
+| **Total** | **124** | **58** | **9** | **57** |
 
-O motor já entrega ~44% do catálogo Qt de superfície (34% antes da onda 2, 39%
-antes da onda 1, 43% antes dos campos de data/hora — a queda de 45% para 44% é o
-denominador que cresceu, não trabalho desfeito). O gargalo **também não é** o
+O motor já entrega ~47% do catálogo Qt de superfície (34% antes da onda 2, 39%
+antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3 — a
+queda de 45% para 44% numa revisão anterior foi o denominador que cresceu, não
+trabalho desfeito). O gargalo **também não é** o
 punhado de habilitadores de Motor do §3, como este resumo afirmava: as ondas 3 e
 4 da §6.2 somam quinze widgets e consomem **um** habilitador, o menor de todos
 (o `contains`).
@@ -593,15 +605,14 @@ Onde os 60 se concentram: **model/view** (9), **gráficos** (6) e **overlays**
 três não estão atrás de três itens diferentes: model/view e boa parte dos
 layouts saem de **uma** medição de coluna (Onda 6), os overlays saem de **uma**
 generalização do que o `menu.rs` já tem (Onda 5), e os gráficos de **um**
-`canvas` exposto (a Onda 7 esboçada). As quatro ondas escritas cobrem 30 das 60
-linhas ⬜ com três itens de motor no total. Do resto, o troco decorativo — oito
+`canvas` exposto (a Onda 7 esboçada). As quatro ondas escritas cobrem 27 das 57
+linhas ⬜ restantes com três itens de motor no total. Do resto, o troco decorativo — oito
 linhas — está isolado na §6.3.
 
-A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6 e passou
-a 3 de 6 **sem** nenhum habilitador novo — só reclassificando os widgets de
-builtin para primitiva (ver a correção na §3). E as outras 3 saem pelo mesmo
-motivo, revisão seguinte: a Onda 3 da §6.2 leva a §2.5 a 6 de 6 sem tocar no
-motor. Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
+A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6, passou a
+3 de 6 na 0.68 e fechou em **6 de 6** na 0.84, **sem** um único habilitador de
+motor — só reclassificando os widgets de builtin para primitiva (ver a correção
+na §3). Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
 perguntar em que nível elas deveriam estar — e este documento errou essa
 pergunta três vezes seguidas (`TimePicker`, `Calendar`, `Accordion`), sempre
 para o mesmo lado, o de superestimar o bloqueio.
@@ -720,7 +731,7 @@ Quatro ondas, em dois regimes — os mesmos dois que a §6.1 já tinha mostrado.
 As duas primeiras **não consomem motor nenhum** (fora um habilitador de meia
 tarde), e existem porque o documento superestimou o bloqueio:
 
-- **Onda 3** — o calendário, e com ele o foco declarado do projeto.
+- **Onda 3** ✅ (0.84) — o calendário, e com ele o foco declarado do projeto.
 - **Onda 4** — os widgets que carregam lógica, pelo padrão do `SpinBox`.
 
 As duas seguintes são o outro regime: **um item de motor que vira meia dúzia de
@@ -737,9 +748,15 @@ nenhuma delas está.
 
 ---
 
-#### Onda 3 — o calendário: uma primitiva, três tags (o foco declarado)
+#### Onda 3 — o calendário: uma primitiva, três tags (o foco declarado) — ✅ **FEITA (0.84)**
 
-A §2.5 está 3 de 6 e as três que faltam saem **juntas**, do mesmo arquivo, pelo
+> **Como saiu.** Um `NodeType::Calendar` em `src/parser.rs`, um braço em
+> `src/eval.rs`, um `render_calendar` em `src/widget.rs` e as oito linhas do
+> `days_from_civil`. **Zero habilitadores de motor**, como previsto — e zero
+> `Grid`. A forma proposta abaixo saiu quase intacta; as três diferenças estão
+> anotadas no fim da seção. Exemplo: `cargo run --example onda3`.
+
+A §2.5 estava 3 de 6 e as três que faltavam saíram **juntas**, do mesmo arquivo, pelo
 mesmo caminho que os campos de edição já abriram: uma primitiva em
 `src/widget.rs` + um `NodeType` em `src/parser.rs`, com as tags decidindo só
 quais partes aparecem — exatamente como `<dateedit>` e `<timeedit>` são o mesmo
@@ -750,9 +767,9 @@ mantinha essas três linhas marcadas como bloqueadas) está no blockquote da §2
 
 | # | Widget | Nível | Tag | O que grava | Por que aqui |
 |---|---|---|---|---|---|
-| 1 | **`Calendar`** (`QCalendarWidget`) | Prim | `<calendar>` | `YYYY-MM-DD` | O coração do foco declarado, e a peça de que as outras duas saem por variação. Grade 7×6, navegação de mês, dia selecionado |
-| 2 | **`MonthYearPicker`** | Prim | `<monthyearpicker>` | `YYYY-MM` | A **mesma primitiva** em `mode="month"`: a tela de drill-up que o `QCalendarWidget` abre ao clicar no título, promovida a tag. Custo marginal quase zero depois do 1 — daí ter subido de P3 para P2 |
-| 3 | **`DateRangePicker`** | Prim | `<daterangepicker>` | duas chaves | A **mesma primitiva** com `range`: `start`/`end` em chaves separadas (não `"a/b"` numa só, para o `date.diff` do Luau ler as duas direto) e `months="2"` desenhando dois meses lado a lado, como todo seletor de reserva de hotel |
+| 1 ✅ | **`Calendar`** (`QCalendarWidget`) | Prim | `<calendar>` | `YYYY-MM-DD` | O coração do foco declarado, e a peça de que as outras duas saem por variação. Grade 7×6, navegação de mês, dia selecionado |
+| 2 ✅ | **`MonthYearPicker`** | Prim | `<monthyearpicker>` | `YYYY-MM` | A **mesma primitiva** em `mode="month"`: a tela de drill-up que o `QCalendarWidget` abre ao clicar no título, promovida a tag. Custo marginal quase zero depois do 1 — daí ter subido de P3 para P2 |
+| 3 ✅ | **`DateRangePicker`** | Prim | `<daterangepicker>` | duas chaves | A **mesma primitiva** com `range`: `start`/`end` em chaves separadas (não `"a/b"` numa só, para o `date.diff` do Luau ler as duas direto) e `months="2"` desenhando dois meses lado a lado, como todo seletor de reserva de hotel |
 
 **A forma proposta**, para não ficar em aberto na hora de escrever:
 
@@ -783,13 +800,14 @@ mantinha essas três linhas marcadas como bloqueadas) está no blockquote da §2
 
 **As três coisas que precisam ser escritas em Rust**, e é só isso:
 
-1. `days_from_civil` — seis linhas ao lado do `dias_no_mes` que o `Instante` já
-   tem, para saber em que dia da semana o mês começa. **Não existe no lado
-   Rust** hoje, ao contrário do que a §4 afirmava (correção registrada lá): só
-   no `prelude.luau`.
+1. `days_from_civil` — oito linhas ao lado do `dias_no_mes` que o `Instante` já
+   tem, para saber em que dia da semana o mês começa. **Não existia no lado
+   Rust**, ao contrário do que a §4 afirmava (correção registrada lá): só no
+   `prelude.luau`.
 2. O laço da grade — `Column` de `Row`s de `button`, com as células do mês
    anterior/seguinte esmaecidas. Aqui é que o `Grid` (`QGridLayout`) deixa de
-   ser pré-requisito: grade em Rust é um `for`.
+   ser pré-requisito: grade em Rust é um `for`. (Saíram **vazias e inertes**, não
+   esmaecidas — ver as três diferenças no fim desta seção.)
 3. O hover do intervalo — a faixa que se pinta entre `start` e o dia sob o
    cursor. Estado global de verdade, e legitimamente: só uma célula da tela
    inteira está sob o cursor por vez. Mesma família do `__timeedit`.
@@ -801,9 +819,36 @@ segue bloqueado, e ele é uma *composição* dos dois widgets, não um terceiro.
 
 Fecha a §2.5 em **6 de 6** e a Fase D do §5.
 
+**As três diferenças entre o proposto e o construído** (0.84), porque o proposto
+está escrito acima e vale saber onde ele foi corrigido pela realidade:
+
+1. **O nível de drill-up viaja junto com o mês visível**, não numa chave
+   separada: `__cal_<chave>` guarda `YYYY-MM|<nível>`. Subir a escada é
+   navegação, não escolha, e separar as duas obrigaria o app a semear duas
+   chaves quando ele dirige o mês por `month=`.
+2. **O `onChange` do modo intervalo entrega as duas pontas numa string**
+   (`"<início> <fim>"`, com o fim vazio no primeiro clique) — não porque a
+   forma `"a/b"` tenha voltado, mas porque uma mensagem do motor carrega **um**
+   valor. Quem grava as duas chaves separadas é o handler; o widget continua
+   gravando as duas quando não há `onChange`, que é o caso comum.
+3. **As células dos meses vizinhos são inertes**, não esmaecidas-e-clicáveis.
+   Escolher um dia do mês seguinte teria de mover o mês visível *junto com* a
+   escolha, e no modo que **delega** a escrita o widget não pode fazer as duas
+   coisas numa mensagem só. As setas ‹ › cobrem o caso sem ambiguidade.
+
+E dois achados de percurso, ambos do mesmo tipo — algo que o documento dizia
+existir e não existia:
+
+- `days_from_civil` **não estava** do lado Rust (só no `prelude.luau`), como a
+  §4 afirmava. São oito linhas, e agora estão em `src/widget.rs`, com teste
+  contra 1970, 1900 e 2000 — errar isso desloca a grade inteira em silêncio.
+- O realce de **hoje** confirmou a §4 pela negativa: é prop, não relógio. O
+  exemplo `onda3` é todo em Luau por causa dela — `date.today()` é a linha que
+  fecha o buraco sem uma crate de data no motor.
+
 ---
 
-#### Habilitador — `contains` no condicional (Motor, P1, o menor da lista)
+#### Habilitador — `contains` no condicional (Motor, P1, o menor da lista) — ✅ **FEITO (0.84)**
 
 Vem entre as ondas porque a Onda 4 consome, e porque é pequeno:
 
@@ -821,6 +866,14 @@ várias seções abertas, um `ListView` de seleção múltipla, um campo de filt
 por tags. Sem ele, esses três ficam presos ao estado por instância sem
 precisar — e é a terceira vez que este documento descobre que um `●` era outra
 coisa.
+
+Saiu na 0.84, junto da Onda 3, e a previsão de tamanho estava certa: mesmo ponto
+do parser, mesmo ponto do eval, uma comparação invertida. Duas decisões que a
+proposta não tinha: o **item** também interpola (`contains="{item.id}"`, que é a
+forma que o `Accordion` usa dentro de um `for-each`), e os três separadores —
+vírgula, ponto-e-vírgula e espaço — valem ao mesmo tempo, porque quem monta o
+conjunto é código de app e um `concat` com vírgula e um `table.concat` com
+espaço são igualmente naturais.
 
 ---
 
@@ -975,7 +1028,7 @@ sobram **dois** — e nenhum dos dois bloqueia coisa alguma da fila:
 
 | Habilitador (§3) | Onde ficou |
 |---|---|
-| `contains` no condicional | **Onda 4**, como pré-requisito de dois itens |
+| `contains` no condicional | **Onda 4**, como pré-requisito de dois itens — ✅ feito na 0.84 |
 | Nome dinâmico de slot | **Onda 5**, habilitador A |
 | Overlay ancorado genérico | **Onda 5**, habilitador B |
 | `Grid` | **Onda 6**, item 1 — deixou de ser pré-requisito do `Calendar` (§2.5) e virou a ponta do mecanismo de medição |

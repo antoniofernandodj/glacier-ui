@@ -147,6 +147,40 @@ Edição por **seções**: clique numa (ano, mês, dia, hora, minuto, segundo) e
 - **O calendário é respeitado**: 31/01 subindo o mês vira 28/02, ou 29 em ano bissexto.
 - **Não dá para digitar** no campo: a interação é clicar na seção + setas.
 
+### `<Calendar>` · `<MonthYearPicker>` · `<DateRangePicker>`
+A **grade** do Qt (`QCalendarWidget`) — e, pelas mesmas linhas de render, o seletor de mês/ano e o de intervalo. **Uma primitiva só**; a tag decide o que um clique grava.
+
+```gv
+<calendar value="entrada" today="{hoje}" />
+<calendar value="entrada" onChange="validar_entrada" min="{hoje}" />
+<monthyearpicker value="competencia" />
+<daterangepicker start="entrada" end="saida" months="2" today="{hoje}" />
+```
+
+| tag | o que grava | chave |
+| --- | --- | --- |
+| `<calendar>` (`<calendario>`) | um dia | `YYYY-MM-DD` |
+| `<monthyearpicker>` (`<seletormesano>`) | um mês | `YYYY-MM` |
+| `<daterangepicker>` (`<seletorintervalo>`) | duas datas, em **duas chaves** | `start` e `end` |
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o dia (ou o **início**, no intervalo) |
+| `end` | — | nome da chave com o fim. Só no intervalo |
+| `onChange` | — | vazio = o widget grava sozinho; preenchido = delega. No intervalo, o valor entregue é `"<início> <fim>"` (o fim vem vazio no primeiro clique) |
+| `today` | — | a data de hoje, para o realce. **Prop, não relógio**: é `date.today()` numa linha de Luau. Sem ela, nenhum dia fica destacado |
+| `min` / `max` | — | limites; os dias fora saem inertes |
+| `mode` | `day` | `day` · `month` · `year` — onde o clique **para de navegar e passa a gravar** |
+| `month` | — | chave que dirige o mês visível. Sem ela, ele mora em `__cal_<chave>`, do motor, e o app não configura nada |
+| `first_day` | `sunday` | `monday` gira o cabeçalho de sete iniciais |
+| `months` | `1` | quantas grades desenhar lado a lado |
+| `month_names` / `day_names` | pt-BR | rótulos, separados por espaço (12 e 7). Os dias vão **sempre a partir de domingo**; `first_day` gira a lista sozinho |
+
+- **A escada de drill-up**: clicar no **título** sobe um degrau (dia → mês → ano), como o `QCalendarWidget`. Descer escolhe o mês/ano **visível**, sem tocar na chave — `mode` é que diz onde o clique passa a gravar.
+- **O intervalo grava duas chaves separadas**, não `"a/b"` numa só: é o que deixa o `date.diff` do Luau ler as duas direto. O primeiro clique marca o início; o segundo fecha. Entre um e outro, a faixa sob o cursor é pintada (chave global `__cal_hover`).
+- **As células dos meses vizinhos são inertes** — as setas `‹ ›` navegam.
+- **Nenhuma dependência de datas**: dia da semana é `days_from_civil`, oito linhas ao lado do `dias_no_mes`.
+
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
 
@@ -172,7 +206,11 @@ Formulário. Atributos: `onSubmit`, `name`. Envolve `formControl`s.
 Repete o corpo por item. Atributos: `items`, `var`.
 
 ### `<If>` (`<Se>`) / `<Else>` (`<Senao>`)
-Condicional. `<If>` aceita `cond`, `equals`, `notEquals`.
+Condicional. `<If>` aceita `cond`, `equals`, `notEquals`, `one_of`, `contains`, `empty`/`not_empty`.
+
+- `one_of="a b c"` (`equals_any`) — o valor da chave é **um dos** tokens do markup.
+- `contains="rede"` (`contem`, `has`) — o **simétrico**: a lista está na chave (`"geral,rede"`) e o item está no markup. É o **conjunto nomeado** — várias seções de um accordion abertas, uma seleção múltipla, um filtro por tags — sem estado por instância. Separadores: vírgula, ponto-e-vírgula ou espaço, os três ao mesmo tempo; o item também interpola (`contains="{s.id}"`).
+- `empty` / `not_empty` (pelados) — a chave é (ou não é) um array JSON de zero elementos.
 
 ### `<ElseIf>` (`<SenaoSe>`)
 Ramo intermediário entre um `<If>` e o `<Else>`. Mesmos atributos de condição do `<If>`.

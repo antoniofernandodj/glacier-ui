@@ -894,6 +894,7 @@ fn eval_condition(
     equals: Option<&str>,
     not_equals: Option<&str>,
     one_of: Option<&str>,
+    contains: Option<&str>,
     empty: bool,
     not_empty: bool,
     context: &EvalCtx,
@@ -913,6 +914,25 @@ fn eval_condition(
         return process_tpl(list, context)
             .split_whitespace()
             .any(|tok| tok == value);
+    }
+    if let Some(item) = contains {
+        // O **simétrico** do `one_of` acima: lá a lista está no markup e o
+        // valor da chave é um item; aqui a lista está na chave
+        // (`abertas="rede,proxy"`) e o item está no markup. Mesmo ponto do
+        // eval, comparação invertida — e é isso que dá ao motor o conjunto
+        // nomeado (`Accordion`, seleção múltipla, filtros por tag) sem estado
+        // por instância.
+        //
+        // Os três separadores valem ao mesmo tempo porque quem monta o
+        // conjunto é código de app: um `concat` com vírgula e um `table.concat`
+        // com espaço são igualmente naturais, e escolher um só seria uma
+        // pegadinha sem contrapartida.
+        let alvo = process_tpl(item, context);
+        let alvo = alvo.trim();
+        return value
+            .split([',', ';', ' ', '\t', '\n'])
+            .map(str::trim)
+            .any(|tok| !tok.is_empty() && tok == alvo);
     }
     if empty {
         return json_array_is_empty(&value);
@@ -1161,6 +1181,7 @@ fn expand_children(
                     child.if_equals(),
                     child.if_not_equals(),
                     child.if_one_of(),
+                    child.if_contains(),
                     child.if_empty,
                     child.if_not_empty,
                     context,
@@ -1171,6 +1192,7 @@ fn expand_children(
                     clone.set_if_equals(None);
                     clone.set_if_not_equals(None);
                     clone.set_if_one_of(None);
+                    clone.set_if_contains(None);
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
@@ -1190,6 +1212,7 @@ fn expand_children(
                 child.if_equals(),
                 child.if_not_equals(),
                 child.if_one_of(),
+                child.if_contains(),
                 child.if_empty,
                 child.if_not_empty,
                 context,
@@ -1201,6 +1224,7 @@ fn expand_children(
                 clone.set_if_equals(None);
                 clone.set_if_not_equals(None);
                 clone.set_if_one_of(None);
+                clone.set_if_contains(None);
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
@@ -1304,6 +1328,7 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                contains,
                 empty,
                 not_empty,
             } => {
@@ -1312,6 +1337,7 @@ fn expand_children(
                     equals.as_deref(),
                     not_equals.as_deref(),
                     one_of.as_deref(),
+                    contains.as_deref(),
                     *empty,
                     *not_empty,
                     context,
@@ -1336,6 +1362,7 @@ fn expand_children(
                 equals,
                 not_equals,
                 one_of,
+                contains,
                 empty,
                 not_empty,
             } => {
@@ -1349,6 +1376,7 @@ fn expand_children(
                         equals.as_deref(),
                         not_equals.as_deref(),
                         one_of.as_deref(),
+                        contains.as_deref(),
                         *empty,
                         *not_empty,
                         context,
@@ -2171,6 +2199,35 @@ fn eval_owned(
             time: *time,
             seconds: *seconds,
             day_first: *day_first,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Calendar {
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            mode,
+            monday_first,
+            months,
+            range,
+            month_names,
+            day_names,
+            on_change,
+        } => NodeType::Calendar {
+            value_var: process_tpl(value_var, context),
+            end_var: process_tpl(end_var, context),
+            month_var: process_tpl(month_var, context),
+            today: process_tpl(today, context),
+            min: process_tpl(min, context),
+            max: process_tpl(max, context),
+            mode: *mode,
+            monday_first: *monday_first,
+            months: *months,
+            range: *range,
+            month_names: process_tpl(month_names, context),
+            day_names: process_tpl(day_names, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
         },
         NodeType::Radio {

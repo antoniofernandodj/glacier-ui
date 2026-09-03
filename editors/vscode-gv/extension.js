@@ -65,6 +65,12 @@ const NATIVE_TAGS = {
   DateTimeEdit: [
     "datetimeedit", "datetimepicker", "editordatahora", "editor_data_hora",
   ],
+  // Idem: uma primitiva só (a grade), e a tag decide o que um clique grava.
+  Calendar: ["calendar", "calendario"],
+  MonthYearPicker: ["monthyearpicker", "seletormesano", "seletor_mes_ano"],
+  DateRangePicker: [
+    "daterangepicker", "seletorintervalo", "seletor_intervalo",
+  ],
   Radio: ["radio", "radiobutton", "opcao"],
   Space: ["space", "espaco", "espaço", "spacer"],
   Select: ["select", "dropdown", "picklist", "combobox", "combo", "seletor"],
@@ -161,6 +167,7 @@ const DIRECTIVE_ATTRS = new Set(
     "cond", "condition", "when", "quando", "condicao",
     "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
     "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "contains", "contem", "contém", "has", "inclui",
     "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
     "platform", "plataforma",
     // repetição
@@ -204,6 +211,9 @@ const BINDING_ATTRS = new Set(
     // não o valor dela (por isso sem `{}`).
     "group", "grupo",
     "items", "itens", "options", "opcoes", "source", "origem",
+    // `<daterangepicker start="entrada" end="saida" month="mes_visivel">` — os
+    // três nomeiam chaves, como o `value` de qualquer outro widget bindado.
+    "start", "inicio", "end", "fim", "final", "month", "mes_visivel",
     "cond", "condition", "when", "quando", "condicao",
     "if", "se", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
     "for-each", "forEach", "foreach", "each", "repeat",

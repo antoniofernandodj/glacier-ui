@@ -8,6 +8,107 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.84.0] — 2026-09-02
+
+**Onda 3 do `PLANO_WIDGETS.md`: o calendário.** O foco declarado do projeto —
+a §2.5 do catálogo — fecha em **6 de 6**, e fecha do jeito que o plano previu:
+uma primitiva, três tags, **zero habilitadores de motor**.
+
+### Adicionado
+- **`<calendar>`, `<monthyearpicker>` e `<daterangepicker>`** — a grade do
+  `QCalendarWidget`, o seletor de mês/ano e o de intervalo, todos o **mesmo**
+  `NodeType::Calendar`, exatamente como `<dateedit>`/`<timeedit>`/
+  `<datetimeedit>` são um `NodeType::DateTimeEdit` só:
+
+  ```xml
+  <!-- o caso simples: o widget grava a chave sozinho -->
+  <calendar value="entrada" today="{hoje}" />
+
+  <!-- com validação: quem grava é o handler -->
+  <calendar value="entrada" onChange="validar_entrada" min="{hoje}" />
+
+  <!-- só mês e ano -->
+  <monthyearpicker value="competencia" />
+
+  <!-- intervalo, dois meses visíveis -->
+  <daterangepicker start="entrada" end="saida" months="2" today="{hoje}" />
+  ```
+
+  | tag | o que grava | chave |
+  |---|---|---|
+  | `<calendar>` | um dia | `YYYY-MM-DD` |
+  | `<monthyearpicker>` | um mês | `YYYY-MM` |
+  | `<daterangepicker>` | duas datas, em **duas chaves** | `start` e `end` |
+
+  Props: `value`/`start`/`end` (nomes de chave), `onChange`, `today` (o realce
+  de hoje), `min`/`max` (dias fora saem inertes), `mode` (`day`/`month`/`year`
+  — onde o clique para de navegar e passa a gravar), `month` (chave que dirige
+  o mês visível), `first_day`, `months`, `month_names`/`day_names`.
+
+  **A escada de drill-up do Qt** está inteira: clicar no título sobe um degrau
+  (dia → mês → ano), descer escolhe o mês/ano visível sem tocar na chave. O
+  `<monthyearpicker>` é literalmente essa tela do meio promovida a tag — custo
+  marginal zero, que é por que a linha dele subiu de P3 para P2 no plano.
+
+  **O intervalo grava duas chaves separadas**, não `"a/b"` numa só: é o que
+  deixa o `date.diff` do Luau ler as duas direto. Entre o primeiro clique e o
+  segundo, a faixa sob o cursor é pintada — o hover mora numa chave global
+  (`__cal_hover`) e é rastreado **só** enquanto há uma ponta aberta, para não
+  cobrar uma mensagem por célula visitada no resto do tempo.
+
+  **O mês visível não é global**, ao contrário do foco de seção do
+  `<datetimeedit>`: ele mora em `__cal_<chave>`, derivado da chave editada, e
+  duas grades na mesma tela navegam meses diferentes ao mesmo tempo. Sem
+  `month=`, o app não configura nada.
+
+- **`contains` no condicional** — o **simétrico** do `one_of` que já existia:
+  lá a lista está no markup e o valor da chave é um item; aqui a lista está na
+  **chave** e o item está no markup.
+
+  ```xml
+  <!-- ctx.abertas = "rede,disco" -->
+  <template if="{abertas}" contains="rede"> … </template>
+  ```
+
+  É o que dá ao motor o **conjunto nomeado**: várias seções de um accordion
+  abertas, uma seleção múltipla, um filtro por tags — coisas que o
+  `PLANO_WIDGETS.md` §3 declarava presas ao estado por instância e que nunca
+  estiveram. Vírgula, ponto-e-vírgula e espaço valem como separador ao mesmo
+  tempo (quem monta o conjunto é código de app), e o item comparado também
+  interpola — `contains="{s.id}"` dentro de um `for-each` é a forma que a Onda
+  4 vai usar.
+
+  Aliases: `contem`, `contém`, `has`, `inclui`.
+
+- **`days_from_civil`/`dia_da_semana` no lado Rust** (`src/widget.rs`), oito
+  linhas ao lado do `dias_no_mes` que o `Instante` já tinha. Com teste contra
+  1970, 1900 e 2000: errar a regra do século desloca a grade inteira em
+  silêncio, que é o pior modo de falha possível para um calendário.
+
+- **`examples/onda3`** (`cargo run --example onda3`) — as três tags nas três
+  abas, todo em Luau. E é em Luau por causa de **uma prop**: `today`. O realce
+  de hoje é prop, não relógio — o motor não lê a hora do sistema em lugar
+  nenhum, de propósito, e `date.today()` do prelúdio é a linha que fecha esse
+  buraco sem uma crate de data no motor.
+
+### Notas de projeto
+
+Três coisas que o `PLANO_WIDGETS.md` afirmava e que a construção corrigiu:
+
+1. O `Grid` (`QGridLayout`) **não era pré-requisito** do calendário. Ele só
+   seria, para um *builtin*, cujo template é markup. Em Rust, grade é um `for`
+   — é a quarta vez que este projeto descobre que um widget "bloqueado" era, na
+   verdade, uma primitiva mal classificada (`TimePicker`, `DateEdit`,
+   `Calendar`, `Accordion`).
+2. `days_from_civil` **não existia** do lado Rust, ao contrário do que a §4
+   dizia; existia só no `prelude.luau`.
+3. As células dos meses vizinhos ficaram **inertes**, não
+   esmaecidas-e-clicáveis: escolher um dia do mês seguinte teria de mover o mês
+   visível *junto com* a escolha, e no modo que delega a escrita o widget não
+   pode fazer as duas coisas numa mensagem só.
+
+---
+
 ## [0.83.0] — 2026-09-02
 
 ### Alterado

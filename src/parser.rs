@@ -111,6 +111,7 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     "cond", "condition", "when", "quando", "condicao",
     "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
     "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
+    "contains", "contem", "contém", "has", "inclui",
     "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
     "platform", "plataforma",
     // repetição
@@ -749,6 +750,9 @@ pub enum NodeType {
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        /// `contains="rede"` — o simétrico de `one_of`: a lista está na chave,
+        /// o item está no markup. Ver [`Cond::if_contains`].
+        contains: Option<String>,
         empty: bool,
         not_empty: bool,
     },
@@ -764,6 +768,8 @@ pub enum NodeType {
         equals: Option<String>,
         not_equals: Option<String>,
         one_of: Option<String>,
+        /// Ver [`NodeType::If::contains`].
+        contains: Option<String>,
         empty: bool,
         not_empty: bool,
     },
@@ -979,6 +985,75 @@ pub enum NodeType {
         /// ou derivar outra chave antes de aceitar.
         on_change: String,
     },
+    /// `QCalendarWidget`: a **grade** de um mês, com navegação e drill-up —
+    /// e, pelas mesmas quatro linhas de render, o seletor de mês/ano e o de
+    /// intervalo.
+    ///
+    /// Três tags, uma primitiva só, exatamente como `<dateedit>`/`<timeedit>`
+    /// são um `DateTimeEdit` só:
+    ///
+    /// | tag | o que grava | chave |
+    /// |---|---|---|
+    /// | `<calendar>` | um dia | `YYYY-MM-DD` |
+    /// | `<monthyearpicker>` | um mês | `YYYY-MM` |
+    /// | `<daterangepicker>` | duas datas, em **duas chaves** | `start` e `end` |
+    ///
+    /// # Por que primitiva, e não builtin
+    ///
+    /// Mesma resposta do `DateTimeEdit`, e é a quarta vez que ela aparece: a
+    /// grade precisa saber em que dia da semana o mês começa, quantos dias ele
+    /// tem e quais células são do mês vizinho — dados que **o template não
+    /// consegue derivar** de uma chave cujo *nome* vem de uma prop. Em Rust, a
+    /// grade é um `for`; é por isso que o `Grid` (`QGridLayout`) nunca foi
+    /// pré-requisito deste widget, ao contrário do que o `PLANO_WIDGETS.md`
+    /// afirmou por três revisões.
+    ///
+    /// # Onde mora o mês visível
+    ///
+    /// Numa chave do motor derivada da chave editada (`__cal_<chave>`), no
+    /// formato `YYYY-MM|<nível>` — o nível é a escada de drill-up do Qt (`d`
+    /// dia, `M` mês, `y` ano). O app não configura nada; quem quiser dirigir o
+    /// mês de fora passa `month="<chave>"` e escreve nela.
+    ///
+    /// Ao contrário do `__timeedit`, esta chave **não** é global: duas grades
+    /// na mesma tela navegam meses diferentes ao mesmo tempo, e é isso que a
+    /// diferencia de foco (do qual só existe um). O que é global é o **hover**
+    /// do intervalo (`__cal_hover`) — aí sim, só uma célula da tela inteira
+    /// está sob o cursor por vez.
+    Calendar {
+        /// Nome da chave com o dia (ou, em `range`, com o **início**).
+        value_var: String,
+        /// Nome da chave com o **fim** do intervalo. Só em `range`.
+        end_var: String,
+        /// Nome da chave que dirige o mês visível. Vazio = o motor usa a dele
+        /// (`__cal_<value_var>`).
+        month_var: String,
+        /// A data de hoje (`YYYY-MM-DD`), para o realce. **Prop, não relógio**:
+        /// o motor não lê o hora do sistema em lugar nenhum, e `date.today()` é
+        /// uma linha de Luau. Vazia = nenhum dia fica destacado.
+        today: String,
+        /// Limites da faixa (ISO). Dias fora saem inertes.
+        min: String,
+        max: String,
+        /// O que um clique **grava**: `d` (dia), `M` (mês), `y` (ano). É o piso
+        /// da escada de drill-up, não o nível visível.
+        mode: char,
+        /// Semana começando na segunda em vez de no domingo.
+        monday_first: bool,
+        /// Quantas grades desenhar lado a lado. Default 1.
+        months: u8,
+        /// Modo intervalo: grava `value_var` e `end_var`.
+        range: bool,
+        /// Rótulos dos meses, separados por espaço (12). Vazio = pt-BR.
+        month_names: String,
+        /// Iniciais dos dias da semana, **sempre a partir de domingo** (7).
+        /// Vazio = pt-BR. `monday_first` gira a lista sozinho.
+        day_names: String,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega, com
+        /// o mesmo contrato do `<datetimeedit>` e do `<TextInput>`. Em `range`,
+        /// o valor entregue é `"<início> <fim>"` (o fim pode vir vazio).
+        on_change: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -1042,6 +1117,7 @@ impl NodeType {
             NodeType::ProgressBar { .. } => "progressbar",
             NodeType::Radio { .. } => "radio",
             NodeType::DateTimeEdit { .. } => "timeedit",
+            NodeType::Calendar { .. } => "calendar",
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -1191,6 +1267,21 @@ pub struct Cond {
     /// nova. Ex.: manter um item de nav "aceso" em várias sub-telas
     /// (`one_of="projects project new_service service"`).
     pub if_one_of: Option<String>,
+    /// `contains="rede"` — o **caso simétrico** do [`Self::if_one_of`]: lá a
+    /// lista está no markup e o valor da chave é um item; aqui a lista está na
+    /// chave (`abertas="rede,proxy"`) e o item está no markup.
+    ///
+    /// É o que dá ao motor o **conjunto nomeado**: um `Accordion` com várias
+    /// seções abertas, um `ListView` de seleção múltipla, um campo de filtros
+    /// por tags — coisas que o `PLANO_WIDGETS.md` §3 declarava presas ao estado
+    /// por instância e que nunca estiveram. Uma chave, uma string, e uma
+    /// comparação invertida.
+    ///
+    /// Separadores: vírgula, ponto-e-vírgula ou espaço, todos ao mesmo tempo —
+    /// o conjunto é montado por código de app (`"a,b"` sai de um `concat`, `"a
+    /// b"` de um `table.concat` com espaço) e exigir um deles só seria uma
+    /// pegadinha sem contrapartida.
+    pub if_contains: Option<String>,
     /// `platform="desktop"`/`"web"` — filtro independente de `if`/`else-if`/
     /// `else` (não participa da cadeia, não mexe em `last_if`): um valor que
     /// não bate com [`crate::eval::current_platform`] some o nó inteiro da
@@ -1484,6 +1575,17 @@ impl UiNode {
             return;
         }
         self.cond.get_or_insert_with(Default::default).if_one_of = v;
+    }
+    /// Ver [`Cond::if_contains`].
+    pub fn if_contains(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_contains.as_deref()
+    }
+    /// Escreve [`Cond::if_contains`], alocando o grupo se preciso.
+    pub fn set_if_contains(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_contains = v;
     }
     /// Ver [`Cond::if_platform`].
     pub fn if_platform(&self) -> Option<&str> {
@@ -2117,6 +2219,7 @@ impl UiNode {
                 "algum_de",
             ],
         );
+        let if_contains = Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
         let if_empty = node.has_attribute("empty") || node.has_attribute("vazio");
         let if_not_empty = node.has_attribute("not_empty")
             || node.has_attribute("notEmpty")
@@ -2400,6 +2503,60 @@ impl UiNode {
                         let f = f.trim().to_ascii_lowercase();
                         f == "br" || f == "dmy" || f == "dd/mm/yyyy"
                     }),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            // As três tags do calendário, uma primitiva só — muda o que um
+            // clique grava e quantas grades aparecem.
+            "Calendar" | "calendar" | "Calendario" | "calendario" | "MonthYearPicker"
+            | "monthyearpicker" | "SeletorMesAno" | "seletor_mes_ano" | "DateRangePicker"
+            | "daterangepicker" | "SeletorIntervalo" | "seletor_intervalo" => {
+                let baixo = tag.to_ascii_lowercase();
+                let mes_ano = baixo.starts_with("monthyear") || baixo.starts_with("seletor_mes");
+                let range = baixo.starts_with("daterange") || baixo.starts_with("seletor_interv");
+                // `mode` sobrescreve o piso que a tag escolheu — é a escada do
+                // Qt (dia → mês → ano) exposta como prop.
+                let mode = Self::get_attr(&node, &["mode", "modo"])
+                    .map(|m| match m.trim().to_ascii_lowercase().as_str() {
+                        "month" | "mes" | "mês" | "monthyear" => 'M',
+                        "year" | "ano" => 'y',
+                        _ => 'd',
+                    })
+                    .unwrap_or(if mes_ano { 'M' } else { 'd' });
+                NodeType::Calendar {
+                    value_var: Self::get_attr(
+                        &node,
+                        &["value", "valor", "start", "inicio", "início"],
+                    )
+                    .unwrap_or_default(),
+                    end_var: Self::get_attr(&node, &["end", "fim", "final"]).unwrap_or_default(),
+                    month_var: Self::get_attr(&node, &["month", "mes_visivel", "mês_visível"])
+                        .unwrap_or_default(),
+                    today: Self::get_attr(&node, &["today", "hoje"]).unwrap_or_default(),
+                    min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
+                    max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
+                    mode,
+                    monday_first: Self::get_attr(&node, &["first_day", "firstDay", "primeiro_dia"])
+                        .is_some_and(|d| {
+                            let d = d.trim().to_ascii_lowercase();
+                            d == "monday" || d == "segunda" || d == "1"
+                        }),
+                    months: Self::get_attr(&node, &["months", "meses", "grades"])
+                        .and_then(|m| m.trim().parse::<u8>().ok())
+                        .unwrap_or(1)
+                        .clamp(1, 4),
+                    range,
+                    month_names: Self::get_attr(
+                        &node,
+                        &["month_names", "monthNames", "nomes_meses"],
+                    )
+                    .unwrap_or_default(),
+                    day_names: Self::get_attr(&node, &["day_names", "dayNames", "nomes_dias"])
+                        .unwrap_or_default(),
                     on_change: Self::get_attr(
                         &node,
                         &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
@@ -2720,6 +2877,8 @@ impl UiNode {
                         "algum_de",
                     ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -2730,6 +2889,7 @@ impl UiNode {
                     equals,
                     not_equals,
                     one_of,
+                    contains,
                     empty,
                     not_empty,
                 }
@@ -2753,6 +2913,8 @@ impl UiNode {
                         "algum_de",
                     ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -2763,6 +2925,7 @@ impl UiNode {
                     equals,
                     not_equals,
                     one_of,
+                    contains,
                     empty,
                     not_empty,
                 }
@@ -2802,6 +2965,8 @@ impl UiNode {
                         "algum_de",
                     ],
                 );
+                let contains =
+                    Self::get_attr(&node, &["contains", "contem", "contém", "has", "inclui"]);
                 let empty = node.has_attribute("empty") || node.has_attribute("vazio");
                 let not_empty = node.has_attribute("not_empty")
                     || node.has_attribute("notEmpty")
@@ -2835,6 +3000,7 @@ impl UiNode {
                         equals,
                         not_equals,
                         one_of,
+                        contains,
                         empty,
                         not_empty,
                     }
@@ -2844,6 +3010,7 @@ impl UiNode {
                         equals,
                         not_equals,
                         one_of,
+                        contains,
                         empty,
                         not_empty,
                     }
@@ -2853,6 +3020,7 @@ impl UiNode {
                         equals: None,
                         not_equals: None,
                         one_of: None,
+                        contains: None,
                         empty: false,
                         not_empty: false,
                     }
@@ -3031,6 +3199,7 @@ impl UiNode {
                 if_equals,
                 if_not_equals,
                 if_one_of,
+                if_contains,
                 if_platform,
                 else_if_cond,
                 for_each,

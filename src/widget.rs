@@ -127,6 +127,28 @@ fn dias_no_mes(ano: i64, mes: i64) -> i64 {
     }
 }
 
+/// Dias decorridos desde 1970-01-01 — o `days_from_civil` de Howard Hinnant,
+/// que é a forma fechada de contar dias sem tabela nem laço.
+///
+/// Existe por uma razão só: descobrir **em que dia da semana um mês começa**,
+/// que é a única coisa que a grade do `<calendar>` precisa e que o `Instante`
+/// não sabia dizer. O `PLANO_WIDGETS.md` §4 afirmava que isto já existia do
+/// lado Rust; não existia — só no `prelude.luau`.
+pub(crate) fn days_from_civil(ano: i64, mes: i64, dia: i64) -> i64 {
+    let ano = if mes <= 2 { ano - 1 } else { ano };
+    let era = if ano >= 0 { ano } else { ano - 399 } / 400;
+    let yoe = ano - era * 400; // [0, 399]
+    let mp = (mes + 9) % 12; // março = 0 — é o que faz o bissexto cair no fim
+    let doy = (153 * mp + 2) / 5 + dia - 1; // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
+    era * 146097 + doe - 719468
+}
+
+/// 0 = domingo … 6 = sábado. (1970-01-01 foi uma quinta: `0 + 4 = 4`.)
+pub(crate) fn dia_da_semana(ano: i64, mes: i64, dia: i64) -> i64 {
+    (days_from_civil(ano, mes, dia) + 4).rem_euclid(7)
+}
+
 impl Instante {
     /// Lê `YYYY-MM-DD`, `HH:MM[:SS]` ou os dois separados por espaço. Tolerante
     /// de propósito: o que não parseia cai no default, para o campo nunca
@@ -909,6 +931,650 @@ fn janela_visivel(
     let cabem = (altura / passo).ceil() as usize + 1 + margem * 2;
     let quantos = cabem.min(total - primeiro);
     (primeiro > 0 || quantos < total).then_some((primeiro, quantos))
+}
+
+// ── O calendário: uma primitiva, três tags ───────────────────────────────────
+
+/// Chave **global** com o dia sob o cursor num `<daterangepicker>` cujo fim
+/// ainda não foi escolhido — é ela que pinta a faixa provisória entre o início
+/// e o cursor.
+///
+/// Global, e legitimamente: só uma célula da tela inteira está sob o cursor por
+/// vez. Mesma família do [`TIMEEDIT_SEL_CONTEXT`] e do `__drag_key`.
+pub(crate) const CAL_HOVER_CONTEXT: &str = "__cal_hover";
+
+/// Prefixo da chave (por instância, não global) onde mora o mês visível e o
+/// nível da escada de drill-up: `__cal_<chave-do-app>`.
+pub(crate) const CAL_VIEW_PREFIX: &str = "__cal_";
+
+/// Rótulos padrão, em pt-BR. Sobrescritíveis por prop (`month_names`,
+/// `day_names`) — o motor não tem camada de i18n, e inventar uma para três
+/// tags seria o rabo abanando o cachorro.
+const MESES_PT: [&str; 12] = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+];
+const DIAS_PT: [&str; 7] = ["D", "S", "T", "Q", "Q", "S", "S"];
+
+/// O que a chave `__cal_<chave>` guarda: o mês visível e o degrau da escada.
+#[derive(Clone, Copy)]
+struct CalView {
+    ano: i64,
+    mes: i64,
+    /// `d` dia · `M` mês · `y` ano.
+    nivel: char,
+}
+
+impl CalView {
+    /// `"2026-09|M"`. O nível vai junto porque o drill-up é navegação, não
+    /// valor: subir para a tela de meses não pode mexer na chave do app.
+    fn serializa(&self) -> String {
+        format!("{:04}-{:02}|{}", self.ano, self.mes, self.nivel)
+    }
+
+    /// Tolerante como todo parse deste arquivo: o que faltar cai no default,
+    /// para uma chave semeada à mão (ou não semeada) nunca desenhar quebrado.
+    fn parse(bruto: Option<&String>, padrao_ano: i64, padrao_mes: i64, padrao_nivel: char) -> Self {
+        let mut eu = Self {
+            ano: padrao_ano,
+            mes: padrao_mes,
+            nivel: padrao_nivel,
+        };
+        let Some(bruto) = bruto.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+            return eu;
+        };
+        let (data, nivel) = match bruto.split_once('|') {
+            Some((d, n)) => (d, n.chars().next()),
+            None => (bruto, None),
+        };
+        let mut it = data.split('-');
+        if let Some(a) = it.next().and_then(|v| v.parse::<i64>().ok()) {
+            eu.ano = a.clamp(1, 9999);
+        }
+        if let Some(m) = it.next().and_then(|v| v.parse::<i64>().ok()) {
+            eu.mes = m.clamp(1, 12);
+        }
+        if let Some(n) = nivel.filter(|n| matches!(n, 'd' | 'M' | 'y')) {
+            eu.nivel = n;
+        }
+        eu
+    }
+}
+
+/// `YYYY-MM-DD` (ou `YYYY-MM`, ou `YYYY`) → `(ano, mês, dia)`. `None` quando a
+/// chave está vazia ou não é uma data — a diferença que o [`Instante`] apaga de
+/// propósito (lá, o vazio vira 2000-01-01) e que aqui importa: uma chave sem
+/// data escolhida não pode acender célula nenhuma.
+fn iso_ymd(bruto: &str) -> Option<(i64, i64, i64)> {
+    let bruto = bruto.trim();
+    if bruto.is_empty() {
+        return None;
+    }
+    // Um `YYYY-MM-DD HH:MM` também entra: quem grava a mesma chave com um
+    // `<datetimeedit>` do lado não devia perder o realce por causa da hora.
+    let data = bruto.split([' ', 'T']).next().unwrap_or(bruto);
+    let mut it = data.split('-');
+    let ano = it.next()?.trim().parse::<i64>().ok()?;
+    let mes = it
+        .next()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(1);
+    let dia = it
+        .next()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(1);
+    (1..=9999)
+        .contains(&ano)
+        .then_some((ano, mes.clamp(1, 12), dia.clamp(1, 31)))
+}
+
+/// Chave de ordenação de uma data — o dia absoluto. Comparar `(a, m, d)` como
+/// tupla daria o mesmo, mas o intervalo precisa de "está entre", e isso é mais
+/// legível sobre um número só.
+fn ordem(ymd: (i64, i64, i64)) -> i64 {
+    days_from_civil(ymd.0, ymd.1, ymd.2)
+}
+
+/// O papel visual de uma célula do calendário. Uma enum, e não três `bool`s,
+/// porque os estados são mutuamente exclusivos e a pintura é um `match` só.
+#[derive(Clone, Copy, PartialEq)]
+enum CelEstado {
+    /// Fora do mês visível, fora de `min`/`max`, ou o cabeçalho da semana.
+    Inerte,
+    Normal,
+    /// A ponta de um intervalo, ou o dia escolhido.
+    Selecionada,
+    /// O miolo de um intervalo (escolhido ou provisório, sob o cursor).
+    Faixa,
+    /// Hoje, quando não está selecionado — só o contorno.
+    Hoje,
+}
+
+/// Uma célula da grade: um botão de tamanho fixo (é o que alinha as colunas sem
+/// um `Grid`) pintado conforme o estado.
+fn cal_celula<'a>(
+    rotulo: String,
+    estado: CelEstado,
+    largura: f32,
+    msg: Option<EngineMessage>,
+) -> Element<'a, EngineMessage> {
+    let mut b = button(
+        text(rotulo)
+            .size(13)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .width(Length::Fixed(largura))
+    .padding(Padding {
+        top: 5.0,
+        right: 0.0,
+        bottom: 5.0,
+        left: 0.0,
+    })
+    .style(move |theme: &iced::Theme, status| {
+        let p = theme.extended_palette();
+        let pairado = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let (fundo, cor, borda) = match estado {
+            CelEstado::Inerte => (None, p.background.weak.color, None),
+            CelEstado::Selecionada => (Some(p.primary.base.color), p.primary.base.text, None),
+            CelEstado::Faixa => (Some(p.primary.weak.color), p.primary.weak.text, None),
+            CelEstado::Hoje => (
+                pairado.then_some(p.background.weak.color),
+                p.background.base.text,
+                Some(p.primary.base.color),
+            ),
+            CelEstado::Normal => (
+                pairado.then_some(p.background.weak.color),
+                p.background.base.text,
+                None,
+            ),
+        };
+        button::Style {
+            background: fundo.map(Background::Color),
+            text_color: cor,
+            border: match borda {
+                Some(c) => Border {
+                    color: c,
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                None => Border::default().rounded(4),
+            },
+            ..button::Style::default()
+        }
+    });
+    if let Some(m) = msg {
+        b = b.on_press(m);
+    }
+    b.into()
+}
+
+/// O `<calendar>` / `<monthyearpicker>` / `<daterangepicker>`: a grade, a
+/// navegação e a escada de drill-up.
+///
+/// Longa porque a grade é um laço e os três níveis são três laços — mas é tudo
+/// aritmética local: o único estado que sai daqui são as duas chaves do motor
+/// (`__cal_<chave>`, `__cal_hover`) e a(s) chave(s) que o app nomeou.
+#[allow(clippy::too_many_arguments)]
+fn render_calendar<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    value_var: &'a str,
+    end_var: &'a str,
+    month_var: &'a str,
+    today: &'a str,
+    min: &'a str,
+    max: &'a str,
+    mode: char,
+    monday_first: bool,
+    months: u8,
+    range: bool,
+    month_names: &'a str,
+    day_names: &'a str,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    let hoje = iso_ymd(today);
+    let inicio_sel = iso_ymd(context.get(value_var).map(String::as_str).unwrap_or(""));
+    let fim_sel = if range {
+        iso_ymd(context.get(end_var).map(String::as_str).unwrap_or(""))
+    } else {
+        None
+    };
+    let piso_min = iso_ymd(min).map(ordem);
+    let teto_max = iso_ymd(max).map(ordem);
+
+    // O mês visível: a chave do app quando `month=` a nomeia, senão a do motor.
+    // As duas guardam o mesmo formato, então trocar de uma para a outra não
+    // muda uma linha do resto.
+    let chave_view = if month_var.is_empty() {
+        format!("{CAL_VIEW_PREFIX}{value_var}")
+    } else {
+        month_var.to_string()
+    };
+    // Sem nada gravado, a grade abre no mês da data escolhida — e, sem data, no
+    // de hoje. Abrir em 2000-01 seria tecnicamente correto e inútil.
+    let (pa, pm) = inicio_sel
+        .or(hoje)
+        .map(|(a, m, _)| (a, m))
+        .unwrap_or((2000, 1));
+    let view = CalView::parse(context.get(&chave_view), pa, pm, mode);
+
+    let nomes_mes: Vec<&str> = if month_names.trim().is_empty() {
+        MESES_PT.to_vec()
+    } else {
+        month_names.split_whitespace().collect()
+    };
+    let nome_mes = |m: i64| -> String {
+        nomes_mes
+            .get((m - 1).clamp(0, 11) as usize)
+            .copied()
+            .unwrap_or("?")
+            .to_string()
+    };
+    let nomes_dia: Vec<&str> = if day_names.trim().is_empty() {
+        DIAS_PT.to_vec()
+    } else {
+        day_names.split_whitespace().collect()
+    };
+
+    let acao = on_change.to_string();
+    let chave = value_var.to_string();
+    let chave_fim = end_var.to_string();
+    let chave_view_c = chave_view.clone();
+
+    // Gravar é sempre a mesma decisão, e é o contrato do `<TextInput>`: sem
+    // `onChange` o widget escreve; com ele, avisa. `extra` são os pares do
+    // MOTOR (mês visível, nível, hover) — esses vão junto no modo que grava, e
+    // sozinhos no modo que delega, porque navegar não é escolher.
+    let commit = move |valor: Vec<(String, String)>, delegado: String| -> EngineMessage {
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(valor)
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: delegado,
+            }
+        }
+    };
+
+    // ‹ › e o título. O passo depende do degrau: um mês na grade de dias, um
+    // ano na de meses, um bloco de 16 na de anos — a mesma escada do Qt.
+    let passo_nav = move |delta: i64| -> (i64, i64) {
+        match view.nivel {
+            'M' => (view.ano + delta, view.mes),
+            'y' => (view.ano + delta * 16, view.mes),
+            _ => {
+                let bruto = (view.ano * 12 + view.mes - 1) + delta;
+                (bruto.div_euclid(12), bruto.rem_euclid(12) + 1)
+            }
+        }
+    };
+    let nav = |delta: i64| -> EngineMessage {
+        let (a, m) = passo_nav(delta);
+        EngineMessage::ContextPatch(vec![(
+            chave_view_c.clone(),
+            CalView {
+                ano: a.clamp(1, 9999),
+                mes: m,
+                nivel: view.nivel,
+            }
+            .serializa(),
+        )])
+    };
+
+    let titulo = match view.nivel {
+        'M' => format!("{}", view.ano),
+        'y' => {
+            let base = view.ano - view.ano.rem_euclid(16);
+            format!("{}–{}", base, base + 15)
+        }
+        _ if months > 1 => {
+            let bruto = view.ano * 12 + view.mes - 1 + (months as i64 - 1);
+            format!(
+                "{} {} – {} {}",
+                nome_mes(view.mes),
+                view.ano,
+                nome_mes(bruto.rem_euclid(12) + 1),
+                bruto.div_euclid(12)
+            )
+        }
+        _ => format!("{} {}", nome_mes(view.mes), view.ano),
+    };
+
+    // Subir a escada é navegação pura: sempre um `ContextPatch`, mesmo quando o
+    // widget delega a escrita da chave.
+    let sobe = (view.nivel != 'y').then(|| {
+        EngineMessage::ContextPatch(vec![(
+            chave_view.clone(),
+            CalView {
+                ano: view.ano,
+                mes: view.mes,
+                nivel: if view.nivel == 'd' { 'M' } else { 'y' },
+            }
+            .serializa(),
+        )])
+    });
+
+    let seta = |glifo: &'static str, msg: EngineMessage| {
+        button(text(glifo).size(14))
+            .padding(Padding {
+                top: 2.0,
+                right: 9.0,
+                bottom: 2.0,
+                left: 9.0,
+            })
+            .on_press(msg)
+            .style(|theme: &iced::Theme, status| {
+                let p = theme.extended_palette();
+                button::Style {
+                    background: matches!(status, button::Status::Hovered | button::Status::Pressed)
+                        .then_some(Background::Color(p.background.weak.color)),
+                    text_color: p.background.strong.text,
+                    border: Border::default().rounded(4),
+                    ..button::Style::default()
+                }
+            })
+    };
+
+    let mut btn_titulo = button(
+        text(titulo)
+            .size(14)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .padding(Padding {
+        top: 2.0,
+        right: 6.0,
+        bottom: 2.0,
+        left: 6.0,
+    })
+    .style(|theme: &iced::Theme, status| {
+        let p = theme.extended_palette();
+        button::Style {
+            background: matches!(status, button::Status::Hovered | button::Status::Pressed)
+                .then_some(Background::Color(p.background.weak.color)),
+            text_color: p.background.base.text,
+            border: Border::default().rounded(4),
+            ..button::Style::default()
+        }
+    });
+    if let Some(m) = sobe {
+        btn_titulo = btn_titulo.on_press(m);
+    }
+
+    let cabecalho = row![seta("‹", nav(-1)), btn_titulo, seta("›", nav(1))]
+        .spacing(2)
+        .align_y(iced::Alignment::Center);
+
+    const CEL: f32 = 34.0;
+    let largura_grade = CEL * 7.0;
+
+    // Um dia é escolhível? Fora de `min`/`max` a célula fica inerte — que é o
+    // que "limite" significa aqui: nem clique, nem realce de hover.
+    let na_faixa =
+        |o: i64| -> bool { piso_min.is_none_or(|p| o >= p) && teto_max.is_none_or(|t| o <= t) };
+
+    let corpo: Element<'a, EngineMessage> = match view.nivel {
+        // ── a grade de dias ─────────────────────────────────────────────────
+        'd' => {
+            let hover = if range {
+                iso_ymd(
+                    context
+                        .get(CAL_HOVER_CONTEXT)
+                        .map(String::as_str)
+                        .unwrap_or(""),
+                )
+                .map(ordem)
+            } else {
+                None
+            };
+            let o_inicio = inicio_sel.map(ordem);
+            let o_fim = fim_sel.map(ordem);
+            // A faixa provisória: do início até o cursor, enquanto o fim não
+            // foi escolhido. É o único motivo de o hover existir.
+            let (faixa_a, faixa_b) = match (o_inicio, o_fim, hover) {
+                (Some(a), Some(b), _) => (Some(a.min(b)), Some(a.max(b))),
+                (Some(a), None, Some(h)) if h >= a => (Some(a), Some(h)),
+                _ => (None, None),
+            };
+
+            let mut grades = row![].spacing(14).align_y(iced::Alignment::Start);
+            for k in 0..months as i64 {
+                let bruto = view.ano * 12 + view.mes - 1 + k;
+                let (ano, mes) = (bruto.div_euclid(12), bruto.rem_euclid(12) + 1);
+                let mut grade = column![].spacing(2);
+
+                if months > 1 {
+                    grade = grade.push(
+                        text(format!("{} {}", nome_mes(mes), ano))
+                            .size(12)
+                            .width(Length::Fixed(largura_grade))
+                            .align_x(iced::alignment::Horizontal::Center),
+                    );
+                }
+
+                // O cabeçalho da semana. `monday_first` gira a lista de sete
+                // iniciais, em vez de exigir uma segunda lista na prop.
+                let mut semana = row![].spacing(0);
+                for i in 0..7usize {
+                    let idx = if monday_first { (i + 1) % 7 } else { i };
+                    semana = semana.push(cal_celula(
+                        nomes_dia.get(idx).copied().unwrap_or("?").to_string(),
+                        CelEstado::Inerte,
+                        CEL,
+                        None,
+                    ));
+                }
+                grade = grade.push(semana);
+
+                let primeiro = dia_da_semana(ano, mes, 1);
+                let vao = if monday_first {
+                    (primeiro + 6).rem_euclid(7)
+                } else {
+                    primeiro
+                };
+                let total = dias_no_mes(ano, mes);
+                for linha in 0..6i64 {
+                    let mut r = row![].spacing(0);
+                    for col in 0..7i64 {
+                        let dia = linha * 7 + col - vao + 1;
+                        if dia < 1 || dia > total {
+                            // Célula do mês vizinho: aparece vazia e inerte.
+                            // Deixá-la clicável exigiria mover o mês visível
+                            // junto com a escolha, e no modo que DELEGA a
+                            // escrita o widget não pode fazer as duas coisas
+                            // numa mensagem só — as setas ‹ › cobrem o caso.
+                            r = r.push(cal_celula(String::new(), CelEstado::Inerte, CEL, None));
+                            continue;
+                        }
+                        let o = days_from_civil(ano, mes, dia);
+                        let iso = format!("{ano:04}-{mes:02}-{dia:02}");
+                        let selecionado = o_inicio == Some(o) || o_fim == Some(o);
+                        let estado = if !na_faixa(o) {
+                            CelEstado::Inerte
+                        } else if selecionado {
+                            CelEstado::Selecionada
+                        } else if faixa_a.is_some_and(|a| o > a) && faixa_b.is_some_and(|b| o < b) {
+                            CelEstado::Faixa
+                        } else if hoje.map(ordem) == Some(o) {
+                            CelEstado::Hoje
+                        } else {
+                            CelEstado::Normal
+                        };
+
+                        let msg = na_faixa(o).then(|| {
+                            if range {
+                                // Início e fim numa mordida: primeiro clique
+                                // (ou clique depois de um par fechado, ou antes
+                                // do início) recomeça; o segundo fecha.
+                                let recomeca = o_inicio.is_none()
+                                    || o_fim.is_some()
+                                    || o_inicio.is_some_and(|a| o < a);
+                                let (ini, fim) = if recomeca {
+                                    (iso.clone(), String::new())
+                                } else {
+                                    (
+                                        context.get(&chave).cloned().unwrap_or_default(),
+                                        iso.clone(),
+                                    )
+                                };
+                                commit(
+                                    vec![
+                                        (chave.clone(), ini.clone()),
+                                        (chave_fim.clone(), fim.clone()),
+                                    ],
+                                    format!("{ini} {fim}").trim_end().to_string(),
+                                )
+                            } else {
+                                commit(vec![(chave.clone(), iso.clone())], iso.clone())
+                            }
+                        });
+
+                        let cel = cal_celula(dia.to_string(), estado, CEL, msg);
+                        // O hover só é rastreado enquanto há uma ponta aberta:
+                        // fora disso seria uma mensagem por célula visitada,
+                        // 42 por grade, sem nada para pintar com ela.
+                        let rastreia_hover =
+                            range && o_inicio.is_some() && o_fim.is_none() && na_faixa(o);
+                        r = r.push(if rastreia_hover {
+                            mouse_area(cel)
+                                .on_enter(EngineMessage::ContextPatch(vec![(
+                                    CAL_HOVER_CONTEXT.to_string(),
+                                    iso,
+                                )]))
+                                .into()
+                        } else {
+                            cel
+                        });
+                    }
+                    grade = grade.push(r);
+                }
+                grades = grades.push(grade);
+            }
+            grades.into()
+        }
+        // ── a grade de meses (o drill-up do Qt, promovido a tag) ────────────
+        'M' => {
+            let sel_mes = inicio_sel
+                .filter(|(a, _, _)| *a == view.ano)
+                .map(|(_, m, _)| m);
+            let mut grade = column![].spacing(4);
+            for linha in 0..4i64 {
+                let mut r = row![].spacing(4);
+                for col in 0..3i64 {
+                    let m = linha * 3 + col + 1;
+                    let estado = if sel_mes == Some(m) && mode == 'M' {
+                        CelEstado::Selecionada
+                    } else if hoje.is_some_and(|(a, hm, _)| a == view.ano && hm == m) {
+                        CelEstado::Hoje
+                    } else {
+                        CelEstado::Normal
+                    };
+                    // Clicar num mês GRAVA quando o piso da escada é o mês
+                    // (`<monthyearpicker>`); senão só desce um degrau.
+                    let msg = if mode == 'M' {
+                        let iso = format!("{:04}-{m:02}", view.ano);
+                        Some(commit(vec![(chave.clone(), iso.clone())], iso))
+                    } else {
+                        Some(EngineMessage::ContextPatch(vec![(
+                            chave_view.clone(),
+                            CalView {
+                                ano: view.ano,
+                                mes: m,
+                                nivel: 'd',
+                            }
+                            .serializa(),
+                        )]))
+                    };
+                    r = r.push(cal_celula(
+                        nome_mes(m).chars().take(3).collect::<String>(),
+                        estado,
+                        (largura_grade - 8.0) / 3.0,
+                        msg,
+                    ));
+                }
+                grade = grade.push(r);
+            }
+            grade.into()
+        }
+        // ── a grade de anos ─────────────────────────────────────────────────
+        _ => {
+            let base = view.ano - view.ano.rem_euclid(16);
+            let sel_ano = inicio_sel.map(|(a, _, _)| a);
+            let mut grade = column![].spacing(4);
+            for linha in 0..4i64 {
+                let mut r = row![].spacing(4);
+                for col in 0..4i64 {
+                    let a = base + linha * 4 + col;
+                    let estado = if sel_ano == Some(a) && mode == 'y' {
+                        CelEstado::Selecionada
+                    } else if hoje.is_some_and(|(ha, _, _)| ha == a) {
+                        CelEstado::Hoje
+                    } else {
+                        CelEstado::Normal
+                    };
+                    let msg = if mode == 'y' {
+                        let iso = format!("{a:04}");
+                        Some(commit(vec![(chave.clone(), iso.clone())], iso))
+                    } else {
+                        Some(EngineMessage::ContextPatch(vec![(
+                            chave_view.clone(),
+                            CalView {
+                                ano: a,
+                                mes: view.mes,
+                                nivel: 'M',
+                            }
+                            .serializa(),
+                        )]))
+                    };
+                    r = r.push(cal_celula(
+                        a.to_string(),
+                        estado,
+                        (largura_grade - 12.0) / 4.0,
+                        msg,
+                    ));
+                }
+                grade = grade.push(r);
+            }
+            grade.into()
+        }
+    };
+
+    // Uma caixa só em volta de tudo, como o `QCalendarWidget` — e, como o
+    // `DateTimeEdit`, pintada aqui dentro: a primitiva é uma composição em
+    // Rust, então ela já controla o próprio tamanho e o wrap genérico de
+    // background/borda nunca precisa decidir por ela (ver `PRIMITIVAS.md`).
+    container(column![cabecalho, corpo].spacing(6))
+        .padding(8)
+        .width(if node.width.is_some() {
+            parse_length(&node.width)
+        } else {
+            Length::Shrink
+        })
+        .style(|theme: &iced::Theme| {
+            let p = theme.extended_palette();
+            container::Style {
+                background: Some(Background::Color(p.background.base.color)),
+                border: Border {
+                    color: p.background.strong.color,
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                ..container::Style::default()
+            }
+        })
+        .into()
 }
 
 pub fn render_node<'a>(
@@ -1981,6 +2647,37 @@ pub fn render_node<'a>(
                 })
                 .into()
         }
+        NodeType::Calendar {
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            mode,
+            monday_first,
+            months,
+            range,
+            month_names,
+            day_names,
+            on_change,
+        } => render_calendar(
+            node,
+            context,
+            value_var,
+            end_var,
+            month_var,
+            today,
+            min,
+            max,
+            *mode,
+            *monday_first,
+            *months,
+            *range,
+            month_names,
+            day_names,
+            on_change,
+        ),
         NodeType::Radio {
             label,
             value,
@@ -2601,7 +3298,9 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 
 #[cfg(test)]
 mod length_tests {
-    use super::{Instante, dias_no_mes, parse_length};
+    use super::{
+        CalView, Instante, days_from_civil, dia_da_semana, dias_no_mes, iso_ymd, parse_length,
+    };
     use iced::Length;
 
     use super::janela_visivel;
@@ -2707,6 +3406,92 @@ mod length_tests {
     #[test]
     fn garbage_falls_back_to_shrink() {
         assert_eq!(len("wibble"), Length::Shrink);
+    }
+
+    // --- O calendário: dia da semana, mês visível e a leitura de uma data ----
+
+    /// `days_from_civil` contra âncoras conhecidas — a época, o bug do ano 2000
+    /// (que é bissexto) e 1900 (que não é). Errar isto desloca a grade inteira
+    /// de um mês em silêncio, que é o pior modo de falha possível para um
+    /// calendário.
+    #[test]
+    fn days_from_civil_bate_com_as_ancoras() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(1969, 12, 31), -1);
+        assert_eq!(days_from_civil(2000, 3, 1), 11017);
+        // 2000 é bissexto (múltiplo de 400) e 1900 não é (século sem 400):
+        // a diferença entre 28/02 e 01/03 prova as duas regras.
+        assert_eq!(
+            days_from_civil(2000, 3, 1) - days_from_civil(2000, 2, 28),
+            2
+        );
+        assert_eq!(
+            days_from_civil(1900, 3, 1) - days_from_civil(1900, 2, 28),
+            1
+        );
+    }
+
+    /// 0 = domingo. 1970-01-01 foi quinta (4); 2026-09-01 é terça (2).
+    #[test]
+    fn dia_da_semana_conta_do_domingo() {
+        assert_eq!(dia_da_semana(1970, 1, 1), 4);
+        assert_eq!(dia_da_semana(2026, 9, 1), 2);
+        assert_eq!(dia_da_semana(2026, 9, 6), 0);
+        assert_eq!(dia_da_semana(2024, 2, 29), 4);
+    }
+
+    /// `iso_ymd` distingue "sem data" de "data inválida" de uma data de
+    /// verdade — a diferença que o `Instante` apaga de propósito (lá o vazio
+    /// vira 2000-01-01) e que aqui decide se alguma célula acende.
+    #[test]
+    fn iso_ymd_devolve_none_para_o_que_nao_e_data() {
+        assert_eq!(iso_ymd("2026-09-01"), Some((2026, 9, 1)));
+        assert_eq!(iso_ymd("  2026-09-01  "), Some((2026, 9, 1)));
+        // A hora de um `<datetimeedit>` gravando a mesma chave não pode
+        // apagar o realce do dia.
+        assert_eq!(iso_ymd("2026-09-01 13:45"), Some((2026, 9, 1)));
+        // `YYYY-MM` e `YYYY` completam com 1 — é o que o modo mês/ano grava.
+        assert_eq!(iso_ymd("2026-09"), Some((2026, 9, 1)));
+        assert_eq!(iso_ymd("2026"), Some((2026, 1, 1)));
+        assert_eq!(iso_ymd(""), None);
+        assert_eq!(iso_ymd("   "), None);
+        assert_eq!(iso_ymd("ontem"), None);
+    }
+
+    /// O mês visível vai e volta pela chave `__cal_<chave>`, e o parse é
+    /// tolerante: o que faltar cai no default recebido, para uma chave semeada
+    /// à mão nunca desenhar quebrado.
+    #[test]
+    fn calview_serializa_e_tolera_lixo() {
+        let v = CalView {
+            ano: 2026,
+            mes: 9,
+            nivel: 'M',
+        };
+        assert_eq!(v.serializa(), "2026-09|M");
+
+        let lido = CalView::parse(Some(&"2026-09|M".to_string()), 2000, 1, 'd');
+        assert_eq!((lido.ano, lido.mes, lido.nivel), (2026, 9, 'M'));
+
+        // Sem nível: fica o default do chamador (o `mode` da tag).
+        let sem_nivel = CalView::parse(Some(&"2030-12".to_string()), 2000, 1, 'y');
+        assert_eq!(
+            (sem_nivel.ano, sem_nivel.mes, sem_nivel.nivel),
+            (2030, 12, 'y')
+        );
+
+        // Nada, lixo e um nível que não existe caem todos no default.
+        for bruto in ["", "   ", "|x"] {
+            let d = CalView::parse(Some(&bruto.to_string()), 2026, 9, 'd');
+            assert_eq!((d.ano, d.mes, d.nivel), (2026, 9, 'd'), "bruto={bruto:?}");
+        }
+        let nenhum = CalView::parse(None, 2026, 9, 'd');
+        assert_eq!((nenhum.ano, nenhum.mes, nenhum.nivel), (2026, 9, 'd'));
+
+        // Mês fora da faixa é preso, não propagado: um `13` não pode virar
+        // índice de um vetor de doze nomes.
+        let preso = CalView::parse(Some(&"2026-13|d".to_string()), 2000, 1, 'd');
+        assert_eq!(preso.mes, 12);
     }
 
     // --- Instante: a aritmética de seção do `<datetimeedit>` -----------------

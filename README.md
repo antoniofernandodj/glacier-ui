@@ -314,6 +314,8 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
 | `<ProgressBar>` | `Progress`, `BarraProgresso` | `value`/`valor` (chave de contexto numérica), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue` (percentual centralizado), `color`/`cor` (preenchimento; o `background` genérico é o trilho) |
 | `<Spinner>` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
+| `<DateEdit>` · `<TimeEdit>` · `<DateTimeEdit>` | `DatePicker`, `TimePicker`, `EditorData`, `EditorHora` | edição por **seções** (`QDateTimeEdit`): `value`/`valor` (chave), `onChange`/`aoMudar` (vazio = o widget grava sozinho), `seconds`/`segundos`, `format="br"` (só a exibição — a chave é sempre ISO). A tag decide quais seções aparecem |
+| `<Calendar>` · `<MonthYearPicker>` · `<DateRangePicker>` | `Calendario`, `SeletorMesAno`, `SeletorIntervalo` | a **grade** (`QCalendarWidget`): `value`/`valor` (chave; `start`/`end` no intervalo), `onChange`, `today`/`hoje` (realce — **prop, não relógio**: `date.today()`), `min`/`max`, `mode` (`day`/`month`/`year`, a escada de drill-up), `first_day="monday"`, `months="2"`, `month`/`mes_visivel` (chave que dirige o mês visível), `month_names`/`day_names`. A tag decide o que um clique grava |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -597,6 +599,27 @@ A forma recomendada são **atributos diretiva** aplicados em qualquer elemento
 
 > *XML estrito:* atributos pelados como `else` não são válidos no padrão; o
 > Glacier faz um pré-processamento transparente convertendo `else` → `else=""`.
+
+Mais quatro comparadores, todos sobre o mesmo `if`/`else-if`:
+
+| Atributo | Casa quando |
+|---|---|
+| `one_of="a b c"` (`equals_any`) | o valor da chave é **um dos** tokens escritos no markup |
+| `contains="rede"` (`contem`, `has`) | o **valor da chave é uma lista** (`"geral,rede"`) que tem esse item — o simétrico do `one_of` |
+| `empty` / `not_empty` (pelados) | a chave é (ou não é) um array JSON de zero elementos |
+
+`contains` é o que dá ao motor o **conjunto nomeado**: várias seções de um
+accordion abertas, uma seleção múltipla, um filtro por tags — tudo numa chave
+de texto que o app nomeia, sem estado por instância. Os separadores aceitos são
+vírgula, ponto-e-vírgula e espaço, os três ao mesmo tempo, e o item comparado
+também interpola:
+
+```xml
+<!-- ctx.abertas = "rede,disco" -->
+<template for-each="secoes" var="s">
+    <Column if="{abertas}" contains="{s.id}"> … </Column>
+</template>
+```
 
 **Loop** — `for-each` itera sobre um **array JSON** do contexto; `var` nomeia a
 variável (padrão `item`). Objetos viram `{u.campo}`; escalares ficam em `{u}`:
@@ -937,7 +960,8 @@ function salvar() storage.set("rascunho", ctx.rascunho) end
 
 ### `date`: data e hora sobre strings ISO
 
-Os campos `<dateedit>`/`<timeedit>`/`<datetimeedit>` gravam **sempre em ISO** —
+Os campos `<dateedit>`/`<timeedit>`/`<datetimeedit>` e as grades
+`<calendar>`/`<monthyearpicker>`/`<daterangepicker>` gravam **sempre em ISO** —
 `YYYY-MM-DD`, `HH:MM[:SS]`, ou os dois separados por espaço. O global `date`
 opera nesse mesmo formato: recebe string, devolve string, e por isso nada de
 "objeto data" vaza para uma chave de contexto (que é sempre texto).
@@ -1593,6 +1617,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
+| `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 

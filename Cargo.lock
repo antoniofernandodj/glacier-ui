@@ -1556,11 +1556,11 @@ dependencies = [
 
 [[package]]
 name = "glacier-cli"
-version = "0.2.6"
+version = "0.2.7"
 
 [[package]]
 name = "glacier-ui"
-version = "0.82.0"
+version = "0.84.0"
 dependencies = [
  "base64",
  "flate2",

@@ -1199,6 +1199,94 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
     );
 }
 
+/// Guarda o exemplo `examples/onda3/`: as três tags do calendário são a MESMA
+/// primitiva, ligadas às chaves certas, com o `mode` e o `range` que a tag
+/// escolheu — e com o `today` saindo de `date.today()`, não de uma data fixa.
+///
+/// Relativo de propósito, como o teste do `data_hora_luau`: nada aqui pode
+/// envelhecer junto com o calendário.
+#[test]
+fn test_exemplo_onda3_ponta_a_ponta() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("tela_onda3", "examples/onda3/app.gv")
+        .expect("registrar a tela do exemplo");
+    motor.set_initial_screen("tela_onda3");
+
+    // A primeira aba é a do `<calendar>`; as outras duas moram atrás de um
+    // `if`, então a varredura da árvore avaliada só enxerga a ativa. Trocar a
+    // chave e reavaliar é como o usuário troca de aba.
+    let coleta = |motor: &mut GlacierUI| -> Vec<(String, String, char, bool, u8)> {
+        let mut achados = Vec::new();
+        fn anda(n: &UiNode, out: &mut Vec<(String, String, char, bool, u8)>) {
+            if let NodeType::Calendar {
+                value_var,
+                end_var,
+                mode,
+                range,
+                months,
+                ..
+            } = &n.kind
+            {
+                out.push((value_var.clone(), end_var.clone(), *mode, *range, *months));
+            }
+            for f in &n.children {
+                anda(f, out);
+            }
+        }
+        anda(motor.evaluated("tela_onda3").unwrap(), &mut achados);
+        achados
+    };
+
+    // `today` é prop, e a prop veio do relógio: o init do script gravou
+    // `date.today()` na chave, e ela é o que a tag interpola.
+    let hoje = motor.get_data("hoje").cloned().unwrap_or_default();
+    assert_eq!(
+        hoje.len(),
+        10,
+        "date.today() deveria dar YYYY-MM-DD: {hoje:?}"
+    );
+
+    let dia = coleta(&mut motor);
+    assert!(
+        dia.iter()
+            .any(|(k, _, m, r, meses)| k == "dia" && *m == 'd' && !*r && *meses == 1),
+        "faltou o <calendar> ligado a 'dia': {dia:?}"
+    );
+    assert!(
+        dia.iter()
+            .any(|(k, _, m, _, _)| k == "entrega" && *m == 'd'),
+        "faltou o <calendar> com validação: {dia:?}"
+    );
+
+    motor.define_data("aba", "mes");
+    motor.reevaluate_all().unwrap();
+    let mes = coleta(&mut motor);
+    assert!(
+        mes.iter()
+            .any(|(k, _, m, _, _)| k == "competencia" && *m == 'M'),
+        "o <monthyearpicker> deveria nascer em mode=month: {mes:?}"
+    );
+    assert!(
+        mes.iter()
+            .any(|(k, _, m, _, _)| k == "exercicio" && *m == 'y'),
+        "`mode=\"year\"` deveria sobrescrever o piso da tag: {mes:?}"
+    );
+
+    motor.define_data("aba", "intervalo");
+    motor.reevaluate_all().unwrap();
+    let faixa = coleta(&mut motor);
+    assert!(
+        faixa
+            .iter()
+            .any(|(inicio, fim, _, r, meses)| inicio == "entrada"
+                && fim == "saida"
+                && *r
+                && *meses == 2),
+        "o <daterangepicker> deveria ligar DUAS chaves e desenhar dois meses: {faixa:?}"
+    );
+}
+
 /// O exemplo `data_hora_luau`: os campos com `onChange` **delegam**, e é o
 /// script que decide se o valor entra. Guarda as duas metades — a regra que
 /// aceita e a que recusa.
@@ -3585,6 +3673,97 @@ fn one_of_tag_funciona_em_if_e_em_else_if() {
             all_texts(motor.evaluated("oneoftag").unwrap()),
             vec![expected.to_string()],
             "view={view} deveria renderizar {expected:?}"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+// --- `contains` — o simétrico do `one_of`, e o conjunto nomeado (Onda 4 do
+// PLANO_WIDGETS.md: o habilitador do Accordion e da seleção múltipla) --------
+
+/// `contains="rede"` casa quando o **valor da chave** é uma lista que tem
+/// `rede` — o inverso do `one_of`, onde a lista está no markup. Os três
+/// separadores (vírgula, ponto-e-vírgula, espaço) valem ao mesmo tempo, e um
+/// prefixo não conta como pertencimento (`redex` não abre a seção `rede`).
+#[test]
+fn contains_atributo_le_a_lista_da_chave() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_contains_attr.gv";
+    std::fs::write(
+        tpl,
+        envolve(r#"<Column><Text if="{abertas}" contains="rede">aberta</Text></Column>"#),
+    )
+    .unwrap();
+    motor.register_component("containsattr", tpl).unwrap();
+    motor.set_initial_screen("containsattr");
+
+    for abertas in [
+        "rede",
+        "geral,rede",
+        "geral, rede ,disco",
+        "geral rede",
+        "geral;rede",
+    ] {
+        motor.define_data("abertas", abertas);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("containsattr").unwrap()),
+            vec!["aberta".to_string()],
+            "abertas={abertas:?} deveria conter rede"
+        );
+    }
+
+    for abertas in ["", "geral", "redex", "prede", "geral,disco"] {
+        motor.define_data("abertas", abertas);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("containsattr").unwrap()),
+            Vec::<String>::new(),
+            "abertas={abertas:?} não deveria conter rede"
+        );
+    }
+
+    std::fs::remove_file(tpl).ok();
+}
+
+/// Forma **tag**, e encadeada: `<template if=… contains=…>` /
+/// `<template else-if=… contains=…>`. O item comparado também interpola, que é
+/// o que permite `contains="{item.id}"` dentro de um `for-each` — a forma que
+/// o `Accordion` e o `ListView` de seleção múltipla usam.
+#[test]
+fn contains_tag_encadeia_e_interpola_o_item() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_contains_tag.gv";
+    std::fs::write(
+        tpl,
+        envolve(
+            r#"<Column>
+            <template if="{sel}" contains="{alvo}"><Text>tem</Text></template>
+            <template else-if="{sel}" contains="outro"><Text>outro</Text></template>
+            <template else><Text>nada</Text></template>
+        </Column>"#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("containstag", tpl).unwrap();
+    motor.set_initial_screen("containstag");
+
+    for (sel, alvo, esperado) in [
+        ("a,b,c", "b", "tem"),
+        ("a,b,c", "z", "nada"),
+        ("a,outro", "z", "outro"),
+        ("", "b", "nada"),
+    ] {
+        motor.define_data("sel", sel);
+        motor.define_data("alvo", alvo);
+        motor.reevaluate_all().unwrap();
+        assert_eq!(
+            all_texts(motor.evaluated("containstag").unwrap()),
+            vec![esperado.to_string()],
+            "sel={sel:?} alvo={alvo:?}"
         );
     }
 

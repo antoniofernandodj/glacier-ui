@@ -214,10 +214,11 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
 > São **dois** casos hoje, e o segundo confirmou a regra: `ProgressBar` e
-> `Slider` (0.66). O `DateTimeEdit` (0.68) não entra na lista por outro motivo:
-> ele não é um widget do `iced` embrulhado, é uma **composição montada em
-> Rust** (`row`/`button`/`container`), então já controla o próprio tamanho e
-> pinta a própria borda — o wrap genérico nunca chega a decidir por ele. O `slider`/`vertical_slider` do iced também nasce
+> `Slider` (0.66). O `DateTimeEdit` (0.68) e o `Calendar` (0.84) não entram na
+> lista por outro motivo: eles não são widgets do `iced` embrulhados, são
+> **composições montadas em Rust** (`row`/`column`/`button`/`container`), então
+> já controlam o próprio tamanho e pintam a própria borda — o wrap genérico
+> nunca chega a decidir por eles. O `slider`/`vertical_slider` do iced também nasce
 > `Length::Fill` no eixo principal, então ele entrou na mesma exclusão do wrap
 > e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
 > a `color` — exatamente o que esta seção mandava fazer.
@@ -237,6 +238,14 @@ O `DateTimeEdit` (`<dateedit>`/`<timeedit>`/`<datetimeedit>`, 0.68) é uma
 primitiva que o `render_node` **compõe**: uma `row` de `button`s (as seções),
 `text` (os separadores), uma `column` com as setas, tudo dentro de um
 `container` que desenha a borda. Nada disso é um widget novo do `iced`.
+
+O `Calendar` (`<calendar>`/`<monthyearpicker>`/`<daterangepicker>`, 0.84) é o
+segundo, e mais extremo: uma `column` de `row`s de `button` — a grade 7×6 — mais
+o cabeçalho de navegação, tudo montado num laço. Ele é a demonstração prática do
+sinal abaixo: o `PLANO_WIDGETS.md` listou o `Grid` (`QGridLayout`) como
+pré-requisito do calendário por três revisões, o que só faria sentido para um
+**builtin** (cujo template é markup e precisaria de uma grade declarativa). Em
+Rust, grade é um `for`, e o `Grid` deixou de estar no caminho crítico.
 
 Vale saber quando esse caminho é o certo, porque ele parece "coisa de builtin":
 
