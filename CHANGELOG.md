@@ -8,6 +8,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.88.0] — 2026-09-03
+
+### Adicionado
+- **A CLI passa a gerar um `AGENTS.md`** em todo projeto novo (`glacier-cli`
+  0.3.0), com o que a instrumentação da 0.87 mediu — em ordem de retorno, e com
+  os números que justificam a ordem.
+
+  O que ele diz, em resumo: **quase nunca é o motor.** Numa tela de 111 nós com
+  20 caixas pintadas, pintar custou ~45 ms por quadro e o motor 0,07 ms — seis
+  centenas de vezes menos. As três regras que pagam são não repintar a janela
+  inteira por cima do tema, empilhar menos camadas na mesma área, e guardar o
+  canto arredondado para as caixas pequenas.
+
+  Traz também o procedimento de medida (`GLACIER_PERF` + `GLACIER_PERF_STRESS` +
+  `GLACIER_NO_PAINT`) e as **duas armadilhas de leitura** que já custaram
+  diagnósticos errados neste próprio repositório: julgar velocidade sem o modo
+  estresse (um app ocioso apareceu como "quadro de 19 segundos") e comparar sem
+  desligar a pintura.
+
+  Vai no `_comum`, então todo preset o herda; um teste fixa isso.
+
+### Notas
+- Aplicado num app real (o `rustploy`), o item 1 sozinho removeu **nove** camadas
+  de pintura redundante — a mesma cor do tema repintada por cima, em nove
+  regras, com duas empilhadas no mesmo arquivo. Nenhuma mudança visual, e a
+  rolagem melhorou de forma perceptível.
+
+---
+
 ## [0.87.0] — 2026-09-03
 
 Duas variáveis de diagnóstico — e, com elas, a resposta de uma investigação que

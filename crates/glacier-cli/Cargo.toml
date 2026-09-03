@@ -1,6 +1,6 @@
 [package]
 name = "glacier-cli"
-version = "0.2.9"
+version = "0.3.0"
 edition = "2024"
 description = "CLI do glacier-ui: cria um projeto pronto (templates .gv, .gss e scripts Luau) e instala as extensões de VS Code."
 license = "MIT OR Apache-2.0"

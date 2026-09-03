@@ -62,7 +62,12 @@ mod testes {
     fn presets_herdam_os_arquivos_comuns() {
         for p in crate::scaffold::PRESETS {
             let arquivos = arquivos_do_preset(p.id);
-            for esperado in ["gitignore", ".luaurc", "views/scripts/glacier.d.luau"] {
+            for esperado in [
+                "gitignore",
+                ".luaurc",
+                "AGENTS.md",
+                "views/scripts/glacier.d.luau",
+            ] {
                 assert!(
                     arquivos.iter().any(|(c, _)| *c == esperado),
                     "preset '{}' não herdou '{esperado}'",
