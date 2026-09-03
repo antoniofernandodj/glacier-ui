@@ -15,9 +15,9 @@
 ///
 /// O elo que faltava é o `update` saber *qual* chave a instância clicada usa —
 /// ele recebe a ação, não as props. Por isso a ação carrega os parâmetros:
-/// o template escreve `on_click="inc:{value}|{min|0}|{max|100}|{step|1}"`, o
+/// o template escreve `on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"`, o
 /// eval interpola e prefixa o dono (`namespace_action`), e chega aqui como
-/// `inc:qtd|1|99|1`. O motor devolve tudo isso ao dono certo porque um builtin
+/// `inc:qtd|1|99|1|2`. O motor devolve tudo isso ao dono certo porque um builtin
 /// entra no mesmo mapa de componentes que os do app (`GlacierUI::route_to_owner`).
 ///
 /// # As duas formas
@@ -55,10 +55,16 @@
 ///
 /// - `value`       — **obrigatória**: nome da chave de contexto com o número.
 /// - `min` / `max` — limites. Default: `0` / `100` (a faixa padrão do Qt).
-/// - `step`        — passo de cada clique. Default: `1`. O número de casas
-///   decimais da saída sai daqui: `step="0.25"` formata com 2 casas, o que
-///   também evita o `0.30000000000000004` de somar `f64` — é o
-///   `QDoubleSpinBox` sem precisar de um segundo widget.
+/// - `step`        — passo de cada clique. Default: `1`.
+/// - `decimals`    — casas decimais da saída, e é o que fecha o
+///   `QDoubleSpinBox`. **Sem ela**, as casas saem do `step` como escrito no
+///   markup (`step="0.25"` → 2 casas) — o que acerta na maioria dos casos e
+///   erra justamente no que importa: `step="1"` sobre um preço formatava
+///   `10`, não `10.00`. Com ela, o `step` volta a ser só o passo:
+///   `<SpinBox value="preco" step="1" decimals="2" />`.
+///
+///   Nos dois caminhos a formatação também evita o `0.30000000000000004` de
+///   somar `f64`, que é o outro serviço que o `QDoubleSpinBox` presta.
 /// - `layout`      — `stacked` (default) ou `inline`; ver acima.
 /// - `width`       — largura do campo. Default: `72`.
 /// - `placeholder` — dica quando a chave está vazia. Default: vazio.
@@ -106,10 +112,23 @@ use crate::component::{Component, Context, Template};
 
 pub struct SpinBox;
 
-/// Casas decimais que a saída deve ter, deduzidas do `step` como escrito no
-/// markup (`"0.25"` → 2). Limitado a 6 para não gerar um número absurdo a
-/// partir de um `step` com lixo de ponto flutuante.
-fn casas_decimais(step: &str) -> usize {
+/// Casas decimais que a saída deve ter.
+///
+/// A prop `decimals` manda quando existe; sem ela, o número é **deduzido do
+/// `step` como escrito no markup** (`"0.25"` → 2), que é o comportamento que o
+/// widget sempre teve e que continua acertando o caso comum.
+///
+/// Os dois caminhos são limitados a 6: nem um `decimals="17"` nem um `step`
+/// com lixo de ponto flutuante devem produzir um número absurdo de casas.
+fn casas_decimais(step: &str, decimals: &str) -> usize {
+    if let Some(n) = decimals
+        .trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|_| !decimals.trim().is_empty())
+    {
+        return n.min(6);
+    }
     match step.trim().split_once('.') {
         Some((_, decimais)) => decimais.trim().len().min(6),
         None => 0,
@@ -167,7 +186,7 @@ impl Component for SpinBox {
                     <template if="{layout|stacked}" equals="inline">
                         <Button
                             class="spinbox-step"
-                            on_click="dec:{value}|{min|0}|{max|100}|{step|1}"
+                            on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             padding="6 12"
                         >
                             <Text content="{dec_text|−}" size="{glyph_size|15}" />
@@ -176,13 +195,13 @@ impl Component for SpinBox {
                             class="{field_class}"
                             formControl="{form_control}"
                             value="{value}"
-                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}"
+                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             placeholder="{placeholder}"
                             width="{width|72}"
                         />
                         <Button
                             class="spinbox-step"
-                            on_click="inc:{value}|{min|0}|{max|100}|{step|1}"
+                            on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             padding="6 12"
                         >
                             <Text content="{inc_text|+}" size="{glyph_size|15}" />
@@ -194,21 +213,21 @@ impl Component for SpinBox {
                             class="{field_class}"
                             formControl="{form_control}"
                             value="{value}"
-                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}"
+                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             placeholder="{placeholder}"
                             width="{width|72}"
                         />
                         <Column spacing="1">
                             <Button
                                 class="spinbox-step"
-                                on_click="inc:{value}|{min|0}|{max|100}|{step|1}"
+                                on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                                 padding="0 7"
                             >
                                 <Text content="{inc_text|▴}" size="{glyph_size|11}" />
                             </Button>
                             <Button
                                 class="spinbox-step"
-                                on_click="dec:{value}|{min|0}|{max|100}|{step|1}"
+                                on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                                 padding="0 7"
                             >
                                 <Text content="{dec_text|▾}" size="{glyph_size|11}" />
@@ -221,7 +240,8 @@ impl Component for SpinBox {
     }
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
-        // `inc:qtd|1|99|1` — operação, chave-alvo e os parâmetros da instância.
+        // `inc:qtd|1|99|1|2` — operação, chave-alvo e os parâmetros da
+        // instância (min, max, step, decimals).
         let Some((op, payload)) = action.split_once(':') else {
             return;
         };
@@ -239,7 +259,9 @@ impl Component for SpinBox {
         let max = num(campos.next(), 100.0);
         let step_txt = campos.next().unwrap_or("1");
         let step = num(Some(step_txt), 1.0);
-        let casas = casas_decimais(step_txt);
+        // O quinto campo é novo (0.85) e pode vir vazio: um payload antigo,
+        // de um template que o app tenha copiado, continua valendo.
+        let casas = casas_decimais(step_txt, campos.next().unwrap_or(""));
 
         if op == "edit" {
             // Digitação: entra filtrado e sem saturar (ver limites conhecidos).

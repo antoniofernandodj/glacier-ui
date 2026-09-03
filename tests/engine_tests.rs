@@ -398,7 +398,7 @@ fn test_builtin_badge_disponivel_sem_registro() {
 fn test_builtin_spinbox_soma_satura_e_nao_colide() {
     // `SpinBox` é o primeiro builtin com comportamento próprio: o `update` dele
     // faz a aritmética. Como o `ctx` é global, a chave-alvo vem por prop e viaja
-    // DENTRO da ação (`inc:qtd|1|3|1`) — é isso que deixa duas instâncias na
+    // DENTRO da ação (`inc:qtd|1|3|1|`) — é isso que deixa duas instâncias na
     // mesma tela independentes. O teste percorre o caminho inteiro: template
     // avaliado -> ação namespaceada -> `dispatch` -> contexto.
     use glacier_ui::EngineMessage;
@@ -438,7 +438,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
             ..
         } => {
             assert_eq!(value_var, "qtd", "o campo escreve na chave do app");
-            assert_eq!(on_change, "SpinBox::edit:qtd|1|3|1");
+            assert_eq!(on_change, "SpinBox::edit:qtd|1|3|1|");
         }
         outro => panic!("esperava o campo, veio {outro:?}"),
     }
@@ -463,7 +463,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         NodeType::Button { on_click, .. } => on_click.clone().expect("degrau ▴ sem ação"),
         outro => panic!("esperava o degrau ▴, veio {outro:?}"),
     };
-    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1");
+    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1|");
 
     // --- a aritmética --------------------------------------------------------
     // Chave ainda vazia: o primeiro clique inicializa no mínimo (não min+step).
@@ -484,7 +484,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         NodeType::Button { on_click, .. } => on_click.clone().unwrap(),
         outro => panic!("esperava o degrau ▴ do preço, veio {outro:?}"),
     };
-    assert_eq!(inc_preco, "SpinBox::inc:preco|0|1|0.25");
+    assert_eq!(inc_preco, "SpinBox::inc:preco|0|1|0.25|");
 
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
     // `step="0.25"` -> 2 casas, inclusive na inicialização.
@@ -512,7 +512,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
     // O `edit` filtra o que não é número e escreve na chave (sem saturar,
     // como o QSpinBox, que só valida ao terminar a edição).
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "SpinBox::edit:qtd|1|3|1".into(),
+        action: "SpinBox::edit:qtd|1|3|1|".into(),
         value: "12a.5x".into(),
     });
     assert_eq!(motor.context().get("qtd").map(String::as_str), Some("12.5"));
@@ -742,7 +742,7 @@ fn test_builtin_em_minusculas_resolve_e_roteia() {
 
     // A ação sai prefixada com o nome pelo qual a tag foi resolvida.
     let inc = encontra_acao(avaliado).expect("o degrau ▴ do spinbox minúsculo");
-    assert_eq!(inc, "spinbox::inc:qtd|1|3|1");
+    assert_eq!(inc, "spinbox::inc:qtd|1|3|1|");
 
     // E o roteamento acha o alias no mapa de componentes e delega ao widget.
     let _ = motor.dispatch(&EngineMessage::UiClick(inc));
@@ -1090,8 +1090,8 @@ fn test_builtin_spinbox_layout_inline() {
         NodeType::Button { on_click, .. } => on_click.clone().expect("degrau sem ação"),
         outro => panic!("esperava um degrau, veio {outro:?}"),
     };
-    assert_eq!(acao(&spin.children[0]), "SpinBox::dec:zoom|25|400|25");
-    assert_eq!(acao(&spin.children[2]), "SpinBox::inc:zoom|25|400|25");
+    assert_eq!(acao(&spin.children[0]), "SpinBox::dec:zoom|25|400|25|");
+    assert_eq!(acao(&spin.children[2]), "SpinBox::inc:zoom|25|400|25|");
     // Os glifos desta forma são `−`/`+` (os `▾`/`▴` são os do `stacked`).
     let glifo = |n: &UiNode| match &n.children[0].kind {
         NodeType::Text { content, .. } => content.clone(),
@@ -1197,6 +1197,222 @@ fn test_exemplo_timepicker_ponta_a_ponta() {
         achados.iter().any(|(k, d, t)| k == "quando" && *d && *t),
         "faltou o QDateTimeEdit ligado a 'quando': {achados:?}"
     );
+}
+
+/// Guarda o exemplo `examples/onda4/`: os sete itens da onda, cada um pela sua
+/// marca — a primitiva pelo `NodeType`, o builtin pela ação que ele emite.
+///
+/// O que este teste realmente protege é a **fronteira**: um builtin cujo
+/// template quebre não some da tela, ele passa a emitir a ação errada (ou
+/// nenhuma), e é isso que se fixa aqui.
+#[test]
+fn test_exemplo_onda4_ponta_a_ponta() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register(Box::new(TelaOnda4))
+        .expect("registrar a tela do exemplo");
+    motor.set_initial_screen("onda4");
+
+    // --- Aba 1: Pagination (primitiva) e ListView (builtin) ------------------
+    let mut paginacoes: Vec<(String, String, bool, String)> = Vec::new();
+    fn acha_pag(n: &UiNode, out: &mut Vec<(String, String, bool, String)>) {
+        if let NodeType::Pagination {
+            value_var,
+            total,
+            ends,
+            on_change,
+            ..
+        } = &n.kind
+        {
+            out.push((value_var.clone(), total.clone(), *ends, on_change.clone()));
+        }
+        for f in &n.children {
+            acha_pag(f, out);
+        }
+    }
+    acha_pag(motor.evaluated("onda4").unwrap(), &mut paginacoes);
+    // Duas: a de cima delega (`onChange`), a do rodapé grava sozinha.
+    assert!(
+        paginacoes
+            .iter()
+            .any(|(k, t, _, oc)| k == "pagina" && t == "3" && oc == "repaginar"),
+        "faltou a paginação que delega: {paginacoes:?}"
+    );
+    assert!(
+        paginacoes
+            .iter()
+            .any(|(k, _, ends, oc)| k == "pagina" && !*ends && oc.is_empty()),
+        "faltou a paginação que grava sozinha: {paginacoes:?}"
+    );
+
+    // O `<listview>` é builtin: o que se vê na árvore é o botão de cada linha,
+    // com a ação já prefixada pelo dono e com o modo dentro do payload.
+    let acoes = todas_as_acoes(motor.evaluated("onda4").unwrap());
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "listview::pick:single|servico|api"),
+        "faltou a linha do listview simples: {acoes:?}"
+    );
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "listview::pick:multi|marcados|api"),
+        "faltou a linha do listview múltiplo: {acoes:?}"
+    );
+
+    // --- Aba 2: Accordion e ToolBox -----------------------------------------
+    motor.define_data("aba", "secoes");
+    motor.reevaluate_all().unwrap();
+    let acoes = todas_as_acoes(motor.evaluated("onda4").unwrap());
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "accordionitem::toggle:abertas|rede"),
+        "faltou o cabeçalho do accordion: {acoes:?}"
+    );
+    assert!(
+        acoes
+            .iter()
+            .any(|a| a == "toolboxitem::only:ferramenta|medidas"),
+        "faltou o cabeçalho do toolbox: {acoes:?}"
+    );
+    // `abertas="rede"` — só a seção "rede" desdobra o corpo. As outras duas
+    // mostram só o cabeçalho, e é o `contains` que decide isso.
+    let textos = all_texts(motor.evaluated("onda4").unwrap());
+    assert!(
+        textos.iter().any(|t| t.contains("api.exemplo.com")),
+        "a seção aberta deveria mostrar o corpo: {textos:?}"
+    );
+    assert!(
+        !textos.iter().any(|t| t.contains("2 volumes")),
+        "a seção fechada não deveria mostrar o corpo: {textos:?}"
+    );
+
+    // --- Aba 3: MaskedInput, Rating, SpinBox decimals, ButtonBox -------------
+    motor.define_data("aba", "campos");
+    motor.reevaluate_all().unwrap();
+    let tela = motor.evaluated("onda4").unwrap();
+
+    let mut mascaras: Vec<(String, String)> = Vec::new();
+    let mut notas: Vec<(String, String, bool)> = Vec::new();
+    fn acha_campos(n: &UiNode, m: &mut Vec<(String, String)>, r: &mut Vec<(String, String, bool)>) {
+        match &n.kind {
+            NodeType::MaskedInput {
+                value_var, mask, ..
+            } => m.push((value_var.clone(), mask.clone())),
+            NodeType::Rating {
+                value_var,
+                max,
+                readonly,
+                ..
+            } => r.push((value_var.clone(), max.clone(), *readonly)),
+            _ => {}
+        }
+        for f in &n.children {
+            acha_campos(f, m, r);
+        }
+    }
+    acha_campos(tela, &mut mascaras, &mut notas);
+
+    // O preset vira a máscara já no parse — o render nunca vê a palavra "cpf".
+    assert!(
+        mascaras.contains(&("cpf".to_string(), "###.###.###-##".to_string())),
+        "o preset cpf deveria virar máscara: {mascaras:?}"
+    );
+    assert!(
+        mascaras.contains(&("placa".to_string(), "AAA#*##".to_string())),
+        "a placa é máscara mista: {mascaras:?}"
+    );
+    assert!(
+        notas.contains(&("nota".to_string(), String::new(), false)),
+        "faltou o rating padrão: {notas:?}"
+    );
+    assert!(
+        notas.contains(&("nota".to_string(), String::new(), true)),
+        "faltou o rating readonly: {notas:?}"
+    );
+
+    // O `decimals` viaja no payload do SpinBox — é assim que o `update` dele o
+    // enxerga, já que ele não vê as props da instância.
+    let acoes = todas_as_acoes(tela);
+    assert!(
+        acoes.iter().any(|a| a == "spinbox::inc:preco|0|999|1|2"),
+        "o decimals deveria entrar no payload do spinbox: {acoes:?}"
+    );
+    assert!(
+        acoes.iter().any(|a| a == "spinbox::inc:desconto|0|100|5|"),
+        "sem decimals o campo fica vazio no payload: {acoes:?}"
+    );
+
+    // O `<buttonbox>` delega os três cliques ao app, pelo prefixo `app:`.
+    for esperada in ["salvar", "cancelar", "excluir"] {
+        assert!(
+            acoes.iter().any(|a| a == esperada),
+            "o buttonbox deveria entregar {esperada:?} à tela: {acoes:?}"
+        );
+    }
+}
+
+/// A tela do `examples/onda4`, reencenada aqui — o `main.rs` de um exemplo não
+/// é importável, e o que o teste precisa é do mesmo template com as mesmas
+/// chaves semeadas.
+struct TelaOnda4;
+
+impl glacier_ui::Component for TelaOnda4 {
+    fn name(&self) -> &str {
+        "onda4"
+    }
+    fn template(&self) -> glacier_ui::Template {
+        glacier_ui::Template::File("examples/onda4/app.gv".into())
+    }
+    fn init(&mut self, ctx: &mut glacier_ui::Context) {
+        ctx.set(
+            "abas",
+            r#"[{"id":"listas","label":"a"},{"id":"secoes","label":"b"},{"id":"campos","label":"c"}]"#
+                .to_string(),
+        );
+        ctx.set("aba", "listas".to_string());
+        ctx.set("pagina", "1".to_string());
+        ctx.set("total_paginas", "3".to_string());
+        ctx.set(
+            "servicos",
+            r#"[{"id":"api","label":"API"},{"id":"db","label":"Banco"}]"#.to_string(),
+        );
+        ctx.set("servico", "api".to_string());
+        ctx.set("marcados", "api,cache".to_string());
+        ctx.set("abertas", "rede".to_string());
+        ctx.set("ferramenta", "medidas".to_string());
+        ctx.set("nota", "4".to_string());
+        ctx.set("preco", "19.90".to_string());
+        ctx.set("desconto", "0".to_string());
+    }
+    fn update(&mut self, _action: &str, _value: Option<&str>, _ctx: &mut glacier_ui::Context) {
+        // O teste não clica em nada: o que ele fixa é a árvore avaliada.
+    }
+}
+
+/// Toda ação alcançável na árvore avaliada — `on_click` de um `<Button>` e o
+/// `on_change` de um `<TextInput>`, que é onde as ações de builtin aparecem
+/// depois da expansão.
+fn todas_as_acoes(n: &UiNode) -> Vec<String> {
+    let mut fora = Vec::new();
+    fn anda(n: &UiNode, out: &mut Vec<String>) {
+        match &n.kind {
+            NodeType::Button {
+                on_click: Some(a), ..
+            } => out.push(a.clone()),
+            NodeType::TextInput { on_change, .. } if !on_change.is_empty() => {
+                out.push(on_change.clone())
+            }
+            _ => {}
+        }
+        for f in &n.children {
+            anda(f, out);
+        }
+    }
+    anda(n, &mut fora);
+    fora
 }
 
 /// Guarda o exemplo `examples/onda3/`: as três tags do calendário são a MESMA

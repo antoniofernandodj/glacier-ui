@@ -316,6 +316,9 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Spinner>` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
 | `<DateEdit>` · `<TimeEdit>` · `<DateTimeEdit>` | `DatePicker`, `TimePicker`, `EditorData`, `EditorHora` | edição por **seções** (`QDateTimeEdit`): `value`/`valor` (chave), `onChange`/`aoMudar` (vazio = o widget grava sozinho), `seconds`/`segundos`, `format="br"` (só a exibição — a chave é sempre ISO). A tag decide quais seções aparecem |
 | `<Calendar>` · `<MonthYearPicker>` · `<DateRangePicker>` | `Calendario`, `SeletorMesAno`, `SeletorIntervalo` | a **grade** (`QCalendarWidget`): `value`/`valor` (chave; `start`/`end` no intervalo), `onChange`, `today`/`hoje` (realce — **prop, não relógio**: `date.today()`), `min`/`max`, `mode` (`day`/`month`/`year`, a escada de drill-up), `first_day="monday"`, `months="2"`, `month`/`mes_visivel` (chave que dirige o mês visível), `month_names`/`day_names`. A tag decide o que um clique grava |
+| `<MaskedInput>` | `EntradaMascarada`, `Mascara` | `QLineEdit` com `setInputMask`: guarda **cru** na chave e exibe mascarado. `value`/`valor`, `mask`/`mascara` (gramática `#` dígito · `A` letra · `*` alfanumérico + literais, ou um preset: `cpf`, `cnpj`, `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`), `onChange` (recebe o **cru**), `placeholder` (default: a máscara com `_`) |
+| `<Pagination>` | `Paginacao` | `« ‹ 1 … 4 [5] 6 … 20 › »`: `value`/`valor` (chave com a página, base 1), `total`/`paginas`, `window`/`janela` (quantos números, default `5`), `ends="false"` (esconde `«`/`»`), `onChange`. Um total de 0 ou 1 esconde o widget |
+| `<Rating>` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -1617,6 +1620,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
+| `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. |
 | `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |

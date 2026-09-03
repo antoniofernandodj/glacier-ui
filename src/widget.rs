@@ -1577,6 +1577,408 @@ fn render_calendar<'a>(
         .into()
 }
 
+// ── Paginação, nota por estrelas e campo mascarado ───────────────────────────
+
+/// Chave **global** com a estrela sob o cursor num `<rating>`, no formato
+/// `"<chave>:<n>"`.
+///
+/// Global pelo mesmo motivo do [`CAL_HOVER_CONTEXT`]: só uma estrela da tela
+/// inteira está sob o cursor por vez. A identidade da instância viaja no valor,
+/// e é ela que mantém dois `<rating>` independentes.
+pub(crate) const RATING_HOVER_CONTEXT: &str = "__rating";
+
+/// A janela de números de uma paginação: quais páginas aparecem, dado o total,
+/// a atual e quantos números cabem.
+///
+/// A janela **anda** com a página, mas gruda nas pontas: perto do começo ela
+/// não sai de 1, perto do fim não passa do total. É o que evita o efeito de
+/// ver `3 4 5 6 7` quando se está na página 1.
+///
+/// Isto é a razão de o `Pagination` ser primitiva e não builtin: é repetição
+/// dirigida por um **número**, e o `for-each` do motor lê uma coleção.
+fn janela_paginas(pagina: usize, total: usize, largura: usize) -> std::ops::RangeInclusive<usize> {
+    // `total = 0` não chega aqui pelo render (ele esconde o widget antes), mas
+    // a função é pública para o teste e um `max(1)` custa menos do que um
+    // intervalo vazio que o chamador teria de tratar.
+    let total = total.max(1);
+    let largura = largura.clamp(1, total);
+    let meia = largura / 2;
+    let inicio = pagina
+        .saturating_sub(meia)
+        .max(1)
+        .min(total.saturating_sub(largura) + 1);
+    inicio..=(inicio + largura - 1).min(total)
+}
+
+/// Aplica a máscara a um valor **cru**, parando no primeiro símbolo que o cru
+/// não alimenta.
+///
+/// Os literais entram **antes** do dado seguinte, não depois do anterior: com
+/// `"###.###"` e o cru `"123"` a saída é `"123"`, não `"123."` — um separador
+/// pendurado no fim faz o cursor parecer estar no lugar errado enquanto se
+/// digita.
+fn aplica_mascara(cru: &str, mascara: &str) -> String {
+    let mut saida = String::with_capacity(mascara.len());
+    let mut fonte = cru.chars().peekable();
+    let mut pendentes = String::new();
+    for simbolo in mascara.chars() {
+        match simbolo {
+            '#' | 'A' | '*' => {
+                let Some(c) = fonte.next() else { break };
+                saida.push_str(&pendentes);
+                pendentes.clear();
+                saida.push(c);
+            }
+            // Literal: só entra se ainda houver dado depois dele.
+            literal => pendentes.push(literal),
+        }
+    }
+    saida
+}
+
+/// Extrai de um texto **qualquer** os caracteres que a máscara aceita, na
+/// ordem, respeitando o tipo de cada posição.
+///
+/// É a volta do [`aplica_mascara`]: o `on_input` do `iced` entrega a string
+/// exibida já editada (com os separadores dentro), e o que a chave guarda é o
+/// cru. Filtrar por posição — e não só "tira o que não é dígito" — é o que faz
+/// uma máscara mista (`AAA#*##`, a placa Mercosul) aceitar letra e dígito no
+/// lugar certo.
+fn extrai_cru(texto: &str, mascara: &str) -> String {
+    let tipos: Vec<char> = mascara
+        .chars()
+        .filter(|c| matches!(c, '#' | 'A' | '*'))
+        .collect();
+    // Sem símbolos, a máscara é toda literal: nada a guardar.
+    if tipos.is_empty() {
+        return String::new();
+    }
+    let mut cru = String::with_capacity(tipos.len());
+    for c in texto.chars() {
+        let Some(tipo) = tipos.get(cru.chars().count()) else {
+            break; // a máscara encheu — o resto da digitação cai fora
+        };
+        let serve = match tipo {
+            '#' => c.is_ascii_digit(),
+            'A' => c.is_alphabetic(),
+            _ => c.is_alphanumeric(),
+        };
+        if serve {
+            cru.push(if *tipo == 'A' || *tipo == '*' {
+                c.to_ascii_uppercase()
+            } else {
+                c
+            });
+        }
+    }
+    cru
+}
+
+/// Por que **não** existe um tratamento especial de backspace aqui.
+///
+/// A tentação é óbvia: apagar um **separador** não muda o cru (ele não estava
+/// lá), então a remascaração devolveria a tela ao estado anterior e a tecla
+/// pareceria não funcionar. A correção usual é "se o texto encolheu e o cru
+/// não, come um caractere do cru".
+///
+/// Duas razões para não fazer isso:
+///
+/// 1. **O caso comum não acontece.** O [`aplica_mascara`] nunca emite um
+///    separador pendurado no fim (`"123"`, não `"123."`), então apagar no fim
+///    da string — que é onde se digita — sempre remove um caractere do cru.
+/// 2. **O caso raro não tem conserto honesto.** Apagar o `.` do *meio* de
+///    `"123.456"` deveria remover o `3`, e saber isso exige a posição do
+///    cursor, que o `on_input` do `iced` não entrega. Comer o **último**
+///    caractere em vez disso apagaria o `6` — destrutivo, e num lugar onde a
+///    pessoa não estava olhando.
+///
+/// Sem cursor, não fazer nada é o comportamento seguro: a tecla seguinte
+/// remove o dígito de verdade.
+/// `<pagination>`: primeira · anterior · a janela de números · próxima · última.
+fn render_pagination<'a>(
+    context: &'a ContextMap,
+    value_var: &'a str,
+    total: &'a str,
+    window: usize,
+    ends: bool,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    // `total` chega como texto (ver o campo em `NodeType::Pagination`): o que
+    // não é número conta como zero, e zero esconde o widget — que é a mesma
+    // degradação de uma chave ainda não semeada.
+    let total = total.trim().parse::<usize>().unwrap_or(0);
+    // Uma paginação de zero ou uma página é ruído, não informação — o Qt
+    // esconde a barra de rolagem pelo mesmo motivo.
+    if total <= 1 {
+        return Space::new()
+            .width(Length::Shrink)
+            .height(Length::Shrink)
+            .into();
+    }
+    let atual = context
+        .get(value_var)
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(1)
+        .clamp(1, total);
+
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+    let ir = move |n: usize| -> EngineMessage {
+        let n = n.to_string();
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![(chave.clone(), n)])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: n,
+            }
+        }
+    };
+
+    // Um degrau (‹ › « ») ou um número. `destaque` é a página atual; `None` em
+    // `msg` deixa o botão inerte — é como as pontas se desabilitam no limite,
+    // que é justamente o que o `SpinBox` **não** consegue fazer por ser builtin
+    // (ver os limites conhecidos dele).
+    let celula = |rotulo: String, destaque: bool, msg: Option<EngineMessage>| {
+        // `ativo` é lido dentro do `.style()`, que é `move` e não pode tomar a
+        // mensagem emprestada — daí o `bool` extraído antes.
+        let ativo = msg.is_some();
+        let mut b = button(text(rotulo).size(13))
+            .padding(Padding {
+                top: 5.0,
+                right: 10.0,
+                bottom: 5.0,
+                left: 10.0,
+            })
+            .style(move |theme: &iced::Theme, status| {
+                let p = theme.extended_palette();
+                let pairado = matches!(status, button::Status::Hovered | button::Status::Pressed);
+                button::Style {
+                    background: if destaque {
+                        Some(Background::Color(p.primary.base.color))
+                    } else if pairado {
+                        Some(Background::Color(p.background.weak.color))
+                    } else {
+                        None
+                    },
+                    text_color: match (destaque, ativo) {
+                        (true, _) => p.primary.base.text,
+                        (_, true) => p.background.base.text,
+                        // Inerte: o cinza fraco, que é a única pista de que
+                        // clicar ali não faz nada.
+                        (_, false) => p.background.weak.color,
+                    },
+                    border: Border::default().rounded(5),
+                    ..button::Style::default()
+                }
+            });
+        if let Some(m) = msg {
+            b = b.on_press(m);
+        }
+        b
+    };
+
+    let mut linha = row![].spacing(2).align_y(iced::Alignment::Center);
+    if ends {
+        linha = linha.push(celula("«".into(), false, (atual > 1).then(|| ir(1))));
+    }
+    linha = linha.push(celula(
+        "‹".into(),
+        false,
+        (atual > 1).then(|| ir(atual - 1)),
+    ));
+
+    let janela = janela_paginas(atual, total, window);
+    // As reticências só aparecem quando há mesmo algo escondido — e são texto
+    // inerte, não botão: um "…" clicável não tem destino óbvio.
+    if *janela.start() > 1 {
+        linha = linha.push(celula("1".into(), false, Some(ir(1))));
+        if *janela.start() > 2 {
+            linha = linha.push(celula("…".into(), false, None));
+        }
+    }
+    for n in janela.clone() {
+        linha = linha.push(celula(
+            n.to_string(),
+            n == atual,
+            (n != atual).then(|| ir(n)),
+        ));
+    }
+    if *janela.end() < total {
+        if *janela.end() + 1 < total {
+            linha = linha.push(celula("…".into(), false, None));
+        }
+        linha = linha.push(celula(total.to_string(), false, Some(ir(total))));
+    }
+
+    linha = linha.push(celula(
+        "›".into(),
+        false,
+        (atual < total).then(|| ir(atual + 1)),
+    ));
+    if ends {
+        linha = linha.push(celula(
+            "»".into(),
+            false,
+            (atual < total).then(|| ir(total)),
+        ));
+    }
+    linha.into()
+}
+
+/// `<rating>`: N alvos numa linha, com pré-visualização no hover.
+#[allow(clippy::too_many_arguments)]
+fn render_rating<'a>(
+    context: &'a ContextMap,
+    value_var: &'a str,
+    max: &'a str,
+    filled: &'a str,
+    empty: &'a str,
+    size: f32,
+    color: &'a str,
+    readonly: bool,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    // Como o `total` da paginação, `max` chega como texto para poder
+    // interpolar. Preso em `[1, 20]`: um `max="0"` não desenharia nada e um
+    // `max="500"` não é uma nota, é uma régua.
+    let max = max.trim().parse::<usize>().unwrap_or(5).clamp(1, 20);
+    let nota = context
+        .get(value_var)
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .unwrap_or(0.0)
+        .round()
+        .clamp(0.0, max as f64) as usize;
+
+    // O hover é da instância certa? A chave é global, e carrega a identidade
+    // junto (`avaliacao:4`) — a mesma forma do `__timeedit`.
+    let previa = (!readonly)
+        .then(|| {
+            context
+                .get(RATING_HOVER_CONTEXT)
+                .and_then(|v| v.split_once(':'))
+                .filter(|(chave, _)| *chave == value_var)
+                .and_then(|(_, n)| n.parse::<usize>().ok())
+        })
+        .flatten();
+    // Enquanto o cursor está sobre uma estrela, é ELA que a linha desenha —
+    // que é o ponto todo da pré-visualização.
+    let ate = previa.unwrap_or(nota);
+
+    let cor = parse_hex_color(color);
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+
+    let mut linha = row![].spacing(2).align_y(iced::Alignment::Center);
+    for n in 1..=max {
+        let cheia = n <= ate;
+        let glifo = if cheia { filled } else { empty }.to_string();
+        let mut alvo = button(text(glifo).size(size))
+            .padding(Padding {
+                top: 0.0,
+                right: 1.0,
+                bottom: 0.0,
+                left: 1.0,
+            })
+            .style(move |theme: &iced::Theme, _status| button::Style {
+                background: None,
+                text_color: match (cheia, cor) {
+                    (true, Some(c)) => c,
+                    (true, None) => theme.extended_palette().primary.base.color,
+                    (false, _) => theme.extended_palette().background.strong.color,
+                },
+                border: Border::default(),
+                ..button::Style::default()
+            });
+
+        if readonly {
+            // Sem `on_press` e sem `mouse_area`: o `Status::Disabled` nativo do
+            // iced entra em vigor sozinho, e nenhuma mensagem de hover é
+            // emitida por uma lista de avaliações que ninguém vai editar.
+            linha = linha.push(alvo);
+            continue;
+        }
+
+        // Clicar na estrela já marcada **zera** a nota: é como se tira uma
+        // avaliação sem um botão "limpar" ao lado, e é o que todo site de
+        // resenha faz.
+        let novo = if n == nota { 0 } else { n }.to_string();
+        alvo = alvo.on_press(if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![
+                (chave.clone(), novo),
+                (RATING_HOVER_CONTEXT.to_string(), String::new()),
+            ])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: novo,
+            }
+        });
+        linha = linha.push(
+            mouse_area(alvo)
+                .on_enter(EngineMessage::ContextPatch(vec![(
+                    RATING_HOVER_CONTEXT.to_string(),
+                    format!("{chave}:{n}"),
+                )]))
+                .on_exit(EngineMessage::ContextPatch(vec![(
+                    RATING_HOVER_CONTEXT.to_string(),
+                    String::new(),
+                )])),
+        );
+    }
+    linha.into()
+}
+
+/// `<maskedinput>`: cru na chave, mascarado na tela.
+fn render_masked_input<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    value_var: &'a str,
+    mask: &'a str,
+    placeholder: &'a str,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    let cru = context.get(value_var).cloned().unwrap_or_default();
+    let exibido = aplica_mascara(&cru, mask);
+
+    let chave = value_var.to_string();
+    let acao = on_change.to_string();
+    let mascara = mask.to_string();
+
+    // A dica default é a própria máscara com os símbolos virados `_`: ela diz
+    // o formato sem o app precisar repetir "000.000.000-00" em toda tela.
+    let dica = if placeholder.is_empty() {
+        mask.chars()
+            .map(|c| if matches!(c, '#' | 'A' | '*') { '_' } else { c })
+            .collect::<String>()
+    } else {
+        placeholder.to_string()
+    };
+
+    let mut campo = text_input(&dica, &exibido).on_input(move |digitado| {
+        let novo = extrai_cru(&digitado, &mascara);
+        // O mesmo contrato do `<TextInput>`: sem `onChange` o widget grava a
+        // chave sozinho; com ele, entrega o valor **cru** — nunca o mascarado,
+        // que é exatamente a separação que o widget existe para manter.
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: acao.clone(),
+                value: novo,
+            }
+        }
+    });
+    campo = campo.padding(8);
+    // Como o `text_input` do iced é `Length::Fill` por padrão, só chamamos
+    // `.width()` quando o nó declara uma — a mesma ressalva que o `<TextInput>`
+    // já carregava (ver `PRIMITIVAS.md`).
+    if node.width.is_some() {
+        campo = campo.width(parse_length(&node.width));
+    }
+    campo.into()
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -2678,6 +3080,31 @@ pub fn render_node<'a>(
             day_names,
             on_change,
         ),
+        NodeType::Pagination {
+            value_var,
+            total,
+            window,
+            ends,
+            on_change,
+        } => render_pagination(context, value_var, total, *window, *ends, on_change),
+        NodeType::Rating {
+            value_var,
+            max,
+            filled,
+            empty,
+            size,
+            color,
+            readonly,
+            on_change,
+        } => render_rating(
+            context, value_var, max, filled, empty, *size, color, *readonly, on_change,
+        ),
+        NodeType::MaskedInput {
+            value_var,
+            mask,
+            placeholder,
+            on_change,
+        } => render_masked_input(node, context, value_var, mask, placeholder, on_change),
         NodeType::Radio {
             label,
             value,
@@ -3299,7 +3726,8 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 #[cfg(test)]
 mod length_tests {
     use super::{
-        CalView, Instante, days_from_civil, dia_da_semana, dias_no_mes, iso_ymd, parse_length,
+        CalView, Instante, aplica_mascara, days_from_civil, dia_da_semana, dias_no_mes, extrai_cru,
+        iso_ymd, janela_paginas, parse_length,
     };
     use iced::Length;
 
@@ -3406,6 +3834,63 @@ mod length_tests {
     #[test]
     fn garbage_falls_back_to_shrink() {
         assert_eq!(len("wibble"), Length::Shrink);
+    }
+
+    // --- Paginação e máscara: a aritmética da Onda 4 -------------------------
+
+    /// A janela anda com a página, mas **gruda nas pontas**: perto do começo
+    /// não sai de 1, perto do fim não passa do total. Sem isso, estar na
+    /// página 1 mostraria `3 4 5 6 7`, com o atual fora do quadro.
+    #[test]
+    fn janela_de_paginas_anda_e_gruda_nas_pontas() {
+        let v = |p, t, w| janela_paginas(p, t, w).collect::<Vec<_>>();
+        assert_eq!(v(1, 20, 5), vec![1, 2, 3, 4, 5]);
+        assert_eq!(v(2, 20, 5), vec![1, 2, 3, 4, 5]);
+        assert_eq!(v(10, 20, 5), vec![8, 9, 10, 11, 12]);
+        assert_eq!(v(19, 20, 5), vec![16, 17, 18, 19, 20]);
+        assert_eq!(v(20, 20, 5), vec![16, 17, 18, 19, 20]);
+        // Lista menor que a janela: aparece inteira, sem vãos.
+        assert_eq!(v(2, 3, 5), vec![1, 2, 3]);
+        assert_eq!(v(1, 1, 5), vec![1]);
+    }
+
+    /// A máscara é função pura da string, nos dois sentidos — é isso que fez o
+    /// `MaskedInput` ser primitiva em vez de builtin.
+    #[test]
+    fn mascara_vai_e_volta() {
+        let cpf = "###.###.###-##";
+        assert_eq!(aplica_mascara("12345678901", cpf), "123.456.789-01");
+        // O separador entra ANTES do dado seguinte, nunca pendurado no fim:
+        // um "123." faria o cursor parecer estar no lugar errado.
+        assert_eq!(aplica_mascara("123", cpf), "123");
+        assert_eq!(aplica_mascara("1234", cpf), "123.4");
+        assert_eq!(aplica_mascara("", cpf), "");
+        // Sobra de dado não estoura a máscara.
+        assert_eq!(aplica_mascara("123456789012345", cpf), "123.456.789-01");
+
+        // A volta: o que chega do `on_input` vem com os separadores dentro.
+        assert_eq!(extrai_cru("123.456.789-01", cpf), "12345678901");
+        assert_eq!(extrai_cru("abc123", cpf), "123");
+        // Máscara mista (placa Mercosul): letra onde é letra, dígito onde é
+        // dígito — filtrar só por "não é dígito" erraria aqui.
+        assert_eq!(extrai_cru("brA1b23", "AAA#*##"), "BRA1B23");
+        assert_eq!(aplica_mascara("BRA1B23", "AAA#*##"), "BRA1B23");
+    }
+
+    /// A digitação normal e o apagar no **fim** — que é onde se digita — não
+    /// precisam de nenhum caso especial, porque a máscara nunca deixa um
+    /// separador pendurado. Ver a nota acima de `extrai_cru`.
+    #[test]
+    fn digitar_e_apagar_no_fim_nao_precisam_de_caso_especial() {
+        let cpf = "###.###.###-##";
+        // Digitar: o dígito entra e o separador aparece junto com o próximo.
+        assert_eq!(aplica_mascara(&extrai_cru("1234", cpf), cpf), "123.4");
+        // Apagar no fim: o texto exibido nunca termina em separador, então
+        // cada backspace remove mesmo um caractere do cru.
+        assert_eq!(extrai_cru("123.4", cpf), "1234");
+        assert_eq!(extrai_cru("123.", cpf), "123");
+        assert_eq!(extrai_cru("12", cpf), "12");
+        assert_eq!(aplica_mascara("123", cpf), "123");
     }
 
     // --- O calendário: dia da semana, mês visível e a leitura de uma data ----

@@ -13,7 +13,7 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-02**, sobre a 0.84 (Onda 3 fechada). Ela passou a ordenar por
+Última revisão da fila: **2026-09-02**, sobre a 0.85 (ondas 3 e 4 fechadas). Ela passou a ordenar por
 **função** — widgets que carregam lógica — em vez de por custo; o motivo está no
 alto da §6.2.
 
@@ -83,7 +83,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QCheckBox | `Checkbox` | Prim | checkbox | ◐ | P0 | ✅ | já existe |
 | QCheckBox (tristate) | `Checkbox tristate` | Prim | checkbox | ◐ | P2 | ✅ | flag `tristate` no `<Checkbox>`; cicla `false → mixed → true` (a ordem do Qt) e desenha `−` no lugar do check, como `Qt::PartiallyChecked` |
 | QCommandLinkButton | `CommandLink` | Built | button+col | — | P2 | ⬜ | título + descrição + seta. §6.3 |
-| QDialogButtonBox | `ButtonBox` | Built | row+button | — | P1 | 🟡 | existe nos diálogos; expor como builtin de tela, com os **papéis** (`accept`/`reject`/`destructive`) e a ordem por plataforma decididos no widget. Onda 4 |
+| QDialogButtonBox | `ButtonBox` | Built | row+button | — | P1 | ✅ | `<buttonbox accept="Salvar" on_accept="salvar" reject="Cancelar" …/>`: os três **papéis** e a ordem por plataforma decididos no widget — em Rust, no `template()`, por `cfg!(target_os)`, com uma prop `order` para forçar. O destrutivo fica na ponta oposta em qualquer ordem, e o `<slot/>` põe o "Ajuda" à esquerda. Onda 4 (0.85) |
 | (switch/QML Switch) | `Toggle`/`Toggler` | Prim | toggler | ◐ | P0 | ✅ | já existe |
 | QML RoundButton | `RoundButton` | Built | button | — | P3 | ⬜ | border-radius total. §6.3 |
 | QML DelayButton | `DelayButton` | Comp | button+canvas | ● | P3 | ⬜ | anel de progresso ao segurar |
@@ -94,7 +94,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|---|
 | QLineEdit | `TextInput` | Prim | text_input | ◐ | P0 | ✅ | já existe |
 | QLineEdit (password) | `TextInput password` | Prim | text_input | ◐ | P1 | ✅ | flag `secure`/`password`/`seguro`/`senha` no `<TextInput>`, sobre o `.secure()` do iced |
-| QLineEdit (mask/validator) | `MaskedInput` | **Prim** | text_input | ◐ | P2 | ⬜ | máscara + validação (CPF, CNPJ, telefone, CEP). **Reclassificado de `Comp ●` para `Prim ◐`** pela lição do `DateEdit` (§3): a máscara é função pura da string aplicada no `on_input`, e o que a impedia de ser builtin era ler uma chave cujo *nome* vem de prop — indireção que primitiva não tem. Onda 4 |
+| QLineEdit (mask/validator) | `MaskedInput` | **Prim** | text_input | ◐ | P2 | ✅ | `<maskedinput value="cpf" mask="cpf" />`. Guarda **cru** na chave, exibe mascarado — a mesma separação valor/`displayFormat` do `<dateedit>`. Gramática `#`/`A`/`*` + literais, com presets `cpf`/`cnpj`/`telefone`/`cep`/`placa`/`date`/`hora`/`cartao`; a dica default é a máscara com `_`. A reclassificação (de `Comp ●` para `Prim ◐`) se confirmou. Onda 4 (0.85) |
 | QTextEdit (rich) | `TextEditor` | Prim | text_editor | ● | P1 | ✅ | multi-linha; rich text é limitado |
 | QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação |
 | QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3 |
@@ -107,7 +107,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QSpinBox | `SpinBox` | Built | text_input+button | ◐ | P1 | ✅ | campo + degraus, `min`/`max`/`step`, `layout="stacked"` (as setinhas ▴▾ coladas no campo, o QSpinBox clássico) ou `"inline"` (`− campo +`, o SpinBox do Qt Quick); a aritmética roda no `update` em Rust — **reclassificado de `●`**: o número mora numa chave que o app nomeia (prop `value`) e a ação carrega essa chave, então N instâncias não colidem (ver `src/builtins/spin_box.rs`) |
-| QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | 🟡 | sai de graça do `SpinBox`: as casas decimais vêm do `step` (`step="0.25"` → 2 casas). Falta uma prop `decimals` explícita |
+| QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | ✅ | prop `decimals` no `<spinbox>`. Sem ela as casas continuam saindo do `step`, como sempre — o que acertava por acidente e errava justamente em `step="1"` sobre um preço (`10`, não `10.00`). Onda 4 (0.85) |
 | QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ✅ | `min`/`max`/`step`, `vertical`, mais `default` (duplo clique), `on_release` e `shift_step`. Casas decimais da saída vêm do `step` como escrito. `disabled` deixa inerte, sem esmaecer: o `slider::Status` do iced 0.14 não tem `Disabled` |
 | QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
 | QDial | `Dial` | Comp | canvas | ● | P2 | ⬜ | knob rotativo |
@@ -117,7 +117,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QLCDNumber | `LcdNumber` | Comp | canvas | — | P3 | ⬜ | dígitos estilo display 7-segmentos |
 | QML Tumbler | `Tumbler` | Comp | scrollable | ● | P3 | ⬜ | roleta de valores |
 | QML Gauge / medidor | `Gauge` | Comp | canvas | ◐ | P2 | ⬜ | medidor circular/arco |
-| — (nota por estrelas) | `Rating` | Built | row+button | ◐ | P2 | ⬜ | N estrelas numa chave nomeada (padrão `SpinBox`), com pré-visualização no hover. Citado na §3 como “nunca esteve bloqueado” e faltava na tabela. Onda 4 |
+| — (nota por estrelas) | `Rating` | **Prim** | row+button | ◐ | P2 | ✅ | N estrelas numa chave nomeada, com pré-visualização no hover (chave global `__rating`) e `readonly` para listas. **Reclassificado de Built para Prim na construção**, por dois motivos independentes: repetição dirigida por um número (não por coleção) e o hover, que o markup não expõe. Onda 4 (0.85) |
 
 ### 2.4 Seleção, listas e árvores (model/view)
 
@@ -125,7 +125,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|---|
 | QComboBox | `Select` / `Combo` | Prim | pick_list / combo_box | ◐ | P0 | ✅ | ambos existem |
 | QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema |
-| QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | 🟡 | dá para fazer com `for`; falta a **seleção**, que é o padrão do `SpinBox` (coleção numa chave + item escolhido noutra, como o `TabBar` já faz). Multi-seleção é a mesma chave com uma lista, e aí pede o `contains` no condicional (§6.2). Onda 4 |
+| QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | ✅ | `<listview items="servicos" value="servico" selected="{servico}" />` — o `TabBar` na vertical, com scroll. `mode="multi"` guarda um **conjunto** numa chave só e é o primeiro consumidor do `contains` (0.84). `virtualize` repassado para listas longas. Onda 4 (0.85) |
 | QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ⬜ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6 |
 | QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ⬜ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. Onda 6 |
 | QTableWidget/QTableView | `TableView` | **Prim** | column+row | ◐ | P2 | ⬜ | **grande**: cabeçalho, seleção, sort, edição. A parte cara é a **medição de coluna**, que é a mesma do `Grid` — os dois saem juntos. Onda 6 |
@@ -134,7 +134,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QListWidgetItem etc. | (dados, não widget) | — | — | — | — | — | modelados como valores de contexto |
 | QCompleter | `Completer` | **Prim** | overlay+ListView | ◐ | P2 | ⬜ | popup de sugestões (ver §2.12). Onda 5 |
 | QML PageIndicator | `PageIndicator` | Built | row | ◐ | P2 | ⬜ | pontinhos de página — o irmão visual do `Pagination`, mesma chave |
-| — (paginação) | `Pagination` | Built | row+button | ◐ | P1 | ⬜ | primeira/anterior/número/próxima/última, com a aritmética de página no `update`. Citado na §3 como “nunca esteve bloqueado” e faltava na tabela; é o companheiro obrigatório de `ListView`/`TableView`. Onda 4 |
+| — (paginação) | `Pagination` | **Prim** | row+button | ◐ | P1 | ✅ | `« ‹ 1 … 4 [5] 6 … 20 › »`, com a janela andando e grudando nas pontas e as setas **inertes** no limite. **Reclassificado de Built para Prim na construção**: a janela de números é repetição dirigida por um número, e o `for-each` lê coleção. Onda 4 (0.85) |
 
 ### 2.5 Data e hora — **foco declarado do projeto**
 
@@ -219,8 +219,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QGroupBox | `GroupBox` | Built | container+text | — | P1 | ✅ | moldura com título + `flat="true"` (o `QGroupBox::flat`), e ações no cabeçalho por `<slot name="actions"/>` — onde vai o `<checkbox>` que faz o papel do `setCheckable` |
 | QScrollArea | `Scrollable` / `rolagem` | Prim | scrollable | — | P0 | ✅ | já existe |
 | QSplitter | `Splitter` / `PaneGrid` | Prim | pane_grid | ● | P2 | ⬜ | painéis redimensionáveis |
-| QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ⬜ | seções empilhadas, **uma** aberta por vez — é o `TabBar` na vertical, mesma chave nomeada. Nunca esteve bloqueado. Onda 4 |
-| — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ⬜ | itens abre/fecha, **várias** abertas ao mesmo tempo. ~~precisa estado por instância~~ — precisa de um **conjunto** numa chave nomeada e do `contains` no condicional (§6.2), que é bem menor. Onda 4 |
+| QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ✅ | `<toolbox>` + `<toolboxitem title="…" value="secao" open="{secao}" id="…">`: **uma** aberta por vez, e clicar na aberta a fecha. Nunca esteve bloqueado, e nem precisou do `contains`. Onda 4 (0.85) |
+| — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ✅ | `<accordion>` + `<accordionitem …>`: **várias** abertas, num conjunto numa chave só (`abertas="rede,disco"`). ~~precisa estado por instância~~ — precisava do `contains` (0.84), e é o consumidor que o justificou. Uma tag por seção porque o **conteúdo** de cada uma é diferente, e conteúdo é de quem escreve a tela (`<slot/>`, 0.65) — a mesma forma do `QToolBox::addItem`. Onda 4 (0.85) |
 | QMdiArea/QMdiSubWindow | `MdiArea` | Comp | canvas/stack | ● | P3 | ⬜ | janelas MDI internas |
 | QDockWidget | `Dock` | Comp | pane_grid | ● | P3 | ⬜ | painéis acopláveis |
 | QSpacerItem | `Space` | Prim | space | — | P1 | ✅ | sem `width`/`height` é `Fill` nos dois eixos (o espaçador flexível); com eles, vão fixo. Duplicado na §2.11 por ser layout **e** container |
@@ -521,14 +521,14 @@ o `Grid`, que é o caro — o iced não tem grade.
 Sem markup novo; habilita a fase C inteira.
 
 **Fase C — widgets compostos comuns (P1, ~~dependem de estado~~ dependem do
-padrão da chave nomeada)**
-`Tabs` (só a barra ✅; o empilhado espera **nome dinâmico de slot**) ·
-`Accordion` (espera o `contains`) · ~~`SpinBox`~~ ✅ · ~~`GroupBox`~~ ✅ ·
-`ListView` (com seleção) · `ToolBox` · `Pagination` · `Rating` ·
-~~`ToolBar`/`StatusBar`~~ ✅ · ~~`Avatar`~~ ✅ ·
-~~`Spinner`/`BusyIndicator`~~ ✅. É a **Onda 4** da §6.2: só o `Tabs` completo
-continua atrás de um habilitador (o nome dinâmico de slot); o resto sai com o
-motor como está.
+padrão da chave nomeada) — ✅ fechada exceto o `Tabs` (0.85)**
+`Tabs` (só a barra ✅; o empilhado espera **nome dinâmico de slot**, Onda 5) ·
+~~`Accordion`~~ ✅ · ~~`SpinBox`~~ ✅ · ~~`GroupBox`~~ ✅ ·
+~~`ListView` (com seleção)~~ ✅ · ~~`ToolBox`~~ ✅ · ~~`Pagination`~~ ✅ ·
+~~`Rating`~~ ✅ · ~~`ToolBar`/`StatusBar`~~ ✅ · ~~`Avatar`~~ ✅ ·
+~~`Spinner`/`BusyIndicator`~~ ✅. Era a **Onda 4** da §6.2, e ela consumiu **um**
+habilitador (o `contains`). Só o `Tabs` completo continua atrás do nome dinâmico
+de slot.
 
 **Fase D — data/hora (P1, foco declarado) — ✅ fechada (0.84)**
 ~~`Calendar` → `DatePicker` → `TimePicker` → `DateTimePicker`. Depende de estado
@@ -568,7 +568,7 @@ catalogado como item de motor.
 
 ### Resumo numérico
 
-Contagem sobre as linhas que têm status, atualizada em 2026-09-02 (0.84). Duas
+Contagem sobre as linhas que têm status, atualizada em 2026-09-02 (0.85). Duas
 ressalvas: a §2.4 tem uma linha (`QListWidgetItem`) que é dado, não widget, e
 fica de fora; e o `Space` aparece duas vezes (§2.7 como container, §2.11 como
 layout), então o total tem uma duplicata — 123 widgets distintos, não 124. O
@@ -577,36 +577,36 @@ como exemplos de widget que nunca esteve bloqueado, não tinham linha.
 
 | Categoria | Widgets catalogados | ✅ prontos | 🟡 parciais | ⬜ a fazer |
 |---|---|---|---|---|
-| Botões e ações | 10 | 6 | 1 | 3 |
-| Entradas de texto | 9 | 4 | 1 | 4 |
-| Numéricas/valor | 12 | 4 | 2 | 6 |
-| Seleção/listas/árvores | 11 | 1 | 1 | 9 |
+| Botões e ações | 10 | **7** | 0 | 3 |
+| Entradas de texto | 9 | **5** | 1 | 3 |
+| Numéricas/valor | 12 | **6** | 1 | 5 |
+| Seleção/listas/árvores | 11 | **3** | 0 | 8 |
 | Data e hora | 6 | **6** | 0 | 0 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
-| Containers | 9 | 4 | 0 | 5 |
+| Containers | 9 | **6** | 0 | 3 |
 | Navegação | 6 | 1 | 2 | 3 |
 | Janela/barras | 8 | 7 | 0 | 1 |
 | Diálogos | 14 | 9 | 0 | 5 |
 | Layouts | 7 | 4 | 1 | 2 |
 | Overlays/utilitários | 11 | 2 | 1 | 8 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **124** | **58** | **9** | **57** |
+| **Total** | **124** | **66** | **6** | **52** |
 
-O motor já entrega ~47% do catálogo Qt de superfície (34% antes da onda 2, 39%
-antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3 — a
-queda de 45% para 44% numa revisão anterior foi o denominador que cresceu, não
-trabalho desfeito). O gargalo **também não é** o
-punhado de habilitadores de Motor do §3, como este resumo afirmava: as ondas 3 e
-4 da §6.2 somam quinze widgets e consomem **um** habilitador, o menor de todos
-(o `contains`).
+O motor já entrega ~53% do catálogo Qt de superfície (34% antes da onda 2, 39%
+antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3, 47%
+antes da onda 4 — a queda de 45% para 44% numa revisão anterior foi o
+denominador que cresceu, não trabalho desfeito). É a primeira vez que a marca
+passa da metade. O gargalo **não é** o punhado de habilitadores de Motor do §3,
+como este resumo afirmava por três revisões: as ondas 3 e 4 somaram **dezesseis
+widgets** e consumiram **um** habilitador — o `contains`, o menor de todos.
 
-Onde os 60 se concentram: **model/view** (9), **gráficos** (6) e **overlays**
-(8). Vinte e três linhas em três blocos — e o mapeamento da §6.2 mostra que os
+Onde os 52 se concentram: **model/view** (8), **gráficos** (6) e **overlays**
+(8). Vinte e duas linhas em três blocos — e o mapeamento da §6.2 mostra que os
 três não estão atrás de três itens diferentes: model/view e boa parte dos
 layouts saem de **uma** medição de coluna (Onda 6), os overlays saem de **uma**
 generalização do que o `menu.rs` já tem (Onda 5), e os gráficos de **um**
-`canvas` exposto (a Onda 7 esboçada). As quatro ondas escritas cobrem 27 das 57
-linhas ⬜ restantes com três itens de motor no total. Do resto, o troco decorativo — oito
+`canvas` exposto (a Onda 7 esboçada). As duas ondas restantes (5 e 6) cobrem 12
+das 52 linhas ⬜ com dois itens de motor. Do resto, o troco decorativo — oito
 linhas — está isolado na §6.3.
 
 A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6, passou a
@@ -614,8 +614,10 @@ A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6, passou 
 motor — só reclassificando os widgets de builtin para primitiva (ver a correção
 na §3). Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
 perguntar em que nível elas deveriam estar — e este documento errou essa
-pergunta três vezes seguidas (`TimePicker`, `Calendar`, `Accordion`), sempre
-para o mesmo lado, o de superestimar o bloqueio.
+pergunta **seis** vezes (`TimePicker`, `DateEdit`, `Calendar`, `Accordion`,
+`Pagination`, `Rating`), sempre para o mesmo lado, o de superestimar o bloqueio.
+As duas últimas, na 0.85, foram as primeiras a errar pela mesma causa: repetição
+dirigida por um número, não por uma coleção — ver a nota no fim da Onda 4.
 
 As duas ondas mostram os dois regimes de custo. A onda 2 dependia de **um**
 habilitador de motor (`<slot/>`) e, uma vez feito, valeu seis widgets — a §2.9,
@@ -732,7 +734,7 @@ As duas primeiras **não consomem motor nenhum** (fora um habilitador de meia
 tarde), e existem porque o documento superestimou o bloqueio:
 
 - **Onda 3** ✅ (0.84) — o calendário, e com ele o foco declarado do projeto.
-- **Onda 4** — os widgets que carregam lógica, pelo padrão do `SpinBox`.
+- **Onda 4** ✅ (0.85) — os widgets que carregam lógica, pelo padrão do `SpinBox`.
 
 As duas seguintes são o outro regime: **um item de motor que vira meia dúzia de
 widgets**, como o `<slot/>` foi na Onda 2.
@@ -877,7 +879,19 @@ espaço são igualmente naturais.
 
 ---
 
-#### Onda 4 — os widgets que têm função
+#### Onda 4 — os widgets que têm função — ✅ **FEITA (0.85)**
+
+> **Como saiu.** Sete linhas do catálogo, e o achado da leva não está na
+> contagem: **dois dos sete não eram builtins.** `Pagination` e `Rating`
+> viraram primitivas, pela mesma causa — *repetição dirigida por um número, não
+> por uma coleção*. O `for-each` do motor lê uma chave com um array; a janela
+> `4 5 6` e as cinco estrelas não existem em array nenhum, são derivadas. E
+> derivar é justamente o que um template não faz.
+>
+> É a quinta e a sexta aplicação da lição do `DateEdit`, e a primeira vez que a
+> mesma causa aparece duas vezes seguidas — o que sugere que ela merece um
+> nome. Fica registrada abaixo, depois da tabela. Exemplo:
+> `cargo run --example onda4`.
 
 Todos **builtins** (exceto o 5), todos pelo padrão do `SpinBox`: a chave é
 nomeada pelo app, a ação carrega o nome, o `update` faz a conta. Nenhum precisa
@@ -888,22 +902,59 @@ Ordenados por quanto cada um abre de tela real:
 
 | # | Widget | Nível | Prio | Por que aqui |
 |---|---|---|---|---|
-| 1 | **`Pagination`** | Built | P1 | A função mais pura da lista: primeira/anterior/`n`/próxima/última, com o clamp e o cálculo da janela de números no `update`. Sem ele, toda lista longa de todo app é escrita à mão em Luau. Estava citado na §3 como "nunca esteve bloqueado" e **nem sequer tinha linha na tabela** — entrou na §2.4 nesta revisão |
-| 2 | **`ListView` com seleção** | Built | P1 | Fecha o 🟡 mais antigo da §2.4. A coleção numa chave, o item escolhido noutra — é o `TabBar` com scroll. Seleção múltipla usa o conjunto nomeado (e o `contains`); a simples não precisa de nada. Casa com o 1 |
-| 3 | **`Accordion`** + **`ToolBox`** | Built | P1 / P2 | Os dois modos do mesmo widget: várias seções abertas (`Accordion`, conjunto nomeado) e uma só (`ToolBox`, que é o `TabBar` na vertical e não precisa nem do `contains`). O `Accordion` está marcado **precisa estado** na §2.7 desde o começo do documento e não precisa |
-| 4 | **`ButtonBox`** (`QDialogButtonBox`) | Built | P1 | Fecha o outro 🟡 da §2.1. A função é a que o Qt tem: **papéis** (`accept`/`reject`/`destructive`) e a ordem por plataforma decidida no widget, não na tela. Já existe dentro de `dialogs.rs`; com `<slot/>` (0.65) vira widget de tela |
-| 5 | **`MaskedInput`** | **Prim** | P2 | A quarta aplicação da lição do `DateEdit`: máscara é função pura da string no `on_input`, e o que impedia o builtin era a indireção `{{value}}`. Alto valor num projeto que escreve em pt-BR — CPF, CNPJ, telefone, CEP, placa. Guarda cru na chave, exibe mascarado (a mesma separação valor/`displayFormat` do `<dateedit>`) |
-| 6 | **`Rating`** | Built | P2 | Estrelas numa chave nomeada, com pré-visualização no hover (chave global, uma por tela — como o hover do `DateRangePicker`). Pequeno, mas é função, não desenho. Também estava citado na §3 e faltava na tabela |
-| 7 | **`decimals` no `SpinBox`** | Built | P1 | Fecha o 🟡 do `QDoubleSpinBox`: hoje as casas saem do `step` (`step="0.25"` → 2 casas), o que acerta por acidente e erra em `step="1"` sobre um preço. Meia hora de trabalho no `spin_box.rs` |
+| 1 ✅ | **`Pagination`** | ~~Built~~ **Prim** | P1 | A função mais pura da lista: primeira/anterior/`n`/próxima/última, com o clamp e o cálculo da janela de números no `update`. Sem ele, toda lista longa de todo app é escrita à mão em Luau. Estava citado na §3 como "nunca esteve bloqueado" e **nem sequer tinha linha na tabela** — entrou na §2.4 nesta revisão |
+| 2 ✅ | **`ListView` com seleção** | Built | P1 | Fecha o 🟡 mais antigo da §2.4. A coleção numa chave, o item escolhido noutra — é o `TabBar` com scroll. Seleção múltipla usa o conjunto nomeado (e o `contains`); a simples não precisa de nada. Casa com o 1 |
+| 3 ✅ | **`Accordion`** + **`ToolBox`** | Built | P1 / P2 | Os dois modos do mesmo widget: várias seções abertas (`Accordion`, conjunto nomeado) e uma só (`ToolBox`, que é o `TabBar` na vertical e não precisa nem do `contains`). O `Accordion` está marcado **precisa estado** na §2.7 desde o começo do documento e não precisa |
+| 4 ✅ | **`ButtonBox`** (`QDialogButtonBox`) | Built | P1 | Fecha o outro 🟡 da §2.1. A função é a que o Qt tem: **papéis** (`accept`/`reject`/`destructive`) e a ordem por plataforma decidida no widget, não na tela. Já existe dentro de `dialogs.rs`; com `<slot/>` (0.65) vira widget de tela |
+| 5 ✅ | **`MaskedInput`** | **Prim** | P2 | A quarta aplicação da lição do `DateEdit`: máscara é função pura da string no `on_input`, e o que impedia o builtin era a indireção `{{value}}`. Alto valor num projeto que escreve em pt-BR — CPF, CNPJ, telefone, CEP, placa. Guarda cru na chave, exibe mascarado (a mesma separação valor/`displayFormat` do `<dateedit>`) |
+| 6 ✅ | **`Rating`** | ~~Built~~ **Prim** | P2 | Estrelas numa chave nomeada, com pré-visualização no hover (chave global, uma por tela — como o hover do `DateRangePicker`). Pequeno, mas é função, não desenho. Também estava citado na §3 e faltava na tabela |
+| 7 ✅ | **`decimals` no `SpinBox`** | Built | P1 | Fecha o 🟡 do `QDoubleSpinBox`: hoje as casas saem do `step` (`step="0.25"` → 2 casas), o que acerta por acidente e erra em `step="1"` sobre um preço. Meia hora de trabalho no `spin_box.rs` |
 
 Um exemplo executável por onda, como nas anteriores (`examples/onda3` …
 `examples/onda6`), é o que fecha cada uma.
 
-**Saldo das ondas 3 e 4:** a §2.5 vai a 6/6, a §2.4 ganha três, a §2.7 dois, os
-dois 🟡 mais velhos (`ButtonBox`, `QDoubleSpinBox`) fecham. E o mais
-interessante não é a contagem: são **sete linhas** que este documento declarava
-bloqueadas por estado por instância e que não estão. Vale terminar a leva
-passando o resto dos `●` pela mesma pergunta.
+**Saldo das ondas 3 e 4** (medido, 0.85): a §2.5 fechou em 6/6, a §2.4 ganhou
+dois (`ListView`, `Pagination`), a §2.7 dois (`Accordion`, `ToolBox`), a §2.3
+dois (`Rating`, `decimals`), a §2.2 um (`MaskedInput`) e a §2.1 um
+(`ButtonBox`) — e os três 🟡 mais velhos do catálogo (`ButtonBox`,
+`QDoubleSpinBox`, `ListView`) fecharam. **Dezesseis widgets, um habilitador de
+motor** (o `contains`), que era o menor da lista do §3.
+
+E o mais interessante continua não sendo a contagem: são **nove linhas** que
+este documento declarava bloqueadas — sete por estado por instância e duas por
+nível errado — e que não estavam.
+
+---
+
+##### O padrão que apareceu duas vezes: repetição dirigida por número
+
+Vale nomear, porque é a primeira causa de reclassificação que se repete e
+porque ela **prevê** os próximos casos.
+
+O motor tem uma forma de repetir: `for-each` sobre uma chave que guarda um
+array JSON. Ela cobre tudo que é **coleção** — os itens de um menu, as abas de
+uma barra, as linhas de uma lista. Não cobre o que é **contagem**:
+
+| widget | o que repete | de onde sairia o array |
+|---|---|---|
+| `Pagination` | `4 5 6 7 8` | de lugar nenhum — é derivado de `pagina` e `total` |
+| `Rating` | 5 estrelas | de lugar nenhum — é derivado de `max` |
+
+A saída de builtin seria o app calcular o array e passá-lo por `items=` — que é
+exatamente o trabalho que estes widgets existem para poupar. Em Rust, é um `for`
+de uma linha.
+
+**A regra, para a próxima vez:** se a repetição é dirigida por um *número* e não
+por uma *coleção*, o widget é primitiva — mesmo que tudo o mais nele pareça
+markup. Ela prevê pelo menos mais três linhas do catálogo: `PageIndicator`
+(§2.4, os pontinhos), `Grid` (§2.11, `columns="3"`) e `Flow`/`Wrap` (idem).
+
+O `Rating` teve ainda um **segundo** motivo, independente e igualmente
+definitivo: o **hover**. O motor expõe `on_press`, `on_double_click`, `cursor` e
+`tooltip` em qualquer nó, mas não um `on_enter` — e a pré-visualização ao passar
+o mouse é metade do que um `Rating` faz. Fica anotado como um habilitador
+possível (`on_enter`/`on_exit` no markup); ele não bloqueia nada da fila, mas é
+o que faria um `Rating` builtin ser viável, e vale saber que existe.
 
 ---
 

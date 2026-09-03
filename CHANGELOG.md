@@ -8,6 +8,136 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.85.0] — 2026-09-02
+
+**Onda 4 do `PLANO_WIDGETS.md`: os widgets que têm função.** Sete itens do
+catálogo, e o que os une não é a aparência — é o `update`. Com a onda anterior,
+o motor passa de metade do catálogo Qt de superfície pela primeira vez (53%),
+tendo consumido **um** habilitador de motor no caminho (o `contains`).
+
+### Adicionado
+- **`<pagination>`** — `« ‹ 1 … 4 [5] 6 … 20 › »`. A janela de números anda com
+  a página e **gruda nas pontas** (estar na página 1 mostra `1 2 3 4 5`, não
+  `3 4 5 6 7`), as reticências só aparecem quando há mesmo algo escondido, e as
+  setas ficam **inertes** no limite — o que o `<spinbox>`, por ser builtin, não
+  consegue fazer.
+
+  ```xml
+  <pagination value="pagina" total="{total_paginas}" />
+  <pagination value="pagina" total="{total}" window="3" ends="false" onChange="repaginar" />
+  ```
+
+  O widget conta **páginas**, não itens: recortar a lista é do app, porque só o
+  app sabe o que é um item.
+
+- **`<listview>`** — a lista rolável cujo item escolhido mora numa chave; o
+  `<tabbar>` na vertical, com scroll. Fecha o 🟡 mais antigo da §2.4.
+
+  ```xml
+  <listview items="servicos" value="servico" selected="{servico}" />
+  <listview items="servicos" value="marcados" selected="{marcados}" mode="multi" />
+  ```
+
+  `mode="multi"` guarda um **conjunto** numa chave só (`"api,cache"`) e é o
+  primeiro consumidor do `contains` (0.84) — a demonstração de que a seleção
+  múltipla nunca precisou de estado por instância, que é o que o
+  `PLANO_WIDGETS.md` §3 dizia. Repassa `virtualize` para listas longas.
+
+- **`<accordion>`/`<accordionitem>` e `<toolbox>`/`<toolboxitem>`** — os dois
+  modos do mesmo widget: o accordion guarda um **conjunto** de seções abertas,
+  o tool box guarda **uma** (e clicar na aberta a fecha).
+
+  ```xml
+  <accordion>
+      <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
+          <input value="host" />
+      </accordionitem>
+  </accordion>
+  ```
+
+  **Uma tag por seção, e não uma coleção**, porque o *conteúdo* de cada seção é
+  diferente — e nomes de slot são fixos no template do componente (0.67), então
+  o widget não pode inventar um por item. É a mesma forma que o Qt usa:
+  `QToolBox::addItem(widget, "Título")` também recebe uma seção por chamada.
+
+- **`<buttonbox>`** — `QDialogButtonBox` como widget de tela. Fecha o outro 🟡
+  da §2.1.
+
+  ```xml
+  <buttonbox accept="Salvar"  on_accept="salvar"
+             reject="Cancelar" on_reject="cancelar"
+             destructive="Excluir" on_destructive="excluir" />
+  ```
+
+  **A ordem é da plataforma, não da tela** — é a razão de o Qt ter um
+  `QDialogButtonBox` em vez de um `QHBoxLayout` com dois botões. GNOME/macOS
+  põem o afirmativo por último; Windows, primeiro. O widget escolhe por
+  `cfg!(target_os)` **em Rust**, dentro do `template()` (que é uma função, não
+  uma constante); `order="gnome"`/`"windows"` força. O destrutivo fica na ponta
+  oposta em qualquer ordem, junto com o `<slot/>`.
+
+- **`<maskedinput>`** — `QLineEdit` com `setInputMask`: guarda **cru** na chave,
+  exibe mascarado. A mesma separação valor/`displayFormat` do `<dateedit>`, e
+  pelo mesmo motivo: `"12345678901"` é o que um backend espera, `"123.456.789-01"`
+  é o que uma pessoa lê.
+
+  ```xml
+  <maskedinput value="cpf" mask="cpf" />
+  <maskedinput value="placa" mask="AAA#*##" />
+  ```
+
+  Gramática: `#` dígito, `A` letra, `*` alfanumérico; o resto é literal e entra
+  **antes** do dado seguinte, nunca pendurado no fim. Presets: `cpf`, `cnpj`,
+  `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`. A dica default é a
+  própria máscara com `_` no lugar dos símbolos.
+
+- **`<rating>`** — a nota por estrelas, com pré-visualização ao passar o mouse
+  (chave global `__rating`, como o hover do `<daterangepicker>`). Clicar na
+  estrela já marcada **zera** a nota; `readonly="true"` desenha sem clique nem
+  hover, que é o `Rating` de uma lista de avaliações.
+
+- **`decimals` no `<spinbox>`** — fecha o `QDoubleSpinBox`. Sem a prop, as casas
+  continuam saindo do `step` como escrito, que é o comportamento de sempre e
+  acerta quase sempre; ele errava justamente onde importa: `step="1"` sobre um
+  preço formatava `10`, não `10.00`.
+
+- **`examples/onda4`** (`cargo run --example onda4`) — os sete em três abas.
+
+### Notas de projeto
+
+**Dois dos sete não eram builtins.** O plano marcava `Pagination` e `Rating`
+como builtins; os dois viraram **primitivas**, pela mesma causa — e é a primeira
+vez que uma causa de reclassificação se repete nesta base:
+
+> **Repetição dirigida por um número, não por uma coleção.** O `for-each` do
+> motor lê uma chave que guarda um array JSON. A janela `4 5 6` de uma paginação
+> e as cinco estrelas de uma nota não existem em array nenhum — são *derivadas*
+> de `pagina`/`total` e de `max`. A saída de builtin seria o app calcular o
+> array e passá-lo por `items=`, que é exatamente o trabalho que estes widgets
+> existem para poupar. Em Rust, é um `for` de uma linha.
+
+A regra fica registrada no `PRIMITIVAS.md` e no `BUILTINS.md`, junto dos outros
+dois sinais já conhecidos, porque ela **prevê**: `PageIndicator`, `Grid`
+(`columns="3"`) e `Flow`/`Wrap` caem nela antes de alguém escrever uma linha
+deles.
+
+O `Rating` teve ainda um segundo motivo, independente e igualmente definitivo: o
+**hover**. O motor expõe `on_press`, `on_double_click`, `cursor` e `tooltip` em
+qualquer nó, mas não um `on_enter` — e a pré-visualização ao passar o mouse é
+metade do que um `Rating` faz.
+
+Com isso, são **seis** widgets que este documento classificou no nível errado
+(`TimePicker`, `DateEdit`, `Calendar`, `Accordion`, `Pagination`, `Rating`),
+sempre para o mesmo lado: o de superestimar o bloqueio.
+
+### Compatibilidade
+- O payload interno do `SpinBox` ganhou um quinto campo
+  (`inc:qtd|1|99|1|<decimals>`). Ele pode vir **vazio**, e um payload de quatro
+  campos continua sendo lido — um template que o app tenha copiado do widget
+  não quebra.
+
+---
+
 ## [0.84.0] — 2026-09-02
 
 **Onda 3 do `PLANO_WIDGETS.md`: o calendário.** O foco declarado do projeto —

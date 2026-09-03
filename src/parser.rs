@@ -97,6 +97,33 @@ const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
     SCREEN_RESIZABLE_ATTRS,
 ];
 
+/// Um nome de preset vira a máscara que ele nomeia; qualquer outra coisa passa
+/// intacta e é lida como máscara literal.
+///
+/// Os presets existem porque nenhum app brasileiro escapa deles — CPF, CNPJ,
+/// telefone, CEP, placa — e porque escrever `###.###.###-##` à mão em toda tela
+/// é a classe de erro que ninguém revisa. Um nome desconhecido **não** é erro:
+/// ele simplesmente é a máscara, o que mantém `mask="##/##"` funcionando sem
+/// registro nenhum.
+pub(crate) fn mascara_preset(bruta: &str) -> String {
+    match bruta.trim().to_ascii_lowercase().as_str() {
+        "cpf" => "###.###.###-##",
+        "cnpj" => "##.###.###/####-##",
+        // Celular brasileiro, com o nono dígito. Fixo cabe na mesma máscara
+        // com um caractere a menos digitado.
+        "phone" | "telefone" | "celular" => "(##) #####-####",
+        "cep" => "#####-###",
+        // Mercosul: três letras, um dígito, uma letra, dois dígitos. A antiga
+        // (`AAA-####`) também cabe aqui, com o `*` no lugar da 5ª posição.
+        "placa" => "AAA#*##",
+        "date" | "data" => "##/##/####",
+        "time" | "hora" => "##:##",
+        "card" | "cartao" | "cartão" => "#### #### #### ####",
+        _ => return bruta.to_string(),
+    }
+    .to_string()
+}
+
 /// Atributos que o motor consome como **diretiva** em qualquer nó — inclusive
 /// no uso de um componente (`<Card for-each="itens" var="i" nome="{i.nome}" />`).
 ///
@@ -1054,6 +1081,128 @@ pub enum NodeType {
         /// o valor entregue é `"<início> <fim>"` (o fim pode vir vazio).
         on_change: String,
     },
+    /// A paginação de uma lista longa: `« ‹ 1 … 4 [5] 6 … 20 › »`.
+    ///
+    /// **Reclassificada de builtin para primitiva na 0.85**, e vale registrar
+    /// por quê: a janela de números é *repetição dirigida por um número*, não
+    /// por uma coleção. O `for-each` do motor lê uma chave de contexto com um
+    /// array; aqui o array não existe em lugar nenhum — ele é **derivado** da
+    /// página atual e do total, e derivar é justamente o que um template não
+    /// faz. É o mesmo sinal que o `PRIMITIVAS.md` já registrava: *um builtin
+    /// que só funcionaria se o interpolador tivesse mais uma capacidade é,
+    /// quase sempre, uma primitiva mal classificada.*
+    ///
+    /// A alternativa seria o app calcular a janela em Luau e passá-la por
+    /// `items=` — que é exatamente o trabalho que este widget existe para
+    /// poupar.
+    ///
+    /// # A convenção da chave é a do `SpinBox`
+    ///
+    /// `value` é o **nome** da chave com a página atual; o widget a escreve
+    /// sozinho, saturando em `[1, total]`. Com `onChange`, ele só avisa.
+    Pagination {
+        /// Nome da chave com a página atual (base 1).
+        value_var: String,
+        /// Total de páginas, **como escrito no markup** — é uma `String` porque
+        /// ele quase sempre vem do dado (`total="{total_paginas}"`), e um campo
+        /// já convertido no parse não teria como interpolar. A conversão
+        /// acontece no render.
+        ///
+        /// Zero ou um esconde o widget inteiro: uma paginação de uma página é
+        /// ruído, não informação.
+        total: String,
+        /// Quantos números aparecem em volta do atual. Default 5.
+        window: usize,
+        /// Mostra `«` / `»` (primeira/última) além de `‹` / `›`.
+        ends: bool,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+    },
+    /// A nota por estrelas: N alvos numa linha, com pré-visualização no hover.
+    ///
+    /// **Também reclassificada de builtin para primitiva na 0.85**, e por dois
+    /// motivos independentes — o que é o mais interessante deles:
+    ///
+    /// 1. a mesma repetição dirigida por número da [`NodeType::Pagination`]
+    ///    (`max="5"` são cinco alvos que não vêm de coleção nenhuma);
+    /// 2. o **hover**, que o markup não expõe: o motor tem `on_press`,
+    ///    `on_double_click`, `cursor` e `tooltip` num nó qualquer, mas não um
+    ///    `on_enter`. E a pré-visualização ao passar o mouse é metade do que
+    ///    um `Rating` faz.
+    ///
+    /// O hover mora numa chave **global** (`__rating`), como o do
+    /// `<daterangepicker>` e pelo mesmo motivo: só uma estrela da tela inteira
+    /// está sob o cursor por vez. A identidade da instância viaja no valor.
+    Rating {
+        /// Nome da chave com a nota.
+        value_var: String,
+        /// Quantos alvos desenhar, como escrito no markup. `String` pelo mesmo
+        /// motivo do `total` da [`NodeType::Pagination`]: `max="{estrelas}"`
+        /// precisa interpolar. Default 5, e preso em `[1, 20]` no render.
+        max: String,
+        /// Glifos cheio/vazio. Default `★`/`☆`.
+        filled: String,
+        empty: String,
+        /// Corpo do glifo. Default 20.
+        size: f32,
+        /// Cor do glifo cheio. Vazia = a primária do tema.
+        color: String,
+        /// Só leitura: desenha a nota e não aceita clique nem hover. É o
+        /// `Rating` de uma **lista** de avaliações, que é onde ele mais
+        /// aparece.
+        readonly: bool,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+    },
+    /// `QLineEdit` com `setInputMask`: guarda o valor **cru** na chave e exibe
+    /// mascarado.
+    ///
+    /// A quarta aplicação da lição do `DateEdit`, e a mais direta: a máscara é
+    /// função pura da string, aplicada no `on_input`. O que impedia isso de ser
+    /// um builtin era ler o valor de uma chave cujo *nome* vem de uma prop — a
+    /// indireção `{{value}}` que o interpolador não tem. Em Rust, mascarar é
+    /// uma passada por dois iteradores.
+    ///
+    /// # Cru na chave, mascarado na tela
+    ///
+    /// A mesma separação valor/`displayFormat` do `<dateedit>`, e pelo mesmo
+    /// motivo: `"12345678901"` é o que um backend espera e o que compara sem
+    /// surpresa; `"123.456.789-01"` é o que uma pessoa lê.
+    ///
+    /// # A gramática da máscara
+    ///
+    /// | símbolo | aceita |
+    /// |---|---|
+    /// | `#` | dígito |
+    /// | `A` | letra |
+    /// | `*` | letra ou dígito |
+    ///
+    /// Qualquer outro caractere é **literal** e aparece sozinho na hora certa.
+    /// Os presets (`cpf`, `cnpj`, `phone`, `cep`, `placa`, `date`, `card`) são
+    /// só nomes para máscaras escritas nessa gramática.
+    ///
+    /// # Limite conhecido: apagar um separador do **meio**
+    ///
+    /// No fim da string — que é onde se digita — apagar funciona sempre, porque
+    /// a máscara nunca deixa um separador pendurado (`"123"`, não `"123."`).
+    /// Apagar o `.` do meio de `"123.456"`, porém, não muda o valor cru, e a
+    /// remascaração devolve a tela ao estado anterior: a tecla parece não fazer
+    /// nada, e a seguinte remove o dígito.
+    ///
+    /// Consertar isso exigiria a **posição do cursor**, que o `on_input` do
+    /// `iced` não entrega. A alternativa — comer o último caractere do cru — é
+    /// destrutiva num lugar onde a pessoa não está olhando; ver a nota acima de
+    /// `extrai_cru` em `src/widget.rs`.
+    MaskedInput {
+        /// Nome da chave com o valor **cru**.
+        value_var: String,
+        /// A máscara já resolvida (um preset vira a máscara dele no parse).
+        mask: String,
+        placeholder: String,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega,
+        /// **com o valor cru** — nunca com o mascarado.
+        on_change: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -1118,6 +1267,9 @@ impl NodeType {
             NodeType::Radio { .. } => "radio",
             NodeType::DateTimeEdit { .. } => "timeedit",
             NodeType::Calendar { .. } => "calendar",
+            NodeType::Pagination { .. } => "pagination",
+            NodeType::Rating { .. } => "rating",
+            NodeType::MaskedInput { .. } => "maskedinput",
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -2556,6 +2708,66 @@ impl UiNode {
                     )
                     .unwrap_or_default(),
                     day_names: Self::get_attr(&node, &["day_names", "dayNames", "nomes_dias"])
+                        .unwrap_or_default(),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Pagination" | "pagination" | "Paginacao" | "paginacao" | "paginação" => {
+                NodeType::Pagination {
+                    value_var: Self::get_attr(&node, &["value", "valor", "page", "pagina"])
+                        .unwrap_or_default(),
+                    total: Self::get_attr(&node, &["total", "pages", "paginas", "páginas"])
+                        .unwrap_or_default(),
+                    // Ímpar de propósito: uma janela par não tem centro, e o
+                    // número atual ficaria fora do meio.
+                    window: Self::get_attr(&node, &["window", "janela", "around"])
+                        .and_then(|w| w.trim().parse::<usize>().ok())
+                        .unwrap_or(5)
+                        .clamp(1, 21),
+                    ends: !Self::get_attr(&node, &["ends", "pontas", "extremos"]).is_some_and(
+                        |e| {
+                            let e = e.trim().to_ascii_lowercase();
+                            e == "false" || e == "0" || e == "nao" || e == "não"
+                        },
+                    ),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Rating" | "rating" | "Nota" | "nota" | "Estrelas" | "estrelas" => NodeType::Rating {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                max: Self::get_attr(&node, &["max", "maximo", "máximo", "count", "estrelas"])
+                    .unwrap_or_default(),
+                filled: Self::get_attr(&node, &["filled", "icon", "cheio", "icone"])
+                    .unwrap_or_else(|| "★".to_string()),
+                empty: Self::get_attr(&node, &["empty_icon", "emptyIcon", "vazio"])
+                    .unwrap_or_else(|| "☆".to_string()),
+                size: Self::get_attr(&node, &["size", "tamanho"])
+                    .and_then(|s| s.trim().parse::<f32>().ok())
+                    .unwrap_or(20.0),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                readonly: Self::get_attr_bool(&node, &["readonly", "readOnly", "somente_leitura"]),
+                on_change: Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default(),
+            },
+            "MaskedInput" | "maskedinput" | "EntradaMascarada" | "entrada_mascarada"
+            | "Mascara" | "mascara" | "máscara" => {
+                let bruta = Self::get_attr(&node, &["mask", "mascara", "máscara", "format"])
+                    .unwrap_or_default();
+                NodeType::MaskedInput {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    mask: mascara_preset(&bruta),
+                    placeholder: Self::get_attr(&node, &["placeholder", "dica"])
                         .unwrap_or_default(),
                     on_change: Self::get_attr(
                         &node,

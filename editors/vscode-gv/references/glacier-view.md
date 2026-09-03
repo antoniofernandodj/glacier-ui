@@ -181,6 +181,71 @@ A **grade** do Qt (`QCalendarWidget`) — e, pelas mesmas linhas de render, o se
 - **As células dos meses vizinhos são inertes** — as setas `‹ ›` navegam.
 - **Nenhuma dependência de datas**: dia da semana é `days_from_civil`, oito linhas ao lado do `dias_no_mes`.
 
+### `<MaskedInput>` (`<EntradaMascarada>`, `<Mascara>`)
+`QLineEdit` com `setInputMask`: guarda o valor **cru** na chave e exibe mascarado — a mesma separação valor/exibição do `<dateedit>`.
+
+```gv
+<maskedinput value="cpf" mask="cpf" />
+<maskedinput value="placa" mask="AAA#*##" />
+```
+
+| símbolo | aceita |
+| --- | --- |
+| `#` | dígito |
+| `A` | letra |
+| `*` | letra ou dígito |
+
+Qualquer outro caractere é **literal**. Presets: `cpf`, `cnpj`, `telefone`/`phone`, `cep`, `placa`, `date`/`data`, `hora`, `cartao`/`card`.
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o valor cru |
+| `mask` | — | a máscara, ou um preset |
+| `onChange` | — | vazio = grava sozinho; preenchido = delega, **com o cru** |
+| `placeholder` | a máscara com `_` | a dica |
+
+- **A chave guarda `"12345678901"`**, não `"123.456.789-01"`: é o que um backend espera e o que compara sem surpresa.
+- **Limite conhecido**: apagar um separador do **meio** da string não faz nada visível (a tecla seguinte remove o dígito). Corrigir exigiria a posição do cursor, que o `on_input` do iced não entrega. No fim da string — onde se digita — apagar funciona sempre.
+
+### `<Pagination>` (`<Paginacao>`)
+`« ‹ 1 … 4 [5] 6 … 20 › »`. A janela de números anda com a página e gruda nas pontas; as setas ficam **inertes** no limite.
+
+```gv
+<pagination value="pagina" total="{total_paginas}" />
+<pagination value="pagina" total="{total_paginas}" window="3" ends="false" onChange="repaginar" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com a página atual (base 1) |
+| `total` | `0` | total de **páginas**. `0` ou `1` esconde o widget |
+| `window` | `5` | quantos números aparecem em volta do atual |
+| `ends` | `true` | mostra `«`/`»` (primeira/última) |
+| `onChange` | — | vazio = grava sozinho; preenchido = delega |
+
+O widget conta **páginas**, não itens: recortar a lista é do app, porque só o app sabe o que é um item.
+
+### `<Rating>` (`<Nota>`, `<Estrelas>`)
+A nota por estrelas, com pré-visualização ao passar o mouse.
+
+```gv
+<rating value="nota" />
+<rating value="nota" max="10" size="15" color="#F9E2AF" />
+<rating value="media" readonly="true" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com a nota |
+| `max` | `5` | quantos alvos desenhar (preso em 1–20) |
+| `filled` / `empty_icon` | `★` / `☆` | os glifos |
+| `size` | `20` | corpo do glifo |
+| `color` | primária do tema | cor do glifo cheio |
+| `readonly` | `false` | desenha e não aceita clique nem hover — o `Rating` de uma **lista** |
+| `onChange` | — | vazio = grava sozinho; preenchido = delega |
+
+Clicar na estrela já marcada **zera** a nota.
+
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
 
@@ -344,7 +409,8 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 | --- | --- | --- |
 | `value` | — (**obrigatória**) | **nome** da chave de contexto onde o número mora. É o que torna duas instâncias independentes: o widget não guarda estado, escreve na chave que o app nomeia |
 | `min` / `max` | `0` / `100` | limites; o clique satura neles (a faixa padrão do Qt) |
-| `step` | `1` | passo de cada clique. As **casas decimais da saída saem daqui**: `step="0.25"` formata com 2 casas — é o `QDoubleSpinBox` sem um segundo widget |
+| `step` | `1` | passo de cada clique |
+| `decimals` | do `step` | casas decimais da saída — é o que fecha o `QDoubleSpinBox`. **Sem ela** as casas saem do `step` como escrito (`step="0.25"` → 2 casas), o que acerta quase sempre e erra em `step="1"` sobre um preço: `10`, não `10.00` |
 | `layout` | `stacked` | `stacked`: as setinhas `▴▾` empilhadas e coladas à direita do campo (o `QSpinBox` clássico). `inline`: `−  campo  +`, degraus nas pontas (o `SpinBox` do Qt Quick Controls) |
 | `width` | `72` | largura do campo |
 | `placeholder` | vazio | dica quando a chave está vazia |
@@ -492,6 +558,65 @@ O rodapé de status — o `QStatusBar`. A prop `message` é a zona da **esquerda
 ```
 
 Props: `message`, `padding` (`4 10`), `spacing` (`10`), `size` (`12`), `divider` (`true`), `width` (`fill`).
+
+### `<ListView>`
+`QListWidget`: a lista rolável cujo item escolhido mora numa chave — o `<tabbar>` na vertical, com scroll.
+
+```gv
+<listview items="servicos" value="servico" selected="{servico}" height="240" />
+<listview items="servicos" value="marcados" selected="{marcados}" mode="multi" />
+```
+
+| `mode` | a chave guarda | o destaque testa |
+| --- | --- | --- |
+| `single` (default) | um id (`"api"`) | `equals` |
+| `multi` | um **conjunto** (`"api,db"`) | `contains` |
+
+Props: `items` (chave com o array de `{id, label, sub?}`), `value` (nome da chave), `selected` (valor atual), `mode`, `height` (default `240`), `width`, `spacing`, `padding`, `size`, `virtualize` (altura declarada da linha, para listas longas).
+
+`value` e `selected` andam em par pelo mesmo motivo do `<tabbar>`: o template não lê a chave cujo *nome* está numa prop.
+
+### `<Accordion>` / `<AccordionItem>` · `<ToolBox>` / `<ToolBoxItem>`
+Os dois modos do mesmo widget: o accordion guarda um **conjunto** de seções abertas, o tool box guarda **uma**.
+
+```gv
+<accordion>
+    <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
+        <input value="host" />
+    </accordionitem>
+    <accordionitem title="Disco" value="abertas" open="{abertas}" id="disco"> … </accordionitem>
+</accordion>
+
+<toolbox>
+    <toolboxitem title="Medidas" value="secao" open="{secao}" id="medidas"> … </toolboxitem>
+</toolbox>
+```
+
+Props do item: `title`, `sub` (segunda linha, opcional), `value` (**nome** da chave), `open` (valor atual), `id` (esta seção), `padding`, `spacing`.
+
+- **Uma tag por seção**, e não uma coleção, porque o **conteúdo** de cada uma é diferente — e nomes de slot são fixos no template do componente. É a mesma forma do `QToolBox::addItem(widget, "Título")`.
+- No `<toolboxitem>`, clicar na seção já aberta a **fecha** (a chave vira vazia).
+- A moldura de fora (`<accordion>`/`<toolbox>`) é só uma `<Column>`: o item funciona sozinho.
+
+### `<ButtonBox>`
+`QDialogButtonBox`: a fileira de botões de um formulário, com **papéis** e a ordem decidida pela plataforma.
+
+```gv
+<buttonbox accept="Salvar" on_accept="salvar" reject="Cancelar" on_reject="cancelar"
+           destructive="Excluir" on_destructive="excluir">
+    <button text="Ajuda" on_click="ajuda" padding="8 16" />
+</buttonbox>
+```
+
+| papel | quando | aparência |
+| --- | --- | --- |
+| `accept` | OK, Salvar, Sim | destaque |
+| `reject` | Cancelar, Não, Fechar | discreto |
+| `destructive` | Excluir, Descartar | perigo, e **longe** dos outros |
+
+- **A ordem é da plataforma**: GNOME/macOS põem o afirmativo por último, Windows primeiro. O widget escolhe em Rust, por alvo de compilação; `order="gnome"`/`"windows"` força.
+- **Um botão sem rótulo não aparece** — uma caixa só com `accept` é um botão só.
+- O `<slot/>` e o destrutivo ficam à **esquerda**, separados das ações por um `<Space/>`.
 
 ### `<TabBar>`
 A fileira de abas — o `QTabBar`. Só a **barra**: o empilhado de páginas continua sendo `se`/`senao` na tela, porque cada página precisaria do seu próprio slot nomeado.

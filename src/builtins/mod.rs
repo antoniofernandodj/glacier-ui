@@ -80,11 +80,14 @@
 //! Escreva o `impl Component` neste arquivo e inclua-o em [`builtin_components`]
 //! — é o **único** ponto que o motor lê; nada mais precisa mudar. Guia completo,
 //! com checklist e armadilhas, em `BUILTINS.md`.
+mod accordion;
 mod avatar;
 mod badge;
+mod button_box;
 mod card;
 mod frame;
 mod group_box;
+pub(crate) mod list_view;
 mod radio_group;
 mod spin_box;
 mod status_bar;
@@ -92,11 +95,14 @@ mod tab_bar;
 mod tool_bar;
 mod tool_button;
 
+use crate::builtins::accordion::{Accordion, AccordionItem, ToolBox, ToolBoxItem};
 use crate::builtins::avatar::Avatar;
 use crate::builtins::badge::Badge;
+use crate::builtins::button_box::ButtonBox;
 use crate::builtins::card::Card;
 use crate::builtins::frame::Frame;
 use crate::builtins::group_box::GroupBox;
+use crate::builtins::list_view::ListView;
 use crate::builtins::radio_group::RadioGroup;
 use crate::builtins::spin_box::SpinBox;
 use crate::builtins::status_bar::StatusBar;
@@ -113,16 +119,22 @@ use crate::component::{Component, Context, Template};
 /// da lib precisa saber do widget.
 pub fn builtin_components() -> Vec<Box<dyn Component>> {
     vec![
+        Box::new(Accordion),
+        Box::new(AccordionItem),
         Box::new(Avatar),
         Box::new(Badge),
+        Box::new(ButtonBox),
         Box::new(Card),
         Box::new(Frame),
         Box::new(GroupBox),
+        Box::new(ListView),
         Box::new(RadioGroup),
         Box::new(SpinBox),
         Box::new(StatusBar),
         Box::new(TabBar),
         Box::new(ToolBar),
+        Box::new(ToolBox),
+        Box::new(ToolBoxItem),
         Box::new(ToolButton),
     ]
 }

@@ -214,11 +214,13 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
 > São **dois** casos hoje, e o segundo confirmou a regra: `ProgressBar` e
-> `Slider` (0.66). O `DateTimeEdit` (0.68) e o `Calendar` (0.84) não entram na
-> lista por outro motivo: eles não são widgets do `iced` embrulhados, são
-> **composições montadas em Rust** (`row`/`column`/`button`/`container`), então
-> já controlam o próprio tamanho e pintam a própria borda — o wrap genérico
-> nunca chega a decidir por eles. O `slider`/`vertical_slider` do iced também nasce
+> `Slider` (0.66). O `DateTimeEdit` (0.68), o `Calendar` (0.84) e o
+> `Pagination`/`Rating` (0.85) não entram na lista por outro motivo: eles não
+> são widgets do `iced` embrulhados, são **composições montadas em Rust**
+> (`row`/`column`/`button`), então já controlam o próprio tamanho — o wrap
+> genérico nunca chega a decidir por eles. O `MaskedInput` (0.85) é a exceção
+> dentro da exceção: ele **é** um `text_input` embrulhado, e por isso repete a
+> ressalva dele — só chama `.width()` quando o nó declara uma. O `slider`/`vertical_slider` do iced também nasce
 > `Length::Fill` no eixo principal, então ele entrou na mesma exclusão do wrap
 > e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
 > a `color` — exatamente o que esta seção mandava fazer.
@@ -259,6 +261,32 @@ Vale saber quando esse caminho é o certo, porque ele parece "coisa de builtin":
 
 O sinal prático: **um builtin que só funcionaria se o interpolador tivesse mais
 uma capacidade é, quase sempre, uma primitiva mal classificada.**
+
+### Os três sinais, depois de seis casos (0.85)
+
+O sinal acima é o primeiro de três, e o projeto já usou os três. Vale a lista,
+porque ela **prevê** — o `Grid` e o `Flow` da Onda 6 caem no segundo antes de
+alguém escrever uma linha deles:
+
+1. **O template precisaria ler uma chave cujo *nome* vem de uma prop** — a
+   indireção `{{value}}`. Casos: `<timeedit>` (0.68), `<calendar>` (0.84),
+   `<maskedinput>` (0.85).
+2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for-each`
+   do motor lê uma chave com um array JSON. A janela `4 5 6` de uma paginação e
+   as cinco estrelas de uma nota não existem em array nenhum: são derivadas de
+   `pagina`/`total` e de `max`. A alternativa de builtin — o app calcular o
+   array e passá-lo por `items=` — é exatamente o trabalho que o widget existe
+   para poupar. Casos: `<pagination>` e `<rating>` (0.85); previstos:
+   `PageIndicator`, `Grid` (`columns="3"`), `Flow`/`Wrap`.
+3. **O widget precisa de um evento que o markup não expõe.** Há `on_press`,
+   `on_double_click`, `cursor` e `tooltip` em qualquer nó — não há `on_enter`.
+   Caso: o hover do `<rating>` (0.85), e o da faixa do `<daterangepicker>`
+   (0.84).
+
+O contrário também vale, e a Onda 4 tem o exemplo: `ListView`, `Accordion`,
+`ToolBox` e `ButtonBox` são **builtins** porque nenhum dos três sinais aparece
+neles — repetem sobre uma coleção de verdade, comparam com `equals`/`contains`
+e reagem a clique.
 
 ## Checklist para uma primitiva nova
 

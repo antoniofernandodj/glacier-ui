@@ -2230,6 +2230,60 @@ fn eval_owned(
             day_names: process_tpl(day_names, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
         },
+        NodeType::Pagination {
+            value_var,
+            total,
+            window,
+            ends,
+            on_change,
+        } => NodeType::Pagination {
+            value_var: process_tpl(value_var, context),
+            total: process_tpl(total, context),
+            window: *window,
+            ends: *ends,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Rating {
+            value_var,
+            max,
+            filled,
+            empty,
+            size,
+            color,
+            readonly,
+            on_change,
+        } => NodeType::Rating {
+            value_var: process_tpl(value_var, context),
+            max: process_tpl(max, context),
+            filled: process_tpl(filled, context),
+            empty: process_tpl(empty, context),
+            size: *size,
+            // A cor cai na classe `.gss` quando o atributo não a dá — o mesmo
+            // fallback do `color` do `Button` e do `ProgressBar`.
+            color: {
+                let c = process_tpl(color, context);
+                if c.is_empty() {
+                    style.color.clone().unwrap_or_default()
+                } else {
+                    c
+                }
+            },
+            readonly: *readonly,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::MaskedInput {
+            value_var,
+            mask,
+            placeholder,
+            on_change,
+        } => NodeType::MaskedInput {
+            value_var: process_tpl(value_var, context),
+            // A máscara também interpola, e o resultado volta a passar pelos
+            // presets: `mask="{formato}"` com `formato="cpf"` funciona.
+            mask: crate::parser::mascara_preset(&process_tpl(mask, context)),
+            placeholder: process_tpl(placeholder, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
         NodeType::Radio {
             label,
             value,

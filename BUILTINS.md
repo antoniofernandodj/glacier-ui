@@ -20,6 +20,28 @@ Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
 **Primitiva** nova — inclusive uma armadilha real do motor (`Length::Fill` vs.
 o wrap genérico de background/borda) — ver [`PRIMITIVAS.md`](PRIMITIVAS.md).
 
+### Como saber se o widget é builtin ou primitiva
+
+A pergunta se responde antes de escrever a primeira linha, e este projeto a
+errou seis vezes — sempre para o mesmo lado, o de escrever um builtin que não
+tinha como funcionar. Os três sinais que já apareceram:
+
+1. **O template precisaria ler uma chave cujo *nome* vem de uma prop.** É a
+   indireção `{{value}}`, que o interpolador não tem. Foi o que reclassificou
+   `TimePicker` → `<timeedit>` (0.68), `Calendar` (0.84) e `MaskedInput` (0.85).
+2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for-each`
+   lê uma chave com um array JSON; a janela `4 5 6` de uma paginação e as cinco
+   estrelas de uma nota não existem em array nenhum — são derivadas. Foi o que
+   reclassificou `Pagination` e `Rating` (0.85).
+3. **O widget precisa de um evento que o markup não expõe.** O motor dá
+   `on_press`, `on_double_click`, `cursor` e `tooltip` a qualquer nó, mas não um
+   `on_enter`. Foi o segundo motivo do `Rating`, e é o que a pré-visualização no
+   hover exige.
+
+A regra prática, que o [`PRIMITIVAS.md`](PRIMITIVAS.md) já registrava: **um
+builtin que só funcionaria se o interpolador (ou o markup) tivesse mais uma
+capacidade é, quase sempre, uma primitiva mal classificada.**
+
 Um **builtin** é um componente comum (`impl Component`) — a única diferença é que
 a lib o registra em `GlacierUI::new()`, então ele não exige `register()` do app.
 Uma tag desconhecida no XML vira uma referência de componente resolvida pelo
@@ -390,6 +412,12 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
 - **Nome fixo, resolvido no template.** `<slot name="{aba}"/>` — nome vindo do
   contexto — ainda não existe. É o que separa o `<tabbar>` de hoje de um
   `QTabWidget` inteiro, cuja página visível depende do valor de uma chave.
+
+  A saída, quando o conteúdo varia por seção, é **uma tag por seção** em vez de
+  uma coleção: `<accordion>` + `<accordionitem>`, `<toolbox>` + `<toolboxitem>`
+  (0.85). Cada item tem o seu `<slot/>` anônimo, e o conteúdo continua sendo de
+  quem escreveu a tela. É a mesma forma que o Qt usa —
+  `QToolBox::addItem(widget, "Título")` também recebe uma seção por chamada.
 - **Um uso com conteúdo não entra no cache de componente.** As dependências do
   conteúdo pertencem ao quadro de quem chamou, e uma entrada de cache não teria
   como perceber que ele mudou. Custo desprezível — são os containers da tela —,
