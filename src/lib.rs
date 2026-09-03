@@ -1351,6 +1351,19 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
+            EngineMessage::MaskedEdit { id, cursor, inner } => {
+                // A gravação é a mensagem de sempre (`ContextPatch` ou
+                // `UiInputChanged`): quem escuta um `<MaskedInput>` não vê esta
+                // variante. O que ela acrescenta é recolocar o cursor depois da
+                // remascaração — ver `widget::cursor_remascarado`. A ordem
+                // importa: o `iced` reconstrói a view antes de rodar as ações,
+                // então a operação já encontra o campo com o texto novo.
+                let gravou = self.dispatch_interno(inner);
+                return iced::Task::batch([
+                    gravou,
+                    iced::widget::operation::move_cursor_to::<EngineMessage>(id.clone(), *cursor),
+                ]);
+            }
             EngineMessage::UiSubmit { action, next_focus } => {
                 // Routed to `Component::on_form_submit`, not `update` — a
                 // form's field changes (`update`, via `UiInputChanged`) and

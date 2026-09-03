@@ -323,6 +323,8 @@
                 <text class="nota">
                   Passe o mouse: a prévia acende até a estrela sob o cursor. Clicar na que já está
                   marcada ZERA a nota — é como se tira uma avaliação sem um botão “limpar” ao lado.
+                  A linha de baixo tem `max` diferente, então tem CHAVE própria: quem compartilha a
+                  chave (o readonly, abaixo) compartilha também a escala.
                 </text>
 
                 <row class="linha_larga">
@@ -332,12 +334,13 @@
 
                 <row class="linha_larga">
                   <rating
-                    value="nota"
+                    value="nota_ampla"
                     max="10"
                     size="15"
                     class="estrelas_ambar"
                   />
-                  <text class="nota">max=10, cor própria</text>
+                  <text class="valor">{nota_ampla} de 10</text>
+                  <text class="nota">max=10, chave e cor próprias</text>
                 </row>
 
                 <row class="linha_larga">

@@ -98,6 +98,9 @@ function init()
     ctx.telefone = ""
     ctx.placa = ""
     ctx.nota = "4"
+    -- Chave própria: o rating de 10 estrelas tem outra escala, e uma nota
+    -- de 7 numa régua de 5 não quer dizer nada.
+    ctx.nota_ampla = "7"
     ctx.preco = "19.90"
     ctx.desconto = "0"
 

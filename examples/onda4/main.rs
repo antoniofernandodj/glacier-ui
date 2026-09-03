@@ -146,6 +146,9 @@ impl Component for Onda4 {
         ctx.set("telefone", String::new());
         ctx.set("placa", String::new());
         ctx.set("nota", "4".to_string());
+        // Chave própria: o rating de 10 estrelas tem outra escala, e uma nota
+        // de 7 numa régua de 5 não quer dizer nada.
+        ctx.set("nota_ampla", "7".to_string());
         ctx.set("preco", "19.90".to_string());
         ctx.set("desconto", "0".to_string());
 

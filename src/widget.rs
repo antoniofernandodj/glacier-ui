@@ -509,6 +509,20 @@ pub enum EngineMessage {
         action: String,
         value: String,
     },
+    /// Uma edição num `<MaskedInput>`.
+    ///
+    /// `inner` é a mensagem que grava o valor — a mesma de sempre
+    /// ([`Self::ContextPatch`] sem `onChange`, [`Self::UiInputChanged`] com
+    /// ele): quem escuta o campo não vê diferença nenhuma. O que esta variante
+    /// acrescenta é o **cursor**: `id` é o id estável do `text_input`
+    /// (`masked_input_id`) e `cursor` a posição, em caracteres do texto
+    /// exibido, onde ele deve ficar depois da remascaração. Ver
+    /// `cursor_remascarado` para a razão de o `iced` não saber isso sozinho.
+    MaskedEdit {
+        id: String,
+        cursor: usize,
+        inner: Box<EngineMessage>,
+    },
     /// An edit on a `<TextArea>`: `binding` is its `value` key, `action` is the
     /// editor action to apply to the kept `Content`, `on_change` is the action
     /// dispatched (with the new full text) after applying it.
@@ -701,6 +715,7 @@ impl EngineMessage {
             Self::UiClick { .. } => "UiClick",
             Self::TimeEditKey { .. } => "TimeEditKey",
             Self::UiInputChanged { .. } => "UiInputChanged",
+            Self::MaskedEdit { .. } => "MaskedEdit",
             Self::UiEditorAction { .. } => "UiEditorAction",
             Self::UiComboInput { .. } => "UiComboInput",
             Self::UiComboSelected { .. } => "UiComboSelected",
@@ -740,6 +755,16 @@ impl EngineMessage {
 /// form), `control` its own `formControl` name.
 pub fn form_input_id(scope: &str, control: &str) -> String {
     format!("glacier_form::{scope}::{control}")
+}
+
+/// O id estável de um `<MaskedInput>`, derivado da chave a que ele se liga.
+///
+/// Existe por uma razão só: o motor precisa **operar o cursor** desse campo
+/// depois de cada tecla (ver `cursor_remascarado`), e uma operação do `iced`
+/// só encontra o widget por id. Dois campos ligados à mesma chave compartilham
+/// o id — e também o valor, então mover o cursor nos dois é o certo.
+pub fn masked_input_id(binding: &str) -> String {
+    format!("glacier_mask::{binding}")
 }
 
 /// Helper to parse iced::Length from optional string.
@@ -1674,6 +1699,58 @@ fn extrai_cru(texto: &str, mascara: &str) -> String {
     cru
 }
 
+/// Onde o cursor deve ficar depois de uma edição remascarada — em caracteres
+/// do texto **exibido**.
+///
+/// O `iced` edita a string que ele mostra e move o cursor dele pelo que ele
+/// mesmo fez: uma tecla, um caractere. Só que o que volta para a tela não é
+/// essa string — é o cru remascarado, e a máscara pode ter enfiado um
+/// separador junto. Digitar o `4` de um CPF leva `123` a `123.4`: dois
+/// caracteres a mais para um cursor que andou um. Ele fica **atrás** do dígito
+/// recém-digitado e, dali em diante, cada tecla entra uma casa antes do fim —
+/// quem não estiver olhando para a tela digita o CPF inteiro fora de ordem.
+///
+/// A conta é feita sobre o **dado**, não sobre o texto: quantos caracteres
+/// crus existem antes do cursor do `iced`, e onde essa mesma quantidade de
+/// dado termina no texto já remascarado. Assim ela vale para o fim da string
+/// (o caso de digitar), para o meio (corrigir um dígito) e para uma colagem,
+/// sem um caso especial para cada.
+///
+/// A posição do cursor do `iced` é **inferida**: `on_input` só entrega a
+/// string editada, mas o prefixo e o sufixo que ela ainda tem em comum com a
+/// anterior cercam exatamente o trecho que a edição tocou, e o cursor fica no
+/// fim dele.
+fn cursor_remascarado(antes: &str, digitado: &str, mascara: &str) -> usize {
+    let antes: Vec<char> = antes.chars().collect();
+    let dig: Vec<char> = digitado.chars().collect();
+
+    let mut prefixo = 0;
+    while prefixo < antes.len() && prefixo < dig.len() && antes[prefixo] == dig[prefixo] {
+        prefixo += 1;
+    }
+    let mut sufixo = 0;
+    while sufixo < antes.len() - prefixo
+        && sufixo < dig.len() - prefixo
+        && antes[antes.len() - 1 - sufixo] == dig[dig.len() - 1 - sufixo]
+    {
+        sufixo += 1;
+    }
+    // Fim do trecho inserido (numa remoção pura o trecho é vazio, e isto é o
+    // ponto de onde se apagou).
+    let cursor = dig.len() - sufixo;
+
+    let crus_antes = extrai_cru(&dig[..cursor].iter().collect::<String>(), mascara)
+        .chars()
+        .count();
+    let cru: String = extrai_cru(&dig.iter().collect::<String>(), mascara)
+        .chars()
+        .take(crus_antes)
+        .collect();
+    // `aplica_mascara` não pendura separador no fim, então o comprimento do
+    // cru até aqui remascarado É a posição logo depois do último dado.
+    aplica_mascara(&cru, mascara).chars().count()
+}
+
 /// Por que **não** existe um tratamento especial de backspace aqui.
 ///
 /// A tentação é óbvia: apagar um **separador** não muda o cru (ele não estava
@@ -1686,14 +1763,16 @@ fn extrai_cru(texto: &str, mascara: &str) -> String {
 /// 1. **O caso comum não acontece.** O [`aplica_mascara`] nunca emite um
 ///    separador pendurado no fim (`"123"`, não `"123."`), então apagar no fim
 ///    da string — que é onde se digita — sempre remove um caractere do cru.
-/// 2. **O caso raro não tem conserto honesto.** Apagar o `.` do *meio* de
-///    `"123.456"` deveria remover o `3`, e saber isso exige a posição do
-///    cursor, que o `on_input` do `iced` não entrega. Comer o **último**
-///    caractere em vez disso apagaria o `6` — destrutivo, e num lugar onde a
-///    pessoa não estava olhando.
+/// 2. **O caso raro é uma decisão, não uma limitação.** Apagar o `.` do *meio*
+///    de `"123.456"` poderia remover o `3` — o `cursor_remascarado` sabe onde
+///    a tecla caiu, então dá para fazer. Não fazemos: um backspace que apaga
+///    um caractere que não é o que está sob o cursor é destrutivo, e o cursor
+///    fica onde estava, de modo que a tecla seguinte remove o dígito de
+///    verdade. Não mexer é o comportamento seguro.
 ///
-/// Sem cursor, não fazer nada é o comportamento seguro: a tecla seguinte
-/// remove o dígito de verdade.
+/// O que o cursor conhecido mudou, então, foi só o **cursor** — o valor
+/// continua saindo da mesma volta pura `extrai_cru` → `aplica_mascara`.
+///
 /// `<pagination>`: primeira · anterior · a janela de números · próxima · última.
 fn render_pagination<'a>(
     context: &'a ContextMap,
@@ -1955,20 +2034,32 @@ fn render_masked_input<'a>(
         placeholder.to_string()
     };
 
-    let mut campo = text_input(&dica, &exibido).on_input(move |digitado| {
-        let novo = extrai_cru(&digitado, &mascara);
-        // O mesmo contrato do `<TextInput>`: sem `onChange` o widget grava a
-        // chave sozinho; com ele, entrega o valor **cru** — nunca o mascarado,
-        // que é exatamente a separação que o widget existe para manter.
-        if acao.is_empty() {
-            EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
-        } else {
-            EngineMessage::UiInputChanged {
-                action: acao.clone(),
-                value: novo,
+    let id = masked_input_id(value_var);
+    let anterior = exibido.clone();
+    let mut campo = text_input(&dica, &exibido)
+        .id(id.clone())
+        .on_input(move |digitado| {
+            let novo = extrai_cru(&digitado, &mascara);
+            // O mesmo contrato do `<TextInput>`: sem `onChange` o widget grava a
+            // chave sozinho; com ele, entrega o valor **cru** — nunca o mascarado,
+            // que é exatamente a separação que o widget existe para manter.
+            let grava = if acao.is_empty() {
+                EngineMessage::ContextPatch(vec![(chave.clone(), novo)])
+            } else {
+                EngineMessage::UiInputChanged {
+                    action: acao.clone(),
+                    value: novo,
+                }
+            };
+            // ...e, por cima, o cursor: a máscara pode ter crescido mais do que
+            // o cursor do `iced` andou, e sem recolocá-lo a próxima tecla entra
+            // no lugar errado.
+            EngineMessage::MaskedEdit {
+                id: id.clone(),
+                cursor: cursor_remascarado(&anterior, &digitado, &mascara),
+                inner: Box::new(grava),
             }
-        }
-    });
+        });
     campo = campo.padding(8);
     // Como o `text_input` do iced é `Length::Fill` por padrão, só chamamos
     // `.width()` quando o nó declara uma — a mesma ressalva que o `<TextInput>`
@@ -3764,8 +3855,8 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
 #[cfg(test)]
 mod length_tests {
     use super::{
-        CalView, Instante, aplica_mascara, days_from_civil, dia_da_semana, dias_no_mes, extrai_cru,
-        iso_ymd, janela_paginas, parse_length,
+        CalView, Instante, aplica_mascara, cursor_remascarado, days_from_civil, dia_da_semana,
+        dias_no_mes, extrai_cru, iso_ymd, janela_paginas, parse_length,
     };
     use iced::Length;
 
@@ -3929,6 +4020,98 @@ mod length_tests {
         assert_eq!(extrai_cru("123.", cpf), "123");
         assert_eq!(extrai_cru("12", cpf), "12");
         assert_eq!(aplica_mascara("123", cpf), "123");
+    }
+
+    /// O `iced` de mentira: aplica uma tecla ao texto exibido do jeito que ele
+    /// aplica (edita a string que mostra e anda um caractere), e devolve o que
+    /// o campo mostra e onde o cursor fica **depois** da remascaração. É o laço
+    /// inteiro do `<MaskedInput>` em quatro linhas.
+    fn tecla(estado: (String, usize), c: char, mascara: &str) -> (String, usize) {
+        let (exibido, cursor) = estado;
+        let chars: Vec<char> = exibido.chars().collect();
+        let digitado: String = chars[..cursor]
+            .iter()
+            .chain(std::iter::once(&c))
+            .chain(chars[cursor..].iter())
+            .collect();
+        let novo = aplica_mascara(&extrai_cru(&digitado, mascara), mascara);
+        (novo, cursor_remascarado(&exibido, &digitado, mascara))
+    }
+
+    /// Digitar do começo ao fim, sem olhar para a tela: o cursor tem de ficar
+    /// **depois** do último caractere a cada tecla, inclusive nas teclas que
+    /// fazem a máscara crescer dois caracteres de uma vez (o dígito mais o
+    /// separador que entra na frente dele).
+    ///
+    /// Sem recolocar o cursor, o `iced` o deixa uma casa atrás em cada troca de
+    /// subdivisão — e daí em diante cada dígito entra antes do anterior, o que
+    /// embaralha o valor de quem digita sem conferir a tela.
+    #[test]
+    fn cursor_fica_no_fim_ao_atravessar_um_separador() {
+        let cpf = "###.###.###-##";
+        let mut estado = (String::new(), 0);
+        for c in "12345678901".chars() {
+            estado = tecla(estado, c, cpf);
+            assert_eq!(
+                estado.1,
+                estado.0.chars().count(),
+                "cursor fora do fim em {:?}",
+                estado.0
+            );
+        }
+        assert_eq!(estado.0, "123.456.789-01");
+
+        // A prova do embaralhamento: é exatamente a tecla que atravessa o
+        // separador que o `iced` erraria (ele diria 4, o texto tem 5).
+        assert_eq!(cursor_remascarado("123", "1234", cpf), 5);
+        assert_eq!(cursor_remascarado("123.456", "123.4567", cpf), 9);
+        // Máscara com dois literais seguidos: o cursor pula os dois.
+        assert_eq!(cursor_remascarado("12", "123", "## - ##"), 6);
+    }
+
+    /// O mesmo laço nas outras máscaras que os exemplos usam — a mista da placa
+    /// (onde o separador é a mudança de tipo, não um símbolo) e a do telefone,
+    /// que começa com literais.
+    #[test]
+    fn cursor_no_fim_tambem_nas_mascaras_com_literal_na_frente() {
+        for (mascara, digitos, esperado) in [
+            ("(##) #####-####", "11987654321", "(11) 98765-4321"),
+            ("AAA#*##", "BRA1B23", "BRA1B23"),
+            ("##/##/####", "01022026", "01/02/2026"),
+        ] {
+            let mut estado = (String::new(), 0);
+            for c in digitos.chars() {
+                estado = tecla(estado, c, mascara);
+                assert_eq!(
+                    estado.1,
+                    estado.0.chars().count(),
+                    "cursor fora do fim em {:?} ({mascara})",
+                    estado.0
+                );
+            }
+            assert_eq!(estado.0, esperado);
+        }
+    }
+
+    /// Apagar e corrigir no meio: o cursor fica onde a edição aconteceu, não
+    /// salta para o fim — quem clicou no meio para trocar um dígito continua
+    /// no meio.
+    #[test]
+    fn cursor_acompanha_a_edicao_no_meio() {
+        let cpf = "###.###.###-##";
+        // Backspace no fim: o cursor volta um, no fim do que sobrou.
+        assert_eq!(cursor_remascarado("123.45", "123.4", cpf), 5);
+        // Backspace sobre o SEPARADOR: o cru não muda (a nota acima de
+        // `render_pagination` explica por quê), e o cursor fica antes dele — a
+        // tecla seguinte apaga o dígito de verdade.
+        assert_eq!(cursor_remascarado("123.4", "1234", cpf), 3);
+        // Trocar um dígito no meio: o cursor para logo depois do que entrou.
+        assert_eq!(cursor_remascarado("123.456", "1293.456", cpf), 3);
+        // Colar o CPF inteiro de uma vez: o cursor vai para o fim.
+        assert_eq!(
+            cursor_remascarado("", "123.456.789-01", cpf),
+            "123.456.789-01".chars().count()
+        );
     }
 
     // --- O calendário: dia da semana, mês visível e a leitura de uma data ----

@@ -1748,6 +1748,14 @@ fn test_exemplo_onda4_ponta_a_ponta() {
         notas.contains(&("nota".to_string(), String::new(), true)),
         "faltou o rating readonly: {notas:?}"
     );
+    // Escala diferente pede chave diferente. Com os três na mesma chave, clicar
+    // na 7ª estrela do de dez escrevia 7 na nota que o de cinco mostra — e o
+    // rótulo ao lado dele dizia "7 de 5". O readonly compartilha `nota` de
+    // propósito (mesma escala): é o que ele existe para demonstrar.
+    assert!(
+        notas.contains(&("nota_ampla".to_string(), "10".to_string(), false)),
+        "o rating de dez estrelas precisa de chave própria: {notas:?}"
+    );
 
     // O `decimals` viaja no payload do SpinBox — é assim que o `update` dele o
     // enxerga, já que ele não vê as props da instância.
@@ -5966,6 +5974,94 @@ fn foreach_preguicoso_cache_por_item_continua_correto() {
         depois,
         vec!["Ana", "BETO!", "Cida"],
         "o item alterado tem de ser reavaliado, não servido do cache"
+    );
+}
+
+/// Uma tela cujo conteúdo é **só** um widget com `<slot/>` (o `<accordion>` é
+/// o caso real) parava de reavaliar depois da primeira avaliação: mudar a
+/// chave — por `define_data` ou por clique — atualizava o contexto e a tela
+/// continuava mostrando o estado velho para sempre.
+///
+/// A causa era um quadro de leituras **vazado**: o uso de um componente abre um
+/// quadro para reunir as dependências da expansão, e quem tem conteúdo de slot
+/// não entra no cache — e não fechava o quadro. O quadro órfão ficava no topo
+/// da pilha e passava a receber as leituras de todo o resto, inclusive as da
+/// tela; no fim, o que voltava como "dependências da tela" eram as props
+/// locais do widget (`spacing`, `width`), que não existem no contexto do app e
+/// portanto **nunca** mudam. A comparação "algo mudou?" respondia não para
+/// sempre.
+///
+/// Silencioso do pior jeito: nada falha, a tela só congela. Daí o segundo
+/// teste com um irmão do lado — foi o que mostrou que nem o irmão atualizava,
+/// e que o problema não era do accordion, mas da tela inteira.
+#[test]
+fn tela_com_widget_de_slot_continua_reavaliando() {
+    fn reveals(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Reveal { open, .. } = &n.kind {
+            out.push(open.clone());
+        }
+        for f in &n.children {
+            reveals(f, out);
+        }
+    }
+    fn textos(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &n.kind {
+            out.push(content.clone());
+        }
+        for f in &n.children {
+            textos(f, out);
+        }
+    }
+
+    let monta = |nome: &str, layout: &str| {
+        let mut motor = GlacierUI::new();
+        std::fs::create_dir_all("templates").ok();
+        let tpl = format!("templates/slot_deps_{nome}.gv");
+        std::fs::write(&tpl, envolve(layout)).unwrap();
+        motor.define_data("abertas", "");
+        motor.register_component(nome, &tpl).unwrap();
+        motor.set_initial_screen(nome);
+        (motor, tpl)
+    };
+
+    const ITEM: &str = r#"<accordion>
+            <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
+                <Text content="corpo" />
+            </accordionitem>
+        </accordion>"#;
+
+    // 1. O accordion sozinho na tela.
+    let (mut motor, tpl) = monta("so", ITEM);
+    let mut antes = Vec::new();
+    reveals(motor.evaluated("so").unwrap(), &mut antes);
+    assert_eq!(antes, vec!["false"], "a seção começa fechada");
+    motor.define_data("abertas", "rede");
+    let mut depois = Vec::new();
+    reveals(motor.evaluated("so").unwrap(), &mut depois);
+    std::fs::remove_file(&tpl).ok();
+    assert_eq!(
+        depois,
+        vec!["true"],
+        "abrir a seção tem de chegar à árvore avaliada"
+    );
+
+    // 2. Com um irmão que lê a MESMA chave: o vazamento levava a tela inteira,
+    //    não só o widget.
+    let (mut motor, tpl) = monta(
+        "irmao",
+        &format!(r#"<Column><Text content="marca:{{abertas}}" />{ITEM}</Column>"#),
+    );
+    let _ = motor.evaluated("irmao").unwrap();
+    motor.define_data("abertas", "rede");
+    let tela = motor.evaluated("irmao").unwrap();
+    let (mut t, mut r) = (Vec::new(), Vec::new());
+    textos(tela, &mut t);
+    reveals(tela, &mut r);
+    std::fs::remove_file(&tpl).ok();
+    assert_eq!(r, vec!["true"], "a seção do irmão também abre");
+    assert!(
+        t.contains(&"marca:rede".to_string()),
+        "o irmão do widget também tem de reavaliar: {t:?}"
     );
 }
 

@@ -722,6 +722,28 @@ impl EvalCtx<'_> {
             r.push(self.depth);
         }
     }
+
+    /// Fecha o quadro sem guardar entrada de cache, para a subárvore que abriu
+    /// um quadro e no fim **não** é cacheável (o uso de componente com conteúdo
+    /// de `<slot/>`).
+    ///
+    /// O quadro precisa fechar de todo jeito. Ele é a única coisa que restaura
+    /// o topo da pilha, e o topo é onde toda leitura seguinte é anotada: um
+    /// quadro deixado aberto rouba as leituras de quem vem depois — inclusive
+    /// as do quadro da própria tela — e faz [`evaluate_template`] devolver como
+    /// dependências da tela um punhado de props locais de um widget. Como essas
+    /// props não existem no contexto do app, a comparação "nada mudou?" dá
+    /// sempre **sim** e a tela nunca mais é reavaliada.
+    ///
+    /// O `pop` ainda propaga para fora as leituras resolvidas fora deste quadro,
+    /// que é o que o ancestral não cacheável precisa saber; o que se descarta é
+    /// só a lista de dependências que iria para uma entrada de cache que não
+    /// será criada.
+    fn pop_frame(&self) {
+        if let Some(r) = self.reads {
+            let _ = r.pop();
+        }
+    }
 }
 
 /// Tenta reaproveitar do cache a subárvore desta posição: acerta quando **toda**
@@ -1483,6 +1505,17 @@ pub fn evaluate_template(
         node, &ctx, templates, styles, scope, None, None, None, None, None, None, cache,
     )?;
     let deps = reads.pop();
+    // A pilha de quadros tem de terminar vazia: cada `push_frame` fecha no
+    // `store` (ou no `pop_frame` de quem não guarda). Um quadro que sobra vira
+    // o topo da pilha e passa a receber as leituras de TODO o resto da
+    // avaliação — e o `pop` acima devolve as dependências dele, não as da tela.
+    // Foi exatamente esse o bug do `<accordion>` na 0.90 (ver `pop_frame`), e
+    // ele é silencioso: a tela simplesmente para de reavaliar. A asserção custa
+    // um `len()` por avaliação e só existe em debug, onde os testes rodam.
+    debug_assert!(
+        reads.frames.borrow().is_empty(),
+        "quadro de leituras vazado: um push_frame sem store/pop_frame"
+    );
     // Entradas de subárvores que sumiram (uma linha removida da lista) viram
     // lixo; varrer aqui mantém o cache do tamanho da tela, não do histórico.
     cache.sweep();
@@ -1991,6 +2024,11 @@ fn eval_owned(
         )?;
         if slot_conteudo.is_empty() {
             store(&local_context, cache, std::slice::from_ref(&root));
+        } else {
+            // Sem entrada de cache (o motivo está na nota do `reuse` acima),
+            // mas o quadro aberto logo antes tem de fechar mesmo assim — ver
+            // [`EvalCtx::pop_frame`] para o que acontece quando ele não fecha.
+            local_context.pop_frame();
         }
         return Ok(root);
     }

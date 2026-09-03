@@ -8,6 +8,68 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.91.0] — 2026-09-03
+
+### Corrigido
+- **O cursor do `<maskedinput>` para de ficar para trás ao atravessar um
+  separador.** Digitando um CPF, a tecla que fecha uma subdivisão (`123` → o
+  `4` que vira `123.4`) faz o texto crescer **dois** caracteres — o dígito e o
+  ponto que entra na frente dele —, enquanto o cursor do `iced` anda **um**: ele
+  edita a string que mostra, e quem remascara é o motor. O cursor ficava atrás
+  do último caractere e, dali em diante, cada tecla entrava uma casa antes do
+  fim: quem digitasse até o fim sem conferir a tela terminava com o valor
+  embaralhado. Valia para todas as máscaras com literal (`cpf`, `cnpj`,
+  `telefone`, `cep`, `data`, `hora`, `cartao`), e portanto para os campos das
+  duas Ondas 4.
+
+  O motor agora recoloca o cursor a cada tecla. A posição é calculada sobre o
+  **dado**, não sobre o texto — quantos caracteres crus existem antes do cursor,
+  e onde essa mesma quantidade termina no texto remascarado —, então a mesma
+  conta serve para digitar no fim, corrigir no meio e colar o valor inteiro. A
+  posição do cursor do `iced`, que o `on_input` não entrega, é inferida do
+  prefixo e do sufixo que a string editada ainda tem em comum com a anterior.
+
+- **Uma tela cujo conteúdo é um widget de `<slot/>` volta a reavaliar.** Numa
+  tela mínima com só um `<accordion>`, mudar a chave depois da primeira
+  avaliação — por `define_data` ou por clique — atualizava o contexto e a tela
+  ficava congelada no estado antigo, para sempre.
+
+  A causa não era do accordion: era um **quadro de leituras vazado** no
+  `eval.rs`. O uso de um componente abre um quadro para reunir as dependências
+  da expansão e o fecha ao guardar a entrada de cache — só que o uso **com
+  conteúdo de slot** não entra no cache (o conteúdo é avaliado do lado de fora)
+  e não fechava o quadro. O quadro órfão continuava no topo da pilha e passava a
+  receber as leituras de todo o resto da avaliação, inclusive as da tela; no
+  fim, o que voltava como "dependências da tela" eram as props locais do widget
+  (`spacing`, `width`, …), que não existem no contexto do app e portanto nunca
+  mudam — a pergunta "algo de que esta tela depende mudou?" respondia **não**
+  para sempre.
+
+  Era pré-existente e silencioso: nada falha, a tela só para. O `<groupbox>`
+  escapava por acaso — as props que vazavam no lugar tinham valor, nunca batiam
+  com o contexto, e a tela era reavaliada a cada mensagem (correta, e cara). Um
+  `debug_assert` no fim de `evaluate_template` agora exige a pilha de quadros
+  vazia, para que o próximo desbalanceamento apareça no primeiro teste que
+  rodar em vez de virar uma tela congelada.
+
+- **O rating de dez estrelas das duas Ondas 4 tinha chave própria a menos.** Os
+  três `<rating>` do exemplo dividiam a chave `nota`, mas o do meio é `max="10"`
+  — clicar na 7ª estrela dele escrevia `7` na nota que o de cinco mostra, e o
+  rótulo ao lado passava a dizer "7 de 5", "8 de 5", "9 de 5". Escala diferente
+  pede chave diferente: o de dez agora grava em `nota_ampla` e traz o próprio
+  rótulo, `{nota_ampla} de 10`. O terceiro continua em `nota`, de propósito —
+  ele é `readonly` e tem a mesma escala do primeiro, e é exatamente isso que ele
+  existe para demonstrar. O widget nunca esteve errado: ele já limita o que
+  desenha ao próprio `max`.
+
+### Quebras
+- `EngineMessage` ganhou a variante `MaskedEdit` (a edição de um
+  `<maskedinput>`: a mensagem que grava o valor, mais o cursor a recolocar). Um
+  `match` **exaustivo** sobre `EngineMessage` no app precisa de um braço a mais;
+  quem repassa a mensagem a `GlacierUI::dispatch` — o caminho normal — não muda
+  nada. Quem escuta o campo continua recebendo o `onChange` com o valor cru,
+  como antes.
+
 ## [0.90.0] — 2026-09-03
 
 ### Adicionado
