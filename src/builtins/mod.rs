@@ -85,6 +85,7 @@ mod avatar;
 mod badge;
 mod button_box;
 mod card;
+mod drawer;
 mod frame;
 mod group_box;
 pub(crate) mod list_view;
@@ -92,6 +93,7 @@ mod radio_group;
 mod spin_box;
 mod status_bar;
 mod tab_bar;
+mod tabs;
 mod tool_bar;
 mod tool_button;
 
@@ -100,6 +102,7 @@ use crate::builtins::avatar::Avatar;
 use crate::builtins::badge::Badge;
 use crate::builtins::button_box::ButtonBox;
 use crate::builtins::card::Card;
+use crate::builtins::drawer::Drawer;
 use crate::builtins::frame::Frame;
 use crate::builtins::group_box::GroupBox;
 use crate::builtins::list_view::ListView;
@@ -107,6 +110,7 @@ use crate::builtins::radio_group::RadioGroup;
 use crate::builtins::spin_box::SpinBox;
 use crate::builtins::status_bar::StatusBar;
 use crate::builtins::tab_bar::TabBar;
+use crate::builtins::tabs::Tabs;
 use crate::builtins::tool_bar::ToolBar;
 use crate::builtins::tool_button::ToolButton;
 use crate::component::{Component, Context, Template};
@@ -125,6 +129,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(Badge),
         Box::new(ButtonBox),
         Box::new(Card),
+        Box::new(Drawer),
         Box::new(Frame),
         Box::new(GroupBox),
         Box::new(ListView),
@@ -132,6 +137,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(SpinBox),
         Box::new(StatusBar),
         Box::new(TabBar),
+        Box::new(Tabs),
         Box::new(ToolBar),
         Box::new(ToolBox),
         Box::new(ToolBoxItem),

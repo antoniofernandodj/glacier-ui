@@ -82,7 +82,7 @@ pub struct ListView;
 /// Aceita os mesmos três separadores do `contains` na entrada e devolve sempre
 /// com vírgula: um conjunto que sai daqui volta a entrar aqui, e a ida e a
 /// volta precisam ser estáveis.
-pub(super) fn alterna_no_conjunto(atual: &str, id: &str) -> String {
+pub(crate) fn alterna_no_conjunto(atual: &str, id: &str) -> String {
     let mut itens: Vec<&str> = atual
         .split([',', ';', ' ', '\t', '\n'])
         .map(str::trim)

@@ -31,7 +31,7 @@
       </text>
 
       <!-- `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
-           barra; `class` sozinho pintaria a Row que as segura. -->
+          barra; `class` sozinho pintaria a Row que as segura. -->
       <tabbar
         value="aba"
         active="{aba}"

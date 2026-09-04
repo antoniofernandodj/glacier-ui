@@ -75,6 +75,20 @@ const NATIVE_TAGS = {
   MaskedInput: [
     "maskedinput", "entradamascarada", "entrada_mascarada", "mascara", "máscara",
   ],
+  // Onda 5: o painel que flutua. Uma primitiva só — `<popup>` é ela sem
+  // âncora, centrada na janela (ver `src/anchored.rs`).
+  Popover: ["popover", "painel"],
+  Popup: ["popup"],
+  Autocomplete: ["autocomplete", "completer", "autocompletar"],
+  // Onda 6: a grade e a família que sai da medição de colunas
+  // (`src/grid.rs`). O `<flow>` é o único que não passa por ela — é o
+  // `Row::wrap()` do próprio iced.
+  Grid: ["grid", "grade"],
+  Flow: ["flow", "wrap", "fluxo"],
+  TableView: ["tableview", "tabela"],
+  TableHeader: ["tableheader", "cabecalhotabela", "cabecalho_tabela"],
+  TreeView: ["treeview", "arvore", "árvore"],
+  ColumnView: ["columnview", "colunas", "miller"],
   Pagination: ["pagination", "paginacao", "paginação"],
   Rating: ["rating", "nota", "estrelas"],
   Radio: ["radio", "radiobutton", "opcao"],
@@ -109,6 +123,7 @@ const NATIVE_TAGS = {
   Badge: ["badge"],
   ButtonBox: ["buttonbox"],
   Card: ["card"],
+  Drawer: ["drawer"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
   ListView: ["listview"],
@@ -116,6 +131,7 @@ const NATIVE_TAGS = {
   SpinBox: ["spinbox"],
   StatusBar: ["statusbar"],
   TabBar: ["tabbar"],
+  Tabs: ["tabs"],
   ToolBar: ["toolbar"],
   ToolBox: ["toolbox"],
   ToolBoxItem: ["toolboxitem"],

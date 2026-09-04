@@ -283,6 +283,44 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
 > a `color` — exatamente o que esta seção mandava fazer.
 
+### A gêmea, do outro lado do eixo: `Fill` dentro de um `<scrollable>` (0.92)
+
+A armadilha acima é sobre **largura**: um `Shrink` ao redor de um `Fill`
+colapsa o filho. Esta é sobre **altura**, e o sintoma é o oposto — nada colapsa,
+tudo some.
+
+Um `<scrollable>` vertical oferece aos filhos um teto de altura **infinito** (é
+o que o torna rolável). Qualquer filho que se declare `height="fill"` mede,
+então, infinito — e quem somar essa altura para posicionar o que vem depois
+empurra tudo para fora da tela.
+
+Foi o que aconteceu com a alça de arrasto do `<tableheader>` (Onda 6): um
+`Space` de 1px de largura com `height(Length::Fill)`, para a alça acompanhar a
+altura do cabeçalho. Dentro do `<scrollable>` da tabela, a linha do cabeçalho
+passou a medir infinito e o corpo inteiro saiu de vista. **A tabela aparecia
+vazia, sem erro nenhum** — nem um `NaN`, nem um `panic`, nem um aviso.
+
+Duas saídas, e as duas foram aplicadas:
+
+1. **No widget:** altura **declarada**, nunca `Fill`, para um elemento que vive
+   dentro de um contêiner de altura livre. É a mesma troca do `virtualize`
+   (altura declarada em vez de medida) e pelo mesmo motivo.
+2. **No layout:** o `src/grid.rs` **ignora altura não-finita** ao computar a
+   altura de uma linha. Uma célula que meça infinito simplesmente não vota.
+
+> **A regra, para a próxima primitiva de layout:** ao somar tamanhos de filhos
+> para posicionar irmãos, filtre o que não for finito. O teto infinito é
+> legítimo (é assim que um scrollable funciona); o que não pode é ele virar a
+> altura de uma linha.
+
+### E uma do `iced`, que custa a última coluna (0.92)
+
+A barra de rolagem de um `scrollable` **flutua sobre** o conteúdo por padrão:
+ela só reserva espaço quando um `spacing` é declarado na direção
+(`scrollable(x).spacing(0)` já basta). Sem isso, o filho é medido contra a
+largura inteira e a barra cobre o que estiver na borda direita — numa tabela,
+exatamente a última coluna.
+
 `Button`/`TextInput`/`Select`/`Checkbox`/`Toggle` não precisam dessa exclusão:
 o tamanho natural deles é `Shrink` (ou, no caso do `TextInput`, `Fill` mas já
 tratado à parte — ver o comentário "iced's own default for `text_input` é
@@ -334,12 +372,30 @@ alguém escrever uma linha deles:
    as cinco estrelas de uma nota não existem em array nenhum: são derivadas de
    `pagina`/`total` e de `max`. A alternativa de builtin — o app calcular o
    array e passá-lo por `items=` — é exatamente o trabalho que o widget existe
-   para poupar. Casos: `<pagination>` e `<rating>` (0.85); previstos:
-   `PageIndicator`, `Grid` (`columns="3"`), `Flow`/`Wrap`.
+   para poupar. Casos: `<pagination>` e `<rating>` (0.85), `<grid>`
+   (`columns="3"`) e `<flow>` (0.92) — os dois **previstos por escrito** por
+   esta lista antes de alguém tocar neles, que é o que uma regra útil faz.
+   Continua previsto: `PageIndicator`.
 3. **O widget precisa de um evento que o markup não expõe.** Há `on_press`,
    `on_double_click`, `cursor` e `tooltip` em qualquer nó — não há `on_enter`.
    Caso: o hover do `<rating>` (0.85), e o da faixa do `<daterangepicker>`
    (0.84).
+
+Um **quarto** apareceu na Onda 5, e ele é de outra natureza: os três acima são
+sobre o que o markup não sabe *dizer*; este é sobre o que ele não tem *onde*
+pôr.
+
+4. **O widget precisa de uma CAMADA, não de nós.** Um painel que sai do fluxo,
+   se mede contra a janela e vira para o outro lado quando não cabe não é
+   composição de `Row`/`Column` — é um `iced::advanced::Overlay`. Casos:
+   `<popover>`, `<popup>`, `<autocomplete>` e o `calendarPopup` do `<dateedit>`
+   (0.92), todos sobre `src/anchored.rs`.
+
+   O sinal irmão, do lado do layout: **se a medida de um filho depende dos
+   irmãos dele, é primitiva.** A largura de uma coluna é o máximo das células
+   dela, e uma `Row` de `Column`s não consegue saber isso — cada coluna mede só
+   os próprios filhos. Casos: `<grid>`, `<tableview>`, `<tableheader>` e
+   `<columnview>` (0.92), todos sobre `src/grid.rs`.
 
 O contrário também vale, e a Onda 4 tem o exemplo: `ListView`, `Accordion`,
 `ToolBox` e `ButtonBox` são **builtins** porque nenhum dos três sinais aparece
@@ -366,6 +422,41 @@ precisa de um relógio, é primitiva** — não importa o quanto o markup pareç
 suficiente. Um builtin não tem onde guardar progresso entre rebuilds da view
 nem como pedir o quadro seguinte.
 
+`axis="x"` (0.92) anima a **largura** em vez da altura, para a gaveta lateral do
+`<drawer>`: as três frentes de contenção acima valem iguais, só que contra a
+faixa horizontal.
+
+## Uma primitiva que vive numa camada de cima (0.92)
+
+`src/anchored.rs` é a primeira do projeto a implementar
+`iced::advanced::Overlay`, não só `Widget`. Ela tem **dois** filhos e os
+renderiza em camadas diferentes: o gatilho fica no fluxo, o painel vai para uma
+camada acima de tudo quando aberto.
+
+Três coisas que só aparecem nessa posição, e que valem para a próxima:
+
+1. **O overlay recebe os eventos ANTES da árvore normal**, e se ele consumir um,
+   a árvore de baixo não o vê (`UserInterface::update` do `iced_runtime`). É o
+   que faz ▲▼/Enter de um `<autocomplete>` ganharem do `text_input` focado sem
+   listener global nenhum — e o que faz o clique que fecha um painel não chegar
+   a mais nada.
+2. **O `Widget::update` é a única forma de reagir a um clique no gatilho antes
+   dele.** Um `<button>` **consome** o pressionar dentro dos limites dele, então
+   um `mouse_area` por fora nunca dispararia. Quem manda na ordem é o widget que
+   embrulha os dois.
+3. **A âncora é `layout.bounds() + translation`.** Sem somar o `translation`, um
+   painel dentro de uma lista rolada nasce onde o gatilho *estaria* sem rolagem.
+
+## Uma primitiva que mede os filhos em duas passadas (0.92)
+
+`src/grid.rs` é a primeira cujo `layout()` **mede cada filho duas vezes**: uma
+com limites frouxos, para saber o tamanho natural dele; outra contra a largura
+definitiva da coluna, que só existe depois de a primeira passada terminar.
+
+É o preço de qualquer motor de layout de tabela, e ele é conhecido. O que **não**
+se paga com ele é a virtualização: para uma grade longa, `virtualize` na coluna
+de dentro de um `<scrollable>` continua sendo a saída (ver acima).
+
 ## Checklist para uma primitiva nova
 
 1. `NodeType` em `parser.rs` + braço de parse + `tag_name()`.
@@ -379,5 +470,9 @@ nem como pedir o quadro seguinte.
    de **tag** (`MeuWidget { background: … }`) sem `width` no nó — é
    exatamente esse caso que expõe a armadilha acima; um teste só com `class`
    + `width` fixo (como os exemplos costumam escrever) não pega o bug.
-5. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
+5. Se o widget puder aparecer dentro de um `<scrollable>`, confira que **nenhum
+   filho dele mede `height="fill"`** — o teto vertical ali é infinito, e o
+   sintoma (tudo abaixo sai da tela) não produz erro nenhum. Ver a gêmea da
+   armadilha do `Length::Fill`, acima.
+6. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
    ✅) + linha na tabela de tags do `README.md`.

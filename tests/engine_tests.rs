@@ -4175,7 +4175,7 @@ fn reveal_interpola_open_e_duration() {
         let tela = motor.evaluated("rev").unwrap();
         let mut achou = false;
         fn walk(n: &UiNode, achou: &mut bool, mostrar: &str, ms: &str) {
-            if let NodeType::Reveal { open, duration } = &n.kind {
+            if let NodeType::Reveal { open, duration, .. } = &n.kind {
                 assert_eq!(open, mostrar, "o `open` do reveal precisa vir interpolado");
                 assert_eq!(
                     duration.as_deref(),
@@ -6117,4 +6117,546 @@ fn context_menu_fundo_na_arvore_rastreia_o_cursor() {
         motor.precisa_do_cursor(),
         "o ContextMenu estava a quatro níveis de profundidade"
     );
+}
+
+// ── Onda 5 ───────────────────────────────────────────────────────────────────
+//
+// Os dois habilitadores da onda e os widgets que saem deles. O que os testes
+// abaixo protegem é sempre a mesma coisa: **de quem é este conteúdo?** — a
+// pergunta que a onda inteira responde.
+
+/// Uma tela solta, com um nome por caso (a suíte roda em paralelo).
+///
+/// O `<Column>` por fora não é decoração: um template de raiz única avalia para
+/// o próprio nó, e aí `children[0]` seria o primeiro filho do widget em vez do
+/// widget. Com a coluna, `children[0]` é sempre o que o teste escreveu.
+fn motor_tela(nome: &str, layout: &str) -> GlacierUI {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let caminho = format!("templates/test_{nome}.gv");
+    std::fs::write(&caminho, envolve(format!("<Column>{layout}</Column>"))).unwrap();
+    motor.register_component(nome, &caminho).unwrap();
+    motor.navigate_to(nome);
+    motor.reevaluate_all().unwrap();
+    std::fs::remove_file(&caminho).ok();
+    motor
+}
+
+/// Todo texto de uma árvore avaliada, em ordem.
+fn todos_os_textos(n: &UiNode) -> Vec<String> {
+    fn anda(n: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &n.kind {
+            out.push(content.clone());
+        }
+        for c in &n.children {
+            anda(c, out);
+        }
+    }
+    let mut out = Vec::new();
+    anda(n, &mut out);
+    out
+}
+
+/// **Habilitador A**: o nome do slot interpola contra o contexto do componente.
+///
+/// É a linha inteira da Onda 5 que destrava o `QTabWidget`: sem ela os buracos
+/// nomeados (0.67) eram literais de template, e um widget não conseguia
+/// escolher a região por um valor de contexto.
+#[test]
+fn onda5_slot_com_nome_dinamico_escolhe_a_regiao() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let painel = "templates/test_slot_din_painel.gv";
+    std::fs::write(
+        painel,
+        r#"<component><Column><slot name="{aba}"/></Column></component>"#,
+    )
+    .unwrap();
+    let tela = "templates/test_slot_din_tela.gv";
+    std::fs::write(
+        tela,
+        r#"<component>
+            <PainelDin aba="{aba}">
+                <template slot="geral"><Text content="pagina-geral" /></template>
+                <template slot="rede"><Text content="pagina-rede" /></template>
+            </PainelDin>
+        </component>"#,
+    )
+    .unwrap();
+    motor.register_component("PainelDin", painel).unwrap();
+    motor.define_data("aba", "geral");
+    motor.register_component("tela_slot_din", tela).unwrap();
+    motor.navigate_to("tela_slot_din");
+    motor.reevaluate_all().unwrap();
+
+    let textos = todos_os_textos(motor.evaluated("tela_slot_din").unwrap());
+    assert_eq!(textos, vec!["pagina-geral".to_string()]);
+
+    // E a página TROCA com a chave — que é o ponto: um `se`/`senão` na tela
+    // faria isso, e é exatamente o que este habilitador aposenta.
+    motor.define_data("aba", "rede");
+    motor.reevaluate_all().unwrap();
+    let textos = todos_os_textos(motor.evaluated("tela_slot_din").unwrap());
+    assert_eq!(textos, vec!["pagina-rede".to_string()]);
+
+    // Um nome que não casa com balde nenhum cai no conteúdo de reserva — aqui
+    // vazio, que é melhor do que mostrar a página da aba anterior.
+    motor.define_data("aba", "inexistente");
+    motor.reevaluate_all().unwrap();
+    assert!(todos_os_textos(motor.evaluated("tela_slot_din").unwrap()).is_empty());
+
+    std::fs::remove_file(painel).ok();
+    std::fs::remove_file(tela).ok();
+}
+
+/// O `<tabs>` builtin: barra **mais** página, com a página trocando pela chave.
+///
+/// Fecha o 🟡 mais visível da §2.8 — e o teste guarda o que ele fecha: a tela
+/// deixa de repetir a lista de abas duas vezes.
+#[test]
+fn onda5_tabs_troca_a_pagina_com_a_chave() {
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "abas",
+        r#"[{"id":"geral","label":"Geral"},{"id":"rede","label":"Rede"}]"#,
+    );
+    motor.define_data("aba", "geral");
+    std::fs::create_dir_all("templates").ok();
+    let caminho = "templates/test_onda5_tabs.gv";
+    std::fs::write(
+        caminho,
+        envolve(
+            r#"<tabs value="aba" active="{aba}" items="abas">
+                   <template slot="geral"><Text content="corpo-geral" /></template>
+                   <template slot="rede"><Text content="corpo-rede" /></template>
+               </tabs>"#,
+        ),
+    )
+    .unwrap();
+    motor.register_component("tela_tabs", caminho).unwrap();
+    motor.navigate_to("tela_tabs");
+    motor.reevaluate_all().unwrap();
+
+    let textos = todos_os_textos(motor.evaluated("tela_tabs").unwrap());
+    assert!(
+        textos.contains(&"corpo-geral".to_string()),
+        "a página da aba ativa tem de estar na árvore: {textos:?}"
+    );
+    assert!(
+        !textos.contains(&"corpo-rede".to_string()),
+        "a página da aba inativa NÃO renderiza: {textos:?}"
+    );
+    // Os rótulos da barra saem do `items`, não do markup das páginas.
+    assert!(textos.contains(&"Geral".to_string()) && textos.contains(&"Rede".to_string()));
+
+    // Clicar numa aba é o `update` da `<TabBar>` embutida — nenhuma linha de
+    // app envolvida.
+    let _ = motor.dispatch(&EngineMessage::UiClick("tabbar::pick:aba|rede".into()));
+    assert_eq!(motor.context().get("aba").map(String::as_str), Some("rede"));
+    let textos = todos_os_textos(motor.evaluated("tela_tabs").unwrap());
+    assert!(textos.contains(&"corpo-rede".to_string()));
+
+    std::fs::remove_file(caminho).ok();
+}
+
+/// O `slot` de um filho de **primitiva** atravessa a avaliação — é como o
+/// `<popover>` separa gatilho de painel.
+#[test]
+fn onda5_popover_parte_gatilho_e_painel() {
+    let mut motor = motor_tela(
+        "onda5_popover",
+        r#"<popover value="menu" placement="top" align="end" panel_width="anchor">
+               <column class="painel"><Text content="painel" /></column>
+               <button slot="anchor" text="abrir" on_click="x" />
+           </popover>"#,
+    );
+    let raiz = motor.evaluated("onda5_popover").unwrap();
+    let pop = &raiz.children[0];
+    match &pop.kind {
+        NodeType::Popover {
+            value_var,
+            placement,
+            align,
+            largura,
+            dismiss,
+            ..
+        } => {
+            assert_eq!(value_var, "menu");
+            assert_eq!(*placement, glacier_ui::anchored::Placement::Top);
+            assert_eq!(*align, glacier_ui::anchored::Align::End);
+            assert_eq!(*largura, glacier_ui::anchored::Largura::Ancora);
+            assert!(dismiss, "fechar sozinho é o default");
+        }
+        outro => panic!("esperava Popover, veio {outro:?}"),
+    }
+    // A etiqueta sobrevive à avaliação, e é ela que decide quem é o gatilho —
+    // mesmo escrito DEPOIS do painel, que é o ponto de marcar em vez de contar
+    // posições.
+    assert_eq!(pop.children.len(), 2);
+    assert_eq!(pop.children[1].slot_name(), Some("anchor"));
+    assert_eq!(pop.children[0].slot_name(), None);
+}
+
+/// `<popup>` é a mesma primitiva sem âncora: centrada, e o markup não precisa
+/// dizer nada.
+#[test]
+fn onda5_popup_e_a_mesma_primitiva_centrada() {
+    let mut motor = motor_tela(
+        "onda5_popup",
+        r#"<popup value="atalhos"><Text content="ajuda" /></popup>"#,
+    );
+    match &motor.evaluated("onda5_popup").unwrap().children[0].kind {
+        NodeType::Popover { placement, .. } => {
+            assert_eq!(*placement, glacier_ui::anchored::Placement::Center);
+        }
+        outro => panic!("esperava Popover, veio {outro:?}"),
+    }
+}
+
+/// O `calendarPopup` do `<dateedit>` — o último buraco do foco declarado.
+#[test]
+fn onda5_dateedit_com_calendar_popup() {
+    let mut motor = motor_tela(
+        "onda5_dtpop",
+        r#"<dateedit value="entrada" calendarPopup="true" today="2026-09-04" min="2026-01-01" />"#,
+    );
+    match &motor.evaluated("onda5_dtpop").unwrap().children[0].kind {
+        NodeType::DateTimeEdit {
+            popup, today, min, ..
+        } => {
+            assert!(popup);
+            assert_eq!(today, "2026-09-04");
+            assert_eq!(min, "2026-01-01");
+        }
+        outro => panic!("esperava DateTimeEdit, veio {outro:?}"),
+    }
+
+    // Num `<timeedit>` o popup não faz sentido e o parser o recusa: uma grade
+    // de mês num campo de hora não escreveria nada.
+    let mut motor = motor_tela(
+        "onda5_dtpop_hora",
+        r#"<timeedit value="hora" calendarPopup="true" />"#,
+    );
+    match &motor.evaluated("onda5_dtpop_hora").unwrap().children[0].kind {
+        NodeType::DateTimeEdit { popup, .. } => assert!(!popup),
+        outro => panic!("esperava DateTimeEdit, veio {outro:?}"),
+    }
+}
+
+/// `<autocomplete>`: as props e a chave de realce derivada da chave editada.
+#[test]
+fn onda5_autocomplete_props() {
+    let mut motor = motor_tela(
+        "onda5_ac",
+        r#"<autocomplete value="cidade" items="cidades" placeholder="Cidade…" max_items="5" />"#,
+    );
+    match &motor.evaluated("onda5_ac").unwrap().children[0].kind {
+        NodeType::Autocomplete {
+            value_var,
+            items_var,
+            placeholder,
+            max_items,
+            min_chars,
+            filter,
+            ..
+        } => {
+            assert_eq!(
+                (value_var.as_str(), items_var.as_str()),
+                ("cidade", "cidades")
+            );
+            assert_eq!(placeholder, "Cidade…");
+            assert_eq!((*max_items, *min_chars), (5, 1));
+            assert!(filter, "filtrar é o default — é a razão de ser do widget");
+        }
+        outro => panic!("esperava Autocomplete, veio {outro:?}"),
+    }
+}
+
+/// `PatchThen`: grava o estado do motor e só então entrega a ação ao app.
+#[test]
+fn onda5_patch_then_grava_antes_de_despachar() {
+    let mut motor = motor_tela("onda5_patch", r#"<Text content="{eco}" />"#);
+    motor.define_data("eco", "");
+    let _ = motor.dispatch(&EngineMessage::PatchThen {
+        patch: vec![("__ac_cidade".into(), "2".into())],
+        inner: Box::new(EngineMessage::ContextPatch(vec![(
+            "eco".into(),
+            "depois".into(),
+        )])),
+    });
+    assert_eq!(
+        motor.context().get("__ac_cidade").map(String::as_str),
+        Some("2")
+    );
+    assert_eq!(
+        motor.context().get("eco").map(String::as_str),
+        Some("depois")
+    );
+}
+
+/// O `<drawer>`: a chave viaja na ação, então duas gavetas na mesma tela não
+/// colidem — e o botão que abre pode estar em qualquer lugar.
+#[test]
+fn onda5_drawer_alterna_a_chave_nomeada() {
+    let mut motor = motor_tela(
+        "onda5_drawer",
+        r#"<row>
+               <drawer value="menu" open="{menu}"><Text content="lateral" /></drawer>
+               <button text="≡" on_click="drawer::toggle:menu" />
+           </row>"#,
+    );
+    let _ = motor.dispatch(&EngineMessage::UiClick("drawer::toggle:menu".into()));
+    assert_eq!(
+        motor.context().get("menu").map(String::as_str),
+        Some("true")
+    );
+    let _ = motor.dispatch(&EngineMessage::UiClick("drawer::toggle:menu".into()));
+    assert_eq!(motor.context().get("menu").map(String::as_str), Some(""));
+}
+
+/// `axis="x"` no `<reveal>` — a peça que faltava para a gaveta lateral.
+#[test]
+fn onda5_reveal_aceita_o_eixo_horizontal() {
+    let mut motor = motor_tela(
+        "onda5_reveal_x",
+        r#"<reveal open="true" axis="x"><Text content="lado" /></reveal>
+           <reveal open="true"><Text content="baixo" /></reveal>"#,
+    );
+    let col = motor.evaluated("onda5_reveal_x").unwrap();
+    match (&col.children[0].kind, &col.children[1].kind) {
+        (NodeType::Reveal { horizontal: x, .. }, NodeType::Reveal { horizontal: y, .. }) => {
+            assert!(x, "axis=x anima a largura");
+            assert!(!y, "sem axis, continua sendo a altura");
+        }
+        outro => panic!("esperava dois Reveal, veio {outro:?}"),
+    }
+}
+
+// ── Onda 6 ───────────────────────────────────────────────────────────────────
+//
+// A medição de colunas e os seis widgets que saem dela. O que estes testes
+// protegem é o contrato do markup — os nomes de chave e os defaults —, mais as
+// duas peças de motor novas: o arrasto de coluna e a janela em que ele liga o
+// rastreio do cursor.
+
+/// O `<grid>` e o `<flow>`: as duas formas de `columns`, e o vão por eixo.
+#[test]
+fn onda6_grid_e_flow_leem_as_trilhas() {
+    let mut motor = motor_tela(
+        "onda6_grid",
+        r#"<grid columns="140 fill 80" spacing="8" row_spacing="4">
+               <Text content="a" /><Text content="b" /><Text content="c" />
+           </grid>
+           <flow spacing="6"><Text content="x" /></flow>"#,
+    );
+    let raiz = motor.evaluated("onda6_grid").unwrap();
+    match &raiz.children[0].kind {
+        NodeType::Grid {
+            columns,
+            row_spacing,
+        } => {
+            assert_eq!(columns, "140 fill 80");
+            assert_eq!(*row_spacing, Some(4.0));
+        }
+        outro => panic!("esperava Grid, veio {outro:?}"),
+    }
+    assert!(matches!(raiz.children[1].kind, NodeType::Flow { .. }));
+
+    // As trilhas, do lado do motor de layout.
+    use glacier_ui::grid::Trilha;
+    assert_eq!(
+        Trilha::parse_lista("140 fill 80"),
+        vec![Trilha::Fixa(140.0), Trilha::Flexivel(1), Trilha::Fixa(80.0)]
+    );
+    // O atalho: um inteiro solto são N colunas medidas.
+    assert_eq!(Trilha::parse_lista("3"), vec![Trilha::Auto; 3]);
+}
+
+/// `columns` também interpola — é o que permite ao app guardar o layout da
+/// tabela numa chave e trocá-lo em tempo de execução.
+#[test]
+fn onda6_grid_interpola_as_colunas() {
+    let mut motor = motor_tela(
+        "onda6_grid_tpl",
+        r#"<grid columns="{trilhas}"><Text content="a" /></grid>"#,
+    );
+    motor.define_data("trilhas", "100 fill");
+    motor.reevaluate_all().unwrap();
+    match &motor.evaluated("onda6_grid_tpl").unwrap().children[0].kind {
+        NodeType::Grid { columns, .. } => assert_eq!(columns, "100 fill"),
+        outro => panic!("esperava Grid, veio {outro:?}"),
+    }
+}
+
+/// `<tableview>` e `<tableheader>` são a MESMA primitiva — o cabeçalho é a
+/// tabela sem o corpo, pelo padrão `<dateedit>`/`<timeedit>`.
+#[test]
+fn onda6_tableview_e_tableheader_sao_a_mesma_primitiva() {
+    let mut motor = motor_tela(
+        "onda6_tabela",
+        r#"<tableview items="linhas" columns="cols" value="escolhida"
+                      sort="ordem" widths="larguras" mode="multi" height="300" />
+           <tableheader columns="cols" sort="ordem" />"#,
+    );
+    let raiz = motor.evaluated("onda6_tabela").unwrap();
+    match &raiz.children[0].kind {
+        NodeType::TableView {
+            items_var,
+            columns_var,
+            value_var,
+            multi,
+            sort_var,
+            widths_var,
+            header_only,
+            ..
+        } => {
+            assert_eq!(items_var, "linhas");
+            assert_eq!(columns_var, "cols");
+            assert_eq!(value_var, "escolhida");
+            assert_eq!(sort_var, "ordem");
+            assert_eq!(widths_var, "larguras");
+            assert!(multi);
+            assert!(!header_only);
+        }
+        outro => panic!("esperava TableView, veio {outro:?}"),
+    }
+    match &raiz.children[1].kind {
+        NodeType::TableView {
+            header_only,
+            widths_var,
+            ..
+        } => {
+            assert!(header_only, "<tableheader> é a tabela sem corpo");
+            assert!(
+                widths_var.is_empty(),
+                "sem `widths`, o cabeçalho não tem alça"
+            );
+        }
+        outro => panic!("esperava TableView, veio {outro:?}"),
+    }
+}
+
+/// `<treeview>` e `<columnview>`: a mesma coleção aninhada, o caminho como
+/// identidade.
+#[test]
+fn onda6_treeview_e_columnview() {
+    let mut motor = motor_tela(
+        "onda6_arvore",
+        r#"<treeview items="arvore" value="no" open="abertos" indent="20" />
+           <columnview items="arvore" value="caminho" column_width="200" />"#,
+    );
+    let raiz = motor.evaluated("onda6_arvore").unwrap();
+    match &raiz.children[0].kind {
+        NodeType::TreeView {
+            items_var,
+            value_var,
+            open_var,
+            indent,
+            ..
+        } => {
+            assert_eq!((items_var.as_str(), value_var.as_str()), ("arvore", "no"));
+            assert_eq!(open_var, "abertos");
+            assert_eq!(*indent, 20.0);
+        }
+        outro => panic!("esperava TreeView, veio {outro:?}"),
+    }
+    match &raiz.children[1].kind {
+        NodeType::ColumnView {
+            value_var,
+            column_width,
+            ..
+        } => {
+            assert_eq!(value_var, "caminho");
+            assert_eq!(*column_width, 200.0);
+        }
+        outro => panic!("esperava ColumnView, veio {outro:?}"),
+    }
+}
+
+/// O arrasto da alça de coluna, do começo ao fim — a peça de motor da onda.
+///
+/// Três coisas, e a terceira é a que importa para o desempenho: enquanto (e só
+/// enquanto) a alça está presa, o motor escuta o movimento do mouse.
+#[test]
+fn onda6_arrasto_de_coluna_reescreve_a_chave_de_larguras() {
+    let mut motor = motor_tela(
+        "onda6_arrasto",
+        r#"<tableview items="linhas" columns="cols" widths="larguras" height="200" />"#,
+    );
+    motor.define_data("larguras", "120 fill 80");
+
+    // Nada preso: o motor NÃO escuta o mouse. Um listener sempre ligado emite
+    // uma centena de mensagens por segundo, e no iced cada mensagem é um quadro.
+    assert!(!motor.precisa_do_cursor());
+
+    // Pressionar a alça: a mensagem carrega só o que o widget sabe. O zero do
+    // arrasto fica em aberto — enquanto não havia alça presa o motor não
+    // escutava o mouse, então a última posição conhecida não vale nada.
+    let _ = motor.dispatch(&EngineMessage::ColumnResizeStart {
+        widths_var: "larguras".into(),
+        index: 0,
+        largura: 120.0,
+    });
+    assert!(
+        motor.precisa_do_cursor(),
+        "com a alça presa, o rastreio liga"
+    );
+
+    // O PRIMEIRO movimento só ancora: nada muda de largura ainda.
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(300.0, 40.0)));
+    assert_eq!(
+        motor.context().get("larguras").map(String::as_str),
+        Some("120 fill 80"),
+        "o primeiro movimento é o zero do arrasto, não um passo dele"
+    );
+
+    // Arrastar 40px para a direita.
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(340.0, 40.0)));
+    assert_eq!(
+        motor.context().get("larguras").map(String::as_str),
+        Some("160 fill 80"),
+        "a coluna arrastada vira FIXA; as outras ficam como estavam"
+    );
+
+    // E continua acompanhando o cursor: o zero do arrasto é o clique, não o
+    // último movimento — sem isso o arrasto acumularia erro a cada quadro.
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(260.0, 40.0)));
+    assert_eq!(
+        motor.context().get("larguras").map(String::as_str),
+        Some("80 fill 80")
+    );
+
+    // Soltar: o mesmo `DragEnd` que encerra o arrasto de uma lista reordenável
+    // — só existe um botão de mouse, e só um arrasto por vez.
+    let _ = motor.dispatch(&EngineMessage::DragEnd);
+    assert!(
+        !motor.precisa_do_cursor(),
+        "soltar desliga o rastreio de novo"
+    );
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(900.0, 40.0)));
+    assert_eq!(
+        motor.context().get("larguras").map(String::as_str),
+        Some("80 fill 80"),
+        "sem alça presa, mover o mouse não mexe em largura nenhuma"
+    );
+}
+
+/// A largura tem piso: uma coluna de zero some da tela junto com a alça dela, e
+/// não haveria como trazê-la de volta.
+#[test]
+fn onda6_a_coluna_arrastada_tem_piso() {
+    let mut motor = motor_tela(
+        "onda6_piso",
+        r#"<tableview items="l" columns="c" widths="w" height="200" />"#,
+    );
+    motor.define_data("w", "120");
+    let _ = motor.dispatch(&EngineMessage::ColumnResizeStart {
+        widths_var: "w".into(),
+        index: 0,
+        largura: 120.0,
+    });
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(400.0, 10.0)));
+    let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(0.0, 10.0)));
+    assert_eq!(motor.context().get("w").map(String::as_str), Some("48"));
 }

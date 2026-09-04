@@ -1,3 +1,4 @@
+pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
@@ -10,6 +11,7 @@ pub mod eval;
 pub mod external;
 pub mod file_dialog;
 pub mod forms;
+pub mod grid;
 pub mod luau;
 pub mod menu;
 pub mod net;
@@ -1003,7 +1005,17 @@ impl GlacierUI {
             // comentário em `EngineMessage::CursorMoved`) — só guarda a
             // posição, nunca reavalia nem envolve um componente.
             EngineMessage::CursorMoved(p) => {
+                let anterior = self.last_cursor_pos;
                 self.last_cursor_pos = *p;
+                // Com uma alça de coluna presa (`<tableheader>`, Onda 6), o
+                // movimento deixa de ser só rastreio e vira a largura nova. É o
+                // ÚNICO caso em que esta mensagem reavalia — e é por isso que o
+                // motor só escuta o mouse enquanto o arrasto existe (ver
+                // `precisa_do_cursor`): um listener sempre ligado redesenharia
+                // o app cem vezes por segundo por nada.
+                if anterior.x != p.x && self.arrasta_coluna(p.x) {
+                    let _ = self.reevaluate_all();
+                }
                 return iced::Task::none();
             }
             // Rolagem: guarda e volta. Reavaliar aqui seria refazer a árvore a
@@ -1340,6 +1352,11 @@ impl GlacierUI {
                 // Clear the "what am I dragging" marker so the highlight drops
                 // once the item is released (see `DragStart`).
                 self.context_data.remove(DRAG_KEY_CONTEXT);
+                // O mesmo soltar encerra o arrasto de uma alça de coluna
+                // (`<tableheader>`, Onda 6). As duas coisas compartilham este
+                // braço de propósito: só um arrasto existe por vez no app, e o
+                // botão do mouse é um só.
+                self.context_data.remove(crate::widget::COLGRIP_CONTEXT);
                 if let Some(drag) = self.drag.take() {
                     let value =
                         serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
@@ -1350,6 +1367,42 @@ impl GlacierUI {
                 }
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
+            }
+            EngineMessage::ColumnResizeStart {
+                widths_var,
+                index,
+                largura,
+            } => {
+                // O zero do arrasto fica **em aberto** (`?`), e é o primeiro
+                // movimento que o preenche.
+                //
+                // Não dá para usar `last_cursor_pos` aqui, e a razão é a
+                // própria economia que este widget faz: enquanto não há alça
+                // presa, o motor NÃO escuta o mouse (ver `precisa_do_cursor`),
+                // então a última posição conhecida é de um menu aberto meia
+                // hora atrás — ou a origem, se nunca houve um. O arrasto saía
+                // com centenas de pixels de erro no primeiro quadro.
+                //
+                // Adiar o zero para o primeiro `CursorMoved` custa um quadro
+                // sem redimensionar, que ninguém vê, e é exato daí em diante.
+                self.context_data.insert(
+                    crate::widget::COLGRIP_CONTEXT.to_string(),
+                    format!("{widths_var}|{index}|?|{largura}"),
+                );
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
+            EngineMessage::PatchThen { patch, inner } => {
+                // O patch primeiro (é estado do MOTOR: o realce de um
+                // `<autocomplete>`, por exemplo), a ação do app depois — que é
+                // a ordem que faz o `update` dele já enxergar o contexto novo.
+                // Sem `reevaluate_all` aqui: quem despacha `inner` reavalia, e
+                // reavaliar duas vezes por tecla é o dobro do trabalho para o
+                // mesmo quadro.
+                for (k, v) in patch {
+                    self.context_data.insert(k.clone(), v.clone());
+                }
+                return self.dispatch_interno(inner);
             }
             EngineMessage::MaskedEdit { id, cursor, inner } => {
                 // A gravação é a mensagem de sempre (`ContextPatch` ou
@@ -2225,7 +2278,65 @@ impl GlacierUI {
     /// hardware modesto, é isso que estrangula a rolagem: medido num app real,
     /// 70 movimentos por segundo davam 65 quadros por segundo, e 110 davam 10.
     pub fn precisa_do_cursor(&self) -> bool {
-        self.active_menu.is_some() || self.tree_bindings.values().any(|b| b.usa_cursor)
+        self.active_menu.is_some()
+            || self.tree_bindings.values().any(|b| b.usa_cursor)
+            // E enquanto uma alça de coluna estiver presa. A leitura de uma
+            // chave é barata; o listener que ela liga, não — daí ele existir só
+            // entre o pressionar e o soltar.
+            || self
+                .context_data
+                .get(crate::widget::COLGRIP_CONTEXT)
+                .is_some_and(|v| !v.is_empty())
+    }
+
+    /// Aplica o movimento horizontal do cursor à coluna que está sendo
+    /// arrastada, se houver uma. Devolve `true` quando escreveu algo.
+    ///
+    /// A chave de larguras guarda o mesmo formato de `columns` (`"160 fill 90"`),
+    /// e o arrasto **converte** a trilha tocada em fixa: uma coluna que se
+    /// redimensiona à mão deixa de ser flexível, que é o que a pessoa acabou de
+    /// pedir ao arrastá-la.
+    fn arrasta_coluna(&mut self, x: f32) -> bool {
+        let Some(grip) = self.context_data.get(crate::widget::COLGRIP_CONTEXT) else {
+            return false;
+        };
+        let campos: Vec<&str> = grip.split('|').collect();
+        let [chave, indice, x0, w0] = campos[..] else {
+            return false;
+        };
+        // O primeiro movimento depois do clique só **ancora** o arrasto: é este
+        // `x` que vira o zero dele. Ver `ColumnResizeStart` para o porquê de o
+        // zero não sair de lá.
+        if x0 == "?" {
+            let novo = format!("{chave}|{indice}|{x}|{w0}");
+            self.context_data
+                .insert(crate::widget::COLGRIP_CONTEXT.to_string(), novo);
+            return false;
+        }
+        let (Ok(indice), Ok(x0), Ok(w0)) = (
+            indice.parse::<usize>(),
+            x0.parse::<f32>(),
+            w0.parse::<f32>(),
+        ) else {
+            return false;
+        };
+        // O piso de 48px não é estética: uma coluna de largura zero some da
+        // tela junto com a alça dela, e não haveria como trazê-la de volta.
+        let nova = (w0 + (x - x0)).clamp(48.0, 1200.0);
+
+        let chave = chave.to_string();
+        let atual = self.context_data.get(&chave).cloned().unwrap_or_default();
+        let mut trilhas: Vec<String> = if atual.trim().is_empty() {
+            Vec::new()
+        } else {
+            atual.split_whitespace().map(str::to_string).collect()
+        };
+        while trilhas.len() <= indice {
+            trilhas.push("auto".to_string());
+        }
+        trilhas[indice] = format!("{nova:.0}");
+        self.context_data.insert(chave, trilhas.join(" "));
+        true
     }
 
     /// `true` se **todas** as dependências guardadas ainda têm o mesmo valor no

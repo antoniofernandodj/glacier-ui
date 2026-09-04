@@ -1,29 +1,29 @@
 <screen title="Glacier - Componentes locais" size="900 720">
   <resources>
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
-         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
-         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+      um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+      em cada pixel da tela, e ela custa (ver AGENTS.md). -->
     <link rel="theme" href="examples/componentes_locais/theme.json" />
     <!-- ======================================================================
-       A TERCEIRA FORMA DE TER UM COMPONENTE.
+      A TERCEIRA FORMA DE TER UM COMPONENTE.
 
-       As duas primeiras trazem de um arquivo:
+      As duas primeiras trazem de um arquivo:
 
-           <import name="X" from="x.gv" />
-           <link rel="component" href="x.gv" as="X" />
+          <import name="X" from="x.gv" />
+          <link rel="component" href="x.gv" as="X" />
 
-       Esta declara aqui mesmo. O que vai entre <component name="X"> e
-       </component> é BYTE A BYTE o que iria num .gv próprio: <props> e depois
-       o layout. A única diferença é o `name`.
+      Esta declara aqui mesmo. O que vai entre <component name="X"> e
+      </component> é BYTE A BYTE o que iria num .gv próprio: <props> e depois
+      o layout. A única diferença é o `name`.
 
-       Ela existe porque a maior parte dos componentes de uma tela é pequena e
-       só serve àquela tela. Obrigar cada um a virar arquivo troca três linhas
-       de markup por um arquivo, um caminho relativo e um <import>.
-       ====================================================================== -->
+      Ela existe porque a maior parte dos componentes de uma tela é pequena e
+      só serve àquela tela. Obrigar cada um a virar arquivo troca três linhas
+      de markup por um arquivo, um caminho relativo e um <import>.
+      ====================================================================== -->
 
     <!-- 1. Um componente de uma linha só. Este é o caso que a forma de arquivo
-       atende mal: um `.gv` inteiro para isto seria mais cerimônia do que
-       conteúdo. -->
+      atende mal: um `.gv` inteiro para isto seria mais cerimônia do que
+      conteúdo. -->
     <component name="Rotulo">
       <props>
         <prop name="texto" />
@@ -34,8 +34,8 @@
     </component>
 
     <!-- 2. Um componente que usa OUTRO componente local. Eles se compõem como
-       quaisquer outros — o nome entra no mesmo espaço de nomes, e a ordem de
-       declaração não importa. -->
+      quaisquer outros — o nome entra no mesmo espaço de nomes, e a ordem de
+      declaração não importa. -->
     <component name="LinhaLog">
       <props>
         <prop name="hora" />
@@ -46,8 +46,8 @@
         <Rotulo texto="{hora}" cor="#6C7086" tamanho="11" />
 
         <!-- O nível vira uma cor. Um `if`/`else-if` dentro de um componente
-           local funciona igual ao de qualquer template — não há nada de
-           especial na declaração inline além de onde ela mora. -->
+          local funciona igual ao de qualquer template — não há nada de
+          especial na declaração inline além de onde ela mora. -->
         <template if="{nivel}" equals="erro">
           <badge badge_text="erro" badge_bg="#F38BA8" badge_size="10" />
         </template>
@@ -63,8 +63,8 @@
     </component>
 
     <!-- 3. Um componente com mais de um nó de layout na raiz. Vira um
-       Fragment, exatamente como num arquivo: os irmãos são costurados no lugar
-       de quem usou a tag, sem uma <Column> fantasma por volta. -->
+      Fragment, exatamente como num arquivo: os irmãos são costurados no lugar
+      de quem usou a tag, sem uma <Column> fantasma por volta. -->
     <component name="Metrica">
       <props>
         <prop name="rotulo" />
@@ -81,7 +81,7 @@
     </component>
 
     <!-- E a forma de ARQUIVO, ao lado, para comparar. Abra
-       `cartao_servico.gv`: ele tem a mesma casca dos três blocos acima. -->
+      `cartao_servico.gv`: ele tem a mesma casca dos três blocos acima. -->
     <import name="CartaoServico" from="cartao_servico.gv" />
   </resources>
 

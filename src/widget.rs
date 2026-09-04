@@ -523,6 +523,41 @@ pub enum EngineMessage {
         cursor: usize,
         inner: Box<EngineMessage>,
     },
+    /// Começou o arrasto da alça de uma coluna de `<tableheader>`.
+    ///
+    /// A mensagem carrega **o que o widget sabe** — qual chave de larguras,
+    /// qual coluna e qual a largura atual dela — e nada mais. O `x` inicial do
+    /// cursor entra no `dispatch`, que é quem tem a posição do ponteiro em
+    /// coordenadas de janela ([`Self::CursorMoved`]); um `mouse_area` só sabe a
+    /// posição relativa aos limites dele, que não serve para medir um arrasto.
+    ///
+    /// Daí em diante quem trabalha é o motor: enquanto `__colgrip` existir, ele
+    /// escuta o movimento do mouse (e **só** enquanto — ver
+    /// `GlacierUI::precisa_do_cursor`) e reescreve a largura a cada quadro. O
+    /// soltar do botão chega como [`Self::DragEnd`], a mesma mensagem que
+    /// encerra o arrasto de uma lista reordenável.
+    ColumnResizeStart {
+        widths_var: String,
+        index: usize,
+        largura: f32,
+    },
+    /// **Grava e depois despacha**: aplica `patch` no contexto e só então
+    /// entrega `inner` ao caminho normal.
+    ///
+    /// Existe pelo mesmo motivo de [`Self::MaskedEdit`] — uma mensagem do motor
+    /// carrega **uma** ação, e alguns widgets precisam mexer numa chave *do
+    /// motor* no mesmo passo em que avisam o app. O `<autocomplete>` é o caso
+    /// que a criou: uma tecla move o realce (chave `__ac_<valor>`, que é do
+    /// motor) **e** notifica o `onChange` do app (que é dele). Sem esta
+    /// variante, uma das duas coisas teria de esperar o quadro seguinte — e o
+    /// realce piscaria.
+    ///
+    /// `patch` roda primeiro, para que o `update` do app já leia o contexto no
+    /// estado novo.
+    PatchThen {
+        patch: Vec<(String, String)>,
+        inner: Box<EngineMessage>,
+    },
     /// An edit on a `<TextArea>`: `binding` is its `value` key, `action` is the
     /// editor action to apply to the kept `Content`, `on_change` is the action
     /// dispatched (with the new full text) after applying it.
@@ -716,6 +751,8 @@ impl EngineMessage {
             Self::TimeEditKey { .. } => "TimeEditKey",
             Self::UiInputChanged { .. } => "UiInputChanged",
             Self::MaskedEdit { .. } => "MaskedEdit",
+            Self::PatchThen { .. } => "PatchThen",
+            Self::ColumnResizeStart { .. } => "ColumnResizeStart",
             Self::UiEditorAction { .. } => "UiEditorAction",
             Self::UiComboInput { .. } => "UiComboInput",
             Self::UiComboSelected { .. } => "UiComboSelected",
@@ -1152,7 +1189,7 @@ fn cal_celula<'a>(
 /// (`__cal_<chave>`, `__cal_hover`) e a(s) chave(s) que o app nomeou.
 #[allow(clippy::too_many_arguments)]
 fn render_calendar<'a>(
-    node: &'a UiNode,
+    largura: Length,
     context: &'a ContextMap,
     value_var: &'a str,
     end_var: &'a str,
@@ -1167,6 +1204,18 @@ fn render_calendar<'a>(
     month_names: &'a str,
     day_names: &'a str,
     on_change: &'a str,
+    // Pares gravados **junto com a escolha de um valor** — nunca com a
+    // navegação de mês, que não escolhe nada.
+    //
+    // Existe por causa de um consumidor só, e ele explica a forma: o
+    // `calendarPopup` do `<dateedit>` precisa **fechar o painel** no mesmo
+    // passo em que o dia é escolhido. Fosse uma segunda mensagem, o painel
+    // ficaria um quadro no ar depois do clique.
+    //
+    // No modo que delega (`onChange` preenchido) eles viajam num
+    // `EngineMessage::PatchThen`: são estado do MOTOR, e não é o handler do
+    // app que decide se um painel fecha.
+    extra_ao_escolher: Vec<(String, String)>,
 ) -> Element<'a, EngineMessage> {
     let hoje = iso_ymd(today);
     let inicio_sel = iso_ymd(context.get(value_var).map(String::as_str).unwrap_or(""));
@@ -1223,11 +1272,21 @@ fn render_calendar<'a>(
     // sozinhos no modo que delega, porque navegar não é escolher.
     let commit = move |valor: Vec<(String, String)>, delegado: String| -> EngineMessage {
         if acao.is_empty() {
-            EngineMessage::ContextPatch(valor)
+            let mut pares = valor;
+            pares.extend_from_slice(&extra_ao_escolher);
+            EngineMessage::ContextPatch(pares)
         } else {
-            EngineMessage::UiInputChanged {
+            let avisa = EngineMessage::UiInputChanged {
                 action: acao.clone(),
                 value: delegado,
+            };
+            if extra_ao_escolher.is_empty() {
+                avisa
+            } else {
+                EngineMessage::PatchThen {
+                    patch: extra_ao_escolher.clone(),
+                    inner: Box::new(avisa),
+                }
             }
         }
     };
@@ -1582,11 +1641,7 @@ fn render_calendar<'a>(
     // background/borda nunca precisa decidir por ela (ver `PRIMITIVAS.md`).
     container(column![cabecalho, corpo].spacing(6))
         .padding(8)
-        .width(if node.width.is_some() {
-            parse_length(&node.width)
-        } else {
-            Length::Shrink
-        })
+        .width(largura)
         .style(|theme: &iced::Theme| {
             let p = theme.extended_palette();
             container::Style {
@@ -2068,6 +2123,1118 @@ fn render_masked_input<'a>(
         campo = campo.width(parse_length(&node.width));
     }
     campo.into()
+}
+
+/// Prefixo da chave do motor que guarda o realce de um `<autocomplete>` —
+/// `-1` (ou ausente) = painel fechado. Derivada da chave editada, como o
+/// `__cal_` do `<calendar>`: duas buscas na mesma tela navegam sozinhas.
+const AC_PREFIX: &str = "__ac_";
+
+/// Prefixo da chave do motor que diz se o `calendarPopup` de um `<dateedit>`
+/// está aberto. Derivada da chave editada, como o `__cal_` — dois campos na
+/// mesma tela abrem e fecham sem se ver.
+const DTPOP_PREFIX: &str = "__dtpop_";
+
+/// Os nomes que marcam o **gatilho** de um `<popover>`, no `slot` do filho.
+fn e_ancora(node: &UiNode) -> bool {
+    matches!(
+        node.slot_name().map(str::trim),
+        Some("anchor" | "ancora" | "âncora" | "trigger" | "gatilho")
+    )
+}
+
+/// Empilha um punhado de filhos num elemento só, sem embrulhar quando é um.
+///
+/// Não embrulhar o caso de um filho é o que deixa o painel escrito no markup
+/// (`<column class="painel">`) ser ele mesmo a caixa pintada: uma `Column`
+/// implícita por fora seria uma camada a mais medindo a mesma área, que é
+/// exatamente o que o `AGENTS.md` dos templates manda evitar.
+fn empilha<'a>(
+    filhos: &[&'a UiNode],
+    context: &'a ContextMap,
+    editors: &'a EditorMap,
+    combos: &'a ComboMap,
+    assets: &dyn crate::asset_source::AssetSource,
+    view: RenderView<'a>,
+) -> Element<'a, EngineMessage> {
+    match filhos {
+        [] => Space::new().width(0).height(0).into(),
+        [um] => render_node(um, context, editors, combos, assets, view),
+        muitos => {
+            let mut col = column![];
+            for f in muitos {
+                col = col.push(render_node(f, context, editors, combos, assets, view));
+            }
+            col.into()
+        }
+    }
+}
+
+/// `<popover>` / `<popup>` — ver [`NodeType::Popover`] e [`crate::anchored`].
+#[allow(clippy::too_many_arguments)]
+fn render_popover<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    editors: &'a EditorMap,
+    combos: &'a ComboMap,
+    assets: &dyn crate::asset_source::AssetSource,
+    view: RenderView<'a>,
+    value_var: &'a str,
+    placement: crate::anchored::Placement,
+    align: crate::anchored::Align,
+    offset: f32,
+    largura: crate::anchored::Largura,
+    dismiss: bool,
+    trigger: bool,
+    on_close: &'a str,
+) -> Element<'a, EngineMessage> {
+    use crate::anchored::{Placement, anchored};
+
+    let visiveis: Vec<&UiNode> = node
+        .children
+        .iter()
+        .filter(|c| c.hidden != Some(true))
+        .collect();
+
+    // A partição, em duas regras e nesta ordem:
+    //  1. algum filho marcado `slot="anchor"` → é ele o gatilho, e o resto é o
+    //     painel (a forma explícita, e a que sobrevive a reordenar o markup);
+    //  2. ninguém marcado → num `<popup>` centrado não há gatilho nenhum (todos
+    //     os filhos são painel); num ancorado, o PRIMEIRO é o gatilho.
+    let (ancoras, painel): (Vec<&UiNode>, Vec<&UiNode>) = if visiveis.iter().any(|c| e_ancora(c)) {
+        visiveis.iter().partition(|c| e_ancora(c))
+    } else if placement == Placement::Center {
+        (Vec::new(), visiveis.clone())
+    } else {
+        let (primeiro, resto) = visiveis.split_at(visiveis.len().min(1));
+        (primeiro.to_vec(), resto.to_vec())
+    };
+
+    let gatilho = match ancoras.as_slice() {
+        [] => Space::new().width(0).height(0).into(),
+        [um] => render_node(um, context, editors, combos, assets, view),
+        muitos => {
+            let mut linha = row![];
+            if let Some(sp) = node.spacing {
+                linha = linha.spacing(sp);
+            }
+            for m in muitos {
+                linha = linha.push(render_node(m, context, editors, combos, assets, view));
+            }
+            linha.into()
+        }
+    };
+    let conteudo = empilha(&painel, context, editors, combos, assets, view);
+
+    let aberto = context.get(value_var).is_some_and(|v| is_truthy(v));
+
+    // Fechar é a mesma decisão de sempre — o contrato do `<textinput>`: sem
+    // `onClose` o widget zera a chave; com ele, delega. O valor entregue é
+    // vazio de propósito: quem fecha não escolheu nada.
+    let fechar = (dismiss && !value_var.is_empty()).then(|| {
+        if on_close.is_empty() {
+            EngineMessage::ContextPatch(vec![(value_var.to_string(), String::new())])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: on_close.to_string(),
+                value: String::new(),
+            }
+        }
+    });
+
+    // Abrir é do widget, como fechar — e é o que dispensa o app de escrever um
+    // handler por painel. `trigger="none"` devolve a decisão a ele.
+    let abrir = (trigger && !value_var.is_empty())
+        .then(|| EngineMessage::ContextPatch(vec![(value_var.to_string(), "true".to_string())]));
+
+    anchored(gatilho, conteudo, aberto)
+        .placement(placement)
+        .align(align)
+        .offset(offset)
+        .largura(largura)
+        .on_dismiss(fechar)
+        .on_open(abrir)
+        .into()
+}
+
+/// As sugestões que um `<autocomplete>` mostra agora: a lista inteira recortada
+/// pelo texto digitado, sem acento e sem caixa, limitada a `max_items`.
+///
+/// Separada do render porque as mensagens de teclado precisam do **mesmo**
+/// recorte para saber quantos itens há — e recalculá-lo com outra regra dentro
+/// de um `move ||` seria a forma clássica de o realce apontar para um item que
+/// a tela não mostra.
+fn sugestoes(
+    candidatos: &[SelectOption],
+    digitado: &str,
+    filter: bool,
+    min_chars: usize,
+    max_items: usize,
+) -> Vec<SelectOption> {
+    if digitado.chars().count() < min_chars {
+        return Vec::new();
+    }
+    if !filter {
+        return candidatos.iter().take(max_items).cloned().collect();
+    }
+    let alvo = dobra(digitado);
+    candidatos
+        .iter()
+        .filter(|o| dobra(&o.label).contains(&alvo))
+        .take(max_items)
+        .cloned()
+        .collect()
+}
+
+/// Minúsculas e sem acento — a comparação que uma busca em pt-BR precisa para
+/// "sao paulo" achar "São Paulo".
+///
+/// Uma tabela dos acentos que a língua usa, não uma normalização Unicode: a
+/// segunda pediria uma crate inteira para o mesmo resultado nas cinco vogais
+/// que importam aqui.
+fn dobra(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| c.to_lowercase())
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            outro => outro,
+        })
+        .collect()
+}
+
+/// `<autocomplete>` / `<completer>` — ver [`NodeType::Autocomplete`].
+#[allow(clippy::too_many_arguments)]
+fn render_autocomplete<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    value_var: &'a str,
+    items_var: &'a str,
+    placeholder: &'a str,
+    min_chars: usize,
+    max_items: usize,
+    filter: bool,
+    on_change: &'a str,
+    on_select: &'a str,
+) -> Element<'a, EngineMessage> {
+    use crate::anchored::{Align, Largura, Placement, anchored};
+
+    let digitado = context.get(value_var).cloned().unwrap_or_default();
+    let candidatos: Vec<SelectOption> = context
+        .get(items_var)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        .and_then(|v| match v {
+            serde_json::Value::Array(a) => Some(a),
+            _ => None,
+        })
+        .map(|arr| {
+            arr.iter()
+                .map(|item| SelectOption::from_json(item, "label", "id"))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let visiveis = sugestoes(&candidatos, &digitado, filter, min_chars, max_items);
+
+    let chave_realce = format!("{AC_PREFIX}{value_var}");
+    // `-1` e "ausente" são a mesma coisa — painel fechado. Um índice que
+    // sobreviveu a uma lista que encolheu é preso na faixa nova, senão a seta
+    // ▼ ficaria presa apontando para o vazio.
+    let realce: i64 = context
+        .get(&chave_realce)
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(-1);
+    let aberto = realce >= 0 && !visiveis.is_empty();
+    let realce = if aberto {
+        realce.min(visiveis.len() as i64 - 1)
+    } else {
+        -1
+    };
+
+    // ── O que cada mensagem escreve ──────────────────────────────────────
+    //
+    // Sempre as MESMAS duas coisas, em proporções diferentes: a chave do app
+    // (o texto ou a escolha) e a chave do motor (o realce). Quando o app não
+    // pediu `onChange`/`onSelect`, um `ContextPatch` faz as duas de uma vez;
+    // quando pediu, o `PatchThen` grava o realce e entrega a ação a ele.
+    let entrega = |patch: Vec<(String, String)>, acao: &str, valor: String| -> EngineMessage {
+        if acao.is_empty() {
+            EngineMessage::ContextPatch(patch)
+        } else {
+            EngineMessage::PatchThen {
+                patch,
+                inner: Box::new(EngineMessage::UiInputChanged {
+                    action: acao.to_string(),
+                    value: valor,
+                }),
+            }
+        }
+    };
+
+    let escolhe = |o: &SelectOption| -> EngineMessage {
+        // Sem `onSelect`, o widget grava o RÓTULO na chave editada: é o texto
+        // que a pessoa vê no campo, e o que ela esperaria ler ali depois de
+        // clicar. O `id` vai para quem pediu `onSelect` — é ele que serve para
+        // ligar a escolha a um registro.
+        let patch = vec![
+            (value_var.to_string(), o.label.clone()),
+            (chave_realce.clone(), "-1".to_string()),
+        ];
+        entrega(patch, on_select, o.value.clone())
+    };
+
+    // ── O campo ──────────────────────────────────────────────────────────
+    let candidatos_input = candidatos.clone();
+    let chave = value_var.to_string();
+    let chave_realce_input = chave_realce.clone();
+    let acao_change = on_change.to_string();
+    let mut campo = text_input(placeholder, &digitado).on_input(move |novo| {
+        // O realce volta para o topo a cada tecla: a lista mudou debaixo dele,
+        // e manter o índice antigo apontaria para outro item — o pior tipo de
+        // bug de autocomplete, porque só aparece no Enter.
+        let quantos = sugestoes(&candidatos_input, &novo, filter, min_chars, max_items).len();
+        let idx = if quantos > 0 { "0" } else { "-1" };
+        let patch = vec![
+            (chave.clone(), novo.clone()),
+            (chave_realce_input.clone(), idx.to_string()),
+        ];
+        if acao_change.is_empty() {
+            EngineMessage::ContextPatch(patch)
+        } else {
+            EngineMessage::PatchThen {
+                patch,
+                inner: Box::new(EngineMessage::UiInputChanged {
+                    action: acao_change.clone(),
+                    value: novo,
+                }),
+            }
+        }
+    });
+    campo = campo.padding(8);
+    if node.width.is_some() {
+        campo = campo.width(parse_length(&node.width));
+    }
+
+    // ── O painel ─────────────────────────────────────────────────────────
+    //
+    // O painel se pinta pela paleta do tema, como o `<select>` e o
+    // `<calendar>`: uma primitiva não tem props por nó interno (isso é
+    // capacidade de builtin, 0.89), e cravar cor aqui brigaria com o
+    // `theme.json` do app.
+    let mut lista = column![].width(Length::Fill);
+    for (i, o) in visiveis.iter().enumerate() {
+        let ativa = i as i64 == realce;
+        let rotulo = text(o.label.clone()).size(13);
+        let mut b = button(rotulo)
+            .width(Length::Fill)
+            .padding([6, 10])
+            .on_press(escolhe(o));
+        b = b.style(move |theme: &iced::Theme, status: button::Status| {
+            let pal = theme.extended_palette();
+            let realcada = ativa || matches!(status, button::Status::Hovered);
+            button::Style {
+                background: realcada.then_some(Background::Color(pal.primary.weak.color)),
+                text_color: pal.background.base.text,
+                border: Border {
+                    radius: iced::border::Radius::new(4.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        });
+        lista = lista.push(b);
+    }
+    let painel = container(lista).padding(4).style(|theme: &iced::Theme| {
+        let pal = theme.extended_palette();
+        container::Style {
+            background: Some(Background::Color(pal.background.base.color)),
+            border: Border {
+                radius: iced::border::Radius::new(6.0),
+                width: 1.0,
+                color: pal.background.strong.color,
+            },
+            shadow: iced::Shadow {
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
+                offset: iced::Vector::new(0.0, 4.0),
+                blur_radius: 12.0,
+            },
+            ..Default::default()
+        }
+    });
+
+    // ── Teclado ──────────────────────────────────────────────────────────
+    //
+    // As três teclas só existem com o painel aberto — e é o overlay que as
+    // consome, antes de o `text_input` focado vê-las. `Esc` é o `on_dismiss`
+    // logo abaixo, que zera o realce como qualquer outro fechamento.
+    let n = visiveis.len() as i64;
+    let anda = |delta: i64| -> EngineMessage {
+        // Circula: ▼ no último volta ao primeiro. Numa lista de oito
+        // sugestões, chegar ao fim e continuar apertando é mais comum do que
+        // parece, e travar ali não ajuda ninguém.
+        let novo = (realce + delta).rem_euclid(n.max(1));
+        EngineMessage::ContextPatch(vec![(chave_realce.clone(), novo.to_string())])
+    };
+    let aceita = visiveis.get(realce.max(0) as usize).map(escolhe);
+
+    // Clicar no campo abre a lista, se houver o que mostrar — é o que faz
+    // `min_chars="0"` querer dizer "abre a lista inteira ao focar". Com o
+    // default (1 caractere), clicar num campo vazio não abre nada, que é o
+    // comportamento esperado: não há o que sugerir ainda.
+    let abre_ao_focar = (!visiveis.is_empty() && !aberto)
+        .then(|| EngineMessage::ContextPatch(vec![(chave_realce.clone(), "0".to_string())]));
+
+    anchored(campo, painel, aberto)
+        .on_open(abre_ao_focar)
+        .placement(Placement::Bottom)
+        .align(Align::Start)
+        .offset(2.0)
+        .largura(Largura::Ancora)
+        .on_dismiss(Some(EngineMessage::ContextPatch(vec![(
+            chave_realce.clone(),
+            "-1".to_string(),
+        )])))
+        .on_keys(
+            aberto.then(|| anda(-1)),
+            aberto.then(|| anda(1)),
+            aceita.filter(|_| aberto),
+        )
+        .into()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onda 6 — a grade, e a família que sai dela
+//
+// A medição bidimensional mora em `crate::grid`; o que está aqui é o que cada
+// widget FAZ com ela: ordenar, selecionar, recuar, arrastar uma alça.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A chave do motor que guarda o arrasto de coluna em curso:
+/// `"<chave_larguras>|<indice>|<x_inicial>|<largura_inicial>"`.
+///
+/// Global, e legitimamente: só uma alça do app inteiro está sob o cursor por
+/// vez — a mesma família do `__timeedit` e do `__cal_hover`. A identidade da
+/// instância viaja no valor.
+pub(crate) const COLGRIP_CONTEXT: &str = "__colgrip";
+
+/// Altura da alça de arrasto entre duas colunas, em pixels. Declarada, não
+/// medida — ver o comentário em `celulas_cabecalho`.
+const ALTURA_ALCA: f32 = 20.0;
+
+/// Uma coluna de `<tableview>`, como o app a declarou.
+#[derive(Debug, Clone)]
+struct Coluna {
+    /// A chave lida de cada linha.
+    campo: String,
+    /// O que aparece no cabeçalho.
+    rotulo: String,
+    /// A trilha desta coluna (medida, fixa ou flexível).
+    trilha: crate::grid::Trilha,
+    /// `left` (default), `center` ou `right` — o alinhamento do texto na
+    /// célula. `right` é o que uma coluna de número quer.
+    align: iced::alignment::Horizontal,
+}
+
+impl Coluna {
+    /// Lê uma coluna de um objeto `{key, label, width, align}` do array de
+    /// `columns`. Uma string solta é a chave e o rótulo ao mesmo tempo.
+    fn from_json(v: &serde_json::Value) -> Self {
+        let texto = |x: Option<&serde_json::Value>| -> Option<String> {
+            x.map(|v| match v {
+                serde_json::Value::String(s) => s.clone(),
+                outro => outro.to_string(),
+            })
+        };
+        match v {
+            serde_json::Value::Object(o) => {
+                let campo = texto(o.get("key").or_else(|| o.get("campo")))
+                    .or_else(|| texto(o.get("id")))
+                    .unwrap_or_default();
+                let rotulo = texto(o.get("label").or_else(|| o.get("rotulo")))
+                    .unwrap_or_else(|| campo.clone());
+                let trilha = texto(o.get("width").or_else(|| o.get("largura")))
+                    .map(|w| crate::grid::Trilha::parse_uma(&w))
+                    .unwrap_or(crate::grid::Trilha::Auto);
+                let align = match texto(o.get("align").or_else(|| o.get("alinhamento")))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_ascii_lowercase()
+                    .as_str()
+                {
+                    "right" | "direita" | "end" => iced::alignment::Horizontal::Right,
+                    "center" | "centro" => iced::alignment::Horizontal::Center,
+                    _ => iced::alignment::Horizontal::Left,
+                };
+                Self {
+                    campo,
+                    rotulo,
+                    trilha,
+                    align,
+                }
+            }
+            outro => {
+                let s = match outro {
+                    serde_json::Value::String(s) => s.clone(),
+                    x => x.to_string(),
+                };
+                Self {
+                    campo: s.clone(),
+                    rotulo: s,
+                    trilha: crate::grid::Trilha::Auto,
+                    align: iced::alignment::Horizontal::Left,
+                }
+            }
+        }
+    }
+}
+
+/// A ordenação corrente, lida de `sort_var`: `"nome asc"` / `"nome desc"`.
+///
+/// Uma chave só para as duas metades, e não duas, porque coluna e direção nunca
+/// mudam separadamente: clicar num cabeçalho decide as duas ao mesmo tempo.
+#[derive(Debug, Clone, Default)]
+struct Ordem {
+    campo: String,
+    desc: bool,
+}
+
+impl Ordem {
+    fn parse(bruto: Option<&String>) -> Self {
+        let Some(t) = bruto.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+            return Self::default();
+        };
+        let (campo, dir) = t.split_once(char::is_whitespace).unwrap_or((t, "asc"));
+        Self {
+            campo: campo.to_string(),
+            desc: {
+                let d = dir.trim().to_ascii_lowercase();
+                d == "desc" || d == "decrescente" || d == "-"
+            },
+        }
+    }
+
+    fn serializa(&self) -> String {
+        format!("{} {}", self.campo, if self.desc { "desc" } else { "asc" })
+    }
+
+    /// O que um clique nesta coluna produz: a primeira vez ordena crescente, a
+    /// segunda inverte. Clicar noutra coluna sempre recomeça crescente — que é
+    /// o que todo gerenciador de arquivos faz, e o que evita a surpresa de uma
+    /// coluna nova já nascer invertida.
+    fn ao_clicar(&self, campo: &str) -> Self {
+        Self {
+            campo: campo.to_string(),
+            desc: self.campo == campo && !self.desc,
+        }
+    }
+}
+
+/// O valor de uma linha numa coluna, já como texto.
+fn celula_texto(linha: &serde_json::Value, campo: &str) -> String {
+    match linha.get(campo) {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Null) | None => String::new(),
+        Some(outro) => outro.to_string(),
+    }
+}
+
+/// A identidade de uma linha: o `id` dela, ou o valor da primeira coluna, ou o
+/// índice — nessa ordem.
+///
+/// A cascata existe porque a seleção precisa de uma chave estável e o app nem
+/// sempre tem um `id` a dar: uma tabela de leitura montada de um CSV não tem.
+fn identidade_linha(linha: &serde_json::Value, colunas: &[Coluna], i: usize) -> String {
+    let id = celula_texto(linha, "id");
+    if !id.is_empty() {
+        return id;
+    }
+    match colunas.first() {
+        Some(c) => {
+            let v = celula_texto(linha, &c.campo);
+            if v.is_empty() { i.to_string() } else { v }
+        }
+        None => i.to_string(),
+    }
+}
+
+/// Ordena as linhas por uma coluna.
+///
+/// **Numérica quando os dois lados parseiam como número**, textual (sem caixa e
+/// sem acento, via [`dobra`]) quando não. Sem isso, uma coluna de contagem
+/// coloca `"10"` antes de `"9"` — o bug de tabela mais clássico que existe.
+fn ordena(linhas: &mut [serde_json::Value], campo: &str, desc: bool) {
+    linhas.sort_by(|a, b| {
+        let (x, y) = (celula_texto(a, campo), celula_texto(b, campo));
+        let cmp = match (x.trim().parse::<f64>(), y.trim().parse::<f64>()) {
+            (Ok(nx), Ok(ny)) => nx.partial_cmp(&ny).unwrap_or(std::cmp::Ordering::Equal),
+            _ => dobra(&x).cmp(&dobra(&y)),
+        };
+        if desc { cmp.reverse() } else { cmp }
+    });
+}
+
+/// As colunas de um `<tableview>`: do array JSON na chave, ou — quando o
+/// atributo não nomeia chave nenhuma — da própria especificação de trilhas.
+fn colunas_de(context: &ContextMap, spec: &str) -> Vec<Coluna> {
+    if let Some(json) = context.get(spec)
+        && let Ok(serde_json::Value::Array(arr)) = serde_json::from_str::<serde_json::Value>(json)
+    {
+        return arr.iter().map(Coluna::from_json).collect();
+    }
+    // Sem chave, `columns="140 fill 80"` ainda descreve a grade — só que sem
+    // rótulos. É a saída de quem monta o cabeçalho à mão com `<tableheader>`.
+    crate::grid::Trilha::parse_faixas(spec)
+        .into_iter()
+        .enumerate()
+        .map(|(i, trilha)| Coluna {
+            campo: i.to_string(),
+            rotulo: String::new(),
+            trilha,
+            align: iced::alignment::Horizontal::Left,
+        })
+        .collect()
+}
+
+/// Aplica as larguras arrastadas por cima das declaradas.
+///
+/// A chave de `widths` guarda o MESMO formato de `columns` (`"160 fill 90"`),
+/// e é isso que permite ao app semeá-la com a configuração salva de um usuário
+/// sem conhecer nenhuma estrutura interna do widget.
+fn aplica_larguras(colunas: &mut [Coluna], context: &ContextMap, widths_var: &str) {
+    if widths_var.is_empty() {
+        return;
+    }
+    let Some(bruto) = context.get(widths_var).filter(|s| !s.trim().is_empty()) else {
+        return;
+    };
+    for (c, t) in colunas
+        .iter_mut()
+        .zip(crate::grid::Trilha::parse_faixas(bruto))
+    {
+        c.trilha = t;
+    }
+}
+
+/// A largura corrente de uma coluna, para o arrasto ter de onde partir.
+///
+/// Uma trilha flexível não tem número, e o arrasto precisa de um: aí ele parte
+/// de um valor plausível (160) e a primeira alça já a converte em fixa. É a
+/// simplificação honesta — o alternativo seria devolver a largura MEDIDA, que
+/// só o `layout()` conhece e que este lado não vê.
+fn largura_corrente(trilha: crate::grid::Trilha) -> f32 {
+    match trilha {
+        crate::grid::Trilha::Fixa(w) => w,
+        _ => 160.0,
+    }
+}
+
+/// O cabeçalho: uma célula por coluna, clicável quando há `sort_var`, com uma
+/// alça de arrasto entre colunas quando há `widths_var`.
+#[allow(clippy::too_many_arguments)]
+fn celulas_cabecalho(
+    colunas: &[Coluna],
+    ordem: &Ordem,
+    sort_var: &str,
+    widths_var: &str,
+    on_sort: &str,
+) -> Vec<Element<'static, EngineMessage>> {
+    colunas
+        .iter()
+        .enumerate()
+        .map(|(i, col)| {
+            let marca = if ordem.campo == col.campo {
+                if ordem.desc { " ▾" } else { " ▴" }
+            } else {
+                ""
+            };
+            let rotulo = text(format!("{}{marca}", col.rotulo))
+                .size(12)
+                .width(Length::Fill)
+                .align_x(col.align);
+
+            let ordenavel = !sort_var.is_empty() && !col.campo.is_empty();
+            let mut celula: Element<'static, EngineMessage> = if ordenavel {
+                let nova = ordem.ao_clicar(&col.campo);
+                let msg = if on_sort.is_empty() {
+                    EngineMessage::ContextPatch(vec![(sort_var.to_string(), nova.serializa())])
+                } else {
+                    EngineMessage::UiInputChanged {
+                        action: on_sort.to_string(),
+                        value: nova.serializa(),
+                    }
+                };
+                button(rotulo)
+                    .width(Length::Fill)
+                    .padding([5, 6])
+                    .on_press(msg)
+                    .style(
+                        |theme: &iced::Theme, status: button::Status| button::Style {
+                            background: matches!(status, button::Status::Hovered).then(|| {
+                                Background::Color(theme.extended_palette().background.weak.color)
+                            }),
+                            text_color: theme.extended_palette().background.base.text,
+                            border: Border::default().rounded(3),
+                            ..Default::default()
+                        },
+                    )
+                    .into()
+            } else {
+                container(rotulo).padding([5, 6]).into()
+            };
+
+            // A alça: uma faixa fina no fim da célula que começa o arrasto. Ela
+            // é irmã do rótulo dentro de uma `Row`, não um nó por cima — um
+            // overlay aqui roubaria o clique de ordenar.
+            if !widths_var.is_empty() {
+                // **Altura fixa, nunca `Fill`.** Uma tabela mora dentro de um
+                // `<scrollable>`, e um scrollable oferece altura INFINITA aos
+                // filhos: um `Length::Fill` aqui fazia a linha do cabeçalho
+                // medir infinito e empurrar o corpo inteiro para fora da tela —
+                // a tabela aparecia vazia, sem erro nenhum. É a mesma armadilha
+                // do `Length::Fill` no wrap de background que o `PRIMITIVAS.md`
+                // registra, do outro lado do eixo.
+                let alca = mouse_area(
+                    container(Space::new().width(1).height(ALTURA_ALCA))
+                        .width(7)
+                        .height(ALTURA_ALCA)
+                        .align_x(iced::alignment::Horizontal::Center)
+                        .style(|theme: &iced::Theme| container::Style {
+                            background: Some(Background::Color(
+                                theme.extended_palette().background.strong.color,
+                            )),
+                            ..Default::default()
+                        }),
+                )
+                .interaction(iced::mouse::Interaction::ResizingHorizontally)
+                .on_press(EngineMessage::ColumnResizeStart {
+                    widths_var: widths_var.to_string(),
+                    index: i,
+                    largura: largura_corrente(col.trilha),
+                });
+                celula = row![celula, alca].align_y(iced::Alignment::Center).into();
+            }
+            celula
+        })
+        .collect()
+}
+
+/// `<tableview>` / `<tableheader>` — ver [`NodeType::TableView`].
+#[allow(clippy::too_many_arguments)]
+fn render_tableview<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    items_var: &'a str,
+    columns_var: &'a str,
+    value_var: &'a str,
+    multi: bool,
+    sort_var: &'a str,
+    widths_var: &'a str,
+    header_only: bool,
+    row_height: f32,
+    on_select: &'a str,
+    on_sort: &'a str,
+) -> Element<'a, EngineMessage> {
+    let mut colunas = colunas_de(context, columns_var);
+    aplica_larguras(&mut colunas, context, widths_var);
+    if colunas.is_empty() {
+        return Space::new().into();
+    }
+    let ordem = Ordem::parse(context.get(sort_var));
+
+    let mut celulas: Vec<Element<'a, EngineMessage>> =
+        celulas_cabecalho(&colunas, &ordem, sort_var, widths_var, on_sort);
+
+    // O corpo. A tabela e o cabeçalho são a MESMA grade — é o que garante que a
+    // coluna do rótulo e a da célula tenham a mesma largura sem ninguém
+    // combinar nada. Um cabeçalho numa grade e um corpo noutra sairiam
+    // desalinhados no primeiro texto longo.
+    let mut linhas: Vec<serde_json::Value> = if header_only {
+        Vec::new()
+    } else {
+        context
+            .get(items_var)
+            .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+            .and_then(|v| match v {
+                serde_json::Value::Array(a) => Some(a),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+    if !ordem.campo.is_empty() {
+        ordena(&mut linhas, &ordem.campo, ordem.desc);
+    }
+
+    let selecao = context.get(value_var).cloned().unwrap_or_default();
+    for (i, linha) in linhas.iter().enumerate() {
+        let id = identidade_linha(linha, &colunas, i);
+        let marcada = if multi {
+            selecao
+                .split([',', ';', ' '])
+                .map(str::trim)
+                .any(|t| !t.is_empty() && t == id)
+        } else {
+            selecao == id
+        };
+        let msg = (!value_var.is_empty()).then(|| {
+            let novo = if multi {
+                crate::builtins::list_view::alterna_no_conjunto(&selecao, &id)
+            } else {
+                id.clone()
+            };
+            if on_select.is_empty() {
+                EngineMessage::ContextPatch(vec![(value_var.to_string(), novo)])
+            } else {
+                EngineMessage::UiInputChanged {
+                    action: on_select.to_string(),
+                    value: novo,
+                }
+            }
+        });
+        for col in &colunas {
+            let conteudo = text(celula_texto(linha, &col.campo))
+                .size(13)
+                .width(Length::Fill)
+                .align_x(col.align);
+            let celula: Element<'a, EngineMessage> = match &msg {
+                // A linha inteira é clicável, célula a célula: um botão por
+                // célula é o que mantém o realce alinhado à grade sem um
+                // segundo nó por linha por cima dela.
+                Some(m) => button(conteudo)
+                    .width(Length::Fill)
+                    .padding([6, 6])
+                    .on_press(m.clone())
+                    .style(move |theme: &iced::Theme, status: button::Status| {
+                        let pal = theme.extended_palette();
+                        let realce = marcada || matches!(status, button::Status::Hovered);
+                        button::Style {
+                            background: realce.then_some(Background::Color(if marcada {
+                                pal.primary.weak.color
+                            } else {
+                                pal.background.weak.color
+                            })),
+                            text_color: pal.background.base.text,
+                            border: Border::default(),
+                            ..Default::default()
+                        }
+                    })
+                    .into(),
+                None => container(conteudo).padding([6, 6]).into(),
+            };
+            celulas.push(celula);
+        }
+    }
+
+    let trilhas: Vec<crate::grid::Trilha> = colunas.iter().map(|c| c.trilha).collect();
+    let grade =
+        crate::grid::grid(celulas, trilhas)
+            .spacing(0.0, 0.0)
+            .width(if node.width.is_some() {
+                parse_length(&node.width)
+            } else {
+                Length::Fill
+            });
+
+    // `height` num `<tableview>` é a altura da JANELA de rolagem, não a da
+    // grade: uma tabela de mil linhas dentro de um nó de 320px é o caso comum,
+    // e é o `<scrollable>` que a torna usável.
+    let altura = parse_length(&node.height);
+    if header_only || altura == Length::Shrink {
+        return grade.into();
+    }
+    let _ = row_height;
+    // `.spacing(0)` não é enfeite: sem um `spacing` declarado, a barra de
+    // rolagem do `iced` **flutua sobre** o conteúdo em vez de reservar espaço —
+    // e o que ela cobre numa tabela é justamente a última coluna. Declarar o
+    // vão (mesmo zero) faz o `scrollable` medir o filho contra a largura
+    // descontada, e a coluna da direita volta a caber.
+    scrollable(grade)
+        .spacing(0)
+        .height(altura)
+        .width(Length::Fill)
+        .into()
+}
+
+/// Um nó de árvore já achatado para desenho: o caminho, o rótulo, a
+/// profundidade e se tem filhos.
+struct NoPlano {
+    caminho: String,
+    rotulo: String,
+    nivel: usize,
+    tem_filhos: bool,
+    aberto: bool,
+}
+
+/// Achata a árvore JSON na ordem em que ela aparece na tela, descendo só nos
+/// nós **abertos**.
+///
+/// Recursão sobre a coleção, e o conjunto de abertos é uma string — as duas
+/// coisas que o §3 achava que exigiam estado por instância. O conjunto é
+/// nomeado (`"raiz,raiz/src"`), e o `contains` que o destrancou saiu na 0.84.
+fn achata_arvore(
+    itens: &[serde_json::Value],
+    prefixo: &str,
+    nivel: usize,
+    abertos: &str,
+    out: &mut Vec<NoPlano>,
+) {
+    for item in itens {
+        let id = celula_texto(item, "id");
+        let rotulo = {
+            let l = celula_texto(item, "label");
+            if l.is_empty() { id.clone() } else { l }
+        };
+        if id.is_empty() && rotulo.is_empty() {
+            continue;
+        }
+        let caminho = if prefixo.is_empty() {
+            id.clone()
+        } else {
+            format!("{prefixo}/{id}")
+        };
+        let filhos: &[serde_json::Value] = item
+            .get("items")
+            .or_else(|| item.get("children"))
+            .or_else(|| item.get("filhos"))
+            .and_then(|v| v.as_array())
+            .map(|a| a.as_slice())
+            .unwrap_or(&[]);
+        let aberto = abertos
+            .split([',', ';', ' '])
+            .map(str::trim)
+            .any(|t| !t.is_empty() && t == caminho);
+        out.push(NoPlano {
+            caminho: caminho.clone(),
+            rotulo,
+            nivel,
+            tem_filhos: !filhos.is_empty(),
+            aberto,
+        });
+        if aberto {
+            achata_arvore(filhos, &caminho, nivel + 1, abertos, out);
+        }
+    }
+}
+
+/// Lê o array JSON de uma chave, ou vazio.
+fn array_de(context: &ContextMap, chave: &str) -> Vec<serde_json::Value> {
+    context
+        .get(chave)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        .and_then(|v| match v {
+            serde_json::Value::Array(a) => Some(a),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// `<treeview>` — ver [`NodeType::TreeView`].
+fn render_treeview<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    items_var: &'a str,
+    value_var: &'a str,
+    open_var: &'a str,
+    indent: f32,
+    on_select: &'a str,
+) -> Element<'a, EngineMessage> {
+    let raiz = array_de(context, items_var);
+    let abertos = context.get(open_var).cloned().unwrap_or_default();
+    let escolhido = context.get(value_var).cloned().unwrap_or_default();
+
+    let mut planos = Vec::new();
+    achata_arvore(&raiz, "", 0, &abertos, &mut planos);
+
+    let mut col = column![].width(Length::Fill);
+    for no in &planos {
+        // O triângulo é um botão SEPARADO do rótulo, e tem de ser: abrir um nó
+        // e escolhê-lo são duas ações diferentes, e um clique só não pode
+        // significar as duas. É a divisão que todo explorador de arquivos faz.
+        let marca: Element<'a, EngineMessage> = if no.tem_filhos {
+            let novo = crate::builtins::list_view::alterna_no_conjunto(&abertos, &no.caminho);
+            button(text(if no.aberto { "▾" } else { "▸" }).size(11))
+                .padding([2, 4])
+                .on_press(EngineMessage::ContextPatch(vec![(
+                    open_var.to_string(),
+                    novo,
+                )]))
+                .style(|theme: &iced::Theme, _s| button::Style {
+                    background: None,
+                    text_color: theme.extended_palette().background.strong.text,
+                    border: Border::default(),
+                    ..Default::default()
+                })
+                .into()
+        } else {
+            Space::new().width(19).into()
+        };
+
+        let marcado = escolhido == no.caminho;
+        let msg = if on_select.is_empty() {
+            EngineMessage::ContextPatch(vec![(value_var.to_string(), no.caminho.clone())])
+        } else {
+            EngineMessage::UiInputChanged {
+                action: on_select.to_string(),
+                value: no.caminho.clone(),
+            }
+        };
+        let rotulo = button(text(no.rotulo.clone()).size(13).width(Length::Fill))
+            .width(Length::Fill)
+            .padding([4, 6])
+            .on_press(msg)
+            .style(move |theme: &iced::Theme, status: button::Status| {
+                let pal = theme.extended_palette();
+                let realce = marcado || matches!(status, button::Status::Hovered);
+                button::Style {
+                    background: realce.then_some(Background::Color(if marcado {
+                        pal.primary.weak.color
+                    } else {
+                        pal.background.weak.color
+                    })),
+                    text_color: pal.background.base.text,
+                    border: Border::default().rounded(4),
+                    ..Default::default()
+                }
+            });
+
+        col = col.push(
+            row![Space::new().width(indent * no.nivel as f32), marca, rotulo]
+                .align_y(iced::Alignment::Center)
+                .spacing(2),
+        );
+    }
+
+    let altura = parse_length(&node.height);
+    if altura == Length::Shrink {
+        col.into()
+    } else {
+        scrollable(col).height(altura).width(Length::Fill).into()
+    }
+}
+
+/// `<columnview>` — ver [`NodeType::ColumnView`].
+fn render_columnview<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    items_var: &'a str,
+    value_var: &'a str,
+    column_width: f32,
+    on_select: &'a str,
+) -> Element<'a, EngineMessage> {
+    let raiz = array_de(context, items_var);
+    let caminho = context.get(value_var).cloned().unwrap_or_default();
+    let trilho: Vec<&str> = caminho.split('/').filter(|s| !s.is_empty()).collect();
+
+    // Um nível por coluna: a raiz, mais um por segmento do caminho que tenha
+    // filhos. É o Finder — e é quase de graça depois da árvore, porque a
+    // identidade continua sendo o caminho.
+    let mut niveis: Vec<(Vec<serde_json::Value>, String)> = vec![(raiz, String::new())];
+    for (i, seg) in trilho.iter().enumerate() {
+        let Some((itens, prefixo)) = niveis.last() else {
+            break;
+        };
+        let Some(no) = itens.iter().find(|n| celula_texto(n, "id") == **seg) else {
+            break;
+        };
+        let filhos = no
+            .get("items")
+            .or_else(|| no.get("children"))
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        if filhos.is_empty() {
+            break;
+        }
+        let novo_prefixo = if prefixo.is_empty() {
+            (*seg).to_string()
+        } else {
+            format!("{prefixo}/{seg}")
+        };
+        let _ = i;
+        niveis.push((filhos, novo_prefixo));
+    }
+
+    let mut linha = row![].spacing(1);
+    for (itens, prefixo) in &niveis {
+        let mut col = column![].width(Length::Fixed(column_width)).spacing(1);
+        for item in itens {
+            let id = celula_texto(item, "id");
+            let rotulo = {
+                let l = celula_texto(item, "label");
+                if l.is_empty() { id.clone() } else { l }
+            };
+            let cheio = if prefixo.is_empty() {
+                id.clone()
+            } else {
+                format!("{prefixo}/{id}")
+            };
+            // Marcado quando este nó está NO caminho — não só quando é a ponta
+            // dele: é o que mantém acesa a trilha inteira até a folha, que é
+            // metade do que uma navegação Miller comunica.
+            let no_caminho = caminho == cheio || caminho.starts_with(&format!("{cheio}/"));
+            let tem_filhos = item
+                .get("items")
+                .or_else(|| item.get("children"))
+                .and_then(|v| v.as_array())
+                .is_some_and(|a| !a.is_empty());
+            let msg = if on_select.is_empty() {
+                EngineMessage::ContextPatch(vec![(value_var.to_string(), cheio.clone())])
+            } else {
+                EngineMessage::UiInputChanged {
+                    action: on_select.to_string(),
+                    value: cheio.clone(),
+                }
+            };
+            col = col.push(
+                button(
+                    row![
+                        text(rotulo).size(13).width(Length::Fill),
+                        text(if tem_filhos { "›" } else { " " }).size(12),
+                    ]
+                    .align_y(iced::Alignment::Center)
+                    .spacing(4),
+                )
+                .width(Length::Fill)
+                .padding([5, 8])
+                .on_press(msg)
+                .style(move |theme: &iced::Theme, status: button::Status| {
+                    let pal = theme.extended_palette();
+                    let realce = no_caminho || matches!(status, button::Status::Hovered);
+                    button::Style {
+                        background: realce.then_some(Background::Color(if no_caminho {
+                            pal.primary.weak.color
+                        } else {
+                            pal.background.weak.color
+                        })),
+                        text_color: pal.background.base.text,
+                        border: Border::default().rounded(4),
+                        ..Default::default()
+                    }
+                }),
+            );
+        }
+        let altura = parse_length(&node.height);
+        linha = linha.push(
+            container(scrollable(col).height(if altura == Length::Shrink {
+                Length::Fixed(220.0)
+            } else {
+                altura
+            }))
+            .style(|theme: &iced::Theme| container::Style {
+                border: Border {
+                    color: theme.extended_palette().background.strong.color,
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            }),
+        );
+    }
+    linha.into()
 }
 
 pub fn render_node<'a>(
@@ -2937,6 +4104,10 @@ pub fn render_node<'a>(
             seconds,
             day_first,
             on_change,
+            popup,
+            today,
+            min,
+            max,
         } => {
             let atual = Instante::parse(context.get(value_var).map(String::as_str).unwrap_or(""));
 
@@ -3100,13 +4271,46 @@ pub fn render_node<'a>(
                     })
             };
 
-            let corpo = row![
-                campo,
-                Space::new().width(Length::Fill),
-                column![seta("▴", passo(1)), seta("▾", passo(-1))].spacing(0),
-            ]
-            .align_y(iced::Alignment::Center)
-            .spacing(6);
+            // `calendarPopup`: o botão que abre a grade, e a chave do motor
+            // que guarda o aberto/fechado desta instância.
+            let chave_pop = format!("{DTPOP_PREFIX}{value_var}");
+            let aberto = context.get(&chave_pop).is_some_and(|v| is_truthy(v));
+            let botao_grade = popup.then(|| {
+                let alvo = if aberto { "" } else { "true" };
+                button(text("📅").size(13))
+                    .padding(Padding {
+                        top: 1.0,
+                        right: 4.0,
+                        bottom: 1.0,
+                        left: 4.0,
+                    })
+                    .on_press(EngineMessage::ContextPatch(vec![(
+                        chave_pop.clone(),
+                        alvo.to_string(),
+                    )]))
+                    .style(|theme: &iced::Theme, status| {
+                        let palette = theme.extended_palette();
+                        button::Style {
+                            background: match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    Some(Background::Color(palette.background.weak.color))
+                                }
+                                _ => None,
+                            },
+                            text_color: palette.background.strong.text,
+                            border: Border::default().rounded(2),
+                            ..button::Style::default()
+                        }
+                    })
+            });
+
+            let mut corpo = row![campo, Space::new().width(Length::Fill)]
+                .align_y(iced::Alignment::Center)
+                .spacing(6);
+            corpo = corpo.push(column![seta("▴", passo(1)), seta("▾", passo(-1))].spacing(0));
+            if let Some(b) = botao_grade {
+                corpo = corpo.push(b);
+            }
 
             // Uma caixa só em volta de tudo — seções e setas dentro da mesma
             // borda, como o `QDateTimeEdit`.
@@ -3114,7 +4318,7 @@ pub fn render_node<'a>(
                 + if com_data { 92.0 } else { 0.0 }
                 + if com_hora { 52.0 } else { 0.0 }
                 + if com_seg { 26.0 } else { 0.0 };
-            container(corpo)
+            let caixa = container(corpo)
                 .padding(Padding {
                     top: 3.0,
                     right: 4.0,
@@ -3137,7 +4341,43 @@ pub fn render_node<'a>(
                         },
                         ..container::Style::default()
                     }
-                })
+                });
+
+            // A solda. A grade é a MESMA primitiva do `<calendar>` — mesmo
+            // `render_calendar`, mesma chave `__cal_<chave>` de mês visível,
+            // mesmo contrato de `onChange`. O que o popup acrescenta é onde
+            // ela aparece.
+            //
+            // Escolher um dia **fecha** o painel, e é por isso que o modo que
+            // grava sozinho passa a escrever duas chaves em vez de uma: o dia
+            // e o `__dtpop_`. O `render_calendar` já sabe fazer isso — é o
+            // mesmo caminho pelo qual ele grava o mês visível junto.
+            let grade = render_calendar(
+                Length::Shrink,
+                context,
+                value_var,
+                "",
+                "",
+                today,
+                min,
+                max,
+                'd',
+                false,
+                1,
+                false,
+                "",
+                "",
+                on_change,
+                vec![(chave_pop.clone(), String::new())],
+            );
+            crate::anchored::anchored(caixa, grade, aberto)
+                .placement(crate::anchored::Placement::Bottom)
+                .align(crate::anchored::Align::Start)
+                .offset(4.0)
+                .on_dismiss(Some(EngineMessage::ContextPatch(vec![(
+                    chave_pop,
+                    String::new(),
+                )])))
                 .into()
         }
         NodeType::Calendar {
@@ -3155,7 +4395,7 @@ pub fn render_node<'a>(
             day_names,
             on_change,
         } => render_calendar(
-            node,
+            parse_length(&node.width),
             context,
             value_var,
             end_var,
@@ -3170,6 +4410,7 @@ pub fn render_node<'a>(
             month_names,
             day_names,
             on_change,
+            Vec::new(),
         ),
         NodeType::Pagination {
             value_var,
@@ -3196,6 +4437,127 @@ pub fn render_node<'a>(
             placeholder,
             on_change,
         } => render_masked_input(node, context, value_var, mask, placeholder, on_change),
+        NodeType::Popover {
+            value_var,
+            placement,
+            align,
+            offset,
+            largura,
+            dismiss,
+            trigger,
+            on_close,
+        } => render_popover(
+            node, context, editors, combos, assets, view, value_var, *placement, *align, *offset,
+            *largura, *dismiss, *trigger, on_close,
+        ),
+        NodeType::Autocomplete {
+            value_var,
+            items_var,
+            placeholder,
+            min_chars,
+            max_items,
+            filter,
+            on_change,
+            on_select,
+        } => render_autocomplete(
+            node,
+            context,
+            value_var,
+            items_var,
+            placeholder,
+            *min_chars,
+            *max_items,
+            *filter,
+            on_change,
+            on_select,
+        ),
+        // ── Onda 6 ──────────────────────────────────────────────────────
+        NodeType::Grid {
+            columns,
+            row_spacing,
+        } => {
+            let vao = node.spacing.unwrap_or(0.0);
+            let filhos: Vec<Element<'a, EngineMessage>> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .map(|c| render_node(c, context, editors, combos, assets, view))
+                .collect();
+            crate::grid::grid(filhos, crate::grid::Trilha::parse_lista(columns))
+                .spacing(vao, row_spacing.unwrap_or(vao))
+                .padding(parse_padding(&node.padding))
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height))
+                .align_y(parse_alignment(node.align_y()).unwrap_or(iced::Alignment::Start))
+                .into()
+        }
+        NodeType::Flow { row_spacing } => {
+            // O `Row::wrap()` do próprio iced. A Onda 6 catalogava este item
+            // como "a mesma medição num eixo só", saindo do `<grid>`; ele já
+            // existia pronto, e escrever de novo o que a biblioteca de baixo
+            // tem seria o oposto do que este projeto vem fazendo.
+            let vao = node.spacing.unwrap_or(0.0);
+            let mut linha = row![].spacing(vao);
+            linha = linha.padding(parse_padding(&node.padding));
+            for filho in node.children.iter().filter(|c| c.hidden != Some(true)) {
+                linha = linha.push(render_node(filho, context, editors, combos, assets, view));
+            }
+            if let Some(ay) = parse_alignment(node.align_y()) {
+                linha = linha.align_y(ay);
+            }
+            linha
+                .width(parse_length(&node.width))
+                .wrap()
+                .vertical_spacing(row_spacing.unwrap_or(vao))
+                .into()
+        }
+        NodeType::TableView {
+            items_var,
+            columns_var,
+            value_var,
+            multi,
+            sort_var,
+            widths_var,
+            header_only,
+            row_height,
+            on_select,
+            on_sort,
+        } => render_tableview(
+            node,
+            context,
+            items_var,
+            columns_var,
+            value_var,
+            *multi,
+            sort_var,
+            widths_var,
+            *header_only,
+            *row_height,
+            on_select,
+            on_sort,
+        ),
+        NodeType::TreeView {
+            items_var,
+            value_var,
+            open_var,
+            indent,
+            on_select,
+        } => render_treeview(
+            node, context, items_var, value_var, open_var, *indent, on_select,
+        ),
+        NodeType::ColumnView {
+            items_var,
+            value_var,
+            column_width,
+            on_select,
+        } => render_columnview(
+            node,
+            context,
+            items_var,
+            value_var,
+            *column_width,
+            on_select,
+        ),
         NodeType::Radio {
             label,
             value,
@@ -3353,7 +4715,11 @@ pub fn render_node<'a>(
             }
             sp.into()
         }
-        NodeType::Reveal { open, duration } => {
+        NodeType::Reveal {
+            open,
+            duration,
+            horizontal,
+        } => {
             // Abre/fecha animando a altura — ver `crate::reveal`. O filho vive
             // na árvore mesmo com a seção FECHADA (é de onde a altura encolhe
             // ao fechar); o widget é que decide quanto dele mostrar.
@@ -3369,7 +4735,7 @@ pub fn render_node<'a>(
                 .width(parse_length(&node.width))
                 .height(parse_length(&node.height));
 
-            let mut rv = crate::reveal::reveal(corpo, is_truthy(open));
+            let mut rv = crate::reveal::reveal(corpo, is_truthy(open)).horizontal(*horizontal);
             // `duration="0"` desliga a animação (abre de estalo, como era antes
             // da 0.90) — é o escape para quem não a quer.
             if let Some(ms) = duration
@@ -4289,5 +5655,123 @@ mod length_tests {
         assert_eq!(i.serializa(false, true, false), "13:45");
         assert_eq!(i.serializa(false, true, true), "13:45:02");
         assert_eq!(i.serializa(true, true, true), "2026-09-01 13:45:02");
+    }
+}
+
+#[cfg(test)]
+mod testes_onda6 {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_ordem_cabe_numa_chave_so() {
+        let o = Ordem::parse(Some(&"uso desc".to_string()));
+        assert_eq!((o.campo.as_str(), o.desc), ("uso", true));
+        assert!(!Ordem::parse(Some(&"nome".to_string())).desc);
+        assert_eq!(Ordem::parse(None).campo, "");
+    }
+
+    #[test]
+    fn clicar_alterna_a_direcao_e_recomeca_noutra_coluna() {
+        let o = Ordem::parse(Some(&"nome asc".to_string()));
+        // Mesma coluna: inverte.
+        assert!(o.ao_clicar("nome").desc);
+        // Outra coluna: sempre crescente — uma coluna nova nascer invertida é
+        // a surpresa que esta regra evita.
+        assert!(!o.ao_clicar("uso").desc);
+        assert!(!o.ao_clicar("nome").ao_clicar("nome").desc);
+    }
+
+    #[test]
+    fn ordenar_numero_e_numerico_nao_lexicografico() {
+        // O bug de tabela mais clássico que existe: `"10"` antes de `"9"`.
+        let mut linhas = vec![json!({"n": "9"}), json!({"n": "10"}), json!({"n": "2"})];
+        ordena(&mut linhas, "n", false);
+        let vistos: Vec<String> = linhas.iter().map(|l| celula_texto(l, "n")).collect();
+        assert_eq!(vistos, vec!["2", "9", "10"]);
+    }
+
+    #[test]
+    fn ordenar_texto_ignora_caixa_e_acento() {
+        let mut linhas = vec![
+            json!({"c": "Ávila"}),
+            json!({"c": "abel"}),
+            json!({"c": "Zeta"}),
+        ];
+        ordena(&mut linhas, "c", false);
+        let vistos: Vec<String> = linhas.iter().map(|l| celula_texto(l, "c")).collect();
+        assert_eq!(vistos, vec!["abel", "Ávila", "Zeta"]);
+    }
+
+    #[test]
+    fn a_identidade_da_linha_cai_em_cascata() {
+        let colunas = vec![Coluna {
+            campo: "nome".into(),
+            rotulo: "Nome".into(),
+            trilha: crate::grid::Trilha::Auto,
+            align: iced::alignment::Horizontal::Left,
+        }];
+        assert_eq!(
+            identidade_linha(&json!({"id": "api", "nome": "API"}), &colunas, 3),
+            "api"
+        );
+        // Sem `id`, a primeira coluna — uma tabela montada de um CSV não tem id.
+        assert_eq!(
+            identidade_linha(&json!({"nome": "API"}), &colunas, 3),
+            "API"
+        );
+        // Sem nem isso, o índice.
+        assert_eq!(identidade_linha(&json!({}), &colunas, 3), "3");
+    }
+
+    #[test]
+    fn a_coluna_le_largura_e_alinhamento_do_json() {
+        let c = Coluna::from_json(&json!({"key":"uso","label":"Uso","width":"80","align":"right"}));
+        assert_eq!((c.campo.as_str(), c.rotulo.as_str()), ("uso", "Uso"));
+        assert_eq!(c.trilha, crate::grid::Trilha::Fixa(80.0));
+        assert_eq!(c.align, iced::alignment::Horizontal::Right);
+
+        // Uma string solta é chave e rótulo ao mesmo tempo.
+        let c = Coluna::from_json(&json!("nome"));
+        assert_eq!((c.campo.as_str(), c.rotulo.as_str()), ("nome", "nome"));
+        assert_eq!(c.trilha, crate::grid::Trilha::Auto);
+    }
+
+    /// A árvore desce só nos nós abertos, e a identidade de um nó é o CAMINHO —
+    /// o que faz um `id` repetido em ramos diferentes não colidir.
+    #[test]
+    fn a_arvore_achata_so_o_que_esta_aberto() {
+        let arvore = vec![json!({
+            "id": "raiz", "label": "raiz",
+            "items": [
+                { "id": "src", "label": "src", "items": [ { "id": "main.rs", "label": "main.rs" } ] },
+                { "id": "README.md", "label": "README.md" }
+            ]
+        })];
+
+        // Nada aberto: só a raiz.
+        let mut planos = Vec::new();
+        achata_arvore(&arvore, "", 0, "", &mut planos);
+        assert_eq!(planos.len(), 1);
+        assert_eq!(planos[0].caminho, "raiz");
+        assert!(planos[0].tem_filhos && !planos[0].aberto);
+
+        // Raiz aberta: dois filhos, um nível abaixo.
+        let mut planos = Vec::new();
+        achata_arvore(&arvore, "", 0, "raiz", &mut planos);
+        let caminhos: Vec<&str> = planos.iter().map(|p| p.caminho.as_str()).collect();
+        assert_eq!(caminhos, vec!["raiz", "raiz/src", "raiz/README.md"]);
+        assert_eq!(planos[1].nivel, 1);
+
+        // Duas seções abertas ao mesmo tempo — o conjunto nomeado que o
+        // `contains` (0.84) destrancou, e a razão de o TreeView nunca ter
+        // estado preso ao "estado por instância".
+        let mut planos = Vec::new();
+        achata_arvore(&arvore, "", 0, "raiz,raiz/src", &mut planos);
+        let caminhos: Vec<&str> = planos.iter().map(|p| p.caminho.as_str()).collect();
+        assert_eq!(
+            caminhos,
+            vec!["raiz", "raiz/src", "raiz/src/main.rs", "raiz/README.md"]
+        );
     }
 }

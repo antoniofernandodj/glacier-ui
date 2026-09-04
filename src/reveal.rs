@@ -80,6 +80,10 @@ pub struct Reveal<'a, Message> {
     open: bool,
     duration: Duration,
     easing: Easing,
+    /// Anima a **largura** em vez da altura. É a gaveta lateral
+    /// (`<drawer side="left">`) — o mesmo mecanismo no outro eixo, e a razão de
+    /// o eixo ser um campo e não um segundo widget.
+    horizontal: bool,
 }
 
 /// Um [`Reveal`] envolvendo `content`, aberto ou fechado. A primeira aparição
@@ -94,6 +98,7 @@ pub fn reveal<'a, Message>(
         open,
         duration: DEFAULT_DURATION,
         easing: Easing::EaseOutCubic,
+        horizontal: false,
     }
 }
 
@@ -109,6 +114,17 @@ impl<Message> Reveal<'_, Message> {
     /// que é como uma gaveta bem amortecida se comporta.
     pub fn easing(mut self, easing: Easing) -> Self {
         self.easing = easing;
+        self
+    }
+
+    /// Anima a **largura** em vez da altura — a gaveta lateral.
+    ///
+    /// O resto do widget não muda uma linha: o filho continua medido inteiro e
+    /// ancorado no canto superior esquerdo, o recorte continua sendo o mesmo
+    /// `with_layer`, e o mascaramento do cursor continua valendo (agora contra
+    /// a faixa visível horizontal, que é o que `bounds` já descreve).
+    pub fn horizontal(mut self, horizontal: bool) -> Self {
+        self.horizontal = horizontal;
         self
     }
 }
@@ -197,9 +213,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         // Largura: o que o filho for (um corpo de accordion é `fill`). Altura:
         // `Shrink` sempre — quem manda nela é a animação, não o pai, e declarar
         // `Fill` faria a seção fechada continuar ocupando a coluna inteira.
-        Size {
-            width: self.content.as_widget().size().width,
-            height: Length::Shrink,
+        // O eixo que a animação governa é sempre `Shrink` — declarar `Fill`
+        // nele faria a gaveta fechada continuar ocupando a faixa inteira. O
+        // outro herda o do filho.
+        let filho = self.content.as_widget().size();
+        if self.horizontal {
+            Size {
+                width: Length::Shrink,
+                height: filho.height,
+            }
+        } else {
+            Size {
+                width: filho.width,
+                height: Length::Shrink,
+            }
         }
     }
 
@@ -221,10 +248,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         // (0,0) do nó pai): o que encolhe é só a janela por onde ele aparece.
         // É o `height` do CSS transicionando, não um `translate` — o conteúdo
         // fica parado e é descoberto de cima para baixo.
-        layout::Node::with_children(
-            Size::new(natural.width, (natural.height * progress).max(0.0)),
-            vec![child],
-        )
+        let visivel = if self.horizontal {
+            Size::new((natural.width * progress).max(0.0), natural.height)
+        } else {
+            Size::new(natural.width, (natural.height * progress).max(0.0))
+        };
+        layout::Node::with_children(visivel, vec![child])
     }
 
     fn operate(
@@ -318,7 +347,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         let state = tree.state.downcast_ref::<State>();
         let progress = state.progress();
         let bounds = layout.bounds();
-        if progress <= 0.0 || bounds.height <= 0.0 {
+        let dobra = if self.horizontal {
+            bounds.width
+        } else {
+            bounds.height
+        };
+        if progress <= 0.0 || dobra <= 0.0 {
             return;
         }
 

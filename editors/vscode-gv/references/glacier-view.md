@@ -263,6 +263,144 @@ A nota por estrelas, com pré-visualização ao passar o mouse.
 
 Clicar na estrela já marcada **zera** a nota.
 
+### `<Popover>` (`<Painel>`) · `<Popup>`
+O painel que **flutua sobre a tela**, ancorado a um gatilho — ou, no `<popup>`, centrado na janela. **Uma primitiva só**; a tag decide se há âncora.
+
+```gv
+<popover value="menu_usuario" placement="bottom" align="end">
+  <button slot="anchor" text="Antônio ▾" />
+  <column class="painel"> … </column>
+</popover>
+
+<popup value="atalhos">
+  <button slot="anchor" text="Mostrar atalhos" />
+  <column class="painel"> … </column>
+</popup>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o aberto/fechado |
+| `placement` | `bottom` | `bottom` · `top` · `left` · `right`. `<popup>` força `center` |
+| `align` | `start` | encosto no eixo transversal: `start` · `center` · `end` |
+| `offset` | `4` | folga entre o gatilho e o painel |
+| `panel_width` | natural | um número, ou `anchor` (copia a largura do gatilho) |
+| `dismiss` | `true` | `false` deixa o fechamento inteiramente com o app |
+| `trigger` | `true` | `none` desliga a abertura automática pelo gatilho |
+| `onClose` | — | vazio = o motor zera a chave; preenchido = delega |
+
+- **Os filhos se dividem pelo `slot`**: o marcado `slot="anchor"` (ou `gatilho`/`trigger`) é o gatilho e fica no fluxo; o resto é o painel. Sem nenhum marcado, o **primeiro** é o gatilho — e num `<popup>` centrado, todos são painel.
+- **Quem abre e fecha é o widget, sem uma linha de app**: pressionar o gatilho abre, clicar fora fecha, Esc fecha. Abrir **não** consome o evento (o botão continua disparando o `on_click` dele); fechar consome — é o que impede um gatilho de alternância de reabrir o painel no mesmo quadro, e é o comportamento de um menu de sistema.
+- **A âncora é o layout do gatilho**, não a posição do cursor: o painel acompanha o botão quando a tela rola, e é medido contra a janela **antes** de ser posicionado — então virar para o outro lado quando não cabe é uma conta, não um chute.
+- **Não é modal.** Um `<dialog>` bloqueia a tela atrás; este só está por cima. É a diferença entre `QDialog` e `QMenu`.
+
+### `<Autocomplete>` (`<Completer>`, `<AutoCompletar>`)
+O campo que **filtra enquanto se digita** (`QCompleter`), com a lista num painel ancorado.
+
+```gv
+<autocomplete value="cidade" items="cidades" placeholder="Cidade…" />
+<autocomplete value="servico" items="servicos" onSelect="escolher_servico" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o texto digitado |
+| `items` | — | **nome** da chave com o array de candidatos (strings ou `{id,label}`) |
+| `placeholder` | — | a dica |
+| `min_chars` | `1` | caracteres antes de abrir. `0` abre a lista inteira ao focar |
+| `max_items` | `8` | teto de sugestões desenhadas |
+| `filter` | `true` | `false` = quem recorta é o app (busca no servidor) |
+| `onChange` | — | disparada a cada tecla, com o texto novo |
+| `onSelect` | — | disparada ao aceitar, com o **`id`**. Vazio = grava o rótulo na chave |
+
+- **O recorte é sem acento e sem caixa**: `"sao paulo"` acha `"São Paulo"`.
+- **▲▼ navegam, Enter aceita, Esc desiste** — e as três **ganham do campo focado**, porque quem as recebe é o overlay, que vem antes na ordem de eventos do iced. Não há listener global envolvido.
+- **O realce mora em `__ac_<chave>`**, do motor, derivada da chave editada — duas buscas na mesma tela navegam sozinhas.
+
+### `<Grid>` (`<Grade>`)
+A grade com **colunas medidas** (`QGridLayout`): a largura de uma coluna é o **máximo das células dela**.
+
+```gv
+<grid columns="3" spacing="8">…</grid>
+<grid columns="140 fill 80" spacing="12" row_spacing="6" width="fill">…</grid>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `columns` | `1` | um inteiro (N colunas medidas) ou **uma trilha por palavra**: um número (px), `fill`, `fill2`, `auto` |
+| `spacing` | `0` | vão horizontal |
+| `row_spacing` | o `spacing` | vão vertical |
+| `align_y` | `start` | alinhamento da célula dentro da linha |
+
+- **Uma `<row>` de `<column>`s não resolve**: cada coluna mede só os próprios filhos, e a segunda linha sai desalinhada da primeira no primeiro texto longo. A medição precisa ser bidimensional.
+- Uma coluna medida cujas células declarem `width="fill"` vira flexível sozinha.
+- **Sem `colspan`** — o consumidor que a motivou (a tabela) não usa.
+
+### `<Flow>` (`<Wrap>`, `<Fluxo>`)
+A fileira que **quebra linha** quando não cabe — o campo de tags, a nuvem de chips.
+
+```gv
+<flow spacing="8" row_spacing="8" width="fill">…</flow>
+```
+
+Props: `spacing`, `row_spacing` (sem ele, o `spacing`), `align_y`. Não passa pela medição do `<grid>`: é o `Row::wrap()` do próprio iced.
+
+### `<TableView>` (`<Tabela>`) · `<TableHeader>` (`<CabecalhoTabela>`)
+A tabela (`QTableView`/`QHeaderView`). **Uma primitiva só**: o cabeçalho é a tabela **sem o corpo**, para quem monta as linhas à mão.
+
+```gv
+<tableview items="linhas" columns="colunas" value="escolhida"
+           sort="ordem" widths="larguras" height="320" width="fill" />
+<tableheader columns="colunas" sort="ordem" width="fill" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | **nome** da chave com o array de linhas |
+| `columns` | — | **nome** da chave com o array de `{key, label, width, align}` — ou uma spec de trilhas (`"140 fill 80"`), e aí os rótulos ficam vazios |
+| `value` | — | nome da chave com a linha escolhida. Vazio = tabela sem seleção |
+| `mode` | simples | `multi` guarda um **conjunto** na chave, como o `<listview>` |
+| `sort` | — | nome da chave com `"<coluna> asc"` / `"<coluna> desc"`. Vazio = não ordenável |
+| `widths` | — | nome da chave com as larguras arrastadas. **A presença dela põe as alças** |
+| `height` | shrink | a altura da **janela de rolagem**, não a da grade |
+| `onSelect` / `onSort` | — | vazio = grava sozinho; preenchido = delega |
+
+- **Cabeçalho e corpo são a MESMA grade** — é o que os mantém alinhados sem ninguém combinar nada.
+- **A ordenação é numérica** quando os dois lados parseiam como número, textual (sem caixa, sem acento) quando não. Sem isso, uma coluna de contagem coloca `"10"` antes de `"9"`.
+- **Clicar num cabeçalho ordena; de novo inverte.** Trocar de coluna sempre recomeça crescente.
+- **A alça de arrasto converte a trilha em fixa** e escreve na chave de `widths`, no mesmo formato de `columns` — o que permite ao app salvar e restaurar o layout do usuário. O arrasto mora em `__colgrip`, do motor, e é o único momento em que ele escuta o movimento do mouse.
+- **A identidade de uma linha** é o `id` dela, ou o valor da primeira coluna, ou o índice — nessa ordem.
+
+### `<TreeView>` (`<Arvore>`)
+A árvore (`QTreeView`), com nós que abrem e fecham.
+
+```gv
+<treeview items="arvore" value="no" open="abertos" indent="18" height="280" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | nome da chave com o array JSON **aninhado** (`{id, label, items}`) |
+| `value` | — | nome da chave com o nó escolhido — o **caminho** dele |
+| `open` | — | nome da chave com o **conjunto** de caminhos abertos (`"raiz,raiz/src"`) |
+| `indent` | `16` | recuo por nível |
+| `onSelect` | — | vazio = grava sozinho; preenchido = delega (o caminho) |
+
+- **A identidade de um nó é o caminho**, não o `id`: um `id` repetido em ramos diferentes não colide, e o conjunto de abertos é legível a olho.
+- **O triângulo é um botão separado do rótulo**: abrir um nó e escolhê-lo são duas ações, e um clique só não pode significar as duas.
+- Nunca esteve preso ao "estado por instância": o conjunto de abertos é nomeado, como as seções de um `<accordion>`.
+
+### `<ColumnView>` (`<Colunas>`, `<Miller>`)
+A navegação Miller do Finder: uma lista por nível.
+
+```gv
+<columnview items="arvore" value="caminho" column_width="190" height="240" />
+```
+
+Props: `items` (a mesma árvore do `<treeview>`), `value` (o caminho escolhido), `column_width` (default `180`), `onSelect`.
+
+A trilha **inteira** fica acesa até a folha, não só a ponta — é metade do que uma navegação Miller comunica.
+
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
 
@@ -702,7 +840,7 @@ Props do item: `title`, `sub` (segunda linha, opcional), `value` (**nome** da ch
 - O `<slot/>` e o destrutivo ficam à **esquerda**, separados das ações por um `<Space/>`.
 
 ### `<TabBar>`
-A fileira de abas — o `QTabBar`. Só a **barra**: o empilhado de páginas continua sendo `se`/`senao` na tela, porque cada página precisaria do seu próprio slot nomeado.
+A fileira de abas — o `QTabBar`. Só a **barra**; para a barra **mais a página**, ver o `<Tabs>` logo abaixo.
 
 ```gv
 <tabbar value="aba" active="{aba}" items="abas" />
@@ -717,6 +855,55 @@ A fileira de abas — o `QTabBar`. Só a **barra**: o empilhado de páginas cont
 | `padding` / `spacing` / `size` | `7 14` / `2` / `13` | área de clique, vão entre abas, corpo do rótulo |
 
 - `value` e `active` andam em par porque quem decide o destaque aqui é o **template**, que não consegue ler o valor da chave cujo nome está numa prop.
+
+### `<Tabs>`
+O `QTabWidget` inteiro: a barra **mais** a página. `addTab(widget, "Geral")` do Qt é um `<template slot="geral">`.
+
+```gv
+<tabs value="aba" active="{aba}" items="abas">
+  <template slot="geral"> … a página Geral … </template>
+  <template slot="rede">  … a página Rede …  </template>
+</tabs>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — (**obrigatória**) | **nome** da chave com o array de `{id, label}` |
+| `value` | — (**obrigatória**) | **nome** da chave que recebe o `id` clicado |
+| `active` | — | o valor atual dessa chave. Aqui ele paga dobrado: além do destaque, é ele que **escolhe a página** (`<slot name="{active}"/>`) |
+| `spacing` / `padding` | `14` / `0` | vão entre a barra e a página, espaço interno da página |
+| `page_class` / `page_spacing` | — / `12` | a coluna da página |
+
+As props de aparência da barra passam direto: `tab_class`, `tab_active_class`, `label_class`, `tab_padding`, `size`.
+
+- **O que faltava não era estado por instância**, como o catálogo dizia desde a 0.65: era **interpolar o nome de um slot**, uma linha no `eval`.
+- **O preço, que não é escondido**: o conteúdo de **todas** as abas é avaliado (a partição de slot acontece uma vez, na fronteira do componente); só a ativa é **renderizada**. Para uma aba cara de avaliar, a `<tabbar>` sozinha com `se`/`senão` continua correta.
+- Uma aba sem página escrita cai no conteúdo de reserva do slot — vazio, que é melhor do que mostrar a página anterior.
+
+### `<Drawer>`
+A gaveta lateral: um painel que **desliza** para dentro e para fora, **empurrando** o conteúdo ao lado.
+
+```gv
+<row width="fill" height="fill">
+  <drawer value="menu" open="{menu}" size="260"> … </drawer>
+  <column width="fill"> … o conteúdo da tela … </column>
+</row>
+
+<button text="☰" on_click="drawer::toggle:menu" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — (**obrigatória**) | **nome** da chave com o aberto/fechado |
+| `open` | — | o valor atual dessa chave |
+| `size` | `240` | largura da gaveta aberta |
+| `duration` | `180` | duração do deslize em ms; `0` desliga |
+| `padding` / `spacing` | `12` / `8` | espaço interno, vão entre os filhos |
+| `panel_class` | — | classe no painel de dentro |
+
+- **Empurra, não cobre.** Uma gaveta que cobre a tela é um `<popover>` colado na borda, e o motor já tem um. A `<row>` que segura a gaveta e o conteúdo é do **app** — sem ela, a gaveta abre empurrando para baixo.
+- **Não há prop `side`**: a gaveta fica do lado em que o markup a escreveu na `<row>`.
+- **O widget não desenha o gatilho.** Quem abre escreve `on_click="drawer::toggle:<chave>"` — de qualquer lugar da tela, porque o nome da chave viaja na ação.
 
 ---
 

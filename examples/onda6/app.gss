@@ -1,0 +1,96 @@
+/*
+examples/onda6/app.gss
+
+Todo o visual desta tela. O `app.gv` ao lado ficou com estrutura e
+comportamento — nome de chave, ação, `slot` — e nenhuma cor.
+
+Uma observação que só esta onda torna visível: **a tabela não tem classe
+nenhuma aqui.** O `<tableview>` é uma primitiva, e uma primitiva não tem props
+por nó interno (isso é capacidade de builtin, 0.89) — ela se pinta pela paleta
+do `theme.json`, como o `<select>` e o `<calendar>` já faziam. Trocar o tema
+troca a tabela junto, que é exatamente o que se quer; cravar cor de linha aqui
+brigaria com ele.
+
+O que esta folha pinta são as caixas que o markup escreveu: as células de um
+`<grid>` (que são `<text>` comuns), os chips do `<flow>` (que são `<badge>`) e o
+esqueleto da tela.
+*/
+
+:root {
+    --texto:  #CDD6F4;
+    --suave:  #A6ADC8;
+    --fraco:  #80868D;
+    --azul:   #89B4FA;
+    --verde:  #A6E3A1;
+    --roxo:   #CBA6F7;
+    --ambar:  #F9E2AF;
+    --realce: #8080803D;
+    --linha:  #8080803D;
+}
+
+/* ── Esqueleto ─────────────────────────────────────────────────────────── */
+
+.tela      { width: fill; height: fill; }
+.cabecalho { width: fill; padding: 18 24 12 24; spacing: 8; }
+.corpo     { width: fill; padding: 4 24 24 24; spacing: 18; }
+.rodape    { width: fill; padding: 10 24; spacing: 8; align-y: center; }
+
+/* Duas colunas lado a lado.
+   A largura da coluna da esquerda NÃO está aqui: ela é `width="380"` no próprio
+   `<groupbox>`, e tem de ser. `width` é uma PROP do widget, e o template dele
+   escreve `width="{width|fill}"` inline — um default inline resolve sempre, e um
+   valor inline vence toda classe, então `.par > groupbox { width: 380 }` seria
+   ignorada em silêncio. A regra, que vale para todo builtin: o que o widget
+   documenta como prop continua prop; a folha fica com o que é estilo. */
+.par     { spacing: 18; align-y: start; }
+.detalhe { spacing: 6; width: fill; }
+
+/* ── Texto ─────────────────────────────────────────────────────────────── */
+
+.titulo        { size: 19; bold: true; color: var(--texto); }
+.intro         { size: 13; color: var(--suave); }
+.nota          { size: 12; color: var(--suave); }
+.crua          { size: 12; color: var(--fraco); }
+.valor         { size: 13; color: var(--texto); }
+.rotulo_bloco  { size: 11; bold: true; color: var(--fraco); }
+
+/* ── Linhas ────────────────────────────────────────────────────────────── */
+
+.linha       { spacing: 8;  align-y: center; }
+.linha_larga { spacing: 12; align-y: center; }
+
+.btn { padding: 6 12; }
+
+/* ── A grade ───────────────────────────────────────────────────────────── */
+
+/* Sem fundo e sem borda: a grade é LAYOUT, e pintar a caixa dela seria uma
+   camada por cima do que o `<groupbox>` já pinta. O que dá forma às colunas é o
+   `spacing`, que é do markup (é prop de layout, não estilo). */
+.grade { width: fill; }
+
+.celula       { size: 13; color: var(--texto); }
+.celula_forte { size: 12; bold: true; color: var(--fraco); }
+
+/* ── Os chips do `<flow>` ──────────────────────────────────────────────── */
+
+/* Caixa pequena, e é aqui que o `border-radius` é barato e faz a aparência —
+   arredondar exige matemática de distância por pixel do retângulo inteiro, o
+   que num crachá é nada e numa caixa do tamanho da tela é caro. */
+.chip {
+    background: var(--realce);
+    border-radius: 10;
+}
+
+/* ── Nós de DENTRO dos builtins (0.89) ─────────────────────────────────── */
+
+.aba       { border-radius: 6; }
+.aba_ativa { color: var(--realce); text-color: var(--texto); }
+
+/* ── Selos ─────────────────────────────────────────────────────────────── */
+
+/* Cada selo nomeia a chave que o widget ao lado escreve; a cor é o código dessa
+   chave, repetido no `<badge>` e em nada mais. */
+.selo_azul  { background: var(--azul); }
+.selo_verde { background: var(--verde); }
+.selo_roxo  { background: var(--roxo); }
+.selo_ambar { background: var(--ambar); }
