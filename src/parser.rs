@@ -766,6 +766,10 @@ pub enum NodeType {
     Reveal {
         open: String,
         duration: Option<String>,
+        /// `axis="x"`: anima a **largura** em vez da altura — a gaveta lateral
+        /// do `<drawer>`. O mecanismo é o mesmo (ver [`crate::reveal`]); o que
+        /// muda é qual dimensão do filho a animação governa.
+        horizontal: bool,
     },
     /// A dropdown (`pick_list`) bound to context. `options` is a context key
     /// holding a JSON array (objects with `label_field`/`value_field`, or plain
@@ -1172,6 +1176,28 @@ pub enum NodeType {
         /// handler — que é o que permite validar um intervalo, recusar um valor
         /// ou derivar outra chave antes de aceitar.
         on_change: String,
+        /// `calendarPopup="true"` (`QDateTimeEdit::setCalendarPopup`): põe um
+        /// botão 📅 ao lado das setas que abre a **grade de mês ancorada ao
+        /// campo**.
+        ///
+        /// É o último buraco do foco declarado do projeto: a linha do
+        /// `QDateEdit` está ✅ desde a 0.68 carregando um "falta a variante
+        /// `calendarPopup`" desde então, porque ela é uma **composição** — o
+        /// campo por seções (0.68) mais a grade (0.84) mais o overlay ancorado
+        /// (Onda 5). Os três lados já existiam; isto é a solda.
+        ///
+        /// O aberto/fechado mora numa chave do motor derivada da chave editada
+        /// (`__dtpop_<chave>`), pelo mesmo motivo do `__cal_<chave>`: dois
+        /// campos na mesma tela abrem e fecham sem se ver. O app não configura
+        /// nada.
+        popup: bool,
+        /// Repassados à grade do popup — inertes sem `calendarPopup`. Mesmos
+        /// papéis que em [`NodeType::Calendar`]: `today` é **prop, não
+        /// relógio** (`date.today()` é uma linha de Luau), e `min`/`max`
+        /// deixam os dias fora da faixa inertes.
+        today: String,
+        min: String,
+        max: String,
     },
     /// `QCalendarWidget`: a **grade** de um mês, com navegação e drill-up —
     /// e, pelas mesmas quatro linhas de render, o seletor de mês/ano e o de
@@ -1364,6 +1390,315 @@ pub enum NodeType {
         /// **com o valor cru** — nunca com o mascarado.
         on_change: String,
     },
+    /// `<popover>` / `<popup>`: um painel que **flutua sobre a tela**, ancorado
+    /// a um gatilho (ou centrado na janela). O habilitador B da Onda 5 virado
+    /// tag — ver [`crate::anchored`], que é onde mora a mecânica.
+    ///
+    /// ```xml
+    /// <popover value="menu_usuario" placement="bottom" align="end">
+    ///     <button slot="anchor" text="Antônio ▾" />
+    ///     <column class="painel">
+    ///         <button text="Perfil" on_click="perfil" />
+    ///         <button text="Sair"   on_click="sair" />
+    ///     </column>
+    /// </popover>
+    ///
+    /// <!-- a MESMA primitiva sem âncora: centrada na janela, e sem a
+    ///      modalidade de um `<dialog>` -->
+    /// <popup value="atalhos">
+    ///     <column class="painel"> … </column>
+    /// </popup>
+    /// ```
+    ///
+    /// # Como os filhos se dividem
+    ///
+    /// Pelo atributo `slot`, que desde a Onda 5 atravessa a avaliação quando o
+    /// pai é uma **primitiva** (numa fronteira de componente ele continua sendo
+    /// consumido pela partição — ver `eval.rs`):
+    ///
+    /// - `slot="anchor"` (ou `gatilho`, `trigger`) → o **gatilho**, que fica no
+    ///   fluxo normal e é o que ancora o painel;
+    /// - todo o resto → o **painel**, que só existe quando a chave está ligada.
+    ///
+    /// Sem nenhum filho marcado, o **primeiro** é o gatilho e os demais são o
+    /// painel — a forma curta, que é a que um `<popup>` centrado usa (ele não
+    /// precisa de gatilho nenhum, e aí o motor põe um `<space/>` de tamanho
+    /// zero no lugar).
+    ///
+    /// # Quem abre e quem fecha é o widget
+    ///
+    /// **Sem uma linha de app**, que é o contrato de toda primitiva desta
+    /// biblioteca: pressionar o gatilho abre, clicar fora fecha, Esc fecha, e
+    /// pressionar o gatilho com o painel aberto fecha (o clique de fora é
+    /// consumido pelo overlay antes de chegar de volta ao gatilho).
+    ///
+    /// Abrir **não** consome o evento — o `<button>` que serve de gatilho
+    /// continua disparando o `on_click` dele. `trigger="none"` desliga a
+    /// abertura automática, para o caso em que quem manda é o app (um popup
+    /// que abre por um item de menu, um wizard).
+    ///
+    /// # Por que primitiva, e não builtin
+    ///
+    /// Pelo terceiro sinal do `PRIMITIVAS.md`: não falta markup, falta uma
+    /// **camada**. Um painel que sai do fluxo, mede a si mesmo contra a janela
+    /// e vira para cima quando o rodapé corta não é composição de nós — é um
+    /// `iced::advanced::Overlay`. E, como toda primitiva desta biblioteca, ela
+    /// lê a chave direto do contexto, o que a livra da indireção `{{value}}`
+    /// que obriga `<accordionitem>` a receber `value` e `open` em par.
+    Popover {
+        /// Nome da chave que diz se o painel está aberto (o padrão do
+        /// `SpinBox`: `value` é sempre o NOME, nunca o valor).
+        value_var: String,
+        /// De que lado do gatilho ele abre. `<popup>` força `center`.
+        placement: crate::anchored::Placement,
+        /// Alinhamento no eixo transversal.
+        align: crate::anchored::Align,
+        /// Folga entre gatilho e painel, em pixels. Default 4.
+        offset: f32,
+        /// Largura do painel: natural, a do gatilho (`anchor`) ou um número.
+        largura: crate::anchored::Largura,
+        /// Clique fora e Esc fecham. Default `true`; `false` deixa o
+        /// fechamento inteiramente com o app.
+        dismiss: bool,
+        /// Pressionar o gatilho abre. Default `true`; `trigger="none"` desliga.
+        trigger: bool,
+        /// Vazio = o motor **zera a chave sozinho** ao fechar; preenchido =
+        /// delega, com o mesmo contrato do `<textinput>`. O valor entregue é
+        /// sempre a string vazia — quem fecha não escolhe nada.
+        on_close: String,
+    },
+    /// `<autocomplete>` / `<completer>` (`QCompleter`): o campo que **filtra
+    /// enquanto se digita** e oferece a lista num painel ancorado.
+    ///
+    /// ```xml
+    /// <autocomplete value="cidade" items="cidades" placeholder="Cidade…" />
+    /// ```
+    ///
+    /// # As três chaves
+    ///
+    /// | chave | quem escreve | o quê |
+    /// |---|---|---|
+    /// | `value_var` | o widget, a cada tecla | o texto digitado |
+    /// | `items_var` | o **app** | o array JSON de candidatos |
+    /// | `__ac_<value_var>` | o motor | o índice realçado, `-1` = painel fechado |
+    ///
+    /// A terceira é a que faz o widget existir: o realce sobe e desce com ▲▼
+    /// **e** com o mouse, e um índice por instância é o que permite duas
+    /// buscas na mesma tela. Ao contrário do `__timeedit` (que é global porque
+    /// só um campo tem foco), aqui a chave é derivada da chave editada, como o
+    /// `__cal_<chave>` do `<calendar>`.
+    ///
+    /// # A filtragem é do widget, não do app
+    ///
+    /// É a razão de ser dele. `items` é a lista **inteira**; quem recorta é o
+    /// `render`, por `contains` sem acento e sem caixa. Um app que precise
+    /// filtrar no servidor passa `filter="false"` e reescreve `items` no
+    /// `onChange` — o widget então só desenha o que recebeu.
+    ///
+    /// # Por que primitiva
+    ///
+    /// Duas razões, e nenhuma delas é o desenho: a lista sai de um **overlay**
+    /// (a mesma camada do `<popover>`), e ▲▼/Enter/Esc precisam ganhar do
+    /// `text_input` focado — o que só quem está na camada de cima consegue.
+    Autocomplete {
+        /// Nome da chave com o texto digitado.
+        value_var: String,
+        /// Nome da chave com o array JSON de candidatos. Cada item pode ser uma
+        /// string ou um objeto `{id, label, sub}` — a mesma convenção do
+        /// `<listview>` e do `<select>`.
+        items_var: String,
+        placeholder: String,
+        /// Quantos caracteres antes de o painel abrir. Default 1; `0` abre a
+        /// lista inteira ao focar.
+        min_chars: usize,
+        /// Teto de sugestões desenhadas. Default 8 — um painel de sugestões que
+        /// precisa de rolagem já perdeu a briga para uma lista de verdade.
+        max_items: usize,
+        /// O widget recorta `items` pelo texto digitado. `false` = ele desenha
+        /// o que recebeu, e quem filtra é o app (busca no servidor).
+        filter: bool,
+        /// Ação disparada a cada tecla, com o texto novo. Vazia = o widget só
+        /// grava a chave.
+        on_change: String,
+        /// Ação disparada ao **aceitar** uma sugestão, com o `id` dela. Vazia =
+        /// o widget grava o rótulo escolhido em `value_var` e fecha.
+        on_select: String,
+    },
+    /// `<grid>` (`QGridLayout`): a grade com **colunas medidas** — o item 1 da
+    /// Onda 6, e o mais simples que exercita a medição de [`crate::grid`].
+    ///
+    /// ```xml
+    /// <grid columns="3" spacing="8" row_spacing="6">
+    ///     <text>Nome</text> <text>Estado</text> <text>Uso</text>
+    ///     <text>api</text>  <text>no ar</text>  <text>41%</text>
+    /// </grid>
+    /// ```
+    ///
+    /// # Por que primitiva
+    ///
+    /// Pela regra que a Onda 4 nomeou — *repetição dirigida por um número, não
+    /// por uma coleção* —, que já a previa por escrito: `columns="3"` não é
+    /// coleção nenhuma. E por uma segunda razão, mais forte: a largura de uma
+    /// coluna é o **máximo das células dela**, e uma `Row` de `Column`s não
+    /// consegue saber isso (cada coluna mede só os próprios filhos). A medição
+    /// bidimensional é um `iced::advanced::Widget`, não composição de nós.
+    ///
+    /// # `columns` aceita duas formas
+    ///
+    /// Um número (`"3"`, três colunas medidas) ou uma trilha por palavra
+    /// (`"140 fill 80"`). Ver [`crate::grid::Trilha`].
+    Grid {
+        /// A especificação das colunas, **crua** — interpola, então
+        /// `columns="{trilhas}"` funciona.
+        columns: String,
+        /// Vão vertical entre linhas. Sem ele, o `spacing` do nó vale para os
+        /// dois eixos.
+        row_spacing: Option<f32>,
+    },
+    /// `<flow>` / `<wrap>`: a fileira que **quebra linha** quando não cabe —
+    /// o campo de tags, a nuvem de chips, a galeria de cartões.
+    ///
+    /// # A correção de rota da Onda 6
+    ///
+    /// O plano listava este item como "a mesma medição num eixo só", saindo do
+    /// mesmo mecanismo do `<grid>`. **O `iced` já tinha**: `Row::wrap()`
+    /// quebra linha exatamente assim, com alinhamento por linha e vão vertical
+    /// próprio. Então este nó não passa por [`crate::grid`] — é um `Row`
+    /// embrulhado, e a Onda 6 ficou um item mais barata do que o catálogo
+    /// dizia.
+    ///
+    /// É a sexta vez que este documento descobre que algo catalogado como caro
+    /// já existia, e a primeira em que quem já tinha era o `iced`, não o motor.
+    Flow {
+        /// Vão vertical entre as linhas quebradas. Sem ele, o `spacing` do nó.
+        row_spacing: Option<f32>,
+    },
+    /// `<tableview>` (`QTableView`) e `<tableheader>` (`QHeaderView`): a tabela
+    /// com cabeçalho, ordenação, seleção e colunas redimensionáveis.
+    ///
+    /// ```xml
+    /// <tableview
+    ///     items="linhas"
+    ///     columns="colunas"
+    ///     value="escolhida"
+    ///     sort="ordem"
+    ///     widths="larguras"
+    ///     height="320"
+    /// />
+    /// ```
+    ///
+    /// # As chaves, e de quem é cada uma
+    ///
+    /// | chave | quem escreve | o quê |
+    /// |---|---|---|
+    /// | `items_var` | o **app** | o array JSON das linhas |
+    /// | `columns_var` | o **app** | o array JSON das colunas: `{key, label, width, align}` |
+    /// | `value_var` | o widget | a linha escolhida (o `id` dela); um conjunto em `mode="multi"` |
+    /// | `sort_var` | o widget | `"<coluna> asc"` / `"<coluna> desc"` |
+    /// | `widths_var` | o widget | as larguras arrastadas, no formato de `columns` |
+    /// | `__colgrip` | o motor | o arrasto em curso — um por app, como o `__drag_key` |
+    ///
+    /// A ligação a coleção que o §3 catalogava como "caro, e o maior
+    /// investimento restante" **já existia**: `items="chave"` é a mesma
+    /// convenção do `<menu items>`, do `<tabbar items>` e de todo `for-each` do
+    /// motor. O que faltava era a medição — e ela está em [`crate::grid`].
+    ///
+    /// # Ordenar e selecionar são o padrão do `SpinBox`
+    ///
+    /// Coluna e direção numa chave nomeada, linha escolhida noutra, o widget
+    /// escrevendo as duas sozinho. A comparação é numérica quando os dois lados
+    /// parseiam como número e textual (sem caixa, sem acento) quando não — o
+    /// que evita `"10"` vir antes de `"9"` numa coluna de contagem.
+    ///
+    /// # Redimensionar arrasta contra uma chave global
+    ///
+    /// Só uma coluna do app inteiro está sendo arrastada por vez, então o
+    /// estado do arrasto é global (`__colgrip`) e carrega a identidade junto —
+    /// a mesma família do `__timeedit` e do `__cal_hover`. Enquanto ele existe,
+    /// e **só** enquanto, o motor passa a escutar o movimento do mouse (ver
+    /// `GlacierUI::precisa_do_cursor`): um listener sempre ligado custaria uma
+    /// centena de quadros por segundo por nada.
+    ///
+    /// Sem `widths`, o cabeçalho não tem alças e as colunas ficam como o
+    /// `columns` as declarou.
+    TableView {
+        /// Nome da chave com o array JSON das linhas.
+        items_var: String,
+        /// Nome da chave com o array JSON das colunas — ou, quando não houver
+        /// chave com esse nome, a própria especificação de trilhas
+        /// (`columns="140 fill 80"`), caso em que os rótulos saem das chaves das
+        /// linhas.
+        columns_var: String,
+        /// Nome da chave com a linha escolhida. Vazio = tabela sem seleção.
+        value_var: String,
+        /// Seleção múltipla: `value_var` guarda um conjunto nomeado, e o
+        /// destaque testa pertencimento — o mesmo mecanismo do `<listview>`.
+        multi: bool,
+        /// Nome da chave com a ordenação. Vazio = tabela não ordenável.
+        sort_var: String,
+        /// Nome da chave com as larguras arrastadas. Vazio = colunas fixas.
+        widths_var: String,
+        /// `true` = só o cabeçalho (`<tableheader>`), para quem monta o corpo à
+        /// mão. É a mesma primitiva, pelo padrão `<dateedit>`/`<timeedit>`.
+        header_only: bool,
+        /// Altura declarada de uma linha, para `virtualize`. `0` = sem
+        /// virtualização (o default; ver `PRIMITIVAS.md` para quando ela vale).
+        row_height: f32,
+        /// Vazio = o widget grava as chaves sozinho; preenchido = delega.
+        on_select: String,
+        on_sort: String,
+    },
+    /// `<treeview>` (`QTreeView`): a árvore com nós que abrem e fecham.
+    ///
+    /// ```xml
+    /// <treeview items="arvore" value="no" open="abertos" />
+    /// ```
+    ///
+    /// # Ele nunca esteve bloqueado por estado por instância
+    ///
+    /// O §3 o colocava atrás do "estado por instância" — o habilitador que este
+    /// documento chamou por três revisões de "o desbloqueio de maior
+    /// alavancagem". Não era: o conjunto de nós abertos é um **conjunto
+    /// nomeado** (`abertos="raiz,raiz/src"`), exatamente como as seções de um
+    /// `<accordion>`, e o `contains` que o destrancou saiu na 0.84.
+    ///
+    /// É a décima linha que este projeto encontra marcada como bloqueada sem
+    /// estar.
+    ///
+    /// # A identidade de um nó é o caminho
+    ///
+    /// `raiz/src/main.rs`, montado a partir do `id` de cada nível. Um `id`
+    /// repetido em ramos diferentes não colide, e o conjunto de abertos é
+    /// legível a olho — o que importa quando quem o semeia é um script.
+    TreeView {
+        /// Nome da chave com o array JSON aninhado (`{id, label, items}`).
+        items_var: String,
+        /// Nome da chave com o nó escolhido (o caminho dele).
+        value_var: String,
+        /// Nome da chave com o **conjunto** de caminhos abertos.
+        open_var: String,
+        /// Recuo por nível, em pixels. Default 16.
+        indent: f32,
+        /// Vazio = o widget grava sozinho; preenchido = delega (o caminho).
+        on_select: String,
+    },
+    /// `<columnview>` (`QColumnView`): a navegação Miller — uma lista por
+    /// nível, como o Finder do macOS.
+    ///
+    /// ```xml
+    /// <columnview items="arvore" value="caminho" column_width="200" />
+    /// ```
+    ///
+    /// Quase de graça depois do [`NodeType::TreeView`]: a mesma coleção
+    /// aninhada, o mesmo caminho como identidade — o que muda é o desenho, que
+    /// põe os níveis lado a lado em vez de recuados.
+    ColumnView {
+        items_var: String,
+        value_var: String,
+        /// Largura de cada coluna, em pixels. Default 180.
+        column_width: f32,
+        on_select: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -1431,6 +1766,13 @@ impl NodeType {
             NodeType::Pagination { .. } => "pagination",
             NodeType::Rating { .. } => "rating",
             NodeType::MaskedInput { .. } => "maskedinput",
+            NodeType::Popover { .. } => "popover",
+            NodeType::Autocomplete { .. } => "autocomplete",
+            NodeType::Grid { .. } => "grid",
+            NodeType::Flow { .. } => "flow",
+            NodeType::TableView { .. } => "tableview",
+            NodeType::TreeView { .. } => "treeview",
+            NodeType::ColumnView { .. } => "columnview",
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -2370,6 +2712,36 @@ impl UiNode {
             .unwrap_or(false)
     }
 
+    /// A largura do painel de um `<popover>`/`<popup>`, num atributo só.
+    ///
+    /// Não reusa o `width` do nó de propósito: `width` num `<popover>` é a
+    /// largura do **gatilho** (é ele que está no fluxo), e sobrecarregar o
+    /// mesmo atributo com dois significados seria a armadilha silenciosa que o
+    /// `AGENTS.md` dos templates avisa sobre prop-vs-classe.
+    ///
+    /// `panel_width="anchor"` copia a largura do gatilho — o que um
+    /// `<autocomplete>` quer, e o que faz a lista parecer parte do campo.
+    fn largura_painel(node: &Node) -> crate::anchored::Largura {
+        use crate::anchored::Largura;
+        match Self::get_attr(
+            node,
+            &["panel_width", "panelWidth", "largura_painel", "panel-width"],
+        ) {
+            None => Largura::Natural,
+            Some(v) => {
+                let v = v.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "anchor" | "ancora" | "âncora" | "trigger" | "gatilho" => Largura::Ancora,
+                    _ => v
+                        .parse::<f32>()
+                        .ok()
+                        .filter(|w| *w > 0.0)
+                        .map_or(Largura::Natural, Largura::Fixa),
+                }
+            }
+        }
+    }
+
     /// Recursively parse a roxmltree Node into UiNode
     pub fn from_node(node: Node) -> Option<Self> {
         if !node.is_element() {
@@ -2823,6 +3195,16 @@ impl UiNode {
                         &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
                     )
                     .unwrap_or_default(),
+                    // Só faz sentido com seções de data: um popup de calendário
+                    // num `<timeedit>` abriria uma grade que não escreve nada.
+                    popup: tem_data
+                        && Self::get_attr_bool(
+                            &node,
+                            &["calendarPopup", "calendar_popup", "popup", "calendario"],
+                        ),
+                    today: Self::get_attr(&node, &["today", "hoje"]).unwrap_or_default(),
+                    min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
+                    max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
                 }
             }
             // As três tags do calendário, uma primitiva só — muda o que um
@@ -2939,6 +3321,181 @@ impl UiNode {
                     .unwrap_or_default(),
                 }
             }
+            // As duas tags do painel flutuante, uma primitiva só — a mesma
+            // divisão de `<calendar>`/`<monthyearpicker>`: muda o que ancora.
+            "Popover" | "popover" | "Painel" | "painel" | "Popup" | "popup" => {
+                let centrado = tag.eq_ignore_ascii_case("popup");
+                NodeType::Popover {
+                    value_var: Self::get_attr(&node, &["value", "valor", "open", "aberto"])
+                        .unwrap_or_default(),
+                    placement: if centrado {
+                        crate::anchored::Placement::Center
+                    } else {
+                        crate::anchored::Placement::parse(
+                            &Self::get_attr(&node, &["placement", "posicao", "posição", "lado"])
+                                .unwrap_or_default(),
+                        )
+                    },
+                    align: crate::anchored::Align::parse(
+                        &Self::get_attr(&node, &["align", "alinhamento", "alinhar"])
+                            .unwrap_or_default(),
+                    ),
+                    offset: Self::get_attr(&node, &["offset", "folga", "distancia", "distância"])
+                        .and_then(|o| o.trim().parse::<f32>().ok())
+                        .unwrap_or(4.0),
+                    largura: Self::largura_painel(&node),
+                    // `dismiss="false"` é a única forma escrita: o default é
+                    // fechar, porque um painel que não fecha sozinho é uma
+                    // armadilha, não um recurso.
+                    dismiss: !Self::get_attr(&node, &["dismiss", "dispensar", "fechar"])
+                        .is_some_and(|d| {
+                            let d = d.trim().to_ascii_lowercase();
+                            d == "false" || d == "0" || d == "nao" || d == "não"
+                        }),
+                    trigger: !Self::get_attr(&node, &["trigger", "gatilho", "abrir"]).is_some_and(
+                        |t| {
+                            let t = t.trim().to_ascii_lowercase();
+                            t == "none" || t == "nenhum" || t == "false" || t == "0"
+                        },
+                    ),
+                    on_close: Self::get_attr(
+                        &node,
+                        &["onClose", "on_close", "on-close", "aoFechar", "ao_fechar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Autocomplete" | "autocomplete" | "Completer" | "completer" | "AutoCompletar"
+            | "autocompletar" => NodeType::Autocomplete {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                items_var: Self::get_attr(
+                    &node,
+                    &["items", "itens", "options", "opcoes", "opções"],
+                )
+                .unwrap_or_default(),
+                placeholder: Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default(),
+                min_chars: Self::get_attr(&node, &["min_chars", "minChars", "minimo", "mínimo"])
+                    .and_then(|m| m.trim().parse::<usize>().ok())
+                    .unwrap_or(1),
+                max_items: Self::get_attr(&node, &["max_items", "maxItems", "maximo", "máximo"])
+                    .and_then(|m| m.trim().parse::<usize>().ok())
+                    .unwrap_or(8)
+                    .clamp(1, 50),
+                filter: !Self::get_attr(&node, &["filter", "filtrar"]).is_some_and(|f| {
+                    let f = f.trim().to_ascii_lowercase();
+                    f == "false" || f == "0" || f == "nao" || f == "não"
+                }),
+                on_change: Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default(),
+                on_select: Self::get_attr(
+                    &node,
+                    &[
+                        "onSelect",
+                        "on_select",
+                        "on-select",
+                        "aoEscolher",
+                        "ao_escolher",
+                    ],
+                )
+                .unwrap_or_default(),
+            },
+            // ── Onda 6: a grade e a família que sai dela ──────────────
+            "Grid" | "grid" | "Grade" | "grade" => NodeType::Grid {
+                columns: Self::get_attr(&node, &["columns", "colunas", "cols"])
+                    .unwrap_or_else(|| "1".to_string()),
+                row_spacing: Self::get_attr(
+                    &node,
+                    &["row_spacing", "rowSpacing", "espaco_linha", "vspacing"],
+                )
+                .and_then(|v| v.trim().parse::<f32>().ok()),
+            },
+            "Flow" | "flow" | "Wrap" | "wrap" | "Fluxo" | "fluxo" => NodeType::Flow {
+                row_spacing: Self::get_attr(
+                    &node,
+                    &["row_spacing", "rowSpacing", "espaco_linha", "vspacing"],
+                )
+                .and_then(|v| v.trim().parse::<f32>().ok()),
+            },
+            // As duas tags da tabela, uma primitiva só — o cabeçalho é a
+            // tabela sem o corpo, pelo padrão `<dateedit>`/`<timeedit>`.
+            "TableView" | "tableview" | "Tabela" | "tabela" | "TableHeader" | "tableheader"
+            | "CabecalhoTabela" | "cabecalho_tabela" => {
+                let baixo = tag.to_ascii_lowercase();
+                NodeType::TableView {
+                    items_var: Self::get_attr(&node, &["items", "itens", "rows", "linhas"])
+                        .unwrap_or_default(),
+                    columns_var: Self::get_attr(&node, &["columns", "colunas", "cols"])
+                        .unwrap_or_default(),
+                    value_var: Self::get_attr(
+                        &node,
+                        &["value", "valor", "selected", "selecionada"],
+                    )
+                    .unwrap_or_default(),
+                    multi: Self::get_attr(&node, &["mode", "modo", "selection"]).is_some_and(|m| {
+                        let m = m.trim().to_ascii_lowercase();
+                        m == "multi" || m == "multiple" || m == "multipla" || m == "múltipla"
+                    }),
+                    sort_var: Self::get_attr(&node, &["sort", "ordem", "ordenacao", "ordenação"])
+                        .unwrap_or_default(),
+                    widths_var: Self::get_attr(&node, &["widths", "larguras", "resize"])
+                        .unwrap_or_default(),
+                    header_only: baixo.starts_with("tableheader")
+                        || baixo.starts_with("cabecalho_tabela"),
+                    row_height: Self::get_attr(
+                        &node,
+                        &["row_height", "rowHeight", "altura_linha", "virtualize"],
+                    )
+                    .and_then(|h| h.trim().parse::<f32>().ok())
+                    .unwrap_or(0.0),
+                    on_select: Self::get_attr(
+                        &node,
+                        &["onSelect", "on_select", "on-select", "aoEscolher"],
+                    )
+                    .unwrap_or_default(),
+                    on_sort: Self::get_attr(&node, &["onSort", "on_sort", "on-sort", "aoOrdenar"])
+                        .unwrap_or_default(),
+                }
+            }
+            "TreeView" | "treeview" | "Arvore" | "arvore" | "árvore" => NodeType::TreeView {
+                items_var: Self::get_attr(&node, &["items", "itens", "nodes", "nos", "nós"])
+                    .unwrap_or_default(),
+                value_var: Self::get_attr(&node, &["value", "valor", "selected"])
+                    .unwrap_or_default(),
+                open_var: Self::get_attr(&node, &["open", "aberto", "abertos", "expanded"])
+                    .unwrap_or_default(),
+                indent: Self::get_attr(&node, &["indent", "recuo"])
+                    .and_then(|i| i.trim().parse::<f32>().ok())
+                    .unwrap_or(16.0)
+                    .clamp(0.0, 64.0),
+                on_select: Self::get_attr(
+                    &node,
+                    &["onSelect", "on_select", "on-select", "aoEscolher"],
+                )
+                .unwrap_or_default(),
+            },
+            "ColumnView" | "columnview" | "Colunas" | "colunas" | "Miller" | "miller" => {
+                NodeType::ColumnView {
+                    items_var: Self::get_attr(&node, &["items", "itens", "nodes", "nos", "nós"])
+                        .unwrap_or_default(),
+                    value_var: Self::get_attr(&node, &["value", "valor", "path", "caminho"])
+                        .unwrap_or_default(),
+                    column_width: Self::get_attr(
+                        &node,
+                        &["column_width", "columnWidth", "largura_coluna"],
+                    )
+                    .and_then(|w| w.trim().parse::<f32>().ok())
+                    .unwrap_or(180.0)
+                    .clamp(60.0, 800.0),
+                    on_select: Self::get_attr(
+                        &node,
+                        &["onSelect", "on_select", "on-select", "aoEscolher"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
             "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {
                 let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"])
                     .unwrap_or_default();
@@ -3042,7 +3599,15 @@ impl UiNode {
                     .unwrap_or_default();
                 let duration =
                     Self::get_attr(&node, &["duration", "duracao", "duração", "ms", "tempo"]);
-                NodeType::Reveal { open, duration }
+                NodeType::Reveal {
+                    open,
+                    duration,
+                    horizontal: Self::get_attr(&node, &["axis", "eixo", "direction", "direcao"])
+                        .is_some_and(|a| {
+                            let a = a.trim().to_ascii_lowercase();
+                            a == "x" || a == "horizontal" || a == "width" || a == "largura"
+                        }),
+                }
             }
             "Select" | "select" | "Dropdown" | "dropdown" | "PickList" | "picklist"
             | "ComboBox" | "combobox" | "Combo" | "combo" | "Seletor" | "seletor" => {

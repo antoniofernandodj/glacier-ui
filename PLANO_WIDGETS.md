@@ -13,9 +13,10 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-02**, sobre a 0.85 (ondas 3 e 4 fechadas). Ela passou a ordenar por
-**função** — widgets que carregam lógica — em vez de por custo; o motivo está no
-alto da §6.2.
+Última revisão da fila: **2026-09-04**, sobre a 0.92 (ondas 3, 4, 5 e 6
+fechadas). A ordenação por **função** — widgets que carregam lógica — que a
+revisão anterior adotou levou a fila até o fim: as quatro ondas da §6.2 estão
+feitas, e o que sobra é a Onda 7 (o `canvas`) mais o troco da §6.3.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -100,7 +101,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3 |
 | QKeySequenceEdit | `ShortcutInput` | Comp | text_input | ● | P3 | ⬜ | captura combinação de teclas |
 | QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
-| — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ⬜ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Onda 5 |
+| — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Recorta a lista sem acento e sem caixa ("sao paulo" acha "São Paulo"), ▲▼ navegam, Enter aceita, Esc desiste — e as três teclas ganham do campo focado porque quem as recebe é o **overlay** (0.92) |
 
 ### 2.3 Entradas numéricas e de valor
 
@@ -127,12 +128,12 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema |
 | QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | ✅ | `<listview items="servicos" value="servico" selected="{servico}" />` — o `TabBar` na vertical, com scroll. `mode="multi"` guarda um **conjunto** numa chave só e é o primeiro consumidor do `contains` (0.84). `virtualize` repassado para listas longas. Onda 4 (0.85) |
 | QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ⬜ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6 |
-| QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ⬜ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. Onda 6 |
-| QTableWidget/QTableView | `TableView` | **Prim** | column+row | ◐ | P2 | ⬜ | **grande**: cabeçalho, seleção, sort, edição. A parte cara é a **medição de coluna**, que é a mesma do `Grid` — os dois saem juntos. Onda 6 |
-| QHeaderView | `TableHeader` | **Prim** | row+button | ◐ | P2 | ⬜ | parte da TableView; sort/resize (o arrasto na família do `__drag_key`). Onda 6 |
-| QColumnView | `ColumnView` | **Prim** | row+ListView | ◐ | P3 | ⬜ | navegação Miller (finder); quase de graça depois do `TreeView`. Onda 6 |
+| QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ✅ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. A identidade de um nó é o **caminho**, então um `id` repetido em ramos diferentes não colide (0.92) |
+| QTableWidget/QTableView | `TableView` | **Prim** | column+row | ◐ | P2 | ✅ | cabeçalho, ordenação (numérica quando os dois lados são número), seleção simples e múltipla, colunas arrastáveis. Cabeçalho e corpo são a **mesma grade**, que é o que os mantém alinhados. Edição de célula fica para depois (0.92) |
+| QHeaderView | `TableHeader` | **Prim** | row+button | ◐ | P2 | ✅ | a mesma primitiva do `TableView` **sem o corpo**, para quem monta as linhas à mão. O arrasto mora em `__colgrip`, na família do `__drag_key` (0.92) |
+| QColumnView | `ColumnView` | **Prim** | row+ListView | ◐ | P3 | ✅ | navegação Miller (o Finder); quase de graça depois do `TreeView` — mesma coleção, mesma identidade por caminho (0.92) |
 | QListWidgetItem etc. | (dados, não widget) | — | — | — | — | — | modelados como valores de contexto |
-| QCompleter | `Completer` | **Prim** | overlay+ListView | ◐ | P2 | ⬜ | popup de sugestões (ver §2.12). Onda 5 |
+| QCompleter | `Completer` | **Prim** | overlay+ListView | ◐ | P2 | ✅ | popup de sugestões — a mesma tag do `Autocomplete` (§2.2), vista do lado da lista (0.92) |
 | QML PageIndicator | `PageIndicator` | Built | row | ◐ | P2 | ⬜ | pontinhos de página — o irmão visual do `Pagination`, mesma chave |
 | — (paginação) | `Pagination` | **Prim** | row+button | ◐ | P1 | ✅ | `« ‹ 1 … 4 [5] 6 … 20 › »`, com a janela andando e grudando nas pontas e as setas **inertes** no limite. **Reclassificado de Built para Prim na construção**: a janela de números é repetição dirigida por um número, e o `for-each` lê coleção. Onda 4 (0.85) |
 
@@ -141,7 +142,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QCalendarWidget | `Calendar` | **Prim** | compõe | ◐ | P1 | ✅ | `<calendar value="dia" today="{hoje}" />` — grade 7×6, navegação ‹ ›, escada de drill-up (dia → mês → ano) no clique do título, `min`/`max` deixando os dias de fora inertes, `first_day` girando o cabeçalho da semana e rótulos de mês/dia por prop (pt-BR embutido). **A previsão se confirmou**: nenhum habilitador de motor, nenhum `Grid`, nenhuma crate de data — `days_from_civil` são oito linhas ao lado do `dias_no_mes`. Onda 3 (0.84) |
-| QDateEdit | `DateEdit` / `DatePicker` | Prim | compõe | ◐ | P1 | ✅ | edição por **seções** (ano/mês/dia), com o realce da paleta na seção ativa e ▴▾ agindo sobre ela. Calendário respeitado: 31/01 + 1 mês satura em 28 ou 29. `format="br"` troca só a exibição — a chave é sempre ISO. Teclado completo na 0.70 (▲▼ na seção, ←→ para trocar, dígitos com avanço automático). Falta a variante `calendarPopup`, que espera o overlay ancorado (§3) |
+| QDateEdit | `DateEdit` / `DatePicker` | Prim | compõe | ◐ | P1 | ✅ | edição por **seções** (ano/mês/dia), com o realce da paleta na seção ativa e ▴▾ agindo sobre ela. Calendário respeitado: 31/01 + 1 mês satura em 28 ou 29. `format="br"` troca só a exibição — a chave é sempre ISO. Teclado completo na 0.70 (▲▼ na seção, ←→ para trocar, dígitos com avanço automático). A variante `calendarPopup` — a grade de mês ancorada ao campo — fechou na 0.92, com o overlay ancorado da Onda 5 |
 | QTimeEdit | `TimeEdit` / `TimePicker` | Prim | compõe | ◐ | P1 | ✅ | as mesmas seções, para hora/minuto\[/segundo\]. Cada seção vira **dentro de si** (o `wrapping` do `QAbstractSpinBox`): mexer no minuto não empurra a hora |
 | QDateTimeEdit | `DateTimeEdit` | Prim | compõe | ◐ | P1 | ✅ | as duas famílias de seção no mesmo campo. É **a mesma primitiva** dos dois acima — a tag só decide quais seções aparecem |
 | — (range) | `DateRangePicker` | **Prim** | compõe | ◐ | P2 | ✅ | intervalo início→fim: **a mesma primitiva** com `range`, duas chaves (`start`/`end`) e `months="2"` desenhando as duas grades lado a lado. A faixa provisória entre o início e o cursor sai de uma chave global (`__cal_hover`), rastreada só enquanto há uma ponta aberta. Onda 3 (0.84) |
@@ -190,6 +191,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 > A §2.5 fecha em **6 de 6**. O que sobra não é uma linha da tabela: é a
 > variante `calendarPopup` do `<dateedit>` — uma *composição* das duas
 > primitivas que já existem, esperando o overlay ancorado da Onda 5.
+>
+> **E ela fechou na 0.92**, com esse overlay: `calendarPopup="true"` põe um
+> botão 📅 ao lado das setas, e ele abre a MESMA grade do `<calendar>` ancorada
+> ao campo. Escolher um dia grava e fecha no mesmo passo — fosse uma segunda
+> mensagem, o painel ficaria um quadro no ar depois do clique.
 
 ### 2.6 Displays e indicadores (apresentacionais)
 
@@ -229,11 +235,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QTabWidget/QTabBar | `TabBar` | Built | row+button | ◐ | P1 | 🟡 | a **barra** existe (0.65): abas de uma coleção do contexto, ativa numa chave que o app nomeia (padrão `SpinBox`). O empilhado de páginas continua sendo `se`/`senao`: o `QTabWidget` inteiro precisa de uma página por aba, e o slot nomeado da 0.67 tem **nome fixo** — falta o nome **dinâmico** (`<slot name="{aba}"/>`) — **Onda 5** |
+| QTabWidget/QTabBar | `TabBar` / `Tabs` | Built | row+button | ◐ | P1 | ✅ | duas tags: a **barra** sozinha (`<tabbar>`, 0.65) e a barra **mais a página** (`<tabs>`, 0.92). O que faltava era o **nome dinâmico de slot** (`<slot name="{aba}"/>`), uma linha no `eval` — não o estado por instância. Com ele, `addTab(widget, "Geral")` do Qt vira `<template slot="geral">` e a tela deixa de repetir a lista de abas duas vezes |
 | QStackedWidget | `Stack`/`StackView` | Comp | condicional (`se`) | ◐ | P1 | 🟡 | já dá com `se`; formalizar — sai junto do `Tabs` completo, mesmo mecanismo. Onda 5 |
 | QWizard/QWizardPage | `Wizard` | Comp | Stack+ButtonBox | ● | P2 | ⬜ | passos com voltar/avançar/finalizar |
 | QML SwipeView | `SwipeView` | Comp | stack | ● | P3 | ⬜ | páginas deslizáveis |
-| QML Drawer | `Drawer` | **Built** | stack+animação | ◐ | P2 | ⬜ | painel lateral deslizante — `<slot/>` + chave nomeada + a animação que o motor já tem; sem bloqueio. Onda 5 |
+| QML Drawer | `Drawer` | **Built** | reveal+slot | ◐ | P2 | ✅ | painel lateral deslizante — `<slot/>` + chave nomeada + `axis="x"` no `<reveal>` (o motor já animava altura desde a 0.90). Ele **empurra**, não cobre: quem cobre é um `<popover>` colado na borda (0.92) |
 | (roteamento de telas) | `navigate_to` | Motor | — | — | P0 | ✅ | navegação já existe |
 
 ### 2.9 Janela principal e barras
@@ -279,11 +285,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|
 | QHBoxLayout | `Row` / `row` | Prim | — | P0 | ✅ | existe |
 | QVBoxLayout | `Column` / `column` | Prim | — | P0 | ✅ | existe |
-| QGridLayout | `Grid` | Prim/Motor | — | P1 | ⬜ | grade linhas×colunas — o `iced` não tem, então é composição de `Row`/`Column` com medição. Essa medição é **a mesma** do `TableView`: os dois saem da mesma obra. Onda 6 |
+| QGridLayout | `Grid` | **Prim** | — | P1 | ✅ | grade linhas×colunas, com a largura de uma coluna medida a partir de **todas** as células dela. `columns="3"` (medidas) ou `columns="140 fill 80"` (trilhas). Sem `colspan` — ver `src/grid.rs` (0.92) |
 | QFormLayout | `Form` / `formulario` | Prim | — | P1 | ✅ | `Form` existe |
 | QStackedLayout | `se`/`senao` + Stack | Motor | ◐ | P1 | 🟡 | condicional existe |
 | QSpacerItem | `Space` | Prim | — | P1 | ✅ | ver §2.7 |
-| (flow layout) | `Flow`/`Wrap` | **Prim** | row+quebra | — | P2 | ⬜ | quebra automática de linha — a medição da Onda 6 num eixo só. Onda 6 |
+| (flow layout) | `Flow`/`Wrap` | **Prim** | row+quebra | — | P2 | ✅ | quebra automática de linha. **Não** saiu da medição da Onda 6: o `Row::wrap()` do próprio `iced` já fazia isso, e `<flow>` são três linhas no `widget.rs` (0.92) |
 
 ### 2.12 Overlays, dicas e utilitários
 
@@ -292,9 +298,9 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QToolTip | `tooltip=` | Prim | tooltip | — | P1 | ✅ | **atributo universal**, não tag: `tooltip`/`title`/`dica` em *qualquer* nó, com `tooltip_position` |
 | QML ToolTip | (idem) | Prim | tooltip | — | P1 | ✅ | mesmo atributo |
 | QWhatsThis | — | — | — | — | P3 | ⬜ | ajuda contextual (raro) |
-| QCompleter | `Completer` | **Prim** | text_input+overlay | ◐ | P2 | ⬜ | sugestões enquanto digita, com ↑↓/Enter/Esc. Onda 5 |
-| QML Popup | `Popup` | **Prim** | stack | ◐ | P2 | ⬜ | genérico, centrado na janela — a mesma primitiva do `Popover` sem âncora. Onda 5 |
-| — (menu popover) | `Popover` | **Prim** | stack | ◐ | P2 | ⬜ | conteúdo flutuante ancorado, por `<slot/>`. Onda 5 |
+| QCompleter | `Completer` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | sugestões enquanto digita, com ↑↓/Enter/Esc (0.92) |
+| QML Popup | `Popup` | **Prim** | overlay | ◐ | P2 | ✅ | genérico, centrado na janela — a mesma primitiva do `Popover` sem âncora (0.92) |
+| — (menu popover) | `Popover` | **Prim** | overlay | ◐ | P2 | ✅ | conteúdo flutuante **ancorado ao layout do gatilho** (não ao cursor), medido antes de posicionado — vira para o outro lado quando não cabe. Abre e fecha sozinho (0.92) |
 | QSplashScreen | `SplashScreen` | Comp | stack | — | P3 | ⬜ | tela de abertura |
 | QRubberBand | — | Comp | canvas | ● | P3 | ⬜ | retângulo de seleção |
 | QShortcut/QAction | `Shortcut`/`Action` | Motor | subscription | ● | P2 | ⬜ | atalhos globais de teclado |
@@ -513,117 +519,142 @@ Corte transversal da tabela por prioridade, na ordem que maximiza valor:
 
 **Fase A — fechar o núcleo primitivo (P0/P1 sobre iced direto)**
 ~~`Radio`~~ ✅ · ~~`Slider`~~ ✅ · ~~`ProgressBar` (formalizar)~~ ✅ ·
-~~`Tooltip`~~ ✅ · ~~`Space`~~ ✅ · `Grid` · ~~`password`/`secure` no
-`TextInput`~~ ✅ · `QrCode`. Sobram dois: o `QrCode` (nativo do iced, barato) e
-o `Grid`, que é o caro — o iced não tem grade.
+~~`Tooltip`~~ ✅ · ~~`Space`~~ ✅ · ~~`Grid`~~ ✅ (0.92) · ~~`password`/`secure`
+no `TextInput`~~ ✅ · `QrCode`. Sobra **um**: o `QrCode` (nativo do iced,
+barato). O `Grid` — "o caro, porque o iced não tem grade" — saiu na Onda 6, e o
+caro nele não era a grade: era a **medição de coluna** (`src/grid.rs`).
 
 **Fase B — destravar estado por instância (Motor P0)**
 Sem markup novo; habilita a fase C inteira.
 
 **Fase C — widgets compostos comuns (P1, ~~dependem de estado~~ dependem do
-padrão da chave nomeada) — ✅ fechada exceto o `Tabs` (0.85)**
-`Tabs` (só a barra ✅; o empilhado espera **nome dinâmico de slot**, Onda 5) ·
+padrão da chave nomeada) — ✅ fechada (0.92)**
+~~`Tabs`~~ ✅ (a barra na 0.65, o empilhado de páginas na 0.92, com o nome
+dinâmico de slot) ·
 ~~`Accordion`~~ ✅ · ~~`SpinBox`~~ ✅ · ~~`GroupBox`~~ ✅ ·
 ~~`ListView` (com seleção)~~ ✅ · ~~`ToolBox`~~ ✅ · ~~`Pagination`~~ ✅ ·
 ~~`Rating`~~ ✅ · ~~`ToolBar`/`StatusBar`~~ ✅ · ~~`Avatar`~~ ✅ ·
 ~~`Spinner`/`BusyIndicator`~~ ✅. Era a **Onda 4** da §6.2, e ela consumiu **um**
-habilitador (o `contains`). Só o `Tabs` completo continua atrás do nome dinâmico
-de slot.
+habilitador (o `contains`); o `Tabs` completo fechou na Onda 5, com outro.
 
 **Fase D — data/hora (P1, foco declarado) — ✅ fechada (0.84)**
 ~~`Calendar` → `DatePicker` → `TimePicker` → `DateTimePicker`. Depende de estado
 + overlay ancorado + valor de data.~~ Não dependia de nenhum dos três. Os campos
 de edição saíram na 0.68 (teclado na 0.70) e o `Calendar`/`MonthYearPicker`/
 `DateRangePicker` na 0.84 — **uma primitiva com três tags** e zero
-habilitadores, como a Onda 3 da §6.2 previu. Só a variante `calendarPopup` do
-`QDateEdit` continua atrás do overlay ancorado (Onda 5): ela é uma composição
-das duas primitivas, não uma sétima linha.
+habilitadores, como a Onda 3 da §6.2 previu. A variante `calendarPopup` do
+`QDateEdit` — uma composição das duas primitivas, não uma sétima linha — saiu na
+0.92, com o overlay ancorado da Onda 5. **O foco declarado do projeto termina
+ali.**
 
 **Fase E — diálogos ricos (P1)**
 ~~`FileDialog` (open/save/directory via `rfd`)~~ ✅ · `InputDialog` ·
 `ProgressDialog`.
 
-**Fase F — overlays e menus (P2)**
+**Fase F — overlays e menus (P2) — ✅ fechada (0.92)**
 ~~`Menu` · `ContextMenu` · `MenuBar`~~ ✅ (overlay próprio em `src/menu.rs`) →
-generalizar esse overlay → `Popover` · `Popup` · `Completer` · o `calendarPopup`
-do `<dateedit>`. É a **Onda 5** da §6.2, junto do `Tabs` completo — que não é
-overlay, mas responde a mesma pergunta (de quem é este conteúdo?).
+~~`Popover` · `Popup` · `Completer` · o `calendarPopup` do `<dateedit>`~~ ✅. Era
+a **Onda 5** da §6.2, junto do `Tabs` completo — que não é overlay, mas responde
+a mesma pergunta (de quem é este conteúdo?).
 
-**Fase G — model/view pesado (P2)**
-`TableView` · `TableHeader` · `TreeView` · `ColumnView`, mais o `Grid` e o
-`Flow`. É a **Onda 6**, e a releitura que ela traz é que o item caro não é o
-"binding a coleção" (que já existe, via `items="chave"`) e sim a **medição de
-coluna** — que o `Grid` e o `TableView` compartilham, e que ninguém tinha
-catalogado como item de motor.
+O overlay **não** saiu de generalizar o `src/menu.rs`, como esta fase previa:
+saiu como um `iced::advanced::{Widget, Overlay}` próprio (`src/anchored.rs`),
+que é o caminho que o cabeçalho do `menu.rs` sempre documentou como o certo. O
+`menu.rs` continua como está — reescrevê-lo agora seria trabalho sem
+consumidor.
+
+**Fase G — model/view pesado (P2) — ✅ fechada (0.92)**
+~~`TableView` · `TableHeader` · `TreeView` · `ColumnView`, mais o `Grid` e o
+`Flow`~~ ✅. Era a **Onda 6**, e a releitura que ela trouxe se confirmou: o item
+caro não era o "binding a coleção" (que já existia, via `items="chave"`) e sim a
+**medição de coluna** — que o `Grid` e o `TableView` compartilham, e que ninguém
+tinha catalogado como item de motor.
+
+Duas das seis não passaram por ela: o `Flow` é o `Row::wrap()` do próprio
+`iced`, e o `TreeView` é recursão mais um conjunto nomeado. Fica anotado que a
+edição de célula continua de fora — ela reusa o `<textinput>`, não a medição.
 
 **Fase H — canvas e visualização (P2/P3)**
 `Dial` · `Gauge` · `ColorDialog` · `LineChart`/`BarChart`/`PieChart` ·
 `Sparkline`.
 
 **Fase I — nicho/avançado (P3)**
-`MdiArea` · `Dock` · `Wizard` · `SwipeView` · `Drawer` · `SystemTray` ·
+`MdiArea` · `Dock` · `Wizard` · `SwipeView` · ~~`Drawer`~~ ✅ (0.92, adiantado
+pela Onda 5 — ele não dependia de nada desta fase) · ~~`SystemTray`~~ ✅ ·
 `Shader`/3D · impressão.
 
 ---
 
 ### Resumo numérico
 
-Contagem sobre as linhas que têm status, atualizada em 2026-09-02 (0.85). Duas
+Contagem sobre as linhas que têm status, atualizada em 2026-09-04 (0.92). Duas
 ressalvas: a §2.4 tem uma linha (`QListWidgetItem`) que é dado, não widget, e
 fica de fora; e o `Space` aparece duas vezes (§2.7 como container, §2.11 como
-layout), então o total tem uma duplicata — 123 widgets distintos, não 124. O
-total subiu de 122 porque `Pagination` e `Rating`, citados na §3 desde a 0.63
-como exemplos de widget que nunca esteve bloqueado, não tinham linha.
+layout), então o total tem uma duplicata — 123 widgets distintos, não 124.
 
 | Categoria | Widgets catalogados | ✅ prontos | 🟡 parciais | ⬜ a fazer |
 |---|---|---|---|---|
 | Botões e ações | 10 | **7** | 0 | 3 |
-| Entradas de texto | 9 | **5** | 1 | 3 |
+| Entradas de texto | 9 | **6** | 1 | 2 |
 | Numéricas/valor | 12 | **6** | 1 | 5 |
-| Seleção/listas/árvores | 11 | **3** | 0 | 8 |
+| Seleção/listas/árvores | 11 | **8** | 0 | 3 |
 | Data e hora | 6 | **6** | 0 | 0 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
 | Containers | 9 | **6** | 0 | 3 |
-| Navegação | 6 | 1 | 2 | 3 |
+| Navegação | 6 | **3** | 1 | 2 |
 | Janela/barras | 8 | 7 | 0 | 1 |
 | Diálogos | 14 | 9 | 0 | 5 |
-| Layouts | 7 | 4 | 1 | 2 |
-| Overlays/utilitários | 11 | 2 | 1 | 8 |
+| Layouts | 7 | **6** | 1 | 0 |
+| Overlays/utilitários | 11 | **5** | 1 | 5 |
 | Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **124** | **66** | **6** | **52** |
+| **Total** | **124** | **79** | **5** | **40** |
 
-O motor já entrega ~53% do catálogo Qt de superfície (34% antes da onda 2, 39%
+O motor entrega ~64% do catálogo Qt de superfície (34% antes da onda 2, 39%
 antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3, 47%
-antes da onda 4 — a queda de 45% para 44% numa revisão anterior foi o
-denominador que cresceu, não trabalho desfeito). É a primeira vez que a marca
-passa da metade. O gargalo **não é** o punhado de habilitadores de Motor do §3,
-como este resumo afirmava por três revisões: as ondas 3 e 4 somaram **dezesseis
-widgets** e consumiram **um** habilitador — o `contains`, o menor de todos.
+antes da onda 4, 53% antes das ondas 5 e 6). As duas últimas ondas somaram
+**treze** widgets e consumiram **três** itens de motor — o nome dinâmico de
+slot (uma linha no `eval`), o overlay ancorado (`src/anchored.rs`) e a medição
+de colunas (`src/grid.rs`).
 
-Onde os 52 se concentram: **model/view** (8), **gráficos** (6) e **overlays**
-(8). Vinte e duas linhas em três blocos — e o mapeamento da §6.2 mostra que os
-três não estão atrás de três itens diferentes: model/view e boa parte dos
-layouts saem de **uma** medição de coluna (Onda 6), os overlays saem de **uma**
-generalização do que o `menu.rs` já tem (Onda 5), e os gráficos de **um**
-`canvas` exposto (a Onda 7 esboçada). As duas ondas restantes (5 e 6) cobrem 12
-das 52 linhas ⬜ com dois itens de motor. Do resto, o troco decorativo — oito
-linhas — está isolado na §6.3.
+Onde os 40 se concentram: **gráficos** (6), **diálogos** (5), **displays** (5) e
+**overlays** (5). O bloco de model/view, que era o maior atraso do catálogo
+desde o começo, deixou de ser um: a §2.4 saiu de 3/11 para **8/11** e a §2.11
+(layouts) fechou tudo o que tinha ⬜.
 
 A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6, passou a
-3 de 6 na 0.68 e fechou em **6 de 6** na 0.84, **sem** um único habilitador de
-motor — só reclassificando os widgets de builtin para primitiva (ver a correção
-na §3). Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
-perguntar em que nível elas deveriam estar — e este documento errou essa
-pergunta **seis** vezes (`TimePicker`, `DateEdit`, `Calendar`, `Accordion`,
-`Pagination`, `Rating`), sempre para o mesmo lado, o de superestimar o bloqueio.
-As duas últimas, na 0.85, foram as primeiras a errar pela mesma causa: repetição
-dirigida por um número, não por uma coleção — ver a nota no fim da Onda 4.
+3 de 6 na 0.68 e fechou em **6 de 6** na 0.84 — mas com uma ressalva escrita na
+própria linha do `QDateEdit` ("falta a variante `calendarPopup`") desde a 0.68.
+A 0.92 apagou essa frase, e é por isso que **o foco declarado do projeto termina
+na Onda 5, não na Onda 3**.
 
-As duas ondas mostram os dois regimes de custo. A onda 2 dependia de **um**
-habilitador de motor (`<slot/>`) e, uma vez feito, valeu seis widgets — a §2.9,
-o esqueleto da `QMainWindow`, passou de 1/8 para 7/8. A onda 1 não dependia de
-nada: eram quatro widgets que o `iced` já sustentava e que só faltava expor.
-Nenhuma das duas foi limitada por esforço de markup.
+Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
+perguntar em que nível elas deveriam estar — e este documento errou essa
+pergunta **dez** vezes, sempre para o mesmo lado, o de superestimar o bloqueio:
+
+| # | linha | o que o documento dizia | o que era |
+|---|---|---|---|
+| 1–3 | `TimePicker`, `DateEdit`, `Calendar` | builtin bloqueado por estado | primitiva, sem bloqueio |
+| 4 | `Accordion` | precisa de estado por instância | conjunto nomeado + `contains` |
+| 5–6 | `Pagination`, `Rating` | builtin | primitiva — *repetição dirigida por número* |
+| 7 | `QTabWidget` | precisa de estado por instância | precisava de **uma linha** no `eval` (nome de slot dinâmico) |
+| 8 | `TreeView` | estado por nó | conjunto nomeado, o mesmo do `Accordion` |
+| 9 | binding a coleção (§3) | "o maior investimento restante" | **já existia** (`items="chave"`) desde o `<menu>` |
+| 10 | `Flow`/`Wrap` | sai da medição da Onda 6 | **o `iced` já tinha** (`Row::wrap()`) |
+
+As duas últimas são as mais instrutivas, porque são de tipos novos: a 9 é uma
+capacidade que o próprio motor já tinha e ninguém releu; a 10 é uma que a
+**biblioteca de baixo** já tinha. As duas só apareceram quando alguém foi
+escrever o código.
+
+E os três regimes de custo, agora todos exemplificados:
+
+- **Nenhum habilitador** (ondas 1, 3, 4): widgets que o `iced` já sustentava, ou
+  que só estavam classificados no nível errado.
+- **Um habilitador que vira meia dúzia de widgets** (ondas 2, 5, 6): o
+  `<slot/>`, o overlay ancorado, a medição de colunas. É o regime de maior
+  alavancagem, e o único em que vale abrir uma rodada por um item de motor.
+- **Um habilitador de meia tarde** (o `contains`, entre as ondas 3 e 4): cabe de
+  carona na onda que o consome.
 
 ---
 
@@ -739,9 +770,13 @@ tarde), e existem porque o documento superestimou o bloqueio:
 As duas seguintes são o outro regime: **um item de motor que vira meia dúzia de
 widgets**, como o `<slot/>` foi na Onda 2.
 
-- **Onda 5** — o conteúdo que sai da tela e entra no widget (abas com página,
-  overlays ancorados).
-- **Onda 6** — a grade: uma medição de colunas, e os seis widgets que saem dela.
+- **Onda 5** ✅ (0.92) — o conteúdo que sai da tela e entra no widget (abas com
+  página, overlays ancorados).
+- **Onda 6** ✅ (0.92) — a grade: uma medição de colunas, e os seis widgets que
+  saem dela.
+
+**A fila está cumprida.** O que vem depois é a Onda 7 (o `canvas`, esboçada no
+fim da §6.2) e o troco da §6.3.
 
 As quatro respondem a mesma pergunta, que é a lição repetida deste documento:
 **em que nível este widget deveria estar, e ele está mesmo bloqueado?** Nove das
@@ -959,43 +994,113 @@ o que faria um `Rating` builtin ser viável, e vale saber que existe.
 
 ---
 
-#### Onda 5 — o conteúdo que sai da tela e entra no widget
+#### Onda 5 — o conteúdo que sai da tela e entra no widget — ✅ **FEITA (0.92)**
+
+> **Como saiu.** Os seis itens, na ordem, e os dois habilitadores. O achado da
+> leva foi o **tamanho relativo dos dois**: o habilitador A — que este documento
+> chamava de "o menor que restou do §3" — é literalmente **uma interpolação**
+> em `eval.rs`, e é ele que destrava o `QTabWidget`, o 🟡 mais visível do
+> catálogo desde a 0.65. O habilitador B, previsto como "médio", saiu como um
+> `iced::advanced::{Widget, Overlay}` de verdade (`src/anchored.rs`), e não como
+> a generalização do `menu.rs` que a proposta descrevia — ver a nota no fim
+> desta seção.
+>
+> Exemplos: `cargo run --example onda5` e `cargo run --example onda5_luau`, a
+> mesma tela sem `impl Component`.
 
 Duas coisas que hoje o app monta à mão, na tela, e deveriam morar **dentro** do
 widget: a página de uma aba e o painel que flutua. São dois habilitadores
 diferentes, mas a pergunta é a mesma — *de quem é este conteúdo?* — e por isso
 saem juntos.
 
-**Habilitador A — nome dinâmico de slot** (Motor, P1, pequeno).
+**Habilitador A — nome dinâmico de slot** (Motor, P1, pequeno). ✅ **FEITO (0.92).**
 `<slot name="{aba}"/>`, resolvido contra o contexto. A partição por nome já
-existe desde a 0.67; falta interpolar o nome antes da busca, no mesmo ponto em
-que o `eval` já roda `process_tpl`. É o menor habilitador que restou do §3.
+existia desde a 0.67; faltava interpolar o nome antes da busca, no mesmo ponto
+em que o `eval` já roda `process_tpl`. Era o menor habilitador que restou do §3,
+e a previsão de tamanho estava certa: **uma interpolação**, mais a simétrica do
+lado de quem usa (`slot="{item.id}"` dentro de um `for-each`).
 
-**Habilitador B — overlay ancorado genérico** (Motor, P1, médio).
+Duas decisões que a proposta não tinha: um nome que interpola para **vazio**
+volta a ser o slot anônimo (senão a página sumiria enquanto a chave não fosse
+semeada), e um nome sem balde correspondente cai no **conteúdo de reserva** do
+`<slot>` — que num `<tabs>` é vazio, e é melhor mostrar nada do que a página da
+aba anterior.
+
+**Habilitador B — overlay ancorado genérico** (Motor, P1, médio). ✅ **FEITO (0.92).**
 `src/menu.rs` já construiu um overlay ancorado com cascata de submenus, e o
-`DIALOGS.md` já mapeou as armadilhas (`Interaction::Idle` + `on_press` sempre
-presente). O que existe está **fechado sobre `MenuNode`**: generalizar isso — ou
-trocá-lo por um `iced::advanced::{Widget, Overlay}` custom, o caminho que o
-próprio `menu.rs` documenta como o certo — é o trabalho. Não é pesquisa; é
-refatoração com um consumidor já escrito para validar.
+`DIALOGS.md` já mapeou as armadilhas. O que existe está **fechado sobre
+`MenuNode`**, e a proposta dava duas saídas: generalizar aquilo, ou escrever um
+`iced::advanced::{Widget, Overlay}` custom — "o caminho que o próprio `menu.rs`
+documenta como o certo".
+
+**Saiu o segundo**, em `src/anchored.rs`, e vale registrar por que a primeira
+opção foi descartada: generalizar o `menu.rs` teria mantido as duas limitações
+que o cabeçalho dele já documentava — a âncora é o **cursor**, não o widget, e
+não há medição antes de posicionar. Para um menu de linhas de altura fixa aberto
+no ponto do clique isso basta; para um popover, não. Um `Widget::overlay()` de
+verdade dá as duas coisas de graça: a âncora é `layout.bounds() + translation`
+(então o painel acompanha a rolagem) e o painel é medido contra o tamanho da
+janela antes de ser movido (então virar para cima quando o rodapé corta é uma
+conta, não um chute).
+
+O que faltava para isso não era conhecimento, era **precedente**: `reveal.rs` e
+`animated_toggler.rs` já eram `iced::advanced::Widget`; este é o primeiro a ir
+até o `Overlay`. O `menu.rs` continua como está — ele funciona, e reescrevê-lo
+agora seria trabalho sem consumidor.
 
 | # | Widget | Nível | Prio | Hab. | Por que aqui |
 |---|---|---|---|---|---|
-| 1 | **`Tabs` completo** (`QTabWidget`) | Built | P1 | A | A barra saiu na 0.65; a página continua sendo `se`/`senao` na tela. Com o nome dinâmico, vira `addTab(widget, "Geral")` — o conteúdo passa a ser filho do widget, e a tela deixa de repetir a lista de abas duas vezes. Fecha o 🟡 mais visível da §2.8 |
-| 2 | **`calendarPopup` no `<dateedit>`** | Prim | P1 | B | O único item que a Onda 3 deixou para trás, e o último buraco do **foco declarado**: o campo por seções abre a grade de mês ancorada nele. Os dois lados já existirão — é a solda |
-| 3 | **`Popover`** | Prim | P2 | B | O mecanismo cru virado tag: conteúdo por `<slot/>`, ancorado a um gatilho, aberto/fechado numa chave nomeada. É o `Popup` do QML e o que todo menu de usuário/seletor de emoji/painel de filtro pede |
-| 4 | **`Popup`** | Prim | P2 | B | A **mesma primitiva** sem âncora — centrado na janela, sem a modalidade de um `<dialog>`. Custo marginal, pelo padrão `<dateedit>`/`<timeedit>` |
-| 5 | **`Completer`** / **`Autocomplete`** | Prim | P2 | B | A função de verdade desta onda: filtrar enquanto se digita, navegar a lista com ↑↓, aceitar com Enter, desistir com Esc — e devolver o foco ao campo. Fecha a linha duplicada nas §2.2/§2.4/§2.12, e é o widget que mais aparece em app real dos que faltam |
-| 6 | **`Drawer`** | Built | P2 | — | Painel lateral deslizante. **Não precisa de nenhum dos dois habilitadores** — é `<slot/>` (0.65) + uma chave nomeada + a animação que o motor já tem (`ANIMACOES.md`); entra aqui por parentesco, não por bloqueio. Se a onda atrasar, é o item que dá para adiantar |
+| 1 ✅ | **`Tabs` completo** (`QTabWidget`) | Built | P1 | A | A barra saiu na 0.65; a página continua sendo `se`/`senao` na tela. Com o nome dinâmico, vira `addTab(widget, "Geral")` — o conteúdo passa a ser filho do widget, e a tela deixa de repetir a lista de abas duas vezes. Fecha o 🟡 mais visível da §2.8 |
+| 2 ✅ | **`calendarPopup` no `<dateedit>`** | Prim | P1 | B | O único item que a Onda 3 deixou para trás, e o último buraco do **foco declarado**: o campo por seções abre a grade de mês ancorada nele. Os dois lados já existirão — é a solda |
+| 3 ✅ | **`Popover`** | Prim | P2 | B | O mecanismo cru virado tag: conteúdo por `<slot/>`, ancorado a um gatilho, aberto/fechado numa chave nomeada. É o `Popup` do QML e o que todo menu de usuário/seletor de emoji/painel de filtro pede |
+| 4 ✅ | **`Popup`** | Prim | P2 | B | A **mesma primitiva** sem âncora — centrado na janela, sem a modalidade de um `<dialog>`. Custo marginal, pelo padrão `<dateedit>`/`<timeedit>` |
+| 5 ✅ | **`Completer`** / **`Autocomplete`** | Prim | P2 | B | A função de verdade desta onda: filtrar enquanto se digita, navegar a lista com ↑↓, aceitar com Enter, desistir com Esc — e devolver o foco ao campo. Fecha a linha duplicada nas §2.2/§2.4/§2.12, e é o widget que mais aparece em app real dos que faltam |
+| 6 ✅ | **`Drawer`** | Built | P2 | — | Painel lateral deslizante. **Não precisa de nenhum dos dois habilitadores** — é `<slot/>` (0.65) + uma chave nomeada + a animação que o motor já tem (`ANIMACOES.md`); entra aqui por parentesco, não por bloqueio. Se a onda atrasar, é o item que dá para adiantar |
 
-**O que fecha:** a §2.12 sai de 2/11 para 5/11 e a §2.8 fecha o `QTabWidget`. E
-some a última ressalva da §2.5 — a linha do `QDateEdit` está ✅ desde a 0.68 mas
-carrega um "falta a variante `calendarPopup`" desde então. O foco declarado do
-projeto termina aqui, não na Onda 3.
+**O que fecha:** a §2.12 saiu de 2/11 para 5/11 e a §2.8 fechou o `QTabWidget`.
+E sumiu a última ressalva da §2.5 — a linha do `QDateEdit` estava ✅ desde a 0.68
+mas carregava um "falta a variante `calendarPopup`" desde então. **O foco
+declarado do projeto termina aqui, não na Onda 3.**
+
+**As quatro diferenças entre o proposto e o construído**, porque o proposto está
+escrito acima e vale saber onde a realidade o corrigiu:
+
+1. **Quem abre e fecha o painel é o widget, não o app.** A proposta descrevia o
+   `<popover>` como "aberto/fechado numa chave nomeada", o que dava a entender
+   um handler por painel do lado do app. Não é preciso: pressionar o gatilho
+   abre, clicar fora fecha, Esc fecha — e o `Anchored` faz as três. Abrir vem
+   **antes** de o gatilho ver o evento (um `<button>` consome o pressionar
+   dentro dos limites dele, então um `mouse_area` por fora nunca dispararia) e,
+   ao contrário do fechar, **não consome**: o botão continua disparando o
+   `on_click` que o markup lhe deu.
+2. **O clique que fecha não chega a mais nada.** É o preço de o overlay receber
+   o evento primeiro, é o comportamento de um menu de SO, e é o que faz um
+   gatilho que alterna a chave não reabrir o painel no mesmo quadro.
+3. **O `<popover>` reparte os filhos por `slot`, não por posição.** Isso pediu
+   uma mudança de uma linha no `eval`: a etiqueta `slot` passou a **atravessar a
+   avaliação** quando o pai é uma primitiva (numa fronteira de componente ela
+   continua sendo consumida pela partição, como sempre).
+4. **O `<drawer>` precisou de um eixo no `<reveal>`.** A proposta dizia "a
+   animação que o motor já tem"; o motor animava **altura**. `axis="x"` é o
+   mesmo mecanismo na largura, e é literalmente a mesma função com um `if`.
 
 ---
 
-#### Onda 6 — a grade: uma medição, seis widgets
+#### Onda 6 — a grade: uma medição, seis widgets — ✅ **FEITA (0.92)**
+
+> **Como saiu.** A aposta pagou: a medição é `src/grid.rs`, um
+> `iced::advanced::Widget` que mede os filhos em dois passos, e dela saem
+> `<grid>`, `<tableheader>`, `<tableview>` e `<columnview>`. Mas **duas** das
+> seis linhas não passaram por ela, e as duas são correções de rota do mesmo
+> tipo — algo catalogado como caro que já existia:
+>
+> - o **`Flow`/`Wrap`** é o `Row::wrap()` do próprio `iced`, três linhas em
+>   `widget.rs`. A primeira vez neste documento em que quem já tinha a
+>   capacidade era a biblioteca de baixo, não o motor;
+> - o **`TreeView`** é recursão sobre a coleção mais um conjunto nomeado — nem
+>   grade, nem estado por instância.
+>
+> Exemplos: `cargo run --example onda6` e `cargo run --example onda6_luau`.
 
 Esta é a onda cara, e ela é cara **uma vez só**. O documento catalogava dois
 itens separados como caros — o `Grid` ("o `iced` não tem grade") e o `TableView`
@@ -1023,12 +1128,12 @@ instância — que é onde o §3 ainda o coloca.
 
 | # | Widget | Nível | Prio | Por que aqui |
 |---|---|---|---|---|
-| 1 | **`Grid`** (`QGridLayout`) | Prim | P1 | A medição, e o widget mais simples que a exercita. Sai primeiro porque é o teste do mecanismo antes de haver cabeçalho, ordenação e seleção por cima — o mesmo papel que o `GroupBox` teve para o `<slot/>` |
-| 2 | **`Flow`** / **`Wrap`** | Prim | P2 | A mesma medição num eixo só: quebra automática de linha. Fecha a §2.11 (layouts) e é o que um campo de tags/chips pede |
-| 3 | **`TableHeader`** (`QHeaderView`) | Prim | P2 | Cabeçalho clicável (ordenar) e arrastável (redimensionar). O arrasto mora numa chave global — um por vez, a família do `__drag_key` que o motor já tem |
-| 4 | **`TableView`** | Prim | P2 | Cabeçalho + corpo, com **ordenação** (coluna e direção em chaves nomeadas, a comparação no `update`) e **seleção** (chave nomeada; múltipla pelo conjunto nomeado). Edição de célula fica para depois — reusa o `<TextInput>`, não a medição |
-| 5 | **`TreeView`** | Prim | P2 | Recursão sobre a coleção + conjunto nomeado de nós abertos. Sai do estado por instância pela mesma porta que o `Accordion` |
-| 6 | **`ColumnView`** | Prim | P3 | Navegação Miller (o Finder): uma `ListView` por nível, o nível escolhido numa chave. Quase de graça depois do 5 |
+| 1 ✅ | **`Grid`** (`QGridLayout`) | Prim | P1 | A medição, e o widget mais simples que a exercita. Sai primeiro porque é o teste do mecanismo antes de haver cabeçalho, ordenação e seleção por cima — o mesmo papel que o `GroupBox` teve para o `<slot/>` |
+| 2 ✅ | **`Flow`** / **`Wrap`** | Prim | P2 | A mesma medição num eixo só: quebra automática de linha. Fecha a §2.11 (layouts) e é o que um campo de tags/chips pede |
+| 3 ✅ | **`TableHeader`** (`QHeaderView`) | Prim | P2 | Cabeçalho clicável (ordenar) e arrastável (redimensionar). O arrasto mora numa chave global — um por vez, a família do `__drag_key` que o motor já tem |
+| 4 ✅ | **`TableView`** | Prim | P2 | Cabeçalho + corpo, com **ordenação** (coluna e direção em chaves nomeadas, a comparação no `update`) e **seleção** (chave nomeada; múltipla pelo conjunto nomeado). Edição de célula fica para depois — reusa o `<TextInput>`, não a medição |
+| 5 ✅ | **`TreeView`** | Prim | P2 | Recursão sobre a coleção + conjunto nomeado de nós abertos. Sai do estado por instância pela mesma porta que o `Accordion` |
+| 6 ✅ | **`ColumnView`** | Prim | P3 | Navegação Miller (o Finder): uma `ListView` por nível, o nível escolhido numa chave. Quase de graça depois do 5 |
 
 **Habilitador desta onda — virtualizar a lista (Motor, P1). ✅ FEITO (0.77).**
 
@@ -1059,13 +1164,45 @@ Fica de fora, com motivo: a virtualização é de **render**, não de avaliaçã
 janela economizaria memória, mas exigiria reavaliar a cada rolagem, que é
 exatamente o que esta versão evita.
 
-**O que fecha:** a §2.4 (seleção/listas/árvores) sai de 1/11 — a categoria mais
-atrasada do catálogo desde o começo — para 8/11, e a §2.11 (layouts) fecha. É a
-onda que muda mais o resumo numérico de todas — e, com a virtualização, a que
-tira o último teto de tamanho de lista do motor.
+**O que fecha:** a §2.4 (seleção/listas/árvores) saiu de 3/11 — a categoria mais
+atrasada do catálogo desde o começo — para **8/11**, e a §2.11 (layouts) fechou
+tudo o que tinha ⬜. É a onda que mais mudou o resumo numérico de todas.
 
-**Onda 7, se alguém perguntar:** o `canvas` como primitiva, e a família que ele
-destrava de uma vez — `Dial`, `Gauge`, `LcdNumber`, `ColorDialog` e a §2.13
+**As três diferenças entre o proposto e o construído:**
+
+1. **A ligação a coleção já existia**, como a proposta suspeitava — e é a nona
+   linha que este documento marcou como bloqueada sem estar. `items="chave"` é
+   a mesma convenção do `<menu items>` desde sempre; o que faltava era a
+   medição, mais as convenções de seleção e ordenação (que são o padrão do
+   `SpinBox`, já escrito).
+2. **A ordenação é numérica quando os dois lados parseiam como número.** Não
+   estava na proposta e é o que separa uma tabela usável de uma que coloca
+   `"10"` antes de `"9"` numa coluna de contagem.
+3. **O arrasto de coluna adia o zero para o primeiro movimento do mouse.** A
+   proposta dizia "o arrasto mora numa chave global — um por vez, a família do
+   `__drag_key`", e isso saiu como previsto (`__colgrip`). O que ela não previu
+   é a consequência da própria economia do motor: enquanto não há alça presa, o
+   motor **não escuta o mouse** (`precisa_do_cursor`), então no instante do
+   clique a última posição conhecida é lixo. O zero do arrasto fica em aberto e
+   o primeiro `CursorMoved` o ancora — um quadro sem redimensionar, que ninguém
+   vê, e exato daí em diante.
+
+**Uma armadilha nova, para quem for escrever a próxima primitiva de layout:**
+dentro de um `<scrollable>` o teto vertical é **infinito**, e qualquer filho que
+se declare `height="fill"` mede infinito. Um `Length::Fill` de 1px na alça do
+cabeçalho fez a linha inteira medir infinito e empurrou o corpo da tabela para
+fora da tela — a tabela aparecia **vazia, sem erro nenhum**. É a gêmea da
+armadilha do `Length::Fill` no wrap de background que o `PRIMITIVAS.md` já
+registra, do outro lado do eixo. O `grid.rs` agora ignora altura não-finita ao
+medir uma linha, e a alça tem altura declarada.
+
+**E uma do `iced`, que custa a última coluna de toda tabela:** a barra de
+rolagem de um `scrollable` **flutua sobre** o conteúdo, a menos que um
+`spacing` seja declarado. Sem `.spacing(0)`, o que ela cobre numa tabela é
+exatamente a coluna da direita.
+
+**Onda 7, e agora ela é a próxima:** o `canvas` como primitiva, e a família que
+ele destrava de uma vez — `Dial`, `Gauge`, `LcdNumber`, `ColorDialog` e a §2.13
 inteira (gráficos, 6 linhas em 0). Mesmo formato das ondas 5 e 6: um item de
 motor, meia dúzia de widgets. Fica sem detalhar porque as decisões dele (`canvas`
 na mão vs. `plotters`, §4) ainda estão abertas, e escrevê-las agora seria
@@ -1081,20 +1218,41 @@ sobram **dois** — e nenhum dos dois bloqueia coisa alguma da fila:
 | Habilitador (§3) | Onde ficou |
 |---|---|
 | `contains` no condicional | **Onda 4**, como pré-requisito de dois itens — ✅ feito na 0.84 |
-| Nome dinâmico de slot | **Onda 5**, habilitador A |
-| Overlay ancorado genérico | **Onda 5**, habilitador B |
-| `Grid` | **Onda 6**, item 1 — deixou de ser pré-requisito do `Calendar` (§2.5) e virou a ponta do mecanismo de medição |
-| Binding a coleção (model/view) | **Onda 6** — e menor do que estava catalogado: a ligação já existe (`items="chave"`), falta a medição e as convenções de seleção/ordenação |
+| Nome dinâmico de slot | **Onda 5**, habilitador A — ✅ feito na 0.92, e era uma interpolação |
+| Overlay ancorado genérico | **Onda 5**, habilitador B — ✅ feito na 0.92, como `iced::advanced::Overlay` (`src/anchored.rs`), não como generalização do `menu.rs` |
+| `Grid` | **Onda 6**, item 1 — ✅ feito na 0.92 (`src/grid.rs`). Deixou de ser pré-requisito do `Calendar` (§2.5) e virou a ponta do mecanismo de medição |
+| Binding a coleção (model/view) | **Onda 6** — ✅ e **nem existia como trabalho**: a ligação já era `items="chave"`, a mesma do `<menu>`. Do que estava catalogado sobrou a medição e as convenções de seleção/ordenação |
 | `ctx.dispatch(acao)` | Continua P2 e continua sem consumidor urgente: o caso declarativo já se resolveu com o prefixo `app:` (0.63) |
 | Contexto tipado / valor de data | **Fechado pela negativa** (0.72/0.73): o global `date` do prelúdio Luau cobre o lado do script, o `Instante` cobre o do widget. Sai da lista |
 | **Canvas como primitiva** | **Onda 7** (esboçada acima): `Dial`, `Gauge`, `LcdNumber`, `ColorDialog` e a §2.13 inteira |
 | **Estado por instância** | O último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider` e a edição de célula em árvore profunda. Rebaixado de P0 para P1 nesta revisão — não por ter encolhido, mas porque parou de ser o caminho crítico de qualquer coisa que se queira construir |
 | Subscriptions de teclado | Continua P2, independente das quatro ondas (`Shortcut`/`Action` globais) |
 
-A leitura que isso permite: o item que este documento chamou por três revisões
-de "o desbloqueio de maior alavancagem" **não é o gargalo de nada** que se queira
-construir nas próximas quatro levas. O gargalo real é a medição da Onda 6 — e
-esse nunca esteve na lista do §3.
+A leitura que isso permitia, escrita antes das ondas 5 e 6: o item que este
+documento chamou por três revisões de "o desbloqueio de maior alavancagem" **não
+é o gargalo de nada** que se queira construir nas próximas quatro levas; o
+gargalo real é a medição da Onda 6, e esse nunca esteve na lista do §3.
+
+**As duas ondas confirmaram, e por uma margem maior do que a previsão.** O
+estado por instância continua sem bloquear nada que se queira construir, e dos
+cinco habilitadores que sobravam na lista, três foram feitos (dois deles muito
+menores do que o catálogo dizia) e um — o binding a coleção, que a lista chamava
+de "o maior investimento restante" — simplesmente **não existia**: a capacidade
+já estava no motor desde o `<menu>`.
+
+Do §3 sobram, agora, três itens, e nenhum bloqueia nada da §6.3:
+
+| Habilitador | Estado |
+|---|---|
+| **Canvas como primitiva** | Onda 7, e o único com alavancagem grande (a §2.13 inteira, 6 linhas em 0) |
+| `ctx.dispatch(acao)` | continua P2, continua sem consumidor urgente |
+| Subscriptions de teclado | continua P2 (`Shortcut`/`Action` globais) |
+| **Estado por instância** | o último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider` e a edição de célula em árvore profunda |
+
+E o `on_enter`/`on_exit` no markup, anotado no fim da Onda 4 como "o que faria um
+`Rating` builtin ser viável", continua sem consumidor: o hover do
+`<autocomplete>` e o da tabela saíram pelo `Status::Hovered` do `button` do
+`iced`, sem precisar de mensagem nenhuma.
 
 ### 6.3 A bandeja de troco (fica registrada, não abre rodada)
 

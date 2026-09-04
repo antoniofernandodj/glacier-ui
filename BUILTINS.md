@@ -29,8 +29,8 @@ builtin continua sendo o caminho para o que a **lib** publica a todos os apps.
 ### Como saber se o widget é builtin ou primitiva
 
 A pergunta se responde antes de escrever a primeira linha, e este projeto a
-errou seis vezes — sempre para o mesmo lado, o de escrever um builtin que não
-tinha como funcionar. Os três sinais que já apareceram:
+errou dez vezes — sempre para o mesmo lado, o de escrever (ou adiar) um builtin
+que não tinha como funcionar. Os quatro sinais que já apareceram:
 
 1. **O template precisaria ler uma chave cujo *nome* vem de uma prop.** É a
    indireção `{{value}}`, que o interpolador não tem. Foi o que reclassificou
@@ -43,10 +43,22 @@ tinha como funcionar. Os três sinais que já apareceram:
    `on_press`, `on_double_click`, `cursor` e `tooltip` a qualquer nó, mas não um
    `on_enter`. Foi o segundo motivo do `Rating`, e é o que a pré-visualização no
    hover exige.
+4. **O widget precisa de uma camada, ou de medir os irmãos.** Um painel que sai
+   do fluxo e se posiciona contra a janela é um `iced::advanced::Overlay`
+   (`<popover>`, `<popup>`, `<autocomplete>`, 0.92); uma coluna cuja largura é o
+   máximo das células dela precisa de uma medição bidimensional (`<grid>`,
+   `<tableview>`, 0.92). Nenhuma das duas é composição de nós.
 
 A regra prática, que o [`PRIMITIVAS.md`](PRIMITIVAS.md) já registrava: **um
 builtin que só funcionaria se o interpolador (ou o markup) tivesse mais uma
 capacidade é, quase sempre, uma primitiva mal classificada.**
+
+E a recíproca, que a Onda 5 acrescentou: **um builtin adiado por um habilitador
+merece uma releitura antes de virar uma rodada.** O `Tabs` completo esperava
+"estado por instância" desde a 0.65; o que faltava era **interpolar o nome de um
+slot**, uma linha no `eval.rs`. O `Drawer` esperava "a animação do motor"; o que
+faltava era um eixo no `<reveal>`. Os dois viraram builtins na 0.92, sem nada de
+extraordinário.
 
 Um **builtin** é um componente comum (`impl Component`) — a única diferença é que
 a lib o registra em `GlacierUI::new()`, então ele não exige `register()` do app.
@@ -327,9 +339,16 @@ global — não há estado por instância. Consequências práticas:
 - ✅ **Widgets com comportamento cujo valor o app nomeia** (SpinBox): a chave de
   contexto entra por prop e a ação a carrega — ver a seção adiante. Também são
   usáveis N vezes.
-- ⚠️ **Widgets com estado** (um contador, um accordion aberto/fechado): duas
-  instâncias na mesma tela **compartilhariam** o estado e colidiriam. Não há
-  isolamento por instância ainda.
+- ✅ **Widgets que ESCOLHEM conteúdo por uma chave nomeada** (`Tabs`, 0.92): a
+  aba ativa é uma chave do app, e o nome do slot **interpola** contra ela
+  (`<slot name="{active}"/>`). Duas instâncias com chaves diferentes não se
+  veem. Vale saber o preço: o conteúdo de **todos** os slots é avaliado, porque
+  a partição acontece uma vez na fronteira do componente; só o escolhido é
+  renderizado.
+- ⚠️ **Widgets com estado** (um contador): duas instâncias na mesma tela
+  **compartilhariam** o estado e colidiriam. Não há isolamento por instância
+  ainda — e a lista de widgets que de fato precisam disso encolheu para quatro
+  (ver a §3 do `PLANO_WIDGETS.md`).
 - ❌ **Não** semeie defaults com `init()` num builtin: isso polui o contexto
   global com as chaves do widget. Use `{prop|default}` no template.
 

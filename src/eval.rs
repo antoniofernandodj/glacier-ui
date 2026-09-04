@@ -1664,6 +1664,26 @@ fn eval_owned(
     // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
     // desta vez com o dono errado (o componente, não quem chamou).
     if let NodeType::Slot { name } = &node.kind {
+        // **Nome dinâmico** (habilitador A da Onda 5): o nome interpola antes da
+        // busca, no contexto do componente — que é onde as props dele vivem.
+        // `<slot name="{active}"/>` num `<tabs>` resolve para `geral` e vai
+        // buscar o balde que o uso etiquetou com `slot="geral"`.
+        //
+        // Sem isto, os nomes de slot eram literais de template (0.67) e um
+        // widget não conseguia escolher a região por um valor de contexto — que
+        // é exatamente o que separa a `<tabbar>` (só a fileira) do
+        // `QTabWidget` (a fileira mais a página).
+        //
+        // Um nome que interpola para vazio volta a ser o slot **anônimo**: é o
+        // que faz `<slot name="{aba}"/>` cair no conteúdo sem etiqueta enquanto
+        // a chave não foi semeada, em vez de sumir da tela.
+        let name: Option<String> = match name {
+            Some(n) if n.contains('{') => {
+                let resolvido = process_tpl(n, context);
+                (!resolvido.trim().is_empty()).then_some(resolvido)
+            }
+            outro => outro.clone(),
+        };
         let conteudo: Vec<UiNode> = match slot.and_then(|s| s.get(name.as_deref())) {
             Some(nodes) => nodes.to_vec(),
             // Reserva: os filhos do `<slot>` são do componente, então avaliam
@@ -1738,7 +1758,17 @@ fn eval_owned(
         if !node.children.is_empty() {
             let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
             for filho in &node.children {
-                let destino = filho.slot_name().map(str::to_string);
+                // O nome do destino também interpola, pelo mesmo motivo que
+                // o do `<slot/>` (habilitador A da Onda 5) — só que deste lado
+                // o contexto é o de QUEM USA, então `slot="{item.id}"` dentro
+                // de um `for-each` etiqueta cada página com o id do seu item.
+                let destino = filho.slot_name().map(|d| {
+                    if d.contains('{') {
+                        process_tpl(d, context)
+                    } else {
+                        d.to_string()
+                    }
+                });
                 match baldes.iter_mut().find(|(k, _)| *k == destino) {
                     Some((_, v)) => v.push(filho),
                     None => baldes.push((destino, vec![filho])),
@@ -2246,6 +2276,10 @@ fn eval_owned(
             seconds,
             day_first,
             on_change,
+            popup,
+            today,
+            min,
+            max,
         } => NodeType::DateTimeEdit {
             value_var: process_tpl(value_var, context),
             date: *date,
@@ -2253,6 +2287,10 @@ fn eval_owned(
             seconds: *seconds,
             day_first: *day_first,
             on_change: namespace_action(process_tpl(on_change, context), owner),
+            popup: *popup,
+            today: process_tpl(today, context),
+            min: process_tpl(min, context),
+            max: process_tpl(max, context),
         },
         NodeType::Calendar {
             value_var,
@@ -2337,6 +2375,101 @@ fn eval_owned(
             placeholder: process_tpl(placeholder, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
         },
+        NodeType::Popover {
+            value_var,
+            placement,
+            align,
+            offset,
+            largura,
+            dismiss,
+            trigger,
+            on_close,
+        } => NodeType::Popover {
+            value_var: process_tpl(value_var, context),
+            placement: *placement,
+            align: *align,
+            offset: *offset,
+            largura: *largura,
+            dismiss: *dismiss,
+            trigger: *trigger,
+            on_close: namespace_action(process_tpl(on_close, context), owner),
+        },
+        NodeType::Autocomplete {
+            value_var,
+            items_var,
+            placeholder,
+            min_chars,
+            max_items,
+            filter,
+            on_change,
+            on_select,
+        } => NodeType::Autocomplete {
+            value_var: process_tpl(value_var, context),
+            items_var: process_tpl(items_var, context),
+            placeholder: process_tpl(placeholder, context),
+            min_chars: *min_chars,
+            max_items: *max_items,
+            filter: *filter,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+        },
+        NodeType::Grid {
+            columns,
+            row_spacing,
+        } => NodeType::Grid {
+            columns: process_tpl(columns, context),
+            row_spacing: *row_spacing,
+        },
+        NodeType::Flow { row_spacing } => NodeType::Flow {
+            row_spacing: *row_spacing,
+        },
+        NodeType::TableView {
+            items_var,
+            columns_var,
+            value_var,
+            multi,
+            sort_var,
+            widths_var,
+            header_only,
+            row_height,
+            on_select,
+            on_sort,
+        } => NodeType::TableView {
+            items_var: process_tpl(items_var, context),
+            columns_var: process_tpl(columns_var, context),
+            value_var: process_tpl(value_var, context),
+            multi: *multi,
+            sort_var: process_tpl(sort_var, context),
+            widths_var: process_tpl(widths_var, context),
+            header_only: *header_only,
+            row_height: *row_height,
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+            on_sort: namespace_action(process_tpl(on_sort, context), owner),
+        },
+        NodeType::TreeView {
+            items_var,
+            value_var,
+            open_var,
+            indent,
+            on_select,
+        } => NodeType::TreeView {
+            items_var: process_tpl(items_var, context),
+            value_var: process_tpl(value_var, context),
+            open_var: process_tpl(open_var, context),
+            indent: *indent,
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+        },
+        NodeType::ColumnView {
+            items_var,
+            value_var,
+            column_width,
+            on_select,
+        } => NodeType::ColumnView {
+            items_var: process_tpl(items_var, context),
+            value_var: process_tpl(value_var, context),
+            column_width: *column_width,
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+        },
         NodeType::Radio {
             label,
             value,
@@ -2387,7 +2520,11 @@ fn eval_owned(
                 .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
-        NodeType::Reveal { open, duration } => NodeType::Reveal {
+        NodeType::Reveal {
+            open,
+            duration,
+            horizontal,
+        } => NodeType::Reveal {
             // `open` guarda o VALOR (`"true"`, ou um `{var}` a interpolar), não
             // o nome de uma chave — ver o comentário da variante em `parser.rs`.
             open: process_tpl(open, context),
@@ -2395,6 +2532,7 @@ fn eval_owned(
                 .as_ref()
                 .map(|d| process_tpl(d, context))
                 .filter(|d| !d.trim().is_empty()),
+            horizontal: *horizontal,
         },
         NodeType::Select {
             options,
@@ -2652,8 +2790,28 @@ fn eval_owned(
             text_align: text_align_eval,
             text_color: text_color_eval,
             // A diretiva de destino é consumida na fronteira do componente, ao
-            // repartir o conteúdo do uso — nada dela sobrevive à avaliação.
-            slot_name: None,
+            // repartir o conteúdo do uso (a partição roda sobre os filhos
+            // **crus** e limpa a etiqueta antes de avaliá-los), então nada do
+            // que era destino de slot chega aqui ainda etiquetado.
+            //
+            // O que sobra — e por isso a etiqueta atravessa a avaliação desde a
+            // Onda 5 — é o `slot` escrito num filho de uma **primitiva**, que
+            // não tem fronteira de componente para consumi-lo. É como o
+            // `<popover>` separa o gatilho do painel:
+            //
+            // ```xml
+            // <popover value="menu">
+            //     <button slot="anchor" text="Antônio ▾" … />
+            //     <column class="painel"> … </column>
+            // </popover>
+            // ```
+            slot_name: node.slot_name().map(|d| {
+                if d.contains('{') {
+                    process_tpl(d, context)
+                } else {
+                    d.to_string()
+                }
+            }),
         }),
         interact: crate::parser::caixa(crate::parser::Interact {
             on_press: on_press_eval,

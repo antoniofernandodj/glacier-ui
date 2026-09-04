@@ -8,6 +8,153 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.92.0] — 2026-09-04
+
+Ondas **5 e 6** do `PLANO_WIDGETS.md`, e com elas a fila viva da §6.2 fica
+cumprida. Treze widgets, três itens de motor — e as duas ondas juntas levam o
+catálogo de ~53% para ~64% da superfície do Qt.
+
+O que une a Onda 5 é uma pergunta: *de quem é este conteúdo?* A página de uma
+aba e o painel que flutua eram, até aqui, coisa da tela — um `se`/`senão` para a
+página, uma camada empilhada para o painel. Agora moram dentro do widget. A
+Onda 6 é o outro regime: **uma** medição de colunas, e os widgets de model/view
+que saem dela.
+
+Exemplos novos: `cargo run --example onda5` · `onda5_luau` · `onda6` ·
+`onda6_luau` — cada onda em duas versões, uma com `impl Component` em Rust e
+outra com o mesmo markup e um `scripts/app.luau` no lugar.
+
+### Adicionado
+
+#### Onda 5 — o conteúdo que sai da tela e entra no widget
+
+- **`<tabs>`: o `QTabWidget` inteiro, barra mais página.** A `<tabbar>` da 0.65
+  entregava só a fileira; o conteúdo continuava trocando por `se`/`senão` na
+  tela, o que obrigava a escrever a lista de abas **duas vezes**. Agora
+  `addTab(widget, "Geral")` do Qt é `<template slot="geral">`:
+
+  ```xml
+  <tabs value="aba" active="{aba}" items="abas">
+      <template slot="geral"> … </template>
+      <template slot="rede">  … </template>
+  </tabs>
+  ```
+
+  O que faltava não era o estado por instância, como o plano dizia desde a 0.65:
+  era **interpolar o nome de um slot**, uma linha no `eval.rs`. Fecha o 🟡 mais
+  visível do catálogo.
+
+  O preço, que não é escondido: o conteúdo de **todas** as abas é avaliado (a
+  partição de slot acontece uma vez, na fronteira do componente); só a ativa é
+  renderizada. Para uma aba com conteúdo caro de avaliar, a `<tabbar>` sozinha
+  com `se`/`senão` continua existindo e continua correta.
+
+- **`<popover>` e `<popup>`: o painel que flutua, ancorado ou centrado.**
+
+  ```xml
+  <popover value="menu_usuario" placement="bottom" align="end">
+      <button slot="anchor" text="Antônio ▾" />
+      <column class="painel"> … </column>
+  </popover>
+  ```
+
+  A âncora é o **layout do gatilho**, não a posição do cursor (que é o que o
+  `src/menu.rs` usa): o painel acompanha o botão quando a tela rola, e é medido
+  contra o tamanho da janela **antes** de ser posicionado — então virar para o
+  outro lado quando o rodapé (ou a borda direita) corta é uma conta, não um
+  chute.
+
+  Quem abre e fecha é o widget, **sem uma linha de app**: pressionar o gatilho
+  abre, clicar fora fecha, Esc fecha. Abrir não consome o evento (o botão
+  continua disparando o `on_click` dele); fechar consome, que é o que impede um
+  gatilho de alternância de reabrir o painel no mesmo quadro — e é o
+  comportamento de um menu de sistema.
+
+  `<popup>` é a mesma primitiva sem âncora: centrada na janela, e **sem** a
+  modalidade de um `<dialog>`.
+
+- **`<autocomplete>` / `<completer>`: filtrar enquanto se digita.** Recorta a
+  lista sozinho, sem acento e sem caixa (`"sao paulo"` acha `"São Paulo"`); ▲▼
+  navegam, Enter aceita, Esc desiste. As três teclas **ganham do campo focado**
+  porque quem as recebe é o overlay, que vem antes na ordem de eventos do
+  `iced` — não há listener global envolvido. `filter="false"` desliga o recorte,
+  para quem busca no servidor.
+
+- **`calendarPopup` no `<dateedit>`.** O último buraco do foco declarado do
+  projeto: a linha do `QDateEdit` estava ✅ desde a 0.68 carregando um "falta a
+  variante `calendarPopup`" desde então. Um botão 📅 ao lado das setas abre a
+  **mesma** grade do `<calendar>` ancorada ao campo; escolher um dia grava e
+  fecha no mesmo passo.
+
+- **`<drawer>`: a gaveta lateral.** `<slot/>` + uma chave nomeada + a animação
+  do motor. Ela **empurra** o conteúdo ao lado em vez de cobri-lo — quem cobre é
+  um `<popover>` colado na borda, e o motor já tem um.
+
+- **`axis="x"` no `<reveal>`.** A peça que faltava para a gaveta: o motor animava
+  altura desde a 0.90, e este é o mesmo mecanismo na largura.
+
+- **Nome de slot dinâmico** (`<slot name="{aba}"/>`) e a simétrica do lado de
+  quem usa (`slot="{item.id}"` dentro de um `for-each`). Um nome que interpola
+  para vazio volta a ser o slot anônimo; um sem balde correspondente cai no
+  conteúdo de reserva.
+
+- **A etiqueta `slot` atravessa a avaliação** quando o pai é uma **primitiva**
+  (numa fronteira de componente ela continua sendo consumida pela partição, como
+  sempre). É como o `<popover>` separa o gatilho do painel.
+
+#### Onda 6 — a grade: uma medição, seis widgets
+
+- **`<grid>` (`QGridLayout`), com colunas medidas.** A largura de uma coluna é o
+  **máximo das células dela** — o que uma `<row>` de `<column>`s não consegue
+  fazer, porque cada coluna mede só os próprios filhos e a segunda linha sai
+  desalinhada da primeira no primeiro texto longo.
+
+  ```xml
+  <grid columns="3" spacing="8">…</grid>            <!-- três colunas medidas -->
+  <grid columns="140 fill 80" spacing="12">…</grid>  <!-- trilhas declaradas -->
+  ```
+
+- **`<tableview>` e `<tableheader>` (`QTableView`/`QHeaderView`).** Cabeçalho e
+  corpo são a **mesma grade**, que é o que os mantém alinhados sem ninguém
+  combinar nada. Ordenação clicando no cabeçalho (de novo inverte), **numérica**
+  quando os dois lados parseiam como número — sem isso, uma coluna de contagem
+  coloca `"10"` antes de `"9"`. Seleção simples ou múltipla (conjunto nomeado, o
+  mesmo do `<listview>`). Colunas redimensionáveis por arrasto quando há
+  `widths=`.
+
+- **`<treeview>` (`QTreeView`).** Recursão sobre a coleção mais um **conjunto
+  nomeado** de nós abertos (`abertos="raiz,raiz/src"`) — nunca esteve preso ao
+  estado por instância, como o §3 do plano dizia. A identidade de um nó é o
+  **caminho**, então um `id` repetido em ramos diferentes não colide.
+
+- **`<columnview>` (`QColumnView`).** A navegação Miller do Finder: uma lista por
+  nível, a trilha inteira acesa até a folha.
+
+- **`<flow>` / `<wrap>`.** A fileira que quebra linha. Não passa pela medição da
+  Onda 6, ao contrário do que o plano previa: o `Row::wrap()` do próprio `iced`
+  já fazia isso.
+
+- **`EngineMessage::PatchThen`.** Grava um punhado de pares no contexto e só
+  então despacha a mensagem interna — para o caso em que um widget precisa mexer
+  numa chave *do motor* no mesmo passo em que avisa o app.
+
+### Corrigido
+
+- **Uma célula `height="fill"` dentro de um `<scrollable>` não faz mais a linha
+  medir infinito.** O teto vertical de um scrollable é infinito, e um filho que
+  se declare `Fill` mede infinito com ele — o que empurrava tudo o que viesse
+  abaixo para fora da tela. Uma tabela aparecia **vazia, sem erro nenhum**. É a
+  gêmea da armadilha do `Length::Fill` no wrap de background que o
+  `PRIMITIVAS.md` já registrava, do outro lado do eixo.
+
+### Quebras
+
+Nenhuma. `NodeType` ganhou variantes e três campos novos (`Reveal::horizontal`,
+`DateTimeEdit::{popup, today, min, max}`) — um `match` exaustivo sobre ele em
+código de app precisa dos braços novos, mas nenhuma API pública mudou de forma.
+
+---
+
 ## [0.91.0] — 2026-09-03
 
 ### Corrigido

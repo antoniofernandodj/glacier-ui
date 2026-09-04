@@ -1,0 +1,308 @@
+<screen title="Glacier - Onda 5" size="1000 800">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme"      href="examples/onda5/theme.json" />
+
+    <!-- Todo o visual mora aqui. O que sobra abaixo é estrutura e
+         comportamento: nome de chave, ação, `if`/`else`. -->
+    <link rel="stylesheet" href="examples/onda5/app.gss" />
+  </resources>
+
+  <column class="tela" spacing="0">
+
+    <column class="cabecalho">
+      <row class="linha_titulo">
+        <!-- O gatilho da gaveta NÃO mora dentro dela: o `<drawer>` não desenha
+             botão nenhum, e a ação carrega o nome da chave — é por isso que
+             ela funciona daqui. -->
+        <button
+          class="btn_icone"
+          text="☰"
+          on_click="drawer::toggle:gaveta"
+          tooltip="Abrir e fechar a gaveta"
+        />
+        <text class="titulo">Onda 5 — o conteúdo que sai da tela e entra no widget</text>
+      </row>
+
+      <text class="intro">
+        Duas coisas que o app montava à mão, na tela, e que agora moram DENTRO do widget: a página de
+        uma aba e o painel que flutua. São dois habilitadores diferentes — o nome de slot dinâmico e
+        o overlay ancorado — mas a pergunta é a mesma: de quem é este conteúdo?
+      </text>
+    </column>
+
+    <row class="corpo_com_gaveta">
+
+      <!-- A gaveta EMPURRA, não cobre: ela é filha desta `<row>`, com a largura
+           animada de 0 até 220. Um painel que cobre a tela é um `<popover>`
+           colado na borda, e o motor já tem um. -->
+      <drawer
+        value="gaveta"
+        open="{gaveta}"
+        size="220"
+        panel_class="gaveta"
+      >
+        <text class="gaveta_titulo">Atalhos</text>
+        <text class="nota">
+          `axis="x"` no `&lt;reveal&gt;` é a peça que faltava: o motor já animava altura desde a 0.90.
+        </text>
+        <button class="btn_gaveta" text="Painéis"  on_click="ir:paineis"  width="fill" />
+        <button class="btn_gaveta" text="Busca"    on_click="ir:busca"    width="fill" />
+        <button class="btn_gaveta" text="A gaveta" on_click="ir:gaveta"   width="fill" />
+        <space />
+        <button class="btn_gaveta" text="Fechar" on_click="drawer::toggle:gaveta" width="fill" />
+      </drawer>
+
+      <scrollable width="fill" height="fill">
+        <column class="corpo">
+
+          <!-- O `<tabs>` é o item 1 da onda, e esta tela o usa como a própria
+               navegação: a barra e as três páginas são UM widget. Antes, a
+               lista de abas aparecia duas vezes — uma em `items` e outra numa
+               escada de `se`/`senão`. -->
+          <tabs
+            value="aba"
+            active="{aba}"
+            items="abas"
+            tab_class="aba"
+            tab_active_class="aba_ativa"
+            page_spacing="18"
+          >
+
+            <!-- PÁGINA 1 — Popover e Popup ================================ -->
+            <template slot="paineis">
+              <groupbox title="Popover — o painel ancorado ao gatilho">
+                <text class="nota">
+                  A âncora é o LAYOUT do botão, não a posição do cursor: o painel acompanha o gatilho
+                  quando a tela rola, e vira para cima sozinho quando o rodapé corta. As duas coisas
+                  vêm do `Widget::overlay()` do iced, que mede o painel antes de posicioná-lo.
+                </text>
+
+                <row class="linha_larga">
+                  <popover value="menu_usuario" placement="bottom" align="start">
+                    <button
+                      slot="anchor"
+                      class="btn"
+                      text="Antônio ▾"
+                    />
+                    <column class="painel">
+                      <text class="painel_titulo">antoniofernando</text>
+                      <rule />
+                      <button class="btn_painel" text="Perfil"       on_click="escolher:perfil" width="fill" />
+                      <button class="btn_painel" text="Preferências" on_click="escolher:prefs"  width="fill" />
+                      <button class="btn_painel" text="Sair"         on_click="escolher:sair"   width="fill" />
+                    </column>
+                  </popover>
+
+                  <!-- `align="end"` é o que salva um painel no canto direito:
+                       com `start` ele sairia da janela, e o clamp o colaria na
+                       borda torto. -->
+                  <popover value="filtros" placement="bottom" align="end" panel_width="280">
+                    <button slot="anchor" class="btn" text="Filtros ▾" />
+                    <column class="painel">
+                      <text class="painel_titulo">Filtrar serviços</text>
+                      <!-- Duas coisas, e a segunda é a que engana.
+
+                           `checked` é o NOME da chave, não o valor dela: o
+                           `<checkbox>` é primitiva e lê o contexto direto, sem
+                           a indireção `value`/`{value}` que um builtin precisa.
+
+                           E `on_toggle` NÃO é opcional aqui. `<checkbox>` e
+                           `<slider>` são primitivas da Onda 1: elas disparam a
+                           ação e quem grava a chave é o APP — ao contrário do
+                           `<radiogroup>` (builtin), que grava sozinho, e do
+                           `<popover>` desta onda, que também grava. Sem a ação,
+                           o clique vira uma mensagem de ação vazia e não chega
+                           a lugar nenhum: a caixa não marca e o cursor do
+                           slider não anda, sem erro nenhum.
+
+                           A ação é o próprio nome da chave, e o handler da tela
+                           é o braço genérico `chave if value.is_some()`. -->
+                      <checkbox label="Só os que estão no ar"
+                                checked="so_no_ar"   on_toggle="so_no_ar" />
+                      <checkbox label="Incluir arquivados"
+                                checked="arquivados" on_toggle="arquivados" />
+                      <rule />
+                      <row class="linha">
+                        <text class="rotulo_sm">Uso máx.</text>
+                        <slider
+                          value="uso_max"
+                          min="0"
+                          max="100"
+                          step="5"
+                          width="130"
+                          on_change="uso_max"
+                        />
+                        <text class="valor">{uso_max}%</text>
+                      </row>
+                    </column>
+                  </popover>
+
+                  <!-- `placement="right"` é o submenu: vira para a esquerda
+                       sozinho quando encosta na borda direita da janela. -->
+                  <popover value="lateral" placement="right" align="start">
+                    <button slot="anchor" class="btn" text="Ao lado ›" />
+                    <column class="painel">
+                      <text class="nota_painel">
+                        Este abre à direita. Encolha a janela e ele passa a abrir à esquerda — a conta
+                        é a mesma que o `overlay::menu` do iced faz entre acima e abaixo.
+                      </text>
+                    </column>
+                  </popover>
+                </row>
+
+                <text class="crua">último clique: {escolha}</text>
+              </groupbox>
+
+              <groupbox title="Popup — a mesma primitiva sem âncora" flat="true">
+                <text class="nota">
+                  Centrado na janela, e SEM a modalidade de um `&lt;dialog&gt;`: ele não escurece nada
+                  nem impede o resto de existir — só está por cima. É a diferença entre QDialog e
+                  QMenu, e é por isso que ele não é um diálogo centrado (um diálogo já existe).
+                </text>
+
+                <row class="linha_larga">
+                  <popup value="atalhos">
+                    <button slot="anchor" class="btn" text="Mostrar atalhos" />
+                    <column class="painel painel_largo">
+                      <text class="painel_titulo">Atalhos de teclado</text>
+                      <rule />
+                      <row class="linha_atalho"><text class="tecla">Esc</text>   <text class="nota">fecha qualquer painel</text></row>
+                      <row class="linha_atalho"><text class="tecla">▲ ▼</text>  <text class="nota">navega a lista de sugestões</text></row>
+                      <row class="linha_atalho"><text class="tecla">Enter</text><text class="nota">aceita a sugestão realçada</text></row>
+                      <rule />
+                      <text class="crua">
+                        Clique fora também fecha — e o clique que fecha não chega a mais nada, que é o
+                        comportamento de um menu de sistema.
+                      </text>
+                    </column>
+                  </popup>
+                </row>
+              </groupbox>
+            </template>
+
+            <!-- PÁGINA 2 — Autocomplete e calendarPopup =================== -->
+            <template slot="busca">
+              <groupbox title="Autocomplete — filtrar enquanto se digita">
+                <text class="nota">
+                  A função de verdade desta onda. Ele recorta a lista sozinho (sem acento e sem caixa:
+                  "sao paulo" acha "São Paulo"), navega com ▲▼, aceita com Enter e desiste com Esc —
+                  e as três teclas ganham do campo focado porque quem as recebe é o OVERLAY, que vem
+                  antes na ordem de eventos do iced.
+                </text>
+
+                <row class="linha_campo">
+                  <text class="rotulo">Cidade</text>
+                  <autocomplete
+                    value="cidade"
+                    items="cidades"
+                    placeholder="digite três letras…"
+                    width="280"
+                  />
+                </row>
+
+                <row class="linha_campo">
+                  <text class="rotulo">Serviço</text>
+                  <!-- Com `onSelect`, quem grava é o app — e ele recebe o `id`,
+                       não o rótulo. É o contrato do `<textinput>` mais uma
+                       vez. -->
+                  <autocomplete
+                    value="servico_busca"
+                    items="servicos"
+                    placeholder="api, banco, fila…"
+                    onSelect="escolher_servico"
+                    width="280"
+                  />
+                </row>
+
+                <text class="crua">serviço escolhido: {servico_id}</text>
+              </groupbox>
+
+              <groupbox title="calendarPopup — o último buraco do foco declarado" flat="true">
+                <text class="nota">
+                  A linha do QDateEdit está pronta desde a 0.68 carregando um "falta a variante
+                  calendarPopup" desde então — porque ela é uma COMPOSIÇÃO: o campo por seções (0.68),
+                  a grade (0.84) e o overlay ancorado (esta onda). Os três lados já existiam; isto é a
+                  solda.
+                </text>
+
+                <row class="linha_campo">
+                  <text class="rotulo">Entrada</text>
+                  <dateedit
+                    value="entrada"
+                    format="br"
+                    calendarPopup="true"
+                    today="{hoje}"
+                    width="180"
+                  />
+                  <text class="crua">chave: {entrada}</text>
+                </row>
+
+                <row class="linha_campo">
+                  <text class="rotulo">Saída</text>
+                  <dateedit
+                    value="saida"
+                    format="br"
+                    calendarPopup="true"
+                    today="{hoje}"
+                    min="{entrada}"
+                    width="180"
+                  />
+                  <text class="crua">chave: {saida}</text>
+                </row>
+
+                <text class="nota">
+                  As duas grades navegam meses independentes: o mês visível mora numa chave derivada
+                  da chave editada (`__cal_&lt;chave&gt;`), não numa global. Escolher um dia fecha o
+                  painel no MESMO passo em que grava — fosse uma segunda mensagem, o painel ficaria um
+                  quadro no ar depois do clique.
+                </text>
+              </groupbox>
+            </template>
+
+            <!-- PÁGINA 3 — a gaveta ======================================= -->
+            <template slot="gaveta">
+              <groupbox title="Drawer — o único item da onda que não precisou de habilitador">
+                <text class="nota">
+                  O plano já o marcava assim: `&lt;slot/&gt;` (0.65) + uma chave nomeada + a animação
+                  que o motor já tinha. Ele entra na onda por PARENTESCO — a mesma pergunta, "de quem
+                  é este conteúdo?" —, não por bloqueio.
+                </text>
+                <text class="nota">
+                  A única peça que faltava era o eixo: o `&lt;reveal&gt;` da 0.90 animava só a altura.
+                  `axis="x"` é o mesmo mecanismo na largura.
+                </text>
+
+                <row class="linha_larga">
+                  <button class="btn" text="Abrir/fechar a gaveta" on_click="drawer::toggle:gaveta" />
+                  <badge badge_text="gaveta" class="selo_azul" badge_size="11" />
+                  <text class="valor">{gaveta}</text>
+                </row>
+
+                <text class="crua">
+                  Repare que o botão acima e o ☰ do cabeçalho fazem a mesma coisa, de lugares
+                  diferentes da árvore. A ação carrega o nome da chave (`toggle:gaveta`), que é o padrão
+                  do SpinBox — e é o que faz duas gavetas na mesma tela não colidirem.
+                </text>
+              </groupbox>
+
+              <groupbox title="O que esta onda fechou" flat="true">
+                <text class="nota">§2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta onda.</text>
+                <text class="nota">§2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.</text>
+                <text class="nota">§2.5 — o foco declarado do projeto termina AQUI, não na Onda 3.</text>
+              </groupbox>
+            </template>
+
+          </tabs>
+        </column>
+      </scrollable>
+    </row>
+
+    <row class="rodape">
+      <text class="crua">{status}</text>
+    </row>
+
+  </column>
+</screen>

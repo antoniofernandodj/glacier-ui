@@ -1,0 +1,258 @@
+<screen title="Glacier - Onda 6 (Luau)" size="1060 820">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+         um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+         em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme"      href="examples/onda6_luau/theme.json" />
+
+    <!-- Todo o visual mora aqui. O que sobra abaixo é estrutura e
+         comportamento: nome de chave, ação, `slot`. -->
+    <link rel="stylesheet" href="examples/onda6_luau/app.gss" />
+
+    <!-- E todo o COMPORTAMENTO aqui. É a única diferença entre este exemplo e
+         o `examples/onda6`: lá o mesmo estado inicial e as mesmas duas ações
+         são um `impl Component` em Rust; o markup abaixo é idêntico, linha por
+         linha. -->
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela" spacing="0">
+
+    <column class="cabecalho">
+      <text class="titulo">Onda 6 em Luau — a grade: uma medição, seis widgets</text>
+      <text class="intro">
+        O catálogo listava o Grid e o TableView como dois itens caros, sem notar que a parte difícil
+        dos dois é a MESMA: descobrir a largura de uma coluna a partir de todas as células que passam
+        por ela, antes de desenhar qualquer uma. Feita uma vez, ela paga seis linhas da tabela.
+      </text>
+      <text class="crua">
+        Mesma tela do exemplo `onda6`, com o `impl Component` de Rust trocado por
+        `scripts/app.luau`. O markup não mudou — é o que o exemplo existe para mostrar.
+      </text>
+    </column>
+
+    <scrollable width="fill" height="fill">
+      <column class="corpo">
+
+        <!-- A navegação é o `<tabs>` da Onda 5 — cada onda usa a anterior. -->
+        <tabs
+          value="aba"
+          active="{aba}"
+          items="abas"
+          tab_class="aba"
+          tab_active_class="aba_ativa"
+          page_spacing="18"
+        >
+
+          <!-- PÁGINA 1 — Grid e Flow ==================================== -->
+          <template slot="layout">
+            <groupbox title="Grid — a medição, e o widget mais simples que a exercita">
+              <text class="nota">
+                Uma `row` de `column`s não resolve: cada coluna mede só os próprios filhos e ignora as
+                vizinhas, então a segunda linha sai desalinhada da primeira no primeiro texto longo.
+                A medição precisa ser bidimensional — e é isso que a grade faz, em dois passos.
+              </text>
+
+              <!-- Um número solto quer dizer N colunas MEDIDAS: a largura de
+                   cada uma é o máximo das células dela. Repare que a coluna do
+                   meio acompanha o rótulo mais largo sem ninguém declarar
+                   nada. -->
+              <grid class="grade" columns="3" spacing="18" row_spacing="8">
+                <text class="celula_forte">Serviço</text>
+                <text class="celula_forte">Ambiente</text>
+                <text class="celula_forte">Réplicas</text>
+
+                <text class="celula">api</text>
+                <text class="celula">produção</text>
+                <text class="celula">4</text>
+
+                <text class="celula">coletor-de-logs</text>
+                <text class="celula">homologação</text>
+                <text class="celula">1</text>
+              </grid>
+            </groupbox>
+
+            <groupbox title="Grid — trilhas declaradas" flat="true">
+              <text class="nota">
+                `columns="140 fill 80"` mistura fixa, flexível e fixa. A flexível recebe o que sobra da
+                largura disponível — e nunca encolhe abaixo do que o conteúdo dela precisa: melhor
+                transbordar do que sumir.
+              </text>
+
+              <grid class="grade" columns="140 fill 80" spacing="12" row_spacing="6" width="fill">
+                <text class="celula_forte">Chave</text>
+                <text class="celula_forte">Descrição</text>
+                <text class="celula_forte">Valor</text>
+
+                <text class="celula">timeout</text>
+                <text class="celula">Quanto esperar antes de desistir de uma requisição</text>
+                <text class="celula">30s</text>
+
+                <text class="celula">retries</text>
+                <text class="celula">Tentativas antes de marcar o serviço como fora</text>
+                <text class="celula">3</text>
+              </grid>
+            </groupbox>
+
+            <groupbox title="Flow — a fileira que quebra linha" flat="true">
+              <text class="nota">
+                A correção de rota desta onda: o plano listava o Flow como "a mesma medição num eixo
+                só", saindo do mesmo mecanismo do Grid. O iced já tinha — `Row::wrap()` quebra linha
+                exatamente assim. É a sexta vez que este projeto descobre que um item catalogado como
+                caro já existia, e a primeira em que quem já tinha era o iced, não o motor.
+              </text>
+
+              <flow spacing="8" row_spacing="8" width="fill">
+                <badge badge_text="rust"       class="chip" badge_size="11" />
+                <badge badge_text="iced"       class="chip" badge_size="11" />
+                <badge badge_text="declarativo" class="chip" badge_size="11" />
+                <badge badge_text="widgets"    class="chip" badge_size="11" />
+                <badge badge_text="luau"       class="chip" badge_size="11" />
+                <badge badge_text="gss"        class="chip" badge_size="11" />
+                <badge badge_text="hot-reload" class="chip" badge_size="11" />
+                <badge badge_text="model/view" class="chip" badge_size="11" />
+                <badge badge_text="overlay"    class="chip" badge_size="11" />
+                <badge badge_text="grade"      class="chip" badge_size="11" />
+                <badge badge_text="virtualize" class="chip" badge_size="11" />
+                <badge badge_text="componentes" class="chip" badge_size="11" />
+              </flow>
+              <text class="crua">encolha a janela: as linhas se refazem sozinhas.</text>
+            </groupbox>
+          </template>
+
+          <!-- PÁGINA 2 — TableView e TableHeader ======================== -->
+          <template slot="tabela">
+            <groupbox title="TableView — cabeçalho, ordenação, seleção e alças">
+              <text class="nota">
+                Cabeçalho e corpo são a MESMA grade — é o que garante que a coluna do rótulo e a da
+                célula tenham a mesma largura sem ninguém combinar nada. Clique num cabeçalho para
+                ordenar (de novo inverte); arraste a alça entre duas colunas para redimensionar.
+              </text>
+              <text class="nota">
+                A ordenação é numérica quando os dois lados parseiam como número: sem isso, uma coluna
+                de contagem coloca "10" antes de "9" — o bug de tabela mais clássico que existe.
+              </text>
+
+              <tableview
+                items="servicos"
+                columns="colunas"
+                value="servico"
+                sort="ordem"
+                widths="larguras"
+                height="260"
+                width="fill"
+              />
+
+              <row class="linha_larga">
+                <badge badge_text="servico" class="selo_azul" badge_size="11" />
+                <text class="valor">{servico}</text>
+                <space />
+                <badge badge_text="ordem" class="selo_roxo" badge_size="11" />
+                <text class="valor">{ordem}</text>
+              </row>
+              <text class="crua">larguras: {larguras}</text>
+            </groupbox>
+
+            <groupbox title="TableView — seleção múltipla" flat="true">
+              <text class="nota">
+                `mode="multi"` guarda um CONJUNTO numa chave só, e o destaque testa pertencimento — o
+                mesmo mecanismo do `listview` da Onda 4, e o mesmo `contains` da 0.84. Sem `sort`, a
+                tabela não é ordenável e os cabeçalhos deixam de ser clicáveis.
+              </text>
+
+              <tableview
+                items="servicos"
+                columns="colunas"
+                value="marcados"
+                mode="multi"
+                height="180"
+                width="fill"
+              />
+
+              <row class="linha_larga">
+                <badge badge_text="marcados" class="selo_verde" badge_size="11" />
+                <text class="valor">{marcados}</text>
+                <button class="btn" text="Limpar" on_click="limpar_marcados" />
+              </row>
+            </groupbox>
+
+            <groupbox title="TableHeader — a mesma primitiva sem o corpo" flat="true">
+              <text class="nota">
+                Para quem monta o corpo à mão. É a divisão de `dateedit`/`timeedit`: uma primitiva,
+                duas tags, mudando só o que aparece.
+              </text>
+              <tableheader columns="colunas" sort="ordem" width="fill" />
+            </groupbox>
+          </template>
+
+          <!-- PÁGINA 3 — TreeView e ColumnView ========================== -->
+          <template slot="arvore">
+            <groupbox title="TreeView — e a décima linha que este plano dizia estar bloqueada">
+              <text class="nota">
+                O §3 punha a árvore atrás do "estado por instância" — o habilitador que o documento
+                chamou por três revisões de "o desbloqueio de maior alavancagem". Não era: o conjunto
+                de nós abertos é um CONJUNTO NOMEADO (`raiz,raiz/src`), exatamente como as seções de um
+                accordion, e o `contains` que o destrancou saiu na 0.84.
+              </text>
+              <text class="nota">
+                A identidade de um nó é o CAMINHO, não o id: um `id` repetido em ramos diferentes não
+                colide, e o conjunto de abertos é legível a olho — o que importa quando quem o semeia é
+                um script.
+              </text>
+
+              <row class="par">
+                <groupbox title="A árvore" width="380">
+                  <treeview
+                    items="arvore"
+                    value="no"
+                    open="abertos"
+                    indent="18"
+                    height="280"
+                  />
+                </groupbox>
+
+                <column class="detalhe">
+                  <text class="rotulo_bloco">nó escolhido</text>
+                  <text class="valor">{no}</text>
+                  <text class="rotulo_bloco">abertos</text>
+                  <text class="crua">{abertos}</text>
+                  <button class="btn" text="Fechar tudo" on_click="fechar_tudo" />
+                </column>
+              </row>
+            </groupbox>
+
+            <groupbox title="ColumnView — a navegação Miller (o Finder)" flat="true">
+              <text class="nota">
+                Uma lista por nível, o nível escolhido numa chave. Quase de graça depois da árvore: a
+                mesma coleção aninhada, a mesma identidade por caminho — o que muda é o desenho, que
+                põe os níveis lado a lado em vez de recuados.
+              </text>
+              <text class="nota">
+                Repare que a trilha INTEIRA fica acesa até a folha, não só a ponta: é metade do que uma
+                navegação Miller comunica.
+              </text>
+
+              <columnview
+                items="arvore"
+                value="caminho"
+                column_width="190"
+                height="240"
+              />
+
+              <row class="linha_larga">
+                <badge badge_text="caminho" class="selo_ambar" badge_size="11" />
+                <text class="valor">{caminho}</text>
+              </row>
+            </groupbox>
+          </template>
+
+        </tabs>
+      </column>
+    </scrollable>
+
+    <row class="rodape">
+      <text class="crua">{status}</text>
+    </row>
+
+  </column>
+</screen>
