@@ -1,0 +1,243 @@
+<screen title="Glacier - Onda 7 (Luau)" size="1060 840">
+  <resources>
+    <link rel="theme"      href="examples/onda7_luau/theme.json" />
+    <link rel="stylesheet" href="examples/onda7_luau/app.gss" />
+    <!-- A única diferença de markup entre os dois exemplos: aqui o
+         comportamento vem de um script, e não de um `impl Component`. -->
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela" spacing="0">
+
+    <column class="cabecalho">
+      <text class="titulo">Onda 7 — o canvas, e os sete que saem dele</text>
+      <text class="intro">
+        O habilitador é uma capacidade, não uma tag: o motor ganhou uma caixa de ferramentas de
+        desenho e o app continua escrevendo markup. Nenhuma linha desta tela desenha nada — ela
+        nomeia chaves, como sempre.
+      </text>
+    </column>
+
+    <scrollable width="fill" height="fill">
+      <column class="corpo">
+
+        <tabs
+          value="aba"
+          active="{aba}"
+          items="abas"
+          tab_class="aba"
+          tab_active_class="aba_ativa"
+          page_spacing="18"
+        >
+
+          <!-- PÁGINA 1 — Medidores ====================================== -->
+          <template slot="medidores">
+
+            <groupbox title="Dial — o knob que escreve na chave">
+              <text class="nota">
+                Arraste o anel, clique num ponto dele ou role a roda. O valor vai para a chave que o
+                markup nomeia — `value="volume"`, exatamente como num `&lt;slider&gt;`. O catálogo
+                marcava este widget como "exige estado por instância"; não exige, e é a terceira vez
+                que essa marca cai (Spinner na 0.66, Rating na 0.85).
+              </text>
+
+              <row class="linha_larga">
+                <column class="medidor">
+                  <dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+                  <text class="rotulo_bloco">volume</text>
+                </column>
+
+                <column class="medidor">
+                  <!-- Dois na mesma tela, chaves diferentes: eles não se veem.
+                       É o que a chave nomeada garante, e o que um estado global
+                       impediria. -->
+                  <dial value="brilho" min="0" max="100" step="5" showValue="true" color="#A6E3A1" />
+                  <text class="rotulo_bloco">brilho</text>
+                </column>
+
+                <column class="medidor">
+                  <!-- `readonly` desenha e não aceita gesto — o mesmo papel que
+                       ele tem no `<rating>` de uma lista. -->
+                  <dial value="{brilho}" max="100" readonly="true" showValue="true" size="72" />
+                  <text class="rotulo_bloco">o mesmo, readonly</text>
+                </column>
+
+                <column class="detalhe">
+                  <text class="valor">volume: {volume} / 11</text>
+                  <text class="valor">brilho: {brilho}%</text>
+                  <text class="nota">
+                    O `&lt;dial&gt;` sem `onChange` grava sozinho. Com `onChange`, ele delega — o mesmo
+                    contrato do `&lt;textinput&gt;`, e a razão de nenhum destes três precisar de handler.
+                  </text>
+                  <row class="linha">
+                    <button class="btn" text="zerar" on_click="app:set:volume:0" />
+                    <button class="btn" text="no talo" on_click="app:set:volume:11" />
+                  </row>
+                </column>
+              </row>
+            </groupbox>
+
+            <groupbox title="Gauge — o mesmo arco, sem gesto e com faixas">
+              <text class="nota">
+                Apresentacional: não escreve, não recebe clique. As faixas são JSON escrito no
+                atributo (constantes do desenho) ou o nome de uma chave (quando vêm do backend) — as
+                duas formas, porque as duas aparecem.
+              </text>
+
+              <row class="linha_larga">
+                <gauge
+                  value="cpu" max="100" unit="%" label="CPU"
+                  bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]'
+                  needle="true"
+                />
+                <gauge value="memoria" max="64" unit=" GB" label="memória" decimals="1" size="132" />
+                <gauge value="disco" max="100" unit="%" label="disco" bands="limites_disco" />
+                <!-- Meio arco: `start`/`sweep` em graus, 0° às 3 horas. -->
+                <gauge value="rede" max="1000" unit=" Mb" label="rede" start="180" sweep="180" size="150" />
+              </row>
+
+              <row class="linha">
+                <text class="rotulo_bloco">CPU</text>
+                <slider value="cpu" min="0" max="100" step="1" width="220" onChange="cpu" />
+                <text class="valor">{cpu}%</text>
+              </row>
+            </groupbox>
+
+            <groupbox title="LcdNumber — sete segmentos, e o valor lido como texto">
+              <text class="nota">
+                O valor só vira número formatado quando parseia como número; um `12:34` de relógio
+                passa inteiro. Ponto e dois-pontos ocupam menos que um dígito, como num mostrador de
+                verdade — é o que faz `12:34` caber onde caberiam cinco dígitos.
+              </text>
+
+              <row class="linha_larga">
+                <column class="medidor">
+                  <lcdnumber value="relogio" size="52" />
+                  <text class="rotulo_bloco">relógio (texto)</text>
+                </column>
+                <column class="medidor">
+                  <lcdnumber value="volume" digits="3" pad="true" size="52" color="#F9E2AF" />
+                  <text class="rotulo_bloco">volume, 3 dígitos com zeros</text>
+                </column>
+                <column class="medidor">
+                  <lcdnumber value="memoria" digits="4" decimals="1" size="52" color="#A6E3A1" />
+                  <text class="rotulo_bloco">memória, uma casa</text>
+                </column>
+                <column class="medidor">
+                  <lcdnumber value="ERRO" size="52" color="#F38BA8" ghost="false" />
+                  <text class="rotulo_bloco">sem os segmentos apagados</text>
+                </column>
+              </row>
+            </groupbox>
+          </template>
+
+          <!-- PÁGINA 2 — Gráficos ======================================= -->
+          <template slot="graficos">
+
+            <groupbox title="Sparkline — a linha sem moldura">
+              <text class="nota">
+                É `&lt;linechart axes="false"&gt;`: a mesma primitiva, outros defaults. Uma tag a
+                menos no motor, e um lugar a menos onde um bug de escala pode morar.
+              </text>
+
+              <grid class="grade" columns="3" spacing="20" row_spacing="10">
+                <text class="celula_forte">serviço</text>
+                <text class="celula_forte">latência (24 h)</text>
+                <text class="celula_forte">p95</text>
+
+                <text class="celula">api</text>
+                <sparkline items="lat_api" width="180" height="30" />
+                <text class="celula">{p95_api} ms</text>
+
+                <text class="celula">banco</text>
+                <sparkline items="lat_db" width="180" height="30" color="#F9E2AF" />
+                <text class="celula">{p95_db} ms</text>
+
+                <text class="celula">fila</text>
+                <sparkline items="lat_fila" width="180" height="30" color="#F38BA8" area="true" />
+                <text class="celula">{p95_fila} ms</text>
+              </grid>
+            </groupbox>
+
+            <groupbox title="LineChart e BarChart — a mesma série, dois eixos">
+              <text class="nota">
+                `min`/`max` vazios são automáticos; escritos, fixam a escala. Fixar importa: dois
+                gráficos lado a lado com escalas automáticas diferentes é a forma clássica de mentir
+                com um painel sem querer. A barra, além disso, nasce sempre do ZERO quando ninguém
+                declara `min` — começar em 40 exagera a diferença entre 41 e 42.
+              </text>
+
+              <row class="linha_larga">
+                <column class="detalhe">
+                  <text class="rotulo_bloco">linha, com área e pontos</text>
+                  <linechart items="vendas" min="0" area="true" points="true" width="380" height="200" />
+                </column>
+                <column class="detalhe">
+                  <text class="rotulo_bloco">barras, uma cor por categoria</text>
+                  <barchart items="vendas" colorful="true" width="380" height="200" />
+                </column>
+              </row>
+            </groupbox>
+
+            <groupbox title="PieChart e Donut — a mesma tag, o buraco aberto">
+              <text class="nota">
+                `&lt;donut&gt;` é `&lt;piechart donut="0.6"&gt;` — o mesmo atalho que `&lt;popup&gt;`
+                é para `&lt;popover placement="center"&gt;`. As cores saem da paleta do tema quando
+                o markup não escolhe nenhuma: trocar o `theme.json` troca o gráfico junto.
+              </text>
+
+              <row class="linha_larga">
+                <piechart items="fatias" size="190" percentages="true" />
+                <donut items="fatias" size="190" percentages="true" />
+                <column class="detalhe">
+                  <text class="rotulo_bloco">a mesma série, cores do markup</text>
+                  <donut items="fatias" size="190" colors="#89B4FA,#A6E3A1,#F9E2AF,#F38BA8" />
+                </column>
+              </row>
+            </groupbox>
+
+            <groupbox title="Série vazia" flat="true">
+              <text class="nota">
+                Um gráfico sem dados que desenha NADA é indistinguível de um gráfico quebrado. Os
+                quatro escrevem "sem dados" — a tela que ainda não carregou continua parecendo uma
+                tela carregando.
+              </text>
+              <row class="linha_larga">
+                <linechart items="serie_vazia" width="240" height="120" />
+                <piechart items="serie_vazia" size="120" />
+              </row>
+            </groupbox>
+          </template>
+
+          <!-- PÁGINA 3 — O que a onda fechou =========================== -->
+          <template slot="fecho">
+            <groupbox title="O que esta onda fechou">
+              <text class="nota">§2.13 — gráficos: de 0/6 para 5/6 (só o 3D fica, e é wgpu).</text>
+              <text class="nota">§2.3 — Dial, Gauge e LcdNumber saem de ⬜, e nenhum era `●`.</text>
+              <text class="nota">§4 — a decisão "canvas na mão vs. plotters" fecha: na mão.</text>
+            </groupbox>
+
+            <groupbox title="A decisão que sustenta as sete tags" flat="true">
+              <text class="nota">
+                O `canvas` NÃO virou tag. Uma superfície de desenho livre devolveria ao app um bloco
+                imperativo que o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança — três
+                regressões para ganhar uma. Ele ficou como capacidade do motor, e o que o app vê são
+                sete widgets que se comportam como todos os outros.
+              </text>
+              <text class="nota">
+                E uma lição de nome: `&lt;linha&gt;` chegou a ser apelido do `&lt;linechart&gt;` e
+                roubou o nome de todo componente chamado `Linha` — o parser mapeia a tag antes de
+                procurar componentes. Substantivo comum não vira tag.
+              </text>
+            </groupbox>
+          </template>
+
+        </tabs>
+      </column>
+    </scrollable>
+
+    <row class="rodape">
+      <text class="crua">{status}</text>
+    </row>
+  </column>
+</screen>

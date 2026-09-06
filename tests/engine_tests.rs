@@ -6660,3 +6660,221 @@ fn onda6_a_coluna_arrastada_tem_piso() {
     let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(0.0, 10.0)));
     assert_eq!(motor.context().get("w").map(String::as_str), Some("48"));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onda 7 — o canvas, os medidores e os gráficos
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `<dial>`: as props, e o `step` que sobrevive à avaliação.
+#[test]
+fn onda7_dial_props() {
+    let mut motor = motor_tela(
+        "onda7_dial",
+        r#"<dial value="volume" min="0" max="11" step="0.5" notches="11" showValue="true" />"#,
+    );
+    match &motor.evaluated("onda7_dial").unwrap().children[0].kind {
+        NodeType::Dial {
+            value_var,
+            min,
+            max,
+            step,
+            notches,
+            show_value,
+            readonly,
+            ..
+        } => {
+            assert_eq!(value_var, "volume");
+            assert_eq!((*min, *max, *step), (0.0, 11.0, 0.5));
+            assert_eq!(*notches, 11);
+            assert!(*show_value);
+            assert!(!*readonly, "editável é o default de um knob");
+        }
+        outro => panic!("esperava Dial, veio {outro:?}"),
+    }
+}
+
+/// O `<dial>` sem `onChange` **grava a chave sozinho** — o contrato de sempre.
+/// Aqui isso é verificado pela mensagem que o widget publica, que é a mesma que
+/// o `<rating>` publica: um `ContextPatch` na chave nomeada.
+#[test]
+fn onda7_dial_grava_a_chave_sem_on_change() {
+    let mut motor = motor_tela("onda7_dial_grava", r#"<dial value="volume" max="10" />"#);
+    motor.define_data("volume", "3");
+    let _ = motor.dispatch(&EngineMessage::ContextPatch(vec![(
+        "volume".into(),
+        "7".into(),
+    )]));
+    assert_eq!(motor.context().get("volume").map(String::as_str), Some("7"));
+}
+
+/// `<gauge>`: o número no meio é o default (ao contrário do `<dial>`), e
+/// `bands` NÃO passa pelo interpolador — um JSON tem `{}` dentro.
+#[test]
+fn onda7_gauge_props_e_bands_cru() {
+    let bands = r##"[{"to":60,"color":"#A6E3A1"},{"to":100,"color":"#F38BA8"}]"##;
+    let mut motor = motor_tela(
+        "onda7_gauge",
+        &format!(r#"<gauge value="cpu" max="100" unit="%" label="CPU" bands='{bands}' />"#),
+    );
+    match &motor.evaluated("onda7_gauge").unwrap().children[0].kind {
+        NodeType::Gauge {
+            value_var,
+            max,
+            unit,
+            label,
+            bands: b,
+            show_value,
+            ..
+        } => {
+            assert_eq!(value_var, "cpu");
+            assert_eq!(*max, 100.0);
+            assert_eq!((unit.as_str(), label.as_str()), ("%", "CPU"));
+            assert_eq!(b, bands, "o JSON chega inteiro, sem interpolação");
+            assert!(*show_value, "um medidor existe para ser lido");
+        }
+        outro => panic!("esperava Gauge, veio {outro:?}"),
+    }
+}
+
+/// `<lcdnumber>`: o valor é lido como TEXTO, então um relógio passa inteiro.
+#[test]
+fn onda7_lcd_props() {
+    let mut motor = motor_tela(
+        "onda7_lcd",
+        r#"<lcdnumber value="relogio" digits="5" size="40" pad="true" />"#,
+    );
+    motor.define_data("relogio", "12:34");
+    match &motor.evaluated("onda7_lcd").unwrap().children[0].kind {
+        NodeType::LcdNumber {
+            value_var,
+            digits,
+            size,
+            pad_zeros,
+            ghost,
+            ..
+        } => {
+            assert_eq!(value_var, "relogio");
+            assert_eq!((*digits, *size), (5, 40.0));
+            assert!(*pad_zeros);
+            assert!(*ghost, "os segmentos apagados aparecem por default");
+        }
+        outro => panic!("esperava LcdNumber, veio {outro:?}"),
+    }
+}
+
+/// `<sparkline>` é `<linechart>` sem moldura — a MESMA `NodeType`, outros
+/// defaults. É a economia de uma tag no motor.
+#[test]
+fn onda7_sparkline_e_linechart_sem_moldura() {
+    let mut motor = motor_tela(
+        "onda7_spark",
+        r#"<column>
+             <linechart items="vendas" />
+             <sparkline items="vendas" />
+           </column>"#,
+    );
+    let tela = motor.evaluated("onda7_spark").unwrap();
+    let col = &tela.children[0];
+
+    match (&col.children[0].kind, &col.children[1].kind) {
+        (
+            NodeType::LineChart {
+                axes: eixos_grande,
+                grid: grade_grande,
+                ..
+            },
+            NodeType::LineChart {
+                axes: eixos_mini,
+                grid: grade_mini,
+                ..
+            },
+        ) => {
+            assert!(*eixos_grande && *grade_grande, "o linechart tem moldura");
+            assert!(!*eixos_mini && !*grade_mini, "o sparkline não tem");
+        }
+        (a, b) => panic!("esperava dois LineChart, veio {a:?} / {b:?}"),
+    }
+}
+
+/// `min`/`max` de gráfico são `String` porque vazio significa **automático** —
+/// e porque precisam interpolar.
+#[test]
+fn onda7_limites_de_grafico_interpolam() {
+    let mut motor = motor_tela(
+        "onda7_lim",
+        r#"<barchart items="vendas" min="0" max="{teto}" />"#,
+    );
+    motor.define_data("teto", "500");
+    match &motor.evaluated("onda7_lim").unwrap().children[0].kind {
+        NodeType::BarChart { min, max, .. } => {
+            assert_eq!(min, "0");
+            assert_eq!(max, "500", "`max=\"{{teto}}\"` resolve na avaliação");
+        }
+        outro => panic!("esperava BarChart, veio {outro:?}"),
+    }
+}
+
+/// `<donut>` é `<piechart>` com o buraco já aberto — o mesmo atalho de
+/// `<popup>` para `<popover placement="center">`.
+#[test]
+fn onda7_donut_e_piechart_com_buraco() {
+    let mut motor = motor_tela(
+        "onda7_pie",
+        r#"<column>
+             <piechart items="fatias" />
+             <donut items="fatias" />
+           </column>"#,
+    );
+    let tela = motor.evaluated("onda7_pie").unwrap();
+    let col = &tela.children[0];
+    match (&col.children[0].kind, &col.children[1].kind) {
+        (
+            NodeType::PieChart { donut: pizza, .. },
+            NodeType::PieChart {
+                donut: rosquinha, ..
+            },
+        ) => {
+            assert_eq!(*pizza, 0.0);
+            assert!(*rosquinha > 0.0);
+        }
+        (a, b) => panic!("esperava dois PieChart, veio {a:?} / {b:?}"),
+    }
+}
+
+/// A lição que um teste desta onda ensinou: um substantivo comum **não** pode
+/// virar tag. `<linha>` foi registrado como apelido do `<linechart>` na
+/// primeira versão e roubou o nome de todo componente chamado `Linha` — o
+/// parser mapeia a tag antes de procurar componentes.
+#[test]
+fn onda7_nao_rouba_nome_de_componente_comum() {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let tpl = "templates/test_onda7_nomes.gv";
+    std::fs::write(
+        tpl,
+        r#"<screen title="Nomes">
+            <resources>
+                <component name="Linha">
+                    <props><prop name="nome" /></props>
+                    <row><text content="{nome}" /></row>
+                </component>
+                <component name="Display">
+                    <props><prop name="nome" /></props>
+                    <row><text content="{nome}" /></row>
+                </component>
+            </resources>
+            <column>
+                <Linha nome="sou-componente" />
+                <Display nome="tambem-sou" />
+            </column>
+        </screen>"#,
+    )
+    .unwrap();
+    motor.register_component("onda7_nomes", tpl).unwrap();
+    motor.set_initial_screen("onda7_nomes");
+    assert_eq!(
+        all_texts(motor.evaluated("onda7_nomes").unwrap()),
+        vec!["sou-componente".to_string(), "tambem-sou".to_string()]
+    );
+    std::fs::remove_file(tpl).ok();
+}

@@ -401,6 +401,89 @@ Props: `items` (a mesma árvore do `<treeview>`), `value` (o caminho escolhido),
 
 A trilha **inteira** fica acesa até a folha, não só a ponta — é metade do que uma navegação Miller comunica.
 
+### `<Dial>` (`<Knob>`)
+O knob rotativo (`QDial`). Arrasta o anel, clica num ponto dele ou rola a roda — e o valor vai para a chave que o markup nomeia, como num `<slider>`.
+
+```gv
+<dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o valor. Obrigatória: é onde ele grava |
+| `min` / `max` | `0` / `100` | a faixa |
+| `step` | `1` | `0` = contínuo |
+| `size` | `96` | diâmetro em pixels |
+| `notches` | `0` | traços de escala em volta |
+| `color` | tema | vazio = a primária; vazio **e** com `class`, a cor da classe `.gss` |
+| `showValue` | `false` | escreve o valor no miolo |
+| `readonly` | `false` | desenha e não aceita gesto |
+| `onChange` / `onRelease` | — | vazio = grava a chave sozinho; preenchido = delega |
+
+### `<Gauge>` (`<Medidor>`)
+O medidor de arco. **Apresentacional**: não escreve nada e não recebe clique — por isso `value` aceita também um número escrito à mão.
+
+```gv
+<gauge value="cpu" max="100" unit="%" label="CPU" needle="true"
+       bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | nome da chave, **ou** um número |
+| `min` / `max` | `0` / `100` | a faixa |
+| `size` / `thickness` | `132` / `14` | lado do quadrado e espessura do anel |
+| `start` / `sweep` | `135` / `270` | em graus, 0° às 3 horas — `180`/`180` faz meio-arco |
+| `bands` | — | faixas coloridas: **nome de chave** ou o JSON no atributo |
+| `needle` | `false` | desenha a agulha |
+| `showValue` / `decimals` | `true` / `0` | o número no meio |
+| `unit` / `label` | — | sufixo colado no número, e a legenda embaixo |
+
+### `<LcdNumber>` (`<Lcd>`)
+Dígitos de sete segmentos (`QLCDNumber`). O valor é lido como **texto** e só vira número formatado quando parseia como tal — é o que deixa um `12:34` de relógio passar inteiro.
+
+```gv
+<lcdnumber value="relogio" size="52" />
+<lcdnumber value="volume" digits="3" pad="true" color="#F9E2AF" />
+```
+
+Props: `value`, `digits` (o `setDigitCount`; `0` = o que vier), `size` (altura do dígito, default `44`), `color`, `decimals`, `pad` (enche com `0` em vez de espaço), `ghost` (default `true`: desenha os segmentos apagados num tom fraco).
+
+`.`, `,` e `:` ocupam **menos** que um dígito, como num mostrador de verdade.
+
+### `<LineChart>` · `<Sparkline>` · `<BarChart>` · `<PieChart>` (`<Donut>`)
+Os gráficos. `items` é a convenção de sempre — o **nome** de uma chave com um array JSON —, em duas formas:
+
+```json
+[12, 19, 7, 24]
+[{"label": "Jan", "value": 12}, {"label": "Fev", "value": 19}]
+```
+
+```gv
+<sparkline items="latencia" width="180" height="30" />
+<linechart items="vendas" min="0" area="true" points="true" />
+<barchart  items="vendas" colorful="true" />
+<piechart  items="fatias" size="190" percentages="true" />
+<donut     items="fatias" size="190" colors="#89B4FA,#A6E3A1" />
+```
+
+| prop | vale para | o que faz |
+| --- | --- | --- |
+| `items` | todos | nome da chave com a série |
+| `min` / `max` | linha, barra | vazio = automático; escrito, **fixa** a escala |
+| `color` | linha, barra | vazio = a primária do tema (ou a da classe `.gss`) |
+| `area` / `points` | linha | preenche sob a linha; marca cada ponto (até 40) |
+| `axes` / `grid` | linha, barra | `<sparkline>` é `<linechart axes="false">` |
+| `colorful` | barra | uma cor por categoria, ciclando a paleta do tema |
+| `donut` | pizza | buraco como fração do raio; `<donut>` já vem com `0.6` |
+| `percentages` | pizza | escreve o % sobre cada fatia com espaço para ele |
+| `colors` | pizza | chave, JSON de hex, ou lista por vírgula |
+
+- **`width`/`height`** passam pelo `parse_length` do motor: `width="fill"` vale num gráfico como vale numa `<row>`.
+- **A barra nasce do ZERO** quando `min` não é declarado — começar em 40 exagera a diferença entre 41 e 42.
+- **Série vazia escreve "sem dados"**, não desenha nada: um gráfico em branco é indistinguível de um quebrado.
+- **Uma série por gráfico.** Série múltipla ainda não existe.
+
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
 

@@ -1699,6 +1699,168 @@ pub enum NodeType {
         column_width: f32,
         on_select: String,
     },
+    // ── Onda 7 — o que o `canvas` destravou ─────────────────────────────────
+    //
+    // As sete tags desenhadas: três medidores (`crate::gauges`) e quatro
+    // gráficos (`crate::charts`), todos sobre a caixa de ferramentas de
+    // `crate::canvas`. Nenhuma delas expõe o `canvas` ao markup — ver o
+    // cabeçalho daquele módulo para o porquê.
+    /// `QDial`: o **knob rotativo**. Arrasta, clica no arco ou rola a roda; o
+    /// valor vai para a chave que o markup nomeia.
+    ///
+    /// ```xml
+    /// <dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+    /// ```
+    ///
+    /// # Não é `●`
+    ///
+    /// O catálogo o marcava como "exige estado por instância". Não exige: o
+    /// valor mora em `value_var`, como no `<slider>`, e o único estado interno
+    /// — se a alça está presa agora — vive no `canvas::Program::State`, que o
+    /// `iced` dá por widget. É a terceira reclassificação desse tipo (depois do
+    /// `Spinner` na 0.66 e do `Rating` na 0.85), e a lição já é regra: o que
+    /// parece estado por instância quase sempre é o **valor**, e o valor cabe
+    /// numa chave.
+    ///
+    /// `on_release` existe pelo mesmo motivo do `<slider>`: quem dispara rede
+    /// ou disco não quer fazê-lo uma vez por pixel arrastado.
+    Dial {
+        /// Nome da chave com o valor. **Obrigatória** aqui: sem ela o widget
+        /// não tem onde gravar o que a pessoa girou.
+        value_var: String,
+        min: f32,
+        max: f32,
+        /// `0` = contínuo.
+        step: f32,
+        /// Diâmetro em pixels. Default 96.
+        size: f32,
+        /// Quantos traços de escala desenhar em volta. `0` = nenhum.
+        notches: usize,
+        /// Vazia = a primária do tema.
+        color: String,
+        /// Escrever o valor no miolo do knob.
+        show_value: bool,
+        decimals: usize,
+        readonly: bool,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+        /// Ação disparada só ao SOLTAR. Vazia = não usa.
+        on_release: String,
+    },
+    /// O medidor de arco do QML (`Gauge`): um valor num setor circular, com
+    /// faixas coloridas opcionais, agulha e o número no meio.
+    ///
+    /// ```xml
+    /// <gauge value="cpu" max="100" unit="%" label="CPU"
+    ///        bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
+    /// ```
+    ///
+    /// Apresentacional: não escreve nada, não recebe clique. Por isso `value`
+    /// aceita **também** um número escrito à mão — é o que faz uma tela de
+    /// exemplo não precisar de uma chave por medidor.
+    Gauge {
+        value_var: String,
+        min: f32,
+        max: f32,
+        /// Lado do quadrado em pixels. Default 132.
+        size: f32,
+        /// Espessura do anel. Default 14.
+        thickness: f32,
+        /// Onde o arco começa e quanto varre, em graus (0° = 3 horas, horário).
+        /// Defaults 135°/270°, os do `QDial`.
+        start: f32,
+        sweep: f32,
+        color: String,
+        /// Faixas coloridas: nome de chave **ou** JSON escrito no atributo.
+        bands: String,
+        needle: bool,
+        show_value: bool,
+        decimals: usize,
+        /// Sufixo colado no número (`%`, `°C`).
+        unit: String,
+        /// Legenda curta abaixo do número.
+        label: String,
+    },
+    /// `QLCDNumber`: dígitos de **sete segmentos**.
+    ///
+    /// ```xml
+    /// <lcdnumber value="relogio" digits="5" size="44" />
+    /// ```
+    ///
+    /// O valor é lido como **texto**, e só vira número formatado quando parseia
+    /// como tal — é o que deixa um `12:34` de relógio passar inteiro. `.`, `,`
+    /// e `:` ocupam menos que um dígito, como num mostrador de verdade.
+    LcdNumber {
+        value_var: String,
+        /// Quantos dígitos reservar (o `setDigitCount`). `0` = o que vier.
+        digits: usize,
+        /// Altura de um dígito, em pixels. Default 44.
+        size: f32,
+        color: String,
+        decimals: usize,
+        /// Preencher à esquerda com `0` em vez de espaço.
+        pad_zeros: bool,
+        /// Desenhar os segmentos apagados num tom fraco, como num display real.
+        ghost: bool,
+    },
+    /// `<linechart>` e `<sparkline>`: a mesma linha, com e sem moldura.
+    ///
+    /// ```xml
+    /// <linechart items="vendas" min="0" area="true" points="true" />
+    /// <sparkline items="latencia" width="140" height="30" />
+    /// ```
+    ///
+    /// `items` é a convenção de sempre — o nome de uma chave com um array JSON
+    /// —, e aceita `[1, 2, 3]` ou `[{"label":"Jan","value":12}]`. Ver
+    /// [`crate::canvas::Serie`].
+    ///
+    /// `min`/`max` são `String` porque vazio significa **automático**, e porque
+    /// precisam interpolar (`max="{teto}"`). Fixá-los importa: dois gráficos
+    /// lado a lado com escalas automáticas diferentes é a forma clássica de
+    /// mentir com um painel sem querer.
+    LineChart {
+        items_var: String,
+        min: String,
+        max: String,
+        color: String,
+        /// Preencher a área sob a linha.
+        area: bool,
+        /// Marcar cada ponto com um círculo (só até 40 pontos).
+        points: bool,
+        /// `<sparkline>` é esta tag com `axes="false"`.
+        axes: bool,
+        grid: bool,
+        thickness: f32,
+    },
+    /// `<barchart>`: barras verticais, uma por ponto da série.
+    ///
+    /// A base é sempre o **zero** quando `min` não é declarado — um gráfico de
+    /// barras que começa em 40 exagera a diferença entre 41 e 42, e é o erro de
+    /// leitura mais comum que um painel produz.
+    BarChart {
+        items_var: String,
+        min: String,
+        max: String,
+        color: String,
+        /// Uma cor por barra, ciclando a paleta do tema. É o que separa
+        /// "quanto por mês" (uma cor) de "quanto por categoria" (uma cada).
+        colorful: bool,
+        axes: bool,
+        grid: bool,
+    },
+    /// `<piechart>`: setores, ou rosquinha quando `donut` é maior que zero.
+    PieChart {
+        items_var: String,
+        /// Lado do quadrado em pixels. Default 180.
+        size: f32,
+        /// Buraco do meio como fração do raio: `0` pizza, `0.6` rosquinha.
+        donut: f32,
+        /// Escrever a porcentagem sobre cada fatia com espaço para ela.
+        percentages: bool,
+        /// Cores por fatia: chave, JSON de hex, ou lista separada por vírgula.
+        /// Vazio = a paleta do tema.
+        colors: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -1773,6 +1935,14 @@ impl NodeType {
             NodeType::TableView { .. } => "tableview",
             NodeType::TreeView { .. } => "treeview",
             NodeType::ColumnView { .. } => "columnview",
+            NodeType::Dial { .. } => "dial",
+            NodeType::Gauge { .. } => "gauge",
+            NodeType::LcdNumber { .. } => "lcdnumber",
+            // `<sparkline>` é `<linechart axes="false">`: uma tag a menos no
+            // motor, e o `tag_name` diz a verdade sobre qual nó é.
+            NodeType::LineChart { .. } => "linechart",
+            NodeType::BarChart { .. } => "barchart",
+            NodeType::PieChart { .. } => "piechart",
             NodeType::Slider { .. } => "slider",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -2627,6 +2797,16 @@ impl UiNode {
     /// can't be parsed yet: the raw string is recorded in `templates` under
     /// `attr` (resolved at eval time) and `None` is returned so the static field
     /// stays empty. A literal value parses as before.
+    /// Um número literal com default — o caminho simples, para os atributos
+    /// que **não** entram na lista de [`NumAttr`] (a de quem precisa interpolar
+    /// `{...}` na avaliação). É o que o `size` do `<rating>` já fazia; as sete
+    /// tags da Onda 7 usam o mesmo.
+    fn get_attr_f32(node: &Node, keys: &[&str], padrao: f32) -> f32 {
+        Self::get_attr(node, keys)
+            .and_then(|s| s.trim().parse::<f32>().ok())
+            .unwrap_or(padrao)
+    }
+
     fn get_attr_num(
         node: &Node,
         keys: &[&str],
@@ -3494,6 +3674,151 @@ impl UiNode {
                         &["onSelect", "on_select", "on-select", "aoEscolher"],
                     )
                     .unwrap_or_default(),
+                }
+            }
+            // ── Onda 7 ──────────────────────────────────────────────────────
+            //
+            // Uma nota sobre os apelidos em pt-BR, que esta onda aprendeu por
+            // um teste que quebrou: **um substantivo comum não pode virar
+            // tag.** A primeira versão registrou `<linha>` para o
+            // `<linechart>`, e com isso roubou o nome de todo componente que um
+            // app chame de `Linha` — o parser mapeia a tag ANTES de procurar
+            // componentes, então `<component name="Linha">` passava a ser
+            // ignorado em silêncio. O mesmo valia para `<display>`, `<barras>`
+            // e `<pizza>`. Os apelidos daqui ficam nos nomes que ninguém
+            // usaria para um componente próprio (`grafico_linha`, `medidor`,
+            // `minigrafico`), e a regra vale para a próxima onda.
+            "Dial" | "dial" | "Knob" | "knob" | "Botao_giratorio" | "botao_giratorio" => {
+                NodeType::Dial {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 0.0),
+                    max: Self::get_attr_f32(&node, &["max", "maximo", "máximo"], 100.0),
+                    step: Self::get_attr_f32(&node, &["step", "passo"], 1.0).max(0.0),
+                    size: Self::get_attr_f32(&node, &["size", "tamanho", "diameter"], 96.0),
+                    notches: Self::get_attr_f32(&node, &["notches", "marcas", "ticks"], 0.0).max(0.0)
+                        as usize,
+                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                    show_value: Self::get_attr_bool(
+                        &node,
+                        &["showValue", "show_value", "mostrar_valor"],
+                    ),
+                    decimals: Self::get_attr_f32(&node, &["decimals", "casas"], 0.0).max(0.0)
+                        as usize,
+                    readonly: Self::get_attr_bool(
+                        &node,
+                        &["readonly", "readOnly", "somente_leitura"],
+                    ),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                    on_release: Self::get_attr(
+                        &node,
+                        &["onRelease", "on_release", "on-release", "aoSoltar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Gauge" | "gauge" | "Medidor" | "medidor" => NodeType::Gauge {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 0.0),
+                max: Self::get_attr_f32(&node, &["max", "maximo", "máximo"], 100.0),
+                size: Self::get_attr_f32(&node, &["size", "tamanho"], 132.0),
+                thickness: Self::get_attr_f32(&node, &["thickness", "espessura"], 14.0),
+                start: Self::get_attr_f32(&node, &["start", "inicio", "início"], 135.0),
+                sweep: Self::get_attr_f32(&node, &["sweep", "varredura", "angle"], 270.0),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                bands: Self::get_attr(&node, &["bands", "faixas"]).unwrap_or_default(),
+                needle: Self::get_attr_bool(&node, &["needle", "agulha", "ponteiro"]),
+                // O número no meio é o default aqui, ao contrário do `<dial>`:
+                // um medidor existe para ser lido, um knob para ser girado.
+                show_value: Self::get_attr(&node, &["showValue", "show_value", "mostrar_valor"])
+                    .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                    .unwrap_or(true),
+                decimals: Self::get_attr_f32(&node, &["decimals", "casas"], 0.0).max(0.0) as usize,
+                unit: Self::get_attr(&node, &["unit", "unidade", "suffix"]).unwrap_or_default(),
+                label: Self::get_attr(&node, &["label", "legenda", "rotulo", "rótulo"])
+                    .unwrap_or_default(),
+            },
+            "LcdNumber" | "lcdnumber" | "Lcd" | "lcd" => {
+                NodeType::LcdNumber {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    digits: Self::get_attr_f32(&node, &["digits", "digitos", "dígitos"], 0.0)
+                        .max(0.0) as usize,
+                    size: Self::get_attr_f32(&node, &["size", "tamanho", "height"], 44.0),
+                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                    decimals: Self::get_attr_f32(&node, &["decimals", "casas"], 0.0).max(0.0)
+                        as usize,
+                    pad_zeros: Self::get_attr_bool(&node, &["pad", "zeros", "preencher"]),
+                    ghost: Self::get_attr(&node, &["ghost", "fantasma", "dim"])
+                        .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                        .unwrap_or(true),
+                }
+            }
+            // Uma tag a menos no motor: `<sparkline>` é `<linechart>` sem
+            // moldura. Os defaults é que mudam, e é só o que muda.
+            "LineChart" | "linechart" | "grafico_linha" | "gráfico_linha" | "Sparkline"
+            | "sparkline" | "Minigrafico" | "minigrafico" | "minigráfico" => {
+                let mini = tag.eq_ignore_ascii_case("sparkline")
+                    || tag.to_lowercase().starts_with("minigr");
+                NodeType::LineChart {
+                    items_var: Self::get_attr(&node, &["items", "itens", "data", "dados"])
+                        .unwrap_or_default(),
+                    min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
+                    max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
+                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                    area: Self::get_attr_bool(&node, &["area", "área", "fill"]),
+                    points: Self::get_attr(&node, &["points", "pontos", "markers"])
+                        .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                        .unwrap_or(false),
+                    axes: Self::get_attr(&node, &["axes", "eixos"])
+                        .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                        .unwrap_or(!mini),
+                    grid: Self::get_attr(&node, &["grid", "grade"])
+                        .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                        .unwrap_or(!mini),
+                    thickness: Self::get_attr_f32(
+                        &node,
+                        &["thickness", "espessura", "width_line"],
+                        if mini { 1.5 } else { 2.0 },
+                    ),
+                }
+            }
+            "BarChart" | "barchart" | "grafico_barras" | "gráfico_barras" => NodeType::BarChart {
+                items_var: Self::get_attr(&node, &["items", "itens", "data", "dados"])
+                    .unwrap_or_default(),
+                min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
+                max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                colorful: Self::get_attr_bool(&node, &["colorful", "colorido", "multicolor"]),
+                axes: Self::get_attr(&node, &["axes", "eixos"])
+                    .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                    .unwrap_or(true),
+                grid: Self::get_attr(&node, &["grid", "grade"])
+                    .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                    .unwrap_or(true),
+            },
+            "PieChart" | "piechart" | "Donut" | "donut" | "grafico_pizza" | "gráfico_pizza" => {
+                let rosquinha = tag.eq_ignore_ascii_case("donut");
+                NodeType::PieChart {
+                    items_var: Self::get_attr(&node, &["items", "itens", "data", "dados"])
+                        .unwrap_or_default(),
+                    size: Self::get_attr_f32(&node, &["size", "tamanho"], 180.0),
+                    // `<donut>` é a mesma tag com o buraco já aberto — o mesmo
+                    // atalho de `<popup>` para `<popover placement="center">`.
+                    donut: Self::get_attr_f32(
+                        &node,
+                        &["donut", "hole", "buraco", "rosquinha"],
+                        if rosquinha { 0.6 } else { 0.0 },
+                    )
+                    .clamp(0.0, 0.95),
+                    percentages: Self::get_attr_bool(
+                        &node,
+                        &["percentages", "percentuais", "showValue", "mostrar_valor"],
+                    ),
+                    colors: Self::get_attr(&node, &["colors", "cores", "palette", "paleta"])
+                        .unwrap_or_default(),
                 }
             }
             "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {

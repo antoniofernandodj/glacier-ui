@@ -2148,6 +2148,19 @@ fn eval_owned(
             .map(|(_, t)| is_truthy(&process_tpl(t, context)))
     };
 
+    // A cor de um nó que se DESENHA (os sete da Onda 7): o atributo, ou a cor
+    // da classe `.gss` quando o atributo está vazio. É o mesmo fallback que o
+    // `<button>`, o `<progressbar>` e o `<rating>` já faziam à mão — aqui virou
+    // uma linha porque sete nós o repetiriam.
+    let cor_ou_classe = |color: &str| -> String {
+        let c = process_tpl(color, context);
+        if c.is_empty() {
+            style.color.clone().unwrap_or_default()
+        } else {
+            c
+        }
+    };
+
     // Evaluate current node attributes
     let kind_eval = match &node.kind {
         NodeType::Container => NodeType::Container,
@@ -2361,6 +2374,143 @@ fn eval_owned(
             },
             readonly: *readonly,
             on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        // ── Onda 7 ──────────────────────────────────────────────────────────
+        //
+        // A `cor` das sete cai na classe `.gss` quando o atributo não a dá — o
+        // mesmo fallback do `<rating>` logo acima, e a razão de um painel
+        // inteiro poder trocar de cor por folha de estilo.
+        NodeType::Dial {
+            value_var,
+            min,
+            max,
+            step,
+            size,
+            notches,
+            color,
+            show_value,
+            decimals,
+            readonly,
+            on_change,
+            on_release,
+        } => NodeType::Dial {
+            value_var: process_tpl(value_var, context),
+            min: *min,
+            max: *max,
+            step: *step,
+            size: *size,
+            notches: *notches,
+            color: cor_ou_classe(color),
+            show_value: *show_value,
+            decimals: *decimals,
+            readonly: *readonly,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_release: namespace_action(process_tpl(on_release, context), owner),
+        },
+        NodeType::Gauge {
+            value_var,
+            min,
+            max,
+            size,
+            thickness,
+            start,
+            sweep,
+            color,
+            bands,
+            needle,
+            show_value,
+            decimals,
+            unit,
+            label,
+        } => NodeType::Gauge {
+            value_var: process_tpl(value_var, context),
+            min: *min,
+            max: *max,
+            size: *size,
+            thickness: *thickness,
+            start: *start,
+            sweep: *sweep,
+            color: cor_ou_classe(color),
+            // `bands` NÃO interpola: ele é ou o nome de uma chave ou um JSON
+            // com chaves `{}` dentro, e passar um JSON pelo interpolador
+            // transformaria `{"to":60}` numa busca por uma variável chamada
+            // `"to":60`. É a mesma razão de `items` nunca interpolar.
+            bands: bands.clone(),
+            needle: *needle,
+            show_value: *show_value,
+            decimals: *decimals,
+            unit: process_tpl(unit, context),
+            label: process_tpl(label, context),
+        },
+        NodeType::LcdNumber {
+            value_var,
+            digits,
+            size,
+            color,
+            decimals,
+            pad_zeros,
+            ghost,
+        } => NodeType::LcdNumber {
+            value_var: process_tpl(value_var, context),
+            digits: *digits,
+            size: *size,
+            color: cor_ou_classe(color),
+            decimals: *decimals,
+            pad_zeros: *pad_zeros,
+            ghost: *ghost,
+        },
+        NodeType::LineChart {
+            items_var,
+            min,
+            max,
+            color,
+            area,
+            points,
+            axes,
+            grid,
+            thickness,
+        } => NodeType::LineChart {
+            items_var: process_tpl(items_var, context),
+            min: process_tpl(min, context),
+            max: process_tpl(max, context),
+            color: cor_ou_classe(color),
+            area: *area,
+            points: *points,
+            axes: *axes,
+            grid: *grid,
+            thickness: *thickness,
+        },
+        NodeType::BarChart {
+            items_var,
+            min,
+            max,
+            color,
+            colorful,
+            axes,
+            grid,
+        } => NodeType::BarChart {
+            items_var: process_tpl(items_var, context),
+            min: process_tpl(min, context),
+            max: process_tpl(max, context),
+            color: cor_ou_classe(color),
+            colorful: *colorful,
+            axes: *axes,
+            grid: *grid,
+        },
+        NodeType::PieChart {
+            items_var,
+            size,
+            donut,
+            percentages,
+            colors,
+        } => NodeType::PieChart {
+            items_var: process_tpl(items_var, context),
+            size: *size,
+            donut: *donut,
+            percentages: *percentages,
+            // Como o `bands` do `<gauge>`: nome de chave ou JSON, nunca
+            // template.
+            colors: colors.clone(),
         },
         NodeType::MaskedInput {
             value_var,

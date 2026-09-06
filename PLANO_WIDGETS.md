@@ -16,7 +16,8 @@ e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 Última revisão da fila: **2026-09-04**, sobre a 0.92 (ondas 3, 4, 5 e 6
 fechadas). A ordenação por **função** — widgets que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim: as quatro ondas da §6.2 estão
-feitas, e o que sobra é a Onda 7 (o `canvas`) mais o troco da §6.3.
+feitas — e a Onda 7 (o `canvas`) também, na 0.93. O que sobra é o troco da
+§6.3.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -111,13 +112,13 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | ✅ | prop `decimals` no `<spinbox>`. Sem ela as casas continuam saindo do `step`, como sempre — o que acertava por acidente e errava justamente em `step="1"` sobre um preço (`10`, não `10.00`). Onda 4 (0.85) |
 | QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ✅ | `min`/`max`/`step`, `vertical`, mais `default` (duplo clique), `on_release` e `shift_step`. Casas decimais da saída vêm do `step` como escrito. `disabled` deixa inerte, sem esmaecer: o `slider::Status` do iced 0.14 não tem `Disabled` |
 | QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
-| QDial | `Dial` | Comp | canvas | ● | P2 | ⬜ | knob rotativo |
+| QDial | `Dial` | **Prim** | canvas | ◐ | P2 | ✅ | knob rotativo: arrasta, clica no arco ou rola a roda. **Reclassificado de `●` para primitiva** — o valor mora na chave que o markup nomeia (`value="volume"`), como no `<slider>`; o único estado interno é o arrasto, e ele vive no `Program::State` do `iced`. É a terceira vez que essa marca cai (Spinner 0.66, Rating 0.85). Onda 7 |
 | QScrollBar | `ScrollBar` | Motor | scrollable | — | P2 | 🟡 | embutido no `scrollable`; expor avulso é raro |
 | QProgressBar | `ProgressBar` | Prim | progress_bar | — | P1 | ✅ | `value`/`min`/`max`/`vertical`/`showValue`; `color` = preenchimento |
 | QProgressBar (busy) | `Spinner`/`BusyIndicator` | Prim | fill_quad (sem canvas) | — | P1 | ✅ | indeterminado; fase de rotação no `tree::State` do widget — **não** exige estado por instância no contexto (reclassificado de `●`; ver `src/spinner.rs`) |
-| QLCDNumber | `LcdNumber` | Comp | canvas | — | P3 | ⬜ | dígitos estilo display 7-segmentos |
+| QLCDNumber | `LcdNumber` | **Prim** | canvas | — | P3 | ✅ | dígitos de sete segmentos. O valor é lido como TEXTO e só vira número formatado quando parseia como tal — é o que deixa `12:34` de relógio passar inteiro; `.`/`,`/`:` ocupam menos que um dígito. Onda 7 |
 | QML Tumbler | `Tumbler` | Comp | scrollable | ● | P3 | ⬜ | roleta de valores |
-| QML Gauge / medidor | `Gauge` | Comp | canvas | ◐ | P2 | ⬜ | medidor circular/arco |
+| QML Gauge / medidor | `Gauge` | **Prim** | canvas | — | P2 | ✅ | medidor de arco com faixas coloridas (`bands`, JSON no atributo ou nome de chave), agulha, unidade e legenda. Apresentacional: não escreve nada. `start`/`sweep` em graus fazem meio-arco. Onda 7 |
 | — (nota por estrelas) | `Rating` | **Prim** | row+button | ◐ | P2 | ✅ | N estrelas numa chave nomeada, com pré-visualização no hover (chave global `__rating`) e `readonly` para listas. **Reclassificado de Built para Prim na construção**, por dois motivos independentes: repetição dirigida por um número (não por coleção) e o hover, que o markup não expõe. Onda 4 (0.85) |
 
 ### 2.4 Seleção, listas e árvores (model/view)
@@ -213,7 +214,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QFrame | `Frame` | Built | container | — | P2 | ✅ | três formas: `box` (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem `Raised`/`Sunken`: o `UiNode` não tem campo de sombra |
 | — (skeleton) | `Skeleton` | Built | container | — | P2 | ⬜ | placeholder de carregamento. §6.3 |
 | — (QR) | `QrCode` | Prim | qr_code | — | P3 | ⬜ | iced tem nativo. §6.3 |
-| QGraphicsView | `Canvas` | Prim | canvas | ● | P3 | ⬜ | superfície de desenho livre |
+| QGraphicsView | `Canvas` | Prim | canvas | ● | P3 | ⬜ | superfície de desenho livre. A Onda 7 usou o `canvas` do `iced` como **capacidade** (`src/canvas.rs`) e decidiu NÃO expor tag: um callback imperativo o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança. Se sair, sai como vocabulário declarativo (`<path>`, `<arc>`, `<circle>`) |
 | QOpenGLWidget | `Shader` | Prim | shader | ● | P3 | ⬜ | iced `shader` (wgpu) |
 | — (toast) | `Toast` | Motor | stack | — | P1 | ✅ | já existe (`toasts.rs`) |
 
@@ -311,11 +312,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
-| QChartView (linha) | `LineChart` | Comp | canvas | — | P2 | ⬜ | avaliar crate `plotters`+iced |
-| QChartView (barra) | `BarChart` | Comp | canvas | — | P2 | ⬜ | — |
-| QChartView (pizza) | `PieChart` | Comp | canvas | — | P2 | ⬜ | — |
-| QChartView (área/scatter) | `AreaChart`/`Scatter` | Comp | canvas | — | P3 | ⬜ | — |
-| — (sparkline) | `Sparkline` | Comp | canvas | — | P2 | ⬜ | mini-gráfico inline |
+| QChartView (linha) | `LineChart` | **Prim** | canvas | — | P2 | ✅ | eixos com escala 1·2·5, grade, área e pontos. `min`/`max` vazios = automático; escritos, fixam a escala. Onda 7 |
+| QChartView (barra) | `BarChart` | **Prim** | canvas | — | P2 | ✅ | base sempre no ZERO quando `min` não é declarado; `colorful` dá uma cor por categoria. Onda 7 |
+| QChartView (pizza) | `PieChart` | **Prim** | canvas | — | P2 | ✅ | setores com percentual; `<donut>` é a mesma tag com o buraco aberto. Onda 7 |
+| QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | 🟡 | `area="true"` e `points="true"` no `<linechart>` cobrem os dois casos de uma série. O que falta é **série múltipla**, anotado na Onda 7 como o próximo passo da família |
+| — (sparkline) | `Sparkline` | **Prim** | canvas | — | P2 | ✅ | é `<linechart axes="false">` — a mesma primitiva, outros defaults. Onda 7 |
 | Q3D* (3D bars/scatter) | — | Comp | shader | ● | P3 | ⬜ | escopo distante (wgpu) |
 
 ---
@@ -505,7 +506,17 @@ Ordem sugerida de habilitadores de Motor:
   `src/widget.rs`, com teste contra 1970, 1900 e 2000 — errar a regra do século
   desloca a grade inteira em silêncio, que é o pior modo de falha possível para
   um calendário.
-- **Gráficos**: `canvas` na mão vs. integrar `plotters`.
+- ~~**Gráficos**: `canvas` na mão vs. integrar `plotters`.~~ — **decidida na
+  Onda 7 (0.93): na mão**, sobre o `canvas` do `iced`, com a caixa de
+  ferramentas em `src/canvas.rs` (arcos, séries, escala 1·2·5, sete segmentos).
+  Três razões, em ordem de peso: a **cor** (o `plotters` traz o sistema de
+  estilo dele, e um gráfico que ignora o `theme.json` é um retângulo
+  estrangeiro no meio do app), a **manutenção** (o `plotters-iced` oficial
+  parou no `iced 0.13`; para o 0.14 só existe um fork de comunidade, e a §2.13
+  inteira ficaria atrás dele a cada bump) e o **tamanho** (este crate já
+  compila `wgpu`, `naga`, Luau e os codecs estaticamente). O que o `plotters`
+  traria de graça — eixos, escala e rótulos — coube em duzentas linhas que
+  servem os quatro gráficos.
 - **Convenção de nomes**: manter aliases PT-BR (`botao`, `seletor`, `rolagem`…)
   para todo widget novo, ou só para o núcleo? (hoje o núcleo tem os dois.)
 - **Rich text no `TextBrowser`/`QLabel`**: quanto do HTML/markdown do Qt vale
@@ -575,8 +586,9 @@ Duas das seis não passaram por ela: o `Flow` é o `Row::wrap()` do próprio
 edição de célula continua de fora — ela reusa o `<textinput>`, não a medição.
 
 **Fase H — canvas e visualização (P2/P3)**
-`Dial` · `Gauge` · `ColorDialog` · `LineChart`/`BarChart`/`PieChart` ·
-`Sparkline`.
+~~`Dial`~~ ✅ · ~~`Gauge`~~ ✅ · `ColorDialog` · ~~`LineChart`/`BarChart`/`PieChart`~~ ✅ ·
+~~`Sparkline`~~ ✅ (todos na Onda 7, 0.93). Sobram o `ColorDialog` e a série
+múltipla dos gráficos.
 
 **Fase I — nicho/avançado (P3)**
 `MdiArea` · `Dock` · `Wizard` · `SwipeView` · ~~`Drawer`~~ ✅ (0.92, adiantado
@@ -1201,12 +1213,80 @@ rolagem de um `scrollable` **flutua sobre** o conteúdo, a menos que um
 `spacing` seja declarado. Sem `.spacing(0)`, o que ela cobre numa tabela é
 exatamente a coluna da direita.
 
-**Onda 7, e agora ela é a próxima:** o `canvas` como primitiva, e a família que
-ele destrava de uma vez — `Dial`, `Gauge`, `LcdNumber`, `ColorDialog` e a §2.13
-inteira (gráficos, 6 linhas em 0). Mesmo formato das ondas 5 e 6: um item de
-motor, meia dúzia de widgets. Fica sem detalhar porque as decisões dele (`canvas`
-na mão vs. `plotters`, §4) ainda estão abertas, e escrevê-las agora seria
-inventar.
+---
+
+#### Onda 7 — o canvas, e os sete que saem dele — ✅ **FEITA (0.93)**
+
+```text
+Habilitador — o canvas como CAPACIDADE, não como tag   (motor, `src/canvas.rs`)
+
+1. Dial       — o knob rotativo                        (primitiva)
+2. Gauge      — o medidor de arco, com faixas          (primitiva)
+3. LcdNumber  — sete segmentos                         (primitiva)
+4. Sparkline  — a linha sem moldura                    (primitiva)
+5. LineChart  — a linha com eixos                      (primitiva)
+6. BarChart   — barras                                 (primitiva)
+7. PieChart   — setores, e a rosquinha                 (primitiva)
+```
+
+**A decisão que sustenta a onda: o `canvas` não virou tag.** A tradução literal
+do `QGraphicsView` seria um `<canvas>` com callback de desenho em Rust. Isso
+devolveria ao app um bloco imperativo que o `.gv` não lê, o `.gss` não estiliza
+e o lado Luau não alcança — três regressões para ganhar uma. O `canvas` ficou
+como **capacidade** (`src/canvas.rs`: arcos, séries, escala 1·2·5, sete
+segmentos) e o que o app vê são sete tags que se comportam como todas as outras.
+O `<canvas>` avulso continua catalogado em P3; se um dia sair, sai como
+vocabulário declarativo (`<path>`, `<arc>`, `<circle>`), não como escape hatch.
+
+**A segunda decisão fecha a §4:** gráficos **na mão**, e não `plotters` — a
+cor, a manutenção e o tamanho, nessa ordem (o raciocínio inteiro está lá).
+
+**O que fecha:** a §2.13 saiu de **0/6** — a única categoria zerada do catálogo
+— para 5/6 (sobra o 3D, que é `shader`/wgpu), e a §2.3 perdeu três ⬜.
+
+**As três diferenças entre o proposto e o construído:**
+
+1. **Nenhum dos três medidores era `●`.** O catálogo marcava o `Dial` como
+   "exige estado por instância" e classificava os três como componente. O valor
+   sempre coube numa chave que o app nomeia — `value="volume"`, como
+   `value="nota"` —, e o único estado interno de verdade (o arrasto em curso)
+   vive no `canvas::Program::State`, que o `iced` dá por widget. É a **terceira**
+   reclassificação desse tipo, depois do `Spinner` (0.66) e do `Rating` (0.85), e
+   já é regra: *o que parece estado por instância quase sempre é o valor*.
+2. **`<sparkline>` não é uma tag a mais.** É `<linechart axes="false">` — a
+   mesma `NodeType`, outros defaults. Um lugar a menos onde um bug de escala
+   pode morar, pelo mesmo raciocínio que fez `<popup>` ser `<popover>`.
+3. **O `ColorDialog` ficou de fora.** Estava na proposta da onda; sozinho é do
+   tamanho de dois ou três dos outros, e nada depende dele.
+
+**Uma armadilha nova, para quem for desenhar:** o `arc` do `iced` chama
+`Builder::ellipse`, e essa função faz `move_to` **sempre**. Dois arcos no mesmo
+`Path` viram dois sub-caminhos soltos e o `close()` não fecha nada — um anel
+montado como "arco externo de ida, arco interno de volta" preenche errado, com
+as fatias da pizza faltando pedaço perto do centro e as faixas do `<gauge>`
+enchendo até o miolo. `crate::canvas::{arco, anel}` desenham por polilinha, um
+segmento por grau.
+
+**Uma lição de nome, que um teste pegou:** um substantivo comum não pode virar
+tag. `<linha>` chegou a ser apelido do `<linechart>` e roubou o nome de todo
+componente chamado `Linha` — o parser mapeia a tag **antes** de procurar
+componentes, então um `<component name="Linha">` do app passava a ser ignorado
+em silêncio. Valia igual para `<display>`, `<barras>` e `<pizza>`. Os apelidos
+em pt-BR ficaram nos nomes que ninguém usaria para um componente próprio
+(`grafico_linha`, `medidor`, `minigrafico`), e há teste para isso.
+
+**E uma que não é do motor, mas custou a onda inteira:** o `iced_tiny_skia`
+0.14.0 — o renderizador de **software**, que é onde se cai quando o `wgpu` não
+sobe — aplica a transformação **duas vezes** ao recorte de um grupo de
+primitivas de `canvas`. O sintoma engana: o primeiro desenho da tela sai cortado,
+todos os seguintes somem, e o texto de todos continua aparecendo. A correção é de
+uma linha, já está no `master` do `iced`, e o repositório a carrega em
+`vendor/iced_tiny_skia` até a 0.14.1 sair. Ver `TROUBLESHOOTING.md`.
+
+**O que sobra desta família:** **série múltipla**. Um `items` é uma série;
+comparar duas no mesmo eixo pede uma segunda convenção de dados, uma legenda e
+uma paleta por série. É trabalho de verdade e não é o gargalo de nada — o caso
+comum de um painel é um número por gráfico.
 
 ---
 
@@ -1224,7 +1304,7 @@ sobram **dois** — e nenhum dos dois bloqueia coisa alguma da fila:
 | Binding a coleção (model/view) | **Onda 6** — ✅ e **nem existia como trabalho**: a ligação já era `items="chave"`, a mesma do `<menu>`. Do que estava catalogado sobrou a medição e as convenções de seleção/ordenação |
 | `ctx.dispatch(acao)` | Continua P2 e continua sem consumidor urgente: o caso declarativo já se resolveu com o prefixo `app:` (0.63) |
 | Contexto tipado / valor de data | **Fechado pela negativa** (0.72/0.73): o global `date` do prelúdio Luau cobre o lado do script, o `Instante` cobre o do widget. Sai da lista |
-| **Canvas como primitiva** | **Onda 7** (esboçada acima): `Dial`, `Gauge`, `LcdNumber`, `ColorDialog` e a §2.13 inteira |
+| **Canvas como primitiva** | **Onda 7** — ✅ feito na 0.93, e **não como primitiva**: virou capacidade do motor (`src/canvas.rs`), com sete tags declarativas por cima. Destravou `Dial`, `Gauge`, `LcdNumber` e a §2.13 inteira; o `ColorDialog` ficou de fora, e nada depende dele |
 | **Estado por instância** | O último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider` e a edição de célula em árvore profunda. Rebaixado de P0 para P1 nesta revisão — não por ter encolhido, mas porque parou de ser o caminho crítico de qualquer coisa que se queira construir |
 | Subscriptions de teclado | Continua P2, independente das quatro ondas (`Shortcut`/`Action` globais) |
 
@@ -1244,7 +1324,7 @@ Do §3 sobram, agora, três itens, e nenhum bloqueia nada da §6.3:
 
 | Habilitador | Estado |
 |---|---|
-| **Canvas como primitiva** | Onda 7, e o único com alavancagem grande (a §2.13 inteira, 6 linhas em 0) |
+| ~~**Canvas como primitiva**~~ | ✅ Onda 7 (0.93). Era mesmo o de maior alavancagem: sete widgets, e a §2.13 saiu de 0/6 para 5/6 |
 | `ctx.dispatch(acao)` | continua P2, continua sem consumidor urgente |
 | Subscriptions de teclado | continua P2 (`Shortcut`/`Action` globais) |
 | **Estado por instância** | o último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider` e a edição de célula em árvore profunda |

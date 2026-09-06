@@ -457,6 +457,68 @@ definitiva da coluna, que só existe depois de a primeira passada terminar.
 se paga com ele é a virtualização: para uma grade longa, `virtualize` na coluna
 de dentro de um `<scrollable>` continua sendo a saída (ver acima).
 
+## Uma primitiva que **desenha** (0.93)
+
+A Onda 7 pôs sete primitivas no `canvas` do `iced` — `<dial>`, `<gauge>`,
+`<lcdnumber>`, `<sparkline>`, `<linechart>`, `<barchart>`, `<piechart>` — e a
+caixa de ferramentas delas mora em `src/canvas.rs`. O que se aprendeu ali, e que
+vale para a próxima:
+
+### O `canvas` é capacidade, não tag
+
+O `iced` tem `canvas`, e a tradução literal do `QGraphicsView` seria expor um
+`<canvas>` com um callback de desenho em Rust. **Não foi feito**, e a razão é a
+promessa da primeira linha do `README`: estrutura, estilo e comportamento
+declarados. Uma superfície de desenho livre devolve ao app um bloco imperativo
+que o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança — três regressões
+para ganhar uma. Se um dia sair um `<canvas>`, sai como **vocabulário
+declarativo** (`<path>`, `<arc>`, `<circle>` interpolando o contexto).
+
+### O `Program::State` não é estado do app
+
+O `canvas::Program` do `iced` tem um `State` próprio, guardado na árvore de
+widgets. Ele vale para o que **morre com o gesto** — se a alça de um `<dial>`
+está presa agora —, nunca para o valor: o valor mora na chave que o markup
+nomeia, como no `<slider>` e no `<rating>`. É o que faz N medidores conviverem
+numa tela sem se ver, e é a terceira vez que um item catalogado como "exige
+estado por instância" (`●`) desce para primitiva por esse motivo — depois do
+`Spinner` (0.66) e do `Rating` (0.85).
+
+### `Builder::arc` sempre começa um sub-caminho
+
+A armadilha cara desta onda. O `arc` do `iced` chama `Builder::ellipse`, e essa
+função faz `move_to` **sempre**. Ou seja: dois arcos no mesmo `Path` viram dois
+sub-caminhos soltos, e o `close()` fecha coisa nenhuma. Um anel construído como
+"arco externo de ida, arco interno de volta" preenche errado — as fatias de uma
+pizza saem com pedaços faltando perto do centro e as faixas de um `<gauge>`
+preenchem até o miolo em vez de ficarem no anel.
+
+`crate::canvas::arco` e `crate::canvas::anel` desenham por **polilinha**, um
+segmento por grau: um caminho só, e o `close()` fecha o que se espera. Um grau
+num raio de 100px dá cordas de ~1,7px, invisíveis.
+
+### O renderizador de software recorta errado na 0.14.0
+
+Não é do motor, mas custa o mesmo tempo se não se souber: o `iced_tiny_skia`
+0.14.0 aplica a transformação **duas vezes** ao recorte de um grupo de
+primitivas. O sintoma é específico e enganoso: o primeiro canvas da tela sai
+cortado em cima e à esquerda, **todos os seguintes somem**, e o texto de todos
+eles continua aparecendo (o texto segue outro caminho). Só morde quem cai no
+renderizador de software — numa GPU sã o `iced_wgpu` desenha certo.
+
+O repositório carrega a correção de uma linha em `vendor/iced_tiny_skia`
+(a mesma que já está no `master` do `iced`); ver `TROUBLESHOOTING.md` e
+`vendor/iced_tiny_skia/PATCH.md`.
+
+### Um substantivo comum não vira tag
+
+`<linha>` chegou a ser apelido do `<linechart>` e **roubou o nome de todo
+componente chamado `Linha`** — o parser mapeia a tag antes de procurar
+componentes, então um `<component name="Linha">` do app passava a ser ignorado
+em silêncio. O mesmo valia para `<display>`, `<barras>` e `<pizza>`. Os apelidos
+em pt-BR de uma tag nova ficam nos nomes que ninguém usaria para um componente
+próprio (`grafico_linha`, `medidor`, `minigrafico`). Há teste para isso.
+
 ## Checklist para uma primitiva nova
 
 1. `NodeType` em `parser.rs` + braço de parse + `tag_name()`.
@@ -474,5 +536,8 @@ de dentro de um `<scrollable>` continua sendo a saída (ver acima).
    filho dele mede `height="fill"`** — o teto vertical ali é infinito, e o
    sintoma (tudo abaixo sai da tela) não produz erro nenhum. Ver a gêmea da
    armadilha do `Length::Fill`, acima.
-6. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
+6. Se a primitiva **desenha** (`canvas`), releia a seção acima: `arc` começa
+   sub-caminho, o `Program::State` não é estado do app, e o apelido em pt-BR
+   não pode ser um substantivo que um app usaria para um componente dele.
+7. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
    ✅) + linha na tabela de tags do `README.md`.

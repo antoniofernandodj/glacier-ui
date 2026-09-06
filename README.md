@@ -326,6 +326,12 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<TableView>` · `<TableHeader>` | `Tabela`, `CabecalhoTabela` | a tabela (`QTableView`/`QHeaderView`): `items`/`linhas` (chave com o array), `columns`/`colunas` (chave com `{key,label,width,align}` — ou uma spec de trilhas), `value` (linha escolhida), `mode="multi"`, `sort`/`ordem` (chave com `"coluna asc"`), `widths`/`larguras` (chave; a presença dela põe as **alças de arrasto**), `height` (a janela de rolagem), `onSelect`, `onSort`. Cabeçalho e corpo são a **mesma grade**, e a ordenação é numérica quando os dois lados são número |
 | `<TreeView>` | `Arvore` | a árvore (`QTreeView`): `items` (array JSON aninhado com `{id,label,items}`), `value` (o nó escolhido — o **caminho** dele), `open`/`abertos` (o **conjunto** de caminhos abertos, `"raiz,raiz/src"`), `indent`/`recuo`, `onSelect` |
 | `<ColumnView>` | `Colunas`, `Miller` | a navegação Miller do Finder: `items` (a mesma árvore), `value`/`caminho`, `column_width`, `onSelect` |
+| `<Dial>` | `Knob` | o knob rotativo (`QDial`): `value` (chave), `min`/`max`/`step`, `size`, `notches`, `color`, `showValue`, `decimals`, `readonly`, `onChange`/`onRelease`. Arrasta, clica no arco ou rola a roda |
+| `<Gauge>` | `Medidor` | o medidor de arco: `value` (chave **ou** número), `min`/`max`, `size`/`thickness`, `start`/`sweep` (graus), `bands` (faixas coloridas: chave ou JSON), `needle`, `showValue`, `decimals`, `unit`, `label`. Apresentacional |
+| `<LcdNumber>` | `Lcd` | dígitos de sete segmentos (`QLCDNumber`): `value` (lido como **texto** — um `12:34` passa inteiro), `digits`, `size`, `color`, `decimals`, `pad`, `ghost` |
+| `<LineChart>` | `Sparkline`, `grafico_linha` | a linha: `items` (chave com `[1,2,3]` ou `[{label,value}]`), `min`/`max` (vazio = automático), `color`, `area`, `points`, `axes`, `grid`, `thickness`. `<sparkline>` é esta tag com `axes="false"` |
+| `<BarChart>` | `grafico_barras` | barras: `items`, `min`/`max`, `color`, `colorful` (uma cor por categoria), `axes`, `grid`. A base é sempre o **zero** quando `min` não é declarado |
+| `<PieChart>` | `Donut`, `grafico_pizza` | setores: `items`, `size`, `donut` (buraco como fração do raio), `percentages`, `colors`. `<donut>` é esta tag com o buraco já aberto |
 | `<Rating>` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
 
 ### Estruturais (composição, fluxo, recursos)
@@ -1724,6 +1730,8 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
 | `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
+| `onda7` | o canvas e os sete que saem dele: `dial`, `gauge`, `lcdnumber`, `sparkline`, `linechart`, `barchart` e `piechart`/`donut`. O `canvas` ficou como **capacidade** do motor, não como tag — o app continua escrevendo markup. |
+| `onda7_luau` | a **mesma tela** em Luau, e com uma diferença que só ela mostra: um `every(1000, …)` faz o painel andar sozinho — relógio, CPU e latência — sem que nenhum dos sete widgets saiba que existe um temporizador. |
 | `onda6` | a grade: `grid` (colunas medidas), `flow`, `tableview`/`tableheader` (ordenação, seleção simples e múltipla, colunas arrastáveis), `treeview` e `columnview`. Uma medição, seis widgets. |
 | `onda6_luau` | a **mesma tela** em Luau — e é onde a diferença entre as duas linguagens mais aparece: as três estruturas que a tela passa aos widgets (linhas, colunas e uma árvore de três níveis) são tabelas literais aqui e `serde_json::json!` do outro lado. |
 | `onda5` | o conteúdo que sai da tela e entra no widget: `tabs` (barra **mais** página), `popover`/`popup`, `autocomplete`, `drawer` e o `calendarPopup` do `dateedit`. |

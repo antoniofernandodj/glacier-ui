@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.92.1"
+version = "0.93.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -70,6 +70,14 @@ name = "onda6_luau"
 path = "examples/onda6_luau/main.rs"
 
 [[example]]
+name = "onda7"
+path = "examples/onda7/main.rs"
+
+[[example]]
+name = "onda7_luau"
+path = "examples/onda7_luau/main.rs"
+
+[[example]]
 name = "onda3"
 path = "examples/onda3/main.rs"
 
@@ -82,7 +90,7 @@ name = "onda2"
 path = "examples/onda2/main.rs"
 
 [dependencies]
-iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced"] }
+iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas"] }
 roxmltree = "0.21"
 image = "0.25"
 serde_json = "1.0"
@@ -162,3 +170,13 @@ tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys", "dep:libc"]
 # segundos em vez dos minutos que o motor leva.
 [workspace]
 members = ["crates/glacier-cli"]
+
+# Uma correção de UMA linha no renderizador de software do iced, já presente no
+# master dele e ausente da 0.14.0 publicada — ver `vendor/iced_tiny_skia/PATCH.md`.
+# Sem ela, uma tela com mais de um `<gauge>`/`<linechart>`/`<dial>` desenha o
+# primeiro cortado e some com todos os seguintes. Apaga-se quando sair a 0.14.1.
+#
+# Vale só para quem compila ESTE repositório: um `[patch]` não atravessa para
+# quem consome o crate publicado.
+[patch.crates-io]
+iced_tiny_skia = { path = "vendor/iced_tiny_skia" }

@@ -89,6 +89,19 @@ const NATIVE_TAGS = {
   TableHeader: ["tableheader", "cabecalhotabela", "cabecalho_tabela"],
   TreeView: ["treeview", "arvore", "árvore"],
   ColumnView: ["columnview", "colunas", "miller"],
+  // Onda 7: os sete que desenham no canvas (`src/canvas.rs` é a caixa de
+  // ferramentas; `src/gauges.rs` e `src/charts.rs` os widgets). Nenhum apelido
+  // em pt-BR aqui é substantivo comum, de propósito: `<linha>` chegou a existir
+  // e roubou o nome de todo componente chamado `Linha`.
+  Dial: ["dial", "knob", "botao_giratorio"],
+  Gauge: ["gauge", "medidor"],
+  LcdNumber: ["lcdnumber", "lcd"],
+  LineChart: [
+    "linechart", "sparkline", "grafico_linha", "gráfico_linha",
+    "minigrafico", "minigráfico",
+  ],
+  BarChart: ["barchart", "grafico_barras", "gráfico_barras"],
+  PieChart: ["piechart", "donut", "grafico_pizza", "gráfico_pizza"],
   Pagination: ["pagination", "paginacao", "paginação"],
   Rating: ["rating", "nota", "estrelas"],
   Radio: ["radio", "radiobutton", "opcao"],

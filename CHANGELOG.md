@@ -8,6 +8,112 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.93.0] — 2026-09-06
+
+**Onda 7** do `PLANO_WIDGETS.md`: o `canvas` — e os sete widgets que saem dele.
+Com ela a §2.13 (gráficos), a única categoria do catálogo que estava em **0/6**,
+vai para 5/6, e a §2.3 perde três ⬜.
+
+```text
+Habilitador — o canvas como CAPACIDADE, não como tag   (motor, `src/canvas.rs`)
+
+1. Dial       — o knob rotativo                        (primitiva)
+2. Gauge      — o medidor de arco, com faixas          (primitiva)
+3. LcdNumber  — sete segmentos                         (primitiva)
+4. Sparkline  — a linha sem moldura                    (primitiva)
+5. LineChart  — a linha com eixos                      (primitiva)
+6. BarChart   — barras                                 (primitiva)
+7. PieChart   — setores, e a rosquinha                 (primitiva)
+```
+
+### Adicionado
+- **O `canvas` como capacidade do motor** (`src/canvas.rs`). A tradução literal
+  do `QGraphicsView` seria um `<canvas>` com callback de desenho em Rust; isso
+  devolveria ao app um bloco imperativo que o `.gv` não lê, o `.gss` não
+  estiliza e o Luau não alcança — três regressões para ganhar uma. O que mora no
+  módulo é o que **mais de um** widget usa: arco e anel (por polilinha), a
+  leitura de uma chave como série (`[1,2,3]` ou `[{label,value}]`, a mesma
+  convenção `items` do `<select>`), a escala 1·2·5 de um eixo, a tabela de sete
+  segmentos e o número compacto (`1.2k`). O `<canvas>` avulso segue catalogado
+  em P3; se sair, sai como vocabulário declarativo.
+
+- **`<dial>`** (`<knob>`) — o `QDial`. Arrasta o anel, clica num ponto dele ou
+  rola a roda; o valor vai para a chave que o markup nomeia. `min`/`max`/`step`,
+  `notches`, `showValue`, `readonly`, `onChange`/`onRelease`.
+
+- **`<gauge>`** (`<medidor>`) — o medidor de arco, apresentacional: faixas
+  coloridas (`bands`, JSON no atributo ou nome de chave), agulha, unidade e
+  legenda. `start`/`sweep` em graus fazem meio-arco.
+
+- **`<lcdnumber>`** (`<lcd>`) — sete segmentos. O valor é lido como **texto** e
+  só vira número formatado quando parseia como tal, que é o que deixa um `12:34`
+  de relógio passar inteiro; `.`, `,` e `:` ocupam menos que um dígito, como num
+  mostrador de verdade.
+
+- **`<linechart>` e `<sparkline>`** — a mesma primitiva, outros defaults: o
+  segundo é o primeiro sem moldura. Eixos com escala arredondada para fora,
+  grade, área e pontos. `min`/`max` vazios são automáticos; escritos, **fixam** a
+  escala — dois gráficos lado a lado com escalas automáticas diferentes são a
+  forma clássica de mentir com um painel sem querer.
+
+- **`<barchart>`** — a base é sempre o **zero** quando `min` não é declarado:
+  um gráfico que começa em 40 exagera a diferença entre 41 e 42, e é o erro de
+  leitura mais comum que um painel produz. `colorful` dá uma cor por categoria.
+
+- **`<piechart>` e `<donut>`** — a mesma tag, o buraco aberto (o mesmo atalho
+  que `<popup>` é para `<popover placement="center">`). Percentual sobre cada
+  fatia que tenha espaço, cores da paleta do tema ou do markup.
+
+- **`examples/onda7` e `examples/onda7_luau`** — a mesma tela, com e sem
+  `impl Component`. A versão Luau mostra o que a de Rust não mostra: um
+  `every(1000, …)` faz o painel andar sozinho (relógio, CPU, latência) sem que
+  nenhum dos sete widgets saiba que existe um temporizador.
+
+### Corrigido
+- **Gráficos e medidores que não desenhavam** (só os rótulos apareciam). Duas
+  coisas em série. A primeira é do `iced`: o `iced_tiny_skia` 0.14.0 — o
+  renderizador de **software**, onde se cai quando o `wgpu` não sobe — aplica a
+  transformação **duas vezes** ao recorte de um grupo de primitivas de `canvas`.
+  O primeiro desenho da tela sai cortado, todos os seguintes somem, e o texto de
+  todos continua aparecendo. A correção é de uma linha, já está no `master` do
+  `iced`, e o repositório a carrega em `vendor/iced_tiny_skia` (com
+  `[patch.crates-io]`) até a 0.14.1 sair — ver `vendor/iced_tiny_skia/PATCH.md`
+  e `TROUBLESHOOTING.md`.
+
+  A segunda era nossa: `Builder::arc` do `iced` faz `move_to` **sempre**, então
+  dois arcos no mesmo `Path` viram sub-caminhos soltos e o `close()` não fecha
+  nada. Um anel montado como "arco externo de ida, arco interno de volta"
+  preenchia errado — fatias de pizza com pedaço faltando perto do centro, faixas
+  de `<gauge>` enchendo até o miolo. `arco`/`anel` passaram a desenhar por
+  polilinha, um segmento por grau.
+
+### Decidido
+- **§4, gráficos: `canvas` na mão, e não `plotters`** — a decisão que o plano
+  deixava aberta desde a primeira revisão. Três razões, em ordem de peso: a
+  **cor** (o `plotters` traz o sistema de estilo dele, e um gráfico que ignora o
+  `theme.json` é um retângulo estrangeiro no meio do app), a **manutenção** (o
+  `plotters-iced` oficial parou no `iced 0.13`; para o 0.14 só existe um fork de
+  comunidade, e a §2.13 inteira ficaria atrás dele a cada bump) e o **tamanho**
+  (este crate já compila `wgpu`, `naga`, Luau e os codecs estaticamente). O que
+  o `plotters` traria de graça coube em duzentas linhas que servem os quatro
+  gráficos.
+
+- **Nenhum dos três medidores era `●`.** O catálogo marcava o `Dial` como
+  "exige estado por instância" e classificava os três como componente. O valor
+  sempre coube numa chave que o app nomeia; o único estado interno de verdade —
+  o arrasto em curso — vive no `canvas::Program::State`, que o `iced` dá por
+  widget. É a **terceira** reclassificação desse tipo (Spinner 0.66, Rating
+  0.85), e já virou regra escrita no `PRIMITIVAS.md`.
+
+### Nota para quem escreve tag nova
+Um **substantivo comum não pode virar tag**. `<linha>` chegou a ser apelido do
+`<linechart>` e roubou o nome de todo componente chamado `Linha` — o parser
+mapeia a tag **antes** de procurar componentes, então um
+`<component name="Linha">` do app passava a ser ignorado em silêncio. Valia
+igual para `<display>`, `<barras>` e `<pizza>`. Os apelidos em pt-BR das sete
+tags ficaram em nomes que ninguém usaria para um componente próprio
+(`grafico_linha`, `medidor`, `minigrafico`), e há teste para isso.
+
 ## [0.92.1] — 2026-09-06
 
 ### Corrigido

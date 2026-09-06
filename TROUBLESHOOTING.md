@@ -119,3 +119,52 @@ tinha. Opacos, e por isso imunes ao acúmulo em qualquer driver.
 
 É a regra prática que vale para qualquer painel próprio: numa camada que flutua,
 prefira elevar com **cor de fundo** a elevar com sombra.
+
+---
+
+## Gráficos e medidores que não desenham (só o texto aparece)
+
+### Sintoma
+
+Numa tela com `<gauge>`, `<dial>`, `<lcdnumber>`, `<linechart>`, `<barchart>`,
+`<piechart>` ou `<sparkline>`, os **números dos eixos e os rótulos aparecem** e
+nenhuma forma é desenhada — nem linha, nem barra, nem arco, nem fatia. Olhando
+com atenção há um segundo detalhe: o **primeiro** desenho da tela costuma
+aparecer, cortado em cima e à esquerda, e todos os seguintes somem.
+
+### Causa
+
+Duas coisas em série, e vale saber as duas.
+
+**A primeira é o renderizador.** Quando o `wgpu` não sobe (é o caso das GPUs da
+seção do topo deste arquivo), o `iced` cai no renderizador de **software**,
+`iced_tiny_skia`. Numa máquina com driver sadio ninguém passa por ele; nessas,
+ele é o renderizador normal.
+
+**A segunda é um bug do `iced_tiny_skia` 0.14.0.** O recorte de um grupo de
+primitivas de `canvas` é guardado já transformado, e o laço de desenho o
+multiplica pela transformação **outra vez**. Com a translação aplicada em dobro,
+o recorte de um canvas em (20, 50) é calculado em (40, 100): o primeiro desenho
+sai cortado, e como o erro cresce com a posição na tela, todo canvas mais abaixo
+fica com o recorte fora de si mesmo e não desenha nada. O texto escapa porque
+segue outro caminho no renderizador — daí o sintoma parecer "só o texto".
+
+Diagnóstico de um minuto: se **um** canvas sozinho numa janela desenha e **dois**
+não, é isto.
+
+### Correção
+
+Já vem aplicada: o repositório carrega `vendor/iced_tiny_skia`, uma cópia do
+crate com **uma linha** alterada — a mesma correção que já está no `master` do
+`iced` e que ficou de fora da 0.14.0 publicada. O `[patch.crates-io]` na raiz do
+`Cargo.toml` a liga. Ver `vendor/iced_tiny_skia/PATCH.md`, que explica o diff e
+como apagar tudo quando a 0.14.1 sair.
+
+Duas ressalvas:
+
+- o `[patch]` vale para quem compila **este** repositório. Um app que consome o
+  `glacier-ui` publicado no crates.io precisa do mesmo `[patch]` no `Cargo.toml`
+  dele — ou de uma GPU em que o `wgpu` suba, onde o bug não existe;
+- `WGPU_BACKEND=gl` **não** resolve este caso: se o `wgpu` não sobe de jeito
+  nenhum, a escolha de backend não muda nada. Ela vale para as duas seções
+  anteriores, não para esta.
