@@ -8,6 +8,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.92.1] — 2026-09-06
+
+### Corrigido
+- **Os painéis que flutuam não escurecem mais até ficar pretos.** A lista de
+  sugestões de um `<autocomplete>` aberto ia ficando mais escura a cada quadro
+  até virar um retângulo preto; o mesmo valia, pela mesma razão, para o cartão
+  de um `<dialog>` e para um toast. O detalhe que denunciava o mecanismo: as
+  linhas por onde o cursor passava voltavam ao normal e as outras continuavam
+  escurecendo — e com a lista filtrada até sobrar **uma** opção o efeito não
+  aparecia, porque a única linha é sempre a realçada e a realçada desenha fundo
+  opaco todo quadro.
+
+  A causa não é do widget: é o driver. Nos Vulkan incompletos da Mesa (Intel Ivy
+  Bridge/Haswell — a mesma família da corrupção no resize já descrita no
+  `TROUBLESHOOTING.md`) o corpo do container é repintado a cada quadro, mas o
+  **quad da sombra** — preto translúcido — não é apagado junto: ele se soma ao
+  que já estava ali, e onze quadros de preto a 0,35 já são um painel
+  praticamente preto. Onde algo opaco é redesenhado por cima, a conta zera; onde
+  nada é, ela acumula. O mesmo binário com `WGPU_BACKEND=gl` renderiza a sombra
+  correta e estável, que é o que fecha o diagnóstico.
+
+  Os três painéis perderam a `shadow` e passaram a elevar por **fundo opaco mais
+  claro** (`background.weak`) mais a borda que cada um já tinha — cores opacas
+  não acumulam em driver nenhum. Vale para as duas pontas do motor, Rust e Luau:
+  os painéis são do motor, não do exemplo. `TROUBLESHOOTING.md` ganhou a seção
+  com o sintoma, a causa, o diagnóstico de dois minutos (sombra vermelha sobre
+  fundo verde) e a regra que sai daí: numa camada que flutua, prefira elevar com
+  cor de fundo a elevar com sombra.
+
 ## [0.92.0] — 2026-09-04
 
 Ondas **5 e 6** do `PLANO_WIDGETS.md`, e com elas a fila viva da §6.2 fica

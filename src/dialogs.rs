@@ -17,7 +17,7 @@
 //! ```
 
 use iced::widget::{Space, button, column, container, mouse_area, row, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Vector};
+use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
 
 use crate::widget::EngineMessage;
 
@@ -263,7 +263,13 @@ pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, Eng
     }
     card = card.push(buttons);
 
-    let card_bg = palette.background.base.color;
+    // Elevação por fundo opaco, não por `shadow` — ver `TROUBLESHOOTING.md`.
+    // Nos drivers Vulkan incompletos (Intel Ivy Bridge/Haswell na Mesa) o quad
+    // de uma sombra translúcida não é apagado junto com o corpo do container:
+    // ele se soma quadro após quadro até o cartão virar um retângulo preto. Um
+    // tom mais claro que o fundo da tela, mais a borda, dizem a mesma coisa
+    // ("isto flutua") com cores opacas, que não acumulam em driver nenhum.
+    let card_bg = palette.background.weak.color;
     let card_border = palette.background.strong.color;
     let card_box = container(card)
         .width(Length::Fixed(380.0))
@@ -274,11 +280,6 @@ pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, Eng
                 radius: iced::border::Radius::new(8.0),
                 width: 1.0,
                 color: card_border,
-            },
-            shadow: Shadow {
-                color: Color::from_rgba(0.0, 0.0, 0.0, 0.5),
-                offset: Vector::new(0.0, 4.0),
-                blur_radius: 16.0,
             },
             ..Default::default()
         });

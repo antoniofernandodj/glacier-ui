@@ -19,7 +19,7 @@
 //! "×"), só não somem sozinhos.
 
 use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Vector};
+use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
 use std::time::Duration;
 
 use crate::widget::EngineMessage;
@@ -173,7 +173,13 @@ fn toast_card<'a>(
     ]
     .spacing(6);
 
-    let card_bg = palette.background.base.color;
+    // Elevação por fundo opaco, não por `shadow` — ver `TROUBLESHOOTING.md`.
+    // Nos drivers Vulkan incompletos (Intel Ivy Bridge/Haswell na Mesa) o quad
+    // de uma sombra translúcida se soma quadro após quadro em vez de ser
+    // apagado com o corpo do container, e o toast escurece até ficar preto. A
+    // borda de 2px na cor do tipo já destaca o cartão; um fundo um tom mais
+    // claro que a tela completa o efeito sem nada translúcido.
+    let card_bg = palette.background.weak.color;
     container(card)
         .width(Length::Fixed(320.0))
         .padding(14)
@@ -183,11 +189,6 @@ fn toast_card<'a>(
                 radius: iced::border::Radius::new(8.0),
                 width: 2.0,
                 color: accent,
-            },
-            shadow: Shadow {
-                color: Color::from_rgba(0.0, 0.0, 0.0, 0.4),
-                offset: Vector::new(0.0, 2.0),
-                blur_radius: 10.0,
             },
             ..Default::default()
         })

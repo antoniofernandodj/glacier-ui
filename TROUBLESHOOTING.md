@@ -76,3 +76,46 @@ Ivy Bridge/Haswell é o caso conhecido). Numa GPU diferente, corrupção
 visual no resize indicaria outra coisa — confirme o warning do driver
 (`MESA-INTEL: ... Vulkan support is incomplete`, ou o equivalente do seu
 driver) no stderr antes de aplicar esta correção.
+
+---
+
+## Painel flutuante que escurece até ficar preto
+
+### Sintoma
+
+Um painel com **sombra** que vive numa camada por cima da tela — o painel de
+sugestões do `<autocomplete>`, um `<dialog>`, um toast — vai ficando
+progressivamente mais escuro a cada quadro, até virar um retângulo preto. O
+detalhe que denuncia o mecanismo: **as linhas por onde o cursor passa voltam ao
+normal** e as outras continuam escurecendo. Num `<autocomplete>` filtrado até
+sobrar uma opção só, o efeito **não** aparece — a única linha é sempre a
+realçada, e a realçada desenha fundo opaco todo quadro.
+
+### Causa
+
+A mesma GPU/driver da seção acima (Intel Ivy Bridge/Haswell no Vulkan da Mesa).
+O corpo do container é repintado a cada quadro, mas o **quad da sombra** —
+preto translúcido — não é apagado junto: ele se soma sobre o que já estava ali.
+Onze quadros de preto a 0,35 já são um painel praticamente preto. Onde algo
+opaco é redesenhado por cima (a linha realçada, a linha sob o cursor), a conta
+zera; onde nada opaco é redesenhado, ela acumula.
+
+Diagnóstico (dá para fechar em dois minutos, sem RenderDoc): troque a cor da
+sombra por vermelho e o fundo do painel por verde. Se o vermelho aparecer
+**sobre** o verde em faixas de intensidades diferentes, é isto. Depois rode o
+mesmo binário com `WGPU_BACKEND=gl` — no OpenGL a mesma sombra renderiza
+correta e estável.
+
+### Correção
+
+`WGPU_BACKEND=gl`, exatamente como na seção anterior (as três camadas de
+ambiente valem igual).
+
+Do lado do motor, nada mais depende disso: os três painéis que traziam sombra —
+o do `<autocomplete>` (`src/widget.rs`), o cartão do `<dialog>` (`src/dialogs.rs`)
+e o cartão do toast (`src/toasts.rs`) — perderam a `shadow` e ganharam a elevação
+por um **fundo opaco mais claro** (`background.weak`) mais a borda que cada um já
+tinha. Opacos, e por isso imunes ao acúmulo em qualquer driver.
+
+É a regra prática que vale para qualquer painel próprio: numa camada que flutua,
+prefira elevar com **cor de fundo** a elevar com sombra.

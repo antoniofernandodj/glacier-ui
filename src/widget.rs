@@ -2449,19 +2449,22 @@ fn render_autocomplete<'a>(
         });
         lista = lista.push(b);
     }
+    // E **sem `shadow`**, o que não é gosto — ver `TROUBLESHOOTING.md`. Nos
+    // drivers Vulkan incompletos (Intel Ivy Bridge/Haswell na Mesa) o quad da
+    // sombra não é apagado junto com o corpo do container: o preto a 0,35 se
+    // soma quadro após quadro e a lista fica preta em segundos. Só as linhas
+    // por onde o cursor passa voltam ao normal, porque o `button` realçado
+    // desenha um fundo OPACO ali — e com uma opção só o efeito nem aparece, já
+    // que a única linha é sempre a realçada. A elevação aqui vem do fundo mais
+    // claro e da borda: opacos, e por isso imunes ao acúmulo.
     let painel = container(lista).padding(4).style(|theme: &iced::Theme| {
         let pal = theme.extended_palette();
         container::Style {
-            background: Some(Background::Color(pal.background.base.color)),
+            background: Some(Background::Color(pal.background.weak.color)),
             border: Border {
                 radius: iced::border::Radius::new(6.0),
                 width: 1.0,
                 color: pal.background.strong.color,
-            },
-            shadow: iced::Shadow {
-                color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
-                offset: iced::Vector::new(0.0, 4.0),
-                blur_radius: 12.0,
             },
             ..Default::default()
         }
