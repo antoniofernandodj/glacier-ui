@@ -4422,6 +4422,40 @@ pub fn render_node<'a>(
             ends,
             on_change,
         } => render_pagination(context, value_var, total, *window, *ends, on_change),
+        NodeType::WizardNav {
+            value_var,
+            steps,
+            titles,
+            valid,
+            on_finish,
+            on_cancel,
+            back_label,
+            next_label,
+            finish_label,
+            cancel_label,
+            show_header,
+        } => crate::wizard::render_wizard_nav(
+            context,
+            value_var,
+            steps,
+            titles,
+            valid,
+            on_finish,
+            on_cancel,
+            back_label,
+            next_label,
+            finish_label,
+            cancel_label,
+            *show_header,
+        ),
+        NodeType::ColorWheel {
+            value_var,
+            size,
+            on_change,
+            readonly,
+        } => {
+            crate::color_picker::render_color_wheel(context, value_var, *size, on_change, *readonly)
+        }
         NodeType::Rating {
             value_var,
             max,
@@ -5029,6 +5063,7 @@ pub fn render_node<'a>(
         NodeType::Screen(_)
         | NodeType::ComponentRoot
         | NodeType::Define { .. }
+        | NodeType::DialogDef(_)
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => {

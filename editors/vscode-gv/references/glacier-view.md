@@ -636,6 +636,8 @@ primeiras, e um comando nas demais.
 | `window:drag` | inicia o arraste — use no `onPress` de uma região da barra de título |
 | `window:resize:<dir>` | inicia o redimensionamento; `<dir>` ∈ `n,s,e,w,ne,nw,se,sw` |
 | `style:<nome>` | troca o estilo builtin ativo (ver `src/style.rs`); `style:set` é reservado para a forma `<Select onChange="style:set">` |
+| `dialog:<nome>` | abre o `<dialog name="<nome>">` declarado no `<resources>` |
+| `dialog:close` | fecha o diálogo em exibição (`dialog:fechar` é alias) |
 
 Qualquer outro valor de ação é o nome de uma função: exata, ou `nome:sufixo` —
 sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
@@ -987,6 +989,116 @@ A gaveta lateral: um painel que **desliza** para dentro e para fora, **empurrand
 - **Empurra, não cobre.** Uma gaveta que cobre a tela é um `<popover>` colado na borda, e o motor já tem um. A `<row>` que segura a gaveta e o conteúdo é do **app** — sem ela, a gaveta abre empurrando para baixo.
 - **Não há prop `side`**: a gaveta fica do lado em que o markup a escreveu na `<row>`.
 - **O widget não desenha o gatilho.** Quem abre escreve `on_click="drawer::toggle:<chave>"` — de qualquer lugar da tela, porque o nome da chave viaja na ação.
+
+---
+
+---
+
+## O diálogo com corpo (Onda 8)
+
+### `<dialog name="…">` — o QDialog
+
+Uma **declaração** do `<resources>`, ao lado do `<component name="…">`: nada
+desenha onde a tag está escrita. O corpo dela vira um template comum sob o mesmo
+nome, e o que a faz aparecer é a ação `dialog:<nome>`.
+
+```gv
+<resources>
+  <dialog name="editar" title="Editar serviço"
+          buttons="Cancelar::|Salvar:salvar:accept">
+    <column spacing="10" width="fill">
+      <textinput value="__dialog.nome" placeholder="api-gateway" width="fill" />
+      <spinbox value="__dialog.replicas" min="1" max="32" />
+    </column>
+  </dialog>
+</resources>
+
+<button text="Editar" on_click="dialog:editar" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `name` | — (**obrigatória**) | como o diálogo é aberto (`dialog:<name>`) |
+| `title` | — | título do cartão; vazio esconde o cabeçalho |
+| `message` | — | texto acima do corpo; vazio some (não vira linha em branco) |
+| `icon` | — | `information`, `warning`, `error`, `question` |
+| `buttons` | um `Fechar` | lista `Rótulo:acao:papel` separada por `\|` |
+| `dismissible` | `true` | clicar fora fecha |
+
+- **`buttons`**: ação vazia (`Cancelar::`) = o botão **só fecha**, sem despachar
+  nada. Papel ausente = `accept` se há ação, `neutral` se não há. Papéis:
+  `accept`, `neutral`, `destructive`.
+- **As chaves `__dialog.*`** são o rascunho do diálogo, e o motor **apaga todas**
+  quando ele fecha — sem isso, a segunda abertura viria preenchida com a resposta
+  da primeira.
+- Um botão pode abrir **outro** diálogo (`on_click="dialog:outro"`).
+
+### `<stackview>` — o QStackedWidget
+
+`<tabs>` sem a barra: a página é escolhida por **nome**.
+
+```gv
+<stackview active="{painel}">
+  <template slot="resumo">  … </template>
+  <template slot="detalhe"> … </template>
+</stackview>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `active` | — | o valor que escolhe a página (o `slot` dela) |
+| `width` / `padding` / `spacing` | `fill` / `0` / `12` | do container da página |
+
+Ele **não grava nada** — não há nele em que clicar. Quem troca de página é quem
+escreve a chave.
+
+### `<wizard>` — o QWizard
+
+Páginas, cabeçalho de passo e a fileira de botões.
+
+```gv
+<wizard value="passo" active="{passo}"
+        steps="plano,dominio,revisao"
+        titles="Plano,Domínio,Revisão"
+        valid="{passo_valido}"
+        on_finish="criar">
+  <template slot="plano">   … </template>
+  <template slot="dominio"> … </template>
+  <template slot="revisao"> … </template>
+</wizard>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — (**obrigatória**) | **nome** da chave com o passo atual |
+| `active` | — | o valor atual dessa chave |
+| `steps` | — (**obrigatória**) | ids dos passos, por vírgula — casam com os `slot=` |
+| `titles` | os ids | rótulos do cabeçalho, na mesma ordem |
+| `valid` | sempre válido | enquanto falso, `Avançar`/`Finalizar` fica inerte |
+| `on_finish` | — | ação do botão do último passo |
+| `on_cancel` | — | ação do Cancelar; sem ela, não há Cancelar |
+| `back_label` / `next_label` / `finish_label` / `cancel_label` | `Voltar` / `Avançar` / `Finalizar` / `Cancelar` | rótulos |
+| `header` | `true` | mostra o "Passo 2 de 3 — Domínio" |
+
+- **`Voltar` fica inerte no primeiro passo, não some** — sumir faria a fileira
+  dançar e o `Avançar` mudar de lugar debaixo do cursor.
+- **Avançar no último satura**: dar a volta pareceria ter perdido o preenchido.
+- A chave do passo **não precisa ser semeada**: vazia = passo zero.
+
+### `<colorwheel>` — a roda de cor
+
+Anel de matiz mais o quadrado saturação × valor. Escreve `#rrggbb` na chave.
+
+```gv
+<colorwheel value="cor" size="230" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — (**obrigatória**) | **nome** da chave com a cor, em `#rrggbb` |
+| `size` | `220` | lado do quadrado que contém a roda |
+| `onChange` | — | vazio = a roda grava a chave sozinha |
+| `readonly` | `false` | mostra sem responder ao gesto |
 
 ---
 

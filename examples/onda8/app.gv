@@ -1,0 +1,163 @@
+<screen title="Glacier — Onda 8" size="1000 720" min-size="820 620">
+    <resources>
+        <link rel="stylesheet" href="examples/onda8/app.gss" />
+
+        <!-- ── Item 1: o `<dialog>` próprio, o QDialog ────────────────────
+             Declaração, não widget: nada desenha aqui. O corpo é markup
+             comum, avaliado pelo mesmo `render_node` de qualquer tela, e o
+             que o faz aparecer é `on_click="dialog:editar_servico"`.
+
+             Os campos escrevem em chaves `__dialog.*`, que o motor apaga no
+             fechamento — sem isso, a segunda abertura viria preenchida com o
+             que ficou da primeira. -->
+        <dialog name="editar_servico"
+                title="Editar serviço"
+                buttons="Cancelar::|Salvar:salvar_servico:accept">
+            <Column spacing="10" width="fill">
+                <Column spacing="4" width="fill">
+                    <Text content="Nome" size="12" class="rotulo" />
+                    <TextInput value="__dialog.nome" onChange="__dialog.nome"
+                                placeholder="api-gateway" width="fill" />
+                </Column>
+                <Row spacing="10" width="fill">
+                    <Column spacing="4" width="fill">
+                        <Text content="Réplicas" size="12" class="rotulo" />
+                        <SpinBox value="__dialog.replicas" min="1" max="32" step="1" width="fill" />
+                    </Column>
+                    <Column spacing="4" width="fill">
+                        <Text content="Ambiente" size="12" class="rotulo" />
+                        <Select options="ambientes" value="__dialog.ambiente"
+                                onChange="__dialog.ambiente" width="fill" />
+                    </Column>
+                </Row>
+                <Checkbox label="Reiniciar automaticamente" checked="__dialog.restart"
+                          onToggle="__dialog.restart" />
+            </Column>
+        </dialog>
+
+        <!-- Um segundo diálogo, para mostrar que o encadeamento funciona: o
+             botão destrutivo daqui abre o de cima. Um botão de diálogo pode
+             abrir outro diálogo. -->
+        <dialog name="remover_servico"
+                title="Remover serviço?"
+                message="A ação não pode ser desfeita."
+                icon="warning"
+                dismissible="false"
+                buttons="Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive" />
+    </resources>
+
+    <Column spacing="0" width="fill" height="fill">
+        <Row class="barra" width="fill" spacing="12" padding="14 18">
+            <Text content="Onda 8 — o diálogo que carrega markup" size="16" bold="true" />
+            <Space width="fill" />
+            <Text content="{status}" size="12" class="status" />
+        </Row>
+
+        <tabs value="aba" active="{aba}" items="abas" padding="18">
+            <!-- ══ O modal com corpo ══════════════════════════════════ -->
+            <template slot="modal">
+                <Column spacing="14" width="fill">
+                    <Text content="Um QDialog de verdade: moldura do motor, corpo em markup."
+                          size="13" class="lead" />
+
+                    <Row spacing="10">
+                        <Button text="Editar serviço" on_click="dialog:editar_servico" />
+                        <Button text="Remover serviço" on_click="dialog:remover_servico" />
+                        <Button text="Abrir do Rust (com corpo)" on_click="abrir_do_rust" />
+                    </Row>
+
+                    <Frame shape="box" padding="14" width="fill">
+                        <Column spacing="6" width="fill">
+                            <Text content="Último salvamento" size="12" class="rotulo" />
+                            <Text content="{ultimo}" size="14" />
+                        </Column>
+                    </Frame>
+
+                    <Text size="12" class="nota"
+                          content="O corpo é avaliado no contexto do app — por isso um diálogo com campo não precisa de estado por instância. O que o usuário digita mora numa chave, como em qualquer &lt;textinput&gt;." />
+                </Column>
+            </template>
+
+            <!-- ══ O wizard ═══════════════════════════════════════════ -->
+            <template slot="wizard">
+                <Column spacing="14" width="fill">
+                    <Text content="No Qt o QWizard É um QDialog — aqui ele é a soma da onda: páginas + botões + o passo numa chave."
+                          size="13" class="lead" />
+
+                    <Frame shape="box" padding="18" width="fill">
+                        <wizard value="passo" active="{passo}"
+                                steps="plano,dominio,revisao"
+                                titles="Escolha o plano,Domínio,Revisão"
+                                valid="{passo_valido}"
+                                on_finish="finalizar"
+                                on_cancel="cancelar_wizard">
+                            <template slot="plano">
+                                <Column spacing="10" width="fill">
+                                    <radiogroup value="plano" items="planos" />
+                                    <Text content="Plano: {plano}" size="12" class="rotulo" />
+                                </Column>
+                            </template>
+                            <template slot="dominio">
+                                <Column spacing="10" width="fill">
+                                    <Text content="Domínio do projeto" size="12" class="rotulo" />
+                                    <TextInput value="dominio" onChange="dominio"
+                                               placeholder="exemplo.com.br" width="fill" />
+                                    <se cond="{dominio}" empty="true">
+                                        <Text content="Avançar fica travado enquanto isto estiver vazio — é o QWizardPage::isComplete()."
+                                              size="12" class="aviso" />
+                                    </se>
+                                </Column>
+                            </template>
+                            <template slot="revisao">
+                                <Column spacing="6" width="fill">
+                                    <Text content="Plano: {plano}" size="14" />
+                                    <Text content="Domínio: {dominio}" size="14" />
+                                </Column>
+                            </template>
+                        </wizard>
+                    </Frame>
+
+                    <Text size="12" class="nota"
+                          content="Voltar fica INERTE no primeiro passo, não some: um botão que aparece e desaparece faz a fileira dançar. E avançar no último satura — dar a volta pareceria ter perdido o preenchido." />
+                </Column>
+            </template>
+
+            <!-- ══ A roda de cor e o stackview ════════════════════════ -->
+            <template slot="cor">
+                <Row spacing="24" width="fill">
+                    <Column spacing="12">
+                        <Text content="&lt;colorwheel&gt; avulso" size="13" class="lead" />
+                        <ColorWheel value="cor" size="230" />
+                        <Row spacing="10">
+                            <Container width="44" height="32" background="{cor}"
+                                       border_radius="6" border_width="1" />
+                            <TextInput value="cor__hex" onChange="cor_digitada"
+                                       placeholder="#rrggbb" width="150" />
+                        </Row>
+                    </Column>
+
+                    <Column spacing="12" width="fill">
+                        <Text content="&lt;stackview&gt; — o QStackedWidget" size="13" class="lead" />
+                        <Row spacing="8">
+                            <Button text="Resumo" on_click="painel:resumo" />
+                            <Button text="Detalhe" on_click="painel:detalhe" />
+                        </Row>
+                        <Frame shape="box" padding="16" width="fill">
+                            <stackview active="{painel}">
+                                <template slot="resumo">
+                                    <Text content="A página escolhida por NOME, não por posição numa escada de condicionais." size="13" />
+                                </template>
+                                <template slot="detalhe">
+                                    <Column spacing="6">
+                                        <Text content="Trocar a ordem de dois &lt;template slot&gt; não muda nada." size="13" />
+                                        <Text content="Cor atual: {cor}" size="13" class="rotulo" />
+                                    </Column>
+                                </template>
+                            </stackview>
+                        </Frame>
+                    </Column>
+                </Row>
+            </template>
+        </tabs>
+    </Column>
+</screen>

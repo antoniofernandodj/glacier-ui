@@ -533,6 +533,75 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
   como perceber que ele mudou. Custo desprezível — são os containers da tela —,
   mesma exceção que uma lista reordenável já tinha.
 
+## Um builtin que é o corpo de um diálogo (0.94)
+
+Três builtins da Onda 8 — `__InputDialog`, `__ProgressDialog` e `__ColorDialog`
+— quebram a regra que todos os outros seguem: eles **não são escritos como tag
+numa tela**. Quem os monta é o motor, como corpo de um `DialogSpec`, a partir de
+um `prompt{}`/`progress{}`/`pick_color{}` da camada Luau.
+
+Isso muda uma coisa só, e é a que importa: **não há um uso de tag onde pendurar
+props**. Então a configuração chega por onde ela pode chegar — **chaves de
+contexto** com o prefixo `__dialog.` (ver `dialogs::DIALOG_KEY_PREFIX`):
+
+```xml
+<se cond="{__dialog.kind}" one_of="int,double">
+    <SpinBox value="__dialog.value" min="{__dialog.min|0}" … />
+</se>
+<senaose cond="{__dialog.kind}" equals="item">
+    <Select options="__dialog.items" value="__dialog.value" … />
+</senaose>
+<senao>
+    <TextInput value="__dialog.value" placeholder="{__dialog.placeholder}" … />
+</senao>
+```
+
+É a mesma escolha que o `<datetimeedit>` fez com o `__timeedit` na 0.70, e pelo
+mesmo motivo: o widget não existe como nó que alguém escreveu.
+
+O `__` no nome não é decoração — ele diz que a peça é interna. Um builtin normal
+ganha um nome que o app escreveria (`Badge`, `Card`, `ToolBar`).
+
+### O prefixo é apagado no fechamento
+
+O corpo é avaliado no contexto do **app**, então as chaves que ele escreve são
+chaves do app — e é isso que faz um diálogo com campo dispensar estado por
+instância. O preço é que a chave **sobrevive** ao diálogo: sem limpeza, a segunda
+abertura viria preenchida com a resposta da primeira. O motor apaga tudo que
+começa com `__dialog.` quando o diálogo fecha, e **depois** de a resposta ter
+sido lida.
+
+### Duas armadilhas, e as duas custaram um bug silencioso
+
+**1. Um `<TextInput>`/`<Select>` não grava a chave sozinho.** Ele despacha
+`onChange` com o texto novo, e quem escreve é quem trata a ação. Sem a prop, a
+ação sai **vazia** — é roteada para a tela ativa, que não a trata, e o campo
+fica decorativo: mostra o valor inicial, aceita digitação e não guarda nada.
+
+Um `<SpinBox>` não tem esse problema porque é builtin e escreve a própria chave;
+a diferença entre os dois é fácil de esquecer justamente por isso.
+
+**2. A ação de um corpo de diálogo não ganha namespace.** Uma ação num template
+de componente normalmente vira `Dono::acao` na avaliação. Um corpo de diálogo é
+a exceção: ele é montado por `GlacierUI::render(nome)` como template **de topo**,
+não inlinado numa tela, então não há dono — e a ação sai nua, indo parar na tela
+ativa. Por isso o template escreve o namespace à mão:
+
+```xml
+<TextInput value="__dialog.value" onChange="__InputDialog::editar" />
+```
+
+**Como testar isso**, já que o sintoma é silencioso: procure a ação de `onChange`
+na árvore **avaliada** e falhe se ela for vazia, em vez de escrever a chave com
+`define_data` — que é exatamente o que o campo deveria fazer, e por isso esconde
+o buraco.
+
+### Uma pegadinha do contexto
+
+Escrever `""` numa chave a faz **sumir** em vez de ficar vazia. Não muda nada —
+ausente e vazia leem igual em todo o motor, e é o que faz `progress_set(nil)`
+voltar ao indeterminado —, mas um teste que espere `Some("")` falha.
+
 ## Testando
 
 Um teste de integração exercita o caminho completo (parse → builtin

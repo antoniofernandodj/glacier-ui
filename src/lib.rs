@@ -5,6 +5,7 @@ pub mod asset_source;
 pub mod builtins;
 pub mod canvas;
 pub mod charts;
+pub mod color_picker;
 pub mod component;
 pub mod daemon;
 pub mod dialogs;
@@ -29,6 +30,7 @@ pub mod stylesheet;
 pub mod toasts;
 pub mod tray;
 pub mod widget;
+pub mod wizard;
 
 /// Re-exported so a host app can depend on `glacier-ui` alone: `iced` types
 /// (`Task`, `Element`, `Theme`, `Font`, ...) and `iced::application` itself
@@ -49,15 +51,15 @@ pub use component::{
     FetchResult, Nav, Template, WindowSource, WindowSpec,
 };
 pub use daemon::{DaemonMessage, GlacierDaemon, WindowGeometry};
-pub use dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec};
+pub use dialogs::{ButtonRole, DIALOG_CLOSE, DialogButton, DialogIcon, DialogSpec};
 pub use error::{Diagnostic, GlacierError, Result};
 pub use eval::{
-    EvalCache, StyleContext, evaluate_node, evaluate_template, normalize_bare_directives,
-    process_template, strip_script,
+    DIALOG_ACTION_PREFIX, EvalCache, StyleContext, evaluate_node, evaluate_template,
+    normalize_bare_directives, process_template, strip_script,
 };
 pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use luau::LuauComponent;
-pub use parser::{NodeType, ScreenMeta, UiNode};
+pub use parser::{DialogMeta, NodeType, ScreenMeta, UiNode};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
 pub use toasts::{ToastKind, ToastSpec};
@@ -81,6 +83,25 @@ use std::time::{Duration, SystemTime};
 /// contexto muda; `stylesheets` e `stylesheet_paths` são paralelos e têm de
 /// andar juntos), e um `pub` em cada um convida a quebrá-las de fora sem que o
 /// compilador diga nada.
+/// A corrotina que está esperando a resposta do diálogo em exibição, e o que
+/// devolver a ela — ver [`GlacierUI::dialog_resume`].
+#[derive(Debug, Clone)]
+struct PendingDialogResume {
+    /// O componente cuja corrotina suspendeu (quem recebe o `resume_dialog`).
+    owner: String,
+    /// O id da corrotina suspensa, alocado pelo `drive` da camada Luau.
+    id: u64,
+    /// A chave de contexto cujo valor é a resposta, quando o diálogo tem um
+    /// campo (`prompt{}`). `None` é o `confirm{}`: a resposta é o booleano do
+    /// botão, e não há chave para ler.
+    ///
+    /// Ler a resposta **no aceite**, e não guardá-la aqui, é o que faz o
+    /// diálogo com campo dispensar estado por instância: o valor mora no
+    /// contexto o tempo todo, como o de qualquer `<textinput>`, e este campo
+    /// só guarda o endereço dele.
+    resume_key: Option<String>,
+}
+
 pub struct GlacierUI {
     /// Maps a component name (e.g. "perfil") to its XML file path
     registered_components: ContextMap,
@@ -174,14 +195,13 @@ pub struct GlacierUI {
     /// screen; [`GlacierUI::dispatch`] clears it on a button click or a
     /// dismissible backdrop click.
     dialog: Option<dialogs::DialogSpec>,
-    /// Quando o diálogo em exibição é um `confirm()` **suspensivo** da camada
-    /// Lua (ver [`component::DialogAction::ShowResumable`]), guarda o
-    /// `(owner, id)` da corrotina suspensa à espera da escolha. Um clique num
-    /// botão (ou dismiss) retoma essa corrotina com o booleano em vez de
-    /// despachar a `action` do botão como uma ação normal. `None` quando o
-    /// diálogo veio de um `Component::update` Rust (roteamento por `action`,
-    /// comportamento legado).
-    dialog_resume: Option<(String, u64)>,
+    /// Quando o diálogo em exibição é **suspensivo** (um `confirm{}`/`prompt{}`
+    /// da camada Lua — ver [`component::DialogAction::ShowResumable`]), guarda
+    /// quem retomar e com o quê. Um clique num botão (ou dismiss) retoma essa
+    /// corrotina em vez de despachar a `action` do botão como ação normal.
+    /// `None` quando o diálogo veio de um `Component::update` Rust ou de um
+    /// `<dialog>` declarativo — os dois roteiam por `action`.
+    dialog_resume: Option<PendingDialogResume>,
     /// O menu bar dropdown / menu de contexto atualmente aberto (ver
     /// [`menu`]), se houver — singleton, como `dialog`: abrir qualquer menu
     /// (ou outro diferente) substitui este. Nenhum pré-requisito de "estado
@@ -235,6 +255,14 @@ pub struct GlacierUI {
     /// *este nome é meu?* — e é o que separa "reescrever a minha declaração"
     /// de "atropelar o componente de verdade que o app registrou".
     defined_components: std::collections::HashSet<String>,
+    /// As molduras dos `<dialog name="…">` declarados no markup (Onda 8),
+    /// prontas para virar o `self.dialog` quando a ação `dialog:nome` chegar.
+    ///
+    /// O **corpo** de cada um não está aqui: ele foi instalado como um template
+    /// comum, sob o mesmo nome, por [`GlacierUI::load_defines`] — que é o que
+    /// permite `render(nome)` montá-lo sem saber que aquilo é um diálogo. Este
+    /// mapa guarda só o que emoldura: título, ícone, mensagem e botões.
+    dialog_defs: HashMap<String, dialogs::DialogSpec>,
     /// Identidade única deste motor entre todos os motores do processo (um por
     /// janela no modelo daemon). Dobrada na [`net::StreamKey`] para que streams
     /// de janelas distintas não colidam como o mesmo recipe do iced. Ver
@@ -372,6 +400,7 @@ impl GlacierUI {
             stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
             defined_components: std::collections::HashSet::new(),
+            dialog_defs: HashMap::new(),
             engine_id: NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             pending_windows: Vec::new(),
             pending_broadcasts: Vec::new(),
@@ -661,6 +690,7 @@ impl GlacierUI {
     /// [`component::Context::close_dialog`].
     pub fn close_dialog(&mut self) {
         self.dialog = None;
+        self.limpa_rascunho_de_dialogo();
     }
 
     /// Shows a toast (see [`toasts`]) on top of the active screen, from host
@@ -710,7 +740,18 @@ impl GlacierUI {
         let screen = self.render(name)?;
         let with_dialog = match &self.dialog {
             Some(spec) => {
-                iced::widget::stack![screen, dialogs::overlay(spec, &self.theme())].into()
+                // O corpo em markup (Onda 8): o `DialogSpec` guarda o **nome**
+                // de um template, e quem o monta é o mesmo `render` de qualquer
+                // tela — o diálogo deixa de ser um segundo caminho de render e
+                // vira uma moldura em volta de um.
+                //
+                // Um nome que não resolve não derruba o diálogo: cai para o
+                // corpo vazio (o `QMessageBox` de sempre) em vez de tirar a
+                // tela inteira do ar por causa de um `<dialog>` mal escrito. O
+                // erro aparece na validação do template, que é onde dá para
+                // apontar a linha.
+                let body = spec.body.as_deref().and_then(|nome| self.render(nome).ok());
+                iced::widget::stack![screen, dialogs::overlay(spec, &self.theme(), body)].into()
             }
             None => screen,
         };
@@ -979,11 +1020,18 @@ impl GlacierUI {
             EngineMessage::DialogDismiss => {
                 if self.dialog.as_ref().is_some_and(|d| d.dismissible) {
                     self.dialog = None;
-                    // Um `confirm()` suspensivo dispensável resolve como `false`
-                    // (cancelou), retomando a corrotina em vez de deixá-la presa.
-                    if let Some((owner, id)) = self.dialog_resume.take() {
-                        return self.run_on_owner(&owner, false, move |comp, ctx| {
-                            comp.resume_dialog(id, false, ctx);
+                    self.limpa_rascunho_de_dialogo();
+                    // Um diálogo suspensivo dispensável resolve como desistência,
+                    // retomando a corrotina em vez de deixá-la presa: `false`
+                    // para o `confirm{}`, `nil` para o `prompt{}`.
+                    if let Some(p) = self.dialog_resume.take() {
+                        let saida = match p.resume_key {
+                            Some(_) => component::DialogOutcome::Cancelled,
+                            None => component::DialogOutcome::Confirmed(false),
+                        };
+                        let id = p.id;
+                        return self.run_on_owner(&p.owner, false, move |comp, ctx| {
+                            comp.resume_dialog(id, saida, ctx);
                         });
                     }
                 }
@@ -991,14 +1039,43 @@ impl GlacierUI {
             }
             EngineMessage::DialogButton(action) => {
                 self.dialog = None;
-                // Diálogo de um `confirm()` suspensivo (ver `dialog_resume`): o
-                // botão não roteia uma `action`, retoma a corrotina suspensa com
-                // o booleano — confirmar → `true`, cancelar → `false`.
-                if let Some((owner, id)) = self.dialog_resume.take() {
-                    let confirmed = action.as_str() == dialogs::CONFIRM_YES;
-                    return self.run_on_owner(&owner, false, move |comp, ctx| {
-                        comp.resume_dialog(id, confirmed, ctx);
+                // Diálogo suspensivo (ver `dialog_resume`): o botão não roteia
+                // uma `action`, retoma a corrotina com a resposta.
+                //
+                // A resposta de um `prompt{}` é lida do contexto AQUI, no
+                // instante do aceite — não foi guardada em lugar nenhum
+                // enquanto o usuário digitava. É todo o mecanismo do diálogo
+                // com campo, e é por isso que ele não precisa de estado por
+                // instância: o valor mora no contexto como o de qualquer
+                // `<textinput>`, e `resume_key` é só o endereço dele.
+                if let Some(p) = self.dialog_resume.take() {
+                    let aceitou = action.as_str() == dialogs::CONFIRM_YES;
+                    let saida = match (&p.resume_key, aceitou) {
+                        (None, _) => component::DialogOutcome::Confirmed(aceitou),
+                        (Some(chave), true) => component::DialogOutcome::Value(
+                            self.context_data.get(chave).cloned().unwrap_or_default(),
+                        ),
+                        (Some(_), false) => component::DialogOutcome::Cancelled,
+                    };
+                    // A limpeza vem DEPOIS da leitura, nunca antes: `saida`
+                    // acabou de copiar o valor da chave que ela apaga.
+                    self.limpa_rascunho_de_dialogo();
+                    let id = p.id;
+                    return self.run_on_owner(&p.owner, false, move |comp, ctx| {
+                        comp.resume_dialog(id, saida, ctx);
                     });
+                }
+                self.limpa_rascunho_de_dialogo();
+                // O botão que só fecha (ver `dialogs::DIALOG_CLOSE`): o
+                // diálogo já saiu na linha de cima, e não há ação para rotear.
+                if action.as_str() == dialogs::DIALOG_CLOSE {
+                    return iced::Task::none();
+                }
+                // Um botão de diálogo pode abrir outro diálogo — o
+                // encadeamento que um wizard em modal precisa.
+                if let Some(alvo) = action.strip_prefix(DIALOG_ACTION_PREFIX) {
+                    let alvo = alvo.to_string();
+                    return self.abre_dialogo_nomeado(&alvo);
                 }
                 return self.route_to_owner(action, |comp, bare_action, ctx| {
                     comp.update(bare_action, None, ctx);
@@ -1522,9 +1599,68 @@ impl GlacierUI {
             }
         };
 
+        // O prefixo `dialog:` (Onda 8, habilitador C) — a terceira família de
+        // prefixos de ação, depois do `app:` (0.63) e do `::` de dono.
+        //
+        // É o que faz um `<dialog>` ser um widget do catálogo e não uma API de
+        // Rust: até aqui, abrir um modal exigia `ctx.show_dialog` num `update`
+        // em Rust ou um `confirm()` em Luau, e uma tela puramente declarativa
+        // não conseguia. Fica DEPOIS do match de mensagem, e não dentro dele,
+        // para valer em qualquer rota que produza uma ação — `<button
+        // on_click>`, `<menuitem>`, um botão de outro diálogo.
+        if let Some(alvo) = action.strip_prefix(DIALOG_ACTION_PREFIX) {
+            return self.abre_dialogo_nomeado(alvo);
+        }
+
         self.route_to_owner(action, |comp, bare_action, ctx| {
             comp.update(bare_action, value, ctx);
         })
+    }
+
+    /// Apaga o rascunho do diálogo que acabou de fechar — toda chave de
+    /// contexto que começa com [`dialogs::DIALOG_KEY_PREFIX`].
+    ///
+    /// # Por que isto existe
+    ///
+    /// O corpo de um diálogo é avaliado no contexto do app, e é isso que faz um
+    /// diálogo com campo dispensar estado por instância: o que o usuário digita
+    /// mora numa chave comum, como o de qualquer `<textinput>`. O preço é que a
+    /// chave **sobrevive** ao diálogo, e a segunda abertura viria preenchida
+    /// com a resposta da primeira — o bug que ninguém reporta e todo mundo
+    /// estranha.
+    ///
+    /// Roda em todo fechamento (botão, dismiss, `dialog:close`, `close_dialog`)
+    /// e **depois** de a resposta ter sido lida, nunca antes: quem lê é o
+    /// `DialogButton`, e ele lê da chave que esta função apaga.
+    fn limpa_rascunho_de_dialogo(&mut self) {
+        self.context_data
+            .retain(|k, _| !k.starts_with(dialogs::DIALOG_KEY_PREFIX));
+    }
+
+    /// Abre o `<dialog name="…">` declarado no markup, ou fecha o que estiver
+    /// aberto quando o alvo é `close`/`fechar`.
+    ///
+    /// Um nome que não existe é **ignorado em silêncio**, e essa é uma escolha:
+    /// a alternativa seria derrubar o app por causa de um `on_click` com erro de
+    /// digitação. O lugar de apontar isso é a validação de template, que
+    /// enxerga a linha e a coluna; aqui só existe a string.
+    fn abre_dialogo_nomeado(&mut self, alvo: &str) -> iced::Task<EngineMessage> {
+        let alvo = alvo.trim();
+        if alvo.is_empty() || alvo == "close" || alvo == "fechar" {
+            self.dialog = None;
+            self.dialog_resume = None;
+            self.limpa_rascunho_de_dialogo();
+            return iced::Task::none();
+        }
+        if let Some(spec) = self.dialog_defs.get(alvo) {
+            self.dialog = Some(spec.clone());
+            // Um diálogo declarativo nunca retoma corrotina: se havia um
+            // `confirm()` pendente, ele acabou de perder a janela dele. Zerar
+            // aqui evita que o próximo clique retome a corrotina errada com a
+            // resposta deste diálogo.
+            self.dialog_resume = None;
+        }
+        iced::Task::none()
     }
 
     /// Resolves which component owns `action` (an action namespaced as
@@ -1680,13 +1816,18 @@ impl GlacierUI {
             }
             // `confirm()` suspensivo da camada Lua: além de exibir o diálogo,
             // registra quem retomar (`owner`, `id`) quando o usuário escolher.
-            Some(component::DialogAction::ShowResumable(spec, id)) => {
+            Some(component::DialogAction::ShowResumable(spec, id, resume_key)) => {
                 self.dialog = Some(spec);
-                self.dialog_resume = Some((owner.to_string(), id));
+                self.dialog_resume = Some(PendingDialogResume {
+                    owner: owner.to_string(),
+                    id,
+                    resume_key,
+                });
             }
             Some(component::DialogAction::Close) => {
                 self.dialog = None;
                 self.dialog_resume = None;
+                self.limpa_rascunho_de_dialogo();
             }
             None => {}
         }
@@ -2085,6 +2226,36 @@ impl GlacierUI {
     /// verdade não é redefinido — e não é erro: é o que permite um `.gv`
     /// incluído duas vezes não brigar consigo mesmo.
     fn load_defines(&mut self, node: &UiNode) {
+        // Um `<dialog name="…">` (Onda 8) é uma declaração de componente com
+        // moldura: o corpo entra no mesmo `parsed_templates` de qualquer outro,
+        // sob o mesmo nome, e é por isso que `render(nome)` o monta sem saber
+        // que aquilo é um diálogo. A moldura fica ao lado, em `dialog_defs`.
+        //
+        // A regra de nome é a mesma dos outros dois casos, e de propósito: um
+        // `<dialog name="Badge">` sombreia o builtin `Badge` exatamente como um
+        // `<component name="Badge">` sombrearia — melhor uma regra só, mesmo
+        // que ninguém vá escrever isso, do que duas regras que divergem no dia
+        // em que alguém escrever.
+        if let NodeType::DialogDef(meta) = &node.kind
+            && !meta.name.is_empty()
+        {
+            let meu = self.defined_components.contains(&meta.name);
+            let is_builtin = self.builtin_component_names.contains(&meta.name);
+            if !self.inputs.has_template(&meta.name) || is_builtin || meu {
+                if let Some(corpo) = node.children.first() {
+                    self.inputs
+                        .insert_template(meta.name.clone(), corpo.clone());
+                    self.builtin_component_names.remove(&meta.name);
+                    self.defined_components.insert(meta.name.clone());
+                }
+            }
+            // A moldura é reinstalada sempre, inclusive quando o corpo não foi
+            // (nome já tomado): editar só o `title=` de um `<dialog>` com
+            // hot-reload tem de aparecer, e a moldura não disputa nome com
+            // ninguém — ela vive num mapa só dela.
+            self.dialog_defs
+                .insert(meta.name.clone(), dialogs::DialogSpec::from_meta(meta));
+        }
         if let NodeType::Define { name } = &node.kind
             && !name.is_empty()
         {

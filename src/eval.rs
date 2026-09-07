@@ -1068,6 +1068,7 @@ fn expand_children(
                 | NodeType::Screen(_)
                 | NodeType::ComponentRoot
                 | NodeType::Define { .. }
+                | NodeType::DialogDef(_)
                 | NodeType::Resources
                 | NodeType::Props(_)
                 | NodeType::Prop
@@ -1268,6 +1269,7 @@ fn expand_children(
             | NodeType::Screen(_)
             | NodeType::ComponentRoot
             | NodeType::Define { .. }
+            | NodeType::DialogDef(_)
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop => {}
@@ -1550,6 +1552,17 @@ const BUILTIN_ACTION_PREFIXES: [&str; 4] = ["clipboard:", "open:", "window:", "s
 /// widget. Um componente que delega para outro componente ainda depende de um
 /// `ctx.dispatch` no motor, que não existe.
 pub const APP_ACTION_PREFIX: &str = "app:";
+
+/// `dialog:` — o prefixo que abre um `<dialog name="…">` declarado no markup
+/// (Onda 8), e que `dialog:close`/`dialog:fechar` usam para fechar o que
+/// estiver aberto.
+///
+/// Mora aqui, ao lado do [`APP_ACTION_PREFIX`], porque é da mesma família: um
+/// prefixo que o motor consome e que **nunca** chega ao `update` de um
+/// componente. A diferença é onde cada um é consumido — o `app:` some na
+/// avaliação (ele é sobre *de quem* é a ação), o `dialog:` some no dispatch
+/// (ele é sobre *o que o motor faz* com ela).
+pub const DIALOG_ACTION_PREFIX: &str = "dialog:";
 
 fn namespace_action(action: String, owner: Option<&str>) -> String {
     // O escape vem antes de tudo: quem escreveu `app:` está dizendo que a ação
@@ -2347,6 +2360,44 @@ fn eval_owned(
             ends: *ends,
             on_change: namespace_action(process_tpl(on_change, context), owner),
         },
+        NodeType::WizardNav {
+            value_var,
+            steps,
+            titles,
+            valid,
+            on_finish,
+            on_cancel,
+            back_label,
+            next_label,
+            finish_label,
+            cancel_label,
+            show_header,
+        } => NodeType::WizardNav {
+            value_var: process_tpl(value_var, context),
+            steps: process_tpl(steps, context),
+            titles: process_tpl(titles, context),
+            valid: process_tpl(valid, context),
+            // As duas ações levam o namespace do dono, como qualquer outra: um
+            // `on_finish="salvar"` dentro de um componente é `Componente::salvar`.
+            on_finish: namespace_action(process_tpl(on_finish, context), owner),
+            on_cancel: namespace_action(process_tpl(on_cancel, context), owner),
+            back_label: process_tpl(back_label, context),
+            next_label: process_tpl(next_label, context),
+            finish_label: process_tpl(finish_label, context),
+            cancel_label: process_tpl(cancel_label, context),
+            show_header: *show_header,
+        },
+        NodeType::ColorWheel {
+            value_var,
+            size,
+            on_change,
+            readonly,
+        } => NodeType::ColorWheel {
+            value_var: process_tpl(value_var, context),
+            size: *size,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            readonly: *readonly,
+        },
         NodeType::Rating {
             value_var,
             max,
@@ -2786,6 +2837,7 @@ fn eval_owned(
         | NodeType::Screen(_)
         | NodeType::ComponentRoot
         | NodeType::Define { .. }
+        | NodeType::DialogDef(_)
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => NodeType::Container,

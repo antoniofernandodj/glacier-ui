@@ -102,6 +102,13 @@ const NATIVE_TAGS = {
   ],
   BarChart: ["barchart", "grafico_barras", "gráfico_barras"],
   PieChart: ["piechart", "donut", "grafico_pizza", "gráfico_pizza"],
+  // Onda 8: o diálogo que carrega markup. O `<dialog>` NÃO entra aqui — ele é
+  // uma declaração do `<resources>`, como o `<component name>`, e não um
+  // widget que se escreve no layout (ver a lista de declarações abaixo).
+  StackView: ["stackview", "stack", "pilha"],
+  Wizard: ["wizard", "assistente"],
+  WizardNav: ["wizardnav", "wizard_nav", "wizard-nav"],
+  ColorWheel: ["colorwheel", "color-wheel", "rodadecor", "roda_de_cor"],
   Pagination: ["pagination", "paginacao", "paginação"],
   Rating: ["rating", "nota", "estrelas"],
   Radio: ["radio", "radiobutton", "opcao"],
@@ -151,6 +158,9 @@ const NATIVE_TAGS = {
   ToolButton: ["toolbutton"],
   Screen: ["screen", "tela"],
   ComponentRoot: ["component", "componente"],
+  // Onda 8: a declaração de um modal com corpo em markup. Declaração, como
+  // as três acima — nada desenha onde a tag está escrita.
+  DialogDef: ["dialog", "dialogo", "diálogo"],
   Resources: ["resources", "recursos"],
   Props: ["props"],
   Prop: ["prop"],
@@ -879,7 +889,10 @@ function declaredProps(fsPath) {
  */
 function localDefine(text, tagName) {
   const alvo = tagName.toLowerCase();
-  const abre = /<(component|componente)\b([^>]*)>/gi;
+  // Um `<dialog name="X">` (Onda 8) declara um template sob o nome dele,
+  // exatamente como um `<component name="X">` — então "ir para a definição"
+  // tem de achar os dois.
+  const abre = /<(component|componente|dialog|dialogo|diálogo)\b([^>]*)>/gi;
   let m;
   while ((m = abre.exec(text)) !== null) {
     // Auto-fechada (`<component name="X"/>`) não tem corpo: não é declaração.
@@ -891,8 +904,13 @@ function localDefine(text, tagName) {
     }
     if (!nome || nome.toLowerCase() !== alvo) continue;
 
-    // Fim do bloco, contando aninhamento.
-    const dentro = /<(component|componente)\b[^>]*>|<\/(component|componente)\s*>/gi;
+    // Fim do bloco, contando aninhamento — da MESMA família da tag que abriu.
+    // Procurar `</component>` num bloco aberto por `<dialog>` não acharia
+    // fim nenhum, e o bloco se estenderia até o fim do arquivo.
+    const familia = /^(component|componente)$/i.test(m[1])
+      ? "component|componente"
+      : "dialog|dialogo|diálogo";
+    const dentro = new RegExp(`<(${familia})\\b[^>]*>|</(${familia})\\s*>`, "gi");
     dentro.lastIndex = m.index + m[0].length;
     let nivel = 1;
     let fim;

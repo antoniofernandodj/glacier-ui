@@ -71,8 +71,8 @@ use std::sync::Arc;
 
 use crate::asset_source::{AssetSource, DiskAssets};
 use crate::component::{
-    Component, Context, FetchResult, PendingFetch, PendingTimer, StreamCommand, StreamCommandKind,
-    StreamEventKind, StreamKind, StreamRequest, Template,
+    Component, Context, DialogOutcome, FetchResult, PendingFetch, PendingTimer, StreamCommand,
+    StreamCommandKind, StreamEventKind, StreamKind, StreamRequest, Template,
 };
 use crate::error::{GlacierError, Result};
 use crate::file_dialog::{FileDialogMode, FileDialogResult, FileDialogSpec, FileFilter};
@@ -532,20 +532,31 @@ impl LuauComponent {
         self.drive(thread, MultiValue::from_iter([Value::Table(res)]), ctx)
     }
 
-    /// Retoma a corrotina suspensa num `confirm()` (id alocado no `drive`) com a
-    /// escolha do usuário — `true` confirmou, `false` cancelou/dispensou —, que
-    /// vira o valor de retorno do `coroutine.yield` no prelúdio (`local ok =
-    /// confirm{...}`).
-    fn resume_dialog_inner(&self, id: u64, confirmed: bool, ctx: &mut Context) -> mlua::Result<()> {
+    /// Retoma a corrotina suspensa num `confirm{}`/`prompt{}` (id alocado no
+    /// `drive`) com a resposta do usuário, que vira o valor de retorno do
+    /// `coroutine.yield` no prelúdio (`local ok = confirm{...}`, `local nome =
+    /// prompt{...}`).
+    ///
+    /// As três formas do [`DialogOutcome`] viram os três valores que o Luau já
+    /// esperava de um suspensivo: um booleano, uma string, ou `nil` — este
+    /// último a convenção de desistência que o `open_file()` cancelado já
+    /// usava.
+    fn resume_dialog_inner(
+        &self,
+        id: u64,
+        outcome: DialogOutcome,
+        ctx: &mut Context,
+    ) -> mlua::Result<()> {
         let Some(thread) = self.pending.borrow_mut().remove(&id) else {
             return Ok(());
         };
         self.sync_to_luau(ctx)?;
-        self.drive(
-            thread,
-            MultiValue::from_iter([Value::Boolean(confirmed)]),
-            ctx,
-        )
+        let valor = match outcome {
+            DialogOutcome::Confirmed(b) => Value::Boolean(b),
+            DialogOutcome::Value(s) => Value::String(self.luau.create_string(&s)?),
+            DialogOutcome::Cancelled => Value::Nil,
+        };
+        self.drive(thread, MultiValue::from_iter([valor]), ctx)
     }
 
     /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
@@ -632,16 +643,43 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_dialog_open").unwrap_or(false) {
+                // NÃO suspende, e é a diferença que define este diálogo: os
+                // outros são perguntas (aparecem, esperam, somem), este é uma
+                // janela sobre um trabalho que continua rodando. Suspender a
+                // corrotina aqui seria parar justamente o que ele acompanha.
+                let pedido = build_progress_dialog(&req)?;
+                for (chave, valor) in pedido.rascunho {
+                    ctx.set(&chave, &valor);
+                }
+                ctx.show_dialog(pedido.spec);
+                args = MultiValue::new();
+                continue;
+            }
+
+            if req.get::<bool>("__glacier_dialog_close").unwrap_or(false) {
+                ctx.close_dialog();
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_dialog").unwrap_or(false) {
                 // Suspende igual ao `fetch`: guarda a corrotina e para. O motor
-                // exibe o diálogo e, quando o usuário clica num botão, retoma
-                // esta corrotina com o booleano da escolha (ver
-                // `resume_dialog_inner`) — é o que dá a `confirm()` a aparência
-                // síncrona (`local ok = confirm{...}`).
+                // exibe o diálogo e, quando o usuário responde, retoma esta
+                // corrotina com a resposta (ver `resume_dialog_inner`) — é o
+                // que dá a `confirm()`/`prompt()` a aparência síncrona
+                // (`local ok = confirm{...}`, `local nome = prompt{...}`).
                 let id = self.alloc_id();
-                ctx.show_dialog_resumable(build_dialog(&req)?, id);
+                let pedido = build_dialog(&req)?;
+                // O rascunho vai para o contexto ANTES do diálogo aparecer: é
+                // o valor inicial do campo, e ele precisa já estar lá no
+                // primeiro quadro, senão o usuário vê o campo piscar vazio.
+                for (chave, valor) in pedido.rascunho {
+                    ctx.set(&chave, &valor);
+                }
+                ctx.show_dialog_resumable(pedido.spec, id, pedido.resume_key);
                 self.pending.borrow_mut().insert(id, thread);
-                return Ok(()); // suspende até a escolha do usuário
+                return Ok(()); // suspende até a resposta do usuário
             }
 
             if req.get::<bool>("__glacier_file_dialog").unwrap_or(false) {
@@ -1000,9 +1038,9 @@ impl Component for LuauComponent {
         }
     }
 
-    fn resume_dialog(&mut self, id: u64, confirmed: bool, ctx: &mut Context) {
-        if let Err(e) = self.resume_dialog_inner(id, confirmed, ctx) {
-            self.report_error(&format!("confirm #{id}"), e, ctx);
+    fn resume_dialog(&mut self, id: u64, outcome: DialogOutcome, ctx: &mut Context) {
+        if let Err(e) = self.resume_dialog_inner(id, outcome, ctx) {
+            self.report_error(&format!("dialogo #{id}"), e, ctx);
         }
     }
 
@@ -1063,16 +1101,32 @@ fn parse_headers_table(opts: &Table) -> mlua::Result<Vec<(String, String)>> {
     Ok(headers)
 }
 
-/// Constrói o [`DialogSpec`] a partir do pedido `confirm(opts)` do prelúdio:
-/// dois botões (cancelar neutro → retoma com `false`; confirmar → retoma com
-/// `true`), não dispensável clicando fora. Os botões carregam as ações
-/// sentinela [`CONFIRM_NO`]/[`CONFIRM_YES`] em vez de nomes de função — o motor
-/// as reconhece e retoma a corrotina suspensa (ver
-/// [`crate::component::DialogAction::ShowResumable`]) em vez de despachá-las.
-/// `destructive` pinta o botão de confirmação como perigo.
-fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
+/// O que um `confirm{}`/`prompt{}` do prelúdio vira: a especificação do
+/// diálogo, a chave de retorno (ver [`crate::component::Context::show_dialog_resumable`])
+/// e o rascunho a semear no contexto antes de abrir.
+pub(crate) struct PedidoDeDialogo {
+    pub spec: crate::dialogs::DialogSpec,
+    /// `None` no `confirm{}` (a resposta é o booleano do botão), `Some` no
+    /// `prompt{}` (a resposta é o que estiver nessa chave no aceite).
+    pub resume_key: Option<String>,
+    /// As chaves `__dialog.*` que configuram o corpo — o rótulo, o tipo de
+    /// campo, os limites do número, a lista do `item`, e o valor inicial.
+    /// Semeadas pelo motor antes de o diálogo aparecer, e apagadas por ele
+    /// quando o diálogo fecha (ver [`crate::dialogs::DIALOG_KEY_PREFIX`]).
+    pub rascunho: Vec<(String, String)>,
+}
+
+/// Constrói o pedido a partir da tabela `confirm(opts)`/`prompt(opts)` do
+/// prelúdio.
+///
+/// As duas funções do Luau chegam aqui pela mesma porta e se separam por um
+/// campo: `kind`. Sem ele é o `confirm{}` de sempre — pergunta, dois botões,
+/// resposta booleana. Com ele é o `QInputDialog`, e as quatro variantes
+/// estáticas do Qt (`getText`/`getInt`/`getDouble`/`getItem`) são os quatro
+/// valores que ele aceita.
+fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     use crate::dialogs::{
-        ButtonRole, CONFIRM_NO, CONFIRM_YES, DialogButton, DialogIcon, DialogSpec,
+        ButtonRole, CONFIRM_NO, CONFIRM_YES, DIALOG_VALUE_KEY, DialogButton, DialogIcon, DialogSpec,
     };
     let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
     let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
@@ -1088,14 +1142,200 @@ fn build_dialog(req: &Table) -> mlua::Result<crate::dialogs::DialogSpec> {
     } else {
         ButtonRole::Accept
     };
-    Ok(DialogSpec::new(DialogIcon::Question, title, message)
+    let kind = req.get::<Option<String>>("kind")?;
+
+    // A moldura é a mesma nos dois; o `prompt{}` só troca o ícone (não é uma
+    // pergunta de sim/não, é um pedido) e ganha corpo.
+    let icone = if kind.is_some() {
+        DialogIcon::None
+    } else {
+        DialogIcon::Question
+    };
+    let mut spec = DialogSpec::new(icone, title, message)
         .with_button(DialogButton::new(
             cancel_label,
             CONFIRM_NO,
             ButtonRole::Neutral,
         ))
         .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
-        .dismissible(false))
+        .dismissible(false);
+
+    let Some(kind) = kind else {
+        return Ok(PedidoDeDialogo {
+            spec,
+            resume_key: None,
+            rascunho: Vec::new(),
+        });
+    };
+
+    // O corpo é um builtin, e a configuração dele vai por chaves — não há uso
+    // de tag onde pendurar props (ver `builtins::input_dialog`).
+    //
+    // `color` é o `QColorDialog`, e ele entra por esta mesma porta de
+    // propósito: um seletor de cor é um `prompt` cujo campo é uma roda. Tudo o
+    // que o separa dos outros quatro é o nome do corpo.
+    let cor = kind.trim().eq_ignore_ascii_case("color") || kind.trim().eq_ignore_ascii_case("cor");
+    spec = spec.with_body(if cor {
+        crate::builtins::COLOR_DIALOG_BODY
+    } else {
+        crate::builtins::INPUT_DIALOG_BODY
+    });
+
+    if cor {
+        // Sem cor inicial, começa no branco — que é o que a roda desenha
+        // diante de uma chave que não parseia, então o default e a degradação
+        // dizem a mesma coisa.
+        let inicial = req
+            .get::<Option<String>>("value")?
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| "#ffffff".to_string());
+        // As duas chaves nascem iguais: a cor cometida e o texto que o campo
+        // mostra. Semear só a primeira deixaria o campo hexadecimal em branco
+        // até o primeiro gesto na roda (ver `builtins::color_dialog`).
+        let mut rascunho = vec![
+            (
+                crate::builtins::COLOR_DIALOG_HEX_KEY.to_string(),
+                inicial.clone(),
+            ),
+            (DIALOG_VALUE_KEY.to_string(), inicial),
+        ];
+        if let Some(size) = req.get::<Option<f64>>("size")? {
+            rascunho.push(("__dialog.size".to_string(), formata_numero(size)));
+        }
+        return Ok(PedidoDeDialogo {
+            spec,
+            resume_key: Some(DIALOG_VALUE_KEY.to_string()),
+            rascunho,
+        });
+    }
+
+    let kind = match kind.trim().to_lowercase().as_str() {
+        "int" | "integer" | "inteiro" => "int".to_string(),
+        "double" | "float" | "number" | "decimal" => "double".to_string(),
+        "item" | "list" | "lista" | "escolha" => "item".to_string(),
+        // Desconhecido cai em texto, que é o campo que aceita qualquer coisa —
+        // um `kind` com erro de digitação vira um diálogo que funciona, não um
+        // diálogo vazio.
+        _ => "text".to_string(),
+    };
+
+    let mut rascunho = vec![
+        ("__dialog.kind".to_string(), kind.clone()),
+        (
+            DIALOG_VALUE_KEY.to_string(),
+            req.get::<Option<String>>("value")?.unwrap_or_default(),
+        ),
+        (
+            "__dialog.label".to_string(),
+            req.get::<Option<String>>("label")?.unwrap_or_default(),
+        ),
+        (
+            "__dialog.placeholder".to_string(),
+            req.get::<Option<String>>("placeholder")?
+                .unwrap_or_default(),
+        ),
+    ];
+    if kind == "int" || kind == "double" {
+        // O default de `decimals` é o que separa as duas: `getInt` é
+        // `getDouble` com zero casas, e é assim que o `<spinbox>` já lê o
+        // número desde a 0.85.
+        let decimals = req
+            .get::<Option<i64>>("decimals")?
+            .unwrap_or(if kind == "int" { 0 } else { 2 });
+        rascunho.push(("__dialog.decimals".to_string(), decimals.to_string()));
+        for (chave, valor) in [
+            ("__dialog.min", req.get::<Option<f64>>("min")?),
+            ("__dialog.max", req.get::<Option<f64>>("max")?),
+            ("__dialog.step", req.get::<Option<f64>>("step")?),
+        ] {
+            if let Some(v) = valor {
+                rascunho.push((chave.to_string(), formata_numero(v)));
+            }
+        }
+    }
+    if kind == "item"
+        && let Some(items) = req.get::<Option<Value>>("items")?
+    {
+        // A lista chega como tabela-array do Luau e vai para o contexto como
+        // JSON — a MESMA convenção de `items="chave"` que o `<menu>` usa desde
+        // sempre, e que a Onda 6 descobriu que já era o "binding a coleção".
+        let json = serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string());
+        rascunho.push(("__dialog.items".to_string(), json));
+    }
+
+    Ok(PedidoDeDialogo {
+        spec,
+        resume_key: Some(DIALOG_VALUE_KEY.to_string()),
+        rascunho,
+    })
+}
+
+/// Constrói o diálogo de progresso a partir do `progress(opts)` do prelúdio.
+///
+/// Ao contrário do [`build_dialog`], não devolve chave de retorno: este diálogo
+/// não suspende ninguém, e o que o encerra é um `progress_close()` do app ou o
+/// botão de cancelar — que despacha uma **ação comum**, não um mecanismo novo
+/// (ver `builtins::progress_dialog`).
+fn build_progress_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
+    use crate::dialogs::{ButtonRole, DialogButton, DialogIcon, DialogSpec};
+    let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
+    let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
+
+    let mut spec = DialogSpec::new(DialogIcon::None, title, message)
+        .with_body(crate::builtins::PROGRESS_DIALOG_BODY)
+        // Um progresso não se dispensa clicando fora: sair dele é decisão
+        // (cancelar) ou consequência (a tarefa terminou), nunca acidente.
+        .dismissible(false);
+
+    // Sem `on_cancel` o diálogo não ganha botão nenhum — é o QProgressDialog de
+    // uma etapa que não dá para interromper, e mostrar um "Cancelar" que não
+    // cancela seria pior do que não mostrar botão.
+    if let Some(acao) = req.get::<Option<String>>("on_cancel")? {
+        let rotulo = req
+            .get::<Option<String>>("cancel_label")?
+            .unwrap_or_else(|| "Cancelar".into());
+        spec = spec.with_button(DialogButton::new(rotulo, acao, ButtonRole::Neutral));
+    }
+
+    let mut rascunho = vec![
+        (
+            "__dialog.label".to_string(),
+            req.get::<Option<String>>("label")?.unwrap_or_default(),
+        ),
+        (
+            "__dialog.max".to_string(),
+            formata_numero(req.get::<Option<f64>>("max")?.unwrap_or(100.0)),
+        ),
+        // Sem `value`, o rascunho nasce vazio — e vazio é o indeterminado, que
+        // o corpo desenha como `<spinner>`. É o default certo: quem abre um
+        // progresso quase nunca sabe o primeiro número ainda.
+        (
+            "__dialog.progresso".to_string(),
+            req.get::<Option<f64>>("value")?
+                .map(formata_numero)
+                .unwrap_or_default(),
+        ),
+    ];
+    if let Some(t) = req.get::<Option<String>>("busy_label")? {
+        rascunho.push(("__dialog.indeterminado".to_string(), t));
+    }
+
+    Ok(PedidoDeDialogo {
+        spec,
+        resume_key: None,
+        rascunho,
+    })
+}
+
+/// Escreve um `f64` como o Luau o escreveria: sem o `.0` quando é inteiro.
+/// `min=0` virando `"0"` e não `"0.0"` importa porque quem lê é o `<spinbox>`,
+/// e ele deduz as casas decimais do texto do `step` (ver `builtins::spin_box`).
+fn formata_numero(v: f64) -> String {
+    if v.fract() == 0.0 && v.abs() < 1e15 {
+        format!("{}", v as i64)
+    } else {
+        format!("{v}")
+    }
 }
 
 /// Constrói o [`FileDialogSpec`] a partir do pedido `open_file`/`open_files`/
@@ -2027,7 +2267,7 @@ mod tests {
         let mut ctx = Context::new(&mut data);
         comp.run("go", None, &mut ctx);
         match &ctx.dialog {
-            Some(crate::component::DialogAction::ShowResumable(spec, _id)) => {
+            Some(crate::component::DialogAction::ShowResumable(spec, _id, chave)) => {
                 assert_eq!(spec.buttons.len(), 2, "cancelar + confirmar");
                 assert_eq!(spec.buttons[1].action, crate::dialogs::CONFIRM_YES);
                 assert_eq!(
@@ -2035,6 +2275,11 @@ mod tests {
                     crate::dialogs::ButtonRole::Destructive
                 );
                 assert_eq!(spec.buttons[0].action, crate::dialogs::CONFIRM_NO);
+                assert_eq!(
+                    *chave, None,
+                    "o confirm nao tem chave de retorno: a resposta e o botao"
+                );
+                assert_eq!(spec.body, None, "o confirm continua sem corpo");
             }
             _ => panic!("esperava um diálogo ShowResumable"),
         }
@@ -2059,7 +2304,7 @@ mod tests {
                 let mut ctx = Context::new(&mut data);
                 comp.run("go", None, &mut ctx);
                 match ctx.dialog {
-                    Some(crate::component::DialogAction::ShowResumable(_, id)) => id,
+                    Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
                     _ => panic!("esperava suspender num diálogo resumível"),
                 }
             };
@@ -2067,7 +2312,7 @@ mod tests {
             assert_eq!(data.get("r"), None, "não deve resolver antes da escolha");
             {
                 let mut ctx = Context::new(&mut data);
-                comp.resume_dialog(id, confirmed, &mut ctx);
+                comp.resume_dialog(id, DialogOutcome::Confirmed(confirmed), &mut ctx);
             }
             assert_eq!(data.get("r").map(String::as_str), Some(esperado));
         }

@@ -519,6 +519,54 @@ em silêncio. O mesmo valia para `<display>`, `<barras>` e `<pizza>`. Os apelido
 em pt-BR de uma tag nova ficam nos nomes que ninguém usaria para um componente
 próprio (`grafico_linha`, `medidor`, `minigrafico`). Há teste para isso.
 
+## Uma primitiva que faz a conta que o builtin não pode (0.94)
+
+A `<wizardnav>` (`src/wizard.rs`) nasceu de uma contradição que apareceu ao
+escrever o `<wizard>` da Onda 8, e o critério que saiu dela vale para o próximo
+widget composto:
+
+- um wizard **hospeda páginas**, e página é `<slot>` — mecanismo de
+  **componente**. Uma primitiva não tem slots;
+- mas um builtin é um **template**, e template **não calcula**. Dizer "este é o
+  primeiro passo, então `Voltar` fica inerte" exige achar `active` dentro de
+  `steps`, e não há como escrever isso em markup.
+
+A saída é a mesma que o `<tabs>`/`<tabbar>` já usava sem nomear: **partir em
+dois**. O `<wizard>` é o builtin que compõe; a `<wizardnav>` é a primitiva que
+faz a conta e desenha os botões.
+
+> **O critério:** slots pedem builtin, contas pedem primitiva — e um widget que
+> precise dos dois **é dois widgets**.
+
+Duas peças tornam isso barato, e as duas já existiam:
+
+1. **`EngineMessage::ContextPatch`** deixa a primitiva **escrever a chave
+   sozinha**, sem `update` de componente nenhum. É o caminho que a
+   `<pagination>` (0.85) abriu, e é por isso que o `<wizard>` não tem um braço
+   de `update` para "avançar".
+2. **O botão inerte no limite.** Um builtin não consegue desabilitar um botão
+   por condição — foi o limite conhecido que fez a `<pagination>` subir de nível
+   na 0.85, e é o mesmo aqui: `Voltar` no primeiro passo fica inerte, não some.
+   Sumir faria a fileira dançar a cada passo, com o `Avançar` mudando de lugar
+   debaixo do cursor.
+
+### Um `<slot>` não atravessa a fronteira de um componente aninhado
+
+A armadilha da Onda 8, e ela falha **em silêncio**. O `<wizard>` deveria
+delegar as páginas ao `<stackview>`:
+
+```xml
+<StackView active="{active}"><slot name="{active}"/></StackView>
+```
+
+Não funciona. A partição do `<slot/>` acontece **uma vez**, sobre os filhos crus
+de quem escreveu a tag; o que chega ao `StackView` é um filho **já resolvido e
+sem etiqueta**, e o `<slot name="{active}"/>` do template dele não acha etiqueta
+com que casar. O resultado é uma página em branco, sem erro nenhum.
+
+Quem precisa do conteúdo repassa o markup, não o slot — ou monta a coluna ele
+mesmo, que foi o que o `<wizard>` fez.
+
 ## Checklist para uma primitiva nova
 
 1. `NodeType` em `parser.rs` + braço de parse + `tag_name()`.

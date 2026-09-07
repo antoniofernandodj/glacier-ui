@@ -270,17 +270,45 @@ pub enum Nav {
     Back,
 }
 
+/// O que um diálogo suspensivo devolve à corrotina que ficou esperando por ele.
+///
+/// # Por que existe (habilitador B da Onda 8)
+///
+/// Até a 0.93 esta resposta era um `bool`, porque o único diálogo suspensivo
+/// era o `confirm()`. Um `prompt()` não cabe num booleano — e a forma geral já
+/// existia **ao lado**, no `resume_file_dialog`, que retoma com uma string ou
+/// `nil` desde que o `open_file()` nasceu. Este enum é as duas juntas.
+///
+/// A convenção do cancelamento é a que a camada Lua já tinha escrita: quem
+/// desiste recebe `nil`, o mesmo silêncio que um `open_file()` cancelado dá.
+/// [`DialogOutcome::Cancelled`] é esse `nil`, e [`DialogOutcome::Confirmed`]
+/// com `false` é o `false` do `confirm()` — parecem a mesma coisa e não são,
+/// porque em Luau `false` e `nil` são ambos falsos mas só um deles é "não
+/// respondeu".
+#[derive(Debug, Clone, PartialEq)]
+pub enum DialogOutcome {
+    /// `confirm{}`: o usuário escolheu, e a escolha é o booleano.
+    Confirmed(bool),
+    /// `prompt{}`: o usuário aceitou, e este é o valor que estava na chave.
+    Value(String),
+    /// Cancelou ou dispensou clicando fora — vira `nil` no lado Luau.
+    Cancelled,
+}
+
 /// Pedido de diálogo feito por um componente (via [`Context::show_dialog`] /
 /// [`Context::close_dialog`]), aplicado pelo motor depois — mesmo padrão de
 /// [`Nav`].
 pub enum DialogAction {
     Show(crate::dialogs::DialogSpec),
-    /// Um diálogo de `confirm()` **suspensivo** (camada Lua): carrega o `id` da
-    /// corrotina que ficou suspensa à espera da escolha do usuário. Ao clicar
-    /// num botão, o motor retoma essa corrotina com um booleano
-    /// ([`Context::show_dialog_resumable`]) em vez de despachar a `action` do
-    /// botão como uma ação normal (o que [`DialogAction::Show`] faz).
-    ShowResumable(crate::dialogs::DialogSpec, u64),
+    /// Um diálogo **suspensivo** (camada Lua): carrega o `id` da corrotina que
+    /// ficou suspensa à espera da resposta, e a **chave de retorno** que diz o
+    /// que devolver a ela — `None` para o booleano do `confirm{}`, `Some(chave)`
+    /// para o valor que o `prompt{}` lê do contexto no aceite (ver
+    /// [`Context::show_dialog_resumable`] e [`DialogOutcome`]).
+    ///
+    /// Ao clicar num botão, o motor retoma essa corrotina em vez de despachar a
+    /// `action` do botão como uma ação normal (o que [`DialogAction::Show`] faz).
+    ShowResumable(crate::dialogs::DialogSpec, u64, Option<String>),
     Close,
 }
 
@@ -557,14 +585,29 @@ impl<'a> Context<'a> {
         self.dialog = Some(DialogAction::Show(spec));
     }
 
-    /// Como [`Context::show_dialog`], mas para um `confirm()` **suspensivo** da
+    /// Como [`Context::show_dialog`], mas para um diálogo **suspensivo** da
     /// camada Lua: além de exibir o diálogo, associa-o à corrotina suspensa
-    /// `id`, que o motor retoma com um booleano quando o usuário escolher um
-    /// botão (confirmar → `true`, cancelar/dispensar → `false`). Uso interno da
-    /// [`crate::luau::LuauComponent`]; um `Component` Rust usa
-    /// [`Context::show_dialog`] com botões que roteiam ações.
-    pub(crate) fn show_dialog_resumable(&mut self, spec: crate::dialogs::DialogSpec, id: u64) {
-        self.dialog = Some(DialogAction::ShowResumable(spec, id));
+    /// `id`, que o motor retoma quando o usuário escolher um botão.
+    ///
+    /// `resume_key` diz **o que** devolver a essa corrotina:
+    ///
+    /// - `None` — o `confirm{}`: um booleano, confirmar → `true`,
+    ///   cancelar/dispensar → `false`.
+    /// - `Some(chave)` — o `prompt{}`: o valor que estiver nessa chave de
+    ///   contexto no instante do aceite, e `nil` se o usuário desistir.
+    ///
+    /// A chave é o mecanismo inteiro do diálogo com campo (Onda 8), e é por
+    /// isso que ele **não** exige estado por instância: o que o usuário digita
+    /// mora no contexto como o de qualquer `<textinput>`, e o aceite só lê de
+    /// lá. Uso interno da [`crate::luau::LuauComponent`]; um `Component` Rust
+    /// usa [`Context::show_dialog`] com botões que roteiam ações.
+    pub(crate) fn show_dialog_resumable(
+        &mut self,
+        spec: crate::dialogs::DialogSpec,
+        id: u64,
+        resume_key: Option<String>,
+    ) {
+        self.dialog = Some(DialogAction::ShowResumable(spec, id, resume_key));
     }
 
     /// Pede ao motor para fechar o diálogo em exibição (se houver) após o
@@ -767,13 +810,14 @@ pub trait Component {
     /// passando o resultado — o que dá a aparência de `async/await`.
     fn resume_fetch(&mut self, _id: u64, _result: &FetchResult, _ctx: &mut Context) {}
 
-    /// Retoma a corrotina suspensa num `confirm()` (ver
-    /// [`Context::show_dialog_resumable`]) com a escolha do usuário: `true`
-    /// confirmou, `false` cancelou/dispensou. Só a
-    /// [`crate::luau::LuauComponent`] implementa — é o que faz `confirm()`
-    /// parecer síncrono (`local ok = confirm{...}`), suspendendo no clique e
-    /// retomando com o booleano. Componentes Rust usam diálogos por-ação.
-    fn resume_dialog(&mut self, _id: u64, _confirmed: bool, _ctx: &mut Context) {}
+    /// Retoma a corrotina suspensa num `confirm{}`/`prompt{}` (ver
+    /// [`Context::show_dialog_resumable`]) com a resposta do usuário — ver
+    /// [`DialogOutcome`] para as três formas que ela pode ter. Só a
+    /// [`crate::luau::LuauComponent`] implementa — é o que faz esses diálogos
+    /// parecerem síncronos (`local ok = confirm{...}`, `local nome =
+    /// prompt{...}`), suspendendo no clique e retomando com a resposta.
+    /// Componentes Rust usam diálogos por-ação.
+    fn resume_dialog(&mut self, _id: u64, _outcome: DialogOutcome, _ctx: &mut Context) {}
 
     /// Retoma a corrotina suspensa num `open_file`/`open_files`/`save_file`/
     /// `pick_folder` (ver [`Context::show_file_dialog_resumable`]) com o

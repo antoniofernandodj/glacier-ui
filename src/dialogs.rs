@@ -65,6 +65,39 @@ pub(crate) const CONFIRM_YES: &str = "\0glacier:confirm:yes";
 /// Par de [`CONFIRM_YES`] para o botão cancelar (retoma a corrotina com `false`).
 pub(crate) const CONFIRM_NO: &str = "\0glacier:confirm:no";
 
+/// Ação sentinela do botão que **só fecha** — o `Fechar` que um
+/// `<dialog name="…">` sem `buttons` ganha, e o que um `Cancelar::` sem ação
+/// escrita vira. O motor a reconhece, fecha o diálogo e **não roteia nada**:
+/// sem ela, um botão de cancelar despacharia uma ação fantasma que nenhum
+/// componente trata, e um dia alguém escreveria um `update` chamado "cancelar"
+/// que passaria a disparar sozinho.
+///
+/// Prefixada com NUL pelo mesmo motivo dos dois acima: nunca colidir com um
+/// nome de ação de verdade.
+pub const DIALOG_CLOSE: &str = "\0glacier:dialog:close";
+
+/// O prefixo das chaves de contexto que um diálogo usa como rascunho — o
+/// `__dialog.value` de um `prompt{}`, o `__dialog.progresso` de um
+/// `ProgressDialog`.
+///
+/// # Por que um prefixo, e por que ele é limpo no fechamento
+///
+/// O corpo de um diálogo é avaliado no contexto do **app**, então as chaves que
+/// ele escreve são chaves do app. Isso é o que faz um diálogo com campo
+/// dispensar estado por instância — o valor mora no contexto como o de qualquer
+/// `<textinput>` — e é também a única armadilha real da forma: dois diálogos
+/// que usem `nome` colidem, mesmo sendo os dois singletons.
+///
+/// O prefixo separa esse rascunho do resto, e o motor apaga tudo que começa com
+/// ele quando o diálogo fecha ([`crate::GlacierUI::limpa_rascunho_de_dialogo`]).
+/// Sem a limpeza, a segunda abertura do mesmo diálogo já viria preenchida com a
+/// resposta anterior — o bug que ninguém reporta e todo mundo estranha.
+pub const DIALOG_KEY_PREFIX: &str = "__dialog.";
+
+/// A chave onde um `prompt{}` guarda o que o usuário está digitando, e de onde
+/// o aceite lê a resposta. Ver [`DIALOG_KEY_PREFIX`].
+pub const DIALOG_VALUE_KEY: &str = "__dialog.value";
+
 /// O papel de um botão, usado só para escolher seu estilo visual (destaque
 /// para a ação principal, tom neutro para cancelar, tom de perigo para ações
 /// destrutivas) — não afeta o roteamento, que é sempre por `action`.
@@ -149,6 +182,19 @@ pub struct DialogSpec {
     /// escolher um botão explicitamente, como no Qt (`exec()` só retorna com
     /// um `StandardButton`).
     pub dismissible: bool,
+    /// O **corpo em markup** do diálogo: o nome de um template já avaliado
+    /// (componente, tela ou um `<dialog name="…">` do `<resources>`), montado
+    /// entre a mensagem e os botões por [`crate::GlacierUI::render_current`].
+    ///
+    /// É o que separa um `QMessageBox` de um `QDialog`. Sem ele o diálogo é o
+    /// que sempre foi — ícone, título, mensagem, botões, tudo em Rust. Com ele
+    /// o cartão vira uma **moldura em volta de uma tela**: o conteúdo passa
+    /// pelo mesmo `render_node` de qualquer outro nó, é estilizável pelo
+    /// `.gss`, e o que o usuário digita mora numa chave de contexto como em
+    /// qualquer `<textinput>` — que é por que um diálogo com campo **não**
+    /// exige estado por instância (o diálogo é singleton; nunca há uma segunda
+    /// instância com que colidir).
+    pub body: Option<String>,
 }
 
 impl DialogSpec {
@@ -161,6 +207,7 @@ impl DialogSpec {
             detail: None,
             buttons: Vec::new(),
             dismissible: true,
+            body: None,
         }
     }
 
@@ -216,6 +263,108 @@ impl DialogSpec {
         self.dismissible = dismissible;
         self
     }
+
+    /// Anexa um **corpo em markup** — ver [`DialogSpec::body`]. O argumento é o
+    /// *nome* de um template já registrado, não o markup em si: o motor já sabe
+    /// montar um template por nome ([`crate::GlacierUI::render`]), e passar o
+    /// nome mantém o `DialogSpec` `Clone` e barato de guardar.
+    pub fn with_body(mut self, template: impl Into<String>) -> Self {
+        self.body = Some(template.into());
+        self
+    }
+
+    /// Monta a especificação a partir de um `<dialog name="…">` declarado no
+    /// markup (ver [`crate::parser::DialogMeta`]).
+    ///
+    /// O corpo já sai apontado para o próprio nome da declaração, porque são a
+    /// mesma coisa: o `<dialog name="editar">` registra o conteúdo dele como o
+    /// template `editar`, e o `DialogSpec` só precisa dizer "monte `editar`
+    /// aqui dentro".
+    pub fn from_meta(meta: &crate::parser::DialogMeta) -> Self {
+        let mut spec = Self::new(
+            icone_de(meta.icon.as_deref()),
+            meta.title.clone().unwrap_or_default(),
+            meta.message.clone().unwrap_or_default(),
+        )
+        .with_body(meta.name.clone());
+
+        match meta.buttons.as_deref().map(str::trim) {
+            // Escrito e não-vazio: a lista manda, inclusive quando ela pede
+            // botão nenhum (`buttons=""` é um diálogo que só o fundo fecha —
+            // útil para um progresso que não dá para cancelar).
+            Some(lista) if !lista.is_empty() => {
+                for b in lista.split('|') {
+                    if let Some(botao) = botao_de(b) {
+                        spec = spec.with_button(botao);
+                    }
+                }
+            }
+            Some(_) => {}
+            // Sem `buttons`: um `Fechar` que só fecha. O par OK/Cancelar do Qt
+            // não cabe aqui — lá o `accept()` tem significado próprio, aqui um
+            // "OK" sem ação escrita faria exatamente o que o "Cancelar" faz, e
+            // dois botões idênticos com rótulos diferentes é pior do que um.
+            None => {
+                spec = spec.with_button(DialogButton::new(
+                    "Fechar",
+                    DIALOG_CLOSE,
+                    ButtonRole::Neutral,
+                ));
+            }
+        }
+
+        // Um diálogo com corpo é dispensável por padrão, como qualquer
+        // `DialogSpec::new` — mas quem escreve o markup pode fechar a saída
+        // (`dismissible="false"`) quando a escolha tem de ser explícita.
+        if let Some(d) = meta.dismissible {
+            spec = spec.dismissible(d);
+        }
+        spec
+    }
+}
+
+/// Lê o `icon=` de um `<dialog>`. Desconhecido vira [`DialogIcon::None`] em vez
+/// de erro: um ícone errado não é motivo para o diálogo não abrir.
+fn icone_de(nome: Option<&str>) -> DialogIcon {
+    match nome
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_lowercase()
+        .as_str()
+    {
+        "information" | "info" | "informacao" | "informação" => DialogIcon::Information,
+        "warning" | "warn" | "aviso" => DialogIcon::Warning,
+        "error" | "critical" | "erro" => DialogIcon::Error,
+        "question" | "pergunta" => DialogIcon::Question,
+        _ => DialogIcon::None,
+    }
+}
+
+/// Lê um botão da lista compacta do `<dialog buttons="…">`, na forma
+/// `Rótulo:acao:papel` — os dois últimos campos opcionais.
+///
+/// Ação vazia (`Cancelar::`) vira [`DIALOG_CLOSE`]: o botão fecha e não despacha
+/// nada. Papel ausente é `neutral`, com uma exceção que vale a magia — se a
+/// ação está escrita, o papel default é `accept`, porque um botão que *faz*
+/// alguma coisa é a ação principal em quase todo diálogo, e escrever
+/// `:accept` em cada um seria ruído.
+fn botao_de(bruto: &str) -> Option<DialogButton> {
+    let mut campos = bruto.split(':');
+    let label = campos.next()?.trim();
+    if label.is_empty() {
+        return None;
+    }
+    let acao = campos.next().unwrap_or("").trim();
+    let papel = campos.next().unwrap_or("").trim().to_lowercase();
+    let role = match papel.as_str() {
+        "accept" | "aceitar" | "principal" => ButtonRole::Accept,
+        "neutral" | "neutro" | "cancel" | "cancelar" => ButtonRole::Neutral,
+        "destructive" | "destrutivo" | "perigo" | "danger" => ButtonRole::Destructive,
+        _ if acao.is_empty() => ButtonRole::Neutral,
+        _ => ButtonRole::Accept,
+    };
+    let acao = if acao.is_empty() { DIALOG_CLOSE } else { acao };
+    Some(DialogButton::new(label, acao, role))
 }
 
 /// Renderiza o diálogo como um overlay completo: um fundo semitransparente
@@ -223,7 +372,21 @@ impl DialogSpec {
 /// `spec.dismissible`) com o cartão do diálogo centralizado por cima. Chame
 /// [`crate::GlacierUI::render_current`] normalmente — ele já empilha isto por
 /// cima da tela ativa quando há um diálogo em exibição.
-pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, EngineMessage> {
+///
+/// O `body` é o corpo em markup já montado (ver [`DialogSpec::body`]), que
+/// entra entre a mensagem e a fileira de botões. `None` dá o diálogo clássico,
+/// só com texto — e é o caminho dos cinco construtores de `QMessageBox`.
+///
+/// **Cuidado ao mexer aqui:** o `body` fica na camada de cima do `stack!`,
+/// acima do fundo escurecido. O fundo captura hover *e* clique de propósito
+/// (ver o comentário do `backdrop_area` e o `DIALOGS.md`), e inverter a ordem
+/// das camadas faz o corpo parar de receber input — o sintoma é um campo que
+/// simplesmente não pega foco, sem erro nenhum.
+pub fn overlay<'a>(
+    spec: &'a DialogSpec,
+    theme: &iced::Theme,
+    body: Option<Element<'a, EngineMessage>>,
+) -> Element<'a, EngineMessage> {
     let palette = theme.extended_palette();
 
     let mut header = row![].spacing(10).align_y(Alignment::Center);
@@ -236,7 +399,13 @@ pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, Eng
     }
     header = header.push(text(spec.title.as_str()).size(18));
 
-    let mut card = column![header, text(spec.message.as_str()).size(14)].spacing(14);
+    // Um diálogo com corpo costuma não ter mensagem — o conteúdo já diz o que
+    // ele pede. Um `text("")` não é invisível: ele ocupa a altura de uma linha
+    // mais o `spacing`, e o buraco entre o título e o formulário denuncia.
+    let mut card = column![header].spacing(14);
+    if !spec.message.is_empty() {
+        card = card.push(text(spec.message.as_str()).size(14));
+    }
 
     if let Some(detail) = &spec.detail {
         let detail_bg = palette.background.weak.color;
@@ -257,6 +426,13 @@ pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, Eng
         );
     }
 
+    // O corpo em markup entra **depois** do detalhe e **antes** dos botões: a
+    // ordem do `QDialog` (mensagem, conteúdo, caixa de botões), e a única em
+    // que os botões continuam sendo a última coisa que a leitura encontra.
+    if let Some(body) = body {
+        card = card.push(container(body).width(Length::Fill));
+    }
+
     let mut buttons = row![Space::new().width(Length::Fill)].spacing(8);
     for b in &spec.buttons {
         buttons = buttons.push(dialog_button(b, palette));
@@ -271,8 +447,12 @@ pub fn overlay<'a>(spec: &'a DialogSpec, theme: &iced::Theme) -> Element<'a, Eng
     // ("isto flutua") com cores opacas, que não acumulam em driver nenhum.
     let card_bg = palette.background.weak.color;
     let card_border = palette.background.strong.color;
+    // 380 é a largura de uma frase; um formulário não cabe nela. Com corpo, o
+    // cartão vai a 480 — ainda estreito o bastante para ler como modal, largo o
+    // bastante para um `<form>` de duas colunas não quebrar.
+    let largura = if spec.body.is_some() { 480.0 } else { 380.0 };
     let card_box = container(card)
-        .width(Length::Fixed(380.0))
+        .width(Length::Fixed(largura))
         .padding(20)
         .style(move |_theme: &iced::Theme| container::Style {
             background: Some(Background::Color(card_bg)),

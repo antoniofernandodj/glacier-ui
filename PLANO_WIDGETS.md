@@ -13,11 +13,13 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-04**, sobre a 0.92 (ondas 3, 4, 5 e 6
-fechadas). A ordenação por **função** — widgets que carregam lógica — que a
-revisão anterior adotou levou a fila até o fim: as quatro ondas da §6.2 estão
-feitas — e a Onda 7 (o `canvas`) também, na 0.93. O que sobra é o troco da
-§6.3.
+Última revisão da fila: **2026-09-07**, sobre a 0.94 (ondas 3 a 8 fechadas). A
+ordenação por **função** — widgets que carregam lógica — que a revisão anterior
+adotou levou a fila até o fim, e a **Onda 8** (o diálogo que carrega markup)
+fechou o último item do catálogo com o formato "um habilitador, meia dúzia de
+widgets". O que sobra agora é de outro tipo: o estado por instância — que só
+bloqueia widgets que existem N vezes na mesma tela —, o registro de famílias de
+fonte, e o troco decorativo da §6.3.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -126,7 +128,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QComboBox | `Select` / `Combo` | Prim | pick_list / combo_box | ◐ | P0 | ✅ | ambos existem |
-| QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema |
+| QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema — o mesmo bloqueio do `FontDialog` (§2.10), e não é o combo: falta o **registro de famílias de fonte** no motor. Os dois saem juntos quando ele existir |
 | QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | ✅ | `<listview items="servicos" value="servico" selected="{servico}" />` — o `TabBar` na vertical, com scroll. `mode="multi"` guarda um **conjunto** numa chave só e é o primeiro consumidor do `contains` (0.84). `virtualize` repassado para listas longas. Onda 4 (0.85) |
 | QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ⬜ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6 |
 | QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ✅ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. A identidade de um nó é o **caminho**, então um `id` repetido em ramos diferentes não colide (0.92) |
@@ -237,8 +239,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QTabWidget/QTabBar | `TabBar` / `Tabs` | Built | row+button | ◐ | P1 | ✅ | duas tags: a **barra** sozinha (`<tabbar>`, 0.65) e a barra **mais a página** (`<tabs>`, 0.92). O que faltava era o **nome dinâmico de slot** (`<slot name="{aba}"/>`), uma linha no `eval` — não o estado por instância. Com ele, `addTab(widget, "Geral")` do Qt vira `<template slot="geral">` e a tela deixa de repetir a lista de abas duas vezes |
-| QStackedWidget | `Stack`/`StackView` | Comp | condicional (`se`) | ◐ | P1 | 🟡 | já dá com `se`; formalizar — sai junto do `Tabs` completo, mesmo mecanismo. Onda 5 |
-| QWizard/QWizardPage | `Wizard` | Comp | Stack+ButtonBox | ● | P2 | ⬜ | passos com voltar/avançar/finalizar |
+| QStackedWidget | `Stack`/`StackView` | **Built** | slot nomeado | ◐ | P1 | ✅ | `<stackview active="{passo}">` — é `<tabs>` **sem a barra**, o mesmo nome dinâmico de slot da 0.92. A página é escolhida por **nome**, não por posição numa escada de `se`. Onda 8 (0.94) |
+| QWizard/QWizardPage | `Wizard` | **Built + Prim** | slot + WizardNav | ◐ | P2 | ✅ | `<wizard steps="…" titles="…" valid="{…}" on_finish="…">`. Saiu **em dois**, e é a descoberta da onda: slots pedem builtin, contas pedem primitiva. O composto é builtin; a aritmética (voltar inerte, finalizar no fim, travar sem validar, saturar nas pontas) é a primitiva `<wizardnav>` (`src/wizard.rs`). Onda 8 (0.94) |
 | QML SwipeView | `SwipeView` | Comp | stack | ● | P3 | ⬜ | páginas deslizáveis |
 | QML Drawer | `Drawer` | **Built** | reveal+slot | ◐ | P2 | ✅ | painel lateral deslizante — `<slot/>` + chave nomeada + `axis="x"` no `<reveal>` (o motor já animava altura desde a 0.90). Ele **empurra**, não cobre: quem cobre é um `<popover>` colado na borda (0.92) |
 | (roteamento de telas) | `navigate_to` | Motor | — | — | P0 | ✅ | navegação já existe |
@@ -260,18 +262,19 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 
 | Qt | Tag / API glacier-ui | Nível | Base | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
+| QDialog (próprio) | `Dialog` / `<dialog>` | **Motor + tag** | stack+tela | ◐ | P1 | ✅ | a classe-base que o catálogo nunca listou: `<dialog name="…">` no `<resources>`, corpo em markup, aberto por `dialog:nome` e fechado por `dialog:close`. O corpo vira um template comum sob o mesmo nome, e é por isso que `render(nome)` o monta sem saber que é um diálogo. Onda 8 (0.94) |
 | QMessageBox (info) | `DialogSpec::information` | Diál | stack | — | P0 | ✅ | existe |
 | QMessageBox (warning) | `DialogSpec::warning` | Diál | stack | — | P0 | ✅ | existe |
 | QMessageBox (critical) | `DialogSpec::error` | Diál | stack | — | P0 | ✅ | existe |
 | QMessageBox (question) | `DialogSpec::question` | Diál | stack | — | P0 | ✅ | existe |
 | — (confirm) | `DialogSpec::confirm` | Diál | stack | — | P0 | ✅ | existe |
-| QInputDialog | `InputDialog` | Diál | stack+TextInput | ● | P1 | ⬜ | pede texto/número/item |
-| QProgressDialog | `ProgressDialog` | Diál | stack+ProgressBar | ● | P1 | ⬜ | progresso cancelável |
+| QInputDialog | `InputDialog` | Diál | stack+TextInput | ◐ | P1 | ✅ | `prompt{ kind = "text"|"int"|"double"|"item" }` — as quatro variantes estáticas do Qt são **um** diálogo com corpos diferentes. **Reclassificado de `●`**: o diálogo é singleton no motor (`dialog: Option<DialogSpec>`), então nunca há segunda instância com que colidir. Onda 8 (0.94) |
+| QProgressDialog | `ProgressDialog` | Diál | stack+ProgressBar | ◐ | P1 | ✅ | `progress{}`/`progress_set()`/`progress_close()` — o único da família que **não suspende** (ele acompanha um trabalho em curso) e o único atualizado enquanto aberto, e por isso o progresso mora numa chave e não no `DialogSpec`. Sem `value` nasce indeterminado, com o `<spinner>` da 0.66. Onda 8 (0.94) |
 | QFileDialog (abrir arquivo) | `FileDialog::open` | Diál | **`rfd`** (nativo do SO) | — | P1 | ✅ | `src/file_dialog.rs`; Luau `open_file()`/`open_files()`, suspensivo como `confirm()`/`fetch()` (ver `examples/file_dialog`) |
 | QFileDialog (salvar) | `FileDialog::save` | Diál | `rfd` | — | P1 | ✅ | Luau `save_file()` |
 | QFileDialog (diretório) | `FileDialog::directory` | Diál | `rfd` | — | P1 | ✅ | Luau `pick_folder()` |
-| QColorDialog | `ColorDialog` | Diál | stack+canvas | ● | P2 | ⬜ | roda/HSV/hex |
-| QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho |
+| QColorDialog | `ColorDialog` | Diál | stack+canvas | ◐ | P2 | ✅ | `pick_color{}` — anel de matiz (180 setores) mais o quadrado saturação×valor, sobre o `src/canvas.rs` da Onda 7. É um `prompt{}` cujo campo é uma roda: mesma porta, mesmo retorno. A primitiva `<colorwheel>` também vale avulsa. Onda 8 (0.94) |
+| QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho. **Não é um item de diálogo**: o motor conhece duas fontes (`font_for`, `widget.rs`), não tem registro de famílias e o `iced` não enumera as do SO. Espera um item de **Motor** (famílias de fonte), com quem sai junto do `FontSelect` da §2.4 — ver Onda 8, "fica de fora" |
 | QErrorMessage | (coberto por `error`) | Diál | — | — | — | ✅ | redundante |
 | QPrintDialog/QPageSetup | `PrintDialog` | Diál | `rfd`/SO | ● | P3 | ⬜ | impressão (fora do escopo inicial) |
 
@@ -558,9 +561,16 @@ habilitadores, como a Onda 3 da §6.2 previu. A variante `calendarPopup` do
 0.92, com o overlay ancorado da Onda 5. **O foco declarado do projeto termina
 ali.**
 
-**Fase E — diálogos ricos (P1)**
-~~`FileDialog` (open/save/directory via `rfd`)~~ ✅ · `InputDialog` ·
-`ProgressDialog`.
+**Fase E — diálogos ricos (P1) — ✅ fechada (0.94), foi a Onda 8**
+~~`FileDialog` (open/save/directory via `rfd`)~~ ✅ · ~~`Dialog` (o `<dialog>`
+próprio)~~ ✅ · ~~`InputDialog`~~ ✅ · ~~`ProgressDialog`~~ ✅ ·
+~~`ColorDialog`~~ ✅ (que a Fase H listava e era o mesmo trabalho).
+
+A releitura se confirmou: os "diálogos ricos" não eram N trabalhos, eram **um**
+— o `DialogSpec` ganhar um **corpo em markup** e um **retorno tipado**, e aí
+cada diálogo da lista virou composição de widgets que já existiam. Sobram o
+`FontDialog` (que espera um item de motor, não um diálogo) e o `PrintDialog`
+(fora de escopo), os dois justificados na Onda 8.
 
 **Fase F — overlays e menus (P2) — ✅ fechada (0.92)**
 ~~`Menu` · `ContextMenu` · `MenuBar`~~ ✅ (overlay próprio em `src/menu.rs`) →
@@ -586,50 +596,61 @@ Duas das seis não passaram por ela: o `Flow` é o `Row::wrap()` do próprio
 edição de célula continua de fora — ela reusa o `<textinput>`, não a medição.
 
 **Fase H — canvas e visualização (P2/P3)**
-~~`Dial`~~ ✅ · ~~`Gauge`~~ ✅ · `ColorDialog` · ~~`LineChart`/`BarChart`/`PieChart`~~ ✅ ·
-~~`Sparkline`~~ ✅ (todos na Onda 7, 0.93). Sobram o `ColorDialog` e a série
-múltipla dos gráficos.
+~~`Dial`~~ ✅ · ~~`Gauge`~~ ✅ · ~~`LineChart`/`BarChart`/`PieChart`~~ ✅ ·
+~~`Sparkline`~~ ✅ (todos na Onda 7, 0.93). Sobra a **série múltipla** dos
+gráficos; o `ColorDialog` saiu desta fase e foi para a E, porque o que faltava
+nele nunca foi o canvas — era o diálogo saber carregar conteúdo.
 
 **Fase I — nicho/avançado (P3)**
-`MdiArea` · `Dock` · `Wizard` · `SwipeView` · ~~`Drawer`~~ ✅ (0.92, adiantado
-pela Onda 5 — ele não dependia de nada desta fase) · ~~`SystemTray`~~ ✅ ·
-`Shader`/3D · impressão.
+`MdiArea` · `Dock` · `SwipeView` · ~~`Drawer`~~ ✅ (0.92, adiantado pela Onda 5 —
+ele não dependia de nada desta fase) · ~~`SystemTray`~~ ✅ · `Shader`/3D ·
+impressão. O `Wizard` saiu daqui para a **Onda 8**: no Qt ele é um `QDialog`, e
+com o corpo em markup ele deixa de ser nicho e vira soma de peças prontas.
 
 ---
 
 ### Resumo numérico
 
-Contagem sobre as linhas que têm status, atualizada em 2026-09-04 (0.92). Duas
-ressalvas: a §2.4 tem uma linha (`QListWidgetItem`) que é dado, não widget, e
-fica de fora; e o `Space` aparece duas vezes (§2.7 como container, §2.11 como
-layout), então o total tem uma duplicata — 123 widgets distintos, não 124.
+Contagem sobre as linhas que têm status, atualizada em 2026-09-07 (0.94, com a
+Onda 8 fechada). Duas ressalvas: a §2.4 tem
+uma linha (`QListWidgetItem`) que é dado, não widget, e fica de fora; e o
+`Space` aparece duas vezes (§2.7 como container, §2.11 como layout), então o
+total tem uma duplicata — 124 widgets distintos, não 125.
 
 | Categoria | Widgets catalogados | ✅ prontos | 🟡 parciais | ⬜ a fazer |
 |---|---|---|---|---|
 | Botões e ações | 10 | **7** | 0 | 3 |
 | Entradas de texto | 9 | **6** | 1 | 2 |
-| Numéricas/valor | 12 | **6** | 1 | 5 |
+| Numéricas/valor | 12 | **9** | 1 | 2 |
 | Seleção/listas/árvores | 11 | **8** | 0 | 3 |
 | Data e hora | 6 | **6** | 0 | 0 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
 | Containers | 9 | **6** | 0 | 3 |
-| Navegação | 6 | **3** | 1 | 2 |
+| Navegação | 6 | **5** | 0 | 1 |
 | Janela/barras | 8 | 7 | 0 | 1 |
-| Diálogos | 14 | 9 | 0 | 5 |
+| Diálogos | 15 | **13** | 0 | 2 |
 | Layouts | 7 | **6** | 1 | 0 |
 | Overlays/utilitários | 11 | **5** | 1 | 5 |
-| Gráficos | 6 | 0 | 0 | 6 |
-| **Total** | **124** | **79** | **5** | **40** |
+| Gráficos | 6 | **4** | 1 | 1 |
+| **Total** | **125** | **92** | **5** | **28** |
 
-O motor entrega ~64% do catálogo Qt de superfície (34% antes da onda 2, 39%
+O motor entrega ~74% do catálogo Qt de superfície (34% antes da onda 2, 39%
 antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3, 47%
-antes da onda 4, 53% antes das ondas 5 e 6). As duas últimas ondas somaram
-**treze** widgets e consumiram **três** itens de motor — o nome dinâmico de
-slot (uma linha no `eval`), o overlay ancorado (`src/anchored.rs`) e a medição
-de colunas (`src/grid.rs`).
+antes da onda 4, 53% antes das ondas 5 e 6, 64% antes da onda 7, 69% antes da
+onda 8). As ondas 5 a 8 somaram **vinte e seis** widgets e consumiram **cinco**
+itens de motor — o nome dinâmico de slot (uma linha no `eval`), o overlay
+ancorado (`src/anchored.rs`), a medição de colunas (`src/grid.rs`), o canvas
+como capacidade (`src/canvas.rs`) e o corpo do diálogo (um parâmetro e uma
+chamada).
 
-Onde os 40 se concentram: **gráficos** (6), **diálogos** (5), **displays** (5) e
-**overlays** (5). O bloco de model/view, que era o maior atraso do catálogo
+Onde os 28 se concentram: **displays** (5) e **overlays** (5) — dez das 28, e
+oito delas estão na bandeja de troco da §6.3. O que sobra fora do troco é
+pequeno e disperso: `Splitter`, `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`,
+`SwipeView`, `Shader`/3D, os dois de fonte e os dois diálogos justificados.
+
+**Duas categorias fecharam nesta onda**, e é a primeira vez que duas fecham
+juntas: os diálogos (13/15, com os dois restantes justificados por escrito) e a
+navegação (5/6, sobrando o `SwipeView`). O bloco de model/view, que era o maior atraso do catálogo
 desde o começo, deixou de ser um: a §2.4 saiu de 3/11 para **8/11** e a §2.11
 (layouts) fechou tudo o que tinha ⬜.
 
@@ -641,7 +662,8 @@ na Onda 5, não na Onda 3**.
 
 Nem toda linha ⬜ está esperando o motor; algumas estão esperando alguém
 perguntar em que nível elas deveriam estar — e este documento errou essa
-pergunta **dez** vezes, sempre para o mesmo lado, o de superestimar o bloqueio:
+pergunta **treze** vezes, sempre para o mesmo lado, o de superestimar o
+bloqueio:
 
 | # | linha | o que o documento dizia | o que era |
 |---|---|---|---|
@@ -652,11 +674,21 @@ pergunta **dez** vezes, sempre para o mesmo lado, o de superestimar o bloqueio:
 | 8 | `TreeView` | estado por nó | conjunto nomeado, o mesmo do `Accordion` |
 | 9 | binding a coleção (§3) | "o maior investimento restante" | **já existia** (`items="chave"`) desde o `<menu>` |
 | 10 | `Flow`/`Wrap` | sai da medição da Onda 6 | **o `iced` já tinha** (`Row::wrap()`) |
+| 11–13 | `InputDialog`, `ProgressDialog`, `ColorDialog` | exigem estado por instância | o diálogo é **singleton** no motor (um campo, não um mapa), então nunca há segunda instância — o valor cabe numa chave nomeada |
 
-As duas últimas são as mais instrutivas, porque são de tipos novos: a 9 é uma
-capacidade que o próprio motor já tinha e ninguém releu; a 10 é uma que a
+As de número 9 e 10 são as mais instrutivas, porque são de tipos novos: a 9 é
+uma capacidade que o próprio motor já tinha e ninguém releu; a 10 é uma que a
 **biblioteca de baixo** já tinha. As duas só apareceram quando alguém foi
 escrever o código.
+
+As três últimas são de um quarto tipo, e é o mais barato de checar: o widget
+não pode ter estado por instância porque **não pode existir duas vezes**. As dez
+anteriores exigiram escrever o widget para descobrir que o estado era o valor;
+esta se lê no tipo — `dialog: Option<DialogSpec>` é um campo, não um mapa.
+
+Depois delas, todo `●` que sobra no catálogo é de widget que existe N vezes na
+mesma tela (`Splitter`, `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`), que é o
+caso em que a marca sempre foi honesta.
 
 E os três regimes de custo, agora todos exemplificados:
 
@@ -787,13 +819,27 @@ widgets**, como o `<slot/>` foi na Onda 2.
 - **Onda 6** ✅ (0.92) — a grade: uma medição de colunas, e os seis widgets que
   saem dela.
 
-**A fila está cumprida.** O que vem depois é a Onda 7 (o `canvas`, esboçada no
-fim da §6.2) e o troco da §6.3.
-
 As quatro respondem a mesma pergunta, que é a lição repetida deste documento:
 **em que nível este widget deveria estar, e ele está mesmo bloqueado?** Nove das
 linhas abaixo estão marcadas `Comp ●` — "bloqueado por estado por instância" — e
 nenhuma delas está.
+
+**A fila está cumprida**, e mais duas ondas saíram no mesmo regime da 5 e da 6:
+
+- **Onda 7** ✅ (0.93) — o canvas como capacidade, e os sete que saem dele.
+- **Onda 8** ✅ (0.94) — o diálogo que carrega markup, e os seis que saem dele.
+
+A Onda 8 fez a mesma pergunta na última categoria em que ela ainda cabia: a
+§2.10 tinha cinco ⬜ que pareciam cinco trabalhos e eram **um** — o modal deixar
+de ser uma tela paralela escrita em Rust. Três das cinco estavam marcadas `●`, e
+nenhuma podia estar, porque o diálogo é singleton.
+
+**Não há Onda 9 esboçada, e é de propósito.** O que sobra no catálogo não tem
+mais o formato que estas seis ondas exploraram: são widgets isolados
+(`Splitter`, `MdiArea`, `SwipeView`), um habilitador de motor sem consumidor
+urgente (famílias de fonte) e o troco da §6.3. Abrir uma rodada por qualquer um
+deles seria inventar um tema para uma leva, que é exatamente o que a revisão de
+2026-09-01 desaconselhou ao rebaixar o troco.
 
 ---
 
@@ -1290,6 +1336,271 @@ comum de um painel é um número por gráfico.
 
 ---
 
+#### Onda 8 — o diálogo que carrega markup — ✅ **FEITA (0.94)**
+
+> **Como saiu.** O habilitador pagou como previsto e por um motivo que a
+> proposta acertou: `GlacierUI::render(nome)` já montava qualquer template, e o
+> corpo do diálogo virou **um parâmetro e uma chamada**. Os seis saíram, o
+> `FontDialog` ficou de fora pelo motivo escrito, e **duas** das seis linhas
+> mudaram de forma no caminho — as duas pelo mesmo motivo, que é a descoberta
+> desta onda: *um template não calcula, e um slot não atravessa componente*.
+>
+> Exemplos: `cargo run --example onda8` e `cargo run --example onda8_luau`.
+
+```text
+Habilitador — o modal ganha CORPO e RETORNO    (motor: `dialogs.rs`, `lib.rs`, `luau/`)
+
+1. Dialog          — o `<dialog>` próprio, que é o QDialog     (motor + tag)
+2. InputDialog     — pede texto, número ou item de lista       (diálogo, P1)
+3. ProgressDialog  — progresso cancelável                      (diálogo, P1)
+4. ColorDialog     — roda/HSV/hex, sobre o canvas da Onda 7    (diálogo, P2)
+5. StackView       — o QStackedWidget, formalizado             (primitiva, 🟡)
+6. Wizard          — passos com voltar/avançar/finalizar       (primitiva, P2)
+```
+
+**A frase que esta onda derruba** está escrita no `DIALOGS.md`, e estava certa
+quando foi escrita: *"Um diálogo não segue esse caminho: ele é transiente
+(aberto e fechado por código, não faz parte de nenhuma tela) e construído
+inteiramente em Rust (`src/dialogs.rs`), **sem markup**."* Isso é
+verdade enquanto todo diálogo é uma caixa de mensagem: ícone, texto, botões, e
+os cinco construtores de conveniência dão conta. Deixa de ser verdade no
+instante em que um diálogo precisa de um **campo** — o `QInputDialog::getText`
+é um `QLineEdit` dentro de um cartão, e o motor já sabe desenhar `<textinput>`,
+já sabe estilizá-lo pelo `.gss` e já sabe ligá-lo a uma chave. Escrever um
+segundo caminho de render, em Rust, para cada diálogo que tenha conteúdo é
+escrever o motor duas vezes — e é o mesmo erro que a Onda 7 evitou ao recusar o
+`<canvas>` com callback imperativo.
+
+Por isso os cinco ⬜ da §2.10 não são cinco trabalhos. São **um**: o diálogo
+deixar de ser uma tela paralela e virar uma **moldura em volta de uma tela**.
+É o regime das ondas 2, 5 e 6 — um item de motor que vira meia dúzia de
+widgets — e é o último desse tipo que o catálogo ainda oferece.
+
+**A reclassificação, a 11ª à 13ª da mesma família.** O catálogo marca
+`InputDialog`, `ProgressDialog` e `ColorDialog` com `●` — "exige estado por
+instância". Nenhum dos três exige, e aqui a marca é *estruturalmente*
+impossível: o diálogo é **singleton** no motor (`dialog: Option<DialogSpec>`,
+`lib.rs:176`), então nunca existe uma segunda instância com que colidir. O que
+o usuário digita mora numa **chave nomeada**, como no `SpinBox` (0.85) e no
+`Dial` (0.93) — `<textinput value="__dialog.nome"/>`, e o botão OK lê essa
+chave. É a mesma pergunta que este documento errou dez vezes, e é a última vez
+que ela cabe: depois desta onda, todo `●` que sobra é de widget que existe **N
+vezes na mesma tela** (`Splitter`, `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`),
+que é o caso em que a marca sempre foi honesta.
+
+##### O habilitador, em três partes — e a primeira já está escrita
+
+**A. O corpo é o nome de um template já avaliado.** `GlacierUI::render(name)`
+(`lib.rs:2529`) devolve um `Element<EngineMessage>` para qualquer template
+avaliado — componente ou tela, tanto faz. Então `DialogSpec` ganha
+`body: Option<String>`, `dialogs::overlay` recebe o `Element` pronto e o encaixa
+entre a mensagem e os botões, e `render_current` (`lib.rs:711`) passa a montá-lo
+antes de empilhar. O diálogo para de ser um segundo caminho de render e vira uma
+moldura. **Custo real: um parâmetro e uma chamada** — o resto o motor já faz.
+
+Duas consequências que valem o preço sozinhas: o corpo é estilizável pelo `.gss`
+como qualquer tela — hoje o cartão do diálogo se pinta pelo
+`theme.extended_palette()` e mais nada, sem seletor nenhum por cima —, e o lado
+Luau alcança o conteúdo do modal, que hoje não alcança.
+
+**B. O retorno deixa de ser um `bool`.** `resume_dialog_inner`
+(`src/luau/mod.rs:539`) retoma a corrotina com `Value::Boolean(confirmed)`. A
+forma geral já existe **ao lado**, em `resume_file_dialog_inner` (`:556`), que
+retoma com uma string ou `nil` — é o `open_file()` que o motor já entrega. Unificar
+os dois em um retorno `Option<Value>` dá `prompt{} → string|nil` e `pick_color{}
+→ "#rrggbb"|nil` sem inventar mecanismo nenhum, e `confirm{}` continua devolvendo
+booleano porque booleano é o valor dele. O `nil` do cancelamento já é a
+convenção escrita: *"cancelado vira `nil` — o mesmo silêncio que `confirm()` dá"*
+(`luau/mod.rs:953`).
+
+**C. Abrir um diálogo a partir do markup.** Hoje só dá por Rust
+(`ctx.show_dialog`) ou por Luau (`confirm()`); uma tela declarativa pura não
+consegue abrir um modal. O lugar disso é a família de prefixos de ação que a
+0.63 abriu com o `app:` (`eval.rs:1552`): `on_click="dialog:confirmar_exclusao"`
+abre o `<dialog name="confirmar_exclusao">` da própria tela. É a menor das três
+partes e é a que faz o `<dialog>` ser um widget do catálogo em vez de uma API de
+Rust.
+
+##### Os seis
+
+| # | Widget | Nível | Prio | Por que aqui |
+|---|---|---|---|---|
+| 1 | **`Dialog`** (`QDialog`) | Motor + tag | P1 | O que o catálogo nunca listou, e é a **classe-base** de todo o resto da §2.10: um bloco `<dialog name="…">` no `.gv`, registrado como uma tela, aberto por `dialog:nome` e fechado por ação. Sai primeiro porque é o teste do habilitador antes de haver campo, progresso ou roda de cor por cima — o mesmo papel que o `GroupBox` teve para o `<slot/>` e o `<grid>` para a medição. Os botões continuam vindo do `DialogSpec`, não do markup: é lá que mora a ordem por plataforma que o `ButtonBox` (0.85) já resolveu |
+| 2 | **`InputDialog`** (`QInputDialog`) | Diál | **P1** | As quatro variantes do Qt (`getText`/`getInt`/`getDouble`/`getItem`) são **um** diálogo com corpos diferentes — `<textinput>`, `<spinbox decimals>` e `<select>`, três tags que já existem. O trabalho é a conveniência: `prompt{ kind = "text"|"int"|"double"|"item", … }` no Luau, com validação (`min`/`max`, obrigatório) travando o botão OK antes de retomar a corrotina |
+| 3 | **`ProgressDialog`** (`QProgressDialog`) | Diál | **P1** | O único da família que é **atualizado enquanto está aberto**, e o único que não suspende: quem suspende é o `fetch`/stream que ele acompanha. O progresso vai numa chave que o corpo lê (`<progressbar value="__dialog.progresso"/>`), o cancelamento escreve outra que o laço do app consulta. Fecha o par com o `Spinner` (0.66): indeterminado avulso lá, determinado e cancelável aqui |
+| 4 | **`ColorDialog`** (`QColorDialog`) | Diál | P2 | Ficou de fora da Onda 7 por tamanho; agora custa menos, porque a roda é `crate::canvas::{arco, anel}` (0.93) e o campo hex é um `<maskedinput>` (0.85). Três painéis — roda HS + barra V, os canais em `<slider>`, e o hex —, todos escrevendo a **mesma** chave `#rrggbb`. É o primeiro consumidor do corpo em markup que não caberia em Rust sem duplicar meia dúzia de widgets |
+| 5 | **`StackView`** (`QStackedWidget`) | Prim | P1 | O 🟡 mais antigo da §2.8, que a Onda 5 devia ter fechado e não fechou: é `<tabs>` **sem a barra**, o mesmo nome dinâmico de slot (`<slot name="{passo}"/>`, 0.92). Sai aqui porque o item 6 precisa dele, e sozinho é a formalização que o documento promete desde a primeira revisão |
+| 6 | **`Wizard`** (`QWizard`) | Prim | P2 | No Qt o `QWizard` **é** um `QDialog` — então ele é a soma exata desta onda: o `<dialog>` do item 1, as páginas do item 5, o `<buttonbox>` (0.85) e o número do passo numa chave nomeada. A lógica que ele carrega é aritmética de passo com portão (`Voltar` inerte no primeiro, `Avançar` travado enquanto a página não valida, `Finalizar` no lugar de `Avançar` no último) — repetição dirigida por número, o padrão que a Onda 4 nomeou |
+
+##### Fica de fora, com motivo
+
+**`FontDialog` (e o `FontSelect` da §2.4), porque o problema deles não é
+diálogo.** O motor conhece **duas** fontes: `font_for` (`widget.rs:413`) mapeia
+`mono`/`monospace`/`code` para a monoespaçada e devolve `None` para o resto —
+`font="bold"` nem é família, é peso. Não existe registro de famílias, não existe
+`Font::with_name` no caminho do render, e o `iced` não enumera as fontes do
+sistema (isso é `fontdb`). Um `<fontdialog>` construído hoje mostraria uma lista
+de duas linhas.
+
+As duas linhas estão catalogadas no lugar errado: são um **item de Motor**
+("famílias de fonte: registro, `font-family` no `.gss` e enumeração do SO"), não
+um diálogo e não um combo. A onda que as construir é a que fizer o subsistema —
+e aí as duas saem juntas, de graça, como o `TableHeader` saiu da medição. O
+`PrintDialog` continua fora de escopo, como já estava declarado.
+
+**Série múltipla nos gráficos** continua onde a Onda 7 a deixou: é trabalho de
+verdade, não é o gargalo de nada, e não tem relação com esta onda.
+
+##### As três armadilhas previstas
+
+1. **O bloqueio do modal, agora pelo outro lado.** O `DIALOGS.md` registra um bug
+   caro: o fundo escurecido precisava capturar hover **e** clique para o input
+   não vazar para a tela de baixo — `.interaction(Interaction::Idle)` mais um
+   `on_press` sempre presente. Um corpo em markup fica **acima** desse fundo e
+   não pode ser bloqueado por ele. O sintoma de errar isso é discreto e feio: o
+   campo do diálogo simplesmente não pega foco, sem erro nenhum. Vale um teste
+   por cima do item 1, antes de haver o que digitar.
+2. **A colisão é por nome, não por instância.** O corpo é avaliado no contexto do
+   app, então as chaves que ele escreve são chaves do app — e dois diálogos que
+   usem `nome` colidem, mesmo sendo singletons. A convenção proposta é o prefixo
+   `__dialog.`, **limpo no fechamento**; sem a limpeza, a segunda abertura do
+   mesmo diálogo já vem preenchida com a resposta anterior, que é o bug que
+   ninguém reporta e todo mundo estranha.
+3. **`show_dialog` troca o `DialogSpec` inteiro** (`lib.rs:656`) — e o item 3
+   atualiza o diálogo dezenas de vezes por segundo. Se o progresso morar no
+   `spec`, cada tique reconstrói a especificação e o cartão; se morar numa chave
+   que o corpo lê, o `spec` nunca muda e o progresso anda pelo mesmo caminho de
+   qualquer outro valor do motor. É o desenho que impede o `ProgressDialog` de
+   virar caso especial — e é o argumento A desta onda pagando de novo.
+
+##### A ordem, e por que ela
+
+`A → 1 → 2 → B → 3 → C → 4 → 5 → 6`. A parte **A** primeiro porque é o
+habilitador e é pequena; o item **1** logo atrás para exercitá-la vazia, antes de
+haver conteúdo que esconda um erro de camada. O **2** valida o corpo com o widget
+mais simples que existe (um campo) e só então vem a parte **B**, que é o que ele
+precisa para devolver a string. O **3** entra antes do **C** porque não depende de
+abrir do markup — quem o abre é o código que já está rodando. O **C** fecha o lado
+declarativo, e os **4/5/6** são os consumidores grandes, na ordem de custo.
+
+Entregáveis, no formato das ondas anteriores: `examples/onda8` e
+`examples/onda8_luau`, `DIALOGS.md` reescrito (a seção "Por que é diferente do
+resto do glacier-ui" deixa de valer), `PRIMITIVAS.md` para `<stackview>` e
+`<wizard>`, e o `vscode-gv` com as tags e atributos novos.
+
+##### As cinco diferenças entre o proposto e o construído
+
+1. **O `Wizard` não é primitiva, e não é builtin: é os dois.** A proposta o
+   classificava `Prim`, pela regra da Onda 4 (repetição dirigida por número). Na
+   escrita apareceu a contradição: um wizard **hospeda páginas**, e página é
+   `<slot>`, que é mecanismo de *componente* — uma primitiva não tem slots. Mas
+   um builtin é um template, e template **não calcula**: dizer "este é o
+   primeiro passo, então `Voltar` fica inerte" exige achar `active` dentro de
+   `steps`, e não há como escrever isso em markup.
+
+   A saída é a que a Onda 5 já tinha usado sem nomear: **partir em dois**. O
+   `<wizard>` é o builtin que compõe; a `<wizardnav>` (`src/wizard.rs`) é a
+   primitiva que faz a conta e desenha os botões. É a mesma divisão de
+   `<tabs>`/`<tabbar>`, e agora ela tem um critério em vez de um acidente:
+   *slots pedem builtin, contas pedem primitiva, e um widget que precise dos
+   dois é dois widgets*.
+
+2. **Um `<slot>` não atravessa a fronteira de um componente aninhado** — e esta
+   é a armadilha nova da onda, porque falha **em silêncio**. O `<wizard>`
+   deveria delegar as páginas ao `<stackview>` do item 5, assim:
+
+   ```xml
+   <StackView active="{active}"><slot name="{active}"/></StackView>
+   ```
+
+   Não funciona. A partição do `<slot/>` acontece **uma vez**, sobre os filhos
+   crus de quem escreveu a tag; o que chega ao `StackView` é um filho já
+   resolvido e **sem etiqueta**, e o `<slot name="{active}"/>` do template dele
+   não acha etiqueta com que casar. O resultado é uma página em branco, sem erro
+   nenhum. O `<wizard>` monta a coluna da página ele mesmo — as mesmas quatro
+   linhas —, e o `<stackview>` continua existindo para quem troca de página sem
+   ser um wizard.
+
+3. **O `ProgressDialog` precisou de duas requisições novas no motor.** A
+   proposta dizia que ele cabia na máquina existente, e não cabia: toda a
+   maquinaria de diálogo da camada Luau **suspende** a corrotina, e este é o
+   único que não pode — ele acompanha um trabalho que continua rodando.
+   Nasceram `__glacier_dialog_open` e `__glacier_dialog_close`, as primeiras
+   requisições de diálogo que retomam no mesmo turno. O resto da previsão se
+   confirmou: o progresso mora numa chave, o `DialogSpec` nunca muda, e o
+   cancelamento é uma **ação comum**, não um mecanismo novo.
+
+4. **O `pick_color{}` entrou pela porta do `prompt{}`.** A proposta os tratava
+   como itens separados (2 e 4). São o mesmo: um seletor de cor é um `prompt`
+   cujo campo é uma roda, e o que os separa é o **nome do corpo**. Ficaram na
+   mesma função de construção, com o mesmo retorno e a mesma convenção de
+   desistência — um lugar a menos onde um bug de cancelamento pode morar, pelo
+   mesmo raciocínio que fez `<sparkline>` ser `<linechart axes="false">` na
+   Onda 7.
+
+5. **A 11ª à 13ª reclassificação se confirmaram, e a checagem foi mais barata
+   do que as dez anteriores.** As outras exigiram escrever o widget para
+   descobrir que o estado era o valor. Esta cabe numa linha do `lib.rs`:
+   `dialog: Option<DialogSpec>` — um campo, não um mapa. Um widget que não pode
+   existir duas vezes não pode ter estado *por instância*, e isso se lê no tipo.
+
+##### O que ficou de fora, e o que ficou torto
+
+**`FontDialog` e `FontSelect` continuam fora, e a proposta acertou o motivo.**
+O `font_for` (`widget.rs`) conhece duas fontes — a padrão e a monoespaçada — e
+`font="bold"` nem é família, é peso. Os dois esperam um item de **Motor**
+(registro de famílias, `font-family` no `.gss`, enumeração do SO) que o §3 nunca
+listou.
+
+**Um torto que apareceu e foi consertado, e o conserto pegou um bug maior.** O
+campo hexadecimal do `ColorDialog` escrevia direto na chave que a roda lê, então
+ela piscava branco enquanto alguém digitava `#ff8800` (a chave passava por `#f`,
+`#ff`, `#ff8`). A correção é o par rascunho/cometido — `__dialog.value__hex`
+guarda o texto, `__dialog.value` guarda a cor, e só um hexadecimal **inteiro**
+comete.
+
+Ao escrever isso apareceu o bug de verdade, e ele era invisível nos testes:
+**um `<TextInput>` nunca grava a chave sozinho**. Ele despacha `onChange` com o
+texto novo, e sem `onChange` a ação é vazia — que é roteada para a tela ativa e
+não trata nada. Os campos do `__InputDialog` e do exemplo eram **decorativos**:
+mostravam o valor inicial, aceitavam digitação e não guardavam nada. Os testes
+não pegaram porque escreviam a chave com `define_data`, que é justamente o que o
+campo deveria fazer.
+
+Duas lições ficam:
+
+1. **Testar o widget pela mensagem que ele despacha**, não pelo estado que se
+   escreve à mão. O teste novo (`digitar_no_prompt_escreve_a_chave`) procura a
+   ação de `onChange` na árvore avaliada e falha se ela for vazia.
+2. **O corpo de um diálogo não é um uso de tag**, e por isso a ação dele não
+   ganha namespace: ele é montado por `render(nome)` como template de topo, sem
+   dono. O `onChange` traz `__InputDialog::` escrito à mão, com o porquê ao lado.
+
+E uma decisão de desenho: o campo aceita **seis** dígitos, não a forma curta.
+`#f0a` é cor válida em CSS, mas também é o meio do caminho de quem digita
+`#ff8800` — aceitá-la trocaria "a roda pisca branco" por "a roda pisca amarelo",
+que é mais discreto e mais confuso.
+
+**Uma pegadinha do contexto, sem consequência mas vale saber:** escrever `""`
+numa chave a faz **sumir** em vez de ficar vazia. Não muda nada — ausente e
+vazia leem igual em todo o motor —, mas um teste que espere `Some("")` falha.
+É o que faz `progress_set(nil)` voltar corretamente ao indeterminado.
+
+##### O que fecha
+
+A §2.10 saiu de **9/14** para **13/15** (a linha do `QDialog` avulso é nova), e
+os dois que sobram estão justificados por escrito. A §2.8 saiu de 3/6 mais um 🟡
+para **5/6**, sobrando o `SwipeView`. E o `DIALOGS.md` perdeu a frase de
+abertura dele: um diálogo **não** é mais "construído inteiramente em Rust, sem
+markup".
+
+E fica registrado, porque é a segunda vez: **o habilitador desta onda nunca
+esteve no §3**. O da Onda 6 (a medição de colunas) também não. A lista de
+pré-requisitos do motor acertou o que era caro e errou o que era o gargalo — o
+gargalo real, das duas vezes, foi uma capacidade que ninguém tinha catalogado
+como capacidade.
+
+---
 #### Onde os habilitadores do §3 foram parar
 
 O §3 lista nove itens de motor. Depois de distribuí-los pelas quatro ondas,
@@ -1327,7 +1638,15 @@ Do §3 sobram, agora, três itens, e nenhum bloqueia nada da §6.3:
 | ~~**Canvas como primitiva**~~ | ✅ Onda 7 (0.93). Era mesmo o de maior alavancagem: sete widgets, e a §2.13 saiu de 0/6 para 5/6 |
 | `ctx.dispatch(acao)` | continua P2, continua sem consumidor urgente |
 | Subscriptions de teclado | continua P2 (`Shortcut`/`Action` globais) |
-| **Estado por instância** | o último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider` e a edição de célula em árvore profunda |
+| **Estado por instância** | o último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`, `Splitter` e a edição de célula em árvore profunda |
+
+E dois **novos**, que o §3 nunca listou porque não os enxergou como
+capacidade — o mesmo ponto cego que a medição da Onda 6 revelou:
+
+| Habilitador (fora do §3) | Estado |
+|---|---|
+| **Corpo e retorno do diálogo** | **Onda 8** — ✅ feito na 0.94: `DialogSpec.body` com o nome de um template, `DialogOutcome` no lugar do `bool`, e o prefixo `dialog:` para abrir do markup. Destravou `<dialog>`, `InputDialog`, `ProgressDialog`, `ColorDialog` e o `Wizard` — e o corpo custou **um parâmetro e uma chamada**, porque `render(nome)` já existia |
+| **Famílias de fonte** | Sem onda. Registro de famílias, `font-family` no `.gss` e enumeração do SO. É o bloqueio real do `FontDialog` (§2.10) e do `FontSelect` (§2.4), que o catálogo atribui, os dois, ao widget errado |
 
 E o `on_enter`/`on_exit` no markup, anotado no fim da Onda 4 como "o que faria um
 `Rating` builtin ser viável", continua sem consumidor: o hover do

@@ -91,6 +91,121 @@ function confirm(opts)
     })
 end
 
+-- Diálogo que PEDE UM VALOR — o `QInputDialog`. SUSPENDE como o `confirm`, e
+-- devolve o que o usuário digitou, ou `nil` se ele desistiu:
+--   local nome = prompt({ title = "Renomear", label = "Novo nome", value = atual })
+--   if nome then ctx.servico = nome end
+--
+-- O `nil` da desistência é a mesma convenção do `open_file()` cancelado, e é o
+-- que separa "não respondeu" de "respondeu vazio" (que chega como "").
+--
+-- `kind` escolhe o campo, e são as quatro variantes estáticas do QInputDialog:
+--   "text"   (default) -> QInputDialog::getText,   campo de texto
+--   "int"              -> QInputDialog::getInt,    spinbox sem casas decimais
+--   "double"           -> QInputDialog::getDouble, spinbox com casas decimais
+--   "item"             -> QInputDialog::getItem,   lista suspensa
+--
+-- `opts = { title, message?, label?, value?, placeholder?, kind?,
+--           min?, max?, step?, decimals?, items?,
+--           confirm_label?, cancel_label? }`.
+--
+-- O valor volta sempre como STRING, inclusive nos dois numéricos — quem quer o
+-- número chama `tonumber()`. É a mesma regra do resto do motor: o contexto
+-- guarda texto, e a conversão é de quem sabe o que o valor significa.
+function prompt(opts)
+    return coroutine.yield({
+        __glacier_dialog = true,
+        kind = opts.kind or "text",
+        title = opts.title,
+        message = opts.message,
+        label = opts.label,
+        value = opts.value,
+        placeholder = opts.placeholder,
+        min = opts.min,
+        max = opts.max,
+        step = opts.step,
+        decimals = opts.decimals,
+        items = opts.items,
+        confirm_label = opts.confirm_label,
+        cancel_label = opts.cancel_label,
+    })
+end
+
+-- Diálogo de COR — o `QColorDialog`. SUSPENDE como o `prompt`, e devolve a cor
+-- escolhida em `#rrggbb`, ou `nil` se o usuário desistiu:
+--   local cor = pick_color({ title = "Cor do rótulo", value = ctx.cor })
+--   if cor then ctx.cor = cor end
+--
+-- `opts = { title, message?, value?, size?, confirm_label?, cancel_label? }`.
+--
+-- É um `prompt` cujo campo é uma roda: mesma porta, mesmo retorno, mesma
+-- convenção de desistência. `size` é o lado da roda em pixels (default 220).
+function pick_color(opts)
+    opts = opts or {}
+    return coroutine.yield({
+        __glacier_dialog = true,
+        kind = "color",
+        title = opts.title,
+        message = opts.message,
+        value = opts.value,
+        size = opts.size,
+        confirm_label = opts.confirm_label,
+        cancel_label = opts.cancel_label,
+    })
+end
+
+-- Diálogo de PROGRESSO — o `QProgressDialog`. NÃO suspende: ele acompanha um
+-- trabalho que continua rodando, e parar a corrotina aqui pararia justamente o
+-- que ele mostra.
+--
+--   progress({ title = "Baixando", label = "conectando…", max = #pacotes,
+--              on_cancel = "cancelar_download" })
+--   for i, p in ipairs(pacotes) do
+--       if ctx.cancelado == "true" then break end
+--       progress_set(i, "baixando " .. p.nome)
+--       baixar(p)
+--   end
+--   progress_close()
+--
+-- `opts = { title, message?, label?, value?, max?, busy_label?,
+--           on_cancel?, cancel_label? }`.
+--
+-- Sem `value`, a barra nasce INDETERMINADA (um spinner) — que é o estado certo
+-- de quem acabou de abrir e ainda não sabe o primeiro número.
+-- Sem `on_cancel`, o diálogo não tem botão: é a etapa que não dá para
+-- interromper, e um "Cancelar" que não cancela seria pior do que botão nenhum.
+function progress(opts)
+    return coroutine.yield({
+        __glacier_dialog_open = true,
+        title = opts.title,
+        message = opts.message,
+        label = opts.label,
+        value = opts.value,
+        max = opts.max,
+        busy_label = opts.busy_label,
+        on_cancel = opts.on_cancel,
+        cancel_label = opts.cancel_label,
+    })
+end
+
+-- Atualiza o progresso aberto. `value` nil volta ao indeterminado (o spinner);
+-- `label` é opcional e, quando dado, troca a linha de texto acima da barra.
+--
+-- Escreve nas mesmas chaves que o corpo lê — não há caminho especial: o número
+-- anda pelo mesmo lugar de qualquer outro valor do motor, e é isso que impede
+-- este diálogo de virar um caso à parte.
+function progress_set(value, label)
+    ctx["__dialog.progresso"] = if value ~= nil then tostring(value) else ""
+    if label ~= nil then
+        ctx["__dialog.label"] = label
+    end
+end
+
+-- Fecha o diálogo de progresso (ou qualquer diálogo em exibição).
+function progress_close()
+    return coroutine.yield({ __glacier_dialog_close = true })
+end
+
 -- Diálogo de arquivo/pasta NATIVO DO SO. SUSPENDE (como `confirm`): cede um
 -- pedido, o motor mostra o diálogo do SO (fora da thread de UI) e só retoma
 -- quando o usuário escolhe ou cancela. `opts` (opcional) = { title?,

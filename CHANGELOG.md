@@ -8,6 +8,146 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.94.0] — 2026-09-07
+
+**Onda 8** do `PLANO_WIDGETS.md`: o diálogo que carrega markup — e os seis
+widgets que saem dele. Com ela a §2.10 (diálogos) vai de 9/14 para **13/15** e a
+§2.8 (navegação) fecha o último 🟡; o catálogo Qt de superfície sai de ~69% para
+**~74%**.
+
+```text
+Habilitador — o modal ganha CORPO e RETORNO   (motor: dialogs.rs, lib.rs, luau/)
+
+1. Dialog          — o `<dialog>` próprio, que é o QDialog     (motor + tag)
+2. InputDialog     — pede texto, número ou item de lista       (diálogo)
+3. ProgressDialog  — progresso cancelável                      (diálogo)
+4. ColorDialog     — roda/HSV/hex, sobre o canvas da Onda 7    (diálogo)
+5. StackView       — o QStackedWidget, formalizado             (builtin)
+6. Wizard          — passos com voltar/avançar/finalizar       (builtin + prim)
+```
+
+O `DIALOGS.md` abria dizendo que um diálogo é *"construído inteiramente em Rust,
+sem markup"*. Isso valia enquanto todo diálogo era uma caixa de mensagem; deixa
+de valer no instante em que um precisa de um **campo**. O `QInputDialog::getText`
+é um `QLineEdit` dentro de um cartão, e o motor já sabia desenhar `<textinput>`,
+estilizá-lo pelo `.gss` e ligá-lo a uma chave.
+
+### Adicionado
+- **Corpo em markup no `DialogSpec`** (`body: Option<String>`). O campo guarda o
+  **nome de um template**, não o markup: `GlacierUI::render(nome)` já montava
+  qualquer template avaliado, então o habilitador custou **um parâmetro e uma
+  chamada**. O diálogo deixou de ser um segundo caminho de render e virou uma
+  moldura em volta de um. Duas consequências: o conteúdo do modal passa a ser
+  estilizável pelo `.gss` como qualquer tela, e o lado Luau passa a alcançá-lo.
+
+- **`<dialog name="…">`** — a classe-base que o catálogo nunca listou. Uma
+  declaração do `<resources>`, ao lado do `<component name="…">`, com
+  `title`/`message`/`icon`/`buttons`/`dismissible` e o conteúdo como corpo da
+  tag. O corpo é registrado como um template comum sob o mesmo nome, que é o que
+  faz os caminhos declarativo e Rust chegarem ao mesmo lugar.
+
+- **A ação `dialog:`** — a terceira família de prefixos, depois do `app:` (0.63)
+  e do `::` de dono. `dialog:nome` abre, `dialog:close` fecha, e vale em qualquer
+  rota que produza uma ação — inclusive no botão de outro diálogo, que é como um
+  modal encadeia noutro. Até aqui, abrir um modal exigia Rust ou Luau: uma tela
+  puramente declarativa não conseguia.
+
+- **`DialogOutcome`** — o retorno de um diálogo suspensivo deixou de ser um
+  `bool`. `Confirmed(bool)` é o `confirm{}`, `Value(String)` é o `prompt{}`, e
+  `Cancelled` é o `nil` da desistência — a convenção que o `open_file()` já
+  usava, e que separa "não respondeu" de "respondeu vazio".
+
+- **`prompt{}` no Luau** — o `QInputDialog`. As quatro variantes estáticas do Qt
+  (`getText`/`getInt`/`getDouble`/`getItem`) são **um** diálogo com corpos
+  diferentes: `kind = "text"|"int"|"double"|"item"` escolhe entre `<textinput>`,
+  `<spinbox>` e `<select>`, três tags que já existiam.
+
+- **`progress{}`/`progress_set()`/`progress_close()`** — o `QProgressDialog`, e o
+  único da família que **não suspende**: ele acompanha um trabalho que continua
+  rodando. O progresso mora numa **chave**, não no `DialogSpec` — se morasse
+  nele, cada tique reconstruiria a especificação e o cartão (e `show_dialog`
+  *substitui* o diálogo, então cada 1% seria um diálogo novo). Sem `value` a
+  barra nasce indeterminada, com o `<spinner>` da 0.66. O cancelamento é uma
+  **ação comum** (`on_cancel`), não um mecanismo novo.
+
+- **`pick_color{}` e `<colorwheel>`** — o `QColorDialog`, que ficou de fora da
+  Onda 7 por tamanho. Anel de matiz (180 setores — o `canvas` do `iced` não tem
+  gradiente angular) mais o quadrado saturação × valor. O diálogo é um `prompt`
+  cujo campo é uma roda: mesma porta, mesmo retorno, um lugar a menos onde um bug
+  de cancelamento pode morar. A primitiva também vale avulsa, fora de diálogo.
+
+- **`<stackview>`** — o `QStackedWidget`, o 🟡 mais antigo da §2.8. É `<tabs>`
+  **sem a barra**, com o mesmo nome dinâmico de slot da 0.92: a página é
+  escolhida por **nome**, não por posição numa escada de `se`.
+
+- **`<wizard>` e `<wizardnav>`** — o `QWizard`, que no Qt **é** um `QDialog`.
+  Saiu em **dois**, e é a descoberta da onda: um wizard hospeda páginas (slots →
+  builtin) mas precisa saber qual passo é o primeiro (conta → primitiva). O
+  critério que sai disso: *slots pedem builtin, contas pedem primitiva, e um
+  widget que precise dos dois é dois widgets*. As quatro regras — voltar inerte
+  no primeiro, finalizar no último, travar sem `valid`, saturar nas pontas —
+  vivem em `wizard::Plano`, separadas do render para serem testáveis.
+
+- **`examples/onda8` e `examples/onda8_luau`** — o lado declarativo (o
+  `<dialog>` no `.gv`, o wizard, a roda avulsa) e o lado suspensivo (`prompt`,
+  `progress`, `pick_color`, `confirm`).
+
+### Notas
+- **As chaves `__dialog.*` são apagadas quando o diálogo fecha.** O corpo é
+  avaliado no contexto do app — é isso que faz um diálogo com campo dispensar
+  estado por instância —, e o preço é que a chave sobreviveria ao diálogo: sem a
+  limpeza, a segunda abertura viria preenchida com a resposta da primeira. A
+  limpeza roda **depois** de a resposta ter sido lida.
+
+- **Três reclassificações, e de um tipo novo.** O catálogo marcava
+  `InputDialog`, `ProgressDialog` e `ColorDialog` com `●` ("exige estado por
+  instância"). As dez reclassificações anteriores deste documento descobriram
+  que o estado era o *valor*; esta é mais barata de checar: o diálogo é
+  **singleton** no motor (`dialog: Option<DialogSpec>` — um campo, não um mapa),
+  então um widget que não pode existir duas vezes não pode ter estado *por
+  instância*, e isso se lê no tipo.
+
+- **Um `<slot>` não atravessa a fronteira de um componente aninhado**, e falha em
+  silêncio. A partição acontece uma vez, sobre os filhos crus de quem escreveu a
+  tag; um `<StackView><slot name="x"/></StackView>` entrega ao StackView um filho
+  já resolvido e sem etiqueta, e o `<slot>` do template dele não acha com que
+  casar — página em branco, sem erro. Registrado em `PRIMITIVAS.md`.
+
+- **`FontDialog` e `FontSelect` continuam fora, e o motivo não é o diálogo.** O
+  motor conhece duas fontes (`font_for` em `widget.rs`) e `font="bold"` nem é
+  família, é peso; o `iced` não enumera as do SO. Os dois esperam um item de
+  **Motor** — registro de famílias — que o §3 do plano nunca listou.
+
+- **O campo hexadecimal do `ColorDialog` tem rascunho.** `__dialog.value__hex`
+  guarda o texto em digitação e `__dialog.value` a cor cometida; só um
+  hexadecimal **inteiro** comete, e por isso a roda não pisca enquanto alguém
+  digita `#ff8800`. A forma curta (`#f0a`) fica de fora de propósito: ela é
+  também o meio do caminho de quem digita seis, e lê-la como cor trocaria um
+  piscar branco por um piscar amarelo. `color_picker::hex_completo` é a regra.
+
+- **Campos de diálogo que não gravavam nada.** Um `<TextInput>`/`<Select>`
+  **nunca** escreve a chave sozinho — ele despacha `onChange`, e sem a prop a
+  ação sai vazia, é roteada para a tela ativa e não trata nada. Os campos do
+  `__InputDialog` (e os do `examples/onda8`) eram decorativos: mostravam o valor
+  inicial, aceitavam digitação e devolviam o valor de antes. Agora despacham
+  para o `update` do próprio corpo.
+
+  O `onChange` do corpo traz o namespace escrito à mão (`__InputDialog::editar`)
+  porque um corpo de diálogo é montado por `render(nome)` como template **de
+  topo**, não inlinado numa tela — então a avaliação não tem dono para prefixar,
+  e uma ação nua vai parar na tela errada.
+
+### Quebras
+- `Component::resume_dialog` recebe `DialogOutcome` no lugar de `confirmed:
+  bool`. Só a `LuauComponent` implementava; um `Component` Rust que o tenha
+  sobrescrito troca a assinatura e casa em `DialogOutcome::Confirmed(b)`.
+- `dialogs::overlay` recebe um terceiro argumento (`body: Option<Element>`).
+  Chamada interna do motor; passe `None` para o comportamento anterior.
+- `DialogAction::ShowResumable` ganhou um terceiro campo (a chave de retorno,
+  `Option<String>`). Enum interno, exposto só por `pub(crate)`.
+
+---
+
 ## [0.93.0] — 2026-09-06
 
 **Onda 7** do `PLANO_WIDGETS.md`: o `canvas` — e os sete widgets que saem dele.

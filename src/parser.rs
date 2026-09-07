@@ -43,6 +43,47 @@ impl ScreenMeta {
     }
 }
 
+/// Os metadados de um `<dialog name="…">` declarado no `<resources>` — a
+/// moldura do modal, sem o conteúdo.
+///
+/// O conteúdo é o **corpo** da tag, e ele segue o caminho de qualquer outro
+/// template: vira um componente registrado sob `name`, avaliado e montado pelo
+/// mesmo `render_node` de uma tela. Esta struct guarda só o que emoldura esse
+/// corpo — o que no Qt seriam os argumentos do `QDialog`/`QMessageBox`, e o que
+/// aqui vira um [`crate::dialogs::DialogSpec`] em
+/// [`crate::GlacierUI::dialog_spec`].
+///
+/// Os botões são escritos como uma lista compacta em `buttons`, na forma
+/// `Rótulo:acao:papel`, separados por `|`:
+///
+/// ```xml
+/// <dialog name="editar_perfil" title="Editar perfil"
+///         buttons="Cancelar::neutral|Salvar:salvar_perfil:accept">
+///     <form> … </form>
+/// </dialog>
+/// ```
+///
+/// Sem `buttons`, o diálogo nasce com um `OK`/`Cancelar` — o par que um
+/// `QDialog` padrão traz, e o que um formulário quer em 90% dos casos.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DialogMeta {
+    /// O nome pelo qual `dialog:nome` (e `ctx.show_dialog`) o abrem — e também
+    /// o nome do template do corpo, porque são a mesma coisa.
+    pub name: String,
+    /// Título do cartão. Vazio esconde a linha do cabeçalho inteira.
+    pub title: Option<String>,
+    /// Texto acima do corpo. Quase sempre ausente num diálogo com conteúdo — o
+    /// conteúdo já diz o que ele pede.
+    pub message: Option<String>,
+    /// `information`/`warning`/`error`/`question`/`none`. Ausente = nenhum.
+    pub icon: Option<String>,
+    /// A lista compacta de botões, `Rótulo:acao:papel` separados por `|`.
+    pub buttons: Option<String>,
+    /// Se clicar no fundo escurecido fecha o diálogo. Default `true`, como no
+    /// [`crate::dialogs::DialogSpec`] cru.
+    pub dismissible: Option<bool>,
+}
+
 /// Uma prop declarada no `<props>` de um `<component>` — o **contrato** do
 /// componente com quem o usa.
 ///
@@ -169,6 +210,13 @@ const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS];
 /// O único atributo de um `<component name="…">` declarado no `<resources>` —
 /// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
 const DEFINE_NAME_ATTRS: &[&str] = &["name", "nome", "as", "como"];
+/// Atributos do `<dialog name="…">` — ver [`DialogMeta`]. O `name` reusa
+/// [`DEFINE_NAME_ATTRS`] de propósito: um `<dialog>` **é** uma declaração de
+/// componente com moldura, e as duas tags devem aceitar a mesma grafia.
+const DIALOG_MESSAGE_ATTRS: &[&str] = &["message", "mensagem", "texto"];
+const DIALOG_ICON_ATTRS: &[&str] = &["icon", "icone", "ícone"];
+const DIALOG_BUTTONS_ATTRS: &[&str] = &["buttons", "botoes", "botões"];
+const DIALOG_DISMISSIBLE_ATTRS: &[&str] = &["dismissible", "dispensavel", "dispensável"];
 
 /// As tags que podem morar dentro de um `<resources>`. Tudo o mais ali dentro é
 /// erro: um widget num bloco de declarações não desenharia nada, e sumir em
@@ -186,6 +234,14 @@ const RESOURCE_TAGS: &[&str] = &[
     // que se escreve aqui é byte a byte o que se escreveria num `.gv` próprio.
     // Ver [`NodeType::Define`].
     "component",
+    // A declaração de um **modal com corpo em markup** (Onda 8):
+    // `<dialog name="X">…</dialog>`. Mora aqui, e não no layout, porque é uma
+    // declaração como o `<component>` — nada desenha no lugar onde ela está
+    // escrita, e o que a faz aparecer é a ação `dialog:X`. Ver
+    // [`NodeType::DialogDef`].
+    "dialog",
+    "dialogo",
+    "diálogo",
     "componente",
 ];
 
@@ -516,13 +572,18 @@ fn validate_resources(header: Node) -> Option<Diagnostic> {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
                         "dentro do <resources> só entram <style>, <script>, <link>, \
-                         <import> e <component name=\"…\">; um widget vai no layout, \
-                         depois do </resources>",
+                         <import>, <component name=\"…\"> e <dialog name=\"…\">; um \
+                         widget vai no layout, depois do </resources>",
                     ),
                 );
             }
             if is_component_tag(name)
                 && let Some(d) = validate_define(decl)
+            {
+                return Some(d);
+            }
+            if is_dialog_tag(name)
+                && let Some(d) = validate_dialog(decl)
             {
                 return Some(d);
             }
@@ -600,6 +661,73 @@ fn validate_define(decl: Node) -> Option<Diagnostic> {
 
 fn is_component_tag(tag: &str) -> bool {
     tag.eq_ignore_ascii_case("component") || tag.eq_ignore_ascii_case("componente")
+}
+
+/// `<dialog>`/`<dialogo>`/`<diálogo>` — a declaração de modal da Onda 8.
+fn is_dialog_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("dialog")
+        || tag.eq_ignore_ascii_case("dialogo")
+        || tag.eq_ignore_ascii_case("diálogo")
+}
+
+/// Confere um `<dialog name="X">` declarado dentro do `<resources>`.
+///
+/// A regra do nome é a do [`validate_define`] — sem nome não há como abri-lo, e
+/// um nome vazio é quase sempre um `name="{algo}"` que não interpolou. O resto
+/// dos atributos é a moldura ([`DialogMeta`]), e um atributo fora dela vira
+/// erro posicionado em vez de silêncio: `<dialog size="400 300">` é a confusão
+/// natural de quem veio do `<screen>`, e ela merece a frase que a desfaz.
+fn validate_dialog(decl: Node) -> Option<Diagnostic> {
+    const CONHECIDOS: &[&[&str]] = &[
+        DEFINE_NAME_ATTRS,
+        SCREEN_TITLE_ATTRS,
+        DIALOG_MESSAGE_ATTRS,
+        DIALOG_ICON_ATTRS,
+        DIALOG_BUTTONS_ATTRS,
+        DIALOG_DISMISSIBLE_ATTRS,
+    ];
+    let mut tem_nome = false;
+    for attr in decl.attributes() {
+        let a = attr.name();
+        if DEFINE_NAME_ATTRS.contains(&a) {
+            tem_nome = true;
+            if attr.value().trim().is_empty() {
+                return Some(
+                    diagnostic_at_attr(decl, attr, format!("'{a}' vazio no <dialog>")).with_hint(
+                        "o nome é como o diálogo é aberto: name=\"editar_perfil\" vira \
+                         on_click=\"dialog:editar_perfil\"",
+                    ),
+                );
+            }
+            continue;
+        }
+        if CONHECIDOS.iter().any(|g| g.contains(&a)) {
+            continue;
+        }
+        let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&a)) {
+            "size/min-size/resizable descrevem uma JANELA; um diálogo se dimensiona pelo \
+             conteúdo do corpo dele"
+        } else {
+            "o <dialog> leva name, title, message, icon, buttons e dismissible; o CONTEÚDO \
+             dele é o corpo da tag, escrito como o de qualquer tela"
+        };
+        return Some(
+            diagnostic_at_attr(decl, attr, format!("atributo '{a}' no <dialog>")).with_hint(hint),
+        );
+    }
+    if !tem_nome {
+        return Some(
+            diagnostic_at(
+                decl,
+                "<dialog> sem `name` dentro do <resources>".to_string(),
+            )
+            .with_hint(
+                "o diálogo é aberto pelo nome (<dialog name=\"editar_perfil\"> → \
+                 on_click=\"dialog:editar_perfil\"); sem nome não há como abri-lo",
+            ),
+        );
+    }
+    None
 }
 
 fn is_screen_tag(tag: &str) -> bool {
@@ -842,6 +970,18 @@ pub enum NodeType {
     /// `Style`, é uma **declaração**: viaja pendurada na raiz e é descartada na
     /// avaliação, sem desenhar nada. Ver [`ScreenMeta`].
     Screen(ScreenMeta),
+    /// Um `<dialog name="…">` declarado no `<resources>`: a **classe-base** da
+    /// §2.10, o `QDialog` que o catálogo nunca teve.
+    ///
+    /// Como [`NodeType::Define`], é uma declaração com **um filho só** — o
+    /// corpo já montado pela regra do arquivo (ver
+    /// [`corpo_de_componente`]) —, e o motor a instala como um template comum
+    /// sob o nome dela. O que ela tem a mais é a moldura, em [`DialogMeta`].
+    ///
+    /// Nada disso desenha: a declaração viaja pendurada na raiz e é descartada
+    /// na avaliação, como `Screen`/`Props`/`Import`. Quem a faz aparecer é a
+    /// ação `dialog:nome`.
+    DialogDef(DialogMeta),
     /// A raiz `<component>`: o mesmo cabeçalho do [`NodeType::Screen`] para um
     /// arquivo que **não é uma janela** — um pedaço de tela importado por outro
     /// template. Agrupa as declarações do mesmo jeito e não leva atributo
@@ -1304,6 +1444,52 @@ pub enum NodeType {
         ends: bool,
         /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
         on_change: String,
+    },
+    /// A navegação de um `<wizard>`: o cabeçalho de passo e a fileira de
+    /// botões. Ver [`crate::wizard`] para o porquê de ela ser primitiva
+    /// enquanto o `<wizard>` que a usa é builtin.
+    ///
+    /// Todos os campos são texto **como escrito no markup**, pelo mesmo motivo
+    /// do `total` da [`NodeType::Pagination`]: quase todos vêm do dado
+    /// (`valid="{pode_avancar}"`), e um campo já convertido no parse não teria
+    /// como interpolar.
+    WizardNav {
+        /// Nome da chave que guarda o passo atual (o id, não o índice).
+        value_var: String,
+        /// Os ids dos passos, separados por vírgula — a ordem é esta lista.
+        steps: String,
+        /// Os títulos, na mesma ordem. Faltando, o passo mostra o próprio id.
+        titles: String,
+        /// O `QWizardPage::isComplete()`: enquanto falso, não avança. Vazio =
+        /// sempre válido.
+        valid: String,
+        /// Ação do botão do último passo.
+        on_finish: String,
+        /// Ação do Cancelar. Vazia = sem botão Cancelar.
+        on_cancel: String,
+        back_label: String,
+        next_label: String,
+        finish_label: String,
+        cancel_label: String,
+        /// Mostra o cabeçalho "Passo 2 de 3 — Pagamento". `false` deixa só a
+        /// fileira de botões, para quem quer desenhar o próprio cabeçalho.
+        show_header: bool,
+    },
+    /// A roda de cor do `<colorwheel>` (Onda 8): o anel de matiz mais o
+    /// quadrado de saturação × valor. Ver [`crate::color_picker`].
+    ///
+    /// Escreve `#rrggbb` na chave nomeada, como o `<dial>` escreve um número —
+    /// e é por isso que o `ColorDialog` que a usa não exige estado por
+    /// instância, ao contrário do que o catálogo dizia.
+    ColorWheel {
+        /// Nome da chave que guarda a cor, em `#rrggbb`.
+        value_var: String,
+        /// Lado do quadrado que contém a roda, em pixels. Default 220.
+        size: f32,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+        /// Mostra sem responder ao gesto.
+        readonly: bool,
     },
     /// A nota por estrelas: N alvos numa linha, com pré-visualização no hover.
     ///
@@ -1906,6 +2092,11 @@ impl NodeType {
     /// to lowercase, so `Button {}` and `button {}` both match a `Button`.
     pub fn tag_name(&self) -> Option<&'static str> {
         Some(match self {
+            // `<dialog>` é declaração, não caixa: não há nó na tela para um
+            // seletor de tag alcançar. O corpo dele, sim — e o corpo é
+            // alcançado pelos seletores dos widgets que o compõem, como o de
+            // qualquer outro template.
+            NodeType::DialogDef(_) => return None,
             NodeType::Container => "container",
             NodeType::Column => "column",
             NodeType::Row => "row",
@@ -1926,6 +2117,8 @@ impl NodeType {
             NodeType::DateTimeEdit { .. } => "timeedit",
             NodeType::Calendar { .. } => "calendar",
             NodeType::Pagination { .. } => "pagination",
+            NodeType::WizardNav { .. } => "wizardnav",
+            NodeType::ColorWheel { .. } => "colorwheel",
             NodeType::Rating { .. } => "rating",
             NodeType::MaskedInput { .. } => "maskedinput",
             NodeType::Popover { .. } => "popover",
@@ -3466,6 +3659,42 @@ impl UiNode {
                     .unwrap_or_default(),
                 }
             }
+            "WizardNav" | "wizardnav" | "wizard-nav" | "wizard_nav" => {
+                let attr = |nomes: &[&str]| Self::get_attr(&node, nomes).unwrap_or_default();
+                NodeType::WizardNav {
+                    value_var: attr(&["value", "valor", "step", "passo"]),
+                    steps: attr(&["steps", "passos"]),
+                    titles: attr(&["titles", "titulos", "títulos"]),
+                    valid: attr(&["valid", "valido", "válido", "complete"]),
+                    on_finish: attr(&["on_finish", "onFinish", "on-finish", "ao_finalizar"]),
+                    on_cancel: attr(&["on_cancel", "onCancel", "on-cancel", "ao_cancelar"]),
+                    back_label: attr(&["back_label", "backLabel", "rotulo_voltar"]),
+                    next_label: attr(&["next_label", "nextLabel", "rotulo_avancar"]),
+                    finish_label: attr(&["finish_label", "finishLabel", "rotulo_finalizar"]),
+                    cancel_label: attr(&["cancel_label", "cancelLabel", "rotulo_cancelar"]),
+                    show_header: !Self::get_attr(&node, &["header", "cabecalho", "cabeçalho"])
+                        .is_some_and(|h| {
+                            let h = h.trim().to_ascii_lowercase();
+                            h == "false" || h == "0" || h == "nao" || h == "não"
+                        }),
+                }
+            }
+            "ColorWheel" | "colorwheel" | "color-wheel" | "RodaDeCor" | "rodadecor" => {
+                NodeType::ColorWheel {
+                    value_var: Self::get_attr(&node, &["value", "valor", "color", "cor"])
+                        .unwrap_or_default(),
+                    size: Self::get_attr(&node, &["size", "tamanho"])
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(220.0)
+                        .clamp(80.0, 640.0),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                    readonly: Self::get_attr_bool(&node, &["readonly", "somente_leitura"]),
+                }
+            }
             "Rating" | "rating" | "Nota" | "nota" | "Estrelas" | "estrelas" => NodeType::Rating {
                 value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
                 max: Self::get_attr(&node, &["max", "maximo", "máximo", "count", "estrelas"])
@@ -3695,8 +3924,8 @@ impl UiNode {
                     max: Self::get_attr_f32(&node, &["max", "maximo", "máximo"], 100.0),
                     step: Self::get_attr_f32(&node, &["step", "passo"], 1.0).max(0.0),
                     size: Self::get_attr_f32(&node, &["size", "tamanho", "diameter"], 96.0),
-                    notches: Self::get_attr_f32(&node, &["notches", "marcas", "ticks"], 0.0).max(0.0)
-                        as usize,
+                    notches: Self::get_attr_f32(&node, &["notches", "marcas", "ticks"], 0.0)
+                        .max(0.0) as usize,
                     color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
                     show_value: Self::get_attr_bool(
                         &node,
@@ -3741,21 +3970,18 @@ impl UiNode {
                 label: Self::get_attr(&node, &["label", "legenda", "rotulo", "rótulo"])
                     .unwrap_or_default(),
             },
-            "LcdNumber" | "lcdnumber" | "Lcd" | "lcd" => {
-                NodeType::LcdNumber {
-                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
-                    digits: Self::get_attr_f32(&node, &["digits", "digitos", "dígitos"], 0.0)
-                        .max(0.0) as usize,
-                    size: Self::get_attr_f32(&node, &["size", "tamanho", "height"], 44.0),
-                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
-                    decimals: Self::get_attr_f32(&node, &["decimals", "casas"], 0.0).max(0.0)
-                        as usize,
-                    pad_zeros: Self::get_attr_bool(&node, &["pad", "zeros", "preencher"]),
-                    ghost: Self::get_attr(&node, &["ghost", "fantasma", "dim"])
-                        .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
-                        .unwrap_or(true),
-                }
-            }
+            "LcdNumber" | "lcdnumber" | "Lcd" | "lcd" => NodeType::LcdNumber {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                digits: Self::get_attr_f32(&node, &["digits", "digitos", "dígitos"], 0.0).max(0.0)
+                    as usize,
+                size: Self::get_attr_f32(&node, &["size", "tamanho", "height"], 44.0),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                decimals: Self::get_attr_f32(&node, &["decimals", "casas"], 0.0).max(0.0) as usize,
+                pad_zeros: Self::get_attr_bool(&node, &["pad", "zeros", "preencher"]),
+                ghost: Self::get_attr(&node, &["ghost", "fantasma", "dim"])
+                    .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+                    .unwrap_or(true),
+            },
             // Uma tag a menos no motor: `<sparkline>` é `<linechart>` sem
             // moldura. Os defaults é que mudam, e é só o que muda.
             "LineChart" | "linechart" | "grafico_linha" | "gráfico_linha" | "Sparkline"
@@ -4322,6 +4548,33 @@ impl UiNode {
                         .and_then(parse_bool_value),
                 })
             }
+            // `<dialog name="…">`: a declaração de um modal com corpo em
+            // markup (Onda 8). Mora no `<resources>` ao lado do
+            // `<component name="…">`, e por um bom motivo — é o mesmo objeto:
+            // um template registrado sob um nome. O que ele tem a mais é a
+            // moldura (título, ícone, botões), que vira um `DialogSpec`.
+            //
+            // Não é um widget: nada desenha no lugar onde a tag está escrita. A
+            // declaração viaja pendurada na raiz, como `Screen`/`Props`, e o
+            // que a faz aparecer é a ação `dialog:nome`. É por isso que a tag
+            // pode se dar ao luxo de tomar um substantivo comum sem repetir o
+            // acidente do `<linha>` da Onda 7 (que roubava o nome de qualquer
+            // componente `Linha`): `<dialog>` nunca é resolvida como
+            // componente, ela é lida só aqui e só dentro do `<resources>`.
+            "dialog" | "Dialog" | "dialogo" | "Dialogo" | "diálogo" | "Diálogo" => {
+                NodeType::DialogDef(DialogMeta {
+                    name: Self::get_attr(&node, DEFINE_NAME_ATTRS)
+                        .map(|n| n.trim().to_string())
+                        .unwrap_or_default(),
+                    title: Self::get_attr(&node, SCREEN_TITLE_ATTRS),
+                    message: Self::get_attr(&node, DIALOG_MESSAGE_ATTRS),
+                    icon: Self::get_attr(&node, DIALOG_ICON_ATTRS),
+                    buttons: Self::get_attr(&node, DIALOG_BUTTONS_ATTRS),
+                    dismissible: Self::get_attr(&node, DIALOG_DISMISSIBLE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_bool_value),
+                })
+            }
             // A MESMA tag em dois papéis, e o `name` é o que os separa.
             //
             // Sem atributo, ela é o **cabeçalho** de um arquivo que não é
@@ -4451,7 +4704,7 @@ impl UiNode {
         // É isso que faz promover a declaração a arquivo (ou o contrário) ser
         // recortar e colar, sem reescrever nada. O `Define` fica com um filho
         // só: a árvore pronta para virar template.
-        let children = if matches!(kind, NodeType::Define { .. }) {
+        let children = if matches!(kind, NodeType::Define { .. } | NodeType::DialogDef(_)) {
             vec![corpo_de_componente(children)]
         } else {
             children

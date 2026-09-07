@@ -85,34 +85,49 @@ mod avatar;
 mod badge;
 mod button_box;
 mod card;
+mod color_dialog;
 mod drawer;
 mod frame;
 mod group_box;
+mod input_dialog;
 pub(crate) mod list_view;
+mod progress_dialog;
 mod radio_group;
 mod spin_box;
+mod stack_view;
 mod status_bar;
 mod tab_bar;
 mod tabs;
 mod tool_bar;
 mod tool_button;
+mod wizard;
 
 use crate::builtins::accordion::{Accordion, AccordionItem, ToolBox, ToolBoxItem};
 use crate::builtins::avatar::Avatar;
 use crate::builtins::badge::Badge;
 use crate::builtins::button_box::ButtonBox;
 use crate::builtins::card::Card;
+use crate::builtins::color_dialog::ColorDialog;
+pub(crate) use crate::builtins::color_dialog::{
+    COLOR_DIALOG_BODY, HEX_KEY as COLOR_DIALOG_HEX_KEY,
+};
 use crate::builtins::drawer::Drawer;
 use crate::builtins::frame::Frame;
 use crate::builtins::group_box::GroupBox;
+pub(crate) use crate::builtins::input_dialog::INPUT_DIALOG_BODY;
+use crate::builtins::input_dialog::InputDialog;
 use crate::builtins::list_view::ListView;
+pub(crate) use crate::builtins::progress_dialog::PROGRESS_DIALOG_BODY;
+use crate::builtins::progress_dialog::ProgressDialog;
 use crate::builtins::radio_group::RadioGroup;
 use crate::builtins::spin_box::SpinBox;
+use crate::builtins::stack_view::StackView;
 use crate::builtins::status_bar::StatusBar;
 use crate::builtins::tab_bar::TabBar;
 use crate::builtins::tabs::Tabs;
 use crate::builtins::tool_bar::ToolBar;
 use crate::builtins::tool_button::ToolButton;
+use crate::builtins::wizard::Wizard;
 use crate::component::{Component, Context, Template};
 
 /// Todos os componentes embutidos, na ordem em que o motor os registra.
@@ -129,12 +144,16 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(Badge),
         Box::new(ButtonBox),
         Box::new(Card),
+        Box::new(ColorDialog),
         Box::new(Drawer),
         Box::new(Frame),
         Box::new(GroupBox),
+        Box::new(InputDialog),
         Box::new(ListView),
+        Box::new(ProgressDialog),
         Box::new(RadioGroup),
         Box::new(SpinBox),
+        Box::new(StackView),
         Box::new(StatusBar),
         Box::new(TabBar),
         Box::new(Tabs),
@@ -142,6 +161,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(ToolBox),
         Box::new(ToolBoxItem),
         Box::new(ToolButton),
+        Box::new(Wizard),
     ]
 }
 
