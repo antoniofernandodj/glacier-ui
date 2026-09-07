@@ -8,6 +8,70 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.94.1] — 2026-09-07
+
+Correção da Onda 8: **os diálogos com corpo apareciam vazios**. Só o `confirm{}`
+— o único sem corpo — funcionava. Cinco causas em série, e as cinco falhavam em
+silêncio; nenhuma foi pega pelos testes da 0.94.0 porque todos eles verificavam o
+`DialogSpec` e as chaves, e nenhum verificava que o corpo **chega à tela**.
+
+### Corrigido
+- **O corpo não ficava avaliado.** O motor só mantém avaliada a tela ativa (uma
+  economia deliberada do `reevaluate_all`), e o corpo de um diálogo não é a tela
+  ativa: `render` falhava com "registrado mas não avaliado" e o `render_current`
+  engolia o erro. O cartão saía com título, botões e um buraco. Agora o corpo é
+  **fixado** enquanto o diálogo existe, e solto no fechamento.
+
+- **`empty`/`not_empty` são sobre arrays JSON, não sobre strings.** Os três
+  corpos usavam `not_empty="true"` para "este texto não está em branco"; um texto
+  comum não é um array válido e conta como vazio, então o ramo nunca aparecia. O
+  certo é `not_equals=""`.
+
+- **`one_of` separa por espaço, não por vírgula.** `one_of="int,double"` era um
+  token só e nunca casava: as variantes `int`/`double` do `prompt{}` caíam no
+  ramo de texto e viravam um campo comum, sem erro.
+
+- **`value` de um widget de valor é nome de chave, não interpolação.** O
+  `<progressbar>` do corpo usava `value="{__dialog.progresso}"`, o que o fazia
+  procurar uma chave chamada "42". E `min`/`max` não aceitam `{interpolação}` —
+  não entram no `numeric_templates` —, então `max="{...}"` caía no default 100.
+  A barra passou a desenhar numa escala fixa 0–100, com a porcentagem calculada
+  no `progress_set`, onde o `max` está à mão.
+
+- **O que o Rust escreve durante um turno de script era apagado.** O
+  `sync_from_luau` trata a tabela `ctx` do Luau como fonte da verdade e remove do
+  contexto toda chave ausente nela; a tabela é copiada no **início** do turno,
+  então o rascunho semeado no meio dele sumia no caminho de volta. Não aparecia
+  num pedido que suspende (o `prompt{}` sobrevive), só nos que não suspendem — o
+  `progress{}`. Quem semeia de dentro do `drive` agora escreve nos dois lados.
+
+- **Campos que não gravavam nada.** Um `<TextInput>`/`<Select>` nunca escreve a
+  chave sozinho: sem `onChange` a ação sai vazia. Os campos do `__InputDialog` e
+  do `examples/onda8` eram decorativos. E a ação de um corpo de diálogo precisa
+  do namespace escrito à mão (`__InputDialog::editar`), porque o corpo é montado
+  como template **de topo** e a avaliação não tem dono para prefixar.
+
+- **Um `<dialog … />` sem conteúdo não reivindica mais um corpo** — antes ele
+  registrava um template vazio e o cartão ganhava um container no meio.
+
+- **O `progress{}` do exemplo abria e fechava no mesmo turno**, então nenhum
+  quadro chegava a ser pintado. Progresso é sobre trabalho que **cede a vez**: o
+  exemplo passou a andar por `after`, como um app real anda por `fetch` ou por um
+  stream.
+
+### Notas
+- **O campo hexadecimal do `ColorDialog` tem rascunho** (`__dialog.value__hex`),
+  e só um hexadecimal inteiro comete a cor — é o que impede a roda de piscar
+  branco durante a digitação. A forma curta (`#f0a`) fica de fora de propósito:
+  ela é também o meio do caminho de quem digita seis.
+
+- **As quatro armadilhas silenciosas do motor estão agora no `PRIMITIVAS.md`**,
+  com o teste que pega cada uma: olhar a **árvore avaliada** (o ramo existe? o
+  `value_var` é o nome que você escreveu?) em vez de escrever a chave e lê-la de
+  volta, que é o teste que passa com o widget quebrado.
+
+---
+
 ## [0.94.0] — 2026-09-07
 
 **Onda 8** do `PLANO_WIDGETS.md`: o diálogo que carrega markup — e os seis

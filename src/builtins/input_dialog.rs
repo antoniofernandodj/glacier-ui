@@ -71,11 +71,20 @@ impl Component for InputDialog {
         // preço de o corpo do diálogo não ser um uso de tag como os outros.
         Template::Inline(
             r#"<Column spacing="8" width="fill">
-                    <se cond="{__dialog.label}" not_empty="true">
+                    <!-- `not_equals=""` e NÃO `not_empty`: no motor, `empty`/
+                         `not_empty` perguntam se o valor é um **array JSON
+                         vazio** (é o teste que o `<listview>` usa), não se a
+                         string está em branco. Um texto comum nunca é um array
+                         válido, então `not_empty` daria sempre falso — e o
+                         ramo simplesmente não apareceria, sem erro nenhum. -->
+                    <se cond="{__dialog.label}" not_equals="">
                         <Text content="{__dialog.label}" size="13" />
                     </se>
 
-                    <se cond="{__dialog.kind}" one_of="int,double">
+                    <!-- `one_of` separa por ESPAÇO, não por vírgula:
+                         `one_of="int,double"` seria um token só, e nunca
+                         casaria com `int`. -->
+                    <se cond="{__dialog.kind}" one_of="int double">
                         <SpinBox
                             value="__dialog.value"
                             min="{__dialog.min|0}"

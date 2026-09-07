@@ -591,6 +591,27 @@ impl LuauComponent {
         self.drive(thread, MultiValue::new(), ctx)
     }
 
+    /// Semeia uma chave do rascunho de diálogo **nos dois lados**: no contexto
+    /// do motor e na tabela `ctx` do Luau.
+    ///
+    /// # Por que os dois, e não só o contexto
+    ///
+    /// O [`Self::sync_from_luau`] trata a tabela `ctx` como a **fonte da
+    /// verdade**: toda chave do contexto ausente nela é considerada apagada
+    /// pelo script e removida. A tabela foi copiada do contexto no início do
+    /// turno ([`Self::sync_to_luau`]), então uma chave que o Rust escreve
+    /// **durante** o turno não está lá — e é apagada no caminho de volta.
+    ///
+    /// Isso não aparece num diálogo que suspende (o `drive` para antes do
+    /// sync), e é justamente por isso que passou: o `prompt{}` sobrevive, o
+    /// `progress{}` não. O sintoma era o progresso abrir sem barra e sem
+    /// máximo, porque as duas chaves tinham sido apagadas no mesmo turno em que
+    /// nasceram.
+    fn semeia(&self, ctx: &mut Context, chave: &str, valor: &str) -> mlua::Result<()> {
+        ctx.set(chave, valor);
+        self.ctx_table.set(chave, valor)
+    }
+
     /// Aloca o próximo `id` (único no componente, compartilhado por fetch/stream).
     fn alloc_id(&self) -> u64 {
         let id = self.next_id.get();
@@ -650,7 +671,7 @@ impl LuauComponent {
                 // corrotina aqui seria parar justamente o que ele acompanha.
                 let pedido = build_progress_dialog(&req)?;
                 for (chave, valor) in pedido.rascunho {
-                    ctx.set(&chave, &valor);
+                    self.semeia(ctx, &chave, &valor)?;
                 }
                 ctx.show_dialog(pedido.spec);
                 args = MultiValue::new();
@@ -675,7 +696,7 @@ impl LuauComponent {
                 // o valor inicial do campo, e ele precisa já estar lá no
                 // primeiro quadro, senão o usuário vê o campo piscar vazio.
                 for (chave, valor) in pedido.rascunho {
-                    ctx.set(&chave, &valor);
+                    self.semeia(ctx, &chave, &valor)?;
                 }
                 ctx.show_dialog_resumable(pedido.spec, id, pedido.resume_key);
                 self.pending.borrow_mut().insert(id, thread);
@@ -1314,6 +1335,20 @@ fn build_progress_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
             req.get::<Option<f64>>("value")?
                 .map(formata_numero)
                 .unwrap_or_default(),
+        ),
+        // A escala 0–100 que a barra desenha; vazia é o indeterminado. Nasce
+        // junto porque o corpo a lê no primeiro quadro — ver
+        // `builtins::progress_dialog`.
+        (
+            "__dialog.pct".to_string(),
+            match (
+                req.get::<Option<f64>>("value")?,
+                req.get::<Option<f64>>("max")?,
+            ) {
+                (Some(v), Some(m)) if m > 0.0 => formata_numero((v / m * 100.0).clamp(0.0, 100.0)),
+                (Some(v), None) => formata_numero(v.clamp(0.0, 100.0)),
+                _ => String::new(),
+            },
         ),
     ];
     if let Some(t) = req.get::<Option<String>>("busy_label")? {

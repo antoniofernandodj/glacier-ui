@@ -571,6 +571,18 @@ abertura viria preenchida com a resposta da primeira. O motor apaga tudo que
 começa com `__dialog.` quando o diálogo fecha, e **depois** de a resposta ter
 sido lida.
 
+### O corpo precisa ficar FIXADO enquanto o diálogo existe
+
+O motor só mantém avaliada a **tela ativa** — uma economia deliberada do
+`reevaluate_all` —, e o corpo de um diálogo não é a tela ativa. Sem fixá-lo,
+`GlacierUI::render` falha com "registrado mas não avaliado", o `render_current`
+engole o erro (de propósito: um `<dialog>` com nome errado não pode derrubar a
+tela) e o cartão aparece **sem o conteúdo**: título, botões, e um buraco.
+
+Quem cuida disso é `fixa_corpo_do_dialogo`/`solta_corpo_do_dialogo`, chamados em
+todo ponto que abre e fecha um diálogo. Se você acrescentar um caminho novo de
+abertura, ele precisa fixar — o sintoma de esquecer é mudo.
+
 ### Duas armadilhas, e as duas custaram um bug silencioso
 
 **1. Um `<TextInput>`/`<Select>` não grava a chave sozinho.** Ele despacha
@@ -595,6 +607,21 @@ ativa. Por isso o template escreve o namespace à mão:
 na árvore **avaliada** e falhe se ela for vazia, em vez de escrever a chave com
 `define_data` — que é exatamente o que o campo deveria fazer, e por isso esconde
 o buraco.
+
+### O que o Rust escreve durante um turno de script é APAGADO
+
+O `sync_from_luau` trata a tabela `ctx` do Luau como a **fonte da verdade**:
+toda chave do contexto ausente nela é considerada apagada pelo script e
+removida. A tabela foi copiada do contexto no **início** do turno, então uma
+chave que o Rust escreve no meio dele não está lá — e some no caminho de volta.
+
+Isso não aparece num pedido que **suspende** (o `drive` para antes do sync), e é
+por isso que passou despercebido: o `prompt{}` sobrevive, o `progress{}` não. O
+sintoma era um progresso sem barra e sem máximo, porque as duas chaves tinham
+sido apagadas no mesmo turno em que nasceram.
+
+Quem semeia contexto de dentro do `drive` escreve nos **dois** lados — ver
+`LuauComponent::semeia`.
 
 ### Uma pegadinha do contexto
 

@@ -37,7 +37,10 @@
 ///
 /// # Props (por chave, como no [`super::input_dialog::InputDialog`])
 ///
-/// - `__dialog.progresso` — o valor atual. Vazio = indeterminado.
+/// - `__dialog.progresso` — o valor **cru**, como o app o escreveu. Vazio =
+///   indeterminado. É o que o rótulo e os testes leem.
+/// - `__dialog.pct`       — o mesmo valor na escala 0–100, que é o que a barra
+///   desenha (ver o comentário no template para o porquê).
 /// - `__dialog.max`       — o total. Default `100`.
 /// - `__dialog.label`     — a linha de texto acima da barra.
 ///
@@ -60,17 +63,33 @@ impl Component for ProgressDialog {
     fn template(&self) -> Template {
         Template::Inline(
             r#"<Column spacing="10" width="fill">
-                    <se cond="{__dialog.label}" not_empty="true">
+                    <!-- `not_equals=""` e NÃO `not_empty`: no motor, `empty`/
+                         `not_empty` perguntam se o valor é um **array JSON
+                         vazio** (é o teste que o `<listview>` usa), não se a
+                         string está em branco. Um texto comum nunca é um array
+                         válido, então `not_empty` daria sempre falso — e o
+                         ramo simplesmente não apareceria, sem erro nenhum. -->
+                    <se cond="{__dialog.label}" not_equals="">
                         <Text content="{__dialog.label}" size="13" />
                     </se>
 
-                    <se cond="{__dialog.progresso}" not_empty="true">
-                        <ProgressBar
-                            value="{__dialog.progresso}"
-                            min="0"
-                            max="{__dialog.max|100}"
-                            width="fill"
-                        />
+                    <!-- Duas coisas que o `<progressbar>` impõe, e as duas
+                         mordem em silêncio:
+
+                         1. `value` é o **nome de uma chave**, não uma
+                            interpolação — `value="{x}"` faria o widget procurar
+                            uma chave chamada "42" e desenhar zero;
+                         2. `min`/`max` são numéricos LITERais: ao contrário de
+                            `size`/`spacing`, eles não entram no
+                            `numeric_templates`, então `max="{...}"` não resolve
+                            e cai no default.
+
+                         Daí a escala fixa 0–100 e a chave `__dialog.pct`, que o
+                         `progress_set` calcula a partir do `max` declarado na
+                         abertura. O valor cru continua em `__dialog.progresso`,
+                         que é o que o rótulo e os testes leem. -->
+                    <se cond="{__dialog.pct}" not_equals="">
+                        <ProgressBar value="__dialog.pct" min="0" max="100" width="fill" />
                     </se>
                     <senao>
                         <Row width="fill" spacing="10">

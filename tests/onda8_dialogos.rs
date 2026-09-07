@@ -336,6 +336,13 @@ fn progresso_nao_suspende_e_mora_numa_chave() {
         Some("3"),
         "o número anda pela chave, não pelo DialogSpec"
     );
+    // E a chave que a BARRA lê é a escala 0–100, porque o `min`/`max` de um
+    // `<progressbar>` é literal e não aceita interpolação.
+    assert_eq!(
+        motor.get_data("__dialog.pct").map(String::as_str),
+        Some("100"),
+        "3 de 3 é 100%"
+    );
     assert_eq!(
         motor.get_data("__dialog.label").map(String::as_str),
         Some("pacote 3")
@@ -410,11 +417,13 @@ fn progresso_volta_ao_indeterminado() {
     motor.navigate_to("tela");
     let _ = motor.dispatch(&EngineMessage::UiClick("ir".into()));
 
-    let progresso = motor.get_data("__dialog.progresso").map(String::as_str);
-    assert!(
-        matches!(progresso, None | Some("")),
-        "progress_set(nil) volta ao indeterminado, mas a chave ficou em {progresso:?}"
-    );
+    for chave in ["__dialog.progresso", "__dialog.pct"] {
+        let v = motor.get_data(chave).map(String::as_str);
+        assert!(
+            matches!(v, None | Some("")),
+            "progress_set(nil) volta ao indeterminado, mas {chave} ficou em {v:?}"
+        );
+    }
     assert_eq!(
         motor.get_data("__dialog.label").map(String::as_str),
         Some("reindexando…")
@@ -800,5 +809,237 @@ fn hex_completo_recusa_o_que_esta_pela_metade() {
     assert_eq!(hex_completo("#f0a"), None, "forma curta não comete");
     for lixo in ["#zzzzzz", "azul", "#ff 800"] {
         assert_eq!(hex_completo(lixo), None, "{lixo:?}");
+    }
+}
+
+/// **O teste que faltava.** Todos os outros verificam o `DialogSpec` e as
+/// chaves; nenhum verificava que o corpo **chega à tela**.
+///
+/// Ele não chegava. O motor só mantém avaliada a **tela ativa** (uma economia
+/// deliberada do `reevaluate_all`), e o corpo de um diálogo não é a tela ativa:
+/// `render` falhava com "registrado mas não avaliado", o `render_current`
+/// engolia o erro — de propósito, para um `<dialog>` com nome errado não
+/// derrubar a tela — e o cartão aparecia com título, botões e um buraco no
+/// lugar do campo.
+///
+/// O sintoma era mudo, e é por isso que este teste cobra o `render` do corpo em
+/// vez de só a existência do `spec.body`.
+#[test]
+fn o_corpo_do_dialogo_chega_a_tela() {
+    // Uma tela de verdade, com mais de um template registrado — é a condição
+    // em que a economia do motor descarta o que não está em uso.
+    for (acao, corpo) in [
+        ("pedir_texto", "__InputDialog"),
+        ("escolher_cor", "__ColorDialog"),
+    ] {
+        let mut motor = GlacierUI::new();
+        motor
+            .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+            .unwrap();
+        motor.navigate_to("onda8_luau");
+        let _ = motor.dispatch(&EngineMessage::UiClick(acao.into()));
+
+        let spec = motor.dialog().unwrap_or_else(|| panic!("{acao} não abriu"));
+        assert_eq!(spec.body.as_deref(), Some(corpo));
+        if let Err(e) = motor.render(corpo) {
+            panic!("{acao}: o corpo não chega à tela — {e}");
+        }
+        assert!(motor.render_current().is_ok());
+
+        // E o corpo tem de ter CONTEÚDO. Um `render` que devolve `Ok` prova só
+        // que o template foi avaliado — se a escada de `se`/`senão` não casasse
+        // com nada, o cartão apareceria com um container vazio no lugar do
+        // campo, que é exatamente o sintoma que este teste existe para pegar.
+        let arvore = motor.evaluated(corpo).expect("avaliado").clone();
+        assert!(
+            conta_folhas(&arvore) > 0,
+            "{acao}: o corpo avaliou vazio — o cartão sairia com um buraco"
+        );
+    }
+}
+
+/// O mesmo, pelo caminho declarativo: um `<dialog name="…">` do `.gv` também
+/// não é a tela ativa, e também precisava ser fixado.
+#[test]
+fn o_corpo_declarativo_chega_a_tela() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda8", "examples/onda8/app.gv")
+        .unwrap();
+    motor.navigate_to("onda8");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick("dialog:editar_servico".into()));
+    let spec = motor.dialog().expect("abriu");
+    assert_eq!(spec.body.as_deref(), Some("editar_servico"));
+    if let Err(e) = motor.render("editar_servico") {
+        panic!("o corpo declarativo não chega à tela — {e}");
+    }
+
+    // Um `<dialog … />` auto-fechado é uma caixa de MENSAGEM, não um QDialog:
+    // ele não declara corpo, e por isso o cartão não ganha um container vazio
+    // no meio nem o motor mantém avaliado um template sem conteúdo.
+    let _ = motor.dispatch(&EngineMessage::UiClick("dialog:remover_servico".into()));
+    assert_eq!(
+        motor.dialog().and_then(|d| d.body.as_deref()),
+        None,
+        "um <dialog> sem conteúdo não pode reivindicar um corpo"
+    );
+    assert!(
+        motor.render_current().is_ok(),
+        "e o encadeamento (um botão de diálogo abrindo outro) continua montando"
+    );
+}
+
+/// Fechado o diálogo, o corpo é **solto**: sem isso, todo corpo já exibido
+/// seguiria sendo reavaliado a cada quadro pelo resto da vida do processo.
+#[test]
+fn o_corpo_e_solto_no_fechamento() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .unwrap();
+    motor.navigate_to("onda8_luau");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick("pedir_texto".into()));
+    assert!(motor.render("__InputDialog").is_ok());
+
+    let cancelar = motor.dialog().unwrap().buttons[0].action.clone();
+    let _ = motor.dispatch(&EngineMessage::DialogButton(cancelar));
+
+    // Solto: volta a ser um template como outro qualquer, avaliado sob demanda
+    // (`evaluated`) mas fora do trabalho de todo quadro.
+    assert!(motor.dialog().is_none());
+    assert!(
+        motor.render("__InputDialog").is_err(),
+        "o corpo continuou fixado depois de o diálogo fechar"
+    );
+}
+
+/// Um laço **síncrono** não mostra progresso: o `update` inteiro roda num turno
+/// só, a UI não pinta um quadro no meio dele, e o diálogo abre e fecha entre
+/// dois quadros — o usuário não vê nada.
+///
+/// O exemplo cedia a vez errado e este teste guarda a correção: o progresso
+/// tem de **continuar aberto** quando o `update` que o iniciou retorna.
+#[test]
+fn progresso_sobrevive_ao_turno_que_o_abriu() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .unwrap();
+    motor.navigate_to("onda8_luau");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick("baixar".into()));
+
+    let spec = motor
+        .dialog()
+        .expect("o progresso tem de continuar aberto depois do turno");
+    assert_eq!(spec.body.as_deref(), Some("__ProgressDialog"));
+    assert!(
+        motor.render("__ProgressDialog").is_ok(),
+        "e o corpo dele tem de chegar à tela"
+    );
+    assert_eq!(
+        motor.get_data("__dialog.progresso").map(String::as_str),
+        Some("1"),
+        "o primeiro passo já andou; os outros vêm por `after`"
+    );
+}
+
+/// Quantos nós **desenháveis** a árvore tem — texto, campo, botão, o que for.
+/// Containers e fragmentos não contam: uma coluna vazia é o buraco que estes
+/// testes procuram, não conteúdo.
+fn conta_folhas(no: &glacier_ui::UiNode) -> usize {
+    let proprio = usize::from(!matches!(
+        no.kind,
+        NodeType::Container
+            | NodeType::Column
+            | NodeType::Row
+            | NodeType::Fragment
+            | NodeType::If { .. }
+            | NodeType::Else
+            | NodeType::ElseIf { .. }
+    ));
+    proprio + no.children.iter().map(conta_folhas).sum::<usize>()
+}
+
+/// O mesmo para o progresso: o corpo dele tem de ter a barra, não um container
+/// vazio. O `<progressbar>` só aparece quando `__dialog.progresso` está
+/// preenchida — o ramo vazio desenha o `<spinner>`, e os dois contam.
+#[test]
+fn o_corpo_do_progresso_tem_conteudo() {
+    let mut motor = GlacierUI::new();
+    motor
+        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .unwrap();
+    motor.navigate_to("onda8_luau");
+    let _ = motor.dispatch(&EngineMessage::UiClick("baixar".into()));
+
+    let arvore = motor
+        .evaluated("__ProgressDialog")
+        .expect("avaliado")
+        .clone();
+    assert!(
+        conta_folhas(&arvore) > 0,
+        "o corpo do progresso avaliou vazio"
+    );
+    let tem_barra = procura(&arvore, |n| matches!(n.kind, NodeType::ProgressBar { .. }));
+    assert!(
+        tem_barra,
+        "com `__dialog.progresso` preenchida o corpo tem de trazer a barra"
+    );
+}
+
+/// Anda a árvore procurando um nó que satisfaça o predicado.
+fn procura(no: &glacier_ui::UiNode, f: impl Fn(&glacier_ui::UiNode) -> bool + Copy) -> bool {
+    f(no) || no.children.iter().any(|c| procura(c, f))
+}
+
+/// As quatro variantes do `QInputDialog` desenham quatro campos diferentes.
+///
+/// É onde dois erros de condicional se escondiam: `one_of="int,double"` separa
+/// por ESPAÇO, então era um token só e nunca casava — os dois numéricos caíam
+/// no `<senão>` e viravam campo de texto, sem erro nenhum.
+#[test]
+fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
+    for (kind, esperado) in [
+        ("text", "TextInput"),
+        ("int", "SpinBox"),
+        ("double", "SpinBox"),
+        ("item", "Select"),
+    ] {
+        let mut motor = GlacierUI::new();
+        let caminho = escreve(
+            &format!("onda8_kind_{kind}"),
+            &format!(
+                r##"<screen>
+                    <resources>
+                        <script>
+                            function pedir()
+                                prompt({{ title = "T", kind = "{kind}", value = "1",
+                                          items = {{ {{ label = "A", value = "a" }} }} }})
+                            end
+                        </script>
+                    </resources>
+                    <Button text="P" on_click="pedir" />
+                </screen>"##
+            ),
+        );
+        motor.register_component("tela", &caminho).unwrap();
+        motor.navigate_to("tela");
+        let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
+
+        let arvore = motor.evaluated("__InputDialog").expect("avaliado").clone();
+        let achou = match esperado {
+            "TextInput" => procura(&arvore, |n| matches!(n.kind, NodeType::TextInput { .. })),
+            "Select" => procura(&arvore, |n| matches!(n.kind, NodeType::Select { .. })),
+            // O `<SpinBox>` é builtin: no template avaliado ele já foi inlinado,
+            // e o que sobra é o campo mais os dois degraus. O que o separa do
+            // ramo de texto é justamente ter BOTÕES ao lado do campo.
+            _ => procura(&arvore, |n| matches!(n.kind, NodeType::Button { .. })),
+        };
+        assert!(achou, "kind={kind} não desenhou um {esperado}");
+
+        std::fs::remove_file(&caminho).ok();
     }
 }

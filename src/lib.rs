@@ -202,6 +202,13 @@ pub struct GlacierUI {
     /// `None` quando o diálogo veio de um `Component::update` Rust ou de um
     /// `<dialog>` declarativo — os dois roteiam por `action`.
     dialog_resume: Option<PendingDialogResume>,
+    /// O nome do corpo que o diálogo em exibição mantém **avaliado** (ver
+    /// [`GlacierUI::fixa_corpo_do_dialogo`]).
+    ///
+    /// Guardado à parte do `dialog` porque o fechamento zera o `dialog`
+    /// **antes** de ler a resposta, e a soltura precisa acontecer depois — sem
+    /// este campo não haveria de onde tirar o nome nessa hora.
+    dialog_body_fixado: Option<String>,
     /// O menu bar dropdown / menu de contexto atualmente aberto (ver
     /// [`menu`]), se houver — singleton, como `dialog`: abrir qualquer menu
     /// (ou outro diferente) substitui este. Nenhum pré-requisito de "estado
@@ -392,6 +399,7 @@ impl GlacierUI {
             drag: None,
             dialog: None,
             dialog_resume: None,
+            dialog_body_fixado: None,
             active_menu: None,
             last_cursor_pos: iced::Point::ORIGIN,
             toasts: Vec::new(),
@@ -683,6 +691,7 @@ impl GlacierUI {
     /// (which should use [`component::Context::show_dialog`] instead).
     /// Replaces any dialog already shown.
     pub fn show_dialog(&mut self, spec: dialogs::DialogSpec) {
+        self.fixa_corpo_do_dialogo(&spec);
         self.dialog = Some(spec);
     }
 
@@ -1617,8 +1626,43 @@ impl GlacierUI {
         })
     }
 
+    /// Mantém o corpo do diálogo **avaliado** enquanto ele estiver em exibição.
+    ///
+    /// # Por que isto é necessário
+    ///
+    /// O motor só mantém avaliada a **tela ativa** — é uma economia deliberada
+    /// (ver [`GlacierUI::reevaluate_all`]), e o corpo de um diálogo não é a tela
+    /// ativa. Sem fixá-lo, [`GlacierUI::render`] falha com "registrado mas não
+    /// avaliado" e o cartão aparece **sem o conteúdo**: título, botões, e um
+    /// buraco onde deveria estar o campo.
+    ///
+    /// O `render_current` engole esse erro de propósito (um `<dialog>` com nome
+    /// errado não pode derrubar a tela), e é por isso que o sintoma era mudo.
+    ///
+    /// A avaliação imediata, além do `pinned`, cobre o caminho do host que
+    /// chama `show_dialog` sem uma reavaliação em seguida: o `pinned` só age na
+    /// **próxima** reavaliação, e o diálogo aparece já neste quadro.
+    fn fixa_corpo_do_dialogo(&mut self, spec: &dialogs::DialogSpec) {
+        self.solta_corpo_do_dialogo();
+        if let Some(nome) = spec.body.clone() {
+            self.pinned.insert(nome.clone());
+            let _ = self.evaluate_into_cache(&nome);
+            self.dialog_body_fixado = Some(nome);
+        }
+    }
+
+    /// Solta o corpo fixado por [`GlacierUI::fixa_corpo_do_dialogo`] — sem
+    /// isto, todo corpo já exibido continuaria sendo reavaliado a cada quadro
+    /// pelo resto da vida do processo.
+    fn solta_corpo_do_dialogo(&mut self) {
+        if let Some(nome) = self.dialog_body_fixado.take() {
+            self.pinned.remove(&nome);
+        }
+    }
+
     /// Apaga o rascunho do diálogo que acabou de fechar — toda chave de
-    /// contexto que começa com [`dialogs::DIALOG_KEY_PREFIX`].
+    /// contexto que começa com [`dialogs::DIALOG_KEY_PREFIX`] — e solta o corpo
+    /// que ele mantinha avaliado.
     ///
     /// # Por que isto existe
     ///
@@ -1633,6 +1677,7 @@ impl GlacierUI {
     /// e **depois** de a resposta ter sido lida, nunca antes: quem lê é o
     /// `DialogButton`, e ele lê da chave que esta função apaga.
     fn limpa_rascunho_de_dialogo(&mut self) {
+        self.solta_corpo_do_dialogo();
         self.context_data
             .retain(|k, _| !k.starts_with(dialogs::DIALOG_KEY_PREFIX));
     }
@@ -1652,8 +1697,9 @@ impl GlacierUI {
             self.limpa_rascunho_de_dialogo();
             return iced::Task::none();
         }
-        if let Some(spec) = self.dialog_defs.get(alvo) {
-            self.dialog = Some(spec.clone());
+        if let Some(spec) = self.dialog_defs.get(alvo).cloned() {
+            self.fixa_corpo_do_dialogo(&spec);
+            self.dialog = Some(spec);
             // Um diálogo declarativo nunca retoma corrotina: se havia um
             // `confirm()` pendente, ele acabou de perder a janela dele. Zerar
             // aqui evita que o próximo clique retome a corrotina errada com a
@@ -1811,12 +1857,14 @@ impl GlacierUI {
 
         match dialog {
             Some(component::DialogAction::Show(spec)) => {
+                self.fixa_corpo_do_dialogo(&spec);
                 self.dialog = Some(spec);
                 self.dialog_resume = None;
             }
             // `confirm()` suspensivo da camada Lua: além de exibir o diálogo,
             // registra quem retomar (`owner`, `id`) quando o usuário escolher.
             Some(component::DialogAction::ShowResumable(spec, id, resume_key)) => {
+                self.fixa_corpo_do_dialogo(&spec);
                 self.dialog = Some(spec);
                 self.dialog_resume = Some(PendingDialogResume {
                     owner: owner.to_string(),
@@ -2239,22 +2287,35 @@ impl GlacierUI {
         if let NodeType::DialogDef(meta) = &node.kind
             && !meta.name.is_empty()
         {
-            let meu = self.defined_components.contains(&meta.name);
-            let is_builtin = self.builtin_component_names.contains(&meta.name);
-            if !self.inputs.has_template(&meta.name) || is_builtin || meu {
-                if let Some(corpo) = node.children.first() {
-                    self.inputs
-                        .insert_template(meta.name.clone(), corpo.clone());
-                    self.builtin_component_names.remove(&meta.name);
-                    self.defined_components.insert(meta.name.clone());
+            // Um `<dialog … />` auto-fechado (ou de corpo vazio) é uma caixa de
+            // MENSAGEM, não um QDialog: só título, texto e botões. Ele não
+            // registra template nenhum, e a moldura dele não aponta para corpo
+            // algum — senão o cartão ganharia um container vazio no meio, e o
+            // motor manteria avaliado um template sem conteúdo o tempo todo em
+            // que o diálogo estivesse aberto.
+            let corpo = node
+                .children
+                .first()
+                .filter(|c| !(c.kind == NodeType::Fragment && c.children.is_empty()));
+            let mut spec = dialogs::DialogSpec::from_meta(meta);
+            match corpo {
+                Some(corpo) => {
+                    let meu = self.defined_components.contains(&meta.name);
+                    let is_builtin = self.builtin_component_names.contains(&meta.name);
+                    if !self.inputs.has_template(&meta.name) || is_builtin || meu {
+                        self.inputs
+                            .insert_template(meta.name.clone(), corpo.clone());
+                        self.builtin_component_names.remove(&meta.name);
+                        self.defined_components.insert(meta.name.clone());
+                    }
                 }
+                None => spec.body = None,
             }
             // A moldura é reinstalada sempre, inclusive quando o corpo não foi
             // (nome já tomado): editar só o `title=` de um `<dialog>` com
             // hot-reload tem de aparecer, e a moldura não disputa nome com
             // ninguém — ela vive num mapa só dela.
-            self.dialog_defs
-                .insert(meta.name.clone(), dialogs::DialogSpec::from_meta(meta));
+            self.dialog_defs.insert(meta.name.clone(), spec);
         }
         if let NodeType::Define { name } = &node.kind
             && !name.is_empty()

@@ -102,7 +102,11 @@
                                     <Text content="Domínio do projeto" size="12" class="rotulo" />
                                     <TextInput value="dominio" onChange="dominio"
                                                placeholder="exemplo.com.br" width="fill" />
-                                    <se cond="{dominio}" empty="true">
+                                    <!-- `equals=""`, não `empty`: no motor o
+                                         `empty` pergunta se o valor é um array
+                                         JSON vazio, não se a string está em
+                                         branco. -->
+                                    <se cond="{dominio}" equals="">
                                         <Text content="Avançar fica travado enquanto isto estiver vazio — é o QWizardPage::isComplete()."
                                               size="12" class="aviso" />
                                     </se>

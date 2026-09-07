@@ -567,6 +567,62 @@ com que casar. O resultado é uma página em branco, sem erro nenhum.
 Quem precisa do conteúdo repassa o markup, não o slot — ou monta a coluna ele
 mesmo, que foi o que o `<wizard>` fez.
 
+## Quatro armadilhas que falham EM SILÊNCIO (0.94)
+
+As quatro custaram um widget que aparecia vazio ou errado **sem erro nenhum**, e
+nenhuma é específica de diálogos. Se um template seu desenha menos do que
+deveria, comece por aqui.
+
+**1. `empty`/`not_empty` são sobre arrays JSON, não sobre strings.**
+
+```xml
+<se cond="{rotulo}" not_empty="true">   <!-- NUNCA casa com um texto -->
+<se cond="{rotulo}" not_equals="">      <!-- é isto que se quer -->
+```
+
+`json_array_is_empty` tenta ler o valor como array; um texto comum não é um
+array válido e conta como **vazio**. O teste existe para `<listview items>` e
+companhia, e o nome dele engana.
+
+**2. `one_of` separa por ESPAÇO, não por vírgula.**
+
+```xml
+<se cond="{kind}" one_of="int,double">  <!-- um token só: "int,double" -->
+<se cond="{kind}" one_of="int double">  <!-- dois tokens -->
+```
+
+O simétrico dele, o `contains`, aceita vírgula **e** espaço — porque lá a lista é
+montada por código de app. Aqui a lista está no markup, e o markup escreve
+espaço.
+
+**3. `value` de um widget de valor é NOME DE CHAVE, não interpolação.**
+
+```xml
+<progressbar value="{progresso}" />   <!-- procura a chave chamada "42" -->
+<progressbar value="progresso" />     <!-- lê a chave `progresso` -->
+```
+
+Vale para `<progressbar>`, `<slider>`, `<dial>`, `<textinput>`, `<colorwheel>` —
+todo widget cujo valor mora numa chave. A interpolação é para *mostrar* o valor
+(`content="{progresso}%"`), não para ligá-lo.
+
+**4. Nem todo atributo numérico aceita `{interpolação}`.**
+
+Só os que entram no `numeric_templates` — `size`, `spacing`, `border_radius`,
+`border_width`, `max_width`, `max_height`. O `min`/`max` de um `<progressbar>` ou
+de um `<slider>` é lido com `parse_f32` **no parse**, então `max="{total}"` não
+resolve e cai no default, calado.
+
+Quando o limite precisa vir do dado, a saída é normalizar o valor: o
+`<progressbar>` do `ProgressDialog` desenha numa escala fixa 0–100 e quem calcula
+a porcentagem é o `progress_set`, onde o `max` está à mão.
+
+**Como testar as quatro.** Nenhuma aparece num teste que escreve a chave e lê a
+chave de volta. O que as pega é olhar a **árvore avaliada**: o ramo que deveria
+existir está lá? O `value_var` do widget é o nome que você escreveu, ou o valor
+interpolado? Ver `tests/onda8_dialogos.rs`, que passou a contar folhas e a
+procurar tipos de nó em vez de confiar no contexto.
+
 ## Checklist para uma primitiva nova
 
 1. `NodeType` em `parser.rs` + braço de parse + `tag_name()`.

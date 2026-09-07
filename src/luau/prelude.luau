@@ -195,7 +195,20 @@ end
 -- anda pelo mesmo lugar de qualquer outro valor do motor, e é isso que impede
 -- este diálogo de virar um caso à parte.
 function progress_set(value, label)
-    ctx["__dialog.progresso"] = if value ~= nil then tostring(value) else ""
+    if value == nil then
+        -- Volta ao indeterminado: as duas chaves em branco, e o corpo desenha
+        -- o spinner.
+        ctx["__dialog.progresso"] = ""
+        ctx["__dialog.pct"] = ""
+    else
+        ctx["__dialog.progresso"] = tostring(value)
+        -- A barra desenha na escala 0–100 porque o `min`/`max` de um
+        -- `<progressbar>` é literal: ele não aceita `{interpolação}`. A conta
+        -- vive aqui, onde o `max` declarado na abertura está à mão.
+        local max = tonumber(ctx["__dialog.max"]) or 100
+        local pct = if max > 0 then (tonumber(value) or 0) / max * 100 else 0
+        ctx["__dialog.pct"] = tostring(math.clamp(pct, 0, 100))
+    end
     if label ~= nil then
         ctx["__dialog.label"] = label
     end
