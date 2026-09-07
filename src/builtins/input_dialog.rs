@@ -85,13 +85,22 @@ impl Component for InputDialog {
                          `one_of="int,double"` seria um token só, e nunca
                          casaria com `int`. -->
                     <se cond="{__dialog.kind}" one_of="int double">
+                        <!-- `width` do `<spinbox>` é a largura do CAMPO, não
+                             a do conjunto: ele desce para o `<TextInput>` de
+                             dentro, e a `<Row>` que segura campo+degraus é
+                             `shrink`. Um `fill` aqui vira um campo que tenta
+                             preencher uma linha que não se estica, e ele
+                             colapsa a ponto de o número não caber.
+
+                             120 é largura de número, não de frase — que é o
+                             que este campo é. -->
                         <SpinBox
                             value="__dialog.value"
                             min="{__dialog.min|0}"
                             max="{__dialog.max|100}"
                             step="{__dialog.step|1}"
                             decimals="{__dialog.decimals|0}"
-                            width="fill"
+                            width="120"
                         />
                     </se>
                     <senaose cond="{__dialog.kind}" equals="item">

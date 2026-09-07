@@ -1,54 +1,48 @@
 /*
 examples/onda8_luau/app.gss
 
-Todo o visual desta tela — e a observação da onda está aqui, não no `.gv`:
-**o corpo do `<dialog>` é estilizado por esta mesma folha**.
-
-Antes da Onda 8 um diálogo era construído em Rust, com as cores saindo do
-`theme.extended_palette()` e nenhum seletor por cima. Com o corpo em markup,
-o conteúdo de um modal passa pelo `.gss` como o de qualquer tela: o
-`.rotulo` das três linhas do formulário de `editar_servico` é o mesmo
-`.rotulo` do resto da tela, escrito uma vez.
+O visual da tela. O `app.gv` ficou com estrutura, o `scripts/app.luau` com
+comportamento, e as cores e espaçamentos ficaram aqui — inclusive os que pintam
+o corpo dos diálogos, que a partir da Onda 8 passam pelo `.gss` como o de
+qualquer tela.
 */
 
 :root {
-    --texto: #CDD6F4;
-    --suave: #A6ADC8;
-    --fraco: #7F849C;
-    --linha: #313244;
-    --alerta: #F9E2AF;
+  --texto: #CDD6F4;
+  --suave: #A6ADC8;
+  --fraco: #7F849C;
+  --faixa: #181825;
 }
 
 /* ── Esqueleto ─────────────────────────────────────────────────────────── */
 
+.tela  { width: fill; height: fill; }
+.corpo { width: fill; padding: 18 22; spacing: 18; }
+
 .barra {
-    width: fill;
-    padding: 14 18;
-    spacing: 12;
-    align-y: center;
-    /* O motor não tem `border-bottom`: a borda do `UiNode` é dos quatro
-       lados. A faixa se separa do corpo por CONTRASTE, que é a mesma escolha
-       que o `<frame form="filled">` faz — e a mesma que o cartão do diálogo
-       faz desde a 0.92, por causa do bug de sombra no Ivy Bridge. */
-    background: #181825;
+  width: fill;
+  padding: 14 18;
+  spacing: 12;
+  align-y: center;
+  background: var(--faixa);
 }
+
+.empurra { width: fill; }
+
+/* ── Blocos ────────────────────────────────────────────────────────────── */
+
+.bloco   { width: fill; padding: 16; }
+.painel  { width: fill; spacing: 12; }
+.colunas { width: fill; spacing: 18; }
+.acoes   { spacing: 10; align-y: center; }
+
+.amostra { width: 44; height: 32; border-radius: 6; border-width: 1; }
 
 /* ── Texto ─────────────────────────────────────────────────────────────── */
 
+.titulo { size: 16; bold: true; color: var(--texto); }
+.secao  { size: 14; bold: true; color: var(--texto); }
 .lead   { size: 13; color: var(--suave); }
-.rotulo { size: 12; color: var(--fraco); }
+.valor  { size: 13; color: var(--texto); }
 .nota   { size: 12; color: var(--fraco); }
 .status { size: 12; color: var(--fraco); }
-.aviso  { size: 12; color: var(--alerta); }
-
-/* A classe que a `<WizardNav>` publica no rótulo "Passo 2 de 3". Ela existe
-   para o app alcançar o cabeçalho sem reescrever o widget — o padrão de
-   classe por nó interno da 0.89. */
-.wizard-passo { color: var(--fraco); }
-
-/* A página do `<stackview>`/`<wizard>`: a mesma classe nos dois, porque é o
-   mesmo papel. */
-.stackview-page { width: fill; }
-
-.corpo { width: fill; padding: 18 22; spacing: 18; }
-.valor { size: 13; color: var(--texto); }

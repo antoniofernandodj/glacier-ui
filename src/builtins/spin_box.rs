@@ -66,7 +66,17 @@
 ///   Nos dois caminhos a formatação também evita o `0.30000000000000004` de
 ///   somar `f64`, que é o outro serviço que o `QDoubleSpinBox` presta.
 /// - `layout`      — `stacked` (default) ou `inline`; ver acima.
-/// - `width`       — largura do campo. Default: `72`.
+/// - `width`       — largura do **campo**, não a do conjunto. Default: `72`.
+///
+///   Ela desce para o `<TextInput>` de dentro; a `<Row>` que segura
+///   campo+degraus é `shrink`, e continua sendo. Por isso `width="fill"`
+///   **não** faz o spinbox ocupar a linha: faz o campo tentar preencher um
+///   pai que não se estica, e ele colapsa a ponto de o número não caber — sem
+///   erro nenhum, só um retângulo fino entre os dois degraus.
+///
+///   Para um spinbox largo, dê um número (`width="120"`). Para alinhá-lo com
+///   campos que preenchem a linha, envolva-o numa `<Row width="fill">` com um
+///   `<Space width="fill"/>` ao lado.
 /// - `placeholder` — dica quando a chave está vazia. Default: vazio.
 /// - `field_class` — classe aplicada **ao campo de dentro**, não ao widget.
 /// - `step_class`  — classe dos dois botões de degrau (aceita `:hover`).

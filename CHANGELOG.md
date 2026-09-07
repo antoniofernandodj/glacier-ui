@@ -59,7 +59,23 @@ silêncio; nenhuma foi pega pelos testes da 0.94.0 porque todos eles verificavam
   exemplo passou a andar por `after`, como um app real anda por `fetch` ou por um
   stream.
 
+- **O campo numérico do `prompt{}` saía esmagado.** A prop `width` de um
+  `<spinbox>` é a largura do **campo**, não a do conjunto: ela desce para o
+  `<TextInput>` de dentro, e a `<Row>` que segura campo + degraus é `shrink`.
+  Um `fill` ali colapsa o campo a um risco entre os dois botões — os degraus
+  continuam funcionando, o número não cabe. É a terceira forma da armadilha do
+  `Length::Fill`, agora do lado de **quem usa** um builtin, e está no
+  `PRIMITIVAS.md` ao lado das outras duas.
+
 ### Notas
+- **Os dois exemplos da onda adotaram a convenção do projeto**: tags em
+  minúsculas, texto do `<text>` como **filho** (não como atributo `content`),
+  indentação de dois espaços, e **nenhuma propriedade de estilo no `.gv`** — cor,
+  tamanho, espaçamento e largura de caixa vivem no `.gss`. O que continua inline
+  é o que não é estilo: valor dirigido por dado (`background="{cor}"`), largura
+  com significado de widget (`size` da roda, `width` do campo do spinbox) e tudo
+  que é estrutura ou ação.
+
 - **O campo hexadecimal do `ColorDialog` tem rascunho** (`__dialog.value__hex`),
   e só um hexadecimal inteiro comete a cor — é o que impede a roda de piscar
   branco durante a digitação. A forma curta (`#f0a`) fica de fora de propósito:

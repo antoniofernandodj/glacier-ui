@@ -1,78 +1,72 @@
 <screen title="Glacier — Onda 8 (Luau)" size="960 700" min-size="820 600">
-    <resources>
-        <link rel="stylesheet" href="examples/onda8_luau/app.gss" />
-        <script src="scripts/app.luau"></script>
-    </resources>
+  <resources>
+    <link rel="stylesheet" href="examples/onda8_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
 
-    <Column spacing="0" width="fill" height="fill">
-        <Row class="barra" width="fill">
-            <Text content="Onda 8 em Luau — os diálogos que devolvem um valor" size="16" bold="true" />
-            <Space width="fill" />
-            <Text content="{status}" size="12" class="status" />
-        </Row>
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 8 em Luau — os diálogos que devolvem um valor</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
 
-        <Column class="corpo" width="fill" spacing="18">
-            <Text size="13" class="lead"
-                  content="Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a corrotina para no diálogo e volta com a resposta. Cancelar devolve nil — a mesma convenção do open_file()." />
+    <column class="corpo">
+      <text class="lead">Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a corrotina para no diálogo e volta com a resposta. Cancelar devolve nil — a mesma convenção do open_file().</text>
 
-            <!-- ── Item 2: InputDialog, as quatro variantes do QInputDialog ── -->
-            <Frame shape="box" padding="16" width="fill">
-                <Column spacing="12" width="fill">
-                    <Text content="prompt{} — o QInputDialog" size="14" bold="true" />
-                    <Row spacing="8">
-                        <Button text="getText" on_click="pedir_texto" />
-                        <Button text="getInt" on_click="pedir_inteiro" />
-                        <Button text="getDouble" on_click="pedir_decimal" />
-                        <Button text="getItem" on_click="pedir_item" />
-                    </Row>
-                    <Text content="Última resposta: {resposta}" size="13" class="valor" />
-                    <Text size="12" class="nota"
-                          content="As quatro variantes estáticas do Qt são UM diálogo com corpos diferentes — &lt;textinput&gt;, &lt;spinbox&gt; e &lt;select&gt;, três tags que já existiam." />
-                </Column>
-            </Frame>
+      <!-- ── Item 2: InputDialog, as quatro variantes do QInputDialog ───── -->
+      <frame shape="box" class="bloco">
+        <column class="painel">
+          <text class="secao">prompt{} — o QInputDialog</text>
+          <row class="acoes">
+            <button text="getText" on_click="pedir_texto" />
+            <button text="getInt" on_click="pedir_inteiro" />
+            <button text="getDouble" on_click="pedir_decimal" />
+            <button text="getItem" on_click="pedir_item" />
+          </row>
+          <text class="valor">Última resposta: {resposta}</text>
+          <text class="nota">As quatro variantes estáticas do Qt são UM diálogo com corpos diferentes — campo de texto, spinbox e lista suspensa, três tags que já existiam.</text>
+        </column>
+      </frame>
 
-            <Row spacing="18" width="fill">
-                <!-- ── Item 3: ProgressDialog ─────────────────────────── -->
-                <Frame shape="box" padding="16" width="fill">
-                    <Column spacing="12" width="fill">
-                        <Text content="progress{} — o QProgressDialog" size="14" bold="true" />
-                        <Row spacing="8">
-                            <Button text="Baixar (determinado)" on_click="baixar" />
-                            <Button text="Indexar (indeterminado)" on_click="indexar" />
-                        </Row>
-                        <Text content="{progresso_fim}" size="13" class="valor" />
-                        <Text size="12" class="nota"
-                              content="O único da família que NÃO suspende: ele acompanha um trabalho que continua rodando. O número mora numa chave, não no DialogSpec." />
-                    </Column>
-                </Frame>
+      <row class="colunas">
+        <!-- ── Item 3: ProgressDialog ──────────────────────────────────── -->
+        <frame shape="box" class="bloco">
+          <column class="painel">
+            <text class="secao">progress{} — o QProgressDialog</text>
+            <row class="acoes">
+              <button text="Baixar (determinado)" on_click="baixar" />
+              <button text="Indexar (indeterminado)" on_click="indexar" />
+            </row>
+            <text class="valor">{progresso_fim}</text>
+            <text class="nota">O único da família que NÃO suspende: ele acompanha um trabalho que continua rodando. O número mora numa chave, não no DialogSpec — e o trabalho tem de CEDER A VEZ, senão nenhum quadro é pintado.</text>
+          </column>
+        </frame>
 
-                <!-- ── Item 4: ColorDialog ────────────────────────────── -->
-                <Frame shape="box" padding="16" width="fill">
-                    <Column spacing="12" width="fill">
-                        <Text content="pick_color{} — o QColorDialog" size="14" bold="true" />
-                        <Row spacing="10">
-                            <Button text="Escolher cor" on_click="escolher_cor" />
-                            <Container width="44" height="32" background="{cor}"
-                                       border_radius="6" border_width="1" />
-                            <Text content="{cor}" size="13" class="valor" />
-                        </Row>
-                        <Text size="12" class="nota"
-                              content="Um prompt cujo campo é uma roda: mesma porta, mesmo retorno. A roda desenha sobre o canvas da Onda 7." />
-                    </Column>
-                </Frame>
-            </Row>
+        <!-- ── Item 4: ColorDialog ─────────────────────────────────────── -->
+        <frame shape="box" class="bloco">
+          <column class="painel">
+            <text class="secao">pick_color{} — o QColorDialog</text>
+            <row class="acoes">
+              <button text="Escolher cor" on_click="escolher_cor" />
+              <container class="amostra" background="{cor}" />
+              <text class="valor">{cor}</text>
+            </row>
+            <text class="nota">Um prompt cujo campo é uma roda: mesma porta, mesmo retorno. A roda desenha sobre o canvas da Onda 7.</text>
+          </column>
+        </frame>
+      </row>
 
-            <Frame shape="box" padding="16" width="fill">
-                <Column spacing="10" width="fill">
-                    <Text content="confirm{} — o que NÃO mudou" size="14" bold="true" />
-                    <Row spacing="10">
-                        <Button text="Remover tudo" on_click="remover" />
-                        <Text content="{confirmacao}" size="13" class="valor" />
-                    </Row>
-                    <Text size="12" class="nota"
-                          content="Generalizar o retorno não podia custar a forma que já existia: confirm{} continua sem corpo e continua devolvendo booleano." />
-                </Column>
-            </Frame>
-        </Column>
-    </Column>
+      <frame shape="box" class="bloco">
+        <column class="painel">
+          <text class="secao">confirm{} — o que NÃO mudou</text>
+          <row class="acoes">
+            <button text="Remover tudo" on_click="remover" />
+            <text class="valor">{confirmacao}</text>
+          </row>
+          <text class="nota">Generalizar o retorno não podia custar a forma que já existia: confirm{} continua sem corpo e continua devolvendo booleano.</text>
+        </column>
+      </frame>
+    </column>
+  </column>
 </screen>

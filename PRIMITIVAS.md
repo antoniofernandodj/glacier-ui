@@ -313,6 +313,32 @@ Duas saídas, e as duas foram aplicadas:
 > legítimo (é assim que um scrollable funciona); o que não pode é ele virar a
 > altura de uma linha.
 
+### A terceira forma: `fill` numa PROP de builtin (0.94)
+
+As duas acima são de quem escreve a primitiva. Esta é de quem **usa** um
+builtin, e é a mais fácil de cometer: a prop `width` de um widget composto quase
+nunca é a largura do conjunto — é a de um filho lá dentro.
+
+```xml
+<spinbox value="qtd" width="fill" />   <!-- o campo COLAPSA -->
+<spinbox value="qtd" width="120" />    <!-- é isto -->
+```
+
+No `<spinbox>` o `width` desce para o `<TextInput>`, e a `<Row>` que segura
+campo + degraus é `shrink`. Um `Fill` dentro de um `Shrink` não tem de que
+encher, então o campo vira um risco entre os dois botões: os degraus continuam
+funcionando, o número não cabe mais.
+
+O sintoma engana porque **metade do widget continua certa** — foi assim que ele
+passou por uma revisão e por um teste de árvore avaliada (a árvore estava
+correta; o que estava errado era o número que ela carregava).
+
+> **A regra para quem usa:** antes de escrever `width="fill"` numa tag de
+> builtin, veja no template dele onde essa prop cai. Se cair num filho dentro de
+> uma `<Row>`/`<Column>` sem largura, `fill` não é largura — é colapso. Para
+> alinhar um widget desses com campos que preenchem a linha, envolva-o numa
+> `<Row width="fill">` com um `<Space width="fill"/>` ao lado.
+
 ### E uma do `iced`, que custa a última coluna (0.92)
 
 A barra de rolagem de um `scrollable` **flutua sobre** o conteúdo por padrão:

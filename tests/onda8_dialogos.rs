@@ -1043,3 +1043,52 @@ fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
         std::fs::remove_file(&caminho).ok();
     }
 }
+
+/// O campo numérico do `prompt{}` tem largura de número, não `fill`.
+///
+/// A prop `width` do `<spinbox>` é a largura do **campo**, e a `<Row>` que
+/// segura campo + degraus é `shrink`: um `fill` ali colapsa o campo a um risco
+/// entre os dois botões — os degraus continuam funcionando, o número não cabe.
+///
+/// O sintoma engana porque metade do widget continua certa, e é por isso que
+/// ele passou pelos testes de árvore: a árvore estava correta, o que estava
+/// errado era o número que ela carregava.
+#[test]
+fn o_campo_numerico_do_prompt_nao_colapsa() {
+    let mut motor = GlacierUI::new();
+    let caminho = escreve(
+        "onda8_largura",
+        r##"<screen>
+                <resources>
+                    <script>
+                        function pedir()
+                            prompt({ title = "N", kind = "int", value = "3", min = 1, max = 32 })
+                        end
+                    </script>
+                </resources>
+                <Button text="P" on_click="pedir" />
+            </screen>"##,
+    );
+    motor.register_component("tela", &caminho).unwrap();
+    motor.navigate_to("tela");
+    let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
+
+    let arvore = motor.evaluated("__InputDialog").expect("avaliado").clone();
+    let largura = largura_do_primeiro_textinput(&arvore).expect("o ramo numérico tem um campo");
+    assert!(
+        largura.parse::<f32>().is_ok(),
+        "a largura do campo tem de ser um número; `{largura}` colapsa o campo \
+         dentro da <Row> shrink do spinbox"
+    );
+
+    std::fs::remove_file(&caminho).ok();
+}
+
+/// A largura declarada no primeiro `<TextInput>` da árvore.
+fn largura_do_primeiro_textinput(no: &glacier_ui::UiNode) -> Option<String> {
+    if matches!(no.kind, NodeType::TextInput { .. }) {
+        return Some(no.width.clone().unwrap_or_default());
+    }
+    no.children.iter().find_map(largura_do_primeiro_textinput)
+}
+
