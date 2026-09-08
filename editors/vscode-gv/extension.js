@@ -287,8 +287,13 @@ const BINDING_ATTRS = new Set(
     "group", "grupo",
     "items", "itens", "options", "opcoes", "source", "origem",
     // `<daterangepicker start="entrada" end="saida" month="mes_visivel">` — os
-    // três nomeiam chaves, como o `value` de qualquer outro widget bindado.
+    // três nomeiam chaves, como o `value` de qualquer outro widget bindado. O
+    // `<rangeslider start="preco_min" end="preco_max">` da Onda 9 reusa o par.
     "start", "inicio", "end", "fim", "final", "month", "mes_visivel",
+    // Onda 9. `<splitter sizes="painel">` guarda as TRILHAS dos painéis numa
+    // chave, e `<rubberband selection="marcados">` o conjunto nomeado dos
+    // alvos tocados — os dois são nome de chave, não valor.
+    "sizes", "tamanhos", "selection", "selecao", "seleção",
     "cond", "condition", "when", "quando", "condicao",
     "if", "se", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
     "for-each", "forEach", "foreach", "each", "repeat",
@@ -1832,6 +1837,15 @@ const VOID_TAGS = new Set([
   "SpinBox", "TextInput", "DateEdit", "TimeEdit", "DateTimeEdit",
   "Avatar", "Badge", "MenuItem", "MenuSeparator",
   "Link", "Import", "Include", "Slot", "Prop",
+  // Onda 9. `Splitter` e `SwipeView` ficam de FORA de propósito: os dois
+  // renderizam `node.children` (os painéis e as páginas), então o par de
+  // fechamento é o que se quer ao digitar `>`.
+  "RangeSlider", "Tumbler", "DelayButton", "RubberBand",
+  "ShortcutInput", "Shortcut", "SizeGrip",
+  // `<pageindicator>` resolve para o canônico `Pagination`, e nenhum dos dois
+  // tem filhos — sem isto, digitar `<pageindicator>` inseria um
+  // `</pageindicator>` que não faz sentido.
+  "Pagination",
 ]);
 
 /**

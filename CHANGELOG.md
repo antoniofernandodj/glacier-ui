@@ -8,6 +8,48 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Ferramentas — 2026-09-08 · CLI 0.4.4 · Glacier View 0.18.1
+
+**Sem versão de motor: a `glacier-ui` continua na 0.95.0** e não foi
+republicada, porque nada dela mudou. É a primeira entrada só de ferramentas
+deste changelog, e o cabeçalho não inventa um número de lib por isso.
+
+Duas correções na extensão de VS Code que a 0.18.0 deixou passar, as duas do
+mesmo tipo — o catálogo da extensão tem **três** listas, e a 0.18.0 atualizou
+uma.
+
+### Corrigido
+
+- **`sizes` e `selection` não viravam link de chave.** O `BINDING_ATTRS` da
+  extensão lista os atributos cujo valor **nomeia uma chave** em vez de ser um
+  literal, e os dois que a Onda 9 acrescentou ficaram de fora: Ctrl+Clique em
+  `<splitter sizes="painel">` e em `<rubberband selection="marcados">` não ia a
+  lugar nenhum. (`start`/`end` do `<rangeslider>` já funcionavam — eles reusam o
+  par do `<daterangepicker>`.)
+- **Sete tags novas fechavam par sem precisar.** O `VOID_TAGS` diz quais tags
+  **não** ganham um `</fechamento>` automático ao digitar `>`. Faltavam
+  `<rangeslider>`, `<tumbler>`, `<delaybutton>`, `<rubberband>`,
+  `<shortcutinput>`, `<shortcut>` e `<sizegrip>` — e `<pagination>`, que nunca
+  esteve lá e agora importa porque `<pageindicator>` resolve para ele.
+
+  `<splitter>` e `<swipeview>` ficam **fora** da lista de propósito: os dois
+  renderizam `node.children` (os painéis e as páginas), então o par é o que se
+  quer.
+
+### Notas
+
+- **A 0.18.0 estava correta na fonte e ninguém a tinha instalado.** O relato que
+  abriu esta correção — "Ctrl+Clique no `<shortcut>` não faz link" — tinha por
+  causa a extensão **0.13.0** ainda instalada no editor: ela não conhece nem as
+  tags da Onda 7. Editar `editors/` não atualiza o VS Code; é preciso
+  `make install-gv`, que empacota o `.vsix` e o instala.
+
+  Fica registrado porque a mesma armadilha vale para toda onda que mexa no
+  catálogo: o `.vsix` é `.gitignore`d, então o repositório nunca acusa a
+  defasagem.
+
+---
+
 ## [0.95.0] — 2026-09-08 · CLI 0.4.3 · Glacier View 0.18.0
 
 **Onda 9 do `PLANO_WIDGETS.md`: o ponteiro preso.** Nove widgets, dois
