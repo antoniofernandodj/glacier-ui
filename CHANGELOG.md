@@ -8,9 +8,7 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## [Não publicado]
-
-## [CLI 0.4.2] — 2026-09-08
+## [0.94.5] — 2026-09-08 · CLI 0.4.2
 
 ### Alterado
 - **O `.luaurc` (raiz e template) volta a listar os globais do motor.** A 0.94.4
