@@ -1123,6 +1123,12 @@ impl Runtime {
             iced::event::listen_with(|e, s, id| {
                 crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
+            // O sexto, e o habilitador B da Onda 9: `<shortcut>` e
+            // `<shortcutinput>` são o MESMO listener em dois modos, e quem
+            // decide qual é o contexto (ver `crate::keys`).
+            iced::event::listen_with(|e, s, id| {
+                crate::shortcut_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
             window::close_events().map(DaemonMessage::Closed),
             // O pedido de fechar da WM (Alt+F4, botão da barra, logout) — chega
             // ANTES do fechamento, que é o único momento em que ainda dá para
@@ -1166,6 +1172,21 @@ impl Runtime {
             subs.push(
                 iced::time::every(self.toast_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
+            );
+        }
+
+        // O relógio do `<delaybutton>` (Onda 9), e só enquanto um estiver
+        // apertado — a mesma economia condicional do cursor logo acima. 30ms dá
+        // um anel liso o bastante para o olho e um trigésimo do custo de pedir
+        // um quadro por vsync.
+        if self
+            .windows
+            .values()
+            .any(|engine| engine.precisa_do_relogio())
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(30))
+                    .map(|_| DaemonMessage::TickAll(EngineMessage::HoldTick)),
             );
         }
 

@@ -333,6 +333,16 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<BarChart>` | `grafico_barras` | barras: `items`, `min`/`max`, `color`, `colorful` (uma cor por categoria), `axes`, `grid`. A base é sempre o **zero** quando `min` não é declarado |
 | `<PieChart>` | `Donut`, `grafico_pizza` | setores: `items`, `size`, `donut` (buraco como fração do raio), `percentages`, `colors`. `<donut>` é esta tag com o buraco já aberto |
 | `<Rating>` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
+| `<Splitter>` | `Divisor`, `PaneGrid` | painéis com alça arrastável entre cada par (`QSplitter`): `sizes` (chave com trilhas, no formato do `columns` do `<grid>`), `direction`/`vertical`, `handle` (espessura), `min` (piso de um painel). É a alça de coluna do `<tableheader>` aplicada a um container |
+| `<SwipeView>` | `Carrossel` | páginas trocadas arrastando (`QML SwipeView`): `value` (chave com o índice, base **0**), `threshold` (pixels para virar), `onChange`. Cada filho é uma página; o conteúdo segue o dedo e satura nas pontas |
+| `<RangeSlider>` | `faixa_dupla` | faixa com **dois** cursores: `start`/`end` (duas chaves), `min`/`max`/`step`, `size` (comprimento da barra), `color`, `readonly`, `onChange`, `onRelease`. As pontas não se cruzam |
+| `<Tumbler>` | `Roleta` | a roleta de valores (`QML Tumbler`): `value` (chave com o **texto** escolhido), `items`, `visible` (ímpar), `row` (altura do item), `size`, `onChange`. Arrasta e rola; vira dentro de si |
+| `<DelayButton>` | `botao_demorado` | o botão que só dispara depois de segurado: `text`, `onPress`, `delay` (ms), `size`, `color`. Soltar antes do fim desiste |
+| `<RubberBand>` | `Laco` | retângulo de seleção arrastado sobre uma área: `items` (alvos `[{id,x,y,w,h}]`), `selection` (chave que recebe o conjunto nomeado), `onSelect` (recebe `"x,y,w,h"`), `color`. Desenha os alvos que conhece |
+| `<PageIndicator>` | `indicador_pagina` | os pontinhos de página: `value` (chave, base **0**), `total`, `onChange`. É `<pagination>` com pontos, e lê a mesma chave de um `<swipeview>` |
+| `<Shortcut>` | `Atalho`, `Action` | atalho global de teclado, **declarado no layout** (não desenha nada): `key` (`"ctrl+s"`, `"f5"`; a ordem dos modificadores não importa) e `onPress`. Vale enquanto a tela estiver montada |
+| `<ShortcutInput>` | `KeySequenceEdit` | o campo que captura uma combinação (`QKeySequenceEdit`): `value` (chave), `placeholder`, `onChange`. Clique e tecle; Esc desiste, Backspace limpa |
+| `<SizeGrip>` | `sizegrip` | o canto que redimensiona a janela (`QSizeGrip`), para apps com titlebar própria: `corner` (default `se`), `size`. Builtin |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -1730,6 +1740,8 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
 | `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
+| `onda9` | o ponteiro preso: `splitter` (a alça de coluna aplicada a um container), `rangeslider`, `tumbler`, `swipeview`/`pageindicator`, `delaybutton`, `rubberband`, `sizegrip` e os dois do teclado — `shortcut` e `shortcutinput`. Um habilitador (`src/grip.rs`) e nove widgets. |
+| `onda9_luau` | a **mesma tela** em Luau, e o que ela mostra é uma ausência: nenhuma API nova. A Onda 8 custou quatro globais ao script porque um diálogo *suspende*; um arrasto escreve numa chave, e o Luau já escrevia chaves. |
 | `onda7` | o canvas e os sete que saem dele: `dial`, `gauge`, `lcdnumber`, `sparkline`, `linechart`, `barchart` e `piechart`/`donut`. O `canvas` ficou como **capacidade** do motor, não como tag — o app continua escrevendo markup. |
 | `onda7_luau` | a **mesma tela** em Luau, e com uma diferença que só ela mostra: um `every(1000, …)` faz o painel andar sozinho — relógio, CPU e latência — sem que nenhum dos sete widgets saiba que existe um temporizador. |
 | `onda6` | a grade: `grid` (colunas medidas), `flow`, `tableview`/`tableheader` (ordenação, seleção simples e múltipla, colunas arrastáveis), `treeview` e `columnview`. Uma medição, seis widgets. |

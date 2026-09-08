@@ -1,0 +1,159 @@
+<screen title="Glacier — Onda 9 (Luau)" size="1000 740" min_size="860 620">
+  <resources>
+    <link rel="stylesheet" href="examples/onda9_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <!-- Os dois atalhos da tela. Eles moram no LAYOUT e não no `<resources>`
+         porque é da árvore avaliada que o motor os colhe — o `<resources>` não
+         é árvore. Do lado Luau despacham funções comuns (`salvar()` e
+         `buscar()` no app.luau), e é por isso que o habilitador B não precisou
+         de global nenhum: um atalho não é um tipo novo de evento. -->
+    <shortcut key="ctrl+s" on_press="salvar" />
+    <shortcut key="ctrl+shift+p" on_press="buscar" />
+
+    <row class="barra">
+      <text class="titulo">Onda 9 em Luau — o arrasto que não pediu API nova</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+      <SizeGrip />
+    </row>
+
+    <scrollable width="fill" height="fill">
+      <column class="corpo">
+        <text class="lead">A Onda 8 custou quatro globais novos ao Luau, porque um diálogo SUSPENDE. Um arrasto não: ele escreve numa chave, e o Luau já escrevia chaves. As nove tags abaixo chegam prontas, sem uma linha em src/luau/.</text>
+
+        <!-- ── 1. Splitter ─────────────────────────────────────────────── -->
+        <frame shape="box" class="bloco">
+          <column class="painel">
+            <text class="secao">Splitter — trilhas numa chave</text>
+            <text class="nota">`ctx.painel_h = "300 fill"` é a linha inteira. Um número é pixel, `fill` fica com o resto — o mesmo formato do `columns` do &lt;grid&gt;, e a mesma chave que a alça de coluna de um &lt;tableheader&gt; escreve.</text>
+            <splitter sizes="painel_h" min="120" class="divide">
+              <column class="painel">
+                <text class="secao">Lateral</text>
+                <text class="chave">painel_h = {painel_h}</text>
+              </column>
+              <splitter sizes="painel_v" direction="v" min="80" class="divide_interno">
+                <column class="painel"><text class="secao">Conteúdo</text></column>
+                <column class="painel">
+                  <text class="chave">painel_v = {painel_v}</text>
+                </column>
+              </splitter>
+            </splitter>
+          </column>
+        </frame>
+
+        <row class="colunas">
+          <!-- ── 2. RangeSlider ────────────────────────────────────────── -->
+          <frame shape="box" class="bloco">
+            <column class="painel">
+              <text class="secao">RangeSlider — duas chaves</text>
+              <rangeslider start="preco_min" end="preco_max"
+                           min="0" max="1000" step="10" size="260" />
+              <text class="valor">R$ {preco_min} — R$ {preco_max}</text>
+              <text class="nota">Duas chaves nomeadas, como no &lt;daterangepicker range&gt; da Onda 3 — e a razão de o "exige estado por instância" do catálogo nunca ter valido aqui.</text>
+            </column>
+          </frame>
+
+          <!-- ── 3. Tumbler ────────────────────────────────────────────── -->
+          <frame shape="box" class="bloco">
+            <column class="painel">
+              <text class="secao">Tumbler — a coleção é uma tabela</text>
+              <row class="roletas">
+                <tumbler value="mes" items="meses" visible="5" size="140" />
+                <tumbler value="regiao" items="norte,nordeste,centro-oeste,sudeste,sul"
+                         visible="5" size="140" />
+              </row>
+              <text class="valor">{mes} · {regiao}</text>
+              <text class="nota">Do lado Luau uma tabela vira JSON sozinha — é o que torna a convenção `items` cômoda aqui e verbosa em Rust. A da direita está escrita no atributo, que é a terceira forma que ela aceita.</text>
+            </column>
+          </frame>
+        </row>
+
+        <!-- ── 4. SwipeView + PageIndicator ─────────────────────────────── -->
+        <frame shape="box" class="bloco">
+          <column class="painel">
+            <text class="secao">SwipeView — o único que delega</text>
+            <text class="nota">`on_change="virou"` manda o índice para a função `virou(indice)` do script. Os outros oito widgets gravam a chave sozinhos: é o par vazio/preenchido de todo widget deste motor.</text>
+            <swipeview value="pagina" threshold="130" on_change="virou" class="paginas">
+              <column class="pagina">
+                <text class="secao">Página 0</text>
+                <text class="nota">Arraste para o lado. O conteúdo segue o dedo: puxar para a esquerda anda para trás.</text>
+              </column>
+              <column class="pagina">
+                <text class="secao">Página 1</text>
+                <text class="nota">É &lt;stackview&gt; (Onda 8) mais o arrasto do grip. As duas pontas já existiam; faltava o meio.</text>
+              </column>
+              <column class="pagina">
+                <text class="secao">Página 2</text>
+                <text class="nota">E satura: não existe página 3.</text>
+              </column>
+            </swipeview>
+            <row class="rodape_paginas">
+              <pageindicator value="pagina" total="3" />
+              <space class="empurra" />
+              <text class="chave">pagina = {pagina}</text>
+            </row>
+          </column>
+        </frame>
+
+        <row class="colunas">
+          <!-- ── 5. DelayButton ────────────────────────────────────────── -->
+          <frame shape="box" class="bloco">
+            <column class="painel">
+              <text class="secao">DelayButton — o tempo, não o pixel</text>
+              <row class="acoes">
+                <delaybutton text="Segure" on_press="apagar_tudo" delay="1400" size="88" />
+                <text class="nota">Soltar antes do fim desiste. A função `apagar_tudo()` só é chamada quando o anel fecha — não há "cancelou" para tratar.</text>
+              </row>
+            </column>
+          </frame>
+
+          <!-- ── 8 + 9. O teclado ──────────────────────────────────────── -->
+          <frame shape="box" class="bloco">
+            <column class="painel">
+              <text class="secao">Shortcut + ShortcutInput</text>
+              <row class="acoes">
+                <button text="Salvar (pelo botão)" on_click="salvar" />
+                <text class="valor">{salvamentos}x</text>
+              </row>
+              <row class="campo_atalho">
+                <text class="rotulo">Salvar</text>
+                <shortcutinput value="atalho_salvar" />
+              </row>
+              <row class="campo_atalho">
+                <text class="rotulo">Buscar</text>
+                <shortcutinput value="atalho_buscar" />
+              </row>
+              <text class="nota">Clique num campo e tecle; Esc desiste, Backspace limpa. Com um campo armado a tecla é DADO — dá para gravar Ctrl+S ali sem salvar no caminho.</text>
+            </column>
+          </frame>
+        </row>
+
+        <!-- ── 6. RubberBand ───────────────────────────────────────────── -->
+        <frame shape="box" class="bloco">
+          <column class="painel">
+            <text class="secao">RubberBand — o conjunto nomeado</text>
+            <text class="nota">A geometria dos alvos é calculada em `caixas()`, no script: um template não faz conta, que é a descoberta que a Onda 8 escreveu ao partir o &lt;wizard&gt; em dois.</text>
+            <rubberband items="caixas" selection="marcados" on_select="lacou"
+                        class="arena" height="190" />
+            <text class="valor">marcados = {marcados}</text>
+            <text class="nota">A vírgula não é coincidência: é a grafia que o `contains` do condicional lê, então o que o laço escreveu já se consulta sem conversão.</text>
+            <row class="acoes">
+              <template if="{marcados}" contains="api">
+                <badge badge_text="api" />
+              </template>
+              <template if="{marcados}" contains="banco">
+                <badge badge_text="banco" />
+              </template>
+              <template if="{marcados}" empty="true">
+                <text class="nota">Nada laçado ainda — arraste sobre as caixas.</text>
+              </template>
+            </row>
+          </column>
+        </frame>
+      </column>
+    </scrollable>
+  </column>
+</screen>

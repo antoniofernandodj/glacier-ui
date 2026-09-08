@@ -41,7 +41,7 @@ pub const VARREDURA_PADRAO: f32 = 270.0;
 /// `<gauge>` e `<lcdnumber>` são apresentacionais e aparecem muito numa tela de
 /// exemplo com número fixo — mas um `<dial>`, que **escreve** de volta, sem
 /// chave não tem onde gravar, e é por isso que ele exige uma.
-fn valor_de(context: &ContextMap, chave: &str, padrao: f64) -> f64 {
+pub(crate) fn valor_de(context: &ContextMap, chave: &str, padrao: f64) -> f64 {
     context
         .get(chave)
         .and_then(|s| s.trim().parse::<f64>().ok())
@@ -50,7 +50,7 @@ fn valor_de(context: &ContextMap, chave: &str, padrao: f64) -> f64 {
 }
 
 /// Prende o valor na faixa e no degrau. `step <= 0` significa contínuo.
-fn no_degrau(v: f64, min: f64, max: f64, step: f64) -> f64 {
+pub(crate) fn no_degrau(v: f64, min: f64, max: f64, step: f64) -> f64 {
     let v = v.clamp(min.min(max), max.max(min));
     if step <= 0.0 {
         return v;
@@ -59,7 +59,7 @@ fn no_degrau(v: f64, min: f64, max: f64, step: f64) -> f64 {
 }
 
 /// O texto de um valor de medidor: `decimals` casas, e sem `-0`.
-fn escreve(v: f64, decimals: usize) -> String {
+pub(crate) fn escreve(v: f64, decimals: usize) -> String {
     let s = com_casas(v, decimals);
     if s.trim_start_matches('-').chars().all(|c| c == '0' || c == '.') {
         s.trim_start_matches('-').to_string()
@@ -141,7 +141,7 @@ impl ProgramaDial {
 /// Quantas casas o passo pede. `step="0.5"` escrevendo `"3"` perderia a metade
 /// no caminho de volta — é a mesma conta que o `<slider>` faz a partir do
 /// `step` como escrito.
-fn casas_do_passo(step: f64) -> usize {
+pub(crate) fn casas_do_passo(step: f64) -> usize {
     if step <= 0.0 || step >= 1.0 {
         return 0;
     }

@@ -93,6 +93,7 @@ mod input_dialog;
 pub(crate) mod list_view;
 mod progress_dialog;
 mod radio_group;
+mod size_grip;
 mod spin_box;
 mod stack_view;
 mod status_bar;
@@ -120,6 +121,7 @@ use crate::builtins::list_view::ListView;
 pub(crate) use crate::builtins::progress_dialog::PROGRESS_DIALOG_BODY;
 use crate::builtins::progress_dialog::ProgressDialog;
 use crate::builtins::radio_group::RadioGroup;
+use crate::builtins::size_grip::SizeGrip;
 use crate::builtins::spin_box::SpinBox;
 use crate::builtins::stack_view::StackView;
 use crate::builtins::status_bar::StatusBar;
@@ -152,6 +154,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(ListView),
         Box::new(ProgressDialog),
         Box::new(RadioGroup),
+        Box::new(SizeGrip),
         Box::new(SpinBox),
         Box::new(StackView),
         Box::new(StatusBar),

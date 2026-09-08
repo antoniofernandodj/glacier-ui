@@ -523,23 +523,54 @@ pub enum EngineMessage {
         cursor: usize,
         inner: Box<EngineMessage>,
     },
-    /// Começou o arrasto da alça de uma coluna de `<tableheader>`.
+    /// Começou um arrasto — a alça de uma coluna de `<tableheader>`, a de um
+    /// `<splitter>` ou o dedo sobre um `<swipeview>`.
     ///
-    /// A mensagem carrega **o que o widget sabe** — qual chave de larguras,
-    /// qual coluna e qual a largura atual dela — e nada mais. O `x` inicial do
-    /// cursor entra no `dispatch`, que é quem tem a posição do ponteiro em
-    /// coordenadas de janela ([`Self::CursorMoved`]); um `mouse_area` só sabe a
-    /// posição relativa aos limites dele, que não serve para medir um arrasto.
+    /// A mensagem carrega **o que o widget sabe** — qual chave, qual índice, em
+    /// que eixo e qual o valor de partida — e nada mais. A posição inicial do
+    /// cursor NÃO entra aqui: ela fica em aberto e é o primeiro
+    /// [`Self::CursorMoved`] que a ancora, porque enquanto não há alça presa o
+    /// motor não escuta o mouse (ver `crate::grip`). Um `mouse_area` também não
+    /// serviria: ele só sabe a posição relativa aos próprios limites, que não
+    /// mede um arrasto.
     ///
-    /// Daí em diante quem trabalha é o motor: enquanto `__colgrip` existir, ele
-    /// escuta o movimento do mouse (e **só** enquanto — ver
-    /// `GlacierUI::precisa_do_cursor`) e reescreve a largura a cada quadro. O
-    /// soltar do botão chega como [`Self::DragEnd`], a mesma mensagem que
-    /// encerra o arrasto de uma lista reordenável.
-    ColumnResizeStart {
-        widths_var: String,
-        index: usize,
-        largura: f32,
+    /// Daí em diante quem trabalha é o motor: enquanto `__grip` existir, ele
+    /// escuta o movimento (e **só** enquanto — ver
+    /// `GlacierUI::precisa_do_cursor`) e reescreve a chave a cada quadro. O
+    /// soltar chega como [`Self::DragEnd`], a mesma mensagem que encerra o
+    /// arrasto de uma lista reordenável.
+    ///
+    /// Era `ColumnResizeStart`, com um consumidor só; virou o habilitador A da
+    /// Onda 9 ao perder o mapeamento de pixel para largura para o
+    /// [`crate::grip::Alvo`].
+    GripStart(crate::grip::Arrasto),
+    /// Um `<delaybutton>` foi apertado: começa a contar.
+    ///
+    /// O motor guarda a ação e o instante em `__hold` e liga um ticker — e
+    /// **só** enquanto a chave existir, pela mesma economia do cursor: um tick
+    /// permanente redesenharia o app 30 vezes por segundo sem nada ter mudado.
+    HoldStart {
+        action: String,
+        duracao: f32,
+    },
+    /// Soltaram o `<delaybutton>` antes do fim: desiste, sem disparar nada.
+    HoldEnd,
+    /// Um tick do apertar em curso. Recalcula a fração do relógio e, quando ela
+    /// fecha, despacha a ação — que é o único caminho pelo qual um
+    /// `<delaybutton>` dispara.
+    HoldTick,
+    /// Uma combinação de teclas chegou ([`crate::keys`]).
+    ///
+    /// O mesmo evento serve às duas tags do habilitador B, e quem decide é o
+    /// contexto: com um `<shortcutinput>` armado ele **grava**; sem, ele
+    /// procura um `<shortcut>` que case na árvore avaliada.
+    ShortcutKey {
+        combo: String,
+        capturado: bool,
+    },
+    /// Um `<shortcutinput>` foi clicado: arma (ou desarma) a captura.
+    ShortcutArm {
+        value_var: String,
     },
     /// **Grava e depois despacha**: aplica `patch` no contexto e só então
     /// entrega `inner` ao caminho normal.
@@ -752,7 +783,12 @@ impl EngineMessage {
             Self::UiInputChanged { .. } => "UiInputChanged",
             Self::MaskedEdit { .. } => "MaskedEdit",
             Self::PatchThen { .. } => "PatchThen",
-            Self::ColumnResizeStart { .. } => "ColumnResizeStart",
+            Self::GripStart(..) => "GripStart",
+            Self::HoldStart { .. } => "HoldStart",
+            Self::HoldEnd => "HoldEnd",
+            Self::HoldTick => "HoldTick",
+            Self::ShortcutKey { .. } => "ShortcutKey",
+            Self::ShortcutArm { .. } => "ShortcutArm",
             Self::UiEditorAction { .. } => "UiEditorAction",
             Self::UiComboInput { .. } => "UiComboInput",
             Self::UiComboSelected { .. } => "UiComboSelected",
@@ -1829,6 +1865,67 @@ fn cursor_remascarado(antes: &str, digitado: &str, mascara: &str) -> usize {
 /// continua saindo da mesma volta pura `extrai_cru` → `aplica_mascara`.
 ///
 /// `<pagination>`: primeira · anterior · a janela de números · próxima · última.
+/// `<shortcutinput>` — ver [`NodeType::ShortcutInput`], e [`crate::keys`] para o
+/// listener que o alimenta.
+///
+/// Um botão, e não um `<textinput>`: o que se faz aqui não é digitar. Um campo
+/// de texto de verdade consumiria as teclas (`Status::Captured`) antes de o
+/// listener global as ver — e é exatamente o que o `Ctrl+S` **não** pode
+/// encontrar pela frente.
+fn render_shortcut_input<'a>(
+    context: &'a ContextMap,
+    value_var: &'a str,
+    placeholder: &'a str,
+    on_change: &'a str,
+) -> Element<'a, EngineMessage> {
+    let armado = context
+        .get(crate::keys::CAPTURA_CONTEXT)
+        .is_some_and(|c| c == value_var);
+    let atual = context.get(value_var).cloned().unwrap_or_default();
+
+    let dica = if placeholder.is_empty() {
+        "Clique e tecle"
+    } else {
+        placeholder
+    };
+    let rotulo = if armado {
+        "Tecle a combinação…".to_string()
+    } else if atual.is_empty() {
+        dica.to_string()
+    } else {
+        atual
+    };
+
+    let _ = on_change;
+    button(text(rotulo).size(13))
+        .padding([6, 10])
+        .on_press(EngineMessage::ShortcutArm {
+            value_var: value_var.to_string(),
+        })
+        .style(move |theme: &iced::Theme, status| {
+            let pal = theme.extended_palette();
+            let borda = if armado {
+                pal.primary.base.color
+            } else {
+                pal.background.strong.color
+            };
+            button::Style {
+                background: Some(Background::Color(match status {
+                    button::Status::Hovered => pal.background.weak.color,
+                    _ => pal.background.base.color,
+                })),
+                text_color: pal.background.base.text,
+                border: Border {
+                    color: borda,
+                    width: if armado { 2.0 } else { 1.0 },
+                    radius: 4.0.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
 fn render_pagination<'a>(
     context: &'a ContextMap,
     value_var: &'a str,
@@ -1836,6 +1933,7 @@ fn render_pagination<'a>(
     window: usize,
     ends: bool,
     on_change: &'a str,
+    dots: bool,
 ) -> Element<'a, EngineMessage> {
     // `total` chega como texto (ver o campo em `NodeType::Pagination`): o que
     // não é número conta como zero, e zero esconde o widget — que é a mesma
@@ -1849,16 +1947,23 @@ fn render_pagination<'a>(
             .height(Length::Shrink)
             .into();
     }
+    // As duas tags contam de bases diferentes, e não é capricho: o
+    // `<pagination>` numera páginas para gente ler (a primeira é a 1), o
+    // `<pageindicator>` marca o índice de um `<swipeview>`, que é o
+    // `currentIndex` do QML e começa em zero. Aqui dentro tudo é base 1, e o
+    // `desloca` traduz nas duas pontas.
+    let desloca = usize::from(dots);
     let atual = context
         .get(value_var)
         .and_then(|v| v.trim().parse::<usize>().ok())
+        .map(|n| n + desloca)
         .unwrap_or(1)
         .clamp(1, total);
 
     let chave = value_var.to_string();
     let acao = on_change.to_string();
     let ir = move |n: usize| -> EngineMessage {
-        let n = n.to_string();
+        let n = (n - desloca).to_string();
         if acao.is_empty() {
             EngineMessage::ContextPatch(vec![(chave.clone(), n)])
         } else {
@@ -1911,6 +2016,41 @@ fn render_pagination<'a>(
         }
         b
     };
+
+    // `<pageindicator>`: os pontinhos. Sem setas, sem reticências e sem
+    // janela — um indicador de página mostra TODAS as páginas ou não indica
+    // nada, e é por isso que a janela de números (a parte cara do
+    // `<pagination>`) não entra aqui.
+    if dots {
+        let mut pontos = row![].spacing(6).align_y(iced::Alignment::Center);
+        for n in 1..=total {
+            let atual_ = n == atual;
+            pontos = pontos.push(
+                button(Space::new().width(8).height(8))
+                    .padding(2)
+                    .on_press(ir(n))
+                    .style(move |theme: &iced::Theme, status| {
+                        let p = theme.extended_palette();
+                        let pairado =
+                            matches!(status, button::Status::Hovered | button::Status::Pressed);
+                        button::Style {
+                            background: Some(Background::Color(if atual_ {
+                                p.primary.base.color
+                            } else if pairado {
+                                p.background.strong.color
+                            } else {
+                                p.background.weak.color
+                            })),
+                            // Um ponto é um círculo, e um `border_radius` de
+                            // metade do lado é o que faz um quadrado virar um.
+                            border: Border::default().rounded(6),
+                            ..button::Style::default()
+                        }
+                    }),
+            );
+        }
+        return pontos.into();
+    }
 
     let mut linha = row![].spacing(2).align_y(iced::Alignment::Center);
     if ends {
@@ -2523,7 +2663,10 @@ fn render_autocomplete<'a>(
 /// Global, e legitimamente: só uma alça do app inteiro está sob o cursor por
 /// vez — a mesma família do `__timeedit` e do `__cal_hover`. A identidade da
 /// instância viaja no valor.
-pub(crate) const COLGRIP_CONTEXT: &str = "__colgrip";
+/// O piso e o teto de uma coluna arrastada à mão. O piso não é estética: uma
+/// coluna de largura zero some da tela **junto com a alça dela**.
+pub(crate) const LARGURA_MINIMA_COLUNA: f32 = 48.0;
+pub(crate) const LARGURA_MAXIMA_COLUNA: f32 = 1200.0;
 
 /// Altura da alça de arrasto entre duas colunas, em pixels. Declarada, não
 /// medida — ver o comentário em `celulas_cabecalho`.
@@ -2814,11 +2957,17 @@ fn celulas_cabecalho(
                         }),
                 )
                 .interaction(iced::mouse::Interaction::ResizingHorizontally)
-                .on_press(EngineMessage::ColumnResizeStart {
-                    widths_var: widths_var.to_string(),
-                    index: i,
-                    largura: largura_corrente(col.trilha),
-                });
+                .on_press(EngineMessage::GripStart(crate::grip::Arrasto {
+                    chave: widths_var.to_string(),
+                    indice: i,
+                    eixo: crate::grip::Eixo::X,
+                    origem: None,
+                    valor0: largura_corrente(col.trilha),
+                    alvo: crate::grip::Alvo::Trilha {
+                        min: LARGURA_MINIMA_COLUNA,
+                        max: LARGURA_MAXIMA_COLUNA,
+                    },
+                }));
                 celula = row![celula, alca].align_y(iced::Alignment::Center).into();
             }
             celula
@@ -4421,7 +4570,8 @@ pub fn render_node<'a>(
             window,
             ends,
             on_change,
-        } => render_pagination(context, value_var, total, *window, *ends, on_change),
+            dots,
+        } => render_pagination(context, value_var, total, *window, *ends, on_change, *dots),
         NodeType::WizardNav {
             value_var,
             steps,
@@ -4639,6 +4789,90 @@ pub fn render_node<'a>(
                 .align_y(parse_alignment(node.align_y()).unwrap_or(iced::Alignment::Start))
                 .into()
         }
+        // ── Onda 9 — o ponteiro preso ───────────────────────────────────────
+        NodeType::Splitter {
+            sizes_var,
+            vertical,
+            handle,
+            min,
+        } => {
+            let filhos: Vec<Element<'a, EngineMessage>> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .map(|c| render_node(c, context, editors, combos, assets, view))
+                .collect();
+            crate::panes::render_splitter(
+                node, context, sizes_var, *vertical, *handle, *min, filhos,
+            )
+        }
+        NodeType::SwipeView {
+            value_var,
+            threshold,
+            on_change: _,
+        } => {
+            let filhos: Vec<Element<'a, EngineMessage>> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .map(|c| render_node(c, context, editors, combos, assets, view))
+                .collect();
+            crate::panes::render_swipeview(context, value_var, *threshold, filhos)
+        }
+        NodeType::RangeSlider {
+            start_var,
+            end_var,
+            min,
+            max,
+            step,
+            size,
+            color,
+            on_change,
+            on_release,
+            readonly,
+        } => crate::pointer::render_range_slider(
+            context, start_var, end_var, *min, *max, *step, *size, color, on_change, on_release,
+            *readonly,
+        ),
+        NodeType::Tumbler {
+            value_var,
+            items,
+            visible,
+            row,
+            size,
+            on_change,
+        } => crate::pointer::render_tumbler(
+            context, value_var, items, *visible, *row, *size, on_change,
+        ),
+        NodeType::DelayButton {
+            text,
+            action,
+            delay,
+            size,
+            color,
+        } => crate::pointer::render_delay_button(context, text, action, *delay, *size, color),
+        NodeType::RubberBand {
+            items,
+            selection_var,
+            on_select,
+            color,
+        } => crate::pointer::render_rubber_band(
+            node,
+            context,
+            items,
+            selection_var,
+            on_select,
+            color,
+        ),
+        NodeType::ShortcutInput {
+            value_var,
+            placeholder,
+            on_change,
+        } => render_shortcut_input(context, value_var, placeholder, on_change),
+        // Um `<shortcut>` não desenha: ele é uma **declaração** que o motor
+        // colhe da árvore avaliada (`collect_tree_bindings`) e casa contra o
+        // teclado. Sai do layout inteiro, como um `hidden`.
+        NodeType::Shortcut { .. } => Space::new().width(0).height(0).into(),
         NodeType::Flow { row_spacing } => {
             // O `Row::wrap()` do próprio iced. A Onda 6 catalogava este item
             // como "a mesma medição num eixo só", saindo do `<grid>`; ele já

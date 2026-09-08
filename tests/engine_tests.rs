@@ -6593,11 +6593,22 @@ fn onda6_arrasto_de_coluna_reescreve_a_chave_de_larguras() {
     // Pressionar a alça: a mensagem carrega só o que o widget sabe. O zero do
     // arrasto fica em aberto — enquanto não havia alça presa o motor não
     // escutava o mouse, então a última posição conhecida não vale nada.
-    let _ = motor.dispatch(&EngineMessage::ColumnResizeStart {
-        widths_var: "larguras".into(),
-        index: 0,
-        largura: 120.0,
-    });
+    //
+    // A Onda 9 generalizou esta mensagem (era `ColumnResizeStart`, com o
+    // mapeamento de pixel para largura embutido no motor); as ASSERÇÕES deste
+    // teste não mudaram uma linha, e é isso que ele passou a guardar além do
+    // widget — ver `tests/onda9_ponteiro.rs`.
+    let _ = motor.dispatch(&EngineMessage::GripStart(glacier_ui::grip::Arrasto {
+        chave: "larguras".into(),
+        indice: 0,
+        eixo: glacier_ui::grip::Eixo::X,
+        origem: None,
+        valor0: 120.0,
+        alvo: glacier_ui::grip::Alvo::Trilha {
+            min: 48.0,
+            max: 1200.0,
+        },
+    }));
     assert!(
         motor.precisa_do_cursor(),
         "com a alça presa, o rastreio liga"
@@ -6651,11 +6662,17 @@ fn onda6_a_coluna_arrastada_tem_piso() {
         r#"<tableview items="l" columns="c" widths="w" height="200" />"#,
     );
     motor.define_data("w", "120");
-    let _ = motor.dispatch(&EngineMessage::ColumnResizeStart {
-        widths_var: "w".into(),
-        index: 0,
-        largura: 120.0,
-    });
+    let _ = motor.dispatch(&EngineMessage::GripStart(glacier_ui::grip::Arrasto {
+        chave: "w".into(),
+        indice: 0,
+        eixo: glacier_ui::grip::Eixo::X,
+        origem: None,
+        valor0: 120.0,
+        alvo: glacier_ui::grip::Alvo::Trilha {
+            min: 48.0,
+            max: 1200.0,
+        },
+    }));
     let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(400.0, 10.0)));
     let _ = motor.dispatch(&EngineMessage::CursorMoved(iced::Point::new(0.0, 10.0)));
     assert_eq!(motor.context().get("w").map(String::as_str), Some("48"));

@@ -1444,6 +1444,18 @@ pub enum NodeType {
         ends: bool,
         /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
         on_change: String,
+        /// `<pageindicator>`: os pontinhos em vez dos números — o `QML
+        /// PageIndicator`, que é **a mesma primitiva** vista de outro jeito.
+        ///
+        /// Ele saiu de carona no `<swipeview>` da Onda 9, e o catálogo já
+        /// previa isso: "o irmão visual do `Pagination`, mesma chave". A
+        /// diferença de código é uma `bool` — o resto (a janela, as pontas
+        /// inertes, a aritmética de saturar) já estava escrito desde a Onda 4.
+        ///
+        /// Ele também **conta do zero**, e não do um: o `<pagination>` numera
+        /// páginas para gente ler, o `<pageindicator>` marca o índice de um
+        /// `<swipeview>`, que é o `currentIndex` do QML.
+        dots: bool,
     },
     /// A navegação de um `<wizard>`: o cabeçalho de passo e a fileira de
     /// botões. Ver [`crate::wizard`] para o porquê de ela ser primitiva
@@ -2047,6 +2059,165 @@ pub enum NodeType {
         /// Vazio = a paleta do tema.
         colors: String,
     },
+    // ── Onda 9 — o ponteiro preso ───────────────────────────────────────────
+    //
+    // Sete tags, e o que as junta não é a seção da tabela onde o catálogo as
+    // pôs (botões, numéricas, containers, navegação, janela, overlays): é o
+    // ponteiro apertado ao longo do tempo. As três primeiras arrastam sobre
+    // FILHOS e por isso passam pelo `crate::grip`; as quatro seguintes desenham
+    // o próprio arrasto num `canvas` e guardam o "estou arrastando" no
+    // `Program::State` do iced, como o `<dial>` da Onda 7 já fazia.
+    /// `QSplitter`: painéis lado a lado com uma alça arrastável entre cada par.
+    ///
+    /// ```xml
+    /// <splitter sizes="painel">
+    ///     <column class="lateral"> … </column>
+    ///     <column class="conteudo"> … </column>
+    /// </splitter>
+    /// ```
+    ///
+    /// É a **mesma alça** do `<tableheader>` (Onda 6) aplicada a um container
+    /// em vez de a um cabeçalho — mesma chave de trilhas, mesmo formato
+    /// (`"240 fill"`), mesmo `crate::grip::Alvo::Trilha`. Nunca esteve
+    /// bloqueado por estado por instância: o tamanho dos painéis é um valor que
+    /// o app nomeia.
+    Splitter {
+        /// Nome da chave com as trilhas dos painéis, no formato do `columns` do
+        /// `<grid>`. Vazia = os painéis repartem igual e nada é arrastável.
+        sizes_var: String,
+        /// Empilha na vertical (a alça anda em `y`).
+        vertical: bool,
+        /// Espessura da alça em pixels. Default 6.
+        handle: f32,
+        /// Piso de um painel arrastado, em pixels. Default 60 — abaixo disso o
+        /// painel some da tela junto com a alça dele.
+        min: f32,
+    },
+    /// `QML SwipeView`: páginas trocadas arrastando o dedo.
+    ///
+    /// ```xml
+    /// <swipeview value="pagina">
+    ///     <column> … página 0 … </column>
+    ///     <column> … página 1 … </column>
+    /// </swipeview>
+    /// ```
+    ///
+    /// A página é o **índice** numa chave (o `currentIndex` do QML), e é só
+    /// isso que ele guarda: `<stackview>` (Onda 8) escolhe a página por nome de
+    /// slot, este escolhe por posição, porque é a posição que um arrasto
+    /// move. O que faltava era o meio — o arrasto —, e ele agora é
+    /// `crate::grip::Alvo::Indice`.
+    SwipeView {
+        /// Chave com o índice da página visível (base 0).
+        value_var: String,
+        /// Quantos pixels arrastar para virar uma página. Default 120.
+        threshold: f32,
+        /// Vazio = o widget **grava a chave sozinho**; preenchido = delega.
+        on_change: String,
+    },
+    /// `QML RangeSlider`: uma faixa com **dois** cursores.
+    ///
+    /// Duas chaves nomeadas, que é exatamente o que o `<daterangepicker range>`
+    /// da Onda 3 já fazia com `start`/`end` — e a razão de o `●` do catálogo
+    /// nunca ter valido aqui. Qual das duas pontas está presa é o único estado
+    /// do widget, e ele vive no `Program::State`.
+    RangeSlider {
+        start_var: String,
+        end_var: String,
+        min: f32,
+        max: f32,
+        /// `0` = contínuo.
+        step: f32,
+        /// Comprimento da barra. Default 240.
+        size: f32,
+        /// Vazia = a primária do tema.
+        color: String,
+        /// Vazio = o widget grava as duas chaves sozinho.
+        on_change: String,
+        /// Ação disparada só ao SOLTAR. Vazia = não usa.
+        on_release: String,
+        readonly: bool,
+    },
+    /// `QML Tumbler`: a roleta de valores.
+    ///
+    /// O `<dial>` desenrolado numa linha: o valor mora na chave, o arrasto e a
+    /// rolagem andam o índice, e a lista é a mesma convenção `items="chave"` de
+    /// todo o motor.
+    Tumbler {
+        /// Chave com o valor escolhido (o texto do item, não o índice).
+        value_var: String,
+        /// Coleção: nome de chave ou JSON/lista escrita no atributo.
+        items: String,
+        /// Quantos itens aparecem de uma vez. Ímpar de propósito — uma janela
+        /// par não tem centro. Default 3.
+        visible: usize,
+        /// Altura de um item em pixels. Default 34.
+        row: f32,
+        /// Largura do widget. Default 120.
+        size: f32,
+        on_change: String,
+    },
+    /// `QML DelayButton`: o botão que só dispara depois de segurado.
+    ///
+    /// A metade do arrasto em que **o que anda é o tempo, não o pixel**: a
+    /// fração decorrida mora numa chave global do motor (`__hold`) e o anel a
+    /// desenha. Soltar antes do fim desiste sem disparar nada, que é o ponto
+    /// todo — é um botão para a ação que não se quer por engano.
+    DelayButton {
+        /// Rótulo no miolo do anel.
+        text: String,
+        /// A ação, disparada **só** quando o anel fecha.
+        action: String,
+        /// Quanto tempo segurar, em milissegundos. Default 1200.
+        delay: f32,
+        /// Diâmetro em pixels. Default 84.
+        size: f32,
+        color: String,
+    },
+    /// `QRubberBand`: o retângulo de seleção arrastado sobre uma área.
+    ///
+    /// O retângulo em curso é uma chave global do motor (um por tela, como o
+    /// `__cal_hover` do `<calendar>`). O que ele **seleciona** é o conjunto
+    /// nomeado que o `<listview mode="multi">` já guarda desde a 0.85 — e é por
+    /// isso que ele aceita `items`: sem eles publica só a geometria, com eles
+    /// escreve a seleção.
+    RubberBand {
+        /// Coleção de retângulos (`[{"id","x","y","w","h"}]`): chave ou JSON.
+        /// Vazia = o widget não seleciona nada, só publica o retângulo.
+        items: String,
+        /// Chave que recebe o conjunto nomeado dos `id` tocados.
+        selection_var: String,
+        /// Ação disparada ao soltar, com `"x,y,w,h"` por valor. Vazia = não usa.
+        on_select: String,
+        color: String,
+    },
+    /// `QKeySequenceEdit`: o campo que captura uma combinação de teclas.
+    ///
+    /// É o listener de teclado do habilitador B em **modo de captura**. Qual
+    /// campo está armado é global por natureza (um por tela) e mora numa chave
+    /// do motor com a identidade da instância no valor — literalmente o que o
+    /// `__timeedit` faz com a seção selecionada desde a 0.70.
+    ShortcutInput {
+        /// Chave que recebe a combinação (`"ctrl+shift+s"`).
+        value_var: String,
+        /// Texto quando a chave está vazia. Default "Clique e tecle".
+        placeholder: String,
+        on_change: String,
+    },
+    /// `QShortcut`/`QAction`: um atalho global declarado no markup.
+    ///
+    /// Não desenha nada — é uma **declaração** que o motor colhe da árvore
+    /// avaliada (ver `collect_tree_bindings`) e casa contra o teclado. Fica no
+    /// markup, e não numa API de Rust, porque o atalho pertence à tela: a tela
+    /// que sai de cena leva os atalhos dela junto, sem ninguém desregistrar
+    /// nada.
+    Shortcut {
+        /// A combinação, como se escreve: `"ctrl+s"`, `"ctrl+shift+p"`, `"f5"`,
+        /// `"escape"`. A ordem dos modificadores não importa.
+        key: String,
+        /// A ação despachada quando ela chega.
+        action: String,
+    },
     /// `QSpacerItem`: espaço vazio que empurra o resto. Sem `width`/`height`
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
@@ -2116,6 +2287,9 @@ impl NodeType {
             NodeType::Radio { .. } => "radio",
             NodeType::DateTimeEdit { .. } => "timeedit",
             NodeType::Calendar { .. } => "calendar",
+            // `<pageindicator>` é `<pagination dots>`: uma tag a menos no
+            // motor, e o `tag_name` diz a verdade sobre qual nó é — a mesma
+            // decisão do `<sparkline>` na Onda 7.
             NodeType::Pagination { .. } => "pagination",
             NodeType::WizardNav { .. } => "wizardnav",
             NodeType::ColorWheel { .. } => "colorwheel",
@@ -2137,6 +2311,14 @@ impl NodeType {
             NodeType::BarChart { .. } => "barchart",
             NodeType::PieChart { .. } => "piechart",
             NodeType::Slider { .. } => "slider",
+            NodeType::Splitter { .. } => "splitter",
+            NodeType::SwipeView { .. } => "swipeview",
+            NodeType::RangeSlider { .. } => "rangeslider",
+            NodeType::Tumbler { .. } => "tumbler",
+            NodeType::DelayButton { .. } => "delaybutton",
+            NodeType::RubberBand { .. } => "rubberband",
+            NodeType::ShortcutInput { .. } => "shortcutinput",
+            NodeType::Shortcut { .. } => "shortcut",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
             NodeType::Reveal { .. } => "reveal",
@@ -3634,8 +3816,12 @@ impl UiNode {
                     .unwrap_or_default(),
                 }
             }
-            "Pagination" | "pagination" | "Paginacao" | "paginacao" | "paginação" => {
+            "Pagination" | "pagination" | "Paginacao" | "paginacao" | "paginação"
+            | "PageIndicator" | "pageindicator" | "Indicador_pagina" | "indicador_pagina" => {
+                let dots = tag.to_ascii_lowercase().contains("indicador")
+                    || tag.eq_ignore_ascii_case("pageindicator");
                 NodeType::Pagination {
+                    dots,
                     value_var: Self::get_attr(&node, &["value", "valor", "page", "pagina"])
                         .unwrap_or_default(),
                     total: Self::get_attr(&node, &["total", "pages", "paginas", "páginas"])
@@ -4047,6 +4233,185 @@ impl UiNode {
                         .unwrap_or_default(),
                 }
             }
+            // ── Onda 9 ──────────────────────────────────────────────────────
+            //
+            // A regra de apelido que a Onda 7 aprendeu continua valendo, e esta
+            // onda a pisou de novo: um substantivo comum não pode virar tag,
+            // porque o parser mapeia a tag ANTES de procurar componentes e um
+            // `<component name="Painel">` do app passaria a ser ignorado em
+            // silêncio. Daí `divisor` e `roleta`, e nada de `<painel>` ou
+            // `<faixa>`.
+            //
+            // E há uma segunda metade da regra, que só apareceu aqui: o apelido
+            // também não pode ser o de **outra tag**. `<deslizante>` foi a
+            // primeira escolha para o `<swipeview>` e já era o apelido do
+            // `<slider>` desde sempre — o `match` casava no braço de cima e o
+            // de baixo virava código morto. O compilador avisou
+            // (`unreachable pattern`), o que não teria acontecido se a colisão
+            // fosse com um componente do app.
+            "Splitter" | "splitter" | "Divisor" | "divisor" | "PaneGrid" | "panegrid" => {
+                NodeType::Splitter {
+                    sizes_var: Self::get_attr(&node, &["sizes", "tamanhos", "value", "valor"])
+                        .unwrap_or_default(),
+                    // `direction="v"`, `vertical="true"` e `orientation="vertical"`
+                    // dizem a mesma coisa; a primeira letra decide.
+                    vertical: Self::get_attr_bool(&node, &["vertical"])
+                        || Self::get_attr(
+                            &node,
+                            &["direction", "direcao", "direção", "orientation"],
+                        )
+                        .is_some_and(|d| d.trim().to_ascii_lowercase().starts_with('v')),
+                    handle: Self::get_attr_f32(
+                        &node,
+                        &["handle", "alca", "alça", "thickness"],
+                        6.0,
+                    )
+                    .clamp(2.0, 24.0),
+                    min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 60.0).max(0.0),
+                }
+            }
+            "SwipeView" | "swipeview" | "Carrossel" | "carrossel" => NodeType::SwipeView {
+                value_var: Self::get_attr(&node, &["value", "valor", "index", "indice", "índice"])
+                    .unwrap_or_default(),
+                threshold: Self::get_attr_f32(&node, &["threshold", "limiar", "distance"], 120.0)
+                    .max(16.0),
+                on_change: Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default(),
+            },
+            "RangeSlider" | "rangeslider" | "Faixa_dupla" | "faixa_dupla" => {
+                NodeType::RangeSlider {
+                    // `start`/`end` são os mesmos nomes do `<daterangepicker>`,
+                    // e de propósito: é o mesmo par de chaves, e quem já
+                    // escreveu um não precisa aprender outro.
+                    start_var: Self::get_attr(&node, &["start", "inicio", "início", "from"])
+                        .unwrap_or_default(),
+                    end_var: Self::get_attr(&node, &["end", "fim", "to"]).unwrap_or_default(),
+                    min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 0.0),
+                    max: Self::get_attr_f32(&node, &["max", "maximo", "máximo"], 100.0),
+                    step: Self::get_attr_f32(&node, &["step", "passo"], 1.0).max(0.0),
+                    size: Self::get_attr_f32(
+                        &node,
+                        &["size", "tamanho", "width", "largura"],
+                        240.0,
+                    )
+                    .clamp(60.0, 1600.0),
+                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                    on_release: Self::get_attr(
+                        &node,
+                        &["onRelease", "on_release", "on-release", "aoSoltar"],
+                    )
+                    .unwrap_or_default(),
+                    readonly: Self::get_attr_bool(
+                        &node,
+                        &["readonly", "readOnly", "somente_leitura"],
+                    ),
+                }
+            }
+            "Tumbler" | "tumbler" | "Roleta" | "roleta" => NodeType::Tumbler {
+                value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                items: Self::get_attr(&node, &["items", "itens", "options", "opcoes", "opções"])
+                    .unwrap_or_default(),
+                // Ímpar de propósito: uma janela par não tem centro, e o item
+                // escolhido ficaria fora do meio. A mesma conta do `window` do
+                // `<pagination>`.
+                visible: {
+                    let v = Self::get_attr_f32(&node, &["visible", "visiveis", "visíveis"], 3.0)
+                        .clamp(1.0, 15.0) as usize;
+                    if v.is_multiple_of(2) { v + 1 } else { v }
+                },
+                row: Self::get_attr_f32(&node, &["row", "linha", "item_height"], 34.0)
+                    .clamp(14.0, 120.0),
+                size: Self::get_attr_f32(&node, &["size", "tamanho", "width", "largura"], 120.0)
+                    .clamp(40.0, 800.0),
+                on_change: Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default(),
+            },
+            "DelayButton" | "delaybutton" | "Botao_demorado" | "botao_demorado" => {
+                NodeType::DelayButton {
+                    text: Self::get_attr(&node, &["text", "texto", "label", "rotulo"])
+                        .unwrap_or_default(),
+                    action: Self::get_attr(
+                        &node,
+                        &[
+                            "onPress", "on_press", "onClick", "on_click", "on-click", "aoClicar",
+                        ],
+                    )
+                    .unwrap_or_default(),
+                    delay: Self::get_attr_f32(
+                        &node,
+                        &["delay", "atraso", "duration", "duracao"],
+                        1200.0,
+                    )
+                    .clamp(120.0, 20_000.0),
+                    size: Self::get_attr_f32(&node, &["size", "tamanho"], 84.0).clamp(32.0, 400.0),
+                    color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+                }
+            }
+            "RubberBand" | "rubberband" | "Laco" | "laco" | "laço" => NodeType::RubberBand {
+                items: Self::get_attr(&node, &["items", "itens", "data", "dados"])
+                    .unwrap_or_default(),
+                selection_var: Self::get_attr(
+                    &node,
+                    &[
+                        "selection",
+                        "selecao",
+                        "seleção",
+                        "value",
+                        "valor",
+                        "selected",
+                    ],
+                )
+                .unwrap_or_default(),
+                on_select: Self::get_attr(
+                    &node,
+                    &["onSelect", "on_select", "on-select", "aoSelecionar"],
+                )
+                .unwrap_or_default(),
+                color: Self::get_attr(&node, &["color", "cor"]).unwrap_or_default(),
+            },
+            "ShortcutInput" | "shortcutinput" | "KeySequenceEdit" | "keysequenceedit" => {
+                NodeType::ShortcutInput {
+                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    placeholder: Self::get_attr(
+                        &node,
+                        &["placeholder", "dica", "hint", "espaco_reservado"],
+                    )
+                    .unwrap_or_default(),
+                    on_change: Self::get_attr(
+                        &node,
+                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
+                }
+            }
+            "Shortcut" | "shortcut" | "Atalho" | "atalho" | "Action" => NodeType::Shortcut {
+                key: Self::get_attr(&node, &["key", "keys", "tecla", "teclas", "sequence"])
+                    .unwrap_or_default(),
+                action: Self::get_attr(
+                    &node,
+                    &[
+                        "onPress",
+                        "on_press",
+                        "onActivate",
+                        "on_activate",
+                        "action",
+                        "acao",
+                        "ação",
+                    ],
+                )
+                .unwrap_or_default(),
+            },
             "Radio" | "radio" | "RadioButton" | "radiobutton" | "Opcao" | "opcao" => {
                 let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"])
                     .unwrap_or_default();

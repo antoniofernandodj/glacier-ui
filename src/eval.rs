@@ -2353,12 +2353,14 @@ fn eval_owned(
             window,
             ends,
             on_change,
+            dots,
         } => NodeType::Pagination {
             value_var: process_tpl(value_var, context),
             total: process_tpl(total, context),
             window: *window,
             ends: *ends,
             on_change: namespace_action(process_tpl(on_change, context), owner),
+            dots: *dots,
         },
         NodeType::WizardNav {
             value_var,
@@ -2457,6 +2459,108 @@ fn eval_owned(
             readonly: *readonly,
             on_change: namespace_action(process_tpl(on_change, context), owner),
             on_release: namespace_action(process_tpl(on_release, context), owner),
+        },
+        // ── Onda 9 ──────────────────────────────────────────────────────────
+        //
+        // A `cor` das quatro que desenham cai na classe `.gss` quando o
+        // atributo não a dá — o mesmo fallback do `<dial>` acima. As chaves
+        // passam pelo `process_tpl` porque o nome de uma chave pode vir de uma
+        // prop (`sizes="{painel}"`), e as ações pelo `namespace_action` porque
+        // uma ação escrita dentro de um componente pertence a ele.
+        NodeType::Splitter {
+            sizes_var,
+            vertical,
+            handle,
+            min,
+        } => NodeType::Splitter {
+            sizes_var: process_tpl(sizes_var, context),
+            vertical: *vertical,
+            handle: *handle,
+            min: *min,
+        },
+        NodeType::SwipeView {
+            value_var,
+            threshold,
+            on_change,
+        } => NodeType::SwipeView {
+            value_var: process_tpl(value_var, context),
+            threshold: *threshold,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::RangeSlider {
+            start_var,
+            end_var,
+            min,
+            max,
+            step,
+            size,
+            color,
+            on_change,
+            on_release,
+            readonly,
+        } => NodeType::RangeSlider {
+            start_var: process_tpl(start_var, context),
+            end_var: process_tpl(end_var, context),
+            min: *min,
+            max: *max,
+            step: *step,
+            size: *size,
+            color: cor_ou_classe(color),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_release: namespace_action(process_tpl(on_release, context), owner),
+            readonly: *readonly,
+        },
+        NodeType::Tumbler {
+            value_var,
+            items,
+            visible,
+            row,
+            size,
+            on_change,
+        } => NodeType::Tumbler {
+            value_var: process_tpl(value_var, context),
+            items: process_tpl(items, context),
+            visible: *visible,
+            row: *row,
+            size: *size,
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::DelayButton {
+            text,
+            action,
+            delay,
+            size,
+            color,
+        } => NodeType::DelayButton {
+            text: process_tpl(text, context),
+            action: namespace_action(process_tpl(action, context), owner),
+            delay: *delay,
+            size: *size,
+            color: cor_ou_classe(color),
+        },
+        NodeType::RubberBand {
+            items,
+            selection_var,
+            on_select,
+            color,
+        } => NodeType::RubberBand {
+            items: process_tpl(items, context),
+            selection_var: process_tpl(selection_var, context),
+            on_select: namespace_action(process_tpl(on_select, context), owner),
+            color: cor_ou_classe(color),
+        },
+        NodeType::ShortcutInput {
+            value_var,
+            placeholder,
+            on_change,
+        } => NodeType::ShortcutInput {
+            value_var: process_tpl(value_var, context),
+            placeholder: process_tpl(placeholder, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+        },
+        NodeType::Shortcut { key, action } => NodeType::Shortcut {
+            key: process_tpl(key, context),
+            action: namespace_action(process_tpl(action, context), owner),
         },
         NodeType::Gauge {
             value_var,

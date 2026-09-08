@@ -109,7 +109,28 @@ const NATIVE_TAGS = {
   Wizard: ["wizard", "assistente"],
   WizardNav: ["wizardnav", "wizard_nav", "wizard-nav"],
   ColorWheel: ["colorwheel", "color-wheel", "rodadecor", "roda_de_cor"],
-  Pagination: ["pagination", "paginacao", "paginação"],
+  // Onda 9: o ponteiro preso (`src/grip.rs` é o arrasto; `src/panes.rs` os que
+  // arrastam sobre FILHOS, `src/pointer.rs` os que desenham o próprio arrasto).
+  // Nenhum apelido em pt-BR aqui é substantivo comum — e nenhum é apelido de
+  // outra tag, que é a metade da regra que esta onda descobriu: `<deslizante>`
+  // foi a primeira escolha para o `<swipeview>` e já era do `<slider>`.
+  Splitter: ["splitter", "divisor", "panegrid"],
+  SwipeView: ["swipeview", "carrossel"],
+  RangeSlider: ["rangeslider", "faixa_dupla"],
+  Tumbler: ["tumbler", "roleta"],
+  DelayButton: ["delaybutton", "botao_demorado"],
+  RubberBand: ["rubberband", "laco", "laço"],
+  ShortcutInput: ["shortcutinput", "keysequenceedit"],
+  // `<shortcut>` não desenha nada, mas é do LAYOUT e não do `<resources>`: quem
+  // o encontra é o coletor que varre a árvore avaliada. Por isso ele fica aqui,
+  // entre os widgets, e não com o `<dialog>` lá embaixo.
+  Shortcut: ["shortcut", "atalho", "action"],
+  // `<pageindicator>` é `<pagination>` com pontos — a MESMA primitiva, como
+  // `<sparkline>` é `<linechart>` sem moldura.
+  Pagination: [
+    "pagination", "paginacao", "paginação",
+    "pageindicator", "indicador_pagina",
+  ],
   Rating: ["rating", "nota", "estrelas"],
   Radio: ["radio", "radiobutton", "opcao"],
   Space: ["space", "espaco", "espaço", "spacer"],
@@ -148,6 +169,9 @@ const NATIVE_TAGS = {
   GroupBox: ["groupbox"],
   ListView: ["listview"],
   RadioGroup: ["radiogroup"],
+  // Onda 9, e o item mais barato dela: `window:resize:se` e `cursor="se"` já
+  // existiam, então ele é builtin e não motor.
+  SizeGrip: ["sizegrip"],
   SpinBox: ["spinbox"],
   StatusBar: ["statusbar"],
   TabBar: ["tabbar"],

@@ -1250,6 +1250,231 @@ Anel de matiz mais o quadrado saturação × valor. Escreve `#rrggbb` na chave.
 | `onChange` | — | vazio = a roda grava a chave sozinha |
 | `readonly` | `false` | mostra sem responder ao gesto |
 
+
+## O ponteiro preso (Onda 9)
+
+Nove tags e um mecanismo: o ponteiro apertado ao longo do tempo, escrevendo num
+valor que o app nomeia. O que sobra do arrasto — *estou arrastando? desde onde?*
+— é do motor, e é global: só se arrasta uma coisa por vez numa tela.
+
+### `<Splitter>` (`<Divisor>`, `<PaneGrid>`)
+Painéis com uma alça arrastável entre cada par (`QSplitter`). É a **mesma alça**
+do `<tableheader>`, aplicada a um container em vez de a um cabeçalho: mesma
+chave de trilhas, mesmo formato do `columns` do `<grid>`.
+
+```gv
+<splitter sizes="painel">
+  <column class="lateral"> … </column>
+  <column class="conteudo"> … </column>
+</splitter>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `sizes` | — | **nome** da chave com as trilhas (`"260 fill"`). Vazia = repartem igual e nada arrasta |
+| `direction` / `vertical` | `h` | `v` empilha, e a alça anda em `y` |
+| `handle` | `6` | espessura da alça em pixels |
+| `min` | `60` | piso de um painel. Abaixo dele o painel some **junto com a alça** |
+
+Os painéis são os **filhos**. Arrastar converte a trilha tocada em fixa — é o
+que a pessoa acabou de pedir ao arrastá-la. Dois `<splitter>` na mesma tela
+nomeiam duas chaves e não se veem.
+
+### `<SwipeView>` (`<Carrossel>`)
+Páginas trocadas arrastando (`QML SwipeView`). É `<stackview>` escolhendo por
+**posição** em vez de nome de slot, porque é a posição que um arrasto move.
+
+```gv
+<swipeview value="pagina" threshold="140">
+  <column> … página 0 … </column>
+  <column> … página 1 … </column>
+</swipeview>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave com o índice, base **0** (o `currentIndex` do QML) |
+| `threshold` | `120` | pixels de arrasto para virar uma página |
+| `onChange` | — | vazio = grava a chave sozinho; preenchido = delega |
+
+O conteúdo segue o dedo: puxar para a esquerda anda para **trás**. Satura nas
+pontas. Só a página ativa renderiza.
+
+### `<RangeSlider>` (`<Faixa_dupla>`)
+A faixa com dois cursores. **Duas** chaves nomeadas — a mesma forma do
+`<daterangepicker range>`.
+
+```gv
+<rangeslider start="preco_min" end="preco_max" min="0" max="1000" step="10" size="300" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `start` / `end` | — | os **nomes** das duas chaves |
+| `min` / `max` | `0` / `100` | a faixa |
+| `step` | `1` | `0` = contínuo |
+| `size` | `240` | **comprimento da barra** (não largura de caixa: fica inline, não no `.gss`) |
+| `color` | tema | vazio = a primária |
+| `readonly` | `false` | desenha e não aceita gesto |
+| `onChange` | — | vazio = grava as duas chaves sozinho |
+| `onRelease` | — | ao soltar, com a faixa inteira (`"120,780"`) por valor |
+
+As pontas não se cruzam: empurrar o início além do fim encosta e para. Com as
+duas juntas o clique pega o **fim** — senão a faixa de largura zero, que é o
+estado inicial de um filtro, travaria.
+
+### `<Tumbler>` (`<Roleta>`)
+A roleta de valores (`QML Tumbler`) — o `<dial>` desenrolado numa linha. Arrasta
+na vertical ou rola a roda.
+
+```gv
+<tumbler value="mes" items="meses" visible="5" size="150" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave, que guarda o **texto** escolhido (não o índice) |
+| `items` | — | a coleção: nome de chave, JSON, ou lista com vírgula |
+| `visible` | `3` | itens visíveis; um número par vira ímpar (senão não há item do meio) |
+| `row` | `34` | altura de um item em pixels |
+| `size` | `120` | largura da roleta |
+| `onChange` | — | vazio = grava a chave sozinho |
+
+Ela **vira dentro de si** (o `wrapping` do `QAbstractSpinBox`): de dezembro para
+janeiro sem parar na ponta. Guardar o texto, e não o índice, é o que faz
+reordenar a coleção não mover a escolha de lugar.
+
+### `<DelayButton>` (`<Botao_demorado>`)
+O botão que só dispara depois de segurado — a metade do arrasto em que **o que
+anda é o tempo, não o pixel**.
+
+```gv
+<delaybutton text="Apagar" on_press="apagar_tudo" delay="1400" size="96" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `text` | — | rótulo no miolo do anel |
+| `onPress` | — | a ação, disparada **só** quando o anel fecha |
+| `delay` | `1200` | milissegundos a segurar |
+| `size` | `84` | diâmetro em pixels |
+| `color` | tema | vazio = a de perigo (`danger`) |
+
+Soltar antes do fim **desiste**, sem disparar nada: é um botão para a ação que
+não se quer por engano. O relógio é de parede, então a fração anda igual num app
+que está engasgando e num que não está.
+
+### `<RubberBand>` (`<Laco>`)
+O retângulo de seleção arrastado sobre uma área (`QRubberBand`).
+
+```gv
+<rubberband items="caixas" selection="marcados" on_select="lacou" height="200" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | os alvos: `[{"id","x","y","w","h"}]`, por chave ou JSON. Vazio = só publica a geometria |
+| `selection` | — | **nome** da chave que recebe o conjunto dos `id` tocados |
+| `onSelect` | — | ao soltar, com `"x,y,w,h"` por valor |
+| `color` | tema | vazio = a primária |
+
+O conjunto sai separado por **vírgula**, que é a grafia que o `contains` do
+condicional lê e a mesma do `<listview mode="multi">` — o que o laço escreveu já
+se consulta sem conversão:
+
+```gv
+<template if="{marcados}" contains="api"> … </template>
+```
+
+Ele **desenha os alvos** que conhece, e não só a faixa. O `QRubberBand` não faz
+isso (lá a faixa é um widget solto sobre uma view), mas aqui não há "por baixo":
+o motor não tem `<stack>` no markup, e a geometria ele já tinha.
+
+### `<PageIndicator>` (`<Indicador_pagina>`)
+Os pontinhos de página (`QML PageIndicator`). É **a mesma primitiva** do
+`<pagination>` com `dots` — uma tag a menos no motor, como `<sparkline>` é
+`<linechart>` sem moldura.
+
+```gv
+<swipeview value="pagina"> … </swipeview>
+<pageindicator value="pagina" total="3" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave; aqui ela conta do **zero**, para casar com o `<swipeview>` |
+| `total` | — | quantas páginas (texto, para poder interpolar) |
+| `onChange` | — | vazio = grava a chave sozinho |
+
+A diferença de base é a única de comportamento: o `<pagination>` numera páginas
+para gente ler (a primeira é a 1), este marca um `currentIndex`.
+
+### `<Shortcut>` (`<Atalho>`, `<Action>`)
+Um atalho global de teclado (`QShortcut`/`QAction`). **Não desenha nada** e não
+ocupa lugar — mas vai no **layout**, não no `<resources>`: quem o encontra é o
+coletor que varre a árvore avaliada, e o `<resources>` não é árvore.
+
+```gv
+<column class="tela">
+  <shortcut key="ctrl+s" on_press="salvar" />
+  <shortcut key="ctrl+shift+p" on_press="buscar" />
+  …
+</column>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `key` | — | a combinação: `"ctrl+s"`, `"ctrl+shift+p"`, `"f5"`, `"escape"`. A ordem dos modificadores não importa |
+| `onPress` | — | a ação despachada, como a de um `<button>` |
+
+É o que faz o atalho pertencer à **tela**: a que sai de cena leva os dela junto,
+sem ninguém desregistrar nada.
+
+Um atalho **sem modificador** não rouba a tecla de um campo focado — digitar `s`
+num `<textinput>` não dispara `<shortcut key="s">`. Um **com** modificador
+atravessa, porque nenhum campo de texto consome `Ctrl+S`.
+
+### `<ShortcutInput>` (`<KeySequenceEdit>`)
+O campo que captura uma combinação (`QKeySequenceEdit`).
+
+```gv
+<shortcutinput value="atalho_salvar" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave que recebe a combinação (`"ctrl+shift+s"`) |
+| `placeholder` | `Clique e tecle` | texto com a chave vazia |
+| `onChange` | — | vazio = grava a chave sozinho |
+
+Clique para armar e tecle. **Esc** desiste, **Backspace** limpa, e clicar no
+campo já armado o desarma. Com ele armado a tecla é **dado**, inclusive uma que
+casaria com um `<shortcut>` da tela — é o que deixa gravar `Ctrl+S` ali sem
+salvar o arquivo no caminho.
+
+É um botão, e não um `<textinput>`: um campo de texto de verdade consumiria as
+teclas antes de o listener global as ver.
+
+### `<SizeGrip>`
+O canto que redimensiona a janela (`QSizeGrip`), para apps que desenham a
+própria titlebar (`decorations="false"`). Builtin.
+
+```gv
+<row class="rodape">
+  <text class="status">Pronto</text>
+  <space />
+  <SizeGrip />
+</row>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `corner` | `se` | de qual canto puxa (`se`, `sw`, `ne`, `nw`, …) |
+| `size` | `14` | lado do quadrado em pixels |
+
+Com a decoração do SO ligada a borda da janela já redimensiona e ele é
+decorativo — ele existe para quando essa borda não existe.
+
 ---
 
 Componentes do **app** são qualquer tag desconhecida (ex.: `<PerfilCard/>`),

@@ -13,13 +13,26 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-07**, sobre a 0.94 (ondas 3 a 8 fechadas). A
-ordenação por **função** — widgets que carregam lógica — que a revisão anterior
-adotou levou a fila até o fim, e a **Onda 8** (o diálogo que carrega markup)
-fechou o último item do catálogo com o formato "um habilitador, meia dúzia de
-widgets". O que sobra agora é de outro tipo: o estado por instância — que só
-bloqueia widgets que existem N vezes na mesma tela —, o registro de famílias de
-fonte, e o troco decorativo da §6.3.
+Última revisão da fila: **2026-09-08**, sobre a 0.95 (ondas 3 a 9 fechadas). A ordenação por **função** — widgets que carregam lógica — que a
+revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
+carrega markup) parecia ter fechado o último item do catálogo com o formato "um
+habilitador, meia dúzia de widgets".
+
+Parecia. A revisão de 2026-09-08 achou mais um, pelo erro de sempre — sete linhas
+espalhadas por seis seções da tabela que são **um** mecanismo: o ponteiro
+apertado ao longo do tempo (`Splitter`, `RangeSlider`, `Tumbler`, `SwipeView`,
+`DelayButton`, `RubberBand`, `SizeGrip`). O motor já o escreve três vezes, em
+três lugares que não conversam. Era a **Onda 9** (§6.2), com a subscription de
+teclado de carona, e ela **saiu na 0.95**: levou o catálogo de 74% para
+**82,4%**, fechou a navegação e a janela/barras inteiras, e gastou dois itens de
+motor — `src/grip.rs` e `src/keys.rs`.
+
+Depois dela o que sobra é de outro tipo, e é pouco: o registro de famílias de
+fonte (duas linhas), a gerência de janela interna (`MdiArea`/`Dock` — um debate,
+não um bloqueio de motor), o troco decorativo da §6.3 (sete) e seis linhas fora
+de escopo por escrito. **O regime "um habilitador, meia dúzia de widgets"
+acabou**, e desta vez a afirmação é verificável: o único `●` que sobra por
+estado de verdade é `MdiArea`/`Dock`.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -90,7 +103,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QDialogButtonBox | `ButtonBox` | Built | row+button | — | P1 | ✅ | `<buttonbox accept="Salvar" on_accept="salvar" reject="Cancelar" …/>`: os três **papéis** e a ordem por plataforma decididos no widget — em Rust, no `template()`, por `cfg!(target_os)`, com uma prop `order` para forçar. O destrutivo fica na ponta oposta em qualquer ordem, e o `<slot/>` põe o "Ajuda" à esquerda. Onda 4 (0.85) |
 | (switch/QML Switch) | `Toggle`/`Toggler` | Prim | toggler | ◐ | P0 | ✅ | já existe |
 | QML RoundButton | `RoundButton` | Built | button | — | P3 | ⬜ | border-radius total. §6.3 |
-| QML DelayButton | `DelayButton` | Comp | button+canvas | ● | P3 | ⬜ | anel de progresso ao segurar |
+| QML DelayButton | `DelayButton` | **Prim** | button+canvas | ◐ | P3 | ✅ | anel de progresso ao segurar. **Onda 9** (0.95): a metade do arrasto em que o que anda é o tempo, não o pixel — a fração numa chave global (`__hold`), recalculada do relógio a cada tique, e o ticker ligado **só** enquanto o botão está apertado. Soltar antes do fim desiste, que é o ponto todo |
 
 ### 2.2 Entradas de texto
 
@@ -102,7 +115,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QTextEdit (rich) | `TextEditor` | Prim | text_editor | ● | P1 | ✅ | multi-linha; rich text é limitado |
 | QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação |
 | QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3 |
-| QKeySequenceEdit | `ShortcutInput` | Comp | text_input | ● | P3 | ⬜ | captura combinação de teclas |
+| QKeySequenceEdit | `ShortcutInput` | **Prim** | text_input | ◐ | P3 | ✅ | captura combinação de teclas. **Onda 9** (0.95): é o listener de teclado do habilitador B em modo de captura — a combinação vai numa chave nomeada, e qual campo captura é global (`__shortcut_cap`), como o `__timeedit`. É um **botão**, não um `<textinput>`: um campo de texto consumiria a tecla antes de o listener global a ver |
 | QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
 | — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Recorta a lista sem acento e sem caixa ("sao paulo" acha "São Paulo"), ▲▼ navegam, Enter aceita, Esc desiste — e as três teclas ganham do campo focado porque quem as recebe é o **overlay** (0.92) |
 
@@ -113,13 +126,13 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QSpinBox | `SpinBox` | Built | text_input+button | ◐ | P1 | ✅ | campo + degraus, `min`/`max`/`step`, `layout="stacked"` (as setinhas ▴▾ coladas no campo, o QSpinBox clássico) ou `"inline"` (`− campo +`, o SpinBox do Qt Quick); a aritmética roda no `update` em Rust — **reclassificado de `●`**: o número mora numa chave que o app nomeia (prop `value`) e a ação carrega essa chave, então N instâncias não colidem (ver `src/builtins/spin_box.rs`) |
 | QDoubleSpinBox | `SpinBox decimals` | Built | text_input+button | ◐ | P1 | ✅ | prop `decimals` no `<spinbox>`. Sem ela as casas continuam saindo do `step`, como sempre — o que acertava por acidente e errava justamente em `step="1"` sobre um preço (`10`, não `10.00`). Onda 4 (0.85) |
 | QSlider | `Slider` | Prim | slider / vertical_slider | ◐ | P1 | ✅ | `min`/`max`/`step`, `vertical`, mais `default` (duplo clique), `on_release` e `shift_step`. Casas decimais da saída vêm do `step` como escrito. `disabled` deixa inerte, sem esmaecer: o `slider::Status` do iced 0.14 não tem `Disabled` |
-| QML RangeSlider | `RangeSlider` | Comp | canvas | ● | P2 | ⬜ | dois cursores |
+| QML RangeSlider | `RangeSlider` | **Prim** | canvas | ◐ | P2 | ✅ | dois cursores. **Onda 9** (0.95): duas chaves nomeadas, exatamente o que o `<daterangepicker range>` já faz com `start`/`end`; qual ponta está presa é o único estado, e mora no `Program::State`. Com as duas juntas o clique pega o **fim** — senão a faixa de largura zero, que é o estado inicial de um filtro, travaria |
 | QDial | `Dial` | **Prim** | canvas | ◐ | P2 | ✅ | knob rotativo: arrasta, clica no arco ou rola a roda. **Reclassificado de `●` para primitiva** — o valor mora na chave que o markup nomeia (`value="volume"`), como no `<slider>`; o único estado interno é o arrasto, e ele vive no `Program::State` do `iced`. É a terceira vez que essa marca cai (Spinner 0.66, Rating 0.85). Onda 7 |
 | QScrollBar | `ScrollBar` | Motor | scrollable | — | P2 | 🟡 | embutido no `scrollable`; expor avulso é raro |
 | QProgressBar | `ProgressBar` | Prim | progress_bar | — | P1 | ✅ | `value`/`min`/`max`/`vertical`/`showValue`; `color` = preenchimento |
 | QProgressBar (busy) | `Spinner`/`BusyIndicator` | Prim | fill_quad (sem canvas) | — | P1 | ✅ | indeterminado; fase de rotação no `tree::State` do widget — **não** exige estado por instância no contexto (reclassificado de `●`; ver `src/spinner.rs`) |
 | QLCDNumber | `LcdNumber` | **Prim** | canvas | — | P3 | ✅ | dígitos de sete segmentos. O valor é lido como TEXTO e só vira número formatado quando parseia como tal — é o que deixa `12:34` de relógio passar inteiro; `.`/`,`/`:` ocupam menos que um dígito. Onda 7 |
-| QML Tumbler | `Tumbler` | Comp | scrollable | ● | P3 | ⬜ | roleta de valores |
+| QML Tumbler | `Tumbler` | **Prim** | canvas | ◐ | P3 | ✅ | roleta de valores. **Onda 9** (0.95): o `<dial>` desenrolado numa linha — o **texto** escolhido na chave (não o índice: reordenar a coleção não move a escolha), o arrasto no `Program::State`. Vira dentro de si, como as seções do `<timeedit>` |
 | QML Gauge / medidor | `Gauge` | **Prim** | canvas | — | P2 | ✅ | medidor de arco com faixas coloridas (`bands`, JSON no atributo ou nome de chave), agulha, unidade e legenda. Apresentacional: não escreve nada. `start`/`sweep` em graus fazem meio-arco. Onda 7 |
 | — (nota por estrelas) | `Rating` | **Prim** | row+button | ◐ | P2 | ✅ | N estrelas numa chave nomeada, com pré-visualização no hover (chave global `__rating`) e `readonly` para listas. **Reclassificado de Built para Prim na construção**, por dois motivos independentes: repetição dirigida por um número (não por coleção) e o hover, que o markup não expõe. Onda 4 (0.85) |
 
@@ -130,14 +143,14 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QComboBox | `Select` / `Combo` | Prim | pick_list / combo_box | ◐ | P0 | ✅ | ambos existem |
 | QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema — o mesmo bloqueio do `FontDialog` (§2.10), e não é o combo: falta o **registro de famílias de fonte** no motor. Os dois saem juntos quando ele existir |
 | QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | ✅ | `<listview items="servicos" value="servico" selected="{servico}" />` — o `TabBar` na vertical, com scroll. `mode="multi"` guarda um **conjunto** numa chave só e é o primeiro consumidor do `contains` (0.84). `virtualize` repassado para listas longas. Onda 4 (0.85) |
-| QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ⬜ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6 |
+| QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ✅ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6. **Contabilidade atrasada**, fechada na revisão da Onda 9: a Onda 6 escreveu que "nem existia como trabalho" e o ⬜ ficou por esquecimento |
 | QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ✅ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. A identidade de um nó é o **caminho**, então um `id` repetido em ramos diferentes não colide (0.92) |
 | QTableWidget/QTableView | `TableView` | **Prim** | column+row | ◐ | P2 | ✅ | cabeçalho, ordenação (numérica quando os dois lados são número), seleção simples e múltipla, colunas arrastáveis. Cabeçalho e corpo são a **mesma grade**, que é o que os mantém alinhados. Edição de célula fica para depois (0.92) |
 | QHeaderView | `TableHeader` | **Prim** | row+button | ◐ | P2 | ✅ | a mesma primitiva do `TableView` **sem o corpo**, para quem monta as linhas à mão. O arrasto mora em `__colgrip`, na família do `__drag_key` (0.92) |
 | QColumnView | `ColumnView` | **Prim** | row+ListView | ◐ | P3 | ✅ | navegação Miller (o Finder); quase de graça depois do `TreeView` — mesma coleção, mesma identidade por caminho (0.92) |
 | QListWidgetItem etc. | (dados, não widget) | — | — | — | — | — | modelados como valores de contexto |
 | QCompleter | `Completer` | **Prim** | overlay+ListView | ◐ | P2 | ✅ | popup de sugestões — a mesma tag do `Autocomplete` (§2.2), vista do lado da lista (0.92) |
-| QML PageIndicator | `PageIndicator` | Built | row | ◐ | P2 | ⬜ | pontinhos de página — o irmão visual do `Pagination`, mesma chave |
+| QML PageIndicator | `PageIndicator` | **Prim** | row+button | ◐ | P2 | ✅ | pontinhos de página — o irmão visual do `Pagination`, mesma chave. Saiu de carona no `SwipeView` da **Onda 9** (0.95), e é **a mesma primitiva**: `<pagination dots>`, uma tag a menos no motor, como `<sparkline>` é `<linechart>` sem moldura. A única diferença de comportamento é a base — ele conta do **zero**, porque marca o `currentIndex` de um `<swipeview>` |
 | — (paginação) | `Pagination` | **Prim** | row+button | ◐ | P1 | ✅ | `« ‹ 1 … 4 [5] 6 … 20 › »`, com a janela andando e grudando nas pontas e as setas **inertes** no limite. **Reclassificado de Built para Prim na construção**: a janela de números é repetição dirigida por um número, e o `for-each` lê coleção. Onda 4 (0.85) |
 
 ### 2.5 Data e hora — **foco declarado do projeto**
@@ -227,7 +240,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QWidget/QFrame | `Container` | Prim | container | — | P0 | ✅ | já existe |
 | QGroupBox | `GroupBox` | Built | container+text | — | P1 | ✅ | moldura com título + `flat="true"` (o `QGroupBox::flat`), e ações no cabeçalho por `<slot name="actions"/>` — onde vai o `<checkbox>` que faz o papel do `setCheckable` |
 | QScrollArea | `Scrollable` / `rolagem` | Prim | scrollable | — | P0 | ✅ | já existe |
-| QSplitter | `Splitter` / `PaneGrid` | Prim | pane_grid | ● | P2 | ⬜ | painéis redimensionáveis |
+| QSplitter | `Splitter` / `PaneGrid` | **Prim** | row/column | ◐ | P2 | ✅ | painéis redimensionáveis. **Onda 9** (0.95): é a alça de coluna do `<tableheader>` aplicada a um container — mesmo formato de trilhas do `columns` do `<grid>`, mesmo `grip::Alvo::Trilha`, mesmo código. Aninha nos dois eixos, e duas instâncias na mesma tela nomeiam duas chaves |
 | QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ✅ | `<toolbox>` + `<toolboxitem title="…" value="secao" open="{secao}" id="…">`: **uma** aberta por vez, e clicar na aberta a fecha. Nunca esteve bloqueado, e nem precisou do `contains`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ✅ | `<accordion>` + `<accordionitem …>`: **várias** abertas, num conjunto numa chave só (`abertas="rede,disco"`). ~~precisa estado por instância~~ — precisava do `contains` (0.84), e é o consumidor que o justificou. Uma tag por seção porque o **conteúdo** de cada uma é diferente, e conteúdo é de quem escreve a tela (`<slot/>`, 0.65) — a mesma forma do `QToolBox::addItem`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | QMdiArea/QMdiSubWindow | `MdiArea` | Comp | canvas/stack | ● | P3 | ⬜ | janelas MDI internas |
@@ -241,7 +254,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QTabWidget/QTabBar | `TabBar` / `Tabs` | Built | row+button | ◐ | P1 | ✅ | duas tags: a **barra** sozinha (`<tabbar>`, 0.65) e a barra **mais a página** (`<tabs>`, 0.92). O que faltava era o **nome dinâmico de slot** (`<slot name="{aba}"/>`), uma linha no `eval` — não o estado por instância. Com ele, `addTab(widget, "Geral")` do Qt vira `<template slot="geral">` e a tela deixa de repetir a lista de abas duas vezes |
 | QStackedWidget | `Stack`/`StackView` | **Built** | slot nomeado | ◐ | P1 | ✅ | `<stackview active="{passo}">` — é `<tabs>` **sem a barra**, o mesmo nome dinâmico de slot da 0.92. A página é escolhida por **nome**, não por posição numa escada de `se`. Onda 8 (0.94) |
 | QWizard/QWizardPage | `Wizard` | **Built + Prim** | slot + WizardNav | ◐ | P2 | ✅ | `<wizard steps="…" titles="…" valid="{…}" on_finish="…">`. Saiu **em dois**, e é a descoberta da onda: slots pedem builtin, contas pedem primitiva. O composto é builtin; a aritmética (voltar inerte, finalizar no fim, travar sem validar, saturar nas pontas) é a primitiva `<wizardnav>` (`src/wizard.rs`). Onda 8 (0.94) |
-| QML SwipeView | `SwipeView` | Comp | stack | ● | P3 | ⬜ | páginas deslizáveis |
+| QML SwipeView | `SwipeView` | **Prim** | stack | ◐ | P3 | ✅ | páginas deslizáveis. **Onda 9** (0.95): `<stackview>` (0.94) escolhe a página por nome de slot; este escolhe por **posição**, porque é a posição que um arrasto move (o `currentIndex` do QML). O conteúdo segue o dedo, e satura nas pontas |
 | QML Drawer | `Drawer` | **Built** | reveal+slot | ◐ | P2 | ✅ | painel lateral deslizante — `<slot/>` + chave nomeada + `axis="x"` no `<reveal>` (o motor já animava altura desde a 0.90). Ele **empurra**, não cobre: quem cobre é um `<popover>` colado na borda (0.92) |
 | (roteamento de telas) | `navigate_to` | Motor | — | — | P0 | ✅ | navegação já existe |
 
@@ -256,7 +269,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QToolBar | `ToolBar` | Built | row+ToolButton | — | P2 | ✅ | faixa de ações por `<slot/>` (aceita qualquer widget, como o `addWidget` do Qt), com `divider` opcional |
 | QStatusBar | `StatusBar` | Built | row+text | — | P2 | ✅ | mensagem à esquerda (`showMessage`) e permanentes à direita por `<slot/>` (`addPermanentWidget`) |
 | QSystemTrayIcon | `SystemTray` | Motor | (SO) | — | P3 | ✅ | `src/tray.rs` (feature `tray-icon`, thread dedicada): app sobrevive à última janela, menu de bandeja e interruptor de notificações (ver `examples/bandeja`) |
-| QSizeGrip | — | Motor | — | — | P3 | ⬜ | canto de redimensionamento |
+| QSizeGrip | `SizeGrip` | **Built** | container+rule | — | P3 | ✅ | canto de redimensionamento. ~~**Onda 9**: o mesmo gesto do arrasto, com a janela no lugar da chave~~ — **não consumiu o arrasto**: `window:resize:se` já era ação da titlebar custom e `cursor="se"` já era atributo universal, então ele é um **builtin** de vinte linhas (`src/builtins/size_grip.rs`). A 15ª correção de nível deste catálogo (0.95) |
 
 ### 2.10 Diálogos (módulo `dialogs.rs`)
 
@@ -306,8 +319,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QML Popup | `Popup` | **Prim** | overlay | ◐ | P2 | ✅ | genérico, centrado na janela — a mesma primitiva do `Popover` sem âncora (0.92) |
 | — (menu popover) | `Popover` | **Prim** | overlay | ◐ | P2 | ✅ | conteúdo flutuante **ancorado ao layout do gatilho** (não ao cursor), medido antes de posicionado — vira para o outro lado quando não cabe. Abre e fecha sozinho (0.92) |
 | QSplashScreen | `SplashScreen` | Comp | stack | — | P3 | ⬜ | tela de abertura |
-| QRubberBand | — | Comp | canvas | ● | P3 | ⬜ | retângulo de seleção |
-| QShortcut/QAction | `Shortcut`/`Action` | Motor | subscription | ● | P2 | ⬜ | atalhos globais de teclado |
+| QRubberBand | `RubberBand` | **Prim** | canvas | ◐ | P3 | ✅ | retângulo de seleção. **Onda 9** (0.95): o retângulo é uma chave global (`__band`, um por tela, como o `__cal_hover`) e o que ele seleciona é o conjunto nomeado do `<listview mode="multi">`. Ele **desenha os alvos** que conhece, e não só a faixa — o motor não tem `<stack>` no markup, e a geometria ele já tinha |
+| QShortcut/QAction | `Shortcut`/`Action` | Motor+tag | subscription | — | P2 | ✅ | atalhos globais de teclado. **Onda 9, habilitador B** (0.95): um sexto `listen_with` na lista de cinco que o daemon já registrava, lendo `<shortcut key="ctrl+s" on_press="salvar"/>` da árvore **avaliada** — e é por isso que ele vai no layout, não no `<resources>`. Sem modificador não rouba a tecla de um campo focado; com, atravessa |
 | QScroller | (no scrollable) | Motor | scrollable | — | P3 | 🟡 | rolagem por gesto |
 | — (badge de notificação) | `NotificationDot` | Built | container | — | P2 | ⬜ | pontinho sobre ícone. §6.3 |
 
@@ -619,40 +632,74 @@ total tem uma duplicata — 124 widgets distintos, não 125.
 
 | Categoria | Widgets catalogados | ✅ prontos | 🟡 parciais | ⬜ a fazer |
 |---|---|---|---|---|
-| Botões e ações | 10 | **7** | 0 | 3 |
-| Entradas de texto | 9 | **6** | 1 | 2 |
-| Numéricas/valor | 12 | **9** | 1 | 2 |
-| Seleção/listas/árvores | 11 | **8** | 0 | 3 |
+| Botões e ações | 10 | **8** | 0 | 2 |
+| Entradas de texto | 9 | **7** | 1 | 1 |
+| Numéricas/valor | 12 | **11** | 1 | 0 |
+| Seleção/listas/árvores | 11 | **10** | 0 | 1 |
 | Data e hora | 6 | **6** | 0 | 0 |
 | Displays/indicadores | 15 | 10 | 0 | 5 |
-| Containers | 9 | **6** | 0 | 3 |
-| Navegação | 6 | **5** | 0 | 1 |
-| Janela/barras | 8 | 7 | 0 | 1 |
+| Containers | 9 | **7** | 0 | 2 |
+| Navegação | 6 | **6** | 0 | 0 |
+| Janela/barras | 8 | **8** | 0 | 0 |
 | Diálogos | 15 | **13** | 0 | 2 |
 | Layouts | 7 | **6** | 1 | 0 |
-| Overlays/utilitários | 11 | **5** | 1 | 5 |
+| Overlays/utilitários | 11 | **7** | 1 | 3 |
 | Gráficos | 6 | **4** | 1 | 1 |
-| **Total** | **125** | **92** | **5** | **28** |
+| **Total** | **125** | **103** | **5** | **17** |
 
-O motor entrega ~74% do catálogo Qt de superfície (34% antes da onda 2, 39%
+O motor entrega **~82%** do catálogo Qt de superfície (34% antes da onda 2, 39%
 antes da onda 1, 43% antes dos campos de data/hora, 44% antes da onda 3, 47%
 antes da onda 4, 53% antes das ondas 5 e 6, 64% antes da onda 7, 69% antes da
-onda 8). As ondas 5 a 8 somaram **vinte e seis** widgets e consumiram **cinco**
-itens de motor — o nome dinâmico de slot (uma linha no `eval`), o overlay
-ancorado (`src/anchored.rs`), a medição de colunas (`src/grid.rs`), o canvas
-como capacidade (`src/canvas.rs`) e o corpo do diálogo (um parâmetro e uma
-chamada).
+onda 8, 74% antes da onda 9). As ondas 5 a 9 somaram **trinta e seis** widgets e
+consumiram **sete** itens de motor — o nome dinâmico de slot (uma linha no
+`eval`), o overlay ancorado (`src/anchored.rs`), a medição de colunas
+(`src/grid.rs`), o canvas como capacidade (`src/canvas.rs`), o corpo do diálogo
+(um parâmetro e uma chamada), o arrasto (`src/grip.rs`) e o teclado
+(`src/keys.rs`, um sexto `listen_with` numa lista de cinco).
 
-Onde os 28 se concentram: **displays** (5) e **overlays** (5) — dez das 28, e
-oito delas estão na bandeja de troco da §6.3. O que sobra fora do troco é
+Dos onze que a Onda 9 fechou, **um não custou código nenhum**: o `ListView bind`
+já existia desde a Onda 6 e o ⬜ era contabilidade atrasada.
+
+Onde os 17 se concentram, depois da Onda 9: **displays** (5) e **overlays** (3)
+— oito dos 17, e sete deles estão na bandeja de troco da §6.3. ~~O que sobra fora do troco é
 pequeno e disperso: `Splitter`, `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`,
-`SwipeView`, `Shader`/3D, os dois de fonte e os dois diálogos justificados.
+`SwipeView`, `Shader`/3D, os dois de fonte e os dois diálogos justificados.~~
 
-**Duas categorias fecharam nesta onda**, e é a primeira vez que duas fecham
+**"Disperso" era a leitura errada da mesma lista** (revisão de 2026-09-08).
+`Splitter`, `RangeSlider`, `Tumbler` e `SwipeView` estão em quatro seções
+diferentes da tabela e são o **mesmo mecanismo** — com `DelayButton`,
+`RubberBand` e o `SizeGrip`, sete linhas de um habilitador só. A tabela agrupa
+por *onde o widget aparece na tela*, que é o eixo em que um mecanismo
+compartilhado fica invisível; é a terceira vez que isso acontece (a medição da
+Onda 6 e o corpo do diálogo da Onda 8 estavam escondidos do mesmo jeito). Ver a
+**Onda 9** na §6.2.
+
+**A Onda 9, prevista e medida** (a previsão está preservada porque ela acertou):
+
+| | ✅ | % do catálogo | previsto |
+|---|---|---|---|
+| antes (0.94, Onda 8 fechada) | 92 | 74% | — |
+| depois da Onda 9 (9 widgets + `PageIndicator` de carona) | 102 | 81,6% | 102 / ~82% |
+| mais a linha de contabilidade do `ListView bind` | **103** | **82,4%** | 103 / ~82% |
+
+Sobram **17** ⬜: o troco da §6.3 (7 — o `PageIndicator` saiu de lá), as duas de
+fonte, as duas de janela interna (`MdiArea`/`Dock`) e seis justificadas como fora
+de escopo (`Canvas` como tag, `Shader`, `Q3D`, `PrintDialog`, `QWhatsThis`,
+`SplashScreen`).
+
+**Duas categorias fecharam na Onda 8**, e foi a primeira vez que duas fecharam
 juntas: os diálogos (13/15, com os dois restantes justificados por escrito) e a
 navegação (5/6, sobrando o `SwipeView`). O bloco de model/view, que era o maior atraso do catálogo
 desde o começo, deixou de ser um: a §2.4 saiu de 3/11 para **8/11** e a §2.11
 (layouts) fechou tudo o que tinha ⬜.
+
+**A Onda 9 fechou duas sem nenhuma linha aberta** — a navegação (6/6, com o
+`SwipeView`) e a janela/barras (8/8, com o `SizeGrip`) —, o que não tinha
+acontecido com nenhuma categoria até aqui: as duas da Onda 8 fecharam com
+ressalvas escritas. A §2.3 chegou a 11/12, e o que sobra nela é o `ScrollBar`
+🟡, que está 🟡 de propósito ("embutido no `scrollable`; expor avulso é raro"). A §2.4 chegou a **10/11** e a
+§2.12 (overlays), que era a segunda maior concentração de ⬜, saiu de 5/11 para
+**7/11**.
 
 A §2.5 saiu dessa lista de um jeito que vale registrar: ela era 0 de 6, passou a
 3 de 6 na 0.68 e fechou em **6 de 6** na 0.84 — mas com uma ressalva escrita na
@@ -829,17 +876,28 @@ nenhuma delas está.
 - **Onda 7** ✅ (0.93) — o canvas como capacidade, e os sete que saem dele.
 - **Onda 8** ✅ (0.94) — o diálogo que carrega markup, e os seis que saem dele.
 
+E uma nona, proposta e feita em 2026-09-08, no mesmo regime e pelo mesmo erro:
+
+- **Onda 9** ✅ (0.95) — o arrasto como capacidade (o motor já o escrevia três
+  vezes) e a subscription de teclado; sete widgets no primeiro, dois no segundo,
+  e o catálogo passou de 74% para **82,4%**.
+
 A Onda 8 fez a mesma pergunta na última categoria em que ela ainda cabia: a
 §2.10 tinha cinco ⬜ que pareciam cinco trabalhos e eram **um** — o modal deixar
 de ser uma tela paralela escrita em Rust. Três das cinco estavam marcadas `●`, e
 nenhuma podia estar, porque o diálogo é singleton.
 
-**Não há Onda 9 esboçada, e é de propósito.** O que sobra no catálogo não tem
+~~**Não há Onda 9 esboçada, e é de propósito.** O que sobra no catálogo não tem
 mais o formato que estas seis ondas exploraram: são widgets isolados
 (`Splitter`, `MdiArea`, `SwipeView`), um habilitador de motor sem consumidor
-urgente (famílias de fonte) e o troco da §6.3. Abrir uma rodada por qualquer um
-deles seria inventar um tema para uma leva, que é exatamente o que a revisão de
-2026-09-01 desaconselhou ao rebaixar o troco.
+urgente (famílias de fonte) e o troco da §6.3.~~ **Errado, e pelo motivo de
+sempre** (revisão de 2026-09-08): a frase lista três widgets como três assuntos,
+e eles são **um** — o ponteiro preso ao longo do tempo. Com mais quatro que a
+mesma capacidade sustenta, é a **Onda 9**, e ela é a última no regime "um
+habilitador, meia dúzia de widgets". Ver abaixo.
+
+O que continua verdadeiro é o resto do parágrafo: as famílias de fonte são um
+habilitador de duas linhas e o troco da §6.3 não abre rodada.
 
 ---
 
@@ -1602,6 +1660,221 @@ gargalo real, das duas vezes, foi uma capacidade que ninguém tinha catalogado
 como capacidade.
 
 ---
+#### Onda 9 — o ponteiro preso, e o teclado que ninguém escuta — ✅ **FEITA (0.95)**
+
+> **Como saiu.** O habilitador A pagou como previsto e pelo motivo que a
+> proposta acertou: o motor já arrastava três vezes, e generalizar o `__colgrip`
+> foi tirar a conta de dentro dele (`src/grip.rs`, um `enum Alvo` e um
+> `aplica`). Os nove saíram; as ASSERÇÕES dos dois testes de arrasto da Onda 6
+> não mudaram uma linha, e é isso que elas passaram a guardar além do widget.
+>
+> **Três coisas mudaram de forma no caminho**, e as três pelo mesmo motivo — o
+> de sempre neste documento, que é descobrir escrevendo que a peça já existia:
+>
+> - o **`SizeGrip` encolheu de Motor para builtin de vinte linhas**. Ele entrou
+>   como o sétimo consumidor do arrasto e não consumiu nada: `window:resize:se`
+>   já era ação da titlebar custom (`daemon.rs`) e `cursor="se"` já era atributo
+>   universal (`widget.rs`). Sobrou desenhar o cantinho. É a **15ª** correção de
+>   nível deste catálogo, e a primeira para o lado da infraestrutura em vez do
+>   estado;
+> - o **`<rubberband>` passou a desenhar os alvos**, e não só a faixa. O
+>   `QRubberBand` não faz isso — lá a faixa é um widget solto sobre uma view.
+>   Aqui não há "por baixo": o motor não tem `<stack>` no markup, e um laço que
+>   só desenhasse a faixa pediria para arrastar sobre o vazio. Como ele **já
+>   tem** a geometria (é com ela que decide o que tocou), desenhá-la foi de
+>   graça;
+> - o **`<shortcut>` mora no layout, não no `<resources>`**. Parece declaração e
+>   é — mas quem o encontra é `collect_tree_bindings`, que varre a **árvore
+>   avaliada**, e o `<resources>` não é árvore. O parser recusou a primeira
+>   tentativa com a mensagem certa ("dentro do `<resources>` só entram…").
+>
+> E o habilitador B **não custou nada ao Luau**, que é o achado do exemplo
+> `onda9_luau`: a Onda 8 precisou de quatro globais novos porque um diálogo
+> *suspende*; um arrasto escreve numa chave, e o Luau já escrevia chaves. Nove
+> widgets, zero linhas em `src/luau/`.
+>
+> Exemplos: `cargo run --example onda9` e `cargo run --example onda9_luau`.
+
+
+```text
+Habilitador A — o ARRASTO como capacidade      (motor: `src/grip.rs`, `lib.rs`, `daemon.rs`)
+
+1. Splitter        — painéis redimensionáveis (QSplitter)      (primitiva, P2)
+2. RangeSlider     — dois cursores numa faixa                  (primitiva, P2)
+3. Tumbler         — a roleta de valores                       (primitiva, P3)
+4. SwipeView       — páginas deslizáveis                       (primitiva, P3)
+5. DelayButton     — o botão que se segura                     (primitiva, P3)
+6. RubberBand      — retângulo de seleção                      (primitiva, P3)
+7. SizeGrip        — o canto que redimensiona a janela         (motor,     P3)
+   · PageIndicator — os pontinhos, de carona no 4              (builtin,   P2)
+
+Habilitador B — a SUBSCRIPTION de teclado      (motor: `lib.rs`, `daemon.rs`)
+
+8. Shortcut/Action — atalhos globais declarados no markup      (motor+tag, P2)
+9. ShortcutInput   — o campo que captura uma combinação        (primitiva, P3)
+```
+
+**Por que existe uma Onda 9, depois de esta seção ter escrito que não haveria.**
+A frase acima — *"o que sobra no catálogo não tem mais o formato que estas seis
+ondas exploraram: são widgets isolados (`Splitter`, `MdiArea`, `SwipeView`)"* —
+lista três widgets como se fossem três assuntos. Não são. `Splitter`,
+`RangeSlider`, `Tumbler`, `SwipeView`, `DelayButton`, `RubberBand` e o `SizeGrip`
+são **um** assunto: o ponteiro apertado sobre um widget ao longo do tempo,
+escrevendo num valor enquanto anda. Sete linhas do catálogo, espalhadas por seis
+seções diferentes, e é isso que escondeu que eram a mesma.
+
+O erro tem a forma exata dos dois anteriores. A Onda 6 catalogava `Grid` e
+`TableView` como dois trabalhos caros sem notar que a parte difícil dos dois era
+a mesma medição; a Onda 8 catalogava cinco diálogos sem notar que a parte difícil
+dos cinco era o modal carregar markup. Aqui são sete widgets separados pela
+**seção da tabela** — botões, entradas numéricas, containers, navegação, janela,
+overlays —, que é o eixo errado para enxergar mecanismo.
+
+##### O habilitador A já está escrito três vezes
+
+E é essa a evidência de que ele é uma capacidade, não um widget: o motor **já
+arrasta**, em três lugares independentes, sem que nada disso apareça no §3.
+
+| Onde | O que guarda o arrasto | O que faltou generalizar |
+|---|---|---|
+| reordenar lista | `__drag_key` + `{var}.__dragging` por item (`lib.rs:339`, `eval.rs:847`) | o alvo é um **índice**, e a conta é "sobre qual item estou" |
+| alça de coluna do `<tableheader>` | `__colgrip` = `chave\|indice\|x0\|w0` (`widget.rs:2526`), aplicado em `arrasta_coluna` (`lib.rs:2534`) | o eixo é fixo em `x`, e o mapeamento pixel→valor está embutido na função |
+| giro do `<dial>` | `EstadoDial { arrastando }` no `canvas::Program::State` (`gauges.rs:82`) | não sai do canvas: só serve a quem desenha o próprio widget |
+
+Os três já resolveram, cada um por si, os dois problemas difíceis do arrasto — e
+os dois estão **documentados no código**, que é o que torna a generalização
+barata em vez de arriscada:
+
+- **o zero do arrasto não é o clique.** Enquanto não há alça presa o motor não
+  escuta o mouse, então a última posição conhecida do cursor é de um menu aberto
+  meia hora atrás. O `__colgrip` nasce com `x0 = "?"` e o **primeiro**
+  `CursorMoved` é que vira o zero (`lib.rs:1470`). Custa um quadro que ninguém
+  vê e é exato daí em diante;
+- **o listener só existe entre o pressionar e o soltar.** `precisa_do_cursor`
+  (`lib.rs:2515`) liga o `listen_with` do movimento só quando há menu em jogo ou
+  alça presa, e a nota ao lado tem o número medido: 70 movimentos por segundo
+  davam 65 quadros, 110 davam 10. Um arrasto genérico que ligasse o listener
+  para sempre estrangularia a rolagem do app inteiro.
+
+O que **falta** é pequeno e é exatamente o que `arrasta_coluna` tem hardcoded:
+o eixo (`x`, `y` ou os dois), o mapeamento de delta de pixel para valor (linear
+numa faixa, fração de um pai, índice numa lista, fração de um tempo) e o
+`clamp` de cada consumidor. Um `src/grip.rs` com um `enum Alvo` e uma função
+`aplica(delta) -> String` é `arrasta_coluna` com a conta fatorada para fora — e
+o `DragEnd`, que já é a mensagem de soltar de **dois** dos três, continua sendo
+a única.
+
+##### A 14ª reclassificação, e é a última em que a pergunta cabe
+
+Seis dos sete estão marcados `Comp ●` — "exige estado por instância". Nenhum
+exige, e desta vez o motivo é o mesmo para os seis, o que é a própria evidência:
+**o que o arrasto move é sempre um valor que o app nomeia**, e o que sobra dele
+(estou arrastando? desde onde?) é global por natureza, porque só se arrasta uma
+coisa por vez numa tela.
+
+| Widget | O que o catálogo diz | O que é |
+|---|---|---|
+| `Splitter` | painéis redimensionáveis, `●` | é a alça de coluna aplicada a um container: as frações moram numa chave (`sizes="0.3 0.7"`), no **mesmo formato de trilhas** que o `columns` do `<grid>` já parseia. `<tableheader>` já é um splitter horizontal com cabeçalho |
+| `RangeSlider` | dois cursores, `●` | duas chaves nomeadas — é o que o `<daterangepicker range>` já faz com `start`/`end` (Onda 3). Qual das duas pontas está presa é a identidade dentro do `__grip`, como o índice da coluna |
+| `Tumbler` | roleta de valores, `●` | o `<dial>` desenrolado numa linha: o valor na chave, a inércia no `Program::State`. Terceira vez que esta reclassificação sai do mesmo widget |
+| `SwipeView` | páginas deslizáveis, `●` | `<stackview active="{passo}">` (0.94) + arrasto no eixo `x` + a animação do `<reveal>` (0.90). As duas metades existem; o que falta é a do meio |
+| `DelayButton` | anel de progresso ao segurar, `●` | a metade do arrasto em que **o que anda é o tempo, não o pixel**. A fração vai numa chave global (`__hold`) e o anel é o `<gauge>` da Onda 7 |
+| `RubberBand` | retângulo de seleção, `●` | o retângulo é uma chave global (um por tela, como o `__cal_hover`); o que ele seleciona é o **conjunto nomeado** que o `<listview mode="multi">` já guarda (0.85) |
+
+O `SizeGrip` (§2.9) é o sétimo e o único sem `●`, porque o alvo dele não é uma
+chave: é a janela. O gesto é o mesmo; quem recebe é o daemon, que já lê e escreve
+geometria de janela (é o que o gancho `on_close` consulta).
+
+**Depois desta onda o `●` para de significar alguma coisa.** Sobram `MdiArea` e
+`Dock` — os dois únicos em que a marca continua honesta, e os dois estão fora
+desta onda por um motivo que não é o estado (ver abaixo) — mais `Canvas`,
+`Shader`, `Q3D` e `FontSelect`, que estão fora de escopo ou bloqueados por outra
+coisa. É a última vez que a pergunta que este documento fez treze vezes tem onde
+ser feita.
+
+##### O habilitador B: a sexta linha de uma lista de cinco
+
+`Shortcut`/`Action` é o item 9 do §3, P2, e é o único da lista que ainda tem
+consumidor no catálogo. Ele parece um item de motor e é uma **entrada numa lista
+que já existe**: o daemon registra hoje cinco `iced::event::listen_with`
+(`daemon.rs:1106`), cada um uma `fn(Event, Status, window::Id) -> Option<EngineMessage>`
+— `drag_end_from_event` (`lib.rs:3142`), `tab_focus_from_event` (`:3158`),
+`timeedit_key_from_event` (`:3189`), `cursor_from_event` (`:3245`),
+`menu_escape_from_event` (`:3261`).
+
+Um sexto na mesma forma, lendo uma tabela de atalhos declarados na árvore
+(`<shortcut key="ctrl+s" on_press="salvar"/>`), é `Shortcut`/`Action` inteiro. O
+`timeedit_key_from_event` já é o modelo do cuidado que ele precisa: `if status ==
+Captured { return None }` — um atalho não rouba a tecla de um campo focado.
+
+E `ShortcutInput` (§2.2, `●` P3) é **esse mesmo listener em modo de captura**: a
+combinação que ele grava vai numa chave nomeada, e "qual campo está capturando" é
+global por natureza — uma chave do motor com a identidade da instância no valor,
+que é literalmente o que o `__timeedit` faz (`"inicio:h"`, `widget.rs:16`).
+
+##### O que fica de fora, e por escrito
+
+- **`MdiArea` e `Dock`** (§2.7, `●` P3). Não são arrasto: são **gerência de
+  janela**, e este projeto já tem janelas de verdade — o daemon (`src/daemon.rs`,
+  um `GlacierUI` por janela) e o `open_window` do Rust e do Luau. Uma área MDI é
+  uma reimplementação, dentro de um retângulo, de uma capacidade que o motor já
+  entrega melhor fora dele. Se saírem, saem de um debate sobre janelas, não desta
+  onda — e é aí que o estado por instância finalmente vira o assunto.
+- **`FontSelect` e `FontDialog`** (§2.4 e §2.10). O bloqueio deles é real e é
+  outro: o registro de famílias de fonte, que o §3 nunca listou. São dois widgets
+  para um habilitador, e o habilitador tem uma decisão de §4 dentro dele — o
+  `iced` não enumera as fontes do SO, então ou entra uma crate (`fontdb`,
+  `font-kit`) ou o app declara as famílias que usa. É uma onda pequena e própria,
+  não um apêndice desta.
+- **Séries múltiplas** nos gráficos (§2.13, o único 🟡 da seção). Continua sendo
+  o próximo passo natural daquela família, e continua não sendo ponteiro: é uma
+  convenção de dados (`series="[{nome, pontos}]"`), uma legenda e uma paleta por
+  série, tudo anotado em `charts.rs:24`. Cabe numa onda com o resto do troco
+  visual da §6.3.
+- **`Canvas` como tag, `Shader`, `Q3D`, `PrintDialog`, `QWhatsThis`,
+  `SplashScreen`.** Já justificados onde estão; nenhum ganha nada com o arrasto.
+
+##### O que fecha
+
+| Seção | Hoje | Depois da Onda 9 |
+|---|---|---|
+| §2.1 Botões e ações | 7/10 | 8/10 (`DelayButton`) |
+| §2.2 Entradas de texto | 6/9 | 7/9 (`ShortcutInput`) |
+| §2.3 Numéricas/valor | 9/12 | **11/12** (`RangeSlider`, `Tumbler`) |
+| §2.4 Seleção/listas | 8/11 | 9/11 (`PageIndicator`) |
+| §2.7 Containers | 6/9 | 7/9 (`Splitter`) |
+| §2.8 Navegação | 5/6 | **6/6** (`SwipeView`) |
+| §2.9 Janela/barras | 7/8 | **8/8** (`SizeGrip`) |
+| §2.12 Overlays/utilitários | 5/11 | 7/11 (`RubberBand`, `Shortcut`/`Action`) |
+| **Total** | **92/125 (74%)** | **102/125 (~82%)** |
+
+**Duas seções fecham inteiras** — a navegação (6/6) e a janela/barras (8/8) —, e
+a §2.3 fica a um item, que é o `ScrollBar` 🟡 de propósito ("embutido no
+`scrollable`; expor avulso é raro"). Nenhuma onda anterior fechou duas categorias
+com todas as linhas em ✅; a Onda 8 chegou perto, com duas categorias fechadas
+mas os restos justificados por escrito.
+
+**Depois dela, o regime acaba.** Esta é a última onda do formato "um habilitador
+que vira meia dúzia de widgets": o que sobra no catálogo são as fontes (duas
+linhas, um habilitador), a gerência de janela (duas linhas, um debate), o troco
+da §6.3 (sete linhas, nenhum habilitador), seis linhas justificadas como fora de
+escopo e a de contabilidade abaixo. Vale escrever isso agora, para que a próxima
+revisão não tenha de descobrir de novo que não há tema — e desta vez a frase é
+verificável: **o único `●` que sobra por estado de verdade é a dupla
+`MdiArea`/`Dock`**, e ela está fora por um debate sobre janelas, não por falta de
+motor.
+
+##### Uma linha de contabilidade, de graça
+
+`ListView bind` (§2.4, `QListView (model)`) continua ⬜ e a própria nota da linha
+diz que *"a ligação **já existe** (`items="chave"`)"*, o que a Onda 6 confirmou
+por escrito ("nem existia como trabalho"). É a 14ª correção de nível deste
+documento e a única que não custa código: a linha deveria estar ✅ desde a 0.92.
+Fechá-la leva o total a **103/125 (~82%)** — e ela fica aqui, e não na tabela
+acima, porque somar um widget que já existe ao placar de uma onda seria contar
+duas vezes.
+
+---
 #### Onde os habilitadores do §3 foram parar
 
 O §3 lista nove itens de motor. Depois de distribuí-los pelas quatro ondas,
@@ -1632,14 +1905,20 @@ menores do que o catálogo dizia) e um — o binding a coleção, que a lista ch
 de "o maior investimento restante" — simplesmente **não existia**: a capacidade
 já estava no motor desde o `<menu>`.
 
-Do §3 sobram, agora, três itens, e nenhum bloqueia nada da §6.3:
+Do §3 sobra, depois da Onda 9, **um** item — e ele nunca bloqueou nada:
 
 | Habilitador | Estado |
 |---|---|
 | ~~**Canvas como primitiva**~~ | ✅ Onda 7 (0.93). Era mesmo o de maior alavancagem: sete widgets, e a §2.13 saiu de 0/6 para 5/6 |
 | `ctx.dispatch(acao)` | continua P2, continua sem consumidor urgente |
-| Subscriptions de teclado | continua P2 (`Shortcut`/`Action` globais) |
-| **Estado por instância** | o último de pé, e o que sobrou dele é pequeno: `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`, `Splitter` e a edição de célula em árvore profunda |
+| ~~Subscriptions de teclado~~ | **Onda 9, habilitador B** — ✅ feito na 0.95 (`src/keys.rs`), e era mesmo uma sexta entrada numa lista de cinco `listen_with` que o daemon já registrava. Era o único item do §3 que ainda tinha consumidor no catálogo, e ele saiu com os dois (`Shortcut`/`Action` e `ShortcutInput`) |
+| ~~**Estado por instância**~~ | **A Onda 9 desmontou o que sobrava dele**: `RangeSlider`, `Tumbler`, `Splitter`, `SwipeView`, `DelayButton` e `RubberBand` são arrasto sobre chave nomeada, como o `<dial>` e a alça de coluna. Sobram `MdiArea`/`Dock` — e eles não esperam o estado, esperam uma decisão sobre janela interna vs. as janelas de verdade que o daemon já dá — mais a edição de célula em árvore profunda. **Este item nunca foi o caminho crítico de nada**, e agora está escrito com a lista fechada |
+
+E um **terceiro** fora do §3, achado na mesma revisão e pelo mesmo ponto cego:
+
+| Habilitador (fora do §3) | Estado |
+|---|---|
+| **O arrasto como capacidade** | **Onda 9, habilitador A** — ✅ feito na 0.95 (`src/grip.rs`). O motor arrastava em três lugares que não conversavam — `__drag_key` (reordenar lista), `__colgrip` (alça de coluna) e o `Program::State` do `<dial>` — e nenhum dos três estava catalogado como capacidade. Foi a **terceira** vez que o gargalo real não estava na lista do §3, depois da medição de colunas (Onda 6) e do corpo do diálogo (Onda 8). Generalizá-lo foi tirar a conta de dentro do `__colgrip`: um `enum Alvo` com dois mapeamentos (trilha e índice), e os dois problemas difíceis — a âncora no primeiro movimento e o listener condicional — já estavam resolvidos e comentados no código |
 
 E dois **novos**, que o §3 nunca listou porque não os enxergou como
 capacidade — o mesmo ponto cego que a medição da Onda 6 revelou:
@@ -1647,17 +1926,31 @@ capacidade — o mesmo ponto cego que a medição da Onda 6 revelou:
 | Habilitador (fora do §3) | Estado |
 |---|---|
 | **Corpo e retorno do diálogo** | **Onda 8** — ✅ feito na 0.94: `DialogSpec.body` com o nome de um template, `DialogOutcome` no lugar do `bool`, e o prefixo `dialog:` para abrir do markup. Destravou `<dialog>`, `InputDialog`, `ProgressDialog`, `ColorDialog` e o `Wizard` — e o corpo custou **um parâmetro e uma chamada**, porque `render(nome)` já existia |
-| **Famílias de fonte** | Sem onda. Registro de famílias, `font-family` no `.gss` e enumeração do SO. É o bloqueio real do `FontDialog` (§2.10) e do `FontSelect` (§2.4), que o catálogo atribui, os dois, ao widget errado |
+| **Famílias de fonte** | Sem onda, e agora é o **único bloqueio de motor que sobrou** no catálogo. Registro de famílias, `font-family` no `.gss` e enumeração do SO. É o bloqueio real do `FontDialog` (§2.10) e do `FontSelect` (§2.4), que o catálogo atribui, os dois, ao widget errado — e tem uma decisão de §4 dentro (o `iced` não enumera as fontes do SO: ou entra uma crate, `fontdb`/`font-kit`, ou o app declara as famílias que usa) |
 
 E o `on_enter`/`on_exit` no markup, anotado no fim da Onda 4 como "o que faria um
 `Rating` builtin ser viável", continua sem consumidor: o hover do
 `<autocomplete>` e o da tabela saíram pelo `Status::Hovered` do `button` do
-`iced`, sem precisar de mensagem nenhuma.
+`iced`, sem precisar de mensagem nenhuma. A Onda 9 não o pediu tampouco — quem
+desenha o próprio arrasto num `canvas` recebe o cursor direto.
+
+**O balanço final desta lista**, agora que ela fechou: o §3 catalogou nove itens
+de motor ao longo de quatro revisões. Dois deles não existiam como trabalho (o
+binding a coleção e o contexto tipado), um encolheu para uma linha (o nome
+dinâmico de slot), um nunca bloqueou nada (o estado por instância — o item que o
+documento chamou por três revisões de "o desbloqueio de maior alavancagem") e um
+continua sem consumidor (`ctx.dispatch`). Os **três gargalos reais** — a medição
+de colunas (Onda 6), o corpo do diálogo (Onda 8) e o arrasto (Onda 9) — não
+estavam na lista, e os três eram capacidades que o motor já tinha em algum
+canto sem ninguém as ter chamado de capacidade. É a lição mais cara e mais
+repetida deste documento, e ela vale para a próxima onda, se houver uma.
 
 ### 6.3 A bandeja de troco (fica registrada, não abre rodada)
 
 Os widgets pequenos que a versão anterior desta seção usava como Onda 3.
-Continuam corretos e continuam baratos — o que mudou é que nenhum deles é motivo
+Continuam corretos e continuam baratos — eram oito, e o `PageIndicator` saiu na
+Onda 9 exatamente como esta tabela previa ("sai de graça depois dele"), de
+carona no `<swipeview>` — o que mudou é que nenhum deles é motivo
 para abrir uma leva. Entram de carona quando um da fila acima passar perto:
 
 | Widget | Nível | Prio | Nota |
@@ -1666,7 +1959,6 @@ para abrir uma leva. Entram de carona quando um da fila acima passar perto:
 | `Chip` | Built | P2 | `Badge` com um "×" e uma ação de remover. Sai junto de um campo de tags — que por sua vez quer o `contains` da Onda 4 |
 | `Skeleton` | Built | P2 | Placeholder de carregamento. Quatro linhas de markup em qualquer app; vira tag só por conveniência |
 | `CommandLink` | Built | P2 | Título + descrição + seta, sem estado |
-| `PageIndicator` | Built | P2 | Os pontinhos — o rosto visual do `Pagination` (Onda 4, item 1), com quem compartilha a chave. Sai de graça depois dele |
 | `NotificationDot` | Built | P2 | Pontinho sobre um ícone; pede `Stack` dentro do builtin, ou um `padding` negativo bem escolhido |
 | `RoundButton` | Built | P3 | `border-radius` total |
 | `TextBrowser` | Built | P2 | Render read-only de markdown com links, sobre o `markdown` do iced |

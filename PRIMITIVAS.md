@@ -547,6 +547,51 @@ em silêncio. O mesmo valia para `<display>`, `<barras>` e `<pizza>`. Os apelido
 em pt-BR de uma tag nova ficam nos nomes que ninguém usaria para um componente
 próprio (`grafico_linha`, `medidor`, `minigrafico`). Há teste para isso.
 
+**E há uma segunda metade da regra, que a Onda 9 descobriu pisando nela:** o
+apelido também não pode ser o de **outra tag**. `<deslizante>` foi a primeira
+escolha para o `<swipeview>` e já era apelido do `<slider>` desde sempre — o
+`match` casava no braço de cima e o de baixo virava código morto. Esta metade é
+barata porque o compilador a pega (`unreachable pattern`); a primeira, não, e é
+por isso que ela custou mais.
+
+## Uma primitiva que ARRASTA (0.95)
+
+Duas famílias, e a diferença entre elas não é o gesto — é se o widget tem
+**filhos**.
+
+**Quem desenha a si mesmo num `canvas` já tem onde guardar o arrasto.** O
+`Program::State` é por instância e o `iced` o entrega de graça: `<dial>` (0.93),
+`<rangeslider>`, `<tumbler>` e `<rubberband>` (0.95) guardam ali *qual ponta
+está presa*, *desde que y* — e **nunca o valor**, que é do app e mora na chave
+(ver "O `Program::State` não é estado do app", acima).
+
+**Quem tem filhos não tem esse luxo**, e é para isso que existe o `crate::grip`
+(`src/grip.rs`): o arrasto acontece *entre* os filhos, num quadro em que o
+widget já não existe como valor. Ele mora numa chave do motor (`__grip`), **uma
+por app** — só se arrasta uma coisa por vez numa tela. O `<splitter>` e o
+`<swipeview>` passam por ali, e a alça de coluna do `<tableheader>` (0.92)
+passou a passar.
+
+Duas armadilhas, as duas já resolvidas dentro do `grip` — mas saiba que existem
+antes de escrever a próxima:
+
+1. **O zero do arrasto não é o clique.** Enquanto não há alça presa o motor não
+   escuta o mouse (`precisa_do_cursor`), então `last_cursor_pos` guarda a
+   posição de um menu aberto meia hora atrás. Um `Arrasto` nasce com
+   `origem: None` e é o **primeiro movimento** que a ancora: custa um quadro que
+   ninguém vê e é exato daí em diante. Um `mouse_area::on_press` também não
+   serve — ele só sabe a posição relativa aos próprios limites, que não mede um
+   arrasto.
+2. **O listener só existe entre o pressionar e o soltar.** Ligar o
+   `listen_with` do movimento para sempre estrangula a rolagem do app inteiro: a
+   medição está em `precisa_do_cursor`, e é 70 movimentos por segundo dando 65
+   quadros contra 110 dando 10. A mesma economia condicional vale para o
+   **ticker** do `<delaybutton>`, que só é registrado enquanto a chave `__hold`
+   existe (`precisa_do_relogio`).
+
+E o soltar é um só: `EngineMessage::DragEnd`, que já encerrava o arrasto de uma
+lista reordenável. Não invente um segundo — o botão do mouse é um.
+
 ## Uma primitiva que faz a conta que o builtin não pode (0.94)
 
 A `<wizardnav>` (`src/wizard.rs`) nasceu de uma contradição que apareceu ao
@@ -670,6 +715,11 @@ procurar tipos de nó em vez de confiar no contexto.
    armadilha do `Length::Fill`, acima.
 6. Se a primitiva **desenha** (`canvas`), releia a seção acima: `arc` começa
    sub-caminho, o `Program::State` não é estado do app, e o apelido em pt-BR
-   não pode ser um substantivo que um app usaria para um componente dele.
-7. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
+   não pode ser um substantivo que um app usaria para um componente dele — nem
+   o apelido de outra tag.
+7. Se a primitiva **arrasta**, pergunte primeiro se ela tem filhos: sem filhos o
+   arrasto vive no `Program::State`; com filhos, no `crate::grip`. Nos dois
+   casos o **valor** vai para a chave que o markup nomeia, e o soltar é o
+   `DragEnd` que já existe.
+8. Exemplo em `examples/` + linha no catálogo do `PLANO_WIDGETS.md` (status
    ✅) + linha na tabela de tags do `README.md`.

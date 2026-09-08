@@ -16,11 +16,15 @@ pub mod file_dialog;
 pub mod forms;
 pub mod gauges;
 pub mod grid;
+pub mod grip;
+pub mod keys;
 pub mod luau;
 pub mod menu;
 pub mod net;
+pub mod panes;
 pub mod parser;
 mod perf;
+pub mod pointer;
 pub mod render_inputs;
 pub mod reveal;
 mod single_instance;
@@ -1102,7 +1106,7 @@ impl GlacierUI {
                 // motor só escuta o mouse enquanto o arrasto existe (ver
                 // `precisa_do_cursor`): um listener sempre ligado redesenharia
                 // o app cem vezes por segundo por nada.
-                if anterior.x != p.x && self.arrasta_coluna(p.x) {
+                if (anterior.x != p.x || anterior.y != p.y) && self.arrasta(*p) {
                     let _ = self.reevaluate_all();
                 }
                 return iced::Task::none();
@@ -1445,7 +1449,7 @@ impl GlacierUI {
                 // (`<tableheader>`, Onda 6). As duas coisas compartilham este
                 // braço de propósito: só um arrasto existe por vez no app, e o
                 // botão do mouse é um só.
-                self.context_data.remove(crate::widget::COLGRIP_CONTEXT);
+                self.context_data.remove(crate::grip::GRIP_CONTEXT);
                 if let Some(drag) = self.drag.take() {
                     let value =
                         serde_json::to_string(&drag.order).unwrap_or_else(|_| "[]".to_string());
@@ -1457,27 +1461,137 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
-            EngineMessage::ColumnResizeStart {
-                widths_var,
-                index,
-                largura,
-            } => {
-                // O zero do arrasto fica **em aberto** (`?`), e é o primeiro
-                // movimento que o preenche.
+            // ── Onda 9, o `<delaybutton>`: o arrasto em que anda o TEMPO ────
+            //
+            // As três mensagens são um relógio, e a chave `__hold` é o
+            // interruptor dele: enquanto ela existir, o daemon registra o
+            // ticker (ver `precisa_do_relogio`); quando some, o ticker some
+            // junto. É a mesma economia do cursor, com o mesmo motivo — no
+            // iced toda mensagem provoca um quadro.
+            EngineMessage::HoldStart { action, duracao } => {
+                self.context_data.insert(
+                    crate::pointer::HOLD_CONTEXT.to_string(),
+                    format!("{action}|{}|{duracao}", agora_ms()),
+                );
+                self.context_data
+                    .insert(crate::pointer::HOLD_FRAC_CONTEXT.to_string(), "0".into());
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
+            EngineMessage::HoldEnd => {
+                // Soltar antes do fim **desiste**, sem disparar nada. O anel
+                // volta a zero porque a fração vai embora com a chave.
+                self.context_data.remove(crate::pointer::HOLD_CONTEXT);
+                self.context_data.remove(crate::pointer::HOLD_FRAC_CONTEXT);
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
+            EngineMessage::HoldTick => {
+                let Some(hold) = self.context_data.get(crate::pointer::HOLD_CONTEXT).cloned()
+                else {
+                    return iced::Task::none();
+                };
+                let campos: Vec<&str> = hold.split('|').collect();
+                let [action, inicio, duracao] = campos[..] else {
+                    self.context_data.remove(crate::pointer::HOLD_CONTEXT);
+                    return iced::Task::none();
+                };
+                let (Ok(inicio), Ok(duracao)) = (inicio.parse::<u128>(), duracao.parse::<f32>())
+                else {
+                    self.context_data.remove(crate::pointer::HOLD_CONTEXT);
+                    return iced::Task::none();
+                };
+                // A fração sai do RELÓGIO, e não de um contador de ticks: um
+                // tick perdido (a tela ocupada com outra coisa) atrasaria a
+                // ação em vez de só pular um quadro do anel.
+                let f = ((agora_ms().saturating_sub(inicio)) as f32 / duracao.max(1.0)).min(1.0);
+                if f < 1.0 {
+                    self.context_data
+                        .insert(crate::pointer::HOLD_FRAC_CONTEXT.to_string(), f.to_string());
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                // O anel fechou: dispara **uma** vez e desarma antes de
+                // despachar, senão o próximo tick dispararia de novo.
+                let action = action.to_string();
+                self.context_data.remove(crate::pointer::HOLD_CONTEXT);
+                self.context_data.remove(crate::pointer::HOLD_FRAC_CONTEXT);
+                return self.dispatch_interno(&EngineMessage::UiClick(action));
+            }
+            // ── Onda 9, o habilitador B: o teclado ───────────────────────────
+            EngineMessage::ShortcutArm { value_var } => {
+                // Clicar no campo já armado o desarma — senão não haveria como
+                // desistir sem gravar uma combinação qualquer.
+                let atual = self
+                    .context_data
+                    .get(crate::keys::CAPTURA_CONTEXT)
+                    .cloned()
+                    .unwrap_or_default();
+                let novo = if atual == *value_var {
+                    String::new()
+                } else {
+                    value_var.clone()
+                };
+                self.context_data
+                    .insert(crate::keys::CAPTURA_CONTEXT.to_string(), novo);
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
+            EngineMessage::ShortcutKey { combo, capturado } => {
+                let armado = self
+                    .context_data
+                    .get(crate::keys::CAPTURA_CONTEXT)
+                    .cloned()
+                    .filter(|c| !c.is_empty());
+                // Com um `<shortcutinput>` armado, a tecla é DADO e não comando
+                // — inclusive uma que casaria com um `<shortcut>` da tela. É o
+                // que deixa gravar `Ctrl+S` num campo de atalhos sem salvar o
+                // arquivo no caminho.
+                if let Some(chave) = armado {
+                    self.context_data
+                        .insert(crate::keys::CAPTURA_CONTEXT.to_string(), String::new());
+                    // Escape desiste; Backspace limpa. As duas são as
+                    // convenções do QKeySequenceEdit, e nenhuma das duas é uma
+                    // combinação que alguém queira gravar.
+                    match combo.as_str() {
+                        "escape" => {}
+                        "backspace" | "delete" => {
+                            self.context_data.insert(chave, String::new());
+                        }
+                        _ => {
+                            self.context_data.insert(chave, combo.clone());
+                        }
+                    }
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                // Sem campo armado: procura um `<shortcut>` que case. Um atalho
+                // SEM modificador não passa por cima de um campo focado — ver a
+                // nota em `crate::keys`.
+                if *capturado && !combo.contains('+') {
+                    return iced::Task::none();
+                }
+                let Some(acao) = self.atalho_para(combo) else {
+                    return iced::Task::none();
+                };
+                return self.dispatch_interno(&EngineMessage::UiClick(acao));
+            }
+            EngineMessage::GripStart(arrasto) => {
+                // O zero do arrasto fica **em aberto** (`origem: None`), e é o
+                // primeiro movimento que o preenche.
                 //
                 // Não dá para usar `last_cursor_pos` aqui, e a razão é a
-                // própria economia que este widget faz: enquanto não há alça
-                // presa, o motor NÃO escuta o mouse (ver `precisa_do_cursor`),
-                // então a última posição conhecida é de um menu aberto meia
-                // hora atrás — ou a origem, se nunca houve um. O arrasto saía
-                // com centenas de pixels de erro no primeiro quadro.
+                // própria economia que estes widgets fazem: enquanto não há
+                // alça presa, o motor NÃO escuta o mouse (ver
+                // `precisa_do_cursor`), então a última posição conhecida é de um
+                // menu aberto meia hora atrás — ou a origem, se nunca houve um.
+                // O arrasto saía com centenas de pixels de erro no primeiro
+                // quadro.
                 //
                 // Adiar o zero para o primeiro `CursorMoved` custa um quadro
-                // sem redimensionar, que ninguém vê, e é exato daí em diante.
-                self.context_data.insert(
-                    crate::widget::COLGRIP_CONTEXT.to_string(),
-                    format!("{widths_var}|{index}|?|{largura}"),
-                );
+                // sem arrastar, que ninguém vê, e é exato daí em diante.
+                self.context_data
+                    .insert(crate::grip::GRIP_CONTEXT.to_string(), arrasto.escrever());
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
@@ -2520,7 +2634,7 @@ impl GlacierUI {
             // entre o pressionar e o soltar.
             || self
                 .context_data
-                .get(crate::widget::COLGRIP_CONTEXT)
+                .get(crate::grip::GRIP_CONTEXT)
                 .is_some_and(|v| !v.is_empty())
     }
 
@@ -2531,47 +2645,58 @@ impl GlacierUI {
     /// e o arrasto **converte** a trilha tocada em fixa: uma coluna que se
     /// redimensiona à mão deixa de ser flexível, que é o que a pessoa acabou de
     /// pedir ao arrastá-la.
-    fn arrasta_coluna(&mut self, x: f32) -> bool {
-        let Some(grip) = self.context_data.get(crate::widget::COLGRIP_CONTEXT) else {
-            return false;
-        };
-        let campos: Vec<&str> = grip.split('|').collect();
-        let [chave, indice, x0, w0] = campos[..] else {
-            return false;
-        };
-        // O primeiro movimento depois do clique só **ancora** o arrasto: é este
-        // `x` que vira o zero dele. Ver `ColumnResizeStart` para o porquê de o
-        // zero não sair de lá.
-        if x0 == "?" {
-            let novo = format!("{chave}|{indice}|{x}|{w0}");
-            self.context_data
-                .insert(crate::widget::COLGRIP_CONTEXT.to_string(), novo);
-            return false;
-        }
-        let (Ok(indice), Ok(x0), Ok(w0)) = (
-            indice.parse::<usize>(),
-            x0.parse::<f32>(),
-            w0.parse::<f32>(),
-        ) else {
-            return false;
-        };
-        // O piso de 48px não é estética: uma coluna de largura zero some da
-        // tela junto com a alça dela, e não haveria como trazê-la de volta.
-        let nova = (w0 + (x - x0)).clamp(48.0, 1200.0);
+    /// A ação de um `<shortcut>` que case com a combinação, se a tela avaliada
+    /// declarar um.
+    ///
+    /// Varre **todas** as árvores avaliadas e não só a da tela ativa: um
+    /// `<shortcut>` dentro de um componente vale enquanto o componente estiver
+    /// montado, que é o que "pertence à tela" quer dizer aqui.
+    fn atalho_para(&self, combo: &str) -> Option<String> {
+        self.tree_bindings
+            .values()
+            .flat_map(|b| b.atalhos.iter())
+            .find(|(c, _)| c == combo)
+            .map(|(_, a)| a.clone())
+    }
 
-        let chave = chave.to_string();
-        let atual = self.context_data.get(&chave).cloned().unwrap_or_default();
-        let mut trilhas: Vec<String> = if atual.trim().is_empty() {
-            Vec::new()
-        } else {
-            atual.split_whitespace().map(str::to_string).collect()
+    /// O motor precisa de um tique de relógio nesta janela?
+    ///
+    /// Só enquanto um `<delaybutton>` estiver apertado. Mesma economia (e mesmo
+    /// motivo) do [`Self::precisa_do_cursor`]: no `iced` toda mensagem provoca
+    /// um quadro, e um ticker permanente redesenharia o app trinta vezes por
+    /// segundo com a tela parada.
+    pub fn precisa_do_relogio(&self) -> bool {
+        self.context_data
+            .get(crate::pointer::HOLD_CONTEXT)
+            .is_some_and(|v| !v.is_empty())
+    }
+
+    /// Aplica o movimento do cursor ao arrasto em curso, se houver um.
+    /// Devolve `true` quando escreveu algo — e só então o chamador reavalia.
+    ///
+    /// Toda a conta mora em [`crate::grip::Arrasto::aplica`]; o que sobrou aqui
+    /// é ler a chave, escrever a chave e nada mais. Era `arrasta_coluna`, com o
+    /// mapeamento de pixel para largura embutido: a Onda 9 tirou a conta de
+    /// dentro e ganhou o `<splitter>` e o `<swipeview>` com ela.
+    fn arrasta(&mut self, p: iced::Point) -> bool {
+        let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT) else {
+            return false;
         };
-        while trilhas.len() <= indice {
-            trilhas.push("auto".to_string());
+        let Some(mut arrasto) = crate::grip::Arrasto::ler(bruto) else {
+            return false;
+        };
+        let escrito = arrasto.aplica(p, &self.context_data);
+        // A âncora do primeiro movimento muda o arrasto sem escrever nada — daí
+        // o `insert` acontecer nos dois caminhos, e o `true` só num deles.
+        self.context_data
+            .insert(crate::grip::GRIP_CONTEXT.to_string(), arrasto.escrever());
+        match escrito {
+            Some((chave, valor)) => {
+                self.context_data.insert(chave, valor);
+                true
+            }
+            None => false,
         }
-        trilhas[indice] = format!("{nova:.0}");
-        self.context_data.insert(chave, trilhas.join(" "));
-        true
     }
 
     /// `true` se **todas** as dependências guardadas ainda têm o mesmo valor no
@@ -2983,6 +3108,17 @@ fn theme_key(path: &str) -> String {
     format!("theme::{}", path)
 }
 
+/// Milissegundos desde a época. É o relógio do `<delaybutton>`, e ele mede
+/// tempo de PAREDE de propósito: a fração do anel tem de andar igual num app
+/// que está engasgando e num que não está, senão soltar "no fim" acontece cedo
+/// demais numa máquina lenta.
+fn agora_ms() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
 /// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
 /// the engine can keep a stateful editor buffer per binding.
 #[derive(Default)]
@@ -2995,6 +3131,11 @@ struct TreeBindings {
     textareas: Vec<String>,
     /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
     combos: Vec<(String, String, String, String)>,
+    /// `(combinação normalizada, ação)` de cada `<shortcut>` — o habilitador B
+    /// da Onda 9. Fica aqui, e não num registro do app, porque o atalho
+    /// pertence à **tela**: a que sai de cena leva os dela junto, sem ninguém
+    /// desregistrar nada. Ver [`crate::keys`].
+    atalhos: Vec<(String, String)>,
 }
 
 /// Colhe, numa **única** passada, os dois tipos de widget cujo estado o motor
@@ -3026,6 +3167,15 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
                 label_field.clone(),
                 value_field.clone(),
             ));
+        }
+        NodeType::Shortcut { key, action } if crate::keys::declarado(key, action) => {
+            let combo = crate::keys::normaliza(key);
+            // O primeiro declarado ganha: dois `<shortcut>` com a mesma
+            // combinação na mesma tela é um bug de quem escreveu a tela, e
+            // disparar os dois seria pior do que ignorar o segundo.
+            if !out.atalhos.iter().any(|(c, _)| *c == combo) {
+                out.atalhos.push((combo, action.clone()));
+            }
         }
         _ => {}
     }
@@ -3253,6 +3403,30 @@ fn cursor_from_event(
         }
         _ => None,
     }
+}
+
+/// Mapeia uma combinação de teclas para [`EngineMessage::ShortcutKey`] — o
+/// habilitador B da Onda 9, e o **sexto** listener global desta lista.
+///
+/// Ele reporta o `status` em vez de filtrar por ele (como o
+/// `timeedit_key_from_event` faz), e a diferença é a razão de o atalho existir:
+/// digitar `s` num `<textinput>` não pode disparar um `<shortcut key="s">`, mas
+/// `Ctrl+S` **tem** de atravessar — nenhum campo de texto consome `Ctrl+S`, e um
+/// atalho que morresse porque há um campo focado não seria um atalho. Quem
+/// decide é o `dispatch`, que é quem sabe se há um `<shortcutinput>` armado.
+fn shortcut_from_event(
+    event: iced::Event,
+    status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) = event
+    else {
+        return None;
+    };
+    Some(EngineMessage::ShortcutKey {
+        combo: crate::keys::combinacao(&key, modifiers)?,
+        capturado: status == iced::event::Status::Captured,
+    })
 }
 
 /// Mapeia a tecla Escape para [`EngineMessage::MenuDismiss`] — fecha o menu/

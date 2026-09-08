@@ -8,6 +8,130 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.95.0] — 2026-09-08 · CLI 0.4.3 · Glacier View 0.18.0
+
+**Onda 9 do `PLANO_WIDGETS.md`: o ponteiro preso.** Nove widgets, dois
+habilitadores de motor, e o catálogo Qt de superfície passa de **74% para
+82,4%** (103 de 125). **Duas categorias fecharam sem nenhuma linha aberta** — a
+navegação (6/6) e a janela/barras (8/8) —, o que não tinha acontecido com
+nenhuma até aqui; as entradas numéricas ficaram em 11/12, com o `ScrollBar` 🟡
+de propósito.
+
+### Adicionado
+
+- **`<splitter>`** (`QSplitter`) — painéis com alça arrastável entre cada par.
+  As medidas moram numa chave, no mesmo formato de trilhas do `columns` do
+  `<grid>` (`"260 fill"`), e arrastar converte a trilha tocada em fixa. Aninha
+  nos dois eixos; duas instâncias na mesma tela nomeiam duas chaves.
+- **`<rangeslider>`** (`QML RangeSlider`) — a faixa com dois cursores, em duas
+  chaves nomeadas (`start`/`end`), como o `<daterangepicker range>` da 0.84. As
+  pontas não se cruzam, e com as duas juntas o clique pega o **fim** — senão a
+  faixa de largura zero, que é o estado inicial de um filtro, travaria.
+- **`<tumbler>`** (`QML Tumbler`) — a roleta. O `<dial>` desenrolado numa linha:
+  guarda o **texto** escolhido (não o índice, para que reordenar a coleção não
+  mova a escolha) e vira dentro de si, como as seções do `<timeedit>`.
+- **`<swipeview>`** (`QML SwipeView`) — páginas trocadas arrastando. É
+  `<stackview>` (0.94) escolhendo por **posição** em vez de nome de slot, porque
+  é a posição que um arrasto move. O conteúdo segue o dedo e satura nas pontas.
+- **`<delaybutton>`** (`QML DelayButton`) — o botão que só dispara depois de
+  segurado. Soltar antes do fim desiste, que é o ponto todo. É o único dos nove
+  com ticker, e ele só é registrado enquanto a chave `__hold` existe.
+- **`<rubberband>`** (`QRubberBand`) — o retângulo de seleção. Escreve o
+  **conjunto nomeado** que o `<listview mode="multi">` guarda desde a 0.85, na
+  mesma grafia que o `contains` do condicional lê.
+- **`<pageindicator>`** (`QML PageIndicator`) — os pontinhos. É `<pagination>`
+  com pontos, uma tag a menos no motor (como `<sparkline>` é `<linechart>` sem
+  moldura), e conta do **zero**, porque marca o `currentIndex` de um
+  `<swipeview>`.
+- **`<sizegrip>`** (`QSizeGrip`) — o canto que redimensiona, para apps com
+  titlebar própria. **Builtin**, não motor: ver *Alterado*.
+- **`<shortcut>`** (`QShortcut`/`QAction`) — atalho global declarado no
+  **layout**. Não desenha nada; o motor o colhe da árvore avaliada. É o que faz
+  o atalho pertencer à tela: a que sai de cena leva os dela junto, sem ninguém
+  desregistrar nada.
+- **`<shortcutinput>`** (`QKeySequenceEdit`) — o campo que captura uma
+  combinação. Esc desiste, Backspace limpa. Com ele armado a tecla é **dado**, o
+  que deixa gravar `Ctrl+S` ali sem salvar o arquivo no caminho.
+
+### Motor
+
+- **O arrasto virou capacidade** (`src/grip.rs`). O motor já arrastava em três
+  lugares que não se conheciam — o `__drag_key` da lista reordenável, o
+  `__colgrip` da alça de coluna (0.92) e o `Program::State` do `<dial>` (0.93) —
+  e nenhum dos três estava catalogado como capacidade no §3 do plano. É a
+  **terceira** vez que o gargalo real não estava naquela lista, depois da
+  medição de colunas (Onda 6) e do corpo do diálogo (Onda 8).
+
+  Generalizar foi tirar a conta de dentro do `__colgrip`: um `enum Alvo` com
+  dois mapeamentos (trilha e índice) e um `aplica`. Os dois problemas difíceis
+  já estavam resolvidos e comentados lá — a âncora no primeiro movimento (o
+  motor não escuta o mouse enquanto não há alça presa) e o listener condicional
+  (um sempre ligado estrangula a rolagem do app: 70 movimentos/s davam 65
+  quadros, 110 davam 10).
+- **O teclado virou subscription** (`src/keys.rs`) — o item 9 do §3, e o último
+  daquela lista com consumidor no catálogo. Ele parecia um item de motor e era
+  uma **sexta entrada numa lista de cinco** `listen_with` que o daemon já
+  registrava. Um atalho sem modificador não rouba a tecla de um campo focado;
+  um com modificador atravessa, porque nenhum campo de texto consome `Ctrl+S`.
+
+### Alterado
+
+- **`EngineMessage::ColumnResizeStart` → `EngineMessage::GripStart(Arrasto)`.**
+  A mensagem carregava a chave de larguras, o índice e a largura; agora carrega
+  um `grip::Arrasto`, com eixo e mapeamento. As asserções dos dois testes de
+  arrasto da Onda 6 **não mudaram uma linha**, e é isso que elas passaram a
+  guardar além do widget.
+- **`<sizegrip>` desceu de Motor para builtin.** Ele entrou na fila como o
+  sétimo consumidor do arrasto e não consumiu nada: `window:resize:se` já era
+  ação da titlebar custom e `cursor="se"` já era atributo universal. Sobrou
+  desenhar o cantinho — vinte linhas em `src/builtins/size_grip.rs`. É a **15ª**
+  correção de nível do catálogo, e a primeira para o lado da infraestrutura em
+  vez do estado.
+- **`ListView bind` (§2.4) virou ✅ sem uma linha de código.** A Onda 6 já tinha
+  escrito que ele "nem existia como trabalho" (a ligação é `items="chave"`, a
+  mesma do `<menu>` desde a 0.65); o ⬜ tinha ficado por esquecimento.
+
+### Notas
+
+- **A 14ª reclassificação de `●`, e a última em que a pergunta cabia.** Seis dos
+  sete widgets de arrasto estavam marcados "exige estado por instância". Nenhum
+  exigia, e desta vez o motivo é o **mesmo para os seis**: o que o arrasto move é
+  sempre um valor que o app nomeia, e o que sobra dele (*estou arrastando? desde
+  onde?*) é global por natureza, porque só se arrasta uma coisa por vez numa
+  tela. Depois desta onda, o único `●` que sobra por estado de verdade é a dupla
+  `MdiArea`/`Dock` — e ela espera uma decisão sobre janela interna, não o motor.
+- **O habilitador B não custou nada ao Luau**, e é o achado do exemplo
+  `onda9_luau`. A Onda 8 precisou de quatro globais novos porque um diálogo
+  *suspende*; um arrasto escreve numa chave, e o Luau já escrevia chaves. Nove
+  widgets, zero linhas em `src/luau/`.
+- **Um apelido de tag não pode ser o apelido de outra.** `<deslizante>` foi a
+  primeira escolha para o `<swipeview>` e já era do `<slider>`: o `match` casava
+  no braço de cima e o de baixo virava código morto. É a segunda metade da regra
+  que a Onda 7 escreveu, e esta é barata porque o compilador a pega
+  (`unreachable pattern`).
+- **Um `<shortcut>` vai no layout, não no `<resources>`.** Parece declaração e
+  é — mas quem o encontra é `collect_tree_bindings`, que varre a árvore
+  avaliada, e o `<resources>` não é árvore.
+
+### Ferramentas
+
+- **Extensão Glacier View 0.18.0** — o catálogo de tags conhece os dez nomes
+  novos (`splitter`, `swipeview`, `rangeslider`, `tumbler`, `delaybutton`,
+  `rubberband`, `shortcutinput`, `shortcut`, `pageindicator` e `sizegrip`, mais
+  os apelidos de cada um). Sem isso a extensão os trataria como **componente do
+  app** e o "ir para a definição" tentaria abrir um `.gv` que não existe.
+
+  A referência embutida (`references/glacier-view.md`) ganhou a seção do
+  ponteiro preso, com a tabela de props de cada tag — é para onde o
+  go-to-definition de uma tag nativa salta.
+- **CLI 0.4.3** — republica com a extensão nova embutida (ela entra no binário
+  em tempo de build, via `build.rs`) e com o `engine-version.txt` apontando para
+  a 0.95.0.
+
+Exemplos: `cargo run --example onda9` e `cargo run --example onda9_luau`.
+
+---
+
 ## [0.94.5] — 2026-09-08 · CLI 0.4.2
 
 ### Alterado
