@@ -87,7 +87,7 @@ function init(): ()
     -- A chave que dirige o mês visível do último calendário da terceira aba.
     -- O formato é `YYYY-MM|<nível>` — o mesmo que o motor guarda em
     -- `__cal_<chave>` quando o app NÃO passa `month=`.
-    ctx.mes_visivel = date.format(ctx.hoje, "YYYY-MM") .. "|d"
+    ctx.mes_visivel = assert(date.format(ctx.hoje, "YYYY-MM")) .. "|d"
 
     ctx.status = "Pronto"
 end

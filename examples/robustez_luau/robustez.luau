@@ -4,10 +4,14 @@
 
 -- Handle do temporizador em andamento (variável local do módulo, sobrevive
 -- entre chamadas porque o interpretador Luau do componente é o mesmo).
-local temporizador = nil
+--
+-- A anotação `Timer?` é necessária, não decorativa: sem ela o Luau infere o
+-- tipo do valor inicial (`nil`) e a atribuição do handle mais abaixo vira erro.
+local temporizador: Timer? = nil
 
--- Handle do cronômetro repetitivo (`every`), mesma ideia de `temporizador`.
-local cronometro = nil
+-- Handle do cronômetro repetitivo (`every`), mesma ideia de `temporizador` —
+-- inclusive na anotação.
+local cronometro: Timer? = nil
 
 function init()
     -- `storage.get` lê do disco: se o app foi fechado e reaberto, o rascunho

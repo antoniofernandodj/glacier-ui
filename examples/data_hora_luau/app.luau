@@ -168,7 +168,11 @@ end
 -- Meses andam pelo calendário e grudam no fim: 31/01 + 1 mês é 28/02. Vale
 -- experimentar com uma entrada em 31 de janeiro.
 function daqui_um_mes(): ()
-    local entrada: string = date.add(ctx.checkin, { months = 1 })
+    -- `assert` porque toda função de `date` devolve `nil` para entrada que não
+    -- é ISO válida, e aqui a entrada vem de um `<dateedit>` — se ela não for
+    -- válida, o certo é explodir aqui e não propagar `nil` pelas três linhas
+    -- seguintes. O `assert` também é o que refina `string?` para `string`.
+    local entrada: string = assert(date.add(ctx.checkin, { months = 1 }))
     ctx.checkout = date.add(entrada, { days = date.diff(ctx.checkout, ctx.checkin) })
     ctx.checkin = entrada
     ctx.lembrete = date.add(`{date.date_of(ctx.checkin)} 18:00`, { days = -1 })

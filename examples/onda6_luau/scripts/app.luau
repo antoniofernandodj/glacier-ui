@@ -57,7 +57,24 @@ local COLUNAS = {
 -- A árvore: `{id, label, items}` aninhado, a mesma forma que o `<menu items>` já
 -- usava para submenus. É aqui que a versão Luau fica visivelmente mais curta —
 -- do lado Rust isto é um `serde_json::json!` de trinta linhas.
-local ARVORE = {
+-- O tipo é declarado, e não inferido, porque a árvore é HETEROGÊNEA: um nó
+-- folha não tem `items`, e o inferidor do Luau pega a forma do primeiro
+-- elemento e recusa os demais. Escrevê-lo custa cinco linhas e documenta o
+-- formato que o `<treeview>` espera — que num exemplo é o ponto.
+--
+-- O `:: { No }` lá embaixo é pela mesma razão, uma camada mais fundo: a
+-- anotação da variável não alcança um literal ANINHADO — o inferidor resolve
+-- cada `items = { … }` por conta própria, antes de conferir contra o tipo. O
+-- cast diz a forma onde ele não consegue deduzi-la. (Funciona também pôr a
+-- folha como primeiro elemento, mas aí a tipagem passa a depender da ordem em
+-- que a árvore está escrita, e a próxima pessoa que reordenar quebra.)
+type No = {
+    id: string,
+    label: string,
+    items: { No }?,
+}
+
+local ARVORE: { No } = {
     {
         id = "projeto",
         label = "projeto",
@@ -89,7 +106,7 @@ local ARVORE = {
             },
             { id = "Cargo.toml", label = "Cargo.toml" },
             { id = "README.md", label = "README.md" },
-        },
+        } :: { No },
     },
 }
 

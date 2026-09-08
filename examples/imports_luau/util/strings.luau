@@ -6,12 +6,12 @@
 local M = {}
 
 --- Remove espaços das pontas.
-function M.trim(s)
+function M.trim(s: string): string
     return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
 
 --- Corta `s` em no máximo `n` chars, colocando "…" se estourar.
-function M.truncate(s, n)
+function M.truncate(s: string, n: number): string
     if #s <= n then
         return s
     end

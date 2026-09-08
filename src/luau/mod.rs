@@ -2590,6 +2590,49 @@ mod tests {
         assert_eq!(out[1]["up"], false);
     }
 
+    /// Uma `local` no topo do módulo **sobrevive entre chamadas** — é o mesmo
+    /// interpretador Luau a cada ação do componente.
+    ///
+    /// Isto não é curiosidade de linguagem: é a premissa que deixa um script
+    /// guardar estado que NÃO é do contexto (o handle de um stream, o de um
+    /// temporizador) sem recorrer a uma global implícita, que o luau-lsp
+    /// recusa em modo estrito. Os `examples/stream_lua` dependem disso.
+    #[test]
+    fn local_do_modulo_sobrevive_entre_chamadas() {
+        let mut comp = LuauComponent::from_source(
+            r#"
+            local guardado = nil
+
+            function guardar()
+                guardado = "vivo"
+            end
+
+            function ler()
+                ctx.eco = guardado or "PERDEU"
+            end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+
+        // Duas ações separadas, como dois cliques do usuário.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("guardar", None, &mut ctx);
+        }
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("ler", None, &mut ctx);
+        }
+        assert_eq!(
+            data.get("eco").map(String::as_str),
+            Some("vivo"),
+            "a local do módulo tem de atravessar a fronteira entre duas ações"
+        );
+    }
+
     #[test]
     fn fetch_suspende_a_corrotina_e_retoma_com_a_resposta() {
         let comp = LuauComponent::from_source(

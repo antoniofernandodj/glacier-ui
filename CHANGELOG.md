@@ -8,6 +8,46 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [Não publicado]
+
+### Corrigido
+- **Os vinte erros de tipo que os scripts de exemplo escondiam.** Eles
+  apareceram quando a 0.94.4 religou os tipos do Luau (o `.luaurc` os anulava),
+  e nenhum era do motor — eram sete arquivos com o mesmo punhado de padrões:
+
+  - **`local x = nil` que depois recebe um handle.** O Luau infere o tipo do
+    valor inicial, então guardar o handle vira erro. Anotado como `Timer?`
+    (`robustez_luau`) e `StreamHandle?` (`stream_lua`).
+  - **Globais implícitas para estado de módulo** (`sse_conn`, `ws_conn`), que o
+    modo estrito recusa. Viraram `local` no topo do módulo — o motor só procura
+    **funções** nos globais, nunca estado, e uma `local` ali sobrevive entre
+    ações porque o interpretador do componente é o mesmo. Isso ganhou teste
+    (`local_do_modulo_sobrevive_entre_chamadas`), porque é a premissa da
+    mudança e ela não estava escrita em lugar nenhum.
+  - **Retorno opcional de `date.*` usado como certo.** Toda função de data
+    devolve `nil` para entrada não-ISO; onde o exemplo sabe que a entrada é
+    válida, agora há um `assert` — que explode no lugar certo em vez de
+    propagar `nil`, e de quebra refina o tipo.
+  - **Árvore heterogênea sem tipo declarado** (`onda6_luau`): um nó folha não
+    tem `items`, e o inferidor pega a forma do primeiro elemento e recusa os
+    demais. Ganhou um `type No` recursivo — que num exemplo também documenta o
+    formato que o `<treeview>` espera.
+  - **Parâmetros sem anotação** num módulo de utilidades (`imports_luau`), onde
+    o tipo *é* o contrato.
+
+- **O único aviso falso que um projeto novo produzia.** O `init` do preset
+  `completo` é chamado pelo motor, pelo nome, e o luau-lsp o reportava como
+  código morto. Um `--!nolint FunctionUnused` com o porquê ao lado deixa a saída
+  do `make luau` em silêncio total — um lint que sempre imprime ruído é um lint
+  que ninguém lê.
+
+### Notas
+- Os exemplos **deste repositório** ainda produzem avisos de `FunctionUnused`
+  pela mesma razão (83 deles), e ficam como estão: eles não passam pelo `make
+  luau`, que roda sobre o projeto de quem usa a CLI — lá a saída é limpa.
+
+---
+
 ## [0.94.4] — 2026-09-08 · CLI 0.4.1
 
 Os tipos do Luau voltaram a existir.

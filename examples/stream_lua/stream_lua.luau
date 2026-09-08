@@ -4,6 +4,16 @@
 -- correspondente em `opts` (on_open / on_message / on_error / on_close), que
 -- escreve em `ctx` como qualquer ação e a UI reavalia.
 
+-- Os handles dos dois streams. `local` no topo do módulo, e não uma global
+-- implícita: o interpretador Luau do componente é o mesmo entre chamadas, então
+-- a variável sobrevive do mesmo jeito — e o motor só procura FUNÇÕES nos
+-- globais (é assim que ele acha `init`, `abrir_sse` e as demais), nunca estado.
+--
+-- A anotação `StreamHandle?` é necessária, não decorativa: sem ela o Luau
+-- inferiria o tipo do valor inicial (`nil`) e guardar o handle viraria erro.
+local sse_conn: StreamHandle? = nil
+local ws_conn: StreamHandle? = nil
+
 function init()
     ctx.sse_status = "fechado"
     ctx.sse_msg = "(abra o SSE)"
