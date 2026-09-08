@@ -23,7 +23,7 @@ qualquer tela.
   width: fill;
   padding: 14 18;
   spacing: 12;
-  align-y: center;
+  align_y: center;
   background: var(--faixa);
 }
 
@@ -34,9 +34,9 @@ qualquer tela.
 .bloco   { width: fill; padding: 16; }
 .painel  { width: fill; spacing: 12; }
 .colunas { width: fill; spacing: 18; }
-.acoes   { spacing: 10; align-y: center; }
+.acoes   { spacing: 10; align_y: center; }
 
-.amostra { width: 44; height: 32; border-radius: 6; border-width: 1; }
+.amostra { width: 44; height: 32; border_radius: 6; border_width: 1; }
 
 /* ── Texto ─────────────────────────────────────────────────────────────── */
 

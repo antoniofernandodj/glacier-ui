@@ -112,6 +112,80 @@ desalinha a barra de rolagem, não quebra a tela.
 Só vale para listas que **não cabem** na tela: com poucos itens ela não age, de
 propósito.
 
+## Como se escreve um `.gv` e um `.gss` aqui
+
+A convenção vale para **todo** template e toda folha do projeto — os que já
+existem e os que vierem. O motor aceita várias grafias como apelido, e é
+justamente por isso que a regra precisa estar escrita: nada quebra se você
+misturar, e um arquivo com quatro grafias da mesma coisa é o resultado natural
+de não decidir.
+
+**1. Tags do motor em minúsculas, atributos em `snake_case`.**
+
+```xml
+<!-- não -->
+<Column spacing="10"><TextInput onChange="salvar" minSize="200 100" /></Column>
+
+<!-- sim -->
+<column><textinput on_change="salvar" min_size="200 100" /></column>
+```
+
+**A exceção é obrigatória, não estilística:** a tag de um componente do app é
+resolvida pelo **nome com que ele foi registrado**, e a busca é sensível a
+caixa — `<MeuCartao/>` funciona, `<meucartao/>` é `UnknownComponent`. Isso dá à
+convenção uma propriedade que vale de graça: numa tela, `CamelCase` significa
+"componente deste app" e minúscula significa "widget do motor".
+
+**2. O texto de um `<text>` é filho, não atributo.**
+
+```xml
+<text content="Serviços ativos" />   <!-- não -->
+<text>Serviços ativos</text>          <!-- sim -->
+```
+
+Interpolação continua valendo no filho: `<text>Olá, {usuario}</text>`.
+
+**3. Estilo mora no `.gss`; o markup fica com estrutura.**
+
+Cor, tamanho, espaçamento, padding e largura de caixa saem do `.gv` e viram uma
+**classe com nome de papel**:
+
+```xml
+<text class="rotulo">Último salvamento</text>
+```
+```gss
+.rotulo { size: 12; color: var(--fraco); }
+```
+
+Três coisas continuam inline, porque não são estilo: **valor dirigido por dado**
+(`background="{cor}"`), **medida com significado de widget** (o `size` de uma
+roda de cor, o `width` de um `<spinbox>` — que é a largura do *campo*, não a do
+conjunto) e **estrutura/ação** (`value`, `items`, `slot`, `on_click`).
+
+**4. Indentação de dois espaços**, nos dois arquivos.
+
+**5. No `.gss`, propriedades também em `snake_case`** — `border_radius`,
+`border_width`, `border_color`, `align_x`, `align_y`, `text_align`,
+`text_color`, `max_width`, `max_height`, `font_family`. Cores nomeadas em
+`:root` e usadas por `var(--nome)`, nunca um hexadecimal repetido em cinco
+regras.
+
+Uma exceção obrigatória: dentro de `@media` o nome é uma **feature do CSS**, não
+uma propriedade do motor — `@media (max-width: 720)` funciona, `max_width` é
+erro.
+
+### Por que isso importa mais do que parece
+
+Uma propriedade de estilo que o motor não conhece é **ignorada com aviso**, não
+é erro: um `border-bottom:` (que não existe — a borda é dos quatro lados) some
+em silêncio no meio de um `.gss` grande. Concentrar o estilo num arquivo só, com
+nomes de papel, é o que torna esse aviso fácil de ver.
+
+Do lado do markup vale o simétrico: quanto menos atributo por tag, mais óbvio
+fica quando um deles **não é** o que parece — `value` num widget de valor é
+*nome de chave*, não interpolação; `width` numa prop de builtin costuma ser a
+largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
+
 ## Convenções deste projeto
 
 - **Templates são `.gv`**; folhas de estilo, `.gss`. Não existe `.kdl`, `.iss`

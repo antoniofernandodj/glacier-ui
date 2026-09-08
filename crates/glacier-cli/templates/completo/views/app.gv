@@ -1,4 +1,4 @@
-<screen title="{{titulo}}" size="980 640" min-size="560 420">
+<screen title="{{titulo}}" size="980 640" min_size="560 420">
   <resources>
     <link rel="theme"      href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />

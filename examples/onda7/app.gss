@@ -10,8 +10,8 @@ widgets que desenham **também** se pintam pela paleta do `theme.json`, como o
 e, quando o atributo está vazio, a cor cai na CLASSE. Ou seja: as três regras
 de cor logo abaixo pintam gráficos inteiros sem que o markup diga nada.
 
-    .grafico_alerta { color: #F38BA8; }
-    <linechart class="grafico_alerta" items="erros" />
+  .grafico_alerta { color: #F38BA8; }
+  <linechart class="grafico_alerta" items="erros" />
 
 É o mesmo fallback que o `<rating>` e o `<progressbar>` já tinham; nesta onda
 ele passa a valer para sete widgets de uma vez, e é o que faz um painel inteiro
@@ -19,14 +19,14 @@ trocar de cor por folha de estilo.
 */
 
 :root {
-    --texto:  #CDD6F4;
-    --suave:  #A6ADC8;
-    --fraco:  #80868D;
-    --azul:   #89B4FA;
-    --verde:  #A6E3A1;
-    --ambar:  #F9E2AF;
-    --vermelho: #F38BA8;
-    --realce: #8080803D;
+  --texto:  #CDD6F4;
+  --suave:  #A6ADC8;
+  --fraco:  #80868D;
+  --azul:   #89B4FA;
+  --verde:  #A6E3A1;
+  --ambar:  #F9E2AF;
+  --vermelho: #F38BA8;
+  --realce: #8080803D;
 }
 
 /* ── Esqueleto ─────────────────────────────────────────────────────────── */
@@ -34,7 +34,7 @@ trocar de cor por folha de estilo.
 .tela      { width: fill; height: fill; }
 .cabecalho { width: fill; padding: 18 24 12 24; spacing: 8; }
 .corpo     { width: fill; padding: 4 24 24 24; spacing: 18; }
-.rodape    { width: fill; padding: 10 24; spacing: 8; align-y: center; }
+.rodape    { width: fill; padding: 10 24; spacing: 8; align_y: center; }
 
 /* ── Texto ─────────────────────────────────────────────────────────────── */
 
@@ -47,12 +47,12 @@ trocar de cor por folha de estilo.
 
 /* ── Linhas e blocos ───────────────────────────────────────────────────── */
 
-.linha       { spacing: 8;  align-y: center; }
-.linha_larga { spacing: 20; align-y: center; }
+.linha       { spacing: 8;  align_y: center; }
+.linha_larga { spacing: 20; align_y: center; }
 
-/* A coluna de um medidor com a legenda embaixo. `align-x: center` é o que
-   alinha o rótulo com o desenho quando os dois têm larguras diferentes. */
-.medidor { spacing: 6; align-x: center; }
+/* A coluna de um medidor com a legenda embaixo. `align_x: center` é o que
+ alinha o rótulo com o desenho quando os dois têm larguras diferentes. */
+.medidor { spacing: 6; align_x: center; }
 .detalhe { spacing: 6; }
 
 .btn { padding: 6 12; }
@@ -60,12 +60,12 @@ trocar de cor por folha de estilo.
 /* ── A grade das sparklines ────────────────────────────────────────────── */
 
 /* Sem fundo e sem borda: a grade é LAYOUT. Quem dá forma às colunas é o
-   `spacing`, que é prop do markup e não estilo. */
+ `spacing`, que é prop do markup e não estilo. */
 .grade        { width: fill; }
 .celula       { size: 13; color: var(--texto); }
 .celula_forte { size: 12; bold: true; color: var(--fraco); }
 
 /* ── Nós de DENTRO dos builtins (0.89) ─────────────────────────────────── */
 
-.aba       { border-radius: 6; }
-.aba_ativa { color: var(--realce); text-color: var(--texto); }
+.aba       { border_radius: 6; }
+.aba_ativa { color: var(--realce); text_color: var(--texto); }

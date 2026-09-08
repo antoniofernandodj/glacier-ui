@@ -1092,3 +1092,5 @@ fn largura_do_primeiro_textinput(no: &glacier_ui::UiNode) -> Option<String> {
     no.children.iter().find_map(largura_do_primeiro_textinput)
 }
 
+
+

@@ -30,7 +30,7 @@
         <prop name="cor" default="#A6ADC8" />
         <prop name="tamanho" default="12" />
       </props>
-      <text content="{texto}" color="{cor}" size="{tamanho}" />
+      <text color="{cor}" size="{tamanho}">{texto}</text>
     </component>
 
     <!-- 2. Um componente que usa OUTRO componente local. Eles se compõem como
@@ -51,7 +51,7 @@
         <template if="{nivel}" equals="erro">
           <badge badge_text="erro" badge_bg="#F38BA8" badge_size="10" />
         </template>
-        <template else-if="{nivel}" equals="aviso">
+        <template else_if="{nivel}" equals="aviso">
           <badge badge_text="aviso" badge_bg="#F9E2AF" badge_size="10" />
         </template>
         <template else>
@@ -64,7 +64,7 @@
 
     <!-- 3. Um componente com mais de um nó de layout na raiz. Vira um
       Fragment, exatamente como num arquivo: os irmãos são costurados no lugar
-      de quem usou a tag, sem uma <Column> fantasma por volta. -->
+      de quem usou a tag, sem uma <column> fantasma por volta. -->
     <component name="Metrica">
       <props>
         <prop name="rotulo" />
@@ -73,8 +73,8 @@
       </props>
       <frame shape="filled" padding="14" width="200">
         <Rotulo texto="{rotulo}" cor="#80868D" tamanho="11" />
-        <text content="{valor}" size="22" bold="true" color="#CDD6F4" />
-        <template if="{delta}" notEquals="">
+        <text size="22" bold="true" color="#CDD6F4">{valor}</text>
+        <template if="{delta}" not_equals="">
           <Rotulo texto="{delta}" cor="#A6E3A1" tamanho="11" />
         </template>
       </frame>

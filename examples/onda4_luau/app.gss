@@ -47,7 +47,7 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
    colapsa a coluna para zero, e as duas seções somem da tela.
    A regra, que vale para todo builtin: **o que o widget documenta como prop
    continua prop; a folha fica com o que é estilo.** */
-.par { spacing: 18; align-y: start; }
+.par { spacing: 18; align_y: start; }
 
 /* ── Texto ─────────────────────────────────────────────────────────────── */
 
@@ -65,10 +65,10 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 
 /* ── Linhas ────────────────────────────────────────────────────────────── */
 
-.linha       { spacing: 8;  align-y: center; }
-.linha_media { spacing: 10; align-y: center; }
-.linha_larga { spacing: 12; align-y: center; }
-.linha_campo { spacing: 14; align-y: center; }
+.linha       { spacing: 8;  align_y: center; }
+.linha_media { spacing: 10; align_y: center; }
+.linha_larga { spacing: 12; align_y: center; }
+.linha_campo { spacing: 14; align_y: center; }
 
 /* ── Widgets ───────────────────────────────────────────────────────────── */
 
@@ -82,10 +82,10 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
    da lib no mesmo nó, então ela redefine o que declara e herda o resto —
    inclusive o `:hover`, que continua sendo o da lib. */
 
-.aba       { border-radius: 6; }
-.aba_ativa { color: var(--realce); text-color: var(--texto); }
+.aba       { border_radius: 6; }
+.aba_ativa { color: var(--realce); text_color: var(--texto); }
 
-.item       { border-radius: 5; }
+.item       { border_radius: 5; }
 .item_ativo { color: var(--realce); }
 .item_sub   { color: var(--fraco); }
 
@@ -94,7 +94,7 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
    não precisa de um atributo inline aqui. */
 .estrelas_ambar { color: var(--ambar); }
 
-.secao_topo { border-radius: 5; }
+.secao_topo { border_radius: 5; }
 
 /* Cada selo nomeia a chave que o widget ao lado escreve; a cor é o código dessa
    chave, repetido no `<badge>` e em nada mais. */

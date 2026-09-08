@@ -40,7 +40,7 @@
 
               <row class="linha_larga">
                 <column class="medidor">
-                  <dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+                  <dial value="volume" min="0" max="11" step="1" notches="11" show_value="true" />
                   <text class="rotulo_bloco">volume</text>
                 </column>
 
@@ -48,14 +48,14 @@
                   <!-- Dois na mesma tela, chaves diferentes: eles não se veem.
                        É o que a chave nomeada garante, e o que um estado global
                        impediria. -->
-                  <dial value="brilho" min="0" max="100" step="5" showValue="true" color="#A6E3A1" />
+                  <dial value="brilho" min="0" max="100" step="5" show_value="true" color="#A6E3A1" />
                   <text class="rotulo_bloco">brilho</text>
                 </column>
 
                 <column class="medidor">
                   <!-- `readonly` desenha e não aceita gesto — o mesmo papel que
                        ele tem no `<rating>` de uma lista. -->
-                  <dial value="{brilho}" max="100" readonly="true" showValue="true" size="72" />
+                  <dial value="{brilho}" max="100" readonly="true" show_value="true" size="72" />
                   <text class="rotulo_bloco">o mesmo, readonly</text>
                 </column>
 
@@ -95,7 +95,7 @@
 
               <row class="linha">
                 <text class="rotulo_bloco">CPU</text>
-                <slider value="cpu" min="0" max="100" step="1" width="220" onChange="cpu" />
+                <slider value="cpu" min="0" max="100" step="1" width="220" on_change="cpu" />
                 <text class="valor">{cpu}%</text>
               </row>
             </groupbox>

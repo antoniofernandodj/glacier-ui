@@ -222,7 +222,7 @@
                     value="servico_busca"
                     items="servicos"
                     placeholder="api, banco, fila…"
-                    onSelect="escolher_servico"
+                    on_select="escolher_servico"
                     width="280"
                   />
                 </row>
@@ -243,7 +243,7 @@
                   <dateedit
                     value="entrada"
                     format="br"
-                    calendarPopup="true"
+                    calendar_popup="true"
                     today="{hoje}"
                     width="180"
                   />
@@ -255,7 +255,7 @@
                   <dateedit
                     value="saida"
                     format="br"
-                    calendarPopup="true"
+                    calendar_popup="true"
                     today="{hoje}"
                     min="{entrada}"
                     width="180"

@@ -1,4 +1,4 @@
-<screen title="Glacier — Onda 8" size="1000 720" min-size="820 620">
+<screen title="Glacier — Onda 8" size="1000 720" min_size="820 620">
   <resources>
     <link rel="stylesheet" href="examples/onda8/app.gss" />
 
@@ -16,7 +16,7 @@
       <column class="form">
         <column class="campo">
           <text class="rotulo">Nome</text>
-          <textinput value="__dialog.nome" onChange="__dialog.nome"
+          <textinput value="__dialog.nome" on_change="__dialog.nome"
                      placeholder="api-gateway" class="preenche" />
         </column>
 
@@ -31,12 +31,12 @@
           <column class="campo">
             <text class="rotulo">Ambiente</text>
             <select options="ambientes" value="__dialog.ambiente"
-                    onChange="__dialog.ambiente" class="preenche" />
+                    on_change="__dialog.ambiente" class="preenche" />
           </column>
         </row>
 
         <checkbox label="Reiniciar automaticamente" checked="__dialog.restart"
-                  onToggle="__dialog.restart" />
+                  on_toggle="__dialog.restart" />
       </column>
     </dialog>
 
@@ -102,7 +102,7 @@
               <template slot="dominio">
                 <column class="form">
                   <text class="rotulo">Domínio do projeto</text>
-                  <textinput value="dominio" onChange="dominio"
+                  <textinput value="dominio" on_change="dominio"
                              placeholder="exemplo.com.br" class="preenche" />
                   <!-- `equals=""`, não `empty`: no motor o `empty` pergunta se
                        o valor é um array JSON vazio, não se a string está em
@@ -134,7 +134,7 @@
             <colorwheel value="cor" size="230" />
             <row class="acoes">
               <container class="amostra" background="{cor}" />
-              <textinput value="cor__hex" onChange="cor_digitada"
+              <textinput value="cor__hex" on_change="cor_digitada"
                          placeholder="#rrggbb" class="campo-hex" />
             </row>
           </column>

@@ -10,18 +10,18 @@ Edite este arquivo com o exemplo rodando: hot-reload aplica na hora.
     padding: 32;
     width: fill;
     background: #1E1E2E;
-    border-radius: 16;
-    border-width: 1;
-    border-color: #313244;
-    align-x: Center;
+    border_radius: 16;
+    border_width: 1;
+    border_color: #313244;
+    align_x: Center;
 }
 
 .stack {
-   spacing: 22; align-x: Center;
+   spacing: 22; align_x: Center;
 }
 
 .row   {
-   spacing: 16; align-y: Center;
+   spacing: 16; align_y: Center;
 }
 
 
@@ -46,12 +46,12 @@ Edite este arquivo com o exemplo rodando: hot-reload aplica na hora.
 .btn {
     padding: 12 22;
     color: #313244;
-    text-color: #CDD6F4;
-    border-radius: 8;
+    text_color: #CDD6F4;
+    border_radius: 8;
 }
 .btn:hover    { background: #45475A; }
 .btn:active   { background: #181825; }
-.btn:disabled { background: #11111B; text-color: #6C7086; }
+.btn:disabled { background: #11111B; text_color: #6C7086; }
 
 /* --- TextInput: :hover / :focus / :disabled ------------------------------
    Sem `border-*`/`background` na regra BASE de propósito: declará-los ali
@@ -65,15 +65,15 @@ Edite este arquivo com o exemplo rodando: hot-reload aplica na hora.
 }
 
 .input:hover    {
-   border-color: #585B70;
+   border_color: #585B70;
 }
 
 .input:focus    {
-   border-color: #89B4FA;
+   border_color: #89B4FA;
 }
 
 .input:disabled {
-   background: #11111B; border-color: #181825;
+   background: #11111B; border_color: #181825;
 }
 
 
@@ -87,4 +87,4 @@ Edite este arquivo com o exemplo rodando: hot-reload aplica na hora.
    aqui vai uma cor bem distinta do `primary` (#89B4FA) do tema, pra dar pra
    ver a diferença: fundo E borda mudam juntos no hover. */
 
-.select:hover { background: #45475A; border-color: #F5C2E7; }
+.select:hover { background: #45475A; border_color: #F5C2E7; }

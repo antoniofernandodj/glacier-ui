@@ -1,4 +1,4 @@
-<screen title="Glacier — Onda 8 (Luau)" size="960 700" min-size="820 600">
+<screen title="Glacier — Onda 8 (Luau)" size="960 700" min_size="820 600">
   <resources>
     <link rel="stylesheet" href="examples/onda8_luau/app.gss" />
     <script src="scripts/app.luau"></script>
