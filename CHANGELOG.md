@@ -10,6 +10,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## [Não publicado]
 
+## [CLI 0.4.2] — 2026-09-08
+
+### Alterado
+- **O `.luaurc` (raiz e template) volta a listar os globais do motor.** A 0.94.4
+  os havia tirado, deixando só o `require`, porque um nome em `globals` anula o
+  tipo que o `glacier.d.luau` declara — e isso é verdade.
+
+  O que aquela mudança não considerou: a extensão luau-lsp do VS Code só carrega
+  um arquivo de tipos se a configuração `luau-lsp.types.definitionFiles` apontar
+  para ele, e ela não existe aqui. Sem os globais na lista, **todo script fica
+  sublinhado de vermelho no editor** (`Unknown global 'ctx'` em cada linha). O
+  `make luau` continuava passando porque a linha de comando recebe
+  `--definitions`; o editor, não.
+
+  Entre "os tipos valem" e "o editor não acusa erro em tudo", o segundo ganha:
+  é onde se passa o dia. A lista fica.
+
+
 ### Corrigido
 - **Os vinte erros de tipo que os scripts de exemplo escondiam.** Eles
   apareceram quando a 0.94.4 religou os tipos do Luau (o `.luaurc` os anulava),
