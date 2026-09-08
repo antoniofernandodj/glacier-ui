@@ -1326,8 +1326,9 @@ em pt-BR ficaram nos nomes que ninguém usaria para um componente próprio
 sobe — aplica a transformação **duas vezes** ao recorte de um grupo de
 primitivas de `canvas`. O sintoma engana: o primeiro desenho da tela sai cortado,
 todos os seguintes somem, e o texto de todos continua aparecendo. A correção é de
-uma linha, já está no `master` do `iced`, e o repositório a carrega em
-`vendor/iced_tiny_skia` até a 0.14.1 sair. Ver `TROUBLESHOOTING.md`.
+uma linha, e o repositório a carregou em `vendor/iced_tiny_skia` até a 0.14.1
+sair — o que aconteceu, e o vendor foi apagado na 0.94.3. Ver
+`TROUBLESHOOTING.md`.
 
 **O que sobra desta família:** **série múltipla**. Um `items` é uma série;
 comparar duas no mesmo eixo pede uma segunda convenção de dados, uma legenda e

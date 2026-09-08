@@ -8,6 +8,34 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.94.3] — 2026-09-08
+
+O `vendor/iced_tiny_skia` saiu: a 0.14.1 publicada traz a correção.
+
+### Removido
+- **`vendor/iced_tiny_skia/` e o `[patch.crates-io]` da raiz.** Eles existiam
+  desde a 0.93.0 para consertar uma linha do renderizador de software, que
+  aplicava a transformação duas vezes ao recorte de um grupo de primitivas de
+  `canvas` — o bug que fazia o primeiro `<gauge>`/`<dial>`/`<linechart>` da tela
+  sair cortado e todos os seguintes sumirem.
+
+  A `iced_tiny_skia` 0.14.1 traz essa correção **e mais duas do mesmo tipo** que
+  a cópia vendorizada não tinha: a ordem da multiplicação ao desenhar cada
+  primitiva e cada texto passou de `transformação × escala` para
+  `escala × transformação`, e no `layer.rs` o `Item::Cached` deixou de
+  multiplicar os limites pela transformação. Ou seja, a 0.14.1 é estritamente
+  melhor do que o vendor — manter a cópia teria passado a ser o pior dos dois
+  caminhos.
+
+  A única mudança no `Cargo.lock` é `iced_tiny_skia 0.14.0 → 0.14.1`.
+
+  Confirmado nas duas frentes: o diff da 0.14.0 para a 0.14.1 contém a correção
+  **literal** do patch, e o `examples/onda7` desenha os três `<dial>`, os quatro
+  `<gauge>`, os quatro `<lcdnumber>`, as três `<sparkline>` e os dois gráficos na
+  mesma tela — que é exatamente o que o bug impedia.
+
+---
+
 ## [0.94.2] — 2026-09-08
 
 Documentação da extensão de VS Code, e uma correção no Ctrl+Clique dela.

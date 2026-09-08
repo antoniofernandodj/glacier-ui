@@ -1566,7 +1566,7 @@ version = "0.4.0"
 
 [[package]]
 name = "glacier-ui"
-version = "0.94.2"
+version = "0.94.3"
 dependencies = [
  "base64",
  "flate2",
@@ -2086,7 +2086,9 @@ dependencies = [
 
 [[package]]
 name = "iced_tiny_skia"
-version = "0.14.0"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c267596d742714b1853cc10c3983a367762816fc4836bd3b79f76ce76787d6f8"
 dependencies = [
  "bytemuck",
  "cosmic-text",

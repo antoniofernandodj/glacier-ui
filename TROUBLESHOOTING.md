@@ -154,17 +154,33 @@ não, é isto.
 
 ### Correção
 
-Já vem aplicada: o repositório carrega `vendor/iced_tiny_skia`, uma cópia do
-crate com **uma linha** alterada — a mesma correção que já está no `master` do
-`iced` e que ficou de fora da 0.14.0 publicada. O `[patch.crates-io]` na raiz do
-`Cargo.toml` a liga. Ver `vendor/iced_tiny_skia/PATCH.md`, que explica o diff e
-como apagar tudo quando a 0.14.1 sair.
+**Resolvida na origem: o `iced_tiny_skia` 0.14.1.** O repositório carregou, entre
+a 0.93.0 e a 0.94.2, uma cópia do crate com a linha corrigida
+(`vendor/iced_tiny_skia` mais um `[patch.crates-io]`); a 0.14.1 saiu com essa
+mesma correção e o vendor foi apagado na 0.94.3.
 
-Duas ressalvas:
+A 0.14.1 traz **três** mudanças, e o vendor só tinha a primeira:
 
-- o `[patch]` vale para quem compila **este** repositório. Um app que consome o
-  `glacier-ui` publicado no crates.io precisa do mesmo `[patch]` no `Cargo.toml`
-  dele — ou de uma GPU em que o `wgpu` suba, onde o bug não existe;
-- `WGPU_BACKEND=gl` **não** resolve este caso: se o `wgpu` não sobe de jeito
-  nenhum, a escolha de backend não muda nada. Ela vale para as duas seções
-  anteriores, não para esta.
+1. o recorte do grupo deixa de ser multiplicado pela transformação outra vez
+   (o bug acima);
+2. a ordem da multiplicação ao desenhar cada primitiva passou de
+   `transformação × escala` para `escala × transformação`;
+3. o mesmo para o texto, e um caso irmão no `layer.rs` (`Item::Cached` não
+   multiplica mais os limites pela transformação).
+
+Ou seja: quem estiver preso numa versão antiga não ganha nada em copiar só a
+linha do item 1 — vale subir para a 0.14.1.
+
+Se você vê este sintoma, confira a versão resolvida:
+
+```sh
+cargo tree -i iced_tiny_skia
+```
+
+`0.14.0` é a versão com o bug; `0.14.1` ou posterior, não. Um `cargo update -p
+iced_tiny_skia` resolve.
+
+Uma ressalva que continua valendo: `WGPU_BACKEND=gl` **não** ajuda neste caso —
+se o `wgpu` não sobe de jeito nenhum, a escolha de backend não muda nada. Ela
+vale para as duas seções anteriores, não para esta.
+

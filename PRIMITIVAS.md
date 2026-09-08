@@ -523,7 +523,7 @@ preenchem até o miolo em vez de ficarem no anel.
 segmento por grau: um caminho só, e o `close()` fecha o que se espera. Um grau
 num raio de 100px dá cordas de ~1,7px, invisíveis.
 
-### O renderizador de software recorta errado na 0.14.0
+### O renderizador de software recortava errado na 0.14.0 (resolvido na 0.14.1)
 
 Não é do motor, mas custa o mesmo tempo se não se souber: o `iced_tiny_skia`
 0.14.0 aplica a transformação **duas vezes** ao recorte de um grupo de
@@ -532,9 +532,11 @@ cortado em cima e à esquerda, **todos os seguintes somem**, e o texto de todos
 eles continua aparecendo (o texto segue outro caminho). Só morde quem cai no
 renderizador de software — numa GPU sã o `iced_wgpu` desenha certo.
 
-O repositório carrega a correção de uma linha em `vendor/iced_tiny_skia`
-(a mesma que já está no `master` do `iced`); ver `TROUBLESHOOTING.md` e
-`vendor/iced_tiny_skia/PATCH.md`.
+**Resolvido na 0.14.1**, que traz essa correção e mais duas do mesmo tipo (a
+ordem da multiplicação ao desenhar primitiva e texto). O repositório carregou uma
+cópia corrigida em `vendor/iced_tiny_skia` entre a 0.93.0 e a 0.94.2; ela foi
+apagada quando a 0.14.1 saiu. Se o sintoma aparecer, confira a versão resolvida
+com `cargo tree -i iced_tiny_skia` — ver `TROUBLESHOOTING.md`.
 
 ### Um substantivo comum não vira tag
 
