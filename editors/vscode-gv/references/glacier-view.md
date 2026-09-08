@@ -503,6 +503,117 @@ Formulário. Atributos: `onSubmit`, `name`. Envolve `formControl`s.
 
 ---
 
+## Menus (`src/menu.rs`)
+
+Uma **camada de overlay própria**, acima de tudo — inclusive dos diálogos e dos
+toasts, que é a ordem de um SO desktop de verdade. Só um menu (ou uma cascata)
+fica aberto por vez no app inteiro.
+
+Os itens vêm de duas formas, e as duas se misturam livremente: **filhos
+escritos** no markup, ou **`items` apontando para uma chave** com um array JSON
+— a mesma convenção do `options` de um `<select>` e do `items` de uma
+`<listview>`.
+
+### `<MenuBar>` (`<BarraMenu>`)
+
+A faixa de menus da janela, ancorada onde o markup a escreveu. Filhos: `<menu>`.
+
+```gv
+<row class="barra">
+  <menubar>
+    <menu label="Arquivo">
+      <menuitem label="Novo" on_click="novo" />
+      <menuitem label="Abrir" on_click="abrir" />
+      <menu label="Recentes">
+        <menuitem label="projeto-a.gv" on_click="abrir_recente:a" />
+      </menu>
+      <menuseparator />
+      <menuitem label="Sair" on_click="sair" />
+    </menu>
+    <menu label="Editar">
+      <menuitem label="Copiar" on_click="copiar" />
+    </menu>
+  </menubar>
+</row>
+```
+
+Não leva props: a aparência da faixa é da `<row>`/classe em volta dela.
+
+### `<Menu>` (`<Cardapio>`)
+
+Um menu — no primeiro nível de uma `<menubar>` ele é o título clicável; aninhado
+dentro de outro `<menu>`, é um **submenu**, com profundidade arbitrária.
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `label` | `""` | o texto do título |
+| `icon` | — | glifo ou caminho de `.svg` à esquerda |
+| `disabled` | `false` | inerte, esmaecido, não abre |
+| `items` | — | **nome da chave** com os itens em JSON, em vez de filhos escritos |
+
+A forma dinâmica aceita a árvore inteira, submenus incluídos:
+
+```lua
+ctx.menu_dinamico = [[
+  [ { "label": "Item 1", "action": "dyn_item_1" },
+    { "separator": true },
+    { "label": "Item 2", "items": [
+        { "label": "Sub A", "action": "dyn_sub_a" },
+        { "label": "Sub B", "action": "dyn_sub_b", "disabled": true } ] } ]
+]]
+```
+
+```gv
+<menu label="Dinâmico" items="menu_dinamico" />
+```
+
+### `<MenuItem>` (`<ItemMenu>`)
+
+A folha: o que se clica.
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `label` | `""` | o texto |
+| `icon` | — | glifo ou `.svg` à esquerda |
+| `on_click` | — | a ação despachada; sem ela o item não faz nada |
+| `checked` | — | **nome de uma chave**: quando ela é verdadeira, o item mostra ✓ |
+| `disabled` | `false` | inerte e esmaecido |
+
+Clicar fecha a cascata inteira e roteia `on_click` como um `<button>` comum —
+inclusive com o sufixo (`on_click="abrir_recente:a"` chama
+`abrir_recente("a")`).
+
+### `<MenuSeparator>` (`<SeparadorMenu>`)
+
+Uma linha entre grupos de itens. Sem props. Na forma dinâmica é
+`{ "separator": true }`.
+
+### `<ContextMenu>` (`<MenuContexto>`)
+
+O menu de botão direito. O **primeiro filho** é o conteúdo que fica na tela; os
+`<menu>`/`<menuitem>` seguintes são o que aparece ao clicar com o botão direito
+sobre ele.
+
+```gv
+<contextmenu>
+  <container class="cartao">
+    <text>Clique com o botão direito aqui</text>
+  </container>
+
+  <menuitem label="Renomear" on_click="renomear" />
+  <menuseparator />
+  <menuitem label="Excluir" on_click="excluir" />
+</contextmenu>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | nome da chave com os itens, em vez dos filhos escritos |
+
+O menu abre **na posição do cursor**, e não ancorado ao layout — é a diferença
+entre ele e o `<popover>`, que é ancorado de propósito (ver a seção do
+`<Popover>`).
+
 ## Controle de fluxo e composição
 
 ### `<ForEach>` (`<For>`)
@@ -1084,6 +1195,45 @@ Páginas, cabeçalho de passo e a fileira de botões.
   dançar e o `Avançar` mudar de lugar debaixo do cursor.
 - **Avançar no último satura**: dar a volta pareceria ter perdido o preenchido.
 - A chave do passo **não precisa ser semeada**: vazia = passo zero.
+
+### `<WizardNav>` — a navegação sozinha
+
+O cabeçalho de passo e a fileira de botões do `<wizard>`, sem as páginas. Use-a
+direto quando quiser um layout próprio para as páginas (numa `<row>` ao lado de
+uma barra lateral, por exemplo) e só aproveitar a aritmética.
+
+```gv
+<column width="fill">
+  <stackview active="{passo}">
+    <template slot="plano"> … </template>
+    <template slot="revisao"> … </template>
+  </stackview>
+
+  <wizardnav value="passo" active="{passo}"
+             steps="plano,revisao" titles="Plano,Revisão"
+             on_finish="criar" header="false" />
+</column>
+```
+
+Aceita as mesmas props do `<wizard>` (`value`, `steps`, `titles`, `valid`,
+`on_finish`, `on_cancel`, os quatro rótulos e `header`), porque é ela quem as
+implementa — o `<wizard>` só as repassa.
+
+**Por que existe como tag separada:** um `<wizard>` hospeda páginas, e página é
+`<slot>` — mecanismo de componente, que uma primitiva não tem. Mas achar o passo
+atual dentro de `steps` é uma **conta**, e um template não calcula. Então o
+composto é builtin e a aritmética é primitiva. É a mesma divisão de
+`<tabs>`/`<tabbar>`.
+
+### Os corpos internos de diálogo (`__InputDialog`, `__ProgressDialog`, `__ColorDialog`)
+
+Não são tags: começam com `__` porque são peças internas, montadas pelo motor
+como corpo de um `prompt{}`, `progress{}` ou `pick_color{}` da camada Luau. Não
+há uso de tag onde pendurar props, então eles se configuram por **chaves de
+contexto** com o prefixo `__dialog.` — e o motor apaga todas quando o diálogo
+fecha.
+
+Para um modal seu, escreva um `<dialog name="…">` (ver a seção acima).
 
 ### `<colorwheel>` — a roda de cor
 

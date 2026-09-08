@@ -1261,18 +1261,34 @@ function referenceLocation(pattern) {
   );
 }
 
-/** Jump a native tag to its heading in the bundled reference doc. */
+/**
+ * Jump a native tag to its heading in the bundled reference doc.
+ *
+ * Tenta o nome canônico e, se ele não tiver cabeçalho, cada apelido. Isso
+ * importa para as tags cujo canônico é um nome INTERNO do motor que ninguém
+ * escreve: `<dialog>` é `DialogDef`, `<component>` é `ComponentRoot`, e o doc
+ * — corretamente — documenta a grafia que se escreve, não a do `NodeType`.
+ * Sem a busca por apelido, essas duas caíam na linha 1 do arquivo.
+ */
 function resolveNative(canonical) {
   const ref = path.join(extensionPath, "references", "glacier-view.md");
   const text = readFileCached(ref);
   if (text === null) return [];
-  // The heading that names the tag, or — for a spelling documented as an alias,
-  // like `<Else>` under the `<If>` heading — the first heading mentioning it.
-  const own = new RegExp("^#+\\s*`?<?" + escapeRe(canonical) + "\\b", "mi");
-  const alias = new RegExp("^#+.*<" + escapeRe(canonical) + ">", "mi");
-  const m = own.exec(text) || alias.exec(text);
-  const pos = m ? offsetToPosition(text, m.index) : new vscode.Position(0, 0);
-  return [new vscode.Location(vscode.Uri.file(ref), pos)];
+  const grafias = [canonical, ...(NATIVE_TAGS[canonical] || [])];
+  for (const nome of grafias) {
+    // O cabeçalho que NOMEIA a tag, ou — para uma grafia documentada como
+    // apelido, tipo `<Else>` sob o título de `<If>` — o primeiro cabeçalho que
+    // a menciona.
+    const own = new RegExp("^#+\\s*`?<?" + escapeRe(nome) + "\\b", "mi");
+    const alias = new RegExp("^#+.*<" + escapeRe(nome) + ">", "mi");
+    const m = own.exec(text) || alias.exec(text);
+    if (m) {
+      return [
+        new vscode.Location(vscode.Uri.file(ref), offsetToPosition(text, m.index)),
+      ];
+    }
+  }
+  return [new vscode.Location(vscode.Uri.file(ref), new vscode.Position(0, 0))];
 }
 
 // ---------------------------------------------------------------------------

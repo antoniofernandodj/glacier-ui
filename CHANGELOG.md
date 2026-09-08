@@ -8,6 +8,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.94.2] — 2026-09-08
+
+Documentação da extensão de VS Code, e uma correção no Ctrl+Clique dela.
+
+### Corrigido
+- **Ctrl+Clique em `<dialog>` e `<component>` caía na linha 1 do doc.** A
+  extensão procura um cabeçalho pelo nome **canônico** da tag, e o canônico
+  desses dois é o nome interno do `NodeType` (`DialogDef`, `ComponentRoot`) —
+  que o doc, corretamente, não usa: ele documenta a grafia que se escreve.
+  Agora a busca tenta o canônico e depois cada apelido.
+
+### Adicionado
+- **A família de menus ganhou documentação** — `<menubar>`, `<menu>`,
+  `<menuitem>`, `<menuseparator>` e `<contextmenu>` eram cinco tags sem uma
+  linha no `glacier-view.md`, com props, a forma dinâmica por `items` e a
+  diferença entre o `<contextmenu>` (abre no cursor) e o `<popover>` (ancorado
+  ao layout).
+- **`<wizardnav>`** documentada como tag avulsa, para quem quer o cabeçalho e os
+  botões do wizard com um layout próprio para as páginas.
+- **Uma nota sobre `__InputDialog`/`__ProgressDialog`/`__ColorDialog`**, que não
+  são tags: são corpos internos, montados pelo motor e configurados por chaves
+  `__dialog.*`.
+- **`tests/extensao_doc.rs`** — falha quando uma tag de `NATIVE_TAGS` não tem
+  seção no `glacier-view.md`. É o que impede a documentação de ficar para trás:
+  sem cabeçalho, o Ctrl+Clique cai na linha 1 sem erro nenhum, e quem clicou
+  conclui que a tag não tem documentação. Com ele, as 91 tags resolvem.
+
+---
+
 ## [0.94.1] — 2026-09-07
 
 Correção da Onda 8: **os diálogos com corpo apareciam vazios**. Só o `confirm{}`
