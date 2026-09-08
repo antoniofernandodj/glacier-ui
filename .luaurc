@@ -1,27 +1,6 @@
 {
     "languageMode": "strict",
     "globals": [
-        "ctx",
-        "value",
-        "fetch",
-        "websocket",
-        "sse",
-        "require",
-        "json",
-        "toast",
-        "confirm",
-        "navigate",
-        "navigate_back",
-        "after",
-        "viewport",
-        "storage",
-        "date",
-        "every",
-        "notify",
-        "prompt",
-        "progress",
-        "progress_close",
-        "progress_set",
-        "pick_color"
+        "require"
     ]
 }

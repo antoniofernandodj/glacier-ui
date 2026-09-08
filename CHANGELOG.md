@@ -8,6 +8,47 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.94.4] — 2026-09-08 · CLI 0.4.1
+
+Os tipos do Luau voltaram a existir.
+
+### Corrigido
+- **O `.luaurc` desligava os tipos que o `glacier.d.luau` declara.** Um nome em
+  `globals` vira `any` para o luau-lsp, e a lista tinha crescido até conter
+  quase todo global do motor — inclusive os dezessete que **têm** `declare
+  function`. Na prática o arquivo de tipos estava inerte: `write_file(123, 456)`
+  passava sem uma queixa.
+
+  Agora `globals` tem **um** nome, o `require` — o único que precisa mesmo estar
+  ali, porque a resolução de módulo deste motor é própria (`luau::module_roots`)
+  e o luau-lsp não sabe segui-la. Todo o resto vem do `glacier.d.luau`, que o
+  `make luau` já passava com `--definitions`.
+
+- **Quatro declarações estavam erradas**, e ninguém podia notar enquanto tudo
+  era `any`:
+  - `ctx` era `{ [string]: string }`. Na leitura é texto, mas na **escrita** o
+    motor aceita qualquer valor serializável (tabela e número passam por
+    `json.encode`/`tostring`), então `ctx.tiques = 0` virava erro falso. Agora é
+    `{ [string]: any }`.
+  - `after` e `every` diziam receber só `() -> ()`. Aceitam também o **nome** de
+    uma função global, que é como os exemplos os usam.
+  - `after` dizia devolver `()`. Devolve um **handle cancelável** — sem isso,
+    `temporizador:cancel()` não tinha como passar. Os dois agora devolvem
+    `Timer`.
+
+### Adicionado
+- **Tipos para os cinco globais de diálogo da Onda 8** — `prompt`, `pick_color`
+  (os dois `string?`, com o `nil` da desistência no tipo), `progress`,
+  `progress_set` e `progress_close`.
+
+### Notas
+- Com os tipos de volta, o `luau-lsp analyze` passa a acusar problemas reais nos
+  **scripts de exemplo** deste repositório (variáveis `Timer?` inicializadas com
+  `nil`, globais implícitos em `examples/stream_lua`). Os templates que a CLI
+  entrega passam limpos; os exemplos ficam para uma passada própria.
+
+---
+
 ## [0.94.3] — 2026-09-08
 
 O `vendor/iced_tiny_skia` saiu: a 0.14.1 publicada traz a correção.

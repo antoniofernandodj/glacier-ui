@@ -25,7 +25,11 @@ export type StreamOptions = {
 
 export type Viewport = { width: number, height: number }
 
-declare ctx: { [string]: string }
+-- Na LEITURA o contexto é sempre texto (é o que o motor guarda); na ESCRITA
+-- ele aceita qualquer valor serializável — tabela e número passam por
+-- `json.encode`/`tostring` por baixo. Daí `any`: declarar `string` mentia do
+-- lado da escrita e transformava `ctx.tiques = 0` num erro falso.
+declare ctx: { [string]: any }
 declare value: string?
 
 declare function viewport(): Viewport
@@ -39,6 +43,18 @@ declare function toast(opts: any): ()
 declare function notify(opts: any): ()
 declare function confirm(opts: any): boolean
 
+-- Diálogos suspensivos (Onda 8). `prompt` e `pick_color` param a corrotina e
+-- voltam com a resposta; `nil` é a desistência — a mesma convenção do
+-- `open_file()` cancelado, e o que separa "não respondeu" de "respondeu vazio".
+declare function prompt(opts: any): string?
+declare function pick_color(opts: any): string?
+
+-- O progresso NÃO suspende: ele acompanha um trabalho que continua rodando.
+-- `progress_set(nil)` volta ao indeterminado.
+declare function progress(opts: any): ()
+declare function progress_set(value: (number | string)?, label: string?): ()
+declare function progress_close(): ()
+
 declare function navigate(tela: string): ()
 declare function navigate_back(): ()
 
@@ -48,8 +64,16 @@ declare function close_window(): ()
 
 declare function append_textarea(binding: string, text: string): ()
 
-declare function after(ms: number, callback: () -> ()): ()
-declare function every(ms: number, callback: () -> ()): any
+-- O segundo argumento é uma função OU o nome de uma função global — as duas
+-- formas que o prelúdio aceita. E os dois devolvem um handle: `after` para
+-- poder cancelar antes de vencer, `every` para interromper as repetições.
+export type Timer = {
+    id: number,
+    cancel: (self: Timer) -> any,
+}
+
+declare function after(ms: number, callback: (() -> ()) | string): Timer
+declare function every(ms: number, callback: (() -> ()) | string): Timer
 
 declare json: {
     decode: (s: string) -> any,
