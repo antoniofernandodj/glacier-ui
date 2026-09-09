@@ -4,6 +4,9 @@
 # Persistência local do global `storage` (Luau) — artefato de runtime dos exemplos
 .glacier-storage/
 
+# `.gv`/`.luau` que os testes de integração escrevem (tests/onda*_*.rs)
+/templates/
+
 # Pacotes de extensão VS Code gerados
 editors/**/*.vsix
 

@@ -2580,9 +2580,19 @@ arco circular, e a decomposição elíptica não paga.
 **A conta:** 116 → **118/125 (94,4%)**. A §2.6 vai a **14/15** (sobra o
 `Shader`, wgpu) e a §2.12 a **10/11** (sobra o `QScroller` 🟡). Testes: 6
 propriedades em `src/shapes.rs` (tokenizador, `pontos`, `caminho_svg` do
-subconjunto reto e do Bézier, `circle`/`rect`/`polyline`). Exemplos:
-`examples/formas` (as sete formas + geometria dirigida por dado + `whats_this`)
-e `examples/formas_luau` (uma agulha girada por `every(60, …)`).
+subconjunto reto e do Bézier, `circle`/`rect`/`polyline`), mais
+`tests/onda13_formas.rs` — que olha a **árvore avaliada** (a checagem do
+`CLAUDE.md`): o `geo` de um `<circle r="{raio}">` **reinterpola** quando `raio`
+muda (o `geo` sai no eval, não no render — a diferença do `items=` de um
+gráfico), `fill`/`stroke` vêm da classe, o `<text>` do canvas segue
+`NodeType::Text`, e uma `<line>` do canvas **segue um `every()`** do Luau
+ponta-a-ponta.
+
+Exemplos: `examples/formas` (as sete formas + geometria dirigida por dado +
+`whats_this`) e `examples/formas_luau` (uma agulha girada por um `every(60, …)`
+**ligado por um clique** — o motor encaminha os efeitos assíncronos de um
+handler, não os do `init`, que só registra streams; o exemplo tinha o `every`
+no `init` e a agulha ficava parada).
 
 ---
 #### Onda 14 — o que o documento nunca prometeu — ⬜ **proposta (2026-09-09), pendente de decisão de escopo**

@@ -15,9 +15,9 @@
       <column class="coluna">
         <text class="secao">agulha girada pelo script</text>
         <text class="nota">
-          O `every(60, girar)` do prelúdio incrementa o ângulo; o script
-          calcula a ponta da agulha e o setor varrido. Nenhuma linha
-          aqui desenha — só escreve chaves.
+          Clique "girar / parar": o `every(60, …)` do prelúdio incrementa
+          o ângulo e o script recalcula a ponta da agulha e o setor
+          varrido. Nenhuma linha aqui desenha — só escreve chaves.
         </text>
 
         <canvas class="mostrador">
@@ -29,7 +29,7 @@
         </canvas>
 
         <row class="acoes">
-          <button text="parar / seguir" on_click="alternar" />
+          <button text="girar / parar" on_click="alternar" />
           <button text="zerar" on_click="zerar" class="btn-fraco" />
         </row>
       </column>
@@ -47,10 +47,10 @@
             whats_this="Alterna o modo pegajoso. Ligado, o hover mostra esta ajuda."
           />
           <button
-            text="parar / seguir"
+            text="girar / parar"
             on_click="alternar"
             tooltip="tooltip normal"
-            whats_this="Pausa ou retoma o giro da agulha."
+            whats_this="Liga ou desliga o giro da agulha (um every() do prelúdio)."
           />
         </row>
       </column>
