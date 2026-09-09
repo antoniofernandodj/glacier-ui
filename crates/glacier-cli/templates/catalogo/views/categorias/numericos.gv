@@ -1,0 +1,61 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Numéricas e de valor</text>
+    <text class="intro">
+      `min`/`max`/`step` são inline (medida de widget). O `step` cru decide as
+      casas decimais gravadas: `step="0.25"` grava `"7.25"`.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;spinbox&gt;  ·  &lt;spinbox decimals&gt;  ·  &lt;spinbox layout="inline"&gt;</text>
+        <row class="linha">
+          <spinbox value="sb_qtd" min="0" max="20" width="72" />
+          <spinbox value="sb_preco" min="0" max="999" step="1" decimals="2" width="96" />
+          <spinbox value="sb_zoom" min="25" max="400" step="25" layout="inline" width="72" />
+        </row>
+        <text class="nota">sb_qtd = {sb_qtd} · sb_preco = {sb_preco}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;slider&gt;  ·  &lt;slider vertical&gt;</text>
+        <row class="linha">
+          <slider value="sl_volume" min="0" max="100" on_change="sl_volume" width="280" />
+          <slider value="sl_brilho" min="0" max="1" step="0.05" on_change="sl_brilho" vertical="true" height="110" />
+        </row>
+        <text class="nota">sl_volume = {sl_volume} · sl_brilho = {sl_brilho}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;rangeslider&gt;  —  dois cursores, duas chaves</text>
+        <rangeslider start="rs_min" end="rs_max" min="0" max="1000" step="10" size="300" />
+        <text class="nota">rs_min = {rs_min} · rs_max = {rs_max}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;dial&gt;  ·  &lt;tumbler&gt;  ·  &lt;rating&gt;</text>
+        <row class="linha">
+          <dial value="di_ganho" min="0" max="11" step="1" notches="11" show_value="true" />
+          <tumbler value="tu_mes" items="meses" visible="5" size="140" />
+          <column class="coluna">
+            <rating value="ra_nota" />
+            <rating value="ra_nota" readonly="true" size="14" />
+          </column>
+        </row>
+        <text class="nota">di_ganho = {di_ganho} · tu_mes = {tu_mes} · ra_nota = {ra_nota}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;progressbar&gt;  ·  &lt;spinner&gt;  ·  &lt;gauge&gt;  ·  &lt;lcdnumber&gt;</text>
+        <row class="linha">
+          <progressbar value="pb_uso" min="0" max="100" show_value="true" width="220" />
+          <spinner />
+          <gauge value="ga_cpu" max="100" unit="%" label="CPU" bands="ga_bands" needle="true" />
+          <lcdnumber value="lcd_relogio" size="44" />
+        </row>
+      </column>
+
+    </column>
+  </column>
+</component>

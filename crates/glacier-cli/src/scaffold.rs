@@ -56,6 +56,43 @@ pub static PRESETS: &[Preset] = &[
             "estado tipado em Rust, template só com markup",
         ],
     },
+    Preset {
+        id: "catalogo",
+        titulo: "Catálogo de widgets",
+        descricao: "Uma sidebar de categorias; cada tela mostra dezenas de widgets do motor com um exemplo mínimo e vivo, feito para copiar.",
+        destaques: &[
+            "views/categorias/ — uma tela por seção da tabela de widgets (§2 do PLANO)",
+            "views/app.gv — sidebar + roteador por {view}, sem escada de <se>",
+            "views/scripts/app.luau — init() semeia toda chave que os demos leem",
+        ],
+    },
+    Preset {
+        id: "dashboard",
+        titulo: "Painel de dados",
+        descricao: "KPIs e gráficos que andam sozinhos: linechart de série múltipla, barchart, piechart, gauge e sparkline, alimentados por every(1000).",
+        destaques: &[
+            "views/app.gv — cards de KPI + <linechart series>/<barchart>/<gauge>",
+            "views/scripts/app.luau — every(1000, …) empurra as séries sem os widgets saberem do relógio",
+        ],
+    },
+    Preset {
+        id: "formulario",
+        titulo: "Formulário validado",
+        descricao: "App de cadastro: textinput/maskedinput/spinbox/dateedit/select/checkbox + validação em Luau e <buttonbox>.",
+        destaques: &[
+            "views/scripts/handlers/validar.luau — publica erro_<campo> e trava o \"Salvar\"",
+            "<maskedinput mask=\"cpf\">, <buttonbox>, <dateedit calendar_popup>",
+        ],
+    },
+    Preset {
+        id: "crud",
+        titulo: "Lista editável (model/view)",
+        descricao: "Uma <tableview> ligada a um array do contexto, com Novo/Editar/Excluir via prompt{} e confirm{} da camada Luau. Dados em memória.",
+        destaques: &[
+            "views/scripts/state.luau — o depósito tipado; handlers/itens.luau — a vitrine",
+            "prompt{}/confirm{} suspensivos; ordenação e seleção no <tableview>",
+        ],
+    },
 ];
 
 pub fn preset(id: &str) -> Option<&'static Preset> {

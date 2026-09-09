@@ -1,0 +1,65 @@
+:root {
+  --bg:      #11111B;
+  --surface: #181825;
+  --raised:  #1E1E2E;
+  --overlay: #313244;
+  --border:  #45475A;
+  --text:    #CDD6F4;
+  --text-2:  #BAC2DE;
+  --muted:   #7F849C;
+  --faint:   #585B70;
+  --accent:  #89B4FA;
+  --ok:      #A6E3A1;
+  --warn:    #F9E2AF;
+  --danger:  #F38BA8;
+}
+
+/* Sem `background` na raiz `fill/fill`: o fundo da janela é do `theme.json`.
+ Repintá-lo aqui é uma camada redobrada em cada pixel da tela (ver AGENTS.md). */
+.janela  { width: fill; height: fill; }
+
+.sidebar { width: 210; height: fill; background: var(--surface); padding: 14 10; spacing: 3; }
+.marca   { size: 10; bold: true; color: var(--faint); padding: 4 6 12 6; }
+
+.conteudo { width: fill; height: fill; padding: 26 30; }
+
+/* Uma tela de categoria: título + a coluna de demos. */
+.secao       { width: fill; spacing: 20; }
+.titulo_cat  { size: 24; bold: true; color: var(--text); }
+.intro       { size: 12; color: var(--muted); max_width: 620; }
+.demos       { width: fill; spacing: 16; }
+
+/* Um bloco de demonstração: rótulo do papel + o widget. */
+.demo   { width: fill; background: var(--surface); border_radius: 8; border_width: 1; border_color: var(--border); padding: 14 16; spacing: 10; }
+.rotulo { size: 11; bold: true; color: var(--muted); }
+.nota   { size: 11; color: var(--faint); }
+.linha  { spacing: 12; align_y: center; }
+.coluna { spacing: 8; }
+.valor  { size: 12; color: var(--accent); }
+
+/* Botões dos demos. */
+.btn        { color: var(--raised); text_color: var(--text); padding: 8 16; border_radius: 6; }
+.btn:hover  { color: var(--overlay); }
+.btn:active { color: var(--accent); text_color: #11111B; }
+.btn_prim         { color: var(--accent); text_color: #11111B; bold: true; padding: 8 16; border_radius: 6; }
+.btn_prim:hover   { color: #A6C8FF; }
+.btn_danger       { color: var(--raised); text_color: var(--danger); padding: 8 16; border_radius: 6; }
+.btn_danger:hover { color: var(--danger); text_color: var(--text); }
+
+/* Campos. */
+.campo  { width: fill; padding: 9 11; border_radius: 6; }
+.campo_curto { width: 220; padding: 9 11; border_radius: 6; }
+
+/* Áreas de demonstração maiores (canvas, mdi, listas). */
+.area   { width: fill; height: 220; background: var(--raised); border_radius: 8; }
+.lista  { width: fill; height: 200; }
+
+/* Cartões, chips, frames — o visual base vem do builtin; a classe só ajusta. */
+.chip   { color: var(--overlay); text_color: var(--text-2); }
+.grafico { width: fill; height: 200; }
+.mini    { width: 200; height: 34; }
+
+@media (max-width: 720) {
+  .sidebar  { width: 150; }
+  .conteudo { padding: 18 16; }
+}

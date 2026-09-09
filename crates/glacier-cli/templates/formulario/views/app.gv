@@ -1,0 +1,62 @@
+<screen title="{{titulo}} — cadastro" size="560 640" min_size="420 520">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <column class="cabecalho">
+      <text class="titulo">Novo colaborador</text>
+      <text class="subtitulo">a validação roda a cada mudança e no envio</text>
+    </column>
+
+    <column class="campos">
+
+      <column class="grupo">
+        <text class="rotulo">Nome</text>
+        <textinput class="campo" value="f_nome" on_change="campo:f_nome" placeholder="nome completo" />
+        <text class="erro" if="{erro_nome}" not_empty>{erro_nome}</text>
+      </column>
+
+      <row class="dupla">
+        <column class="grupo">
+          <text class="rotulo">CPF</text>
+          <maskedinput class="campo" value="f_cpf" mask="cpf" on_change="campo:f_cpf" />
+          <text class="erro" if="{erro_cpf}" not_empty>{erro_cpf}</text>
+        </column>
+        <column class="grupo">
+          <text class="rotulo">Telefone</text>
+          <maskedinput class="campo" value="f_tel" mask="telefone" on_change="campo:f_tel" />
+        </column>
+      </row>
+
+      <row class="dupla">
+        <column class="grupo">
+          <text class="rotulo">Idade</text>
+          <spinbox value="f_idade" min="14" max="90" width="110" />
+          <text class="erro" if="{erro_idade}" not_empty>{erro_idade}</text>
+        </column>
+        <column class="grupo">
+          <text class="rotulo">Nascimento</text>
+          <dateedit class="campo" value="f_nasc" format="br" calendar_popup="true" today="{hoje}" on_change="campo:f_nasc" />
+        </column>
+      </row>
+
+      <column class="grupo">
+        <text class="rotulo">UF</text>
+        <select class="campo" options="f_ufs" value="f_uf" on_change="campo:f_uf" />
+      </column>
+
+      <checkbox label="Aceito os termos de uso" checked="f_aceite" on_toggle="campo:f_aceite" />
+      <text class="erro" if="{erro_aceite}" not_empty>{erro_aceite}</text>
+
+    </column>
+
+    <text class="status">{f_status}</text>
+
+    <buttonbox
+      accept="Salvar"    on_accept="enviar"
+      reject="Limpar"    on_reject="limpar" />
+  </column>
+</screen>

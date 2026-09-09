@@ -1,11 +1,14 @@
 //! Perguntas de terminal, em std puro.
 //!
-//! Menu numerado em vez de seleção por setas: setas exigem modo raw (termios),
-//! e o custo disso seria uma dependência — justamente o que esta CLI evita para
-//! que `cargo install glacier-cli` leve segundos. Um menu numerado ainda tem a
-//! vantagem de funcionar com a entrada redirecionada (`echo 2 | glacier new`).
+//! O questionário é **navegável pelas setas** (↑/↓ movem, Enter escolhe): o
+//! módulo [`raw`] entra em modo raw chamando o `stty` do sistema, sem
+//! dependência de crate. Onde `stty` não existe (Windows, shell mínimo) ou o
+//! stdin não é um tty, tudo cai no **menu numerado** de sempre — que também
+//! funciona com a entrada redirecionada (`echo 2 | glacier new`).
 
 use std::io::{self, BufRead, IsTerminal, Write};
+
+mod raw;
 
 /// Códigos ANSI, desligados quando a saída não é um terminal (log/pipe).
 pub struct Estilo {
@@ -72,8 +75,17 @@ pub fn texto(e: &Estilo, pergunta: &str, padrao: &str) -> String {
     }
 }
 
-/// Sim/não com default. Aceita s/sim/y/yes e n/nao/não/no.
+/// Sim/não com default. Setas ↑/↓ + Enter; sem modo raw, cai no `[S/n]` de texto.
 pub fn confirmar(e: &Estilo, pergunta: &str, padrao: bool) -> bool {
+    let opcoes = [("Sim", ""), ("Não", "")];
+    let inicial = if padrao { 0 } else { 1 };
+    match menu_setas(e, pergunta, &opcoes, inicial) {
+        Some(i) => i == 0,
+        None => confirmar_texto(e, pergunta, padrao),
+    }
+}
+
+fn confirmar_texto(e: &Estilo, pergunta: &str, padrao: bool) -> bool {
     let dica = if padrao { "S/n" } else { "s/N" };
     loop {
         print!(
@@ -96,8 +108,73 @@ pub fn confirmar(e: &Estilo, pergunta: &str, padrao: bool) -> bool {
     }
 }
 
-/// Menu numerado. Devolve o índice escolhido; Enter aceita `padrao`.
+/// Menu de escolha. Setas ↑/↓ + Enter; sem modo raw, cai no menu numerado.
+/// Devolve o índice escolhido; o default é `padrao`.
 pub fn escolher(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize) -> usize {
+    menu_setas(e, pergunta, opcoes, padrao).unwrap_or_else(|| escolher_numerado(e, pergunta, opcoes, padrao))
+}
+
+/// O menu navegável. `None` = não deu para entrar em modo raw (a chamada usa o
+/// caminho de texto/numerado). Cada opção ocupa uma linha; a descrição, quando
+/// existe, ocupa a linha seguinte.
+///
+/// Só a **entrada** vira raw (`stty -echo -icanon`); a saída segue com o
+/// pós-processamento normal, então `\n` continua descendo uma linha e voltando
+/// à coluna 0 — o redesenho usa só `\x1b[<n>A` (sobe) e `\x1b[K` (limpa a linha).
+fn menu_setas(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize) -> Option<usize> {
+    let mut raw = raw::Raw::ativar()?;
+
+    let com_descricao = opcoes.iter().any(|(_, d)| !d.is_empty());
+    let linhas_por_opcao = if com_descricao { 2 } else { 1 };
+    let total_linhas = opcoes.len() * linhas_por_opcao;
+
+    println!("{} {}", e.verde("?"), e.negrito(pergunta));
+    println!("{}", e.fraco("  ↑/↓ move · Enter escolhe · Esc cancela"));
+    let mut sel = padrao.min(opcoes.len().saturating_sub(1));
+    desenhar(e, opcoes, sel, com_descricao);
+
+    loop {
+        match raw.ler_tecla().ok()? {
+            raw::Tecla::Cima => sel = (sel + opcoes.len() - 1) % opcoes.len(),
+            raw::Tecla::Baixo => sel = (sel + 1) % opcoes.len(),
+            raw::Tecla::Enter => return Some(sel),
+            raw::Tecla::Sair => {
+                drop(raw);
+                println!("{}", e.vermelho("  cancelado."));
+                std::process::exit(130);
+            }
+            raw::Tecla::Interromper => {
+                drop(raw);
+                std::process::exit(130);
+            }
+            raw::Tecla::Outra => continue,
+        }
+        print!("\x1b[{total_linhas}A");
+        desenhar(e, opcoes, sel, com_descricao);
+    }
+}
+
+/// (Re)desenha as linhas do menu. `\x1b[K` no fim de cada uma limpa o resto,
+/// para um rótulo mais curto não deixar rastro do que estava antes.
+fn desenhar(e: &Estilo, opcoes: &[(&str, &str)], sel: usize, com_descricao: bool) {
+    let mut buf = String::new();
+    for (i, (titulo, descricao)) in opcoes.iter().enumerate() {
+        let (marca, rotulo) = if i == sel {
+            (e.ciano("❯"), e.ciano(titulo))
+        } else {
+            (" ".to_string(), titulo.to_string())
+        };
+        buf.push_str(&format!("  {marca} {rotulo}\x1b[K\n"));
+        if com_descricao {
+            buf.push_str(&format!("      {}\x1b[K\n", e.fraco(descricao)));
+        }
+    }
+    print!("{buf}");
+    let _ = io::stdout().flush();
+}
+
+/// Menu numerado — o caminho sem modo raw. Enter aceita `padrao`.
+fn escolher_numerado(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize) -> usize {
     println!("{} {}", e.verde("?"), e.negrito(pergunta));
     for (i, (titulo, descricao)) in opcoes.iter().enumerate() {
         let marca = if i == padrao { "›" } else { " " };
@@ -106,7 +183,9 @@ pub fn escolher(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usi
             e.ciano(&format!("{}", i + 1)),
             e.negrito(titulo)
         );
-        println!("      {}", e.fraco(descricao));
+        if !descricao.is_empty() {
+            println!("      {}", e.fraco(descricao));
+        }
     }
 
     loop {

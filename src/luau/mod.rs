@@ -291,6 +291,12 @@ impl LuauComponent {
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
         // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
         install_zip_dir(&luau).map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
+        // Extensões da camada Lua registradas pelo app hospedeiro — funções
+        // Rust visíveis no `<script>` (ver [`register_lua_extension`]). Depois
+        // dos globais do motor, antes do script do usuário, para o corpo de
+        // topo já poder usá-las.
+        install_app_extensions(&luau)
+            .map_err(|e| format!("Erro ao instalar extensão Lua do app: {}", e))?;
         // Tabela persistente que `viewport()` (prelúdio) lê — populada a cada
         // execução em `sync_to_luau`.
         let viewport_table = luau
@@ -1862,6 +1868,66 @@ static STORAGE_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 /// legado: grava em `.glacier-storage/` relativo ao diretório do script.
 pub fn set_storage_root(path: PathBuf) {
     let _ = STORAGE_ROOT.set(path);
+}
+
+/// Uma extensão da camada Lua registrada pelo **app hospedeiro**: recebe cada
+/// VM Luau nova (uma por componente com `<script>`, em qualquer janela) e
+/// instala nela globais/tabelas — a ponte de funções Rust para o `<script>`.
+/// Um cliente SQLite (ver o exemplo `sqlite_crud`), um cofre de segredos, um
+/// cliente gRPC: o que o app precisar expor.
+///
+/// Um closure `Fn(&mlua::Lua) -> mlua::Result<()>` já implementa este trait, e
+/// é a forma usual de registrar; ver [`register_lua_extension`] e
+/// [`crate::GlacierDaemon::lua_extension`].
+pub trait LuaExtension: Send + Sync + 'static {
+    /// Instala esta extensão numa VM Luau recém-criada. Roda **depois** dos
+    /// globais do motor (`fetch`, `json`, `storage`, …) e **antes** do
+    /// `<script>` do usuário, então o corpo de topo do script já enxerga o que
+    /// ela expõe. Um `Err` aqui aborta a construção do componente com o mesmo
+    /// erro de um `<script>` malformado — melhor que um componente
+    /// meio-instalado.
+    fn install(&self, lua: &mlua::Lua) -> mlua::Result<()>;
+}
+
+impl<F> LuaExtension for F
+where
+    F: Fn(&mlua::Lua) -> mlua::Result<()> + Send + Sync + 'static,
+{
+    fn install(&self, lua: &mlua::Lua) -> mlua::Result<()> {
+        self(lua)
+    }
+}
+
+/// Config de processo, no mesmo molde de [`STORAGE_ROOT`]: as extensões são
+/// semeadas uma vez, na inicialização, e compartilhadas por todos os motores
+/// (um por janela). `RwLock` e não `OnceLock` porque `register_lua_extension`
+/// **acumula** — um app pode registrar várias pontes.
+static LUA_EXTENSIONS: std::sync::RwLock<Vec<std::sync::Arc<dyn LuaExtension>>> =
+    std::sync::RwLock::new(Vec::new());
+
+/// Registra uma extensão da camada Lua (ver [`LuaExtension`]). Aplica-se a
+/// **toda** VM Luau criada a partir daqui — inclusive as de janelas abertas
+/// depois. Chame na inicialização, antes de subir os motores;
+/// [`crate::GlacierDaemon::lua_extension`] é o atalho no builder.
+///
+/// Registrar a mesma extensão duas vezes a instala duas vezes — idempotência
+/// é responsabilidade do app.
+pub fn register_lua_extension(ext: impl LuaExtension) {
+    if let Ok(mut lista) = LUA_EXTENSIONS.write() {
+        lista.push(std::sync::Arc::new(ext));
+    }
+}
+
+/// Instala, numa VM nova, todas as extensões registradas via
+/// [`register_lua_extension`]. Chamado por [`LuauComponent::build`].
+fn install_app_extensions(luau: &Lua) -> mlua::Result<()> {
+    let lista = LUA_EXTENSIONS
+        .read()
+        .map_err(|_| mlua::Error::runtime("registro de extensões Lua envenenado"))?;
+    for ext in lista.iter() {
+        ext.install(luau)?;
+    }
+    Ok(())
 }
 
 /// Resolve o arquivo de `storage` de um componente. Quando `root` é `Some`

@@ -22,6 +22,10 @@ const PRESETS: &[(&str, &[&str])] = &[
     ("completo", &["views/app.gv"]),
     ("janelas", &["views/painel.gv", "views/detalhe.gv"]),
     ("rust", &["views/contador.gv"]),
+    ("catalogo", &["views/app.gv"]),
+    ("dashboard", &["views/app.gv"]),
+    ("formulario", &["views/app.gv"]),
+    ("crud", &["views/app.gv"]),
 ];
 
 #[test]

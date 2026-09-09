@@ -11,8 +11,9 @@ cargo install glacier-cli
 glacier new
 ```
 
-O `new` faz um questionário, mostra um resumo e **só então** escreve alguma
-coisa: até a confirmação final, nada foi criado.
+O `new` faz um questionário — navegável pelas setas (↑/↓ movem, Enter escolhe;
+sem um `stty` no sistema, cai num menu numerado) —, mostra um resumo e **só
+então** escreve alguma coisa: até a confirmação final, nada foi criado.
 
 ```
 glacier new [nome]            cria um projeto — pergunta o resto
@@ -29,6 +30,10 @@ glacier --version
 | `minimo` | Uma tela, um `.gss` e um bloco de script Luau — o menor projeto que ainda mostra a ideia |
 | `janelas` | Multi-janela (`open_window`/`broadcast`/`close_window`), ícone de bandeja, instância única, geometria lembrada |
 | `rust` | O trait `Component` com estado tipado em Rust, em vez de comportamento em Luau |
+| `catalogo` | Catálogo navegável de widgets: uma sidebar de categorias, cada tela com dezenas de widgets do motor num exemplo mínimo e vivo, feito para copiar |
+| `dashboard` | Painel de KPIs e gráficos que andam sozinhos (`linechart` de série múltipla, `barchart`, `donut`, `gauge`, `sparkline`) via `every(1000)` |
+| `formulario` | App de cadastro: `maskedinput`, `spinbox`, `dateedit`, `select`, `buttonbox` + validação em Luau que publica `erro_<campo>` |
+| `crud` | Model/view: uma `tableview` ligada a um array do contexto, com Novo/Editar/Excluir por `prompt{}`/`confirm{}` (dados em memória) |
 
 Todos herdam o `.gitignore`, o `.luaurc`, o `views/scripts/glacier.d.luau` (os
 tipos dos globais que o motor injeta, para o luau-lsp) e a camada de build e
@@ -71,7 +76,7 @@ onde eles não estão.
 ## Opções de `new`
 
 ```
--p, --preset <id>       completo | minimo | janelas | rust
+-p, --preset <id>       completo | minimo | janelas | rust | catalogo | dashboard | formulario | crud
     --extensions        instala as extensões sem perguntar
     --no-extensions     não instala as extensões
     --git / --no-git    `git init` no projeto criado

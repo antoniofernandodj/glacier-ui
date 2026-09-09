@@ -130,13 +130,22 @@ glacier new
 
 ```
 ? Nome do projeto (meu-app) painel
-? Qual preset?
-  › 1  App completo      janela sem decoração, tema + .gss, componentes, navegação, fetch
-    2  Mínimo            uma tela, um .gss e um bloco de script Luau
-    3  Multi-janela      open_window/broadcast, bandeja, instância única
-    4  Componente Rust   o trait Component, com estado tipado
-? Instalar as extensões de VS Code (realce e ir-para-definição em .gv/.gss)? [S/n]
+? Qual preset?                                  ↑/↓ move · Enter escolhe
+  ❯ App completo         janela sem decoração, tema + .gss, componentes, navegação, fetch
+    Mínimo               uma tela, um .gss e um bloco de script Luau
+    Multi-janela         open_window/broadcast, bandeja, instância única
+    Componente Rust      o trait Component, com estado tipado
+    Catálogo de widgets  uma sidebar de categorias, um exemplo vivo por widget
+    Painel de dados      KPIs e gráficos que andam sozinhos (every(1000))
+    Formulário validado  máscaras, buttonbox e validação em Luau
+    Lista editável       tableview + Novo/Editar/Excluir por prompt{}/confirm{}
+? Instalar as extensões de VS Code (realce e ir-para-definição em .gv/.gss)?
+  ❯ Sim
+    Não
 ```
+
+O questionário é navegável pelas setas; sem um `stty` no sistema, cai num menu
+numerado.
 
 Ele mostra um resumo e **só então** escreve: até a confirmação, nada foi criado.
 `glacier install-extensions` instala só as extensões de VS Code (sem precisar de
@@ -1707,6 +1716,31 @@ pub enum EngineMessage {
 | `require(mod)` | importa uma biblioteca `.luau` | não |
 | `on_error(msg)` | hook opcional de erro de script | — |
 
+#### Estender a camada Luau com funções Rust
+
+O motor não traz banco de dados, cofre de segredos nem SDK — cada app quer o
+seu. A ponte é `GlacierDaemon::lua_extension` (ou `glacier_ui::register_lua_extension`):
+um closure `Fn(&mlua::Lua) -> mlua::Result<()>` que roda em **cada VM Luau
+nova** (uma por componente com `<script>`, em qualquer janela), depois dos
+globais do motor e antes do script do usuário. O `mlua` é re-exportado como
+`glacier_ui::mlua`, então o app não precisa fixar uma versão própria.
+
+```rust
+GlacierDaemon::new()
+    .lua_extension(|lua: &glacier_ui::mlua::Lua| {
+        let agora = lua.create_function(|_, ()| {
+            Ok(std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs())
+        })?;
+        lua.globals().set("agora_unix", agora)   // → `agora_unix()` no <script>
+    })
+```
+
+O exemplo [`sqlite_crud`](examples/sqlite_crud) leva isso ao fim: um global
+`sqlite` com `connect(path)` devolvendo uma conexão (`:execute`, `:query`,
+`:begin`/`:commit`/`:rollback`, `:last_insert_id`, `:close`), e um CRUD de
+tarefas escrito só no `<script>`.
+
 ---
 
 ## Exemplos
@@ -1736,6 +1770,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `imports_luau` | `require` de bibliotecas Luau (client de rede + utilitários). |
 | `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
+| `sqlite_crud` | **o app registra funções Rust na camada Lua** (`GlacierDaemon::lua_extension`): uma ponte SQLite completa (`connect`/`execute`/`query`/`begin`/`commit`/`close`) e um mini-CRUD que a usa inteiramente do `<script>`. |
 | `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
 | `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |

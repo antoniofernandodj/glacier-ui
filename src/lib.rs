@@ -44,6 +44,12 @@ pub mod wizard;
 /// separate dependency.
 pub use iced;
 
+/// Re-export of the [`mlua`] crate the engine runs `<script>` blocks on, so a
+/// host app writing a [`luau::LuaExtension`] (bridging Rust functions into the
+/// Lua layer) reaches `mlua::Lua`, `mlua::Table`, `mlua::UserData`, … as
+/// `glacier_ui::mlua::*` without pinning a matching `mlua` version itself.
+pub use mlua;
+
 pub use external::ExternalSender;
 /// Flattened re-exports of the `iced` items a host app's `main`/`App` reach
 /// for most often (window setup, layout, messaging), so they can come from
@@ -64,7 +70,7 @@ pub use eval::{
     normalize_bare_directives, process_template, strip_script,
 };
 pub use forms::{Form, FormBuilder, FormControl, Validator};
-pub use luau::LuauComponent;
+pub use luau::{LuaExtension, LuauComponent, register_lua_extension};
 pub use parser::{DialogMeta, NodeType, ScreenMeta, UiNode};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};

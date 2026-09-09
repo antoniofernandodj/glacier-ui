@@ -1,0 +1,61 @@
+<screen title="{{titulo}} — painel" size="960 660" min_size="560 460">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+
+    <row class="topo">
+      <text class="titulo">Operação</text>
+      <space />
+      <text class="apagado">atualiza a cada 1s · {relogio}</text>
+    </row>
+
+    <row class="kpis">
+      <card title="Requisições / min" class="kpi">
+        <text class="numero">{kpi_total}</text>
+      </card>
+      <card title="Taxa de erro" class="kpi">
+        <text class="numero">{kpi_taxa}%</text>
+      </card>
+      <card title="Latência p95" class="kpi">
+        <text class="numero">{kpi_lat} ms</text>
+      </card>
+    </row>
+
+    <row class="graficos">
+      <column class="painel">
+        <text class="rotulo">Requisições por serviço  (série múltipla)</text>
+        <linechart series="serie_req" min="0" grid="true" class="grafico" />
+      </column>
+      <column class="painel">
+        <text class="rotulo">Chamadas por rota</text>
+        <barchart items="barras" colorful="true" class="grafico" />
+      </column>
+    </row>
+
+    <row class="graficos">
+      <column class="painel">
+        <text class="rotulo">Distribuição de respostas</text>
+        <donut items="fatias" size="180" percentages="true" />
+      </column>
+      <column class="painel">
+        <text class="rotulo">Saturação</text>
+        <row class="linha">
+          <gauge value="g_cpu" max="100" unit="%" label="CPU" bands="g_bands" needle="true" />
+          <gauge value="g_disco" max="100" unit="%" label="disco" bands="g_bands" needle="true" />
+        </row>
+      </column>
+    </row>
+
+    <row class="rodape">
+      <text class="rotulo">CPU</text>
+      <sparkline items="spark_cpu" class="mini" />
+      <text class="rotulo">memória</text>
+      <sparkline items="spark_mem" class="mini" color="#F9E2AF" />
+    </row>
+
+  </column>
+</screen>

@@ -198,6 +198,29 @@ impl GlacierDaemon {
         self
     }
 
+    /// Registra uma **extensão da camada Lua**: funções Rust que passam a
+    /// existir como globais no `<script>` de qualquer componente, em qualquer
+    /// janela. É a ponte para acoplar ao app um cliente de banco, um cofre de
+    /// segredos, um SDK — coisas que o motor não traz e não deveria trazer.
+    ///
+    /// Encaminha para [`crate::luau::register_lua_extension`] (config de
+    /// processo); chame antes de [`Self::run`]. Um closure basta:
+    ///
+    /// ```no_run
+    /// use glacier_ui::{GlacierDaemon, mlua};
+    /// GlacierDaemon::new().lua_extension(|lua: &mlua::Lua| {
+    ///     lua.globals().set("app_nome", "exemplo")
+    /// });
+    /// ```
+    ///
+    /// Ver o exemplo `sqlite_crud` para uma ponte completa — um cliente SQLite
+    /// com `connect` / `execute` / `query` / `begin` / `commit` / `close` — e
+    /// um mini-CRUD que a usa inteiramente do `<script>`.
+    pub fn lua_extension(self, ext: impl crate::luau::LuaExtension) -> Self {
+        crate::luau::register_lua_extension(ext);
+        self
+    }
+
     /// Define o título da janela principal (encadeável).
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = title.into();

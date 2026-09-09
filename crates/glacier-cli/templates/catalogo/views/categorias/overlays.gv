@@ -1,0 +1,99 @@
+<component>
+  <resources>
+    <style scoped="true">
+      .painel     { background: var(--raised); border_radius: 8; border_width: 1; border_color: var(--border); padding: 12; spacing: 6; }
+      .caixa_stack { width: fill; height: 120; background: var(--raised); border_radius: 8; }
+      .marca_pos  { size: 11; bold: true; color: var(--accent); }
+      .sino       { size: 20; }
+      .arena      { width: fill; height: 180; background: var(--raised); border_radius: 8; }
+      .arrasta    { size: 14; color: var(--muted); }
+    </style>
+  </resources>
+
+  <column class="secao">
+    <text class="titulo_cat">Overlays, dicas e utilitários</text>
+    <text class="intro">
+      `tooltip=` e `whats_this=` são atributos UNIVERSAIS — valem em qualquer nó.
+      `&lt;shortcut&gt;` mora no layout (não no `&lt;resources&gt;`) e não desenha nada.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">tooltip=  ·  whats_this=  (modo pegajoso: whatsthis:toggle)</text>
+        <row class="linha">
+          <button class="btn" text="pare o mouse aqui" tooltip="este é o balão de tooltip" on_click="dizer:tooltip" />
+          <button class="btn" text="modo ajuda" on_click="whatsthis:toggle"
+                  whats_this="Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip." />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;popover&gt;  (ancorado ao gatilho)  ·  &lt;popup&gt;  (centrado na janela)</text>
+        <row class="linha">
+          <popover value="ov_menu" placement="bottom" align="start">
+            <button slot="anchor" class="btn" text="Conta ▾" />
+            <column class="painel">
+              <text class="nota">Perfil</text>
+              <text class="nota">Configurações</text>
+              <text class="nota">Sair</text>
+            </column>
+          </popover>
+          <popup value="ov_pop">
+            <button slot="anchor" class="btn" text="Mostrar atalhos" />
+            <column class="painel">
+              <text class="nota">Ctrl+S — salvar</text>
+              <text class="nota">Ctrl+P — buscar</text>
+            </column>
+          </popup>
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;stack&gt;  —  filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=</text>
+        <stack class="caixa_stack">
+          <container class="caixa_stack" />
+          <text anchor="top-left" class="marca_pos">TL</text>
+          <text anchor="center" class="marca_pos">C</text>
+          <text anchor="bottom-right" class="marca_pos">BR</text>
+        </stack>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;notificationdot&gt;  ·  &lt;splashscreen&gt;  (show= é bool)</text>
+        <row class="linha">
+          <notificationdot show="{ov_notif}">
+            <container class="painel">
+              <text class="sino">🔔</text>
+            </container>
+          </notificationdot>
+          <button class="btn" text="alternar o ponto" on_click="ov_alternar_notif" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;rubberband&gt;  —  laço de seleção sobre alvos nomeados</text>
+        <rubberband items="ov_caixas" selection="ov_marcados" class="arena" height="160" />
+        <text class="nota">ov_marcados = {ov_marcados}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;foreach on_reorder reorder_key&gt;  —  arraste pela alça ⋮⋮</text>
+        <column class="coluna">
+          <foreach items="ov_tarefas" var="t" on_reorder="dizer:reordenou" reorder_key="id">
+            <row class="linha">
+              <text class="arrasta" drag_handle="true" cursor="grab">⋮⋮</text>
+              <text class="nota">{t.nome}</text>
+            </row>
+          </foreach>
+        </column>
+      </column>
+
+      <text class="nota">
+        Há um &lt;shortcut key="ctrl+j" on_press="dizer:ctrl+j"&gt; ativo nesta tela — sem modificador ele não roubaria a tecla de um campo focado.
+      </text>
+      <shortcut key="ctrl+j" on_press="dizer:atalho ctrl+j" />
+
+    </column>
+  </column>
+</component>

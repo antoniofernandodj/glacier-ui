@@ -1,0 +1,52 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Entradas de texto</text>
+    <text class="intro">
+      `value` é o NOME da chave, nunca `{interpolação}`. O `on_change` é opcional:
+      sem uma função Luau de mesmo nome, o motor grava `ctx[nome] = valor` sozinho.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;textinput&gt;  ·  &lt;textinput secure&gt;</text>
+        <row class="linha">
+          <textinput class="campo_curto" value="ti_nome" on_change="ti_nome" placeholder="Nome" />
+          <textinput class="campo_curto" value="ti_senha" on_change="ti_senha" placeholder="Senha" secure="true" />
+        </row>
+        <text class="nota">ti_nome = {ti_nome}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;textarea&gt;  (multi-linha; readonly + append para log vivo)</text>
+        <textarea value="ta_notas" on_change="ta_notas" placeholder="Anotações…" height="90" />
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;maskedinput&gt;  —  guarda cru, exibe mascarado</text>
+        <row class="linha">
+          <maskedinput class="campo_curto" value="mi_cpf" mask="cpf" />
+          <maskedinput class="campo_curto" value="mi_tel" mask="telefone" />
+        </row>
+        <text class="nota">mi_cpf (cru) = {mi_cpf}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;comboedit&gt;  —  dropdown editável (on_change ao digitar, on_select ao escolher)</text>
+        <comboedit class="campo_curto" options="ce_hosts" value="ce_host" placeholder="https://…" on_change="ce_host" />
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;autocomplete&gt;  —  sugestões sem acento/caixa; ▲▼ Enter Esc</text>
+        <autocomplete class="campo_curto" value="ac_cidade" items="ac_cidades" placeholder="digite: sao, rio, bel…" />
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;shortcutinput&gt;  —  captura uma combinação de teclas</text>
+        <shortcutinput value="si_atalho" placeholder="clique e pressione ctrl+s" />
+        <text class="nota">si_atalho = {si_atalho}</text>
+      </column>
+
+    </column>
+  </column>
+</component>

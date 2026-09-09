@@ -1,0 +1,42 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Data e hora</text>
+    <text class="intro">
+      Uma primitiva, várias tags. A chave guarda SEMPRE ISO (`2026-09-09`,
+      `14:35`); `format="br"` muda só a exibição. `today="{hoje}"` vem de
+      `date.today()` no `init` — sem ele nenhum dia é destacado.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;calendar&gt;  —  grade 7×6, drill-up dia → mês → ano</text>
+        <row class="linha">
+          <calendar value="dh_dia" today="{hoje}" first_day="monday" />
+          <calendar value="dh_ano" today="{hoje}" mode="year" />
+        </row>
+        <text class="nota">dh_dia = {dh_dia}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;monthyearpicker&gt;  —  grava YYYY-MM  ·  &lt;daterangepicker&gt;  —  duas chaves</text>
+        <row class="linha">
+          <monthyearpicker value="dh_mes" today="{hoje}" />
+          <daterangepicker start="dh_de" end="dh_ate" months="2" today="{hoje}" />
+        </row>
+        <text class="nota">dh_mes = {dh_mes} · dh_de = {dh_de} → dh_ate = {dh_ate}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;dateedit&gt;  ·  &lt;timeedit seconds&gt;  ·  &lt;datetimeedit&gt;  —  edição por seções</text>
+        <row class="linha">
+          <dateedit value="dh_data" format="br" calendar_popup="true" today="{hoje}" width="170" />
+          <timeedit value="dh_hora" seconds="true" width="150" />
+          <datetimeedit value="dh_quando" width="220" />
+        </row>
+        <text class="nota">dh_data = {dh_data} · dh_hora = {dh_hora} · dh_quando = {dh_quando}</text>
+      </column>
+
+    </column>
+  </column>
+</component>

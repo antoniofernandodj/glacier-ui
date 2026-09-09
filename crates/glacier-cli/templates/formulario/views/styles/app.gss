@@ -1,0 +1,30 @@
+:root {
+  --bg:      #11111B;
+  --surface: #181825;
+  --border:  #313244;
+  --text:    #CDD6F4;
+  --muted:   #7F849C;
+  --faint:   #585B70;
+  --accent:  #89B4FA;
+  --danger:  #F38BA8;
+  --ok:      #A6E3A1;
+}
+
+/* Sem `background` na raiz: o fundo vem do theme.json (ver AGENTS.md). */
+.tela { width: fill; height: fill; padding: 24; spacing: 18; }
+
+.cabecalho { spacing: 4; }
+.titulo    { size: 22; bold: true; color: var(--text); }
+.subtitulo { size: 12; color: var(--muted); }
+
+.campos { width: fill; spacing: 14; }
+.grupo  { width: fill; spacing: 5; }
+.dupla  { width: fill; spacing: 12; }
+
+.rotulo { size: 11; bold: true; color: var(--muted); }
+/* A cadeia inteira até o campo precisa ser `width: fill` — um `fill` dentro de
+ um pai `shrink` colapsa o campo sem erro nenhum (ver AGENTS.md / PRIMITIVAS). */
+.campo  { width: fill; padding: 9 11; border_radius: 6; }
+.erro   { size: 11; color: var(--danger); }
+
+.status { size: 12; color: var(--ok); }

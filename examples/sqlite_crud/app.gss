@@ -1,0 +1,34 @@
+:root {
+  --surface: #3B4252;
+  --raised:  #434C5E;
+  --border:  #4C566A;
+  --text:    #ECEFF4;
+  --muted:   #9AA5B1;
+  --accent:  #88C0D0;
+  --ok:      #A3BE8C;
+  --danger:  #BF616A;
+}
+
+.tela      { width: fill; height: fill; padding: 24; spacing: 18; }
+.cabecalho { spacing: 4; }
+.titulo    { size: 24; bold: true; color: var(--text); }
+.subtitulo { size: 12; color: var(--muted); }
+
+.form  { width: fill; spacing: 10; align_y: center; }
+.campo { width: fill; padding: 10 12; border_radius: 6; }
+.add   { color: var(--accent); text_color: #1B2330; bold: true; padding: 10 18; border_radius: 6; }
+.add:hover { color: #9FD3DE; }
+
+.lista { width: fill; spacing: 1; }
+.item  { width: fill; padding: 10 12; spacing: 12; align_y: center; background: var(--surface); }
+
+.check { width: 40; padding: 6 0; border_radius: 6; text_align: center; bold: true; color: var(--raised); text_color: var(--ok); }
+.check:hover { color: var(--ok); text_color: #1B2330; }
+
+.feito    { width: fill; size: 14; color: var(--muted); }
+.pendente { width: fill; size: 14; color: var(--text); }
+
+.del { color: var(--surface); text_color: var(--danger); padding: 6 12; border_radius: 6; }
+.del:hover { color: var(--danger); text_color: var(--text); }
+
+.vazio { size: 12; color: var(--muted); }

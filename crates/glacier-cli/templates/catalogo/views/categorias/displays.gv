@@ -1,0 +1,85 @@
+<component>
+  <resources>
+    <style scoped="true">
+      /* Traço/preenchimento das formas do &lt;canvas&gt; — `fill`/`stroke`/
+       `stroke-width` são apelidos de `background`/`border-color`/`border-width`. */
+      .tela_desenho { width: fill; height: 180; background: var(--raised); border_radius: 8; }
+      .solido    { fill: var(--accent); }
+      .contorno  { stroke: var(--ok); stroke-width: 2; }
+      .regua     { stroke: var(--border); stroke-width: 1; }
+      .marca_svg { size: 11; color: var(--muted); }
+    </style>
+  </resources>
+
+  <column class="secao">
+    <text class="titulo_cat">Displays e indicadores</text>
+    <text class="intro">
+      Tudo aqui é apresentacional — não grava nada. `&lt;qrcode&gt;` usa
+      `content=` (interpolado), nunca `value=`.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;text&gt;  ·  &lt;image&gt;  ·  &lt;svg&gt;  ·  &lt;rule&gt;</text>
+        <row class="linha">
+          <text>texto simples</text>
+          <image source="views/assets/icone.png" width="40" height="40" />
+          <svg source="views/assets/glacier.svg" color="#89B4FA" width="40" height="40" />
+          <rule direction="vertical" />
+          <text class="marca_svg">um &lt;rule direction="vertical"&gt; à esquerda</text>
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;badge&gt;  ·  &lt;chip&gt;  ·  &lt;avatar&gt;</text>
+        <row class="linha">
+          <badge badge_text="online" badge_bg="#A6E3A1" badge_size="11" />
+          <badge badge_text="3" badge_bg="#F38BA8" badge_size="11" />
+          <chip for-each="di_tags" var="tag" label="{tag}" class="chip" on_remove="di_tirar_tag:{tag}" />
+          <avatar initials="AF" size="40" />
+          <avatar src="views/assets/icone.png" size="40" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;card&gt;  ·  &lt;frame&gt;  ·  &lt;skeleton&gt;</text>
+        <row class="linha">
+          <card title="Servidor" subtitle="produção" width="200">
+            <text class="nota">uptime 31 dias</text>
+            <template slot="footer">
+              <button class="btn" text="Abrir" on_click="dizer:card footer" />
+            </template>
+          </card>
+          <frame shape="box">
+            <text class="nota">shape="box"</text>
+          </frame>
+          <frame shape="filled">
+            <text class="nota">shape="filled"</text>
+          </frame>
+          <column class="coluna">
+            <skeleton width="160" height="12" />
+            <skeleton width="120" height="12" />
+            <skeleton width="fill" height="40" radius="8" />
+          </column>
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;qrcode content="{…}"&gt;  ·  &lt;canvas&gt; + formas</text>
+        <row class="linha">
+          <qrcode content="{di_qr}" width="110" height="110" />
+          <canvas class="tela_desenho">
+            <rect x="14" y="14" w="130" h="60" rx="10" class="solido" />
+            <circle cx="200" cy="44" r="30" class="contorno" />
+            <line x1="14" y1="110" x2="250" y2="110" class="regua" />
+            <polyline points="20,160 60,130 100,168 140,130 180,162" class="contorno" />
+            <arc cx="230" cy="150" r="26" start="150" sweep="240" class="solido" />
+          </canvas>
+        </row>
+        <text class="nota">di_qr = {di_qr}</text>
+      </column>
+
+    </column>
+  </column>
+</component>

@@ -1,0 +1,97 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Containers e agrupadores</text>
+    <text class="intro">
+      §2.11 (layouts) mora aqui também: `&lt;row&gt;`/`&lt;column&gt;`/`&lt;grid&gt;`/
+      `&lt;flow&gt;`/`&lt;space&gt;` estão em uso em toda tela deste catálogo.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;groupbox&gt;  —  moldura com título + ações no cabeçalho</text>
+        <groupbox title="Rede">
+          <template slot="actions">
+            <toolbutton icon="↻" tooltip="Recarregar" on_click="dizer:groupbox action" />
+          </template>
+          <checkbox label="Usar proxy" checked="ct_proxy" on_toggle="ct_proxy" />
+        </groupbox>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;grid columns="140 fill 80"&gt;  ·  &lt;flow&gt;  —  quebra sozinho</text>
+        <grid columns="140 fill 80" spacing="10" row_spacing="6" width="fill">
+          <text class="nota">rótulo</text>
+          <text class="nota">o meio estica</text>
+          <text class="nota">fim</text>
+        </grid>
+        <flow spacing="8" row_spacing="8" width="fill">
+          <badge badge_text="um" />
+          <badge badge_text="dois" />
+          <badge badge_text="três" />
+          <badge badge_text="quatro" />
+          <badge badge_text="cinco" />
+        </flow>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;splitter sizes="ct_split"&gt;  —  alça arrastável (chave "260 fill")</text>
+        <splitter sizes="ct_split" min="100" handle="6" class="area">
+          <column class="coluna">
+            <text class="nota">painel A</text>
+          </column>
+          <column class="coluna">
+            <text class="nota">painel B — arraste a alça</text>
+          </column>
+        </splitter>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;toolbox&gt;  (uma aberta)  ·  &lt;accordion&gt;  (várias, conjunto numa chave)</text>
+        <row class="linha">
+          <toolbox>
+            <toolboxitem title="Medidas" value="ct_ferramenta" open="{ct_ferramenta}" id="medidas">
+              <text class="nota">Régua, transferidor, área.</text>
+            </toolboxitem>
+            <toolboxitem title="Formas" value="ct_ferramenta" open="{ct_ferramenta}" id="formas">
+              <text class="nota">Retângulo, elipse, polígono.</text>
+            </toolboxitem>
+          </toolbox>
+          <accordion>
+            <accordionitem title="Rede" sub="host e porta" value="ct_abertas" open="{ct_abertas}" id="rede">
+              <text class="nota">conteúdo de Rede</text>
+            </accordionitem>
+            <accordionitem title="Disco" sub="cotas" value="ct_abertas" open="{ct_abertas}" id="disco">
+              <text class="nota">conteúdo de Disco</text>
+            </accordionitem>
+          </accordion>
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;mdiarea&gt; + &lt;mdisubwindow&gt;  —  janelas internas (posição/tamanho em chaves)</text>
+        <mdiarea class="area">
+          <mdisubwindow title="Editor" x_var="ct_ed_x" y_var="ct_ed_y" w_var="ct_ed_w" h_var="ct_ed_h">
+            <text class="nota">arraste a barra, redimensione pelo canto</text>
+          </mdisubwindow>
+          <mdisubwindow title="Console" x_var="ct_co_x" y_var="ct_co_y" w_var="ct_co_w" h_var="ct_co_h" default_w="220" default_h="120">
+            <text class="nota">segunda janela</text>
+          </mdisubwindow>
+        </mdiarea>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;dock&gt;  —  painel acoplável (mode/size/float_* em chaves; dois filhos)</text>
+        <dock mode="ct_mode" edge="left" size="ct_size" float_x="ct_fx" float_y="ct_fy" title="Explorador" class="area">
+          <column class="coluna">
+            <text class="nota">painel — arraste o cabeçalho para as bordas ou solte no meio para flutuar</text>
+          </column>
+          <column class="coluna">
+            <text class="nota">área central</text>
+          </column>
+        </dock>
+      </column>
+
+    </column>
+  </column>
+</component>

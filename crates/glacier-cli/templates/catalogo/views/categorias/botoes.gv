@@ -1,0 +1,61 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Botões e ações</text>
+    <text class="intro">
+      Copie qualquer bloco abaixo para o seu `.gv`. Cada widget grava numa chave
+      de contexto — o nome dela está no `value`/`checked`/`group`.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;button&gt;  ·  &lt;toolbutton&gt;</text>
+        <row class="linha">
+          <button class="btn" text="Normal" on_click="dizer:cliquei em Normal" />
+          <button class="btn_prim" text="Primário" on_click="dizer:cliquei em Primário" />
+          <button class="btn" text="Desabilitado" on_click="dizer:nunca" disabled="true" />
+          <toolbutton icon="✏" text="Editar" layout="beside" tooltip="Editar" on_click="dizer:toolbutton" />
+          <toolbutton icon="🗑" tooltip="Só ícone" on_click="dizer:toolbutton só ícone" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;checkbox&gt;  ·  &lt;checkbox tristate&gt;  ·  &lt;toggle&gt;</text>
+        <row class="linha">
+          <checkbox label="Habilitar cache" checked="cb_cache" on_toggle="cb_cache" />
+          <checkbox label="Herança" checked="cb_tri" on_toggle="cb_tri" tristate="true" />
+          <toggle label="Modo escuro" checked="tg_escuro" on_toggle="tg_escuro" />
+        </row>
+        <text class="nota">cb_cache = {cb_cache} · cb_tri = {cb_tri} · tg_escuro = {tg_escuro}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;radio group="plano"&gt;  ·  &lt;radiogroup&gt;</text>
+        <row class="linha">
+          <radio label="Mensal" value="mensal" group="plano" on_change="plano" />
+          <radio label="Anual" value="anual" group="plano" on_change="plano" />
+        </row>
+        <radiogroup value="plano2" items="planos" layout="row" />
+        <text class="nota">plano = {plano} · plano2 = {plano2}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;buttonbox&gt;  —  papéis e ordem por plataforma</text>
+        <buttonbox
+          accept="Salvar"       on_accept="dizer:accept"
+          reject="Cancelar"     on_reject="dizer:reject"
+          destructive="Excluir" on_destructive="dizer:destructive" />
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;commandlink&gt;  ·  &lt;roundbutton&gt;  ·  &lt;delaybutton&gt;</text>
+        <row class="linha">
+          <commandlink title="Instalação típica" description="Recomendado para a maioria" on_click="dizer:commandlink" />
+          <roundbutton text="+" on_click="dizer:roundbutton" size="44" />
+          <delaybutton text="Segure" on_press="dizer:delaybutton disparou" delay="1200" size="72" />
+        </row>
+      </column>
+
+    </column>
+  </column>
+</component>

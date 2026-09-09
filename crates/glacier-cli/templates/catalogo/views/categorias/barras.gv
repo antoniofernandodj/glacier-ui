@@ -1,0 +1,63 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Janela principal e barras</text>
+    <text class="intro">
+      `&lt;menubar&gt;`/`&lt;toolbar&gt;`/`&lt;statusbar&gt;` são markup comum — dá
+      para pô-los na moldura de qualquer `&lt;screen&gt;`. `&lt;menu&gt;` aninha
+      submenus a profundidade arbitrária.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;menubar&gt; + &lt;menu&gt; + &lt;menuitem&gt; + &lt;menuseparator&gt;</text>
+        <menubar>
+          <menu label="Arquivo">
+            <menuitem label="Novo" on_click="dizer:menu Novo" />
+            <menuitem label="Abrir" on_click="dizer:menu Abrir" />
+            <menu label="Recentes">
+              <menuitem label="projeto-a.gv" on_click="dizer:menu Recentes → a" />
+              <menuitem label="projeto-b.gv" on_click="dizer:menu Recentes → b" />
+            </menu>
+            <menuseparator />
+            <menuitem label="Sair" on_click="dizer:menu Sair" />
+          </menu>
+          <menu label="Editar">
+            <menuitem label="Desfazer" on_click="dizer:menu Desfazer" />
+            <menuitem label="Refazer" on_click="dizer:menu Refazer" disabled="true" />
+          </menu>
+        </menubar>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;contextmenu&gt;  —  o primeiro filho é a área do gatilho (botão direito)</text>
+        <contextmenu>
+          <container class="area">
+            <text class="nota">clique com o botão direito aqui dentro</text>
+          </container>
+          <menuitem label="Recortar" on_click="dizer:contexto Recortar" />
+          <menuitem label="Copiar" on_click="dizer:contexto Copiar" />
+          <menuseparator />
+          <menu label="Mais">
+            <menuitem label="Duplicar" on_click="dizer:contexto Duplicar" />
+          </menu>
+        </contextmenu>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;toolbar&gt;  ·  &lt;statusbar&gt;  ·  &lt;sizegrip&gt;</text>
+        <toolbar divider="true">
+          <toolbutton icon="📄" text="Novo" layout="beside" on_click="dizer:toolbar Novo" />
+          <toolbutton icon="💾" tooltip="Salvar" on_click="dizer:toolbar Salvar" />
+          <rule direction="vertical" />
+          <toolbutton icon="🖨" tooltip="Imprimir" on_click="dizer:toolbar Imprimir" />
+        </toolbar>
+        <statusbar message="pronto · {bar_status}">
+          <badge badge_text="v0.1" badge_size="11" />
+          <sizegrip />
+        </statusbar>
+      </column>
+
+    </column>
+  </column>
+</component>

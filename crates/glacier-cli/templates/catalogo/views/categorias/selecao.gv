@@ -1,0 +1,56 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Seleção, listas e árvores</text>
+    <text class="intro">
+      O par `value` + `selected="{…}"`: `value` é a chave que o clique escreve,
+      `selected` o valor que o markup lê para destacar. Faltando o segundo, a
+      lista fica toda esmaecida.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;select&gt;  —  dropdown fechado</text>
+        <select class="campo_curto" options="se_regioes" value="se_regiao" />
+        <text class="nota">se_regiao = {se_regiao}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;listview&gt;  ·  &lt;listview mode="multi"&gt;</text>
+        <row class="linha">
+          <listview items="lv_servicos" value="lv_servico" selected="{lv_servico}" height="150" width="fill" />
+          <listview items="lv_servicos" value="lv_marcados" selected="{lv_marcados}" mode="multi" height="150" width="fill" />
+        </row>
+        <text class="nota">lv_servico = {lv_servico} · lv_marcados = {lv_marcados}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;tableview&gt;  —  cabeçalho, ordenação, colunas arrastáveis</text>
+        <tableview items="tv_linhas" columns="tv_colunas" value="tv_sel" sort="tv_ordem" widths="tv_larguras" height="180" width="fill" />
+        <text class="nota">tv_sel = {tv_sel}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;treeview&gt;  ·  &lt;columnview&gt;  (mesma árvore, identidade por caminho)</text>
+        <row class="linha">
+          <treeview items="tr_arvore" value="tr_no" open="tr_abertos" indent="18" height="200" width="fill" />
+          <columnview items="tr_arvore" value="cv_caminho" column_width="150" height="200" width="fill" />
+        </row>
+        <text class="nota">tr_no = {tr_no} · cv_caminho = {cv_caminho}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;pagination&gt;  ·  &lt;pageindicator&gt;  (mesma chave; um conta de 1, o outro de 0)</text>
+        <pagination value="pg_pagina" total="20" />
+        <pageindicator value="pi_pagina" total="4" />
+        <text class="nota">pg_pagina = {pg_pagina}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;fontselect&gt;  —  cada família desenhada nela mesma (lê __fonts)</text>
+        <fontselect value="ft_fonte" selected="{ft_fonte}" height="150" />
+      </column>
+
+    </column>
+  </column>
+</component>

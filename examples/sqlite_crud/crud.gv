@@ -1,0 +1,111 @@
+<screen title="Glacier — CRUD com SQLite" size="560 640" min_size="420 480">
+  <resources>
+    <link rel="theme"      href="examples/sqlite_crud/theme.json" />
+    <link rel="stylesheet" href="examples/sqlite_crud/app.gss" />
+
+    <script>
+    --!strict
+
+    -- `sqlite` NÃO é global do motor: vem da extensão registrada em main.rs
+    -- (`GlacierDaemon::lua_extension`). Sem aquela linha, este script nem
+    -- carregaria — `sqlite` seria nil.
+    local db
+
+    local function trim(s: string): string
+      return (s:gsub("^%s*(.-)%s*$", "%1"))
+    end
+
+    function init()
+      db = sqlite.connect("glacier_crud_tarefas.db")
+      db:execute([[
+        CREATE TABLE IF NOT EXISTS tarefas (
+          id     INTEGER PRIMARY KEY AUTOINCREMENT,
+          titulo TEXT NOT NULL,
+          feito  INTEGER NOT NULL DEFAULT 0
+        )
+      ]])
+      ctx.novo = ""
+      recarregar()
+    end
+
+    function recarregar()
+      local linhas = db:query(
+        "SELECT id, titulo, feito FROM tarefas ORDER BY feito, id DESC"
+      )
+      for _, t in ipairs(linhas) do
+        -- o markup compara string: normaliza antes de encodar
+        t.id = tostring(t.id)
+        local feito = t.feito ~= 0
+        t.feito = feito and "1" or "0"
+        t.marca = feito and "OK" or "–"
+      end
+      ctx.tarefas = json.encode(json.array(linhas))
+      ctx.total = tostring(#linhas)
+    end
+
+    function definir_novo(v: string)
+      ctx.novo = v
+    end
+
+    function adicionar()
+      local titulo = trim(ctx.novo or "")
+      if titulo == "" then
+        toast({ message = "Digite um título", kind = "warning" })
+        return
+      end
+      -- transação explícita só para exercitar begin/commit da ponte
+      db:begin()
+      db:execute("INSERT INTO tarefas (titulo) VALUES (?)", { titulo })
+      db:commit()
+      ctx.novo = ""
+      recarregar()
+      toast({ message = "Tarefa adicionada", kind = "success" })
+    end
+
+    function alternar(id: string)
+      db:execute("UPDATE tarefas SET feito = 1 - feito WHERE id = ?", { tonumber(id) })
+      recarregar()
+    end
+
+    function excluir(id: string)
+      db:execute("DELETE FROM tarefas WHERE id = ?", { tonumber(id) })
+      recarregar()
+      toast({ message = "Tarefa removida", kind = "info" })
+    end
+    </script>
+  </resources>
+
+  <column class="tela">
+    <column class="cabecalho">
+      <text class="titulo">Tarefas</text>
+      <text class="subtitulo">SQLite pela extensão Rust · {total} no banco</text>
+    </column>
+
+    <row class="form">
+      <textinput
+        class="campo"
+        value="novo"
+        on_change="definir_novo"
+        placeholder="Nova tarefa…"
+      />
+      <button class="add" text="Adicionar" on_click="adicionar" />
+    </row>
+
+    <column class="lista">
+      <row class="item" for-each="tarefas" var="t">
+        <button class="check" text="{t.marca}" on_click="alternar:{t.id}" />
+        <text class="feito"    if="{t.feito}" equals="1">{t.titulo}</text>
+        <text class="pendente" else>{t.titulo}</text>
+        <button class="del" text="excluir" on_click="excluir:{t.id}" />
+      </row>
+    </column>
+
+    <text
+      class="vazio"
+      if="{total}"
+      equals="0"
+    >
+      nenhuma tarefa ainda — o banco vive no diretório temporário do SO
+    </text>
+  </column>
+</screen>

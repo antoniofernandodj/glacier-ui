@@ -1,0 +1,101 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Navegação</text>
+    <text class="intro">
+      `tabbar`/`tabs`/`stackview`/`wizard` usam `active="{chave}"` (leitura) ao
+      lado de `value="chave"` (escrita). A página é escolhida por NOME de slot.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;tabbar&gt;  —  só a barra</text>
+        <tabbar value="nv_aba" active="{nv_aba}" items="nv_abas" />
+        <text class="nota">nv_aba = {nv_aba}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;tabs&gt;  —  barra + páginas por &lt;template slot&gt;</text>
+        <tabs value="nv_aba2" active="{nv_aba2}" items="nv_abas" page_spacing="14">
+          <template slot="geral">
+            <text class="nota">página "geral"</text>
+          </template>
+          <template slot="rede">
+            <text class="nota">página "rede"</text>
+          </template>
+          <template slot="avancado">
+            <text class="nota">página "avancado"</text>
+          </template>
+        </tabs>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;stackview active="{…}"&gt;  —  troca de painel por nome, sem escada de se/senao</text>
+        <row class="linha">
+          <button class="btn" text="Resumo" on_click="def:nv_painel:resumo" />
+          <button class="btn" text="Detalhe" on_click="def:nv_painel:detalhe" />
+        </row>
+        <stackview active="{nv_painel}">
+          <template slot="resumo">
+            <text class="nota">painel de resumo</text>
+          </template>
+          <template slot="detalhe">
+            <text class="nota">painel de detalhe</text>
+          </template>
+        </stackview>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;wizard&gt;  —  passos + validação que trava o "Avançar"</text>
+        <wizard value="nv_passo" active="{nv_passo}"
+                steps="plano,dominio,revisao"
+                titles="Plano,Domínio,Revisão"
+                valid="{nv_passo_valido}"
+                on_finish="dizer:wizard concluído"
+                on_cancel="dizer:wizard cancelado">
+          <template slot="plano">
+            <text class="nota">escolha um plano</text>
+          </template>
+          <template slot="dominio">
+            <text class="nota">informe o domínio</text>
+          </template>
+          <template slot="revisao">
+            <text class="nota">confira e conclua</text>
+          </template>
+        </wizard>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;swipeview&gt;  —  páginas deslizáveis (arraste na horizontal)</text>
+        <swipeview value="nv_pagina" threshold="120" class="area">
+          <column class="coluna">
+            <text class="nota">página 0 — arraste</text>
+          </column>
+          <column class="coluna">
+            <text class="nota">página 1</text>
+          </column>
+          <column class="coluna">
+            <text class="nota">página 2</text>
+          </column>
+        </swipeview>
+        <text class="nota">nv_pagina = {nv_pagina}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;drawer&gt;  —  painel lateral que EMPURRA (não cobre)</text>
+        <button class="btn" text="Abrir/fechar gaveta" on_click="drawer::toggle:nv_gaveta" />
+        <row class="area">
+          <drawer value="nv_gaveta" open="{nv_gaveta}" size="180">
+            <column class="coluna">
+              <text class="nota">itens da gaveta</text>
+            </column>
+          </drawer>
+          <column class="coluna">
+            <text class="nota">conteúdo principal</text>
+          </column>
+        </row>
+      </column>
+
+    </column>
+  </column>
+</component>

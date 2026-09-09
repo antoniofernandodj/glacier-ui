@@ -1,0 +1,34 @@
+<screen title="{{titulo}} — serviços" size="720 560" min_size="520 400">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+
+    <row class="topo">
+      <text class="titulo">Serviços</text>
+      <space />
+      <text class="apagado">{total} no total · selecionado: {sel}</text>
+    </row>
+
+    <row class="barra">
+      <textinput class="busca" value="q" on_change="filtrar" placeholder="filtrar…" />
+      <space />
+      <button class="btn_prim" text="Novo" on_click="novo" />
+      <button class="btn" text="Editar" on_click="editar" />
+      <button class="btn_danger" text="Excluir" on_click="excluir" />
+    </row>
+
+    <tableview
+      items="linhas"
+      columns="colunas"
+      value="sel"
+      sort="ordem"
+      widths="larguras"
+      height="fill"
+      width="fill" />
+
+  </column>
+</screen>

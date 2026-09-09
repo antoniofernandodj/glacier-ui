@@ -18,6 +18,7 @@ boa parte disto some — o que não muda é a ordem de grandeza entre as causas.
 | trocar as cores do app | *O `theme.json`* |
 | escrever o comportamento | *Como escrever os scripts* |
 | saber o que dá para chamar do script | *Todas as funções da camada Luau* |
+| expor uma função ou objeto Rust ao script | *Expor uma função ou objeto Rust ao `<script>`* |
 | que a tela não fique lenta | *O que custa num quadro* e as três regras |
 | descobrir por que algo não aparece | *Armadilhas que já custaram tempo* |
 | conferir antes de entregar | *Antes de dizer que está pronto* |
@@ -2815,6 +2816,73 @@ GlacierDaemon::new()
 Rust e Luau convivem: um componente Rust cujo `.gv` tenha `<script>` roda o
 Luau **primeiro** e cai no `update` do Rust só para as ações que o script não
 define.
+
+### Expor uma função ou objeto Rust ao `<script>`
+
+O motor injeta um punhado de globais no Luau (`fetch`, `json`, `storage`, …). O
+app acrescenta os seus com `GlacierDaemon::lua_extension` — um closure
+`Fn(&mlua::Lua) -> mlua::Result<()>` que roda em **cada VM Luau nova** (uma por
+componente com `<script>`, em qualquer janela), **depois** dos globais do motor e
+**antes** do `<script>` do usuário. É a ponte para acoplar um banco de dados, um
+cofre de segredos, um SDK — coisas que o motor não traz e não deveria. O `mlua`
+sai reexportado como `glacier_ui::mlua`, então o app não fixa uma versão dele.
+
+Uma **função** solta:
+
+```rust
+use glacier_ui::{mlua, GlacierDaemon};
+
+GlacierDaemon::new()
+    .lua_extension(|lua: &mlua::Lua| {
+        let somar = lua.create_function(|_, (a, b): (i64, i64)| Ok(a + b))?;
+        lua.globals().set("somar", somar)      // → `somar(2, 3)` no <script>
+    })
+    // …
+```
+
+Um **objeto** com métodos (o padrão de um client): uma `struct` que implementa
+`mlua::UserData`, devolvida por uma função-fábrica registrada como global.
+
+```rust
+use std::cell::RefCell;
+use glacier_ui::mlua::{self, UserData, UserDataMethods};
+
+struct Kv(RefCell<std::collections::HashMap<String, String>>);
+
+impl UserData for Kv {
+    fn add_methods<M: UserDataMethods<Self>>(m: &mut M) {
+        m.add_method("get", |_, this, k: String| {
+            Ok(this.0.borrow().get(&k).cloned())          // Option<String> → string | nil
+        });
+        m.add_method("set", |_, this, (k, v): (String, String)| {
+            this.0.borrow_mut().insert(k, v);
+            Ok(())
+        });
+    }
+}
+
+// no builder:
+.lua_extension(|lua: &mlua::Lua| {
+    let abrir = lua.create_function(|lua, ()| {
+        lua.create_userdata(Kv(RefCell::new(Default::default())))
+    })?;
+    let kv = lua.create_table()?;
+    kv.set("abrir", abrir)?;
+    lua.globals().set("kv", kv)                 // → `local d = kv.abrir(); d:set("a","1")`
+})
+```
+
+`RefCell` (não `&mut self`) porque `add_method` entrega `&self`; o app é
+single-thread (a thread da UI), então não há disputa. Um `Err` na extensão
+aborta a construção do componente com a mesma cara de um `<script>` malformado —
+melhor que um componente meio-instalado.
+
+Também há a função livre `glacier_ui::register_lua_extension(ext)`, idêntica, para
+quem não tem o builder à mão. Registrar duas vezes instala duas vezes.
+
+O exemplo `sqlite_crud` do repositório do glacier-ui leva isso ao fim: um global
+`sqlite` com `connect`/`execute`/`query`/`begin`/`commit`/`close`, e um CRUD
+escrito só no `<script>`.
 
 ## Receitas
 

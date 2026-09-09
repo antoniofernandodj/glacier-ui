@@ -1,0 +1,67 @@
+<component>
+  <resources>
+    <!-- Um `<dialog name>` é uma DECLARAÇÃO, não um widget: nada desenha aqui.
+     A varredura é recursiva, então declarar no `<resources>` de um componente
+     importado funciona. Abre com a ação `dialog:cat_form`, fecha ao clicar um
+     botão. Os campos gravam em chaves `__dialog.*` (limpas no fechamento). -->
+    <dialog name="cat_form"
+            title="Editar serviço"
+            dismissible="true"
+            buttons="Cancelar::|Salvar:dlg_salvar:accept">
+      <column class="coluna">
+        <text class="rotulo">Nome</text>
+        <textinput class="campo" value="__dialog.nome" on_change="__dialog.nome" placeholder="api-gateway" />
+        <text class="rotulo">Réplicas</text>
+        <spinbox value="__dialog.replicas" min="1" max="32" width="110" />
+      </column>
+    </dialog>
+  </resources>
+
+  <column class="secao">
+    <text class="titulo_cat">Diálogos</text>
+    <text class="intro">
+      Quase todo modal é uma CHAMADA da camada Luau que suspende o script e
+      volta com a resposta (`confirm{}`, `prompt{}`, `pick_color{}`,
+      `open_file()`, `progress{}`). O único que é markup é `&lt;dialog name&gt;`,
+      para um modal com corpo próprio.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;dialog name="cat_form"&gt;  —  modal com corpo em markup, aberto por dialog:&lt;nome&gt;</text>
+        <button class="btn_prim" text="Abrir o formulário" on_click="dialog:cat_form" />
+        <text class="nota">último salvo: {dlg_ultimo}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">Suspensivos da camada Luau  (chamados de um handler)</text>
+        <row class="linha">
+          <button class="btn" text="confirm{}" on_click="dlg_confirmar" />
+          <button class="btn" text="prompt{}" on_click="dlg_prompt" />
+          <button class="btn" text="pick_color{}" on_click="dlg_cor" />
+          <button class="btn" text="open_file()" on_click="dlg_arquivo" />
+          <button class="btn" text="progress{}" on_click="dlg_progresso" />
+        </row>
+        <text class="nota">resposta: {dlg_resposta}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">toast(...)  —  info · sucesso · aviso · erro</text>
+        <row class="linha">
+          <button class="btn" text="info" on_click="dizer:mensagem informativa" />
+          <button class="btn" text="sucesso" on_click="dlg_toast:success" />
+          <button class="btn" text="aviso" on_click="dlg_toast:warning" />
+          <button class="btn" text="erro" on_click="dlg_toast:error" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;colorwheel&gt;  —  a roda de cor avulsa (também é o corpo do pick_color{})</text>
+        <colorwheel value="dlg_cor_val" size="190" />
+        <text class="nota">dlg_cor_val = {dlg_cor_val}</text>
+      </column>
+
+    </column>
+  </column>
+</component>

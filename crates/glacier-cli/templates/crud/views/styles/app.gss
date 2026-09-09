@@ -1,0 +1,28 @@
+:root {
+  --bg:      #11111B;
+  --surface: #181825;
+  --raised:  #1E1E2E;
+  --border:  #313244;
+  --text:    #CDD6F4;
+  --muted:   #7F849C;
+  --faint:   #585B70;
+  --accent:  #89B4FA;
+  --danger:  #F38BA8;
+}
+
+/* Sem `background` na raiz: o fundo vem do theme.json (ver AGENTS.md). */
+.tela { width: fill; height: fill; padding: 20; spacing: 14; }
+
+.topo    { width: fill; align_y: center; spacing: 10; }
+.titulo  { size: 20; bold: true; color: var(--text); }
+.apagado { size: 12; color: var(--faint); }
+
+.barra { width: fill; align_y: center; spacing: 10; }
+.busca { width: 240; padding: 8 10; border_radius: 6; }
+
+.btn        { color: var(--raised); text_color: var(--text); padding: 8 16; border_radius: 6; }
+.btn:hover  { color: var(--border); }
+.btn_prim         { color: var(--accent); text_color: #11111B; bold: true; padding: 8 16; border_radius: 6; }
+.btn_prim:hover   { color: #A6C8FF; }
+.btn_danger       { color: var(--raised); text_color: var(--danger); padding: 8 16; border_radius: 6; }
+.btn_danger:hover { color: var(--danger); text_color: var(--text); }

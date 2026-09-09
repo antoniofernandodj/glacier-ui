@@ -1,0 +1,56 @@
+<screen title="{{titulo}} — catálogo de widgets" size="1040 720" min_size="640 480">
+  <resources>
+    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+
+    <script src="scripts/app.luau"></script>
+
+    <link rel="import" href="components/nav_item.gv" as="NavItem" />
+
+    <link rel="import" href="categorias/botoes.gv"    as="Botoes" />
+    <link rel="import" href="categorias/texto.gv"     as="Texto" />
+    <link rel="import" href="categorias/numericos.gv" as="Numericos" />
+    <link rel="import" href="categorias/selecao.gv"   as="Selecao" />
+    <link rel="import" href="categorias/data_hora.gv" as="DataHora" />
+    <link rel="import" href="categorias/displays.gv"  as="Displays" />
+    <link rel="import" href="categorias/containers.gv" as="Containers" />
+    <link rel="import" href="categorias/navegacao.gv" as="Navegacao" />
+    <link rel="import" href="categorias/barras.gv"    as="Barras" />
+    <link rel="import" href="categorias/overlays.gv"  as="Overlays" />
+    <link rel="import" href="categorias/graficos.gv"  as="Graficos" />
+    <link rel="import" href="categorias/dialogos.gv"  as="Dialogos" />
+  </resources>
+
+  <row class="janela">
+    <column class="sidebar">
+      <text class="marca">CATÁLOGO</text>
+      <NavItem rotulo="Botões e ações"     rota="botoes"     acao="ir:botoes"     ativo="{view}" />
+      <NavItem rotulo="Entradas de texto"  rota="texto"      acao="ir:texto"      ativo="{view}" />
+      <NavItem rotulo="Numéricas e valor"  rota="numericos"  acao="ir:numericos"  ativo="{view}" />
+      <NavItem rotulo="Seleção e listas"   rota="selecao"    acao="ir:selecao"    ativo="{view}" />
+      <NavItem rotulo="Data e hora"        rota="data_hora"  acao="ir:data_hora"  ativo="{view}" />
+      <NavItem rotulo="Displays"           rota="displays"   acao="ir:displays"   ativo="{view}" />
+      <NavItem rotulo="Containers"         rota="containers" acao="ir:containers" ativo="{view}" />
+      <NavItem rotulo="Navegação"          rota="navegacao"  acao="ir:navegacao"  ativo="{view}" />
+      <NavItem rotulo="Janela e barras"    rota="barras"     acao="ir:barras"     ativo="{view}" />
+      <NavItem rotulo="Overlays e dicas"   rota="overlays"   acao="ir:overlays"   ativo="{view}" />
+      <NavItem rotulo="Gráficos"           rota="graficos"   acao="ir:graficos"   ativo="{view}" />
+      <NavItem rotulo="Diálogos"           rota="dialogos"   acao="ir:dialogos"   ativo="{view}" />
+    </column>
+
+    <scrollable class="conteudo">
+      <Botoes     if="{view}" equals="botoes" />
+      <Texto      if="{view}" equals="texto" />
+      <Numericos  if="{view}" equals="numericos" />
+      <Selecao    if="{view}" equals="selecao" />
+      <DataHora   if="{view}" equals="data_hora" />
+      <Displays   if="{view}" equals="displays" />
+      <Containers if="{view}" equals="containers" />
+      <Navegacao  if="{view}" equals="navegacao" />
+      <Barras     if="{view}" equals="barras" />
+      <Overlays   if="{view}" equals="overlays" />
+      <Graficos   if="{view}" equals="graficos" />
+      <Dialogos   if="{view}" equals="dialogos" />
+    </scrollable>
+  </row>
+</screen>

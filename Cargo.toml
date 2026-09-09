@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.99.0"
+version = "0.100.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -157,6 +157,10 @@ path = "examples/http_client_luau/main.rs"
 name = "console_luau"
 path = "examples/console_luau/main.rs"
 
+[[example]]
+name = "sqlite_crud"
+path = "examples/sqlite_crud/main.rs"
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
 roxmltree = "0.21"
@@ -235,6 +239,14 @@ optional = true
 version = "0.23"
 optional = true
 default-features = false
+
+[dev-dependencies]
+# Só para o exemplo `sqlite_crud`, que mostra um app REGISTRANDO funções Rust
+# na camada Lua (`GlacierDaemon::lua_extension`). O motor NÃO depende de
+# sqlite — a ponte inteira é código do exemplo. `bundled` compila o SQLite
+# junto (o mesmo toolchain C que o `mlua` vendored já exige), então o exemplo
+# roda sem `libsqlite3` instalada no sistema.
+rusqlite = { version = "0.30", features = ["bundled"] }
 
 [features]
 # Habilita o ícone de bandeja e o app que sobrevive à última janela. `dep:gtk` e

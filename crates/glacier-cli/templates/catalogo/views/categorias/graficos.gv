@@ -1,0 +1,44 @@
+<component>
+  <column class="secao">
+    <text class="titulo_cat">Gráficos e visualização</text>
+    <text class="intro">
+      Todos leem `items` como NOME de chave (aqui não vale JSON inline). `min`/
+      `max` vazios = escala automática 1·2·5; `series="chave"` (várias séries)
+      vence `items` e só o `&lt;linechart&gt;`/`&lt;sparkline&gt;` o aceita.
+    </text>
+
+    <column class="demos">
+
+      <column class="demo">
+        <text class="rotulo">&lt;linechart&gt;  ·  &lt;linechart area points&gt;</text>
+        <row class="linha">
+          <linechart items="gr_serie" min="0" class="grafico" />
+          <linechart items="gr_serie" min="0" area="true" points="true" class="grafico" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;linechart series="…"&gt;  —  várias séries, legenda e ciclo de cores do tema</text>
+        <linechart series="gr_carga" min="0" grid="true" class="grafico" />
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;barchart colorful&gt;  ·  &lt;piechart&gt;  ·  &lt;donut&gt;</text>
+        <row class="linha">
+          <barchart items="gr_barras" colorful="true" class="grafico" />
+          <piechart items="gr_fatias" size="170" percentages="true" />
+          <donut items="gr_fatias" size="170" percentages="true" />
+        </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;sparkline&gt;  —  é &lt;linechart axes="false" grid="false"&gt;, para uma célula</text>
+        <row class="linha">
+          <sparkline items="gr_lat" class="mini" />
+          <sparkline items="gr_lat" class="mini" area="true" color="#F9E2AF" />
+        </row>
+      </column>
+
+    </column>
+  </column>
+</component>
