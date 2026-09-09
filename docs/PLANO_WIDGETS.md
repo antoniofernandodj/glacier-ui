@@ -15,13 +15,16 @@ e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
 Última revisão da fila: **2026-09-09**, sobre a 0.98 (ondas 3 a 9 fechadas; **a
 10 feita PARCIALMENTE**: `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅; o
-`TextBrowser` fica, pede uma primitiva `<markdown>`. **A 11 completada** pelo
+`TextBrowser` fica **fora por decisão de 2026-09-09**. **A 11 completada** pelo
 habilitador C — série múltipla nos gráficos, `AreaChart`/`Scatter` 🟡→✅. **A 12
 feita** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível). **A 13
 feita** — o `canvas` declarativo (`<path>`/`<arc>`/`<circle>`/…, `src/shapes.rs`)
 mais o `QWhatsThis` de carona (`whats_this=`). 88,8% → **94,4%** (118/125).
-**Onda 14 desenhada em 2026-09-09**, pendente de decisão de escopo (wgpu +
-impressão). A ordenação por **função** — widgets que carregam lógica — que a
+**Onda 14 decidida em 2026-09-09: só o `PrintDialog`** — de `Shader`, `Q3D`,
+`TextBrowser` e `PrintDialog`, a decisão foi construir *só o `PrintDialog`*
+(impressão, integração de SO); os outros três saem da fila, por escrito. O teto
+do catálogo passa a **119/125 (95,2%)**. A ordenação por **função** — widgets
+que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
 carrega markup) parecia ter fechado o último item do catálogo com o formato "um
 habilitador, meia dúzia de widgets".
@@ -66,9 +69,10 @@ na §6.2.
 
 **A fila continua** (revisão de 2026-09-09): a **Onda 10** foi retomada e saiu
 **PARCIALMENTE (0.98)** — `FontSelect`, `FontDialog` e o `PlainTextEditor` 🟡→✅,
-sobre o registro de famílias `src/fonts.rs`; o `TextBrowser` ficou (pede uma
-primitiva `<markdown>`). E a **Onda 11 foi completada** pelo **habilitador C** —
-série múltipla nos gráficos (`series="[{name,points}]"`, legenda, ciclo de cores
+sobre o registro de famílias `src/fonts.rs`; o `TextBrowser` ficou, e depois
+**saiu da fila por decisão de 2026-09-09**. E a **Onda 11 foi completada** pelo
+**habilitador C** — série múltipla nos gráficos (`series="[{name,points}]"`,
+legenda, ciclo de cores
 do tema), que fecha o `AreaChart`/`Scatter` 🟡→✅. E a **Onda 12 foi feita**: o
 `Dock` (`<dock>`, primitiva) — `grip::Alvo::Zona` comete a borda **na soltura**,
 sem reparent no meio do gesto, e o `render_dock` monta `<splitter>`/`<stack>`
@@ -76,10 +80,12 @@ entre quadros. E a **Onda 13 foi feita**: o `canvas` declarativo — `<canvas>`
 pai, `<path>`/`<arc>`/`<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>` +
 `<text>`, geometria inline e traço no `.gss` (`src/shapes.rs`) — mais o
 `QWhatsThis` de carona (`whats_this=` + `whatsthis:toggle`). 88,8% → **94,4%**
-(118/125). Sobra a **Onda 14** — só se a promessa do documento mudar — em wgpu e
-impressão (`Shader`/`Q3D`/`PrintDialog`): levaria a **96,8%**; com o
-`TextBrowser` (que pede a primitiva `<markdown>`), a **97,6%** — o catálogo tal
-como escrito, esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
+(118/125). Sobra a **Onda 14**, e a revisão de 2026-09-09 a reduziu a **um
+item**: de `Shader`, `Q3D`, `TextBrowser` e `PrintDialog`, a decisão foi
+construir **só o `PrintDialog`** (integração de SO — `lp`/`lpr`/spooler —, não
+wgpu). Os outros três ficam **fora por decisão**, por escrito. A 14 leva o
+catálogo a **119/125, 95,2%**, e esse passa a ser o teto: o catálogo tal como
+escrito, esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -161,7 +167,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QLineEdit (mask/validator) | `MaskedInput` | **Prim** | text_input | ◐ | P2 | ✅ | `<maskedinput value="cpf" mask="cpf" />`. Guarda **cru** na chave, exibe mascarado — a mesma separação valor/`displayFormat` do `<dateedit>`. Gramática `#`/`A`/`*` + literais, com presets `cpf`/`cnpj`/`telefone`/`cep`/`placa`/`date`/`hora`/`cartao`; a dica default é a máscara com `_`. A reclassificação (de `Comp ●` para `Prim ◐`) se confirmou. Onda 4 (0.85) |
 | QTextEdit (rich) | `TextEditor` | Prim | text_editor | ● | P1 | ✅ | multi-linha; rich text é limitado |
 | QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação. O 🟡 é a fonte: `font_for` conhece **duas** famílias (`widget.rs`), então "texto simples em mono declarável" não dá para escrever. Fecha na **Onda 10** |
-| QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3, de carona na **Onda 10** — o bloco de código dele é o primeiro consumidor do registro de famílias |
+| QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | **fora por decisão (2026-09-09, "só o `PrintDialog`")** — pediria uma primitiva `<markdown>` própria (parser + render + estado dos itens + `on_link`), trabalho próprio, não carona do registro de famílias |
 | QKeySequenceEdit | `ShortcutInput` | **Prim** | text_input | ◐ | P3 | ✅ | captura combinação de teclas. **Onda 9** (0.95): é o listener de teclado do habilitador B em modo de captura — a combinação vai numa chave nomeada, e qual campo captura é global (`__shortcut_cap`), como o `__timeedit`. É um **botão**, não um `<textinput>`: um campo de texto consumiria a tecla antes de o listener global a ver |
 | QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
 | — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Recorta a lista sem acento e sem caixa ("sao paulo" acha "São Paulo"), ▲▼ navegam, Enter aceita, Esc desiste — e as três teclas ganham do campo focado porque quem as recebe é o **overlay** (0.92) |
@@ -277,7 +283,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | — (skeleton) | `Skeleton` | Built | container | — | P2 | ✅ | um `<Container>` cinza do tamanho declarado — de propósito sem a pulsação animada que alguns kits desenham (pediria um tique de relógio por instância para uma economia que não se paga). **Onda 11** |
 | — (QR) | `QrCode` | Prim | qr_code | — | P3 | ✅ | `qr_code` do iced atrás da feature `qr_code`; o `qr_code::Data` (não é `Clone` — guarda um `canvas::Cache`) é cacheado por conteúdo com um `Box::leak` por string distinta, o mesmo troco que o registro de fontes da Onda 10 preveria fazer. **Onda 11** |
 | QGraphicsView | `Canvas` | **Prim** | canvas | — | P3 | ✅ | **Onda 13** (0.98): não como callback imperativo (a Onda 7 recusou isso, e continua recusado), mas como **vocabulário de formas** — `<canvas>` pai, e sob ele `<path>`/`<arc>`/`<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>` (cada um um `NodeType::Shape`) + `<text>` (que segue `NodeType::Text`, lido como forma pela posição `x=`/`y=`). Geometria (`cx`, `d`, `points`) é dado e fica inline; traço/preenchimento é estilo e sai de uma classe `.gss` (`fill`/`stroke`/`stroke-width` são apelidos de `background`/`border-color`/`border-width`). A caixa de ferramentas — arco, bézier — é a do `src/canvas.rs` da Onda 7. O `●` não valia: o `<canvas>` não tem estado por instância. **Fica de fora, por escrito:** o comando `A`/`a` de `<path>` (arco elíptico — use `<arc>`), `on_click`/hover numa forma, animação por tique |
-| QOpenGLWidget | `Shader` | Prim | shader | ● | P3 | ⬜ | iced `shader` (wgpu) |
+| QOpenGLWidget | `Shader` | Prim | shader | ● | P3 | ⬜ | **fora por decisão (2026-09-09, "só o `PrintDialog`")** — wgpu/WGSL, GPU custom; nunca prometido |
 | — (toast) | `Toast` | Motor | stack | — | P1 | ✅ | já existe (`toasts.rs`) |
 
 ### 2.7 Containers e agrupadores
@@ -336,7 +342,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QColorDialog | `ColorDialog` | Diál | stack+canvas | ◐ | P2 | ✅ | `pick_color{}` — anel de matiz (180 setores) mais o quadrado saturação×valor, sobre o `src/canvas.rs` da Onda 7. É um `prompt{}` cujo campo é uma roda: mesma porta, mesmo retorno. A primitiva `<colorwheel>` também vale avulsa. Onda 8 (0.94) |
 | QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho. **Onda 10** (§6.2), sobre o corpo em markup da Onda 8. **Não é um item de diálogo**: o motor conhece duas fontes (`font_for`, `widget.rs`), não tem registro de famílias e o `iced` não enumera as do SO. Espera um item de **Motor** (famílias de fonte), com quem sai junto do `FontSelect` da §2.4 — ver Onda 8, "fica de fora" |
 | QErrorMessage | (coberto por `error`) | Diál | — | — | — | ✅ | redundante |
-| QPrintDialog/QPageSetup | `PrintDialog` | Diál | `rfd`/SO | ● | P3 | ⬜ | impressão (fora do escopo inicial) |
+| QPrintDialog/QPageSetup | `PrintDialog` | Diál | `lp`/`lpr`/spooler | ● | P3 | ⬜ | **Onda 14** — a única linha da fila: `print{}` suspensivo + corpo em markup da Onda 8, lista de impressoras semeada em `__printers`; o `●` cai (19ª correção de nível) |
 
 > **Decisão pendente (§4):** diálogos de arquivo/cor nativos (via crate `rfd`)
 > vs. construídos em glacier-ui. `rfd` entrega já-funcional e nativo do SO; a
@@ -380,7 +386,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QChartView (pizza) | `PieChart` | **Prim** | canvas | — | P2 | ✅ | setores com percentual; `<donut>` é a mesma tag com o buraco aberto. Onda 7 |
 | QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | ✅ | `area="true"` e `points="true"` no `<linechart>`, e desde a 0.98 **também com série múltipla**: `series="chave"` guarda `[{name, points, color?}]`, a `Moldura`/`escala` não mudam, `limites_multi` concatena os pontos para a faixa, `cor_ciclica` (do `<piechart>`) dá cor a quem não declarou e a legenda sai no canto. Habilitador C da Onda 11, entregue ao completá-la — ver `src/charts.rs::SerieNomeada` |
 | — (sparkline) | `Sparkline` | **Prim** | canvas | — | P2 | ✅ | é `<linechart axes="false">` — a mesma primitiva, outros defaults. Onda 7 |
-| Q3D* (3D bars/scatter) | — | Comp | shader | ● | P3 | ⬜ | escopo distante (wgpu) |
+| Q3D* (3D bars/scatter) | — | Comp | shader | ● | P3 | ⬜ | **fora por decisão (2026-09-09, "só o `PrintDialog`")** — depende do `Shader` (wgpu) |
 
 ---
 
@@ -628,9 +634,10 @@ próprio)~~ ✅ · ~~`InputDialog`~~ ✅ · ~~`ProgressDialog`~~ ✅ ·
 
 A releitura se confirmou: os "diálogos ricos" não eram N trabalhos, eram **um**
 — o `DialogSpec` ganhar um **corpo em markup** e um **retorno tipado**, e aí
-cada diálogo da lista virou composição de widgets que já existiam. Sobram o
-`FontDialog` (que espera um item de motor, não um diálogo) e o `PrintDialog`
-(fora de escopo), os dois justificados na Onda 8.
+cada diálogo da lista virou composição de widgets que já existiam. A Onda 8
+deixou dois em aberto: o `FontDialog` (que esperava um item de motor, não um
+diálogo — **saiu na Onda 10**, sobre `src/fonts.rs`) e o `PrintDialog` (que a
+revisão de 2026-09-09 pôs na **Onda 14**, a única linha que sobrou da fila).
 
 **Fase F — overlays e menus (P2) — ✅ fechada (0.92)**
 ~~`Menu` · `ContextMenu` · `MenuBar`~~ ✅ (overlay próprio em `src/menu.rs`) →
@@ -788,17 +795,18 @@ ondas 9 a 11):
 | **Onda 11 completa (0.98)** — habilitador C: `AreaChart`/`Scatter` 🟡→✅ | 115 | 3 | 7 | 92,0% |
 | **Onda 12 feita (0.98)** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível) | 116 | 3 | 6 | 92,8% |
 | **Onda 13 feita (0.98)** — `Canvas` declarativo (`<path>`/`<arc>`/…) + `QWhatsThis` | **118** | 3 | 4 | **94,4%** |
-| depois da **Onda 14** (`Shader`, `Q3D`, `PrintDialog` — pende decisão de escopo) | 121 | 3 | 1 | **96,8%** |
-| — e com o `TextBrowser` (pede uma primitiva `<markdown>`) | 122 | 3 | 0 | **97,6%** |
+| **Onda 14 — decidida em 2026-09-09: só `PrintDialog`** (`Shader`, `Q3D`, `TextBrowser` → fora por decisão) | **119** | 3 | 0 | **95,2%** |
 
-Uma correção de nível nas ondas 10 e 12 (`FontSelect`, a 16ª; `Dock`, a 18ª;
-nenhuma nas outras), **nenhum item novo do §3** — o registro de famílias já
-estava listado, o habilitador C foi `charts.rs` autocontido, o D é decisão de
-design sobre peças prontas, o vocabulário de formas é o `canvas` da Onda 7
-aberto em nós, e a Onda 14 é `iced`/`rfd`. O único ⬜ que sobra depois da 14 é o
-`TextBrowser` (que virou trabalho próprio — a primitiva `<markdown>`); os **3
-🟡** finais (`ScrollBar`, `QStackedLayout`, `QScroller`) são `🟡` de propósito.
-**97,6% é o catálogo esgotado.**
+Uma correção de nível nas ondas 10, 12 e 14 (`FontSelect`, a 16ª; `Dock`, a 18ª;
+`PrintDialog`, a 19ª; nenhuma nas outras), **nenhum item novo do §3** — o
+registro de famílias já estava listado, o habilitador C foi `charts.rs`
+autocontido, o D é decisão de design sobre peças prontas, o vocabulário de
+formas é o `canvas` da Onda 7 aberto em nós, e a Onda 14 (`PrintDialog`) é
+integração de SO — `lp`/`lpr` no Unix, o spooler no Windows —, não wgpu. Depois
+da 14 **não sobra ⬜**: `Shader`, `Q3D` e `TextBrowser` saíram da fila por
+decisão de 2026-09-09 ("só o `PrintDialog`"), e os **3 🟡** finais (`ScrollBar`,
+`QStackedLayout`, `QScroller`) são `🟡` de propósito. **95,2% é o catálogo
+esgotado.**
 
 **Duas categorias fecharam na Onda 8**, e foi a primeira vez que duas fecharam
 juntas: os diálogos (13/15, com os dois restantes justificados por escrito) e a
@@ -1018,8 +1026,9 @@ de 2026-09-08, que desenhou mais duas):
   o **último** habilitador de motor que o catálogo tem escrito
   (`src/fonts.rs`), e quatro linhas em cima dele. Pulada a pedido na época da
   11; retomada depois. Saíram três — `FontSelect` (16ª correção de nível),
-  `FontDialog` (`pick_font{}`), `PlainTextEditor` 🟡→✅; o `TextBrowser` fica
-  (pede uma primitiva `<markdown>`). 88,8% → **91,2%**.
+  `FontDialog` (`pick_font{}`), `PlainTextEditor` 🟡→✅; o `TextBrowser` **saiu
+  da fila por decisão de 2026-09-09** (pediria uma primitiva `<markdown>`
+  própria). 88,8% → **91,2%**.
 - **Onda 11** 🟡→ quase completa — o que fica por cima (`<stack>`/`pin`) saiu na
   0.96 com dois cortes; o menor, a **série múltipla** (habilitador C), voltou na
   **0.98** — `series="[{name,points,color?}]"`, legenda e ciclo de cores do
@@ -1035,10 +1044,11 @@ de 2026-09-08, que desenhou mais duas):
   condicional da Onda 7 executada, mais o `QWhatsThis` de carona
   (`whats_this=` + `whatsthis:toggle`). `src/shapes.rs` novo; `fill`/`stroke`
   como apelidos, zero campo. 92,8% → **94,4%**.
-- **Onda 14** ⬜ **pendente de decisão de escopo** — `Shader`, `Q3D` e
-  `PrintDialog`, as três linhas que o documento sempre marcou como "outro
-  projeto". Só vira fila com um "sim". 94,4% → **96,8%** (**97,6%** com o
-  `TextBrowser`).
+- **Onda 14** ⬜ **decidida em 2026-09-09: só o `PrintDialog`** — de `Shader`,
+  `Q3D`, `TextBrowser` e `PrintDialog`, a decisão foi construir **só o
+  `PrintDialog`** (impressão via `lp`/`lpr`/spooler + corpo de diálogo da Onda
+  8). Os outros três ficam **fora por decisão**, por escrito. 94,4% → **95,2%**
+  (119/125), e esse é o teto.
 
 ---
 
@@ -2595,59 +2605,62 @@ handler, não os do `init`, que só registra streams; o exemplo tinha o `every`
 no `init` e a agulha ficava parada).
 
 ---
-#### Onda 14 — o que o documento nunca prometeu — ⬜ **proposta (2026-09-09), pendente de decisão de escopo**
+#### Onda 14 — a impressão, e só ela — ⬜ **decidida (2026-09-09): só o `PrintDialog`**
 
-**Alvo: 115 → 118 de 125 (de 92,0% para 94,4%).**
+**Alvo: 118 → 119 de 125 (de 94,4% para 95,2%). É o teto.**
 
-As três linhas que sobram depois da Onda 13 são as que este documento marcou,
-revisão após revisão, como **"outro projeto"**: `Shader` e `Q3D` (wgpu) e
-`PrintDialog` (impressão). Esta onda só existe se a resposta à pergunta *"o
-glacier-ui entra em GPU custom e impressão?"* for sim. Enquanto não for, ela
-fica aqui como o teto declarado, não como fila.
+Depois da Onda 13 sobravam quatro linhas: `Shader` e `Q3D` (wgpu), `TextBrowser`
+(uma primitiva `<markdown>` própria) e `PrintDialog` (impressão). A revisão de
+2026-09-09 decidiu **construir só o `PrintDialog`** — *"de todos estes só quero o
+PrintDialog"*. As outras três saem da fila **por decisão, escrita**: não é
+bloqueio de motor nem falta de tempo, é escopo. `Shader`/`Q3D` continuam sendo
+GPU custom que o documento nunca prometeu; o `TextBrowser` continua pedindo um
+parser+render de markdown que é trabalho próprio, não carona.
 
-##### Os três
+##### O `PrintDialog`
 
 | Linha | Hoje | Depois |
 |---|---|---|
-| `Shader` (§2.6) | ⬜ `Prim ●` | ✅ **Prim** — `<shader src="…">` sobre o `iced::widget::shader`, apontando um WGSL que o daemon carrega como já carrega `font(bytes)`. O `●` **fica honesto** aqui: um shader tem estado de GPU por instância, e este é o primeiro `●` do catálogo que não vira chave nomeada |
-| `Q3D` (§2.13) | ⬜ `Comp ●` | ✅ **Comp** — barras/scatter 3D sobre `<shader>`, um irmão de `charts.rs` que renderiza para um primitivo de shader em vez do `canvas`. Depende do `<shader>` acima |
-| `PrintDialog` (§2.10) | ⬜ `Diál ●` | ✅ **Diál** — `print{}` sobre `rfd`/SO, a forma da família `FileDialog` (suspensivo como `confirm()`), com `DialogOutcome`. **Zero linhas de diálogo novas** — o corpo em markup da Onda 8 é a porta, como seria para o `FontDialog`. É o mais barato dos três e o mais separável: não é wgpu, é integração de SO como os diálogos de arquivo que já existem |
+| `PrintDialog` (§2.10) | ⬜ `Diál ●` | ✅ **Diál** — um `print{}` suspensivo (a forma de `confirm()`/`pick_file()`), com `DialogOutcome`. O corpo é **markup**, pelo mecanismo da Onda 8 — **zero linhas de diálogo novas** —, um `__PrintDialog` com impressora, cópias, faixa de páginas e orientação. A lista de impressoras é uma chave semeada `__printers` (como o `__fonts` da Onda 10, de `lpstat -a`/CUPS), então o `●` **cai**: não há estado por instância, é chave nomeada mais o campo singleton de diálogo — a **19ª correção de nível**. Na confirmação, o motor manda o documento (um caminho de arquivo, ou o `<canvas>` renderizado em PDF) para `lp`/`lpr` no Unix e para o spooler (`winspool`) no Windows |
+
+**Fica de fora, por escrito:** o preview WYSIWYG de página, os painéis de opção
+do driver da impressora (a aba avançada do `QPageSetupDialog`) e o "imprimir em
+PDF" como alvo de primeira classe — esse é `pick_file{}` mais um escritor de
+PDF, outra coisa.
 
 ##### A conta da onda
 
 | | ✅ | % |
 |---|---|---|
-| entra (depois da Onda 13) | 115 | 92,0% |
-| `PrintDialog` (⬜ → ✅) | 116 | 92,8% |
-| `Shader` (⬜ → ✅) | 117 | 93,6% |
-| `Q3D` (⬜ → ✅) | **118** | **94,4%** |
+| entra (depois da Onda 13) | 118 | 94,4% |
+| `PrintDialog` (⬜ → ✅) | **119** | **95,2%** |
 
-**Categorias que fecham:** a §2.6 (**15/15**, com o `Shader`) e a §2.13
-(**6/6**, com o `Q3D`). A §2.10 vai a 14/15 (sobra o `FontDialog`, que é da Onda
-10).
+**Categorias que fecham:** a §2.10 vai a **15/15** — fecha a seção de diálogos
+inteira (o `FontDialog` saiu na Onda 10). A §2.6 fica em **14/15** para sempre
+(o `Shader` está fora por decisão) e a §2.13 em **5/6** (o `Q3D`, idem).
 
 ##### O que sobra depois da Onda 14 — e o teto real
 
-Sete linhas, e nenhuma é "alguém decidiu fazer e não fez":
+Nada que "alguém decidiu fazer e não fez":
 
-- **Onda 10, pulada a pedido** (3 ⬜ + 1 🟡): `FontSelect`, `FontDialog`,
-  `TextBrowser` e o `PlainTextEditor` 🟡. Quando ela rodar, o catálogo vai a
-  **122/125 — 97,6%**.
+- **Três linhas fora por decisão** (2026-09-09): `Shader`, `Q3D` (wgpu, GPU
+  custom) e `TextBrowser` (primitiva `<markdown>`). Não voltam sem uma decisão
+  nova em sentido contrário.
 - **Três `🟡` de propósito**: `ScrollBar` (embutido no `scrollable`),
   `QStackedLayout` (é o `se`/`senao` e o `<stackview>`), `QScroller` (rolagem por
   gesto no `scrollable`). Nenhum vira ✅ sem deixar de ser o que é.
 
-Ou seja: **97,6% é o catálogo tal como escrito, esgotado** — com a Onda 10
-somada às três aqui propostas, o que sobra são os três `🟡` que são `🟡` de
-propósito desde que foram escritos.
+Ou seja: **95,2% (119/125) é o catálogo esgotado** — o que sobra são três linhas
+que uma decisão explícita tirou da fila e três `🟡` que são `🟡` de propósito
+desde que foram escritos.
 
 ##### A previsão, para ser conferida depois
 
-**Onda 14 = 118 / 94,4%** (isolada) ou **122 / 97,6%** com a Onda 10 junto.
-Nenhuma correção de nível — o `●` do `Shader` e do `Q3D` é o primeiro do
-catálogo que **continua `●` depois de construído**, porque GPU por instância não
-é uma chave nomeada. É a onda que muda a promessa do documento, e por isso ela
-espera um "sim" antes de virar fila.
+**Onda 14 = 119 / 95,2%.** Uma correção de nível (`PrintDialog`, a 19ª — o `●`
+não valia: a lista de impressoras é a chave `__printers`, e o diálogo é
+singleton, como os treze da tabela do §5). **Nenhum item novo do §3** — é
+integração de SO (`lp`/`lpr`/spooler) e o corpo de diálogo da Onda 8, os dois já
+no motor. É a onda que **fecha** o documento.
 
 ---
 #### Onde os habilitadores do §3 foram parar
@@ -2734,11 +2747,13 @@ hardcoded — e quatro linhas ⬜ do catálogo escrevem "Stack" na nota ou na co
 carona no habilitador A (`<stack>`) ou sozinhos — nenhum abriu rodada própria,
 exatamente como esta seção sempre disse que devia ser.
 
-Sobra **um**, e ele não podia sair aqui: o `TextBrowser` espera o registro de
-famílias de fonte para o bloco de código, que é a **Onda 10** — proposta, não
-executada (o usuário pediu para pular direto para a 11). Fica exatamente onde
-estava, esperando a mesma coisa de sempre.
+Sobrava **um**, o `TextBrowser` — e a revisão de 2026-09-09 (*"de todos estes só
+quero o `PrintDialog`"*) o tirou da fila **por decisão**. O registro de famílias
+da Onda 10 nunca foi o bloqueio dele: um `TextBrowser` de verdade pede uma
+primitiva `<markdown>` própria (parser + render + estado dos itens + `on_link`),
+que é trabalho próprio, não carona. Fica registrado aqui, fora de escopo por
+escrito.
 
 | Widget | Nível | Prio | Nota |
 |---|---|---|---|
-| `TextBrowser` | Built | P2 | Render read-only de markdown com links, sobre o `markdown` do iced — o bloco de código é o primeiro consumidor do registro de famílias da Onda 10 |
+| `TextBrowser` | Built | P2 | **Fora por decisão (2026-09-09).** Render read-only de markdown com links, sobre o `markdown` do iced — pediria uma primitiva `<markdown>` própria; não é carona do registro de famílias |
