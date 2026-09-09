@@ -13,13 +13,13 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-09**, sobre a 0.98 (ondas 3 a 9 fechadas;
-**11 feita PARCIALMENTE** — `Dock` e série múltipla cortados —, e **a 10
-retomada e feita PARCIALMENTE (0.98)**: `FontSelect`, `FontDialog` e o
-`PlainTextEditor` 🟡→✅; o `TextBrowser` fica (precisa de uma primitiva
-`<markdown>`). 88,8% → **91,2%** (114/125). Ver o resultado no fim da seção da
-Onda 10, na §6.2. **Ondas 12 a 14 desenhadas em 2026-09-09**, ainda não
-executadas. A ordenação por **função** — widgets que carregam lógica — que a
+Última revisão da fila: **2026-09-09**, sobre a 0.98 (ondas 3 a 9 fechadas; **a
+10 retomada e feita PARCIALMENTE**: `FontSelect`, `FontDialog`, `PlainTextEditor`
+🟡→✅; o `TextBrowser` fica, pede uma primitiva `<markdown>`; e **a 11
+completada pelo habilitador C** — série múltipla nos gráficos,
+`AreaChart`/`Scatter` 🟡→✅. Sobra o `Dock`, que passa a ser a Onda 12 sozinho.
+88,8% → **92,0%** (115/125). **Ondas 12 a 14 desenhadas em 2026-09-09**, ainda
+não executadas. A ordenação por **função** — widgets que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
 carrega markup) parecia ter fechado o último item do catálogo com o formato "um
 habilitador, meia dúzia de widgets".
@@ -63,16 +63,17 @@ motor (`<stack>`/`pin`, `grip::Alvo::Ponto`), a 17ª correção de nível
 na §6.2.
 
 **A fila continua** (revisão de 2026-09-09): a **Onda 10** foi retomada e saiu
-**PARCIALMENTE (0.98)** — `FontSelect`, `FontDialog` e o `PlainTextEditor`
-🟡→✅, sobre o registro de famílias `src/fonts.rs`; o `TextBrowser` ficou (pede
-uma primitiva `<markdown>`). 88,8% → **91,2%** (114/125). Depois dela, as ondas
-12 a 14 pegam de volta os dois cortes da 11 (`Dock` e a série múltipla — **Onda
-12**), executam a frase condicional da Onda 7 sobre o `canvas` declarativo e
-emendam o `QWhatsThis` (**Onda 13**) e, só se a promessa do documento mudar,
-entram em wgpu e impressão (`Shader`/`Q3D`/`PrintDialog` — **Onda 14**). Levam o
-catálogo a **92,8%, 94,4% e 96,8%**; com o `TextBrowser`, a **97,6%** — o
-catálogo tal como escrito, esgotado. Detalhe nas seções das ondas na §6.2,
-previsão na §5.
+**PARCIALMENTE (0.98)** — `FontSelect`, `FontDialog` e o `PlainTextEditor` 🟡→✅,
+sobre o registro de famílias `src/fonts.rs`; o `TextBrowser` ficou (pede uma
+primitiva `<markdown>`). E a **Onda 11 foi completada** pelo **habilitador C** —
+série múltipla nos gráficos (`series="[{name,points}]"`, legenda, ciclo de cores
+do tema), que fecha o `AreaChart`/`Scatter` 🟡→✅. 88,8% → **92,0%** (115/125).
+Sobra da 11 só o `Dock`, que vira a **Onda 12** sozinho. Depois dela, a **Onda
+13** executa a frase condicional da Onda 7 sobre o `canvas` declarativo e emenda
+o `QWhatsThis`, e a **Onda 14** — só se a promessa do documento mudar — entra em
+wgpu e impressão (`Shader`/`Q3D`/`PrintDialog`). Levam o catálogo a **92,8%,
+94,4% e 96,8%**; com o `TextBrowser`, a **97,6%** — o catálogo tal como escrito,
+esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -371,7 +372,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QChartView (linha) | `LineChart` | **Prim** | canvas | — | P2 | ✅ | eixos com escala 1·2·5, grade, área e pontos. `min`/`max` vazios = automático; escritos, fixam a escala. Onda 7 |
 | QChartView (barra) | `BarChart` | **Prim** | canvas | — | P2 | ✅ | base sempre no ZERO quando `min` não é declarado; `colorful` dá uma cor por categoria. Onda 7 |
 | QChartView (pizza) | `PieChart` | **Prim** | canvas | — | P2 | ✅ | setores com percentual; `<donut>` é a mesma tag com o buraco aberto. Onda 7 |
-| QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | 🟡 | `area="true"` e `points="true"` no `<linechart>` cobrem os dois casos de uma série. O que falta é **série múltipla**, anotado na Onda 7 (e no cabeçalho do `charts.rs`) como o próximo passo da família — seria o habilitador C da Onda 11, mas ficou de fora dela: sem dependência do que a onda entregou, autocontido em `charts.rs`, fica para uma leva futura |
+| QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | ✅ | `area="true"` e `points="true"` no `<linechart>`, e desde a 0.98 **também com série múltipla**: `series="chave"` guarda `[{name, points, color?}]`, a `Moldura`/`escala` não mudam, `limites_multi` concatena os pontos para a faixa, `cor_ciclica` (do `<piechart>`) dá cor a quem não declarou e a legenda sai no canto. Habilitador C da Onda 11, entregue ao completá-la — ver `src/charts.rs::SerieNomeada` |
 | — (sparkline) | `Sparkline` | **Prim** | canvas | — | P2 | ✅ | é `<linechart axes="false">` — a mesma primitiva, outros defaults. Onda 7 |
 | Q3D* (3D bars/scatter) | — | Comp | shader | ● | P3 | ⬜ | escopo distante (wgpu) |
 
@@ -777,15 +778,16 @@ ondas 9 a 11):
 | | ✅ | 🟡 | ⬜ | % do catálogo |
 |---|---|---|---|---|
 | Onda 11 parcial, Onda 10 pulada (0.96) | 111 | 5 | 9 | 88,8% |
-| **Onda 10 retomada (0.98)** — `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅ | **114** | 4 | 7 | **91,2%** |
-| depois da **Onda 12** (`Dock` + série múltipla `AreaChart`/`Scatter` 🟡→✅) | 116 | 3 | 6 | **92,8%** |
+| **Onda 10 retomada (0.98)** — `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅ | 114 | 4 | 7 | 91,2% |
+| **Onda 11 completa (0.98)** — habilitador C: `AreaChart`/`Scatter` 🟡→✅ | **115** | 3 | 7 | **92,0%** |
+| depois da **Onda 12** (`Dock` — só ele; C já entrou) | 116 | 3 | 6 | **92,8%** |
 | depois da **Onda 13** (`Canvas` declarativo + `QWhatsThis`) | 118 | 3 | 4 | **94,4%** |
 | depois da **Onda 14** (`Shader`, `Q3D`, `PrintDialog` — pende decisão de escopo) | 121 | 3 | 1 | **96,8%** |
 | — e com o `TextBrowser` (pede uma primitiva `<markdown>`) | 122 | 3 | 0 | **97,6%** |
 
 Uma correção de nível nas ondas 10 e 12 (`FontSelect`, a 16ª; `Dock`, a 18ª;
 nenhuma nas outras), **nenhum item novo do §3** — o registro de famílias já
-estava listado, o habilitador C é `charts.rs` autocontido, o D é decisão de
+estava listado, o habilitador C foi `charts.rs` autocontido, o D é decisão de
 design sobre peças prontas, o vocabulário de formas é o `canvas` da Onda 7
 aberto em nós, e a Onda 14 é `iced`/`rfd`. O único ⬜ que sobra depois da 14 é o
 `TextBrowser` (que virou trabalho próprio — a primitiva `<markdown>`); os **3
@@ -1012,22 +1014,21 @@ de 2026-09-08, que desenhou mais duas):
   11; retomada depois. Saíram três — `FontSelect` (16ª correção de nível),
   `FontDialog` (`pick_font{}`), `PlainTextEditor` 🟡→✅; o `TextBrowser` fica
   (pede uma primitiva `<markdown>`). 88,8% → **91,2%**.
-- **Onda 11** 🟡 **FEITA PARCIALMENTE (0.96)** — o que fica por cima
-  (`<stack>`/`pin`): a capacidade que o `iced` já tem, o `widget.rs` já usa
-  uma vez e o markup nunca expôs; mais o troco da §6.3, que ela esvazia de
-  carona. Saiu com dois cortes (`Dock`, a série múltipla dos gráficos) sobre
-  os quatro itens previstos. 82,4% → **88,8%**. Detalhe completo no fim da
-  seção da onda, abaixo.
-- **Onda 12** ⬜ — os dois cortes da Onda 11 de volta: o `Dock` (uma decisão de
-  design — commit na soltura, sem reparent no meio do gesto) e a série múltipla
-  dos gráficos (`charts.rs` autocontido). 88,8% → **90,4%**.
+- **Onda 11** 🟡→ quase completa — o que fica por cima (`<stack>`/`pin`) saiu na
+  0.96 com dois cortes; o menor, a **série múltipla** (habilitador C), voltou na
+  **0.98** — `series="[{name,points,color?}]"`, legenda e ciclo de cores do
+  tema, `AreaChart`/`Scatter` 🟡→✅, §2.13 a 5/6. Sobra só o `Dock`. 82,4% →
+  88,8% → **92,0%**. Detalhe no fim da seção da onda, abaixo.
+- **Onda 12** ⬜ — **só o `Dock`** agora (o habilitador C já entrou ao completar
+  a 11). Uma decisão de design: `grip::Alvo::Zona` que comete um valor de modo
+  na soltura, sem reparent no meio do gesto. 92,0% → **92,8%**.
 - **Onda 13** ⬜ — o `canvas` declarativo (`<path>`/`<arc>`/`<circle>`), que é a
-  frase condicional da Onda 7 executada, mais o `QWhatsThis` de carona. 90,4% →
-  **92,0%**.
+  frase condicional da Onda 7 executada, mais o `QWhatsThis` de carona. 92,8% →
+  **94,4%**.
 - **Onda 14** ⬜ **pendente de decisão de escopo** — `Shader`, `Q3D` e
   `PrintDialog`, as três linhas que o documento sempre marcou como "outro
-  projeto". Só vira fila com um "sim". 92,0% → **94,4%** (**97,6%** com a Onda
-  10 somada).
+  projeto". Só vira fila com um "sim". 94,4% → **96,8%** (**97,6%** com o
+  `TextBrowser`).
 
 ---
 
@@ -2322,26 +2323,41 @@ booleano, um clique com payload (`remover_tag:<tag>`, a convenção
 nem isso: sem uma função `qr_texto`, o binding legado `ctx[ação] = valor`
 resolve sozinho.
 
+##### Completando a Onda 11: habilitador C entregue (0.98), `Dock` continua fora
+
+Dos dois cortes, o menor voltou primeiro. A **série múltipla** (habilitador C)
+saiu **como o cabeçalho do `charts.rs` já a descrevia**: `series="chave"` guarda
+um array de `{name, points, color?}` ([`charts::SerieNomeada`]), a `Moldura` e a
+`escala` 1·2·5 **não mudaram** (`limites_multi` só concatena os pontos para a
+faixa do eixo), a legenda é um retângulo translúcido no canto e as cores sem
+`color` vêm do `cor_ciclica` que o `<piechart>` já usava. Vale para o
+`<linechart>` e portanto para `area=`/`points=` — o **`AreaChart`/`Scatter` da
+§2.13 sai de 🟡 para ✅**, e a §2.13 vai a **5/6** (sobra o `Q3D`, wgpu).
+`<barchart>` e `<piechart>` seguem série-única de propósito. 114 → **115/125
+(92,0%)**. Exemplos: `examples/series_multiplas` e
+`examples/series_multiplas_luau`.
+
+O **`Dock`** continua ⬜, e a tentativa desta rodada confirmou o diagnóstico da
+Onda 11 por um segundo caminho: além do "trocar de pai no meio do arrasto", ele
+esbarra no modelo de **builtin**. O `<accordion>`/`<accordionitem>` empilha
+itens num eixo; um dock põe painéis nas **quatro bordas** com o conteúdo no
+meio, e um builtin com `<slot/>` recebe todos os filhos numa região só, sem como
+ordená-los por lado. As saídas são duas, e as duas são decisão de design que
+esta rodada não tomou: (a) `pane_grid` do `iced` como substrato — e aí o `●`
+volta a ser honesto, é estado por instância de verdade —, ou (b) um
+`grip::Alvo::Zona` que só **comete** um valor de modo na soltura (o desenho da
+Onda 12), com um fantasma seguindo o cursor durante o gesto. Fica para a Onda
+12, isolado.
+
 ---
-#### Onda 12 — os dois cortes da Onda 11 voltam — ⬜ **proposta (2026-09-09)**
+#### Onda 12 — o `Dock` que a Onda 11 cortou — ⬜ **proposta (2026-09-09), reduzida**
 
-**Alvo: 111 → 113 de 125 (de 88,8% para 90,4%).**
+**Alvo: 115 → 116 de 125 (de 92,0% para 92,8%).**
 
-A Onda 11 saiu com dois itens cortados, e os dois estão escritos na própria
-seção dela como "leva futura", não como bloqueio: o `Dock` (habilitador D,
-abaixo) e a série múltipla dos gráficos (habilitador C, herdado da 11 sem uma
-linha mudada). Nenhum dos dois depende do outro, e é o mesmo formato da Onda 9 —
-que juntou o arrasto e o teclado, que nada têm a ver um com o outro, porque
-nenhum abria rodada sozinho.
-
-##### Habilitador C — a série múltipla (autocontido em `charts.rs`)
-
-Sem novidade sobre o que a Onda 11 já desenhou: uma segunda convenção de dados
-(`series="[{nome, pontos, cor?}]"`), uma legenda e um ciclo de cores por série
-sobre a `Moldura` e a `escala` que os quatro gráficos já compartilham.
-`min`/`max` continuam valendo para o eixo inteiro; a escala 1·2·5 já é comum.
-Fecha `AreaChart`/`Scatter` 🟡 → ✅ e leva a §2.13 a **5/6** (sobra o `Q3D`,
-wgpu).
+A Onda 11 saiu com dois cortes. O menor — a **série múltipla** (habilitador C) —
+foi entregue ao completar a Onda 11 (0.98): `AreaChart`/`Scatter` 🟡→✅, §2.13 a
+5/6. Ver "Completando a Onda 11", ao fim da seção da Onda 11. **Sobra o `Dock`**,
+e é ele que esta onda cobre.
 
 ##### Habilitador D — a troca de estrutura entre quadros
 
@@ -2378,22 +2394,20 @@ estados.
 
 | | ✅ | % |
 |---|---|---|
-| entra (0.96, Onda 11 parcial) | 111 | 88,8% |
-| habilitador C (`AreaChart`/`Scatter` 🟡 → ✅) | 112 | 89,6% |
-| habilitador D (`Dock` ⬜ → ✅) | **113** | **90,4%** |
+| entra (0.98, Onda 11 completa com o habilitador C) | 115 | 92,0% |
+| habilitador D (`Dock` ⬜ → ✅) | **116** | **92,8%** |
 
 **Categorias que fecham:** a §2.7 (**9/9**) — `MdiArea` entrou na 11, `Dock`
-entra aqui, e os containers ficam inteiros. A §2.13 vai a 5/6.
+entra aqui, e os containers ficam inteiros.
 
 ##### A previsão, para ser conferida depois
 
-**Onda 12 = 113 / 90,4%**, uma correção de nível (`Dock`, a 18ª), nenhum item
-novo do §3 — o habilitador C é `charts.rs` autocontido e o D é uma decisão de
-design sobre peças que as ondas 9 e 11 já entregaram. O risco declarado: o
-habilitador D aposta que "commit na soltura" é suficiente e que ninguém vai
-sentir falta do reparent contínuo. Se furar, fura aí — e o `Dock` volta a
-`Comp ●`, à espera do estado por instância de verdade, sem levar a série
-múltipla junto (ela é da mesma onda só por conveniência de tamanho).
+**Onda 12 = 116 / 92,8%**, uma correção de nível (`Dock`, a 18ª), nenhum item
+novo do §3 — o habilitador D é uma decisão de design sobre peças que as ondas 9
+e 11 já entregaram. O risco declarado: o habilitador D aposta que "commit na
+soltura" é suficiente e que ninguém vai sentir falta do reparent contínuo. Se
+furar, fura aí — e o `Dock` volta a `Comp ●`, à espera do estado por instância
+de verdade.
 
 ---
 #### Onda 13 — o desenho que o `.gv` escreve — ⬜ **proposta (2026-09-09)**

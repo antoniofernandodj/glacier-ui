@@ -1,0 +1,37 @@
+<screen title="Glacier — séries múltiplas (Luau)" size="980 720" min_size="840 580">
+  <resources>
+    <link rel="stylesheet" href="examples/series_multiplas_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 11 · habilitador C — séries múltiplas (Luau)</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <scrollable width="fill" height="fill">
+      <column class="corpo">
+        <text class="lead">
+          O script escreve uma tabela `{ name, points, color? }` na chave; o
+          `<linechart>` a lê no render. Nenhuma linha de Luau desenha nada.
+        </text>
+
+        <column class="bloco">
+          <text class="secao">linechart — carga por serviço</text>
+          <linechart series="carga" min="0" grid="true" class="grafico" />
+          <row class="acoes">
+            <button text="+1 amostra" on_click="amostrar" />
+            <button text="zerar" on_click="zerar" class="btn-fraco" />
+          </row>
+        </column>
+
+        <column class="bloco">
+          <text class="secao">area — a mesma série, preenchida</text>
+          <linechart series="carga" min="0" area="true" class="grafico" />
+        </column>
+      </column>
+    </scrollable>
+  </column>
+</screen>

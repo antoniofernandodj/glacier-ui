@@ -2646,6 +2646,7 @@ fn eval_owned(
         },
         NodeType::LineChart {
             items_var,
+            series_var,
             min,
             max,
             color,
@@ -2656,6 +2657,7 @@ fn eval_owned(
             thickness,
         } => NodeType::LineChart {
             items_var: process_tpl(items_var, context),
+            series_var: process_tpl(series_var, context),
             min: process_tpl(min, context),
             max: process_tpl(max, context),
             color: cor_ou_classe(color),

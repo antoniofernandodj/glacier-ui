@@ -4783,6 +4783,7 @@ pub fn render_node<'a>(
         ),
         NodeType::LineChart {
             items_var,
+            series_var,
             min,
             max,
             color,
@@ -4792,7 +4793,8 @@ pub fn render_node<'a>(
             grid,
             thickness,
         } => crate::charts::render_line_chart(
-            node, context, items_var, min, max, color, *area, *points, *axes, *grid, *thickness,
+            node, context, items_var, series_var, min, max, color, *area, *points, *axes, *grid,
+            *thickness,
         ),
         NodeType::BarChart {
             items_var,

@@ -1,0 +1,57 @@
+<screen title="Glacier — séries múltiplas" size="1040 780" min_size="880 620">
+  <resources>
+    <link rel="stylesheet" href="examples/series_multiplas/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 11 · habilitador C — séries múltiplas</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <scrollable width="fill" height="fill">
+      <column class="corpo">
+        <text class="lead">
+          `series="chave"` guarda um array de `{ name, points, color? }`. A
+          moldura, a escala e a legenda são do motor; sem `color`, cada linha
+          recebe uma cor do ciclo do tema.
+        </text>
+
+        <column class="bloco">
+          <text class="secao">linechart — três séries, uma com cor fixa</text>
+          <linechart series="requisicoes" min="0" grid="true" class="grafico" />
+          <row class="acoes">
+            <button text="girar os dados" on_click="girar" />
+            <button text="resetar" on_click="resetar" class="btn-fraco" />
+          </row>
+          <text class="nota">
+            O botão troca a chave inteira; o gráfico relê no render seguinte,
+            sem handler próprio — como todo widget de `canvas` desde a Onda 7.
+          </text>
+        </column>
+
+        <row class="linha">
+          <column class="bloco bloco-cresce">
+            <text class="secao">area — o AreaChart, agora multi-série</text>
+            <linechart series="requisicoes" min="0" area="true" class="grafico" />
+          </column>
+
+          <column class="bloco bloco-cresce">
+            <text class="secao">points — o Scatter, agora multi-série</text>
+            <linechart series="latencia" min="0" points="true" class="grafico" />
+          </column>
+        </row>
+
+        <column class="bloco">
+          <text class="secao">sparkline — sem eixos, sem legenda</text>
+          <text class="nota">
+            Multi-série vale aqui também, mas a legenda só sai quando há
+            eixos: num sparkline não cabe.
+          </text>
+          <sparkline series="latencia" class="mini" />
+        </column>
+      </column>
+    </scrollable>
+  </column>
+</screen>

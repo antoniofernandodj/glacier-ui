@@ -96,7 +96,14 @@ impl Serie {
         else {
             return Self::default();
         };
+        Self::de_array(&itens)
+    }
 
+    /// O núcleo de [`Serie::ler`], a partir de um array JSON **já parseado** —
+    /// usado por [`crate::charts`] para ler os `points` de dentro de um objeto
+    /// de série (`series="[{name, points}]"`, o habilitador C da Onda 11).
+    /// Aceita as mesmas duas formas: `[1, 2, 3]` e `[{label, value}]`.
+    pub fn de_array(itens: &[serde_json::Value]) -> Self {
         let pontos = itens
             .iter()
             .enumerate()

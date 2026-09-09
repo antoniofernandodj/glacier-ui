@@ -121,6 +121,14 @@ path = "examples/fontes/main.rs"
 name = "fontes_luau"
 path = "examples/fontes_luau/main.rs"
 
+[[example]]
+name = "series_multiplas"
+path = "examples/series_multiplas/main.rs"
+
+[[example]]
+name = "series_multiplas_luau"
+path = "examples/series_multiplas_luau/main.rs"
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
 roxmltree = "0.21"

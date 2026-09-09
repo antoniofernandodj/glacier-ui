@@ -21,13 +21,25 @@
 //! [`crate::canvas::escala`] e a [`Moldura`] daqui resolvem em duzentas linhas,
 //! e essas duzentas linhas servem os quatro gráficos.
 //!
+//! # Séries múltiplas — o habilitador C da Onda 11 (feito na 0.98)
+//!
+//! O que a Onda 7 anotou como "o próximo passo natural desta família" saiu
+//! como previsto: uma segunda convenção de dados (`series="chave"`, um array de
+//! `{name, points, color?}` — ver [`SerieNomeada`]), uma legenda
+//! (`desenha_legenda`) e um ciclo de cores do tema (`cor_ciclica`, que o
+//! `<piechart>` já usava). **A `Moldura` e a `escala` não mudaram** — o eixo é
+//! compartilhado, e `limites_multi` só concatena os pontos para a faixa.
+//!
+//! Vale para o `<linechart>` (e portanto para `area=`/`points=`, o
+//! `AreaChart`/`Scatter` da §2.13). `<barchart>` e `<piechart>` seguem
+//! série-única: barras agrupadas e setores concêntricos são outra decisão de
+//! layout, não a mesma.
+//!
 //! # O que fica de fora, de propósito
 //!
-//! **Séries múltiplas.** Um `items` é uma série; comparar duas no mesmo eixo
-//! pediria uma segunda convenção de dados (`series="[{nome, pontos}]"`), uma
-//! legenda e uma paleta por série. É trabalho de verdade e não é o gargalo de
-//! nada: o caso comum de um painel é um número por gráfico. Fica anotado como
-//! o próximo passo natural desta família, não como buraco.
+//! Barras/setores multi-série (acima), eixo Y duplo, e um `on_hover` que
+//! devolva o ponto sob o cursor — o último é o `canvas` como callback
+//! imperativo que a Onda 7 decidiu não expor.
 
 use iced::widget::canvas::{self, Canvas, Frame, Path, Stroke};
 use iced::{Color, Element, Length, Point, Rectangle, Size, mouse};
@@ -129,6 +141,150 @@ fn limites(serie: &Serie, min: &str, max: &str, alvo_marcas: usize) -> (f64, f64
         fixo_max.unwrap_or(e.max),
         e.passo,
     )
+}
+
+/// Uma série **nomeada** — o habilitador C da Onda 11 (`PLANO_WIDGETS.md`).
+///
+/// `series="chave"` guarda um array de objetos, um por linha do gráfico:
+///
+/// ```json
+/// [
+///   { "name": "API", "points": [12, 19, 7], "color": "#89b4fa" },
+///   { "name": "DB",  "points": [{ "label": "Jan", "value": 8 }] }
+/// ]
+/// ```
+///
+/// `name`/`nome`/`label` vai para a legenda; `points`/`pontos`/`data`/`values`
+/// aceita as **mesmas duas formas** de uma série única (ver [`Serie::ler`]);
+/// `color`/`cor` é opcional — sem ela, a linha recebe uma cor do ciclo do tema
+/// ([`cor_ciclica`]), que é o que mantém o gráfico parte do app.
+#[derive(Debug, Clone)]
+pub struct SerieNomeada {
+    pub nome: String,
+    pub serie: Serie,
+    pub cor: Option<Color>,
+}
+
+impl SerieNomeada {
+    /// Lê a chave `series=`. Ausente, JSON inválido, raiz que não é array, ou
+    /// array sem nenhum objeto de série utilizável → `Vec` vazio, e o chamador
+    /// cai no caminho de `items=` (série única). É a mesma degradação silenciosa
+    /// de [`Serie::ler`]: uma tela que ainda não carregou é uma moldura.
+    pub fn ler(context: &ContextMap, chave: &str) -> Vec<Self> {
+        let Some(bruto) = context.get(chave) else {
+            return Vec::new();
+        };
+        let Ok(serde_json::Value::Array(itens)) =
+            serde_json::from_str::<serde_json::Value>(bruto)
+        else {
+            return Vec::new();
+        };
+
+        itens
+            .iter()
+            .enumerate()
+            .filter_map(|(i, item)| {
+                let obj = item.as_object()?;
+                let campo = |nomes: &[&str]| nomes.iter().find_map(|n| obj.get(*n));
+
+                let pontos_raw = campo(&["points", "pontos", "data", "dados", "values", "valores"])?
+                    .as_array()?;
+                let serie = Serie::de_array(pontos_raw);
+
+                let nome = campo(&["name", "nome", "label", "rotulo", "rótulo"])
+                    .and_then(|v| match v {
+                        serde_json::Value::String(s) => Some(s.clone()),
+                        outro => Some(outro.to_string()),
+                    })
+                    .unwrap_or_else(|| format!("Série {}", i + 1));
+
+                let cor = campo(&["color", "cor"])
+                    .and_then(|v| v.as_str())
+                    .and_then(parse_hex_color);
+
+                Some(SerieNomeada { nome, serie, cor })
+            })
+            .collect()
+    }
+}
+
+/// Os limites do eixo Y sobre **várias** séries de uma vez — o eixo é
+/// compartilhado, então a escala tem de ver todos os pontos. Uma série
+/// sintética com tudo concatenado é o suficiente: [`Serie::faixa`] só olha
+/// valores, não posição.
+fn limites_multi(series: &[SerieNomeada], min: &str, max: &str, alvo_marcas: usize) -> (f64, f64, f64) {
+    let mut todos = Serie::default();
+    for s in series {
+        todos.pontos.extend(s.serie.pontos.iter().cloned());
+    }
+    limites(&todos, min, max, alvo_marcas)
+}
+
+/// A legenda: um quadradinho de cor e o nome, empilhados no canto superior
+/// direito da moldura, sobre um retângulo translúcido para não brigar com a
+/// linha por baixo.
+///
+/// Só sai quando há **eixos** (um `<sparkline>` não tem espaço) e quando a
+/// moldura é larga o bastante para o nome mais comprido — senão vira uma tarja,
+/// a mesma decisão dos rótulos do X em [`desenha_eixos`].
+fn desenha_legenda(
+    frame: &mut Frame,
+    pal: &iced::theme::palette::Extended,
+    m: &Moldura,
+    series: &[SerieNomeada],
+) {
+    if series.len() < 2 {
+        return;
+    }
+    let linha_h = 14.0;
+    let pad = 6.0;
+    let quad = 8.0;
+    let mais_longo = series
+        .iter()
+        .map(|s| s.nome.chars().count())
+        .max()
+        .unwrap_or(0) as f32;
+    // ~6px por caractere a 10px de corpo; folga do quadrado e dos paddings.
+    let largura = pad * 2.0 + quad + 6.0 + mais_longo * 6.0;
+    let altura = pad * 2.0 + series.len() as f32 * linha_h;
+    if largura > m.largura * 0.6 || altura > m.altura * 0.8 {
+        return;
+    }
+
+    let x0 = m.x + m.largura - largura - 4.0;
+    let y0 = m.y + 4.0;
+    frame.fill(
+        &Path::rectangle(Point::new(x0, y0), Size::new(largura, altura)),
+        Color {
+            a: 0.82,
+            ..pal.background.base.color
+        },
+    );
+
+    let texto = Color {
+        a: 0.9,
+        ..pal.background.base.text
+    };
+    for (i, s) in series.iter().enumerate() {
+        let cy = y0 + pad + i as f32 * linha_h + linha_h / 2.0;
+        let cor = s.cor.unwrap_or_else(|| cor_ciclica(pal, i));
+        frame.fill(
+            &Path::rectangle(
+                Point::new(x0 + pad, cy - quad / 2.0),
+                Size::new(quad, quad),
+            ),
+            cor,
+        );
+        frame.fill_text(canvas::Text {
+            content: s.nome.clone(),
+            position: Point::new(x0 + pad + quad + 6.0, cy),
+            color: texto,
+            size: 10.0.into(),
+            align_x: iced::alignment::Horizontal::Left.into(),
+            align_y: iced::alignment::Vertical::Center,
+            ..canvas::Text::default()
+        });
+    }
 }
 
 /// Desenha a grade e os números do eixo Y, mais os rótulos do X.
@@ -240,6 +396,10 @@ fn vazio(frame: &mut Frame, pal: &iced::theme::palette::Extended, bounds: Rectan
 /// escala pode morar.
 pub struct ProgramaLinha {
     pub serie: Serie,
+    /// Séries nomeadas (`series=`, habilitador C da Onda 11). Quando não está
+    /// vazio, **vence** `serie`: o desenho passa a ser uma linha por série,
+    /// cores do ciclo do tema, mais uma legenda.
+    pub series: Vec<SerieNomeada>,
     pub min: String,
     pub max: String,
     pub cor: String,
@@ -248,6 +408,73 @@ pub struct ProgramaLinha {
     pub eixos: bool,
     pub grade: bool,
     pub espessura: f32,
+}
+
+/// Desenha **uma** série (área + linha + pontos) na moldura, com a escala já
+/// resolvida. É o miolo que a série única e cada série nomeada compartilham —
+/// extraído para o multi-série não duplicar o lugar onde um bug de escala mora.
+#[allow(clippy::too_many_arguments)]
+fn desenha_serie(
+    frame: &mut Frame,
+    m: &Moldura,
+    serie: &Serie,
+    cor: Color,
+    min: f64,
+    max: f64,
+    area: bool,
+    pontos: bool,
+    espessura: f32,
+) {
+    let n = serie.len();
+    if n == 0 {
+        return;
+    }
+
+    // A área primeiro, a linha por cima: o preenchimento é o mesmo caminho
+    // fechado pela base, e desenhá-lo depois cobriria a linha.
+    if area {
+        let caminho = Path::new(|b| {
+            b.move_to(Point::new(m.px(0, n), m.base()));
+            for (i, p) in serie.pontos.iter().enumerate() {
+                b.line_to(Point::new(m.px(i, n), m.py(p.valor, min, max)));
+            }
+            b.line_to(Point::new(m.px(n - 1, n), m.base()));
+            b.close();
+        });
+        frame.fill(&caminho, Color { a: 0.18, ..cor });
+    }
+
+    let linha = Path::new(|b| {
+        for (i, p) in serie.pontos.iter().enumerate() {
+            let ponto = Point::new(m.px(i, n), m.py(p.valor, min, max));
+            if i == 0 {
+                b.move_to(ponto);
+            } else {
+                b.line_to(ponto);
+            }
+        }
+    });
+    frame.stroke(
+        &linha,
+        Stroke::default()
+            .with_color(cor)
+            .with_width(espessura)
+            .with_line_join(canvas::LineJoin::Round)
+            .with_line_cap(canvas::LineCap::Round),
+    );
+
+    // Os pontos só quando cabem: vinte bolinhas em 200px viram uma corda.
+    if pontos && n <= 40 {
+        for (i, p) in serie.pontos.iter().enumerate() {
+            frame.fill(
+                &Path::circle(
+                    Point::new(m.px(i, n), m.py(p.valor, min, max)),
+                    espessura + 0.8,
+                ),
+                cor,
+            );
+        }
+    }
 }
 
 impl canvas::Program<EngineMessage> for ProgramaLinha {
@@ -263,6 +490,48 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
     ) -> Vec<canvas::Geometry> {
         let pal = theme.extended_palette();
         let mut frame = Frame::new(renderer, bounds.size());
+
+        // ── Multi-série (habilitador C): uma linha por `series=` ──────────
+        if !self.series.is_empty() {
+            let com_dados: Vec<&SerieNomeada> =
+                self.series.iter().filter(|s| !s.serie.is_empty()).collect();
+            if com_dados.is_empty() {
+                vazio(&mut frame, pal, bounds);
+                return vec![frame.into_geometry()];
+            }
+
+            let m = Moldura::nova(bounds, self.eixos);
+            let (min, max, passo) = limites_multi(&self.series, &self.min, &self.max, 4);
+
+            // Os rótulos do X saem da série mais longa — é a que define quantas
+            // marcas cabem.
+            if self.eixos {
+                let mais_longa = com_dados
+                    .iter()
+                    .max_by_key(|s| s.serie.len())
+                    .map(|s| &s.serie)
+                    .unwrap();
+                desenha_eixos(
+                    &mut frame, pal, &m, mais_longa, min, max, passo, self.grade, false,
+                );
+            }
+
+            for (i, s) in self.series.iter().enumerate() {
+                let cor = s.cor.unwrap_or_else(|| cor_ciclica(pal, i));
+                desenha_serie(
+                    &mut frame, &m, &s.serie, cor, min, max, self.area, self.pontos,
+                    self.espessura,
+                );
+            }
+
+            if self.eixos {
+                desenha_legenda(&mut frame, pal, &m, &self.series);
+            }
+
+            return vec![frame.into_geometry()];
+        }
+
+        // ── Série única (o caminho da Onda 7) ────────────────────────────
         if self.serie.is_empty() {
             vazio(&mut frame, pal, bounds);
             return vec![frame.into_geometry()];
@@ -271,7 +540,6 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
         let m = Moldura::nova(bounds, self.eixos);
         let (min, max, passo) = limites(&self.serie, &self.min, &self.max, 4);
         let cor = cor_ou(&self.cor, pal.primary.base.color);
-        let n = self.serie.len();
 
         if self.eixos {
             desenha_eixos(
@@ -279,51 +547,10 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
             );
         }
 
-        // A área primeiro, a linha por cima: o preenchimento é o mesmo caminho
-        // fechado pela base, e desenhá-lo depois cobriria a linha.
-        if self.area {
-            let caminho = Path::new(|b| {
-                b.move_to(Point::new(m.px(0, n), m.base()));
-                for (i, p) in self.serie.pontos.iter().enumerate() {
-                    b.line_to(Point::new(m.px(i, n), m.py(p.valor, min, max)));
-                }
-                b.line_to(Point::new(m.px(n - 1, n), m.base()));
-                b.close();
-            });
-            frame.fill(&caminho, Color { a: 0.18, ..cor });
-        }
-
-        let linha = Path::new(|b| {
-            for (i, p) in self.serie.pontos.iter().enumerate() {
-                let ponto = Point::new(m.px(i, n), m.py(p.valor, min, max));
-                if i == 0 {
-                    b.move_to(ponto);
-                } else {
-                    b.line_to(ponto);
-                }
-            }
-        });
-        frame.stroke(
-            &linha,
-            Stroke::default()
-                .with_color(cor)
-                .with_width(self.espessura)
-                .with_line_join(canvas::LineJoin::Round)
-                .with_line_cap(canvas::LineCap::Round),
+        desenha_serie(
+            &mut frame, &m, &self.serie, cor, min, max, self.area, self.pontos,
+            self.espessura,
         );
-
-        // Os pontos só quando cabem: vinte bolinhas em 200px viram uma corda.
-        if self.pontos && n <= 40 {
-            for (i, p) in self.serie.pontos.iter().enumerate() {
-                frame.fill(
-                    &Path::circle(
-                        Point::new(m.px(i, n), m.py(p.valor, min, max)),
-                        self.espessura + 0.8,
-                    ),
-                    cor,
-                );
-            }
-        }
 
         vec![frame.into_geometry()]
     }
@@ -554,11 +781,17 @@ fn tamanho(node: &UiNode, padrao_w: f32, padrao_h: f32) -> (Length, Length) {
 }
 
 /// Monta `<linechart>` e `<sparkline>`.
+///
+/// `series_var` (o atributo `series=`) vem antes de `items_var` na precedência:
+/// se ele nomeia ao menos uma série utilizável, o gráfico é multi-série e
+/// `items=` é ignorado. É o habilitador C da Onda 11 — a mesma moldura, a mesma
+/// escala, uma linha por série e uma legenda.
 #[allow(clippy::too_many_arguments)]
 pub fn render_line_chart<'a>(
     node: &UiNode,
     context: &ContextMap,
     items_var: &str,
+    series_var: &str,
     min: &str,
     max: &str,
     color: &str,
@@ -569,8 +802,18 @@ pub fn render_line_chart<'a>(
     thickness: f32,
 ) -> Element<'a, EngineMessage> {
     let (w, h) = tamanho(node, if axes { 320.0 } else { 120.0 }, if axes { 180.0 } else { 34.0 });
+    let series = if series_var.is_empty() {
+        Vec::new()
+    } else {
+        SerieNomeada::ler(context, series_var)
+    };
     Canvas::new(ProgramaLinha {
-        serie: Serie::ler(context, items_var),
+        serie: if series.is_empty() {
+            Serie::ler(context, items_var)
+        } else {
+            Serie::default()
+        },
+        series,
         min: min.to_string(),
         max: max.to_string(),
         cor: color.to_string(),
@@ -717,5 +960,48 @@ mod tests {
     fn pizza_ignora_fatia_negativa_sem_comer_as_vizinhas() {
         let s = serie("[10, -5, 10]");
         assert_eq!(s.soma_positiva(), 20.0);
+    }
+
+    // ── Habilitador C da Onda 11: séries múltiplas ─────────────────────────
+
+    #[test]
+    fn serie_nomeada_le_nome_pontos_e_cor() {
+        let c = ctx(&[(
+            "s",
+            r##"[
+                { "name": "API", "points": [1, 2, 3], "color": "#89b4fa" },
+                { "nome": "DB",  "pontos": [{ "label": "Jan", "value": 8 }] }
+            ]"##,
+        )]);
+        let series = SerieNomeada::ler(&c, "s");
+        assert_eq!(series.len(), 2);
+        assert_eq!(series[0].nome, "API");
+        assert_eq!(series[0].serie.len(), 3);
+        assert!(series[0].cor.is_some());
+        assert_eq!(series[1].nome, "DB");
+        assert_eq!(series[1].serie.pontos[0].rotulo, "Jan");
+        assert!(series[1].cor.is_none(), "sem cor → cai no ciclo do tema");
+    }
+
+    #[test]
+    fn serie_nomeada_degrada_pro_caminho_de_items() {
+        let c = ctx(&[("vazio", "[]"), ("ruim", "{}"), ("lista", "[1,2,3]")]);
+        assert!(SerieNomeada::ler(&c, "ausente").is_empty());
+        assert!(SerieNomeada::ler(&c, "vazio").is_empty());
+        assert!(SerieNomeada::ler(&c, "ruim").is_empty());
+        // Um array de números não é um array de séries — sem objeto, nada casa.
+        assert!(SerieNomeada::ler(&c, "lista").is_empty());
+    }
+
+    #[test]
+    fn limites_multi_ve_todas_as_series() {
+        let c = ctx(&[(
+            "s",
+            r#"[{ "name": "a", "points": [1, 2] }, { "name": "b", "points": [50, 90] }]"#,
+        )]);
+        let series = SerieNomeada::ler(&c, "s");
+        let (min, max, _) = limites_multi(&series, "", "", 4);
+        // A escala tem de cobrir o 1 da série "a" e o 90 da série "b".
+        assert!(min <= 1.0 && max >= 90.0);
     }
 }

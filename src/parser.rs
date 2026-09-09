@@ -2031,6 +2031,10 @@ pub enum NodeType {
     /// mentir com um painel sem querer.
     LineChart {
         items_var: String,
+        /// `series="chave"` — várias linhas no mesmo eixo (habilitador C da
+        /// Onda 11). Um array de `{name, points, color?}`; ver
+        /// [`crate::charts::SerieNomeada`]. Quando presente, vence `items_var`.
+        series_var: String,
         min: String,
         max: String,
         color: String,
@@ -4325,6 +4329,8 @@ impl UiNode {
                     || tag.to_lowercase().starts_with("minigr");
                 NodeType::LineChart {
                     items_var: Self::get_attr(&node, &["items", "itens", "data", "dados"])
+                        .unwrap_or_default(),
+                    series_var: Self::get_attr(&node, &["series", "séries", "series_var"])
                         .unwrap_or_default(),
                     min: Self::get_attr(&node, &["min", "minimo", "mínimo"]).unwrap_or_default(),
                     max: Self::get_attr(&node, &["max", "maximo", "máximo"]).unwrap_or_default(),
