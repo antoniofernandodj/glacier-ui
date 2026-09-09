@@ -1,9 +1,9 @@
 use crate::ContextMap;
 use iced::widget::tooltip::Position as TooltipPosition;
 use iced::widget::{
-    Space, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area, pick_list,
-    progress_bar, radio, row, rule, scrollable, slider, svg, text, text_editor, text_input,
-    vertical_slider,
+    Space, Stack, Tooltip, button, checkbox, column, combo_box, container, image, mouse_area,
+    pick_list, pin, progress_bar, radio, row, rule, scrollable, slider, svg, text, text_editor,
+    text_input, vertical_slider,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -908,6 +908,26 @@ fn parse_alignment(s: Option<&str>) -> Option<Alignment> {
     }
 }
 
+/// `anchor="…"` num filho de `<stack>`: um dos nove cantos da grade 3×3, sem
+/// coordenada — o par de [`Alignment`] que um `container` `Fill` usa para
+/// grudar naquele canto. Aceita hífen ou sublinhado; o que não casa cai no
+/// canto superior esquerdo, como um `x="0" y="0"` teria dado.
+fn anchor_align(s: &str) -> (Alignment, Alignment) {
+    let norm = s.trim().to_lowercase().replace('_', "-");
+    match norm.as_str() {
+        "top" => (Alignment::Center, Alignment::Start),
+        "top-right" | "topright" => (Alignment::End, Alignment::Start),
+        "left" => (Alignment::Start, Alignment::Center),
+        "center" | "centro" | "middle" => (Alignment::Center, Alignment::Center),
+        "right" => (Alignment::End, Alignment::Center),
+        "bottom-left" | "bottomleft" => (Alignment::Start, Alignment::End),
+        "bottom" => (Alignment::Center, Alignment::End),
+        "bottom-right" | "bottomright" => (Alignment::End, Alignment::End),
+        // "top-left"/"topleft" e qualquer grafia não reconhecida.
+        _ => (Alignment::Start, Alignment::Start),
+    }
+}
+
 /// Helper to parse hex colors like #RRGGBB or #RRGGBBAA
 pub fn parse_hex_color(s: &str) -> Option<Color> {
     let s = s.trim().trim_start_matches('#');
@@ -952,6 +972,34 @@ fn cached_image_handle(
     let h = image::Handle::from_bytes(assets.read_bytes(source).unwrap_or_default().into_owned());
     IMAGE_HANDLES.with(|c| c.borrow_mut().insert(source.to_string(), h.clone()));
     h
+}
+
+thread_local! {
+    /// `qr_code::Data` por conteúdo — o análogo de `SVG_HANDLES`, mas sem
+    /// clonar: `Data` guarda um `canvas::Cache` que não é `Clone`, então o
+    /// que a `HashMap` guarda é a referência `'static` de um `Box::leak`, não
+    /// o valor. Vaza uma vez por conteúdo **distinto** — aceitável para um
+    /// widget "quase só encanamento" (`PLANO_WIDGETS.md`, Onda 11) que não se
+    /// espera ver com dezenas de conteúdos diferentes trocando a cada quadro.
+    static QR_DATA: RefCell<HashMap<String, &'static iced::widget::qr_code::Data>> =
+        RefCell::new(HashMap::new());
+}
+
+/// `qr_code::Data` para `content`, cacheado por `QR_DATA`. Um conteúdo maior
+/// que o que um QR code aguenta (a versão 40, o teto do padrão) devolve o
+/// `Data` de uma string vazia — o mesmo "degrada em silêncio" de um
+/// `<image>` sem `src`, em vez de um `panic` por causa de um texto grande
+/// demais colado num atributo.
+fn qr_data_for(content: &str) -> &'static iced::widget::qr_code::Data {
+    use iced::widget::qr_code;
+    if let Some(d) = QR_DATA.with(|c| c.borrow().get(content).copied()) {
+        return d;
+    }
+    let data = qr_code::Data::new(content)
+        .unwrap_or_else(|_| qr_code::Data::new("").expect("qr code de uma string vazia não falha"));
+    let leaked: &'static qr_code::Data = Box::leak(Box::new(data));
+    QR_DATA.with(|c| c.borrow_mut().insert(content.to_string(), leaked));
+    leaked
 }
 
 /// `svg::Handle` para `source` — análogo a [`cached_image_handle`].
@@ -2959,10 +3007,13 @@ fn celulas_cabecalho(
                 .interaction(iced::mouse::Interaction::ResizingHorizontally)
                 .on_press(EngineMessage::GripStart(crate::grip::Arrasto {
                     chave: widths_var.to_string(),
+                    chave_y: None,
                     indice: i,
                     eixo: crate::grip::Eixo::X,
                     origem: None,
+                    origem_y: None,
                     valor0: largura_corrente(col.trilha),
+                    valor0_y: 0.0,
                     alvo: crate::grip::Alvo::Trilha {
                         min: LARGURA_MINIMA_COLUNA,
                         max: LARGURA_MAXIMA_COLUNA,
@@ -3781,6 +3832,21 @@ pub fn render_node<'a>(
             } else {
                 img.width(w_len).height(h_len).into()
             }
+        }
+        // `<qrcode>` — o último item barato da Fase A, de carona na Onda 11.
+        NodeType::QrCode { content, color } => {
+            if content.trim().is_empty() {
+                return Space::new().into();
+            }
+            let data = qr_data_for(content);
+            let mut q = iced::widget::QRCode::new(data);
+            if let Some(cor) = color.as_ref().and_then(|c| parse_hex_color(c)) {
+                q = q.style(move |theme: &iced::Theme| iced::widget::qr_code::Style {
+                    cell: cor,
+                    ..iced::widget::qr_code::default(theme)
+                });
+            }
+            q.into()
         }
         NodeType::Svg { source, color } => {
             let mut s = svg(cached_svg_handle(source, assets))
@@ -4790,6 +4856,108 @@ pub fn render_node<'a>(
                 .into()
         }
         // ── Onda 9 — o ponteiro preso ───────────────────────────────────────
+        // `<mdiarea>` — ver `NodeType::MdiArea`. Cada filho é um
+        // `<mdisubwindow>`; a posição vem da chave que ELE nomeia (com um
+        // cascade quando ainda não tem valor, para N janelas novas não
+        // nascerem empilhadas na mesma coordenada), e quem desenha a moldura
+        // + arrasto é `crate::panes`.
+        NodeType::MdiArea => {
+            const CASCATA_PASSO: f32 = 24.0;
+            const CASCATA_BASE: f32 = 20.0;
+            let posicionados: Vec<(f32, f32, Element<'a, EngineMessage>)> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .enumerate()
+                .map(|(i, child)| {
+                    let (x_var, y_var) = match &child.kind {
+                        NodeType::MdiSubWindow { x_var, y_var, .. } => {
+                            (x_var.as_str(), y_var.as_str())
+                        }
+                        _ => ("", ""),
+                    };
+                    let cascata = CASCATA_BASE + i as f32 * CASCATA_PASSO;
+                    let x = context
+                        .get(x_var)
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(cascata);
+                    let y = context
+                        .get(y_var)
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .unwrap_or(cascata);
+                    let el = render_node(child, context, editors, combos, assets, view);
+                    (x, y, el)
+                })
+                .collect();
+            let area = crate::panes::render_mdi_area(posicionados);
+
+            // Diferente do `<stack>` genérico (que fica em `Shrink` sem
+            // `width`/`height`, como `Container`), um `<mdiarea>` sem tamanho
+            // declarado enche o espaço disponível por padrão — é a área de
+            // trabalho de um MDI de verdade, não uma caixa que abraça o
+            // conteúdo. A mesma exceção que `ProgressBar`/`Slider` têm no
+            // `PRIMITIVAS.md`, só que decidida no `.gv`, não herdada do iced.
+            let width = node
+                .width
+                .as_deref()
+                .map(|_| parse_length(&node.width))
+                .unwrap_or(Length::Fill);
+            let height = node
+                .height
+                .as_deref()
+                .map(|_| parse_length(&node.height))
+                .unwrap_or(Length::Fill);
+
+            let mut c = container(area).width(width).height(height);
+            let bg_opt = background_for(node);
+            let br_opt = node.border_radius;
+            let bw_opt = node.border_width.unwrap_or(0.0);
+            let bc_opt = node.border_color().and_then(parse_hex_color);
+            if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
+                c = c.style(move |_theme| container::Style {
+                    background: bg_opt,
+                    border: Border {
+                        radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
+                        width: bw_opt,
+                        color: bc_opt.unwrap_or(Color::TRANSPARENT),
+                    },
+                    ..Default::default()
+                });
+            }
+            c.into()
+        }
+        NodeType::MdiSubWindow {
+            title,
+            x_var,
+            y_var,
+            w_var,
+            h_var,
+            default_w,
+            default_h,
+        } => {
+            let visible_children: Vec<&UiNode> = node
+                .children
+                .iter()
+                .filter(|c| c.hidden != Some(true))
+                .collect();
+            let corpo: Element<'a, EngineMessage> = if visible_children.is_empty() {
+                column![].into()
+            } else if visible_children.len() == 1 {
+                render_node(visible_children[0], context, editors, combos, assets, view)
+            } else {
+                let mut col = column![];
+                if let Some(sp) = node.spacing {
+                    col = col.spacing(sp);
+                }
+                for c in visible_children {
+                    col = col.push(render_node(c, context, editors, combos, assets, view));
+                }
+                col.into()
+            };
+            crate::panes::render_mdi_subwindow(
+                context, title, x_var, y_var, w_var, h_var, *default_w, *default_h, corpo,
+            )
+        }
         NodeType::Splitter {
             sizes_var,
             vertical,
@@ -5206,6 +5374,71 @@ pub fn render_node<'a>(
             r.width(parse_length(&node.width))
                 .height(parse_length(&node.height))
                 .into()
+        }
+        // `<stack>` — a Onda 11 do `PLANO_WIDGETS.md`: empilha os filhos no
+        // mesmo espaço, o primeiro embaixo. Ver `NodeType::Stack` para o que
+        // `x`/`y`/`anchor` fazem num filho.
+        NodeType::Stack => {
+            let width = parse_length(&node.width);
+            let height = parse_length(&node.height);
+
+            let mut st = Stack::new();
+
+            // `iced::widget::Stack` não tem `.style()` — ao contrário de
+            // `Container`, ele não pinta nada por si. Um `background`/`border`
+            // no `<stack>` vira uma camada SINTÉTICA, a primeira (a "base",
+            // que também é a que dita o tamanho do stack quando `width`/
+            // `height` ficam de fora — ver a nota abaixo). É o mesmo papel que
+            // o retângulo de fundo de um `<progressbar>` cumpre dentro do seu
+            // próprio `.style()`, só que aqui precisa ser um NÓ, porque o
+            // widget que o contém não sabe desenhar.
+            let bg_opt = background_for(node);
+            let br_opt = node.border_radius;
+            let bw_opt = node.border_width.unwrap_or(0.0);
+            let bc_opt = node.border_color().and_then(parse_hex_color);
+            if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
+                let mut fundo = container(Space::new()).width(width).height(height);
+                fundo = fundo.style(move |_theme| container::Style {
+                    background: bg_opt,
+                    border: Border {
+                        radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
+                        width: bw_opt,
+                        color: bc_opt.unwrap_or(Color::TRANSPARENT),
+                    },
+                    ..Default::default()
+                });
+                st = st.push(fundo);
+            }
+
+            for child in node.children.iter().filter(|c| c.hidden != Some(true)) {
+                let el = render_node(child, context, editors, combos, assets, view);
+                let x = child.pin_x().and_then(|s| s.trim().parse::<f32>().ok());
+                let y = child.pin_y().and_then(|s| s.trim().parse::<f32>().ok());
+                let el: Element<'a, EngineMessage> = if x.is_some() || y.is_some() {
+                    // Posição livre em pixels: o `x`/`y` que faltou vira 0, o
+                    // canto que a maioria dos usos de `pin` quer mesmo.
+                    pin(el).x(x.unwrap_or(0.0)).y(y.unwrap_or(0.0)).into()
+                } else if let Some(anchor) = child.anchor() {
+                    let (ax, ay) = anchor_align(anchor);
+                    container(el)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(ax)
+                        .align_y(ay)
+                        .into()
+                } else {
+                    el
+                };
+                st = st.push(el);
+            }
+            // Igual ao `Container` (`PRIMITIVAS.md`, "a armadilha do
+            // `Length::Fill`"): sem `width`/`height` explícitos o stack cai em
+            // `Shrink`, medido pela camada BASE — que é o fundo sintético
+            // acima quando ele existe. Um `background` sem `width`/`height`
+            // junto herda esse mesmo limite: pinte um fundo, ou dê um
+            // tamanho, ou os dois — não espere `fill` de graça, porque nenhum
+            // nó deste motor dá.
+            st.width(width).height(height).into()
         }
         NodeType::Form { .. } => {
             // A `<Form>` is a layout container like `<Column>` — its

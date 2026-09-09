@@ -782,6 +782,19 @@ pub enum NodeType {
     Container,
     Column,
     Row,
+    /// `<stack>`: empilha os filhos no mesmo espaço, o primeiro embaixo — a
+    /// capacidade que a Onda 11 do `PLANO_WIDGETS.md` promove a tag (o
+    /// `iced::widget::stack` já existia; o motor só usava `stack!` uma vez,
+    /// hardcoded, no `<progressbar>`).
+    ///
+    /// Um filho com `x=`/`y=` (pixels — dado, não estilo, então só inline)
+    /// ganha posição livre via `iced::widget::pin`; um filho com `anchor=`
+    /// (`"top-right"`, os nove cantos da grade 3×3) ganha um `container`
+    /// `Fill` alinhado para aquele canto — sem `pin`, porque um canto não
+    /// precisa saber o tamanho de nada. `x`/`y` vencem `anchor` quando os dois
+    /// aparecem no mesmo nó. Um filho sem nenhum dos dois ocupa o espaço
+    /// inteiro do `<stack>`, como primeira camada.
+    Stack,
     Text {
         content: String,
         size: Option<f32>,
@@ -2222,6 +2235,51 @@ pub enum NodeType {
     /// explícitos ele é `Length::Fill` nos dois eixos — o espaçador flexível,
     /// que é para o que ele serve em 90% dos casos; com eles, vira um vão fixo.
     Space,
+    /// `QMdiArea`: área de janelas internas — um `<stack>` de
+    /// `<mdisubwindow>`, cada um arrastável (mover pela barra de título) e
+    /// redimensionável (o canto), pela mesma capacidade da Onda 9
+    /// generalizada para DUAS dimensões — o habilitador B da Onda 11
+    /// (`grip::Alvo::Ponto`, ver `src/grip.rs`).
+    ///
+    /// **Reclassificado de `Comp ●` para `Prim ◐`** — a 17ª correção de nível
+    /// deste catálogo (`PLANO_WIDGETS.md`): o que parecia "estado por
+    /// instância" é, como sempre, um valor que o app nomeia — quatro chaves
+    /// por janela (`x`/`y`/`w`/`h`), a mesma forma que o `<rangeslider>` usa
+    /// para duas.
+    ///
+    /// Os filhos são [`NodeType::MdiSubWindow`] — uma tag por janela, porque o
+    /// **conteúdo** de cada uma é diferente (a mesma razão do `<accordion>`
+    /// ter uma tag por seção). Sem reordenação por clique: a ordem de
+    /// empilhamento é a ordem do markup, uma simplificação anotada por
+    /// escrito na Onda 11 — as janelas são filhos ESTÁTICOS, não uma coleção,
+    /// e não há como "mover para o fim" sem uma.
+    MdiArea,
+    /// Uma janela interna de um `<mdiarea>`. Ver [`NodeType::MdiArea`].
+    MdiSubWindow {
+        title: String,
+        /// Chave com a posição X, em pixels. Sem valor ainda, o `<mdiarea>`
+        /// (não este nó) escolhe um cascade — janelas novas não nascem
+        /// empilhadas exatamente na mesma coordenada.
+        x_var: String,
+        /// Chave com a posição Y.
+        y_var: String,
+        /// Chave com a largura, em pixels.
+        w_var: String,
+        /// Chave com a altura.
+        h_var: String,
+        /// Largura/altura quando a chave de tamanho ainda não tem valor.
+        default_w: f32,
+        default_h: f32,
+    },
+    /// `QrCode`: o `qr_code` nativo do `iced`, o último item barato da Fase A
+    /// (`PLANO_WIDGETS.md` §5) — de carona na Onda 11, que esvazia a §6.3.
+    /// `content` é o texto codificado; vazio ou grande demais para caber num
+    /// QR desenha nada (degradação silenciosa, como um `<image>` sem `src`).
+    QrCode {
+        content: String,
+        /// Cor dos módulos escuros. Default: o `text.strong` do tema.
+        color: Option<String>,
+    },
     /// O buraco que o conteúdo escrito **entre as tags** de um componente
     /// preenche: `<GroupBox>…</GroupBox>` renderiza esse `…` onde o template do
     /// `GroupBox` escreveu `<slot/>`.
@@ -2271,6 +2329,10 @@ impl NodeType {
             NodeType::Container => "container",
             NodeType::Column => "column",
             NodeType::Row => "row",
+            NodeType::Stack => "stack",
+            NodeType::QrCode { .. } => "qrcode",
+            NodeType::MdiArea => "mdiarea",
+            NodeType::MdiSubWindow { .. } => "mdisubwindow",
             NodeType::Text { .. } => "text",
             NodeType::Button { .. } => "button",
             NodeType::TextInput { .. } => "textinput",
@@ -2623,6 +2685,17 @@ pub struct Look {
     pub text_align: Option<String>,
     /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
     pub text_color: Option<String>,
+    /// `x="…"` dentro de um `<stack>`: posição livre em pixels sobre o
+    /// `iced::widget::pin`. Valor dirigido por dado (a regra do `CLAUDE.md`),
+    /// então só inline — sem `.classe { }` equivalente, como `on_press`.
+    pub pin_x: Option<String>,
+    /// `y="…"`, o par vertical de [`Look::pin_x`].
+    pub pin_y: Option<String>,
+    /// `anchor="top-right"` dentro de um `<stack>`: um dos nove cantos da
+    /// grade 3×3, sem precisar de coordenada — o `container` `Fill` alinhado
+    /// resolve sem conhecer o tamanho de nada. Cede a `x`/`y` quando os dois
+    /// aparecem no mesmo filho.
+    pub anchor: Option<String>,
     /// `slot="footer"` — em qual buraco **nomeado** do componente este nó entra.
     /// É a contraparte, do lado de quem usa, do `<slot name="footer"/>` que o
     /// template do componente escreve (ver [`NodeType::Slot`]). `None` = vai
@@ -3091,6 +3164,39 @@ impl UiNode {
         }
         self.look.get_or_insert_with(Default::default).align_y = v;
     }
+    /// Ver [`Look::pin_x`].
+    pub fn pin_x(&self) -> Option<&str> {
+        self.look.as_ref()?.pin_x.as_deref()
+    }
+    /// Escreve [`Look::pin_x`], alocando o grupo se preciso.
+    pub fn set_pin_x(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).pin_x = v;
+    }
+    /// Ver [`Look::pin_y`].
+    pub fn pin_y(&self) -> Option<&str> {
+        self.look.as_ref()?.pin_y.as_deref()
+    }
+    /// Escreve [`Look::pin_y`], alocando o grupo se preciso.
+    pub fn set_pin_y(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).pin_y = v;
+    }
+    /// Ver [`Look::anchor`].
+    pub fn anchor(&self) -> Option<&str> {
+        self.look.as_ref()?.anchor.as_deref()
+    }
+    /// Escreve [`Look::anchor`], alocando o grupo se preciso.
+    pub fn set_anchor(&mut self, v: Option<String>) {
+        if v.is_none() && self.look.is_none() {
+            return;
+        }
+        self.look.get_or_insert_with(Default::default).anchor = v;
+    }
     /// Ver [`Look::border_color`].
     pub fn border_color(&self) -> Option<&str> {
         self.look.as_ref()?.border_color.as_deref()
@@ -3385,6 +3491,12 @@ impl UiNode {
             ],
         );
         let cursor = Self::get_attr(&node, &["cursor", "cursor_", "cursorIcon"]);
+        // `x`/`y`/`anchor`: só têm efeito num filho direto de `<stack>`, mas
+        // são lidos de qualquer nó, como `tooltip`/`cursor` — universais no
+        // parser, específicos no consumidor (ver `NodeType::Stack`).
+        let pin_x = Self::get_attr(&node, &["x"]);
+        let pin_y = Self::get_attr(&node, &["y"]);
+        let anchor = Self::get_attr(&node, &["anchor", "ancora", "âncora"]);
         let text_color = Self::get_attr(
             &node,
             &["textColor", "text_color", "text-color", "cor_texto"],
@@ -3513,6 +3625,7 @@ impl UiNode {
             "Container" | "container" => NodeType::Container,
             "Column" | "column" => NodeType::Column,
             "Row" | "row" => NodeType::Row,
+            "Stack" | "stack" | "Pilha" | "pilha" => NodeType::Stack,
             "Text" | "text" | "Span" | "span" => {
                 // Text accepts its content either via the `content` attribute or
                 // as a text child (`<Text>lorem ipsum</Text>`). The child wins when
@@ -3643,6 +3756,27 @@ impl UiNode {
                     .unwrap_or_default();
                 let color = Self::get_attr(&node, &["color", "cor"]);
                 NodeType::Svg { source, color }
+            }
+            "MdiArea" | "mdiarea" | "AreaJanelas" | "area_janelas" => NodeType::MdiArea,
+            "MdiSubWindow" | "mdisubwindow" | "JanelaInterna" | "janela_interna" => {
+                NodeType::MdiSubWindow {
+                    title: Self::get_attr(&node, &["title", "titulo", "título"])
+                        .unwrap_or_default(),
+                    x_var: Self::get_attr(&node, &["x", "x_var"]).unwrap_or_default(),
+                    y_var: Self::get_attr(&node, &["y", "y_var"]).unwrap_or_default(),
+                    w_var: Self::get_attr(&node, &["w", "w_var", "width_var"])
+                        .unwrap_or_default(),
+                    h_var: Self::get_attr(&node, &["h", "h_var", "height_var"])
+                        .unwrap_or_default(),
+                    default_w: Self::get_attr_f32(&node, &["default_w", "w_default"], 320.0),
+                    default_h: Self::get_attr_f32(&node, &["default_h", "h_default"], 220.0),
+                }
+            }
+            "QrCode" | "qrcode" | "Qr" | "qr" => {
+                let content = Self::get_attr(&node, &["content", "value", "conteudo", "valor"])
+                    .unwrap_or_default();
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                NodeType::QrCode { content, color }
             }
             "Scrollable" | "scrollable" | "Scroll" | "scroll" | "Rolagem" | "rolagem" => {
                 let direction = Self::get_attr(&node, &["direction", "direcao", "axis", "eixo"])
@@ -5107,6 +5241,9 @@ impl UiNode {
                 gradient,
                 text_align,
                 text_color,
+                pin_x,
+                pin_y,
+                anchor,
                 slot_name,
             }),
             interact: caixa(Interact {

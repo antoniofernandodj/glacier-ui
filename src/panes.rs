@@ -1,7 +1,8 @@
-//! Os dois widgets da Onda 9 que arrastam sobre **filhos**: `<splitter>`
-//! (`QSplitter`) e `<swipeview>` (`QML SwipeView`).
+//! Os widgets que arrastam sobre **filhos**: `<splitter>` (`QSplitter`) e
+//! `<swipeview>` (`QML SwipeView`) da Onda 9, mais `<mdiarea>`/`<mdisubwindow>`
+//! (`QMdiArea`) da Onda 11.
 //!
-//! # Por que estes dois estão juntos, e o `<dial>` não
+//! # Por que estes widgets estão juntos, e o `<dial>` não
 //!
 //! Um widget que desenha a si mesmo num `canvas` ganha do `iced` um
 //! `Program::State` por instância e guarda ali o "estou arrastando" — foi assim
@@ -11,13 +12,29 @@
 //! como valor. Esse arrasto mora numa chave do motor, e a chave é o
 //! [`crate::grip`].
 //!
-//! É a única diferença entre os dois grupos, e ela não é sobre estado por
-//! instância — a marca `●` que o catálogo dava aos dois nunca valeu. O que o
-//! arrasto move é sempre um valor que o app nomeia: as trilhas de um
-//! `<splitter>`, o índice de um `<swipeview>`.
+//! É a única diferença entre os grupos, e ela não é sobre estado por
+//! instância — a marca `●` que o catálogo dava a todos eles nunca valeu. O que
+//! o arrasto move é sempre um valor que o app nomeia: as trilhas de um
+//! `<splitter>`, o índice de um `<swipeview>`, a posição/tamanho de um
+//! `<mdisubwindow>`.
+//!
+//! # `<mdiarea>`: a mesma capacidade, em duas dimensões
+//!
+//! O `<splitter>`/`<swipeview>` arrastam em **um** eixo (`grip::Alvo::Trilha`/
+//! `Indice`); uma janela interna arrasta nos **dois** ao mesmo tempo — o
+//! habilitador B da Onda 11, `grip::Alvo::Ponto`. É a mesma extensão que a
+//! Onda 9 fez ao tirar a conta de dentro do `__colgrip`, um nível acima: nem
+//! a âncora no primeiro movimento, nem o listener condicional, precisaram
+//! mudar — só o mapeamento de pixel para valor ganhou uma segunda dimensão.
+//!
+//! Cada `<mdisubwindow>` nomeia QUATRO chaves (`x`/`y`/`w`/`h`), a mesma forma
+//! que o `<rangeslider>` usa para duas — e é por isso que o `●` do catálogo
+//! nunca valeu aqui também (17ª correção de nível): mover é escrever em duas
+//! chaves com `Alvo::Ponto`, redimensionar é escrever nas outras duas com o
+//! MESMO `Alvo::Ponto`, só com outros limites.
 
-use iced::widget::{Space, column, container, mouse_area, row};
-use iced::{Background, Element, Length};
+use iced::widget::{Space, Stack, column, container, mouse_area, pin, row, text};
+use iced::{Alignment, Background, Border, Element, Length};
 
 use crate::ContextMap;
 use crate::grid::Trilha;
@@ -153,15 +170,18 @@ fn alca<'a>(
     })
     .on_press(EngineMessage::GripStart(Arrasto {
         chave: sizes_var.to_string(),
+        chave_y: None,
         indice,
         eixo: if vertical { Eixo::Y } else { Eixo::X },
         origem: None,
+        origem_y: None,
         // Um painel ainda flexível não sabe quantos pixels tem; ele parte do
         // piso e o primeiro movimento o fixa a partir dali. É grosseiro no
         // primeiro arrasto de um painel `fill` e exato em todos os seguintes —
         // a alternativa seria medir o layout, que é o que a Onda 6 fez e
         // custou um `iced::advanced::Widget` inteiro.
         valor0: medida_inicial(trilha, min),
+        valor0_y: 0.0,
         alvo: Alvo::Trilha {
             min,
             max: MAXIMO_PAINEL,
@@ -205,10 +225,13 @@ pub fn render_swipeview<'a>(
         .interaction(iced::mouse::Interaction::Grab)
         .on_press(EngineMessage::GripStart(Arrasto {
             chave: value_var.to_string(),
+            chave_y: None,
             indice: 0,
             eixo: Eixo::X,
             origem: None,
+            origem_y: None,
             valor0: atual as f32,
+            valor0_y: 0.0,
             // Arrastar para a esquerda anda para trás porque o conteúdo segue o
             // dedo — é o que todo carrossel de telefone faz, e o contrário
             // parece quebrado mesmo estando "certo" pela seta.
@@ -217,6 +240,165 @@ pub fn render_swipeview<'a>(
                 max: n - 1,
             },
         }))
+        .into()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// <mdiarea> / <mdisubwindow> — a Onda 11
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Faixa de tamanho de um `<mdisubwindow>`. Como o `MAXIMO_PAINEL` do
+/// `<splitter>`: não é estética, é o que evita uma janela arrastada rápido
+/// demais sumir com um número de cinco dígitos, ou encolher a zero e virar
+/// impossível de agarrar de novo.
+const LARGURA_MINIMA_JANELA: f32 = 160.0;
+const LARGURA_MAXIMA_JANELA: f32 = 2400.0;
+const ALTURA_MINIMA_JANELA: f32 = 100.0;
+const ALTURA_MAXIMA_JANELA: f32 = 1600.0;
+
+/// O lado do quadrado de redimensionar, no canto inferior direito.
+const GRIP_JANELA: f32 = 14.0;
+
+/// `<mdiarea>` — ver [`crate::parser::NodeType::MdiArea`].
+///
+/// Só empilha e posiciona; a posição de cada `(x, y, Element)` já veio
+/// resolvida de quem chamou (`widget.rs`, que é quem tem o `context` e o
+/// `NodeType::MdiSubWindow` do filho à mão para ler `x_var`/`y_var` e aplicar
+/// o cascade). Sem reordenação por clique — a ordem de empilhamento
+/// (Z) é a ordem do markup, uma simplificação anotada por escrito na Onda 11.
+pub fn render_mdi_area<'a>(
+    posicionados: Vec<(f32, f32, Element<'a, EngineMessage>)>,
+) -> Element<'a, EngineMessage> {
+    if posicionados.is_empty() {
+        return Space::new().width(Length::Fill).height(Length::Fill).into();
+    }
+    let mut st = Stack::new();
+    for (x, y, el) in posicionados {
+        st = st.push(pin(el).x(x).y(y));
+    }
+    st.width(Length::Fill).height(Length::Fill).into()
+}
+
+/// Uma janela interna: barra de título (arrasta `x_var`/`y_var` juntos, via
+/// [`Alvo::Ponto`]) + corpo + canto de redimensionar (arrasta `w_var`/`h_var`
+/// juntos, o MESMO `Alvo::Ponto` com outros limites).
+#[allow(clippy::too_many_arguments)]
+pub fn render_mdi_subwindow<'a>(
+    context: &'a ContextMap,
+    title: &'a str,
+    x_var: &'a str,
+    y_var: &'a str,
+    w_var: &'a str,
+    h_var: &'a str,
+    default_w: f32,
+    default_h: f32,
+    corpo: Element<'a, EngineMessage>,
+) -> Element<'a, EngineMessage> {
+    let ler = |chave: &str, padrao: f32| -> f32 {
+        context
+            .get(chave)
+            .and_then(|s| s.trim().parse::<f32>().ok())
+            .unwrap_or(padrao)
+    };
+    let w = ler(w_var, default_w).clamp(LARGURA_MINIMA_JANELA, LARGURA_MAXIMA_JANELA);
+    let h = ler(h_var, default_h).clamp(ALTURA_MINIMA_JANELA, ALTURA_MAXIMA_JANELA);
+    let x0 = ler(x_var, 0.0);
+    let y0 = ler(y_var, 0.0);
+
+    let fundo_titulo = |theme: &iced::Theme| container::Style {
+        background: Some(Background::Color(
+            theme.extended_palette().background.strong.color,
+        )),
+        ..Default::default()
+    };
+
+    let titlebar = mouse_area(
+        container(text(title.to_string()).size(13))
+            .padding([6, 10])
+            .width(Length::Fill)
+            .style(fundo_titulo),
+    )
+    .interaction(iced::mouse::Interaction::Grab)
+    .on_press(EngineMessage::GripStart(Arrasto {
+        chave: x_var.to_string(),
+        chave_y: (!y_var.is_empty()).then(|| y_var.to_string()),
+        indice: 0,
+        eixo: Eixo::X, // ignorado por `Alvo::Ponto`
+        origem: None,
+        origem_y: None,
+        valor0: x0,
+        valor0_y: y0,
+        alvo: Alvo::Ponto {
+            min_x: 0.0,
+            max_x: MAXIMO_PAINEL,
+            min_y: 0.0,
+            max_y: MAXIMO_PAINEL,
+        },
+    }));
+
+    let grip = mouse_area(
+        container(Space::new().width(GRIP_JANELA).height(GRIP_JANELA)).style(
+            |theme: &iced::Theme| container::Style {
+                background: Some(Background::Color(
+                    theme.extended_palette().background.strong.color,
+                )),
+                border: Border {
+                    radius: iced::border::Radius::new(3.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+    )
+    .interaction(iced::mouse::Interaction::ResizingDiagonallyDown)
+    .on_press(EngineMessage::GripStart(Arrasto {
+        chave: w_var.to_string(),
+        chave_y: (!h_var.is_empty()).then(|| h_var.to_string()),
+        indice: 0,
+        eixo: Eixo::X,
+        origem: None,
+        origem_y: None,
+        valor0: w,
+        valor0_y: h,
+        // Arrastar o canto para a direita/baixo AUMENTA w/h — a mesma soma
+        // (não subtração) que mover a janela usa para x/y. É por isso que
+        // redimensionar não pediu nada novo do `grip.rs`: é o mesmo alvo,
+        // só com limites de tamanho em vez de limites de posição.
+        alvo: Alvo::Ponto {
+            min_x: LARGURA_MINIMA_JANELA,
+            max_x: LARGURA_MAXIMA_JANELA,
+            min_y: ALTURA_MINIMA_JANELA,
+            max_y: ALTURA_MAXIMA_JANELA,
+        },
+    }));
+
+    // O grip fica POR CIMA do corpo, no canto — o mesmo truque do `%` sobre a
+    // `<progressbar>`, com o `<stack>` da Onda 11 no lugar do `stack!` cru.
+    let corpo_com_grip = Stack::new()
+        .push(container(corpo).width(Length::Fill).height(Length::Fill))
+        .push(
+            container(grip)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Alignment::End)
+                .align_y(Alignment::End)
+                .padding(2),
+        );
+
+    container(column![titlebar, corpo_com_grip])
+        .width(w)
+        .height(h)
+        .style(|theme: &iced::Theme| container::Style {
+            background: Some(Background::Color(
+                theme.extended_palette().background.base.color,
+            )),
+            border: Border {
+                width: 1.0,
+                color: theme.extended_palette().background.strong.color,
+                radius: iced::border::Radius::new(4.0),
+            },
+            ..Default::default()
+        })
         .into()
 }
 

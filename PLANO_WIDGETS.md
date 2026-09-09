@@ -13,7 +13,10 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 §6.1 guarda a fila já cumprida, porque o *porquê* de cada item continua valendo,
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
-Última revisão da fila: **2026-09-08**, sobre a 0.95 (ondas 3 a 9 fechadas). A ordenação por **função** — widgets que carregam lógica — que a
+Última revisão da fila: **2026-09-08**, sobre a 0.96 (ondas 3 a 9 fechadas;
+**10 desenhada e não executada — pulada a pedido; 11 feita PARCIALMENTE**,
+com o `Dock` e a série múltipla dos gráficos cortados na implementação — ver
+o resultado real no fim da §6.2). A ordenação por **função** — widgets que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
 carrega markup) parecia ter fechado o último item do catálogo com o formato "um
 habilitador, meia dúzia de widgets".
@@ -27,12 +30,34 @@ teclado de carona, e ela **saiu na 0.95**: levou o catálogo de 74% para
 **82,4%**, fechou a navegação e a janela/barras inteiras, e gastou dois itens de
 motor — `src/grip.rs` e `src/keys.rs`.
 
-Depois dela o que sobra é de outro tipo, e é pouco: o registro de famílias de
+~~Depois dela o que sobra é de outro tipo, e é pouco: o registro de famílias de
 fonte (duas linhas), a gerência de janela interna (`MdiArea`/`Dock` — um debate,
 não um bloqueio de motor), o troco decorativo da §6.3 (sete) e seis linhas fora
 de escopo por escrito. **O regime "um habilitador, meia dúzia de widgets"
 acabou**, e desta vez a afirmação é verificável: o único `●` que sobra por
-estado de verdade é `MdiArea`/`Dock`.
+estado de verdade é `MdiArea`/`Dock`.~~
+
+**A frase durou uma revisão** (2026-09-08, à tarde, ainda sobre a 0.95). A
+primeira metade estava certa — o registro de famílias é mesmo um habilitador
+pequeno, e é a **Onda 10**. A segunda estava errada pelo motivo de sempre: as
+quatro linhas que sobravam fora do troco (`MdiArea`, `Dock`, `SplashScreen`,
+`NotificationDot`) estão em três seções diferentes da tabela e **elas mesmas já
+escrevem o nome do que falta**: duas dizem `stack` na coluna "Base iced", uma
+terceira diz "pede `Stack` dentro do builtin" na nota, e a quarta é composição
+do `<splitter>` que a Onda 9 acabou de entregar. É uma capacidade que o `iced`
+tem, que o `widget.rs` usa **uma vez, hardcoded**, e que o markup nunca expôs. É
+a **Onda 11**, e é a quarta vez que o gargalo real não estava na lista do §3.
+
+~~As duas levam o catálogo de **82,4% para 85,6% e depois para 93,6%** — e a 11
+esgota o catálogo tal como escrito: o que sobra depois dela são cinco linhas
+justificadas como fora de escopo e três `🟡` que são `🟡` de propósito.~~ **A
+Onda 10 foi pulada** (a pedido, direto para a 11) **e a 11 saiu com dois
+cortes** — `Dock` e a série múltipla dos gráficos — que a própria seção da
+onda já tinha escrito como risco antes de qualquer código. O catálogo foi de
+**82,4% para 88,8%** (103 → 111/125): sete widgets e dois habilitadores de
+motor (`<stack>`/`pin`, `grip::Alvo::Ponto`), a 17ª correção de nível
+(`MdiArea`). O detalhe está em "O resultado real (0.96)", ao fim da Onda 11
+na §6.2.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -99,10 +124,10 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QRadioButton | `Radio` | Prim | radio | ◐ | P1 | ✅ | o grupo **é a chave**: `group="plano"` é o *nome* dela (convenção do `checked=`), e todo `<radio>` que aponta para a mesma chave é do mesmo grupo. Não grava sozinho (regra do `<Checkbox>`) — para isso, o `RadioGroup` |
 | QCheckBox | `Checkbox` | Prim | checkbox | ◐ | P0 | ✅ | já existe |
 | QCheckBox (tristate) | `Checkbox tristate` | Prim | checkbox | ◐ | P2 | ✅ | flag `tristate` no `<Checkbox>`; cicla `false → mixed → true` (a ordem do Qt) e desenha `−` no lugar do check, como `Qt::PartiallyChecked` |
-| QCommandLinkButton | `CommandLink` | Built | button+col | — | P2 | ⬜ | título + descrição + seta. §6.3 |
+| QCommandLinkButton | `CommandLink` | Built | button+col | — | P2 | ✅ | título + descrição + seta, sobre o `<Button>` com filhos (a convergência de templates já aceitava mais de um). **Onda 11** |
 | QDialogButtonBox | `ButtonBox` | Built | row+button | — | P1 | ✅ | `<buttonbox accept="Salvar" on_accept="salvar" reject="Cancelar" …/>`: os três **papéis** e a ordem por plataforma decididos no widget — em Rust, no `template()`, por `cfg!(target_os)`, com uma prop `order` para forçar. O destrutivo fica na ponta oposta em qualquer ordem, e o `<slot/>` põe o "Ajuda" à esquerda. Onda 4 (0.85) |
 | (switch/QML Switch) | `Toggle`/`Toggler` | Prim | toggler | ◐ | P0 | ✅ | já existe |
-| QML RoundButton | `RoundButton` | Built | button | — | P3 | ⬜ | border-radius total. §6.3 |
+| QML RoundButton | `RoundButton` | Built | button | — | P3 | ✅ | `<Button>` com `border_radius` total — a mesma conta do círculo de iniciais do `<Avatar>` (passar o LADO inteiro, não a metade). `color` ganhou um default inline: sem fundo, o `<Button>` do motor não aplica `border_radius` nenhum (só entra no `.style()` junto do fundo). **Onda 11** |
 | QML DelayButton | `DelayButton` | **Prim** | button+canvas | ◐ | P3 | ✅ | anel de progresso ao segurar. **Onda 9** (0.95): a metade do arrasto em que o que anda é o tempo, não o pixel — a fração numa chave global (`__hold`), recalculada do relógio a cada tique, e o ticker ligado **só** enquanto o botão está apertado. Soltar antes do fim desiste, que é o ponto todo |
 
 ### 2.2 Entradas de texto
@@ -113,8 +138,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QLineEdit (password) | `TextInput password` | Prim | text_input | ◐ | P1 | ✅ | flag `secure`/`password`/`seguro`/`senha` no `<TextInput>`, sobre o `.secure()` do iced |
 | QLineEdit (mask/validator) | `MaskedInput` | **Prim** | text_input | ◐ | P2 | ✅ | `<maskedinput value="cpf" mask="cpf" />`. Guarda **cru** na chave, exibe mascarado — a mesma separação valor/`displayFormat` do `<dateedit>`. Gramática `#`/`A`/`*` + literais, com presets `cpf`/`cnpj`/`telefone`/`cep`/`placa`/`date`/`hora`/`cartao`; a dica default é a máscara com `_`. A reclassificação (de `Comp ●` para `Prim ◐`) se confirmou. Onda 4 (0.85) |
 | QTextEdit (rich) | `TextEditor` | Prim | text_editor | ● | P1 | ✅ | multi-linha; rich text é limitado |
-| QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação |
-| QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3 |
+| QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação. O 🟡 é a fonte: `font_for` conhece **duas** famílias (`widget.rs`), então "texto simples em mono declarável" não dá para escrever. Fecha na **Onda 10** |
+| QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | render read-only + links. §6.3, de carona na **Onda 10** — o bloco de código dele é o primeiro consumidor do registro de famílias |
 | QKeySequenceEdit | `ShortcutInput` | **Prim** | text_input | ◐ | P3 | ✅ | captura combinação de teclas. **Onda 9** (0.95): é o listener de teclado do habilitador B em modo de captura — a combinação vai numa chave nomeada, e qual campo captura é global (`__shortcut_cap`), como o `__timeedit`. É um **botão**, não um `<textinput>`: um campo de texto consumiria a tecla antes de o listener global a ver |
 | QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
 | — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Recorta a lista sem acento e sem caixa ("sao paulo" acha "São Paulo"), ▲▼ navegam, Enter aceita, Esc desiste — e as três teclas ganham do campo focado porque quem as recebe é o **overlay** (0.92) |
@@ -141,7 +166,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | Qt | Tag glacier-ui | Nível | Base iced | Estado? | Prio | Status | Notas |
 |---|---|---|---|---|---|---|---|
 | QComboBox | `Select` / `Combo` | Prim | pick_list / combo_box | ◐ | P0 | ✅ | ambos existem |
-| QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema — o mesmo bloqueio do `FontDialog` (§2.10), e não é o combo: falta o **registro de famílias de fonte** no motor. Os dois saem juntos quando ele existir |
+| QFontComboBox | `FontSelect` | Comp | combo_box | ● | P3 | ⬜ | lista fontes do sistema — o mesmo bloqueio do `FontDialog` (§2.10), e não é o combo: falta o **registro de famílias de fonte** no motor. Os dois saem juntos quando ele existir, e é a **Onda 10** (§6.2) |
 | QListWidget | `ListView` | **Built** | scrollable+ForEach | ◐ | P1 | ✅ | `<listview items="servicos" value="servico" selected="{servico}" />` — o `TabBar` na vertical, com scroll. `mode="multi"` guarda um **conjunto** numa chave só e é o primeiro consumidor do `contains` (0.84). `virtualize` repassado para listas longas. Onda 4 (0.85) |
 | QListView (model) | `ListView bind` | Motor+Comp | scrollable | ◐ | P2 | ✅ | ligado a coleção do contexto — e a ligação **já existe** (`items="chave"`, a convenção do `<Menu>`/`<TabBar>`). Onda 6. **Contabilidade atrasada**, fechada na revisão da Onda 9: a Onda 6 escreveu que "nem existia como trabalho" e o ⬜ ficou por esquecimento |
 | QTreeWidget/QTreeView | `TreeView` | **Prim** | column+recursão | ◐ | P2 | ✅ | ~~expandir/recolher = estado por nó~~ — é um **conjunto nomeado** (`abertos="raiz,raiz/src"`) + o `contains` da Onda 4. A identidade de um nó é o **caminho**, então um `id` repetido em ramos diferentes não colide (0.92) |
@@ -224,11 +249,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | — (pílula/rótulo) | `Badge` | Built | container+text | — | P1 | ✅ | builtin canônico |
 | — (cartão) | `Card` | Built | container+col | — | P1 | ✅ | builtin de verdade a partir da 0.65: cabeçalho (título/subtítulo), corpo por `<slot/>` e rodapé por `<slot name="footer"/>` (0.67), que só se paga quando preenchido |
 | — (avatar) | `Avatar` | Built | container+image | — | P1 | ✅ | foto circular ou iniciais como reserva, com cores por instância. Sem indicador de presença (pediria `Stack` dentro do builtin) |
-| — (chip removível) | `Chip` | Built | row+button | — | P2 | ⬜ | badge com "×". §6.3 |
+| — (chip removível) | `Chip` | Built | row+button | — | P2 | ✅ | `<Badge>` com um "×" que dispara `on_remove` — sem `on_remove`, o "×" nem desenha. **Onda 11** |
 | — (separador) | `Divider` / `Rule` | Prim | rule | — | P0 | ✅ | `Rule` existe |
 | QFrame | `Frame` | Built | container | — | P2 | ✅ | três formas: `box` (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem `Raised`/`Sunken`: o `UiNode` não tem campo de sombra |
-| — (skeleton) | `Skeleton` | Built | container | — | P2 | ⬜ | placeholder de carregamento. §6.3 |
-| — (QR) | `QrCode` | Prim | qr_code | — | P3 | ⬜ | iced tem nativo. §6.3 |
+| — (skeleton) | `Skeleton` | Built | container | — | P2 | ✅ | um `<Container>` cinza do tamanho declarado — de propósito sem a pulsação animada que alguns kits desenham (pediria um tique de relógio por instância para uma economia que não se paga). **Onda 11** |
+| — (QR) | `QrCode` | Prim | qr_code | — | P3 | ✅ | `qr_code` do iced atrás da feature `qr_code`; o `qr_code::Data` (não é `Clone` — guarda um `canvas::Cache`) é cacheado por conteúdo com um `Box::leak` por string distinta, o mesmo troco que o registro de fontes da Onda 10 preveria fazer. **Onda 11** |
 | QGraphicsView | `Canvas` | Prim | canvas | ● | P3 | ⬜ | superfície de desenho livre. A Onda 7 usou o `canvas` do `iced` como **capacidade** (`src/canvas.rs`) e decidiu NÃO expor tag: um callback imperativo o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança. Se sair, sai como vocabulário declarativo (`<path>`, `<arc>`, `<circle>`) |
 | QOpenGLWidget | `Shader` | Prim | shader | ● | P3 | ⬜ | iced `shader` (wgpu) |
 | — (toast) | `Toast` | Motor | stack | — | P1 | ✅ | já existe (`toasts.rs`) |
@@ -243,8 +268,8 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QSplitter | `Splitter` / `PaneGrid` | **Prim** | row/column | ◐ | P2 | ✅ | painéis redimensionáveis. **Onda 9** (0.95): é a alça de coluna do `<tableheader>` aplicada a um container — mesmo formato de trilhas do `columns` do `<grid>`, mesmo `grip::Alvo::Trilha`, mesmo código. Aninha nos dois eixos, e duas instâncias na mesma tela nomeiam duas chaves |
 | QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ✅ | `<toolbox>` + `<toolboxitem title="…" value="secao" open="{secao}" id="…">`: **uma** aberta por vez, e clicar na aberta a fecha. Nunca esteve bloqueado, e nem precisou do `contains`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ✅ | `<accordion>` + `<accordionitem …>`: **várias** abertas, num conjunto numa chave só (`abertas="rede,disco"`). ~~precisa estado por instância~~ — precisava do `contains` (0.84), e é o consumidor que o justificou. Uma tag por seção porque o **conteúdo** de cada uma é diferente, e conteúdo é de quem escreve a tela (`<slot/>`, 0.65) — a mesma forma do `QToolBox::addItem`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
-| QMdiArea/QMdiSubWindow | `MdiArea` | Comp | canvas/stack | ● | P3 | ⬜ | janelas MDI internas |
-| QDockWidget | `Dock` | Comp | pane_grid | ● | P3 | ⬜ | painéis acopláveis |
+| QMdiArea/QMdiSubWindow | `MdiArea` | **Prim** | stack | ◐ | P3 | ✅ | janelas internas: `<mdiarea>` + `<mdisubwindow title="…" x="…" y="…" w="…" h="…">`, uma tag por janela — a mesma razão do `<accordion>` (o CONTEÚDO de cada uma é diferente). **A previsão da §6.2 errou um detalhe**: não é uma coleção (`items=`) — os filhos são markup ESTÁTICO, como o `<accordionitem>` — e por isso não há reordenação Z por clique; a pilha desenha na ordem do markup. Mover (barra de título) e redimensionar (canto) são o MESMO `grip::Alvo::Ponto`, só com limites diferentes — a 17ª correção de nível: o `●` nunca valeu, quatro chaves por janela é a mesma forma que o `<rangeslider>` usa para duas. **Onda 11** (0.96) |
+| QDockWidget | `Dock` | Comp | pane_grid → splitter+stack | ● | P3 | ⬜ | painéis acopláveis. **A Onda 11 tentou e cortou** (0.96): o risco que a própria onda tinha escrito por antecipação se confirmou — acoplado→flutuante é uma MUDANÇA DE PAI no meio de um arrasto, e o `grip.rs` foi escrito para reescrever VALORES (a chave que uma coisa já é), não para trocar a ESTRUTURA da árvore enquanto o dedo está apertado. Não é um bloqueio de motor novo: é decisão de design que esta rodada não tomou. Fica para uma leva futura, isolado do resto — que saiu inteiro |
 | QSpacerItem | `Space` | Prim | space | — | P1 | ✅ | sem `width`/`height` é `Fill` nos dois eixos (o espaçador flexível); com eles, vão fixo. Duplicado na §2.11 por ser layout **e** container |
 
 ### 2.8 Navegação (abas, wizard, stacks)
@@ -287,7 +312,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QFileDialog (salvar) | `FileDialog::save` | Diál | `rfd` | — | P1 | ✅ | Luau `save_file()` |
 | QFileDialog (diretório) | `FileDialog::directory` | Diál | `rfd` | — | P1 | ✅ | Luau `pick_folder()` |
 | QColorDialog | `ColorDialog` | Diál | stack+canvas | ◐ | P2 | ✅ | `pick_color{}` — anel de matiz (180 setores) mais o quadrado saturação×valor, sobre o `src/canvas.rs` da Onda 7. É um `prompt{}` cujo campo é uma roda: mesma porta, mesmo retorno. A primitiva `<colorwheel>` também vale avulsa. Onda 8 (0.94) |
-| QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho. **Não é um item de diálogo**: o motor conhece duas fontes (`font_for`, `widget.rs`), não tem registro de famílias e o `iced` não enumera as do SO. Espera um item de **Motor** (famílias de fonte), com quem sai junto do `FontSelect` da §2.4 — ver Onda 8, "fica de fora" |
+| QFontDialog | `FontDialog` | Diál | stack+lista | ● | P3 | ⬜ | escolher fonte/tamanho. **Onda 10** (§6.2), sobre o corpo em markup da Onda 8. **Não é um item de diálogo**: o motor conhece duas fontes (`font_for`, `widget.rs`), não tem registro de famílias e o `iced` não enumera as do SO. Espera um item de **Motor** (famílias de fonte), com quem sai junto do `FontSelect` da §2.4 — ver Onda 8, "fica de fora" |
 | QErrorMessage | (coberto por `error`) | Diál | — | — | — | ✅ | redundante |
 | QPrintDialog/QPageSetup | `PrintDialog` | Diál | `rfd`/SO | ● | P3 | ⬜ | impressão (fora do escopo inicial) |
 
@@ -318,11 +343,11 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QCompleter | `Completer` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | sugestões enquanto digita, com ↑↓/Enter/Esc (0.92) |
 | QML Popup | `Popup` | **Prim** | overlay | ◐ | P2 | ✅ | genérico, centrado na janela — a mesma primitiva do `Popover` sem âncora (0.92) |
 | — (menu popover) | `Popover` | **Prim** | overlay | ◐ | P2 | ✅ | conteúdo flutuante **ancorado ao layout do gatilho** (não ao cursor), medido antes de posicionado — vira para o outro lado quando não cabe. Abre e fecha sozinho (0.92) |
-| QSplashScreen | `SplashScreen` | Comp | stack | — | P3 | ⬜ | tela de abertura |
+| QSplashScreen | `SplashScreen` | **Built** | stack | — | P3 | ✅ | cobre o `<slot/>` principal com um `<slot name="splash">` enquanto `show` for verdadeiro. **A previsão da §6.2 errou o mecanismo**: não anima com `<reveal>` — um `<reveal>` interpola a ALTURA NATURAL do filho, e o painel precisa ser `height="fill"` para cobrir a tela, as duas coisas juntas são a armadilha do `Length::Fill` do `PRIMITIVAS.md`. Aparece/some sem transição, como o `QSplashScreen` do próprio Qt. **Onda 11** (0.96) |
 | QRubberBand | `RubberBand` | **Prim** | canvas | ◐ | P3 | ✅ | retângulo de seleção. **Onda 9** (0.95): o retângulo é uma chave global (`__band`, um por tela, como o `__cal_hover`) e o que ele seleciona é o conjunto nomeado do `<listview mode="multi">`. Ele **desenha os alvos** que conhece, e não só a faixa — o motor não tem `<stack>` no markup, e a geometria ele já tinha |
 | QShortcut/QAction | `Shortcut`/`Action` | Motor+tag | subscription | — | P2 | ✅ | atalhos globais de teclado. **Onda 9, habilitador B** (0.95): um sexto `listen_with` na lista de cinco que o daemon já registrava, lendo `<shortcut key="ctrl+s" on_press="salvar"/>` da árvore **avaliada** — e é por isso que ele vai no layout, não no `<resources>`. Sem modificador não rouba a tecla de um campo focado; com, atravessa |
 | QScroller | (no scrollable) | Motor | scrollable | — | P3 | 🟡 | rolagem por gesto |
-| — (badge de notificação) | `NotificationDot` | Built | container | — | P2 | ⬜ | pontinho sobre ícone. §6.3 |
+| — (badge de notificação) | `NotificationDot` | Built | container | — | P2 | ✅ | `<stack>` (a primeira camada é o `<slot/>`, o ícone) + `anchor="top-right"` (a segunda, o pontinho) — sem `pin`, porque um canto não precisa saber o tamanho do ícone. Primeiro consumidor do habilitador A. **Onda 11** (0.96) |
 
 ### 2.13 Gráficos e visualização (Qt Charts / DataVisualization)
 
@@ -331,7 +356,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QChartView (linha) | `LineChart` | **Prim** | canvas | — | P2 | ✅ | eixos com escala 1·2·5, grade, área e pontos. `min`/`max` vazios = automático; escritos, fixam a escala. Onda 7 |
 | QChartView (barra) | `BarChart` | **Prim** | canvas | — | P2 | ✅ | base sempre no ZERO quando `min` não é declarado; `colorful` dá uma cor por categoria. Onda 7 |
 | QChartView (pizza) | `PieChart` | **Prim** | canvas | — | P2 | ✅ | setores com percentual; `<donut>` é a mesma tag com o buraco aberto. Onda 7 |
-| QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | 🟡 | `area="true"` e `points="true"` no `<linechart>` cobrem os dois casos de uma série. O que falta é **série múltipla**, anotado na Onda 7 como o próximo passo da família |
+| QChartView (área/scatter) | `AreaChart`/`Scatter` | **Prim** | canvas | — | P3 | 🟡 | `area="true"` e `points="true"` no `<linechart>` cobrem os dois casos de uma série. O que falta é **série múltipla**, anotado na Onda 7 (e no cabeçalho do `charts.rs`) como o próximo passo da família — seria o habilitador C da Onda 11, mas ficou de fora dela: sem dependência do que a onda entregou, autocontido em `charts.rs`, fica para uma leva futura |
 | — (sparkline) | `Sparkline` | **Prim** | canvas | — | P2 | ✅ | é `<linechart axes="false">` — a mesma primitiva, outros defaults. Onda 7 |
 | Q3D* (3D bars/scatter) | — | Comp | shader | ● | P3 | ⬜ | escopo distante (wgpu) |
 
@@ -548,7 +573,7 @@ Corte transversal da tabela por prioridade, na ordem que maximiza valor:
 ~~`Radio`~~ ✅ · ~~`Slider`~~ ✅ · ~~`ProgressBar` (formalizar)~~ ✅ ·
 ~~`Tooltip`~~ ✅ · ~~`Space`~~ ✅ · ~~`Grid`~~ ✅ (0.92) · ~~`password`/`secure`
 no `TextInput`~~ ✅ · `QrCode`. Sobra **um**: o `QrCode` (nativo do iced,
-barato). O `Grid` — "o caro, porque o iced não tem grade" — saiu na Onda 6, e o
+barato), de carona na **Onda 11**, que esvazia a §6.3. O `Grid` — "o caro, porque o iced não tem grade" — saiu na Onda 6, e o
 caro nele não era a grade: era a **medição de coluna** (`src/grid.rs`).
 
 **Fase B — destravar estado por instância (Motor P0)**
@@ -615,7 +640,10 @@ gráficos; o `ColorDialog` saiu desta fase e foi para a E, porque o que faltava
 nele nunca foi o canvas — era o diálogo saber carregar conteúdo.
 
 **Fase I — nicho/avançado (P3)**
-`MdiArea` · `Dock` · `SwipeView` · ~~`Drawer`~~ ✅ (0.92, adiantado pela Onda 5 —
+~~`MdiArea`~~ ✅ (**Onda 11**, 0.96 — e não pelo motivo que esta fase supunha,
+ver §6.2: é uma coleção de janelas ESTÁTICAS, não estado por instância) ·
+`Dock` (tentado na Onda 11, cortado — mudança de pai no meio de um arrasto) ·
+~~`SwipeView`~~ ✅ (Onda 9) · ~~`Drawer`~~ ✅ (0.92, adiantado pela Onda 5 —
 ele não dependia de nada desta fase) · ~~`SystemTray`~~ ✅ · `Shader`/3D ·
 impressão. O `Wizard` saiu daqui para a **Onda 8**: no Qt ele é um `QDialog`, e
 com o corpo em markup ele deixa de ser nicho e vira soma de peças prontas.
@@ -686,6 +714,46 @@ Sobram **17** ⬜: o troco da §6.3 (7 — o `PageIndicator` saiu de lá), as du
 fonte, as duas de janela interna (`MdiArea`/`Dock`) e seis justificadas como fora
 de escopo (`Canvas` como tag, `Shader`, `Q3D`, `PrintDialog`, `QWhatsThis`,
 `SplashScreen`).
+
+**As Ondas 10 e 11, previstas** (desenhadas em 2026-09-08; a previsão fica
+escrita para ser conferida depois, como a da Onda 9):
+
+| | ✅ | 🟡 | ⬜ | % do catálogo |
+|---|---|---|---|---|
+| hoje (0.95, Onda 9 fechada) | 103 | 5 | 17 | 82,4% |
+| depois da **Onda 10** (fonte: `FontSelect`, `FontDialog`, `TextBrowser`, `PlainTextEditor` 🟡→✅) | 107 | 4 | 14 | **85,6%** |
+| depois da **Onda 11** (`stack`/`pin`: 4 · o troco da §6.3: 5 · série múltipla 🟡→✅: 1) | **117** | 3 | 5 | **93,6%** |
+
+Os **5 ⬜** que sobram são os cinco justificados por escrito como fora de escopo
+(`Canvas` como tag, `Shader`, `Q3D`, `PrintDialog`, `QWhatsThis`) e os **3 🟡**
+são os três que estão 🟡 de propósito (`ScrollBar` embutido no `scrollable`, o
+`se`/`senao` no lugar do `QStackedLayout`, o `QScroller`). Ou seja: **93,6% é o
+catálogo tal como escrito, esgotado** — depois da Onda 11 não sobra linha que
+alguém tenha decidido fazer e não tenha feito.
+
+E o teto, se um dia se quiser: dos cinco, dois não são "outro projeto" — o
+`Canvas` como vocabulário declarativo (`<path>`/`<arc>`/`<circle>` sobre o
+`src/canvas.rs` da Onda 7) e o `QWhatsThis` (o `tooltip=` num modo pegajoso).
+Levariam a **119/125, 95,2%**. `Shader`, `Q3D` e `PrintDialog` são wgpu e
+impressão, que este documento nunca prometeu.
+
+**O que de fato aconteceu (0.96)**: a Onda 10 foi pulada por pedido explícito
+(direto para a 11), e a Onda 11 saiu com dois cortes que a própria seção da
+onda já cravava como risco antes de escrever uma linha — `Dock` (mudança de
+pai no meio de um arrasto, fora do que `grip.rs` sabe fazer) e a série
+múltipla dos gráficos (não por dificuldade, por ordem de prioridade dentro do
+tempo da rodada).
+
+| | ✅ | 🟡 | ⬜ | % do catálogo |
+|---|---|---|---|---|
+| hoje (0.95, Onda 9 fechada, **Onda 10 pulada**) | 103 | 5 | 17 | 82,4% |
+| depois da **Onda 11 de fato entregue** (`MdiArea`, `NotificationDot`, `SplashScreen`, `QrCode`, `Chip`, `Skeleton`, `CommandLink`, `RoundButton`) | **111** | 5 | 9 | **88,8%** |
+
+Os **9 ⬜** que sobram: `Dock` (cortado nesta onda), `FontSelect`/`FontDialog`/
+`TextBrowser` (Onda 10, não executada) e os cinco fora de escopo por escrito
+(`Canvas` como tag, `Shader`, `Q3D`, `PrintDialog`, `QWhatsThis`). Os **5 🟡**
+não mudaram — a série múltipla continua 🟡 (`AreaChart`/`Scatter`), e os outros
+quatro são 🟡 de propósito, como sempre foram.
 
 **Duas categorias fecharam na Onda 8**, e foi a primeira vez que duas fecharam
 juntas: os diálogos (13/15, com os dois restantes justificados por escrito) e a
@@ -897,7 +965,19 @@ mesma capacidade sustenta, é a **Onda 9**, e ela é a última no regime "um
 habilitador, meia dúzia de widgets". Ver abaixo.
 
 O que continua verdadeiro é o resto do parágrafo: as famílias de fonte são um
-habilitador de duas linhas e o troco da §6.3 não abre rodada.
+habilitador de duas linhas e o troco da §6.3 não abre rodada — mas **"não abre
+rodada" não é "não entra em nenhuma"**, e é assim que ele sai (revisão da tarde
+de 2026-09-08, que desenhou mais duas):
+
+- **Onda 10** ⬜ — a fonte que o motor não sabe nomear: o **último** habilitador
+  de motor que o catálogo tem escrito, e quatro linhas em cima dele. **Pulada**
+  a pedido — direto para a 11.
+- **Onda 11** 🟡 **FEITA PARCIALMENTE (0.96)** — o que fica por cima
+  (`<stack>`/`pin`): a capacidade que o `iced` já tem, o `widget.rs` já usa
+  uma vez e o markup nunca expôs; mais o troco da §6.3, que ela esvazia de
+  carona. Saiu com dois cortes (`Dock`, a série múltipla dos gráficos) sobre
+  os quatro itens previstos. 82,4% → **88,8%**. Detalhe completo no fim da
+  seção da onda, abaixo.
 
 ---
 
@@ -1875,6 +1955,291 @@ acima, porque somar um widget que já existe ao placar de uma onda seria contar
 duas vezes.
 
 ---
+#### Onda 10 — a fonte que o motor não sabe nomear — ⬜ **proposta (2026-09-08)**
+
+**Alvo: 103 → 107 de 125 (de 82,4% para 85,6%).**
+
+É o **último habilitador de motor que este catálogo tem escrito**. A tabela da
+§6.2 ("Onde os habilitadores do §3 foram parar") já o dizia com todas as letras,
+até esta revisão —
+*"Famílias de fonte: sem onda, e agora é o único bloqueio de motor que sobrou"*
+—, e ele é pequeno. O que faltava não era o trabalho: era um consumidor que
+valesse a rodada. São quatro, e um deles é um `🟡` que ninguém tinha ligado a
+isto.
+
+**O estado de hoje, medido no código:**
+
+| Onde | O que há |
+|---|---|
+| `font_for` (`widget.rs`) | conhece **duas** fontes: `mono`/`monospace`/`code` → `Font::MONOSPACE`, `bold` → peso. Qualquer outro nome retorna `None`, isto é, **a fonte padrão, em silêncio** |
+| `font-family` no `.gss` (`stylesheet.rs`) | é aceita, guarda a string em `rule.font`… e cai no mesmo funil acima |
+| `GlacierDaemon::font(bytes)` (`daemon.rs`) | **já carrega** `.ttf`/`.otf` e já sabe definir a padrão (`default_font`) |
+
+Os três lados existem; o que não existe é o **nome** entre eles. A lista de
+bytes registrada não guarda com que família cada um entrou, então um `.gss` não
+tem como pedir "Inter" e um `.gv` não tem como pedir a mono do app. É a mesma
+forma dos outros gargalos deste documento: nenhuma peça falta, falta ligá-las —
+e, como sempre, isso é invisível na tabela, porque a falha aparece como *"a
+propriedade foi ignorada"*, que é exatamente o que a convenção do `CLAUDE.md`
+avisa ser a família de bug mais cara aqui.
+
+##### O habilitador — o registro de famílias (`src/fonts.rs`)
+
+1. **`GlacierDaemon::font_named("Inter", bytes)`**, ao lado do `font(bytes)` que
+   fica como está. Guarda um `Vec<(String, Font)>` que sobrevive ao boot e vive
+   no runtime, do lado do `default_font`.
+2. **`font_for` consulta o registro** antes de desistir: apelidos primeiro
+   (`mono`/`bold`, compatibilidade), nome registrado depois, sem caixa. Nada no
+   markup muda de forma — `font="JetBrains Mono"` e
+   `font_family: "JetBrains Mono"` passam a funcionar pelo caminho que **já
+   existe**, o que faz desta onda duas linhas de motor e um módulo de registro.
+3. **A lista no contexto**, numa chave do motor (`__fonts`, a família do
+   `__cal_hover`/`__band`/`__colgrip`), para que um `<combo items="__fonts">` a
+   consuma sem API nova. É o mesmo truque do `<listview items="chave">`, e é o
+   que faz o `FontSelect` não precisar de nada além de markup.
+4. **A decisão da §4 mora aqui, e a recomendação é `fontdb` atrás de uma
+   feature** (`system-fonts`), desligada por padrão — o `iced` não enumera as
+   fontes do SO, e a escolha é entre uma crate ou o app declarar o que usa. Com
+   a feature desligada, `__fonts` traz as famílias registradas, que é o que um
+   app empacotado quer mesmo; com ela ligada, traz também as do SO. É a forma do
+   `tray-icon` da §2.9 (feature + custo só para quem pede), e evita pôr uma
+   crate de índice de fontes no caminho de quem só queria uma mono.
+
+**A armadilha desta onda**, para ficar escrita antes de custar meia tarde: o
+`iced` resolve família por `Font::with_name(&'static str)` — o nome precisa
+viver tanto quanto o app. Um `Box::leak` no registro (uma vez por família, no
+boot, número fixo e pequeno) é a saída honesta, e é o que os próprios exemplos
+do `iced` fazem.
+
+##### Os quatro widgets
+
+| Linha | Hoje | Depois |
+|---|---|---|
+| `FontSelect` (§2.4) | ⬜ `Comp ●` | ✅ **Built** — `<combo>` sobre `__fonts` com cada item desenhado **na própria fonte** (uma linha: `font=` no item), que é o que o separa de um `<select>` qualquer. O `●` cai pelo motivo de sempre: a família escolhida é um texto numa chave nomeada. Seria a **16ª correção de nível** |
+| `FontDialog` (§2.10) | ⬜ `Diál ●` | ✅ — `prompt{ kind = "font" }`: o mesmo caminho do `pick_color{}` da Onda 8, com corpo em markup (`<FontSelect>` + `<spinbox>` de tamanho + negrito/itálico + uma amostra) e `DialogOutcome`. **Zero linhas de diálogo novas** — o corpo em markup da Onda 8 já é a porta. E o `●` não podia estar aí desde a 0.94: o diálogo é singleton (correções 11–13 da §5) |
+| `PlainTextEditor` (§2.2) | 🟡 | ✅ — o 🟡 dele **é esta onda**, e ninguém tinha ligado os dois. A diferença entre `QPlainTextEdit` e `QTextEdit` é "texto simples, fonte declarável"; sem registro de famílias, a segunda metade não dá para escrever |
+| `TextBrowser` (§2.2, hoje na §6.3) | ⬜ | ✅ de carona — o `markdown` do `iced` é read-only e já entrega links; o que ele pede do motor é uma família para o bloco de código (esta onda) e uma ação para o clique (`on_link`, o formato do `on_click`). Sai daqui porque é aqui que a família existe |
+
+##### Custo previsto e o que fica de fora
+
+Um módulo (`src/fonts.rs`, na casa de 150 linhas), duas linhas em `font_for`, um
+builtin, um corpo de diálogo, uma feature de Cargo e um exemplo
+(`examples/fontes`). **Fica de fora, por escrito:** `@font-face` no `.gss` (o
+motor não carrega fonte em tempo de execução, e esta onda não inventa isso),
+fallback por script (CJK) e qualquer coisa de rasterização — os três são do
+`iced`/`cosmic-text`, não deste catálogo.
+
+**O que esta onda fecha de categoria:** **duas** — a §2.2 (9/9, com o 🟡 do
+`PlainTextEditor` junto) e a §2.4 (11/11) —, e a §2.10 vai a 14/15, com o
+`PrintDialog` justificado por escrito. Só a Onda 8 tinha fechado duas de uma
+vez, e com ressalva nas duas.
+
+---
+#### Onda 11 — o que fica por cima: `<stack>` e `pin` — 🟡 **FEITA PARCIALMENTE (0.96)**
+
+**Alvo original: 107 → 117 de 125 (de 85,6% para 93,6%), contando com a Onda
+10 antes dela.** O usuário pediu para pular a 10 (o registro de fontes) e ir
+direto para esta — o alvo real, então, partiu de **103** (82,4%, sem a Onda 10)
+e teve DOIS cortes sobre o desenho original: o `Dock` e a série múltipla dos
+gráficos (habilitador C) ficaram de fora, os dois por decisão tomada durante a
+implementação, não por bloqueio de motor. **Resultado: 103 → 111 (de 82,4%
+para 88,8%)** — sete widgets e dois habilitadores de motor, os dois previstos
+e os dois confirmados do jeito que a proposta abaixo desenhou. O texto da
+proposta original fica preservado abaixo; a nota de resultado está no fim da
+seção, depois de "A previsão, para ser conferida depois".
+
+##### A observação (é a quarta vez, e a segunda do mesmo tipo)
+
+Quatro frases, escritas em quatro seções diferentes deste documento, em quatro
+revisões diferentes:
+
+- §2.6, `Avatar`: *"Sem indicador de presença (pediria `Stack` dentro do
+  builtin)"*;
+- §6.3, `NotificationDot`: *"pede `Stack` dentro do builtin, ou um `padding`
+  negativo bem escolhido"*;
+- §2.12, `RubberBand` (Onda 9): *"ele desenha os alvos que conhece, e não só a
+  faixa — **o motor não tem `<stack>` no markup**"*;
+- e a coluna "Base iced" de três linhas ⬜ — `MdiArea` (`canvas/stack`),
+  `SplashScreen` (`stack`), `NotificationDot` (`container`, mas a nota diz
+  `Stack`) — que **já nomeiam a capacidade que falta**.
+
+É **uma** capacidade: sobrepor um filho a outro e ancorá-lo. E, como o
+`Row::wrap()` da Onda 6 (correção nº 10 da §5), **a biblioteca de baixo já a
+tem**: `stack` e `pin` estão na lista de widgets do `iced 0.14` reproduzida na
+§1 deste documento, e o `widget.rs` até usa `stack!` **uma vez, hardcoded**,
+para centralizar o percentual sobre o `<progressbar>`. Nunca virou tag.
+
+Quarta vez que o gargalo real não estava na lista do §3 (depois da medição de
+colunas, do corpo do diálogo e do arrasto), e segunda em que a capacidade já
+existia embaixo, esperando alguém a chamar de capacidade.
+
+##### Habilitador A — `<stack>` + posição livre
+
+- **`<stack>`**: empilha os filhos no mesmo espaço, o primeiro embaixo. É o
+  `iced::widget::stack`, e são três linhas no `widget.rs` — o mesmo tamanho que
+  o `<flow>` teve na Onda 6.
+- **`x=`/`y=` dentro de um `<stack>`**: posição livre sobre o
+  `iced::widget::pin`. Valores dirigidos por dado, portanto **inline no `.gv`**
+  pela regra do `CLAUDE.md` (é o mesmo caso do `background="{cor}"`), não no
+  `.gss`.
+- **`anchor="top-right"`** e os outros sete cantos, para o caso comum sem
+  número: é o que o `NotificationDot`, o ponto de presença do `Avatar` e o
+  `<sizegrip>` da Onda 9 querem, e nenhum dos três quer coordenada.
+
+##### Habilitador B — `grip::Alvo::Ponto`, o arrasto em dois eixos
+
+O `src/grip.rs` da Onda 9 tem hoje um `Arrasto` com **um** `eixo: Eixo` e
+**uma** `origem: Option<f32>`, e dois alvos (`Trilha`, `Indice`) — tudo
+unidimensional, porque os sete widgets da Onda 9 arrastam em uma direção só.
+Uma janela interna arrasta em duas.
+
+`Alvo::Ponto { min_x, max_x, min_y, max_y }` guarda o par, escreve `x,y` numa
+chave (ou em dois campos do item da coleção) e **reusa o resto inteiro** — a
+âncora no primeiro movimento e o listener condicional, que o cabeçalho do
+`grip.rs` chama de "os dois problemas difíceis", já estão resolvidos e
+comentados lá. É a mesma extensão que a Onda 9 fez ao tirar a conta de dentro do
+`__colgrip`, um nível acima.
+
+##### Os quatro widgets do empilhamento
+
+| Linha | Hoje | Depois |
+|---|---|---|
+| `MdiArea` (§2.7) | ⬜ `Comp ●` | ✅ **Prim** — e o `●` é a **17ª correção de nível**. Sub-janelas são uma **coleção** (`items="janelas"`, a ligação que existe desde o `<menu>`), a posição de cada uma são dois campos do item, arrastar a barra de título é o `Alvo::Ponto`, redimensionar é o `<sizegrip>` que a Onda 9 já entregou, e a ordem Z é a **ordem da coleção** — trazer para frente é mover para o fim, que é o `__drag_key` de reordenar lista, também pronto. O que a marca `●` chamava de "estado por instância" é uma coleção com geometria |
+| `Dock` (§2.7) | ⬜ `Comp ●` | ✅ **Built** — `<splitter>` (Onda 9) para o painel acoplado, `<stack>` para o flutuante, `Alvo::Ponto` para arrastar de um estado ao outro. Não é widget novo: é a composição que faltava de peças feitas. **Ressalva escrita:** acoplar **entre janelas** do daemon (arrastar um dock de uma janela para outra) fica de fora — atravessa o limite do `GlacierUI`, que é um por janela |
+| `NotificationDot` (§2.12/§6.3) | ⬜ | ✅ — a frase da §6.3 vira duas linhas com `anchor="top-right"`, e o `padding` negativo "bem escolhido" que ela sugeria como alternativa deixa de ser necessário |
+| `SplashScreen` (§2.12) | ⬜ `Comp` | ✅ **Built** — `<stack>` sobre a tela + o `<reveal>` da 0.90 para sumir + a janela sem decoração que o `open_window` do daemon já abre. As três peças existem desde a 0.90 |
+
+De carona e sem linha no catálogo: o **indicador de presença do `Avatar`**, que a
+§2.6 registra como ausente desde a 0.65, e um `<stack>` de verdade por baixo do
+`RubberBand`, que hoje desenha os alvos que conhece justamente por não ter um.
+
+##### O troco da §6.3, que esta onda esvazia
+
+Cinco linhas de composição pura, que **não** justificam rodada própria e por
+isso estão lá desde sempre — mas a onda passa no lugar delas (uma delas *é* o
+habilitador A) e um troco ao lado de trabalho de verdade custa uma tarde:
+`QrCode` (o `qr_code` nativo do `iced`, encanamento, e o último item da Fase A),
+`Chip`, `Skeleton`, `CommandLink`, `RoundButton`. Depois delas a §6.3 fica
+**vazia**.
+
+##### Habilitador C — a série múltipla (de carona, sem relação com A e B)
+
+Do mesmo jeito que a Onda 9 juntou o arrasto e o teclado, que nada têm a ver um
+com o outro: nenhum dos dois abre rodada sozinho, e os dois são pequenos.
+
+O cabeçalho do `src/charts.rs` já o descreve com a decisão tomada — *"séries
+múltiplas … pediria uma segunda convenção de dados (`series="[{nome, pontos}]"`),
+uma legenda e uma paleta por série … fica anotado como o próximo passo natural
+desta família"*. É isso: uma convenção de dados, uma legenda e um ciclo de cores
+sobre a `Moldura` e a `escala` que os quatro gráficos já compartilham. Fecha o
+`AreaChart`/`Scatter` 🟡 → ✅ e leva a §2.13 a 5/6.
+
+##### A conta da onda
+
+| | ✅ | % |
+|---|---|---|
+| entra (depois da Onda 10) | 107 | 85,6% |
+| habilitadores A+B (`MdiArea`, `Dock`, `NotificationDot`, `SplashScreen`) | 111 | 88,8% |
+| o troco da §6.3 (`QrCode`, `Chip`, `Skeleton`, `CommandLink`, `RoundButton`) | 116 | 92,8% |
+| habilitador C (`AreaChart`/`Scatter` 🟡 → ✅) | **117** | **93,6%** |
+
+**Categorias que fecham:** a §2.1 (10/10, com o troco) e a §2.7 (9/9, com as
+duas de janela interna). A §2.6 vai a 13/15 — o que sobra é `Canvas` como tag e
+`Shader`, os dois fora de escopo por escrito —, a §2.12 a 9/11 (sobram
+`QWhatsThis` ⬜ e `QScroller` 🟡) e a §2.13 a 5/6. A §2.2, a §2.4 e o resto já
+terão fechado na Onda 10.
+
+##### O que sobra depois — e por que isto é o fim da fila
+
+Cinco `⬜` e três `🟡`, **todos justificados por escrito antes desta revisão**:
+
+| Sobra | Por quê |
+|---|---|
+| `Canvas` como tag | decisão da Onda 7: um callback imperativo o `.gv` não lê. Se sair, sai como vocabulário declarativo (`<path>`, `<arc>`, `<circle>`) |
+| `Shader`, `Q3D` | wgpu; escopo distante |
+| `PrintDialog` | impressão; fora do escopo inicial |
+| `QWhatsThis` | ajuda contextual; o `tooltip=` num modo pegajoso |
+| `ScrollBar` 🟡 | embutido no `scrollable` de propósito; expor avulso é raro |
+| `QStackedLayout` 🟡 | é o `se`/`senao`, e agora também o `<stackview>` da Onda 8 |
+| `QScroller` 🟡 | rolagem por gesto, no `scrollable` |
+
+Não é "acabou o que fazer" — é que **acabou o que este documento decidiu fazer e
+não fez**. As duas coisas são diferentes, e a segunda é a única que uma fila de
+execução consegue medir. Depois da Onda 11, avançar o catálogo passa a exigir
+uma decisão nova (o vocabulário de desenho declarativo, o `shader`, a impressão)
+e não mais uma releitura da tabela.
+
+E se a decisão for tomada: `Canvas` declarativo + `QWhatsThis` são os dois únicos
+que não são "outro projeto", e levam a **119/125 — 95,2%**.
+
+##### A previsão, para ser conferida depois
+
+Este documento tem o hábito de guardar a previsão junto do resultado (a da Onda
+9 acertou 102/~82%). As destas duas, então, escritas antes de qualquer linha de
+código: **Onda 10 = 107 / 85,6%**, **Onda 11 = 117 / 93,6%**, uma correção de
+nível em cada (`FontSelect`, a 16ª; `MdiArea`, a 17ª), e **nenhum item novo do
+§3** — o registro de famílias já estava listado, e o `<stack>`/`pin` é do
+`iced`, não do glacier-ui.
+
+O risco declarado, também para ser conferido: a Onda 11 aposta que `MdiArea` e
+`Dock` são composição de peças prontas. Se essa aposta furar, ela fura no
+`Dock` — arrastar um painel de acoplado para flutuante é uma **mudança de pai**
+no meio de um arrasto, e o `grip.rs` foi escrito para mexer em *valores*, não em
+estrutura. Se for esse o caso, o `Dock` sai da onda e ela entrega **116/125
+(92,8%)**, o que não muda a leitura de nenhuma das duas.
+
+##### O resultado real (0.96), contra a previsão acima
+
+**A aposta furou exatamente onde a previsão dizia que furaria.** Escrito antes
+de qualquer linha de código, o parágrafo acima apontou o `Dock` como o risco —
+"mudança de pai no meio de um arrasto" — e foi lá que a implementação parou:
+ao escrever o `render_mdi_subwindow` (`src/panes.rs`) ficou claro que
+acoplar/soltar exigiria o `<splitter>` e o `<stack>` **trocando de pai** no
+mesmo nó, sob o mesmo arrasto que hoje só reescreve uma chave — não uma
+mudança de código pequena, uma decisão de design que esta rodada não tomou.
+`Dock` fica ⬜, isolado, sem levar `MdiArea` junto.
+
+**Um segundo corte que a previsão não tinha antecipado**: a série múltipla dos
+gráficos (habilitador C) também ficou de fora — não por dificuldade, mas por
+ordem de prioridade dentro do tempo da rodada; o `MdiArea` (o item novo mais
+pesado) e o troco (cinco widgets) vieram primeiro, e a série múltipla é
+autocontida em `charts.rs`, sem dependência de nada que saiu aqui. Fica
+anotada como o próximo passo natural da família, exatamente como o cabeçalho
+de `charts.rs` já dizia antes desta onda.
+
+E a base mudou: como a Onda 10 não rodou (pulada a pedido), o "antes" real é
+**103/125 (82,4%)**, não 107. A conta fechada:
+
+| | ✅ | % |
+|---|---|---|
+| antes (0.95, Onda 9 fechada, Onda 10 pulada) | 103 | 82,4% |
+| **depois da Onda 11** (`MdiArea`, `NotificationDot`, `SplashScreen` + o troco: `QrCode`, `Chip`, `Skeleton`, `CommandLink`, `RoundButton`) | **111** | **88,8%** |
+
+Sete widgets, dois habilitadores de motor (`<stack>`/`pin` e
+`grip::Alvo::Ponto`), uma correção de nível (`MdiArea`, a 17ª — `SplashScreen`
+não contou como correção porque nunca teve `●`, e o catálogo já o tinha como
+`Comp` sem marca de estado). **Os dois habilitadores previstos saíram como
+previsto**; os dois cortes (`Dock`, série múltipla) ficam registrados para uma
+leva futura, e nenhum dos dois bloqueia o resto do que a Onda 11 entregou —
+o `MdiArea` funciona sozinho, sem o `Dock`.
+
+Testes: as 6 propriedades novas de `Alvo::Ponto` em `src/grip.rs` (origem
+ancorando os dois eixos juntos, escrita nas duas chaves, saturação
+independente por eixo, chave `y` ausente), mais as 7 já existentes
+reescritas para o novo formato de `Arrasto` — **347 testes passando** no
+crate inteiro, nenhuma quebra. Exemplos: `examples/onda11` e
+`examples/onda11_luau` (rode com `cargo run --example onda11` /
+`onda11_luau`, `WGPU_BACKEND=gl` nesta máquina) — o par de sempre desde a Onda
+4, e a versão Luau confirma a mesma observação da Onda 9: nem `<stack>`
+(markup puro) nem `grip::Alvo::Ponto` (escreve as chaves do `<mdisubwindow>`
+por baixo, como o `<slider>` já fazia) pediram uma linha de script. O que
+sobrou para o Luau fazer são as quatro coisas de sempre — semear, alternar um
+booleano, um clique com payload (`remover_tag:<tag>`, a convenção
+`nome:sufixo` do dispatcher) e um clique sem payload —, e o campo do `QrCode`
+nem isso: sem uma função `qr_texto`, o binding legado `ctx[ação] = valor`
+resolve sozinho.
+
+---
 #### Onde os habilitadores do §3 foram parar
 
 O §3 lista nove itens de motor. Depois de distribuí-los pelas quatro ondas,
@@ -1912,7 +2277,7 @@ Do §3 sobra, depois da Onda 9, **um** item — e ele nunca bloqueou nada:
 | ~~**Canvas como primitiva**~~ | ✅ Onda 7 (0.93). Era mesmo o de maior alavancagem: sete widgets, e a §2.13 saiu de 0/6 para 5/6 |
 | `ctx.dispatch(acao)` | continua P2, continua sem consumidor urgente |
 | ~~Subscriptions de teclado~~ | **Onda 9, habilitador B** — ✅ feito na 0.95 (`src/keys.rs`), e era mesmo uma sexta entrada numa lista de cinco `listen_with` que o daemon já registrava. Era o único item do §3 que ainda tinha consumidor no catálogo, e ele saiu com os dois (`Shortcut`/`Action` e `ShortcutInput`) |
-| ~~**Estado por instância**~~ | **A Onda 9 desmontou o que sobrava dele**: `RangeSlider`, `Tumbler`, `Splitter`, `SwipeView`, `DelayButton` e `RubberBand` são arrasto sobre chave nomeada, como o `<dial>` e a alça de coluna. Sobram `MdiArea`/`Dock` — e eles não esperam o estado, esperam uma decisão sobre janela interna vs. as janelas de verdade que o daemon já dá — mais a edição de célula em árvore profunda. **Este item nunca foi o caminho crítico de nada**, e agora está escrito com a lista fechada |
+| ~~**Estado por instância**~~ | **A Onda 9 desmontou o que sobrava dele**: `RangeSlider`, `Tumbler`, `Splitter`, `SwipeView`, `DelayButton` e `RubberBand` são arrasto sobre chave nomeada, como o `<dial>` e a alça de coluna. **A Onda 11 confirmou para `MdiArea`** ✅ (0.96): quatro chaves por janela, o mesmo `grip::Alvo::Ponto` generalizado para duas dimensões — a 17ª correção de nível. Sobra só `Dock`, e não por estado: por uma decisão de design que a Onda 11 não tomou (mudança de pai no meio de um arrasto, ver a onda na §6.2) — mais a edição de célula em árvore profunda. **Este item nunca foi o caminho crítico de nada**, e agora está escrito com a lista fechada |
 
 E um **terceiro** fora do §3, achado na mesma revisão e pelo mesmo ponto cego:
 
@@ -1926,7 +2291,9 @@ capacidade — o mesmo ponto cego que a medição da Onda 6 revelou:
 | Habilitador (fora do §3) | Estado |
 |---|---|
 | **Corpo e retorno do diálogo** | **Onda 8** — ✅ feito na 0.94: `DialogSpec.body` com o nome de um template, `DialogOutcome` no lugar do `bool`, e o prefixo `dialog:` para abrir do markup. Destravou `<dialog>`, `InputDialog`, `ProgressDialog`, `ColorDialog` e o `Wizard` — e o corpo custou **um parâmetro e uma chamada**, porque `render(nome)` já existia |
-| **Famílias de fonte** | Sem onda, e agora é o **único bloqueio de motor que sobrou** no catálogo. Registro de famílias, `font-family` no `.gss` e enumeração do SO. É o bloqueio real do `FontDialog` (§2.10) e do `FontSelect` (§2.4), que o catálogo atribui, os dois, ao widget errado — e tem uma decisão de §4 dentro (o `iced` não enumera as fontes do SO: ou entra uma crate, `fontdb`/`font-kit`, ou o app declara as famílias que usa) |
+| **Famílias de fonte** | **Onda 10** (proposta em 2026-09-08, **pulada** a pedido) — era o **único bloqueio de motor que sobrou** no catálogo, e o que faltava nunca foi o trabalho: era um consumidor que valesse a rodada. São quatro, e um deles é um 🟡 que ninguém tinha ligado a isto. Registro de famílias, `font-family` no `.gss` e enumeração do SO. É o bloqueio real do `FontDialog` (§2.10) e do `FontSelect` (§2.4), que o catálogo atribui, os dois, ao widget errado — e tem uma decisão de §4 dentro (o `iced` não enumera as fontes do SO: ou entra uma crate, `fontdb`/`font-kit`, ou o app declara as famílias que usa) |
+| **`<stack>`/`pin` como capacidade** | **Onda 11, habilitador A** — ✅ feito na 0.96 (`NodeType::Stack` em `parser.rs`/`widget.rs`). O `iced` expõe `stack`/`pin` desde sempre (§1 deste documento os lista) e o `widget.rs` usava `stack!` **uma vez, hardcoded**, no `<progressbar>` — nunca virou tag. `x=`/`y=` num filho usam `pin`; `anchor=` usa um `container` `Fill` alinhado, sem precisar de coordenada. Destravou `NotificationDot`, `SplashScreen` e o `MdiArea` |
+| **`grip::Alvo::Ponto`, o arrasto em 2D** | **Onda 11, habilitador B** — ✅ feito na 0.96 (`src/grip.rs`), como extensão do habilitador A da Onda 9. O `Arrasto` ganhou uma segunda dimensão (`chave_y`/`origem_y`/`valor0_y`) e um terceiro `Alvo`, sem tocar nos dois existentes — os dois problemas difíceis (âncora no primeiro movimento, listener condicional) não mudaram, só passaram a ancorar/mover os DOIS eixos juntos. Único consumidor: `MdiArea` (mover a janela e redimensioná-la são o MESMO alvo, com limites diferentes) |
 
 E o `on_enter`/`on_exit` no markup, anotado no fim da Onda 4 como "o que faria um
 `Rating` builtin ser viável", continua sem consumidor: o hover do
@@ -1943,22 +2310,25 @@ continua sem consumidor (`ctx.dispatch`). Os **três gargalos reais** — a medi
 de colunas (Onda 6), o corpo do diálogo (Onda 8) e o arrasto (Onda 9) — não
 estavam na lista, e os três eram capacidades que o motor já tinha em algum
 canto sem ninguém as ter chamado de capacidade. É a lição mais cara e mais
-repetida deste documento, e ela vale para a próxima onda, se houver uma.
+repetida deste documento, e ela valeu **na mesma tarde em que foi escrita**: a
+**Onda 11** é o quarto caso, e a segunda vez (depois do `Row::wrap()`) em que a
+capacidade estava na biblioteca de baixo. O `iced` expõe `stack` e `pin` desde
+sempre, a §1 deste documento os lista, o `widget.rs` usa `stack!` uma vez
+hardcoded — e quatro linhas ⬜ do catálogo escrevem "Stack" na nota ou na coluna
+"Base iced" sem que ninguém a tivesse lido como um item de motor.
 
 ### 6.3 A bandeja de troco (fica registrada, não abre rodada)
 
-Os widgets pequenos que a versão anterior desta seção usava como Onda 3.
-Continuam corretos e continuam baratos — eram oito, e o `PageIndicator` saiu na
-Onda 9 exatamente como esta tabela previa ("sai de graça depois dele"), de
-carona no `<swipeview>` — o que mudou é que nenhum deles é motivo
-para abrir uma leva. Entram de carona quando um da fila acima passar perto:
+**A Onda 11 esvaziou esta bandeja quase inteira** (0.96): `QrCode`, `Chip`,
+`Skeleton`, `CommandLink`, `NotificationDot` e `RoundButton` saíram, todos de
+carona no habilitador A (`<stack>`) ou sozinhos — nenhum abriu rodada própria,
+exatamente como esta seção sempre disse que devia ser.
+
+Sobra **um**, e ele não podia sair aqui: o `TextBrowser` espera o registro de
+famílias de fonte para o bloco de código, que é a **Onda 10** — proposta, não
+executada (o usuário pediu para pular direto para a 11). Fica exatamente onde
+estava, esperando a mesma coisa de sempre.
 
 | Widget | Nível | Prio | Nota |
 |---|---|---|---|
-| `QrCode` | Prim | P3 | O `iced` tem `qr_code` nativo; é o último item barato da Fase A, quase só encanamento |
-| `Chip` | Built | P2 | `Badge` com um "×" e uma ação de remover. Sai junto de um campo de tags — que por sua vez quer o `contains` da Onda 4 |
-| `Skeleton` | Built | P2 | Placeholder de carregamento. Quatro linhas de markup em qualquer app; vira tag só por conveniência |
-| `CommandLink` | Built | P2 | Título + descrição + seta, sem estado |
-| `NotificationDot` | Built | P2 | Pontinho sobre um ícone; pede `Stack` dentro do builtin, ou um `padding` negativo bem escolhido |
-| `RoundButton` | Built | P3 | `border-radius` total |
-| `TextBrowser` | Built | P2 | Render read-only de markdown com links, sobre o `markdown` do iced |
+| `TextBrowser` | Built | P2 | Render read-only de markdown com links, sobre o `markdown` do iced — o bloco de código é o primeiro consumidor do registro de famílias da Onda 10 |

@@ -2179,6 +2179,7 @@ fn eval_owned(
         NodeType::Container => NodeType::Container,
         NodeType::Column => NodeType::Column,
         NodeType::Row => NodeType::Row,
+        NodeType::Stack => NodeType::Stack,
         NodeType::Text {
             content,
             size,
@@ -2241,6 +2242,35 @@ fn eval_owned(
         } => NodeType::Image {
             source: process_tpl(source, context),
             clip_circle: *clip_circle,
+        },
+        NodeType::MdiArea => NodeType::MdiArea,
+        NodeType::MdiSubWindow {
+            title,
+            x_var,
+            y_var,
+            w_var,
+            h_var,
+            default_w,
+            default_h,
+        } => NodeType::MdiSubWindow {
+            title: process_tpl(title, context),
+            // As quatro chaves são NOMES, como `value_var` do `<slider>` — mas
+            // interpolam do mesmo jeito que ele: um `<mdisubwindow x="{id}_x">`
+            // dentro de um `for-each` compõe um nome de chave por janela.
+            x_var: process_tpl(x_var, context),
+            y_var: process_tpl(y_var, context),
+            w_var: process_tpl(w_var, context),
+            h_var: process_tpl(h_var, context),
+            default_w: *default_w,
+            default_h: *default_h,
+        },
+        NodeType::QrCode { content, color } => NodeType::QrCode {
+            content: process_tpl(content, context),
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
+                .or_else(|| style.color.clone()),
         },
         NodeType::Svg { source, color } => NodeType::Svg {
             source: process_tpl(source, context),
@@ -2992,6 +3022,11 @@ fn eval_owned(
     let on_double_click_eval = node.on_double_click().map(|s| process_tpl(s, context));
     let cursor_eval = resolve(node.cursor(), &style.cursor);
     let text_color_eval = resolve(node.text_color(), &style.text_color);
+    // `x`/`y`/`anchor` (Onda 11, habilitador A): dado, não estilo — sem
+    // equivalente `.classe { }`, interpolados direto como `on_press`/`tooltip`.
+    let pin_x_eval = node.pin_x().map(|s| process_tpl(s, context));
+    let pin_y_eval = node.pin_y().map(|s| process_tpl(s, context));
+    let anchor_eval = node.anchor().map(|s| process_tpl(s, context));
     // `tooltip` é conteúdo, não estilo (sem equivalente `.classe { }`, como
     // `on_press`) — interpolado direto pra suportar `tooltip="{var}"`.
     let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
@@ -3095,6 +3130,9 @@ fn eval_owned(
             gradient: gradient_eval,
             text_align: text_align_eval,
             text_color: text_color_eval,
+            pin_x: pin_x_eval,
+            pin_y: pin_y_eval,
+            anchor: anchor_eval,
             // A diretiva de destino é consumida na fronteira do componente, ao
             // repartir o conteúdo do uso (a partição roda sobre os filhos
             // **crus** e limpa a etiqueta antes de avaliá-los), então nada do

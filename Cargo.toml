@@ -78,6 +78,14 @@ name = "onda9_luau"
 path = "examples/onda9_luau/main.rs"
 
 [[example]]
+name = "onda11"
+path = "examples/onda11/main.rs"
+
+[[example]]
+name = "onda11_luau"
+path = "examples/onda11_luau/main.rs"
+
+[[example]]
 name = "onda8"
 path = "examples/onda8/main.rs"
 
@@ -106,7 +114,7 @@ name = "onda2"
 path = "examples/onda2/main.rs"
 
 [dependencies]
-iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas"] }
+iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
 roxmltree = "0.21"
 image = "0.25"
 serde_json = "1.0"

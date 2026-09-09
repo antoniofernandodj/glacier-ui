@@ -2685,17 +2685,21 @@ impl GlacierUI {
         let Some(mut arrasto) = crate::grip::Arrasto::ler(bruto) else {
             return false;
         };
-        let escrito = arrasto.aplica(p, &self.context_data);
+        // Pode vir mais de um par — `Alvo::Ponto` (Onda 11) escreve `x` e `y`
+        // juntos, os outros dois alvos escrevem no máximo um.
+        let escritos = arrasto.aplica(p, &self.context_data);
         // A âncora do primeiro movimento muda o arrasto sem escrever nada — daí
-        // o `insert` acontecer nos dois caminhos, e o `true` só num deles.
+        // o `insert` acontecer nos dois caminhos, e o `true` só quando houver
+        // pelo menos um par.
         self.context_data
             .insert(crate::grip::GRIP_CONTEXT.to_string(), arrasto.escrever());
-        match escrito {
-            Some((chave, valor)) => {
+        if escritos.is_empty() {
+            false
+        } else {
+            for (chave, valor) in escritos {
                 self.context_data.insert(chave, valor);
-                true
             }
-            None => false,
+            true
         }
     }
 

@@ -1,0 +1,160 @@
+/*
+examples/onda11/app.gss
+
+Todo o visual desta tela. O `app.gv` ao lado ficou com estrutura e
+comportamento — nome de chave, ação, `slot` — e nenhuma cor, nenhum tamanho de
+texto, nenhum espaçamento.
+
+A exceção desta onda (ver o CLAUDE.md) é `x`/`y`/`anchor` dentro de um
+`<stack>`: são dado, não estilo — a posição de um filho é o que está sendo
+mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
+*/
+
+:root {
+  --texto: #CDD6F4;
+  --suave: #A6ADC8;
+  --fraco: #7F849C;
+  --faixa: #181825;
+  --linha: #313244;
+  --realce: #89B4FA;
+  --fundo-bloco: #11111B;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+/* ── A barra de cima ─────────────────────────────────────────────────── */
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.abas {
+  padding: 8 16 0 16;
+}
+
+/* ── O corpo ─────────────────────────────────────────────────────────── */
+
+.corpo {
+  padding: 20 24;
+  spacing: 18;
+  width: fill;
+  height: fill;
+}
+
+.lead {
+  size: 13;
+  color: var(--suave);
+  max_width: 820;
+}
+
+.linha {
+  width: fill;
+}
+
+.bloco {
+  padding: 14;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+  max_width: 320;
+}
+
+.chave {
+  size: 11;
+  color: var(--realce);
+  font: mono;
+}
+
+/* ── Habilitador A: <stack>, anchor e x/y ───────────────────────────── */
+
+.demo-anchor {
+  width: 300;
+  height: 160;
+}
+
+.demo-fundo {
+  background: var(--faixa);
+  border_radius: 6;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+.marca {
+  size: 11;
+  color: var(--texto);
+  background: #89B4FA33;
+  padding: 3 6;
+}
+
+.marca-centro {
+  background: #A6E3A155;
+}
+
+.icone-sino {
+  background: var(--faixa);
+  border_radius: 8;
+}
+
+/* ── SplashScreen ────────────────────────────────────────────────────── */
+
+.demo-splash {
+  width: fill;
+  height: 220;
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+.conteudo-real {
+  background: var(--faixa);
+}
+
+/* ── MdiArea ─────────────────────────────────────────────────────────── */
+
+.mdi-fundo {
+  background: var(--faixa);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+.janela-corpo {
+  width: fill;
+  height: fill;
+}
