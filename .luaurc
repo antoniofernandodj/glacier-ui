@@ -25,6 +25,7 @@
         "progress_set",
         "pick_color",
         "pick_font",
-        "http"
+        "http",
+        "console"
     ]
 }

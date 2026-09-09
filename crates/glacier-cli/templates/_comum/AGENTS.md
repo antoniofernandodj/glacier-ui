@@ -2426,6 +2426,56 @@ notify({ title = "Backup", body = "Terminou", icon = "drive-harddisk" })
 ```
 Mais `app_name`, útil quando o desktop filtra por identidade do app.
 
+#### `console.*` — log para o TERMINAL
+
+`toast`/`notify` são para o **usuário**; `console.*` é para **você**, no
+`stdout` do processo (o mesmo lugar do `print`), com cor ANSI, glifo, rótulo e
+hora. Os erros de runtime do motor já saem sozinhos no `stderr` — o `console`
+não os substitui, é o seu log.
+
+```lua
+console.log("carregou", n_itens, { origem = "cache" })   -- vários args; tabela é inspecionada
+console.info("igual ao log")
+console.warn("cache velho, revalidando")
+console.error("deu ruim:", res.error)
+console.debug("passo interno")                            -- escondido no nível default
+console.table(res.json)                                   -- lista de objetos → grade
+```
+
+| método | nível | cor |
+|---|---|---|
+| `console.debug(...)` | `debug` (0) | cinza |
+| `console.log` / `console.info(...)` | `info` (1) | ciano |
+| `console.warn(...)` | `warn` (2) | amarelo |
+| `console.error(...)` | `error` (3) | vermelho |
+| `console.table(rows, columns?)` | `info` | grade `┌─┬─┐`, cabeçalho em negrito |
+
+**Filtro de nível** — só o que for `>=` ao nível configurado imprime:
+
+```lua
+console.set_level("warn")        -- daqui pra frente, só warn e error
+console.set_level("silent")      -- cala tudo, inclusive error
+```
+
+**`console.config(opts)`** — mexe só no que vier, e devolve o próprio `console`:
+
+| opção | default | o que faz |
+|---|---|---|
+| `level` | `"info"` | `"debug"`/`"info"`(`"log"`)/`"warn"`/`"error"`/`"silent"`, ou `0`–`4` |
+| `color` | `true` | `false` tira os códigos ANSI (para um log que vai a arquivo) |
+| `timestamp` | `true` | o `HH:MM:SS` no começo da linha |
+| `label` | `true` | o glifo + `INFO`/`WARN`/… |
+| `prefix` | `""` | texto (em magenta) antes de tudo — bom para marcar o módulo/serviço |
+
+```lua
+console.config({ prefix = "[api]", timestamp = false })
+```
+
+**`console.table`**: `rows` é uma lista de tabelas (uma linha cada) ou de
+escalares (viram a coluna `valor`). `columns` opcional escolhe e ordena as
+chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
+é sempre `(índice)` — a chave/posição da linha.
+
 ### Navegação e janelas
 
 ```lua

@@ -1310,3 +1310,311 @@ function Http:patch(path: string, body: any?, spec: any?): any
     return self:request(_http_merge(spec, { method = "PATCH", path = path, body = body }))
 end
 
+-- ── console: logs coloridos e decorados para o TERMINAL ────────────────────
+--
+-- `console.log` / `.info` / `.warn` / `.error` / `.debug` / `.table`, com
+-- rótulo, glifo, cor ANSI e hora. Filtrável por nível e configurável:
+--
+--   console.set_level("warn")          -- só warn e error a partir daqui
+--   console.config({ prefix = "[api]", color = false, timestamp = false })
+--   console.log("carregou", 42, { id = 7 })   -- vários argumentos, tabela inclusa
+--   console.table(res.json)                    -- lista de objetos → grade ASCII
+--
+-- Tudo vai para o `stdout` do processo (o mesmo lugar do `print`). Os ERROS de
+-- runtime do motor continuam saindo por conta própria no `stderr` — este
+-- `console` é para o SEU log, não para eles.
+
+local _console = {
+    level = 1, -- 0 debug · 1 log/info · 2 warn · 3 error · 4 silent
+    color = true,
+    timestamp = true,
+    label = true,
+    prefix = "",
+}
+
+local _CONSOLE_LVL = { debug = 0, log = 1, info = 1, warn = 2, error = 3, silent = 4 }
+
+local _CONSOLE_STYLE = {
+    debug = { code = "90", glyph = "·", tag = "DEBUG" },
+    info = { code = "36", glyph = "ℹ", tag = "INFO " },
+    warn = { code = "33", glyph = "⚠", tag = "WARN " },
+    error = { code = "31;1", glyph = "✖", tag = "ERROR" },
+}
+
+local function _console_level_num(v: any): number
+    if type(v) == "number" then
+        return math.clamp(math.floor(v), 0, 4)
+    end
+    return _CONSOLE_LVL[string.lower(tostring(v))] or 1
+end
+
+local function _console_paint(code: string, s: string): string
+    if not _console.color then
+        return s
+    end
+    return "\27[" .. code .. "m" .. s .. "\27[0m"
+end
+
+-- Renderiza um valor. No topo, uma string sai crua (como o console do browser);
+-- aninhada, sai entre aspas. Tabelas viram `{ k = v, … }` ou `[a, b, …]`, até
+-- 4 níveis; ciclos e profundidade viram `<ciclo>` / `{…}`.
+local function _console_val(v: any, depth: number, seen: any, nested: boolean): string
+    local t = type(v)
+    if t == "string" then
+        return if nested then string.format("%q", v) else v
+    end
+    if t ~= "table" then
+        return tostring(v)
+    end
+    if seen[v] then
+        return "<ciclo>"
+    end
+    if depth >= 4 then
+        return "{…}"
+    end
+    seen[v] = true
+
+    local n = #v
+    local is_array = n > 0
+    for k in v do
+        if type(k) ~= "number" then
+            is_array = false
+            break
+        end
+    end
+
+    local parts = {}
+    if is_array then
+        for i = 1, n do
+            table.insert(parts, _console_val(v[i], depth + 1, seen, true))
+        end
+        seen[v] = nil
+        return "[" .. table.concat(parts, ", ") .. "]"
+    end
+
+    local keys = {}
+    for k in v do
+        table.insert(keys, k)
+    end
+    table.sort(keys, function(a, b)
+        return tostring(a) < tostring(b)
+    end)
+    for _, k in keys do
+        table.insert(parts, tostring(k) .. " = " .. _console_val(v[k], depth + 1, seen, true))
+    end
+    seen[v] = nil
+    return "{ " .. table.concat(parts, ", ") .. " }"
+end
+
+local function _console_join(...): string
+    local args = table.pack(...)
+    local out = {}
+    for i = 1, args.n do
+        table.insert(out, _console_val(args[i], 0, {}, false))
+    end
+    return table.concat(out, " ")
+end
+
+local function _console_emit(kind: string, ...)
+    if _console_level_num(kind) < _console.level then
+        return
+    end
+    local style = _CONSOLE_STYLE[kind]
+    local segs = {}
+    if _console.prefix ~= "" then
+        table.insert(segs, _console_paint("35", _console.prefix))
+    end
+    if _console.timestamp then
+        table.insert(segs, _console_paint("90", os.date("%H:%M:%S")))
+    end
+    if _console.label then
+        table.insert(segs, _console_paint(style.code, style.glyph .. " " .. style.tag))
+    end
+
+    local body = _console_join(...)
+    if kind == "error" then
+        body = _console_paint("31", body)
+    elseif kind == "warn" then
+        body = _console_paint("33", body)
+    end
+
+    local head = table.concat(segs, " ")
+    if head ~= "" then
+        print(head .. "  " .. body)
+    else
+        print(body)
+    end
+end
+
+console = {}
+
+function console.debug(...)
+    _console_emit("debug", ...)
+end
+function console.log(...)
+    _console_emit("info", ...)
+end
+function console.info(...)
+    _console_emit("info", ...)
+end
+function console.warn(...)
+    _console_emit("warn", ...)
+end
+function console.error(...)
+    _console_emit("error", ...)
+end
+
+-- `"debug"` | `"info"`/`"log"` | `"warn"` | `"error"` | `"silent"`, ou 0–4.
+function console.set_level(level: any)
+    _console.level = _console_level_num(level)
+    return console
+end
+
+-- `{ level?, color?, timestamp?, label?, prefix? }` — só o que vier é mexido.
+function console.config(opts: any?)
+    opts = opts or {}
+    if opts.level ~= nil then
+        _console.level = _console_level_num(opts.level)
+    end
+    if opts.color ~= nil then
+        _console.color = not not opts.color
+    end
+    if opts.timestamp ~= nil then
+        _console.timestamp = not not opts.timestamp
+    end
+    if opts.label ~= nil then
+        _console.label = not not opts.label
+    end
+    if opts.prefix ~= nil then
+        _console.prefix = tostring(opts.prefix)
+    end
+    return console
+end
+
+-- Largura de exibição de uma string (conta caracteres, não bytes — importa para
+-- acento e para as bordas). Cai para `#s` se o `utf8` não estiver disponível.
+local function _console_width(s: string): number
+    local ok, len = pcall(utf8.len, s)
+    if ok and type(len) == "number" then
+        return len
+    end
+    return #s
+end
+
+local function _console_cell(s: string, w: number): string
+    local pad = w - _console_width(s)
+    if pad <= 0 then
+        return s
+    end
+    return s .. string.rep(" ", pad)
+end
+
+-- Grade ASCII de uma lista de linhas. `rows` = lista de tabelas (uma linha
+-- cada) OU de escalares (viram a coluna `valor`). `columns` opcional escolhe e
+-- ordena as chaves; sem ele, a união das chaves na ordem em que aparecem.
+function console.table(rows: any, columns: any?)
+    if _console.level > 1 then
+        return
+    end
+    if type(rows) ~= "table" then
+        _console_emit("info", rows)
+        return
+    end
+
+    -- normaliza para uma lista de { _key = <índice/chave>, [col] = valor }
+    local linhas = {}
+    local ordem_cols = {}
+    local vistas = {}
+    local tem_valor_escalar = false
+
+    local function registra_col(c: any)
+        local k = tostring(c)
+        if not vistas[k] then
+            vistas[k] = true
+            table.insert(ordem_cols, k)
+        end
+    end
+
+    if columns ~= nil then
+        for _, c in columns do
+            registra_col(c)
+        end
+    end
+
+    for k, v in rows do
+        local linha = { _key = tostring(k) }
+        if type(v) == "table" then
+            for ck, cv in v do
+                linha[tostring(ck)] = _console_val(cv, 1, {}, true)
+                if columns == nil then
+                    registra_col(ck)
+                end
+            end
+        else
+            linha["valor"] = _console_val(v, 1, {}, true)
+            tem_valor_escalar = true
+            if columns == nil then
+                registra_col("valor")
+            end
+        end
+        table.insert(linhas, linha)
+    end
+
+    if tem_valor_escalar and columns == nil and not vistas["valor"] then
+        registra_col("valor")
+    end
+
+    -- cabeçalho: (índice) + as colunas
+    local headers = { "(índice)" }
+    for _, c in ordem_cols do
+        table.insert(headers, c)
+    end
+
+    -- larguras
+    local larg = {}
+    for i, h in headers do
+        larg[i] = _console_width(h)
+    end
+    for _, linha in linhas do
+        larg[1] = math.max(larg[1], _console_width(linha._key))
+        for ci, c in ordem_cols do
+            local cell = linha[c] or ""
+            larg[ci + 1] = math.max(larg[ci + 1], _console_width(cell))
+        end
+    end
+
+    local function regua(esq: string, meio: string, dir: string): string
+        local segs = {}
+        for _, w in larg do
+            table.insert(segs, string.rep("─", w + 2))
+        end
+        return _console_paint("90", esq .. table.concat(segs, meio) .. dir)
+    end
+
+    -- Pinta DEPOIS de preencher: os códigos ANSI não contam na largura.
+    local function linha_de(cels: { string }, code: string?): string
+        local bar = _console_paint("90", "│")
+        local segs = {}
+        for i, w in larg do
+            local c = _console_cell(cels[i] or "", w)
+            if code then
+                c = _console_paint(code, c)
+            end
+            table.insert(segs, " " .. c .. " ")
+        end
+        return bar .. table.concat(segs, bar) .. bar
+    end
+
+    print(regua("┌", "┬", "┐"))
+    print(linha_de(headers, "1"))
+    print(regua("├", "┼", "┤"))
+    for _, linha in linhas do
+        local cels = { linha._key }
+        for _, c in ordem_cols do
+            table.insert(cels, linha[c] or "")
+        end
+        print(linha_de(cels))
+    end
+    print(regua("└", "┴", "┘"))
+end
+

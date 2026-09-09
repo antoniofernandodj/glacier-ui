@@ -3215,6 +3215,112 @@ mod tests {
         assert!(tem("X-App", "g"), "herdou o interceptor do pai");
     }
 
+    // ── `console` — logs coloridos, decorados e filtráveis ──────────────────
+    //
+    // O `console.*` escreve por `print` (stdout), que o teste não captura de
+    // fora. O truque: o script substitui o `print` global por um coletor ANTES
+    // de chamar o `console`, e devolve o que saiu pelo contexto.
+
+    const CONSOLE_CAPTURA: &str = r##"
+        local capturado
+        local function _cap(...)
+            local p = {}
+            for i = 1, select("#", ...) do p[i] = tostring(select(i, ...)) end
+            table.insert(capturado, table.concat(p, "\t"))
+        end
+        local function comecar()
+            capturado = {}
+            _G.__print_real = print
+            print = _cap
+        end
+        local function terminar()
+            print = _G.__print_real
+            ctx.linhas = json.encode(capturado)
+            ctx.n = tostring(#capturado)
+        end
+    "##;
+
+    #[test]
+    fn console_respeita_o_nivel_e_decora_a_linha() {
+        let src = format!(
+            "{CONSOLE_CAPTURA}\n\
+             function ir()\n\
+                 comecar()\n\
+                 console.config({{ color = false, timestamp = false }})\n\
+                 console.log('oi', 42, {{ id = 7 }})\n\
+                 console.warn('cuidado')\n\
+                 console.set_level('error')\n\
+                 console.log('sumiu')\n\
+                 console.info('sumiu tambem')\n\
+                 console.error('deu ruim')\n\
+                 terminar()\n\
+             end"
+        );
+        let comp = LuauComponent::from_source(&src, "t.gv", "c").unwrap();
+        let data = drive(&comp, "ir", None, HashMap::default());
+
+        assert_eq!(
+            data.get("n").map(String::as_str),
+            Some("3"),
+            "log/warn passam no nível default; os dois logs após set_level('error') somem"
+        );
+        let linhas: Vec<String> =
+            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        assert!(linhas[0].contains("INFO") && linhas[0].contains("oi 42"));
+        assert!(linhas[0].contains("id = 7"), "a tabela é inspecionada inline");
+        assert!(linhas[1].contains("WARN") && linhas[1].contains("cuidado"));
+        assert!(linhas[2].contains("ERROR") && linhas[2].contains("deu ruim"));
+        // `color = false` → nenhum código ANSI (`\27[`) na saída.
+        assert!(
+            !linhas.iter().any(|l| l.contains('\u{1b}')),
+            "com color=false não deve haver escape ANSI"
+        );
+    }
+
+    #[test]
+    fn console_config_prefixo_e_silencio() {
+        let src = format!(
+            "{CONSOLE_CAPTURA}\n\
+             function ir()\n\
+                 comecar()\n\
+                 console.config({{ color = false, timestamp = false, prefix = '[api]' }})\n\
+                 console.log('com prefixo')\n\
+                 console.set_level('silent')\n\
+                 console.error('nem erro sai no silent')\n\
+                 terminar()\n\
+             end"
+        );
+        let comp = LuauComponent::from_source(&src, "t.gv", "c").unwrap();
+        let data = drive(&comp, "ir", None, HashMap::default());
+        let linhas: Vec<String> =
+            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        assert_eq!(linhas.len(), 1);
+        assert!(linhas[0].starts_with("[api]"));
+    }
+
+    #[test]
+    fn console_table_desenha_a_grade() {
+        let src = format!(
+            "{CONSOLE_CAPTURA}\n\
+             function ir()\n\
+                 comecar()\n\
+                 console.config({{ color = false }})\n\
+                 console.table({{ {{ nome = 'Ana', idade = 30 }}, {{ nome = 'Beto', idade = 25 }} }})\n\
+                 terminar()\n\
+             end"
+        );
+        let comp = LuauComponent::from_source(&src, "t.gv", "c").unwrap();
+        let data = drive(&comp, "ir", None, HashMap::default());
+        let linhas: Vec<String> =
+            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        let tudo = linhas.join("\n");
+        assert!(tudo.contains('┌') && tudo.contains('┼') && tudo.contains('└'));
+        assert!(tudo.contains("(índice)") && tudo.contains("nome") && tudo.contains("idade"));
+        assert!(tudo.contains("Ana") && tudo.contains("Beto"));
+        // 2 réguas de topo/meio/base + cabeçalho + 2 linhas = 6.
+        assert_eq!(linhas.len(), 6);
+    }
+
     #[test]
     fn require_de_modulo_inexistente_falha_com_mensagem_clara() {
         let dir = temp_dir("require_missing");

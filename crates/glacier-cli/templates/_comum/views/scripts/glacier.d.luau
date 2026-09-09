@@ -121,6 +121,29 @@ export type HttpClient = {
 
 declare function http(base_url: string?, opts: HttpOptions?): HttpClient
 
+-- ── console: logs coloridos e decorados para o terminal ───────────────────
+-- Nível: "debug" (0) < "info"/"log" (1) < "warn" (2) < "error" (3) < "silent" (4).
+export type ConsoleConfig = {
+    level: (string | number)?,
+    color: boolean?,
+    timestamp: boolean?,
+    label: boolean?,
+    prefix: string?,
+}
+
+declare console: {
+    debug: (...any) -> (),
+    log: (...any) -> (),
+    info: (...any) -> (),
+    warn: (...any) -> (),
+    error: (...any) -> (),
+    -- Lista de tabelas (ou de escalares) → grade ASCII. `columns` escolhe/ordena.
+    table: (rows: any, columns: { string }?) -> (),
+    -- Atalho de `config({ level = … })`. Devolve o próprio `console`.
+    set_level: (level: string | number) -> any,
+    config: (opts: ConsoleConfig?) -> any,
+}
+
 declare function write_file(path: string, contents: string): (boolean, string?)
 -- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
 -- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um
