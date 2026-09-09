@@ -4999,6 +4999,7 @@ pub fn render_node<'a>(
         NodeType::Dock {
             mode_var,
             edge,
+            on_change,
             size_var,
             float_x_var,
             float_y_var,
@@ -5020,8 +5021,8 @@ pub fn render_node<'a>(
                 .map(|c| render_node(c, context, editors, combos, assets, view))
                 .unwrap_or_else(|| iced::widget::Space::new().into());
             crate::panes::render_dock(
-                node, context, mode_var, edge, size_var, float_x_var, float_y_var, title, *min,
-                *handle, *float_w, *float_h, painel, centro,
+                node, context, mode_var, edge, on_change, size_var, float_x_var, float_y_var,
+                title, *min, *handle, *float_w, *float_h, painel, centro,
             )
         }
         NodeType::SwipeView {

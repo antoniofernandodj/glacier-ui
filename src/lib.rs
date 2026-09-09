@@ -1465,12 +1465,14 @@ impl GlacierUI {
                 // esteve vivo o arrasto inteiro porque `precisa_do_cursor` o
                 // manteve). A troca de `<splitter>`↔`<stack>` de pai acontece
                 // no `reevaluate_all` seguinte, entre quadros.
+                let mut modo_commitado: Option<String> = None;
                 if let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT)
                     && let Some(arrasto) = crate::grip::Arrasto::ler(bruto)
                     && let Some((chave, borda)) =
                         arrasto.modo_no_release(self.last_cursor_pos)
                 {
-                    self.context_data.insert(chave, borda);
+                    self.context_data.insert(chave.clone(), borda);
+                    modo_commitado = Some(chave);
                 }
                 self.context_data.remove(crate::grip::GRIP_CONTEXT);
                 if let Some(drag) = self.drag.take() {
@@ -1480,6 +1482,14 @@ impl GlacierUI {
                         action: drag.on_reorder.clone(),
                         value,
                     });
+                }
+                // Reancorou por arrasto e o `<dock>` tem `on_change`: reavalia
+                // (a troca de pai) e dispara a persistência, como os botões do
+                // cabeçalho fazem via `PatchThen`.
+                if let Some(mk) = modo_commitado
+                    && let Some(acao) = self.dock_on_change(&mk)
+                {
+                    return self.dispatch_interno(&EngineMessage::UiClick(acao));
                 }
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
@@ -2692,6 +2702,27 @@ impl GlacierUI {
         self.context_data
             .get(crate::pointer::HOLD_CONTEXT)
             .is_some_and(|v| !v.is_empty())
+    }
+
+    /// O `on_change` de um `<dock>` cujo `mode=` é `mode_key`, buscado na
+    /// árvore avaliada da tela ativa. `None` se não há tal dock ou ele não
+    /// declarou `on_change`. Usado pelo `DragEnd` de um [`crate::grip::Alvo::Zona`]
+    /// para disparar a persistência depois de reancorar por arrasto — os botões
+    /// do cabeçalho já o fazem via `PatchThen`.
+    fn dock_on_change(&self, mode_key: &str) -> Option<String> {
+        fn busca(no: &UiNode, mode_key: &str) -> Option<String> {
+            if let NodeType::Dock {
+                mode_var, on_change, ..
+            } = &no.kind
+                && mode_var == mode_key
+                && !on_change.is_empty()
+            {
+                return Some(on_change.clone());
+            }
+            no.children.iter().find_map(|c| busca(c, mode_key))
+        }
+        let nome = self.current_screen.as_deref()?;
+        busca(self.evaluated_templates.get(nome)?, mode_key)
     }
 
     /// Aplica o movimento do cursor ao arrasto em curso, se houver um.

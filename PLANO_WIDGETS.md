@@ -287,7 +287,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ✅ | `<toolbox>` + `<toolboxitem title="…" value="secao" open="{secao}" id="…">`: **uma** aberta por vez, e clicar na aberta a fecha. Nunca esteve bloqueado, e nem precisou do `contains`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ✅ | `<accordion>` + `<accordionitem …>`: **várias** abertas, num conjunto numa chave só (`abertas="rede,disco"`). ~~precisa estado por instância~~ — precisava do `contains` (0.84), e é o consumidor que o justificou. Uma tag por seção porque o **conteúdo** de cada uma é diferente, e conteúdo é de quem escreve a tela (`<slot/>`, 0.65) — a mesma forma do `QToolBox::addItem`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | QMdiArea/QMdiSubWindow | `MdiArea` | **Prim** | stack | ◐ | P3 | ✅ | janelas internas: `<mdiarea>` + `<mdisubwindow title="…" x="…" y="…" w="…" h="…">`, uma tag por janela — a mesma razão do `<accordion>` (o CONTEÚDO de cada uma é diferente). **A previsão da §6.2 errou um detalhe**: não é uma coleção (`items=`) — os filhos são markup ESTÁTICO, como o `<accordionitem>` — e por isso não há reordenação Z por clique; a pilha desenha na ordem do markup. Mover (barra de título) e redimensionar (canto) são o MESMO `grip::Alvo::Ponto`, só com limites diferentes — a 17ª correção de nível: o `●` nunca valeu, quatro chaves por janela é a mesma forma que o `<rangeslider>` usa para duas. **Onda 11** (0.96) |
-| QDockWidget | `Dock` | **Prim** | splitter/stack | ◐ | P3 | ✅ | painéis acopláveis. **Onda 12** (0.98), e a **18ª correção de nível**: o `●` não valia — `mode`/`size`/`float_x`/`float_y` são chaves que o app nomeia, a mesma forma do `<mdisubwindow>`. `<dock mode="lado" edge="left" size="tam" …>` com dois filhos (painel, centro); N painéis = `<dock>` aninhados. A troca `<splitter>`↔`<stack>` de pai que a Onda 11 cortou acontece **entre quadros**: o cabeçalho dispara um `grip::Alvo::Ponto`→`Zona` que **não escreve nada durante o gesto** e comete a borda **na soltura** (`Arrasto::modo_no_release`, via `DragEnd`); o `render_dock` seguinte lê `mode` e monta o pai certo. Saiu **Prim** e não Built (a previsão da §6.2 dizia Built) porque um template de builtin não dispara um arrasto de grip — isso pede um render em Rust, como o `<mdisubwindow>`. **Fica de fora, por escrito:** acoplar entre janelas do daemon, e um fantasma seguindo o cursor durante o gesto (o painel reancora na soltura, sem prévia) |
+| QDockWidget | `Dock` | **Prim** | splitter/stack | ◐ | P3 | ✅ | painéis acopláveis. **Onda 12** (0.98), e a **18ª correção de nível**: o `●` não valia — `mode`/`size`/`float_x`/`float_y` são chaves que o app nomeia, a mesma forma do `<mdisubwindow>`. `<dock mode="lado" edge="left" size="tam" …>` com dois filhos (painel, centro); N painéis = `<dock>` aninhados. A troca `<splitter>`↔`<stack>` de pai que a Onda 11 cortou acontece **entre quadros**: o cabeçalho dispara um `grip::Alvo::Ponto`→`Zona` que **não escreve nada durante o gesto** e comete a borda **na soltura** (`Arrasto::modo_no_release`, via `DragEnd`); o `render_dock` seguinte lê `mode` e monta o pai certo. Saiu **Prim** e não Built (a previsão da §6.2 dizia Built) porque um template de builtin não dispara um arrasto de grip — isso pede um render em Rust, como o `<mdisubwindow>`. Fecha (`✕`), restaura (aba `▸` na borda, volta para `<mode>__prev`) e **lembra**: `on_change="<ação>"` dispara depois de cada mudança (botão ou arrasto), e o handler persiste (arquivo no Rust, `storage` no Luau). **Fica de fora, por escrito:** acoplar entre janelas do daemon, e um fantasma seguindo o cursor durante o gesto (o painel reancora na soltura, sem prévia) |
 | QSpacerItem | `Space` | Prim | space | — | P1 | ✅ | sem `width`/`height` é `Fill` nos dois eixos (o espaçador flexível); com eles, vão fixo. Duplicado na §2.11 por ser layout **e** container |
 
 ### 2.8 Navegação (abas, wizard, stacks)
@@ -2434,15 +2434,32 @@ a Onda 11 não tinha feito.
 | `Dock` seria **Built** (`<splitter>` + `<stack>` + fantasma + chave, tudo em template) | saiu **Prim** (`NodeType::Dock`, `render_dock` em Rust). Um template de builtin **não dispara um arrasto de grip** — o `on_press` de um `<button>` vira uma ação de string, não um `EngineMessage::GripStart`. O `<mdisubwindow>` já era primitiva pelo mesmo motivo. A 18ª correção de nível vale igual (`●` → sem estado por instância), só o nível de saída mudou |
 | Um **fantasma** seguindo o cursor durante o gesto (`<stack>` de overlay, como o `<rubberband>`) | **cortado.** O fantasma exigiria uma terceira chave paralela (`mode`/`current`/`dragging`) e um `<stack>` desenhado pelo template durante o arrasto — a indireção `{{mode}}` que o interpolador não tem, três vezes. O painel **reancora na soltura, sem prévia**. O cursor "grabbing" é o feedback. Fica anotado como o polimento óbvio |
 
-Além do arrasto, os **botões do cabeçalho** (`❒` flutua / `▣` reacopla, `—`
-esconde) escrevem a mesma chave pelo binding legado — a atuação por menu que o
-`QDockWidget` também tem. Testes: 5 propriedades novas de `Alvo::Zona` em
-`src/grip.rs` (ida-e-volta com `chave_modo`, não-escreve-durante-o-gesto, borda
-pelo eixo dominante, clique-não-conta, sem-âncora-não-faz-nada). Exemplos:
-`examples/dock` e `examples/dock_luau`. **Contabilidade:** os arquivos
-`tests/onda9_ponteiro.rs` e `tests/engine_tests.rs` construíam `Arrasto` sem os
-campos que a Onda 11 adicionou (`chave_y`/`origem_y`/`valor0_y`) — estavam
-quebrados desde a 0.96 e ninguém rodou; esta onda os atualizou de passagem.
+Além do arrasto, os **botões do cabeçalho** dão a atuação por menu que o
+`QDockWidget` também tem: `❒` guarda o modo atual e flutua, `▣` volta para
+**onde estava** (não só a borda default), `✕` esconde. O painel escondido deixa
+uma **aba `▸`** na borda — horizontal ela mostra o título — que o traz de volta
+ao último modo. O "onde estava" mora numa chave irmã `<mode>__prev`, escrita
+pelos mesmos botões; nenhuma configuração do app.
+
+**Persistência** (pedida na revisão): `on_change="<ação>"` no `<dock>` dispara
+**depois** de cada mudança de estado — botão *ou* arrasto de reancoragem. Os
+botões usam `PatchThen` (grava a chave, então despacha a ação); o arrasto,
+`DragEnd` → `GlacierUI::dock_on_change` (acha o `on_change` do `<dock>` na
+árvore avaliada e o despacha). O handler lê as quatro chaves de layout e grava:
+`examples/dock` num arquivo (`temp_dir`), `examples/dock_luau` com o global
+`storage`. `init` as lê de volta — o dock lembra onde estava entre execuções.
+`size`/`float_x`/`float_y` são capturados junto no `on_change`, então mudam de
+persistência na próxima mudança de modo (ou no fechamento, num app que tenha o
+gancho).
+
+Testes: 5 propriedades de `Alvo::Zona` em `src/grip.rs` (ida-e-volta com
+`chave_modo`, não-escreve-durante-o-gesto, borda pelo eixo dominante,
+clique-não-conta, sem-âncora-não-faz-nada). Exemplos: `examples/dock` e
+`examples/dock_luau`. **Contabilidade:** `tests/onda9_ponteiro.rs` e
+`tests/engine_tests.rs` construíam `Arrasto` sem os campos que a Onda 11
+adicionou (`chave_y`/`origem_y`/`valor0_y`) — quebrados desde a 0.96 e ninguém
+rodou; atualizados de passagem, mais o `.demo-fundo` das `.gss` da Onda 11 que
+disparava o teste da janela inteira.
 
 ---
 #### Onda 13 — o desenho que o `.gv` escreve — ⬜ **proposta (2026-09-09)**

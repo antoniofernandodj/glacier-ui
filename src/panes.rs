@@ -446,11 +446,13 @@ fn moldura_painel(theme: &iced::Theme) -> container::Style {
 /// (arrastar para uma borda reancora) ou [`Alvo::Ponto`] quando flutuante
 /// (arrastar move, como uma janela do `<mdiarea>`). `None` quando o `<dock>`
 /// não tem `mode=` e portanto não muda de estado.
+#[allow(clippy::too_many_arguments)]
 fn cabecalho_dock<'a>(
     title: &str,
     mode_var: &str,
     modo: &str,
-    edge_default: &str,
+    voltar_para: &str,
+    on_change: &str,
     grip: Option<Arrasto>,
 ) -> Element<'a, EngineMessage> {
     let rotulo = container(text(title.to_string()).size(12))
@@ -467,24 +469,51 @@ fn cabecalho_dock<'a>(
     let mut linha = row![rotulo].align_y(Alignment::Center).width(Length::Fill);
 
     if !mode_var.is_empty() {
-        let btn = |glifo: &'static str, alvo: String| -> Element<'a, EngineMessage> {
+        // Um botão troca `mode` e, opcionalmente, guarda o modo atual em
+        // `<mode>__prev` (para o "voltar" saber onde estava). `on_change`, se
+        // houver, é disparado depois da escrita — o gancho de persistência.
+        let prev_key = format!("{mode_var}__prev");
+        let acao = |pares: Vec<(String, String)>| -> EngineMessage {
+            if on_change.is_empty() {
+                EngineMessage::ContextPatch(pares)
+            } else {
+                EngineMessage::PatchThen {
+                    patch: pares,
+                    inner: Box::new(EngineMessage::UiClick(on_change.to_string())),
+                }
+            }
+        };
+        let btn = |glifo: &'static str, pares: Vec<(String, String)>| -> Element<'a, EngineMessage> {
             mouse_area(container(text(glifo).size(12)).padding([2, 6]))
                 .interaction(iced::mouse::Interaction::Pointer)
-                .on_press(EngineMessage::UiInputChanged {
-                    action: mode_var.to_string(),
-                    value: alvo,
-                })
+                .on_press(acao(pares))
                 .into()
         };
-        // Um botão só troca flutuante↔acoplado (o alvo depende de onde se está,
-        // o mesmo raciocínio do "dock back" do `QDockWidget`); o outro esconde.
-        let (glifo_float, alvo_float) = if modo == "float" {
-            ("▣", edge_default.to_string())
+
+        // `❒` guarda o modo atual e flutua; `▣` volta para onde estava (ou a
+        // borda default). É o "dock back" do `QDockWidget`.
+        if modo == "float" {
+            linha = linha.push(btn(
+                "▣",
+                vec![(mode_var.to_string(), voltar_para.to_string())],
+            ));
         } else {
-            ("❒", "float".to_string())
-        };
-        linha = linha.push(btn(glifo_float, alvo_float));
-        linha = linha.push(btn("—", "hidden".to_string()));
+            linha = linha.push(btn(
+                "❒",
+                vec![
+                    (mode_var.to_string(), "float".to_string()),
+                    (prev_key.clone(), modo.to_string()),
+                ],
+            ));
+        }
+        // `✕` esconde e guarda o modo atual — a aba de restaurar o traz de volta.
+        linha = linha.push(btn(
+            "✕",
+            vec![
+                (mode_var.to_string(), "hidden".to_string()),
+                (prev_key, modo.to_string()),
+            ],
+        ));
     }
 
     container(linha)
@@ -493,22 +522,43 @@ fn cabecalho_dock<'a>(
         .into()
 }
 
-/// A aba fina que traz um painel `hidden` de volta, encostada na borda `edge`.
-fn aba_restaurar<'a>(mode_var: &str, edge: &str) -> Element<'a, EngineMessage> {
+/// A aba fina que traz um painel `hidden` de volta. `alvo` é o modo para onde
+/// voltar (o `<mode>__prev` guardado, ou a borda default), e `edge` decide de
+/// que lado ela encosta e se é vertical.
+fn aba_restaurar<'a>(
+    mode_var: &str,
+    edge: &str,
+    alvo: &str,
+    on_change: &str,
+    title: &str,
+) -> Element<'a, EngineMessage> {
     let vertical = edge == "left" || edge == "right";
-    let corpo = container(text("▸").size(11))
-        .padding(if vertical { [8, 2] } else { [2, 8] });
-    let corpo = if vertical {
-        corpo.width(16).height(Length::Fill)
+    // Horizontal cabe o título; vertical, só a seta.
+    let conteudo = if vertical {
+        text("▸").size(11)
     } else {
-        corpo.width(Length::Fill).height(16)
+        text(format!("▸  {title}")).size(11)
+    };
+    let corpo = container(conteudo).padding(if vertical { [8, 2] } else { [3, 8] });
+    let corpo = if vertical {
+        corpo.width(18).height(Length::Fill)
+    } else {
+        corpo.width(Length::Fill).height(20)
+    };
+    let msg = if on_change.is_empty() {
+        EngineMessage::UiInputChanged {
+            action: mode_var.to_string(),
+            value: alvo.to_string(),
+        }
+    } else {
+        EngineMessage::PatchThen {
+            patch: vec![(mode_var.to_string(), alvo.to_string())],
+            inner: Box::new(EngineMessage::UiClick(on_change.to_string())),
+        }
     };
     mouse_area(corpo.style(fundo_forte))
         .interaction(iced::mouse::Interaction::Pointer)
-        .on_press(EngineMessage::UiInputChanged {
-            action: mode_var.to_string(),
-            value: edge.to_string(),
-        })
+        .on_press(msg)
         .into()
 }
 
@@ -537,6 +587,7 @@ pub fn render_dock<'a>(
     context: &'a ContextMap,
     mode_var: &'a str,
     edge_default: &'a str,
+    on_change: &'a str,
     size_var: &'a str,
     float_x_var: &'a str,
     float_y_var: &'a str,
@@ -558,8 +609,16 @@ pub fn render_dock<'a>(
         _ => "left",
     };
 
+    // Para onde `▣` e a aba de restaurar voltam: o `<mode>__prev` guardado
+    // pelo `❒`/`✕` (se for uma borda válida), senão a borda default.
+    let voltar_para: &str = context
+        .get(&format!("{mode_var}__prev"))
+        .map(String::as_str)
+        .filter(|s| matches!(*s, "left" | "right" | "top" | "bottom"))
+        .unwrap_or(edge_default);
+
     if modo == "hidden" {
-        let aba = aba_restaurar(mode_var, edge_default);
+        let aba = aba_restaurar(mode_var, edge_default, voltar_para, on_change, title);
         let dentro = container(center).width(Length::Fill).height(Length::Fill);
         return match edge_default {
             "right" => row![dentro, aba].into(),
@@ -596,7 +655,7 @@ pub fn render_dock<'a>(
             },
         };
         let flutuante = container(column![
-            cabecalho_dock(title, mode_var, modo, edge_default, Some(grip)),
+            cabecalho_dock(title, mode_var, modo, voltar_para, on_change, Some(grip)),
             container(panel).width(Length::Fill).height(Length::Fill),
         ])
         .width(float_w)
@@ -626,7 +685,7 @@ pub fn render_dock<'a>(
         alvo: Alvo::Zona { limiar: LIMIAR_DOCK },
     });
     let painel_col: Element<'a, EngineMessage> = container(column![
-        cabecalho_dock(title, mode_var, modo, edge_default, grip),
+        cabecalho_dock(title, mode_var, modo, voltar_para, on_change, grip),
         container(panel).width(Length::Fill).height(Length::Fill),
     ])
     .style(moldura_painel)

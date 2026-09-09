@@ -27,6 +27,7 @@
     <dock
       mode="lado"
       edge="left"
+      on_change="salvar_layout"
       size="tam_painel"
       float_x="painel_x"
       float_y="painel_y"

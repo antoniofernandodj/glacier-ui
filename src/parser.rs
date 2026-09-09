@@ -2132,6 +2132,11 @@ pub enum NodeType {
         /// Borda default quando a chave está vazia. `left` (default), `right`,
         /// `top` ou `bottom`.
         edge: String,
+        /// Ação disparada **depois** de cada mudança de estado (botão do
+        /// cabeçalho ou arrasto de reancoragem) — o gancho de persistência: o
+        /// handler lê as chaves e grava (`storage.set` no Luau, um arquivo no
+        /// Rust). Vazia = nada é disparado.
+        on_change: String,
         /// Chave da trilha do `<splitter>` quando acoplado (formato `"240 fill"`).
         /// Vazia = painel e centro repartem igual, sem alça.
         size_var: String,
@@ -4475,6 +4480,11 @@ impl UiNode {
                     mode_var: Self::get_attr(&node, &["mode", "modo", "value", "valor"])
                         .unwrap_or_default(),
                     edge,
+                    on_change: Self::get_attr(
+                        &node,
+                        &["on_change", "onChange", "on-change", "aoMudar", "ao_mudar"],
+                    )
+                    .unwrap_or_default(),
                     size_var: Self::get_attr(&node, &["size", "sizes", "tamanho", "tamanhos"])
                         .unwrap_or_default(),
                     float_x_var: Self::get_attr(&node, &["float_x", "float-x", "x"])

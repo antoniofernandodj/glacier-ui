@@ -1,6 +1,9 @@
 /target
 /.claude
 
+# Persistência local do global `storage` (Luau) — artefato de runtime dos exemplos
+.glacier-storage/
+
 # Pacotes de extensão VS Code gerados
 editors/**/*.vsix
 

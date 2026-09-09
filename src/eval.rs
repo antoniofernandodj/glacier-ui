@@ -2511,6 +2511,7 @@ fn eval_owned(
         NodeType::Dock {
             mode_var,
             edge,
+            on_change,
             size_var,
             float_x_var,
             float_y_var,
@@ -2522,6 +2523,7 @@ fn eval_owned(
         } => NodeType::Dock {
             mode_var: process_tpl(mode_var, context),
             edge: edge.clone(),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
             size_var: process_tpl(size_var, context),
             float_x_var: process_tpl(float_x_var, context),
             float_y_var: process_tpl(float_y_var, context),
