@@ -1532,7 +1532,13 @@ pub fn evaluate_template(
 /// pertencem a componente algum, então **não** podem ser namespaceadas: senão o
 /// `strip_prefix("clipboard:")`/`"open:"`/`"window:"` erra dentro de um
 /// componente importado (ex.: `ServiceDetail::clipboard:foo`).
-const BUILTIN_ACTION_PREFIXES: [&str; 4] = ["clipboard:", "open:", "window:", "style:"];
+///
+/// `dialog:` entra aqui pelo mesmo motivo — um `<button on_click="dialog:x">`
+/// dentro de um `<component>` com `<script>` virava `Comp::dialog:x`, e aí o
+/// `strip_prefix("dialog:")` do dispatch não casava e o modal não abria. É o
+/// caso de um componente que **encapsula o próprio `<dialog>`**.
+const BUILTIN_ACTION_PREFIXES: [&str; 5] =
+    ["clipboard:", "open:", "window:", "style:", DIALOG_ACTION_PREFIX];
 
 /// Marca uma ação como **do aplicativo**, não do componente que a escreveu:
 /// `app:` é removido no lugar do prefixo de dono, então a ação sai "nua" da

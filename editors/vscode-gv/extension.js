@@ -7,6 +7,10 @@
 //       <script src="app.luau">          -> the .luau file
 //       on_click="foo"                   -> `function foo()` inside that .luau
 //                                           (or inside the inline <script>)
+//       on_click="MeuComp::salvar"       -> `function salvar()` (owner::action)
+//       on_click="dialog:editar"         -> the <dialog name="editar"> it opens
+//       <dialog buttons="X:foo:accept">  -> `function foo()` for each button's
+//                                           action token (label/role untouched)
 //       <link rel="stylesheet" href=…>   -> the .gss sheet
 //       <style href="…">                 -> idem
 //       <link rel="import" href=…>,
@@ -764,15 +768,85 @@ function resolveContextKeyInLua(sources, key) {
 }
 
 /**
- * The handler names an action value can resolve to, most specific first: the
- * value as written, then — for the engine's `nome:sufixo` convention — the part
- * before the first `:`. `onToggle="escolher_tipo:roadmap"` runs
- * `escolher_tipo("roadmap", value)` when no `escolher_tipo:roadmap` exists
- * (`LuauComponent::run_inner`), so the link belongs on `escolher_tipo`.
+ * The handler names an action value can resolve to, each with the char offset
+ * it sits at inside `value` (so a link underlines just that span), most
+ * specific first:
+ *   - the value as written (offset 0);
+ *   - `owner::action` → `action` — the engine routes to `owner` and the
+ *     function is the rest (`route_to_owner`), so the link belongs on `action`;
+ *   - `nome:sufixo` → `nome` — `run_inner` calls `nome(sufixo, value)` when no
+ *     `nome:sufixo` function exists, so the link belongs on `nome`.
  */
 function handlerCandidates(value) {
-  const colon = value.indexOf(":");
-  return colon > 0 ? [value, value.slice(0, colon)] : [value];
+  const out = [{ name: value, start: 0 }];
+  const ns = value.indexOf("::");
+  if (ns >= 0) {
+    const rest = value.slice(ns + 2);
+    out.push({ name: rest, start: ns + 2 });
+    const colon = rest.indexOf(":");
+    if (colon > 0) out.push({ name: rest.slice(0, colon), start: ns + 2 });
+  } else {
+    const colon = value.indexOf(":");
+    if (colon > 0) out.push({ name: value.slice(0, colon), start: 0 });
+  }
+  const seen = new Set();
+  return out.filter((c) => c.name && !seen.has(c.name) && seen.add(c.name));
+}
+
+// `<dialog buttons="…">` spellings, and the role keywords `botao_de`
+// (src/dialogs.rs) peels off the END of a button spec.
+const DIALOG_BUTTONS_ATTRS = new Set(["buttons", "botoes", "botões"]);
+const DIALOG_BUTTON_ROLES = new Set([
+  "accept", "aceitar", "principal",
+  "neutral", "neutro", "cancel", "cancelar",
+  "destructive", "destrutivo", "perigo", "danger",
+]);
+
+/**
+ * The action a `dialog:<name>` value chains to (the engine's
+ * `DIALOG_ACTION_PREFIX` — a button that opens another dialog), or null. Used to
+ * point such an action at the `<dialog name="…">`/component it names instead of
+ * hunting for a `function dialog()`.
+ */
+function dialogChainName(value) {
+  const rest = value.startsWith("dialog:") ? value.slice(7).trim() : "";
+  return /^[A-Za-z_][\w-]*$/.test(rest) ? rest : null;
+}
+
+/**
+ * Parse a `<dialog buttons="…">` value the way `botao_de` (src/dialogs.rs)
+ * does, yielding `{ action, start, end }` for every button that carries a
+ * non-empty action — `start`/`end` are offsets into the value string covering
+ * just the action token (not the label, not the trailing role keyword).
+ *
+ * The label is split off the FIRST `:`; a known role keyword is peeled off the
+ * LAST `:`; whatever sits between is the action, colons and all — which is what
+ * makes `Voltar:dialog:editar:neutral` yield the chain action `dialog:editar`.
+ * A close-only button (`Cancelar::`, `Cancelar:`, `Cancelar`) yields nothing.
+ */
+function* dialogButtonActions(value) {
+  let base = 0;
+  for (const bruto of value.split("|")) {
+    const colon = bruto.indexOf(":");
+    if (colon >= 0) {
+      let rest = bruto.slice(colon + 1);
+      // Drop trailing role/space separators (`Cancelar::`, `X: `).
+      rest = rest.replace(/[\s:]+$/, "");
+      // Peel a trailing role keyword off the last `:`.
+      const lastColon = rest.lastIndexOf(":");
+      if (lastColon >= 0 &&
+          DIALOG_BUTTON_ROLES.has(rest.slice(lastColon + 1).trim().toLowerCase())) {
+        rest = rest.slice(0, lastColon);
+      }
+      const lead = rest.length - rest.trimStart().length;
+      const action = rest.trim();
+      if (action) {
+        const start = base + colon + 1 + lead;
+        yield { action, start, end: start + action.length };
+      }
+    }
+    base += bruto.length + 1; // + the `|`
+  }
 }
 
 /**
@@ -972,8 +1046,12 @@ function localDefine(text, tagName) {
   const abre = /<(component|componente|dialog|dialogo|diálogo)\b([^>]*)>/gi;
   let m;
   while ((m = abre.exec(text)) !== null) {
-    // Auto-fechada (`<component name="X"/>`) não tem corpo: não é declaração.
-    if (m[0].endsWith("/>")) continue;
+    const selfClosing = /\/\s*>$/.test(m[0]);
+    const isComponent = /^(component|componente)$/i.test(m[1]);
+    // `<component name="X"/>` auto-fechado não tem corpo: não é declaração.
+    // Mas `<dialog name="X"/>` auto-fechado É uma — a caixa de mensagem, sem
+    // corpo em markup —, e `dialog:X` a abre igual, então tem de ser achada.
+    if (selfClosing && isComponent) continue;
     let nome = null;
     for (const attr of iterAttrs(m[2], 0)) {
       const n = attr.name.toLowerCase();
@@ -981,12 +1059,16 @@ function localDefine(text, tagName) {
     }
     if (!nome || nome.toLowerCase() !== alvo) continue;
 
+    // Um `<dialog .../>` auto-fechado é o bloco inteiro — não há fechamento
+    // para procurar.
+    if (selfClosing) {
+      return { start: m.index, end: m.index + m[0].length, nameStart: m.index + 1 };
+    }
+
     // Fim do bloco, contando aninhamento — da MESMA família da tag que abriu.
     // Procurar `</component>` num bloco aberto por `<dialog>` não acharia
     // fim nenhum, e o bloco se estenderia até o fim do arquivo.
-    const familia = /^(component|componente)$/i.test(m[1])
-      ? "component|componente"
-      : "dialog|dialogo|diálogo";
+    const familia = isComponent ? "component|componente" : "dialog|dialogo|diálogo";
     const dentro = new RegExp(`<(${familia})\\b[^>]*>|</(${familia})\\s*>`, "gi");
     dentro.lastIndex = m.index + m[0].length;
     let nivel = 1;
@@ -996,7 +1078,7 @@ function localDefine(text, tagName) {
         if (--nivel === 0) {
           return { start: m.index, end: fim.index + fim[0].length, nameStart: m.index + 1 };
         }
-      } else if (!fim[0].endsWith("/>")) {
+      } else if (!/\/\s*>$/.test(fim[0])) {
         nivel++;
       }
     }
@@ -1478,6 +1560,19 @@ async function provideDocumentLinks(document) {
       if (!value || value.includes("{")) continue;
       const start = attr.start + attr.value.indexOf(value);
 
+      // `dialog:nome` — the engine opens that dialog; point at its
+      // `<dialog name="nome">` (or the component/screen of that name).
+      const chain = dialogChainName(value);
+      if (chain) {
+        const link = new vscode.DocumentLink(range(start, start + value.length));
+        link.tooltip = `Open dialog "${chain}"`;
+        const local = localDefine(text, chain);
+        if (local) link.target = uriAt(document.uri, document.positionAt(local.nameStart));
+        else pendingComponents.push({ link, name: chain });
+        links.push(link);
+        continue;
+      }
+
       const builtin = builtinAction(value);
       if (builtin) {
         // A command the engine interprets: nothing in the workspace defines it,
@@ -1511,12 +1606,14 @@ async function provideDocumentLinks(document) {
       }
 
       let link = null;
-      for (const name of handlerCandidates(value)) {
-        const [lua] = resolveLuaHandler(scripts, name);
+      for (const c of handlerCandidates(value)) {
+        const [lua] = resolveLuaHandler(scripts, c.name);
         if (!lua) continue;
-        link = new vscode.DocumentLink(range(start, start + name.length));
+        link = new vscode.DocumentLink(
+          range(start + c.start, start + c.start + c.name.length)
+        );
         link.target = uriAt(lua.uri, lua.range.start);
-        link.tooltip = `Go to function ${name}()`;
+        link.tooltip = `Go to function ${c.name}()`;
         break;
       }
       if (!link) {
@@ -1526,6 +1623,47 @@ async function provideDocumentLinks(document) {
         pendingHandlers.push({ link, value, start, range });
       }
       links.push(link);
+    }
+
+    // 2b. <dialog buttons="Rótulo:ação:papel|…"> — each button's action token
+    //     links like an action attribute; a `dialog:nome` chain points at that
+    //     dialog. Label and role keyword are left alone (see `dialogButtonActions`).
+    if (canon === "DialogDef") {
+      for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+        if (!DIALOG_BUTTONS_ATTRS.has(attr.name.toLowerCase())) continue;
+        if (attr.value.includes("{")) break;
+        for (const b of dialogButtonActions(attr.value)) {
+          const start = attr.start + b.start;
+          const end = attr.start + b.end;
+          const chain = dialogChainName(b.action);
+          if (chain) {
+            const link = new vscode.DocumentLink(range(start, end));
+            link.tooltip = `Open dialog "${chain}"`;
+            const local = localDefine(text, chain);
+            if (local) link.target = uriAt(document.uri, document.positionAt(local.nameStart));
+            else pendingComponents.push({ link, name: chain });
+            links.push(link);
+            continue;
+          }
+          let link = null;
+          for (const c of handlerCandidates(b.action)) {
+            const [lua] = resolveLuaHandler(scripts, c.name);
+            if (!lua) continue;
+            link = new vscode.DocumentLink(
+              range(start + c.start, start + c.start + c.name.length)
+            );
+            link.target = uriAt(lua.uri, lua.range.start);
+            link.tooltip = `Go to function ${c.name}()`;
+            break;
+          }
+          if (!link) {
+            link = new vscode.DocumentLink(range(start, end));
+            pendingHandlers.push({ link, value: b.action, start, range });
+          }
+          links.push(link);
+        }
+        break; // `get_attr` takes the first `buttons` spelling present
+      }
     }
 
     // 3. Binding attributes: value="user_name", items="tarefas", … name a
@@ -1631,12 +1769,15 @@ async function provideDocumentLinks(document) {
     }
 
     for (const pending of pendingHandlers) {
-      for (const name of handlerCandidates(pending.value)) {
-        const hit = rustHandlerFor(index, document.uri, name);
+      for (const c of handlerCandidates(pending.value)) {
+        const hit = rustHandlerFor(index, document.uri, c.name);
         if (!hit) continue;
-        pending.link.range = pending.range(pending.start, pending.start + name.length);
+        pending.link.range = pending.range(
+          pending.start + c.start,
+          pending.start + c.start + c.name.length
+        );
         pending.link.target = uriAt(hit.fsPath, hit.position);
-        pending.link.tooltip = `Go to handler "${name}" (Rust)`;
+        pending.link.tooltip = `Go to handler "${c.name}" (Rust)`;
         break;
       }
     }
@@ -1694,6 +1835,15 @@ function classify(document, position) {
         const name = attr.value.trim();
         return name ? { kind: "tag", name, canonical: undefined } : null;
       }
+      // Inside a <dialog buttons="…"> value: which button's action is under the
+      // cursor? (The label and the trailing role keyword classify as nothing.)
+      if (canon === "DialogDef" && DIALOG_BUTTONS_ATTRS.has(lower)) {
+        const rel = offset - attr.start;
+        for (const b of dialogButtonActions(attr.value)) {
+          if (rel >= b.start && rel <= b.end) return { kind: "action", name: b.action };
+        }
+        return null;
+      }
       if (wanted.includes(lower)) return { kind: "path", value: attr.value };
       return null;
     }
@@ -1709,6 +1859,18 @@ async function resolveDefinition(document, position) {
 
   if (hit.kind === "action") {
     const sources = scriptSources(document.uri, text);
+
+    // `dialog:nome` opens another dialog — jump to its `<dialog name="nome">`
+    // (or the component/screen registered under that name).
+    const chain = dialogChainName(hit.name);
+    if (chain) {
+      const local = localDefine(text, chain);
+      if (local) return [new vscode.Location(document.uri, document.positionAt(local.nameStart))];
+      const index = await workspaceIndex();
+      const p = lookupComponent(index, localImports(document.uri, text), chain, document.uri);
+      return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;
+    }
+
     const builtin = builtinAction(hit.name);
     if (builtin) {
       if (builtin.kind === "key" && builtin.arg) {
@@ -1721,13 +1883,13 @@ async function resolveDefinition(document, position) {
       const doc = referenceLocation(BUILTIN_ACTIONS_HEADING);
       return doc ? [doc] : undefined;
     }
-    for (const name of handlerCandidates(hit.name)) {
-      const lua = resolveLuaHandler(sources, name);
+    for (const c of handlerCandidates(hit.name)) {
+      const lua = resolveLuaHandler(sources, c.name);
       if (lua.length) return lua;
     }
     const index = await workspaceIndex();
-    for (const name of handlerCandidates(hit.name)) {
-      const rust = rustHandlerFor(index, document.uri, name);
+    for (const c of handlerCandidates(hit.name)) {
+      const rust = rustHandlerFor(index, document.uri, c.name);
       if (rust) return [new vscode.Location(vscode.Uri.file(rust.fsPath), rust.position)];
     }
     return undefined;

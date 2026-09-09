@@ -20,12 +20,15 @@ Language support for **Glacier View** (`.gv`), the XML markup of `glacier-ui`.
   | `<script src="app.luau">` | the `.luau` file |
   | `on_click="salvar"` | `function salvar()` in that `.luau`, or in the inline `<script>` |
   | `onToggle="escolher_tipo:roadmap"` | `function escolher_tipo(…)` — the `nome:sufixo` convention links on the name half |
+  | `on_click="MeuComp::salvar"` | `function salvar()` — the `owner::action` convention links on the action half |
   | `on_click="clipboard:obra_pasta"` | where that context key is written (`ctx.obra_pasta = …`, `ctx.set("obra_pasta", …)`) — same for `open:`, `textarea_end:`, `textarea_top:` |
   | `on_click="window:close"`, `style:…` | the built-in actions table in the bundled reference |
   | `hidden="{sem_perguntas}"`, `{status}`, `{modelo\|padrão}` | where that context key is written |
   | `value="user_name"`, `items="tarefas"`, `checked="marcado"`, `cond=…` | idem: a binding attribute names a context key |
   | `{c.titulo}` under `for-each="…" var="c"` | the `var="c"` that declares the loop variable |
   | `on_click="salvar"` with no `<script>` | the `"salvar" =>` arm of the Rust `Component::update` |
+  | `on_click="dialog:editar"` | the `<dialog name="editar">` (or component/screen) it opens |
+  | `<dialog buttons="Salvar:salvar:accept\|Voltar:dialog:editar:neutral">` | each button's action token — the `function`, or the chained `<dialog>` (the label and role keyword aren't linked) |
   | `<link rel="stylesheet" href="app.gss">`, `<style href=…>` | the GSS sheet |
   | `<link rel="import" href=…>`, `<import from=…>`, `<Include src=…>` | the imported template |
   | `<link rel="theme">` / `<link rel="data">` | the JSON file |

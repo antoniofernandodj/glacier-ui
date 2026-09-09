@@ -633,10 +633,9 @@ Os `rel` que existem são cinco: `stylesheet`, `import`, `component` (apelido de
 é obrigatório — e `theme`. Qualquer outro é erro na carga, com a lista na
 mensagem.
 
-No `<screen>`: `title`, `size="1080 760"`, `min_size` e `resizable="false"`. No
-`<dialog>`: `name`, `title` e os botões numa lista compacta —
-`buttons="Cancelar::neutral|Salvar:salvar:accept"`, na forma
-`Rótulo:ação:papel`. Sem `buttons`, ele nasce com um par OK/Cancelar.
+No `<screen>`: `title`, `size="1080 760"`, `min_size` e `resizable="false"`. O
+`<dialog>` tem seção própria ("O `<dialog>` — o modal com corpo em markup"),
+com o `buttons=` nos mínimos detalhes.
 
 ### O que vale em qualquer tag
 
@@ -1770,7 +1769,182 @@ progress({ label = "Enviando…" })  progress_set(40)  progress_close()
 ```
 
 A seção "Todas as funções da camada Luau" documenta cada um. O único que é
-markup é o `<dialog name="…">` do `<resources>`, para um modal com corpo próprio.
+markup é o `<dialog name="…">`, para um modal com **corpo próprio** — a próxima
+seção o cobre inteiro.
+
+### O `<dialog>` — o modal com corpo em markup
+
+Um `<dialog name="X">` é uma **declaração**, não um widget: nada desenha onde a
+tag está escrita. Ela registra um template sob o nome `X` (o corpo da tag) e
+uma moldura ao lado. O que faz o modal aparecer é a ação **`dialog:X`** de
+qualquer botão/menuitem. Ele fecha sozinho quando um botão dele é clicado.
+
+```xml
+<screen>
+  <resources>
+    <dialog name="editar_servico"
+            title="Editar serviço"
+            icon="none"
+            dismissible="true"
+            buttons="Cancelar::|Salvar:salvar_servico:accept">
+      <column class="form">
+        <text class="rotulo">Nome</text>
+        <textinput value="__dialog.nome" on_change="__dialog.nome"
+                   placeholder="api-gateway" class="preenche" />
+        <spinbox value="__dialog.replicas" min="1" max="32" width="110" />
+        <checkbox label="Reiniciar" checked="__dialog.restart"
+                  on_toggle="__dialog.restart" />
+      </column>
+    </dialog>
+  </resources>
+
+  <button text="Editar" on_click="dialog:editar_servico" />
+</screen>
+```
+```lua
+function salvar_servico()
+  -- No aceite, o rascunho AINDA está no contexto. Leia aqui.
+  local nome     = ctx["__dialog.nome"]     or ""
+  local replicas = tonumber(ctx["__dialog.replicas"]) or 1
+  local restart  = ctx["__dialog.restart"] == "true"
+  ctx.ultimo = nome .. " · " .. replicas .. (restart and " · restart" or "")
+end
+```
+
+#### Atributos
+
+| atributo | default | o que faz |
+|---|---|---|
+| `name` | — (**obrigatório**) | como o modal é aberto (`dialog:<name>`) e o nome do template do corpo. **Único no app inteiro** — os diálogos vivem num mapa global e são singleton (só um aberto por vez) |
+| `title` | — | título do cartão; vazio esconde a linha do cabeçalho |
+| `message` | — | um texto acima do corpo; vazio some (não vira linha em branco). Quase sempre ausente num diálogo com conteúdo — o conteúdo já diz o que ele pede |
+| `icon` | `none` | `information` (`info`/`informacao`), `warning` (`warn`/`aviso`), `error` (`critical`/`erro`), `question` (`pergunta`), `none`. Um valor desconhecido vira `none`, sem erro |
+| `buttons` | um `Fechar` | a lista compacta — ver abaixo |
+| `dismissible` | `true` | se clicar no fundo escurecido fecha (sem despachar nada). `false` obriga a escolher um botão |
+
+Qualquer outro atributo é **erro posicionado** (linha e coluna).
+
+#### `buttons=` — a lista compacta
+
+Botões separados por `|`; cada um é **`Rótulo:ação:papel`** (ação e papel
+opcionais). O parsing:
+
+- o **rótulo** sai do **primeiro** `:`;
+- o **papel**, quando é uma palavra-chave conhecida, sai do **último** `:`;
+- **o que sobra no meio é a ação inteira — `:` e tudo**. É isso que deixa
+  `Voltar:dialog:editar:neutral` chegar à ação `dialog:editar` (encadear para
+  outro modal) em vez de despachar só `"dialog"`.
+
+| forma | vira |
+|---|---|
+| `Salvar:salvar_perfil:accept` | rótulo `Salvar`, ação `salvar_perfil`, papel `accept` |
+| `Salvar:salvar_perfil` | idem — **papel ausente com ação escrita ⇒ `accept`** |
+| `Cancelar::` / `Cancelar:` / `Cancelar` | rótulo `Cancelar`, **ação vazia ⇒ só fecha**, não despacha nada; papel `neutral` |
+| `Voltar:dialog:editar:neutral` | encadeia: fecha este, abre o `<dialog name="editar">` |
+| `Remover:remover:destructive` | papel `destructive` (tom de perigo) |
+| `Salvar:MeuComp::salvar:accept` | ação `MeuComp::salvar` — o `::` de dono, para um modal encapsulado num componente (ver adiante) |
+
+Papéis (**só mudam a cor**, nunca o roteamento): `accept`/`aceitar`/`principal`,
+`neutral`/`neutro`/`cancel`/`cancelar`, `destructive`/`destrutivo`/`perigo`/`danger`.
+
+Casos de borda: `buttons=""` (presente e vazio) → **nenhum** botão, só o fundo
+fecha (útil num `progress` que não dá para cancelar). Sem o atributo → um único
+`Fechar` neutro que só fecha.
+
+#### O corpo e as chaves `__dialog.*`
+
+O corpo do `<dialog>` é um template comum, **avaliado no contexto do app** — ele
+enxerga toda chave que a tela enxerga (as `options` de um `<select>`, um
+`{titulo}`…). É isso que faz um diálogo com campo **dispensar estado por
+instância**: o que o usuário digita mora numa chave comum, como em qualquer
+`<textinput>`.
+
+- **Convenção:** prefixe as chaves do corpo com `__dialog.` (`__dialog.nome`,
+  `__dialog.cor`). Um `<textinput value="__dialog.nome" on_change="__dialog.nome">`
+  grava nessa chave pelo binding legado (a ação é o nome da chave; sem um
+  handler com esse nome, o motor escreve o valor ali).
+- **O rascunho sobrevive até o handler ler.** Quando o botão de aceite despacha
+  a ação, as chaves `__dialog.*` **ainda estão no contexto**; o handler as lê; o
+  motor as apaga **depois**. (Numa etapa em que o handler abre OUTRO diálogo, o
+  rascunho novo é preservado.)
+- **A segunda abertura vem limpa** — a limpeza no fechamento é o que impede o
+  modal de reabrir preenchido com a resposta da vez anterior. Para abrir
+  **semeado** de propósito, escreva as chaves antes do `dialog:X` (de um handler,
+  ou `ctx.show_dialog` no Rust).
+
+#### Abrir, fechar, encadear
+
+| como | de onde |
+|---|---|
+| `on_click="dialog:X"` | qualquer `<button>`/`<menuitem>`, e um botão de outro diálogo |
+| `dialog:close` / `dialog:fechar` | fecha o que estiver aberto |
+| um botão com ação `dialog:Y` no `buttons=` | fecha este e abre o `Y` (wizard em modal) |
+| `ctx.show_dialog(DialogSpec::…)` | do Rust — recebe o **nome** de um template já registrado em `with_body` |
+| `confirm{}` / `prompt{}` / `pick_color{}` / `progress{}` | do Luau — os suspensivos, que **não** são markup |
+
+Um `dialog:X` cujo `X` não existe é **ignorado em silêncio** (a alternativa
+seria derrubar o app por um typo; quem aponta isso é a validação de template).
+
+#### Onde o `<dialog>` pode ser declarado
+
+A coleta das declarações é uma **varredura recursiva** da árvore — não só do
+`<resources>` da tela. Duas composições saem disso:
+
+**1. Um componente que encapsula o próprio modal.** Declare o `<dialog>`, o
+botão que o abre e o `<script>` do handler **dentro do arquivo do componente**:
+
+```xml
+<!-- views/editor_rotulo.gv -->
+<component>
+  <resources>
+    <script src="editor_rotulo.luau"></script>
+    <dialog name="editor_rotulo_dlg" title="Editar rótulo"
+            buttons="Cancelar::|Salvar:EditorRotulo::salvar:accept">
+      <column class="form">
+        <textinput value="__dialog.texto" on_change="__dialog.texto" class="preenche" />
+      </column>
+    </dialog>
+  </resources>
+  <button text="Editar…" on_click="dialog:editor_rotulo_dlg" />
+</component>
+```
+
+- O `dialog:` do `on_click` **não é namespaceado** — ele é um prefixo que o
+  motor consome sozinho (como `window:`/`clipboard:`), então funciona igual
+  dentro de um componente com `<script>`.
+- O botão de aceite **precisa do `::` de dono** (`EditorRotulo::salvar`) para a
+  ação voltar ao componente, e não à tela. `EditorRotulo` é o `name=` do
+  `<import>` que trouxe o arquivo. Isso só resolve se o componente **tem
+  `<script>`** — sem ele, `MeuComp::salvar` cai na tela ativa (é o comportamento
+  correto: um componente sem script não é dono de handler nenhum, e aí o
+  handler mora na tela e o `buttons=` usa a forma simples `Salvar:salvar:accept`).
+
+**2. Um `<dialog>` cujo corpo usa um componente.** O corpo é template comum:
+
+```xml
+<dialog name="editar_perfil" buttons="Cancelar::|Salvar:salvar_perfil:accept">
+  <column class="form">
+    <CampoForm label="Nome">
+      <textinput value="__dialog.nome" on_change="__dialog.nome" class="preenche" />
+    </CampoForm>
+  </column>
+</dialog>
+```
+
+O conteúdo passado como `<slot/>` de `<CampoForm>` pertence a **quem escreveu**
+(a tela), então `on_change="__dialog.nome"` fica sem prefixo e grava a chave
+normal. Um componente no corpo que tenha `<script>` próprio segue namespaceando
+as ações dele como sempre.
+
+Exemplo completo das duas direções: `examples/onda8b_luau`.
+
+#### Largura dos campos — a armadilha de sempre
+
+O cartão do diálogo é limitado, mas os containers do corpo nascem `shrink`. Para
+um campo esticar, a **cadeia inteira** até ele precisa ser `width: fill` (um
+`fill` dentro de um pai `shrink` colapsa o campo — ver PRIMITIVAS.md). Na
+prática: `.form`, cada `.campo`/`.row` intermediário e a classe do próprio
+`<textinput>` todos com `width: fill`.
 
 ## A folha de estilo (`.gss`), por inteiro
 

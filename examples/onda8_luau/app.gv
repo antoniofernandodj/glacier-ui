@@ -2,6 +2,73 @@
   <resources>
     <link rel="stylesheet" href="examples/onda8_luau/app.gss" />
     <script src="scripts/app.luau"></script>
+
+    <!-- ── Item 1: o `dialog` declarativo — a MESMA tag do exemplo Rust, e ela
+         funciona igual num app de script.
+
+         A diferença dos quatro suspensivos abaixo: este NÃO devolve um valor
+         para a corrotina. O botão "Salvar" despacha uma ação comum
+         (`salvar_rotulo`), e o handler Luau lê as chaves `__dialog.*` que o
+         corpo preencheu. O motor apaga essas chaves no fechamento — por isso a
+         segunda abertura vem limpa, não com o que ficou da primeira. -->
+    <dialog
+      name="editar_rotulo"
+      title="Editar rótulo"
+      buttons="
+        Cancelar::|
+        Salvar:salvar_rotulo:accept
+      "
+    >
+      <column class="form">
+        <column class="campo">
+          <text class="rotulo">Texto</text>
+          <textinput
+            value="__dialog.texto"
+            on_change="__dialog.texto"
+            placeholder="produção"
+            class="preenche"
+          />
+        </column>
+
+        <row class="campos">
+          <column class="campo">
+            <text class="rotulo">Cor</text>
+            <select
+              options="cores_rotulo"
+              value="__dialog.cor"
+              on_change="__dialog.cor"
+              class="preenche"
+            />
+          </column>
+          <column class="campo">
+            <text class="rotulo">Tamanho</text>
+            <!-- `width` do spinbox é a do CAMPO; a row interna dele é shrink e um
+                 `fill` aqui colapsaria o número. Por isso fica inline. -->
+            <spinbox value="__dialog.tamanho" min="10" max="24" step="1" width="110" />
+          </column>
+        </row>
+
+        <checkbox
+          label="Negrito"
+          checked="__dialog.negrito"
+          on_toggle="__dialog.negrito"
+        />
+      </column>
+    </dialog>
+
+    <!-- Um segundo `dialog`, sem corpo: a caixa de mensagem. O botão neutro
+         reabre o de cima — o encadeamento `dialog:nome` a partir de um botão de
+         diálogo. -->
+    <dialog
+      name="descartar_rotulo"
+      title="Descartar alterações?"
+      message="O que você digitou será perdido."
+      icon="warning"
+      buttons="
+        Voltar:dialog:editar_rotulo:neutral|
+        Descartar:descartou_rotulo:destructive
+      "
+    />
   </resources>
 
   <column class="tela">
@@ -17,6 +84,30 @@
         corrotina para no diálogo e volta com a resposta.
         Cancelar devolve nil — a mesma convenção do open_file().
       </text>
+
+      <!-- ── Item 1: o `dialog` declarativo (a mesma tag do exemplo Rust) ── -->
+      <frame shape="box" class="bloco">
+        <column class="painel">
+          <text class="secao">o `dialog` — o QDialog com corpo em markup</text>
+          <row class="acoes">
+            <button
+              text="Editar rótulo"
+              on_click="dialog:editar_rotulo"
+            />
+            <button
+              text="Descartar"
+              on_click="dialog:descartar_rotulo"
+            />
+          </row>
+          <text class="valor">Rótulo: {rotulo}</text>
+          <text class="nota">
+            Este NÃO suspende a corrotina: o botão Salvar despacha uma ação
+            comum e o handler Luau lê as chaves __dialog.* que o corpo
+            preencheu. O corpo é avaliado no contexto do app, como qualquer
+            tela — por isso um diálogo com campo não pede estado por instância.
+          </text>
+        </column>
+      </frame>
 
       <!-- ── Item 2: InputDialog, as quatro variantes do QInputDialog ───── -->
       <frame shape="box" class="bloco">

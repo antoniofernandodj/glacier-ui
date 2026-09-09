@@ -142,9 +142,14 @@ Nada desenha onde a tag está escrita: a declaração viaja pendurada na raiz, c
 (`information`/`warning`/`error`/`question`), `buttons` e `dismissible`.
 Qualquer outro é erro posicionado, com a linha e a coluna.
 
-**`buttons`** é uma lista compacta, `Rótulo:acao:papel` separados por `|`:
+**`buttons`** é uma lista compacta, `Rótulo:ação:papel` separados por `|`:
 
-- ação vazia (`Cancelar::`) → o botão só fecha, e **não despacha nada**;
+- o **rótulo** sai do primeiro `:`; o **papel**, quando é uma palavra-chave
+  conhecida, do último `:`; o que sobra no meio é a ação **inteira, `:` e
+  tudo** — é o que deixa `Voltar:dialog:editar:neutral` encadear para
+  `dialog:editar` (ver `botao_de` em `src/dialogs.rs`);
+- ação vazia (`Cancelar::`, `Cancelar:` ou `Cancelar`) → o botão só fecha, e
+  **não despacha nada**;
 - papel ausente → `neutral` se a ação for vazia, `accept` se não for;
 - papéis: `accept`, `neutral`, `destructive` (e os equivalentes em pt-BR);
 - sem o atributo → um `Fechar` que só fecha.

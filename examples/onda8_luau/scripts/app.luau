@@ -17,6 +17,48 @@ function init()
     ctx.confirmacao = "—"
     ctx.progresso_fim = "—"
     ctx.cor = "#89B4FA"
+
+    -- Item 1: o resultado do `<dialog>` e as opções do `<select>` que vive
+    -- DENTRO dele. `cores_rotulo` é uma chave comum do app — o corpo do modal é
+    -- avaliado no contexto do app, então enxerga tudo o que a tela enxerga.
+    ctx.rotulo = "— nada ainda —"
+    ctx.cores_rotulo = [[
+        [{"label":"Azul","value":"azul"},
+         {"label":"Verde","value":"verde"},
+         {"label":"Âmbar","value":"ambar"},
+         {"label":"Vermelho","value":"vermelho"}]
+    ]]
+end
+
+-- ── Item 1: o botão "Salvar" do `<dialog name="editar_rotulo">` ─────────
+--
+-- Chega aqui como uma AÇÃO comum — a mesma rota de um `<button on_click>`. O
+-- motor já fechou o diálogo antes de despachar, e as chaves `__dialog.*` ainda
+-- estão no contexto neste instante (são apagadas logo depois, no fechamento).
+-- É o contraste com os suspensivos abaixo: nada de corrotina, nada de retorno —
+-- o valor digitado mora numa chave, como em qualquer campo de texto.
+function salvar_rotulo()
+    local texto = ctx["__dialog.texto"] or ""
+    local cor = ctx["__dialog.cor"] or ""
+    local tamanho = ctx["__dialog.tamanho"] or ""
+    local negrito = ctx["__dialog.negrito"] == "true"
+
+    if texto == "" then texto = "(sem texto)" end
+    if cor == "" then cor = "azul" end
+    if tamanho == "" then tamanho = "14" end
+
+    ctx.rotulo = texto
+        .. " · " .. cor
+        .. " · " .. tamanho .. "px"
+        .. (if negrito then " · negrito" else "")
+    ctx.status = "Rótulo salvo"
+end
+
+-- O botão "Descartar" da caixa de mensagem encadeada. O botão "Voltar" dela não
+-- passa por aqui: `dialog:editar_rotulo` reabre o primeiro diálogo direto no
+-- motor.
+function descartou_rotulo()
+    ctx.status = "Alterações descartadas"
 end
 
 -- ── Item 2: as quatro variantes do QInputDialog ─────────────────────────

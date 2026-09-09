@@ -1144,16 +1144,21 @@ nome, e o que a faz aparecer é a ação `dialog:<nome>`.
 | `title` | — | título do cartão; vazio esconde o cabeçalho |
 | `message` | — | texto acima do corpo; vazio some (não vira linha em branco) |
 | `icon` | — | `information`, `warning`, `error`, `question` |
-| `buttons` | um `Fechar` | lista `Rótulo:acao:papel` separada por `\|` |
+| `buttons` | um `Fechar` | lista `Rótulo:ação:papel` separada por `\|` |
 | `dismissible` | `true` | clicar fora fecha |
 
-- **`buttons`**: ação vazia (`Cancelar::`) = o botão **só fecha**, sem despachar
+- **`buttons`**: o rótulo sai do **primeiro** `:`, o papel (quando é palavra-chave
+  conhecida) do **último**, e o meio é a ação inteira — `:` inclusive, então
+  `Voltar:dialog:editar:neutral` encadeia para `dialog:editar`. Ação vazia
+  (`Cancelar::`, `Cancelar:` ou `Cancelar`) = o botão **só fecha**, sem despachar
   nada. Papel ausente = `accept` se há ação, `neutral` se não há. Papéis:
   `accept`, `neutral`, `destructive`.
 - **As chaves `__dialog.*`** são o rascunho do diálogo, e o motor **apaga todas**
   quando ele fecha — sem isso, a segunda abertura viria preenchida com a resposta
   da primeira.
-- Um botão pode abrir **outro** diálogo (`on_click="dialog:outro"`).
+- Um botão pode abrir **outro** diálogo (`buttons="Voltar:dialog:outro:neutral"`),
+  como qualquer `on_click="dialog:outro"`. No editor, Ctrl+clique na ação dentro
+  do `buttons=` (ou num `on_click="dialog:…"`) leva ao `<dialog>` ou à função.
 
 ### `<stackview>` — o QStackedWidget
 

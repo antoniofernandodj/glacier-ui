@@ -38,6 +38,20 @@ qualquer tela.
 
 .amostra { width: 44; height: 32; border_radius: 6; border_width: 1; }
 
+/* ── Corpo do `<dialog>` (Item 1) ─────────────────────────────────────── */
+/*
+A cadeia inteira precisa ser `width: fill` — um `fill` dentro de um pai
+`shrink` colapsa o campo (ver a armadilha no PRIMITIVAS.md). Por isso
+`.campo` e `.campos` também levam `width: fill`, não só o `.form` e o
+`.preenche` da ponta.
+*/
+
+.form     { width: fill; spacing: 14; }
+.campos   { width: fill; spacing: 14; }
+.campo    { width: fill; spacing: 6; }
+.rotulo   { size: 12; color: var(--suave); }
+.preenche { width: fill; }
+
 /* ── Texto ─────────────────────────────────────────────────────────────── */
 
 .titulo { size: 16; bold: true; color: var(--texto); }

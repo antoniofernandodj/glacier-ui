@@ -3,10 +3,15 @@
 //!
 //! Rode com: `cargo run --example onda8_luau`
 //!
-//! # O que este exemplo mostra e a versão Rust não mostra
+//! # O que este exemplo mostra
 //!
-//! Os itens 2, 3 e 4 da onda (`InputDialog`, `ProgressDialog`, `ColorDialog`)
-//! aparecem aqui como API de script, e a razão é o **suspensivo**. `prompt` e
+//! **Item 1 — o `<dialog>` declarativo** aparece nos dois exemplos, por
+//! paridade: a mesma tag do `onda8`, um corpo em markup, aberto por
+//! `dialog:editar_rotulo`. Ele NÃO é API de script — o botão "Salvar" despacha
+//! `salvar_rotulo`, um handler Luau comum, que lê as chaves `__dialog.*`.
+//!
+//! **Itens 2, 3 e 4** (`InputDialog`, `ProgressDialog`, `ColorDialog`), esses
+//! sim, só a camada de script mostra, e a razão é o **suspensivo**. `prompt` e
 //! `pick_color` param a corrotina no diálogo e voltam com a resposta:
 //!
 //! ```lua

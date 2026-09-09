@@ -341,30 +341,51 @@ fn icone_de(nome: Option<&str>) -> DialogIcon {
 }
 
 /// Lê um botão da lista compacta do `<dialog buttons="…">`, na forma
-/// `Rótulo:acao:papel` — os dois últimos campos opcionais.
+/// `Rótulo:ação:papel` — ação e papel opcionais.
 ///
-/// Ação vazia (`Cancelar::`) vira [`DIALOG_CLOSE`]: o botão fecha e não despacha
-/// nada. Papel ausente é `neutral`, com uma exceção que vale a magia — se a
-/// ação está escrita, o papel default é `accept`, porque um botão que *faz*
-/// alguma coisa é a ação principal em quase todo diálogo, e escrever
-/// `:accept` em cada um seria ruído.
+/// O rótulo é separado do resto pelo **primeiro** `:`; o papel, quando é uma
+/// palavra-chave conhecida (`accept`/`neutral`/`destructive` e sinônimos), é
+/// descolado pelo **último** `:`. O que sobra no meio é a ação inteira,
+/// **inclusive com `:`** — é o que deixa `Voltar:dialog:editar:neutral` chegar
+/// à ação `dialog:editar` (o encadeamento de diálogo) em vez de despachar só
+/// `"dialog"`, que era o efeito de fatiar tudo por `:` posicionalmente.
+///
+/// Ação vazia (`Cancelar::`, `Cancelar:` ou `Cancelar`) vira [`DIALOG_CLOSE`]:
+/// o botão fecha e não despacha nada. Papel ausente é `neutral`, com a exceção
+/// de sempre — ação escrita ⇒ papel default `accept`, porque um botão que *faz*
+/// alguma coisa é a ação principal em quase todo diálogo, e `:accept` em cada
+/// um seria ruído.
 fn botao_de(bruto: &str) -> Option<DialogButton> {
-    let mut campos = bruto.split(':');
-    let label = campos.next()?.trim();
+    let (label, resto) = bruto.trim().split_once(':').unwrap_or((bruto.trim(), ""));
+    let label = label.trim();
     if label.is_empty() {
         return None;
     }
-    let acao = campos.next().unwrap_or("").trim();
-    let papel = campos.next().unwrap_or("").trim().to_lowercase();
-    let role = match papel.as_str() {
-        "accept" | "aceitar" | "principal" => ButtonRole::Accept,
-        "neutral" | "neutro" | "cancel" | "cancelar" => ButtonRole::Neutral,
-        "destructive" | "destrutivo" | "perigo" | "danger" => ButtonRole::Destructive,
-        _ if acao.is_empty() => ButtonRole::Neutral,
-        _ => ButtonRole::Accept,
+    // Separadores vazios ao fim (`Cancelar::`) não são campos: `Cancelar::`,
+    // `Cancelar:` e `Cancelar` são o mesmo botão "só fecha".
+    let resto = resto.trim_end_matches(|c: char| c == ':' || c.is_whitespace());
+    let (acao, role) = match resto.rsplit_once(':') {
+        // Último campo é uma palavra-chave de papel: descola-o, o resto é a ação.
+        Some((cabeca, cauda)) if papel_de(cauda).is_some() => {
+            (cabeca.trim(), papel_de(cauda).unwrap())
+        }
+        // Sem papel escrito: a ação é tudo o que veio depois do rótulo. Papel
+        // default pelo de sempre — `neutral` se não há ação, `accept` se há.
+        _ if resto.trim().is_empty() => ("", ButtonRole::Neutral),
+        _ => (resto.trim(), ButtonRole::Accept),
     };
     let acao = if acao.is_empty() { DIALOG_CLOSE } else { acao };
     Some(DialogButton::new(label, acao, role))
+}
+
+/// Uma palavra-chave de papel de botão de diálogo, ou `None`.
+fn papel_de(s: &str) -> Option<ButtonRole> {
+    match s.trim().to_lowercase().as_str() {
+        "accept" | "aceitar" | "principal" => Some(ButtonRole::Accept),
+        "neutral" | "neutro" | "cancel" | "cancelar" => Some(ButtonRole::Neutral),
+        "destructive" | "destrutivo" | "perigo" | "danger" => Some(ButtonRole::Destructive),
+        _ => None,
+    }
 }
 
 /// Renderiza o diálogo como um overlay completo: um fundo semitransparente
@@ -538,4 +559,84 @@ fn dialog_button<'a>(
         })
         .on_press(EngineMessage::DialogButton(b.action.clone()))
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn botoes(lista: &str) -> Vec<(String, String, ButtonRole)> {
+        lista
+            .split('|')
+            .filter_map(botao_de)
+            .map(|b| (b.label, b.action, b.role))
+            .collect()
+    }
+
+    #[test]
+    fn rotulo_acao_papel_posicional() {
+        let b = botoes("Salvar:salvar_perfil:accept");
+        assert_eq!(b, vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]);
+    }
+
+    #[test]
+    fn papel_ausente_com_acao_vira_accept() {
+        let b = botoes("Salvar:salvar_perfil");
+        assert_eq!(b[0].2, ButtonRole::Accept);
+        assert_eq!(b[0].1, "salvar_perfil");
+    }
+
+    #[test]
+    fn acao_vazia_vira_close_e_papel_neutral() {
+        // `Cancelar::`, `Cancelar:` e `Cancelar` são o mesmo botão "só fecha".
+        for forma in ["Cancelar::", "Cancelar:", "Cancelar"] {
+            let b = botoes(forma);
+            assert_eq!(b[0].1, DIALOG_CLOSE, "{forma}");
+            assert_eq!(b[0].2, ButtonRole::Neutral, "{forma}");
+        }
+    }
+
+    #[test]
+    fn acao_pode_conter_dois_pontos_encadeamento_de_dialogo() {
+        // A regressão que motivou o conserto: o papel sai do ÚLTIMO `:`, e o
+        // que sobra no meio é a ação inteira — `dialog:editar`, não `dialog`.
+        let b = botoes("Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive");
+        assert_eq!(
+            b,
+            vec![
+                ("Voltar".into(), "dialog:editar_servico".into(), ButtonRole::Neutral),
+                ("Remover".into(), "remover_confirmado".into(), ButtonRole::Destructive),
+            ]
+        );
+    }
+
+    #[test]
+    fn encadeamento_sem_papel_explicito_mantem_a_acao_inteira() {
+        let b = botoes("Voltar:dialog:editar");
+        assert_eq!(b[0].1, "dialog:editar");
+        assert_eq!(b[0].2, ButtonRole::Accept);
+    }
+
+    #[test]
+    fn espacos_em_volta_dos_campos_sao_tolerados() {
+        let b = botoes(" Salvar : salvar_perfil : accept ");
+        assert_eq!(b, vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]);
+    }
+
+    #[test]
+    fn rotulo_vazio_descarta_o_botao() {
+        assert!(botao_de(":acao:accept").is_none());
+        assert!(botao_de("").is_none());
+    }
+
+    #[test]
+    fn from_meta_sem_buttons_traz_um_fechar() {
+        let meta = crate::parser::DialogMeta {
+            name: "x".into(),
+            ..Default::default()
+        };
+        let spec = DialogSpec::from_meta(&meta);
+        assert_eq!(spec.buttons.len(), 1);
+        assert_eq!(spec.buttons[0].action, DIALOG_CLOSE);
+    }
 }

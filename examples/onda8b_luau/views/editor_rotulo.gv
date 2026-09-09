@@ -1,0 +1,44 @@
+<component>
+  <resources>
+    <script src="editor_rotulo.luau"></script>
+
+    <!-- O DIÁLOGO VIAJA COM O COMPONENTE.
+         `load_defines` varre a árvore inteira, então um `<dialog>` declarado
+         aqui dentro é recolhido no registro do componente igual a um do
+         `<resources>` de uma tela. O `name` tem de ser único no app todo (os
+         diálogos moram num mapa global e são singleton).
+
+         O botão Salvar despacha `EditorRotulo::salvar`, com o `::` de dono:
+         sem o prefixo a ação iria para a TELA ativa, não para este
+         componente (ver `route_to_owner`). `EditorRotulo` é o `name=` do
+         `<import>` que trouxe este arquivo. -->
+    <dialog
+      name="editor_rotulo_dlg"
+      title="Editar rótulo"
+      buttons="
+        Cancelar::|
+        Salvar:EditorRotulo::salvar:accept
+      "
+    >
+      <column class="erd-form">
+        <text class="erd-label">Texto</text>
+        <textinput
+          value="__dialog.texto"
+          on_change="__dialog.texto"
+          placeholder="produção"
+          class="erd-fill"
+        />
+        <checkbox
+          label="Negrito"
+          checked="__dialog.negrito"
+          on_toggle="__dialog.negrito"
+        />
+      </column>
+    </dialog>
+  </resources>
+
+  <column class="erd-cartao">
+    <text class="erd-valor">{er_valor}</text>
+    <button text="Editar…" on_click="dialog:editor_rotulo_dlg" />
+  </column>
+</component>

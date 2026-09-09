@@ -1,0 +1,96 @@
+<screen title="Glacier — Onda 8b (Luau)" size="900 640" min_size="760 560">
+  <resources>
+    <link rel="stylesheet" href="examples/onda8b_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+
+    <!-- ── A: o componente que embrulha um diálogo inteiro ─────────────────
+         Ele traz o próprio `<dialog>`, o próprio botão e o próprio handler.
+         Ver `views/editor_rotulo.gv`. -->
+    <import name="EditorRotulo" from="views/editor_rotulo.gv" />
+
+    <!-- ── B: o componente que um diálogo usa NO CORPO ─────────────────────
+         `CampoForm` é só rótulo + `<slot/>`. Declarado aqui, montado dentro
+         do corpo do `<dialog>` abaixo. -->
+    <component name="CampoForm">
+      <props>
+        <prop name="label" />
+      </props>
+      <column class="cf-campo">
+        <text class="cf-label">{label}</text>
+        <slot />
+      </column>
+    </component>
+
+    <!-- Direction B: um `<dialog>` cujo corpo compõe dois `<CampoForm>`. O
+         binding de cada campo (`__dialog.*`) fica aqui, literal; o handler
+         `salvar_perfil` mora no `scripts/app.luau` da tela. -->
+    <dialog
+      name="editar_perfil"
+      title="Editar perfil"
+      buttons="
+        Cancelar::|
+        Salvar:salvar_perfil:accept
+      "
+    >
+      <column class="dlg-form">
+        <CampoForm label="Nome">
+          <textinput
+            value="__dialog.nome"
+            on_change="__dialog.nome"
+            placeholder="ana"
+            class="dlg-fill"
+          />
+        </CampoForm>
+        <CampoForm label="Cargo">
+          <select
+            options="cargos"
+            value="__dialog.cargo"
+            on_change="__dialog.cargo"
+            class="dlg-fill"
+          />
+        </CampoForm>
+      </column>
+    </dialog>
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 8b — component e dialog, nos dois sentidos</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <column class="corpo">
+      <!-- ── A ──────────────────────────────────────────────────────────── -->
+      <frame shape="box" class="bloco">
+        <column class="painel">
+          <text class="secao">A — um component encapsula o dialog inteiro</text>
+          <text class="nota">
+            O &lt;EditorRotulo/&gt; traz o próprio &lt;dialog&gt;, o próprio
+            botão e o próprio handler. A tela abaixo não declara nada disso —
+            só escreve a tag. O botão Salvar do diálogo despacha
+            EditorRotulo::salvar (o :: de dono).
+          </text>
+          <EditorRotulo />
+        </column>
+      </frame>
+
+      <!-- ── B ──────────────────────────────────────────────────────────── -->
+      <frame shape="box" class="bloco">
+        <column class="painel">
+          <text class="secao">B — um dialog cujo corpo usa um component</text>
+          <row class="acoes">
+            <button text="Editar perfil" on_click="dialog:editar_perfil" />
+          </row>
+          <text class="valor">Perfil: {perfil}</text>
+          <text class="nota">
+            O corpo do &lt;dialog name="editar_perfil"&gt; monta dois
+            &lt;CampoForm&gt; (rótulo + slot). Um component avaliado no
+            contexto do app, como qualquer nó — o binding de cada campo
+            continua uma chave __dialog.* literal.
+          </text>
+        </column>
+      </frame>
+    </column>
+  </column>
+</screen>

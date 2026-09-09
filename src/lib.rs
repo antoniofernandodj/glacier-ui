@@ -1111,21 +1111,36 @@ impl GlacierUI {
                         comp.resume_dialog(id, saida, ctx);
                     });
                 }
-                self.limpa_rascunho_de_dialogo();
                 // O botão que só fecha (ver `dialogs::DIALOG_CLOSE`): o
                 // diálogo já saiu na linha de cima, e não há ação para rotear.
                 if action.as_str() == dialogs::DIALOG_CLOSE {
+                    self.limpa_rascunho_de_dialogo();
                     return iced::Task::none();
                 }
                 // Um botão de diálogo pode abrir outro diálogo — o
-                // encadeamento que um wizard em modal precisa.
+                // encadeamento que um wizard em modal precisa. O rascunho deste
+                // é apagado antes: o próximo diálogo semeia o seu.
                 if let Some(alvo) = action.strip_prefix(DIALOG_ACTION_PREFIX) {
                     let alvo = alvo.to_string();
+                    self.limpa_rascunho_de_dialogo();
                     return self.abre_dialogo_nomeado(&alvo);
                 }
-                return self.route_to_owner(action, |comp, bare_action, ctx| {
+                // O rascunho `__dialog.*` é apagado **depois** de rotear, nunca
+                // antes: `route_to_owner` roda o `update` do componente dono de
+                // forma síncrona, e é lá que um handler lê `ctx["__dialog.nome"]`
+                // no aceite. Apagar em cima da leitura entregava string vazia —
+                // latente desde a Onda 8 (o `salvar_servico` do exemplo lê e o
+                // comentário dele já dizia "as chaves ainda estão no contexto").
+                let tarefa = self.route_to_owner(action, |comp, bare_action, ctx| {
                     comp.update(bare_action, None, ctx);
                 });
+                // ...a menos que o handler tenha aberto OUTRO diálogo (comum num
+                // fluxo em etapas): aí o `__dialog.*` já é o rascunho do novo, e
+                // o corpo fixado é o dele. Quem fecha aquele apaga aquele.
+                if self.dialog.is_none() && self.dialog_resume.is_none() {
+                    self.limpa_rascunho_de_dialogo();
+                }
+                return tarefa;
             }
             // Rastreamento global de cursor (ver `cursor_from_event` e o
             // comentário em `EngineMessage::CursorMoved`) — só guarda a
