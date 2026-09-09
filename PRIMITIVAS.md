@@ -339,6 +339,74 @@ correta; o que estava errado era o número que ela carregava).
 > alinhar um widget desses com campos que preenchem a linha, envolva-o numa
 > `<Row width="fill">` com um `<Space width="fill"/>` ao lado.
 
+### A quarta forma: `Fill` sobrevive, mas do tamanho do IRMÃO (0.96)
+
+As três acima colapsam a quase zero ou somam infinito — o sintoma é sempre
+"sumiu" ou "estourou". Esta é mais traiçoeira: o widget **aparece**, do
+tamanho errado, e passa por despercebido porque "tem alguma coisa ali".
+
+Achado lendo o flex do `iced` ao caçar outro bug (o `<SplashScreen>` da Onda
+11, que no fim era conteúdo passando da janela sem `<scrollable>` — ver
+abaixo): um `<Column>`/`<Row>` sem `width` (`Shrink`) contendo um filho
+`height` **fixa** e `width="fill"` — e MAIS algum irmão de tamanho natural
+(um `<Text>`, um `<Button>`). O algoritmo de
+flex do `iced` (`iced_core::layout::flex::resolve`) mede um item destes numa
+**quarta passagem**, condicional, que existe só para quem é fixo no eixo
+principal e fluido no cruzado — e o teto que ela usa para o eixo cruzado é o
+`cross` que a **primeira passagem** já tinha medido dos irmãos
+não-fluidos, não o espaço realmente disponível do container. Na prática: o
+filho `width="fill"` mede a largura do irmão mais largo da coluna, não a
+largura do app.
+
+```xml
+<column>                          <!-- Shrink: sem width -->
+  <text>Rótulo qualquer</text>    <!-- mede ~120px, e vira o teto -->
+  <button text="Ação" />          <!-- mede ~90px -->
+  <SplashScreen height="220" />   <!-- quer width=fill, largura=height fixa -->
+</column>                         <!-- vira ~120px de largura, não a do app -->
+```
+
+O sintoma no ecrã: o widget renderiza, só que espremido na largura do texto ou
+botão ao lado — fácil de descrever como "não funciona" sem pensar em largura,
+porque a suspeita natural é lógica/estado, não layout.
+
+> **A regra:** um filho `width="fill"` só mede pelo espaço de verdade quando
+> TODO ancestral no caminho até um bound determinado (`Fixed` ou a janela) é
+> `width="fill"` também — nunca `Shrink`. Não basta corrigir o widget; a
+> `<Column>`/`<Row>` que o envolve também precisa de `width="fill"` quando ele
+> não está sozinho ao lado de irmãos de tamanho natural.
+
+### E a que não é de `Fill` nenhum: o widget que nasce abaixo da dobra (0.96)
+
+Esta não é armadilha de layout do `iced` — é de quem escreve a TELA, e custou
+**três rodadas de correção erradas** no `<SplashScreen>` da Onda 11 antes de
+alguém desconfiar dela. Vale escrita porque o sintoma é indistinguível de um
+bug de widget:
+
+> *"a splash não aparece — nem na entrada, nem no botão de reabrir."*
+
+O widget estava certo o tempo todo. A árvore avaliada estava certa (o painel
+lá, com fundo, na camada de cima, do tamanho certo — verificado com um dump
+da árvore, que é exatamente o que o `CLAUDE.md` manda fazer antes de dizer que
+funciona). O que estava errado era a **tela**: uma `<Column>` sem
+`<scrollable>` com mais conteúdo do que cabe na janela. O que passa da borda
+inferior não some com erro nem com aviso — some em silêncio, e não há barra
+para alcançá-lo. O widget defeituoso era o último elemento da coluna.
+
+Duas lições, e a segunda é a cara:
+
+1. **Toda tela cujo conteúdo pode crescer precisa de `<scrollable>`** — e a
+   coluna de dentro dele **não** pode ter `height="fill"` (é a gêmea, logo
+   acima). Se duas abas da mesma tela têm scrollable e a terceira não, isso é
+   um bug esperando o texto certo para aparecer.
+2. **Depurar "não aparece" começa medindo, não teorizando.** As duas primeiras
+   tentativas foram hipóteses plausíveis sobre `Length::Fill` — cada uma
+   consertava algo real e nenhuma consertava o sintoma. O dump da árvore
+   avaliada (dez linhas de `eprintln!` atrás de um `GV_DEBUG_*`) respondeu em
+   um minuto o que duas rodadas de leitura de código não responderam: o nó
+   está lá, com o tamanho certo. A partir dali, a única pergunta que sobrava
+   era *onde ele está desenhado*, não *por que ele não existe*.
+
 ### E uma do `iced`, que custa a última coluna (0.92)
 
 A barra de rolagem de um `scrollable` **flutua sobre** o conteúdo por padrão:

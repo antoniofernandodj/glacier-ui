@@ -117,10 +117,14 @@ impl Component for Onda11 {
             "alternar_notificacao" => {
                 let ligado = ctx
                     .get("tem_notificacao")
-                    .is_some_and(|v| !v.trim().is_empty() && v.trim() != "false");
+                    .is_some_and(|v| {
+                        let s = v.trim().to_lowercase();
+                        !s.is_empty() && s != "false" && s != "0"
+                    });
+
                 ctx.set(
                     "tem_notificacao",
-                    if ligado { String::new() } else { "true".to_string() },
+                    if ligado { "false".to_string() } else { "true".to_string() },
                 );
             }
             "instalar_tipica" => ctx.set("status", "CommandLink: instalação típica escolhida".to_string()),

@@ -8,6 +8,62 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.97.0] — 2026-09-09 · CLI 0.4.6 · Glacier View 0.19.1
+
+**A correção do `<SplashScreen>` e a documentação do catálogo inteiro.** Nada
+de tag nova: o que muda é um builtin que nunca fechava, dois exemplos que
+misturavam estilo com markup, e o `AGENTS.md` dos templates virando referência
+de verdade.
+
+### Corrigido
+
+- **`<SplashScreen>` nunca sumia.** O template testava
+  `<template if="{show|true}" notEquals="false">`, e o valor "desligado" deste
+  motor é a string **vazia** — `"" != "false"` é verdadeiro, então o painel
+  abria e ficava. A correção é tirar o comparador: sem ele o teste cai no
+  truthy, que já trata vazio, `"false"` e `"0"` como falso. O bug custou quatro
+  diagnósticos errados antes de aparecer, todos por leitura de código; quem o
+  achou foi rodar o app numa tela.
+- **`<NotificationDot>` tinha o mesmo bug**, pela mesma linha copiada. Mesma
+  correção.
+- **`<QrCode>` ignorava `width`/`height`.** Os atributos eram lidos e nunca
+  chegavam ao widget; agora definem o **lado renderizado** do código, que é a
+  convenção do `<svg>` e do `<image>`.
+
+### Alterado
+
+- **Os exemplos saíram do estilo inline.** `onda4_luau`, `onda5`, `onda7`,
+  `onda8`, `onda9`, `onda11`, `aninhado`, `bandeja`, `combo_edit`, `contador` e
+  `contador_externo` movem cor, tamanho e espaçamento para o `.gss`, como o
+  `CLAUDE.md` manda. Sobrou inline só o que não é estilo: valor dirigido por
+  dado, medida com significado de widget e estrutura.
+- **`AGENTS.md` dos templates da CLI, reescrito como referência** (198 → 2.476
+  linhas). Cada widget do catálogo passa a trazer os atributos que só ele
+  entende, o valor aceito e o default; toda coleção traz a forma exata do JSON
+  com um exemplo de como o script a produz — inclusive o `bands` do `<gauge>`,
+  o `columns` do `<tableview>`, os pontos de um gráfico e os itens de um menu.
+  Duas seções novas: a folha de estilo por inteiro (seletores, especificidade,
+  as 21 propriedades que existem, pseudo-estados, `var()` e `@media`) e o
+  `theme.json`. Cada bloco de código do arquivo foi passado pelos parsers do
+  próprio motor.
+- **Três erros da documentação anterior, corrigidos:** `empty`/`not_empty`
+  testam um **array JSON**, não uma string (dois exemplos usavam sobre texto);
+  `platform` aceita `desktop`/`web`, não nomes de sistema operacional; e o
+  parágrafo sobre `.luaurc` descrevia uma lista de globais que não é a que o
+  template traz.
+- **`glacier.d.luau` ganhou as seis declarações que faltavam** — `append_file`,
+  `zip_dir`, `open_file`, `open_files`, `save_file` e `pick_folder`. Sem elas,
+  um projeto novo que abrisse um diálogo de arquivo falhava no `make luau`.
+
+### Notas
+
+- **Extensão Glacier View 0.19.1** — a referência documenta `width`/`height` do
+  `<SplashScreen>` e do `<QrCode>`.
+- **CLI 0.4.6** — republica com os templates novos e o `engine-version.txt`
+  apontando para a 0.97.0.
+
+---
+
 ## [0.96.0] — 2026-09-08 · CLI 0.4.5 · Glacier View 0.19.0
 
 **Onda 11 do `PLANO_WIDGETS.md`: o que fica por cima — parcial.** Dois

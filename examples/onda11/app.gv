@@ -14,14 +14,45 @@
 
     <!-- ══ 1 + 2: Stack, NotificationDot, SplashScreen ══════════════════ -->
     <template if="{aba}" equals="empilhamento">
-      <column class="corpo">
-        <text class="lead">O `&lt;stack&gt;` empilha filhos no mesmo espaço. Um filho com `anchor=` gruda num dos nove cantos sem precisar de coordenada; um filho com `x=`/`y=` usa posição livre em pixels (`pin`).</text>
+      <scrollable>
+      <column class="corpo-rolavel">
+        <text class="lead">
+          O `&lt;stack&gt;` empilha filhos no mesmo espaço.
+          Um filho com `anchor=` gruda num dos nove cantos sem
+          precisar de coordenada; um filho com `x=`/`y=` usa posição
+          livre em pixels (`pin`).
+        </text>
 
-        <row class="linha" spacing="24">
-          <column class="bloco" spacing="8">
+        <column class="bloco bloco-fill">
+          <text class="secao">SplashScreen</text>
+          <text class="nota">
+            Cobre o conteúdo principal enquanto `show` for verdadeiro.
+            Sem animação — a descoberta da onda: um `&lt;reveal&gt;`
+            não interpola um filho `height="fill"`
+            (a armadilha do `Length::Fill`, ver `PRIMITIVAS.md`).
+          </text>
+          <button text="reabrir a splash" on_click="abrir_splash" />
+
+          <SplashScreen show="{carregando}" height="220" class="demo-splash">
+            <container class="conteudo-real">
+              <text class="secao">O conteúdo principal — estava aqui o tempo todo</text>
+            </container>
+
+            <template slot="splash">
+              <column class="splash-conteudo">
+                <text class="splash-titulo">Glacier UI</text>
+                <spinner />
+                <button text="pronto — fechar" on_click="fechar_splash" />
+              </column>
+            </template>
+          </SplashScreen>
+        </column>
+
+        <row class="linha">
+          <column class="bloco">
             <text class="secao">anchor — nove cantos</text>
             <stack class="demo-anchor">
-              <container class="demo-fundo" width="fill" height="fill" />
+              <container class="demo-fundo" />
               <text anchor="top-left" class="marca">TL</text>
               <text anchor="top" class="marca">T</text>
               <text anchor="top-right" class="marca">TR</text>
@@ -34,70 +65,82 @@
             </stack>
           </column>
 
-          <column class="bloco" spacing="8">
+          <column class="bloco">
             <text class="secao">x/y — posição livre</text>
             <stack class="demo-anchor">
-              <container class="demo-fundo" width="fill" height="fill" />
+              <container class="demo-fundo" />
               <text x="14" y="10" class="marca">14,10</text>
               <text x="120" y="70" class="marca">120,70</text>
               <text x="40" y="130" class="marca">40,130</text>
             </stack>
           </column>
 
-          <column class="bloco" spacing="8">
+          <column class="bloco">
             <text class="secao">NotificationDot</text>
-            <row spacing="16" align_y="center">
+            <row class="notif-linha">
               <NotificationDot show="{tem_notificacao}">
-                <container class="icone-sino" width="40" height="40" align_x="center" align_y="center">
-                  <text size="18">🔔</text>
+                <container class="icone-sino">
+                  <text class="icone-emoji">🔔</text>
                 </container>
               </NotificationDot>
               <button text="alternar" on_click="alternar_notificacao" />
             </row>
-            <text class="nota">`&lt;stack&gt;` (a primeira camada) + `anchor="top-right"` (a segunda) — sem `pin`, porque um canto não precisa saber o tamanho do ícone.</text>
+            <text class="nota">
+              `&lt;stack&gt;` (a primeira camada) + `anchor="top-right"` (a segunda)
+              — sem `pin`, porque um canto não precisa saber o tamanho do ícone.
+            </text>
           </column>
         </row>
 
-        <column class="bloco" spacing="8">
-          <text class="secao">SplashScreen</text>
-          <text class="nota">Cobre o conteúdo principal enquanto `show` for verdadeiro. Sem animação — a descoberta da onda: um `&lt;reveal&gt;` não interpola um filho `height="fill"` (a armadilha do `Length::Fill`, ver `PRIMITIVAS.md`).</text>
-          <button text="reabrir a splash" on_click="abrir_splash" />
-
-          <SplashScreen show="{carregando}" class="demo-splash">
-            <container class="conteudo-real" width="fill" height="160" align_x="center" align_y="center">
-              <text class="secao">O conteúdo principal — estava aqui o tempo todo</text>
-            </container>
-
-            <template slot="splash">
-              <column align_x="center" align_y="center" spacing="12">
-                <text size="20" bold="true" color="#cdd6f4">Glacier UI</text>
-                <spinner />
-                <button text="pronto — fechar" on_click="fechar_splash" />
-              </column>
-            </template>
-          </SplashScreen>
-        </column>
       </column>
+      </scrollable>
     </template>
 
     <!-- ══ 3: MdiArea ════════════════════════════════════════════════════ -->
     <template if="{aba}" equals="mdi">
       <column class="corpo">
-        <text class="lead">Duas janelas nomeiam QUATRO chaves cada (`x_var`/`y_var`/`w_var`/`h_var` — a forma curta `x`/`y`/`w`/`h` também funciona, mas colide de NOME com o `x`/`y` do `&lt;stack&gt;` acima). Arraste a barra de título para mover; arraste o canto inferior direito para redimensionar — o MESMO `grip::Alvo::Ponto`, com limites diferentes.</text>
+        <text class="lead">
+          Duas janelas nomeiam QUATRO chaves cada
+          (`x_var`/`y_var`/`w_var`/`h_var` — a forma curta `x`/`y`/`w`/`h`
+          também funciona, mas colide de NOME com o `x`/`y` do `&lt;stack&gt;` acima).
+          Arraste a barra de título para mover; arraste o canto inferior direito
+          para redimensionar — o MESMO `grip::Alvo::Ponto`, com limites diferentes.
+        </text>
 
         <mdiarea class="mdi-fundo">
-          <mdisubwindow title="Editor" x_var="editor_x" y_var="editor_y" w_var="editor_w" h_var="editor_h">
-            <column class="janela-corpo" spacing="8" padding="12">
+          <mdisubwindow
+            title="Editor"
+            x_var="editor_x"
+            y_var="editor_y"
+            w_var="editor_w"
+            h_var="editor_h"
+          >
+            <column class="janela-corpo">
               <text class="secao">Editor</text>
-              <text class="chave">editor_x = {editor_x}   editor_y = {editor_y}</text>
-              <text class="chave">editor_w = {editor_w}   editor_h = {editor_h}</text>
+              <text class="chave">
+                editor_x = {editor_x}   editor_y = {editor_y}
+              </text>
+              <text class="chave">
+                editor_w = {editor_w}   editor_h = {editor_h}
+              </text>
             </column>
           </mdisubwindow>
 
-          <mdisubwindow title="Console" x_var="console_x" y_var="console_y" w_var="console_w" h_var="console_h" default_w="300" default_h="180">
-            <column class="janela-corpo" spacing="8" padding="12">
+          <mdisubwindow
+            title="Console"
+            x_var="console_x"
+            y_var="console_y"
+            w_var="console_w"
+            h_var="console_h"
+            default_w="300"
+            default_h="180"
+          >
+            <column class="janela-corpo">
               <text class="secao">Console</text>
-              <text class="nota">Esta janela não recebeu seed nem para `w`/`h` — nasce em `default_w`/`default_h` (300×180), do markup.</text>
+              <text class="nota">
+                Esta janela não recebeu seed nem para `w`/`h` —
+                nasce em `default_w`/`default_h` (300×180), do markup.
+              </text>
             </column>
           </mdisubwindow>
         </mdiarea>
@@ -107,27 +150,39 @@
     <!-- ══ 4–8: o troco esvaziado ════════════════════════════════════════ -->
     <template if="{aba}" equals="troco">
       <scrollable>
-        <column class="corpo">
-          <text class="lead">Cinco widgets pequenos que a §6.3 do `PLANO_WIDGETS.md` guardava como "não abre rodada sozinho" — a Onda 11 passou no lugar deles.</text>
+        <column class="corpo-rolavel">
+          <text class="lead">
+            Cinco widgets pequenos que a §6.3 do `PLANO_WIDGETS.md`
+            guardava como "não abre rodada sozinho" — a Onda 11
+            passou no lugar deles.
+          </text>
 
-          <row class="linha" spacing="24">
-            <column class="bloco" spacing="8">
+          <row class="linha">
+            <column class="bloco">
               <text class="secao">QrCode</text>
               <qrcode content="{qr_texto}" width="120" height="120" />
               <textinput value="qr_texto" on_change="qr_texto" placeholder="conteúdo do QR" />
             </column>
 
-            <column class="bloco" spacing="8">
+            <column class="bloco">
               <text class="secao">Chip</text>
-              <row spacing="8">
-                <Chip for-each="tags" var="tag" label="{tag}" on_remove="remover_tag:{tag}" />
+              <row class="chip-linha">
+                <Chip
+                  for-each="tags"
+                  var="tag"
+                  label="{tag}"
+                  on_remove="remover_tag:{tag}"
+                />
               </row>
-              <text class="nota">O "×" remove da coleção — a ação carrega o nome, o `update` filtra.</text>
+              <text class="nota">
+                O "×" remove da coleção — a ação carrega o nome,
+                o `update` filtra.
+              </text>
             </column>
 
-            <column class="bloco" spacing="8">
+            <column class="bloco">
               <text class="secao">Skeleton</text>
-              <column spacing="6">
+              <column class="skeleton-lista">
                 <Skeleton width="220" height="14" />
                 <Skeleton width="180" height="14" />
                 <Skeleton width="fill" height="60" radius="8" />
@@ -135,14 +190,22 @@
             </column>
           </row>
 
-          <row class="linha" spacing="24">
-            <column class="bloco" spacing="8" width="360">
+          <row class="linha">
+            <column class="bloco bloco-largo">
               <text class="secao">CommandLink</text>
-              <CommandLink title="Instalação típica" description="Recomendado para a maioria dos usuários" on_click="instalar_tipica" />
-              <CommandLink title="Instalação customizada" description="Escolha componentes individualmente" on_click="instalar_custom" />
+              <CommandLink
+                title="Instalação típica"
+                description="Recomendado para a maioria dos usuários"
+                on_click="instalar_tipica"
+              />
+              <CommandLink
+                title="Instalação customizada"
+                description="Escolha componentes individualmente"
+                on_click="instalar_custom"
+              />
             </column>
 
-            <column class="bloco" spacing="8">
+            <column class="bloco">
               <text class="secao">RoundButton</text>
               <RoundButton text="+" color="#89B4FA" on_click="novo_item" size="48" />
             </column>

@@ -36,6 +36,13 @@ declare function viewport(): Viewport
 
 declare function fetch(url: string, opts: any?): FetchResult
 declare function write_file(path: string, contents: string): (boolean, string?)
+-- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
+-- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um
+-- arquivo, use `fetch("file://…")`.
+declare function append_file(path: string, contents: string): (boolean, string?)
+-- Compacta a árvore de `origem` num `.zip` em `destino`. Síncrono (não suspende):
+-- é I/O local, não rede nem diálogo.
+declare function zip_dir(origem: string, destino: string): (boolean, string?)
 declare function sse(url: string, opts: StreamOptions?): StreamHandle
 declare function websocket(url: string, opts: StreamOptions?): StreamHandle
 
@@ -46,6 +53,23 @@ declare function confirm(opts: any): boolean
 -- Diálogos suspensivos (Onda 8). `prompt` e `pick_color` param a corrotina e
 -- voltam com a resposta; `nil` é a desistência — a mesma convenção do
 -- `open_file()` cancelado, e o que separa "não respondeu" de "respondeu vazio".
+-- Diálogos de arquivo NATIVOS do SO. Suspendem como o `confirm`, e `nil` é a
+-- desistência. `open_files` devolve a lista de caminhos; `default_name` só é
+-- lido pelo `save_file`.
+export type FileFilter = { name: string, extensions: { string } }
+
+export type FileDialogOptions = {
+    title: string?,
+    filters: { FileFilter }?,
+    starting_dir: string?,
+    default_name: string?,
+}
+
+declare function open_file(opts: FileDialogOptions?): string?
+declare function open_files(opts: FileDialogOptions?): { string }?
+declare function save_file(opts: FileDialogOptions?): string?
+declare function pick_folder(opts: FileDialogOptions?): string?
+
 declare function prompt(opts: any): string?
 declare function pick_color(opts: any): string?
 

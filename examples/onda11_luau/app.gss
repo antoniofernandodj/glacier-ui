@@ -65,6 +65,17 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
   height: fill;
 }
 
+/* A mesma coisa, SEM `height: fill` — para usar dentro de um `<scrollable>`.
+   Um filho `height="fill"` dentro de um scrollable mede INFINITO (o teto de
+   altura de um scrollable é livre: é o que o torna rolável), e quem somar essa
+   altura empurra o resto para fora da tela. É a armadilha gêmea do
+   `Length::Fill`, documentada no `PRIMITIVAS.md`. */
+.corpo-rolavel {
+  padding: 20 24;
+  spacing: 18;
+  width: fill;
+}
+
 .lead {
   size: 13;
   color: var(--suave);
@@ -73,14 +84,35 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 
 .linha {
   width: fill;
+  spacing: 24;
 }
 
 .bloco {
   padding: 14;
+  spacing: 8;
   background: var(--fundo-bloco);
   border_radius: 8;
   border_width: 1;
   border_color: var(--linha);
+}
+
+/* Modificador: só o bloco do `<CommandLink>` pede uma largura fixa (os
+   outros ficam soltos na `<row>`, do tamanho do conteúdo). */
+.bloco-largo {
+  width: 360;
+}
+
+/* Modificador: o bloco da `<SplashScreen>` (fora de qualquer `<row>`, sozinho
+   na coluna) precisa de `width: fill` — sem ele, a coluna fica `Shrink` e um
+   filho `Fill` dentro de uma coluna `Shrink` não mede pela largura do APP,
+   mede pela largura do IRMÃO mais largo (o texto/botão ao lado): é a
+   "quarta passagem" do algoritmo de flex do iced (`layout/flex.rs`), que
+   trata um filho Fixed-no-eixo-principal/Fill-no-cruzado usando o `cross`
+   que a primeira passagem mediu dos irmãos não-fluidos — nunca o espaço
+   disponível de verdade. A splash "funcionava", só que espremida na largura
+   do botão "reabrir a splash". */
+.bloco-fill {
+  width: fill;
 }
 
 .secao {
@@ -109,10 +141,18 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 }
 
 .demo-fundo {
+  width: fill;
+  height: fill;
   background: var(--faixa);
   border_radius: 6;
   border_width: 1;
   border_color: var(--linha);
+}
+
+/* A linha "NotificationDot" (ícone + botão "alternar"). */
+.notif-linha {
+  spacing: 16;
+  align_y: center;
 }
 
 .marca {
@@ -127,22 +167,49 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 }
 
 .icone-sino {
+  width: 40;
+  height: 40;
+  align_x: center;
+  align_y: center;
   background: var(--faixa);
   border_radius: 8;
 }
 
+/* O emoji de sino dentro do `.icone-sino`. */
+.icone-emoji {
+  size: 18;
+}
+
 /* ── SplashScreen ────────────────────────────────────────────────────── */
 
+/* Sem width/height aqui: no `<SplashScreen>` eles são PROPS (`height="220"`
+   no uso, ao lado de `class`), não estilo de caixa — a mesma exceção do
+   `size` de um `<colorwheel>` (ver o doc do widget, `splash_screen.rs`). */
 .demo-splash {
-  width: fill;
-  height: 220;
   border_radius: 8;
   border_width: 1;
   border_color: var(--linha);
 }
 
 .conteudo-real {
+  width: fill;
+  height: 160;
+  align_x: center;
+  align_y: center;
   background: var(--faixa);
+}
+
+/* O conteúdo do slot="splash": título + spinner + botão, centrados. */
+.splash-conteudo {
+  align_x: center;
+  align_y: center;
+  spacing: 12;
+}
+
+.splash-titulo {
+  size: 20;
+  bold: true;
+  color: var(--texto);
 }
 
 /* ── MdiArea ─────────────────────────────────────────────────────────── */
@@ -157,4 +224,16 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 .janela-corpo {
   width: fill;
   height: fill;
+  spacing: 8;
+  padding: 12;
+}
+
+/* ── Troco: QrCode, Chip, Skeleton, CommandLink, RoundButton ──────────── */
+
+.chip-linha {
+  spacing: 8;
+}
+
+.skeleton-lista {
+  spacing: 6;
 }

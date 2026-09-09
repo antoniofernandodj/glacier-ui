@@ -3840,6 +3840,20 @@ pub fn render_node<'a>(
             }
             let data = qr_data_for(content);
             let mut q = iced::widget::QRCode::new(data);
+            // `width`/`height` aqui não é a caixa ao redor — é o próprio
+            // tamanho renderizado, a mesma convenção do `<svg>`/`<image>`
+            // (medida com significado de widget, `PRIMITIVAS.md`/`CLAUDE.md`:
+            // fica inline, não no `.gss`). Um QR code é sempre quadrado
+            // (`data.width` é igual nos dois eixos), então o primeiro dos
+            // dois que vier um número fixo decide o lado — sem nenhum, cai no
+            // `cell_size` default do iced (4px por módulo).
+            let lado_fixo = [node.width.as_deref(), node.height.as_deref()]
+                .into_iter()
+                .flatten()
+                .find_map(|s| s.trim().parse::<f32>().ok());
+            if let Some(lado) = lado_fixo {
+                q = q.total_size(lado);
+            }
             if let Some(cor) = color.as_ref().and_then(|c| parse_hex_color(c)) {
                 q = q.style(move |theme: &iced::Theme| iced::widget::qr_code::Style {
                     cell: cor,

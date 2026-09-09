@@ -40,7 +40,12 @@
         />
       </column>
 
-      <button text="Salvar este par" on_click="salvar" color="#5E81AC" width="fill" />
+      <button
+        text="Salvar este par"
+        on_click="salvar"
+        color="#5E81AC"
+        width="fill"
+      />
 
       <rule />
 

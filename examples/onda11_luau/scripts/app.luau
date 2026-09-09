@@ -92,12 +92,20 @@ end
 -- ── NotificationDot ──────────────────────────────────────────────────────
 
 function alternar_notificacao()
-    local ligado = (
-        ctx.tem_notificacao ~= nil and
-        ctx.tem_notificacao ~= "" and
-        ctx.tem_notificacao ~= "false"
-    )
-    ctx.tem_notificacao = ligado and nil or "true"
+    if ctx.tem_notificacao == nil then
+        ctx.tem_notificacao = "false"
+        return
+    end
+
+    if ctx.tem_notificacao == "false" then
+        ctx.tem_notificacao = "true"
+        return
+    end
+    
+    if ctx.tem_notificacao == "true" then
+        ctx.tem_notificacao = "false"
+        return
+    end
 end
 
 -- ── CommandLink / RoundButton ────────────────────────────────────────────

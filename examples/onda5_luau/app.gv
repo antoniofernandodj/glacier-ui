@@ -100,9 +100,21 @@
                     <column class="painel">
                       <text class="painel_titulo">antoniofernando</text>
                       <rule />
-                      <button class="btn_painel" text="Perfil"       on_click="escolher:perfil" width="fill" />
-                      <button class="btn_painel" text="Preferências" on_click="escolher:prefs"  width="fill" />
-                      <button class="btn_painel" text="Sair"         on_click="escolher:sair"   width="fill" />
+                      <button
+                        class="btn_painel" text="Perfil"
+                        on_click="escolher:perfil"
+                        width="fill"
+                      />
+                      <button
+                        class="btn_painel" text="Preferências"
+                        on_click="escolher:prefs"
+                        width="fill"
+                      />
+                      <button
+                        class="btn_painel" text="Sair"
+                        on_click="escolher:sair"
+                        width="fill"
+                      />
                     </column>
                   </popover>
 
@@ -179,13 +191,23 @@
                     <column class="painel painel_largo">
                       <text class="painel_titulo">Atalhos de teclado</text>
                       <rule />
-                      <row class="linha_atalho"><text class="tecla">Esc</text>   <text class="nota">fecha qualquer painel</text></row>
-                      <row class="linha_atalho"><text class="tecla">▲ ▼</text>  <text class="nota">navega a lista de sugestões</text></row>
-                      <row class="linha_atalho"><text class="tecla">Enter</text><text class="nota">aceita a sugestão realçada</text></row>
+                      <row class="linha_atalho">
+                        <text class="tecla">Esc</text>
+                        <text class="nota">fecha qualquer painel</text>
+                      </row>
+                      <row class="linha_atalho">
+                        <text class="tecla">▲ ▼</text>
+                        <text class="nota">navega a lista de sugestões</text>
+                      </row>
+                      <row class="linha_atalho">
+                        <text class="tecla">Enter</text>
+                        <text class="nota">aceita a sugestão realçada</text>
+                      </row>
                       <rule />
                       <text class="crua">
-                        Clique fora também fecha — e o clique que fecha não chega a mais nada, que é o
-                        comportamento de um menu de sistema.
+                        Clique fora também fecha — e o clique que fecha
+                        não chega a mais nada, que é o comportamento de um
+                        menu de sistema.
                       </text>
                     </column>
                   </popup>

@@ -1567,6 +1567,7 @@ verdadeiro — some, sem animação, quando vira falso.
 | prop | default | o que faz |
 | --- | --- | --- |
 | `show` | `true` | mostra o painel de cima |
+| `width` / `height` | `fill` / `fill` | tamanho do `<Stack>` raiz. Dê um `height` fixo para um preview contido (não é box style — é o que evita a armadilha do `Length::Fill` de um lado ou do outro, ver o doc do widget) |
 | `background` | `.splash-panel` | fundo do painel |
 
 ### `<QrCode>`
@@ -1580,6 +1581,7 @@ O `qr_code` nativo do `iced`.
 | --- | --- | --- |
 | `content` | vazio | o texto codificado. Vazio = não desenha nada |
 | `color` | tema | cor dos módulos escuros |
+| `width` / `height` | `cell_size` do iced (4px/módulo) | o **lado renderizado** (o QR é sempre quadrado — o primeiro que vier um número decide). Não é a caixa ao redor, é o próprio tamanho — a mesma convenção do `<svg>`/`<image>`, então fica inline, não no `.gss` |
 
 Sem `value` como apelido de `content`, de propósito: em todo widget bindado
 deste motor `value` é o NOME de uma chave (sem `{}`); aqui seria um texto

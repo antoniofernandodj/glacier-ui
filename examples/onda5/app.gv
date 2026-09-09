@@ -48,11 +48,28 @@
         <text class="nota">
           `axis="x"` no `&lt;reveal&gt;` é a peça que faltava: o motor já animava altura desde a 0.90.
         </text>
-        <button class="btn_gaveta" text="Painéis"  on_click="ir:paineis"  width="fill" />
-        <button class="btn_gaveta" text="Busca"    on_click="ir:busca"    width="fill" />
-        <button class="btn_gaveta" text="A gaveta" on_click="ir:gaveta"   width="fill" />
+        <button
+          class="btn_gaveta" text="Painéis"
+          on_click="ir:paineis"
+          width="fill"
+        />
+        <button
+          class="btn_gaveta" text="Busca"
+          on_click="ir:busca"
+          width="fill"
+        />
+        <button
+          class="btn_gaveta" text="A gaveta"
+          on_click="ir:gaveta"
+          width="fill"
+        />
         <space />
-        <button class="btn_gaveta" text="Fechar" on_click="drawer::toggle:gaveta" width="fill" />
+        <button
+          class="btn_gaveta"
+          text="Fechar"
+          on_click="drawer::toggle:gaveta"
+          width="fill"
+        />
       </drawer>
 
       <scrollable width="fill" height="fill">
@@ -90,9 +107,24 @@
                     <column class="painel">
                       <text class="painel_titulo">antoniofernando</text>
                       <rule />
-                      <button class="btn_painel" text="Perfil"       on_click="escolher:perfil" width="fill" />
-                      <button class="btn_painel" text="Preferências" on_click="escolher:prefs"  width="fill" />
-                      <button class="btn_painel" text="Sair"         on_click="escolher:sair"   width="fill" />
+                      <button
+                        class="btn_painel"
+                        text="Perfil"
+                        on_click="escolher:perfil"
+                        width="fill"
+                      />
+                      <button
+                        class="btn_painel"
+                        text="Preferências"
+                        on_click="escolher:prefs"
+                        width="fill"
+                      />
+                      <button
+                        class="btn_painel"
+                        text="Sair"
+                        on_click="escolher:sair"
+                        width="fill"
+                      />
                     </column>
                   </popover>
 
@@ -169,12 +201,22 @@
                     <column class="painel painel_largo">
                       <text class="painel_titulo">Atalhos de teclado</text>
                       <rule />
-                      <row class="linha_atalho"><text class="tecla">Esc</text>   <text class="nota">fecha qualquer painel</text></row>
-                      <row class="linha_atalho"><text class="tecla">▲ ▼</text>  <text class="nota">navega a lista de sugestões</text></row>
-                      <row class="linha_atalho"><text class="tecla">Enter</text><text class="nota">aceita a sugestão realçada</text></row>
+                      <row class="linha_atalho">
+                        <text class="tecla">Esc</text>
+                        <text class="nota">fecha qualquer painel</text>
+                      </row>
+                      <row class="linha_atalho">
+                        <text class="tecla">▲ ▼</text>
+                        <text class="nota">navega a lista de sugestões</text>
+                      </row>
+                      <row class="linha_atalho">
+                        <text class="tecla">Enter</text>
+                        <text class="nota">aceita a sugestão realçada</text>
+                      </row>
                       <rule />
                       <text class="crua">
-                        Clique fora também fecha — e o clique que fecha não chega a mais nada, que é o
+                        Clique fora também fecha — e o clique que fecha não
+                        chega a mais nada, que é o
                         comportamento de um menu de sistema.
                       </text>
                     </column>
@@ -283,15 +325,21 @@
 
                 <text class="crua">
                   Repare que o botão acima e o ☰ do cabeçalho fazem a mesma coisa, de lugares
-                  diferentes da árvore. A ação carrega o nome da chave (`toggle:gaveta`), que é o padrão
-                  do SpinBox — e é o que faz duas gavetas na mesma tela não colidirem.
+                  diferentes da árvore. A ação carrega o nome da chave (`toggle:gaveta`),
+                  que é o padrão do SpinBox — e é o que faz duas gavetas na mesma tela não colidirem.
                 </text>
               </groupbox>
 
               <groupbox title="O que esta onda fechou" flat="true">
-                <text class="nota">§2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta onda.</text>
-                <text class="nota">§2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.</text>
-                <text class="nota">§2.5 — o foco declarado do projeto termina AQUI, não na Onda 3.</text>
+                <text class="nota">
+                  §2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta onda.
+                </text>
+                <text class="nota">
+                  §2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.
+                </text>
+                <text class="nota">
+                  §2.5 — o foco declarado do projeto termina AQUI, não na Onda 3.
+                </text>
               </groupbox>
             </template>
 

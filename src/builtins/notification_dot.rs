@@ -30,8 +30,8 @@
 /// - `anchor` — qual canto: `top-right` (default, o comum para notificação),
 ///   `top-left`, `bottom-right`, `bottom-left`, e os outros cinco da grade 3×3
 ///   (ver `NodeType::Stack`).
-/// - `show`   — `"false"` some com o pontinho sem remover o ícone (útil para
-///   `show="{tem_notificacao}"`) . Default: mostrado.
+/// - `show`   — valor **truthy** mostra o pontinho; vazio, `"false"` ou `"0"`
+///   o escondem sem remover o ícone (`show="{tem_notificacao}"`). Default: mostrado.
 ///
 /// # Classes
 ///
@@ -58,7 +58,12 @@ impl Component for NotificationDot {
 
                     <slot/>
 
-                    <template if="{show|true}" notEquals="false">
+                    <!-- Sem `notEquals="false"`: a condição precisa ser
+                         TRUTHY, não "diferente da string false" — desligar uma
+                         chave neste motor é gravar VAZIO nela, e vazio passa
+                         num `!= "false"`. Mesmo bug que o `<SplashScreen>`
+                         teve, corrigido junto (ver o comentário lá). -->
+                    <template if="{show|true}">
                         <Container
                             class="notification-dot {dot_class}"
                             width="{size|10}"

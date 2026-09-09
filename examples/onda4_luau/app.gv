@@ -368,8 +368,9 @@
                 width="380"
               >
                 <text class="nota">
-                  Fecha o QDoubleSpinBox. Antes as casas saíam do `step`, o que acertava por acidente
-                  e errava em `step="1"` sobre um preço: 10 em vez de 10,00.
+                  Fecha o QDoubleSpinBox. Antes as casas saíam do `step`,
+                  o que acertava por acidente e errava em `step="1"`
+                  sobre um preço: 10 em vez de 10,00.
                 </text>
 
                 <row class="linha_larga">

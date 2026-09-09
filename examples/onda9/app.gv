@@ -32,13 +32,21 @@
     <!-- ══ 1 + 7: Splitter ══════════════════════════════════════════════ -->
     <template if="{aba}" equals="paineis">
       <column class="corpo">
-        <text class="lead">Um `&lt;splitter&gt;` é a ALÇA DE COLUNA do `&lt;tableheader&gt;` (Onda 6) aplicada a um container. Mesma chave de trilhas, mesmo formato ("260 fill"), mesmo código — arraste a barra entre os painéis.</text>
+        <text class="lead">
+          Um `&lt;splitter&gt;` é a ALÇA DE COLUNA do `&lt;tableheader&gt;`
+          (Onda 6) aplicada a um container. Mesma chave de trilhas,
+          mesmo formato ("260 fill"), mesmo código — arraste a barra entre os painéis.
+        </text>
 
         <splitter sizes="painel_h" min="120" handle="6" class="divide">
           <column class="painel">
             <text class="secao">Lateral</text>
-            <text class="nota">Este painel nasceu com 260px. Arrastar a alça converte a trilha tocada em FIXA — que é o que a pessoa acabou de pedir ao arrastá-la.</text>
-            <text class="chave">painel_h = {painel_h}</text>
+            <text class="nota">
+              Este painel nasceu com 260px. Arrastar a alça converte a
+              trilha tocada em FIXA — que é o que a pessoa acabou de pedir ao arrastá-la.
+            </text>
+            <text class="chave">
+              painel_h = {painel_h}</text>
           </column>
 
           <!-- Um splitter dentro de outro, no outro eixo: as duas chaves são
@@ -47,7 +55,10 @@
           <splitter sizes="painel_v" direction="v" min="90" handle="6" class="divide">
             <column class="painel">
               <text class="secao">Conteúdo</text>
-              <text class="nota">O aninhado empilha (direction="v") e escreve noutra chave. Duas instâncias, dois valores, zero colisão.</text>
+              <text class="nota">
+                O aninhado empilha (direction="v") e escreve noutra chave.
+                Duas instâncias, dois valores, zero colisão.
+              </text>
             </column>
             <column class="painel">
               <text class="secao">Console</text>
@@ -61,7 +72,11 @@
     <!-- ══ 2 + 3 + 5: os que desenham o próprio arrasto ═════════════════ -->
     <template if="{aba}" equals="valores">
       <column class="corpo">
-        <text class="lead">Estes três desenham num `canvas` e guardam o "estou arrastando" no `Program::State` que o iced dá por widget — como o `&lt;dial&gt;` da Onda 7. O que eles movem continua sendo um valor que o app nomeia.</text>
+        <text class="lead">
+          Estes três desenham num `canvas` e guardam o "estou arrastando" no
+          `Program::State` que o iced dá por widget — como o `&lt;dial&gt;`
+          da Onda 7. O que eles movem continua sendo um valor que o app nomeia.
+        </text>
 
         <row class="colunas">
           <frame shape="box" class="bloco">
@@ -74,7 +89,11 @@
                            min="0" max="1000" step="10" size="300"
                            on_release="lacou" />
               <text class="valor">R$ {preco_min} — R$ {preco_max}</text>
-              <text class="nota">As pontas não se cruzam: empurrar o início além do fim encosta e para. Com as duas juntas, o clique pega o FIM — senão uma faixa de largura zero (o estado inicial de um filtro) travaria.</text>
+              <text class="nota">
+                As pontas não se cruzam: empurrar o início além do fim encosta
+                e para. Com as duas juntas, o clique pega o FIM — senão uma
+                faixa de largura zero (o estado inicial de um filtro) travaria.
+              </text>
             </column>
           </frame>
 
@@ -87,7 +106,11 @@
                          visible="5" size="150" />
               </row>
               <text class="valor">{mes} · {regiao}</text>
-              <text class="nota">É o `&lt;dial&gt;` desenrolado numa linha, e ele VIRA DENTRO DE SI (o wrapping do QAbstractSpinBox): de dezembro para janeiro sem parar na ponta. Arraste, ou role a roda.</text>
+              <text class="nota">
+                É o `&lt;dial&gt;` desenrolado numa linha, e ele VIRA DENTRO DE
+                SI (o wrapping do QAbstractSpinBox): de dezembro para janeiro
+                sem parar na ponta. Arraste, ou role a roda.
+              </text>
             </column>
           </frame>
         </row>
@@ -98,8 +121,16 @@
             <row class="acoes">
               <delaybutton text="Segure" on_press="apagar_tudo" delay="1400" size="96" />
               <column class="painel">
-                <text class="nota">Segurar não move nada: só deixa o relógio correr. Soltar antes do fim DESISTE, e é o ponto todo — é um botão para a ação que não se quer por engano.</text>
-                <text class="nota">É o único dos nove que precisa de um ticker, e ele só existe enquanto o botão está apertado: a mesma economia condicional do rastreio de cursor (no iced, toda mensagem é um quadro).</text>
+                <text class="nota">
+                  Segurar não move nada: só deixa o relógio correr.
+                  Soltar antes do fim DESISTE, e é o ponto todo — é um
+                  botão para a ação que não se quer por engano.
+                </text>
+                <text class="nota">
+                  É o único dos nove que precisa de um ticker, e ele só existe
+                  enquanto o botão está apertado: a mesma economia condicional
+                  do rastreio de cursor (no iced, toda mensagem é um quadro).
+                </text>
               </column>
             </row>
           </column>
@@ -110,20 +141,38 @@
     <!-- ══ 4 + PageIndicator ════════════════════════════════════════════ -->
     <template if="{aba}" equals="paginas">
       <column class="corpo">
-        <text class="lead">Arraste as páginas para o lado. O `&lt;swipeview&gt;` é `&lt;stackview&gt;` (Onda 8) + o arrasto do `crate::grip` — as duas pontas já existiam, faltava o meio.</text>
+        <text class="lead">
+          Arraste as páginas para o lado. O `&lt;swipeview&gt;` é
+          `&lt;stackview&gt;` (Onda 8) + o arrasto do `crate::grip`
+          — as duas pontas já existiam, faltava o meio.
+        </text>
 
         <swipeview value="pagina" threshold="140" on_change="pagina" class="paginas">
           <column class="pagina">
-            <text class="secao">Página 0 — o índice</text>
-            <text class="nota">O `&lt;stackview&gt;` escolhe a página por NOME de slot; este escolhe por POSIÇÃO, porque é a posição que um arrasto move. É o currentIndex do QML.</text>
+            <text class="secao">
+              Página 0 — o índice
+            </text>
+            <text class="nota">
+              O `&lt;stackview&gt;` escolhe a página por NOME de slot;
+              este escolhe por POSIÇÃO, porque é a posição que um arrasto move.
+              É o currentIndex do QML.
+            </text>
           </column>
           <column class="pagina">
             <text class="secao">Página 1 — o conteúdo segue o dedo</text>
-            <text class="nota">Puxar para a esquerda anda para TRÁS. O contrário parece quebrado mesmo estando "certo" pela seta, e é o que todo carrossel de telefone faz.</text>
+            <text class="nota">
+              Puxar para a esquerda anda para TRÁS.
+              O contrário parece quebrado mesmo estando "certo" pela seta,
+              e é o que todo carrossel de telefone faz.
+            </text>
           </column>
           <column class="pagina">
             <text class="secao">Página 2 — e satura</text>
-            <text class="nota">Não existe página -1 nem página 3: o `Alvo::Indice` do grip prende o resultado em [0, n-1], como a `Alvo::Trilha` prende a largura no piso.</text>
+            <text class="nota">
+              Não existe página -1 nem página 3: o `Alvo::Indice`
+              do grip prende o resultado em [0, n-1], como a
+              `Alvo::Trilha` prende a largura no piso.
+            </text>
           </column>
         </swipeview>
 
@@ -141,7 +190,13 @@
     <!-- ══ 6: RubberBand ════════════════════════════════════════════════ -->
     <template if="{aba}" equals="laco">
       <column class="corpo">
-        <text class="lead">Arraste sobre a área para laçar. O retângulo em curso é uma chave global do motor (`__band`, um por tela — a família do `__cal_hover`); o que ele SELECIONA é o conjunto nomeado que o `&lt;listview mode="multi"&gt;` já guardava desde a 0.85.</text>
+        <text class="lead">
+          Arraste sobre a área para laçar. O retângulo em curso é
+          uma chave global do motor (`__band`, um por tela — a família
+          do `__cal_hover`); o que ele SELECIONA é o conjunto
+          nomeado que o `&lt;listview mode="multi"&gt;`
+          já guardava desde a 0.85.
+        </text>
 
         <!-- O laço DESENHA os alvos que conhece, e não só a faixa. O
              QRubberBand não faz isso — lá a faixa é um widget solto sobre uma
@@ -174,25 +229,45 @@
     <!-- ══ 8 + 9: o teclado ═════════════════════════════════════════════ -->
     <template if="{aba}" equals="teclado">
       <column class="corpo">
-        <text class="lead">O habilitador B é o SEXTO `listen_with` de uma lista de cinco que o daemon já registrava. As duas tags são o mesmo listener em dois modos.</text>
+        <text class="lead">
+          O habilitador B é o SEXTO `listen_with` de uma lista de
+          cinco que o daemon já registrava. As duas tags são o mesmo
+          listener em dois modos.
+        </text>
 
         <row class="colunas">
           <frame shape="box" class="bloco">
             <column class="painel">
               <text class="secao">Shortcut — o atalho declarado</text>
-              <text class="nota">Ctrl+S salva; Ctrl+Shift+P abre a busca. Os dois estão declarados no `&lt;resources&gt;` desta tela, e a ação deles é comum: um atalho não é um tipo novo de evento, é o teclado despachando o que um botão despacharia.</text>
+              <text class="nota">
+                Ctrl+S salva; Ctrl+Shift+P abre a busca.
+                Os dois estão declarados no `&lt;resources&gt;`
+                desta tela, e a ação deles é comum: um atalho não
+                é um tipo novo de evento, é o teclado despachando
+                o que um botão despacharia.
+              </text>
               <row class="acoes">
                 <button text="Salvar (pelo botão)" on_click="salvar" />
                 <text class="valor">{salvamentos} salvamento(s)</text>
               </row>
-              <text class="nota">Um atalho SEM modificador não passa por cima de um campo focado — digitar "s" num campo não pode disparar `&lt;shortcut key="s"&gt;`. Um COM modificador atravessa, porque nenhum campo de texto consome Ctrl+S, e um atalho que morresse por haver um campo focado não seria um atalho.</text>
+              <text class="nota">
+                Um atalho SEM modificador não passa por cima de um
+                campo focado — digitar "s" num campo não pode disparar
+                `&lt;shortcut key="s"&gt;`. Um COM modificador atravessa,
+                porque nenhum campo de texto consome Ctrl+S, e um atalho
+                que morresse por haver um campo focado não seria um atalho.
+              </text>
             </column>
           </frame>
 
           <frame shape="box" class="bloco">
             <column class="painel">
-              <text class="secao">ShortcutInput — o QKeySequenceEdit</text>
-              <text class="nota">Clique num campo e tecle. Esc desiste, Backspace limpa.</text>
+              <text class="secao">
+                ShortcutInput — o QKeySequenceEdit
+              </text>
+              <text class="nota">
+                Clique num campo e tecle. Esc desiste, Backspace limpa.
+              </text>
               <row class="campo_atalho">
                 <text class="rotulo">Salvar</text>
                 <shortcutinput value="atalho_salvar" />
@@ -201,8 +276,18 @@
                 <text class="rotulo">Buscar</text>
                 <shortcutinput value="atalho_buscar" />
               </row>
-              <text class="nota">Com um campo armado a tecla é DADO e não comando — inclusive uma que casaria com um `&lt;shortcut&gt;` da tela. É o que deixa gravar Ctrl+S aqui sem salvar o arquivo no caminho.</text>
-              <text class="nota">Ele é um botão, e não um `&lt;textinput&gt;`: um campo de texto de verdade consumiria as teclas antes de o listener global as ver — e é exatamente o que o Ctrl+S não pode encontrar pela frente.</text>
+              <text class="nota">
+                Com um campo armado a tecla é DADO e não comando —
+                inclusive uma que casaria com um `&lt;shortcut&gt;`
+                da tela. É o que deixa gravar Ctrl+S aqui sem salvar
+                o arquivo no caminho.
+              </text>
+              <text class="nota">
+                Ele é um botão, e não um `&lt;textinput&gt;`: um campo
+                de texto de verdade consumiria as teclas antes
+                de o listener global as ver — e é exatamente
+                o que o Ctrl+S não pode encontrar pela frente.
+              </text>
             </column>
           </frame>
         </row>

@@ -76,14 +76,21 @@
             </column>
           </frame>
 
-          <text class="nota">O corpo é avaliado no contexto do app — por isso um diálogo com campo não precisa de estado por instância. O que o usuário digita mora numa chave, como em qualquer campo de texto.</text>
+          <text class="nota">
+            O corpo é avaliado no contexto do app — por isso um diálogo com
+            campo não precisa de estado por instância. O que o usuário
+            digita mora numa chave, como em qualquer campo de texto.
+          </text>
         </column>
       </template>
 
       <!-- ══ O wizard ════════════════════════════════════════════════════ -->
       <template slot="wizard">
         <column class="painel">
-          <text class="lead">No Qt o QWizard É um QDialog — aqui ele é a soma da onda: páginas + botões + o passo numa chave.</text>
+          <text class="lead">
+            No Qt o QWizard É um QDialog — aqui ele é a soma da onda:
+            páginas + botões + o passo numa chave.
+          </text>
 
           <frame shape="box" class="bloco">
             <wizard value="passo" active="{passo}"
@@ -108,7 +115,10 @@
                        o valor é um array JSON vazio, não se a string está em
                        branco. -->
                   <se cond="{dominio}" equals="">
-                    <text class="aviso">Avançar fica travado enquanto isto estiver vazio — é o QWizardPage::isComplete().</text>
+                    <text class="aviso">
+                      Avançar fica travado enquanto isto estiver vazio — é
+                      o QWizardPage::isComplete().
+                    </text>
                   </se>
                 </column>
               </template>
@@ -122,7 +132,11 @@
             </wizard>
           </frame>
 
-          <text class="nota">Voltar fica INERTE no primeiro passo, não some: um botão que aparece e desaparece faz a fileira dançar. E avançar no último satura — dar a volta pareceria ter perdido o preenchido.</text>
+          <text class="nota">
+            Voltar fica INERTE no primeiro passo, não some: um botão que aparece
+            e desaparece faz a fileira dançar. E avançar no último satura —
+            dar a volta pareceria ter perdido o preenchido.
+          </text>
         </column>
       </template>
 
@@ -148,7 +162,10 @@
             <frame shape="box" class="bloco">
               <stackview active="{painel}">
                 <template slot="resumo">
-                  <text class="valor">A página escolhida por NOME, não por posição numa escada de condicionais.</text>
+                  <text class="valor">
+                    A página escolhida por NOME, não por posição
+                    numa escada de condicionais.
+                  </text>
                 </template>
                 <template slot="detalhe">
                   <column class="revisao">

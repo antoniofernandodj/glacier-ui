@@ -12,7 +12,11 @@
     </row>
 
     <column class="corpo">
-      <text class="lead">Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a corrotina para no diálogo e volta com a resposta. Cancelar devolve nil — a mesma convenção do open_file().</text>
+      <text class="lead">
+        Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a
+        corrotina para no diálogo e volta com a resposta.
+        Cancelar devolve nil — a mesma convenção do open_file().
+      </text>
 
       <!-- ── Item 2: InputDialog, as quatro variantes do QInputDialog ───── -->
       <frame shape="box" class="bloco">
@@ -25,7 +29,11 @@
             <button text="getItem" on_click="pedir_item" />
           </row>
           <text class="valor">Última resposta: {resposta}</text>
-          <text class="nota">As quatro variantes estáticas do Qt são UM diálogo com corpos diferentes — campo de texto, spinbox e lista suspensa, três tags que já existiam.</text>
+          <text class="nota">
+            As quatro variantes estáticas do Qt são UM diálogo com corpos
+            diferentes — campo de texto, spinbox e lista suspensa,
+            três tags que já existiam.
+          </text>
         </column>
       </frame>
 
@@ -39,7 +47,11 @@
               <button text="Indexar (indeterminado)" on_click="indexar" />
             </row>
             <text class="valor">{progresso_fim}</text>
-            <text class="nota">O único da família que NÃO suspende: ele acompanha um trabalho que continua rodando. O número mora numa chave, não no DialogSpec — e o trabalho tem de CEDER A VEZ, senão nenhum quadro é pintado.</text>
+            <text class="nota">
+              O único da família que NÃO suspende: ele acompanha um trabalho
+              que continua rodando. O número mora numa chave, não no DialogSpec —
+              e o trabalho tem de CEDER A VEZ, senão nenhum quadro é pintado.
+            </text>
           </column>
         </frame>
 
@@ -52,7 +64,10 @@
               <container class="amostra" background="{cor}" />
               <text class="valor">{cor}</text>
             </row>
-            <text class="nota">Um prompt cujo campo é uma roda: mesma porta, mesmo retorno. A roda desenha sobre o canvas da Onda 7.</text>
+            <text class="nota">
+              Um prompt cujo campo é uma roda: mesma porta, mesmo retorno.
+              A roda desenha sobre o canvas da Onda 7.
+            </text>
           </column>
         </frame>
       </row>
@@ -64,7 +79,10 @@
             <button text="Remover tudo" on_click="remover" />
             <text class="valor">{confirmacao}</text>
           </row>
-          <text class="nota">Generalizar o retorno não podia custar a forma que já existia: confirm{} continua sem corpo e continua devolvendo booleano.</text>
+          <text class="nota">
+            Generalizar o retorno não podia custar a forma que já existia: confirm{}
+            continua sem corpo e continua devolvendo booleano.
+          </text>
         </column>
       </frame>
     </column>
