@@ -1,6 +1,6 @@
 //! **Onda 12, em Luau**: o `<dock>` do lado do script.
 //!
-//! Rode com: `cargo run --example dock_luau` (com `WGPU_BACKEND=gl` nesta
+//! Rode com: `cargo run --example onda12_luau` (com `WGPU_BACKEND=gl` nesta
 //! máquina).
 //!
 //! # O que este exemplo mostra
@@ -17,11 +17,11 @@ fn main() -> iced::Result {
         .title("Glacier — Onda 12 (dock, Luau)")
         .main(|motor: &mut glacier_ui::GlacierUI| {
             if let Err(e) =
-                motor.register_component("dock_luau", "examples/dock_luau/app.gv")
+                motor.register_component("onda12_luau", "examples/onda12_luau/app.gv")
             {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("dock_luau");
+            motor.set_initial_screen("onda12_luau");
         })
         .run()
 }

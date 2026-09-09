@@ -1,6 +1,6 @@
 <screen title="Glacier — Onda 12 (dock)" size="1080 760" min_size="900 620">
   <resources>
-    <link rel="stylesheet" href="examples/dock/app.gss" />
+    <link rel="stylesheet" href="examples/onda12/app.gss" />
   </resources>
 
   <column class="tela">

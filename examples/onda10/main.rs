@@ -1,6 +1,6 @@
 //! **Onda 10** do `PLANO_WIDGETS.md`: a fonte que o motor não sabia nomear.
 //!
-//! Rode com: `cargo run --example fontes` (nesta máquina, com
+//! Rode com: `cargo run --example onda10` (nesta máquina, com
 //! `WGPU_BACKEND=gl` — o Vulkan da GPU integrada está quebrado).
 //!
 //! ```text
@@ -34,11 +34,11 @@ struct Fontes;
 
 impl Component for Fontes {
     fn name(&self) -> &str {
-        "fontes"
+        "onda10"
     }
 
     fn template(&self) -> Template {
-        Template::File("examples/fontes/app.gv".into())
+        Template::File("examples/onda10/app.gv".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {
@@ -125,7 +125,7 @@ fn main() -> iced::Result {
     for (nome, caminhos) in familias {
         match carrega(caminhos) {
             Some(bytes) => daemon = daemon.font_named(nome, bytes),
-            None => eprintln!("fontes: '{nome}' não encontrada nesta máquina — pulando"),
+            None => eprintln!("onda10: '{nome}' não encontrada nesta máquina — pulando"),
         }
     }
 
@@ -134,7 +134,7 @@ fn main() -> iced::Result {
             if let Err(e) = motor.register(Box::new(Fontes)) {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("fontes");
+            motor.set_initial_screen("onda10");
         })
         .run()
 }

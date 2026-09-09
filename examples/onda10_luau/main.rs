@@ -1,7 +1,7 @@
 //! **Onda 10, em Luau**: a fonte que o motor não sabia nomear, do lado do
 //! script.
 //!
-//! Rode com: `cargo run --example fontes_luau` (nesta máquina, com
+//! Rode com: `cargo run --example onda10_luau` (nesta máquina, com
 //! `WGPU_BACKEND=gl`).
 //!
 //! # O que este exemplo mostra e a versão Rust não mostra
@@ -17,7 +17,7 @@
 //! `confirm`/`fetch` e devolve a família (uma string) ou `nil`.
 use glacier_ui::GlacierDaemon;
 
-/// Igual ao exemplo `fontes`: lê `.ttf` do sistema e o leaka para `&'static`,
+/// Igual ao exemplo `onda10`: lê `.ttf` do sistema e o leaka para `&'static`,
 /// para não versionar um binário de fonte no repositório.
 fn carrega(caminhos: &[&str]) -> Option<&'static [u8]> {
     for caminho in caminhos {
@@ -67,18 +67,18 @@ fn main() -> iced::Result {
     for (nome, caminhos) in familias {
         match carrega(caminhos) {
             Some(bytes) => daemon = daemon.font_named(nome, bytes),
-            None => eprintln!("fontes_luau: '{nome}' não encontrada — pulando"),
+            None => eprintln!("onda10_luau: '{nome}' não encontrada — pulando"),
         }
     }
 
     daemon
         .main(|motor: &mut glacier_ui::GlacierUI| {
             if let Err(e) =
-                motor.register_component("fontes_luau", "examples/fontes_luau/app.gv")
+                motor.register_component("onda10_luau", "examples/onda10_luau/app.gv")
             {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("fontes_luau");
+            motor.set_initial_screen("onda10_luau");
         })
         .run()
 }

@@ -1,6 +1,6 @@
 <screen title="Glacier — Onda 12 (dock, Luau)" size="1040 740" min_size="880 600">
   <resources>
-    <link rel="stylesheet" href="examples/dock_luau/app.gss" />
+    <link rel="stylesheet" href="examples/onda12_luau/app.gss" />
     <script src="scripts/app.luau"></script>
   </resources>
 

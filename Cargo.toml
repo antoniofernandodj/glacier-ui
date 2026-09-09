@@ -114,12 +114,12 @@ name = "onda2"
 path = "examples/onda2/main.rs"
 
 [[example]]
-name = "fontes"
-path = "examples/fontes/main.rs"
+name = "onda10"
+path = "examples/onda10/main.rs"
 
 [[example]]
-name = "fontes_luau"
-path = "examples/fontes_luau/main.rs"
+name = "onda10_luau"
+path = "examples/onda10_luau/main.rs"
 
 [[example]]
 name = "series_multiplas"
@@ -130,20 +130,20 @@ name = "series_multiplas_luau"
 path = "examples/series_multiplas_luau/main.rs"
 
 [[example]]
-name = "dock"
-path = "examples/dock/main.rs"
+name = "onda12"
+path = "examples/onda12/main.rs"
 
 [[example]]
-name = "dock_luau"
-path = "examples/dock_luau/main.rs"
+name = "onda12_luau"
+path = "examples/onda12_luau/main.rs"
 
 [[example]]
-name = "formas"
-path = "examples/formas/main.rs"
+name = "onda13"
+path = "examples/onda13/main.rs"
 
 [[example]]
-name = "formas_luau"
-path = "examples/formas_luau/main.rs"
+name = "onda13_luau"
+path = "examples/onda13_luau/main.rs"
 
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }

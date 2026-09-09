@@ -1,6 +1,6 @@
 <screen title="Glacier — Onda 13 (formas)" size="1000 760" min_size="860 620">
   <resources>
-    <link rel="stylesheet" href="examples/formas/app.gss" />
+    <link rel="stylesheet" href="examples/onda13/app.gss" />
   </resources>
 
   <column class="tela">

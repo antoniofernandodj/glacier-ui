@@ -1,7 +1,7 @@
 //! **Onda 12** do `PLANO_WIDGETS.md`: o `<dock>` — o painel acoplável que a
 //! Onda 11 tinha cortado.
 //!
-//! Rode com: `cargo run --example dock` (nesta máquina, com `WGPU_BACKEND=gl`).
+//! Rode com: `cargo run --example onda12` (nesta máquina, com `WGPU_BACKEND=gl`).
 //!
 //! ```text
 //! O habilitador D — grip::Alvo::Zona
@@ -28,7 +28,7 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
 /// Onde o layout é persistido. `temp_dir` para o exemplo não sujar o repo.
 fn caminho_layout() -> PathBuf {
-    std::env::temp_dir().join("glacier-dock-exemplo.json")
+    std::env::temp_dir().join("glacier-onda12-layout.json")
 }
 
 /// Grava as quatro chaves de layout no arquivo. Livre (não method) para o
@@ -49,11 +49,11 @@ struct Dock;
 
 impl Component for Dock {
     fn name(&self) -> &str {
-        "dock"
+        "onda12"
     }
 
     fn template(&self) -> Template {
-        Template::File("examples/dock/app.gv".into())
+        Template::File("examples/onda12/app.gv".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {
@@ -84,7 +84,7 @@ impl Component for Dock {
         ctx.set("arquivo", "main.rs".to_string());
         ctx.set(
             "doc",
-            "// Arraste a faixa de título do painel para uma borda.\n// Solte: ele reancora ali.\n//\n// `✕` esconde; a aba `▸` traz de volta.\n// O layout é lembrado entre execuções (temp_dir/glacier-dock-exemplo.json).".to_string(),
+            "// Arraste a faixa de título do painel para uma borda.\n// Solte: ele reancora ali.\n//\n// `✕` esconde; a aba `▸` traz de volta.\n// O layout é lembrado entre execuções (temp_dir/glacier-onda12-layout.json).".to_string(),
         );
         let lado = ctx.get("lado").cloned().unwrap_or_default();
         ctx.set("status", format!("painel: {lado} (lembrado, se havia layout salvo)"));
@@ -123,7 +123,7 @@ fn main() -> iced::Result {
             if let Err(e) = motor.register(Box::new(Dock)) {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("dock");
+            motor.set_initial_screen("onda12");
         })
         .run()
 }

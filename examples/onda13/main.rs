@@ -1,6 +1,6 @@
 //! **Onda 13** do `PLANO_WIDGETS.md`: o desenho que o `.gv` escreve.
 //!
-//! Rode com: `cargo run --example formas` (nesta máquina, com
+//! Rode com: `cargo run --example onda13` (nesta máquina, com
 //! `WGPU_BACKEND=gl`).
 //!
 //! ```text
@@ -30,11 +30,11 @@ struct Formas;
 
 impl Component for Formas {
     fn name(&self) -> &str {
-        "formas"
+        "onda13"
     }
 
     fn template(&self) -> Template {
-        Template::File("examples/formas/app.gv".into())
+        Template::File("examples/onda13/app.gv".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {
@@ -68,7 +68,7 @@ fn main() -> iced::Result {
             if let Err(e) = motor.register(Box::new(Formas)) {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("formas");
+            motor.set_initial_screen("onda13");
         })
         .run()
 }

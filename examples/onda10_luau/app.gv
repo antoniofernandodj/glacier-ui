@@ -1,6 +1,6 @@
 <screen title="Glacier — Onda 10 (Luau)" size="960 700" min_size="820 560">
   <resources>
-    <link rel="stylesheet" href="examples/fontes_luau/app.gss" />
+    <link rel="stylesheet" href="examples/onda10_luau/app.gss" />
     <script src="scripts/app.luau"></script>
   </resources>
 

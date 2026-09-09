@@ -2090,7 +2090,7 @@ do `iced` fazem.
 
 Um módulo (`src/fonts.rs`, na casa de 150 linhas), duas linhas em `font_for`, um
 builtin, um corpo de diálogo, uma feature de Cargo e um exemplo
-(`examples/fontes`). **Fica de fora, por escrito:** `@font-face` no `.gss` (o
+(`examples/onda10`). **Fica de fora, por escrito:** `@font-face` no `.gss` (o
 motor não carrega fonte em tempo de execução, e esta onda não inventa isso),
 fallback por script (CJK) e qualquer coisa de rasterização — os três são do
 `iced`/`cosmic-text`, não deste catálogo.
@@ -2125,7 +2125,7 @@ a proposta dizia. A armadilha do `&'static str` foi tratada no `Box::leak`.
 motor (`src/fonts.rs`), uma feature de Cargo, uma correção de nível
 (`FontSelect`, a 16ª). Fecha **uma** categoria e meia: a §2.4 (**11/11**) e a
 §2.2 vai a **8/9** (sobra o `TextBrowser`). A §2.10 vai a **14/15**. Exemplos:
-`examples/fontes` (Rust) e `examples/fontes_luau` (o `pick_font{}`), o par de
+`examples/onda10` (Rust) e `examples/onda10_luau` (o `pick_font{}`), o par de
 sempre — rode com `WGPU_BACKEND=gl` nesta máquina.
 
 ---
@@ -2452,7 +2452,7 @@ pelos mesmos botões; nenhuma configuração do app.
 botões usam `PatchThen` (grava a chave, então despacha a ação); o arrasto,
 `DragEnd` → `GlacierUI::dock_on_change` (acha o `on_change` do `<dock>` na
 árvore avaliada e o despacha). O handler lê as quatro chaves de layout e grava:
-`examples/dock` num arquivo (`temp_dir`), `examples/dock_luau` com o global
+`examples/onda12` num arquivo (`temp_dir`), `examples/onda12_luau` com o global
 `storage`. `init` as lê de volta — o dock lembra onde estava entre execuções.
 `size`/`float_x`/`float_y` são capturados junto no `on_change`, então mudam de
 persistência na próxima mudança de modo (ou no fechamento, num app que tenha o
@@ -2460,8 +2460,8 @@ gancho).
 
 Testes: 5 propriedades de `Alvo::Zona` em `src/grip.rs` (ida-e-volta com
 `chave_modo`, não-escreve-durante-o-gesto, borda pelo eixo dominante,
-clique-não-conta, sem-âncora-não-faz-nada). Exemplos: `examples/dock` e
-`examples/dock_luau`. **Contabilidade:** `tests/onda9_ponteiro.rs` e
+clique-não-conta, sem-âncora-não-faz-nada). Exemplos: `examples/onda12` e
+`examples/onda12_luau`. **Contabilidade:** `tests/onda9_ponteiro.rs` e
 `tests/engine_tests.rs` construíam `Arrasto` sem os campos que a Onda 11
 adicionou (`chave_y`/`origem_y`/`valor0_y`) — quebrados desde a 0.96 e ninguém
 rodou; atualizados de passagem, mais o `.demo-fundo` das `.gss` da Onda 11 que
@@ -2588,8 +2588,8 @@ gráfico), `fill`/`stroke` vêm da classe, o `<text>` do canvas segue
 `NodeType::Text`, e uma `<line>` do canvas **segue um `every()`** do Luau
 ponta-a-ponta.
 
-Exemplos: `examples/formas` (as sete formas + geometria dirigida por dado +
-`whats_this`) e `examples/formas_luau` (uma agulha girada por um `every(60, …)`
+Exemplos: `examples/onda13` (as sete formas + geometria dirigida por dado +
+`whats_this`) e `examples/onda13_luau` (uma agulha girada por um `every(60, …)`
 **ligado por um clique** — o motor encaminha os efeitos assíncronos de um
 handler, não os do `init`, que só registra streams; o exemplo tinha o `every`
 no `init` e a agulha ficava parada).

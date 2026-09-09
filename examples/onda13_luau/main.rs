@@ -1,6 +1,6 @@
 //! **Onda 13, em Luau**: o vocabulário de formas do lado do script.
 //!
-//! Rode com: `cargo run --example formas_luau` (com `WGPU_BACKEND=gl` nesta
+//! Rode com: `cargo run --example onda13_luau` (com `WGPU_BACKEND=gl` nesta
 //! máquina).
 //!
 //! # O que este exemplo mostra
@@ -16,11 +16,11 @@ fn main() -> iced::Result {
         .title("Glacier — Onda 13 (formas, Luau)")
         .main(|motor: &mut glacier_ui::GlacierUI| {
             if let Err(e) =
-                motor.register_component("formas_luau", "examples/formas_luau/app.gv")
+                motor.register_component("onda13_luau", "examples/onda13_luau/app.gv")
             {
                 eprintln!("Erro ao registrar a tela: {e}");
             }
-            motor.set_initial_screen("formas_luau");
+            motor.set_initial_screen("onda13_luau");
         })
         .run()
 }

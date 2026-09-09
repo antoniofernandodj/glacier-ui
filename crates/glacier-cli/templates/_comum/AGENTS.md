@@ -658,6 +658,7 @@ na tabela de cada widget:
 | `max_width`, `max_height` | um número; o motor embrulha o nó num container que limita |
 | `hidden`, `disabled` | truthy: `"true"`/`"1"` liga; vazio, `"false"` e `"0"` desligam. Aceitam `{chave}` — é assim que se liga ao dado |
 | `tooltip`, `tooltip_position` | texto do balão; a posição é `top`/`bottom`/`left`/`right` |
+| `whats_this` | ajuda do `QWhatsThis`. Só aparece com o **modo pegajoso** ligado (ação `whatsthis:on`/`off`/`toggle` → chave `__whatsthis`), e aí toma o lugar do `tooltip=` no hover |
 | `cursor` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not-allowed`, `none`, e as alças `resize-h`, `resize-v`, `resize-ne`, `resize-nw` (com os apelidos de bússola `n`, `s`, `e`, `w`, `ne`, `nw`, `se`, `sw`) |
 | `on_press`, `on_double_click` | nome de uma ação; clique em **qualquer** elemento (o `on_click` é do `<button>`) |
 | `font`, `text_align`, `text_color`, `size`, `bold`, `color` | o texto **dentro** do nó |
@@ -668,6 +669,12 @@ na tabela de cada widget:
 
 Cor sempre em hexadecimal — não há `rgb()`, nem nome de cor, nem `transparent`
 (o equivalente é `#00000000`).
+
+`font` aceita `mono`/`bold` de fábrica, mais qualquer **família registrada** pelo
+app no lado Rust (`GlacierDaemon::font_named("Inter", bytes)`) — o mesmo caminho
+serve o `font_family` do `.gss`. Um nome não registrado cai na fonte padrão, sem
+aviso. A chave `__fonts` (o motor a semeia) traz a lista, para um
+`<combo items="__fonts">` ou o `<fontselect>`.
 
 ### Como um widget lê os seus dados
 
@@ -907,7 +914,9 @@ interceptar.
 
 **`<textarea value="doc" />`** — multi-linha. `placeholder`, `on_change`. Para
 um log vivo, use `readonly="true"` e escreva com `append_textarea` do Luau — que
-insere no fim sem recriar o buffer, preservando o scroll.
+insere no fim sem recriar o buffer, preservando o scroll. `font="JetBrains Mono"`
+(uma família registrada, ver "O que vale em qualquer tag") é o `QPlainTextEdit`:
+texto simples, mono declarável.
 
 **`<maskedinput value="cpf" mask="cpf" />`** — guarda **cru** e exibe
 mascarado. A chave nunca contém pontuação: é isso que faz um CPF gravado ser
@@ -1071,6 +1080,18 @@ seleção. Cada item é `{ id, label, sub }` — `sub` é a segunda linha, opcio
 | `height` | `240` |
 | `virtualize` | `0` (desligado); ver "Listas longas" |
 | `list_class`, `item_class`, `selected_class`, `label_class`, `sub_class` | ganchos de `.gss` |
+
+**`<fontselect value="fonte" selected="{fonte}" />`** — a lista de famílias de
+fonte, **cada uma desenhada nela mesma** (`QFontComboBox`). Lê `__fonts` por
+padrão (a chave que o motor semeia com as famílias que o app registrou —
+`GlacierDaemon::font_named`), ou o `items` que você der.
+
+| atributo | default |
+|---|---|
+| `value` + `selected` | o par de sempre: **nome** da chave, e o valor atual |
+| `items` | `__fonts` |
+| `preview` | ausente — um texto de amostra abaixo da lista, na fonte selecionada |
+| `height`, `width` | `220`, `fill` |
 
 **`<tumbler value="mes" items="meses" />`** — roleta. Guarda o **texto** do item,
 não o índice. O `items` aceita as três formas: nome de chave, JSON literal, ou
@@ -1254,6 +1275,20 @@ raiz que não é array dão uma **série vazia**, que desenha a moldura sem a li
 | `points` | `false` — marca cada ponto |
 | `axes` / `grid` | `true` |
 | `thickness` | `2` |
+| `series` | — nome de uma chave com **várias** séries (ver abaixo); presente, vence `items` |
+
+**Série múltipla** (só o `<linechart>`/`<sparkline>`): `series="chave"`, onde a
+chave guarda um array de objetos `{ name, points, color? }`. `points` aceita as
+mesmas duas formas de `items`. Sem `color`, cada linha pega uma cor do ciclo do
+tema e uma legenda aparece no canto (só com `axes`). `<barchart>`/`<piechart>`
+seguem série única.
+
+```lua
+ctx.carga = json.encode(json.array({
+    { name = "API", points = json.array({ 12, 19, 7 }) },
+    { name = "DB",  points = json.array({ 20, 15, 22 }), color = "#89B4FA" },
+}))
+```
 
 **`<sparkline items="serie" />`** é a mesma primitiva com `axes` e `grid`
 default `false` e `thickness` `1.5`: a linha sem moldura, para caber numa célula
@@ -1275,8 +1310,38 @@ primitiva; `<donut>` é `donut="0.6"`. O `label` de cada ponto vira a legenda e 
 | `percentages` | `false` — escreve o percentual em cada fatia |
 | `colors` | a paleta do tema; aceita chave, JSON (`'["#f00","#0f0"]'`) **ou** lista por vírgula (`colors="#f00,#0f0"`) |
 
-Série múltipla ainda não existe: um `items` é uma série. Dois `<linechart>`
-empilhados num `<stack>` é a saída de hoje.
+#### `<canvas>` — o desenho declarativo
+
+Uma superfície de desenho cujos **filhos são formas**, desenhadas na ordem do
+markup. Sem `width`/`height`, é `300`×`200`.
+
+```xml
+<canvas class="tela">
+  <rect x="10" y="10" w="150" h="70" rx="8" class="solido" />
+  <circle cx="220" cy="45" r="30" class="contorno" />
+  <line x1="10" y1="110" x2="270" y2="110" class="regua" />
+  <polyline points="20,180 60,150 100,190" class="contorno" />
+  <polygon points="220,150 270,150 245,195" class="solido" />
+  <arc cx="80" cy="255" r="34" start="150" sweep="240" class="solido" />
+  <path d="M140 290 Q 180 210 220 290 T 300 290" class="contorno" />
+  <text x="16" y="315" class="rotulo">rótulo</text>
+</canvas>
+```
+
+| forma | geometria |
+|---|---|
+| `<path>` | `d` — SVG parcial: `M L H V Z` + `C Q` (maiúsculo absoluto, minúsculo relativo). **Sem `A`** — use `<arc>` |
+| `<arc>` | `cx cy r start sweep` (graus, `start=0` à direita, horário). Com `fill`, é um setor |
+| `<circle>` | `cx cy r` |
+| `<rect>` | `x y w h` (`rx` arredonda) |
+| `<line>` | `x1 y1 x2 y2` |
+| `<polyline>` / `<polygon>` | `points="x,y x,y …"` — a segunda fecha |
+| `<text>` | `x y` + texto como filho; segue as regras de um `<text>` normal |
+
+- **Geometria é dado**: `cx="{x}"`, `d="{traçado}"` — inline no `.gv`.
+- **Traço e preenchimento são estilo**: `fill` / `stroke` / `stroke-width` numa
+  **classe `.gss`** (apelidos de `background` / `border-color` / `border-width`).
+- Sem `on_click`/hover/animação numa forma.
 
 ### Model/view: tabela e árvore
 
@@ -1502,6 +1567,32 @@ arrastado sobre uma área. Cada alvo é `{ id, x, y, w, h }` (o `id` cai para o
 índice quando falta), e `items` aceita chave **ou** JSON inline. A seleção sai
 como conjunto separado por vírgula na chave de `selection`.
 
+**`<dock mode="lado" edge="left">`** — o `QDockWidget`: um painel + um centro.
+**Dois filhos** — o painel (0) e o centro (1). N painéis = `<dock>` aninhados.
+
+```xml
+<dock mode="lado" edge="left" size="tam_painel" float_x="px" float_y="py"
+      title="Explorador" on_change="salvar_layout">
+  <tree items="arvore" value="no" abertos="{abertos}" />
+  <texteditor value="doc" />
+</dock>
+```
+
+| atributo | default | o que faz |
+|---|---|---|
+| `mode` | — | **nome** da chave: `left`/`right`/`top`/`bottom` (acoplado), `float`, `hidden`. Vazio = fixo em `edge`, sem cabeçalho interativo |
+| `edge` | `left` | borda quando a chave está vazia |
+| `size` | vazio | **nome** da chave com a trilha do `<splitter>` (`"240 fill"`). Vazio = repartem igual, sem alça |
+| `float_x` / `float_y` | `__dock_<mode>_x`/`_y` | **nome** das chaves de posição flutuante |
+| `title` | vazio | texto do cabeçalho |
+| `on_change` | vazio | ação disparada **depois** de cada mudança (botão ou arrasto) — o gancho de persistência |
+| `min` / `handle` / `float_w` / `float_h` | `120` / `6` / `280` / `220` | piso e alça do acoplado; tamanho do flutuante |
+
+O cabeçalho tem `❒`/`▣` (flutua / reacopla, guardando o modo em `<mode>__prev`),
+`✕` (esconde), e é **arrastável**: puxar para uma borda reancora **na soltura**.
+Um painel `hidden` deixa uma aba `▸` que o traz de volta. Persistir o layout:
+declare `on_change` e no handler grave as chaves (`storage.set` no Luau).
+
 ### Menus, barras e janela
 
 **`<menubar>`** contém `<menu label="Arquivo">`, que contém `<menuitem>`,
@@ -1716,6 +1807,10 @@ Regras de mesmo seletor **mesclam**, não se sobrescrevem: um segundo bloco
 
 São 21, e **só estas**. Qualquer outra é ignorada com um aviso no terminal —
 `border-bottom`, `margin`, `display: flex`, `box-shadow` não existem.
+
+Numa forma de `<canvas>` (Onda 13), `fill` é apelido de `background`, `stroke`
+de `border-color` e `stroke-width` de `border-width` — não são propriedades
+novas, é o mesmo campo com o nome do domínio.
 
 | propriedade | apelidos | valor |
 |---|---|---|
@@ -2190,6 +2285,16 @@ local cor = pick_color({ title = "Cor do tema", value = ctx.cor })
 if cor then ctx.cor = cor end              -- "#rrggbb"
 ```
 
+#### `pick_font(opts?) -> string?` — **suspende**
+
+O `QFontDialog`. Devolve a **família** escolhida (ou `nil` se cancelou). O
+campo de tamanho e a amostra são pré-visualização — o retorno é só o nome.
+
+```lua
+local f = pick_font({ title = "Fonte do editor", value = ctx.fonte, size = 15 })
+if f then ctx.fonte = f end
+```
+
 #### `open_file / open_files / save_file / pick_folder(opts?)` — **suspendem**
 
 ```lua
@@ -2399,6 +2504,7 @@ GlacierDaemon::new()
     .main_window(window::Settings { decorations: false, ..Default::default() })  // titlebar própria
     .remember_window_geometry(true)      // lembra posição/tamanho entre execuções
     .storage_dir(dir)                    // onde `storage.*` grava
+    .font_named("Inter", include_bytes!("Inter.ttf"))   // `font="Inter"` no .gv/.gss
     .main(|motor| {
         motor.register_component("app", "views/app.gv").ok();   // tela vinda de .gv
         motor.register(Box::new(Contador::new())).ok();          // tela vinda de Rust

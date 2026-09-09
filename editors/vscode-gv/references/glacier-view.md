@@ -478,11 +478,21 @@ Os gráficos. `items` é a convenção de sempre — o **nome** de uma chave com
 | `donut` | pizza | buraco como fração do raio; `<donut>` já vem com `0.6` |
 | `percentages` | pizza | escreve o % sobre cada fatia com espaço para ele |
 | `colors` | pizza | chave, JSON de hex, ou lista por vírgula |
+| `series` | **linha** | nome da chave com **várias** séries (ver abaixo). Presente, vence `items` |
 
 - **`width`/`height`** passam pelo `parse_length` do motor: `width="fill"` vale num gráfico como vale numa `<row>`.
 - **A barra nasce do ZERO** quando `min` não é declarado — começar em 40 exagera a diferença entre 41 e 42.
 - **Série vazia escreve "sem dados"**, não desenha nada: um gráfico em branco é indistinguível de um quebrado.
-- **Uma série por gráfico.** Série múltipla ainda não existe.
+- **Série múltipla (só `<linechart>`/`<sparkline>`, e portanto `area=`/`points=`):** `series="chave"`, onde a chave guarda um array de objetos `{ name, points, color? }`. `points` aceita as mesmas duas formas de `items`. Sem `color`, cada linha recebe uma cor do ciclo do tema, e uma legenda aparece no canto (só com `axes`). `<barchart>`/`<piechart>` seguem série única.
+
+```json
+[{"name": "API", "points": [12, 19, 7], "color": "#89B4FA"},
+ {"name": "DB",  "points": [{"label": "Jan", "value": 8}]}]
+```
+
+```gv
+<linechart series="carga" min="0" grid="true" />
+```
 
 ### `<Space>` (`<Espaco>`, `<Spacer>`)
 Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos (o espaçador **flexível**, que empurra o resto para a borda); com eles, um vão fixo.
@@ -749,6 +759,7 @@ primeiras, e um comando nas demais.
 | `style:<nome>` | troca o estilo builtin ativo (ver `src/style.rs`); `style:set` é reservado para a forma `<Select onChange="style:set">` |
 | `dialog:<nome>` | abre o `<dialog name="<nome>">` declarado no `<resources>` |
 | `dialog:close` | fecha o diálogo em exibição (`dialog:fechar` é alias) |
+| `whatsthis:on` / `off` / `toggle` | liga/desliga o modo pegajoso do `whats_this=` (chave `__whatsthis`) |
 
 Qualquer outro valor de ação é o nome de uma função: exata, ou `nome:sufixo` —
 sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
@@ -1636,6 +1647,112 @@ Um `<Button>` com `border_radius` total — um círculo.
 | `text` | vazio | o glifo/ícone |
 | `color` | `#45475A` | fundo do círculo — sem ele o `<Button>` do motor não aplica `border_radius` nenhum |
 | `size` | `40` | diâmetro em px |
+
+## A fonte que o motor sabe nomear (Onda 10)
+
+O motor conhece de fábrica só `mono` e `bold`. Um app registra suas famílias no
+lado Rust — `GlacierDaemon::font_named("Inter", bytes)` — e a partir daí
+`font="Inter"` no `.gv` (e `font_family: Inter` no `.gss`) as resolvem. Um nome
+que ninguém registrou cai na fonte padrão, **em silêncio**. Com a feature de
+Cargo `system-fonts`, as famílias do SO também entram na lista.
+
+- **`font="…"` em `<text>` / `<span>` / `<texteditor>` / `<select>` / `<combo>`**
+  — o `<texteditor font="JetBrains Mono">` é o `QPlainTextEdit`: texto simples,
+  fonte declarável.
+- **Chave de contexto `__fonts`** — o motor a semeia com a lista de famílias
+  registradas (array JSON de strings). `<combo items="__fonts">` a consome.
+
+### `<FontSelect>` (`<SeletorFonte>`)
+A lista de famílias, **cada uma desenhada nela mesma** — o `QFontComboBox`.
+
+```gv
+<fontselect value="fonte" selected="{fonte}" preview="Sphinx of black quartz" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome** da chave que recebe a família clicada |
+| `selected` | — | valor atual dessa chave, para o destaque |
+| `items` | `__fonts` | chave com o array de nomes |
+| `preview` | ausente | texto de amostra abaixo da lista, na fonte selecionada |
+| `height` / `width` | `220` / `fill` | área rolável |
+
+O diálogo equivalente é o Luau `pick_font{}` — corpo em markup, devolve a
+família.
+
+## O painel acoplável (Onda 12)
+
+### `<Dock>` (`<DockWidget>`, `<PainelAcoplavel>`)
+`QDockWidget`: um painel + um centro, e uma chave que diz onde o painel está.
+**Dois filhos**: o painel (0) e o centro (1). N painéis = `<dock>` aninhados.
+
+```gv
+<dock mode="lado" edge="left" size="tam" float_x="px" float_y="py"
+      title="Explorador" on_change="salvar_layout">
+  <tree items="arvore" value="no" abertos="{abertos}" />   <!-- painel -->
+  <texteditor value="doc" />                               <!-- centro -->
+</dock>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `mode` | — | **nome** da chave com o estado: `left`/`right`/`top`/`bottom` (acoplado), `float`, `hidden`. Vazio = fixo em `edge` |
+| `edge` | `left` | borda default quando a chave está vazia |
+| `size` | vazio | **nome** da chave da trilha do `<splitter>` quando acoplado (`"240 fill"`). Vazio = repartem igual, sem alça |
+| `float_x` / `float_y` | `__dock_<mode>_x`/`_y` | **nome** das chaves de posição flutuante |
+| `title` | vazio | texto do cabeçalho |
+| `on_change` | vazio | ação disparada **depois** de cada mudança (botão ou arrasto) — o gancho de persistência |
+| `min` / `handle` | `120` / `6` | piso do painel acoplado; espessura da alça |
+| `float_w` / `float_h` | `280` / `220` | tamanho do painel flutuante |
+
+O cabeçalho traz `❒`/`▣` (flutua / reacopla, guardando o modo em
+`<mode>__prev`), `✕` (esconde) e é **arrastável**: puxar para uma borda
+reancora **na soltura** (um movimento pequeno é clique e não muda nada). Um
+painel `hidden` deixa uma aba `▸` na borda que o traz de volta ao último modo.
+
+## O desenho que o `.gv` escreve (Onda 13)
+
+### `<Canvas>` (`<Superficie>`)
+Uma superfície de desenho declarativa. **Filhos são formas**, desenhadas na
+ordem do markup (a de cima primeiro). Sem `width`/`height`, é `300`×`200`.
+
+```gv
+<canvas class="tela-desenho">
+  <rect x="10" y="10" w="150" h="70" rx="8" class="solido" />
+  <circle cx="220" cy="45" r="30" class="contorno" />
+  <line x1="10" y1="110" x2="270" y2="110" class="regua" />
+  <polyline points="20,180 60,150 100,190" class="contorno" />
+  <polygon points="220,150 270,150 245,195" class="solido" />
+  <arc cx="80" cy="255" r="34" start="150" sweep="240" class="solido" />
+  <path d="M140 290 Q 180 210 220 290 T 300 290" class="contorno" />
+  <text x="16" y="315" class="rotulo">rótulo</text>
+</canvas>
+```
+
+| forma | atributos de geometria |
+| --- | --- |
+| `<path>` | `d` — subconjunto SVG: `M L H V Z` + `C` `Q` (maiúsculo absoluto, minúsculo relativo). **Sem `A`** — use `<arc>` |
+| `<arc>` | `cx` `cy` `r` `start` `sweep` — graus, `start=0` à direita, `sweep` horário. Com `fill`, é um setor; só com traço, a curva aberta |
+| `<circle>` | `cx` `cy` `r` |
+| `<rect>` | `x` `y` `w` `h` (`rx` para cantos) |
+| `<line>` | `x1` `y1` `x2` `y2` |
+| `<polyline>` / `<polygon>` | `points="x,y x,y …"` — a segunda fecha |
+| `<text>` | `x` `y` + o texto como filho. Continua um `<text>` normal (interpola, `size` da classe) |
+
+- **Geometria é dado** — `cx="{x}"`, `d="{traçado}"`, `points="{serie}"` —, então **inline no `.gv`**.
+- **Traço e preenchimento são estilo** — `fill` / `stroke` / `stroke-width` —, então vêm de uma **classe `.gss`** (são apelidos de `background` / `border-color` / `border-width`; `.forma { fill: var(--realce); stroke: var(--linha) }`).
+- **Sem `on_click`/hover numa forma** e sem animação — um alvo de clique dentro de um canvas é geometria que o `.gv` não descreve.
+
+### `whats_this="…"` — o `QWhatsThis`
+Um **atributo universal** (como `tooltip=`), num nó qualquer. A ação
+`whatsthis:on` / `off` / `toggle` liga a chave do motor `__whatsthis`; com o
+modo ligado, pairar sobre um nó com `whats_this=` mostra essa ajuda **no lugar**
+do `tooltip=`.
+
+```gv
+<button text="?" on_click="whatsthis:toggle" />
+<slider value="v" whats_this="Arrasta para ajustar o volume." />
+```
 
 ---
 

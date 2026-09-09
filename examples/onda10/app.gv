@@ -1,6 +1,6 @@
 <screen title="Glacier — Onda 10 (fontes)" size="1000 720" min_size="860 600">
   <resources>
-    <link rel="stylesheet" href="examples/fontes/app.gss" />
+    <link rel="stylesheet" href="examples/onda10/app.gss" />
   </resources>
 
   <column class="tela">
