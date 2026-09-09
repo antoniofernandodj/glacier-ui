@@ -12,7 +12,11 @@
 
 local CX, CY, RAIO = 110, 110, 78
 local angulo = 0
-local timer = nil
+
+-- O handle do `every()`. A anotação `: any` não é decorativa: em modo estrito,
+-- sem ela o Luau infere o tipo do valor inicial (`nil`) e a atribuição do
+-- handle mais abaixo (`timer = every(...)`) vira erro de tipo.
+local timer: any = nil
 
 -- Recalcula a ponta da agulha e o setor varrido, e publica no contexto (texto).
 local function redesenhar()
