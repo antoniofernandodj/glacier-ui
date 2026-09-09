@@ -105,7 +105,13 @@ const NATIVE_TAGS = {
   // Onda 8: o diálogo que carrega markup. O `<dialog>` NÃO entra aqui — ele é
   // uma declaração do `<resources>`, como o `<component name>`, e não um
   // widget que se escreve no layout (ver a lista de declarações abaixo).
-  StackView: ["stackview", "stack", "pilha"],
+  //
+  // `stack`/`pilha` NUNCA foram apelido de `StackView` de verdade — o motor só
+  // registra o alias automático (`stackview`, minúsculo colado, via
+  // `builtins::builtin_aliases`); os dois nomes ficaram aqui por engano desde
+  // que este catálogo nasceu, e a Onda 11 os reclamou para uma tag genuína e
+  // diferente (ver `Stack` abaixo). Corrigido junto.
+  StackView: ["stackview"],
   Wizard: ["wizard", "assistente"],
   WizardNav: ["wizardnav", "wizard_nav", "wizard-nav"],
   ColorWheel: ["colorwheel", "color-wheel", "rodadecor", "roda_de_cor"],
@@ -125,6 +131,23 @@ const NATIVE_TAGS = {
   // o encontra é o coletor que varre a árvore avaliada. Por isso ele fica aqui,
   // entre os widgets, e não com o `<dialog>` lá embaixo.
   Shortcut: ["shortcut", "atalho", "action"],
+  // Onda 11: o que fica por cima. `<stack>` empilha filhos no mesmo espaço —
+  // `x`/`y` (pixels, via `pin`) ou `anchor` (um dos nove cantos) num FILHO
+  // dele decidem a posição; nenhum dos dois é apelido de tag, são atributos
+  // universais lidos só quando o pai é um `<stack>`. Nenhum apelido em pt-BR
+  // é substantivo comum, pela mesma regra da Onda 9 — e "pilha" não colide
+  // com nada: nunca foi alias de verdade de `StackView` (ver a correção ali
+  // em cima).
+  Stack: ["stack", "pilha"],
+  // Janelas internas (`QMdiArea`): `<mdiarea>` empilha `<mdisubwindow>`s, cada
+  // uma nomeando QUATRO chaves (posição/tamanho) — a forma preferida é
+  // `x_var`/`y_var`/`w_var`(ou `width_var`)/`h_var`(ou `height_var`); `x`/`y`/
+  // `w`/`h` também funcionam, mas colidem de NOME (não de efeito) com os
+  // atributos `x`/`y` do `<stack>` acima, então ficam fora do binding de
+  // Ctrl+clique — ver `BINDING_ATTRS`.
+  MdiArea: ["mdiarea"],
+  MdiSubWindow: ["mdisubwindow"],
+  QrCode: ["qrcode", "qr"],
   // `<pageindicator>` é `<pagination>` com pontos — a MESMA primitiva, como
   // `<sparkline>` é `<linechart>` sem moldura.
   Pagination: [
@@ -164,15 +187,33 @@ const NATIVE_TAGS = {
   Badge: ["badge"],
   ButtonBox: ["buttonbox"],
   Card: ["card"],
+  // Onda 11: `Badge` com um "×" que dispara `on_remove` — sem ele, o "×" nem
+  // desenha.
+  Chip: ["chip"],
+  // Onda 11: título + descrição + seta, sobre o `<Button>` com filhos.
+  CommandLink: ["commandlink"],
   Drawer: ["drawer"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
   ListView: ["listview"],
+  // Onda 11: `<stack>` (a primeira camada é o `<slot/>`) + `anchor` (a
+  // segunda, o pontinho) — o primeiro consumidor do habilitador A.
+  NotificationDot: ["notificationdot"],
   RadioGroup: ["radiogroup"],
+  // Onda 11: `<Button>` com `border_radius` total — a mesma conta do círculo
+  // de iniciais do `<Avatar>` (passar o LADO inteiro, não a metade).
+  RoundButton: ["roundbutton"],
   // Onda 9, e o item mais barato dela: `window:resize:se` e `cursor="se"` já
   // existiam, então ele é builtin e não motor.
   SizeGrip: ["sizegrip"],
+  // Onda 11: um `<Container>` cinza do tamanho declarado. Sem pulsação
+  // animada, de propósito.
+  Skeleton: ["skeleton"],
   SpinBox: ["spinbox"],
+  // Onda 11: cobre o `<slot/>` principal com um `<slot name="splash">`
+  // enquanto `show` for verdadeiro. Sem animação — ver o `PRIMITIVAS.md`
+  // sobre a armadilha do `Length::Fill` dentro de um `<reveal>`.
+  SplashScreen: ["splashscreen"],
   StatusBar: ["statusbar"],
   TabBar: ["tabbar"],
   Tabs: ["tabs"],
@@ -294,6 +335,13 @@ const BINDING_ATTRS = new Set(
     // chave, e `<rubberband selection="marcados">` o conjunto nomeado dos
     // alvos tocados — os dois são nome de chave, não valor.
     "sizes", "tamanhos", "selection", "selecao", "seleção",
+    // Onda 11. `<mdisubwindow x_var="…" y_var="…" w_var="…" h_var="…">` nomeia
+    // QUATRO chaves — a forma longa, de propósito: a curta (`x`/`y`/`w`/`h`)
+    // também funciona no motor, mas o NOME colide com `x`/`y` do `<stack>`
+    // (ali um pixel literal, aqui o nome de uma chave) e o binding é por nome
+    // de atributo, sem olhar a tag. Só a forma longa entra na lista — a curta
+    // fica sem link de Ctrl+clique, o preço de reusar um nome tão comum.
+    "x_var", "y_var", "w_var", "h_var", "width_var", "height_var",
     "cond", "condition", "when", "quando", "condicao",
     "if", "se", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
     "for-each", "forEach", "foreach", "each", "repeat",
@@ -1846,6 +1894,11 @@ const VOID_TAGS = new Set([
   // tem filhos — sem isto, digitar `<pageindicator>` inseria um
   // `</pageindicator>` que não faz sentido.
   "Pagination",
+  // Onda 11. `Stack`, `MdiArea`, `MdiSubWindow`, `NotificationDot` e
+  // `SplashScreen` ficam de FORA de propósito — os cinco renderizam
+  // `node.children`/`<slot/>`. Os cinco abaixo só levam props: nenhum tem
+  // filho para o par de fechamento embrulhar.
+  "QrCode", "Chip", "Skeleton", "CommandLink", "RoundButton",
 ]);
 
 /**

@@ -2255,6 +2255,15 @@ pub enum NodeType {
     /// e não há como "mover para o fim" sem uma.
     MdiArea,
     /// Uma janela interna de um `<mdiarea>`. Ver [`NodeType::MdiArea`].
+    ///
+    /// **Grafia recomendada dos quatro atributos: `x_var`/`y_var`/`w_var`
+    /// (ou `width_var`)/`h_var` (ou `height_var`)**, não a curta `x`/`y`/`w`/
+    /// `h` — as duas funcionam (`get_attr` aceita ambas), mas a curta
+    /// **colide de nome** com `x`/`y` de um filho de `<stack>` (ali um pixel
+    /// literal; aqui o NOME de uma chave), e o Ctrl+clique do
+    /// `editors/vscode-gv` (que liga pelo nome do atributo, não pela tag) só
+    /// reconhece a longa como referência de chave. Achado testando a
+    /// extensão com os widgets desta onda — ver `BINDING_ATTRS`.
     MdiSubWindow {
         title: String,
         /// Chave com a posição X, em pixels. Sem valor ainda, o `<mdiarea>`
@@ -3773,8 +3782,14 @@ impl UiNode {
                 }
             }
             "QrCode" | "qrcode" | "Qr" | "qr" => {
-                let content = Self::get_attr(&node, &["content", "value", "conteudo", "valor"])
-                    .unwrap_or_default();
+                // Sem "value"/"valor" na lista, de propósito: em todo widget
+                // bindado deste motor esse nome carrega o NOME de uma chave
+                // sem chaves (`value="volume"`), e o `content` daqui é o
+                // oposto — um texto literal, quase sempre `{interpolado}`. Os
+                // dois com o mesmo nome e semânticas opostas confundiria
+                // quem escreve E a extensão do VS Code (que trata `value`
+                // como "isto é o nome de uma chave" em qualquer tag).
+                let content = Self::get_attr(&node, &["content", "conteudo"]).unwrap_or_default();
                 let color = Self::get_attr(&node, &["color", "cor"]);
                 NodeType::QrCode { content, color }
             }

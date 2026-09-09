@@ -1387,8 +1387,9 @@ se consulta sem conversão:
 ```
 
 Ele **desenha os alvos** que conhece, e não só a faixa. O `QRubberBand` não faz
-isso (lá a faixa é um widget solto sobre uma view), mas aqui não há "por baixo":
-o motor não tem `<stack>` no markup, e a geometria ele já tinha.
+isso (lá a faixa é um widget solto sobre uma view) — aqui, na Onda 9, não havia
+"por baixo": o motor ainda não tinha `<stack>` no markup (chegou só na Onda 11),
+e a geometria ele já tinha desde sempre.
 
 ### `<PageIndicator>` (`<Indicador_pagina>`)
 Os pontinhos de página (`QML PageIndicator`). É **a mesma primitiva** do
@@ -1474,6 +1475,165 @@ própria titlebar (`decorations="false"`). Builtin.
 
 Com a decoração do SO ligada a borda da janela já redimensiona e ele é
 decorativo — ele existe para quando essa borda não existe.
+
+## O que fica por cima (Onda 11)
+
+`<stack>` empilha filhos no mesmo espaço — o primeiro embaixo — e dois
+atributos **num filho dele** decidem a posição: `anchor` (um dos nove cantos,
+sem coordenada) ou `x`/`y` (pixels livres). Os dois só têm efeito dentro de um
+`<stack>`; fora dele, são ignorados.
+
+### `<Stack>` (`<Pilha>`)
+```gv
+<stack width="300" height="160">
+  <container width="fill" height="fill" />        <!-- camada 0 -->
+  <text anchor="top-right">novo</text>             <!-- canto, sem pixel -->
+  <text x="20" y="20">14,10</text>                 <!-- posição livre -->
+</stack>
+```
+
+| atributo (no `<stack>`) | default | o que faz |
+| --- | --- | --- |
+| `width` / `height` | `shrink` | como `<container>`: sem eles, mede pela camada 0 |
+
+| atributo (num FILHO do `<stack>`) | o que faz |
+| --- | --- |
+| `anchor` | `top-left` / `top` / `top-right` / `left` / `center` / `right` / `bottom-left` / `bottom` / `bottom-right` — gruda o filho nesse canto, `container` `Fill` alinhado |
+| `x` / `y` | posição livre em pixels (`pin`); vence `anchor` se os dois aparecerem |
+
+Sem `x`/`y` nem `anchor`, um filho ocupa a camada inteira — é o caso comum
+para o fundo (a camada 0).
+
+### `<MdiArea>` / `<MdiSubWindow>`
+Janelas internas (`QMdiArea`). Cada `<mdisubwindow>` nomeia QUATRO chaves —
+posição e tamanho — e se arrasta (barra de título) ou redimensiona (canto)
+escrevendo nelas.
+
+```gv
+<mdiarea>
+  <mdisubwindow title="Editor" x_var="ed_x" y_var="ed_y" w_var="ed_w" h_var="ed_h">
+    <textarea value="doc" />
+  </mdisubwindow>
+</mdiarea>
+```
+
+| prop (`<mdisubwindow>`) | default | o que faz |
+| --- | --- | --- |
+| `title` | vazio | texto da barra |
+| `x_var` / `y_var` | — | **nome** das chaves de posição, em pixels |
+| `w_var` / `h_var` | — | **nome** das chaves de tamanho |
+| `default_w` / `default_h` | `320` / `220` | tamanho quando a chave ainda não tem valor |
+
+Use a forma **longa** (`x_var`/`y_var`/`w_var`/`h_var`) e não a curta (`x`/`y`/
+`w`/`h`, que também funciona no motor): as duas nomeiam uma chave aqui, mas a
+curta tem o MESMO nome do `x`/`y` de pixel livre do `<stack>` acima — mesmo
+atributo, dois significados, dependendo da tag em que está. O Ctrl+clique
+desta extensão só reconhece a forma longa como referência de chave.
+
+Sem seed nenhum, uma janela nasce num cascade (20px + 24px por janela) — não
+empilhada exatamente sobre a anterior. Sem reordenação por clique: a pilha
+(z-order) é a ordem do markup.
+
+### `<NotificationDot>`
+Um pontinho sobre um ícone (`<slot/>`), ancorado a um canto por dentro —
+`<stack>` + `anchor="top-right"` já embrulhados.
+
+```gv
+<NotificationDot show="{tem_alerta}">
+  <Svg source="sino.svg" size="24" />
+</NotificationDot>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `show` | `true` | `false`/vazio esconde o pontinho, sem remover o ícone |
+| `color` | `#F38BA8` | cor do pontinho |
+| `size` | `10` | diâmetro em px |
+| `anchor` | `top-right` | qual canto |
+
+### `<SplashScreen>`
+Cobre o `<slot/>` principal com um `<slot name="splash">` enquanto `show` for
+verdadeiro — some, sem animação, quando vira falso.
+
+```gv
+<SplashScreen show="{carregando}">
+  <ColumnConteudoReal />
+  <template slot="splash">
+    <text>Carregando…</text>
+  </template>
+</SplashScreen>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `show` | `true` | mostra o painel de cima |
+| `background` | `.splash-panel` | fundo do painel |
+
+### `<QrCode>`
+O `qr_code` nativo do `iced`.
+
+```gv
+<qrcode content="{url}" width="120" height="120" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `content` | vazio | o texto codificado. Vazio = não desenha nada |
+| `color` | tema | cor dos módulos escuros |
+
+Sem `value` como apelido de `content`, de propósito: em todo widget bindado
+deste motor `value` é o NOME de uma chave (sem `{}`); aqui seria um texto
+literal — os dois com o mesmo nome e sentido oposto confundiria os dois lados.
+
+### `<Chip>`
+`<Badge>` com um "×" que remove.
+
+```gv
+<Chip label="produção" on_remove="remover_tag:producao" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `label` | vazio | o texto |
+| `on_remove` | — | ação ao clicar no "×". Ausente = "×" não desenha |
+
+### `<Skeleton>`
+Placeholder de carregamento — um retângulo do tamanho declarado.
+
+```gv
+<Skeleton width="200" height="16" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `width` / `height` | `fill` / `16` | dimensões |
+| `radius` | `4` | `border_radius` |
+
+### `<CommandLink>`
+Botão de duas linhas — título forte, descrição apagada — com uma seta.
+
+```gv
+<CommandLink title="Instalação típica" description="Recomendado" on_click="ir" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `title` | vazio | linha forte |
+| `description` | ausente | linha apagada; ausente = só o título |
+| `on_click` | — | ação ao soltar |
+
+### `<RoundButton>`
+Um `<Button>` com `border_radius` total — um círculo.
+
+```gv
+<RoundButton text="+" color="#89B4FA" on_click="novo" size="48" />
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `text` | vazio | o glifo/ícone |
+| `color` | `#45475A` | fundo do círculo — sem ele o `<Button>` do motor não aplica `border_radius` nenhum |
+| `size` | `40` | diâmetro em px |
 
 ---
 

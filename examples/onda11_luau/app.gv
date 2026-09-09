@@ -16,7 +16,13 @@
     <!-- ══ 1 + 2: Stack, NotificationDot, SplashScreen ══════════════════ -->
     <template if="{aba}" equals="empilhamento">
       <column class="corpo">
-        <text class="lead">O `&lt;stack&gt;` empilha filhos no mesmo espaço. Um filho com `anchor=` gruda num dos nove cantos sem precisar de coordenada; um filho com `x=`/`y=` usa posição livre em pixels (`pin`). Os dois são atributos de MARKUP — nenhum dos dois pede uma linha de script.</text>
+        <text class="lead">
+          O `&lt;stack&gt;` empilha filhos no mesmo espaço. Um filho com `anchor=`
+          gruda num dos nove cantos sem precisar de coordenada;
+          um filho com `x=`/`y=` usa posição livre em pixels (`pin`).
+          Os dois são atributos de MARKUP — nenhum dos dois
+          pede uma linha de script.
+        </text>
 
         <row class="linha" spacing="24">
           <column class="bloco" spacing="8">
@@ -55,13 +61,22 @@
               </NotificationDot>
               <button text="alternar" on_click="alternar_notificacao" />
             </row>
-            <text class="nota">`&lt;stack&gt;` (a primeira camada) + `anchor="top-right"` (a segunda) — sem `pin`, porque um canto não precisa saber o tamanho do ícone.</text>
+            <text class="nota">
+              `&lt;stack&gt;` (a primeira camada) + `anchor="top-right"`
+              (a segunda) — sem `pin`, porque um canto não
+              precisa saber o tamanho do ícone.
+            </text>
           </column>
         </row>
 
         <column class="bloco" spacing="8">
           <text class="secao">SplashScreen</text>
-          <text class="nota">Cobre o conteúdo principal enquanto `show` for verdadeiro. Sem animação — um `&lt;reveal&gt;` não interpola um filho `height="fill"` (a armadilha do `Length::Fill`, ver `PRIMITIVAS.md`).</text>
+          <text class="nota">
+            Cobre o conteúdo principal enquanto `show` for verdadeiro.
+            Sem animação — um `&lt;reveal&gt;` não interpola um
+            filho `height="fill"` (a armadilha do `Length::Fill`,
+            ver `PRIMITIVAS.md`).
+          </text>
           <button text="reabrir a splash" on_click="abrir_splash" />
 
           <SplashScreen show="{carregando}" class="demo-splash">
@@ -84,10 +99,18 @@
     <!-- ══ 3: MdiArea ════════════════════════════════════════════════════ -->
     <template if="{aba}" equals="mdi">
       <column class="corpo">
-        <text class="lead">Duas janelas nomeiam QUATRO chaves cada (`x`/`y`/`w`/`h`). Arraste a barra de título para mover; arraste o canto inferior direito para redimensionar — o MESMO `grip::Alvo::Ponto`, com limites diferentes. O arrasto inteiro é do MOTOR: nenhuma das quatro chaves tem função Luau nenhuma por trás.</text>
+        <text class="lead">
+          Duas janelas nomeiam QUATRO chaves cada (`x_var`/`y_var`/`w_var`/
+          `h_var` — a forma curta `x`/`y`/`w`/`h` também funciona, mas colide
+          de NOME com o `x`/`y` do `&lt;stack&gt;` acima).
+          Arraste a barra de título para mover; arraste o canto inferior
+          direito para redimensionar — o MESMO `grip::Alvo::Ponto`,
+          com limites diferentes. O arrasto inteiro é do MOTOR: nenhuma
+          das quatro chaves tem função Luau nenhuma por trás.
+        </text>
 
         <mdiarea class="mdi-fundo">
-          <mdisubwindow title="Editor" x="editor_x" y="editor_y" w="editor_w" h="editor_h">
+          <mdisubwindow title="Editor" x_var="editor_x" y_var="editor_y" w_var="editor_w" h_var="editor_h">
             <column class="janela-corpo" spacing="8" padding="12">
               <text class="secao">Editor</text>
               <text class="chave">editor_x = {editor_x}   editor_y = {editor_y}</text>
@@ -95,10 +118,13 @@
             </column>
           </mdisubwindow>
 
-          <mdisubwindow title="Console" x="console_x" y="console_y" w="console_w" h="console_h" default_w="300" default_h="180">
+          <mdisubwindow title="Console" x_var="console_x" y_var="console_y" w_var="console_w" h_var="console_h" default_w="300" default_h="180">
             <column class="janela-corpo" spacing="8" padding="12">
               <text class="secao">Console</text>
-              <text class="nota">Esta janela não recebeu seed nem para `w`/`h` — nasce em `default_w`/`default_h` (300×180), do markup.</text>
+              <text class="nota">
+                Esta janela não recebeu seed nem para `w`/`h` —
+                nasce em `default_w`/`default_h` (300×180), do markup.
+              </text>
             </column>
           </mdisubwindow>
         </mdiarea>
@@ -109,14 +135,20 @@
     <template if="{aba}" equals="troco">
       <scrollable>
         <column class="corpo">
-          <text class="lead">Cinco widgets pequenos que a §6.3 do `PLANO_WIDGETS.md` guardava como "não abre rodada sozinho" — a Onda 11 passou no lugar deles.</text>
+          <text class="lead">
+            Cinco widgets pequenos que a §6.3 do `PLANO_WIDGETS.md` guardava como
+            "não abre rodada sozinho" — a Onda 11 passou no lugar deles.
+          </text>
 
           <row class="linha" spacing="24">
             <column class="bloco" spacing="8">
               <text class="secao">QrCode</text>
               <qrcode content="{qr_texto}" width="120" height="120" />
               <textinput value="qr_texto" on_change="qr_texto" placeholder="conteúdo do QR" />
-              <text class="nota">`on_change="qr_texto"` sem função Luau nenhuma com esse nome: o `dispatch` cai no binding legado `ctx.qr_texto = value` sozinho.</text>
+              <text class="nota">
+                `on_change="qr_texto"` sem função Luau nenhuma com esse nome: o
+                `dispatch` cai no binding legado `ctx.qr_texto = value` sozinho.
+              </text>
             </column>
 
             <column class="bloco" spacing="8">
@@ -124,7 +156,11 @@
               <row spacing="8">
                 <Chip for-each="tags" var="tag" label="{tag}" on_remove="remover_tag:{tag}" />
               </row>
-              <text class="nota">`remover_tag:{tag}` chama `remover_tag(tag)` — a convenção `nome:sufixo` do dispatcher Luau, a mesma que um componente Rust faria fatiando a string à mão.</text>
+              <text class="nota">
+                `remover_tag:{tag}` chama `remover_tag(tag)` — a convenção `nome:sufixo`
+                do dispatcher Luau, a mesma que um componente Rust
+                faria fatiando a string à mão.
+              </text>
             </column>
 
             <column class="bloco" spacing="8">
@@ -140,8 +176,16 @@
           <row class="linha" spacing="24">
             <column class="bloco" spacing="8" width="360">
               <text class="secao">CommandLink</text>
-              <CommandLink title="Instalação típica" description="Recomendado para a maioria dos usuários" on_click="instalar_tipica" />
-              <CommandLink title="Instalação customizada" description="Escolha componentes individualmente" on_click="instalar_custom" />
+              <CommandLink
+                title="Instalação típica"
+                description="Recomendado para a maioria dos usuários"
+                on_click="instalar_tipica"
+              />
+              <CommandLink
+                title="Instalação customizada"
+                description="Escolha componentes individualmente"
+                on_click="instalar_custom"
+              />
             </column>
 
             <column class="bloco" spacing="8">

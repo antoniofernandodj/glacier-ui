@@ -8,6 +8,95 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.96.0] — 2026-09-08 · CLI 0.4.5 · Glacier View 0.19.0
+
+**Onda 11 do `PLANO_WIDGETS.md`: o que fica por cima — parcial.** Dois
+habilitadores de motor e sete widgets levam o catálogo Qt de superfície de
+**82,4% para 88,8%** (111 de 125). A Onda 10 (registro de famílias de fonte)
+foi pulada por pedido; o `Dock` e a série múltipla dos gráficos, cortados
+durante a implementação — os dois pelo motivo que a própria seção da onda já
+cravava como risco antes de escrever uma linha, ver `PLANO_WIDGETS.md`.
+
+### Adicionado
+
+- **`<stack>`/`<pilha>`** — empilha filhos no mesmo espaço, o primeiro
+  embaixo. O `iced` já tinha `stack`/`pin`; o `widget.rs` só usava `stack!`
+  uma vez, hardcoded, no `<progressbar>`. Um filho com `anchor` gruda num dos
+  nove cantos sem coordenada (um `container` `Fill` alinhado); um filho com
+  `x`/`y` usa posição livre em pixels (`pin`), e vence `anchor` se os dois
+  aparecerem.
+- **`<mdiarea>`/`<mdisubwindow>`** (`QMdiArea`) — janelas internas. Cada
+  `<mdisubwindow>` nomeia QUATRO chaves (posição/tamanho); mover (barra de
+  título) e redimensionar (canto) são o MESMO `grip::Alvo::Ponto`, só com
+  limites diferentes. **17ª correção de nível**: não é estado por instância,
+  é a mesma forma que o `<rangeslider>` usa para duas chaves, com duas a
+  mais. Sem reordenação Z por clique — os filhos são markup estático, não
+  uma coleção, e não há "mover para o fim" sem uma.
+- **`<qrcode>`** — o `qr_code` nativo do `iced`, atrás da feature `qr_code`.
+  O `qr_code::Data` (não é `Clone`) é cacheado por conteúdo com um
+  `Box::leak` por string distinta.
+- **`<NotificationDot>`** — `<stack>` (o `<slot/>`, o ícone) + `anchor` (o
+  pontinho). Primeiro consumidor do habilitador A.
+- **`<SplashScreen>`** — cobre o `<slot/>` principal com um
+  `<slot name="splash">` enquanto `show` for verdadeiro. Sem animação: um
+  `<reveal>` não interpola um filho `height="fill"` (a armadilha do
+  `Length::Fill`, ver `PRIMITIVAS.md`) — achado escrevendo o widget, não
+  planejando-o.
+- **`<Chip>`, `<Skeleton>`, `<CommandLink>`, `<RoundButton>`** — o troco da
+  §6.3 do plano, esvaziado. `RoundButton` ganhou um default inline para
+  `color`: sem fundo, o `<Button>` do motor não aplica `border_radius`
+  nenhum (só entra no `.style()` junto do fundo).
+
+### Motor
+
+- **`grip::Alvo::Ponto`** (`src/grip.rs`) — o arrasto da Onda 9 generalizado
+  para duas dimensões. `Arrasto` ganhou uma segunda origem/valor
+  (`origem_y`/`valor0_y`) e uma segunda chave opcional (`chave_y`); os dois
+  alvos existentes (`Trilha`/`Indice`) não mudaram de comportamento.
+  `Arrasto::aplica` passou a devolver `Vec<(String, String)>` em vez de
+  `Option<(String, String)>` — `Alvo::Ponto` é o único que pode escrever
+  duas chaves de uma vez.
+
+### Corrigido
+
+- **`<qrcode>` não aceita mais `value`/`valor` como apelido de `content`.**
+  Em todo widget bindado deste motor esses dois nomes carregam o NOME de
+  uma chave (`value="volume"`, sem chaves); o `content` do QrCode é um
+  texto literal, quase sempre `{interpolado}` — os dois com o mesmo nome e
+  sentido oposto confundiria quem escreve e a extensão de VS Code, que trata
+  `value`/`valor` como "isto é o nome de uma chave" em qualquer tag.
+
+### Ferramentas
+
+- **Extensão Glacier View 0.19.0** — o catálogo conhece as nove tags novas
+  (`Stack`, `MdiArea`, `MdiSubWindow`, `QrCode`, `NotificationDot`,
+  `SplashScreen`, `Chip`, `Skeleton`, `RoundButton`, `CommandLink`), cada
+  uma com seção própria em `references/glacier-view.md`. Sem isso o
+  Ctrl+clique/F12 numa delas tentava resolvê-la como componente do app
+  (procurando um `.gv` que a declarasse) e não achava nada — encontrado
+  testando de verdade, não assumindo que registrar a tag no motor bastava.
+
+  De carona, uma correção que não era desta onda: `StackView` reivindicava
+  `stack`/`pilha` como apelidos desde que o catálogo foi escrito, mas o
+  motor nunca os registrou (só o alias automático `stackview`, minúsculo
+  colado) — os dois ficaram por engano, e a Onda 11 os teria reclamado em
+  cima se o engano não fosse corrigido junto.
+
+  `BINDING_ATTRS` ganhou `x_var`/`y_var`/`w_var`/`h_var`/`width_var`/
+  `height_var` para o Ctrl+clique de `<mdisubwindow>`. **De propósito sem a
+  forma curta** (`x`/`y`/`w`/`h`, que também funciona no motor): são os
+  MESMOS nomes que `x`/`y` usam num filho de `<stack>` para pixel livre, e
+  o binding é por nome de atributo, sem olhar a tag — ligaria um `x="14"`
+  de posição livre a uma busca por chave chamada "14". `VOID_TAGS` ganhou
+  `QrCode`/`Chip`/`Skeleton`/`CommandLink`/`RoundButton` (nenhum tem
+  filho).
+- **CLI 0.4.5** — republica com a extensão nova embutida e o
+  `engine-version.txt` apontando para a 0.96.0.
+
+Exemplos: `cargo run --example onda11` e `cargo run --example onda11_luau`.
+
+---
+
 ## Ferramentas — 2026-09-08 · CLI 0.4.4 · Glacier View 0.18.1
 
 **Sem versão de motor: a `glacier-ui` continua na 0.95.0** e não foi

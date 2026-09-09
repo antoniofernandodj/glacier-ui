@@ -92,7 +92,11 @@ end
 -- ── NotificationDot ──────────────────────────────────────────────────────
 
 function alternar_notificacao()
-    local ligado = ctx.tem_notificacao ~= nil and ctx.tem_notificacao ~= "" and ctx.tem_notificacao ~= "false"
+    local ligado = (
+        ctx.tem_notificacao ~= nil and
+        ctx.tem_notificacao ~= "" and
+        ctx.tem_notificacao ~= "false"
+    )
     ctx.tem_notificacao = ligado and nil or "true"
 end
 

@@ -83,10 +83,10 @@
     <!-- ══ 3: MdiArea ════════════════════════════════════════════════════ -->
     <template if="{aba}" equals="mdi">
       <column class="corpo">
-        <text class="lead">Duas janelas nomeiam QUATRO chaves cada (`x`/`y`/`w`/`h`). Arraste a barra de título para mover; arraste o canto inferior direito para redimensionar — o MESMO `grip::Alvo::Ponto`, com limites diferentes.</text>
+        <text class="lead">Duas janelas nomeiam QUATRO chaves cada (`x_var`/`y_var`/`w_var`/`h_var` — a forma curta `x`/`y`/`w`/`h` também funciona, mas colide de NOME com o `x`/`y` do `&lt;stack&gt;` acima). Arraste a barra de título para mover; arraste o canto inferior direito para redimensionar — o MESMO `grip::Alvo::Ponto`, com limites diferentes.</text>
 
         <mdiarea class="mdi-fundo">
-          <mdisubwindow title="Editor" x="editor_x" y="editor_y" w="editor_w" h="editor_h">
+          <mdisubwindow title="Editor" x_var="editor_x" y_var="editor_y" w_var="editor_w" h_var="editor_h">
             <column class="janela-corpo" spacing="8" padding="12">
               <text class="secao">Editor</text>
               <text class="chave">editor_x = {editor_x}   editor_y = {editor_y}</text>
@@ -94,7 +94,7 @@
             </column>
           </mdisubwindow>
 
-          <mdisubwindow title="Console" x="console_x" y="console_y" w="console_w" h="console_h" default_w="300" default_h="180">
+          <mdisubwindow title="Console" x_var="console_x" y_var="console_y" w_var="console_w" h_var="console_h" default_w="300" default_h="180">
             <column class="janela-corpo" spacing="8" padding="12">
               <text class="secao">Console</text>
               <text class="nota">Esta janela não recebeu seed nem para `w`/`h` — nasce em `default_w`/`default_h` (300×180), do markup.</text>
