@@ -1458,6 +1458,20 @@ impl GlacierUI {
                 // (`<tableheader>`, Onda 6). As duas coisas compartilham este
                 // braço de propósito: só um arrasto existe por vez no app, e o
                 // botão do mouse é um só.
+                //
+                // Onda 12: um [`crate::grip::Alvo::Zona`] (o `<dock>`) não
+                // escreveu nada durante o gesto — é **aqui** que ele comete a
+                // borda escolhida, do ponto de soltura (`last_cursor_pos`, que
+                // esteve vivo o arrasto inteiro porque `precisa_do_cursor` o
+                // manteve). A troca de `<splitter>`↔`<stack>` de pai acontece
+                // no `reevaluate_all` seguinte, entre quadros.
+                if let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT)
+                    && let Some(arrasto) = crate::grip::Arrasto::ler(bruto)
+                    && let Some((chave, borda)) =
+                        arrasto.modo_no_release(self.last_cursor_pos)
+                {
+                    self.context_data.insert(chave, borda);
+                }
                 self.context_data.remove(crate::grip::GRIP_CONTEXT);
                 if let Some(drag) = self.drag.take() {
                     let value =

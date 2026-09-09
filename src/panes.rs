@@ -171,6 +171,7 @@ fn alca<'a>(
     .on_press(EngineMessage::GripStart(Arrasto {
         chave: sizes_var.to_string(),
         chave_y: None,
+        chave_modo: None,
         indice,
         eixo: if vertical { Eixo::Y } else { Eixo::X },
         origem: None,
@@ -226,6 +227,7 @@ pub fn render_swipeview<'a>(
         .on_press(EngineMessage::GripStart(Arrasto {
             chave: value_var.to_string(),
             chave_y: None,
+            chave_modo: None,
             indice: 0,
             eixo: Eixo::X,
             origem: None,
@@ -322,6 +324,7 @@ pub fn render_mdi_subwindow<'a>(
     .on_press(EngineMessage::GripStart(Arrasto {
         chave: x_var.to_string(),
         chave_y: (!y_var.is_empty()).then(|| y_var.to_string()),
+        chave_modo: None,
         indice: 0,
         eixo: Eixo::X, // ignorado por `Alvo::Ponto`
         origem: None,
@@ -354,6 +357,7 @@ pub fn render_mdi_subwindow<'a>(
     .on_press(EngineMessage::GripStart(Arrasto {
         chave: w_var.to_string(),
         chave_y: (!h_var.is_empty()).then(|| h_var.to_string()),
+        chave_modo: None,
         indice: 0,
         eixo: Eixo::X,
         origem: None,
@@ -400,6 +404,242 @@ pub fn render_mdi_subwindow<'a>(
             ..Default::default()
         })
         .into()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// <dock> — o habilitador D da Onda 12
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Quão longe o cabeçalho precisa ser arrastado para reancorar. Abaixo disso
+/// foi um clique, e a borda não muda (ver [`Arrasto::modo_no_release`]).
+const LIMIAR_DOCK: f32 = 36.0;
+
+/// O estilo da faixa de título e da aba de restaurar — o mesmo fundo forte do
+/// `<mdisubwindow>`.
+fn fundo_forte(theme: &iced::Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(
+            theme.extended_palette().background.strong.color,
+        )),
+        ..Default::default()
+    }
+}
+
+/// A moldura do painel: borda de 1px na cor forte do tema, cantos suaves.
+fn moldura_painel(theme: &iced::Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(
+            theme.extended_palette().background.base.color,
+        )),
+        border: Border {
+            width: 1.0,
+            color: theme.extended_palette().background.strong.color,
+            radius: iced::border::Radius::new(4.0),
+        },
+        ..Default::default()
+    }
+}
+
+/// O cabeçalho do painel: título arrastável (o gesto) + botões de modo.
+///
+/// `grip` é o arrasto que o título dispara — [`Alvo::Zona`] quando acoplado
+/// (arrastar para uma borda reancora) ou [`Alvo::Ponto`] quando flutuante
+/// (arrastar move, como uma janela do `<mdiarea>`). `None` quando o `<dock>`
+/// não tem `mode=` e portanto não muda de estado.
+fn cabecalho_dock<'a>(
+    title: &str,
+    mode_var: &str,
+    modo: &str,
+    edge_default: &str,
+    grip: Option<Arrasto>,
+) -> Element<'a, EngineMessage> {
+    let rotulo = container(text(title.to_string()).size(12))
+        .padding([4, 8])
+        .width(Length::Fill);
+    let rotulo: Element<'a, EngineMessage> = match grip {
+        Some(a) => mouse_area(rotulo)
+            .interaction(iced::mouse::Interaction::Grab)
+            .on_press(EngineMessage::GripStart(a))
+            .into(),
+        None => rotulo.into(),
+    };
+
+    let mut linha = row![rotulo].align_y(Alignment::Center).width(Length::Fill);
+
+    if !mode_var.is_empty() {
+        let btn = |glifo: &'static str, alvo: String| -> Element<'a, EngineMessage> {
+            mouse_area(container(text(glifo).size(12)).padding([2, 6]))
+                .interaction(iced::mouse::Interaction::Pointer)
+                .on_press(EngineMessage::UiInputChanged {
+                    action: mode_var.to_string(),
+                    value: alvo,
+                })
+                .into()
+        };
+        // Um botão só troca flutuante↔acoplado (o alvo depende de onde se está,
+        // o mesmo raciocínio do "dock back" do `QDockWidget`); o outro esconde.
+        let (glifo_float, alvo_float) = if modo == "float" {
+            ("▣", edge_default.to_string())
+        } else {
+            ("❒", "float".to_string())
+        };
+        linha = linha.push(btn(glifo_float, alvo_float));
+        linha = linha.push(btn("—", "hidden".to_string()));
+    }
+
+    container(linha)
+        .width(Length::Fill)
+        .style(fundo_forte)
+        .into()
+}
+
+/// A aba fina que traz um painel `hidden` de volta, encostada na borda `edge`.
+fn aba_restaurar<'a>(mode_var: &str, edge: &str) -> Element<'a, EngineMessage> {
+    let vertical = edge == "left" || edge == "right";
+    let corpo = container(text("▸").size(11))
+        .padding(if vertical { [8, 2] } else { [2, 8] });
+    let corpo = if vertical {
+        corpo.width(16).height(Length::Fill)
+    } else {
+        corpo.width(Length::Fill).height(16)
+    };
+    mouse_area(corpo.style(fundo_forte))
+        .interaction(iced::mouse::Interaction::Pointer)
+        .on_press(EngineMessage::UiInputChanged {
+            action: mode_var.to_string(),
+            value: edge.to_string(),
+        })
+        .into()
+}
+
+/// `<dock>` (`QDockWidget`) — ver [`crate::parser::NodeType::Dock`].
+///
+/// Dois filhos: o **painel** (0) e o **centro** (1). Uma chave (`mode=`) diz
+/// onde o painel está — `left`/`right`/`top`/`bottom` (acoplado, num
+/// `<splitter>` reutilizado; arrastável se `size=` foi dado), `float` (solto num
+/// `<stack>`, movido como uma janela do `<mdiarea>`) ou `hidden` (só a aba de
+/// restaurar).
+///
+/// # A troca de pai acontece ENTRE quadros
+///
+/// É o que a Onda 11 cortou: acoplar↔soltar trocaria `<splitter>` por `<stack>`
+/// no meio do arrasto. Aqui o cabeçalho dispara um [`Alvo::Zona`], que **não
+/// escreve nada durante o gesto** e comete a borda na soltura
+/// ([`Arrasto::modo_no_release`], via `DragEnd`); o `render_dock` seguinte lê a
+/// chave e monta o pai certo. É o mesmo princípio de todo widget com estado
+/// deste motor — uma chave nomeada, escrita por uma ação, lida no render.
+///
+/// N painéis = `<dock>` aninhados, um por painel — a saída do
+/// `<accordion>`/`<accordionitem>`.
+#[allow(clippy::too_many_arguments)]
+pub fn render_dock<'a>(
+    node: &'a crate::parser::UiNode,
+    context: &'a ContextMap,
+    mode_var: &'a str,
+    edge_default: &'a str,
+    size_var: &'a str,
+    float_x_var: &'a str,
+    float_y_var: &'a str,
+    title: &'a str,
+    min: f32,
+    handle: f32,
+    float_w: f32,
+    float_h: f32,
+    panel: Element<'a, EngineMessage>,
+    center: Element<'a, EngineMessage>,
+) -> Element<'a, EngineMessage> {
+    let modo = context
+        .get(mode_var)
+        .map(String::as_str)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(edge_default);
+    let modo = match modo {
+        "left" | "right" | "top" | "bottom" | "float" | "hidden" => modo,
+        _ => "left",
+    };
+
+    if modo == "hidden" {
+        let aba = aba_restaurar(mode_var, edge_default);
+        let dentro = container(center).width(Length::Fill).height(Length::Fill);
+        return match edge_default {
+            "right" => row![dentro, aba].into(),
+            "top" => column![aba, dentro].into(),
+            "bottom" => column![dentro, aba].into(),
+            _ => row![aba, dentro].into(),
+        };
+    }
+
+    if modo == "float" {
+        let fx = context
+            .get(float_x_var)
+            .and_then(|s| s.trim().parse::<f32>().ok())
+            .unwrap_or(48.0);
+        let fy = context
+            .get(float_y_var)
+            .and_then(|s| s.trim().parse::<f32>().ok())
+            .unwrap_or(48.0);
+        let grip = Arrasto {
+            chave: float_x_var.to_string(),
+            chave_y: (!float_y_var.is_empty()).then(|| float_y_var.to_string()),
+            chave_modo: None,
+            indice: 0,
+            eixo: Eixo::X,
+            origem: None,
+            origem_y: None,
+            valor0: fx,
+            valor0_y: fy,
+            alvo: Alvo::Ponto {
+                min_x: 0.0,
+                max_x: MAXIMO_PAINEL,
+                min_y: 0.0,
+                max_y: MAXIMO_PAINEL,
+            },
+        };
+        let flutuante = container(column![
+            cabecalho_dock(title, mode_var, modo, edge_default, Some(grip)),
+            container(panel).width(Length::Fill).height(Length::Fill),
+        ])
+        .width(float_w)
+        .height(float_h)
+        .style(moldura_painel);
+
+        return Stack::new()
+            .push(container(center).width(Length::Fill).height(Length::Fill))
+            .push(pin(flutuante).x(fx).y(fy))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
+    }
+
+    // Acoplado: o cabeçalho começa um arrasto de reancoragem (`Alvo::Zona`),
+    // que só comete a borda na soltura — sem trocar de pai no meio do gesto.
+    let grip = (!mode_var.is_empty()).then(|| Arrasto {
+        chave: String::new(),
+        chave_y: None,
+        chave_modo: Some(mode_var.to_string()),
+        indice: 0,
+        eixo: Eixo::X,
+        origem: None,
+        origem_y: None,
+        valor0: 0.0,
+        valor0_y: 0.0,
+        alvo: Alvo::Zona { limiar: LIMIAR_DOCK },
+    });
+    let painel_col: Element<'a, EngineMessage> = container(column![
+        cabecalho_dock(title, mode_var, modo, edge_default, grip),
+        container(panel).width(Length::Fill).height(Length::Fill),
+    ])
+    .style(moldura_painel)
+    .into();
+
+    let vertical = modo == "top" || modo == "bottom";
+    let painel_primeiro = modo == "left" || modo == "top";
+    let filhos = if painel_primeiro {
+        vec![painel_col, center]
+    } else {
+        vec![center, painel_col]
+    };
+    render_splitter(node, context, size_var, vertical, handle, min, filhos)
 }
 
 #[cfg(test)]

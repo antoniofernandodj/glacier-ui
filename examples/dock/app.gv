@@ -1,0 +1,53 @@
+<screen title="Glacier — Onda 12 (dock)" size="1080 760" min_size="900 620">
+  <resources>
+    <link rel="stylesheet" href="examples/dock/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 12 — o dock que a Onda 11 cortou</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <row class="atalhos">
+      <text class="rotulo">acoplar:</text>
+      <button text="esq" on_click="lado:left" />
+      <button text="dir" on_click="lado:right" />
+      <button text="topo" on_click="lado:top" />
+      <button text="base" on_click="lado:bottom" />
+      <button text="flutuar" on_click="lado:float" />
+      <button text="esconder" on_click="lado:hidden" />
+      <space class="empurra" />
+      <text class="dica">
+        …ou arraste a faixa de título do painel para uma borda e solte.
+      </text>
+    </row>
+
+    <dock
+      mode="lado"
+      edge="left"
+      size="tam_painel"
+      float_x="painel_x"
+      float_y="painel_y"
+      title="Explorador"
+      class="area"
+    >
+      <!-- filho 0: o painel -->
+      <column class="painel-corpo">
+        <listview
+          items="arquivos"
+          value="arquivo"
+          selected="{arquivo}"
+          height="fill"
+        />
+      </column>
+
+      <!-- filho 1: o centro -->
+      <column class="centro">
+        <text class="secao">{arquivo}</text>
+        <texteditor value="doc" class="editor" />
+      </column>
+    </dock>
+  </column>
+</screen>

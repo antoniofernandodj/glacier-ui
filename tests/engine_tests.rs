@@ -6603,6 +6603,10 @@ fn onda6_arrasto_de_coluna_reescreve_a_chave_de_larguras() {
         indice: 0,
         eixo: glacier_ui::grip::Eixo::X,
         origem: None,
+        origem_y: None,
+        chave_y: None,
+        chave_modo: None,
+        valor0_y: 0.0,
         valor0: 120.0,
         alvo: glacier_ui::grip::Alvo::Trilha {
             min: 48.0,
@@ -6667,6 +6671,10 @@ fn onda6_a_coluna_arrastada_tem_piso() {
         indice: 0,
         eixo: glacier_ui::grip::Eixo::X,
         origem: None,
+        origem_y: None,
+        chave_y: None,
+        chave_modo: None,
+        valor0_y: 0.0,
         valor0: 120.0,
         alvo: glacier_ui::grip::Alvo::Trilha {
             min: 48.0,

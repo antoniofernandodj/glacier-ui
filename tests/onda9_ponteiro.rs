@@ -88,6 +88,10 @@ fn o_primeiro_movimento_ancora_e_nao_arrasta() {
         indice: 0,
         eixo: glacier_ui::grip::Eixo::X,
         origem: None,
+        origem_y: None,
+        chave_y: None,
+        chave_modo: None,
+        valor0_y: 0.0,
         valor0: 200.0,
         alvo: glacier_ui::grip::Alvo::Trilha {
             min: 60.0,
@@ -122,6 +126,10 @@ fn soltar_encerra_o_arrasto() {
         indice: 0,
         eixo: glacier_ui::grip::Eixo::X,
         origem: None,
+        origem_y: None,
+        chave_y: None,
+        chave_modo: None,
+        valor0_y: 0.0,
         valor0: 200.0,
         alvo: glacier_ui::grip::Alvo::Trilha {
             min: 60.0,
@@ -204,6 +212,10 @@ fn splitter_converte_a_trilha_arrastada_e_preserva_as_outras() {
         indice: 1,
         eixo: glacier_ui::grip::Eixo::X,
         origem: None,
+        origem_y: None,
+        chave_y: None,
+        chave_modo: None,
+        valor0_y: 0.0,
         valor0: 120.0,
         alvo: glacier_ui::grip::Alvo::Trilha {
             min: 60.0,
@@ -258,6 +270,10 @@ fn swipeview_vira_a_pagina_e_satura_nas_pontas() {
             indice: 0,
             eixo: glacier_ui::grip::Eixo::X,
             origem: None,
+            origem_y: None,
+            chave_y: None,
+            chave_modo: None,
+            valor0_y: 0.0,
             valor0: atual,
             alvo: glacier_ui::grip::Alvo::Indice {
                 passo: 100.0,

@@ -2110,6 +2110,45 @@ pub enum NodeType {
         /// painel some da tela junto com a alça dele.
         min: f32,
     },
+    /// `QDockWidget`: um painel acoplável — o habilitador D da Onda 12.
+    ///
+    /// ```xml
+    /// <dock mode="lado_expl" edge="left" size="tam_expl"
+    ///       float_x="expl_x" float_y="expl_y" title="Explorador">
+    ///     <tree items="arvore" value="no" abertos="{abertos}" />   <!-- painel -->
+    ///     <texteditor value="doc" />                               <!-- centro -->
+    /// </dock>
+    /// ```
+    ///
+    /// Dois filhos: painel (0) e centro (1). N painéis = `<dock>` aninhados. A
+    /// chave `mode=` guarda `left`/`right`/`top`/`bottom`/`float`/`hidden`; o
+    /// cabeçalho arrastado para uma borda **reancora na soltura**
+    /// (`crate::grip::Alvo::Zona`), sem trocar `<splitter>`↔`<stack>` de pai no
+    /// meio do gesto — foi o que a Onda 11 cortou.
+    Dock {
+        /// Chave com o estado atual. Vazia = fixo em `edge`, sem botões nem
+        /// arrasto de reancoragem.
+        mode_var: String,
+        /// Borda default quando a chave está vazia. `left` (default), `right`,
+        /// `top` ou `bottom`.
+        edge: String,
+        /// Chave da trilha do `<splitter>` quando acoplado (formato `"240 fill"`).
+        /// Vazia = painel e centro repartem igual, sem alça.
+        size_var: String,
+        /// Chaves `x`/`y` do painel flutuante. Vazias = caem em
+        /// `__dock_<mode>_x`/`_y`.
+        float_x_var: String,
+        float_y_var: String,
+        /// Título do painel, na faixa do cabeçalho.
+        title: String,
+        /// Piso de um painel acoplado arrastado. Default 120.
+        min: f32,
+        /// Espessura da alça do `<splitter>`. Default 6.
+        handle: f32,
+        /// Tamanho do painel quando flutuante. Default 280×220.
+        float_w: f32,
+        float_h: f32,
+    },
     /// `QML SwipeView`: páginas trocadas arrastando o dedo.
     ///
     /// ```xml
@@ -2387,6 +2426,7 @@ impl NodeType {
             NodeType::PieChart { .. } => "piechart",
             NodeType::Slider { .. } => "slider",
             NodeType::Splitter { .. } => "splitter",
+            NodeType::Dock { .. } => "dock",
             NodeType::SwipeView { .. } => "swipeview",
             NodeType::RangeSlider { .. } => "rangeslider",
             NodeType::Tumbler { .. } => "tumbler",
@@ -4423,6 +4463,31 @@ impl UiNode {
                     )
                     .clamp(2.0, 24.0),
                     min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 60.0).max(0.0),
+                }
+            }
+            "Dock" | "dock" | "DockWidget" | "dockwidget" | "PainelAcoplavel"
+            | "painel_acoplavel" => {
+                let edge = Self::get_attr(&node, &["edge", "borda", "side", "lado"])
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .filter(|s| matches!(s.as_str(), "left" | "right" | "top" | "bottom"))
+                    .unwrap_or_else(|| "left".to_string());
+                NodeType::Dock {
+                    mode_var: Self::get_attr(&node, &["mode", "modo", "value", "valor"])
+                        .unwrap_or_default(),
+                    edge,
+                    size_var: Self::get_attr(&node, &["size", "sizes", "tamanho", "tamanhos"])
+                        .unwrap_or_default(),
+                    float_x_var: Self::get_attr(&node, &["float_x", "float-x", "x"])
+                        .unwrap_or_default(),
+                    float_y_var: Self::get_attr(&node, &["float_y", "float-y", "y"])
+                        .unwrap_or_default(),
+                    title: Self::get_attr(&node, &["title", "titulo", "título"])
+                        .unwrap_or_default(),
+                    min: Self::get_attr_f32(&node, &["min", "minimo", "mínimo"], 120.0).max(0.0),
+                    handle: Self::get_attr_f32(&node, &["handle", "alca", "alça"], 6.0)
+                        .clamp(2.0, 24.0),
+                    float_w: Self::get_attr_f32(&node, &["float_w", "float-w"], 280.0).max(80.0),
+                    float_h: Self::get_attr_f32(&node, &["float_h", "float-h"], 220.0).max(60.0),
                 }
             }
             "SwipeView" | "swipeview" | "Carrossel" | "carrossel" => NodeType::SwipeView {

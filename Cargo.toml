@@ -129,6 +129,14 @@ path = "examples/series_multiplas/main.rs"
 name = "series_multiplas_luau"
 path = "examples/series_multiplas_luau/main.rs"
 
+[[example]]
+name = "dock"
+path = "examples/dock/main.rs"
+
+[[example]]
+name = "dock_luau"
+path = "examples/dock_luau/main.rs"
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
 roxmltree = "0.21"

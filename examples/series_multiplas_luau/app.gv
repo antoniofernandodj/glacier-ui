@@ -14,8 +14,8 @@
     <scrollable width="fill" height="fill">
       <column class="corpo">
         <text class="lead">
-          O script escreve uma tabela `{ name, points, color? }` na chave; o
-          `<linechart>` a lê no render. Nenhuma linha de Luau desenha nada.
+          O script escreve uma tabela `name, points, color?` na chave; o
+          gráfico a lê no render. Nenhuma linha de Luau desenha nada.
         </text>
 
         <column class="bloco">

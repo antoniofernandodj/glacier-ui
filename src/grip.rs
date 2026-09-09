@@ -122,17 +122,36 @@ pub enum Alvo {
         min_y: f32,
         max_y: f32,
     },
+    /// Arrasto que **não escreve nada durante o gesto** e comete um valor
+    /// discreto **na soltura** — o habilitador D da Onda 12, para o `<dock>`.
+    ///
+    /// Enquanto o dedo está apertado, `aplica` só ancora a origem nos dois
+    /// eixos (é o que dá a [`Arrasto::modo_no_release`] o `dx`/`dy` do gesto
+    /// inteiro). No `DragEnd`, o motor chama `modo_no_release` com o ponto de
+    /// soltura: um delta abaixo de `limiar` nos dois eixos **não muda nada**
+    /// (foi um clique, não um arrasto); acima dele, o eixo dominante escolhe a
+    /// borda (`left`/`right`/`top`/`bottom`) e o valor vai para
+    /// [`Arrasto::chave_modo`].
+    ///
+    /// É a resposta ao que a Onda 11 cortou: trocar `<splitter>`↔`<stack>` de
+    /// pai **entre quadros**, dirigido por uma chave nomeada, em vez de
+    /// reparentar no meio do arrasto.
+    Zona { limiar: f32 },
 }
 
 /// Um arrasto em curso. Serializa para [`GRIP_CONTEXT`] e volta de lá.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Arrasto {
     /// A chave do app que este arrasto reescreve. Para [`Alvo::Ponto`], é a
-    /// do eixo `x`; a do `y` é [`Arrasto::chave_y`].
+    /// do eixo `x`; a do `y` é [`Arrasto::chave_y`]. Para [`Alvo::Zona`] não é
+    /// escrita durante o gesto (ver [`Arrasto::chave_modo`]).
     pub chave: String,
-    /// A chave do eixo `y`, só para [`Alvo::Ponto`]. `None` nos outros dois
-    /// alvos, que escrevem uma chave só.
+    /// A chave do eixo `y`, só para [`Alvo::Ponto`]. `None` nos outros alvos,
+    /// que escrevem uma chave só (ou nenhuma, no caso de [`Alvo::Zona`]).
     pub chave_y: Option<String>,
+    /// A chave que recebe a **borda escolhida** na soltura, só para
+    /// [`Alvo::Zona`] — `left`/`right`/`top`/`bottom`. `None` nos outros alvos.
+    pub chave_modo: Option<String>,
     /// Qual trilha (para [`Alvo::Trilha`]); ignorado pelos outros dois.
     pub indice: usize,
     /// Ignorado por [`Alvo::Ponto`], que sempre arrasta nos dois eixos.
@@ -188,11 +207,13 @@ impl Arrasto {
                 min_y,
                 max_y,
             } => ("ponto", min_x, max_x, min_y, max_y),
+            Alvo::Zona { limiar } => ("zona", limiar, 0.0, 0.0, 0.0),
         };
         format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
             self.chave,
             self.chave_y.as_deref().unwrap_or(""),
+            self.chave_modo.as_deref().unwrap_or(""),
             self.indice,
             self.eixo.letra(),
             fmt_origem(self.origem),
@@ -212,8 +233,22 @@ impl Arrasto {
     /// do app com lixo.
     pub fn ler(bruto: &str) -> Option<Self> {
         let campos: Vec<&str> = bruto.split('|').collect();
-        let [chave, chave_y, indice, eixo, origem, origem_y, valor0, valor0_y, tipo, a, b, c, d] =
-            campos[..]
+        let [
+            chave,
+            chave_y,
+            chave_modo,
+            indice,
+            eixo,
+            origem,
+            origem_y,
+            valor0,
+            valor0_y,
+            tipo,
+            a,
+            b,
+            c,
+            d,
+        ] = campos[..]
         else {
             return None;
         };
@@ -226,6 +261,7 @@ impl Arrasto {
         Some(Self {
             chave: chave.to_string(),
             chave_y: (!chave_y.is_empty()).then(|| chave_y.to_string()),
+            chave_modo: (!chave_modo.is_empty()).then(|| chave_modo.to_string()),
             indice: indice.parse().ok()?,
             eixo: Eixo::de_letra(eixo),
             origem: ler_origem(origem)?,
@@ -243,6 +279,7 @@ impl Arrasto {
                     min_y: c,
                     max_y: d,
                 },
+                "zona" => Alvo::Zona { limiar: a.max(1.0) },
                 _ => Alvo::Trilha { min: a, max: b },
             },
         })
@@ -258,6 +295,18 @@ impl Arrasto {
     /// [`Alvo::Ponto`] é o único que pode devolver **duas** entradas — uma por
     /// eixo — porque é o único cujo `chave_y` existe.
     pub fn aplica(&mut self, p: Point, context: &ContextMap) -> Vec<(String, String)> {
+        // [`Alvo::Zona`] não escreve nada durante o gesto — só ancora os dois
+        // eixos para que o `dx`/`dy` do arrasto inteiro exista na soltura (ver
+        // [`Arrasto::modo_no_release`]). A troca de `<splitter>`↔`<stack>`
+        // acontece depois, entre quadros.
+        if matches!(self.alvo, Alvo::Zona { .. }) {
+            if self.origem.is_none() {
+                self.origem = Some(p.x);
+                self.origem_y = Some(p.y);
+            }
+            return Vec::new();
+        }
+
         if let Alvo::Ponto {
             min_x,
             max_x,
@@ -317,13 +366,46 @@ impl Arrasto {
                 let i = (self.valor0 + degraus).clamp(0.0, max as f32);
                 format!("{i:.0}")
             }
-            Alvo::Ponto { .. } => unreachable!("tratado no braço acima"),
+            Alvo::Ponto { .. } | Alvo::Zona { .. } => {
+                unreachable!("tratados nos braços acima")
+            }
         };
         if context.get(&self.chave) != Some(&novo) {
             vec![(self.chave.clone(), novo)]
         } else {
             Vec::new()
         }
+    }
+
+    /// O `(chave, borda)` a escrever **na soltura** de um [`Alvo::Zona`], ou
+    /// `None` quando não há o que fazer: alvo diferente, sem [`Arrasto::chave_modo`],
+    /// gesto sem movimento (`origem` nunca ancorou), ou delta abaixo de `limiar`
+    /// nos dois eixos — este último é o clique que não virou arrasto, e a borda
+    /// não muda.
+    ///
+    /// Acima do limiar, o **eixo dominante** escolhe: mais horizontal →
+    /// `left`/`right` pelo sinal de `dx`; mais vertical → `top`/`bottom` por
+    /// `dy`. Não existe "soltou no centro" aqui — isso pediria o retângulo do
+    /// widget, que o `grip.rs` de propósito não vê; flutuar é um botão do
+    /// cabeçalho, não um alvo de arrasto.
+    pub fn modo_no_release(&self, p: Point) -> Option<(String, String)> {
+        let Alvo::Zona { limiar } = self.alvo else {
+            return None;
+        };
+        let chave_modo = self.chave_modo.as_ref()?;
+        let (ox, oy) = (self.origem?, self.origem_y?);
+        let (dx, dy) = (p.x - ox, p.y - oy);
+        if dx.abs() < limiar && dy.abs() < limiar {
+            return None;
+        }
+        let borda = if dx.abs() >= dy.abs() {
+            if dx < 0.0 { "left" } else { "right" }
+        } else if dy < 0.0 {
+            "top"
+        } else {
+            "bottom"
+        };
+        Some((chave_modo.clone(), borda.to_string()))
     }
 }
 
@@ -345,6 +427,7 @@ mod tests {
         Arrasto {
             chave: chave.into(),
             chave_y: None,
+            chave_modo: None,
             indice,
             eixo,
             origem,
@@ -499,6 +582,7 @@ mod tests {
         Arrasto {
             chave: chave_x.into(),
             chave_y: Some(chave_y.into()),
+            chave_modo: None,
             indice: 0,
             eixo: Eixo::X, // ignorado por Ponto
             origem: None,
@@ -618,5 +702,75 @@ mod tests {
         let _ = a.aplica(Point::new(0.0, 0.0), &ctx(&[]));
         let saida = a.aplica(Point::new(10.0, 10.0), &ctx(&[]));
         assert_eq!(saida, vec![("win_x".to_string(), "10".to_string())]);
+    }
+
+    // ── Alvo::Zona — o habilitador D da Onda 12 ─────────────────────────
+
+    fn arrasto_zona(limiar: f32) -> Arrasto {
+        Arrasto {
+            chave: String::new(),
+            chave_y: None,
+            chave_modo: Some("lado".into()),
+            indice: 0,
+            eixo: Eixo::X,
+            origem: None,
+            origem_y: None,
+            valor0: 0.0,
+            valor0_y: 0.0,
+            alvo: Alvo::Zona { limiar },
+        }
+    }
+
+    #[test]
+    fn zona_ida_e_volta_preserva_chave_modo_e_limiar() {
+        let a = Arrasto {
+            origem: Some(10.0),
+            origem_y: Some(20.0),
+            ..arrasto_zona(48.0)
+        };
+        assert_eq!(Arrasto::ler(&a.escrever()), Some(a));
+    }
+
+    #[test]
+    fn zona_nao_escreve_nada_durante_o_gesto_so_ancora() {
+        let mut a = arrasto_zona(40.0);
+        assert!(a.aplica(Point::new(300.0, 200.0), &ctx(&[])).is_empty());
+        assert_eq!((a.origem, a.origem_y), (Some(300.0), Some(200.0)));
+        // Segundo movimento: continua sem escrever.
+        assert!(a.aplica(Point::new(80.0, 210.0), &ctx(&[])).is_empty());
+    }
+
+    #[test]
+    fn zona_na_soltura_escolhe_a_borda_pelo_eixo_dominante() {
+        let mut a = arrasto_zona(40.0);
+        a.aplica(Point::new(300.0, 200.0), &ctx(&[])); // ancora
+
+        // Puxou para a esquerda, bem além do limiar.
+        assert_eq!(
+            a.modo_no_release(Point::new(120.0, 210.0)),
+            Some(("lado".to_string(), "left".to_string()))
+        );
+        // Para baixo, dy dominante.
+        assert_eq!(
+            a.modo_no_release(Point::new(310.0, 400.0)),
+            Some(("lado".to_string(), "bottom".to_string()))
+        );
+        // Movimento minúsculo: foi um clique, a borda não muda.
+        assert_eq!(a.modo_no_release(Point::new(305.0, 205.0)), None);
+    }
+
+    #[test]
+    fn zona_sem_ancora_ou_sem_chave_modo_nao_faz_nada() {
+        // Nunca moveu (origem em aberto).
+        let a = arrasto_zona(40.0);
+        assert_eq!(a.modo_no_release(Point::new(0.0, 500.0)), None);
+
+        // Ancorou, mas sem chave de modo.
+        let mut b = Arrasto {
+            chave_modo: None,
+            ..arrasto_zona(40.0)
+        };
+        b.aplica(Point::new(300.0, 200.0), &ctx(&[]));
+        assert_eq!(b.modo_no_release(Point::new(0.0, 200.0)), None);
     }
 }

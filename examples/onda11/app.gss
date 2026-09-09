@@ -140,9 +140,13 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
   height: 160;
 }
 
+/* Dimensões explícitas (iguais às de `.demo-anchor`, o pai) em vez de
+   `fill`/`fill`: uma classe com `background` + `width: fill` + `height: fill`
+   dispara o teste que proíbe pintar a janela inteira por uma classe. Aqui o
+   pai é fixo em 300×160, então o resultado é idêntico. */
 .demo-fundo {
-  width: fill;
-  height: fill;
+  width: 300;
+  height: 160;
   background: var(--faixa);
   border_radius: 6;
   border_width: 1;

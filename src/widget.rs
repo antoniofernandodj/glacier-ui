@@ -3013,6 +3013,7 @@ fn celulas_cabecalho(
                 .on_press(EngineMessage::GripStart(crate::grip::Arrasto {
                     chave: widths_var.to_string(),
                     chave_y: None,
+                    chave_modo: None,
                     indice: i,
                     eixo: crate::grip::Eixo::X,
                     origem: None,
@@ -4993,6 +4994,34 @@ pub fn render_node<'a>(
                 .collect();
             crate::panes::render_splitter(
                 node, context, sizes_var, *vertical, *handle, *min, filhos,
+            )
+        }
+        NodeType::Dock {
+            mode_var,
+            edge,
+            size_var,
+            float_x_var,
+            float_y_var,
+            title,
+            min,
+            handle,
+            float_w,
+            float_h,
+        } => {
+            // Dois filhos visíveis: painel (0) e centro (1). Faltando um,
+            // degrada para um `Space` no lugar dele em vez de entrar em pânico.
+            let mut visiveis = node.children.iter().filter(|c| c.hidden != Some(true));
+            let painel = visiveis
+                .next()
+                .map(|c| render_node(c, context, editors, combos, assets, view))
+                .unwrap_or_else(|| iced::widget::Space::new().into());
+            let centro = visiveis
+                .next()
+                .map(|c| render_node(c, context, editors, combos, assets, view))
+                .unwrap_or_else(|| iced::widget::Space::new().into());
+            crate::panes::render_dock(
+                node, context, mode_var, edge, size_var, float_x_var, float_y_var, title, *min,
+                *handle, *float_w, *float_h, painel, centro,
             )
         }
         NodeType::SwipeView {

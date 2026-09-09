@@ -14,12 +14,12 @@ A **fila de execução** — o que construir a seguir, em ordem — está na §6
 e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 
 Última revisão da fila: **2026-09-09**, sobre a 0.98 (ondas 3 a 9 fechadas; **a
-10 retomada e feita PARCIALMENTE**: `FontSelect`, `FontDialog`, `PlainTextEditor`
-🟡→✅; o `TextBrowser` fica, pede uma primitiva `<markdown>`; e **a 11
-completada pelo habilitador C** — série múltipla nos gráficos,
-`AreaChart`/`Scatter` 🟡→✅. Sobra o `Dock`, que passa a ser a Onda 12 sozinho.
-88,8% → **92,0%** (115/125). **Ondas 12 a 14 desenhadas em 2026-09-09**, ainda
-não executadas. A ordenação por **função** — widgets que carregam lógica — que a
+10 feita PARCIALMENTE**: `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅; o
+`TextBrowser` fica, pede uma primitiva `<markdown>`. **A 11 completada** pelo
+habilitador C — série múltipla nos gráficos, `AreaChart`/`Scatter` 🟡→✅. **A 12
+feita** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível). 88,8% →
+**92,8%** (116/125). **Ondas 13 e 14 desenhadas em 2026-09-09**, ainda não
+executadas. A ordenação por **função** — widgets que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
 carrega markup) parecia ter fechado o último item do catálogo com o formato "um
 habilitador, meia dúzia de widgets".
@@ -67,13 +67,15 @@ na §6.2.
 sobre o registro de famílias `src/fonts.rs`; o `TextBrowser` ficou (pede uma
 primitiva `<markdown>`). E a **Onda 11 foi completada** pelo **habilitador C** —
 série múltipla nos gráficos (`series="[{name,points}]"`, legenda, ciclo de cores
-do tema), que fecha o `AreaChart`/`Scatter` 🟡→✅. 88,8% → **92,0%** (115/125).
-Sobra da 11 só o `Dock`, que vira a **Onda 12** sozinho. Depois dela, a **Onda
-13** executa a frase condicional da Onda 7 sobre o `canvas` declarativo e emenda
-o `QWhatsThis`, e a **Onda 14** — só se a promessa do documento mudar — entra em
-wgpu e impressão (`Shader`/`Q3D`/`PrintDialog`). Levam o catálogo a **92,8%,
-94,4% e 96,8%**; com o `TextBrowser`, a **97,6%** — o catálogo tal como escrito,
-esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
+do tema), que fecha o `AreaChart`/`Scatter` 🟡→✅. E a **Onda 12 foi feita**: o
+`Dock` (`<dock>`, primitiva) — `grip::Alvo::Zona` comete a borda **na soltura**,
+sem reparent no meio do gesto, e o `render_dock` monta `<splitter>`/`<stack>`
+entre quadros. 88,8% → **92,8%** (116/125), 18ª correção de nível. Depois disso,
+a **Onda 13** executa a frase condicional da Onda 7 sobre o `canvas` declarativo
+e emenda o `QWhatsThis`, e a **Onda 14** — só se a promessa do documento mudar —
+entra em wgpu e impressão (`Shader`/`Q3D`/`PrintDialog`). Levam o catálogo a
+**94,4% e 96,8%**; com o `TextBrowser`, a **97,6%** — o catálogo tal como
+escrito, esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -285,7 +287,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QToolBox | `ToolBox` | **Built** | column+button | ◐ | P2 | ✅ | `<toolbox>` + `<toolboxitem title="…" value="secao" open="{secao}" id="…">`: **uma** aberta por vez, e clicar na aberta a fecha. Nunca esteve bloqueado, e nem precisou do `contains`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | — (accordion) | `Accordion` | **Built** | column+button | ◐ | P1 | ✅ | `<accordion>` + `<accordionitem …>`: **várias** abertas, num conjunto numa chave só (`abertas="rede,disco"`). ~~precisa estado por instância~~ — precisava do `contains` (0.84), e é o consumidor que o justificou. Uma tag por seção porque o **conteúdo** de cada uma é diferente, e conteúdo é de quem escreve a tela (`<slot/>`, 0.65) — a mesma forma do `QToolBox::addItem`. Onda 4 (0.85); abre/fecha **animado** pelo `<Reveal>` (0.90) |
 | QMdiArea/QMdiSubWindow | `MdiArea` | **Prim** | stack | ◐ | P3 | ✅ | janelas internas: `<mdiarea>` + `<mdisubwindow title="…" x="…" y="…" w="…" h="…">`, uma tag por janela — a mesma razão do `<accordion>` (o CONTEÚDO de cada uma é diferente). **A previsão da §6.2 errou um detalhe**: não é uma coleção (`items=`) — os filhos são markup ESTÁTICO, como o `<accordionitem>` — e por isso não há reordenação Z por clique; a pilha desenha na ordem do markup. Mover (barra de título) e redimensionar (canto) são o MESMO `grip::Alvo::Ponto`, só com limites diferentes — a 17ª correção de nível: o `●` nunca valeu, quatro chaves por janela é a mesma forma que o `<rangeslider>` usa para duas. **Onda 11** (0.96) |
-| QDockWidget | `Dock` | Comp | pane_grid → splitter+stack | ● | P3 | ⬜ | painéis acopláveis. **A Onda 11 tentou e cortou** (0.96): o risco que a própria onda tinha escrito por antecipação se confirmou — acoplado→flutuante é uma MUDANÇA DE PAI no meio de um arrasto, e o `grip.rs` foi escrito para reescrever VALORES (a chave que uma coisa já é), não para trocar a ESTRUTURA da árvore enquanto o dedo está apertado. Não é um bloqueio de motor novo: é decisão de design que esta rodada não tomou. Fica para uma leva futura, isolado do resto — que saiu inteiro |
+| QDockWidget | `Dock` | **Prim** | splitter/stack | ◐ | P3 | ✅ | painéis acopláveis. **Onda 12** (0.98), e a **18ª correção de nível**: o `●` não valia — `mode`/`size`/`float_x`/`float_y` são chaves que o app nomeia, a mesma forma do `<mdisubwindow>`. `<dock mode="lado" edge="left" size="tam" …>` com dois filhos (painel, centro); N painéis = `<dock>` aninhados. A troca `<splitter>`↔`<stack>` de pai que a Onda 11 cortou acontece **entre quadros**: o cabeçalho dispara um `grip::Alvo::Ponto`→`Zona` que **não escreve nada durante o gesto** e comete a borda **na soltura** (`Arrasto::modo_no_release`, via `DragEnd`); o `render_dock` seguinte lê `mode` e monta o pai certo. Saiu **Prim** e não Built (a previsão da §6.2 dizia Built) porque um template de builtin não dispara um arrasto de grip — isso pede um render em Rust, como o `<mdisubwindow>`. **Fica de fora, por escrito:** acoplar entre janelas do daemon, e um fantasma seguindo o cursor durante o gesto (o painel reancora na soltura, sem prévia) |
 | QSpacerItem | `Space` | Prim | space | — | P1 | ✅ | sem `width`/`height` é `Fill` nos dois eixos (o espaçador flexível); com eles, vão fixo. Duplicado na §2.11 por ser layout **e** container |
 
 ### 2.8 Navegação (abas, wizard, stacks)
@@ -779,8 +781,8 @@ ondas 9 a 11):
 |---|---|---|---|---|
 | Onda 11 parcial, Onda 10 pulada (0.96) | 111 | 5 | 9 | 88,8% |
 | **Onda 10 retomada (0.98)** — `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅ | 114 | 4 | 7 | 91,2% |
-| **Onda 11 completa (0.98)** — habilitador C: `AreaChart`/`Scatter` 🟡→✅ | **115** | 3 | 7 | **92,0%** |
-| depois da **Onda 12** (`Dock` — só ele; C já entrou) | 116 | 3 | 6 | **92,8%** |
+| **Onda 11 completa (0.98)** — habilitador C: `AreaChart`/`Scatter` 🟡→✅ | 115 | 3 | 7 | 92,0% |
+| **Onda 12 feita (0.98)** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível) | **116** | 3 | 6 | **92,8%** |
 | depois da **Onda 13** (`Canvas` declarativo + `QWhatsThis`) | 118 | 3 | 4 | **94,4%** |
 | depois da **Onda 14** (`Shader`, `Q3D`, `PrintDialog` — pende decisão de escopo) | 121 | 3 | 1 | **96,8%** |
 | — e com o `TextBrowser` (pede uma primitiva `<markdown>`) | 122 | 3 | 0 | **97,6%** |
@@ -1019,9 +1021,11 @@ de 2026-09-08, que desenhou mais duas):
   **0.98** — `series="[{name,points,color?}]"`, legenda e ciclo de cores do
   tema, `AreaChart`/`Scatter` 🟡→✅, §2.13 a 5/6. Sobra só o `Dock`. 82,4% →
   88,8% → **92,0%**. Detalhe no fim da seção da onda, abaixo.
-- **Onda 12** ⬜ — **só o `Dock`** agora (o habilitador C já entrou ao completar
-  a 11). Uma decisão de design: `grip::Alvo::Zona` que comete um valor de modo
-  na soltura, sem reparent no meio do gesto. 92,0% → **92,8%**.
+- **Onda 12** ✅ **FEITA (0.98)** — **só o `Dock`** (o habilitador C já entrou ao
+  completar a 11). `grip::Alvo::Zona` comete a borda na soltura, sem reparent no
+  meio do gesto; `render_dock` monta `<splitter>`/`<stack>` entre quadros. Saiu
+  **Prim** e não Built (um template não dispara grip), 18ª correção de nível.
+  92,0% → **92,8%**.
 - **Onda 13** ⬜ — o `canvas` declarativo (`<path>`/`<arc>`/`<circle>`), que é a
   frase condicional da Onda 7 executada, mais o `QWhatsThis` de carona. 92,8% →
   **94,4%**.
@@ -2350,9 +2354,9 @@ Onda 12), com um fantasma seguindo o cursor durante o gesto. Fica para a Onda
 12, isolado.
 
 ---
-#### Onda 12 — o `Dock` que a Onda 11 cortou — ⬜ **proposta (2026-09-09), reduzida**
+#### Onda 12 — o `Dock` que a Onda 11 cortou — ✅ **FEITA (0.98)**
 
-**Alvo: 115 → 116 de 125 (de 92,0% para 92,8%).**
+**Alvo: 115 → 116 de 125 (de 92,0% para 92,8%). Cumprido.**
 
 A Onda 11 saiu com dois cortes. O menor — a **série múltipla** (habilitador C) —
 foi entregue ao completar a Onda 11 (0.98): `AreaChart`/`Scatter` 🟡→✅, §2.13 a
@@ -2408,6 +2412,37 @@ e 11 já entregaram. O risco declarado: o habilitador D aposta que "commit na
 soltura" é suficiente e que ninguém vai sentir falta do reparent contínuo. Se
 furar, fura aí — e o `Dock` volta a `Comp ●`, à espera do estado por instância
 de verdade.
+
+##### Como saiu (0.98), contra a proposta acima
+
+**O habilitador D saiu como desenhado, e a aposta se sustentou.** `grip.rs`
+ganhou `Alvo::Zona { limiar }` + um campo `chave_modo: Option<String>` no
+`Arrasto`: durante o gesto `aplica` **só ancora os dois eixos** (não escreve
+nada), e o `DragEnd` chama `Arrasto::modo_no_release(last_cursor_pos)` — delta
+abaixo do limiar nos dois eixos é um clique e não muda nada; acima, o eixo
+dominante escolhe `left`/`right`/`top`/`bottom` e o valor vai para a chave de
+modo. O `render_dock` (`src/panes.rs`) seguinte lê `mode` e monta o pai:
+`<splitter>` reutilizado para os quatro acoplamentos, `<stack>` + `pin` (com o
+`Alvo::Ponto` do `<mdiarea>`) para o flutuante, uma aba fina para o `hidden`. A
+troca de pai acontece **entre quadros**, dirigida pela chave — exatamente o que
+a Onda 11 não tinha feito.
+
+**Dois desvios da proposta:**
+
+| Proposta | Como saiu |
+|---|---|
+| `Dock` seria **Built** (`<splitter>` + `<stack>` + fantasma + chave, tudo em template) | saiu **Prim** (`NodeType::Dock`, `render_dock` em Rust). Um template de builtin **não dispara um arrasto de grip** — o `on_press` de um `<button>` vira uma ação de string, não um `EngineMessage::GripStart`. O `<mdisubwindow>` já era primitiva pelo mesmo motivo. A 18ª correção de nível vale igual (`●` → sem estado por instância), só o nível de saída mudou |
+| Um **fantasma** seguindo o cursor durante o gesto (`<stack>` de overlay, como o `<rubberband>`) | **cortado.** O fantasma exigiria uma terceira chave paralela (`mode`/`current`/`dragging`) e um `<stack>` desenhado pelo template durante o arrasto — a indireção `{{mode}}` que o interpolador não tem, três vezes. O painel **reancora na soltura, sem prévia**. O cursor "grabbing" é o feedback. Fica anotado como o polimento óbvio |
+
+Além do arrasto, os **botões do cabeçalho** (`❒` flutua / `▣` reacopla, `—`
+esconde) escrevem a mesma chave pelo binding legado — a atuação por menu que o
+`QDockWidget` também tem. Testes: 5 propriedades novas de `Alvo::Zona` em
+`src/grip.rs` (ida-e-volta com `chave_modo`, não-escreve-durante-o-gesto, borda
+pelo eixo dominante, clique-não-conta, sem-âncora-não-faz-nada). Exemplos:
+`examples/dock` e `examples/dock_luau`. **Contabilidade:** os arquivos
+`tests/onda9_ponteiro.rs` e `tests/engine_tests.rs` construíam `Arrasto` sem os
+campos que a Onda 11 adicionou (`chave_y`/`origem_y`/`valor0_y`) — estavam
+quebrados desde a 0.96 e ninguém rodou; esta onda os atualizou de passagem.
 
 ---
 #### Onda 13 — o desenho que o `.gv` escreve — ⬜ **proposta (2026-09-09)**
