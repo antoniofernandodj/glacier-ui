@@ -4,39 +4,49 @@
 -- timeout / retries de BASE, mais interceptors e error handlers. Todo método de
 -- chamada (`:get`, `:post`, …) SUSPENDE a corrotina, como o `fetch` cru.
 
--- Um client para a API inteira: base_url, header base, timeout base e 1 retry
--- automático em falha de rede / 429 / 5xx.
-local api = http("https://jsonplaceholder.typicode.com", {
-    headers = { Accept = "application/json" },
-    timeout = 8000, -- ms, por requisição
-    retries = 1,
-})
-
 -- Uma variável de log, para a tela mostrar o que passou pelos interceptors.
-local function log(linha: string)
+local function log(linha: string, kind: "success" | "error")
+    if kind == "success" then
+        console.log(linha)
+    elseif kind == "error" then
+        console.error(linha)
+    end
     ctx.log = (ctx.log or "") .. linha .. "\n"
 end
 
--- Interceptor de REQUISIÇÃO: roda antes de cada `fetch`. Pode mutar `req` ou
--- devolver uma tabela nova. Aqui: carimba um id de rastreio e registra.
-api:on_request(function(req)
-    req.headers["X-Trace-Id"] = string.format("t-%d", math.random(1000, 9999))
-    log(("→ %s %s"):format(req.method, req.path))
-    return req
-end)
 
--- Interceptor de RESPOSTA: roda depois, já com `res.json` decodificado.
-api:on_response(function(res)
-    log(("← %d%s"):format(res.status, res.ok and "" or " (falha)"))
-    return res
-end)
-
--- Error handler: dispara quando o resultado final (depois dos retries) não é
--- ok. `err = { status, error, url, method, attempt, body }`.
-api:on_error(function(err)
-    toast({ message = ("%s %s → %s"):format(err.method, err.url, err.error), kind = "error" })
-    log("‼ " .. err.error)
-end)
+-- Um client para a API inteira: base_url, header base, timeout base e 1 retry
+-- automático em falha de rede / 429 / 5xx.
+local api = http("https://jsonplaceholder.typicode.com", {
+        headers = { Accept = "application/json" },
+        timeout = 8000, -- ms, por requisição
+        retries = 1,
+    }
+):on_request(
+    -- Interceptor de REQUISIÇÃO: roda antes de cada `fetch`. Pode mutar `req` ou
+    -- devolver uma tabela nova. Aqui: carimba um id de rastreio e registra.
+    function(req)
+        req.headers["X-Trace-Id"] = string.format("t-%d", math.random(1000, 9999))
+        log(("→ %s %s"):format(req.method, req.path), "success")
+        return req
+    end
+):on_response(
+    -- Interceptor de RESPOSTA: roda depois, já com `res.json` decodificado.
+    function(res)
+        log(("← %d%s"):format(res.status, res.ok and "" or " (falha)"), "success")
+        return res
+    end
+):on_error(
+    -- Error handler: dispara quando o resultado final (depois dos retries) não é
+    -- ok. `err = { status, error, url, method, attempt, body }`.
+    function(err)
+        toast({
+            message = ("%s %s → %s"):format(err.method, err.url, err.error),
+            kind = "error"
+        })
+        log("‼ " .. err.error, "error")
+    end
+)
 
 -- Um client DERIVADO para um sub-recurso: herda base_url, headers e os
 -- interceptors do pai, e acrescenta o que passar.
