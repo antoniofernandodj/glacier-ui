@@ -13,6 +13,7 @@ pub mod error;
 pub mod eval;
 pub mod external;
 pub mod file_dialog;
+pub mod fonts;
 pub mod forms;
 pub mod gauges;
 pub mod grid;
@@ -666,6 +667,14 @@ impl GlacierUI {
     pub fn set_initial_screen(&mut self, name: &str) {
         self.current_screen = Some(name.to_string());
         self.history.clear();
+        // Onda 10: a lista de famílias de fonte na chave do motor `__fonts`,
+        // para um `<combo items="__fonts">`/`<fontselect>` consumi-la sem API
+        // nova (a convenção do `<menu items="chave">`). Semeada aqui e não em
+        // `new()` porque o app registra as fontes no *builder* do daemon, que
+        // roda antes de qualquer tela existir; `set_initial_screen` é o
+        // primeiro ponto em que o registro já está completo.
+        self.context_data
+            .insert("__fonts".to_string(), fonts::families_json());
         let _ = self.reevaluate_all();
     }
 

@@ -1,0 +1,111 @@
+/*
+examples/fontes_luau/app.gss
+
+Visual da tela. `font` na `<text class="amostra">` é DADO (a família escolhida,
+mostrada como está) — por isso inline no `.gv`, não aqui.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --realce: #89b4fa;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 24;
+  width: fill;
+  height: fill;
+}
+
+.coluna-lista {
+  spacing: 8;
+  width: 340;
+}
+
+.coluna-demo {
+  spacing: 16;
+  width: fill;
+  height: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+  max_width: 440;
+}
+
+.bloco {
+  padding: 14;
+  spacing: 10;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+  width: fill;
+}
+
+.bloco-cresce {
+  height: fill;
+}
+
+.botao {
+  padding: 8 14;
+}
+
+.rotulo {
+  size: 12;
+  color: var(--realce);
+}
+
+.amostra {
+  size: 22;
+  color: var(--texto);
+  max_width: 560;
+}
+
+.amostra-mono {
+  size: 15;
+  color: var(--suave);
+  max_width: 560;
+}

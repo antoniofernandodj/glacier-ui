@@ -154,6 +154,31 @@ function pick_color(opts)
     })
 end
 
+-- Diálogo de FONTE — o `QFontDialog`. SUSPENDE como o `pick_color`, e devolve a
+-- família escolhida (uma string), ou `nil` se o usuário desistiu:
+--   local f = pick_font({ title = "Fonte do editor", value = ctx.fonte, size = 15 })
+--   if f then ctx.fonte = f end
+--
+-- `opts = { title, message?, value?, size?, confirm_label?, cancel_label? }`.
+--
+-- `value` é a família inicial; `size` semeia o campo de tamanho (default 16).
+-- O tamanho e o estilo são PRÉ-VISUALIZAÇÃO — o retorno é só a família. A
+-- lista é a mesma `__fonts` do `<fontselect>` (registro de `src/fonts.rs`;
+-- com a feature `system-fonts`, inclui as do SO).
+function pick_font(opts)
+    opts = opts or {}
+    return coroutine.yield({
+        __glacier_dialog = true,
+        kind = "font",
+        title = opts.title,
+        message = opts.message,
+        value = opts.value,
+        size = opts.size,
+        confirm_label = opts.confirm_label,
+        cancel_label = opts.cancel_label,
+    })
+end
+
 -- Diálogo de PROGRESSO — o `QProgressDialog`. NÃO suspende: ele acompanha um
 -- trabalho que continua rodando, e parar a corrotina aqui pararia justamente o
 -- que ele mostra.

@@ -89,6 +89,8 @@ mod chip;
 mod color_dialog;
 mod command_link;
 mod drawer;
+mod font_dialog;
+mod font_select;
 mod frame;
 mod group_box;
 mod input_dialog;
@@ -121,6 +123,9 @@ pub(crate) use crate::builtins::color_dialog::{
 };
 use crate::builtins::command_link::CommandLink;
 use crate::builtins::drawer::Drawer;
+pub(crate) use crate::builtins::font_dialog::FONT_DIALOG_BODY;
+use crate::builtins::font_dialog::FontDialog;
+use crate::builtins::font_select::FontSelect;
 use crate::builtins::frame::Frame;
 use crate::builtins::group_box::GroupBox;
 pub(crate) use crate::builtins::input_dialog::INPUT_DIALOG_BODY;
@@ -162,6 +167,8 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(ColorDialog),
         Box::new(CommandLink),
         Box::new(Drawer),
+        Box::new(FontDialog),
+        Box::new(FontSelect),
         Box::new(Frame),
         Box::new(GroupBox),
         Box::new(InputDialog),

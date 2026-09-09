@@ -113,6 +113,14 @@ path = "examples/onda1/main.rs"
 name = "onda2"
 path = "examples/onda2/main.rs"
 
+[[example]]
+name = "fontes"
+path = "examples/fontes/main.rs"
+
+[[example]]
+name = "fontes_luau"
+path = "examples/fontes_luau/main.rs"
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
 roxmltree = "0.21"
@@ -181,11 +189,28 @@ version = "0.59"
 features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"]
 optional = true
 
+# ── Enumeração de fontes do SO — opcional, atrás da feature `system-fonts` ────
+# O `iced` não lista as fontes do sistema; esta crate faz (varre os diretórios
+# de fonte do SO e lê o nome de família de cada face). Só entra no build de quem
+# liga a feature — um app empacotado que embute suas fontes com `font_named` não
+# a quer. Ver `src/fonts.rs`. `default-features = false` corta o parsing de
+# `fontconfig` (Linux), que não é preciso só para enumerar famílias.
+[dependencies.fontdb]
+version = "0.23"
+optional = true
+default-features = false
+
 [features]
 # Habilita o ícone de bandeja e o app que sobrevive à última janela. `dep:gtk` e
 # `dep:windows-sys` são deps por-alvo: a ativação é no-op nos alvos onde não
 # existem, então a feature é a mesma nas três plataformas.
 tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys", "dep:libc"]
+
+# Acrescenta as famílias instaladas no SO à lista de `__fonts` (o seletor de
+# fonte). Desligada por padrão: sem ela, `__fonts` traz só o que o app registrou
+# com `GlacierDaemon::font_named`, que é o que um binário empacotado quer. Ver
+# `src/fonts.rs`, "A decisão da §4".
+system-fonts = ["dep:fontdb"]
 
 # ── Workspace ────────────────────────────────────────────────────────────────
 # O motor (este pacote) e o `glacier` — a CLI que faz o bootstrap de um projeto

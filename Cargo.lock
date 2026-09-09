@@ -1570,6 +1570,7 @@ version = "0.97.0"
 dependencies = [
  "base64",
  "flate2",
+ "fontdb",
  "futures",
  "gtk",
  "http-body-util",

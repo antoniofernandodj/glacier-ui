@@ -1,0 +1,64 @@
+<screen title="Glacier — Onda 10 (fontes)" size="1000 720" min_size="860 600">
+  <resources>
+    <link rel="stylesheet" href="examples/fontes/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 10 — a fonte que o motor não sabia nomear</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <row class="corpo">
+      <!-- ══ O seletor: cada família desenhada nela mesma ══════════════ -->
+      <column class="coluna-lista">
+        <text class="secao">fontselect</text>
+        <text class="nota">
+          Lê a chave do motor `__fonts`, semeada pelo registro de
+          `src/fonts.rs`. Cada item desenha o próprio nome na própria
+          família — a linha que o separa de um `select` comum.
+        </text>
+        <fontselect
+          value="fonte"
+          selected="{fonte}"
+          preview="A rápida raposa marrom salta sobre o cão — 0123"
+          height="240"
+        />
+      </column>
+
+      <!-- ══ O que o registro destrava ═══════════════════════════════ -->
+      <column class="coluna-demo">
+        <column class="bloco">
+          <text class="secao">font no .gv</text>
+          <text class="amostra" font="{fonte}">
+            Este título usa o atributo `font` ligado à chave que o fontselect
+            grava — troque a seleção ao lado e ele muda junto.
+          </text>
+        </column>
+
+        <column class="bloco">
+          <text class="secao">font_family no .gss</text>
+          <text class="rotulo-serif">
+            Esta linha não tem `font` no markup: a família vem da classe
+            `.rotulo-serif` no app.gss, pelo mesmo funil (`font_for`).
+          </text>
+          <text class="nota">
+            Um nome que ninguém registrou continua caindo na fonte padrão,
+            em silêncio — a degradação de sempre, agora só para o que
+            realmente não existe.
+          </text>
+        </column>
+
+        <column class="bloco bloco-cresce">
+          <text class="secao">texteditor com fonte declarada — o PlainTextEditor</text>
+          <text class="nota">
+            `QPlainTextEdit` é "texto simples, fonte declarável". A segunda
+            metade era esta onda.
+          </text>
+          <texteditor value="nota" font="{fonte_mono}" class="editor" />
+        </column>
+      </column>
+    </row>
+  </column>
+</screen>

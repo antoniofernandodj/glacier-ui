@@ -241,6 +241,27 @@ impl GlacierDaemon {
         self
     }
 
+    /// Como [`GlacierDaemon::font`], mas também **dá um nome de família** aos
+    /// bytes — o habilitador da Onda 10 do `PLANO_WIDGETS.md`.
+    ///
+    /// Sem o nome, o `iced` carrega a fonte mas nada no markup tem como pedi-la;
+    /// com ele, `font="Inter"` no `.gv` e `font_family: Inter` no `.gss` passam
+    /// a resolvê-la pelo caminho que já existe (`font_for` → [`crate::fonts`]).
+    /// A chave de contexto `__fonts` (semeada em
+    /// [`GlacierUI::set_initial_screen`](crate::GlacierUI::set_initial_screen))
+    /// passa a listá-la, então `<fontselect>` / `<combo items="__fonts">` a
+    /// mostram sem configuração.
+    ///
+    /// Encadeável; chame uma vez por peso. Para usá-la como padrão de todas as
+    /// janelas, combine com [`GlacierDaemon::default_font`] —
+    /// `crate::fonts::register_family(nome)` devolve a [`iced::Font`] a passar
+    /// para lá.
+    pub fn font_named(mut self, family: &str, bytes: &'static [u8]) -> Self {
+        self.fonts.push(bytes);
+        crate::fonts::register_family(family);
+        self
+    }
+
     /// Define a fonte padrão de todas as janelas (tipicamente uma embutida com
     /// [`GlacierDaemon::font`]).
     pub fn default_font(mut self, font: Font) -> Self {

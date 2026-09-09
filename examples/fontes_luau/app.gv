@@ -1,0 +1,47 @@
+<screen title="Glacier — Onda 10 (Luau)" size="960 700" min_size="820 560">
+  <resources>
+    <link rel="stylesheet" href="examples/fontes_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 10 em Luau — pick_font e fontselect</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <row class="corpo">
+      <column class="coluna-lista">
+        <text class="secao">fontselect</text>
+        <text class="nota">
+          Markup puro: lê a chave `__fonts` do motor e grava a família
+          escolhida em `fonte`. Nenhuma linha de script por trás dele.
+        </text>
+        <fontselect value="fonte" selected="{fonte}" height="220" />
+      </column>
+
+      <column class="coluna-demo">
+        <column class="bloco">
+          <text class="secao">pick_font — o QFontDialog</text>
+          <text class="nota">
+            `prompt` com `kind = "font"`, a mesma porta do `pick_color`.
+            Suspende a corrotina e devolve a família, ou nada se cancelar.
+          </text>
+          <button text="Escolher fonte…" on_click="abrir_dialogo" class="botao" />
+          <text class="rotulo">última escolha: {ultima}</text>
+        </column>
+
+        <column class="bloco bloco-cresce">
+          <text class="secao">amostra</text>
+          <text class="amostra" font="{fonte}">
+            Sphinx of black quartz, judge my vow — 0123456789
+          </text>
+          <text class="amostra-mono" font="{fonte}">
+            A mesma linha, no tamanho do editor.
+          </text>
+        </column>
+      </column>
+    </row>
+  </column>
+</screen>

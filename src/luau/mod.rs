@@ -1195,12 +1195,36 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     // `color` é o `QColorDialog`, e ele entra por esta mesma porta de
     // propósito: um seletor de cor é um `prompt` cujo campo é uma roda. Tudo o
     // que o separa dos outros quatro é o nome do corpo.
-    let cor = kind.trim().eq_ignore_ascii_case("color") || kind.trim().eq_ignore_ascii_case("cor");
+    let k = kind.trim();
+    let cor = k.eq_ignore_ascii_case("color") || k.eq_ignore_ascii_case("cor");
+    // `font` entra pela mesma porta que `color`, pelo mesmo motivo: um seletor
+    // de fonte é um `prompt` cujo campo é uma lista de famílias. O que o separa
+    // é o nome do corpo (Onda 10, `builtins::font_dialog`).
+    let fonte = k.eq_ignore_ascii_case("font") || k.eq_ignore_ascii_case("fonte");
     spec = spec.with_body(if cor {
         crate::builtins::COLOR_DIALOG_BODY
+    } else if fonte {
+        crate::builtins::FONT_DIALOG_BODY
     } else {
         crate::builtins::INPUT_DIALOG_BODY
     });
+
+    if fonte {
+        // A família inicial é o que veio em `value` (ou vazio: o `<fontselect>`
+        // abre sem seleção, degradação aceitável). O tamanho semeia o campo —
+        // é pré-visualização, não faz parte do retorno.
+        let familia = req.get::<Option<String>>("value")?.unwrap_or_default();
+        let tamanho = req.get::<Option<f64>>("size")?.unwrap_or(16.0);
+        let rascunho = vec![
+            (DIALOG_VALUE_KEY.to_string(), familia),
+            ("__dialog.size".to_string(), formata_numero(tamanho)),
+        ];
+        return Ok(PedidoDeDialogo {
+            spec,
+            resume_key: Some(DIALOG_VALUE_KEY.to_string()),
+            rascunho,
+        });
+    }
 
     if cor {
         // Sem cor inicial, começa no branco — que é o que a roda desenha

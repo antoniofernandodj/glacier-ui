@@ -411,7 +411,9 @@ use iced::gradient::Linear;
 use iced::{Alignment, Background, Border, Color, Element, Font, Gradient, Length, Padding};
 
 /// Selects an `iced::Font` from a `font="..."` hint. `mono`/`monospace`/`code`
-/// map to the monospaced font; anything else returns `None` (default font).
+/// map to the monospaced font, `bold` to a bold weight; anything else is looked
+/// up in the family registry (Onda 10 — [`crate::fonts`]), and only a name
+/// nobody registered falls through to `None` (the default font).
 fn font_for(hint: Option<&str>) -> Option<Font> {
     let s = hint?;
     if igual_ci(s, "mono") || igual_ci(s, "monospace") || igual_ci(s, "code") {
@@ -422,7 +424,10 @@ fn font_for(hint: Option<&str>) -> Option<Font> {
             ..Default::default()
         })
     } else {
-        None
+        // Apelidos do motor primeiro (acima, compatibilidade); família
+        // registrada depois. É o que faz `<texteditor font="JetBrains Mono">`
+        // — o `PlainTextEditor` da §2.2 — deixar de cair na fonte padrão.
+        crate::fonts::resolve(s)
     }
 }
 
