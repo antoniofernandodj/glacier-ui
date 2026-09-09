@@ -951,12 +951,18 @@ impl LuauComponent {
         let opts: Option<Table> = req.get("opts")?;
         let mut body_bytes: Option<Vec<u8>> = None;
         let mut response_base64 = false;
+        let mut timeout_ms: Option<u64> = None;
         let (method, body, headers) = match opts {
             Some(o) => {
                 let method = o
                     .get::<Option<String>>("method")?
                     .unwrap_or_else(|| "GET".into());
                 let body = o.get::<Option<String>>("body")?;
+                // `timeout = <ms>`: teto da requisição inteira. `<= 0` = sem teto.
+                timeout_ms = o
+                    .get::<Option<f64>>("timeout")?
+                    .filter(|ms| *ms > 0.0)
+                    .map(|ms| ms as u64);
                 // `body_base64`: corpo binário (ex.: um .zip) codificado em base64.
                 // Decodifica aqui e vence o `body` textual em `send`.
                 if let Some(b64) = o.get::<Option<String>>("body_base64")? {
@@ -992,6 +998,7 @@ impl LuauComponent {
         let mut pf = PendingFetch::new(id, url, method, body, headers);
         pf.body_bytes = body_bytes;
         pf.response_base64 = response_base64;
+        pf.timeout_ms = timeout_ms;
         Ok(pf)
     }
 
@@ -3007,6 +3014,205 @@ mod tests {
         }
         assert_eq!(data.get("dados").map(String::as_str), Some("PONG"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── `http(...)` — o cliente do prelúdio sobre `fetch` ────────────────────
+
+    fn ok_json(body: &str) -> FetchResult {
+        FetchResult {
+            ok: true,
+            status: 200,
+            body: body.into(),
+            error: String::new(),
+        }
+    }
+
+    #[test]
+    fn http_client_junta_base_url_headers_e_query() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("https://ex.com/v1", { headers = { Accept = "application/json" } })
+            function carregar()
+                local r = api:get("/itens", { query = { page = 2, q = "a b" } })
+                ctx.dados = r.body
+            end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("carregar", None, &mut ctx);
+        let f = &ctx.fetches[0];
+        assert_eq!(f.url, "https://ex.com/v1/itens?page=2&q=a%20b");
+        assert_eq!(f.method, "GET");
+        assert!(f
+            .headers
+            .iter()
+            .any(|(k, v)| k == "Accept" && v == "application/json"));
+    }
+
+    #[test]
+    fn http_client_post_com_tabela_vira_json_e_content_type() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex")
+            function salvar() api:post("/itens", { nome = "x" }) end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("salvar", None, &mut ctx);
+        let f = &ctx.fetches[0];
+        assert_eq!(f.method, "POST");
+        assert_eq!(f.body.as_deref(), Some(r#"{"nome":"x"}"#));
+        assert!(f
+            .headers
+            .iter()
+            .any(|(k, v)| k.eq_ignore_ascii_case("content-type") && v == "application/json"));
+    }
+
+    #[test]
+    fn http_client_interceptor_de_request_muta_os_headers() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex")
+            api:on_request(function(req) req.headers["X-Trace"] = "abc"; return req end)
+            function carregar() api:get("/x") end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("carregar", None, &mut ctx);
+        assert!(ctx.fetches[0]
+            .headers
+            .iter()
+            .any(|(k, v)| k == "X-Trace" && v == "abc"));
+    }
+
+    #[test]
+    fn http_client_timeout_base_desce_pro_fetch() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex", { timeout = 1500 })
+            function carregar() api:get("/x") end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("carregar", None, &mut ctx);
+        assert_eq!(ctx.fetches[0].timeout_ms, Some(1500));
+    }
+
+    #[test]
+    fn http_client_repete_em_5xx_e_para_no_primeiro_ok() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex", { retries = 2 })
+            function carregar()
+                local r = api:get("/x")
+                ctx.status = tostring(r.status)
+                ctx.dados = r.json and r.json.msg or "?"
+            end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+
+        // Tentativa 1: suspende num fetch.
+        let id1 = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("carregar", None, &mut ctx);
+            ctx.fetches[0].id
+        };
+        // Entrega um 500 → o cliente repete: suspende de novo, num fetch NOVO.
+        let id2 = {
+            let mut ctx = Context::new(&mut data);
+            let f500 = FetchResult {
+                ok: false,
+                status: 500,
+                body: String::new(),
+                error: String::new(),
+            };
+            comp.resume_inner(id1, &f500, &mut ctx).unwrap();
+            assert_eq!(ctx.fetches.len(), 1, "deveria ter reenviado");
+            ctx.fetches[0].id
+        };
+        // Segunda entrega: 200 com JSON → para, decodifica, escreve.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_inner(id2, &ok_json(r#"{"msg":"ok"}"#), &mut ctx)
+                .unwrap();
+        }
+        assert_eq!(data.get("status").map(String::as_str), Some("200"));
+        assert_eq!(data.get("dados").map(String::as_str), Some("ok"));
+    }
+
+    #[test]
+    fn http_client_error_handler_dispara_apos_os_retries() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex")
+            api:on_error(function(err) ctx.falhou = err.method .. " " .. tostring(err.status) end)
+            function carregar() api:get("/x") end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("carregar", None, &mut ctx);
+            ctx.fetches[0].id
+        };
+        {
+            let mut ctx = Context::new(&mut data);
+            let f404 = FetchResult {
+                ok: false,
+                status: 404,
+                body: String::new(),
+                error: String::new(),
+            };
+            comp.resume_inner(id, &f404, &mut ctx).unwrap();
+        }
+        assert_eq!(data.get("falhou").map(String::as_str), Some("GET 404"));
+    }
+
+    #[test]
+    fn http_client_extend_herda_base_e_interceptors() {
+        let comp = LuauComponent::from_source(
+            r#"
+            local api = http("http://ex", { headers = { Accept = "application/json" } })
+            api:on_request(function(req) req.headers["X-App"] = "g"; return req end)
+            local admin = api:extend("/admin", { headers = { ["X-Role"] = "root" } })
+            function carregar() admin:get("/users") end
+            "#,
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("carregar", None, &mut ctx);
+        let f = &ctx.fetches[0];
+        assert_eq!(f.url, "http://ex/admin/users");
+        let tem = |k: &str, v: &str| f.headers.iter().any(|(a, b)| a == k && b == v);
+        assert!(tem("Accept", "application/json"), "herdou o header base");
+        assert!(tem("X-Role", "root"), "acrescentou o header do extend");
+        assert!(tem("X-App", "g"), "herdou o interceptor do pai");
     }
 
     #[test]

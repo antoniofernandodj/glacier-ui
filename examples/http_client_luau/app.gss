@@ -1,0 +1,96 @@
+/*
+examples/http_client_luau/app.gss — visual da tela.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --ok: #a6e3a1;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 16;
+  width: fill;
+  height: fill;
+}
+
+.lead {
+  size: 13;
+  color: var(--suave);
+  max_width: 720;
+}
+
+.acoes {
+  spacing: 8;
+}
+
+.btn-fraco {
+  color: var(--faixa);
+}
+
+.bloco {
+  padding: 14;
+  spacing: 8;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+  width: fill;
+}
+
+.bloco-cresce {
+  height: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.corpo-resp {
+  size: 13;
+  color: var(--ok);
+  font: mono;
+}
+
+.log {
+  size: 12;
+  color: var(--suave);
+  font: mono;
+}

@@ -35,6 +35,92 @@ declare value: string?
 declare function viewport(): Viewport
 
 declare function fetch(url: string, opts: any?): FetchResult
+
+-- ── http: cliente HTTP reutilizável sobre `fetch` ─────────────────────────
+-- `http(base_url?, opts?)` devolve um objeto com base_url / headers / query /
+-- timeout / retries de base, interceptors de requisição e resposta, e error
+-- handlers. Todo método de chamada SUSPENDE, como o `fetch` cru.
+
+export type HttpResponse = {
+    ok: boolean,
+    status: number,
+    body: string,
+    error: string,
+    -- Corpo já decodificado, ou `nil` se não era JSON.
+    json: any,
+    -- `{ method, url }` da chamada que produziu esta resposta.
+    request: { method: string, url: string },
+}
+
+export type HttpRequest = {
+    method: string,
+    path: string,
+    headers: { [string]: any },
+    query: { [string]: any },
+    body: any,
+    timeout: number?,
+}
+
+export type HttpError = {
+    status: number,
+    error: string,
+    url: string,
+    method: string,
+    attempt: number,
+    body: string,
+}
+
+export type HttpOptions = {
+    headers: { [string]: any }?,
+    query: { [string]: any }?,
+    timeout: number?, -- ms, por requisição
+    retries: number?, -- tentativas EXTRAS em falha de rede / 429 / 5xx
+    retry_on: ((res: HttpResponse) -> boolean)?, -- sobrescreve o critério padrão
+}
+
+export type HttpRequestSpec = {
+    method: string?,
+    path: string?,
+    url: string?, -- apelido de `path`; uma URL absoluta ignora a base_url
+    headers: { [string]: any }?,
+    query: { [string]: any }?,
+    body: any,
+    timeout: number?,
+}
+
+export type HttpClient = {
+    base_url: string,
+    headers: { [string]: any },
+    query: { [string]: any },
+    timeout: number?,
+    retries: number,
+
+    set_base_url: (self: HttpClient, u: string) -> HttpClient,
+    set_header: (self: HttpClient, k: string, v: any) -> HttpClient,
+    set_headers: (self: HttpClient, t: { [string]: any }) -> HttpClient,
+    remove_header: (self: HttpClient, k: string) -> HttpClient,
+    set_query: (self: HttpClient, k: string, v: any) -> HttpClient,
+    set_timeout: (self: HttpClient, ms: number?) -> HttpClient,
+    set_retries: (self: HttpClient, n: number) -> HttpClient,
+    set_retry_on: (self: HttpClient, fn: (res: HttpResponse) -> boolean) -> HttpClient,
+
+    on_request: (self: HttpClient, fn: (req: HttpRequest) -> HttpRequest?) -> HttpClient,
+    on_response: (self: HttpClient, fn: (res: HttpResponse) -> HttpResponse?) -> HttpClient,
+    on_error: (self: HttpClient, fn: (err: HttpError) -> ()) -> HttpClient,
+
+    extend: (self: HttpClient, base_path: string?, opts: HttpOptions?) -> HttpClient,
+
+    request: (self: HttpClient, spec: HttpRequestSpec) -> HttpResponse,
+    get: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
+    delete: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
+    head: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
+    post: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,
+    put: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,
+    patch: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,
+}
+
+declare function http(base_url: string?, opts: HttpOptions?): HttpClient
+
 declare function write_file(path: string, contents: string): (boolean, string?)
 -- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
 -- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um
@@ -72,6 +158,8 @@ declare function pick_folder(opts: FileDialogOptions?): string?
 
 declare function prompt(opts: any): string?
 declare function pick_color(opts: any): string?
+-- O QFontDialog. Devolve a família escolhida, ou `nil` na desistência.
+declare function pick_font(opts: any): string?
 
 -- O progresso NÃO suspende: ele acompanha um trabalho que continua rodando.
 -- `progress_set(nil)` volta ao indeterminado.

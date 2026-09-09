@@ -91,6 +91,10 @@ pub struct PendingFetch {
     /// `fetch("file://…", { response = "base64" })`: lê o arquivo como bytes crus
     /// e devolve o conteúdo base64-encodado no `body` (em vez de UTF-8).
     pub(crate) response_base64: bool,
+    /// `fetch(url, { timeout = 5000 })` — teto em milissegundos para a
+    /// requisição inteira (conexão + resposta). Estourado, o resultado é um
+    /// `FetchResult` com `ok = false` e `status = 0`. `None` = sem teto.
+    pub(crate) timeout_ms: Option<u64>,
 }
 
 impl PendingFetch {
@@ -109,6 +113,7 @@ impl PendingFetch {
             body_bytes: None,
             headers,
             response_base64: false,
+            timeout_ms: None,
         }
     }
 }

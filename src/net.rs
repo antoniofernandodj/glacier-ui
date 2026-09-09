@@ -58,7 +58,19 @@ pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
     if let Some(path) = req.url.strip_prefix("file://") {
         return read_file(path, req.response_base64).await;
     }
-    match send(&req).await {
+    let enviar = send(&req);
+    let resultado = match req.timeout_ms {
+        Some(ms) => {
+            match tokio::time::timeout(std::time::Duration::from_millis(ms), enviar).await {
+                Ok(r) => r,
+                // Estouro: a mesma forma de um erro de rede — `ok=false`,
+                // `status=0` —, com a mensagem dizendo que foi tempo.
+                Err(_) => return FetchResult::error(format!("timeout após {ms}ms")),
+            }
+        }
+        None => enviar.await,
+    };
+    match resultado {
         Ok(result) => result,
         Err(e) => FetchResult::error(e.to_string()),
     }

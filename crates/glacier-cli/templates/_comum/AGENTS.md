@@ -2215,11 +2215,86 @@ local res = fetch(url, {
 | `body` | corpo textual |
 | `body_base64` | corpo **binário** em base64; vence o `body` |
 | `user_agent` | atalho para o header (um `headers` explícito ganha) |
+| `timeout` | teto em **milissegundos** para a requisição inteira; estourado, `ok=false`, `status=0`, `error="timeout após …"` |
 | `response = "base64"` | só para `file://`: devolve bytes em base64 em vez de texto |
 
 `res.ok` é o que se testa — `status` é o código HTTP e `error` traz a mensagem
 quando a requisição nem chegou a responder. **`url` aceita `file://`**, que é
 como se lê um arquivo local (a escrita é `write_file`).
+
+#### `http(base_url?, opts?) -> client` — um cliente reutilizável sobre o `fetch`
+
+Quando um script fala com a **mesma API em vários lugares**, criar um `http`
+uma vez tira a repetição de base_url, cabeçalhos, timeout e tratamento de erro
+de cada chamada. É "orientado a objeto": um construtor, setters encadeáveis,
+interceptors e derivação. Todo método de chamada (`:get`, `:post`, …)
+**suspende**, como o `fetch` cru.
+
+```lua
+-- Um cliente para a API inteira (num módulo, para reusar entre handlers).
+local api = http("https://api.exemplo.com/v1", {
+    headers = { Accept = "application/json" },
+    timeout = 8000,        -- ms, por requisição
+    retries = 2,           -- tentativas EXTRAS em falha de rede / 429 / 5xx
+})
+
+api:set_header("Authorization", `Bearer {token}`)   -- encadeável (devolve o cliente)
+   :on_request(function(req)                         -- roda antes de cada fetch
+       req.headers["X-Trace-Id"] = trace_id()
+       return req                                    -- devolva a tabela (mutada ou nova)
+   end)
+   :on_response(function(res) return res end)        -- roda depois, com res.json pronto
+   :on_error(function(err)                           -- resultado final não-ok, após os retries
+       toast({ message = err.error, kind = "error" })
+   end)
+
+local r = api:get("/itens", { query = { page = 1 } })   -- ?page=1, já url-encoded
+local r = api:post("/itens", { nome = "x" })            -- body tabela → JSON + Content-Type
+if r.ok then usar(r.json) end                           -- r.json = corpo já decodificado
+```
+
+**O construtor e o `opts`:**
+
+| campo | o que é |
+|---|---|
+| `base_url` (1º arg) | prefixo de todo `path`. Um `path` que já é `http(s)://…` **ignora** a base |
+| `headers` | cabeçalhos de base; um `headers` na chamada tem prioridade, chave a chave |
+| `query` | query params de base; idem, mesclados com os da chamada |
+| `timeout` | ms, por requisição — desce para o `fetch` |
+| `retries` | tentativas **extras** (0 = uma tentativa). Reenvia enquanto `status == 0`, `429` ou `>= 500` |
+| `retry_on` | `function(res) -> boolean` — sobrescreve o critério de retry |
+
+**Setters (encadeáveis, cada um devolve o cliente):** `set_base_url`,
+`set_header(k, v)`, `set_headers(t)`, `remove_header(k)`, `set_query(k, v)`,
+`set_timeout(ms)`, `set_retries(n)`, `set_retry_on(fn)`.
+
+**Interceptors** (rodam na ordem de registro):
+
+- `on_request(fn)` — `fn(req)` recebe `{ method, path, headers, query, body, timeout }`; muta e/ou devolve a tabela.
+- `on_response(fn)` — `fn(res)` recebe a resposta já enriquecida (com `res.json`); pode devolver outra.
+- `on_error(fn)` — `fn(err)` com `{ status, error, url, method, attempt, body }`, quando o resultado final (depois dos retries) tem `ok == false`.
+
+**Chamadas** — todas suspendem e devolvem a resposta:
+
+| método | |
+|---|---|
+| `client:get(path, spec?)` / `:delete` / `:head` | |
+| `client:post(path, body?, spec?)` / `:put` / `:patch` | `body` tabela → `json.encode` + `Content-Type: application/json` |
+| `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout? }` |
+
+**A resposta** é a do `fetch` (`{ ok, status, body, error }`) mais:
+
+- `res.json` — o corpo decodificado, ou `nil` se não era JSON;
+- `res.request` — `{ method, url }` da chamada que a produziu.
+
+**Clientes derivados:** `api:extend("/admin", { headers = { ["X-Role"] = "root" } })`
+devolve um cliente novo com a `base_url` estendida, os headers/query/timeout/
+retries mesclados e **os interceptors do pai copiados** (o filho acrescenta sem
+afetar o pai).
+
+**O que ele não faz:** cabeçalhos da resposta (o `fetch` não os devolve),
+cancelamento e backoff **entre** retries (os reenvios são imediatos — para
+espaçar, componha com `after`).
 
 #### `sse(url, opts?) -> handle` e `websocket(url, opts?) -> handle`
 

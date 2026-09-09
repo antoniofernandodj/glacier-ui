@@ -1,0 +1,41 @@
+<screen title="Glacier — http client (Luau)" size="900 680" min_size="760 560">
+  <resources>
+    <link rel="stylesheet" href="examples/http_client_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">http(...) — o cliente sobre o fetch</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <column class="corpo">
+      <text class="lead">
+        Um `http("https://…", { headers, timeout, retries })` com interceptors
+        de requisição/resposta e um error handler. Cada botão é um método do
+        client; as chamadas suspendem, sem travar a janela.
+      </text>
+
+      <row class="acoes">
+        <button text="GET /posts/1" on_click="buscar_um" />
+        <button text="GET ?userId=1" on_click="buscar_lista" />
+        <button text="POST /posts" on_click="criar" />
+        <button text="forçar 404" on_click="forcar_erro" class="btn-fraco" />
+      </row>
+
+      <column class="bloco">
+        <text class="secao">resposta</text>
+        <text class="corpo-resp">{corpo}</text>
+      </column>
+
+      <column class="bloco bloco-cresce">
+        <text class="secao">log dos interceptors</text>
+        <scrollable width="fill" height="fill">
+          <text class="log">{log}</text>
+        </scrollable>
+      </column>
+    </column>
+  </column>
+</screen>

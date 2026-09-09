@@ -1028,33 +1028,285 @@ function date.format(iso: any, fmt: string): string?
     return table.concat(saida)
 end
 
-local Client = {}
-Client.__index = Client
+-- ── http: cliente HTTP reutilizável sobre `fetch` ──────────────────────────
+--
+-- `http(base_url?, opts?)` devolve um objeto com `base_url`, `headers`,
+-- `query`, `timeout` e `retries` de base, mais `interceptors` de requisição e
+-- de resposta e `error handlers`. Todo método de chamada (`:get`, `:post`, …)
+-- SUSPENDE a corrotina, como o `fetch` cru — é feito para rodar dentro de um
+-- handler.
+--
+--   local api = http("https://api.exemplo.com", {
+--       headers = { Accept = "application/json" },
+--       timeout = 8000,          -- ms, por requisição
+--       retries = 2,             -- tentativas extras em falha de rede / 5xx
+--   })
+--
+--   api:set_header("Authorization", "Bearer " .. token)   -- encadeável
+--     :on_request(function(req) req.headers["X-Trace"] = trace_id(); return req end)
+--     :on_response(function(res) return res end)
+--     :on_error(function(err) toast({ message = err.error, kind = "error" }) end)
+--
+--   local r = api:get("/itens", { query = { page = 1 } })
+--   local r = api:post("/itens", { nome = "x" })   -- body tabela → JSON + Content-Type
+--   if r.ok then usar(r.json) end                  -- r.json = corpo já decodificado
+--
+-- A resposta é a do `fetch` (`{ ok, status, body, error }`) mais:
+--   `r.json`     — o corpo decodificado, ou `nil` se não era JSON
+--   `r.request`  — `{ method, url }` da chamada que a produziu
 
-function Client.new(base_url: string)
-    return setmetatable({
-        base_url = base_url,
-        headers = {},
-    }, Client)
+local function _http_escape(s: string): string
+    return (string.gsub(s, "[^%w%-_%.~]", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end))
 end
 
+local function _http_query(params: any): string
+    if type(params) ~= "table" then
+        return ""
+    end
+    local parts = {}
+    for k, v in params do
+        if v ~= nil then
+            table.insert(parts, _http_escape(tostring(k)) .. "=" .. _http_escape(tostring(v)))
+        end
+    end
+    if #parts == 0 then
+        return ""
+    end
+    return "?" .. table.concat(parts, "&")
+end
 
-function Client:set_header(key: string, val: any)
-    self.headers[key] = val
+local function _http_join(base: string, path: string): string
+    if string.match(path, "^https?://") then
+        return path
+    end
+    if base ~= "" and string.sub(base, -1) == "/" then
+        base = string.sub(base, 1, -2)
+    end
+    if path ~= "" and string.sub(path, 1, 1) ~= "/" then
+        path = "/" .. path
+    end
+    return base .. path
+end
+
+-- Cópia rasa; `b` vence `a`. `nil` em `b` não apaga (pairs pula nil).
+local function _http_merge(a: any, b: any): any
+    local out = {}
+    if type(a) == "table" then
+        for k, v in a do
+            out[k] = v
+        end
+    end
+    if type(b) == "table" then
+        for k, v in b do
+            out[k] = v
+        end
+    end
+    return out
+end
+
+local Http = {}
+Http.__index = Http
+
+function http(base_url: string?, opts: any?): any
+    opts = opts or {}
+    return setmetatable({
+        base_url = base_url or "",
+        headers = _http_merge(nil, opts.headers),
+        query = _http_merge(nil, opts.query),
+        timeout = opts.timeout,
+        retries = opts.retries or 0,
+        retry_on = opts.retry_on, -- function(res) -> boolean; nil = padrão (0, 429, 5xx)
+        _req = {}, -- interceptors de requisição
+        _res = {}, -- interceptors de resposta
+        _err = {}, -- error handlers
+    }, Http)
+end
+
+-- ── Config, encadeável (cada setter devolve self) ─────────────────────────
+function Http:set_base_url(u: string)
+    self.base_url = u or ""
+    return self
+end
+function Http:set_header(k: string, v: any)
+    self.headers[k] = v
+    return self
+end
+function Http:set_headers(t: any)
+    self.headers = _http_merge(self.headers, t)
+    return self
+end
+function Http:remove_header(k: string)
+    self.headers[k] = nil
+    return self
+end
+function Http:set_query(k: string, v: any)
+    self.query[k] = v
+    return self
+end
+function Http:set_timeout(ms: number?)
+    self.timeout = ms
+    return self
+end
+function Http:set_retries(n: number)
+    self.retries = n or 0
+    return self
+end
+function Http:set_retry_on(fn: any)
+    self.retry_on = fn
+    return self
+end
+function Http:on_request(fn: any)
+    table.insert(self._req, fn)
+    return self
+end
+function Http:on_response(fn: any)
+    table.insert(self._res, fn)
+    return self
+end
+function Http:on_error(fn: any)
+    table.insert(self._err, fn)
     return self
 end
 
-function Client:get(path: string)
-    return fetch(tostring(self.base_url) .. path, {
-        headers = self.headers
+-- Client derivado: herda tudo, sobrescreve o que `opts` trouxer. `base_path`
+-- é acrescentado à `base_url` do pai. Os interceptors do pai são copiados (o
+-- filho pode acrescentar sem afetar o pai).
+function Http:extend(base_path: string?, opts: any?): any
+    opts = opts or {}
+    local child = http(_http_join(self.base_url, base_path or ""), {
+        headers = _http_merge(self.headers, opts.headers),
+        query = _http_merge(self.query, opts.query),
+        timeout = if opts.timeout ~= nil then opts.timeout else self.timeout,
+        retries = if opts.retries ~= nil then opts.retries else self.retries,
+        retry_on = opts.retry_on or self.retry_on,
     })
+    for _, h in self._req do
+        table.insert(child._req, h)
+    end
+    for _, h in self._res do
+        table.insert(child._res, h)
+    end
+    for _, h in self._err do
+        table.insert(child._err, h)
+    end
+    return child
 end
 
-function Client:post(path: string, body: any)
-    return fetch(tostring(self.base_url) .. path, {
-        method = "POST",
-        body = body,
-        headers = self.headers,
-    })
+-- ── O núcleo ──────────────────────────────────────────────────────────────
+function Http:request(spec: any): any
+    spec = spec or {}
+    local req = {
+        method = string.upper(spec.method or "GET"),
+        path = spec.path or spec.url or "",
+        headers = _http_merge(self.headers, spec.headers),
+        query = _http_merge(self.query, spec.query),
+        body = spec.body,
+        timeout = if spec.timeout ~= nil then spec.timeout else self.timeout,
+    }
+
+    -- interceptors de requisição: podem mutar `req` OU devolver uma tabela nova.
+    for _, hook in self._req do
+        local changed = hook(req)
+        if type(changed) == "table" then
+            req = changed
+        end
+    end
+
+    -- corpo tabela → JSON, com Content-Type se ninguém pôs um.
+    local body = req.body
+    if type(body) == "table" then
+        body = json.encode(body)
+        local tem_ct = false
+        for k in req.headers do
+            if string.lower(k) == "content-type" then
+                tem_ct = true
+                break
+            end
+        end
+        if not tem_ct then
+            req.headers["Content-Type"] = "application/json"
+        end
+    end
+
+    local url = _http_join(self.base_url, req.path) .. _http_query(req.query)
+
+    -- envia, repetindo enquanto `retry_on` disser que sim e ainda houver folga.
+    local attempt = 0
+    local res
+    while true do
+        attempt += 1
+        res = fetch(url, {
+            method = req.method,
+            headers = req.headers,
+            body = body,
+            timeout = req.timeout,
+        })
+        local repetir
+        if self.retry_on then
+            repetir = self.retry_on(res) == true
+        else
+            repetir = res.status == 0 or res.status == 429 or res.status >= 500
+        end
+        if res.ok or attempt > self.retries or not repetir then
+            break
+        end
+    end
+
+    -- enriquece a resposta.
+    res.request = { method = req.method, url = url }
+    res.json = nil
+    if type(res.body) == "string" and res.body ~= "" then
+        local ok, decoded = pcall(json.decode, res.body)
+        if ok then
+            res.json = decoded
+        end
+    end
+
+    -- interceptors de resposta.
+    for _, hook in self._res do
+        local changed = hook(res)
+        if type(changed) == "table" then
+            res = changed
+        end
+    end
+
+    -- error handlers, depois de esgotados os retries.
+    if not res.ok then
+        local err = {
+            status = res.status,
+            error = if res.error ~= "" then res.error else "HTTP " .. tostring(res.status),
+            url = url,
+            method = req.method,
+            attempt = attempt,
+            body = res.body,
+        }
+        for _, hook in self._err do
+            hook(err)
+        end
+    end
+
+    return res
+end
+
+-- ── Açúcar por método ─────────────────────────────────────────────────────
+function Http:get(path: string, spec: any?): any
+    return self:request(_http_merge(spec, { method = "GET", path = path }))
+end
+function Http:delete(path: string, spec: any?): any
+    return self:request(_http_merge(spec, { method = "DELETE", path = path }))
+end
+function Http:head(path: string, spec: any?): any
+    return self:request(_http_merge(spec, { method = "HEAD", path = path }))
+end
+function Http:post(path: string, body: any?, spec: any?): any
+    return self:request(_http_merge(spec, { method = "POST", path = path, body = body }))
+end
+function Http:put(path: string, body: any?, spec: any?): any
+    return self:request(_http_merge(spec, { method = "PUT", path = path, body = body }))
+end
+function Http:patch(path: string, body: any?, spec: any?): any
+    return self:request(_http_merge(spec, { method = "PATCH", path = path, body = body }))
 end
 
