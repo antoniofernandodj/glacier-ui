@@ -28,6 +28,7 @@ mod perf;
 pub mod pointer;
 pub mod render_inputs;
 pub mod reveal;
+pub mod shapes;
 mod single_instance;
 pub mod spinner;
 pub mod style;
@@ -937,6 +938,29 @@ impl GlacierUI {
             if let Some(key) = a.strip_prefix("clipboard:") {
                 let value = self.context_data.get(key).cloned().unwrap_or_default();
                 return iced::clipboard::write(value);
+            }
+            // Built-in: `whatsthis:on|off|toggle` liga/desliga o modo pegajoso
+            // do `QWhatsThis` (Onda 13), sem envolver um componente. Com o modo
+            // ligado (`__whatsthis`), pairar sobre um nó com `whats_this=`
+            // mostra essa ajuda em vez do `tooltip=`.
+            if let Some(cmd) = a.strip_prefix("whatsthis:") {
+                let ligado = self
+                    .context_data
+                    .get("__whatsthis")
+                    .is_some_and(|v| widget::is_truthy(v));
+                let novo = match cmd {
+                    "on" | "ligar" => true,
+                    "off" | "desligar" => false,
+                    _ => !ligado, // toggle
+                };
+                if novo {
+                    self.context_data
+                        .insert("__whatsthis".to_string(), "1".to_string());
+                } else {
+                    self.context_data.remove("__whatsthis");
+                }
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
             }
             // Built-in: `open:<alvo>` abre uma URL no navegador padrão do SO, sem
             // envolver um componente. `<alvo>` é uma chave de contexto (abre o

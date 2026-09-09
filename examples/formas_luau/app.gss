@@ -1,0 +1,111 @@
+/*
+examples/formas_luau/app.gss — visual da tela.
+Geometria (`cx`, `x2`, `sweep`) é dado e fica inline no .gv; traço/preenchimento
+das formas mora nas classes abaixo.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #45475a;
+  --realce: #89b4fa;
+  --agulha: #f38ba8;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 24;
+  width: fill;
+}
+
+.coluna {
+  spacing: 10;
+  width: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+  max_width: 380;
+}
+
+.acoes {
+  spacing: 8;
+}
+
+.btn-fraco {
+  color: var(--faixa);
+}
+
+.mostrador {
+  width: 240;
+  height: 240;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+/* ── Classes de forma ──────────────────────────────────────────────────── */
+
+.aro {
+  stroke: var(--linha);
+  stroke-width: 2;
+}
+
+.setor {
+  fill: #89b4fa22;
+}
+
+.agulha {
+  stroke: var(--agulha);
+  stroke-width: 3;
+}
+
+.miolo {
+  fill: var(--agulha);
+}
+
+.rotulo {
+  size: 11;
+  color: var(--suave);
+}

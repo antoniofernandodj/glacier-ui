@@ -17,9 +17,11 @@ e a §6.3 guarda o troco decorativo que não justifica abrir uma rodada.
 10 feita PARCIALMENTE**: `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅; o
 `TextBrowser` fica, pede uma primitiva `<markdown>`. **A 11 completada** pelo
 habilitador C — série múltipla nos gráficos, `AreaChart`/`Scatter` 🟡→✅. **A 12
-feita** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível). 88,8% →
-**92,8%** (116/125). **Ondas 13 e 14 desenhadas em 2026-09-09**, ainda não
-executadas. A ordenação por **função** — widgets que carregam lógica — que a
+feita** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível). **A 13
+feita** — o `canvas` declarativo (`<path>`/`<arc>`/`<circle>`/…, `src/shapes.rs`)
+mais o `QWhatsThis` de carona (`whats_this=`). 88,8% → **94,4%** (118/125).
+**Onda 14 desenhada em 2026-09-09**, pendente de decisão de escopo (wgpu +
+impressão). A ordenação por **função** — widgets que carregam lógica — que a
 revisão anterior adotou levou a fila até o fim, e a **Onda 8** (o diálogo que
 carrega markup) parecia ter fechado o último item do catálogo com o formato "um
 habilitador, meia dúzia de widgets".
@@ -70,12 +72,14 @@ série múltipla nos gráficos (`series="[{name,points}]"`, legenda, ciclo de co
 do tema), que fecha o `AreaChart`/`Scatter` 🟡→✅. E a **Onda 12 foi feita**: o
 `Dock` (`<dock>`, primitiva) — `grip::Alvo::Zona` comete a borda **na soltura**,
 sem reparent no meio do gesto, e o `render_dock` monta `<splitter>`/`<stack>`
-entre quadros. 88,8% → **92,8%** (116/125), 18ª correção de nível. Depois disso,
-a **Onda 13** executa a frase condicional da Onda 7 sobre o `canvas` declarativo
-e emenda o `QWhatsThis`, e a **Onda 14** — só se a promessa do documento mudar —
-entra em wgpu e impressão (`Shader`/`Q3D`/`PrintDialog`). Levam o catálogo a
-**94,4% e 96,8%**; com o `TextBrowser`, a **97,6%** — o catálogo tal como
-escrito, esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
+entre quadros. E a **Onda 13 foi feita**: o `canvas` declarativo — `<canvas>`
+pai, `<path>`/`<arc>`/`<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>` +
+`<text>`, geometria inline e traço no `.gss` (`src/shapes.rs`) — mais o
+`QWhatsThis` de carona (`whats_this=` + `whatsthis:toggle`). 88,8% → **94,4%**
+(118/125). Sobra a **Onda 14** — só se a promessa do documento mudar — em wgpu e
+impressão (`Shader`/`Q3D`/`PrintDialog`): levaria a **96,8%**; com o
+`TextBrowser` (que pede a primitiva `<markdown>`), a **97,6%** — o catálogo tal
+como escrito, esgotado. Detalhe nas seções das ondas na §6.2, previsão na §5.
 
 **Grafia das tags:** todo widget aceita `CamelCase` e minúsculas coladas
 (`<GroupBox/>` == `<groupbox/>`, `<ToolButton/>` == `<toolbutton/>`), a mesma
@@ -272,7 +276,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QFrame | `Frame` | Built | container | — | P2 | ✅ | três formas: `box` (contorno), `filled` (contraste, o `QFrame::Panel`) e `none`. Sem `Raised`/`Sunken`: o `UiNode` não tem campo de sombra |
 | — (skeleton) | `Skeleton` | Built | container | — | P2 | ✅ | um `<Container>` cinza do tamanho declarado — de propósito sem a pulsação animada que alguns kits desenham (pediria um tique de relógio por instância para uma economia que não se paga). **Onda 11** |
 | — (QR) | `QrCode` | Prim | qr_code | — | P3 | ✅ | `qr_code` do iced atrás da feature `qr_code`; o `qr_code::Data` (não é `Clone` — guarda um `canvas::Cache`) é cacheado por conteúdo com um `Box::leak` por string distinta, o mesmo troco que o registro de fontes da Onda 10 preveria fazer. **Onda 11** |
-| QGraphicsView | `Canvas` | Prim | canvas | ● | P3 | ⬜ | superfície de desenho livre. A Onda 7 usou o `canvas` do `iced` como **capacidade** (`src/canvas.rs`) e decidiu NÃO expor tag: um callback imperativo o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança. Se sair, sai como vocabulário declarativo (`<path>`, `<arc>`, `<circle>`) |
+| QGraphicsView | `Canvas` | **Prim** | canvas | — | P3 | ✅ | **Onda 13** (0.98): não como callback imperativo (a Onda 7 recusou isso, e continua recusado), mas como **vocabulário de formas** — `<canvas>` pai, e sob ele `<path>`/`<arc>`/`<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>` (cada um um `NodeType::Shape`) + `<text>` (que segue `NodeType::Text`, lido como forma pela posição `x=`/`y=`). Geometria (`cx`, `d`, `points`) é dado e fica inline; traço/preenchimento é estilo e sai de uma classe `.gss` (`fill`/`stroke`/`stroke-width` são apelidos de `background`/`border-color`/`border-width`). A caixa de ferramentas — arco, bézier — é a do `src/canvas.rs` da Onda 7. O `●` não valia: o `<canvas>` não tem estado por instância. **Fica de fora, por escrito:** o comando `A`/`a` de `<path>` (arco elíptico — use `<arc>`), `on_click`/hover numa forma, animação por tique |
 | QOpenGLWidget | `Shader` | Prim | shader | ● | P3 | ⬜ | iced `shader` (wgpu) |
 | — (toast) | `Toast` | Motor | stack | — | P1 | ✅ | já existe (`toasts.rs`) |
 
@@ -357,7 +361,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 |---|---|---|---|---|---|---|---|
 | QToolTip | `tooltip=` | Prim | tooltip | — | P1 | ✅ | **atributo universal**, não tag: `tooltip`/`title`/`dica` em *qualquer* nó, com `tooltip_position` |
 | QML ToolTip | (idem) | Prim | tooltip | — | P1 | ✅ | mesmo atributo |
-| QWhatsThis | — | — | — | — | P3 | ⬜ | ajuda contextual (raro) |
+| QWhatsThis | `whats_this=` | Prim+tag | tooltip | — | P3 | ✅ | **Onda 13** (0.98), de carona: `whats_this="…"` como **atributo universal** (a forma do `tooltip=`), mais `whatsthis:on`/`off`/`toggle` que liga a chave do motor `__whatsthis`. Com o modo ligado, pairar sobre um nó com `whats_this=` mostra essa ajuda em vez do `tooltip=` transiente. Reusa o overlay de tooltip inteiro |
 | QCompleter | `Completer` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | sugestões enquanto digita, com ↑↓/Enter/Esc (0.92) |
 | QML Popup | `Popup` | **Prim** | overlay | ◐ | P2 | ✅ | genérico, centrado na janela — a mesma primitiva do `Popover` sem âncora (0.92) |
 | — (menu popover) | `Popover` | **Prim** | overlay | ◐ | P2 | ✅ | conteúdo flutuante **ancorado ao layout do gatilho** (não ao cursor), medido antes de posicionado — vira para o outro lado quando não cabe. Abre e fecha sozinho (0.92) |
@@ -782,8 +786,8 @@ ondas 9 a 11):
 | Onda 11 parcial, Onda 10 pulada (0.96) | 111 | 5 | 9 | 88,8% |
 | **Onda 10 retomada (0.98)** — `FontSelect`, `FontDialog`, `PlainTextEditor` 🟡→✅ | 114 | 4 | 7 | 91,2% |
 | **Onda 11 completa (0.98)** — habilitador C: `AreaChart`/`Scatter` 🟡→✅ | 115 | 3 | 7 | 92,0% |
-| **Onda 12 feita (0.98)** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível) | **116** | 3 | 6 | **92,8%** |
-| depois da **Onda 13** (`Canvas` declarativo + `QWhatsThis`) | 118 | 3 | 4 | **94,4%** |
+| **Onda 12 feita (0.98)** — `Dock` ⬜→✅ (`grip::Alvo::Zona`, 18ª correção de nível) | 116 | 3 | 6 | 92,8% |
+| **Onda 13 feita (0.98)** — `Canvas` declarativo (`<path>`/`<arc>`/…) + `QWhatsThis` | **118** | 3 | 4 | **94,4%** |
 | depois da **Onda 14** (`Shader`, `Q3D`, `PrintDialog` — pende decisão de escopo) | 121 | 3 | 1 | **96,8%** |
 | — e com o `TextBrowser` (pede uma primitiva `<markdown>`) | 122 | 3 | 0 | **97,6%** |
 
@@ -1026,9 +1030,11 @@ de 2026-09-08, que desenhou mais duas):
   meio do gesto; `render_dock` monta `<splitter>`/`<stack>` entre quadros. Saiu
   **Prim** e não Built (um template não dispara grip), 18ª correção de nível.
   92,0% → **92,8%**.
-- **Onda 13** ⬜ — o `canvas` declarativo (`<path>`/`<arc>`/`<circle>`), que é a
-  frase condicional da Onda 7 executada, mais o `QWhatsThis` de carona. 92,8% →
-  **94,4%**.
+- **Onda 13** ✅ **FEITA (0.98)** — o `canvas` declarativo (`<path>`/`<arc>`/
+  `<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>` + `<text>`), a frase
+  condicional da Onda 7 executada, mais o `QWhatsThis` de carona
+  (`whats_this=` + `whatsthis:toggle`). `src/shapes.rs` novo; `fill`/`stroke`
+  como apelidos, zero campo. 92,8% → **94,4%**.
 - **Onda 14** ⬜ **pendente de decisão de escopo** — `Shader`, `Q3D` e
   `PrintDialog`, as três linhas que o documento sempre marcou como "outro
   projeto". Só vira fila com um "sim". 94,4% → **96,8%** (**97,6%** com o
@@ -2462,9 +2468,10 @@ rodou; atualizados de passagem, mais o `.demo-fundo` das `.gss` da Onda 11 que
 disparava o teste da janela inteira.
 
 ---
-#### Onda 13 — o desenho que o `.gv` escreve — ⬜ **proposta (2026-09-09)**
+#### Onda 13 — o desenho que o `.gv` escreve — ✅ **FEITA (0.98)**
 
-**Alvo: 113 → 115 de 125 (de 90,4% para 92,0%).**
+**Alvo (proposta): 115 → 117. Base real: 116 → 118 de 125 (de 92,8% para
+94,4%). Cumprido.**
 
 Aqui a fila deixa de ser releitura da tabela e passa a exigir **uma decisão
 nova**, como o fim da Onda 11 antecipou. A decisão é a que a Onda 7 já tinha
@@ -2530,14 +2537,52 @@ Os três podem sair depois; nenhum é pré-requisito do vocabulário básico.
 
 ##### A previsão, para ser conferida depois
 
-**Onda 13 = 115 / 92,0%**, nenhuma correção de nível (o `Canvas` sempre esteve
-catalogado como `Prim ⬜`, não como `●`), nenhum item novo do §3 — o `canvas` é
-capacidade desde a Onda 7. O risco: o vocabulário de formas pode crescer além de
-"sete nós e o `.gss` alcança o traço" se `<path d="…">` precisar de um parser de
-comando SVG completo (curvas de Bézier, arcos elípticos, `A`/`Q`/`C`). Se for
-esse o caso, a onda entrega o subconjunto reto (`M`/`L`/`Z` +
-`<circle>`/`<rect>`/`<line>`) e as curvas ficam anotadas — o mesmo corte que a
-série múltipla teve na Onda 11.
+**Onda 13 = 115 / 92,0%** (na base da proposta), nenhuma correção de nível (o
+`Canvas` sempre esteve catalogado como `Prim ⬜`, não como `●`), nenhum item novo
+do §3 — o `canvas` é capacidade desde a Onda 7. O risco: o vocabulário de formas
+pode crescer além de "sete nós e o `.gss` alcança o traço" se `<path d="…">`
+precisar de um parser de comando SVG completo (curvas de Bézier, arcos
+elípticos, `A`/`Q`/`C`).
+
+##### Como saiu (0.98), contra a previsão acima
+
+**Saiu como desenhado, e o risco do `<path>` não se materializou** — o parser de
+`d` (`src/shapes.rs::caminho_svg`) cobre `M L H V Z` mais **`C` e `Q`** (Bézier),
+maiúsculo absoluto e minúsculo relativo, com um tokenizador que aceita número
+colado no comando (`M0 0`) e sinal grudado (`10-20`). Só o `A`/`a` (arco
+elíptico) ficou de fora, e por escolha, não por dificuldade: `<arc>` já cobre o
+arco circular, e a decomposição elíptica não paga.
+
+- **`src/shapes.rs`** (novo, ~500 linhas com testes): `FormaKind` (oito),
+  `Forma` (a forma avaliada), `ProgramaFormas` (o `canvas::Program`),
+  `caminho_svg`, `retangulo_arredondado`, `pontos`. Reusa `crate::canvas::arco`
+  e `crate::canvas::anel` da Onda 7 — um `<arc>` com `fill` vira setor (fecha
+  pelo centro), só com traço é a curva aberta.
+- **`NodeType::Canvas`** (só empilha) e **`NodeType::Shape { kind, geo }`** —
+  `geo` é um `Vec<(String, String)>` de atributos crus, e o eval interpola cada
+  valor (`cx="{x}"`, `d="{traçado}"`). O `<text>` **não** virou `Shape`: segue
+  `NodeType::Text` (interpolação, `size` da classe), e o `render_canvas` o lê
+  como forma de texto pela posição `x=`/`y=` (os atributos universais do
+  `<stack>` da Onda 11).
+- **`fill`/`stroke`/`stroke-width`** entraram como **apelidos** de
+  `background`/`border-color`/`border-width` no parser do `.gv` e no do `.gss`
+  — três linhas em cada, zero campos novos. Uma `.classe { fill: var(--x) }`
+  resolve pelo caminho de estilo que já existe.
+- **`QWhatsThis`**: `whats_this` num campo novo de `Interact` (ao lado de
+  `tooltip`), atributo universal, interpolado no eval; `whatsthis:on`/`off`/
+  `toggle` como quarta família de prefixo de ação do motor (depois de
+  `clipboard:`/`open:`/`window:`), ligando `__whatsthis`. O decorador de tooltip
+  do `render_node` troca o texto quando o modo está ligado e o nó tem
+  `whats_this`. "Preso até o clique" virou "aparece no hover enquanto o modo
+  está ligado" — o `iced::widget::Tooltip` é hover, não tem fixar; o modo é o
+  pegajoso.
+
+**A conta:** 116 → **118/125 (94,4%)**. A §2.6 vai a **14/15** (sobra o
+`Shader`, wgpu) e a §2.12 a **10/11** (sobra o `QScroller` 🟡). Testes: 6
+propriedades em `src/shapes.rs` (tokenizador, `pontos`, `caminho_svg` do
+subconjunto reto e do Bézier, `circle`/`rect`/`polyline`). Exemplos:
+`examples/formas` (as sete formas + geometria dirigida por dado + `whats_this`)
+e `examples/formas_luau` (uma agulha girada por `every(60, …)`).
 
 ---
 #### Onda 14 — o que o documento nunca prometeu — ⬜ **proposta (2026-09-09), pendente de decisão de escopo**

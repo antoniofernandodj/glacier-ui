@@ -2724,6 +2724,17 @@ fn eval_owned(
             // template.
             colors: colors.clone(),
         },
+        // Onda 13: o `<canvas>` só empilha; cada valor de geometria de uma
+        // forma interpola aqui (`cx="{x}"`, `d="{traçado}"`), como o
+        // `background="{cor}"` de qualquer nó.
+        NodeType::Canvas => NodeType::Canvas,
+        NodeType::Shape { kind, geo } => NodeType::Shape {
+            kind: *kind,
+            geo: geo
+                .iter()
+                .map(|(k, v)| (k.clone(), process_tpl(v, context)))
+                .collect(),
+        },
         NodeType::MaskedInput {
             value_var,
             mask,
@@ -3058,6 +3069,7 @@ fn eval_owned(
     // `on_press`) — interpolado direto pra suportar `tooltip="{var}"`.
     let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
     let tooltip_position_eval = node.tooltip_position().map(str::to_string);
+    let whats_this_eval = node.whats_this().map(|s| process_tpl(s, context));
     let max_width_eval = num_template(NumAttr::MaxWidth)
         .or(node.max_width)
         .or(style.max_width);
@@ -3190,6 +3202,7 @@ fn eval_owned(
             cursor: cursor_eval,
             tooltip: tooltip_eval,
             tooltip_position: tooltip_position_eval,
+            whats_this: whats_this_eval,
         }),
         pseudo: crate::parser::caixa(crate::parser::Pseudo {
             hover_style: hover_style_eval,

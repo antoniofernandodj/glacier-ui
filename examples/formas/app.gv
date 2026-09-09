@@ -1,0 +1,69 @@
+<screen title="Glacier — Onda 13 (formas)" size="1000 760" min_size="860 620">
+  <resources>
+    <link rel="stylesheet" href="examples/formas/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 13 — o desenho que o .gv escreve</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <row class="corpo">
+      <column class="coluna">
+        <text class="secao">formas nomeadas</text>
+        <text class="nota">
+          Geometria inline (é dado); traço e preenchimento vêm das classes
+          `.contorno` e `.solido` no app.gss.
+        </text>
+
+        <canvas class="tela-desenho">
+          <rect x="14" y="14" w="150" h="70" rx="10" class="solido" />
+          <circle cx="230" cy="50" r="34" class="contorno" />
+          <line x1="14" y1="120" x2="270" y2="120" class="regua" />
+          <polyline points="20,180 60,150 100,190 140,150 180,185" class="contorno" />
+          <polygon points="220,150 270,150 245,195" class="solido" />
+          <arc cx="80" cy="255" r="34" start="150" sweep="240" class="solido" />
+          <path d="M140 290 Q 180 210 220 290 T 300 290" class="contorno" />
+          <text x="16" y="315" class="rotulo">rect · circle · line · polyline · polygon · arc · path</text>
+        </canvas>
+      </column>
+
+      <column class="coluna">
+        <text class="secao">geometria dirigida por dado</text>
+        <text class="nota">
+          O raio e o traçado abaixo saem de chaves do contexto — mude e o
+          canvas relê no render, sem reavaliar a árvore.
+        </text>
+
+        <canvas class="tela-desenho">
+          <circle cx="90" cy="90" r="{raio}" class="solido" />
+          <path d="{onda}" class="contorno" />
+          <text x="16" y="170" class="rotulo">cx/cy fixos, r = {raio}</text>
+        </canvas>
+
+        <row class="acoes">
+          <button text="raio +" on_click="maior" />
+          <button text="raio −" on_click="menor" />
+        </row>
+        <textinput value="onda" on_change="onda" placeholder="traçado SVG (M L Q T Z)" />
+
+        <text class="secao">QWhatsThis</text>
+        <row class="acoes">
+          <button
+            text="modo ajuda"
+            on_click="whatsthis:toggle"
+            whats_this="Ligue e paire sobre os controles: a ajuda fica no lugar do tooltip."
+          />
+          <button
+            text="raio +"
+            on_click="maior"
+            tooltip="tooltip normal"
+            whats_this="Aumenta o raio do círculo em 8px, até 70."
+          />
+        </row>
+      </column>
+    </row>
+  </column>
+</screen>

@@ -3446,6 +3446,70 @@ fn render_columnview<'a>(
     linha.into()
 }
 
+/// `<canvas>` (Onda 13): monta a lista de formas a partir dos filhos já
+/// avaliados e entrega a um [`crate::shapes::ProgramaFormas`].
+///
+/// Os filhos-forma (`<circle>`, `<path>`, …) são [`NodeType::Shape`]; um
+/// `<text>` continua um [`NodeType::Text`] normal (interpolação, `size` da
+/// classe) e é lido aqui como forma de texto, pela posição em `x=`/`y=`. O
+/// traço/preenchimento sai dos campos de `Look` que o `fill=`/`stroke=` (ou uma
+/// classe `.gss`) já preencheram.
+fn render_canvas<'a>(node: &UiNode) -> Element<'a, EngineMessage> {
+    use crate::shapes::{Forma, FormaKind, ProgramaFormas};
+
+    let cor = |s: Option<&str>| s.and_then(parse_hex_color);
+    let mut formas: Vec<Forma> = Vec::new();
+
+    for filho in &node.children {
+        if filho.hidden == Some(true) {
+            continue;
+        }
+        match &filho.kind {
+            NodeType::Shape { kind, geo } => formas.push(Forma {
+                kind: *kind,
+                geo: geo.iter().cloned().collect(),
+                texto: String::new(),
+                fill: cor(filho.background.as_deref()),
+                stroke: cor(filho.border_color()),
+                stroke_width: filho.border_width.unwrap_or(1.0).max(0.0),
+                text_size: 13.0,
+            }),
+            NodeType::Text {
+                content,
+                size,
+                color,
+                ..
+            } => {
+                let mut geo = std::collections::HashMap::new();
+                geo.insert("x".to_string(), filho.pin_x().unwrap_or("0").to_string());
+                geo.insert("y".to_string(), filho.pin_y().unwrap_or("0").to_string());
+                formas.push(Forma {
+                    kind: FormaKind::Text,
+                    geo,
+                    texto: content.clone(),
+                    fill: cor(color.as_deref()).or_else(|| cor(filho.background.as_deref())),
+                    stroke: None,
+                    stroke_width: 1.0,
+                    text_size: size.unwrap_or(13.0),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    let dim = |v: &Option<String>, padrao: f32| {
+        if v.is_some() {
+            parse_length(v)
+        } else {
+            Length::Fixed(padrao)
+        }
+    };
+    iced::widget::canvas::Canvas::new(ProgramaFormas { formas })
+        .width(dim(&node.width, 300.0))
+        .height(dim(&node.height, 200.0))
+        .into()
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -4823,6 +4887,11 @@ pub fn render_node<'a>(
             *percentages,
             colors,
         ),
+        // Onda 13: o `<canvas>` desenha os filhos-forma na ordem do markup.
+        NodeType::Canvas => render_canvas(node),
+        // Uma forma fora de um `<canvas>` não tem onde ser desenhada — o
+        // `render_canvas` lê os filhos-forma direto, sem passar por aqui.
+        NodeType::Shape { .. } => iced::widget::Space::new().width(0).height(0).into(),
         NodeType::Popover {
             value_var,
             placement,
@@ -5834,7 +5903,20 @@ pub fn render_node<'a>(
     // helper embutido do iced, independente do tema ativo (fundo quase preto +
     // texto branco) — não precisa de fiação nova com o `theme.json` do app
     // pra ficar legível em qualquer paleta.
-    if let Some(tip) = node.tooltip().filter(|s| !s.is_empty()) {
+    // `QWhatsThis` (Onda 13): com o modo pegajoso ligado (`__whatsthis`), um nó
+    // com `whats_this=` mostra ESSA ajuda em vez do `tooltip=` transiente. Sem
+    // o modo, ou sem `whats_this`, é o balão de sempre.
+    let modo_whats = context
+        .get("__whatsthis")
+        .is_some_and(|v| is_truthy(v));
+    let tip_efetiva: Option<String> = if modo_whats {
+        node.whats_this()
+            .map(|s| format!("?  {s}"))
+            .or_else(|| node.tooltip().map(str::to_string))
+    } else {
+        node.tooltip().map(str::to_string)
+    };
+    if let Some(tip) = tip_efetiva.filter(|s| !s.trim().is_empty()) {
         let position = match node.tooltip_position() {
             Some("bottom") => TooltipPosition::Bottom,
             Some("left") => TooltipPosition::Left,
@@ -5844,7 +5926,7 @@ pub fn render_node<'a>(
             Some("top") => TooltipPosition::Top,
             _ => TooltipPosition::Right,
         };
-        let label = container(text(tip.to_string()).size(12))
+        let label = container(text(tip).size(12))
             .padding([4, 8])
             .style(container::dark);
         element = Tooltip::new(element, label, position).gap(6).into();

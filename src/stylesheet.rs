@@ -1129,10 +1129,16 @@ fn parse_rule_body(
             "spacing" => rule.spacing = Some(parse_f32(&value)?),
             "align-x" | "align_x" | "alignX" => rule.align_x = Some(value),
             "align-y" | "align_y" | "alignY" => rule.align_y = Some(value),
-            "background" | "bg" => rule.background = Some(value),
+            // `fill`/`stroke`/`stroke-width`: apelidos de forma do `<canvas>`
+            // (Onda 13). O preenchimento é o `background`, o traço é a borda —
+            // reusar os campos evita três novos e faz `.classe { fill: … }`
+            // funcionar pelo caminho que já resolve estilo.
+            "background" | "bg" | "fill" => rule.background = Some(value),
             "border-radius" | "border_radius" => rule.border_radius = Some(parse_f32(&value)?),
-            "border-width" | "border_width" => rule.border_width = Some(parse_f32(&value)?),
-            "border-color" | "border_color" => rule.border_color = Some(value),
+            "border-width" | "border_width" | "stroke-width" | "stroke_width" => {
+                rule.border_width = Some(parse_f32(&value)?)
+            }
+            "border-color" | "border_color" | "stroke" => rule.border_color = Some(value),
             "color" => rule.color = Some(value),
             "size" => rule.size = Some(parse_f32(&value)?),
             "bold" => rule.bold = Some(value.eq_ignore_ascii_case("true") || value == "1"),
@@ -1187,6 +1193,9 @@ const KNOWN_PROPERTIES: &[&str] = &[
     "border-radius",
     "border-width",
     "border-color",
+    "fill",
+    "stroke",
+    "stroke-width",
     "color",
     "size",
     "bold",

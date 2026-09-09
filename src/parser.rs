@@ -2076,6 +2076,29 @@ pub enum NodeType {
         /// Vazio = a paleta do tema.
         colors: String,
     },
+    // ── Onda 13 — o desenho que o `.gv` escreve ─────────────────────────────
+    //
+    // A condicional da Onda 7, executada: o `canvas` não vira callback
+    // imperativo, vira um **vocabulário de formas**. `<canvas>` é o pai; sob ele
+    // `<path>`/`<arc>`/`<circle>`/`<rect>`/`<line>`/`<polyline>`/`<polygon>`/
+    // `<text>`, cada um um [`NodeType::Shape`], cada um lido no render e virado
+    // um `canvas::Path` pelo `src/shapes.rs`. Geometria (`cx`, `d`, `points`) é
+    // dado e fica inline; traço/preenchimento é estilo e sai do `.gss`.
+    /// A superfície de desenho declarativa. Filhos são [`NodeType::Shape`].
+    Canvas,
+    /// Uma forma dentro de um `<canvas>` — ver [`crate::shapes::FormaKind`].
+    ///
+    /// O `<text>` de um `<canvas>` **não** é um `Shape`: continua um
+    /// [`NodeType::Text`] normal (interpolação, `size` da classe `.gss`), e é o
+    /// `render_canvas` que o lê como forma de texto, pela posição em `x=`/`y=`
+    /// (os atributos universais do `<stack>` da Onda 11).
+    Shape {
+        kind: crate::shapes::FormaKind,
+        /// Atributos de geometria como strings cruas — o eval interpola cada
+        /// valor (`cx="{x}"`, `d="{traçado}"`). Um `Vec` de pares, não campos
+        /// nomeados: as sete formas não compartilham a mesma geometria.
+        geo: Vec<(String, String)>,
+    },
     // ── Onda 9 — o ponteiro preso ───────────────────────────────────────────
     //
     // Sete tags, e o que as junta não é a seção da tabela onde o catálogo as
@@ -2429,6 +2452,17 @@ impl NodeType {
             NodeType::LineChart { .. } => "linechart",
             NodeType::BarChart { .. } => "barchart",
             NodeType::PieChart { .. } => "piechart",
+            NodeType::Canvas => "canvas",
+            NodeType::Shape { kind, .. } => match kind {
+                crate::shapes::FormaKind::Path => "path",
+                crate::shapes::FormaKind::Arc => "arc",
+                crate::shapes::FormaKind::Circle => "circle",
+                crate::shapes::FormaKind::Rect => "rect",
+                crate::shapes::FormaKind::Line => "line",
+                crate::shapes::FormaKind::Polyline => "polyline",
+                crate::shapes::FormaKind::Polygon => "polygon",
+                crate::shapes::FormaKind::Text => "shapetext",
+            },
             NodeType::Slider { .. } => "slider",
             NodeType::Splitter { .. } => "splitter",
             NodeType::Dock { .. } => "dock",
@@ -2702,6 +2736,12 @@ pub struct Interact {
     /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
     /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
     pub tooltip_position: Option<String>,
+    /// `whats_this="…"` (`QWhatsThis`, Onda 13): a ajuda que só aparece no
+    /// **modo pegajoso**, ligado pela chave do motor `__whatsthis`
+    /// (`whatsthis:on`/`off`/`toggle`). Com o modo ligado, pairar sobre o
+    /// elemento mostra este texto em vez do `tooltip` transiente. Atributo
+    /// universal, como `tooltip=`.
+    pub whats_this: Option<String>,
 }
 
 /// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
@@ -3143,6 +3183,17 @@ impl UiNode {
     pub fn tooltip_position(&self) -> Option<&str> {
         self.interact.as_ref()?.tooltip_position.as_deref()
     }
+    /// Ver [`Interact::whats_this`].
+    pub fn whats_this(&self) -> Option<&str> {
+        self.interact.as_ref()?.whats_this.as_deref()
+    }
+    /// Escreve [`Interact::whats_this`], alocando o grupo se preciso.
+    pub fn set_whats_this(&mut self, v: Option<String>) {
+        if v.is_none() && self.interact.is_none() {
+            return;
+        }
+        self.interact.get_or_insert_with(Default::default).whats_this = v;
+    }
     /// Escreve [`Interact::tooltip_position`], alocando o grupo se preciso.
     pub fn set_tooltip_position(&mut self, v: Option<String>) {
         if v.is_none() && self.interact.is_none() {
@@ -3332,6 +3383,23 @@ impl UiNode {
         None
     }
 
+    /// Todos os atributos de uma forma de `<canvas>` (Onda 13), menos os de
+    /// estilo/estrutura — que descem pelo `Look` (classe/`fill`/`stroke`). O
+    /// resto é geometria (`cx`, `d`, `points`, `x1`…) e o eval interpola cada
+    /// valor.
+    fn shape_geo(node: &Node) -> Vec<(String, String)> {
+        const PULA: &[&str] = &[
+            "class", "classe", "id", "identificador", "style", "hidden", "display",
+            "fill", "stroke", "stroke-width", "stroke_width", "strokeWidth",
+            "background", "bg", "fundo", "border-color", "border_color",
+            "border-width", "border_width",
+        ];
+        node.attributes()
+            .filter(|a| !PULA.contains(&a.name()))
+            .map(|a| (a.name().to_string(), a.value().to_string()))
+            .collect()
+    }
+
     /// Parse a float attribute. If the value carries a `{...}` placeholder it
     /// can't be parsed yet: the raw string is recorded in `templates` under
     /// `attr` (resolved at eval time) and `None` is returned so the static field
@@ -3494,7 +3562,10 @@ impl UiNode {
             NumAttr::Virtualize,
             &mut numeric_templates,
         );
-        let background = Self::get_attr(&node, &["background", "bg", "fundo"]);
+        // `fill` é apelido de `background`: o preenchimento de uma forma do
+        // `<canvas>` (Onda 13) é o mesmo campo, e assim `fill="{cor}"` interpola
+        // pelo caminho que já existe.
+        let background = Self::get_attr(&node, &["background", "bg", "fundo", "fill"]);
         let border_radius = Self::get_attr_num(
             &node,
             &[
@@ -3513,13 +3584,23 @@ impl UiNode {
                 "border_width",
                 "border-width",
                 "largura_borda",
+                // Apelidos de forma do `<canvas>` (Onda 13): o traço é a borda.
+                "stroke_width",
+                "stroke-width",
+                "strokeWidth",
             ],
             NumAttr::BorderWidth,
             &mut numeric_templates,
         );
         let border_color = Self::get_attr(
             &node,
-            &["borderColor", "border_color", "border-color", "cor_borda"],
+            &[
+                "borderColor",
+                "border_color",
+                "border-color",
+                "cor_borda",
+                "stroke",
+            ],
         );
         let class = Self::get_attr(&node, &["class", "classe"]);
         let id = Self::get_attr(&node, &["id", "identificador"]);
@@ -3563,6 +3644,16 @@ impl UiNode {
         let tooltip_position = Self::get_attr(
             &node,
             &["tooltipPosition", "tooltip_position", "tooltip-position"],
+        );
+        let whats_this = Self::get_attr(
+            &node,
+            &[
+                "whats_this",
+                "whatsThis",
+                "whats-this",
+                "whatsthis",
+                "oque_e_isso",
+            ],
         );
         let max_width = Self::get_attr_num(
             &node,
@@ -4431,6 +4522,29 @@ impl UiNode {
                     ),
                     colors: Self::get_attr(&node, &["colors", "cores", "palette", "paleta"])
                         .unwrap_or_default(),
+                }
+            }
+            // ── Onda 13 — o vocabulário de formas do `<canvas>` ─────────────
+            //
+            // A regra de apelido das ondas 7 e 9 vale aqui também: nada de
+            // `<forma>` ou `<desenho>` como tag (seriam substantivos que um app
+            // usaria para um componente). Os nomes são os do SVG, que ninguém
+            // registra como componente.
+            "Canvas" | "canvas" | "Superficie" | "superficie" | "superfície" => NodeType::Canvas,
+            "path" | "Path" | "arc" | "Arc" | "circle" | "Circle" | "rect" | "Rect"
+            | "line" | "Line" | "polyline" | "Polyline" | "polygon" | "Polygon" => {
+                let kind = match tag.to_ascii_lowercase().as_str() {
+                    "arc" => crate::shapes::FormaKind::Arc,
+                    "circle" => crate::shapes::FormaKind::Circle,
+                    "rect" => crate::shapes::FormaKind::Rect,
+                    "line" => crate::shapes::FormaKind::Line,
+                    "polyline" => crate::shapes::FormaKind::Polyline,
+                    "polygon" => crate::shapes::FormaKind::Polygon,
+                    _ => crate::shapes::FormaKind::Path,
+                };
+                NodeType::Shape {
+                    kind,
+                    geo: Self::shape_geo(&node),
                 }
             }
             // ── Onda 9 ──────────────────────────────────────────────────────
@@ -5348,6 +5462,7 @@ impl UiNode {
                 cursor,
                 tooltip,
                 tooltip_position,
+                whats_this,
             }),
             pseudo: None,
             cond: caixa(Cond {

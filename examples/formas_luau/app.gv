@@ -1,0 +1,59 @@
+<screen title="Glacier — Onda 13 (formas, Luau)" size="920 700" min_size="800 560">
+  <resources>
+    <link rel="stylesheet" href="examples/formas_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Onda 13 em Luau — formas com dado do script</text>
+      <space class="empurra" />
+      <text class="status">{status}</text>
+    </row>
+
+    <row class="corpo">
+      <column class="coluna">
+        <text class="secao">agulha girada pelo script</text>
+        <text class="nota">
+          O `every(60, girar)` do prelúdio incrementa o ângulo; o script
+          calcula a ponta da agulha e o setor varrido. Nenhuma linha
+          aqui desenha — só escreve chaves.
+        </text>
+
+        <canvas class="mostrador">
+          <circle cx="110" cy="110" r="92" class="aro" />
+          <arc cx="110" cy="110" r="92" start="-90" sweep="{varrido}" class="setor" />
+          <line x1="110" y1="110" x2="{ponta_x}" y2="{ponta_y}" class="agulha" />
+          <circle cx="110" cy="110" r="6" class="miolo" />
+          <text x="70" y="222" class="rotulo">ângulo: {angulo}°</text>
+        </canvas>
+
+        <row class="acoes">
+          <button text="parar / seguir" on_click="alternar" />
+          <button text="zerar" on_click="zerar" class="btn-fraco" />
+        </row>
+      </column>
+
+      <column class="coluna">
+        <text class="secao">QWhatsThis</text>
+        <text class="nota">
+          Ligue o modo e paire sobre os botões: a ajuda `whats_this`
+          fica no lugar do `tooltip`.
+        </text>
+        <row class="acoes">
+          <button
+            text="modo ajuda"
+            on_click="whatsthis:toggle"
+            whats_this="Alterna o modo pegajoso. Ligado, o hover mostra esta ajuda."
+          />
+          <button
+            text="parar / seguir"
+            on_click="alternar"
+            tooltip="tooltip normal"
+            whats_this="Pausa ou retoma o giro da agulha."
+          />
+        </row>
+      </column>
+    </row>
+  </column>
+</screen>
