@@ -8,6 +8,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.102.1] — 2026-09-10
+
+### Corrigido
+
+- **`<form>`: `rules="{prop}"` num builtin não era interpolado.** O `eval`
+  rodava `process_tpl` só no `msg`, não em `rules`/`pattern` — então o
+  `<SpinBox>`, que repassa `rules="{rules|}"` ao `<TextInput>` de dentro,
+  entregava a string literal `{rules|}` a `parse_rules` e cuspia
+  `unknown validation rule ` `{rules` a cada quadro. Agora os três interpolam;
+  `{rules|}` sem prop colapsa em `""` (= sem regra).
+
+---
+
 ## [0.102.0] — 2026-09-10 · CLI 0.5.4 · Glacier View 0.19.4
 
 **Validação declarada no `<form>`.** As regras deixam de ser um `if` escrito à

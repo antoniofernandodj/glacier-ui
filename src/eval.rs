@@ -3282,11 +3282,14 @@ fn eval_owned(
         }),
         form: crate::parser::caixa(crate::parser::FormBits {
             form_control: node.form_control().map(|s| process_tpl(s, context)),
-            // `rules`/`msg`/`pattern` are authored in the markup, so they carry
-            // from the raw node here (interpolation is allowed in `msg`).
-            rules: node.rules().map(str::to_string),
+            // `rules`/`msg`/`pattern` are authored in the markup and interpolated
+            // here — a builtin forwards its props into these attributes
+            // (`<SpinBox>`'s inner `<TextInput rules="{rules|}">`), and a hand
+            // written `minlen:{n}` is legal too. `{rules|}` with no prop
+            // collapses to `""`, which `parse_rules` treats as "no rules".
+            rules: node.rules().map(|s| process_tpl(s, context)),
             msg: node.form_msg().map(|s| process_tpl(s, context)),
-            pattern: node.form_pattern().map(str::to_string),
+            pattern: node.form_pattern().map(|s| process_tpl(s, context)),
             // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above,
             // on this very (already evaluated) node — carried through as a
             // default of `None`/`false` here, same as the drag_* fields are for

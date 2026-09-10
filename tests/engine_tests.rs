@@ -3711,6 +3711,46 @@ fn form_parses_validation_attributes() {
     assert_eq!(input.form_pattern(), Some(r"\w+"));
 }
 
+struct SpinRulesComp;
+impl Component for SpinRulesComp {
+    fn name(&self) -> &str {
+        "spinrules"
+    }
+    fn template(&self) -> Template {
+        // `<SpinBox>` forwards its props into the inner `<TextInput rules="{rules|}">`;
+        // that `{rules|}` must be interpolated at eval, not reach `parse_rules`
+        // as a literal.
+        Template::Inline(
+            r#"<form name="f" on_submit="s">
+                 <spinbox value="idade" form_control="idade" min="14" max="90" rules="gte:18" />
+               </form>"#
+                .into(),
+        )
+    }
+    fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+}
+
+#[test]
+fn spinbox_rules_prop_is_interpolated_not_literal() {
+    let mut m = GlacierUI::new();
+    m.register(Box::new(SpinRulesComp)).unwrap();
+    m.set_initial_screen("spinrules");
+    let evaluated = m.evaluated("spinrules").unwrap();
+
+    let mut inputs = Vec::new();
+    collect_form_inputs(evaluated, &mut inputs);
+    let (_, idade) = inputs
+        .iter()
+        .find(|(n, _)| n == "idade")
+        .expect("controle idade");
+    assert_eq!(
+        idade.rules(),
+        Some("gte:18"),
+        "o `{{rules|}}` do template do SpinBox tem de virar `gte:18`, veio {:?}",
+        idade.rules()
+    );
+}
+
 /// Sanity check on the actual shipped template (`examples/formulario_login.rs`
 /// uses this same path): parses and evaluates end-to-end and has the two
 /// expected `formControl`-bound inputs in order. Loading the real file keeps a
