@@ -701,18 +701,33 @@ pub enum EngineMessage {
     /// Left mouse button released anywhere (global subscription): ends the
     /// drag in progress, if any, dispatching `on_reorder` with the final order.
     DragEnd,
-    /// Enter pressed inside a `formControl`-bound `TextInput` (see
-    /// `UiNode::form_*`, hydrated by a `<Form>`'s evaluation in `eval.rs`).
-    /// Always dispatches the enclosing `Form`'s `onSubmit` action — the
-    /// component's `update()` decides what to do based on its own
-    /// `glacier_ui::Form::is_valid()` — and, if there is a next control in the
-    /// same form, also requests focus there (Tab-like), so the whole form can
-    /// be filled with Enter alone. `next_focus` is the next input's stable id
-    /// string (built by `form_input_id`), resolved into a real
-    /// `iced::widget::text_input` focus by `GlacierUI::dispatch`.
+    /// A `<Form>` was submitted — Enter inside a `formControl`-bound input, or
+    /// a click on a `<button type="submit">`. `GlacierUI::dispatch` runs the
+    /// form's declarative `rules` (if any control carries them): on success it
+    /// routes `action` to `Component::on_form_submit`; on failure it publishes
+    /// `{error_prefix}{control}` per field and routes `error_action` to
+    /// `Component::on_form_validation_error`. A form with no `rules` keeps the
+    /// old contract — `action` always routed to `on_form_submit`. `next_focus`
+    /// (Enter only) is the next input's stable id, focused Tab-like.
     UiSubmit {
         action: String,
+        /// The `<Form>`'s `on_validation_error` action (empty when unset).
+        error_action: String,
+        /// The `<Form>`'s `error_prefix` (already defaulted to `"erro_"`).
+        error_prefix: String,
+        /// `"{owner}::{form name}"` — identifies which form's subtree to scan
+        /// for controls and their `rules`.
+        scope: String,
         next_focus: Option<String>,
+    },
+    /// A `<button type="reset">` inside a `<Form>` was clicked. Clears every
+    /// `{error_prefix}{control}` key for the form (dropping `:invalid`), then
+    /// routes `reset_action` (the button's own `on_click`, empty when unset) so
+    /// the script can re-seed the fields.
+    UiFormReset {
+        reset_action: String,
+        error_prefix: String,
+        scope: String,
     },
     /// A button of the active [`crate::dialogs::DialogSpec`] was clicked.
     /// Closes the dialog; `action` is then routed to the owning component's
@@ -880,6 +895,7 @@ impl EngineMessage {
             Self::DragHover { .. } => "DragHover",
             Self::DragEnd { .. } => "DragEnd",
             Self::UiSubmit { .. } => "UiSubmit",
+            Self::UiFormReset { .. } => "UiFormReset",
             Self::DialogButton { .. } => "DialogButton",
             Self::DialogDismiss { .. } => "DialogDismiss",
             Self::ToastDismiss { .. } => "ToastDismiss",
@@ -910,6 +926,15 @@ impl EngineMessage {
 /// form), `control` its own `formControl` name.
 pub fn form_input_id(scope: &str, control: &str) -> String {
     format!("glacier_form::{scope}::{control}")
+}
+
+/// The enclosing `<Form>`'s `error_prefix` as hydrated onto this node, falling
+/// back to `"erro_"` (the same default `eval.rs` applies).
+fn form_error_prefix_of(node: &UiNode) -> String {
+    node.form_error_prefix()
+        .filter(|p| !p.is_empty())
+        .unwrap_or("erro_")
+        .to_string()
 }
 
 /// O id estável de um `<MaskedInput>`, derivado da chave a que ele se liga.
@@ -946,22 +971,27 @@ fn single_line_editor<'a>(
 ) -> Element<'a, EngineMessage> {
     // Enter num campo dentro de `<Form>` submete o formulário (e pode pular
     // para o próximo campo) — mesmíssimo contrato do `<TextInput>` de antes.
-    let form_submit: Option<(String, Option<String>)> = if is_disabled {
+    let submit_msg: Option<EngineMessage> = if is_disabled {
         None
     } else if let (Some(_), Some(scope), Some(submit_action)) = (
         node.form_control(),
         node.form_scope(),
         node.form_submit_action(),
     ) {
-        let next_focus = node.form_next_focus().map(|n| form_input_id(scope, n));
-        Some((submit_action.to_string(), next_focus))
+        Some(EngineMessage::UiSubmit {
+            action: submit_action.to_string(),
+            error_action: node.form_error_action().unwrap_or_default().to_string(),
+            error_prefix: form_error_prefix_of(node),
+            scope: scope.to_string(),
+            next_focus: node.form_next_focus().map(|n| form_input_id(scope, n)),
+        })
     } else {
         None
     };
 
     let binding = value_var.to_string();
     let on_change_owned = on_change.to_string();
-    let submit = form_submit.clone();
+    let submit = submit_msg.clone();
 
     let mut ed = text_editor(content)
         .placeholder(placeholder)
@@ -971,12 +1001,9 @@ fn single_line_editor<'a>(
         ed = ed.on_action(move |action| {
             use iced::widget::text_editor::{Action, Edit};
             if matches!(action, Action::Edit(Edit::Enter))
-                && let Some((act, next_focus)) = &submit
+                && let Some(msg) = &submit
             {
-                return EngineMessage::UiSubmit {
-                    action: act.clone(),
-                    next_focus: next_focus.clone(),
-                };
+                return msg.clone();
             }
             EngineMessage::UiEditorAction {
                 binding: binding.clone(),
@@ -1012,20 +1039,17 @@ fn single_line_editor<'a>(
     if node.hover_style().is_some()
         || node.focus_style().is_some()
         || node.disabled_style().is_some()
+        || node.form_invalid()
     {
         let hover_ov = node.hover_style().cloned();
         let focus_ov = node.focus_style().cloned();
         let disabled_ov = node.disabled_style().cloned();
+        let invalid_ov = node.form_invalid().then(|| node.invalid_style().cloned()).flatten();
         ed = ed.style(move |theme, status| {
             use iced::widget::text_editor::Status;
             let mut style = iced::widget::text_editor::default(theme, status);
-            let overlay = match status {
-                Status::Hovered => hover_ov.as_ref(),
-                Status::Focused { .. } => focus_ov.as_ref(),
-                Status::Disabled => disabled_ov.as_ref(),
-                Status::Active => None,
-            };
-            if let Some(r) = overlay {
+            let apply = |style: &mut iced::widget::text_editor::Style,
+                         r: &crate::stylesheet::StyleRule| {
                 if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
                     style.background = Background::Color(bg);
                 }
@@ -1041,6 +1065,23 @@ fn single_line_editor<'a>(
                 if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                     style.value = tc;
                 }
+            };
+            let overlay = match status {
+                Status::Hovered => hover_ov.as_ref(),
+                Status::Focused { .. } => focus_ov.as_ref(),
+                Status::Disabled => disabled_ov.as_ref(),
+                Status::Active => None,
+            };
+            if let Some(r) = overlay {
+                apply(&mut style, r);
+            }
+            // `:invalid` is engine-tracked, not an iced Status — layer it on
+            // top of whatever the pointer state resolved to (but never fight
+            // the greyed-out `Disabled` look).
+            if !matches!(status, Status::Disabled)
+                && let Some(r) = invalid_ov.as_ref()
+            {
+                apply(&mut style, r);
             }
             style
         });
@@ -2519,6 +2560,49 @@ fn render_masked_input<'a>(
     if node.width.is_some() {
         campo = campo.width(parse_length(&node.width));
     }
+    // Dentro de um `<Form>`: Enter submete (e pode pular para o próximo
+    // campo), como no `<TextInput>`.
+    if !node.disabled.unwrap_or(false)
+        && let (Some(scope), Some(submit_action)) =
+            (node.form_scope(), node.form_submit_action())
+    {
+        let next_focus = node.form_next_focus().map(|n| form_input_id(scope, n));
+        campo = campo.on_submit(EngineMessage::UiSubmit {
+            action: submit_action.to_string(),
+            error_action: node.form_error_action().unwrap_or_default().to_string(),
+            error_prefix: form_error_prefix_of(node),
+            scope: scope.to_string(),
+            next_focus,
+        });
+    }
+    // `:invalid` — pintado quando o `<Form>` marcou este controle.
+    if node.form_invalid() && node.invalid_style().is_some() {
+        let invalid_ov = node.invalid_style().cloned();
+        campo = campo.style(move |theme, status| {
+            use iced::widget::text_input::Status;
+            let mut style = iced::widget::text_input::default(theme, status);
+            if !matches!(status, Status::Disabled)
+                && let Some(r) = invalid_ov.as_ref()
+            {
+                if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                    style.background = Background::Color(bg);
+                }
+                if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                    style.border.color = bc;
+                }
+                if let Some(bw) = r.border_width {
+                    style.border.width = bw;
+                }
+                if let Some(br) = r.border_radius {
+                    style.border.radius = iced::border::Radius::new(br);
+                }
+                if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                    style.value = tc;
+                }
+            }
+            style
+        });
+    }
     campo.into()
 }
 
@@ -3770,6 +3854,7 @@ pub fn render_node<'a>(
             navigate_to,
             navigate_back,
             color,
+            button_type,
         } => {
             // `<button>` filhos (Fase 1, item 1 do plano de convergência de
             // templates): quando o nó tem filhos visíveis, eles viram o
@@ -3821,8 +3906,37 @@ pub fn render_node<'a>(
             // estilo abaixo — não há necessidade de rastrear isso à parte.
             let is_disabled = node.disabled.unwrap_or(false);
             if !is_disabled {
-                // Navigation takes priority over the generic on_click.
-                if *navigate_back {
+                // `type="submit"`/`"reset"` inside a `<Form>` wins over the
+                // generic on_click: the click fires the enclosing form instead
+                // of a named action (the form scope is hydrated onto the button
+                // in `eval.rs`). A `type=` button outside any form falls
+                // through to on_click.
+                let form_action = match button_type {
+                    Some(crate::parser::ButtonType::Submit) => node.form_scope().map(|scope| {
+                        EngineMessage::UiSubmit {
+                            action: node.form_submit_action().unwrap_or_default().to_string(),
+                            error_action: node
+                                .form_error_action()
+                                .unwrap_or_default()
+                                .to_string(),
+                            error_prefix: form_error_prefix_of(node),
+                            scope: scope.to_string(),
+                            next_focus: None,
+                        }
+                    }),
+                    Some(crate::parser::ButtonType::Reset) => node.form_scope().map(|scope| {
+                        EngineMessage::UiFormReset {
+                            reset_action: on_click.clone().unwrap_or_default(),
+                            error_prefix: form_error_prefix_of(node),
+                            scope: scope.to_string(),
+                        }
+                    }),
+                    None => None,
+                };
+                if let Some(msg) = form_action {
+                    btn = btn.on_press(msg);
+                } else if *navigate_back {
+                    // Navigation takes priority over the generic on_click.
                     btn = btn.on_press(EngineMessage::NavigateBack);
                 } else if let Some(destination) = navigate_to {
                     btn = btn.on_press(EngineMessage::Navigate(destination.clone()));
@@ -3965,6 +4079,9 @@ pub fn render_node<'a>(
                         .map(|next| form_input_id(scope, next));
                     input = input.on_submit(EngineMessage::UiSubmit {
                         action: submit_action.to_string(),
+                        error_action: node.form_error_action().unwrap_or_default().to_string(),
+                        error_prefix: form_error_prefix_of(node),
+                        scope: scope.to_string(),
                         next_focus,
                     });
                 }
@@ -3977,20 +4094,18 @@ pub fn render_node<'a>(
                 if node.hover_style().is_some()
                     || node.focus_style().is_some()
                     || node.disabled_style().is_some()
+                    || node.form_invalid()
                 {
                     let hover_ov = node.hover_style().cloned();
                     let focus_ov = node.focus_style().cloned();
                     let disabled_ov = node.disabled_style().cloned();
+                    let invalid_ov =
+                        node.form_invalid().then(|| node.invalid_style().cloned()).flatten();
                     input = input.style(move |theme, status| {
                         use iced::widget::text_input::Status;
                         let mut style = iced::widget::text_input::default(theme, status);
-                        let overlay = match status {
-                            Status::Hovered => hover_ov.as_ref(),
-                            Status::Focused { .. } => focus_ov.as_ref(),
-                            Status::Disabled => disabled_ov.as_ref(),
-                            Status::Active => None,
-                        };
-                        if let Some(r) = overlay {
+                        let apply = |style: &mut iced::widget::text_input::Style,
+                                     r: &crate::stylesheet::StyleRule| {
                             if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
                                 style.background = Background::Color(bg);
                             }
@@ -4006,6 +4121,20 @@ pub fn render_node<'a>(
                             if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                                 style.value = tc;
                             }
+                        };
+                        let overlay = match status {
+                            Status::Hovered => hover_ov.as_ref(),
+                            Status::Focused { .. } => focus_ov.as_ref(),
+                            Status::Disabled => disabled_ov.as_ref(),
+                            Status::Active => None,
+                        };
+                        if let Some(r) = overlay {
+                            apply(&mut style, r);
+                        }
+                        if !matches!(status, Status::Disabled)
+                            && let Some(r) = invalid_ov.as_ref()
+                        {
+                            apply(&mut style, r);
                         }
                         style
                     });

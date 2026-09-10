@@ -78,10 +78,11 @@ pub static PRESETS: &[Preset] = &[
     Preset {
         id: "formulario",
         titulo: "Formulário validado",
-        descricao: "App de cadastro: textinput/maskedinput/spinbox/dateedit/select/checkbox + validação em Luau e <buttonbox>.",
+        descricao: "App de cadastro: textinput/maskedinput/spinbox/dateedit/select/checkbox num <form> com regras declaradas (rules=\"…\"); o motor valida ao enviar.",
         destaques: &[
-            "views/scripts/handlers/validar.luau — publica erro_<campo> e trava o \"Salvar\"",
-            "<maskedinput mask=\"cpf\">, <buttonbox>, <dateedit calendar_popup>",
+            "<form on_submit/on_validation_error> com rules=\"required|minlen:3|digits:11|…\" nos campos",
+            "pseudo-estado :invalid no .gss; <button type=\"submit\">/\"reset\"",
+            "validar.luau reduzido a salvar()/apontar()/limpar() — sem revalidar() na mão",
         ],
     },
     Preset {

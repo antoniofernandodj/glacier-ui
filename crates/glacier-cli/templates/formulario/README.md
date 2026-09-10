@@ -1,8 +1,9 @@
 # {{titulo}}
 
 Um **formulário validado** com [glacier-ui](https://crates.io/crates/glacier-ui):
-entradas com máscara, um `<buttonbox>` e validação em Luau que roda a cada
-mudança e no envio.
+as regras moram no `<form>` e o motor faz o ciclo inteiro no envio — roda as
+regras, mostra a mensagem por campo, acende o destaque vermelho e chama o
+handler certo.
 
 ```
 cargo run
@@ -13,27 +14,50 @@ cargo run
 ```
 src/main.rs                          a casca: registra views/app.gv
 views/
-├── app.gv                           os campos + <buttonbox>; mostra {erro_<campo>}
-├── scripts/app.luau                 init(): semeia as UFs, a data de hoje e os erros vazios
-├── scripts/handlers/validar.luau    campo() grava e revalida; enviar() decide
+├── app.gv                           o <form> com rules="…" nos campos; mostra {erro_<campo>}
+├── scripts/app.luau                 init(): semeia as UFs, a data de hoje e o status
+├── scripts/handlers/validar.luau    salvar() / apontar() / limpar() — só o "depois"
 └── styles/{theme.json, app.gss}
 ```
 
 ## Como funciona
 
-- Cada `on_change="campo:f_cpf"` chama `campo("f_cpf", texto)` — grava a chave
-  **e** recalcula todos os `erro_<campo>` (a mensagem) e `cls_<campo>` (a classe
-  `campo_erro`, a borda vermelha). O markup só lê essas chaves em
-  `{erro_cpf}` e `class="campo {cls_cpf}"`; não decide nada.
-- `<maskedinput mask="cpf">` guarda o valor **cru** (sem pontuação) — por isso
-  a regra é "11 dígitos", não um formato.
-- `<spinbox>` grava a própria chave (é builtin) e não tem `on_change`, então a
-  idade só revalida quando outro campo muda ou no envio — `enviar()` sempre
-  revalida tudo antes de decidir.
-- `enviar()` mostra o status ou um toast de aviso; `limpar()` zera os campos.
+O `<form>` declara o que fazer e as regras ficam nos campos:
+
+```xml
+<form on_submit="salvar" on_validation_error="apontar" validate_on="submit">
+  <input       form_control="f_nome" rules="required|minlen:3"  msg="informe ao menos 3 letras" />
+  <maskedinput form_control="f_cpf"  rules="required|digits:11"  mask="cpf" />
+  <spinbox     form_control="f_idade" value="f_idade" rules="gte:18" />
+  <checkbox    form_control="f_aceite" rules="accepted" label="Aceito os termos" />
+
+  <button type="reset"  on_click="limpar" text="Limpar" />
+  <button type="submit"                   text="Salvar" />
+</form>
+```
+
+- **`rules="…"`** — `|` separa, `:` é o argumento. Aqui: `required`,
+  `minlen:N`, `digits:N` (conta só os dígitos — ideal para CPF/telefone com
+  máscara), `gte:N`, `accepted`. Também existem `maxlen`, `lte`, `email`,
+  `digits:MIN,MAX`, `pattern="regex"` (atributo à parte) e `fn:NOME` (chama a
+  função global Luau `NOME(valor)` e usa a string que ela devolver).
+- **`msg="…"`** é a mensagem daquele campo, no lugar do texto-padrão do motor.
+- **Ao enviar** (Enter num campo ou `<button type="submit">`): tudo passou →
+  `salvar`; algo falhou → `apontar`, que recebe as falhas em JSON
+  (`[{"campo":"f_nome","msg":"…"}]`). O motor publica `{erro_<campo>}` sozinho.
+- **`.campo:invalid` no `.gss`** acende sozinho enquanto o `{erro_<campo>}`
+  daquele campo estiver preenchido — não é uma classe que o script liga.
+- **`validate_on="submit"`** (padrão): editar um campo **apaga** o erro dele —
+  a mensagem só volta no próximo envio. `validate_on="change"` revalida o campo
+  a cada tecla.
+- **`<button type="reset">`** limpa os `{erro_<campo>}` (e o `:invalid`) e então
+  chama o próprio `on_click` — `limpar()` só devolve os valores ao estado
+  inicial.
 
 ## Adaptar
 
-Troque as regras em `erro_de()` e os campos em `app.gv`. Para submeter a uma
-API, ponha um `fetch(...)` dentro de `enviar()` no ramo de sucesso — ele
-suspende sem travar a janela.
+Mude as `rules` e os campos direto no `app.gv`. Para submeter a uma API, ponha
+um `fetch(...)` dentro de `salvar()` — ele suspende sem travar a janela. Para
+uma regra que o vocabulário não cobre (dígito verificador de CPF, "senha ≠
+login"), use `rules="…|fn:minha_regra"` e escreva `minha_regra(valor)` no
+`validar.luau`, devolvendo a mensagem ou `nil`.

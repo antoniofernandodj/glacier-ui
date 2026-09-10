@@ -8,6 +8,60 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.102.0] — 2026-09-10 · CLI 0.5.4 · Glacier View 0.19.4
+
+**Validação declarada no `<form>`.** As regras deixam de ser um `if` escrito à
+mão no `.luau` e passam a morar nos campos; o motor faz o ciclo inteiro no
+envio.
+
+### Adicionado
+
+- **`<form>` com validação declarativa.** Um `form_control` ganha
+  `rules="required|minlen:3"` (DSL estilo Laravel: `required`, `minlen`/`maxlen`,
+  `digits:N`/`digits:MIN,MAX`, `gte`/`lte`, `email`, `accepted`, `fn:NOME` para
+  uma função Luau), `pattern="regex"` (atributo à parte — regex tem `|`/`:`) e
+  `msg="…"` (a mensagem do campo). O `<form>` ganha `on_validation_error`,
+  `validate_on` (`submit` padrão · `change`) e `error_prefix` (`erro_`).
+- **Ao enviar** o motor roda as regras, publica `{erro_<campo>}` por campo e
+  roteia **`on_submit`** (tudo passou) **ou** `on_validation_error` (algo falhou,
+  recebe as falhas como JSON). Um `<form>` **sem** `rules` mantém o contrato
+  antigo: `on_submit` sempre dispara.
+- **Pseudo-classe `:invalid` no `.gss`** — o motor a acende num controle
+  enquanto o `{erro_<campo>}` dele estiver preenchido. Pega em `<input>`,
+  `<maskedinput>` e no campo de um `<spinbox>`.
+- **`<button type="submit">` / `type="reset">`** dentro de um `<form>`: o clique
+  dispara o envio / o reset (que limpa os `{erro_<campo>}` e roteia o próprio
+  `on_click`), sem duplicar um nome de ação.
+- **`form_control` sem `value`/`on_change`** agora também liga `<maskedinput>`,
+  `<select>` e `<checkbox>` à chave de mesmo nome (antes só `<textinput>`).
+- **`Component::on_form_validation_error`** e **`Component::validate_field`**
+  (ambos com default no-op / `None`); `LuauComponent` os despacha para as
+  funções globais de mesmo nome. Novo export `glacier_ui::ButtonType`.
+
+### Quebras
+
+- **`EngineMessage::UiSubmit`** ganhou `error_action`, `error_prefix` e `scope`;
+  nova variante **`EngineMessage::UiFormReset`** — um `match` exaustivo precisa
+  cobri-la. Quem constrói `UiSubmit` à mão passa `String::new()` / `"erro_"` /
+  `""` para o comportamento de antes.
+- **`NodeType::Form`** ganhou `on_validation_error`, `validate_on`,
+  `error_prefix`; **`NodeType::Button`** ganhou `button_type: Option<ButtonType>`.
+- **`parser::Pseudo`** ganhou `invalid_style`; **`stylesheet::PseudoState`**
+  ganhou `Invalid` e **`StateStyles`** ganhou `invalid`.
+- **`FormBits`** ganhou os campos de validação (`rules`, `msg`, `pattern`, e os
+  hidratados `form_error_action`/`form_error_prefix`/`form_validate_on`/
+  `form_invalid`).
+
+### CLI 0.5.4
+
+- **Preset `formulario` reescrito** sobre o `<form>` validado: as regras no
+  markup, `.campo:invalid` no `.gss`, `<button type=submit/reset>`, e o
+  `validar.luau` reduzido a `salvar`/`apontar`/`limpar` — sem `revalidar()` na
+  mão nem `cls_<campo>`.
+- `engine-version.txt` → `0.102.0`.
+
+---
+
 ## CLI 0.5.3 — 2026-09-10 · glacier-ui 0.101.0
 
 **Dois presets corrigidos.** Só os templates que o `glacier new` materializa; o

@@ -2207,6 +2207,7 @@ fn eval_owned(
             navigate_to,
             navigate_back,
             color,
+            button_type,
         } => NodeType::Button {
             text: process_tpl(text, context),
             on_click: on_click
@@ -2219,6 +2220,7 @@ fn eval_owned(
                 .map(|c| process_tpl(c, context))
                 .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
+            button_type: *button_type,
         },
         NodeType::TextInput {
             placeholder,
@@ -2992,11 +2994,22 @@ fn eval_owned(
         NodeType::ContextMenu { items } => NodeType::ContextMenu {
             items: items.as_ref().map(|i| process_tpl(i, context)),
         },
-        NodeType::Form { on_submit, name } => NodeType::Form {
+        NodeType::Form {
+            on_submit,
+            on_validation_error,
+            name,
+            validate_on,
+            error_prefix,
+        } => NodeType::Form {
             on_submit: on_submit
                 .as_ref()
                 .map(|s| namespace_action(process_tpl(s, context), owner)),
+            on_validation_error: on_validation_error
+                .as_ref()
+                .map(|s| namespace_action(process_tpl(s, context), owner)),
             name: name.as_ref().map(|n| process_tpl(n, context)),
+            validate_on: validate_on.as_ref().map(|s| process_tpl(s, context)),
+            error_prefix: error_prefix.as_ref().map(|s| process_tpl(s, context)),
         },
         // A `Fragment` carries through evaluation as-is; its children are
         // spliced into the parent by `expand_children` (below), so it stays
@@ -3110,6 +3123,7 @@ fn eval_owned(
     let focus_style_eval = box_state(state_styles.focus);
     let active_style_eval = box_state(state_styles.active);
     let disabled_style_eval = box_state(state_styles.disabled);
+    let invalid_style_eval = box_state(state_styles.invalid);
 
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
@@ -3130,15 +3144,42 @@ fn eval_owned(
 
     // A `<Form>` hydrates every `formControl`-bound descendant (at any depth,
     // through nested Rows/Columns) with the shared scope, its evaluated
-    // `onSubmit` action, and — per control, in document order — the name of
-    // the next one, mirroring how a reorderable for-each hydrates its
-    // `dragHandle` (see `hydrate_drag_item` below).
-    if let NodeType::Form { on_submit, name } = &kind_eval {
+    // `onSubmit`/`onValidationError` actions, the error prefix and validate-on
+    // mode, and — per control, in document order — the name of the next one,
+    // mirroring how a reorderable for-each hydrates its `dragHandle` (see
+    // `hydrate_drag_item` below). Submit/reset `<button>`s get the same form
+    // context (minus the per-control bits) so a click knows which form it fires.
+    if let NodeType::Form {
+        on_submit,
+        on_validation_error,
+        name,
+        validate_on,
+        error_prefix,
+    } = &kind_eval
+    {
         let form_scope = format!("{}::{}", owner.unwrap_or(""), name.as_deref().unwrap_or(""));
         let submit_action = on_submit.clone().unwrap_or_default();
+        let error_action = on_validation_error.clone().unwrap_or_default();
+        let prefix = match error_prefix.as_deref() {
+            Some(p) if !p.is_empty() => p.to_string(),
+            _ => "erro_".to_string(),
+        };
+        let validate_on = match validate_on.as_deref() {
+            Some("change") => "change".to_string(),
+            _ => "submit".to_string(),
+        };
         let mut order = Vec::new();
         collect_form_control_names(&children_eval, &mut order);
-        hydrate_form_controls(&mut children_eval, &order, &form_scope, &submit_action);
+        hydrate_form_controls(
+            &mut children_eval,
+            &order,
+            &form_scope,
+            &submit_action,
+            &error_action,
+            &prefix,
+            &validate_on,
+            context,
+        );
     }
 
     Ok(UiNode {
@@ -3219,6 +3260,7 @@ fn eval_owned(
             focus_style: focus_style_eval,
             active_style: active_style_eval,
             disabled_style: disabled_style_eval,
+            invalid_style: invalid_style_eval,
         }),
         // As diretivas de fluxo são consumidas pela própria avaliação — o que
         // sai daqui já é o resultado delas, nunca a condição.
@@ -3240,13 +3282,22 @@ fn eval_owned(
         }),
         form: crate::parser::caixa(crate::parser::FormBits {
             form_control: node.form_control().map(|s| process_tpl(s, context)),
+            // `rules`/`msg`/`pattern` are authored in the markup, so they carry
+            // from the raw node here (interpolation is allowed in `msg`).
+            rules: node.rules().map(str::to_string),
+            msg: node.form_msg().map(|s| process_tpl(s, context)),
+            pattern: node.form_pattern().map(str::to_string),
             // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above,
             // on this very (already evaluated) node — carried through as a
-            // default of `None` here, same as the drag_* fields are for a plain
-            // for-each item.
+            // default of `None`/`false` here, same as the drag_* fields are for
+            // a plain for-each item.
             form_scope: node.form_scope().map(str::to_string),
             form_submit_action: node.form_submit_action().map(str::to_string),
             form_next_focus: node.form_next_focus().map(str::to_string),
+            form_error_action: node.form_error_action().map(str::to_string),
+            form_error_prefix: node.form_error_prefix().map(str::to_string),
+            form_validate_on: node.form_validate_on().map(str::to_string),
+            form_invalid: node.form_invalid(),
         }),
     })
 }
@@ -3264,22 +3315,65 @@ fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
 }
 
 /// Hydrates every `form_control`-bound node across `nodes` with the enclosing
-/// `<Form>`'s `scope` (used to build a stable focus id) and evaluated
-/// `on_submit` action, plus the name of the next control in `order` (`None` on
-/// the last one).
-fn hydrate_form_controls(nodes: &mut [UiNode], order: &[String], scope: &str, on_submit: &str) {
+/// `<Form>`'s `scope` (used to build a stable focus id), its evaluated
+/// `on_submit`/`on_validation_error` actions, the error-key prefix and
+/// validate-on mode, plus the name of the next control in `order` (`None` on
+/// the last one). A control whose `{prefix}{name}` context key is already
+/// non-empty is marked `form_invalid` so `:invalid` styling shows on the next
+/// frame. Submit/reset `<button>`s get the form context too (no per-control
+/// bits) so a click can find its form.
+#[allow(clippy::too_many_arguments)]
+fn hydrate_form_controls(
+    nodes: &mut [UiNode],
+    order: &[String],
+    scope: &str,
+    on_submit: &str,
+    on_error: &str,
+    prefix: &str,
+    validate_on: &str,
+    context: &EvalCtx,
+) {
     for node in nodes.iter_mut() {
         if let Some(name) = node.form_control() {
+            let name = name.to_string();
             let next = order
                 .iter()
-                .position(|n| n == name)
+                .position(|n| *n == name)
                 .and_then(|i| order.get(i + 1))
                 .cloned();
+            let invalid = context
+                .get(&format!("{prefix}{name}"))
+                .map(|v| !v.is_empty())
+                .unwrap_or(false);
             node.set_form_scope(Some(scope.to_string()));
             node.set_form_submit_action(Some(on_submit.to_string()));
             node.set_form_next_focus(next);
+            node.set_form_error_action(Some(on_error.to_string()));
+            node.set_form_error_prefix(Some(prefix.to_string()));
+            node.set_form_validate_on(Some(validate_on.to_string()));
+            node.set_form_invalid(invalid);
+        } else if matches!(
+            &node.kind,
+            NodeType::Button {
+                button_type: Some(_),
+                ..
+            }
+        ) {
+            node.set_form_scope(Some(scope.to_string()));
+            node.set_form_submit_action(Some(on_submit.to_string()));
+            node.set_form_error_action(Some(on_error.to_string()));
+            node.set_form_error_prefix(Some(prefix.to_string()));
         }
-        hydrate_form_controls(node.children.to_mut(), order, scope, on_submit);
+        hydrate_form_controls(
+            node.children.to_mut(),
+            order,
+            scope,
+            on_submit,
+            on_error,
+            prefix,
+            validate_on,
+            context,
+        );
     }
 }
 

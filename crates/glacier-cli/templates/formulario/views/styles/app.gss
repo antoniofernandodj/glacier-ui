@@ -1,13 +1,14 @@
 :root {
-  --bg:      #11111B;
-  --surface: #181825;
-  --border:  #313244;
-  --text:    #CDD6F4;
-  --muted:   #7F849C;
-  --faint:   #585B70;
-  --accent:  #89B4FA;
-  --danger:  #F38BA8;
-  --ok:      #A6E3A1;
+  --bg:         #11111B;
+  --surface:    #181825;
+  --border:     #313244;
+  --text:       #CDD6F4;
+  --muted:      #7F849C;
+  --faint:      #585B70;
+  --accent:     #89B4FA;
+  --danger:     #F38BA8;
+  --danger-bg:  #2A1A22;
+  --ok:         #A6E3A1;
 }
 
 /* Sem `background` na raiz: o fundo vem do theme.json (ver AGENTS.md). */
@@ -25,9 +26,21 @@
 /* A cadeia inteira até o campo precisa ser `width: fill` — um `fill` dentro de
  um pai `shrink` colapsa o campo sem erro nenhum (ver AGENTS.md / PRIMITIVAS). */
 .campo  { width: fill; padding: 9 11; border_radius: 6; }
-/* O destaque do campo reprovado: a borda vermelha que `validar.luau` liga
- gravando `cls_<campo>`. É o "campo destacado" que o toast de envio promete. */
-.campo_erro { border_width: 1; border_color: var(--danger); }
+/* O destaque do campo reprovado: NÃO é uma classe que o script liga — é o
+ pseudo-estado `:invalid`, que o motor acende sozinho enquanto o
+ `{erro_<campo>}` do campo estiver preenchido (ver AGENTS.md). */
+.campo:invalid { border_width: 1; border_color: var(--danger); background: var(--danger-bg); }
 .erro   { size: 11; color: var(--danger); }
 
 .status { size: 12; color: var(--ok); }
+
+.acoes { width: fill; spacing: 10; align_x: end; }
+.btn-salvar { background: var(--accent); text_color: #11111B; padding: 9 18; border_radius: 6; }
+.btn-limpar {
+  background: var(--surface);
+  text_color: var(--text);
+  border_width: 1;
+  border_color: var(--border);
+  padding: 9 18;
+  border_radius: 6;
+}

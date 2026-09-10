@@ -1,65 +1,38 @@
 --!strict
 --!nolint FunctionUnused
--- A vitrine da validação: cada `on_change` grava a chave e recalcula os
--- `erro_<campo>`. O markup só mostra `{erro_nome}` etc. — não decide nada.
+-- O `<form>` declara as regras nos campos (`rules="required|minlen:3"`, etc.) e
+-- o motor faz o ciclo inteiro no envio: roda as regras, publica
+-- `{erro_<campo>}`, acende o `:invalid` no `.gss` e chama UM destes:
+--   • `on_submit="salvar"`            — tudo passou;
+--   • `on_validation_error="apontar"` — algo falhou.
+-- Estes handlers só cuidam do *depois*. Nada de `revalidar()` na mão.
 
--- on_change="campo:f_nome" → campo("f_nome", <texto novo>)
-function campo(chave: string, valor: string?): ()
-  ctx[chave] = valor or ""
-  revalidar()
+-- Só roda quando o formulário inteiro passou.
+function salvar(): ()
+  ctx.f_status = `salvo: {ctx.f_nome} · {ctx.f_uf}`
+  toast({ message = "Cadastro salvo", kind = "success" })
 end
 
--- Devolve "" quando ok, ou a mensagem. `<maskedinput>` guarda o CPF SEM
--- pontuação — por isso o teste é "11 dígitos", não um formato.
-local function erro_de(chave: string): string
-  if chave == "f_nome" then
-    return if #(ctx.f_nome or "") >= 3 then "" else "informe ao menos 3 letras"
-  elseif chave == "f_cpf" then
-    local so_digitos = string.gsub(ctx.f_cpf or "", "%D", "")
-    return if #so_digitos == 11 then "" else "o CPF precisa de 11 dígitos"
-  elseif chave == "f_idade" then
-    local n = tonumber(ctx.f_idade) or 0
-    return if n >= 18 then "" else "precisa ser maior de idade"
-  elseif chave == "f_aceite" then
-    return if ctx.f_aceite == "true" then "" else "é preciso aceitar os termos"
-  end
-  return ""
+-- Recebe as falhas já prontas, na ordem do documento:
+--   [{ "campo": "f_nome", "msg": "informe ao menos 3 letras" }, ...]
+-- Os `{erro_<campo>}` e o `:invalid` já estão na tela — aqui é o lugar do
+-- extra (um toast, focar o primeiro campo, telemetria).
+function apontar(erros_json: string?): ()
+  ctx.f_status = ""
+  local erros = json.decode(erros_json or "[]")
+  toast({
+    message = `Corrija {#erros} campo(s)`,
+    kind = "warning",
+  })
 end
 
-function revalidar(): ()
-  ctx.erro_nome = erro_de("f_nome")
-  ctx.erro_cpf = erro_de("f_cpf")
-  ctx.erro_idade = erro_de("f_idade")
-  ctx.erro_aceite = erro_de("f_aceite")
-
-  -- O que o markup lê em `class="campo {cls_nome}"`: "" quando ok, a classe de
-  -- destaque quando não. É o par visual do texto `{erro_<campo>}` — juntos são
-  -- o "campo destacado" a que o toast de envio se refere. O <checkbox> não tem
-  -- gancho de classe, então "aceite" se destaca só pelo texto.
-  ctx.cls_nome = if ctx.erro_nome ~= "" then "campo_erro" else ""
-  ctx.cls_cpf = if ctx.erro_cpf ~= "" then "campo_erro" else ""
-  ctx.cls_idade = if ctx.erro_idade ~= "" then "campo_erro" else ""
-end
-
-function enviar(): ()
-  revalidar()
-  if ctx.erro_nome == "" and ctx.erro_cpf == "" and ctx.erro_idade == "" and ctx.erro_aceite == "" then
-    ctx.f_status = `salvo: {ctx.f_nome} · {ctx.f_uf}`
-    toast({ message = "Cadastro salvo", kind = "success" })
-  else
-    ctx.f_status = ""
-    toast({ message = "Corrija os campos destacados", kind = "warning" })
-  end
-end
-
+-- Botão `type="reset"`: o motor já apagou os `{erro_<campo>}` (e com eles o
+-- `:invalid`); só devolvemos os valores ao estado inicial.
 function limpar(): ()
   ctx.f_nome, ctx.f_cpf, ctx.f_tel = "", "", ""
   ctx.f_idade, ctx.f_nasc, ctx.f_aceite = "25", "", "false"
+  ctx.f_uf = "SP"
   ctx.f_status = ""
-  -- "Limpar" volta ao estado pristino: sem mensagens e sem destaque. Chamar
-  -- `revalidar()` aqui acenderia todos os erros num formulário recém-zerado.
-  ctx.erro_nome, ctx.erro_cpf, ctx.erro_idade, ctx.erro_aceite = "", "", "", ""
-  ctx.cls_nome, ctx.cls_cpf, ctx.cls_idade = "", "", ""
 end
 
 return {}

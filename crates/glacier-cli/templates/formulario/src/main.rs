@@ -1,6 +1,7 @@
-//! Formulário validado — entradas, máscaras, um `<buttonbox>` e validação em
-//! Luau que trava o "Salvar" enquanto houver erro. `src/main.rs` é só a casca:
-//! registra `views/app.gv` e abre a janela.
+//! Formulário validado — entradas, máscaras e validação **declarada no
+//! `<form>`** (`rules="…"` nos campos); o motor valida ao enviar e chama
+//! `salvar` ou `apontar`. `src/main.rs` é só a casca: registra `views/app.gv`
+//! e abre a janela.
 
 use glacier_ui::GlacierDaemon;
 

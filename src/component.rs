@@ -808,6 +808,26 @@ pub trait Component {
     /// ```
     fn on_form_submit(&mut self, _action: &str, _ctx: &mut Context) {}
 
+    /// Reage a um envio de `<Form>` que **falhou** as `rules` declaradas nos
+    /// seus controles. O motor já publicou `{error_prefix}{campo}` para cada
+    /// campo (o que acende `{erro_campo}` no markup e o `:invalid` no `.gss`);
+    /// isto é o gancho para o *extra* — um `toast`, focar o primeiro campo
+    /// ruim, telemetria. `errors_json` é um array JSON
+    /// `[{"campo":"nome","msg":"..."}]` na ordem do documento. Padrão: no-op.
+    /// Só dispara no caminho validado (algum controle tem `rules`); um `<Form>`
+    /// sem `rules` mantém o contrato antigo e cai sempre em `on_form_submit`.
+    fn on_form_validation_error(&mut self, _action: &str, _errors_json: &str, _ctx: &mut Context) {}
+
+    /// Roda uma regra `fn:NOME` de um `rules="..."`: recebe o valor atual do
+    /// campo, devolve `Some(mensagem)` quando inválido ou `None` quando ok. O
+    /// motor chama isto durante a validação de um `<Form>`, depois das regras
+    /// embutidas. Padrão: `None` (nenhuma regra script). A
+    /// [`crate::luau::LuauComponent`] despacha para a função global de mesmo
+    /// nome.
+    fn validate_field(&mut self, _rule: &str, _value: &str, _ctx: &mut Context) -> Option<String> {
+        None
+    }
+
     /// Retoma um `fetch` assíncrono que completou: o motor entrega o `id` da
     /// requisição (ver [`PendingFetch`]) e o [`FetchResult`]. Componentes que
     /// não fazem rede não precisam implementar. A [`crate::luau::LuauComponent`]

@@ -71,7 +71,7 @@ pub use eval::{
 };
 pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use luau::{LuaExtension, LuauComponent, register_lua_extension};
-pub use parser::{DialogMeta, NodeType, ScreenMeta, UiNode};
+pub use parser::{ButtonType, DialogMeta, NodeType, ScreenMeta, UiNode};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
 pub use toasts::{ToastKind, ToastSpec};
@@ -365,6 +365,100 @@ struct ActiveToast {
 /// per-item `{var}.__dragging` = `"true"`/`"false"` flag, so templates can
 /// visually distinguish the grabbed row without any cursor tracking.
 pub(crate) const DRAG_KEY_CONTEXT: &str = "__drag_key";
+
+/// One `form_control` inside a `<Form>` with declarative validation, as
+/// gathered from the evaluated tree by [`GlacierUI::collect_form_rules`] when
+/// the form is submitted.
+struct FormFieldRules {
+    /// The control name — also its context key.
+    name: String,
+    /// The raw `rules="..."` string (`""` for a rule-less control that only
+    /// rides along because a sibling has rules).
+    rules: String,
+    /// The raw `pattern="..."` regex, kept separate from `rules`.
+    pattern: Option<String>,
+    /// The `msg="..."` override shown for whichever rule fails first.
+    msg: Option<String>,
+}
+
+/// A single `form_control` with `rules`, indexed by [`collect_tree_bindings`]
+/// so the on-change path can clear its error (`validate_on="submit"`) or
+/// re-check it (`validate_on="change"`) without re-walking the tree.
+#[derive(Clone)]
+struct FormFieldLive {
+    name: String,
+    error_key: String,
+    validate_on: String,
+    rules: String,
+    pattern: Option<String>,
+    msg: Option<String>,
+}
+
+/// Runs one field's `rules` (+ `pattern`, + `fn:` rules via the component)
+/// against `value` and returns the message to show — `""` when it passes, the
+/// field's `msg` override otherwise (falling back to the built-in text). Used
+/// by the on-change path in `validate_on="change"` mode.
+fn validate_field_once(
+    ff: &FormFieldLive,
+    value: &str,
+    comp: &mut dyn component::Component,
+    ctx: &mut component::Context,
+) -> String {
+    let mut builtin = Vec::new();
+    let mut scripts = Vec::new();
+    for v in forms::Validator::parse_rules(&ff.rules).unwrap_or_default() {
+        match v {
+            forms::Validator::Script(n) => scripts.push(n),
+            other => builtin.push(other),
+        }
+    }
+    if let Some(p) = &ff.pattern {
+        builtin.push(forms::Validator::Pattern(p.clone()));
+    }
+    let mut control = forms::FormControl::with_validators(&ff.name, "", builtin);
+    control.set_value(value);
+    let mut first = control.errors().first().cloned();
+    if first.is_none() {
+        for rn in &scripts {
+            if let Some(m) = comp.validate_field(rn, value, ctx) {
+                first = Some(m);
+                break;
+            }
+        }
+    }
+    match first {
+        Some(builtin_msg) => ff.msg.clone().unwrap_or(builtin_msg),
+        None => String::new(),
+    }
+}
+
+/// Recursive worker for [`GlacierUI::collect_form_rules`]. Sets `any_rules` the
+/// first time it sees a control carrying `rules`/`pattern`.
+fn collect_form_rules_walk(
+    node: &UiNode,
+    scope: &str,
+    out: &mut Vec<FormFieldRules>,
+    any_rules: &mut bool,
+) {
+    if node.form_scope() == Some(scope)
+        && let Some(name) = node.form_control()
+    {
+        let rules = node.rules().unwrap_or("").to_string();
+        let pattern = node.form_pattern().map(str::to_string);
+        if !rules.is_empty() || pattern.is_some() {
+            *any_rules = true;
+        }
+        out.push(FormFieldRules {
+            name: name.to_string(),
+            rules,
+            pattern,
+            msg: node.form_msg().map(str::to_string),
+        });
+    }
+    for child in &node.children {
+        collect_form_rules_walk(child, scope, out, any_rules);
+    }
+}
 
 /// State of an in-progress drag-and-drop reorder (see `UiNode::drag_*` /
 /// `EngineMessage::DragStart|DragHover|DragEnd`). `order` is mutated live as
@@ -1887,23 +1981,160 @@ impl GlacierUI {
                     iced::widget::operation::move_cursor_to::<EngineMessage>(id.clone(), *cursor),
                 ]);
             }
-            EngineMessage::UiSubmit { action, next_focus } => {
-                // Routed to `Component::on_form_submit`, not `update` — a
-                // form's field changes (`update`, via `UiInputChanged`) and
-                // its submission never compete for the same `match` arm.
-                // Always fires (the component decides what to do based on its
-                // own `Form::is_valid()`); if there is a next control, also
-                // moves focus there.
-                let submit_task = self.route_to_owner(action, |comp, bare_action, ctx| {
-                    comp.on_form_submit(bare_action, ctx);
+            EngineMessage::UiSubmit {
+                action,
+                error_action,
+                error_prefix,
+                scope,
+                next_focus,
+            } => {
+                // Routed to `on_form_submit` / `on_form_validation_error`, never
+                // `update` — a form's field changes and its submission don't
+                // compete for the same `match` arm. Enter can also advance focus.
+                let focus_task = next_focus.clone().map(|id| {
+                    iced::widget::operation::focus::<EngineMessage>(id)
                 });
-                return match next_focus {
-                    Some(id) => iced::Task::batch([
-                        submit_task,
-                        iced::widget::operation::focus::<EngineMessage>(id.clone()),
-                    ]),
-                    None => submit_task,
+                let fields = self.collect_form_rules(scope);
+
+                // No `rules` anywhere in the form: keep the pre-validation
+                // contract — `on_form_submit` always, component decides.
+                if fields.is_empty() {
+                    let t = self.route_to_owner(action, |comp, bare_action, ctx| {
+                        comp.on_form_submit(bare_action, ctx);
+                    });
+                    return match focus_task {
+                        Some(f) => iced::Task::batch([t, f]),
+                        None => t,
+                    };
+                }
+
+                let Some(owner) = scope
+                    .split_once("::")
+                    .map(|(o, _)| o.to_string())
+                    .filter(|o| !o.is_empty())
+                    .or_else(|| self.current_screen.clone())
+                else {
+                    return iced::Task::none();
                 };
+                let submit_action = action.clone();
+                let error_action = error_action.clone();
+                let prefix = if error_prefix.is_empty() {
+                    "erro_".to_string()
+                } else {
+                    error_prefix.clone()
+                };
+
+                let task = self.run_on_owner(&owner, false, move |comp, ctx| {
+                    let bare = |a: &str| {
+                        a.rsplit_once("::")
+                            .map(|x| x.1.to_string())
+                            .unwrap_or_else(|| a.to_string())
+                    };
+                    // Build a `forms::Form` from the declared rules, seed it
+                    // with the live context values, and validate.
+                    let mut builder = forms::FormBuilder::new("form");
+                    let mut script_rules: Vec<(String, Vec<String>)> = Vec::new();
+                    for f in &fields {
+                        let parsed =
+                            forms::Validator::parse_rules(&f.rules).unwrap_or_else(|e| {
+                                eprintln!(
+                                    "[glacier-ui] <form>: regra inválida em '{}': {e}",
+                                    f.name
+                                );
+                                Vec::new()
+                            });
+                        let mut builtin = Vec::new();
+                        let mut scripts = Vec::new();
+                        for v in parsed {
+                            match v {
+                                forms::Validator::Script(n) => scripts.push(n),
+                                other => builtin.push(other),
+                            }
+                        }
+                        if let Some(p) = &f.pattern {
+                            builtin.push(forms::Validator::Pattern(p.clone()));
+                        }
+                        if !scripts.is_empty() {
+                            script_rules.push((f.name.clone(), scripts));
+                        }
+                        let cur = ctx.get(&f.name).cloned().unwrap_or_default();
+                        builder = builder.control(forms::FormControl::with_validators(
+                            &f.name, cur, builtin,
+                        ));
+                    }
+                    let mut form = builder.build();
+                    form.validate();
+
+                    // `fn:NOME` rules — resolved by the component itself.
+                    for (name, rule_names) in &script_rules {
+                        let cur = ctx.get(name).cloned().unwrap_or_default();
+                        for rn in rule_names {
+                            if let Some(msg) = comp.validate_field(rn, &cur, ctx)
+                                && let Some(c) = form.get_mut(name)
+                            {
+                                c.push_error(msg);
+                            }
+                        }
+                    }
+
+                    // Publish `{prefix}{campo}` for every field (blank when ok)
+                    // and collect the failures for the handler payload.
+                    let mut invalid: Vec<(String, String)> = Vec::new();
+                    for f in &fields {
+                        let first = form.errors(&f.name).first().cloned();
+                        let shown = if first.is_some() {
+                            f.msg.clone().or(first).unwrap_or_default()
+                        } else {
+                            String::new()
+                        };
+                        ctx.set(&format!("{prefix}{}", f.name), shown.clone());
+                        if !shown.is_empty() {
+                            invalid.push((f.name.clone(), shown));
+                        }
+                    }
+
+                    if invalid.is_empty() {
+                        comp.on_form_submit(&bare(&submit_action), ctx);
+                    } else if !error_action.is_empty() {
+                        let payload: Vec<serde_json::Value> = invalid
+                            .iter()
+                            .map(|(c, m)| serde_json::json!({ "campo": c, "msg": m }))
+                            .collect();
+                        comp.on_form_validation_error(
+                            &bare(&error_action),
+                            &serde_json::Value::Array(payload).to_string(),
+                            ctx,
+                        );
+                    }
+                });
+                return match focus_task {
+                    Some(f) => iced::Task::batch([task, f]),
+                    None => task,
+                };
+            }
+            EngineMessage::UiFormReset {
+                reset_action,
+                error_prefix,
+                scope,
+            } => {
+                // Clear every `{prefix}{campo}` key for the form (which drops
+                // `:invalid` on the next frame), then route the reset button's
+                // own `on_click` so the script can re-seed values.
+                let prefix = if error_prefix.is_empty() {
+                    "erro_".to_string()
+                } else {
+                    error_prefix.clone()
+                };
+                for f in self.collect_form_rules(scope) {
+                    self.context_data.insert(format!("{prefix}{}", f.name), String::new());
+                }
+                if reset_action.is_empty() {
+                    let _ = self.reevaluate_all();
+                    return iced::Task::none();
+                }
+                return self.route_to_owner(reset_action, |comp, bare_action, ctx| {
+                    comp.update(bare_action, None, ctx);
+                });
             }
             EngineMessage::UiEditorAction {
                 binding,
@@ -2048,8 +2279,32 @@ impl GlacierUI {
             return self.abre_dialogo_nomeado(alvo);
         }
 
-        self.route_to_owner(action, |comp, bare_action, ctx| {
+        // A `form_control` inside a `<Form>` that declared `rules`: after the
+        // value lands, keep its `{prefix}{name}` error key honest — cleared on
+        // any edit (`validate_on="submit"`, the default: errors only show after
+        // a submit and vanish as you fix the field), or re-checked live
+        // (`validate_on="change"`).
+        let form_field = self.current_screen.as_deref().and_then(|s| {
+            let bare = action.rsplit_once("::").map(|x| x.1).unwrap_or(action);
+            self.tree_bindings
+                .get(s)?
+                .form_fields
+                .iter()
+                .find(|f| f.name == bare)
+                .cloned()
+        });
+
+        self.route_to_owner(action, move |comp, bare_action, ctx| {
             comp.update(bare_action, value, ctx);
+            if let Some(ff) = &form_field {
+                let cur = ctx.get(&ff.name).cloned().unwrap_or_default();
+                let shown = if ff.validate_on == "change" {
+                    validate_field_once(ff, &cur, comp, ctx)
+                } else {
+                    String::new()
+                };
+                ctx.set(&ff.error_key, shown);
+            }
         })
     }
 
@@ -2134,6 +2389,33 @@ impl GlacierUI {
             self.dialog_resume = None;
         }
         iced::Task::none()
+    }
+
+    /// Every `form_control` node under the `<Form>` identified by `scope`
+    /// (`"{owner}::{name}"`), paired with its declarative validation config, in
+    /// document order. Returns **empty** when no control in that form carries a
+    /// `rules` (or `pattern`) attribute — the signal for the caller to keep the
+    /// legacy "always `on_form_submit`" contract. Otherwise it returns *every*
+    /// control (rule-less ones included, so the built `forms::Form` is complete).
+    fn collect_form_rules(&self, scope: &str) -> Vec<FormFieldRules> {
+        let owner = scope
+            .split_once("::")
+            .map(|(o, _)| o)
+            .filter(|o| !o.is_empty());
+        let tree = owner
+            .and_then(|o| self.evaluated_templates.get(o))
+            .or_else(|| {
+                self.current_screen
+                    .as_deref()
+                    .and_then(|s| self.evaluated_templates.get(s))
+            });
+        let Some(tree) = tree else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut any_rules = false;
+        collect_form_rules_walk(tree, scope, &mut out, &mut any_rules);
+        if any_rules { out } else { Vec::new() }
     }
 
     /// Resolves which component owns `action` (an action namespaced as
@@ -3823,6 +4105,9 @@ struct TreeBindings {
     /// pertence à **tela**: a que sai de cena leva os dela junto, sem ninguém
     /// desregistrar nada. Ver [`crate::keys`].
     atalhos: Vec<(String, String)>,
+    /// Every `form_control` node with declarative `rules`/`pattern`, so the
+    /// on-change path can keep its error key honest without re-walking.
+    form_fields: Vec<FormFieldLive>,
 }
 
 /// Colhe, numa **única** passada, os dois tipos de widget cujo estado o motor
@@ -3844,6 +4129,30 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
         )
     {
         out.usa_cursor = true;
+    }
+    // A `form_control` inside a `<Form>` carrying `rules`/`pattern`: index it so
+    // the on-change path keeps its `{prefix}{name}` error key honest without a
+    // per-keystroke tree walk. Independent of `node.kind` (any input can be a
+    // control), so it lives here, not in the `match` below.
+    if node.form_control().is_some()
+        && node.form_scope().is_some()
+        && (node.rules().is_some_and(|r| !r.is_empty()) || node.form_pattern().is_some())
+    {
+        let name = node.form_control().unwrap_or_default().to_string();
+        if !out.form_fields.iter().any(|f| f.name == name) {
+            let prefix = node
+                .form_error_prefix()
+                .filter(|p| !p.is_empty())
+                .unwrap_or("erro_");
+            out.form_fields.push(FormFieldLive {
+                error_key: format!("{prefix}{name}"),
+                validate_on: node.form_validate_on().unwrap_or("submit").to_string(),
+                rules: node.rules().unwrap_or("").to_string(),
+                pattern: node.form_pattern().map(str::to_string),
+                msg: node.form_msg().map(str::to_string),
+                name,
+            });
+        }
     }
     match &node.kind {
         NodeType::TextArea { value_var, .. }

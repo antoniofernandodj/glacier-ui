@@ -664,7 +664,7 @@ na tabela de cada widget:
 | `font`, `text_align`, `text_color`, `size`, `bold`, `color` | o texto **dentro** do nó |
 | `virtualize` | só numa `<column>`/`<row>` dentro de `<scrollable>` — ver "Listas longas" |
 | `x`, `y`, `anchor` | só num filho de `<stack>` — ver Sobreposição |
-| `form_control` | liga o campo à `<form>` que o envolve |
+| `form_control` | liga o campo à `<form>` que o envolve; com `rules="…"`, `msg="…"`, `pattern="…"` o motor valida esse campo no envio (ver "Validação declarada no próprio `<form>`") |
 | `if`, `else`, `else-if`, `for-each`, `var`, `slot` | diretivas; ver "Estrutura de template" |
 
 Cor sempre em hexadecimal — não há `rgb()`, nem nome de cor, nem `transparent`
@@ -1027,7 +1027,99 @@ livre (`"Shift+Ctrl+S"` casa com `ctrl+shift+s`); modificadores aceitos:
 `1200` ms (entre 120 e 20000), `size` default `84`.
 
 **`<form on_submit="salvar">`** — agrupa campos. Cada campo se liga com
-`form_control="nome"`; Enter em qualquer um deles dispara o `on_submit`.
+`form_control="nome"`; Enter em qualquer um deles dispara o `on_submit`, e o
+foco avança para o próximo campo (dá para preencher o formulário inteiro sem o
+mouse). O `<form>` desenha como uma `<column>` — aceita `spacing`, `width`,
+classe.
+
+#### Validação declarada no próprio `<form>`
+
+As regras moram nos campos (`rules="…"`) e o motor faz o ciclo inteiro **ao
+enviar**: roda as regras, publica uma mensagem por campo, acende o destaque
+visual e chama **um** de dois handlers.
+
+```xml
+<form
+  name="cadastro"
+  on_submit="salvar"
+  on_validation_error="apontar"
+  validate_on="submit"
+>
+  <input       form_control="nome"  rules="required|minlen:3" msg="informe ao menos 3 letras" />
+  <maskedinput form_control="cpf"   rules="required|digits:11" mask="cpf" />
+  <spinbox     form_control="idade" value="idade" rules="gte:18" min="14" max="90" />
+  <select      form_control="uf"    options="ufs" rules="required" />
+  <checkbox    form_control="aceite" rules="accepted" label="Aceito os termos" />
+
+  <text class="erro" if="{erro_nome}" not_empty>{erro_nome}</text>
+
+  <button type="reset"  text="Limpar" on_click="limpar" />
+  <button type="submit" text="Salvar" />
+</form>
+```
+
+**Atributos do `<form>`:**
+
+| atributo | default | o que faz |
+|---|---|---|
+| `on_submit` | — | roda quando o envio **passa** em tudo. Com regras, só nesse caso; **sem** nenhuma regra no formulário, sempre (contrato antigo). |
+| `on_validation_error` | — | roda quando o envio **falha**. Recebe as falhas como JSON: `[{"campo":"nome","msg":"…"}]`. |
+| `validate_on` | `submit` | `submit`: regras só no envio; editar um campo **apaga** o erro dele. `change`: cada campo revalida a si mesmo a cada tecla. |
+| `error_prefix` | `erro_` | onde as mensagens por campo são publicadas no contexto — `{erro_nome}`, `{erro_cpf}`, … |
+| `name` | `""` | só para diferenciar dois `<form>` na mesma tela. |
+
+**`rules="…"` num campo** — string estilo Laravel, `|` separa, `:` é o argumento:
+
+| regra | falha quando |
+|---|---|
+| `required` | vazio |
+| `minlen:N` / `maxlen:N` | menos / mais de N caracteres |
+| `digits:N` ou `digits:MIN,MAX` | fora dessa contagem de **dígitos** (ignora ponto, traço, parênteses — feito para CPF e telefone) |
+| `gte:N` / `lte:N` | número fora do limite |
+| `email` | não parece e-mail (vazio passa — combine com `required`) |
+| `accepted` | não é `true`/`on`/`1`/`yes`/`sim` — para o `<checkbox>` de "aceito os termos" |
+| `fn:NOME` | a função global Luau `NOME(valor)` devolveu uma string (a mensagem). `nil` ou `""` = ok. O escape hatch para o que o vocabulário não cobre (dígito verificador de CPF, "senha ≠ login", …). |
+
+- **`pattern="\d{11}"`** é atributo separado — uma regex tem `|` e `:` e não
+  caberia na string de `rules`.
+- **`msg="…"`** é a mensagem única do campo, no lugar do texto-padrão do motor
+  (que é em inglês). É o que `{erro_<campo>}` mostra.
+- **`:invalid` no `.gss`** acende sozinho enquanto `{erro_<campo>}` estiver
+  preenchido — **não** é uma classe que o script liga:
+
+  ```gss
+  .campo:invalid { border_width: 1; border_color: var(--danger); }
+  ```
+
+- **`<button type="submit">`** dentro do `<form>` dispara o envio sem
+  `on_click`; **`type="reset">`** apaga os `{erro_<campo>}` (e com eles o
+  `:invalid`) e então roteia o próprio `on_click` — o handler só devolve os
+  valores ao estado inicial.
+- **`form_control` sem `value`/`on_change`** (ou `checked`/`on_toggle` num
+  checkbox, `value` num select) liga o campo à chave de mesmo nome. Com eles
+  explícitos, respeita o que você escreveu.
+- **Regra malformada** (`minlen` sem número, nome de regra desconhecido) sai no
+  stderr e é ignorada — não trava o envio, mas o campo deixa de ser validado.
+
+Os handlers, no `.luau`:
+
+```lua
+-- on_submit: só roda quando o formulário inteiro passou.
+function salvar(): ()
+  toast({ message = "Cadastro salvo", kind = "success" })
+end
+
+-- on_validation_error: as falhas já vêm prontas.
+function apontar(erros_json: string?): ()
+  local erros = json.decode(erros_json or "[]")
+  toast({ message = `Corrija {#erros} campo(s)`, kind = "warning" })
+end
+
+-- fn:validar_cpf — devolve a mensagem, ou nil quando ok.
+function validar_cpf(v: string): string?
+  return if #v:gsub("%D", "") == 11 then nil else "CPF inválido"
+end
+```
 
 ### Escolha em lista
 
@@ -2016,7 +2108,7 @@ projeto escreve **sublinhado**, para casar com os atributos do `.gv`.
 
 ### Pseudo-estados
 
-Quatro, e só em seletor de classe, id ou tag — nunca aninhados:
+Cinco, e só em seletor de classe, id ou tag — nunca aninhados:
 
 ```gss
 .botao          { background: #313244; }
@@ -2024,9 +2116,16 @@ Quatro, e só em seletor de classe, id ou tag — nunca aninhados:
 .botao:active   { background: #585B70; }   /* `:pressed` é apelido */
 .botao:focus    { border_color: #89B4FA; }
 .botao:disabled { color: #6C7086; }
+.campo:invalid  { border_color: #F38BA8; } /* controle de <form> reprovado */
 ```
 
 Um estado declara só o que **muda**; o resto vem da regra base.
+
+`:hover`/`:focus`/`:active`/`:disabled` são estados nativos do widget. `:invalid`
+é do motor: acende num `form_control` enquanto o `{erro_<campo>}` dele estiver
+preenchido (ver "Validação declarada no próprio `<form>`"). Hoje pega em campos
+de texto (`<input>`, `<maskedinput>`) e no campo de um `<spinbox>`; o
+`<checkbox>` não tem gancho de estilo — ele se destaca só pelo `{erro_<campo>}`.
 
 ### Variáveis
 
@@ -2886,16 +2985,20 @@ escrito só no `<script>`.
 
 ## Receitas
 
-**Um formulário que valida antes de enviar**
+**Um formulário que valida antes de enviar** — as regras no `<form>`, o motor
+valida ao enviar (ver "Validação declarada no próprio `<form>`"):
 
 ```xml
-<form on_submit="salvar">
-  <textinput form_control="email" value="email" on_change="email" />
-  <textinput form_control="senha" value="senha" on_change="senha" secure="true" />
-  <button text="Entrar" disabled="{invalido}" on_click="salvar" />
+<form on_submit="salvar" on_validation_error="apontar">
+  <input form_control="email" rules="required|email" msg="e-mail inválido" />
+  <input form_control="senha" secure="true" rules="required|minlen:6" msg="mínimo 6" />
+  <text class="erro" if="{erro_email}" not_empty>{erro_email}</text>
+  <text class="erro" if="{erro_senha}" not_empty>{erro_senha}</text>
+  <button type="submit" text="Entrar" />
 </form>
 ```
-Valide no script e publique `ctx.invalido`; o `disabled` aceita `{chave}`.
+`salvar` só roda se tudo passou; `apontar` recebe as falhas em JSON. O
+`.campo:invalid` no `.gss` acende sozinho.
 
 **Carregar dados ao abrir a tela** — chame do `init`; o `fetch` suspende sem
 travar a janela.

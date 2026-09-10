@@ -206,6 +206,8 @@ impl Component for SpinBox {
                         <TextInput
                             class="{field_class}"
                             formControl="{form_control}"
+                            rules="{rules|}"
+                            msg="{msg|}"
                             value="{value}"
                             onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             placeholder="{placeholder}"
@@ -224,6 +226,8 @@ impl Component for SpinBox {
                         <TextInput
                             class="{field_class}"
                             formControl="{form_control}"
+                            rules="{rules|}"
+                            msg="{msg|}"
                             value="{value}"
                             onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
                             placeholder="{placeholder}"

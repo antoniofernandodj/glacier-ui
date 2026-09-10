@@ -777,6 +777,17 @@ fn parse_size_pair(raw: &str) -> Option<(f32, f32)> {
     }
 }
 
+/// `<button type="...">` inside a `<Form>` — see [`NodeType::Button::button_type`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonType {
+    /// Emits the enclosing form's submit (runs `rules`, then `on_submit` or
+    /// `on_validation_error`).
+    Submit,
+    /// Clears the form's per-field error keys and `:invalid` state, then routes
+    /// the button's own `on_click` (for the script to re-seed values).
+    Reset,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
     Container,
@@ -809,6 +820,11 @@ pub enum NodeType {
         /// if `true`, goes back to the previous screen (`navigateBack` attribute).
         navigate_back: bool,
         color: Option<String>,
+        /// `type="submit"`/`"reset"` (aliases `tipo`, `enviar`/`limpar`): inside
+        /// a `<Form>`, wires the click to the enclosing form's submit / reset
+        /// instead of `on_click` — no action name to keep in sync. `None` for a
+        /// plain button.
+        button_type: Option<ButtonType>,
     },
     TextInput {
         placeholder: String,
@@ -966,7 +982,17 @@ pub enum NodeType {
     /// optional).
     Form {
         on_submit: Option<String>,
+        /// Action routed to `Component::on_form_validation_error` when a
+        /// submit fails its controls' `rules`. Only fires on the validated
+        /// path (some control carries a `rules` attribute).
+        on_validation_error: Option<String>,
         name: Option<String>,
+        /// `"submit"` (default) — rules run only when the form is submitted;
+        /// `"change"` — a touched control re-runs its own rules on every edit.
+        validate_on: Option<String>,
+        /// Context-key prefix for per-field messages (default `"erro_"`), so a
+        /// `<text>{erro_nome}</text>` placeholder shows the inline error.
+        error_prefix: Option<String>,
     },
     Include {
         src: String,
@@ -2714,6 +2740,33 @@ pub struct FormBits {
     /// also focuses it, Tab-like, so the user can fill the whole form with the
     /// keyboard alone.
     pub form_next_focus: Option<String>,
+    /// Raw `rules="required|minlen:3"` from the markup — parsed by
+    /// [`crate::forms::Validator::parse_rules`] when the enclosing `<Form>` is
+    /// submitted. Its presence on *any* control switches the form to the
+    /// validated path (`on_submit` only when valid; `on_validation_error`
+    /// otherwise). Only meaningful alongside `form_control`.
+    pub rules: Option<String>,
+    /// Raw `msg="..."` — the single user-facing error line for this field,
+    /// shown in place of the engine's default English message when any of the
+    /// field's `rules` fails.
+    pub msg: Option<String>,
+    /// Raw `pattern="..."` — a regular expression the value must match. Kept
+    /// out of the `rules` string because a regex freely contains `|` and `:`.
+    pub pattern: Option<String>,
+    /// Internal, evaluation-only: hydrated from the enclosing `<Form>`'s
+    /// `on_validation_error` action onto every control and every
+    /// submit/reset `<button>` inside it.
+    pub form_error_action: Option<String>,
+    /// Internal, evaluation-only: the enclosing `<Form>`'s `error_prefix`
+    /// (default `"erro_"`) — where per-field messages land in the context.
+    pub form_error_prefix: Option<String>,
+    /// Internal, evaluation-only: the enclosing `<Form>`'s `validate_on`
+    /// (`"submit"` default, or `"change"`).
+    pub form_validate_on: Option<String>,
+    /// Internal, evaluation-only: set by the `<Form>` post-pass when this
+    /// control's `{form_error_prefix}{form_control}` context key is non-empty,
+    /// i.e. it failed its last validation. Drives `:invalid` styling.
+    pub form_invalid: bool,
 }
 
 /// Interação de ponteiro (press, duplo clique, cursor, tooltip) — atributos
@@ -2768,6 +2821,11 @@ pub struct Pseudo {
     pub focus_style: Option<Box<StyleRule>>,
     pub active_style: Option<Box<StyleRule>>,
     pub disabled_style: Option<Box<StyleRule>>,
+    /// `.classe:invalid { }` — unlike the others this is NOT an iced `Status`:
+    /// `widget.rs` merges it over the base style whenever [`UiNode::form_invalid`]
+    /// is set (a `form_control` whose `{error_prefix}{name}` context key is
+    /// non-empty after a `<Form>` ran its `rules`). `None` in the common case.
+    pub invalid_style: Option<Box<StyleRule>>,
 }
 
 /// Aparência de segunda ordem: alinhamento, fonte, gradiente e cores que
@@ -3140,6 +3198,89 @@ impl UiNode {
             .get_or_insert_with(Default::default)
             .form_next_focus = v;
     }
+    /// Ver [`FormBits::rules`].
+    pub fn rules(&self) -> Option<&str> {
+        self.form.as_ref()?.rules.as_deref()
+    }
+    /// Escreve [`FormBits::rules`], alocando o grupo se preciso.
+    pub fn set_rules(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).rules = v;
+    }
+    /// Ver [`FormBits::msg`].
+    pub fn form_msg(&self) -> Option<&str> {
+        self.form.as_ref()?.msg.as_deref()
+    }
+    /// Escreve [`FormBits::msg`], alocando o grupo se preciso.
+    pub fn set_form_msg(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).msg = v;
+    }
+    /// Ver [`FormBits::pattern`].
+    pub fn form_pattern(&self) -> Option<&str> {
+        self.form.as_ref()?.pattern.as_deref()
+    }
+    /// Escreve [`FormBits::pattern`], alocando o grupo se preciso.
+    pub fn set_form_pattern(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).pattern = v;
+    }
+    /// Ver [`FormBits::form_error_action`].
+    pub fn form_error_action(&self) -> Option<&str> {
+        self.form.as_ref()?.form_error_action.as_deref()
+    }
+    /// Escreve [`FormBits::form_error_action`], alocando o grupo se preciso.
+    pub fn set_form_error_action(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_error_action = v;
+    }
+    /// Ver [`FormBits::form_error_prefix`].
+    pub fn form_error_prefix(&self) -> Option<&str> {
+        self.form.as_ref()?.form_error_prefix.as_deref()
+    }
+    /// Escreve [`FormBits::form_error_prefix`], alocando o grupo se preciso.
+    pub fn set_form_error_prefix(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_error_prefix = v;
+    }
+    /// Ver [`FormBits::form_validate_on`].
+    pub fn form_validate_on(&self) -> Option<&str> {
+        self.form.as_ref()?.form_validate_on.as_deref()
+    }
+    /// Escreve [`FormBits::form_validate_on`], alocando o grupo se preciso.
+    pub fn set_form_validate_on(&mut self, v: Option<String>) {
+        if v.is_none() && self.form.is_none() {
+            return;
+        }
+        self.form
+            .get_or_insert_with(Default::default)
+            .form_validate_on = v;
+    }
+    /// Ver [`FormBits::form_invalid`].
+    pub fn form_invalid(&self) -> bool {
+        self.form.as_ref().map(|f| f.form_invalid).unwrap_or(false)
+    }
+    /// Escreve [`FormBits::form_invalid`], alocando o grupo se preciso.
+    pub fn set_form_invalid(&mut self, v: bool) {
+        if !v && self.form.is_none() {
+            return;
+        }
+        self.form.get_or_insert_with(Default::default).form_invalid = v;
+    }
     /// Ver [`Interact::on_press`].
     pub fn on_press(&self) -> Option<&str> {
         self.interact.as_ref()?.on_press.as_deref()
@@ -3257,6 +3398,19 @@ impl UiNode {
         self.pseudo
             .get_or_insert_with(Default::default)
             .disabled_style = v;
+    }
+    /// Ver [`Pseudo::invalid_style`].
+    pub fn invalid_style(&self) -> Option<&StyleRule> {
+        self.pseudo.as_ref()?.invalid_style.as_deref()
+    }
+    /// Escreve [`Pseudo::invalid_style`], alocando o grupo se preciso.
+    pub fn set_invalid_style(&mut self, v: Option<Box<StyleRule>>) {
+        if v.is_none() && self.pseudo.is_none() {
+            return;
+        }
+        self.pseudo
+            .get_or_insert_with(Default::default)
+            .invalid_style = v;
     }
     /// Ver [`Look::align_x`].
     pub fn align_x(&self) -> Option<&str> {
@@ -3697,6 +3851,11 @@ impl UiNode {
                 "controle_form",
             ],
         );
+        // Declarative validation, only meaningful on a `form_control` inside a
+        // `<Form>` (see `FormBits::rules`/`msg`/`pattern`).
+        let form_rules = Self::get_attr(&node, &["rules", "regras"]);
+        let form_msg = Self::get_attr(&node, &["msg", "erro_msg", "error_msg"]);
+        let form_pattern = Self::get_attr(&node, &["pattern", "padrao", "padrão"]);
 
         // Structural directives as attributes (Vue/Angular style).
         //
@@ -3832,12 +3991,20 @@ impl UiNode {
                     &["navigateBack", "navigate_back", "navigate-back", "voltar"],
                 );
                 let color = Self::get_attr(&node, &["color", "cor"]);
+                let button_type = Self::get_attr(&node, &["type", "tipo"]).and_then(|t| {
+                    match t.trim().to_ascii_lowercase().as_str() {
+                        "submit" | "enviar" => Some(ButtonType::Submit),
+                        "reset" | "limpar" => Some(ButtonType::Reset),
+                        _ => None,
+                    }
+                });
                 NodeType::Button {
                     text,
                     on_click,
                     navigate_to,
                     navigate_back,
                     color,
+                    button_type,
                 }
             }
             "TextInput" | "textinput" | "Input" | "input" | "EntradaTexto" | "entrada_texto" => {
@@ -3954,13 +4121,25 @@ impl UiNode {
             "Checkbox" | "checkbox" | "Check" | "check" => {
                 let label = Self::get_attr(&node, &["label", "text", "texto", "rotulo"])
                     .unwrap_or_default();
-                let checked_var = Self::get_attr(&node, &["checked", "value", "valor", "marcado"])
-                    .unwrap_or_default();
-                let on_toggle = Self::get_attr(
+                let mut checked_var =
+                    Self::get_attr(&node, &["checked", "value", "valor", "marcado"])
+                        .unwrap_or_default();
+                let mut on_toggle = Self::get_attr(
                     &node,
                     &["onToggle", "on_toggle", "on-toggle", "onChange", "aoMudar"],
                 )
                 .unwrap_or_default();
+                // `formControl="aceite"` with no explicit `checked`/`onToggle`
+                // binds both to the control name, so the box reads/writes
+                // `ctx.aceite` and the `<Form>` can validate it (`rules`).
+                if let Some(control) = &form_control {
+                    if checked_var.is_empty() {
+                        checked_var = control.clone();
+                    }
+                    if on_toggle.is_empty() {
+                        on_toggle = control.clone();
+                    }
+                }
                 let tristate = Self::get_attr_bool(
                     &node,
                     &[
@@ -4206,16 +4385,30 @@ impl UiNode {
             | "Mascara" | "mascara" | "máscara" => {
                 let bruta = Self::get_attr(&node, &["mask", "mascara", "máscara", "format"])
                     .unwrap_or_default();
+                let mut value_var =
+                    Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let mut on_change = Self::get_attr(
+                    &node,
+                    &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
+                )
+                .unwrap_or_default();
+                // Like `<TextInput>`: `formControl="cpf"` with no explicit
+                // `value`/`onChange` binds both to the control name, so the
+                // masked field reads/writes `ctx.cpf` straight.
+                if let Some(control) = &form_control {
+                    if value_var.is_empty() {
+                        value_var = control.clone();
+                    }
+                    if on_change.is_empty() {
+                        on_change = control.clone();
+                    }
+                }
                 NodeType::MaskedInput {
-                    value_var: Self::get_attr(&node, &["value", "valor"]).unwrap_or_default(),
+                    value_var,
                     mask: mascara_preset(&bruta),
                     placeholder: Self::get_attr(&node, &["placeholder", "dica"])
                         .unwrap_or_default(),
-                    on_change: Self::get_attr(
-                        &node,
-                        &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
-                    )
-                    .unwrap_or_default(),
+                    on_change,
                 }
             }
             // As duas tags do painel flutuante, uma primitiva só — a mesma
@@ -4889,10 +5082,10 @@ impl UiNode {
                     &["options", "items", "itens", "source", "origem", "opcoes"],
                 )
                 .unwrap_or_default();
-                let value_var =
+                let mut value_var =
                     Self::get_attr(&node, &["value", "valor", "selected", "selecionado"])
                         .unwrap_or_default();
-                let on_change = Self::get_attr(
+                let mut on_change = Self::get_attr(
                     &node,
                     &[
                         "onChange",
@@ -4904,6 +5097,16 @@ impl UiNode {
                     ],
                 )
                 .unwrap_or_default();
+                // `formControl="uf"` with no explicit `value`/`onChange` binds
+                // both to the control name, so the `<Form>` can validate it.
+                if let Some(control) = &form_control {
+                    if value_var.is_empty() {
+                        value_var = control.clone();
+                    }
+                    if on_change.is_empty() {
+                        on_change = control.clone();
+                    }
+                }
                 let placeholder =
                     Self::get_attr(&node, &["placeholder", "dica"]).unwrap_or_default();
                 let label_field = Self::get_attr(
@@ -5057,8 +5260,38 @@ impl UiNode {
                         "ao_submeter",
                     ],
                 );
+                let on_validation_error = Self::get_attr(
+                    &node,
+                    &[
+                        "onValidationError",
+                        "on_validation_error",
+                        "on-validation-error",
+                        "aoFalharValidacao",
+                        "ao_falhar_validacao",
+                    ],
+                );
+                let validate_on = Self::get_attr(
+                    &node,
+                    &["validateOn", "validate_on", "validate-on", "validarEm", "validar_em"],
+                );
+                let error_prefix = Self::get_attr(
+                    &node,
+                    &[
+                        "errorPrefix",
+                        "error_prefix",
+                        "error-prefix",
+                        "prefixoErro",
+                        "prefixo_erro",
+                    ],
+                );
                 let name = Self::get_attr(&node, &["name", "nome"]);
-                NodeType::Form { on_submit, name }
+                NodeType::Form {
+                    on_submit,
+                    on_validation_error,
+                    name,
+                    validate_on,
+                    error_prefix,
+                }
             }
             "Include" | "include" | "Incluir" | "incluir" => {
                 let src = Self::get_attr(&node, &["src", "fonte"]).unwrap_or_default();
@@ -5496,6 +5729,9 @@ impl UiNode {
             }),
             form: caixa(FormBits {
                 form_control,
+                rules: form_rules,
+                msg: form_msg,
+                pattern: form_pattern,
                 ..Default::default()
             }),
         })

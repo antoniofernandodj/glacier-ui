@@ -1066,6 +1066,36 @@ impl Component for LuauComponent {
         });
     }
 
+    fn on_form_validation_error(&mut self, action: &str, errors_json: &str, ctx: &mut Context) {
+        // The handler gets the failures as its `value` argument — a JSON array
+        // `[{"campo":"nome","msg":"..."}]` it can `json.decode`.
+        self.dispatch(action, Some(errors_json), ctx, |inner, ctx| {
+            inner.on_form_validation_error(action, errors_json, ctx)
+        });
+    }
+
+    fn validate_field(&mut self, rule: &str, value: &str, ctx: &mut Context) -> Option<String> {
+        if let Err(e) = self.sync_to_luau(ctx) {
+            self.report_error(&format!("validate_field '{rule}'"), e, ctx);
+            return None;
+        }
+        let Ok(f) = self.luau.globals().get::<Function>(rule) else {
+            return self
+                .inner
+                .as_ref()
+                .and_then(|inner| inner.borrow_mut().validate_field(rule, value, ctx));
+        };
+        // A validator is a plain function (no `yield`/`await`), so call it
+        // directly instead of driving a coroutine. `nil`/`""` mean "valid".
+        match f.call::<Option<String>>(value) {
+            Ok(msg) => msg.filter(|m| !m.is_empty()),
+            Err(e) => {
+                self.report_error(&format!("validate_field '{rule}'"), e, ctx);
+                None
+            }
+        }
+    }
+
     fn resume_fetch(&mut self, id: u64, result: &FetchResult, ctx: &mut Context) {
         if let Err(e) = self.resume_inner(id, result, ctx) {
             self.report_error(&format!("fetch #{id}"), e, ctx);

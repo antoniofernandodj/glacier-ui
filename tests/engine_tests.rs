@@ -3505,6 +3505,9 @@ fn test_ui_submit_always_dispatches_regardless_of_next_focus() {
     motor.set_initial_screen("formtest");
     let _ = motor.dispatch(&EngineMessage::UiSubmit {
         action: "enviar".into(),
+        error_action: String::new(),
+        error_prefix: "erro_".into(),
+        scope: "formtest::".into(),
         next_focus: Some("glacier_form::formtest::senha".into()),
     });
     assert_eq!(motor.get_data("enviado").map(String::as_str), Some("true"));
@@ -3517,6 +3520,9 @@ fn test_ui_submit_always_dispatches_regardless_of_next_focus() {
     motor2.set_initial_screen("formtest");
     let _ = motor2.dispatch(&EngineMessage::UiSubmit {
         action: "enviar".into(),
+        error_action: String::new(),
+        error_prefix: "erro_".into(),
+        scope: "formtest::".into(),
         next_focus: None,
     });
     assert_eq!(motor2.get_data("enviado").map(String::as_str), Some("true"));
@@ -3570,6 +3576,139 @@ fn test_form_control_respects_explicit_value_and_on_change() {
         }
         other => panic!("esperava NodeType::TextInput, veio {:?}", other),
     }
+}
+
+// ── Declarative <form> validation (rules="" / on_validation_error / :invalid) ──
+
+struct ValidatedFormComp;
+impl Component for ValidatedFormComp {
+    fn name(&self) -> &str {
+        "vform"
+    }
+    fn template(&self) -> Template {
+        Template::Inline(
+            r#"
+            <form name="cad" on_submit="salvar" on_validation_error="apontar">
+                <input form_control="nome" rules="required|minlen:3" msg="nome curto" />
+                <input form_control="cpf" rules="digits:11" />
+                <button type="submit" text="ok" />
+            </form>
+        "#
+            .into(),
+        )
+    }
+    fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    fn on_form_submit(&mut self, _a: &str, ctx: &mut Context) {
+        ctx.set("done", "yes");
+    }
+    fn on_form_validation_error(&mut self, _a: &str, errors_json: &str, ctx: &mut Context) {
+        ctx.set("errs", errors_json);
+    }
+}
+
+fn submit_vform(m: &mut GlacierUI) {
+    let _ = m.dispatch(&EngineMessage::UiSubmit {
+        action: "vform::salvar".into(),
+        error_action: "vform::apontar".into(),
+        error_prefix: "erro_".into(),
+        scope: "vform::cad".into(),
+        next_focus: None,
+    });
+}
+
+#[test]
+fn validated_form_blocks_submit_and_publishes_per_field_errors() {
+    let mut m = GlacierUI::new();
+    m.register(Box::new(ValidatedFormComp)).unwrap();
+    m.set_initial_screen("vform");
+    submit_vform(&mut m);
+
+    // Invalid: `on_form_submit` must NOT run; `on_form_validation_error` must.
+    assert_eq!(m.get_data("done"), None);
+    // `msg=""` override wins over the engine's default English text.
+    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some("nome curto"));
+    // No `msg` on cpf -> engine default, but non-empty.
+    assert!(m.get_data("erro_cpf").map(|s| !s.is_empty()).unwrap_or(false));
+    let errs = m.get_data("errs").cloned().unwrap_or_default();
+    assert!(errs.contains("\"campo\":\"nome\""), "payload: {errs}");
+}
+
+#[test]
+fn validated_form_submits_once_every_rule_passes() {
+    let mut m = GlacierUI::new();
+    m.register(Box::new(ValidatedFormComp)).unwrap();
+    m.set_initial_screen("vform");
+    m.define_data("nome", "Ana");
+    m.define_data("cpf", "12345678901");
+    submit_vform(&mut m);
+
+    assert_eq!(m.get_data("done").map(String::as_str), Some("yes"));
+    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some(""));
+    assert_eq!(m.get_data("erro_cpf").map(String::as_str), Some(""));
+}
+
+#[test]
+fn editing_a_field_clears_its_standing_error_in_submit_mode() {
+    let mut m = GlacierUI::new();
+    m.register(Box::new(ValidatedFormComp)).unwrap();
+    m.set_initial_screen("vform");
+    submit_vform(&mut m);
+    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some("nome curto"));
+
+    // Any edit to the field blanks its error key (default validate_on="submit").
+    let _ = m.dispatch(&EngineMessage::UiInputChanged {
+        action: "nome".into(),
+        value: "Jo".into(),
+    });
+    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some(""));
+    // The other field's standing error is untouched.
+    assert!(m.get_data("erro_cpf").map(|s| !s.is_empty()).unwrap_or(false));
+}
+
+#[test]
+fn form_without_rules_keeps_the_always_submit_contract() {
+    // FormTestComp has no `rules` — submit must reach `on_form_submit`
+    // unconditionally, exactly as before this feature.
+    let mut m = GlacierUI::new();
+    m.register(Box::new(FormTestComp)).unwrap();
+    m.set_initial_screen("formtest");
+    let _ = m.dispatch(&EngineMessage::UiSubmit {
+        action: "enviar".into(),
+        error_action: String::new(),
+        error_prefix: "erro_".into(),
+        scope: "formtest::".into(),
+        next_focus: None,
+    });
+    assert_eq!(m.get_data("enviado").map(String::as_str), Some("true"));
+}
+
+#[test]
+fn form_parses_validation_attributes() {
+    let xml = r#"
+        <form name="c" on_submit="s" on_validation_error="e" validate_on="change" error_prefix="err_">
+            <input form_control="nome" rules="required|minlen:3" msg="curto" pattern="\w+" />
+        </form>
+    "#;
+    let ast = UiNode::parse_xml(xml).unwrap();
+    match &ast.kind {
+        NodeType::Form {
+            on_submit,
+            on_validation_error,
+            validate_on,
+            error_prefix,
+            ..
+        } => {
+            assert_eq!(on_submit.as_deref(), Some("s"));
+            assert_eq!(on_validation_error.as_deref(), Some("e"));
+            assert_eq!(validate_on.as_deref(), Some("change"));
+            assert_eq!(error_prefix.as_deref(), Some("err_"));
+        }
+        other => panic!("esperava Form, veio {other:?}"),
+    }
+    let input = &ast.children[0];
+    assert_eq!(input.rules(), Some("required|minlen:3"));
+    assert_eq!(input.form_msg(), Some("curto"));
+    assert_eq!(input.form_pattern(), Some(r"\w+"));
 }
 
 /// Sanity check on the actual shipped template (`examples/formulario_login.rs`

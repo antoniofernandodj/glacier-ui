@@ -265,6 +265,8 @@ const ACTION_ATTRS = new Set(
     "onToggle", "on_toggle", "on-toggle",
     "onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar",
     "onSubmit", "on_submit", "on-submit", "aoSubmeter", "ao_submeter",
+    "onValidationError", "on_validation_error", "on-validation-error",
+    "aoFalharValidacao", "ao_falhar_validacao",
     "onReorder", "on_reorder", "on-reorder", "aoReordenar",
     "onRelease", "on_release", "on-release", "aoSoltar", "ao_soltar",
     "onOpen", "on_open", "on-open",

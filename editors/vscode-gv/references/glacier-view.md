@@ -44,10 +44,14 @@ Empilha filhos na horizontal. Atributos: `spacing`, `align` (eixo cruzado = Y).
 Texto. Conteúdo via `content="…"` ou filho `<Text>…</Text>`. Atributos: `size`, `bold`, `color`.
 
 ### `<Button>` (`<Botao>`)
-Botão. Atributos: `text`, `on_click`, `navigateTo`, `navigateBack`, `color`.
+Botão. Atributos: `text`, `on_click`, `navigateTo`, `navigateBack`, `color`, `type`.
+`type="submit"`/`"reset"` (dentro de um `<Form>`): o clique dispara o envio /
+o reset do formulário, sem `on_click` — ver `<Form>`.
 
 ### `<TextInput>` (`<Input>`)
-Campo de texto de uma linha. Atributos: `value`, `placeholder`, `onChange`, `secure`, `formControl`.
+Campo de texto de uma linha. Atributos: `value`, `placeholder`, `onChange`,
+`secure`, `formControl`, `rules`, `msg`, `pattern` (os três últimos só valem
+com `formControl` dentro de um `<Form>` — ver `<Form>`).
 
 ### `<TextArea>` (`<Editor>`)
 Editor multilinha. Atributos: `value`, `placeholder`, `onChange`.
@@ -62,7 +66,9 @@ Imagem. Atributos: `source`/`src`, `clip="Circle"`.
 Área rolável. Atributos: `direction` (`vertical`/`horizontal`).
 
 ### `<Checkbox>` (`<Check>`)
-Caixa de seleção. Atributos: `label`, `checked`, `onToggle`.
+Caixa de seleção. Atributos: `label`, `checked`, `onToggle`, `formControl`,
+`rules`, `msg`. `formControl` sem `checked`/`onToggle` liga os dois ao nome do
+controle (a regra `accepted` valida "aceito os termos").
 
 ### `<Toggle>` (`<Switch>`)
 Interruptor. Atributos: `label`, `checked`, `onToggle`.
@@ -503,13 +509,61 @@ Espaço vazio — o `QSpacerItem`. Sem `width`/`height` é `Fill` nos dois eixos
 ```
 
 ### `<Select>` (`<Dropdown>`, `<ComboBox>`)
-Seletor. Atributos: `options`, `value`, `onChange`, `placeholder`, `labelField`, `valueField`, `color`.
+Seletor. Atributos: `options`, `value`, `onChange`, `placeholder`, `labelField`, `valueField`, `color`, `formControl`, `rules`, `msg`.
+`formControl` sem `value`/`onChange` liga os dois ao nome do controle (ver `<Form>`).
 
 ### `<ComboEdit>` (`<EditableCombo>`, `<ComboEditavel>`)
 Combo editável: campo de texto com lista de sugestões. Atributos: `options`, `value`, `placeholder`, `onChange`, `onSelect`.
 
 ### `<Form>` (`<Formulario>`)
-Formulário. Atributos: `onSubmit`, `name`. Envolve `formControl`s.
+
+Agrupa `formControl`s. Renderiza como uma `<Column>` (aceita `spacing`,
+`width`, …). Dá a cada controle um id de foco estável e liga o **Enter** de
+qualquer campo ao envio (e avança o foco para o próximo, Tab-like).
+
+```gv
+<form name="cadastro" on_submit="salvar" on_validation_error="apontar">
+  <input       form_control="nome" rules="required|minlen:3" msg="informe o nome" />
+  <maskedinput form_control="cpf"  rules="required|digits:11" mask="cpf" />
+  <spinbox     form_control="idade" value="idade" rules="gte:18" min="14" max="90" />
+  <select      form_control="uf" options="ufs" rules="required" />
+  <checkbox    form_control="aceite" rules="accepted" label="Aceito os termos" />
+
+  <button type="reset"  text="Limpar" on_click="limpar" />
+  <button type="submit" text="Salvar" />
+</form>
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `on_submit` (`onSubmit`, `aoSubmeter`) | — | ação roteada para `on_form_submit` quando o envio **passa** nas regras. Sem regras em nenhum controle, sempre dispara (contrato antigo). |
+| `on_validation_error` (`onValidationError`, `aoFalharValidacao`) | — | ação roteada para `on_form_validation_error` quando o envio **falha**. Recebe as falhas como JSON: `[{"campo":"nome","msg":"…"}]`. |
+| `validate_on` (`validateOn`, `validarEm`) | `submit` | `submit`: regras só rodam no envio; um campo editado tem seu erro **apagado**. `change`: cada campo editado revalida a si mesmo na hora. |
+| `error_prefix` (`errorPrefix`, `prefixoErro`) | `erro_` | prefixo das chaves de contexto onde as mensagens por campo são publicadas — `{erro_nome}` etc. |
+| `name` (`nome`) | `""` | desambigua dois `<Form>` na mesma tela. |
+
+**As regras (`rules`) num `formControl`** — uma string estilo Laravel, `|`
+separando, `:` para o argumento:
+
+| regra | falha quando |
+| --- | --- |
+| `required` | vazio (após trim) |
+| `minlen:N` / `maxlen:N` | menos / mais de N caracteres |
+| `digits:N` ou `digits:MIN,MAX` | fora dessa contagem de **dígitos** (ignora pontuação — CPF, telefone) |
+| `gte:N` / `lte:N` | número fora do limite (não-número também falha) |
+| `email` | não parece um e-mail (vazio passa) |
+| `accepted` | não é `true`/`on`/`1`/`yes`/`sim` (para `<checkbox>`) |
+| `fn:NOME` | a função global Luau `NOME(valor)` devolve uma string (mensagem); `nil`/`""` = ok |
+
+- **`pattern="regex"`** é atributo à parte (uma regex tem `|` e `:`). **`msg="…"`**
+  é a mensagem única do campo, no lugar do texto-padrão do motor.
+- **`:invalid` no `.gss`** — o motor acende esse pseudo-estado no controle
+  enquanto o `{erro_<campo>}` dele estiver preenchido. Não é uma classe que o
+  script liga: `.campo:invalid { border_color: var(--erro); }`.
+- **Regra malformada** (`rules="minlen"` sem argumento, regra desconhecida) sai
+  no stderr e é ignorada — não trava o envio.
+- **`<button type="submit">`** dispara o envio; **`type="reset"`** apaga os
+  `{erro_<campo>}` (e o `:invalid`) e então roteia o próprio `on_click`.
 
 ---
 

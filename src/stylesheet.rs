@@ -196,6 +196,11 @@ pub enum PseudoState {
     Focus,
     Active,
     Disabled,
+    /// `.classe:invalid { }` — NOT an iced `Status`. The engine tracks it: a
+    /// `form_control` inside a `<Form>` is invalid while its
+    /// `{error_prefix}{name}` context key is non-empty (see
+    /// `eval.rs`'s form post-pass and `UiNode::form_invalid`).
+    Invalid,
 }
 
 impl PseudoState {
@@ -207,6 +212,7 @@ impl PseudoState {
             // para o mesmo conceito em `button::Status::Pressed`).
             "active" | "pressed" => Some(Self::Active),
             "disabled" => Some(Self::Disabled),
+            "invalid" => Some(Self::Invalid),
             _ => None,
         }
     }
@@ -225,6 +231,9 @@ pub struct StateStyles {
     pub focus: StyleRule,
     pub active: StyleRule,
     pub disabled: StyleRule,
+    /// `:invalid` — engine-tracked, not an iced `Status`. Merged over the base
+    /// style by `widget.rs` while `UiNode::form_invalid` is set.
+    pub invalid: StyleRule,
 }
 
 impl StateStyles {
@@ -236,6 +245,7 @@ impl StateStyles {
         self.focus.merge_from(&other.focus);
         self.active.merge_from(&other.active);
         self.disabled.merge_from(&other.disabled);
+        self.invalid.merge_from(&other.invalid);
     }
 
     fn get_mut(&mut self, state: PseudoState) -> &mut StyleRule {
@@ -244,6 +254,7 @@ impl StateStyles {
             PseudoState::Focus => &mut self.focus,
             PseudoState::Active => &mut self.active,
             PseudoState::Disabled => &mut self.disabled,
+            PseudoState::Invalid => &mut self.invalid,
         }
     }
 }
@@ -300,8 +311,8 @@ pub struct StyleSheet {
     pub variables: HashMap<String, String>,
     /// Blocos `@media` — regras condicionais ao viewport (ver [`MediaQuery`]).
     pub media: Vec<MediaQuery>,
-    /// `.classe:estado { }` (`:hover`/`:focus`/`:active`/`:disabled`), por
-    /// classe e depois por estado. Resolvidos separadamente da base via
+    /// `.classe:estado { }` (`:hover`/`:focus`/`:active`/`:disabled`/`:invalid`),
+    /// por classe e depois por estado. Resolvidos separadamente da base via
     /// [`resolve_state_classes`] — nunca entram em `rules`.
     pub states: HashMap<String, HashMap<PseudoState, StyleRule>>,
     /// Regras de seletor de **id** (`#nome { }`), por id (sem o `#`). Mesma
@@ -553,6 +564,7 @@ pub fn resolve_state_classes(
     out.focus.resolve_var_refs(&vars);
     out.active.resolve_var_refs(&vars);
     out.disabled.resolve_var_refs(&vars);
+    out.invalid.resolve_var_refs(&vars);
     out
 }
 

@@ -38,12 +38,32 @@ pub enum Validator {
     MinLength(usize),
     /// The value must have at most this many characters.
     MaxLength(usize),
+    /// After stripping every non-digit, the value must have between `min` and
+    /// `max` digits (inclusive). `digits:11` sets both to 11; `digits:10,11`
+    /// spans a range. Built for masked inputs (CPF, phone) whose stored value
+    /// keeps no punctuation.
+    Digits { min: usize, max: usize },
+    /// The value, parsed as a number, must be `>=` this. Non-numeric fails.
+    Gte(f64),
+    /// The value, parsed as a number, must be `<=` this. Non-numeric fails.
+    Lte(f64),
+    /// The value must read as accepted — `"true"`, `"on"`, `"1"`, `"yes"`,
+    /// `"sim"` (case-insensitive). For a `<checkbox>`'s `"true"`/`"false"`.
+    Accepted,
+    /// The value must look like an email address (a pragmatic pattern, not the
+    /// full RFC). Empty passes — pair with `Required` to forbid blank.
+    Email,
     /// The value must match this regular expression (a value only fails if
     /// the pattern is well-formed and does *not* match — a malformed pattern
     /// is reported as its own error instead of silently passing).
     Pattern(String),
     /// Any other rule: `Ok(())` when valid, `Err(message)` otherwise.
     Custom(CustomRule),
+    /// A rule resolved outside this module: the *name* of a handler function
+    /// the host calls with the value (`fn:validar_cpf` in a `rules` string).
+    /// [`Validator::check`] skips it — the caller that owns the handler runs
+    /// it and folds the result into the control's errors.
+    Script(String),
 }
 
 impl std::fmt::Debug for Validator {
@@ -52,8 +72,14 @@ impl std::fmt::Debug for Validator {
             Validator::Required => write!(f, "Required"),
             Validator::MinLength(n) => write!(f, "MinLength({n})"),
             Validator::MaxLength(n) => write!(f, "MaxLength({n})"),
+            Validator::Digits { min, max } => write!(f, "Digits({min}..={max})"),
+            Validator::Gte(n) => write!(f, "Gte({n})"),
+            Validator::Lte(n) => write!(f, "Lte({n})"),
+            Validator::Accepted => write!(f, "Accepted"),
+            Validator::Email => write!(f, "Email"),
             Validator::Pattern(p) => write!(f, "Pattern({p:?})"),
             Validator::Custom(_) => write!(f, "Custom(..)"),
+            Validator::Script(name) => write!(f, "Script({name:?})"),
         }
     }
 }
@@ -84,6 +110,46 @@ impl Validator {
                     Ok(())
                 }
             }
+            Validator::Digits { min, max } => {
+                let n = value.chars().filter(char::is_ascii_digit).count();
+                if n < *min || n > *max {
+                    if min == max {
+                        Err(format!("\"{field}\" must have {min} digits"))
+                    } else {
+                        Err(format!("\"{field}\" must have between {min} and {max} digits"))
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            Validator::Gte(limit) => match value.trim().parse::<f64>() {
+                Ok(n) if n >= *limit => Ok(()),
+                _ => Err(format!("\"{field}\" must be at least {limit}")),
+            },
+            Validator::Lte(limit) => match value.trim().parse::<f64>() {
+                Ok(n) if n <= *limit => Ok(()),
+                _ => Err(format!("\"{field}\" must be at most {limit}")),
+            },
+            Validator::Accepted => {
+                let v = value.trim().to_ascii_lowercase();
+                if matches!(v.as_str(), "true" | "on" | "1" | "yes" | "sim") {
+                    Ok(())
+                } else {
+                    Err(format!("\"{field}\" must be accepted"))
+                }
+            }
+            Validator::Email => {
+                if value.trim().is_empty() {
+                    return Ok(());
+                }
+                // Pragmatic: one @, non-empty local part, a dot in the domain,
+                // no whitespace. Not the RFC — enough to catch a typo.
+                match regex::Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$") {
+                    Ok(re) if re.is_match(value.trim()) => Ok(()),
+                    _ => Err(format!("\"{field}\" is not a valid email")),
+                }
+            }
+            Validator::Script(_) => Ok(()),
             Validator::Pattern(pattern) => match regex::Regex::new(pattern) {
                 Ok(re) => {
                     if re.is_match(value) {
@@ -96,6 +162,68 @@ impl Validator {
             },
             Validator::Custom(f) => f(value),
         }
+    }
+
+    /// Parses a `rules` attribute — `"required|minlen:3|digits:11"` — into
+    /// validators in declaration order. Tokens are `|`-separated; an argument
+    /// follows a `:`. `fn:NAME` becomes [`Validator::Script`]. The first
+    /// malformed token is returned as `Err` (surfaced as a template error, not
+    /// swallowed). `pattern` is *not* a token here — it stays a distinct
+    /// attribute, since a regex freely contains `|` and `:`.
+    pub fn parse_rules(spec: &str) -> Result<Vec<Validator>, String> {
+        fn need<'a>(name: &str, a: Option<&'a str>) -> Result<&'a str, String> {
+            a.filter(|s| !s.is_empty())
+                .ok_or_else(|| format!("rule `{name}` needs an argument"))
+        }
+        fn whole(name: &str, a: Option<&str>) -> Result<usize, String> {
+            let s = need(name, a)?;
+            s.parse::<usize>()
+                .map_err(|_| format!("rule `{name}`: `{s}` is not a whole number"))
+        }
+        fn real(name: &str, a: Option<&str>) -> Result<f64, String> {
+            let s = need(name, a)?;
+            s.parse::<f64>()
+                .map_err(|_| format!("rule `{name}`: `{s}` is not a number"))
+        }
+
+        let mut out = Vec::new();
+        for raw in spec.split('|') {
+            let tok = raw.trim();
+            if tok.is_empty() {
+                continue;
+            }
+            let (name, arg) = match tok.split_once(':') {
+                Some((n, a)) => (n.trim(), Some(a.trim())),
+                None => (tok, None),
+            };
+            let v = match name {
+                "required" | "req" => Validator::Required,
+                "accepted" | "accept" => Validator::Accepted,
+                "email" => Validator::Email,
+                "minlen" | "minlength" => Validator::MinLength(whole(name, arg)?),
+                "maxlen" | "maxlength" => Validator::MaxLength(whole(name, arg)?),
+                "gte" => Validator::Gte(real(name, arg)?),
+                "lte" => Validator::Lte(real(name, arg)?),
+                "digits" => {
+                    let a = need(name, arg)?;
+                    let (lo, hi) = match a.split_once(',') {
+                        Some((l, r)) => (
+                            whole("digits", Some(l.trim())),
+                            whole("digits", Some(r.trim())),
+                        ),
+                        None => (whole("digits", Some(a)), whole("digits", Some(a))),
+                    };
+                    Validator::Digits {
+                        min: lo?,
+                        max: hi?,
+                    }
+                }
+                "fn" => Validator::Script(need(name, arg)?.to_string()),
+                other => return Err(format!("unknown validation rule `{other}`")),
+            };
+            out.push(v);
+        }
+        Ok(out)
     }
 }
 
@@ -149,6 +277,64 @@ impl FormControl {
     pub fn pattern(mut self, pattern: impl Into<String>) -> Self {
         self.validators.push(Validator::Pattern(pattern.into()));
         self
+    }
+
+    /// After stripping non-digits, between `min` and `max` digits (inclusive).
+    pub fn digits(mut self, min: usize, max: usize) -> Self {
+        self.validators.push(Validator::Digits { min, max });
+        self
+    }
+
+    /// The value, parsed as a number, must be `>= n`.
+    pub fn gte(mut self, n: f64) -> Self {
+        self.validators.push(Validator::Gte(n));
+        self
+    }
+
+    /// The value, parsed as a number, must be `<= n`.
+    pub fn lte(mut self, n: f64) -> Self {
+        self.validators.push(Validator::Lte(n));
+        self
+    }
+
+    /// The value must read as accepted (`"true"`/`"on"`/`"1"`/`"yes"`/`"sim"`).
+    pub fn accepted(mut self) -> Self {
+        self.validators.push(Validator::Accepted);
+        self
+    }
+
+    /// The value must look like an email address (empty passes).
+    pub fn email(mut self) -> Self {
+        self.validators.push(Validator::Email);
+        self
+    }
+
+    /// A control pre-loaded with `validators` — e.g. the output of
+    /// [`Validator::parse_rules`] applied to a `<input rules="...">` string.
+    pub fn with_validators(
+        name: impl Into<String>,
+        initial_value: impl Into<String>,
+        validators: Vec<Validator>,
+    ) -> Self {
+        let mut c = Self::new(name, initial_value);
+        c.validators = validators;
+        c
+    }
+
+    /// The names of every [`Validator::Script`] rule on this control, in
+    /// declaration order — the host resolves these itself (see
+    /// [`Validator::Script`]).
+    pub fn script_rules(&self) -> impl Iterator<Item = &str> {
+        self.validators.iter().filter_map(|v| match v {
+            Validator::Script(n) => Some(n.as_str()),
+            _ => None,
+        })
+    }
+
+    /// Appends a message to the cached errors — for a host-side rule
+    /// ([`Validator::Script`]) folding its result in after [`Form::validate`].
+    pub fn push_error(&mut self, msg: impl Into<String>) {
+        self.errors.push(msg.into());
     }
 
     /// Any other rule: `f` returns `Ok(())` when `value` is valid, or
@@ -540,6 +726,49 @@ mod tests {
         assert!(form.get("a").unwrap().touched());
         assert!(form.get("b").unwrap().touched());
         assert_eq!(form.errors("a").len(), 1);
+    }
+
+    #[test]
+    fn parse_rules_reads_the_dsl() {
+        let vs = Validator::parse_rules("required|minlen:3|digits:10,11|gte:18|accepted|fn:cpf")
+            .unwrap();
+        assert!(matches!(vs[0], Validator::Required));
+        assert!(matches!(vs[1], Validator::MinLength(3)));
+        assert!(matches!(vs[2], Validator::Digits { min: 10, max: 11 }));
+        assert!(matches!(vs[3], Validator::Gte(n) if n == 18.0));
+        assert!(matches!(vs[4], Validator::Accepted));
+        assert!(matches!(&vs[5], Validator::Script(n) if n == "cpf"));
+
+        assert!(Validator::parse_rules("required|bogus:1").is_err());
+        assert!(Validator::parse_rules("minlen").is_err());
+        assert!(Validator::parse_rules("digits:abc").is_err());
+    }
+
+    #[test]
+    fn digits_ignores_punctuation() {
+        let mut form = FormBuilder::new("f")
+            .control(FormControl::with_validators(
+                "cpf",
+                "",
+                Validator::parse_rules("digits:11").unwrap(),
+            ))
+            .build();
+        form.set_value("cpf", "123.456.789-0");
+        assert!(!form.is_valid());
+        form.set_value("cpf", "123.456.789-01");
+        assert!(form.is_valid());
+    }
+
+    #[test]
+    fn script_rule_is_skipped_by_check_but_listed() {
+        let c = FormControl::with_validators(
+            "cpf",
+            "x",
+            Validator::parse_rules("required|fn:validar_cpf").unwrap(),
+        );
+        assert_eq!(c.script_rules().collect::<Vec<_>>(), vec!["validar_cpf"]);
+        // `check` (via is_valid) treats Script as a pass — the host runs it.
+        assert!(c.is_valid());
     }
 
     #[test]

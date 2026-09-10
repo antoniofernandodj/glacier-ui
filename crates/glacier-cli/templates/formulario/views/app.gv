@@ -8,55 +8,94 @@
   <column class="tela">
     <column class="cabecalho">
       <text class="titulo">Novo colaborador</text>
-      <text class="subtitulo">a validação roda a cada mudança e no envio</text>
+      <text class="subtitulo">as regras estão no &lt;form&gt;; o motor valida ao enviar</text>
     </column>
 
-    <column class="campos">
+    <form
+      name="cadastro"
+      class="campos"
+      on_submit="salvar"
+      on_validation_error="apontar"
+      validate_on="submit"
+    >
 
       <column class="grupo">
         <text class="rotulo">Nome</text>
-        <textinput class="campo {cls_nome}" value="f_nome" on_change="campo:f_nome" placeholder="nome completo" />
-        <text class="erro" if="{erro_nome}" not_empty>{erro_nome}</text>
+        <input
+          class="campo"
+          form_control="f_nome"
+          rules="required|minlen:3"
+          msg="informe ao menos 3 letras"
+          placeholder="nome completo"
+        />
+        <text class="erro" if="{erro_f_nome}" not_empty>{erro_f_nome}</text>
       </column>
 
       <row class="dupla">
         <column class="grupo">
           <text class="rotulo">CPF</text>
-          <maskedinput class="campo {cls_cpf}" value="f_cpf" mask="cpf" on_change="campo:f_cpf" />
-          <text class="erro" if="{erro_cpf}" not_empty>{erro_cpf}</text>
+          <maskedinput
+            class="campo"
+            form_control="f_cpf"
+            mask="cpf"
+            rules="required|digits:11"
+            msg="o CPF precisa de 11 dígitos"
+          />
+          <text class="erro" if="{erro_f_cpf}" not_empty>{erro_f_cpf}</text>
         </column>
         <column class="grupo">
           <text class="rotulo">Telefone</text>
-          <maskedinput class="campo" value="f_tel" mask="telefone" on_change="campo:f_tel" />
+          <maskedinput
+            class="campo"
+            form_control="f_tel"
+            mask="telefone"
+            rules="digits:10,11"
+            msg="telefone com DDD"
+          />
+          <text class="erro" if="{erro_f_tel}" not_empty>{erro_f_tel}</text>
         </column>
       </row>
 
       <row class="dupla">
         <column class="grupo">
           <text class="rotulo">Idade</text>
-          <spinbox value="f_idade" min="14" max="90" width="110" field_class="{cls_idade}" />
-          <text class="erro" if="{erro_idade}" not_empty>{erro_idade}</text>
+          <spinbox
+            value="f_idade"
+            form_control="f_idade"
+            min="14"
+            max="90"
+            width="110"
+            rules="gte:18"
+            msg="precisa ser maior de idade"
+          />
+          <text class="erro" if="{erro_f_idade}" not_empty>{erro_f_idade}</text>
         </column>
         <column class="grupo">
           <text class="rotulo">Nascimento</text>
-          <dateedit class="campo" value="f_nasc" format="br" calendar_popup="true" today="{hoje}" on_change="campo:f_nasc" />
+          <dateedit class="campo" value="f_nasc" format="br" calendar_popup="true" today="{hoje}" />
         </column>
       </row>
 
       <column class="grupo">
         <text class="rotulo">UF</text>
-        <select class="campo" options="f_ufs" value="f_uf" on_change="campo:f_uf" />
+        <select class="campo" options="f_ufs" form_control="f_uf" rules="required" msg="escolha a UF" />
+        <text class="erro" if="{erro_f_uf}" not_empty>{erro_f_uf}</text>
       </column>
 
-      <checkbox label="Aceito os termos de uso" checked="f_aceite" on_toggle="campo:f_aceite" />
-      <text class="erro" if="{erro_aceite}" not_empty>{erro_aceite}</text>
+      <checkbox
+        label="Aceito os termos de uso"
+        form_control="f_aceite"
+        rules="accepted"
+        msg="é preciso aceitar os termos"
+      />
+      <text class="erro" if="{erro_f_aceite}" not_empty>{erro_f_aceite}</text>
 
-    </column>
+      <text class="status">{f_status}</text>
 
-    <text class="status">{f_status}</text>
-
-    <buttonbox
-      accept="Salvar"    on_accept="enviar"
-      reject="Limpar"    on_reject="limpar" />
+      <row class="acoes">
+        <button type="reset"  class="btn-limpar" on_click="limpar" text="Limpar" />
+        <button type="submit" class="btn-salvar" text="Salvar" />
+      </row>
+    </form>
   </column>
 </screen>
