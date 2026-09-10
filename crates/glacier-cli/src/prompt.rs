@@ -115,23 +115,25 @@ pub fn escolher(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usi
 }
 
 /// O menu navegável. `None` = não deu para entrar em modo raw (a chamada usa o
-/// caminho de texto/numerado). Cada opção ocupa uma linha; a descrição, quando
-/// existe, ocupa a linha seguinte.
+/// caminho de texto/numerado).
 ///
-/// Só a **entrada** vira raw (`stty -echo -icanon`); a saída segue com o
-/// pós-processamento normal, então `\n` continua descendo uma linha e voltando
-/// à coluna 0 — o redesenho usa só `\x1b[<n>A` (sobe) e `\x1b[K` (limpa a linha).
+/// **Uma linha física por item** (o rótulo, truncado à largura do terminal) e
+/// mais uma linha para a descrição do item selecionado — nada quebra em duas,
+/// então o redesenho pode subir um número FIXO de linhas (`\x1b[<n>A`) sem
+/// drift. Só a *entrada* vira raw; a saída segue com o `\n` normal.
 fn menu_setas(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize) -> Option<usize> {
     let mut raw = raw::Raw::ativar()?;
 
     let com_descricao = opcoes.iter().any(|(_, d)| !d.is_empty());
-    let linhas_por_opcao = if com_descricao { 2 } else { 1 };
-    let total_linhas = opcoes.len() * linhas_por_opcao;
+    // linhas redesenhadas: uma por opção + a da descrição (se houver alguma).
+    let total_linhas = opcoes.len() + usize::from(com_descricao);
+    // Largura para truncar; sem `stty size`, um teto conservador.
+    let largura = raw::colunas().unwrap_or(80).max(24);
 
     println!("{} {}", e.verde("?"), e.negrito(pergunta));
     println!("{}", e.fraco("  ↑/↓ move · Enter escolhe · Esc cancela"));
     let mut sel = padrao.min(opcoes.len().saturating_sub(1));
-    desenhar(e, opcoes, sel, com_descricao);
+    desenhar(e, opcoes, sel, com_descricao, largura);
 
     loop {
         match raw.ler_tecla().ok()? {
@@ -150,24 +152,39 @@ fn menu_setas(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize
             raw::Tecla::Outra => continue,
         }
         print!("\x1b[{total_linhas}A");
-        desenhar(e, opcoes, sel, com_descricao);
+        desenhar(e, opcoes, sel, com_descricao, largura);
     }
 }
 
-/// (Re)desenha as linhas do menu. `\x1b[K` no fim de cada uma limpa o resto,
-/// para um rótulo mais curto não deixar rastro do que estava antes.
-fn desenhar(e: &Estilo, opcoes: &[(&str, &str)], sel: usize, com_descricao: bool) {
+/// Corta `s` para caber em `max` COLUNAS (aprox.: 1 char = 1 coluna), com `…` se
+/// sobrou texto. A cor é aplicada DEPOIS do corte, para o código ANSI não
+/// contar como largura.
+fn cortar(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let corte = max.saturating_sub(1);
+    let mut r: String = s.chars().take(corte).collect();
+    r.push('…');
+    r
+}
+
+/// (Re)desenha o menu: uma linha por item + a descrição do selecionado.
+/// `\x1b[K` no fim de cada linha apaga o que sobrou de um render anterior mais
+/// longo.
+fn desenhar(e: &Estilo, opcoes: &[(&str, &str)], sel: usize, com_descricao: bool, largura: usize) {
     let mut buf = String::new();
-    for (i, (titulo, descricao)) in opcoes.iter().enumerate() {
-        let (marca, rotulo) = if i == sel {
-            (e.ciano("❯"), e.ciano(titulo))
+    for (i, (titulo, _)) in opcoes.iter().enumerate() {
+        let rotulo = cortar(titulo, largura.saturating_sub(4));
+        if i == sel {
+            buf.push_str(&format!("{} {}\x1b[K\n", e.ciano("❯"), e.ciano(&rotulo)));
         } else {
-            (" ".to_string(), titulo.to_string())
-        };
-        buf.push_str(&format!("  {marca} {rotulo}\x1b[K\n"));
-        if com_descricao {
-            buf.push_str(&format!("      {}\x1b[K\n", e.fraco(descricao)));
+            buf.push_str(&format!("  {rotulo}\x1b[K\n"));
         }
+    }
+    if com_descricao {
+        let desc = cortar(opcoes[sel].1, largura.saturating_sub(6));
+        buf.push_str(&format!("    {}\x1b[K\n", e.fraco(&desc)));
     }
     print!("{buf}");
     let _ = io::stdout().flush();

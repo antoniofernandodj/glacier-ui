@@ -80,6 +80,13 @@ impl Drop for Raw {
     }
 }
 
+/// Largura do terminal em colunas (via `stty size` → "linhas colunas"). `None`
+/// quando não dá para saber — a chamada então não trunca as linhas do menu.
+pub fn colunas() -> Option<usize> {
+    let saida = stty(&["size"])?;
+    saida.split_whitespace().nth(1)?.trim().parse().ok()
+}
+
 /// Roda `stty ARGS` contra o terminal (o `stdin` herdado é o tty que ele
 /// ajusta). Devolve a saída em texto, ou `None` se o comando falhou/sumiu.
 fn stty(args: &[&str]) -> Option<String> {

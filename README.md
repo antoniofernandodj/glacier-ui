@@ -130,22 +130,21 @@ glacier new
 
 ```
 ? Nome do projeto (meu-app) painel
-? Qual preset?                                  ↑/↓ move · Enter escolhe
-  ❯ App completo         janela sem decoração, tema + .gss, componentes, navegação, fetch
-    Mínimo               uma tela, um .gss e um bloco de script Luau
-    Multi-janela         open_window/broadcast, bandeja, instância única
-    Componente Rust      o trait Component, com estado tipado
-    Catálogo de widgets  uma sidebar de categorias, um exemplo vivo por widget
-    Painel de dados      KPIs e gráficos que andam sozinhos (every(1000))
-    Formulário validado  máscaras, buttonbox e validação em Luau
-    Lista editável       tableview + Novo/Editar/Excluir por prompt{}/confirm{}
-? Instalar as extensões de VS Code (realce e ir-para-definição em .gv/.gss)?
-  ❯ Sim
-    Não
+? Qual preset?
+  ↑/↓ move · Enter escolhe · Esc cancela
+❯ App completo
+  Mínimo
+  Multi-janela + bandeja
+  Componente em Rust
+  Catálogo de widgets
+  Painel de dados
+  Formulário validado
+  Lista editável (model/view)
+    Janela sem decoração com titlebar própria, tema + .gss, componentes, …
 ```
 
-O questionário é navegável pelas setas; sem um `stty` no sistema, cai num menu
-numerado.
+O questionário é navegável pelas setas (a descrição é a do item destacado);
+sem um `stty` no sistema, cai num menu numerado.
 
 Ele mostra um resumo e **só então** escreve: até a confirmação, nada foi criado.
 `glacier install-extensions` instala só as extensões de VS Code (sem precisar de
