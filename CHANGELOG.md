@@ -8,6 +8,39 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.7 — 2026-09-10 · glacier-ui 0.102.1
+
+**Preset `catalogo` — sete widgets que a tabela do motor tem e o catálogo não
+mostrava.** Auditoria tag a tag (primitivas de `parser.rs` + builtins de
+`builtins/mod.rs`) contra as doze telas de categoria. Só templates; o motor não
+muda.
+
+### Adicionado
+
+- **`<form>` + validação declarada** (tela *Entradas de texto*). Três campos com
+  `rules="…"`/`msg="…"` (`required|minlen`, `digits:11`, `gte:18`), `{erro_fm_*}`
+  por campo, `.campo:invalid`, botões `type="submit"`/`type="reset"`. Handlers
+  `fm_enviar`/`fm_erro`/`fm_limpar` em `handlers/demo.luau`.
+- **`<reveal open="{…}">`** (tela *Containers*) — bloco que desliza animado ao
+  alternar a chave.
+- **`<space>`** (tela *Containers*) — o vazio elástico entre dois botões, com
+  bloco e rótulo próprios (antes só citado na intro).
+- **`<wizardnav>`** (tela *Navegação*) — a fileira de botões avulsa, ao lado do
+  `<wizard>` completo.
+- **`<splashscreen show="{…}">`** (tela *Overlays*) — preview contido
+  (`height="170"`) com `slot="splash"` cobrindo o conteúdo de baixo. Antes o
+  rótulo prometia o widget e só o `<notificationdot>` aparecia.
+- **`<polygon>` e `<path>`** no `<canvas>` da tela *Displays* — completam o
+  conjunto de formas (faltavam essas duas).
+
+### Mudado
+
+- **`<accordion>` ganhou bloco próprio** (antes dividia um `<row>` e um rótulo
+  com o `<toolbox>`). Três itens e `ct_abertas = "rede,disco"` para mostrar o
+  que o distingue do `<toolbox>`: **várias** seções abertas ao mesmo tempo.
+
+---
+
 ## CLI 0.5.6 — 2026-09-10 · glacier-ui 0.102.1
 
 ### Corrigido

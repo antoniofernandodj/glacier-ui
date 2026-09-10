@@ -44,4 +44,29 @@ function ov_alternar_notif(): ()
   ctx.ov_notif = if ctx.ov_notif == "true" then "false" else "true"
 end
 
+-- §2.12 mostrar/esconder a splash de preview
+function ov_alternar_splash(): ()
+  ctx.ov_splash = if ctx.ov_splash == "true" then "false" else "true"
+end
+
+-- §2.7 <reveal> — o botão só alterna a chave que ele lê em `open`
+function ct_revelar(): ()
+  ctx.ct_revela = if ctx.ct_revela == "true" then "false" else "true"
+end
+
+-- §2.2 <form> — os três handlers do bloco de formulário do catálogo
+function fm_enviar(): ()
+  toast({ message = "formulário válido — enviado: " .. ctx.fm_nome, kind = "success" })
+end
+
+function fm_erro(falhas: string): ()
+  local qtd = #json.decode(falhas)
+  toast({ message = qtd .. " campo(s) a corrigir", kind = "error" })
+end
+
+-- `type="reset"` já apaga os `{erro_fm_*}`; aqui só devolvo os valores ao início.
+function fm_limpar(): ()
+  ctx.fm_nome, ctx.fm_cpf, ctx.fm_idade = "", "", "18"
+end
+
 return {}

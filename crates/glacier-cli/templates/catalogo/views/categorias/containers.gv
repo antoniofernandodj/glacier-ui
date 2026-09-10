@@ -3,7 +3,8 @@
     <text class="titulo_cat">Containers e agrupadores</text>
     <text class="intro">
       §2.11 (layouts) mora aqui também: `&lt;row&gt;`/`&lt;column&gt;`/`&lt;grid&gt;`/
-      `&lt;flow&gt;`/`&lt;space&gt;` estão em uso em toda tela deste catálogo.
+      `&lt;flow&gt;` estão em uso em toda tela deste catálogo; `&lt;space&gt;` tem um
+      bloco próprio abaixo.
     </text>
 
     <column class="demos">
@@ -35,6 +36,15 @@
       </column>
 
       <column class="demo">
+        <text class="rotulo">&lt;space&gt;  —  vazio elástico: sem width/height é `fill` nos dois eixos, empurra os vizinhos</text>
+        <row class="linha" width="fill">
+          <button class="btn" text="à esquerda" on_click="dizer:space" />
+          <space />
+          <button class="btn" text="à direita" on_click="dizer:space" />
+        </row>
+      </column>
+
+      <column class="demo">
         <text class="rotulo">&lt;splitter sizes="ct_split"&gt;  —  alça arrastável (chave "260 fill")</text>
         <splitter sizes="ct_split" min="100" handle="6" class="area">
           <column class="coluna">
@@ -47,25 +57,42 @@
       </column>
 
       <column class="demo">
-        <text class="rotulo">&lt;toolbox&gt;  (uma aberta)  ·  &lt;accordion&gt;  (várias, conjunto numa chave)</text>
-        <row class="linha">
-          <toolbox>
-            <toolboxitem title="Medidas" value="ct_ferramenta" open="{ct_ferramenta}" id="medidas">
-              <text class="nota">Régua, transferidor, área.</text>
-            </toolboxitem>
-            <toolboxitem title="Formas" value="ct_ferramenta" open="{ct_ferramenta}" id="formas">
-              <text class="nota">Retângulo, elipse, polígono.</text>
-            </toolboxitem>
-          </toolbox>
-          <accordion>
-            <accordionitem title="Rede" sub="host e porta" value="ct_abertas" open="{ct_abertas}" id="rede">
-              <text class="nota">conteúdo de Rede</text>
-            </accordionitem>
-            <accordionitem title="Disco" sub="cotas" value="ct_abertas" open="{ct_abertas}" id="disco">
-              <text class="nota">conteúdo de Disco</text>
-            </accordionitem>
-          </accordion>
-        </row>
+        <text class="rotulo">&lt;accordion&gt; + &lt;accordionitem&gt;  —  VÁRIAS abertas ao mesmo tempo; o conjunto vive numa chave só (`value`)</text>
+        <accordion>
+          <accordionitem title="Rede" sub="host e porta" value="ct_abertas" open="{ct_abertas}" id="rede">
+            <text class="nota">conteúdo de Rede — arraste a chave `ct_abertas` (`"rede,disco"`) para abrir mais de um</text>
+          </accordionitem>
+          <accordionitem title="Disco" sub="cotas" value="ct_abertas" open="{ct_abertas}" id="disco">
+            <text class="nota">conteúdo de Disco</text>
+          </accordionitem>
+          <accordionitem title="Rede avançada" sub="MTU, rotas" value="ct_abertas" open="{ct_abertas}" id="avancado">
+            <text class="nota">conteúdo avançado</text>
+          </accordionitem>
+        </accordion>
+        <text class="nota">ct_abertas = {ct_abertas}</text>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;toolbox&gt; + &lt;toolboxitem&gt;  —  o mesmo, mas só UMA aberta por vez (a chave guarda um id)</text>
+        <toolbox>
+          <toolboxitem title="Medidas" value="ct_ferramenta" open="{ct_ferramenta}" id="medidas">
+            <text class="nota">Régua, transferidor, área.</text>
+          </toolboxitem>
+          <toolboxitem title="Formas" value="ct_ferramenta" open="{ct_ferramenta}" id="formas">
+            <text class="nota">Retângulo, elipse, polígono.</text>
+          </toolboxitem>
+        </toolbox>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;reveal open="{…}"&gt;  —  abre/fecha ANIMADO, interpolando a altura do filho de 0 até a natural</text>
+        <button class="btn" text="mostrar/esconder detalhes" on_click="ct_revelar" />
+        <reveal open="{ct_revela}">
+          <column class="coluna">
+            <text class="nota">Este bloco desliza para dentro e para fora.</text>
+            <text class="nota">`duration="180"` (ms); `axis="x"` anima a largura no lugar da altura.</text>
+          </column>
+        </reveal>
       </column>
 
       <column class="demo">

@@ -30,6 +30,9 @@ function init(): ()
   ctx.ce_hosts = json.encode(json.array({ "https://api.exemplo.com", "https://api.staging.exemplo.com" }))
   ctx.ac_cidade = ""
   ctx.ac_cidades = json.encode(json.array({ "São Paulo", "Rio de Janeiro", "Belo Horizonte", "Salvador", "Recife", "Belém" }))
+  -- <form>: os campos ligam por `form_control`; o motor valida ao enviar e
+  -- publica `erro_fm_<campo>` (prefixo padrão `erro_`). `18` já passa em `gte:18`.
+  ctx.fm_nome, ctx.fm_cpf, ctx.fm_idade = "", "", "18"
 
   -- §2.3 Numéricas
   ctx.sb_qtd, ctx.sb_preco, ctx.sb_zoom = "3", "19.90", "100"
@@ -95,10 +98,13 @@ function init(): ()
 
   -- §2.7 Containers
   ctx.ct_proxy, ctx.ct_split = "false", "240 fill"
-  ctx.ct_ferramenta, ctx.ct_abertas = "medidas", "rede"
+  -- <accordion>: VÁRIAS abertas — a chave guarda o conjunto de ids (vírgula separa);
+  -- <toolbox>: só UMA, a chave guarda um id.
+  ctx.ct_ferramenta, ctx.ct_abertas = "medidas", "rede,disco"
   ctx.ct_ed_x, ctx.ct_ed_y, ctx.ct_ed_w, ctx.ct_ed_h = "12", "12", "220", "120"
   ctx.ct_co_x, ctx.ct_co_y, ctx.ct_co_w, ctx.ct_co_h = "150", "70", "200", "110"
   ctx.ct_mode, ctx.ct_size, ctx.ct_fx, ctx.ct_fy = "left", "180", "40", "40"
+  ctx.ct_revela = "false"  -- <reveal open="{ct_revela}">
 
   -- §2.8 Navegação
   ctx.nv_aba, ctx.nv_aba2 = "geral", "geral"
@@ -109,12 +115,14 @@ function init(): ()
   }))
   ctx.nv_painel, ctx.nv_passo, ctx.nv_passo_valido = "resumo", "plano", "1"
   ctx.nv_pagina, ctx.nv_gaveta = "0", "false"
+  ctx.nv_wn, ctx.nv_wn_valido = "dados", "1"  -- <wizardnav> avulso
 
   -- §2.9 Barras
   ctx.bar_status = "ocioso"
 
   -- §2.12 Overlays
   ctx.ov_menu, ctx.ov_pop, ctx.ov_notif, ctx.ov_marcados = "false", "false", "true", ""
+  ctx.ov_splash = "false"  -- <splashscreen show="{ov_splash}"> começa escondida
   ctx.ov_caixas = json.encode(json.array({
     { id = "a", x = 16, y = 16, w = 80, h = 54 },
     { id = "b", x = 110, y = 16, w = 80, h = 54 },

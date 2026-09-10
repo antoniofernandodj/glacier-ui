@@ -66,6 +66,16 @@
       </column>
 
       <column class="demo">
+        <text class="rotulo">&lt;wizardnav&gt;  —  SÓ a barra de botões (voltar/avançar/finalizar), para quem monta os passos à mão</text>
+        <wizardnav value="nv_wn"
+                   steps="dados,rede,revisao"
+                   titles="Dados,Rede,Revisão"
+                   valid="{nv_wn_valido}"
+                   on_finish="dizer:wizardnav concluído" />
+        <text class="nota">nv_wn = {nv_wn}  ·  `valid="{…}"` falso trava o "Avançar"</text>
+      </column>
+
+      <column class="demo">
         <text class="rotulo">&lt;swipeview&gt;  —  páginas deslizáveis (arraste na horizontal)</text>
         <swipeview value="nv_pagina" threshold="120" class="area">
           <column class="coluna">

@@ -47,6 +47,28 @@
         <text class="nota">si_atalho = {si_atalho}</text>
       </column>
 
+      <column class="demo">
+        <text class="rotulo">&lt;form&gt;  —  agrupa campos; `rules="…"` em cada um e o motor valida NO ENVIO (Enter dispara, Tab avança)</text>
+        <form name="cat_form" on_submit="fm_enviar" on_validation_error="fm_erro" validate_on="submit" spacing="8">
+          <textinput class="campo" form_control="fm_nome" value="fm_nome" placeholder="Nome (≥ 3 letras)"
+                     rules="required|minlen:3" msg="informe ao menos 3 letras" />
+          <text class="erro" if="{erro_fm_nome}">{erro_fm_nome}</text>
+
+          <maskedinput class="campo" form_control="fm_cpf" value="fm_cpf" mask="cpf"
+                       rules="required|digits:11" msg="o CPF precisa de 11 dígitos" />
+          <text class="erro" if="{erro_fm_cpf}">{erro_fm_cpf}</text>
+
+          <spinbox form_control="fm_idade" value="fm_idade" min="0" max="120" width="110"
+                   rules="gte:18" msg="precisa ser maior de idade" />
+          <text class="erro" if="{erro_fm_idade}">{erro_fm_idade}</text>
+
+          <row class="linha">
+            <button type="reset" class="btn" text="Limpar" on_click="fm_limpar" />
+            <button type="submit" class="btn_prim" text="Enviar" />
+          </row>
+        </form>
+      </column>
+
     </column>
   </column>
 </component>

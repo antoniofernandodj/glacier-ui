@@ -60,6 +60,10 @@
 /* Campos. */
 .campo  { width: fill; padding: 9 11; border_radius: 6; }
 .campo_curto { width: 220; padding: 9 11; border_radius: 6; }
+/* Acende sozinho enquanto `{erro_<campo>}` estiver preenchido — não é uma
+ classe que o script liga (ver AGENTS.md, "Validação declarada no próprio <form>"). */
+.campo:invalid { border_width: 1; border_color: var(--danger); }
+.erro   { size: 11; color: var(--danger); }
 
 /* Áreas de demonstração maiores (canvas, mdi, listas). */
 .area   { width: fill; height: 220; background: var(--raised); border_radius: 8; }

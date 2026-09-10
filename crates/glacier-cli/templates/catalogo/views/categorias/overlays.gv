@@ -60,7 +60,7 @@
       </column>
 
       <column class="demo">
-        <text class="rotulo">&lt;notificationdot&gt;  ·  &lt;splashscreen&gt;  (show= é bool)</text>
+        <text class="rotulo">&lt;notificationdot show="{…}"&gt;  —  o pingo no canto do filho</text>
         <row class="linha">
           <notificationdot show="{ov_notif}">
             <container class="painel">
@@ -69,6 +69,22 @@
           </notificationdot>
           <button class="btn" text="alternar o ponto" on_click="ov_alternar_notif" />
         </row>
+      </column>
+
+      <column class="demo">
+        <text class="rotulo">&lt;splashscreen show="{…}"&gt;  —  o `slot="splash"` cobre o conteúdo (slot anônimo) enquanto `show` for verdadeiro</text>
+        <button class="btn" text="mostrar/esconder a splash" on_click="ov_alternar_splash" />
+        <splashscreen show="{ov_splash}" width="fill" height="170" background="#181825">
+          <column class="coluna" width="fill" height="fill" align_x="center" align_y="center">
+            <text class="nota">conteúdo real do app, por baixo</text>
+          </column>
+          <template slot="splash">
+            <column align_x="center" align_y="center" spacing="10">
+              <text class="marca_pos">MINHA FERRAMENTA</text>
+              <spinner />
+            </column>
+          </template>
+        </splashscreen>
       </column>
 
       <column class="demo">

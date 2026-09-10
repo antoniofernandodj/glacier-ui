@@ -66,15 +66,17 @@
       </column>
 
       <column class="demo">
-        <text class="rotulo">&lt;qrcode content="{…}"&gt;  ·  &lt;canvas&gt; + formas</text>
+        <text class="rotulo">&lt;qrcode content="{…}"&gt;  ·  &lt;canvas&gt; + formas (&lt;rect&gt; &lt;circle&gt; &lt;line&gt; &lt;polyline&gt; &lt;polygon&gt; &lt;arc&gt; &lt;path&gt;)</text>
         <row class="linha">
           <qrcode content="{di_qr}" width="110" height="110" />
           <canvas class="tela_desenho">
-            <rect x="14" y="14" w="130" h="60" rx="10" class="solido" />
-            <circle cx="200" cy="44" r="30" class="contorno" />
-            <line x1="14" y1="110" x2="250" y2="110" class="regua" />
-            <polyline points="20,160 60,130 100,168 140,130 180,162" class="contorno" />
-            <arc cx="230" cy="150" r="26" start="150" sweep="240" class="solido" />
+            <rect x="14" y="14" w="120" h="52" rx="10" class="solido" />
+            <circle cx="180" cy="40" r="28" class="contorno" />
+            <line x1="14" y1="100" x2="250" y2="100" class="regua" />
+            <polyline points="20,150 55,124 90,158 125,124 160,152" class="contorno" />
+            <polygon points="210,120 250,120 230,160" class="solido" />
+            <arc cx="300" cy="140" r="24" start="150" sweep="240" class="solido" />
+            <path d="M270 40 Q 300 10 330 40 T 390 40" class="contorno" />
           </canvas>
         </row>
         <text class="nota">di_qr = {di_qr}</text>
