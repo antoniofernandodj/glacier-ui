@@ -969,38 +969,44 @@ impl GlacierUI {
             .current_screen
             .as_ref()
             .ok_or(GlacierError::NoActiveScreen)?;
-        let screen = self.render(name)?;
-        let with_dialog = match &self.dialog {
-            Some(spec) => {
-                // O corpo em markup (Onda 8): o `DialogSpec` guarda o **nome**
-                // de um template, e quem o monta é o mesmo `render` de qualquer
-                // tela — o diálogo deixa de ser um segundo caminho de render e
-                // vira uma moldura em volta de um.
-                //
-                // Um nome que não resolve não derruba o diálogo: cai para o
-                // corpo vazio (o `QMessageBox` de sempre) em vez de tirar a
-                // tela inteira do ar por causa de um `<dialog>` mal escrito. O
-                // erro aparece na validação do template, que é onde dá para
-                // apontar a linha.
-                let body = spec.body.as_deref().and_then(|nome| self.render(nome).ok());
-                iced::widget::stack![screen, dialogs::overlay(spec, &self.theme(), body)].into()
-            }
-            None => screen,
-        };
-        let with_toasts = if self.toasts.is_empty() {
-            with_dialog
-        } else {
+
+        // A tela é SEMPRE o filho 0 de um `Stack`, mesmo sem nenhum overlay —
+        // e é só por isso que o `Stack` está aqui. Antes a raiz alternava entre
+        // `screen` cru (nada ativo) e `stack![screen, …]` (um diálogo/toast/menu
+        // ativo); o `iced` diferencia `Element` pelo tipo do widget, então
+        // trocar a raiz de `Container` para `Stack` (e de volta) descartava o
+        // `tree::State` da subárvore inteira — o deslocamento de cada
+        // `<scrollable>`, o foco e a seleção do campo de texto. O menu de
+        // contexto embutido dos inputs (botão direito) tornava isso visível a
+        // cada clique: a tela saltava para o topo. Um `Stack` de um filho só
+        // mede e desenha idêntico a esse filho — o que importa é o nó da raiz
+        // não mudar de tipo quando um overlay entra ou sai.
+        //
+        // Ordem = z: a tela embaixo, depois diálogo, toasts e, por cima de
+        // tudo, o menu (o `QMenu` do SO fica acima até de um diálogo modal).
+        let mut camadas: Vec<iced::Element<'_, EngineMessage>> = vec![self.render(name)?];
+
+        if let Some(spec) = &self.dialog {
+            // O corpo em markup (Onda 8): o `DialogSpec` guarda o **nome** de um
+            // template, montado pelo mesmo `render` de qualquer tela. Um nome
+            // que não resolve cai para o corpo vazio (o `QMessageBox` de
+            // sempre), em vez de tirar a tela do ar por um `<dialog>` mal
+            // escrito — o erro aparece na validação do template.
+            let body = spec.body.as_deref().and_then(|nome| self.render(nome).ok());
+            camadas.push(dialogs::overlay(spec, &self.theme(), body));
+        }
+        if !self.toasts.is_empty() {
             let active = self.toasts.iter().map(|t| (t.id, &t.spec));
-            iced::widget::stack![with_dialog, toasts::overlay(active, &self.theme())].into()
-        };
-        Ok(match &self.active_menu {
-            Some(state) => iced::widget::stack![
-                with_toasts,
-                menu::overlay(state, self.inputs.viewport())
-            ]
-            .into(),
-            None => with_toasts,
-        })
+            camadas.push(toasts::overlay(active, &self.theme()));
+        }
+        if let Some(state) = &self.active_menu {
+            camadas.push(menu::overlay(state, self.inputs.viewport()));
+        }
+
+        // `with_children` (não `from_vec`): o primeiro `push` faz o `Stack`
+        // herdar o `size_hint` da tela — sem isso ele nasceria `Shrink` nos
+        // dois eixos e a tela colapsaria.
+        Ok(iced::widget::Stack::with_children(camadas).into())
     }
 
     /// Registers a component from its XML file, recursively loading any

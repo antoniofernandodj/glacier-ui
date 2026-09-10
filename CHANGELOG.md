@@ -45,6 +45,25 @@ muda.
 
 ---
 
+## [0.103.0] — 2026-09-10
+
+### Corrigido
+
+- **Abrir um menu/diálogo/toast zerava a rolagem (e o foco, e a seleção de
+  texto) da tela.** `render_current` devolvia a tela **crua** quando nada
+  estava ativo e `stack![tela, overlay]` quando algo abria. O `iced` diferencia
+  um `Element` pelo tipo do widget da raiz — trocar de `Container` para `Stack`
+  (e de volta) descarta o `tree::State` da subárvore inteira: o deslocamento de
+  **cada `<scrollable>`**, o foco e a seleção do campo de texto ativo. O
+  sintoma mais visível era o menu de contexto embutido dos `<input>` (botão
+  direito): cada clique-direito num campo dentro de uma área rolável jogava a
+  tela para o topo. Agora a tela é **sempre** o filho 0 de um `Stack` (um
+  `Stack` de um filho só mede e desenha idêntico a esse filho), então a raiz
+  não muda de tipo quando um overlay entra ou sai, e o `iced` preserva o
+  estado. Vale para os três overlays — menu, `<dialog>` e toast.
+
+---
+
 ## [0.102.1] — 2026-09-10
 
 ### Corrigido
