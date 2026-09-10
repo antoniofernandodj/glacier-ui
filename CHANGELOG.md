@@ -8,6 +8,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.6 — 2026-09-10 · glacier-ui 0.102.1
+
+### Corrigido
+
+- **`<foreach on_reorder>` (demo em Overlays) sumiu na 0.5.5.** O `width: fill`
+  que a 0.5.5 pôs em `.linha` colapsou a lista de reorder, que vive dentro de
+  uma `.coluna` `shrink` (o mesmo `fill`-dentro-de-`shrink`, ao contrário).
+  `.linha` volta a não ter `width`; os gráficos de dois em `graficos.gv` levam
+  `width="fill"` **inline** — ali o pai é `.demo`, que é `fill`.
+
+---
+
 ## CLI 0.5.5 — 2026-09-10 · glacier-ui 0.102.1
 
 **Preset `catalogo` — três demos que não apareciam.** Só templates; o motor não
@@ -18,8 +30,9 @@ muda.
 - **`<linechart>` (e todo widget `width: fill`) sumia nas linhas de dois.** A
   classe `.linha` — o `<row>` que põe dois gráficos lado a lado — não tinha
   `width: fill`; um filho `fill` dentro de um `<row>` `shrink` **colapsa para
-  largura 0**, sem erro (a armadilha do `AGENTS.md`). `.linha` agora é `width:
-  fill`, o que conserta os gráficos de dois e vários outros pares do catálogo.
+  largura 0**, sem erro (a armadilha do `AGENTS.md`). Corrigido com
+  `width="fill"` inline nos `<row>` de gráfico (a 0.5.5 mexeu na classe e
+  quebrou o `<foreach>`; ver 0.5.6).
 - **`<fontselect>` aparecia vazio.** Ele lê a chave `__fonts`, que só é
   populada com a feature `system-fonts` ligada (ou com fontes registradas via
   `font_named`) — e o preset não fazia nem um nem outro. O `Cargo.toml` gerado

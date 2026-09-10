@@ -11,7 +11,7 @@
 
       <column class="demo">
         <text class="rotulo">&lt;linechart&gt;  ·  &lt;linechart area points&gt;</text>
-        <row class="linha">
+        <row class="linha" width="fill">
           <linechart items="gr_serie" min="0" class="grafico" />
           <linechart items="gr_serie" min="0" area="true" points="true" class="grafico" />
         </row>
@@ -24,7 +24,7 @@
 
       <column class="demo">
         <text class="rotulo">&lt;barchart colorful&gt;  ·  &lt;piechart&gt;  ·  &lt;donut&gt;</text>
-        <row class="linha">
+        <row class="linha" width="fill">
           <barchart items="gr_barras" colorful="true" class="grafico" />
           <piechart items="gr_fatias" size="170" percentages="true" />
           <donut items="gr_fatias" size="170" percentages="true" />

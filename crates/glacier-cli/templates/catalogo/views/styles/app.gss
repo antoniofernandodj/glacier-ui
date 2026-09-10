@@ -39,10 +39,12 @@
 .demo   { width: fill; background: var(--surface); border_radius: 8; border_width: 1; border_color: var(--border); padding: 14 16; spacing: 10; }
 .rotulo { size: 11; bold: true; color: var(--muted); }
 .nota   { size: 11; color: var(--faint); }
-/* `width: fill` é obrigatório: um filho `width: fill` (todo `.grafico`, e a
- maioria dos widgets) dentro de um `<row>` `shrink` COLAPSA para largura 0 —
- sem erro nenhum (ver AGENTS.md, "um fill dentro de um pai shrink"). */
-.linha  { width: fill; spacing: 12; align_y: center; }
+/* Sem `width` de propósito: `.linha` também embrulha listas `shrink` (o
+ `<foreach on_reorder>` em Overlays). Quem precisa esticar filhos `fill` (os
+ gráficos de dois) põe `width="fill"` inline — funciona porque ali o pai é a
+ `.demo`, que é `fill`. Um `width: fill` aqui colapsaria a lista de reorder,
+ que vive dentro de uma `.coluna` `shrink`. */
+.linha  { spacing: 12; align_y: center; }
 .coluna { spacing: 8; }
 .valor  { size: 12; color: var(--accent); }
 
