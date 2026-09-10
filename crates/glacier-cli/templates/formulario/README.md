@@ -22,8 +22,9 @@ views/
 ## Como funciona
 
 - Cada `on_change="campo:f_cpf"` chama `campo("f_cpf", texto)` — grava a chave
-  **e** recalcula todos os `erro_<campo>`. O markup só exibe `{erro_cpf}`; não
-  decide nada.
+  **e** recalcula todos os `erro_<campo>` (a mensagem) e `cls_<campo>` (a classe
+  `campo_erro`, a borda vermelha). O markup só lê essas chaves em
+  `{erro_cpf}` e `class="campo {cls_cpf}"`; não decide nada.
 - `<maskedinput mask="cpf">` guarda o valor **cru** (sem pontuação) — por isso
   a regra é "11 dígitos", não um formato.
 - `<spinbox>` grava a própria chave (é builtin) e não tem `on_change`, então a

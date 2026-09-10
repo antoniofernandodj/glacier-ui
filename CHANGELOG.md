@@ -8,6 +8,25 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.3 — 2026-09-10 · glacier-ui 0.101.0
+
+**Dois presets corrigidos.** Só os templates que o `glacier new` materializa; o
+motor não muda.
+
+### Corrigido
+
+- **`catalogo`: a barra lateral agora é uma gaveta.** Era um `<column>` fixo; virou
+  `<drawer value="menu">`, com um botão `☰` (`drawer::toggle:menu`) no conteúdo e
+  `init()` semeando `menu = "true"` para começar aberta. `.sidebar` no `.gss`
+  ficou só com a cor — largura/padding/spacing vêm das props do `<drawer>`.
+- **`formulario`: o toast de envio falava em "campos destacados", mas nada era
+  destacado.** `validar.luau` agora grava `cls_<campo>` ao lado de cada
+  `erro_<campo>`, e o markup lê `class="campo {cls_nome}"` /
+  `field_class="{cls_idade}"`; a nova classe `.campo_erro` põe a borda vermelha.
+  `limpar()` volta ao estado pristino (sem mensagens nem destaque) em vez de
+  revalidar. O `<checkbox>` não tem gancho de classe no motor, então "aceite"
+  continua marcado só pelo texto de erro.
+
 ## [0.101.0] — 2026-09-09 · CLI 0.5.2 · Glacier View 0.19.3
 
 **Menu de contexto em todo campo de texto, e o tema seguindo o SO.** Retoma o

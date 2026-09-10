@@ -13,5 +13,6 @@ function init(): ()
   }))
   ctx.hoje = date.today()
   ctx.erro_nome, ctx.erro_cpf, ctx.erro_idade, ctx.erro_aceite = "", "", "", ""
+  ctx.cls_nome, ctx.cls_cpf, ctx.cls_idade = "", "", ""
   ctx.f_status = ""
 end

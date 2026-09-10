@@ -14,8 +14,8 @@ cargo run
 ```
 src/main.rs                      a casca: sobe o runner, registra views/app.gv
 views/
-├── app.gv                       a JANELA: sidebar + roteador (um <Categoria> por rota)
-├── components/nav_item.gv       o item da barra lateral
+├── app.gv                       a JANELA: <drawer> de categorias + roteador (um <Categoria> por rota)
+├── components/nav_item.gv       o item da gaveta lateral
 ├── categorias/                  UMA tela por seção da tabela de widgets
 │   ├── botoes.gv                button, toolbutton, radio, checkbox, toggle, buttonbox, …
 │   ├── texto.gv                 textinput, textarea, maskedinput, comboedit, autocomplete, …
@@ -43,6 +43,9 @@ views/
   entra por `<link rel="import">` e é carregado em cascata.
 - **Sem escada de `se`.** `app.gv` guarda a categoria atual em `{view}` e o
   roteador é uma linha por tela: `<Botoes if="{view}" equals="botoes" />`.
+- **A barra lateral é um `<drawer>`.** Ele empurra o conteúdo (não cobre); o
+  botão `☰` faz `drawer::toggle:menu`, e `init()` semeia `menu = "true"` para
+  ela começar aberta.
 - **Todo widget grava numa chave.** O nome dela está no `value`/`checked`/
   `group`/`start`/`open` — nunca `{interpolado}`. `app.luau::init()` semeia
   todas com um valor plausível; um widget sem semente aparece vazio.

@@ -15,14 +15,14 @@
 
       <column class="grupo">
         <text class="rotulo">Nome</text>
-        <textinput class="campo" value="f_nome" on_change="campo:f_nome" placeholder="nome completo" />
+        <textinput class="campo {cls_nome}" value="f_nome" on_change="campo:f_nome" placeholder="nome completo" />
         <text class="erro" if="{erro_nome}" not_empty>{erro_nome}</text>
       </column>
 
       <row class="dupla">
         <column class="grupo">
           <text class="rotulo">CPF</text>
-          <maskedinput class="campo" value="f_cpf" mask="cpf" on_change="campo:f_cpf" />
+          <maskedinput class="campo {cls_cpf}" value="f_cpf" mask="cpf" on_change="campo:f_cpf" />
           <text class="erro" if="{erro_cpf}" not_empty>{erro_cpf}</text>
         </column>
         <column class="grupo">
@@ -34,7 +34,7 @@
       <row class="dupla">
         <column class="grupo">
           <text class="rotulo">Idade</text>
-          <spinbox value="f_idade" min="14" max="90" width="110" />
+          <spinbox value="f_idade" min="14" max="90" width="110" field_class="{cls_idade}" />
           <text class="erro" if="{erro_idade}" not_empty>{erro_idade}</text>
         </column>
         <column class="grupo">

@@ -31,6 +31,14 @@ function revalidar(): ()
   ctx.erro_cpf = erro_de("f_cpf")
   ctx.erro_idade = erro_de("f_idade")
   ctx.erro_aceite = erro_de("f_aceite")
+
+  -- O que o markup lê em `class="campo {cls_nome}"`: "" quando ok, a classe de
+  -- destaque quando não. É o par visual do texto `{erro_<campo>}` — juntos são
+  -- o "campo destacado" a que o toast de envio se refere. O <checkbox> não tem
+  -- gancho de classe, então "aceite" se destaca só pelo texto.
+  ctx.cls_nome = if ctx.erro_nome ~= "" then "campo_erro" else ""
+  ctx.cls_cpf = if ctx.erro_cpf ~= "" then "campo_erro" else ""
+  ctx.cls_idade = if ctx.erro_idade ~= "" then "campo_erro" else ""
 end
 
 function enviar(): ()
@@ -48,7 +56,10 @@ function limpar(): ()
   ctx.f_nome, ctx.f_cpf, ctx.f_tel = "", "", ""
   ctx.f_idade, ctx.f_nasc, ctx.f_aceite = "25", "", "false"
   ctx.f_status = ""
-  revalidar()
+  -- "Limpar" volta ao estado pristino: sem mensagens e sem destaque. Chamar
+  -- `revalidar()` aqui acenderia todos os erros num formulário recém-zerado.
+  ctx.erro_nome, ctx.erro_cpf, ctx.erro_idade, ctx.erro_aceite = "", "", "", ""
+  ctx.cls_nome, ctx.cls_cpf, ctx.cls_idade = "", "", ""
 end
 
 return {}

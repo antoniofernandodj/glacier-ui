@@ -22,7 +22,10 @@
   </resources>
 
   <row class="janela">
-    <column class="sidebar">
+    <!-- A barra lateral é uma GAVETA: o `<drawer>` não desenha gatilho nenhum,
+         então o botão ☰ mora no conteúdo (abaixo) e a ação carrega o nome da
+         chave — `drawer::toggle:menu` funciona de qualquer lugar da tela. -->
+    <drawer value="menu" open="{menu}" size="210" padding="14 10" spacing="3" panel_class="sidebar">
       <text class="marca">CATÁLOGO</text>
       <NavItem rotulo="Botões e ações"     rota="botoes"     acao="ir:botoes"     ativo="{view}" />
       <NavItem rotulo="Entradas de texto"  rota="texto"      acao="ir:texto"      ativo="{view}" />
@@ -36,21 +39,25 @@
       <NavItem rotulo="Overlays e dicas"   rota="overlays"   acao="ir:overlays"   ativo="{view}" />
       <NavItem rotulo="Gráficos"           rota="graficos"   acao="ir:graficos"   ativo="{view}" />
       <NavItem rotulo="Diálogos"           rota="dialogos"   acao="ir:dialogos"   ativo="{view}" />
-    </column>
+    </drawer>
 
-    <scrollable class="conteudo">
-      <Botoes     if="{view}" equals="botoes" />
-      <Texto      if="{view}" equals="texto" />
-      <Numericos  if="{view}" equals="numericos" />
-      <Selecao    if="{view}" equals="selecao" />
-      <DataHora   if="{view}" equals="data_hora" />
-      <Displays   if="{view}" equals="displays" />
-      <Containers if="{view}" equals="containers" />
-      <Navegacao  if="{view}" equals="navegacao" />
-      <Barras     if="{view}" equals="barras" />
-      <Overlays   if="{view}" equals="overlays" />
-      <Graficos   if="{view}" equals="graficos" />
-      <Dialogos   if="{view}" equals="dialogos" />
-    </scrollable>
+    <column class="conteudo">
+      <button class="menu_btn" text="☰" on_click="drawer::toggle:menu" tooltip="Abrir e fechar o menu" />
+
+      <scrollable class="rota">
+        <Botoes     if="{view}" equals="botoes" />
+        <Texto      if="{view}" equals="texto" />
+        <Numericos  if="{view}" equals="numericos" />
+        <Selecao    if="{view}" equals="selecao" />
+        <DataHora   if="{view}" equals="data_hora" />
+        <Displays   if="{view}" equals="displays" />
+        <Containers if="{view}" equals="containers" />
+        <Navegacao  if="{view}" equals="navegacao" />
+        <Barras     if="{view}" equals="barras" />
+        <Overlays   if="{view}" equals="overlays" />
+        <Graficos   if="{view}" equals="graficos" />
+        <Dialogos   if="{view}" equals="dialogos" />
+      </scrollable>
+    </column>
   </row>
 </screen>

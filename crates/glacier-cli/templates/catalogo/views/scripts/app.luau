@@ -12,6 +12,7 @@ require("handlers/dialogos")
 -- (ver AGENTS.md, "Como um widget lê os seus dados").
 function init(): ()
   ctx.view = "botoes"
+  ctx.menu = "true"  -- a gaveta da barra lateral começa aberta; o ☰ fecha/abre
 
   -- §2.1 Botões
   ctx.planos = json.encode(json.array({
