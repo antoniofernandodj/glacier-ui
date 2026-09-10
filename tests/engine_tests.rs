@@ -2959,6 +2959,7 @@ fn test_textarea_parses_and_syncs() {
             placeholder,
             on_change,
             readonly,
+            ..
         } => {
             assert_eq!(value_var, "dotenv");
             assert_eq!(placeholder, "KEY=VALUE");

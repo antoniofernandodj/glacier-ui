@@ -520,7 +520,15 @@ impl GlacierDaemon {
                 rt.sized_by.insert(id, entry);
             }
             rt.windows.insert(id, engine);
-            (rt, open.map(DaemonMessage::Opened))
+            // Consulta a preferência clara/escura do SO uma vez no boot — a
+            // subscription `theme_changes` só emite em MUDANÇAS. Só afeta o
+            // tema se o app não fixou um estilo (ver `GlacierUI::theme`).
+            let probe = iced::system::theme().map(|mode| {
+                DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(
+                    mode_to_appearance(mode),
+                ))
+            });
+            (rt, Task::batch([open.map(DaemonMessage::Opened), probe]))
         };
 
         let mut app = iced::daemon(boot, Runtime::update, Runtime::view)
@@ -652,6 +660,16 @@ pub enum DaemonMessage {
     /// próprio app (servidor local, watcher, integração com o SO). Vai sempre
     /// para o motor da janela PRINCIPAL. Ver [`crate::external`].
     External(EngineMessage),
+}
+
+/// Converte o `iced::theme::Mode` (preferência do SO) no enum do motor, sem
+/// vazar o tipo do iced pelo [`EngineMessage`].
+fn mode_to_appearance(mode: iced::theme::Mode) -> crate::widget::SystemAppearance {
+    match mode {
+        iced::theme::Mode::Light => crate::widget::SystemAppearance::Light,
+        iced::theme::Mode::Dark => crate::widget::SystemAppearance::Dark,
+        iced::theme::Mode::None => crate::widget::SystemAppearance::Unknown,
+    }
 }
 
 /// Estado do daemon: um motor por janela + seus títulos.
@@ -1179,6 +1197,14 @@ impl Runtime {
             // consultar a geometria da janela para o gancho `on_close`. Só tem
             // efeito se a janela declarar `exit_on_close_request: false`.
             window::close_requests().map(DaemonMessage::CloseRequested),
+            // Preferência clara/escura do SO: quando o app não fixou um estilo,
+            // é ela que decide `Theme::Light`/`Theme::Dark` (ver
+            // `GlacierUI::theme`). Registrada uma vez no daemon, como os demais
+            // listeners globais — cada mudança vai para TODAS as janelas.
+            iced::system::theme_changes()
+                .map(|mode| DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(
+                    mode_to_appearance(mode),
+                ))),
         ];
 
         // O movimento do mouse só é escutado quando alguma janela tem menu em

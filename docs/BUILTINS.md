@@ -280,6 +280,48 @@ uma classe no uso pinta a `Row` de fora e deixa o campo em 72).
 Numa **primitiva** o problema não existe: não há template no caminho, então
 `<maskedinput class="campo">` com `.campo { width: 200 }` funciona.
 
+## Menu de contexto embutido dos campos de texto
+
+Todo `<textinput>` e `<textarea>` (e os builtins que geram um — `<spinbox>`,
+`<inputdialog>`, os campos de `<fontdialog>`/`<colordialog>`) traz, no botão
+direito, um menu com **desfazer, refazer, recortar, copiar, apagar** (a
+seleção), **selecionar tudo, limpar tudo** e **colar**. Não é preciso escrever
+nada — vem ligado.
+
+Detalhes que valem saber:
+
+- **`<textinput>` comum é apoiado num `text_editor` de uma linha** (o mesmo
+  widget do `<textarea>`, com `Enter` e quebras de um paste barrados). É isso
+  que dá a ele a seleção e o `perform` que o `text_input` do `iced` não expõe.
+  O `<textinput secure>` (senha) fica no `text_input` mascarado e recebe um
+  menu reduzido: **colar, selecionar tudo, limpar tudo** — sem copiar/recortar
+  (não há como ler a seleção de um campo mascarado) nem desfazer.
+- **Desfazer/refazer é do motor**, não do `iced`: uma pilha por campo,
+  coalescendo a digitação corrida num passo só. Só pelo menu por enquanto — sem
+  atalho de teclado.
+- **Estilo**: por padrão o menu segue o tema ativo (claro/escuro do SO quando o
+  app não fixou um estilo). Para estilizar um campo específico, `menu_class`:
+
+  ```gv
+  <textarea value="notas" menu_class="ctx" />
+  ```
+
+  ```gss
+  .ctx { background: var(--surface); border-color: var(--border); border-radius: 6; }
+  .ctx-item { text-color: var(--text); }
+  .ctx-item:hover  { background: var(--primary); }
+  .ctx-item:active { background: var(--primary); }
+  ```
+
+  `.<classe>` pinta o corpo do painel (`background`, `border-color`,
+  `border-width`, `border-radius`); `.<classe>-item` os itens (`text-color`), com
+  `:hover`/`:active` para o realce. Só folhas `.gss` **globais** — um bloco
+  `<style scoped>` não alcança o overlay.
+- **Desligar**: `engine.set_input_context_menu(false)` no `setup` da janela.
+  Também dispensa o rastreio de cursor que a âncora do menu exige (um campo de
+  texto na tela passa a fazer o app redesenhar a cada movimento do mouse, o
+  mesmo custo que um `<ContextMenu>` já cobra).
+
 ## Grafia da tag: `<GroupBox/>` e `<groupbox/>`
 
 Todo builtin é publicado sob **dois** nomes: o canônico e o mesmo em minúsculas

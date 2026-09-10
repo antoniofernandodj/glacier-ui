@@ -37,10 +37,61 @@
 
 use crate::ContextMap;
 use crate::parser::{NodeType, UiNode};
-use crate::widget::{EngineMessage, is_truthy};
+use crate::widget::{EngineMessage, InputFlavor, is_truthy};
 use iced::widget::{Space, button, column, container, mouse_area, row, rule, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow};
 use std::sync::Arc;
+
+/// Cores e medidas já resolvidas de um painel de menu — o corpo e as linhas.
+///
+/// Um menu de app (`<MenuBar>`/`<Menu>`/`<ContextMenu>`) usa sempre
+/// [`MenuStyle::from_palette`], que reproduz exatamente o visual histórico. O
+/// menu de contexto embutido dos campos de texto parte do mesmo default e,
+/// quando o `<input menu_class="x">` aponta uma classe, o motor sobrescreve os
+/// campos que a `.gss` declarou (`.x` no corpo, `.x-item` / `.x-item:hover` /
+/// `.x-item:active` nas linhas) — ver `GlacierUI::resolve_menu_style`.
+#[derive(Debug, Clone, Copy)]
+pub struct MenuStyle {
+    pub body_bg: Color,
+    pub body_border_color: Color,
+    pub body_border_width: f32,
+    pub body_radius: f32,
+    pub item_text: Color,
+    pub item_disabled_text: Color,
+    pub item_hover_bg: Color,
+    pub item_active_bg: Color,
+}
+
+impl MenuStyle {
+    /// O visual padrão, idêntico ao que `menu.rs` desenhava antes de o estilo
+    /// ser parametrizável.
+    pub fn from_palette(pal: &iced::theme::palette::Extended) -> Self {
+        Self {
+            body_bg: pal.background.base.color,
+            body_border_color: pal.background.strong.color,
+            body_border_width: 1.0,
+            body_radius: 6.0,
+            item_text: pal.background.base.text,
+            item_disabled_text: pal.background.strong.color,
+            item_hover_bg: pal.primary.weak.color,
+            item_active_bg: pal.primary.weak.color,
+        }
+    }
+}
+
+/// O campo de texto que o menu de contexto embutido está operando (ver
+/// [`ActiveMenuState::input_target`]). Preenchido só quando o menu aberto é o
+/// dos inputs; `None` para os menus de app.
+#[derive(Debug, Clone)]
+pub struct InputMenuTarget {
+    /// Chave `value` do campo.
+    pub binding: String,
+    /// Ação que o campo dispara no `onChange`.
+    pub on_change: String,
+    pub flavor: InputFlavor,
+    /// Id estável do widget — usado só pelo "Selecionar tudo" de um `secure`.
+    pub widget_id: String,
+}
 
 /// Um nó já resolvido da árvore de menu — independente de ter vindo de
 /// markup estático (`<Menu>`/`<MenuItem>`/`<MenuSeparator>`) ou de um array
@@ -73,6 +124,26 @@ impl MenuNode {
             checked: None,
             disabled: false,
             separator: true,
+            children: Vec::new(),
+        }
+    }
+
+    /// Uma linha separadora — para menus montados em Rust (o de contexto
+    /// embutido dos campos de texto).
+    pub(crate) fn separator() -> Self {
+        Self::separator_node()
+    }
+
+    /// Uma linha-folha simples `label` → dispara `action`. `disabled` pinta a
+    /// linha apagada e tira o clique.
+    pub(crate) fn leaf(label: impl Into<String>, action: impl Into<String>, disabled: bool) -> Self {
+        Self {
+            label: label.into(),
+            icon: None,
+            on_click: Some(action.into()),
+            checked: None,
+            disabled,
+            separator: false,
             children: Vec::new(),
         }
     }
@@ -209,6 +280,13 @@ pub struct ActiveMenuState {
     /// Índices do caminho de cascata atualmente aberto, raiz→folha. Vazio =
     /// só o painel raiz está visível.
     pub open_path: Vec<usize>,
+    /// Cores/medidas já resolvidas do painel. Para um menu de app é
+    /// [`MenuStyle::from_palette`] do tema ativo; para o menu de contexto de um
+    /// campo pode trazer as sobrescritas de `menu_class`.
+    pub style: MenuStyle,
+    /// `Some` só quando este é o menu de contexto embutido de um campo de
+    /// texto — carrega o alvo das ações de edição (`__gv_edit:*`).
+    pub input_target: Option<InputMenuTarget>,
 }
 
 const ROW_HEIGHT: f32 = 30.0;
@@ -264,10 +342,9 @@ fn position_y(y: f32, height: f32, viewport_h: f32) -> f32 {
 /// cima de tudo quando `active_menu.is_some()`.
 pub fn overlay<'a>(
     state: &'a ActiveMenuState,
-    theme: &iced::Theme,
     viewport: (f32, f32),
 ) -> Element<'a, EngineMessage> {
-    let palette = theme.extended_palette();
+    let style = &state.style;
     let (vw, vh) = viewport;
 
     let backdrop = container(Space::new())
@@ -291,7 +368,7 @@ pub fn overlay<'a>(
     let mut py = position_y(state.anchor.y + 4.0, panel_height(nodes), vh);
 
     loop {
-        layers.push(positioned_panel(nodes, &path_prefix, px, py, palette));
+        layers.push(positioned_panel(nodes, &path_prefix, px, py, style));
 
         if path_prefix.len() == state.open_path.len() {
             break;
@@ -322,9 +399,9 @@ fn positioned_panel<'a>(
     path_prefix: &[usize],
     x: f32,
     y: f32,
-    palette: &iced::theme::palette::Extended,
+    style: &MenuStyle,
 ) -> Element<'a, EngineMessage> {
-    container(panel_box(nodes, path_prefix, palette))
+    container(panel_box(nodes, path_prefix, style))
         .width(Length::Fill)
         .height(Length::Fill)
         .padding(Padding {
@@ -341,23 +418,25 @@ fn positioned_panel<'a>(
 fn panel_box<'a>(
     nodes: &'a [MenuNode],
     path_prefix: &[usize],
-    palette: &iced::theme::palette::Extended,
+    style: &MenuStyle,
 ) -> Element<'a, EngineMessage> {
     let mut col = column![].width(Length::Fixed(PANEL_WIDTH));
     for (i, node) in nodes.iter().enumerate() {
         let mut path = path_prefix.to_vec();
         path.push(i);
-        col = col.push(render_row(node, path, palette));
+        col = col.push(render_row(node, path, style));
     }
-    let bg = palette.background.base.color;
-    let border_color = palette.background.strong.color;
+    let bg = style.body_bg;
+    let border_color = style.body_border_color;
+    let border_width = style.body_border_width;
+    let radius = style.body_radius;
     container(col)
         .padding(PANEL_PADDING)
         .style(move |_theme: &iced::Theme| container::Style {
             background: Some(Background::Color(bg)),
             border: Border {
-                radius: iced::border::Radius::new(6.0),
-                width: 1.0,
+                radius: iced::border::Radius::new(radius),
+                width: border_width,
                 color: border_color,
             },
             // Sem sombra (blur): a árvore inteira do overlay é reconstruída
@@ -379,7 +458,7 @@ fn panel_box<'a>(
 fn render_row<'a>(
     node: &'a MenuNode,
     path: Vec<usize>,
-    palette: &iced::theme::palette::Extended,
+    style: &MenuStyle,
 ) -> Element<'a, EngineMessage> {
     if node.separator {
         return container(rule::horizontal(1))
@@ -392,9 +471,9 @@ fn render_row<'a>(
 
     let has_children = !node.children.is_empty();
     let text_color = if node.disabled {
-        palette.background.strong.color
+        style.item_disabled_text
     } else {
-        palette.background.base.text
+        style.item_text
     };
     let check_glyph = if node.checked == Some(true) {
         "✓"
@@ -433,16 +512,17 @@ fn render_row<'a>(
     // submenu do hover (clicar um item de submenu é um gesto válido demais
     // em menus reais pra deixar sem resposta).
     let hovered_path = path.clone();
+    let hover_bg = style.item_hover_bg;
+    let active_bg = style.item_active_bg;
+    let fallback_text = style.item_text;
     let mut btn = button(r)
         .padding([0, 10])
         .width(Length::Fill)
         .height(Length::Fixed(ROW_HEIGHT))
-        .style(move |theme: &iced::Theme, status: button::Status| {
-            let pal = theme.extended_palette();
+        .style(move |_theme: &iced::Theme, status: button::Status| {
             let bg = match status {
-                button::Status::Hovered | button::Status::Pressed => {
-                    Some(Background::Color(pal.primary.weak.color))
-                }
+                button::Status::Hovered => Some(Background::Color(hover_bg)),
+                button::Status::Pressed => Some(Background::Color(active_bg)),
                 _ => None,
             };
             button::Style {
@@ -450,7 +530,7 @@ fn render_row<'a>(
                 // Só um fallback — cada `Text` da linha já traz sua própria
                 // `.color()` (ver acima), calculada a partir de
                 // `node.disabled`, então isto nunca aparece de fato.
-                text_color: pal.background.base.text,
+                text_color: fallback_text,
                 border: Border {
                     radius: iced::border::Radius::new(0.0),
                     width: 0.0,

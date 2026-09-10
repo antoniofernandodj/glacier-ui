@@ -2225,22 +2225,26 @@ fn eval_owned(
             value_var,
             on_change,
             secure,
+            menu_class,
         } => NodeType::TextInput {
             placeholder: process_tpl(placeholder, context),
             value_var: process_tpl(value_var, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
             secure: *secure,
+            menu_class: menu_class.clone(),
         },
         NodeType::TextArea {
             placeholder,
             value_var,
             on_change,
             readonly,
+            menu_class,
         } => NodeType::TextArea {
             placeholder: process_tpl(placeholder, context),
             value_var: process_tpl(value_var, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
             readonly: *readonly,
+            menu_class: menu_class.clone(),
         },
         NodeType::Image {
             source,

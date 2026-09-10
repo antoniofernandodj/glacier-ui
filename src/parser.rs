@@ -816,6 +816,11 @@ pub enum NodeType {
         on_change: String,
         /// Masks the input (passwords/tokens) when true (`secure`/`password`).
         secure: bool,
+        /// `.gss` class styling the built-in right-click context menu
+        /// (`menu_class="x"` → `.x` on the panel body, `.x-item` /
+        /// `.x-item:hover` / `.x-item:active` on the rows). `None` → the menu
+        /// follows the active theme. See `GlacierUI::resolve_menu_style`.
+        menu_class: Option<String>,
     },
     /// A multi-line text editor bound to a context key. Unlike [`NodeType::TextInput`]
     /// the engine keeps a stateful `text_editor::Content` for it (keyed by
@@ -828,6 +833,8 @@ pub enum NodeType {
         /// mas edições (digitar/apagar/colar) são ignoradas. Útil para exibir
         /// texto selecionável/copiável (ex.: logs) sem permitir alteração.
         readonly: bool,
+        /// Ver [`NodeType::TextInput::menu_class`].
+        menu_class: Option<String>,
     },
     Image {
         source: String,
@@ -3854,11 +3861,14 @@ impl UiNode {
                     }
                 }
                 let secure = Self::get_attr_bool(&node, &["secure", "password", "seguro", "senha"]);
+                let menu_class =
+                    Self::get_attr(&node, &["menu_class", "menuClass", "menu-class", "classe_menu"]);
                 NodeType::TextInput {
                     placeholder,
                     value_var,
                     on_change,
                     secure,
+                    menu_class,
                 }
             }
             "TextArea" | "textarea" | "TextEditor" | "texteditor" | "Editor" | "editor"
@@ -3881,11 +3891,14 @@ impl UiNode {
                         "somente_leitura",
                     ],
                 );
+                let menu_class =
+                    Self::get_attr(&node, &["menu_class", "menuClass", "menu-class", "classe_menu"]);
                 NodeType::TextArea {
                     placeholder,
                     value_var,
                     on_change,
                     readonly,
+                    menu_class,
                 }
             }
             "Image" | "image" | "Imagem" | "imagem" => {

@@ -173,9 +173,15 @@ pub struct GlacierUI {
     history: Vec<String>,
     /// Registered components (UI + behavior), keyed by component name.
     components: HashMap<String, Box<dyn component::Component>>,
-    /// The custom `iced::Theme` loaded via `<link rel="theme">`, if any.
-    /// Apps read it through [`GlacierUI::theme`].
+    /// The custom `iced::Theme` loaded via `<link rel="theme">` / `set_style`,
+    /// if any. Apps read it through [`GlacierUI::theme`]. When `None`, the
+    /// engine falls back to the OS light/dark preference (`system_appearance`).
     custom_theme: Option<iced::Theme>,
+    /// A preferência clara/escura do SO (via `iced::system::theme_changes`),
+    /// usada por [`GlacierUI::theme`] só quando o app **não** fixou um estilo.
+    /// `Unknown` até a primeira consulta / num SO que não informa — aí vale o
+    /// default histórico (`Theme::Dark`).
+    system_appearance: widget::SystemAppearance,
     /// Path of the loaded theme file, kept for hot-reload.
     theme_path: Option<String>,
     /// Data files loaded via `<link rel="data">`, as `(context key, path)`,
@@ -186,6 +192,11 @@ pub struct GlacierUI {
     /// Last text each editor pushed into the context, to tell an external context
     /// change (reload editor) from the editor's own edit (leave it alone).
     editor_synced: ContextMap,
+    /// Pilha de desfazer/refazer por binding de editor (`<TextArea>` e
+    /// `<TextInput>` não-`secure`), alimentada em `UiEditorAction` e consumida
+    /// pelos itens "Desfazer"/"Refazer" do menu de contexto embutido. Limpa
+    /// junto com `editor_synced` quando o binding some da árvore.
+    edit_history: HashMap<String, EditHistory>,
     /// Stateful `combo_box::State` buffers for `<ComboEdit>` widgets, keyed by
     /// `value` binding — same role as `editors` above.
     combos: widget::ComboMap,
@@ -230,6 +241,11 @@ pub struct GlacierUI {
     /// cima de tudo (inclusive diálogo e toasts); [`GlacierUI::dispatch`] o
     /// fecha num clique-fora, Escape, ou ao clicar um `<MenuItem>` folha.
     active_menu: Option<menu::ActiveMenuState>,
+    /// Liga o menu de contexto embutido dos campos de texto (botão direito).
+    /// `true` por default; um app o desliga chamando
+    /// [`GlacierUI::set_input_context_menu`] no seu `setup` — o que também
+    /// dispensa o rastreio de cursor que a âncora do menu exige.
+    input_context_menu: bool,
     /// Última posição de cursor conhecida (espaço da janela), atualizada por
     /// um listener global de movimento do mouse (ver `cursor_from_event`).
     /// Serve só de âncora para o próximo `OpenMenuBarDropdown`/
@@ -362,6 +378,65 @@ struct DragState {
     dragging: String,
 }
 
+/// Histórico de desfazer/refazer de **um** campo de texto apoiado num
+/// `text_editor` (`<TextArea>` e `<TextInput>` não-`secure`).
+///
+/// Nenhum dos dois widgets do iced 0.14 tem pilha de undo; esta é a do motor.
+/// `undo` guarda estados anteriores (o mais recente no fim); `redo` os que
+/// foram desfeitos. `record` coalesce: digitação corrida entra num snapshot
+/// só, e um snapshot novo abre a cada pausa (`COALESCE`) ou a cada edição que
+/// não seja inserção simples (paste/backspace/delete/clear).
+#[derive(Default)]
+struct EditHistory {
+    undo: Vec<String>,
+    redo: Vec<String>,
+    last_edit_at: Option<std::time::Instant>,
+}
+
+impl EditHistory {
+    /// Janela de coalescência: teclas dentro dela agrupam no mesmo passo de undo.
+    const COALESCE: std::time::Duration = std::time::Duration::from_millis(400);
+    /// Teto da pilha — um editor muito editado não pode crescer sem limite.
+    const CAP: usize = 100;
+
+    /// Registra `prev` (o valor ANTES da edição atual) como um ponto de
+    /// desfazer, se a coalescência não o absorver. `structural` força um
+    /// snapshot novo (paste/backspace/delete/limpar). Toda edição zera o `redo`.
+    fn record(&mut self, prev: &str, structural: bool) {
+        let now = std::time::Instant::now();
+        let coalesce = !structural
+            && self
+                .last_edit_at
+                .is_some_and(|t| now.duration_since(t) < Self::COALESCE);
+        self.last_edit_at = Some(now);
+        if !coalesce {
+            if self.undo.last().map(String::as_str) != Some(prev) {
+                self.undo.push(prev.to_string());
+                if self.undo.len() > Self::CAP {
+                    self.undo.remove(0);
+                }
+            }
+        }
+        self.redo.clear();
+    }
+
+    /// Move `current` para o `redo` e devolve o estado anterior a restaurar.
+    fn undo(&mut self, current: &str) -> Option<String> {
+        let prev = self.undo.pop()?;
+        self.redo.push(current.to_string());
+        self.last_edit_at = None;
+        Some(prev)
+    }
+
+    /// Inverso de [`EditHistory::undo`].
+    fn redo(&mut self, current: &str) -> Option<String> {
+        let next = self.redo.pop()?;
+        self.undo.push(current.to_string());
+        self.last_edit_at = None;
+        Some(next)
+    }
+}
+
 impl Default for GlacierUI {
     fn default() -> Self {
         Self::new()
@@ -401,10 +476,12 @@ impl GlacierUI {
             history: Vec::new(),
             components: HashMap::default(),
             custom_theme: None,
+            system_appearance: widget::SystemAppearance::Unknown,
             theme_path: None,
             data_sources: Vec::new(),
             editors: HashMap::default(),
             editor_synced: HashMap::default(),
+            edit_history: HashMap::default(),
             combos: HashMap::default(),
             combo_synced: HashMap::default(),
             combo_options_synced: HashMap::default(),
@@ -413,6 +490,7 @@ impl GlacierUI {
             dialog_resume: None,
             dialog_body_fixado: None,
             active_menu: None,
+            input_context_menu: true,
             last_cursor_pos: iced::Point::ORIGIN,
             toasts: Vec::new(),
             next_toast_id: 0,
@@ -472,11 +550,42 @@ impl GlacierUI {
         }
     }
 
-    /// The current `iced::Theme`: the one loaded via `<link rel="theme">` if
-    /// present, otherwise `Theme::Dark`. Wire it into your app with
-    /// `iced::application(...).theme(|app| app.motor.theme())`.
+    /// The current `iced::Theme`: the one loaded via `<link rel="theme">` /
+    /// `set_style` if present; otherwise the OS light/dark preference
+    /// (`Theme::Light`/`Theme::Dark`), falling back to `Theme::Dark` while that
+    /// preference is unknown. Wire it into your app with
+    /// `iced::application(...).theme(|app| app.motor.theme())` — and feed
+    /// `GlacierUI::subscription` so `iced::system::theme_changes` keeps it live.
     pub fn theme(&self) -> iced::Theme {
-        self.custom_theme.clone().unwrap_or(iced::Theme::Dark)
+        if let Some(t) = &self.custom_theme {
+            return t.clone();
+        }
+        match self.system_appearance {
+            widget::SystemAppearance::Light => iced::Theme::Light,
+            widget::SystemAppearance::Dark | widget::SystemAppearance::Unknown => iced::Theme::Dark,
+        }
+    }
+
+    /// Liga/desliga o menu de contexto embutido dos campos de texto (botão
+    /// direito com desfazer/refazer/recortar/copiar/apagar/selecionar tudo/
+    /// limpar tudo). Ligado por default. Desligar também dispensa o rastreio de
+    /// cursor que a âncora do menu exige — útil num app que prefira o seu
+    /// próprio `<ContextMenu>`. Chame no `setup` da janela (o hook recebe
+    /// `&mut GlacierUI`); vale a partir da próxima reavaliação.
+    pub fn set_input_context_menu(&mut self, on: bool) {
+        self.input_context_menu = on;
+    }
+
+    /// `true` se o menu de contexto embutido dos campos está ligado (o default).
+    pub fn input_context_menu_enabled(&self) -> bool {
+        self.input_context_menu
+    }
+
+    /// Registra a preferência clara/escura do SO (chamado pelo daemon a partir
+    /// de `iced::system::theme` / `theme_changes`). Só afeta o tema efetivo
+    /// quando o app não fixou um estilo — ver [`GlacierUI::theme`].
+    pub fn set_system_appearance(&mut self, appearance: widget::SystemAppearance) {
+        self.system_appearance = appearance;
     }
 
     // ── Acesso ao estado (os campos são privados; ver o doc do struct) ───────
@@ -793,7 +902,7 @@ impl GlacierUI {
         Ok(match &self.active_menu {
             Some(state) => iced::widget::stack![
                 with_toasts,
-                menu::overlay(state, &self.theme(), self.inputs.viewport())
+                menu::overlay(state, self.inputs.viewport())
             ]
             .into(),
             None => with_toasts,
@@ -1173,12 +1282,66 @@ impl GlacierUI {
             }
             EngineMessage::OpenMenuBarDropdown { tree }
             | EngineMessage::OpenContextMenu { tree } => {
+                let style = menu::MenuStyle::from_palette(self.theme().extended_palette());
                 self.active_menu = Some(menu::ActiveMenuState {
                     tree: tree.clone(),
                     anchor: self.last_cursor_pos,
                     open_path: Vec::new(),
+                    style,
+                    input_target: None,
                 });
                 return iced::Task::none();
+            }
+            EngineMessage::SystemAppearanceChanged(appearance) => {
+                if self.system_appearance != *appearance {
+                    self.system_appearance = *appearance;
+                    // O tema é lido no render; reavaliar reconstrói as árvores
+                    // com o estilo novo (as `@media`/`var()` não mudam, mas as
+                    // cores de tema que os widgets herdam sim).
+                    let _ = self.reevaluate_all();
+                }
+                return iced::Task::none();
+            }
+            EngineMessage::OpenInputContextMenu {
+                binding,
+                on_change,
+                flavor,
+                menu_class,
+                widget_id,
+            } => {
+                if !self.input_context_menu {
+                    return iced::Task::none();
+                }
+                let tree = self.build_input_context_menu(binding, *flavor);
+                let style = self.resolve_menu_style(menu_class.as_deref());
+                self.active_menu = Some(menu::ActiveMenuState {
+                    tree: std::sync::Arc::new(tree),
+                    anchor: self.last_cursor_pos,
+                    open_path: Vec::new(),
+                    style,
+                    input_target: Some(menu::InputMenuTarget {
+                        binding: binding.clone(),
+                        on_change: on_change.clone(),
+                        flavor: *flavor,
+                        widget_id: widget_id.clone(),
+                    }),
+                });
+                // Refoca o campo: empilhar o overlay do menu troca a raiz da
+                // árvore de widgets (vira um `stack!`), e o iced descarta o
+                // estado da subárvore antiga — inclusive o foco do
+                // `text_editor`/`text_input`, e com ele o realce da seleção que
+                // o usuário acabou de fazer. Reestabelecer o foco na árvore
+                // nova mantém "Selecionar tudo → recortar" visível o tempo todo.
+                return iced::widget::operation::focus::<EngineMessage>(widget_id.clone());
+            }
+            EngineMessage::InputContextPasteResult {
+                binding,
+                on_change,
+                flavor,
+                widget_id,
+                text,
+            } => {
+                return self.apply_input_paste(binding, on_change, *flavor, widget_id, text);
             }
             EngineMessage::MenuHoverSubmenu { path } => {
                 if let Some(m) = &mut self.active_menu {
@@ -1187,15 +1350,41 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             EngineMessage::MenuDismiss => {
+                // Fechar o overlay troca a raiz da árvore de volta e o iced
+                // descarta o estado da subárvore — se o menu fechado era o de
+                // um campo de texto, refoca o campo para o cursor/seleção não
+                // sumirem ao dispensar (Esc / clique-fora).
+                let refocus = self
+                    .active_menu
+                    .as_ref()
+                    .and_then(|m| m.input_target.as_ref())
+                    .map(|t| t.widget_id.clone());
                 self.active_menu = None;
-                return iced::Task::none();
+                return match refocus {
+                    Some(id) => iced::widget::operation::focus::<EngineMessage>(id),
+                    None => iced::Task::none(),
+                };
             }
             // Clique num `<MenuItem>` folha: fecha o menu/cascata inteiro e
             // roteia `action` exatamente como um `UiClick` comum (mesma
             // chamada que `DialogButton` já faz) — a prova de que nenhum
             // código novo de dispatch/Luau é necessário para menus.
             EngineMessage::MenuItemClick(action) => {
+                // O menu de contexto embutido dos campos codifica suas ações
+                // como `__gv_edit:<op>` e carrega o alvo em `input_target` —
+                // interceptadas aqui, antes do roteamento genérico (mesma ideia
+                // do prefixo `clipboard:` lá em cima).
+                let input_target = self
+                    .active_menu
+                    .as_ref()
+                    .and_then(|m| m.input_target.clone());
                 self.active_menu = None;
+                if let Some(op) = action.strip_prefix("__gv_edit:") {
+                    return match input_target {
+                        Some(t) => self.run_input_edit(&t, op),
+                        None => iced::Task::none(),
+                    };
+                }
                 (action.as_str(), None)
             }
             // Toasts (see `toasts`) never route to a component: dismissing
@@ -1721,12 +1910,50 @@ impl GlacierUI {
                 on_change,
                 action,
                 readonly,
+                single_line,
             } => {
+                use iced::widget::text_editor::{Action, Edit};
                 // Read-only (<textarea readonly>): ignora EDIÇÕES (digitar/apagar/
                 // colar), mantendo navegação/seleção/scroll — o texto continua
                 // selecionável, copiável e rolável, só não é alterável.
-                if *readonly && matches!(action, iced::widget::text_editor::Action::Edit(_)) {
+                if *readonly && matches!(action, Action::Edit(_)) {
                     return iced::Task::none();
+                }
+                // Linha única (`<TextInput>` comum, apoiado num `text_editor`):
+                // `Enter` sem `<Form>` chega aqui e é engolido; um paste com
+                // quebras é reescrito sem elas — o buffer nunca passa de 1 linha.
+                let owned_action;
+                let action: &Action = if *single_line {
+                    match action {
+                        Action::Edit(Edit::Enter) => return iced::Task::none(),
+                        Action::Edit(Edit::Paste(s))
+                            if s.contains('\n') || s.contains('\r') =>
+                        {
+                            let flat: String =
+                                s.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+                            owned_action = Action::Edit(Edit::Paste(std::sync::Arc::new(flat)));
+                            &owned_action
+                        }
+                        other => other,
+                    }
+                } else {
+                    action
+                };
+                let prev = self
+                    .editor_synced
+                    .get(binding)
+                    .or_else(|| self.context_data.get(binding))
+                    .cloned()
+                    .unwrap_or_default();
+                // Antes de aplicar: se isto muda o texto, registra o estado
+                // anterior para o "Desfazer" do menu de contexto. Inserção
+                // corrida coalesce; paste/apagar abrem um passo novo.
+                if matches!(action, Action::Edit(_)) {
+                    let structural = !matches!(action, Action::Edit(Edit::Insert(_)));
+                    self.edit_history
+                        .entry(binding.clone())
+                        .or_default()
+                        .record(&prev, structural);
                 }
                 // Apply the edit to the kept editor buffer, then mirror its full
                 // text into the context (and `editor_synced`, so the sync step
@@ -1738,6 +1965,14 @@ impl GlacierUI {
                     .or_insert_with(|| iced::widget::text_editor::Content::with_text(&seed));
                 content.perform(action.clone());
                 let text = content.text();
+                // Só o texto mudou é que precisa refluir a árvore / avisar o
+                // app. Mover o cursor, clicar, rolar ou selecionar (o comum
+                // num `<TextInput>`, que antes era `text_input` e tratava isso
+                // sem custo) não mexem no contexto — o iced já redesenha a
+                // seleção sozinho depois desta mensagem.
+                if text == prev {
+                    return iced::Task::none();
+                }
                 self.context_data.insert(binding.clone(), text.clone());
                 self.editor_synced.insert(binding.clone(), text.clone());
                 if on_change.is_empty() {
@@ -2631,6 +2866,347 @@ impl GlacierUI {
         }
     }
 
+    // ── Menu de contexto embutido dos campos de texto ───────────────────────
+
+    /// Monta a árvore do menu de botão direito de um campo, já com os itens
+    /// desabilitados conforme o estado atual (seleção presente? há o que
+    /// desfazer? campo vazio?). As ações são strings `__gv_edit:<op>`,
+    /// interceptadas em `MenuItemClick` (ver [`GlacierUI::run_input_edit`]).
+    fn build_input_context_menu(
+        &self,
+        binding: &str,
+        flavor: widget::InputFlavor,
+    ) -> Vec<menu::MenuNode> {
+        let hist = self.edit_history.get(binding);
+        let can_undo = hist.is_some_and(|h| !h.undo.is_empty());
+        let can_redo = hist.is_some_and(|h| !h.redo.is_empty());
+        let (has_selection, is_empty) = if flavor.is_editor() {
+            match self.editors.get(binding) {
+                Some(c) => (c.selection().is_some(), c.text().is_empty()),
+                None => (false, true),
+            }
+        } else {
+            (
+                false,
+                self.context_data.get(binding).is_none_or(|v| v.is_empty()),
+            )
+        };
+
+        fn leaf(label: &str, action: &str, disabled: bool) -> menu::MenuNode {
+            menu::MenuNode::leaf(label, action, disabled)
+        }
+        if flavor.is_editor() {
+            vec![
+                leaf("Desfazer", "__gv_edit:undo", !can_undo),
+                leaf("Refazer", "__gv_edit:redo", !can_redo),
+                menu::MenuNode::separator(),
+                leaf("Recortar", "__gv_edit:cut", !has_selection),
+                leaf("Copiar", "__gv_edit:copy", !has_selection),
+                leaf("Apagar", "__gv_edit:delete", !has_selection),
+                leaf("Colar", "__gv_edit:paste", false),
+                menu::MenuNode::separator(),
+                leaf("Selecionar tudo", "__gv_edit:selectall", is_empty),
+                leaf("Limpar tudo", "__gv_edit:clearall", is_empty),
+            ]
+        } else {
+            // `secure`: o `text_input` do iced não expõe seleção nem `perform`,
+            // então recortar/copiar/apagar-seleção e desfazer/refazer ficam de
+            // fora (ver `InputFlavor`).
+            vec![
+                leaf("Colar", "__gv_edit:paste", false),
+                menu::MenuNode::separator(),
+                leaf("Selecionar tudo", "__gv_edit:selectall", is_empty),
+                leaf("Limpar tudo", "__gv_edit:clearall", is_empty),
+            ]
+        }
+    }
+
+    /// Resolve o [`menu::MenuStyle`] de um menu de campo: parte do default do
+    /// tema e, se o `<input menu_class="x">` apontou uma classe, sobrescreve o
+    /// que a `.gss` declarou — `.x` no corpo, `.x-item` / `.x-item:hover` /
+    /// `.x-item:active` nas linhas.
+    fn resolve_menu_style(&self, menu_class: Option<&str>) -> menu::MenuStyle {
+        let mut style = menu::MenuStyle::from_palette(self.theme().extended_palette());
+        let Some(class) = menu_class.filter(|c| !c.trim().is_empty()) else {
+            return style;
+        };
+        let sheets: Vec<&stylesheet::StyleSheet> = self.inputs.stylesheets().iter().collect();
+        let vp = Some(self.inputs.viewport());
+        let item_class = format!("{class}-item");
+
+        let body = stylesheet::resolve_classes(None, class, None, &sheets, vp);
+        let item = stylesheet::resolve_classes(None, &item_class, None, &sheets, vp);
+        let states = stylesheet::resolve_state_classes(None, &item_class, None, &sheets, vp);
+
+        let hex = crate::widget::parse_hex_color;
+        if let Some(c) = body.background.as_deref().and_then(hex) {
+            style.body_bg = c;
+        }
+        if let Some(c) = body.border_color.as_deref().and_then(hex) {
+            style.body_border_color = c;
+        }
+        if let Some(w) = body.border_width {
+            style.body_border_width = w;
+        }
+        if let Some(r) = body.border_radius {
+            style.body_radius = r;
+        }
+        if let Some(c) = item
+            .text_color
+            .as_deref()
+            .or(item.color.as_deref())
+            .and_then(hex)
+        {
+            style.item_text = c;
+        }
+        if let Some(c) = states.hover.background.as_deref().and_then(hex) {
+            style.item_hover_bg = c;
+        }
+        if let Some(c) = states.active.background.as_deref().and_then(hex) {
+            style.item_active_bg = c;
+        } else if let Some(c) = states.hover.background.as_deref().and_then(hex) {
+            // Sem `:active` declarado, o hover serve de aproximação.
+            style.item_active_bg = c;
+        }
+        style
+    }
+
+    /// Executa uma op (`undo`/`redo`/`cut`/`copy`/`delete`/`selectall`/
+    /// `clearall`/`paste`) do menu de contexto embutido contra o campo alvo.
+    ///
+    /// Toda op que mexe em seleção/texto termina **refocando o campo**: o
+    /// clique no item de menu tira o foco do `text_editor`/`text_input`, e
+    /// **ambos só desenham o realce da seleção com foco** — sem o refoco,
+    /// "Selecionar tudo" seleciona de fato mas não aparece nada na tela.
+    fn run_input_edit(
+        &mut self,
+        t: &menu::InputMenuTarget,
+        op: &str,
+    ) -> iced::Task<EngineMessage> {
+        use iced::widget::text_editor::{Action, Edit};
+        let binding = t.binding.clone();
+        let refocus =
+            || iced::widget::operation::focus::<EngineMessage>(t.widget_id.clone());
+
+        // "Colar" é igual para os dois sabores: lê o clipboard e volta por
+        // `InputContextPasteResult`.
+        if op == "paste" {
+            let b = binding.clone();
+            let oc = t.on_change.clone();
+            let fl = t.flavor;
+            let wid = t.widget_id.clone();
+            return iced::clipboard::read().map(move |maybe: Option<String>| {
+                EngineMessage::InputContextPasteResult {
+                    binding: b.clone(),
+                    on_change: oc.clone(),
+                    flavor: fl,
+                    widget_id: wid.clone(),
+                    text: maybe.unwrap_or_default(),
+                }
+            });
+        }
+
+        if !t.flavor.is_editor() {
+            // ── secure (`text_input` mascarado) ──
+            return match op {
+                "selectall" => iced::Task::batch([
+                    refocus(),
+                    iced::widget::operation::select_all::<EngineMessage>(t.widget_id.clone()),
+                ]),
+                "clearall" => iced::Task::batch([
+                    self.set_field_value(&binding, &t.on_change, String::new()),
+                    refocus(),
+                ]),
+                // undo/redo/cut/copy/delete: itens já vêm desabilitados.
+                _ => iced::Task::none(),
+            };
+        }
+
+        // ── editor (`<TextArea>` / `<TextInput>` comum) ──
+        match op {
+            "copy" => {
+                let write = self
+                    .editors
+                    .get(&binding)
+                    .and_then(|c| c.selection())
+                    .map(iced::clipboard::write)
+                    .unwrap_or_else(iced::Task::none);
+                iced::Task::batch([write, refocus()])
+            }
+            "cut" => {
+                let Some(sel) = self.editors.get(&binding).and_then(|c| c.selection()) else {
+                    return iced::Task::none();
+                };
+                let after = self.editor_perform(&binding, Action::Edit(Edit::Backspace), true);
+                iced::Task::batch([
+                    iced::clipboard::write(sel),
+                    self.after_field_change(&binding, &t.on_change, after),
+                    refocus(),
+                ])
+            }
+            "delete" => {
+                if self.editors.get(&binding).and_then(|c| c.selection()).is_none() {
+                    return iced::Task::none();
+                }
+                let after = self.editor_perform(&binding, Action::Edit(Edit::Backspace), true);
+                iced::Task::batch([
+                    self.after_field_change(&binding, &t.on_change, after),
+                    refocus(),
+                ])
+            }
+            "selectall" => {
+                if let Some(c) = self.editors.get_mut(&binding) {
+                    c.perform(Action::SelectAll);
+                }
+                refocus()
+            }
+            "clearall" => {
+                if let Some(c) = self.editors.get_mut(&binding) {
+                    c.perform(Action::SelectAll);
+                }
+                let after = self.editor_perform(&binding, Action::Edit(Edit::Backspace), true);
+                iced::Task::batch([
+                    self.after_field_change(&binding, &t.on_change, after),
+                    refocus(),
+                ])
+            }
+            "undo" | "redo" => {
+                let cur = self
+                    .editors
+                    .get(&binding)
+                    .map(|c| c.text())
+                    .unwrap_or_default();
+                let restored = self.edit_history.get_mut(&binding).and_then(|h| {
+                    if op == "undo" {
+                        h.undo(&cur)
+                    } else {
+                        h.redo(&cur)
+                    }
+                });
+                match restored {
+                    Some(v) => {
+                        self.editors.insert(
+                            binding.clone(),
+                            iced::widget::text_editor::Content::with_text(&v),
+                        );
+                        iced::Task::batch([
+                            self.after_field_change(&binding, &t.on_change, v),
+                            refocus(),
+                        ])
+                    }
+                    None => iced::Task::none(),
+                }
+            }
+            _ => iced::Task::none(),
+        }
+    }
+
+    /// Aplica uma ação de edição ao `Content` do editor `binding` e devolve o
+    /// texto resultante. Não sincroniza contexto nem emite `on_change` — isso é
+    /// [`GlacierUI::after_field_change`], chamado depois pelo call-site (que às
+    /// vezes encadeia mais de uma ação antes de sincronizar).
+    fn editor_perform(
+        &mut self,
+        binding: &str,
+        action: iced::widget::text_editor::Action,
+        structural: bool,
+    ) -> String {
+        let before = self
+            .editor_synced
+            .get(binding)
+            .or_else(|| self.context_data.get(binding))
+            .cloned()
+            .unwrap_or_default();
+        if structural {
+            self.edit_history
+                .entry(binding.to_string())
+                .or_default()
+                .record(&before, true);
+        }
+        let seed = self.context_data.get(binding).cloned().unwrap_or_default();
+        let content = self
+            .editors
+            .entry(binding.to_string())
+            .or_insert_with(|| iced::widget::text_editor::Content::with_text(&seed));
+        content.perform(action);
+        content.text()
+    }
+
+    /// Sincroniza `context_data` + `editor_synced` com `text` e propaga a
+    /// mudança: reavalia (sem `on_change`) ou entrega ao componente dono.
+    fn after_field_change(
+        &mut self,
+        binding: &str,
+        on_change: &str,
+        text: String,
+    ) -> iced::Task<EngineMessage> {
+        self.context_data.insert(binding.to_string(), text.clone());
+        self.editor_synced.insert(binding.to_string(), text.clone());
+        if on_change.is_empty() {
+            let _ = self.reevaluate_all();
+            return iced::Task::none();
+        }
+        self.dispatch_interno(&EngineMessage::UiInputChanged {
+            action: on_change.to_string(),
+            value: text,
+        })
+    }
+
+    /// Grava um valor literal num campo `secure` (sem `Content`) e propaga.
+    fn set_field_value(
+        &mut self,
+        binding: &str,
+        on_change: &str,
+        value: String,
+    ) -> iced::Task<EngineMessage> {
+        self.context_data.insert(binding.to_string(), value.clone());
+        if on_change.is_empty() {
+            let _ = self.reevaluate_all();
+            return iced::Task::none();
+        }
+        self.dispatch_interno(&EngineMessage::UiInputChanged {
+            action: on_change.to_string(),
+            value,
+        })
+    }
+
+    /// Aplica o texto vindo do clipboard (item "Colar" do menu de contexto) e
+    /// refoca o campo, para o cursor voltar a ele.
+    fn apply_input_paste(
+        &mut self,
+        binding: &str,
+        on_change: &str,
+        flavor: widget::InputFlavor,
+        widget_id: &str,
+        text: &str,
+    ) -> iced::Task<EngineMessage> {
+        if text.is_empty() {
+            return iced::Task::none();
+        }
+        let refocus = iced::widget::operation::focus::<EngineMessage>(widget_id.to_string());
+        let change = if flavor.is_editor() {
+            let flat: String = if flavor == widget::InputFlavor::LineEditor {
+                text.chars().filter(|c| *c != '\n' && *c != '\r').collect()
+            } else {
+                text.to_string()
+            };
+            let after = self.editor_perform(
+                binding,
+                iced::widget::text_editor::Action::Edit(iced::widget::text_editor::Edit::Paste(
+                    std::sync::Arc::new(flat),
+                )),
+                true,
+            );
+            self.after_field_change(binding, on_change, after)
+        } else {
+            // secure: sem cursor conhecido, anexa no fim do valor atual.
+            let flat: String = text.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+            let current = self.context_data.get(binding).cloned().unwrap_or_default();
+            self.set_field_value(binding, on_change, current + &flat)
+        };
+        iced::Task::batch([change, refocus])
+    }
+
     /// Reavalia o que está **em uso** contra o contexto atual: a tela ativa e os
     /// templates fixados com [`GlacierUI::keep_evaluated`]. Chamada depois de
     /// toda mudança de contexto, estilo, markup ou navegação.
@@ -2857,7 +3433,7 @@ impl GlacierUI {
             )?
         };
         let mut bindings = TreeBindings::default();
-        collect_tree_bindings(&evaluated, &mut bindings);
+        collect_tree_bindings(&evaluated, &mut bindings, self.input_context_menu);
         self.tree_bindings.insert(name.to_string(), bindings);
         self.evaluated_templates.insert(name.to_string(), evaluated);
         self.eval_deps.insert(name.to_string(), deps);
@@ -2885,27 +3461,30 @@ impl GlacierUI {
         false
     }
 
-    /// Keeps the stateful `<TextArea>` buffers in step with the context: creates
-    /// a buffer the first time a binding appears, and reloads it when the context
-    /// value changed from outside the editor (e.g. a fetch). The editor's own
-    /// edits set `editor_synced`, so they are not mistaken for external changes.
+    /// Keeps the stateful `<TextArea>` / plain `<TextInput>` buffers in step
+    /// with the context: creates a buffer the first time a binding appears, and
+    /// reloads it when the context value changed from outside the editor (e.g.
+    /// a fetch). The editor's own edits set `editor_synced`, so they are not
+    /// mistaken for external changes. Also drops the undo history of a binding
+    /// that left the tree.
     fn sync_editors(&mut self) {
         let bindings: Vec<String> = self
             .tree_bindings
             .values()
             .flat_map(|b| b.textareas.iter().cloned())
             .collect();
-        for b in bindings {
-            let ctx_val = self.context_data.get(&b).cloned().unwrap_or_default();
-            let last = self.editor_synced.get(&b);
-            if !self.editors.contains_key(&b) || last != Some(&ctx_val) {
+        for b in &bindings {
+            let ctx_val = self.context_data.get(b).cloned().unwrap_or_default();
+            let last = self.editor_synced.get(b);
+            if !self.editors.contains_key(b) || last != Some(&ctx_val) {
                 self.editors.insert(
                     b.clone(),
                     iced::widget::text_editor::Content::with_text(&ctx_val),
                 );
-                self.editor_synced.insert(b, ctx_val);
+                self.editor_synced.insert(b.clone(), ctx_val);
             }
         }
+        self.edit_history.retain(|k, _| bindings.contains(k));
     }
 
     /// Rebuilds a `<ComboEdit>`'s `combo_box::State` whenever its bound value
@@ -3222,15 +3801,20 @@ fn agora_ms() -> u128 {
         .unwrap_or(0)
 }
 
-/// Collects the `value` binding of every `<TextArea>` in an evaluated tree, so
-/// the engine can keep a stateful editor buffer per binding.
+/// Collects the `value` binding of every `<TextArea>` and plain `<TextInput>`
+/// in an evaluated tree, so the engine can keep a stateful editor buffer per
+/// binding.
 #[derive(Default)]
 struct TreeBindings {
     /// A árvore tem algum abridor de menu (`<MenuBar>`, `<Menu>`,
-    /// `<ContextMenu>`)? Só então o motor precisa saber onde o cursor está —
-    /// ver [`GlacierUI::precisa_do_cursor`].
+    /// `<ContextMenu>`), ou algum campo de texto com o menu de contexto
+    /// embutido ligado? Só então o motor precisa saber onde o cursor está —
+    /// ver [`GlacierUI::precisa_do_cursor`]. Um campo de texto numa tela faz o
+    /// app redesenhar a cada movimento do mouse (o mesmo custo já aceito pelo
+    /// `<ContextMenu>`); `GlacierUI::set_input_context_menu(false)` o dispensa.
     usa_cursor: bool,
-    /// `value_var` de cada `<TextArea>` da árvore.
+    /// `value_var` de cada `<TextArea>` e `<TextInput>` não-`secure` da árvore
+    /// — os dois precisam de um `text_editor::Content` mantido pelo motor.
     textareas: Vec<String>,
     /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
     combos: Vec<(String, String, String, String)>,
@@ -3244,17 +3828,37 @@ struct TreeBindings {
 /// Colhe, numa **única** passada, os dois tipos de widget cujo estado o motor
 /// guarda fora da árvore. Antes eram duas recursões independentes sobre a
 /// árvore inteira, rodadas a cada reavaliação; ver [`GlacierUI::tree_bindings`].
-fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
+fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_menu: bool) {
     if matches!(
         node.kind,
         NodeType::MenuBar | NodeType::Menu { .. } | NodeType::ContextMenu { .. }
     ) {
         out.usa_cursor = true;
     }
+    // Qualquer campo de texto com o menu de contexto embutido ligado ancora no
+    // cursor (mesmo custo já aceito pelo `<ContextMenu>`).
+    if input_context_menu
+        && matches!(
+            node.kind,
+            NodeType::TextInput { .. } | NodeType::TextArea { .. }
+        )
+    {
+        out.usa_cursor = true;
+    }
     match &node.kind {
         NodeType::TextArea { value_var, .. }
             if !value_var.is_empty() && !out.textareas.contains(value_var) =>
         {
+            out.textareas.push(value_var.clone());
+        }
+        // `<TextInput>` não-`secure` também é apoiado num `text_editor` agora
+        // (ver o arm de `NodeType::TextInput` em `widget.rs`) — precisa do
+        // mesmo `Content`. O `secure` fica no `text_input` do iced, sem buffer.
+        NodeType::TextInput {
+            value_var,
+            secure: false,
+            ..
+        } if !value_var.is_empty() && !out.textareas.contains(value_var) => {
             out.textareas.push(value_var.clone());
         }
         NodeType::ComboEdit {
@@ -3283,7 +3887,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings) {
         _ => {}
     }
     for child in &node.children {
-        collect_tree_bindings(child, out);
+        collect_tree_bindings(child, out, input_context_menu);
     }
 }
 

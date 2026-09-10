@@ -502,6 +502,45 @@ fn background_for(node: &UiNode) -> Option<Background> {
         .map(Background::Color)
 }
 
+/// Qual widget está por trás de um campo de texto — decide o que o menu de
+/// contexto embutido (botão direito) consegue oferecer.
+///
+/// - `LineEditor`: `<TextInput>` não-`secure`, hoje renderizado com um
+///   `text_editor` de uma linha (ver o arm de `NodeType::TextInput`). Menu
+///   completo: desfazer/refazer, recortar/copiar/apagar seleção, selecionar
+///   tudo, limpar tudo.
+/// - `MultilineEditor`: `<TextArea>` — mesmo menu completo.
+/// - `Secure`: `<TextInput secure>` (senha). Fica no `text_input` do iced, que
+///   não expõe a seleção nem uma pilha de undo — menu reduzido (colar,
+///   selecionar tudo, limpar tudo, e desfazer/refazer sobre o valor inteiro).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputFlavor {
+    LineEditor,
+    MultilineEditor,
+    Secure,
+}
+
+impl InputFlavor {
+    /// `true` para os dois sabores apoiados num `text_editor::Content` — os que
+    /// o motor consegue operar via `Content::perform`/`Content::selection`.
+    pub fn is_editor(self) -> bool {
+        matches!(self, Self::LineEditor | Self::MultilineEditor)
+    }
+}
+
+/// A preferência de tema claro/escuro do sistema operacional, quando o app não
+/// fixou um estilo próprio (`set_style`/`set_theme`). Espelha o
+/// `iced::system::theme` sem vazar o tipo do iced pelo [`EngineMessage`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SystemAppearance {
+    /// Sem preferência conhecida (ainda não consultado, ou o SO não informa) —
+    /// o motor mantém o default histórico (`Theme::Dark`).
+    #[default]
+    Unknown,
+    Light,
+    Dark,
+}
+
 #[derive(Debug, Clone)]
 pub enum EngineMessage {
     UiClick(String),
@@ -594,14 +633,19 @@ pub enum EngineMessage {
         patch: Vec<(String, String)>,
         inner: Box<EngineMessage>,
     },
-    /// An edit on a `<TextArea>`: `binding` is its `value` key, `action` is the
-    /// editor action to apply to the kept `Content`, `on_change` is the action
-    /// dispatched (with the new full text) after applying it.
+    /// An edit on a `<TextArea>` — or on a plain (non-`secure`) `<TextInput>`,
+    /// which is now backed by a one-line `text_editor` too. `binding` is its
+    /// `value` key, `action` is the editor action to apply to the kept
+    /// `Content`, `on_change` is the action dispatched (with the new full text)
+    /// after applying it. `single_line` (a `<TextInput>`) makes the engine drop
+    /// `Edit::Enter` and strip newlines out of a paste, so the buffer stays on
+    /// one line; `readonly` (a `<TextArea readonly>`) drops every `Edit`.
     UiEditorAction {
         binding: String,
         on_change: String,
         action: text_editor::Action,
         readonly: bool,
+        single_line: bool,
     },
     /// Free text typed into a `<ComboEdit>` (fires on every keystroke):
     /// `binding` is its `value` key, `on_change` is the action dispatched
@@ -772,6 +816,36 @@ pub enum EngineMessage {
     /// Clique-fora ou Escape: fecha o menu/cascata aberto sem despachar
     /// nenhuma ação.
     MenuDismiss,
+    /// Botão direito sobre um campo de texto (`<TextInput>`/`<TextArea>` e os
+    /// builtins que geram um): abre o menu de contexto embutido, ancorado na
+    /// última posição de cursor conhecida (como `OpenContextMenu`). `binding` é
+    /// a chave `value` do campo, `on_change` a ação que ele dispara ao mudar,
+    /// `flavor` decide quais itens aparecem e `menu_class` (o atributo
+    /// `menu_class="..."` do nó) é a classe `.gss` que estiliza o corpo do
+    /// menu (`.classe`) e seus itens (`.classe-item`, com `:hover`/`:active`).
+    OpenInputContextMenu {
+        binding: String,
+        on_change: String,
+        flavor: InputFlavor,
+        menu_class: Option<String>,
+        /// Id estável do widget (o do `<Form>` ou um sintético) — só o item
+        /// "Selecionar tudo" de um campo `secure` precisa dele, para a
+        /// `operation` do iced achar o `text_input` mascarado.
+        widget_id: String,
+    },
+    /// Resultado da leitura assíncrona do clipboard disparada pelo item
+    /// "Colar" do menu de contexto de um campo (`iced::clipboard::read`).
+    InputContextPasteResult {
+        binding: String,
+        on_change: String,
+        flavor: InputFlavor,
+        /// Id estável do widget — para refocá-lo depois de inserir o texto.
+        widget_id: String,
+        text: String,
+    },
+    /// A preferência de tema do SO mudou (ou foi consultada no boot). Só toca o
+    /// tema efetivo quando o app **não** fixou um estilo — ver `GlacierUI::theme`.
+    SystemAppearanceChanged(SystemAppearance),
 }
 
 impl EngineMessage {
@@ -824,6 +898,9 @@ impl EngineMessage {
             Self::MenuHoverSubmenu { .. } => "MenuHoverSubmenu",
             Self::MenuItemClick { .. } => "MenuItemClick",
             Self::MenuDismiss { .. } => "MenuDismiss",
+            Self::OpenInputContextMenu { .. } => "OpenInputContextMenu",
+            Self::InputContextPasteResult { .. } => "InputContextPasteResult",
+            Self::SystemAppearanceChanged { .. } => "SystemAppearanceChanged",
         }
     }
 }
@@ -843,6 +920,133 @@ pub fn form_input_id(scope: &str, control: &str) -> String {
 /// o id — e também o valor, então mover o cursor nos dois é o certo.
 pub fn masked_input_id(binding: &str) -> String {
     format!("glacier_mask::{binding}")
+}
+
+/// O id sintético de um `<TextInput>` que não está dentro de um `<Form>` —
+/// dá ao item "Selecionar tudo" do menu de contexto de um campo `secure` um
+/// alvo para a `operation` do iced (o único caminho para operar um
+/// `text_input` mascarado). Derivado da chave, então dois campos na mesma
+/// chave partilham id, o que é correto (partilham o valor).
+pub fn synthetic_input_id(binding: &str) -> String {
+    format!("glacier_input::{binding}")
+}
+
+/// Um `<TextInput>` comum (não-`secure`): um `text_editor` preso a uma linha.
+/// `Enter` e quebras vindas de um paste são barrados no `update` do motor via
+/// a flag `single_line` de [`EngineMessage::UiEditorAction`]; aqui só montamos
+/// o widget com a mesma paridade de estilo/tamanho do antigo `text_input`.
+fn single_line_editor<'a>(
+    node: &'a UiNode,
+    content: &'a text_editor::Content,
+    field_id: &str,
+    value_var: &str,
+    on_change: &str,
+    placeholder: &'a str,
+    is_disabled: bool,
+) -> Element<'a, EngineMessage> {
+    // Enter num campo dentro de `<Form>` submete o formulário (e pode pular
+    // para o próximo campo) — mesmíssimo contrato do `<TextInput>` de antes.
+    let form_submit: Option<(String, Option<String>)> = if is_disabled {
+        None
+    } else if let (Some(_), Some(scope), Some(submit_action)) = (
+        node.form_control(),
+        node.form_scope(),
+        node.form_submit_action(),
+    ) {
+        let next_focus = node.form_next_focus().map(|n| form_input_id(scope, n));
+        Some((submit_action.to_string(), next_focus))
+    } else {
+        None
+    };
+
+    let binding = value_var.to_string();
+    let on_change_owned = on_change.to_string();
+    let submit = form_submit.clone();
+
+    let mut ed = text_editor(content)
+        .placeholder(placeholder)
+        .wrapping(iced::widget::text::Wrapping::None);
+
+    if !is_disabled {
+        ed = ed.on_action(move |action| {
+            use iced::widget::text_editor::{Action, Edit};
+            if matches!(action, Action::Edit(Edit::Enter))
+                && let Some((act, next_focus)) = &submit
+            {
+                return EngineMessage::UiSubmit {
+                    action: act.clone(),
+                    next_focus: next_focus.clone(),
+                };
+            }
+            EngineMessage::UiEditorAction {
+                binding: binding.clone(),
+                on_change: on_change_owned.clone(),
+                action,
+                readonly: false,
+                single_line: true,
+            }
+        });
+    }
+
+    // `id` para o Tab/foco de `<Form>` (`text_editor` implementa `focusable`);
+    // `field_id` já é o do form quando ligado a um, senão o sintético.
+    ed = ed.id(field_id.to_string());
+
+    if let Some(f) = font_for(node.font()) {
+        ed = ed.font(f);
+    }
+    // Largura: o default do `text_editor` já é `Fill` (igual ao `text_input`);
+    // só um px fixo do markup precisa ser aplicado (o setter é `impl Into<Pixels>`).
+    if let Length::Fixed(px) = parse_length(&node.width) {
+        ed = ed.width(iced::Pixels(px));
+    }
+    // Padding: sem declaração, mantém o default do `text_editor` (5px), que é
+    // o mesmo do `text_input` — não colapsar para zero.
+    if node.padding.is_some() {
+        ed = ed.padding(parse_padding(&node.padding));
+    }
+    if node.height.is_some() {
+        ed = ed.height(parse_length(&node.height));
+    }
+
+    if node.hover_style().is_some()
+        || node.focus_style().is_some()
+        || node.disabled_style().is_some()
+    {
+        let hover_ov = node.hover_style().cloned();
+        let focus_ov = node.focus_style().cloned();
+        let disabled_ov = node.disabled_style().cloned();
+        ed = ed.style(move |theme, status| {
+            use iced::widget::text_editor::Status;
+            let mut style = iced::widget::text_editor::default(theme, status);
+            let overlay = match status {
+                Status::Hovered => hover_ov.as_ref(),
+                Status::Focused { .. } => focus_ov.as_ref(),
+                Status::Disabled => disabled_ov.as_ref(),
+                Status::Active => None,
+            };
+            if let Some(r) = overlay {
+                if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                    style.background = Background::Color(bg);
+                }
+                if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                    style.border.color = bc;
+                }
+                if let Some(bw) = r.border_width {
+                    style.border.width = bw;
+                }
+                if let Some(br) = r.border_radius {
+                    style.border.radius = iced::border::Radius::new(br);
+                }
+                if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                    style.value = tc;
+                }
+            }
+            style
+        });
+    }
+
+    ed.into()
 }
 
 /// Helper to parse iced::Length from optional string.
@@ -3722,100 +3926,128 @@ pub fn render_node<'a>(
             value_var,
             on_change,
             secure,
+            menu_class,
         } => {
             let current_value = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
-            // Sem `disabled`, sem `.on_input(...)`: o próprio iced reporta
-            // `text_input::Status::Disabled` (não editável, cursor não pisca)
-            // sem o motor precisar rastrear isso à parte — mesmo truque do botão.
+            // Sem `disabled`, sem handler: o próprio iced reporta o
+            // `Status::Disabled` (não editável, cursor não pisca) sem o motor
+            // precisar rastrear isso à parte — mesmo truque do botão.
             let is_disabled = node.disabled.unwrap_or(false);
+            // O id estável do widget: o do `<Form>` quando ligado a um (para o
+            // Tab/Enter-para-o-próximo continuarem chegando aqui), senão um
+            // sintético derivado da chave. O menu de contexto o carrega de
+            // volta na mensagem, para o "Selecionar tudo" de um campo `secure`
+            // ter em que operar.
+            let field_id: String = match (node.form_control(), node.form_scope()) {
+                (Some(control), Some(scope)) => form_input_id(scope, control),
+                _ => synthetic_input_id(value_var),
+            };
 
-            let mut input = text_input(placeholder.as_str(), current_value).secure(*secure);
-            if !is_disabled {
-                let action_clone = on_change.clone();
-                input = input.on_input(move |val| EngineMessage::UiInputChanged {
-                    action: action_clone.clone(),
-                    value: val,
-                });
-            }
+            let inner: Element<'a, EngineMessage> = if *secure {
+                // ── Senha: fica no `text_input` do iced (é o único com render
+                //    mascarado). Menu de contexto reduzido — ver `InputFlavor`.
+                let mut input = text_input(placeholder.as_str(), current_value)
+                    .secure(true)
+                    .id(field_id.clone());
+                if !is_disabled {
+                    let action_clone = on_change.clone();
+                    input = input.on_input(move |val| EngineMessage::UiInputChanged {
+                        action: action_clone.clone(),
+                        value: val,
+                    });
+                }
+                if !is_disabled
+                    && let (Some(scope), Some(submit_action)) =
+                        (node.form_scope(), node.form_submit_action())
+                {
+                    let next_focus = node
+                        .form_next_focus()
+                        .map(|next| form_input_id(scope, next));
+                    input = input.on_submit(EngineMessage::UiSubmit {
+                        action: submit_action.to_string(),
+                        next_focus,
+                    });
+                }
+                if node.width.is_some() {
+                    input = input.width(parse_length(&node.width));
+                }
+                if node.padding.is_some() {
+                    input = input.padding(parse_padding(&node.padding));
+                }
+                if node.hover_style().is_some()
+                    || node.focus_style().is_some()
+                    || node.disabled_style().is_some()
+                {
+                    let hover_ov = node.hover_style().cloned();
+                    let focus_ov = node.focus_style().cloned();
+                    let disabled_ov = node.disabled_style().cloned();
+                    input = input.style(move |theme, status| {
+                        use iced::widget::text_input::Status;
+                        let mut style = iced::widget::text_input::default(theme, status);
+                        let overlay = match status {
+                            Status::Hovered => hover_ov.as_ref(),
+                            Status::Focused { .. } => focus_ov.as_ref(),
+                            Status::Disabled => disabled_ov.as_ref(),
+                            Status::Active => None,
+                        };
+                        if let Some(r) = overlay {
+                            if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                                style.background = Background::Color(bg);
+                            }
+                            if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                                style.border.color = bc;
+                            }
+                            if let Some(bw) = r.border_width {
+                                style.border.width = bw;
+                            }
+                            if let Some(br) = r.border_radius {
+                                style.border.radius = iced::border::Radius::new(br);
+                            }
+                            if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                                style.value = tc;
+                            }
+                        }
+                        style
+                    });
+                }
+                input.into()
+            } else {
+                // ── Linha única comum: apoiada num `text_editor` de uma linha,
+                //    igual ao `<TextArea>` mas com Enter/`\n` interceptados
+                //    (`single_line`). É isso que dá ao `<TextInput>` o mesmo
+                //    menu de contexto completo (o `text_input` do iced não
+                //    expõe seleção nem `perform`).
+                match editors.get(value_var) {
+                    Some(content) => single_line_editor(
+                        node,
+                        content,
+                        &field_id,
+                        value_var,
+                        on_change,
+                        placeholder.as_str(),
+                        is_disabled,
+                    ),
+                    // Só no primeiro quadro, antes de `sync_editors` criar o
+                    // `Content` — degrada para um campo não-editável em vez de
+                    // sumir.
+                    None => text_input(placeholder.as_str(), current_value).into(),
+                }
+            };
 
-            // Wired only once hydrated by an enclosing `<Form>` (`form_scope`
-            // set) — a stray `formControl` outside any `<Form>` renders as a
-            // plain input, same as before this feature existed. Skipped when
-            // `disabled` for the same reason as `on_input` above.
-            if !is_disabled
-                && let (Some(control), Some(scope), Some(submit_action)) = (
-                    node.form_control(),
-                    node.form_scope(),
-                    node.form_submit_action(),
-                )
-            {
-                input = input.id(form_input_id(scope, control));
-                let next_focus = node
-                    .form_next_focus()
-                    .map(|next| form_input_id(scope, next));
-                input = input.on_submit(EngineMessage::UiSubmit {
-                    action: submit_action.to_string(),
-                    next_focus,
-                });
-            }
-
-            // `iced`'s own default for `text_input` is `Length::Fill` (unlike
-            // most other widgets, which default to `Shrink`); only override it
-            // when the template actually sets a `width`, so a plain
-            // `<TextInput>` with no `width` attribute still renders at a
-            // sane, editable size instead of collapsing to `Shrink`.
-            if node.width.is_some() {
-                input = input.width(parse_length(&node.width));
-            }
-            // Same story as `width` above: `iced`'s own default padding
-            // (`text_input::DEFAULT_PADDING`, 5px all around) is nonzero;
-            // only override it when the template sets one explicitly, instead
-            // of collapsing to `Padding::ZERO` (text flush against the edges).
-            if node.padding.is_some() {
-                input = input.padding(parse_padding(&node.padding));
-            }
-
-            // Overlays por pseudo-estado (`:hover`/`:focus`/`:disabled`);
-            // parte do estilo padrão do tema (`text_input::default`) e
-            // sobrescreve só os campos que o `.gss` realmente declarou.
-            if node.hover_style().is_some()
-                || node.focus_style().is_some()
-                || node.disabled_style().is_some()
-            {
-                let hover_ov = node.hover_style().cloned();
-                let focus_ov = node.focus_style().cloned();
-                let disabled_ov = node.disabled_style().cloned();
-                input = input.style(move |theme, status| {
-                    use iced::widget::text_input::Status;
-                    let mut style = iced::widget::text_input::default(theme, status);
-                    let overlay = match status {
-                        Status::Hovered => hover_ov.as_ref(),
-                        Status::Focused { .. } => focus_ov.as_ref(),
-                        Status::Disabled => disabled_ov.as_ref(),
-                        Status::Active => None,
-                    };
-                    if let Some(r) = overlay {
-                        if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
-                            style.background = Background::Color(bg);
-                        }
-                        if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
-                            style.border.color = bc;
-                        }
-                        if let Some(bw) = r.border_width {
-                            style.border.width = bw;
-                        }
-                        if let Some(br) = r.border_radius {
-                            style.border.radius = iced::border::Radius::new(br);
-                        }
-                        if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
-                            style.value = tc;
-                        }
-                    }
-                    style
-                });
-            }
-
-            let mut elem: Element<'a, EngineMessage> = input.into();
+            let flavor = if *secure {
+                InputFlavor::Secure
+            } else {
+                InputFlavor::LineEditor
+            };
+            let mut elem: Element<'a, EngineMessage> = mouse_area(inner)
+                .on_right_press(EngineMessage::OpenInputContextMenu {
+                    binding: value_var.clone(),
+                    on_change: on_change.clone(),
+                    flavor,
+                    menu_class: menu_class.clone(),
+                    widget_id: field_id,
+                })
+                .into();
 
             if node.height.is_some() {
                 elem = container(elem)
@@ -3830,22 +4062,29 @@ pub fn render_node<'a>(
             value_var,
             on_change,
             readonly,
+            menu_class,
         } => {
             // The engine keeps the `Content` for this binding (created by
             // `sync_editors` before render). If it is somehow missing on a first
             // frame, fall back to a static placeholder rather than panicking.
-            match editors.get(value_var) {
+            let inner: Element<'a, EngineMessage> = match editors.get(value_var) {
                 Some(content) => {
                     let binding = value_var.clone();
                     let on_change = on_change.clone();
                     let readonly = *readonly;
                     let mut ed = text_editor(content)
+                        // Id estável — o menu de contexto embutido refoca o
+                        // campo depois de "Selecionar tudo"/"Recortar"/… para o
+                        // realce da seleção aparecer (o `text_editor` só o
+                        // desenha com foco).
+                        .id(synthetic_input_id(value_var))
                         .placeholder(placeholder.as_str())
                         .on_action(move |action| EngineMessage::UiEditorAction {
                             binding: binding.clone(),
                             on_change: on_change.clone(),
                             action,
                             readonly,
+                            single_line: false,
                         })
                         .padding(parse_padding(&node.padding));
                     if let Some(f) = font_for(node.font()) {
@@ -3857,7 +4096,16 @@ pub fn render_node<'a>(
                     .width(parse_length(&node.width))
                     .height(parse_length(&node.height))
                     .into(),
-            }
+            };
+            mouse_area(inner)
+                .on_right_press(EngineMessage::OpenInputContextMenu {
+                    binding: value_var.clone(),
+                    on_change: on_change.clone(),
+                    flavor: InputFlavor::MultilineEditor,
+                    menu_class: menu_class.clone(),
+                    widget_id: synthetic_input_id(value_var),
+                })
+                .into()
         }
         NodeType::Image {
             source,

@@ -8,6 +8,63 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## [0.101.0] — 2026-09-09 · CLI 0.5.2 · Glacier View 0.19.3
+
+**Menu de contexto em todo campo de texto, e o tema seguindo o SO.** Retoma o
+CHANGELOG a partir da 0.100.0 (0.98–0.100 saíram sem nota).
+
+### Adicionado
+
+- **Menu de contexto (botão direito) nos campos de texto.** `<textinput>`,
+  `<textarea>` e os builtins que geram um (`<spinbox>`, `<inputdialog>`, campos
+  de `<fontdialog>`/`<colordialog>`) ganham **desfazer, refazer, recortar,
+  copiar, apagar, colar, selecionar tudo, limpar tudo** — sem escrever nada.
+  Desfazer/refazer é pilha do próprio motor (nenhum dos dois widgets do iced
+  tem uma), coalescendo a digitação corrida; só pelo menu nesta versão. Estilo
+  por instância: `menu_class="x"` no campo → `.x` pinta o corpo do painel e
+  `.x-item` (com `:hover`/`:active`) os itens; sem classe, segue o tema.
+  Desliga com `GlacierUI::set_input_context_menu(false)` no `setup`.
+- **O tema segue o claro/escuro do SO.** Quando o app **não** fixou um estilo
+  (`set_style` / `<link rel="theme">`), `GlacierUI::theme()` passa a devolver
+  `Theme::Light`/`Theme::Dark` conforme a preferência do sistema — via
+  `iced::system::theme` no boot e `theme_changes` como listener do daemon,
+  transmitido a todas as janelas. `Mode::None` mantém o default histórico
+  (`Dark`); um estilo fixado continua vencendo.
+
+### Alterado
+
+- **`<textinput>` não-`secure` agora é um `text_editor` de uma linha** (Enter e
+  quebras de um paste interceptados), não mais o `text_input` do iced — é o que
+  lhe dá a leitura de seleção e o `perform` que o menu de contexto precisa. O
+  `<textinput secure>` (senha) fica no `text_input` mascarado, com menu
+  reduzido (colar / selecionar tudo / limpar tudo). Paridade preservada:
+  `width`/`padding`/`height`, os overlays `:hover`/`:focus`/`:disabled` do
+  `.gss`, e o foco/Tab/Enter-submit de `<Form>`.
+- **Mover o cursor, clicar ou rolar num `<textinput>`/`<textarea>` não reflui
+  mais a árvore** — só a mudança de texto reflui. O `text_input` tratava isso
+  de graça; o `text_editor` emite uma ação por gesto, e o motor agora
+  curto-circuita quando o texto resultante é igual ao anterior.
+
+### Quebras
+
+- **`EngineMessage::UiEditorAction`** ganhou o campo `single_line: bool`. Quem
+  constrói a variante à mão passa `false` para o comportamento de antes.
+- **`EngineMessage`** ganhou `OpenInputContextMenu`, `InputContextPasteResult` e
+  `SystemAppearanceChanged` — um `match` exaustivo sobre a enum precisa cobri-los.
+- **`NodeType::TextInput` / `NodeType::TextArea`** ganharam
+  `menu_class: Option<String>`.
+- **`menu::overlay`** perdeu o parâmetro `theme` (o estilo do painel agora mora
+  em `ActiveMenuState`); **`menu::ActiveMenuState`** ganhou `style` e
+  `input_target`.
+- **`GlacierUI::theme()`** pode devolver `Theme::Light` onde antes devolvia
+  sempre `Theme::Dark`. Um app que dependia do dark fixo deve chamar
+  `set_style`/`set_theme` explicitamente.
+
+### CLI 0.5.2
+
+- Republica com `engine-version.txt` apontando para `0.101.0`. Sem mudança de
+  comportamento na CLI.
+
 ## [0.97.0] — 2026-09-09 · CLI 0.4.6 · Glacier View 0.19.1
 
 **A correção do `<SplashScreen>` e a documentação do catálogo inteiro.** Nada
