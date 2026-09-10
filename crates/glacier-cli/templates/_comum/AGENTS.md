@@ -969,7 +969,8 @@ uma coleção. Cada item é `{ id, label }`. Props: `layout="row"` (default
 | `decimals` | inteiro |
 | `width` | `72` — a largura do **campo**, não da caixa |
 | `layout` | `stacked` (▴▾ empilhados) ou qualquer outro valor para `−`/`+` lado a lado |
-| `placeholder`, `form_control`, `field_class`, `step_class`, `glyph_class` | |
+| `placeholder`, `field_class`, `step_class`, `glyph_class` | |
+| `form_control`, `rules`, `msg` | repassados ao `<input>` de dentro — dentro de um `<form>`, o campo entra na validação (ver "Validação declarada no próprio `<form>`"). O `value=` continua **obrigatório**: é ele que diz onde o número mora. |
 
 O `width` descer para o campo é a armadilha: `width="fill"` ali vira um risco
 entre os dois botões, porque o campo está dentro de uma `<row>` `shrink`.

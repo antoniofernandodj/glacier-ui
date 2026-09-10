@@ -898,6 +898,7 @@ Campo numérico com os degraus de somar/subtrair — o `QSpinBox` do Qt. Clicar 
 | `field_class` | vazio | classe aplicada **ao campo de dentro**, não ao widget inteiro. Ver a nota abaixo sobre por que não se chama `class` |
 | `step_class` / `glyph_class` | vazio | classe dos botões de degrau e do glifo dentro deles |
 | `form_control` | vazio | repassado ao campo de dentro: dá a ele um id de foco estável e liga o **Enter** da `<Form>` que o envolve (submeter + avançar para o próximo controle). **Tab não depende disto** — a travessia por Tab é um listener global do motor e já alcança qualquer widget focável |
+| `rules` / `msg` | vazio | repassados ao mesmo `<TextInput>` de dentro — dentro de um `<Form>`, o campo entra na validação declarativa (`rules="gte:18"`, ver `<Form>`). O `value=` segue obrigatório. |
 | `dec_text` / `inc_text` | `▾`/`▴` (stacked), `−`/`+` (inline) | glifos dos degraus |
 | `glyph_size` | `11` (stacked), `15` (inline) | corpo do glifo |
 
