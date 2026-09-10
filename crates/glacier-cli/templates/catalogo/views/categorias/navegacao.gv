@@ -84,14 +84,14 @@
       <column class="demo">
         <text class="rotulo">&lt;drawer&gt;  —  painel lateral que EMPURRA (não cobre)</text>
         <button class="btn" text="Abrir/fechar gaveta" on_click="drawer::toggle:nv_gaveta" />
+        <text class="nota">nv_gaveta = {nv_gaveta}</text>
         <row class="area">
-          <drawer value="nv_gaveta" open="{nv_gaveta}" size="180">
-            <column class="coluna">
-              <text class="nota">itens da gaveta</text>
-            </column>
+          <drawer value="nv_gaveta" open="{nv_gaveta}" size="180" panel_class="gaveta">
+            <text class="nota">item da gaveta</text>
+            <text class="nota">outro item</text>
           </drawer>
-          <column class="coluna">
-            <text class="nota">conteúdo principal</text>
+          <column class="coluna" width="fill" align_x="center" align_y="center">
+            <text class="nota">conteúdo principal — encolhe quando a gaveta abre</text>
           </column>
         </row>
       </column>

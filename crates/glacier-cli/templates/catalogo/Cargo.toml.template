@@ -6,7 +6,12 @@ edition = "2024"
 [dependencies]
 # O motor. Ele reexporta o `iced` (`glacier_ui::iced`), então este é o único
 # crate de UI que o projeto precisa declarar.
-glacier-ui = "{{versao_motor}}"
+#
+# `system-fonts`: alimenta a chave `__fonts` (o seletor de `<fontselect>` e de
+# `<combo items="__fonts">`) com as famílias instaladas no SO. Sem a feature,
+# `__fonts` traz só o que o app registrou com `GlacierDaemon::font_named` — e a
+# demo de `<fontselect>` aqui não registra nenhuma, então a lista sairia vazia.
+glacier-ui = { version = "{{versao_motor}}", features = ["system-fonts"] }
 
 # O app lê `views/` em runtime (é o que dá o hot-reload), então o .deb leva a
 # pasta junto. O binário instalado é chamado pelo wrapper que o

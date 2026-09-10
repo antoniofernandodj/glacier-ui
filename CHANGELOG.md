@@ -8,6 +8,30 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.5 — 2026-09-10 · glacier-ui 0.102.1
+
+**Preset `catalogo` — três demos que não apareciam.** Só templates; o motor não
+muda.
+
+### Corrigido
+
+- **`<linechart>` (e todo widget `width: fill`) sumia nas linhas de dois.** A
+  classe `.linha` — o `<row>` que põe dois gráficos lado a lado — não tinha
+  `width: fill`; um filho `fill` dentro de um `<row>` `shrink` **colapsa para
+  largura 0**, sem erro (a armadilha do `AGENTS.md`). `.linha` agora é `width:
+  fill`, o que conserta os gráficos de dois e vários outros pares do catálogo.
+- **`<fontselect>` aparecia vazio.** Ele lê a chave `__fonts`, que só é
+  populada com a feature `system-fonts` ligada (ou com fontes registradas via
+  `font_named`) — e o preset não fazia nem um nem outro. O `Cargo.toml` gerado
+  agora liga `glacier-ui = { features = ["system-fonts"] }`.
+- **`<drawer>` (demo em Navegação): reforçado.** O demo ganhou um leitor
+  `nv_gaveta = {…}`, `panel_class="gaveta"` (borda de destaque) e o "conteúdo
+  principal" com `width: fill` — o "empurra, não cobre" fica visível. A
+  mecânica de abrir/fechar (`drawer::toggle:chave`) foi verificada e já
+  funcionava.
+
+---
+
 ## [0.102.1] — 2026-09-10
 
 ### Corrigido
