@@ -8,6 +8,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.8 — 2026-09-10 · glacier-ui 0.103.0
+
+Republicação da 0.5.7 — mesmo conteúdo de template e comportamento, só o número
+da versão.
+
+---
+
 ## CLI 0.5.7 — 2026-09-10 · glacier-ui 0.102.1
 
 **Preset `catalogo` — sete widgets que a tabela do motor tem e o catálogo não
