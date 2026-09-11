@@ -1206,14 +1206,49 @@ nome, e o que a faz aparecer é a ação `dialog:<nome>`.
   conhecida) do **último**, e o meio é a ação inteira — `:` inclusive, então
   `Voltar:dialog:editar:neutral` encadeia para `dialog:editar`. Ação vazia
   (`Cancelar::`, `Cancelar:` ou `Cancelar`) = o botão **só fecha**, sem despachar
-  nada. Papel ausente = `accept` se há ação, `neutral` se não há. Papéis:
-  `accept`, `neutral`, `destructive`.
-- **As chaves `__dialog.*`** são o rascunho do diálogo, e o motor **apaga todas**
-  quando ele fecha — sem isso, a segunda abertura viria preenchida com a resposta
-  da primeira.
+  nada. Papel ausente = `accept` se há ação, `neutral` se não há — a lista de
+  papéis está na tabela abaixo.
 - Um botão pode abrir **outro** diálogo (`buttons="Voltar:dialog:outro:neutral"`),
   como qualquer `on_click="dialog:outro"`. No editor, Ctrl+clique na ação dentro
   do `buttons=` (ou num `on_click="dialog:…"`) leva ao `<dialog>` ou à função.
+
+#### Papéis do botão
+
+O papel muda só o **estilo** do botão, nunca o comportamento — é a ação vazia
+(`Cancelar::`), não o papel, que faz um botão simplesmente fechar.
+
+| papel | apelidos | estilo |
+| --- | --- | --- |
+| `accept` | `aceitar`, `principal` | ação principal/afirmativa (OK, Salvar) — cor primária, em destaque |
+| `neutral` | `neutro`, `cancel`, `cancelar` | ação neutra ou de cancelamento (Cancelar, Fechar) — tom discreto |
+| `destructive` | `destrutivo`, `perigo`, `danger` | ação destrutiva (Descartar, Apagar) — tom de perigo |
+
+No editor, Ctrl+clique no papel dentro do `buttons=` leva a esta tabela.
+
+#### Chaves de rascunho `__dialog.*`
+
+O corpo de um `<dialog>` é avaliado no contexto do **app** — ele não tem
+contexto próprio — então cada campo guarda a resposta numa chave com o
+prefixo `__dialog.` (`dialogs::DIALOG_KEY_PREFIX`), e o motor **apaga todas**
+quando o diálogo fecha; sem isso, a segunda abertura viria preenchida com a
+resposta da primeira.
+
+```gv
+<textinput value="__dialog.nome" on_change="__dialog.nome" placeholder="ana" />
+```
+
+`on_change="__dialog.nome"` **não é o nome de uma função** — é a MESMA chave
+do `value`, escrita de novo. O widget grava o valor digitado direto nessa
+chave; é o par repetido que faz o campo ler e escrever a mesma coisa, sem
+handler nenhum no `<script>`. Tentar achar uma função Lua ou Rust chamada
+`__dialog.nome` sempre falha, porque não existe uma — não é um bug do campo
+ficar sem handler.
+
+No editor, Ctrl+clique numa chave `__dialog.*` (em `value=`/`checked=`, ou num
+`on_change=`/`on_toggle=` que a repete) tenta achar onde ela é escrita
+explicitamente (um `ctx.set("__dialog.nome", …)` semeando um valor inicial,
+por exemplo); um campo só populado pelo próprio widget, como o exemplo acima,
+não tem onde ir, e o Ctrl+clique volta para esta seção.
 
 ### `<stackview>` — o QStackedWidget
 

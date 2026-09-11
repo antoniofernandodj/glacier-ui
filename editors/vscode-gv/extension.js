@@ -384,6 +384,21 @@ function builtinAction(value) {
 // The reference doc heading that documents the built-in actions above.
 const BUILTIN_ACTIONS_HEADING = /^##+\s*A(?:ç|c)(?:ões|oes) built-in/m;
 
+// The reference doc heading listing the `<dialog buttons="…">` role keywords
+// (see `DIALOG_BUTTON_ROLES` below).
+const DIALOG_ROLE_HEADING = /^####\s*Pap(?:é|e)is do bot(?:ã|a)o/m;
+
+// `__dialog.<campo>` — the two-way draft key a dialog field's `value`/
+// `checked` and its matching `on_change`/`on_toggle` share (see DIALOGS.md's
+// "chaves __dialog.*"). Not a handler: the widget writes the raw emitted
+// value straight into this context key, so `on_change="__dialog.texto"` is
+// the SAME key as `value="__dialog.texto"`, spelled a second time — trying to
+// resolve it as a Lua/Rust function (like any other action) always fails.
+const DIALOG_DRAFT_KEY_RE = /^__dialog\.[A-Za-z_]\w*$/;
+
+// The reference doc heading explaining that convention.
+const DIALOG_DRAFT_KEY_HEADING = /^####\s*Chaves de rascunho `__dialog/m;
+
 // `on*`/`ao*` attributes that name something other than a handler.
 const NOT_ACTION_ATTRS = new Set(["oneof", "one_of", "one-of"]);
 
@@ -605,16 +620,80 @@ function attrValue(tag, names) {
 // Action handlers
 // ---------------------------------------------------------------------------
 
+/**
+ * `text` with every Lua comment (`-- …` to end of line, `--[[ … ]]`/`--[=[ …
+ * ]=]` with any `=`-level) blanked to same-length whitespace — newlines kept,
+ * so every surviving character keeps its offset into the ORIGINAL text.
+ * String and long-bracket literals (`"…"`, `'…'`, `[[ … ]]`) are copied
+ * through untouched rather than blanked, both because their content is often
+ * the very thing a caller is matching (`ctx.set("chave", …)`) and so a `--`
+ * inside one is never mistaken for a comment start.
+ *
+ * Without this, a comment that mentions `ctx.foo = …` in prose — explaining
+ * what the engine's own binding does, say — reads as a real write, and a
+ * `value="foo"` Ctrl+click lands on the comment instead of the actual
+ * assignment (or on nothing, if there is no real assignment at all).
+ */
+function maskLuaComments(text) {
+  let out = "";
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < n && text[j] !== c) {
+        if (text[j] === "\\") j++;
+        j++;
+      }
+      j = Math.min(j + 1, n);
+      out += text.slice(i, j);
+      i = j;
+      continue;
+    }
+    if (c === "[") {
+      const open = /^\[(=*)\[/.exec(text.slice(i));
+      if (open) {
+        const closeRe = new RegExp("\\]" + open[1] + "\\]");
+        const m = closeRe.exec(text.slice(i + open[0].length));
+        const end = m ? i + open[0].length + m.index + m[0].length : n;
+        out += text.slice(i, end);
+        i = end;
+        continue;
+      }
+    }
+    if (c === "-" && text[i + 1] === "-") {
+      const open = /^--(\[(=*)\[)/.exec(text.slice(i));
+      let end;
+      if (open) {
+        const closeRe = new RegExp("\\]" + open[2] + "\\]");
+        const m = closeRe.exec(text.slice(i + open[0].length));
+        end = m ? i + open[0].length + m.index + m[0].length : n;
+      } else {
+        const nl = text.indexOf("\n", i);
+        end = nl < 0 ? n : nl;
+      }
+      out += text.slice(i, end).replace(/[^\n]/g, " ");
+      i = end;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
 /** Find `function <name>(` inside `text`; return the char offset of `name` or -1. */
 function findLuaFunctionOffset(text, name) {
+  const code = maskLuaComments(text);
   const re = new RegExp("function\\s+(" + escapeRe(name) + ")\\s*\\(", "g");
-  const m = re.exec(text);
+  const m = re.exec(code);
   if (m) return m.index + m[0].indexOf(m[1]);
   // Also `foo = function(...)` style.
   const re2 = new RegExp(
     "(?:^|[^\\w.])(" + escapeRe(name) + ")\\s*=\\s*function\\b", "g"
   );
-  const m2 = re2.exec(text);
+  const m2 = re2.exec(code);
   if (m2) return m2.index + m2[0].indexOf(m2[1]);
   return -1;
 }
@@ -845,6 +924,37 @@ function* dialogButtonActions(value) {
       if (action) {
         const start = base + colon + 1 + lead;
         yield { action, start, end: start + action.length };
+      }
+    }
+    base += bruto.length + 1; // + the `|`
+  }
+}
+
+/**
+ * Parse a `<dialog buttons="…">` value the same way, yielding `{ role, start,
+ * end }` for every button that carries an explicit, KNOWN role keyword —
+ * `start`/`end` cover just that trailing word. A button with no third
+ * segment, or whose last segment isn't one of `DIALOG_BUTTON_ROLES`, yields
+ * nothing for it — a role only counts when it's the keyword `botao_de` (see
+ * `dialogButtonActions` above) itself recognizes, never the label or the
+ * action half.
+ */
+function* dialogButtonRoles(value) {
+  let base = 0;
+  for (const bruto of value.split("|")) {
+    const colon = bruto.indexOf(":");
+    if (colon >= 0) {
+      const rest = bruto.slice(colon + 1);
+      const trimmed = rest.replace(/[\s:]+$/, "");
+      const lastColon = trimmed.lastIndexOf(":");
+      if (lastColon >= 0) {
+        const word = trimmed.slice(lastColon + 1);
+        const role = word.trim();
+        if (role && DIALOG_BUTTON_ROLES.has(role.toLowerCase())) {
+          const lead = word.length - word.trimStart().length;
+          const start = base + colon + 1 + lastColon + 1 + lead;
+          yield { role, start, end: start + role.length };
+        }
       }
     }
     base += bruto.length + 1; // + the `|`
@@ -1173,10 +1283,11 @@ function indexAdd(map, key, value, front) {
 /** Every `ctx.chave = …` / `ctx["chave"] = …` written in a Luau chunk. */
 function collectContextWrites(text, baseOffset) {
   const out = [];
+  const code = maskLuaComments(text);
   const re =
     /ctx\s*\.\s*([A-Za-z_]\w*)\s*=(?!=)|ctx\s*\[\s*["']([A-Za-z_]\w*)["']\s*\]\s*=(?!=)/g;
   let m;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = re.exec(code)) !== null) {
     const name = m[1] || m[2];
     out.push({ name, offset: baseOffset + m.index + m[0].lastIndexOf(name) });
   }
@@ -1607,6 +1718,19 @@ async function provideDocumentLinks(document) {
         continue;
       }
 
+      // `on_change="__dialog.texto"` — the SAME draft key as `value=`, not a
+      // handler (see `DIALOG_DRAFT_KEY_RE`). Links like any other context key,
+      // with the reference doc as a fallback when nothing writes it.
+      if (DIALOG_DRAFT_KEY_RE.test(value)) {
+        const link = new vscode.DocumentLink(range(start, start + value.length));
+        link.tooltip = `Go to context key "${value}"`;
+        const lua = luaWrites.get(value);
+        if (lua) link.target = uriAt(lua.uri, lua.range.start);
+        else pendingKeys.push({ link, key: value, dialogDraft: true });
+        links.push(link);
+        continue;
+      }
+
       let link = null;
       for (const c of handlerCandidates(value)) {
         const [lua] = resolveLuaHandler(scripts, c.name);
@@ -1629,7 +1753,9 @@ async function provideDocumentLinks(document) {
 
     // 2b. <dialog buttons="Rótulo:ação:papel|…"> — each button's action token
     //     links like an action attribute; a `dialog:nome` chain points at that
-    //     dialog. Label and role keyword are left alone (see `dialogButtonActions`).
+    //     dialog. The trailing role keyword (`accept`/`neutral`/`destructive`,
+    //     see `dialogButtonRoles`) links to the reference doc's table of them.
+    //     The label alone is left unlinked.
     if (canon === "DialogDef") {
       for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
         if (!DIALOG_BUTTONS_ATTRS.has(attr.name.toLowerCase())) continue;
@@ -1664,22 +1790,38 @@ async function provideDocumentLinks(document) {
           }
           links.push(link);
         }
+        const roleDoc = referenceLocation(DIALOG_ROLE_HEADING);
+        if (roleDoc) {
+          for (const r of dialogButtonRoles(attr.value)) {
+            const start = attr.start + r.start;
+            const end = attr.start + r.end;
+            const link = new vscode.DocumentLink(
+              range(start, end),
+              uriAt(roleDoc.uri, roleDoc.range.start)
+            );
+            link.tooltip = `Button role "${r.role}" — open the reference`;
+            links.push(link);
+          }
+        }
         break; // `get_attr` takes the first `buttons` spelling present
       }
     }
 
     // 3. Binding attributes: value="user_name", items="tarefas", … name a
-    //    context key straight, without `{}`.
+    //    context key straight, without `{}`. `__dialog.campo` (a dialog
+    //    field's draft key) counts too, dot and all — see `DIALOG_DRAFT_KEY_RE`.
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
       if (!BINDING_ATTRS.has(attr.name.toLowerCase())) continue;
       const key = attr.value.trim();
-      if (!key || !/^[A-Za-z_]\w*$/.test(key)) continue; // literal or `{…}`
+      const plain = /^[A-Za-z_]\w*$/.test(key);
+      const draft = !plain && DIALOG_DRAFT_KEY_RE.test(key);
+      if (!key || (!plain && !draft)) continue; // literal or `{…}`
       const start = attr.start + attr.value.indexOf(key);
       const link = new vscode.DocumentLink(range(start, start + key.length));
       link.tooltip = `Go to context key "${key}"`;
       const lua = luaWrites.get(key);
       if (lua) link.target = uriAt(lua.uri, lua.range.start);
-      else pendingKeys.push({ link, key });
+      else pendingKeys.push({ link, key, dialogDraft: draft });
       links.push(link);
     }
 
@@ -1746,7 +1888,7 @@ async function provideDocumentLinks(document) {
       if (p) link.target = uriAt(p);
     }
     const rustKey = new Map(); // key -> Location | null, resolved once
-    for (const { link, key, builtin } of pendingKeys) {
+    for (const { link, key, builtin, dialogDraft } of pendingKeys) {
       if (!rustKey.has(key)) {
         rustKey.set(
           key,
@@ -1761,7 +1903,16 @@ async function provideDocumentLinks(document) {
         continue;
       }
       // Written nowhere we can see. A plain `{chave}` just stays unlinked; a
-      // built-in action still has something to say, so it points at the doc.
+      // built-in action still has something to say, so it points at the doc —
+      // same for a `__dialog.*` draft key nothing explicitly seeds.
+      if (dialogDraft) {
+        const doc = referenceLocation(DIALOG_DRAFT_KEY_HEADING);
+        if (doc) {
+          link.target = uriAt(doc.uri, doc.range.start);
+          link.tooltip = "Chave de rascunho __dialog.* — abrir a referência";
+        }
+        continue;
+      }
       if (!builtin) continue;
       const doc = referenceLocation(BUILTIN_ACTIONS_HEADING);
       if (!doc) continue;
@@ -1827,22 +1978,32 @@ function classify(document, position) {
       const lower = attr.name.toLowerCase();
       if (isActionAttr(lower)) {
         const name = attr.value.trim();
-        return name ? { kind: "action", name } : null;
+        if (!name) return null;
+        // `on_change="__dialog.texto"` names a draft KEY, not a handler —
+        // see `DIALOG_DRAFT_KEY_RE`.
+        if (DIALOG_DRAFT_KEY_RE.test(name)) return { kind: "key", name };
+        return { kind: "action", name };
       }
       if (BINDING_ATTRS.has(lower)) {
         const key = attr.value.trim();
-        return /^[A-Za-z_]\w*$/.test(key) ? { kind: "key", name: key } : null;
+        if (/^[A-Za-z_]\w*$/.test(key) || DIALOG_DRAFT_KEY_RE.test(key)) {
+          return { kind: "key", name: key };
+        }
+        return null;
       }
       if (NAV_ATTRS.has(lower)) {
         const name = attr.value.trim();
         return name ? { kind: "tag", name, canonical: undefined } : null;
       }
-      // Inside a <dialog buttons="…"> value: which button's action is under the
-      // cursor? (The label and the trailing role keyword classify as nothing.)
+      // Inside a <dialog buttons="…"> value: which button's action — or role
+      // keyword — is under the cursor? (The label classifies as nothing.)
       if (canon === "DialogDef" && DIALOG_BUTTONS_ATTRS.has(lower)) {
         const rel = offset - attr.start;
         for (const b of dialogButtonActions(attr.value)) {
           if (rel >= b.start && rel <= b.end) return { kind: "action", name: b.action };
+        }
+        for (const r of dialogButtonRoles(attr.value)) {
+          if (rel >= r.start && rel <= r.end) return { kind: "dialogRole", name: r.role };
         }
         return null;
       }
@@ -1910,7 +2071,20 @@ async function resolveDefinition(document, position) {
     const found =
       resolveContextKeyInRust(index, document.uri, hit.name) ||
       resolveContextKeyInWorkspaceLua(index, document.uri, hit.name);
-    return found ? [found] : undefined;
+    if (found) return [found];
+    // A `__dialog.*` draft key that nothing explicitly seeds (the common
+    // case: the widget alone writes it) has nowhere real to jump to — the
+    // reference doc's explanation is the next best thing.
+    if (DIALOG_DRAFT_KEY_RE.test(hit.name)) {
+      const doc = referenceLocation(DIALOG_DRAFT_KEY_HEADING);
+      return doc ? [doc] : undefined;
+    }
+    return undefined;
+  }
+
+  if (hit.kind === "dialogRole") {
+    const doc = referenceLocation(DIALOG_ROLE_HEADING);
+    return doc ? [doc] : undefined;
   }
 
   if (hit.kind === "path") {
