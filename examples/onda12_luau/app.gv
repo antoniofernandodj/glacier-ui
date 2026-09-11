@@ -33,7 +33,12 @@
       class="area"
     >
       <column class="painel-corpo">
-        <listview items="camadas" value="camada" selected="{camada}" height="fill" />
+        <listview
+          items="camadas"
+          value="camada"
+          selected="{camada}"
+          height="fill"
+        />
       </column>
 
       <column class="centro">

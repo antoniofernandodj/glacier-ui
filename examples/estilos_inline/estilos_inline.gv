@@ -47,18 +47,34 @@
     </style>
   </resources>
 
-  <container padding="40" align_x="Center" align_y="Center" width="fill" height="fill">
+  <container
+    padding="40"
+    align_x="Center"
+    align_y="Center"
+    width="fill"
+    height="fill"
+  >
     <container class="card">
       <column class="stack">
         <text class="title">Estilos inline (XML)</text>
         <text class="valor">{valor}</text>
 
         <row class="actions">
-          <button class="btn btn-menos" text="−" on_click="decrementar" />
-          <button class="btn btn-mais" text="+" on_click="incrementar" />
+          <button
+            class="btn btn-menos"
+            text="−"
+            on_click="decrementar"
+          />
+          <button
+            class="btn btn-mais"
+            text="+"
+            on_click="incrementar"
+          />
         </row>
 
-        <!-- Atributo inline vence a classe: esta cor ganha de `.dica`. -->
+        <!--
+          Atributo inline vence a classe: esta cor ganha de `.dica`.
+        -->
         <text class="dica" color="#7F849C">
           edite o bloco style e veja o hot-reload
         </text>

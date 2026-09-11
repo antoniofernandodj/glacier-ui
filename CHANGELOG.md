@@ -4559,12 +4559,3 @@ Medido na árvore real de um app (600 nós):
 - **`NodeType::Style` ganhou o campo `line`** (posiciona erros de `.gss` inline).
 - Toda a API pública passou de `Result<_, String>` para `Result<_, GlacierError>`.
   *Migração:* o `Display` é compatível; `format!("{e}")` segue funcionando.
-
----
-
-[0.41.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.41.0
-[0.40.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.1
-[0.40.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.40.0
-[0.39.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.39.0
-[0.38.1]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.1
-[0.38.0]: https://github.com/antoniofernandodj/glacier-ui/releases/tag/v0.38.0

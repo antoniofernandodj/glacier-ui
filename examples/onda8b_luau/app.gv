@@ -55,7 +55,9 @@
 
   <column class="tela">
     <row class="barra">
-      <text class="titulo">Onda 8b — component e dialog, nos dois sentidos</text>
+      <text class="titulo">
+        Onda 8b — component e dialog, nos dois sentidos
+      </text>
       <space class="empurra" />
       <text class="status">{status}</text>
     </row>

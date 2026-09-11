@@ -11,15 +11,15 @@
        Lua abaixo, mesma convenção do atributo options de um Select). Ver
        src/menu.rs. -->
     <style>
-    .bar      { background: #2E3440; padding: 4; }
-    .screen   { width: fill; height: fill; }
-    .content  { spacing: 20; padding: 30; }
-    .card     { background: #434C5E; width: 260; height: 110; padding: 14; border-radius: 8; }
-    .cards    { spacing: 20; }
-    .hint     { color: #D8DEE9; size: 13; }
-    .title    { color: #ECEFF4; size: 20; bold: true; }
-    .divider  { width: 560; }
-    .result   { color: #A3BE8C; size: 14; }
+      .bar      { background: #2E3440; padding: 4; }
+      .screen   { width: fill; height: fill; }
+      .content  { spacing: 20; padding: 30; }
+      .card     { background: #434C5E; width: 260; height: 110; padding: 14; border-radius: 8; }
+      .cards    { spacing: 20; }
+      .hint     { color: #D8DEE9; size: 13; }
+      .title    { color: #ECEFF4; size: 20; bold: true; }
+      .divider  { width: 560; }
+      .result   { color: #A3BE8C; size: 14; }
     </style>
 
     <script>
@@ -89,7 +89,8 @@
         Menus (MenuBar ancorada + ContextMenu, com submenus)
       </text>
       <text class="hint">
-        Use os menus 'Arquivo'/'Editar' acima, ou clique com o botão direito nos cartões abaixo.
+        Use os menus 'Arquivo'/'Editar' acima,
+        ou clique com o botão direito nos cartões abaixo.
       </text>
 
       <row class="cards">
@@ -122,7 +123,9 @@
       </row>
 
       <rule class="divider" />
-      <text class="result">Último resultado: {resultado}</text>
+      <text class="result">
+        Último resultado: {resultado}
+      </text>
     </column>
   </column>
 </screen>

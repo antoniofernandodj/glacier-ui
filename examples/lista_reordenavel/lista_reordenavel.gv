@@ -48,7 +48,9 @@
           </row>
         </foreach>
       </column>
-      <text size="13" color="#81A1C1">Última ordem confirmada: {ultima_ordem}</text>
+      <text size="13" color="#81A1C1">
+        Última ordem confirmada: {ultima_ordem}
+      </text>
     </column>
   </container>
 </component>

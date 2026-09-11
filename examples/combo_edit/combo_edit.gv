@@ -49,8 +49,12 @@
 
       <rule />
 
-      <text size="13" color="#D8DEE9">Pares salvos:</text>
-      <text size="12" color="#A3BE8C">{pares_txt}</text>
+      <text size="13" color="#D8DEE9">
+        Pares salvos:
+      </text>
+      <text size="12" color="#A3BE8C">
+        {pares_txt}
+      </text>
     </column>
   </container>
 </screen>

@@ -231,9 +231,10 @@
 
             <groupbox title="LineChart e BarChart — a mesma série, dois eixos">
               <text class="nota">
-                `min`/`max` vazios são automáticos; escritos, fixam a escala. Fixar importa: dois
-                gráficos lado a lado com escalas automáticas diferentes é a forma clássica de mentir
-                com um painel sem querer. A barra, além disso, nasce sempre do ZERO quando ninguém
+                `min`/`max` vazios são automáticos; escritos, fixam a escala.
+                Fixar importa: dois gráficos lado a lado com escalas automáticas
+                diferentes é a forma clássica de mentir com um painel sem querer.
+                A barra, além disso, nasce sempre do ZERO quando ninguém
                 declara `min` — começar em 40 exagera a diferença entre 41 e 42.
               </text>
 
@@ -263,8 +264,9 @@
 
             <groupbox title="PieChart e Donut — a mesma tag, o buraco aberto">
               <text class="nota">
-                `&lt;donut&gt;` é `&lt;piechart donut="0.6"&gt;` — o mesmo atalho que `&lt;popup&gt;`
-                é para `&lt;popover placement="center"&gt;`. As cores saem da paleta do tema quando
+                `&lt;donut&gt;` é `&lt;piechart donut="0.6"&gt;` — o mesmo
+                atalho que `&lt;popup&gt;` é para `&lt;popover
+                placement="center"&gt;`. As cores saem da paleta do tema quando
                 o markup não escolhe nenhuma: trocar o `theme.json` troca o gráfico junto.
               </text>
 

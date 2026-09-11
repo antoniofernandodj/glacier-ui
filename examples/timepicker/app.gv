@@ -9,10 +9,13 @@
   <column padding="28" spacing="20" width="fill" height="fill">
 
     <column spacing="6">
-      <text size="22" bold="true" color="#CDD6F4">QDateEdit · QTimeEdit · QDateTimeEdit</text>
+      <text size="22" bold="true" color="#CDD6F4">
+        QDateEdit · QTimeEdit · QDateTimeEdit
+      </text>
       <text size="13" color="#A6ADC8">
-        Um campo por valor, editado por seções: clique numa seção para selecioná-la (ela ganha
-        o realce) e use ▴▾ para alterá-la. Cada seção vira dentro de si — mexer no minuto não
+        Um campo por valor, editado por seções: clique numa seção
+        para selecioná-la (ela ganha o realce) e use ▴▾ para alterá-la.
+        Cada seção vira dentro de si — mexer no minuto não
         empurra a hora.
       </text>
     </column>
@@ -58,7 +61,8 @@
     </row>
 
     <text size="12" color="#6C7086">
-      Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29 (bissexto), como
+      Fevereiro: ponha a data em 2024-01-31 e suba o mês —
+      o dia satura em 29 (bissexto), como
       no QDateEdit.
     </text>
   </column>

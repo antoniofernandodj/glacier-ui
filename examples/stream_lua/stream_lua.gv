@@ -15,24 +15,60 @@
     height="fill"
   >
     <column spacing="14" align="Center" width="460">
-      <text size="22" bold="true" color="#ECEFF4">SSE + WebSocket em Lua</text>
+      <text size="22" bold="true" color="#ECEFF4">
+        SSE + WebSocket em Lua
+      </text>
 
-      <text size="13" bold="true" color="#88C0D0">— Server-Sent Events —</text>
+      <text size="13" bold="true" color="#88C0D0">
+        — Server-Sent Events —
+      </text>
       <row spacing="10" align="Center">
-        <button text="Abrir SSE" on_click="abrir_sse" color="#5E81AC" padding="10 18" />
-        <button text="Fechar SSE" on_click="fechar_sse" color="#BF616A" padding="10 18" />
+        <button
+          text="Abrir SSE"
+          on_click="abrir_sse"
+          color="#5E81AC"
+          padding="10 18"
+        />
+        <button
+          text="Fechar SSE"
+          on_click="fechar_sse"
+          color="#BF616A"
+          padding="10 18"
+        />
       </row>
-      <text size="13" color="#EBCB8B">SSE: {sse_status}</text>
-      <text size="15" color="#A3BE8C">{sse_msg}</text>
+      <text size="13" color="#EBCB8B">
+        SSE: {sse_status}
+      </text>
+      <text size="15" color="#A3BE8C">
+        {sse_msg}
+      </text>
 
-      <text size="13" bold="true" color="#88C0D0">— WebSocket (echo) —</text>
+      <text size="13" bold="true" color="#88C0D0">
+        — WebSocket (echo) —
+      </text>
       <row spacing="10" align="Center">
-        <button text="Conectar" on_click="abrir_ws" color="#5E81AC" padding="10 18" />
-        <button text="Enviar ping" on_click="enviar_ws" color="#A3BE8C" padding="10 18" />
-        <button text="Fechar" on_click="fechar_ws" color="#BF616A" padding="10 18" />
+        <button
+          text="Conectar"
+          on_click="abrir_ws"
+          color="#5E81AC" padding="10 18"
+        />
+        <button
+          text="Enviar ping"
+          on_click="enviar_ws"
+          color="#A3BE8C" padding="10 18"
+        />
+        <button
+          text="Fechar"
+          on_click="fechar_ws"
+          color="#BF616A" padding="10 18"
+        />
       </row>
-      <text size="13" color="#EBCB8B">WS: {ws_status}</text>
-      <text size="15" color="#A3BE8C">{ws_msg}</text>
+      <text size="13" color="#EBCB8B">
+        WS: {ws_status}
+      </text>
+      <text size="15" color="#A3BE8C">
+        {ws_msg}
+      </text>
     </column>
   </container>
 </screen>

@@ -65,13 +65,30 @@
       <row class="grupos">
         <column class="grupo">
           <text class="titulo">Botões</text>
-          <button class="botao" text="Normal Push Button" on_click="noop" />
-          <button class="botao" text="Disabled Push Button" on_click="noop" disabled="true" />
-          <button class="botao accent" text="Accent Push Button" on_click="noop" />
+          <button
+            class="botao"
+            text="Normal Push Button"
+            on_click="noop"
+          />
+          <button
+            class="botao"
+            text="Disabled Push Button"
+            on_click="noop"
+            disabled="true"
+          />
+          <button
+            class="botao accent"
+            text="Accent Push Button"
+            on_click="noop"
+          />
         </column>
         <column class="grupo-folgado">
           <text class="titulo">Escolhas</text>
-          <checkbox label="Check box" checked="marcado" on_toggle="marcado" />
+          <checkbox
+            label="Check box"
+            checked="marcado"
+            on_toggle="marcado"
+          />
           <!-- `tristate`: cicla false → mixed → true, como o Qt::CheckState. -->
           <checkbox
             label="Tri-state check box"
@@ -79,7 +96,11 @@
             on_toggle="tres_estados"
             tristate="true"
           />
-          <toggle label="Toggle switch" checked="ligado" on_toggle="ligado" />
+          <toggle
+            label="Toggle switch"
+            checked="ligado"
+            on_toggle="ligado"
+          />
         </column>
       </row>
       <rule />
@@ -87,7 +108,12 @@
       <column class="grupo cheio">
         <text class="titulo">Entradas</text>
         <row class="linha-inputs">
-          <input class="input" placeholder="Normal line edit" value="texto" on_change="texto" />
+          <input
+            class="input"
+            placeholder="Normal line edit"
+            value="texto"
+            on_change="texto"
+          />
           <input
             class="input"
             placeholder="Password"
@@ -96,7 +122,11 @@
             secure="true"
           />
         </row>
-        <textarea class="notas" value="notas" on_change="notas" />
+        <textarea
+          class="notas"
+          value="notas"
+          on_change="notas"
+        />
       </column>
       <rule />
 
@@ -106,10 +136,18 @@
       <column class="grupo cheio">
         <text class="titulo">Indicadores</text>
         <row class="linha-inputs">
-          <progressbar value="progresso" min="0" max="1" show_value="true" />
+          <progressbar
+            value="progresso"
+            min="0"
+            max="1"
+            show_value="true"
+          />
           <spinner />
         </row>
-        <button text="Progresso +10%" on_click="avancar_progresso" />
+        <button
+          text="Progresso +10%"
+          on_click="avancar_progresso"
+        />
       </column>
     </column>
   </container>

@@ -27,8 +27,12 @@
     align_y="Center"
   >
     <column spacing="18" align_x="Center">
-      <text size="32" bold="true" color="#F5E0DC">Entrar</text>
-      <text size="12" color="#6C7086">dica: admin / 123</text>
+      <text size="32" bold="true" color="#F5E0DC">
+        Entrar
+      </text>
+      <text size="12" color="#6C7086">
+        dica: admin / 123
+      </text>
 
       <column spacing="8" width="280">
         <input
@@ -48,8 +52,16 @@
         />
       </column>
 
-      <button text="Entrar" on_click="entrar" color="#89B4FA" width="280" padding="12" />
-      <text size="13" color="#F38BA8">{erro}</text>
+      <button
+        text="Entrar"
+        on_click="entrar"
+        color="#89B4FA"
+        width="280"
+        padding="12"
+      />
+      <text size="13" color="#F38BA8">
+        {erro}
+      </text>
     </column>
   </container>
 </screen>

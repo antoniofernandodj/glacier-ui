@@ -68,7 +68,11 @@
         </column>
       </container>
 
-      <button class="btn" text="Reiniciar (clique humano)" on_click="reiniciar" />
+      <button
+        class="btn"
+        text="Reiniciar (clique humano)"
+        on_click="reiniciar"
+      />
     </column>
   </container>
 </screen>

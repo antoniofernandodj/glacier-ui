@@ -69,17 +69,27 @@
                 transbordar do que sumir.
               </text>
 
-              <grid class="grade" columns="140 fill 80" spacing="12" row_spacing="6" width="fill">
+              <grid
+                class="grade"
+                columns="140 fill 80"
+                spacing="12"
+                row_spacing="6"
+                width="fill"
+              >
                 <text class="celula_forte">Chave</text>
                 <text class="celula_forte">Descrição</text>
                 <text class="celula_forte">Valor</text>
 
                 <text class="celula">timeout</text>
-                <text class="celula">Quanto esperar antes de desistir de uma requisição</text>
+                <text class="celula">
+                  Quanto esperar antes de desistir de uma requisição
+                </text>
                 <text class="celula">30s</text>
 
                 <text class="celula">retries</text>
-                <text class="celula">Tentativas antes de marcar o serviço como fora</text>
+                <text class="celula">
+                  Tentativas antes de marcar o serviço como fora
+                </text>
                 <text class="celula">3</text>
               </grid>
             </groupbox>
@@ -106,7 +116,9 @@
                 <badge badge_text="virtualize" class="chip" badge_size="11" />
                 <badge badge_text="componentes" class="chip" badge_size="11" />
               </flow>
-              <text class="crua">encolha a janela: as linhas se refazem sozinhas.</text>
+              <text class="crua">
+                encolha a janela: as linhas se refazem sozinhas.
+              </text>
             </groupbox>
           </template>
 
@@ -114,13 +126,16 @@
           <template slot="tabela">
             <groupbox title="TableView — cabeçalho, ordenação, seleção e alças">
               <text class="nota">
-                Cabeçalho e corpo são a MESMA grade — é o que garante que a coluna do rótulo e a da
-                célula tenham a mesma largura sem ninguém combinar nada. Clique num cabeçalho para
-                ordenar (de novo inverte); arraste a alça entre duas colunas para redimensionar.
+                Cabeçalho e corpo são a MESMA grade — é o que garante que a
+                coluna do rótulo e a da célula tenham a mesma largura sem
+                ninguém combinar nada. Clique num cabeçalho para
+                ordenar (de novo inverte); arraste a alça entre duas colunas
+                para redimensionar.
               </text>
               <text class="nota">
-                A ordenação é numérica quando os dois lados parseiam como número: sem isso, uma coluna
-                de contagem coloca "10" antes de "9" — o bug de tabela mais clássico que existe.
+                A ordenação é numérica quando os dois lados parseiam como
+                número: sem isso, uma coluna de contagem coloca "10"
+                antes de "9" — o bug de tabela mais clássico que existe.
               </text>
 
               <tableview
@@ -145,8 +160,9 @@
 
             <groupbox title="TableView — seleção múltipla" flat="true">
               <text class="nota">
-                `mode="multi"` guarda um CONJUNTO numa chave só, e o destaque testa pertencimento — o
-                mesmo mecanismo do `listview` da Onda 4, e o mesmo `contains` da 0.84. Sem `sort`, a
+                `mode="multi"` guarda um CONJUNTO numa chave só,
+                e o destaque testa pertencimento — o mesmo mecanismo
+                do `listview` da Onda 4, e o mesmo `contains` da 0.84. Sem `sort`, a
                 tabela não é ordenável e os cabeçalhos deixam de ser clicáveis.
               </text>
 
@@ -168,7 +184,8 @@
 
             <groupbox title="TableHeader — a mesma primitiva sem o corpo" flat="true">
               <text class="nota">
-                Para quem monta o corpo à mão. É a divisão de `dateedit`/`timeedit`: uma primitiva,
+                Para quem monta o corpo à mão. É a divisão de
+                `dateedit`/`timeedit`: uma primitiva,
                 duas tags, mudando só o que aparece.
               </text>
               <tableheader columns="colunas" sort="ordem" width="fill" />
@@ -177,7 +194,9 @@
 
           <!-- PÁGINA 3 — TreeView e ColumnView ========================== -->
           <template slot="arvore">
-            <groupbox title="TreeView — e a décima linha que este plano dizia estar bloqueada">
+            <groupbox
+              title="TreeView — e a décima linha que este plano dizia estar bloqueada"
+            >
               <text class="nota">
                 O §3 punha a árvore atrás do "estado por instância" — o habilitador que o documento
                 chamou por três revisões de "o desbloqueio de maior alavancagem". Não era: o conjunto
@@ -211,14 +230,20 @@
               </row>
             </groupbox>
 
-            <groupbox title="ColumnView — a navegação Miller (o Finder)" flat="true">
+            <groupbox
+              title="ColumnView — a navegação Miller (o Finder)"
+              flat="true"
+            >
               <text class="nota">
-                Uma lista por nível, o nível escolhido numa chave. Quase de graça depois da árvore: a
-                mesma coleção aninhada, a mesma identidade por caminho — o que muda é o desenho, que
+                Uma lista por nível, o nível escolhido numa chave. Quase
+                de graça depois da árvore: a
+                mesma coleção aninhada, a mesma identidade por caminho —
+                o que muda é o desenho, que
                 põe os níveis lado a lado em vez de recuados.
               </text>
               <text class="nota">
-                Repare que a trilha INTEIRA fica acesa até a folha, não só a ponta: é metade do que uma
+                Repare que a trilha INTEIRA fica acesa até a folha, não só
+                a ponta: é metade do que uma
                 navegação Miller comunica.
               </text>
 

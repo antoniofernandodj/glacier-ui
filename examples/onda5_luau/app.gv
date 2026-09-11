@@ -321,9 +321,15 @@
               </groupbox>
 
               <groupbox title="O que esta onda fechou" flat="true">
-                <text class="nota">§2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta onda.</text>
-                <text class="nota">§2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.</text>
-                <text class="nota">§2.5 — o foco declarado do projeto termina AQUI, não na Onda 3.</text>
+                <text class="nota">
+                  §2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta onda.
+                </text>
+                <text class="nota">
+                  §2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.
+                </text>
+                <text class="nota">
+                  §2.5 — o foco declarado do projeto termina AQUI, não na Onda 3.
+                </text>
               </groupbox>
             </template>
 

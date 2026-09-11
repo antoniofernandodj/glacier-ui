@@ -15,7 +15,9 @@
     align_y="Center"
   >
     <column spacing="25" align="Center">
-      <text size="28" bold="true" color="#F5E0DC">Painel de Controle de Usuário</text>
+      <text size="28" bold="true" color="#F5E0DC">
+        Painel de Controle de Usuário
+      </text>
 
       <row spacing="30" align="Center">
         <!-- Left control panel -->
@@ -28,7 +30,9 @@
           border_color="#313244"
         >
           <column spacing="15">
-            <text size="14" bold="true" color="#A6ADC8">Editar Nome:</text>
+            <text size="14" bold="true" color="#A6ADC8">
+              Editar Nome:
+            </text>
             <input
               placeholder="Digite o nome..."
               value="user_name"
@@ -37,7 +41,9 @@
               padding="10"
             />
 
-            <text size="14" bold="true" color="#A6ADC8">Editar Cargo:</text>
+            <text size="14" bold="true" color="#A6ADC8">
+              Editar Cargo:
+            </text>
             <input
               placeholder="Digite o cargo..."
               value="user_role"
@@ -46,7 +52,9 @@
               padding="10"
             />
 
-            <text size="14" bold="true" color="#A6ADC8">Atalhos de Cargo:</text>
+            <text size="14" bold="true" color="#A6ADC8">
+              Atalhos de Cargo:
+            </text>
             <row spacing="10" width="fill">
               <button
                 text="Desenvolvedora"

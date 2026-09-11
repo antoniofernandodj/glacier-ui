@@ -6,12 +6,16 @@
 
   <container class="card">
     <column class="stack">
-      <text class="title">Pseudo-estados: :hover / :focus / :active / :disabled</text>
+      <text class="title">
+        Pseudo-estados: :hover / :focus / :active / :disabled
+      </text>
       <text class="subtitle">
         Passe o mouse, clique e compare com a versão desabilitada de cada widget.
       </text>
 
-      <!-- Button: :hover (passe o mouse) / :active (segure o clique) / :disabled -->
+      <!--
+        Button: :hover (passe o mouse) / :active (segure o clique) / :disabled
+      -->
       <column class="stack" spacing="8">
         <text class="label">Button — hover / active / disabled</text>
         <row class="row">
@@ -22,7 +26,9 @@
 
       <!-- TextInput: :hover / :focus (clique para focar) / :disabled -->
       <column class="stack" spacing="8">
-        <text class="label">TextInput — hover / focus / disabled</text>
+        <text class="label">
+          TextInput — hover / focus / disabled
+        </text>
         <row class="row">
           <input
             class="input"
@@ -31,7 +37,12 @@
             value="texto"
             on_change="texto"
           />
-          <input class="input" width="200" placeholder="Desabilitado" disabled="true" />
+          <input
+            class="input"
+            width="200"
+            placeholder="Desabilitado"
+            disabled="true"
+          />
         </row>
       </column>
 

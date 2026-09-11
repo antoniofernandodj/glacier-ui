@@ -27,9 +27,11 @@
       </row>
 
       <text class="intro">
-        Duas coisas que o app montava à mão, na tela, e que agora moram DENTRO do widget: a página de
-        uma aba e o painel que flutua. São dois habilitadores diferentes — o nome de slot dinâmico e
-        o overlay ancorado — mas a pergunta é a mesma: de quem é este conteúdo?
+        Duas coisas que o app montava à mão, na tela, e que
+        agora moram DENTRO do widget: a página de uma aba e o
+        painel que flutua. São dois habilitadores diferentes — o
+        nome de slot dinâmico e o overlay ancorado — mas a pergunta
+        é a mesma: de quem é este conteúdo?
       </text>
     </column>
 
@@ -46,7 +48,8 @@
       >
         <text class="gaveta_titulo">Atalhos</text>
         <text class="nota">
-          `axis="x"` no `&lt;reveal&gt;` é a peça que faltava: o motor já animava altura desde a 0.90.
+          `axis="x"` no `&lt;reveal&gt;` é a peça que
+          faltava: o motor já animava altura desde a 0.90.
         </text>
         <button
           class="btn_gaveta" text="Painéis"

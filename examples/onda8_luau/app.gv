@@ -44,7 +44,13 @@
             <text class="rotulo">Tamanho</text>
             <!-- `width` do spinbox é a do CAMPO; a row interna dele é shrink e um
                  `fill` aqui colapsaria o número. Por isso fica inline. -->
-            <spinbox value="__dialog.tamanho" min="10" max="24" step="1" width="110" />
+            <spinbox
+              value="__dialog.tamanho"
+              min="10"
+              max="24"
+              step="1"
+              width="110"
+            />
           </column>
         </row>
 
@@ -73,7 +79,9 @@
 
   <column class="tela">
     <row class="barra">
-      <text class="titulo">Onda 8 em Luau — os diálogos que devolvem um valor</text>
+      <text class="titulo">
+        Onda 8 em Luau — os diálogos que devolvem um valor
+      </text>
       <space class="empurra" />
       <text class="status">{status}</text>
     </row>

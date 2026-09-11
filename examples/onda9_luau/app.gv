@@ -23,8 +23,8 @@
     <scrollable width="fill" height="fill">
       <column class="corpo">
         <text class="lead">
-          A Onda 8 custou quatro globais novos ao Luau, porque um diálogo SUSPENDE. Um arrasto não:
-          ele escreve numa chave, e o Luau já escrevia chaves.
+          A Onda 8 custou quatro globais novos ao Luau, porque um diálogo SUSPENDE.
+          Um arrasto não: ele escreve numa chave, e o Luau já escrevia chaves.
           As nove tags abaixo chegam prontas, sem uma linha em src/luau/.
         </text>
 
@@ -61,8 +61,8 @@
                            min="0" max="1000" step="10" size="260" />
               <text class="valor">R$ {preco_min} — R$ {preco_max}</text>
               <text class="nota">
-                Duas chaves nomeadas, como no &lt;daterangepicker range&gt; da Onda 3
-                — e a razão de o "exige estado por instância"
+                Duas chaves nomeadas, como no &lt;daterangepicker range&gt;
+                da Onda 3 — e a razão de o "exige estado por instância"
                 do catálogo nunca ter valido aqui.
               </text>
             </column>

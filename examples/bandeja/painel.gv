@@ -30,11 +30,11 @@
       </text>
 
       <button
-          text="Disparar notificação do SO"
-          on_click="notificar"
-          color="#5E81AC"
-          width="300"
-          padding="12"
+        text="Disparar notificação do SO"
+        on_click="notificar"
+        color="#5E81AC"
+        width="300"
+        padding="12"
       />
 
       <text size="11" color="#4C566A">

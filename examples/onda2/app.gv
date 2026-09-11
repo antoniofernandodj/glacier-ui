@@ -16,10 +16,26 @@
        porque o ToolButton é um widget que DELEGA (prefixo `app:` no
        template dele). A ToolBar não trata nada: só embrulha. -->
     <toolbar>
-      <toolbutton icon="📄" text="Novo" layout="beside" tooltip="Novo documento" on_click="novo" />
-      <toolbutton icon="💾" text="Salvar" layout="beside" tooltip="Salvar" on_click="salvar" />
-      <rule direction="vertical" />
-      <toolbutton icon="🗑" tooltip="Excluir (só ícone)" on_click="excluir" />
+      <toolbutton
+        icon="📄"
+        text="Novo"
+        layout="beside"
+        tooltip="Novo documento"
+        on_click="novo"
+      />
+      <toolbutton
+        icon="💾"
+        text="Salvar"
+        layout="beside"
+        tooltip="Salvar"
+        on_click="salvar"
+      />
+      <rule direction="vertical"/>
+      <toolbutton
+        icon="🗑"
+        tooltip="Excluir (só ícone)"
+        on_click="excluir"
+      />
     </toolbar>
 
     <!-- 10. TabBar ===
@@ -37,7 +53,8 @@
         <template if="{aba}" equals="grupos">
           <column spacing="18" width="fill">
             <text size="13" color="#A6ADC8">
-              GroupBox — a moldura com título do Qt. O que ele desenha não vem de prop: vem do que
+              GroupBox — a moldura com título do Qt.
+              O que ele desenha não vem de prop: vem do que
               está escrito entre as tags dele.
             </text>
 
@@ -86,8 +103,9 @@
         <template else_if="{aba}" equals="molduras">
           <column spacing="18" width="fill">
             <text size="13" color="#A6ADC8">
-              Frame — a moldura sozinha, sem título e sem semântica de grupo. As três formas cobrem
-              o QFrame::Shape: contorno, contraste ou nada.
+              Frame — a moldura sozinha, sem título e sem semântica de grupo.
+              As três formas cobrem o QFrame::Shape: contorno,
+              contraste ou nada.
             </text>
 
             <frame shape="box">
@@ -105,8 +123,8 @@
 
             <frame shape="none">
               <text color="#CDD6F4">
-                shape=&quot;none&quot; — nem borda nem fundo: o QFrame::NoFrame. Sobra o padding e o
-                spacing padronizados.
+                shape=&quot;none&quot; — nem borda nem fundo: o QFrame::NoFrame.
+                Sobra o padding e o spacing padronizados.
               </text>
             </frame>
 
@@ -159,7 +177,8 @@
 
             <card subtitle="cartão sem título, largura fill">
               <text size="13" color="#CDD6F4">
-                O cabeçalho aparece se houver título OU subtítulo — os dois são independentes.
+                O cabeçalho aparece se houver título
+                OU subtítulo — os dois são independentes.
               </text>
             </card>
           </column>

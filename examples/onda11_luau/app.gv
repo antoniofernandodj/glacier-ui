@@ -37,7 +37,9 @@
 
           <SplashScreen show="{carregando}" height="220" class="demo-splash">
             <container class="conteudo-real">
-              <text class="secao">O conteúdo principal — estava aqui o tempo todo</text>
+              <text class="secao">
+                O conteúdo principal — estava aqui o tempo todo
+              </text>
             </container>
 
             <template slot="splash">
@@ -161,7 +163,11 @@
             <column class="bloco">
               <text class="secao">QrCode</text>
               <qrcode content="{qr_texto}" width="120" height="120" />
-              <textinput value="qr_texto" on_change="qr_texto" placeholder="conteúdo do QR" />
+              <textinput
+                value="qr_texto"
+                on_change="qr_texto"
+                placeholder="conteúdo do QR"
+              />
               <text class="nota">
                 `on_change="qr_texto"` sem função Luau nenhuma com esse nome: o
                 `dispatch` cai no binding legado `ctx.qr_texto = value` sozinho.
@@ -207,7 +213,11 @@
 
             <column class="bloco">
               <text class="secao">RoundButton</text>
-              <RoundButton text="+" color="#89B4FA" on_click="novo_item" size="48" />
+              <RoundButton
+                text="+"
+                color="#89B4FA"
+                on_click="novo_item" size="48"
+              />
             </column>
           </row>
         </column>

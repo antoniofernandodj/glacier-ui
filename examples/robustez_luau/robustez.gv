@@ -15,7 +15,9 @@
     align_y="Center"
   >
     <column spacing="16" align_x="Center" width="560">
-      <text size="24" bold="true" color="#F5E0DC">Robustez da camada Luau</text>
+      <text size="24" bold="true" color="#F5E0DC">
+        Robustez da camada Luau
+      </text>
 
       <!-- storage: persiste em disco, sobrevive a fechar e reabrir o app -->
       <column spacing="6" width="fill">
@@ -29,7 +31,12 @@
           width="fill"
           padding="10"
         />
-        <button text="Salvar rascunho" on_click="salvar_rascunho" color="#89B4FA" padding="8 16" />
+        <button
+          text="Salvar rascunho"
+          on_click="salvar_rascunho"
+          color="#89B4FA"
+          padding="8 16"
+        />
       </column>
 
       <rule width="500" />
@@ -44,13 +51,21 @@
             color="#A6E3A1"
             padding="8 16"
           />
-          <button text="Cancelar" on_click="cancelar_temporizador" color="#313244" padding="8 16" />
+          <button
+            text="Cancelar"
+            on_click="cancelar_temporizador"
+            color="#313244"
+            padding="8 16"
+          />
         </row>
       </column>
 
       <rule width="500" />
 
-      <!-- every(): temporizador repetitivo (equivalente a setInterval), construído em cima de after() -->
+      <!--
+        every(): temporizador repetitivo (equivalente a setInterval),
+        construído em cima de after()
+      -->
       <column spacing="6" align_x="Center">
         <text size="14" color="#F9E2AF">Tiques: {tiques}</text>
         <row spacing="10">
@@ -60,7 +75,12 @@
             color="#A6E3A1"
             padding="8 16"
           />
-          <button text="Parar" on_click="parar_cronometro" color="#313244" padding="8 16" />
+          <button
+            text="Parar"
+            on_click="parar_cronometro"
+            color="#313244"
+            padding="8 16"
+          />
         </row>
       </column>
 
@@ -68,7 +88,9 @@
 
       <!-- viewport(): tamanho atual da janela, lido pelo script -->
       <column spacing="6" align_x="Center">
-        <text size="14" color="#89DCEB">Janela na última leitura: {largura}x{altura}</text>
+        <text size="14" color="#89DCEB">
+          Janela na última leitura: {largura}x{altura}
+        </text>
         <button
           text="Ler tamanho da janela"
           on_click="ler_viewport"
@@ -81,7 +103,9 @@
 
       <!-- ctx aceita tabela: serializada via json.encode automaticamente -->
       <column spacing="6" align_x="Center">
-        <text size="12" color="#CDD6F4">Preferências (tabela -> JSON): {prefs}</text>
+        <text size="12" color="#CDD6F4">
+          Preferências (tabela -> JSON): {prefs}
+        </text>
         <button
           text="Gerar preferências (tabela Lua)"
           on_click="gerar_prefs"
@@ -94,7 +118,9 @@
 
       <!-- erro de script agora é visível: on_error customiza o toast -->
       <column spacing="6" align_x="Center">
-        <text size="11" color="#6C7086">Último erro capturado: {ultimo_erro}</text>
+        <text size="11" color="#6C7086">
+          Último erro capturado: {ultimo_erro}
+        </text>
         <button
           text="Provocar erro (veja o toast)"
           on_click="provocar_erro"

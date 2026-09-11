@@ -10,14 +10,20 @@
          Os campos escrevem em chaves `__dialog.*`, que o motor apaga no
          fechamento — sem isso, a segunda abertura viria preenchida com o que
          ficou da primeira. -->
-    <dialog name="editar_servico"
-            title="Editar serviço"
-            buttons="Cancelar::|Salvar:salvar_servico:accept">
+    <dialog
+      name="editar_servico"
+      title="Editar serviço"
+      buttons="Cancelar::|Salvar:salvar_servico:accept"
+    >
       <column class="form">
         <column class="campo">
           <text class="rotulo">Nome</text>
-          <textinput value="__dialog.nome" on_change="__dialog.nome"
-                     placeholder="api-gateway" class="preenche" />
+          <textinput
+            value="__dialog.nome"
+            on_change="__dialog.nome"
+            placeholder="api-gateway"
+            class="preenche"
+          />
         </column>
 
         <row class="campos">
@@ -26,28 +32,43 @@
             <!-- `width` do spinbox é a do CAMPO, e a row interna dele é
                  shrink: um `fill` aqui colapsa o número. Por isso ele fica
                  inline, e não no `.gss` como largura de caixa. -->
-            <spinbox value="__dialog.replicas" min="1" max="32" step="1" width="110" />
+            <spinbox
+              value="__dialog.replicas"
+              min="1"
+              max="32"
+              step="1"
+              width="110"
+            />
           </column>
           <column class="campo">
             <text class="rotulo">Ambiente</text>
-            <select options="ambientes" value="__dialog.ambiente"
-                    on_change="__dialog.ambiente" class="preenche" />
+            <select
+              options="ambientes"
+              value="__dialog.ambiente"
+              on_change="__dialog.ambiente"
+              class="preenche"
+            />
           </column>
         </row>
 
-        <checkbox label="Reiniciar automaticamente" checked="__dialog.restart"
-                  on_toggle="__dialog.restart" />
+        <checkbox
+          label="Reiniciar automaticamente"
+          checked="__dialog.restart"
+          on_toggle="__dialog.restart"
+        />
       </column>
     </dialog>
 
     <!-- Um segundo diálogo, para mostrar que o encadeamento funciona: o botão
          neutro daqui reabre o de cima. Sem corpo — é uma caixa de mensagem. -->
-    <dialog name="remover_servico"
-            title="Remover serviço?"
-            message="A ação não pode ser desfeita."
-            icon="warning"
-            dismissible="false"
-            buttons="Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive" />
+    <dialog
+      name="remover_servico"
+      title="Remover serviço?"
+      message="A ação não pode ser desfeita."
+      icon="warning"
+      dismissible="false"
+      buttons="Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive"
+    />
   </resources>
 
   <column class="tela">
@@ -61,12 +82,23 @@
       <!-- ══ O modal com corpo ═══════════════════════════════════════════ -->
       <template slot="modal">
         <column class="painel">
-          <text class="lead">Um QDialog de verdade: moldura do motor, corpo em markup.</text>
+          <text class="lead">
+            Um QDialog de verdade: moldura do motor, corpo em markup.
+          </text>
 
           <row class="acoes">
-            <button text="Editar serviço" on_click="dialog:editar_servico" />
-            <button text="Remover serviço" on_click="dialog:remover_servico" />
-            <button text="Abrir do Rust (com corpo)" on_click="abrir_do_rust" />
+            <button
+              text="Editar serviço"
+              on_click="dialog:editar_servico"
+            />
+            <button
+              text="Remover serviço"
+              on_click="dialog:remover_servico"
+            />
+            <button
+              text="Abrir do Rust (com corpo)"
+              on_click="abrir_do_rust"
+            />
           </row>
 
           <frame shape="box" class="bloco">
@@ -93,12 +125,14 @@
           </text>
 
           <frame shape="box" class="bloco">
-            <wizard value="passo" active="{passo}"
-                    steps="plano,dominio,revisao"
-                    titles="Escolha o plano,Domínio,Revisão"
-                    valid="{passo_valido}"
-                    on_finish="finalizar"
-                    on_cancel="cancelar_wizard">
+            <wizard
+              value="passo" active="{passo}"
+              steps="plano,dominio,revisao"
+              titles="Escolha o plano,Domínio,Revisão"
+              valid="{passo_valido}"
+              on_finish="finalizar"
+              on_cancel="cancelar_wizard"
+            >
               <template slot="plano">
                 <column class="form">
                   <radiogroup value="plano" items="planos" />
@@ -109,17 +143,21 @@
               <template slot="dominio">
                 <column class="form">
                   <text class="rotulo">Domínio do projeto</text>
-                  <textinput value="dominio" on_change="dominio"
-                             placeholder="exemplo.com.br" class="preenche" />
+                  <textinput
+                    value="dominio"
+                    on_change="dominio"
+                    placeholder="exemplo.com.br"
+                    class="preenche"
+                  />
                   <!-- `equals=""`, não `empty`: no motor o `empty` pergunta se
                        o valor é um array JSON vazio, não se a string está em
                        branco. -->
-                  <se cond="{dominio}" equals="">
+                  <if cond="{dominio}" equals="">
                     <text class="aviso">
                       Avançar fica travado enquanto isto estiver vazio — é
                       o QWizardPage::isComplete().
                     </text>
-                  </se>
+                  </if>
                 </column>
               </template>
 
@@ -169,8 +207,12 @@
                 </template>
                 <template slot="detalhe">
                   <column class="revisao">
-                    <text class="valor">Trocar a ordem de dois template slot não muda nada.</text>
-                    <text class="rotulo">Cor atual: {cor}</text>
+                    <text class="valor">
+                      Trocar a ordem de dois template slot não muda nada.
+                    </text>
+                    <text class="rotulo">
+                      Cor atual: {cor}
+                    </text>
                   </column>
                 </template>
               </stackview>

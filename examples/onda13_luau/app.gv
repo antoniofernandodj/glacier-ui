@@ -6,7 +6,9 @@
 
   <column class="tela">
     <row class="barra">
-      <text class="titulo">Onda 13 em Luau — formas com dado do script</text>
+      <text class="titulo">
+        Onda 13 em Luau — formas com dado do script
+      </text>
       <space class="empurra" />
       <text class="status">{status}</text>
     </row>

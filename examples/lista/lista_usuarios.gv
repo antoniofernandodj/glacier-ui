@@ -15,7 +15,12 @@
          recebendo os campos de cada item como props. -->
       <column spacing="12" width="fill">
         <foreach items="usuarios" var="u">
-          <CartaoUsuario nome="{u.nome}" cargo="{u.cargo}" inicial="{u.inicial}" cor="{u.cor}" />
+          <CartaoUsuario
+            nome="{u.nome}"
+            cargo="{u.cargo}"
+            inicial="{u.inicial}"
+            cor="{u.cor}"
+          />
         </foreach>
       </column>
 

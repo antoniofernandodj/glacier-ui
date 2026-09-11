@@ -12,7 +12,9 @@
        nada de especial: o conteúdo de um slot pode ser qualquer widget,
        embutido ou não. -->
     <toolbar divider="true">
-      <text size="14" bold="true" color="#CDD6F4">Onda 1 — Slider, Space, Radio e Avatar</text>
+      <text size="14" bold="true" color="#CDD6F4">
+        Onda 1 — Slider, Space, Radio e Avatar
+      </text>
       <!-- 2. Space: aqui é o espaçador FLEXÍVEL. Sem width, ele é
          Length::Fill e come toda a sobra, empurrando o avatar para a
          borda direita. É o QSpacerItem de um QHBoxLayout. -->
@@ -32,7 +34,13 @@
 
           <row spacing="16" align_y="center">
             <text width="90" color="#CDD6F4">Volume</text>
-            <slider value="volume" min="0" max="100" on_change="ajustar_volume" width="320" />
+            <slider
+              value="volume"
+              min="0"
+              max="100"
+              on_change="ajustar_volume"
+              width="320"
+            />
             <text size="13" color="#A6ADC8">{volume}</text>
           </row>
 
@@ -66,7 +74,9 @@
               on_change="ajustar_graves"
               width="320"
             />
-            <text size="13" color="#A6ADC8">{graves} dB (duplo clique volta a 0)</text>
+            <text size="13" color="#A6ADC8">
+              {graves} dB (duplo clique volta a 0)
+            </text>
           </row>
         </groupbox>
 
@@ -108,16 +118,34 @@
         <!-- 3. Radio / RadioGroup ==================================== -->
         <groupbox title="Radio e RadioGroup — o QRadioButton e o QButtonGroup">
           <text size="13" color="#A6ADC8">
-            Os dois caminhos escrevendo na MESMA chave 'plano'. O grupo é a chave, não um nó pai:
-            todo Radio que aponta para o mesmo valor é do mesmo grupo.
+            Os dois caminhos escrevendo na MESMA chave 'plano'.
+            O grupo é a chave, não um nó pai: todo Radio que aponta
+            para o mesmo valor é do mesmo grupo.
           </text>
 
           <row spacing="40" align_y="start">
             <column spacing="8">
-              <text size="13" bold="true" color="#CDD6F4">Primitiva, escrita à mão:</text>
-              <radio label="Grátis" value="free" group="plano" on_change="escolher_plano" />
-              <radio label="Pro" value="pro" group="plano" on_change="escolher_plano" />
-              <radio label="Time" value="team" group="plano" on_change="escolher_plano" />
+              <text size="13" bold="true" color="#CDD6F4">
+                Primitiva, escrita à mão:
+              </text>
+              <radio
+                label="Grátis"
+                value="free"
+                group="plano"
+                on_change="escolher_plano"
+              />
+              <radio
+                label="Pro"
+                value="pro"
+                group="plano"
+                on_change="escolher_plano"
+              />
+              <radio
+                label="Time"
+                value="team"
+                group="plano"
+                on_change="escolher_plano"
+              />
               <text size="12" color="#6C7086">+ 1 braço no update da tela</text>
             </column>
 
@@ -138,7 +166,8 @@
         <!-- 4. Avatar ================================================ -->
         <groupbox title="Avatar">
           <text size="13" color="#A6ADC8">
-            Sempre ocupa o mesmo espaço, com foto ou sem: numa lista de usuários a foto que falta é
+            Sempre ocupa o mesmo espaço, com foto ou sem:
+            numa lista de usuários a foto que falta é
             o caso comum, e um buraco vazio quebraria o alinhamento da linha.
           </text>
           <row spacing="16" align_y="center">

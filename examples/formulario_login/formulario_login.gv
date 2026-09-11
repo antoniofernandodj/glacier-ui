@@ -17,8 +17,14 @@
       <form on_submit="entrar" name="login" width="fill">
         <column spacing="6" width="fill">
           <text size="13" color="#D8DEE9">Usuário</text>
-          <input form_control="username" placeholder="ao menos 3 caracteres" width="fill" />
-          <text size="12" color="#BF616A">{erro_username}</text>
+          <input
+            form_control="username"
+            placeholder="ao menos 3 caracteres"
+            width="fill"
+          />
+          <text size="12" color="#BF616A">
+            {erro_username}
+          </text>
         </column>
         <column spacing="6" width="fill">
           <text size="13" color="#D8DEE9">Senha</text>
@@ -28,9 +34,16 @@
             secure="true"
             width="fill"
           />
-          <text size="12" color="#BF616A">{erro_password}</text>
+          <text size="12" color="#BF616A">
+            {erro_password}
+          </text>
         </column>
-        <button text="Entrar" on_click="entrar" color="#5E81AC" width="fill" />
+        <button
+          text="Entrar"
+          on_click="entrar"
+          color="#5E81AC"
+          width="fill"
+        />
       </form>
       <text size="13" color="#A3BE8C">{status}</text>
     </column>

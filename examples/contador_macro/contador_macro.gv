@@ -26,8 +26,16 @@
     <column spacing="20" class="center">
       <text class="txt">Valor do Contador: {contador}</text>
       <row spacing="15" align="Center">
-        <button text="Diminuir" on_click="decrement" class="btn red" />
-        <button text="Aumentar" on_click="increment" class="btn green" />
+        <button
+          text="Diminuir"
+          on_click="decrement"
+          class="btn red"
+        />
+        <button
+          text="Aumentar"
+          on_click="increment"
+          class="btn green"
+        />
       </row>
     </column>
   </container>

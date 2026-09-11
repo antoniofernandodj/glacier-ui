@@ -41,9 +41,18 @@
       <text size="22" bold="true" color="#ECEFF4">
         fetch em Lua (async/await via corrotina)
       </text>
-      <button text="Buscar meu IP" on_click="buscar" color="#5E81AC" padding="12 24" />
-      <text size="14" color="#EBCB8B">Status: {status}</text>
-      <text size="16" color="#A3BE8C">{resultado}</text>
+      <button
+        text="Buscar meu IP"
+        on_click="buscar"
+        color="#5E81AC"
+        padding="12 24"
+      />
+      <text size="14" color="#EBCB8B">
+        Status: {status}
+      </text>
+      <text size="16" color="#A3BE8C">
+        {resultado}
+      </text>
     </column>
   </container>
 </screen>
