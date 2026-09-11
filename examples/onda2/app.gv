@@ -12,9 +12,10 @@
   <column spacing="0" width="fill" height="fill">
 
     <!-- 8. ToolButton dentro de 9. ToolBar ===
-       Os botões são do app: `on_click="novo"` chega no update desta tela,
-       porque o ToolButton é um widget que DELEGA (prefixo `app:` no
-       template dele). A ToolBar não trata nada: só embrulha. -->
+      Os botões são do app: `on_click="novo"` chega no update desta tela,
+      porque o ToolButton é um widget que DELEGA (prefixo `app:` no
+      template dele). A ToolBar não trata nada: só embrulha.
+    -->
     <toolbar>
       <toolbutton
         icon="📄"
@@ -65,9 +66,17 @@
                  vai para a direita da linha do título, não
                  para dentro da moldura. -->
               <template slot="actions">
-                <toolbutton icon="↻" tooltip="Recarregar" on_click="novo" />
+                <toolbutton
+                  icon="↻"
+                  tooltip="Recarregar"
+                  on_click="novo"
+                />
               </template>
-              <checkbox label="Usar proxy" checked="usar_proxy" on_toggle="nada" />
+              <checkbox
+                label="Usar proxy"
+                checked="usar_proxy"
+                on_toggle="nada"
+              />
               <row spacing="12" align_y="center">
                 <text width="70" color="#CDD6F4">Host</text>
                 <input value="host" width="200" />
@@ -79,7 +88,11 @@
               <!-- ESTE é o ponto do slot: a ação sai de dentro do
                  GroupBox e chega no update da TELA, sem virar
                  `GroupBox::salvar_rede`. -->
-              <button text="Salvar rede" on_click="salvar_rede" padding="8 16" />
+              <button
+                text="Salvar rede"
+                on_click="salvar_rede"
+                padding="8 16"
+              />
             </groupbox>
 
             <!-- A forma flat: título, linha e conteúdo solto. É o
@@ -87,14 +100,18 @@
                longa sem uma moldura por grupo. -->
             <groupbox title="Avançado" flat="true">
               <row spacing="12" align_y="center">
-                <text width="90" color="#CDD6F4">Timeout (s)</text>
+                <text width="90" color="#CDD6F4">
+                  Timeout (s)
+                </text>
                 <spinbox value="timeout" min="5" max="300" step="5" width="90" />
               </row>
             </groupbox>
 
             <!-- Sem título sobra a moldura pura — que é o Frame. -->
             <groupbox>
-              <text size="13" color="#A6ADC8">GroupBox sem title: só a caixa.</text>
+              <text size="13" color="#A6ADC8">
+                GroupBox sem title: só a caixa.
+              </text>
             </groupbox>
           </column>
         </template>
@@ -116,8 +133,8 @@
 
             <frame shape="filled">
               <text color="#CDD6F4">
-                shape=&quot;filled&quot; — sem borda, com fundo próprio: o QFrame::Panel. A caixa se
-                destaca por contraste.
+                shape=&quot;filled&quot; — sem borda, com fundo próprio:
+                o QFrame::Panel. A caixa se destaca por contraste.
               </text>
             </frame>
 
@@ -145,8 +162,9 @@
         <template else_if="{aba}" equals="cartoes">
           <column spacing="18" width="fill">
             <text size="13" color="#A6ADC8">
-              Card — a superfície de um item: fundo próprio, cantos redondos e um cabeçalho com
-              hierarquia. É a peça de uma lista ou grade, não de um formulário. O primeiro cartão
+              Card — a superfície de um item: fundo próprio, cantos
+              redondos e um cabeçalho com hierarquia. É a peça de uma
+              lista ou grade, não de um formulário. O primeiro cartão
               tem rodapé (slot nomeado); os outros não pagam nem a linha.
             </text>
 
