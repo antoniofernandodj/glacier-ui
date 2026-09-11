@@ -1743,8 +1743,26 @@ async function provideDocumentLinks(document) {
         break;
       }
       if (!link) {
-        // Nothing in Lua: let the workspace index try the Rust side, still
-        // narrowing to the name half if the value carries a suffix.
+        // No Lua function anywhere in the template's own script graph. Before
+        // asking the workspace index about a Rust handler, try the engine's
+        // OWN fallback for a 100%-script component with no matching
+        // function: `LuauComponent::dispatch` writes the value straight into
+        // a context key of the SAME name (the "binding legado" that makes
+        // `on_change="qr_texto"` work with no `qr_texto()` anywhere).
+        for (const c of handlerCandidates(value)) {
+          const key = luaWrites.get(c.name);
+          if (!key) continue;
+          link = new vscode.DocumentLink(
+            range(start + c.start, start + c.start + c.name.length)
+          );
+          link.target = uriAt(key.uri, key.range.start);
+          link.tooltip = `Go to context key "${c.name}"`;
+          break;
+        }
+      }
+      if (!link) {
+        // Nothing in Lua either way: let the workspace index try the Rust
+        // side, then the same legacy-binding fallback workspace-wide.
         link = new vscode.DocumentLink(range(start, start + value.length));
         pendingHandlers.push({ link, value, start, range });
       }
@@ -1783,6 +1801,20 @@ async function provideDocumentLinks(document) {
             link.target = uriAt(lua.uri, lua.range.start);
             link.tooltip = `Go to function ${c.name}()`;
             break;
+          }
+          if (!link) {
+            // Same legacy-binding fallback as an action attribute (see the
+            // action-attributes loop above).
+            for (const c of handlerCandidates(b.action)) {
+              const key = luaWrites.get(c.name);
+              if (!key) continue;
+              link = new vscode.DocumentLink(
+                range(start + c.start, start + c.start + c.name.length)
+              );
+              link.target = uriAt(key.uri, key.range.start);
+              link.tooltip = `Go to context key "${c.name}"`;
+              break;
+            }
           }
           if (!link) {
             link = new vscode.DocumentLink(range(start, end));
@@ -1922,6 +1954,7 @@ async function provideDocumentLinks(document) {
     }
 
     for (const pending of pendingHandlers) {
+      let resolved = false;
       for (const c of handlerCandidates(pending.value)) {
         const hit = rustHandlerFor(index, document.uri, c.name);
         if (!hit) continue;
@@ -1931,6 +1964,23 @@ async function provideDocumentLinks(document) {
         );
         pending.link.target = uriAt(hit.fsPath, hit.position);
         pending.link.tooltip = `Go to handler "${c.name}" (Rust)`;
+        resolved = true;
+        break;
+      }
+      if (resolved) continue;
+      // No handler anywhere in the workspace either: the same legacy-binding
+      // fallback, now against every Rust/Lua source the index knows about.
+      for (const c of handlerCandidates(pending.value)) {
+        const found =
+          resolveContextKeyInRust(index, document.uri, c.name) ||
+          resolveContextKeyInWorkspaceLua(index, document.uri, c.name);
+        if (!found) continue;
+        pending.link.range = pending.range(
+          pending.start + c.start,
+          pending.start + c.start + c.name.length
+        );
+        pending.link.target = uriAt(found.uri, found.range.start);
+        pending.link.tooltip = `Go to context key "${c.name}"`;
         break;
       }
     }
@@ -2054,6 +2104,19 @@ async function resolveDefinition(document, position) {
     for (const c of handlerCandidates(hit.name)) {
       const rust = rustHandlerFor(index, document.uri, c.name);
       if (rust) return [new vscode.Location(vscode.Uri.file(rust.fsPath), rust.position)];
+    }
+    // No handler anywhere: the engine's own fallback for a 100%-script
+    // component with no matching function (`LuauComponent::dispatch`'s
+    // "binding legado") writes the value straight into a context key of the
+    // SAME name — try that before giving up (this is what makes
+    // `on_change="qr_texto"` resolve to `ctx.qr_texto = …` with no
+    // `qr_texto()` anywhere).
+    for (const c of handlerCandidates(hit.name)) {
+      const found =
+        resolveContextKeyInLua(sources, c.name) ||
+        resolveContextKeyInRust(index, document.uri, c.name) ||
+        resolveContextKeyInWorkspaceLua(index, document.uri, c.name);
+      if (found) return [found];
     }
     return undefined;
   }
