@@ -3988,22 +3988,33 @@ impl GlacierUI {
             // `install_component` chama `init` de novo em cima dela — é o
             // mesmo caminho de um registro do zero.
             //
-            // Só para componentes 100%-script (`script_only_components` — ver
-            // seu doc no struct): um componente Lua criado via
-            // `luau::LuauComponent::wrap` (Rust + `<script>` por cima, via
-            // `GlacierUI::register`) guarda um `inner: Box<dyn Component>` que
-            // não dá pra reconstruir aqui, então recriar do zero o perderia.
-            // Esse continua com o limite antigo (só o markup recarrega).
+            // Seguro quando o componente já é 100%-script
+            // (`script_only_components` — ver seu doc no struct) OU quando
+            // ele ainda nem tem `Component` nenhum instalado (`self.components`
+            // sem entrada pro nome): uma tela registrada sem `<script>` fica
+            // UI-only, sem nada em `self.components`, e é exatamente o caso de
+            // alguém ACRESCENTAR um `<script>` depois — sem este segundo braço,
+            // o `<script>` novo nunca era instalado, só o markup reavaliava.
             //
+            // O único caso que fica de fora é um componente Lua criado via
+            // `luau::LuauComponent::wrap` (Rust + `<script>` por cima, via
+            // `GlacierUI::register`): ele guarda um `inner: Box<dyn Component>`
+            // que não dá pra reconstruir aqui, então recriar do zero o
+            // perderia. Esse continua com o limite antigo (só o markup
+            // recarrega) — é o `contains_key` abaixo que o exclui, já que ele
+            // sempre tem uma entrada em `self.components`.
+            let pode_instalar_script = self.script_only_components.contains(&name)
+                || !self.components.contains_key(&name);
             // As entradas de `active_streams` da versão antiga são descartadas
             // antes: elas referenciam handlers da VM anterior, e a nova
             // instância recomeça a contagem de `id` em 1 — deixá-las seria
             // uma stream fantasma que nunca mais casa com nada.
-            if self.script_only_components.contains(&name) && luau::has_script(&content) {
+            if pode_instalar_script && luau::has_script(&content) {
                 match luau::LuauComponent::from_file_with(&path, &name, self.assets.clone()) {
                     Ok(comp) => {
                         self.active_streams.retain(|(owner, _), _| owner != &name);
                         self.install_component(&name, Box::new(comp));
+                        self.script_only_components.insert(name.clone());
                     }
                     Err(e) => eprintln!(
                         "Script '{}' has an error, keeping the previous version: {}",
