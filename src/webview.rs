@@ -8,6 +8,11 @@
 //! `daemon.rs` dá a esses `window::Id` (sem `GlacierUI` nenhum atrás deles).
 //! Uso típico, da camada Lua: `open_window({ webview_url = "https://…" })`.
 //!
+//! **Incompatível com a feature `tray`, no Linux** — as duas exigem GTK
+//! inicializado em threads diferentes (a bandeja tem a própria, esta módulo
+//! precisa da principal) e GTK só aceita uma inicialização por processo. Ver
+//! o comentário equivalente no topo de `crate::tray`.
+//!
 //! ## Por que uma `thread_local`
 //!
 //! `wry::WebView` não é `Send`: é um wrapper fino sobre objetos nativos

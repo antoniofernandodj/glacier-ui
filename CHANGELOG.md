@@ -8,6 +8,26 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.104.1 — 2026-09-13
+
+Patch sobre a 0.104.0 (que trouxe a feature `webview` — `open_window({
+webview_url = "..." })` — e a feature `micropython`, sem entrada própria
+aqui):
+
+- Remove um `eprintln!("[DEBUG] ...")` esquecido em `open_webview_child`
+  (`src/daemon.rs`) que sobrou de depuração e vazou pra 0.104.0.
+- Documenta, em `Cargo.toml`, `src/tray.rs` e `src/webview.rs`, que `tray` e
+  `webview` são **incompatíveis no Linux**: as duas exigem GTK inicializado,
+  cada uma numa thread diferente (a bandeja tem a própria; a webview exige a
+  principal), e GTK só aceita uma inicialização por processo — a segunda
+  panica ("Attempted to initialize GTK from two different threads") assim
+  que a primeira janela de webview abre. Reproduzido e confirmado num app
+  real que ligava as duas. Corrigir de verdade exigiria a bandeja parar de
+  ter thread própria no Linux quando `webview` também estiver ligada — ainda
+  não feito; por ora, escolha uma das duas.
+
+---
+
 ## CLI 0.5.8 — 2026-09-10 · glacier-ui 0.103.0
 
 Republicação da 0.5.7 — mesmo conteúdo de template e comportamento, só o número

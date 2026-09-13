@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.104.0"
+version = "0.104.1"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -244,6 +244,13 @@ zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
 # `wayland-0` por padrão mesmo sem a variável). A combinação que funciona:
 # `GDK_BACKEND=x11 WAYLAND_DISPLAY= ./seu-app` (o `DISPLAY` do XWayland já
 # existe por padrão na maioria das distros).
+#
+# INCOMPATÍVEL com a feature `tray` no Linux: as duas precisam de GTK
+# inicializado, cada uma numa thread diferente (a bandeja tem a própria; esta
+# exige a principal), e GTK só aceita uma inicialização por processo — a
+# segunda panica ("Attempted to initialize GTK from two different threads")
+# assim que a primeira janela de webview abre. Ver o comentário do bloco
+# `tray-icon` logo abaixo.
 [dependencies.wry]
 version = "0.57"
 optional = true
@@ -253,7 +260,9 @@ optional = true
 # assim quem não usa bandeja não arrasta GTK/tray-icon. No Linux a bandeja usa
 # libappindicator+GTK, e a thread dedicada precisa do `gtk` para inicializar e
 # rodar o loop GTK; no Windows, do `windows-sys` para o message-loop Win32. macOS
-# não é suportado (exige a thread principal). Ver `src/tray.rs`.
+# não é suportado (exige a thread principal). INCOMPATÍVEL com `webview` no
+# Linux, pelo mesmo motivo do GTK — ver o comentário no bloco `wry` acima.
+# Ver `src/tray.rs`.
 [dependencies.tray-icon]
 version = "0.24"
 optional = true

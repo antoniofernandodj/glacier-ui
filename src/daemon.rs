@@ -1279,7 +1279,6 @@ impl Runtime {
         size: Option<(f32, f32)>,
         resizable: bool,
     ) -> Task<DaemonMessage> {
-        eprintln!("[DEBUG] open_webview_child chamado, url={url}");
         let (w, h) = size.unwrap_or((960.0, 600.0));
         let mut settings = window::Settings {
             size: Size::new(w, h),

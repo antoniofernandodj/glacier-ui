@@ -23,6 +23,19 @@
 //!   serve. Fica como **limitação conhecida**: [`spawn`] devolve `None`, e o app
 //!   volta a encerrar na última janela (ver [`crate::daemon`]).
 //!
+//! ## Incompatível com `webview`, no Linux
+//!
+//! A feature `webview` (ver [`crate::webview`]) também precisa de GTK, mas na
+//! **thread principal** — é lá que mora a janela cujo handle a `wry` usa. GTK só
+//! aceita ser inicializado numa única thread por processo inteiro; a bandeja já
+//! chamou `gtk::init()` na thread dela, então a primeira `open_window({
+//! webview_url = ... })` **panica** ao tentar de novo na principal
+//! ("Attempted to initialize GTK from two different threads"). Ligar as duas
+//! features ao mesmo tempo não é suportado hoje — escolha uma. Corrigir isso
+//! exigiria a bandeja parar de ter thread própria no Linux e cooperar na
+//! principal (como a própria `webview` já faz, ver `crate::webview::pump`), o
+//! que ainda não foi feito.
+//!
 //! Os **cliques** (menu e ícone) chegam de volta pelos canais globais do
 //! `tray-icon` (`MenuEvent::receiver()` / `TrayIconEvent::receiver()`), drenados
 //! por uma subscription do daemon ([`event_stream`]). Os **comandos** para a
