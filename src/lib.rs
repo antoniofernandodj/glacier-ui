@@ -279,6 +279,16 @@ pub struct GlacierUI {
     /// guard in [`GlacierUI::load_imports`]. A name is dropped from the set once
     /// the app overrides it.
     builtin_component_names: std::collections::HashSet<String>,
+    /// Nomes de componentes 100%-script — instalados via
+    /// [`luau::LuauComponent::from_file_with`] em
+    /// [`GlacierUI::register_component_inner`], sem nenhum `Component` Rust
+    /// por baixo (`inner: None`). É o marcador que [`GlacierUI::check_reload`]
+    /// usa para saber quando é seguro recompilar o `<script>` do zero: um
+    /// componente Lua criado via [`luau::LuauComponent::wrap`] (Rust +
+    /// `<script>` por cima, via [`GlacierUI::register`]) guarda um `inner` que
+    /// o motor não tem como reconstruir aqui fora, então fica de fora deste
+    /// conjunto e o hot-reload dele continua só no markup, como já era.
+    script_only_components: std::collections::HashSet<String>,
     /// Nomes registrados por uma **declaração local** — o
     /// `<component name="X">` de um `<resources>` (ver
     /// [`crate::parser::NodeType::Define`]).
@@ -591,6 +601,7 @@ impl GlacierUI {
             active_streams: HashMap::default(),
             stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
+            script_only_components: std::collections::HashSet::new(),
             defined_components: std::collections::HashSet::new(),
             dialog_defs: HashMap::new(),
             engine_id: NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -2806,6 +2817,7 @@ impl GlacierUI {
         if luau::has_script(&content) {
             let comp = luau::LuauComponent::from_file_with(path, name, self.assets.clone())?;
             self.install_component(name, Box::new(comp));
+            self.script_only_components.insert(name.to_string());
         }
 
         Ok(())
@@ -3905,11 +3917,19 @@ impl GlacierUI {
             if let Some(modified) = self.assets.modified(path) {
                 let last_modified = self.file_mod_times.get(name);
                 if last_modified.is_none_or(|&last| modified > last) {
-                    // File changed, reload it (XML).
+                    // File changed, reload it (XML). `content` completo (não só o
+                    // markup) segue adiante — é dele que o `<script>` sai, mais
+                    // abaixo, para recompilar o Luau do componente.
                     if let Ok(content) = self.assets.read_to_string(path)
                         && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content)
                     {
-                        updates.push((name.clone(), new_ast, modified, path.clone()));
+                        updates.push((
+                            name.clone(),
+                            new_ast,
+                            modified,
+                            path.clone(),
+                            content.into_owned(),
+                        ));
                         reloaded.push(name.clone());
                     }
                 }
@@ -3946,7 +3966,7 @@ impl GlacierUI {
         let mut dirty = !updates.is_empty() || !sheet_updates.is_empty();
 
         // Apply XML template changes.
-        for (name, new_ast, modified, path) in updates {
+        for (name, new_ast, modified, path, content) in updates {
             // Pick up any newly-added `<import>`/`<link>` declarations — e as
             // declarações locais (`<component name="…">`), que o `load_defines`
             // reescreve porque o nome é dele (ver `defined_components`).
@@ -3958,7 +3978,39 @@ impl GlacierUI {
             // recompilar — é metade do motivo de o cabeçalho existir.
             self.record_screen_meta(&name, &new_ast);
             self.inputs.insert_template(name.clone(), new_ast);
-            self.file_mod_times.insert(name, modified);
+            self.file_mod_times.insert(name.clone(), modified);
+
+            // Recompila o `<script>` do componente, se houver. Sem isto, o
+            // hot-reload só via o markup: `function init()` nunca rodava de
+            // novo e uma função/variável nova no script não existia até
+            // reiniciar o app inteiro. `from_file_with` recria a VM do zero
+            // (novo `ctx` Lua, script top-level executado de novo), e
+            // `install_component` chama `init` de novo em cima dela — é o
+            // mesmo caminho de um registro do zero.
+            //
+            // Só para componentes 100%-script (`script_only_components` — ver
+            // seu doc no struct): um componente Lua criado via
+            // `luau::LuauComponent::wrap` (Rust + `<script>` por cima, via
+            // `GlacierUI::register`) guarda um `inner: Box<dyn Component>` que
+            // não dá pra reconstruir aqui, então recriar do zero o perderia.
+            // Esse continua com o limite antigo (só o markup recarrega).
+            //
+            // As entradas de `active_streams` da versão antiga são descartadas
+            // antes: elas referenciam handlers da VM anterior, e a nova
+            // instância recomeça a contagem de `id` em 1 — deixá-las seria
+            // uma stream fantasma que nunca mais casa com nada.
+            if self.script_only_components.contains(&name) && luau::has_script(&content) {
+                match luau::LuauComponent::from_file_with(&path, &name, self.assets.clone()) {
+                    Ok(comp) => {
+                        self.active_streams.retain(|(owner, _), _| owner != &name);
+                        self.install_component(&name, Box::new(comp));
+                    }
+                    Err(e) => eprintln!(
+                        "Script '{}' has an error, keeping the previous version: {}",
+                        path, e
+                    ),
+                }
+            }
         }
 
         // Apply stylesheet changes in place, preserving load order/priority.
