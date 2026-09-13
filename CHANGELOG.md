@@ -8,6 +8,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.104.2 — 2026-09-13
+
+`fetch`/`http()` podiam ficar pendurados **indefinidamente** — nem sucesso,
+nem erro, nem o próprio `timeout` do pedido disparava — contra hosts numa
+rede onde IPv6 é um "buraco negro" (SYN sem RST/ICMP, comum atrás de certos
+NATs/VPNs com IPv6 mal configurado). Reproduzido ao vivo com a API do
+YouTube. O `HttpConnector` do `hyper-util` já ativa "happy eyeballs" por
+padrão, mas sem um `connect_timeout` explícito por tentativa, a perna
+perdedora da corrida podia nunca ser encerrada. `client()` (`src/net.rs`)
+agora monta o `HttpConnector` à mão (em vez de só `HttpsConnectorBuilder::
+build()`, que não dá acesso a ele) com `set_connect_timeout(Some(8s))` —
+teto duro por tentativa de conexão, TCP ou TLS, vencedora ou não.
+
+---
+
 ## glacier-ui 0.104.1 — 2026-09-13
 
 Patch sobre a 0.104.0 (que trouxe a feature `webview` — `open_window({

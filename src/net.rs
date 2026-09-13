@@ -32,15 +32,45 @@ pub(crate) fn install_default_crypto() {
 }
 
 /// Cliente compartilhado (pool de conexões + config TLS), construído uma vez.
+///
+/// Não usa `HttpsConnectorBuilder::build()` (o caminho de sempre) porque ele
+/// não dá jeito de configurar um `connect_timeout` no `HttpConnector` de
+/// dentro — o builder só devolve o `HttpsConnector` já pronto, sem acesso ao
+/// conector interno. Por isso montamos os dois pedaços (TLS + `HttpConnector`)
+/// à mão e juntamos com `HttpsConnector::new`, que é público exatamente para
+/// isto.
+///
+/// **Por que o `connect_timeout` importa de verdade:** o `HttpConnector` já
+/// ativa "happy eyeballs" por padrão (corrida IPv4/IPv6 com 300ms de
+/// atraso — ver `hyper_util::client::legacy::connect::http::Config`), mas
+/// isso só ajuda quando o lado perdedor falha ou demora; numa rede onde um
+/// dos dois é um **buraco negro** (SYN sem RST e sem ICMP, comum atrás de
+/// certos NATs/VPNs com IPv6 mal configurado), a tentativa perdedora nunca
+/// recebe um erro para desistir, e essa tentativa pendurada já bastou, em
+/// teste real, para o `fetch` inteiro nunca resolver — nem para sucesso, nem
+/// para o próprio timeout do pedido. Um teto aqui, DENTRO do conector, é a
+/// certeza de que nenhuma tentativa de conexão individual (vencedora ou não)
+/// fica pendurada além disso, não importa o que mais aconteça pilha acima.
 fn client() -> &'static HttpsClient {
     static CLIENT: OnceLock<HttpsClient> = OnceLock::new();
     CLIENT.get_or_init(|| {
         install_default_crypto();
-        let https = hyper_rustls::HttpsConnectorBuilder::new()
+
+        let mut http = HttpConnector::new();
+        http.enforce_http(false); // o HttpsConnector por fora que decide o esquema
+        http.set_connect_timeout(Some(std::time::Duration::from_secs(8)));
+
+        use hyper_rustls::ConfigBuilderExt as _;
+        let tls_config = rustls::ClientConfig::builder()
             .with_webpki_roots()
-            .https_or_http()
-            .enable_http1()
-            .build();
+            .with_no_client_auth();
+
+        let https = HttpsConnector::new(
+            http,
+            tls_config,
+            false,
+            std::sync::Arc::new(hyper_rustls::DefaultServerNameResolver::default()),
+        );
         Client::builder(TokioExecutor::new()).build(https)
     })
 }
