@@ -1,0 +1,45 @@
+<screen title="Glacier - Contador (MicroPython)">
+  <resources>
+    <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+      um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+      em cada pixel da tela, e ela custa (ver AGENTS.md). -->
+    <link rel="theme" href="examples/contador_micropython/theme.json" />
+    <link rel="stylesheet" href="examples/contador_micropython/contador_micropython.gss" />
+    <!-- Comportamento em MicroPython — a segunda linguagem de `<script>`,
+      ao lado do Luau. `lang="micropython"` é o que diferencia deste
+      `<script src="...luau">` de qualquer outro exemplo. -->
+    <script lang="micropython" src="contador_micropython.py"></script>
+  </resources>
+
+  <container class="tela">
+    <column class="coluna">
+      <text class="titulo">Valor do Contador: {contador}</text>
+      <row class="linha_passo">
+        <text class="rotulo">Passo:</text>
+        <input
+          value="passo"
+          placeholder="1"
+          on_change="definir_passo"
+          class="campo_passo"
+        />
+      </row>
+      <row class="acoes">
+        <button
+          text="Diminuir"
+          on_click="decrementar"
+          class="botao perigo"
+        />
+        <button
+          text="Zerar"
+          on_click="zerar"
+          class="botao neutro"
+        />
+        <button
+          text="Aumentar"
+          on_click="incrementar"
+          class="botao sucesso"
+        />
+      </row>
+    </column>
+  </container>
+</screen>

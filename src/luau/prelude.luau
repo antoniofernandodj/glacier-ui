@@ -9,6 +9,23 @@ function fetch(url, opts)
     })
 end
 
+-- Baixa um recurso remoto DIRETO para um arquivo local, em bytes crus — sem
+-- passar pelo texto/UTF-8 do `fetch` (que corrompe um binário como JPEG/PNG
+-- via `String::from_utf8_lossy`, ver src/net.rs). É o caminho para cachear
+-- uma imagem remota (thumbnail, avatar) em disco e exibi-la com
+-- `<image source="{caminho}">`, que só lê do sistema de arquivos — o motor
+-- não faz fetch de imagem por URL. Suspende como o `fetch` cru; mesmos
+-- `opts` (`headers`, `timeout`, `user_agent`). Devolve `{ ok, status, error }`
+-- (sem `body`: o conteúdo foi para o arquivo, não para a resposta).
+function download_file(url, path, opts)
+    return coroutine.yield({
+        __glacier_fetch = true,
+        url = url,
+        download_to = path,
+        opts = opts or {}
+    })
+end
+
 -- Server-Sent Events. NÃO suspende: cede um pedido de abertura, o motor
 -- registra o stream e retoma na hora devolvendo um handle com `:close()`.
 -- `opts` = { headers?, on_open?, on_message?, on_error?, on_close? }, cada

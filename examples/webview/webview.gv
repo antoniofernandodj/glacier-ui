@@ -1,0 +1,25 @@
+<screen title="Webview" size="360 160" min_size="320 140">
+  <resources>
+    <link rel="theme" href="examples/webview/theme.json" />
+  </resources>
+
+  <container
+    padding="20"
+    align_x="Center"
+    align_y="Center"
+    width="fill"
+    height="fill"
+  >
+    <column spacing="16" align_x="Center">
+      <text size="16" bold="true" color="#ECEFF4">
+        Webview nativa
+      </text>
+      <button
+        text="Abrir webview numa janela"
+        on_click="abrir"
+        color="#88C0D0"
+        padding="10 20"
+      />
+    </column>
+  </container>
+</screen>

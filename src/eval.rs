@@ -78,6 +78,32 @@ pub(crate) fn find_script_open(xml: &str) -> Option<usize> {
     None
 }
 
+/// Lê o atributo `lang="..."` da tag de abertura `<script ...>`, se houver —
+/// qual linguagem o bloco carrega, já normalizada pro id **canônico** que o
+/// resto do motor compara (`luau::has_script`, `micropython::has_script`):
+/// `None` é Luau (o padrão histórico, sem atributo — todo `.gv` existente
+/// continua funcionando sem mudar nada); `"python"` é só um apelido mais
+/// natural de escrever — normaliza para `"micropython"` (ver
+/// [`crate::micropython`]), que é o único outro id reconhecido hoje. Usa
+/// [`find_script_open`] — nunca um `find("<script")` cru —, então um
+/// `lang="..."` citado dentro de um comentário XML não conta (mesma razão de
+/// [`find_script_open`] existir: ver o doc dela).
+pub(crate) fn script_lang(markup: &str) -> Option<String> {
+    let open = find_script_open(markup)?;
+    let lower = markup.to_ascii_lowercase();
+    let gt = lower[open..].find('>')? + open;
+    let tag = &markup[open..gt];
+    let re = regex::Regex::new(r#"(?i)\blang\s*=\s*["']([^"']+)["']"#).ok()?;
+    let raw = re
+        .captures(tag)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_ascii_lowercase())?;
+    Some(match raw.as_str() {
+        "python" => "micropython".to_string(),
+        _ => raw,
+    })
+}
+
 /// Normalizes bare directives like `else` or `senao` (without value) inside XML tags
 /// by rewriting them to `else=""` or `senao=""` before XML parsing.
 pub fn normalize_bare_directives(xml: &str) -> String {

@@ -185,6 +185,10 @@ pub enum GlacierError {
     Theme { path: String, message: String },
     /// O script Luau de um componente falhou ao carregar ou ao rodar.
     Luau { component: String, message: String },
+    /// O `<script lang="micropython">` de um componente falhou ao carregar ou
+    /// ao rodar. Ver [`crate::micropython::MicropythonComponent`].
+    #[cfg(feature = "micropython")]
+    MicroPython { component: String, message: String },
     /// Um `<link rel="...">` é desconhecido ou está incompleto.
     Link { component: String, message: String },
     /// [`crate::GlacierUI::render_current`] sem tela ativa — falta chamar
@@ -244,6 +248,10 @@ impl fmt::Display for GlacierError {
             Self::Theme { path, message } => write!(f, "tema '{path}' inválido: {message}"),
             Self::Luau { component, message } => {
                 write!(f, "script Luau do componente '{component}': {message}")
+            }
+            #[cfg(feature = "micropython")]
+            Self::MicroPython { component, message } => {
+                write!(f, "script MicroPython do componente '{component}': {message}")
             }
             Self::Link { component, message } => {
                 write!(f, "<link> do componente '{component}': {message}")

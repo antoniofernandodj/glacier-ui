@@ -954,6 +954,10 @@ impl LuauComponent {
     /// Extrai uma [`PendingFetch`] da tabela `{ url, opts }` que o `fetch` cedeu.
     fn parse_fetch(&self, id: u64, req: &Table) -> mlua::Result<PendingFetch> {
         let url: String = req.get("url")?;
+        // `download_file(url, caminho, opts)` marca o pedido com o caminho de
+        // destino, no nível do req (não do opts) — ver `download_file` no
+        // prelúdio Luau e `PendingFetch::download_to`.
+        let download_to: Option<String> = req.get("download_to")?;
         let opts: Option<Table> = req.get("opts")?;
         let mut body_bytes: Option<Vec<u8>> = None;
         let mut response_base64 = false;
@@ -1005,6 +1009,7 @@ impl LuauComponent {
         pf.body_bytes = body_bytes;
         pf.response_base64 = response_base64;
         pf.timeout_ms = timeout_ms;
+        pf.download_to = download_to;
         Ok(pf)
     }
 
@@ -1482,20 +1487,27 @@ fn build_file_dialog(req: &Table) -> mlua::Result<FileDialogSpec> {
 }
 
 /// Constrói o [`WindowSpec`] a partir do pedido `open_window(opts)` do prelúdio.
-/// A fonte é `file` (caminho de template) ou `component` (nome já registrado no
-/// motor de origem, resolvido para o arquivo em `run_on_owner`). `title`,
-/// `width`/`height` e `resizable` são opcionais.
+/// A fonte é `webview_url` (webview nativa cobrindo a janela — ver
+/// [`crate::component::WindowSource::WebView`]), `file` (caminho de template)
+/// ou `component` (nome já registrado no motor de origem, resolvido para o
+/// arquivo em `run_on_owner`). `title`, `width`/`height` e `resizable` são
+/// opcionais. `webview_url` vence os outros dois quando mais de um vier
+/// preenchido — não há um motor por trás dela para `data`/`file`/`component`
+/// fazerem sentido junto.
 fn build_window_spec(lua: &Lua, req: &Table) -> mlua::Result<crate::component::WindowSpec> {
     use crate::component::WindowSpec;
     let mut spec = match (
+        req.get::<Option<String>>("webview_url")?,
         req.get::<Option<String>>("file")?,
         req.get::<Option<String>>("component")?,
     ) {
-        (Some(file), _) => WindowSpec::file(file),
-        (None, Some(name)) => WindowSpec::named(name),
-        (None, None) => {
+        (Some(url), _, _) => WindowSpec::webview(url),
+        (None, Some(file), _) => WindowSpec::file(file),
+        (None, None, Some(name)) => WindowSpec::named(name),
+        (None, None, None) => {
             return Err(mlua::Error::RuntimeError(
-                "open_window: informe `file` (caminho) ou `component` (nome registrado)".into(),
+                "open_window: informe `webview_url`, `file` (caminho) ou `component` (nome registrado)"
+                    .into(),
             ));
         }
     };
@@ -2219,7 +2231,10 @@ fn add_dir_recursive(
 /// usa isto para decidir, ao registrar um componente por arquivo, se liga um
 /// [`LuauComponent`] (há script) ou o mantém só-UI (não há).
 pub(crate) fn has_script(markup: &str) -> bool {
-    extract_script_src(markup).is_some() || extract_script(markup).is_some()
+    // `lang="micropython"` é de outra linguagem — ver `crate::micropython` —,
+    // então não conta como script Luau mesmo tendo corpo/`src`.
+    crate::eval::script_lang(markup).as_deref() != Some("micropython")
+        && (extract_script_src(markup).is_some() || extract_script(markup).is_some())
 }
 
 /// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo

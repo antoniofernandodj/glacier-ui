@@ -1185,6 +1185,21 @@ funções do prelúdio coordenam janelas (nenhuma suspende a corrotina):
   ```
   Os pares de `data` são gravados no contexto do motor da nova janela **antes**
   do `init` — é como passar parâmetros para ela.
+
+  Uma terceira forma, `webview_url`, abre uma janela cujo conteúdo inteiro é
+  uma **webview nativa do SO** (WebKitGTK/WebView2/WKWebView) em vez de um
+  `.gv` — não roda template nem `<script>` nenhum, é a página carregada
+  cobrindo a janela toda:
+  ```lua
+  open_window({ webview_url = "https://www.youtube.com/embed/dQw4w9WgXcQ" })
+  ```
+  Exige o crate compilado com `--features webview` (ver o comentário da
+  dependência `wry` no `Cargo.toml` para as limitações — em especial, só
+  funciona sob X11 no Linux; numa sessão Wayland, rode com
+  `WINIT_UNIX_BACKEND=x11`). Sem a feature, o pedido é ignorado com um aviso no
+  terminal. `title`/`width`/`height`/`resizable` valem igual; `file`,
+  `component` e `data` não fazem sentido aqui (não há motor por trás) e são
+  ignorados quando `webview_url` também veio.
 - **`broadcast(event, payload)`** — envia uma mensagem para as **outras** janelas
   (não para a própria). `payload` é opcional; uma tabela é serializada em JSON. A
   janela receptora trata em `on_broadcast(event, payload)` (função global), com o

@@ -36,6 +36,13 @@ declare function viewport(): Viewport
 
 declare function fetch(url: string, opts: any?): FetchResult
 
+-- Baixa um recurso remoto direto para um arquivo local, em bytes crus (sem
+-- passar pelo texto/UTF-8 do `fetch`, que corromperia um binário). `body` do
+-- retorno vem sempre vazio — o conteúdo foi para `path`, não para a resposta.
+-- É o caminho certo para cachear uma imagem remota e exibi-la com
+-- `<image source="{path}">`.
+declare function download_file(url: string, path: string, opts: any?): FetchResult
+
 -- ── http: cliente HTTP reutilizável sobre `fetch` ─────────────────────────
 -- `http(base_url?, opts?)` devolve um objeto com base_url / headers / query /
 -- timeout / retries de base, interceptors de requisição e resposta, e error

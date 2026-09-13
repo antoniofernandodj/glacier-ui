@@ -128,6 +128,44 @@ pub struct GlacierDaemon {
     single_instance_id: Option<String>,
 }
 
+/// Força o `winit`/GDK a escolher X11 antes de qualquer janela nascer —
+/// única forma de a feature `webview` funcionar no Linux. O `wry` não
+/// suporta Wayland nativo nesta plataforma (a doc dele é explícita: "Linux
+/// (X11 Only)"), e o `winit` decide o backend uma vez só pro `EventLoop`
+/// inteiro, na primeira janela — forçar depois, só quando um `<script>`
+/// finalmente pede uma `WindowSpec::webview`, seria tarde demais.
+///
+/// Duas pegadinhas, as duas resolvidas aqui:
+/// - `WINIT_UNIX_BACKEND` (a env var clássica) foi removida no winit 0.29;
+///   desde então o `winit` só olha se `WAYLAND_DISPLAY`/`WAYLAND_SOCKET`
+///   estão setadas — daí `remove_var("WAYLAND_DISPLAY")`.
+/// - Isso sozinho não basta: o GDK por baixo do `wry` ainda recai em Wayland,
+///   porque `wl_display_connect(NULL)` tenta o socket `wayland-0` por padrão
+///   mesmo sem a variável — daí `GDK_BACKEND=x11` também.
+///
+/// Condicionado a `DISPLAY` já estar setado: numa sessão Wayland "pura", sem
+/// XWayland (rara — algumas distros mínimas/embarcadas), remover
+/// `WAYLAND_DISPLAY` sem ter `DISPLAY` pra cair de volta quebraria o app
+/// INTEIRO — o `winit` recusa abrir QUALQUER janela sem um dos dois, mesmo
+/// pra quem nunca chamaria `open_window({webview_url=...})`. Nesse caso não
+/// mexemos em nada: o app segue em Wayland normal, e só a webview continua
+/// indisponível — a mesma limitação de sempre do `wry` ali, sem piorar nada.
+#[cfg(all(target_os = "linux", feature = "webview"))]
+fn forcar_x11_para_webview() {
+    if std::env::var_os("DISPLAY").is_some() {
+        // SAFETY: chamado no primeiríssimo passo de `GlacierDaemon::run`,
+        // antes de qualquer thread adicional (winit/GTK) existir — não há
+        // outra thread lendo/escrevendo o ambiente ao mesmo tempo.
+        unsafe {
+            std::env::remove_var("WAYLAND_DISPLAY");
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
+    }
+}
+
+#[cfg(not(all(target_os = "linux", feature = "webview")))]
+fn forcar_x11_para_webview() {}
+
 impl GlacierDaemon {
     /// Novo runner com um `setup` vazio — chame [`GlacierDaemon::main`] para
     /// configurar a janela principal antes de [`GlacierDaemon::run`].
@@ -416,6 +454,14 @@ impl GlacierDaemon {
 
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
+        // Antes de QUALQUER coisa gráfica: o backend do `winit` (X11 vs
+        // Wayland) é escolhido uma vez só, pro processo inteiro, na primeira
+        // janela — inclusive a principal, que pode nascer bem antes de
+        // qualquer `<script>` pedir uma `WindowSpec::webview`. Chegar tarde
+        // demais pra forçar X11 (só quando alguém abre a webview) não
+        // funciona: a essa altura o `EventLoop` já escolheu Wayland.
+        forcar_x11_para_webview();
+
         // Checagem de instância única ANTES de qualquer coisa (winit, GPU,
         // motor) — uma segunda tentativa só precisa pingar a primeira e sair,
         // não vale gastar nada além disso. Ver [`GlacierDaemon::single_instance`].
@@ -660,6 +706,16 @@ pub enum DaemonMessage {
     /// próprio app (servidor local, watcher, integração com o SO). Vai sempre
     /// para o motor da janela PRINCIPAL. Ver [`crate::external`].
     External(EngineMessage),
+    /// Uma janela de webview (`webview_ids`) foi redimensionada — a `wry`
+    /// não segue o tamanho da janela sozinha sob X11 (ver `crate::webview`),
+    /// então o daemon reposiciona manualmente. Ignorado para qualquer `Id`
+    /// fora de `webview_ids` (uma janela comum já resolve tamanho pelo
+    /// próprio layout do `iced`).
+    WebviewResized(window::Id, Size),
+    /// Tick para avançar o loop do GTK (ver `crate::webview::pump`) — só
+    /// registrado enquanto houver alguma janela de webview aberta. Sem
+    /// carga: o `update` só precisa saber que é hora de bombear.
+    WebviewPumpGtk,
 }
 
 /// Converte o `iced::theme::Mode` (preferência do SO) no enum do motor, sem
@@ -728,6 +784,23 @@ struct Runtime {
     /// Estilo builtin herdado de [`GlacierDaemon::style`], aplicado a cada
     /// motor novo (reabertura da principal e janelas-filhas).
     style: Option<crate::style::Style>,
+    /// Janelas de `open_window({ webview_url = ... })` cujo `window::open` já
+    /// devolveu o `Id`, mas cuja `wry::WebView` ainda não foi criada — drenado
+    /// no primeiro `DaemonMessage::Opened(id)` que bater aqui. Guarda a URL e
+    /// o tamanho lógico inicial: não há como consultar o tamanho real da
+    /// janela a partir do handle cru que `iced::window::run` entrega (ver
+    /// `crate::webview`). Só existe com a feature `webview` — sem ela,
+    /// `open_webview_child` nunca teria o que inserir aqui.
+    #[cfg(feature = "webview")]
+    pending_webviews: HashMap<window::Id, (String, (f32, f32))>,
+    /// Todo `window::Id` que é uma janela de webview PURA (sem `GlacierUI`
+    /// atrás — não roda `.gv`/`<script>`). `view`/`title`/`theme` já degradam
+    /// graciosamente para um `Id` ausente de `windows`, mas o daemon precisa
+    /// saber quais IDs são estes para (a) rotear `window::resize_events` só a
+    /// eles — as demais janelas resolvem tamanho pelo próprio layout do
+    /// `iced` — e (b) não contar uma webview fechada como "ainda tem janela
+    /// de verdade aberta" ao decidir encerrar o app (ver `DaemonMessage::Closed`).
+    webview_ids: std::collections::HashSet<window::Id>,
 }
 
 impl Runtime {
@@ -760,6 +833,9 @@ impl Runtime {
             main_shown: true,
             assets,
             style: None,
+            #[cfg(feature = "webview")]
+            pending_webviews: HashMap::default(),
+            webview_ids: std::collections::HashSet::default(),
         }
     }
 
@@ -770,7 +846,42 @@ impl Runtime {
             // bandeja, caso em que o motor segue vivo sob o `main_id` e só a
             // janela sumiu. É o que mantém um app de bandeja dirigível de fora.
             DaemonMessage::External(msg) => self.route(self.main_id, msg),
-            DaemonMessage::Opened(_) => Task::none(),
+            DaemonMessage::Opened(id) => {
+                // Só uma janela de `open_window({ webview_url = ... })` chega
+                // aqui com uma entrada em `pending_webviews` — nunca populada
+                // sem a feature `webview` (ver `open_webview_child`). A
+                // criação de verdade só pode acontecer dentro de
+                // `iced::window::run`: é o único lugar com acesso ao handle
+                // nativo da janela (ver `crate::webview::create`).
+                #[cfg(feature = "webview")]
+                if let Some((url, size)) = self.pending_webviews.remove(&id) {
+                    return iced::window::run(id, move |w| {
+                        crate::webview::create(id, w, &url, size);
+                    })
+                    .discard();
+                }
+                #[cfg(not(feature = "webview"))]
+                let _ = id;
+                Task::none()
+            }
+            DaemonMessage::WebviewResized(id, size) => {
+                #[cfg(feature = "webview")]
+                if self.webview_ids.contains(&id) {
+                    let wh = (size.width, size.height);
+                    return iced::window::run(id, move |_w| {
+                        crate::webview::resize(id, wh);
+                    })
+                    .discard();
+                }
+                #[cfg(not(feature = "webview"))]
+                let _ = (id, size);
+                Task::none()
+            }
+            DaemonMessage::WebviewPumpGtk => {
+                #[cfg(feature = "webview")]
+                crate::webview::pump();
+                Task::none()
+            }
             DaemonMessage::Closed(id) => {
                 // A janela PRINCIPAL fechando com bandeja: não encerra nem
                 // descarta o motor — **destaca-o** (headless), mantendo SSE +
@@ -789,7 +900,14 @@ impl Runtime {
                 self.titles.remove(&id);
                 self.base_titles.remove(&id);
                 self.sized_by.remove(&id);
-                if self.windows.is_empty() && self.tray.is_none() {
+                // Uma janela de webview não tem motor em `windows` (por isso
+                // precisa da limpeza própria), mas ainda conta como "janela de
+                // verdade aberta" para não encerrar o app debaixo dela.
+                if self.webview_ids.remove(&id) {
+                    #[cfg(feature = "webview")]
+                    crate::webview::destroy(id);
+                }
+                if self.windows.is_empty() && self.webview_ids.is_empty() && self.tray.is_none() {
                     iced::exit()
                 } else {
                     Task::none()
@@ -1078,6 +1196,13 @@ impl Runtime {
     /// Materializa um [`WindowSpec`] numa janela nova: constrói um motor fresco,
     /// abre a janela (o `Id` vem síncrono) e registra motor + título.
     fn open_child(&mut self, spec: WindowSpec) -> Task<DaemonMessage> {
+        // Uma webview não tem motor nenhum por trás — é uma janela nativa
+        // pura (ver `WindowSource::WebView`), então segue por um caminho bem
+        // mais curto, à parte do resto desta função (que é toda sobre montar
+        // um `GlacierUI`).
+        if let WindowSource::WebView(url) = spec.source {
+            return self.open_webview_child(url, spec.title, spec.size, spec.resizable);
+        }
         // O motor primeiro: é ele que sabe o que o `<screen>` do arquivo declara,
         // e a janela ainda não abriu — mesma janela de tempo que o boot usa para
         // a principal. Assim `open_window({ file = "detalhe.gv" })` herda título e
@@ -1092,6 +1217,8 @@ impl Runtime {
             WindowSource::File(path) => WindowSource::File(path.clone()),
             WindowSource::Named(name) => WindowSource::Named(name.clone()),
             WindowSource::Component(comp) => WindowSource::Named(comp.name().to_string()),
+            // Inalcançável: já retornamos acima para este caso.
+            WindowSource::WebView(url) => WindowSource::WebView(url.clone()),
         };
         let WindowSpec {
             source,
@@ -1136,6 +1263,58 @@ impl Runtime {
             self.sized_by.insert(id, entry);
         }
         self.windows.insert(id, engine);
+        open.map(DaemonMessage::Opened)
+    }
+
+    /// A metade de [`Runtime::open_child`] para `WindowSource::WebView`: abre
+    /// a janela do SO sem nenhum `GlacierUI` atrás dela. A `wry::WebView` em
+    /// si só é criada depois, quando `window::open` avisar que a janela
+    /// terminou de abrir (`DaemonMessage::Opened`) — é só então que
+    /// `iced::window::run` consegue um handle nativo para ela (ver
+    /// `crate::webview::create`).
+    fn open_webview_child(
+        &mut self,
+        url: String,
+        title: Option<String>,
+        size: Option<(f32, f32)>,
+        resizable: bool,
+    ) -> Task<DaemonMessage> {
+        eprintln!("[DEBUG] open_webview_child chamado, url={url}");
+        let (w, h) = size.unwrap_or((960.0, 600.0));
+        let mut settings = window::Settings {
+            size: Size::new(w, h),
+            resizable,
+            ..window::Settings::default()
+        };
+        if let Some(f) = &self.child_settings {
+            let echo = WindowSpec {
+                source: WindowSource::WebView(url.clone()),
+                title: title.clone(),
+                size,
+                resizable,
+                data: Vec::new(),
+            };
+            f(&echo, &mut settings);
+        }
+
+        let (id, open) = window::open(settings);
+        let base_title = title.unwrap_or_default();
+        self.titles.insert(id, base_title.clone());
+        self.base_titles.insert(id, base_title);
+
+        #[cfg(feature = "webview")]
+        {
+            self.webview_ids.insert(id);
+            self.pending_webviews.insert(id, (url, (w, h)));
+        }
+        #[cfg(not(feature = "webview"))]
+        {
+            eprintln!(
+                "open_window: `webview_url` pedido ({url}), mas o glacier-ui foi \
+                 compilado sem `--features webview` — a janela abriu sem conteúdo."
+            );
+        }
+
         open.map(DaemonMessage::Opened)
     }
 
@@ -1192,6 +1371,13 @@ impl Runtime {
                 crate::shortcut_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             window::close_events().map(DaemonMessage::Closed),
+            // A `wry` não redimensiona a webview sozinha sob X11 (ver
+            // `crate::webview::resize`); esta é a fonte que aciona esse
+            // reposicionamento. Registrada sempre (mesmo sem nenhuma janela
+            // de webview aberta) porque é barata e evita alternar a lista de
+            // subscriptions a cada `open_window`/fechamento — o handler no
+            // `update` já descarta qualquer `Id` fora de `webview_ids`.
+            window::resize_events().map(|(id, size)| DaemonMessage::WebviewResized(id, size)),
             // O pedido de fechar da WM (Alt+F4, botão da barra, logout) — chega
             // ANTES do fechamento, que é o único momento em que ainda dá para
             // consultar a geometria da janela para o gancho `on_close`. Só tem
@@ -1216,6 +1402,18 @@ impl Runtime {
             subs.push(iced::event::listen_with(|e, s, id| {
                 crate::cursor_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }));
+        }
+
+        // Bombeia o loop do GTK (ver `crate::webview::pump`) só enquanto
+        // alguma janela de webview estiver aberta — mesma economia condicional
+        // do cursor acima. 16ms ~ um quadro a 60Hz: rápido o bastante para a
+        // página parecer viva (scroll, vídeo, JS), sem gastar CPU à toa quando
+        // nenhuma webview existe.
+        if !self.webview_ids.is_empty() {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(16))
+                    .map(|_| DaemonMessage::WebviewPumpGtk),
+            );
         }
 
         // Cada tick força um redraw da tela inteira em TODAS as janelas (é
@@ -1414,6 +1612,13 @@ fn build_engine(
             // Não deveria acontecer: `run_on_owner` resolve `Named` para `File`.
             eprintln!("open_window: fonte 'Named({name})' não resolvida; janela vazia");
             name
+        }
+        WindowSource::WebView(url) => {
+            // Não deveria acontecer: `Runtime::open_child` desvia `WebView`
+            // para `open_webview_child` antes de chamar `build_engine` — uma
+            // webview não tem motor nenhum por trás.
+            eprintln!("open_window: 'WebView' chegou a build_engine ({url}); janela vazia");
+            url
         }
     };
     (engine, title)

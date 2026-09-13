@@ -95,6 +95,13 @@ pub struct PendingFetch {
     /// requisição inteira (conexão + resposta). Estourado, o resultado é um
     /// `FetchResult` com `ok = false` e `status = 0`. `None` = sem teto.
     pub(crate) timeout_ms: Option<u64>,
+    /// `download_file(url, caminho, opts?)`: quando presente, o corpo da
+    /// resposta é escrito CRU (sem passar por `String`/UTF-8) direto neste
+    /// caminho — o `body` do `FetchResult` volta vazio. É o caminho para
+    /// baixar um binário (uma thumbnail JPEG, por exemplo) sem corrompê-lo:
+    /// `fetch` decodifica a resposta como texto (`String::from_utf8_lossy`),
+    /// o que destrói bytes que não são UTF-8 válido.
+    pub(crate) download_to: Option<String>,
 }
 
 impl PendingFetch {
@@ -114,6 +121,7 @@ impl PendingFetch {
             headers,
             response_base64: false,
             timeout_ms: None,
+            download_to: None,
         }
     }
 }
@@ -334,6 +342,13 @@ pub enum WindowSource {
     /// para o caminho do arquivo (via `registered_components`) na hora da
     /// drenagem, de modo que a nova janela o carregue do zero, isolada.
     Named(String),
+    /// Uma URL carregada numa **webview nativa** que cobre a janela inteira —
+    /// sem `GlacierUI`/`.gv`/`<script>` nenhum por trás. Caminho da API Lua
+    /// (`open_window({ webview_url = "https://…" })`); exige o crate
+    /// compilado com `--features webview` (ver `src/webview.rs` e o
+    /// comentário da dependência `wry` no `Cargo.toml`) — sem a feature, o
+    /// pedido é ignorado com um aviso no terminal.
+    WebView(String),
 }
 
 /// Pedido de abrir uma nova janela, acumulado em [`Context`] durante o `update`
@@ -372,6 +387,12 @@ impl WindowSpec {
     /// Nova janela carregando um componente já registrado, pelo nome.
     pub fn named(name: impl Into<String>) -> Self {
         Self::from_source(WindowSource::Named(name.into()))
+    }
+
+    /// Nova janela cujo conteúdo inteiro é uma webview nativa carregando
+    /// `url` — ver [`WindowSource::WebView`].
+    pub fn webview(url: impl Into<String>) -> Self {
+        Self::from_source(WindowSource::WebView(url.into()))
     }
 
     fn from_source(source: WindowSource) -> Self {

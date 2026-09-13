@@ -166,10 +166,47 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
         .is_some_and(|v| v.to_ascii_lowercase().contains("gzip"));
     let raw = response.into_body().collect().await?.to_bytes();
     let bytes = if gzipped { gunzip(&raw)? } else { raw.to_vec() };
+    let ok = (200..300).contains(&status);
+
+    // `download_file`: grava os bytes crus no disco em vez de decodificá-los
+    // como texto — um `String::from_utf8_lossy` aqui destruiria um binário
+    // (JPEG, .zip) que não seja UTF-8 válido. Só grava em sucesso; uma
+    // resposta de erro (4xx/5xx) não é gravada, evitando um "cache" com uma
+    // página de erro no lugar da imagem.
+    if let Some(path) = &req.download_to {
+        if ok {
+            if let Some(parent) = std::path::Path::new(path).parent()
+                && !parent.as_os_str().is_empty()
+                && let Err(e) = tokio::fs::create_dir_all(parent).await
+            {
+                return Ok(FetchResult {
+                    ok: false,
+                    status,
+                    body: String::new(),
+                    error: e.to_string(),
+                });
+            }
+            if let Err(e) = tokio::fs::write(path, &bytes).await {
+                return Ok(FetchResult {
+                    ok: false,
+                    status,
+                    body: String::new(),
+                    error: e.to_string(),
+                });
+            }
+        }
+        return Ok(FetchResult {
+            ok,
+            status,
+            body: String::new(),
+            error: String::new(),
+        });
+    }
+
     let text = String::from_utf8_lossy(&bytes).into_owned();
 
     Ok(FetchResult {
-        ok: (200..300).contains(&status),
+        ok,
         status,
         body: text,
         error: String::new(),
@@ -506,6 +543,63 @@ mod tests {
             base64::prelude::BASE64_STANDARD.decode(&res.body).unwrap(),
             raw
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `download_file` ponta-a-ponta contra um servidor HTTP local: o corpo
+    /// (bytes não-UTF-8 de propósito, o que faria `String::from_utf8_lossy`
+    /// destruir o conteúdo) precisa chegar intacto no arquivo, e o `body` do
+    /// `FetchResult` precisa voltar vazio — o conteúdo foi para o disco, não
+    /// para a resposta. Mesmo padrão de servidor hermético do teste de SSE
+    /// acima.
+    #[test]
+    fn download_file_grava_bytes_crus_no_disco() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!("glacier-net-dl-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // O destino mora num subdiretório que ainda não existe, para conferir
+        // que `download_to` cria os pais que faltarem (mesma conveniência do
+        // `write_file`).
+        let dest = dir.join("cache/thumb.jpg");
+        let raw: &[u8] = &[0xff, 0xd8, 0xff, 0x00, 0xfe, 0x00, 0x01, 0x02];
+
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let body = raw.to_vec();
+
+            let server = tokio::spawn(async move {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 1024];
+                let _ = sock.read(&mut buf).await; // consome o request
+                let mut resp = format!(
+                    "HTTP/1.1 200 OK\r\n\
+                     Content-Type: application/octet-stream\r\n\
+                     Content-Length: {}\r\n\
+                     Connection: close\r\n\r\n",
+                    body.len()
+                )
+                .into_bytes();
+                resp.extend_from_slice(&body);
+                sock.write_all(&resp).await.unwrap();
+                sock.flush().await.unwrap();
+            });
+
+            let mut req = PendingFetch::new(1, format!("http://{addr}/thumb.jpg"), "GET".into(), None, Vec::new());
+            req.download_to = Some(dest.to_string_lossy().into_owned());
+            let res = perform(req).await;
+            let _ = server.await;
+
+            assert!(res.ok, "deveria baixar: erro={}", res.error);
+            assert_eq!(res.status, 200);
+            assert_eq!(res.body, "", "o corpo foi para o arquivo, não para a resposta");
+            assert_eq!(std::fs::read(&dest).unwrap(), raw);
+        });
 
         let _ = std::fs::remove_dir_all(&dir);
     }
