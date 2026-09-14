@@ -62,6 +62,26 @@ type CloseHook = Rc<dyn Fn(&GlacierUI, WindowGeometry)>;
 /// depois que ela fecha (o clique "Open Rustploy" da bandeja). Ver
 /// [`GlacierDaemon::main`].
 type SetupHook = Rc<dyn Fn(&mut GlacierUI)>;
+
+/// Templates que o `run` procura, nesta ordem, quando o app não chamou
+/// [`GlacierDaemon::main`] nem [`GlacierDaemon::main_template`].
+const DEFAULT_MAIN_TEMPLATES: [&str; 2] = ["./views/app.gv", "app.gv"];
+
+/// O `setup` de [`GlacierDaemon::main_template`]: registra `path` com o nome do
+/// arquivo sem extensão e o torna a tela inicial.
+fn template_setup(path: String) -> impl Fn(&mut GlacierUI) + 'static {
+    let name = std::path::Path::new(&path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.clone());
+    move |motor| {
+        if let Err(erro) = motor.register_component(&name, &path) {
+            eprintln!("{erro}");
+        }
+        motor.set_initial_screen(&name);
+    }
+}
+
 /// Gancho de clique num item do menu da bandeja: recebe o `id` do item e um
 /// [`TrayActions`] para pedir ações (abrir a principal, sair, mudar rótulo). Ver
 /// [`GlacierDaemon::on_tray`].
@@ -81,8 +101,10 @@ pub struct GlacierDaemon {
     child_settings: Option<ChildSettingsHook>,
     /// Configura o motor da janela principal (registra componentes, define a
     /// tela inicial, carrega `.gss`, …). Rodado na inicialização e de novo a
-    /// cada reabertura da principal pela bandeja.
-    setup: SetupHook,
+    /// cada reabertura da principal pela bandeja. `None` enquanto o app não
+    /// chamou `main` nem `main_template`; o `run` então usa um dos
+    /// `DEFAULT_MAIN_TEMPLATES`.
+    setup: Option<SetupHook>,
     /// Fontes embutidas a registrar no runtime do iced (bytes de `.ttf`/`.otf`).
     fonts: Vec<&'static [u8]>,
     /// Fonte padrão de todas as janelas, quando o app embute a sua.
@@ -167,8 +189,9 @@ fn forcar_x11_para_webview() {
 fn forcar_x11_para_webview() {}
 
 impl GlacierDaemon {
-    /// Novo runner com um `setup` vazio — chame [`GlacierDaemon::main`] para
-    /// configurar a janela principal antes de [`GlacierDaemon::run`].
+    /// Novo runner. Sem [`GlacierDaemon::main`] nem
+    /// [`GlacierDaemon::main_template`], o [`GlacierDaemon::run`] abre
+    /// `./views/app.gv` na janela principal ou, se ele não existir, `app.gv`.
     pub fn new() -> Self {
         Self {
             title: "Glacier".to_string(),
@@ -177,7 +200,7 @@ impl GlacierDaemon {
                 ..window::Settings::default()
             },
             child_settings: None,
-            setup: Rc::new(|_| {}),
+            setup: None,
             fonts: Vec::new(),
             default_font: None,
             on_message: None,
@@ -333,8 +356,35 @@ impl GlacierDaemon {
     /// Registra o `setup` da janela principal: recebe o [`GlacierUI`] dela para
     /// registrar componentes, definir a tela inicial, carregar estilos, etc.
     pub fn main(mut self, setup: impl Fn(&mut GlacierUI) + 'static) -> Self {
-        self.setup = Rc::new(setup);
+        self.setup = Some(Rc::new(setup));
         self
+    }
+
+    /// Atalho para o `setup` mais comum: registra o `.gv` em `path` como
+    /// componente, com o nome do arquivo sem extensão (`views/app.gv` → `app`),
+    /// e o torna a tela inicial. Equivale a
+    ///
+    /// ```no_run
+    /// # use glacier_ui::GlacierDaemon;
+    /// GlacierDaemon::new().main(|motor| {
+    ///     if let Err(erro) = motor.register_component("app", "app.gv") {
+    ///         eprintln!("{erro}");
+    ///     }
+    ///     motor.set_initial_screen("app");
+    /// });
+    /// ```
+    ///
+    /// Substitui o `setup`, como [`GlacierDaemon::main`]: quem precisa de mais
+    /// que isso (chamar `load_stylesheet`, registrar outros componentes) usa o
+    /// `.main`.
+    ///
+    /// Um erro de registro é impresso e não encerra o app, porque o `run` só
+    /// devolve `iced::Result` e não tem como carregar um erro do motor.
+    ///
+    /// Sem nenhuma chamada a `main` ou `main_template`, o `run` faz o mesmo com
+    /// `./views/app.gv` ou, se ele não existir, `app.gv`.
+    pub fn main_template(self, path: impl Into<String>) -> Self {
+        self.main(template_setup(path.into()))
     }
 
     /// Habilita um **ícone de bandeja** (system tray) — e, com ele, um app que
@@ -495,6 +545,17 @@ impl GlacierDaemon {
             single_instance_id: _,
         } = self;
         let main_title = title.clone();
+
+        // Sem `main` nem `main_template`: a principal é o primeiro template
+        // padrão que a fonte de assets tiver. Sem nenhum, fica o primeiro, e o
+        // erro do registro diz qual arquivo faltou.
+        let setup: SetupHook = setup.unwrap_or_else(|| {
+            let path = DEFAULT_MAIN_TEMPLATES
+                .iter()
+                .find(|p| assets.exists(p))
+                .unwrap_or(&DEFAULT_MAIN_TEMPLATES[0]);
+            Rc::new(template_setup(path.to_string()))
+        });
 
         // Diretório onde a geometria da principal é persistida (só quando o app
         // ligou `remember_window_geometry` E definiu um `storage_dir` — é lá que

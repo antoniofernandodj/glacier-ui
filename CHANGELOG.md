@@ -8,6 +8,27 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.105.0 — 2026-09-14
+
+O `GlacierDaemon` ganha um jeito curto de abrir a janela principal a partir de
+um `.gv`:
+
+- `main_template(path)` registra o arquivo como componente, com o nome sem
+  extensão (`views/app.gv` → `app`), e o torna a tela inicial. É o `setup` que
+  quase todo app escrevia à mão com `.main`.
+- Sem `.main` nem `.main_template`, o `run` usa `./views/app.gv` ou, se ele não
+  existir, `app.gv`. A checagem passa pela fonte de assets, então vale também
+  para assets embutidos. Se nenhum dos dois existir, o erro do registro diz qual
+  arquivo faltou.
+
+### Quebras
+
+- Um app que chamava `run` sem `.main` abria uma janela vazia. Agora ele tenta
+  registrar `./views/app.gv` e imprime um erro se não achar. Para manter a
+  janela vazia, passe `.main(|_| {})`.
+
+---
+
 ## glacier-ui 0.104.2 — 2026-09-13
 
 `fetch`/`http()` podiam ficar pendurados **indefinidamente** — nem sucesso,

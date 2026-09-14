@@ -1220,6 +1220,18 @@ Do lado Rust, os equivalentes são `Context::open_window` / `Context::broadcast`
 / `Context::close_window` e o método `Component::on_broadcast`. Veja
 [`examples/janelas_glacier`](examples/janelas_glacier).
 
+Quando a janela principal é só um `.gv`, `main_template` poupa o `setup`: ele
+registra o arquivo com o nome sem extensão (`views/app.gv` → `app`) e o torna a
+tela inicial. Para chamar `load_stylesheet` ou registrar mais componentes, use
+`.main`. Sem nenhum dos dois, o `run` abre `./views/app.gv` ou, se ele não
+existir, `app.gv`.
+
+```rust
+GlacierDaemon::new()
+    .main_template("views/app.gv")
+    .run()
+```
+
 ### Erros visíveis: `on_error`
 
 Um erro de runtime no script vira **visível** em vez de sumir num `eprintln!`.
