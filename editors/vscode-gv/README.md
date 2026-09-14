@@ -30,6 +30,8 @@ Language support for **Glacier View** (`.gv`), the XML markup of `glacier-ui`.
   | `on_click="dialog:editar"` | the `<dialog name="editar">` (or component/screen) it opens |
   | `<dialog buttons="Salvar:salvar:accept\|Voltar:dialog:editar:neutral">` | each button's action token — the `function`, or the chained `<dialog>` (the label and role keyword aren't linked) |
   | `<link rel="stylesheet" href="app.gss">`, `<style href=…>` | the GSS sheet |
+  | `class="cartao destaque"` | each class's `.cartao`/`.destaque` rule — in a linked sheet, an inline `<style>`, or (falling back) any other `.gss`/`<style>` in the workspace |
+  | `id="unico"` | the matching `#unico` rule, same search order |
   | `<link rel="import" href=…>`, `<import from=…>`, `<Include src=…>` | the imported template |
   | `<link rel="theme">` / `<link rel="data">` | the JSON file |
   | `<Image src=…>`, `<Svg src=…>` | the asset |
@@ -48,11 +50,22 @@ Language support for **Glacier View** (`.gv`), the XML markup of `glacier-ui`.
   missing file, a handler defined nowhere — is deliberately left unlinked, so a
   typo shows up as a missing underline.
 
+  `class`/`id` resolve the same way: this document's own `<link
+  rel="stylesheet">`/`<style>` first, then — since a linked sheet styles the
+  **whole app**, not just the file that links it (see `CLAUDE.md`'s markup
+  convention) — any other `.gss` file or `<style>` block anywhere in the
+  workspace, nearest one winning when a name repeats.
+
 - **Fechamento automático de tag** — terminar uma abertura com `>` já escreve o
   par: `<Column>` vira `<Column></Column>` com o cursor no meio. Vale para
   componentes do app também; fica de fora só o que o motor lê como folha
   (`<Image>`, `<Badge>`, `<Radio>`, …), que o markup sempre escreve com `/>`.
   Desliga em `glacierView.autoClosingTags`.
+- **Enter entre `<tag>` e `</tag>`** quebra o par em três linhas — a de cima
+  com a abertura, o cursor numa linha própria já indentada um nível, e o
+  fechamento descendo pra outra, de volta à indentação de fora — o mesmo que o
+  VS Code já faz pra `{ | }`. Antes o Enter só descia o `</tag>` pra uma linha
+  sem indentação nenhuma, colado no cursor.
 
 Starts simple, meant to grow (hovers, unknown-handler diagnostics, completion).
 

@@ -44,8 +44,22 @@
       <column class="painel">
         <text class="rotulo">Saturação</text>
         <row class="linha">
-          <gauge value="g_cpu" max="100" unit="%" label="CPU" bands="g_bands" needle="true" />
-          <gauge value="g_disco" max="100" unit="%" label="disco" bands="g_bands" needle="true" />
+          <gauge
+            value="g_cpu"
+            max="100"
+            unit="%"
+            label="CPU"
+            bands="g_bands"
+            needle="true"
+          />
+          <gauge
+            value="g_disco"
+            max="100"
+            unit="%"
+            label="disco"
+            bands="g_bands"
+            needle="true"
+          />
         </row>
       </column>
     </row>

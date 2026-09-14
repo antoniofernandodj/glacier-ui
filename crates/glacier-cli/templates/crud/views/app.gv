@@ -1,6 +1,6 @@
 <screen title="{{titulo}} — serviços" size="720 560" min_size="520 400">
   <resources>
-    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
     <script src="scripts/app.luau"></script>
   </resources>
@@ -16,9 +16,13 @@
     <row class="barra">
       <textinput class="busca" value="q" on_change="filtrar" placeholder="filtrar…" />
       <space />
-      <button class="btn_prim" text="Novo" on_click="novo" />
-      <button class="btn" text="Editar" on_click="editar" />
-      <button class="btn_danger" text="Excluir" on_click="excluir" />
+      <button
+        class="btn_prim"
+        text="Novo"
+        on_click="novo"
+      />
+      <button class="btn" on_click="editar">Editar</button>
+      <button class="btn_danger" on_click="excluir">Excluir</button>
     </row>
 
     <tableview
@@ -28,7 +32,7 @@
       sort="ordem"
       widths="larguras"
       height="fill"
-      width="fill" />
-
+      width="fill"
+    />
   </column>
 </screen>

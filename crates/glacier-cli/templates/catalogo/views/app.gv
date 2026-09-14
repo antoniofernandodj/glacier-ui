@@ -1,6 +1,6 @@
 <screen title="{{titulo}} — catálogo de widgets" size="1040 720" min_size="640 480">
   <resources>
-    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
 
     <script src="scripts/app.luau"></script>
@@ -42,7 +42,12 @@
     </drawer>
 
     <column class="conteudo">
-      <button class="menu_btn" text="☰" on_click="drawer::toggle:menu" tooltip="Abrir e fechar o menu" />
+      <button
+        class="menu_btn"
+        text="☰"
+        on_click="drawer::toggle:menu"
+        tooltip="Abrir e fechar o menu"
+      />
 
       <scrollable class="rota">
         <Botoes     if="{view}" equals="botoes" />

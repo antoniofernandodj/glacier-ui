@@ -13,6 +13,12 @@
 //                                           action token (label/role untouched)
 //       <link rel="stylesheet" href=…>   -> the .gss sheet
 //       <style href="…">                 -> idem
+//       class="cartao destaque"          -> each class's `.cartao`/`.destaque`
+//                                           rule, in a linked `.gss`, an inline
+//                                           <style>, or (falling back) any
+//                                           other sheet in the workspace
+//       id="unico"                       -> the matching `#unico` rule, same
+//                                           search order
 //       <link rel="import" href=…>,
 //       <import from=…>, <Include src=…> -> the imported template
 //       <link rel="theme|data" href=…>   -> the JSON file
@@ -302,6 +308,12 @@ const DIRECTIVE_ATTRS = new Set(
   ].map((a) => a.toLowerCase())
 );
 
+// `class`/`id` (src/parser.rs's `class`/`classe` and `id`/`identificador`) —
+// the attributes a `.gss` rule matches against. `class` holds a
+// whitespace-separated list; `id` a single name.
+const CLASS_ATTRS = new Set(["class", "classe"]);
+const ID_ATTRS = new Set(["id", "identificador"]);
+
 // `spread="{c}"` passa um objeto inteiro no lugar de um atributo por campo.
 // Como as diretivas, ele entra no markup mas não é uma prop — e, diferente
 // delas, ele também SUPRIME o diagnóstico de prop obrigatória: quem preenche as
@@ -420,6 +432,7 @@ function isActionAttr(name) {
 // What a workspace scan looks at, and what it never looks at.
 const TEMPLATE_GLOB = "**/*.{gv,xml}";
 const CODE_GLOB = "**/*.{rs,lua,luau}";
+const STYLE_GLOB = "**/*.gss";
 const EXCLUDE_GLOB = "**/{target,node_modules,.git,dist,out}/**";
 
 function escapeRe(s) {
@@ -614,6 +627,21 @@ function attrValue(tag, names) {
     if (wanted.includes(attr.name.toLowerCase())) return attr.value;
   }
   return undefined;
+}
+
+/**
+ * Yield `class="a b"`'s space-separated tokens as `{ name, start, end }`
+ * (absolute doc offsets, given `valueStart` — the offset the value's first
+ * character sits at, i.e. `attr.start`). A token holding `{…}` is a dynamic
+ * class (`class="{estado}"`) and is skipped — there's no literal name to link.
+ */
+function* classTokens(value, valueStart) {
+  const re = /\S+/g;
+  let m;
+  while ((m = re.exec(value)) !== null) {
+    if (m[0].includes("{")) continue;
+    yield { name: m[0], start: valueStart + m.index, end: valueStart + m.index + m[0].length };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1080,6 +1108,124 @@ function collectRustHandlers(text) {
 }
 
 // ---------------------------------------------------------------------------
+// GSS selectors — where `class="…"` / `id="…"` point to
+// ---------------------------------------------------------------------------
+
+/** `.gss` text with every C-style comment blanked to same-length spaces (newlines kept). */
+function maskGssComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+}
+
+/**
+ * Split a comma-separated selector list (the text right before a `{`) into its
+ * `.classe`/`#id` parts, pushing `{ name, kind: "class"|"id", start, end }`
+ * (offsets into the ORIGINAL `.gss` text, via `baseOffset`) onto `out` for each
+ * one. A bare tag selector (`Button`), a pseudo-state on its own (`:root`), or
+ * anything else with no `.`/`#` prefix is skipped — nothing in the markup's
+ * `class`/`id` attribute could ever point at it.
+ */
+function collectSelectorsIn(selText, baseOffset, out) {
+  let offset = 0;
+  for (const part of selText.split(",")) {
+    const partOffset = baseOffset + offset;
+    offset += part.length + 1; // + the comma split() ate
+    const m = /^(\s*)([.#]?)([^\s:]+)/.exec(part);
+    if (!m) continue;
+    const prefix = m[2];
+    const name = m[3];
+    if (prefix !== "." && prefix !== "#") continue;
+    const start = partOffset + m[1].length + 1; // +1 skips the . or #
+    out.push({ name, kind: prefix === "." ? "class" : "id", start, end: start + name.length });
+  }
+}
+
+/**
+ * Every class/id selector an `.gss` source declares, as
+ * `{ name, kind: "class"|"id", start, end }` — `start`/`end` span just the
+ * name, right after the `.`/`#`, so a link underlines only that.
+ *
+ * Walks brace depth like `src/stylesheet.rs::parse_gss_in` does: the text
+ * before a `{` at depth 0 is a selector list, same one level deeper when the
+ * enclosing block is `@media (…) { … }` (real selectors live inside one), and
+ * a plain declaration body otherwise — never scanned for selectors, so a
+ * property named e.g. `content: ".card"` can't be mistaken for one.
+ */
+function gssSelectors(gssText) {
+  const masked = maskGssComments(gssText);
+  const out = [];
+  const stack = []; // { isMedia } per open brace
+  let selStart = 0;
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
+    if (c === "{") {
+      const parentAllows = stack.length === 0 || stack[stack.length - 1].isMedia;
+      const selText = masked.slice(selStart, i);
+      if (parentAllows) collectSelectorsIn(selText, selStart, out);
+      stack.push({ isMedia: parentAllows && /^\s*@media\b/.test(selText) });
+      selStart = i + 1;
+    } else if (c === "}") {
+      stack.pop();
+      selStart = i + 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * All the `.gss` a document can reach: every inline `<style>` body (scoped or
+ * global — both style somewhere in this document's tree) and every external
+ * sheet named by `<link rel="stylesheet" href>` / `<style href>` (`rel`
+ * defaults to `stylesheet`, mirroring `localImports`; a `<style href>` is the
+ * engine's own sugar for a linked sheet — see `PATH_ATTRS.Style`). Returns
+ * `[{ uri, text, bodyStart, full }]`, `bodyStart` the offset the body sits at
+ * inside `full` (0 for a file) — the same shape `scriptSources` returns, for
+ * the same reason (translating an in-source offset back to a position).
+ */
+function styleSources(documentUri, text) {
+  const out = [];
+
+  const inlineRe =
+    /<style(?![^>]*\b(?:href|src|from|caminho)\s*=)[^>]*>([\s\S]*?)<\/style\s*>/gi;
+  let m;
+  while ((m = inlineRe.exec(text)) !== null) {
+    out.push({
+      uri: documentUri,
+      text: m[1],
+      bodyStart: m.index + m[0].indexOf(m[1]),
+      full: text,
+    });
+  }
+
+  for (const tag of iterTags(text)) {
+    if (tag.closing) continue;
+    const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
+    if (canon !== "Link" && canon !== "Style") continue;
+    if (canon === "Link") {
+      const rel = (attrValue(tag, ["rel", "tipo"]) || "stylesheet").toLowerCase();
+      if (rel !== "stylesheet") continue;
+    }
+    const p = resolveAssetPath(documentUri, attrValue(tag, PATH_ATTRS[canon]));
+    if (!p) continue;
+    const content = readFileCached(p);
+    if (content === null) continue;
+    out.push({ uri: vscode.Uri.file(p), text: content, bodyStart: 0, full: content });
+  }
+
+  return out;
+}
+
+/** The first `.name`/`#name` rule among `sources` (see `styleSources`), or null. */
+function findGssSelector(sources, kind, name) {
+  for (const src of sources) {
+    const sel = gssSelectors(src.text).find((s) => s.kind === kind && s.name === name);
+    if (sel) {
+      return new vscode.Location(src.uri, offsetToPosition(src.full, src.bodyStart + sel.start));
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Component resolution
 // ---------------------------------------------------------------------------
 
@@ -1306,6 +1452,12 @@ async function buildWorkspaceIndex() {
   // path is built at runtime instead of written as a literal).
   const rustByTemplate = new Map();
   const rustByDir = new Map();
+  // `.gss` selectors declared anywhere in the workspace — external sheets and
+  // every template's inline `<style>` bodies. A linked sheet applies
+  // globally in the engine, so a class used by a component that carries no
+  // `<link>` of its own (the common case: only the app's root screen links
+  // one) still needs to resolve somewhere.
+  const gssRules = new Map(); // ".name" | "#name" -> [{ fsPath, offset, position }]
 
   const templates = await vscode.workspace.findFiles(TEMPLATE_GLOB, EXCLUDE_GLOB, 2000);
   const byBasename = new Map(); // "inicio.gv" -> its full paths
@@ -1319,6 +1471,8 @@ async function buildWorkspaceIndex() {
     }
   }
   const inlineScriptRe = /<script(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
+  const inlineStyleRe =
+    /<style(?![^>]*\b(?:href|src|from|caminho)\s*=)[^>]*>([\s\S]*?)<\/style\s*>/gi;
   for (const uri of templates) {
     const text = readFileCached(uri.fsPath);
     if (text === null) continue;
@@ -1338,6 +1492,31 @@ async function buildWorkspaceIndex() {
           position: offsetToPosition(text, hit.offset),
         });
       }
+    }
+    inlineStyleRe.lastIndex = 0;
+    let st;
+    while ((st = inlineStyleRe.exec(text)) !== null) {
+      const bodyStart = st.index + st[0].indexOf(st[1]);
+      for (const sel of gssSelectors(st[1])) {
+        indexAdd(gssRules, (sel.kind === "class" ? "." : "#") + sel.name, {
+          fsPath: uri.fsPath,
+          offset: bodyStart + sel.start,
+          position: offsetToPosition(text, bodyStart + sel.start),
+        });
+      }
+    }
+  }
+
+  const styleFiles = await vscode.workspace.findFiles(STYLE_GLOB, EXCLUDE_GLOB, 2000);
+  for (const uri of styleFiles) {
+    const text = readFileCached(uri.fsPath);
+    if (text === null) continue;
+    for (const sel of gssSelectors(text)) {
+      indexAdd(gssRules, (sel.kind === "class" ? "." : "#") + sel.name, {
+        fsPath: uri.fsPath,
+        offset: sel.start,
+        position: offsetToPosition(text, sel.start),
+      });
     }
   }
 
@@ -1403,7 +1582,7 @@ async function buildWorkspaceIndex() {
       }
     }
   }
-  return { components, handlers, luaKeys, rustByTemplate, rustByDir };
+  return { components, handlers, luaKeys, rustByTemplate, rustByDir, gssRules };
 }
 
 /** The `.rs` files that back `documentUri` — its renderer, or its neighbours. */
@@ -1421,8 +1600,19 @@ function rustFilesFor(index, documentUri) {
  * with the document wins.
  */
 function resolveContextKeyInWorkspaceLua(index, documentUri, key) {
-  const hits = index.luaKeys.get(key) || [];
-  if (!hits.length) return null;
+  const best = nearestHit(index.luaKeys.get(key), documentUri);
+  return best ? new vscode.Location(vscode.Uri.file(best.fsPath), best.position) : null;
+}
+
+/**
+ * Among `hits` (each carrying an `fsPath`), the one sharing the most leading
+ * path segments with `documentUri` — the tie-breaker every workspace-wide
+ * lookup uses when a name repeats (a context key, a `.gss` class): the engine
+ * has one global namespace for each, so the nearest declaration is the one
+ * most likely meant. Returns null for an empty/missing list.
+ */
+function nearestHit(hits, documentUri) {
+  if (!hits || !hits.length) return null;
   const dir = documentUri.scheme === "file" ? path.dirname(documentUri.fsPath) : "";
   let best = hits[0];
   let bestDepth = -1;
@@ -1433,7 +1623,7 @@ function resolveContextKeyInWorkspaceLua(index, documentUri, key) {
       bestDepth = depth;
     }
   }
-  return new vscode.Location(vscode.Uri.file(best.fsPath), best.position);
+  return best;
 }
 
 /** The context key `key`, looked up in the Rust that backs this template. */
@@ -1629,6 +1819,7 @@ async function provideDocumentLinks(document) {
   const comments = commentRanges(text);
   const imports = localImports(document.uri, text);
   const scripts = scriptSources(document.uri, text);
+  const styles = styleSources(document.uri, text);
   // Context keys the template's own Lua writes — one pass, reused below.
   const luaWrites = contextWritesIn(scripts);
   const links = [];
@@ -1636,6 +1827,7 @@ async function provideDocumentLinks(document) {
   const pendingComponents = [];
   const pendingHandlers = [];
   const pendingKeys = [];
+  const pendingSelectors = [];
 
   const range = (start, end) =>
     new vscode.Range(document.positionAt(start), document.positionAt(end));
@@ -1857,6 +2049,27 @@ async function provideDocumentLinks(document) {
       links.push(link);
     }
 
+    // 3b. class="cartao destaque" / id="unico": each name is a `.gss`
+    //     selector. Local sheets (this document's `<link>`/`<style>`) are
+    //     tried first; a class defined only in another sheet falls back to
+    //     the workspace index — styles apply globally in the engine, so a
+    //     screen with no `<link>` of its own commonly still uses classes an
+    //     `app.gss` loaded elsewhere declares.
+    for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+      const lower = attr.name.toLowerCase();
+      const kind = CLASS_ATTRS.has(lower) ? "class" : ID_ATTRS.has(lower) ? "id" : null;
+      if (!kind) continue;
+      for (const t of classTokens(attr.value, attr.start)) {
+        const link = new vscode.DocumentLink(range(t.start, t.end));
+        const prefix = kind === "class" ? "." : "#";
+        link.tooltip = `Go to ${prefix}${t.name}`;
+        const local = findGssSelector(styles, kind, t.name);
+        if (local) link.target = uriAt(local.uri, local.range.start);
+        else pendingSelectors.push({ link, kind, name: t.name });
+        links.push(link);
+      }
+    }
+
     // 4. Navigation attributes: navigateTo="perfil" -> the screen's template.
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
       if (!NAV_ATTRS.has(attr.name.toLowerCase())) continue;
@@ -1913,11 +2126,20 @@ async function provideDocumentLinks(document) {
     links.push(link);
   }
 
-  if (pendingComponents.length || pendingHandlers.length || pendingKeys.length) {
+  if (
+    pendingComponents.length ||
+    pendingHandlers.length ||
+    pendingKeys.length ||
+    pendingSelectors.length
+  ) {
     const index = await workspaceIndex();
     for (const { link, name } of pendingComponents) {
       const p = lookupComponent(index, imports, name, document.uri);
       if (p) link.target = uriAt(p);
+    }
+    for (const { link, kind, name } of pendingSelectors) {
+      const hit = nearestHit(index.gssRules.get((kind === "class" ? "." : "#") + name), document.uri);
+      if (hit) link.target = uriAt(hit.fsPath, hit.position);
     }
     const rustKey = new Map(); // key -> Location | null, resolved once
     for (const { link, key, builtin, dialogDraft } of pendingKeys) {
@@ -1995,6 +2217,7 @@ async function provideDocumentLinks(document) {
  *   { kind: "key", name }            — a context key: `{chave}` or a binding
  *   { kind: "path", value }          — a path attribute's value
  *   { kind: "tag", name, canonical } — a tag name
+ *   { kind: "class"|"styleId", name } — a token in class="…" / id="…"
  * or null.
  */
 function classify(document, position) {
@@ -2054,6 +2277,14 @@ function classify(document, position) {
         }
         for (const r of dialogButtonRoles(attr.value)) {
           if (rel >= r.start && rel <= r.end) return { kind: "dialogRole", name: r.role };
+        }
+        return null;
+      }
+      // Inside class="a b" / id="unico": which token is the cursor on?
+      if (CLASS_ATTRS.has(lower) || ID_ATTRS.has(lower)) {
+        const kind = CLASS_ATTRS.has(lower) ? "class" : "styleId";
+        for (const t of classTokens(attr.value, attr.start)) {
+          if (offset >= t.start && offset <= t.end) return { kind, name: t.name };
         }
         return null;
       }
@@ -2148,6 +2379,20 @@ async function resolveDefinition(document, position) {
   if (hit.kind === "dialogRole") {
     const doc = referenceLocation(DIALOG_ROLE_HEADING);
     return doc ? [doc] : undefined;
+  }
+
+  if (hit.kind === "class" || hit.kind === "styleId") {
+    const selKind = hit.kind === "class" ? "class" : "id";
+    const local = findGssSelector(styleSources(document.uri, text), selKind, hit.name);
+    if (local) return [local];
+    const index = await workspaceIndex();
+    const nearest = nearestHit(
+      index.gssRules.get((selKind === "class" ? "." : "#") + hit.name),
+      document.uri
+    );
+    return nearest
+      ? [new vscode.Location(vscode.Uri.file(nearest.fsPath), nearest.position)]
+      : undefined;
   }
 
   if (hit.kind === "path") {
@@ -2337,6 +2582,14 @@ function tagToClose(text, gtOffset) {
  * isso também o par `<`/`>` saiu de `autoClosingPairs` no
  * language-configuration.json: com o `>` já auto-inserido, digitá-lo apenas
  * sobrescreve o caractere e change nenhum chega aqui.
+ *
+ * O par que sobra aberto quando o Enter vem logo em seguida — cursor entre
+ * `<element>` e `</element>` — é quem as `onEnterRules` do mesmo
+ * `language-configuration.json` quebram em três linhas (a mesma coisa que o
+ * VS Code já faz pra `{ | }`). Armadilha: no JSON a chave é `action.indent`,
+ * não `action.indentAction` (esse é o nome da API TypeScript). Com o nome
+ * errado o VS Code descarta a regra só com um `console.warn`, e o Enter volta
+ * ao indent default sem erro visível no editor.
  */
 async function autoCloseTag(event) {
   const doc = event.document;
@@ -2372,7 +2625,7 @@ function activate(context) {
   extensionPath = context.extensionPath;
   const definitionProvider = { provideDefinition: resolveDefinition };
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gv,xml,rs,lua,luau}");
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gv,xml,rs,lua,luau,gss}");
   watcher.onDidCreate(invalidateWorkspaceIndex);
   watcher.onDidDelete(invalidateWorkspaceIndex);
   watcher.onDidChange(invalidateWorkspaceIndex);

@@ -1,9 +1,9 @@
 <screen title="{{titulo}}" size="980 640" min_size="560 420">
   <resources>
-    <link rel="theme"      href="views/styles/theme.json" />
+    <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
 
-    <link rel="import" href="home.gv"  as="Home" />
+    <link rel="import" href="home.gv" as="Home" />
     <link rel="import" href="sobre.gv" as="Sobre" />
     <link rel="import" href="components/nav_item.gv" as="NavItem" />
 
@@ -51,8 +51,8 @@
             <text class="titlebar_ponto">*</text>
             <text class="titlebar_nome">{{titulo}}</text>
           </row>
-          <button class="win_btn"    text="—" on_click="window:minimize" />
-          <button class="win_btn"    text="▢" on_click="window:maximize" />
+          <button class="win_btn" text="—" on_click="window:minimize" />
+          <button class="win_btn" text="▢" on_click="window:maximize" />
           <button class="win_fechar" text="✕" on_click="window:close" />
         </row>
 

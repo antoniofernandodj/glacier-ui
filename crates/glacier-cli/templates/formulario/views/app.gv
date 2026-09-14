@@ -72,14 +72,28 @@
         </column>
         <column class="grupo">
           <text class="rotulo">Nascimento</text>
-          <dateedit class="campo" value="f_nasc" format="br" calendar_popup="true" today="{hoje}" />
+          <dateedit
+            class="campo"
+            value="f_nasc"
+            format="br"
+            calendar_popup="true"
+            today="{hoje}"
+          />
         </column>
       </row>
 
       <column class="grupo">
         <text class="rotulo">UF</text>
-        <select class="campo" options="f_ufs" form_control="f_uf" rules="required" msg="escolha a UF" />
-        <text class="erro" if="{erro_f_uf}" not_empty>{erro_f_uf}</text>
+        <select
+          class="campo"
+          options="f_ufs"
+          form_control="f_uf"
+          rules="required"
+          msg="escolha a UF"
+        />
+        <text class="erro" if="{erro_f_uf}" not_empty>
+          {erro_f_uf}
+        </text>
       </column>
 
       <checkbox
@@ -88,13 +102,19 @@
         rules="accepted"
         msg="é preciso aceitar os termos"
       />
-      <text class="erro" if="{erro_f_aceite}" not_empty>{erro_f_aceite}</text>
+      <text class="erro" if="{erro_f_aceite}" not_empty>
+        {erro_f_aceite}
+      </text>
 
       <text class="status">{f_status}</text>
 
       <row class="acoes">
-        <button type="reset"  class="btn-limpar" on_click="limpar" text="Limpar" />
-        <button type="submit" class="btn-salvar" text="Salvar" />
+        <button type="reset" class="btn-limpar" on_click="limpar">
+          Limpar
+        </button>
+        <button type="submit" class="btn-salvar">
+          Salvar
+        </button>
       </row>
     </form>
   </column>

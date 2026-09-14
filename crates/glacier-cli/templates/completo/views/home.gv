@@ -13,14 +13,18 @@
     </column>
 
     <row class="linha_cards">
-      <StatCard rotulo="ITENS"  valor="{total}" />
+      <StatCard rotulo="ITENS" valor="{total}" />
       <StatCard rotulo="ATIVOS" valor="{ativos}" destaque="1" />
-      <StatCard rotulo="IP"     valor="{ip}" />
+      <StatCard rotulo="IP" valor="{ip}" />
     </row>
 
     <row class="barra">
-      <button class="btn_primario" text="Buscar meu IP" on_click="buscar_ip" />
-      <button class="btn_ghost"    text="Alternar o primeiro" on_click="alternar_primeiro" />
+      <button class="btn_primario" on_click="buscar_ip">
+        Buscar meu IP
+      </button>
+      <button class="btn_ghost" on_click="alternar_primeiro">
+        Alternar o primeiro
+      </button>
       <text class="apagado">{status}</text>
     </row>
 
@@ -33,6 +37,5 @@
     </column>
 
     <text class="apagado" if="{total}" equals="0">nenhum item</text>
-
   </column>
 </component>
