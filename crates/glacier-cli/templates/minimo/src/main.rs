@@ -1,6 +1,6 @@
-use glacier_ui::GlacierDaemon;
+use glacier_ui::{GlacierDaemon, iced::Result};
 
-fn main() -> glacier_ui::iced::Result {
-    let daemon = GlacierDaemon::new();
-    daemon.run()
+fn main() -> Result {
+    GlacierDaemon::new()
+        .run()
 }

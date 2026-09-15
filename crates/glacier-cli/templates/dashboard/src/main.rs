@@ -7,11 +7,5 @@ use glacier_ui::GlacierDaemon;
 
 fn main() -> glacier_ui::iced::Result {
     GlacierDaemon::new()
-        .main(|motor| {
-            if let Err(erro) = motor.register_component("app", "views/app.gv") {
-                eprintln!("{erro}");
-            }
-            motor.set_initial_screen("app");
-        })
         .run()
 }
