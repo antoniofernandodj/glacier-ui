@@ -6007,6 +6007,11 @@ pub fn render_node<'a>(
             text(format!("Unresolved component <{}>", name)).color(Color::from_rgb(1.0, 0.0, 0.0)),
         )
         .into(),
+        NodeType::Render { component, .. } => container(
+            text(format!("Unresolved <render component=\"{}\">", component))
+                .color(Color::from_rgb(1.0, 0.0, 0.0)),
+        )
+        .into(),
         NodeType::ForEach { .. } => {
             // TODO(diretivas): forma legada por tag; preferir atributos if/else/for-each. Remover quando templates forem migrados.
             // ForEach is expanded during evaluation; nothing to render directly.

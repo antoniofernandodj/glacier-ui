@@ -1,0 +1,122 @@
+<screen title="Glacier - Componentes por atributo (Luau)" size="900 720">
+  <resources>
+    <link rel="theme" href="examples/componentes_por_atributo_luau/theme.json" />
+    <link rel="stylesheet" href="examples/componentes_por_atributo_luau/app.gss" />
+    <script src="script.luau"></script>
+
+    <!-- Cabeçalhos. Qual deles a Vitrine desenha é decidido pelo script, em
+      `ctx.cabecalho` — o nome de um componente também é dado. -->
+    <component name="TituloGrande">
+      <props>
+        <prop name="titulo" />
+        <prop name="total" />
+      </props>
+      <row class="cabecalho">
+        <text class="cabecalho-titulo">{titulo}</text>
+        <space />
+        <badge badge_text="{total}" />
+      </row>
+    </component>
+
+    <component name="TituloCompacto">
+      <props>
+        <prop name="titulo" />
+        <prop name="total" />
+      </props>
+      <row class="cabecalho">
+        <text class="cabecalho-discreto">{titulo} · {total}</text>
+      </row>
+    </component>
+
+    <component name="LinhaContato">
+      <props>
+        <prop name="id" />
+        <prop name="nome" />
+        <prop name="email" />
+        <prop name="rotulo" default="Favoritar" />
+        <prop name="acao" default="favoritar" />
+      </props>
+      <row class="linha">
+        <column class="linha-dados">
+          <text class="linha-texto">{nome}</text>
+          <text class="linha-email">{email}</text>
+        </column>
+        <button class="linha-botao" text="{rotulo}" on_click="{acao}:{id}" />
+      </row>
+    </component>
+
+    <!-- Dois fallbacks para a MESMA lista: o script escolhe em `ctx.vazio`
+      conforme o motivo de ela estar vazia. -->
+    <component name="NenhumContato">
+      <column class="vazio">
+        <text class="vazio-titulo">Nenhum contato ainda</text>
+        <text class="vazio-nota">Clique em “Adicionar contato”.</text>
+      </column>
+    </component>
+
+    <component name="BuscaSemResultado">
+      <column class="vazio">
+        <text class="vazio-titulo">Ninguém casa com “{busca}”</text>
+        <text class="vazio-nota">Apague a busca para ver todos.</text>
+      </column>
+    </component>
+
+    <component name="SemFavoritos">
+      <column class="vazio">
+        <text class="vazio-titulo">Sem favoritos</text>
+        <text class="vazio-nota">Use “Favoritar” numa linha acima.</text>
+      </column>
+    </component>
+
+    <import name="Vitrine" from="vitrine.gv" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Componentes por atributo — Luau</text>
+      <space />
+      <text class="status">{status}</text>
+    </row>
+    <rule />
+
+    <scrollable class="rolagem">
+      <column class="corpo">
+        <row class="acoes">
+          <button text="Adicionar contato" on_click="adicionar" />
+          <button class="btn-fraco" text="Remover todos" on_click="remover_todos" />
+          <button class="btn-fraco" text="Trocar cabeçalho" on_click="trocar_cabecalho" />
+        </row>
+
+        <textinput
+          class="filtro"
+          value="busca"
+          on_change="filtrar"
+          placeholder="Buscar por nome…"
+        />
+
+        <Vitrine
+          titulo="Contatos"
+          total="{total}"
+          itens="visiveis"
+          cabecalho="{cabecalho}"
+          linha="LinhaContato"
+          vazio="{vazio}"
+        />
+
+        <column class="coluna">
+          <text class="secao">Favoritos</text>
+          <text class="nota">A tag &lt;foreach&gt; com um fallback literal.</text>
+          <foreach items="favoritos" var="f" fallback="SemFavoritos">
+            <LinhaContato
+              id="{f.id}"
+              nome="{f.nome}"
+              email="{f.email}"
+              rotulo="Desfavoritar"
+              acao="desfavoritar"
+            />
+          </foreach>
+        </column>
+      </column>
+    </scrollable>
+  </column>
+</screen>

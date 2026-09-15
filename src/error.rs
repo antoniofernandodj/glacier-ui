@@ -234,6 +234,17 @@ pub enum GlacierError {
     /// "nenhum campo", e a prop obrigatória que faltar erra como `MissingProp`,
     /// que aponta o problema com mais precisão.
     InvalidSpread { component: String, value: String },
+    /// Uma prop declarada `<prop component name="…" />` recebeu um valor que
+    /// não é o nome de um componente registrado.
+    ///
+    /// Conferida na fronteira do componente, e não só quando o `<render>` ou o
+    /// `fallback` a desenha: sem isto, um typo no fallback de uma lista que
+    /// nunca esvazia não erraria nunca.
+    NotAComponent {
+        component: String,
+        prop: String,
+        value: String,
+    },
 }
 
 impl fmt::Display for GlacierError {
@@ -305,6 +316,16 @@ impl fmt::Display for GlacierError {
                 } else {
                     value.clone()
                 }
+            ),
+            Self::NotAComponent {
+                component,
+                prop,
+                value,
+            } => write!(
+                f,
+                "a prop '{prop}' de '{component}' recebe um componente (<prop component>), e \
+                 '{value}' não é um componente registrado: confira o nome no <resources>, no \
+                 <import> ou no register"
             ),
         }
     }

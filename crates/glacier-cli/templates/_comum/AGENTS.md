@@ -197,6 +197,20 @@ sem criar uma caixa em volta deles:
 </template>
 ```
 
+Para **repetir vários nós**, a tag é `<foreach>` — e ela aceita `fallback`, o
+componente que aparece no lugar da lista quando ela está vazia:
+
+```xml
+<foreach items="visiveis" var="s" fallback="NenhumServico">
+  <text class="nome">{s.nome}</text>
+  <rule />
+</foreach>
+```
+
+`<template foreach="…">` repete do mesmo jeito, mas lá o atributo se chama
+`foreach_fallback`: o `<template>` também é `if`/`else`, e um `fallback` solto
+nele leria como "senão". Os detalhes estão em "Estrutura de template".
+
 Comparadores disponíveis nos dois: `equals`, `not_equals`, `one_of` (lista
 separada por espaço, no atributo), `contains` (o inverso — a lista está na
 chave), `empty` e `not_empty` (que testam um **array JSON**, não uma string).
@@ -282,7 +296,8 @@ cada dez telas. São três arquivos.
 ```lua
 -- views/scripts/servicos.luau
 --!strict
---!nolint FunctionUnused   -- o motor chama estas funções pelo nome; o lsp não vê
+--!nolint FunctionUnused
+-- (o motor chama estas funções pelo nome; o lsp não vê a chamada)
 
 type Servico = { id: string, nome: string, ativo: boolean }
 
@@ -620,6 +635,42 @@ O `<props>` é um **contrato**: com ele declarado, uma prop que ninguém declaro
 vira erro na hora (é onde um `labl="…"` deixa de ser invisível), e uma
 obrigatória que faltou também. Sem `<props>`, nada é checado — a regra antiga
 continua valendo para quem não quer o contrato.
+
+**Componente recebido por atributo.** Uma prop pode levar o **nome de outro
+componente**, e o template o desenha com `<render>` ou o usa de `fallback`:
+
+```xml
+<component>
+  <props>
+    <prop name="titulo" />
+    <prop name="itens" />                        <!-- o NOME da chave -->
+    <prop component name="cabecalho" />          <!-- o valor é um componente -->
+    <prop component name="vazio" default="" />   <!-- opcional -->
+  </props>
+
+  <column>
+    <render component="{cabecalho}" titulo="{titulo}" />
+    <foreach items="{itens}" var="i" fallback="{vazio}">
+      <text>{i.nome}</text>
+    </foreach>
+  </column>
+</component>
+```
+```xml
+<Lista titulo="Serviços" itens="servicos" cabecalho="TituloGrande" vazio="NenhumServico" />
+```
+
+- `<render component="{x}" …/>` é a tag `<X …/>` com o nome vindo de dado: os
+  outros atributos são as props dele e os filhos vão para o `<slot/>` dele. Nome
+  que interpola para vazio não desenha nada; nome não registrado é erro.
+- `<prop component name="…" />` — o marcador vai **sem valor** — diz que a prop
+  é um componente. O motor confere o nome no uso (escrito, de `{chave}`, do
+  `default` ou do `spread`) mesmo que nada o desenhe ainda, e a extensão do VS
+  Code faz o valor virar link para a declaração. Sem o marcador funciona igual,
+  mas o valor é só texto: sem checagem no uso e sem link. `component="X"` com
+  valor é erro de parse — o nome vem de quem usa.
+- O nome também pode vir do script: `ctx.cabecalho = "TituloCompacto"` troca o
+  componente na tela, sem condicional no markup.
 
 Três formas de trazer outro template:
 
@@ -1818,7 +1869,47 @@ Termine sempre com um `<template else>` quando o valor puder ser inesperado.
 | `{s}` | o item é um escalar (string ou número na lista) |
 | `{s.__dragging}` | `"true"` enquanto **este** item está sendo arrastado |
 
-Um `<template for-each>` repete o **conteúdo** sem criar uma caixa em volta.
+Para repetir **vários** nós sem criar uma caixa em volta, há duas tags — a
+dedicada e o `<template>`:
+
+```xml
+<foreach items="servicos" var="s" fallback="NenhumServico">
+  <text class="nome">{s.nome}</text>
+  <Badge badge_text="{s.estado}" />
+</foreach>
+
+<template foreach="servicos" var="s" foreach_fallback="NenhumServico">
+  <text class="nome">{s.nome}</text>
+</template>
+```
+
+**O que aparece quando a lista está vazia.** O fallback é um **nome de
+componente** — declarado no `<resources>`, importado ou registrado — desenhado
+no lugar da lista quando a chave guarda um array vazio ou ainda não guarda array
+nenhum (a mesma leitura do `empty`). Ele entra sem props, no contexto de quem
+escreveu a repetição, e enxerga as chaves da tela: um `SemResultado` pode
+mostrar `nada casa com “{busca}”`.
+
+| onde | atributo |
+|---|---|
+| `<foreach>` | `fallback` |
+| `<template foreach>` | `foreach_fallback` (ou `foreach-fallback`) |
+| `for-each` num elemento | não existe — ali `fallback` seria uma prop do componente repetido |
+
+O nome no `<template>` é mais longo de propósito: ele também é `if`/`else`/
+`slot`, e `fallback` ali leria como "senão". Por isso `fallback` num
+`<template>` é **erro de parse**, e `foreach_fallback` num `<template>` sem
+`foreach` também.
+
+O nome interpola (`fallback="{vazio}"`, que é como um componente repassa o que
+recebeu por prop) e é conferido **a cada avaliação**, com a lista cheia ou não:
+um typo erra na primeira vez que a tela aparece, e não no dia em que a lista
+esvazia. Vazio depois de interpolar é "sem fallback".
+
+Prefira o fallback a um `<text if="{itens}" empty>` ao lado da lista quando o
+"vazio" tem cara própria (título, dica, um botão): ele mora num componente, e a
+lista não precisa de condicional em volta.
+
 Para reordenar arrastando, o par é `on_reorder` (a ação) + `reorder_key` (o
 campo que identifica o item); `drag_handle` restringe o arrasto a um filho.
 
@@ -2271,6 +2362,11 @@ Todas silenciosas — nenhuma dá erro:
   exatamente esse o bug que deixou o `<SplashScreen>` visível para sempre.
 - **`empty`/`not_empty` testam array JSON, não texto.** Num valor que não
   parseia como array, `empty` é sempre verdadeiro.
+- **Nome de componente que já é apelido de tag nunca é alcançado.** O motor
+  mapeia a tag antes de procurar componentes: `Painel` é apelido do `<popover>`,
+  então `<component name="Painel">` é ignorado e `<Painel/>` vira um popover
+  vazio. Antes de batizar um componente com um substantivo comum em português,
+  confira que ele não é uma tag.
 - **`<pageindicator>` é uma tag, não um `dots="true"`.**
 - **Conteúdo que passa da janela some sem barra.** Se a tela pode crescer, ela
   precisa de `<scrollable>` — e a coluna dentro dele **não** pode ter
@@ -2292,7 +2388,8 @@ como um script é escrito.
 
 ```lua
 --!strict
---!nolint FunctionUnused   -- sem isto, o lsp acusa todo handler como código morto
+--!nolint FunctionUnused
+-- (sem isto, o lsp acusa todo handler como código morto)
 
 -- HANDLER: global, porque é o motor que chama, pelo nome da ação.
 function salvar(): ()
@@ -2314,7 +2411,9 @@ e não há erro nenhum. Handler é `function nome()`; auxiliar é
 
 O `--!nolint FunctionUnused` existe porque o luau-lsp não enxerga a chamada
 vinda do motor e reportaria todos os handlers como não usados — é o único aviso
-falso que um projeto novo produz.
+falso que um projeto novo produz. Ele precisa ficar **sozinho na linha**: um
+comentário depois dele (`--!nolint FunctionUnused -- porque…`) é lido como parte
+do nome da regra, a diretiva deixa de valer e os avisos voltam.
 
 ### `init` roda no registro, não ao aparecer a tela
 

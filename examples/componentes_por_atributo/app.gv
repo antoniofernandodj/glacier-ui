@@ -1,0 +1,140 @@
+<screen title="Glacier - Componentes por atributo" size="980 720">
+  <resources>
+    <link rel="theme" href="examples/componentes_por_atributo/theme.json" />
+    <link rel="stylesheet" href="examples/componentes_por_atributo/app.gss" />
+
+    <!-- ======================================================================
+      Os componentes abaixo não são usados por tag nesta tela: eles viajam
+      por ATRIBUTO até a <Vitrine>, que decide onde cada um aparece.
+
+          <Vitrine cabecalho="TituloDestaque" linha="LinhaTarefa"
+                  vazio="ListaVazia" … />
+      ====================================================================== -->
+
+    <!-- Cabeçalhos: a Vitrine recebe um deles em `cabecalho`. -->
+    <component name="TituloDestaque">
+      <props>
+        <prop name="titulo" />
+        <prop name="total" />
+      </props>
+      <row class="cabecalho">
+        <text class="cabecalho-titulo">{titulo}</text>
+        <space />
+        <badge badge_text="{total}" />
+      </row>
+    </component>
+
+    <component name="TituloDiscreto">
+      <props>
+        <prop name="titulo" />
+        <prop name="total" />
+      </props>
+      <row class="cabecalho">
+        <text class="cabecalho-discreto">{titulo} · {total}</text>
+      </row>
+    </component>
+
+    <!-- Linhas: a Vitrine repete uma delas por item, em `linha`. -->
+    <component name="LinhaTarefa">
+      <props>
+        <prop name="id" />
+        <prop name="texto" />
+        <prop name="rotulo" default="Concluir" />
+        <prop name="acao" default="concluir" />
+      </props>
+      <row class="linha">
+        <text class="linha-texto">{texto}</text>
+        <button class="linha-botao" text="{rotulo}" on_click="{acao}:{id}" />
+      </row>
+    </component>
+
+    <component name="LinhaCompra">
+      <props>
+        <prop name="texto" />
+      </props>
+      <row class="linha">
+        <text class="linha-marca">•</text>
+        <text class="linha-texto">{texto}</text>
+      </row>
+    </component>
+
+    <!-- Fallbacks: o que aparece quando a lista está vazia. -->
+    <component name="ListaVazia">
+      <column class="vazio">
+        <text class="vazio-titulo">Nada por aqui</text>
+        <text class="vazio-nota">Adicione um item e a lista volta a aparecer.</text>
+      </column>
+    </component>
+
+    <!-- Um fallback enxerga o contexto de quem escreveu o <foreach>: o
+      `{filtro}` abaixo é a chave da tela. -->
+    <component name="SemResultado">
+      <column class="vazio">
+        <text class="vazio-titulo">Nenhuma compra casa com “{filtro}”</text>
+        <text class="vazio-nota">Apague o filtro para ver a lista inteira.</text>
+      </column>
+    </component>
+
+    <import name="Vitrine" from="vitrine.gv" />
+  </resources>
+
+  <column class="tela">
+    <row class="barra">
+      <text class="titulo">Componentes por atributo</text>
+      <space />
+      <text class="status">{status}</text>
+    </row>
+    <rule />
+
+    <scrollable class="rolagem">
+      <column class="corpo">
+        <row class="colunas">
+          <column class="coluna">
+            <row class="acoes">
+              <button text="Adicionar tarefa" on_click="adicionar" />
+              <button class="btn-fraco" text="Limpar" on_click="limpar" />
+            </row>
+            <!-- A MESMA Vitrine duas vezes, com componentes diferentes em cada
+              papel. -->
+            <Vitrine
+              titulo="Tarefas"
+              total="{total_tarefas}"
+              itens="tarefas"
+              cabecalho="TituloDestaque"
+              linha="LinhaTarefa"
+              vazio="ListaVazia"
+            />
+          </column>
+
+          <column class="coluna">
+            <textinput
+              class="filtro"
+              value="filtro"
+              on_change="filtrar"
+              placeholder="Filtrar compras…"
+            />
+            <Vitrine
+              titulo="Compras"
+              total="{total_compras}"
+              itens="compras_filtradas"
+              cabecalho="TituloDiscreto"
+              linha="LinhaCompra"
+              vazio="SemResultado"
+            />
+          </column>
+        </row>
+
+        <column class="coluna">
+          <text class="secao">Concluídas</text>
+          <text class="nota">
+            Aqui o fallback é literal, no foreach_fallback de um &lt;template foreach&gt;
+            escrito direto na tela.
+          </text>
+          <template foreach="concluidas" var="c" foreach_fallback="ListaVazia">
+            <LinhaTarefa id="{c.id}" texto="{c.texto}" rotulo="Reabrir" acao="reabrir" />
+          </template>
+        </column>
+      </column>
+    </scrollable>
+  </column>
+</screen>

@@ -575,6 +575,111 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
   como perceber que ele mudou. Custo desprezível — são os containers da tela —,
   mesma exceção que uma lista reordenável já tinha.
 
+## Componente recebido por atributo: `<render>`
+
+O `<slot/>` recebe **markup**. Às vezes o que um componente precisa receber é
+**outro componente** — o cabeçalho de uma lista, a linha que ela repete, o que
+aparece quando ela está vazia — escolhido por quem usa. A prop leva o **nome**
+do componente, e o `<render>` o desenha:
+
+```xml
+<!-- no uso -->
+<Vitrine itens="tarefas" cabecalho="TituloDestaque" linha="LinhaTarefa" vazio="ListaVazia" />
+```
+```xml
+<!-- no template da Vitrine -->
+<render component="{cabecalho}" titulo="{titulo}" />
+<foreach items="{itens}" var="item" fallback="{vazio}">
+  <render component="{linha}" spread="{item}" />
+</foreach>
+```
+
+- O nome interpola no contexto de quem escreveu o `<render>`. Dali em diante o
+  nó **é** a tag `<TituloDestaque …/>`: os outros atributos são as props, os
+  filhos são o conteúdo do slot, `class`/`id` viram overlay e a guarda de
+  recursão vale.
+- Nome que resolve para vazio não desenha nada — é o componente opcional
+  (`<prop name="rodape" default="" />`).
+- Nome que não está registrado é `UnknownComponent`. Vale qualquer nome do
+  espaço de componentes: declarado no `<resources>`, importado, registrado pelo
+  app ou builtin.
+- `<renderizar>` é apelido; o nome aceita `component`, `componente` ou `is`.
+- `spread="{item}"` combina bem com linhas intercambiáveis: cada componente
+  recebe só os campos que **ele** declara no `<props>`.
+
+### Declarar a prop como componente: `<prop component>`
+
+```xml
+<props>
+  <prop component name="cabecalho" />
+  <prop component name="vazio" default="" />
+  <prop name="titulo" />
+</props>
+```
+
+O marcador sem valor diz que a prop recebe o **nome de um componente**. O uso
+não muda (`cabecalho="TituloDestaque"`), e ganha duas coisas:
+
+- **O motor confere o nome na fronteira do componente**, venha ele escrito,
+  de `{chave}`, do `default` ou de um `spread` — mesmo que nada o desenhe
+  naquele quadro. Um nome que não está registrado é
+  `NotAComponent`, com a prop e o valor na mensagem. Vazio é "nenhum
+  componente".
+- **A extensão do VS Code linka o valor**: Ctrl+clique em
+  `cabecalho="TituloDestaque"` leva à declaração, e o F12 também. Numa prop
+  sem o marcador o valor continua sendo texto, sem link.
+
+`componente` é apelido. Escrito com valor (`component="Titulo"`) é erro de
+parse: o nome vem de quem usa, não do `<prop>`.
+
+## Lista vazia: `fallback`
+
+`<foreach>` aceita `fallback` (apelido `reserva`): o componente desenhado **no
+lugar** da lista quando ela não tem item nenhum — array vazio, ou a chave ainda
+sem array (a mesma leitura do `<if empty>`).
+
+```xml
+<foreach items="concluidas" var="c" fallback="ListaVazia">
+  <LinhaTarefa spread="{c}" />
+</foreach>
+```
+
+No `<template>` o atributo se chama **`foreach_fallback`** (ou
+`foreach-fallback`):
+
+```xml
+<template foreach="concluidas" var="c" foreach_fallback="ListaVazia">
+  <LinhaTarefa spread="{c}" />
+</template>
+```
+
+O nome é mais longo de propósito. O `<template>` também é `if`, `else-if`,
+`else` e `slot`, e um `fallback` solto num `<template if>` leria como "senão".
+Com o papel no nome não há o que adivinhar — e `fallback` num `<template>` é
+erro de parse, que aponta para `foreach_fallback`.
+
+- O valor é um **nome de componente**, literal ou interpolado
+  (`fallback="{vazio}"`, que é como um componente repassa o que recebeu por
+  prop). Resolveu para vazio: sem fallback.
+- O componente entra sem props, no contexto e com o dono de quem escreveu o
+  `<foreach>`: ele enxerga as chaves da tela e as props do componente em volta
+  (um `SemResultado` pode mostrar `{filtro}`).
+- O nome é conferido a **cada avaliação**, com a lista cheia ou não. Um
+  `fallback="LsitaVazia"` erra na primeira vez que a tela aparece, e não no dia
+  em que a lista esvaziar.
+- `foreach_fallback` num `<template>` sem `foreach` também é erro de parse.
+- O atributo `for-each` de um elemento (`<Cartao for-each="…"/>`) não aceita
+  nenhum dos dois: ali `fallback` seria uma prop do componente repetido.
+
+### Armadilha: nome de componente que já é apelido de primitiva
+
+O parser mapeia a tag **antes** de procurar componentes. `Painel` é apelido do
+`<popover>`, então um `<component name="Painel">` nunca é alcançado:
+`<Painel …/>` vira um popover vazio, sem erro. Os exemplos
+`componentes_por_atributo` usam `Vitrine` por isso. Antes de batizar um
+componente com um substantivo comum em português, procure o nome entre as tags
+de `parser.rs`.
+
 ## Um builtin que é o corpo de um diálogo (0.94)
 
 Três builtins da Onda 8 — `__InputDialog`, `__ProgressDialog` e `__ColorDialog`

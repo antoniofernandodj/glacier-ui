@@ -1,0 +1,140 @@
+<screen title="Glacier - Pedidos (foreach + fallback)" size="980 640" min_size="760 480">
+  <resources>
+    <link rel="theme" href="examples/foreach_fallback/theme.json" />
+    <link rel="stylesheet" href="examples/foreach_fallback/app.gss" />
+
+    <!-- Um pedido. As props `acao`/`rotulo` dizem o que o botão faz nesta
+      etapa: a mesma peça serve às três colunas. -->
+    <component name="CartaoPedido">
+      <props>
+        <prop name="id" />
+        <prop name="mesa" />
+        <prop name="prato" />
+        <prop name="acao" />
+        <prop name="rotulo" />
+      </props>
+      <column class="pedido">
+        <row class="pedido-topo">
+          <text class="pedido-mesa">Mesa {mesa}</text>
+          <space />
+          <text class="pedido-id">#{id}</text>
+        </row>
+        <text class="pedido-prato">{prato}</text>
+        <button class="pedido-botao" text="{rotulo}" on_click="{acao}:{id}" />
+      </column>
+    </component>
+
+    <!-- Uma etapa da cozinha. `itens` é o NOME da chave com a lista, e `vazio`
+      é o componente que aparece quando ela não tem pedido nenhum — ele
+      chega por atributo e vai direto para o `fallback` do <foreach>. -->
+    <component name="Etapa">
+      <props>
+        <prop name="titulo" />
+        <prop name="total" />
+        <prop name="itens" />
+        <prop component name="vazio" />
+        <prop name="acao" />
+        <prop name="rotulo" />
+      </props>
+      <column class="etapa">
+        <row class="etapa-topo">
+          <text class="etapa-titulo">{titulo}</text>
+          <space />
+          <badge badge_text="{total}" />
+        </row>
+        <rule />
+        <foreach items="{itens}" var="p" fallback="{vazio}">
+          <CartaoPedido
+            id="{p.id}"
+            mesa="{p.mesa}"
+            prato="{p.prato}"
+            acao="{acao}"
+            rotulo="{rotulo}"
+          />
+        </foreach>
+      </column>
+    </component>
+
+    <!-- Os fallbacks: um por etapa, cada um dizendo o que a lista vazia
+      significa ali. -->
+    <component name="FilaVazia">
+      <column class="vazio">
+        <text class="vazio-titulo">Nenhum pedido na fila</text>
+        <text class="vazio-nota">Clique em “Novo pedido”.</text>
+      </column>
+    </component>
+
+    <component name="NadaNoFogo">
+      <column class="vazio">
+        <text class="vazio-titulo">Fogão livre</text>
+        <text class="vazio-nota">Mande um pedido da fila.</text>
+      </column>
+    </component>
+
+    <component name="NadaPronto">
+      <column class="vazio">
+        <text class="vazio-titulo">Nada esperando o garçom</text>
+      </column>
+    </component>
+
+    <component name="SemEntregas">
+      <column class="vazio">
+        <text class="vazio-titulo">Nenhuma entrega ainda</text>
+      </column>
+    </component>
+  </resources>
+
+  <column class="tela">
+    <row class="topo">
+      <text class="titulo">Pedidos</text>
+      <space />
+      <text class="status">{status}</text>
+    </row>
+    <row class="acoes">
+      <button class="btn-prim" text="Novo pedido" on_click="novo" />
+      <button class="btn" text="Limpar tudo" on_click="limpar" />
+    </row>
+    <rule />
+
+    <scrollable class="rolagem">
+      <column class="corpo">
+        <!-- A mesma Etapa três vezes, cada uma com a sua lista e o seu
+          componente de "vazio". -->
+        <row class="etapas">
+          <Etapa
+            titulo="Na fila"
+            total="{total_fila}"
+            itens="fila"
+            vazio="FilaVazia"
+            acao="preparar"
+            rotulo="Preparar"
+          />
+          <Etapa
+            titulo="No fogo"
+            total="{total_preparo}"
+            itens="preparo"
+            vazio="NadaNoFogo"
+            acao="finalizar"
+            rotulo="Pronto"
+          />
+          <Etapa
+            titulo="Prontos"
+            total="{total_prontos}"
+            itens="prontos"
+            vazio="NadaPronto"
+            acao="entregar"
+            rotulo="Entregar"
+          />
+        </row>
+
+        <!-- E o <foreach> direto na tela, com o fallback literal. -->
+        <column class="historico">
+          <text class="secao">Entregues</text>
+          <foreach items="entregues" var="e" fallback="SemEntregas">
+            <text class="entregue">#{e.id} · mesa {e.mesa} · {e.prato}</text>
+          </foreach>
+        </column>
+      </column>
+    </scrollable>
+  </column>
+</screen>

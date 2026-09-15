@@ -185,6 +185,8 @@ const NATIVE_TAGS = {
   ElseIf: ["elseif", "else-if", "senaose", "senao-se"],
   Else: ["else", "senao"],
   Template: ["template", "gabarito"],
+  // `<render component="{x}"/>` — o componente cujo nome veio por prop.
+  Render: ["render", "renderizar"],
   Link: ["link"],
   Style: ["style", "stylesheet"],
   Script: ["script"],
@@ -333,6 +335,27 @@ const NAV_ATTRS = new Set(
     s.toLowerCase()
   )
 );
+
+// Attributes whose value NAMES A COMPONENT, per native tag — each set mirrors
+// the list src/parser.rs reads for that tag:
+//   <foreach fallback="ListaVazia">                  FALLBACK_ATTRS
+//   <template foreach="…" foreach_fallback="…">     TEMPLATE_FALLBACK_ATTRS
+//   <render component="Cabecalho">                   RENDER_COMPONENT_ATTRS
+// Per tag, not global: `fallback` on a component tag is an ordinary prop, and a
+// bare `fallback` on a <template> is a parse error, not a reference.
+const FOREACH_FALLBACK_ATTRS = new Set(["fallback", "reserva"]);
+const TEMPLATE_FALLBACK_ATTRS = new Set([
+  "foreach_fallback", "foreach-fallback", "for_each_fallback", "for-each-fallback",
+]);
+const RENDER_COMPONENT_ATTRS = new Set(["component", "componente", "is"]);
+
+/** The component-naming attributes of native tag `canon`, or null. */
+function componentRefAttrs(canon) {
+  if (canon === "ForEach") return FOREACH_FALLBACK_ATTRS;
+  if (canon === "Template") return TEMPLATE_FALLBACK_ATTRS;
+  if (canon === "Render") return RENDER_COMPONENT_ATTRS;
+  return null;
+}
 
 // Attributes whose bare value is a context key rather than a literal (from the
 // `get_attr` lists in src/parser.rs). Everything else reaches the context
@@ -1363,7 +1386,16 @@ function propsFromText(text) {
     const name = attrs.name || attrs.nome;
     if (!name) continue;
     const padrao = attrs.default ?? attrs.padrao ?? attrs["padrão"];
-    props.push({ name, default: padrao });
+    // `<prop component name="vazio" />`: o valor da prop é o NOME de um
+    // componente. O marcador é um atributo sem valor (o motor o normaliza para
+    // `component=""`), que `iterAttrs` não enxerga — daí a busca no texto da
+    // tag, com os valores entre aspas apagados antes.
+    const semValores = m[1].replace(/"[^"]*"|'[^']*'/g, '""');
+    const component =
+      "component" in attrs ||
+      "componente" in attrs ||
+      /(^|\s)componente?(?=[\s/>]|$)/i.test(semValores);
+    props.push({ name, default: padrao, component });
   }
   return props;
 }
@@ -1832,6 +1864,25 @@ async function provideDocumentLinks(document) {
   const range = (start, end) =>
     new vscode.Range(document.positionAt(start), document.positionAt(end));
 
+  // A literal component name in an attribute value -> its declaration. Only
+  // the name is underlined. A `<component name>` declared in this file's
+  // <resources> comes first — it has no file, so the workspace index would
+  // never find it —, then `<import>`, then the index. `{vazio}` is left alone:
+  // that name only exists at runtime.
+  const linkComponentValue = (attr) => {
+    const name = attr.value.trim();
+    if (!name || name.includes("{")) return;
+    const start = attr.start + attr.value.indexOf(name);
+    const link = new vscode.DocumentLink(range(start, start + name.length));
+    link.tooltip = `Open component ${name}`;
+    const local = localDefine(text, name);
+    const direct = imports.get(name.toLowerCase());
+    if (local) link.target = uriAt(document.uri, document.positionAt(local.nameStart));
+    else if (direct) link.target = uriAt(direct);
+    else pendingComponents.push({ link, name });
+    links.push(link);
+  };
+
   for (const tag of iterTags(text, comments)) {
     if (tag.closing) continue;
     const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
@@ -2083,6 +2134,16 @@ async function provideDocumentLinks(document) {
       links.push(link);
     }
 
+    // 4b. A component named by value on a native tag: <foreach
+    //     fallback="ListaVazia">, <template foreach_fallback="…">, <render
+    //     component="…">. See `linkComponentValue`.
+    const refAttrs = componentRefAttrs(canon);
+    if (refAttrs) {
+      for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+        if (refAttrs.has(attr.name.toLowerCase())) linkComponentValue(attr);
+      }
+    }
+
     // 5. Component tag: <PerfilCard/> -> the file declaring it.
     if (!canon) {
       const link = new vscode.DocumentLink(
@@ -2093,6 +2154,19 @@ async function provideDocumentLinks(document) {
       if (direct) link.target = uriAt(direct);
       else pendingComponents.push({ link, name: tag.name });
       links.push(link);
+
+      // 5b. A prop the component declares `<prop component name="…" />`: its
+      //     value names a component (<Etapa vazio="FilaVazia">). Which props
+      //     those are is read from the component's own <props>.
+      const props = await propsForTag(document, tag.name).catch(() => null);
+      const componentProps = new Set(
+        (props || []).filter((p) => p.component).map((p) => p.name.toLowerCase())
+      );
+      if (componentProps.size) {
+        for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+          if (componentProps.has(attr.name.toLowerCase())) linkComponentValue(attr);
+        }
+      }
     }
   }
 
@@ -2268,6 +2342,13 @@ function classify(document, position) {
         const name = attr.value.trim();
         return name ? { kind: "tag", name, canonical: undefined } : null;
       }
+      // `fallback`/`foreach_fallback`/`component` — see `componentRefAttrs`.
+      // Resolves like a component tag, local `<component name>` first.
+      if (componentRefAttrs(canon)?.has(lower)) {
+        const name = attr.value.trim();
+        if (!name || name.includes("{")) return null;
+        return { kind: "tag", name, canonical: undefined };
+      }
       // Inside a <dialog buttons="…"> value: which button's action — or role
       // keyword — is under the cursor? (The label classifies as nothing.)
       if (canon === "DialogDef" && DIALOG_BUTTONS_ATTRS.has(lower)) {
@@ -2289,6 +2370,15 @@ function classify(document, position) {
         return null;
       }
       if (wanted.includes(lower)) return { kind: "path", value: attr.value };
+      // Any other attribute of a component tag may be a `<prop component>`.
+      // Whether it is depends on the component's <props>, which only the
+      // (async) definition resolver reads — see "componentProp" there.
+      if (!canon) {
+        const name = attr.value.trim();
+        if (name && !name.includes("{")) {
+          return { kind: "componentProp", tagName: tag.name, attrName: attr.name, name };
+        }
+      }
       return null;
     }
   }
@@ -2400,6 +2490,15 @@ async function resolveDefinition(document, position) {
     return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;
   }
 
+  // <Etapa vazio="FilaVazia">: only a prop declared `<prop component …/>` names
+  // a component; any other prop value is plain text, with nothing to open.
+  if (hit.kind === "componentProp") {
+    const props = await propsForTag(document, hit.tagName);
+    const lower = hit.attrName.toLowerCase();
+    const prop = (props || []).find((p) => p.name.toLowerCase() === lower);
+    if (!prop || !prop.component) return undefined;
+  }
+
   // tag
   if (hit.canonical) return resolveNative(hit.canonical);
   // Declarado no próprio arquivo (`<component name="X">` no `<resources>`):
@@ -2480,8 +2579,12 @@ async function refreshDiagnostics(document, collection) {
         temSpread = true;
         continue;
       }
-      if (DIRECTIVE_ATTRS.has(nome)) continue;
+      // Conta como passada ANTES de pular as diretivas, como o motor: o
+      // `MissingProp` dele olha todo atributo escrito, e só a checagem de prop
+      // desconhecida ignora diretivas. Sem isto, uma prop cujo nome também é
+      // apelido de diretiva (`vazio`, de `empty`) aparecia como faltando.
       passadas.add(nome);
+      if (DIRECTIVE_ATTRS.has(nome)) continue;
       if (nomes.has(nome)) continue;
       const range = new vscode.Range(
         document.positionAt(attr.start - attr.name.length - 2),

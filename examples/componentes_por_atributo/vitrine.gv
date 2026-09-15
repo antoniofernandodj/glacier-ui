@@ -1,0 +1,36 @@
+<component>
+  <!-- Um componente que recebe OUTROS componentes por atributo.
+
+    `cabecalho`, `linha` e `vazio` não são texto para mostrar: são NOMES de
+    componentes já declarados no <resources> de quem usa a Vitrine (ou
+    importados, ou registrados pelo app). A Vitrine não conhece nenhum deles —
+    ela só decide ONDE cada um aparece. -->
+  <props>
+    <prop name="titulo" />
+    <prop name="total" default="0" />
+    <!-- O nome da CHAVE que guarda a lista, não a lista. -->
+    <prop name="itens" />
+    <prop component name="cabecalho" />
+    <prop component name="linha" />
+    <!-- Opcional: vazio, a lista sem itens simplesmente não desenha nada. -->
+    <prop component name="vazio" default="" />
+  </props>
+
+  <column class="vitrine">
+    <!-- `<render>` desenha o componente cujo nome está na prop. Os outros
+      atributos são as props DELE, como numa tag escrita à mão. -->
+    <render component="{cabecalho}" titulo="{titulo}" total="{total}" />
+    <rule />
+
+    <column class="vitrine-lista">
+      <!-- `fallback` recebe o componente que chegou por atributo: com a lista
+        vazia (ou a chave ainda sem array), é ele que aparece.
+
+        `spread="{item}"` entrega a cada linha só os campos que ELA declara,
+        então linhas diferentes podem ler campos diferentes do mesmo item. -->
+      <foreach items="{itens}" var="item" fallback="{vazio}">
+        <render component="{linha}" spread="{item}" />
+      </foreach>
+    </column>
+  </column>
+</component>

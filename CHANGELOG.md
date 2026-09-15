@@ -8,6 +8,65 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.106.0 · CLI 0.5.12 — 2026-09-15
+
+Um componente passa a receber **outros componentes** por atributo, e as listas
+ganham o que mostrar quando estão vazias.
+
+- `<render component="{x}" …/>` desenha o componente cujo nome está numa prop
+  ou chave. Os demais atributos são as props dele, os filhos são o conteúdo do
+  slot e `class`/`id` viram overlay, como numa tag escrita à mão. Nome vazio não
+  desenha nada; nome não registrado é `UnknownComponent`. Apelidos:
+  `<renderizar>`, e `componente`/`is` no lugar de `component`.
+- `<prop component name="vazio" />` declara que a prop recebe o nome de um
+  componente. A fronteira do componente confere o nome no uso (escrito, de
+  `{chave}`, do `default` ou do `spread`) e erra com `NotAComponent` se ele não
+  estiver registrado; vazio é "nenhum componente". `component` com valor é erro
+  de parse.
+- `<foreach fallback="Nome">` (apelido `reserva`) e `<template foreach="…"
+  foreach_fallback="Nome">` (ou `foreach-fallback`): o componente desenhado
+  quando a lista está vazia ou a chave ainda não guarda um array. O nome pode ser
+  literal ou interpolado (`fallback="{vazio}"`, o componente que chegou por
+  prop), e é conferido a cada avaliação — um typo erra mesmo com a lista cheia.
+  No `<template>`, que também é `if`/`else`/`slot`, o nome carrega o papel:
+  `fallback` ali é erro de parse, assim como `foreach_fallback` sem `foreach`.
+- Exemplos `componentes_por_atributo` (lógica em Rust) e
+  `componentes_por_atributo_luau` (lógica em Luau), e o par
+  `foreach_fallback`/`foreach_fallback_luau`: uma cozinha em que cada etapa é
+  um `<foreach fallback>` com o componente de "vazio" recebido por atributo.
+- Extensão do VS Code: `<render>` é reconhecido como tag, e `fallback`/
+  `foreach_fallback`/`component` com nome literal viram link para o componente,
+  assim como o valor de uma prop declarada `<prop component>`. O diagnóstico de
+  prop obrigatória deixou de acusar uma prop cujo nome também é apelido de
+  diretiva (`vazio`).
+- `docs/BUILTINS.md` documenta as duas coisas, e a armadilha de batizar um
+  componente com um apelido de primitiva (`Painel` é o `<popover>`).
+
+### CLI 0.5.12
+
+- O `AGENTS.md` dos projetos novos documenta `<foreach fallback>`,
+  `<template foreach_fallback>`, `<render>` e `<prop component>`, e a armadilha
+  do nome de componente que já é apelido de tag (`Painel`).
+- Corrigido no `AGENTS.md`: o exemplo escrevia `--!nolint FunctionUnused` com
+  um comentário na mesma linha, o que desliga a diretiva e traz de volta o aviso
+  de handler não usado.
+- Os templates `dashboard` e `minimo` usam o `run` padrão da 0.105, sem `.main`.
+- Embute a extensão Glacier View 0.19.7.
+- `make install-extensions` fixa o `@vscode/vsce` em 3.9.2: a 4.x exige Node ≥ 22
+  e quebrava com `ERR_REQUIRE_ESM` no Node 20.
+
+### Quebras
+
+- `NodeType::ForEach` ganhou o campo `fallback: Option<String>`, e `NodeType`
+  ganhou a variante `Render`. Código que constrói `ForEach { items, var }` ou faz
+  `match` exaustivo sobre `NodeType` precisa do campo novo (ou de `..`) e de um
+  braço para `Render`.
+- `render`/`Render`/`renderizar`/`Renderizar` passam a ser tags do motor. Um
+  componente do app registrado com um desses nomes deixa de ser alcançável pela
+  tag: renomeie-o.
+
+---
+
 ## glacier-ui 0.105.0 — 2026-09-14
 
 O `GlacierDaemon` ganha um jeito curto de abrir a janela principal a partir de

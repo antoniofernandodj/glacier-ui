@@ -175,7 +175,20 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                     // accepts it. Longest word first so a shorter word that
                     // happens to be a PREFIX of a longer one (there isn't
                     // one today, but keep the invariant) never shadows it.
-                    const BARE_WORDS: &[&str] = &["not_empty", "senao", "empty", "else", "vazio"];
+                    //
+                    // `component`/`componente` é o marcador de
+                    // `<prop component name="vazio" />` (ver `PropDecl`).
+                    // `componente` vem antes: `component` é prefixo dele, e o
+                    // laço para no primeiro que casa.
+                    const BARE_WORDS: &[&str] = &[
+                        "not_empty",
+                        "componente",
+                        "component",
+                        "senao",
+                        "empty",
+                        "else",
+                        "vazio",
+                    ];
 
                     let mut matched_len = None;
                     let mut replaced_with = None;
@@ -1299,18 +1312,26 @@ fn expand_children(
             | NodeType::Resources
             | NodeType::Props(_)
             | NodeType::Prop => {}
-            NodeType::ForEach { items, var } => {
+            NodeType::ForEach {
+                items,
+                var,
+                fallback,
+            } => {
                 let items_evaluated = process_tpl(items, context);
+                let fallback = resolve_fallback(fallback.as_deref(), context, templates)?;
                 // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
                 // itself (a plain node attribute, same as `onPress`/`cursor`).
                 let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
                 let on_reorder = child
                     .on_reorder()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
-                if let Some(arr) = context
+                // Lista vazia e chave sem array são o mesmo caso para o
+                // `fallback` — a mesma leitura do `<if empty>`.
+                let arr = context
                     .get(&items_evaluated)
                     .and_then(|bruto| cache.array(&items_evaluated, bruto))
-                {
+                    .filter(|arr| !arr.is_empty());
+                if let Some(arr) = arr {
                     let full_order: Vec<String> = match &reorder_key {
                         Some(rk) => arr
                             .iter()
@@ -1372,6 +1393,10 @@ fn expand_children(
                         }
                         out.extend(item_out);
                     }
+                } else if let Some(nome) = fallback {
+                    expand_fallback(
+                        child, &nome, context, templates, styles, scope, owner, out, cache,
+                    )?;
                 }
                 last_if = None;
             }
@@ -1483,6 +1508,80 @@ fn expand_children(
                 last_if = None;
             }
         }
+    }
+    Ok(())
+}
+
+/// FNV-1a de uma string. Mistura um nome de componente resolvido na avaliação
+/// ao `node_id` do nó que o escreveu (ver [`expand_fallback`] e o `<render>` em
+/// [`eval_owned`]): o cache de componente é chaveado pelo caminho, e dois
+/// componentes diferentes pelo mesmo nó não podem dividir uma entrada.
+fn hash_str(s: &str) -> u64 {
+    s.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ b as u64).wrapping_mul(0x100_0000_01b3)
+    })
+}
+
+/// O nome do componente de `fallback` de um `<foreach>`, já interpolado.
+/// `None` quando o atributo não veio ou resolveu para vazio — um `fallback`
+/// opcional recebido por prop (`fallback="{vazio}"` com `vazio=""`).
+///
+/// A checagem de registro roda **sempre**, e não só quando a lista esvazia: um
+/// `fallback="LsitaVazia"` numa lista que nasce cheia só erraria no dia em que
+/// ela esvaziasse, que é o pior momento para descobrir um typo.
+fn resolve_fallback(
+    bruto: Option<&str>,
+    context: &EvalCtx,
+    templates: &HashMap<String, UiNode>,
+) -> Result<Option<String>> {
+    let Some(bruto) = bruto else {
+        return Ok(None);
+    };
+    let nome = process_tpl(bruto, context);
+    let nome = nome.trim();
+    if nome.is_empty() {
+        return Ok(None);
+    }
+    if !templates.contains_key(nome) {
+        return Err(crate::error::GlacierError::UnknownComponent(
+            nome.to_string(),
+        ));
+    }
+    Ok(Some(nome.to_string()))
+}
+
+/// Desenha o componente `nome` no lugar de uma lista vazia, como se `<Nome/>`
+/// (sem props) estivesse escrito ali: no contexto e com o dono de quem escreveu
+/// o `<foreach>`, então ele enxerga as chaves e as props de fora.
+#[allow(clippy::too_many_arguments)]
+fn expand_fallback(
+    lista: &UiNode,
+    nome: &str,
+    context: &EvalCtx,
+    templates: &HashMap<String, UiNode>,
+    styles: &StyleContext,
+    scope: Option<&str>,
+    owner: Option<&str>,
+    out: &mut Vec<UiNode>,
+    cache: &mut EvalCache,
+) -> Result<()> {
+    let mut uso = crate::parser::empty_node(
+        NodeType::Component {
+            name: nome.to_string(),
+            props: Default::default(),
+        },
+        Vec::new(),
+    );
+    // Estável entre reavaliações (deriva do nó da lista, não do contador de
+    // ids), que é o que o cache de componente precisa para reaproveitar.
+    uso.node_id = mix(lista.node_id, hash_str(nome));
+    let n = eval_owned(
+        &uso, context, templates, styles, scope, owner, None, None, None, None, None, cache,
+    )?;
+    if matches!(n.kind, NodeType::Fragment) {
+        out.extend(n.children.into_vec());
+    } else {
+        out.push(n);
     }
     Ok(())
 }
@@ -1751,6 +1850,38 @@ fn eval_owned(
         };
         return Ok(crate::parser::empty_node(NodeType::Fragment, conteudo));
     }
+    // `<render component="{x}" …/>`: resolve o nome e segue exatamente como a
+    // tag `<X …/>` seguiria — props, slot, overlay de classe, guarda de
+    // recursão. Ver [`NodeType::Render`].
+    if let NodeType::Render { component, props } = &node.kind {
+        let nome = process_tpl(component, context);
+        let nome = nome.trim();
+        if nome.is_empty() {
+            return Ok(crate::parser::empty_node(NodeType::Fragment, Vec::new()));
+        }
+        let mut uso = node.clone();
+        uso.kind = NodeType::Component {
+            name: nome.to_string(),
+            props: props.clone(),
+        };
+        // `{x}` que troca de componente ocupa outra entrada do cache, em vez
+        // de servir a árvore do componente anterior.
+        uso.node_id = mix(node.node_id, hash_str(nome));
+        return eval_owned(
+            &uso,
+            context,
+            templates,
+            styles,
+            scope,
+            owner,
+            underlay,
+            underlay_states,
+            overlay,
+            overlay_states,
+            slot,
+            cache,
+        );
+    }
     // A component reference — either the legacy `<Include src="..." />` or a tag
     // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
@@ -1952,6 +2083,34 @@ fn eval_owned(
                 continue;
             }
             layer.set(key.clone(), process_tpl(val_template, context));
+        }
+
+        // `<prop component name="vazio" />`: o valor é o NOME de um componente.
+        // Conferido aqui, na fronteira, e não só quando alguém o desenha — um
+        // `vazio="FilaVasia"` numa lista que nunca esvazia passaria meses sem
+        // errar. Vazio é "nenhum componente" (a prop opcional, `default=""`).
+        if let Some(declaradas) = declaradas {
+            for decl in declaradas.iter().filter(|d| d.component) {
+                let valor = match props.get(&decl.name) {
+                    Some(v) => process_tpl(v, context),
+                    None => match spread.get(&decl.name) {
+                        Some(v) => json_scalar(v),
+                        None => decl
+                            .default
+                            .as_deref()
+                            .map(|d| process_tpl(d, context))
+                            .unwrap_or_default(),
+                    },
+                };
+                let valor = valor.trim();
+                if !valor.is_empty() && !templates.contains_key(valor) {
+                    return Err(crate::error::GlacierError::NotAComponent {
+                        component: name.clone(),
+                        prop: decl.name.clone(),
+                        value: valor.to_string(),
+                    });
+                }
+            }
         }
 
         // `{slot_footer}` = "true" quando o uso preencheu `slot="footer"`.
@@ -3048,6 +3207,7 @@ fn eval_owned(
         NodeType::Slot { .. } => NodeType::Fragment,
         NodeType::Include { .. }
         | NodeType::Component { .. }
+        | NodeType::Render { .. }
         | NodeType::Import { .. }
         | NodeType::ForEach { .. }
         | NodeType::If { .. }

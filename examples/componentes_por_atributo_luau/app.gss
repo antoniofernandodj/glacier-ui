@@ -1,0 +1,157 @@
+/*
+examples/componentes_por_atributo_luau/app.gss — visual da tela e dos
+componentes que viajam por atributo até a Vitrine.
+
+Nada aqui pinta área grande (ver "As três regras de estilo" no AGENTS.md): o
+fundo é do theme.json, as seções se separam por `<rule />` e espaçamento, e
+canto arredondado só existe dentro do <badge>.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --linha: #313244;
+  --realce: #cba6f7;
+}
+
+.tela {
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 20;
+  spacing: 12;
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.rolagem {
+  width: fill;
+  height: fill;
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 14;
+  width: fill;
+}
+
+.coluna {
+  spacing: 10;
+  width: fill;
+}
+
+.acoes {
+  spacing: 8;
+}
+
+.btn-fraco {
+  color: var(--linha);
+}
+
+.filtro {
+  width: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+}
+
+/* ── Vitrine ────────────────────────────────────────────────────────────── */
+
+.vitrine {
+  spacing: 10;
+  width: fill;
+}
+
+.vitrine-lista {
+  spacing: 2;
+  width: fill;
+}
+
+/* ── Cabeçalhos ─────────────────────────────────────────────────────────── */
+
+.cabecalho {
+  spacing: 8;
+  align_y: center;
+  width: fill;
+}
+
+.cabecalho-titulo {
+  size: 20;
+  bold: true;
+  color: var(--realce);
+}
+
+.cabecalho-discreto {
+  size: 13;
+  color: var(--suave);
+}
+
+/* ── Linhas ─────────────────────────────────────────────────────────────── */
+
+.linha {
+  padding: 6 0;
+  spacing: 10;
+  align_y: center;
+  width: fill;
+}
+
+.linha-dados {
+  spacing: 2;
+  width: fill;
+}
+
+.linha-texto {
+  size: 13;
+  color: var(--texto);
+}
+
+.linha-email {
+  size: 11;
+  color: var(--fraco);
+}
+
+.linha-botao {
+  padding: 4 10;
+}
+
+/* ── Fallbacks ──────────────────────────────────────────────────────────── */
+
+.vazio {
+  padding: 18 0;
+  spacing: 4;
+  width: fill;
+  align_x: center;
+}
+
+.vazio-titulo {
+  size: 14;
+  bold: true;
+  color: var(--suave);
+}
+
+.vazio-nota {
+  size: 11;
+  color: var(--fraco);
+}

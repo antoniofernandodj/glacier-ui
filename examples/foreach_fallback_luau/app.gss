@@ -1,0 +1,168 @@
+/*
+examples/foreach_fallback_luau/app.gss — visual da cozinha.
+
+Nada aqui pinta área grande (ver "As três regras de estilo" no AGENTS.md): o
+fundo é do theme.json, as etapas se separam por espaçamento e `<rule />`, o
+cartão de pedido tem só borda, e canto arredondado fica nos botões.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --linha: #313244;
+  --realce: #89b4fa;
+  --escuro: #1e1e2e;
+}
+
+.tela {
+  width: fill;
+  height: fill;
+}
+
+.topo {
+  padding: 12 20;
+  spacing: 12;
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.acoes {
+  padding: 0 20 12 20;
+  spacing: 8;
+}
+
+.btn-prim {
+  color: var(--realce);
+  text_color: var(--escuro);
+  padding: 6 14;
+  border_radius: 6;
+}
+
+.btn {
+  color: var(--linha);
+  text_color: var(--texto);
+  padding: 6 14;
+  border_radius: 6;
+}
+
+.rolagem {
+  width: fill;
+  height: fill;
+}
+
+.corpo {
+  padding: 20;
+  spacing: 28;
+  width: fill;
+}
+
+/* ── Etapas ─────────────────────────────────────────────────────────────── */
+
+.etapas {
+  spacing: 24;
+  width: fill;
+}
+
+.etapa {
+  spacing: 8;
+  width: fill;
+}
+
+.etapa-topo {
+  spacing: 8;
+  align_y: center;
+  width: fill;
+}
+
+.etapa-titulo {
+  size: 14;
+  bold: true;
+  color: var(--texto);
+}
+
+/* ── Pedido ─────────────────────────────────────────────────────────────── */
+
+.pedido {
+  padding: 10 12;
+  spacing: 4;
+  width: fill;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+.pedido-topo {
+  spacing: 8;
+  align_y: center;
+  width: fill;
+}
+
+.pedido-mesa {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.pedido-id {
+  size: 11;
+  color: var(--fraco);
+}
+
+.pedido-prato {
+  size: 13;
+  color: var(--suave);
+}
+
+.pedido-botao {
+  padding: 4 10;
+  border_radius: 6;
+}
+
+/* ── Histórico ──────────────────────────────────────────────────────────── */
+
+.historico {
+  spacing: 6;
+  width: fill;
+}
+
+.secao {
+  size: 14;
+  bold: true;
+  color: var(--texto);
+}
+
+.entregue {
+  size: 12;
+  color: var(--fraco);
+}
+
+/* ── Fallbacks ──────────────────────────────────────────────────────────── */
+
+.vazio {
+  padding: 14 0;
+  spacing: 4;
+  width: fill;
+  align_x: center;
+}
+
+.vazio-titulo {
+  size: 13;
+  bold: true;
+  color: var(--suave);
+}
+
+.vazio-nota {
+  size: 11;
+  color: var(--fraco);
+}

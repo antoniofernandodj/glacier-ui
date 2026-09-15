@@ -1,0 +1,28 @@
+<component>
+  <!-- A mesma Vitrine do exemplo em Rust: ela recebe OUTROS componentes por
+    atributo e só decide onde cada um aparece.
+
+    Aqui os nomes chegam de chaves que o Luau escreve (`cabecalho="{cabecalho}"`
+    no uso), então trocar a string no script troca o componente na tela. -->
+  <props>
+    <prop name="titulo" />
+    <prop name="total" default="0" />
+    <!-- O nome da CHAVE que guarda a lista, não a lista. -->
+    <prop name="itens" />
+    <prop component name="cabecalho" />
+    <prop component name="linha" />
+    <!-- Opcional: vazio, a lista sem itens simplesmente não desenha nada. -->
+    <prop component name="vazio" default="" />
+  </props>
+
+  <column class="vitrine">
+    <render component="{cabecalho}" titulo="{titulo}" total="{total}" />
+    <rule />
+
+    <column class="vitrine-lista">
+      <foreach items="{itens}" var="item" fallback="{vazio}">
+        <render component="{linha}" spread="{item}" />
+      </foreach>
+    </column>
+  </column>
+</component>

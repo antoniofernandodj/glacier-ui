@@ -7,7 +7,9 @@
 NAME    := glacier-gss
 VERSION := $(shell node -p "require('./package.json').version")
 VSIX    := $(NAME)-$(VERSION).vsix
-VSCE    := npx --yes @vscode/vsce
+# Versão fixada: a 4.x exige Node >= 22 (o parse5 8 é só ESM) e quebra com
+# ERR_REQUIRE_ESM no Node 20. A 3.9.2 declara Node >= 20.
+VSCE    := npx --yes @vscode/vsce@3.9.2
 
 .PHONY: help package install reinstall uninstall clean
 

@@ -116,6 +116,14 @@ pub struct PropDecl {
     /// Valor usado quando quem chama não passa a prop. `None` torna a prop
     /// **obrigatória**: a ausência vira erro em vez de cair no contexto global.
     pub default: Option<String>,
+    /// `<prop component name="vazio" />` — o valor da prop é o **nome de um
+    /// componente**, que o template desenha com `<render component="{vazio}"/>`
+    /// ou `fallback="{vazio}"`. O marcador é um atributo sem valor.
+    ///
+    /// Tem dois efeitos: a fronteira do componente confere o nome no uso (ver
+    /// `GlacierError::NotAComponent`), e a extensão do VS Code sabe que o valor
+    /// daquele atributo leva a um componente.
+    pub component: bool,
 }
 
 /// Os atributos que o `<screen>` aceita, um grupo por campo do [`ScreenMeta`].
@@ -201,11 +209,42 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
 /// spread inútil justamente no caso para o qual ele existe.
 pub(crate) const SPREAD_ATTRS: &[&str] = &["spread", "espalhar"];
 
+/// `fallback="ListaVazia"` num `<foreach>`: o componente que aparece quando a
+/// lista está vazia. Ver [`NodeType::ForEach::fallback`].
+///
+/// Não entra em [`DIRECTIVE_ATTRS`]: só as tags de repetição o leem, e na tag de
+/// um componente `fallback` continua sendo uma prop como outra qualquer.
+const FALLBACK_ATTRS: &[&str] = &["fallback", "reserva"];
+
+/// O mesmo `fallback`, com a grafia que o `<template>` exige.
+///
+/// O `<template>` também é `if`/`else-if`/`else`/`slot`, e um `fallback` solto
+/// num `<template if>` leria como "senão". O nome carrega o papel, e
+/// [`validate_template_fallback`] recusa a forma curta ali.
+const TEMPLATE_FALLBACK_ATTRS: &[&str] = &[
+    "foreach_fallback",
+    "foreach-fallback",
+    "for_each_fallback",
+    "for-each-fallback",
+];
+
+/// O que faz de um `<template>` uma repetição (em vez de `if`/`else`/grupo).
+const TEMPLATE_FOREACH_ATTRS: &[&str] = &[
+    "for-each", "forEach", "foreach", "each", "repeat", "items", "itens", "source", "origem",
+];
+
+/// O atributo de um `<render>` que diz **qual** componente desenhar. Tudo o mais
+/// no nó é prop. Ver [`NodeType::Render`].
+const RENDER_COMPONENT_ATTRS: &[&str] = &["component", "componente", "is"];
+
 /// Os atributos de um `<prop>`, um grupo por campo do [`PropDecl`]. Mesmo
 /// contrato das listas do `<screen>`: leitura e validação partilham a lista.
 const PROP_NAME_ATTRS: &[&str] = &["name", "nome"];
 const PROP_DEFAULT_ATTRS: &[&str] = &["default", "padrao", "padrão"];
-const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS];
+/// O marcador sem valor de [`PropDecl::component`]. Chega aqui como
+/// `component=""`, reescrito por `eval::normalize_bare_directives`.
+const PROP_COMPONENT_ATTRS: &[&str] = &["component", "componente"];
+const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS, PROP_COMPONENT_ATTRS];
 
 /// O único atributo de um `<component name="…">` declarado no `<resources>` —
 /// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
@@ -481,6 +520,45 @@ fn validate_no_nested_header(header: Node) -> Option<Diagnostic> {
     desce(header, true)
 }
 
+/// Recusa as duas formas de `fallback` num `<template>` que não fariam nada.
+///
+/// - `fallback` (a grafia do `<foreach>`): o `<template>` também é `if`/`else`,
+///   e ali ele pareceria um "senão" — só que seria ignorado em silêncio.
+/// - `foreach_fallback` sem `foreach`: não há lista para estar vazia.
+fn validate_template_fallback(root: Node) -> Option<Diagnostic> {
+    for node in root.descendants().filter(Node::is_element) {
+        if !matches!(
+            node.tag_name().name(),
+            "template" | "Template" | "gabarito" | "Gabarito"
+        ) {
+            continue;
+        }
+        if let Some(attr) = FALLBACK_ATTRS.iter().find(|a| node.has_attribute(**a)) {
+            return Some(
+                diagnostic_at(
+                    node,
+                    format!("`{attr}` num <template>: use `foreach_fallback`"),
+                )
+                .with_hint(
+                    "o <template> também é if/else/slot, e ali `fallback` leria como um senão. \
+                     Numa repetição, escreva <template foreach=\"…\" foreach_fallback=\"Componente\">",
+                ),
+            );
+        }
+        let tem_fallback = TEMPLATE_FALLBACK_ATTRS.iter().find(|a| node.has_attribute(**a));
+        let tem_foreach = TEMPLATE_FOREACH_ATTRS.iter().any(|a| node.has_attribute(*a));
+        if let (Some(attr), false) = (tem_fallback, tem_foreach) {
+            return Some(
+                diagnostic_at(node, format!("`{attr}` num <template> sem `foreach`")).with_hint(
+                    "o fallback é o que aparece no lugar de uma lista vazia; sem `foreach` não há \
+                     lista. Para um senão de um `if`, use <template else>",
+                ),
+            );
+        }
+    }
+    None
+}
+
 /// Confere o `<props>` de um `<component>`: só `<prop name="…">` entra nele,
 /// todo `<prop>` tem nome, e nenhum nome se repete.
 ///
@@ -523,8 +601,24 @@ fn validate_props(header: Node) -> Option<Diagnostic> {
                             format!("atributo '{name}' desconhecido no <prop>"),
                         )
                         .with_hint(
-                            "um <prop> aceita name e default (apelidos: nome, padrao); sem \
-                             default a prop é obrigatória",
+                            "um <prop> aceita name, default e o marcador component (apelidos: \
+                             nome, padrao, componente); sem default a prop é obrigatória",
+                        ),
+                    );
+                }
+                // `component` é marcador: escrito com valor, quase sempre é
+                // alguém tentando dar o NOME do componente no lugar errado.
+                if PROP_COMPONENT_ATTRS.contains(&name) && !attr.value().is_empty() {
+                    return Some(
+                        diagnostic_at_attr(
+                            decl,
+                            attr,
+                            format!("'{name}' com valor no <prop>"),
+                        )
+                        .with_hint(
+                            "`component` é um marcador sem valor: <prop component name=\"vazio\" /> \
+                             diz que a prop recebe o nome de um componente; o nome em si vem de \
+                             quem usa (vazio=\"ListaVazia\")",
                         ),
                     );
                 }
@@ -1004,6 +1098,27 @@ pub enum NodeType {
         name: String,
         props: ContextMap,
     },
+    /// `<render component="{cabecalho}" titulo="…"/>` — um componente cujo
+    /// **nome é um valor**, não uma tag escrita no markup.
+    ///
+    /// É o que permite a um componente receber outro por atributo:
+    ///
+    /// ```xml
+    /// <Painel cabecalho="TituloGrande" vazio="ListaVazia" />
+    /// ```
+    ///
+    /// e, dentro do `Painel`, desenhar o que veio com
+    /// `<render component="{cabecalho}"/>`. O nome interpola no contexto de
+    /// quem escreveu o `<render>` e, dali em diante, o nó se comporta
+    /// exatamente como `<TituloGrande …/>`: os demais atributos são as props,
+    /// os filhos são o conteúdo do slot, `class`/`id` viram overlay.
+    ///
+    /// Nome que interpola para vazio não desenha nada — é o componente
+    /// opcional. Nome que não está registrado é `UnknownComponent`.
+    Render {
+        component: String,
+        props: ContextMap,
+    },
     /// Declares that a component named `name` should be loaded from the XML
     /// file at `from`, e.g. `<import name="PerfilCard" from="templates/perfil_card.gv" />`.
     /// Processed at registration time and stripped before rendering.
@@ -1050,6 +1165,13 @@ pub enum NodeType {
     ForEach {
         items: String,
         var: String,
+        /// `fallback="ListaVazia"` (`foreach_fallback` num `<template>`) — o
+        /// componente desenhado no lugar da lista
+        /// quando ela está vazia (ou a chave ainda não guarda um array). É um
+        /// **nome de componente** já declarado no `<resources>`, importado ou
+        /// registrado, e interpola: `fallback="{vazio}"` usa o componente que
+        /// chegou por prop. Ver `expand_fallback` em `eval.rs`.
+        fallback: Option<String>,
     },
     /// Conditionally renders its children, e.g.
     /// `<if cond="{logado}">...</if>` (truthy),
@@ -2517,6 +2639,7 @@ impl NodeType {
             NodeType::ContextMenu { .. } => "contextmenu",
             NodeType::Include { .. }
             | NodeType::Component { .. }
+            | NodeType::Render { .. }
             | NodeType::Import { .. }
             | NodeType::ForEach { .. }
             | NodeType::If { .. }
@@ -5315,7 +5438,24 @@ impl UiNode {
                 let items = Self::get_attr(&node, &["items", "itens", "source", "origem"])
                     .unwrap_or_default();
                 let var = Self::get_attr(&node, &["var", "variavel"]).unwrap_or_default();
-                NodeType::ForEach { items, var }
+                let fallback = Self::get_attr(&node, FALLBACK_ATTRS);
+                NodeType::ForEach {
+                    items,
+                    var,
+                    fallback,
+                }
+            }
+            // `<render component="{x}" …/>` — ver [`NodeType::Render`]. Todo
+            // atributo que não é o nome vai para as props, como numa tag de
+            // componente comum.
+            "render" | "Render" | "renderizar" | "Renderizar" => {
+                let component = Self::get_attr(&node, RENDER_COMPONENT_ATTRS).unwrap_or_default();
+                let props = node
+                    .attributes()
+                    .filter(|a| !RENDER_COMPONENT_ATTRS.contains(&a.name()))
+                    .map(|a| (a.name().to_string(), a.value().to_string()))
+                    .collect();
+                NodeType::Render { component, props }
             }
             "If" | "if" | "Se" | "se" => {
                 let cond =
@@ -5401,13 +5541,7 @@ impl UiNode {
             // rather than combining `for-each` with `if`/`cond` on the same
             // tag — the two aren't composable on one node here.
             "template" | "Template" | "gabarito" | "Gabarito" => {
-                let items = Self::get_attr(
-                    &node,
-                    &[
-                        "for-each", "forEach", "foreach", "each", "repeat", "items", "itens",
-                        "source", "origem",
-                    ],
-                );
+                let items = Self::get_attr(&node, TEMPLATE_FOREACH_ATTRS);
                 let var = Self::get_attr(&node, &["var", "variavel"]).unwrap_or_default();
                 let equals = Self::get_attr(&node, &["equals", "eq", "igual_a"]);
                 let not_equals =
@@ -5449,7 +5583,11 @@ impl UiNode {
                 );
 
                 if let Some(items) = items {
-                    NodeType::ForEach { items, var }
+                    NodeType::ForEach {
+                        items,
+                        var,
+                        fallback: Self::get_attr(&node, TEMPLATE_FALLBACK_ATTRS),
+                    }
                 } else if is_else {
                     NodeType::Else
                 } else if let Some(cond) = else_if_cond {
@@ -5561,6 +5699,9 @@ impl UiNode {
                             Some(PropDecl {
                                 name: Self::get_attr(&p, PROP_NAME_ATTRS)?,
                                 default: Self::get_attr(&p, PROP_DEFAULT_ATTRS),
+                                component: PROP_COMPONENT_ATTRS
+                                    .iter()
+                                    .any(|a| p.has_attribute(*a)),
                             })
                         })
                         .collect(),
@@ -5789,7 +5930,9 @@ impl UiNode {
         // O cabeçalho não desenha nada, então um engano nele é invisível em
         // tempo de execução: erra alto, antes de montar a árvore. É também aqui
         // que a obrigatoriedade mora — ver `validate_header`.
-        if let Some(mut d) = validate_header(fragment, file) {
+        if let Some(mut d) =
+            validate_header(fragment, file).or_else(|| validate_template_fallback(fragment))
+        {
             d = match file {
                 Some(f) => d.in_file(f, source),
                 None => d.with_source(source),
