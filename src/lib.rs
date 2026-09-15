@@ -619,6 +619,15 @@ impl GlacierUI {
             last_stream_reeval: None,
             assets: Arc::new(asset_source::DiskAssets),
         };
+        // `__data_dir`: o diretório de dados do app (o `<app id>` ou o
+        // `.storage_dir(...)`), para o script gravar arquivos seus — cache de
+        // imagem, downloads — no mesmo lugar que a geometria e o `storage`.
+        // Semeado aqui, antes de qualquer `init`, porque o script roda já no
+        // registro do componente.
+        if let Some(dir) = crate::luau::storage_root() {
+            ui.context_data
+                .insert("__data_dir".to_string(), dir.to_string_lossy().into_owned());
+        }
         ui.register_builtins();
         ui
     }

@@ -373,20 +373,16 @@ end
 .vazio    { size: 12; color: var(--fraco); }
 ```
 
-E o `src/main.rs`, que não muda quase nunca:
+E o `src/main.rs`, que não muda quase nunca — janela e aplicativo moram no
+cabeçalho do template (ver "A janela, no `<screen>`"), e o `main.rs` só diz qual
+arquivo abre:
 
 ```rust
 use glacier_ui::GlacierDaemon;
 
 fn main() -> glacier_ui::iced::Result {
-    GlacierDaemon::new()
-        .main(|motor| {
-            if let Err(erro) = motor.register_component("servicos", "views/servicos.gv") {
-                eprintln!("{erro}");
-            }
-            motor.set_initial_screen("servicos");
-        })
-        .run()
+    // Sem `.main_template`, o runner abre `views/app.gv`.
+    GlacierDaemon::new().main_template("views/servicos.gv").run()
 }
 ```
 
@@ -752,6 +748,38 @@ A `<tray>` pede a feature `tray` do `glacier-ui` no `Cargo.toml`, e com ela
 O builder em Rust (`.single_instance`, `.remember_window_geometry`,
 `.storage_dir`, `.tray` + `.on_tray`, `.main_window`) continua existindo e
 **vence** o markup onde é usado — ele é para o que o markup não expressa.
+
+**Arquivos do app: `__data_dir`.** Com o diretório de dados definido (pelo
+`<app id>` ou pelo `.storage_dir`), o motor o semeia na chave `__data_dir` de
+toda janela, antes do `init`. É onde o script grava arquivos próprios — cache de
+imagem, downloads — sem calcular caminho nenhum:
+
+```lua
+local caminho = `{ctx.__data_dir}/cache/{id}.jpg`
+download_file(url, caminho)
+```
+
+**Migrando um `main.rs` do padrão antigo.** Cada linha do builder tem o seu
+lugar no markup; o que sobra no `main.rs` é o que só Rust faz (um `Component` em
+Rust, `lua_extension`, fontes embutidas, um contorno de driver):
+
+| no `main.rs` antigo | no markup |
+|---|---|
+| `.main(\|m\| { m.register_component("app", "views/app.gv"); m.set_initial_screen("app") })` | nada — o runner abre `views/app.gv`; outro arquivo é `.main_template("views/x.gv")` |
+| `.main_window(Settings { decorations: false, … })` | `<screen decorations="false">` |
+| `.main_window(Settings { icon: …, … })` + `include_bytes!` | `<screen icon="views/assets/icone.png">` — o arquivo vai para `views/`, que o pacote leva |
+| `.child_window(\|_, s\| s.decorations = false)` | `<screen decorations="false">` no arquivo da filha |
+| `exit_on_close_request: false` | nada — o runner liga quando precisa |
+| `.storage_dir(diretorio_de_dados())` | `<app id="meu-app">` |
+| `.remember_window_geometry(true)` | `<app … remember_geometry="true">` |
+| `.single_instance("meu-app")` | `<app … single_instance="true">` |
+| `.tray(TrayConfig { … })` + `.on_tray(…)` | `<tray>` com `<item>`/`<check>`/`<separator>` |
+| `motor.define_data("cache_dir", dados.join("cache"))` | `{ctx.__data_dir}/cache` no script |
+
+**Um `.main(|motor| …)` escrito à mão desliga a leitura do `<app>` e da
+`<tray>`**: o runner não tem como saber qual template ele abre. Se o `main.rs`
+ainda precisa de um, a configuração do aplicativo volta para o builder; se não
+precisa, troque-o por `main_template`.
 
 ### O que vale em qualquer tag
 
@@ -3082,7 +3110,8 @@ Nenhum deles suspende — é I/O local. `write_file`/`append_file` devolvem
 `storage` é um JSON chaveado que o motor gerencia (a pasta sai do
 diretório de dados do `<app id>`, ou do `.storage_dir(...)` no `main.rs`); ao
 contrário do `ctx`, ele sobrevive ao
-fechar do app e aceita tabelas de volta como tabelas.
+fechar do app e aceita tabelas de volta como tabelas. Para arquivos soltos no
+mesmo diretório (cache, downloads), use `ctx.__data_dir`.
 
 ### JSON
 

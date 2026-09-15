@@ -1912,6 +1912,13 @@ pub fn set_storage_root(path: PathBuf) {
     let _ = STORAGE_ROOT.set(path);
 }
 
+/// A raiz definida por [`set_storage_root`], se houver — o diretório de dados
+/// do app. [`crate::GlacierUI::new`] a expõe ao markup e ao script na chave
+/// `__data_dir`.
+pub fn storage_root() -> Option<&'static std::path::Path> {
+    STORAGE_ROOT.get().map(PathBuf::as_path)
+}
+
 /// Uma extensão da camada Lua registrada pelo **app hospedeiro**: recebe cada
 /// VM Luau nova (uma por componente com `<script>`, em qualquer janela) e
 /// instala nela globais/tabelas — a ponte de funções Rust para o `<script>`.

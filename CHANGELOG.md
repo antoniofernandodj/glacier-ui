@@ -8,6 +8,23 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.107.1 · CLI 0.5.16 — 2026-09-15
+
+- O motor semeia a chave `__data_dir` — o diretório de dados do app, vindo do
+  `<app id>` ou do `.storage_dir(...)` — em toda janela, antes do `init`. É onde
+  o script grava arquivos próprios (cache de imagem, downloads) sem calcular
+  caminho: `{ctx.__data_dir}/cache/{id}.jpg`. Era o que ainda obrigava um
+  `.main(|motor| …)` só para semear um caminho, e com ele o `<app>` não era lido.
+
+### CLI 0.5.16
+
+- `AGENTS.md` ensina o fluxo novo: o `main.rs` de uma linha no app comentado, a
+  chave `__data_dir`, e uma tabela de migração de cada linha do builder antigo
+  para o markup — com o aviso de que um `.main(|motor| …)` escrito à mão desliga
+  a leitura do `<app>` e da `<tray>`.
+
+---
+
 ## glacier-ui 0.107.0 · CLI 0.5.15 — 2026-09-15
 
 A configuração da janela e do aplicativo sai do `main.rs` e vai para o markup.
