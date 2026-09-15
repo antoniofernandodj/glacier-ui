@@ -11,7 +11,7 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                     a casca: runner, cromo da janela, storage
+src/main.rs                     a casca: só sobe o runner
 views/
 ├── app.gv                      a JANELA: <screen>, titlebar própria, sidebar, roteador
 ├── home.gv                     rota "home"   — <component>, cards, for-each, if/else
@@ -32,7 +32,7 @@ views/
 
 ## Como as peças se ligam
 
-- **Um registro só.** `src/main.rs` registra `views/app.gv`; os outros templates
+- **Um registro só.** O runner abre `views/app.gv` sozinho; os outros templates
   entram por `<link rel="import">` e são carregados em cascata.
 - **Um script só.** O contexto do motor é global, então `views/app.gv` é o único
   template com `<script>`: os `on_click` dos templates importados resolvem para
@@ -52,27 +52,31 @@ views/
 | `<script src="…">` | o próprio `.gv` |
 | `require("…")` no Luau | o arquivo `.luau` que chama |
 
-## `src/main.rs`
+## O cabeçalho da janela
 
-Não descreve a interface. Ele sobe o runner e configura só o que um template não
-tem como declarar:
+`src/main.rs` só sobe o runner: sem `.main`, ele abre `views/app.gv`. O que
+descreve a janela e o aplicativo mora no cabeçalho desse arquivo:
 
-- **Sem `.title()` nem `.main_size()`.** Quem declara título e tamanho é o
-  `<screen>` de `views/app.gv`, junto da tela que eles descrevem — e assim o
-  título recarrega a quente. O builder só opinaria sobre o que o template
-  deixasse em branco.
-- **`decorations: false`** troca a titlebar do SO pela que o template desenha.
+```xml
+<screen title="…" size="980 640" min_size="560 420" decorations="false">
+  <resources>
+    <app id="…" remember_geometry="true" />
+    …
+```
+
+- **`title`, `size`, `min_size`** ficam junto da tela que descrevem — e assim o
+  título recarrega a quente.
+- **`decorations="false"`** troca a titlebar do SO pela que o template desenha.
   As ações `window:*` do `app.gv` são built-in do motor: não há handler para
   elas no Luau.
-- **`exit_on_close_request: false`** faz o pedido de fechar passar pelo daemon,
-  que assim salva a geometria antes de a janela sumir.
-- **`child_window`** repete o `decorations: false` nas janelas abertas por
-  `open_window(...)`: o template delas traz a própria titlebar, e sem isso o SO
-  desenharia a nativa por baixo.
-- **`remember_window_geometry`** grava tamanho/posição ao fechar e restaura ao
-  abrir. No Wayland só o tamanho volta.
-- **`storage_dir`** é a raiz gravável do global `storage` do Luau. Sem ele, o
-  `storage` gravaria relativo aos assets — read-only num app instalado.
+- **`<app id>`** dá nome ao diretório de dados (`~/.local/share/<id>`,
+  `%APPDATA%\<id>`), a raiz gravável do global `storage` do Luau — fora dos
+  assets, read-only num app instalado.
+- **`remember_geometry="true"`** grava tamanho/posição ao fechar e restaura ao
+  abrir. No Wayland só o tamanho volta. O pedido de fechar passa pelo runner
+  sozinho, para a geometria ser salva antes de a janela sumir.
+- Uma janela aberta por `open_window(...)` declara a própria moldura no
+  `<screen>` do arquivo dela (`decorations="false"`), como esta.
 
 ## A janela sem decoração
 
@@ -84,8 +88,8 @@ Cada alça declara o próprio `cursor` e a direção (`window:resize:nw`, `:n`, 
 
 Todo `.gv` começa com um cabeçalho que envolve o arquivo inteiro:
 
-- **`<screen>`** é uma **janela** — aceita `title`, `size`, `min-size`,
-  `resizable`.
+- **`<screen>`** é uma **janela** — aceita `title`, `size`, `min_size`,
+  `max_size`, `fixed_size`, `resizable`, `decorations` e `icon`.
 - **`<component>`** é um pedaço de tela (o que um `<import>` traz) e **não
   aceita atributo nenhum**: `title`/`size` não teriam a quem se aplicar ali, e
   escrevê-los é erro de parse em vez de um atributo ignorado em silêncio.

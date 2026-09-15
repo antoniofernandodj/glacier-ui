@@ -1,4 +1,4 @@
-<screen title="Detalhe" size="380 300" min_size="300 240">
+<screen title="Detalhe" size="380 300" min_size="300 240" icon="views/assets/icone.png">
   <resources>
     <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />

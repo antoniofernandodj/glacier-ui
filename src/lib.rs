@@ -4143,6 +4143,32 @@ impl GlacierUI {
 /// passadas de pré-processamento aqui (tirar o `<script>`, normalizar diretivas
 /// nuas) preservam a contagem de linhas de propósito, para a linha reportada ser
 /// a do arquivo que o autor escreveu.
+/// O `<app>`, a `<tray>` e o título do `<screen>` de um template, lidos **antes** de o daemon subir o
+/// iced — ver [`parser::AppMeta`]. O template é parseado inteiro (com a mesma
+/// validação de sempre); um erro aqui é devolvido, e o registro normal, logo
+/// depois, o reporta de novo com o nome do componente.
+pub(crate) fn app_manifest(
+    path: &str,
+    content: &str,
+) -> Result<(Option<parser::AppMeta>, Option<parser::TrayMeta>, Option<String>)> {
+    let (root, _script) = parse_markup(Some(path), content)?;
+    let mut app = None;
+    let mut tray = None;
+    let mut title = None;
+    // As declarações do `<resources>` viajam penduradas na raiz (ver
+    // `UiNode::parse_xml_with_source`), então basta olhar os filhos dela.
+    for child in root.children.iter() {
+        match &child.kind {
+            parser::NodeType::App(meta) => app = Some(meta.clone()),
+            parser::NodeType::Tray(meta) => tray = Some(meta.clone()),
+            // O título da janela é o tooltip padrão da bandeja.
+            parser::NodeType::Screen(meta) => title = meta.title.clone(),
+            _ => {}
+        }
+    }
+    Ok((app, tray, title))
+}
+
 fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode, Option<String>)> {
     let (markup, script) = eval::strip_script(content);
     let markup = eval::normalize_bare_directives(&markup);

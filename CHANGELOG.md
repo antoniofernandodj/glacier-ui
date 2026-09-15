@@ -8,6 +8,54 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.107.0 · CLI 0.5.15 — 2026-09-15
+
+A configuração da janela e do aplicativo sai do `main.rs` e vai para o markup.
+
+- `<screen>` ganha `max_size`, `fixed_size`, `decorations` e `icon`. O
+  `fixed_size` é tamanho, mínimo e máximo de uma vez, sem redimensionar, e não
+  convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). Valem
+  para a principal e para as janelas de `open_window`, cada uma pelo `<screen>`
+  do próprio arquivo.
+- `<app id="…" single_instance="true" remember_geometry="true" />` no
+  `<resources>` da tela principal. O `id` dá nome ao diretório de dados
+  (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`
+  ou `~/.local/share/<id>`), onde a geometria e o `storage` do Luau gravam, e é a
+  chave da instância única.
+- `<tray icon="…" tooltip="…">` com `<item>`, `<check>` e `<separator>`.
+  `tray:open`, `tray:quit` e `notifications:toggle` são tratados pelo runner;
+  qualquer outra ação vai ao script da tela principal. `label` e `checked`
+  aceitam `{chave}`, e o menu acompanha o contexto.
+- `<app>` e `<tray>` são lidos antes do boot, do template principal (o padrão
+  ou o de `main_template`). O builder em Rust continua existindo e vence o
+  markup onde é usado.
+- Com geometria lembrada ou um `on_close`, o runner liga sozinho o
+  `exit_on_close_request: false` da principal. Sem isso, o fechamento pedido
+  pelo sistema (Alt+F4) não passava pelo daemon e a geometria não era gravada.
+
+### CLI 0.5.15
+
+- Os templates `completo` e `janelas` declaram janela, `<app>` e `<tray>` no
+  markup, e o `main.rs` deles virou uma linha. O ícone do `janelas` mora em
+  `views/assets/`, que os pacotes levam junto.
+- `AGENTS.md`: tabela dos atributos de janela do `<screen>` e seção de
+  `<app>`/`<tray>`.
+- Embute a extensão Glacier View 0.19.10, que reconhece `<app>` e `<tray>`.
+
+### Quebras
+
+- `ScreenMeta` ganhou `max_size`, `fixed_size`, `decorations` e `icon`: quem
+  monta o struct por literal precisa dos campos novos (ou de
+  `..Default::default()`).
+- `NodeType` ganhou `App` e `Tray`; um `match` exaustivo precisa dos braços.
+- `app`, `aplicativo`, `tray` e `bandeja` passam a ser tags de declaração: um
+  componente do app registrado com um desses nomes deixa de ser alcançável pela
+  tag.
+- Com `remember_window_geometry` ou `on_close`, a principal passa a fechar pelo
+  daemon mesmo que o app tenha passado `exit_on_close_request: true`.
+
+---
+
 ## CLI 0.5.14 — 2026-09-15 · glacier-ui 0.106.0
 
 Embute a extensão Glacier View 0.19.9.

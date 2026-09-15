@@ -10,10 +10,10 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                     runner, menu da bandeja, instância única
-assets/icone.png                ícone da janela e da bandeja (embutido no binário)
+src/main.rs                     só diz qual template abre
 views/
-├── painel.gv                   janela principal
+├── painel.gv                   janela principal; <app> e <tray> no cabeçalho
+├── assets/icone.png            ícone da janela e da bandeja
 ├── detalhe.gv                  janela filha (aberta por open_window)
 ├── scripts/
 │   ├── painel.luau             abrir filha, notificar, receber broadcast
@@ -48,20 +48,32 @@ O contador do `detalhe.gv` prova o isolamento: abra duas filhas e compare.
 
 ## A bandeja
 
+O ícone, o menu e o que cada item faz estão no cabeçalho de `views/painel.gv`:
+
+```xml
+<app id="…" single_instance="true" remember_geometry="true" />
+
+<tray icon="views/assets/icone.png" tooltip="…">
+  <item label="Abrir …" on_click="tray:open" />
+  <check label="Notificações" checked="{__notifications}" on_click="notifications:toggle" />
+  <separator />
+  <item label="Sair" on_click="tray:quit" />
+</tray>
+```
+
 Com a feature `tray` ligada (ver `Cargo.toml`), **fechar a última janela não
 encerra o app**: ele se recolhe para a bandeja, e o menu passa a controlar o
 ciclo de vida.
 
-Daí a necessidade de `single_instance`: sem ele, clicar no lançador de novo
-abriria um segundo processo enquanto o primeiro segue vivo e invisível. A
-segunda tentativa pinga a primeira e sai; a instância viva reabre e foca a
-janela principal.
+Daí o `single_instance`: sem ele, clicar no lançador de novo abriria um segundo
+processo enquanto o primeiro segue vivo e invisível. A segunda tentativa pinga a
+primeira e sai; a instância viva reabre e foca a janela principal.
 
-Os `id` dos itens do menu (`abrir`, `notificacoes`, `sair`) são o que chega ao
-gancho `on_tray`. `abrir` e `sair` são ações do runner; `notificacoes` alterna o
-interruptor global do SO e reflete o novo estado no rótulo do próprio item — o
-menu é a única superfície onde esse estado aparece. O rótulo começa em
-"Desligar" porque as notificações começam ligadas.
+`tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho — o
+último alterna o interruptor global das notificações do SO, e `{__notifications}`
+é o estado dele, que o `<check>` mostra. Qualquer outra ação num item vai para o
+script da janela principal, cujo motor continua vivo com a janela recolhida; um
+`label` ou `checked` com `{chave}` acompanha o contexto dela.
 
 No Linux a bandeja usa libappindicator + GTK em runtime — num pacote `.deb`,
 declare `libgtk-3-0` e `libayatana-appindicator3-1` nas dependências. macOS não
@@ -74,9 +86,9 @@ do SO, que sai pelo caminho do sistema e sobrevive à janela fechada.
 
 ## Persistência
 
-`remember_window_geometry(true)` grava tamanho e posição ao fechar e restaura ao
-abrir. No Wayland só o tamanho volta.
+`remember_geometry="true"` no `<app>` grava tamanho e posição ao fechar e
+restaura ao abrir. No Wayland só o tamanho volta.
 
-`storage_dir` é a raiz gravável do global `storage` do Luau. Sem ele, o
-`storage` gravaria relativo aos assets — que num app instalado costuma ser
-read-only.
+O `id` do `<app>` dá nome ao diretório de dados (`~/.local/share/<id>`,
+`%APPDATA%\<id>`), onde a geometria e o global `storage` do Luau gravam — fora
+dos assets, que num app instalado costumam ser read-only.

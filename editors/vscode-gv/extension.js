@@ -187,6 +187,10 @@ const NATIVE_TAGS = {
   Template: ["template", "gabarito"],
   // `<render component="{x}"/>` — o componente cujo nome veio por prop.
   Render: ["render", "renderizar"],
+  // `<app>`/`<tray>` no <resources> do template principal: o que é do
+  // aplicativo (instância única, geometria, bandeja).
+  App: ["app", "aplicativo"],
+  Tray: ["tray", "bandeja"],
   Link: ["link"],
   Style: ["style", "stylesheet"],
   Script: ["script"],

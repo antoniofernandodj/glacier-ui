@@ -32,7 +32,8 @@ use iced::{Element, Font, Point, Size, Subscription, Task};
 
 use crate::asset_source::{AssetSource, DiskAssets};
 use crate::component::{WindowSource, WindowSpec};
-use crate::tray::{TrayActions, TrayConfig, TrayHandle, TrayMsg, TrayRequest};
+use crate::parser::{TrayItemDecl, TrayItemKind};
+use crate::tray::{TrayActions, TrayConfig, TrayHandle, TrayItem, TrayMsg, TrayRequest};
 use crate::{EngineMessage, GlacierUI};
 
 /// A geometria de uma janela no momento em que ela vai fechar — o que um app
@@ -148,6 +149,11 @@ pub struct GlacierDaemon {
     /// `app_id` da trava de instância única, quando ligada. Ver
     /// [`GlacierDaemon::single_instance`].
     single_instance_id: Option<String>,
+    /// O template registrado por [`GlacierDaemon::main_template`], quando foi
+    /// essa a forma do `setup`. É o que deixa o `run` ler o `<app>`/`<tray>`
+    /// dele antes do boot; um `setup` escrito à mão com [`GlacierDaemon::main`]
+    /// não diz qual template abre, e aí só o builder configura o aplicativo.
+    main_template_path: Option<String>,
 }
 
 /// Força o `winit`/GDK a escolher X11 antes de qualquer janela nascer —
@@ -215,6 +221,7 @@ impl GlacierDaemon {
             style: None,
             antialiasing: true,
             single_instance_id: None,
+            main_template_path: None,
         }
     }
 
@@ -357,6 +364,7 @@ impl GlacierDaemon {
     /// registrar componentes, definir a tela inicial, carregar estilos, etc.
     pub fn main(mut self, setup: impl Fn(&mut GlacierUI) + 'static) -> Self {
         self.setup = Some(Rc::new(setup));
+        self.main_template_path = None;
         self
     }
 
@@ -384,7 +392,10 @@ impl GlacierDaemon {
     /// Sem nenhuma chamada a `main` ou `main_template`, o `run` faz o mesmo com
     /// `./views/app.gv` ou, se ele não existir, `app.gv`.
     pub fn main_template(self, path: impl Into<String>) -> Self {
-        self.main(template_setup(path.into()))
+        let path = path.into();
+        let mut daemon = self.main(template_setup(path.clone()));
+        daemon.main_template_path = Some(path);
+        daemon
     }
 
     /// Habilita um **ícone de bandeja** (system tray) — e, com ele, um app que
@@ -512,10 +523,40 @@ impl GlacierDaemon {
         // funciona: a essa altura o `EventLoop` já escolheu Wayland.
         forcar_x11_para_webview();
 
+        // O `<app>`/`<tray>` do template principal, lidos ANTES de tudo: a
+        // instância única decide aqui mesmo se o processo segue, e o diretório
+        // de dados precisa existir antes do primeiro motor. Só dá para saber
+        // qual é o template principal quando o `setup` é o padrão ou veio de
+        // `main_template`; um `.main(|motor| …)` escrito à mão não diz.
+        let manifest_path: Option<String> = match (&self.setup, &self.main_template_path) {
+            (None, _) => Some(
+                DEFAULT_MAIN_TEMPLATES
+                    .iter()
+                    .find(|p| self.assets.exists(p))
+                    .unwrap_or(&DEFAULT_MAIN_TEMPLATES[0])
+                    .to_string(),
+            ),
+            (Some(_), path) => path.clone(),
+        };
+        // Um erro de parse aqui é silencioso de propósito: o registro do mesmo
+        // arquivo, logo depois, o reporta com o nome do componente.
+        let (app_meta, tray_meta, screen_title) = manifest_path
+            .as_deref()
+            .and_then(|p| Some((p, self.assets.read_to_string(p).ok()?)))
+            .and_then(|(p, conteudo)| crate::app_manifest(p, &conteudo).ok())
+            .unwrap_or_default();
+
         // Checagem de instância única ANTES de qualquer coisa (winit, GPU,
         // motor) — uma segunda tentativa só precisa pingar a primeira e sair,
         // não vale gastar nada além disso. Ver [`GlacierDaemon::single_instance`].
-        if let Some(app_id) = &self.single_instance_id
+        // O builder vence o `<app single_instance>`.
+        let single_instance_id = self.single_instance_id.clone().or_else(|| {
+            app_meta
+                .as_ref()
+                .filter(|app| app.single_instance)
+                .map(|app| app.id.clone())
+        });
+        if let Some(app_id) = &single_instance_id
             && matches!(
                 crate::single_instance::acquire(app_id),
                 crate::single_instance::Lock::Secondary
@@ -543,7 +584,36 @@ impl GlacierDaemon {
             style,
             antialiasing,
             single_instance_id: _,
+            main_template_path: _,
         } = self;
+
+        // O que o builder não disse, o `<app>` diz. O builder vence sempre: é
+        // código explícito, e o markup é o padrão de quando nada foi dito.
+        let storage_dir = storage_dir.or_else(|| app_meta.as_ref().map(|app| app_data_dir(&app.id)));
+        let remember_geometry =
+            remember_geometry || app_meta.as_ref().is_some_and(|app| app.remember_geometry);
+
+        // A `<tray>` do template, quando o builder não configurou uma. O ícone
+        // é lido já, pela fonte de assets; sem ele não há bandeja — e o aviso
+        // diz qual arquivo faltou, em vez de o app encerrar na última janela
+        // sem explicação.
+        let tray_markup: Option<(Vec<u8>, String, Vec<TrayItemDecl>)> = match (&tray_config, tray_meta) {
+            (None, Some(meta)) => match assets.read_bytes(&meta.icon) {
+                Ok(icon) => Some((
+                    icon.into_owned(),
+                    meta.tooltip
+                        .clone()
+                        .or_else(|| screen_title.clone())
+                        .unwrap_or_else(|| title.clone()),
+                    meta.items,
+                )),
+                Err(erro) => {
+                    eprintln!("<tray icon=\"{}\">: não consegui ler o ícone: {erro}", meta.icon);
+                    None
+                }
+            },
+            _ => None,
+        };
         let main_title = title.clone();
 
         // Sem `main` nem `main_template`: a principal é o primeiro template
@@ -599,6 +669,17 @@ impl GlacierDaemon {
                 &mut main_title,
             );
             let sized_by_screen = initial_screen.zip(effective_size);
+            if let Some(meta) = engine.current_screen_meta() {
+                apply_window_icon(meta, &mut main_settings, assets.as_ref());
+            }
+            // A geometria só é consultada se o fechamento pedido pelo sistema
+            // (Alt+F4, o × da moldura) passar pelo daemon — com
+            // `exit_on_close_request: true` o iced fecha sozinho e ninguém fica
+            // sabendo o tamanho. Então, quando alguém precisa dela, o pedido vem
+            // para cá (ver `Runtime::close`), sem o app ter de lembrar disso.
+            if geometry_dir.is_some() || on_close.is_some() {
+                main_settings.exit_on_close_request = false;
+            }
             let (id, open) = window::open(main_settings.clone());
             let mut rt = Runtime::new(
                 reload_period,
@@ -620,6 +701,15 @@ impl GlacierDaemon {
             if let Some(cfg) = tray_config.clone() {
                 rt.tray = crate::tray::spawn(cfg);
                 rt.on_tray = on_tray.clone();
+            } else if let Some((icon, tooltip, items)) = tray_markup.clone() {
+                // A `<tray>` do template: os rótulos com `{chave}` já saem
+                // resolvidos contra o motor recém-montado, e daí em diante
+                // `Runtime::sync_tray` manda à bandeja só o que mudar.
+                let mut binds = TrayBindings::new(items);
+                let cfg = binds.config(icon, tooltip, &engine);
+                rt.tray = crate::tray::spawn(cfg);
+                rt.on_tray = on_tray.clone();
+                rt.tray_markup = Some(binds);
             }
             rt.titles.insert(id, main_title.clone());
             rt.base_titles.insert(id, base_title);
@@ -681,6 +771,15 @@ struct SavedGeometry {
 fn clamp_to_min(size: Size, min: Option<Size>) -> Size {
     match min {
         Some(min) => Size::new(size.width.max(min.width), size.height.max(min.height)),
+        None => size,
+    }
+}
+
+/// O par do [`clamp_to_min`] para o `max_size` (e o `fixed_size`, que o fixa):
+/// uma geometria salva maior que o máximo declarado não abre a janela além dele.
+fn clamp_to_max(size: Size, max: Option<Size>) -> Size {
+    match max {
+        Some(max) => Size::new(size.width.min(max.width), size.height.min(max.height)),
         None => size,
     }
 }
@@ -823,6 +922,9 @@ struct Runtime {
     tray: Option<TrayHandle>,
     /// Gancho de clique dos itens da bandeja.
     on_tray: Option<TrayHook>,
+    /// A bandeja declarada numa `<tray>` do template principal, quando foi de
+    /// lá que ela veio: a ação de cada item e os rótulos já enviados.
+    tray_markup: Option<TrayBindings>,
     /// O `setup`/`settings`/`título` da principal, guardados para **reabri-la**
     /// (o "Open Rustploy" da bandeja) idêntica à do boot.
     main_setup: SetupHook,
@@ -888,6 +990,7 @@ impl Runtime {
             toast_period,
             tray: None,
             on_tray: None,
+            tray_markup: None,
             main_setup,
             main_settings,
             main_title,
@@ -1027,6 +1130,34 @@ impl Runtime {
                     hook(&id, &mut actions);
                     actions.request
                 }
+                // Sem gancho em Rust, quem decide é o `on_click` do item na
+                // `<tray>` do template.
+                (None, Some(_)) => {
+                    let acao = self
+                        .tray_markup
+                        .as_ref()
+                        .and_then(|binds| binds.action(&id))
+                        .map(str::to_string);
+                    match acao.as_deref() {
+                        Some("tray:open") => Some(TrayRequest::OpenMain),
+                        Some("tray:quit") => Some(TrayRequest::Quit),
+                        Some("notifications:toggle") => {
+                            crate::tray::set_notifications_enabled(
+                                !crate::tray::notifications_enabled(),
+                            );
+                            self.sync_tray();
+                            None
+                        }
+                        // Qualquer outra ação vai ao script/`update` da tela
+                        // principal — cujo motor segue vivo mesmo com a janela
+                        // recolhida na bandeja (ver `main_shown`).
+                        Some(outra) => {
+                            let main_id = self.main_id;
+                            return self.route(main_id, EngineMessage::UiClick(outra.to_string()));
+                        }
+                        None => None,
+                    }
+                }
                 _ => None,
             },
         };
@@ -1039,6 +1170,17 @@ impl Runtime {
                 iced::exit()
             }
             None => Task::none(),
+        }
+    }
+
+    /// Reavalia os rótulos e marcações da `<tray>` do template contra o motor da
+    /// principal e manda à bandeja o que mudou. No-op sem bandeja em markup.
+    fn sync_tray(&mut self) {
+        let (Some(handle), Some(binds)) = (&self.tray, &mut self.tray_markup) else {
+            return;
+        };
+        if let Some(engine) = self.windows.get(&self.main_id) {
+            binds.sync(handle, engine);
         }
     }
 
@@ -1159,6 +1301,11 @@ impl Runtime {
 
         let mut tasks = vec![ui_task];
 
+        // Um rótulo da `<tray>` com `{chave}` pode ter mudado com esta ação.
+        if id == self.main_id {
+            self.sync_tray();
+        }
+
         // 2. drena os pedidos de janela nova desse mesmo motor e abre cada um
         let pending = self
             .windows
@@ -1242,7 +1389,7 @@ impl Runtime {
             self.titles.insert(id, wanted);
         }
 
-        let (Some(screen), Some(size)) = (screen, meta.and_then(|m| m.size)) else {
+        let (Some(screen), Some(size)) = (screen, meta.and_then(|m| m.effective_size())) else {
             return Task::none();
         };
         match self.sized_by.get(&id) {
@@ -1302,6 +1449,10 @@ impl Runtime {
             min_size: meta.min_size.map(|(w, h)| Size::new(w, h)),
             ..window::Settings::default()
         };
+        // `max_size`, `fixed_size`, `decorations` e `icon` do `<screen>` da
+        // filha: cada janela declara a própria moldura, como a principal.
+        apply_window_bounds(&meta, &mut settings);
+        apply_window_icon(&meta, &mut settings, self.assets.as_ref());
         // O app tem a última palavra sobre a aparência da filha (ex.: também
         // borderless, num app com titlebar própria).
         if let Some(f) = &self.child_settings {
@@ -1320,7 +1471,7 @@ impl Runtime {
         self.titles
             .insert(id, meta.title.clone().unwrap_or_else(|| base_title.clone()));
         self.base_titles.insert(id, base_title);
-        if let Some(entry) = screen.zip(size.or(meta.size)) {
+        if let Some(entry) = screen.zip(size.or(meta.effective_size())) {
             self.sized_by.insert(id, entry);
         }
         self.windows.insert(id, engine);
@@ -1609,10 +1760,10 @@ fn resolve_main_window(
     let mut size = None;
     if let Some(meta) = meta {
         apply_screen_meta(meta, settings, title);
-        size = meta.size;
+        size = meta.effective_size();
     }
     if let Some(saved) = saved {
-        settings.size = clamp_to_min(saved.size, settings.min_size);
+        settings.size = clamp_to_max(clamp_to_min(saved.size, settings.min_size), settings.max_size);
         if let Some(p) = saved.position {
             settings.position = window::Position::Specific(p);
         }
@@ -1638,6 +1789,174 @@ fn apply_screen_meta(
     if let Some(r) = meta.resizable {
         settings.resizable = r;
     }
+    apply_window_bounds(meta, settings);
+}
+
+/// O que o `<screen>` diz da janela além de título, tamanho e mínimo:
+/// `max_size`, `fixed_size` e `decorations`. Partilhado pela principal
+/// ([`apply_screen_meta`]) e pelas filhas (`Runtime::open_child`), onde o
+/// tamanho segue outra regra — quem abre a janela pode pedir um.
+///
+/// O `fixed_size` vem por último e manda: é tamanho, mínimo e máximo ao mesmo
+/// tempo, sem redimensionamento. O parser já recusa escrevê-lo ao lado dos
+/// outros; aqui ele vence também o que veio de quem abriu a janela.
+fn apply_window_bounds(meta: &crate::ScreenMeta, settings: &mut window::Settings) {
+    if let Some((w, h)) = meta.max_size {
+        settings.max_size = Some(Size::new(w, h));
+    }
+    if let Some((w, h)) = meta.fixed_size {
+        let fixo = Size::new(w, h);
+        settings.size = fixo;
+        settings.min_size = Some(fixo);
+        settings.max_size = Some(fixo);
+        settings.resizable = false;
+    }
+    if let Some(d) = meta.decorations {
+        settings.decorations = d;
+    }
+}
+
+/// `icon="…"` do `<screen>`: lido pela fonte de assets e decodificado. Um
+/// arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem
+/// ícone — nunca a impede de abrir.
+fn apply_window_icon(
+    meta: &crate::ScreenMeta,
+    settings: &mut window::Settings,
+    assets: &dyn AssetSource,
+) {
+    let Some(path) = &meta.icon else {
+        return;
+    };
+    match assets.read_bytes(path) {
+        Ok(bytes) => match window::icon::from_file_data(&bytes, None) {
+            Ok(icon) => settings.icon = Some(icon),
+            Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui decodificar o ícone: {erro}"),
+        },
+        Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui ler o ícone: {erro}"),
+    }
+}
+
+/// O diretório de dados do app `id`, onde moram a geometria lembrada e o global
+/// `storage`: `$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`,
+/// `~/Library/Application Support/<id>` ou `~/.local/share/<id>` — o mesmo lugar
+/// que os templates do `glacier new` calculavam à mão no `main.rs`.
+fn app_data_dir(id: &str) -> PathBuf {
+    std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("APPDATA").map(PathBuf::from))
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| {
+                let home = PathBuf::from(home);
+                if cfg!(target_os = "macos") {
+                    home.join("Library/Application Support")
+                } else {
+                    home.join(".local/share")
+                }
+            })
+        })
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(id)
+}
+
+/// A bandeja declarada numa `<tray>` do template principal: o que cada item faz
+/// e os últimos rótulos/marcações enviados à thread da bandeja, para só mandar
+/// o que mudou.
+struct TrayBindings {
+    items: Vec<TrayItemDecl>,
+    labels: HashMap<String, String>,
+    checked: HashMap<String, bool>,
+}
+
+impl TrayBindings {
+    fn new(items: Vec<TrayItemDecl>) -> Self {
+        Self {
+            items,
+            labels: HashMap::new(),
+            checked: HashMap::new(),
+        }
+    }
+
+    /// A ação do item `id`, se ele tiver uma.
+    fn action(&self, id: &str) -> Option<&str> {
+        self.items.iter().find(|item| item.id == id)?.on_click.as_deref()
+    }
+
+    /// O `TrayConfig` inicial, com rótulos e marcações já resolvidos contra o
+    /// motor da principal — e guardados, para o `sync` saber o que mudou.
+    fn config(&mut self, icon: Vec<u8>, tooltip: String, engine: &GlacierUI) -> TrayConfig {
+        let mut items = Vec::with_capacity(self.items.len());
+        for item in &self.items {
+            match item.kind {
+                TrayItemKind::Separator => items.push(TrayItem::separator()),
+                TrayItemKind::Item => {
+                    let rotulo = tray_text(&item.label, engine);
+                    self.labels.insert(item.id.clone(), rotulo.clone());
+                    items.push(TrayItem::button(&item.id, rotulo));
+                }
+                TrayItemKind::Check => {
+                    let rotulo = tray_text(&item.label, engine);
+                    let marcado = item
+                        .checked
+                        .as_deref()
+                        .is_some_and(|c| truthy(&tray_text(c, engine)));
+                    self.labels.insert(item.id.clone(), rotulo.clone());
+                    self.checked.insert(item.id.clone(), marcado);
+                    items.push(TrayItem::check(&item.id, rotulo, marcado));
+                }
+            }
+        }
+        TrayConfig {
+            icon,
+            tooltip,
+            items,
+        }
+    }
+
+    /// Reavalia rótulos e marcações contra o motor e manda à bandeja só o que
+    /// mudou desde a última vez.
+    fn sync(&mut self, handle: &TrayHandle, engine: &GlacierUI) {
+        let acoes = TrayActions::new(handle);
+        for item in &self.items {
+            if item.kind == TrayItemKind::Separator {
+                continue;
+            }
+            let rotulo = tray_text(&item.label, engine);
+            if self.labels.get(&item.id) != Some(&rotulo) {
+                acoes.set_label(&item.id, rotulo.clone());
+                self.labels.insert(item.id.clone(), rotulo);
+            }
+            if let Some(c) = &item.checked {
+                let marcado = truthy(&tray_text(c, engine));
+                if self.checked.get(&item.id) != Some(&marcado) {
+                    acoes.set_checked(&item.id, marcado);
+                    self.checked.insert(item.id.clone(), marcado);
+                }
+            }
+        }
+    }
+}
+
+/// O texto de um item da `<tray>`, interpolado no contexto da janela principal.
+/// `{__notifications}` é a chave do motor para o interruptor global das
+/// notificações (`notifications:toggle`), que não mora no contexto de motor
+/// nenhum.
+fn tray_text(template: &str, engine: &GlacierUI) -> String {
+    let template = template.replace(
+        "{__notifications}",
+        if crate::tray::notifications_enabled() {
+            "true"
+        } else {
+            "false"
+        },
+    );
+    crate::eval::process_template(&template, engine.context())
+}
+
+/// O mesmo teste do `if="{chave}"` sem comparador: vazio, `false` e `0` são
+/// falsos.
+fn truthy(valor: &str) -> bool {
+    let v = valor.trim();
+    !(v.is_empty() || v.eq_ignore_ascii_case("false") || v == "0")
 }
 
 fn build_engine(
@@ -2073,6 +2392,7 @@ mod tests {
             size: Some((1000.0, 700.0)),
             min_size: Some((480.0, 360.0)),
             resizable: None,
+            ..Default::default()
         };
         let saved = SavedGeometry {
             size: Size::new(1440.0, 900.0),
@@ -2134,6 +2454,7 @@ mod tests {
                 size: Some((1000.0, 700.0)),
                 min_size: None,
                 resizable: None,
+                ..Default::default()
             },
             &mut settings,
             &mut title,

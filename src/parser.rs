@@ -34,6 +34,19 @@ pub struct ScreenMeta {
     pub min_size: Option<(f32, f32)>,
     /// Se a janela pode ser redimensionada (`resizable="false"`).
     pub resizable: Option<bool>,
+    /// Tamanho máximo `(largura, altura)`, de `max_size="1600 1000"`.
+    pub max_size: Option<(f32, f32)>,
+    /// `fixed_size="800 600"`: o tamanho, o mínimo e o máximo ao mesmo tempo, e
+    /// a janela deixa de ser redimensionável. Não convive com `size`,
+    /// `min_size`, `max_size` nem `resizable` no mesmo `<screen>` (erro de
+    /// parse).
+    pub fixed_size: Option<(f32, f32)>,
+    /// `decorations="false"`: sem a moldura do sistema (barra de título,
+    /// bordas) — para uma titlebar própria com `window:drag`/`window:close`.
+    pub decorations: Option<bool>,
+    /// `icon="views/assets/icone.png"`: o ícone da janela, lido pela fonte de
+    /// assets do app (o mesmo caminho de um `<link href>`).
+    pub icon: Option<String>,
 }
 
 impl ScreenMeta {
@@ -41,6 +54,65 @@ impl ScreenMeta {
     pub fn is_empty(&self) -> bool {
         *self == Self::default()
     }
+
+    /// O tamanho com que a janela abre: o `fixed_size`, se houver, ou o `size`.
+    pub fn effective_size(&self) -> Option<(f32, f32)> {
+        self.fixed_size.or(self.size)
+    }
+}
+
+/// O `<app id="…">` do `<resources>` do template principal: o que é do
+/// **aplicativo**, e não de uma janela.
+///
+/// Lido pelo [`crate::GlacierDaemon`] **antes** de subir o iced — a instância
+/// única é decidida antes de qualquer janela existir, e o diretório de dados
+/// precisa estar definido antes do primeiro motor. Por isso só vale no template
+/// principal (o padrão `views/app.gv` ou o de `main_template`); numa janela-filha
+/// é ignorado.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct AppMeta {
+    /// Identifica o app: é a chave da instância única e o nome do diretório de
+    /// dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, …).
+    pub id: String,
+    /// `single_instance="true"`: uma segunda execução foca a primeira e sai.
+    pub single_instance: bool,
+    /// `remember_geometry="true"`: tamanho e posição da principal gravados ao
+    /// fechar e restaurados ao abrir, no diretório de dados.
+    pub remember_geometry: bool,
+}
+
+/// A `<tray>` do `<resources>` do template principal: o ícone de bandeja e o
+/// menu dele. Lida antes do boot, como o [`AppMeta`]. Ver [`crate::tray`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TrayMeta {
+    /// Caminho do ícone, lido pela fonte de assets.
+    pub icon: String,
+    /// Texto do tooltip. `None` usa o título da janela principal.
+    pub tooltip: Option<String>,
+    pub items: Vec<TrayItemDecl>,
+}
+
+/// Um item do menu da `<tray>`: `<item>`, `<check>` ou `<separator>`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrayItemDecl {
+    pub kind: TrayItemKind,
+    /// `id="…"`, ou um gerado pela posição quando não veio.
+    pub id: String,
+    /// O rótulo; aceita `{chave}` do contexto da janela principal.
+    pub label: String,
+    /// Só no `<check>`: `checked="{chave}"`, lido como truthy.
+    pub checked: Option<String>,
+    /// A ação do clique: `tray:open`, `tray:quit`, `notifications:toggle`, ou
+    /// qualquer outra, entregue ao script/`update` da tela principal.
+    pub on_click: Option<String>,
+}
+
+/// O tipo de um [`TrayItemDecl`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrayItemKind {
+    Item,
+    Check,
+    Separator,
 }
 
 /// Os metadados de um `<dialog name="…">` declarado no `<resources>` — a
@@ -139,12 +211,60 @@ const SCREEN_MIN_SIZE_ATTRS: &[&str] = &[
     "tamanho_minimo",
 ];
 const SCREEN_RESIZABLE_ATTRS: &[&str] = &["resizable", "redimensionavel", "redimensionável"];
+const SCREEN_MAX_SIZE_ATTRS: &[&str] = &[
+    "max_size",
+    "max-size",
+    "maxSize",
+    "tamanho_maximo",
+    "tamanho-maximo",
+];
+const SCREEN_FIXED_SIZE_ATTRS: &[&str] = &[
+    "fixed_size",
+    "fixed-size",
+    "fixedSize",
+    "tamanho_fixo",
+    "tamanho-fixo",
+];
+const SCREEN_DECORATIONS_ATTRS: &[&str] = &["decorations", "decoracoes", "decorações"];
+const SCREEN_ICON_ATTRS: &[&str] = &["icon", "icone", "ícone"];
 const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
     SCREEN_TITLE_ATTRS,
     SCREEN_SIZE_ATTRS,
     SCREEN_MIN_SIZE_ATTRS,
     SCREEN_RESIZABLE_ATTRS,
+    SCREEN_MAX_SIZE_ATTRS,
+    SCREEN_FIXED_SIZE_ATTRS,
+    SCREEN_DECORATIONS_ATTRS,
+    SCREEN_ICON_ATTRS,
 ];
+
+/// Os atributos do `<app>`, um grupo por campo do [`AppMeta`].
+const APP_ID_ATTRS: &[&str] = &["id"];
+const APP_SINGLE_INSTANCE_ATTRS: &[&str] =
+    &["single_instance", "single-instance", "instancia_unica"];
+const APP_REMEMBER_GEOMETRY_ATTRS: &[&str] =
+    &["remember_geometry", "remember-geometry", "lembrar_geometria"];
+const APP_ATTR_GROUPS: &[&[&str]] = &[
+    APP_ID_ATTRS,
+    APP_SINGLE_INSTANCE_ATTRS,
+    APP_REMEMBER_GEOMETRY_ATTRS,
+];
+
+/// Os atributos da `<tray>` e dos itens dela — ver [`TrayMeta`].
+const TRAY_ICON_ATTRS: &[&str] = &["icon", "icone", "ícone"];
+const TRAY_TOOLTIP_ATTRS: &[&str] = &["tooltip", "dica"];
+const TRAY_ITEM_ID_ATTRS: &[&str] = &["id"];
+const TRAY_ITEM_LABEL_ATTRS: &[&str] = &["label", "rotulo", "rótulo"];
+const TRAY_ITEM_CLICK_ATTRS: &[&str] = &["on_click", "on-click", "onClick"];
+const TRAY_ITEM_CHECKED_ATTRS: &[&str] = &["checked", "marcado"];
+
+fn is_app_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("app") || tag.eq_ignore_ascii_case("aplicativo")
+}
+
+fn is_tray_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("tray") || tag.eq_ignore_ascii_case("bandeja")
+}
 
 /// Um nome de preset vira a máscara que ele nomeia; qualquer outra coisa passa
 /// intacta e é lida como máscara literal.
@@ -282,6 +402,12 @@ const RESOURCE_TAGS: &[&str] = &[
     "dialogo",
     "diálogo",
     "componente",
+    // O que é do **aplicativo**, lido pelo daemon antes do boot: `<app>` e
+    // `<tray>`. Só valem no `<screen>` principal — ver [`AppMeta`]/[`TrayMeta`].
+    "app",
+    "aplicativo",
+    "tray",
+    "bandeja",
 ];
 
 /// Lê um par de números de um atributo de tamanho (`size`, `min-size`).
@@ -380,8 +506,8 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
             if let Some(attr) = child.attributes().next() {
                 let name = attr.name();
                 let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&name)) {
-                    "title/size/min-size/resizable descrevem uma JANELA, e um <component> \
-                     não é uma — quem é janela usa <screen>"
+                    "title, size, decorations, icon e companhia descrevem uma JANELA, e um \
+                     <component> não é uma — quem é janela usa <screen>"
                 } else {
                     "o <component> não leva atributos; as props que ele ACEITA se declaram \
                      no <props> de dentro dele, e os valores vêm de quem o usa \
@@ -392,7 +518,7 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                         .with_hint(hint),
                 );
             }
-            if let Some(d) = validate_resources(child).or_else(|| validate_props(child)) {
+            if let Some(d) = validate_resources(child, false).or_else(|| validate_props(child)) {
                 return Some(d);
             }
             if let Some(d) = validate_no_nested_header(child) {
@@ -418,20 +544,26 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                         format!("atributo '{name}' desconhecido no <{tag}>"),
                     )
                     .with_hint(
-                        "o cabeçalho aceita title, size, min-size e resizable \
-                             (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)",
+                        "o <screen> aceita title, size, min_size, max_size, fixed_size, \
+                         resizable, decorations e icon; o que é do aplicativo (instância \
+                         única, geometria lembrada, bandeja) vai num <app>/<tray> dentro do \
+                         <resources>",
                     ),
                 );
             };
             let value = attr.value();
             let bad = if std::ptr::eq(*group, SCREEN_SIZE_ATTRS)
                 || std::ptr::eq(*group, SCREEN_MIN_SIZE_ATTRS)
+                || std::ptr::eq(*group, SCREEN_MAX_SIZE_ATTRS)
+                || std::ptr::eq(*group, SCREEN_FIXED_SIZE_ATTRS)
             {
                 parse_size_pair(value).is_none().then_some(
                     "um tamanho é um par de números: `960 700`, `960x700` ou `960, 700` \
                      (em px, sem unidade)",
                 )
-            } else if std::ptr::eq(*group, SCREEN_RESIZABLE_ATTRS) {
+            } else if std::ptr::eq(*group, SCREEN_RESIZABLE_ATTRS)
+                || std::ptr::eq(*group, SCREEN_DECORATIONS_ATTRS)
+            {
                 parse_bool_value(value)
                     .is_none()
                     .then_some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
@@ -448,6 +580,37 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                     .with_hint(hint),
                 );
             }
+        }
+
+        // `fixed_size` já decide tamanho, mínimo, máximo e redimensionamento:
+        // escrever um deles ao lado é pedir duas coisas diferentes para o mesmo
+        // campo, e qualquer ordem de precedência seria uma surpresa.
+        if let Some(fixo) = child
+            .attributes()
+            .find(|a| SCREEN_FIXED_SIZE_ATTRS.contains(&a.name()))
+            && let Some(outro) = child.attributes().find(|a| {
+                [
+                    SCREEN_SIZE_ATTRS,
+                    SCREEN_MIN_SIZE_ATTRS,
+                    SCREEN_MAX_SIZE_ATTRS,
+                    SCREEN_RESIZABLE_ATTRS,
+                ]
+                .iter()
+                .any(|g| g.contains(&a.name()))
+            })
+        {
+            return Some(
+                diagnostic_at_attr(
+                    child,
+                    outro,
+                    format!("'{}' ao lado de '{}'", outro.name(), fixo.name()),
+                )
+                .with_hint(
+                    "fixed_size já é o tamanho, o mínimo e o máximo, e desliga o \
+                     redimensionamento; tire o outro atributo, ou troque fixed_size por \
+                     size/min_size/max_size",
+                ),
+            );
         }
 
         // Uma janela não tem quem lhe passe props: ela é aberta, não usada por
@@ -467,7 +630,7 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
             );
         }
 
-        if let Some(d) = validate_resources(child) {
+        if let Some(d) = validate_resources(child, true) {
             return Some(d);
         }
         if let Some(d) = validate_no_nested_header(child) {
@@ -645,7 +808,7 @@ fn validate_props(header: Node) -> Option<Diagnostic> {
 
 /// Confere o `<resources>` de um cabeçalho: ele não leva atributos, e só
 /// declaração entra nele.
-fn validate_resources(header: Node) -> Option<Diagnostic> {
+fn validate_resources(header: Node, is_screen: bool) -> Option<Diagnostic> {
     for res in header.children().filter(Node::is_element) {
         if !is_resources_tag(res.tag_name().name()) {
             continue;
@@ -666,8 +829,8 @@ fn validate_resources(header: Node) -> Option<Diagnostic> {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
                         "dentro do <resources> só entram <style>, <script>, <link>, \
-                         <import>, <component name=\"…\"> e <dialog name=\"…\">; um \
-                         widget vai no layout, depois do </resources>",
+                         <import>, <component name=\"…\">, <dialog name=\"…\">, <app> e \
+                         <tray>; um widget vai no layout, depois do </resources>",
                     ),
                 );
             }
@@ -681,6 +844,174 @@ fn validate_resources(header: Node) -> Option<Diagnostic> {
             {
                 return Some(d);
             }
+            if is_app_tag(name) || is_tray_tag(name) {
+                if !is_screen {
+                    return Some(
+                        diagnostic_at(decl, format!("<{name}> num <component>")).with_hint(
+                            "<app> e <tray> descrevem o APLICATIVO e só valem no <resources> \
+                             do <screen> principal; um <component> não é aberto como janela",
+                        ),
+                    );
+                }
+                let mesma_familia = |d: &Node| {
+                    let t = d.tag_name().name();
+                    if is_app_tag(name) { is_app_tag(t) } else { is_tray_tag(t) }
+                };
+                if res.children().filter(Node::is_element).filter(mesma_familia).count() > 1 {
+                    return Some(
+                        diagnostic_at(decl, format!("<{name}> declarado mais de uma vez"))
+                            .with_hint("um aplicativo tem um <app> e no máximo uma <tray>"),
+                    );
+                }
+                let d = if is_app_tag(name) {
+                    validate_app(decl)
+                } else {
+                    validate_tray(decl)
+                };
+                if d.is_some() {
+                    return d;
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Confere o `<app>`: `id` obrigatório e utilizável como nome de diretório, os
+/// dois interruptores booleanos, e nada mais — nem filhos.
+fn validate_app(decl: Node) -> Option<Diagnostic> {
+    for attr in decl.attributes() {
+        let name = attr.name();
+        let Some(group) = APP_ATTR_GROUPS.iter().find(|g| g.contains(&name)) else {
+            return Some(
+                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido no <app>"))
+                    .with_hint(
+                        "o <app> aceita id, single_instance e remember_geometry; o que é da \
+                         janela (title, size, icon, decorations…) vai no <screen>",
+                    ),
+            );
+        };
+        if !std::ptr::eq(*group, APP_ID_ATTRS) && parse_bool_value(attr.value()).is_none() {
+            return Some(
+                diagnostic_at_attr(
+                    decl,
+                    attr,
+                    format!("valor inválido em {name}=\"{}\"", attr.value()),
+                )
+                .with_hint("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)"),
+            );
+        }
+    }
+    let id = UiNode::get_attr(&decl, APP_ID_ATTRS).unwrap_or_default();
+    let id = id.trim();
+    if id.is_empty() {
+        return Some(diagnostic_at(decl, "<app> sem id".to_string()).with_hint(
+            "o id identifica o aplicativo: é a chave da instância única e o nome do \
+             diretório de dados — <app id=\"meu-app\" />",
+        ));
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        || id.starts_with('.')
+    {
+        return Some(
+            diagnostic_at(decl, format!("id \"{id}\" inválido no <app>")).with_hint(
+                "o id vira nome de diretório: use letras, dígitos, `-`, `_` e `.` (sem começar \
+                 com ponto), como `meu-app`",
+            ),
+        );
+    }
+    if let Some(filho) = decl.children().find(Node::is_element) {
+        return Some(
+            diagnostic_at(filho, "o <app> não tem filhos".to_string())
+                .with_hint("o menu da bandeja vai numa <tray>, ao lado do <app>"),
+        );
+    }
+    None
+}
+
+/// Confere a `<tray>`: `icon` obrigatório, e o menu feito só de `<item>`,
+/// `<check>` e `<separator>`, com `label` onde há texto e ids sem repetição.
+fn validate_tray(decl: Node) -> Option<Diagnostic> {
+    for attr in decl.attributes() {
+        let name = attr.name();
+        if !TRAY_ICON_ATTRS.contains(&name) && !TRAY_TOOLTIP_ATTRS.contains(&name) {
+            return Some(
+                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido na <tray>"))
+                    .with_hint(
+                        "a <tray> aceita icon e tooltip; os itens do menu são filhos: \
+                         <item>, <check> e <separator>",
+                    ),
+            );
+        }
+    }
+    if UiNode::get_attr(&decl, TRAY_ICON_ATTRS).is_none_or(|i| i.trim().is_empty()) {
+        return Some(diagnostic_at(decl, "<tray> sem icon".to_string()).with_hint(
+            "sem ícone não há o que mostrar na bandeja: <tray icon=\"views/assets/icone.png\">",
+        ));
+    }
+    let mut ids: Vec<String> = Vec::new();
+    for item in decl.children().filter(Node::is_element) {
+        let tag = item.tag_name().name();
+        let kind = match tag.to_ascii_lowercase().as_str() {
+            "item" => TrayItemKind::Item,
+            "check" => TrayItemKind::Check,
+            "separator" | "separador" => TrayItemKind::Separator,
+            _ => {
+                return Some(
+                    diagnostic_at(item, format!("<{tag}> não é um item de <tray>")).with_hint(
+                        "o menu da bandeja tem <item label=\"…\" on_click=\"…\" />, <check \
+                         label=\"…\" checked=\"{chave}\" on_click=\"…\" /> e <separator />",
+                    ),
+                );
+            }
+        };
+        for attr in item.attributes() {
+            let name = attr.name();
+            let aceito = match kind {
+                TrayItemKind::Separator => false,
+                TrayItemKind::Item => {
+                    TRAY_ITEM_ID_ATTRS.contains(&name)
+                        || TRAY_ITEM_LABEL_ATTRS.contains(&name)
+                        || TRAY_ITEM_CLICK_ATTRS.contains(&name)
+                }
+                TrayItemKind::Check => {
+                    TRAY_ITEM_ID_ATTRS.contains(&name)
+                        || TRAY_ITEM_LABEL_ATTRS.contains(&name)
+                        || TRAY_ITEM_CLICK_ATTRS.contains(&name)
+                        || TRAY_ITEM_CHECKED_ATTRS.contains(&name)
+                }
+            };
+            if !aceito {
+                let hint = match kind {
+                    TrayItemKind::Separator => "o <separator /> não leva atributos",
+                    TrayItemKind::Item => "um <item> aceita id, label e on_click",
+                    TrayItemKind::Check => "um <check> aceita id, label, checked e on_click",
+                };
+                return Some(
+                    diagnostic_at_attr(item, attr, format!("atributo '{name}' desconhecido no <{tag}>"))
+                        .with_hint(hint),
+                );
+            }
+        }
+        if kind == TrayItemKind::Separator {
+            continue;
+        }
+        if UiNode::get_attr(&item, TRAY_ITEM_LABEL_ATTRS).is_none_or(|l| l.trim().is_empty()) {
+            return Some(
+                diagnostic_at(item, format!("<{tag}> sem label"))
+                    .with_hint("o label é o texto do item no menu; aceita {chave}"),
+            );
+        }
+        if let Some(id) = UiNode::get_attr(&item, TRAY_ITEM_ID_ATTRS) {
+            if ids.contains(&id) {
+                return Some(
+                    diagnostic_at(item, format!("id \"{id}\" repetido na <tray>"))
+                        .with_hint("cada item do menu precisa de um id próprio"),
+                );
+            }
+            ids.push(id);
         }
     }
     None
@@ -1131,6 +1462,12 @@ pub enum NodeType {
     /// `Style`, é uma **declaração**: viaja pendurada na raiz e é descartada na
     /// avaliação, sem desenhar nada. Ver [`ScreenMeta`].
     Screen(ScreenMeta),
+    /// `<app id="…">` no `<resources>` do template principal — ver [`AppMeta`].
+    /// Declaração: viaja pendurada na raiz e é descartada na avaliação.
+    App(AppMeta),
+    /// `<tray icon="…">` no `<resources>` do template principal — ver
+    /// [`TrayMeta`]. Declaração, como o `App`.
+    Tray(TrayMeta),
     /// Um `<dialog name="…">` declarado no `<resources>`: a **classe-base** da
     /// §2.10, o `QDialog` que o catálogo nunca teve.
     ///
@@ -2654,6 +2991,8 @@ impl NodeType {
             | NodeType::Props(_)
             | NodeType::Prop
             | NodeType::Slot { .. }
+            | NodeType::App(_)
+            | NodeType::Tray(_)
             | NodeType::Fragment => return None,
         })
     }
@@ -5622,6 +5961,49 @@ impl UiNode {
                     }
                 }
             }
+            "app" | "App" | "aplicativo" | "Aplicativo" => NodeType::App(AppMeta {
+                id: Self::get_attr(&node, APP_ID_ATTRS)
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default(),
+                single_instance: Self::get_attr(&node, APP_SINGLE_INSTANCE_ATTRS)
+                    .as_deref()
+                    .and_then(parse_bool_value)
+                    .unwrap_or(false),
+                remember_geometry: Self::get_attr(&node, APP_REMEMBER_GEOMETRY_ATTRS)
+                    .as_deref()
+                    .and_then(parse_bool_value)
+                    .unwrap_or(false),
+            }),
+            // `<tray>`: os itens são lidos do XML aqui mesmo, como os `<prop>` de
+            // um `<props>` — não são nós de layout, e o `<check>` de dentro nem
+            // pode passar pelo `match` de tags (é apelido do `<checkbox>`).
+            "tray" | "Tray" | "bandeja" | "Bandeja" => NodeType::Tray(TrayMeta {
+                icon: Self::get_attr(&node, TRAY_ICON_ATTRS)
+                    .map(|i| i.trim().to_string())
+                    .unwrap_or_default(),
+                tooltip: Self::get_attr(&node, TRAY_TOOLTIP_ATTRS),
+                items: node
+                    .children()
+                    .filter(Node::is_element)
+                    .enumerate()
+                    .map(|(i, item)| {
+                        let kind = match item.tag_name().name().to_ascii_lowercase().as_str() {
+                            "check" => TrayItemKind::Check,
+                            "separator" | "separador" => TrayItemKind::Separator,
+                            _ => TrayItemKind::Item,
+                        };
+                        TrayItemDecl {
+                            kind,
+                            id: Self::get_attr(&item, TRAY_ITEM_ID_ATTRS)
+                                .unwrap_or_else(|| format!("item{i}")),
+                            label: Self::get_attr(&item, TRAY_ITEM_LABEL_ATTRS)
+                                .unwrap_or_default(),
+                            checked: Self::get_attr(&item, TRAY_ITEM_CHECKED_ATTRS),
+                            on_click: Self::get_attr(&item, TRAY_ITEM_CLICK_ATTRS),
+                        }
+                    })
+                    .collect(),
+            }),
             "screen" | "Screen" | "tela" | "Tela" => {
                 // Só os metadados são lidos aqui; o achatamento (recursos viram
                 // declarações da raiz, o resto vira o layout) acontece em
@@ -5639,6 +6021,18 @@ impl UiNode {
                     resizable: Self::get_attr(&node, SCREEN_RESIZABLE_ATTRS)
                         .as_deref()
                         .and_then(parse_bool_value),
+                    max_size: Self::get_attr(&node, SCREEN_MAX_SIZE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_size_pair),
+                    fixed_size: Self::get_attr(&node, SCREEN_FIXED_SIZE_ATTRS)
+                        .as_deref()
+                        .and_then(parse_size_pair),
+                    decorations: Self::get_attr(&node, SCREEN_DECORATIONS_ATTRS)
+                        .as_deref()
+                        .and_then(parse_bool_value),
+                    icon: Self::get_attr(&node, SCREEN_ICON_ATTRS)
+                        .map(|i| i.trim().to_string())
+                        .filter(|i| !i.is_empty()),
                 })
             }
             // `<dialog name="…">`: a declaração de um modal com corpo em
@@ -5774,8 +6168,11 @@ impl UiNode {
         // text child (`Text`/`Span`) are excluded so the content isn't
         // duplicated.
         let wrap_loose_text = !matches!(kind, NodeType::Text { .. });
+        // Os itens de uma `<tray>` já foram lidos no braço dela; parseá-los de
+        // novo como nós faria o `<check>` virar um checkbox perdido na árvore.
+        let le_filhos = !matches!(kind, NodeType::App(_) | NodeType::Tray(_));
         let mut children = Vec::new();
-        for child in node.children() {
+        for child in node.children().filter(|_| le_filhos) {
             if let Some(child_node) = Self::from_node(child) {
                 children.push(child_node);
             } else if wrap_loose_text && child.is_text() {

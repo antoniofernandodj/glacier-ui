@@ -13,6 +13,7 @@ boa parte disto some — o que não muda é a ordem de grandeza entre as causas.
 | saber onde cada arquivo vai | *A anatomia do projeto* |
 | copiar algo que já roda | *Um app inteiro, comentado* |
 | achar a tag certa para uma tela | *O catálogo de widgets* |
+| desenhar um componente que chega por prop ou por dado | *O `<render>`* |
 | saber os atributos e o formato de dado de uma tag | a entrada dela no catálogo |
 | escrever ou arrumar um `.gss` | *A folha de estilo, por inteiro* |
 | trocar as cores do app | *O `theme.json`* |
@@ -660,9 +661,9 @@ componente**, e o template o desenha com `<render>` ou o usa de `fallback`:
 <Lista titulo="Serviços" itens="servicos" cabecalho="TituloGrande" vazio="NenhumServico" />
 ```
 
-- `<render component="{x}" …/>` é a tag `<X …/>` com o nome vindo de dado: os
-  outros atributos são as props dele e os filhos vão para o `<slot/>` dele. Nome
-  que interpola para vazio não desenha nada; nome não registrado é erro.
+- `<render component="{x}" …/>` é a tag `<X …/>` com o nome vindo de dado. Como
+  ele se comporta, de onde o nome vem e quando não usar estão em "O `<render>`",
+  logo depois de "Estrutura de template".
 - `<prop component name="…" />` — o marcador vai **sem valor** — diz que a prop
   é um componente. O motor confere o nome no uso (escrito, de `{chave}`, do
   `default` ou do `spread`) mesmo que nada o desenhe ainda, e a extensão do VS
@@ -685,9 +686,72 @@ Os `rel` que existem são cinco: `stylesheet`, `import`, `component` (apelido de
 é obrigatório — e `theme`. Qualquer outro é erro na carga, com a lista na
 mensagem.
 
-No `<screen>`: `title`, `size="1080 760"`, `min_size` e `resizable="false"`. O
-`<dialog>` tem seção própria ("O `<dialog>` — o modal com corpo em markup"),
+O `<dialog>` tem seção própria ("O `<dialog>` — o modal com corpo em markup"),
 com o `buttons=` nos mínimos detalhes.
+
+**A janela, no `<screen>`.** O que descreve a janela mora no cabeçalho do
+arquivo dela — vale para a principal e para as abertas por `open_window`:
+
+| atributo | valor |
+|---|---|
+| `title` | título da barra; acompanha a navegação |
+| `size` | tamanho inicial, `"1080 760"` |
+| `min_size` / `max_size` | limites do redimensionamento |
+| `fixed_size` | tamanho, mínimo e máximo de uma vez, sem redimensionar — não convive com os quatro acima (erro de parse) |
+| `resizable` | `"false"` trava o redimensionamento |
+| `decorations` | `"false"` tira a moldura do sistema, para uma titlebar própria com `window:drag`/`window:close` |
+| `icon` | ícone da janela, com o caminho de um `<link href>` (`views/assets/icone.png`) |
+
+**O aplicativo, no `<resources>` da tela principal.** O que não é de janela
+nenhuma — instância única, geometria lembrada, diretório de dados, bandeja — vai
+em `<app>` e `<tray>`. O runner os lê **antes** de abrir qualquer janela, e só
+do template principal (o `views/app.gv` padrão, ou o de
+`.main_template("…")`); em outro template são ignorados, e num `<component>`
+são erro.
+
+```xml
+<screen title="Painel" size="960 700" icon="views/assets/icone.png">
+  <resources>
+    <app id="meu-app" single_instance="true" remember_geometry="true" />
+
+    <tray icon="views/assets/icone.png" tooltip="Meu app">
+      <item label="Abrir" on_click="tray:open" />
+      <check label="Notificações" checked="{__notifications}" on_click="notifications:toggle" />
+      <item label="Sincronizar agora" on_click="sincronizar" />
+      <separator />
+      <item label="Sair" on_click="tray:quit" />
+    </tray>
+  </resources>
+  …
+</screen>
+```
+
+| no `<app>` | o que faz |
+|---|---|
+| `id` (obrigatório) | nome do diretório de dados (`~/.local/share/<id>`, `%APPDATA%\<id>`) — onde a geometria e o global `storage` gravam — e chave da instância única. Letras, dígitos, `-`, `_` e `.` |
+| `single_instance="true"` | uma segunda execução foca a primeira e sai |
+| `remember_geometry="true"` | tamanho e posição da principal gravados ao fechar e restaurados ao abrir (no Wayland, só o tamanho) |
+
+A `<tray>` pede a feature `tray` do `glacier-ui` no `Cargo.toml`, e com ela
+**fechar a última janela não encerra o app**: ele se recolhe para a bandeja.
+
+| item | atributos |
+|---|---|
+| `<item>` | `label` (obrigatório), `on_click`, `id` |
+| `<check>` | os mesmos, mais `checked="{chave}"` (truthy) |
+| `<separator />` | nenhum |
+
+- `tray:open` reabre/foca a principal, `tray:quit` encerra e
+  `notifications:toggle` liga e desliga as notificações do sistema —
+  `{__notifications}` é o estado dele. O runner trata os três sozinho.
+- Qualquer outra ação vai ao script da tela principal, que continua vivo com a
+  janela recolhida.
+- `label` e `checked` aceitam `{chave}` do contexto da principal, e o menu
+  acompanha quando ela muda.
+
+O builder em Rust (`.single_instance`, `.remember_window_geometry`,
+`.storage_dir`, `.tray` + `.on_tray`, `.main_window`) continua existindo e
+**vence** o markup onde é usado — ele é para o que o markup não expressa.
 
 ### O que vale em qualquer tag
 
@@ -1939,6 +2003,123 @@ ninguém preencheu simplesmente não desenha nada.
 Um `<style>` num componente é global a menos que você escreva
 `scoped="true"` — é a inversão que mais surpreende quem vem do Vue.
 
+### O `<render>` — o componente cujo nome é um valor
+
+É uma tag de componente em que o **nome vem de um valor**, e não do markup.
+Estas duas linhas fazem a mesma coisa:
+
+```xml
+<TituloGrande titulo="Serviços" />
+<render component="TituloGrande" titulo="Serviços" />
+```
+
+Com nome literal isso não serve para nada. A graça é quando o nome
+**interpola**: `component="{cabecalho}"` desenha o componente cujo nome estiver
+em `{cabecalho}` — uma prop, uma chave do contexto ou uma variável de repetição.
+
+**Por que ele existe.** XML não deixa escrever `<{cabecalho} />`. Sem o
+`<render>`, um componente que quisesse desenhar "o cabeçalho que quem me usa
+escolher" teria de conhecer todos os candidatos e montar uma escada de
+condicionais:
+
+```xml
+<template if="{cabecalho}" equals="TituloGrande"><TituloGrande titulo="{titulo}" /></template>
+<template else-if="{cabecalho}" equals="TituloCompacto"><TituloCompacto titulo="{titulo}" /></template>
+<template else><text>?</text></template>
+```
+
+Com ele, o componente não conhece cabeçalho nenhum — quem usa escolhe:
+
+```xml
+<!-- views/components/lista.gv -->
+<component>
+  <props>
+    <prop name="titulo" />
+    <prop component name="cabecalho" />
+  </props>
+  <column>
+    <render component="{cabecalho}" titulo="{titulo}" />
+    …
+  </column>
+</component>
+```
+```xml
+<Lista titulo="Serviços" cabecalho="TituloGrande" />
+<Lista titulo="Filas" cabecalho="TituloCompacto" />
+```
+
+**Como ele se comporta.** Resolvido o nome, o `<render>` vira **exatamente** a
+tag `<Nome …/>`, e tudo o que vale para uma tag de componente vale para ele:
+
+| no `<render>` | vira |
+|---|---|
+| `component="{x}"` (apelidos `componente`, `is`) | o nome, interpolado no contexto de quem escreveu o `<render>` |
+| os outros atributos | as props do componente, conferidas pelo `<props>` dele |
+| os filhos | o conteúdo do `<slot/>` do componente |
+| `class` / `id` | a classe e o id do uso, como numa tag comum |
+| `if`, `for-each`, … | diretivas, avaliadas antes, como em qualquer nó |
+
+E três regras próprias:
+
+- **Nome vazio não desenha nada.** É o componente opcional:
+  `<prop component name="rodape" default="" />` mais
+  `<render component="{rodape}" />` somem quando ninguém passa `rodape`.
+- **Nome não registrado é erro** (`componente 'X' não registrado`). Vale
+  qualquer componente do espaço de nomes: declarado no `<resources>`,
+  importado, registrado pelo Rust ou builtin.
+- **Um componente não se desenha a si mesmo.** `<render component="{x}">` dentro
+  de `X`, com `x = "X"`, cai na mesma guarda de recursão de uma tag comum.
+
+**De onde o nome vem.**
+
+- **De uma prop** — o caso da `Lista` acima.
+- **Do script**, e trocar a string troca o componente na tela, sem condicional
+  no markup:
+
+  ```xml
+  <Lista titulo="Serviços" cabecalho="{cabecalho}" />
+  ```
+  ```lua
+  function alternar_cabecalho(): ()
+    ctx.cabecalho = if ctx.cabecalho == "TituloGrande" then "TituloCompacto" else "TituloGrande"
+  end
+  ```
+
+- **Do próprio dado** — uma linha diferente por tipo de item:
+
+  ```xml
+  <foreach items="eventos" var="e">
+    <render component="{e.tipo}" spread="{e}" />   <!-- "LinhaErro", "LinhaAviso"… -->
+  </foreach>
+  ```
+
+**O detalhe das props.** Componentes intercambiáveis nem sempre aceitam as mesmas
+props. Se o `<render>` passa `total="3"` e o componente escolhido não declara
+`total`, é erro de prop desconhecida, como numa tag comum. Duas saídas:
+
+- todos os candidatos declaram as mesmas props, mesmo que algum as ignore;
+- `spread="{item}"`: cada componente recebe só os campos que **ele** declara. É o
+  que deixa uma linha que usa `id` e `texto` e outra que usa só `texto` servirem
+  ao mesmo `<render component="{linha}" spread="{item}" />`.
+
+**`<render>`, `fallback` e `<prop component>`** são três peças do mesmo
+mecanismo — um nome de componente tratado como dado:
+
+| peça | o que faz |
+|---|---|
+| `<render component="{x}">` | desenha o componente **agora** |
+| `fallback="{x}"` (`foreach_fallback` no `<template>`) | desenha o componente **só quando a lista está vazia** |
+| `<prop component name="x" />` | marca a prop que carrega o nome: o motor confere o nome no uso, e a extensão do VS Code linka, completa e avisa quando ele não existe |
+
+**Quando não usar.**
+
+- **O conteúdo é único e não precisa de nome.** Passe markup por `<slot/>`
+  (`<template slot="cabecalho">…</template>` no uso) — é mais direto do que
+  declarar um componente só para passá-lo por nome.
+- **As opções são duas ou três, fixas e conhecidas pelo próprio componente.** Um
+  `<template if>` / `<template else>` lê melhor. O `<render>` compensa quando
+  **quem usa** escolhe, ou quando o nome vem de dado.
+
 ### Diálogos não são tags
 
 Um modal do sistema é uma **chamada**, não markup — ele suspende o script e
@@ -2899,7 +3080,8 @@ Nenhum deles suspende — é I/O local. `write_file`/`append_file` devolvem
 `fetch("file://caminho")`.
 
 `storage` é um JSON chaveado que o motor gerencia (a pasta sai do
-`.storage_dir(...)` no `main.rs`); ao contrário do `ctx`, ele sobrevive ao
+diretório de dados do `<app id>`, ou do `.storage_dir(...)` no `main.rs`); ao
+contrário do `ctx`, ele sobrevive ao
 fechar do app e aceita tabelas de volta como tabelas.
 
 ### JSON
@@ -2994,15 +3176,14 @@ impl Component for Contador {
 }
 ```
 
-O `GlacierDaemon` é o que abre a janela:
+O `GlacierDaemon` é o que abre a janela. Moldura, ícone, geometria lembrada,
+diretório de dados e bandeja se declaram no `<screen>`/`<app>`/`<tray>` do
+template; o builder fica com o que o markup não expressa:
 
 ```rust
 GlacierDaemon::new()
     .title("Meu app")
     .main_size(980, 640)
-    .main_window(window::Settings { decorations: false, ..Default::default() })  // titlebar própria
-    .remember_window_geometry(true)      // lembra posição/tamanho entre execuções
-    .storage_dir(dir)                    // onde `storage.*` grava
     .font_named("Inter", include_bytes!("Inter.ttf"))   // `font="Inter"` no .gv/.gss
     .main(|motor| {
         motor.register_component("app", "views/app.gv").ok();   // tela vinda de .gv

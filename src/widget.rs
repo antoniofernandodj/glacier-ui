@@ -6021,6 +6021,9 @@ pub fn render_node<'a>(
             // Import declarations are stripped during evaluation; render nothing.
             column![].into()
         }
+        // `<app>`/`<tray>` são lidos pelo daemon antes do boot e descartados na
+        // avaliação; chegar aqui não desenha nada.
+        NodeType::App(_) | NodeType::Tray(_) => column![].into(),
         NodeType::Link { .. } => {
             // <link> declarations are stripped during evaluation; render nothing.
             column![].into()

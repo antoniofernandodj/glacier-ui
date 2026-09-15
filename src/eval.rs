@@ -1111,6 +1111,8 @@ fn expand_children(
                 | NodeType::Resources
                 | NodeType::Props(_)
                 | NodeType::Prop
+                | NodeType::App(_)
+                | NodeType::Tray(_)
         ) {
             continue;
         }
@@ -1311,7 +1313,9 @@ fn expand_children(
             | NodeType::DialogDef(_)
             | NodeType::Resources
             | NodeType::Props(_)
-            | NodeType::Prop => {}
+            | NodeType::Prop
+            | NodeType::App(_)
+            | NodeType::Tray(_) => {}
             NodeType::ForEach {
                 items,
                 var,
@@ -3221,7 +3225,9 @@ fn eval_owned(
         | NodeType::DialogDef(_)
         | NodeType::Resources
         | NodeType::Props(_)
-        | NodeType::Prop => NodeType::Container,
+        | NodeType::Prop
+        | NodeType::App(_)
+        | NodeType::Tray(_) => NodeType::Container,
     };
 
     // For each style field, the node's inline attribute wins; a `class` value

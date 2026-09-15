@@ -1,5 +1,9 @@
-<screen title="{{titulo}}" size="980 640" min_size="560 420">
+<screen title="{{titulo}}" size="980 640" min_size="560 420" decorations="false">
   <resources>
+    <!-- O que é do APLICATIVO: o id dá nome ao diretório de dados (onde a
+      geometria e o `storage` do Luau gravam). -->
+    <app id="{{nome_projeto}}" remember_geometry="true" />
+
     <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
 

@@ -1,8 +1,22 @@
-<screen title="{{titulo}}" size="520 460" min_size="420 380">
+<screen title="{{titulo}}" size="520 460" min_size="420 380" icon="views/assets/icone.png">
   <resources>
     <link rel="theme" href="views/styles/theme.json" />
     <link rel="stylesheet" href="views/styles/app.gss" />
     <script src="scripts/painel.luau"></script>
+
+    <!-- O que é do APLICATIVO, e não desta janela. O runner lê isto antes de
+      abrir qualquer janela: a instância única decide ali se o processo segue. -->
+    <app id="{{nome_projeto}}" single_instance="true" remember_geometry="true" />
+
+    <!-- Com a feature `tray`, fechar a última janela recolhe o app para cá.
+      `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho;
+      qualquer outra ação iria para painel.luau. -->
+    <tray icon="views/assets/icone.png" tooltip="{{titulo}}">
+      <item label="Abrir {{titulo}}" on_click="tray:open" />
+      <check label="Notificações" checked="{__notifications}" on_click="notifications:toggle" />
+      <separator />
+      <item label="Sair" on_click="tray:quit" />
+    </tray>
   </resources>
 
   <column class="tela">
