@@ -1732,7 +1732,7 @@ dependencies = [
 
 [[package]]
 name = "glacier-cli"
-version = "0.5.12"
+version = "0.5.13"
 
 [[package]]
 name = "glacier-ui"

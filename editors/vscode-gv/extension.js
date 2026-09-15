@@ -348,6 +348,12 @@ const TEMPLATE_FALLBACK_ATTRS = new Set([
   "foreach_fallback", "foreach-fallback", "for_each_fallback", "for-each-fallback",
 ]);
 const RENDER_COMPONENT_ATTRS = new Set(["component", "componente", "is"]);
+// What makes a <template> a repetition (src/parser.rs's TEMPLATE_FOREACH_ATTRS).
+const TEMPLATE_FOREACH_ATTRS = new Set(
+  ["for-each", "forEach", "foreach", "each", "repeat", "items", "itens", "source", "origem"].map(
+    (s) => s.toLowerCase()
+  )
+);
 
 /** The component-naming attributes of native tag `canon`, or null. */
 function componentRefAttrs(canon) {
@@ -1261,12 +1267,11 @@ function componentKeys(name) {
 
 /**
  * Components declared by the document itself: `<import name="X" from="…">` and
- * `<link rel="import" href="…" as="X">`. Returns a Map of lowercased name ->
- * fsPath (the name defaults to the file stem, like the engine's `file_stem`
+ * `<link rel="import" href="…" as="X">`, yielded as `{ name, fsPath }` with the
+ * name as written (it defaults to the file stem, like the engine's `file_stem`
  * fallback in `process_links`).
  */
-function localImports(documentUri, text) {
-  const map = new Map();
+function* importDecls(documentUri, text) {
   for (const tag of iterTags(text)) {
     if (tag.closing) continue;
     const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
@@ -1285,9 +1290,15 @@ function localImports(documentUri, text) {
     }
     const p = resolveAssetPath(documentUri, href);
     if (!p) continue;
-    const key = (name || path.basename(p).replace(/\.[^.]+$/, "")).toLowerCase();
-    if (key) map.set(key, p);
+    const declared = name || path.basename(p).replace(/\.[^.]+$/, "");
+    if (declared) yield { name: declared, fsPath: p };
   }
+}
+
+/** `importDecls` as a Map of lowercased name -> fsPath. */
+function localImports(documentUri, text) {
+  const map = new Map();
+  for (const d of importDecls(documentUri, text)) map.set(d.name.toLowerCase(), d.fsPath);
   return map;
 }
 
@@ -1308,6 +1319,25 @@ const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
 function declaredProps(fsPath) {
   const text = readFileCached(fsPath);
   return text ? propsFromText(text) : null;
+}
+
+/**
+ * Os nomes, como escritos, de todo `<component name="X">` declarado no
+ * documento — fora de comentário. É o que o autocompletar oferece e o que o
+ * índice do workspace registra; o bloco em si é o [`localDefine`].
+ */
+function localDefineNames(text) {
+  const out = [];
+  for (const tag of iterTags(text)) {
+    // Auto-fechado não tem corpo e não declara nada — a mesma regra do
+    // `localDefine` abaixo.
+    if (tag.closing || tag.selfClosing) continue;
+    const lower = tag.name.toLowerCase();
+    if (lower !== "component" && lower !== "componente") continue;
+    const name = attrValue(tag, ["name", "nome", "as", "como"]);
+    if (name && name.trim()) out.push(name.trim());
+  }
+  return out;
 }
 
 /**
@@ -1474,6 +1504,13 @@ function collectContextWrites(text, baseOffset) {
 
 async function buildWorkspaceIndex() {
   const components = new Map();
+  // Component names as WRITTEN (lowercased -> name), for completion: the keys
+  // of `components` are normalized and can't be offered back to the user.
+  const componentNames = new Map();
+  const addName = (name) => {
+    const key = name.toLowerCase();
+    if (!componentNames.has(key)) componentNames.set(key, name);
+  };
   const handlers = new Map();
   // Context keys written anywhere in the workspace's Lua. The engine keeps a
   // single context for the whole app, so a key a screen reads is often written
@@ -1509,8 +1546,17 @@ async function buildWorkspaceIndex() {
     const text = readFileCached(uri.fsPath);
     if (text === null) continue;
     if (/<\s*(import|importar|link)\b/i.test(text)) {
-      for (const [key, p] of localImports(uri, text)) {
-        indexAdd(components, key, { fsPath: p }, true);
+      for (const d of importDecls(uri, text)) {
+        indexAdd(components, d.name.toLowerCase(), { fsPath: d.fsPath }, true);
+        addName(d.name);
+      }
+    }
+    // `<component name="X">` in a template's <resources>: the engine puts it in
+    // the same namespace as any other component, so another screen may use it.
+    if (/<\s*componente?\b/i.test(text)) {
+      for (const name of localDefineNames(text)) {
+        for (const key of componentKeys(name)) indexAdd(components, key, { fsPath: uri.fsPath });
+        addName(name);
       }
     }
     inlineScriptRe.lastIndex = 0;
@@ -1571,6 +1617,7 @@ async function buildWorkspaceIndex() {
       for (const key of componentKeys(m[1])) {
         indexAdd(components, key, { fsPath: p }, true);
       }
+      addName(m[1]);
     }
 
     if (!uri.fsPath.endsWith(".rs")) {
@@ -1614,7 +1661,7 @@ async function buildWorkspaceIndex() {
       }
     }
   }
-  return { components, handlers, luaKeys, rustByTemplate, rustByDir, gssRules };
+  return { components, componentNames, handlers, luaKeys, rustByTemplate, rustByDir, gssRules };
 }
 
 /** The `.rs` files that back `documentUri` — its renderer, or its neighbours. */
@@ -2527,11 +2574,61 @@ function openTagAt(text, offset) {
   return null;
 }
 
+/** Whether attribute `attrName` of `tag` takes a component name as its value. */
+async function namesComponent(document, tag, attrName) {
+  const lower = attrName.toLowerCase();
+  const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
+  if (canon) return !!componentRefAttrs(canon)?.has(lower);
+  const props = await propsForTag(document, tag.name).catch(() => null);
+  return (props || []).some((p) => p.component && p.name.toLowerCase() === lower);
+}
+
+/**
+ * Completion items for a component-name value, replacing the whole value: this
+ * file's own declarations first, then its imports, then the workspace. A name
+ * that is also a native tag is left out — the tag wins, and a component under
+ * that name is never reached.
+ */
+async function componentCompletions(document, attr) {
+  const text = document.getText();
+  const range = new vscode.Range(document.positionAt(attr.start), document.positionAt(attr.end));
+  const seen = new Set();
+  const items = [];
+  const add = (name, detail, rank) => {
+    const lower = name.toLowerCase();
+    if (seen.has(lower) || NATIVE_LOOKUP[lower]) return;
+    seen.add(lower);
+    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Class);
+    item.detail = detail;
+    item.range = range;
+    item.sortText = rank + name;
+    items.push(item);
+  };
+  for (const name of localDefineNames(text)) add(name, "componente declarado neste arquivo", "0");
+  for (const d of importDecls(document.uri, text)) add(d.name, "componente importado neste arquivo", "1");
+  const index = await workspaceIndex();
+  for (const name of index.componentNames.values()) add(name, "componente do workspace", "2");
+  return items;
+}
+
 const provideCompletion = {
   async provideCompletionItems(document, position) {
     const text = document.getText();
-    const tag = openTagAt(text, document.offsetAt(position));
+    const offset = document.offsetAt(position);
+    const tag = openTagAt(text, offset);
     if (!tag) return null;
+
+    // Inside an attribute value: only a value that names a component
+    // (`fallback`, `foreach_fallback`, `<render component>`, a `<prop
+    // component>`) has something to offer. Prop names don't belong in a value.
+    const valor = [...iterAttrs(tag.attrsText, tag.attrsStart)].find(
+      (a) => offset >= a.start && offset <= a.end
+    );
+    if (valor) {
+      if (!(await namesComponent(document, tag, valor.name))) return null;
+      return componentCompletions(document, valor);
+    }
+
     const props = await propsForTag(document, tag.name);
     if (!props || !props.length) return null;
     const jaEscritas = new Set(
@@ -2616,7 +2713,84 @@ async function refreshDiagnostics(document, collection) {
       );
     }
   }
+  await componentRefDiagnostics(document, text, out);
   collection.set(document.uri, out);
+}
+
+/**
+ * Component names written as values — `<foreach fallback>`, `<template
+ * foreach_fallback>`, `<render component>` and the props a component declares
+ * `<prop component>` — that resolve to nothing this editor can see.
+ *
+ * Warning, not error: a component registered from Rust in a shape the workspace
+ * index doesn't recognize is still valid, and only the engine knows for sure.
+ * The two `<template>` mistakes the parser refuses outright are errors.
+ */
+async function componentRefDiagnostics(document, text, out) {
+  const imports = localImports(document.uri, text);
+  let index = null;
+  const conhecido = async (name) => {
+    const lower = name.toLowerCase();
+    if (NATIVE_LOOKUP[lower] || imports.has(lower) || localDefine(text, name)) return true;
+    if (!index) index = await workspaceIndex();
+    return !!lookupComponent(index, imports, name, document.uri);
+  };
+  const erroNoAtributo = (attr, message) =>
+    out.push(
+      new vscode.Diagnostic(
+        new vscode.Range(
+          document.positionAt(attr.start - attr.name.length - 2),
+          document.positionAt(attr.end + 1)
+        ),
+        message,
+        vscode.DiagnosticSeverity.Error
+      )
+    );
+
+  for (const tag of iterTags(text)) {
+    if (tag.closing) continue;
+    const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
+    const attrs = [...iterAttrs(tag.attrsText, tag.attrsStart)];
+
+    if (canon === "Template") {
+      const temForeach = attrs.some((a) => TEMPLATE_FOREACH_ATTRS.has(a.name.toLowerCase()));
+      for (const a of attrs) {
+        const lower = a.name.toLowerCase();
+        if (FOREACH_FALLBACK_ATTRS.has(lower)) {
+          erroNoAtributo(
+            a,
+            `\`${a.name}\` num <template>: use \`foreach_fallback\` — o <template> também é if/else, e ali \`fallback\` leria como um senão`
+          );
+        } else if (TEMPLATE_FALLBACK_ATTRS.has(lower) && !temForeach) {
+          erroNoAtributo(
+            a,
+            `\`${a.name}\` num <template> sem \`foreach\`: não há lista para estar vazia (para um senão, use <template else>)`
+          );
+        }
+      }
+    }
+
+    let refs = canon ? componentRefAttrs(canon) : null;
+    if (!canon) {
+      const props = await propsForTag(document, tag.name).catch(() => null);
+      const nomes = (props || []).filter((p) => p.component).map((p) => p.name.toLowerCase());
+      if (nomes.length) refs = new Set(nomes);
+    }
+    if (!refs) continue;
+    for (const a of attrs) {
+      if (!refs.has(a.name.toLowerCase())) continue;
+      const name = a.value.trim();
+      if (!name || name.includes("{") || (await conhecido(name))) continue;
+      const start = a.start + a.value.indexOf(name);
+      out.push(
+        new vscode.Diagnostic(
+          new vscode.Range(document.positionAt(start), document.positionAt(start + name.length)),
+          `'${name}' não é um componente conhecido: declare-o no <resources>, importe-o ou registre-o (o motor erra ao avaliar se ele não existir)`,
+          vscode.DiagnosticSeverity.Warning
+        )
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2740,8 +2914,9 @@ function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
     vscode.languages.registerDocumentLinkProvider(selector, { provideDocumentLinks }),
-    // O ` ` fecha o caso de digitar a prop logo após o nome da tag.
-    vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " "),
+    // O ` ` fecha o caso de digitar a prop logo após o nome da tag; o `"`, o de
+    // abrir o valor de um atributo que recebe um componente (`fallback="`).
+    vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " ", '"'),
     props,
     vscode.workspace.onDidOpenTextDocument(revalida),
     vscode.workspace.onDidChangeTextDocument((e) => {

@@ -8,6 +8,25 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.13 — 2026-09-15 · glacier-ui 0.106.0
+
+Embute a extensão Glacier View 0.19.8, que completa e confere nomes de
+componente escritos como valor — `fallback` do `<foreach>`, `foreach_fallback`
+do `<template>`, `component` do `<render>` e as props declaradas
+`<prop component>`.
+
+- **Autocompletar** dentro desses valores: os componentes declarados no próprio
+  arquivo primeiro, depois os importados, depois os do workspace. O índice do
+  workspace passou a registrar os `<component name>` declarados no `<resources>`
+  de outras telas e os nomes registrados pelo Rust. Abrir as aspas já sugere.
+- **Aviso** num nome que o editor não encontra. É aviso, e não erro: um
+  componente registrado pelo Rust num formato que o índice não reconhece
+  continua válido.
+- **Erro** nos dois casos que o parser recusa: `fallback` num `<template>` e
+  `foreach_fallback` sem `foreach`.
+
+---
+
 ## glacier-ui 0.106.0 · CLI 0.5.12 — 2026-09-15
 
 Um componente passa a receber **outros componentes** por atributo, e as listas
