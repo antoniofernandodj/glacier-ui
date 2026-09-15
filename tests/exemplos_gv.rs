@@ -56,12 +56,17 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
     );
 
     for arquivo in arquivos {
-        // Os presets da CLI trazem `{{titulo}}` onde vai o nome do projeto; o
-        // parse não se importa com o texto, mas deixar o marcador cru tornaria
-        // o teste dependente de ele nunca cair dentro de uma tag.
+        // Os presets da CLI trazem marcadores (`{{titulo}}`, `{{nome_projeto}}`…)
+        // que o `glacier new` substitui ao criar o projeto. Aqui eles recebem
+        // valores válidos, como a CLI faria: o `<app id="{{nome_projeto}}">` do
+        // preset `completo` é recusado cru, porque `{` não vale num nome de
+        // diretório — e isso é o parser certo, não o preset errado.
         let src = std::fs::read_to_string(&arquivo)
             .expect("ler .gv")
-            .replace("{{titulo}}", "Exemplo");
+            .replace("{{titulo}}", "Exemplo")
+            .replace("{{nome_projeto}}", "exemplo")
+            .replace("{{nome_crate}}", "exemplo")
+            .replace("{{versao_motor}}", "0.0");
         let relativo = arquivo.strip_prefix(raiz).unwrap_or(&arquivo).display();
 
         let primeira = sem_comentarios(&src)
@@ -105,7 +110,10 @@ fn todo_script_src_aponta_para_um_arquivo_existente() {
 
     let mut conferidos = 0;
     for arquivo in arquivos {
-        let src = std::fs::read_to_string(&arquivo).expect("ler .gv");
+        // Sem comentários, como o motor lê (`eval::find_script_open` pula um
+        // `<script>` comentado): um `<!-- … <script src="…"> … -->` explicando
+        // o exemplo não é um script, e não aponta para arquivo nenhum.
+        let src = sem_comentarios(&std::fs::read_to_string(&arquivo).expect("ler .gv"));
         for capturado in srcs_de_script(&src) {
             // O `src` resolve relativo ao diretório do próprio `.gv` (ver
             // `luau::resolve_script`), não ao diretório de onde o app roda.

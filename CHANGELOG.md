@@ -8,6 +8,28 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+- **Validação do `<form>`:** as `rules` passam a ser lidas da árvore avaliada
+  **sob demanda**. Antes vinham só do cache, e a árvore fora dele — o
+  `reevaluate_all` mantém avaliada só a tela atual e as fixadas, e o
+  `sync_eval_cache` descarta tudo quando muda folha de estilo, `@media` ou
+  markup recarregado — parecia um formulário sem regra nenhuma: o submit ia
+  para `on_form_submit` sem validar e o `<button type="reset">` não limpava os
+  `erro_<campo>`, os dois em silêncio.
+- Os três testes da validação declarada montavam o `UiSubmit` com
+  `scope="vform::cad"`, que clique nenhum produz: num `<form>` declarado na
+  própria tela o dono vem vazio (`"::cad"`), e o `dispatch` cobre isso caindo
+  para a tela atual. Agora eles leem o `scope` e as ações da árvore avaliada,
+  como o botão de submit faz.
+- Referência da extensão Glacier View: seções de `<app>`, `<tray>` e `<render>`
+  (o Ctrl+Clique nelas caía na linha 1), e os atributos atuais do `<screen>`.
+- Testes que tinham ficado para trás: a dica do `<screen>` em snake_case
+  (`min_size`), e o `tests/exemplos_gv.rs` passou a ignorar `<script src>`
+  comentado e a substituir todos os marcadores dos presets da CLI.
+
+---
+
 ## glacier-ui 0.108.0 · CLI 0.5.17 — 2026-09-15
 
 O motor compila para o navegador (`wasm32-unknown-unknown`). Ver `docs/WEB.md`.

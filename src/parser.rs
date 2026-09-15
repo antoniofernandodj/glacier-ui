@@ -7187,7 +7187,7 @@ mod header_diagnostics_tests {
         let msg = erro(r#"<screen titel="Detalhe"><column /></screen>"#);
         assert!(msg.contains("atributo 'titel' desconhecido"), "{msg}");
         assert!(
-            msg.contains("title, size, min-size"),
+            msg.contains("title, size, min_size, max_size, fixed_size"),
             "a dica lista os aceitos: {msg}"
         );
     }

@@ -723,6 +723,9 @@ O buraco que o conteúdo escrito **entre as tags** de um componente preenche: `<
 - Dentro do componente, `{slot_<nome>}` vale `true` quando aquele slot foi preenchido — é o que permite decorar uma região opcional (a linha divisória que só existe quando existe rodapé).
 - O nome é **fixo**, resolvido no template: `<slot name="{aba}"/>` (nome vindo do contexto) ainda não existe.
 
+### `<Render>` (`<renderizar>`)
+Desenha o componente cujo **nome** está num atributo: `<render component="{cartao}" titulo="Oi" />`. O `component` (apelidos `componente` e `is`) leva o nome, literal ou vindo de uma prop/chave. Os demais atributos são as props dele, os filhos viram o conteúdo do `<slot>` e `class`/`id` viram overlay, como numa tag escrita à mão. Nome vazio não desenha nada; nome não registrado é `UnknownComponent`. É o par de `<prop component name="…">`, que declara uma prop que recebe o nome de um componente.
+
 ### `<Include>` (`<Incluir>`)
 Inclui outro template. Atributo: `src`; demais atributos viram props.
 
@@ -747,13 +750,34 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 ## Cabeçalho da tela
 
 ### `<Screen>` (`<tela>`)
-Raiz que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min-size`/`minSize`, `resizable`/`redimensionavel`. O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este.
+Raiz que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`/`redimensionavel`, `decorations`/`decoracoes` e `icon`/`icone`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este.
 
 ### `<Component>` (`<componente>`)
 A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
 
 ### `<Resources>` (`<recursos>`)
 Dentro do cabeçalho, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. O que estiver fora dele (ainda dentro do cabeçalho) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do cabeçalho.
+
+### `<App>` (`<aplicativo>`)
+Dentro do `<resources>` da **tela principal**, declara o que é do aplicativo e não da janela. Atributos: `id` (obrigatório), `single_instance`/`instancia_unica` e `remember_geometry`/`lembrar_geometria` (booleanos). O `id` dá nome ao diretório de dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`), onde a geometria lembrada e o `storage` gravam e que o markup lê como `{__data_dir}`, e é a chave da instância única. Por isso só aceita letras, dígitos, `-`, `_` e `.`. Não tem filhos, e há um só por aplicativo. É lido antes do boot, e o builder Rust (`.single_instance(…)`, `.storage_dir(…)`) vence o markup onde é usado.
+
+```gv
+<resources>
+    <app id="meu-app" single_instance="true" remember_geometry="true" />
+</resources>
+```
+
+### `<Tray>` (`<bandeja>`) · `<item>` · `<check>` · `<separator>`
+O ícone de bandeja, ao lado do `<app>` no `<resources>` da tela principal. Atributos: `icon`/`icone` (obrigatório) e `tooltip`/`dica`. O menu são os filhos: `<item id label on_click>`, `<check id label checked on_click>` e `<separator />` (`<separador />`); `label`/`rotulo` e `checked`/`marcado` aceitam `{chave}` e acompanham o contexto. As ações `tray:open`, `tray:quit` e `notifications:toggle` são tratadas pelo runner, e qualquer outra vai ao script da tela principal. No máximo uma por aplicativo. A bandeja só aparece com a feature `tray` do glacier-ui.
+
+```gv
+<tray icon="views/assets/icone.png" tooltip="Meu App">
+    <item label="Abrir" on_click="tray:open" />
+    <check label="Avisos" checked="{avisos}" on_click="alternar_avisos" />
+    <separator />
+    <item label="Sair" on_click="tray:quit" />
+</tray>
+```
 
 ### `<component name="…">` — declarar um componente na própria tela
 A **terceira forma** de ter um componente. As outras duas trazem de um arquivo (`<import>`, `<link rel="component">`); esta declara ali mesmo, dentro do `<resources>`.

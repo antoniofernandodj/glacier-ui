@@ -3606,14 +3606,38 @@ impl Component for ValidatedFormComp {
     }
 }
 
+/// A mensagem que um clique no `<button type="submit">` produz de verdade.
+///
+/// O `scope` sai da **árvore avaliada**, não de um literal: o motor hidrata
+/// `{dono}::{nome}` em cada controle, e o dono vem VAZIO num `<form>`
+/// declarado na própria tela (o `dispatch` cobre isso caindo para a tela
+/// atual). Um `"vform::cad"` escrito à mão aqui testava um scope que clique
+/// nenhum manda — e, como scope que não casa não acha regra nenhuma, o teste
+/// via o formulário inválido ser aceito e culpava o motor.
 fn submit_vform(m: &mut GlacierUI) {
+    let arvore = m.evaluated("vform").expect("avaliar vform").clone();
+    let no = no_do_form(&arvore).expect("o <form> hidratado na árvore avaliada");
     let _ = m.dispatch(&EngineMessage::UiSubmit {
-        action: "vform::salvar".into(),
-        error_action: "vform::apontar".into(),
-        error_prefix: "erro_".into(),
-        scope: "vform::cad".into(),
+        action: no.form_submit_action().unwrap_or_default().to_string(),
+        error_action: no.form_error_action().unwrap_or_default().to_string(),
+        error_prefix: no.form_error_prefix().unwrap_or("erro_").to_string(),
+        scope: no.form_scope().unwrap_or_default().to_string(),
         next_focus: None,
     });
+}
+
+/// O primeiro nó que carrega o contexto de formulário hidratado — é o que o
+/// botão de submit lê para montar a mensagem.
+fn no_do_form(node: &UiNode) -> Option<&UiNode> {
+    if node.form_scope().is_some() && node.form_submit_action().is_some() {
+        return Some(node);
+    }
+    for filho in &node.children {
+        if let Some(achado) = no_do_form(filho) {
+            return Some(achado);
+        }
+    }
+    None
 }
 
 #[test]

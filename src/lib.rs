@@ -2469,20 +2469,39 @@ impl GlacierUI {
     /// `rules` (or `pattern`) attribute — the signal for the caller to keep the
     /// legacy "always `on_form_submit`" contract. Otherwise it returns *every*
     /// control (rule-less ones included, so the built `forms::Form` is complete).
-    fn collect_form_rules(&self, scope: &str) -> Vec<FormFieldRules> {
+    ///
+    /// The tree is evaluated **on demand** when it is not cached. Reading only
+    /// the cache made an absent tree look like a form with no `rules`, and the
+    /// caller then routed an *invalid* form to `on_form_submit` without a word —
+    /// `reevaluate_all` keeps only the current screen (and pinned templates)
+    /// evaluated, so "not cached" is a normal state, not an error.
+    fn collect_form_rules(&mut self, scope: &str) -> Vec<FormFieldRules> {
         let owner = scope
             .split_once("::")
             .map(|(o, _)| o)
             .filter(|o| !o.is_empty());
-        let tree = owner
-            .and_then(|o| self.evaluated_templates.get(o))
-            .or_else(|| {
-                self.current_screen
-                    .as_deref()
-                    .and_then(|s| self.evaluated_templates.get(s))
-            });
-        let Some(tree) = tree else {
+        // Same precedence as before: the owner's own tree when it is cached, the
+        // current screen otherwise (a child component's form lives inlined in
+        // the screen's tree), and the owner itself as the last resort.
+        let alvo = match owner {
+            Some(o) if self.evaluated_templates.contains_key(o) => Some(o.to_string()),
+            _ => self
+                .current_screen
+                .clone()
+                .or_else(|| owner.map(str::to_string)),
+        };
+        let Some(alvo) = alvo else {
             return Vec::new();
+        };
+        let tree = match self.evaluated(&alvo) {
+            Ok(tree) => tree,
+            Err(erro) => {
+                eprintln!(
+                    "[glacier-ui] <form> '{scope}': não consegui avaliar '{alvo}' para ler as \
+                     regras: {erro}"
+                );
+                return Vec::new();
+            }
         };
         let mut out = Vec::new();
         let mut any_rules = false;
