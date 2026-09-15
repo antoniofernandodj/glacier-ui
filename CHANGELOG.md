@@ -8,7 +8,7 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## Não lançado
+## glacier-ui 0.108.1 · CLI 0.5.18 · vscode-gv 0.19.11 — 2026-09-15
 
 - **Validação do `<form>`:** as `rules` passam a ser lidas da árvore avaliada
   **sob demanda**. Antes vinham só do cache, e a árvore fora dele — o
@@ -22,11 +22,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   própria tela o dono vem vazio (`"::cad"`), e o `dispatch` cobre isso caindo
   para a tela atual. Agora eles leem o `scope` e as ações da árvore avaliada,
   como o botão de submit faz.
-- Referência da extensão Glacier View: seções de `<app>`, `<tray>` e `<render>`
-  (o Ctrl+Clique nelas caía na linha 1), e os atributos atuais do `<screen>`.
 - Testes que tinham ficado para trás: a dica do `<screen>` em snake_case
   (`min_size`), e o `tests/exemplos_gv.rs` passou a ignorar `<script src>`
-  comentado e a substituir todos os marcadores dos presets da CLI.
+  comentado e a substituir todos os marcadores dos presets da CLI. A suíte
+  fechou em 622 testes, 0 falhas.
+
+### CLI 0.5.18 · vscode-gv 0.19.11
+
+- A referência da extensão ganhou as seções de `<app>`, `<tray>` (com `<item>`,
+  `<check>` e `<separator>`) e `<render>`: o Ctrl+Clique nessas tags caía na
+  linha 1 do arquivo, sem erro e sem aviso. E os atributos do `<screen>` estão
+  em dia (`min_size`, `max_size`, `fixed_size`, `decorations`, `icon`).
+- A CLI embute a extensão, então ela sobe junto para levar o documento novo.
 
 ---
 
