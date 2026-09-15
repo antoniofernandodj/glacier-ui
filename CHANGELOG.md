@@ -8,6 +8,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.14 — 2026-09-15 · glacier-ui 0.106.0
+
+Embute a extensão Glacier View 0.19.9.
+
+- **Corrigido:** o Ctrl+clique na tag de um componente declarado no próprio
+  arquivo (`<LinhaTarefa/>` com `<component name="LinhaTarefa">` no
+  `<resources>`) levava ao topo do arquivo. Agora leva à linha da declaração,
+  como o F12 já fazia.
+
+---
+
 ## CLI 0.5.13 — 2026-09-15 · glacier-ui 0.106.0
 
 Embute a extensão Glacier View 0.19.8, que completa e confere nomes de

@@ -2197,8 +2197,14 @@ async function provideDocumentLinks(document) {
         range(tag.nameStart, tag.nameStart + tag.name.length)
       );
       link.tooltip = "Open component";
+      // Declarado no próprio arquivo primeiro — a mesma ordem do F12 e do
+      // `linkComponentValue`. Sem isto, o índice do workspace (que também
+      // registra `<component name>`) resolvia para o topo do arquivo, e não
+      // para a linha da declaração.
+      const local = localDefine(text, tag.name);
       const direct = imports.get(tag.name.toLowerCase());
-      if (direct) link.target = uriAt(direct);
+      if (local) link.target = uriAt(document.uri, document.positionAt(local.nameStart));
+      else if (direct) link.target = uriAt(direct);
       else pendingComponents.push({ link, name: tag.name });
       links.push(link);
 

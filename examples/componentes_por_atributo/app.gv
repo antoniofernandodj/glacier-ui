@@ -130,8 +130,17 @@
             Aqui o fallback é literal, no foreach_fallback de um &lt;template foreach&gt;
             escrito direto na tela.
           </text>
-          <template foreach="concluidas" var="c" foreach_fallback="ListaVazia">
-            <LinhaTarefa id="{c.id}" texto="{c.texto}" rotulo="Reabrir" acao="reabrir" />
+          <template
+            foreach="concluidas"
+            var="c"
+            foreach_fallback="ListaVazia"
+          >
+            <LinhaTarefa
+              id="{c.id}"
+              texto="{c.texto}"
+              rotulo="Reabrir"
+              acao="reabrir"
+            />
           </template>
         </column>
       </column>
