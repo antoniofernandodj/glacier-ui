@@ -18,10 +18,11 @@ use glacier_ui::GlacierUI;
 /// só em runtime por `open_window` (o `detalhe.gv` do preset multi-janela) não
 /// é alcançada pela cascata de imports, então entra na lista explicitamente.
 const PRESETS: &[(&str, &[&str])] = &[
-    ("minimo", &["views/contador.gv"]),
+    ("minimo", &["views/app.gv"]),
     ("completo", &["views/app.gv"]),
     ("janelas", &["views/painel.gv", "views/detalhe.gv"]),
     ("rust", &["views/contador.gv"]),
+    ("wasm32", &["views/contador.gv"]),
     ("catalogo", &["views/app.gv"]),
     ("dashboard", &["views/app.gv"]),
     ("formulario", &["views/app.gv"]),

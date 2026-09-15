@@ -27,7 +27,7 @@
 //! quase invisível, dando o efeito de rastro giratório.
 
 use std::f32::consts::TAU;
-use std::time::{Duration, Instant};
+use iced::time::{Duration, Instant};
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;

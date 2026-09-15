@@ -56,7 +56,7 @@
 
 use std::cell::RefCell;
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use iced::time::{Duration, Instant};
 
 /// `GLACIER_PERF` definida e diferente de `0`/`false`/vazio.
 ///

@@ -57,6 +57,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Instalação](#instalação)
     - [Começando do zero: `glacier new`](#começando-do-zero-glacier-new)
     - [Como dependência](#como-dependência)
+    - [No navegador (WebAssembly)](#no-navegador-webassembly)
   - [Conceitos e arquitetura](#conceitos-e-arquitetura)
   - [Início rápido](#início-rápido)
     - [Ligando ao `iced`: `GlacierApp::bootstrap`](#ligando-ao-iced-glacierappbootstrap)
@@ -175,6 +176,21 @@ cargo run --example contador
 ```
 
 ---
+
+### No navegador (WebAssembly)
+
+O mesmo app (`GlacierDaemon`, `Component`s Rust, `.gv` e `.gss`) compila para
+`wasm32-unknown-unknown` e roda num `<canvas>`. Os assets entram no binário por
+`embed_assets!`, e a camada `<script>` Luau não existe no navegador. O exemplo
+completo está em `examples/web_contador`:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo binstall wasm-bindgen-cli@0.2.126   # mesma versão do Cargo.lock
+make web-contador                         # http://localhost:8080
+```
+
+Pré-requisitos, limitações e diagnóstico em [`docs/WEB.md`](docs/WEB.md).
 
 ## Conceitos e arquitetura
 

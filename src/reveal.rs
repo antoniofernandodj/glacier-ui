@@ -58,7 +58,7 @@
 //! seção fechada, a saída continua sendo a de sempre: `virtualize` na lista lá
 //! dentro (ver `PRIMITIVAS.md`).
 
-use std::time::{Duration, Instant};
+use iced::time::{Duration, Instant};
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;

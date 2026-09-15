@@ -1,0 +1,31 @@
+<!-- Sem `size` no <screen>: no navegador o tamanho é o da página (o canvas
+  ocupa 100% dela, ver web/index.html). Um tamanho fixo aqui encolheria o app
+  para um retângulo no canto da aba. -->
+<screen title="{{titulo}}">
+  <resources>
+    <link rel="theme" href="views/styles/theme.json" />
+    <link rel="stylesheet" href="views/styles/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <text class="rotulo">{{titulo}}</text>
+    <text class="numero">{contador}</text>
+
+    <row class="acoes">
+      <button class="btn" on_click="subtrair">-</button>
+      <button class="btn" on_click="somar">+</button>
+    </row>
+
+    <column class="campo">
+      <text class="rotulo">PASSO</text>
+      <textinput
+        class="entrada"
+        value="passo_texto"
+        on_change="mudar_passo"
+        placeholder="1"
+      />
+    </column>
+
+    <button class="btn_ghost" on_click="zerar">zerar</button>
+  </column>
+</screen>

@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.107.1"
+version = "0.108.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -177,6 +177,11 @@ path = "examples/console_luau/main.rs"
 name = "sqlite_crud"
 path = "examples/sqlite_crud/main.rs"
 
+# Roda também no navegador — ver docs/WEB.md e `make web-contador`.
+[[example]]
+name = "web_contador"
+path = "examples/web_contador/main.rs"
+
 # Requer `--features webview` (sem a feature, o botão abre uma janela vazia —
 # ver o comentário da dependência `wry` abaixo).
 [[example]]
@@ -192,24 +197,15 @@ path = "examples/contador_micropython/main.rs"
 required-features = ["micropython"]
 
 [dependencies]
-iced = { version = "0.14", features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code"] }
+# `default-features = false` e os defaults devolvidos por alvo logo abaixo: no
+# nativo o `iced` segue com EXATAMENTE os defaults de antes (wgpu, thread-pool,
+# x11, wayland…); no navegador ele fica sem wgpu — ver o bloco "Só na web".
+iced = { version = "0.14", default-features = false, features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code", "tiny-skia", "crisp", "web-colors"] }
 roxmltree = "0.21"
 image = "0.25"
 serde_json = "1.0"
 regex = "1"
-mlua = { version = "0.11.6", features = ["luau", "vendored", "serialize"] }
-hyper = { version = "1.10.1", features = ["client", "http1"] }
-hyper-util = { version = "0.1.20", features = ["client", "client-legacy", "http1", "tokio"] }
-http-body-util = "0.1.3"
-tokio = { version = "1.52.3", features = ["rt", "net", "io-util", "time", "fs"] }
-hyper-rustls = { version = "0.27.9", default-features = false, features = ["ring", "webpki-roots", "http1"] }
-rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
 futures = "0.3"
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
-# Notificações nativas do SO (freedesktop/D-Bus no Linux/BSD via zbus puro-Rust,
-# NSUserNotification no macOS, toast WinRT no Windows). Usado por `notify()` na
-# camada Luau — ver Context::notify.
-notify-rust = "4.18"
 
 # Descompressão gzip das respostas HTTP do `fetch` (Content-Encoding: gzip) — ver
 # net.rs. Backend puro-Rust (miniz_oxide, default), sem dependência de C.
@@ -220,6 +216,32 @@ flate2 = "1"
 # da requisição quanto o `body` do FetchResult trafegam como texto (String) na
 # fronteira Rust↔Lua; base64 mantém bytes arbitrários (ex.: um .zip) UTF-8-safe.
 base64 = "0.22"
+
+# ── Só no nativo ─────────────────────────────────────────────────────────────
+# Tudo daqui até o `zip` fica FORA do alvo `wasm32` (ver docs/WEB.md):
+#
+# - `mlua` com Luau vendored é C++ compilado pelo `cc`, e o `luau0-src` só sabe
+#   gerar wasm para `wasm32-unknown-emscripten` — que não é o alvo em que o
+#   winit/iced rodam no navegador (`wasm32-unknown-unknown`). Na web, o módulo
+#   `luau` é trocado por `src/luau_web.rs`, que recusa `<script>` com erro.
+# - hyper/tokio/rustls/tungstenite abrem socket, e o navegador não dá socket; o
+#   `ring` por baixo do rustls ainda arrasta o `getrandom` 0.2, que nem compila
+#   em `wasm32-unknown-unknown` sem a feature `js`. Na web, `src/net_web.rs`.
+# - notify-rust, rfd e zip só servem à camada Luau ou ao SO.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+iced = { version = "0.14", default-features = false, features = ["wgpu", "thread-pool", "linux-theme-detection", "x11", "wayland"] }
+mlua = { version = "0.11.6", features = ["luau", "vendored", "serialize"] }
+hyper = { version = "1.10.1", features = ["client", "http1"] }
+hyper-util = { version = "0.1.20", features = ["client", "client-legacy", "http1", "tokio"] }
+http-body-util = "0.1.3"
+tokio = { version = "1.52.3", features = ["rt", "net", "io-util", "time", "fs"] }
+hyper-rustls = { version = "0.27.9", default-features = false, features = ["ring", "webpki-roots", "http1"] }
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+# Notificações nativas do SO (freedesktop/D-Bus no Linux/BSD via zbus puro-Rust,
+# NSUserNotification no macOS, toast WinRT no Windows). Usado por `notify()` na
+# camada Luau — ver Context::notify.
+notify-rust = "4.18"
 
 # Diálogo de arquivo/pasta NATIVO do SO (Open/OpenMultiple/Save/Directory) —
 # ver src/file_dialog.rs e `open_file`/`open_files`/`save_file`/`pick_folder`
@@ -232,6 +254,38 @@ rfd = "0.17"
 # aes/ppmd/xz que não usamos; `deflate-flate2` reaproveita o `flate2` que já
 # é dependência direta deste projeto (gzip do `fetch`, ver `net.rs`).
 zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
+
+# ── Só na web (`wasm32-unknown-unknown`) ──────────────────────────────────────
+# SEM wgpu por padrão: só o tiny-skia, que desenha por software num canvas 2D.
+# O motivo é que o `iced` 0.14 não deixa o app escolher o backend: a escolha vem
+# da variável `ICED_BACKEND`, e no navegador não existe ambiente. E o fallback
+# wgpu → tiny-skia só acontece se o wgpu não achar ADAPTADOR. Um Chrome que
+# expõe WebGPU entrega o adaptador e depois falha ao criar a superfície (visto
+# num Ivy Bridge com Vulkan incompleto: canvas vazio, nenhum erro). Para quem tem
+# GPU web funcional, a feature `web-gpu` liga o wgpu de volta.
+#
+# `fira-sans`: no desktop o cosmic-text acha as fontes do SO; no navegador não
+# existe fonte de sistema nenhuma, e sem uma embutida a tela abre com fundo,
+# botões e cores — e nenhuma letra. Sem erro nem aviso.
+#
+# Estas features não vazam para o nativo: com o resolver da edição 2024, feature
+# de dependência de outro alvo é ignorada. O `default-features = false` aqui (e
+# na tabela nativa) NÃO é redundante: basta UMA declaração do `iced` sem ele para
+# os defaults voltarem — com o wgpu junto.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+iced = { version = "0.14", default-features = false, features = ["fira-sans"] }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["console", "Window"] }
+# O `sleep` do `after(ms)` e dos polls de canal (ver `src/timer.rs`). É o mesmo
+# crate que o executor web do `iced_futures` já usa.
+wasmtimer = "0.4"
+# Sem ele um `panic!` no navegador vira "unreachable executed" sem mensagem.
+console_error_panic_hook = "0.1"
+# O iced e o wgpu reportam pelo crate `log` — inclusive "não consegui criar o
+# compositor", que na web é o motivo mais comum de canvas vazio (navegador sem
+# WebGL/WebGPU). Sem um logger instalado, esse aviso não vai a lugar nenhum.
+log = "0.4"
+console_log = "1"
 
 # ── Webview embutida — opcional, atrás da feature `webview` ──────────────────
 # `open_window({ webview_url = "..." })` na camada Lua: abre uma janela cujo
@@ -323,6 +377,10 @@ cc = { version = "1", optional = true }
 # sqlite — a ponte inteira é código do exemplo. `bundled` compila o SQLite
 # junto (o mesmo toolchain C que o `mlua` vendored já exige), então o exemplo
 # roda sem `libsqlite3` instalada no sistema.
+#
+# Por alvo porque dev-dependency entra no build de TODO exemplo, inclusive o
+# `web_contador` compilado para `wasm32`, onde o SQLite em C não compila.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 rusqlite = { version = "0.30", features = ["bundled"] }
 
 [features]
@@ -343,6 +401,11 @@ system-fonts = ["dep:fontdb"]
 # primeira `WebViewBuilder::build` (ver `src/webview.rs`), porque por baixo
 # ainda é WebKitGTK mesmo passando só um handle X11.
 webview = ["dep:wry", "dep:gtk"]
+
+# Liga o wgpu (WebGPU, e WebGL2 quando o navegador não tem WebGPU) no build
+# para o navegador. No nativo não muda nada: o wgpu já está lá. Sem ela a web
+# desenha só por software — ver o bloco "Só na web" nas dependências.
+web-gpu = ["iced/wgpu", "iced/webgl"]
 
 # ── MicroPython — opcional, atrás da feature `micropython` ──────────────────
 # Segunda linguagem de `<script>` (`<script lang="micropython">`), ao lado do

@@ -17,6 +17,8 @@ então** escreve alguma coisa: até a confirmação final, nada foi criado.
 
 ```
 glacier new [nome]            cria um projeto — pergunta o resto
+glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
+glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
 glacier install-extensions    só instala as extensões de VS Code
 glacier presets               descreve os presets disponíveis
 glacier --version
@@ -30,6 +32,7 @@ glacier --version
 | `minimo` | Uma tela, um `.gss` e um bloco de script Luau — o menor projeto que ainda mostra a ideia |
 | `janelas` | Multi-janela (`open_window`/`broadcast`/`close_window`), ícone de bandeja, instância única, geometria lembrada |
 | `rust` | O trait `Component` com estado tipado em Rust, em vez de comportamento em Luau |
+| `wasm32` | O mesmo app no desktop e no navegador: `Component` em Rust, `views/` embutida no `.wasm` por `embed_assets!` e uma `web/index.html`. Roda com `glacier serve wasm` |
 | `catalogo` | Catálogo navegável de widgets: uma sidebar de categorias, cada tela com dezenas de widgets do motor num exemplo mínimo e vivo, feito para copiar |
 | `dashboard` | Painel de KPIs e gráficos que andam sozinhos (`linechart` de série múltipla, `barchart`, `donut`, `gauge`, `sparkline`) via `every(1000)` |
 | `formulario` | App de cadastro: `maskedinput`, `spinbox`, `dateedit`, `select`, `buttonbox` + validação em Luau que publica `erro_<campo>` |
@@ -76,7 +79,7 @@ onde eles não estão.
 ## Opções de `new`
 
 ```
--p, --preset <id>       completo | minimo | janelas | rust | catalogo | dashboard | formulario | crud
+-p, --preset <id>       completo | minimo | janelas | rust | wasm32 | catalogo | dashboard | formulario | crud
     --extensions        instala as extensões sem perguntar
     --no-extensions     não instala as extensões
     --git / --no-git    `git init` no projeto criado
@@ -87,6 +90,48 @@ onde eles não estão.
 Sem TTY (num pipe, em CI) o questionário é pulado e valem os defaults — e as
 extensões **não** são instaladas, porque mexer no editor de alguém não é o que
 `new` foi chamado para fazer.
+
+## `serve`: rodar o projeto do diretório atual
+
+`glacier serve` procura o `Cargo.toml` subindo a partir do diretório atual e
+roda o app a partir da raiz do projeto. Isso importa porque os caminhos de
+`views/` são relativos a ela.
+
+### `glacier serve desktop`
+
+`cargo run` na raiz do projeto. `--release` para o build otimizado,
+`--features <lista>`, e `-- <args>` repassa argumentos ao app.
+
+### `glacier serve wasm`
+
+Compila para o navegador e serve, num comando só:
+
+1. confere o target `wasm32-unknown-unknown` (senão mostra o `rustup target add`);
+2. abre a porta **antes** de compilar, para não descobrir que ela está ocupada
+   depois de minutos de build;
+3. `cargo build --release --target wasm32-unknown-unknown`, lendo o caminho do
+   `.wasm` pela saída JSON do cargo (respeita `CARGO_TARGET_DIR` e workspaces);
+4. confere que o `wasm-bindgen` do `PATH` tem a **mesma versão** do crate
+   `wasm-bindgen` no `Cargo.lock`. Com versões diferentes o build passaria e o
+   erro só apareceria no console do navegador;
+5. `wasm-bindgen --target web --out-name app` em `target/glacier-web/`, mais
+   uma cópia de `web/` (a página);
+6. serve essa pasta em `127.0.0.1:<porta>` com `Content-Type: application/wasm`
+   e `Cache-Control: no-store`, para o navegador nunca rodar o `.wasm` de antes
+   do rebuild.
+
+```
+--port <n>            porta local (padrão 8080)
+--dev                 build de debug (padrão: release)
+-F, --features <l>    features do projeto (ex.: web-gpu)
+```
+
+O servidor é estático, só escuta em `127.0.0.1` e é std puro, como o resto da
+CLI. Serve para desenvolver; para publicar, suba o conteúdo de
+`target/glacier-web/` para qualquer servidor de arquivos.
+
+O projeto precisa de uma `web/index.html` que importe `./app.js`. O preset
+`wasm32` já vem com ela.
 
 ## As extensões de VS Code
 

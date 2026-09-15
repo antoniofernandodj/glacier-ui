@@ -132,3 +132,26 @@ uninstall-cli: ## Remove o pacote glacier-cli do sistema (usa sudo)
 
 clean-deb: ## Apaga os .deb construídos
 	rm -rf target/debian
+
+# ── Web (wasm32-unknown-unknown) ────────────────────────────────────────────
+# Ver docs/WEB.md. Precisa do target (`rustup target add wasm32-unknown-unknown`)
+# e do `wasm-bindgen` na MESMA versão do crate `wasm-bindgen` no Cargo.lock —
+# `cargo binstall wasm-bindgen-cli@<versão>`; versões diferentes geram um .js
+# que não casa com o .wasm e o erro só aparece no console do navegador.
+
+WEB_DIST := target/web/web_contador
+WEB_WASM := target/wasm32-unknown-unknown/release/examples/web_contador.wasm
+
+.PHONY: web-build-contador web-contador
+
+# `make web-contador WEB_FEATURES=web-gpu` para desenhar pela GPU (ver docs/WEB.md).
+WEB_FEATURES ?=
+
+web-build-contador: ## Compila o exemplo web_contador para wasm em target/web/
+	cargo build --release --example web_contador --target wasm32-unknown-unknown $(if $(WEB_FEATURES),--features $(WEB_FEATURES))
+	wasm-bindgen --target web --no-typescript --out-dir $(WEB_DIST) $(WEB_WASM)
+	cp examples/web_contador/index.html $(WEB_DIST)/
+
+web-contador: web-build-contador ## Compila e serve o web_contador em http://localhost:8080
+	@echo "servindo $(WEB_DIST) em http://localhost:8080 (Ctrl+C para parar)"
+	cd $(WEB_DIST) && python3 -m http.server 8080

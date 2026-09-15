@@ -118,20 +118,28 @@ use crate::builtins::button_box::ButtonBox;
 use crate::builtins::card::Card;
 use crate::builtins::chip::Chip;
 use crate::builtins::color_dialog::ColorDialog;
+// Consumidos pela camada Luau, que não existe no alvo web.
+#[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::color_dialog::{
     COLOR_DIALOG_BODY, HEX_KEY as COLOR_DIALOG_HEX_KEY,
 };
 use crate::builtins::command_link::CommandLink;
 use crate::builtins::drawer::Drawer;
+// Consumidos pela camada Luau, que não existe no alvo web.
+#[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::font_dialog::FONT_DIALOG_BODY;
 use crate::builtins::font_dialog::FontDialog;
 use crate::builtins::font_select::FontSelect;
 use crate::builtins::frame::Frame;
 use crate::builtins::group_box::GroupBox;
+// Consumidos pela camada Luau, que não existe no alvo web.
+#[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::input_dialog::INPUT_DIALOG_BODY;
 use crate::builtins::input_dialog::InputDialog;
 use crate::builtins::list_view::ListView;
 use crate::builtins::notification_dot::NotificationDot;
+// Consumidos pela camada Luau, que não existe no alvo web.
+#[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::progress_dialog::PROGRESS_DIALOG_BODY;
 use crate::builtins::progress_dialog::ProgressDialog;
 use crate::builtins::radio_group::RadioGroup;

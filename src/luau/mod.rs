@@ -1673,43 +1673,7 @@ fn resolve_module(modname: &str, roots: &[PathBuf], assets: &dyn AssetSource) ->
     None
 }
 
-/// Colapsa `.`/`..` **lexicalmente** e unifica separadores em `/`, produzindo
-/// uma chave estável de identidade sem tocar o filesystem. Usado tanto pelo
-/// cache de `require` (deste módulo) quanto por
-/// [`GlacierUI::resolve_import_href`](crate::GlacierUI::resolve_import_href)
-/// (`href` de `<link rel="import">` relativo ao arquivo importador — mesma
-/// ideia de resolução, fora do universo Luau).
-///
-/// Antes o cache de `require` usava [`Path::canonicalize`], que exige o arquivo
-/// existir no disco; com uma fonte de assets embutida não há disco, então a
-/// identidade tem de ser derivada só do texto do caminho. Preserva uma `/`
-/// inicial (caminho absoluto vindo de `GLACIER_LUAU_PATH`).
-pub(crate) fn normalize_key(path: &Path) -> String {
-    use std::path::Component;
-    let mut absolute = false;
-    let mut parts: Vec<String> = Vec::new();
-    for comp in path.components() {
-        match comp {
-            Component::RootDir => absolute = true,
-            Component::Prefix(p) => parts.push(p.as_os_str().to_string_lossy().into_owned()),
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if matches!(parts.last().map(String::as_str), Some(s) if s != "..") {
-                    parts.pop();
-                } else if !absolute {
-                    parts.push("..".into());
-                }
-            }
-            Component::Normal(s) => parts.push(s.to_string_lossy().into_owned()),
-        }
-    }
-    let joined = parts.join("/");
-    if absolute {
-        format!("/{joined}")
-    } else {
-        joined
-    }
-}
+pub(crate) use crate::asset_source::normalize_key;
 
 /// Instala um `require` próprio no interpretador, com resolução **relativa ao
 /// arquivo que chama `require`** (como Node.js/Lua padrão) — não ao diretório

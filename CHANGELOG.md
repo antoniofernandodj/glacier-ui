@@ -8,6 +8,55 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.108.0 · CLI 0.5.17 — 2026-09-15
+
+O motor compila para o navegador (`wasm32-unknown-unknown`). Ver `docs/WEB.md`.
+
+- `EmbeddedAssets` e a macro `embed_assets![...]`: assets embutidos no binário
+  por `include_bytes!`, com os mesmos caminhos que o markup usa. É a fonte que
+  a web precisa, porque o navegador não tem disco, e serve também para um
+  binário nativo standalone.
+- Exemplo `web_contador` e `make web-contador`, que compila, roda o
+  `wasm-bindgen` e serve em `localhost:8080`.
+- Na web: `eprintln!`/`println!` do motor vão para o console do navegador,
+  `panic!` tem mensagem (`console_error_panic_hook`) e o log do iced/wgpu também
+  aparece (`console_log`). A fonte padrão é a Fira Sans embutida.
+- Na web o desenho é por software (tiny-skia) por padrão. A feature `web-gpu`
+  liga o wgpu (WebGPU/WebGL2). O iced 0.14 não deixa escolher o backend em
+  tempo de execução no navegador, e um WebGPU que entrega adaptador mas falha na
+  superfície deixava o canvas vazio, sem erro.
+- Na web **não existem**: `<script>` Luau (o registro do componente falha com
+  `GlacierError::Luau` explicando o motivo), `fetch`/SSE/WebSocket, `notify()`,
+  diálogo de arquivo, bandeja e instância única.
+- `Instant`/`SystemTime` internos passam a vir de `iced::time`. No nativo são
+  os mesmos tipos do `std`.
+
+### Quebras
+
+- `AssetSource::modified` devolve `iced::time::SystemTime`. No nativo é
+  exatamente o `std::time::SystemTime` (reexport), então uma implementação
+  existente continua compilando sem mudança.
+- No alvo `wasm32`, `glacier_ui::mlua`, `LuaExtension`, `register_lua_extension`
+  e `GlacierDaemon::lua_extension` não existem. O nativo não muda.
+
+### CLI 0.5.17
+
+- Preset `wasm32` (`glacier new app -p wasm32`): o mesmo app no desktop e no
+  navegador, com um `Component` em Rust, `views/` embutida por `embed_assets!`
+  só no alvo wasm e uma `web/index.html`. A lógica não fica em Luau porque o Luau
+  não compila para o alvo web.
+- `glacier serve wasm`: confere target e `wasm-bindgen` (na versão do
+  `Cargo.lock`), compila, gera `target/glacier-web/` e serve em
+  `127.0.0.1:8080` com `Cache-Control: no-store`. Tem `--port`, `--dev` e
+  `--features`.
+- `glacier serve desktop`: `cargo run` na raiz do projeto, com `--release`,
+  `--features` e `-- <args>`.
+- `tests/presets_cli.rs`: a entrada do `minimo` apontava para
+  `views/contador.gv`, que o preset não tem mais (hoje é `views/app.gv`). O
+  teste falhava ali e nunca chegava aos presets seguintes.
+
+---
+
 ## glacier-ui 0.107.1 · CLI 0.5.16 — 2026-09-15
 
 - O motor semeia a chave `__data_dir` — o diretório de dados do app, vindo do

@@ -284,6 +284,7 @@ impl GlacierDaemon {
     /// Ver o exemplo `sqlite_crud` para uma ponte completa — um cliente SQLite
     /// com `connect` / `execute` / `query` / `begin` / `commit` / `close` — e
     /// um mini-CRUD que a usa inteiramente do `<script>`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn lua_extension(self, ext: impl crate::luau::LuaExtension) -> Self {
         crate::luau::register_lua_extension(ext);
         self
@@ -515,6 +516,16 @@ impl GlacierDaemon {
 
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
+        // Sem isto um `panic!` no navegador aparece como "unreachable executed",
+        // sem mensagem nem linha.
+        #[cfg(target_arch = "wasm32")]
+        {
+            console_error_panic_hook::set_once();
+            // `Warn` e não `Info`: o wgpu no nível info escreve dezenas de linhas
+            // por frame de configuração, e o que importa aqui é a falha.
+            let _ = console_log::init_with_level(log::Level::Warn);
+        }
+
         // Antes de QUALQUER coisa gráfica: o backend do `winit` (X11 vs
         // Wayland) é escolhido uma vez só, pro processo inteiro, na primeira
         // janela — inclusive a principal, que pode nascer bem antes de
@@ -1291,7 +1302,7 @@ impl Runtime {
             // thread da UI, e um que bloqueie (um lock disputado, um I/O
             // síncrono) trava o quadro sem aparecer no render nem no dispatch.
             if crate::perf::ligado() {
-                let t0 = std::time::Instant::now();
+                let t0 = iced::time::Instant::now();
                 hook(&msg, engine);
                 crate::perf::anota_app(t0.elapsed());
             } else {

@@ -8,6 +8,8 @@
 //!
 //! ```text
 //! glacier new [nome]          cria um projeto (questionário)
+//! glacier serve wasm          compila para o navegador e serve em localhost
+//! glacier serve desktop       roda o app no desktop (`cargo run` na raiz)
 //! glacier install-extensions  só as extensões de VS Code
 //! glacier presets             lista os presets
 //! ```
@@ -16,6 +18,7 @@ mod embedded;
 mod extensions;
 mod prompt;
 mod scaffold;
+mod serve;
 mod vsix;
 mod wizard;
 
@@ -47,6 +50,7 @@ fn main() -> ExitCode {
         }
         Some("new") => novo(&e, args.collect()),
         Some("install-extensions") => instalar_extensoes(&e),
+        Some("serve") => serve::serve(&e, args.collect()),
         Some(outro) => {
             eprintln!("{} comando desconhecido: '{outro}'", e.vermelho("erro:"));
             eprintln!("  rode `glacier --help` para ver os comandos.");
@@ -170,6 +174,8 @@ fn ajuda(e: &Estilo) {
 
   {uso}
     glacier new [nome]            cria um projeto — pergunta o resto
+    glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
+    glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
     glacier install-extensions    só instala as extensões de VS Code
     glacier presets               descreve os presets disponíveis
     glacier --version
@@ -182,15 +188,24 @@ fn ajuda(e: &Estilo) {
         --build / --no-build      `cargo build` ao final
     -y, --yes                     não pergunta nada: aceita todos os defaults
 
+  {opcoes_serve}
+    wasm     --port <n>           porta local (padrão 8080)
+             --dev                build de debug (padrão: release)
+    desktop  --release            build otimizado (padrão: debug, como `cargo run`)
+             -- <args>            repassa os argumentos ao app
+    ambos    -F, --features <l>   features do projeto (ex.: web-gpu)
+
   {exemplos}
     glacier new
     glacier new painel --preset completo --extensions --no-build
     glacier new teste -p minimo -y
+    glacier new site -p wasm32 -y && cd site && glacier serve wasm
 ",
         titulo = e.negrito("glacier — a CLI do glacier-ui"),
         sub = e.fraco("cria um projeto pronto (templates .gv/.gss + scripts Luau) e instala as extensões de VS Code"),
         uso = e.negrito("USO"),
         opcoes_new = e.negrito("OPÇÕES DE `new`"),
+        opcoes_serve = e.negrito("OPÇÕES DE `serve`"),
         exemplos = e.negrito("EXEMPLOS"),
         presets = ids.join(" | "),
     );

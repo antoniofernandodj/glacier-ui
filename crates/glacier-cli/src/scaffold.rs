@@ -57,6 +57,17 @@ pub static PRESETS: &[Preset] = &[
         ],
     },
     Preset {
+        id: "wasm32",
+        titulo: "Web (WebAssembly)",
+        descricao: "O mesmo app no desktop e no navegador: componente em Rust, views/ embutida no .wasm e `glacier serve wasm` para compilar e servir.",
+        destaques: &[
+            "src/main.rs — embed_assets! só no alvo wasm32; no desktop, disco + hot-reload",
+            "src/contador.rs — impl Component (no navegador não há <script> Luau)",
+            "web/index.html — a página que carrega o app.js gerado pelo wasm-bindgen",
+            "glacier serve wasm / glacier serve desktop",
+        ],
+    },
+    Preset {
         id: "catalogo",
         titulo: "Catálogo de widgets",
         descricao: "Uma sidebar de categorias; cada tela mostra dezenas de widgets do motor com um exemplo mínimo e vivo, feito para copiar.",
@@ -103,7 +114,7 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
+    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html",
 ];
 
 /// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`

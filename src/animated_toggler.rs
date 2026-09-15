@@ -23,7 +23,7 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{self, Tree};
 use iced::advanced::{Clipboard, Shell, Widget};
-use std::time::Instant;
+use iced::time::Instant;
 
 use iced::animation::{Animation, Easing};
 use iced::widget::toggler;

@@ -18,7 +18,9 @@
 //! através do `Runtime` — [`event_stream`] só lê a estática, no mesmo espírito
 //! do interruptor global de `crate::tray`.
 
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
+#[cfg(not(target_arch = "wasm32"))]
+use std::net::TcpStream;
 use std::sync::OnceLock;
 
 static LISTENER: OnceLock<TcpListener> = OnceLock::new();
@@ -46,6 +48,15 @@ pub enum Lock {
 }
 
 /// Tenta se tornar o dono da trava de `app_id`. Ver [módulo](self).
+///
+/// No navegador não há porta para abrir (o `bind` falharia e o app se acharia
+/// a segunda cópia, fechando sem tela): cada aba é a própria instância.
+#[cfg(target_arch = "wasm32")]
+pub fn acquire(_app_id: &str) -> Lock {
+    Lock::Primary
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn acquire(app_id: &str) -> Lock {
     let port = port_for(app_id);
     match TcpListener::bind(("127.0.0.1", port)) {
@@ -83,6 +94,12 @@ pub fn acquire(app_id: &str) -> Lock {
 /// mas a metade que o entregaria pra fora nunca é repolada. Só descoberto
 /// depurando com `eprintln!` — o ping chegava (confirmado via `ss` vendo o
 /// accept+close no SO) e nunca surtia efeito nenhum.
+#[cfg(target_arch = "wasm32")]
+pub fn event_stream() -> impl futures::Stream<Item = ()> {
+    futures::stream::empty()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn event_stream() -> impl futures::Stream<Item = ()> {
     use futures::SinkExt;
 

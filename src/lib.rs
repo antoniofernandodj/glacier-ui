@@ -1,3 +1,26 @@
+// No alvo web a camada Luau não existe (ver `src/luau_web.rs`), e vários itens
+// do motor só têm ela como consumidor — os pedidos pendentes de diálogo, os
+// `new` de fetch/stream/timer. Eles continuam vivos no nativo; o aviso de código
+// morto no wasm seria só ruído.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
+
+// No navegador o `std` não tem para onde escrever: `eprintln!`/`println!`
+// compilam e a mensagem some. O motor reporta quase todo erro de template por
+// `eprintln!`, então na web isso seria uma tela quebrada sem motivo nenhum. Estas
+// macros sombreiam as do `std` em todo módulo declarado abaixo delas e mandam o
+// texto para o console do navegador.
+#[cfg(target_arch = "wasm32")]
+macro_rules! eprintln {
+    () => {};
+    ($($arg:tt)*) => { $crate::web_console(true, &format!($($arg)*)) };
+}
+#[cfg(target_arch = "wasm32")]
+#[allow(unused_macros)]
+macro_rules! println {
+    () => {};
+    ($($arg:tt)*) => { $crate::web_console(false, &format!($($arg)*)) };
+}
+
 pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
@@ -19,10 +42,18 @@ pub mod gauges;
 pub mod grid;
 pub mod grip;
 pub mod keys;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod luau;
+#[cfg(target_arch = "wasm32")]
+#[path = "luau_web.rs"]
 pub mod luau;
 pub mod menu;
 #[cfg(feature = "micropython")]
 pub mod micropython;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod net;
+#[cfg(target_arch = "wasm32")]
+#[path = "net_web.rs"]
 pub mod net;
 pub mod panes;
 pub mod parser;
@@ -32,6 +63,7 @@ pub mod render_inputs;
 pub mod reveal;
 pub mod shapes;
 mod single_instance;
+mod timer;
 pub mod spinner;
 pub mod style;
 pub mod stylesheet;
@@ -52,6 +84,7 @@ pub use iced;
 /// host app writing a [`luau::LuaExtension`] (bridging Rust functions into the
 /// Lua layer) reaches `mlua::Lua`, `mlua::Table`, `mlua::UserData`, … as
 /// `glacier_ui::mlua::*` without pinning a matching `mlua` version itself.
+#[cfg(not(target_arch = "wasm32"))]
 pub use mlua;
 
 pub use external::ExternalSender;
@@ -61,7 +94,7 @@ pub use external::ExternalSender;
 pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
 
 pub use app::GlacierApp;
-pub use asset_source::{AssetSource, DiskAssets};
+pub use asset_source::{AssetSource, DiskAssets, EmbeddedAssets};
 pub use component::{
     BroadcastMessage, Component, Context, ContextVar, DialogAction, Effect, EffectOutcome,
     FetchResult, Nav, Template, WindowSource, WindowSpec,
@@ -74,7 +107,9 @@ pub use eval::{
     normalize_bare_directives, process_template, strip_script,
 };
 pub use forms::{Form, FormBuilder, FormControl, Validator};
-pub use luau::{LuaExtension, LuauComponent, register_lua_extension};
+pub use luau::LuauComponent;
+#[cfg(not(target_arch = "wasm32"))]
+pub use luau::{LuaExtension, register_lua_extension};
 pub use parser::{ButtonType, DialogMeta, NodeType, ScreenMeta, UiNode};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
@@ -88,7 +123,11 @@ pub use widget::{EngineMessage, TimeEditKey, render_node};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+// `iced::time` e não `std::time`: no nativo são os MESMOS tipos (reexport do
+// `web-time`), e no navegador o `Instant::now()`/`SystemTime::now()` do `std`
+// panica.
+use iced::time::SystemTime;
+use std::time::Duration;
 
 /// The XML-to-UI rendering engine.
 ///
@@ -347,7 +386,7 @@ pub struct GlacierUI {
     pending_reeval: bool,
     /// Instante da última reavaliação disparada por mensagem de stream, base do
     /// throttle acima. `None` = nunca (primeira mensagem reavalia na hora).
-    last_stream_reeval: Option<std::time::Instant>,
+    last_stream_reeval: Option<iced::time::Instant>,
     /// De onde os assets (templates, estilos, tema/dados, scripts Luau e
     /// binários SVG/imagem) são lidos. O default [`DiskAssets`] lê do disco
     /// (comportamento histórico, com hot-reload); um consumidor pode injetar
@@ -373,7 +412,7 @@ static NEXT_ENGINE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU
 struct ActiveToast {
     id: u64,
     spec: toasts::ToastSpec,
-    shown_at: std::time::Instant,
+    shown_at: iced::time::Instant,
 }
 
 /// Reserved context key holding the reorder-key of the item currently being
@@ -501,7 +540,7 @@ struct DragState {
 struct EditHistory {
     undo: Vec<String>,
     redo: Vec<String>,
-    last_edit_at: Option<std::time::Instant>,
+    last_edit_at: Option<iced::time::Instant>,
 }
 
 impl EditHistory {
@@ -514,7 +553,7 @@ impl EditHistory {
     /// desfazer, se a coalescência não o absorver. `structural` força um
     /// snapshot novo (paste/backspace/delete/limpar). Toda edição zera o `redo`.
     fn record(&mut self, prev: &str, structural: bool) {
-        let now = std::time::Instant::now();
+        let now = iced::time::Instant::now();
         let coalesce = !structural
             && self
                 .last_edit_at
@@ -963,7 +1002,7 @@ impl GlacierUI {
         self.toasts.push(ActiveToast {
             id,
             spec,
-            shown_at: std::time::Instant::now(),
+            shown_at: iced::time::Instant::now(),
         });
         id
     }
@@ -978,7 +1017,7 @@ impl GlacierUI {
     /// Called on [`widget::EngineMessage::ToastTick`] (see
     /// [`GlacierUI::toast_subscription`]).
     fn prune_expired_toasts(&mut self) {
-        let now = std::time::Instant::now();
+        let now = iced::time::Instant::now();
         self.toasts
             .retain(|t| now.duration_since(t.shown_at) < t.spec.duration);
     }
@@ -1165,7 +1204,7 @@ impl GlacierUI {
         // como parcela própria — sem isto ele se esconderia no "resto" e seria
         // lido como custo do `iced` (ver `crate::perf`).
         if perf::ligado() {
-            let t0 = std::time::Instant::now();
+            let t0 = iced::time::Instant::now();
             let tarefa = self.dispatch_interno(msg);
             perf::anota_dispatch(t0.elapsed(), msg.nome());
             return tarefa;
@@ -2566,7 +2605,12 @@ impl GlacierUI {
         // silencioso (nada de janela de UI a mudar — só não emitimos ao SO).
         for spec in notifications {
             if crate::tray::notifications_enabled() {
+                #[cfg(not(target_arch = "wasm32"))]
                 std::thread::spawn(move || emit_os_notification(spec));
+                // Sem thread nem D-Bus no navegador: vai para o console, para não
+                // sumir sem rastro.
+                #[cfg(target_arch = "wasm32")]
+                eprintln!("notify() não é suportado na web: {} — {}", spec.title, spec.body);
             }
         }
 
@@ -2629,7 +2673,7 @@ impl GlacierUI {
         if coalesce_reeval && !visual_change {
             self.request_stream_reeval();
         } else {
-            self.last_stream_reeval = Some(std::time::Instant::now());
+            self.last_stream_reeval = Some(iced::time::Instant::now());
             self.pending_reeval = false;
             let _ = self.reevaluate_all();
         }
@@ -2686,7 +2730,7 @@ impl GlacierUI {
             let owner_name = owner.to_string();
             let dur = std::time::Duration::from_millis(t.delay_ms);
             tasks.push(iced::Task::perform(
-                async move { tokio::time::sleep(dur).await },
+                crate::timer::sleep(dur),
                 move |()| EngineMessage::LuauTimer {
                     owner: owner_name.clone(),
                     id,
@@ -3112,7 +3156,7 @@ impl GlacierUI {
                 .parent()
                 .filter(|p| !p.as_os_str().is_empty());
             if let Some(dir) = dir {
-                let candidate = luau::normalize_key(&dir.join(href));
+                let candidate = asset_source::normalize_key(&dir.join(href));
                 if self.assets.exists(&candidate) {
                     return candidate;
                 }
@@ -3144,7 +3188,7 @@ impl GlacierUI {
     /// senão só marca `pending_reeval`, para o próximo tick (ou a próxima
     /// mensagem elegível) escoar. Ver [`GlacierUI::pending_reeval`].
     fn request_stream_reeval(&mut self) {
-        let now = std::time::Instant::now();
+        let now = iced::time::Instant::now();
         let due = self
             .last_stream_reeval
             .is_none_or(|t| now.duration_since(t) >= STREAM_REEVAL_INTERVAL);
@@ -3163,7 +3207,7 @@ impl GlacierUI {
     /// reavaliação) quando não há nada pendente.
     fn flush_pending_reeval(&mut self) {
         if self.pending_reeval {
-            self.last_stream_reeval = Some(std::time::Instant::now());
+            self.last_stream_reeval = Some(iced::time::Instant::now());
             self.pending_reeval = false;
             let _ = self.reevaluate_all();
         }
@@ -3923,7 +3967,7 @@ impl GlacierUI {
         // resto do quadro sair por diferença — ver `crate::perf`. Desligada,
         // sobra a leitura de um `bool` já resolvido.
         if perf::ligado() {
-            let t0 = std::time::Instant::now();
+            let t0 = iced::time::Instant::now();
             let elemento = montar();
             perf::anota(t0.elapsed(), perf::conta_nos(evaluated_ast));
             return Ok(elemento);
@@ -4215,8 +4259,8 @@ fn theme_key(path: &str) -> String {
 /// que está engasgando e num que não está, senão soltar "no fim" acontece cedo
 /// demais numa máquina lenta.
 fn agora_ms() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0)
 }
@@ -4416,6 +4460,30 @@ fn build_stream(key: &net::StreamKey) -> impl iced::futures::Stream<Item = Engin
 /// Abre `url` no navegador padrão do SO (best-effort, não bloqueante). Usado
 /// pelo built-in de ação `open:<alvo>` (ver [`GlacierUI::dispatch`]). Silencioso
 /// em falha — é uma conveniência, não um caminho crítico.
+#[cfg(target_arch = "wasm32")]
+fn open_url(url: &str) {
+    let url = url.trim();
+    if url.is_empty() {
+        return;
+    }
+    if let Some(janela) = web_sys::window() {
+        let _ = janela.open_with_url_and_target(url, "_blank");
+    }
+}
+
+/// Ver as macros `eprintln!`/`println!` no topo deste arquivo.
+#[cfg(target_arch = "wasm32")]
+#[doc(hidden)]
+pub fn web_console(erro: bool, mensagem: &str) {
+    let valor = wasm_bindgen::JsValue::from_str(mensagem);
+    if erro {
+        web_sys::console::error_1(&valor);
+    } else {
+        web_sys::console::log_1(&valor);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn open_url(url: &str) {
     let url = url.trim();
     if url.is_empty() {
@@ -4742,6 +4810,7 @@ fn resize_direction(s: &str) -> Option<iced::window::Direction> {
 /// habilitado nas configurações. Um subprocesso **sem janela** (`notify-send`)
 /// não é associado a nenhum app e é exibido normalmente. Em outros SOs (Windows
 /// WinRT, macOS `NSUserNotification`) o `notify-rust` in-process é o caminho certo.
+#[cfg(not(target_arch = "wasm32"))]
 fn emit_os_notification(spec: component::NotificationSpec) {
     #[cfg(target_os = "linux")]
     {
@@ -4784,6 +4853,7 @@ fn emit_via_notify_send(spec: &component::NotificationSpec) -> bool {
 
 /// Dispara a notificação in-process via `notify-rust` (D-Bus no Linux/BSD, WinRT
 /// no Windows, `NSUserNotification` no macOS). Falha só loga.
+#[cfg(not(target_arch = "wasm32"))]
 fn emit_via_notify_rust(spec: &component::NotificationSpec) {
     let mut n = notify_rust::Notification::new();
     if !spec.title.is_empty() {

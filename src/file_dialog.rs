@@ -65,6 +65,18 @@ pub enum FileDialogResult {
 /// a thread de UI — chamado via `iced::Task::perform` em
 /// `GlacierUI::run_on_owner`, exatamente como `net::perform` já é para
 /// `fetch()`.
+#[cfg(target_arch = "wasm32")]
+pub async fn run(spec: FileDialogSpec) -> FileDialogResult {
+    // Sem `rfd` no navegador (ver Cargo.toml). Responde "cancelado", que é o
+    // único resultado que a corrotina à espera sabe tratar, e diz por quê.
+    eprintln!("diálogo de arquivo não é suportado na web ({:?}) — ver docs/WEB.md", spec.mode);
+    match spec.mode {
+        FileDialogMode::OpenMultiple => FileDialogResult::Paths(None),
+        _ => FileDialogResult::Path(None),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn run(spec: FileDialogSpec) -> FileDialogResult {
     let mut dialog = rfd::AsyncFileDialog::new();
     if let Some(t) = &spec.title {

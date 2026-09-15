@@ -152,7 +152,7 @@ pub(crate) fn event_stream() -> impl futures::Stream<Item = EngineMessage> {
                     Some(msg) => {
                         let _ = output.send(msg).await;
                     }
-                    None => tokio::time::sleep(Duration::from_millis(120)).await,
+                    None => crate::timer::sleep(Duration::from_millis(120)).await,
                 }
             }
         },

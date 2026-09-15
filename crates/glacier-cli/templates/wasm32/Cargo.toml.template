@@ -1,0 +1,27 @@
+[package]
+name = "{{nome_projeto}}"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# O motor. Ele reexporta o `iced` (`glacier_ui::iced`), então este é o único
+# crate de UI que o projeto precisa declarar. No alvo `wasm32` ele já liga
+# sozinho o que o navegador precisa (fonte embutida, desenho por software).
+glacier-ui = "{{versao_motor}}"
+
+[features]
+# `glacier serve wasm --features web-gpu`: desenha pela GPU no navegador
+# (WebGPU, ou WebGL2 onde não houver). Por padrão a web desenha por software,
+# que funciona em qualquer navegador. Ligue só se a tela aparecer no navegador
+# de destino. No desktop não muda nada: lá a GPU já é o padrão.
+web-gpu = ["glacier-ui/web-gpu"]
+
+# No desktop o app lê `views/` em runtime (é o que dá o hot-reload), então o
+# .deb leva a pasta junto. O binário instalado é chamado pelo wrapper que o
+# `packaging/linux/instalar.sh` cria — ver o comentário lá sobre por quê.
+[package.metadata.deb]
+assets = [
+    ["target/release/{{nome_projeto}}", "usr/share/{{nome_projeto}}/", "755"],
+    ["views/**/*", "usr/share/{{nome_projeto}}/views/", "644"],
+    ["packaging/linux/wrapper.sh", "usr/bin/{{nome_projeto}}", "755"],
+]

@@ -297,6 +297,12 @@ fn proximos_passos(e: &Estilo, plano: &Plano) {
     println!("  {}", e.negrito("Pronto. A partir daqui:"));
     println!("    cd {}", plano.nome);
     println!("    cargo run");
+    if plano.preset.id == "wasm32" {
+        println!(
+            "    glacier serve wasm   {}",
+            e.fraco("# no navegador, em http://127.0.0.1:8080")
+        );
+    }
     println!();
     println!(
         "  {}",

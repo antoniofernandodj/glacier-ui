@@ -1,0 +1,19 @@
+<screen title="Glacier na web">
+  <resources>
+    <link rel="theme" href="examples/web_contador/theme.json" />
+    <link rel="stylesheet" href="examples/web_contador/app.gss" />
+  </resources>
+
+  <container class="tela">
+    <column class="pilha">
+      <text class="titulo">Contador</text>
+      <text class="valor">{contador}</text>
+      <row class="acoes">
+        <button class="botao perigo" text="Diminuir" on_click="decrementar" />
+        <button class="botao" text="Zerar" on_click="zerar" />
+        <button class="botao sucesso" text="Aumentar" on_click="incrementar" />
+      </row>
+      <text class="rotulo">O mesmo .gv e o mesmo .gss, no desktop e no navegador.</text>
+    </column>
+  </container>
+</screen>
