@@ -165,20 +165,16 @@ fn wasm(e: &Estilo, op: Opcoes) -> io::Result<()> {
         )
     })?;
 
+    // A versão do `wasm-bindgen` também ANTES do build, pelo mesmo motivo da
+    // porta: um projeto novo resolve a versão mais recente do crate, e descobrir
+    // que o binário do PATH é outro depois de seis minutos de compilação é o
+    // pior momento possível.
+    let versao = versao_do_wasm_bindgen(&raiz)?;
+    exigir_wasm_bindgen(&versao)?;
+
     let perfil = if op.release { "--release" } else { "debug" };
     passo(e, &format!("cargo build --target {ALVO_WASM} ({perfil})"));
     let binario = compilar_wasm(&raiz, &op)?;
-
-    let lock = localizar_acima(&raiz, "Cargo.lock").ok_or_else(|| {
-        io::Error::new(io::ErrorKind::NotFound, "o build não gerou um Cargo.lock")
-    })?;
-    let versao = versao_no_lock(&fs::read_to_string(&lock)?, "wasm-bindgen").ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "o Cargo.lock não tem o crate `wasm-bindgen` — o projeto depende do glacier-ui?",
-        )
-    })?;
-    exigir_wasm_bindgen(&versao)?;
 
     let saida = raiz.join(DIR_SAIDA);
     if saida.exists() {
@@ -289,6 +285,33 @@ fn executavel_wasm(linha: &str) -> Option<PathBuf> {
     caminho.ends_with(".wasm").then(|| PathBuf::from(caminho))
 }
 
+/// A versão do crate `wasm-bindgen` que ESTE projeto usa.
+///
+/// Um projeto recém-criado ainda não tem `Cargo.lock` — ele nasceria no build,
+/// tarde demais para esta conferência. O `cargo generate-lockfile` resolve as
+/// versões e escreve o lock sem compilar nada.
+fn versao_do_wasm_bindgen(raiz: &Path) -> io::Result<String> {
+    if localizar_acima(raiz, "Cargo.lock").is_none() {
+        let status = Command::new("cargo")
+            .arg("generate-lockfile")
+            .current_dir(raiz)
+            .status();
+        exigir_sucesso(status, "cargo generate-lockfile")?;
+    }
+    let lock = localizar_acima(raiz, "Cargo.lock").ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "não achei o Cargo.lock do projeto nem consegui gerá-lo",
+        )
+    })?;
+    versao_no_lock(&fs::read_to_string(&lock)?, "wasm-bindgen").ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "o Cargo.lock não tem o crate `wasm-bindgen` — o projeto depende do glacier-ui?",
+        )
+    })
+}
+
 /// A versão de um pacote no `Cargo.lock` (`name = "x"` seguido de `version`).
 fn versao_no_lock(lock: &str, pacote: &str) -> Option<String> {
     let alvo = format!("name = \"{pacote}\"");
@@ -307,7 +330,11 @@ fn versao_no_lock(lock: &str, pacote: &str) -> Option<String> {
 }
 
 fn exigir_wasm_bindgen(versao: &str) -> io::Result<()> {
-    let instalar = format!("cargo install wasm-bindgen-cli --version {versao}");
+    // `binstall` baixa o binário pronto (segundos); o `install` recompila
+    // (minutos). Quem está travado aqui quer o primeiro.
+    let instalar = format!(
+        "cargo binstall wasm-bindgen-cli@{versao}   (ou: cargo install wasm-bindgen-cli --version {versao})"
+    );
     let saida = Command::new("wasm-bindgen")
         .arg("--version")
         .output()

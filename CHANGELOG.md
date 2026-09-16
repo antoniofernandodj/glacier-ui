@@ -8,6 +8,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+### CLI
+
+- `glacier serve wasm` confere a versão do `wasm-bindgen` **antes** de compilar.
+  Ela era conferida depois, e um projeto novo — que resolve a versão mais recente
+  do crate, não a do checkout do motor — só descobria o desencontro depois de
+  seis minutos de build. Num projeto recém-criado ainda não há `Cargo.lock`:
+  o comando gera um com `cargo generate-lockfile`, que resolve as versões sem
+  compilar nada.
+- A mensagem desse erro passa a sugerir `cargo binstall wasm-bindgen-cli@<versão>`
+  (baixa o binário pronto) antes do `cargo install`, que recompila.
+- `Cargo.lock` do repositório: família `wasm-bindgen` em 0.2.128 (com `js-sys`
+  0.3.105 e `web-sys` 0.3.105), a mesma que um projeto novo resolve — assim o
+  `make web-contador` daqui e um `glacier new` pedem o mesmo binário.
+
+---
+
 ## glacier-ui 0.108.1 · CLI 0.5.18 · vscode-gv 0.19.11 — 2026-09-15
 
 - **Validação do `<form>`:** as `rules` passam a ser lidas da árvore avaliada
