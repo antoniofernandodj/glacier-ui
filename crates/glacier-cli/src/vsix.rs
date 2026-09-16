@@ -370,7 +370,9 @@ fn zip(entradas: &[Entrada]) -> Vec<u8> {
     saida
 }
 
-fn crc32(dados: &[u8]) -> u32 {
+/// CRC-32 (IEEE), o do zip. Também usado pelo vigia do `serve wasm --watch`
+/// para comparar CONTEÚDO de arquivo — ver `serve::Impressao`.
+pub fn crc32(dados: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &b in dados {
         crc ^= b as u32;

@@ -17,13 +17,32 @@
 //! O servidor é std puro, como o resto da CLI (ver o Cargo.toml): estático,
 //! só em 127.0.0.1, uma thread por conexão. Serve para desenvolver, não para
 //! publicar.
+//!
+//! ## `--watch`
+//!
+//! No navegador não existe hot-reload: os `.gv` e `.gss` entram DENTRO do
+//! `.wasm` pelo `embed_assets!`, então ver uma mudança exige recompilar. O
+//! `--watch` automatiza esse ciclo — varre `src/`, `views/`, `web/` e o
+//! `Cargo.toml`, recompila quando algo muda e faz a página se recarregar.
+//!
+//! Três decisões que ele carrega:
+//!
+//! - **varredura, não `inotify`**: a CLI não tem dependências, e o conjunto
+//!   vigiado é pequeno e escolhido a dedo (nunca `target/`);
+//! - **cada build é montada à parte e só depois troca de lugar**: um erro de
+//!   compilação deixa a página aberta funcionando com a build anterior, em vez
+//!   de derrubar o servidor e obrigar a redigitar o comando;
+//! - **a recarga é injetada na `index.html` servida**, não no arquivo do
+//!   projeto: o `--watch` não deixa resíduo no disco de ninguém.
 
 use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 
 use crate::prompt::Estilo;
 
@@ -38,7 +57,55 @@ const NOME_SAIDA: &str = "app";
 /// para já estar coberta pelo `.gitignore` e sumir num `cargo clean`.
 const DIR_SAIDA: &str = "target/glacier-web";
 
-#[derive(Debug, PartialEq)]
+/// Onde cada build é MONTADA, antes de virar a pasta servida.
+///
+/// A build antiga só é substituída depois que a nova terminou inteira. É o que
+/// permite ao `--watch` sobreviver a um erro de compilação: a pasta servida
+/// continua com a build que funcionava, e a página aberta no navegador não cai.
+const DIR_MONTAGEM: &str = "target/glacier-web-next";
+
+/// Intervalo entre duas varreduras do disco no modo `--watch`.
+///
+/// Varredura de `mtime`, e não `inotify`: esta CLI não tem dependências (ver o
+/// Cargo.toml), e as três pastas vigiadas são pequenas — o `views/` de um
+/// projeto tem dezenas de arquivos, não milhares.
+const INTERVALO_VIGIA: Duration = Duration::from_millis(700);
+
+/// Espera depois de ver a primeira mudança. Um editor que salva escrevendo um
+/// temporário e renomeando produz duas mudanças seguidas, e sem esta pausa a
+/// segunda dispararia uma segunda build já obsoleta.
+const ACALMAR: Duration = Duration::from_millis(250);
+
+/// A rota que a página consulta para saber se saiu build nova. Só existe com
+/// `--watch`.
+const ROTA_RECARGA: &str = "/__glacier/recarregar";
+
+/// O script que o servidor injeta na `index.html` **servida** quando o
+/// `--watch` está ligado. O arquivo no disco não é tocado.
+///
+/// É consulta em laço, e não WebSocket nem SSE: o servidor é uma thread por
+/// conexão, e uma conexão pendurada por aba aberta custaria mais que um GET de
+/// três bytes a cada meio segundo em `127.0.0.1`.
+const SCRIPT_RECARGA: &str = r#"<script>
+// Injetado pelo `glacier serve wasm --watch` — não está no seu arquivo.
+(async () => {
+  let atual = null;
+  for (;;) {
+    try {
+      const r = await fetch("/__glacier/recarregar", { cache: "no-store" });
+      const geracao = await r.text();
+      if (atual === null) atual = geracao;
+      else if (geracao !== atual) location.reload();
+    } catch (_) {
+      // Servidor parado ou reiniciando: tenta de novo no próximo laço.
+    }
+    await new Promise((f) => setTimeout(f, 500));
+  }
+})();
+</script>
+"#;
+
+#[derive(Debug, Clone, PartialEq)]
 struct Opcoes {
     porta: u16,
     /// Na web o padrão é release (`--dev` desliga): um `.wasm` de debug tem
@@ -46,6 +113,9 @@ struct Opcoes {
     /// `cargo run` (`--release` liga).
     release: bool,
     features: Option<String>,
+    /// `--watch`: recompila a cada mudança em `src/`, `views/`, `web/` e
+    /// `Cargo.toml`, e faz a página se recarregar (só wasm).
+    watch: bool,
     /// Argumentos depois de `--`, repassados ao app (só desktop).
     resto: Vec<String>,
 }
@@ -76,6 +146,7 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
         porta: PORTA_PADRAO,
         release: wasm,
         features: None,
+        watch: false,
         resto: Vec::new(),
     };
 
@@ -90,6 +161,7 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
                     .map_err(|_| invalido(format!("porta inválida: '{valor}'")))?;
             }
             "--dev" if wasm => op.release = false,
+            "--watch" | "-w" if wasm => op.watch = true,
             "--release" if !wasm => op.release = true,
             "--features" | "-F" => {
                 // Sem valor não pode virar "sem features" em silêncio: quem
@@ -172,25 +244,15 @@ fn wasm(e: &Estilo, op: Opcoes) -> io::Result<()> {
     let versao = versao_do_wasm_bindgen(&raiz)?;
     exigir_wasm_bindgen(&versao)?;
 
-    let perfil = if op.release { "--release" } else { "debug" };
-    passo(e, &format!("cargo build --target {ALVO_WASM} ({perfil})"));
-    let binario = compilar_wasm(&raiz, &op)?;
+    let montagem = montar(e, &raiz, &op, &versao)?;
 
-    let saida = raiz.join(DIR_SAIDA);
-    if saida.exists() {
-        fs::remove_dir_all(&saida)?;
-    }
-    fs::create_dir_all(&saida)?;
-
-    passo(e, &format!("wasm-bindgen {versao}"));
-    let status = Command::new("wasm-bindgen")
-        .args(["--target", "web", "--no-typescript", "--out-name", NOME_SAIDA])
-        .arg("--out-dir")
-        .arg(&saida)
-        .arg(&binario)
-        .status();
-    exigir_sucesso(status, "wasm-bindgen")?;
-    copiar_dir(&pagina, &saida)?;
+    let servido = Arc::new(Servido {
+        pasta: raiz.join(DIR_SAIDA),
+        geracao: AtomicU64::new(0),
+        troca: RwLock::new(()),
+        watch: op.watch,
+    });
+    trocar(&servido, &montagem)?;
 
     let endereco = listener.local_addr()?;
     println!();
@@ -199,14 +261,232 @@ fn wasm(e: &Estilo, op: Opcoes) -> io::Result<()> {
         e.verde("servindo em"),
         e.negrito(&format!("http://{endereco}/"))
     );
-    println!("  {}", e.fraco(&format!("pasta: {}", saida.display())));
     println!(
         "  {}",
-        e.fraco("Ctrl+C para parar. Mudou o código? Rode o comando de novo e recarregue a página.")
+        e.fraco(&format!("pasta: {}", servido.pasta.display()))
     );
-    println!();
-    atender_para_sempre(listener, saida);
+    if op.watch {
+        println!(
+            "  {}",
+            e.fraco("vigiando src/, views/, web/ e Cargo.toml — salve um arquivo e a página se recarrega.")
+        );
+        println!("  {}", e.fraco("Ctrl+C para parar."));
+        println!();
+        let vigia = Vigia {
+            e: *e,
+            raiz,
+            op,
+            versao,
+            servido: Arc::clone(&servido),
+        };
+        std::thread::spawn(move || vigia.rodar());
+    } else {
+        println!(
+            "  {}",
+            e.fraco("Ctrl+C para parar. Mudou o código? Rode com `--watch`, ou o comando de novo e recarregue a página.")
+        );
+        println!();
+    }
+    atender_para_sempre(listener, servido);
     Ok(())
+}
+
+/// Compila e monta a pasta da build em [`DIR_MONTAGEM`], devolvendo o caminho.
+///
+/// Montar à parte e trocar depois (ver [`trocar`]) é o que deixa a pasta
+/// servida sempre inteira: uma build que falha no meio não apaga a anterior, e
+/// no `--watch` a página aberta segue funcionando com ela.
+fn montar(e: &Estilo, raiz: &Path, op: &Opcoes, versao: &str) -> io::Result<PathBuf> {
+    let perfil = if op.release { "--release" } else { "debug" };
+    passo(e, &format!("cargo build --target {ALVO_WASM} ({perfil})"));
+    let binario = compilar_wasm(raiz, op)?;
+
+    let montagem = raiz.join(DIR_MONTAGEM);
+    if montagem.exists() {
+        fs::remove_dir_all(&montagem)?;
+    }
+    fs::create_dir_all(&montagem)?;
+
+    passo(e, &format!("wasm-bindgen {versao}"));
+    let status = Command::new("wasm-bindgen")
+        .args([
+            "--target",
+            "web",
+            "--no-typescript",
+            "--out-name",
+            NOME_SAIDA,
+        ])
+        .arg("--out-dir")
+        .arg(&montagem)
+        .arg(&binario)
+        .status();
+    exigir_sucesso(status, "wasm-bindgen")?;
+    copiar_dir(&raiz.join("web"), &montagem)?;
+    Ok(montagem)
+}
+
+/// Põe a build montada no lugar da servida e conta a geração nova.
+///
+/// A troca acontece com o `RwLock` fechado para escrita: um pedido que caísse
+/// no meio dela leria um `.wasm` truncado, e o sintoma no navegador — módulo
+/// que não instancia — não diria nada sobre a causa.
+fn trocar(servido: &Servido, montagem: &Path) -> io::Result<()> {
+    let _guarda = servido.troca.write().unwrap_or_else(|e| e.into_inner());
+    if servido.pasta.exists() {
+        fs::remove_dir_all(&servido.pasta)?;
+    }
+    fs::rename(montagem, &servido.pasta)?;
+    servido.geracao.fetch_add(1, Ordering::Release);
+    Ok(())
+}
+
+// ── vigia (`--watch`) ─────────────────────────────────────────────────────────
+
+/// O estado que a thread do vigia precisa para reconstruir do zero.
+struct Vigia {
+    e: Estilo,
+    raiz: PathBuf,
+    op: Opcoes,
+    versao: String,
+    servido: Arc<Servido>,
+}
+
+impl Vigia {
+    /// Laço infinito: varre, compara, reconstrói. Só termina com o processo
+    /// (Ctrl+C), como o servidor.
+    fn rodar(self) {
+        let mut antes = Impressao::tirar(&self.raiz);
+        loop {
+            std::thread::sleep(INTERVALO_VIGIA);
+            let agora = Impressao::tirar(&self.raiz);
+            if agora == antes {
+                continue;
+            }
+            // Deixa o editor terminar de salvar antes de ler a árvore de novo:
+            // o que vale é o estado depois da pausa, não o do meio da escrita.
+            std::thread::sleep(ACALMAR);
+            let depois = Impressao::tirar(&self.raiz);
+            let so_pagina = depois.codigo == antes.codigo;
+            antes = depois;
+
+            if so_pagina {
+                // `web/` não entra no `.wasm` — é cópia, não compilação.
+                passo(&self.e, "web/ mudou, recopiando");
+                if let Err(erro) = self.recopiar_pagina() {
+                    self.falhou(&erro);
+                    continue;
+                }
+            } else {
+                passo(&self.e, "mudou, recompilando");
+                match montar(&self.e, &self.raiz, &self.op, &self.versao)
+                    .and_then(|montagem| trocar(&self.servido, &montagem))
+                {
+                    Ok(()) => {}
+                    Err(erro) => {
+                        self.falhou(&erro);
+                        continue;
+                    }
+                }
+            }
+            println!(
+                "  {} {}",
+                self.e.verde("pronto"),
+                self.e
+                    .fraco("— a página aberta se recarrega em até meio segundo")
+            );
+        }
+    }
+
+    /// Copia só `web/` para dentro da pasta servida. Mesma trava da [`trocar`],
+    /// e a geração sobe igual: quem está com a página aberta recebe o HTML novo.
+    fn recopiar_pagina(&self) -> io::Result<()> {
+        let _guarda = self
+            .servido
+            .troca
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        copiar_dir(&self.raiz.join("web"), &self.servido.pasta)?;
+        self.servido.geracao.fetch_add(1, Ordering::Release);
+        Ok(())
+    }
+
+    /// Erro de build no `--watch` NÃO derruba o servidor: a pasta servida
+    /// continua com a build anterior, a página aberta segue de pé, e o próximo
+    /// salvamento tenta outra vez. Um `exit` aqui obrigaria a redigitar o
+    /// comando depois de cada erro de sintaxe.
+    fn falhou(&self, erro: &io::Error) {
+        eprintln!("  {} {erro}", self.e.vermelho("erro:"));
+        eprintln!(
+            "  {}",
+            self.e
+                .fraco("a página segue com a build anterior; corrija e salve de novo")
+        );
+    }
+}
+
+/// O estado do disco que decide se há build nova a fazer, separado pelo que
+/// cada parte exige: `web/` é cópia, o resto é compilação.
+#[derive(Debug, Default, PartialEq)]
+struct Impressao {
+    /// `web/` — a página, que não entra no `.wasm`.
+    pagina: Vec<Arquivo>,
+    /// `src/`, `views/` e `Cargo.toml` — tudo que o `.wasm` embute ou compila.
+    codigo: Vec<Arquivo>,
+}
+
+/// Um arquivo vigiado, pelo que importa para decidir se ele mudou.
+///
+/// O CRC do **conteúdo** é o que decide, e não o `mtime`: a granularidade do
+/// `mtime` é de um segundo em alguns sistemas de arquivos, e dois salvamentos
+/// do mesmo tamanho dentro da mesma marca de tempo passariam batidos — foi
+/// exatamente o que o teste desta impressão pegou. O `mtime` e o tamanho ficam
+/// na chave porque são de graça (vêm do `metadata` que já foi lido) e porque
+/// um arquivo grande que só teve o `mtime` mexido também conta como mudança
+/// para o cargo.
+type Arquivo = (PathBuf, Option<SystemTime>, u64, u32);
+
+impl Impressao {
+    fn tirar(raiz: &Path) -> Self {
+        let mut imp = Self::default();
+        coletar_impressao(&raiz.join("web"), &mut imp.pagina);
+        coletar_impressao(&raiz.join("src"), &mut imp.codigo);
+        coletar_impressao(&raiz.join("views"), &mut imp.codigo);
+        coletar_impressao(&raiz.join("Cargo.toml"), &mut imp.codigo);
+        imp.pagina.sort();
+        imp.codigo.sort();
+        imp
+    }
+}
+
+/// Acumula os [`Arquivo`]s de `alvo` (arquivo ou diretório).
+///
+/// Ler o conteúdo de tudo a cada varredura é aceitável porque o conjunto
+/// vigiado é pequeno e escolhido a dedo — `src/`, `views/`, `web/` e o
+/// `Cargo.toml`, nunca `target/` — e são os mesmos arquivos que o
+/// `embed_assets!` já embute no `.wasm`.
+///
+/// `.glacier-storage` é pulado: é estado de runtime que o app do desktop grava
+/// enquanto roda, e um projeto aberto nos dois alvos recompilaria sem parar.
+fn coletar_impressao(alvo: &Path, saida: &mut Vec<Arquivo>) {
+    let Ok(meta) = fs::metadata(alvo) else {
+        // Não existir é um estado como qualquer outro: o arquivo pode ter sido
+        // apagado, e isso também é uma mudança a reconstruir.
+        return;
+    };
+    if meta.is_file() {
+        let crc = fs::read(alvo).map(|b| crate::vsix::crc32(&b)).unwrap_or(0);
+        saida.push((alvo.to_path_buf(), meta.modified().ok(), meta.len(), crc));
+        return;
+    }
+    let Ok(entradas) = fs::read_dir(alvo) else {
+        return;
+    };
+    for entrada in entradas.flatten() {
+        if entrada.file_name() == std::ffi::OsStr::new(".glacier-storage") {
+            continue;
+        }
+        coletar_impressao(&entrada.path(), saida);
+    }
 }
 
 fn exigir_target() -> io::Result<()> {
@@ -224,7 +504,9 @@ fn exigir_target() -> io::Result<()> {
     } else {
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("o target {ALVO_WASM} não está instalado — rode: rustup target add {ALVO_WASM}"),
+            format!(
+                "o target {ALVO_WASM} não está instalado — rode: rustup target add {ALVO_WASM}"
+            ),
         ))
     }
 }
@@ -359,19 +641,33 @@ fn exigir_wasm_bindgen(versao: &str) -> io::Result<()> {
 
 // ── servidor estático ─────────────────────────────────────────────────────────
 
-fn atender_para_sempre(listener: TcpListener, raiz: PathBuf) {
+/// O que o servidor e o vigia compartilham.
+struct Servido {
+    /// A pasta servida.
+    pasta: PathBuf,
+    /// Sobe a cada build que chega ao disco. A página consulta este número na
+    /// [`ROTA_RECARGA`] e se recarrega quando ele muda.
+    geracao: AtomicU64,
+    /// Fechado enquanto a pasta é trocada (ver [`trocar`]).
+    troca: RwLock<()>,
+    /// Com `--watch`, a rota de recarga existe e a `index.html` servida recebe
+    /// o [`SCRIPT_RECARGA`].
+    watch: bool,
+}
+
+fn atender_para_sempre(listener: TcpListener, servido: Arc<Servido>) {
     for conexao in listener.incoming() {
         let Ok(stream) = conexao else { continue };
-        let raiz = raiz.clone();
+        let servido = Arc::clone(&servido);
         std::thread::spawn(move || {
             // Uma conexão que cai no meio (aba fechada durante o download do
             // .wasm) não é problema de ninguém.
-            let _ = atender(stream, &raiz);
+            let _ = atender(stream, &servido);
         });
     }
 }
 
-fn atender(stream: TcpStream, raiz: &Path) -> io::Result<()> {
+fn atender(stream: TcpStream, servido: &Servido) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     let mut leitor = BufReader::new(&stream);
 
@@ -390,7 +686,7 @@ fn atender(stream: TcpStream, raiz: &Path) -> io::Result<()> {
     let mut partes = primeira.split_whitespace();
     let metodo = partes.next().unwrap_or("");
     let alvo = partes.next().unwrap_or("");
-    let resposta = resolver(raiz, metodo, alvo);
+    let resposta = resolver(servido, metodo, alvo);
     escrever(&stream, &resposta, metodo == "HEAD")
 }
 
@@ -401,24 +697,61 @@ struct Resposta {
     corpo: Vec<u8>,
 }
 
-fn resolver(raiz: &Path, metodo: &str, alvo: &str) -> Resposta {
+fn resolver(servido: &Servido, metodo: &str, alvo: &str) -> Resposta {
     if metodo != "GET" && metodo != "HEAD" {
         return texto("405 Method Not Allowed", "só GET e HEAD");
+    }
+    // A única rota que não sai do disco. A página pergunta por ela em laço; a
+    // resposta é o número da build atual.
+    if servido.watch && alvo.split(['?', '#']).next() == Some(ROTA_RECARGA) {
+        let geracao = servido.geracao.load(Ordering::Acquire);
+        return Resposta {
+            status: "200 OK",
+            tipo: "text/plain; charset=utf-8",
+            corpo: geracao.to_string().into_bytes(),
+        };
     }
     let Some(relativo) = caminho_seguro(alvo) else {
         return texto("400 Bad Request", "caminho inválido");
     };
-    let mut arquivo = raiz.join(relativo);
+
+    // Ler com a trava de leitura: enquanto o vigia troca a pasta, o pedido
+    // espera os poucos milissegundos do `rename` em vez de ler um arquivo pela
+    // metade.
+    let _guarda = servido.troca.read().unwrap_or_else(|e| e.into_inner());
+
+    let mut arquivo = servido.pasta.join(relativo);
     if arquivo.is_dir() {
         arquivo = arquivo.join("index.html");
     }
     match fs::read(&arquivo) {
-        Ok(corpo) => Resposta {
-            status: "200 OK",
-            tipo: tipo_mime(&arquivo),
-            corpo,
-        },
+        Ok(mut corpo) => {
+            let ehindex = arquivo.file_name().and_then(|n| n.to_str()) == Some("index.html");
+            if servido.watch
+                && ehindex
+                && let Ok(html) = std::str::from_utf8(&corpo)
+            {
+                corpo = injetar_recarga(html).into_bytes();
+            }
+            Resposta {
+                status: "200 OK",
+                tipo: tipo_mime(&arquivo),
+                corpo,
+            }
+        }
         Err(_) => texto("404 Not Found", &format!("não encontrado: {alvo}")),
+    }
+}
+
+/// Enfia o [`SCRIPT_RECARGA`] antes do `</body>` do HTML **servido** — o
+/// arquivo no disco não é tocado, e por isso o `--watch` não deixa resíduo no
+/// projeto de ninguém.
+///
+/// Sem `</body>` (uma página mínima é HTML válido sem ele), vai no fim.
+fn injetar_recarga(html: &str) -> String {
+    match html.rfind("</body>") {
+        Some(i) => format!("{}{SCRIPT_RECARGA}{}", &html[..i], &html[i..]),
+        None => format!("{html}{SCRIPT_RECARGA}"),
     }
 }
 
@@ -570,7 +903,10 @@ mod testes {
     use std::io::Read;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
-        v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter()
+        v.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     #[test]
@@ -579,7 +915,11 @@ mod testes {
         assert!(op.release);
         assert_eq!(op.porta, PORTA_PADRAO);
 
-        let op = opcoes(args(&["--dev", "--port", "9000", "-F", "web-gpu"]), Alvo::Wasm).unwrap();
+        let op = opcoes(
+            args(&["--dev", "--port", "9000", "-F", "web-gpu"]),
+            Alvo::Wasm,
+        )
+        .unwrap();
         assert!(!op.release);
         assert_eq!(op.porta, 9000);
         assert_eq!(op.features.as_deref(), Some("web-gpu"));
@@ -605,7 +945,10 @@ mod testes {
     fn caminho_seguro_nunca_sai_da_pasta() {
         assert_eq!(caminho_seguro("/"), Some(PathBuf::new()));
         assert_eq!(caminho_seguro("/app.js?v=2"), Some(PathBuf::from("app.js")));
-        assert_eq!(caminho_seguro("/a/b%20c.png"), Some(PathBuf::from("a/b c.png")));
+        assert_eq!(
+            caminho_seguro("/a/b%20c.png"),
+            Some(PathBuf::from("a/b c.png"))
+        );
         assert_eq!(caminho_seguro("/../Cargo.toml"), None);
         assert_eq!(caminho_seguro("/a/%2E%2E/%2E%2E/segredo"), None);
         assert_eq!(caminho_seguro("sem-barra"), None);
@@ -615,15 +958,24 @@ mod testes {
     #[test]
     fn wasm_sai_como_application_wasm() {
         assert_eq!(tipo_mime(Path::new("x/app_bg.wasm")), "application/wasm");
-        assert_eq!(tipo_mime(Path::new("app.JS")), "text/javascript; charset=utf-8");
-        assert_eq!(tipo_mime(Path::new("sem_extensao")), "application/octet-stream");
+        assert_eq!(
+            tipo_mime(Path::new("app.JS")),
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            tipo_mime(Path::new("sem_extensao")),
+            "application/octet-stream"
+        );
     }
 
     #[test]
     fn le_a_versao_do_wasm_bindgen_no_lock() {
         let lock = "[[package]]\nname = \"wasm-bindgen-futures\"\nversion = \"0.4.76\"\n\n\
                     [[package]]\nname = \"wasm-bindgen\"\nversion = \"0.2.126\"\n";
-        assert_eq!(versao_no_lock(lock, "wasm-bindgen").as_deref(), Some("0.2.126"));
+        assert_eq!(
+            versao_no_lock(lock, "wasm-bindgen").as_deref(),
+            Some("0.2.126")
+        );
         assert_eq!(versao_no_lock(lock, "iced"), None);
     }
 
@@ -632,11 +984,16 @@ mod testes {
         let artefato = r#"{"reason":"compiler-artifact","target":{"kind":["bin"]},"executable":"/p/target/wasm32-unknown-unknown/release/meu-app.wasm","fresh":false}"#;
         assert_eq!(
             executavel_wasm(artefato),
-            Some(PathBuf::from("/p/target/wasm32-unknown-unknown/release/meu-app.wasm"))
+            Some(PathBuf::from(
+                "/p/target/wasm32-unknown-unknown/release/meu-app.wasm"
+            ))
         );
         let lib = r#"{"reason":"compiler-artifact","executable":null}"#;
         assert_eq!(executavel_wasm(lib), None);
-        assert_eq!(executavel_wasm(r#"{"reason":"build-finished","success":true}"#), None);
+        assert_eq!(
+            executavel_wasm(r#"{"reason":"build-finished","success":true}"#),
+            None
+        );
     }
 
     /// O servidor de verdade, numa porta livre: os cabeçalhos que o navegador
@@ -651,8 +1008,10 @@ mod testes {
 
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let endereco = listener.local_addr().unwrap();
-        let raiz = pasta.clone();
-        std::thread::spawn(move || atender_para_sempre(listener, raiz));
+        std::thread::spawn({
+            let servido = servido(&pasta, false);
+            move || atender_para_sempre(listener, servido)
+        });
 
         let pedir = |linha: &str| {
             let mut s = TcpStream::connect(endereco).unwrap();
@@ -677,8 +1036,135 @@ mod testes {
         assert!(pedir("POST / HTTP/1.1").starts_with("HTTP/1.1 405"));
 
         let head = pedir("HEAD / HTTP/1.1");
-        assert!(head.contains("Content-Length: 9") && !head.contains("<p>"), "{head}");
+        assert!(
+            head.contains("Content-Length: 9") && !head.contains("<p>"),
+            "{head}"
+        );
 
         let _ = fs::remove_dir_all(&pasta);
+    }
+
+    fn servido(pasta: &Path, watch: bool) -> Arc<Servido> {
+        Arc::new(Servido {
+            pasta: pasta.to_path_buf(),
+            geracao: AtomicU64::new(7),
+            troca: RwLock::new(()),
+            watch,
+        })
+    }
+
+    #[test]
+    fn watch_e_so_do_wasm() {
+        assert!(opcoes(args(&["--watch"]), Alvo::Wasm).unwrap().watch);
+        assert!(opcoes(args(&["-w"]), Alvo::Wasm).unwrap().watch);
+        assert!(!opcoes(args(&[]), Alvo::Wasm).unwrap().watch);
+        assert!(opcoes(args(&["--watch"]), Alvo::Desktop).is_err());
+    }
+
+    /// O script entra antes do `</body>`, e o arquivo no disco não muda.
+    #[test]
+    fn a_recarga_e_injetada_antes_do_fecho_do_body() {
+        let html = "<html><body><div id=\"iced\"></div></body></html>";
+        let saida = injetar_recarga(html);
+        assert!(saida.contains("__glacier/recarregar"), "{saida}");
+        let script = saida.find("<script>").unwrap();
+        let body = saida.find("</body>").unwrap();
+        assert!(
+            script < body,
+            "o script tem de vir ANTES do </body>:\n{saida}"
+        );
+        assert!(saida.contains("<div id=\"iced\">"), "{saida}");
+
+        // Sem `</body>` (HTML válido) o script vai no fim, não some.
+        let solto = injetar_recarga("<div id=\"iced\"></div>");
+        assert!(solto.trim_end().ends_with("</script>"), "{solto}");
+    }
+
+    /// Sem `--watch` não existe rota de recarga nem injeção: o `serve` de
+    /// sempre serve a página exatamente como ela está no disco.
+    #[test]
+    fn sem_watch_nao_ha_rota_nem_script() {
+        let pasta = std::env::temp_dir().join(format!("glacier-sem-watch-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&pasta);
+        fs::create_dir_all(&pasta).unwrap();
+        fs::write(pasta.join("index.html"), "<body>oi</body>").unwrap();
+
+        let s = servido(&pasta, false);
+        let pagina = resolver(&s, "GET", "/index.html");
+        assert_eq!(pagina.corpo, b"<body>oi</body>");
+        assert!(resolver(&s, "GET", ROTA_RECARGA).status.starts_with("404"));
+
+        let _ = fs::remove_dir_all(&pasta);
+    }
+
+    /// Com `--watch`, a rota devolve a geração (é o que a página compara) e a
+    /// `index.html` sai com o script.
+    #[test]
+    fn com_watch_a_rota_devolve_a_geracao_e_o_index_leva_o_script() {
+        let pasta = std::env::temp_dir().join(format!("glacier-com-watch-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&pasta);
+        fs::create_dir_all(&pasta).unwrap();
+        fs::write(pasta.join("index.html"), "<body>oi</body>").unwrap();
+
+        let s = servido(&pasta, true);
+        let recarga = resolver(&s, "GET", ROTA_RECARGA);
+        assert_eq!(recarga.corpo, b"7");
+        assert_eq!(recarga.tipo, "text/plain; charset=utf-8");
+        // Com query, que é como o `fetch` costuma chegar depois de um proxy.
+        assert_eq!(resolver(&s, "GET", "/__glacier/recarregar?t=1").corpo, b"7");
+
+        let pagina = String::from_utf8(resolver(&s, "GET", "/").corpo).unwrap();
+        assert!(pagina.contains("__glacier/recarregar"), "{pagina}");
+        assert!(pagina.contains("oi"), "{pagina}");
+
+        // O `.wasm` não é tocado pela injeção.
+        fs::write(pasta.join("app_bg.wasm"), [0u8, 97, 115, 109]).unwrap();
+        assert_eq!(resolver(&s, "GET", "/app_bg.wasm").corpo, [0, 97, 115, 109]);
+
+        let _ = fs::remove_dir_all(&pasta);
+    }
+
+    /// A impressão do disco separa `web/` (cópia) do resto (compilação), e vê
+    /// mudança de conteúdo do mesmo tamanho — é o `mtime` que a pega.
+    #[test]
+    fn a_impressao_separa_a_pagina_do_codigo() {
+        let raiz = std::env::temp_dir().join(format!("glacier-impressao-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&raiz);
+        fs::create_dir_all(raiz.join("web")).unwrap();
+        fs::create_dir_all(raiz.join("views/styles")).unwrap();
+        fs::write(raiz.join("Cargo.toml"), "[package]").unwrap();
+        fs::write(raiz.join("web/index.html"), "<body>a</body>").unwrap();
+        fs::write(raiz.join("views/app.gv"), "<column/>").unwrap();
+
+        let antes = Impressao::tirar(&raiz);
+        assert_eq!(antes.pagina.len(), 1);
+        assert_eq!(antes.codigo.len(), 2, "views/app.gv + Cargo.toml");
+
+        // Mudança só na página, do MESMO tamanho e possivelmente no mesmo
+        // `mtime` — é o CRC do conteúdo que a pega. O código fica igual, e é o
+        // que faz o vigia recopiar em vez de recompilar.
+        fs::write(raiz.join("web/index.html"), "<body>b</body>").unwrap();
+        assert_eq!(
+            fs::metadata(raiz.join("web/index.html")).unwrap().len(),
+            14,
+            "as duas versões têm de ter o mesmo tamanho, é o que o teste cobre"
+        );
+        let depois = Impressao::tirar(&raiz);
+        assert_ne!(depois.pagina, antes.pagina);
+        assert_eq!(depois.codigo, antes.codigo);
+
+        // Arquivo novo em views/ conta como mudança de código.
+        fs::write(raiz.join("views/styles/app.gss"), ".x{}").unwrap();
+        let terceira = Impressao::tirar(&raiz);
+        assert_ne!(terceira.codigo, depois.codigo);
+        assert_eq!(terceira.codigo.len(), 3);
+
+        // E o storage do desktop é ignorado: ele muda com o app rodando, e
+        // sozinho faria o vigia recompilar sem parar.
+        fs::create_dir_all(raiz.join("views/.glacier-storage")).unwrap();
+        fs::write(raiz.join("views/.glacier-storage/dados.json"), "{}").unwrap();
+        assert_eq!(Impressao::tirar(&raiz).codigo, terceira.codigo);
+
+        let _ = fs::remove_dir_all(&raiz);
     }
 }

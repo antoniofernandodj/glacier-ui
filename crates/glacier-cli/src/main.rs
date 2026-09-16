@@ -9,6 +9,7 @@
 //! ```text
 //! glacier new [nome]          cria um projeto (questionário)
 //! glacier serve wasm          compila para o navegador e serve em localhost
+//!                             (`--watch` recompila e recarrega a cada mudança)
 //! glacier serve desktop       roda o app no desktop (`cargo run` na raiz)
 //! glacier install-extensions  só as extensões de VS Code
 //! glacier presets             lista os presets
@@ -191,6 +192,7 @@ fn ajuda(e: &Estilo) {
   {opcoes_serve}
     wasm     --port <n>           porta local (padrão 8080)
              --dev                build de debug (padrão: release)
+         -w, --watch              recompila a cada mudança e recarrega a página
     desktop  --release            build otimizado (padrão: debug, como `cargo run`)
              -- <args>            repassa os argumentos ao app
     ambos    -F, --features <l>   features do projeto (ex.: web-gpu)

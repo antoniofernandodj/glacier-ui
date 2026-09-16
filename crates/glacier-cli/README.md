@@ -123,8 +123,39 @@ Compila para o navegador e serve, num comando só:
 ```
 --port <n>            porta local (padrão 8080)
 --dev                 build de debug (padrão: release)
+-w, --watch           recompila a cada mudança e recarrega a página
 -F, --features <l>    features do projeto (ex.: web-gpu)
 ```
+
+### `--watch`: o ciclo de edição no navegador
+
+No navegador **não existe hot-reload**: os `.gv` e `.gss` entram dentro do
+`.wasm` pelo `embed_assets!`, então ver uma mudança exige recompilar. O
+`--watch` faz esse ciclo sozinho — varre `src/`, `views/`, `web/` e o
+`Cargo.toml`, recompila quando algo muda, e a página aberta se recarrega.
+
+```sh
+glacier serve wasm --watch
+```
+
+- **Varredura de conteúdo (CRC), não `inotify`**: a CLI não tem dependências, e
+  o conjunto vigiado é pequeno e escolhido a dedo — nunca `target/`. O CRC é o
+  que decide, e não o `mtime`: dois salvamentos do mesmo tamanho dentro da mesma
+  marca de tempo passariam batidos num filesystem de granularidade de 1 s.
+- **Mudança só em `web/` não recompila**: a página é cópia, não `.wasm`.
+- **Erro de compilação não derruba o servidor.** Cada build é montada em
+  `target/glacier-web-next/` e só depois toma o lugar de `target/glacier-web/`,
+  então a página aberta segue com a última build que funcionou; corrija e salve
+  de novo.
+- **A recarga é injetada na `index.html` servida**, antes do `</body>` — o
+  arquivo do projeto não é tocado. É consulta em laço a `/__glacier/recarregar`
+  (meio segundo), não WebSocket: o servidor é uma thread por conexão, e uma
+  conexão pendurada por aba custaria mais que um GET de três bytes em
+  `127.0.0.1`. Sem `--watch`, nem a rota nem o script existem.
+
+O `.gv` e o `.gss` **no desktop** continuam com hot-reload de verdade (o app lê
+`views/` do disco): para iterar em markup e estilo, o caminho mais rápido segue
+sendo `glacier serve desktop`, e o navegador para conferir.
 
 O servidor é estático, só escuta em `127.0.0.1` e é std puro, como o resto da
 CLI. Serve para desenvolver; para publicar, suba o conteúdo de

@@ -11,6 +11,11 @@ use std::io::{self, BufRead, IsTerminal, Write};
 mod raw;
 
 /// Códigos ANSI, desligados quando a saída não é um terminal (log/pipe).
+///
+/// `Copy` porque a thread do vigia (`serve wasm --watch`) leva uma cópia: são
+/// dois bytes, e passar um `&` obrigaria a um `Arc` ou a um lifetime `'static`
+/// só para imprimir em verde.
+#[derive(Clone, Copy)]
 pub struct Estilo {
     ativo: bool,
 }

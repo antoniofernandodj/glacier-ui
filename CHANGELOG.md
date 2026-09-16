@@ -8,6 +8,31 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.20 — 2026-09-16
+
+- `glacier serve wasm --watch`: varre `src/`, `views/`, `web/` e o `Cargo.toml`,
+  recompila a cada mudança e faz a página aberta se recarregar. No navegador não
+  existe hot-reload (o `.gv` está dentro do `.wasm`, pelo `embed_assets!`), e
+  este é o ciclo mais curto que o alvo web permite.
+  - Varredura por **CRC do conteúdo**, não por `mtime`: o teste da impressão
+    pegou dois salvamentos do mesmo tamanho caindo na mesma marca de tempo, que
+    é o que aconteceria num filesystem de granularidade de 1 s. O `crc32` do
+    `vsix` passou a ser compartilhado.
+  - Cada build é montada em `target/glacier-web-next/` e só depois toma o lugar
+    de `target/glacier-web/`, com o `RwLock` fechado durante a troca. Um erro de
+    compilação deixa a página aberta funcionando com a build anterior, e um
+    pedido que caia no meio da troca não lê um `.wasm` truncado.
+  - Mudança só em `web/` não recompila: a página é cópia.
+  - A recarga é um `<script>` injetado na `index.html` **servida** (antes do
+    `</body>`), que consulta `/__glacier/recarregar` a cada meio segundo. O
+    arquivo do projeto não é tocado, e sem `--watch` nem a rota nem o script
+    existem.
+- `Estilo` virou `Copy`, para a thread do vigia levar uma cópia.
+
+O motor não mudou nesta release: `glacier-ui` segue na **0.108.1**.
+
+---
+
 ## CLI 0.5.19 — 2026-09-16
 
 - `glacier serve wasm` confere a versão do `wasm-bindgen` **antes** de compilar.

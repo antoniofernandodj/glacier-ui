@@ -30,8 +30,18 @@ console do navegador.
 4. serve essa pasta em `127.0.0.1:8080` com `Cache-Control: no-store`. Assim
    o navegador nunca roda o `.wasm` de antes do rebuild.
 
-Opções: `--port <n>`, `--dev` (build de debug, maior e mais lento) e
-`--features web-gpu`. O conteúdo de `target/glacier-web/` é estático e pode ir
+Opções: `--port <n>`, `--dev` (build de debug, maior e mais lento),
+`--watch` e `--features web-gpu`.
+
+**`glacier serve wasm --watch`** fecha o ciclo de edição no navegador: ele varre
+`src/`, `views/`, `web/` e o `Cargo.toml`, recompila a cada mudança e a página
+aberta se recarrega sozinha. Não é hot-reload — no navegador o `.gv` está dentro
+do `.wasm` (ver a tabela abaixo) e recompilar é obrigatório; o `--watch` só tira
+isso da sua mão. Um erro de compilação não derruba o servidor: a página segue
+com a última build que funcionou. Mudança só em `web/` não recompila nada.
+
+Para iterar em markup e estilo, o caminho mais rápido continua sendo o desktop
+(`glacier serve desktop`), onde o hot-reload aplica sem recompilar. O conteúdo de `target/glacier-web/` é estático e pode ir
 para qualquer servidor de arquivos.
 
 O servidor do `glacier serve wasm` é para desenvolver: ele só escuta em
