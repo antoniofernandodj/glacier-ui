@@ -1,0 +1,20 @@
+# O que NÃO é enviado ao daemon como contexto do build. Sem esta lista, o
+# `docker build .` manda o `target/` inteiro — gigabytes — antes de executar a
+# primeira linha do Dockerfile.
+target
+dist
+
+.git
+.gitignore
+
+# Estado de runtime do storage do glacier, gravado ao rodar no desktop.
+**/.glacier-storage
+
+# Nada aqui é usado pela imagem: ela compila só para wasm32 e serve arquivos.
+packaging
+Makefile
+fazer.bat
+AGENTS.md
+README.md
+Dockerfile
+.dockerignore

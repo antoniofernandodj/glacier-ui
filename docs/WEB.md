@@ -64,6 +64,14 @@ cp examples/web_contador/index.html dist/
 `dist/` é estático e pode ir para qualquer servidor de arquivos. Ele precisa
 ser servido por HTTP, porque `file://` não carrega módulo ES.
 
+**Para publicar**, o preset `wasm32` da CLI (`glacier new <nome> --preset
+wasm32`) já vem com um `Dockerfile` de dois estágios e o `docker/nginx.conf`
+dele: o primeiro estágio compila e roda o `wasm-bindgen` (na versão que o
+`Cargo.lock` pede), e o de produção é um `nginx:alpine-slim` com só a página, o
+`app.js` e o `app_bg.wasm` — este último sem as seções de nome/produtor e
+gravado apenas em `.gz`, servido com `gzip_static always` + `gunzip on`. O
+`README.md` do projeto criado explica cada decisão.
+
 ## O que NÃO existe na web
 
 | Recurso | No navegador | Por quê |

@@ -32,7 +32,7 @@ glacier --version
 | `minimo` | Uma tela, um `.gss` e um bloco de script Luau — o menor projeto que ainda mostra a ideia |
 | `janelas` | Multi-janela (`open_window`/`broadcast`/`close_window`), ícone de bandeja, instância única, geometria lembrada |
 | `rust` | O trait `Component` com estado tipado em Rust, em vez de comportamento em Luau |
-| `wasm32` | O mesmo app no desktop e no navegador: `Component` em Rust, `views/` embutida no `.wasm` por `embed_assets!` e uma `web/index.html`. Roda com `glacier serve wasm` |
+| `wasm32` | O mesmo app no desktop e no navegador: `Component` em Rust, `views/` embutida no `.wasm` por `embed_assets!` e uma `web/index.html`. Roda com `glacier serve wasm`, e publica com o `Dockerfile` multi-stage que vem junto |
 | `catalogo` | Catálogo navegável de widgets: uma sidebar de categorias, cada tela com dezenas de widgets do motor num exemplo mínimo e vivo, feito para copiar |
 | `dashboard` | Painel de KPIs e gráficos que andam sozinhos (`linechart` de série múltipla, `barchart`, `donut`, `gauge`, `sparkline`) via `every(1000)` |
 | `formulario` | App de cadastro: `maskedinput`, `spinbox`, `dateedit`, `select`, `buttonbox` + validação em Luau que publica `erro_<campo>` |
@@ -132,6 +132,23 @@ CLI. Serve para desenvolver; para publicar, suba o conteúdo de
 
 O projeto precisa de uma `web/index.html` que importe `./app.js`. O preset
 `wasm32` já vem com ela.
+
+### A imagem de produção
+
+O preset `wasm32` também vem com um `Dockerfile` de dois estágios:
+
+```sh
+docker build -t meu-app-web . && docker run --rm -p 8080:80 meu-app-web
+```
+
+O primeiro estágio (`rust:1-slim`) instala o target, instala o
+`wasm-bindgen-cli` **na versão que o `Cargo.lock` do projeto pede** — a mesma
+conferência que o `serve wasm` faz — compila e roda o `wasm-bindgen`. O segundo
+(`nginx:alpine-slim`, ~19 MB) recebe só a página, o `app.js` e o `app_bg.wasm`.
+O `.wasm` vai sem as seções de nome e de produtor e gravado **apenas** em
+`.gz`; o `docker/nginx.conf` tem `gzip_static always` + `gunzip on`, então
+ninguém recebe resposta quebrada por isso. Os detalhes — e as duas pegadinhas
+da configuração — estão no `README.md` do projeto criado.
 
 ## As extensões de VS Code
 

@@ -34,6 +34,48 @@ Opções: `--port <n>`, `--dev` (build de debug, maior e mais lento) e
 `--features web-gpu`. O conteúdo de `target/glacier-web/` é estático e pode ir
 para qualquer servidor de arquivos.
 
+O servidor do `glacier serve wasm` é para desenvolver: ele só escuta em
+`127.0.0.1` e responde `Cache-Control: no-store`. Para publicar, use a imagem.
+
+## Publicar: a imagem Docker
+
+```sh
+docker build -t {{nome_projeto}}-web .
+docker run --rm -p 8080:80 {{nome_projeto}}-web    # http://localhost:8080
+```
+
+O `Dockerfile` tem dois estágios. O primeiro é um `rust:1-slim` que instala o
+target `wasm32-unknown-unknown`, instala o `wasm-bindgen-cli` **na versão que o
+`Cargo.lock` deste projeto pede** (versões diferentes geram um `.js` que não
+casa com o `.wasm`, e o erro só apareceria no console do navegador), compila e
+roda o `wasm-bindgen`. O segundo é um `nginx:alpine-slim` que recebe **só** a
+página, o `app.js` e o `app_bg.wasm`: nada de rustc, cargo, registry ou
+`target/` viaja para produção.
+
+O que sobra de tamanho é o `.wasm`, e ele sai daqui de três maneiras menor:
+
+- build de release;
+- `--remove-name-section --remove-producers-section`, que tiram os nomes dos
+  símbolos e a etiqueta do gerador — megabytes que só servem para depurar;
+- gravado **apenas** em `.gz`. O `docker/nginx.conf` tem `gzip_static always`
+  (manda o `.gz` mesmo para quem não pediu) e `gunzip on` (descomprime na hora
+  para o cliente raro que não aceita gzip), então a imagem carrega um terço do
+  peso sem responder coisa quebrada para ninguém.
+
+Os nomes dos artefatos são fixos, então o `nginx.conf` responde
+`Cache-Control: no-cache`: o navegador revalida (304 curto) em vez de servir o
+`.wasm` de antes do último deploy. `GET /healthz` devolve `ok` para quem
+orquestra a imagem.
+
+Duas coisas que a configuração faz de propósito e que é fácil desfazer sem
+perceber: **não** há `try_files` (ele procura o arquivo exato e daria 404 num
+asset que só existe como `.gz`), e o `index.html` é o único arquivo **sem**
+comprimir (a diretiva `index` olha o arquivo de verdade, e com só o
+`index.html.gz` no disco a raiz daria 404).
+
+Para encolher mais, o caminho é o `wasm-opt -Oz` do binaryen — o comentário no
+`Dockerfile` diz por que ele não está ligado por padrão.
+
 ## O mapa
 
 ```
@@ -42,6 +84,9 @@ src/contador.rs        o Component: template + estado + update
 views/contador.gv      o layout
 views/styles/app.gss   a paleta (:root) e as classes
 web/index.html         a página que carrega o app.js no navegador
+Dockerfile             compila o .wasm num estágio e serve num nginx mínimo
+docker/nginx.conf      a configuração desse nginx (gzip, tipo do .wasm, cache)
+.dockerignore          o que não vai no contexto do build (target/ são gigabytes)
 ```
 
 ## Desktop e web: o que muda

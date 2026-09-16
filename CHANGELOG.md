@@ -8,9 +8,7 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## Não lançado
-
-### CLI
+## CLI 0.5.19 — 2026-09-16
 
 - `glacier serve wasm` confere a versão do `wasm-bindgen` **antes** de compilar.
   Ela era conferida depois, e um projeto novo — que resolve a versão mais recente
@@ -23,6 +21,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 - `Cargo.lock` do repositório: família `wasm-bindgen` em 0.2.128 (com `js-sys`
   0.3.105 e `web-sys` 0.3.105), a mesma que um projeto novo resolve — assim o
   `make web-contador` daqui e um `glacier new` pedem o mesmo binário.
+- O preset `wasm32` passa a trazer a imagem de produção: `Dockerfile` de dois
+  estágios, `docker/nginx.conf` e `.dockerignore`. O estágio de build é um
+  `rust:1-slim` que instala o `wasm-bindgen-cli` na versão do `Cargo.lock` do
+  projeto (a mesma conferência do `serve wasm`); o de produção é um
+  `nginx:alpine-slim` que recebe **só** a página, o `app.js` e o `app_bg.wasm`.
+  O `.wasm` sai sem as seções de nome e de produtor e é gravado **apenas** em
+  `.gz`, com `gzip_static always` + `gunzip on` — um terço do peso na imagem sem
+  resposta quebrada para quem não aceita gzip. O `Cache-Control: no-cache` é
+  pelo mesmo motivo do `no-store` do servidor de desenvolvimento: os nomes dos
+  artefatos são fixos, e sem revalidar o navegador serviria o `.wasm` de antes
+  do deploy.
+- `scaffold`: `Dockerfile` (sem extensão) e `.conf` entram na lista de arquivos
+  que passam pela substituição de marcadores. Sem isso o `Dockerfile` do projeto
+  sairia com `{{nome_projeto}}.wasm` literal no caminho — um `docker build` que
+  só falha na máquina de quem criou o projeto.
+
+O motor não mudou nesta release: `glacier-ui` segue na **0.108.1**, e é a versão
+que os projetos gerados pedem (`glacier-ui = "0.108"`).
 
 ---
 

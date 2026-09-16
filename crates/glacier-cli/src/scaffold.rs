@@ -64,6 +64,7 @@ pub static PRESETS: &[Preset] = &[
             "src/main.rs — embed_assets! só no alvo wasm32; no desktop, disco + hot-reload",
             "src/contador.rs — impl Component (no navegador não há <script> Luau)",
             "web/index.html — a página que carrega o app.js gerado pelo wasm-bindgen",
+            "Dockerfile multi-stage: a imagem de produção leva só a página, o .js e o .wasm",
             "glacier serve wasm / glacier serve desktop",
         ],
     },
@@ -114,12 +115,13 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html",
+    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html", "conf",
 ];
 
 /// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`
-/// sairia com os `{{nome_projeto}}` literais no lugar do nome do app.
-const TEXTUAIS_SEM_EXTENSAO: &[&str] = &["Makefile", "gitignore"];
+/// sairia com os `{{nome_projeto}}` literais no lugar do nome do app — e o
+/// `Dockerfile` do preset web, com um `docker build` que não acha o `.wasm`.
+const TEXTUAIS_SEM_EXTENSAO: &[&str] = &["Makefile", "Dockerfile", "gitignore"];
 
 /// Escreve o preset em `destino`. O diretório não pode existir: sobrescrever um
 /// projeto já começado seria a única operação irreversível desta CLI.
@@ -159,6 +161,7 @@ pub fn criar(
             .is_some_and(|e| TEXTUAIS.contains(&e))
             || TEXTUAIS_SEM_EXTENSAO.contains(&nome_arquivo)
             || rel.ends_with(".gitignore")
+            || rel.ends_with(".dockerignore")
             || rel.ends_with(".luaurc");
 
         if ehtexto && let Ok(texto) = std::str::from_utf8(bytes) {
@@ -317,6 +320,49 @@ mod testes {
                 p.id
             );
         }
+    }
+
+    /// O preset web entrega a imagem junto: sem um dos três arquivos, o
+    /// `docker build` do projeto criado para na primeira linha que os usa.
+    #[test]
+    fn preset_web_leva_a_imagem_docker() {
+        let arquivos = embedded::arquivos_do_preset("wasm32");
+        for esperado in ["Dockerfile", ".dockerignore", "docker/nginx.conf"] {
+            assert!(
+                arquivos.iter().any(|(c, _)| renomear(c) == esperado),
+                "preset 'wasm32' sem '{esperado}'"
+            );
+        }
+    }
+
+    /// E o `Dockerfile` precisa sair com os marcadores substituídos. Ele não
+    /// tem extensão: fora de `TEXTUAIS_SEM_EXTENSAO` ele seria copiado byte a
+    /// byte, com o `{{nome_projeto}}` literal no caminho do `.wasm` — um
+    /// `docker build` que só falha na máquina de quem criou o projeto.
+    #[test]
+    fn o_dockerfile_criado_nao_tem_marcador_sobrando() {
+        let destino = std::env::temp_dir().join(format!(
+            "glacier-scaffold-docker-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = fs::remove_dir_all(&destino);
+
+        criar(&destino, "wasm32", "meu-app", "0.108").expect("criar o preset web");
+
+        let dockerfile = fs::read_to_string(destino.join("Dockerfile")).expect("ler o Dockerfile");
+        assert!(
+            !dockerfile.contains("{{"),
+            "marcador não substituído no Dockerfile:\n{dockerfile}"
+        );
+        assert!(
+            dockerfile.contains("release/meu-app.wasm"),
+            "o Dockerfile não aponta para o .wasm do projeto:\n{dockerfile}"
+        );
+        assert!(destino.join("docker/nginx.conf").is_file());
+        assert!(destino.join(".dockerignore").is_file());
+
+        let _ = fs::remove_dir_all(&destino);
     }
 
     /// E todo preset precisa ser um projeto Cargo de verdade.
