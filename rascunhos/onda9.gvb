@@ -266,9 +266,14 @@ screen {
               text.secao "Shortcut — o atalho declarado"
               text.nota """
                 Ctrl+S salva; Ctrl+Shift+P abre a busca. Os dois estão
-                declarados no `<resources>` desta tela, e a ação deles é comum:
-                um atalho não é um tipo novo de evento, é o teclado despachando
-                o que um botão despacharia.
+                declarados no LAYOUT desta tela, no topo da árvore, e não no
+                `<resources>`: o motor colhe os atalhos da árvore avaliada, e
+                o `<resources>` não é árvore. É por isso que eles saem de cena
+                junto com a tela, sem ninguém desregistrar nada.
+              """
+              text.nota """
+                A ação deles é comum: um atalho não é um tipo novo de evento,
+                é o teclado despachando o que um botão despacharia.
               """
               row.acoes {
                 button { text: "Salvar (pelo botão)" on_click: salvar }
