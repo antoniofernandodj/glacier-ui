@@ -750,7 +750,7 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 ## Cabeçalho da tela
 
 ### `<Screen>` (`<tela>`)
-Raiz que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`/`redimensionavel`, `decorations`/`decoracoes` e `icon`/`icone`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este.
+Raiz que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`/`redimensionavel`, `decorations`/`decoracoes` e `icon`/`icone`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este. O `icon`/`icone` é o ícone da **janela**, e é um caminho lido pela fonte de assets — como o `source` de um `<Image>`, e como o `icon` da [`<tray>`](#tray-bandeja--item--check--separator), que é o da bandeja e outro atributo. Arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem ícone; nunca impede de abrir.
 
 ### `<Component>` (`<componente>`)
 A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
@@ -768,7 +768,7 @@ Dentro do `<resources>` da **tela principal**, declara o que é do aplicativo e 
 ```
 
 ### `<Tray>` (`<bandeja>`) · `<item>` · `<check>` · `<separator>`
-O ícone de bandeja, ao lado do `<app>` no `<resources>` da tela principal. Atributos: `icon`/`icone` (obrigatório) e `tooltip`/`dica`. O menu são os filhos: `<item id label on_click>`, `<check id label checked on_click>` e `<separator />` (`<separador />`); `label`/`rotulo` e `checked`/`marcado` aceitam `{chave}` e acompanham o contexto. As ações `tray:open`, `tray:quit` e `notifications:toggle` são tratadas pelo runner, e qualquer outra vai ao script da tela principal. No máximo uma por aplicativo. A bandeja só aparece com a feature `tray` do glacier-ui.
+O ícone de bandeja, ao lado do `<app>` no `<resources>` da tela principal. Atributos: `icon`/`icone` (obrigatório) e `tooltip`/`dica`. O menu são os filhos: `<item id label on_click>`, `<check id label checked on_click>` e `<separator />` (`<separador />`); `label`/`rotulo` e `checked`/`marcado` aceitam `{chave}` e acompanham o contexto. As ações `tray:open`, `tray:quit` e `notifications:toggle` são tratadas pelo runner, e qualquer outra vai ao script da tela principal — ver [Ações da bandeja](#ações-da-bandeja-tray). No máximo uma por aplicativo. A bandeja só aparece com a feature `tray` do glacier-ui.
 
 ```gv
 <tray icon="views/assets/icone.png" tooltip="Meu App">
@@ -841,6 +841,45 @@ primeiras, e um comando nas demais.
 
 Qualquer outro valor de ação é o nome de uma função: exata, ou `nome:sufixo` —
 sem uma função `nome:sufixo`, o motor chama `nome(sufixo, value)`.
+
+#### Ações da bandeja (`tray:`)
+
+Estas três **não** passam pelo `dispatch` do motor: quem as trata é o runner
+(`Daemon::on_tray`), porque o efeito é do aplicativo inteiro e não da janela —
+e a bandeja segue viva com a janela principal recolhida. Valem no `on_click` de
+um `<item>`/`<check>` da [`<tray>`](#tray-bandeja--item--check--separator).
+
+| Ação | Efeito |
+| --- | --- |
+| `tray:open` | reabre a janela principal (ou traz para a frente, se já visível). É o mesmo do clique esquerdo no ícone da bandeja, no Windows |
+| `tray:quit` | desliga a bandeja e encerra o aplicativo — o único jeito de sair quando a janela foi recolhida |
+| `notifications:toggle` | inverte o interruptor global das notificações do SO (`glacier_ui::notifications_enabled`). Combina com o `checked` de um `<check>`, lido da chave especial `{__notifications}` |
+
+A lista é **fechada**. Qualquer outro `on_click` de item da bandeja vai ao
+script/`update` da **tela principal**, como um clique qualquer — inclusive um
+que comece com `tray:`, que ali vira a chamada `tray(sufixo, value)` da regra
+acima. É assim que um item da bandeja chama uma função sua.
+
+```gv
+<tray icon="views/assets/icone.png" tooltip="Meu App">
+    <item label="Abrir" on_click="tray:open" />
+    <check label="Notificações" checked="{__notifications}" on_click="notifications:toggle" />
+    <separator />
+    <item label="Sincronizar" on_click="sincronizar" />   <!-- vai ao script da principal -->
+    <item label="Sair" on_click="tray:quit" />
+</tray>
+```
+
+- **`{__notifications}` não mora no contexto de motor nenhum**: é a chave que o
+  runner interpola nos rótulos e marcações da bandeja, lendo o interruptor
+  global. Escrever nela pelo script não faz nada — quem a inverte é
+  `notifications:toggle`.
+- **`icon`/`icone` é obrigatório** e passa pela fonte de assets, como o `src` de
+  um `<Image>`: relativo à raiz de assets (na prática, o diretório do projeto).
+  Sem o arquivo, o app avisa no stderr e **fica sem bandeja** — e sem bandeja,
+  um app que se recolhe não tem como voltar.
+- Tudo isso só existe com a feature `tray` do glacier-ui, e no macOS a bandeja
+  não sobe (exige a thread principal).
 
 ---
 

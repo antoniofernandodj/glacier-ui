@@ -8,6 +8,78 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.108.2 · CLI 0.5.21 · vscode-gv 0.19.12 — 2026-09-16
+
+- **Os caminhos de asset que faltavam no `PATH_ATTRS` da extensão.** Eram
+  quatro, e nenhum tinha Ctrl+clique: `<tray icon>` e `<screen icon>` (os dois
+  lidos pela fonte de assets, nas três grafias `icon`/`icone`/`ícone`),
+  `<Avatar src>` e `<ToolButton icon_src>` (caminho escrito na tag de um
+  builtin, que lá dentro vira o `source` de um `<Image>`/`<Svg>`). Um ícone que
+  o motor não acha não é erro: avisa no stderr e some — a bandeja nem sobe —,
+  e o link é o que torna isso visível antes de rodar.
+  - **Dois `icon=` ficaram de fora, de propósito**, e o comentário ao lado da
+    tabela diz por quê: o `<dialog icon="warning">` é palavra-chave
+    (`information`/`warning`/`error`/`question`/`none`) e o `<ToolButton
+    icon="✂">` é o glifo — o caminho dele é o `icon_src`. É a armadilha do
+    "atributo que não é o que parece" do `PRIMITIVAS.md`, e linkar os dois
+    abriria um arquivo inexistente ou um homônimo.
+  - A seção do `<Screen>` na referência passou a dizer que o `icon` dela é
+    caminho, e que é outro atributo que o da `<tray>`.
+- **Caminho relativo passa a ser resolvido também contra a raiz do projeto**, e
+  não só contra a pasta do `.gv` e a raiz do workspace. A fonte de assets do
+  motor tem como raiz a pasta de onde o app roda — a que tem o `views/` —, e
+  um caminho escrito a partir dela (`views/assets/icone.png`) não resolvia
+  contra nenhuma das duas quando o `.gv` não estava na raiz do workspace: um
+  template do `glacier new` aberto dentro deste repo, ou um app numa pasta de
+  um monorepo. A `projectRoots` sobe do arquivo procurando um `views/` ou um
+  `Cargo.toml` e entrega os candidatos do mais próximo ao mais distante. No
+  `templates/janelas/views/painel.gv` daqui isso acendeu, além do ícone, o
+  `views/styles/app.gss` e o `views/styles/theme.json`, quebrados pelo mesmo
+  motivo.
+- **`<item>`, `<separator>` (`<separador>`) e o `<check>` da bandeja** foram
+  para o `NATIVE_TAGS`. Sem isso a extensão os tomava por componente do app,
+  não achava arquivo nenhum e o Ctrl+clique/F12 neles não ia a lugar nenhum —
+  e os dois primeiros ainda ganhavam um `</item>` ao se digitar o `>`, agora
+  que entraram no `VOID_TAGS`. O `<check>` ia parar na seção do `<Checkbox>`,
+  de quem é apelido; uma `trayRanges` desfaz o engano, e dentro de uma
+  `<tray>` os três apontam para a seção da `<tray>`.
+- **`tray:open`, `tray:quit` e `notifications:toggle`** passaram a ser
+  reconhecidas como ações do runner: o Ctrl+clique e o F12 nelas abrem a seção
+  nova **"Ações da bandeja"** da referência embutida, em vez de procurarem uma
+  função `tray` que não existe.
+  - A lista é **fechada**, e isso é a parte que importa: `TRAY_ACTIONS` casa o
+    valor inteiro, não o prefixo `tray:`. Qualquer outro `tray:algo` desce ao
+    script da tela principal como `tray(algo, value)` — como o `Daemon::on_tray`
+    faz —, então continua linkando para o handler de verdade.
+- A referência embutida ganhou a seção com as três ações, o que
+  `{__notifications}` é (a chave que o runner interpola, e que não mora no
+  contexto de motor nenhum) e o exemplo com o item que chama uma função do app.
+  Um teste novo em `tests/extensao_doc.rs` lê o `TRAY_ACTIONS` do
+  `extension.js` e falha se uma ação não aparecer nessa seção.
+- **Realce para o `.gvb`, o markup de blocos que está em `rascunhos/`.** É uma
+  gramática TextMate nova (`syntaxes/glacier-view-block.tmLanguage.json`) e uma
+  linguagem própria (`glacier-view-block`), sem tocar no `extension.js`: o
+  Ctrl+clique e o go-to-definition seguem só no `.gv`. O que ela distingue por
+  cor é o que o `.gv` não tem como distinguir: **nome de chave contra valor**
+  (`items: abas` e `items: @abas`), além de tag, classe (`.nota`, a mesma
+  grafia do seletor no `.gss`), propriedade, ação, condicional e os dois
+  comentários, `//` e `/* … */`.
+  - A regra do elemento começa em `^\s*` e a de `if`/`else` começa na coluna da
+    palavra; como o TextMate escolhe o casamento **mais à esquerda** antes de
+    olhar a ordem das regras, um `if @aba == "x" {` seria pintado como um
+    elemento chamado `if`. Uma negativa de palavra-chave no começo da regra é o
+    que evita isso.
+  - Um `language-configuration-block.json` dá o `Ctrl+/` com `//`, o
+    `Shift+Alt+A` com `/* … */` e o par de chaves. No `Makefile` da extensão a
+    dependência do `.vsix` virou `language-configuration*.json`, senão o pacote
+    não se reconstruiria quando ele mudasse.
+- **O motor não mudou nesta versão.** `glacier-ui` sobe de patch sem diferença
+  em `src/` — o que entrou foi o teste de `tests/extensao_doc.rs` — e a CLI
+  sobe porque é ela que leva a extensão dentro do `.crate` (`make
+  sync-extensions`).
+
+---
+
 ## CLI 0.5.20 — 2026-09-16
 
 - `glacier serve wasm --watch`: varre `src/`, `views/`, `web/` e o `Cargo.toml`,

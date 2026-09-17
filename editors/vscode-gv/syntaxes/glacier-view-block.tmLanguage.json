@@ -1,0 +1,180 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Glacier View (blocos)",
+  "scopeName": "source.glacier-view-block",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#prose" },
+    { "include": "#control" },
+    { "include": "#element" },
+    { "include": "#property" },
+    { "include": "#string" },
+    { "include": "#interpolation" },
+    { "include": "#number" },
+    { "include": "#block" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.glacier-view-block",
+          "begin": "//",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.glacier-view-block" } },
+          "end": "$"
+        },
+        {
+          "name": "comment.block.glacier-view-block",
+          "begin": "/\\*",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.glacier-view-block" } },
+          "end": "\\*/",
+          "endCaptures": { "0": { "name": "punctuation.definition.comment.end.glacier-view-block" } }
+        }
+      ]
+    },
+
+    "prose": {
+      "comment": "Bloco de texto \"\"\" … \"\"\" — o filho de um <text>, colapsado como hoje.",
+      "name": "string.quoted.triple.glacier-view-block",
+      "begin": "\"\"\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.glacier-view-block" } },
+      "end": "\"\"\"",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.glacier-view-block" } },
+      "patterns": [{ "include": "#interpolation" }]
+    },
+
+    "control": {
+      "patterns": [
+        {
+          "comment": "if / else if / else, e os operadores do condicional do motor",
+          "match": "(?<![\\w.])(if|else|each|as)(?![\\w-])",
+          "name": "keyword.control.conditional.glacier-view-block"
+        },
+        {
+          "match": "(?<![\\w.])(in|is|not|empty)(?![\\w-])",
+          "name": "keyword.operator.word.glacier-view-block"
+        },
+        {
+          "match": "==|!=",
+          "name": "keyword.operator.comparison.glacier-view-block"
+        }
+      ]
+    },
+
+    "element": {
+      "comment": "O seletor do elemento: tag, classes e id — a mesma grafia do .gss. A negativa `(?![\\w-]*\\s*:)` é o que separa um elemento de uma propriedade.",
+      "patterns": [
+        {
+          "match": "^\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*:)((?:\\.[A-Za-z_][\\w-]*)*)(#[A-Za-z_][\\w-]*)?",
+          "captures": {
+            "1": { "name": "entity.name.tag.component.glacier-view-block" },
+            "2": { "name": "entity.name.tag.glacier-view-block" },
+            "3": { "patterns": [{ "include": "#selector-class" }] },
+            "4": { "name": "entity.other.attribute-name.id.glacier-view-block" }
+          }
+        },
+        {
+          "comment": "O mesmo, para o elemento que abre logo depois de uma chave numa linha só.",
+          "match": "(?<=\\{)\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*:)((?:\\.[A-Za-z_][\\w-]*)*)(#[A-Za-z_][\\w-]*)?",
+          "captures": {
+            "1": { "name": "entity.name.tag.component.glacier-view-block" },
+            "2": { "name": "entity.name.tag.glacier-view-block" },
+            "3": { "patterns": [{ "include": "#selector-class" }] },
+            "4": { "name": "entity.other.attribute-name.id.glacier-view-block" }
+          }
+        }
+      ]
+    },
+
+    "selector-class": {
+      "match": "(\\.)([A-Za-z_][\\w-]*)",
+      "captures": {
+        "1": { "name": "punctuation.definition.entity.glacier-view-block" },
+        "2": { "name": "entity.other.attribute-name.class.glacier-view-block" }
+      }
+    },
+
+    "property": {
+      "patterns": [
+        {
+          "comment": "Propriedade de ação (on_press, onChange, aoClicar…): o valor é o nome de um handler.",
+          "match": "(?<![\\w.])(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)(\\s*:\\s*)([A-Za-z_]\\w*)?",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.action.glacier-view-block" },
+            "2": { "name": "punctuation.separator.key-value.glacier-view-block" },
+            "3": { "name": "entity.name.function.action.glacier-view-block" }
+          }
+        },
+        {
+          "comment": "Propriedade comum. O valor sem aspas é NOME DE CHAVE — por isso tem cor diferente de um @valor.",
+          "match": "(?<![\\w.])([A-Za-z_][\\w-]*)(\\s*:\\s*)((?:@\\{[A-Za-z_][\\w.]*\\}|@[A-Za-z_][\\w.]*|-?\\d+(?:\\.\\d+)?|[A-Za-z_][\\w.+-]*))?",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.glacier-view-block" },
+            "2": { "name": "punctuation.separator.key-value.glacier-view-block" },
+            "3": {
+              "patterns": [
+                { "include": "#interpolation" },
+                { "include": "#number" },
+                {
+                  "match": "[A-Za-z_][\\w.+-]*",
+                  "name": "variable.other.key.glacier-view-block"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "string": {
+      "name": "string.quoted.double.glacier-view-block",
+      "begin": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.glacier-view-block" } },
+      "end": "\"",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.glacier-view-block" } },
+      "patterns": [
+        { "include": "#interpolation" },
+        { "include": "#color" }
+      ]
+    },
+
+    "interpolation": {
+      "comment": "@chave e @{chave} — o dado. A chave é o único uso de @; @@ é um arroba literal.",
+      "patterns": [
+        {
+          "match": "@@",
+          "name": "constant.character.escape.glacier-view-block"
+        },
+        {
+          "match": "(@\\{)([A-Za-z_][\\w.]*)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.section.interpolation.begin.glacier-view-block" },
+            "2": { "name": "variable.other.interpolation.glacier-view-block" },
+            "3": { "name": "punctuation.section.interpolation.end.glacier-view-block" }
+          }
+        },
+        {
+          "match": "(@)([A-Za-z_][\\w]*(?:\\.[A-Za-z_][\\w]*)*)",
+          "captures": {
+            "1": { "name": "punctuation.section.interpolation.begin.glacier-view-block" },
+            "2": { "name": "variable.other.interpolation.glacier-view-block" }
+          }
+        }
+      ]
+    },
+
+    "number": {
+      "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?(?![\\w.])",
+      "name": "constant.numeric.glacier-view-block"
+    },
+
+    "block": {
+      "match": "[{}]",
+      "name": "punctuation.section.block.glacier-view-block"
+    },
+
+    "color": {
+      "name": "constant.other.color.rgb-value.hex.glacier-view-block",
+      "match": "#([0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3,4})\\b"
+    }
+  }
+}

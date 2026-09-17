@@ -191,6 +191,14 @@ const NATIVE_TAGS = {
   // aplicativo (instância única, geometria, bandeja).
   App: ["app", "aplicativo"],
   Tray: ["tray", "bandeja"],
+  // Os itens do menu da `<tray>`. Não são `NodeType` nenhum — o parser os lê
+  // como `TrayItemDecl` ali mesmo, do jeito que um `<props>` lê os `<prop>` —,
+  // mas precisam estar aqui pelo mesmo motivo que o `<prop>` está: sem isso a
+  // extensão os toma por componente do app, não acha arquivo nenhum e o
+  // Ctrl+clique/F12 neles não vai a lugar nenhum. `<check>` já resolvia, só
+  // que para o `<Checkbox>` — ver `trayRanges`, que desfaz o engano.
+  TrayItem: ["item"],
+  TraySeparator: ["separator", "separador"],
   Link: ["link"],
   Style: ["style", "stylesheet"],
   Script: ["script"],
@@ -264,7 +272,25 @@ const PATH_ATTRS = {
   Include: ["src", "fonte"],
   Image: ["source", "src", "origem", "caminho"],
   Svg: ["source", "src", "origem", "caminho"],
+  // Os `icon=` que SÃO caminho: o da bandeja e o da janela, os dois lidos pela
+  // fonte de assets (`TRAY_ICON_ATTRS` e `SCREEN_ICON_ATTRS` em src/parser.rs,
+  // e o `apply_window_icon` em src/daemon.rs).
+  Tray: ["icon", "icone", "ícone"],
+  Screen: ["icon", "icone", "ícone"],
+  // Caminho escrito na tag de um builtin, que lá dentro vira o `source` de um
+  // `<Image>`/`<Svg>`.
+  Avatar: ["src"],
+  ToolButton: ["icon_src"],
 };
+
+// Os `icon=` que NÃO são caminho, e por isso ficam de fora da tabela acima —
+// mesmo nome, outro significado, que é a família de bug mais cara deste motor:
+//
+//   <dialog icon="warning">   palavra-chave (`information`/`warning`/`error`/
+//                             `question`/`none`) — ver `icone_de`, src/dialogs.rs
+//   <ToolButton icon="✂">     o GLIFO do botão; o caminho dele é o `icon_src`
+//
+// Um link neles abriria um arquivo que não existe — ou, pior, um homônimo.
 
 // Every action attribute spelling from src/parser.rs. The value names the
 // handler that runs it — a Lua function or a Rust `update` arm.
@@ -416,11 +442,29 @@ const BUILTIN_ACTIONS = {
   "style:": "engine",
 };
 
-/** `{ prefix, kind, arg }` when `value` is an engine built-in, else null. */
+// As ações que o **runner** (`Daemon::on_tray`, não o `dispatch` do motor)
+// trata sozinho a partir de um item da `<tray>`. Lista FECHADA, e de propósito:
+// qualquer outro `tray:…` desce ao script/`update` da tela principal como
+// `tray(sufixo, value)` — igual a qualquer ação com `:` —, então tratar o
+// prefixo inteiro como built-in roubaria o link de um handler de verdade.
+const TRAY_ACTIONS = new Set(["tray:open", "tray:quit", "notifications:toggle"]);
+
+/**
+ * `{ prefix, kind, arg, heading }` when `value` is an engine built-in, else
+ * null. `heading` is the reference doc section that explains it.
+ */
 function builtinAction(value) {
+  if (TRAY_ACTIONS.has(value)) {
+    return { prefix: value, kind: "engine", arg: "", heading: TRAY_ACTIONS_HEADING };
+  }
   for (const [prefix, kind] of Object.entries(BUILTIN_ACTIONS)) {
     if (value.startsWith(prefix)) {
-      return { prefix, kind, arg: value.slice(prefix.length) };
+      return {
+        prefix,
+        kind,
+        arg: value.slice(prefix.length),
+        heading: BUILTIN_ACTIONS_HEADING,
+      };
     }
   }
   return null;
@@ -428,6 +472,9 @@ function builtinAction(value) {
 
 // The reference doc heading that documents the built-in actions above.
 const BUILTIN_ACTIONS_HEADING = /^##+\s*A(?:ç|c)(?:ões|oes) built-in/m;
+
+// The reference doc heading listing the tray actions above.
+const TRAY_ACTIONS_HEADING = /^####\s*A(?:ç|c)(?:ões|oes) da bandeja/m;
 
 // The reference doc heading listing the `<dialog buttons="…">` role keywords
 // (see `DIALOG_BUTTON_ROLES` below).
@@ -544,7 +591,15 @@ function resolveAssetPath(documentUri, raw) {
 
   const roots = [];
   if (documentUri && documentUri.scheme === "file") {
-    roots.push(path.dirname(documentUri.fsPath));
+    const dir = path.dirname(documentUri.fsPath);
+    roots.push(dir);
+    // A raiz de assets do motor é a do PROJETO, não a da janela do editor: um
+    // `<tray icon="views/assets/icone.png">` é escrito a partir da pasta que
+    // tem o `views/`, e o processo roda com ela de CWD. Sem isto, todo `.gv`
+    // que não está na raiz do workspace — um template do `glacier new` dentro
+    // deste repo, um app numa pasta de um monorepo — ficava com o caminho
+    // certo e sem link.
+    roots.push(...projectRoots(dir));
   }
   for (const folder of vscode.workspace.workspaceFolders || []) {
     roots.push(folder.uri.fsPath);
@@ -554,6 +609,29 @@ function resolveAssetPath(documentUri, raw) {
     if (fs.existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * Os diretórios acima de `dir` que têm cara de raiz de projeto Glacier — um
+ * `views/` (a convenção do `glacier new`) ou um `Cargo.toml` —, do mais
+ * próximo ao mais distante. É o palpite de onde o app roda, e portanto de
+ * contra o que a fonte de assets resolve um caminho relativo.
+ */
+function projectRoots(dir) {
+  const out = [];
+  let atual = dir;
+  for (let i = 0; i < 24; i++) {
+    if (
+      fs.existsSync(path.join(atual, "views")) ||
+      fs.existsSync(path.join(atual, "Cargo.toml"))
+    ) {
+      out.push(atual);
+    }
+    const acima = path.dirname(atual);
+    if (acima === atual) break; // raiz do filesystem
+    atual = acima;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -590,6 +668,26 @@ function embeddedRanges(text) {
   }
   return out;
 }
+
+/**
+ * Char ranges of `<tray>…</tray>` bodies. Dentro deles, `<item>`, `<check>` e
+ * `<separator>` são itens do menu da bandeja e nada mais — em particular o
+ * `<check>`, que fora dali é apelido do `<Checkbox>` e mandava o F12 para a
+ * seção errada da referência.
+ */
+function trayRanges(text) {
+  const out = [];
+  const re = /<(tray|bandeja)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const bodyStart = m.index + m[0].indexOf(">") + 1;
+    out.push([bodyStart, bodyStart + m[2].length]);
+  }
+  return out;
+}
+
+// Os filhos da `<tray>` cuja documentação é a seção da própria `<tray>`.
+const TRAY_CHILD_TAGS = new Set(["TrayItem", "TraySeparator", "Checkbox"]);
 
 /**
  * Yield every element tag in `text` as
@@ -1985,7 +2083,7 @@ async function provideDocumentLinks(document) {
         // A command the engine interprets: nothing in the workspace defines it,
         // so the link explains it instead.
         if (builtin.kind !== "key" || !builtin.arg) {
-          const doc = referenceLocation(BUILTIN_ACTIONS_HEADING);
+          const doc = referenceLocation(builtin.heading);
           if (doc) {
             const link = new vscode.DocumentLink(
               range(start, start + value.length),
@@ -2371,7 +2469,8 @@ function classify(document, position) {
     const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
 
     if (offset >= tag.nameStart && offset <= tag.nameStart + tag.name.length) {
-      return { kind: "tag", name: tag.name, canonical: canon };
+      const naBandeja = TRAY_CHILD_TAGS.has(canon) && inRanges(trayRanges(text), tag.nameStart);
+      return { kind: "tag", name: tag.name, canonical: naBandeja ? "Tray" : canon };
     }
     if (offset < tag.attrsStart || offset > tag.attrsEnd) continue;
 
@@ -2471,7 +2570,7 @@ async function resolveDefinition(document, position) {
         const rust = resolveContextKeyInRust(index, document.uri, builtin.arg);
         if (rust) return [rust];
       }
-      const doc = referenceLocation(BUILTIN_ACTIONS_HEADING);
+      const doc = referenceLocation(builtin.heading);
       return doc ? [doc] : undefined;
     }
     for (const c of handlerCandidates(hit.name)) {
@@ -2817,6 +2916,9 @@ const VOID_TAGS = new Set([
   "Checkbox", "Toggle", "Radio", "RadioGroup", "Select", "ComboEdit",
   "SpinBox", "TextInput", "DateEdit", "TimeEdit", "DateTimeEdit",
   "Avatar", "Badge", "MenuItem", "MenuSeparator",
+  // Os itens da `<tray>`: `<item …/>`, `<separator />`. O `<check>` da bandeja
+  // já entra aqui pelo `Checkbox`.
+  "TrayItem", "TraySeparator",
   "Link", "Import", "Include", "Slot", "Prop",
   // Onda 9. `Splitter` e `SwipeView` ficam de FORA de propósito: os dois
   // renderizam `node.children` (os painéis e as páginas), então o par de

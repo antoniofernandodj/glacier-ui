@@ -97,3 +97,44 @@ fn toda_tag_da_extensao_tem_secao_no_doc() {
          linha 1: {sem_doc:?}"
     );
 }
+
+/// O `TRAY_ACTIONS_HEADING` do `extension.js` — a seção para onde o Ctrl+Clique
+/// de um `tray:open` vai.
+const CABECALHO_BANDEJA: &str = "#### Ações da bandeja";
+
+#[test]
+fn toda_acao_da_bandeja_esta_documentada() {
+    let js = std::fs::read_to_string(EXT).expect(EXT);
+    let doc = std::fs::read_to_string(DOC).expect(DOC);
+
+    // `const TRAY_ACTIONS = new Set(["tray:open", …]);` — mesma leitura por
+    // recorte do bloco acima, e a asserção de tamanho pelo mesmo motivo.
+    let ini = js
+        .find("const TRAY_ACTIONS = new Set(")
+        .expect("bloco TRAY_ACTIONS sumiu do extension.js");
+    let fim = js[ini..].find(");").expect("bloco TRAY_ACTIONS sem fim") + ini;
+    let acoes: Vec<&str> = js[ini..fim].split('"').skip(1).step_by(2).collect();
+    assert!(
+        acoes.len() >= 3,
+        "o recorte do TRAY_ACTIONS achou só {} ações — a forma do bloco mudou",
+        acoes.len()
+    );
+
+    // A seção existe? Sem ela a `referenceLocation` cai na linha 1 calada.
+    let secao = doc
+        .find(CABECALHO_BANDEJA)
+        .unwrap_or_else(|| panic!("o {DOC} não tem a seção '{CABECALHO_BANDEJA}'"));
+    let corpo = &doc[secao..];
+    let corpo = &corpo[..corpo.find("\n---").unwrap_or(corpo.len())];
+
+    let faltando: Vec<&&str> = acoes
+        .iter()
+        .filter(|a| !corpo.contains(&format!("`{a}`")))
+        .collect();
+    assert!(
+        faltando.is_empty(),
+        "estas ações da bandeja não aparecem na seção '{CABECALHO_BANDEJA}' do \
+         {DOC}, então o Ctrl+Clique nelas abre uma seção que não as menciona: \
+         {faltando:?}"
+    );
+}

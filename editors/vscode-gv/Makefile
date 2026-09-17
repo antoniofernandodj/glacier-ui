@@ -16,7 +16,7 @@ help: ## Show this help
 
 package: $(VSIX) ## Build the .vsix package
 
-$(VSIX): package.json extension.js language-configuration.json syntaxes/*.json references/*.md
+$(VSIX): package.json extension.js language-configuration*.json syntaxes/*.json references/*.md
 	$(VSCE) package
 
 install: package ## Build and install the extension into VS Code
