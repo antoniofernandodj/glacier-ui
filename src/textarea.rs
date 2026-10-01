@@ -1111,13 +1111,27 @@ where
 
     fn mouse_interaction(
         &self,
-        _tree: &widget::Tree,
+        tree: &widget::Tree,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
         let is_disabled = self.on_edit.is_none();
+
+        // Sobre a barra (ou arrastando o thumb) o cursor é a seta padrão, não o
+        // de texto (I-beam) do resto do campo.
+        if self.scrollbar {
+            let state = tree.state.downcast_ref::<State<Highlighter>>();
+            let over_bar = state.scroll_drag.is_some()
+                || scroll_metrics(&self.content.0.borrow().editor)
+                    .filter(Metrics::scrollable)
+                    .is_some_and(|_| cursor.is_over(bar_track(layout.bounds())));
+
+            if over_bar {
+                return mouse::Interaction::default();
+            }
+        }
 
         if cursor.is_over(layout.bounds()) {
             if is_disabled {

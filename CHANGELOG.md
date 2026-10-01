@@ -8,6 +8,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.109.1 — 2026-10-01
+
+- **Sobre a barra de rolagem do `<textarea>` o cursor do mouse é a seta padrão.**
+  Na 0.109.0 ela herdava o cursor de texto (I-beam) do campo inteiro, o que
+  sugeria "dá para selecionar aqui" sobre algo que se arrasta. Vale também
+  durante o arrasto do thumb, com o mouse fora da trilha.
+
+---
+
 ## glacier-ui 0.109.0 — 2026-10-01
 
 - **O `<textarea>` ganhou barra de rolagem.** O `text_editor` do iced não desenha
