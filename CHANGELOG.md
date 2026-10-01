@@ -8,6 +8,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.109.0 — 2026-10-01
+
+- **O `<textarea>` ganhou barra de rolagem.** O `text_editor` do iced não desenha
+  barra e não expõe a posição de rolagem do `Content` (o buffer do cosmic-text é
+  privado), então um wrapper por fora não tinha como posicionar o thumb. O motor
+  passa a usar um widget próprio, `textarea::TextArea` (`src/textarea.rs`), que é
+  o `text_editor` do `iced_widget` 0.14.2 copiado com o `Content` apoiado no
+  editor concreto (`iced_graphics::text::Editor`) — cujo `buffer()` dá o
+  `scroll()` e as linhas já quebradas. Teclas, mouse, IME e seleção são os do
+  iced; o cursor continua acompanhando a digitação.
+  - Arrastar o thumb e clicar na trilha (rola uma página). A roda e o teclado
+    seguem iguais. A barra só aparece quando o texto não cabe, e a largura dela é
+    reservada à direita do texto (nada passa por baixo).
+  - O tamanho do thumb conta linhas **visuais** (as quebradas por wrap contam
+    cada uma). O cosmic só formata as linhas que já passaram pela janela; as
+    demais entram pela média das formatadas — num log de linhas parecidas o thumb
+    é praticamente exato desde o início, e em texto muito irregular se refina
+    conforme se rola.
+  - O `<TextInput>` de uma linha usa o mesmo widget com a barra desligada
+    (`.scrollbar(false)`).
+- **Quebra (API Rust):** `widget::EditorMap` agora é
+  `HashMap<String, textarea::Content>` — antes `text_editor::Content`. O
+  `Content` novo tem os mesmos métodos (`new`, `with_text`, `perform`, `text`,
+  `selection`, `cursor`, `move_to`, `line_count`, `line`/`lines`…) e reusa os
+  `Action`/`Edit`/`Motion` do iced, então troca-se só o caminho do tipo. Quem só
+  usa o markup não muda nada.
+
+---
+
 ## glacier-ui 0.108.2 · CLI 0.5.21 · vscode-gv 0.19.12 — 2026-09-16
 
 - **Os caminhos de asset que faltavam no `PATH_ATTRS` da extensão.** Eram

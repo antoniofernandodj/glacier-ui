@@ -398,7 +398,7 @@ impl PartialEq for SelectOption {
 /// Stateful `text_editor` buffers, keyed by a `<TextArea>`'s `value` binding.
 /// Owned by [`crate::GlacierUI`] and borrowed during render so the editors keep
 /// their content/cursor across frames (glacier is otherwise stateless).
-pub type EditorMap = HashMap<String, text_editor::Content>;
+pub type EditorMap = HashMap<String, crate::textarea::Content>;
 
 /// Stateful `combo_box::State` buffers, keyed by a `<ComboEdit>`'s `value`
 /// binding — same idea as `EditorMap` above, needed because
@@ -521,7 +521,7 @@ pub enum InputFlavor {
 }
 
 impl InputFlavor {
-    /// `true` para os dois sabores apoiados num `text_editor::Content` — os que
+    /// `true` para os dois sabores apoiados num `crate::textarea::Content` — os que
     /// o motor consegue operar via `Content::perform`/`Content::selection`.
     pub fn is_editor(self) -> bool {
         matches!(self, Self::LineEditor | Self::MultilineEditor)
@@ -962,7 +962,7 @@ pub fn synthetic_input_id(binding: &str) -> String {
 /// o widget com a mesma paridade de estilo/tamanho do antigo `text_input`.
 fn single_line_editor<'a>(
     node: &'a UiNode,
-    content: &'a text_editor::Content,
+    content: &'a crate::textarea::Content,
     field_id: &str,
     value_var: &str,
     on_change: &str,
@@ -993,7 +993,8 @@ fn single_line_editor<'a>(
     let on_change_owned = on_change.to_string();
     let submit = submit_msg.clone();
 
-    let mut ed = text_editor(content)
+    let mut ed = crate::textarea::TextArea::new(content)
+        .scrollbar(false)
         .placeholder(placeholder)
         .wrapping(iced::widget::text::Wrapping::None);
 
@@ -4201,7 +4202,7 @@ pub fn render_node<'a>(
                     let binding = value_var.clone();
                     let on_change = on_change.clone();
                     let readonly = *readonly;
-                    let mut ed = text_editor(content)
+                    let mut ed = crate::textarea::TextArea::new(content)
                         // Id estável — o menu de contexto embutido refoca o
                         // campo depois de "Selecionar tudo"/"Recortar"/… para o
                         // realce da seleção aparecer (o `text_editor` só o

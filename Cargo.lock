@@ -1756,7 +1756,7 @@ version = "0.5.21"
 
 [[package]]
 name = "glacier-ui"
-version = "0.108.2"
+version = "0.109.0"
 dependencies = [
  "base64",
  "cc",

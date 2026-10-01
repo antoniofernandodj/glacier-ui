@@ -66,6 +66,7 @@ mod single_instance;
 mod timer;
 pub mod spinner;
 pub mod style;
+pub mod textarea;
 pub mod stylesheet;
 pub mod toasts;
 pub mod tray;
@@ -2265,7 +2266,7 @@ impl GlacierUI {
                 let content = self
                     .editors
                     .entry(binding.clone())
-                    .or_insert_with(|| iced::widget::text_editor::Content::with_text(&seed));
+                    .or_insert_with(|| crate::textarea::Content::with_text(&seed));
                 content.perform(action.clone());
                 let text = content.text();
                 // Só o texto mudou é que precisa refluir a árvore / avisar o
@@ -3475,7 +3476,7 @@ impl GlacierUI {
                     Some(v) => {
                         self.editors.insert(
                             binding.clone(),
-                            iced::widget::text_editor::Content::with_text(&v),
+                            crate::textarea::Content::with_text(&v),
                         );
                         iced::Task::batch([
                             self.after_field_change(&binding, &t.on_change, v),
@@ -3515,7 +3516,7 @@ impl GlacierUI {
         let content = self
             .editors
             .entry(binding.to_string())
-            .or_insert_with(|| iced::widget::text_editor::Content::with_text(&seed));
+            .or_insert_with(|| crate::textarea::Content::with_text(&seed));
         content.perform(action);
         content.text()
     }
@@ -3867,7 +3868,7 @@ impl GlacierUI {
             if !self.editors.contains_key(b) || last != Some(&ctx_val) {
                 self.editors.insert(
                     b.clone(),
-                    iced::widget::text_editor::Content::with_text(&ctx_val),
+                    crate::textarea::Content::with_text(&ctx_val),
                 );
                 self.editor_synced.insert(b.clone(), ctx_val);
             }

@@ -54,7 +54,10 @@ Campo de texto de uma linha. Atributos: `value`, `placeholder`, `onChange`,
 com `formControl` dentro de um `<Form>` — ver `<Form>`).
 
 ### `<TextArea>` (`<Editor>`)
-Editor multilinha. Atributos: `value`, `placeholder`, `onChange`.
+Editor multilinha. Atributos: `value`, `placeholder`, `onChange`. Desenha a
+PRÓPRIA barra de rolagem à direita (arraste o thumb, clique na trilha para rolar
+uma página; a roda e o teclado seguem valendo); só aparece quando o texto não
+cabe. O `<TextInput>` de uma linha não tem barra.
 
 ### `<Image>` (`<Imagem>`)
 Imagem. Atributos: `source`/`src`, `clip="Circle"`.
