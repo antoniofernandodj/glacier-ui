@@ -3086,7 +3086,8 @@ do outro lado. O par `broadcast` + `close_window` é como uma janela auxiliar
 
 #### Ciclo de vida
 
-Funções globais opcionais; o motor as chama, você só as define:
+**Ganchos de nome fixo** — funções globais opcionais; o motor as chama, você só
+as define:
 
 | gancho | quando | observação |
 |---|---|---|
@@ -3094,7 +3095,28 @@ Funções globais opcionais; o motor as chama, você só as define:
 | `on_enter()` | a navegação **chega** a esta tela | depois da troca; não roda na tela inicial |
 | `on_leave()` | a navegação **sai** desta tela | antes da troca (ainda é a tela atual); depois dele o motor fecha os streams `scope = "screen"` |
 | `on_destroy()` | a janela é fechada de verdade | só a tela atual; `ctx` já não é desenhado, mas `fetch` ainda vale; não roda ao recolher a janela principal para a bandeja |
-| `on_broadcast(evento, carga)` | outra janela chamou `broadcast` | |
+| `on_broadcast(evento, carga)` | outra janela chamou `broadcast` | uma tabela chega decodificada |
+| `on_error(msg)` | um erro estourou em qualquer função do script | sem ele, o motor mostra um toast de erro |
+
+**Ganchos de nome livre** — você escolhe o nome e aponta para ele no markup ou
+nas opções; valem o mesmo para `ctx` e `fetch`:
+
+| onde se declara | quando roda |
+|---|---|
+| `on_click`, `on_change`, … no markup | o evento do widget (veja o ciclo de uma ação) |
+| `<form on_submit="f">` | o envio passou em todas as regras |
+| `<form on_validation_error="f">` | o envio falhou; recebe as falhas em JSON |
+| `rules="fn:NOME"` | a função global `NOME(valor)` valida o campo |
+| `sse`/`websocket` com `on_open`, `on_message`, `on_error`, `on_close` | cada evento do stream (`on_close` também em `close()`, `scope` e queda) |
+| `after(ms, fn)` | o temporizador venceu |
+
+**Só em Rust:** os mesmos ganchos como métodos de `Component` (`init`, `on_enter`,
+`on_leave`, `on_destroy`, `on_broadcast`, `on_form_submit`,
+`on_form_validation_error`, `validate_field`) — um `Component` Rust com
+`<script>` por cima deixa a função Luau de mesmo nome vencer e cai no método
+quando ela não existe — e `GlacierDaemon::on_close(|motor, geometria| …)`, o
+gancho de fechamento da janela **principal**, que recebe tamanho e posição. Em
+Luau, o equivalente de "a janela fechou" é `on_destroy`.
 
 ```lua
 local conn: StreamHandle? = nil
