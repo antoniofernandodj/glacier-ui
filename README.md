@@ -1299,6 +1299,19 @@ como atalho. Prefira a função: o nome obriga o handler a ser global, não fech
 sobre nada, e um nome errado falha em silêncio — o evento chega e não chama
 ninguém.
 
+**Encerrando.** `conn:close()` fecha o stream e chama `on_close`. Ao fechar a
+janela, os streams caem junto com o motor; para agir na saída (avisar o servidor,
+limpar estado), defina a função global `on_destroy()`:
+
+```lua
+function on_destroy()
+    if sse_conn then sse_conn:close() end
+end
+```
+
+Roda só quando a janela é descartada de verdade (não ao recolher para a bandeja)
+e só para a tela atual; `ctx` não é mais desenhado, mas `fetch` ainda vale.
+
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir
 `self.motor.subscription()` — sem isso, nenhuma conexão é aberta. Veja

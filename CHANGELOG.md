@@ -8,6 +8,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.110.0 — 2026-10-02
+
+- **Novo gancho `on_destroy()` (Luau) / `Component::on_destroy`.** Roda uma vez
+  quando a janela é fechada de verdade (janelas filhas, ou a principal sem
+  bandeja — recolher para a bandeja não conta, o motor segue vivo). Serve para
+  `conn:close()` em `sse`/`websocket`, limpar estado, ou um `fetch` de despedida.
+  Só vale a tela atual da janela; mudanças em `ctx` não são mais desenhadas.
+  Os streams já caíam sozinhos ao soltar o motor; o gancho dá a saída explícita.
+- **`conn:close()` num `sse` agora dispara `on_close`.** Antes o stream era
+  derrubado sem emitir `Closed`: o `on_close` nunca rodava e o registro do
+  stream (com as refs dos handlers) ficava retido. WebSocket já se comportava assim.
+
+---
+
 ## glacier-ui 0.109.1 — 2026-10-01
 
 - **Sobre a barra de rolagem do `<textarea>` o cursor do mouse é a seta padrão.**

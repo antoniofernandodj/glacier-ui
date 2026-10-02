@@ -911,6 +911,15 @@ pub trait Component {
     /// em `ctx` como qualquer ação (montar um card, exibir um toast, etc.).
     fn on_broadcast(&mut self, _event: &str, _payload: &str, _ctx: &mut Context) {}
 
+    /// Chamado uma única vez quando a janela dona deste componente está sendo
+    /// **descartada** (fechada de verdade — não ao recolher para a bandeja, em
+    /// que o motor segue vivo). É o momento de liberar o que o script abriu:
+    /// fechar `sse`/`websocket` (`conn:close()`), limpar estado. A
+    /// [`crate::luau::LuauComponent`] chama a função Lua global `on_destroy()`.
+    /// A janela já está saindo: mudanças em `ctx` não são mais desenhadas, e só
+    /// efeitos de rede (`fetch`, `conn:send`) ainda valem — ex.: avisar o servidor.
+    fn on_destroy(&mut self, _ctx: &mut Context) {}
+
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
     /// alimentam o contexto. Mapeie cada stream para
     /// [`crate::EngineMessage::ContextPatch`] e o motor mesclará os pares no

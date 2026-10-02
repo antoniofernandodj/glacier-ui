@@ -951,6 +951,16 @@ impl LuauComponent {
         self.drive(thread, args, ctx)
     }
 
+    /// Chama a função Lua global `on_destroy()` (sem argumentos), se existir.
+    fn on_destroy_inner(&self, ctx: &mut Context) -> mlua::Result<()> {
+        let Ok(func) = self.luau.globals().get::<Function>("on_destroy") else {
+            return Ok(());
+        };
+        self.sync_to_luau(ctx)?;
+        let thread = self.luau.create_thread(func)?;
+        self.drive(thread, MultiValue::new(), ctx)
+    }
+
     /// Extrai uma [`PendingFetch`] da tabela `{ url, opts }` que o `fetch` cedeu.
     fn parse_fetch(&self, id: u64, req: &Table) -> mlua::Result<PendingFetch> {
         let url: String = req.get("url")?;
@@ -1137,6 +1147,16 @@ impl Component for LuauComponent {
             }
         } else if let Some(inner) = &self.inner {
             inner.borrow_mut().on_broadcast(event, payload, ctx);
+        }
+    }
+
+    fn on_destroy(&mut self, ctx: &mut Context) {
+        if self.luau.globals().get::<Function>("on_destroy").is_ok() {
+            if let Err(e) = self.on_destroy_inner(ctx) {
+                self.report_error("on_destroy", e, ctx);
+            }
+        } else if let Some(inner) = &self.inner {
+            inner.borrow_mut().on_destroy(ctx);
         }
     }
 
@@ -3808,6 +3828,28 @@ mod tests {
             Some("project_created")
         );
         assert_eq!(ctx.get("got_name").map(String::as_str), Some("api"));
+    }
+
+    #[test]
+    fn on_destroy_global_roda_e_pode_fechar_o_stream() {
+        // `on_destroy()` é o gancho de saída: aqui fecha o handle do SSE aberto
+        // no `init`, o que vira um `StreamCommand` de `Close`.
+        let mut comp = LuauComponent::from_source(
+            "local conn\n\
+             function init() conn = sse('http://ex/stream', {}) end\n\
+             function on_destroy() conn:close() ctx.saiu = 'sim' end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.init(&mut ctx);
+        assert!(ctx.stream_cmds.is_empty());
+        Component::on_destroy(&mut comp, &mut ctx);
+        assert_eq!(ctx.get("saiu").map(String::as_str), Some("sim"));
+        assert_eq!(ctx.stream_cmds.len(), 1);
+        assert_eq!(ctx.stream_cmds[0].kind, StreamCommandKind::Close);
     }
 
     #[test]

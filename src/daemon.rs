@@ -1071,7 +1071,13 @@ impl Runtime {
                 }
                 // Demais janelas (filhas), ou sem bandeja: remove o motor. Sem
                 // bandeja, a última janela fechada encerra o app (como sempre).
-                self.windows.remove(&id);
+                // `on_destroy` roda com o motor ainda inteiro; a Task dele (um
+                // `fetch` de despedida) segue viva mesmo com a janela já fora.
+                let destroy = self.windows.remove(&id).map(|mut engine| {
+                    engine
+                        .destroy()
+                        .map(move |m| DaemonMessage::Ui { id, msg: m })
+                });
                 self.titles.remove(&id);
                 self.base_titles.remove(&id);
                 self.sized_by.remove(&id);
@@ -1085,7 +1091,7 @@ impl Runtime {
                 if self.windows.is_empty() && self.webview_ids.is_empty() && self.tray.is_none() {
                     iced::exit()
                 } else {
-                    Task::none()
+                    destroy.unwrap_or_else(Task::none)
                 }
             }
             // A WM pediu para fechar (Alt+F4, botão da barra, fim de sessão).

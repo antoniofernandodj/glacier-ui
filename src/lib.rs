@@ -2781,8 +2781,16 @@ impl GlacierUI {
                         // WebSocket: graceful close; the task then emits `Closed`,
                         // which cleans up the sender and `active_streams`.
                         let _ = sender.try_send(net::WsCommand::Close);
-                    } else {
-                        self.active_streams.remove(&key);
+                    } else if self.active_streams.remove(&key).is_some() {
+                        // Derrubar a subscription para a task sem emitir
+                        // `Closed`, então o motor o entrega aqui: sem isso o
+                        // `on_close` do Lua nunca roda e o registro do stream
+                        // (com as refs dos handlers) vazaria.
+                        tasks.push(iced::Task::done(EngineMessage::LuauStream {
+                            owner: owner.to_string(),
+                            id: cmd.id,
+                            event: net::StreamEvent::Closed,
+                        }));
                     }
                 }
             }
@@ -2827,6 +2835,21 @@ impl GlacierUI {
         self.run_on_owner(&owner, false, |comp, ctx| {
             comp.on_broadcast(event, payload, ctx)
         })
+    }
+
+    /// Avisa o componente da tela atual que este motor está sendo descartado,
+    /// chamando seu [`Component::on_destroy`] (a [`crate::luau::LuauComponent`]
+    /// roteia para a função Lua global `on_destroy`). Chamado pelo runner
+    /// [`daemon::GlacierDaemon`] ao fechar uma janela de verdade, **antes** de
+    /// soltar o motor — soltá-lo derruba as subscriptions (e portanto os
+    /// streams `sse`/`websocket`). A `Task` devolvida carrega os efeitos de
+    /// rede que o gancho pediu (ex.: um `fetch` de despedida). Sem tela atual,
+    /// é no-op.
+    pub fn destroy(&mut self) -> iced::Task<EngineMessage> {
+        let Some(owner) = self.current_screen.clone() else {
+            return iced::Task::none();
+        };
+        self.run_on_owner(&owner, false, |comp, ctx| comp.on_destroy(ctx))
     }
 
     /// Aggregates the [`Component::subscription`] of every registered component
