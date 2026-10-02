@@ -1420,7 +1420,30 @@ const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
  */
 function declaredProps(fsPath) {
   const text = readFileCached(fsPath);
-  return text ? propsFromText(text) : null;
+  if (!text) return null;
+  // Um `<screen>` é uma janela: ninguém o usa como tag, e ele não tem contrato
+  // de props. Um `<props>` que apareça nele é de um `<component name>` declarado
+  // no `<resources>` — lido aqui, faria `<app>` (que casa com `views/app.gv`
+  // pelo nome do arquivo) herdar as props do primeiro componente local da tela.
+  const raiz = iterTags(text).next().value;
+  if (raiz && /^(screen|tela)$/i.test(raiz.name)) return null;
+  return propsFromText(semComponentesLocais(text));
+}
+
+/**
+ * `text` com cada `<component name="…">…</component>` apagado (trocado por
+ * espaços do mesmo tamanho), para o `<props>` de um componente local não passar
+ * pelo contrato do arquivo que o declara.
+ */
+function semComponentesLocais(text) {
+  let out = text;
+  for (const name of localDefineNames(text)) {
+    const bloco = localDefine(text, name);
+    if (bloco) {
+      out = out.slice(0, bloco.start) + " ".repeat(bloco.end - bloco.start) + out.slice(bloco.end);
+    }
+  }
+  return out;
 }
 
 /**

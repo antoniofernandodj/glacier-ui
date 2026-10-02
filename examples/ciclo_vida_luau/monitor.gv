@@ -16,9 +16,12 @@
       <text size="13" bold="true" color="#88C0D0">— WebSocket (/ws, eco + tick) —</text>
       <text size="13" color="#EBCB8B">{ws_status}</text>
       <text size="15" color="#A3BE8C">{ws_msg}</text>
-      <button text="Enviar ping" on_click="enviar_ws" color="#A3BE8C" padding="10 18" />
-
-      <button text="Voltar (fecha os streams)" on_click="voltar" color="#BF616A" padding="10 18" />
+      <button on_click="enviar_ws" color="#A3BE8C" padding="10 18">
+        Enviar ping
+      </button>
+      <button on_click="voltar" color="#BF616A" padding="10 18">
+        Voltar (fecha os streams)
+      </button>
     </column>
   </container>
 </screen>
