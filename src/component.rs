@@ -926,7 +926,7 @@ pub trait Component {
     /// efeitos de rede (`fetch`, `conn:send`) ainda valem — ex.: avisar o servidor.
     fn on_destroy(&mut self, _ctx: &mut Context) {}
 
-    /// Chamado quando a navegação (`nav()`/`back()` na camada Lua) **chega** a
+    /// Chamado quando a navegação (script ou `navigate_to=` do markup) **chega** a
     /// esta tela, depois da troca. Não roda para a tela inicial — ali vale o
     /// `init()`. A [`crate::luau::LuauComponent`] chama a função Lua global
     /// `on_enter()`: o lugar natural para abrir streams com `scope = "screen"`.
@@ -935,9 +935,9 @@ pub trait Component {
     /// Chamado quando a navegação **sai** desta tela, antes da troca (a tela
     /// ainda é a atual). A [`crate::luau::LuauComponent`] chama a função Lua
     /// global `on_leave()`. Logo depois o motor fecha os streams da tela com
-    /// `scope = "screen"`, entregando o `on_close` de cada um. Só cobre a
-    /// navegação pedida por componentes; `GlacierUI::navigate_to` chamado
-    /// direto pelo app Rust não passa por aqui.
+    /// `scope = "screen"`, entregando o `on_close` de cada um. Cobre a navegação
+    /// do script e a do markup (`navigate_to=`); `GlacierUI::navigate_to`
+    /// chamado direto pelo app Rust não passa por aqui.
     fn on_leave(&mut self, _ctx: &mut Context) {}
 
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que

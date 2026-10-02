@@ -8,6 +8,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.112.0 — 2026-10-02
+
+- **`navigate_to=` / `navigate_back` do markup agora rodam `on_leave`/`on_enter` e
+  fecham os streams `scope = "screen"`**, como o `navigate()` do script. Na 0.111.0
+  só a navegação pedida pelo script passava pelos ganchos: um botão com
+  `navigate_to=` trocava a tela e deixava os streams da tela antiga abertos.
+  Só `GlacierUI::navigate_to` chamado direto pelo app Rust continua sem ganchos.
+
+---
+
 ## glacier-ui 0.111.0 — 2026-10-02
 
 - **Ganchos `on_enter()` / `on_leave()` de tela** (Luau e `Component::on_enter`/

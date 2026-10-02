@@ -1323,8 +1323,9 @@ end
 function on_leave() end   -- opcional; roda ANTES de os streams da tela fecharem
 ```
 
-`on_enter`/`on_leave` rodam na navegação pedida por `navigate`/`navigate_back`;
-não rodam para a tela inicial (use `init()`). Exemplos: `ciclo_vida_luau` e
+`on_enter`/`on_leave` rodam em toda navegação — `navigate`/`navigate_back` do
+script e `navigate_to=`/`navigate_back` do markup; não rodam para a tela inicial
+(use `init()`). Exemplos: `ciclo_vida_luau` e
 `ciclo_vida_rust`.
 
 **Importante:** os streams viram `iced::Subscription`s produzidas por

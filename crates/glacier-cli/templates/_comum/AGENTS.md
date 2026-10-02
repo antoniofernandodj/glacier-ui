@@ -3135,11 +3135,10 @@ end
 ```
 
 Pegadinhas:
-- `on_enter`/`on_leave` rodam só na navegação pedida pelo **script**
-  (`navigate`/`navigate_back`). Os atributos `navigate_to=`/`navigate_back` do
-  markup trocam a tela **sem** rodar ganchos nem fechar streams `scope = "screen"`:
-  numa tela com gancho, navegue pelo script. Um `navigate()` **dentro** de um
-  gancho é ignorado. Navegar para a tela já ativa não dispara nada.
+- `on_enter`/`on_leave` rodam em toda navegação: `navigate`/`navigate_back` do
+  script **e** `navigate_to=`/`navigate_back` do markup. Um `navigate()`
+  **dentro** de um gancho é ignorado. Navegar para a tela já ativa não dispara
+  nada. Só `GlacierUI::navigate_to` chamado direto pelo app Rust os pula.
 - Quem abre stream no `init()` de uma tela inicial e não usa `scope` o mantém
   vivo a sessão inteira — é o certo para um SSE global, o errado para o de uma
   tela secundária.

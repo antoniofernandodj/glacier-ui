@@ -1699,15 +1699,18 @@ impl GlacierUI {
                 }
                 (action.as_str(), Some(value.as_str()))
             }
+            // `navigate_to=` / `navigate_back` do markup: passam pelos mesmos
+            // ganchos (`on_leave`/`on_enter`, streams `scope = "screen"`) que o
+            // `navigate()` do script.
             EngineMessage::Navigate(s) => {
-                self.navigate_to(s);
+                let task = self.navigate_with_hooks(component::Nav::To(s.clone()));
                 let _ = self.reevaluate_all();
-                return iced::Task::none();
+                return task;
             }
             EngineMessage::NavigateBack => {
-                self.navigate_back();
+                let task = self.navigate_with_hooks(component::Nav::Back);
                 let _ = self.reevaluate_all();
-                return iced::Task::none();
+                return task;
             }
             EngineMessage::FileChanged(_) => {
                 self.check_reload();
@@ -2663,26 +2666,8 @@ impl GlacierUI {
         // Dentro de um gancho (`in_lifecycle`) o pedido de navegação é ignorado,
         // para um `nav()` em `on_leave` não encadear ganchos sem fim.
         let mut nav_tasks: Vec<iced::Task<EngineMessage>> = Vec::new();
-        if !self.in_lifecycle {
-            let target = match &nav {
-                Some(component::Nav::To(s)) => Some(s.clone()),
-                Some(component::Nav::Back) => self.history.last().cloned(),
-                None => None,
-            };
-            let changes = target
-                .as_ref()
-                .is_some_and(|t| self.current_screen.as_deref() != Some(t.as_str()));
-            if changes {
-                nav_tasks.push(self.leave_current_screen());
-            }
-            match nav {
-                Some(component::Nav::To(s)) => self.navigate_to(&s),
-                Some(component::Nav::Back) => self.navigate_back(),
-                None => {}
-            }
-            if changes && let Some(t) = target {
-                nav_tasks.push(self.enter_screen(&t));
-            }
+        if let Some(nav) = nav {
+            nav_tasks.push(self.navigate_with_hooks(nav));
         }
 
         match dialog {
@@ -2828,6 +2813,38 @@ impl GlacierUI {
         } else {
             None
         }
+    }
+
+    /// Aplica uma navegação rodando os ganchos: `on_leave` na tela que sai (ainda
+    /// atual) e o fechamento dos seus streams `scope = "screen"`; a troca;
+    /// `on_enter` na que chega. É o caminho tanto da navegação pedida pelo
+    /// script (`navigate()`) quanto da do markup (`navigate_to=`). Dentro de um
+    /// gancho (`in_lifecycle`) o pedido é ignorado, para um `navigate()` em
+    /// `on_leave` não encadear ganchos sem fim; navegar para a tela já ativa (ou
+    /// voltar sem histórico) não dispara nada.
+    fn navigate_with_hooks(&mut self, nav: component::Nav) -> iced::Task<EngineMessage> {
+        if self.in_lifecycle {
+            return iced::Task::none();
+        }
+        let target = match &nav {
+            component::Nav::To(s) => Some(s.clone()),
+            component::Nav::Back => self.history.last().cloned(),
+        };
+        let changes = target
+            .as_ref()
+            .is_some_and(|t| self.current_screen.as_deref() != Some(t.as_str()));
+        let mut tasks = Vec::new();
+        if changes {
+            tasks.push(self.leave_current_screen());
+        }
+        match nav {
+            component::Nav::To(s) => self.navigate_to(&s),
+            component::Nav::Back => self.navigate_back(),
+        }
+        if changes && let Some(t) = target {
+            tasks.push(self.enter_screen(&t));
+        }
+        iced::Task::batch(tasks)
     }
 
     /// Sai da tela atual: roda o `on_leave` dela e fecha os streams que ela
@@ -5321,6 +5338,22 @@ mod ciclo_de_vida_tests {
         assert_eq!(m.get_data("rastro").map(String::as_str), Some("b:enter"));
         let ids: Vec<u64> = m.active_streams.keys().map(|(_, id)| *id).collect();
         assert_eq!(ids, vec![2], "só o stream scope=window sobrevive à saída");
+    }
+
+    // O `navigate_to=` / `navigate_back` do markup é a mesma navegação do script:
+    // roda os ganchos e fecha os streams da tela.
+    #[test]
+    fn navegacao_do_markup_roda_os_mesmos_ganchos() {
+        let mut m = motor();
+        let _ = m.dispatch(&EngineMessage::Navigate("b".into()));
+        assert_eq!(m.current_screen_name(), Some("b"));
+        assert_eq!(m.get_data("rastro").map(String::as_str), Some("b:enter"));
+        let ids: Vec<u64> = m.active_streams.keys().map(|(_, id)| *id).collect();
+        assert_eq!(ids, vec![2], "o stream scope=screen de a fechou");
+
+        let _ = m.dispatch(&EngineMessage::NavigateBack);
+        assert_eq!(m.current_screen_name(), Some("a"));
+        assert_eq!(m.get_data("rastro").map(String::as_str), Some("a:enter"));
     }
 
     #[test]
