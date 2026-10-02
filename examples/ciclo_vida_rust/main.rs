@@ -1,6 +1,9 @@
 //! Ciclo de vida de tela em **Rust**: `Component::on_enter`, `on_leave` e
 //! `on_destroy` implementados direto no componente.
 //!
+//! O markup mora em `inicio.gv`/`painel.gv` (estilo em `estilo.gss`); o Rust só
+//! tem a lógica.
+//!
 //! Os ganchos aparecem na tela (contadores) e no terminal. Ao lado roda um
 //! servidor SSE + WebSocket real (mesma thread do exemplo `ciclo_vida_luau`,
 //! incluída por `#[path]`) — a tela `painel` não abre stream nenhum aqui, porque
@@ -24,19 +27,7 @@ impl Component for Inicio {
     }
 
     fn template(&self) -> Template {
-        Template::Inline(
-            r##"<screen title="Glacier - ciclo de vida (Rust)">
-  <container padding="24" align_x="Center" align_y="Center" width="fill" height="fill">
-    <column spacing="14" align="Center" width="520">
-      <text size="18" bold="true">Início</text>
-      <text size="13">Entradas no painel: {entradas} · saídas: {saidas}</text>
-      <text size="13">Último gancho: {ultimo}</text>
-      <button text="Ir para o painel" on_click="ir" padding="10 18" />
-    </column>
-  </container>
-</screen>"##
-                .to_string(),
-        )
+        Template::File("examples/ciclo_vida_rust/inicio.gv".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {
@@ -69,19 +60,7 @@ impl Component for Painel {
     }
 
     fn template(&self) -> Template {
-        Template::Inline(
-            r##"<screen title="Glacier - ciclo de vida (painel)">
-  <container padding="24" align_x="Center" align_y="Center" width="fill" height="fill">
-    <column spacing="14" align="Center" width="520">
-      <text size="18" bold="true">Painel</text>
-      <text size="13">Entradas: {entradas} · saídas: {saidas}</text>
-      <text size="13">Último gancho: {ultimo}</text>
-      <button text="Voltar" on_click="voltar" padding="10 18" />
-    </column>
-  </container>
-</screen>"##
-                .to_string(),
-        )
+        Template::File("examples/ciclo_vida_rust/painel.gv".into())
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {

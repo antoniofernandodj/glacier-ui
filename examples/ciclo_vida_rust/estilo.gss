@@ -1,0 +1,23 @@
+:root {
+  --titulo: #ECEFF4;
+  --destaque: #88C0D0;
+}
+
+.tela {
+  padding: 24;
+  align_x: Center;
+  align_y: Center;
+  width: fill;
+  height: fill;
+}
+
+.coluna {
+  spacing: 14;
+  width: 520;
+}
+
+.titulo { size: 18; bold: true; color: var(--titulo); }
+
+.info { size: 13; color: var(--destaque); }
+
+.botao { padding: 10 18; }
