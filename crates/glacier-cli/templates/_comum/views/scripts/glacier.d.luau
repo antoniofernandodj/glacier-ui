@@ -17,6 +17,9 @@ export type StreamHandle = {
 
 export type StreamOptions = {
     headers: { [string]: string }?,
+    -- "window" (padrão): vive até a janela fechar. "screen": o motor fecha ao SAIR
+    -- da tela dona (depois do `on_leave`), com `on_close`. Abra em `on_enter`.
+    scope: ("screen" | "window")?,
     on_open: (() -> ())?,
     on_message: ((data: string) -> ())?,
     on_error: ((message: string) -> ())?,

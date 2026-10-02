@@ -2902,6 +2902,12 @@ stream:close()
 `websocket` tem a mesma forma, mais `stream:send("texto")` para escrever na
 conexão viva. Guarde o handle (num módulo) se precisar fechar depois.
 
+Por padrão o stream vive até a **janela** fechar, mesmo que o usuário saia da
+tela que o abriu. `scope = "screen"` o prende à tela: o motor o fecha ao sair
+dela (depois do `on_leave`) e chama o `on_close`. Abra esses streams em
+`on_enter` — veja "Ciclo de vida" em Navegação e janelas. `stream:close()`
+também dispara o `on_close`.
+
 ### Diálogos
 
 #### `confirm(opts) -> boolean` — **suspende**
@@ -3077,6 +3083,49 @@ close_window()                                            -- fecha a própria
 carga)` de cada outra janela. Uma tabela vira JSON na ida e chega decodificada
 do outro lado. O par `broadcast` + `close_window` é como uma janela auxiliar
 (um formulário) avisa e se dispensa.
+
+#### Ciclo de vida
+
+Funções globais opcionais; o motor as chama, você só as define:
+
+| gancho | quando | observação |
+|---|---|---|
+| `init()` | uma vez, quando a tela monta | é o único que roda na tela **inicial** |
+| `on_enter()` | a navegação **chega** a esta tela | depois da troca; não roda na tela inicial |
+| `on_leave()` | a navegação **sai** desta tela | antes da troca (ainda é a tela atual); depois dele o motor fecha os streams `scope = "screen"` |
+| `on_destroy()` | a janela é fechada de verdade | só a tela atual; `ctx` já não é desenhado, mas `fetch` ainda vale; não roda ao recolher a janela principal para a bandeja |
+| `on_broadcast(evento, carga)` | outra janela chamou `broadcast` | |
+
+```lua
+local conn: StreamHandle? = nil
+
+function on_enter(): ()
+    conn = sse(ctx.url, {
+        scope = "screen",                       -- fecha sozinho ao sair da tela
+        on_message = function(d: string): () ctx.msg = d end,
+        on_close = function(): () conn = nil end,
+    })
+end
+
+function on_leave(): ()
+    ctx.ultimo = "saiu"                         -- roda ANTES de o stream fechar
+end
+```
+
+Pegadinhas:
+- `on_enter`/`on_leave` rodam só na navegação pedida pelo **script**
+  (`navigate`/`navigate_back`). Os atributos `navigate_to=`/`navigate_back` do
+  markup trocam a tela **sem** rodar ganchos nem fechar streams `scope = "screen"`:
+  numa tela com gancho, navegue pelo script. Um `navigate()` **dentro** de um
+  gancho é ignorado. Navegar para a tela já ativa não dispara nada.
+- Quem abre stream no `init()` de uma tela inicial e não usa `scope` o mantém
+  vivo a sessão inteira — é o certo para um SSE global, o errado para o de uma
+  tela secundária.
+- O gancho de uma tela que **não** é a atual não roda ao fechar a janela: feche
+  o que precisar em `on_leave`, não em `on_destroy`.
+
+Exemplos no repositório do glacier-ui: `ciclo_vida_luau` (streams reais com
+`scope = "screen"`) e `ciclo_vida_rust` (os mesmos ganchos em `Component`).
 
 ### Tempo
 
