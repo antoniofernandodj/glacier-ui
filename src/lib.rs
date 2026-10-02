@@ -374,6 +374,8 @@ pub struct GlacierUI {
     /// janela (via [`component::Context::close_window`]). O daemon o consome com
     /// [`GlacierUI::take_close_requested`] após cada `dispatch` e fecha a janela.
     pending_close_self: bool,
+    /// Dentro de `on_enter`/`on_leave`: pedidos de navegação são ignorados.
+    in_lifecycle: bool,
     /// Coalescência de reavaliação para eventos de stream de alta frequência
     /// (`sse`/`websocket`). Reavaliar TODOS os templates a cada mensagem de
     /// stream é O(templates) por mensagem e, sob um stream verborrágico (ex.:
@@ -655,6 +657,7 @@ impl GlacierUI {
             pending_windows: Vec::new(),
             pending_broadcasts: Vec::new(),
             pending_close_self: false,
+            in_lifecycle: false,
             pending_reeval: false,
             last_stream_reeval: None,
             assets: Arc::new(asset_source::DiskAssets),
@@ -2655,10 +2658,31 @@ impl GlacierUI {
         // stream poderia demorar até um tick para aparecer).
         let visual_change = nav.is_some() || dialog.is_some() || !toasts.is_empty();
 
-        match nav {
-            Some(component::Nav::To(s)) => self.navigate_to(&s),
-            Some(component::Nav::Back) => self.navigate_back(),
-            None => {}
+        // Navegação com ganchos: `on_leave` na tela que sai (ainda atual) e
+        // fecha seus streams `scope = "screen"`; troca; `on_enter` na que chega.
+        // Dentro de um gancho (`in_lifecycle`) o pedido de navegação é ignorado,
+        // para um `nav()` em `on_leave` não encadear ganchos sem fim.
+        let mut nav_tasks: Vec<iced::Task<EngineMessage>> = Vec::new();
+        if !self.in_lifecycle {
+            let target = match &nav {
+                Some(component::Nav::To(s)) => Some(s.clone()),
+                Some(component::Nav::Back) => self.history.last().cloned(),
+                None => None,
+            };
+            let changes = target
+                .as_ref()
+                .is_some_and(|t| self.current_screen.as_deref() != Some(t.as_str()));
+            if changes {
+                nav_tasks.push(self.leave_current_screen());
+            }
+            match nav {
+                Some(component::Nav::To(s)) => self.navigate_to(&s),
+                Some(component::Nav::Back) => self.navigate_back(),
+                None => {}
+            }
+            if changes && let Some(t) = target {
+                nav_tasks.push(self.enter_screen(&t));
+            }
         }
 
         match dialog {
@@ -2777,26 +2801,62 @@ impl GlacierUI {
                     }
                 }
                 component::StreamCommandKind::Close => {
-                    if let Some(sender) = self.stream_senders.get_mut(&key) {
-                        // WebSocket: graceful close; the task then emits `Closed`,
-                        // which cleans up the sender and `active_streams`.
-                        let _ = sender.try_send(net::WsCommand::Close);
-                    } else if self.active_streams.remove(&key).is_some() {
-                        // Derrubar a subscription para a task sem emitir
-                        // `Closed`, então o motor o entrega aqui: sem isso o
-                        // `on_close` do Lua nunca roda e o registro do stream
-                        // (com as refs dos handlers) vazaria.
-                        tasks.push(iced::Task::done(EngineMessage::LuauStream {
-                            owner: owner.to_string(),
-                            id: cmd.id,
-                            event: net::StreamEvent::Closed,
-                        }));
-                    }
+                    tasks.extend(self.close_stream(&key));
                 }
             }
         }
 
+        tasks.extend(nav_tasks);
         iced::Task::batch(tasks)
+    }
+
+    /// Fecha o stream `key`. WebSocket: pede o fechamento gracioso pelo canal e
+    /// a própria task emite `Closed`. SSE (só leitura, sem canal): tira da lista
+    /// — o que derruba a subscription sem a task emitir nada — e entrega o
+    /// `Closed` por uma `Task`; sem isso o `on_close` do Lua nunca roda e o
+    /// registro do stream (com as refs dos handlers) vazaria.
+    fn close_stream(&mut self, key: &(String, u64)) -> Option<iced::Task<EngineMessage>> {
+        if let Some(sender) = self.stream_senders.get_mut(key) {
+            let _ = sender.try_send(net::WsCommand::Close);
+            None
+        } else if self.active_streams.remove(key).is_some() {
+            Some(iced::Task::done(EngineMessage::LuauStream {
+                owner: key.0.clone(),
+                id: key.1,
+                event: net::StreamEvent::Closed,
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// Sai da tela atual: roda o `on_leave` dela e fecha os streams que ela
+    /// abriu com `scope = "screen"`. Não troca a tela — quem chama troca depois.
+    fn leave_current_screen(&mut self) -> iced::Task<EngineMessage> {
+        let Some(owner) = self.current_screen.clone() else {
+            return iced::Task::none();
+        };
+        self.in_lifecycle = true;
+        let mut tasks = vec![self.run_on_owner(&owner, false, |comp, ctx| comp.on_leave(ctx))];
+        self.in_lifecycle = false;
+        let keys: Vec<(String, u64)> = self
+            .active_streams
+            .iter()
+            .filter(|((o, _), req)| *o == owner && req.scope_screen)
+            .map(|(k, _)| k.clone())
+            .collect();
+        for key in keys {
+            tasks.extend(self.close_stream(&key));
+        }
+        iced::Task::batch(tasks)
+    }
+
+    /// Chega a `name` (já a tela atual): roda o `on_enter` dela.
+    fn enter_screen(&mut self, name: &str) -> iced::Task<EngineMessage> {
+        self.in_lifecycle = true;
+        let task = self.run_on_owner(name, false, |comp, ctx| comp.on_enter(ctx));
+        self.in_lifecycle = false;
+        task
     }
 
     /// Retira e devolve as janelas que os componentes deste motor pediram para
@@ -5182,6 +5242,94 @@ mod dirty_tracking_tests {
             Template::Inline(r#"<Column class="alvo"><Text content="x" /></Column>"#.to_string())
         }
         fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
+}
+
+#[cfg(test)]
+mod ciclo_de_vida_tests {
+    use super::*;
+    use crate::component::{Component, Context, StreamKind, StreamRequest, Template};
+
+    /// Tela `a`: abre um stream preso à tela e outro à janela no `init`, e
+    /// navega para `b` na ação `ir`. Os ganchos deixam rastro no contexto.
+    struct A;
+    impl Component for A {
+        fn name(&self) -> &str {
+            "a"
+        }
+        fn template(&self) -> Template {
+            Template::Inline("<Text content=\"a\" />".to_string())
+        }
+        fn init(&mut self, ctx: &mut Context) {
+            let mk = |id, scope| {
+                StreamRequest::new(id, StreamKind::Sse, "http://x/".into(), Vec::new(), scope)
+            };
+            ctx.streams.push(mk(1, true));
+            ctx.streams.push(mk(2, false));
+        }
+        fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+            match action {
+                "ir" => ctx.navigate_to("b"),
+                "voltar" => ctx.navigate_back(),
+                _ => {}
+            }
+        }
+        fn on_leave(&mut self, ctx: &mut Context) {
+            ctx.set("rastro", "a:leave");
+            // Navegar de dentro de um gancho é ignorado (sem encadear ganchos).
+            ctx.navigate_to("b");
+        }
+        fn on_enter(&mut self, ctx: &mut Context) {
+            ctx.set("rastro", "a:enter");
+        }
+    }
+
+    struct B;
+    impl Component for B {
+        fn name(&self) -> &str {
+            "b"
+        }
+        fn template(&self) -> Template {
+            Template::Inline("<Text content=\"b\" />".to_string())
+        }
+        fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
+            if action == "voltar" {
+                ctx.navigate_back();
+            }
+        }
+        fn on_enter(&mut self, ctx: &mut Context) {
+            ctx.set("rastro", "b:enter");
+        }
+    }
+
+    fn motor() -> GlacierUI {
+        let mut m = GlacierUI::new();
+        m.register(Box::new(A)).unwrap();
+        m.register(Box::new(B)).unwrap();
+        m.set_initial_screen("a");
+        m
+    }
+
+    #[test]
+    fn sair_da_tela_roda_on_leave_e_fecha_so_o_stream_da_tela() {
+        let mut m = motor();
+        assert_eq!(m.active_streams.len(), 2);
+        let _ = m.dispatch(&EngineMessage::UiClick("ir".into()));
+
+        assert_eq!(m.current_screen_name(), Some("b"));
+        // `on_leave` de a rodou, depois `on_enter` de b (o último a escrever).
+        assert_eq!(m.get_data("rastro").map(String::as_str), Some("b:enter"));
+        let ids: Vec<u64> = m.active_streams.keys().map(|(_, id)| *id).collect();
+        assert_eq!(ids, vec![2], "só o stream scope=window sobrevive à saída");
+    }
+
+    #[test]
+    fn voltar_roda_on_enter_da_tela_de_destino() {
+        let mut m = motor();
+        let _ = m.dispatch(&EngineMessage::UiClick("ir".into()));
+        let _ = m.dispatch(&EngineMessage::UiClick("voltar".into()));
+        assert_eq!(m.current_screen_name(), Some("a"));
+        assert_eq!(m.get_data("rastro").map(String::as_str), Some("a:enter"));
     }
 }
 

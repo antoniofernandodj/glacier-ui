@@ -8,6 +8,23 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.111.0 — 2026-10-02
+
+- **Ganchos `on_enter()` / `on_leave()` de tela** (Luau e `Component::on_enter`/
+  `on_leave`). Rodam na navegação pedida por componentes (`navigate`/
+  `navigate_back`): `on_leave` na tela que sai (ainda atual), depois a troca,
+  depois `on_enter` na que chega. Não rodam para a tela inicial (vale o `init()`),
+  nem quando se navega para a tela já ativa, nem em `GlacierUI::navigate_to`
+  chamado direto pelo app Rust. Um `navigate()` dentro de um gancho é ignorado.
+- **`sse`/`websocket` com `scope = "screen"`.** O motor fecha o stream ao sair da
+  tela dona, depois do `on_leave`, entregando o `on_close`. `scope = "window"`
+  (o padrão) mantém o comportamento anterior: vive até a janela fechar. Abra os
+  streams de tela em `on_enter`.
+- Exemplos `ciclo_vida_luau` e `ciclo_vida_rust`, com um servidor SSE + WebSocket
+  real numa thread (`tests/ciclo_vida_servidor.rs` o exercita).
+
+---
+
 ## glacier-ui 0.110.0 — 2026-10-02
 
 - **Novo gancho `on_destroy()` (Luau) / `Component::on_destroy`.** Roda uma vez

@@ -1312,6 +1312,21 @@ end
 Roda só quando a janela é descartada de verdade (não ao recolher para a bandeja)
 e só para a tela atual; `ctx` não é mais desenhado, mas `fetch` ainda vale.
 
+**Ciclo de vida de tela.** Por padrão um stream vive até a janela fechar, mesmo
+que o usuário saia da tela que o abriu. Para prendê-lo à tela, `scope = "screen"`,
+abrindo em `on_enter` — o motor o fecha (com `on_close`) ao sair:
+
+```lua
+function on_enter()
+    conn = sse(ctx.url, { scope = "screen", on_message = function(d) ctx.msg = d end })
+end
+function on_leave() end   -- opcional; roda ANTES de os streams da tela fecharem
+```
+
+`on_enter`/`on_leave` rodam na navegação pedida por `navigate`/`navigate_back`;
+não rodam para a tela inicial (use `init()`). Exemplos: `ciclo_vida_luau` e
+`ciclo_vida_rust`.
+
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir
 `self.motor.subscription()` — sem isso, nenhuma conexão é aberta. Veja

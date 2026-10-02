@@ -28,9 +28,11 @@ end
 
 -- Server-Sent Events. NÃO suspende: cede um pedido de abertura, o motor
 -- registra o stream e retoma na hora devolvendo um handle com `:close()`.
--- `opts` = { headers?, on_open?, on_message?, on_error?, on_close? }, cada
+-- `opts` = { headers?, scope?, on_open?, on_message?, on_error?, on_close? }, cada
 -- callback uma FUNÇÃO (closure e upvalue funcionam). Um nome de função global
--- também é aceito, como atalho — ver `handler_key` em src/luau/mod.rs.
+-- também é aceito, como atalho — ver `handler_key` em src/luau/mod.rs. `scope`:
+-- "window" (padrão: vive até a janela fechar) ou "screen" (o motor fecha ao SAIR
+-- da tela, com `on_close`; abra em `on_enter`).
 function sse(url, opts)
     local id = coroutine.yield({
         __glacier_stream_open = true,

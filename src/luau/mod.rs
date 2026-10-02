@@ -816,6 +816,10 @@ impl LuauComponent {
         };
         let url: String = req.get("url")?;
         let opts: Option<Table> = req.get("opts")?;
+        let opts_scope: Option<String> = match &opts {
+            Some(o) => o.get("scope")?,
+            None => None,
+        };
         let (headers, reg) = match opts {
             Some(o) => {
                 let headers = parse_headers_table(&o)?;
@@ -837,8 +841,19 @@ impl LuauComponent {
                 },
             ),
         };
+        let scope_screen = match &opts_scope {
+            Some(v) if v == "screen" => true,
+            Some(v) if v == "window" => false,
+            Some(v) => {
+                return Err(mlua::Error::RuntimeError(format!(
+                    "sse/websocket: scope '{v}' inválido (use \"screen\" ou \"window\")"
+                )));
+            }
+            None => false,
+        };
         self.streams.borrow_mut().insert(id, reg);
-        ctx.streams.push(StreamRequest::new(id, kind, url, headers));
+        ctx.streams
+            .push(StreamRequest::new(id, kind, url, headers, scope_screen));
         Ok(())
     }
 
@@ -951,9 +966,14 @@ impl LuauComponent {
         self.drive(thread, args, ctx)
     }
 
-    /// Chama a função Lua global `on_destroy()` (sem argumentos), se existir.
     fn on_destroy_inner(&self, ctx: &mut Context) -> mlua::Result<()> {
-        let Ok(func) = self.luau.globals().get::<Function>("on_destroy") else {
+        self.call_global_inner("on_destroy", ctx)
+    }
+
+    /// Chama a função Lua global `name()` (sem argumentos) como corrotina, se
+    /// existir — os ganchos de ciclo de vida (`on_destroy`, `on_enter`, `on_leave`).
+    fn call_global_inner(&self, name: &str, ctx: &mut Context) -> mlua::Result<()> {
+        let Ok(func) = self.luau.globals().get::<Function>(name) else {
             return Ok(());
         };
         self.sync_to_luau(ctx)?;
@@ -1147,6 +1167,26 @@ impl Component for LuauComponent {
             }
         } else if let Some(inner) = &self.inner {
             inner.borrow_mut().on_broadcast(event, payload, ctx);
+        }
+    }
+
+    fn on_enter(&mut self, ctx: &mut Context) {
+        if self.luau.globals().get::<Function>("on_enter").is_ok() {
+            if let Err(e) = self.call_global_inner("on_enter", ctx) {
+                self.report_error("on_enter", e, ctx);
+            }
+        } else if let Some(inner) = &self.inner {
+            inner.borrow_mut().on_enter(ctx);
+        }
+    }
+
+    fn on_leave(&mut self, ctx: &mut Context) {
+        if self.luau.globals().get::<Function>("on_leave").is_ok() {
+            if let Err(e) = self.call_global_inner("on_leave", ctx) {
+                self.report_error("on_leave", e, ctx);
+            }
+        } else if let Some(inner) = &self.inner {
+            inner.borrow_mut().on_leave(ctx);
         }
     }
 
@@ -3828,6 +3868,42 @@ mod tests {
             Some("project_created")
         );
         assert_eq!(ctx.get("got_name").map(String::as_str), Some("api"));
+    }
+
+    #[test]
+    fn sse_scope_screen_marca_o_pedido_e_o_padrao_e_janela() {
+        let mut comp = LuauComponent::from_source(
+            "function init()\n\
+               sse('http://ex/a', { scope = 'screen' })\n\
+               sse('http://ex/b', {})\n\
+               websocket('ws://ex/c', { scope = 'window' })\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.init(&mut ctx);
+        let escopos: Vec<bool> = ctx.streams.iter().map(|r| r.scope_screen).collect();
+        assert_eq!(escopos, vec![true, false, false]);
+    }
+
+    #[test]
+    fn on_enter_e_on_leave_globais_rodam() {
+        let mut comp = LuauComponent::from_source(
+            "function on_enter() ctx.ev = 'entrou' end\n\
+             function on_leave() ctx.ev = 'saiu' end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        Component::on_enter(&mut comp, &mut ctx);
+        assert_eq!(ctx.get("ev").map(String::as_str), Some("entrou"));
+        Component::on_leave(&mut comp, &mut ctx);
+        assert_eq!(ctx.get("ev").map(String::as_str), Some("saiu"));
     }
 
     #[test]
