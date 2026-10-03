@@ -16,21 +16,10 @@ name = "{{nome_projeto}}"
 path = "src/main.rs"
 
 [dependencies]
-# O motor. Ele reexporta o `iced` (`glacier_ui::iced`).
-glacier-ui = "{{versao_motor}}"
-
-# ── Só no Android ────────────────────────────────────────────────────────────
-[target.'cfg(target_os = "android")'.dependencies]
-# `android-native-activity` liga o backend do winit para `NativeActivity`.
-winit = { version = "0.30", default-features = false, features = ["android-native-activity", "rwh_06"] }
-# Resolvido para o fork de Android (ver `[patch.crates-io]` abaixo): é dele
-# que vem `iced_winit::android::set_android_app`.
-iced_winit = { version = "0.14", default-features = false }
-# `fira-sans`: uma fonte embutida, para o texto não depender de fonte de sistema.
-# O mesmo cuidado que o motor tem na web.
-iced = { version = "0.14", default-features = false, features = ["fira-sans"] }
-log = "0.4"
-android_logger = "0.14"
+# O motor. Ele reexporta o `iced` (`glacier_ui::iced`). A feature `android` traz
+# o que o `NativeActivity` exige (winit, logger do logcat, fonte embutida) e a
+# macro `glacier_ui::android_main!`; no desktop ela não muda nada.
+glacier-ui = { version = "{{versao_motor}}", features = ["android"] }
 
 # ── O APK ────────────────────────────────────────────────────────────────────
 # Lido pelo `cargo-apk`. `build_targets` é o que `make build` compila por padrão
@@ -65,7 +54,8 @@ key_alias = "{{nome_crate}}"
 key_password = "{{nome_crate}}"
 
 # O `iced_winit` 0.14 não cria o `EventLoop` no Android (o winit exige o
-# `AndroidApp`) nem compila o teclado lá. Este fork mantém o NOME `iced_winit`
+# `AndroidApp`) nem compila o teclado lá, e o `glacier-ui` (feature `android`)
+# usa o `iced_winit::android` que só o fork tem. Este fork mantém o NOME `iced_winit`
 # (o `[patch]` só troca um crate por outro de mesmo nome) e muda só o que está
 # atrás de `cfg(target_os = "android")`: fora do Android ele é idêntico ao
 # original. Ver o README do repositório.

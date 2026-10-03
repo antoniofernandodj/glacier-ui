@@ -21,22 +21,7 @@ pub fn run() -> glacier_ui::iced::Result {
     daemon.main_template("views/app.gv").run()
 }
 
-/// O ponto de entrada do `NativeActivity`. O `AndroidApp` precisa ser entregue
-/// ao `iced_winit` ANTES de qualquer janela: é com ele que o winit cria o
-/// `EventLoop`.
-#[cfg(target_os = "android")]
-#[unsafe(no_mangle)]
-fn android_main(app: iced_winit::android::AndroidApp) {
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Info)
-            .with_tag("{{nome_crate}}"),
-    );
-    log::info!("android_main: iniciando");
-
-    iced_winit::android::set_android_app(app);
-
-    if let Err(erro) = run() {
-        log::error!("o app terminou com erro: {erro}");
-    }
-}
+// O ponto de entrada do `NativeActivity` (`android_main`). A macro registra o
+// `AndroidApp` ANTES de qualquer janela, liga o logcat (tag = nome do crate) e
+// chama `run()` — o mesmo que o desktop chama. Fora do Android ela não gera nada.
+glacier_ui::android_main!(run);

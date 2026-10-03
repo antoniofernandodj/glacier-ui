@@ -29,7 +29,7 @@ No Windows não há `make`: `fazer setup`, `fazer doctor`, `fazer build`,
 
 | Arquivo | O que é |
 |---|---|
-| `src/lib.rs` | o app (`run()`) + `android_main`, o ponto de entrada do `NativeActivity` |
+| `src/lib.rs` | o app (`run()`) + `glacier_ui::android_main!(run)`, que gera o ponto de entrada do `NativeActivity` |
 | `src/main.rs` | o desktop: chama o mesmo `run()` |
 | `views/app.gv` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
 | `views/styles/` | `theme.json` (fundo da janela) e `app.gss` (paleta e classes) |
@@ -55,6 +55,11 @@ teclado lá. O `[patch.crates-io]` do `Cargo.toml` troca por
 que mantém o nome do pacote e muda só o que está atrás de
 `cfg(target_os = "android")` — fora do Android ele é idêntico ao original, então
 o desktop não muda. A primeira build precisa de rede para baixá-lo.
+
+**A inicialização do Android está escondida no motor.** `src/lib.rs` só declara
+`glacier_ui::android_main!(run)`: a macro gera o `android_main`, entrega o
+`AndroidApp` ao `iced_winit`, liga o logcat e chama o mesmo `run()` do desktop. A
+feature `android` do `glacier-ui` traz o resto (winit, logger, fonte embutida).
 
 **O pacote tem `lib` e `bin`**, por isso o build usa `cargo apk build --lib`: o
 APK carrega a `cdylib`.

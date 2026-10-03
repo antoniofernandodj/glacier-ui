@@ -21,6 +21,47 @@ macro_rules! println {
     ($($arg:tt)*) => { $crate::web_console(false, &format!($($arg)*)) };
 }
 
+// Sem a feature, um app que compila para Android falharia mais adiante, num erro
+// de linker sobre `android_main`. Melhor dizer o que fazer.
+#[cfg(all(target_os = "android", not(feature = "android")))]
+compile_error!(
+    "para compilar o glacier-ui no Android ligue a feature `android`: \
+     glacier-ui = { version = \"…\", features = [\"android\"] } (e veja `glacier_ui::android_main!`)"
+);
+
+#[cfg(all(target_os = "android", feature = "android"))]
+pub mod android;
+
+/// Gera o ponto de entrada do Android (`android_main`) a partir da função que já
+/// roda o app no desktop — o mesmo `run()` serve aos dois alvos.
+///
+/// ```ignore
+/// pub fn run() -> glacier_ui::iced::Result {
+///     GlacierDaemon::new().main_template("views/app.gv").run()
+/// }
+///
+/// glacier_ui::android_main!(run);
+/// ```
+///
+/// No Android a macro registra o `AndroidApp` ANTES de qualquer janela (é com
+/// ele que o winit cria o `EventLoop`), liga o logger do `logcat` (tag = nome do
+/// crate) e chama `run`; um `Err` vai para o log. Em qualquer outro alvo ela não
+/// gera nada — pode ficar no `lib.rs` sem `cfg`. Exige a feature `android` e o
+/// fork do `iced_winit` no `[patch.crates-io]` do app (ver `src/android.rs`).
+#[macro_export]
+macro_rules! android_main {
+    ($run:path) => {
+        #[cfg(target_os = "android")]
+        #[unsafe(no_mangle)]
+        fn android_main(app: $crate::android::AndroidApp) {
+            $crate::android::init(app, env!("CARGO_CRATE_NAME"));
+            if let Err(erro) = $run() {
+                $crate::android::reportar_erro(&erro);
+            }
+        }
+    };
+}
+
 pub mod anchored;
 pub mod animated_toggler;
 pub mod app;

@@ -8,6 +8,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.113.0 · CLI 0.5.24 — 2026-10-02
+
+- **A inicialização do Android fica dentro do motor.** Nova feature `android` e a
+  macro `glacier_ui::android_main!(run)`: o app declara uma linha no `lib.rs` e o
+  MESMO `run()` serve ao desktop e ao celular. A macro gera o `android_main`,
+  entrega o `AndroidApp` ao `iced_winit`, liga o logcat (tag = nome do crate) e
+  loga o `Err` de `run`. A feature liga o backend `NativeActivity` do winit e
+  embute uma fonte; no desktop não muda nada (as dependências são só do alvo
+  `android`). Sem ela, compilar para Android dá um `compile_error!` que diz o que
+  fazer. **O `[patch.crates-io]` do fork `antoniofernandodj/iced_winit` continua no
+  `Cargo.toml` do app**: um `[patch]` só vale na raiz, o motor não consegue
+  trazê-lo. O motor ainda não compila para Android por outros motivos (`rfd`) — ver
+  o `ANDROID_TODO.md` do preset.
+- **CLI:** o preset `android` usa `glacier-ui = { features = ["android"] }` e
+  `glacier_ui::android_main!(run)`; sai do `lib.rs` o `android_main` escrito à mão.
+
+---
+
 ## CLI 0.5.23 — 2026-10-02
 
 - **Preset `android`: o `iced_winit` com suporte a Android vem de um fork em git**

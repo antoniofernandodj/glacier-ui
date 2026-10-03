@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.112.0"
+version = "0.113.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -295,6 +295,22 @@ console_error_panic_hook = "0.1"
 log = "0.4"
 console_log = "1"
 
+# ── Android — opcional, atrás da feature `android` ───────────────────────────
+# Esconde a inicialização do `NativeActivity` (ver `src/android.rs` e a macro
+# `glacier_ui::android_main!`): o app chama a mesma `run()` no desktop e no
+# celular. O `iced_winit` que importa é o do FORK
+# `antoniofernandodj/iced_winit` (tag `0.14.1-android`), que tem o módulo
+# `iced_winit::android` — o publicado no crates.io não tem. Um `[patch]` só vale
+# no `Cargo.toml` raiz do app, então é o APP que o declara (o preset `android`
+# da CLI já o escreve); sem ele esta feature não compila.
+#
+# `android-native-activity` liga o backend do winit para `NativeActivity`.
+[target.'cfg(target_os = "android")'.dependencies]
+iced_winit = { version = "0.14", default-features = false, optional = true }
+winit = { version = "0.30", default-features = false, features = ["android-native-activity", "rwh_06"], optional = true }
+android_logger = { version = "0.14", optional = true }
+log = { version = "0.4", optional = true }
+
 # ── Webview embutida — opcional, atrás da feature `webview` ──────────────────
 # `open_window({ webview_url = "..." })` na camada Lua: abre uma janela cujo
 # conteúdo INTEIRO é uma webview nativa do SO (WebKitGTK no Linux, WebView2 no
@@ -392,6 +408,13 @@ cc = { version = "1", optional = true }
 rusqlite = { version = "0.30", features = ["bundled"] }
 
 [features]
+# O ponto de entrada do Android escondido no motor: `glacier_ui::android_main!`
+# + o fork do `iced_winit` (ver o bloco "Android" nas dependências). No desktop é
+# inofensiva — todas as dependências dela são só do alvo `android`. `fira-sans`
+# embute uma fonte, porque o Android não deixa o `cosmic-text` achar as do
+# sistema de forma confiável (o mesmo cuidado da web).
+android = ["dep:iced_winit", "dep:winit", "dep:android_logger", "dep:log", "iced/fira-sans"]
+
 # Habilita o ícone de bandeja e o app que sobrevive à última janela. `dep:gtk` e
 # `dep:windows-sys` são deps por-alvo: a ativação é no-op nos alvos onde não
 # existem, então a feature é a mesma nas três plataformas.

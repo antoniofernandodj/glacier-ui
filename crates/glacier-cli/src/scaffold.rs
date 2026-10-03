@@ -74,7 +74,7 @@ pub static PRESETS: &[Preset] = &[
         descricao: "O app mínimo rodando no desktop e no celular, com Makefile e fazer.bat que preparam a máquina (Java, SDK/NDK, cargo-apk) e geram o APK.",
         destaques: &[
             "Makefile (Linux) e fazer.bat (Windows): setup, doctor, build, release, install, launch, logcat, emulador",
-            "src/lib.rs — run() + android_main; views/ embutida no .so só no alvo android",
+            "src/lib.rs — run() + glacier_ui::android_main!(run): a inicialização do Android fica no motor; views/ embutida no .so",
             "[patch] para o fork antoniofernandodj/iced_winit — o iced_winit 0.14 com o suporte a Android que o winit exige",
             "ANDROID_TODO.md — o que do glacier ainda não funciona lá (open_window, rfd, IME, storage…)",
         ],
@@ -419,6 +419,7 @@ mod testes {
         let cargo = fs::read_to_string(destino.join("Cargo.toml")).expect("ler Cargo.toml");
         assert!(cargo.contains("name = \"meu_app\""), "lib sem o nome de crate");
         assert!(cargo.contains("package = \"com.example.meu_app\""));
+        assert!(cargo.contains("features = [\"android\"]"), "falta a feature android do motor");
         assert!(
             cargo.contains("iced_winit = { git = \"https://github.com/antoniofernandodj/iced_winit\""),
             "o [patch] do iced_winit de Android sumiu"

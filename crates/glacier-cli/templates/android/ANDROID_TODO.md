@@ -40,10 +40,11 @@ Medido com `cargo check --lib --target aarch64-linux-android` no motor:
 - [ ] **`libc++_shared.so`**: o Luau é C++; o crate `cc` liga a `c++_shared` no
       Android, e a biblioteca precisa ir **dentro do APK**. Verificar se o
       `cargo-apk` a empacota; senão, `CXXSTDLIB=c++_static` ou copiá-la.
-- [ ] O motor sozinho não passa no `cargo check` para Android: o
-      `android-activity` exige que alguém escolha `native-activity` ou
-      `game-activity`. O preset escolhe (feature do `winit` no `Cargo.toml`).
-      Um `cargo check` do motor no CI precisaria fazer o mesmo.
+- [ ] O motor só compila para Android com a feature `android` (que escolhe
+      `native-activity` no winit) **e** o fork do `iced_winit` no `[patch]` do
+      app — um `[patch]` só vale no `Cargo.toml` raiz, então o motor não
+      consegue trazê-lo sozinho. Um `cargo check` do motor no CI precisaria
+      declarar os dois. Fim da linha: o patch entrar no `iced`/`winit` upstream.
 - [ ] Features `tray`, `webview`, `system-fonts` e `single_instance`: **não
       ligar** no Android (Linux/desktop). Garantir que ligá-las dá erro claro,
       não um erro de linker.
