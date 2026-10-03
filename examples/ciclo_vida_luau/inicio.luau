@@ -10,3 +10,7 @@ end
 function ir_monitor()
     navigate("monitor")
 end
+
+function on_destroy()
+    console.log("finalizando...")
+end
