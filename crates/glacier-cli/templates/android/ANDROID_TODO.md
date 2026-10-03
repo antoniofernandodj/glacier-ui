@@ -1,13 +1,13 @@
 # Android — o que falta adaptar
 
 O glacier-ui nasceu desktop-first. Este preset entrega o **caminho de build**
-(setup, APK, instalação, logcat, o entry point e o patch do `iced_winit`); o
+(setup, APK, instalação, logcat, o entry point e o fork do `iced_winit`); o
 **motor** ainda não foi adaptado. Esta lista é o que se sabe que falta.
 
 ## Estado deste preset
 
 - [x] Verificado na criação do preset: o projeto gerado passa no `cargo check`
-      do **desktop**; o `patches/iced_winit` compila para
+      do **desktop**; o fork do `iced_winit` compila para
       `aarch64-linux-android`; `make doctor` e `make -n build` rodam.
 - [ ] **Nunca rodou num aparelho.** O Makefile/`fazer.bat` e o patch foram
       escritos a partir de um projeto de referência (iced 0.13 + cargo-apk) e
@@ -150,8 +150,9 @@ uma chave em `[package.metadata.android]` documentada:
 - [ ] **Tamanho**: o APK de debug passa de 150 MB (iced + wgpu + Luau). Medir o
       de release (`opt-level`, `lto`, `strip`, `panic = "abort"`); separar
       ABIs (`aab`/splits).
-- [ ] **`patches/iced_winit` é uma cópia** do 0.14.1. Ao subir o `glacier-ui`
-      para outro `iced`, refazer a cópia e reaplicar `ANDROID.patch`. O fim
+- [ ] **O fork `antoniofernandodj/iced_winit` é do 0.14.1.** Ao subir o
+      `glacier-ui` para outro `iced`, refazer o fork e a tag, e atualizar o
+      `[patch]` do preset. O fim
       disso é o patch entrar no `iced`/`winit` upstream, ou o motor expor um
       `EventLoop` próprio no Android.
 - [ ] **AAB e Play Store**: `cargo-apk` gera APK; para a loja é preciso um

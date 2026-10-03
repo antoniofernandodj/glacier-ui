@@ -33,7 +33,6 @@ No Windows não há `make`: `fazer setup`, `fazer doctor`, `fazer build`,
 | `src/main.rs` | o desktop: chama o mesmo `run()` |
 | `views/app.gv` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
 | `views/styles/` | `theme.json` (fundo da janela) e `app.gss` (paleta e classes) |
-| `patches/iced_winit/` | o `iced_winit` 0.14.1 + patch de Android (ver o README de lá) |
 | `Makefile` / `fazer.bat` | setup da máquina, build, instalação, logcat |
 | `ANDROID_TODO.md` | o que ainda não funciona no Android |
 
@@ -49,11 +48,13 @@ alvo `android`). Consequências:
 - **Não há hot-reload no aparelho** — mudou o `.gv`, recompile (`make launch`).
   Por isso se desenvolve no desktop (`make run`) e se confere no aparelho.
 
-**`patches/iced_winit` é obrigatório.** O `iced_winit` publicado não consegue
+**O fork do `iced_winit` é obrigatório.** O `iced_winit` publicado não consegue
 criar o `EventLoop` no Android (o winit exige o `AndroidApp`) nem compila o
-teclado lá. O `[patch.crates-io]` do `Cargo.toml` troca por uma cópia com a
-correção atrás de `cfg(target_os = "android")` — fora do Android ela é idêntica
-à original, então o desktop não muda.
+teclado lá. O `[patch.crates-io]` do `Cargo.toml` troca por
+[`antoniofernandodj/iced_winit`](https://github.com/antoniofernandodj/iced_winit),
+que mantém o nome do pacote e muda só o que está atrás de
+`cfg(target_os = "android")` — fora do Android ele é idêntico ao original, então
+o desktop não muda. A primeira build precisa de rede para baixá-lo.
 
 **O pacote tem `lib` e `bin`**, por isso o build usa `cargo apk build --lib`: o
 APK carrega a `cdylib`.

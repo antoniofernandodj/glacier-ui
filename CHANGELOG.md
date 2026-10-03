@@ -8,6 +8,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.23 — 2026-10-02
+
+- **Preset `android`: o `iced_winit` com suporte a Android vem de um fork em git**
+  ([`antoniofernandodj/iced_winit`](https://github.com/antoniofernandodj/iced_winit),
+  tag `0.14.1-android`), em vez de uma cópia de ~150 KB em `patches/iced_winit`. O
+  fork mantém o nome do pacote `iced_winit` — o `[patch.crates-io]` só troca um
+  crate por outro de mesmo nome, então um `glacier_winit` publicado não serviria.
+  A primeira build do projeto passa a precisar de rede para baixá-lo.
+
+---
+
 ## CLI 0.5.22 — 2026-10-02
 
 - **Preset `android` (experimental).** `glacier new meu-app -p android` cria o app

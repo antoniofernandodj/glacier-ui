@@ -23,7 +23,7 @@ glacier-ui = "{{versao_motor}}"
 [target.'cfg(target_os = "android")'.dependencies]
 # `android-native-activity` liga o backend do winit para `NativeActivity`.
 winit = { version = "0.30", default-features = false, features = ["android-native-activity", "rwh_06"] }
-# Resolvido para `patches/iced_winit` (ver `[patch.crates-io]` abaixo): é dele
+# Resolvido para o fork de Android (ver `[patch.crates-io]` abaixo): é dele
 # que vem `iced_winit::android::set_android_app`.
 iced_winit = { version = "0.14", default-features = false }
 # `fira-sans`: uma fonte embutida, para o texto não depender de fonte de sistema.
@@ -65,8 +65,9 @@ key_alias = "{{nome_crate}}"
 key_password = "{{nome_crate}}"
 
 # O `iced_winit` 0.14 não cria o `EventLoop` no Android (o winit exige o
-# `AndroidApp`) nem compila o teclado lá. `patches/iced_winit` é o crate
-# publicado + `ANDROID.patch`, atrás de `cfg(target_os = "android")`: fora do
-# Android ele é idêntico ao original. Ver patches/iced_winit/README.md.
+# `AndroidApp`) nem compila o teclado lá. Este fork mantém o NOME `iced_winit`
+# (o `[patch]` só troca um crate por outro de mesmo nome) e muda só o que está
+# atrás de `cfg(target_os = "android")`: fora do Android ele é idêntico ao
+# original. Ver o README do repositório.
 [patch.crates-io]
-iced_winit = { path = "patches/iced_winit" }
+iced_winit = { git = "https://github.com/antoniofernandodj/iced_winit", tag = "0.14.1-android" }

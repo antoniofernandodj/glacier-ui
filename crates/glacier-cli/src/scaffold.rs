@@ -75,7 +75,7 @@ pub static PRESETS: &[Preset] = &[
         destaques: &[
             "Makefile (Linux) e fazer.bat (Windows): setup, doctor, build, release, install, launch, logcat, emulador",
             "src/lib.rs — run() + android_main; views/ embutida no .so só no alvo android",
-            "patches/iced_winit — o iced_winit 0.14 com o patch que o Android exige",
+            "[patch] para o fork antoniofernandodj/iced_winit — o iced_winit 0.14 com o suporte a Android que o winit exige",
             "ANDROID_TODO.md — o que do glacier ainda não funciona lá (open_window, rfd, IME, storage…)",
         ],
     },
@@ -376,7 +376,7 @@ mod testes {
         let _ = fs::remove_dir_all(&destino);
     }
 
-    /// O preset Android só serve se o patch do `iced_winit` e as duas casas do
+    /// O preset Android só serve se o `[patch]` do `iced_winit` e as duas casas do
     /// build (Makefile e fazer.bat) forem junto: sem o patch o APK abre e cai
     /// no `EventLoop`; sem o `fazer.bat` o Windows fica sem caminho.
     #[test]
@@ -396,8 +396,6 @@ mod testes {
             "ANDROID_TODO.md",
             "src/lib.rs",
             "src/main.rs",
-            "patches/iced_winit/Cargo.toml",
-            "patches/iced_winit/src/lib.rs",
             "views/app.gv",
         ] {
             assert!(destino.join(esperado).is_file(), "faltou '{esperado}'");
@@ -421,11 +419,10 @@ mod testes {
         let cargo = fs::read_to_string(destino.join("Cargo.toml")).expect("ler Cargo.toml");
         assert!(cargo.contains("name = \"meu_app\""), "lib sem o nome de crate");
         assert!(cargo.contains("package = \"com.example.meu_app\""));
-        assert!(cargo.contains("iced_winit = { path = \"patches/iced_winit\" }"));
-
-        let patch = fs::read_to_string(destino.join("patches/iced_winit/src/lib.rs"))
-            .expect("ler o patch");
-        assert!(patch.contains("set_android_app"), "o iced_winit não está corrigido");
+        assert!(
+            cargo.contains("iced_winit = { git = \"https://github.com/antoniofernandodj/iced_winit\""),
+            "o [patch] do iced_winit de Android sumiu"
+        );
 
         // O .gitignore do preset sobrepõe o comum e esconde a chave de teste.
         let ignore = fs::read_to_string(destino.join(".gitignore")).expect("ler .gitignore");
