@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.113.0"
+version = "0.113.1"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -251,17 +251,23 @@ tokio-tungstenite = { version = "0.29", default-features = false, features = ["c
 # camada Luau — ver Context::notify.
 notify-rust = "4.18"
 
-# Diálogo de arquivo/pasta NATIVO do SO (Open/OpenMultiple/Save/Directory) —
-# ver src/file_dialog.rs e `open_file`/`open_files`/`save_file`/`pick_folder`
-# na camada Luau. `AsyncFileDialog` devolve um future `Send`, encaixado em
-# `iced::Task::perform` do mesmo jeito que `net::perform` já é.
-rfd = "0.17"
-
 # `zip_dir(origem, destino)` na camada Luau (ver src/luau/mod.rs) — compacta
 # um diretório num .zip. Features default do crate ligam bzip2/lzma/zstd/
 # aes/ppmd/xz que não usamos; `deflate-flate2` reaproveita o `flate2` que já
 # é dependência direta deste projeto (gzip do `fetch`, ver `net.rs`).
 zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
+
+# Diálogo de arquivo/pasta NATIVO do SO (Open/OpenMultiple/Save/Directory) —
+# ver src/file_dialog.rs e `open_file`/`open_files`/`save_file`/`pick_folder`
+# na camada Luau. `AsyncFileDialog` devolve um future `Send`, encaixado em
+# `iced::Task::perform` do mesmo jeito que `net::perform` já é.
+#
+# Fica numa tabela própria, FORA do Android: o `rfd` não tem backend lá e não
+# compila (12 erros). No Android `file_dialog::run` responde "cancelado" e avisa —
+# o equivalente de verdade é o Storage Access Framework, por JNI (ver o
+# `ANDROID_TODO.md` do preset `android` da CLI).
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.17"
 
 # ── Só na web (`wasm32-unknown-unknown`) ──────────────────────────────────────
 # SEM wgpu por padrão: só o tiny-skia, que desenha por software num canvas 2D.

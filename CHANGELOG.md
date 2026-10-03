@@ -8,6 +8,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.113.1 · CLI 0.5.25 — 2026-10-03
+
+- **O `rfd` deixa de impedir a build para Android.** Ele não tem backend lá (12
+  erros de compilação) e agora é dependência só fora do Android e da web. No
+  Android `open_file`, `open_files`, `save_file` e `pick_folder` compilam e
+  respondem "cancelado" com um aviso no logcat, como já faziam na web — não abrem
+  diálogo nenhum até haver um Storage Access Framework por JNI. Desktop e web
+  não mudam.
+- **CLI:** o `ANDROID_TODO.md` do preset `android` reflete isso (o `notify-rust`
+  compila no Android, mas não funciona).
+
+---
+
 ## glacier-ui 0.113.0 · CLI 0.5.24 — 2026-10-02
 
 - **A inicialização do Android fica dentro do motor.** Nova feature `android` e a

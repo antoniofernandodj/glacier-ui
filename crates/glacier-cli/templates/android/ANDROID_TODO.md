@@ -22,16 +22,19 @@ Quando o `make build` falhar, o erro provavelmente está em um dos itens
 
 ## Bloqueantes: o motor não compila para Android
 
-Medido com `cargo check --lib --target aarch64-linux-android` no motor:
+Medido com `cargo check --lib --target aarch64-linux-android` no motor (sem NDK
+instalado, a checagem para nos build scripts do `ring` e do `mlua-sys`: o
+código do próprio motor para Android ainda **não foi compilado**):
 
-- [ ] **`rfd`** (diálogo nativo de arquivo) não tem backend Android — **não
-      compila** (12 erros). Precisa de `cfg` no `Cargo.toml` do motor
-      (`[target.'cfg(not(target_os = "android"))'.dependencies]`) e em
-      `src/file_dialog.rs`. Afeta `open_file`, `open_files`, `save_file` e
-      `pick_folder` da camada Luau. No Android o equivalente é o Storage Access
-      Framework (`ACTION_OPEN_DOCUMENT` / `ACTION_CREATE_DOCUMENT`) por JNI.
+- [x] **`rfd`** (diálogo nativo de arquivo) não tem backend Android e não
+      compilava. Agora é dependência só fora do Android, e `file_dialog::run`
+      responde "cancelado" e avisa no logcat — `open_file`, `open_files`,
+      `save_file` e `pick_folder` **compilam, mas não abrem nada**. [ ] Falta o
+      de verdade: o Storage Access Framework (`ACTION_OPEN_DOCUMENT` /
+      `ACTION_CREATE_DOCUMENT`) por JNI, devolvendo URIs `content://` (que não
+      são caminhos de arquivo).
 - [ ] **`notify-rust`** (`notify()` do Luau) fala D-Bus/freedesktop — não existe
-      no Android. *Não confirmado se compila*; de qualquer forma não funciona.
+      no Android. **Compila** (verificado), mas não funciona.
       O equivalente é `NotificationManager` por JNI (+ permissão
       `POST_NOTIFICATIONS` no Android 13+).
 - [ ] **`ring` e `mlua-sys` (Luau, C++)** exigem o clang do NDK. O Makefile
