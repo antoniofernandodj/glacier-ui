@@ -8,6 +8,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.114.1 — 2026-10-03
+
+- **Instância única no macOS/BSD decide o dono por `flock`.** Fora do Linux o
+  socket é um arquivo, que sobrevive ao processo. Agora a decisão de quem é o
+  dono é de um `flock` num arquivo `.lock` à parte (o SO o solta na morte do
+  processo, inclusive `kill -9`); quem o ganha apaga o `.sock` sobrado e cria o
+  seu. Some a corrida entre duas instâncias limpando ao mesmo tempo, e o nome
+  deixa de depender de `$UID` (usa `$USER`). Usa `File::try_lock`, da std:
+  exige Rust 1.89. Linux e Windows não mudam.
+
+---
+
 ## glacier-ui 0.114.0 — 2026-10-03
 
 - **A instância única deixa de usar TCP em loopback.** `single_instance` agora

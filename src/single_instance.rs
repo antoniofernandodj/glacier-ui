@@ -6,9 +6,10 @@
 //! - **Unix** (Linux, macOS, BSDs): um *Unix domain socket*. Bind bem-sucedido =
 //!   este processo é o dono. No Linux o socket é **abstrato** (sem arquivo no
 //!   disco — o kernel o solta quando o processo morre, então não há socket
-//!   órfão após um crash); nos demais Unix é um arquivo em `temp_dir()`, e um
-//!   arquivo sobrado de um dono morto é detectado (o `connect` recusa) e
-//!   reaproveitado.
+//!   órfão após um crash). Nos demais Unix o socket é um arquivo em
+//!   `temp_dir()`, e quem decide o dono é um `flock` num arquivo `.lock` à
+//!   parte (solto pelo SO na morte do processo); o dono apaga o `.sock`
+//!   sobrado de um dono anterior antes de criar o seu.
 //! - **Windows**: um *mutex nomeado* (`CreateMutexW`, namespace `Local\`, ou
 //!   seja, por sessão de usuário). `ERROR_ALREADY_EXISTS` = já existe um dono;
 //!   o SO solta o mutex quando o processo morre.
@@ -94,35 +95,54 @@ mod imp {
         }
     }
 
+    /// Dono da trava `flock` — o fd aberto É a trava; o SO a solta na morte do
+    /// processo (inclusive `kill -9`), então não existe trava órfã.
+    #[cfg(not(target_os = "linux"))]
+    static LOCK_FILE: OnceLock<std::fs::File> = OnceLock::new();
+
+    /// Fora do Linux não há socket abstrato, então o socket é um arquivo — e um
+    /// arquivo sobrevive ao processo. Por isso a **decisão de quem é o dono**
+    /// não é do socket: é de um `flock` num arquivo `.lock` à parte. Só quem
+    /// ganha o `flock` mexe no `.sock`, e pode apagar o que encontrar ali sem
+    /// medo de pisar num dono vivo (não há dono vivo se o `flock` foi nosso).
+    /// Isso elimina tanto o socket órfão quanto a corrida entre duas
+    /// instâncias limpando ao mesmo tempo.
     #[cfg(not(target_os = "linux"))]
     pub fn acquire(app_id: &str) -> Lock {
-        // `$TMPDIR` já é por usuário no macOS; nos BSDs o uid vai no nome.
-        let uid = std::env::var("UID").unwrap_or_default();
-        let path = std::env::temp_dir().join(format!(
-            "glacier-single-{uid}-{:016x}.sock",
+        // `$TMPDIR` já é por usuário no macOS; nos BSDs o usuário vai no nome.
+        let user = std::env::var("USER").unwrap_or_default();
+        let base = std::env::temp_dir().join(format!(
+            "glacier-single-{user}-{:016x}",
             hash_of(app_id)
         ));
-        let listener = UnixListener::bind(&path).or_else(|e| {
-            if e.kind() != std::io::ErrorKind::AddrInUse {
-                return Err(e);
+        let sock = base.with_extension("sock");
+
+        let Ok(lock) = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(base.with_extension("lock"))
+        else {
+            // Não deu pra criar a trava: melhor abrir o app do que impedi-lo.
+            return Lock::Primary;
+        };
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                // Dono vivo: avisa e sai.
+                let _ = UnixStream::connect(&sock);
+                return Lock::Secondary;
             }
-            // Arquivo existe: dono vivo (connect aceita) ou sobra de um crash.
-            if UnixStream::connect(&path).is_ok() {
-                return Err(e);
-            }
-            let _ = std::fs::remove_file(&path);
-            UnixListener::bind(&path)
-        });
-        match listener {
-            Ok(listener) => {
-                let _ = LISTENER.set(listener);
-                Lock::Primary
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => Lock::Secondary,
-            // Não deu pra criar o socket (permissão, etc.): melhor abrir o app
-            // do que impedi-lo de abrir.
-            Err(_) => Lock::Primary,
+            Err(_) => return Lock::Primary,
         }
+
+        // Somos o dono: qualquer `.sock` aqui é sobra de um dono morto.
+        let _ = std::fs::remove_file(&sock);
+        if let Ok(listener) = UnixListener::bind(&sock) {
+            let _ = LISTENER.set(listener);
+        }
+        let _ = LOCK_FILE.set(lock);
+        Lock::Primary
     }
 
     /// Ver a nota sobre `tokio` em [`event_stream`](super::event_stream).
