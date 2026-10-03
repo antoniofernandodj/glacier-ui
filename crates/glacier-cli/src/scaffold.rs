@@ -69,6 +69,17 @@ pub static PRESETS: &[Preset] = &[
         ],
     },
     Preset {
+        id: "android",
+        titulo: "Android (experimental)",
+        descricao: "O app mínimo rodando no desktop e no celular, com Makefile e fazer.bat que preparam a máquina (Java, SDK/NDK, cargo-apk) e geram o APK.",
+        destaques: &[
+            "Makefile (Linux) e fazer.bat (Windows): setup, doctor, build, release, install, launch, logcat, emulador",
+            "src/lib.rs — run() + android_main; views/ embutida no .so só no alvo android",
+            "patches/iced_winit — o iced_winit 0.14 com o patch que o Android exige",
+            "ANDROID_TODO.md — o que do glacier ainda não funciona lá (open_window, rfd, IME, storage…)",
+        ],
+    },
+    Preset {
         id: "catalogo",
         titulo: "Catálogo de widgets",
         descricao: "Uma sidebar de categorias; cada tela mostra dezenas de widgets do motor com um exemplo mínimo e vivo, feito para copiar.",
@@ -361,6 +372,64 @@ mod testes {
         );
         assert!(destino.join("docker/nginx.conf").is_file());
         assert!(destino.join(".dockerignore").is_file());
+
+        let _ = fs::remove_dir_all(&destino);
+    }
+
+    /// O preset Android só serve se o patch do `iced_winit` e as duas casas do
+    /// build (Makefile e fazer.bat) forem junto: sem o patch o APK abre e cai
+    /// no `EventLoop`; sem o `fazer.bat` o Windows fica sem caminho.
+    #[test]
+    fn preset_android_leva_patch_makefile_e_bat_sem_marcador_sobrando() {
+        let destino = std::env::temp_dir().join(format!(
+            "glacier-scaffold-android-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = fs::remove_dir_all(&destino);
+
+        criar(&destino, "android", "meu-app", "0.112").expect("criar o preset android");
+
+        for esperado in [
+            "Makefile",
+            "fazer.bat",
+            "ANDROID_TODO.md",
+            "src/lib.rs",
+            "src/main.rs",
+            "patches/iced_winit/Cargo.toml",
+            "patches/iced_winit/src/lib.rs",
+            "views/app.gv",
+        ] {
+            assert!(destino.join(esperado).is_file(), "faltou '{esperado}'");
+        }
+
+        for texto in [
+            "Makefile",
+            "fazer.bat",
+            "Cargo.toml",
+            "src/lib.rs",
+            "src/main.rs",
+            "views/app.gv",
+        ] {
+            let conteudo = fs::read_to_string(destino.join(texto)).expect("ler");
+            assert!(
+                !conteudo.contains("{{"),
+                "marcador não substituído em {texto}"
+            );
+        }
+
+        let cargo = fs::read_to_string(destino.join("Cargo.toml")).expect("ler Cargo.toml");
+        assert!(cargo.contains("name = \"meu_app\""), "lib sem o nome de crate");
+        assert!(cargo.contains("package = \"com.example.meu_app\""));
+        assert!(cargo.contains("iced_winit = { path = \"patches/iced_winit\" }"));
+
+        let patch = fs::read_to_string(destino.join("patches/iced_winit/src/lib.rs"))
+            .expect("ler o patch");
+        assert!(patch.contains("set_android_app"), "o iced_winit não está corrigido");
+
+        // O .gitignore do preset sobrepõe o comum e esconde a chave de teste.
+        let ignore = fs::read_to_string(destino.join(".gitignore")).expect("ler .gitignore");
+        assert!(ignore.contains("release.keystore"));
 
         let _ = fs::remove_dir_all(&destino);
     }

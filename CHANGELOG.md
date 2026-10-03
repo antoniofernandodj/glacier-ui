@@ -8,6 +8,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## CLI 0.5.22 — 2026-10-02
+
+- **Preset `android` (experimental).** `glacier new meu-app -p android` cria o app
+  mínimo rodando no desktop e no celular, com `Makefile` (Linux) e `fazer.bat`
+  (Windows) que preparam a máquina (`setup`: Java 17, Android SDK/NDK, alvos Rust,
+  `cargo-apk`) e geram o APK (`doctor`, `build`, `release`, `install`, `launch`,
+  `logcat`, emulador). Leva o `iced_winit` 0.14.1 com o patch de Android em
+  `patches/iced_winit` e um `ANDROID_TODO.md` com o que do motor ainda não
+  funciona lá (`open_window` como pilha de telas, `rfd`, IME, storage…).
+  **O motor ainda não compila para Android** (o `rfd` não tem backend lá): o preset
+  entrega o caminho de build, e o APK não foi testado num aparelho.
+
+---
+
 ## glacier-ui 0.112.0 — 2026-10-02
 
 - **`navigate_to=` / `navigate_back` do markup agora rodam `on_leave`/`on_enter` e

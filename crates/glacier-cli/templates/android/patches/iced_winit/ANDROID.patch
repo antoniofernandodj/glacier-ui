@@ -1,0 +1,88 @@
+diff -ru a/iced_winit/src/conversion.rs b/iced_winit/src/conversion.rs
+--- a/iced_winit/src/conversion.rs	2026-10-02 21:30:47.125363716 -0300
++++ b/iced_winit/src/conversion.rs	2026-10-02 21:30:47.628402867 -0300
+@@ -233,13 +233,13 @@
+         WindowEvent::KeyboardInput { is_synthetic, .. } if is_synthetic => None,
+         WindowEvent::KeyboardInput { event, .. } => Some(Event::Keyboard({
+             let key = {
+-                #[cfg(not(target_arch = "wasm32"))]
++                #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+                 {
+                     use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
+                     event.key_without_modifiers()
+                 }
+ 
+-                #[cfg(target_arch = "wasm32")]
++                #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+                 {
+                     // TODO: Fix inconsistent API on Wasm
+                     event.logical_key.clone()
+@@ -247,7 +247,7 @@
+             };
+ 
+             let text = {
+-                #[cfg(not(target_arch = "wasm32"))]
++                #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+                 {
+                     use crate::core::SmolStr;
+                     use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
+@@ -255,7 +255,7 @@
+                     event.text_with_all_modifiers().map(SmolStr::new)
+                 }
+ 
+-                #[cfg(target_arch = "wasm32")]
++                #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+                 {
+                     // TODO: Fix inconsistent API on Wasm
+                     event.text
+diff -ru a/iced_winit/src/lib.rs b/iced_winit/src/lib.rs
+--- a/iced_winit/src/lib.rs	2026-10-02 21:30:47.125554709 -0300
++++ b/iced_winit/src/lib.rs	2026-10-02 21:30:47.628145888 -0300
+@@ -64,6 +64,29 @@
+ use std::slice;
+ use std::sync::Arc;
+ 
++/// Cola Android: o `winit` só cria o `EventLoop` com o `AndroidApp` que o
++/// `android_main` recebe. Chame [`set_android_app`] antes de rodar o app.
++#[cfg(target_os = "android")]
++pub mod android {
++    use std::sync::OnceLock;
++
++    pub use winit::platform::android::activity::AndroidApp;
++
++    static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
++
++    /// Registra o `AndroidApp` do `android_main`.
++    pub fn set_android_app(app: AndroidApp) {
++        let _ = ANDROID_APP.set(app);
++    }
++
++    pub(crate) fn get_android_app() -> AndroidApp {
++        ANDROID_APP
++            .get()
++            .expect("AndroidApp não registrado: chame iced_winit::android::set_android_app() no início do android_main")
++            .clone()
++    }
++}
++
+ /// Runs a [`Program`] with the provided settings.
+ pub fn run<P>(program: P) -> Result<(), Error>
+ where
+@@ -76,6 +99,17 @@
+     let settings = program.settings();
+     let window_settings = program.window();
+ 
++    #[cfg(target_os = "android")]
++    let event_loop = {
++        use winit::platform::android::EventLoopBuilderExtAndroid;
++
++        EventLoop::with_user_event()
++            .with_android_app(android::get_android_app())
++            .build()
++            .expect("Create event loop")
++    };
++
++    #[cfg(not(target_os = "android"))]
+     let event_loop = EventLoop::with_user_event()
+         .build()
+         .expect("Create event loop");

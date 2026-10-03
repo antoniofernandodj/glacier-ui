@@ -296,7 +296,26 @@ fn proximos_passos(e: &Estilo, plano: &Plano) {
     println!();
     println!("  {}", e.negrito("Pronto. A partir daqui:"));
     println!("    cd {}", plano.nome);
-    println!("    cargo run");
+    if plano.preset.id == "android" {
+        println!(
+            "    make setup           {}",
+            e.fraco("# Java 17, Android SDK/NDK, alvos Rust, cargo-apk (no Windows: fazer setup)")
+        );
+        println!(
+            "    make run             {}",
+            e.fraco("# no desktop, com hot-reload")
+        );
+        println!(
+            "    make launch          {}",
+            e.fraco("# APK no aparelho conectado por USB")
+        );
+        println!(
+            "  {}",
+            e.fraco("Preset experimental: leia ANDROID_TODO.md antes de usar APIs do motor no celular.")
+        );
+    } else {
+        println!("    cargo run");
+    }
     if plano.preset.id == "wasm32" {
         println!(
             "    glacier serve wasm   {}",

@@ -1,0 +1,32 @@
+:root {
+  --bg:      #11111B;
+  --surface: #1E1E2E;
+  --border:  #313244;
+  --text:    #CDD6F4;
+  --muted:   #7F849C;
+  --accent:  #89B4FA;
+}
+
+/* Sem `background` aqui: o fundo da janela é do `theme.json`. */
+.tela {
+  width: fill;
+  height: fill;
+  padding: 24;
+  spacing: 20;
+  align_x: center;
+  align_y: center;
+}
+
+.rotulo { size: 16; bold: true; color: var(--muted); }
+.numero { size: 96; bold: true; color: var(--text); }
+.dica   { size: 14; color: var(--muted); text_align: center; }
+
+.acoes  { spacing: 16; align_y: center; }
+
+/* Alvos de toque: o dedo pede mais que o mouse (Material pede ~48dp). */
+.btn        { color: var(--surface); text_color: var(--text); padding: 16 44; border_radius: 12; size: 28; }
+.btn:hover  { color: var(--border); }
+.btn:active { color: var(--accent); }
+
+.btn_ghost       { color: var(--bg); text_color: var(--muted); padding: 12 24; border_radius: 8; size: 16; }
+.btn_ghost:hover { text_color: var(--text); }
