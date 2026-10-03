@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.113.1"
+version = "0.114.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -359,7 +359,9 @@ optional = true
 # Só compila quando um app pede `.tray(...)` E habilita `features = ["tray"]`;
 # assim quem não usa bandeja não arrasta GTK/tray-icon. No Linux a bandeja usa
 # libappindicator+GTK, e a thread dedicada precisa do `gtk` para inicializar e
-# rodar o loop GTK; no Windows, do `windows-sys` para o message-loop Win32. macOS
+# rodar o loop GTK; no Windows, do `windows-sys` para o message-loop Win32
+# (esta dep também serve ao mutex nomeado de `src/single_instance.rs`, por isso
+# não é opcional). macOS
 # não é suportado (exige a thread principal). INCOMPATÍVEL com `webview` no
 # Linux, pelo mesmo motivo do GTK — ver o comentário no bloco `wry` acima.
 # Ver `src/tray.rs`.
@@ -380,8 +382,7 @@ optional = true
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
 version = "0.59"
-features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"]
-optional = true
+features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_Security"]
 
 # ── Enumeração de fontes do SO — opcional, atrás da feature `system-fonts` ────
 # O `iced` não lista as fontes do sistema; esta crate faz (varre os diretórios
@@ -424,7 +425,7 @@ android = ["dep:iced_winit", "dep:winit", "dep:android_logger", "dep:log", "iced
 # Habilita o ícone de bandeja e o app que sobrevive à última janela. `dep:gtk` e
 # `dep:windows-sys` são deps por-alvo: a ativação é no-op nos alvos onde não
 # existem, então a feature é a mesma nas três plataformas.
-tray = ["dep:tray-icon", "dep:gtk", "dep:windows-sys", "dep:libc"]
+tray = ["dep:tray-icon", "dep:gtk", "dep:libc"]
 
 # Acrescenta as famílias instaladas no SO à lista de `__fonts` (o seletor de
 # fonte). Desligada por padrão: sem ela, `__fonts` traz só o que o app registrou

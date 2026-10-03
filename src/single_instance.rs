@@ -1,139 +1,244 @@
 //! Trava de **instância única** por `app_id`, para [`crate::GlacierDaemon::single_instance`].
 //!
-//! A trava é um `TcpListener` em loopback (`127.0.0.1`), numa porta fixa
-//! derivada de um hash do `app_id`. Bind bem-sucedido = este processo é o dono;
-//! bind falhando com o endereço em uso = já existe um dono, e a segunda
-//! tentativa manda um "ping" (uma conexão TCP, sem payload) pra ele antes de
-//! encerrar sem abrir janela nenhuma.
+//! A primitiva é a nativa de cada sistema, escolhida em tempo de compilação com
+//! `cfg(...)`:
 //!
-//! Por que TCP loopback em vez de socket Unix / mutex nomeado do Windows: é a
-//! única primitiva de "só um dono por vez" disponível em `std` nos três
-//! sistemas operacionais, sem depender de mais crates. A troca é aceitar uma
-//! chance (pequena, e só entre apps que também escolheram essa faixa de porta)
-//! de colisão com outro processo qualquer escutando a mesma porta — não um
-//! app Glacier.
+//! - **Unix** (Linux, macOS, BSDs): um *Unix domain socket*. Bind bem-sucedido =
+//!   este processo é o dono. No Linux o socket é **abstrato** (sem arquivo no
+//!   disco — o kernel o solta quando o processo morre, então não há socket
+//!   órfão após um crash); nos demais Unix é um arquivo em `temp_dir()`, e um
+//!   arquivo sobrado de um dono morto é detectado (o `connect` recusa) e
+//!   reaproveitado.
+//! - **Windows**: um *mutex nomeado* (`CreateMutexW`, namespace `Local\`, ou
+//!   seja, por sessão de usuário). `ERROR_ALREADY_EXISTS` = já existe um dono;
+//!   o SO solta o mutex quando o processo morre.
+//! - **Android e navegador**: sem trava (o SO / a aba já definem a instância).
 //!
-//! O dono guarda o listener numa estática: só existe uma trava por processo (um
-//! `GlacierDaemon` por processo), então não há necessidade de fiar o listener
+//! Em todos, a segunda tentativa avisa o dono ("ping", sem payload) antes de
+//! encerrar sem abrir janela: no Unix é uma conexão no próprio socket; no
+//! Windows, uma abertura do *named pipe* que o dono escuta (o mutex só decide
+//! quem é o dono, não carrega aviso).
+//!
+//! O dono guarda o recurso numa estática: só existe uma trava por processo (um
+//! `GlacierDaemon` por processo), então não há necessidade de fiar nada
 //! através do `Runtime` — [`event_stream`] só lê a estática, no mesmo espírito
 //! do interruptor global de `crate::tray`.
-
-use std::net::TcpListener;
-#[cfg(not(target_arch = "wasm32"))]
-use std::net::TcpStream;
-use std::sync::OnceLock;
-
-static LISTENER: OnceLock<TcpListener> = OnceLock::new();
-
-/// Deriva uma porta estável (FNV-1a do `app_id`, mapeada em `[20000, 40000)`)
-/// — mesmo `app_id` sempre cai na mesma porta, então uma segunda tentativa sabe
-/// onde bater.
-fn port_for(app_id: &str) -> u16 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in app_id.as_bytes() {
-        hash ^= u64::from(*b);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    20000 + (hash % 20000) as u16
-}
 
 /// Resultado de [`acquire`].
 pub enum Lock {
     /// Este processo é o dono da trava — segue com o boot normal.
     Primary,
     /// Já havia um dono. O ping foi enviado (best-effort — se ele também
-    /// acabou de sair, o `connect` falha e é ignorado). O chamador deve
-    /// encerrar sem construir motor nem abrir janela.
+    /// acabou de sair, o envio falha e é ignorado). O chamador deve encerrar
+    /// sem construir motor nem abrir janela.
     Secondary,
 }
 
-/// Tenta se tornar o dono da trava de `app_id`. Ver [módulo](self).
-///
-/// No navegador não há porta para abrir (o `bind` falharia e o app se acharia
-/// a segunda cópia, fechando sem tela): cada aba é a própria instância.
-#[cfg(target_arch = "wasm32")]
+/// FNV-1a do `app_id` — mesmo `app_id` sempre dá o mesmo nome, então uma
+/// segunda tentativa sabe onde bater.
+#[cfg(any(unix, windows))]
+fn hash_of(app_id: &str) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in app_id.as_bytes() {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+// ── Sem trava: navegador e Android ──────────────────────────────────────────
+
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
 pub fn acquire(_app_id: &str) -> Lock {
     Lock::Primary
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn acquire(app_id: &str) -> Lock {
-    let port = port_for(app_id);
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(listener) => {
-            // Só há uma tentativa de `acquire` por processo (chamada uma vez em
-            // `GlacierDaemon::run`), então `set` nunca encontra a estática já
-            // preenchida.
-            let _ = LISTENER.set(listener);
-            Lock::Primary
-        }
-        Err(_) => {
-            // Best-effort: o outro lado só precisa ver a conexão chegar
-            // (`event_stream` não lê payload nenhum), não confirmar nada.
-            let _ = TcpStream::connect(("127.0.0.1", port));
-            Lock::Secondary
-        }
-    }
-}
-
-/// Stream que aceita conexões no listener guardado por [`acquire`] e emite `()`
-/// a cada uma — o daemon mapeia isso pra reabrir/focar a janela principal,
-/// mesmo caminho do "Open" da bandeja. `fn` (não closure), como
-/// [`crate::tray::event_stream`], pra `Subscription::run` derivar a chave do
-/// tipo a partir do tipo da função.
-///
-/// Usa `tokio::net::TcpListener::accept().await` — **não** uma thread dedicada
-/// bloqueando em `std::net::TcpListener::accept()` ponteada por um
-/// `std::sync::mpsc` (como a bandeja faz para o `tray-icon`, que é síncrono por
-/// natureza e não tem alternativa). Aqui a alternativa async existe e é
-/// obrigatória: `iced::stream::channel` roda o corpo dentro de
-/// `futures::stream::select(receiver, stream::once(corpo))` — uma chamada de
-/// `poll()` que nunca devolve `Poll::Pending` (por bloquear a thread de
-/// verdade em vez de ceder via `.await`) morre de fome pro lado `receiver`
-/// dentro do mesmo combinator: o item chega a ser mandado pro canal interno,
-/// mas a metade que o entregaria pra fora nunca é repolada. Só descoberto
-/// depurando com `eprintln!` — o ping chegava (confirmado via `ss` vendo o
-/// accept+close no SO) e nunca surtia efeito nenhum.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
 pub fn event_stream() -> impl futures::Stream<Item = ()> {
     futures::stream::empty()
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn event_stream() -> impl futures::Stream<Item = ()> {
-    use futures::SinkExt;
-
-    iced::stream::channel(
-        16,
-        |mut output: futures::channel::mpsc::Sender<()>| async move {
-            let Some(listener) = LISTENER.get() else {
-                return;
-            };
-            let Ok(std_listener) = listener.try_clone() else {
-                return;
-            };
-            // `tokio::net::TcpListener::from_std` exige um fd não-bloqueante — o
-            // `std::net::TcpListener` de `acquire` nasce bloqueante (default do
-            // `std`).
-            if std_listener.set_nonblocking(true).is_err() {
-                return;
-            }
-            let Ok(listener) = tokio::net::TcpListener::from_std(std_listener) else {
-                return;
-            };
-
-            while let Ok((stream, _addr)) = listener.accept().await {
-                drop(stream);
-                if output.send(()).await.is_err() {
-                    break;
-                }
-            }
-        },
-    )
-}
-
-/// `true` quando este processo detém a trava (chamado por
-/// `Runtime::subscription` pra decidir se registra [`event_stream`]).
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
 pub fn has_lock() -> bool {
-    LISTENER.get().is_some()
+    false
 }
+
+// ── Unix: Unix domain socket ────────────────────────────────────────────────
+
+#[cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))]
+mod imp {
+    use super::{Lock, hash_of};
+    use std::os::unix::net::{UnixListener, UnixStream};
+    use std::sync::OnceLock;
+
+    static LISTENER: OnceLock<UnixListener> = OnceLock::new();
+
+    #[cfg(target_os = "linux")]
+    pub fn acquire(app_id: &str) -> Lock {
+        use std::os::linux::net::SocketAddrExt;
+        use std::os::unix::net::SocketAddr;
+
+        let name = format!("glacier-single-{:016x}", hash_of(app_id));
+        let Ok(addr) = SocketAddr::from_abstract_name(name.as_bytes()) else {
+            return Lock::Primary;
+        };
+        match UnixListener::bind_addr(&addr) {
+            Ok(listener) => {
+                let _ = LISTENER.set(listener);
+                Lock::Primary
+            }
+            Err(_) => {
+                let _ = UnixStream::connect_addr(&addr);
+                Lock::Secondary
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn acquire(app_id: &str) -> Lock {
+        // `$TMPDIR` já é por usuário no macOS; nos BSDs o uid vai no nome.
+        let uid = std::env::var("UID").unwrap_or_default();
+        let path = std::env::temp_dir().join(format!(
+            "glacier-single-{uid}-{:016x}.sock",
+            hash_of(app_id)
+        ));
+        let listener = UnixListener::bind(&path).or_else(|e| {
+            if e.kind() != std::io::ErrorKind::AddrInUse {
+                return Err(e);
+            }
+            // Arquivo existe: dono vivo (connect aceita) ou sobra de um crash.
+            if UnixStream::connect(&path).is_ok() {
+                return Err(e);
+            }
+            let _ = std::fs::remove_file(&path);
+            UnixListener::bind(&path)
+        });
+        match listener {
+            Ok(listener) => {
+                let _ = LISTENER.set(listener);
+                Lock::Primary
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => Lock::Secondary,
+            // Não deu pra criar o socket (permissão, etc.): melhor abrir o app
+            // do que impedi-lo de abrir.
+            Err(_) => Lock::Primary,
+        }
+    }
+
+    /// Ver a nota sobre `tokio` em [`event_stream`](super::event_stream).
+    pub fn event_stream() -> impl futures::Stream<Item = ()> {
+        use futures::SinkExt;
+
+        iced::stream::channel(
+            16,
+            |mut output: futures::channel::mpsc::Sender<()>| async move {
+                let Some(listener) = LISTENER.get() else {
+                    return;
+                };
+                let Ok(std_listener) = listener.try_clone() else {
+                    return;
+                };
+                // `tokio::net::UnixListener::from_std` exige fd não-bloqueante.
+                if std_listener.set_nonblocking(true).is_err() {
+                    return;
+                }
+                let Ok(listener) = tokio::net::UnixListener::from_std(std_listener) else {
+                    return;
+                };
+                while let Ok((stream, _addr)) = listener.accept().await {
+                    drop(stream);
+                    if output.send(()).await.is_err() {
+                        break;
+                    }
+                }
+            },
+        )
+    }
+
+    pub fn has_lock() -> bool {
+        LISTENER.get().is_some()
+    }
+}
+
+// ── Windows: mutex nomeado + named pipe de aviso ────────────────────────────
+
+#[cfg(windows)]
+mod imp {
+    use super::{Lock, hash_of};
+    use std::sync::OnceLock;
+    use windows_sys::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    /// `HANDLE` do mutex, guardado como inteiro (ponteiro cru não é `Sync`).
+    /// Nunca é fechado: viver até o fim do processo É a trava.
+    static MUTEX: OnceLock<usize> = OnceLock::new();
+
+    fn pipe_name(app_id: &str) -> String {
+        format!(r"\\.\pipe\glacier-single-{:016x}", hash_of(app_id))
+    }
+
+    pub fn acquire(app_id: &str) -> Lock {
+        let name: Vec<u16> = format!("Local\\glacier-single-{:016x}", hash_of(app_id))
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        // SAFETY: `name` é UTF-16 terminado em NUL e vive durante a chamada.
+        let handle = unsafe { CreateMutexW(std::ptr::null(), 0, name.as_ptr()) };
+        if handle.is_null() {
+            // Não deu pra criar o mutex: melhor abrir o app do que impedi-lo.
+            return Lock::Primary;
+        }
+        // SAFETY: lido logo após `CreateMutexW`, antes de qualquer outra chamada Win32.
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            // Best-effort: o dono só precisa ver a abertura do pipe.
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .open(pipe_name(app_id));
+            return Lock::Secondary;
+        }
+        let _ = MUTEX.set(handle as usize);
+        // O nome do pipe é função só do `app_id`; guarda-o para o `event_stream`.
+        let _ = PIPE.set(pipe_name(app_id));
+        Lock::Primary
+    }
+
+    static PIPE: OnceLock<String> = OnceLock::new();
+
+    pub fn event_stream() -> impl futures::Stream<Item = ()> {
+        use futures::SinkExt;
+        use tokio::net::windows::named_pipe::ServerOptions;
+
+        iced::stream::channel(
+            16,
+            |mut output: futures::channel::mpsc::Sender<()>| async move {
+                let Some(name) = PIPE.get() else {
+                    return;
+                };
+                let Ok(mut server) = ServerOptions::new().create(name) else {
+                    return;
+                };
+                loop {
+                    if server.connect().await.is_err() {
+                        break;
+                    }
+                    // A próxima instância nasce antes de soltar a conectada,
+                    // para o pipe nunca ficar sem ouvinte entre dois pings.
+                    let Ok(next) = ServerOptions::new().create(name) else {
+                        break;
+                    };
+                    drop(std::mem::replace(&mut server, next));
+                    if output.send(()).await.is_err() {
+                        break;
+                    }
+                }
+            },
+        )
+    }
+
+    pub fn has_lock() -> bool {
+        MUTEX.get().is_some()
+    }
+}
+
+#[cfg(all(any(unix, windows), not(target_os = "android"), not(target_arch = "wasm32")))]
+pub use imp::{acquire, event_stream, has_lock};

@@ -8,6 +8,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.114.0 — 2026-10-03
+
+- **A instância única deixa de usar TCP em loopback.** `single_instance` agora
+  usa a primitiva nativa de cada sistema, escolhida com `cfg(...)`: socket Unix
+  (abstrato no Linux, arquivo em `temp_dir()` nos demais Unix) e mutex nomeado
+  `Local\...` no Windows, com um named pipe para avisar a instância já aberta.
+  Some a colisão com outro processo escutando a mesma porta. Android e web
+  seguem sem trava. A API pública não muda. No Windows, `windows-sys` passa a
+  ser dependência fixa (antes só com a feature `tray`).
+
+---
+
 ## glacier-ui 0.113.1 · CLI 0.5.25 — 2026-10-03
 
 - **O `rfd` deixa de impedir a build para Android.** Ele não tem backend lá (12
