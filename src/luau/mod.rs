@@ -210,8 +210,7 @@ impl LuauComponent {
         name: &str,
         assets: &Arc<dyn AssetSource>,
     ) -> std::result::Result<Self, String> {
-        let content = assets
-            .read_to_string(path)
+        let content = crate::asset_source::read_markup(assets.as_ref(), path)
             .map_err(|e| format!("Falha ao ler template Luau em '{}': {}", path, e))?;
         let (script, script_path) = resolve_script(&content, path, assets.as_ref())?;
         // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do

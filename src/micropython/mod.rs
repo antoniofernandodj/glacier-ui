@@ -179,8 +179,7 @@ impl MicropythonComponent {
         name: &str,
         assets: &Arc<dyn AssetSource>,
     ) -> std::result::Result<Self, String> {
-        let content = assets
-            .read_to_string(path)
+        let content = crate::asset_source::read_markup(assets.as_ref(), path)
             .map_err(|e| format!("Falha ao ler template MicroPython em '{}': {}", path, e))?;
         let script = resolve_script(&content, path, assets.as_ref())?;
         Self::build(&script, path.to_string(), name.to_string())

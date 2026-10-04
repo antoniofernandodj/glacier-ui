@@ -23,6 +23,32 @@
 use std::borrow::Cow;
 use iced::time::SystemTime;
 
+/// Lê um **template** pela fonte de assets, entregando sempre XML de `.gva`.
+///
+/// Um `.gvb` (markup de blocos, ver [`crate::gvb`]) é dessugarado aqui, na
+/// leitura — e é por isso que todo o resto do motor (o `<script>`, o `<style>`,
+/// as diretivas, o parser) nunca precisa saber que ele existe. Preserva a
+/// contagem de linhas, então o `line` de um erro continua sendo o do `.gvb`; só
+/// o trecho citado é o do XML gerado. `.gva`, `.gv` (legado) e qualquer outra
+/// extensão passam intactos.
+pub(crate) fn read_markup(
+    assets: &dyn AssetSource,
+    path: &str,
+) -> std::io::Result<Cow<'static, str>> {
+    let content = assets.read_to_string(path)?;
+    if !crate::gvb::eh_gvb(path) {
+        return Ok(content);
+    }
+    crate::gvb::desugar(&content)
+        .map(Cow::Owned)
+        .map_err(|d| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                crate::error::GlacierError::Xml(Box::new(d.in_file(path, &content))).to_string(),
+            )
+        })
+}
+
 /// Resolves logical asset paths to their contents.
 ///
 /// Implementations must be cheap to share (`Arc<dyn AssetSource>`), thread-safe

@@ -64,9 +64,29 @@ type CloseHook = Rc<dyn Fn(&GlacierUI, WindowGeometry)>;
 /// [`GlacierDaemon::main`].
 type SetupHook = Rc<dyn Fn(&mut GlacierUI)>;
 
-/// Templates que o `run` procura, nesta ordem, quando o app não chamou
+/// Onde o `run` procura o template principal quando o app não chamou
 /// [`GlacierDaemon::main`] nem [`GlacierDaemon::main_template`].
-const DEFAULT_MAIN_TEMPLATES: [&str; 2] = ["./views/app.gv", "app.gv"];
+const DEFAULT_MAIN_DIRS: [&str; 2] = ["./views/app", "app"];
+
+/// O template principal que o `run` usa quando o app não escolheu um: o
+/// primeiro de [`DEFAULT_MAIN_DIRS`] × extensões que a fonte de assets tiver —
+/// `.gva`, depois `.gvb`, depois o `.gv` legado. Sem nenhum, o primeiro
+/// candidato, para o erro do registro dizer qual arquivo faltou.
+fn default_main_template(assets: &dyn AssetSource) -> String {
+    let exts = std::iter::once(crate::gva::EXTENSOES[0])
+        .chain([crate::gvb::EXTENSAO])
+        .chain(crate::gva::EXTENSOES[1..].iter().copied());
+    let candidatos: Vec<String> = exts
+        .flat_map(|ext| DEFAULT_MAIN_DIRS.map(|base| format!("{base}.{ext}")))
+        .collect();
+    // A ordem de busca é diretório-dentro-de-extensão: `./views/app.gva` e
+    // `app.gva` antes de qualquer `.gvb`.
+    candidatos
+        .iter()
+        .find(|p| assets.exists(p))
+        .unwrap_or(&candidatos[0])
+        .clone()
+}
 
 /// O `setup` de [`GlacierDaemon::main_template`]: registra `path` com o nome do
 /// arquivo sem extensão e o torna a tela inicial.
@@ -104,7 +124,7 @@ pub struct GlacierDaemon {
     /// tela inicial, carrega `.gss`, …). Rodado na inicialização e de novo a
     /// cada reabertura da principal pela bandeja. `None` enquanto o app não
     /// chamou `main` nem `main_template`; o `run` então usa um dos
-    /// `DEFAULT_MAIN_TEMPLATES`.
+    /// [`default_main_template`].
     setup: Option<SetupHook>,
     /// Fontes embutidas a registrar no runtime do iced (bytes de `.ttf`/`.otf`).
     fonts: Vec<&'static [u8]>,
@@ -540,20 +560,14 @@ impl GlacierDaemon {
         // qual é o template principal quando o `setup` é o padrão ou veio de
         // `main_template`; um `.main(|motor| …)` escrito à mão não diz.
         let manifest_path: Option<String> = match (&self.setup, &self.main_template_path) {
-            (None, _) => Some(
-                DEFAULT_MAIN_TEMPLATES
-                    .iter()
-                    .find(|p| self.assets.exists(p))
-                    .unwrap_or(&DEFAULT_MAIN_TEMPLATES[0])
-                    .to_string(),
-            ),
+            (None, _) => Some(default_main_template(self.assets.as_ref())),
             (Some(_), path) => path.clone(),
         };
         // Um erro de parse aqui é silencioso de propósito: o registro do mesmo
         // arquivo, logo depois, o reporta com o nome do componente.
         let (app_meta, tray_meta, screen_title) = manifest_path
             .as_deref()
-            .and_then(|p| Some((p, self.assets.read_to_string(p).ok()?)))
+            .and_then(|p| Some((p, crate::asset_source::read_markup(self.assets.as_ref(), p).ok()?)))
             .and_then(|(p, conteudo)| crate::app_manifest(p, &conteudo).ok())
             .unwrap_or_default();
 
@@ -631,11 +645,7 @@ impl GlacierDaemon {
         // padrão que a fonte de assets tiver. Sem nenhum, fica o primeiro, e o
         // erro do registro diz qual arquivo faltou.
         let setup: SetupHook = setup.unwrap_or_else(|| {
-            let path = DEFAULT_MAIN_TEMPLATES
-                .iter()
-                .find(|p| assets.exists(p))
-                .unwrap_or(&DEFAULT_MAIN_TEMPLATES[0]);
-            Rc::new(template_setup(path.to_string()))
+            Rc::new(template_setup(default_main_template(assets.as_ref())))
         });
 
         // Diretório onde a geometria da principal é persistida (só quando o app

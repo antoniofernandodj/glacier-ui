@@ -83,6 +83,8 @@ pub mod gauges;
 pub mod grid;
 pub mod grip;
 pub mod keys;
+pub mod gva;
+pub mod gvb;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod luau;
 #[cfg(target_arch = "wasm32")]
@@ -163,6 +165,7 @@ pub use tray::{
 pub use widget::{EngineMessage, TimeEditKey, render_node};
 
 use std::collections::HashMap;
+use gva::parse_markup;
 use std::path::Path;
 use std::sync::Arc;
 // `iced::time` e não `std::time`: no nativo são os MESMOS tipos (reexport do
@@ -1159,9 +1162,7 @@ impl GlacierUI {
         //     pipeline. `File` templates keep hot-reload support.
         let (markup, path) = match comp.template() {
             Template::File(path) => {
-                let content = self
-                    .assets
-                    .read_to_string(&path)
+                let content = asset_source::read_markup(self.assets.as_ref(), &path)
                     .map_err(|e| GlacierError::io("template", &path, e))?
                     .into_owned();
                 let mod_time = self.assets.modified(&path).unwrap_or_else(SystemTime::now);
@@ -3003,9 +3004,7 @@ impl GlacierUI {
 
     /// Parses and stores a component plus its imports, without re-evaluating.
     fn register_component_inner(&mut self, name: &str, path: &str) -> Result<()> {
-        let content = self
-            .assets
-            .read_to_string(path)
+        let content = asset_source::read_markup(self.assets.as_ref(), path)
             .map_err(|e| GlacierError::io("template", path, e))?;
 
         let (ast, _script) =
@@ -4150,7 +4149,7 @@ impl GlacierUI {
                     // File changed, reload it (XML). `content` completo (não só o
                     // markup) segue adiante — é dele que o `<script>` sai, mais
                     // abaixo, para recompilar o Luau/MicroPython do componente.
-                    if let Ok(content) = self.assets.read_to_string(path)
+                    if let Ok(content) = asset_source::read_markup(self.assets.as_ref(), path)
                         && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content)
                     {
                         updates.push((
@@ -4381,17 +4380,6 @@ pub(crate) fn app_manifest(
         }
     }
     Ok((app, tray, title))
-}
-
-fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode, Option<String>)> {
-    let (markup, script) = eval::strip_script(content);
-    let markup = eval::normalize_bare_directives(&markup);
-    // `content` (e não `markup`) como fonte dos trechos: o erro deve mostrar a
-    // linha que o autor escreveu, não a que o pré-processamento produziu.
-    Ok((
-        UiNode::parse_xml_with_source(&markup, content, path)?,
-        script,
-    ))
 }
 
 /// Namespaced keys under which a resource's modification time is stored in
