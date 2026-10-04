@@ -466,12 +466,12 @@ members = ["crates/glacier-cli"]
 
 [[example]]
 name = "gvb_check"
-path = "examples/gvb_check/main.rs"
+path = "examples/gvb/gvb_check/main.rs"
 
 [[example]]
 name = "gvb_convert"
-path = "examples/gvb_convert/main.rs"
+path = "examples/gvb/gvb_convert/main.rs"
 
 [[example]]
 name = "gvb_run"
-path = "examples/gvb_run/main.rs"
+path = "examples/gvb/gvb_run/main.rs"

@@ -11,7 +11,7 @@ O `gvb_run` abre qualquer template, mas só serve aos exemplos cujo comportament
 mora em Luau ou que são telas estáticas: os que dependem de um `Component` em Rust
 (`contador`, `onda9`…) usam o `main.rs` da versão `.gva`.
 
-Ferramentas, em `examples/gvb_*`:
+Ferramentas, em `examples/gvb/gvb_*` (cada uma com o seu `main.rs`):
 
 - `gvb_convert <saida> <arquivo.gva>...` — traduz `.gva` em `.gvb` e confere cada
   tradução (`--in-place` grava ao lado do original);
