@@ -1,0 +1,129 @@
+component {
+  column {
+    class: secao
+
+    text "Numéricas e de valor" { class: titulo_cat }
+
+    text """
+      `min`/`max`/`step` são inline (medida de widget). O `step` cru decide as
+      casas decimais gravadas: `step="0.25"` grava `"7.25"`.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text """
+          <spinbox> · <spinbox decimals> · <spinbox layout="inline">
+        """ {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          spinbox { value: sb_qtd min: 0 max: 20 width: 72 }
+
+          spinbox {
+            value: sb_preco min: 0 max: 999 step: 1 decimals: 2 width: 96
+          }
+
+          spinbox {
+            value: sb_zoom min: 25 max: 400 step: 25 layout: inline width: 72
+          }
+        }
+
+        text "sb_qtd = @sb_qtd · sb_preco = @sb_preco" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<slider> · <slider vertical>" { class: rotulo }
+
+        row {
+          class: linha
+
+          slider {
+            value: sl_volume min: 0 max: 100 on_change: sl_volume width: 280
+          }
+
+          slider {
+            value: sl_brilho min: 0 max: 1 step: 0.05 on_change: sl_brilho
+            vertical: true height: 110
+          }
+        }
+
+        text "sl_volume = @sl_volume · sl_brilho = @sl_brilho" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<rangeslider> — dois cursores, duas chaves" { class: rotulo }
+
+        rangeslider {
+          start: rs_min end: rs_max min: 0 max: 1000 step: 10 size: 300
+        }
+
+        text "rs_min = @rs_min · rs_max = @rs_max" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<dial> · <tumbler> · <rating>" { class: rotulo }
+
+        row {
+          class: linha
+
+          dial {
+            value: di_ganho min: 0 max: 11 step: 1 notches: 11 show_value: true
+          }
+
+          tumbler { value: tu_mes items: meses visible: 5 size: 140 }
+
+          column {
+            class: coluna
+
+            rating { value: ra_nota }
+            rating { value: ra_nota readonly: true size: 14 }
+          }
+        }
+
+        text "di_ganho = @di_ganho · tu_mes = @tu_mes · ra_nota = @ra_nota" {
+          class: nota
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<progressbar> · <spinner> · <gauge> · <lcdnumber>" {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          progressbar {
+            value: pb_uso min: 0 max: 100 show_value: true width: 220
+          }
+
+          spinner
+
+          gauge {
+            value: ga_cpu max: 100 unit: % label: CPU bands: ga_bands
+            needle: true
+          }
+
+          lcdnumber { value: lcd_relogio size: 44 }
+        }
+      }
+    }
+  }
+}

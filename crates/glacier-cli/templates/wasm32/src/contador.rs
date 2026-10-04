@@ -25,7 +25,7 @@ impl Component for Contador {
     }
 
     fn template(&self) -> Template {
-        Template::File("views/contador.gv".into())
+        Template::File("views/contador.gvb".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {

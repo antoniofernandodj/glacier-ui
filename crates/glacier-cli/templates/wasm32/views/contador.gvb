@@ -1,0 +1,37 @@
+// Sem `size` no <screen>: no navegador o tamanho é o da página (o canvas
+// ocupa 100% dela, ver web/index.html). Um tamanho fixo aqui encolheria o app
+// para um retângulo no canto da aba.
+screen {
+  title: "{{titulo}}"
+
+  resources {
+    link { rel: theme href: "views/styles/theme.json" }
+    link { rel: stylesheet href: "views/styles/app.gss" }
+  }
+
+  column {
+    class: tela
+
+    text "{{titulo}}" { class: rotulo }
+    text "@contador" { class: numero }
+
+    row {
+      class: acoes
+
+      button "-" { class: btn on_click: subtrair }
+      button "+" { class: btn on_click: somar }
+    }
+
+    column {
+      class: campo
+
+      text "PASSO" { class: rotulo }
+
+      textinput {
+        class: entrada value: passo_texto on_change: mudar_passo placeholder: 1
+      }
+    }
+
+    button "zerar" { class: btn_ghost on_click: zerar }
+  }
+}

@@ -11,7 +11,7 @@ export CARGO_TERM_COLOR := never
 
 .DEFAULT_GOAL := help
 
-# O app NÃO é autocontido: os `.gv`, o `.gss` e os `.luau` de `views/` são lidos
+# O app NÃO é autocontido: os `.gvb`, o `.gss` e os `.luau` de `views/` são lidos
 # em runtime — é o que dá o hot-reload. Todo pacote daqui leva a pasta junto, e
 # todo alvo de pacote CONFERE que ela foi: um pacote sem `views/` compila,
 # instala, abre — e mostra uma janela vazia, na máquina de outra pessoa.
@@ -47,7 +47,7 @@ luau: ## Type-check dos scripts Luau com luau-lsp
 		(echo "$(RED)luau-lsp não encontrado$(RESET) — https://github.com/JohnnyMorganz/luau-lsp" && exit 1)
 	@n=$$(find $(VIEWS) -name '*.luau' ! -name '*.d.luau' | wc -l); \
 	if [ "$$n" = 0 ]; then \
-		echo "  (nenhum .luau em $(VIEWS)/ — o comportamento está embutido nos .gv)"; \
+		echo "  (nenhum .luau em $(VIEWS)/ — o comportamento está embutido nos .gvb)"; \
 	else \
 		luau-lsp analyze --platform=standard \
 			--definitions=$(VIEWS)/scripts/glacier.d.luau \

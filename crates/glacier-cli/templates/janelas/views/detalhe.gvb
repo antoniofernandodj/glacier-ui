@@ -1,0 +1,39 @@
+screen {
+  title: Detalhe size: "380 300" min_size: "300 240"
+  icon: "views/assets/icone.png"
+
+  resources {
+    link { rel: theme href: "views/styles/theme.json" }
+    link { rel: stylesheet href: "views/styles/app.gss" }
+    script { src: "scripts/detalhe.luau" }
+  }
+
+  column {
+    class: tela
+
+    column {
+      class: cabecalho
+
+      text "Detalhe" { class: titulo }
+      text "aberta por: @origem" { class: subtitulo }
+    }
+
+    column {
+      class: painel
+
+      text "CONTADOR DESTA JANELA" { class: rotulo_cap }
+      text "@contador" { class: numero }
+      text "cada janela tem o seu — abra duas e compare" { class: apagado }
+    }
+
+    column {
+      class: acoes
+
+      button "Contar" { class: btn_primario on_click: contar }
+
+      button "Avisar o painel e fechar" {
+        class: btn_ghost on_click: avisar_e_fechar
+      }
+    }
+  }
+}

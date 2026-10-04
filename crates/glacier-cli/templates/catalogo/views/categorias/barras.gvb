@@ -1,0 +1,121 @@
+component {
+  column {
+    class: secao
+
+    text "Janela principal e barras" { class: titulo_cat }
+
+    text """
+      `<menubar>`/`<toolbar>`/`<statusbar>` são markup comum — dá para pô-los na
+      moldura de qualquer `<screen>`. `<menu>` aninha submenus a profundidade
+      arbitrária.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text "<menubar> + <menu> + <menuitem> + <menuseparator>" {
+          class: rotulo
+        }
+
+        menubar {
+          menu {
+            label: Arquivo
+
+            menuitem { label: Novo on_click: "dizer:menu Novo" }
+            menuitem { label: Abrir on_click: "dizer:menu Abrir" }
+
+            menu {
+              label: Recentes
+
+              menuitem {
+                label: projeto-a.gvb on_click: "dizer:menu Recentes → a"
+              }
+
+              menuitem {
+                label: projeto-b.gvb on_click: "dizer:menu Recentes → b"
+              }
+            }
+
+            menuseparator
+            menuitem { label: Sair on_click: "dizer:menu Sair" }
+          }
+
+          menu {
+            label: Editar
+
+            menuitem { label: Desfazer on_click: "dizer:menu Desfazer" }
+
+            menuitem {
+              label: Refazer on_click: "dizer:menu Refazer" disabled: true
+            }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <contextmenu> — o primeiro filho é a área do gatilho (botão direito)
+        """ {
+          class: rotulo
+        }
+
+        contextmenu {
+          container {
+            class: area
+
+            text "clique com o botão direito aqui dentro" { class: nota }
+          }
+
+          menuitem { label: Recortar on_click: "dizer:contexto Recortar" }
+          menuitem { label: Copiar on_click: "dizer:contexto Copiar" }
+          menuseparator
+
+          menu {
+            label: Mais
+
+            menuitem { label: Duplicar on_click: "dizer:contexto Duplicar" }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<toolbar> · <statusbar> · <sizegrip>" { class: rotulo }
+
+        toolbar {
+          divider: true
+
+          toolbutton {
+            icon: "📄" text: Novo layout: beside
+            on_click: "dizer:toolbar Novo"
+          }
+
+          toolbutton {
+            icon: "💾" tooltip: Salvar on_click: "dizer:toolbar Salvar"
+          }
+
+          rule { direction: vertical }
+
+          toolbutton {
+            icon: "🖨" tooltip: Imprimir on_click: "dizer:toolbar Imprimir"
+          }
+        }
+
+        statusbar {
+          message: "pronto · @bar_status"
+
+          badge { badge_text: v0.1 badge_size: 11 }
+          sizegrip
+        }
+      }
+    }
+  }
+}

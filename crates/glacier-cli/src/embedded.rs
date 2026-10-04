@@ -18,7 +18,7 @@ include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 const COMUM: &str = "_comum";
 
 /// Arquivos de um preset, com o caminho já relativo à raiz do projeto gerado
-/// (`templates/completo/views/app.gv` → `views/app.gv`).
+/// (`templates/completo/views/app.gvb` → `views/app.gvb`).
 ///
 /// O preset vem por cima de [`COMUM`]: um arquivo homônimo nos dois lados é o
 /// do preset que vale, para que um preset possa especializar o comum sem

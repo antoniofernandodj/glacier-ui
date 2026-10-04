@@ -171,7 +171,7 @@ fn escolher_editor(e: &Estilo, interativo: bool, pedido: Opcao) -> Option<Editor
             }
             prompt::confirmar(
                 e,
-                "Instalar as extensões de VS Code (realce de sintaxe e ir-para-definição em .gv/.gss)?",
+                "Instalar as extensões de VS Code (realce de sintaxe e ir-para-definição em .gvb/.gss)?",
                 true,
             )
         }
@@ -269,7 +269,7 @@ pub fn executar(e: &Estilo, plano: &Plano, versao_motor: &str) -> io::Result<()>
             Ok(0) => println!("  {}", e.fraco("nenhuma extensão instalada")),
             Ok(_) => println!(
                 "  {}",
-                e.fraco("reabra o editor para o realce valer nos .gv/.gss")
+                e.fraco("reabra o editor para o realce valer nos .gvb/.gss")
             ),
             Err(erro) => println!("  {} {erro}", e.vermelho("✘")),
         }
@@ -326,7 +326,7 @@ fn proximos_passos(e: &Estilo, plano: &Plano) {
     println!(
         "  {}",
         e.fraco(
-            "Com o app aberto, edite um .gv ou .gss e salve: o hot-reload aplica sem recompilar."
+            "Com o app aberto, edite um .gvb ou .gss e salve: o hot-reload aplica sem recompilar."
         )
     );
     println!(

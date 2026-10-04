@@ -79,7 +79,7 @@ function init(): ()
       {"id":"src","label":"src","items":[
         {"id":"main.rs","label":"main.rs"},
         {"id":"lib.rs","label":"lib.rs"}]},
-      {"id":"views","label":"views","items":[{"id":"app.gv","label":"app.gv"}]},
+      {"id":"views","label":"views","items":[{"id":"app.gvb","label":"app.gvb"}]},
       {"id":"Cargo.toml","label":"Cargo.toml"}]}]
   ]]
   ctx.pg_pagina, ctx.pi_pagina, ctx.ft_fonte = "5", "1", "mono"

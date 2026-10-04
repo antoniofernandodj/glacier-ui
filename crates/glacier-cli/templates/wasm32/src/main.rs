@@ -15,7 +15,7 @@ fn main() -> glacier_ui::iced::Result {
     // web, falha com "não está entre os assets embutidos" no console (F12).
     #[cfg(target_arch = "wasm32")]
     let daemon = daemon.assets(std::sync::Arc::new(glacier_ui::embed_assets![
-        "views/contador.gv",
+        "views/contador.gvb",
         "views/styles/app.gss",
         "views/styles/theme.json",
     ]));

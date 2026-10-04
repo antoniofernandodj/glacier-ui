@@ -1,7 +1,7 @@
 # {{titulo}}
 
 App Android com [glacier-ui](https://crates.io/crates/glacier-ui): o layout mora
-em XML (`.gv`), o estilo num `.gss` e o comportamento num `<script>` Luau — o
+em blocos (`.gvb`, ou `.gva` em XML), o estilo num `.gss` e o comportamento num `<script>` Luau — o
 mesmo código roda no desktop (onde se desenvolve) e no celular.
 
 > **Preset experimental.** O glacier-ui ainda não foi adaptado ao Android: este
@@ -14,7 +14,7 @@ mesmo código roda no desktop (onde se desenvolve) e no celular.
 ```
 make setup      # uma vez: Java 17, Android SDK + NDK, alvos Rust, cargo-apk
 make doctor     # confere o que falta
-make run        # roda no DESKTOP, com hot-reload de .gv/.gss
+make run        # roda no DESKTOP, com hot-reload de .gvb/.gss
 make build      # APK de debug → target/debug/apk/{{nome_projeto}}.apk
 make launch     # compila, instala no aparelho (USB, depuração ativa) e abre
 ```
@@ -31,7 +31,7 @@ No Windows não há `make`: `fazer setup`, `fazer doctor`, `fazer build`,
 |---|---|
 | `src/lib.rs` | o app (`run()`) + `glacier_ui::android_main!(run)`, que gera o ponto de entrada do `NativeActivity` |
 | `src/main.rs` | o desktop: chama o mesmo `run()` |
-| `views/app.gv` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
+| `views/app.gvb` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
 | `views/styles/` | `theme.json` (fundo da janela) e `app.gss` (paleta e classes) |
 | `Makefile` / `fazer.bat` | setup da máquina, build, instalação, logcat |
 | `ANDROID_TODO.md` | o que ainda não funciona no Android |
@@ -45,7 +45,7 @@ alvo `android`). Consequências:
 - **Arquivo novo em `views/` entra na lista do `embed_assets!`.** Um esquecido
   funciona no desktop e falha no celular, com "não está entre os assets
   embutidos" no `make logcat`.
-- **Não há hot-reload no aparelho** — mudou o `.gv`, recompile (`make launch`).
+- **Não há hot-reload no aparelho** — mudou o `.gvb`, recompile (`make launch`).
   Por isso se desenvolve no desktop (`make run`) e se confere no aparelho.
 
 **O fork do `iced_winit` é obrigatório.** O `iced_winit` publicado não consegue

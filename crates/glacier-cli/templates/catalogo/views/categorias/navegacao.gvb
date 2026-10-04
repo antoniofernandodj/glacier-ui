@@ -1,0 +1,207 @@
+component {
+  column {
+    class: secao
+
+    text "Navegação" { class: titulo_cat }
+
+    text """
+      `tabbar`/`tabs`/`stackview`/`wizard` usam `active="@chave"` (leitura) ao
+      lado de `value="chave"` (escrita). A página é escolhida por NOME de slot.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text "<tabbar> — só a barra" { class: rotulo }
+        tabbar { value: nv_aba active: @nv_aba items: nv_abas }
+        text "nv_aba = @nv_aba" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<tabs> — barra + páginas por <template slot>" { class: rotulo }
+
+        tabs {
+          value: nv_aba2 active: @nv_aba2 items: nv_abas page_spacing: 14
+
+          template {
+            slot: geral
+
+            text "página \"geral\"" { class: nota }
+          }
+
+          template {
+            slot: rede
+
+            text "página \"rede\"" { class: nota }
+          }
+
+          template {
+            slot: avancado
+
+            text "página \"avancado\"" { class: nota }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <stackview active="@{…}"> — troca de painel por nome, sem escada de
+          se/senao
+        """ {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          button { class: btn text: Resumo on_click: def:nv_painel:resumo }
+          button { class: btn text: Detalhe on_click: def:nv_painel:detalhe }
+        }
+
+        stackview {
+          active: @nv_painel
+
+          template {
+            slot: resumo
+
+            text "painel de resumo" { class: nota }
+          }
+
+          template {
+            slot: detalhe
+
+            text "painel de detalhe" { class: nota }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<wizard> — passos + validação que trava o \"Avançar\"" {
+          class: rotulo
+        }
+
+        wizard {
+          value: nv_passo active: @nv_passo steps: "plano,dominio,revisao"
+          titles: "Plano,Domínio,Revisão" valid: @nv_passo_valido
+          on_finish: "dizer:wizard concluído"
+          on_cancel: "dizer:wizard cancelado"
+
+          template {
+            slot: plano
+
+            text "escolha um plano" { class: nota }
+          }
+
+          template {
+            slot: dominio
+
+            text "informe o domínio" { class: nota }
+          }
+
+          template {
+            slot: revisao
+
+            text "confira e conclua" { class: nota }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <wizardnav> — SÓ a barra de botões (voltar/avançar/finalizar), para
+          quem monta os passos à mão
+        """ {
+          class: rotulo
+        }
+
+        wizardnav {
+          value: nv_wn steps: "dados,rede,revisao" titles: "Dados,Rede,Revisão"
+          valid: @nv_wn_valido on_finish: "dizer:wizardnav concluído"
+        }
+
+        text "nv_wn = @nv_wn · `valid=\"@{…}\"` falso trava o \"Avançar\"" {
+          class: nota
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<swipeview> — páginas deslizáveis (arraste na horizontal)" {
+          class: rotulo
+        }
+
+        swipeview {
+          value: nv_pagina threshold: 120 class: area
+
+          column {
+            class: coluna
+
+            text "página 0 — arraste" { class: nota }
+          }
+
+          column {
+            class: coluna
+
+            text "página 1" { class: nota }
+          }
+
+          column {
+            class: coluna
+
+            text "página 2" { class: nota }
+          }
+        }
+
+        text "nv_pagina = @nv_pagina" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<drawer> — painel lateral que EMPURRA (não cobre)" {
+          class: rotulo
+        }
+
+        button {
+          class: btn text: "Abrir/fechar gaveta"
+          on_click: drawer::toggle:nv_gaveta
+        }
+
+        text "nv_gaveta = @nv_gaveta" { class: nota }
+
+        row {
+          class: area
+
+          drawer {
+            value: nv_gaveta open: @nv_gaveta size: 180 panel_class: gaveta
+
+            text "item da gaveta" { class: nota }
+            text "outro item" { class: nota }
+          }
+
+          column {
+            class: coluna width: fill align_x: center align_y: center
+
+            text "conteúdo principal — encolhe quando a gaveta abre" {
+              class: nota
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,7 +8,7 @@ end
 
 function abrir_detalhe(): ()
     open_window({
-        file = "views/detalhe.gv",
+        file = "views/detalhe.gvb",
         data = { origem = "painel" },
     })
 end

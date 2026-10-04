@@ -1,0 +1,70 @@
+component {
+  resources {
+    style """
+      .linha_doc { spacing: 10; align-y: center; }
+      .chave { width: 150; size: 12; bold: true; color: var(--muted); }
+      .valor { size: 12; color: var(--text-2); }
+    """ {
+      scoped: true
+    }
+  }
+
+  column {
+    class: conteudo
+
+    column {
+      class: cabecalho
+
+      text "Sobre" { class: titulo }
+      text "o mapa deste projeto" { class: subtitulo }
+    }
+
+    column {
+      class: painel
+
+      row {
+        class: linha_doc
+
+        text "src/main.rs" { class: chave }
+        text "a casca: runner, cromo da janela, storage" { class: valor }
+      }
+
+      row {
+        class: linha_doc
+
+        text "views/app.gvb" { class: chave }
+        text "a janela: titlebar própria, sidebar e roteador" { class: valor }
+      }
+
+      row {
+        class: linha_doc
+
+        text "views/components/" { class: chave }
+        text "pedaços reutilizáveis, com contrato em props" { class: valor }
+      }
+
+      row {
+        class: linha_doc
+
+        text "views/scripts/" { class: chave }
+
+        text "o comportamento, em Luau — um módulo por domínio" {
+          class: valor
+        }
+      }
+
+      row {
+        class: linha_doc
+
+        text "views/styles/" { class: chave }
+        text "theme.json (tema do iced) e app.gss (classes)" { class: valor }
+      }
+    }
+
+    text """
+      salve qualquer .gvb ou .gss com o app aberto: o hot-reload aplica na hora
+    """ {
+      class: apagado
+    }
+  }
+}

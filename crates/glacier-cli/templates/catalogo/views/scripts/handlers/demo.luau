@@ -3,7 +3,7 @@
 -- Handlers curtos que os demos do catálogo compartilham. Nenhum guarda estado:
 -- um catálogo é uma vitrine, não um app.
 
--- Sidebar: on_click="ir:botoes" → troca a chave que o roteador do app.gv lê.
+-- Sidebar: on_click="ir:botoes" → troca a chave que o roteador do app.gvb lê.
 function ir(rota: string): ()
   ctx.view = rota
 end

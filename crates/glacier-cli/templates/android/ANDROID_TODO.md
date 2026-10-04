@@ -72,7 +72,7 @@ Hoje `open_window` abre **uma janela do SO** (um `GlacierUI` por janela,
 - [ ] Relação com o ciclo de vida de tela já existente: `on_enter`/`on_leave` e
       o fechamento de streams do `navigate_to=` (0.112.0) devem valer também
       para empilhar/desempilhar.
-- [ ] Documentar o contrato: o mesmo `.gv` multi-janela deve funcionar nos dois
+- [ ] Documentar o contrato: o mesmo `.gvb` multi-janela deve funcionar nos dois
       alvos — janelas no desktop, pilha no celular.
 
 ## Plataforma
@@ -140,7 +140,7 @@ Hoje `open_window` abre **uma janela do SO** (um `GlacierUI` por janela,
 ## Permissões (AndroidManifest)
 
 O preset só declara `INTERNET`. O motor precisa de uma forma declarativa de
-pedir o resto — algo como `<app permissions="camera location">` no `.gv`, ou
+pedir o resto — algo como `<app permissions="camera location">` no `.gvb`, ou
 uma chave em `[package.metadata.android]` documentada:
 
 - [ ] Pedir permissão **em tempo de execução** (Android 6+) a partir do Luau.

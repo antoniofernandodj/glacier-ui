@@ -40,7 +40,7 @@ fn main() {
 }
 
 /// `TEMPLATES`: todos os arquivos sob `templates/`, com o caminho relativo a ela
-/// (`completo/views/app.gv`). O primeiro segmento é o nome do preset.
+/// (`completo/views/app.gvb`). O primeiro segmento é o nome do preset.
 fn emitir_templates(raiz: &Path) -> String {
     let mut arquivos = Vec::new();
     coletar(raiz, raiz, &mut arquivos, &[]);

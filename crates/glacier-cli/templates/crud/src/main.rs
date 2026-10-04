@@ -1,7 +1,7 @@
 //! Lista editável (model/view) — uma `<tableview>` ligada a um array do
 //! contexto, com Novo/Editar/Excluir via `prompt{}` e `confirm{}` da camada
 //! Luau. Os dados vivem em memória (`views/scripts/state.luau`).
-//! `src/main.rs` é só a casca: registra `views/app.gv` automaticamente e
+//! `src/main.rs` é só a casca: registra `views/app.gvb` automaticamente e
 //! abre a janela.
 
 use glacier_ui::GlacierDaemon;

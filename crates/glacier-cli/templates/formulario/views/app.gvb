@@ -1,0 +1,127 @@
+screen {
+  title: "{{titulo}} — cadastro" size: "560 640" min_size: "420 520"
+
+  resources {
+    link { rel: theme href: "views/styles/theme.json" }
+    link { rel: stylesheet href: "views/styles/app.gss" }
+    script { src: "scripts/app.luau" }
+  }
+
+  column {
+    class: tela
+
+    column {
+      class: cabecalho
+
+      text "Novo colaborador" { class: titulo }
+
+      text "as regras estão no <form>; o motor valida ao enviar" {
+        class: subtitulo
+      }
+    }
+
+    form {
+      name: cadastro class: campos on_submit: salvar
+      on_validation_error: apontar validate_on: submit
+
+      column {
+        class: grupo
+
+        text "Nome" { class: rotulo }
+
+        input {
+          class: campo form_control: f_nome rules: "required|minlen:3"
+          msg: "informe ao menos 3 letras" placeholder: "nome completo"
+        }
+
+        text "@erro_f_nome" { class: erro if: @erro_f_nome not_empty: "" }
+      }
+
+      row {
+        class: dupla
+
+        column {
+          class: grupo
+
+          text "CPF" { class: rotulo }
+
+          maskedinput {
+            class: campo form_control: f_cpf mask: cpf
+            rules: "required|digits:11" msg: "o CPF precisa de 11 dígitos"
+          }
+
+          text "@erro_f_cpf" { class: erro if: @erro_f_cpf not_empty: "" }
+        }
+
+        column {
+          class: grupo
+
+          text "Telefone" { class: rotulo }
+
+          maskedinput {
+            class: campo form_control: f_tel mask: telefone
+            rules: "digits:10,11" msg: "telefone com DDD"
+          }
+
+          text "@erro_f_tel" { class: erro if: @erro_f_tel not_empty: "" }
+        }
+      }
+
+      row {
+        class: dupla
+
+        column {
+          class: grupo
+
+          text "Idade" { class: rotulo }
+
+          spinbox {
+            value: f_idade form_control: f_idade min: 14 max: 90 width: 110
+            rules: gte:18 msg: "precisa ser maior de idade"
+          }
+
+          text "@erro_f_idade" { class: erro if: @erro_f_idade not_empty: "" }
+        }
+
+        column {
+          class: grupo
+
+          text "Nascimento" { class: rotulo }
+
+          dateedit {
+            class: campo value: f_nasc format: br calendar_popup: true
+            today: @hoje
+          }
+        }
+      }
+
+      column {
+        class: grupo
+
+        text "UF" { class: rotulo }
+
+        select {
+          class: campo options: f_ufs form_control: f_uf rules: required
+          msg: "escolha a UF"
+        }
+
+        text "@erro_f_uf" { class: erro if: @erro_f_uf not_empty: "" }
+      }
+
+      checkbox {
+        label: "Aceito os termos de uso" form_control: f_aceite rules: accepted
+        msg: "é preciso aceitar os termos"
+      }
+
+      text "@erro_f_aceite" { class: erro if: @erro_f_aceite not_empty: "" }
+      text "@f_status" { class: status }
+
+      row {
+        class: acoes
+
+        button "Limpar" { type: reset class: btn-limpar on_click: limpar }
+        button "Salvar" { type: submit class: btn-salvar }
+      }
+    }
+  }
+}

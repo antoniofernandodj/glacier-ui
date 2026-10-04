@@ -12,9 +12,9 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                          a casca: registra views/app.gv
+src/main.rs                          a casca: registra views/app.gvb
 views/
-├── app.gv                           o <form> com rules="…" nos campos; mostra {erro_<campo>}
+├── app.gvb                           o <form> com rules="…" nos campos; mostra {erro_<campo>}
 ├── scripts/app.luau                 init(): semeia as UFs, a data de hoje e o status
 ├── scripts/handlers/validar.luau    salvar() / apontar() / limpar() — só o "depois"
 └── styles/{theme.json, app.gss}
@@ -56,7 +56,7 @@ O `<form>` declara o que fazer e as regras ficam nos campos:
 
 ## Adaptar
 
-Mude as `rules` e os campos direto no `app.gv`. Para submeter a uma API, ponha
+Mude as `rules` e os campos direto no `app.gvb`. Para submeter a uma API, ponha
 um `fetch(...)` dentro de `salvar()` — ele suspende sem travar a janela. Para
 uma regra que o vocabulário não cobre (dígito verificador de CPF, "senha ≠
 login"), use `rules="…|fn:minha_regra"` e escreva `minha_regra(valor)` no

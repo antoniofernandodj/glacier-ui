@@ -12,9 +12,9 @@ cargo run
 ```
 src/main.rs                     só diz qual template abre
 views/
-├── painel.gv                   janela principal; <app> e <tray> no cabeçalho
+├── painel.gvb                   janela principal; <app> e <tray> no cabeçalho
 ├── assets/icone.png            ícone da janela e da bandeja
-├── detalhe.gv                  janela filha (aberta por open_window)
+├── detalhe.gvb                  janela filha (aberta por open_window)
 ├── scripts/
 │   ├── painel.luau             abrir filha, notificar, receber broadcast
 │   ├── detalhe.luau            contador próprio, broadcast + close_window
@@ -44,11 +44,11 @@ janela — quem fecha é o daemon. O par `broadcast` + `close_window` é o padr�
 `open_window` não precisa repetir título e tamanho: o `<screen>` do arquivo os
 declara. A chamada só os sobrepõe quando sabe algo que o arquivo não sabe.
 
-O contador do `detalhe.gv` prova o isolamento: abra duas filhas e compare.
+O contador do `detalhe.gvb` prova o isolamento: abra duas filhas e compare.
 
 ## A bandeja
 
-O ícone, o menu e o que cada item faz estão no cabeçalho de `views/painel.gv`:
+O ícone, o menu e o que cada item faz estão no cabeçalho de `views/painel.gvb`:
 
 ```xml
 <app id="…" single_instance="true" remember_geometry="true" />

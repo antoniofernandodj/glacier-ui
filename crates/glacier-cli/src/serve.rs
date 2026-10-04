@@ -20,7 +20,7 @@
 //!
 //! ## `--watch`
 //!
-//! No navegador não existe hot-reload: os `.gv` e `.gss` entram DENTRO do
+//! No navegador não existe hot-reload: os `.gvb` e `.gss` entram DENTRO do
 //! `.wasm` pelo `embed_assets!`, então ver uma mudança exige recompilar. O
 //! `--watch` automatiza esse ciclo — varre `src/`, `views/`, `web/` e o
 //! `Cargo.toml`, recompila quando algo muda e faz a página se recarregar.
@@ -1134,11 +1134,11 @@ mod testes {
         fs::create_dir_all(raiz.join("views/styles")).unwrap();
         fs::write(raiz.join("Cargo.toml"), "[package]").unwrap();
         fs::write(raiz.join("web/index.html"), "<body>a</body>").unwrap();
-        fs::write(raiz.join("views/app.gv"), "<column/>").unwrap();
+        fs::write(raiz.join("views/app.gvb"), "<column/>").unwrap();
 
         let antes = Impressao::tirar(&raiz);
         assert_eq!(antes.pagina.len(), 1);
-        assert_eq!(antes.codigo.len(), 2, "views/app.gv + Cargo.toml");
+        assert_eq!(antes.codigo.len(), 2, "views/app.gvb + Cargo.toml");
 
         // Mudança só na página, do MESMO tamanho e possivelmente no mesmo
         // `mtime` — é o CRC do conteúdo que a pega. O código fica igual, e é o

@@ -10,9 +10,9 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                 a casca: registra views/app.gv e abre a janela
+src/main.rs                 a casca: registra views/app.gvb e abre a janela
 views/
-├── app.gv                  KPIs (<card>) + <linechart series>/<barchart>/<donut>/<gauge>/<sparkline>
+├── app.gvb                  KPIs (<card>) + <linechart series>/<barchart>/<donut>/<gauge>/<sparkline>
 ├── scripts/app.luau        janelas rolantes por série; every(1000) as empurra e re-projeta no ctx
 └── styles/
     ├── theme.json          cores base
@@ -39,4 +39,4 @@ suspende sem travar a UI) ou por leituras de `/proc`, mantendo o mesmo
 
 ## Hot-reload
 
-Salve `app.gv`, `app.gss` ou `app.luau` com a janela aberta: aplica na hora.
+Salve `app.gvb`, `app.gss` ou `app.luau` com a janela aberta: aplica na hora.

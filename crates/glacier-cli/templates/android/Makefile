@@ -200,7 +200,7 @@ doctor: ## Confere o ambiente (Java, SDK, NDK, alvos Rust, cargo-apk, adb)
 # ── Desktop: onde se desenvolve ──────────────────────────────────────────────
 
 .PHONY: run
-run: ## Roda no desktop (hot-reload de .gv/.gss)
+run: ## Roda no desktop (hot-reload de .gvb/.gss)
 	cargo run
 
 .PHONY: check

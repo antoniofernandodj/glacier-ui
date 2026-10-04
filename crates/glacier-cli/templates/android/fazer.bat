@@ -6,7 +6,7 @@ rem O equivalente do Makefile para quem desenvolve NO Windows, onde nao ha make.
 rem
 rem     fazer setup       instala Java 17, Android SDK + NDK, alvos Rust e cargo-apk
 rem     fazer doctor      confere o que falta, sem instalar nada
-rem     fazer run         roda no desktop (hot-reload de .gv/.gss)
+rem     fazer run         roda no desktop (hot-reload de .gvb/.gss)
 rem     fazer build       APK de debug    -> target\debug\apk\{{nome_projeto}}.apk
 rem     fazer release     APK de release  -> target\release\apk\{{nome_projeto}}.apk
 rem     fazer install     instala no aparelho/emulador (adb)

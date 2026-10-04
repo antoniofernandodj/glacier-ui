@@ -1,0 +1,157 @@
+component {
+  column {
+    class: secao
+
+    text "Entradas de texto" { class: titulo_cat }
+
+    text """
+      `value` é o NOME da chave, nunca `@interpolação`. O `on_change` é
+      opcional: sem uma função Luau de mesmo nome, o motor grava `ctx[nome] =
+      valor` sozinho.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text "<textinput> · <textinput secure>" { class: rotulo }
+
+        row {
+          class: linha
+
+          textinput {
+            class: campo_curto value: ti_nome on_change: ti_nome
+            placeholder: Nome
+          }
+
+          textinput {
+            class: campo_curto value: ti_senha on_change: ti_senha
+            placeholder: Senha secure: true
+          }
+        }
+
+        text "ti_nome = @ti_nome" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<textarea> (multi-linha; readonly + append para log vivo)" {
+          class: rotulo
+        }
+
+        textarea {
+          value: ta_notas on_change: ta_notas placeholder: "Anotações…"
+          height: 90
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<maskedinput> — guarda cru, exibe mascarado" { class: rotulo }
+
+        row {
+          class: linha
+
+          maskedinput { class: campo_curto value: mi_cpf mask: cpf }
+          maskedinput { class: campo_curto value: mi_tel mask: telefone }
+        }
+
+        text "mi_cpf (cru) = @mi_cpf" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <comboedit> — dropdown editável (on_change ao digitar, on_select ao
+          escolher)
+        """ {
+          class: rotulo
+        }
+
+        comboedit {
+          class: campo_curto options: ce_hosts value: ce_host
+          placeholder: "https://…" on_change: ce_host
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<autocomplete> — sugestões sem acento/caixa; ▲▼ Enter Esc" {
+          class: rotulo
+        }
+
+        autocomplete {
+          class: campo_curto value: ac_cidade items: ac_cidades
+          placeholder: "digite: sao, rio, bel…"
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<shortcutinput> — captura uma combinação de teclas" {
+          class: rotulo
+        }
+
+        shortcutinput {
+          value: si_atalho placeholder: "clique e pressione ctrl+s"
+        }
+
+        text "si_atalho = @si_atalho" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <form> — agrupa campos; `rules="…"` em cada um e o motor valida NO
+          ENVIO (Enter dispara, Tab avança)
+        """ {
+          class: rotulo
+        }
+
+        form {
+          name: cat_form on_submit: fm_enviar on_validation_error: fm_erro
+          validate_on: submit spacing: 8
+
+          textinput {
+            class: campo form_control: fm_nome value: fm_nome
+            placeholder: "Nome (≥ 3 letras)" rules: "required|minlen:3"
+            msg: "informe ao menos 3 letras"
+          }
+
+          text "@erro_fm_nome" { class: erro if: @erro_fm_nome }
+
+          maskedinput {
+            class: campo form_control: fm_cpf value: fm_cpf mask: cpf
+            rules: "required|digits:11" msg: "o CPF precisa de 11 dígitos"
+          }
+
+          text "@erro_fm_cpf" { class: erro if: @erro_fm_cpf }
+
+          spinbox {
+            form_control: fm_idade value: fm_idade min: 0 max: 120 width: 110
+            rules: gte:18 msg: "precisa ser maior de idade"
+          }
+
+          text "@erro_fm_idade" { class: erro if: @erro_fm_idade }
+
+          row {
+            class: linha
+
+            button { type: reset class: btn text: Limpar on_click: fm_limpar }
+            button { type: submit class: btn_prim text: Enviar }
+          }
+        }
+      }
+    }
+  }
+}

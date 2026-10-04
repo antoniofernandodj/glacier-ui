@@ -35,7 +35,7 @@ Opções: `--port <n>`, `--dev` (build de debug, maior e mais lento),
 
 **`glacier serve wasm --watch`** fecha o ciclo de edição no navegador: ele varre
 `src/`, `views/`, `web/` e o `Cargo.toml`, recompila a cada mudança e a página
-aberta se recarrega sozinha. Não é hot-reload — no navegador o `.gv` está dentro
+aberta se recarrega sozinha. Não é hot-reload — no navegador o `.gvb` está dentro
 do `.wasm` (ver a tabela abaixo) e recompilar é obrigatório; o `--watch` só tira
 isso da sua mão. Um erro de compilação não derruba o servidor: a página segue
 com a última build que funcionou. Mudança só em `web/` não recompila nada.
@@ -91,7 +91,7 @@ Para encolher mais, o caminho é o `wasm-opt -Oz` do binaryen — o comentário 
 ```
 src/main.rs            a casca: embute views/ no alvo wasm e registra o componente
 src/contador.rs        o Component: template + estado + update
-views/contador.gv      o layout
+views/contador.gvb      o layout
 views/styles/app.gss   a paleta (:root) e as classes
 web/index.html         a página que carrega o app.js no navegador
 Dockerfile             compila o .wasm num estágio e serve num nginx mínimo

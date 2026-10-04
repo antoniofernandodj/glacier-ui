@@ -1,0 +1,100 @@
+screen {
+  title: "{{titulo}} — painel" size: "960 660" min_size: "560 460"
+
+  resources {
+    link { rel: theme href: "views/styles/theme.json" }
+    link { rel: stylesheet href: "views/styles/app.gss" }
+    script { src: "scripts/app.luau" }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: topo
+
+      text "Operação" { class: titulo }
+      space
+      text "atualiza a cada 1s · @relogio" { class: apagado }
+    }
+
+    row {
+      class: kpis
+
+      card {
+        title: "Requisições / min" class: kpi
+
+        text "@kpi_total" { class: numero }
+      }
+
+      card {
+        title: "Taxa de erro" class: kpi
+
+        text "@kpi_taxa%" { class: numero }
+      }
+
+      card {
+        title: "Latência p95" class: kpi
+
+        text "@kpi_lat ms" { class: numero }
+      }
+    }
+
+    row {
+      class: graficos
+
+      column {
+        class: painel
+
+        text "Requisições por serviço (série múltipla)" { class: rotulo }
+        linechart { series: serie_req min: 0 grid: true class: grafico }
+      }
+
+      column {
+        class: painel
+
+        text "Chamadas por rota" { class: rotulo }
+        barchart { items: barras colorful: true class: grafico }
+      }
+    }
+
+    row {
+      class: graficos
+
+      column {
+        class: painel
+
+        text "Distribuição de respostas" { class: rotulo }
+        donut { items: fatias size: 180 percentages: true }
+      }
+
+      column {
+        class: painel
+
+        text "Saturação" { class: rotulo }
+
+        row {
+          class: linha
+
+          gauge {
+            value: g_cpu max: 100 unit: % label: CPU bands: g_bands needle: true
+          }
+
+          gauge {
+            value: g_disco max: 100 unit: % label: disco bands: g_bands
+            needle: true
+          }
+        }
+      }
+    }
+
+    row {
+      class: rodape
+
+      text "CPU" { class: rotulo }
+      sparkline { items: spark_cpu class: mini }
+      text "memória" { class: rotulo }
+      sparkline { items: spark_mem class: mini color: #F9E2AF }
+    }
+  }
+}

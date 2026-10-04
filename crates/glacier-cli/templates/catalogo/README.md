@@ -3,7 +3,7 @@
 Um **catálogo navegável de widgets** do [glacier-ui](https://crates.io/crates/glacier-ui):
 uma barra lateral de categorias, cada uma abrindo uma tela com dezenas de
 widgets do motor — cada um com um exemplo mínimo e vivo, feito para ser copiado
-para o seu `.gv`.
+para o seu `.gvb`.
 
 ```
 cargo run
@@ -12,23 +12,23 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                      a casca: sobe o runner, registra views/app.gv
+src/main.rs                      a casca: sobe o runner, registra views/app.gvb
 views/
-├── app.gv                       a JANELA: <drawer> de categorias + roteador (um <Categoria> por rota)
-├── components/nav_item.gv       o item da gaveta lateral
+├── app.gvb                       a JANELA: <drawer> de categorias + roteador (um <Categoria> por rota)
+├── components/nav_item.gvb       o item da gaveta lateral
 ├── categorias/                  UMA tela por seção da tabela de widgets
-│   ├── botoes.gv                button, toolbutton, radio, checkbox, toggle, buttonbox, …
-│   ├── texto.gv                 textinput, textarea, maskedinput, comboedit, autocomplete, form, …
-│   ├── numericos.gv             spinbox, slider, rangeslider, dial, gauge, lcdnumber, rating, …
-│   ├── selecao.gv               select, listview, tableview, treeview, pagination, fontselect, …
-│   ├── data_hora.gv             calendar, monthyearpicker, daterangepicker, dateedit, timeedit, …
-│   ├── displays.gv              badge, card, avatar, chip, frame, skeleton, qrcode, canvas (+ path/polygon), …
-│   ├── containers.gv            groupbox, grid, flow, space, splitter, accordion, toolbox, reveal, mdiarea, dock
-│   ├── navegacao.gv             tabbar, tabs, stackview, wizard, wizardnav, swipeview, drawer
-│   ├── barras.gv                menubar, contextmenu, toolbar, statusbar, sizegrip
-│   ├── overlays.gv              tooltip=, whats_this=, popover, popup, stack, notificationdot, splashscreen, rubberband, …
-│   ├── graficos.gv              linechart (+ série múltipla), barchart, piechart/donut, sparkline
-│   └── dialogos.gv              <dialog> declarativo + confirm{}/prompt{}/pick_color{}/toast()
+│   ├── botoes.gvb                button, toolbutton, radio, checkbox, toggle, buttonbox, …
+│   ├── texto.gvb                 textinput, textarea, maskedinput, comboedit, autocomplete, form, …
+│   ├── numericos.gvb             spinbox, slider, rangeslider, dial, gauge, lcdnumber, rating, …
+│   ├── selecao.gvb               select, listview, tableview, treeview, pagination, fontselect, …
+│   ├── data_hora.gvb             calendar, monthyearpicker, daterangepicker, dateedit, timeedit, …
+│   ├── displays.gvb              badge, card, avatar, chip, frame, skeleton, qrcode, canvas (+ path/polygon), …
+│   ├── containers.gvb            groupbox, grid, flow, space, splitter, accordion, toolbox, reveal, mdiarea, dock
+│   ├── navegacao.gvb             tabbar, tabs, stackview, wizard, wizardnav, swipeview, drawer
+│   ├── barras.gvb                menubar, contextmenu, toolbar, statusbar, sizegrip
+│   ├── overlays.gvb              tooltip=, whats_this=, popover, popup, stack, notificationdot, splashscreen, rubberband, …
+│   ├── graficos.gvb              linechart (+ série múltipla), barchart, piechart/donut, sparkline
+│   └── dialogos.gvb              <dialog> declarativo + confirm{}/prompt{}/pick_color{}/toast()
 ├── scripts/
 │   ├── app.luau                 init(): SEMEIA toda chave que os demos leem
 │   └── handlers/                demo.luau (ir/dizer/def) + dialogos.luau (os modais)
@@ -39,9 +39,9 @@ views/
 
 ## Como funciona
 
-- **Um registro só.** `src/main.rs` registra `views/app.gv`; cada `categorias/*.gv`
+- **Um registro só.** `src/main.rs` registra `views/app.gvb`; cada `categorias/*.gvb`
   entra por `<link rel="import">` e é carregado em cascata.
-- **Sem escada de `se`.** `app.gv` guarda a categoria atual em `{view}` e o
+- **Sem escada de `se`.** `app.gvb` guarda a categoria atual em `{view}` e o
   roteador é uma linha por tela: `<Botoes if="{view}" equals="botoes" />`.
 - **A barra lateral é um `<drawer>`.** Ele empurra o conteúdo (não cobre); o
   botão `☰` faz `drawer::toggle:menu`, e `init()` semeia `menu = "true"` para
@@ -64,5 +64,5 @@ lê — está em `AGENTS.md`, seção *O catálogo de widgets*.
 
 ## Hot-reload
 
-Com o app aberto, salve qualquer `.gv`, `.gss` ou `.luau`: o motor relê e
+Com o app aberto, salve qualquer `.gvb`, `.gss` ou `.luau`: o motor relê e
 redesenha. Só `src/main.rs` exige recompilar.

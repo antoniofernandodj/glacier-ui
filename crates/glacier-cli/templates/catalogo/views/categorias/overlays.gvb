@@ -1,0 +1,221 @@
+component {
+  resources {
+    style """
+      .painel     { background: var(--raised); border_radius: 8; border_width: 1; border_color: var(--border); padding: 12; spacing: 6; }
+      .caixa_stack { width: fill; height: 120; background: var(--raised); border_radius: 8; }
+      .marca_pos  { size: 11; bold: true; color: var(--accent); }
+      .sino       { size: 20; }
+      .arena      { width: fill; height: 180; background: var(--raised); border_radius: 8; }
+      .arrasta    { size: 14; color: var(--muted); }
+    """ {
+      scoped: true
+    }
+  }
+
+  column {
+    class: secao
+
+    text "Overlays, dicas e utilitários" { class: titulo_cat }
+
+    text """
+      `tooltip=` e `whats_this=` são atributos UNIVERSAIS — valem em qualquer
+      nó. `<shortcut>` mora no layout (não no `<resources>`) e não desenha nada.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text "tooltip= · whats_this= (modo pegajoso: whatsthis:toggle)" {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          button {
+            class: btn text: "pare o mouse aqui"
+            tooltip: "este é o balão de tooltip" on_click: dizer:tooltip
+          }
+
+          button {
+            class: btn text: "modo ajuda" on_click: whatsthis:toggle
+            whats_this: "Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip."
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<popover> (ancorado ao gatilho) · <popup> (centrado na janela)" {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          popover {
+            value: ov_menu placement: bottom align: start
+
+            button { slot: anchor class: btn text: "Conta ▾" }
+
+            column {
+              class: painel
+
+              text "Perfil" { class: nota }
+              text "Configurações" { class: nota }
+              text "Sair" { class: nota }
+            }
+          }
+
+          popup {
+            value: ov_pop
+
+            button { slot: anchor class: btn text: "Mostrar atalhos" }
+
+            column {
+              class: painel
+
+              text "Ctrl+S — salvar" { class: nota }
+              text "Ctrl+P — buscar" { class: nota }
+            }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<stack> — filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=" {
+          class: rotulo
+        }
+
+        stack {
+          class: caixa_stack
+
+          container { class: caixa_stack }
+          text "TL" { anchor: top-left class: marca_pos }
+          text "C" { anchor: center class: marca_pos }
+          text "BR" { anchor: bottom-right class: marca_pos }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <notificationdot show="@{…}"> — o pingo no canto do filho
+        """ {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          notificationdot {
+            show: @ov_notif
+
+            container {
+              class: painel
+
+              text "🔔" { class: sino }
+            }
+          }
+
+          button {
+            class: btn text: "alternar o ponto" on_click: ov_alternar_notif
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <splashscreen show="@{…}"> — o `slot="splash"` cobre o conteúdo (slot
+          anônimo) enquanto `show` for verdadeiro
+        """ {
+          class: rotulo
+        }
+
+        button {
+          class: btn text: "mostrar/esconder a splash"
+          on_click: ov_alternar_splash
+        }
+
+        splashscreen {
+          show: @ov_splash width: fill height: 170 background: #181825
+
+          column {
+            class: coluna width: fill height: fill align_x: center
+            align_y: center
+
+            text "conteúdo real do app, por baixo" { class: nota }
+          }
+
+          template {
+            slot: splash
+
+            column {
+              align_x: center align_y: center spacing: 10
+
+              text "MINHA FERRAMENTA" { class: marca_pos }
+              spinner
+            }
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text "<rubberband> — laço de seleção sobre alvos nomeados" {
+          class: rotulo
+        }
+
+        rubberband {
+          items: ov_caixas selection: ov_marcados class: arena height: 160
+        }
+
+        text "ov_marcados = @ov_marcados" { class: nota }
+      }
+
+      column {
+        class: demo
+
+        text "<foreach on_reorder reorder_key> — arraste pela alça ⋮⋮" {
+          class: rotulo
+        }
+
+        column {
+          class: coluna
+
+          each @ov_tarefas as t {
+            on_reorder: dizer:reordenou reorder_key: id
+
+            row {
+              class: linha
+
+              text "⋮⋮" { class: arrasta drag_handle: true cursor: grab }
+              text "@t.nome" { class: nota }
+            }
+          }
+        }
+      }
+
+      text """
+        Há um <shortcut key="ctrl+j" on_press="dizer:ctrl+j"> ativo nesta tela —
+        sem modificador ele não roubaria a tecla de um campo focado.
+      """ {
+        class: nota
+      }
+
+      shortcut { key: ctrl+j on_press: "dizer:atalho ctrl+j" }
+    }
+  }
+}

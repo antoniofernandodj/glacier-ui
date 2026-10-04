@@ -19,7 +19,7 @@ convivem no mesmo app:
 | Mudou o comportamento | recompila | salva o arquivo, e pronto |
 
 Este preset usa o primeiro. O markup continua recarregando a quente: salvar
-`views/contador.gv` ou `views/styles/app.gss` redesenha sem recompilar. E um
+`views/contador.gvb` ou `views/styles/app.gss` redesenha sem recompilar. E um
 `<script>` pode ser acrescentado depois sem tirar o `Component` do lugar — por
 isso o `views/scripts/glacier.d.luau` já vem junto.
 
@@ -28,7 +28,7 @@ isso o `views/scripts/glacier.d.luau` já vem junto.
 ```
 src/main.rs                     a casca: sobe o runner e registra o componente
 src/contador.rs                 o Component: template + estado + update
-views/contador.gv               o layout
+views/contador.gvb               o layout
 views/styles/app.gss            a paleta (:root) e as classes
 views/scripts/glacier.d.luau    tipos dos globais do Luau, se um dia entrar um <script>
 ```

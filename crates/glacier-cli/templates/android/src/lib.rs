@@ -13,12 +13,12 @@ pub fn run() -> glacier_ui::iced::Result {
     // (`make logcat`).
     #[cfg(target_os = "android")]
     let daemon = daemon.assets(std::sync::Arc::new(glacier_ui::embed_assets![
-        "views/app.gv",
+        "views/app.gvb",
         "views/styles/app.gss",
         "views/styles/theme.json",
     ]));
 
-    daemon.main_template("views/app.gv").run()
+    daemon.main_template("views/app.gvb").run()
 }
 
 // O ponto de entrada do `NativeActivity` (`android_main`). A macro registra o

@@ -19,7 +19,7 @@
 .janela  { width: fill; height: fill; }
 
 /* A largura/altura/padding/spacing do painel da gaveta vêm das props do
- `<drawer>` no `.gv` (`size`, `padding`, `spacing`); aqui fica só a cor. */
+ `<drawer>` no `.gvb` (`size`, `padding`, `spacing`); aqui fica só a cor. */
 .sidebar { background: var(--surface); }
 .gaveta  { background: var(--surface); border_width: 1; border_color: var(--accent); }
 .marca   { size: 10; bold: true; color: var(--faint); padding: 4 6 12 6; }

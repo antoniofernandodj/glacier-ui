@@ -1,7 +1,7 @@
 //! `glacier` — a CLI do glacier-ui.
 //!
 //! Existe por um motivo só: um projeto glacier tem um `Cargo.toml`, um
-//! `src/main.rs`, um `.gv` com cabeçalho, um `.gss`, um `.luaurc` e uma árvore
+//! `src/main.rs`, um `.gvb` com cabeçalho, um `.gss`, um `.luaurc` e uma árvore
 //! de scripts Luau — e descobrir essa disposição lendo o README, arquivo por
 //! arquivo, é a parte mais chata de começar. `glacier new` pergunta o que
 //! precisa saber e entrega tudo isso já ligado e rodando.
@@ -148,7 +148,7 @@ fn instalar_extensoes(e: &Estilo) -> std::io::Result<()> {
     if n > 0 {
         println!(
             "  {}",
-            e.fraco("reabra o editor para o realce valer nos .gv/.gss")
+            e.fraco("reabra o editor para o realce valer nos .gvb/.gss")
         );
     }
     Ok(())
@@ -204,7 +204,7 @@ fn ajuda(e: &Estilo) {
     glacier new site -p wasm32 -y && cd site && glacier serve wasm
 ",
         titulo = e.negrito("glacier — a CLI do glacier-ui"),
-        sub = e.fraco("cria um projeto pronto (templates .gv/.gss + scripts Luau) e instala as extensões de VS Code"),
+        sub = e.fraco("cria um projeto pronto (templates .gvb/.gss + scripts Luau) e instala as extensões de VS Code"),
         uso = e.negrito("USO"),
         opcoes_new = e.negrito("OPÇÕES DE `new`"),
         opcoes_serve = e.negrito("OPÇÕES DE `serve`"),

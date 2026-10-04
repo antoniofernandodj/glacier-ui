@@ -2,7 +2,7 @@
 name = "glacier-cli"
 version = "0.5.25"
 edition = "2024"
-description = "CLI do glacier-ui: cria um projeto pronto (templates .gv, .gss e scripts Luau) e instala as extensões de VS Code."
+description = "CLI do glacier-ui: cria um projeto pronto (templates .gvb, .gss e scripts Luau) e instala as extensões de VS Code."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/antoniofernandodj/glacier-ui"
 readme = "README.md"
@@ -53,9 +53,9 @@ maintainer           = "Antonio Fernando <antoniofernando2723@gmail.com>"
 copyright            = "2026, Antonio Fernando"
 license-file         = "LICENSE-DEB"
 extended-description = """\
-Cria um projeto glacier-ui pronto para rodar (templates .gv, stylesheets .gss e \
+Cria um projeto glacier-ui pronto para rodar (templates .gva/.gvb, stylesheets .gss e \
 scripts Luau) a partir de um questionário, e instala as extensões de VS Code \
-para .gv e .gss."""
+para .gva, .gvb e .gss."""
 section              = "devel"
 priority             = "optional"
 depends              = "$auto"

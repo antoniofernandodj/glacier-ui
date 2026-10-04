@@ -1,0 +1,79 @@
+component {
+  column {
+    class: secao
+
+    text "Gráficos e visualização" { class: titulo_cat }
+
+    text """
+      Todos leem `items` como NOME de chave (aqui não vale JSON inline). `min`/
+      `max` vazios = escala automática 1·2·5; `series="chave"` (várias séries)
+      vence `items` e só o `<linechart>`/`<sparkline>` o aceita.
+    """ {
+      class: intro
+    }
+
+    column {
+      class: demos
+
+      column {
+        class: demo
+
+        text "<linechart> · <linechart area points>" { class: rotulo }
+
+        row {
+          class: linha width: fill
+
+          linechart { items: gr_serie min: 0 class: grafico }
+
+          linechart {
+            items: gr_serie min: 0 area: true points: true class: grafico
+          }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <linechart series="…"> — várias séries, legenda e ciclo de cores do
+          tema
+        """ {
+          class: rotulo
+        }
+
+        linechart { series: gr_carga min: 0 grid: true class: grafico }
+      }
+
+      column {
+        class: demo
+
+        text "<barchart colorful> · <piechart> · <donut>" { class: rotulo }
+
+        row {
+          class: linha width: fill
+
+          barchart { items: gr_barras colorful: true class: grafico }
+          piechart { items: gr_fatias size: 170 percentages: true }
+          donut { items: gr_fatias size: 170 percentages: true }
+        }
+      }
+
+      column {
+        class: demo
+
+        text """
+          <sparkline> — é <linechart axes="false" grid="false">, para uma célula
+        """ {
+          class: rotulo
+        }
+
+        row {
+          class: linha
+
+          sparkline { items: gr_lat class: mini }
+          sparkline { items: gr_lat class: mini area: true color: #F9E2AF }
+        }
+      }
+    }
+  }
+}

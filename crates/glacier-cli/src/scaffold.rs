@@ -22,7 +22,7 @@ pub static PRESETS: &[Preset] = &[
         titulo: "App completo",
         descricao: "Janela sem decoração com titlebar própria, tema + .gss, componentes, navegação, fetch e toasts.",
         destaques: &[
-            "views/app.gv com <screen>, <resources> e titlebar custom",
+            "views/app.gvb com <screen>, <resources> e titlebar custom",
             "views/components/ — componentes com <props>",
             "views/scripts/handlers/ — comportamento em Luau, um módulo por domínio",
             "views/styles/ — theme.json (var()) + app.gss com pseudo-estados e @media",
@@ -33,7 +33,7 @@ pub static PRESETS: &[Preset] = &[
         titulo: "Mínimo",
         descricao: "Uma tela, um .gss e um <script> Luau. O menor projeto que ainda mostra a ideia.",
         destaques: &[
-            "views/contador.gv — uma <screen> com <script> Luau embutido",
+            "views/contador.gvb — uma <screen> com <script> Luau embutido",
             "views/styles/app.gss — classes em vez de atributos inline",
         ],
     },
@@ -85,7 +85,7 @@ pub static PRESETS: &[Preset] = &[
         descricao: "Uma sidebar de categorias; cada tela mostra dezenas de widgets do motor com um exemplo mínimo e vivo, feito para copiar.",
         destaques: &[
             "views/categorias/ — uma tela por seção da tabela de widgets (§2 do PLANO)",
-            "views/app.gv — sidebar + roteador por {view}, sem escada de <se>",
+            "views/app.gvb — sidebar + roteador por {view}, sem escada de <se>",
             "views/scripts/app.luau — init() semeia toda chave que os demos leem",
         ],
     },
@@ -94,7 +94,7 @@ pub static PRESETS: &[Preset] = &[
         titulo: "Painel de dados",
         descricao: "KPIs e gráficos que andam sozinhos: linechart de série múltipla, barchart, piechart, gauge e sparkline, alimentados por every(1000).",
         destaques: &[
-            "views/app.gv — cards de KPI + <linechart series>/<barchart>/<gauge>",
+            "views/app.gvb — cards de KPI + <linechart series>/<barchart>/<gauge>",
             "views/scripts/app.luau — every(1000, …) empurra as séries sem os widgets saberem do relógio",
         ],
     },
@@ -126,7 +126,7 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html", "conf",
+    "gvb", "gva", "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html", "conf",
 ];
 
 /// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`
@@ -229,7 +229,7 @@ fn renomear(rel: &str) -> String {
 }
 
 /// Marcadores em chave dupla — `{{nome}}` — porque a chave simples já é a
-/// sintaxe de data binding dos `.gv` (`{contador}`), e um marcador em chave
+/// sintaxe de data binding dos `.gvb` (`{contador}`), e um marcador em chave
 /// simples seria indistinguível de um binding de verdade.
 fn substituir(texto: &str, nome: &str, versao_motor: &str) -> String {
     texto
@@ -315,7 +315,7 @@ mod testes {
         assert_eq!(renomear("gitignore"), ".gitignore");
         assert_eq!(renomear("sub/gitignore"), "sub/.gitignore");
         assert_eq!(renomear("Cargo.toml.template"), "Cargo.toml");
-        assert_eq!(renomear("views/app.gv"), "views/app.gv");
+        assert_eq!(renomear("views/app.gvb"), "views/app.gvb");
     }
 
     /// Todo preset anunciado no questionário precisa existir de fato — o build
@@ -396,7 +396,7 @@ mod testes {
             "ANDROID_TODO.md",
             "src/lib.rs",
             "src/main.rs",
-            "views/app.gv",
+            "views/app.gvb",
         ] {
             assert!(destino.join(esperado).is_file(), "faltou '{esperado}'");
         }
@@ -407,7 +407,7 @@ mod testes {
             "Cargo.toml",
             "src/lib.rs",
             "src/main.rs",
-            "views/app.gv",
+            "views/app.gvb",
         ] {
             let conteudo = fs::read_to_string(destino.join(texto)).expect("ler");
             assert!(
