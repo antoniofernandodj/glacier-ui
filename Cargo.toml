@@ -463,3 +463,15 @@ micropython = ["dep:cc"]
 # segundos em vez dos minutos que o motor leva.
 [workspace]
 members = ["crates/glacier-cli"]
+
+[[example]]
+name = "gvb_check"
+path = "examples/gvb_check/main.rs"
+
+[[example]]
+name = "gvb_convert"
+path = "examples/gvb_convert/main.rs"
+
+[[example]]
+name = "gvb_run"
+path = "examples/gvb_run/main.rs"
