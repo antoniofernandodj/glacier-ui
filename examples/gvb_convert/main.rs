@@ -220,6 +220,19 @@ fn interp(v: &str) -> String {
                 o.push_str("@@");
                 i += 1;
             }
+            // `{{marcador}}` — o que o scaffold do CLI substitui; passa intacto.
+            '{' if cs.get(i + 1) == Some(&'{') => {
+                match (i + 2..cs.len().saturating_sub(1)).find(|&k| cs[k] == '}' && cs[k + 1] == '}') {
+                    Some(k) => {
+                        o.extend(&cs[i..k + 2]);
+                        i = k + 2;
+                    }
+                    None => {
+                        o.push('{');
+                        i += 1;
+                    }
+                }
+            }
             '{' => match cs[i + 1..].iter().position(|&c| c == '}') {
                 Some(n) => {
                     let inner: String = cs[i + 1..i + 1 + n].iter().collect();
@@ -323,7 +336,27 @@ fn text_lit(t: &str, indent: usize) -> Result<String, String> {
         return Ok(format!("\"{body}\""));
     }
     if body.contains("\"\"\"") || body.ends_with('"') {
-        return Err("texto com aspas no fim".into());
+        // Aspas no fim (ou três seguidas) não cabem num `"""`: vai entre aspas
+        // simples, com `\"` escapado, e a quebra de linha continua livre dentro.
+        let esc = |w: &str| w.replace('\\', "\\\\").replace('"', "\\\"");
+        let inner = pad(indent + 2);
+        let mut out = String::from("\"");
+        let mut line = String::new();
+        for w in body.split(' ') {
+            if !line.is_empty() && indent + 2 + line.chars().count() + 1 + w.chars().count() > W {
+                out.push_str(&line);
+                out.push('\n');
+                out.push_str(&inner);
+                line.clear();
+            }
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(&esc(w));
+        }
+        out.push_str(&line);
+        out.push('"');
+        return Ok(out);
     }
     let inner = pad(indent + 2);
     let mut out = String::from("\"\"\"\n");
@@ -715,7 +748,17 @@ fn tree(xml: &str, original: &str) -> Result<(String, Option<String>), String> {
     Ok((ls.join("\n"), script))
 }
 
+/// O que o scaffold do CLI faz com `{{marcador}}` — a conferência parseia o
+/// resultado, não o marcador (um `<app id="{{nome_projeto}}">` não é um id válido).
+fn marcadores(s: &str) -> String {
+    s.replace("{{nome_projeto}}", "meu-app")
+        .replace("{{nome_crate}}", "meu_app")
+        .replace("{{titulo}}", "Meu App")
+        .replace("{{versao_motor}}", "0.0.0")
+}
+
 fn check(gv: &str, gvb: &str) -> Result<(), String> {
+    let (gv, gvb) = (&marcadores(gv), &marcadores(gvb));
     let mutated = std::env::var("GVB_MUTATE").ok().map(|m| gvb.replacen(&m, "zzz", 1));
     let gvb = mutated.as_deref().unwrap_or(gvb);
     let xml = glacier_ui::gvb::desugar(gvb).map_err(|d| format!("desugar: {}", d.message))?;
@@ -737,7 +780,11 @@ fn check(gv: &str, gvb: &str) -> Result<(), String> {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // `--in-place a.gv b.gv`: grava `a.gvb` ao lado de cada arquivo.
+    let in_place = args[0] == "--in-place";
     let out_dir = PathBuf::from(&args[0]);
+    let args: Vec<String> = if in_place { args[1..].to_vec() } else { args };
+    let args = if in_place { [vec![String::new()], args].concat() } else { args };
     let (mut ok, mut bad) = (0, 0);
     for f in &args[1..] {
         let p = Path::new(f);
@@ -750,6 +797,11 @@ fn main() {
             Path::new("templates").join(rel)
         } else {
             rel
+        };
+        let (out_dir, rel) = if in_place {
+            (p.parent().unwrap().to_path_buf(), PathBuf::from(p.file_name().unwrap()).with_extension("gvb"))
+        } else {
+            (out_dir.clone(), rel)
         };
         let src = std::fs::read_to_string(p).expect("lendo");
         match convert(&src) {
