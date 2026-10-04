@@ -5,7 +5,8 @@ screen {
     link { rel: stylesheet href: "examples/onda9/app.gss" }
   }
 
-  column.tela {
+  column {
+    class: tela
 
     /* ── Item 8: o habilitador B, e ele é uma DECLARAÇÃO ───────────────
         Um `<shortcut>` não desenha nada e não ocupa lugar (renderiza um
@@ -22,57 +23,70 @@ screen {
     shortcut { key: ctrl+s       on_press: salvar }
     shortcut { key: ctrl+shift+p on_press: buscar }
 
-    row.barra {
-      text.titulo "Onda 9 — o ponteiro preso"
-      space.empurra
-      text.status "@status"
+    row {
+      class: barra
+
+      text "Onda 9 — o ponteiro preso" { class: titulo }
+      space { class: empurra }
+      text "@status" { class: status }
       /* Item 7: o canto que redimensiona. Com a decoração do SO ligada ele é
        decorativo; ele existe para o app que desenha a própria titlebar. */
       SizeGrip
     }
 
-    tabbar.abas {
+    tabbar {
+      class: abas
       items: abas value: aba selected: @aba
     }
 
     // ══ 1 + 7: Splitter ══════════════════════════════════════════════
     if @aba == "paineis" {
-      column.corpo {
-        text.lead """
+      column {
+        class: corpo
+
+        text """
           Um `<splitter>` é a ALÇA DE COLUNA do `<tableheader>` (Onda 6)
           aplicada a um container. Mesma chave de trilhas, mesmo formato
           ("260 fill"), mesmo código — arraste a barra entre os painéis.
-        """
+        """ { class: lead }
 
-        splitter.divide {
+        splitter {
+          class: divide
           sizes: painel_h min: 120 handle: 6
 
-          column.painel {
-            text.secao "Lateral"
-            text.nota """
+          column {
+            class: painel
+
+            text "Lateral" { class: secao }
+            text """
               Este painel nasceu com 260px. Arrastar a alça converte a trilha
               tocada em FIXA — que é o que a pessoa acabou de pedir ao
               arrastá-la.
-            """
-            text.chave "painel_h = @painel_h"
+            """ { class: nota }
+            text "painel_h = @painel_h" { class: chave }
           }
 
           /* Um splitter dentro de outro, no outro eixo: as duas chaves são
             independentes porque cada instância nomeia a sua. É a demonstração
             de que nunca houve estado por instância aqui. */
-          splitter.divide {
+          splitter {
+            class: divide
             sizes: painel_v direction: v min: 90 handle: 6
 
-            column.painel {
-              text.secao "Conteúdo"
-              text.nota """
+            column {
+              class: painel
+
+              text "Conteúdo" { class: secao }
+              text """
                 O aninhado empilha (direction="v") e escreve noutra chave.
                 Duas instâncias, dois valores, zero colisão.
-              """
+              """ { class: nota }
             }
-            column.painel {
-              text.secao "Console"
-              text.chave "painel_v = @painel_v"
+            column {
+              class: painel
+
+              text "Console" { class: secao }
+              text "painel_v = @painel_v" { class: chave }
             }
           }
         }
@@ -81,19 +95,26 @@ screen {
 
     // ══ 2 + 3 + 5: os que desenham o próprio arrasto ═════════════════
     else if @aba == "valores" {
-      column.corpo {
-        text.lead """
+      column {
+        class: corpo
+
+        text """
           Estes três desenham num `canvas` e guardam o "estou arrastando" no
           `Program::State` que o iced dá por widget — como o `<dial>` da
           Onda 7. O que eles movem continua sendo um valor que o app nomeia.
-        """
+        """ { class: lead }
 
-        row.colunas {
-          frame.bloco {
+        row {
+          class: colunas
+
+          frame {
+            class: bloco
             shape: box
 
-            column.painel {
-              text.secao "RangeSlider — duas chaves"
+            column {
+              class: painel
+
+              text "RangeSlider — duas chaves" { class: secao }
               /* O `size` de um rangeslider é o COMPRIMENTO da barra, uma
                medida com significado de widget: movê-lo para o .gss o
                confundiria com largura de caixa. Ver PRIMITIVAS.md. */
@@ -102,21 +123,26 @@ screen {
                 min: 0 max: 1000 step: 10 size: 300
                 on_release: lacou
               }
-              text.valor "R$ @preco_min — R$ @preco_max"
-              text.nota """
+              text "R$ @preco_min — R$ @preco_max" { class: valor }
+              text """
                 As pontas não se cruzam: empurrar o início além do fim encosta
                 e para. Com as duas juntas, o clique pega o FIM — senão uma
                 faixa de largura zero (o estado inicial de um filtro) travaria.
-              """
+              """ { class: nota }
             }
           }
 
-          frame.bloco {
+          frame {
+            class: bloco
             shape: box
 
-            column.painel {
-              text.secao "Tumbler — a roleta"
-              row.roletas {
+            column {
+              class: painel
+
+              text "Tumbler — a roleta" { class: secao }
+              row {
+                class: roletas
+
                 tumbler {
                   value: mes items: meses visible: 5 size: 150
                 }
@@ -125,36 +151,43 @@ screen {
                   items: "norte,nordeste,centro-oeste,sudeste,sul"
                 }
               }
-              text.valor "@mes · @regiao"
-              text.nota """
+              text "@mes · @regiao" { class: valor }
+              text """
                 É o `<dial>` desenrolado numa linha, e ele VIRA DENTRO DE SI
                 (o wrapping do QAbstractSpinBox): de dezembro para janeiro sem
                 parar na ponta. Arraste, ou role a roda.
-              """
+              """ { class: nota }
             }
           }
         }
 
-        frame.bloco {
+        frame {
+          class: bloco
           shape: box
 
-          column.painel {
-            text.secao "DelayButton — o arrasto em que anda o TEMPO"
-            row.acoes {
+          column {
+            class: painel
+
+            text "DelayButton — o arrasto em que anda o TEMPO" { class: secao }
+            row {
+              class: acoes
+
               delaybutton {
                 text: "Segure" on_press: apagar_tudo delay: 1400 size: 96
               }
-              column.painel {
-                text.nota """
+              column {
+                class: painel
+
+                text """
                   Segurar não move nada: só deixa o relógio correr. Soltar
                   antes do fim DESISTE, e é o ponto todo — é um botão para a
                   ação que não se quer por engano.
-                """
-                text.nota """
+                """ { class: nota }
+                text """
                   É o único dos nove que precisa de um ticker, e ele só existe
                   enquanto o botão está apertado: a mesma economia condicional
                   do rastreio de cursor (no iced, toda mensagem é um quadro).
-                """
+                """ { class: nota }
               }
             }
           }
@@ -164,62 +197,75 @@ screen {
 
     // ══ 4 + PageIndicator ════════════════════════════════════════════
     else if @aba == "paginas" {
-      column.corpo {
-        text.lead """
+      column {
+        class: corpo
+
+        text """
           Arraste as páginas para o lado. O `<swipeview>` é `<stackview>`
           (Onda 8) + o arrasto do `crate::grip` — as duas pontas já existiam,
           faltava o meio.
-        """
+        """ { class: lead }
 
-        swipeview.paginas {
+        swipeview {
+          class: paginas
           value: pagina threshold: 140 on_change: pagina
 
-          column.pagina {
-            text.secao "Página 0 — o índice"
-            text.nota """
+          column {
+            class: pagina
+
+            text "Página 0 — o índice" { class: secao }
+            text """
               O `<stackview>` escolhe a página por NOME de slot; este escolhe
               por POSIÇÃO, porque é a posição que um arrasto move. É o
               currentIndex do QML.
-            """
+            """ { class: nota }
           }
-          column.pagina {
-            text.secao "Página 1 — o conteúdo segue o dedo"
-            text.nota """
+          column {
+            class: pagina
+
+            text "Página 1 — o conteúdo segue o dedo" { class: secao }
+            text """
               Puxar para a esquerda anda para TRÁS. O contrário parece quebrado
               mesmo estando "certo" pela seta, e é o que todo carrossel de
               telefone faz.
-            """
+            """ { class: nota }
           }
-          column.pagina {
-            text.secao "Página 2 — e satura"
-            text.nota """
+          column {
+            class: pagina
+
+            text "Página 2 — e satura" { class: secao }
+            text """
               Não existe página -1 nem página 3: o `Alvo::Indice` do grip
               prende o resultado em [0, n-1], como a `Alvo::Trilha` prende a
               largura no piso.
-            """
+            """ { class: nota }
           }
         }
 
-        row.rodape_paginas {
+        row {
+          class: rodape_paginas
+
           /* O irmão visual, lendo a MESMA chave. É `<pagination dots>` — uma
            tag a menos no motor, como `<sparkline>` é `<linechart>` sem
            moldura. A diferença que importa: ele conta do ZERO. */
           pageindicator { value: pagina total: 3 }
-          space.empurra
-          text.chave "pagina = @pagina"
+          space { class: empurra }
+          text "pagina = @pagina" { class: chave }
         }
       }
     }
 
     // ══ 6: RubberBand ════════════════════════════════════════════════
     else if @aba == "laco" {
-      column.corpo {
-        text.lead """
+      column {
+        class: corpo
+
+        text """
           Arraste sobre a área para laçar. O retângulo em curso é uma chave
           global do motor (`__band`, um por tela — a família do `__cal_hover`);
           o que ele SELECIONA é o conjunto nomeado que o
           `<listview mode="multi">` já guardava desde a 0.85.
-        """
+        """ { class: lead }
 
         /* O laço DESENHA os alvos que conhece, e não só a faixa. O QRubberBand
          não faz isso — lá a faixa é um widget solto sobre uma view. Aqui não
@@ -227,16 +273,19 @@ screen {
          desenhasse a faixa pediria para arrastar sobre o vazio. Como o widget
          JÁ TEM a geometria (é com ela que decide o que tocou), desenhá-la é
          de graça. */
-        rubberband.arena {
+        rubberband {
+          class: arena
           items: caixas selection: marcados on_select: lacou height: 200
         }
 
-        text.valor "marcados = @marcados"
+        text "marcados = @marcados" { class: valor }
 
         /* E aqui está o porquê de o conjunto ser separado por VÍRGULA: é a
          mesma grafia que o `contains` do condicional lê, então o que o laço
          escreveu já se consulta sem conversão nenhuma. */
-        row.acoes {
+        row {
+          class: acoes
+
           if "api" in @marcados {
             badge { badge_text: "api no laço" }
           }
@@ -244,7 +293,7 @@ screen {
             badge { badge_text: "banco no laço" }
           }
           if @marcados is empty {
-            text.nota "Nada laçado ainda — arraste sobre as caixas."
+            text "Nada laçado ainda — arraste sobre as caixas." { class: nota }
           }
         }
       }
@@ -252,69 +301,85 @@ screen {
 
     // ══ 8 + 9: o teclado ═════════════════════════════════════════════
     else if @aba == "teclado" {
-      column.corpo {
-        text.lead """
+      column {
+        class: corpo
+
+        text """
           O habilitador B é o SEXTO `listen_with` de uma lista de cinco que o
           daemon já registrava. As duas tags são o mesmo listener em dois modos.
-        """
+        """ { class: lead }
 
-        row.colunas {
-          frame.bloco {
+        row {
+          class: colunas
+
+          frame {
+            class: bloco
             shape: box
 
-            column.painel {
-              text.secao "Shortcut — o atalho declarado"
-              text.nota """
+            column {
+              class: painel
+
+              text "Shortcut — o atalho declarado" { class: secao }
+              text """
                 Ctrl+S salva; Ctrl+Shift+P abre a busca. Os dois estão
                 declarados no LAYOUT desta tela, no topo da árvore, e não no
                 `<resources>`: o motor colhe os atalhos da árvore avaliada, e
                 o `<resources>` não é árvore. É por isso que eles saem de cena
                 junto com a tela, sem ninguém desregistrar nada.
-              """
-              text.nota """
+              """ { class: nota }
+              text """
                 A ação deles é comum: um atalho não é um tipo novo de evento,
                 é o teclado despachando o que um botão despacharia.
-              """
-              row.acoes {
+              """ { class: nota }
+              row {
+                class: acoes
+
                 button { text: "Salvar (pelo botão)" on_click: salvar }
-                text.valor "@salvamentos salvamento(s)"
+                text "@salvamentos salvamento(s)" { class: valor }
               }
-              text.nota """
+              text """
                 Um atalho SEM modificador não passa por cima de um campo focado
                 — digitar "s" num campo não pode disparar `<shortcut key="s">`.
                 Um COM modificador atravessa, porque nenhum campo de texto
                 consome Ctrl+S, e um atalho que morresse por haver um campo
                 focado não seria um atalho.
-              """
+              """ { class: nota }
             }
           }
 
-          frame.bloco {
+          frame {
+            class: bloco
             shape: box
 
-            column.painel {
-              text.secao "ShortcutInput — o QKeySequenceEdit"
-              text.nota """
+            column {
+              class: painel
+
+              text "ShortcutInput — o QKeySequenceEdit" { class: secao }
+              text """
                 Clique num campo e tecle. Esc desiste, Backspace limpa.
-              """
-              row.campo_atalho {
-                text.rotulo "Salvar"
+              """ { class: nota }
+              row {
+                class: campo_atalho
+
+                text "Salvar" { class: rotulo }
                 shortcutinput { value: atalho_salvar }
               }
-              row.campo_atalho {
-                text.rotulo "Buscar"
+              row {
+                class: campo_atalho
+
+                text "Buscar" { class: rotulo }
                 shortcutinput { value: atalho_buscar }
               }
-              text.nota """
+              text """
                 Com um campo armado a tecla é DADO e não comando — inclusive
                 uma que casaria com um `<shortcut>` da tela. É o que deixa
                 gravar Ctrl+S aqui sem salvar o arquivo no caminho.
-              """
-              text.nota """
+              """ { class: nota }
+              text """
                 Ele é um botão, e não um `<textinput>`: um campo de texto de
                 verdade consumiria as teclas antes de o listener global as ver
                 — e é exatamente o que o Ctrl+S não pode encontrar pela frente.
-              """
+              """ { class: nota }
             }
           }
         }

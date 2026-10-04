@@ -20,13 +20,14 @@ No `examples/onda9/app.gv`, 297 linhas:
 - **88 fechamentos** que repetem o nome da tag;
 - **24 `&lt;`/`&gt;`**, porque a prosa dos comentários e dos `<text>` cita tags
   o tempo todo e o XML não deixa;
-- **82 `class="…"`**, uma string por elemento para dizer o papel dele;
+- **82 `class="…"`**, uma string por elemento para dizer o papel dele (no
+  `.gvb` continuam sendo 82, só que como `class: nome`);
 - 12 blocos de `<!-- -->`, onde `--` é proibido no meio;
 - 8 linhas passando de 80 colunas, sem jeito de quebrar.
 
-O mesmo arquivo em `.gvb`: 324 linhas, 12711 bytes (−8%), **nenhuma linha acima
+O mesmo arquivo em `.gvb`: 389 linhas, 13933 bytes (+0,4%), **nenhuma linha acima
 de 80 colunas**. Ganha-se quebra livre e perde-se em número de linhas — 52 delas
-são só `}`. É a troca consciente da proposta, e a seção final explica por que ela
+são só `}`, e `class: nome` custa mais que `.nome` custaria. É a troca consciente da proposta, e a seção final explica por que ela
 compensa.
 
 ---
@@ -51,14 +52,18 @@ rangeslider {
 A indentação é de **dois espaços**, como no `.gv` e no `.gss`, mas por convenção:
 recortar e colar entre níveis é feiúra, nunca bug.
 
-### 2. Antes das chaves vai o SELETOR; dentro vai todo o resto
+### 2. Antes das chaves vai o NOME da tag; dentro vai todo o resto
 
-O que precede o `{` não é "nome mais um atributo": é a mesma grafia que o `.gss`
-usa para selecionar — tag, classes e id.
+O que precede o `{` é só a tag — e, se houver, o texto. Não existe `tag.classe`
+nem `tag#id`: o ponto e o cerquilha não têm significado ali (escrevê-los é um
+erro, com a dica). A forma `objeto.atributo` das linguagens orientadas a objeto
+é a razão da escolha: lá o ponto **acessa** algo que o objeto tem, e numa
+abreviação de seletor ele significaria "etiqueta", que é uma leitura que cada
+pessoa precisa aprender.
 
 ```
-text.nota "…"                 /* ↔  .nota { … }  no .gss */
-container.center-xy.fill#exportar { … }
+text "…" { class: nota }
+container { class: "center-xy fill" id: exportar }
 ```
 
 Atributo **nunca** fica fora das chaves. Sem filhos, o bloco cabe numa linha:
@@ -71,10 +76,10 @@ Com filhos, as propriedades vão no topo, uma linha em branco, e os filhos
 depois:
 
 ```
-splitter.divide {
-  sizes: painel_h min: 120 handle: 6
+splitter {
+  class: divide sizes: painel_h min: 120 handle: 6
 
-  column.painel { … }
+  column { class: painel … }
 }
 ```
 
@@ -82,26 +87,18 @@ A regra em uma frase: **cabeçalho ou bloco, nunca metade e metade.** É o que
 impede o `{` de ficar órfão no fim de uma lista de atributos quebrada em três
 linhas.
 
-### 3. Classes encadeiam, e a ordem importa
+### 3. `class` e `id` são atributos como os outros
 
 ```
-column.bloco.bloco-cresce        /* ↔  class="bloco bloco-cresce" */
-```
-
-Em CSS a ordem das classes no atributo não diz nada. Aqui diz: `resolve_classes`
-(`src/stylesheet.rs:375`) aplica **da esquerda para a direita, a última
-sobrescrevendo a anterior**. A corrente expõe essa cascata na direção em que ela
-de fato resolve, em vez de escondê-la dentro de uma string.
-
-Os três níveis seguem o do motor: **tag < classe < id**.
-
-Quando o valor é **dado** e não nome literal, a abreviação não serve e volta-se
-ao atributo por extenso:
-
-```
-button.btn { class: "@estado" }    /* .btn literal + a variação do contexto */
+column { class: "bloco bloco-cresce" }   /* ↔  class="bloco bloco-cresce" */
+button { class: "btn @estado" }          /* a variação vem do contexto */
 button { id: @c.id }
 ```
+
+Uma classe só dispensa as aspas (`class: nota`). Em CSS a ordem das classes não
+diz nada, mas aqui diz: `resolve_classes` (`src/stylesheet.rs:375`) aplica **da
+esquerda para a direita, a última sobrescrevendo a anterior**. Os três níveis
+seguem o do motor: **tag < classe < id**.
 
 ### 4. `CamelCase` é componente do app; minúscula é widget do motor
 
@@ -138,11 +135,12 @@ O outro efeito é que `{` e `}` passam a ter um trabalho só. `else if @aba ==
 
 ### 6. Texto é o corpo, não atributo
 
-Uma string solta depois do seletor é o filho de texto:
+Uma string solta depois da tag é o filho de texto, e os atributos vêm depois,
+nas chaves:
 
 ```
-text.titulo "Onda 9 — o ponteiro preso"
-text.valor "R$ @preco_min — R$ @preco_max"
+text "Onda 9 — o ponteiro preso" { class: titulo }
+text "R$ @preco_min — R$ @preco_max" { class: valor }
 ```
 
 Prosa longa vai em `"""`, desindentada e com o espaço em branco colapsado pela
@@ -150,14 +148,14 @@ mesma regra de hoje (`UiNode::normalize_text`), então quebrar a linha onde der 
 de graça:
 
 ```
-text.nota """
+text """
   Não existe página -1 nem página 3: o `Alvo::Indice` do grip prende o
   resultado em [0, n-1], como a `Alvo::Trilha` prende a largura no piso.
-"""
+""" { class: nota }
 ```
 
 O texto fica **fora** das chaves porque é conteúdo, não propriedade — é a única
-coisa além do seletor que fica. E, como o bloco não é XML, `<splitter>` se
+coisa além da tag que fica. E, como o bloco não é XML, `<splitter>` se
 escreve `<splitter>`: os 24 `&lt;` do arquivo somem.
 
 `content:` existe no motor, mas é justamente a forma que a regra 2 do
