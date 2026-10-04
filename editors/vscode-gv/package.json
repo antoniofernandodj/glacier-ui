@@ -1,8 +1,8 @@
 {
   "name": "glacier-view",
   "displayName": "Glacier View",
-  "description": "Language support for Glacier View (.gv) markup — syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, class/id attributes, imports and component tags to the files (and functions) they name.",
-  "version": "0.19.12",
+  "description": "Language support for Glacier View markup — .gva (attributes/XML, the former .gv, still accepted) and .gvb (blocks): syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, class/id attributes, imports and component tags to the files (and functions) they name.",
+  "version": "0.20.5",
   "publisher": "antoniofernandodj",
   "license": "MIT",
   "author": {
@@ -23,22 +23,28 @@
     "glacier",
     "glacier-ui",
     "gv",
+    "gva",
+    "gvb",
     "glacier view"
   ],
   "icon": "icons/marketplace.png",
   "activationEvents": [
-    "onLanguage:glacier-view"
+    "onLanguage:glacier-view",
+    "onLanguage:glacier-view-block"
   ],
   "contributes": {
     "languages": [
       {
         "id": "glacier-view",
         "aliases": [
+          "Glacier View (gva)",
           "Glacier View",
           "GlacierView",
+          "gva",
           "gv"
         ],
         "extensions": [
+          ".gva",
           ".gv"
         ],
         "configuration": "./language-configuration.json",
@@ -56,7 +62,11 @@
         "extensions": [
           ".gvb"
         ],
-        "configuration": "./language-configuration-block.json"
+        "configuration": "./language-configuration-block.json",
+        "icon": {
+          "light": "./icons/gv-file.svg",
+          "dark": "./icons/gv-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -70,9 +80,17 @@
         }
       },
       {
+        "scopeName": "source.glacier-luau",
+        "path": "./syntaxes/glacier-luau.tmLanguage.json"
+      },
+      {
         "language": "glacier-view-block",
         "scopeName": "source.glacier-view-block",
-        "path": "./syntaxes/glacier-view-block.tmLanguage.json"
+        "path": "./syntaxes/glacier-view-block.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.lua": "lua",
+          "meta.embedded.block.gss": "gss"
+        }
       }
     ],
     "configuration": {

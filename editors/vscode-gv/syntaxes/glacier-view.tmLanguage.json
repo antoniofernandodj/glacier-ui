@@ -31,7 +31,7 @@
         "3": { "name": "punctuation.definition.tag.end.glacier-view" }
       },
       "contentName": "meta.embedded.block.lua",
-      "patterns": [{ "include": "source.lua" }]
+      "patterns": [{ "include": "source.glacier-luau" }]
     },
 
     "style-embed": {

@@ -1,4 +1,4 @@
-// Glacier View (.gv) language support.
+// Glacier View (.gva, .gvb; .gv legado = .gva) language support.
 //
 // Two navigation providers, both driven by the same tag scanner (`iterTags`):
 //
@@ -45,6 +45,8 @@
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
+const gvbShadow = require("./gvb-shadow");
+const gvbTyping = require("./gvb-typing");
 
 // Canonical native tag -> all recognised spellings (from src/parser.rs). Used to
 // tell a native/builtin widget apart from an app component, and to anchor the
@@ -356,7 +358,7 @@ const SPREAD_ATTRS = new Set(["spread", "espalhar"]);
 // A component name paired with the template file it renders, as written on the
 // Rust/Lua side. Nothing may sit between the two literals but plain expression
 // text — no quote, no `;`, no brace — so the pair belongs to one statement.
-const NAMED_TEMPLATE_RE = /"([A-Za-z_][\w-]*)"[^";{}]{0,160}"([^"]*\.(?:gv|xml))"/g;
+const NAMED_TEMPLATE_RE = /"([A-Za-z_][\w-]*)"[^";{}]{0,160}"([^"]*\.(?:gva|gvb|gv|xml))"/g;
 
 // Attributes naming a screen to navigate to (src/parser.rs). The value is a
 // registered component's name, so it resolves like a component tag.
@@ -510,7 +512,7 @@ function isActionAttr(name) {
 }
 
 // What a workspace scan looks at, and what it never looks at.
-const TEMPLATE_GLOB = "**/*.{gv,xml}";
+const TEMPLATE_GLOB = "**/*.{gva,gvb,gv,xml}";
 const CODE_GLOB = "**/*.{rs,lua,luau}";
 const STYLE_GLOB = "**/*.gss";
 const EXCLUDE_GLOB = "**/{target,node_modules,.git,dist,out}/**";
@@ -519,8 +521,73 @@ function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// ---------------------------------------------------------------------------
+// `.gvb`: o mesmo markup, em outra grafia
+// ---------------------------------------------------------------------------
+
+// O XML gerado de cada `.gvb` lido -> { orig, map, inv }. É pela chave (o texto
+// do XML) que `offsetToPosition` reconhece que um deslocamento é do XML e não do
+// arquivo, e o traduz de volta.
+const SHADOWS = new Map();
+const SHADOW_BY_SOURCE = new Map(); // texto do .gvb -> o mesmo registro
+
+/** `.gvb` -> `{ xml, orig, map, inv }` (ver `gvb-shadow.js`), memoizado. */
+function shadowOf(orig) {
+  let sh = SHADOW_BY_SOURCE.get(orig);
+  if (sh) {
+    // recém-usado vai para o fim (a ordem de um Map é a de inserção)
+    SHADOW_BY_SOURCE.delete(orig);
+    SHADOWS.delete(sh.xml);
+  } else {
+    const { xml, map } = gvbShadow.toXml(orig);
+    // origem -> XML: o primeiro caractere do XML que veio de cada posição; as
+    // posições sem origem (espaço, `:`) herdam a seguinte.
+    const inv = new Int32Array(orig.length + 2).fill(-1);
+    for (let i = 0; i < map.length; i++) if (inv[map[i]] < 0) inv[map[i]] = i;
+    for (let o = orig.length; o >= 0; o--) if (inv[o] < 0) inv[o] = inv[o + 1] < 0 ? xml.length : inv[o + 1];
+    sh = { xml, orig, map, inv };
+  }
+  SHADOW_BY_SOURCE.set(orig, sh);
+  SHADOWS.set(sh.xml, sh);
+  // Tira o mais antigo, UM por vez. Limpar tudo de uma vez já deu errado: o XML
+  // de um arquivo lido (`fileCache`) continua vivo, e sem o registro dele o
+  // `offsetToPosition` tomaria um deslocamento do XML por um do arquivo — e a
+  // linha do link sairia errada. Quem guarda o XML o re-registra (ver
+  // `readFileCached`).
+  while (SHADOW_BY_SOURCE.size > 512) {
+    const [oldest, old] = SHADOW_BY_SOURCE.entries().next().value;
+    SHADOW_BY_SOURCE.delete(oldest);
+    SHADOWS.delete(old.xml);
+  }
+  return sh;
+}
+
+/**
+ * O `document` com que os provedores trabalham: o de um `.gva` é ele mesmo; o de
+ * um `.gvb` é um que fala XML (`getText`) e traduz os deslocamentos de ida
+ * (`offsetAt`) e de volta (`positionAt`). Só esses três e `uri`/`languageId` são
+ * usados pelos provedores.
+ */
+function adaptDocument(document) {
+  if (document.languageId !== "glacier-view-block") return document;
+  const sh = shadowOf(document.getText());
+  const clamp = (o) => Math.max(0, Math.min(o, sh.map.length - 1));
+  return {
+    uri: document.uri,
+    languageId: "glacier-view",
+    getText: () => sh.xml,
+    positionAt: (o) => document.positionAt(sh.map[clamp(o)]),
+    offsetAt: (p) => sh.inv[Math.min(document.offsetAt(p), sh.orig.length)],
+  };
+}
+
 /** Convert a char offset in `text` to a zero-based vscode.Position. */
 function offsetToPosition(text, offset) {
+  const sh = SHADOWS.get(text);
+  if (sh) {
+    offset = sh.map[Math.max(0, Math.min(offset, sh.map.length - 1))];
+    text = sh.orig;
+  }
   let line = 0;
   let last = 0;
   for (let i = 0; i < offset; i++) {
@@ -559,14 +626,24 @@ function readFileCached(fsPath) {
     return null;
   }
   const hit = fileCache.get(fsPath);
-  if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) return hit.text;
+  if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+    if (hit.shadow) SHADOWS.set(hit.text, hit.shadow); // pode ter sido despejado
+    return hit.text;
+  }
   let text;
   try {
     text = fs.readFileSync(fsPath, "utf8");
   } catch (_) {
     return null;
   }
-  fileCache.set(fsPath, { mtimeMs: stat.mtimeMs, size: stat.size, text });
+  // Um `.gvb` entra como o XML equivalente (ver `shadowOf`): todo scanner abaixo
+  // lê `.gva`, e `offsetToPosition` devolve a posição no arquivo de verdade.
+  let shadow = null;
+  if (/\.gvb$/i.test(fsPath)) {
+    shadow = shadowOf(text);
+    text = shadow.xml;
+  }
+  fileCache.set(fsPath, { mtimeMs: stat.mtimeMs, size: stat.size, text, shadow });
   return text;
 }
 
@@ -1760,7 +1837,7 @@ async function buildWorkspaceIndex() {
     // `Template::File("ui/inicio.gv")`, `register_component("inicio", …)`, a
     // struct literal, anything. A file that names the template is the file
     // that stands behind it.
-    const tplRe = /"([^"]*\.(?:gv|xml))"/g;
+    const tplRe = /"([^"]*\.(?:gva|gvb|gv|xml))"/g;
     let t;
     while ((t = tplRe.exec(text)) !== null) {
       const resolved = resolveAssetPath(uri, t[1]);
@@ -1970,6 +2047,8 @@ function pathTooltip(fsPath) {
     case ".gss":
     case ".css":
       return "Open GSS stylesheet";
+    case ".gva":
+    case ".gvb":
     case ".gv":
     case ".xml":
       return "Open template";
@@ -3031,27 +3110,74 @@ async function autoCloseTag(event) {
   );
 }
 
+/**
+ * A aspa dupla no `.gvb` — ver `gvb-typing.js`. O comando `type` é o que o
+ * editor chama a cada tecla; aqui só a `"` num `.gvb` é tratada, e todo o resto
+ * segue para o `default:type`.
+ */
+function typeQuote(args) {
+  const editor = vscode.window.activeTextEditor;
+  const delegate = () => vscode.commands.executeCommand("default:type", args);
+  if (
+    !editor ||
+    !args ||
+    args.text !== '"' ||
+    editor.document.languageId !== "glacier-view-block" ||
+    editor.selections.length !== 1 ||
+    !editor.selection.isEmpty
+  ) {
+    return delegate();
+  }
+  const doc = editor.document;
+  const offset = doc.offsetAt(editor.selection.active);
+  const edit = gvbTyping.quoteEdit(gvbTyping.decideQuote(doc.getText(), offset), offset);
+  if (!edit) return delegate();
+  const place = () => {
+    const p = doc.positionAt(edit.cursor);
+    editor.selection = new vscode.Selection(p, p);
+  };
+  if (!edit.insert) {
+    place();
+    return undefined;
+  }
+  return editor.edit((b) => b.insert(doc.positionAt(edit.at), edit.insert)).then(place);
+}
+
 function activate(context) {
-  const selector = { language: "glacier-view" };
+  // Links, F12 e diagnósticos valem para as duas grafias; a completação e o
+  // fechamento de tag falam XML e ficam só no `.gva`.
+  const selector = [{ language: "glacier-view" }, { language: "glacier-view-block" }];
+  const gvaSelector = { language: "glacier-view" };
 
   extensionPath = context.extensionPath;
-  const definitionProvider = { provideDefinition: resolveDefinition };
+  const definitionProvider = {
+    provideDefinition: (document, position) => resolveDefinition(adaptDocument(document), position),
+  };
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gv,xml,rs,lua,luau,gss}");
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gva,gvb,gv,xml,rs,lua,luau,gss}");
   watcher.onDidCreate(invalidateWorkspaceIndex);
   watcher.onDidDelete(invalidateWorkspaceIndex);
   watcher.onDidChange(invalidateWorkspaceIndex);
 
   const props = vscode.languages.createDiagnosticCollection("glacier-view-props");
-  const revalida = (doc) => refreshDiagnostics(doc, props).catch(() => {});
+  const revalida = (doc) => refreshDiagnostics(adaptDocument(doc), props).catch(() => {});
   vscode.workspace.textDocuments.forEach(revalida);
+
+  try {
+    context.subscriptions.push(vscode.commands.registerCommand("type", typeQuote));
+  } catch (_) {
+    // Outra extensão (o Vim, por exemplo) já é dona do `type`: sem a aspa
+    // inteligente, o resto da extensão continua igual.
+  }
 
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
-    vscode.languages.registerDocumentLinkProvider(selector, { provideDocumentLinks }),
+    vscode.languages.registerDocumentLinkProvider(selector, {
+      provideDocumentLinks: (document) => provideDocumentLinks(adaptDocument(document)),
+    }),
     // O ` ` fecha o caso de digitar a prop logo após o nome da tag; o `"`, o de
     // abrir o valor de um atributo que recebe um componente (`fallback="`).
-    vscode.languages.registerCompletionItemProvider(selector, provideCompletion, " ", '"'),
+    vscode.languages.registerCompletionItemProvider(gvaSelector, provideCompletion, " ", '"'),
     props,
     vscode.workspace.onDidOpenTextDocument(revalida),
     vscode.workspace.onDidChangeTextDocument((e) => {

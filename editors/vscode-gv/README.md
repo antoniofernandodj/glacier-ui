@@ -1,6 +1,20 @@
 # Glacier View — VS Code extension
 
-Language support for **Glacier View** (`.gv`), the XML markup of `glacier-ui`.
+Language support for **Glacier View**, the markup of `glacier-ui`, in its two spellings:
+
+| extension | format |
+| --- | --- |
+| `.gva` | attributes — the XML spelling. This is the format's name now |
+| `.gv` | **legacy**: still opened, and treated exactly as `.gva` |
+| `.gvb` | blocks — `tag { class: nome }`, no closing tags (see `rascunhos/MARKUP.md`) |
+
+Highlighting covers all three. Links, go-to-definition and the props diagnostics
+work on `.gva`/`.gv` **and** `.gvb`: a `.gvb` is read as the XML it means (see
+`gvb-shadow.js`), with every position mapped back to the file you see — so
+`on_click: salvar`, `value: preco`, `selected: @aba`, `class: nome` and
+`script { src: … }` link exactly like their `.gva` spelling. The reading is
+tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
+(a `.gvb` has no closing tags).
 
 ## Features
 
