@@ -1,0 +1,107 @@
+/*
+examples/series_multiplas/app.gss
+
+Estrutura e comportamento ficaram no app.gv; cor, tamanho e espaçamento moram
+aqui. O `min="0"` nos gráficos é dado (fixa o eixo), não estilo — por isso
+inline no markup.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 18;
+  width: fill;
+}
+
+.lead {
+  size: 13;
+  color: var(--suave);
+  max_width: 820;
+}
+
+.linha {
+  width: fill;
+  spacing: 18;
+}
+
+.bloco {
+  padding: 16;
+  spacing: 10;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+  width: fill;
+}
+
+.bloco-cresce {
+  width: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+  max_width: 620;
+}
+
+.acoes {
+  spacing: 10;
+}
+
+.btn-fraco {
+  color: var(--faixa);
+}
+
+.grafico {
+  width: fill;
+  height: 240;
+}
+
+.mini {
+  width: fill;
+  height: 44;
+}

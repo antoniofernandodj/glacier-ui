@@ -1,0 +1,56 @@
+:root {
+  --texto: #ECEFF4;
+  --fraco: #7B88A1;
+  --neutro: #88C0D0;
+  --perigo: #BF616A;
+  --sucesso: #A3BE8C;
+}
+
+.tela {
+  padding: 20;
+  width: fill;
+  height: fill;
+  align_x: Center;
+  align_y: Center;
+}
+
+.pilha {
+  spacing: 20;
+  align_x: Center;
+}
+
+.titulo {
+  size: 18;
+  color: var(--fraco);
+}
+
+/* Sem `bold`: na web a única face embutida é a Fira Sans Regular, e um texto
+   bold sem face Bold registrada não desenha nenhum glifo (ver docs/WEB.md). */
+.valor {
+  size: 64;
+  color: var(--texto);
+}
+
+.acoes {
+  spacing: 15;
+  align_y: Center;
+}
+
+.botao {
+  padding: 10 20;
+  border_radius: 4;
+  color: var(--neutro);
+}
+
+.perigo {
+  color: var(--perigo);
+}
+
+.sucesso {
+  color: var(--sucesso);
+}
+
+.rotulo {
+  size: 12;
+  color: var(--fraco);
+}

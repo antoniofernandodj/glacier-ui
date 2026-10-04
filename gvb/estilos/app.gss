@@ -1,0 +1,56 @@
+/*
+styles/app.gss
+Stylesheet GLOBAL, carregada via `motor.load_stylesheet(...)`.
+Aplica-se a todos os componentes. Atributos inline no nó sempre vencem a
+classe (mesma precedência do CSS). As classes de botão ficam em uma
+stylesheet COM ESCOPO do componente (styles/estilos.gss), carregada pelo
+`<link rel="stylesheet">` dentro do template.
+Edite este arquivo com o exemplo rodando: o hot-reload aplica na hora.
+*/
+
+.card {
+  padding: 24;
+  width: fill;
+  background: #1E1E2E;
+  border_radius: 16;
+  border_width: 1;
+  border_color: #313244;
+  align_x: Center;
+}
+
+/* Column: o eixo cruzado é align-x. */
+.stack {
+  spacing: 20;
+  align_x: Center;
+}
+
+/* Row: o eixo cruzado é align-y. */
+.actions {
+  spacing: 15;
+  align_y: Center;
+}
+
+.title {
+  size: 26;
+  bold: true;
+  color: #CDD6F4;
+}
+
+.subtitle {
+  size: 14;
+  color: #9399B2;
+}
+
+/* Seletor de id: casa `id="hero"` no template. Especificidade maior que a
+ classe — esta cor vence a `.title`. Um `#hero:hover { }` também funcionaria. */
+#hero {
+  color: #F38BA8;
+}
+
+/* Seletor de tag: casa o tipo builtin do nó (aqui, todo button), com a MENOR
+ especificidade — a classe/inline do botão ainda vencem. `Button {}` ==
+ `button {}` (normalizado p/ minúsculo). Um `Card {}` casaria o componente. */
+
+button {
+  border_radius: 4;
+}

@@ -1,0 +1,11 @@
+screen {
+  resources {
+    script { src: onda13_agulha.luau }
+  }
+
+  canvas {
+    line { x1: 10 y1: 10 x2: @ponta_x y2: 10 }
+  }
+
+  button { text: ir on_click: alternar }
+}

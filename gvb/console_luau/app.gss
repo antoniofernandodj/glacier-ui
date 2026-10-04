@@ -1,0 +1,67 @@
+/* examples/console_luau/app.gss */
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  background: var(--faixa);
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 16;
+  width: fill;
+}
+
+.lead {
+  size: 13;
+  color: var(--suave);
+  max_width: 620;
+}
+
+.acoes {
+  spacing: 8;
+}
+
+.bloco {
+  padding: 14;
+  spacing: 10;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+  width: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.estado {
+  size: 12;
+  color: var(--fraco);
+  font: mono;
+}

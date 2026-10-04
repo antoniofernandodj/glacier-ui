@@ -1,0 +1,4 @@
+.tela-desenho { width: 200; height: 120; }
+.cheia { fill: #ff0000; }
+.traco { stroke: #00ff00; stroke-width: 3; }
+.rot { size: 11; }

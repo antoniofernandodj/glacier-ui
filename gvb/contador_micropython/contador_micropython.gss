@@ -1,0 +1,55 @@
+/* examples/contador_micropython/contador_micropython.gss */
+
+:root {
+  --texto: #ECEFF4;
+  --suave: #D8DEE9;
+  --perigo: #BF616A;
+  --sucesso: #A3BE8C;
+  --neutro: #4C566A;
+}
+
+.tela {
+  padding: 20;
+  align_x: center;
+  align_y: center;
+  width: fill;
+  height: fill;
+}
+
+.coluna {
+  spacing: 20;
+  align_x: center;
+}
+
+.titulo {
+  size: 28;
+  bold: true;
+  color: var(--texto);
+}
+
+.linha_passo {
+  spacing: 10;
+  align_y: center;
+}
+
+.rotulo {
+  color: var(--suave);
+}
+
+.campo_passo {
+  width: 80;
+  padding: 8;
+}
+
+.acoes {
+  spacing: 15;
+  align_y: center;
+}
+
+.botao {
+  padding: 10 20;
+}
+
+.perigo { color: var(--perigo); }
+.sucesso { color: var(--sucesso); }
+.neutro { color: var(--neutro); }

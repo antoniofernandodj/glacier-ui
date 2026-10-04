@@ -1,0 +1,182 @@
+/*
+examples/onda9/app.gss
+
+Todo o visual desta tela. O `app.gv` ao lado ficou com estrutura e
+comportamento — nome de chave, ação, `slot` — e nenhuma cor, nenhum tamanho de
+texto, nenhum espaçamento.
+
+A exceção desta onda está no `.gv`, e é a de sempre (ver o CLAUDE.md): o `size`
+de um `<rangeslider>` é o COMPRIMENTO DA BARRA e o `size` de um `<tumbler>` é a
+largura da roleta — medidas com significado de widget, não largura de caixa.
+Movê-las para cá as confundiria com uma coisa que elas não são, que é
+exatamente a armadilha do `width` do `<spinbox>` que o PRIMITIVAS.md registra.
+*/
+
+:root {
+  --texto: #CDD6F4;
+  --suave: #A6ADC8;
+  --fraco: #7F849C;
+  --faixa: #181825;
+  --linha: #313244;
+  --realce: #89B4FA;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+/* ── A barra de cima ─────────────────────────────────────────────────── */
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.abas {
+  padding: 8 16 0 16;
+}
+
+/* ── O corpo ─────────────────────────────────────────────────────────── */
+
+.corpo {
+  padding: 16;
+  spacing: 14;
+  width: fill;
+  height: fill;
+}
+
+.lead {
+  size: 13;
+  color: var(--suave);
+}
+
+.colunas {
+  spacing: 14;
+  width: fill;
+}
+
+.bloco {
+  width: fill;
+}
+
+.painel {
+  padding: 12;
+  spacing: 8;
+  width: fill;
+}
+
+.secao {
+  size: 14;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 12;
+  color: var(--fraco);
+}
+
+.valor {
+  size: 13;
+  bold: true;
+  color: var(--realce);
+}
+
+.chave {
+  size: 12;
+  color: var(--suave);
+  font_family: monospace;
+}
+
+.rotulo {
+  size: 12;
+  color: var(--suave);
+}
+
+.acoes {
+  spacing: 10;
+  align_y: center;
+}
+
+/* ── 1. Splitter ─────────────────────────────────────────────────────── */
+
+/* A altura fixa é o que torna o arrasto vertical demonstrável: dentro de uma
+   coluna que cresce com o conteúdo, um `<splitter direction="v">` não teria
+   sobra para repartir. */
+.divide {
+  width: fill;
+  height: 360;
+  background: var(--faixa);
+  border_radius: 8;
+}
+
+/* ── 3. Tumbler ──────────────────────────────────────────────────────── */
+
+.roletas {
+  spacing: 16;
+  align_y: center;
+}
+
+/* ── 4. SwipeView ────────────────────────────────────────────────────── */
+
+.paginas {
+  width: fill;
+  height: 260;
+}
+
+/* A página de um `<swipeview>` preenche os dois eixos, e por isso ela NÃO
+   pode declarar `background` junto: uma classe com os três (background +
+   fill + fill) pinta a janela inteira se alguém a reaproveitar na raiz, e há
+   um teste no repositório que recusa o par (`nenhum_exemplo_pinta_a_janela_
+   inteira`). O contorno diz a mesma coisa e não corre o risco. */
+.pagina {
+  padding: 20;
+  spacing: 10;
+  width: fill;
+  height: fill;
+  border_width: 1;
+  border_color: var(--linha);
+  border_radius: 8;
+}
+
+.rodape_paginas {
+  spacing: 12;
+  align_y: center;
+  width: fill;
+}
+
+/* ── 6. RubberBand ───────────────────────────────────────────────────── */
+
+.arena {
+  width: fill;
+  background: var(--faixa);
+  border_radius: 8;
+}
+
+/* ── 9. ShortcutInput ────────────────────────────────────────────────── */
+
+.campo_atalho {
+  spacing: 10;
+  align_y: center;
+}

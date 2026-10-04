@@ -1,0 +1,99 @@
+/*
+examples/dock/app.gss
+
+Estrutura e comportamento no app.gv; visual aqui. As chaves de posição
+(`painel_x`/`painel_y`) e a trilha (`tam_painel`) são DADO — moram no contexto,
+não no `.gss`.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.atalhos {
+  padding: 8 16;
+  spacing: 8;
+  align_y: center;
+  width: fill;
+  background: var(--fundo-bloco);
+}
+
+.rotulo {
+  size: 12;
+  color: var(--suave);
+}
+
+.dica {
+  size: 11;
+  color: var(--fraco);
+}
+
+.area {
+  width: fill;
+  height: fill;
+}
+
+.painel-corpo {
+  width: fill;
+  height: fill;
+  padding: 6;
+}
+
+.centro {
+  width: fill;
+  height: fill;
+  padding: 12;
+  spacing: 8;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+/* Sem `width: fill` aqui de propósito: o `<texteditor>` já estica na largura
+   da `.centro` (que é `fill`), e uma classe com background + fill + fill dispara
+   o teste que proíbe pintar a janela inteira por uma classe de raiz. */
+.editor {
+  height: fill;
+  background: var(--faixa);
+  border_radius: 6;
+  border_width: 1;
+  border_color: var(--linha);
+}

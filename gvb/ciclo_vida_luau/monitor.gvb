@@ -1,0 +1,41 @@
+screen {
+  title: "Glacier - ciclo de vida (monitor)"
+
+  resources {
+    link { rel: theme href: "examples/stream_lua/theme.json" }
+    script { src: monitor.luau }
+  }
+
+  container {
+    padding: 24 align_x: Center align_y: Center width: fill height: fill
+
+    column {
+      spacing: 14 align: Center width: 520
+
+      text "Monitor" { size: 18 bold: true color: #ECEFF4 }
+      text "ciclo: @ciclo" { size: 13 color: #EBCB8B }
+
+      text "— SSE (/sse, um tick a cada 500 ms) —" {
+        size: 13 bold: true color: #88C0D0
+      }
+
+      text "@sse_status" { size: 13 color: #EBCB8B }
+      text "@sse_msg" { size: 15 color: #A3BE8C }
+
+      text "— WebSocket (/ws, eco + tick) —" {
+        size: 13 bold: true color: #88C0D0
+      }
+
+      text "@ws_status" { size: 13 color: #EBCB8B }
+      text "@ws_msg" { size: 15 color: #A3BE8C }
+
+      button "Enviar ping" {
+        on_click: enviar_ws color: #A3BE8C padding: "10 18"
+      }
+
+      button "Voltar (fecha os streams)" {
+        on_click: voltar color: #BF616A padding: "10 18"
+      }
+    }
+  }
+}

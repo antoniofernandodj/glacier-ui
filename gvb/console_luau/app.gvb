@@ -1,0 +1,52 @@
+screen {
+  title: "Glacier — console (Luau)" size: "720 520" min_size: "620 440"
+
+  resources {
+    link { rel: stylesheet href: "examples/console_luau/app.gss" }
+    script { src: "scripts/app.luau" }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: barra
+
+      text "console.* — olhe o terminal" { class: titulo }
+    }
+
+    column {
+      class: corpo
+
+      text """
+        `console.log` / `.info` / `.warn` / `.error` / `.debug` / `.table`
+        escrevem no stdout do processo, com cor, glifo, rótulo e hora. O nível e
+        a cor são ajustáveis por `console.config` / `console.set_level`.
+      """ {
+        class: lead
+      }
+
+      row {
+        class: acoes
+
+        button { text: "log de cada nível" on_click: log_tudo }
+        button { text: console.table on_click: mostrar_tabela }
+      }
+
+      column {
+        class: bloco
+
+        text "config ao vivo" { class: secao }
+
+        row {
+          class: acoes
+
+          button { text: "ciclar nível" on_click: ciclar_nivel }
+          button { text: "alternar cor" on_click: alternar_cor }
+        }
+
+        text "nível: @nivel · cor: @cor" { class: estado }
+      }
+    }
+  }
+}

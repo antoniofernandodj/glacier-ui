@@ -1,0 +1,258 @@
+screen {
+  title: "Glacier - Onda 1" size: "900 700"
+
+  resources {
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link { rel: theme href: "examples/onda1/theme.json" }
+  }
+
+  column {
+    spacing: 0 width: fill height: fill
+
+    // A StatusBar e o GroupBox são da onda 2; as duas ondas compõem sem
+    // nada de especial: o conteúdo de um slot pode ser qualquer widget,
+    // embutido ou não.
+    toolbar {
+      divider: true
+
+      text "Onda 1 — Slider, Space, Radio e Avatar" {
+        size: 14 bold: true color: #CDD6F4
+      }
+
+      // 2. Space: aqui é o espaçador FLEXÍVEL. Sem width, ele é
+      // Length::Fill e come toda a sobra, empurrando o avatar para a
+      // borda direita. É o QSpacerItem de um QHBoxLayout.
+      space
+      avatar { initials: AF size: 28 bg: #89B4FA fg: #11111B }
+    }
+
+    scrollable {
+      width: fill height: fill
+
+      column {
+        padding: 24 spacing: 20 width: fill
+
+        // 1. Slider ===============================================
+        groupbox {
+          title: "Slider — o QSlider"
+
+          text """
+            Primitiva: dispara onChange com o valor novo, e quem grava a chave é
+            o update da tela. Sem esse handler, o cursor não sairia do lugar.
+          """ {
+            size: 13 color: #A6ADC8
+          }
+
+          row {
+            spacing: 16 align_y: center
+
+            text "Volume" { width: 90 color: #CDD6F4 }
+
+            slider {
+              value: volume min: 0 max: 100 on_change: ajustar_volume width: 320
+            }
+
+            text "@volume" { size: 13 color: #A6ADC8 }
+          }
+
+          // Passo fracionário: as casas decimais da saída saem do
+          // próprio step ("0.05" -> 2 casas), então a chave nunca
+          // recebe 0.6000000238418579.
+          row {
+            spacing: 16 align_y: center
+
+            text "Brilho" { width: 90 color: #CDD6F4 }
+
+            slider {
+              value: brilho min: 0 max: 1 step: 0.05 on_change: ajustar_brilho
+              width: 320 color: #A6E3A1
+            }
+
+            text "@brilho" { size: 13 color: #A6ADC8 }
+          }
+
+          // default: clique duplo devolve o cursor ao valor neutro.
+          // on_release: a ação só dispara ao SOLTAR, para quem não
+          // quer um efeito colateral por pixel arrastado.
+          row {
+            spacing: 16 align_y: center
+
+            text "Graves" { width: 90 color: #CDD6F4 }
+
+            slider {
+              value: graves min: -10 max: 10 default: 0
+              on_change: ajustar_graves width: 320
+            }
+
+            text "@graves dB (duplo clique volta a 0)" {
+              size: 13 color: #A6ADC8
+            }
+          }
+        }
+
+        // Slider + SpinBox na MESMA chave: o par do Qt. O SpinBox
+        // grava sozinho (é builtin, tem update); o Slider grava pelo
+        // handler da tela. Os dois leem e escrevem "zoom", então
+        // andam juntos.
+        groupbox {
+          title: "Slider + SpinBox na mesma chave" flat: true
+
+          row {
+            spacing: 16 align_y: center
+
+            text "Zoom (%)" { width: 90 color: #CDD6F4 }
+
+            slider {
+              value: zoom min: 25 max: 400 step: 25 on_change: ajustar_zoom
+              width: 260
+            }
+
+            spinbox { value: zoom min: 25 max: 400 step: 25 width: 80 }
+            text "@zoom%" { size: 13 color: #A6ADC8 }
+          }
+
+          row {
+            spacing: 16 align_y: center
+
+            text "Vertical" { width: 90 color: #CDD6F4 }
+
+            slider {
+              value: volume min: 0 max: 100 vertical: true
+              on_change: ajustar_volume height: 120
+            }
+
+            text "o mesmo 'volume' do grupo acima, no vertical_slider" {
+              size: 13 color: #A6ADC8
+            }
+          }
+        }
+
+        // 3. Radio / RadioGroup ====================================
+        groupbox {
+          title: "Radio e RadioGroup — o QRadioButton e o QButtonGroup"
+
+          text """
+            Os dois caminhos escrevendo na MESMA chave 'plano'. O grupo é a
+            chave, não um nó pai: todo Radio que aponta para o mesmo valor é do
+            mesmo grupo.
+          """ {
+            size: 13 color: #A6ADC8
+          }
+
+          row {
+            spacing: 40 align_y: start
+
+            column {
+              spacing: 8
+
+              text "Primitiva, escrita à mão:" {
+                size: 13 bold: true color: #CDD6F4
+              }
+
+              radio {
+                label: Grátis value: free group: plano
+                on_change: escolher_plano
+              }
+
+              radio {
+                label: Pro value: pro group: plano on_change: escolher_plano
+              }
+
+              radio {
+                label: Time value: team group: plano on_change: escolher_plano
+              }
+
+              text "+ 1 braço no update da tela" { size: 12 color: #6C7086 }
+            }
+
+            column {
+              spacing: 8
+
+              text "Builtin, de uma coleção:" {
+                size: 13 bold: true color: #CDD6F4
+              }
+
+              radiogroup { value: plano items: planos }
+              text "nenhum handler no app" { size: 12 color: #6C7086 }
+            }
+
+            column {
+              spacing: 8
+
+              text "O mesmo builtin, deitado:" {
+                size: 13 bold: true color: #CDD6F4
+              }
+
+              radiogroup { value: plano items: planos layout: row }
+              text "plano escolhido: @plano" { size: 13 color: #A6ADC8 }
+            }
+          }
+        }
+
+        // 4. Avatar ================================================
+        groupbox {
+          title: Avatar
+
+          text """
+            Sempre ocupa o mesmo espaço, com foto ou sem: numa lista de usuários
+            a foto que falta é o caso comum, e um buraco vazio quebraria o
+            alinhamento da linha.
+          """ {
+            size: 13 color: #A6ADC8
+          }
+
+          row {
+            spacing: 16 align_y: center
+
+            avatar { src: "examples/perfil/avatar.png" size: 56 }
+            avatar { initials: AF size: 56 }
+            avatar { initials: MS size: 56 bg: #A6E3A1 fg: #11111B }
+            avatar { size: 56 }
+
+            text "foto · iniciais · cores por instância · sem nada (o '?')" {
+              size: 13 color: #A6ADC8
+            }
+          }
+        }
+
+        // 2. Space (fixo) ==========================================
+        groupbox {
+          title: "Space — o QSpacerItem" flat: true
+
+          text """
+            Sem width/height é Length::Fill nos dois eixos (o espaçador
+            flexível, como no topo desta janela); com eles, vira um vão fixo.
+          """ {
+            size: 13 color: #A6ADC8
+          }
+
+          row {
+            align_y: center
+
+            text "esquerda" { color: #CDD6F4 }
+            space
+            text "centro (empurrado por dois Space fill)" { color: #CDD6F4 }
+            space
+            text "direita" { color: #CDD6F4 }
+          }
+
+          row {
+            align_y: center
+
+            text "a" { color: #CDD6F4 }
+            space { width: 80 }
+            text "b (80px fixos entre nós)" { color: #CDD6F4 }
+          }
+        }
+      }
+    }
+
+    statusbar {
+      message: "volume @volume · brilho @brilho · zoom @zoom% · plano @plano"
+
+      badge { badge_text: "onda 1" badge_bg: #A6E3A1 badge_size: 11 }
+    }
+  }
+}

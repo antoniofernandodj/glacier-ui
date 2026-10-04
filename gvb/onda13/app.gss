@@ -1,0 +1,112 @@
+/*
+examples/formas/app.gss
+
+Estrutura e comportamento no app.gv. O traço e o preenchimento das formas moram
+aqui, em classes com nome de papel — `fill`/`stroke`/`stroke-width` são apelidos
+de `background`/`border-color`/`border-width`, então uma `.classe { fill: … }`
+resolve pelo caminho de estilo que já existe.
+
+Geometria (`cx`, `d`, `points`, `x`, `y`) é DADO e fica inline no .gv.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #45475a;
+  --realce: #89b4fa;
+  --solido: #a6e3a1;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.corpo {
+  padding: 20 24;
+  spacing: 24;
+  width: fill;
+}
+
+.coluna {
+  spacing: 10;
+  width: fill;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+.nota {
+  size: 11;
+  color: var(--fraco);
+  max_width: 420;
+}
+
+.acoes {
+  spacing: 8;
+}
+
+.tela-desenho {
+  width: 360;
+  height: 340;
+  background: var(--fundo-bloco);
+  border_radius: 8;
+  border_width: 1;
+  border_color: var(--linha);
+}
+
+/* ── As classes de forma ───────────────────────────────────────────────── */
+
+/* Só contorno. */
+.contorno {
+  stroke: var(--realce);
+  stroke-width: 2;
+}
+
+/* Preenchida. */
+.solido {
+  fill: var(--solido);
+}
+
+/* Uma linha fina de referência. */
+.regua {
+  stroke: var(--linha);
+  stroke-width: 1;
+}
+
+/* Texto dentro do canvas: `size:` da classe é lido pelo render_canvas. */
+.rotulo {
+  size: 11;
+  color: var(--suave);
+}

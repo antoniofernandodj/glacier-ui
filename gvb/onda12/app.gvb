@@ -1,0 +1,58 @@
+screen {
+  title: "Glacier — Onda 12 (dock)" size: "1080 760" min_size: "900 620"
+
+  resources {
+    link { rel: stylesheet href: "examples/onda12/app.gss" }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: barra
+
+      text "Onda 12 — o dock que a Onda 11 cortou" { class: titulo }
+      space { class: empurra }
+      text "@status" { class: status }
+    }
+
+    row {
+      class: atalhos
+
+      text "acoplar:" { class: rotulo }
+      button { text: esq on_click: lado:left }
+      button { text: dir on_click: lado:right }
+      button { text: topo on_click: lado:top }
+      button { text: base on_click: lado:bottom }
+      button { text: flutuar on_click: lado:float }
+      button { text: esconder on_click: lado:hidden }
+      space { class: empurra }
+
+      text "…ou arraste a faixa de título do painel para uma borda e solte." {
+        class: dica
+      }
+    }
+
+    dock {
+      mode: lado edge: left on_change: salvar_layout size: tam_painel
+      float_x: painel_x float_y: painel_y title: Explorador class: area
+
+      // filho 0: o painel
+      column {
+        class: painel-corpo
+
+        listview {
+          items: arquivos value: arquivo selected: @arquivo height: fill
+        }
+      }
+
+      // filho 1: o centro
+      column {
+        class: centro
+
+        text "@arquivo" { class: secao }
+        texteditor { value: doc class: editor }
+      }
+    }
+  }
+}

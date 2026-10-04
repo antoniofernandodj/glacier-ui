@@ -1,0 +1,31 @@
+screen {
+  title: "Glacier na web"
+
+  resources {
+    link { rel: theme href: "examples/web_contador/theme.json" }
+    link { rel: stylesheet href: "examples/web_contador/app.gss" }
+  }
+
+  container {
+    class: tela
+
+    column {
+      class: pilha
+
+      text "Contador" { class: titulo }
+      text "@contador" { class: valor }
+
+      row {
+        class: acoes
+
+        button { class: "botao perigo" text: Diminuir on_click: decrementar }
+        button { class: botao text: Zerar on_click: zerar }
+        button { class: "botao sucesso" text: Aumentar on_click: incrementar }
+      }
+
+      text "O mesmo .gv e o mesmo .gss, no desktop e no navegador." {
+        class: rotulo
+      }
+    }
+  }
+}

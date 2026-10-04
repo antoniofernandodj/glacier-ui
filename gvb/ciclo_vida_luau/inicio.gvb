@@ -1,0 +1,37 @@
+screen {
+  title: "Glacier - ciclo de vida (início)"
+
+  resources {
+    link { rel: theme href: "examples/stream_lua/theme.json" }
+    script { src: inicio.luau }
+  }
+
+  container {
+    padding: 24 align_x: Center align_y: Center width: fill height: fill
+
+    column {
+      spacing: 14 align: Center width: 520
+
+      text "Início" { size: 18 bold: true color: #ECEFF4 }
+
+      text """
+        O monitor abre SSE e WebSocket ao entrar e o motor os fecha ao sair.
+        Abra e volte; olhe o terminal (log do servidor) e os estados abaixo.
+      """ {
+        size: 13 color: #88C0D0
+      }
+
+      button "Ir para o monitor" {
+        on_click: ir_monitor color: #5E81AC padding: "10 18"
+      }
+
+      text "— último estado do monitor —" {
+        size: 13 bold: true color: #88C0D0
+      }
+
+      text "ciclo: @ciclo" { size: 13 color: #EBCB8B }
+      text "SSE: @sse_status" { size: 13 color: #EBCB8B }
+      text "WS: @ws_status" { size: 13 color: #EBCB8B }
+    }
+  }
+}

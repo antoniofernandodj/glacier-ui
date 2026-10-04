@@ -1,0 +1,244 @@
+screen {
+  title: "Glacier — Onda 8 (Luau)" size: "960 700" min_size: "820 600"
+
+  resources {
+    link { rel: stylesheet href: "examples/onda8_luau/app.gss" }
+    script { src: "scripts/app.luau" }
+
+    // ── Item 1: o `dialog` declarativo — a MESMA tag do exemplo Rust, e ela
+    // funciona igual num app de script.
+    //
+    // A diferença dos quatro suspensivos abaixo: este NÃO devolve um valor
+    // para a corrotina. O botão "Salvar" despacha uma ação comum
+    // (`salvar_rotulo`), e o handler Luau lê as chaves `__dialog.*` que o
+    // corpo preencheu. O motor apaga essas chaves no fechamento — por isso a
+    // segunda abertura vem limpa, não com o que ficou da primeira.
+    dialog {
+      name: editar_rotulo title: "Editar rótulo"
+      buttons: "         Cancelar::|         Salvar:salvar_rotulo:accept       "
+
+      column {
+        class: form
+
+        column {
+          class: campo
+
+          text "Texto" { class: rotulo }
+
+          textinput {
+            value: __dialog.texto on_change: __dialog.texto
+            placeholder: produção class: preenche
+          }
+        }
+
+        row {
+          class: campos
+
+          column {
+            class: campo
+
+            text "Cor" { class: rotulo }
+
+            select {
+              options: cores_rotulo value: __dialog.cor on_change: __dialog.cor
+              class: preenche
+            }
+          }
+
+          column {
+            class: campo
+
+            text "Tamanho" { class: rotulo }
+
+            // `width` do spinbox é a do CAMPO; a row interna dele é shrink e um
+            // `fill` aqui colapsaria o número. Por isso fica inline.
+            spinbox {
+              value: __dialog.tamanho min: 10 max: 24 step: 1 width: 110
+            }
+          }
+        }
+
+        checkbox {
+          label: Negrito checked: __dialog.negrito on_toggle: __dialog.negrito
+        }
+      }
+    }
+
+    // Um segundo `dialog`, sem corpo: a caixa de mensagem. O botão neutro
+    // reabre o de cima — o encadeamento `dialog:nome` a partir de um botão de
+    // diálogo.
+    dialog {
+      name: descartar_rotulo title: "Descartar alterações?"
+      message: "O que você digitou será perdido." icon: warning
+      buttons: "         Voltar:dialog:editar_rotulo:neutral|         Descartar:descartou_rotulo:destructive       "
+    }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: barra
+
+      text "Onda 8 em Luau — os diálogos que devolvem um valor" {
+        class: titulo
+      }
+
+      space { class: empurra }
+      text "@status" { class: status }
+    }
+
+    column {
+      class: corpo
+
+      text """
+        Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a corrotina para
+        no diálogo e volta com a resposta. Cancelar devolve nil — a mesma
+        convenção do open_file().
+      """ {
+        class: lead
+      }
+
+      // ── Item 1: o `dialog` declarativo (a mesma tag do exemplo Rust) ──
+      frame {
+        shape: box class: bloco
+
+        column {
+          class: painel
+
+          text "o `dialog` — o QDialog com corpo em markup" { class: secao }
+
+          row {
+            class: acoes
+
+            button { text: "Editar rótulo" on_click: dialog:editar_rotulo }
+            button { text: Descartar on_click: dialog:descartar_rotulo }
+          }
+
+          text "Rótulo: @rotulo" { class: valor }
+
+          text """
+            Este NÃO suspende a corrotina: o botão Salvar despacha uma ação
+            comum e o handler Luau lê as chaves __dialog.* que o corpo
+            preencheu. O corpo é avaliado no contexto do app, como qualquer tela
+            — por isso um diálogo com campo não pede estado por instância.
+          """ {
+            class: nota
+          }
+        }
+      }
+
+      // ── Item 2: InputDialog, as quatro variantes do QInputDialog ─────
+      frame {
+        shape: box class: bloco
+
+        column {
+          class: painel
+
+          text "prompt@{} — o QInputDialog" { class: secao }
+
+          row {
+            class: acoes
+
+            button { text: getText on_click: pedir_texto }
+            button { text: getInt on_click: pedir_inteiro }
+            button { text: getDouble on_click: pedir_decimal }
+            button { text: getItem on_click: pedir_item }
+          }
+
+          text "Última resposta: @resposta" { class: valor }
+
+          text """
+            As quatro variantes estáticas do Qt são UM diálogo com corpos
+            diferentes — campo de texto, spinbox e lista suspensa, três tags que
+            já existiam.
+          """ {
+            class: nota
+          }
+        }
+      }
+
+      row {
+        class: colunas
+
+        // ── Item 3: ProgressDialog ────────────────────────────────────
+        frame {
+          shape: box class: bloco
+
+          column {
+            class: painel
+
+            text "progress@{} — o QProgressDialog" { class: secao }
+
+            row {
+              class: acoes
+
+              button { text: "Baixar (determinado)" on_click: baixar }
+              button { text: "Indexar (indeterminado)" on_click: indexar }
+            }
+
+            text "@progresso_fim" { class: valor }
+
+            text """
+              O único da família que NÃO suspende: ele acompanha um trabalho que
+              continua rodando. O número mora numa chave, não no DialogSpec — e
+              o trabalho tem de CEDER A VEZ, senão nenhum quadro é pintado.
+            """ {
+              class: nota
+            }
+          }
+        }
+
+        // ── Item 4: ColorDialog ───────────────────────────────────────
+        frame {
+          shape: box class: bloco
+
+          column {
+            class: painel
+
+            text "pick_color@{} — o QColorDialog" { class: secao }
+
+            row {
+              class: acoes
+
+              button { text: "Escolher cor" on_click: escolher_cor }
+              container { class: amostra background: @cor }
+              text "@cor" { class: valor }
+            }
+
+            text """
+              Um prompt cujo campo é uma roda: mesma porta, mesmo retorno. A
+              roda desenha sobre o canvas da Onda 7.
+            """ {
+              class: nota
+            }
+          }
+        }
+      }
+
+      frame {
+        shape: box class: bloco
+
+        column {
+          class: painel
+
+          text "confirm@{} — o que NÃO mudou" { class: secao }
+
+          row {
+            class: acoes
+
+            button { text: "Remover tudo" on_click: remover }
+            text "@confirmacao" { class: valor }
+          }
+
+          text """
+            Generalizar o retorno não podia custar a forma que já existia:
+            confirm@{} continua sem corpo e continua devolvendo booleano.
+          """ {
+            class: nota
+          }
+        }
+      }
+    }
+  }
+}

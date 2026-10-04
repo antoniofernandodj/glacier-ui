@@ -1,0 +1,5 @@
+screen {
+  column {
+    button { text: ajuda on_click: whatsthis:toggle whats_this: "isto é X" }
+  }
+}

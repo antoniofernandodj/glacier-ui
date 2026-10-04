@@ -1,0 +1,9 @@
+{
+    "name": "Dark GitHub",
+    "background": "#0D1117",
+    "text": "#C9D1D9",
+    "primary": "#58A6FF",
+    "success": "#3FB950",
+    "warning": "#D29922",
+    "danger": "#F85149"
+}

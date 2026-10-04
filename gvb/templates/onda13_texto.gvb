@@ -1,0 +1,14 @@
+screen {
+  resources {
+    link { rel: stylesheet href: "templates/onda13_texto.gss" }
+  }
+
+  canvas {
+    class: tela-desenho
+
+    circle { cx: 10 cy: 10 r: @raio class: cheia }
+    path { d: @tracado class: traco }
+    rect { x: 0 y: 0 w: 20 h: 10 }
+    text "ângulo @raio" { x: 4 y: 30 class: rot }
+  }
+}

@@ -1,0 +1,19 @@
+screen {
+  resources {
+    script """
+      function salvar()
+        ctx.resultado = ctx["__dialog.nome"] or "VAZIO"
+      end
+    """
+
+    dialog {
+      name: editar title: Editar buttons: "Cancelar::|Salvar:salvar:accept"
+
+      column {
+        textinput { value: __dialog.nome on_change: __dialog.nome }
+      }
+    }
+  }
+
+  button { text: abrir on_click: dialog:editar }
+}

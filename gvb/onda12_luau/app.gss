@@ -1,0 +1,95 @@
+/*
+examples/dock_luau/app.gss — visual da tela.
+`painel_x`/`painel_y`/`tam_painel` são dado (contexto), não estilo.
+*/
+
+:root {
+  --texto: #cdd6f4;
+  --suave: #a6adc8;
+  --fraco: #7f849c;
+  --faixa: #181825;
+  --linha: #313244;
+  --fundo-bloco: #11111b;
+}
+
+.tela {
+  padding: 0;
+  spacing: 0;
+  width: fill;
+  height: fill;
+}
+
+.barra {
+  padding: 12 16;
+  spacing: 12;
+  background: var(--faixa);
+  align_y: center;
+  width: fill;
+}
+
+.titulo {
+  size: 16;
+  bold: true;
+  color: var(--texto);
+}
+
+.empurra {
+  width: fill;
+}
+
+.status {
+  size: 12;
+  color: var(--fraco);
+}
+
+.atalhos {
+  padding: 8 16;
+  spacing: 8;
+  align_y: center;
+  width: fill;
+  background: var(--fundo-bloco);
+}
+
+.rotulo {
+  size: 12;
+  color: var(--suave);
+}
+
+.dica {
+  size: 11;
+  color: var(--fraco);
+}
+
+.area {
+  width: fill;
+  height: fill;
+}
+
+.painel-corpo {
+  width: fill;
+  height: fill;
+  padding: 6;
+}
+
+.centro {
+  width: fill;
+  height: fill;
+  padding: 12;
+  spacing: 8;
+}
+
+.secao {
+  size: 13;
+  bold: true;
+  color: var(--texto);
+}
+
+/* Sem `width: fill`: o `<texteditor>` já estica na `.centro` (que é `fill`), e
+   background + fill + fill numa classe dispara o teste da janela inteira. */
+.editor {
+  height: fill;
+  background: var(--faixa);
+  border_radius: 6;
+  border_width: 1;
+  border_color: var(--linha);
+}

@@ -1,0 +1,415 @@
+screen {
+  title: "Glacier - Onda 4" size: "960 780"
+
+  resources {
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link { rel: theme href: "examples/onda4/theme.json" }
+
+    // Todo o visual mora aqui. O que sobra abaixo é estrutura e
+    // comportamento: nome de chave, ação, `if`/`else`.
+    link { rel: stylesheet href: "examples/onda4/app.gss" }
+  }
+
+  column {
+    class: tela spacing: 0
+
+    column {
+      class: cabecalho
+
+      text "Onda 4 — os widgets que têm função" { class: titulo }
+
+      text """
+        O que une estas sete linhas do catálogo não é a aparência: é o `update`.
+        Todas fazem conta — a janela de números de uma paginação, a alternância
+        de um item num conjunto, a máscara de um CPF, o clamp de um preço com
+        duas casas.
+      """ {
+        class: intro
+      }
+
+      // `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
+      // barra; `class` sozinho pintaria a Row que as segura.
+      tabbar {
+        value: aba active: @aba items: abas tab_class: aba
+        tab_active_class: aba_ativa
+      }
+    }
+
+    scrollable {
+      width: fill height: fill
+
+      column {
+        class: corpo
+
+        // ABA 1 — Pagination + ListView =====================================
+        if @aba == "listas" {
+          column {
+            class: secao
+
+            groupbox {
+              title: "ListView — seleção simples"
+
+              text """
+                A coleção numa chave, o item escolhido noutra: é o `tabbar` na
+                vertical, com scroll. `value` é o NOME da chave e `selected` é o
+                VALOR dela — o par que todo widget desta biblioteca repete,
+                porque o template não lê a chave cujo nome está numa prop.
+              """ {
+                class: nota
+              }
+
+              listview {
+                items: servicos value: servico selected: @servico height: 196
+                item_class: item selected_class: item_ativo sub_class: item_sub
+              }
+
+              row {
+                class: linha
+
+                badge { badge_text: servico class: selo_azul badge_size: 11 }
+                text "@servico" { class: valor }
+              }
+            }
+
+            groupbox {
+              title: "Pagination — a aritmética de página"
+
+              text """
+                A janela de números anda com a página e gruda nas pontas; as
+                reticências só aparecem quando há mesmo algo escondido, e as
+                setas ficam INERTES no limite — o que o `spinbox`, por ser
+                builtin, não consegue fazer.
+              """ {
+                class: nota
+              }
+
+              text """
+                Esta tem `on_change`, então DELEGA: quem grava `pagina` é o
+                update da tela, que precisa recortar a lista no mesmo passo.
+              """ {
+                class: nota
+              }
+
+              pagination {
+                value: pagina total: @total_paginas on_change: repaginar
+              }
+
+              text "mostrando @faixa" { class: nota }
+            }
+
+            groupbox {
+              title: "ListView — seleção múltipla (o conjunto nomeado)"
+              flat: true
+
+              text """
+                `mode="multi"` guarda um CONJUNTO numa chave só (`"api,cache"`)
+                e o destaque testa `contains`, o habilitador da 0.84. Sem ele,
+                cada item precisaria da própria chave — que é exatamente o
+                "estado por instância" que o plano dizia faltar, e que não
+                faltava.
+              """ {
+                class: nota
+              }
+
+              listview {
+                items: servicos value: marcados selected: @marcados mode: multi
+                height: 196 item_class: item selected_class: item_ativo
+                sub_class: item_sub
+              }
+
+              row {
+                class: linha_media
+
+                badge { badge_text: marcados class: selo_verde badge_size: 11 }
+                text "@marcados" { class: valor }
+                space
+                button { class: btn text: Limpar on_click: limpar_marcados }
+              }
+            }
+          }
+        }
+
+        // ABA 2 — Accordion + ToolBox =======================================
+        else if @aba == "secoes" {
+          column {
+            class: secao
+
+            text """
+              Os dois modos do mesmo widget, e a diferença cabe numa linha: o
+              accordion guarda um CONJUNTO de seções abertas, o tool box guarda
+              UMA. Uma tag por seção porque o conteúdo de cada uma é diferente —
+              e conteúdo é de quem escreve a tela, o que só o `slot` (0.65)
+              tornou possível.
+            """ {
+              class: intro
+            }
+
+            row {
+              class: par
+
+              groupbox {
+                title: "Accordion — várias abertas" width: 440
+
+                accordion {
+                  accordionitem {
+                    title: Rede sub: "host, porta e proxy" value: abertas
+                    open: @abertas id: rede head_class: secao_topo
+
+                    row {
+                      class: linha_larga
+
+                      text "Servidor" { class: rotulo_sm }
+                      text "api.exemplo.com" { class: nota }
+                    }
+
+                    checkbox {
+                      label: "Usar proxy" checked: usar_proxy
+                      on_toggle: usar_proxy
+                    }
+                  }
+
+                  accordionitem {
+                    title: Disco sub: "volumes e limites" value: abertas
+                    open: @abertas id: disco head_class: secao_topo
+
+                    text "2 volumes, 41% em uso." { class: nota }
+                    progressbar { value: uso_disco min: 0 max: 100 width: fill }
+                  }
+
+                  accordionitem {
+                    title: Notificações value: abertas open: @abertas
+                    id: notif head_class: secao_topo
+
+                    toggle {
+                      label: "Avisar por e-mail" checked: avisar
+                      on_toggle: avisar
+                    }
+                  }
+                }
+
+                row {
+                  class: linha
+
+                  badge { badge_text: abertas class: selo_roxo badge_size: 11 }
+                  text "@abertas" { class: valor }
+                }
+              }
+
+              groupbox {
+                title: "ToolBox — uma por vez" width: 380
+
+                toolbox {
+                  toolboxitem {
+                    title: Medidas value: ferramenta open: @ferramenta
+                    id: medidas head_class: secao_topo
+
+                    text "Régua, transferidor, área." { class: nota }
+                  }
+
+                  toolboxitem {
+                    title: Camadas value: ferramenta open: @ferramenta
+                    id: camadas head_class: secao_topo
+
+                    text "Fundo, guias, anotações." { class: nota }
+                  }
+
+                  toolboxitem {
+                    title: Exportar value: ferramenta open: @ferramenta
+                    id: exportar head_class: secao_topo
+
+                    text "PNG, SVG, PDF." { class: nota }
+                  }
+                }
+
+                text """
+                  Clicar na seção já aberta a FECHA — a chave vira vazia. É o
+                  `toolbox` sendo gentil, e é o que se espera de um cabeçalho
+                  clicável.
+                """ {
+                  class: nota
+                }
+
+                row {
+                  class: linha
+
+                  badge {
+                    badge_text: ferramenta class: selo_ambar badge_size: 11
+                  }
+
+                  text "@ferramenta" { class: valor }
+                }
+              }
+            }
+          }
+        }
+
+        // ABA 3 — MaskedInput + Rating + decimals ===========================
+        else if @aba == "campos" {
+          column {
+            class: secao
+
+            groupbox {
+              title: "MaskedInput — cru na chave, mascarado na tela"
+
+              text """
+                A mesma separação valor/exibição do `dateedit`: a chave guarda
+                `"12345678901"`, que é o que um backend espera; a tela mostra
+                `"123.456.789-01"`, que é o que uma pessoa lê. A dica default é
+                a própria máscara com `_` no lugar dos símbolos.
+              """ {
+                class: nota
+              }
+
+              row {
+                class: linha_campo
+
+                text "CPF" { class: rotulo }
+                maskedinput { value: cpf mask: cpf class: campo }
+                text "cru: “@cpf”" { class: crua }
+              }
+
+              row {
+                class: linha_campo
+
+                text "Telefone" { class: rotulo }
+                maskedinput { value: telefone mask: telefone class: campo }
+                text "cru: “@telefone”" { class: crua }
+              }
+
+              row {
+                class: linha_campo
+
+                text "Placa" { class: rotulo }
+                maskedinput { value: placa mask: placa class: campo }
+                text "cru: “@placa”" { class: crua }
+              }
+
+              text """
+                A placa é máscara MISTA (`AAA#*##`, o padrão Mercosul): letra
+                onde é letra, dígito onde é dígito. Filtrar só por “não é
+                dígito” erraria aqui.
+              """ {
+                class: nota
+              }
+            }
+
+            row {
+              class: par
+
+              groupbox {
+                title: Rating width: 380
+
+                text """
+                  Passe o mouse: a prévia acende até a estrela sob o cursor.
+                  Clicar na que já está marcada ZERA a nota — é como se tira uma
+                  avaliação sem um botão “limpar” ao lado. A linha de baixo tem
+                  `max` diferente, então tem CHAVE própria: quem compartilha a
+                  chave (o readonly, abaixo) compartilha também a escala.
+                """ {
+                  class: nota
+                }
+
+                row {
+                  class: linha_larga
+
+                  rating { value: nota }
+                  text "@nota de 5" { class: valor }
+                }
+
+                row {
+                  class: linha_larga
+
+                  rating {
+                    value: nota_ampla max: 10 size: 15 class: estrelas_ambar
+                  }
+
+                  text "@nota_ampla de 10" { class: valor }
+                  text "max=10, chave e cor próprias" { class: nota }
+                }
+
+                row {
+                  class: linha_larga
+
+                  rating { value: nota readonly: true size: 14 }
+                  text "readonly: nem clique nem hover" { class: nota }
+                }
+              }
+
+              groupbox {
+                title: "SpinBox com decimals" width: 380
+
+                text """
+                  Fecha o QDoubleSpinBox. Antes as casas saíam do `step`, o que
+                  acertava por acidente e errava em `step="1"` sobre um preço:
+                  10 em vez de 10,00.
+                """ {
+                  class: nota
+                }
+
+                row {
+                  class: linha_larga
+
+                  text "Preço" { class: rotulo_md }
+
+                  spinbox {
+                    value: preco min: 0 max: 999 step: 1 decimals: 2 width: 100
+                  }
+                }
+
+                row {
+                  class: linha_larga
+
+                  text "Desconto" { class: rotulo_md }
+                  spinbox { value: desconto min: 0 max: 100 step: 5 width: 100 }
+                }
+
+                text """
+                  O de baixo não tem `decimals`: as casas continuam saindo do
+                  `step`, como sempre.
+                """ {
+                  class: nota
+                }
+              }
+            }
+
+            groupbox {
+              title: "ButtonBox — papéis, e a ordem é da plataforma"
+
+              text """
+                Onde fica o botão principal é convenção do sistema, não decisão
+                de quem escreve a tela — é por isso que o Qt tem um
+                QDialogButtonBox em vez de um QHBoxLayout com dois botões. Aqui
+                a escolha é feita em Rust, no `template()`, por
+                `cfg!(target_os)`.
+              """ {
+                class: nota
+              }
+
+              buttonbox {
+                accept: Salvar on_accept: salvar reject: Cancelar
+                on_reject: cancelar destructive: Excluir on_destructive: excluir
+
+                text "o slot fica à esquerda, longe das ações" {
+                  class: crua
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    statusbar {
+      message: @status
+
+      badge { badge_text: "onda 4" class: selo_azul badge_size: 11 }
+
+      // Sem `on_change`, esta paginação grava `pagina` sozinha — e a tela
+      // não recorta a lista, porque nada a avisou. É a diferença entre os
+      // dois modos, visível lado a lado.
+      pagination { value: pagina total: @total_paginas ends: false window: 3 }
+    }
+  }
+}
