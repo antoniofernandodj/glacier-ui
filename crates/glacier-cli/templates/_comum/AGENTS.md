@@ -9,6 +9,7 @@ boa parte disto some — o que não muda é a ordem de grandeza entre as causas.
 
 | se você quer | leia |
 |---|---|
+| escolher entre `.gvb` e `.gva`, ou converter de uma para a outra | *As duas grafias: `.gvb` e `.gva`* |
 | entender como o app funciona (leia isto primeiro) | *Como um app glacier funciona* |
 | saber onde cada arquivo vai | *A anatomia do projeto* |
 | copiar algo que já roda | *Um app inteiro, comentado* |
@@ -24,9 +25,156 @@ boa parte disto some — o que não muda é a ordem de grandeza entre as causas.
 | descobrir por que algo não aparece | *Armadilhas que já custaram tempo* |
 | conferir antes de entregar | *Antes de dizer que está pronto* |
 
-A regra que resume o resto: **o `.gv` diz o que existe, o `.gss` diz como
+A regra que resume o resto: **o `.gvb`/`.gva` diz o que existe, o `.gss` diz como
 aparece, o script diz o que acontece.** Quase todo bug de layout deste motor é
 alguém tendo misturado os três.
+
+## As duas grafias: `.gvb` e `.gva`
+
+Uma tela se escreve de duas maneiras, e **as duas dão exatamente a mesma árvore**
+— o motor não muda uma vírgula de semântica entre elas.
+
+| extensão | grafia | quando |
+|---|---|---|
+| `.gvb` | **blocos**: `tag { atributo: valor }`, sem tag de fechamento | o que o `glacier new` gera; escreva aqui por padrão |
+| `.gva` | **atributos**: XML, `<tag atributo="valor">…</tag>` | o formato de sempre, com nome; todos os exemplos de markup **deste arquivo** estão nele |
+| `.gv` | o nome **legado** do `.gva` | continua abrindo, e é tratado como `.gva`; não crie novos |
+
+Cada arquivo escolhe a sua grafia, e um projeto pode misturar: `<link
+rel="import" href="views/cartao.gvb" />` num `.gva` e `link { rel: import href:
+"views/cartao.gva" }` num `.gvb` funcionam. A referência é sempre o **nome real
+do arquivo**, com a extensão. Sem `.main_template`, o runner procura o template
+principal em `views/app.gva`, `views/app.gvb`, `views/app.gv`, `app.gva`,
+`app.gvb` e `app.gv`, nessa ordem.
+
+A mesma tela, nas duas:
+
+```xml
+<screen title="Contador" size="320 240">
+  <resources>
+    <link rel="stylesheet" href="views/styles/app.gss" />
+    <script>
+      function init() ctx.n = "0" end
+      function somar() ctx.n = tostring(tonumber(ctx.n) + 1) end
+    </script>
+  </resources>
+
+  <column class="tela">
+    <text class="numero">{n}</text>
+    <template if="{n}" equals="0">
+      <text class="nota">Ainda não clicou.</text>
+    </template>
+    <template else>
+      <text class="nota">Clicou {n} vezes.</text>
+    </template>
+    <button class="btn" on_click="somar">+</button>
+  </column>
+</screen>
+```
+
+```
+screen {
+  title: Contador size: "320 240"
+
+  resources {
+    link { rel: stylesheet href: "views/styles/app.gss" }
+
+    script """
+      function init() ctx.n = "0" end
+      function somar() ctx.n = tostring(tonumber(ctx.n) + 1) end
+    """
+  }
+
+  column {
+    class: tela
+
+    text "@n" { class: numero }
+
+    if @n == "0" {
+      text "Ainda não clicou." { class: nota }
+    } else {
+      text "Clicou @n vezes." { class: nota }
+    }
+
+    button "+" { class: btn on_click: somar }
+  }
+}
+```
+
+### O que o `.gvb` muda — e só isso
+
+Um `.gvb` é dessugarado para o XML do `.gva` **na leitura**, linha por linha: um
+erro aponta a linha do `.gvb` (o trecho citado é o do XML gerado). Tudo o que
+este arquivo ensina sobre tags, atributos, `.gss` e scripts vale igual; o que
+muda é só a grafia, e cabe em dez regras.
+
+1. **Bloco é `{ }`, e a quebra de linha não significa nada.** Não há tag de
+   fechamento nem indentação significativa; os atributos quebram onde você quiser
+   (dois espaços por convenção).
+2. **Antes das chaves vai só a tag** (e o texto, se houver). Atributo **nunca**
+   fica fora das chaves: `shortcut { key: ctrl+s on_press: salvar }`. Com filhos,
+   os atributos vão no topo do bloco, uma linha em branco, e os filhos depois.
+3. **Atributo é `nome: valor`.** O valor é uma palavra solta (`on_click: somar`,
+   `size: 12`, `color: #7F849C`) ou uma string entre aspas (`size: "420 340"`,
+   `padding: "10 20"`). Entre aspas sempre que tiver espaço, vírgula, `{`, `}` ou
+   `//`.
+4. **`class` e `id` são atributos como os outros** — não existe `tag.classe`
+   nem `tag#id`: `text "Olá" { class: titulo }`, `column { class: "caixa
+   destaque" }`. A ordem das classes importa como no `.gva` (a última vence).
+5. **`@chave` é DADO; nome solto é NOME DE CHAVE.** É a regra que mais rende: no
+   `.gva`, `value="x"` (o nome da chave) e `value="{x}"` (o valor dela) diferem
+   por dois caracteres dentro das aspas — a armadilha de maior custo deste
+   motor. No `.gvb` a diferença é visível: `value: preco` é o nome, `selected:
+   @aba` é o valor. Dentro de uma string, `"R$ @preco"` interpola; `@{preco}reais`
+   quando o nome encosta em letra; `@@` é um arroba literal. As chaves `{ }` só
+   servem para blocos.
+6. **Texto é o corpo, não atributo**: uma string solta depois da tag —
+   `text "Olá, @usuario" { class: titulo }`, `button "Salvar" { on_click: salvar }`.
+   Prosa longa vai em `"""…"""`, com o espaço em branco colapsado como no `.gva`,
+   então a quebra de linha é livre. E como não é XML, `<`, `>` e `&` não se
+   escapam.
+7. **`script` e `style` levam o corpo cru em `"""`**: sem `@`, sem escape, sem
+   colapso — é Luau e GSS. `script """ … """` (e `script { src: "x.luau" }` quando
+   o código mora em outro arquivo); com atributos, `script """ … """ { lang:
+   python }`. O corpo não pode conter `"""`.
+8. **Comentário é `//` ou `/* … */`**, e podem citar tags à vontade — o `--` não é
+   proibido em lugar nenhum.
+9. **Condicional e repetição são notação**, com o mesmo significado de sempre:
+
+   | `.gvb` | `.gva` |
+   |---|---|
+   | `if @aba == "x" { … }` | `<template if="{aba}" equals="x">` |
+   | `if @aba != "x" { … }` | `not_equals` |
+   | `if "api" in @marcados { … }` | `contains="api"` |
+   | `if @marcados is empty { … }` | `empty="true"` |
+   | `if @ligado { … }` | truthy |
+   | `} else if … {` / `} else {` | `else_if` / `else` |
+   | `each @servicos as s { … }` | `<foreach items="servicos" var="s">` |
+
+   Outras condições (`one_of`, `not_empty`…) e atributos do `<foreach>`
+   (`fallback`, `on_reorder`) vão como atributos comuns: `template { if: @k
+   one_of: "a,b" }`, e dentro do `each`, `fallback: SemItens`.
+10. **A convenção de escrita não muda**: tags do motor em minúsculas,
+    componente do app em `CamelCase` (`CartaoServico { nome: api }`), atributos em
+    `snake_case`, estilo no `.gss`.
+
+### Armadilhas do `.gvb`
+
+- **`//` dentro de um valor sem aspas vira comentário**: `href: https://x` perde
+  tudo depois da segunda barra. URL se escreve entre aspas.
+- **Vírgula em valor pede aspas**: `items: "norte,sul"` (ela é o separador dos
+  conjuntos que o `contains` lê).
+- **`if`, `each` e `else` são palavras reservadas** como tag: não há como chamar
+  um componente assim.
+- **Não escreva `text.titulo`.** O ponto é erro de leitura, com a dica de qual é a
+  forma certa: `text { class: titulo }`.
+- **`@` solto em string de dado** vira interpolação: um e-mail literal é
+  `"contato@@exemplo.com"`.
+
+Do `.gva` para o `.gvb` a conversão é mecânica, e o repositório do motor tem o
+conversor (`gvb_convert`), que confere cada tradução parseando de volta e
+comparando a árvore. No editor, a extensão do VS Code (`glacier install-extensions`)
+dá realce, links e F12 às duas grafias.
 
 ## Como um app glacier funciona
 
@@ -37,7 +185,7 @@ começa (inclusive de IA) vem de supor um modelo que não é este.
 
 | arquivo | responde a pergunta | e nada mais |
 |---|---|---|
-| `.gv` | **o que existe** na tela e o que cada coisa dispara | sem cor, sem tamanho |
+| `.gvb` / `.gva` | **o que existe** na tela e o que cada coisa dispara | sem cor, sem tamanho |
 | `.gss` | **como aparece** | sem estrutura, sem ação |
 | `.luau` (ou Rust) | **o que acontece** quando algo é disparado | sem markup |
 
@@ -93,7 +241,7 @@ return Dados
 ```
 
 **O markup não calcula.** Se a tela precisa de "3 de 7 ativos", quem monta essa
-string é o script; `{ativos} de {total}` é o máximo que o `.gv` faz. Isso não é
+string é o script; `{ativos} de {total}` é o máximo que o `.gva` faz. Isso não é
 limitação a contornar — é o que mantém o template legível e o cálculo testável.
 
 `json.array(t)` marca a tabela como **array** para o encode: sem ele, uma lista
@@ -226,8 +374,8 @@ meu-app/
 ├── Makefile              # make run | lint | linux-dist | windows | deb
 ├── src/main.rs           # registra as telas e abre a janela
 └── views/                # LIDO EM RUNTIME — ver o aviso abaixo
-    ├── app.gv            # a tela raiz
-    ├── components/       # os .gv reutilizáveis
+    ├── app.gvb           # a tela raiz (.gvb; .gva e .gv também abrem)
+    ├── components/       # os .gvb/.gva reutilizáveis
     ├── scripts/
     │   ├── app.luau      # o `init` e os handlers da tela
     │   ├── state.luau    # o estado tipado
@@ -239,7 +387,7 @@ meu-app/
 ```
 
 **`views/` é lido em tempo de execução, não embutido no binário.** Isso é o que
-dá o hot-reload — salvar um `.gv` ou `.gss` com o app aberto aplica na hora, sem
+dá o hot-reload — salvar um `.gva` ou `.gss` com o app aberto aplica na hora, sem
 recompilar. E é o que faz todo alvo de pacote do `Makefile` copiar a pasta
 junto: um pacote sem `views/` compila, instala, abre e mostra uma janela vazia.
 
@@ -257,7 +405,7 @@ Uma lista com filtro, contador e uma ação por linha — o esqueleto de nove em
 cada dez telas. São três arquivos.
 
 ```xml
-<!-- views/servicos.gv -->
+<!-- views/servicos.gva -->
 <screen title="Serviços" size="720 520" min_size="480 360">
   <resources>
     <link rel="theme"      href="views/styles/theme.json" />
@@ -381,8 +529,8 @@ arquivo abre:
 use glacier_ui::GlacierDaemon;
 
 fn main() -> glacier_ui::iced::Result {
-    // Sem `.main_template`, o runner abre `views/app.gv`.
-    GlacierDaemon::new().main_template("views/servicos.gv").run()
+    // Sem `.main_template`, o runner abre `views/app.gva`, `.gvb` ou `.gv`.
+    GlacierDaemon::new().main_template("views/servicos.gva").run()
 }
 ```
 
@@ -493,9 +641,9 @@ desalinha a barra de rolagem, não quebra a tela.
 Só vale para listas que **não cabem** na tela: com poucos itens ela não age, de
 propósito.
 
-## Como se escreve um `.gv` e um `.gss` aqui
+## Como se escreve um `.gva` e um `.gss` aqui
 
-A convenção vale para **todo** template e toda folha do projeto — os que já
+A convenção vale para **todo** template (`.gvb` ou `.gva`) e toda folha do projeto — os que já
 existem e os que vierem. O motor aceita várias grafias como apelido, e é
 justamente por isso que a regra precisa estar escrita: nada quebra se você
 misturar, e um arquivo com quatro grafias da mesma coisa é o resultado natural
@@ -528,7 +676,7 @@ Interpolação continua valendo no filho: `<text>Olá, {usuario}</text>`.
 
 **3. Estilo mora no `.gss`; o markup fica com estrutura.**
 
-Cor, tamanho, espaçamento, padding e largura de caixa saem do `.gv` e viram uma
+Cor, tamanho, espaçamento, padding e largura de caixa saem do `.gva` e viram uma
 **classe com nome de papel**:
 
 ```xml
@@ -573,13 +721,16 @@ São **110 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
+> Os exemplos de markup daqui em diante estão em **`.gva`** (XML). Num `.gvb` a
+> tag e os atributos são os mesmos — só a grafia muda: ver *As duas grafias*.
+
 Como saber, olhando uma tela, o que é o quê:
 
 | grafia | o que é | onde mora |
 |---|---|---|
 | `<column>`, `<textinput>` | **primitiva** do motor | `src/parser.rs` + `src/widget.rs` |
 | `<Card>`, `<TabBar>` | **builtin** da lib (template de markup) | `src/builtins/` |
-| `<MeuCartao>` | **componente deste app** | um `.gv` seu |
+| `<MeuCartao>` | **componente deste app** | um `.gva` seu |
 
 Builtins também respondem em minúscula colada (`<card/>` == `<Card/>`). A
 convenção deste projeto usa minúscula para tudo do motor/lib e `CamelCase` só
@@ -593,7 +744,7 @@ junto, com um exemplo de como o script a produz. O motor aceita `CamelCase`,
 `camelCase`, `kebab-case` e nomes em português como apelidos de quase todo
 atributo; as tabelas mostram **uma** grafia, a que este projeto escreve.
 
-### O esqueleto de um `.gv`
+### O esqueleto de um `.gva`
 
 Uma **tela** (uma janela) e um **componente** (um pedaço importado por outra
 tela) têm o mesmo formato; o que muda é a raiz:
@@ -603,7 +754,7 @@ tela) têm o mesmo formato; o que muda é a raiz:
   <resources>
     <link rel="stylesheet" href="views/app.gss" />
     <link rel="theme" href="theme.json" />
-    <link rel="import" href="views/cartao.gv" />
+    <link rel="import" href="views/cartao.gva" />
     <link rel="data" as="paises" href="dados/paises.json" />
     <script src="scripts/app.luau"></script>
     <dialog name="config"> … corpo do modal … </dialog>
@@ -673,9 +824,9 @@ Três formas de trazer outro template:
 
 | forma | quando |
 |---|---|
-| `<link rel="import" href="views/cartao.gv" />` | no `<resources>`, registra pelo nome do arquivo |
-| `<import name="Cartao" from="views/cartao.gv" />` | quando o nome do componente difere do arquivo |
-| `<include src="views/pedaco.gv" />` | cola o conteúdo ali, sem virar componente |
+| `<link rel="import" href="views/cartao.gva" />` | no `<resources>`, registra pelo nome do arquivo |
+| `<import name="Cartao" from="views/cartao.gva" />` | quando o nome do componente difere do arquivo |
+| `<include src="views/pedaco.gva" />` | cola o conteúdo ali, sem virar componente |
 
 Os `rel` que existem são cinco: `stylesheet`, `import`, `component` (apelido de
 `import`), `data` — que carrega um JSON numa chave de contexto, e aí `as`/`name`
@@ -701,7 +852,7 @@ arquivo dela — vale para a principal e para as abertas por `open_window`:
 **O aplicativo, no `<resources>` da tela principal.** O que não é de janela
 nenhuma — instância única, geometria lembrada, diretório de dados, bandeja — vai
 em `<app>` e `<tray>`. O runner os lê **antes** de abrir qualquer janela, e só
-do template principal (o `views/app.gv` padrão, ou o de
+do template principal (o `views/app.gva` padrão, ou o de
 `.main_template("…")`); em outro template são ignorados, e num `<component>`
 são erro.
 
@@ -765,7 +916,7 @@ Rust, `lua_extension`, fontes embutidas, um contorno de driver):
 
 | no `main.rs` antigo | no markup |
 |---|---|
-| `.main(\|m\| { m.register_component("app", "views/app.gv"); m.set_initial_screen("app") })` | nada — o runner abre `views/app.gv`; outro arquivo é `.main_template("views/x.gv")` |
+| `.main(\|m\| { m.register_component("app", "views/app.gva"); m.set_initial_screen("app") })` | nada — o runner abre `views/app.gva`; outro arquivo é `.main_template("views/x.gva")` |
 | `.main_window(Settings { decorations: false, … })` | `<screen decorations="false">` |
 | `.main_window(Settings { icon: …, … })` + `include_bytes!` | `<screen icon="views/assets/icone.png">` — o arquivo vai para `views/`, que o pacote leva |
 | `.child_window(\|_, s\| s.decorations = false)` | `<screen decorations="false">` no arquivo da filha |
@@ -1574,7 +1725,7 @@ markup. Sem `width`/`height`, é `300`×`200`.
 | `<polyline>` / `<polygon>` | `points="x,y x,y …"` — a segunda fecha |
 | `<text>` | `x y` + texto como filho; segue as regras de um `<text>` normal |
 
-- **Geometria é dado**: `cx="{x}"`, `d="{traçado}"` — inline no `.gv`.
+- **Geometria é dado**: `cx="{x}"`, `d="{traçado}"` — inline no `.gva`.
 - **Traço e preenchimento são estilo**: `fill` / `stroke` / `stroke-width` numa
   **classe `.gss`** (apelidos de `background` / `border-color` / `border-width`).
 - Sem `on_click`/hover/animação numa forma.
@@ -1848,7 +1999,7 @@ o motor mescla ao menu estático:
 ctx.acoes = json.encode(json.array({
     { label = "Abrir",   action = "abrir" },
     { separator = true },
-    { label = "Recentes", items = { { label = "app.gv", action = "abrir_recente" } } },
+    { label = "Recentes", items = { { label = "app.gva", action = "abrir_recente" } } },
 }))
 ```
 
@@ -2022,7 +2173,7 @@ ninguém preencheu simplesmente não desenha nada.
 |---|---|
 | `<link rel="stylesheet" href="app.gss" />` | `<resources>`; a folha vale **globalmente** |
 | `<link rel="theme" href="theme.json" />` | `<resources>` |
-| `<link rel="import" href="views/cartao.gv" />` | `<resources>` |
+| `<link rel="import" href="views/cartao.gva" />` | `<resources>` |
 | `<link rel="data" as="paises" href="paises.json" />` | `<resources>`; `as` é obrigatório |
 | `<script src="scripts/app.luau"></script>` | `<resources>` |
 | `<style> … </style>` | folha embutida; **global** por default, `scoped="true"` a prende ao componente |
@@ -2059,7 +2210,7 @@ condicionais:
 Com ele, o componente não conhece cabeçalho nenhum — quem usa escolhe:
 
 ```xml
-<!-- views/components/lista.gv -->
+<!-- views/components/lista.gva -->
 <component>
   <props>
     <prop name="titulo" />
@@ -2288,7 +2439,7 @@ A coleta das declarações é uma **varredura recursiva** da árvore — não s�
 botão que o abre e o `<script>` do handler **dentro do arquivo do componente**:
 
 ```xml
-<!-- views/editor_rotulo.gv -->
+<!-- views/editor_rotulo.gva -->
 <component>
   <resources>
     <script src="editor_rotulo.luau"></script>
@@ -2360,13 +2511,13 @@ vale (`.a, .b { }`) e é expandida em regras independentes.
 **A ordem de especificidade**, do mais fraco ao mais forte:
 
 ```
-tag  <  classe  <  id  <  atributo inline no .gv
+tag  <  classe  <  id  <  atributo inline no .gva
 ```
 
 Um `#salvar` fora de `@media` ainda vence uma `.botao` dentro de `@media` — o
 tier mais alto ganha, a `@media` só desempata dentro do mesmo tier. E o atributo
 escrito no markup vence tudo, o que é a razão de a convenção deste projeto
-tirar estilo do `.gv`: um `size="12"` inline torna a classe inalcançável.
+tirar estilo do `.gva`: um `size="12"` inline torna a classe inalcançável.
 
 Regras de mesmo seletor **mesclam**, não se sobrescrevem: um segundo bloco
 `.cartao { }` acrescenta o que declara e preserva o resto.
@@ -2405,7 +2556,7 @@ novas, é o mesmo campo com o nome do domínio.
 | `hidden` | — | `true`/`false`; `display: none` é apelido de `hidden: true` |
 
 O motor aceita a forma com hífen como apelido de todas. A convenção deste
-projeto escreve **sublinhado**, para casar com os atributos do `.gv`.
+projeto escreve **sublinhado**, para casar com os atributos do `.gva`.
 
 ### Pseudo-estados
 
@@ -2563,7 +2714,7 @@ Todas silenciosas — nenhuma dá erro:
   `border-bottom`, `margin`, `box-shadow` somem no meio de um arquivo grande. O
   aviso vai para o terminal.
 - **Um atributo de estilo inline vence a classe.** Um `size="12"` esquecido no
-  `.gv` torna `.rotulo { size: 14 }` inalcançável — e a busca começa no `.gss`,
+  `.gva` torna `.rotulo { size: 14 }` inalcançável — e a busca começa no `.gss`,
   que é o lugar errado.
 - **Desligar uma chave é gravar vazio nela.** Por isso um `<template if>` de
   visibilidade não leva comparador: sem ele a condição é **truthy**. Com
@@ -2747,7 +2898,7 @@ return Dados
 
 ### Hot-reload não cobre `.luau`
 
-Salvar um `.gv`, um `.gss`, o `theme.json` ou um `<link rel="data">` aplica com
+Salvar um `.gva`, um `.gss`, o `theme.json` ou um `<link rel="data">` aplica com
 o app aberto. **Mudança em script pede reiniciar** — o motor troca a árvore do
 template no lugar, mas não recria a VM do Luau nem roda o `init` de novo.
 
@@ -3071,8 +3222,8 @@ chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
 navigate("sobre")        -- troca a tela desta janela
 navigate_back()          -- volta uma no histórico
 
-open_window("views/detalhe.gv")
-open_window({ file = "views/detalhe.gv", title = "Detalhe", width = 400, height = 300 })
+open_window("views/detalhe.gva")
+open_window({ file = "views/detalhe.gva", title = "Detalhe", width = 400, height = 300 })
 open_window({ component = "perfil", title = "Perfil" })   -- já registrado
 
 broadcast("item_criado", { id = "42", nome = "api" })     -- para as OUTRAS janelas
@@ -3254,7 +3405,7 @@ pub struct Contador { valor: i32 }
 
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }                       // o nome da tag/tela
-    fn template(&self) -> Template { Template::File("views/contador.gv".into()) }
+    fn template(&self) -> Template { Template::File("views/contador.gva".into()) }
 
     fn init(&mut self, ctx: &mut Context) {                      // uma vez, ao montar
         ctx.set("contador", self.valor.to_string());
@@ -3283,16 +3434,16 @@ template; o builder fica com o que o markup não expressa:
 GlacierDaemon::new()
     .title("Meu app")
     .main_size(980, 640)
-    .font_named("Inter", include_bytes!("Inter.ttf"))   // `font="Inter"` no .gv/.gss
+    .font_named("Inter", include_bytes!("Inter.ttf"))   // `font="Inter"` no .gva/.gss
     .main(|motor| {
-        motor.register_component("app", "views/app.gv").ok();   // tela vinda de .gv
+        motor.register_component("app", "views/app.gva").ok();   // tela vinda de .gva
         motor.register(Box::new(Contador::new())).ok();          // tela vinda de Rust
         motor.set_initial_screen("app");
     })
     .run()
 ```
 
-Rust e Luau convivem: um componente Rust cujo `.gv` tenha `<script>` roda o
+Rust e Luau convivem: um componente Rust cujo `.gva` tenha `<script>` roda o
 Luau **primeiro** e cai no `update` do Rust só para as ações que o script não
 define.
 
@@ -3403,7 +3554,7 @@ cancelar depois.
 ## Antes de dizer que está pronto
 
 - `make lint` passa (clippy + type-check dos `.luau`).
-- O app **abre**: `make run`. Um `.gv` com erro de XML falha na carga com a linha
+- O app **abre**: `make run`. Um `.gva` com erro de XML falha na carga com a linha
   e a coluna; um `UnknownComponent` é tag com a caixa errada.
 - Toda chave que o markup lê é escrita em algum lugar — um `{total}` que ninguém
   publica renderiza **vazio**, sem aviso.
@@ -3415,7 +3566,7 @@ cancelar depois.
 
 ## Convenções deste projeto
 
-- **Templates são `.gv`**; folhas de estilo, `.gss`. Não existe `.kdl`, `.iss`
+- **Templates são `.gva`**; folhas de estilo, `.gss`. Não existe `.kdl`, `.iss`
   nem `.rss` — se vir menção a esses, é documentação velha.
 - **Scripts são Luau**, em `views/scripts/`. Os tipos de tudo que o motor injeta
   estão em `views/scripts/glacier.d.luau`.
