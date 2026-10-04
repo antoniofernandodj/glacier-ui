@@ -8,6 +8,38 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.115.0 · CLI 0.6.0 · vscode-gv 0.20.5 — 2026-10-04
+
+- **O markup ganha uma segunda grafia: o `.gvb` (blocos).** `tag { atributo: valor }`,
+  sem tag de fechamento, com `@chave` para dado (`value: preco` é o nome da
+  chave, `selected: @aba` é o valor dela), texto como corpo
+  (`text "Olá" { class: titulo }`), `script """…"""`/`style """…"""` com o corpo cru,
+  comentários `//` e `/* */`, e `if`/`else if`/`else`/`each` no lugar do
+  `<template if>`/`<foreach>`. Classe e id são atributos comuns (`class:`,
+  `id:`): não existe `tag.classe`. **A semântica não muda**: o `.gvb` é
+  dessugarado para o XML do `.gva` na leitura (`asset_source::read_markup`),
+  preservando a contagem de linhas — o `line` de um erro é o do `.gvb`. Novos
+  módulos `gvb` (o dessugarador) e `gva` (o ponto de entrada do XML).
+  A especificação está em `rascunhos/MARKUP.md`.
+- **`.gva` é o nome do formato XML; `.gv` é o legado.** Um `.gv` abre e é tratado
+  como `.gva`, sem mudar nada. O template principal padrão do `GlacierDaemon`
+  passa a procurar `views/app.gva`, `.gvb` e `.gv` (e as mesmas três na raiz).
+- **`gvb/`**: os 92 exemplos e templates traduzidos para `.gvb`, cada um conferido
+  contra o `.gv` original (árvore a árvore). Ferramentas novas em `examples/`:
+  `gvb_convert` (`.gv` → `.gvb` com conferência), `gvb_check` (`--load` registra
+  arquivos pelo carregador real) e `gvb_run` (abre um template numa janela).
+- **CLI 0.6.0: os presets geram `.gvb`.** Os 28 templates dos 10 presets foram
+  convertidos; `main.rs`, READMEs e Makefiles apontam para `.gvb`. O
+  `AGENTS.md` do projeto gerado ensina as duas grafias (seção nova *As duas
+  grafias*), com a mesma tela nas duas, as regras e as armadilhas do `.gvb`.
+  **Um projeto gerado por esta CLI exige o motor 0.115 ou mais novo.**
+- **vscode-gv 0.20.5:** `.gva`/`.gv`/`.gvb`; links, F12 e diagnósticos também no
+  `.gvb`; gramática de Luau embutida (o VS Code não traz uma) para o corpo de
+  `script`; `script`/`style` com `"""` pintados; a aspa dupla do `.gvb` é decidida
+  pelo contexto (`"""` fecha com `"""`).
+
+---
+
 ## glacier-ui 0.114.1 — 2026-10-03
 
 - **Instância única no macOS/BSD decide o dono por `flock`.** Fora do Linux o
