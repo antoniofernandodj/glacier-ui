@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.115.0"
+version = "0.116.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -23,7 +23,7 @@ categories = ["gui"]
 #
 #     [[example]]
 #     name = "contador"
-#     path = "examples/contador/main.rs"
+#     path = "examples/gva/contador/main.rs"
 #
 # Para rodar um exemplo antigo sem declará-lo, o caminho é reativar a descoberta
 # pontualmente: `cargo run --example contador` depois de comentar a linha abaixo.
@@ -31,177 +31,177 @@ autoexamples = false
 
 [[example]]
 name = "ciclo_vida_luau"
-path = "examples/ciclo_vida_luau/main.rs"
+path = "examples/gva/ciclo_vida_luau/main.rs"
 
 [[example]]
 name = "ciclo_vida_rust"
-path = "examples/ciclo_vida_rust/main.rs"
+path = "examples/gva/ciclo_vida_rust/main.rs"
 
 [[example]]
 name = "spinbox"
-path = "examples/spinbox/main.rs"
+path = "examples/gva/spinbox/main.rs"
 
 [[example]]
 name = "timepicker"
-path = "examples/timepicker/main.rs"
+path = "examples/gva/timepicker/main.rs"
 
 [[example]]
 name = "data_hora_luau"
-path = "examples/data_hora_luau/main.rs"
+path = "examples/gva/data_hora_luau/main.rs"
 
 [[example]]
 name = "componentes_locais"
-path = "examples/componentes_locais/main.rs"
+path = "examples/gva/componentes_locais/main.rs"
 
 [[example]]
 name = "componentes_por_atributo"
-path = "examples/componentes_por_atributo/main.rs"
+path = "examples/gva/componentes_por_atributo/main.rs"
 
 [[example]]
 name = "componentes_por_atributo_luau"
-path = "examples/componentes_por_atributo_luau/main.rs"
+path = "examples/gva/componentes_por_atributo_luau/main.rs"
 
 [[example]]
 name = "foreach_fallback"
-path = "examples/foreach_fallback/main.rs"
+path = "examples/gva/foreach_fallback/main.rs"
 
 [[example]]
 name = "foreach_fallback_luau"
-path = "examples/foreach_fallback_luau/main.rs"
+path = "examples/gva/foreach_fallback_luau/main.rs"
 
 [[example]]
 name = "onda4"
-path = "examples/onda4/main.rs"
+path = "examples/gva/onda4/main.rs"
 
 [[example]]
 name = "onda4_luau"
-path = "examples/onda4_luau/main.rs"
+path = "examples/gva/onda4_luau/main.rs"
 
 [[example]]
 name = "onda5"
-path = "examples/onda5/main.rs"
+path = "examples/gva/onda5/main.rs"
 
 [[example]]
 name = "onda5_luau"
-path = "examples/onda5_luau/main.rs"
+path = "examples/gva/onda5_luau/main.rs"
 
 [[example]]
 name = "onda6"
-path = "examples/onda6/main.rs"
+path = "examples/gva/onda6/main.rs"
 
 [[example]]
 name = "onda6_luau"
-path = "examples/onda6_luau/main.rs"
+path = "examples/gva/onda6_luau/main.rs"
 
 [[example]]
 name = "onda9"
-path = "examples/onda9/main.rs"
+path = "examples/gva/onda9/main.rs"
 
 [[example]]
 name = "onda9_luau"
-path = "examples/onda9_luau/main.rs"
+path = "examples/gva/onda9_luau/main.rs"
 
 [[example]]
 name = "onda11"
-path = "examples/onda11/main.rs"
+path = "examples/gva/onda11/main.rs"
 
 [[example]]
 name = "onda11_luau"
-path = "examples/onda11_luau/main.rs"
+path = "examples/gva/onda11_luau/main.rs"
 
 [[example]]
 name = "onda8"
-path = "examples/onda8/main.rs"
+path = "examples/gva/onda8/main.rs"
 
 [[example]]
 name = "onda8_luau"
-path = "examples/onda8_luau/main.rs"
+path = "examples/gva/onda8_luau/main.rs"
 
 [[example]]
 name = "onda8b_luau"
-path = "examples/onda8b_luau/main.rs"
+path = "examples/gva/onda8b_luau/main.rs"
 
 [[example]]
 name = "onda7"
-path = "examples/onda7/main.rs"
+path = "examples/gva/onda7/main.rs"
 
 [[example]]
 name = "onda7_luau"
-path = "examples/onda7_luau/main.rs"
+path = "examples/gva/onda7_luau/main.rs"
 
 [[example]]
 name = "onda3"
-path = "examples/onda3/main.rs"
+path = "examples/gva/onda3/main.rs"
 
 [[example]]
 name = "onda1"
-path = "examples/onda1/main.rs"
+path = "examples/gva/onda1/main.rs"
 
 [[example]]
 name = "onda2"
-path = "examples/onda2/main.rs"
+path = "examples/gva/onda2/main.rs"
 
 [[example]]
 name = "onda10"
-path = "examples/onda10/main.rs"
+path = "examples/gva/onda10/main.rs"
 
 [[example]]
 name = "onda10_luau"
-path = "examples/onda10_luau/main.rs"
+path = "examples/gva/onda10_luau/main.rs"
 
 [[example]]
 name = "series_multiplas"
-path = "examples/series_multiplas/main.rs"
+path = "examples/gva/series_multiplas/main.rs"
 
 [[example]]
 name = "series_multiplas_luau"
-path = "examples/series_multiplas_luau/main.rs"
+path = "examples/gva/series_multiplas_luau/main.rs"
 
 [[example]]
 name = "onda12"
-path = "examples/onda12/main.rs"
+path = "examples/gva/onda12/main.rs"
 
 [[example]]
 name = "onda12_luau"
-path = "examples/onda12_luau/main.rs"
+path = "examples/gva/onda12_luau/main.rs"
 
 [[example]]
 name = "onda13"
-path = "examples/onda13/main.rs"
+path = "examples/gva/onda13/main.rs"
 
 [[example]]
 name = "onda13_luau"
-path = "examples/onda13_luau/main.rs"
+path = "examples/gva/onda13_luau/main.rs"
 
 [[example]]
 name = "http_client_luau"
-path = "examples/http_client_luau/main.rs"
+path = "examples/gva/http_client_luau/main.rs"
 
 [[example]]
 name = "console_luau"
-path = "examples/console_luau/main.rs"
+path = "examples/gva/console_luau/main.rs"
 
 [[example]]
 name = "sqlite_crud"
-path = "examples/sqlite_crud/main.rs"
+path = "examples/gva/sqlite_crud/main.rs"
 
 # Roda também no navegador — ver docs/WEB.md e `make web-contador`.
 [[example]]
 name = "web_contador"
-path = "examples/web_contador/main.rs"
+path = "examples/gva/web_contador/main.rs"
 
 # Requer `--features webview` (sem a feature, o botão abre uma janela vazia —
 # ver o comentário da dependência `wry` abaixo).
 [[example]]
 name = "webview"
-path = "examples/webview/main.rs"
+path = "examples/gva/webview/main.rs"
 
 # Requer `--features micropython` — sem ela, `glacier_ui::micropython` nem
 # existe (módulo inteiro atrás de `#[cfg(feature = "micropython")]`, ver
 # src/lib.rs), então o exemplo não compila sem a feature.
 [[example]]
 name = "contador_micropython"
-path = "examples/contador_micropython/main.rs"
+path = "examples/gva/contador_micropython/main.rs"
 required-features = ["micropython"]
 
 [dependencies]

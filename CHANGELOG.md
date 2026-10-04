@@ -8,6 +8,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.116.0 · CLI 0.6.1 · vscode-gv 0.20.6 — 2026-10-04
+
+- **No `.gvb`, o texto vale antes e depois do bloco.** `text "oi" { class: nota }` e
+  `text { class: nota } "oi"` (e as duas com `"""…"""`, e `script { lang: python }
+  """…"""`) dão a mesma árvore; a linha em branco entre os atributos e os filhos
+  continua opcional. Só vale sem filhos, e um segundo texto no mesmo elemento é
+  erro. A forma que a documentação escreve é a do texto primeiro.
+- **Correção:** o corpo cru de um `script`/`style` não ganha mais uma quebra de
+  linha no começo quando os atributos vêm depois do corpo.
+- **Exemplos reorganizados:** `examples/gva/<nome>/` (os exemplos de sempre, agora
+  com `.gva`) e `examples/gvb/<nome>/` (as traduções); o `gvb/` da raiz sumiu. Os
+  caminhos em `Cargo.toml`, testes e docs foram atualizados, e `tests/exemplos_gv.rs`
+  passa a varrer `.gv`, `.gva` e `.gvb`. Novo `examples/README.md`.
+- **vscode-gv 0.20.6:** o texto depois do bloco também liga links e F12; o
+  realce de `script { … } """` pinta o corpo.
+
+---
+
 ## glacier-ui 0.115.0 · CLI 0.6.0 · vscode-gv 0.20.5 — 2026-10-04
 
 - **O markup ganha uma segunda grafia: o `.gvb` (blocos).** `tag { atributo: valor }`,
