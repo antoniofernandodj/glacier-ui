@@ -589,8 +589,8 @@ fn pick_color_e_um_prompt_com_roda() {
 #[test]
 fn exemplos_da_onda_avaliam() {
     for (nome, caminho) in [
-        ("onda8", "examples/onda8/app.gv"),
-        ("onda8_luau", "examples/onda8_luau/app.gv"),
+        ("onda8", "examples/gva/onda8/app.gva"),
+        ("onda8_luau", "examples/gva/onda8_luau/app.gva"),
     ] {
         let mut motor = GlacierUI::new();
         motor
@@ -834,7 +834,7 @@ fn o_corpo_do_dialogo_chega_a_tela() {
     ] {
         let mut motor = GlacierUI::new();
         motor
-            .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+            .register_component("onda8_luau", "examples/gva/onda8_luau/app.gva")
             .unwrap();
         motor.navigate_to("onda8_luau");
         let _ = motor.dispatch(&EngineMessage::UiClick(acao.into()));
@@ -864,7 +864,7 @@ fn o_corpo_do_dialogo_chega_a_tela() {
 fn o_corpo_declarativo_chega_a_tela() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda8", "examples/onda8/app.gv")
+        .register_component("onda8", "examples/gva/onda8/app.gva")
         .unwrap();
     motor.navigate_to("onda8");
 
@@ -896,7 +896,7 @@ fn o_corpo_declarativo_chega_a_tela() {
 fn o_corpo_e_solto_no_fechamento() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .register_component("onda8_luau", "examples/gva/onda8_luau/app.gva")
         .unwrap();
     motor.navigate_to("onda8_luau");
 
@@ -925,7 +925,7 @@ fn o_corpo_e_solto_no_fechamento() {
 fn progresso_sobrevive_ao_turno_que_o_abriu() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .register_component("onda8_luau", "examples/gva/onda8_luau/app.gva")
         .unwrap();
     motor.navigate_to("onda8_luau");
 
@@ -970,7 +970,7 @@ fn conta_folhas(no: &glacier_ui::UiNode) -> usize {
 fn o_corpo_do_progresso_tem_conteudo() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda8_luau", "examples/onda8_luau/app.gv")
+        .register_component("onda8_luau", "examples/gva/onda8_luau/app.gva")
         .unwrap();
     motor.navigate_to("onda8_luau");
     let _ = motor.dispatch(&EngineMessage::UiClick("baixar".into()));

@@ -287,8 +287,8 @@ mod tests {
 
     #[test]
     fn a_macro_embute_pelo_caminho_relativo_ao_crate() {
-        let assets = crate::embed_assets!["examples/web_contador/app.gv"];
-        let gv = assets.read_to_string("examples/web_contador/app.gv").unwrap();
+        let assets = crate::embed_assets!["examples/gva/web_contador/app.gva"];
+        let gv = assets.read_to_string("examples/gva/web_contador/app.gva").unwrap();
         assert!(gv.contains("<screen"), "{gv}");
     }
 }

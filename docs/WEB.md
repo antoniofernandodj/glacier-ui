@@ -6,7 +6,7 @@ desenha por WebGL (ou WebGPU, onde houver) e o executor de tarefas é o
 `wasm-bindgen-futures`. Um app é o mesmo `GlacierDaemon`, os mesmos
 `Component`s Rust, o mesmo `.gv` e o mesmo `.gss`.
 
-O exemplo de referência é `examples/web_contador`:
+O exemplo de referência é `examples/gva/web_contador`:
 
 ```sh
 make web-contador          # compila, gera o JS e serve em http://localhost:8080
@@ -49,7 +49,7 @@ ficou fora da lista falha como um arquivo ausente no disco, e a mensagem diz
 binário nativo standalone. Com ele não há hot-reload.
 
 **2. O HTML.** O iced troca o elemento de `id="iced"` pelo canvas da janela
-principal. Veja `examples/web_contador/index.html`: um `<div id="iced">`, o canvas
+principal. Veja `examples/gva/web_contador/index.html`: um `<div id="iced">`, o canvas
 com `width/height: 100%` e o `import init from "./<nome>.js"`.
 
 **3. O build.**
@@ -57,8 +57,8 @@ com `width/height: 100%` e o `import init from "./<nome>.js"`.
 ```sh
 cargo build --release --example web_contador --target wasm32-unknown-unknown
 wasm-bindgen --target web --no-typescript --out-dir dist \
-  target/wasm32-unknown-unknown/release/examples/web_contador.wasm
-cp examples/web_contador/index.html dist/
+  target/wasm32-unknown-unknown/release/examples/gva/web_contador.wasm
+cp examples/gva/web_contador/index.html dist/
 ```
 
 `dist/` é estático e pode ir para qualquer servidor de arquivos. Ele precisa

@@ -1,0 +1,289 @@
+screen {
+  title: "Glacier — Onda 8" size: "1000 720" min_size: "820 620"
+
+  resources {
+    link { rel: stylesheet href: "examples/gvb/onda8/app.gss" }
+
+    // ── Item 1: o `<dialog>` próprio, o QDialog ────────────────────────
+    // Declaração, não widget: nada desenha aqui. O corpo é markup comum,
+    // avaliado pelo mesmo `render_node` de qualquer tela, e o que o faz
+    // aparecer é `on_click="dialog:editar_servico"`.
+    //
+    // Os campos escrevem em chaves `__dialog.*`, que o motor apaga no
+    // fechamento — sem isso, a segunda abertura viria preenchida com o que
+    // ficou da primeira.
+    dialog {
+      name: editar_servico title: "Editar serviço"
+      buttons: "Cancelar::|Salvar:salvar_servico:accept"
+
+      column {
+        class: form
+
+        column {
+          class: campo
+
+          text "Nome" { class: rotulo }
+
+          textinput {
+            value: __dialog.nome on_change: __dialog.nome
+            placeholder: api-gateway class: preenche
+          }
+        }
+
+        row {
+          class: campos
+
+          column {
+            class: campo
+
+            text "Réplicas" { class: rotulo }
+
+            // `width` do spinbox é a do CAMPO, e a row interna dele é
+            // shrink: um `fill` aqui colapsa o número. Por isso ele fica
+            // inline, e não no `.gss` como largura de caixa.
+            spinbox {
+              value: __dialog.replicas min: 1 max: 32 step: 1 width: 110
+            }
+          }
+
+          column {
+            class: campo
+
+            text "Ambiente" { class: rotulo }
+
+            select {
+              options: ambientes value: __dialog.ambiente
+              on_change: __dialog.ambiente class: preenche
+            }
+          }
+        }
+
+        checkbox {
+          label: "Reiniciar automaticamente" checked: __dialog.restart
+          on_toggle: __dialog.restart
+        }
+      }
+    }
+
+    // Um segundo diálogo, para mostrar que o encadeamento funciona: o botão
+    // neutro daqui reabre o de cima. Sem corpo — é uma caixa de mensagem.
+    dialog {
+      name: remover_servico title: "Remover serviço?"
+      message: "A ação não pode ser desfeita." icon: warning
+      dismissible: false
+      buttons: "Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive"
+    }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: barra
+
+      text "Onda 8 — o diálogo que carrega markup" { class: titulo }
+      space { class: empurra }
+      text "@status" { class: status }
+    }
+
+    tabs {
+      value: aba active: @aba items: abas class: corpo
+
+      // ══ O modal com corpo ═══════════════════════════════════════════
+      template {
+        slot: modal
+
+        column {
+          class: painel
+
+          text "Um QDialog de verdade: moldura do motor, corpo em markup." {
+            class: lead
+          }
+
+          row {
+            class: acoes
+
+            button { text: "Editar serviço" on_click: dialog:editar_servico }
+            button { text: "Remover serviço" on_click: dialog:remover_servico }
+            button { text: "Abrir do Rust (com corpo)" on_click: abrir_do_rust }
+          }
+
+          frame {
+            shape: box class: bloco
+
+            column {
+              class: campo
+
+              text "Último salvamento" { class: rotulo }
+              text "@ultimo" { class: valor }
+            }
+          }
+
+          text """
+            O corpo é avaliado no contexto do app — por isso um diálogo com
+            campo não precisa de estado por instância. O que o usuário digita
+            mora numa chave, como em qualquer campo de texto.
+          """ {
+            class: nota
+          }
+        }
+      }
+
+      // ══ O wizard ════════════════════════════════════════════════════
+      template {
+        slot: wizard
+
+        column {
+          class: painel
+
+          text """
+            No Qt o QWizard É um QDialog — aqui ele é a soma da onda: páginas +
+            botões + o passo numa chave.
+          """ {
+            class: lead
+          }
+
+          frame {
+            shape: box class: bloco
+
+            wizard {
+              value: passo active: @passo steps: "plano,dominio,revisao"
+              titles: "Escolha o plano,Domínio,Revisão" valid: @passo_valido
+              on_finish: finalizar on_cancel: cancelar_wizard
+
+              template {
+                slot: plano
+
+                column {
+                  class: form
+
+                  radiogroup { value: plano items: planos }
+                  text "Plano: @plano" { class: rotulo }
+                }
+              }
+
+              template {
+                slot: dominio
+
+                column {
+                  class: form
+
+                  text "Domínio do projeto" { class: rotulo }
+
+                  textinput {
+                    value: dominio on_change: dominio
+                    placeholder: exemplo.com.br class: preenche
+                  }
+
+                  // `equals=""`, não `empty`: no motor o `empty` pergunta se
+                  // o valor é um array JSON vazio, não se a string está em
+                  // branco.
+                  if @dominio == "" {
+                    text """
+                      Avançar fica travado enquanto isto estiver vazio — é o
+                      QWizardPage::isComplete().
+                    """ {
+                      class: aviso
+                    }
+                  }
+                }
+              }
+
+              template {
+                slot: revisao
+
+                column {
+                  class: revisao
+
+                  text "Plano: @plano" { class: valor }
+                  text "Domínio: @dominio" { class: valor }
+                }
+              }
+            }
+          }
+
+          text """
+            Voltar fica INERTE no primeiro passo, não some: um botão que aparece
+            e desaparece faz a fileira dançar. E avançar no último satura — dar
+            a volta pareceria ter perdido o preenchido.
+          """ {
+            class: nota
+          }
+        }
+      }
+
+      // ══ A roda de cor e o stackview ═════════════════════════════════
+      template {
+        slot: cor
+
+        row {
+          class: colunas
+
+          column {
+            class: painel
+
+            text "colorwheel avulso" { class: lead }
+            colorwheel { value: cor size: 230 }
+
+            row {
+              class: acoes
+
+              container { class: amostra background: @cor }
+
+              textinput {
+                value: cor__hex on_change: cor_digitada placeholder: #rrggbb
+                class: campo-hex
+              }
+            }
+          }
+
+          column {
+            class: painel
+
+            text "stackview — o QStackedWidget" { class: lead }
+
+            row {
+              class: acoes
+
+              button { text: Resumo on_click: painel:resumo }
+              button { text: Detalhe on_click: painel:detalhe }
+            }
+
+            frame {
+              shape: box class: bloco
+
+              stackview {
+                active: @painel
+
+                template {
+                  slot: resumo
+
+                  text """
+                    A página escolhida por NOME, não por posição numa escada de
+                    condicionais.
+                  """ {
+                    class: valor
+                  }
+                }
+
+                template {
+                  slot: detalhe
+
+                  column {
+                    class: revisao
+
+                    text "Trocar a ordem de dois template slot não muda nada." {
+                      class: valor
+                    }
+
+                    text "Cor atual: @cor" { class: rotulo }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

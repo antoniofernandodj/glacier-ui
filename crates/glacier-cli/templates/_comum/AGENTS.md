@@ -114,6 +114,9 @@ muda é só a grafia, e cabe em dez regras.
 2. **Antes das chaves vai só a tag** (e o texto, se houver). Atributo **nunca**
    fica fora das chaves: `shortcut { key: ctrl+s on_press: salvar }`. Com filhos,
    os atributos vão no topo do bloco, uma linha em branco, e os filhos depois.
+   O texto também é aceito **depois** do bloco — `text { class: nota } "oi"` é o
+   mesmo que `text "oi" { class: nota }` —, e as duas são válidas; a que se
+   escreve aqui é a do texto primeiro.
 3. **Atributo é `nome: valor`.** O valor é uma palavra solta (`on_click: somar`,
    `size: 12`, `color: #7F849C`) ou uma string entre aspas (`size: "420 340"`,
    `padding: "10 20"`). Entre aspas sempre que tiver espaço, vírgula, `{`, `}` ou
@@ -2481,7 +2484,7 @@ O conteúdo passado como `<slot/>` de `<CampoForm>` pertence a **quem escreveu**
 normal. Um componente no corpo que tenha `<script>` próprio segue namespaceando
 as ações dele como sempre.
 
-Exemplo completo das duas direções: `examples/onda8b_luau`.
+Exemplo completo das duas direções: `examples/gva/onda8b_luau`.
 
 #### Largura dos campos — a armadilha de sempre
 

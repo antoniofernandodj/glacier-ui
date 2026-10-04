@@ -1,0 +1,39 @@
+screen {
+  title: "Glacier — Bandeja" size: "460 300"
+
+  resources {
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link { rel: theme href: "examples/gvb/bandeja/theme.json" }
+  }
+
+  container {
+    padding: 30 align_x: Center align_y: Center width: fill height: fill
+
+    column {
+      spacing: 20 align: Center
+
+      text "Exemplo de bandeja" { size: 26 bold: true color: #ECEFF4 }
+
+      text "Feche esta janela: o app continua na bandeja." {
+        size: 14 color: #A3BE8C
+      }
+
+      text "Reabra pelo item 'Open' do menu do ícone." {
+        size: 13 color: #81A1C1
+      }
+
+      button {
+        text: "Disparar notificação do SO" on_click: notificar color: #5E81AC
+        width: 300 padding: 12
+      }
+
+      text """
+        (o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)
+      """ {
+        size: 11 color: #4C566A
+      }
+    }
+  }
+}

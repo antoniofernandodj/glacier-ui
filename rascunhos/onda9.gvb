@@ -2,7 +2,7 @@ screen {
   title: "Glacier — Onda 9" size: "1060 760" min_size: "880 640"
 
   resources {
-    link { rel: stylesheet href: "examples/onda9/app.gss" }
+    link { rel: stylesheet href: "examples/gva/onda9/app.gss" }
   }
 
   column {

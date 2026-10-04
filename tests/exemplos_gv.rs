@@ -17,9 +17,21 @@ fn gvs(dir: &Path, out: &mut Vec<PathBuf>) {
         let p = entry.path();
         if p.is_dir() {
             gvs(&p, out);
-        } else if p.extension().is_some_and(|e| e == "gv") {
+        } else if p.extension().is_some_and(|e| e == "gv" || e == "gva" || e == "gvb") {
             out.push(p);
         }
+    }
+}
+
+/// O markup de um template como XML: um `.gvb` é dessugarado (como o motor faz
+/// na leitura), um `.gva`/`.gv` já é XML.
+fn ler_markup(arquivo: &Path) -> String {
+    let src = std::fs::read_to_string(arquivo).expect("ler template");
+    if arquivo.extension().is_some_and(|e| e == "gvb") {
+        glacier_ui::gvb::desugar(&src)
+            .unwrap_or_else(|d| panic!("{}: {}", arquivo.display(), d.message))
+    } else {
+        src
     }
 }
 
@@ -61,8 +73,7 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
         // valores válidos, como a CLI faria: o `<app id="{{nome_projeto}}">` do
         // preset `completo` é recusado cru, porque `{` não vale num nome de
         // diretório — e isso é o parser certo, não o preset errado.
-        let src = std::fs::read_to_string(&arquivo)
-            .expect("ler .gv")
+        let src = ler_markup(&arquivo)
             .replace("{{titulo}}", "Exemplo")
             .replace("{{nome_projeto}}", "exemplo")
             .replace("{{nome_crate}}", "exemplo")
@@ -98,7 +109,7 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
 /// O parse de um `.gv` não resolve o `src` — o bloco de script é recortado por
 /// texto antes, e o caminho só é lido quando o motor REGISTRA o componente. Um
 /// `src` errado passava por todos os testes e só aparecia ao abrir o app; foi
-/// assim que `examples/stream_lua` ficou apontando para um `.luau` enquanto o
+/// assim que `examples/gva/stream_lua` ficou apontando para um `.luau` enquanto o
 /// arquivo no disco era `.lua`.
 #[test]
 fn todo_script_src_aponta_para_um_arquivo_existente() {
@@ -113,7 +124,7 @@ fn todo_script_src_aponta_para_um_arquivo_existente() {
         // Sem comentários, como o motor lê (`eval::find_script_open` pula um
         // `<script>` comentado): um `<!-- … <script src="…"> … -->` explicando
         // o exemplo não é um script, e não aponta para arquivo nenhum.
-        let src = sem_comentarios(&std::fs::read_to_string(&arquivo).expect("ler .gv"));
+        let src = sem_comentarios(&ler_markup(&arquivo));
         for capturado in srcs_de_script(&src) {
             // O `src` resolve relativo ao diretório do próprio `.gv` (ver
             // `luau::resolve_script`), não ao diretório de onde o app roda.
@@ -188,7 +199,7 @@ fn nenhum_exemplo_pinta_a_janela_inteira() {
     let mut culpados = Vec::new();
 
     for arquivo in &arquivos {
-        let src = std::fs::read_to_string(arquivo).expect("ler .gv");
+        let src = ler_markup(arquivo);
         let relativo = arquivo.strip_prefix(raiz).unwrap_or(arquivo).display();
 
         // Forma 1: os atributos na própria tag.

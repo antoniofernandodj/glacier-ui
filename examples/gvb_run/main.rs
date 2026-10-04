@@ -1,6 +1,6 @@
 //! Abre qualquer template numa janela — `.gvb`, `.gva` ou `.gv`.
 //!
-//!     WGPU_BACKEND=gl cargo run --example gvb_run -- gvb/onda9_luau/app.gvb
+//!     WGPU_BACKEND=gl cargo run --example gvb_run -- examples/gvb/onda9_luau/app.gvb
 //!
 //! Serve para os exemplos que não dependem de código Rust do app: os `*_luau`,
 //! os `*_lua` e as telas estáticas. Um exemplo cujo `main.rs` registra um

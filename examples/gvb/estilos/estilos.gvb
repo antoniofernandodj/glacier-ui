@@ -1,0 +1,40 @@
+screen {
+  title: "Glacier - Estilos (.gss)"
+
+  resources {
+    // Tema da janela (paleta do iced) — também elimina o fundo branco padrão.
+    link { rel: theme href: "examples/gvb/estilos/theme.json" }
+
+    // Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente.
+    link { rel: stylesheet href: "examples/gvb/estilos/estilos.gss" }
+  }
+
+  container {
+    class: card
+
+    column {
+      class: stack
+
+      // `id` casa `#hero { }` no app.gss: id > classe, então a cor do
+      // `#hero` vence a de `.title` (mas ainda perde para inline).
+      text "Estilos via .gss" { id: hero class: title }
+
+      // A classe define size/color; nada inline aqui.
+      text "Contador: @valor" { class: subtitle }
+
+      row {
+        class: actions
+
+        // `btn` (escopada) dá padding + cor base;
+        // `btn-danger` sobrescreve a cor.
+        button { class: "btn btn-danger" text: - on_click: decrementar }
+        button { class: "btn btn-success" text: + on_click: incrementar }
+      }
+
+      // Atributo inline vence a classe: cor explícita ganha de `subtitle`.
+      text "(edite examples/gva/estilos/app.gss e veja o hot-reload)" {
+        class: subtitle color: #6C7086
+      }
+    }
+  }
+}

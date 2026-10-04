@@ -2768,7 +2768,7 @@ mod tests {
     /// Isto não é curiosidade de linguagem: é a premissa que deixa um script
     /// guardar estado que NÃO é do contexto (o handle de um stream, o de um
     /// temporizador) sem recorrer a uma global implícita, que o luau-lsp
-    /// recusa em modo estrito. Os `examples/stream_lua` dependem disso.
+    /// recusa em modo estrito. Os `examples/gva/stream_lua` dependem disso.
     #[test]
     fn local_do_modulo_sobrevive_entre_chamadas() {
         let comp = LuauComponent::from_source(
@@ -3623,7 +3623,7 @@ mod tests {
         // Exercita a árvore REAL do exemplo: app.gv -> script.luau, que faz
         // require("net.http_client") e require("util.strings"). Se algum caminho
         // quebrar, `from_file` (que roda o script no load) falha aqui.
-        let comp = LuauComponent::from_file("examples/imports_luau/app.gv", "app").unwrap();
+        let comp = LuauComponent::from_file("examples/gva/imports_luau/app.gva", "app").unwrap();
         // init() não usa rede; só semeia o estado — prova que os módulos
         // resolveram e o script rodou.
         let data = drive(&comp, "init", None, HashMap::default());
@@ -4443,7 +4443,7 @@ mod tests {
     #[test]
     fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
         let comp =
-            LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
+            LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau").unwrap();
         let mut data = HashMap::default();
         data.insert("usuario".into(), "admin".into());
         data.insert("senha".into(), "123".into());
@@ -4458,7 +4458,7 @@ mod tests {
     #[test]
     fn exemplo_navegacao_luau_login_errado_nao_navega_e_seta_erro() {
         let comp =
-            LuauComponent::from_file("examples/navegacao_luau/login.gv", "login_luau").unwrap();
+            LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau").unwrap();
         let mut data = HashMap::default();
         data.insert("usuario".into(), "quemquer".into());
         data.insert("senha".into(), "errada".into());
@@ -4476,7 +4476,7 @@ mod tests {
     #[test]
     fn exemplo_navegacao_luau_dashboard_sai_volta_e_limpa_senha() {
         let comp =
-            LuauComponent::from_file("examples/navegacao_luau/dashboard.gv", "dashboard_luau")
+            LuauComponent::from_file("examples/gva/navegacao_luau/dashboard.gva", "dashboard_luau")
                 .unwrap();
         let mut data = HashMap::default();
         data.insert("senha".into(), "123".into());
@@ -4490,11 +4490,11 @@ mod tests {
 
     #[test]
     fn exemplo_robustez_luau_exercita_timers_storage_viewport_ctx_tabela_e_erro() {
-        let storage_file = PathBuf::from("examples/robustez_luau/.glacier-storage/robustez.json");
+        let storage_file = PathBuf::from("examples/gva/robustez_luau/.glacier-storage/robustez.json");
         let _ = std::fs::remove_file(&storage_file);
 
         let comp =
-            LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
+            LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez").unwrap();
         let mut data = HashMap::default();
 
         // init() lê o storage (vazio na primeira vez) e semeia os defaults.
@@ -4559,7 +4559,7 @@ mod tests {
             comp.run("salvar_rascunho", None, &mut ctx);
         }
         let comp2 =
-            LuauComponent::from_file("examples/robustez_luau/robustez.gv", "robustez").unwrap();
+            LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez").unwrap();
         let mut data2 = HashMap::default();
         {
             let mut ctx2 = Context::new(&mut data2);

@@ -1,7 +1,7 @@
 //! O servidor SSE + WebSocket dos exemplos `ciclo_vida_*` fala de verdade:
 //! sem isto, um erro de protocolo ali só apareceria abrindo a janela.
 
-#[path = "../examples/ciclo_vida_luau/servidor.rs"]
+#[path = "../examples/gva/ciclo_vida_luau/servidor.rs"]
 mod servidor;
 
 use std::io::{Read, Write};

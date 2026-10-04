@@ -1,4 +1,4 @@
-//! O `examples/web_contador` carregado por `EmbeddedAssets` — o caminho que o
+//! O `examples/gva/web_contador` carregado por `EmbeddedAssets` — o caminho que o
 //! alvo web usa, já que o navegador não tem disco.
 //!
 //! Olha a ÁRVORE AVALIADA, não a chave de contexto (ver CLAUDE.md, "Antes de
@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use glacier_ui::{Component, Context, EngineMessage, GlacierUI, NodeType, Template, UiNode};
 
-/// O mesmo componente de `examples/web_contador/main.rs`.
+/// O mesmo componente de `examples/gva/web_contador/main.rs`.
 struct Contador {
     valor: i32,
 }
@@ -20,7 +20,7 @@ impl Component for Contador {
     }
 
     fn template(&self) -> Template {
-        Template::File("examples/web_contador/app.gv".into())
+        Template::File("examples/gva/web_contador/app.gva".into())
     }
 
     fn init(&mut self, ctx: &mut Context) {
@@ -40,9 +40,9 @@ impl Component for Contador {
 
 fn motor() -> GlacierUI {
     let assets = glacier_ui::embed_assets![
-        "examples/web_contador/app.gv",
-        "examples/web_contador/app.gss",
-        "examples/web_contador/theme.json",
+        "examples/gva/web_contador/app.gva",
+        "examples/gva/web_contador/app.gss",
+        "examples/gva/web_contador/theme.json",
     ];
     let mut m = GlacierUI::new().with_asset_source(Arc::new(assets));
     m.register(Box::new(Contador { valor: 0 })).unwrap();

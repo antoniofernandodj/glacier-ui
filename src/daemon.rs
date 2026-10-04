@@ -2105,7 +2105,7 @@ mod tests {
             match action {
                 "rust" => ctx.open_window_component(Box::new(Abridor)),
                 "arquivo" => ctx.open_window(
-                    WindowSpec::file("examples/janelas_glacier/detalhe.gv").title("D"),
+                    WindowSpec::file("examples/gva/janelas_glacier/detalhe.gva").title("D"),
                 ),
                 "nomeado" => ctx.open_window(WindowSpec::named("detalhe")),
                 _ => {}
@@ -2142,7 +2142,7 @@ mod tests {
         // Registra "detalhe" como componente de arquivo; a resolução Named→File
         // acontece na drenagem do Context (ver `run_on_owner`).
         motor
-            .register_component("detalhe", "examples/janelas_glacier/detalhe.gv")
+            .register_component("detalhe", "examples/gva/janelas_glacier/detalhe.gva")
             .unwrap();
         motor.register(Box::new(Abridor)).unwrap();
         motor.set_initial_screen("abridor");
@@ -2151,7 +2151,7 @@ mod tests {
         let pending = motor.take_pending_windows();
         assert_eq!(pending.len(), 1);
         match &pending[0].source {
-            WindowSource::File(p) => assert_eq!(p, "examples/janelas_glacier/detalhe.gv"),
+            WindowSource::File(p) => assert_eq!(p, "examples/gva/janelas_glacier/detalhe.gva"),
             _ => panic!("Named deveria ter sido resolvido para File"),
         }
     }
@@ -2159,7 +2159,7 @@ mod tests {
     #[test]
     fn build_engine_de_arquivo_usa_stem_como_titulo() {
         let (engine, title) = build_engine(
-            WindowSource::File("examples/janelas_glacier/detalhe.gv".into()),
+            WindowSource::File("examples/gva/janelas_glacier/detalhe.gva".into()),
             &[],
             Arc::new(DiskAssets),
             None,
@@ -2172,7 +2172,7 @@ mod tests {
     #[test]
     fn build_engine_semeia_data_no_contexto() {
         let (engine, _) = build_engine(
-            WindowSource::File("examples/janelas_glacier/detalhe.gv".into()),
+            WindowSource::File("examples/gva/janelas_glacier/detalhe.gva".into()),
             &[
                 ("url".into(), "http://x".into()),
                 ("token".into(), "abc".into()),

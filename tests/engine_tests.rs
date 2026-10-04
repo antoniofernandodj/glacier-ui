@@ -1151,7 +1151,7 @@ fn test_prefixo_app_escapa_do_namespace_do_dono() {
     std::fs::remove_file(tela_path).ok();
 }
 
-/// Guarda o exemplo `examples/timepicker/`: as três tags do Qt, ligadas às
+/// Guarda o exemplo `examples/gva/timepicker/`: as três tags do Qt, ligadas às
 /// chaves certas, e nenhum script.
 ///
 /// Até a 0.67 este exemplo tinha ~40 linhas de Luau montando um seletor à mão,
@@ -1160,7 +1160,7 @@ fn test_prefixo_app_escapa_do_namespace_do_dono() {
 fn test_exemplo_timepicker_ponta_a_ponta() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("tela_hora", "examples/timepicker/app.gv")
+        .register_component("tela_hora", "examples/gva/timepicker/app.gva")
         .expect("registrar a tela do exemplo");
     motor.define_data("data", "2026-09-01");
     motor.define_data("hora", "13:45:02");
@@ -1474,7 +1474,7 @@ fn declaracao_local_mal_escrita_da_erro_posicionado() {
     }
 }
 
-/// Guarda o exemplo `examples/componentes_locais/`: as duas formas — a
+/// Guarda o exemplo `examples/gva/componentes_locais/`: as duas formas — a
 /// declarada no `<resources>` e a trazida por `<import>` — produzem a mesma
 /// árvore e se usam do mesmo jeito.
 ///
@@ -1489,7 +1489,7 @@ fn test_exemplo_componentes_locais_ponta_a_ponta() {
             "componentes_locais"
         }
         fn template(&self) -> Template {
-            Template::File("examples/componentes_locais/app.gv".into())
+            Template::File("examples/gva/componentes_locais/app.gva".into())
         }
         fn init(&mut self, ctx: &mut Context) {
             ctx.set(
@@ -1569,7 +1569,7 @@ fn test_exemplo_componentes_locais_ponta_a_ponta() {
     );
 }
 
-/// Guarda o exemplo `examples/onda4/`: os sete itens da onda, cada um pela sua
+/// Guarda o exemplo `examples/gva/onda4/`: os sete itens da onda, cada um pela sua
 /// marca — a primitiva pelo `NodeType`, o builtin pela ação que ele emite.
 ///
 /// O que este teste realmente protege é a **fronteira**: um builtin cujo
@@ -1778,7 +1778,7 @@ fn test_exemplo_onda4_ponta_a_ponta() {
     }
 }
 
-/// A tela do `examples/onda4`, reencenada aqui — o `main.rs` de um exemplo não
+/// A tela do `examples/gva/onda4`, reencenada aqui — o `main.rs` de um exemplo não
 /// é importável, e o que o teste precisa é do mesmo template com as mesmas
 /// chaves semeadas.
 struct TelaOnda4;
@@ -1788,7 +1788,7 @@ impl glacier_ui::Component for TelaOnda4 {
         "onda4"
     }
     fn template(&self) -> glacier_ui::Template {
-        glacier_ui::Template::File("examples/onda4/app.gv".into())
+        glacier_ui::Template::File("examples/gva/onda4/app.gva".into())
     }
     fn init(&mut self, ctx: &mut glacier_ui::Context) {
         ctx.set(
@@ -1841,7 +1841,7 @@ fn todas_as_acoes(n: &UiNode) -> Vec<String> {
     fora
 }
 
-/// Guarda o exemplo `examples/onda3/`: as três tags do calendário são a MESMA
+/// Guarda o exemplo `examples/gva/onda3/`: as três tags do calendário são a MESMA
 /// primitiva, ligadas às chaves certas, com o `mode` e o `range` que a tag
 /// escolheu — e com o `today` saindo de `date.today()`, não de uma data fixa.
 ///
@@ -1851,7 +1851,7 @@ fn todas_as_acoes(n: &UiNode) -> Vec<String> {
 fn test_exemplo_onda3_ponta_a_ponta() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("tela_onda3", "examples/onda3/app.gv")
+        .register_component("tela_onda3", "examples/gva/onda3/app.gva")
         .expect("registrar a tela do exemplo");
     motor.set_initial_screen("tela_onda3");
 
@@ -1943,7 +1943,7 @@ fn test_exemplo_data_hora_luau_valida_no_script() {
 
     let mut motor = GlacierUI::new();
     motor
-        .register_component("reserva", "examples/data_hora_luau/app.gv")
+        .register_component("reserva", "examples/gva/data_hora_luau/app.gva")
         .expect("registrar a tela do exemplo");
     motor.set_initial_screen("reserva");
 
@@ -2093,7 +2093,7 @@ fn test_exemplo_luau_externo_ponta_a_ponta() {
 
     let mut motor = GlacierUI::new();
     motor
-        .register_component("contador", "examples/contador_externo/contador_externo.gv")
+        .register_component("contador", "examples/gva/contador_externo/contador_externo.gva")
         .expect("registrar a tela do exemplo");
     motor.set_initial_screen("contador");
 
@@ -3775,7 +3775,7 @@ fn spinbox_rules_prop_is_interpolated_not_literal() {
     );
 }
 
-/// Sanity check on the actual shipped template (`examples/formulario_login.rs`
+/// Sanity check on the actual shipped template (`examples/gva/formulario_login.rs`
 /// uses this same path): parses and evaluates end-to-end and has the two
 /// expected `formControl`-bound inputs in order. Loading the real file keeps a
 /// broken example template from slipping through `cargo test`.
@@ -3785,7 +3785,7 @@ fn test_formulario_login_example_template_parses_and_evaluates() {
     motor
         .register_component(
             "formulario_login_smoke",
-            "examples/formulario_login/formulario_login.gv",
+            "examples/gva/formulario_login/formulario_login.gva",
         )
         .expect("o template do exemplo formulario_login deve parsear e avaliar sem erro");
 
@@ -5450,7 +5450,7 @@ fn spinbox_repassa_field_class_e_form_control() {
 fn onda4_secoes_tem_largura_e_nao_colapsa() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda4_luau", "examples/onda4_luau/app.gv")
+        .register_component("onda4_luau", "examples/gva/onda4_luau/app.gva")
         .expect("registrar a tela Luau");
     motor.set_initial_screen("onda4_luau");
     let _ = motor.dispatch(&EngineMessage::UiClick("tabbar::pick:aba|secoes".into()));
@@ -5495,7 +5495,7 @@ fn onda4_secoes_tem_largura_e_nao_colapsa() {
     );
 }
 
-/// O `examples/onda4_luau` faz o mesmo que o `examples/onda4`, sem Rust.
+/// O `examples/gva/onda4_luau` faz o mesmo que o `examples/gva/onda4`, sem Rust.
 ///
 /// A promessa do exemplo é forte e vale um teste: **o markup é o mesmo e os
 /// sete widgets não pedem script nenhum** — o que mudou de lado foi só o que é
@@ -5509,7 +5509,7 @@ fn onda4_secoes_tem_largura_e_nao_colapsa() {
 fn exemplo_onda4_luau_faz_o_mesmo_sem_rust() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda4_luau", "examples/onda4_luau/app.gv")
+        .register_component("onda4_luau", "examples/gva/onda4_luau/app.gva")
         .expect("registrar a tela Luau");
     motor.set_initial_screen("onda4_luau");
 
@@ -5577,7 +5577,7 @@ fn exemplo_onda4_luau_faz_o_mesmo_sem_rust() {
     );
 }
 
-/// O `examples/onda4` depois da separação markup/estilo, ponta a ponta.
+/// O `examples/gva/onda4` depois da separação markup/estilo, ponta a ponta.
 ///
 /// O `.gv` dele não tem mais uma cor sequer: tudo saiu para `app.gss`, e as
 /// classes de nó interno de builtin (0.89) são o que tornou isso possível — sem
@@ -5595,7 +5595,7 @@ fn exemplo_onda4_pega_todo_o_estilo_do_gss() {
             "onda4"
         }
         fn template(&self) -> Template {
-            Template::File("examples/onda4/app.gv".into())
+            Template::File("examples/gva/onda4/app.gva".into())
         }
         fn init(&mut self, ctx: &mut Context) {
             ctx.set(

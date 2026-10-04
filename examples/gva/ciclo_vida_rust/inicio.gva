@@ -1,0 +1,20 @@
+<screen title="Glacier - ciclo de vida (Rust)">
+  <resources>
+    <link rel="stylesheet" href="examples/gva/ciclo_vida_rust/estilo.gss" />
+  </resources>
+
+  <container class="tela">
+    <column class="coluna" align="Center">
+      <text class="titulo">Início</text>
+      <text class="info">
+        Entradas no painel: {entradas} · saídas: {saidas}
+      </text>
+      <text class="info">
+        Último gancho: {ultimo}
+      </text>
+      <button class="botao" on_click="ir">
+        Ir para o painel
+      </button>
+    </column>
+  </container>
+</screen>

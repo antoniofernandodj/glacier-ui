@@ -169,7 +169,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QPlainTextEdit | `PlainTextEditor` | Prim | text_editor | ● | P1 | 🟡 | variante sem formatação. O 🟡 é a fonte: `font_for` conhece **duas** famílias (`widget.rs`), então "texto simples em mono declarável" não dá para escrever. Fecha na **Onda 10** |
 | QTextBrowser | `TextBrowser` | Built | markdown/scrollable | — | P2 | ⬜ | **fora por decisão (2026-09-09, "só o `PrintDialog`")** — pediria uma primitiva `<markdown>` própria (parser + render + estado dos itens + `on_link`), trabalho próprio, não carona do registro de famílias |
 | QKeySequenceEdit | `ShortcutInput` | **Prim** | text_input | ◐ | P3 | ✅ | captura combinação de teclas. **Onda 9** (0.95): é o listener de teclado do habilitador B em modo de captura — a combinação vai numa chave nomeada, e qual campo captura é global (`__shortcut_cap`), como o `__timeedit`. É um **botão**, não um `<textinput>`: um campo de texto consumiria a tecla antes de o listener global a ver |
-| QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/combo_edit`) |
+| QComboBox (editable) | `ComboEdit` | Prim | combo_box | ◐ | P1 | ✅ | `options`/`value`/`onChange`/`onSelect`/`placeholder` + `labelField`/`valueField` para listas de objetos (ver `examples/gva/combo_edit`) |
 | — (autocomplete) | `Autocomplete` | **Prim** | text_input+overlay | ◐ | P2 | ✅ | a mesma tag do `Completer` (§2.12), vista do lado do campo. Recorta a lista sem acento e sem caixa ("sao paulo" acha "São Paulo"), ▲▼ navegam, Enter aceita, Esc desiste — e as três teclas ganham do campo focado porque quem as recebe é o **overlay** (0.92) |
 
 ### 2.3 Entradas numéricas e de valor
@@ -318,10 +318,10 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | QMainWindow | `Window`/`App` | Motor | app | ● | P0 | ✅ | app já é a janela |
 | QMenuBar | `MenuBar` | Prim | row+overlay | — | P2 | ✅ | `<MenuBar>` + `<Menu>`; overlay próprio em `src/menu.rs` |
 | QMenu | `Menu` | Prim | overlay próprio | — | P2 | ✅ | `<Menu>`/`<MenuItem>`/`<MenuSeparator>`, com ícone, item marcável, `disabled` e **submenus aninhados a profundidade arbitrária**; itens também por `items=` (coleção do contexto) |
-| — (menu de contexto) | `ContextMenu` | Prim | mouse_area+overlay | — | P2 | ✅ | `<ContextMenu items="…">`, botão direito (ver `examples/menus`) |
+| — (menu de contexto) | `ContextMenu` | Prim | mouse_area+overlay | — | P2 | ✅ | `<ContextMenu items="…">`, botão direito (ver `examples/gva/menus`) |
 | QToolBar | `ToolBar` | Built | row+ToolButton | — | P2 | ✅ | faixa de ações por `<slot/>` (aceita qualquer widget, como o `addWidget` do Qt), com `divider` opcional |
 | QStatusBar | `StatusBar` | Built | row+text | — | P2 | ✅ | mensagem à esquerda (`showMessage`) e permanentes à direita por `<slot/>` (`addPermanentWidget`) |
-| QSystemTrayIcon | `SystemTray` | Motor | (SO) | — | P3 | ✅ | `src/tray.rs` (feature `tray-icon`, thread dedicada): app sobrevive à última janela, menu de bandeja e interruptor de notificações (ver `examples/bandeja`) |
+| QSystemTrayIcon | `SystemTray` | Motor | (SO) | — | P3 | ✅ | `src/tray.rs` (feature `tray-icon`, thread dedicada): app sobrevive à última janela, menu de bandeja e interruptor de notificações (ver `examples/gva/bandeja`) |
 | QSizeGrip | `SizeGrip` | **Built** | container+rule | — | P3 | ✅ | canto de redimensionamento. ~~**Onda 9**: o mesmo gesto do arrasto, com a janela no lugar da chave~~ — **não consumiu o arrasto**: `window:resize:se` já era ação da titlebar custom e `cursor="se"` já era atributo universal, então ele é um **builtin** de vinte linhas (`src/builtins/size_grip.rs`). A 15ª correção de nível deste catálogo (0.95) |
 
 ### 2.10 Diálogos (módulo `dialogs.rs`)
@@ -336,7 +336,7 @@ composição ou via `canvas` — a coluna **Base iced** sinaliza isso.
 | — (confirm) | `DialogSpec::confirm` | Diál | stack | — | P0 | ✅ | existe |
 | QInputDialog | `InputDialog` | Diál | stack+TextInput | ◐ | P1 | ✅ | `prompt{ kind = "text"|"int"|"double"|"item" }` — as quatro variantes estáticas do Qt são **um** diálogo com corpos diferentes. **Reclassificado de `●`**: o diálogo é singleton no motor (`dialog: Option<DialogSpec>`), então nunca há segunda instância com que colidir. Onda 8 (0.94) |
 | QProgressDialog | `ProgressDialog` | Diál | stack+ProgressBar | ◐ | P1 | ✅ | `progress{}`/`progress_set()`/`progress_close()` — o único da família que **não suspende** (ele acompanha um trabalho em curso) e o único atualizado enquanto aberto, e por isso o progresso mora numa chave e não no `DialogSpec`. Sem `value` nasce indeterminado, com o `<spinner>` da 0.66. Onda 8 (0.94) |
-| QFileDialog (abrir arquivo) | `FileDialog::open` | Diál | **`rfd`** (nativo do SO) | — | P1 | ✅ | `src/file_dialog.rs`; Luau `open_file()`/`open_files()`, suspensivo como `confirm()`/`fetch()` (ver `examples/file_dialog`) |
+| QFileDialog (abrir arquivo) | `FileDialog::open` | Diál | **`rfd`** (nativo do SO) | — | P1 | ✅ | `src/file_dialog.rs`; Luau `open_file()`/`open_files()`, suspensivo como `confirm()`/`fetch()` (ver `examples/gva/file_dialog`) |
 | QFileDialog (salvar) | `FileDialog::save` | Diál | `rfd` | — | P1 | ✅ | Luau `save_file()` |
 | QFileDialog (diretório) | `FileDialog::directory` | Diál | `rfd` | — | P1 | ✅ | Luau `pick_folder()` |
 | QColorDialog | `ColorDialog` | Diál | stack+canvas | ◐ | P2 | ✅ | `pick_color{}` — anel de matiz (180 setores) mais o quadrado saturação×valor, sobre o `src/canvas.rs` da Onda 7. É um `prompt{}` cujo campo é uma roda: mesma porta, mesmo retorno. A primitiva `<colorwheel>` também vale avulsa. Onda 8 (0.94) |
@@ -889,7 +889,7 @@ duas ondas trocaram de lugar, a pedido: a 2 saiu primeiro.
 #### Onda 1 — o que o `iced` já entrega (sem bloqueio) — ✅ **feita (0.66)**
 
 Construída **depois** da onda 2, fora da ordem proposta, a pedido. Exemplo
-executável em `examples/onda1` (`cargo run --example onda1`), que mostra os
+executável em `examples/gva/onda1` (`cargo run --example onda1`), que mostra os
 quatro e — de propósito — a diferença entre primitiva e builtin com o mesmo
 dado: `<slider>`/`<radio>` disparam a ação e o app grava a chave; `<radiogroup>`
 grava sozinho.
@@ -924,14 +924,14 @@ Detalhes e armadilhas em `BUILTINS.md`.
 #### Onda 2 — a família dos agrupadores (depois do portão) — ✅ **feita (0.65)**
 
 Todos os seis nasceram na mesma leva, com exemplo executável em
-`examples/onda2` (`cargo run --example onda2`), que os mostra juntos montando o
+`examples/gva/onda2` (`cargo run --example onda2`), que os mostra juntos montando o
 esqueleto de uma janela: barra de ferramentas, abas, conteúdo e rodapé.
 
 | # | Widget | Nível | Por que aqui |
 |---|---|---|---|
 | 5 ✅ | **`GroupBox`** (`QGroupBox`) | Built | O primeiro consumidor do `<slot/>` — moldura com título, o caso mais simples possível. Serve de validação do mecanismo antes dos outros cinco |
 | 6 ✅ | **`Frame`** (`QFrame`) | Built | Irmão do 5 (borda/relevo configurável, sem título); sai quase de graça depois dele |
-| 7 ✅ | **`Card`** | Built | Promove a componente do `examples/perfil` a builtin — é o que a tabela §2.6 afirmava existir e não existia. Com `<slot/>`, é `Frame` + convenções de padding/sombra |
+| 7 ✅ | **`Card`** | Built | Promove a componente do `examples/gva/perfil` a builtin — é o que a tabela §2.6 afirmava existir e não existia. Com `<slot/>`, é `Frame` + convenções de padding/sombra |
 | 8 ✅ | **`ToolButton`** (`QToolButton`) | Built | Botão-ícone com variantes flat/menu. Útil sozinho, e é a peça que o item 9 monta em série |
 | 9 ✅ | **`ToolBar` + `StatusBar`** | Built | As duas faixas da janela principal. A `ToolBar` consome o `ToolButton` do 8 e o `Space` do 2; a `StatusBar` é o mesmo padrão invertido. Com elas, `MenuBar` (já ✅) + `ToolBar` + `StatusBar` fecham o esqueleto de uma `QMainWindow` |
 | 10 ✅ | **`TabBar`** (`QTabBar`) | Built | A barra de abas com a aba ativa numa chave nomeada (padrão `SpinBox`), enquanto o conteúdo continua trocando por `se`/`senao`. É o `QTabWidget` entregue em duas etapas: a barra agora, o container de páginas quando houver slot **nomeado** — sem esperar o estado por instância |
@@ -1213,8 +1213,8 @@ Ordenados por quanto cada um abre de tela real:
 | 6 ✅ | **`Rating`** | ~~Built~~ **Prim** | P2 | Estrelas numa chave nomeada, com pré-visualização no hover (chave global, uma por tela — como o hover do `DateRangePicker`). Pequeno, mas é função, não desenho. Também estava citado na §3 e faltava na tabela |
 | 7 ✅ | **`decimals` no `SpinBox`** | Built | P1 | Fecha o 🟡 do `QDoubleSpinBox`: hoje as casas saem do `step` (`step="0.25"` → 2 casas), o que acerta por acidente e erra em `step="1"` sobre um preço. Meia hora de trabalho no `spin_box.rs` |
 
-Um exemplo executável por onda, como nas anteriores (`examples/onda3` …
-`examples/onda6`), é o que fecha cada uma.
+Um exemplo executável por onda, como nas anteriores (`examples/gva/onda3` …
+`examples/gva/onda6`), é o que fecha cada uma.
 
 **Saldo das ondas 3 e 4** (medido, 0.85): a §2.5 fechou em 6/6, a §2.4 ganhou
 dois (`ListView`, `Pagination`), a §2.7 dois (`Accordion`, `ToolBox`), a §2.3
@@ -1693,8 +1693,8 @@ precisa para devolver a string. O **3** entra antes do **C** porque não depende
 abrir do markup — quem o abre é o código que já está rodando. O **C** fecha o lado
 declarativo, e os **4/5/6** são os consumidores grandes, na ordem de custo.
 
-Entregáveis, no formato das ondas anteriores: `examples/onda8` e
-`examples/onda8_luau`, `DIALOGS.md` reescrito (a seção "Por que é diferente do
+Entregáveis, no formato das ondas anteriores: `examples/gva/onda8` e
+`examples/gva/onda8_luau`, `DIALOGS.md` reescrito (a seção "Por que é diferente do
 resto do glacier-ui" deixa de valer), `PRIMITIVAS.md` para `<stackview>` e
 `<wizard>`, e o `vscode-gv` com as tags e atributos novos.
 
@@ -2100,7 +2100,7 @@ do `iced` fazem.
 
 Um módulo (`src/fonts.rs`, na casa de 150 linhas), duas linhas em `font_for`, um
 builtin, um corpo de diálogo, uma feature de Cargo e um exemplo
-(`examples/onda10`). **Fica de fora, por escrito:** `@font-face` no `.gss` (o
+(`examples/gva/onda10`). **Fica de fora, por escrito:** `@font-face` no `.gss` (o
 motor não carrega fonte em tempo de execução, e esta onda não inventa isso),
 fallback por script (CJK) e qualquer coisa de rasterização — os três são do
 `iced`/`cosmic-text`, não deste catálogo.
@@ -2135,7 +2135,7 @@ a proposta dizia. A armadilha do `&'static str` foi tratada no `Box::leak`.
 motor (`src/fonts.rs`), uma feature de Cargo, uma correção de nível
 (`FontSelect`, a 16ª). Fecha **uma** categoria e meia: a §2.4 (**11/11**) e a
 §2.2 vai a **8/9** (sobra o `TextBrowser`). A §2.10 vai a **14/15**. Exemplos:
-`examples/onda10` (Rust) e `examples/onda10_luau` (o `pick_font{}`), o par de
+`examples/gva/onda10` (Rust) e `examples/gva/onda10_luau` (o `pick_font{}`), o par de
 sempre — rode com `WGPU_BACKEND=gl` nesta máquina.
 
 ---
@@ -2331,8 +2331,8 @@ Testes: as 6 propriedades novas de `Alvo::Ponto` em `src/grip.rs` (origem
 ancorando os dois eixos juntos, escrita nas duas chaves, saturação
 independente por eixo, chave `y` ausente), mais as 7 já existentes
 reescritas para o novo formato de `Arrasto` — **347 testes passando** no
-crate inteiro, nenhuma quebra. Exemplos: `examples/onda11` e
-`examples/onda11_luau` (rode com `cargo run --example onda11` /
+crate inteiro, nenhuma quebra. Exemplos: `examples/gva/onda11` e
+`examples/gva/onda11_luau` (rode com `cargo run --example onda11` /
 `onda11_luau`, `WGPU_BACKEND=gl` nesta máquina) — o par de sempre desde a Onda
 4, e a versão Luau confirma a mesma observação da Onda 9: nem `<stack>`
 (markup puro) nem `grip::Alvo::Ponto` (escreve as chaves do `<mdisubwindow>`
@@ -2354,8 +2354,8 @@ faixa do eixo), a legenda é um retângulo translúcido no canto e as cores sem
 `<linechart>` e portanto para `area=`/`points=` — o **`AreaChart`/`Scatter` da
 §2.13 sai de 🟡 para ✅**, e a §2.13 vai a **5/6** (sobra o `Q3D`, wgpu).
 `<barchart>` e `<piechart>` seguem série-única de propósito. 114 → **115/125
-(92,0%)**. Exemplos: `examples/series_multiplas` e
-`examples/series_multiplas_luau`.
+(92,0%)**. Exemplos: `examples/gva/series_multiplas` e
+`examples/gva/series_multiplas_luau`.
 
 O **`Dock`** continua ⬜, e a tentativa desta rodada confirmou o diagnóstico da
 Onda 11 por um segundo caminho: além do "trocar de pai no meio do arrasto", ele
@@ -2462,7 +2462,7 @@ pelos mesmos botões; nenhuma configuração do app.
 botões usam `PatchThen` (grava a chave, então despacha a ação); o arrasto,
 `DragEnd` → `GlacierUI::dock_on_change` (acha o `on_change` do `<dock>` na
 árvore avaliada e o despacha). O handler lê as quatro chaves de layout e grava:
-`examples/onda12` num arquivo (`temp_dir`), `examples/onda12_luau` com o global
+`examples/gva/onda12` num arquivo (`temp_dir`), `examples/gva/onda12_luau` com o global
 `storage`. `init` as lê de volta — o dock lembra onde estava entre execuções.
 `size`/`float_x`/`float_y` são capturados junto no `on_change`, então mudam de
 persistência na próxima mudança de modo (ou no fechamento, num app que tenha o
@@ -2470,8 +2470,8 @@ gancho).
 
 Testes: 5 propriedades de `Alvo::Zona` em `src/grip.rs` (ida-e-volta com
 `chave_modo`, não-escreve-durante-o-gesto, borda pelo eixo dominante,
-clique-não-conta, sem-âncora-não-faz-nada). Exemplos: `examples/onda12` e
-`examples/onda12_luau`. **Contabilidade:** `tests/onda9_ponteiro.rs` e
+clique-não-conta, sem-âncora-não-faz-nada). Exemplos: `examples/gva/onda12` e
+`examples/gva/onda12_luau`. **Contabilidade:** `tests/onda9_ponteiro.rs` e
 `tests/engine_tests.rs` construíam `Arrasto` sem os campos que a Onda 11
 adicionou (`chave_y`/`origem_y`/`valor0_y`) — quebrados desde a 0.96 e ninguém
 rodou; atualizados de passagem, mais o `.demo-fundo` das `.gss` da Onda 11 que
@@ -2598,8 +2598,8 @@ gráfico), `fill`/`stroke` vêm da classe, o `<text>` do canvas segue
 `NodeType::Text`, e uma `<line>` do canvas **segue um `every()`** do Luau
 ponta-a-ponta.
 
-Exemplos: `examples/onda13` (as sete formas + geometria dirigida por dado +
-`whats_this`) e `examples/onda13_luau` (uma agulha girada por um `every(60, …)`
+Exemplos: `examples/gva/onda13` (as sete formas + geometria dirigida por dado +
+`whats_this`) e `examples/gva/onda13_luau` (uma agulha girada por um `every(60, …)`
 **ligado por um clique** — o motor encaminha os efeitos assíncronos de um
 handler, não os do `init`, que só registra streams; o exemplo tinha o `every`
 no `init` e a agulha ficava parada).

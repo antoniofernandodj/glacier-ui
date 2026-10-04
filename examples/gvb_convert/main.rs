@@ -5,7 +5,7 @@
 //!
 //!     cargo run --example gvb_convert -- <saida> <arquivo.gv>...
 //!
-//! Cada `examples/X/Y.gv` vira `<saida>/X/Y.gvb`. O que o conversor não sabe
+//! Cada `examples/gva/X/Y.gva` vira `<saida>/X/Y.gvb`. O que o conversor não sabe
 //! traduzir (texto misturado com elementos, por exemplo) é listado e pulado — a
 //! tradução fiel ou nenhuma, nunca uma que mude a tela.
 use std::fmt::Write as _;
@@ -275,14 +275,18 @@ fn bare_ok(s: &str) -> bool {
 
 /// O valor de um atributo, no formato mais curto que a leitura aceita.
 fn val(v: &str) -> String {
-    // Uma referência a outro template (`from="x.gv"`) aponta para a tradução.
-    let v = &if let Some(r) = v.strip_suffix(".gv") {
-        match r.strip_prefix("examples/") {
-            Some(r) => format!("gvb/{r}.gvb"),
-            None => format!("{r}.gvb"),
+    // Uma referência a outro template (`from="x.gva"`) aponta para a tradução, e
+    // um caminho em `examples/gva/` (a folha, o tema) para a cópia em `examples/gvb/`.
+    let v = &{
+        let t = v
+            .strip_suffix(".gva")
+            .or_else(|| v.strip_suffix(".gv"))
+            .map(|r| format!("{r}.gvb"))
+            .unwrap_or_else(|| v.to_string());
+        match t.strip_prefix("examples/gva/") {
+            Some(r) => format!("examples/gvb/{r}"),
+            None => t,
         }
-    } else {
-        v.to_string()
     };
     let s = interp(v);
     if bare_ok(&s) { s } else { quote(&s) }
@@ -762,10 +766,12 @@ fn check(gv: &str, gvb: &str) -> Result<(), String> {
     let mutated = std::env::var("GVB_MUTATE").ok().map(|m| gvb.replacen(&m, "zzz", 1));
     let gvb = mutated.as_deref().unwrap_or(gvb);
     let xml = glacier_ui::gvb::desugar(gvb).map_err(|d| format!("desugar: {}", d.message))?;
-    let a = tree(gv, gv).map_err(|e| format!("original: {e}"))?;
+    let mut a = tree(gv, gv).map_err(|e| format!("original: {e}"))?;
     let mut b = tree(&xml, gvb).map_err(|e| format!("tradução: {e}"))?;
     // as referências `.gv` foram reescritas para `.gvb`; desfaz para comparar
-    b.0 = b.0.replace(".gvb\"", ".gv\"").replace("\"gvb/", "\"examples/");
+    // as referências a templates foram reescritas para `.gvb`; desfaz para comparar
+    b.0 = b.0.replace(".gvb\"", ".gva\"").replace("\"examples/gvb/", "\"examples/gva/");
+    a.0 = a.0.replace(".gv\"", ".gva\"");
     if a.1 != b.1 {
         return Err("o <script> mudou".into());
     }
@@ -790,7 +796,7 @@ fn main() {
         let p = Path::new(f);
         let rel = p
             .components()
-            .skip(1)
+            .skip(if f.starts_with("examples/gva/") { 2 } else { 1 })
             .collect::<PathBuf>()
             .with_extension("gvb");
         let rel = if f.starts_with("templates") {

@@ -71,7 +71,7 @@
 ///   splash que nasce sem `show` começa visível, o caso comum).
 /// - `width`/`height` — tamanho do `<Stack>` raiz. Default `fill`/`fill` — o
 ///   caso comum é cobrir o app inteiro. Dê um `height` fixo para um preview
-///   contido (é o que `examples/onda11` faz).
+///   contido (é o que `examples/gva/onda11` faz).
 /// - `background` — fundo do painel de cima. Sem ele, cai em `.splash-panel`.
 ///
 /// **A `<Column>`/`<Row>` que envolve o uso precisa de `width="fill"`** — não
@@ -83,7 +83,7 @@
 /// Fill-no-cruzado usando o `cross` já medido dos irmãos não-fluidos, nunca o
 /// espaço disponível de verdade). O sintoma é sutil: a splash **aparece**,
 /// só que espremida na largura de um texto ou botão ao lado — fácil de ler
-/// como "não funciona". `examples/onda11` documenta isso na classe
+/// como "não funciona". `examples/gva/onda11` documenta isso na classe
 /// `.bloco-fill`.
 ///
 /// # Classes

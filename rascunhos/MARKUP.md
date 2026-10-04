@@ -2,7 +2,7 @@
 
 **Rascunho.** Nada disto roda: o motor lê `.gv` (XML) e só. O que existe hoje é
 o realce de sintaxe na extensão de VS Code (`glacier-view-block`) e o
-`rascunhos/onda9.gvb`, que é o `examples/onda9/app.gv` convertido inteiro — a
+`rascunhos/onda9.gvb`, que é o `examples/gva/onda9/app.gva` convertido inteiro — a
 tela mais densa do repositório, escolhida de propósito para a proposta não ser
 medida num exemplo fácil.
 
@@ -15,7 +15,7 @@ grafia.
 
 ## Por que não o XML
 
-No `examples/onda9/app.gv`, 297 linhas:
+No `examples/gva/onda9/app.gva`, 297 linhas:
 
 - **88 fechamentos** que repetem o nome da tag;
 - **24 `&lt;`/`&gt;`**, porque a prosa dos comentários e dos `<text>` cita tags
@@ -136,7 +136,8 @@ O outro efeito é que `{` e `}` passam a ter um trabalho só. `else if @aba ==
 ### 6. Texto é o corpo, não atributo
 
 Uma string solta depois da tag é o filho de texto, e os atributos vêm depois,
-nas chaves:
+nas chaves. A ordem inversa, com o texto depois do bloco (`text { class: titulo }
+"Onda 9"`), também é válida e dá a mesma árvore; a que se escreve é esta:
 
 ```
 text "Onda 9 — o ponteiro preso" { class: titulo }

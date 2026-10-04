@@ -269,7 +269,7 @@ uso. A classe não pinta nada, e o `width` cai no default `fill`.
 O estrago passa do cosmético quando o default é `fill`: dois filhos `fill`
 dentro de uma `<row>` sem largura colapsam para zero, e a seção inteira some da
 tela — sem erro, sem aviso, com a árvore avaliada intacta. Foi o que aconteceu
-com a aba "Accordion + ToolBox" do `examples/onda4` ao migrar os estilos para o
+com a aba "Accordion + ToolBox" do `examples/gva/onda4` ao migrar os estilos para o
 `.gss`; `tests/engine_tests.rs` tem o teste que o pega agora.
 
 As três props de geometria que hoje se comportam assim, e que portanto ficam no
@@ -826,5 +826,5 @@ Veja `tests/engine_tests.rs`:
 
 `Badge` é o exemplo canônico — uma "pílula" de rótulo, puramente apresentacional,
 com props string e numérica, todas com default inline. Veja o código-fonte em
-`src/builtins/badge.rs` e o exemplo executável em `examples/builtins/` (`cargo run
+`src/builtins/badge.rs` e o exemplo executável em `examples/gva/builtins/` (`cargo run
 --example builtins`).

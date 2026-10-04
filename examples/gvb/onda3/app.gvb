@@ -1,0 +1,271 @@
+screen {
+  title: "Glacier - Onda 3" size: "960 760"
+
+  resources {
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link { rel: theme href: "examples/gvb/onda3/theme.json" }
+
+    // Sem isto o comportamento em Lua nunca é carregado: o motor liga o
+    // script pelo <script> do template, não por convenção de nome.
+    script { src: app.luau }
+  }
+
+  column {
+    spacing: 0 width: fill height: fill
+
+    column {
+      padding: "20 24 0 24" spacing: 8 width: fill
+
+      text "Onda 3 — o calendário" { size: 20 bold: true color: #CDD6F4 }
+
+      text """
+        Uma primitiva, três tags. O que muda de uma para a outra é o que um
+        clique grava — e é a mesma economia que fez
+        `dateedit`/`timeedit`/`datetimeedit` serem um nó só.
+      """ {
+        size: 13 color: #A6ADC8
+      }
+
+      tabbar { value: aba active: @aba items: abas }
+    }
+
+    scrollable {
+      width: fill height: fill
+
+      column {
+        padding: "20 24" spacing: 18 width: fill
+
+        // ABA 1 — <calendar> ================================================
+        if @aba == "dia" {
+          column {
+            spacing: 18 width: fill
+
+            row {
+              spacing: 18 align_y: start
+
+              groupbox {
+                title: "O caso simples" width: shrink
+
+                text """
+                  Sem on_change, o widget grava a chave sozinho — nenhuma linha
+                  de script para o calendário funcionar. `today` é prop: é
+                  `date.today()` no init.
+                """ {
+                  size: 12 color: #A6ADC8 max_width: 290
+                }
+
+                calendar { value: dia today: @hoje }
+
+                row {
+                  spacing: 8 align_y: center
+
+                  badge { badge_text: dia badge_bg: #89B4FA badge_size: 11 }
+                  text "@dia" { size: 13 color: #CDD6F4 }
+                }
+
+                text """
+                  Clique no TÍTULO para subir a escada de drill-up: dia → mês →
+                  ano, a mesma do QCalendarWidget. Descer de volta escolhe o
+                  mês/ano visível, sem tocar na chave.
+                """ {
+                  size: 12 color: #A6ADC8 max_width: 290
+                }
+              }
+
+              groupbox {
+                title: "Com validação e limites" width: shrink
+
+                text """
+                  Com `on_change` quem grava é o handler — e é isso que permite
+                  recusar um valor. Aqui a entrega não pode cair num fim de
+                  semana, e min/max apagam o que está fora da faixa.
+                """ {
+                  size: 12 color: #A6ADC8 max_width: 290
+                }
+
+                calendar {
+                  value: entrega on_change: set_entrega today: @hoje min: @hoje
+                  max: @limite first_day: monday
+                }
+
+                row {
+                  spacing: 8 align_y: center
+
+                  badge { badge_text: entrega badge_bg: #A6E3A1 badge_size: 11 }
+                  text "@entrega_txt" { size: 13 color: #CDD6F4 }
+                }
+
+                text "@aviso" { size: 12 color: #F9E2AF max_width: 290 }
+              }
+            }
+
+            groupbox {
+              title: "A semana começa onde o app disser" flat: true
+
+              text """
+                `first_day="monday"` gira o cabeçalho de sete iniciais; o
+                calendário da esquerda usa o default (domingo), o da direita,
+                segunda. E os rótulos vêm por prop: sem elas, o pt-BR embutido.
+              """ {
+                size: 12 color: #A6ADC8
+              }
+
+              row {
+                spacing: 18 align_y: start
+
+                calendar { value: dia today: @hoje }
+
+                calendar {
+                  value: dia today: @hoje first_day: monday
+                  day_names: "Su Mo Tu We Th Fr Sa"
+                  month_names: "January February March April May June July August September October November December"
+                }
+              }
+            }
+          }
+        }
+
+        // ABA 2 — <monthyearpicker> =========================================
+        else if @aba == "mes" {
+          column {
+            spacing: 18 width: fill
+
+            text """
+              A tela de drill-up do QCalendarWidget, promovida a tag. É a MESMA
+              primitiva em `mode="month"` — custo marginal quase zero depois da
+              grade de dias, e é por isso que esta linha subiu de P3 para P2 no
+              plano.
+            """ {
+              size: 13 color: #A6ADC8
+            }
+
+            row {
+              spacing: 18 align_y: start
+
+              groupbox {
+                title: "Competência (YYYY-MM)" width: shrink
+
+                monthyearpicker {
+                  value: competencia on_change: set_competencia today: @hoje
+                }
+
+                row {
+                  spacing: 8 align_y: center
+
+                  badge {
+                    badge_text: competencia badge_bg: #CBA6F7 badge_size: 11
+                  }
+
+                  text "@competencia_txt" { size: 13 color: #CDD6F4 }
+                }
+              }
+
+              groupbox {
+                title: "Só o ano (mode=\"year\")" width: shrink
+
+                text """
+                  O terceiro degrau da mesma escada. `mode` diz onde o clique
+                  PARA de navegar e passa a gravar.
+                """ {
+                  size: 12 color: #A6ADC8 max_width: 260
+                }
+
+                calendar { value: exercicio mode: year today: @hoje }
+
+                row {
+                  spacing: 8 align_y: center
+
+                  badge {
+                    badge_text: exercicio badge_bg: #F9E2AF badge_size: 11
+                  }
+
+                  text "@exercicio" { size: 13 color: #CDD6F4 }
+                }
+              }
+            }
+          }
+        }
+
+        // ABA 3 — <daterangepicker> =========================================
+        else if @aba == "intervalo" {
+          column {
+            spacing: 18 width: fill
+
+            text """
+              Duas datas em DUAS chaves — não `"a/b"` numa só, para o
+              `date.diff` do Luau ler as duas direto. O primeiro clique marca o
+              início; o segundo fecha o intervalo. Passe o mouse entre um e
+              outro para ver a faixa provisória.
+            """ {
+              size: 13 color: #A6ADC8
+            }
+
+            groupbox {
+              title: Reserva width: shrink
+
+              daterangepicker {
+                start: entrada end: saida on_change: set_periodo months: 2
+                today: @hoje min: @hoje
+              }
+
+              row {
+                spacing: 10 align_y: center
+
+                badge { badge_text: entrada badge_bg: #89B4FA badge_size: 11 }
+                text "@entrada_txt" { size: 13 color: #CDD6F4 }
+                badge { badge_text: saida badge_bg: #F38BA8 badge_size: 11 }
+                text "@saida_txt" { size: 13 color: #CDD6F4 }
+              }
+
+              text "@noites" { size: 14 bold: true color: #A6E3A1 }
+              button { text: Limpar on_click: limpar padding: "7 14" }
+            }
+
+            groupbox {
+              title: "O mês visível pode vir de fora" flat: true
+
+              text """
+                Sem `month`, o mês visível mora numa chave do motor derivada da
+                chave editada (`__cal_<chave>`) e o app não configura nada. Com
+                `month="chave"`, quem manda é o app — e dois botões bastam para
+                dirigir a grade.
+              """ {
+                size: 12 color: #A6ADC8
+              }
+
+              row {
+                spacing: 12 align_y: start
+
+                calendar { value: dia month: mes_visivel today: @hoje }
+
+                column {
+                  spacing: 8
+
+                  button {
+                    text: "Ir para janeiro" on_click: ir_janeiro padding: "7 14"
+                  }
+
+                  button {
+                    text: "Ir para dezembro" on_click: ir_dezembro
+                    padding: "7 14"
+                  }
+
+                  text "mes_visivel = @mes_visivel" { size: 12 color: #A6ADC8 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    statusbar {
+      message: @status
+
+      badge { badge_text: "onda 3" badge_bg: #89B4FA badge_size: 11 }
+      text "hoje: @hoje" { size: 12 color: #A6ADC8 }
+    }
+  }
+}

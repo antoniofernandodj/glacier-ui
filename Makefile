@@ -140,7 +140,7 @@ clean-deb: ## Apaga os .deb construídos
 # que não casa com o .wasm e o erro só aparece no console do navegador.
 
 WEB_DIST := target/web/web_contador
-WEB_WASM := target/wasm32-unknown-unknown/release/examples/web_contador.wasm
+WEB_WASM := target/wasm32-unknown-unknown/release/examples/gva/web_contador.wasm
 
 .PHONY: web-build-contador web-contador
 
@@ -150,7 +150,7 @@ WEB_FEATURES ?=
 web-build-contador: ## Compila o exemplo web_contador para wasm em target/web/
 	cargo build --release --example web_contador --target wasm32-unknown-unknown $(if $(WEB_FEATURES),--features $(WEB_FEATURES))
 	wasm-bindgen --target web --no-typescript --out-dir $(WEB_DIST) $(WEB_WASM)
-	cp examples/web_contador/index.html $(WEB_DIST)/
+	cp examples/gva/web_contador/index.html $(WEB_DIST)/
 
 web-contador: web-build-contador ## Compila e serve o web_contador em http://localhost:8080
 	@echo "servindo $(WEB_DIST) em http://localhost:8080 (Ctrl+C para parar)"

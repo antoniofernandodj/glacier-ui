@@ -1,0 +1,76 @@
+screen {
+  title: "Glacier — Onda 10 (Luau)" size: "960 700" min_size: "820 560"
+
+  resources {
+    link { rel: stylesheet href: "examples/gvb/onda10_luau/app.gss" }
+    script { src: "scripts/app.luau" }
+  }
+
+  column {
+    class: tela
+
+    row {
+      class: barra
+
+      text "Onda 10 em Luau — pick_font e fontselect" { class: titulo }
+      space { class: empurra }
+      text "@status" { class: status }
+    }
+
+    row {
+      class: corpo
+
+      column {
+        class: coluna-lista
+
+        text "fontselect" { class: secao }
+
+        text """
+          Markup puro: lê a chave `__fonts` do motor e grava a família escolhida
+          em `fonte`. Nenhuma linha de script por trás dele.
+        """ {
+          class: nota
+        }
+
+        fontselect { value: fonte selected: @fonte height: 220 }
+      }
+
+      column {
+        class: coluna-demo
+
+        column {
+          class: bloco
+
+          text "pick_font — o QFontDialog" { class: secao }
+
+          text """
+            `prompt` com `kind = "font"`, a mesma porta do `pick_color`.
+            Suspende a corrotina e devolve a família, ou nada se cancelar.
+          """ {
+            class: nota
+          }
+
+          button {
+            text: "Escolher fonte…" on_click: abrir_dialogo class: botao
+          }
+
+          text "última escolha: @ultima" { class: rotulo }
+        }
+
+        column {
+          class: "bloco bloco-cresce"
+
+          text "amostra" { class: secao }
+
+          text "Sphinx of black quartz, judge my vow — 0123456789" {
+            class: amostra font: @fonte
+          }
+
+          text "A mesma linha, no tamanho do editor." {
+            class: amostra-mono font: @fonte
+          }
+        }
+      }
+    }
+  }
+}

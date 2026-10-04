@@ -99,7 +99,7 @@ bytes em *todos* os nós da árvore, usados ou não.
 Numa GPU integrada antiga, **pintar** é o item mais caro de uma tela glacier — e
 não tem relação com quantos nós ela tem.
 
-Medido numa Intel HD 2500 (Ivy Bridge, 2012), no `examples/componentes_locais`:
+Medido numa Intel HD 2500 (Ivy Bridge, 2012), no `examples/gva/componentes_locais`:
 **111 nós, 20 caixas pintadas**, janela de 900×720.
 
 | | intervalo por quadro |

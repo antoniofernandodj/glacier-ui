@@ -1,0 +1,20 @@
+screen {
+  title: "Glacier - ciclo de vida (painel)"
+
+  resources {
+    link { rel: stylesheet href: "examples/gvb/ciclo_vida_rust/estilo.gss" }
+  }
+
+  container {
+    class: tela
+
+    column {
+      class: coluna align: Center
+
+      text "Painel" { class: titulo }
+      text "Entradas: @entradas · saídas: @saidas" { class: info }
+      text "Último gancho: @ultimo" { class: info }
+      button "Voltar" { class: botao on_click: voltar }
+    }
+  }
+}

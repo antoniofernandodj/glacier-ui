@@ -1,5 +1,5 @@
 //! Exercita o caminho open→hover-submenu (2 níveis)→click→dismiss de
-//! `crate::menu` sem precisar de mouse real: abre o `examples/menus`
+//! `crate::menu` sem precisar de mouse real: abre o `examples/gva/menus`
 //! component, dispara `OpenMenuBarDropdown`/`OpenContextMenu`/
 //! `MenuHoverSubmenu`/`MenuItemClick`/`MenuDismiss` diretamente e confirma
 //! que `render_current` não entra em pânico em nenhum estado intermediário.
@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[test]
 fn menu_open_hover_render_smoke() {
     let mut ui = GlacierUI::new();
-    ui.register_component("menus", "examples/menus/menus.gv")
+    ui.register_component("menus", "examples/gva/menus/menus.gva")
         .expect("register menus component");
     ui.set_initial_screen("menus");
 

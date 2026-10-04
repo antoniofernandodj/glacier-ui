@@ -9,7 +9,7 @@ bloco `<script>` em **[Luau](https://luau.org)** interpretado em tempo de execu�
 (`fetch`/SSE/WebSocket), **toasts** e **diálogos**.
 
 ```xml
-<!-- examples/contador/contador.gv -->
+<!-- examples/gva/contador/contador.gva -->
 <Container padding="20" alignX="Center" alignY="Center" width="fill" height="fill" background="#2E3440">
     <Column spacing="20" align="Center">
         <Text content="Valor do Contador: {contador}" size="28" bold="true" color="#ECEFF4" />
@@ -27,7 +27,7 @@ Duas formas de dar comportamento a esse XML — escolha por caso de uso:
 // 1) Em Rust: um Component tipado, com estado próprio.
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("examples/contador/contador.gv".into()) }
+    fn template(&self) -> Template { Template::File("examples/gva/contador/contador.gva".into()) }
     fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
         match action {
@@ -182,7 +182,7 @@ cargo run --example contador
 O mesmo app (`GlacierDaemon`, `Component`s Rust, `.gv` e `.gss`) compila para
 `wasm32-unknown-unknown` e roda num `<canvas>`. Os assets entram no binário por
 `embed_assets!`, e a camada `<script>` Luau não existe no navegador. O exemplo
-completo está em `examples/web_contador`:
+completo está em `examples/gva/web_contador`:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -232,7 +232,7 @@ struct Contador { valor: i32 }
 
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("examples/contador/contador.gv".into()) }
+    fn template(&self) -> Template { Template::File("examples/gva/contador/contador.gva".into()) }
     fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
         match action {
@@ -274,7 +274,7 @@ fn main() -> iced::Result {
 Para um comportamento embutido no template, troque `register(Box::new(...))` por
 `register_component("contador", "caminho/para/contador.gv")`: se o template tiver
 um `<script>`, o motor liga a lógica **Luau** automaticamente (ver
-[`examples/contador_macro`](examples/contador_macro)).
+[`examples/gva/contador_macro`](examples/gva/contador_macro)).
 
 ### Ligando ao `iced`: `GlacierApp::bootstrap`
 
@@ -304,7 +304,7 @@ fn main() -> iced::Result {
 }
 ```
 
-Veja [`examples/navegacao_luau`](examples/navegacao_luau).
+Veja [`examples/gva/navegacao_luau`](examples/gva/navegacao_luau).
 
 ---
 
@@ -579,7 +579,7 @@ O que ele **não** tem:
   pelo app vence a declaração local.
 
 Componentes locais se compõem entre si e convivem com `<import>` no mesmo
-`<resources>`. Ver [`examples/componentes_locais`](examples/componentes_locais),
+`<resources>`. Ver [`examples/gva/componentes_locais`](examples/gva/componentes_locais),
 que põe as duas formas lado a lado no mesmo arquivo.
 
 ### `<props>`: o contrato do componente
@@ -756,7 +756,7 @@ ctx.set("usuarios", serde_json::json!([
 
 Combinados no mesmo elemento, `for-each` tem precedência: desenrola o loop
 primeiro e o `if` filtra cada item gerado no contexto local. Veja
-[`examples/condicional`](examples/condicional) e [`examples/lista`](examples/lista).
+[`examples/gva/condicional`](examples/gva/condicional) e [`examples/gva/lista`](examples/gva/lista).
 
 **Agrupar sem wrapper (`<template>`)** — nem a forma-atributo nem `for-each`
 num elemento comum resolvem "quero 2+ nós irmãos por condição/iteração, sem
@@ -811,7 +811,7 @@ fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
 }
 ```
 
-Veja [`examples/perfil`](examples/perfil) e [`examples/navegacao`](examples/navegacao).
+Veja [`examples/gva/perfil`](examples/gva/perfil) e [`examples/gva/navegacao`](examples/gva/navegacao).
 
 ---
 
@@ -869,7 +869,7 @@ Validadores: `.required()`, `.min_length(n)`, `.max_length(n)`,
 publica o primeiro erro de cada campo (`"{prefixo}{nome}"`) para exibir inline com
 `Text "{erro_username}"`. Enter em qualquer campo dispara o `onSubmit` **e** avança
 o foco — dá para preencher e enviar o formulário sem tocar no mouse. Veja
-[`examples/formulario_login`](examples/formulario_login).
+[`examples/gva/formulario_login`](examples/gva/formulario_login).
 
 ---
 
@@ -902,8 +902,8 @@ end
 
 O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual;
 `navigateBack` volta. O estado de contexto é compartilhado entre telas. Veja
-[`examples/navegacao`](examples/navegacao) (declarativa) e
-[`examples/navegacao_luau`](examples/navegacao_luau) (via script).
+[`examples/gva/navegacao`](examples/gva/navegacao) (declarativa) e
+[`examples/gva/navegacao_luau`](examples/gva/navegacao_luau) (via script).
 
 ---
 
@@ -913,7 +913,7 @@ O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual;
 **props** interpoladas no contexto local do filho:
 
 ```xml
-<import name="PerfilCard" from="examples/perfil/perfil_card.gv" />
+<import name="PerfilCard" from="examples/gva/perfil/perfil_card.gva" />
 <PerfilCard nome="{user_name}" cargo="{user_role}" />
 
 <!-- ou -->
@@ -953,8 +953,8 @@ prefixa as ações da subárvore com o nome do componente
 ctx.set_var(&ContextVar::new("user_name", "Clara Silva"));
 ```
 
-Veja [`examples/aninhado`](examples/aninhado), [`examples/lista`](examples/lista)
-e [`examples/perfil`](examples/perfil).
+Veja [`examples/gva/aninhado`](examples/gva/aninhado), [`examples/gva/lista`](examples/gva/lista)
+e [`examples/gva/perfil`](examples/gva/perfil).
 
 ---
 
@@ -978,7 +978,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
 ```
 
 ```rust
-motor.register_component("contador", "examples/contador_macro/contador_macro.gv")?;
+motor.register_component("contador", "examples/gva/contador_macro/contador_macro.gva")?;
 ```
 
 Como funciona:
@@ -996,8 +996,8 @@ relativo ao diretório do template):
 <script src="contador_externo.luau"></script>
 ```
 
-Veja [`examples/contador_macro`](examples/contador_macro) (inline) e
-[`examples/contador_externo`](examples/contador_externo) (externo).
+Veja [`examples/gva/contador_macro`](examples/gva/contador_macro) (inline) e
+[`examples/gva/contador_externo`](examples/gva/contador_externo) (externo).
 
 ### `fetch`: rede async via corrotina
 
@@ -1020,7 +1020,7 @@ end
 
 O retorno é `{ ok, status, body, error }`. O 2º argumento `opts` é opcional:
 `{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
-Veja [`examples/fetch_luau`](examples/fetch_luau).
+Veja [`examples/gva/fetch_luau`](examples/gva/fetch_luau).
 
 ### `require`: módulos Luau
 
@@ -1046,7 +1046,7 @@ function carregar() local res = api:get("/dados"); if res.ok then ctx.dados = re
 diretório do template; (2) um subdir `lib/`; (3) cada caminho em
 `GLACIER_LUAU_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
 então enxerga `fetch` e as globais; é carregado **uma vez** e cacheado. Veja
-[`examples/imports_luau`](examples/imports_luau).
+[`examples/gva/imports_luau`](examples/gva/imports_luau).
 
 ### Timers: `after` e `every`
 
@@ -1064,7 +1064,7 @@ function tique() ctx.tiques = ctx.tiques + 1 end
 function parar() cronometro:cancel() end
 ```
 
-Veja [`examples/robustez_luau`](examples/robustez_luau).
+Veja [`examples/gva/robustez_luau`](examples/gva/robustez_luau).
 
 ### `storage`: persistência local
 
@@ -1172,7 +1172,7 @@ nenhum valor.
 > e é o que o `date` usa por dentro. Se você tem código que faz a conta na mão,
 > vale conferir.
 
-Veja [`examples/data_hora_luau`](examples/data_hora_luau).
+Veja [`examples/gva/data_hora_luau`](examples/gva/data_hora_luau).
 
 ### `viewport`, `toast`, `confirm`, `navigate`
 
@@ -1234,7 +1234,7 @@ funções do prelúdio coordenam janelas (nenhuma suspende a corrotina):
 
 Do lado Rust, os equivalentes são `Context::open_window` / `Context::broadcast`
 / `Context::close_window` e o método `Component::on_broadcast`. Veja
-[`examples/janelas_glacier`](examples/janelas_glacier).
+[`examples/gva/janelas_glacier`](examples/gva/janelas_glacier).
 
 Quando a janela principal é só um `.gv`, `main_template` poupa o `setup`: ele
 registra o arquivo com o nome sem extensão (`views/app.gv` → `app`) e o torna a
@@ -1331,7 +1331,7 @@ script e `navigate_to=`/`navigate_back` do markup; não rodam para a tela inicia
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir
 `self.motor.subscription()` — sem isso, nenhuma conexão é aberta. Veja
-[`examples/stream_lua`](examples/stream_lua).
+[`examples/gva/stream_lua`](examples/gva/stream_lua).
 
 ---
 
@@ -1472,8 +1472,8 @@ escopo** ao componente com `scoped="true"` — a única forma de escopar um `.gs
 </style>
 ```
 
-Veja [`examples/estilos`](examples/estilos) (arquivo + `<link>`) e
-[`examples/estilos_inline`](examples/estilos_inline) (bloco `<style>`).
+Veja [`examples/gva/estilos`](examples/gva/estilos) (arquivo + `<link>`) e
+[`examples/gva/estilos_inline`](examples/gva/estilos_inline) (bloco `<style>`).
 
 ### Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`
 
@@ -1495,7 +1495,7 @@ rastrear hover manualmente. **Cobertura atual:**
 - **`Select`** — só `:hover` (o `pick_list` do iced não tem `Status::Disabled`).
 - **`Checkbox`/`Toggle`** — só o atributo `disabled` (usam o visual padrão do tema).
 
-Veja [`examples/pseudo_estados`](examples/pseudo_estados).
+Veja [`examples/gva/pseudo_estados`](examples/gva/pseudo_estados).
 
 ---
 
@@ -1586,7 +1586,7 @@ ctx.show_toast(ToastSpec::warning("Fica 10s.").with_title("Custom").with_duratio
 ```
 
 Requer `GlacierUI::toast_subscription(...)` no `subscription()` do app — sem ele,
-os toasts só fecham no "×". Veja [`examples/toasts`](examples/toasts).
+os toasts só fecham no "×". Veja [`examples/gva/toasts`](examples/gva/toasts).
 
 **Diálogos** — modais estilo `QMessageBox` (informação, aviso, erro, pergunta,
 confirmação), sobrepostos pelo motor:
@@ -1602,7 +1602,7 @@ ctx.show_dialog(
 
 Os botões despacham ações (`"ok"`, `"yes"`, `"no"`, `"cancel"`, ou a ação
 customizada) roteadas ao `update` — o motor já fechou o diálogo antes. Veja
-[`examples/dialogs`](examples/dialogs). (Da camada Luau, use `confirm(opts)`.)
+[`examples/gva/dialogs`](examples/gva/dialogs). (Da camada Luau, use `confirm(opts)`.)
 
 ---
 
@@ -1628,7 +1628,7 @@ o item agarrado recebe `{t.__dragging} = "true"` para destacá-lo:
 
 Requer `self.motor.subscription()` no `subscription()` do app (carrega o listener
 global de "soltar o mouse" que encerra o drag). Veja
-[`examples/lista_reordenavel`](examples/lista_reordenavel).
+[`examples/gva/lista_reordenavel`](examples/gva/lista_reordenavel).
 
 ---
 
@@ -1807,7 +1807,7 @@ GlacierDaemon::new()
     })
 ```
 
-O exemplo [`sqlite_crud`](examples/sqlite_crud) leva isso ao fim: um global
+O exemplo [`sqlite_crud`](examples/gva/sqlite_crud) leva isso ao fim: um global
 `sqlite` com `connect(path)` devolvendo uma conexão (`:execute`, `:query`,
 `:begin`/`:commit`/`:rollback`, `:last_insert_id`, `:close`), e um CRUD de
 tarefas escrito só no `<script>`.

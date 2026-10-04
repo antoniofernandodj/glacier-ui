@@ -11,7 +11,7 @@
 /// # Por que ele só nasce agora
 ///
 /// O `PLANO_WIDGETS.md` listava o `Card` como pronto desde a 0.35, mas o que
-/// existia era um **componente do app** (`examples/perfil/perfil_card.gv`) —
+/// existia era um **componente do app** (`examples/gva/perfil/perfil_card.gva`) —
 /// um cartão de perfil específico, com a imagem e os campos daquele exemplo
 /// cravados no template. Cartão de verdade é aquilo que embrulha conteúdo
 /// arbitrário, e isso dependia do `<slot/>`. Corrigido na mesma leva.
