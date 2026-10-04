@@ -1957,7 +1957,7 @@ function sharedPathDepth(a, b) {
 /**
  * The declaring file of component `tag`, or null. The document's own `<import>`
  * wins; then, among the workspace candidates, the nearest one — a name like
- * `perfil` can be both `examples/perfil/perfil.gv` and the screen registered as
+ * `perfil` can be both `examples/gva/perfil/perfil.gva` and the screen registered as
  * `perfil` next door, and the one sharing the most path with the document is
  * the one that screen means.
  */

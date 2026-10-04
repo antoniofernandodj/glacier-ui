@@ -5,6 +5,40 @@ use glacier_ui::parser::UiNode;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // `--same A.gvb B.gvb`: as duas escritas dão a mesma árvore? (sem `node_id` nem
+    // `line`, e com os campos em ordem). Para conferir uma reformatação.
+    if args.first().map(String::as_str) == Some("--same") {
+        let tree = |f: &str| -> Result<String, String> {
+            let src = std::fs::read_to_string(f).map_err(|e| e.to_string())?;
+            // o que o scaffold do CLI substitui
+            let src = src
+                .replace("{{nome_projeto}}", "meu-app")
+                .replace("{{nome_crate}}", "meu_app")
+                .replace("{{titulo}}", "Meu App")
+                .replace("{{versao_motor}}", "0.0.0");
+            let (markup, script) = glacier_ui::eval::strip_script(&glacier_ui::gvb::desugar(&src).map_err(|d| d.message)?);
+            let markup = glacier_ui::eval::normalize_bare_directives(&markup);
+            let t = UiNode::parse_xml_with_source(&markup, &src, None).map_err(|e| e.to_string())?;
+            let mut ls: Vec<String> = format!("{t:#?}")
+                .lines()
+                .filter(|l| !l.contains("node_id:") && !l.trim_start().starts_with("line:"))
+                .map(|l| l.trim().to_string())
+                .collect();
+            ls.sort();
+            Ok(format!("{}\n--script--\n{}", ls.join("\n"), script.unwrap_or_default()))
+        };
+        match (tree(&args[1]), tree(&args[2])) {
+            (Ok(a), Ok(b)) if a == b => println!("IGUAIS"),
+            (Ok(a), Ok(b)) => {
+                let (la, lb): (Vec<_>, Vec<_>) = (a.lines().collect(), b.lines().collect());
+                let oa: Vec<_> = la.iter().filter(|l| !lb.contains(l)).take(3).collect();
+                let ob: Vec<_> = lb.iter().filter(|l| !la.contains(l)).take(3).collect();
+                println!("DIFERENTES — só no 1º: {oa:?} · só no 2º: {ob:?}");
+            }
+            (a, b) => println!("ERRO {:?} / {:?}", a.err(), b.err()),
+        }
+        return;
+    }
     // `--load a.gvb b.gva …`: registra cada arquivo pelo CARREGADOR de verdade
     // (leitura, `.gvb` dessugarado, `<script>`, `<link>`), sem abrir janela.
     if args.first().map(String::as_str) == Some("--load") {

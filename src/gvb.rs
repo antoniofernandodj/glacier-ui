@@ -355,7 +355,8 @@ impl Parser {
             end_line: line,
         };
 
-        // O texto: uma string solta logo depois da tag (regra 6).
+        // O texto: uma string solta logo depois da tag (regra 6) — ou depois do
+        // bloco, ver mais abaixo.
         let m = self.mark();
         self.skip_ws()?;
         if self.peek() == Some('"') {
@@ -380,6 +381,27 @@ impl Parser {
             node.attrs = attrs;
             node.children = children;
             node.end_line = end;
+
+            // O texto também pode vir DEPOIS do bloco — `text { class: nota }
+            // "oi"` —, e é a forma que se escreve: as chaves primeiro, o
+            // conteúdo por último. Só vale sem filhos (texto misturado com
+            // elementos não existe), e um texto já lido antes do bloco não
+            // admite um segundo.
+            if node.children.is_empty() {
+                let m = self.mark();
+                self.skip_ws()?;
+                if self.peek() == Some('"') {
+                    if node.text.is_some() {
+                        return self.err("o texto aparece antes e depois do bloco");
+                    }
+                    let tline = self.line;
+                    let (value, end) = self.string(raw)?;
+                    node.text = Some(Text { value, line: tline });
+                    node.end_line = end;
+                } else {
+                    self.reset(m);
+                }
+            }
         } else {
             self.reset(m);
         }
@@ -773,9 +795,15 @@ impl Out {
             self.push("/>");
             return;
         }
-        self.push(">");
+        // O `>` só depois de alcançar a linha do texto: as quebras de linha
+        // ficam DENTRO da tag de abertura (o XML as aceita), e não dentro do
+        // corpo — que num `script`/`style` é código, e uma quebra a mais no
+        // começo é conteúdo.
         if let Some(t) = &n.text {
             self.at(t.line);
+        }
+        self.push(">");
+        if let Some(t) = &n.text {
             if matches!(n.tag.as_str(), "script" | "style") {
                 self.push(&t.value);
             } else {

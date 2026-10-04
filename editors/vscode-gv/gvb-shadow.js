@@ -226,8 +226,18 @@ class Parser {
       save = this.i;
       this.skipWs();
     }
-    if (this.peek() === "{") this.block(node);
-    else this.i = save;
+    if (this.peek() === "{") {
+      this.block(node);
+      // O texto também pode vir depois do bloco: `text { class: nota } "oi"`.
+      if (node.children.length === 0 && !node.text) {
+        const after = this.i;
+        this.skipWs();
+        if (this.peek() === '"') {
+          node.text = { ...this.string(), raw_body: node.rawTag };
+          node.closeOff = this.i;
+        } else this.i = after;
+      }
+    } else this.i = save;
   }
 
   branch(parent, key, at) {
