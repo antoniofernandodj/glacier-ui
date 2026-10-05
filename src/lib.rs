@@ -1160,14 +1160,30 @@ impl GlacierUI {
     /// `resources` do app são carregadas uma vez, e a tela `initial` (ou a
     /// primeira) passa a ser a ativa.
     pub fn register_app(&mut self, path: &str) -> Result<()> {
-        self.load_app(path, true)?;
+        self.load_app(path, true, None)?;
         let _ = self.reevaluate_all();
         Ok(())
     }
 
+    /// Como [`GlacierUI::register_app`], mas só para **uma** tela: carrega as
+    /// declarações globais e a tela `nome` — as outras (e o `script` delas) ficam
+    /// de fora — e a torna a ativa. É o que uma janela aberta por
+    /// `open_window("nome", …)` faz: ela é isolada, e não pode rodar o `init` da
+    /// tela principal (conectar um stream, ler o `storage`…) de novo.
+    ///
+    /// Devolve `true` quando a tela é servida por um `impl Component` em Rust
+    /// (declarada sem corpo e sem `src`): aí quem chama precisa rodar o `.main`.
+    pub fn register_app_screen(&mut self, path: &str, nome: &str) -> Result<bool> {
+        let sem_corpo = self.load_app(path, true, Some(nome))?;
+        let _ = self.reevaluate_all();
+        Ok(sem_corpo)
+    }
+
     /// Lê o manifesto e (re)registra tudo. `primeira` é falsa no hot-reload:
-    /// a tela ativa e o histórico de navegação sobrevivem.
-    fn load_app(&mut self, path: &str, primeira: bool) -> Result<()> {
+    /// a tela ativa e o histórico de navegação sobrevivem. `so` restringe o
+    /// registro a uma tela (ver [`GlacierUI::register_app_screen`]); devolve se
+    /// ela é uma tela sem corpo.
+    fn load_app(&mut self, path: &str, primeira: bool, so: Option<&str>) -> Result<bool> {
         let content = asset_source::read_markup(self.assets.as_ref(), path)
             .map_err(|e| GlacierError::io("template", path, e))?;
         let manifest = parser::UiNode::parse_app_xml(&content, Some(path))?.ok_or_else(|| {
@@ -1189,7 +1205,24 @@ impl GlacierUI {
         self.process_links_from(APP_SCOPE, &globais, Some(path.to_string()))?;
 
         let mut telas = Vec::new();
+        let mut so_sem_corpo = false;
+        if let Some(nome) = so
+            && !manifest.screens.iter().any(|t| t.name == nome)
+        {
+            return Err(GlacierError::Link {
+                component: path.to_string(),
+                message: format!("o app não tem uma tela chamada '{nome}'"),
+            });
+        }
         for tela in &manifest.screens {
+            telas.push((
+                tela.name.clone(),
+                matches!(tela.source, parser::ScreenSource::Rust),
+            ));
+            if so.is_some_and(|nome| nome != tela.name) {
+                continue;
+            }
+            so_sem_corpo = matches!(tela.source, parser::ScreenSource::Rust);
             match &tela.source {
                 parser::ScreenSource::Inline { tree, script } => {
                     self.register_inline_screen(&tela.name, path, tree, script.as_deref())?;
@@ -1203,29 +1236,28 @@ impl GlacierUI {
                 }
                 parser::ScreenSource::Rust => {}
             }
-            telas.push((
-                tela.name.clone(),
-                matches!(tela.source, parser::ScreenSource::Rust),
-            ));
         }
         self.file_mod_times.insert(app_key(path), mod_time);
         self.app_source = Some(AppSource {
             path: path.to_string(),
+            so: so.map(str::to_string),
             screens: telas,
         });
 
         if primeira {
-            let inicial = manifest
-                .screens
-                .iter()
-                .find(|s| s.initial)
-                .or_else(|| manifest.screens.first())
-                .map(|s| s.name.clone());
+            let inicial = so.map(str::to_string).or_else(|| {
+                manifest
+                    .screens
+                    .iter()
+                    .find(|s| s.initial)
+                    .or_else(|| manifest.screens.first())
+                    .map(|s| s.name.clone())
+            });
             if let Some(nome) = inicial {
                 self.set_initial_screen(&nome);
             }
         }
-        Ok(())
+        Ok(so_sem_corpo)
     }
 
     /// Registra uma tela escrita **dentro** do manifesto: a árvore já vem
@@ -4405,11 +4437,11 @@ impl GlacierUI {
             self.file_mod_times
                 .get(&app_key(&app.path))
                 .is_none_or(|&last| modified > last)
-                .then(|| (app.path.clone(), modified))
+                .then(|| (app.path.clone(), app.so.clone(), modified))
         });
-        if let Some((path, modified)) = app_mudou {
-            match self.load_app(&path, false) {
-                Ok(()) => {
+        if let Some((path, so, modified)) = app_mudou {
+            match self.load_app(&path, false, so.as_deref()) {
+                Ok(_) => {
                     reloaded.push(path);
                     dirty = true;
                 }
@@ -4621,6 +4653,9 @@ pub(crate) fn app_manifest(
 #[derive(Debug, Clone)]
 struct AppSource {
     path: String,
+    /// Num motor de janela filha, a única tela registrada (ver
+    /// [`GlacierUI::register_app_screen`]); o hot-reload respeita isso.
+    so: Option<String>,
     /// `(nome, sem_corpo)`: `sem_corpo` é a tela declarada sem corpo nem `src`,
     /// que um `impl Component` registrado em Rust precisa servir.
     screens: Vec<(String, bool)>,

@@ -10,6 +10,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.117.1 — 2026-10-05
+
+- **Janela aberta numa tela do app registra só essa tela.** `open_window("tela", …)`
+  carregava o manifesto inteiro no motor novo — inclusive o `script` (e o `init`) da
+  tela principal, que então rodava de novo na janela filha (conectar um stream, ler o
+  `storage`…). Agora a filha carrega as declarações globais e a tela pedida
+  (`GlacierUI::register_app_screen`); uma tela servida por `impl Component` ainda
+  roda o `.main`. O hot-reload da filha também fica restrito a essa tela.
+
+---
+
 ## glacier-ui 0.117.0 · CLI 0.6.2 · vscode-gv 0.21.1 — 2026-10-05
 
 ### Quebras

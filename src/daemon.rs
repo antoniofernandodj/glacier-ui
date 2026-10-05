@@ -752,6 +752,7 @@ impl GlacierDaemon {
             rt.on_close = on_close.clone();
             rt.geometry_dir = geometry_dir.clone();
             rt.style = style;
+            rt.manifest_path = manifest_path.clone();
             // Sobe a bandeja (thread própria) uma vez, no boot. Só a
             // configuração é `move`d para cá; a thread devolve a alça de
             // comandos, guardada para as atualizações de menu e o shutdown.
@@ -985,6 +986,9 @@ struct Runtime {
     /// O `setup`/`settings`/`título` da principal, guardados para **reabri-la**
     /// (o "Open Rustploy" da bandeja) idêntica à do boot.
     main_setup: SetupHook,
+    /// O manifesto da principal (arquivo com raiz `app`), para uma janela aberta
+    /// numa tela do app registrar só ela. Ver [`GlacierUI::register_app_screen`].
+    manifest_path: Option<String>,
     main_settings: window::Settings,
     main_title: String,
     /// A janela principal está **na tela** (`true`) ou **recolhida na bandeja**
@@ -1049,6 +1053,7 @@ impl Runtime {
             on_tray: None,
             tray_markup: None,
             main_setup,
+            manifest_path: None,
             main_settings,
             main_title,
             main_shown: true,
@@ -1505,7 +1510,14 @@ impl Runtime {
             data,
         } = spec;
         let (engine, fallback_title) =
-            build_engine_with(source, &data, self.assets.clone(), self.style.as_ref(), Some(&self.main_setup));
+            build_engine_with(
+                source,
+                &data,
+                self.assets.clone(),
+                self.style.as_ref(),
+                Some(&self.main_setup),
+                self.manifest_path.as_deref(),
+            );
         let meta = engine.current_screen_meta().cloned().unwrap_or_default();
         let screen = engine.current_screen_name().map(str::to_string);
 
@@ -2041,7 +2053,7 @@ fn build_engine(
     assets: Arc<dyn AssetSource>,
     style: Option<&crate::style::Style>,
 ) -> (GlacierUI, String) {
-    build_engine_with(source, data, assets, style, None)
+    build_engine_with(source, data, assets, style, None, None)
 }
 
 /// Como [`build_engine`], com o `setup` da principal à mão: uma janela aberta
@@ -2053,6 +2065,7 @@ fn build_engine_with(
     assets: Arc<dyn AssetSource>,
     style: Option<&crate::style::Style>,
     setup: Option<&SetupHook>,
+    manifest: Option<&str>,
 ) -> (GlacierUI, String) {
     let mut engine = GlacierUI::new().with_asset_source(assets);
     apply_style(&mut engine, style);
@@ -2077,7 +2090,20 @@ fn build_engine_with(
             name
         }
         WindowSource::AppScreen(name) => {
-            if let Some(setup) = setup {
+            // Só a tela pedida (e as declarações globais): a janela é isolada, e
+            // o `init` das outras telas não pode rodar de novo nela. Uma tela
+            // servida por `impl Component` precisa do `.main`, que a registra.
+            let sem_corpo = match manifest {
+                Some(path) => match engine.register_app_screen(path, &name) {
+                    Ok(sem_corpo) => sem_corpo,
+                    Err(e) => {
+                        eprintln!("open_window: falha ao abrir a tela '{name}': {e}");
+                        false
+                    }
+                },
+                None => true,
+            };
+            if sem_corpo && let Some(setup) = setup {
                 setup(&mut engine);
             }
             engine.set_initial_screen(&name);
