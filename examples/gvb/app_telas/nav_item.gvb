@@ -1,0 +1,9 @@
+// Componente global, por arquivo. Raiz `component`, como nos outros exemplos.
+component {
+  props {
+    prop(name = texto)
+    prop(name = destino)
+  }
+
+  button(text = "@texto", navigate_to = "@destino", class = botao)
+}

@@ -1,0 +1,99 @@
+// EXEMPLO ESCRITO ANTES DA FUNCIONALIDADE (TDD) — ver docs/PLANO_APP_TELAS.md.
+// Hoje isto NÃO carrega: a raiz `app` com `screen` filhos ainda não existe.
+// Quando o plano estiver pronto, este arquivo é o teste de aceitação:
+//
+//   WGPU_BACKEND=gl cargo run --example gvb_app_telas --features tray
+//
+// O que ele exercita, item por item do plano:
+//   1.1   `app` na raiz com id/single_instance/remember_geometry; `tray` e
+//         `resources` globais dentro dele
+//   1.1.1 componentes globais: `Rotulo` (inline) e `NavItem` (por arquivo)
+//   1.2   tela inline (`home`) e tela por arquivo (`ajustes`, via `src`)
+//   1.3   `initial` numa tela que NÃO é a primeira; nome da tela vindo do `src`
+//   1.4   atributos da janela principal (`size`, `min_size`, `icon`) no `app`;
+//         `screen` só com `title`, que acompanha a navegação; janela filha com
+//         `open_window("sobre", { size = … })`
+//   1.6   tela sem corpo nem `src` (`relogio`), servida por um `impl Component`
+//         que o `.main` do main.rs registra
+app(
+  id = app_telas, single_instance = true, remember_geometry = true,
+  size = "720 480", min_size = "480 320", icon = "examples/gvb/bandeja/icon.png",
+) {
+  resources {
+    link(rel = theme, href = "examples/gvb/app_telas/theme.json")
+    link(rel = stylesheet, href = "examples/gvb/app_telas/app.gss")
+
+    // Componente GLOBAL inline: vale para todas as telas, sem import.
+    component(name = Rotulo) {
+      props {
+        prop(name = texto)
+      }
+
+      text(content = "@texto", class = rotulo)
+    }
+
+    // Componente GLOBAL por arquivo.
+    link(rel = import, href = "examples/gvb/app_telas/nav_item.gvb", as = NavItem)
+
+    // Só do app: nenhuma tela pode declarar `tray`, então nenhuma discorda.
+    tray(icon = "examples/gvb/bandeja/icon.png", tooltip = "Glacier — telas") {
+      item(label = Abrir, on_click = tray:open)
+      separator
+      item(label = Sair, on_click = tray:quit)
+    }
+  }
+
+  // Declarada PRIMEIRO, mas a inicial é a `home`.
+  screen(name = sobre, title = "Sobre", src = "examples/gvb/app_telas/sobre.gvb")
+
+  screen(name = home, initial = true, title = "Início") {
+    resources {
+      // Local: só a `home` enxerga este componente. Sombreia um global de
+      // mesmo nome, se houvesse.
+      component(name = Destaque) {
+        props {
+          prop(name = texto)
+        }
+
+        text(content = "@texto", class = destaque)
+      }
+    }
+
+    container(class = caixa) {
+      column(class = coluna) {
+        Destaque(texto = "Início")
+        Rotulo(texto = "Um app, várias telas.")
+        NavItem(texto = "Ajustes", destino = ajustes)
+        NavItem(texto = "Sobre", destino = sobre)
+        NavItem(texto = "Relógio (Rust)", destino = relogio)
+      }
+    }
+  }
+
+  screen(name = ajustes, title = "Ajustes") {
+    resources {
+      script """
+        function voltar()
+          navigate_back()
+        end
+
+        -- Janela filha: o tamanho vai na chamada, não no markup da tela (1.4).
+        function abrir_sobre()
+          open_window("sobre", { size = "420 300" })
+        end
+      """
+    }
+
+    container(class = caixa) {
+      column(class = coluna) {
+        Rotulo(texto = "Ajustes")
+        button(text = "Sobre numa janela", on_click = abrir_sobre, class = botao)
+        button(text = Voltar, on_click = voltar, class = botao)
+      }
+    }
+  }
+
+  // Sem corpo e sem `src`: quem a serve é o `impl Component` registrado em
+  // Rust com o nome "relogio" (ver main.rs). Sem registro, o app não sobe.
+  screen(name = relogio, title = "Relógio")
+}

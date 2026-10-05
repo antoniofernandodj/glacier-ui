@@ -1,0 +1,10 @@
+// Tela por arquivo: raiz `screen`, como sempre. Não declara `app` nem `tray`
+// (seria erro). Usa o `Rotulo` GLOBAL sem importar nada.
+screen(title = "Sobre") {
+  container(class = caixa) {
+    column(class = coluna) {
+      Rotulo(texto = "Glacier — exemplo de app com várias telas")
+      button(text = Voltar, navigate_back = true, class = botao)
+    }
+  }
+}

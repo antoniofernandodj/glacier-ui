@@ -1,0 +1,16 @@
+:root {
+  --fraco: #6C7086;
+  --destaque: #F5E0DC;
+}
+
+.caixa {
+  padding: 40;
+  width: fill;
+  height: fill;
+  align_x: Center;
+  align_y: Center;
+}
+.coluna { spacing: 14; align_x: Center; }
+.rotulo { size: 16; color: var(--fraco); }
+.destaque { size: 32; bold: true; color: var(--destaque); }
+.botao { width: 240; padding: 12; }

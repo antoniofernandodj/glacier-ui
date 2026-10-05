@@ -766,3 +766,8 @@ path = "examples/gvb/web_contador/main.rs"
 [[example]]
 name = "gvb_webview"
 path = "examples/gvb/webview/main.rs"
+
+[[example]]
+name = "gvb_app_telas"
+path = "examples/gvb/app_telas/main.rs"
+required-features = ["tray"]
