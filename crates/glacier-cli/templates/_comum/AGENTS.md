@@ -400,7 +400,7 @@ componente que aparece no lugar da lista quando ela está vazia:
 </foreach>
 ```
 
-`<template foreach="…">` repete do mesmo jeito, mas lá o atributo se chama
+`<template :foreach="…">` repete do mesmo jeito, mas lá o atributo se chama
 `foreach_fallback`: o `<template>` também é `if`/`else`, e um `fallback` solto
 nele leria como "senão". Os detalhes estão em "Estrutura de template".
 

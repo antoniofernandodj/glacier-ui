@@ -131,7 +131,7 @@
             escrito direto na tela.
           </text>
           <template
-            foreach="concluidas"
+            :foreach="concluidas"
             var="c"
             foreach_fallback="ListaVazia"
           >

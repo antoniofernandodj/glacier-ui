@@ -101,7 +101,7 @@
         <groupbox title="Métricas — um componente com vários nós de raiz">
           <row class="linha_2">
             <Metrica
-              for-each="metricas"
+              :for-each="metricas"
               var="m"
               rotulo="{m.rotulo}"
               valor="{m.valor}"
@@ -117,7 +117,7 @@
           />
           <row class="linha_3">
             <CartaoServico
-              for-each="servicos"
+              :for-each="servicos"
               var="s"
               id="{s.id}"
               nome="{s.nome}"
@@ -135,7 +135,7 @@
           />
           <frame shape="box" class="moldura_2">
             <LinhaLog
-              for-each="log"
+              :for-each="log"
               var="l"
               hora="{l.hora}"
               nivel="{l.nivel}"

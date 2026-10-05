@@ -50,10 +50,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   74 usos nos exemplos e presets foram trocados e movidos para o `.gss`, e o
   `.center { align: Center }` do `contador_macro`, que o motor ignorava com aviso,
   virou `align_x`.
+- **`for-each` é uma ligação**: o atributo lê o NOME da chave com a lista, então
+  agora leva o `:` (`:for-each = tarefas` / `:for-each="tarefas"`), em qualquer tag.
+- **Exemplo novo `gvb_template_if_for`**: `<template>` explícito com `if`/`else`,
+  com `for-each` e com um `if` dentro do corpo da repetição.
 - **Exemplos em `.gvb` rodam sozinhos**: cada `examples/gvb/<nome>/` ganhou o
   `main.rs` do gêmeo `.gva` (caminhos para `.gvb`) e um `[[example]]` no
   `Cargo.toml` — `cargo run --example gvb_<nome>`. O `gvb_inline_script` é novo.
-- **Extensão do VS Code:** o realce conhece o `:` de ligação (nas duas grafias), e
+- **Extensão do VS Code 0.21.0** (a 0.20.6 não lê a sintaxe nova do `.gvb`: perde os atributos da primeira linha de `tag(…)` e acusa "precisa da prop" que está lá). O realce conhece o `:` de ligação (nas duas grafias), e
   o Ctrl+clique/link de `:atributo="chave"` leva à chave mesmo quando o atributo
   não está na lista de nomes conhecidos; o `gvb-shadow.js` lê `tag(…)`, `:nome` e
   `each … as v(…)`.

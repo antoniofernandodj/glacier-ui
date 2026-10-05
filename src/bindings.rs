@@ -92,6 +92,8 @@ const TABELA: &[Linha] = &[
     ),
     (&["menuitem", "itemmenu"], &["checked", "marcado"]),
     (&["menu", "cardapio", "contextmenu", "menucontexto"], &["items", "itens", "options", "opcoes"]),
+    // — qualquer tag: a repetição lê o NOME da chave com a lista —
+    (&["*"], &["foreach", "each", "repeat"]),
     // — builtins (as props que viram nome de chave por dentro) —
     (&["tabbar", "tabs"], &["value", "items"]),
     (&["listview"], &["value", "items"]),
@@ -112,7 +114,9 @@ pub fn is_binding(tag: &str, attr: &str) -> bool {
     let (tag, attr) = (norm(tag), norm(attr));
     TABELA
         .iter()
-        .any(|(tags, attrs)| tags.contains(&tag.as_str()) && attrs.contains(&attr.as_str()))
+        .any(|(tags, attrs)| {
+            (tags.contains(&tag.as_str()) || tags.contains(&"*")) && attrs.contains(&attr.as_str())
+        })
 }
 
 /// Os atributos de ligação de uma tag, sem normalizar (para ferramentas que

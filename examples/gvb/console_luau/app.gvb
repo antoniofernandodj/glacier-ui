@@ -28,7 +28,6 @@ screen(
 
       column(class = bloco) {
         text(class = secao, content = "config ao vivo")
-
         row(class = acoes) {
           button(text = "ciclar nível", on_click = ciclar_nivel)
           button(text = "alternar cor", on_click = alternar_cor)

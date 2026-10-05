@@ -213,7 +213,7 @@ screen(
 
               row(class = chip-linha) {
                 Chip(
-                  for-each = tags, var = tag, label = @tag,
+                  :for-each = tags, var = tag, label = @tag,
                   on_remove = remover_tag:@tag,
                 )
               }

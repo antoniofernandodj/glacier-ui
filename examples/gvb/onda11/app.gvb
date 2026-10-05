@@ -202,7 +202,7 @@ screen(title = "Glacier — Onda 11", size = "1080 760", min_size = "900 640") {
 
               row(class = chip-linha) {
                 Chip(
-                  for-each = tags, var = tag, label = @tag,
+                  :for-each = tags, var = tag, label = @tag,
                   on_remove = remover_tag:@tag,
                 )
               }

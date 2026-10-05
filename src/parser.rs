@@ -709,7 +709,10 @@ fn validate_template_fallback(root: Node) -> Option<Diagnostic> {
             );
         }
         let tem_fallback = TEMPLATE_FALLBACK_ATTRS.iter().find(|a| node.has_attribute(**a));
-        let tem_foreach = TEMPLATE_FOREACH_ATTRS.iter().any(|a| node.has_attribute(*a));
+        // `:for-each="lista"` chega como `bind_for-each` (ver `mark_bindings`)
+        let tem_foreach = TEMPLATE_FOREACH_ATTRS
+            .iter()
+            .any(|a| node.has_attribute(*a) || node.has_attribute(format!("{BIND_PREFIX}{a}").as_str()));
         if let (Some(attr), false) = (tem_fallback, tem_foreach) {
             return Some(
                 diagnostic_at(node, format!("`{attr}` num <template> sem `foreach`")).with_hint(

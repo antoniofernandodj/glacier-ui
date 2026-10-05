@@ -654,7 +654,7 @@ em silêncio. As regras:
 - valor **vazio** (a chave ainda não carregou) vale como "nenhum campo"; um
   escalar ou uma lista, aí sim, é erro;
 - uma lista aninhada atravessa como JSON e volta a ser lista num `for-each` de
-  dentro (`spread="{c}"` com `c.tags` → `<text for-each="tags" var="t">`).
+  dentro (`spread="{c}"` com `c.tags` → `<text :for-each="tags" var="t">`).
 
 Apelido em português: `espalhar`.
 

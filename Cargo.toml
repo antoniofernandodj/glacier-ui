@@ -752,6 +752,10 @@ name = "gvb_timepicker"
 path = "examples/gvb/timepicker/main.rs"
 
 [[example]]
+name = "gvb_template_if_for"
+path = "examples/gvb/template_if_for/main.rs"
+
+[[example]]
 name = "gvb_toasts"
 path = "examples/gvb/toasts/main.rs"
 

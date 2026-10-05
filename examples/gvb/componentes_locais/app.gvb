@@ -105,7 +105,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
         groupbox(title = "Métricas — um componente com vários nós de raiz") {
           row(class = linha_2) {
             Metrica(
-              for-each = metricas, var = m, rotulo = @m.rotulo,
+              :for-each = metricas, var = m, rotulo = @m.rotulo,
               valor = @m.valor,
               delta = @m.delta,
             )
@@ -120,7 +120,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
 
           row(class = linha_3) {
             CartaoServico(
-              for-each = servicos, var = s, id = @s.id, nome = @s.nome,
+              :for-each = servicos, var = s, id = @s.id, nome = @s.nome,
               estado = @s.estado, cor = @s.cor, uptime = @s.uptime,
             )
           }
@@ -136,7 +136,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
 
           frame(shape = box, class = moldura_2) {
             LinhaLog(
-              for-each = log, var = l, hora = @l.hora, nivel = @l.nivel,
+              :for-each = log, var = l, hora = @l.hora, nivel = @l.nivel,
               texto = @l.texto,
             )
           }

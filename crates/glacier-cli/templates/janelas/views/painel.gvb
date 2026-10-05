@@ -20,7 +20,7 @@ screen(
       item(label = "Abrir {{titulo}}", on_click = tray:open)
 
       check(
-        label = Notificações, checked = @__notifications,
+        label = Notificações, :checked = @__notifications,
         on_click = notifications:toggle,
       )
 

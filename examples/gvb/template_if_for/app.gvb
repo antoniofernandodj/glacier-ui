@@ -1,0 +1,51 @@
+// `<template>` explícito, com `if` e com `for-each`. O `if @x { }` e o
+// `each @l as i { }` do `.gvb` dessugaram para estas mesmas tags; aqui elas
+// aparecem como são no `.gva`.
+screen(title = "Glacier - template com if e for", size = "520 520") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/template_if_for/app.gss")
+    link(rel = theme, href = "examples/gvb/template_if_for/theme.json")
+  }
+
+  column(class = tela) {
+    text(content = "Tarefas", class = titulo)
+
+    row(class = barra) {
+      button(text = "Mostrar só pendentes", on_click = filtro, class = botao)
+      button(text = "Nova tarefa", on_click = nova, class = botao)
+    }
+
+    // `template` com `if`/`else`: o ramo é escolhido pelo valor de `so_pendentes`.
+    // `if = @so_pendentes` lê o VALOR da chave; `equals` compara com um texto.
+    template(if = @so_pendentes, equals = true) {
+      text(content = "Filtro: só as pendentes", class = aviso)
+    }
+    template(else = "") {
+      text(content = "Filtro: todas as tarefas", class = aviso)
+    }
+
+    // `template` com `for-each`: `:for-each` é uma LIGAÇÃO (o nome da chave com
+    // o array JSON), e `var` batiza o item. Dentro do corpo, `@t.campo` lê o item.
+    template(:for-each = tarefas, var = t) {
+      row(class = linha) {
+        // `if` e `for-each` não compõem numa tag só: o `if` vai DENTRO do corpo
+        // da repetição, num `template` filho.
+        template(if = @t.estado, equals = feita) {
+          text(content = "✔ @t.titulo", class = feita)
+        }
+        template(else = "") {
+          text(content = "○ @t.titulo", class = pendente)
+        }
+
+        button(text = Alternar, on_click = "alternar:@t.id", class = botao)
+      }
+    }
+
+    // Uma lista vazia não desenha nada: o aviso é outro `template` com `if`.
+    template(if = @sem_tarefas, equals = true) {
+      text(content = "Nada para mostrar com este filtro.", class = vazio)
+    }
+
+    text(content = "@resumo", class = resumo)
+  }
+}

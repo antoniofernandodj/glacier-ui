@@ -92,7 +92,7 @@
     </row>
 
     <column class="lista">
-      <row class="item" for-each="tarefas" var="t">
+      <row class="item" :for-each="tarefas" var="t">
         <button class="check" text="{t.marca}" on_click="alternar:{t.id}" />
         <text class="feito"    if="{t.feito}" equals="1">{t.titulo}</text>
         <text class="pendente" else>{t.titulo}</text>

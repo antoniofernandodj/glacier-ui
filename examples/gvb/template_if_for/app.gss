@@ -1,0 +1,10 @@
+.tela { padding: 20; spacing: 12; width: fill; height: fill; }
+.titulo { size: 22; bold: true; color: #CDD6F4; }
+.barra { spacing: 8; }
+.botao { padding: 6 12; }
+.aviso { size: 12; color: #9399B2; }
+.linha { spacing: 10; align_y: center; }
+.feita { size: 14; color: #A6E3A1; width: fill; }
+.pendente { size: 14; color: #CDD6F4; width: fill; }
+.vazio { size: 13; color: #F9E2AF; }
+.resumo { size: 12; color: #6C7086; }

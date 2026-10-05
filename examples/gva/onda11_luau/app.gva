@@ -177,7 +177,7 @@
             <column class="bloco">
               <text class="secao">Chip</text>
               <row class="chip-linha">
-                <Chip for-each="tags" var="tag" label="{tag}" on_remove="remover_tag:{tag}" />
+                <Chip :for-each="tags" var="tag" label="{tag}" on_remove="remover_tag:{tag}" />
               </row>
               <text class="nota">
                 `remover_tag:{tag}` chama `remover_tag(tag)` — a convenção `nome:sufixo`

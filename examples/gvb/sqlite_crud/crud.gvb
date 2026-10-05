@@ -96,7 +96,7 @@ screen(
     }
 
     column(class = lista) {
-      row(class = item, for-each = tarefas, var = t) {
+      row(class = item, :for-each = tarefas, var = t) {
         button(class = check, text = @t.marca, on_click = alternar:@t.id)
         text(class = feito, if = @t.feito, equals = 1, content = "@t.titulo")
         text(class = pendente, else = "", content = "@t.titulo")

@@ -668,7 +668,7 @@ erro de parse, que aponta para `foreach_fallback`.
   `fallback="LsitaVazia"` erra na primeira vez que a tela aparece, e não no dia
   em que a lista esvaziar.
 - `foreach_fallback` num `<template>` sem `foreach` também é erro de parse.
-- O atributo `for-each` de um elemento (`<Cartao for-each="…"/>`) não aceita
+- O atributo `for-each` de um elemento (`<Cartao :for-each="…"/>`) não aceita
   nenhum dos dois: ali `fallback` seria uma prop do componente repetido.
 
 ### Armadilha: nome de componente que já é apelido de primitiva
