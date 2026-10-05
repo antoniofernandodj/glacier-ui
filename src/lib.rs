@@ -156,8 +156,8 @@ pub use luau::LuauComponent;
 #[cfg(not(target_arch = "wasm32"))]
 pub use luau::{LuaExtension, register_lua_extension};
 pub use parser::{
-    AppManifest, AppMeta, ButtonType, DialogMeta, NodeType, ScreenDecl, ScreenMeta, ScreenSource,
-    TrayMeta, UiNode,
+    AppManifest, AppMeta, ButtonType, DialogMeta, FontDecl, NodeType, ScreenDecl, ScreenMeta,
+    ScreenSource, TrayMeta, UiNode,
 };
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};

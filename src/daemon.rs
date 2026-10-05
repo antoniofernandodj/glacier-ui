@@ -144,9 +144,9 @@ pub struct GlacierDaemon {
     /// Gancho de fechamento da janela principal (ver [`GlacierDaemon::on_close`]).
     on_close: Option<CloseHook>,
     /// Período do tick de hot-reload (checagem de arquivos alterados).
-    reload_period: Duration,
+    reload_period: Option<Duration>,
     /// Período do tick de expiração de toasts.
-    toast_period: Duration,
+    toast_period: Option<Duration>,
     /// Raiz opcional onde o global `storage` (persistência local em JSON) grava
     /// seus arquivos, aplicada a todos os motores. Sem isto, `storage` grava
     /// relativo ao diretório do script — inviável quando os assets moram num
@@ -173,7 +173,7 @@ pub struct GlacierDaemon {
     style: Option<crate::style::Style>,
     /// Liga o antialiasing (MSAAx4) do renderer do iced. Ver
     /// [`GlacierDaemon::antialiasing`].
-    antialiasing: bool,
+    antialiasing: Option<bool>,
     /// `app_id` da trava de instância única, quando ligada. Ver
     /// [`GlacierDaemon::single_instance`].
     single_instance_id: Option<String>,
@@ -239,15 +239,15 @@ impl GlacierDaemon {
             default_font: None,
             on_message: None,
             on_close: None,
-            reload_period: Duration::from_millis(500),
-            toast_period: Duration::from_millis(400),
+            reload_period: None,
+            toast_period: None,
             storage_dir: None,
             remember_geometry: false,
             tray_config: None,
             on_tray: None,
             assets: Arc::new(DiskAssets),
             style: None,
-            antialiasing: true,
+            antialiasing: None,
             single_instance_id: None,
             main_template_path: None,
         }
@@ -280,7 +280,7 @@ impl GlacierDaemon {
     /// legibilidade (a maioria das telas de formulário/lista não desenha
     /// `canvas` com curvas), ganha desligando isto.
     pub fn antialiasing(mut self, enabled: bool) -> Self {
-        self.antialiasing = enabled;
+        self.antialiasing = Some(enabled);
         self
     }
 
@@ -472,14 +472,14 @@ impl GlacierDaemon {
     /// Período do tick de hot-reload (checagem de arquivos alterados em disco).
     /// Padrão: 500ms.
     pub fn reload_period(mut self, period: Duration) -> Self {
-        self.reload_period = period;
+        self.reload_period = Some(period);
         self
     }
 
     /// Período do tick que expira toasts. Padrão: 400ms — mais curto deixa a
     /// expiração mais pontual, ao custo de acordar o loop mais vezes.
     pub fn toast_period(mut self, period: Duration) -> Self {
-        self.toast_period = period;
+        self.toast_period = Some(period);
         self
     }
 
@@ -644,6 +644,46 @@ impl GlacierDaemon {
         } = self;
         let _ = setup;
 
+        // Os ajustes do daemon que também se escrevem no `app(...)`: o builder
+        // vence, depois o markup, depois o default.
+        let antialiasing = antialiasing
+            .or(app_meta.as_ref().and_then(|a| a.antialiasing))
+            .unwrap_or(true);
+        let reload_period = reload_period
+            .or(app_meta.as_ref().and_then(|a| a.reload_period).map(Duration::from_millis))
+            .unwrap_or(Duration::from_millis(500));
+        let toast_period = toast_period
+            .or(app_meta.as_ref().and_then(|a| a.toast_period).map(Duration::from_millis))
+            .unwrap_or(Duration::from_millis(400));
+
+        // Fontes do `resources` do `app`: lidas pela fonte de assets (os bytes
+        // viram `'static` com um `Box::leak`, uma vez, no boot — o iced as quer
+        // assim) e registradas pelo nome de família, para `font = "…"` no markup e
+        // `font_family` no `.gss` as acharem. `font = "…"` no `app` é a padrão.
+        let mut fonts = fonts;
+        let mut default_font = default_font;
+        if let Some(app) = &app_meta {
+            for f in &app.fonts {
+                match assets.read_bytes(&f.src) {
+                    Ok(bytes) => {
+                        let bytes: &'static [u8] = Box::leak(bytes.into_owned().into_boxed_slice());
+                        fonts.push(bytes);
+                        if let Some(family) = &f.family {
+                            crate::fonts::register_family(family);
+                        }
+                    }
+                    Err(erro) => eprintln!("<font src=\"{}\">: não consegui ler a fonte: {erro}", f.src),
+                }
+            }
+            if default_font.is_none()
+                && let Some(family) = &app.font
+            {
+                default_font = Some(crate::fonts::register_family(family));
+            }
+        }
+        // `application_id` (Linux): as janelas se anunciam ao desktop com ele.
+        let application_id = app_meta.as_ref().and_then(|a| a.application_id.clone());
+
         // O que o builder não disse, o `<app>` diz. O builder vence sempre: é
         // código explícito, e o markup é o padrão de quando nada foi dito.
         let storage_dir = storage_dir.or_else(|| app_meta.as_ref().map(|app| app_data_dir(&app.id)));
@@ -715,6 +755,7 @@ impl GlacierDaemon {
             // `<screen>` do template pode decidir título e tamanho **sem** o pulo
             // visível de abrir num tamanho e redimensionar depois.
             let mut main_settings = main_settings.clone();
+            apply_application_id(&mut main_settings, application_id.as_deref());
             let mut main_title = main_title.clone();
             let base_title = main_title.clone();
             let initial_screen = engine.current_screen_name().map(str::to_string);
@@ -753,6 +794,7 @@ impl GlacierDaemon {
             rt.geometry_dir = geometry_dir.clone();
             rt.style = style;
             rt.manifest_path = manifest_path.clone();
+            rt.application_id = application_id.clone();
             // Sobe a bandeja (thread própria) uma vez, no boot. Só a
             // configuração é `move`d para cá; a thread devolve a alça de
             // comandos, guardada para as atualizações de menu e o shutdown.
@@ -989,6 +1031,8 @@ struct Runtime {
     /// O manifesto da principal (arquivo com raiz `app`), para uma janela aberta
     /// numa tela do app registrar só ela. Ver [`GlacierUI::register_app_screen`].
     manifest_path: Option<String>,
+    /// O `application_id` do `app(...)`, aplicado também às janelas filhas.
+    application_id: Option<String>,
     main_settings: window::Settings,
     main_title: String,
     /// A janela principal está **na tela** (`true`) ou **recolhida na bandeja**
@@ -1054,6 +1098,7 @@ impl Runtime {
             tray_markup: None,
             main_setup,
             manifest_path: None,
+            application_id: None,
             main_settings,
             main_title,
             main_shown: true,
@@ -1545,6 +1590,7 @@ impl Runtime {
         {
             apply_window_icon(app, &mut settings, self.assets.as_ref());
         }
+        apply_application_id(&mut settings, self.application_id.as_deref());
         // O app tem a última palavra sobre a aparência da filha (ex.: também
         // borderless, num app com titlebar própria).
         if let Some(f) = &self.child_settings {
@@ -1929,6 +1975,18 @@ fn apply_window_icon(
             Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui decodificar o ícone: {erro}"),
         },
         Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui ler o ícone: {erro}"),
+    }
+}
+
+/// Dá às `window::Settings` o `application_id` do `app(...)` (Linux), se o
+/// builder não pôs o dele. Nas outras plataformas o campo não existe.
+#[allow(unused_variables)]
+fn apply_application_id(settings: &mut window::Settings, id: Option<&str>) {
+    #[cfg(target_os = "linux")]
+    if let Some(id) = id
+        && settings.platform_specific.application_id.is_empty()
+    {
+        settings.platform_specific.application_id = id.to_string();
     }
 }
 

@@ -83,6 +83,33 @@ pub struct AppMeta {
     /// daemon abre sem ninguém pedir. O `title` fica de fora: ele é da tela e
     /// acompanha a navegação.
     pub window: ScreenMeta,
+    /// `antialiasing = false`: desliga o MSAA do renderer. `None` = o default do
+    /// daemon (ligado). O builder (`.antialiasing(…)`) vence.
+    pub antialiasing: Option<bool>,
+    /// `toast_period = 250`: período (ms) do tick que expira toasts.
+    pub toast_period: Option<u64>,
+    /// `reload_period = 500`: período (ms) do tick de hot-reload.
+    pub reload_period: Option<u64>,
+    /// `font = "JetBrains Mono"`: a família da fonte padrão de todas as janelas
+    /// (uma das declaradas com `font(...)` no `resources`, ou uma do sistema).
+    pub font: Option<String>,
+    /// `application_id = "meu-app"`: o `application_id` (Wayland/X11) das
+    /// janelas, que o desktop usa para casar a janela com o `.desktop`. Só
+    /// existe no Linux; nas outras plataformas é ignorado.
+    pub application_id: Option<String>,
+    /// As fontes embutidas declaradas com `font(src = …, family = …)` no
+    /// `resources` do `app`.
+    pub fonts: Vec<FontDecl>,
+}
+
+/// Uma `font(src = "assets/fonts/X.ttf", family = "Nome")` do `resources` do `app`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FontDecl {
+    /// O arquivo `.ttf`/`.otf`, lido pela fonte de assets.
+    pub src: String,
+    /// O nome de família com que `font = "…"` (markup) e `font_family` (`.gss`)
+    /// a chamam. Sem ele a fonte é carregada, mas nada a pede pelo nome.
+    pub family: Option<String>,
 }
 
 /// O manifesto de um arquivo com raiz `app`: o [`AppMeta`], a bandeja, as
@@ -284,11 +311,27 @@ const APP_SINGLE_INSTANCE_ATTRS: &[&str] =
     &["single_instance", "single-instance", "instancia_unica"];
 const APP_REMEMBER_GEOMETRY_ATTRS: &[&str] =
     &["remember_geometry", "remember-geometry", "lembrar_geometria"];
+const APP_ANTIALIASING_ATTRS: &[&str] = &["antialiasing"];
+const APP_TOAST_PERIOD_ATTRS: &[&str] = &["toast_period", "toast-period"];
+const APP_RELOAD_PERIOD_ATTRS: &[&str] = &["reload_period", "reload-period"];
+const APP_FONT_ATTRS: &[&str] = &["font", "fonte"];
+const APP_APPLICATION_ID_ATTRS: &[&str] = &["application_id", "application-id"];
 const APP_ATTR_GROUPS: &[&[&str]] = &[
     APP_ID_ATTRS,
     APP_SINGLE_INSTANCE_ATTRS,
     APP_REMEMBER_GEOMETRY_ATTRS,
+    APP_ANTIALIASING_ATTRS,
+    APP_TOAST_PERIOD_ATTRS,
+    APP_RELOAD_PERIOD_ATTRS,
+    APP_FONT_ATTRS,
+    APP_APPLICATION_ID_ATTRS,
 ];
+const FONT_SRC_ATTRS: &[&str] = &["src"];
+const FONT_FAMILY_ATTRS: &[&str] = &["family", "familia"];
+
+fn is_font_tag(tag: &str) -> bool {
+    tag.eq_ignore_ascii_case("font") || tag.eq_ignore_ascii_case("fonte")
+}
 
 /// Os atributos da `<tray>` e dos itens dela — ver [`TrayMeta`].
 const TRAY_ICON_ATTRS: &[&str] = &["icon", "icone", "ícone"];
@@ -448,6 +491,9 @@ const RESOURCE_TAGS: &[&str] = &[
     "aplicativo",
     "tray",
     "bandeja",
+    // `font(src = …, family = …)`: uma fonte embutida, só no `resources` do `app`.
+    "font",
+    "fonte",
 ];
 
 /// Lê um par de números de um atributo de tamanho (`size`, `min-size`).
@@ -910,6 +956,19 @@ fn validate_resources(header: Node, tray_ok: bool) -> Option<Diagnostic> {
             {
                 return Some(d);
             }
+            if is_font_tag(name) {
+                if !tray_ok {
+                    return Some(
+                        diagnostic_at(decl, format!("<{name}> fora do resources do app")).with_hint(
+                            "as fontes são do APLICATIVO (valem em todas as janelas): declare \
+                             font(src = …, family = …) no resources do app(...) raiz",
+                        ),
+                    );
+                }
+                if let Some(d) = validate_font(decl) {
+                    return Some(d);
+                }
+            }
             if is_app_tag(name) {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> dentro de um <resources>")).with_hint(
@@ -957,7 +1016,8 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
             let hint = if SCREEN_TITLE_ATTRS.contains(&name) {
                 "o title é da TELA e acompanha a navegação: screen(name = home, title = \"…\")"
             } else {
-                "o app aceita id, single_instance, remember_geometry e os atributos da \
+                "o app aceita id, single_instance, remember_geometry, antialiasing, \
+                 toast_period, reload_period, font, application_id e os atributos da \
                  janela principal (size, min_size, max_size, fixed_size, resizable, \
                  decorations, icon)"
             };
@@ -966,14 +1026,30 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
                     .with_hint(hint),
             );
         };
-        if !std::ptr::eq(*group, APP_ID_ATTRS) && parse_bool_value(attr.value()).is_none() {
+        let bool_attr = std::ptr::eq(*group, APP_SINGLE_INSTANCE_ATTRS)
+            || std::ptr::eq(*group, APP_REMEMBER_GEOMETRY_ATTRS)
+            || std::ptr::eq(*group, APP_ANTIALIASING_ATTRS);
+        let periodo = std::ptr::eq(*group, APP_TOAST_PERIOD_ATTRS)
+            || std::ptr::eq(*group, APP_RELOAD_PERIOD_ATTRS);
+        let hint = if bool_attr && parse_bool_value(attr.value()).is_none() {
+            Some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
+        } else if periodo && !attr.value().trim().parse::<u64>().is_ok_and(|n| n > 0) {
+            Some("um período é um número inteiro de milissegundos, maior que zero (`250`)")
+        } else if (std::ptr::eq(*group, APP_FONT_ATTRS) || std::ptr::eq(*group, APP_APPLICATION_ID_ATTRS))
+            && attr.value().trim().is_empty()
+        {
+            Some("o valor não pode ser vazio")
+        } else {
+            None
+        };
+        if let Some(hint) = hint {
             return Some(
                 diagnostic_at_attr(
                     decl,
                     attr,
                     format!("valor inválido em {name}=\"{}\"", attr.value()),
                 )
-                .with_hint("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)"),
+                .with_hint(hint),
             );
         }
     }
@@ -999,6 +1075,25 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
                  com ponto), como `meu-app`",
             ),
         );
+    }
+    None
+}
+
+/// Confere uma `font(src = …, family = …)`: `src` obrigatório, `family` opcional.
+fn validate_font(decl: Node) -> Option<Diagnostic> {
+    for attr in decl.attributes() {
+        let name = attr.name();
+        if !FONT_SRC_ATTRS.contains(&name) && !FONT_FAMILY_ATTRS.contains(&name) {
+            return Some(
+                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido na <font>"))
+                    .with_hint("a font aceita src (o .ttf/.otf) e family (o nome da família)"),
+            );
+        }
+    }
+    if UiNode::get_attr(&decl, FONT_SRC_ATTRS).is_none_or(|v| v.trim().is_empty()) {
+        return Some(diagnostic_at(decl, "<font> sem src".to_string()).with_hint(
+            "diga o arquivo: font(src = \"assets/fonts/Inter.ttf\", family = \"Inter\")",
+        ));
     }
     None
 }
@@ -6479,6 +6574,33 @@ impl UiNode {
                 .and_then(parse_bool_value)
                 .unwrap_or(false),
             window: Self::window_meta_from(node),
+            antialiasing: Self::get_attr(node, APP_ANTIALIASING_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value),
+            toast_period: Self::get_attr(node, APP_TOAST_PERIOD_ATTRS)
+                .and_then(|v| v.trim().parse().ok()),
+            reload_period: Self::get_attr(node, APP_RELOAD_PERIOD_ATTRS)
+                .and_then(|v| v.trim().parse().ok()),
+            font: Self::get_attr(node, APP_FONT_ATTRS)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            application_id: Self::get_attr(node, APP_APPLICATION_ID_ATTRS)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            fonts: node
+                .children()
+                .filter(|c| c.is_element() && is_resources_tag(c.tag_name().name()))
+                .flat_map(|r| r.children().filter(Node::is_element).collect::<Vec<_>>())
+                .filter(|f| is_font_tag(f.tag_name().name()))
+                .filter_map(|f| {
+                    Some(FontDecl {
+                        src: Self::get_attr(&f, FONT_SRC_ATTRS)?.trim().to_string(),
+                        family: Self::get_attr(&f, FONT_FAMILY_ATTRS)
+                            .map(|v| v.trim().to_string())
+                            .filter(|v| !v.is_empty()),
+                    })
+                })
+                .collect(),
         }
     }
 
@@ -6773,6 +6895,8 @@ impl UiNode {
                 };
                 for decl in res.children.into_vec() {
                     match decl.kind {
+                        // A `font` já foi lida em `AppMeta::fonts`.
+                        NodeType::Component { ref name, .. } if is_font_tag(name) => {}
                         NodeType::Tray(meta) => {
                             if tray.is_some() {
                                 return Err(fail(

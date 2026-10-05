@@ -10,6 +10,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.119.0 — 2026-10-05
+
+- **O `app(...)` declara mais do `GlacierDaemon`.** `antialiasing = false`,
+  `toast_period = 250` e `reload_period = 500` (ms), `application_id = meu-app`
+  (Linux; as filhas também) e `font = Inter` (a fonte padrão de todas as janelas),
+  mais `font(src = "assets/fonts/Inter.ttf", family = Inter)` no `resources` do `app`
+  — o arquivo é lido pela fonte de assets, então vale também num binário com
+  `.assets(…)`. O builder (`.antialiasing(…)`, `.toast_period(…)`, `.default_font(…)`)
+  continua vencendo o markup. `font` fora do `resources` do `app`, `font` sem `src`
+  e período que não seja inteiro positivo são erro de parse.
+
 - **`l"""…"""`: string de linhas no `.gvb`.** Um texto em que a quebra de linha é
   conteúdo (um YAML num `placeholder`, um JSON) não tinha forma própria: `"…"` não
   aceita recuo e `"""` dobra as linhas num espaço. O `l"""` mantém as quebras e

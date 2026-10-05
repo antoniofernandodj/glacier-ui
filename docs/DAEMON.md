@@ -36,9 +36,9 @@ app(
 
 | No `app` (vale para o app inteiro) | Na `screen` (vale para ela) |
 |---|---|
-| `id`, `single_instance`, `remember_geometry` | `name`, `initial`, `title`, `src` |
+| `id`, `single_instance`, `remember_geometry`, `antialiasing`, `toast_period`, `reload_period`, `font`, `application_id` | `name`, `initial`, `title`, `src` |
 | a **janela principal**: `size`, `min_size`, `max_size`, `fixed_size`, `resizable`, `decorations`, `icon` | o layout |
-| `resources` global: `link` de tema/`.gss`/dados, `component`, `import`, `dialog`, e a `tray` | `resources` local: `script`, `style(scoped)`, `link`, `component` |
+| `resources` global: `link` de tema/`.gss`/dados, `component`, `import`, `dialog`, `font` e a `tray` | `resources` local: `script`, `style(scoped)`, `link`, `component` |
 
 - **A `screen` é só conteúdo.** `size`, `icon` & cia. numa `screen` sob o `app` são
   erro de parse; o tamanho de uma janela **filha** vai na chamada:
@@ -80,16 +80,16 @@ isso se escreve no markup**.
 | `.main_template("views/app.gvb")` | diz qual arquivo é o manifesto (ou a tela) principal | **é a forma markup.** Sem ela, o `run` abre `./views/app.*` ou `app.*` |
 | `.title("Meu app")` | título da janela principal | `screen(title = …)`, a da tela ativa — **vence** o `.title` |
 | `.main_size(900.0, 600.0)` | tamanho inicial | `app(size = "900 600")` — **vence** o `.main_size` |
-| `.main_window(Settings)` | `decorations`, `icon`, `min_size`, `resizable`… | `app(decorations = false, icon = "…", min_size = "…", max_size = "…", fixed_size = "…", resizable = false)`. Posição inicial, `platform_specific` e `exit_on_close_request` só em Rust |
+| `.main_window(Settings)` | `decorations`, `icon`, `min_size`, `resizable`… e o `application_id` (Linux): `app(application_id = meu-app)` | `app(decorations = false, icon = "…", min_size = "…", max_size = "…", fixed_size = "…", resizable = false)`. Posição inicial, `platform_specific` e `exit_on_close_request` só em Rust |
 | `.child_window(f)` | ajusta as `Settings` das janelas abertas por `open_window` | o tamanho e a moldura de cada filha vão em `open_window("nome", { size = "…", decorations = false })`; o resto (`platform_specific`…) só em Rust |
 | `.single_instance("meu-app")` | uma segunda execução foca a primeira e sai | `app(id = meu_app, single_instance = true)` |
 | `.remember_window_geometry(true)` | grava o tamanho/posição ao fechar e restaura ao abrir | `app(id = meu_app, remember_geometry = true)` |
 | `.storage_dir(dir)` | onde o global `storage` e a geometria gravam | sai do `id` do `app` (`~/.local/share/<id>`). Um diretório próprio só em Rust |
 | `.tray(TrayConfig)` + `.on_tray(f)` | ícone de bandeja e menu | `tray` com `item`, `check` e `separator` no `resources` do `app`; as ações `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho, o resto vai para o `<script>` |
 | `.style(style::FUSION)` | estilo visual embutido da janela | um botão com `on_click="style:fusion"` troca em tempo de execução; o estilo **inicial** só em Rust |
-| `.font(bytes)` / `.font_named("Inter", bytes)` / `.default_font(f)` | embute uma fonte no binário | só em Rust (são bytes do binário). Depois de registrada, `font="Inter"` no markup e `font_family: Inter` no `.gss` a usam |
-| `.antialiasing(false)` | liga/desliga o MSAA | só em Rust |
-| `.reload_period(d)` / `.toast_period(d)` | período do hot-reload e da expiração de toasts | só em Rust |
+| `.font(bytes)` / `.font_named("Inter", bytes)` / `.default_font(f)` | embute uma fonte no binário | `font(src = "assets/fonts/Inter.ttf", family = Inter)` no `resources` do `app`, e `app(font = Inter)` para torná-la a padrão. O arquivo é lido pela fonte de assets (`.assets(…)` a embute). `font="Inter"` no markup e `font_family: Inter` no `.gss` a usam |
+| `.antialiasing(false)` | liga/desliga o MSAA | `app(antialiasing = false)` |
+| `.reload_period(d)` / `.toast_period(d)` | período do hot-reload e da expiração de toasts | `app(reload_period = 500, toast_period = 250)` (milissegundos) |
 | `.assets(fonte)` | embute templates/estilos no binário (web, standalone) | só em Rust |
 | `.lua_extension(f)` | expõe funções Rust como globais do `<script>` | só em Rust |
 | `.on_message(f)` / `.on_close(f)` | observa cada mensagem despachada / o fechamento da principal | só em Rust |
@@ -208,8 +208,7 @@ app(id = bandeja, single_instance = true, remember_geometry = true, size = "460 
 
 - lógica em Rust (`impl Component`, `.on_message`, `.on_close`);
 - pontes para código nativo (`.lua_extension`);
-- recursos embutidos no binário (`.font`, `.assets`);
-- ajustes finos de renderização (`.antialiasing`, `.reload_period`, `.toast_period`);
+- os bytes embutidos no binário (`.font(include_bytes!(…))`, `.assets`) — a fonte lida de um arquivo é `font(src = …)`;
 - o estilo embutido inicial (`.style`) e a posição inicial da janela.
 
 Se você se pegar escrevendo Rust para outra coisa, provavelmente já existe a forma
