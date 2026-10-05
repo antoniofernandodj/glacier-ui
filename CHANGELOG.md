@@ -10,6 +10,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Extensão do VS Code: a chave de erro de um `form` (`@erro_nome`) vira link para o `formControl`.**
+  O `erro_<campo>` não é escrito por Luau nem por Rust — o motor o deriva do `formControl` do
+  formulário (prefixo `erro_`, ou o `errorPrefix` do `<form>`) —, então o `if = @erro_ss_email` e o
+  `content = "@erro_ss_email"` ficavam sem alvo. Link e F12 agora levam ao `formControl = ss_email`
+  (`form_control`, `form-control`… todas as grafias), no próprio arquivo primeiro e depois no
+  workspace; uma chave escrita de fato por um script continua tendo prioridade. No `rustploy-gui`:
+  20 links novos, nenhum perdido, e todas as 38 ocorrências de `@erro_*` resolvem.
+
 - **Extensão do VS Code: o handler Luau de um componente importado vira link.** Um template
   importado por uma tela não leva `<script>` próprio — o `on_click = salvar` dele é
   respondido pelo script que a TELA carrega —, e a extensão só procurava a função no grafo de

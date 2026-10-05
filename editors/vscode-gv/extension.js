@@ -1748,6 +1748,10 @@ async function buildWorkspaceIndex() {
   // `on_click="salvar"` is answered by the script the SCREEN loads — which is
   // not in this template's own script graph.
   const luaFunctions = new Map();
+  // `formControl = nome` anywhere in the templates, and the error prefixes the
+  // forms declare: together they answer where an `erro_nome` key comes from.
+  const formControls = new Map();
+  const errorPrefixes = new Set([DEFAULT_FORM_ERROR_PREFIX]);
   // template fsPath -> the .rs files whose `impl Component` renders it, and
   // directory -> the .rs files sitting in it (the fallback when the template
   // path is built at runtime instead of written as a literal).
@@ -1777,6 +1781,14 @@ async function buildWorkspaceIndex() {
   for (const uri of templates) {
     const text = readFileCached(uri.fsPath);
     if (text === null) continue;
+    for (const c of formControlsIn(text)) {
+      indexAdd(formControls, c.name, {
+        fsPath: uri.fsPath,
+        offset: c.offset,
+        position: offsetToPosition(text, c.offset),
+      });
+    }
+    for (const prefix of formErrorPrefixesIn(text)) errorPrefixes.add(prefix);
     if (/<\s*(import|importar|link)\b/i.test(text)) {
       for (const d of importDecls(uri, text)) {
         indexAdd(components, d.name.toLowerCase(), { fsPath: d.fsPath }, true);
@@ -1900,7 +1912,7 @@ async function buildWorkspaceIndex() {
       }
     }
   }
-  return { components, componentNames, handlers, luaKeys, luaFunctions, rustByTemplate, rustByDir, gssRules };
+  return { components, componentNames, handlers, luaKeys, luaFunctions, formControls, errorPrefixes, rustByTemplate, rustByDir, gssRules };
 }
 
 /** The `.rs` files that back `documentUri` — its renderer, or its neighbours. */
@@ -1909,6 +1921,66 @@ function rustFilesFor(index, documentUri) {
   if (tied && tied.length) return tied.map((v) => v.fsPath);
   const near = index.rustByDir.get(path.dirname(documentUri.fsPath)) || [];
   return near.map((v) => v.fsPath);
+}
+
+// A `<form>` derives one context key per bound control: `{prefix}{formControl}`,
+// where the prefix is the form's own `errorPrefix` or `erro_` by default
+// (`hydrate_form_controls` in eval.rs). Nothing in Luau or Rust writes
+// `erro_ss_email`; the engine does, when `ss_email` fails validation.
+const FORM_CONTROL_RE =
+  /\b(?:formControl|form_control|form-control|controleForm|controle_form)\s*=\s*"?([A-Za-z_]\w*)/g;
+const FORM_ERROR_PREFIX_RE =
+  /\b(?:errorPrefix|error_prefix|error-prefix|prefixoErro|prefixo_erro)\s*=\s*"?([A-Za-z_]\w*)/g;
+const DEFAULT_FORM_ERROR_PREFIX = "erro_";
+
+/** `[{ name, offset }]` for every `formControl = nome` in `text` (`.gva` or `.gvb`). */
+function formControlsIn(text) {
+  const out = [];
+  FORM_CONTROL_RE.lastIndex = 0;
+  let m;
+  while ((m = FORM_CONTROL_RE.exec(text)) !== null) {
+    out.push({ name: m[1], offset: m.index + m[0].lastIndexOf(m[1]) });
+  }
+  return out;
+}
+
+/** The error prefixes in play: the default plus every form's own `errorPrefix`. */
+function formErrorPrefixesIn(text) {
+  const out = new Set([DEFAULT_FORM_ERROR_PREFIX]);
+  FORM_ERROR_PREFIX_RE.lastIndex = 0;
+  let m;
+  while ((m = FORM_ERROR_PREFIX_RE.exec(text)) !== null) out.add(m[1]);
+  return out;
+}
+
+/**
+ * The `formControl = nome` behind an engine-derived error key such as
+ * `erro_ss_email` — this document first (positions go through `document` so a
+ * `.gvb` shadow maps back to the source), then the nearest one in the workspace.
+ * Returns `{ location, control }` or null.
+ */
+function resolveFormErrorKey(document, index, key) {
+  const text = document.getText();
+  const local = formControlsIn(text);
+  for (const prefix of formErrorPrefixesIn(text)) {
+    if (!key.startsWith(prefix) || key.length === prefix.length) continue;
+    const control = key.slice(prefix.length);
+    const hit = local.find((c) => c.name === control);
+    if (hit) {
+      return { location: new vscode.Location(document.uri, document.positionAt(hit.offset)), control };
+    }
+  }
+  if (index) {
+    for (const prefix of index.errorPrefixes) {
+      if (!key.startsWith(prefix) || key.length === prefix.length) continue;
+      const control = key.slice(prefix.length);
+      const best = nearestHit(index.formControls.get(control), document.uri);
+      if (best) {
+        return { location: new vscode.Location(vscode.Uri.file(best.fsPath), best.position), control };
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -2535,6 +2607,14 @@ async function provideDocumentLinks(document) {
         link.tooltip = `Go to context key "${key}"`;
         continue;
       }
+      // Written by no script: the engine derives `erro_<control>` itself, from
+      // the form's `formControl`.
+      const derived = resolveFormErrorKey(document, index, key);
+      if (derived) {
+        link.target = uriAt(derived.location.uri, derived.location.range.start);
+        link.tooltip = `Chave de erro do campo "${derived.control}" — ir ao formControl`;
+        continue;
+      }
       // Written nowhere we can see. A plain `{chave}` just stays unlinked; a
       // built-in action still has something to say, so it points at the doc —
       // same for a `__dialog.*` draft key nothing explicitly seeds.
@@ -2781,6 +2861,8 @@ async function resolveDefinition(document, position) {
       resolveContextKeyInRust(index, document.uri, hit.name) ||
       resolveContextKeyInWorkspaceLua(index, document.uri, hit.name);
     if (found) return [found];
+    const derived = resolveFormErrorKey(document, index, hit.name);
+    if (derived) return [derived.location];
     // A `__dialog.*` draft key that nothing explicitly seeds (the common
     // case: the widget alone writes it) has nowhere real to jump to — the
     // reference doc's explanation is the next best thing.
