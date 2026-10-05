@@ -87,10 +87,22 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
             .trim_start()
             .to_string();
         assert!(
-            primeira.starts_with("screen") || primeira.starts_with("component"),
-            "{relativo}: começa com <{}…>, e todo .gv começa com <screen> ou <component>",
+            primeira.starts_with("screen")
+                || primeira.starts_with("component")
+                || primeira.starts_with("app"),
+            "{relativo}: começa com <{}…>, e todo .gv começa com <screen>, <component> ou <app>",
             primeira.split_whitespace().next().unwrap_or("?")
         );
+
+        // Raiz `app(...)`: um manifesto, que tem o próprio parser — e cujas telas
+        // inline passam pelo mesmo caminho de um arquivo com raiz `screen`.
+        if primeira.starts_with("app") {
+            let manifesto = glacier_ui::parse_app_manifest(&src, Some(&relativo.to_string()))
+                .unwrap_or_else(|e| panic!("{relativo} não parseia: {e}"))
+                .unwrap_or_else(|| panic!("{relativo}: raiz app, mas não é um manifesto"));
+            assert!(!manifesto.screens.is_empty(), "{relativo}: app sem telas");
+            continue;
+        }
 
         // As mesmas duas passadas que o motor faz antes de parsear (ver
         // `parse_markup` em src/lib.rs): recortar o `<script>` por texto e

@@ -933,30 +933,18 @@ mensagem.
 O `<dialog>` tem seção própria ("O `<dialog>` — o modal com corpo em markup"),
 com o `buttons=` nos mínimos detalhes.
 
-**A janela, no `<screen>`.** O que descreve a janela mora no cabeçalho do
-arquivo dela — vale para a principal e para as abertas por `open_window`:
-
-| atributo | valor |
-|---|---|
-| `title` | título da barra; acompanha a navegação |
-| `size` | tamanho inicial, `"1080 760"` |
-| `min_size` / `max_size` | limites do redimensionamento |
-| `fixed_size` | tamanho, mínimo e máximo de uma vez, sem redimensionar — não convive com os quatro acima (erro de parse) |
-| `resizable` | `"false"` trava o redimensionamento |
-| `decorations` | `"false"` tira a moldura do sistema, para uma titlebar própria com `window:drag`/`window:close` |
-| `icon` | ícone da janela, com o caminho de um `<link href>` (`views/assets/icone.png`) |
-
-**O aplicativo, no `<resources>` da tela principal.** O que não é de janela
-nenhuma — instância única, geometria lembrada, diretório de dados, bandeja — vai
-em `<app>` e `<tray>`. O runner os lê **antes** de abrir qualquer janela, e só
-do template principal (o `views/app.gva` padrão, ou o de
-`.main_template("…")`); em outro template são ignorados, e num `<component>`
-são erro.
+**O aplicativo é a raiz do arquivo.** O que é do aplicativo — instância única,
+geometria lembrada, diretório de dados, a janela principal, a bandeja — mora no
+`<app>`, que envolve o arquivo inteiro; as telas são `<screen>` filhas dele. O
+runner lê o `<app>` **antes** de abrir qualquer janela, no template principal
+(o `views/app.gva` padrão, ou o de `.main_template("…")`).
 
 ```xml
-<screen title="Painel" size="960 700" icon="views/assets/icone.png">
+<app id="meu-app" single_instance="true" remember_geometry="true"
+     size="960 700" min_size="640 480" icon="views/assets/icone.png">
   <resources>
-    <app id="meu-app" single_instance="true" remember_geometry="true" />
+    <link rel="stylesheet" href="views/app.gss" />
+    <component name="Rotulo"> … </component>   <!-- global: vale em todas as telas -->
 
     <tray icon="views/assets/icone.png" tooltip="Meu app">
       <item label="Abrir" on_click="tray:open" />
@@ -966,8 +954,10 @@ são erro.
       <item label="Sair" on_click="tray:quit" />
     </tray>
   </resources>
-  …
-</screen>
+
+  <screen name="painel" initial="true" title="Painel"> … </screen>
+  <screen name="ajustes" title="Ajustes" src="views/ajustes.gva" />
+</app>
 ```
 
 | no `<app>` | o que faz |
@@ -975,6 +965,29 @@ são erro.
 | `id` (obrigatório) | nome do diretório de dados (`~/.local/share/<id>`, `%APPDATA%\<id>`) — onde a geometria e o global `storage` gravam — e chave da instância única. Letras, dígitos, `-`, `_` e `.` |
 | `single_instance="true"` | uma segunda execução foca a primeira e sai |
 | `remember_geometry="true"` | tamanho e posição da principal gravados ao fechar e restaurados ao abrir (no Wayland, só o tamanho) |
+| `size` | tamanho inicial da janela principal, `"1080 760"` |
+| `min_size` / `max_size` | limites do redimensionamento |
+| `fixed_size` | tamanho, mínimo e máximo de uma vez, sem redimensionar — não convive com os quatro acima (erro de parse) |
+| `resizable` | `"false"` trava o redimensionamento |
+| `decorations` | `"false"` tira a moldura do sistema, para uma titlebar própria com `window:drag`/`window:close` |
+| `icon` | ícone da janela (herdado pelas filhas), com o caminho de um `<link href>` |
+
+| na `<screen>` | o que faz |
+|---|---|
+| `name` | o nome de `navigate_to`/`open_window`; com `src`, vale o nome do arquivo |
+| `initial="true"` | a tela que abre primeiro (uma só; sem nenhuma vale a primeira) |
+| `title` | título da barra; acompanha a navegação |
+| `src` | o arquivo da tela (raiz `<screen>`/`<component>`); sem `src` o corpo é escrito ali. Sem corpo nem `src`, a tela é servida por um `impl Component` registrado no `.main` |
+
+A `<screen>` sob o `<app>` é **só conteúdo**: `size`, `icon` e o resto da janela
+nela são erro de parse. O tamanho de uma janela **filha** vai na chamada —
+`open_window("ajustes", { size = "420 300" })`, onde o nome é o de uma tela do
+app. `<app>` e `<tray>` **só existem na raiz**; dentro do `<resources>` de uma
+tela são erro. Os nomes de componente são do app inteiro: repetir um (numa tela
+e no `<resources>` do app, ou em duas telas) é erro.
+
+Um arquivo avulso com raiz `<screen>` segue sendo uma tela válida, e é o que o
+`src` aponta.
 
 A `<tray>` pede a feature `tray` do `glacier-ui` no `Cargo.toml`, e com ela
 **fechar a última janela não encerra o app**: ele se recolhe para a bandeja.
@@ -1014,9 +1027,9 @@ Rust, `lua_extension`, fontes embutidas, um contorno de driver):
 | no `main.rs` antigo | no markup |
 |---|---|
 | `.main(\|m\| { m.register_component("app", "views/app.gva"); m.set_initial_screen("app") })` | nada — o runner abre `views/app.gva`; outro arquivo é `.main_template("views/x.gva")` |
-| `.main_window(Settings { decorations: false, … })` | `<screen decorations="false">` |
-| `.main_window(Settings { icon: …, … })` + `include_bytes!` | `<screen icon="views/assets/icone.png">` — o arquivo vai para `views/`, que o pacote leva |
-| `.child_window(\|_, s\| s.decorations = false)` | `<screen decorations="false">` no arquivo da filha |
+| `.main_window(Settings { decorations: false, … })` | `<app decorations="false">` |
+| `.main_window(Settings { icon: …, … })` + `include_bytes!` | `<app icon="views/assets/icone.png">` — o arquivo vai para `views/`, que o pacote leva |
+| `.child_window(\|_, s\| s.decorations = false)` | só em Rust (a `<screen>` não leva atributo de janela) |
 | `exit_on_close_request: false` | nada — o runner liga quando precisa |
 | `.storage_dir(diretorio_de_dados())` | `<app id="meu-app">` |
 | `.remember_window_geometry(true)` | `<app … remember_geometry="true">` |
@@ -1024,10 +1037,11 @@ Rust, `lua_extension`, fontes embutidas, um contorno de driver):
 | `.tray(TrayConfig { … })` + `.on_tray(…)` | `<tray>` com `<item>`/`<check>`/`<separator>` |
 | `motor.define_data("cache_dir", dados.join("cache"))` | `{ctx.__data_dir}/cache` no script |
 
-**Um `.main(|motor| …)` escrito à mão desliga a leitura do `<app>` e da
-`<tray>`**: o runner não tem como saber qual template ele abre. Se o `main.rs`
-ainda precisa de um, a configuração do aplicativo volta para o builder; se não
-precisa, troque-o por `main_template`.
+**O `.main(|motor| …)` roda depois do manifesto.** Com `.main_template` (ou um
+`views/app.*` que seja um manifesto), o runner lê o `<app>`/`<tray>`, registra as
+telas e só então chama o `.main` — que existe para o que o markup não expressa:
+`motor.register(Box::new(MeuComponente))`, a lógica em Rust de uma tela declarada
+sem corpo e sem `src`. Sem registro com o nome dela, o app não sobe.
 
 ### O que vale em qualquer tag
 

@@ -753,7 +753,7 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 ## Cabeçalho da tela
 
 ### `<Screen>` (`<tela>`)
-Raiz que declara os metadados da **janela** e separa o que não desenha do que desenha. Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`/`redimensionavel`, `decorations`/`decoracoes` e `icon`/`icone`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este. O `icon`/`icone` é o ícone da **janela**, e é um caminho lido pela fonte de assets — como o `source` de um `<Image>`, e como o `icon` da [`<tray>`](#tray-bandeja--item--check--separator), que é o da bandeja e outro atributo. Arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem ícone; nunca impede de abrir.
+Raiz que declara o título (e, num arquivo avulso, os metadados da **janela**) e separa o que não desenha do que desenha. Num app com `<app>` raiz, a `<screen>` filha é só conteúdo — ver [`<App>`](#app-aplicativo--a-raiz-de-um-app-com-telas). Atributos: `title`/`titulo`, `size`/`tamanho` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`/`redimensionavel`, `decorations`/`decoracoes` e `icon`/`icone`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `<Component>`, não este. O `icon`/`icone` é o ícone da **janela**, e é um caminho lido pela fonte de assets — como o `source` de um `<Image>`, e como o `icon` da [`<tray>`](#tray-bandeja--item--check--separator), que é o da bandeja e outro atributo. Arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem ícone; nunca impede de abrir.
 
 ### `<Component>` (`<componente>`)
 A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
@@ -761,17 +761,25 @@ A mesma casca do `<Screen>` para um `.gv` que é pedaço de tela (importado por 
 ### `<Resources>` (`<recursos>`)
 Dentro do cabeçalho, agrupa o que a tela precisa e não aparece: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. O que estiver fora dele (ainda dentro do cabeçalho) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do cabeçalho.
 
-### `<App>` (`<aplicativo>`)
-Dentro do `<resources>` da **tela principal**, declara o que é do aplicativo e não da janela. Atributos: `id` (obrigatório), `single_instance`/`instancia_unica` e `remember_geometry`/`lembrar_geometria` (booleanos). O `id` dá nome ao diretório de dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`), onde a geometria lembrada e o `storage` gravam e que o markup lê como `{__data_dir}`, e é a chave da instância única. Por isso só aceita letras, dígitos, `-`, `_` e `.`. Não tem filhos, e há um só por aplicativo. É lido antes do boot, e o builder Rust (`.single_instance(…)`, `.storage_dir(…)`) vence o markup onde é usado.
+### `<App>` (`<aplicativo>`) — a raiz de um app com telas
+É a **raiz do arquivo** (a única tag no topo) e descreve o aplicativo; as telas são filhas dele. Atributos: `id` (obrigatório), `single_instance`/`instancia_unica`, `remember_geometry`/`lembrar_geometria` (booleanos) e os da **janela principal** — `size`, `min_size`, `max_size`, `fixed_size`, `resizable`, `decorations`, `icon`. O `id` dá nome ao diretório de dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`), onde a geometria lembrada e o `storage` gravam e que o markup lê como `{__data_dir}`, e é a chave da instância única. Por isso só aceita letras, dígitos, `-`, `_` e `.`. Filhos: um `<resources>` (declarações **globais**: `<link>` de tema/`.gss`/dados, `<component name>`, `<import>`, `<dialog>` e a `<tray>`) e as `<screen>`. `app` e `<tray>` **só existem na raiz**: dentro do `<resources>` de uma tela são erro de parse. É lido antes do boot, e o builder Rust (`.single_instance(…)`, `.storage_dir(…)`) vence o markup onde é usado.
+
+Cada `<screen name="…">` filha leva `name` (o de `navigate_to`/`open_window`), `initial` (no máximo uma; sem nenhuma vale a primeira), `title` e `src`. Inline (corpo escrito ali), por arquivo (`src="views/ajustes.gvb"`, raiz `screen`/`component` de sempre) ou **sem corpo e sem `src`** — servida por um `impl Component` que o `.main` do `main.rs` registra com esse nome. `size`/`icon`/… numa `<screen>` sob o `<app>` são erro: a janela é do app, e o tamanho de uma filha vai em `open_window("tela", { size = "420 300" })`. Os nomes de componente são do app inteiro (repetir um é erro).
 
 ```gv
-<resources>
-    <app id="meu-app" single_instance="true" remember_geometry="true" />
-</resources>
+<app id="meu_app" single_instance="true" remember_geometry="true" size="980 640">
+    <resources>
+        <link rel="stylesheet" href="views/app.gss" />
+        <tray icon="views/assets/icone.png"> … </tray>
+    </resources>
+
+    <screen name="home" initial="true" title="Início"> … </screen>
+    <screen name="ajustes" title="Ajustes" src="views/ajustes.gvb" />
+</app>
 ```
 
 ### `<Tray>` (`<bandeja>`) · `<item>` · `<check>` · `<separator>`
-O ícone de bandeja, ao lado do `<app>` no `<resources>` da tela principal. Atributos: `icon`/`icone` (obrigatório) e `tooltip`/`dica`. O menu são os filhos: `<item id label on_click>`, `<check id label checked on_click>` e `<separator />` (`<separador />`); `label`/`rotulo` e `checked`/`marcado` aceitam `{chave}` e acompanham o contexto. As ações `tray:open`, `tray:quit` e `notifications:toggle` são tratadas pelo runner, e qualquer outra vai ao script da tela principal — ver [Ações da bandeja](#ações-da-bandeja-tray). No máximo uma por aplicativo. A bandeja só aparece com a feature `tray` do glacier-ui.
+O ícone de bandeja, no `<resources>` do `<app>` raiz. Atributos: `icon`/`icone` (obrigatório) e `tooltip`/`dica`. O menu são os filhos: `<item id label on_click>`, `<check id label checked on_click>` e `<separator />` (`<separador />`); `label`/`rotulo` e `checked`/`marcado` aceitam `{chave}` e acompanham o contexto. As ações `tray:open`, `tray:quit` e `notifications:toggle` são tratadas pelo runner, e qualquer outra vai ao script da tela principal — ver [Ações da bandeja](#ações-da-bandeja-tray). No máximo uma por aplicativo. A bandeja só aparece com a feature `tray` do glacier-ui.
 
 ```gv
 <tray icon="views/assets/icone.png" tooltip="Meu App">

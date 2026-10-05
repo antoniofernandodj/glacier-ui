@@ -10,7 +10,28 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.117.0 · CLI 0.6.2 · vscode-gv 0.21.1 — 2026-10-05
+
 ### Quebras
+
+- **O app é a raiz do arquivo, e as telas são filhos dele.** Um arquivo com raiz
+  `app(...)` declara o aplicativo (`id`, `single_instance`, `remember_geometry`, a
+  janela principal — `size`, `min_size`, `max_size`, `fixed_size`, `resizable`,
+  `decorations`, `icon` —, a `tray` e o `resources` global) e as `screen(name = …,
+  initial = true, title = …, src = …)` dele: inline, por arquivo (`src`) ou sem
+  corpo, servida por um `impl Component` (o `.main` registra o componente com o
+  nome da tela; sem registro o app não sobe). Os componentes do `resources` do
+  `app` valem em todas as telas. Ver `docs/PLANO_APP_TELAS.md` e `docs/DAEMON.md`.
+  **Migração:** `app` e `tray` dentro do `resources` de uma tela agora são erro de
+  parse ("só na raiz app"). Mova-os para um `app(...)` na raiz, ponha a tela dentro
+  dele, e leve para o `app` o `size`/`icon`/… que estava no `screen`. O `glacier
+  new` (presets `completo` e `janelas`) já gera a forma nova.
+- **`GlacierDaemon::main` não desliga mais o `app`/`tray`.** O `.main(|motor| …)`
+  roda **depois** do manifesto (`main_template` ou o `views/app.*` padrão, quando
+  é um manifesto) em vez de substituí-lo; `.main_template` não substitui mais o
+  `.main`.
+- **`WindowSource` ganhou a variante `AppScreen`** (`#[non_exhaustive]` não existia):
+  um `match` exaustivo sobre ela precisa de um braço novo.
 
 - **`.gvb`: os atributos saem das chaves e vão para parênteses.** A forma agora é
   `tag(atributo = valor, outro = valor) { filhos }`: os parênteses
@@ -90,6 +111,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   - Os `.gvb` do repositório (exemplos, templates do CLI, `rascunhos/`) foram
     migrados e dão o mesmo XML de antes; o `gvb_convert` emite a grafia nova; a
     gramática e o `gvb-shadow.js` da extensão do VS Code foram atualizados.
+
+### Adicionado
+
+- `GlacierUI::register_app`, `check_app_screens`, `is_app_screen`, `app_window`,
+  `main_window_meta` e `parse_app_manifest`; os tipos `AppManifest`, `ScreenDecl` e
+  `ScreenSource`; `AppMeta::window`.
+- `open_window("tela", { size = "420 300", title = …, data = … })` em Luau abre
+  uma **tela do app** em outra janela (a nova janela carrega o manifesto e herda o
+  `icon` do app). `size` aceita o par do markup.
+- Hot-reload do manifesto: re-registra todas as telas inline, mantendo a tela
+  ativa e o histórico.
+- `gvb_convert` entende a raiz `app`.
+- Exemplo `gvb_app_telas`; exemplos `bandeja` migrados.
 
 ---
 

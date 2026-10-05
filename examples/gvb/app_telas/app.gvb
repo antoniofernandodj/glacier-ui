@@ -1,6 +1,5 @@
-// EXEMPLO ESCRITO ANTES DA FUNCIONALIDADE (TDD) — ver docs/PLANO_APP_TELAS.md.
-// Hoje isto NÃO carrega: a raiz `app` com `screen` filhos ainda não existe.
-// Quando o plano estiver pronto, este arquivo é o teste de aceitação:
+// App com várias telas — ver docs/PLANO_APP_TELAS.md. Foi escrito antes da
+// funcionalidade (TDD) e é o teste de aceitação dela:
 //
 //   WGPU_BACKEND=gl cargo run --example gvb_app_telas --features tray
 //

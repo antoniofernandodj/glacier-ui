@@ -1,4 +1,4 @@
-<screen title="Glacier — Bandeja" size="460 300">
+<app id="bandeja" size="460 300">
   <resources>
     <tray icon="examples/gva/bandeja/icon.png" tooltip="Glacier — exemplo de bandeja">
       <item label="Abrir" on_click="tray:open" />
@@ -7,13 +7,6 @@
       <item label="Sair" on_click="tray:quit" />
     </tray>
 
-    <script>
-      -- Respeita o toggle da bandeja: desligado, `notify` vira no-op.
-      function notificar()
-        notify({ title = "Bandeja", body = "Uma notificação de teste." })
-      end
-    </script>
-
     <link rel="stylesheet" href="examples/gva/bandeja/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
@@ -21,31 +14,42 @@
     <link rel="theme" href="examples/gva/bandeja/theme.json" />
   </resources>
 
-  <container
-    class="caixa"
-  >
-    <column class="coluna coluna_2">
-      <text
-        class="titulo"
-      >
-        Exemplo de bandeja
-      </text>
-      <text class="texto">
-        Feche esta janela: o app continua na bandeja.
-      </text>
-      <text
-        class="texto_2">Reabra pelo item 'Open' do menu do ícone.
-      </text>
+  <screen name="painel" title="Glacier — Bandeja">
+    <resources>
+      <script>
+        -- Respeita o toggle da bandeja: desligado, `notify` vira no-op.
+        function notificar()
+          notify({ title = "Bandeja", body = "Uma notificação de teste." })
+        end
+      </script>
+    </resources>
 
-      <button
-        text="Disparar notificação do SO"
-        on_click="notificar"
-        class="botao"
-      />
+    <container
+      class="caixa"
+    >
+      <column class="coluna coluna_2">
+        <text
+          class="titulo"
+        >
+          Exemplo de bandeja
+        </text>
+        <text class="texto">
+          Feche esta janela: o app continua na bandeja.
+        </text>
+        <text
+          class="texto_2">Reabra pelo item 'Open' do menu do ícone.
+        </text>
 
-      <text class="nota">
-        (o item "Notificações" da bandeja liga/desliga isto)
-      </text>
-    </column>
-  </container>
-</screen>
+        <button
+          text="Disparar notificação do SO"
+          on_click="notificar"
+          class="botao"
+        />
+
+        <text class="nota">
+          (o item "Notificações" da bandeja liga/desliga isto)
+        </text>
+      </column>
+    </container>
+  </screen>
+</app>

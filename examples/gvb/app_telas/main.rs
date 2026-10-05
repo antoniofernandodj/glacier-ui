@@ -1,6 +1,6 @@
 //! **App com várias telas**, declarado por inteiro no `app.gvb`: a raiz é o
-//! `app(...)` e as telas são filhos dele. Escrito **antes** da funcionalidade
-//! (TDD) — ver `docs/PLANO_APP_TELAS.md`; hoje o `run` falha ao ler o `app`.
+//! `app(...)` e as telas são filhos dele. Foi escrito **antes** da
+//! funcionalidade (TDD) — ver `docs/PLANO_APP_TELAS.md`.
 //!
 //! O Rust só liga o que o markup não expressa: o `impl Component` que serve a
 //! tela `relogio` (declarada no manifesto sem corpo e sem `src`).
@@ -49,8 +49,8 @@ impl Component for Relogio {
 fn main() -> iced::Result {
     GlacierDaemon::new()
         .main_template("examples/gvb/app_telas/app.gvb")
-        // Plano, 1.6: o `.main` deixa de ser o dono do template principal (quem
-        // o escolhe é o `main_template`/o padrão) e só registra o que tem lógica
+        // Plano, 1.6: o `.main` não é o dono do template principal (quem o
+        // escolhe é o `main_template`/o padrão) e só registra o que tem lógica
         // em Rust. O nome registrado casa com o `screen(name = relogio)` do
         // manifesto; sem registro, o app não sobe.
         .main(|motor| {

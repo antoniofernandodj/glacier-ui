@@ -52,31 +52,32 @@ views/
 | `<script src="…">` | o próprio `.gvb` |
 | `require("…")` no Luau | o arquivo `.luau` que chama |
 
-## O cabeçalho da janela
+## O `app`: a raiz do arquivo
 
-`src/main.rs` só sobe o runner: sem `.main`, ele abre `views/app.gvb`. O que
-descreve a janela e o aplicativo mora no cabeçalho desse arquivo:
+`src/main.rs` só sobe o runner: sem `.main`, ele abre `views/app.gvb`, cuja raiz
+é o `app(...)`. O que descreve a janela e o aplicativo mora nele:
 
-```xml
-<screen title="…" size="980 640" min_size="560 420" decorations="false">
-  <resources>
-    <app id="…" remember_geometry="true" />
-    …
+```
+app(id = …, remember_geometry = true, size = "980 640", min_size = "560 420",
+    decorations = false) {
+  resources { … }          // tema, folhas .gss, componentes globais
+  screen(name = app, initial = true, title = "…") { … }
+}
 ```
 
-- **`title`, `size`, `min_size`** ficam junto da tela que descrevem — e assim o
-  título recarrega a quente.
-- **`decorations="false"`** troca a titlebar do SO pela que o template desenha.
+- **`size`, `min_size`, `decorations`** são da janela principal, e ficam no `app`.
+  O **`title`** é da `screen` e acompanha a navegação (recarrega a quente).
+- **`decorations = false`** troca a titlebar do SO pela que o template desenha.
   As ações `window:*` do `app.gvb` são built-in do motor: não há handler para
   elas no Luau.
-- **`<app id>`** dá nome ao diretório de dados (`~/.local/share/<id>`,
+- **`id`** dá nome ao diretório de dados (`~/.local/share/<id>`,
   `%APPDATA%\<id>`), a raiz gravável do global `storage` do Luau — fora dos
   assets, read-only num app instalado.
-- **`remember_geometry="true"`** grava tamanho/posição ao fechar e restaura ao
+- **`remember_geometry = true`** grava tamanho/posição ao fechar e restaura ao
   abrir. No Wayland só o tamanho volta. O pedido de fechar passa pelo runner
   sozinho, para a geometria ser salva antes de a janela sumir.
-- Uma janela aberta por `open_window(...)` declara a própria moldura no
-  `<screen>` do arquivo dela (`decorations="false"`), como esta.
+- Uma janela aberta por `open_window("tela", { size = "…" })` abre uma **tela do
+  app**; o tamanho vai na chamada, não no markup da tela.
 
 ## A janela sem decoração
 
@@ -84,18 +85,20 @@ O motor não empilha camadas, então a moldura de 5px que dá as alças de
 redimensionar é montada como **linha de cima / faixa do meio / linha de baixo**.
 Cada alça declara o próprio `cursor` e a direção (`window:resize:nw`, `:n`, …).
 
-## Templates: `<screen>` e `<component>`
+## Templates: `app`, `screen` e `component`
 
-Todo `.gvb` começa com um cabeçalho que envolve o arquivo inteiro:
+Todo `.gvb` começa com uma casca que envolve o arquivo inteiro:
 
-- **`<screen>`** é uma **janela** — aceita `title`, `size`, `min_size`,
-  `max_size`, `fixed_size`, `resizable`, `decorations` e `icon`.
-- **`<component>`** é um pedaço de tela (o que um `<import>` traz) e **não
-  aceita atributo nenhum**: `title`/`size` não teriam a quem se aplicar ali, e
-  escrevê-los é erro de parse em vez de um atributo ignorado em silêncio.
+- **`app`** é a raiz do manifesto: o aplicativo (`id`, janela principal, `tray`,
+  `resources` global) e as telas dele.
+- **`screen`** é uma **tela**: sob o `app` aceita `name`, `initial`, `title` e
+  `src`, e é só conteúdo — `size`, `icon` e o resto da janela são do `app`. Um
+  arquivo avulso com raiz `screen` (o que o `src` aponta) é uma tela válida.
+- **`component`** é um pedaço de tela (o que um `import` traz) e **não aceita
+  atributo nenhum**.
 
-Dentro do cabeçalho, `<resources>` guarda o que a tela precisa (estilos,
-scripts, `<link>`) e o resto é o layout.
+Dentro da casca, `resources` guarda o que ela precisa (estilos, scripts, `link`)
+e o resto é o layout.
 
 ## `<props>`: o contrato de um componente
 

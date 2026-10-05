@@ -1779,11 +1779,11 @@ dependencies = [
 
 [[package]]
 name = "glacier-cli"
-version = "0.6.1"
+version = "0.6.2"
 
 [[package]]
 name = "glacier-ui"
-version = "0.116.0"
+version = "0.117.0"
 dependencies = [
  "android_logger",
  "base64",

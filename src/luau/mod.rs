@@ -205,6 +205,26 @@ impl LuauComponent {
         })
     }
 
+    /// Cria o componente de uma tela **inline** de um `app(...)`: `markup` é o
+    /// bloco `<script>` cru (inline ou com `src`), e `path` é o arquivo do
+    /// manifesto — âncora do `src` e do `require`, como o template é para uma
+    /// tela em arquivo.
+    pub(crate) fn from_markup_with(
+        markup: &str,
+        path: impl Into<String>,
+        name: impl Into<String>,
+        assets: Arc<dyn AssetSource>,
+    ) -> Result<Self> {
+        let path = path.into();
+        let name = name.into();
+        Self::from_content_inner(markup, &path, &name, &assets).map_err(|message| {
+            GlacierError::Luau {
+                component: name,
+                message,
+            }
+        })
+    }
+
     fn from_file_inner(
         path: &str,
         name: &str,
@@ -212,7 +232,16 @@ impl LuauComponent {
     ) -> std::result::Result<Self, String> {
         let content = crate::asset_source::read_markup(assets.as_ref(), path)
             .map_err(|e| format!("Falha ao ler template Luau em '{}': {}", path, e))?;
-        let (script, script_path) = resolve_script(&content, path, assets.as_ref())?;
+        Self::from_content_inner(&content, path, name, assets)
+    }
+
+    fn from_content_inner(
+        content: &str,
+        path: &str,
+        name: &str,
+        assets: &Arc<dyn AssetSource>,
+    ) -> std::result::Result<Self, String> {
+        let (script, script_path) = resolve_script(content, path, assets.as_ref())?;
         // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do
         // SCRIPT (permite separar `views/` de `views/scripts/` e ainda
         // `require("net/api")` a partir do script); inline, relativo ao template.
@@ -1578,6 +1607,16 @@ fn build_window_spec(lua: &Lua, req: &Table) -> mlua::Result<crate::component::W
         req.get::<Option<f32>>("height")?,
     ) {
         spec = spec.size(w, h);
+    } else if let Some(par) = req.get::<Option<String>>("size")? {
+        // `size = "420 300"`: o mesmo par do `size` do markup.
+        match crate::parser::parse_size_pair(&par) {
+            Some((w, h)) => spec = spec.size(w, h),
+            None => {
+                return Err(mlua::Error::RuntimeError(format!(
+                    "open_window: size=\"{par}\" não é um par de números (ex.: \"420 300\")"
+                )));
+            }
+        }
     }
     if let Some(resizable) = req.get::<Option<bool>>("resizable")? {
         spec = spec.resizable(resizable);

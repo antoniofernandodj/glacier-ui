@@ -322,8 +322,19 @@ end
 --   open_window("telas/detalhe.gv")
 --   open_window({ file = "telas/detalhe.gv", title = "Detalhe", width = 400, height = 300 })
 --   open_window({ component = "perfil", title = "Perfil" })  -- componente já registrado
-function open_window(opts)
-    local t = type(opts) == "table" and opts or { file = opts }
+-- Num app (raiz `app(...)`), o nome é o de uma TELA do manifesto, e o tamanho vai
+-- na chamada (a `screen` é só conteúdo):
+--   open_window("sobre", { size = "420 300", title = "Sobre" })
+function open_window(opts, more)
+    local t
+    if type(opts) == "table" then
+        t = opts
+    elseif type(more) == "table" then
+        t = more
+        t.component = opts
+    else
+        t = { file = opts }
+    end
     t.__glacier_window = true
     return coroutine.yield(t)
 end

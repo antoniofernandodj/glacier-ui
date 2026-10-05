@@ -348,6 +348,10 @@ pub enum WindowSource {
     /// para o caminho do arquivo (via `registered_components`) na hora da
     /// drenagem, de modo que a nova janela o carregue do zero, isolada.
     Named(String),
+    /// O **nome de uma tela** do app (`app(...)` raiz). A nova janela carrega o
+    /// manifesto inteiro — telas, componentes e estilos globais — e abre na tela
+    /// pedida; é o que um `Named` vira quando o motor de origem é um app.
+    AppScreen(String),
     /// Uma URL carregada numa **webview nativa** que cobre a janela inteira —
     /// sem `GlacierUI`/`.gv`/`<script>` nenhum por trás. Caminho da API Lua
     /// (`open_window({ webview_url = "https://…" })`); exige o crate

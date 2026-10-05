@@ -743,6 +743,17 @@ fn convert(src: &str) -> Result<String, Vec<String>> {
 
 /// Mesmo caminho que `parse_markup` (script fora, diretivas nuas) → árvore.
 fn tree(xml: &str, original: &str) -> Result<(String, Option<String>), String> {
+    // Raiz `app(...)`: o que se compara é o manifesto (com as telas e o script de
+    // cada uma dentro dele), não uma árvore de tela.
+    if let Some(manifesto) = glacier_ui::parse_app_manifest(xml, None).map_err(|e| e.to_string())? {
+        let mut ls: Vec<String> = format!("{manifesto:#?}")
+            .lines()
+            .filter(|l| !l.contains("node_id:") && !l.trim_start().starts_with("line:"))
+            .map(|l| l.trim().to_string())
+            .collect();
+        ls.sort();
+        return Ok((ls.join("\n"), None));
+    }
     let (markup, script) = glacier_ui::eval::strip_script(xml);
     let markup = glacier_ui::eval::normalize_bare_directives(&markup);
     let t = UiNode::parse_xml_with_source(&markup, original, None).map_err(|e| e.to_string())?;

@@ -1,6 +1,28 @@
 # Plano: o markup descreve o app, e o app tem telas
 
-**Estado:** proposta. Nada aqui existe ainda.
+**Estado:** implementado (passos 1–5, exceto o que está em "O que ficou diferente"
+abaixo). O exemplo de aceitação é `examples/gvb/app_telas`.
+
+### O que ficou diferente do plano
+
+- **`screen` sob o `app`** rejeita `size`/`icon`/… (1.4). Um arquivo **avulso** com
+  raiz `screen` continua aceitando os atributos de janela: ~70 exemplos e presets
+  dependem disso, e um arquivo avulso não tem `app` onde pô-los. A regra de 1.4
+  vale onde existe `app`.
+- **Componentes locais (1.1.1) não sombreiam o global.** O espaço de nomes do motor
+  é plano, então "local vence global" não cabe sem um escopo por tela. Em vez de
+  sombrear em silêncio, o parser dá **erro** para o mesmo nome em dois lugares do
+  app (global × tela, ou tela × tela), com a linha. Um componente declarado numa
+  tela também fica visível nas outras.
+- **Telas inline com `script`** só em Luau: `lang = python` numa tela inline dá
+  erro (ponha a tela em arquivo, `src`).
+- **Janela filha de uma tela do app** (`open_window("tela", { … })`) carrega o
+  manifesto inteiro no motor novo e abre na tela pedida, via `WindowSource::AppScreen`.
+  Uma tela servida por `impl Component` também abre assim (o `.main` roda de novo).
+- O `.main` passa a rodar **depois** do manifesto em vez de substituí-lo; ver
+  `docs/DAEMON.md`.
+- Passo 5 (enxugar o `main.rs` dos exemplos) não foi feito em massa: "exemplos não
+  precisam ser idênticos".
 
 ---
 

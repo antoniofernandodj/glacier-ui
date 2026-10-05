@@ -1,17 +1,14 @@
-screen(
-  title = "{{titulo}}", size = "520 460", min_size = "420 380",
-  icon = "views/assets/icone.png",
+// O app é a RAIZ do arquivo: o que é do aplicativo (id, instância única,
+// geometria lembrada, a janela principal, a bandeja) mora aqui, e as telas são
+// filhas dele. O runner lê isto antes de abrir qualquer janela: a instância
+// única decide ali se o processo segue.
+app(
+  id = "{{nome_projeto}}", single_instance = true, remember_geometry = true,
+  size = "520 460", min_size = "420 380", icon = "views/assets/icone.png",
 ) {
   resources {
     link(rel = theme, href = "views/styles/theme.json")
     link(rel = stylesheet, href = "views/styles/app.gss")
-    script(src = "scripts/painel.luau")
-
-    // O que é do APLICATIVO, e não desta janela. O runner lê isto antes de
-    // abrir qualquer janela: a instância única decide ali se o processo segue.
-    app(
-      id = "{{nome_projeto}}", single_instance = true, remember_geometry = true,
-    )
 
     // Com a feature `tray`, fechar a última janela recolhe o app para cá.
     // `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho;
@@ -20,7 +17,7 @@ screen(
       item(label = "Abrir {{titulo}}", on_click = tray:open)
 
       check(
-        label = Notificações, :checked = @__notifications,
+        label = Notificações, checked = @__notifications,
         on_click = notifications:toggle,
       )
 
@@ -29,32 +26,41 @@ screen(
     }
   }
 
-  column(class = tela) {
-    column(class = cabecalho) {
-      text(class = titulo, content = "{{titulo}}")
-      text(class = subtitulo, content = "janela principal")
+  screen(name = painel, initial = true, title = "{{titulo}}") {
+    resources {
+      script(src = "scripts/painel.luau")
     }
 
-    column(class = painel) {
-      text(class = rotulo_cap, content = "RECEBIDO DAS FILHAS")
-      text(class = numero, content = "@recebidos")
-      text(class = apagado, content = "@ultimo")
-    }
+    column(class = tela) {
+      column(class = cabecalho) {
+        text(class = titulo, content = "{{titulo}}")
+        text(class = subtitulo, content = "janela principal")
+      }
 
-    column(class = acoes) {
-      button(
-        class = btn_primario, text = "Abrir uma janela filha",
-        on_click = abrir_detalhe,
+      column(class = painel) {
+        text(class = rotulo_cap, content = "RECEBIDO DAS FILHAS")
+        text(class = numero, content = "@recebidos")
+        text(class = apagado, content = "@ultimo")
+      }
+
+      column(class = acoes) {
+        button(
+          class = btn_primario, text = "Abrir uma janela filha",
+          on_click = abrir_detalhe,
+        )
+
+        button(
+          class = btn_ghost, text = "Notificação do sistema", on_click = avisar,
+        )
+      }
+
+      text(
+        class = apagado,
+        content = "feche esta janela: o app continua vivo na bandeja",
       )
-
-      button(
-        class = btn_ghost, text = "Notificação do sistema", on_click = avisar,
-      )
     }
-
-    text(
-      class = apagado,
-      content = "feche esta janela: o app continua vivo na bandeja",
-    )
   }
+
+  // A janela filha é uma tela do app: `open_window("detalhe", { size = … })`.
+  screen(name = detalhe, src = "detalhe.gvb")
 }

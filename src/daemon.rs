@@ -96,6 +96,14 @@ fn template_setup(path: String) -> impl Fn(&mut GlacierUI) + 'static {
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.clone());
     move |motor| {
+        // Raiz `app(...)`: o arquivo é um manifesto, e a tela inicial é a que ele
+        // declara. Qualquer outra raiz é uma tela, como sempre.
+        if motor.is_app_file(&path) {
+            if let Err(erro) = motor.register_app(&path) {
+                eprintln!("{erro}");
+            }
+            return;
+        }
         if let Err(erro) = motor.register_component(&name, &path) {
             eprintln!("{erro}");
         }
@@ -169,10 +177,10 @@ pub struct GlacierDaemon {
     /// `app_id` da trava de instância única, quando ligada. Ver
     /// [`GlacierDaemon::single_instance`].
     single_instance_id: Option<String>,
-    /// O template registrado por [`GlacierDaemon::main_template`], quando foi
-    /// essa a forma do `setup`. É o que deixa o `run` ler o `<app>`/`<tray>`
-    /// dele antes do boot; um `setup` escrito à mão com [`GlacierDaemon::main`]
-    /// não diz qual template abre, e aí só o builder configura o aplicativo.
+    /// O template registrado por [`GlacierDaemon::main_template`]. É o que deixa
+    /// o `run` ler o `app(...)`/`tray` dele antes do boot; um `setup` escrito à
+    /// mão com [`GlacierDaemon::main`], sozinho, não diz qual template abre, e aí
+    /// só o builder configura o aplicativo.
     main_template_path: Option<String>,
 }
 
@@ -383,9 +391,13 @@ impl GlacierDaemon {
 
     /// Registra o `setup` da janela principal: recebe o [`GlacierUI`] dela para
     /// registrar componentes, definir a tela inicial, carregar estilos, etc.
+    ///
+    /// Com um manifesto (`main_template` de um arquivo com raiz `app(...)`, ou o
+    /// `views/app.*` padrão quando é um), o `setup` roda **depois** dele e só
+    /// registra o que o markup não expressa — o `impl Component` de uma tela
+    /// declarada sem corpo e sem `src`. Sem manifesto, ele é o dono da principal.
     pub fn main(mut self, setup: impl Fn(&mut GlacierUI) + 'static) -> Self {
         self.setup = Some(Rc::new(setup));
-        self.main_template_path = None;
         self
     }
 
@@ -403,20 +415,18 @@ impl GlacierDaemon {
     /// });
     /// ```
     ///
-    /// Substitui o `setup`, como [`GlacierDaemon::main`]: quem precisa de mais
-    /// que isso (chamar `load_stylesheet`, registrar outros componentes) usa o
-    /// `.main`.
+    /// Se o arquivo tem raiz `app(...)`, ele é um manifesto: as telas dele são
+    /// registradas e a `initial` (ou a primeira) passa a ser a ativa. Um
+    /// [`GlacierDaemon::main`] roda depois, para o que tem lógica em Rust.
     ///
     /// Um erro de registro é impresso e não encerra o app, porque o `run` só
     /// devolve `iced::Result` e não tem como carregar um erro do motor.
     ///
     /// Sem nenhuma chamada a `main` ou `main_template`, o `run` faz o mesmo com
     /// `./views/app.gv` ou, se ele não existir, `app.gv`.
-    pub fn main_template(self, path: impl Into<String>) -> Self {
-        let path = path.into();
-        let mut daemon = self.main(template_setup(path.clone()));
-        daemon.main_template_path = Some(path);
-        daemon
+    pub fn main_template(mut self, path: impl Into<String>) -> Self {
+        self.main_template_path = Some(path.into());
+        self
     }
 
     /// Habilita um **ícone de bandeja** (system tray) — e, com ele, um app que
@@ -559,9 +569,30 @@ impl GlacierDaemon {
         // de dados precisa existir antes do primeiro motor. Só dá para saber
         // qual é o template principal quando o `setup` é o padrão ou veio de
         // `main_template`; um `.main(|motor| …)` escrito à mão não diz.
-        let manifest_path: Option<String> = match (&self.setup, &self.main_template_path) {
-            (None, _) => Some(default_main_template(self.assets.as_ref())),
-            (Some(_), path) => path.clone(),
+        let manifest_path: Option<String> = match (&self.main_template_path, &self.setup) {
+            (Some(path), _) => Some(path.clone()),
+            (None, None) => Some(default_main_template(self.assets.as_ref())),
+            // Só um `.main(…)`: o `views/app` padrão entra se for um manifesto
+            // (raiz `app`), e o `.main` só registra o que tem lógica em Rust.
+            // Qualquer outra coisa, o `.main` segue sendo dono da principal.
+            (None, Some(_)) => {
+                let padrao = default_main_template(self.assets.as_ref());
+                crate::asset_source::read_markup(self.assets.as_ref(), &padrao)
+                    .is_ok_and(|c| crate::parser::first_tag_is_app(&c))
+                    .then_some(padrao)
+            }
+        };
+        let setup_composto: SetupHook = match (manifest_path.clone(), self.setup.clone()) {
+            (Some(path), Some(gancho)) => {
+                let base = template_setup(path);
+                Rc::new(move |motor: &mut GlacierUI| {
+                    base(motor);
+                    gancho(motor);
+                })
+            }
+            (Some(path), None) => Rc::new(template_setup(path)),
+            (None, Some(gancho)) => gancho,
+            (None, None) => unreachable!("sem `main` há sempre um template padrão"),
         };
         // Um erro de parse aqui é silencioso de propósito: o registro do mesmo
         // arquivo, logo depois, o reporta com o nome do componente.
@@ -611,6 +642,7 @@ impl GlacierDaemon {
             single_instance_id: _,
             main_template_path: _,
         } = self;
+        let _ = setup;
 
         // O que o builder não disse, o `<app>` diz. O builder vence sempre: é
         // código explícito, e o markup é o padrão de quando nada foi dito.
@@ -644,9 +676,7 @@ impl GlacierDaemon {
         // Sem `main` nem `main_template`: a principal é o primeiro template
         // padrão que a fonte de assets tiver. Sem nenhum, fica o primeiro, e o
         // erro do registro diz qual arquivo faltou.
-        let setup: SetupHook = setup.unwrap_or_else(|| {
-            Rc::new(template_setup(default_main_template(assets.as_ref())))
-        });
+        let setup: SetupHook = setup_composto;
 
         // Diretório onde a geometria da principal é persistida (só quando o app
         // ligou `remember_window_geometry` E definiu um `storage_dir` — é lá que
@@ -675,6 +705,11 @@ impl GlacierDaemon {
             let mut engine = GlacierUI::new().with_asset_source(assets.clone());
             apply_style(&mut engine, style.as_ref());
             setup(&mut engine);
+            // Tela sem corpo nem `src` cujo nome ninguém registrou: o app não sobe.
+            if let Err(erro) = engine.check_app_screens() {
+                eprintln!("{erro}");
+                std::process::exit(1);
+            }
             // O `setup` já registrou os componentes e definiu a tela inicial, e a
             // janela ainda não existe — esta é a única janela de tempo em que o
             // `<screen>` do template pode decidir título e tamanho **sem** o pulo
@@ -683,14 +718,15 @@ impl GlacierDaemon {
             let mut main_title = main_title.clone();
             let base_title = main_title.clone();
             let initial_screen = engine.current_screen_name().map(str::to_string);
+            let window_meta = engine.main_window_meta();
             let effective_size = resolve_main_window(
-                engine.current_screen_meta(),
+                window_meta.as_ref(),
                 saved_geometry.as_ref(),
                 &mut main_settings,
                 &mut main_title,
             );
             let sized_by_screen = initial_screen.zip(effective_size);
-            if let Some(meta) = engine.current_screen_meta() {
+            if let Some(meta) = window_meta.as_ref() {
                 apply_window_icon(meta, &mut main_settings, assets.as_ref());
             }
             // A geometria só é consultada se o fechamento pedido pelo sistema
@@ -1407,7 +1443,12 @@ impl Runtime {
             return Task::none();
         };
         let screen = engine.current_screen_name().map(str::to_string);
-        let meta = engine.current_screen_meta().cloned();
+        // A janela do app é a principal; uma filha é só o `<screen>` dela.
+        let meta = if id == self.main_id {
+            engine.main_window_meta()
+        } else {
+            engine.current_screen_meta().cloned()
+        };
 
         let base = self.base_titles.get(&id).cloned();
         if let Some(wanted) = meta.as_ref().and_then(|m| m.title.clone()).or(base)
@@ -1451,6 +1492,7 @@ impl Runtime {
         let echo_source = match &spec.source {
             WindowSource::File(path) => WindowSource::File(path.clone()),
             WindowSource::Named(name) => WindowSource::Named(name.clone()),
+            WindowSource::AppScreen(name) => WindowSource::AppScreen(name.clone()),
             WindowSource::Component(comp) => WindowSource::Named(comp.name().to_string()),
             // Inalcançável: já retornamos acima para este caso.
             WindowSource::WebView(url) => WindowSource::WebView(url.clone()),
@@ -1463,7 +1505,7 @@ impl Runtime {
             data,
         } = spec;
         let (engine, fallback_title) =
-            build_engine(source, &data, self.assets.clone(), self.style.as_ref());
+            build_engine_with(source, &data, self.assets.clone(), self.style.as_ref(), Some(&self.main_setup));
         let meta = engine.current_screen_meta().cloned().unwrap_or_default();
         let screen = engine.current_screen_name().map(str::to_string);
 
@@ -1480,6 +1522,12 @@ impl Runtime {
         // filha: cada janela declara a própria moldura, como a principal.
         apply_window_bounds(&meta, &mut settings);
         apply_window_icon(&meta, &mut settings, self.assets.as_ref());
+        // O ícone do `app(...)` é herdado pelas filhas que não declaram o seu.
+        if meta.icon.is_none()
+            && let Some(app) = engine.app_window()
+        {
+            apply_window_icon(app, &mut settings, self.assets.as_ref());
+        }
         // O app tem a última palavra sobre a aparência da filha (ex.: também
         // borderless, num app com titlebar própria).
         if let Some(f) = &self.child_settings {
@@ -1986,11 +2034,25 @@ fn truthy(valor: &str) -> bool {
     !(v.is_empty() || v.eq_ignore_ascii_case("false") || v == "0")
 }
 
+#[cfg(test)]
 fn build_engine(
     source: WindowSource,
     data: &[(String, String)],
     assets: Arc<dyn AssetSource>,
     style: Option<&crate::style::Style>,
+) -> (GlacierUI, String) {
+    build_engine_with(source, data, assets, style, None)
+}
+
+/// Como [`build_engine`], com o `setup` da principal à mão: uma janela aberta
+/// numa **tela do app** roda o mesmo `setup` (manifesto + o que o `.main`
+/// registra em Rust) e só então troca a tela inicial pela pedida.
+fn build_engine_with(
+    source: WindowSource,
+    data: &[(String, String)],
+    assets: Arc<dyn AssetSource>,
+    style: Option<&crate::style::Style>,
+    setup: Option<&SetupHook>,
 ) -> (GlacierUI, String) {
     let mut engine = GlacierUI::new().with_asset_source(assets);
     apply_style(&mut engine, style);
@@ -2010,6 +2072,13 @@ fn build_engine(
             let name = file_stem(&path);
             if let Err(e) = engine.register_component(&name, &path) {
                 eprintln!("open_window: falha ao carregar '{path}': {e}");
+            }
+            engine.set_initial_screen(&name);
+            name
+        }
+        WindowSource::AppScreen(name) => {
+            if let Some(setup) = setup {
+                setup(&mut engine);
             }
             engine.set_initial_screen(&name);
             name

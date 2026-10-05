@@ -61,14 +61,13 @@ impl ScreenMeta {
     }
 }
 
-/// O `<app id="…">` do `<resources>` do template principal: o que é do
-/// **aplicativo**, e não de uma janela.
+/// O `app(...)` que é a **raiz** de um arquivo: o que é do **aplicativo**, e não
+/// de uma tela. Ver `docs/PLANO_APP_TELAS.md`.
 ///
 /// Lido pelo [`crate::GlacierDaemon`] **antes** de subir o iced — a instância
 /// única é decidida antes de qualquer janela existir, e o diretório de dados
-/// precisa estar definido antes do primeiro motor. Por isso só vale no template
-/// principal (o padrão `views/app.gv` ou o de `main_template`); numa janela-filha
-/// é ignorado.
+/// precisa estar definido antes do primeiro motor. Só existe na raiz: nenhuma
+/// tela tem como discordar dele (`id`, instância única, geometria, bandeja).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AppMeta {
     /// Identifica o app: é a chave da instância única e o nome do diretório de
@@ -79,6 +78,47 @@ pub struct AppMeta {
     /// `remember_geometry="true"`: tamanho e posição da principal gravados ao
     /// fechar e restaurados ao abrir, no diretório de dados.
     pub remember_geometry: bool,
+    /// Os atributos da **janela principal** (`size`, `min_size`, `max_size`,
+    /// `fixed_size`, `resizable`, `decorations`, `icon`) — a única janela que o
+    /// daemon abre sem ninguém pedir. O `title` fica de fora: ele é da tela e
+    /// acompanha a navegação.
+    pub window: ScreenMeta,
+}
+
+/// O manifesto de um arquivo com raiz `app`: o [`AppMeta`], a bandeja, as
+/// declarações globais (`resources` do `app`) e as telas.
+#[derive(Debug, Clone)]
+pub struct AppManifest {
+    pub app: AppMeta,
+    pub tray: Option<TrayMeta>,
+    /// As declarações do `resources` do `app` (`link`, `style`, `component`,
+    /// `dialog`, `import`), somadas às de cada tela.
+    pub decls: Vec<UiNode>,
+    pub screens: Vec<ScreenDecl>,
+}
+
+/// Um `screen(...)` filho do `app`.
+#[derive(Debug, Clone)]
+pub struct ScreenDecl {
+    /// O nome de navegação (`navigate_to`, `open_window`).
+    pub name: String,
+    pub initial: bool,
+    /// O `title` da tela, para quem precisa dele antes de registrá-la.
+    pub title: Option<String>,
+    pub source: ScreenSource,
+}
+
+/// De onde vem o conteúdo de uma [`ScreenDecl`].
+#[derive(Debug, Clone)]
+pub enum ScreenSource {
+    /// O corpo escrito no próprio manifesto: a árvore já montada (a mesma que um
+    /// arquivo com raiz `screen` produziria) e o bloco `<script>` cru, se houver.
+    Inline { tree: UiNode, script: Option<String> },
+    /// `src = "..."`: um arquivo com raiz `screen`/`component`, como sempre.
+    File(String),
+    /// Sem corpo e sem `src`: servida por um `impl Component` registrado em Rust
+    /// com este nome.
+    Rust,
 }
 
 /// A `<tray>` do `<resources>` do template principal: o ícone de bandeja e o
@@ -471,6 +511,19 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
         );
     }
 
+    if cabecalho.is_none()
+        && let Some(a) = topo.iter().find(|n| is_app_tag(n.tag_name().name()))
+    {
+        return Some(
+            diagnostic_at(*a, "<app> é a raiz de um manifesto, não de uma tela".to_string())
+                .with_hint(
+                    "um arquivo com raiz app(...) carrega pelo daemon (`main_template`/o \
+                     views/app padrão) ou por GlacierUI::register_app; register_component \
+                     lê só telas (raiz screen/component)",
+                ),
+        );
+    }
+
     // Arquivo sem cabeçalho: erro desde a 0.61. Markup inline (`Template::Inline`,
     // usado pelos builtins) não tem janela nem arquivo a que um cabeçalho se
     // aplique, e segue sendo um fragmento — por isso a regra olha o `file`.
@@ -533,10 +586,7 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
         // Atributos do próprio `<screen>`.
         for attr in child.attributes() {
             let name = attr.name();
-            let known = SCREEN_ATTR_GROUPS
-                .iter()
-                .find(|group| group.contains(&name));
-            let Some(group) = known else {
+            if !SCREEN_ATTR_GROUPS.iter().any(|group| group.contains(&name)) {
                 return Some(
                     diagnostic_at_attr(
                         child,
@@ -546,71 +596,14 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
                     .with_hint(
                         "o <screen> aceita title, size, min_size, max_size, fixed_size, \
                          resizable, decorations e icon; o que é do aplicativo (instância \
-                         única, geometria lembrada, bandeja) vai num <app>/<tray> dentro do \
-                         <resources>",
+                         única, geometria lembrada, bandeja) vai no app(...) que é a raiz \
+                         do arquivo",
                     ),
-                );
-            };
-            let value = attr.value();
-            let bad = if std::ptr::eq(*group, SCREEN_SIZE_ATTRS)
-                || std::ptr::eq(*group, SCREEN_MIN_SIZE_ATTRS)
-                || std::ptr::eq(*group, SCREEN_MAX_SIZE_ATTRS)
-                || std::ptr::eq(*group, SCREEN_FIXED_SIZE_ATTRS)
-            {
-                parse_size_pair(value).is_none().then_some(
-                    "um tamanho é um par de números: `960 700`, `960x700` ou `960, 700` \
-                     (em px, sem unidade)",
-                )
-            } else if std::ptr::eq(*group, SCREEN_RESIZABLE_ATTRS)
-                || std::ptr::eq(*group, SCREEN_DECORATIONS_ATTRS)
-            {
-                parse_bool_value(value)
-                    .is_none()
-                    .then_some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
-            } else {
-                None
-            };
-            if let Some(hint) = bad {
-                return Some(
-                    diagnostic_at_attr(
-                        child,
-                        attr,
-                        format!("valor inválido em {name}=\"{value}\""),
-                    )
-                    .with_hint(hint),
                 );
             }
         }
-
-        // `fixed_size` já decide tamanho, mínimo, máximo e redimensionamento:
-        // escrever um deles ao lado é pedir duas coisas diferentes para o mesmo
-        // campo, e qualquer ordem de precedência seria uma surpresa.
-        if let Some(fixo) = child
-            .attributes()
-            .find(|a| SCREEN_FIXED_SIZE_ATTRS.contains(&a.name()))
-            && let Some(outro) = child.attributes().find(|a| {
-                [
-                    SCREEN_SIZE_ATTRS,
-                    SCREEN_MIN_SIZE_ATTRS,
-                    SCREEN_MAX_SIZE_ATTRS,
-                    SCREEN_RESIZABLE_ATTRS,
-                ]
-                .iter()
-                .any(|g| g.contains(&a.name()))
-            })
-        {
-            return Some(
-                diagnostic_at_attr(
-                    child,
-                    outro,
-                    format!("'{}' ao lado de '{}'", outro.name(), fixo.name()),
-                )
-                .with_hint(
-                    "fixed_size já é o tamanho, o mínimo e o máximo, e desliga o \
-                     redimensionamento; tire o outro atributo, ou troque fixed_size por \
-                     size/min_size/max_size",
-                ),
-            );
+        if let Some(d) = validate_window_values(child) {
+            return Some(d);
         }
 
         // Uma janela não tem quem lhe passe props: ela é aberta, não usada por
@@ -630,12 +623,81 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
             );
         }
 
-        if let Some(d) = validate_resources(child, true) {
+        if let Some(d) = validate_resources(child, false) {
             return Some(d);
         }
         if let Some(d) = validate_no_nested_header(child) {
             return Some(d);
         }
+    }
+    None
+}
+
+/// Confere os **valores** dos atributos de janela (`size`, `min_size`,
+/// `max_size`, `fixed_size`, `resizable`, `decorations`) de um `<screen>` ou de
+/// um `app(...)`, e a regra de que `fixed_size` não convive com os outros.
+fn validate_window_values(node: Node) -> Option<Diagnostic> {
+    for attr in node.attributes() {
+        let name = attr.name();
+        let Some(group) = SCREEN_ATTR_GROUPS.iter().find(|g| g.contains(&name)) else {
+            continue;
+        };
+        let value = attr.value();
+        let bad = if std::ptr::eq(*group, SCREEN_SIZE_ATTRS)
+            || std::ptr::eq(*group, SCREEN_MIN_SIZE_ATTRS)
+            || std::ptr::eq(*group, SCREEN_MAX_SIZE_ATTRS)
+            || std::ptr::eq(*group, SCREEN_FIXED_SIZE_ATTRS)
+        {
+            parse_size_pair(value).is_none().then_some(
+                "um tamanho é um par de números: `960 700`, `960x700` ou `960, 700` \
+                 (em px, sem unidade)",
+            )
+        } else if std::ptr::eq(*group, SCREEN_RESIZABLE_ATTRS)
+            || std::ptr::eq(*group, SCREEN_DECORATIONS_ATTRS)
+        {
+            parse_bool_value(value)
+                .is_none()
+                .then_some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
+        } else {
+            None
+        };
+        if let Some(hint) = bad {
+            return Some(
+                diagnostic_at_attr(node, attr, format!("valor inválido em {name}=\"{value}\""))
+                    .with_hint(hint),
+            );
+        }
+    }
+
+    // `fixed_size` já decide tamanho, mínimo, máximo e redimensionamento:
+    // escrever um deles ao lado é pedir duas coisas diferentes para o mesmo
+    // campo, e qualquer ordem de precedência seria uma surpresa.
+    if let Some(fixo) = node
+        .attributes()
+        .find(|a| SCREEN_FIXED_SIZE_ATTRS.contains(&a.name()))
+        && let Some(outro) = node.attributes().find(|a| {
+            [
+                SCREEN_SIZE_ATTRS,
+                SCREEN_MIN_SIZE_ATTRS,
+                SCREEN_MAX_SIZE_ATTRS,
+                SCREEN_RESIZABLE_ATTRS,
+            ]
+            .iter()
+            .any(|g| g.contains(&a.name()))
+        })
+    {
+        return Some(
+            diagnostic_at_attr(
+                node,
+                outro,
+                format!("'{}' ao lado de '{}'", outro.name(), fixo.name()),
+            )
+            .with_hint(
+                "fixed_size já é o tamanho, o mínimo e o máximo, e desliga o \
+                 redimensionamento; tire o outro atributo, ou troque fixed_size por \
+                 size/min_size/max_size",
+            ),
+        );
     }
     None
 }
@@ -810,8 +872,9 @@ fn validate_props(header: Node) -> Option<Diagnostic> {
 }
 
 /// Confere o `<resources>` de um cabeçalho: ele não leva atributos, e só
-/// declaração entra nele.
-fn validate_resources(header: Node, is_screen: bool) -> Option<Diagnostic> {
+/// declaração entra nele. `tray_ok` é verdadeiro só no `resources` do `app(...)`
+/// raiz — a `<tray>` é do aplicativo, e `app` nunca mora num `resources`.
+fn validate_resources(header: Node, tray_ok: bool) -> Option<Diagnostic> {
     for res in header.children().filter(Node::is_element) {
         if !is_resources_tag(res.tag_name().name()) {
             continue;
@@ -832,8 +895,8 @@ fn validate_resources(header: Node, is_screen: bool) -> Option<Diagnostic> {
                 return Some(
                     diagnostic_at(decl, format!("<{name}> não é uma declaração")).with_hint(
                         "dentro do <resources> só entram <style>, <script>, <link>, \
-                         <import>, <component name=\"…\">, <dialog name=\"…\">, <app> e \
-                         <tray>; um widget vai no layout, depois do </resources>",
+                         <import>, <component name=\"…\">, <dialog name=\"…\"> e (no do \
+                         app) <tray>; um widget vai no layout, depois do </resources>",
                     ),
                 );
             }
@@ -847,32 +910,31 @@ fn validate_resources(header: Node, is_screen: bool) -> Option<Diagnostic> {
             {
                 return Some(d);
             }
-            if is_app_tag(name) || is_tray_tag(name) {
-                if !is_screen {
+            if is_app_tag(name) {
+                return Some(
+                    diagnostic_at(decl, format!("<{name}> dentro de um <resources>")).with_hint(
+                        "o app(...) é a RAIZ do arquivo, não uma declaração: \
+                         app(id = meu_app) { resources { … } screen(name = home) { … } }",
+                    ),
+                );
+            }
+            if is_tray_tag(name) {
+                if !tray_ok {
                     return Some(
-                        diagnostic_at(decl, format!("<{name}> num <component>")).with_hint(
-                            "<app> e <tray> descrevem o APLICATIVO e só valem no <resources> \
-                             do <screen> principal; um <component> não é aberto como janela",
+                        diagnostic_at(decl, format!("<{name}> fora do resources do app")).with_hint(
+                            "a <tray> descreve o APLICATIVO e só existe no resources do \
+                             app(...) raiz; uma tela não tem como declará-la",
                         ),
                     );
                 }
-                let mesma_familia = |d: &Node| {
-                    let t = d.tag_name().name();
-                    if is_app_tag(name) { is_app_tag(t) } else { is_tray_tag(t) }
-                };
-                if res.children().filter(Node::is_element).filter(mesma_familia).count() > 1 {
+                if res.children().filter(Node::is_element).filter(|d| is_tray_tag(d.tag_name().name())).count() > 1 {
                     return Some(
                         diagnostic_at(decl, format!("<{name}> declarado mais de uma vez"))
-                            .with_hint("um aplicativo tem um <app> e no máximo uma <tray>"),
+                            .with_hint("um aplicativo tem no máximo uma <tray>"),
                     );
                 }
-                let d = if is_app_tag(name) {
-                    validate_app(decl)
-                } else {
-                    validate_tray(decl)
-                };
-                if d.is_some() {
-                    return d;
+                if let Some(d) = validate_tray(decl) {
+                    return Some(d);
                 }
             }
         }
@@ -880,18 +942,28 @@ fn validate_resources(header: Node, is_screen: bool) -> Option<Diagnostic> {
     None
 }
 
-/// Confere o `<app>`: `id` obrigatório e utilizável como nome de diretório, os
-/// dois interruptores booleanos, e nada mais — nem filhos.
+/// Confere o `app(...)` raiz: `id` obrigatório e utilizável como nome de
+/// diretório, os dois interruptores booleanos, os atributos da janela principal
+/// (`size`, `icon`, …) e nada mais.
 fn validate_app(decl: Node) -> Option<Diagnostic> {
     for attr in decl.attributes() {
         let name = attr.name();
+        let da_janela = SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&name))
+            && !SCREEN_TITLE_ATTRS.contains(&name);
         let Some(group) = APP_ATTR_GROUPS.iter().find(|g| g.contains(&name)) else {
+            if da_janela {
+                continue;
+            }
+            let hint = if SCREEN_TITLE_ATTRS.contains(&name) {
+                "o title é da TELA e acompanha a navegação: screen(name = home, title = \"…\")"
+            } else {
+                "o app aceita id, single_instance, remember_geometry e os atributos da \
+                 janela principal (size, min_size, max_size, fixed_size, resizable, \
+                 decorations, icon)"
+            };
             return Some(
                 diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido no <app>"))
-                    .with_hint(
-                        "o <app> aceita id, single_instance e remember_geometry; o que é da \
-                         janela (title, size, icon, decorations…) vai no <screen>",
-                    ),
+                    .with_hint(hint),
             );
         };
         if !std::ptr::eq(*group, APP_ID_ATTRS) && parse_bool_value(attr.value()).is_none() {
@@ -905,12 +977,15 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
             );
         }
     }
+    if let Some(d) = validate_window_values(decl) {
+        return Some(d);
+    }
     let id = UiNode::get_attr(&decl, APP_ID_ATTRS).unwrap_or_default();
     let id = id.trim();
     if id.is_empty() {
         return Some(diagnostic_at(decl, "<app> sem id".to_string()).with_hint(
             "o id identifica o aplicativo: é a chave da instância única e o nome do \
-             diretório de dados — <app id=\"meu-app\" />",
+             diretório de dados — app(id = meu_app)",
         ));
     }
     if !id
@@ -923,12 +998,6 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
                 "o id vira nome de diretório: use letras, dígitos, `-`, `_` e `.` (sem começar \
                  com ponto), como `meu-app`",
             ),
-        );
-    }
-    if let Some(filho) = decl.children().find(Node::is_element) {
-        return Some(
-            diagnostic_at(filho, "o <app> não tem filhos".to_string())
-                .with_hint("o menu da bandeja vai numa <tray>, ao lado do <app>"),
         );
     }
     None
@@ -1303,7 +1372,7 @@ fn position_of(node: Node, offset: usize, message: String) -> Diagnostic {
     Diagnostic::new(pos.row, col, message)
 }
 
-fn parse_size_pair(raw: &str) -> Option<(f32, f32)> {
+pub(crate) fn parse_size_pair(raw: &str) -> Option<(f32, f32)> {
     let mut parts = raw
         .split(|c: char| c.is_whitespace() || c == 'x' || c == 'X' || c == ',')
         .filter(|s| !s.is_empty())
@@ -6081,19 +6150,7 @@ impl UiNode {
                     }
                 }
             }
-            "app" | "App" | "aplicativo" | "Aplicativo" => NodeType::App(AppMeta {
-                id: Self::get_attr(&node, APP_ID_ATTRS)
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_default(),
-                single_instance: Self::get_attr(&node, APP_SINGLE_INSTANCE_ATTRS)
-                    .as_deref()
-                    .and_then(parse_bool_value)
-                    .unwrap_or(false),
-                remember_geometry: Self::get_attr(&node, APP_REMEMBER_GEOMETRY_ATTRS)
-                    .as_deref()
-                    .and_then(parse_bool_value)
-                    .unwrap_or(false),
-            }),
+            "app" | "App" | "aplicativo" | "Aplicativo" => NodeType::App(Self::app_meta_from(&node)),
             // `<tray>`: os itens são lidos do XML aqui mesmo, como os `<prop>` de
             // um `<props>` — não são nós de layout, e o `<check>` de dentro nem
             // pode passar pelo `match` de tags (é apelido do `<checkbox>`).
@@ -6132,27 +6189,7 @@ impl UiNode {
                 // antes e transforma cada um num erro posicionado.
                 NodeType::Screen(ScreenMeta {
                     title: Self::get_attr(&node, SCREEN_TITLE_ATTRS),
-                    size: Self::get_attr(&node, SCREEN_SIZE_ATTRS)
-                        .as_deref()
-                        .and_then(parse_size_pair),
-                    min_size: Self::get_attr(&node, SCREEN_MIN_SIZE_ATTRS)
-                        .as_deref()
-                        .and_then(parse_size_pair),
-                    resizable: Self::get_attr(&node, SCREEN_RESIZABLE_ATTRS)
-                        .as_deref()
-                        .and_then(parse_bool_value),
-                    max_size: Self::get_attr(&node, SCREEN_MAX_SIZE_ATTRS)
-                        .as_deref()
-                        .and_then(parse_size_pair),
-                    fixed_size: Self::get_attr(&node, SCREEN_FIXED_SIZE_ATTRS)
-                        .as_deref()
-                        .and_then(parse_size_pair),
-                    decorations: Self::get_attr(&node, SCREEN_DECORATIONS_ATTRS)
-                        .as_deref()
-                        .and_then(parse_bool_value),
-                    icon: Self::get_attr(&node, SCREEN_ICON_ATTRS)
-                        .map(|i| i.trim().to_string())
-                        .filter(|i| !i.is_empty()),
+                    ..Self::window_meta_from(&node)
                 })
             }
             // `<dialog name="…">`: a declaração de um modal com corpo em
@@ -6399,6 +6436,52 @@ impl UiNode {
         })
     }
 
+    /// Os atributos de **janela** de um nó (`size`, `min_size`, …), sem o `title`.
+    /// Partilhado pelo `<screen>` de um arquivo avulso e pelo `app(...)` raiz.
+    fn window_meta_from(node: &Node) -> ScreenMeta {
+        ScreenMeta {
+            title: None,
+            size: Self::get_attr(node, SCREEN_SIZE_ATTRS)
+                .as_deref()
+                .and_then(parse_size_pair),
+            min_size: Self::get_attr(node, SCREEN_MIN_SIZE_ATTRS)
+                .as_deref()
+                .and_then(parse_size_pair),
+            resizable: Self::get_attr(node, SCREEN_RESIZABLE_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value),
+            max_size: Self::get_attr(node, SCREEN_MAX_SIZE_ATTRS)
+                .as_deref()
+                .and_then(parse_size_pair),
+            fixed_size: Self::get_attr(node, SCREEN_FIXED_SIZE_ATTRS)
+                .as_deref()
+                .and_then(parse_size_pair),
+            decorations: Self::get_attr(node, SCREEN_DECORATIONS_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value),
+            icon: Self::get_attr(node, SCREEN_ICON_ATTRS)
+                .map(|i| i.trim().to_string())
+                .filter(|i| !i.is_empty()),
+        }
+    }
+
+    fn app_meta_from(node: &Node) -> AppMeta {
+        AppMeta {
+            id: Self::get_attr(node, APP_ID_ATTRS)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default(),
+            single_instance: Self::get_attr(node, APP_SINGLE_INSTANCE_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value)
+                .unwrap_or(false),
+            remember_geometry: Self::get_attr(node, APP_REMEMBER_GEOMETRY_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value)
+                .unwrap_or(false),
+            window: Self::window_meta_from(node),
+        }
+    }
+
     /// Parse a full XML string into UiNode, sem saber de que arquivo veio — os
     /// erros saem posicionados (linha/coluna) mas sem caminho. Prefira
     /// [`UiNode::parse_xml_in`] quando houver um arquivo a citar.
@@ -6496,6 +6579,19 @@ impl UiNode {
         // sempre. É por isso que o resto do motor (eval, widget, daemon) nunca
         // precisa saber que um cabeçalho existiu: depois deste bloco a árvore é
         // a mesma que a forma sem cabeçalho produzia até a 0.60.
+        Self::assemble(decls, roots, source, file)
+    }
+
+    /// Abre a casca (`screen`/`component`) das `roots` e monta a árvore do
+    /// template. É o miolo de [`UiNode::parse_xml_with_source`], extraído para o
+    /// `app(...)` montar cada tela inline **pelo mesmo caminho** de um arquivo
+    /// com raiz `screen`.
+    fn assemble(
+        mut decls: Vec<Self>,
+        mut roots: Vec<Self>,
+        source: &str,
+        file: Option<&str>,
+    ) -> Result<Self> {
         let mut header_is_empty = false;
         let mut header_tag = "screen";
         if roots.len() == 1
@@ -6572,6 +6668,427 @@ impl UiNode {
         root.children.to_mut().extend(decls);
         Ok(root)
     }
+
+    /// Lê um arquivo cuja **raiz é `app(...)`** — o manifesto de um app com telas
+    /// (ver `docs/PLANO_APP_TELAS.md`). `Ok(None)` quando a raiz é outra coisa
+    /// (um `screen`/`component` de sempre), e quem chama segue o caminho antigo.
+    ///
+    /// `source` é o XML do arquivo **com os `<script>` ainda dentro**: eles não
+    /// são XML (o corpo é Luau), então são tirados antes do parse — trocados por
+    /// brancos, o que preserva linhas e colunas — e devolvidos, crus, na tela em
+    /// cuja faixa de linhas caem. Cada tela inline passa depois por
+    /// [`UiNode::assemble`], o mesmo caminho de um arquivo com raiz `screen`.
+    pub(crate) fn parse_app_xml(source: &str, file: Option<&str>) -> Result<Option<AppManifest>> {
+        if !first_tag_is_app(source) {
+            return Ok(None);
+        }
+        let (blanked, scripts) = lift_scripts(source);
+        let normalized = crate::eval::normalize_bare_directives(&blanked);
+        let prepared =
+            protect_style_bodies(&mark_bindings(&normalized.replace("&nbsp;", "\u{00A0}")));
+        let wrapped = format!("{FRAGMENT_OPEN}{prepared}</__glacier_fragment__>");
+        let doc = roxmltree::Document::parse(&wrapped).map_err(|e| xml_error(e, source, file))?;
+        let fragment = doc.root_element();
+        let fail = |d: Diagnostic| -> GlacierError {
+            let d = match file {
+                Some(f) => d.in_file(f, source),
+                None => d.with_source(source),
+            };
+            GlacierError::Xml(Box::new(d))
+        };
+        let row = |pos: usize| doc.text_pos_at(pos).row;
+
+        let topo: Vec<Node> = fragment.children().filter(Node::is_element).collect();
+        let app_el = topo[0];
+        if let Some(extra) = topo.get(1) {
+            return Err(fail(
+                diagnostic_at(
+                    *extra,
+                    format!("<{}> fora do app", extra.tag_name().name()),
+                )
+                .with_hint("o app(...) envolve o arquivo inteiro: é a única tag no topo"),
+            ));
+        }
+        if let Some(d) = validate_app(app_el)
+            .or_else(|| validate_resources(app_el, true))
+            .or_else(|| validate_template_fallback(fragment))
+        {
+            return Err(fail(d));
+        }
+        if file.is_some() {
+            for d in unmarked_bindings(fragment) {
+                let d = match file {
+                    Some(f) => d.in_file(f, source),
+                    None => d.with_source(source),
+                };
+                eprintln!("glacier-ui: aviso: {d}");
+            }
+        }
+
+        let app = Self::app_meta_from(&app_el);
+        let mut decls: Vec<Self> = Vec::new();
+        let mut tray: Option<TrayMeta> = None;
+        let mut screens: Vec<ScreenDecl> = Vec::new();
+        // Nome de componente → onde foi declarado. O espaço de nomes é UM só (o
+        // do app inteiro): dois iguais, mesmo em telas diferentes, se
+        // sobrescreveriam em silêncio.
+        let mut componentes: Vec<(String, String)> = Vec::new();
+        let mut faixas: Vec<(u32, u32)> = Vec::new();
+
+        if let Some(d) = declara_componentes(app_el, "o resources do app", &mut componentes) {
+            return Err(fail(d));
+        }
+
+        for child in app_el.children().filter(Node::is_element) {
+            let tag = child.tag_name().name();
+            if is_resources_tag(tag) {
+                for decl in child.children().filter(Node::is_element) {
+                    let t = decl.tag_name().name();
+                    if t.eq_ignore_ascii_case("script") {
+                        return Err(fail(
+                            diagnostic_at(decl, "<script> no resources do app".to_string())
+                                .with_hint(
+                                    "o script do app inteiro ainda não existe; o script vive \
+                                     na tela: screen(name = x) { resources { script … } … }",
+                                ),
+                        ));
+                    }
+                    if t.eq_ignore_ascii_case("style")
+                        && Self::get_attr(&decl, &["scoped"])
+                            .as_deref()
+                            .and_then(parse_bool_value)
+                            .unwrap_or(false)
+                    {
+                        return Err(fail(
+                            diagnostic_at(decl, "<style scoped> no resources do app".to_string())
+                                .with_hint(
+                                    "scoped vale para UMA tela; no app o estilo é global — \
+                                     tire o scoped, ou mova o style para a tela",
+                                ),
+                        ));
+                    }
+                }
+                let Some(res) = Self::from_node(child) else {
+                    continue;
+                };
+                for decl in res.children.into_vec() {
+                    match decl.kind {
+                        NodeType::Tray(meta) => {
+                            if tray.is_some() {
+                                return Err(fail(
+                                    diagnostic_at(child, "<tray> declarada duas vezes".to_string())
+                                        .with_hint("um aplicativo tem no máximo uma <tray>"),
+                                ));
+                            }
+                            tray = Some(meta);
+                        }
+                        _ => decls.push(decl),
+                    }
+                }
+            } else if is_tray_tag(tag) {
+                if let Some(d) = validate_tray(child) {
+                    return Err(fail(d));
+                }
+                if tray.is_some() {
+                    return Err(fail(
+                        diagnostic_at(child, "<tray> declarada duas vezes".to_string())
+                            .with_hint("um aplicativo tem no máximo uma <tray>"),
+                    ));
+                }
+                if let Some(NodeType::Tray(meta)) = Self::from_node(child).map(|n| n.kind) {
+                    tray = Some(meta);
+                }
+            } else if is_screen_tag(tag) {
+                let decl = Self::parse_screen_decl(
+                    child,
+                    &doc,
+                    &scripts,
+                    &screens,
+                    &mut componentes,
+                    source,
+                    file,
+                    &fail,
+                )?;
+                faixas.push((row(child.range().start), row(child.range().end)));
+                screens.push(decl);
+            } else {
+                return Err(fail(
+                    diagnostic_at(child, format!("<{tag}> dentro do app")).with_hint(
+                        "o app(...) tem `resources { … }` (declarações globais) e `screen(…)` \
+                         (as telas); o layout vai dentro de uma screen",
+                    ),
+                ));
+            }
+        }
+
+        if screens.is_empty() {
+            return Err(fail(
+                diagnostic_at(app_el, "o app não tem nenhuma tela".to_string())
+                    .with_hint("declare ao menos uma: screen(name = home) { … }"),
+            ));
+        }
+        // Um `<script>` fora de qualquer tela (no resources do app, ou solto)
+        // não pertence a ninguém: erro, em vez de sumir.
+        for (r, _) in &scripts {
+            if !faixas.iter().any(|(a, b)| r >= a && r <= b) {
+                return Err(fail(
+                    Diagnostic::new(*r, 1, "<script> fora de uma screen").with_hint(
+                        "o script do app inteiro ainda não existe; o script vive na tela",
+                    ),
+                ));
+            }
+        }
+        Ok(Some(AppManifest {
+            app,
+            tray,
+            decls,
+            screens,
+        }))
+    }
+
+    /// Lê um `screen(...)` filho do `app` — ver [`UiNode::parse_app_xml`].
+    #[allow(clippy::too_many_arguments)]
+    fn parse_screen_decl(
+        sc: Node,
+        doc: &roxmltree::Document,
+        scripts: &[(u32, String)],
+        anteriores: &[ScreenDecl],
+        componentes: &mut Vec<(String, String)>,
+        source: &str,
+        file: Option<&str>,
+        fail: &dyn Fn(Diagnostic) -> GlacierError,
+    ) -> Result<ScreenDecl> {
+        const NAME: &[&str] = &["name", "nome"];
+        const INITIAL: &[&str] = &["initial", "inicial"];
+        const SRC: &[&str] = &["src"];
+
+        for attr in sc.attributes() {
+            let a = attr.name();
+            if NAME.contains(&a)
+                || INITIAL.contains(&a)
+                || SRC.contains(&a)
+                || SCREEN_TITLE_ATTRS.contains(&a)
+            {
+                continue;
+            }
+            let hint = if SCREEN_ATTR_GROUPS.iter().any(|g| g.contains(&a)) {
+                "a screen é só CONTEÚDO: size, min_size, icon e o resto da janela vão no \
+                 app(...) (a janela principal) ou na chamada \
+                 open_window(\"nome\", { size = \"420 300\" }) (uma filha)"
+            } else {
+                "a screen aceita name, initial, title e src"
+            };
+            return Err(fail(
+                diagnostic_at_attr(sc, attr, format!("atributo '{a}' na screen")).with_hint(hint),
+            ));
+        }
+        if let Some(p) = sc
+            .children()
+            .filter(Node::is_element)
+            .find(|n| is_props_tag(n.tag_name().name()))
+        {
+            return Err(fail(
+                diagnostic_at(p, "<props> numa screen".to_string()).with_hint(
+                    "props são o contrato de um componente; uma tela é aberta, não usada",
+                ),
+            ));
+        }
+        if let Some(d) = validate_resources(sc, false).or_else(|| validate_no_nested_header(sc)) {
+            return Err(fail(d));
+        }
+
+        let src = Self::get_attr(&sc, SRC)
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let name = Self::get_attr(&sc, NAME)
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .or_else(|| {
+                src.as_deref().and_then(|s| {
+                    std::path::Path::new(s)
+                        .file_stem()
+                        .map(|f| f.to_string_lossy().into_owned())
+                })
+            });
+        let Some(name) = name else {
+            return Err(fail(
+                diagnostic_at(sc, "screen sem name nem src".to_string()).with_hint(
+                    "toda tela tem um nome (é o de navigate_to/open_window): \
+                     screen(name = home) { … }, ou screen(src = \"views/ajustes.gvb\")",
+                ),
+            ));
+        };
+        if anteriores.iter().any(|s| s.name == name) {
+            return Err(fail(
+                diagnostic_at(sc, format!("tela '{name}' declarada duas vezes"))
+                    .with_hint("o nome da tela é único no app"),
+            ));
+        }
+        let initial = match sc.attributes().find(|a| INITIAL.contains(&a.name())) {
+            None => false,
+            Some(a) if a.value().trim().is_empty() => true,
+            Some(a) => match parse_bool_value(a.value()) {
+                Some(b) => b,
+                None => {
+                    return Err(fail(
+                        diagnostic_at_attr(sc, a, format!("valor inválido em initial=\"{}\"", a.value()))
+                            .with_hint("um booleano é `true`/`false`"),
+                    ));
+                }
+            },
+        };
+        if initial && anteriores.iter().any(|s| s.initial) {
+            return Err(fail(
+                diagnostic_at(sc, "duas telas `initial`".to_string())
+                    .with_hint("só uma tela abre primeiro; tire o `initial` de uma delas"),
+            ));
+        }
+        let title = Self::get_attr(&sc, SCREEN_TITLE_ATTRS);
+
+        let tem_corpo = sc.children().any(|n| n.is_element());
+        let source_kind = match (&src, tem_corpo) {
+            (Some(_), true) => {
+                return Err(fail(
+                    diagnostic_at(sc, format!("a tela '{name}' tem `src` e corpo")).with_hint(
+                        "ou o arquivo (src) ou o corpo escrito aqui — as duas coisas disputariam \
+                         o conteúdo",
+                    ),
+                ));
+            }
+            (Some(src), false) => ScreenSource::File(src.clone()),
+            (None, false) => ScreenSource::Rust,
+            (None, true) => {
+                if let Some(d) = declara_componentes(sc, &format!("a tela '{name}'"), componentes) {
+                    return Err(fail(d));
+                }
+                let (r0, r1) = (
+                    doc.text_pos_at(sc.range().start).row,
+                    doc.text_pos_at(sc.range().end).row,
+                );
+                let mut dela = scripts.iter().filter(|(r, _)| *r >= r0 && *r <= r1);
+                let script = dela.next().map(|(_, t)| t.clone());
+                if dela.next().is_some() {
+                    return Err(fail(
+                        diagnostic_at(sc, format!("mais de um <script> na tela '{name}'"))
+                            .with_hint("uma tela tem um script só"),
+                    ));
+                }
+                let Some(node) = Self::from_node(sc) else {
+                    return Err(fail(diagnostic_at(sc, "screen ilegível".to_string())));
+                };
+                let tree = Self::assemble(Vec::new(), vec![node], source, file)?;
+                ScreenSource::Inline { tree, script }
+            }
+        };
+        Ok(ScreenDecl {
+            name,
+            initial,
+            title,
+            source: source_kind,
+        })
+    }
+}
+
+/// Se a primeira tag do arquivo (pulando comentários, `<?xml?>` e espaço) é a
+/// `app`. Decide, sem parsear, se o arquivo é um manifesto.
+pub(crate) fn first_tag_is_app(xml: &str) -> bool {
+    let mut rest = xml;
+    loop {
+        rest = rest.trim_start();
+        if let Some(r) = rest.strip_prefix("<!--") {
+            match r.find("-->") {
+                Some(e) => rest = &r[e + 3..],
+                None => return false,
+            }
+        } else if let Some(r) = rest.strip_prefix("<?") {
+            match r.find("?>") {
+                Some(e) => rest = &r[e + 2..],
+                None => return false,
+            }
+        } else {
+            break;
+        }
+    }
+    let Some(r) = rest.strip_prefix('<') else {
+        return false;
+    };
+    let nome: String = r
+        .chars()
+        .take_while(|c| !c.is_whitespace() && *c != '>' && *c != '/')
+        .collect();
+    is_app_tag(&nome)
+}
+
+/// Tira os blocos `<script>` do texto, trocando cada um por brancos **do mesmo
+/// tamanho em bytes** (as quebras de linha ficam): o corpo é Luau, não XML. Cada
+/// bloco sai com a linha em que começava, para o `app(...)` entregar o script à
+/// tela em cuja faixa ele cai.
+fn lift_scripts(xml: &str) -> (String, Vec<(u32, String)>) {
+    let mut out = String::with_capacity(xml.len());
+    let mut found = Vec::new();
+    let mut cursor = 0;
+    while let Some(rel) = crate::eval::find_script_open(&xml[cursor..]) {
+        let open = cursor + rel;
+        let Some(gt_rel) = xml[open..].find('>') else {
+            break;
+        };
+        let gt = open + gt_rel;
+        let end = if xml[..gt].ends_with('/') {
+            gt + 1
+        } else {
+            match xml[gt + 1..].to_ascii_lowercase().find("</script>") {
+                Some(c) => gt + 1 + c + "</script>".len(),
+                None => break,
+            }
+        };
+        out.push_str(&xml[cursor..open]);
+        let block = &xml[open..end];
+        for c in block.chars() {
+            if c == '\n' {
+                out.push('\n');
+            } else {
+                out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+            }
+        }
+        found.push((xml[..open].matches('\n').count() as u32 + 1, block.to_string()));
+        cursor = end;
+    }
+    out.push_str(&xml[cursor..]);
+    (out, found)
+}
+
+/// Registra os `<component name="…">` do `resources` de `owner` em `componentes`
+/// e devolve o erro de um nome repetido. O espaço de nomes é do app inteiro.
+fn declara_componentes(
+    owner: Node,
+    dono: &str,
+    componentes: &mut Vec<(String, String)>,
+) -> Option<Diagnostic> {
+    for res in owner.children().filter(Node::is_element) {
+        if !is_resources_tag(res.tag_name().name()) {
+            continue;
+        }
+        for decl in res.children().filter(Node::is_element) {
+            if !is_component_tag(decl.tag_name().name()) {
+                continue;
+            }
+            let Some(nome) = UiNode::get_attr(&decl, DEFINE_NAME_ATTRS) else {
+                continue;
+            };
+            let nome = nome.trim().to_string();
+            if let Some((_, onde)) = componentes.iter().find(|(n, _)| *n == nome) {
+                return Some(
+                    diagnostic_at(decl, format!("componente '{nome}' declarado duas vezes"))
+                        .with_hint(format!(
+                            "já existe em {onde}; os nomes de componente são do app inteiro \
+                             (a tela não tem espaço de nomes próprio) — dê outro nome"
+                        )),
+                );
+            }
+            componentes.push((nome, dono.to_string()));
+        }
+    }
+    None
 }
 
 /// Monta o **corpo** de um componente a partir dos filhos escritos dentro dele:

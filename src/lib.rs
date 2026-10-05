@@ -155,7 +155,10 @@ pub use forms::{Form, FormBuilder, FormControl, Validator};
 pub use luau::LuauComponent;
 #[cfg(not(target_arch = "wasm32"))]
 pub use luau::{LuaExtension, register_lua_extension};
-pub use parser::{ButtonType, DialogMeta, NodeType, ScreenMeta, UiNode};
+pub use parser::{
+    AppManifest, AppMeta, ButtonType, DialogMeta, NodeType, ScreenDecl, ScreenMeta, ScreenSource,
+    TrayMeta, UiNode,
+};
 pub use style::Style;
 pub use stylesheet::{StyleRule, StyleSheet};
 pub use toasts::{ToastKind, ToastSpec};
@@ -256,6 +259,13 @@ pub struct GlacierUI {
     /// o daemon, ao abrir a janela e a cada troca de tela; ver
     /// [`GlacierUI::current_screen_meta`].
     screen_meta: HashMap<String, parser::ScreenMeta>,
+    /// Os atributos da **janela principal** declarados no `app(...)` raiz, quando
+    /// o motor carregou um manifesto (ver [`GlacierUI::register_app`]). A janela
+    /// é do app; o `title` continua sendo da tela.
+    app_window: Option<parser::ScreenMeta>,
+    /// O manifesto carregado por [`GlacierUI::register_app`], para o hot-reload e
+    /// para o daemon saber quais nomes são telas do app.
+    app_source: Option<AppSource>,
     /// Name of the component currently shown as the active screen
     current_screen: Option<String>,
     /// Navigation history (stack of previous screens) used by `navigate_back`
@@ -661,6 +671,8 @@ impl GlacierUI {
         let mut ui = Self {
             registered_components: HashMap::default(),
             screen_meta: HashMap::default(),
+            app_window: None,
+            app_source: None,
             inputs: render_inputs::RenderInputs::default(),
             evaluated_templates: HashMap::default(),
             scroll_offsets: Default::default(),
@@ -1139,6 +1151,178 @@ impl GlacierUI {
         // Evaluate once, after the whole import graph has been loaded.
         let _ = self.reevaluate_all();
         Ok(())
+    }
+
+    /// Registra um **app**: um arquivo cuja raiz é `app(...)` e cujas telas são
+    /// filhos dele (ver `docs/PLANO_APP_TELAS.md`). Cada tela vira um
+    /// componente com o nome dela — inline, por `src` ou (sem corpo) à espera de
+    /// um `impl Component` registrado em Rust —, as declarações globais do
+    /// `resources` do app são carregadas uma vez, e a tela `initial` (ou a
+    /// primeira) passa a ser a ativa.
+    pub fn register_app(&mut self, path: &str) -> Result<()> {
+        self.load_app(path, true)?;
+        let _ = self.reevaluate_all();
+        Ok(())
+    }
+
+    /// Lê o manifesto e (re)registra tudo. `primeira` é falsa no hot-reload:
+    /// a tela ativa e o histórico de navegação sobrevivem.
+    fn load_app(&mut self, path: &str, primeira: bool) -> Result<()> {
+        let content = asset_source::read_markup(self.assets.as_ref(), path)
+            .map_err(|e| GlacierError::io("template", path, e))?;
+        let manifest = parser::UiNode::parse_app_xml(&content, Some(path))?.ok_or_else(|| {
+            GlacierError::Link {
+                component: path.to_string(),
+                message: "o arquivo não tem raiz app(...): registre-o com register_component"
+                    .to_string(),
+            }
+        })?;
+        let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
+
+        self.app_window = Some(manifest.app.window.clone());
+
+        // As declarações globais (links, estilos, componentes, diálogos): o
+        // mesmo caminho de um template, com o arquivo do manifesto de âncora.
+        let globais = parser::empty_node(NodeType::Fragment, manifest.decls.clone());
+        self.load_defines(&globais);
+        self.load_imports(&globais, Some(path))?;
+        self.process_links_from(APP_SCOPE, &globais, Some(path.to_string()))?;
+
+        let mut telas = Vec::new();
+        for tela in &manifest.screens {
+            match &tela.source {
+                parser::ScreenSource::Inline { tree, script } => {
+                    self.register_inline_screen(&tela.name, path, tree, script.as_deref())?;
+                }
+                parser::ScreenSource::File(src) => {
+                    // Num reload, o arquivo da tela tem o hot-reload dele.
+                    if primeira || !self.registered_components.contains_key(&tela.name) {
+                        let resolved = self.resolve_import_href(src, Some(path));
+                        self.register_component_inner(&tela.name, &resolved)?;
+                    }
+                }
+                parser::ScreenSource::Rust => {}
+            }
+            telas.push((
+                tela.name.clone(),
+                matches!(tela.source, parser::ScreenSource::Rust),
+            ));
+        }
+        self.file_mod_times.insert(app_key(path), mod_time);
+        self.app_source = Some(AppSource {
+            path: path.to_string(),
+            screens: telas,
+        });
+
+        if primeira {
+            let inicial = manifest
+                .screens
+                .iter()
+                .find(|s| s.initial)
+                .or_else(|| manifest.screens.first())
+                .map(|s| s.name.clone());
+            if let Some(nome) = inicial {
+                self.set_initial_screen(&nome);
+            }
+        }
+        Ok(())
+    }
+
+    /// Registra uma tela escrita **dentro** do manifesto: a árvore já vem
+    /// montada, e o `<script>` (Luau) vira um [`luau::LuauComponent`] ancorado no
+    /// arquivo do manifesto.
+    fn register_inline_screen(
+        &mut self,
+        name: &str,
+        app_path: &str,
+        ast: &UiNode,
+        script: Option<&str>,
+    ) -> Result<()> {
+        self.inputs.insert_template(name.to_string(), ast.clone());
+        self.builtin_component_names.remove(name);
+        self.load_defines(ast);
+        self.load_imports(ast, Some(app_path))?;
+        self.process_links_from(name, ast, Some(app_path.to_string()))?;
+        self.record_screen_meta(name, ast);
+
+        match script {
+            Some(block) => {
+                if eval::script_lang(block).as_deref() == Some("micropython") {
+                    return Err(GlacierError::Link {
+                        component: name.to_string(),
+                        message: "script lang=\"python\" numa tela inline do app ainda não é \
+                                  suportado: ponha a tela em um arquivo (src)"
+                            .to_string(),
+                    });
+                }
+                let comp = luau::LuauComponent::from_markup_with(
+                    block,
+                    app_path,
+                    name,
+                    self.assets.clone(),
+                )?;
+                self.active_streams.retain(|(owner, _), _| owner != name);
+                self.install_component(name, Box::new(comp));
+                self.script_only_components.insert(name.to_string());
+            }
+            None => {
+                // O script saiu da tela (hot-reload): a VM antiga vai embora.
+                if self.script_only_components.remove(name) {
+                    self.components.remove(name);
+                    self.active_streams.retain(|(owner, _), _| owner != name);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Confere que toda tela do app **sem corpo e sem `src`** tem um componente
+    /// registrado em Rust com o nome dela. Devolve a mensagem do primeiro erro.
+    /// O daemon chama depois do `.main(…)`, que é quem registra.
+    pub fn check_app_screens(&self) -> std::result::Result<(), String> {
+        let Some(app) = &self.app_source else {
+            return Ok(());
+        };
+        for (name, sem_corpo) in &app.screens {
+            if *sem_corpo && !self.components.contains_key(name) {
+                return Err(format!(
+                    "a tela '{name}' do app não tem corpo nem src, e nenhum componente \
+                     registrado em Rust se chama '{name}' (motor.register(Box::new(…)) no .main)"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Se o arquivo `path` tem raiz `app(...)` (é um manifesto, não uma tela).
+    pub fn is_app_file(&self, path: &str) -> bool {
+        asset_source::read_markup(self.assets.as_ref(), path)
+            .is_ok_and(|c| parser::first_tag_is_app(&c))
+    }
+
+    /// Se `name` é uma tela declarada pelo manifesto do app.
+    pub fn is_app_screen(&self, name: &str) -> bool {
+        self.app_source
+            .as_ref()
+            .is_some_and(|a| a.screens.iter().any(|(n, _)| n == name))
+    }
+
+    /// Os atributos de janela do `app(...)`, se o motor carregou um manifesto.
+    pub fn app_window(&self) -> Option<&parser::ScreenMeta> {
+        self.app_window.as_ref()
+    }
+
+    /// O que a janela **principal** deve ser agora: os atributos do `app(...)`
+    /// (ou, sem manifesto, os do `<screen>` ativo) com o `title` da tela ativa.
+    pub fn main_window_meta(&self) -> Option<parser::ScreenMeta> {
+        match &self.app_window {
+            Some(janela) => {
+                let mut meta = janela.clone();
+                meta.title = self.current_screen_meta().and_then(|m| m.title.clone());
+                Some(meta)
+            }
+            None => self.current_screen_meta().cloned(),
+        }
     }
 
     /// Registers a [`Component`] that bundles its UI (template) and behavior.
@@ -2688,6 +2872,14 @@ impl GlacierUI {
         // zero) e enfileira em `pending_windows` para o daemon abrir.
         for mut spec in windows {
             if let component::WindowSource::Named(name) = &spec.source {
+                // Num app, o nome é o de uma TELA do manifesto: a janela nova
+                // carrega o manifesto e abre nela (as telas inline não têm
+                // arquivo próprio, e os componentes globais precisam vir junto).
+                if self.is_app_screen(name) {
+                    spec.source = component::WindowSource::AppScreen(name.clone());
+                    self.pending_windows.push(spec);
+                    continue;
+                }
                 match self.registered_components.get(name) {
                     Some(path) => spec.source = component::WindowSource::File(path.clone()),
                     None => {
@@ -3059,15 +3251,25 @@ impl GlacierUI {
     /// app theme). Re-run on hot-reload of the template, so stylesheet links
     /// are rebuilt for `component` (cleared when it declares none).
     fn process_links(&mut self, component: &str, ast: &UiNode) -> Result<()> {
-        let mut links = Vec::new();
-        collect_links(ast, &mut links);
-
         // `component`'s own file, if it has one — the anchor for resolving a
         // relative `href` (`<link rel="import" href="…">`) against, same as
         // `load_imports`/`resolve_import_href` does for the `<Import>` tag
-        // form. Looked up once, outside the loop below (`process_links` runs
-        // once per component, potentially several `<link>`s).
+        // form.
         let importer_path = self.registered_components.get(component).cloned();
+        self.process_links_from(component, ast, importer_path)
+    }
+
+    /// O miolo de [`GlacierUI::process_links`], com o arquivo âncora dado: as
+    /// telas inline de um `app(...)` não são arquivos próprios, e o âncora delas
+    /// é o do manifesto.
+    fn process_links_from(
+        &mut self,
+        component: &str,
+        ast: &UiNode,
+        importer_path: Option<String>,
+    ) -> Result<()> {
+        let mut links = Vec::new();
+        collect_links(ast, &mut links);
 
         for (rel, href, name) in &links {
             match rel.as_str() {
@@ -3129,7 +3331,7 @@ impl GlacierUI {
         // O arquivo do componente (quando ele veio de um) e a linha de cada
         // `<style>` posicionam um erro do `.gss` inline no XML que o declarou:
         // "home.xml:207", não "linha 3 de um texto que você não sabe qual é".
-        let file = self.registered_components.get(component).cloned();
+        let file = importer_path.clone();
         let parse_inline = |css: &str, line: u32| -> Result<stylesheet::StyleSheet> {
             stylesheet::StyleSheet::parse_in(css, file.as_deref(), line)
                 .map_err(|e| e.in_component(component))
@@ -4195,6 +4397,29 @@ impl GlacierUI {
 
         let mut dirty = !updates.is_empty() || !sheet_updates.is_empty();
 
+        // O manifesto do app: mudou o arquivo → re-registra todas as telas dele
+        // (as inline não têm arquivo próprio) sem tocar na tela ativa nem no
+        // histórico. Com erro, a versão anterior fica — e o aviso sai uma vez.
+        let app_mudou = self.app_source.as_ref().and_then(|app| {
+            let modified = self.assets.modified(&app.path)?;
+            self.file_mod_times
+                .get(&app_key(&app.path))
+                .is_none_or(|&last| modified > last)
+                .then(|| (app.path.clone(), modified))
+        });
+        if let Some((path, modified)) = app_mudou {
+            match self.load_app(&path, false) {
+                Ok(()) => {
+                    reloaded.push(path);
+                    dirty = true;
+                }
+                Err(e) => {
+                    self.file_mod_times.insert(app_key(&path), modified);
+                    eprintln!("App '{path}' has an error, keeping the previous version: {e}");
+                }
+            }
+        }
+
         // Apply XML template changes.
         for (name, new_ast, modified, path, content) in updates {
             // Pick up any newly-added `<import>`/`<link>` declarations — e as
@@ -4357,30 +4582,55 @@ impl GlacierUI {
 /// passadas de pré-processamento aqui (tirar o `<script>`, normalizar diretivas
 /// nuas) preservam a contagem de linhas de propósito, para a linha reportada ser
 /// a do arquivo que o autor escreveu.
-/// O `<app>`, a `<tray>` e o título do `<screen>` de um template, lidos **antes** de o daemon subir o
-/// iced — ver [`parser::AppMeta`]. O template é parseado inteiro (com a mesma
-/// validação de sempre); um erro aqui é devolvido, e o registro normal, logo
-/// depois, o reporta de novo com o nome do componente.
+/// Lê o XML de um arquivo com raiz `app(...)` no seu [`parser::AppManifest`];
+/// `Ok(None)` quando a raiz é outra coisa. Para ferramentas e testes — o motor
+/// usa [`GlacierUI::register_app`].
+pub fn parse_app_manifest(xml: &str, file: Option<&str>) -> Result<Option<parser::AppManifest>> {
+    parser::UiNode::parse_app_xml(xml, file)
+}
+
+/// O `app(...)`, a `<tray>` e o título da tela inicial de um arquivo, lidos
+/// **antes** de o daemon subir o iced — ver [`parser::AppMeta`]. O arquivo é
+/// parseado inteiro (com a mesma validação de sempre); um erro aqui é devolvido,
+/// e o registro normal, logo depois, o reporta de novo com o nome do componente.
+/// Um arquivo com raiz `screen` não tem `app` nem `tray`: só o título.
 pub(crate) fn app_manifest(
     path: &str,
     content: &str,
 ) -> Result<(Option<parser::AppMeta>, Option<parser::TrayMeta>, Option<String>)> {
+    if let Some(manifest) = parser::UiNode::parse_app_xml(content, Some(path))? {
+        let title = manifest
+            .screens
+            .iter()
+            .find(|s| s.initial)
+            .or_else(|| manifest.screens.first())
+            .and_then(|s| s.title.clone());
+        return Ok((Some(manifest.app), manifest.tray, title));
+    }
     let (root, _script) = parse_markup(Some(path), content)?;
-    let mut app = None;
-    let mut tray = None;
-    let mut title = None;
     // As declarações do `<resources>` viajam penduradas na raiz (ver
     // `UiNode::parse_xml_with_source`), então basta olhar os filhos dela.
-    for child in root.children.iter() {
-        match &child.kind {
-            parser::NodeType::App(meta) => app = Some(meta.clone()),
-            parser::NodeType::Tray(meta) => tray = Some(meta.clone()),
-            // O título da janela é o tooltip padrão da bandeja.
-            parser::NodeType::Screen(meta) => title = meta.title.clone(),
-            _ => {}
-        }
-    }
-    Ok((app, tray, title))
+    let title = root.children.iter().find_map(|child| match &child.kind {
+        parser::NodeType::Screen(meta) => meta.title.clone(),
+        _ => None,
+    });
+    Ok((None, None, title))
+}
+
+/// O manifesto de um arquivo com raiz `app(...)` carregado no motor.
+#[derive(Debug, Clone)]
+struct AppSource {
+    path: String,
+    /// `(nome, sem_corpo)`: `sem_corpo` é a tela declarada sem corpo nem `src`,
+    /// que um `impl Component` registrado em Rust precisa servir.
+    screens: Vec<(String, bool)>,
+}
+
+/// O nome sob o qual o `process_links` enxerga as declarações globais do `app`.
+const APP_SCOPE: &str = "__app";
+
+fn app_key(path: &str) -> String {
+    format!("app::{}", path)
 }
 
 /// Namespaced keys under which a resource's modification time is stored in
