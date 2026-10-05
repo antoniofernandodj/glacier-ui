@@ -24,7 +24,6 @@ screen(title = "Glacier — Bandeja", size = "460 300") {
   container(class = caixa) {
     column(class = "coluna coluna_2") {
       text(content = "Exemplo de bandeja", class = titulo)
-
       text(
         content = "Feche esta janela: o app continua na bandeja.",
         class = texto,

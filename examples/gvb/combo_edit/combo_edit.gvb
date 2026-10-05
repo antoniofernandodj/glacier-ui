@@ -13,10 +13,8 @@ screen(title = "Glacier - ComboEdit (servidores salvos)") {
   container(class = caixa) {
     column(class = coluna) {
       text(content = "Servidores salvos", class = titulo)
-
       column(class = coluna_2) {
         text(content = "Servidor", class = texto)
-
         comboedit(
           :options = servidores, :value = url,
           placeholder = "https://servidor.exemplo.com", on_change = url_changed,
@@ -26,16 +24,13 @@ screen(title = "Glacier - ComboEdit (servidores salvos)") {
 
       column(class = coluna_2) {
         text(content = "Token", class = texto)
-
         input(
           :value = token, on_change = token_changed,
           placeholder = "token de acesso",
           secure = true, class = campo,
         )
       }
-
       button(text = "Salvar este par", on_click = salvar, class = botao)
-
       rule
       text(content = "Pares salvos:", class = texto)
       text(content = "@pares_txt", class = nota)

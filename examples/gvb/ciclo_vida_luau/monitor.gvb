@@ -9,21 +9,15 @@ screen(title = "Glacier - ciclo de vida (monitor)") {
     column(class = "coluna coluna_2") {
       text(content = "Monitor", class = titulo)
       text(content = "ciclo: @ciclo", class = texto_2)
-
       text(
         content = "— SSE (/sse, um tick a cada 500 ms) —", class = destaque,
       )
-
       text(content = "@sse_status", class = texto_2)
       text(content = "@sse_msg", class = texto_3)
-
       text(content = "— WebSocket (/ws, eco + tick) —", class = destaque)
-
       text(content = "@ws_status", class = texto_2)
       text(content = "@ws_msg", class = texto_3)
-
       button(on_click = enviar_ws, text = "Enviar ping", class = botao_2)
-
       button(
         on_click = voltar,
         text = "Voltar (fecha os streams)", class = botao_3,

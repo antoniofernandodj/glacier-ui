@@ -21,7 +21,6 @@ component {
 
   card(title = @nome, subtitle = "uptime @uptime", class = cartao) {
     badge(badge_text = @estado, badge_bg = @cor)
-
     template(slot = footer) {
       row(class = linha_4) {
         button(text = Detalhes, on_click = detalhar:@id, class = botao)

@@ -76,7 +76,6 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
       frame(shape = filled, class = moldura) {
         Rotulo(texto = @rotulo, cor = #80868D, tamanho = 11)
         text(content = "@valor", class = titulo)
-
         if @delta != "" {
           Rotulo(texto = @delta, cor = #A6E3A1, tamanho = 11)
         }
@@ -95,7 +94,11 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
       )
 
       Rotulo(
-        texto = "Os três componentes desta tela (Rotulo, LinhaLog, Metrica) estão declarados no <resources> acima. O CartaoServico veio de um arquivo. Os quatro se usam do mesmo jeito.",
+        texto = """
+          Os três componentes desta tela (Rotulo, LinhaLog, Metrica)
+          estão declarados no <resources> acima. O CartaoServico veio
+          de um arquivo. Os quatro se usam do mesmo jeito.
+        """,
         tamanho = 13,
       )
     }
