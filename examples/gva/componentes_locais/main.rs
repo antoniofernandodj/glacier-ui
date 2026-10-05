@@ -122,7 +122,6 @@ impl Component for ComponentesLocais {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Componentes locais")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(ComponentesLocais)) {
                 eprintln!("Erro ao registrar a tela: {e}");

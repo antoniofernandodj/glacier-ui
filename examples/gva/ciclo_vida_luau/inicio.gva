@@ -1,5 +1,6 @@
 <screen title="Glacier - ciclo de vida (início)">
   <resources>
+    <link rel="import" href="examples/gva/ciclo_vida_luau/monitor.gva" />
     <link rel="stylesheet" href="examples/gva/ciclo_vida_luau/app.gss" />
     <link rel="theme" href="examples/gva/stream_lua/theme.json" />
     <script src="inicio.luau"></script>

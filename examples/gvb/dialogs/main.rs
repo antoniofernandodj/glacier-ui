@@ -59,7 +59,6 @@ impl Component for Dialogs {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Diálogos")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Dialogs)) {
                 eprintln!("Error registering component: {}", e);

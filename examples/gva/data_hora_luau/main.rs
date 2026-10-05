@@ -19,16 +19,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Data e Hora (Luau)")
-        .main(|motor| {
-            // A tela não pode se chamar como uma tag de widget: o registro do
-            // app vence o builtin/primitiva de mesmo nome e a tag apontaria
-            // para ela mesma.
-            motor
-                .register_component("reserva", "examples/gva/data_hora_luau/app.gva")
-                .expect("registrar a tela do exemplo");
-            motor.set_initial_screen("reserva");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/data_hora_luau/app.gva").run()
 }

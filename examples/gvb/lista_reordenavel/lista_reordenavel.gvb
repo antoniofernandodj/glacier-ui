@@ -2,7 +2,7 @@
 // `dragHandle`) de um item até a posição de outro para trocá-los de lugar.
 // `on_reorder` dispara quando o item é solto, carregando a nova ordem como um
 // array JSON dos valores de `reorderKey` (aqui, o campo "id" de cada tarefa).
-component {
+screen(title = "Glacier - Lista Reordenável (drag-and-drop)") {
   resources {
     link(rel = stylesheet, href = "examples/gvb/lista_reordenavel/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar

@@ -227,7 +227,6 @@ fn hoje_iso() -> String {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Onda 5")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Onda5)) {
                 eprintln!("Erro ao registrar a tela: {e}");

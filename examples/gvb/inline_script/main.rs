@@ -6,7 +6,6 @@ use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier — script inline (.gvb)")
         .main_template("examples/gvb/inline_script/app.gvb")
         .run()
 }

@@ -39,7 +39,6 @@ impl Component for Estilos {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Estilos inline (XML)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Estilos { valor: 0 })) {
                 eprintln!("Erro ao registrar 'estilos_inline': {}", e);

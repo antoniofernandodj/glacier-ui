@@ -1,6 +1,6 @@
 //! Streams de vida longa (SSE e WebSocket) a partir do `<script>` Lua.
 //!
-//! No template `stream_luau.gva`:
+//! No template `stream_lua.gva`:
 //! ```luau
 //! sse_conn = sse("https://sse.dev/test", { on_message = "sse_recebeu" })
 //! ws_conn  = websocket("wss://echo.websocket.org", { on_message = "ws_recebeu" })
@@ -18,17 +18,9 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - SSE + WebSocket em Lua")
-        .main(|motor| {
-            // Por padrão usa os endpoints públicos; aponte para a API local com
-            //   GLACIER_STREAM_TEMPLATE=examples/stream_luau/stream_local.gva
-            let template = std::env::var("GLACIER_STREAM_TEMPLATE")
-                .unwrap_or_else(|_| "examples/stream_luau/stream_luau.gva".to_string());
-            if let Err(e) = motor.register_component("stream", &template) {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("stream");
-        })
-        .run()
+    // Por padrão usa os endpoints públicos; aponte para a API local com
+    //   GLACIER_STREAM_TEMPLATE=examples/gva/stream_lua/stream_local.gva
+    let template = std::env::var("GLACIER_STREAM_TEMPLATE")
+        .unwrap_or_else(|_| "examples/gva/stream_lua/stream_lua.gva".to_string());
+    GlacierDaemon::new().main_template(template).run()
 }

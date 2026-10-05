@@ -1,5 +1,6 @@
 <screen title="Glacier - navegação via script Lua · Login">
   <resources>
+    <link rel="import" href="examples/gva/navegacao_luau/dashboard.gva" as="dashboard_luau" />
     <link rel="stylesheet" href="examples/gva/navegacao_luau/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais

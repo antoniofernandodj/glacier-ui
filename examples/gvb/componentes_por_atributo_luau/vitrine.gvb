@@ -10,11 +10,11 @@ component {
 
     // O nome da CHAVE que guarda a lista, não a lista.
     prop(name = itens)
-    prop(component = "", name = cabecalho)
-    prop(component = "", name = linha)
+    prop(component, name = cabecalho)
+    prop(component, name = linha)
 
     // Opcional: vazio, a lista sem itens simplesmente não desenha nada.
-    prop(component = "", name = vazio, default = "")
+    prop(component, name = vazio, default = "")
   }
 
   column(class = vitrine) {

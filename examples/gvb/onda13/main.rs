@@ -63,7 +63,6 @@ impl Component for Formas {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier — Onda 13 (formas)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Formas)) {
                 eprintln!("Erro ao registrar a tela: {e}");

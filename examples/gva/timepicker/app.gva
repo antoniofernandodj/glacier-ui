@@ -1,5 +1,17 @@
 <screen title="Glacier - Data e Hora" size="640 480">
   <resources>
+    <script>
+      -- Valor inicial de cada chave dos seletores de data e hora.
+      function init()
+        ctx.data = "2026-09-01"
+        ctx.hora = "13:45:02"
+        ctx.quando = "2026-09-01 09:00"
+        ctx.data_br = "2026-09-01"
+        ctx.de = "09:00"
+        ctx.ate = "18:00"
+      end
+    </script>
+
     <link rel="stylesheet" href="examples/gva/timepicker/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais

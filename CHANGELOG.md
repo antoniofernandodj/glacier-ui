@@ -54,6 +54,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   agora leva o `:` (`:for-each = tarefas` / `:for-each="tarefas"`), em qualquer tag.
 - **Exemplo novo `gvb_template_if_for`**: `<template>` explícito com `if`/`else`,
   com `for-each` e com um `if` dentro do corpo da repetição.
+- **`GlacierDaemon`: o mínimo de Rust, documentado.** Nova página `docs/DAEMON.md` (e a
+  seção "O `main.rs`: o mínimo de Rust" do `AGENTS.md` dos projetos gerados) com
+  **todas** as chamadas do builder e do `.main(|motor| …)` e a forma de cada uma no
+  markup — `<screen title size…>`, `<app>`, `<tray>`, `<link rel="stylesheet|import|data">`,
+  `<script>` com `init()`. Os exemplos `.gva` e `.gvb` foram enxugados: as telas só
+  de markup viraram `GlacierDaemon::new().main_template("…").run()`; nas demais,
+  `.title`/`.main_size` foram para o `<screen>`, `load_stylesheet` virou `<link>` e o
+  `define_data` do `spinbox`/`timepicker`, um `<script>` com `init()`. `toasts` e
+  `lista_reordenavel` ganharam a raiz `<screen>`, e o `navegacao_luau` importa o
+  `dashboard` por `<link rel="import">`. A `bandeja` virou markup puro (`<tray>` e
+  `<script>` com `notify` no `painel`), e a `navegacao` também (imports, `init()` e
+  `on_change="user_name"`, sem os três componentes Rust). `sqlite_crud` e
+  `onda10_luau` ficam com `.lua_extension`/`.font_named` + `.main_template`. Ficam em
+  Rust o que o markup não expressa (`impl Component` com lógica, `.style`,
+  `.assets`, `define_data` com valor vindo de Rust).
+- **`.gvb`: marcador sem valor.** `prop(component, name = linha)` e
+  `template(else)` valem como `component=""` / `else=""`; o `gvb_convert` os escreve
+  assim e os 21 usos dos exemplos foram trocados.
 - **Exemplos em `.gvb` rodam sozinhos**: cada `examples/gvb/<nome>/` ganhou o
   `main.rs` do gêmeo `.gva` (caminhos para `.gvb`) e um `[[example]]` no
   `Cargo.toml` — `cargo run --example gvb_<nome>`. O `gvb_inline_script` é novo.

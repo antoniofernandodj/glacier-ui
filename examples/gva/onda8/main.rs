@@ -251,7 +251,6 @@ impl Onda8 {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Onda 8")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Onda8)) {
                 eprintln!("Erro ao registrar a tela: {e}");

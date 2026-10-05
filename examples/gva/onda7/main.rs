@@ -219,7 +219,6 @@ fn hora_local() -> String {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Onda 7")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Onda7)) {
                 eprintln!("Erro ao registrar a tela: {e}");

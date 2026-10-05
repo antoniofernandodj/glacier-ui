@@ -190,6 +190,11 @@ class Parser {
         w.off -= 1;
       }
       this.skipWs();
+      // um marcador (`else`, `component`): sem `= valor`, o mesmo que `nome=""`
+      if (this.peek() === "," || this.peek() === ")") {
+        node.attrs.push({ name: w.text, nameOff: w.off, v: { kind: "lit", text: "", off: w.off } });
+        continue;
+      }
       if (this.peek() !== "=") continue;
       this.i++;
       this.skipWs();

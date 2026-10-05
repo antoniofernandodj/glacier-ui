@@ -1,7 +1,7 @@
 // Painel de gatilhos para o exemplo `toasts`. Os toasts em si não fazem
 // parte deste template — são construídos em Rust (ver examples/gva/toasts.rs)
 // e sobrepostos pelo motor via GlacierUI::render_current.
-component {
+screen(title = "Glacier - Toasts") {
   resources {
     link(rel = stylesheet, href = "examples/gvb/toasts/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar

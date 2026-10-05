@@ -8,15 +8,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Diálogos de Arquivo")
-        .main(|motor| {
-            if let Err(e) =
-                motor.register_component("file_dialog", "examples/gva/file_dialog/file_dialog.gva")
-            {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("file_dialog");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/file_dialog/file_dialog.gva").run()
 }

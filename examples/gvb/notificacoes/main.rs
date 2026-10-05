@@ -13,15 +13,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - notificações do SO")
-        .main(|motor| {
-            if let Err(e) =
-                motor.register_component("notificacoes", "examples/gvb/notificacoes/notificacoes.gvb")
-            {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("notificacoes");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/notificacoes/notificacoes.gvb").run()
 }

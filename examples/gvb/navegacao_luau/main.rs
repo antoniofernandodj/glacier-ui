@@ -10,20 +10,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - navegação via script Lua")
-        .main(|motor| {
-            if let Err(e) =
-                motor.register_component("login_luau", "examples/gvb/navegacao_luau/login.gvb")
-            {
-                eprintln!("Erro ao registrar 'login_luau': {}", e);
-            }
-            if let Err(e) =
-                motor.register_component("dashboard_luau", "examples/gvb/navegacao_luau/dashboard.gvb")
-            {
-                eprintln!("Erro ao registrar 'dashboard_luau': {}", e);
-            }
-            motor.set_initial_screen("login_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/navegacao_luau/login.gvb").run()
 }

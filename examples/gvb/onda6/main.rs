@@ -209,7 +209,6 @@ fn arvore_json() -> String {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Onda 6")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Onda6)) {
                 eprintln!("Erro ao registrar a tela: {e}");

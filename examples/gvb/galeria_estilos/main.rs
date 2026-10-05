@@ -77,8 +77,6 @@ impl Component for Galeria {
 
 fn main() -> iced::Result {
     let app = GlacierDaemon::new()
-        .title("Glacier — Galeria de Estilos")
-        .main_size(560.0, 640.0)
         .style(style::FUSION)
         .main(|motor| {
             if let Err(e) = motor.register(Galeria::boxed()) {

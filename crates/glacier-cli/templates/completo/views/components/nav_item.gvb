@@ -33,6 +33,6 @@ component {
       on_click = @acao,
     )
 
-    button(class = nav_off, else = "", text = @rotulo, on_click = @acao)
+    button(class = nav_off, else, text = @rotulo, on_click = @acao)
   }
 }

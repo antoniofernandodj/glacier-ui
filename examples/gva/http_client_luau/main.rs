@@ -11,15 +11,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier — http client (Luau)")
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            if let Err(e) = motor
-                .register_component("http_client_luau", "examples/gva/http_client_luau/app.gva")
-            {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("http_client_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/http_client_luau/app.gva").run()
 }

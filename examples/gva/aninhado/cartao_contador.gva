@@ -1,5 +1,5 @@
 <!-- Um componente (filho de `painel.gva`), não uma tela: a raiz é `<component>`.
- Ele agrupa declarações como o `<screen>` de uma janela, mas não aceita
+ Ele agrupa declarações como o `<screen title="Glacier - Componentes Aninhados">` de uma janela, mas não aceita
  `title`/`size` — não há janela nenhuma a que eles se aplicariam. Aqui não há o
  que declarar, então a casca entra sozinha, sem `<resources>
    <link rel="stylesheet" href="examples/gva/aninhado/app.gss" />

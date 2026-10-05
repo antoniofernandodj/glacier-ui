@@ -36,7 +36,7 @@ component {
       row(class = item, :for-each = itens, var = i) {
         text(class = item_nome, content = "@i.nome")
         text(class = tag_ok, if = @i.ativo, equals = 1, content = "ativo")
-        text(class = tag_off, else = "", content = "parado")
+        text(class = tag_off, else, content = "parado")
       }
     }
 

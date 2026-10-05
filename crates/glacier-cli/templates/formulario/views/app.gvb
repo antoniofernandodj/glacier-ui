@@ -30,7 +30,7 @@ screen(
         )
 
         text(
-          class = erro, if = @erro_f_nome, not_empty = "",
+          class = erro, if = @erro_f_nome, not_empty,
           content = "@erro_f_nome",
         )
       }
@@ -45,7 +45,7 @@ screen(
           )
 
           text(
-            class = erro, if = @erro_f_cpf, not_empty = "",
+            class = erro, if = @erro_f_cpf, not_empty,
             content = "@erro_f_cpf",
           )
         }
@@ -59,7 +59,7 @@ screen(
           )
 
           text(
-            class = erro, if = @erro_f_tel, not_empty = "",
+            class = erro, if = @erro_f_tel, not_empty,
             content = "@erro_f_tel",
           )
         }
@@ -76,7 +76,7 @@ screen(
           )
 
           text(
-            class = erro, if = @erro_f_idade, not_empty = "",
+            class = erro, if = @erro_f_idade, not_empty,
             content = "@erro_f_idade",
           )
         }
@@ -99,10 +99,7 @@ screen(
           msg = "escolha a UF",
         )
 
-        text(
-          class = erro, if = @erro_f_uf, not_empty = "",
-          content = "@erro_f_uf",
-        )
+        text(class = erro, if = @erro_f_uf, not_empty, content = "@erro_f_uf")
       }
 
       checkbox(
@@ -112,7 +109,7 @@ screen(
       )
 
       text(
-        class = erro, if = @erro_f_aceite, not_empty = "",
+        class = erro, if = @erro_f_aceite, not_empty,
         content = "@erro_f_aceite",
       )
       text(class = status, content = "@f_status")

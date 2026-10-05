@@ -19,16 +19,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Pedidos (foreach + fallback, Luau)")
-        .main(|motor| {
-            if let Err(e) = motor.register_component(
-                "foreach_fallback_luau",
-                "examples/gvb/foreach_fallback_luau/app.gvb",
-            ) {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("foreach_fallback_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/foreach_fallback_luau/app.gvb").run()
 }

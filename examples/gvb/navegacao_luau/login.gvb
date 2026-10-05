@@ -1,5 +1,6 @@
 screen(title = "Glacier - navegação via script Lua · Login") {
   resources {
+    link(rel = import, href = "examples/gvb/navegacao_luau/dashboard.gvb", as = dashboard_luau)
     link(rel = stylesheet, href = "examples/gvb/navegacao_luau/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais

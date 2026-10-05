@@ -1,5 +1,6 @@
 screen(title = "Glacier - ciclo de vida (início)") {
   resources {
+    link(rel = import, href = "examples/gvb/ciclo_vida_luau/monitor.gvb")
     link(rel = stylesheet, href = "examples/gvb/ciclo_vida_luau/app.gss")
     link(rel = theme, href = "examples/gvb/stream_lua/theme.json")
     script(src = inicio.luau)

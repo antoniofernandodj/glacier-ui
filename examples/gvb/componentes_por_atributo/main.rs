@@ -169,7 +169,6 @@ impl Component for ComponentesPorAtributo {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Componentes por atributo")
         .main(|motor| {
             let tela = ComponentesPorAtributo {
                 tarefas: Vec::new(),

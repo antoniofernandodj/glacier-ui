@@ -46,16 +46,5 @@ fn main() -> iced::Result {
         ui.click("conectar");
     });
 
-    GlacierDaemon::new()
-        .title("Glacier - Controle externo")
-        .main(|motor| {
-            if let Err(e) = motor.register_component(
-                "controle_externo",
-                "examples/gvb/controle_externo/controle_externo.gvb",
-            ) {
-                eprintln!("Erro ao registrar: {e}");
-            }
-            motor.set_initial_screen("controle_externo");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/controle_externo/controle_externo.gvb").run()
 }

@@ -45,18 +45,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Onda 4 (Luau)")
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            // Sem `register(Box::new(...))`: não há `impl Component` neste
-            // exemplo. O `.gvb` traz o `<script src>`, e o motor cuida do resto.
-            if let Err(e) = motor.register_component(
-                "onda4_luau",
-                "examples/gvb/onda4_luau/app.gvb"
-            ) {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("onda4_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/onda4_luau/app.gvb").run()
 }

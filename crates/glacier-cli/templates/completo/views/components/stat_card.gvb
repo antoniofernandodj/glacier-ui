@@ -30,6 +30,6 @@ component {
   column(class = stat) {
     text(class = rotulo_cap, content = "@rotulo")
     text(class = stat_num_ok, if = @destaque, equals = 1, content = "@valor")
-    text(class = stat_num, else = "", content = "@valor")
+    text(class = stat_num, else, content = "@valor")
   }
 }

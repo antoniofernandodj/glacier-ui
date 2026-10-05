@@ -1,5 +1,19 @@
 screen(title = "Glacier — Bandeja", size = "460 300") {
   resources {
+    tray(icon = "examples/gvb/bandeja/icon.png", tooltip = "Glacier — exemplo de bandeja") {
+      item(label = Abrir, on_click = tray:open)
+      check(label = Notificações, checked = @__notifications, on_click = notifications:toggle)
+      separator
+      item(label = Sair, on_click = tray:quit)
+    }
+
+    script """
+      -- Respeita o toggle da bandeja: desligado, `notify` vira no-op.
+      function notificar()
+        notify({ title = "Bandeja", body = "Uma notificação de teste." })
+      end
+    """
+
     link(rel = stylesheet, href = "examples/gvb/bandeja/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
@@ -27,7 +41,7 @@ screen(title = "Glacier — Bandeja", size = "460 300") {
 
       text(
         content = """
-          (o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)
+          (o item "Notificações" da bandeja liga/desliga isto)
         """,
         class = nota,
       )

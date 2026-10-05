@@ -111,3 +111,14 @@ fn ligacao_sem_dois_pontos_e_erro() {
     // o `<check>` de uma `<tray>` é um item de bandeja, não um checkbox
     assert!(desugar("tray { check(label = Avisos, checked = @avisos) }").is_ok());
 }
+
+/// Um atributo sem `= valor` é um marcador: `prop(component, name = linha)`.
+#[test]
+fn marcador_sem_valor() {
+    assert_eq!(
+        xml("prop(component, name = linha)"),
+        r#"<propcomponent=""name="linha"/>"#
+    );
+    assert_eq!(xml("template(else) { text(content = x) }"), r#"<templateelse=""><textcontent="x"/></template>"#);
+    assert_eq!(xml("template(else, class = a)"), r#"<templateelse=""class="a"/>"#);
+}

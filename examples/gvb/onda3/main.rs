@@ -26,16 +26,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Onda 3")
-        .main(|motor| {
-            // A tela não pode se chamar como uma tag de widget: o registro do
-            // app vence a primitiva de mesmo nome, e `<calendar>` passaria a
-            // apontar para esta tela.
-            if let Err(e) = motor.register_component("onda3", "examples/gvb/onda3/app.gvb") {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("onda3");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/onda3/app.gvb").run()
 }

@@ -21,16 +21,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Contador (MicroPython)")
-        .main(|motor| {
-            if let Err(e) = motor.register_component(
-                "contador",
-                "examples/gvb/contador_micropython/contador_micropython.gvb",
-            ) {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("contador");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/contador_micropython/contador_micropython.gvb").run()
 }

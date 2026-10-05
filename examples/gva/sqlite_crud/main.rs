@@ -37,16 +37,10 @@ use rusqlite::types::{Value as SqlValue, ValueRef};
 
 fn main() -> glacier_ui::iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - CRUD com SQLite")
         // A ÚNICA linha que liga o banco: a partir daqui, todo `<script>` deste
         // app enxerga o global `sqlite`.
         .lua_extension(instalar_sqlite)
-        .main(|motor| {
-            if let Err(e) = motor.register_component("crud", "examples/gva/sqlite_crud/crud.gva") {
-                eprintln!("Erro ao registrar: {e}");
-            }
-            motor.set_initial_screen("crud");
-        })
+        .main_template("examples/gva/sqlite_crud/crud.gva")
         .run()
 }
 

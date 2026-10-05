@@ -20,7 +20,7 @@ screen(title = "Glacier - template com if e for", size = "520 520") {
     template(if = @so_pendentes, equals = true) {
       text(content = "Filtro: só as pendentes", class = aviso)
     }
-    template(else = "") {
+    template(else) {
       text(content = "Filtro: todas as tarefas", class = aviso)
     }
 
@@ -33,7 +33,7 @@ screen(title = "Glacier - template com if e for", size = "520 520") {
         template(if = @t.estado, equals = feita) {
           text(content = "✔ @t.titulo", class = feita)
         }
-        template(else = "") {
+        template(else) {
           text(content = "○ @t.titulo", class = pendente)
         }
 

@@ -85,7 +85,6 @@ impl Component for Lista {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Lista de Membros")
         .main(|motor| {
             let membros = vec![
                 Membro {

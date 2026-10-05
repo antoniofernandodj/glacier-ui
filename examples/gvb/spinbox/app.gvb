@@ -1,5 +1,20 @@
 screen(title = "Glacier - SpinBox", size = "620 560") {
   resources {
+    script """
+      -- Valor inicial de cada chave: um `<spinbox/>` cuja chave nunca foi escrita
+      -- nasce em branco (o primeiro clique num degrau o inicializa no `min`), e um
+      -- campo numérico vazio parece um campo quebrado.
+      function init()
+        ctx.quantidade = "1"
+        ctx.preco = "4.50"
+        ctx.zoom = "100"
+        ctx.adultos = "2"
+        ctx.criancas = "0"
+        ctx.mesas = "2"
+        ctx.obs = ""
+      end
+    """
+
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).

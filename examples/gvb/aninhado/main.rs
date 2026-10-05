@@ -90,7 +90,6 @@ impl Component for Painel {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Componentes Aninhados")
         .main(|motor| {
             // Registra só o pai; o filho entra em cascata via children().
             if let Err(e) = motor.register(Box::new(Painel { quente: false })) {

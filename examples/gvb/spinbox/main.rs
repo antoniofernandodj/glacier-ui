@@ -12,30 +12,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - SpinBox")
-        .main(|motor| {
-            motor
-                .register_component("spinbox", "examples/gvb/spinbox/app.gvb")
-                .expect("registrar a tela do exemplo");
-            // Valor inicial de cada chave. É a única coisa que o app faz além
-            // de registrar a tela: um `<spinbox/>` cuja chave nunca foi escrita
-            // nasce em branco (o primeiro clique num degrau o inicializa no
-            // `min`), e um campo numérico vazio parece um campo quebrado.
-            //
-            // Uma chamada por chave, com a chave literal: é o que a extensão do
-            // VS Code procura (`define_data("…"`) para linkar o `value="preco"`
-            // do template até aqui. Num laço sobre uma lista de tuplas o link
-            // some.
-            motor.define_data("quantidade", "1");
-            motor.define_data("preco", "4.50");
-            motor.define_data("zoom", "100");
-            motor.define_data("adultos", "2");
-            motor.define_data("criancas", "0");
-            // A dupla da 0.69: `class` na Row, `field_class` no campo.
-            motor.define_data("mesas", "2");
-            motor.define_data("obs", "");
-            motor.set_initial_screen("spinbox");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/spinbox/app.gvb").run()
 }

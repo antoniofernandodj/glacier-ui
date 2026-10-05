@@ -13,16 +13,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier — séries múltiplas (Luau)")
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            if let Err(e) = motor.register_component(
-                "series_multiplas_luau",
-                "examples/gvb/series_multiplas_luau/app.gvb",
-            ) {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("series_multiplas_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/series_multiplas_luau/app.gvb").run()
 }

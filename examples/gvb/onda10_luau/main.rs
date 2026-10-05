@@ -29,7 +29,7 @@ fn carrega(caminhos: &[&str]) -> Option<&'static [u8]> {
 }
 
 fn main() -> iced::Result {
-    let mut daemon = GlacierDaemon::new().title("Glacier — Onda 10 (Luau)");
+    let mut daemon = GlacierDaemon::new();
 
     let familias: [(&str, &[&str]); 4] = [
         (
@@ -72,13 +72,6 @@ fn main() -> iced::Result {
     }
 
     daemon
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            if let Err(e) =
-                motor.register_component("onda10_luau", "examples/gvb/onda10_luau/app.gvb")
-            {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("onda10_luau");
-        })
+        .main_template("examples/gvb/onda10_luau/app.gvb")
         .run()
 }

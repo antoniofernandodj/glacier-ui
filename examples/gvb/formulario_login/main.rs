@@ -77,7 +77,6 @@ impl Component for Login {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Formulário (Reactive Forms)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Login::new())) {
                 eprintln!("Erro ao registrar 'login': {}", e);

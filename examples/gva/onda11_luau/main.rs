@@ -23,15 +23,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Onda 11 (Luau)")
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            if let Err(e) =
-                motor.register_component("onda11_luau", "examples/gva/onda11_luau/app.gva")
-            {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("onda11_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/onda11_luau/app.gva").run()
 }

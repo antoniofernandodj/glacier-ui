@@ -36,7 +36,6 @@ impl Component for Contador {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Contador")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Contador::new())) {
                 eprintln!("Error registering component: {}", e);

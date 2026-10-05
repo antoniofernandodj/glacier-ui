@@ -50,7 +50,6 @@ impl Component for Painel {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Webview")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Painel)) {
                 eprintln!("Erro ao registrar componente: {e}");

@@ -9,15 +9,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Contador (script)")
-        .main(|motor| {
-            if let Err(e) =
-                motor.register_component("contador", "examples/gvb/contador_macro/contador_macro.gvb")
-            {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("contador");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/contador_macro/contador_macro.gvb").run()
 }

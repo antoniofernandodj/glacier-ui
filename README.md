@@ -1249,8 +1249,10 @@ Do lado Rust, os equivalentes são `Context::open_window` / `Context::broadcast`
 
 Quando a janela principal é só um `.gv`, `main_template` poupa o `setup`: ele
 registra o arquivo com o nome sem extensão (`views/app.gv` → `app`) e o torna a
-tela inicial. Para chamar `load_stylesheet` ou registrar mais componentes, use
-`.main`. Sem nenhum dos dois, o `run` abre `./views/app.gv` ou, se ele não
+tela inicial. `load_stylesheet` e mais componentes não pedem `.main`: são
+`<link rel="stylesheet">` e `<link rel="import">` no `<resources>` (a tabela do que
+cada chamada do builder vira no markup está em [`docs/DAEMON.md`](docs/DAEMON.md)).
+Sem nenhum dos dois, o `run` abre `./views/app.gv` ou, se ele não
 existir, `app.gv`.
 
 ```rust

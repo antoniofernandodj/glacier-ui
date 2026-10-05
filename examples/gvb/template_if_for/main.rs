@@ -104,7 +104,6 @@ impl Component for Tarefas {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - template com if e for")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Tarefas::new())) {
                 eprintln!("Erro ao registrar a tela: {e}");

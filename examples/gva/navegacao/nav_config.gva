@@ -22,7 +22,7 @@
         <input
           placeholder="Seu nome..."
           :value="user_name"
-          on_change="mudar_nome"
+          on_change="user_name"
           class="campo"
         />
       </column>

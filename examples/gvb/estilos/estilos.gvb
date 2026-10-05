@@ -5,6 +5,7 @@ screen(title = "Glacier - Estilos (.gss)") {
 
     // Stylesheet COM ESCOPO: as classes .btn* só valem dentro deste componente.
     link(rel = stylesheet, href = "examples/gvb/estilos/estilos.gss")
+    link(rel = stylesheet, href = "examples/gvb/estilos/app.gss")
   }
 
   container(class = card) {

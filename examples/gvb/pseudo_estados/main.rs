@@ -60,13 +60,9 @@ impl Component for PseudoEstados {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Pseudo-estados (:hover/:focus/:active/:disabled)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(PseudoEstados)) {
                 eprintln!("Erro ao registrar 'pseudo_estados': {}", e);
-            }
-            if let Err(e) = motor.load_stylesheet("examples/gvb/pseudo_estados/pseudo_estados.gss") {
-                eprintln!("Erro ao carregar stylesheet: {}", e);
             }
             motor.set_initial_screen("pseudo_estados");
         })

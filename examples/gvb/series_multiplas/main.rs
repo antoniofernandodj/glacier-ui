@@ -93,7 +93,6 @@ fn rotaciona_series(bruto: &str) -> String {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier — séries múltiplas")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(SeriesMultiplas)) {
                 eprintln!("Erro ao registrar a tela: {e}");

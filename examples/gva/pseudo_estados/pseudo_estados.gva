@@ -1,6 +1,7 @@
 <screen title="Glacier - Pseudo-estados (:hover/:focus/:active/:disabled)">
   <resources>
     <link rel="stylesheet" href="examples/gva/pseudo_estados/app.gss" />
+    <link rel="stylesheet" href="examples/gva/pseudo_estados/pseudo_estados.gss" />
     <!-- Tema da janela (paleta do iced) — também elimina o fundo branco padrão. -->
     <link rel="theme" href="examples/gva/pseudo_estados/theme.json" />
   </resources>

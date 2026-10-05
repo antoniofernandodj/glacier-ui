@@ -57,7 +57,6 @@ fn main() -> iced::Result {
     // O `GlacierDaemon` já liga a expiração automática dos toasts (e o
     // hot-reload); sem ele os toasts só fechariam pelo "×".
     GlacierDaemon::new()
-        .title("Glacier - Toasts")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Toasts { disparados: 0 })) {
                 eprintln!("Error registering component: {}", e);

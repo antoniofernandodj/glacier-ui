@@ -149,7 +149,6 @@ impl Component for Cozinha {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Pedidos (foreach + fallback)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Cozinha::default())) {
                 eprintln!("Erro ao registrar a tela: {e}");

@@ -19,28 +19,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - TimePicker")
-        .main(|motor| {
-            // A tela NÃO pode se chamar `timepicker`: o registro do app vence o
-            // builtin de mesmo nome (a regra de override), então a tag
-            // `<timepicker/>` de dentro do template passaria a apontar para a
-            // própria tela — recursão infinita. O motor agora acusa isso com um
-            // erro em vez de estourar a pilha, mas o nome certo evita o assunto.
-            motor
-                .register_component("tela_hora", "examples/gvb/timepicker/app.gvb")
-                .expect("registrar a tela do exemplo");
-            // Uma chamada por chave, com a chave literal: é o que a extensão do
-            // VS Code procura (`define_data("…"`) para linkar o `value="inicio"`
-            // do template até aqui. Num laço sobre uma lista de tuplas o link
-            // some.
-            motor.define_data("data", "2026-09-01");
-            motor.define_data("hora", "13:45:02");
-            motor.define_data("quando", "2026-09-01 09:00");
-            motor.define_data("data_br", "2026-09-01");
-            motor.define_data("de", "09:00");
-            motor.define_data("ate", "18:00");
-            motor.set_initial_screen("tela_hora");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/timepicker/app.gvb").run()
 }

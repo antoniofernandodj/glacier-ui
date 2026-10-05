@@ -71,7 +71,6 @@ impl Component for Onda2 {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Onda 2")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Onda2)) {
                 eprintln!("Erro ao registrar a tela: {e}");

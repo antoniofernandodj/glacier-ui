@@ -25,16 +25,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Componentes por atributo (Luau)")
-        .main(|motor| {
-            if let Err(e) = motor.register_component(
-                "componentes_por_atributo_luau",
-                "examples/gva/componentes_por_atributo_luau/app.gva",
-            ) {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("componentes_por_atributo_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/componentes_por_atributo_luau/app.gva").run()
 }

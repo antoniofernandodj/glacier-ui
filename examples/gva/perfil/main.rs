@@ -72,7 +72,6 @@ impl Component for Perfil {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Painel de Perfil")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Perfil::new())) {
                 eprintln!("Error registering component 'perfil': {}", e);

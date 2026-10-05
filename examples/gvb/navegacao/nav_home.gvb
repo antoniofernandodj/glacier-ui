@@ -1,5 +1,16 @@
 screen(title = "Glacier - Navegação · Início") {
   resources {
+    link(rel = import, href = "examples/gvb/navegacao/nav_perfil.gvb", as = perfil)
+    link(rel = import, href = "examples/gvb/navegacao/nav_config.gvb", as = config)
+
+    script """
+      -- Estado compartilhado entre as telas (não pertence a uma tela só).
+      function init()
+        ctx.user_name = "Clara Silva"
+        ctx.user_role = "Engenheira de Software"
+      end
+    """
+
     link(rel = stylesheet, href = "examples/gvb/navegacao/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais

@@ -273,6 +273,19 @@ fn bare_ok(s: &str) -> bool {
         && !s.contains("//")
 }
 
+/// Atributos que o `.gva` escreve sem valor (`<prop component name="x" />`,
+/// `<template else>`): no `.gvb` também ficam sem `= valor`.
+const MARCADORES: &[&str] = &["else", "senao", "component", "not_empty", "notEmpty", "not-empty", "nao_vazio"];
+
+/// `nome = valor`, ou só `nome` quando é um marcador vazio.
+fn attr_text(k: &str, v: &str) -> String {
+    if v.is_empty() && MARCADORES.contains(&k) {
+        k.to_string()
+    } else {
+        format!("{k} = {}", val(v))
+    }
+}
+
 /// O valor de um atributo, no formato mais curto que a leitura aceita.
 fn val(v: &str) -> String {
     // Uma referência a outro template (`from="x.gva"`) aponta para a tradução, e
@@ -413,7 +426,7 @@ impl Conv {
             if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                 self.err(format!("atributo `{k}` com nome que a leitura não aceita"));
             }
-            rest.push(format!("{k} = {}", val(v)));
+            rest.push(attr_text(k, v));
         }
         (tag.to_string(), rest)
     }
@@ -433,7 +446,7 @@ impl Conv {
                     if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                         this.err(format!("atributo `{k}` inválido"));
                     }
-                    format!("{k} = {}", val(v))
+                    attr_text(k, v)
                 })
                 .collect()
         };
@@ -612,7 +625,7 @@ impl Conv {
                     if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                         self.err(format!("atributo `{k}` inválido"));
                     }
-                    r.push(format!("{k} = {}", val(v)));
+                    r.push(attr_text(k, v));
                 }
                 (h.clone(), r)
             }

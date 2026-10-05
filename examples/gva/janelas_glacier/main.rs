@@ -84,8 +84,6 @@ impl Component for Painel {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Janela principal")
-        .main_size(520.0, 400.0)
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Painel::new())) {
                 eprintln!("Erro ao registrar 'painel': {e}");

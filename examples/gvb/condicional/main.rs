@@ -29,7 +29,6 @@ impl Component for Condicional {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Condicional")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Condicional)) {
                 eprintln!("Erro ao registrar 'condicional': {}", e);

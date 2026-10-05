@@ -13,13 +13,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - fetch em Lua")
-        .main(|motor| {
-            if let Err(e) = motor.register_component("fetch", "examples/gva/fetch_luau/fetch_luau.gva") {
-                eprintln!("Erro ao registrar: {}", e);
-            }
-            motor.set_initial_screen("fetch");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gva/fetch_luau/fetch_luau.gva").run()
 }

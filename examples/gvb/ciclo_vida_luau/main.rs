@@ -18,18 +18,12 @@ fn main() -> iced::Result {
     let porta = servidor::iniciar();
 
     GlacierDaemon::new()
-        .title("Glacier - ciclo de vida (Luau)")
         .main(move |motor| {
             // A URL do servidor chega ao script pelo contexto.
             motor.define_data("sse_url", &format!("http://127.0.0.1:{porta}/sse"));
             motor.define_data("ws_url", &format!("ws://127.0.0.1:{porta}/ws"));
-            for (nome, caminho) in [
-                ("inicio", "examples/gvb/ciclo_vida_luau/inicio.gvb"),
-                ("monitor", "examples/gvb/ciclo_vida_luau/monitor.gvb"),
-            ] {
-                if let Err(e) = motor.register_component(nome, caminho) {
-                    eprintln!("Erro ao registrar '{nome}': {e}");
-                }
+            if let Err(e) = motor.register_component("inicio", "examples/gvb/ciclo_vida_luau/inicio.gvb") {
+                eprintln!("Erro ao registrar 'inicio': {e}");
             }
             motor.set_initial_screen("inicio");
         })

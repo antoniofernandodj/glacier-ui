@@ -333,6 +333,15 @@ impl Parser {
             let name = self.ident();
             let name = if bind { format!(":{name}") } else { name };
             self.skip_ws()?;
+            // Um atributo sem `= valor` é um marcador (`else`, `component`): o
+            // mesmo que `nome=""` no XML, e o `.gva` também o escreve sem valor.
+            if matches!(self.peek(), Some(',' | ')')) {
+                attrs.push(Attr { name, value: String::new(), line });
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
             if self.peek() != Some('=') {
                 return self.err_hint(
                     format!("esperava `=` depois de `{name}`"),

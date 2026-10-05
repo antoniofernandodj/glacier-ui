@@ -82,7 +82,7 @@ fn carrega(caminhos: &[&str]) -> Option<&'static [u8]> {
 }
 
 fn main() -> iced::Result {
-    let mut daemon = GlacierDaemon::new().title("Glacier — Onda 10 (fontes)");
+    let mut daemon = GlacierDaemon::new();
 
     // Uma entrada por família. O NOME passado aqui é o que `font="…"` no `.gva`
     // e `font_family` no `.gss` passam a resolver — e o que aparece no

@@ -110,7 +110,9 @@ muda é só a grafia, e cabe em dez regras.
 2. **A forma é `tag(atributos) { filhos }`**, e cada parte é opcional. Atributo
    **nunca** fica nas chaves, e as chaves **só** têm filhos: sem filhos, não há
    chaves — `shortcut(key = ctrl+s, on_press = salvar)`.
-3. **Atributo é `nome = valor`, separados por vírgula** (a última é opcional). O
+3. **Atributo é `nome = valor`, separados por vírgula** (a última é opcional). Um
+   marcador sem valor (`else`, `component`) se escreve só pelo nome —
+   `template(else)`, `prop(component, name = linha)` —, o mesmo que `nome=""`. O
    valor é uma palavra solta (`on_click = somar`, `size = 12`, `color = #7F849C`)
    ou uma string entre aspas (`size = "420 340"`, `padding = "10 20"`). Entre
    aspas sempre que tiver espaço, vírgula, `(`, `)` ou `//`. Quando não cabe em
@@ -576,6 +578,57 @@ fn main() -> glacier_ui::iced::Result {
     // Sem `.main_template`, o runner abre `views/app.gva`, `.gvb` ou `.gv`.
     GlacierDaemon::new().main_template("views/servicos.gva").run()
 }
+```
+
+### O `main.rs`: o mínimo de Rust
+
+O `GlacierDaemon` tem uma API em Rust (`.title`, `.main(|motor| …)`, `.tray`), mas
+**quase tudo o que ela faz também se escreve no markup**. A regra deste projeto:
+**Rust só para o que o markup não expressa.** Antes de escrever uma chamada,
+procure a forma no cabeçalho do template.
+
+| Chamada em Rust | No markup |
+|---|---|
+| `.main_template("views/app.gvb")` | **é a forma markup.** Sem ela, o runner abre `views/app.*` |
+| `.title("Meu app")` | `<screen title="Meu app">` — **vence** o `.title` |
+| `.main_size(900.0, 600.0)` | `<screen size="900 600">` — **vence** o `.main_size` |
+| `.main_window(Settings)` | `<screen decorations="false" icon="…" min_size="…" max_size="…" fixed_size="…" resizable="false">`. Posição inicial e `platform_specific` só em Rust |
+| `.child_window(f)` | cada janela filha tem o próprio `<screen>` |
+| `.single_instance("id")` | `<app id="id" single_instance="true" />` |
+| `.remember_window_geometry(true)` | `<app id="id" remember_geometry="true" />` |
+| `.storage_dir(dir)` | sai do `id` do `<app>` (`~/.local/share/<id>`); outro diretório só em Rust |
+| `.tray(cfg)` + `.on_tray(f)` | `<tray>` com `<item>`/`<check>`/`<separator>`; `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho |
+| `.style(style::FUSION)` | `on_click="style:fusion"` num botão troca em tempo de execução; o estilo **inicial** só em Rust |
+| `.font(bytes)`, `.font_named(…)`, `.default_font(…)` | só em Rust (bytes do binário); depois, `font="Inter"` / `font_family: Inter` |
+| `.antialiasing`, `.reload_period`, `.toast_period`, `.assets`, `.lua_extension`, `.on_message`, `.on_close` | só em Rust |
+
+Dentro de um `.main(|motor| …)`:
+
+| Chamada no `.main` | No markup |
+|---|---|
+| `register_component("app", "views/app.gvb")` + `set_initial_screen("app")` | `.main_template("views/app.gvb")` |
+| `register_component("detalhe", "views/detalhe.gvb")` | `<link rel="import" href="views/detalhe.gvb" />` (`as="detalhe"` troca o nome) |
+| `load_stylesheet("views/app.gss")` | `<link rel="stylesheet" href="views/app.gss" />` |
+| `define_data("paises", json)` | `<link rel="data" as="paises" href="views/paises.json" />` |
+| `define_data("qtd", "1")` | `<script>` com `function init() ctx.qtd = "1" end` |
+| `register(Box::new(MeuComponente))` | **só em Rust** — é o motivo legítimo de ter um `.main` |
+
+Duas regras valem para todas as linhas: **o `<screen>` vence o builder** (apague
+`.title`/`.main_size` e escreva no template), e **`<app>` e `<tray>` só são lidos
+do template principal**, e só quando ele vem do padrão ou de `.main_template(…)` —
+um `.main(|motor| …)` escrito à mão não diz qual é, então o `<app>` e a `<tray>`
+dele são ignorados. Um app com bandeja não precisa de `.main`: a lógica no `<script>` Luau (`notify`,
+`toast`, `ctx`) mantém o `main_template` e a `<tray>` lida. Uma tela **sem** lógica em Rust (a lógica no `<script>` Luau)
+é só `GlacierDaemon::new().main_template("…").run()`; uma com `impl Component`
+precisa do `.main`, e só dele:
+
+```rust
+GlacierDaemon::new()
+    .main(|motor| {
+        let _ = motor.register(Box::new(Contador::new()));
+        motor.set_initial_screen("contador");
+    })
+    .run()
 ```
 
 ## O que custa num quadro, em ordem
@@ -3476,16 +3529,21 @@ template; o builder fica com o que o markup não expressa:
 
 ```rust
 GlacierDaemon::new()
-    .title("Meu app")
-    .main_size(980, 640)
     .font_named("Inter", include_bytes!("Inter.ttf"))   // `font="Inter"` no .gva/.gss
+    .main_template("views/app.gva")   // título e tamanho: `<screen title="…" size="…">`
+    .run()
+
+// uma tela cuja lógica é um `impl Component` em Rust é a exceção que pede `.main`:
+GlacierDaemon::new()
     .main(|motor| {
-        motor.register_component("app", "views/app.gva").ok();   // tela vinda de .gva
-        motor.register(Box::new(Contador::new())).ok();          // tela vinda de Rust
-        motor.set_initial_screen("app");
+        motor.register(Box::new(Contador::new())).ok();
+        motor.set_initial_screen("contador");
     })
     .run()
 ```
+
+A tabela completa do que cada chamada vira no markup está em "O `main.rs`: o
+mínimo de Rust".
 
 Rust e Luau convivem: um componente Rust cujo `.gva` tenha `<script>` roda o
 Luau **primeiro** e cai no `update` do Rust só para as ações que o script não

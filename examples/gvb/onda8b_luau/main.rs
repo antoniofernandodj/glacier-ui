@@ -35,13 +35,5 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new()
-        .title("Glacier - Onda 8b (Luau)")
-        .main(|motor: &mut glacier_ui::GlacierUI| {
-            if let Err(e) = motor.register_component("onda8b_luau", "examples/gvb/onda8b_luau/app.gvb") {
-                eprintln!("Erro ao registrar a tela: {e}");
-            }
-            motor.set_initial_screen("onda8b_luau");
-        })
-        .run()
+    GlacierDaemon::new().main_template("examples/gvb/onda8b_luau/app.gvb").run()
 }

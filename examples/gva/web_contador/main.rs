@@ -38,7 +38,7 @@ impl Component for Contador {
 }
 
 fn main() -> glacier_ui::iced::Result {
-    let daemon = GlacierDaemon::new().title("Glacier na web");
+    let daemon = GlacierDaemon::new();
 
     #[cfg(target_arch = "wasm32")]
     let daemon = daemon.assets(std::sync::Arc::new(glacier_ui::embed_assets![

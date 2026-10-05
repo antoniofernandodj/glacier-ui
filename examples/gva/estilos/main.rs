@@ -43,15 +43,9 @@ impl Component for Estilos {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - Estilos (.gss)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Estilos)) {
                 eprintln!("Erro ao registrar 'estilos': {}", e);
-            }
-            // Carrega a stylesheet depois do componente: `load_stylesheet`
-            // re-avalia todos os templates já registrados com as classes.
-            if let Err(e) = motor.load_stylesheet("examples/gva/estilos/app.gss") {
-                eprintln!("Erro ao carregar stylesheet: {}", e);
             }
             motor.set_initial_screen("estilos");
         })

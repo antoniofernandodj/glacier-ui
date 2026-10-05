@@ -96,7 +96,6 @@ fn main() -> iced::Result {
     servidor::iniciar();
 
     GlacierDaemon::new()
-        .title("Glacier - ciclo de vida (Rust)")
         .main(|motor| {
             motor.register(Box::new(Inicio)).expect("inicio");
             motor

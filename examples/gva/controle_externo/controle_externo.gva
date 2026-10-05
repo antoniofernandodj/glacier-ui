@@ -1,5 +1,5 @@
 <!--
-  A forma com cabeçalho: a raiz é a `<screen>`, que declara o que a JANELA é
+  A forma com cabeçalho: a raiz é a `<screen title="Glacier - Controle externo">`, que declara o que a JANELA é
   (título, tamanho) e agrupa em `<resources>` o que a tela precisa para existir
   (estilo, script). Depois do `</resources>` vem só layout — nada que não
   desenhe fica no meio dos widgets.

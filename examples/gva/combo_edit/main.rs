@@ -113,7 +113,6 @@ impl Component for Servidores {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier - ComboEdit (servidores salvos)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Servidores::new())) {
                 eprintln!("Erro ao registrar 'servidores': {}", e);

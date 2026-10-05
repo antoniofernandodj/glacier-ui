@@ -1,5 +1,16 @@
 <screen title="Glacier - Navegação · Início">
  <resources>
+    <link rel="import" href="examples/gva/navegacao/nav_perfil.gva" as="perfil" />
+    <link rel="import" href="examples/gva/navegacao/nav_config.gva" as="config" />
+
+    <script>
+      -- Estado compartilhado entre as telas (não pertence a uma tela só).
+      function init()
+        ctx.user_name = "Clara Silva"
+        ctx.user_role = "Engenheira de Software"
+      end
+    </script>
+
    <link rel="stylesheet" href="examples/gva/navegacao/app.gss" />
   <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais

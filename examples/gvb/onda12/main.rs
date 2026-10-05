@@ -118,7 +118,6 @@ impl Component for Dock {
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
-        .title("Glacier — Onda 12 (dock)")
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Dock)) {
                 eprintln!("Erro ao registrar a tela: {e}");

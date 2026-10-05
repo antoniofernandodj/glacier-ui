@@ -71,7 +71,6 @@ fn main() -> iced::Result {
     // O `GlacierDaemon` já registra o listener global de "soltar o mouse" (que
     // encerra o drag) e o hot-reload — sem wiring manual de subscription.
     GlacierDaemon::new()
-        .title("Glacier - Lista Reordenável (drag-and-drop)")
         .main(|motor| {
             let tarefas = vec![
                 Tarefa {
