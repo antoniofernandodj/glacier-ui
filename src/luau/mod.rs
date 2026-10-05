@@ -1578,8 +1578,8 @@ fn build_file_dialog(req: &Table) -> mlua::Result<FileDialogSpec> {
 /// A fonte é `webview_url` (webview nativa cobrindo a janela — ver
 /// [`crate::component::WindowSource::WebView`]), `file` (caminho de template)
 /// ou `component` (nome já registrado no motor de origem, resolvido para o
-/// arquivo em `run_on_owner`). `title`, `width`/`height` e `resizable` são
-/// opcionais. `webview_url` vence os outros dois quando mais de um vier
+/// arquivo em `run_on_owner`). `title`, `width`/`height`/`size`, `resizable` e
+/// `decorations` são opcionais. `webview_url` vence os outros dois quando mais de um vier
 /// preenchido — não há um motor por trás dela para `data`/`file`/`component`
 /// fazerem sentido junto.
 fn build_window_spec(lua: &Lua, req: &Table) -> mlua::Result<crate::component::WindowSpec> {
@@ -1620,6 +1620,9 @@ fn build_window_spec(lua: &Lua, req: &Table) -> mlua::Result<crate::component::W
     }
     if let Some(resizable) = req.get::<Option<bool>>("resizable")? {
         spec = spec.resizable(resizable);
+    }
+    if let Some(decorations) = req.get::<Option<bool>>("decorations")? {
+        spec = spec.decorations(decorations);
     }
     // `data = { chave = valor, ... }`: semeia o contexto da nova janela. Cada
     // valor é convertido em string pela mesma regra de `ctx.foo = ...` (tabelas

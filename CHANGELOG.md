@@ -10,6 +10,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.118.0 — 2026-10-05
+
+- **`open_window` aceita `decorations`.** `open_window{ component = "log", size = "900 560",
+  decorations = false }` abre a janela sem a moldura do sistema (titlebar própria com
+  `window:drag`/`window:close`); em Rust, `WindowSpec::decorations(bool)`. A moldura de uma
+  janela filha deixa de depender de um `.child_window(…)` em Rust, e vale para a webview
+  também.
+
+---
+
 ## glacier-ui 0.117.2 — 2026-10-05
 
 - **As telas do app só são registradas quando viram a ativa.** `register_app`

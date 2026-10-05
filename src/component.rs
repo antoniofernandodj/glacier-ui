@@ -376,6 +376,10 @@ pub struct WindowSpec {
     pub size: Option<(f32, f32)>,
     /// Se a janela é redimensionável. Default `true`.
     pub resizable: bool,
+    /// `Some(false)` abre a janela **sem a moldura do sistema** (borderless, para
+    /// uma titlebar própria com `window:drag`/`window:close`); `None` deixa o
+    /// padrão — e, havendo, o `decorations` que o app declarou.
+    pub decorations: Option<bool>,
     /// Valores `(chave, valor)` semeados no contexto do motor da nova janela
     /// **antes** de seu componente inicializar — como passar parâmetros para a
     /// janela (`open_window({ file = ..., data = { url = ..., token = ... } })`
@@ -411,6 +415,7 @@ impl WindowSpec {
             title: None,
             size: None,
             resizable: true,
+            decorations: None,
             data: Vec::new(),
         }
     }
@@ -430,6 +435,12 @@ impl WindowSpec {
     /// Define o tamanho inicial `(largura, altura)` (encadeável).
     pub fn size(mut self, width: f32, height: f32) -> Self {
         self.size = Some((width, height));
+        self
+    }
+
+    /// Liga ou desliga a moldura do sistema da janela (encadeável).
+    pub fn decorations(mut self, decorations: bool) -> Self {
+        self.decorations = Some(decorations);
         self
     }
 

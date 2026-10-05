@@ -81,7 +81,7 @@ isso se escreve no markup**.
 | `.title("Meu app")` | título da janela principal | `screen(title = …)`, a da tela ativa — **vence** o `.title` |
 | `.main_size(900.0, 600.0)` | tamanho inicial | `app(size = "900 600")` — **vence** o `.main_size` |
 | `.main_window(Settings)` | `decorations`, `icon`, `min_size`, `resizable`… | `app(decorations = false, icon = "…", min_size = "…", max_size = "…", fixed_size = "…", resizable = false)`. Posição inicial, `platform_specific` e `exit_on_close_request` só em Rust |
-| `.child_window(f)` | ajusta as `Settings` das janelas abertas por `open_window` | o tamanho de cada filha vai em `open_window("nome", { size = "…" })` |
+| `.child_window(f)` | ajusta as `Settings` das janelas abertas por `open_window` | o tamanho e a moldura de cada filha vão em `open_window("nome", { size = "…", decorations = false })`; o resto (`platform_specific`…) só em Rust |
 | `.single_instance("meu-app")` | uma segunda execução foca a primeira e sai | `app(id = meu_app, single_instance = true)` |
 | `.remember_window_geometry(true)` | grava o tamanho/posição ao fechar e restaura ao abrir | `app(id = meu_app, remember_geometry = true)` |
 | `.storage_dir(dir)` | onde o global `storage` e a geometria gravam | sai do `id` do `app` (`~/.local/share/<id>`). Um diretório próprio só em Rust |

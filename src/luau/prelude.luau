@@ -325,6 +325,7 @@ end
 -- Num app (raiz `app(...)`), o nome é o de uma TELA do manifesto, e o tamanho vai
 -- na chamada (a `screen` é só conteúdo):
 --   open_window("sobre", { size = "420 300", title = "Sobre" })
+-- `decorations = false` abre a janela sem a moldura do sistema (titlebar própria).
 function open_window(opts, more)
     local t
     if type(opts) == "table" then

@@ -1482,7 +1482,7 @@ impl Runtime {
         // mais curto, à parte do resto desta função (que é toda sobre montar
         // um `GlacierUI`).
         if let WindowSource::WebView(url) = spec.source {
-            return self.open_webview_child(url, spec.title, spec.size, spec.resizable);
+            return self.open_webview_child(url, spec.title, spec.size, spec.resizable, spec.decorations);
         }
         // O motor primeiro: é ele que sabe o que o `<screen>` do arquivo declara,
         // e a janela ainda não abriu — mesma janela de tempo que o boot usa para
@@ -1507,6 +1507,7 @@ impl Runtime {
             title,
             size,
             resizable,
+            decorations,
             data,
         } = spec;
         let (engine, fallback_title) =
@@ -1533,6 +1534,10 @@ impl Runtime {
         // `max_size`, `fixed_size`, `decorations` e `icon` do `<screen>` da
         // filha: cada janela declara a própria moldura, como a principal.
         apply_window_bounds(&meta, &mut settings);
+        // Quem abre a janela decide a moldura: `open_window{ decorations = false }`.
+        if let Some(d) = decorations {
+            settings.decorations = d;
+        }
         apply_window_icon(&meta, &mut settings, self.assets.as_ref());
         // O ícone do `app(...)` é herdado pelas filhas que não declaram o seu.
         if meta.icon.is_none()
@@ -1548,6 +1553,7 @@ impl Runtime {
                 title: title.clone(),
                 size,
                 resizable,
+                decorations,
                 data,
             };
             f(&echo, &mut settings);
@@ -1577,11 +1583,13 @@ impl Runtime {
         title: Option<String>,
         size: Option<(f32, f32)>,
         resizable: bool,
+        decorations: Option<bool>,
     ) -> Task<DaemonMessage> {
         let (w, h) = size.unwrap_or((960.0, 600.0));
         let mut settings = window::Settings {
             size: Size::new(w, h),
             resizable,
+            decorations: decorations.unwrap_or(true),
             ..window::Settings::default()
         };
         if let Some(f) = &self.child_settings {
@@ -1590,6 +1598,7 @@ impl Runtime {
                 title: title.clone(),
                 size,
                 resizable,
+                decorations,
                 data: Vec::new(),
             };
             f(&echo, &mut settings);
