@@ -1,6 +1,7 @@
 //! Confere o dessugarador do `.gvb`: converte um `.gvb`, parseia, e compara a
 //! árvore com a do `.gv` equivalente. `cargo run --example gvb_check -- A.gvb B.gv`
-//! (com um terceiro argumento, `--xml`, imprime o XML gerado).
+//! (com um terceiro argumento, `--xml`, imprime o XML gerado). `--same` aceita
+//! um `.xml` no lugar de um dos lados.
 use glacier_ui::parser::UiNode;
 
 fn main() {
@@ -16,7 +17,9 @@ fn main() {
                 .replace("{{nome_crate}}", "meu_app")
                 .replace("{{titulo}}", "Meu App")
                 .replace("{{versao_motor}}", "0.0.0");
-            let (markup, script) = glacier_ui::eval::strip_script(&glacier_ui::gvb::desugar(&src).map_err(|d| d.message)?);
+            // um `.xml` entra como está (o XML que um parser antigo gerou)
+            let xml = if f.ends_with(".xml") { src.clone() } else { glacier_ui::gvb::desugar(&src).map_err(|d| d.message)? };
+            let (markup, script) = glacier_ui::eval::strip_script(&xml);
             let markup = glacier_ui::eval::normalize_bare_directives(&markup);
             let t = UiNode::parse_xml_with_source(&markup, &src, None).map_err(|e| e.to_string())?;
             let mut ls: Vec<String> = format!("{t:#?}")
@@ -39,6 +42,33 @@ fn main() {
         }
         return;
     }
+    // `--styled a.gvb b.gva …`: avalia cada tela com o `.gss` aplicado e imprime a
+    // árvore RESOLVIDA (largura, cor, tamanho… já vindos das classes), sem
+    // `node_id`, `line` e os campos de classe. Duas escritas da mesma tela — uma com
+    // o estilo inline, outra com ele no `.gss` — têm de imprimir o mesmo.
+    if args.first().map(String::as_str) == Some("--styled") {
+        for f in &args[1..] {
+            let mut ui = glacier_ui::GlacierUI::new();
+            println!("=== {f}");
+            if let Err(e) = ui.register_component("t", f) {
+                println!("ERRO {e}");
+                continue;
+            }
+            match ui.evaluated("t") {
+                Ok(t) => {
+                    for l in format!("{t:#?}").lines() {
+                        let tr = l.trim_start();
+                        if tr.starts_with("node_id:") || tr.starts_with("line:") || tr.starts_with("class") {
+                            continue;
+                        }
+                        println!("{l}");
+                    }
+                }
+                Err(e) => println!("ERRO {e}"),
+            }
+        }
+        return;
+    }
     // `--load a.gvb b.gva …`: registra cada arquivo pelo CARREGADOR de verdade
     // (leitura, `.gvb` dessugarado, `<script>`, `<link>`), sem abrir janela.
     if args.first().map(String::as_str) == Some("--load") {
@@ -57,8 +87,9 @@ fn main() {
         return;
     }
     let gvb = std::fs::read_to_string(&args[0]).expect("lendo o .gvb");
-    if args.get(1).map(String::as_str) == Some("--xml") {
-        match glacier_ui::gvb::desugar(&gvb) {
+    if matches!(args.get(1).map(String::as_str), Some("--xml" | "--xml-lenient")) {
+        // `--xml-lenient` aceita uma ligação sem o `:` (os `.gvb` de antes da marca)
+        match glacier_ui::gvb::desugar_with(&gvb, args[1] == "--xml") {
             Ok(x) => print!("{x}"),
             Err(d) => eprintln!("{}", glacier_ui::error::GlacierError::Xml(Box::new(d))),
         }

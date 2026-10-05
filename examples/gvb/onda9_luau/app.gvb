@@ -1,338 +1,292 @@
-screen {
-  title: "Glacier — Onda 9 (Luau)" size: "1000 740" min_size: "860 620"
-
+screen(
+  title = "Glacier — Onda 9 (Luau)", size = "1000 740", min_size = "860 620",
+) {
   resources {
-    link { rel: stylesheet href: "examples/gvb/onda9_luau/app.gss" }
-    script { src: "scripts/app.luau" }
+    link(rel = stylesheet, href = "examples/gvb/onda9_luau/app.gss")
+    script(src = "scripts/app.luau")
   }
 
-  column {
-    class: tela
-
+  column(class = tela) {
     // Os dois atalhos da tela. Eles moram no LAYOUT e não no `<resources>`
     // porque é da árvore avaliada que o motor os colhe — o `<resources>` não
     // é árvore. Do lado Luau despacham funções comuns (`salvar()` e
     // `buscar()` no app.luau), e é por isso que o habilitador B não precisou
     // de global nenhum: um atalho não é um tipo novo de evento.
-    shortcut { key: ctrl+s on_press: salvar }
-    shortcut { key: ctrl+shift+p on_press: buscar }
+    shortcut(key = ctrl+s, on_press = salvar)
+    shortcut(key = ctrl+shift+p, on_press = buscar)
 
-    row {
-      class: barra
+    row(class = barra) {
+      text(
+        class = titulo,
+        content = "Onda 9 em Luau — o arrasto que não pediu API nova",
+      )
 
-      text "Onda 9 em Luau — o arrasto que não pediu API nova" {
-        class: titulo
-      }
-
-      space { class: empurra }
-      text "@status" { class: status }
+      space(class = empurra)
+      text(class = status, content = "@status")
       SizeGrip
     }
 
-    scrollable {
-      width: fill height: fill
-
-      column {
-        class: corpo
-
-        text """
-          A Onda 8 custou quatro globais novos ao Luau, porque um diálogo
-          SUSPENDE. Um arrasto não: ele escreve numa chave, e o Luau já escrevia
-          chaves. As nove tags abaixo chegam prontas, sem uma linha em
-          src/luau/.
-        """ {
-          class: lead
-        }
+    scrollable(class = rolagem) {
+      column(class = corpo) {
+        text(
+          class = lead,
+          content = """
+            A Onda 8 custou quatro globais novos ao Luau, porque um diálogo
+            SUSPENDE. Um arrasto não: ele escreve numa chave, e o Luau já escrevia
+            chaves. As nove tags abaixo chegam prontas, sem uma linha em
+            src/luau/.
+          """,
+        )
 
         // ── 1. Splitter ───────────────────────────────────────────────
-        frame {
-          shape: box class: bloco
+        frame(shape = box, class = bloco) {
+          column(class = painel) {
+            text(class = secao, content = "Splitter — trilhas numa chave")
 
-          column {
-            class: painel
+            text(
+              class = nota,
+              content = """
+                `ctx.painel_h = "300 fill"` é a linha inteira. Um número é pixel,
+                `fill` fica com o resto — o mesmo formato do `columns` do <grid>,
+                e a mesma chave que a alça de coluna de um <tableheader> escreve.
+              """,
+            )
 
-            text "Splitter — trilhas numa chave" { class: secao }
-
-            text """
-              `ctx.painel_h = "300 fill"` é a linha inteira. Um número é pixel,
-              `fill` fica com o resto — o mesmo formato do `columns` do <grid>,
-              e a mesma chave que a alça de coluna de um <tableheader> escreve.
-            """ {
-              class: nota
-            }
-
-            splitter {
-              sizes: painel_h min: 120 class: divide
-
-              column {
-                class: painel
-
-                text "Lateral" { class: secao }
-                text "painel_h = @painel_h" { class: chave }
+            splitter(:sizes = painel_h, min = 120, class = divide) {
+              column(class = painel) {
+                text(class = secao, content = "Lateral")
+                text(class = chave, content = "painel_h = @painel_h")
               }
 
-              splitter {
-                sizes: painel_v direction: v min: 80 class: divide_interno
-
-                column {
-                  class: painel
-
-                  text "Conteúdo" { class: secao }
+              splitter(
+                :sizes = painel_v, direction = v, min = 80,
+                class = divide_interno,
+              ) {
+                column(class = painel) {
+                  text(class = secao, content = "Conteúdo")
                 }
 
-                column {
-                  class: painel
-
-                  text "painel_v = @painel_v" { class: chave }
+                column(class = painel) {
+                  text(class = chave, content = "painel_v = @painel_v")
                 }
               }
             }
           }
         }
 
-        row {
-          class: colunas
-
+        row(class = colunas) {
           // ── 2. RangeSlider ──────────────────────────────────────────
-          frame {
-            shape: box class: bloco
+          frame(shape = box, class = bloco) {
+            column(class = painel) {
+              text(class = secao, content = "RangeSlider — duas chaves")
 
-            column {
-              class: painel
+              rangeslider(
+                :start = preco_min, :end = preco_max, min = 0, max = 1000,
+                step = 10,
+                size = 260,
+              )
 
-              text "RangeSlider — duas chaves" { class: secao }
+              text(class = valor, content = "R$ @preco_min — R$ @preco_max")
 
-              rangeslider {
-                start: preco_min end: preco_max min: 0 max: 1000 step: 10
-                size: 260
-              }
-
-              text "R$ @preco_min — R$ @preco_max" { class: valor }
-
-              text """
-                Duas chaves nomeadas, como no <daterangepicker range> da Onda 3
-                — e a razão de o "exige estado por instância" do catálogo nunca
-                ter valido aqui.
-              """ {
-                class: nota
-              }
+              text(
+                class = nota,
+                content = """
+                  Duas chaves nomeadas, como no <daterangepicker range> da Onda 3
+                  — e a razão de o "exige estado por instância" do catálogo nunca
+                  ter valido aqui.
+                """,
+              )
             }
           }
 
           // ── 3. Tumbler ──────────────────────────────────────────────
-          frame {
-            shape: box class: bloco
+          frame(shape = box, class = bloco) {
+            column(class = painel) {
+              text(class = secao, content = "Tumbler — a coleção é uma tabela")
 
-            column {
-              class: painel
+              row(class = roletas) {
+                tumbler(:value = mes, items = meses, visible = 5, size = 140)
 
-              text "Tumbler — a coleção é uma tabela" { class: secao }
-
-              row {
-                class: roletas
-
-                tumbler { value: mes items: meses visible: 5 size: 140 }
-
-                tumbler {
-                  value: regiao items: "norte,nordeste,centro-oeste,sudeste,sul"
-                  visible: 5 size: 140
-                }
+                tumbler(
+                  :value = regiao,
+                  items = "norte,nordeste,centro-oeste,sudeste,sul",
+                  visible = 5, size = 140,
+                )
               }
 
-              text "@mes · @regiao" { class: valor }
+              text(class = valor, content = "@mes · @regiao")
 
-              text """
-                Do lado Luau uma tabela vira JSON sozinha — é o que torna a
-                convenção `items` cômoda aqui e verbosa em Rust. A da direita
-                está escrita no atributo, que é a terceira forma que ela aceita.
-              """ {
-                class: nota
-              }
+              text(
+                class = nota,
+                content = """
+                  Do lado Luau uma tabela vira JSON sozinha — é o que torna a
+                  convenção `items` cômoda aqui e verbosa em Rust. A da direita
+                  está escrita no atributo, que é a terceira forma que ela aceita.
+                """,
+              )
             }
           }
         }
 
         // ── 4. SwipeView + PageIndicator ───────────────────────────────
-        frame {
-          shape: box class: bloco
+        frame(shape = box, class = bloco) {
+          column(class = painel) {
+            text(class = secao, content = "SwipeView — o único que delega")
 
-          column {
-            class: painel
+            text(
+              class = nota,
+              content = """
+                `on_change="virou"` manda o índice para a função `virou(indice)`
+                do script. Os outros oito widgets gravam a chave sozinhos: é o par
+                vazio/preenchido de todo widget deste motor.
+              """,
+            )
 
-            text "SwipeView — o único que delega" { class: secao }
+            swipeview(
+              :value = pagina, threshold = 130, on_change = virou,
+              class = paginas,
+            ) {
+              column(class = pagina) {
+                text(class = secao, content = "Página 0")
 
-            text """
-              `on_change="virou"` manda o índice para a função `virou(indice)`
-              do script. Os outros oito widgets gravam a chave sozinhos: é o par
-              vazio/preenchido de todo widget deste motor.
-            """ {
-              class: nota
-            }
-
-            swipeview {
-              value: pagina threshold: 130 on_change: virou class: paginas
-
-              column {
-                class: pagina
-
-                text "Página 0" { class: secao }
-
-                text """
-                  Arraste para o lado. O conteúdo segue o dedo: puxar para a
-                  esquerda anda para trás.
-                """ {
-                  class: nota
-                }
+                text(
+                  class = nota,
+                  content = """
+                    Arraste para o lado. O conteúdo segue o dedo: puxar para a
+                    esquerda anda para trás.
+                  """,
+                )
               }
 
-              column {
-                class: pagina
+              column(class = pagina) {
+                text(class = secao, content = "Página 1")
 
-                text "Página 1" { class: secao }
-
-                text """
-                  É <stackview> (Onda 8) mais o arrasto do grip. As duas pontas
-                  já existiam; faltava o meio.
-                """ {
-                  class: nota
-                }
+                text(
+                  class = nota,
+                  content = """
+                    É <stackview> (Onda 8) mais o arrasto do grip. As duas pontas
+                    já existiam; faltava o meio.
+                  """,
+                )
               }
 
-              column {
-                class: pagina
-
-                text "Página 2" { class: secao }
-                text "E satura: não existe página 3." { class: nota }
+              column(class = pagina) {
+                text(class = secao, content = "Página 2")
+                text(class = nota, content = "E satura: não existe página 3.")
               }
             }
 
-            row {
-              class: rodape_paginas
-
-              pageindicator { value: pagina total: 3 }
-              space { class: empurra }
-              text "pagina = @pagina" { class: chave }
+            row(class = rodape_paginas) {
+              pageindicator(value = pagina, total = 3)
+              space(class = empurra)
+              text(class = chave, content = "pagina = @pagina")
             }
           }
         }
 
-        row {
-          class: colunas
-
+        row(class = colunas) {
           // ── 5. DelayButton ──────────────────────────────────────────
-          frame {
-            shape: box class: bloco
+          frame(shape = box, class = bloco) {
+            column(class = painel) {
+              text(
+                class = secao,
+                content = "DelayButton — o tempo, não o pixel",
+              )
 
-            column {
-              class: painel
+              row(class = acoes) {
+                delaybutton(
+                  text = Segure, on_press = apagar_tudo, delay = 1400,
+                  size = 88,
+                )
 
-              text "DelayButton — o tempo, não o pixel" { class: secao }
-
-              row {
-                class: acoes
-
-                delaybutton {
-                  text: Segure on_press: apagar_tudo delay: 1400 size: 88
-                }
-
-                text """
-                  Soltar antes do fim desiste. A função `apagar_tudo()` só é
-                  chamada quando o anel fecha — não há "cancelou" para tratar.
-                """ {
-                  class: nota
-                }
+                text(
+                  class = nota,
+                  content = """
+                    Soltar antes do fim desiste. A função `apagar_tudo()` só é
+                    chamada quando o anel fecha — não há "cancelou" para tratar.
+                  """,
+                )
               }
             }
           }
 
           // ── 8 + 9. O teclado ────────────────────────────────────────
-          frame {
-            shape: box class: bloco
+          frame(shape = box, class = bloco) {
+            column(class = painel) {
+              text(class = secao, content = "Shortcut + ShortcutInput")
 
-            column {
-              class: painel
-
-              text "Shortcut + ShortcutInput" { class: secao }
-
-              row {
-                class: acoes
-
-                button { text: "Salvar (pelo botão)" on_click: salvar }
-                text "@{salvamentos}x" { class: valor }
+              row(class = acoes) {
+                button(text = "Salvar (pelo botão)", on_click = salvar)
+                text(class = valor, content = "@{salvamentos}x")
               }
 
-              row {
-                class: campo_atalho
-
-                text "Salvar" { class: rotulo }
-                shortcutinput { value: atalho_salvar }
+              row(class = campo_atalho) {
+                text(class = rotulo, content = "Salvar")
+                shortcutinput(:value = atalho_salvar)
               }
 
-              row {
-                class: campo_atalho
-
-                text "Buscar" { class: rotulo }
-                shortcutinput { value: atalho_buscar }
+              row(class = campo_atalho) {
+                text(class = rotulo, content = "Buscar")
+                shortcutinput(:value = atalho_buscar)
               }
 
-              text """
-                Clique num campo e tecle; Esc desiste, Backspace limpa. Com um
-                campo armado a tecla é DADO — dá para gravar Ctrl+S ali sem
-                salvar no caminho.
-              """ {
-                class: nota
-              }
+              text(
+                class = nota,
+                content = """
+                  Clique num campo e tecle; Esc desiste, Backspace limpa. Com um
+                  campo armado a tecla é DADO — dá para gravar Ctrl+S ali sem
+                  salvar no caminho.
+                """,
+              )
             }
           }
         }
 
         // ── 6. RubberBand ─────────────────────────────────────────────
-        frame {
-          shape: box class: bloco
+        frame(shape = box, class = bloco) {
+          column(class = painel) {
+            text(class = secao, content = "RubberBand — o conjunto nomeado")
 
-          column {
-            class: painel
+            text(
+              class = nota,
+              content = """
+                A geometria dos alvos é calculada em `caixas()`, no script: um
+                template não faz conta, que é a descoberta que a Onda 8 escreveu
+                ao partir o <wizard> em dois.
+              """,
+            )
 
-            text "RubberBand — o conjunto nomeado" { class: secao }
+            rubberband(
+              items = caixas, :selection = marcados, on_select = lacou,
+              class = arena,
+              height = 190,
+            )
 
-            text """
-              A geometria dos alvos é calculada em `caixas()`, no script: um
-              template não faz conta, que é a descoberta que a Onda 8 escreveu
-              ao partir o <wizard> em dois.
-            """ {
-              class: nota
-            }
+            text(class = valor, content = "marcados = @marcados")
 
-            rubberband {
-              items: caixas selection: marcados on_select: lacou class: arena
-              height: 190
-            }
+            text(
+              class = nota,
+              content = """
+                A vírgula não é coincidência: é a grafia que o `contains` do
+                condicional lê, então o que o laço escreveu já se consulta sem
+                conversão.
+              """,
+            )
 
-            text "marcados = @marcados" { class: valor }
-
-            text """
-              A vírgula não é coincidência: é a grafia que o `contains` do
-              condicional lê, então o que o laço escreveu já se consulta sem
-              conversão.
-            """ {
-              class: nota
-            }
-
-            row {
-              class: acoes
-
+            row(class = acoes) {
               if "api" in @marcados {
-                badge { badge_text: api }
+                badge(badge_text = api)
               }
 
               if "banco" in @marcados {
-                badge { badge_text: banco }
+                badge(badge_text = banco)
               }
 
               if @marcados is empty {
-                text "Nada laçado ainda — arraste sobre as caixas." {
-                  class: nota
-                }
+                text(
+                  class = nota,
+                  content = "Nada laçado ainda — arraste sobre as caixas.",
+                )
               }
             }
           }

@@ -11,7 +11,7 @@
       <text class="status">{status}</text>
     </row>
 
-    <scrollable width="fill" height="fill">
+    <scrollable class="rolagem">
       <column class="corpo">
         <text class="lead">
           O script escreve uma tabela `name, points, color?` na chave; o
@@ -20,7 +20,7 @@
 
         <column class="bloco">
           <text class="secao">linechart — carga por serviço</text>
-          <linechart series="carga" min="0" grid="true" class="grafico" />
+          <linechart :series="carga" min="0" grid="true" class="grafico" />
           <row class="acoes">
             <button text="+1 amostra" on_click="amostrar" />
             <button text="zerar" on_click="zerar" class="btn-fraco" />
@@ -29,7 +29,7 @@
 
         <column class="bloco">
           <text class="secao">area — a mesma série, preenchida</text>
-          <linechart series="carga" min="0" area="true" class="grafico" />
+          <linechart :series="carga" min="0" area="true" class="grafico" />
         </column>
       </column>
     </scrollable>

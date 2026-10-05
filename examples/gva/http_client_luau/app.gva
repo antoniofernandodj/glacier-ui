@@ -47,7 +47,7 @@
 
       <column class="bloco bloco-cresce">
         <text class="secao">log dos interceptors</text>
-        <scrollable width="fill" height="fill">
+        <scrollable class="rolagem">
           <text class="log">{log}</text>
         </scrollable>
       </column>

@@ -1,5 +1,6 @@
 <screen title="Glacier - robustez da camada Luau">
   <resources>
+    <link rel="stylesheet" href="examples/gva/robustez_luau/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -8,54 +9,46 @@
   </resources>
 
   <container
-    padding="30"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa"
   >
-    <column spacing="16" align_x="Center" width="560">
-      <text size="24" bold="true" color="#F5E0DC">
+    <column class="coluna">
+      <text class="titulo">
         Robustez da camada Luau
       </text>
 
       <!-- storage: persiste em disco, sobrevive a fechar e reabrir o app -->
-      <column spacing="6" width="fill">
-        <text size="12" color="#A6ADC8">
+      <column class="coluna_2">
+        <text class="nota">
           Rascunho (storage.get/set — sobrevive a reiniciar o app)
         </text>
         <input
           placeholder="Escreva algo e clique em Salvar..."
-          value="rascunho"
+          :value="rascunho"
           on_change="rascunho"
-          width="fill"
-          padding="10"
+          class="campo"
         />
         <button
           text="Salvar rascunho"
           on_click="salvar_rascunho"
-          color="#89B4FA"
-          padding="8 16"
+          class="botao"
         />
       </column>
 
       <rule width="500" />
 
       <!-- after(): temporizador de disparo único, cancelável -->
-      <column spacing="6" align_x="Center">
-        <text size="14" color="#F9E2AF">Status: {status}</text>
-        <row spacing="10">
+      <column class="coluna_3">
+        <text class="texto">Status: {status}</text>
+        <row class="linha">
           <button
             text="Iniciar contagem (3s)"
             on_click="iniciar_temporizador"
-            color="#A6E3A1"
-            padding="8 16"
+            class="botao_2"
           />
           <button
             text="Cancelar"
             on_click="cancelar_temporizador"
-            color="#313244"
-            padding="8 16"
+            class="botao_3"
           />
         </row>
       </column>
@@ -66,20 +59,18 @@
         every(): temporizador repetitivo (equivalente a setInterval),
         construído em cima de after()
       -->
-      <column spacing="6" align_x="Center">
-        <text size="14" color="#F9E2AF">Tiques: {tiques}</text>
-        <row spacing="10">
+      <column class="coluna_3">
+        <text class="texto">Tiques: {tiques}</text>
+        <row class="linha">
           <button
             text="Iniciar cronômetro (1s)"
             on_click="iniciar_cronometro"
-            color="#A6E3A1"
-            padding="8 16"
+            class="botao_2"
           />
           <button
             text="Parar"
             on_click="parar_cronometro"
-            color="#313244"
-            padding="8 16"
+            class="botao_3"
           />
         </row>
       </column>
@@ -87,45 +78,42 @@
       <rule width="500" />
 
       <!-- viewport(): tamanho atual da janela, lido pelo script -->
-      <column spacing="6" align_x="Center">
-        <text size="14" color="#89DCEB">
+      <column class="coluna_3">
+        <text class="texto_2">
           Janela na última leitura: {largura}x{altura}
         </text>
         <button
           text="Ler tamanho da janela"
           on_click="ler_viewport"
-          color="#89B4FA"
-          padding="8 16"
+          class="botao"
         />
       </column>
 
       <rule width="500" />
 
       <!-- ctx aceita tabela: serializada via json.encode automaticamente -->
-      <column spacing="6" align_x="Center">
-        <text size="12" color="#CDD6F4">
+      <column class="coluna_3">
+        <text class="nota_2">
           Preferências (tabela -> JSON): {prefs}
         </text>
         <button
           text="Gerar preferências (tabela Lua)"
           on_click="gerar_prefs"
-          color="#CBA6F7"
-          padding="8 16"
+          class="botao_4"
         />
       </column>
 
       <rule width="500" />
 
       <!-- erro de script agora é visível: on_error customiza o toast -->
-      <column spacing="6" align_x="Center">
-        <text size="11" color="#6C7086">
+      <column class="coluna_3">
+        <text class="nota_3">
           Último erro capturado: {ultimo_erro}
         </text>
         <button
           text="Provocar erro (veja o toast)"
           on_click="provocar_erro"
-          color="#F38BA8"
-          padding="8 16"
+          class="botao_5"
         />
       </column>
     </column>

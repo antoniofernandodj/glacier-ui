@@ -2,7 +2,7 @@
 /// montado a partir de uma coleção do contexto.
 ///
 /// ```xml
-/// <radiogroup value="plano" items="planos" />
+/// <radiogroup :value="plano" :items="planos" />
 /// ```
 /// ```rust,ignore
 /// ctx.set("planos", r#"[{"id":"free","label":"Grátis"},{"id":"pro","label":"Pro"}]"#);
@@ -20,7 +20,7 @@
 ///    vem por prop e viaja dentro da ação (`pick:plano|pro`).
 /// 2. **Uma tag por grupo, não uma por opção.** As opções vêm de uma coleção,
 ///    do mesmo jeito que as abas do [`super::tab_bar::TabBar`] e os itens de um
-///    `<Menu items="…">`.
+///    `<Menu :items="…">`.
 ///
 /// Quem quiser as opções escritas à mão, com markup diferente em cada uma, usa
 /// `<Radio>` direto e escreve o handler.
@@ -49,7 +49,7 @@
 ///   as opções são filhas diretas da raiz, que o `class` do uso já alcança).
 ///
 /// ```xml
-/// <radiogroup items="planos" value="plano" option_class="opcao" />
+/// <radiogroup :items="planos" :value="plano" option_class="opcao" />
 /// ```
 use crate::component::{Component, Context, Template};
 

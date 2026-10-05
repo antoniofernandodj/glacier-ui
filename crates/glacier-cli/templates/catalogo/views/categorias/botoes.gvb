@@ -1,128 +1,127 @@
 component {
-  column {
-    class: secao
+  column(class = secao) {
+    text(class = titulo_cat, content = "Botões e ações")
 
-    text "Botões e ações" { class: titulo_cat }
+    text(
+      class = intro,
+      content = """
+        Copie qualquer bloco abaixo para o seu `.gvb`. Cada widget grava numa chave
+        de contexto — o nome dela está no `value`/`checked`/`group`.
+      """,
+    )
 
-    text """
-      Copie qualquer bloco abaixo para o seu `.gvb`. Cada widget grava numa chave
-      de contexto — o nome dela está no `value`/`checked`/`group`.
-    """ {
-      class: intro
-    }
+    column(class = demos) {
+      column(class = demo) {
+        text(class = rotulo, content = "<button> · <toolbutton>")
 
-    column {
-      class: demos
+        row(class = linha) {
+          button(
+            class = btn, text = Normal, on_click = "dizer:cliquei em Normal",
+          )
 
-      column {
-        class: demo
+          button(
+            class = btn_prim, text = Primário,
+            on_click = "dizer:cliquei em Primário",
+          )
 
-        text "<button> · <toolbutton>" { class: rotulo }
+          button(
+            class = btn, text = Desabilitado, on_click = dizer:nunca,
+            disabled = true,
+          )
 
-        row {
-          class: linha
+          toolbutton(
+            icon = "✏", text = Editar, layout = beside, tooltip = Editar,
+            on_click = dizer:toolbutton,
+          )
 
-          button { class: btn text: Normal on_click: "dizer:cliquei em Normal" }
-
-          button {
-            class: btn_prim text: Primário
-            on_click: "dizer:cliquei em Primário"
-          }
-
-          button {
-            class: btn text: Desabilitado on_click: dizer:nunca disabled: true
-          }
-
-          toolbutton {
-            icon: "✏" text: Editar layout: beside tooltip: Editar
-            on_click: dizer:toolbutton
-          }
-
-          toolbutton {
-            icon: "🗑" tooltip: "Só ícone"
-            on_click: "dizer:toolbutton só ícone"
-          }
+          toolbutton(
+            icon = "🗑", tooltip = "Só ícone",
+            on_click = "dizer:toolbutton só ícone",
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<checkbox> · <checkbox tristate> · <toggle>",
+        )
 
-        text "<checkbox> · <checkbox tristate> · <toggle>" { class: rotulo }
+        row(class = linha) {
+          checkbox(
+            label = "Habilitar cache", :checked = cb_cache, on_toggle = cb_cache,
+          )
 
-        row {
-          class: linha
+          checkbox(
+            label = Herança, :checked = cb_tri, on_toggle = cb_tri,
+            tristate = true,
+          )
 
-          checkbox {
-            label: "Habilitar cache" checked: cb_cache on_toggle: cb_cache
-          }
-
-          checkbox {
-            label: Herança checked: cb_tri on_toggle: cb_tri tristate: true
-          }
-
-          toggle {
-            label: "Modo escuro" checked: tg_escuro on_toggle: tg_escuro
-          }
+          toggle(
+            label = "Modo escuro", :checked = tg_escuro, on_toggle = tg_escuro,
+          )
         }
 
-        text "cb_cache = @cb_cache · cb_tri = @cb_tri · tg_escuro = @tg_escuro" {
-          class: nota
-        }
+        text(
+          class = nota,
+          content = """
+            cb_cache = @cb_cache · cb_tri = @cb_tri · tg_escuro = @tg_escuro
+          """,
+        )
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <radio group="plano"> · <radiogroup>
+          """,
+        )
 
-        text """
-          <radio group="plano"> · <radiogroup>
-        """ {
-          class: rotulo
+        row(class = linha) {
+          radio(
+            label = Mensal, value = mensal, :group = plano, on_change = plano,
+          )
+          radio(label = Anual, value = anual, :group = plano, on_change = plano)
         }
 
-        row {
-          class: linha
-
-          radio { label: Mensal value: mensal group: plano on_change: plano }
-          radio { label: Anual value: anual group: plano on_change: plano }
-        }
-
-        radiogroup { value: plano2 items: planos layout: row }
-        text "plano = @plano · plano2 = @plano2" { class: nota }
+        radiogroup(:value = plano2, :items = planos, layout = row)
+        text(class = nota, content = "plano = @plano · plano2 = @plano2")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<buttonbox> — papéis e ordem por plataforma",
+        )
 
-        text "<buttonbox> — papéis e ordem por plataforma" { class: rotulo }
-
-        buttonbox {
-          accept: Salvar on_accept: dizer:accept reject: Cancelar
-          on_reject: dizer:reject destructive: Excluir
-          on_destructive: dizer:destructive
-        }
+        buttonbox(
+          accept = Salvar, on_accept = dizer:accept, reject = Cancelar,
+          on_reject = dizer:reject, destructive = Excluir,
+          on_destructive = dizer:destructive,
+        )
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<commandlink> · <roundbutton> · <delaybutton>",
+        )
 
-        text "<commandlink> · <roundbutton> · <delaybutton>" { class: rotulo }
+        row(class = linha) {
+          commandlink(
+            title = "Instalação típica",
+            description = "Recomendado para a maioria",
+            on_click = dizer:commandlink,
+          )
 
-        row {
-          class: linha
+          roundbutton(text = +, on_click = dizer:roundbutton, size = 44)
 
-          commandlink {
-            title: "Instalação típica"
-            description: "Recomendado para a maioria"
-            on_click: dizer:commandlink
-          }
-
-          roundbutton { text: + on_click: dizer:roundbutton size: 44 }
-
-          delaybutton {
-            text: Segure on_press: "dizer:delaybutton disparou" delay: 1200
-            size: 72
-          }
+          delaybutton(
+            text = Segure, on_press = "dizer:delaybutton disparou",
+            delay = 1200,
+            size = 72,
+          )
         }
       }
     }

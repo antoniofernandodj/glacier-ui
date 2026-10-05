@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="examples/gva/onda6/app.gss" />
   </resources>
 
-  <column class="tela" spacing="0">
+  <column class="tela coluna">
 
     <column class="cabecalho">
       <text class="titulo">Onda 6 — a grade: uma medição, seis widgets</text>
@@ -21,14 +21,14 @@
       </text>
     </column>
 
-    <scrollable width="fill" height="fill">
+    <scrollable class="rolagem">
       <column class="corpo">
 
         <!-- A navegação é o `<tabs>` da Onda 5 — cada onda usa a anterior. -->
         <tabs
-          value="aba"
+          :value="aba"
           active="{aba}"
-          items="abas"
+          :items="abas"
           tab_class="aba"
           tab_active_class="aba_ativa"
           page_spacing="18"
@@ -47,7 +47,7 @@
                    cada uma é o máximo das células dela. Repare que a coluna do
                    meio acompanha o rótulo mais largo sem ninguém declarar
                    nada. -->
-              <grid class="grade" columns="3" spacing="18" row_spacing="8">
+              <grid class="grade grade_2" columns="3" row_spacing="8">
                 <text class="celula_forte">Serviço</text>
                 <text class="celula_forte">Ambiente</text>
                 <text class="celula_forte">Réplicas</text>
@@ -70,11 +70,9 @@
               </text>
 
               <grid
-                class="grade"
+                class="grade grade_3"
                 columns="140 fill 80"
-                spacing="12"
                 row_spacing="6"
-                width="fill"
               >
                 <text class="celula_forte">Chave</text>
                 <text class="celula_forte">Descrição</text>
@@ -102,7 +100,7 @@
                 caro já existia, e a primeira em que quem já tinha era o iced, não o motor.
               </text>
 
-              <flow spacing="8" row_spacing="8" width="fill">
+              <flow row_spacing="8" class="fluxo">
                 <badge badge_text="rust"       class="chip" badge_size="11" />
                 <badge badge_text="iced"       class="chip" badge_size="11" />
                 <badge badge_text="declarativo" class="chip" badge_size="11" />
@@ -139,11 +137,11 @@
               </text>
 
               <tableview
-                items="servicos"
-                columns="colunas"
-                value="servico"
-                sort="ordem"
-                widths="larguras"
+                :items="servicos"
+                :columns="colunas"
+                :value="servico"
+                :sort="ordem"
+                :widths="larguras"
                 height="260"
                 width="fill"
               />
@@ -167,9 +165,9 @@
               </text>
 
               <tableview
-                items="servicos"
-                columns="colunas"
-                value="marcados"
+                :items="servicos"
+                :columns="colunas"
+                :value="marcados"
                 mode="multi"
                 height="180"
                 width="fill"
@@ -210,11 +208,11 @@
               </text>
 
               <row class="par">
-                <groupbox title="A árvore" width="380">
+                <groupbox title="A árvore" class="grupo">
                   <treeview
-                    items="arvore"
-                    value="no"
-                    open="abertos"
+                    :items="arvore"
+                    :value="no"
+                    :open="abertos"
                     indent="18"
                     height="280"
                   />
@@ -248,8 +246,8 @@
               </text>
 
               <columnview
-                items="arvore"
-                value="caminho"
+                :items="arvore"
+                :value="caminho"
                 column_width="190"
                 height="240"
               />

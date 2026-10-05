@@ -42,13 +42,13 @@
 //! - um `<Select>` com `onChange="style:set"` troca para o valor escolhido.
 //!
 //! O nome do estilo ativo fica no contexto sob [`CONTEXT_KEY`] (`glacier_style`)
-//! — é o que um `<Select value="glacier_style">` usa para exibir a seleção.
+//! — é o que um `<Select :value="glacier_style">` usa para exibir a seleção.
 
 use crate::error::Result;
 use crate::stylesheet::StyleSheet;
 
 /// Chave de contexto onde o motor publica o nome do estilo ativo (atualizada a
-/// cada [`crate::GlacierUI::set_style`]). Um `<Select value="glacier_style">`
+/// cada [`crate::GlacierUI::set_style`]). Um `<Select :value="glacier_style">`
 /// exibe — e, com `onChange="style:set"`, troca — o estilo em runtime.
 pub const CONTEXT_KEY: &str = "glacier_style";
 

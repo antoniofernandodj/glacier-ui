@@ -9,7 +9,7 @@
 /// ```xml
 /// <accordion>
 ///     <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
-///         <input value="host" />
+///         <input :value="host" />
 ///     </accordionitem>
 ///     <accordionitem title="Disco" value="abertas" open="{abertas}" id="disco">
 ///         <text>Nada por aqui ainda.</text>
@@ -96,7 +96,7 @@
 /// ```xml
 /// <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede"
 ///                head_class="sec_cabecalho" body_class="sec_corpo">
-///     <input value="host" />
+///     <input :value="host" />
 /// </accordionitem>
 /// ```
 use crate::component::{Component, Context, Template};

@@ -6,14 +6,15 @@ screen {
       end
     """
 
-    dialog {
-      name: editar title: Editar buttons: "Cancelar::|Salvar:salvar:accept"
-
+    dialog(
+      name = editar, title = Editar,
+      buttons = "Cancelar::|Salvar:salvar:accept",
+    ) {
       column {
-        textinput { value: __dialog.nome on_change: __dialog.nome }
+        textinput(:value = __dialog.nome, on_change = __dialog.nome)
       }
     }
   }
 
-  button { text: abrir on_click: dialog:editar }
+  button(text = abrir, on_click = dialog:editar)
 }

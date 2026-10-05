@@ -1,5 +1,6 @@
 <screen title="Glacier - Componentes Aninhados">
   <resources>
+    <link rel="stylesheet" href="examples/gva/aninhado/app.gss" />
     <!-- O fundo da janela é do TEMA. Este painel já pintou a raiz `fill/fill`
       com uma cor que o `update` trocava, e era a camada mais cara da tela:
       um retângulo sombreado por pixel em toda a janela, redobrando o que o
@@ -10,14 +11,10 @@
   </resources>
 
   <container
-    padding="30"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa_2"
   >
-    <column spacing="20" width="360" align="Center">
-    <text size="26" bold="true" color="{cor_texto}">
+    <column align="Center" class="coluna_2">
+    <text color="{cor_texto}" class="titulo_2">
       Painel (destaque {destaque})
     </text>
 
@@ -33,9 +30,7 @@
     <button
       text="Trocar destaque"
       on_click="trocar_destaque"
-      color="#89B4FA"
-      width="fill"
-      padding="12"
+      class="botao_3"
     />
     </column>
   </container>

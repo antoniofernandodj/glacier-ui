@@ -2,7 +2,7 @@
 /// inteiro, não só a barra.
 ///
 /// ```xml
-/// <tabs value="aba" active="{aba}" items="abas">
+/// <tabs :value="aba" active="{aba}" :items="abas">
 ///     <template slot="geral"> … a página Geral … </template>
 ///     <template slot="rede">  … a página Rede …  </template>
 /// </tabs>

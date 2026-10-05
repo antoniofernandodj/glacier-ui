@@ -1,11 +1,9 @@
-screen {
-  title: "Glacier - Diálogos de Arquivo"
-
+screen(title = "Glacier - Diálogos de Arquivo") {
   resources {
     // O fundo da janela é do TEMA, não de um `background` numa classe
     // `fill/fill`: pintar a tela inteira com a cor que o tema já pinta é
     // uma camada a mais em cada pixel, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/file_dialog/theme.json" }
+    link(rel = theme, href = "examples/gvb/file_dialog/theme.json")
 
     // Diálogo de arquivo/pasta NATIVO DO SO — arquivo único, múltiplos
     // arquivos, diretório e salvar (ver src/file_dialog.rs). Cada botão chama
@@ -61,36 +59,36 @@ screen {
     """
   }
 
-  column {
-    class: screen
+  column(class = screen) {
+    text(class = title, content = "Diálogos de arquivo (nativos do SO)")
 
-    text "Diálogos de arquivo (nativos do SO)" { class: title }
+    text(
+      class = hint,
+      content = "Cada botão abre um diálogo de verdade do sistema operacional.",
+    )
 
-    text "Cada botão abre um diálogo de verdade do sistema operacional." {
-      class: hint
+    row(class = actions) {
+      button(
+        text = "Abrir arquivo", on_click = abrir_arquivo,
+        class = "btn btn-primary",
+      )
+
+      button(
+        text = "Abrir vários", on_click = abrir_varios,
+        class = "btn btn-primary",
+      )
+
+      button(
+        text = "Salvar como", on_click = salvar_como, class = "btn btn-accent",
+      )
+
+      button(
+        text = "Escolher pasta", on_click = escolher_pasta,
+        class = "btn btn-warn",
+      )
     }
 
-    row {
-      class: actions
-
-      button {
-        text: "Abrir arquivo" on_click: abrir_arquivo class: "btn btn-primary"
-      }
-
-      button {
-        text: "Abrir vários" on_click: abrir_varios class: "btn btn-primary"
-      }
-
-      button {
-        text: "Salvar como" on_click: salvar_como class: "btn btn-accent"
-      }
-
-      button {
-        text: "Escolher pasta" on_click: escolher_pasta class: "btn btn-warn"
-      }
-    }
-
-    rule { class: divider }
-    text "Resultado: @resultado" { class: result }
+    rule(class = divider)
+    text(class = result, content = "Resultado: @resultado")
   }
 }

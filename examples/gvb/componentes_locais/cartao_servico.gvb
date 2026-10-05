@@ -1,4 +1,8 @@
 component {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/componentes_locais/app.gss")
+  }
+
   // Um componente de ARQUIVO. Repare que este arquivo e o bloco
   // `<component name="LinhaLog">` do app.gva têm exatamente a mesma forma:
   // <component>, <props>, layout. A única diferença é o `name` — aqui o nome
@@ -8,26 +12,20 @@ component {
   // <resources> (ou o contrário) não pede uma linha de reescrita. Este arquivo
   // existe no exemplo para você poder comparar os dois lado a lado.
   props {
-    prop { name: id }
-    prop { name: nome }
-    prop { name: estado }
-    prop { name: cor }
-    prop { name: uptime default: "—" }
+    prop(name = id)
+    prop(name = nome)
+    prop(name = estado)
+    prop(name = cor)
+    prop(name = uptime, default = "—")
   }
 
-  card {
-    title: @nome subtitle: "uptime @uptime" width: 260
+  card(title = @nome, subtitle = "uptime @uptime", class = cartao) {
+    badge(badge_text = @estado, badge_bg = @cor)
 
-    badge { badge_text: @estado badge_bg: @cor }
-
-    template {
-      slot: footer
-
-      row {
-        spacing: 8
-
-        button { text: Detalhes on_click: detalhar:@id padding: "6 12" }
-        button { text: Reiniciar on_click: reiniciar:@id padding: "6 12" }
+    template(slot = footer) {
+      row(class = linha_4) {
+        button(text = Detalhes, on_click = detalhar:@id, class = botao)
+        button(text = Reiniciar, on_click = reiniciar:@id, class = botao)
       }
     }
   }

@@ -32,7 +32,7 @@
       </row>
 
       <!-- Atributo inline vence a classe: cor explícita ganha de `subtitle`. -->
-      <text class="subtitle" color="#6C7086">
+      <text class="subtitle texto">
         (edite examples/gva/estilos/app.gss e veja o hot-reload)
       </text>
     </column>

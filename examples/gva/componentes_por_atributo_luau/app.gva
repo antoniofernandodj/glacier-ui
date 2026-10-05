@@ -89,7 +89,7 @@
 
         <textinput
           class="filtro"
-          value="busca"
+          :value="busca"
           on_change="filtrar"
           placeholder="Buscar por nome…"
         />

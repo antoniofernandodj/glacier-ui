@@ -106,9 +106,9 @@ Conteúdo que **abre e fecha animando a altura** (o que transborda é recortado)
 Cursor arrastável numa faixa — o `QSlider`. Como o `<TextInput>`, **não grava a chave sozinho**: dispara `onChange` com o valor novo e quem grava é o app.
 
 ```gv
-<slider value="volume" min="0" max="100" onChange="ajustar" width="320" />
-<slider value="brilho" min="0" max="1" step="0.05" onChange="mudar" />
-<slider value="graves" min="-10" max="10" default="0" onChange="eq" />
+<slider :value="volume" min="0" max="100" onChange="ajustar" width="320" />
+<slider :value="brilho" min="0" max="1" step="0.05" onChange="mudar" />
+<slider :value="graves" min="-10" max="10" default="0" onChange="eq" />
 ```
 
 | prop | default | o que faz |
@@ -128,8 +128,8 @@ Cursor arrastável numa faixa — o `QSlider`. Como o `<TextInput>`, **não grav
 Uma opção de um grupo mutuamente exclusivo — o `QRadioButton`. O grupo **é a chave**, não um nó pai: `group` é o **nome** da chave (como o `checked` do `<Checkbox>`), e a opção fica marcada quando o valor guardado ali é igual ao `value` dela.
 
 ```gv
-<radio label="Grátis" value="free" group="plano" onChange="escolher" />
-<radio label="Pro"    value="pro"  group="plano" onChange="escolher" />
+<radio label="Grátis" value="free" :group="plano" onChange="escolher" />
+<radio label="Pro"    value="pro"  :group="plano" onChange="escolher" />
 ```
 
 | prop | o que faz |
@@ -148,7 +148,7 @@ Edição por **seções**: clique numa (ano, mês, dia, hora, minuto, segundo) e
 
 ```gv
 <dateedit value="nascimento" format="br" />
-<timeedit value="alarme" seconds="true" />
+<timeedit :value="alarme" seconds="true" />
 <datetimeedit value="agendado" onChange="validar" />
 ```
 
@@ -177,8 +177,8 @@ Edição por **seções**: clique numa (ano, mês, dia, hora, minuto, segundo) e
 A **grade** do Qt (`QCalendarWidget`) — e, pelas mesmas linhas de render, o seletor de mês/ano e o de intervalo. **Uma primitiva só**; a tag decide o que um clique grava.
 
 ```gv
-<calendar value="entrada" today="{hoje}" />
-<calendar value="entrada" onChange="validar_entrada" min="{hoje}" />
+<calendar :value="entrada" today="{hoje}" />
+<calendar :value="entrada" onChange="validar_entrada" min="{hoje}" />
 <monthyearpicker value="competencia" />
 <daterangepicker start="entrada" end="saida" months="2" today="{hoje}" />
 ```
@@ -211,8 +211,8 @@ A **grade** do Qt (`QCalendarWidget`) — e, pelas mesmas linhas de render, o se
 `QLineEdit` com `setInputMask`: guarda o valor **cru** na chave e exibe mascarado — a mesma separação valor/exibição do `<dateedit>`.
 
 ```gv
-<maskedinput value="cpf" mask="cpf" />
-<maskedinput value="placa" mask="AAA#*##" />
+<maskedinput :value="cpf" mask="cpf" />
+<maskedinput :value="placa" mask="AAA#*##" />
 ```
 
 | símbolo | aceita |
@@ -237,8 +237,8 @@ Qualquer outro caractere é **literal**. Presets: `cpf`, `cnpj`, `telefone`/`pho
 `« ‹ 1 … 4 [5] 6 … 20 › »`. A janela de números anda com a página e gruda nas pontas; as setas ficam **inertes** no limite.
 
 ```gv
-<pagination value="pagina" total="{total_paginas}" />
-<pagination value="pagina" total="{total_paginas}" window="3" ends="false" onChange="repaginar" />
+<pagination :value="pagina" total="{total_paginas}" />
+<pagination :value="pagina" total="{total_paginas}" window="3" ends="false" onChange="repaginar" />
 ```
 
 | prop | default | o que faz |
@@ -255,9 +255,9 @@ O widget conta **páginas**, não itens: recortar a lista é do app, porque só 
 A nota por estrelas, com pré-visualização ao passar o mouse.
 
 ```gv
-<rating value="nota" />
-<rating value="nota" max="10" size="15" color="#F9E2AF" />
-<rating value="media" readonly="true" />
+<rating :value="nota" />
+<rating :value="nota" max="10" size="15" color="#F9E2AF" />
+<rating :value="media" readonly="true" />
 ```
 
 | prop | default | o que faz |
@@ -276,7 +276,7 @@ Clicar na estrela já marcada **zera** a nota.
 O painel que **flutua sobre a tela**, ancorado a um gatilho — ou, no `<popup>`, centrado na janela. **Uma primitiva só**; a tag decide se há âncora.
 
 ```gv
-<popover value="menu_usuario" placement="bottom" align="end">
+<popover :value="menu_usuario" placement="bottom" align="end">
   <button slot="anchor" text="Antônio ▾" />
   <column class="painel"> … </column>
 </popover>
@@ -307,8 +307,8 @@ O painel que **flutua sobre a tela**, ancorado a um gatilho — ou, no `<popup>`
 O campo que **filtra enquanto se digita** (`QCompleter`), com a lista num painel ancorado.
 
 ```gv
-<autocomplete value="cidade" items="cidades" placeholder="Cidade…" />
-<autocomplete value="servico" items="servicos" onSelect="escolher_servico" />
+<autocomplete :value="cidade" :items="cidades" placeholder="Cidade…" />
+<autocomplete :value="servico" :items="servicos" onSelect="escolher_servico" />
 ```
 
 | prop | default | o que faz |
@@ -358,8 +358,8 @@ Props: `spacing`, `row_spacing` (sem ele, o `spacing`), `align_y`. Não passa pe
 A tabela (`QTableView`/`QHeaderView`). **Uma primitiva só**: o cabeçalho é a tabela **sem o corpo**, para quem monta as linhas à mão.
 
 ```gv
-<tableview items="linhas" columns="colunas" value="escolhida"
-           sort="ordem" widths="larguras" height="320" width="fill" />
+<tableview :items="linhas" :columns="colunas" :value="escolhida"
+           :sort="ordem" :widths="larguras" height="320" width="fill" />
 <tableheader columns="colunas" sort="ordem" width="fill" />
 ```
 
@@ -384,7 +384,7 @@ A tabela (`QTableView`/`QHeaderView`). **Uma primitiva só**: o cabeçalho é a 
 A árvore (`QTreeView`), com nós que abrem e fecham.
 
 ```gv
-<treeview items="arvore" value="no" open="abertos" indent="18" height="280" />
+<treeview :items="arvore" :value="no" :open="abertos" indent="18" height="280" />
 ```
 
 | prop | default | o que faz |
@@ -403,7 +403,7 @@ A árvore (`QTreeView`), com nós que abrem e fecham.
 A navegação Miller do Finder: uma lista por nível.
 
 ```gv
-<columnview items="arvore" value="caminho" column_width="190" height="240" />
+<columnview :items="arvore" :value="caminho" column_width="190" height="240" />
 ```
 
 Props: `items` (a mesma árvore do `<treeview>`), `value` (o caminho escolhido), `column_width` (default `180`), `onSelect`.
@@ -414,7 +414,7 @@ A trilha **inteira** fica acesa até a folha, não só a ponta — é metade do 
 O knob rotativo (`QDial`). Arrasta o anel, clica num ponto dele ou rola a roda — e o valor vai para a chave que o markup nomeia, como num `<slider>`.
 
 ```gv
-<dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+<dial :value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
 ```
 
 | prop | default | o que faz |
@@ -433,7 +433,7 @@ O knob rotativo (`QDial`). Arrasta o anel, clica num ponto dele ou rola a roda �
 O medidor de arco. **Apresentacional**: não escreve nada e não recebe clique — por isso `value` aceita também um número escrito à mão.
 
 ```gv
-<gauge value="cpu" max="100" unit="%" label="CPU" needle="true"
+<gauge :value="cpu" max="100" unit="%" label="CPU" needle="true"
        bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
 ```
 
@@ -452,8 +452,8 @@ O medidor de arco. **Apresentacional**: não escreve nada e não recebe clique �
 Dígitos de sete segmentos (`QLCDNumber`). O valor é lido como **texto** e só vira número formatado quando parseia como tal — é o que deixa um `12:34` de relógio passar inteiro.
 
 ```gv
-<lcdnumber value="relogio" size="52" />
-<lcdnumber value="volume" digits="3" pad="true" color="#F9E2AF" />
+<lcdnumber :value="relogio" size="52" />
+<lcdnumber :value="volume" digits="3" pad="true" color="#F9E2AF" />
 ```
 
 Props: `value`, `digits` (o `setDigitCount`; `0` = o que vier), `size` (altura do dígito, default `44`), `color`, `decimals`, `pad` (enche com `0` em vez de espaço), `ghost` (default `true`: desenha os segmentos apagados num tom fraco).

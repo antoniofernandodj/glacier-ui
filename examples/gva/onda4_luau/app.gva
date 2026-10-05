@@ -16,7 +16,7 @@
     <script src="scripts/app.luau"></script>
   </resources>
 
-  <column class="tela" spacing="0">
+  <column class="tela coluna">
 
     <column class="cabecalho">
       <text class="titulo">Onda 4 em Luau — os widgets que têm função</text>
@@ -33,17 +33,16 @@
       <!-- `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
           barra; `class` sozinho pintaria a Row que as segura. -->
       <tabbar
-        value="aba"
+        :value="aba"
         active="{aba}"
-        items="abas"
+        :items="abas"
         tab_class="aba"
         tab_active_class="aba_ativa"
       />
     </column>
 
     <scrollable
-      width="fill"
-      height="fill"
+      class="rolagem"
     >
       <column class="corpo">
 
@@ -62,8 +61,8 @@
               </text>
 
               <listview
-                items="servicos"
-                value="servico"
+                :items="servicos"
+                :value="servico"
                 selected="{servico}"
                 height="196"
                 item_class="item"
@@ -93,7 +92,7 @@
               </text>
 
               <pagination
-                value="pagina"
+                :value="pagina"
                 total="{total_paginas}"
                 on_change="repaginar"
               />
@@ -113,8 +112,8 @@
               </text>
 
               <listview
-                items="servicos"
-                value="marcados"
+                :items="servicos"
+                :value="marcados"
                 selected="{marcados}"
                 mode="multi"
                 height="196"
@@ -157,7 +156,7 @@
             <row class="par">
               <groupbox
                 title="Accordion — várias abertas"
-                width="440"
+                class="grupo"
               >
                 <accordion>
                   <accordionitem
@@ -174,7 +173,7 @@
                     </row>
                     <checkbox
                       label="Usar proxy"
-                      checked="usar_proxy"
+                      :checked="usar_proxy"
                       on_toggle="avisar"
                     />
                   </accordionitem>
@@ -189,10 +188,10 @@
                   >
                     <text class="nota">2 volumes, 41% em uso.</text>
                     <progressbar
-                      value="uso_disco"
+                      :value="uso_disco"
                       min="0"
                       max="100"
-                      width="fill"
+                      class="barra"
                     />
                   </accordionitem>
 
@@ -205,7 +204,7 @@
                   >
                     <toggle
                       label="Avisar por e-mail"
-                      checked="avisar"
+                      :checked="avisar"
                       on_toggle="avisar"
                     />
                   </accordionitem>
@@ -223,7 +222,7 @@
 
               <groupbox
                 title="ToolBox — uma por vez"
-                width="380"
+                class="grupo_2"
               >
                 <toolbox>
                   <toolboxitem
@@ -292,7 +291,7 @@
               <row class="linha_campo">
                 <text class="rotulo">CPF</text>
                 <maskedinput
-                  value="cpf"
+                  :value="cpf"
                   mask="cpf"
                   class="campo"
                 />
@@ -302,7 +301,7 @@
               <row class="linha_campo">
                 <text class="rotulo">Telefone</text>
                 <maskedinput
-                  value="telefone"
+                  :value="telefone"
                   mask="telefone"
                   class="campo"
                 />
@@ -312,7 +311,7 @@
               <row class="linha_campo">
                 <text class="rotulo">Placa</text>
                 <maskedinput
-                  value="placa"
+                  :value="placa"
                   mask="placa"
                   class="campo"
                 />
@@ -328,7 +327,7 @@
             <row class="par">
               <groupbox
                 title="Rating"
-                width="380"
+                class="grupo_2"
               >
                 <text class="nota">
                   Passe o mouse: a prévia acende até a estrela sob o cursor. Clicar na que já está
@@ -338,13 +337,13 @@
                 </text>
 
                 <row class="linha_larga">
-                  <rating value="nota" />
+                  <rating :value="nota" />
                   <text class="valor">{nota} de 5</text>
                 </row>
 
                 <row class="linha_larga">
                   <rating
-                    value="nota_ampla"
+                    :value="nota_ampla"
                     max="10"
                     size="15"
                     class="estrelas_ambar"
@@ -355,7 +354,7 @@
 
                 <row class="linha_larga">
                   <rating
-                    value="nota"
+                    :value="nota"
                     readonly="true"
                     size="14"
                   />
@@ -365,7 +364,7 @@
 
               <groupbox
                 title="SpinBox com decimals"
-                width="380"
+                class="grupo_2"
               >
                 <text class="nota">
                   Fecha o QDoubleSpinBox. Antes as casas saíam do `step`,
@@ -376,7 +375,7 @@
                 <row class="linha_larga">
                   <text class="rotulo_md">Preço</text>
                   <spinbox
-                    value="preco"
+                    :value="preco"
                     min="0"
                     max="999"
                     step="1"
@@ -388,7 +387,7 @@
                 <row class="linha_larga">
                   <text class="rotulo_md">Desconto</text>
                   <spinbox
-                    value="desconto"
+                    :value="desconto"
                     min="0"
                     max="100"
                     step="5"
@@ -437,7 +436,7 @@
            não recorta a lista, porque nada a avisou. É a diferença entre os
            dois modos, visível lado a lado. -->
       <pagination
-        value="pagina"
+        :value="pagina"
         total="{total_paginas}"
         ends="false"
         window="3"

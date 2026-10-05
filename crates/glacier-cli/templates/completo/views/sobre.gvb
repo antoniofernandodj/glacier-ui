@@ -1,70 +1,66 @@
 component {
   resources {
-    style """
+    style(scoped = true) """
       .linha_doc { spacing: 10; align-y: center; }
       .chave { width: 150; size: 12; bold: true; color: var(--muted); }
       .valor { size: 12; color: var(--text-2); }
-    """ {
-      scoped: true
-    }
+    """
   }
 
-  column {
-    class: conteudo
-
-    column {
-      class: cabecalho
-
-      text "Sobre" { class: titulo }
-      text "o mapa deste projeto" { class: subtitulo }
+  column(class = conteudo) {
+    column(class = cabecalho) {
+      text(class = titulo, content = "Sobre")
+      text(class = subtitulo, content = "o mapa deste projeto")
     }
 
-    column {
-      class: painel
-
-      row {
-        class: linha_doc
-
-        text "src/main.rs" { class: chave }
-        text "a casca: runner, cromo da janela, storage" { class: valor }
+    column(class = painel) {
+      row(class = linha_doc) {
+        text(class = chave, content = "src/main.rs")
+        text(
+          class = valor,
+          content = "a casca: runner, cromo da janela, storage",
+        )
       }
 
-      row {
-        class: linha_doc
-
-        text "views/app.gvb" { class: chave }
-        text "a janela: titlebar própria, sidebar e roteador" { class: valor }
+      row(class = linha_doc) {
+        text(class = chave, content = "views/app.gvb")
+        text(
+          class = valor,
+          content = "a janela: titlebar própria, sidebar e roteador",
+        )
       }
 
-      row {
-        class: linha_doc
-
-        text "views/components/" { class: chave }
-        text "pedaços reutilizáveis, com contrato em props" { class: valor }
+      row(class = linha_doc) {
+        text(class = chave, content = "views/components/")
+        text(
+          class = valor,
+          content = "pedaços reutilizáveis, com contrato em props",
+        )
       }
 
-      row {
-        class: linha_doc
+      row(class = linha_doc) {
+        text(class = chave, content = "views/scripts/")
 
-        text "views/scripts/" { class: chave }
-
-        text "o comportamento, em Luau — um módulo por domínio" {
-          class: valor
-        }
+        text(
+          class = valor,
+          content = "o comportamento, em Luau — um módulo por domínio",
+        )
       }
 
-      row {
-        class: linha_doc
-
-        text "views/styles/" { class: chave }
-        text "theme.json (tema do iced) e app.gss (classes)" { class: valor }
+      row(class = linha_doc) {
+        text(class = chave, content = "views/styles/")
+        text(
+          class = valor,
+          content = "theme.json (tema do iced) e app.gss (classes)",
+        )
       }
     }
 
-    text """
-      salve qualquer .gvb ou .gss com o app aberto: o hot-reload aplica na hora
-    """ {
-      class: apagado
-    }
+    text(
+      class = apagado,
+      content = """
+        salve qualquer .gvb ou .gss com o app aberto: o hot-reload aplica na hora
+      """,
+    )
   }
 }

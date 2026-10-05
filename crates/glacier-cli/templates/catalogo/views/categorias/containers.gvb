@@ -1,270 +1,253 @@
 component {
-  column {
-    class: secao
+  resources {
+    link(rel = stylesheet, href = "views/styles/app.gss")
+  }
 
-    text "Containers e agrupadores" { class: titulo_cat }
+  column(class = secao) {
+    text(class = titulo_cat, content = "Containers e agrupadores")
 
-    text """
-      §2.11 (layouts) mora aqui também: `<row>`/`<column>`/`<grid>`/ `<flow>`
-      estão em uso em toda tela deste catálogo; `<space>` tem um bloco próprio
-      abaixo.
-    """ {
-      class: intro
-    }
+    text(
+      class = intro,
+      content = """
+        §2.11 (layouts) mora aqui também: `<row>`/`<column>`/`<grid>`/ `<flow>`
+        estão em uso em toda tela deste catálogo; `<space>` tem um bloco próprio
+        abaixo.
+      """,
+    )
 
-    column {
-      class: demos
+    column(class = demos) {
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<groupbox> — moldura com título + ações no cabeçalho",
+        )
 
-      column {
-        class: demo
-
-        text "<groupbox> — moldura com título + ações no cabeçalho" {
-          class: rotulo
-        }
-
-        groupbox {
-          title: Rede
-
-          template {
-            slot: actions
-
-            toolbutton {
-              icon: "↻" tooltip: Recarregar on_click: "dizer:groupbox action"
-            }
+        groupbox(title = Rede) {
+          template(slot = actions) {
+            toolbutton(
+              icon = "↻", tooltip = Recarregar,
+              on_click = "dizer:groupbox action",
+            )
           }
 
-          checkbox { label: "Usar proxy" checked: ct_proxy on_toggle: ct_proxy }
+          checkbox(
+            label = "Usar proxy", :checked = ct_proxy, on_toggle = ct_proxy,
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <grid columns="140 fill 80"> · <flow> — quebra sozinho
+          """,
+        )
 
-        text """
-          <grid columns="140 fill 80"> · <flow> — quebra sozinho
-        """ {
-          class: rotulo
+        grid(columns = "140 fill 80", row_spacing = 6, class = grade) {
+          text(class = nota, content = "rótulo")
+          text(class = nota, content = "o meio estica")
+          text(class = nota, content = "fim")
         }
 
-        grid {
-          columns: "140 fill 80" spacing: 10 row_spacing: 6 width: fill
-
-          text "rótulo" { class: nota }
-          text "o meio estica" { class: nota }
-          text "fim" { class: nota }
-        }
-
-        flow {
-          spacing: 8 row_spacing: 8 width: fill
-
-          badge { badge_text: um }
-          badge { badge_text: dois }
-          badge { badge_text: três }
-          badge { badge_text: quatro }
-          badge { badge_text: cinco }
+        flow(row_spacing = 8, class = fluxo) {
+          badge(badge_text = um)
+          badge(badge_text = dois)
+          badge(badge_text = três)
+          badge(badge_text = quatro)
+          badge(badge_text = cinco)
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <space> — vazio elástico: sem width/height é `fill` nos dois eixos,
+            empurra os vizinhos
+          """,
+        )
 
-        text """
-          <space> — vazio elástico: sem width/height é `fill` nos dois eixos,
-          empurra os vizinhos
-        """ {
-          class: rotulo
-        }
-
-        row {
-          class: linha width: fill
-
-          button { class: btn text: "à esquerda" on_click: dizer:space }
+        row(class = "linha linha_2") {
+          button(class = btn, text = "à esquerda", on_click = dizer:space)
           space
-          button { class: btn text: "à direita" on_click: dizer:space }
+          button(class = btn, text = "à direita", on_click = dizer:space)
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <splitter sizes="ct_split"> — alça arrastável (chave "260 fill")
+          """,
+        )
 
-        text """
-          <splitter sizes="ct_split"> — alça arrastável (chave "260 fill")
-        """ {
-          class: rotulo
-        }
-
-        splitter {
-          sizes: ct_split min: 100 handle: 6 class: area
-
-          column {
-            class: coluna
-
-            text "painel A" { class: nota }
+        splitter(:sizes = ct_split, min = 100, handle = 6, class = area) {
+          column(class = coluna) {
+            text(class = nota, content = "painel A")
           }
 
-          column {
-            class: coluna
-
-            text "painel B — arraste a alça" { class: nota }
+          column(class = coluna) {
+            text(class = nota, content = "painel B — arraste a alça")
           }
         }
       }
 
-      column {
-        class: demo
-
-        text """
-          <accordion> + <accordionitem> — VÁRIAS abertas ao mesmo tempo; o
-          conjunto vive numa chave só (`value`)
-        """ {
-          class: rotulo
-        }
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <accordion> + <accordionitem> — VÁRIAS abertas ao mesmo tempo; o
+            conjunto vive numa chave só (`value`)
+          """,
+        )
 
         accordion {
-          accordionitem {
-            title: Rede sub: "host e porta" value: ct_abertas open: @ct_abertas
-            id: rede
-
-            text """
-              conteúdo de Rede — arraste a chave `ct_abertas` (`"rede,disco"`)
-              para abrir mais de um
-            """ {
-              class: nota
-            }
+          accordionitem(
+            title = Rede, sub = "host e porta", value = ct_abertas,
+            open = @ct_abertas,
+            id = rede,
+          ) {
+            text(
+              class = nota,
+              content = """
+                conteúdo de Rede — arraste a chave `ct_abertas` (`"rede,disco"`)
+                para abrir mais de um
+              """,
+            )
           }
 
-          accordionitem {
-            title: Disco sub: cotas value: ct_abertas open: @ct_abertas
-            id: disco
-
-            text "conteúdo de Disco" { class: nota }
+          accordionitem(
+            title = Disco, sub = cotas, value = ct_abertas, open = @ct_abertas,
+            id = disco,
+          ) {
+            text(class = nota, content = "conteúdo de Disco")
           }
 
-          accordionitem {
-            title: "Rede avançada" sub: "MTU, rotas" value: ct_abertas
-            open: @ct_abertas id: avancado
-
-            text "conteúdo avançado" { class: nota }
+          accordionitem(
+            title = "Rede avançada", sub = "MTU, rotas", value = ct_abertas,
+            open = @ct_abertas, id = avancado,
+          ) {
+            text(class = nota, content = "conteúdo avançado")
           }
         }
 
-        text "ct_abertas = @ct_abertas" { class: nota }
+        text(class = nota, content = "ct_abertas = @ct_abertas")
       }
 
-      column {
-        class: demo
-
-        text """
-          <toolbox> + <toolboxitem> — o mesmo, mas só UMA aberta por vez (a
-          chave guarda um id)
-        """ {
-          class: rotulo
-        }
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <toolbox> + <toolboxitem> — o mesmo, mas só UMA aberta por vez (a
+            chave guarda um id)
+          """,
+        )
 
         toolbox {
-          toolboxitem {
-            title: Medidas value: ct_ferramenta open: @ct_ferramenta id: medidas
-
-            text "Régua, transferidor, área." { class: nota }
+          toolboxitem(
+            title = Medidas, value = ct_ferramenta, open = @ct_ferramenta,
+            id = medidas,
+          ) {
+            text(class = nota, content = "Régua, transferidor, área.")
           }
 
-          toolboxitem {
-            title: Formas value: ct_ferramenta open: @ct_ferramenta id: formas
-
-            text "Retângulo, elipse, polígono." { class: nota }
-          }
-        }
-      }
-
-      column {
-        class: demo
-
-        text """
-          <reveal open="@{…}"> — abre/fecha ANIMADO, interpolando a altura do
-          filho de 0 até a natural
-        """ {
-          class: rotulo
-        }
-
-        button {
-          class: btn text: "mostrar/esconder detalhes" on_click: ct_revelar
-        }
-
-        reveal {
-          open: @ct_revela
-
-          column {
-            class: coluna
-
-            text "Este bloco desliza para dentro e para fora." { class: nota }
-
-            text """
-              `duration="180"` (ms); `axis="x"` anima a largura no lugar da
-              altura.
-            """ {
-              class: nota
-            }
+          toolboxitem(
+            title = Formas, value = ct_ferramenta, open = @ct_ferramenta,
+            id = formas,
+          ) {
+            text(class = nota, content = "Retângulo, elipse, polígono.")
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <reveal open="@{…}"> — abre/fecha ANIMADO, interpolando a altura do
+            filho de 0 até a natural
+          """,
+        )
 
-        text """
-          <mdiarea> + <mdisubwindow> — janelas internas (posição/tamanho em
-          chaves)
-        """ {
-          class: rotulo
-        }
+        button(
+          class = btn, text = "mostrar/esconder detalhes",
+          on_click = ct_revelar,
+        )
 
-        mdiarea {
-          class: area
+        reveal(open = @ct_revela) {
+          column(class = coluna) {
+            text(
+              class = nota,
+              content = "Este bloco desliza para dentro e para fora.",
+            )
 
-          mdisubwindow {
-            title: Editor x_var: ct_ed_x y_var: ct_ed_y w_var: ct_ed_w
-            h_var: ct_ed_h
-
-            text "arraste a barra, redimensione pelo canto" { class: nota }
-          }
-
-          mdisubwindow {
-            title: Console x_var: ct_co_x y_var: ct_co_y w_var: ct_co_w
-            h_var: ct_co_h default_w: 220 default_h: 120
-
-            text "segunda janela" { class: nota }
+            text(
+              class = nota,
+              content = """
+                `duration="180"` (ms); `axis="x"` anima a largura no lugar da
+                altura.
+              """,
+            )
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <mdiarea> + <mdisubwindow> — janelas internas (posição/tamanho em
+            chaves)
+          """,
+        )
 
-        text """
-          <dock> — painel acoplável (mode/size/float_* em chaves; dois filhos)
-        """ {
-          class: rotulo
-        }
-
-        dock {
-          mode: ct_mode edge: left size: ct_size float_x: ct_fx float_y: ct_fy
-          title: Explorador class: area
-
-          column {
-            class: coluna
-
-            text """
-              painel — arraste o cabeçalho para as bordas ou solte no meio para
-              flutuar
-            """ {
-              class: nota
-            }
+        mdiarea(class = area) {
+          mdisubwindow(
+            title = Editor, x_var = ct_ed_x, y_var = ct_ed_y, w_var = ct_ed_w,
+            h_var = ct_ed_h,
+          ) {
+            text(
+              class = nota,
+              content = "arraste a barra, redimensione pelo canto",
+            )
           }
 
-          column {
-            class: coluna
+          mdisubwindow(
+            title = Console, x_var = ct_co_x, y_var = ct_co_y, w_var = ct_co_w,
+            h_var = ct_co_h, default_w = 220, default_h = 120,
+          ) {
+            text(class = nota, content = "segunda janela")
+          }
+        }
+      }
 
-            text "área central" { class: nota }
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <dock> — painel acoplável (mode/size/float_* em chaves; dois filhos)
+          """,
+        )
+
+        dock(
+          :mode = ct_mode, edge = left, :size = ct_size, :float_x = ct_fx,
+          :float_y = ct_fy,
+          title = Explorador, class = area,
+        ) {
+          column(class = coluna) {
+            text(
+              class = nota,
+              content = """
+                painel — arraste o cabeçalho para as bordas ou solte no meio para
+                flutuar
+              """,
+            )
+          }
+
+          column(class = coluna) {
+            text(class = nota, content = "área central")
           }
         }
       }

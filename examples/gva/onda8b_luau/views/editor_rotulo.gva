@@ -23,14 +23,14 @@
       <column class="erd-form">
         <text class="erd-label">Texto</text>
         <textinput
-          value="__dialog.texto"
+          :value="__dialog.texto"
           on_change="__dialog.texto"
           placeholder="produção"
           class="erd-fill"
         />
         <checkbox
           label="Negrito"
-          checked="__dialog.negrito"
+          :checked="__dialog.negrito"
           on_toggle="__dialog.negrito"
         />
       </column>

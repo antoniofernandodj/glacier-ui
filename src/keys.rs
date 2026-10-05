@@ -13,7 +13,7 @@
 //! - `<shortcut key="ctrl+s" on_press="salvar"/>` — casa a combinação contra os
 //!   atalhos que a **árvore avaliada** declara (colhidos em
 //!   `collect_tree_bindings`, ao lado dos `<textarea>` e `<comboedit>`);
-//! - `<shortcutinput value="chave"/>` — o `QKeySequenceEdit`: em vez de casar, a
+//! - `<shortcutinput :value="chave"/>` — o `QKeySequenceEdit`: em vez de casar, a
 //!   combinação é **gravada**.
 //!
 //! # Por que o atalho mora no markup

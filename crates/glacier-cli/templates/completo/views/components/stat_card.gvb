@@ -1,12 +1,12 @@
 component {
   props {
-    prop { name: rotulo }
-    prop { name: valor }
-    prop { name: destaque default: "" }
+    prop(name = rotulo)
+    prop(name = valor)
+    prop(name = destaque, default = "")
   }
 
   resources {
-    style """
+    style(scoped = true) """
       .stat {
         width: fill;
         background: var(--raised);
@@ -24,16 +24,12 @@ component {
         bold: true;
         color: var(--ok);
       }
-    """ {
-      scoped: true
-    }
+    """
   }
 
-  column {
-    class: stat
-
-    text "@rotulo" { class: rotulo_cap }
-    text "@valor" { class: stat_num_ok if: @destaque equals: 1 }
-    text "@valor" { class: stat_num else: "" }
+  column(class = stat) {
+    text(class = rotulo_cap, content = "@rotulo")
+    text(class = stat_num_ok, if = @destaque, equals = 1, content = "@valor")
+    text(class = stat_num, else = "", content = "@valor")
   }
 }

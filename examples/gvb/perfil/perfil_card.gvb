@@ -1,27 +1,24 @@
 component {
-  container {
-    padding: 20 width: 300 background: #1E1E2E border_radius: 16 border_width: 1
-    border_color: #313244 align_x: Center
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/perfil/app.gss")
+  }
 
-    column {
-      spacing: 15 align: Center
+  container(class = caixa_3) {
+    column(align = Center, class = coluna_2) {
+      image(
+        source = "examples/gvb/perfil/avatar.png", width = 100, height = 100,
+        clip = Circle,
+      )
 
-      image {
-        source: "examples/gvb/perfil/avatar.png" width: 100 height: 100
-        clip: Circle
+      column(align = Center, class = coluna_3) {
+        text(content = "@user_name", class = titulo_2)
+        text(content = "@user_role", class = texto)
       }
 
-      column {
-        spacing: 5 align: Center
-
-        text "@user_name" { size: 20 bold: true color: #CDD6F4 }
-        text "@user_role" { size: 14 color: #A6ADC8 }
-      }
-
-      button {
-        text: @texto_botao on_click: seguir_usuario width: fill
-        color: @btn_color padding: "10 15"
-      }
+      button(
+        text = @texto_botao, on_click = seguir_usuario,
+        color = @btn_color, class = botao_3,
+      )
     }
   }
 }

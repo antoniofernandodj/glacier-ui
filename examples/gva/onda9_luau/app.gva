@@ -20,7 +20,7 @@
       <SizeGrip />
     </row>
 
-    <scrollable width="fill" height="fill">
+    <scrollable class="rolagem">
       <column class="corpo">
         <text class="lead">
           A Onda 8 custou quatro globais novos ao Luau, porque um diálogo SUSPENDE.
@@ -37,12 +37,12 @@
               `fill` fica com o resto — o mesmo formato do `columns` do &lt;grid&gt;,
               e a mesma chave que a alça de coluna de um &lt;tableheader&gt; escreve.
             </text>
-            <splitter sizes="painel_h" min="120" class="divide">
+            <splitter :sizes="painel_h" min="120" class="divide">
               <column class="painel">
                 <text class="secao">Lateral</text>
                 <text class="chave">painel_h = {painel_h}</text>
               </column>
-              <splitter sizes="painel_v" direction="v" min="80" class="divide_interno">
+              <splitter :sizes="painel_v" direction="v" min="80" class="divide_interno">
                 <column class="painel"><text class="secao">Conteúdo</text></column>
                 <column class="painel">
                   <text class="chave">painel_v = {painel_v}</text>
@@ -57,7 +57,7 @@
           <frame shape="box" class="bloco">
             <column class="painel">
               <text class="secao">RangeSlider — duas chaves</text>
-              <rangeslider start="preco_min" end="preco_max"
+              <rangeslider :start="preco_min" :end="preco_max"
                            min="0" max="1000" step="10" size="260" />
               <text class="valor">R$ {preco_min} — R$ {preco_max}</text>
               <text class="nota">
@@ -73,8 +73,8 @@
             <column class="painel">
               <text class="secao">Tumbler — a coleção é uma tabela</text>
               <row class="roletas">
-                <tumbler value="mes" items="meses" visible="5" size="140" />
-                <tumbler value="regiao" items="norte,nordeste,centro-oeste,sudeste,sul"
+                <tumbler :value="mes" items="meses" visible="5" size="140" />
+                <tumbler :value="regiao" items="norte,nordeste,centro-oeste,sudeste,sul"
                          visible="5" size="140" />
               </row>
               <text class="valor">{mes} · {regiao}</text>
@@ -97,7 +97,7 @@
               gravam a chave sozinhos: é o par vazio/preenchido
               de todo widget deste motor.
             </text>
-            <swipeview value="pagina" threshold="130" on_change="virou" class="paginas">
+            <swipeview :value="pagina" threshold="130" on_change="virou" class="paginas">
               <column class="pagina">
                 <text class="secao">Página 0</text>
                 <text class="nota">
@@ -154,11 +154,11 @@
               </row>
               <row class="campo_atalho">
                 <text class="rotulo">Salvar</text>
-                <shortcutinput value="atalho_salvar" />
+                <shortcutinput :value="atalho_salvar" />
               </row>
               <row class="campo_atalho">
                 <text class="rotulo">Buscar</text>
-                <shortcutinput value="atalho_buscar" />
+                <shortcutinput :value="atalho_buscar" />
               </row>
               <text class="nota">
                 Clique num campo e tecle; Esc desiste, Backspace limpa.
@@ -180,7 +180,7 @@
             </text>
             <rubberband
               items="caixas"
-              selection="marcados"
+              :selection="marcados"
               on_select="lacou"
               class="arena" height="190"
             />

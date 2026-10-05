@@ -1,77 +1,70 @@
 component {
-  column {
-    class: secao
+  resources {
+    link(rel = stylesheet, href = "views/styles/app.gss")
+  }
 
-    text "Gráficos e visualização" { class: titulo_cat }
+  column(class = secao) {
+    text(class = titulo_cat, content = "Gráficos e visualização")
 
-    text """
-      Todos leem `items` como NOME de chave (aqui não vale JSON inline). `min`/
-      `max` vazios = escala automática 1·2·5; `series="chave"` (várias séries)
-      vence `items` e só o `<linechart>`/`<sparkline>` o aceita.
-    """ {
-      class: intro
-    }
+    text(
+      class = intro,
+      content = """
+        Todos leem `items` como NOME de chave (aqui não vale JSON inline). `min`/
+        `max` vazios = escala automática 1·2·5; `series="chave"` (várias séries)
+        vence `items` e só o `<linechart>`/`<sparkline>` o aceita.
+      """,
+    )
 
-    column {
-      class: demos
+    column(class = demos) {
+      column(class = demo) {
+        text(class = rotulo, content = "<linechart> · <linechart area points>")
 
-      column {
-        class: demo
+        row(class = "linha linha_2") {
+          linechart(:items = gr_serie, min = 0, class = grafico)
 
-        text "<linechart> · <linechart area points>" { class: rotulo }
-
-        row {
-          class: linha width: fill
-
-          linechart { items: gr_serie min: 0 class: grafico }
-
-          linechart {
-            items: gr_serie min: 0 area: true points: true class: grafico
-          }
+          linechart(
+            :items = gr_serie, min = 0, area = true, points = true,
+            class = grafico,
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <linechart series="…"> — várias séries, legenda e ciclo de cores do
+            tema
+          """,
+        )
 
-        text """
-          <linechart series="…"> — várias séries, legenda e ciclo de cores do
-          tema
-        """ {
-          class: rotulo
-        }
-
-        linechart { series: gr_carga min: 0 grid: true class: grafico }
+        linechart(:series = gr_carga, min = 0, grid = true, class = grafico)
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<barchart colorful> · <piechart> · <donut>",
+        )
 
-        text "<barchart colorful> · <piechart> · <donut>" { class: rotulo }
-
-        row {
-          class: linha width: fill
-
-          barchart { items: gr_barras colorful: true class: grafico }
-          piechart { items: gr_fatias size: 170 percentages: true }
-          donut { items: gr_fatias size: 170 percentages: true }
+        row(class = "linha linha_2") {
+          barchart(:items = gr_barras, colorful = true, class = grafico)
+          piechart(:items = gr_fatias, size = 170, percentages = true)
+          donut(:items = gr_fatias, size = 170, percentages = true)
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <sparkline> — é <linechart axes="false" grid="false">, para uma célula
+          """,
+        )
 
-        text """
-          <sparkline> — é <linechart axes="false" grid="false">, para uma célula
-        """ {
-          class: rotulo
-        }
-
-        row {
-          class: linha
-
-          sparkline { items: gr_lat class: mini }
-          sparkline { items: gr_lat class: mini area: true color: #F9E2AF }
+        row(class = linha) {
+          sparkline(items = gr_lat, class = mini)
+          sparkline(items = gr_lat, class = mini, area = true, color = #F9E2AF)
         }
       }
     }

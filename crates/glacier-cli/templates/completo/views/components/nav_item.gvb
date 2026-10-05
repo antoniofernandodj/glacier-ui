@@ -1,13 +1,13 @@
 component {
   props {
-    prop { name: rotulo }
-    prop { name: rota }
-    prop { name: acao }
-    prop { name: ativo default: "" }
+    prop(name = rotulo)
+    prop(name = rota)
+    prop(name = acao)
+    prop(name = ativo, default = "")
   }
 
   resources {
-    style """
+    style(scoped = true) """
       .nav_on {
         color: var(--raised);
         text-color: var(--text);
@@ -24,16 +24,15 @@ component {
       .nav_off:hover {
         text-color: var(--text);
       }
-    """ {
-      scoped: true
-    }
+    """
   }
 
   column {
-    button {
-      class: nav_on if: @ativo equals: @rota text: @rotulo on_click: @acao
-    }
+    button(
+      class = nav_on, if = @ativo, equals = @rota, text = @rotulo,
+      on_click = @acao,
+    )
 
-    button { class: nav_off else: "" text: @rotulo on_click: @acao }
+    button(class = nav_off, else = "", text = @rotulo, on_click = @acao)
   }
 }

@@ -1,102 +1,93 @@
-screen {
-  title: "Glacier — Onda 13 (formas)" size: "1000 760" min_size: "860 620"
-
+screen(
+  title = "Glacier — Onda 13 (formas)", size = "1000 760", min_size = "860 620",
+) {
   resources {
-    link { rel: stylesheet href: "examples/gvb/onda13/app.gss" }
+    link(rel = stylesheet, href = "examples/gvb/onda13/app.gss")
   }
 
-  column {
-    class: tela
-
-    row {
-      class: barra
-
-      text "Onda 13 — o desenho que o .gva escreve" { class: titulo }
-      space { class: empurra }
-      text "@status" { class: status }
+  column(class = tela) {
+    row(class = barra) {
+      text(class = titulo, content = "Onda 13 — o desenho que o .gva escreve")
+      space(class = empurra)
+      text(class = status, content = "@status")
     }
 
-    row {
-      class: corpo
+    row(class = corpo) {
+      column(class = coluna) {
+        text(class = secao, content = "formas nomeadas")
 
-      column {
-        class: coluna
+        text(
+          class = nota,
+          content = """
+            Geometria inline (é dado); traço e preenchimento vêm das classes
+            `.contorno` e `.solido` no app.gss.
+          """,
+        )
 
-        text "formas nomeadas" { class: secao }
+        canvas(class = tela-desenho) {
+          rect(x = 14, y = 14, w = 150, h = 70, rx = 10, class = solido)
+          circle(cx = 230, cy = 50, r = 34, class = contorno)
+          line(x1 = 14, y1 = 120, x2 = 270, y2 = 120, class = regua)
 
-        text """
-          Geometria inline (é dado); traço e preenchimento vêm das classes
-          `.contorno` e `.solido` no app.gss.
-        """ {
-          class: nota
-        }
+          polyline(
+            points = "20,180 60,150 100,190 140,150 180,185", class = contorno,
+          )
 
-        canvas {
-          class: tela-desenho
+          polygon(points = "220,150 270,150 245,195", class = solido)
+          arc(
+            cx = 80, cy = 255, r = 34, start = 150, sweep = 240, class = solido,
+          )
+          path(d = "M140 290 Q 180 210 220 290 T 300 290", class = contorno)
 
-          rect { x: 14 y: 14 w: 150 h: 70 rx: 10 class: solido }
-          circle { cx: 230 cy: 50 r: 34 class: contorno }
-          line { x1: 14 y1: 120 x2: 270 y2: 120 class: regua }
-
-          polyline {
-            points: "20,180 60,150 100,190 140,150 180,185" class: contorno
-          }
-
-          polygon { points: "220,150 270,150 245,195" class: solido }
-          arc { cx: 80 cy: 255 r: 34 start: 150 sweep: 240 class: solido }
-          path { d: "M140 290 Q 180 210 220 290 T 300 290" class: contorno }
-
-          text "rect · circle · line · polyline · polygon · arc · path" {
-            x: 16 y: 315 class: rotulo
-          }
+          text(
+            x = 16, y = 315, class = rotulo,
+            content = "rect · circle · line · polyline · polygon · arc · path",
+          )
         }
       }
 
-      column {
-        class: coluna
+      column(class = coluna) {
+        text(class = secao, content = "geometria dirigida por dado")
 
-        text "geometria dirigida por dado" { class: secao }
+        text(
+          class = nota,
+          content = """
+            O raio e o traçado abaixo saem de chaves do contexto — mude e o canvas
+            relê no render, sem reavaliar a árvore.
+          """,
+        )
 
-        text """
-          O raio e o traçado abaixo saem de chaves do contexto — mude e o canvas
-          relê no render, sem reavaliar a árvore.
-        """ {
-          class: nota
+        canvas(class = tela-desenho) {
+          circle(cx = 90, cy = 90, r = @raio, class = solido)
+          path(d = @onda, class = contorno)
+          text(
+            x = 16, y = 170, class = rotulo,
+            content = "cx/cy fixos, r = @raio",
+          )
         }
 
-        canvas {
-          class: tela-desenho
-
-          circle { cx: 90 cy: 90 r: @raio class: solido }
-          path { d: @onda class: contorno }
-          text "cx/cy fixos, r = @raio" { x: 16 y: 170 class: rotulo }
+        row(class = acoes) {
+          button(text = "raio +", on_click = maior)
+          button(text = "raio −", on_click = menor)
         }
 
-        row {
-          class: acoes
+        textinput(
+          :value = onda, on_change = onda,
+          placeholder = "traçado SVG (M L Q T Z)",
+        )
 
-          button { text: "raio +" on_click: maior }
-          button { text: "raio −" on_click: menor }
-        }
+        text(class = secao, content = "QWhatsThis")
 
-        textinput {
-          value: onda on_change: onda placeholder: "traçado SVG (M L Q T Z)"
-        }
+        row(class = acoes) {
+          button(
+            text = "modo ajuda", on_click = whatsthis:toggle,
+            whats_this = "Ligue e paire sobre os controles: a ajuda fica no lugar do tooltip.",
+          )
 
-        text "QWhatsThis" { class: secao }
-
-        row {
-          class: acoes
-
-          button {
-            text: "modo ajuda" on_click: whatsthis:toggle
-            whats_this: "Ligue e paire sobre os controles: a ajuda fica no lugar do tooltip."
-          }
-
-          button {
-            text: "raio +" on_click: maior tooltip: "tooltip normal"
-            whats_this: "Aumenta o raio do círculo em 8px, até 70."
-          }
+          button(
+            text = "raio +", on_click = maior, tooltip = "tooltip normal",
+            whats_this = "Aumenta o raio do círculo em 8px, até 70.",
+          )
         }
       }
     }

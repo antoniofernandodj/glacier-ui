@@ -1,20 +1,17 @@
-screen {
-  title: "Glacier - ciclo de vida (Rust)"
-
+screen(title = "Glacier - ciclo de vida (Rust)") {
   resources {
-    link { rel: stylesheet href: "examples/gvb/ciclo_vida_rust/estilo.gss" }
+    link(rel = stylesheet, href = "examples/gvb/ciclo_vida_rust/estilo.gss")
   }
 
-  container {
-    class: tela
-
-    column {
-      class: coluna align: Center
-
-      text "Início" { class: titulo }
-      text "Entradas no painel: @entradas · saídas: @saidas" { class: info }
-      text "Último gancho: @ultimo" { class: info }
-      button "Ir para o painel" { class: botao on_click: ir }
+  container(class = tela) {
+    column(class = coluna, align = Center) {
+      text(class = titulo, content = "Início")
+      text(
+        class = info,
+        content = "Entradas no painel: @entradas · saídas: @saidas",
+      )
+      text(class = info, content = "Último gancho: @ultimo")
+      button(class = botao, on_click = ir, text = "Ir para o painel")
     }
   }
 }

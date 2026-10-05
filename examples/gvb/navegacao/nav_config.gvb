@@ -1,41 +1,29 @@
-screen {
-  title: "Glacier - Navegação · Configurações"
-
+screen(title = "Glacier - Navegação · Configurações") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/navegacao/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/navegacao/theme.json" }
+    link(rel = theme, href = "examples/gvb/navegacao/theme.json")
   }
 
-  container {
-    padding: 40 width: fill height: fill align_x: Center align_y: Center
+  container(class = caixa) {
+    column(align = Center, class = coluna) {
+      text(content = "Configurações", class = titulo)
 
-    column {
-      spacing: 18 align: Center
+      column(class = coluna_2) {
+        text(content = "Nome de exibição", class = destaque)
 
-      text "Configurações" { size: 32 bold: true color: #F5E0DC }
-
-      column {
-        spacing: 8 width: 320
-
-        text "Nome de exibição" { size: 14 bold: true color: #A6ADC8 }
-
-        input {
-          placeholder: "Seu nome..." value: user_name on_change: mudar_nome
-          width: fill padding: 10
-        }
+        input(
+          placeholder = "Seu nome...", :value = user_name,
+          on_change = mudar_nome, class = campo,
+        )
       }
 
       // Navegar para outra tela mantém o estado; o nome editado aparece no perfil
-      button {
-        text: "Ver perfil" navigate_to: perfil color: #89B4FA width: 320
-        padding: 12
-      }
+      button(text = "Ver perfil", navigate_to = perfil, class = botao)
 
-      button {
-        text: Voltar navigate_back: true color: #313244 width: 320 padding: 12
-      }
+      button(text = Voltar, navigate_back = true, class = botao_2)
     }
   }
 }

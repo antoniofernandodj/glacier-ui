@@ -185,3 +185,5 @@ exatamente a armadilha do `width` do `<spinbox>` que o PRIMITIVAS.md registra.
   spacing: 10;
   align_y: center;
 }
+
+.rolagem { width: fill; height: fill; }

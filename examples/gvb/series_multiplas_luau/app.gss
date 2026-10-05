@@ -82,3 +82,5 @@ examples/gvb/series_multiplas_luau/app.gss — visual da tela.
   width: fill;
   height: 240;
 }
+
+.rolagem { width: fill; height: fill; }

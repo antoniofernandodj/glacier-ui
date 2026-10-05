@@ -113,7 +113,7 @@
           <menuitem label="Ação direta" on_click="acao_direta" />
         </contextmenu>
 
-        <contextmenu items="dynamic_menu">
+        <contextmenu :items="dynamic_menu">
           <container class="card">
             <text class="hint">
               Botão direito: menu dinâmico (Lua/ctx.dynamic_menu)

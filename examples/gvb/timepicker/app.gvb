@@ -1,87 +1,72 @@
-screen {
-  title: "Glacier - Data e Hora" size: "640 480"
-
+screen(title = "Glacier - Data e Hora", size = "640 480") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/timepicker/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/timepicker/theme.json" }
+    link(rel = theme, href = "examples/gvb/timepicker/theme.json")
   }
 
-  column {
-    padding: 28 spacing: 20 width: fill height: fill
+  column(class = coluna) {
+    column(class = coluna_2) {
+      text(content = "QDateEdit · QTimeEdit · QDateTimeEdit", class = titulo)
 
-    column {
-      spacing: 6
-
-      text "QDateEdit · QTimeEdit · QDateTimeEdit" {
-        size: 22 bold: true color: #CDD6F4
-      }
-
-      text """
-        Um campo por valor, editado por seções: clique numa seção para
-        selecioná-la (ela ganha o realce) e use ▴▾ para alterá-la. Cada seção
-        vira dentro de si — mexer no minuto não empurra a hora.
-      """ {
-        size: 13 color: #A6ADC8
-      }
+      text(
+        content = """
+          Um campo por valor, editado por seções: clique numa seção para
+          selecioná-la (ela ganha o realce) e use ▴▾ para alterá-la. Cada seção
+          vira dentro de si — mexer no minuto não empurra a hora.
+        """,
+        class = texto,
+      )
     }
 
     rule
 
-    row {
-      spacing: 16 align_y: center
-
-      text "QDateEdit" { width: 120 color: #CDD6F4 }
-      dateedit { value: data }
-      text "chave = @data" { size: 13 color: #A6ADC8 }
+    row(class = linha) {
+      text(content = "QDateEdit", class = texto_2)
+      dateedit(value = data)
+      text(content = "chave = @data", class = texto)
     }
 
-    row {
-      spacing: 16 align_y: center
-
-      text "QTimeEdit" { width: 120 color: #CDD6F4 }
-      timeedit { value: hora seconds: true }
-      text "chave = @hora" { size: 13 color: #A6ADC8 }
+    row(class = linha) {
+      text(content = "QTimeEdit", class = texto_2)
+      timeedit(:value = hora, seconds = true)
+      text(content = "chave = @hora", class = texto)
     }
 
-    row {
-      spacing: 16 align_y: center
-
-      text "QDateTimeEdit" { width: 120 color: #CDD6F4 }
-      datetimeedit { value: quando }
-      text "chave = @quando" { size: 13 color: #A6ADC8 }
+    row(class = linha) {
+      text(content = "QDateTimeEdit", class = texto_2)
+      datetimeedit(value = quando)
+      text(content = "chave = @quando", class = texto)
     }
 
     rule
 
     // `format="br"` só troca a ORDEM das seções na tela; a chave continua
     // ISO, que é o que um backend espera.
-    row {
-      spacing: 16 align_y: center
-
-      text "Exibição BR" { width: 120 color: #CDD6F4 }
-      dateedit { value: data_br format: br }
-      text "mostra DD/MM/YYYY, grava @data_br" { size: 13 color: #A6ADC8 }
+    row(class = linha) {
+      text(content = "Exibição BR", class = texto_2)
+      dateedit(value = data_br, format = br)
+      text(content = "mostra DD/MM/YYYY, grava @data_br", class = texto)
     }
 
     // Duas instâncias da MESMA tag: só uma seção da tela fica selecionada
     // por vez, e cada campo guarda o seu próprio valor.
-    row {
-      spacing: 16 align_y: center
-
-      text "Período" { width: 120 color: #CDD6F4 }
-      timeedit { value: de }
-      text "até" { size: 13 color: #A6ADC8 }
-      timeedit { value: ate }
-      text "@de — @ate" { size: 13 color: #A6ADC8 }
+    row(class = linha) {
+      text(content = "Período", class = texto_2)
+      timeedit(:value = de)
+      text(content = "até", class = texto)
+      timeedit(:value = ate)
+      text(content = "@de — @ate", class = texto)
     }
 
-    text """
-      Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29
-      (bissexto), como no QDateEdit.
-    """ {
-      size: 12 color: #6C7086
-    }
+    text(
+      content = """
+        Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29
+        (bissexto), como no QDateEdit.
+      """,
+      class = nota,
+    )
   }
 }

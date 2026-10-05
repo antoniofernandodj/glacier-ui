@@ -1,5 +1,6 @@
 <screen title="Glacier - Diálogos">
   <resources>
+    <link rel="stylesheet" href="examples/gva/dialogs/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -10,58 +11,49 @@
     parte deste template — são construídos em Rust (ver examples/gva/dialogs/main.rs)
     e sobrepostos pelo motor via GlacierUI::render_current. -->
   <container
-    padding="30"
-    align_x="center"
-    align_y="center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="16" align_x="center">
-      <text size="22" bold="true" color="#ECEFF4">
+    <column class="coluna">
+      <text class="titulo">
         Diálogos (estilo QMessageBox)
       </text>
-      <text size="13" color="#D8DEE9">
+      <text class="texto">
         Clique num botão para abrir o diálogo correspondente.
       </text>
 
-      <row spacing="10">
+      <row class="linha">
         <button
           text="Information"
           on_click="mostrar_info"
-          color="#5E81AC"
-          padding="8 16"
+          class="botao"
         />
         <button
           text="Warning"
           on_click="mostrar_warning"
-          color="#D08770"
-          padding="8 16"
+          class="botao_2"
         />
         <button
           text="Error"
           on_click="mostrar_error"
-          color="#BF616A"
-          padding="8 16"
+          class="botao_3"
         />
       </row>
-      <row spacing="10">
+      <row class="linha">
         <button
           text="Question"
           on_click="mostrar_question"
-          color="#B48EAD"
-          padding="8 16"
+          class="botao_4"
         />
         <button
         text="Confirm (com detalhe)"
         on_click="mostrar_confirm"
-        color="#B48EAD"
-        padding="8 16"
+        class="botao_4"
         />
       </row>
 
       <rule width="400" />
 
-      <text size="14" color="#A3BE8C">
+      <text class="texto_2">
         Último resultado: {resultado}
       </text>
     </column>

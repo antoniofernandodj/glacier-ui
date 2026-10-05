@@ -1,96 +1,81 @@
-screen {
-  title: "Glacier - Pseudo-estados (:hover/:focus/:active/:disabled)"
-
+screen(title = "Glacier - Pseudo-estados (:hover/:focus/:active/:disabled)") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/pseudo_estados/app.gss")
     // Tema da janela (paleta do iced) — também elimina o fundo branco padrão.
-    link { rel: theme href: "examples/gvb/pseudo_estados/theme.json" }
+    link(rel = theme, href = "examples/gvb/pseudo_estados/theme.json")
   }
 
-  container {
-    class: card
+  container(class = card) {
+    column(class = stack) {
+      text(
+        class = title,
+        content = "Pseudo-estados: :hover / :focus / :active / :disabled",
+      )
 
-    column {
-      class: stack
-
-      text "Pseudo-estados: :hover / :focus / :active / :disabled" {
-        class: title
-      }
-
-      text """
-        Passe o mouse, clique e compare com a versão desabilitada de cada
-        widget.
-      """ {
-        class: subtitle
-      }
+      text(
+        class = subtitle,
+        content = """
+          Passe o mouse, clique e compare com a versão desabilitada de cada
+          widget.
+        """,
+      )
 
       // Button: :hover (passe o mouse) / :active (segure o clique) / :disabled
-      column {
-        class: stack spacing: 8
+      column(class = "stack coluna") {
+        text(class = label, content = "Button — hover / active / disabled")
 
-        text "Button — hover / active / disabled" { class: label }
-
-        row {
-          class: row
-
-          button { class: btn text: Enviar on_click: enviar }
-          button { class: btn text: Desabilitado disabled: true }
+        row(class = row) {
+          button(class = btn, text = Enviar, on_click = enviar)
+          button(class = btn, text = Desabilitado, disabled = true)
         }
       }
 
       // TextInput: :hover / :focus (clique para focar) / :disabled
-      column {
-        class: stack spacing: 8
+      column(class = "stack coluna") {
+        text(class = label, content = "TextInput — hover / focus / disabled")
 
-        text "TextInput — hover / focus / disabled" { class: label }
+        row(class = row) {
+          input(
+            class = "input campo", placeholder = "Clique aqui",
+            :value = texto,
+            on_change = texto,
+          )
 
-        row {
-          class: row
-
-          input {
-            class: input width: 200 placeholder: "Clique aqui" value: texto
-            on_change: texto
-          }
-
-          input {
-            class: input width: 200 placeholder: Desabilitado disabled: true
-          }
+          input(
+            class = "input campo", placeholder = Desabilitado,
+            disabled = true,
+          )
         }
       }
 
       // Select: só :hover (o iced não expõe Status::Disabled p/ pick_list)
-      column {
-        class: stack spacing: 8
+      column(class = "stack coluna") {
+        text(class = label, content = "Select — hover")
 
-        text "Select — hover" { class: label }
-
-        select {
-          class: select width: 200 options: cores value: cor_selecionada
-          on_change: cor_selecionada placeholder: "Escolha uma cor"
-        }
+        select(
+          class = select, width = 200, :options = cores, :value = cor_selecionada,
+          on_change = cor_selecionada, placeholder = "Escolha uma cor",
+        )
       }
 
       // Checkbox/Toggle: só o atributo `disabled` (visual padrão do tema)
-      column {
-        class: stack spacing: 8
+      column(class = "stack coluna") {
+        text(class = label, content = "Checkbox / Toggle — disabled")
 
-        text "Checkbox / Toggle — disabled" { class: label }
+        row(class = row) {
+          checkbox(label = Ativo, :checked = marcado, on_toggle = marcado)
 
-        row {
-          class: row
+          checkbox(
+            label = Desabilitado, :checked = marcado_travado,
+            on_toggle = marcado_travado, disabled = true,
+          )
 
-          checkbox { label: Ativo checked: marcado on_toggle: marcado }
+          toggle(label = Ligado, :checked = ligado, on_toggle = ligado)
 
-          checkbox {
-            label: Desabilitado checked: marcado_travado
-            on_toggle: marcado_travado disabled: true
-          }
-
-          toggle { label: Ligado checked: ligado on_toggle: ligado }
-
-          toggle {
-            label: Desabilitado checked: ligado_travado
-            on_toggle: ligado_travado disabled: true
-          }
+          toggle(
+            label = Desabilitado, :checked = ligado_travado,
+            on_toggle = ligado_travado, disabled = true,
+          )
         }
       }
     }

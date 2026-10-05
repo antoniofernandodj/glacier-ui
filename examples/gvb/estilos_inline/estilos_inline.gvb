@@ -1,16 +1,14 @@
-screen {
-  title: "Glacier - Estilos inline (XML)"
-
+screen(title = "Glacier - Estilos inline (XML)") {
   resources {
     // Tema da janela (paleta do iced) — também elimina o fundo branco padrão.
-    link { rel: theme href: "examples/gvb/estilos_inline/theme.json" }
+    link(rel = theme, href = "examples/gvb/estilos_inline/theme.json")
 
     // Estilos COM ESCOPO, escritos INLINE no próprio template.
     // O corpo do <style> é GSS (mesma gramática do .gss); scoped="true" restringe
     // as classes a este componente — sem `scoped`, um <style> vale globalmente
     // (igual a <link rel="stylesheet"> ou motor.load_stylesheet()).
     // Edite os valores abaixo com a app rodando: o hot-reload recarrega junto.
-    style """
+    style(scoped = true) """
       .card {
         padding: 28;
         background: #1E1E2E;
@@ -44,34 +42,34 @@ screen {
       .dica {
         size: 13; color: #6C7086;
       }
-    """ {
-      scoped: true
-    }
+
+      .caixa {
+        padding: 40;
+        align_x: Center;
+        align_y: Center;
+        width: fill;
+        height: fill;
+      }
+      .texto { color: #7F849C; }
+    """
   }
 
-  container {
-    padding: 40 align_x: Center align_y: Center width: fill height: fill
+  container(class = caixa) {
+    container(class = card) {
+      column(class = stack) {
+        text(class = title, content = "Estilos inline (XML)")
+        text(class = valor, content = "@valor")
 
-    container {
-      class: card
-
-      column {
-        class: stack
-
-        text "Estilos inline (XML)" { class: title }
-        text "@valor" { class: valor }
-
-        row {
-          class: actions
-
-          button { class: "btn btn-menos" text: "−" on_click: decrementar }
-          button { class: "btn btn-mais" text: + on_click: incrementar }
+        row(class = actions) {
+          button(class = "btn btn-menos", text = "−", on_click = decrementar)
+          button(class = "btn btn-mais", text = +, on_click = incrementar)
         }
 
         // Atributo inline vence a classe: esta cor ganha de `.dica`.
-        text "edite o bloco style e veja o hot-reload" {
-          class: dica color: #7F849C
-        }
+        text(
+          class = "dica texto",
+          content = "edite o bloco style e veja o hot-reload",
+        )
       }
     }
   }

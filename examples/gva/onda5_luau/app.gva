@@ -16,7 +16,7 @@
     <script src="scripts/app.luau"></script>
   </resources>
 
-  <column class="tela" spacing="0">
+  <column class="tela coluna">
 
     <column class="cabecalho">
       <row class="linha_titulo">
@@ -49,7 +49,7 @@
            animada de 0 até 220. Um painel que cobre a tela é um `<popover>`
            colado na borda, e o motor já tem um. -->
       <drawer
-        value="gaveta"
+        :value="gaveta"
         open="{gaveta}"
         size="220"
         panel_class="gaveta"
@@ -58,14 +58,14 @@
         <text class="nota">
           `axis="x"` no `&lt;reveal&gt;` é a peça que faltava: o motor já animava altura desde a 0.90.
         </text>
-        <button class="btn_gaveta" text="Painéis"  on_click="ir:paineis"  width="fill" />
-        <button class="btn_gaveta" text="Busca"    on_click="ir:busca"    width="fill" />
-        <button class="btn_gaveta" text="A gaveta" on_click="ir:gaveta"   width="fill" />
+        <button class="btn_gaveta botao" text="Painéis"  on_click="ir:paineis" />
+        <button class="btn_gaveta botao" text="Busca"    on_click="ir:busca" />
+        <button class="btn_gaveta botao" text="A gaveta" on_click="ir:gaveta" />
         <space />
-        <button class="btn_gaveta" text="Fechar" on_click="drawer::toggle:gaveta" width="fill" />
+        <button class="btn_gaveta botao" text="Fechar" on_click="drawer::toggle:gaveta" />
       </drawer>
 
-      <scrollable width="fill" height="fill">
+      <scrollable class="rolagem">
         <column class="corpo">
 
           <!-- O `<tabs>` é o item 1 da onda, e esta tela o usa como a própria
@@ -73,9 +73,9 @@
                lista de abas aparecia duas vezes — uma em `items` e outra numa
                escada de `se`/`senão`. -->
           <tabs
-            value="aba"
+            :value="aba"
             active="{aba}"
-            items="abas"
+            :items="abas"
             tab_class="aba"
             tab_active_class="aba_ativa"
             page_spacing="18"
@@ -91,7 +91,7 @@
                 </text>
 
                 <row class="linha_larga">
-                  <popover value="menu_usuario" placement="bottom" align="start">
+                  <popover :value="menu_usuario" placement="bottom" align="start">
                     <button
                       slot="anchor"
                       class="btn"
@@ -101,19 +101,16 @@
                       <text class="painel_titulo">antoniofernando</text>
                       <rule />
                       <button
-                        class="btn_painel" text="Perfil"
+                        class="btn_painel botao" text="Perfil"
                         on_click="escolher:perfil"
-                        width="fill"
                       />
                       <button
-                        class="btn_painel" text="Preferências"
+                        class="btn_painel botao" text="Preferências"
                         on_click="escolher:prefs"
-                        width="fill"
                       />
                       <button
-                        class="btn_painel" text="Sair"
+                        class="btn_painel botao" text="Sair"
                         on_click="escolher:sair"
-                        width="fill"
                       />
                     </column>
                   </popover>
@@ -121,7 +118,7 @@
                   <!-- `align="end"` é o que salva um painel no canto direito:
                        com `start` ele sairia da janela, e o clamp o colaria na
                        borda torto. -->
-                  <popover value="filtros" placement="bottom" align="end" panel_width="280">
+                  <popover :value="filtros" placement="bottom" align="end" panel_width="280">
                     <button slot="anchor" class="btn" text="Filtros ▾" />
                     <column class="painel">
                       <text class="painel_titulo">Filtrar serviços</text>
@@ -143,19 +140,19 @@
                            A ação é o próprio nome da chave, e o handler da tela
                            é o braço genérico `chave if value.is_some()`. -->
                       <checkbox label="Só os que estão no ar"
-                                checked="so_no_ar"   on_toggle="so_no_ar" />
+                                :checked="so_no_ar"   on_toggle="so_no_ar" />
                       <checkbox label="Incluir arquivados"
-                                checked="arquivados" on_toggle="arquivados" />
+                                :checked="arquivados" on_toggle="arquivados" />
                       <rule />
                       <row class="linha">
                         <text class="rotulo_sm">Uso máx.</text>
                         <slider
-                          value="uso_max"
+                          :value="uso_max"
                           min="0"
                           max="100"
                           step="5"
-                          width="130"
                           on_change="uso_max"
+                          class="controle"
                         />
                         <text class="valor">{uso_max}%</text>
                       </row>
@@ -164,7 +161,7 @@
 
                   <!-- `placement="right"` é o submenu: vira para a esquerda
                        sozinho quando encosta na borda direita da janela. -->
-                  <popover value="lateral" placement="right" align="start">
+                  <popover :value="lateral" placement="right" align="start">
                     <button slot="anchor" class="btn" text="Ao lado ›" />
                     <column class="painel">
                       <text class="nota_painel">
@@ -228,8 +225,8 @@
                 <row class="linha_campo">
                   <text class="rotulo">Cidade</text>
                   <autocomplete
-                    value="cidade"
-                    items="cidades"
+                    :value="cidade"
+                    :items="cidades"
                     placeholder="digite três letras…"
                     width="280"
                   />
@@ -241,8 +238,8 @@
                        não o rótulo. É o contrato do `<textinput>` mais uma
                        vez. -->
                   <autocomplete
-                    value="servico_busca"
-                    items="servicos"
+                    :value="servico_busca"
+                    :items="servicos"
                     placeholder="api, banco, fila…"
                     on_select="escolher_servico"
                     width="280"

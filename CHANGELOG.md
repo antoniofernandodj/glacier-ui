@@ -8,6 +8,63 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+### Quebras
+
+- **`.gvb`: os atributos saem das chaves e vão para parênteses.** A forma agora é
+  `tag(atributo = valor, outro = valor) { filhos }`: os parênteses
+  descrevem a tag, as chaves só trazem os filhos (e não existem sem eles). Os
+  atributos se separam por **vírgula** (a última é opcional) e a quebra de linha
+  não significa nada. Valor com espaço, vírgula, `(`, `)` ou `//` pede aspas.
+  **O texto é atributo, sempre**: `content` no `<text>` e `text` no `<button>`;
+  o texto solto depois do cabeçalho (`tag(…) "texto"`), depois das chaves
+  (`tag { … } "texto"`) e dentro delas deixam de existir. Um `"""` em valor
+  colapsa o espaço em branco, como a prosa do `.gva`. Só o corpo cru de
+  `script`/`style` segue solto, depois do cabeçalho. No `each`, os
+  atributos vão depois da variável: `each @itens as i(fallback = Vazio) { … }`.
+  O que a grafia antiga escrevia (`nome: valor` entre chaves) é erro, com a dica.
+- **`.gvb` e `.gva`: a ligação leva `:` no nome do atributo.** `value = progresso`
+  era o texto "progresso" **e** o nome de uma chave, conforme o widget — e
+  `value = @progresso` fazia o `progressbar` procurar uma chave chamada "42", sem
+  erro algum. Agora o nome de chave se escreve `:value = progresso`
+  (`<progressbar :value="progresso" />` no `.gva`), o valor segue sendo
+  `@progresso`, e o texto é só texto. Antes de ler o XML, o motor troca `:value` por
+  `bind_value` (o roxmltree apagaria o `:`), então são dois atributos de nome
+  diferente, e a validação os distingue: no `.gvb`, um atributo de ligação sem o
+  `:` é **erro**; no `.gva`, um **aviso** com a linha (a lista do que é ligação
+  está em `src/bindings.rs`). `on_*` não leva marca. Todos os exemplos e presets
+  foram migrados; `gvb_check --xml-lenient` lê o `.gvb` antigo.
+- **Exemplos e presets: o estilo saiu do markup.** `width`, `height`, `size`,
+  `color`, `bold`, `padding`, `spacing`, `align_x/y`, `background` e `border_*`
+  escritos inline em `text`, `column`, `row`, `container`, `scrollable`, `button`,
+  `input`, `groupbox`, `card`, `frame`, `form`, `grid`, `flow`, `space`, `slider` e
+  `progressbar` viraram uma classe no `.gss` (o inline em exemplos `.gva` e `.gvb`
+  caiu de ~1440 atributos para os que ficam de propósito: medidas com significado
+  de widget — `spinbox width`, `colorwheel size`, gráficos —, `screen size` e valores
+  dirigidos por dado). As classes novas têm nome provisório (`texto`, `coluna_2`…);
+  as telas não ficam necessariamente idênticas. Os `.gss` criados dizem isso no topo.
+- **Exemplos em `.gvb` rodam sozinhos**: cada `examples/gvb/<nome>/` ganhou o
+  `main.rs` do gêmeo `.gva` (caminhos para `.gvb`) e um `[[example]]` no
+  `Cargo.toml` — `cargo run --example gvb_<nome>`. O `gvb_inline_script` é novo.
+- **Extensão do VS Code:** o realce conhece o `:` de ligação (nas duas grafias), e
+  o Ctrl+clique/link de `:atributo="chave"` leva à chave mesmo quando o atributo
+  não está na lista de nomes conhecidos; o `gvb-shadow.js` lê `tag(…)`, `:nome` e
+  `each … as v(…)`.
+- **Correção nos exemplos:** o `<dial>` readonly de `onda7`/`onda7_luau` recebia
+  `value="{brilho}"` (o valor, e o widget procurava uma chave chamada "73");
+  agora liga a `brilho`.
+  - **Migrar:** `button { text: Salvar on_click: salvar }` →
+    `button(text = Salvar, on_click = salvar)`; `column { spacing: 8 … }` →
+    `column(spacing = 8) { … }`; `text "oi" { class: nota }` →
+    `text(class = nota, content = "oi")`; `button "Ok" { on_click: ok }` →
+    `button(on_click = ok, text = "Ok")`; `script { src: "x.luau" }` → `script(src = "x.luau")`.
+  - Os `.gvb` do repositório (exemplos, templates do CLI, `rascunhos/`) foram
+    migrados e dão o mesmo XML de antes; o `gvb_convert` emite a grafia nova; a
+    gramática e o `gvb-shadow.js` da extensão do VS Code foram atualizados.
+
+---
+
 ## glacier-ui 0.116.0 · CLI 0.6.1 · vscode-gv 0.20.6 — 2026-10-04
 
 - **No `.gvb`, o texto vale antes e depois do bloco.** `text "oi" { class: nota }` e

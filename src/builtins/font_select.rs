@@ -2,7 +2,7 @@
 /// mesma**.
 ///
 /// ```xml
-/// <fontselect value="fonte" selected="{fonte}" preview="Sphinx of black quartz" />
+/// <fontselect :value="fonte" selected="{fonte}" preview="Sphinx of black quartz" />
 /// ```
 ///
 /// # Por que é builtin, e a 16ª correção de nível

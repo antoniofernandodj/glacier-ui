@@ -1,49 +1,37 @@
-screen {
-  title: "Glacier - Condicional"
-
+screen(title = "Glacier - Condicional") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/condicional/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/condicional/theme.json" }
+    link(rel = theme, href = "examples/gvb/condicional/theme.json")
   }
 
-  container {
-    padding: 40 width: fill height: fill align_x: Center align_y: Center
-
-    column {
-      spacing: 20 align: Center
-
-      text "Demonstração de if / else" { size: 26 bold: true color: #F5E0DC }
+  container(class = caixa) {
+    column(align = Center, class = coluna) {
+      text(content = "Demonstração de if / else", class = titulo)
 
       // Checagem truthy: renderiza só quando {logado} for verdadeiro
       if @logado {
-        column {
-          spacing: 10 align: Center
+        column(align = Center, class = coluna_2) {
+          text(content = "Bem-vindo de volta, @usuario!", class = texto)
 
-          text "Bem-vindo de volta, @usuario!" { size: 18 color: #A6E3A1 }
-
-          button {
-            text: Sair on_click: logout color: #BF616A width: 200 padding: 10
-          }
+          button(text = Sair, on_click = logout, class = botao)
         }
       } else {
-        column {
-          spacing: 10 align: Center
+        column(align = Center, class = coluna_2) {
+          text(content = "Você não está conectado.", class = texto_2)
 
-          text "Você não está conectado." { size: 18 color: #A6ADC8 }
-
-          button {
-            text: Entrar on_click: login color: #A3BE8C width: 200 padding: 10
-          }
+          button(text = Entrar, on_click = login, class = botao_2)
         }
       }
 
       // Comparação explícita
       if @logado == "false" {
-        text "(dica: clique em Entrar para ver o conteúdo)" {
-          size: 12 color: #6C7086
-        }
+        text(
+          content = "(dica: clique em Entrar para ver o conteúdo)",
+          class = nota,
+        )
       }
     }
   }

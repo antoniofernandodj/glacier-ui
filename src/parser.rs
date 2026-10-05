@@ -1177,6 +1177,115 @@ fn diagnostic_at(node: Node, message: String) -> Diagnostic {
     position_of(node, node.range().start, message)
 }
 
+/// O prefixo com que um `:nome="chave"` chega ao parser de XML.
+///
+/// O roxmltree apaga o `:` de um nome de atributo (`:value` vira o nome local
+/// `value`), e a marca de ligação se perderia: o motor não distinguiria o nome de
+/// uma chave de um texto. Antes de ler o XML, [`mark_bindings`] reescreve
+/// `:value=` como `bind_value=`, e daí em diante são dois atributos de verdade.
+const BIND_PREFIX: &str = "bind_";
+
+/// Troca o `:` que abre um nome de atributo por [`BIND_PREFIX`], só dentro das
+/// tags (nunca em texto, comentário, string de atributo ou corpo de
+/// `<script>`/`<style>`). Preserva as linhas — a coluna da mesma linha avança.
+fn mark_bindings(xml: &str) -> String {
+    if !xml.contains(" :") && !xml.contains("\n:") && !xml.contains("\t:") {
+        return xml.to_string();
+    }
+    let b = xml.as_bytes();
+    let mut out = String::with_capacity(xml.len() + 16);
+    let mut i = 0;
+    let mut last = 0; // o que ainda não foi copiado para `out`
+    while i < b.len() {
+        if b[i..].starts_with(b"<!--") {
+            i = xml[i..].find("-->").map_or(b.len(), |e| i + e + 3);
+            continue;
+        }
+        if b[i] == b'<' && b.get(i + 1).is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') {
+            let nome_fim = xml[i + 1..]
+                .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+                .map_or(b.len(), |e| i + 1 + e);
+            let nome = xml[i + 1..nome_fim].to_ascii_lowercase();
+            let mut j = nome_fim;
+            let mut aspas: Option<u8> = None;
+            while j < b.len() {
+                let c = b[j];
+                match aspas {
+                    Some(q) => {
+                        if c == q {
+                            aspas = None;
+                        }
+                    }
+                    None => match c {
+                        b'"' | b'\'' => aspas = Some(c),
+                        b'>' => break,
+                        b':' if b[j - 1].is_ascii_whitespace()
+                            && b.get(j + 1).is_some_and(|n| n.is_ascii_alphabetic() || *n == b'_') =>
+                        {
+                            out.push_str(&xml[last..j]);
+                            out.push_str(BIND_PREFIX);
+                            last = j + 1;
+                        }
+                        _ => {}
+                    },
+                }
+                j += 1;
+            }
+            i = j + 1;
+            // o corpo de um `script`/`style` é código: não tem tags a marcar
+            if (nome == "script" || nome == "style") && !xml[..j].ends_with('/') {
+                let fecha = format!("</{nome}");
+                i = xml[i.min(b.len())..]
+                    .to_ascii_lowercase()
+                    .find(&fecha)
+                    .map_or(b.len(), |e| i + e);
+            }
+            continue;
+        }
+        i += 1;
+    }
+    out.push_str(&xml[last.min(xml.len())..]);
+    out
+}
+
+/// Os atributos de ligação (ver [`crate::bindings`]) escritos sem o `:`.
+///
+/// `value="{x}"` entrega ao widget o valor da chave `x` onde ele quer o nome dela,
+/// e é a forma que falha em silêncio; `value="x"` funciona, mas é indistinguível
+/// do texto "x". As duas se escrevem `:value="…"`.
+fn unmarked_bindings(fragment: Node) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for el in fragment.descendants().filter(Node::is_element) {
+        let tag = el.tag_name().name();
+        for attr in el.attributes() {
+            // `:value` chega como `bind_value` (ver `mark_bindings`); só o `value`
+            // sem marca é pego aqui.
+            if !crate::bindings::is_binding(tag, attr.name()) {
+                continue;
+            }
+            // O `<check>` de uma `<tray>` é um item de bandeja, não um checkbox:
+            // o `checked` dele é o valor (`{__notifications}`), não uma chave.
+            if el.parent().is_some_and(|p| p.tag_name().name().eq_ignore_ascii_case("tray")) {
+                continue;
+            }
+            let name = attr.name();
+            let (msg, hint) = if attr.value().contains('{') {
+                (
+                    format!("<{tag} {name}=\"{}\"> passa o VALOR onde o widget quer o NOME de uma chave", attr.value()),
+                    format!("escreva `:{name}=\"…\"` com o nome da chave; o valor interpolado vira o nome de uma chave que não existe"),
+                )
+            } else {
+                (
+                    format!("<{tag} {name}=\"{}\"> é uma ligação sem a marca", attr.value()),
+                    format!("escreva `:{name}=\"{}\"` — o `:` diz que é o nome de uma chave, e não um texto", attr.value()),
+                )
+            };
+            out.push(diagnostic_at_attr(el, attr, msg).with_hint(hint));
+        }
+    }
+    out
+}
+
 fn diagnostic_at_attr(node: Node, attr: roxmltree::Attribute, message: String) -> Diagnostic {
     position_of(node, attr.range().start, message)
 }
@@ -1735,8 +1844,8 @@ pub enum NodeType {
     /// `SpinBox` independentes.
     ///
     /// ```xml
-    /// <radio label="Grátis" value="free" group="plano" onChange="escolher" />
-    /// <radio label="Pro"    value="pro"  group="plano" onChange="escolher" />
+    /// <radio label="Grátis" value="free" :group="plano" onChange="escolher" />
+    /// <radio label="Pro"    value="pro"  :group="plano" onChange="escolher" />
     /// ```
     ///
     /// `group="plano"` — sem chaves. Escrever `group="{plano}"` passa o *valor*
@@ -2098,7 +2207,7 @@ pub enum NodeType {
     /// tag — ver [`crate::anchored`], que é onde mora a mecânica.
     ///
     /// ```xml
-    /// <popover value="menu_usuario" placement="bottom" align="end">
+    /// <popover :value="menu_usuario" placement="bottom" align="end">
     ///     <button slot="anchor" text="Antônio ▾" />
     ///     <column class="painel">
     ///         <button text="Perfil" on_click="perfil" />
@@ -2174,7 +2283,7 @@ pub enum NodeType {
     /// enquanto se digita** e oferece a lista num painel ancorado.
     ///
     /// ```xml
-    /// <autocomplete value="cidade" items="cidades" placeholder="Cidade…" />
+    /// <autocomplete :value="cidade" :items="cidades" placeholder="Cidade…" />
     /// ```
     ///
     /// # As três chaves
@@ -2354,7 +2463,7 @@ pub enum NodeType {
     /// `<treeview>` (`QTreeView`): a árvore com nós que abrem e fecham.
     ///
     /// ```xml
-    /// <treeview items="arvore" value="no" open="abertos" />
+    /// <treeview :items="arvore" :value="no" :open="abertos" />
     /// ```
     ///
     /// # Ele nunca esteve bloqueado por estado por instância
@@ -2389,7 +2498,7 @@ pub enum NodeType {
     /// nível, como o Finder do macOS.
     ///
     /// ```xml
-    /// <columnview items="arvore" value="caminho" column_width="200" />
+    /// <columnview :items="arvore" :value="caminho" column_width="200" />
     /// ```
     ///
     /// Quase de graça depois do [`NodeType::TreeView`]: a mesma coleção
@@ -2412,7 +2521,7 @@ pub enum NodeType {
     /// valor vai para a chave que o markup nomeia.
     ///
     /// ```xml
-    /// <dial value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
+    /// <dial :value="volume" min="0" max="11" step="1" notches="11" showValue="true" />
     /// ```
     ///
     /// # Não é `●`
@@ -2454,7 +2563,7 @@ pub enum NodeType {
     /// faixas coloridas opcionais, agulha e o número no meio.
     ///
     /// ```xml
-    /// <gauge value="cpu" max="100" unit="%" label="CPU"
+    /// <gauge :value="cpu" max="100" unit="%" label="CPU"
     ///        bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
     /// ```
     ///
@@ -2487,7 +2596,7 @@ pub enum NodeType {
     /// `QLCDNumber`: dígitos de **sete segmentos**.
     ///
     /// ```xml
-    /// <lcdnumber value="relogio" digits="5" size="44" />
+    /// <lcdnumber :value="relogio" digits="5" size="44" />
     /// ```
     ///
     /// O valor é lido como **texto**, e só vira número formatado quando parseia
@@ -2509,7 +2618,7 @@ pub enum NodeType {
     /// `<linechart>` e `<sparkline>`: a mesma linha, com e sem moldura.
     ///
     /// ```xml
-    /// <linechart items="vendas" min="0" area="true" points="true" />
+    /// <linechart :items="vendas" min="0" area="true" points="true" />
     /// <sparkline items="latencia" width="140" height="30" />
     /// ```
     ///
@@ -2602,7 +2711,7 @@ pub enum NodeType {
     /// `QSplitter`: painéis lado a lado com uma alça arrastável entre cada par.
     ///
     /// ```xml
-    /// <splitter sizes="painel">
+    /// <splitter :sizes="painel">
     ///     <column class="lateral"> … </column>
     ///     <column class="conteudo"> … </column>
     /// </splitter>
@@ -2628,10 +2737,10 @@ pub enum NodeType {
     /// `QDockWidget`: um painel acoplável — o habilitador D da Onda 12.
     ///
     /// ```xml
-    /// <dock mode="lado_expl" edge="left" size="tam_expl"
+    /// <dock :mode="lado_expl" edge="left" :size="tam_expl"
     ///       float_x="expl_x" float_y="expl_y" title="Explorador">
     ///     <tree items="arvore" value="no" abertos="{abertos}" />   <!-- painel -->
-    ///     <texteditor value="doc" />                               <!-- centro -->
+    ///     <texteditor :value="doc" />                               <!-- centro -->
     /// </dock>
     /// ```
     ///
@@ -2672,7 +2781,7 @@ pub enum NodeType {
     /// `QML SwipeView`: páginas trocadas arrastando o dedo.
     ///
     /// ```xml
-    /// <swipeview value="pagina">
+    /// <swipeview :value="pagina">
     ///     <column> … página 0 … </column>
     ///     <column> … página 1 … </column>
     /// </swipeview>
@@ -4000,6 +4109,14 @@ impl UiNode {
     fn get_attr(node: &Node, keys: &[&str]) -> Option<String> {
         for key in keys {
             if let Some(val) = node.attribute(*key) {
+                return Some(val.to_string());
+            }
+        }
+        // A ligação: `:value="chave"` chega aqui como `bind_value` (ver
+        // `mark_bindings`) — o mesmo atributo `value`, marcado como o nome de uma
+        // chave (ver `crate::bindings`).
+        for key in keys {
+            if let Some(val) = node.attribute(format!("{BIND_PREFIX}{key}").as_str()) {
                 return Some(val.to_string());
             }
         }
@@ -6151,8 +6268,12 @@ impl UiNode {
                 // by its own name (e.g. <PerfilCard nome="..." />).
                 // All attributes are forwarded as props.
                 let mut props = HashMap::default();
+                // `:value="chave"` entra como a prop `value`: a marca de ligação
+                // é de quem escreve o uso, e o template do componente continua
+                // lendo `{value}`.
                 for attr in node.attributes() {
-                    props.insert(attr.name().to_string(), attr.value().to_string());
+                    let name = attr.name().strip_prefix(BIND_PREFIX).unwrap_or(attr.name());
+                    props.insert(name.to_string(), attr.value().to_string());
                 }
                 NodeType::Component {
                     name: tag.to_string(),
@@ -6319,7 +6440,7 @@ impl UiNode {
         // `&nbsp;` isn't a predefined XML entity, so roxmltree would reject it.
         // Rewrite it to a literal non-breaking space (U+00A0) up front; the text
         // normalizer then preserves it as a hard space (see `normalize_text`).
-        let prepared = protect_style_bodies(&xml.replace("&nbsp;", "\u{00A0}"));
+        let prepared = protect_style_bodies(&mark_bindings(&xml.replace("&nbsp;", "\u{00A0}")));
         let wrapped = format!("{FRAGMENT_OPEN}{prepared}</__glacier_fragment__>");
         let doc = roxmltree::Document::parse(&wrapped).map_err(|e| xml_error(e, source, file))?;
         let fragment = doc.root_element();
@@ -6335,6 +6456,18 @@ impl UiNode {
                 None => d.with_source(source),
             };
             return Err(GlacierError::Xml(Box::new(d)));
+        }
+
+        // Uma ligação sem o `:` não é erro (o `.gva` antigo é todo assim), mas é a
+        // família de bug que falha calada: avisa, com a linha.
+        if file.is_some() {
+            for d in unmarked_bindings(fragment) {
+                let d = match file {
+                    Some(f) => d.in_file(f, source),
+                    None => d.with_source(source),
+                };
+                eprintln!("glacier-ui: aviso: {d}");
+            }
         }
 
         let mut decls = Vec::new();

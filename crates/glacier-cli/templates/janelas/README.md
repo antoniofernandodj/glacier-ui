@@ -55,7 +55,7 @@ O ícone, o menu e o que cada item faz estão no cabeçalho de `views/painel.gvb
 
 <tray icon="views/assets/icone.png" tooltip="…">
   <item label="Abrir …" on_click="tray:open" />
-  <check label="Notificações" checked="{__notifications}" on_click="notifications:toggle" />
+  <check label="Notificações" :checked="{__notifications}" on_click="notifications:toggle" />
   <separator />
   <item label="Sair" on_click="tray:quit" />
 </tray>

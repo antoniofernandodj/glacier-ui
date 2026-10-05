@@ -811,16 +811,19 @@ function* iterTags(text, comments) {
 
 /**
  * Yield every `name="value"` of a tag's attribute chunk as
- * `{ name, value, start, end }` (offsets absolute, given `attrsStart`).
+ * `{ name, value, start, end, bound }` (offsets absolute, given `attrsStart`).
+ * `bound` is true for a binding attribute — `:value="chave"`, whose value is the
+ * NAME of a context key (see `src/bindings.rs`); `name` comes without the `:`.
  */
 function* iterAttrs(attrsText, attrsStart) {
-  const re = /([A-Za-z_][\w.:-]*)\s*=\s*("[^"]*"|'[^']*')/g;
+  const re = /(?<![\w.:-])(:?)([A-Za-z_][\w.:-]*)\s*=\s*("[^"]*"|'[^']*')/g;
   let m;
   while ((m = re.exec(attrsText)) !== null) {
-    const quoted = m[2];
+    const quoted = m[3];
     const start = attrsStart + m.index + m[0].length - quoted.length + 1;
     yield {
-      name: m[1],
+      name: m[2],
+      bound: m[1] === ":",
       value: quoted.slice(1, -1),
       start,
       end: start + quoted.length - 2,
@@ -2337,7 +2340,7 @@ async function provideDocumentLinks(document) {
     //    context key straight, without `{}`. `__dialog.campo` (a dialog
     //    field's draft key) counts too, dot and all — see `DIALOG_DRAFT_KEY_RE`.
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
-      if (!BINDING_ATTRS.has(attr.name.toLowerCase())) continue;
+      if (!attr.bound && !BINDING_ATTRS.has(attr.name.toLowerCase())) continue;
       const key = attr.value.trim();
       const plain = /^[A-Za-z_]\w*$/.test(key);
       const draft = !plain && DIALOG_DRAFT_KEY_RE.test(key);
@@ -2589,7 +2592,7 @@ function classify(document, position) {
         if (DIALOG_DRAFT_KEY_RE.test(name)) return { kind: "key", name };
         return { kind: "action", name };
       }
-      if (BINDING_ATTRS.has(lower)) {
+      if (attr.bound || BINDING_ATTRS.has(lower)) {
         const key = attr.value.trim();
         if (/^[A-Za-z_]\w*$/.test(key) || DIALOG_DRAFT_KEY_RE.test(key)) {
           return { kind: "key", name: key };

@@ -475,3 +475,290 @@ path = "examples/gvb/gvb_convert/main.rs"
 [[example]]
 name = "gvb_run"
 path = "examples/gvb/gvb_run/main.rs"
+
+# — os exemplos em `.gvb` (`examples/gvb/<nome>/main.rs`), um por exemplo do `.gva` —
+# Rodar: `WGPU_BACKEND=gl cargo run --example gvb_<nome>`.
+
+[[example]]
+name = "gvb_aninhado"
+path = "examples/gvb/aninhado/main.rs"
+
+[[example]]
+name = "gvb_bandeja"
+path = "examples/gvb/bandeja/main.rs"
+
+[[example]]
+name = "gvb_ciclo_vida_luau"
+path = "examples/gvb/ciclo_vida_luau/main.rs"
+
+[[example]]
+name = "gvb_ciclo_vida_rust"
+path = "examples/gvb/ciclo_vida_rust/main.rs"
+
+[[example]]
+name = "gvb_combo_edit"
+path = "examples/gvb/combo_edit/main.rs"
+
+[[example]]
+name = "gvb_componentes_locais"
+path = "examples/gvb/componentes_locais/main.rs"
+
+[[example]]
+name = "gvb_componentes_por_atributo"
+path = "examples/gvb/componentes_por_atributo/main.rs"
+
+[[example]]
+name = "gvb_componentes_por_atributo_luau"
+path = "examples/gvb/componentes_por_atributo_luau/main.rs"
+
+[[example]]
+name = "gvb_condicional"
+path = "examples/gvb/condicional/main.rs"
+
+[[example]]
+name = "gvb_console_luau"
+path = "examples/gvb/console_luau/main.rs"
+
+[[example]]
+name = "gvb_contador"
+path = "examples/gvb/contador/main.rs"
+
+[[example]]
+name = "gvb_contador_externo"
+path = "examples/gvb/contador_externo/main.rs"
+
+[[example]]
+name = "gvb_contador_macro"
+path = "examples/gvb/contador_macro/main.rs"
+
+[[example]]
+name = "gvb_contador_micropython"
+path = "examples/gvb/contador_micropython/main.rs"
+
+[[example]]
+name = "gvb_controle_externo"
+path = "examples/gvb/controle_externo/main.rs"
+
+[[example]]
+name = "gvb_data_hora_luau"
+path = "examples/gvb/data_hora_luau/main.rs"
+
+[[example]]
+name = "gvb_dialogs"
+path = "examples/gvb/dialogs/main.rs"
+
+[[example]]
+name = "gvb_estilos"
+path = "examples/gvb/estilos/main.rs"
+
+[[example]]
+name = "gvb_estilos_inline"
+path = "examples/gvb/estilos_inline/main.rs"
+
+[[example]]
+name = "gvb_fetch_luau"
+path = "examples/gvb/fetch_luau/main.rs"
+
+[[example]]
+name = "gvb_file_dialog"
+path = "examples/gvb/file_dialog/main.rs"
+
+[[example]]
+name = "gvb_foreach_fallback"
+path = "examples/gvb/foreach_fallback/main.rs"
+
+[[example]]
+name = "gvb_foreach_fallback_luau"
+path = "examples/gvb/foreach_fallback_luau/main.rs"
+
+[[example]]
+name = "gvb_formulario_login"
+path = "examples/gvb/formulario_login/main.rs"
+
+[[example]]
+name = "gvb_galeria_estilos"
+path = "examples/gvb/galeria_estilos/main.rs"
+
+[[example]]
+name = "gvb_http_client_luau"
+path = "examples/gvb/http_client_luau/main.rs"
+
+[[example]]
+name = "gvb_imports_luau"
+path = "examples/gvb/imports_luau/main.rs"
+
+[[example]]
+name = "gvb_inline_script"
+path = "examples/gvb/inline_script/main.rs"
+
+[[example]]
+name = "gvb_janelas_glacier"
+path = "examples/gvb/janelas_glacier/main.rs"
+
+[[example]]
+name = "gvb_lista"
+path = "examples/gvb/lista/main.rs"
+
+[[example]]
+name = "gvb_lista_reordenavel"
+path = "examples/gvb/lista_reordenavel/main.rs"
+
+[[example]]
+name = "gvb_menus"
+path = "examples/gvb/menus/main.rs"
+
+[[example]]
+name = "gvb_navegacao"
+path = "examples/gvb/navegacao/main.rs"
+
+[[example]]
+name = "gvb_navegacao_luau"
+path = "examples/gvb/navegacao_luau/main.rs"
+
+[[example]]
+name = "gvb_notificacoes"
+path = "examples/gvb/notificacoes/main.rs"
+
+[[example]]
+name = "gvb_onda1"
+path = "examples/gvb/onda1/main.rs"
+
+[[example]]
+name = "gvb_onda10"
+path = "examples/gvb/onda10/main.rs"
+
+[[example]]
+name = "gvb_onda10_luau"
+path = "examples/gvb/onda10_luau/main.rs"
+
+[[example]]
+name = "gvb_onda11"
+path = "examples/gvb/onda11/main.rs"
+
+[[example]]
+name = "gvb_onda11_luau"
+path = "examples/gvb/onda11_luau/main.rs"
+
+[[example]]
+name = "gvb_onda12"
+path = "examples/gvb/onda12/main.rs"
+
+[[example]]
+name = "gvb_onda12_luau"
+path = "examples/gvb/onda12_luau/main.rs"
+
+[[example]]
+name = "gvb_onda13"
+path = "examples/gvb/onda13/main.rs"
+
+[[example]]
+name = "gvb_onda13_luau"
+path = "examples/gvb/onda13_luau/main.rs"
+
+[[example]]
+name = "gvb_onda2"
+path = "examples/gvb/onda2/main.rs"
+
+[[example]]
+name = "gvb_onda3"
+path = "examples/gvb/onda3/main.rs"
+
+[[example]]
+name = "gvb_onda4"
+path = "examples/gvb/onda4/main.rs"
+
+[[example]]
+name = "gvb_onda4_luau"
+path = "examples/gvb/onda4_luau/main.rs"
+
+[[example]]
+name = "gvb_onda5"
+path = "examples/gvb/onda5/main.rs"
+
+[[example]]
+name = "gvb_onda5_luau"
+path = "examples/gvb/onda5_luau/main.rs"
+
+[[example]]
+name = "gvb_onda6"
+path = "examples/gvb/onda6/main.rs"
+
+[[example]]
+name = "gvb_onda6_luau"
+path = "examples/gvb/onda6_luau/main.rs"
+
+[[example]]
+name = "gvb_onda7"
+path = "examples/gvb/onda7/main.rs"
+
+[[example]]
+name = "gvb_onda7_luau"
+path = "examples/gvb/onda7_luau/main.rs"
+
+[[example]]
+name = "gvb_onda8"
+path = "examples/gvb/onda8/main.rs"
+
+[[example]]
+name = "gvb_onda8_luau"
+path = "examples/gvb/onda8_luau/main.rs"
+
+[[example]]
+name = "gvb_onda8b_luau"
+path = "examples/gvb/onda8b_luau/main.rs"
+
+[[example]]
+name = "gvb_onda9"
+path = "examples/gvb/onda9/main.rs"
+
+[[example]]
+name = "gvb_onda9_luau"
+path = "examples/gvb/onda9_luau/main.rs"
+
+[[example]]
+name = "gvb_perfil"
+path = "examples/gvb/perfil/main.rs"
+
+[[example]]
+name = "gvb_pseudo_estados"
+path = "examples/gvb/pseudo_estados/main.rs"
+
+[[example]]
+name = "gvb_robustez_luau"
+path = "examples/gvb/robustez_luau/main.rs"
+
+[[example]]
+name = "gvb_series_multiplas"
+path = "examples/gvb/series_multiplas/main.rs"
+
+[[example]]
+name = "gvb_series_multiplas_luau"
+path = "examples/gvb/series_multiplas_luau/main.rs"
+
+[[example]]
+name = "gvb_spinbox"
+path = "examples/gvb/spinbox/main.rs"
+
+[[example]]
+name = "gvb_sqlite_crud"
+path = "examples/gvb/sqlite_crud/main.rs"
+
+[[example]]
+name = "gvb_stream_lua"
+path = "examples/gvb/stream_lua/main.rs"
+
+[[example]]
+name = "gvb_timepicker"
+path = "examples/gvb/timepicker/main.rs"
+
+[[example]]
+name = "gvb_toasts"
+path = "examples/gvb/toasts/main.rs"
+
+[[example]]
+name = "gvb_web_contador"
+path = "examples/gvb/web_contador/main.rs"
+
+[[example]]
+name = "gvb_webview"
+path = "examples/gvb/webview/main.rs"

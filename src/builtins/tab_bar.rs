@@ -1,7 +1,7 @@
 /// `QTabBar`: a fileira de abas, com a ativa em destaque.
 ///
 /// ```xml
-/// <TabBar value="aba" active="{aba}" items="abas" />
+/// <TabBar :value="aba" active="{aba}" :items="abas" />
 ///
 /// <template if="{aba}" equals="geral">  … conteúdo da aba Geral …  </template>
 /// <template else-if="{aba}" equals="rede"> … </template>
@@ -23,7 +23,7 @@
 /// # As abas vêm de uma coleção do contexto
 ///
 /// `items` é o **nome de uma chave** que guarda um array JSON de `{id, label}`
-/// — a mesma convenção do `<Menu items="…">` e de qualquer `for-each` do motor
+/// — a mesma convenção do `<Menu :items="…">` e de qualquer `for-each` do motor
 /// (uma lista literal no atributo não existe: o `for-each` lê chave, não texto).
 ///
 /// ```rust,ignore
@@ -69,7 +69,7 @@
 /// - `label_class`      — o rótulo dentro da aba.
 ///
 /// ```xml
-/// <tabbar value="aba" active="{aba}" items="abas"
+/// <tabbar :value="aba" active="{aba}" :items="abas"
 ///         tab_class="aba" tab_active_class="aba_ativa" />
 /// ```
 use crate::component::{Component, Context, Template};

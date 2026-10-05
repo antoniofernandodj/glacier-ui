@@ -1,23 +1,24 @@
 <screen title="Glacier - ciclo de vida (início)">
   <resources>
+    <link rel="stylesheet" href="examples/gva/ciclo_vida_luau/app.gss" />
     <link rel="theme" href="examples/gva/stream_lua/theme.json" />
     <script src="inicio.luau"></script>
   </resources>
 
-  <container padding="24" align_x="Center" align_y="Center" width="fill" height="fill">
-    <column spacing="14" align="Center" width="520">
-      <text size="18" bold="true" color="#ECEFF4">Início</text>
-      <text size="13" color="#88C0D0">
+  <container class="caixa">
+    <column align="Center" class="coluna">
+      <text class="titulo">Início</text>
+      <text class="texto">
         O monitor abre SSE e WebSocket ao entrar e o motor os fecha ao sair.
         Abra e volte; olhe o terminal (log do servidor) e os estados abaixo.
       </text>
-      <button on_click="ir_monitor" color="#5E81AC" padding="10 18">
+      <button on_click="ir_monitor" class="botao">
         Ir para o monitor
       </button>
-      <text size="13" bold="true" color="#88C0D0">— último estado do monitor —</text>
-      <text size="13" color="#EBCB8B">ciclo: {ciclo}</text>
-      <text size="13" color="#EBCB8B">SSE: {sse_status}</text>
-      <text size="13" color="#EBCB8B">WS: {ws_status}</text>
+      <text class="destaque">— último estado do monitor —</text>
+      <text class="texto_2">ciclo: {ciclo}</text>
+      <text class="texto_2">SSE: {sse_status}</text>
+      <text class="texto_2">WS: {ws_status}</text>
     </column>
   </container>
 </screen>

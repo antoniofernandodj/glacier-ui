@@ -10,7 +10,7 @@
       <text class="status">{status}</text>
     </row>
 
-    <scrollable width="fill" height="fill">
+    <scrollable class="rolagem">
       <column class="corpo">
         <text class="lead">
           `series="chave"` guarda um array de `{ name, points, color? }`. A
@@ -20,7 +20,7 @@
 
         <column class="bloco">
           <text class="secao">linechart — três séries, uma com cor fixa</text>
-          <linechart series="requisicoes" min="0" grid="true" class="grafico" />
+          <linechart :series="requisicoes" min="0" grid="true" class="grafico" />
           <row class="acoes">
             <button text="girar os dados" on_click="girar" />
             <button text="resetar" on_click="resetar" class="btn-fraco" />
@@ -34,12 +34,12 @@
         <row class="linha">
           <column class="bloco bloco-cresce">
             <text class="secao">area — o AreaChart, agora multi-série</text>
-            <linechart series="requisicoes" min="0" area="true" class="grafico" />
+            <linechart :series="requisicoes" min="0" area="true" class="grafico" />
           </column>
 
           <column class="bloco bloco-cresce">
             <text class="secao">points — o Scatter, agora multi-série</text>
-            <linechart series="latencia" min="0" points="true" class="grafico" />
+            <linechart :series="latencia" min="0" points="true" class="grafico" />
           </column>
         </row>
 

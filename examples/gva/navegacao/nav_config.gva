@@ -1,5 +1,6 @@
 <screen title="Glacier - Navegação · Configurações">
   <resources>
+    <link rel="stylesheet" href="examples/gva/navegacao/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -7,27 +8,22 @@
   </resources>
 
   <container
-    padding="40"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa"
   >
-    <column spacing="18" align="Center">
-      <text size="32" bold="true" color="#F5E0DC">
+    <column align="Center" class="coluna">
+      <text class="titulo">
         Configurações
       </text>
 
-      <column spacing="8" width="320">
-        <text size="14" bold="true" color="#A6ADC8">
+      <column class="coluna_2">
+        <text class="destaque">
           Nome de exibição
         </text>
         <input
           placeholder="Seu nome..."
-          value="user_name"
+          :value="user_name"
           on_change="mudar_nome"
-          width="fill"
-          padding="10"
+          class="campo"
         />
       </column>
 
@@ -37,16 +33,12 @@
       <button
         text="Ver perfil"
         navigate_to="perfil"
-        color="#89B4FA"
-        width="320"
-        padding="12"
+        class="botao"
       />
       <button
         text="Voltar"
         navigate_back="true"
-        color="#313244"
-        width="320"
-        padding="12"
+        class="botao_2"
       />
     </column>
   </container>

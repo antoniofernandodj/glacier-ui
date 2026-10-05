@@ -6,7 +6,7 @@ Language support for **Glacier View**, the markup of `glacier-ui`, in its two sp
 | --- | --- |
 | `.gva` | attributes — the XML spelling. This is the format's name now |
 | `.gv` | **legacy**: still opened, and treated exactly as `.gva` |
-| `.gvb` | blocks — `tag { class: nome }`, no closing tags (see `rascunhos/MARKUP.md`) |
+| `.gvb` | blocks — `tag(class = nome) { filhos }`, no closing tags (see `rascunhos/MARKUP.md`) |
 
 Highlighting covers all three. Links, go-to-definition and the props diagnostics
 work on `.gva`/`.gv` **and** `.gvb`: a `.gvb` is read as the XML it means (see

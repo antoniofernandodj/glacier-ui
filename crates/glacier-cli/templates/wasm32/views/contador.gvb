@@ -1,37 +1,30 @@
 // Sem `size` no <screen>: no navegador o tamanho é o da página (o canvas
 // ocupa 100% dela, ver web/index.html). Um tamanho fixo aqui encolheria o app
 // para um retângulo no canto da aba.
-screen {
-  title: "{{titulo}}"
-
+screen(title = "{{titulo}}") {
   resources {
-    link { rel: theme href: "views/styles/theme.json" }
-    link { rel: stylesheet href: "views/styles/app.gss" }
+    link(rel = theme, href = "views/styles/theme.json")
+    link(rel = stylesheet, href = "views/styles/app.gss")
   }
 
-  column {
-    class: tela
+  column(class = tela) {
+    text(class = rotulo, content = "{{titulo}}")
+    text(class = numero, content = "@contador")
 
-    text "{{titulo}}" { class: rotulo }
-    text "@contador" { class: numero }
-
-    row {
-      class: acoes
-
-      button "-" { class: btn on_click: subtrair }
-      button "+" { class: btn on_click: somar }
+    row(class = acoes) {
+      button(class = btn, on_click = subtrair, text = "-")
+      button(class = btn, on_click = somar, text = "+")
     }
 
-    column {
-      class: campo
+    column(class = campo) {
+      text(class = rotulo, content = "PASSO")
 
-      text "PASSO" { class: rotulo }
-
-      textinput {
-        class: entrada value: passo_texto on_change: mudar_passo placeholder: 1
-      }
+      textinput(
+        class = entrada, :value = passo_texto, on_change = mudar_passo,
+        placeholder = 1,
+      )
     }
 
-    button "zerar" { class: btn_ghost on_click: zerar }
+    button(class = btn_ghost, on_click = zerar, text = "zerar")
   }
 }

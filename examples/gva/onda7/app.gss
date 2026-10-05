@@ -69,3 +69,8 @@ trocar de cor por folha de estilo.
 
 .aba       { border_radius: 6; }
 .aba_ativa { color: var(--realce); text_color: var(--texto); }
+
+.coluna { spacing: 0; }
+.rolagem { width: fill; height: fill; }
+.controle { width: 220; }
+.grade_2 { spacing: 20; }

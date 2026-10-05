@@ -17,7 +17,7 @@
       <row class="linha_passo">
         <text class="rotulo">Passo:</text>
         <input
-          value="passo"
+          :value="passo"
           placeholder="1"
           on_change="definir_passo"
           class="campo_passo"

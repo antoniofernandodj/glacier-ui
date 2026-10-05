@@ -1,5 +1,6 @@
 <screen title="Glacier - Condicional">
   <resources>
+    <link rel="stylesheet" href="examples/gva/condicional/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -7,48 +8,40 @@
   </resources>
 
   <container
-    padding="40"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa"
   >
-    <column spacing="20" align="Center">
-      <text size="26" bold="true" color="#F5E0DC">Demonstração de if / else</text>
+    <column align="Center" class="coluna">
+      <text class="titulo">Demonstração de if / else</text>
 
       <!-- Checagem truthy: renderiza só quando {logado} for verdadeiro -->
       <if cond="{logado}">
-        <column spacing="10" align="Center">
-          <text size="18" color="#A6E3A1">
+        <column align="Center" class="coluna_2">
+          <text class="texto">
             Bem-vindo de volta, {usuario}!
           </text>
           <button
             text="Sair"
             on_click="logout"
-            color="#BF616A"
-            width="200"
-            padding="10"
+            class="botao"
           />
         </column>
       </if>
       <else>
-        <column spacing="10" align="Center">
-        <text size="18" color="#A6ADC8">
+        <column align="Center" class="coluna_2">
+        <text class="texto_2">
           Você não está conectado.
         </text>
         <button
           text="Entrar"
           on_click="login"
-          color="#A3BE8C"
-          width="200"
-          padding="10"
+          class="botao_2"
         />
         </column>
       </else>
 
       <!-- Comparação explícita -->
       <if cond="{logado}" equals="false">
-        <text size="12" color="#6C7086">
+        <text class="nota">
           (dica: clique em Entrar para ver o conteúdo)
         </text>
       </if>

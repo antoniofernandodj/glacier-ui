@@ -1,18 +1,19 @@
 <screen title="Glacier - Onda 1" size="900 700">
   <resources>
+    <link rel="stylesheet" href="examples/gva/onda1/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
     <link rel="theme" href="examples/gva/onda1/theme.json" />
   </resources>
 
-  <column spacing="0" width="fill" height="fill">
+  <column class="coluna">
 
     <!-- A StatusBar e o GroupBox são da onda 2; as duas ondas compõem sem
        nada de especial: o conteúdo de um slot pode ser qualquer widget,
        embutido ou não. -->
     <toolbar divider="true">
-      <text size="14" bold="true" color="#CDD6F4">
+      <text class="destaque">
         Onda 1 — Slider, Space, Radio e Avatar
       </text>
       <!-- 2. Space: aqui é o espaçador FLEXÍVEL. Sem width, ele é
@@ -22,59 +23,59 @@
       <avatar initials="AF" size="28" bg="#89B4FA" fg="#11111B" />
     </toolbar>
 
-    <scrollable width="fill" height="fill">
-      <column padding="24" spacing="20" width="fill">
+    <scrollable class="rolagem">
+      <column class="coluna_2">
 
         <!-- 1. Slider =============================================== -->
         <groupbox title="Slider — o QSlider">
-          <text size="13" color="#A6ADC8">
+          <text class="texto">
             Primitiva: dispara onChange com o valor novo, e quem grava a chave é o update da tela.
             Sem esse handler, o cursor não sairia do lugar.
           </text>
 
-          <row spacing="16" align_y="center">
-            <text width="90" color="#CDD6F4">Volume</text>
+          <row class="linha">
+            <text class="texto_2">Volume</text>
             <slider
-              value="volume"
+              :value="volume"
               min="0"
               max="100"
               on_change="ajustar_volume"
-              width="320"
+              class="controle"
             />
-            <text size="13" color="#A6ADC8">{volume}</text>
+            <text class="texto">{volume}</text>
           </row>
 
           <!-- Passo fracionário: as casas decimais da saída saem do
              próprio step ("0.05" -> 2 casas), então a chave nunca
              recebe 0.6000000238418579. -->
-          <row spacing="16" align_y="center">
-            <text width="90" color="#CDD6F4">Brilho</text>
+          <row class="linha">
+            <text class="texto_2">Brilho</text>
             <slider
-              value="brilho"
+              :value="brilho"
               min="0"
               max="1"
               step="0.05"
               on_change="ajustar_brilho"
-              width="320"
               color="#A6E3A1"
+              class="controle"
             />
-            <text size="13" color="#A6ADC8">{brilho}</text>
+            <text class="texto">{brilho}</text>
           </row>
 
           <!-- default: clique duplo devolve o cursor ao valor neutro.
              on_release: a ação só dispara ao SOLTAR, para quem não
              quer um efeito colateral por pixel arrastado. -->
-          <row spacing="16" align_y="center">
-            <text width="90" color="#CDD6F4">Graves</text>
+          <row class="linha">
+            <text class="texto_2">Graves</text>
             <slider
-              value="graves"
+              :value="graves"
               min="-10"
               max="10"
               default="0"
               on_change="ajustar_graves"
-              width="320"
+              class="controle"
             />
-            <text size="13" color="#A6ADC8">
+            <text class="texto">
               {graves} dB (duplo clique volta a 0)
             </text>
           </row>
@@ -85,31 +86,31 @@
            handler da tela. Os dois leem e escrevem "zoom", então
            andam juntos. -->
         <groupbox title="Slider + SpinBox na mesma chave" flat="true">
-          <row spacing="16" align_y="center">
-            <text width="90" color="#CDD6F4">Zoom (%)</text>
+          <row class="linha">
+            <text class="texto_2">Zoom (%)</text>
             <slider
-              value="zoom"
+              :value="zoom"
               min="25"
               max="400"
               step="25"
               on_change="ajustar_zoom"
-              width="260"
+              class="controle_2"
             />
-            <spinbox value="zoom" min="25" max="400" step="25" width="80" />
-            <text size="13" color="#A6ADC8">{zoom}%</text>
+            <spinbox :value="zoom" min="25" max="400" step="25" width="80" />
+            <text class="texto">{zoom}%</text>
           </row>
 
-          <row spacing="16" align_y="center">
-            <text width="90" color="#CDD6F4">Vertical</text>
+          <row class="linha">
+            <text class="texto_2">Vertical</text>
             <slider
-              value="volume"
+              :value="volume"
               min="0"
               max="100"
               vertical="true"
               on_change="ajustar_volume"
-              height="120"
+              class="controle_3"
             />
-            <text size="13" color="#A6ADC8">
+            <text class="texto">
               o mesmo 'volume' do grupo acima, no vertical_slider
             </text>
           </row>
@@ -117,65 +118,65 @@
 
         <!-- 3. Radio / RadioGroup ==================================== -->
         <groupbox title="Radio e RadioGroup — o QRadioButton e o QButtonGroup">
-          <text size="13" color="#A6ADC8">
+          <text class="texto">
             Os dois caminhos escrevendo na MESMA chave 'plano'.
             O grupo é a chave, não um nó pai: todo Radio que aponta
             para o mesmo valor é do mesmo grupo.
           </text>
 
-          <row spacing="40" align_y="start">
-            <column spacing="8">
-              <text size="13" bold="true" color="#CDD6F4">
+          <row class="linha_2">
+            <column class="coluna_3">
+              <text class="destaque_2">
                 Primitiva, escrita à mão:
               </text>
               <radio
                 label="Grátis"
                 value="free"
-                group="plano"
+                :group="plano"
                 on_change="escolher_plano"
               />
               <radio
                 label="Pro"
                 value="pro"
-                group="plano"
+                :group="plano"
                 on_change="escolher_plano"
               />
               <radio
                 label="Time"
                 value="team"
-                group="plano"
+                :group="plano"
                 on_change="escolher_plano"
               />
-              <text size="12" color="#6C7086">+ 1 braço no update da tela</text>
+              <text class="nota">+ 1 braço no update da tela</text>
             </column>
 
-            <column spacing="8">
-              <text size="13" bold="true" color="#CDD6F4">Builtin, de uma coleção:</text>
-              <radiogroup value="plano" items="planos" />
-              <text size="12" color="#6C7086">nenhum handler no app</text>
+            <column class="coluna_3">
+              <text class="destaque_2">Builtin, de uma coleção:</text>
+              <radiogroup :value="plano" :items="planos" />
+              <text class="nota">nenhum handler no app</text>
             </column>
 
-            <column spacing="8">
-              <text size="13" bold="true" color="#CDD6F4">O mesmo builtin, deitado:</text>
-              <radiogroup value="plano" items="planos" layout="row" />
-              <text size="13" color="#A6ADC8">plano escolhido: {plano}</text>
+            <column class="coluna_3">
+              <text class="destaque_2">O mesmo builtin, deitado:</text>
+              <radiogroup :value="plano" :items="planos" layout="row" />
+              <text class="texto">plano escolhido: {plano}</text>
             </column>
           </row>
         </groupbox>
 
         <!-- 4. Avatar ================================================ -->
         <groupbox title="Avatar">
-          <text size="13" color="#A6ADC8">
+          <text class="texto">
             Sempre ocupa o mesmo espaço, com foto ou sem:
             numa lista de usuários a foto que falta é
             o caso comum, e um buraco vazio quebraria o alinhamento da linha.
           </text>
-          <row spacing="16" align_y="center">
+          <row class="linha">
             <avatar src="examples/gva/perfil/avatar.png" size="56" />
             <avatar initials="AF" size="56" />
             <avatar initials="MS" size="56" bg="#A6E3A1" fg="#11111B" />
             <avatar size="56" />
-            <text size="13" color="#A6ADC8">
+            <text class="texto">
               foto · iniciais · cores por instância · sem nada (o '?')
             </text>
           </row>
@@ -183,21 +184,21 @@
 
         <!-- 2. Space (fixo) ========================================== -->
         <groupbox title="Space — o QSpacerItem" flat="true">
-          <text size="13" color="#A6ADC8">
+          <text class="texto">
             Sem width/height é Length::Fill nos dois eixos (o espaçador flexível, como no topo desta
             janela); com eles, vira um vão fixo.
           </text>
-          <row align_y="center">
-            <text color="#CDD6F4">esquerda</text>
+          <row class="linha_3">
+            <text class="texto_3">esquerda</text>
             <space />
-            <text color="#CDD6F4">centro (empurrado por dois Space fill)</text>
+            <text class="texto_3">centro (empurrado por dois Space fill)</text>
             <space />
-            <text color="#CDD6F4">direita</text>
+            <text class="texto_3">direita</text>
           </row>
-          <row align_y="center">
-            <text color="#CDD6F4">a</text>
-            <space width="80" />
-            <text color="#CDD6F4">b (80px fixos entre nós)</text>
+          <row class="linha_3">
+            <text class="texto_3">a</text>
+            <space class="espaco" />
+            <text class="texto_3">b (80px fixos entre nós)</text>
           </row>
         </groupbox>
 

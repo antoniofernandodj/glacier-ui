@@ -11,7 +11,7 @@
       <text class="status">{status}</text>
     </row>
 
-    <tabbar items="abas" value="aba" selected="{aba}" class="abas" />
+    <tabbar :items="abas" :value="aba" selected="{aba}" class="abas" />
 
     <!-- ══ 1 + 2: Stack, NotificationDot, SplashScreen ══════════════════ -->
     <template if="{aba}" equals="empilhamento">
@@ -164,7 +164,7 @@
               <text class="secao">QrCode</text>
               <qrcode content="{qr_texto}" width="120" height="120" />
               <textinput
-                value="qr_texto"
+                :value="qr_texto"
                 on_change="qr_texto"
                 placeholder="conteúdo do QR"
               />

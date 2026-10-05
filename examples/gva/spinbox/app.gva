@@ -7,13 +7,25 @@
     <style>
       .moldura   { border-width: 1; border-color: #89B4FA; border-radius: 6; padding: 4; }
       .campo_num { background: #11111B; }
+      .coluna { padding: 28; spacing: 20; width: fill; height: fill; }
+      .coluna_2 { spacing: 6; }
+      .titulo { size: 22; bold: true; color: #CDD6F4; }
+      .texto { size: 13; color: #A6ADC8; }
+      .linha { spacing: 16; align_y: center; }
+      .texto_2 { width: 110; color: #CDD6F4; }
+      .destaque { size: 13; bold: true; color: #CDD6F4; }
+      .linha_2 { spacing: 24; align_y: center; }
+      .linha_3 { spacing: 10; align_y: center; }
+      .texto_3 { color: #CDD6F4; }
+      .formulario { spacing: 10; }
+      .campo { width: 220; }
     </style>
   </resources>
 
-  <column padding="28" spacing="20" width="fill" height="fill">
-    <column spacing="6">
-      <text size="22" bold="true" color="#CDD6F4">SpinBox — o QSpinBox do Qt</text>
-      <text size="13" color="#A6ADC8">
+  <column class="coluna">
+    <column class="coluna_2">
+      <text class="titulo">SpinBox — o QSpinBox do Qt</text>
+      <text class="texto">
         O app só registra o template e semeia os valores iniciais.
         Somar, subtrair e saturar é do widget, que vem embutido na
         lib e escreve na chave de contexto que cada instância nomeia.
@@ -23,45 +35,45 @@
     <rule />
 
     <!-- Inteiro simples: a faixa satura em 1..10. -->
-    <row spacing="16" align_y="center">
-      <text width="110" color="#CDD6F4">Quantidade</text>
-      <spinbox value="quantidade" min="1" max="10" />
-      <text size="13" color="#A6ADC8">
+    <row class="linha">
+      <text class="texto_2">Quantidade</text>
+      <spinbox :value="quantidade" min="1" max="10" />
+      <text class="texto">
         chave 'quantidade' = {quantidade}
       </text>
     </row>
 
     <!-- Decimal: as duas casas saem do próprio step, sem prop nova. -->
-    <row spacing="16" align_y="center">
-      <text width="110" color="#CDD6F4">Preço</text>
-      <spinbox value="preco" min="0" max="20" step="0.25" width="90" />
-      <text size="13" color="#A6ADC8">chave 'preco' = {preco}</text>
+    <row class="linha">
+      <text class="texto_2">Preço</text>
+      <spinbox :value="preco" min="0" max="20" step="0.25" width="90" />
+      <text class="texto">chave 'preco' = {preco}</text>
     </row>
 
     <!-- Passo grande e a outra forma: `− campo +`, o SpinBox do Qt Quick. -->
-    <row spacing="16" align_y="center">
-      <text width="110" color="#CDD6F4">Zoom (%)</text>
-      <spinbox value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
-      <text size="13" color="#A6ADC8">chave 'zoom' = {zoom}</text>
+    <row class="linha">
+      <text class="texto_2">Zoom (%)</text>
+      <spinbox :value="zoom" min="25" max="400" step="25" layout="inline" width="72" />
+      <text class="texto">chave 'zoom' = {zoom}</text>
     </row>
 
     <rule />
 
     <!-- Duas instâncias da MESMA tag, lado a lado: chaves diferentes, nenhum
     estado compartilhado. É o ponto do padrão "a chave vem por prop". -->
-    <text size="13" bold="true" color="#CDD6F4">
+    <text class="destaque">
       Duas instâncias independentes:
     </text>
-    <row spacing="24" align_y="center">
-      <row spacing="10" align_y="center">
-        <text color="#CDD6F4">Adultos</text>
-        <spinbox value="adultos" min="1" max="9" width="56" />
+    <row class="linha_2">
+      <row class="linha_3">
+        <text class="texto_3">Adultos</text>
+        <spinbox :value="adultos" min="1" max="9" width="56" />
       </row>
-      <row spacing="10" align_y="center">
-        <text color="#CDD6F4">Crianças</text>
-        <spinbox value="criancas" min="0" max="9" width="56" />
+      <row class="linha_3">
+        <text class="texto_3">Crianças</text>
+        <spinbox :value="criancas" min="0" max="9" width="56" />
       </row>
-      <text size="13" color="#A6ADC8">
+      <text class="texto">
         {adultos} adulto(s), {criancas} criança(s)
       </text>
     </row>
@@ -78,14 +90,14 @@
 
     form_control põe o campo na cadeia de tabulação da <form> que o envolve
     — sem ele o Tab pula o widget inteiro. -->
-    <text size="13" bold="true" color="#CDD6F4">
+    <text class="destaque">
       class × field_class (0.69):
     </text>
-    <form name="reserva" on_submit="salvar" spacing="10">
-      <row spacing="16" align_y="center">
-        <text width="110" color="#CDD6F4">Mesas</text>
+    <form name="reserva" on_submit="salvar" class="formulario">
+      <row class="linha">
+        <text class="texto_2">Mesas</text>
         <spinbox
-          value="mesas"
+          :value="mesas"
           min="1"
           max="20"
           width="56"
@@ -93,15 +105,15 @@
           field_class="campo_num"
           form_control="mesas"
         />
-        <text size="13" color="#A6ADC8">a moldura é a Row; o fundo escuro é só o campo</text>
+        <text class="texto">a moldura é a Row; o fundo escuro é só o campo</text>
       </row>
-      <row spacing="16" align_y="center">
-        <text width="110" color="#CDD6F4">Observação</text>
+      <row class="linha">
+        <text class="texto_2">Observação</text>
         <input
-          value="obs"
+          :value="obs"
           form_control="obs"
-          width="220"
           placeholder="Tab vem parar aqui"
+          class="campo"
         />
       </row>
     </form>

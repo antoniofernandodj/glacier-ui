@@ -1,5 +1,6 @@
 <screen title="Glacier - navegação via script Lua · Login">
   <resources>
+    <link rel="stylesheet" href="examples/gva/navegacao_luau/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -20,46 +21,38 @@
   </resources>
 
   <container
-    padding="40"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa"
   >
-    <column spacing="18" align_x="Center">
-      <text size="32" bold="true" color="#F5E0DC">
+    <column class="coluna">
+      <text class="titulo">
         Entrar
       </text>
-      <text size="12" color="#6C7086">
+      <text class="nota">
         dica: admin / 123
       </text>
 
-      <column spacing="8" width="280">
+      <column class="coluna_2">
         <input
           placeholder="usuário"
-          value="usuario"
+          :value="usuario"
           on_change="usuario"
-          width="fill"
-          padding="10"
+          class="campo"
         />
         <input
           placeholder="senha"
-          value="senha"
+          :value="senha"
           on_change="senha"
           secure="true"
-          width="fill"
-          padding="10"
+          class="campo"
         />
       </column>
 
       <button
         text="Entrar"
         on_click="entrar"
-        color="#89B4FA"
-        width="280"
-        padding="12"
+        class="botao_2"
       />
-      <text size="13" color="#F38BA8">
+      <text class="texto_2">
         {erro}
       </text>
     </column>

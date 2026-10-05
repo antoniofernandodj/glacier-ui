@@ -1,5 +1,6 @@
 <screen title="Glacier - ComboEdit (servidores salvos)">
   <resources>
+    <link rel="stylesheet" href="examples/gva/combo_edit/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -9,19 +10,19 @@
   <!-- `<comboedit>`: dropdown editável (combo_box do iced). Digite um servidor
      novo à vontade, ou escolha um dos já salvos na lista — escolher um
      preenche o token sozinho (veja `servidor_selecionado` em main.rs). -->
-  <container padding="24" width="fill" height="fill">
-    <column spacing="16" width="420">
-      <text size="24" bold="true" color="#ECEFF4">
+  <container class="caixa">
+    <column class="coluna">
+      <text class="titulo">
         Servidores salvos
       </text>
 
-      <column spacing="6" width="fill">
-        <text size="13" color="#D8DEE9">
+      <column class="coluna_2">
+        <text class="texto">
           Servidor
         </text>
         <comboedit
-          options="servidores"
-          value="url"
+          :options="servidores"
+          :value="url"
           placeholder="https://servidor.exemplo.com"
           on_change="url_changed"
           on_select="servidor_selecionado"
@@ -29,30 +30,29 @@
         />
       </column>
 
-      <column spacing="6" width="fill">
-        <text size="13" color="#D8DEE9">Token</text>
+      <column class="coluna_2">
+        <text class="texto">Token</text>
         <input
-          value="token"
+          :value="token"
           on_change="token_changed"
           placeholder="token de acesso"
           secure="true"
-          width="fill"
+          class="campo"
         />
       </column>
 
       <button
         text="Salvar este par"
         on_click="salvar"
-        color="#5E81AC"
-        width="fill"
+        class="botao"
       />
 
       <rule />
 
-      <text size="13" color="#D8DEE9">
+      <text class="texto">
         Pares salvos:
       </text>
-      <text size="12" color="#A3BE8C">
+      <text class="nota">
         {pares_txt}
       </text>
     </column>

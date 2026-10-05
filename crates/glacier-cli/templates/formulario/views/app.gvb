@@ -1,126 +1,128 @@
-screen {
-  title: "{{titulo}} — cadastro" size: "560 640" min_size: "420 520"
-
+screen(
+  title = "{{titulo}} — cadastro", size = "560 640", min_size = "420 520",
+) {
   resources {
-    link { rel: theme href: "views/styles/theme.json" }
-    link { rel: stylesheet href: "views/styles/app.gss" }
-    script { src: "scripts/app.luau" }
+    link(rel = theme, href = "views/styles/theme.json")
+    link(rel = stylesheet, href = "views/styles/app.gss")
+    script(src = "scripts/app.luau")
   }
 
-  column {
-    class: tela
+  column(class = tela) {
+    column(class = cabecalho) {
+      text(class = titulo, content = "Novo colaborador")
 
-    column {
-      class: cabecalho
-
-      text "Novo colaborador" { class: titulo }
-
-      text "as regras estão no <form>; o motor valida ao enviar" {
-        class: subtitulo
-      }
+      text(
+        class = subtitulo,
+        content = "as regras estão no <form>; o motor valida ao enviar",
+      )
     }
 
-    form {
-      name: cadastro class: campos on_submit: salvar
-      on_validation_error: apontar validate_on: submit
+    form(
+      name = cadastro, class = campos, on_submit = salvar,
+      on_validation_error = apontar, validate_on = submit,
+    ) {
+      column(class = grupo) {
+        text(class = rotulo, content = "Nome")
 
-      column {
-        class: grupo
+        input(
+          class = campo, form_control = f_nome, rules = "required|minlen:3",
+          msg = "informe ao menos 3 letras", placeholder = "nome completo",
+        )
 
-        text "Nome" { class: rotulo }
-
-        input {
-          class: campo form_control: f_nome rules: "required|minlen:3"
-          msg: "informe ao menos 3 letras" placeholder: "nome completo"
-        }
-
-        text "@erro_f_nome" { class: erro if: @erro_f_nome not_empty: "" }
+        text(
+          class = erro, if = @erro_f_nome, not_empty = "",
+          content = "@erro_f_nome",
+        )
       }
 
-      row {
-        class: dupla
+      row(class = dupla) {
+        column(class = grupo) {
+          text(class = rotulo, content = "CPF")
 
-        column {
-          class: grupo
+          maskedinput(
+            class = campo, form_control = f_cpf, mask = cpf,
+            rules = "required|digits:11", msg = "o CPF precisa de 11 dígitos",
+          )
 
-          text "CPF" { class: rotulo }
-
-          maskedinput {
-            class: campo form_control: f_cpf mask: cpf
-            rules: "required|digits:11" msg: "o CPF precisa de 11 dígitos"
-          }
-
-          text "@erro_f_cpf" { class: erro if: @erro_f_cpf not_empty: "" }
+          text(
+            class = erro, if = @erro_f_cpf, not_empty = "",
+            content = "@erro_f_cpf",
+          )
         }
 
-        column {
-          class: grupo
+        column(class = grupo) {
+          text(class = rotulo, content = "Telefone")
 
-          text "Telefone" { class: rotulo }
+          maskedinput(
+            class = campo, form_control = f_tel, mask = telefone,
+            rules = "digits:10,11", msg = "telefone com DDD",
+          )
 
-          maskedinput {
-            class: campo form_control: f_tel mask: telefone
-            rules: "digits:10,11" msg: "telefone com DDD"
-          }
-
-          text "@erro_f_tel" { class: erro if: @erro_f_tel not_empty: "" }
-        }
-      }
-
-      row {
-        class: dupla
-
-        column {
-          class: grupo
-
-          text "Idade" { class: rotulo }
-
-          spinbox {
-            value: f_idade form_control: f_idade min: 14 max: 90 width: 110
-            rules: gte:18 msg: "precisa ser maior de idade"
-          }
-
-          text "@erro_f_idade" { class: erro if: @erro_f_idade not_empty: "" }
-        }
-
-        column {
-          class: grupo
-
-          text "Nascimento" { class: rotulo }
-
-          dateedit {
-            class: campo value: f_nasc format: br calendar_popup: true
-            today: @hoje
-          }
+          text(
+            class = erro, if = @erro_f_tel, not_empty = "",
+            content = "@erro_f_tel",
+          )
         }
       }
 
-      column {
-        class: grupo
+      row(class = dupla) {
+        column(class = grupo) {
+          text(class = rotulo, content = "Idade")
 
-        text "UF" { class: rotulo }
+          spinbox(
+            :value = f_idade, form_control = f_idade, min = 14, max = 90,
+            width = 110,
+            rules = gte:18, msg = "precisa ser maior de idade",
+          )
 
-        select {
-          class: campo options: f_ufs form_control: f_uf rules: required
-          msg: "escolha a UF"
+          text(
+            class = erro, if = @erro_f_idade, not_empty = "",
+            content = "@erro_f_idade",
+          )
         }
 
-        text "@erro_f_uf" { class: erro if: @erro_f_uf not_empty: "" }
+        column(class = grupo) {
+          text(class = rotulo, content = "Nascimento")
+
+          dateedit(
+            class = campo, value = f_nasc, format = br, calendar_popup = true,
+            today = @hoje,
+          )
+        }
       }
 
-      checkbox {
-        label: "Aceito os termos de uso" form_control: f_aceite rules: accepted
-        msg: "é preciso aceitar os termos"
+      column(class = grupo) {
+        text(class = rotulo, content = "UF")
+
+        select(
+          class = campo, :options = f_ufs, form_control = f_uf, rules = required,
+          msg = "escolha a UF",
+        )
+
+        text(
+          class = erro, if = @erro_f_uf, not_empty = "",
+          content = "@erro_f_uf",
+        )
       }
 
-      text "@erro_f_aceite" { class: erro if: @erro_f_aceite not_empty: "" }
-      text "@f_status" { class: status }
+      checkbox(
+        label = "Aceito os termos de uso", form_control = f_aceite,
+        rules = accepted,
+        msg = "é preciso aceitar os termos",
+      )
 
-      row {
-        class: acoes
+      text(
+        class = erro, if = @erro_f_aceite, not_empty = "",
+        content = "@erro_f_aceite",
+      )
+      text(class = status, content = "@f_status")
 
-        button "Limpar" { type: reset class: btn-limpar on_click: limpar }
-        button "Salvar" { type: submit class: btn-salvar }
+      row(class = acoes) {
+        button(
+          type = reset, class = btn-limpar, on_click = limpar,
+          text = "Limpar",
+        )
+        button(type = submit, class = btn-salvar, text = "Salvar")
       }
     }
   }

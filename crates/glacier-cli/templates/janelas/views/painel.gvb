@@ -1,65 +1,60 @@
-screen {
-  title: "{{titulo}}" size: "520 460" min_size: "420 380"
-  icon: "views/assets/icone.png"
-
+screen(
+  title = "{{titulo}}", size = "520 460", min_size = "420 380",
+  icon = "views/assets/icone.png",
+) {
   resources {
-    link { rel: theme href: "views/styles/theme.json" }
-    link { rel: stylesheet href: "views/styles/app.gss" }
-    script { src: "scripts/painel.luau" }
+    link(rel = theme, href = "views/styles/theme.json")
+    link(rel = stylesheet, href = "views/styles/app.gss")
+    script(src = "scripts/painel.luau")
 
     // O que é do APLICATIVO, e não desta janela. O runner lê isto antes de
     // abrir qualquer janela: a instância única decide ali se o processo segue.
-    app { id: "{{nome_projeto}}" single_instance: true remember_geometry: true }
+    app(
+      id = "{{nome_projeto}}", single_instance = true, remember_geometry = true,
+    )
 
     // Com a feature `tray`, fechar a última janela recolhe o app para cá.
     // `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho;
     // qualquer outra ação iria para painel.luau.
-    tray {
-      icon: "views/assets/icone.png" tooltip: "{{titulo}}"
+    tray(icon = "views/assets/icone.png", tooltip = "{{titulo}}") {
+      item(label = "Abrir {{titulo}}", on_click = tray:open)
 
-      item { label: "Abrir {{titulo}}" on_click: tray:open }
-
-      check {
-        label: Notificações checked: @__notifications
-        on_click: notifications:toggle
-      }
+      check(
+        label = Notificações, checked = @__notifications,
+        on_click = notifications:toggle,
+      )
 
       separator
-      item { label: Sair on_click: tray:quit }
+      item(label = Sair, on_click = tray:quit)
     }
   }
 
-  column {
-    class: tela
-
-    column {
-      class: cabecalho
-
-      text "{{titulo}}" { class: titulo }
-      text "janela principal" { class: subtitulo }
+  column(class = tela) {
+    column(class = cabecalho) {
+      text(class = titulo, content = "{{titulo}}")
+      text(class = subtitulo, content = "janela principal")
     }
 
-    column {
-      class: painel
-
-      text "RECEBIDO DAS FILHAS" { class: rotulo_cap }
-      text "@recebidos" { class: numero }
-      text "@ultimo" { class: apagado }
+    column(class = painel) {
+      text(class = rotulo_cap, content = "RECEBIDO DAS FILHAS")
+      text(class = numero, content = "@recebidos")
+      text(class = apagado, content = "@ultimo")
     }
 
-    column {
-      class: acoes
+    column(class = acoes) {
+      button(
+        class = btn_primario, text = "Abrir uma janela filha",
+        on_click = abrir_detalhe,
+      )
 
-      button {
-        class: btn_primario text: "Abrir uma janela filha"
-        on_click: abrir_detalhe
-      }
-
-      button {
-        class: btn_ghost text: "Notificação do sistema" on_click: avisar
-      }
+      button(
+        class = btn_ghost, text = "Notificação do sistema", on_click = avisar,
+      )
     }
 
-    text "feche esta janela: o app continua vivo na bandeja" { class: apagado }
+    text(
+      class = apagado,
+      content = "feche esta janela: o app continua vivo na bandeja",
+    )
   }
 }

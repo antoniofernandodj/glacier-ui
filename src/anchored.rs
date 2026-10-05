@@ -4,7 +4,7 @@
 //! `<dateedit>`.
 //!
 //! ```xml
-//! <popover open="menu_usuario" placement="bottom" align="end">
+//! <popover :open="menu_usuario" placement="bottom" align="end">
 //!     <button slot="anchor" text="Antônio ▾" on_click="app:toggle:menu_usuario" />
 //!     <column class="painel"> … </column>
 //! </popover>

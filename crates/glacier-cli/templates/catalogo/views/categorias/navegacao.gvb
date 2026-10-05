@@ -1,204 +1,172 @@
 component {
-  column {
-    class: secao
+  resources {
+    link(rel = stylesheet, href = "views/styles/app.gss")
+  }
 
-    text "Navegação" { class: titulo_cat }
+  column(class = secao) {
+    text(class = titulo_cat, content = "Navegação")
 
-    text """
-      `tabbar`/`tabs`/`stackview`/`wizard` usam `active="@chave"` (leitura) ao
-      lado de `value="chave"` (escrita). A página é escolhida por NOME de slot.
-    """ {
-      class: intro
-    }
+    text(
+      class = intro,
+      content = """
+        `tabbar`/`tabs`/`stackview`/`wizard` usam `active="@chave"` (leitura) ao
+        lado de `value="chave"` (escrita). A página é escolhida por NOME de slot.
+      """,
+    )
 
-    column {
-      class: demos
-
-      column {
-        class: demo
-
-        text "<tabbar> — só a barra" { class: rotulo }
-        tabbar { value: nv_aba active: @nv_aba items: nv_abas }
-        text "nv_aba = @nv_aba" { class: nota }
+    column(class = demos) {
+      column(class = demo) {
+        text(class = rotulo, content = "<tabbar> — só a barra")
+        tabbar(:value = nv_aba, active = @nv_aba, :items = nv_abas)
+        text(class = nota, content = "nv_aba = @nv_aba")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<tabs> — barra + páginas por <template slot>",
+        )
 
-        text "<tabs> — barra + páginas por <template slot>" { class: rotulo }
-
-        tabs {
-          value: nv_aba2 active: @nv_aba2 items: nv_abas page_spacing: 14
-
-          template {
-            slot: geral
-
-            text "página \"geral\"" { class: nota }
+        tabs(
+          :value = nv_aba2, active = @nv_aba2, :items = nv_abas,
+          page_spacing = 14,
+        ) {
+          template(slot = geral) {
+            text(class = nota, content = "página \"geral\"")
           }
 
-          template {
-            slot: rede
-
-            text "página \"rede\"" { class: nota }
+          template(slot = rede) {
+            text(class = nota, content = "página \"rede\"")
           }
 
-          template {
-            slot: avancado
-
-            text "página \"avancado\"" { class: nota }
+          template(slot = avancado) {
+            text(class = nota, content = "página \"avancado\"")
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <stackview active="@{…}"> — troca de painel por nome, sem escada de
+            se/senao
+          """,
+        )
 
-        text """
-          <stackview active="@{…}"> — troca de painel por nome, sem escada de
-          se/senao
-        """ {
-          class: rotulo
+        row(class = linha) {
+          button(class = btn, text = Resumo, on_click = def:nv_painel:resumo)
+          button(class = btn, text = Detalhe, on_click = def:nv_painel:detalhe)
         }
 
-        row {
-          class: linha
-
-          button { class: btn text: Resumo on_click: def:nv_painel:resumo }
-          button { class: btn text: Detalhe on_click: def:nv_painel:detalhe }
-        }
-
-        stackview {
-          active: @nv_painel
-
-          template {
-            slot: resumo
-
-            text "painel de resumo" { class: nota }
+        stackview(active = @nv_painel) {
+          template(slot = resumo) {
+            text(class = nota, content = "painel de resumo")
           }
 
-          template {
-            slot: detalhe
-
-            text "painel de detalhe" { class: nota }
+          template(slot = detalhe) {
+            text(class = nota, content = "painel de detalhe")
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<wizard> — passos + validação que trava o \"Avançar\"",
+        )
 
-        text "<wizard> — passos + validação que trava o \"Avançar\"" {
-          class: rotulo
-        }
-
-        wizard {
-          value: nv_passo active: @nv_passo steps: "plano,dominio,revisao"
-          titles: "Plano,Domínio,Revisão" valid: @nv_passo_valido
-          on_finish: "dizer:wizard concluído"
-          on_cancel: "dizer:wizard cancelado"
-
-          template {
-            slot: plano
-
-            text "escolha um plano" { class: nota }
+        wizard(
+          :value = nv_passo, active = @nv_passo, steps = "plano,dominio,revisao",
+          titles = "Plano,Domínio,Revisão", valid = @nv_passo_valido,
+          on_finish = "dizer:wizard concluído",
+          on_cancel = "dizer:wizard cancelado",
+        ) {
+          template(slot = plano) {
+            text(class = nota, content = "escolha um plano")
           }
 
-          template {
-            slot: dominio
-
-            text "informe o domínio" { class: nota }
+          template(slot = dominio) {
+            text(class = nota, content = "informe o domínio")
           }
 
-          template {
-            slot: revisao
-
-            text "confira e conclua" { class: nota }
+          template(slot = revisao) {
+            text(class = nota, content = "confira e conclua")
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <wizardnav> — SÓ a barra de botões (voltar/avançar/finalizar), para
+            quem monta os passos à mão
+          """,
+        )
 
-        text """
-          <wizardnav> — SÓ a barra de botões (voltar/avançar/finalizar), para
-          quem monta os passos à mão
-        """ {
-          class: rotulo
-        }
+        wizardnav(
+          :value = nv_wn, steps = "dados,rede,revisao",
+          titles = "Dados,Rede,Revisão",
+          valid = @nv_wn_valido, on_finish = "dizer:wizardnav concluído",
+        )
 
-        wizardnav {
-          value: nv_wn steps: "dados,rede,revisao" titles: "Dados,Rede,Revisão"
-          valid: @nv_wn_valido on_finish: "dizer:wizardnav concluído"
-        }
-
-        text "nv_wn = @nv_wn · `valid=\"@{…}\"` falso trava o \"Avançar\"" {
-          class: nota
-        }
+        text(
+          class = nota,
+          content = "nv_wn = @nv_wn · `valid=\"@{…}\"` falso trava o \"Avançar\"",
+        )
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<swipeview> — páginas deslizáveis (arraste na horizontal)",
+        )
 
-        text "<swipeview> — páginas deslizáveis (arraste na horizontal)" {
-          class: rotulo
-        }
-
-        swipeview {
-          value: nv_pagina threshold: 120 class: area
-
-          column {
-            class: coluna
-
-            text "página 0 — arraste" { class: nota }
+        swipeview(:value = nv_pagina, threshold = 120, class = area) {
+          column(class = coluna) {
+            text(class = nota, content = "página 0 — arraste")
           }
 
-          column {
-            class: coluna
-
-            text "página 1" { class: nota }
+          column(class = coluna) {
+            text(class = nota, content = "página 1")
           }
 
-          column {
-            class: coluna
-
-            text "página 2" { class: nota }
+          column(class = coluna) {
+            text(class = nota, content = "página 2")
           }
         }
 
-        text "nv_pagina = @nv_pagina" { class: nota }
+        text(class = nota, content = "nv_pagina = @nv_pagina")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<drawer> — painel lateral que EMPURRA (não cobre)",
+        )
 
-        text "<drawer> — painel lateral que EMPURRA (não cobre)" {
-          class: rotulo
-        }
+        button(
+          class = btn, text = "Abrir/fechar gaveta",
+          on_click = drawer::toggle:nv_gaveta,
+        )
 
-        button {
-          class: btn text: "Abrir/fechar gaveta"
-          on_click: drawer::toggle:nv_gaveta
-        }
+        text(class = nota, content = "nv_gaveta = @nv_gaveta")
 
-        text "nv_gaveta = @nv_gaveta" { class: nota }
-
-        row {
-          class: area
-
-          drawer {
-            value: nv_gaveta open: @nv_gaveta size: 180 panel_class: gaveta
-
-            text "item da gaveta" { class: nota }
-            text "outro item" { class: nota }
+        row(class = area) {
+          drawer(
+            :value = nv_gaveta, open = @nv_gaveta, size = 180,
+            panel_class = gaveta,
+          ) {
+            text(class = nota, content = "item da gaveta")
+            text(class = nota, content = "outro item")
           }
 
-          column {
-            class: coluna width: fill align_x: center align_y: center
-
-            text "conteúdo principal — encolhe quando a gaveta abre" {
-              class: nota
-            }
+          column(class = "coluna coluna_2") {
+            text(
+              class = nota,
+              content = "conteúdo principal — encolhe quando a gaveta abre",
+            )
           }
         }
       }

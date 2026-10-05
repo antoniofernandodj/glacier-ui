@@ -740,8 +740,15 @@ espaço.
 
 ```xml
 <progressbar value="{progresso}" />   <!-- procura a chave chamada "42" -->
-<progressbar value="progresso" />     <!-- lê a chave `progresso` -->
+<progressbar :value="progresso" />    <!-- lê a chave `progresso` -->
 ```
+
+O `:` é a marca de **ligação**: diz que o valor é o nome de uma chave, e não um
+texto nem um dado interpolado. Antes de ler o XML, o motor troca `:value` por `bind_value` (dois atributos de
+nome diferente; ele aceita os dois onde lê `value`), e o parser **avisa** (e o `.gvb` **recusa**) uma ligação escrita sem
+ele, com a linha — é o que tira esta armadilha do silêncio. A lista do que é
+ligação está em `src/bindings.rs`; um primitivo novo com um campo `*_var` entra
+lá.
 
 Vale para `<progressbar>`, `<slider>`, `<dial>`, `<textinput>`, `<colorwheel>` —
 todo widget cujo valor mora numa chave. A interpolação é para *mostrar* o valor

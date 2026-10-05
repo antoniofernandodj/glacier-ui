@@ -25,20 +25,20 @@
     </row>
 
     <dock
-      mode="lado"
+      :mode="lado"
       edge="left"
       on_change="salvar_layout"
-      size="tam_painel"
-      float_x="painel_x"
-      float_y="painel_y"
+      :size="tam_painel"
+      :float_x="painel_x"
+      :float_y="painel_y"
       title="Explorador"
       class="area"
     >
       <!-- filho 0: o painel -->
       <column class="painel-corpo">
         <listview
-          items="arquivos"
-          value="arquivo"
+          :items="arquivos"
+          :value="arquivo"
           selected="{arquivo}"
           height="fill"
         />
@@ -47,7 +47,7 @@
       <!-- filho 1: o centro -->
       <column class="centro">
         <text class="secao">{arquivo}</text>
-        <texteditor value="doc" class="editor" />
+        <texteditor :value="doc" class="editor" />
       </column>
     </dock>
   </column>

@@ -1,5 +1,6 @@
 <screen title="Glacier - Componentes locais" size="900 720">
   <resources>
+    <link rel="stylesheet" href="examples/gva/componentes_locais/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -42,7 +43,7 @@
         <prop name="nivel" />
         <prop name="texto" />
       </props>
-      <row spacing="12" align_y="center" width="fill" padding="6 10">
+      <row class="linha">
         <Rotulo texto="{hora}" cor="#6C7086" tamanho="11" />
 
         <!-- O nível vira uma cor. Um `if`/`else-if` dentro de um componente
@@ -71,9 +72,9 @@
         <prop name="valor" />
         <prop name="delta" default="" />
       </props>
-      <frame shape="filled" padding="14" width="200">
+      <frame shape="filled" class="moldura">
         <Rotulo texto="{rotulo}" cor="#80868D" tamanho="11" />
-        <text size="22" bold="true" color="#CDD6F4">{valor}</text>
+        <text class="titulo">{valor}</text>
         <template if="{delta}" not_equals="">
           <Rotulo texto="{delta}" cor="#A6E3A1" tamanho="11" />
         </template>
@@ -85,20 +86,20 @@
     <import name="CartaoServico" from="cartao_servico.gva" />
   </resources>
 
-  <column spacing="0" width="fill" height="fill">
-    <column padding="24 28 8 28" spacing="8" width="fill">
-      <text size="20" bold="true" color="#CDD6F4">Componentes declarados na própria tela</text>
+  <column class="coluna">
+    <column class="coluna_2">
+      <text class="titulo_2">Componentes declarados na própria tela</text>
       <Rotulo
         texto="Os três componentes desta tela (Rotulo, LinhaLog, Metrica) estão declarados no &lt;resources&gt; acima. O CartaoServico veio de um arquivo. Os quatro se usam do mesmo jeito."
         tamanho="13"
       />
     </column>
 
-    <scrollable width="fill" height="fill">
-      <column padding="20 28" spacing="22" width="fill">
+    <scrollable class="rolagem">
+      <column class="coluna_3">
 
         <groupbox title="Métricas — um componente com vários nós de raiz">
-          <row spacing="14" align_y="start">
+          <row class="linha_2">
             <Metrica
               for-each="metricas"
               var="m"
@@ -114,7 +115,7 @@
             texto="Este veio de cartao_servico.gva por &lt;import&gt;. Compare os dois arquivos: mesma casca, mesma forma de usar."
             tamanho="12"
           />
-          <row spacing="16" align_y="start">
+          <row class="linha_3">
             <CartaoServico
               for-each="servicos"
               var="s"
@@ -132,7 +133,7 @@
             texto="LinhaLog usa Rotulo três vezes. Componentes locais se compõem como quaisquer outros."
             tamanho="12"
           />
-          <frame shape="box" padding="8">
+          <frame shape="box" class="moldura_2">
             <LinhaLog
               for-each="log"
               var="l"

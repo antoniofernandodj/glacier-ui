@@ -1,5 +1,6 @@
 <screen title="Detalhe (Lua)" size="420 320">
   <resources>
+    <link rel="stylesheet" href="examples/gva/janelas_glacier/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
          um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
          em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -39,31 +40,23 @@
   </resources>
 
   <container
-    padding="30"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="20" align_x="Center">
-      <text size="24" bold="true" color="#F5E0DC">Detalhe (XML + Lua)</text>
-      <text size="13" color="#9399B2">Aberto por: {origem}</text>
-      <text size="16" color="#89B4FA">Cliques nesta janela: {n}</text>
+    <column class="coluna">
+      <text class="titulo">Detalhe (XML + Lua)</text>
+      <text class="texto">Aberto por: {origem}</text>
+      <text class="texto_2">Cliques nesta janela: {n}</text>
 
-      <button text="Contar" on_click="contar" color="#89B4FA" width="240" padding="10" />
+      <button text="Contar" on_click="contar" class="botao" />
       <button
         text="Abrir outra (Lua)"
         on_click="abrir_outra"
-        color="#A6E3A1"
-        width="240"
-        padding="10"
+        class="botao_2"
       />
       <button
         text="Enviar ao painel e fechar"
         on_click="avisar_e_fechar"
-        color="#F38BA8"
-        width="240"
-        padding="10"
+        class="botao_3"
       />
     </column>
   </container>

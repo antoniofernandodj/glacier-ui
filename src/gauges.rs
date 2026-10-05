@@ -402,7 +402,7 @@ pub struct Faixa {
 /// escrito direto no atributo.
 ///
 /// ```xml
-/// <gauge value="cpu" bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
+/// <gauge :value="cpu" bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
 /// ```
 ///
 /// As duas formas porque as duas aparecem: os limites de um medidor de CPU são

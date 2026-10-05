@@ -10,6 +10,8 @@
       .green      { color: #A3BE8C; }
       .btn        { padding: 10 20; }
       .txt        { color: #ECEFF4; bold: true; size: 28; }
+      .coluna { spacing: 20; }
+      .linha { spacing: 15; }
     </style>
 
     <script>
@@ -23,9 +25,9 @@
   </resources>
 
   <container class="center-xy fill gray p-20">
-    <column spacing="20" class="center">
+    <column class="center coluna">
       <text class="txt">Valor do Contador: {contador}</text>
-      <row spacing="15" align="Center">
+      <row align="Center" class="linha">
         <button
           text="Diminuir"
           on_click="decrement"

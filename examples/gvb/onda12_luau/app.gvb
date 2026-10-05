@@ -1,50 +1,46 @@
-screen {
-  title: "Glacier — Onda 12 (dock, Luau)" size: "1040 740" min_size: "880 600"
-
+screen(
+  title = "Glacier — Onda 12 (dock, Luau)", size = "1040 740",
+  min_size = "880 600",
+) {
   resources {
-    link { rel: stylesheet href: "examples/gvb/onda12_luau/app.gss" }
-    script { src: "scripts/app.luau" }
+    link(rel = stylesheet, href = "examples/gvb/onda12_luau/app.gss")
+    script(src = "scripts/app.luau")
   }
 
-  column {
-    class: tela
-
-    row {
-      class: barra
-
-      text "Onda 12 em Luau — dock" { class: titulo }
-      space { class: empurra }
-      text "@status" { class: status }
+  column(class = tela) {
+    row(class = barra) {
+      text(class = titulo, content = "Onda 12 em Luau — dock")
+      space(class = empurra)
+      text(class = status, content = "@status")
     }
 
-    row {
-      class: atalhos
-
-      text "acoplar:" { class: rotulo }
-      button { text: esq on_click: mover_dock:left }
-      button { text: dir on_click: mover_dock:right }
-      button { text: topo on_click: mover_dock:top }
-      button { text: base on_click: mover_dock:bottom }
-      button { text: flutuar on_click: mover_dock:float }
-      space { class: empurra }
-      text "…ou arraste a faixa de título para uma borda." { class: dica }
+    row(class = atalhos) {
+      text(class = rotulo, content = "acoplar:")
+      button(text = esq, on_click = mover_dock:left)
+      button(text = dir, on_click = mover_dock:right)
+      button(text = topo, on_click = mover_dock:top)
+      button(text = base, on_click = mover_dock:bottom)
+      button(text = flutuar, on_click = mover_dock:float)
+      space(class = empurra)
+      text(
+        class = dica,
+        content = "…ou arraste a faixa de título para uma borda.",
+      )
     }
 
-    dock {
-      mode: lado edge: left on_change: salvar_layout size: tam_painel
-      float_x: painel_x float_y: painel_y title: Camadas class: area
-
-      column {
-        class: painel-corpo
-
-        listview { items: camadas value: camada selected: @camada height: fill }
+    dock(
+      :mode = lado, edge = left, on_change = salvar_layout, :size = tam_painel,
+      :float_x = painel_x, :float_y = painel_y, title = Camadas, class = area,
+    ) {
+      column(class = painel-corpo) {
+        listview(
+          :items = camadas, :value = camada, selected = @camada, height = fill,
+        )
       }
 
-      column {
-        class: centro
-
-        text "camada ativa: @camada" { class: secao }
-        texteditor { value: notas class: editor }
+      column(class = centro) {
+        text(class = secao, content = "camada ativa: @camada")
+        texteditor(:value = notas, class = editor)
       }
     }
   }

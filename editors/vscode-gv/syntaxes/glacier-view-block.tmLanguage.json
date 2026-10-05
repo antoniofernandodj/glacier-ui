@@ -39,8 +39,8 @@
   ],
   "repository": {
     "script-embed": {
-      "comment": "`script \"\"\"` … `\"\"\"` e `script { atributos } \"\"\"` … `\"\"\"` — corpo cru.",
-      "begin": "^(\\s*)(script)((?:\\s*\\{[^{}\"\\n]*\\})?)(\\s+)(\"\"\")",
+      "comment": "`script \"\"\"` … `\"\"\"` e `script(atributos) \"\"\"` … `\"\"\"` — corpo cru.",
+      "begin": "^(\\s*)(script)((?:\\s*\\([^()\\n]*\\))?)(\\s+)(\"\"\")",
       "beginCaptures": {
         "2": {
           "name": "entity.name.tag.script.glacier-view-block"
@@ -79,8 +79,8 @@
       ]
     },
     "style-embed": {
-      "comment": "`style \"\"\"` … `\"\"\"` e `style { atributos } \"\"\"` … `\"\"\"` — corpo cru.",
-      "begin": "^(\\s*)(style)((?:\\s*\\{[^{}\"\\n]*\\})?)(\\s+)(\"\"\")",
+      "comment": "`style \"\"\"` … `\"\"\"` e `style(atributos) \"\"\"` … `\"\"\"` — corpo cru.",
+      "begin": "^(\\s*)(style)((?:\\s*\\([^()\\n]*\\))?)(\\s+)(\"\"\")",
       "beginCaptures": {
         "2": {
           "name": "entity.name.tag.style.glacier-view-block"
@@ -186,10 +186,10 @@
       ]
     },
     "element": {
-      "comment": "O nome da tag do elemento (classe e id são atributos, `class:`/`id:`). A negativa `(?![\\w-]*\\s*:)` é o que separa um elemento de uma propriedade.",
+      "comment": "O nome da tag do elemento (classe e id são atributos, `class =`/`id =`). A negativa `(?![\\w-]*\\s*=)` é o que separa um elemento de uma propriedade.",
       "patterns": [
         {
-          "match": "^\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*:)",
+          "match": "^\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
           "captures": {
             "1": {
               "name": "entity.name.tag.component.glacier-view-block"
@@ -211,7 +211,7 @@
         },
         {
           "comment": "O mesmo, para o elemento que abre logo depois de uma chave numa linha só.",
-          "match": "(?<=\\{)\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*:)",
+          "match": "(?<=\\{)\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
           "captures": {
             "1": {
               "name": "entity.name.tag.component.glacier-view-block"
@@ -248,7 +248,7 @@
       "patterns": [
         {
           "comment": "Propriedade de ação (on_press, onChange, aoClicar…): o valor é o nome de um handler.",
-          "match": "(?<![\\w.])(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)(\\s*:\\s*)([A-Za-z_]\\w*)?",
+          "match": "(?<![\\w.])(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)(\\s*=\\s*)([A-Za-z_]\\w*)?",
           "captures": {
             "1": {
               "name": "entity.other.attribute-name.action.glacier-view-block"
@@ -262,16 +262,19 @@
           }
         },
         {
-          "comment": "Propriedade comum. O valor sem aspas é NOME DE CHAVE — por isso tem cor diferente de um @valor.",
-          "match": "(?<![\\w.])([A-Za-z_][\\w-]*)(\\s*:\\s*)((?:@\\{[A-Za-z_][\\w.]*\\}|@[A-Za-z_][\\w.]*|-?\\d+(?:\\.\\d+)?|[A-Za-z_][\\w.+-]*))?",
+          "comment": "Propriedade comum. O valor sem aspas é NOME DE CHAVE — por isso tem cor diferente de um @valor. Com `:` na frente (`:value = chave`) é uma LIGAÇÃO: o valor é o nome de uma chave.",
+          "match": "(?<![\\w.])(:)?([A-Za-z_][\\w-]*)(\\s*=\\s*)((?:@\\{[A-Za-z_][\\w.]*\\}|@[A-Za-z_][\\w.]*|-?\\d+(?:\\.\\d+)?|[A-Za-z_][\\w.+-]*))?",
           "captures": {
             "1": {
-              "name": "entity.other.attribute-name.glacier-view-block"
+              "name": "punctuation.definition.binding.glacier-view-block"
             },
             "2": {
-              "name": "punctuation.separator.key-value.glacier-view-block"
+              "name": "entity.other.attribute-name.glacier-view-block"
             },
             "3": {
+              "name": "punctuation.separator.key-value.glacier-view-block"
+            },
+            "4": {
               "patterns": [
                 {
                   "include": "#interpolation"
@@ -351,7 +354,7 @@
       "name": "constant.numeric.glacier-view-block"
     },
     "block": {
-      "match": "[{}]",
+      "match": "[{}()]",
       "name": "punctuation.section.block.glacier-view-block"
     },
     "color": {

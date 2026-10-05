@@ -109,7 +109,7 @@
           <column class="coluna">
             <textinput
               class="filtro"
-              value="filtro"
+              :value="filtro"
               on_change="filtrar"
               placeholder="Filtrar compras…"
             />

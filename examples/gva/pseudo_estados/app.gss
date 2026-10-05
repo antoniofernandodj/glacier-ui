@@ -1,0 +1,5 @@
+/* Estilo que estava inline no markup. Os nomes são provisórios: renomeie
+   cada classe pelo papel que ela tem na tela. */
+
+.coluna { spacing: 8; }
+.campo { width: 200; }

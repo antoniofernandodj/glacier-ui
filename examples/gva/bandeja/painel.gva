@@ -1,5 +1,6 @@
 <screen title="Glacier — Bandeja" size="460 300">
   <resources>
+    <link rel="stylesheet" href="examples/gva/bandeja/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -7,37 +8,28 @@
   </resources>
 
   <container
-    padding="30"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="20" align="Center">
+    <column align="Center" class="coluna">
       <text
-        size="26"
-        bold="true"
-        color="#ECEFF4"
+        class="titulo"
       >
         Exemplo de bandeja
       </text>
-      <text size="14" color="#A3BE8C">
+      <text class="texto">
         Feche esta janela: o app continua na bandeja.
       </text>
       <text
-        size="13"
-        color="#81A1C1">Reabra pelo item 'Open' do menu do ícone.
+        class="texto_2">Reabra pelo item 'Open' do menu do ícone.
       </text>
 
       <button
         text="Disparar notificação do SO"
         on_click="notificar"
-        color="#5E81AC"
-        width="300"
-        padding="12"
+        class="botao"
       />
 
-      <text size="11" color="#4C566A">
+      <text class="nota">
         (o toggle 'Disable/Enable notifications' na bandeja liga/desliga isto)
       </text>
     </column>

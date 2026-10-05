@@ -5,8 +5,8 @@
 ///
 /// ```xml
 /// <GroupBox title="Rede">
-///     <Checkbox label="Usar proxy" checked="proxy" />
-///     <TextInput value="host" placeholder="127.0.0.1" />
+///     <Checkbox label="Usar proxy" :checked="proxy" />
+///     <TextInput :value="host" placeholder="127.0.0.1" />
 /// </GroupBox>
 /// ```
 ///
@@ -46,9 +46,9 @@
 /// ```xml
 /// <groupbox title="Rede">
 ///     <template slot="actions">
-///         <checkbox label="Ativado" checked="rede_ativa" />
+///         <checkbox label="Ativado" :checked="rede_ativa" />
 ///     </template>
-///     <input value="host" />
+///     <input :value="host" />
 /// </groupbox>
 /// ```
 ///
@@ -80,7 +80,7 @@
 ///
 /// ```xml
 /// <groupbox title="Rede" frame_class="painel" title_class="rotulo_cap">
-///     <input value="host" />
+///     <input :value="host" />
 /// </groupbox>
 /// ```
 ///

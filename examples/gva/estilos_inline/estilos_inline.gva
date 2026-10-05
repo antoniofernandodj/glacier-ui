@@ -44,15 +44,19 @@
       .dica {
         size: 13; color: #6C7086;
       }
+      .caixa {
+        padding: 40;
+        align_x: Center;
+        align_y: Center;
+        width: fill;
+        height: fill;
+      }
+      .texto { color: #7F849C; }
     </style>
   </resources>
 
   <container
-    padding="40"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
     <container class="card">
       <column class="stack">
@@ -75,7 +79,7 @@
         <!--
           Atributo inline vence a classe: esta cor ganha de `.dica`.
         -->
-        <text class="dica" color="#7F849C">
+        <text class="dica texto">
           edite o bloco style e veja o hot-reload
         </text>
       </column>

@@ -23,19 +23,19 @@
     </row>
 
     <dock
-      mode="lado"
+      :mode="lado"
       edge="left"
       on_change="salvar_layout"
-      size="tam_painel"
-      float_x="painel_x"
-      float_y="painel_y"
+      :size="tam_painel"
+      :float_x="painel_x"
+      :float_y="painel_y"
       title="Camadas"
       class="area"
     >
       <column class="painel-corpo">
         <listview
-          items="camadas"
-          value="camada"
+          :items="camadas"
+          :value="camada"
           selected="{camada}"
           height="fill"
         />
@@ -43,7 +43,7 @@
 
       <column class="centro">
         <text class="secao">camada ativa: {camada}</text>
-        <texteditor value="notas" class="editor" />
+        <texteditor :value="notas" class="editor" />
       </column>
     </dock>
   </column>

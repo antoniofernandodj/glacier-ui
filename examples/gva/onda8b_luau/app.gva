@@ -35,7 +35,7 @@
       <column class="dlg-form">
         <CampoForm label="Nome">
           <textinput
-            value="__dialog.nome"
+            :value="__dialog.nome"
             on_change="__dialog.nome"
             placeholder="ana"
             class="dlg-fill"
@@ -43,8 +43,8 @@
         </CampoForm>
         <CampoForm label="Cargo">
           <select
-            options="cargos"
-            value="__dialog.cargo"
+            :options="cargos"
+            :value="__dialog.cargo"
             on_change="__dialog.cargo"
             class="dlg-fill"
           />

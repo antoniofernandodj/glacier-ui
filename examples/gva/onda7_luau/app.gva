@@ -7,7 +7,7 @@
     <script src="scripts/app.luau"></script>
   </resources>
 
-  <column class="tela" spacing="0">
+  <column class="tela coluna">
 
     <column class="cabecalho">
       <text class="titulo">Onda 7 — o canvas, e os sete que saem dele</text>
@@ -18,13 +18,13 @@
       </text>
     </column>
 
-    <scrollable width="fill" height="fill">
+    <scrollable class="rolagem">
       <column class="corpo">
 
         <tabs
-          value="aba"
+          :value="aba"
           active="{aba}"
-          items="abas"
+          :items="abas"
           tab_class="aba"
           tab_active_class="aba_ativa"
           page_spacing="18"
@@ -44,7 +44,7 @@
               <row class="linha_larga">
                 <column class="medidor">
                   <dial
-                    value="volume"
+                    :value="volume"
                     min="0"
                     max="11"
                     step="1"
@@ -59,7 +59,7 @@
                        É o que a chave nomeada garante, e o que um estado global
                        impediria. -->
                   <dial
-                    value="brilho"
+                    :value="brilho"
                     min="0"
                     max="100"
                     step="5"
@@ -73,7 +73,7 @@
                   <!-- `readonly` desenha e não aceita gesto — o mesmo papel que
                        ele tem no `<rating>` de uma lista. -->
                   <dial
-                    value="{brilho}"
+                    :value="brilho"
                     max="100"
                     readonly="true"
                     show_value="true"
@@ -106,7 +106,7 @@
 
               <row class="linha_larga">
                 <gauge
-                  value="cpu" max="100" unit="%" label="CPU"
+                  :value="cpu" max="100" unit="%" label="CPU"
                   bands='[
                     {"to":60, "color":"#A6E3A1"},
                     {"to":85, "color":"#F9E2AF"},
@@ -115,7 +115,7 @@
                   needle="true"
                 />
                 <gauge
-                  value="memoria"
+                  :value="memoria"
                   max="64"
                   unit=" GB"
                   label="memória"
@@ -123,7 +123,7 @@
                   size="132"
                 />
                 <gauge
-                  value="disco"
+                  :value="disco"
                   max="100"
                   unit="%"
                   label="disco"
@@ -131,7 +131,7 @@
                 />
                 <!-- Meio arco: `start`/`sweep` em graus, 0° às 3 horas. -->
                 <gauge
-                  value="rede"
+                  :value="rede"
                   max="1000"
                   unit=" Mb"
                   label="rede"
@@ -144,12 +144,12 @@
               <row class="linha">
                 <text class="rotulo_bloco">CPU</text>
                 <slider
-                  value="cpu"
+                  :value="cpu"
                   min="0"
                   max="100"
                   step="1"
-                  width="220"
                   on_change="cpu"
+                  class="controle"
                 />
                 <text class="valor">{cpu}%</text>
               </row>
@@ -164,12 +164,12 @@
 
               <row class="linha_larga">
                 <column class="medidor">
-                  <lcdnumber value="relogio" size="52" />
+                  <lcdnumber :value="relogio" size="52" />
                   <text class="rotulo_bloco">relógio (texto)</text>
                 </column>
                 <column class="medidor">
                   <lcdnumber
-                    value="volume"
+                    :value="volume"
                     digits="3"
                     pad="true"
                     size="52"
@@ -179,7 +179,7 @@
                 </column>
                 <column class="medidor">
                   <lcdnumber
-                    value="memoria"
+                    :value="memoria"
                     digits="4"
                     decimals="1"
                     size="52"
@@ -188,7 +188,7 @@
                   <text class="rotulo_bloco">memória, uma casa</text>
                 </column>
                 <column class="medidor">
-                  <lcdnumber value="ERRO" size="52" color="#F38BA8" ghost="false" />
+                  <lcdnumber :value="ERRO" size="52" color="#F38BA8" ghost="false" />
                   <text class="rotulo_bloco">sem os segmentos apagados</text>
                 </column>
               </row>
@@ -204,7 +204,7 @@
                 menos no motor, e um lugar a menos onde um bug de escala pode morar.
               </text>
 
-              <grid class="grade" columns="3" spacing="20" row_spacing="10">
+              <grid class="grade grade_2" columns="3" row_spacing="10">
                 <text class="celula_forte">serviço</text>
                 <text class="celula_forte">latência (24 h)</text>
                 <text class="celula_forte">p95</text>
@@ -235,7 +235,7 @@
                 <column class="detalhe">
                   <text class="rotulo_bloco">linha, com área e pontos</text>
                   <linechart
-                    items="vendas"
+                    :items="vendas"
                     min="0"
                     area="true"
                     points="true"
@@ -245,7 +245,7 @@
                 </column>
                 <column class="detalhe">
                   <text class="rotulo_bloco">barras, uma cor por categoria</text>
-                  <barchart items="vendas" colorful="true" width="380" height="200" />
+                  <barchart :items="vendas" colorful="true" width="380" height="200" />
                 </column>
               </row>
             </groupbox>
@@ -258,11 +258,11 @@
               </text>
 
               <row class="linha_larga">
-                <piechart items="fatias" size="190" percentages="true" />
-                <donut items="fatias" size="190" percentages="true" />
+                <piechart :items="fatias" size="190" percentages="true" />
+                <donut :items="fatias" size="190" percentages="true" />
                 <column class="detalhe">
                   <text class="rotulo_bloco">a mesma série, cores do markup</text>
-                  <donut items="fatias" size="190" colors="#89B4FA,#A6E3A1,#F9E2AF,#F38BA8" />
+                  <donut :items="fatias" size="190" colors="#89B4FA,#A6E3A1,#F9E2AF,#F38BA8" />
                 </column>
               </row>
             </groupbox>
@@ -274,8 +274,8 @@
                 tela carregando.
               </text>
               <row class="linha_larga">
-                <linechart items="serie_vazia" width="240" height="120" />
-                <piechart items="serie_vazia" size="120" />
+                <linechart :items="serie_vazia" width="240" height="120" />
+                <piechart :items="serie_vazia" size="120" />
               </row>
             </groupbox>
           </template>

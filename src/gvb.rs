@@ -33,7 +33,16 @@ pub fn eh_gvb(path: &str) -> bool {
 
 /// Dessugara um `.gvb` para o XML equivalente do `.gv`, linha por linha.
 pub fn desugar(src: &str) -> std::result::Result<String, Diagnostic> {
-    let nodes = Parser::new(src).file().map_err(|e| e.into_diagnostic())?;
+    desugar_with(src, true)
+}
+
+/// Como [`desugar`], mas com `strict = false` aceita uma ligação sem o `:`
+/// (`value = chave`), que é como os `.gvb` eram escritos antes da marca. Existe
+/// para as ferramentas de migração; o motor usa sempre [`desugar`].
+pub fn desugar_with(src: &str, strict: bool) -> std::result::Result<String, Diagnostic> {
+    let mut p = Parser::new(src);
+    p.strict = strict;
+    let nodes = p.file().map_err(|e| e.into_diagnostic())?;
     let mut out = Out::default();
     for n in &nodes {
         out.node(n);
@@ -115,14 +124,15 @@ struct Parser {
     line: u32,
     /// Índice em `chars` do início da linha atual, para a coluna.
     line_start: usize,
+    /// Recusa uma ligação sem o `:` (ver `check_bindings`).
+    strict: bool,
+    /// As tags cujo bloco está aberto: o pai de quem está sendo lido.
+    open: Vec<String>,
 }
 
-/// O que pode vir dentro de um bloco: um atributo ou um filho.
-enum Item {
-    Attr(Attr),
-    /// Uma cadeia `if`/`else if`/`else` rende vários nós irmãos.
-    Nodes(Vec<Node>),
-}
+/// O que pode vir dentro de um bloco: um filho — ou uma cadeia
+/// `if`/`else if`/`else`, que rende vários nós irmãos.
+struct Item(Vec<Node>);
 
 impl Parser {
     fn new(src: &str) -> Self {
@@ -131,6 +141,8 @@ impl Parser {
             pos: 0,
             line: 1,
             line_start: 0,
+            strict: true,
+            open: Vec::new(),
         }
     }
 
@@ -245,27 +257,15 @@ impl Parser {
                 Some('}') => return self.err("`}` sem um `{` que o abra"),
                 _ => {}
             }
-            match self.item()? {
-                Item::Nodes(n) => out.extend(n),
-                Item::Attr(a) => {
-                    return Err(Error {
-                        line: a.line,
-                        col: 1,
-                        msg: format!("o atributo `{}:` está fora de qualquer bloco", a.name),
-                        hint: Some("atributo só existe dentro das chaves de um elemento"),
-                    });
-                }
-            }
+            out.extend(self.item()?.0);
         }
     }
 
-    /// O corpo de um `{ … }`: consome até o `}` e devolve a linha dele.
-    fn block(&mut self, raw: bool) -> Res<(Vec<Attr>, Vec<Node>, Option<Text>, u32)> {
+    /// O corpo de um `{ … }`: só filhos. Consome até o `}` e devolve a linha dele.
+    fn block(&mut self) -> Res<(Vec<Node>, u32)> {
         let (open_line, open_col) = (self.line, (self.pos - self.line_start + 1) as u32);
         self.bump(); // `{`
-        let mut attrs = Vec::new();
         let mut children = Vec::new();
-        let mut text = None;
         loop {
             self.skip_ws()?;
             match self.peek() {
@@ -280,22 +280,81 @@ impl Parser {
                 Some('}') => {
                     let end = self.line;
                     self.bump();
-                    return Ok((attrs, children, text, end));
+                    return Ok((children, end));
                 }
                 Some('"') => {
-                    // Texto dentro do bloco: a forma de um `script`/`style`
-                    // com atributos (`script { lang: python """…""" }`).
-                    if text.is_some() {
-                        return self.err("dois corpos de texto no mesmo bloco");
-                    }
-                    let line = self.line;
-                    let value = self.string(raw)?.0;
-                    text = Some(Text { value, line });
+                    return self.err_hint(
+                        "texto solto dentro das chaves",
+                        "o texto vai logo depois da tag: `text(class = nota) \"oi\"`",
+                    );
                 }
-                _ => match self.item()? {
-                    Item::Attr(a) => attrs.push(a),
-                    Item::Nodes(n) => children.extend(n),
-                },
+                _ => children.extend(self.item()?.0),
+            }
+        }
+    }
+
+    /// Os atributos de `( nome = valor, … )`, com o `(` sob o cursor. Devolve
+    /// também a linha do `)`. A vírgula separa; a última é opcional; a quebra
+    /// de linha não significa nada.
+    fn attrs(&mut self) -> Res<(Vec<Attr>, u32)> {
+        let (open_line, open_col) = (self.line, (self.pos - self.line_start + 1) as u32);
+        self.bump(); // `(`
+        let mut attrs = Vec::new();
+        loop {
+            self.skip_ws()?;
+            match self.peek() {
+                None => {
+                    return Err(Error {
+                        line: open_line,
+                        col: open_col,
+                        msg: "este `(` nunca é fechado".into(),
+                        hint: None,
+                    });
+                }
+                Some(')') => {
+                    let end = self.line;
+                    self.bump();
+                    return Ok((attrs, end));
+                }
+                Some(c) if Self::is_ident(c) || c == ':' => {}
+                Some(c) => {
+                    return self.err_hint(
+                        format!("não esperava `{c}` na lista de atributos"),
+                        "um atributo é `nome = valor`, separados por vírgula",
+                    );
+                }
+            }
+            let line = self.line;
+            // `:nome` é uma ligação: o valor é o NOME de uma chave do contexto.
+            let bind = self.peek() == Some(':');
+            if bind {
+                self.bump();
+            }
+            let name = self.ident();
+            let name = if bind { format!(":{name}") } else { name };
+            self.skip_ws()?;
+            if self.peek() != Some('=') {
+                return self.err_hint(
+                    format!("esperava `=` depois de `{name}`"),
+                    "um atributo é `nome = valor` (e não `nome: valor`)",
+                );
+            }
+            self.bump();
+            self.skip_ws()?;
+            let value = self.value()?;
+            attrs.push(Attr { name, value, line });
+            self.skip_ws()?;
+            match self.peek() {
+                Some(',') => {
+                    self.bump();
+                }
+                Some(')') => {}
+                _ => {
+                    return self.err_hint(
+                        "esperava `,` ou `)` depois do valor",
+                        "valor com espaço, vírgula ou parêntese vai entre aspas; atributos se separam por vírgula",
+                    );
+                }
             }
         }
     }
@@ -308,41 +367,44 @@ impl Parser {
         if !Self::is_ident(c) {
             return self.err_hint(
                 format!("não esperava `{c}` aqui"),
-                "um item começa por um nome: `tag { … }` ou `atributo: valor`",
+                "um item começa por um nome: `tag(atributos) { filhos }`",
             );
         }
         let name = self.ident();
 
-        // `nome:` — atributo. O `:` tem de encostar no nome (como no CSS).
+        // `nome:` era o atributo solto dentro das chaves; agora é `tag(nome = v)`.
         if self.peek() == Some(':') {
-            self.bump();
-            self.skip_ws()?;
-            let value = self.value()?;
-            return Ok(Item::Attr(Attr { name, value, line }));
+            return self.err_hint(
+                format!("`{name}:` — atributo fora dos parênteses"),
+                "atributo vai no cabeçalho: `tag(nome = valor, outro = valor)`; as chaves são só dos filhos",
+            );
         }
 
         match name.as_str() {
-            "if" => self.if_chain(line).map(Item::Nodes),
-            "each" => self.each(line).map(|n| Item::Nodes(vec![n])),
+            "if" => self.if_chain(line).map(Item),
+            "each" => self.each(line).map(|n| Item(vec![n])),
             "else" => self.err_hint(
                 "`else` sem um `if` antes",
                 "o `else` tem de vir logo depois do `}` do `if`: `} else { … }`",
             ),
-            _ => self.element(name, line).map(|n| Item::Nodes(vec![n])),
+            _ => self.element(name, line).map(|n| Item(vec![n])),
         }
     }
 
-    /// `tag.a.b#id "texto" { … }` — o texto e o bloco são opcionais.
+    /// `tag(a = 1, b = 2) { filhos }` — os parênteses e as chaves são opcionais.
+    /// O texto é um atributo como os outros (`text = "…"` num `button`,
+    /// `content = "…"` num `text`); só o corpo cru de um `script`/`style`
+    /// (`script(lang = python) """…"""`) fica fora dos parênteses.
     fn element(&mut self, tag: String, line: u32) -> Res<Node> {
         // `script` e `style` carregam código de outra linguagem: o corpo é cru —
         // sem `@`, sem escape, sem colapso de espaço (e a emissão não o escapa).
         let raw = matches!(tag.as_str(), "script" | "style");
         // `tag.classe` e `tag#id` não existem: classe e id são atributos como
-        // os outros (`class:`, `id:`), e o ponto fica livre para ser só ponto.
+        // os outros (`class = `, `id = `), e o ponto fica livre para ser só ponto.
         if matches!(self.peek(), Some('.' | '#')) {
             return self.err_hint(
                 format!("`{tag}{}` — classe e id não vão na tag", self.peek().unwrap()),
-                "escreva `tag { class: nome }` (ou `id: nome`)",
+                "escreva `tag(class = nome)` (ou `id = nome`)",
             );
         }
 
@@ -355,10 +417,27 @@ impl Parser {
             end_line: line,
         };
 
-        // O texto: uma string solta logo depois da tag (regra 6) — ou depois do
-        // bloco, ver mais abaixo.
+        // Os atributos: `(` encostado na tag, ou depois de espaço.
         let m = self.mark();
         self.skip_ws()?;
+        if self.peek() == Some('(') {
+            let (attrs, end) = self.attrs()?;
+            node.attrs = attrs;
+            node.end_line = end;
+            self.check_bindings(&node)?;
+        } else {
+            self.reset(m);
+        }
+
+        // O corpo cru de um `script`/`style`: uma string solta depois do cabeçalho.
+        let m = self.mark();
+        self.skip_ws()?;
+        if self.peek() == Some('"') && !raw {
+            return self.err_hint(
+                format!("texto solto depois de `{}`", node.tag),
+                "o texto é um atributo: `button(text = \"Salvar\")`, `text(content = \"oi\")`",
+            );
+        }
         if self.peek() == Some('"') {
             let tline = self.line;
             let (value, end) = self.string(raw)?;
@@ -368,45 +447,47 @@ impl Parser {
             self.reset(m);
         }
 
+        // Os filhos.
         let m = self.mark();
         self.skip_ws()?;
         if self.peek() == Some('{') {
-            let (attrs, children, body_text, end) = self.block(raw)?;
-            if body_text.is_some() {
-                if node.text.is_some() {
-                    return self.err("o texto aparece antes e dentro do bloco");
-                }
-                node.text = body_text;
-            }
-            node.attrs = attrs;
+            self.open.push(node.tag.clone());
+            let bloco = self.block();
+            self.open.pop();
+            let (children, end) = bloco?;
             node.children = children;
             node.end_line = end;
-
-            // O texto também pode vir DEPOIS do bloco — `text { class: nota }
-            // "oi"` —, e é a forma que se escreve: as chaves primeiro, o
-            // conteúdo por último. Só vale sem filhos (texto misturado com
-            // elementos não existe), e um texto já lido antes do bloco não
-            // admite um segundo.
-            if node.children.is_empty() {
-                let m = self.mark();
-                self.skip_ws()?;
-                if self.peek() == Some('"') {
-                    if node.text.is_some() {
-                        return self.err("o texto aparece antes e depois do bloco");
-                    }
-                    let tline = self.line;
-                    let (value, end) = self.string(raw)?;
-                    node.text = Some(Text { value, line: tline });
-                    node.end_line = end;
-                } else {
-                    self.reset(m);
-                }
-            }
         } else {
             self.reset(m);
         }
 
         Ok(node)
+    }
+
+    /// Uma ligação (ver [`crate::bindings`]) tem de levar o `:`: sem ele, `value =
+    /// progresso` é o texto "progresso" e `value = @progresso` o valor da chave,
+    /// e o widget que queria o nome dela falha em silêncio.
+    fn check_bindings(&self, node: &Node) -> Res<()> {
+        // O `<check>` de uma `<tray>` é um item de bandeja: o `checked` dele é o
+        // valor (`@__notifications`), não o nome de uma chave.
+        let na_bandeja = self.open.last().is_some_and(|t| t.eq_ignore_ascii_case("tray"));
+        if !self.strict || na_bandeja {
+            return Ok(());
+        }
+        for a in &node.attrs {
+            if a.name.starts_with(':') || !crate::bindings::is_binding(&node.tag, &a.name) {
+                continue;
+            }
+            return Err(Error {
+                line: a.line,
+                col: 1,
+                msg: format!("`{} = …` em `{}` é uma ligação e precisa do `:`", a.name, node.tag),
+                hint: Some(
+                    "escreva `:nome = chave`: o `:` diz que o valor é o NOME de uma chave do contexto (ligação nos dois sentidos); sem ele o valor é um texto, e `@chave` é o valor dela",
+                ),
+            });
+        }
+        Ok(())
     }
 
     // — condicional —
@@ -434,9 +515,8 @@ impl Parser {
             if self.peek() != Some('{') {
                 return self.err("esperava `{` (ou `if`) depois do `else`");
             }
-            let (body_attrs, children, _, end_line) = self.block(false)?;
-            let mut attrs = vec![Attr { name: "else".into(), value: String::new(), line: l }];
-            attrs.extend(body_attrs);
+            let (children, end_line) = self.block()?;
+            let attrs = vec![Attr { name: "else".into(), value: String::new(), line: l }];
             chain.push(Node { tag: "template".into(), attrs, text: None, children, line: l, end_line });
             return Ok(chain);
         }
@@ -445,13 +525,12 @@ impl Parser {
     /// Um ramo com condição: `COND { … }`.
     fn branch(&mut self, key: &str, line: u32) -> Res<Node> {
         self.skip_ws()?;
-        let mut attrs = self.condition(key, line)?;
+        let attrs = self.condition(key, line)?;
         self.skip_ws()?;
         if self.peek() != Some('{') {
             return self.err("esperava `{` depois da condição");
         }
-        let (body_attrs, children, _, end_line) = self.block(false)?;
-        attrs.extend(body_attrs);
+        let (children, end_line) = self.block()?;
         Ok(Node { tag: "template".into(), attrs, text: None, children, line, end_line })
     }
 
@@ -582,10 +661,17 @@ impl Parser {
             return self.err("esperava o nome da variável depois do `as`");
         }
         self.skip_ws()?;
+        // Os atributos do `foreach` (`fallback`, `on_reorder`…) vão entre
+        // parênteses, depois da variável: `each @itens as item(fallback = X) { … }`.
+        let mut body_attrs = Vec::new();
+        if self.peek() == Some('(') {
+            body_attrs = self.attrs()?.0;
+            self.skip_ws()?;
+        }
         if self.peek() != Some('{') {
             return self.err("esperava `{` depois do `each`");
         }
-        let (body_attrs, children, _, end_line) = self.block(false)?;
+        let (children, end_line) = self.block()?;
         let mut attrs = vec![
             Attr { name: "items".into(), value: items, line },
             Attr { name: "var".into(), value: var, line },
@@ -603,16 +689,19 @@ impl Parser {
 
     // — valores —
 
-    /// O valor de um `nome:`. Entre aspas, ou nu até o espaço/`{`/`}` — e um
-    /// `//` no meio de um nu é comentário (a primeira armadilha da spec).
+    /// O valor de um `nome =`. Entre aspas, ou nu até o espaço, a `,` ou o `)` —
+    /// e um `//` no meio de um nu é comentário (a primeira armadilha da spec).
     fn value(&mut self) -> Res<String> {
         match self.peek() {
+            // `"""…"""` é prosa: o espaço em branco colapsa como num texto do
+            // `.gva`, então a quebra de linha é livre.
+            Some('"') if self.starts_with("\"\"\"") => Ok(collapse(&self.string(false)?.0)),
             Some('"') => Ok(self.string(false)?.0),
-            None | Some('}') | Some('{') => self.err("esperava um valor depois do `:`"),
+            None | Some(',' | ')') => self.err("esperava um valor depois do `=`"),
             _ => {
                 let mut raw = String::new();
                 while let Some(c) = self.peek() {
-                    if c.is_whitespace() || c == '{' || c == '}' || self.starts_with("//") {
+                    if c.is_whitespace() || c == ',' || c == ')' || self.starts_with("//") {
                         break;
                     }
                     raw.push(c);
@@ -695,6 +784,28 @@ impl Operand {
             Operand::Ref(n) => format!("{{{n}}}"),
         }
     }
+}
+
+/// Prosa de um `"""`: sem espaço nas pontas, e cada sequência de espaço em branco
+/// vira um espaço só (o `&nbsp;` fica), como `UiNode::normalize_text`.
+fn collapse(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut pending = false;
+    for c in s.chars() {
+        if c == '\u{A0}' {
+            out.push(' ');
+            pending = false;
+        } else if c.is_whitespace() {
+            pending = true;
+        } else {
+            if pending && !out.is_empty() && !out.ends_with(' ') {
+                out.push(' ');
+            }
+            pending = false;
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// A regra 5: `@nome` / `@{nome}` viram `{nome}`; `@@` é um arroba literal.

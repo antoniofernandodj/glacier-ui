@@ -94,3 +94,5 @@ examples/gva/http_client_luau/app.gss — visual da tela.
   color: var(--suave);
   font: mono;
 }
+
+.rolagem { width: fill; height: fill; }

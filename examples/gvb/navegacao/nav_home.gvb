@@ -1,32 +1,21 @@
-screen {
-  title: "Glacier - Navegação · Início"
-
+screen(title = "Glacier - Navegação · Início") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/navegacao/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/navegacao/theme.json" }
+    link(rel = theme, href = "examples/gvb/navegacao/theme.json")
   }
 
-  container {
-    padding: 40 width: fill height: fill align_x: Center align_y: Center
-
-    column {
-      spacing: 20 align: Center
-
-      text "Início" { size: 32 bold: true color: #F5E0DC }
-      text "Bem-vinda, @user_name" { size: 16 color: #A6ADC8 }
+  container(class = caixa) {
+    column(align = Center, class = coluna_3) {
+      text(content = "Início", class = titulo)
+      text(content = "Bem-vinda, @user_name", class = texto)
 
       // navigate_to empilha a tela atual e troca para o destino
-      button {
-        text: "Ver perfil" navigate_to: perfil color: #89B4FA width: 240
-        padding: 12
-      }
+      button(text = "Ver perfil", navigate_to = perfil, class = botao_3)
 
-      button {
-        text: Configurações navigate_to: config color: #CBA6F7 width: 240
-        padding: 12
-      }
+      button(text = Configurações, navigate_to = config, class = botao_4)
     }
   }
 }

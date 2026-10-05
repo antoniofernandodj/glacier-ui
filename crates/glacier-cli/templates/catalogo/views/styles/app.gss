@@ -77,3 +77,12 @@
 @media (max-width: 720) {
   .conteudo { padding: 18 16; }
 }
+
+.grade { spacing: 10; width: fill; }
+.fluxo { spacing: 8; width: fill; }
+.linha_2 { width: fill; }
+.coluna_2 { width: fill; align_x: center; align_y: center; }
+.controle { width: 280; }
+.controle_2 { height: 110; }
+.barra { width: 220; }
+.formulario { spacing: 8; }

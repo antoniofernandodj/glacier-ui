@@ -1,5 +1,6 @@
 <screen title="Glacier - navegação via script Lua · Dashboard">
   <resources>
+    <link rel="stylesheet" href="examples/gva/navegacao_luau/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -16,25 +17,19 @@
   </resources>
 
   <container
-    padding="40"
-    width="fill"
-    height="fill"
-    align_x="Center"
-    align_y="Center"
+    class="caixa"
   >
-    <column spacing="18" align_x="Center">
-      <text size="32" bold="true" color="#F5E0DC">
+    <column class="coluna">
+      <text class="titulo">
         Painel
       </text>
-      <text size="18" color="#A6ADC8">
+      <text class="texto">
         Bem-vindo, {usuario}!
       </text>
       <button
         text="Sair"
         on_click="sair"
-        color="#313244"
-        width="240"
-        padding="12"
+        class="botao"
       />
     </column>
   </container>

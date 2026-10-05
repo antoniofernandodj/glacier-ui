@@ -302,25 +302,6 @@ fn pad(n: usize) -> String {
     " ".repeat(n)
 }
 
-fn pack(items: &[String], indent: usize) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut cur = String::new();
-    for it in items {
-        if !cur.is_empty() && indent + cur.len() + 1 + it.len() > W {
-            lines.push(format!("{}{}", pad(indent), cur));
-            cur.clear();
-        }
-        if !cur.is_empty() {
-            cur.push(' ');
-        }
-        cur.push_str(it);
-    }
-    if !cur.is_empty() {
-        lines.push(format!("{}{}", pad(indent), cur));
-    }
-    lines
-}
-
 fn ws_only(s: &str) -> bool {
     s.chars().all(|c| c.is_ascii_whitespace())
 }
@@ -429,10 +410,10 @@ impl Conv {
     fn selector(&mut self, tag: &str, attrs: &[(String, String)]) -> (String, Vec<String>) {
         let mut rest: Vec<String> = Vec::new();
         for (k, v) in attrs {
-            if !is_ident(k) {
+            if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                 self.err(format!("atributo `{k}` com nome que a leitura não aceita"));
             }
-            rest.push(format!("{k}: {}", val(v)));
+            rest.push(format!("{k} = {}", val(v)));
         }
         (tag.to_string(), rest)
     }
@@ -449,10 +430,10 @@ impl Conv {
                 .iter()
                 .filter(|(k, _)| !skip.contains(&k.as_str()))
                 .map(|(k, v)| {
-                    if !is_ident(k) {
+                    if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                         this.err(format!("atributo `{k}` inválido"));
                     }
-                    format!("{k}: {}", val(v))
+                    format!("{k} = {}", val(v))
                 })
                 .collect()
         };
@@ -588,20 +569,14 @@ impl Conv {
         indent: usize,
     ) -> Vec<String> {
         let _ = head;
-        let mut lines = Vec::new();
-        let hdr = format!("{}{} {{", pad(indent), cond);
-        lines.push(hdr);
-        lines.extend(pack(&rest, indent + 2));
+        if !rest.is_empty() {
+            self.err(format!("`{cond}` com atributos: o `.gvb` não os tem num if/else"));
+        }
+        let mut lines = vec![format!("{}{} {{", pad(indent), cond)];
         let mut body = Vec::new();
         self.kids(ek, indent + 2, &mut body, true);
-        if !rest.is_empty() && !body.is_empty() {
-            lines.push(String::new());
-        }
         lines.extend(body);
         lines.push(format!("{}}}", pad(indent)));
-        if lines.len() == 3 && lines[1].trim().is_empty() {
-            lines.remove(1);
-        }
         // `if @x { }` — bloco vazio numa linha
         if lines.len() == 2 {
             return vec![format!("{}{} {{ }}", pad(indent), cond)];
@@ -634,10 +609,10 @@ impl Conv {
             Some(h) => {
                 let mut r = Vec::new();
                 for (k, v) in &attrs_v {
-                    if !is_ident(k) {
+                    if !is_ident(k.strip_prefix(':').unwrap_or(k)) {
                         self.err(format!("atributo `{k}` inválido"));
                     }
-                    r.push(format!("{k}: {}", val(v)));
+                    r.push(format!("{k} = {}", val(v)));
                 }
                 (h.clone(), r)
             }
@@ -677,46 +652,61 @@ impl Conv {
                 lit = format!("\"\"\"{r}\"\"\"");
             }
         } else if has_text {
-            match text_lit(&text, indent) {
+            // O texto é um atributo: o corpo de um `"""` fica dois níveis para
+            // dentro do cabeçalho, e o fecho um.
+            match text_lit(&text, indent + 2) {
                 Ok(l) => lit = l,
                 Err(e) => self.err(e),
             }
         }
 
-        let mut lines: Vec<String> = Vec::new();
-        let kids_present = has_elems;
-        let mut first = format!("{ind}{head}");
+        // `tag(a = 1, b = 2) { filhos }`: tudo o que descreve a tag vai no
+        // cabeçalho — o texto também, como `content` (`<text>`) ou `text`
+        // (`<button>`), sempre o último —, e as chaves só existem com filhos.
+        // Só o corpo cru de um `script`/`style` fica depois do `)`.
+        let sep = if each.is_some() { " " } else { "" };
+        let tail = if has_elems { " {" } else { "" };
+        let mut rest = rest;
+        let mut raw_part = String::new();
         if !lit.is_empty() {
-            first.push(' ');
-            first.push_str(&lit);
+            if raw.is_some() {
+                raw_part = format!(" {lit}");
+            } else {
+                match tag {
+                    "text" => rest.push(format!("content = {lit}")),
+                    "button" => rest.push(format!("text = {lit}")),
+                    _ => self.err(format!("<{tag}> tem texto, e só `text` e `button` o têm como atributo")),
+                }
+            }
         }
-        if !kids_present {
-            if rest.is_empty() {
-                lines.extend(first.split('\n').map(str::to_string));
-                return lines;
+        let mut lines: Vec<String> = Vec::new();
+        if rest.is_empty() {
+            let first = format!("{ind}{head}{raw_part}{tail}");
+            lines.extend(first.split('\n').map(str::to_string));
+        } else {
+            let one = format!("{ind}{head}{sep}({}){raw_part}{tail}", rest.join(", "));
+            let first_line = one.split('\n').next().unwrap_or("");
+            if !one.contains('\n') && first_line.chars().count() <= W {
+                lines.push(one);
+            } else {
+                lines.push(format!("{ind}{head}{sep}("));
+                for r in &rest {
+                    if r.contains('\n') {
+                        lines.extend(format!("{}{r},", pad(indent + 2)).split('\n').map(str::to_string));
+                    } else {
+                        lines.push(format!("{}{r},", pad(indent + 2)));
+                    }
+                }
+                let close = format!("{ind}){raw_part}{tail}");
+                lines.extend(close.split('\n').map(str::to_string));
             }
-            // cabe numa linha?
-            let one = format!("{first} {{ {} }}", rest.join(" "));
-            if !one.contains('\n') && one.len() <= W {
-                return vec![one];
-            }
-            let mut f: Vec<String> = first.split('\n').map(str::to_string).collect();
-            let last = f.pop().unwrap();
-            lines.extend(f);
-            lines.push(format!("{last} {{"));
-            lines.extend(pack(&rest, indent + 2));
+        }
+        if has_elems {
+            let mut body = Vec::new();
+            self.kids(ek, indent + 2, &mut body, true);
+            lines.extend(body);
             lines.push(format!("{ind}}}"));
-            return lines;
         }
-        lines.push(format!("{first} {{"));
-        lines.extend(pack(&rest, indent + 2));
-        let mut body = Vec::new();
-        self.kids(ek, indent + 2, &mut body, true);
-        if !rest.is_empty() && !body.is_empty() && !body[0].is_empty() {
-            lines.push(String::new());
-        }
-        lines.extend(body);
-        lines.push(format!("{ind}}}"));
         lines
     }
 }
@@ -761,7 +751,39 @@ fn marcadores(s: &str) -> String {
         .replace("{{versao_motor}}", "0.0.0")
 }
 
+/// `<button …>Rótulo</button>` → `<button … text="Rótulo"/>`. No `.gvb` o texto é
+/// sempre atributo, e o motor lê o rótulo do atributo e do filho de formas
+/// diferentes (o filho vira um `Text` dentro do botão); é a única diferença de
+/// árvore que a tradução introduz, então o original é levado à forma do atributo
+/// antes de comparar.
+fn botao_com_atributo(gv: &str) -> String {
+    let mut out = String::new();
+    let mut rest = gv;
+    while let Some(i) = rest.find("<button") {
+        let (antes, depois) = rest.split_at(i);
+        out.push_str(antes);
+        let Some(gt) = depois.find('>') else { break };
+        let abre = &depois[..gt];
+        let corpo = &depois[gt + 1..];
+        let fecha = corpo.find("</button>");
+        match fecha {
+            Some(f) if !abre.ends_with('/') && !corpo[..f].contains('<') && !corpo[..f].trim().is_empty() => {
+                let txt = corpo[..f].split_whitespace().collect::<Vec<_>>().join(" ");
+                let _ = write!(out, "{abre} text=\"{}\"/>", txt.replace('"', "&quot;"));
+                rest = &corpo[f + "</button>".len()..];
+            }
+            _ => {
+                out.push_str(&depois[..gt + 1]);
+                rest = corpo;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 fn check(gv: &str, gvb: &str) -> Result<(), String> {
+    let gv = &botao_com_atributo(gv);
     let (gv, gvb) = (&marcadores(gv), &marcadores(gvb));
     let mutated = std::env::var("GVB_MUTATE").ok().map(|m| gvb.replacen(&m, "zzz", 1));
     let gvb = mutated.as_deref().unwrap_or(gvb);

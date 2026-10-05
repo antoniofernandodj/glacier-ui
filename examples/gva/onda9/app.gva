@@ -27,7 +27,7 @@
       <SizeGrip />
     </row>
 
-    <tabbar items="abas" value="aba" selected="{aba}" class="abas" />
+    <tabbar :items="abas" :value="aba" selected="{aba}" class="abas" />
 
     <!-- ══ 1 + 7: Splitter ══════════════════════════════════════════════ -->
     <template if="{aba}" equals="paineis">
@@ -38,7 +38,7 @@
           mesmo formato ("260 fill"), mesmo código — arraste a barra entre os painéis.
         </text>
 
-        <splitter sizes="painel_h" min="120" handle="6" class="divide">
+        <splitter :sizes="painel_h" min="120" handle="6" class="divide">
           <column class="painel">
             <text class="secao">Lateral</text>
             <text class="nota">
@@ -52,7 +52,7 @@
           <!-- Um splitter dentro de outro, no outro eixo: as duas chaves são
                independentes porque cada instância nomeia a sua. É a
                demonstração de que nunca houve estado por instância aqui. -->
-          <splitter sizes="painel_v" direction="v" min="90" handle="6" class="divide">
+          <splitter :sizes="painel_v" direction="v" min="90" handle="6" class="divide">
             <column class="painel">
               <text class="secao">Conteúdo</text>
               <text class="nota">
@@ -85,7 +85,7 @@
               <!-- O `size` de um rangeslider é o COMPRIMENTO da barra, uma
                    medida com significado de widget: movê-lo para o .gss o
                    confundiria com largura de caixa. Ver PRIMITIVAS.md. -->
-              <rangeslider start="preco_min" end="preco_max"
+              <rangeslider :start="preco_min" :end="preco_max"
                            min="0" max="1000" step="10" size="300"
                            on_release="lacou" />
               <text class="valor">R$ {preco_min} — R$ {preco_max}</text>
@@ -101,8 +101,8 @@
             <column class="painel">
               <text class="secao">Tumbler — a roleta</text>
               <row class="roletas">
-                <tumbler value="mes" items="meses" visible="5" size="150" />
-                <tumbler value="regiao" items="norte,nordeste,centro-oeste,sudeste,sul"
+                <tumbler :value="mes" items="meses" visible="5" size="150" />
+                <tumbler :value="regiao" items="norte,nordeste,centro-oeste,sudeste,sul"
                          visible="5" size="150" />
               </row>
               <text class="valor">{mes} · {regiao}</text>
@@ -147,7 +147,7 @@
           — as duas pontas já existiam, faltava o meio.
         </text>
 
-        <swipeview value="pagina" threshold="140" on_change="pagina" class="paginas">
+        <swipeview :value="pagina" threshold="140" on_change="pagina" class="paginas">
           <column class="pagina">
             <text class="secao">
               Página 0 — o índice
@@ -204,7 +204,7 @@
              e um laço que só desenhasse a faixa pediria para arrastar sobre o
              vazio. Como o widget JÁ TEM a geometria (é com ela que decide o que
              tocou), desenhá-la é de graça. -->
-        <rubberband items="caixas" selection="marcados" on_select="lacou"
+        <rubberband items="caixas" :selection="marcados" on_select="lacou"
                     class="arena" height="200" />
 
         <text class="valor">marcados = {marcados}</text>
@@ -270,11 +270,11 @@
               </text>
               <row class="campo_atalho">
                 <text class="rotulo">Salvar</text>
-                <shortcutinput value="atalho_salvar" />
+                <shortcutinput :value="atalho_salvar" />
               </row>
               <row class="campo_atalho">
                 <text class="rotulo">Buscar</text>
-                <shortcutinput value="atalho_buscar" />
+                <shortcutinput :value="atalho_buscar" />
               </row>
               <text class="nota">
                 Com um campo armado a tecla é DADO e não comando —

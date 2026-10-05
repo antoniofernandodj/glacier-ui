@@ -1,0 +1,34 @@
+/* Estilo que estava inline no markup. Os nomes são provisórios: renomeie
+   cada classe pelo papel que ela tem na tela. */
+
+.caixa {
+  padding: 40;
+  width: fill;
+  height: fill;
+  align_x: Center;
+  align_y: Center;
+}
+.coluna { spacing: 18; }
+.titulo { size: 32; bold: true; color: #F5E0DC; }
+.coluna_2 { spacing: 8; width: 320; }
+.destaque { size: 14; bold: true; color: #A6ADC8; }
+.campo { width: fill; padding: 10; }
+.botao { color: #89B4FA; width: 320; padding: 12; }
+.botao_2 { color: #313244; width: 320; padding: 12; }
+.coluna_3 { spacing: 20; }
+.texto { size: 16; color: #A6ADC8; }
+.botao_3 { color: #89B4FA; width: 240; padding: 12; }
+.botao_4 { color: #CBA6F7; width: 240; padding: 12; }
+.caixa_2 {
+  padding: 24;
+  width: 320;
+  background: #181825;
+  border_radius: 16;
+  border_width: 1;
+  border_color: #313244;
+  align_x: Center;
+}
+.coluna_4 { spacing: 8; }
+.titulo_2 { size: 22; bold: true; color: #CDD6F4; }
+.texto_2 { size: 14; color: #A6ADC8; }
+.botao_5 { color: #313244; width: 240; padding: 12; }

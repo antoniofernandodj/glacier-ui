@@ -1,6 +1,6 @@
 component {
   resources {
-    style """
+    style(scoped = true) """
       /* Traço/preenchimento das formas do &lt;canvas&gt; — `fill`/`stroke`/
        `stroke-width` são apelidos de `background`/`border-color`/`border-width`. */
       .tela_desenho { width: fill; height: 180; background: var(--raised); border_radius: 8; }
@@ -8,148 +8,122 @@ component {
       .contorno  { stroke: var(--ok); stroke-width: 2; }
       .regua     { stroke: var(--border); stroke-width: 1; }
       .marca_svg { size: 11; color: var(--muted); }
-    """ {
-      scoped: true
-    }
+
+      .cartao { width: 200; }
+    """
   }
 
-  column {
-    class: secao
+  column(class = secao) {
+    text(class = titulo_cat, content = "Displays e indicadores")
 
-    text "Displays e indicadores" { class: titulo_cat }
+    text(
+      class = intro,
+      content = """
+        Tudo aqui é apresentacional — não grava nada. `<qrcode>` usa `content=`
+        (interpolado), nunca `value=`.
+      """,
+    )
 
-    text """
-      Tudo aqui é apresentacional — não grava nada. `<qrcode>` usa `content=`
-      (interpolado), nunca `value=`.
-    """ {
-      class: intro
-    }
+    column(class = demos) {
+      column(class = demo) {
+        text(class = rotulo, content = "<text> · <image> · <svg> · <rule>")
 
-    column {
-      class: demos
+        row(class = linha) {
+          text(content = "texto simples")
+          image(source = "views/assets/icone.png", width = 40, height = 40)
 
-      column {
-        class: demo
+          svg(
+            source = "views/assets/glacier.svg", color = #89B4FA, width = 40,
+            height = 40,
+          )
 
-        text "<text> · <image> · <svg> · <rule>" { class: rotulo }
+          rule(direction = vertical)
 
-        row {
-          class: linha
-
-          text "texto simples"
-          image { source: "views/assets/icone.png" width: 40 height: 40 }
-
-          svg {
-            source: "views/assets/glacier.svg" color: #89B4FA width: 40
-            height: 40
-          }
-
-          rule { direction: vertical }
-
-          text """
-            um <rule direction="vertical"> à esquerda
-          """ {
-            class: marca_svg
-          }
+          text(
+            class = marca_svg,
+            content = """
+              um <rule direction="vertical"> à esquerda
+            """,
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(class = rotulo, content = "<badge> · <chip> · <avatar>")
 
-        text "<badge> · <chip> · <avatar>" { class: rotulo }
+        row(class = linha) {
+          badge(badge_text = online, badge_bg = #A6E3A1, badge_size = 11)
+          badge(badge_text = 3, badge_bg = #F38BA8, badge_size = 11)
 
-        row {
-          class: linha
+          chip(
+            for-each = di_tags, var = tag, label = @tag, class = chip,
+            on_remove = di_tirar_tag:@tag,
+          )
 
-          badge { badge_text: online badge_bg: #A6E3A1 badge_size: 11 }
-          badge { badge_text: 3 badge_bg: #F38BA8 badge_size: 11 }
-
-          chip {
-            for-each: di_tags var: tag label: @tag class: chip
-            on_remove: di_tirar_tag:@tag
-          }
-
-          avatar { initials: AF size: 40 }
-          avatar { src: "views/assets/icone.png" size: 40 }
+          avatar(initials = AF, size = 40)
+          avatar(src = "views/assets/icone.png", size = 40)
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(class = rotulo, content = "<card> · <frame> · <skeleton>")
 
-        text "<card> · <frame> · <skeleton>" { class: rotulo }
+        row(class = linha) {
+          card(title = Servidor, subtitle = produção, class = cartao) {
+            text(class = nota, content = "uptime 31 dias")
 
-        row {
-          class: linha
-
-          card {
-            title: Servidor subtitle: produção width: 200
-
-            text "uptime 31 dias" { class: nota }
-
-            template {
-              slot: footer
-
-              button { class: btn text: Abrir on_click: "dizer:card footer" }
+            template(slot = footer) {
+              button(class = btn, text = Abrir, on_click = "dizer:card footer")
             }
           }
 
-          frame {
-            shape: box
-
-            text "shape=\"box\"" { class: nota }
+          frame(shape = box) {
+            text(class = nota, content = "shape=\"box\"")
           }
 
-          frame {
-            shape: filled
-
-            text "shape=\"filled\"" { class: nota }
+          frame(shape = filled) {
+            text(class = nota, content = "shape=\"filled\"")
           }
 
-          column {
-            class: coluna
-
-            skeleton { width: 160 height: 12 }
-            skeleton { width: 120 height: 12 }
-            skeleton { width: fill height: 40 radius: 8 }
+          column(class = coluna) {
+            skeleton(width = 160, height = 12)
+            skeleton(width = 120, height = 12)
+            skeleton(width = fill, height = 40, radius = 8)
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <qrcode content="@{…}"> · <canvas> + formas (<rect> <circle> <line>
+            <polyline> <polygon> <arc> <path>)
+          """,
+        )
 
-        text """
-          <qrcode content="@{…}"> · <canvas> + formas (<rect> <circle> <line>
-          <polyline> <polygon> <arc> <path>)
-        """ {
-          class: rotulo
-        }
+        row(class = linha) {
+          qrcode(content = @di_qr, width = 110, height = 110)
 
-        row {
-          class: linha
+          canvas(class = tela_desenho) {
+            rect(x = 14, y = 14, w = 120, h = 52, rx = 10, class = solido)
+            circle(cx = 180, cy = 40, r = 28, class = contorno)
+            line(x1 = 14, y1 = 100, x2 = 250, y2 = 100, class = regua)
 
-          qrcode { content: @di_qr width: 110 height: 110 }
+            polyline(
+              points = "20,150 55,124 90,158 125,124 160,152", class = contorno,
+            )
 
-          canvas {
-            class: tela_desenho
-
-            rect { x: 14 y: 14 w: 120 h: 52 rx: 10 class: solido }
-            circle { cx: 180 cy: 40 r: 28 class: contorno }
-            line { x1: 14 y1: 100 x2: 250 y2: 100 class: regua }
-
-            polyline {
-              points: "20,150 55,124 90,158 125,124 160,152" class: contorno
-            }
-
-            polygon { points: "210,120 250,120 230,160" class: solido }
-            arc { cx: 300 cy: 140 r: 24 start: 150 sweep: 240 class: solido }
-            path { d: "M270 40 Q 300 10 330 40 T 390 40" class: contorno }
+            polygon(points = "210,120 250,120 230,160", class = solido)
+            arc(
+              cx = 300, cy = 140, r = 24, start = 150, sweep = 240,
+              class = solido,
+            )
+            path(d = "M270 40 Q 300 10 330 40 T 390 40", class = contorno)
           }
         }
 
-        text "di_qr = @di_qr" { class: nota }
+        text(class = nota, content = "di_qr = @di_qr")
       }
     }
   }

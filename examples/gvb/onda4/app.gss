@@ -102,3 +102,9 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 .selo_verde { background: var(--verde); }
 .selo_roxo  { background: var(--roxo); }
 .selo_ambar { background: var(--ambar); }
+
+.coluna { spacing: 0; }
+.rolagem { width: fill; height: fill; }
+.grupo { width: 440; }
+.barra { width: fill; }
+.grupo_2 { width: 380; }

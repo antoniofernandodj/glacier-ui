@@ -1,9 +1,9 @@
-screen {
-  title: "Glacier — CRUD com SQLite" size: "560 640" min_size: "420 480"
-
+screen(
+  title = "Glacier — CRUD com SQLite", size = "560 640", min_size = "420 480",
+) {
   resources {
-    link { rel: theme href: "examples/gvb/sqlite_crud/theme.json" }
-    link { rel: stylesheet href: "examples/gvb/sqlite_crud/app.gss" }
+    link(rel = theme, href = "examples/gvb/sqlite_crud/theme.json")
+    link(rel = stylesheet, href = "examples/gvb/sqlite_crud/app.gss")
 
     script """
     --!strict
@@ -77,42 +77,38 @@ screen {
     """
   }
 
-  column {
-    class: tela
-
-    column {
-      class: cabecalho
-
-      text "Tarefas" { class: titulo }
-      text "SQLite pela extensão Rust · @total no banco" { class: subtitulo }
+  column(class = tela) {
+    column(class = cabecalho) {
+      text(class = titulo, content = "Tarefas")
+      text(
+        class = subtitulo,
+        content = "SQLite pela extensão Rust · @total no banco",
+      )
     }
 
-    row {
-      class: form
+    row(class = form) {
+      textinput(
+        class = campo, :value = novo, on_change = definir_novo,
+        placeholder = "Nova tarefa…",
+      )
 
-      textinput {
-        class: campo value: novo on_change: definir_novo
-        placeholder: "Nova tarefa…"
-      }
-
-      button { class: add text: Adicionar on_click: adicionar }
+      button(class = add, text = Adicionar, on_click = adicionar)
     }
 
-    column {
-      class: lista
-
-      row {
-        class: item for-each: tarefas var: t
-
-        button { class: check text: @t.marca on_click: alternar:@t.id }
-        text "@t.titulo" { class: feito if: @t.feito equals: 1 }
-        text "@t.titulo" { class: pendente else: "" }
-        button { class: del text: excluir on_click: excluir:@t.id }
+    column(class = lista) {
+      row(class = item, for-each = tarefas, var = t) {
+        button(class = check, text = @t.marca, on_click = alternar:@t.id)
+        text(class = feito, if = @t.feito, equals = 1, content = "@t.titulo")
+        text(class = pendente, else = "", content = "@t.titulo")
+        button(class = del, text = excluir, on_click = excluir:@t.id)
       }
     }
 
-    text "nenhuma tarefa ainda — o banco vive no diretório temporário do SO" {
-      class: vazio if: @total equals: 0
-    }
+    text(
+      class = vazio, if = @total, equals = 0,
+      content = """
+        nenhuma tarefa ainda — o banco vive no diretório temporário do SO
+      """,
+    )
   }
 }

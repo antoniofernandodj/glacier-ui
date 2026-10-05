@@ -1,5 +1,6 @@
 <screen title="Glacier - Contador (script Lua externo)">
   <resources>
+    <link rel="stylesheet" href="examples/gva/contador_externo/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -9,44 +10,36 @@
   </resources>
 
   <container
-    padding="20"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="20" align="Center">
-      <text size="28" bold="true" color="#ECEFF4">
+    <column align="Center" class="coluna">
+      <text class="titulo">
         Valor do Contador: {contador}
       </text>
-      <row spacing="10" align="Center">
-        <text color="#D8DEE9">Passo:</text>
+      <row align="Center" class="linha">
+        <text class="texto">Passo:</text>
         <input
-          value="passo"
+          :value="passo"
           placeholder="1"
           on_change="definir_passo"
-          width="80"
-          padding="8"
+          class="campo"
         />
       </row>
-      <row spacing="15" align="Center">
+      <row align="Center" class="linha_2">
         <button
           text="Diminuir"
           on_click="decrementar"
-          color="#BF616A"
-          padding="10 20"
+          class="botao"
         />
         <button
           text="Zerar"
           on_click="zerar"
-          color="#4C566A"
-          padding="10 20"
+          class="botao_2"
         />
         <button
           text="Aumentar"
           on_click="incrementar"
-          color="#A3BE8C"
-          padding="10 20"
+          class="botao_3"
         />
       </row>
     </column>

@@ -5,13 +5,11 @@
 //
 // O `main.rs` deste exemplo também chama `.title(...)`/`.main_size(...)`; o que
 // está escrito aqui vence, porque é o arquivo que recarrega a quente.
-screen {
-  title: "Controle externo" size: "1000 700" min_size: "480 360"
-
+screen(title = "Controle externo", size = "1000 700", min_size = "480 360") {
   resources {
-    link { rel: theme href: "examples/gvb/controle_externo/theme.json" }
+    link(rel = theme, href = "examples/gvb/controle_externo/theme.json")
 
-    style """
+    style(scoped = true) """
       /* Sem `background`: a cor da janela é do TEMA (theme.json). Pintar um nó
          `fill/fill` com a cor que o tema já pinta é uma camada a mais em cada
          pixel da tela, e ela custa (ver AGENTS.md). */
@@ -47,44 +45,35 @@ screen {
           color: #4C566A;
           padding: 10 20;
       }
-    """ {
-      scoped: true
-    }
+    """
 
     // Ações em Lua, num arquivo separado (resolvido relativo a este template).
-    script { src: controle_externo.luau }
+    script(src = controle_externo.luau)
   }
 
-  container {
-    class: tela
+  container(class = tela) {
+    column(class = conteudo) {
+      text(class = titulo, content = "Controle externo")
 
-    column {
-      class: conteudo
+      text(
+        class = subtitulo,
+        content = """
+          Ninguém toca nesta janela. Uma thread do próprio programa manda as ações
+          pelo canal `external`.
+        """,
+      )
 
-      text "Controle externo" { class: titulo }
-
-      text """
-        Ninguém toca nesta janela. Uma thread do próprio programa manda as ações
-        pelo canal `external`.
-      """ {
-        class: subtitulo
-      }
-
-      container {
-        class: painel
-
-        column {
-          class: painel-col
-
-          text "nome: @nome" { class: campo }
-          text "busca: @busca" { class: campo }
-          text "@estado" { class: estado }
+      container(class = painel) {
+        column(class = painel-col) {
+          text(class = campo, content = "nome: @nome")
+          text(class = campo, content = "busca: @busca")
+          text(class = estado, content = "@estado")
         }
       }
 
-      button {
-        class: btn text: "Reiniciar (clique humano)" on_click: reiniciar
-      }
+      button(
+        class = btn, text = "Reiniciar (clique humano)", on_click = reiniciar,
+      )
     }
   }
 }

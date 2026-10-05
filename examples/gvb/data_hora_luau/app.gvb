@@ -1,112 +1,99 @@
-screen {
-  title: "Glacier - Data e Hora (Luau)" size: "700 580"
-
+screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/data_hora_luau/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/data_hora_luau/theme.json" }
+    link(rel = theme, href = "examples/gvb/data_hora_luau/theme.json")
 
     // Sem isto o comportamento em Lua nunca é carregado: o motor liga o
     // script pelo <script> do template, não por convenção de nome.
-    script { src: app.luau }
+    script(src = app.luau)
   }
 
-  column {
-    padding: 28 spacing: 20 width: fill height: fill
+  column(class = coluna) {
+    column(class = coluna_2) {
+      text(content = "Reserva — regras em Luau", class = titulo)
 
-    column {
-      spacing: 6
+      text(
+        content = """
+          Cada campo tem on_change, então o widget NÃO grava a chave: ele avisa, e
+          o script decide. É o que permite recusar uma saída anterior à entrada —
+          uma regra de negócio, que não cabe dentro do widget.
+        """,
+        class = texto,
+      )
 
-      text "Reserva — regras em Luau" { size: 22 bold: true color: #CDD6F4 }
-
-      text """
-        Cada campo tem on_change, então o widget NÃO grava a chave: ele avisa, e
-        o script decide. É o que permite recusar uma saída anterior à entrada —
-        uma regra de negócio, que não cabe dentro do widget.
-      """ {
-        size: 13 color: #A6ADC8
-      }
-
-      text """
-        As contas de data ficam com o global `date` do prelúdio (Luau puro sobre
-        strings ISO): os valores iniciais saem do relógio do sistema, e as
-        comparações não olham o texto, olham o instante.
-      """ {
-        size: 13 color: #A6ADC8
-      }
+      text(
+        content = """
+          As contas de data ficam com o global `date` do prelúdio (Luau puro sobre
+          strings ISO): os valores iniciais saem do relógio do sistema, e as
+          comparações não olham o texto, olham o instante.
+        """,
+        class = texto,
+      )
     }
 
     rule
 
-    row {
-      spacing: 16 align_y: center
-
-      text "Entrada" { width: 90 color: #CDD6F4 }
-      dateedit { value: checkin format: br on_change: set_checkin }
-      timeedit { value: chegada on_change: set_chegada }
-      text "dia e hora da chegada" { size: 12 color: #6C7086 }
+    row(class = linha) {
+      text(content = "Entrada", class = texto_2)
+      dateedit(value = checkin, format = br, on_change = set_checkin)
+      timeedit(:value = chegada, on_change = set_chegada)
+      text(content = "dia e hora da chegada", class = nota)
     }
 
-    row {
-      spacing: 16 align_y: center
-
-      text "Saída" { width: 90 color: #CDD6F4 }
-      dateedit { value: checkout format: br on_change: set_checkout }
-      text "tem de ser depois da entrada" { size: 12 color: #6C7086 }
+    row(class = linha) {
+      text(content = "Saída", class = texto_2)
+      dateedit(value = checkout, format = br, on_change = set_checkout)
+      text(content = "tem de ser depois da entrada", class = nota)
     }
 
     // O <datetimeedit> junta as duas famílias de seção no mesmo campo.
     // A regra dele é a mais sutil da tela: comparar um `YYYY-MM-DD HH:MM`
     // com um `YYYY-MM-DD` não dá certo como texto puro — ver o script.
-    row {
-      spacing: 16 align_y: center
-
-      text "Lembrete" { width: 90 color: #CDD6F4 }
-      datetimeedit { value: lembrete on_change: set_lembrete }
-      text "tem de cair até o dia da entrada" { size: 12 color: #6C7086 }
+    row(class = linha) {
+      text(content = "Lembrete", class = texto_2)
+      datetimeedit(value = lembrete, on_change = set_lembrete)
+      text(content = "tem de cair até o dia da entrada", class = nota)
     }
 
     // Presets: o script escreve as chaves direto, sem passar pelo widget.
-    row {
-      spacing: 10 align_y: center
-
-      text "Chegada" { width: 90 color: #CDD6F4 }
-      button { text: Manhã on_click: turno_manha padding: "6 14" }
-      button { text: Tarde on_click: turno_tarde padding: "6 14" }
-      button { text: Noite on_click: turno_noite padding: "6 14" }
+    row(class = linha_2) {
+      text(content = "Chegada", class = texto_2)
+      button(text = Manhã, on_click = turno_manha, class = botao)
+      button(text = Tarde, on_click = turno_tarde, class = botao)
+      button(text = Noite, on_click = turno_noite, class = botao)
     }
 
     // Estes dois são `date.add` puro: deslocam o valor corrente sem que o
     // script precise saber quantos dias tem o mês.
-    row {
-      spacing: 10 align_y: center
+    row(class = linha_2) {
+      text(content = "Período", class = texto_2)
+      button(text = "+1 noite", on_click = mais_uma_noite, class = botao)
+      button(text = "Adiar 1 mês", on_click = daqui_um_mes, class = botao)
 
-      text "Período" { width: 90 color: #CDD6F4 }
-      button { text: "+1 noite" on_click: mais_uma_noite padding: "6 14" }
-      button { text: "Adiar 1 mês" on_click: daqui_um_mes padding: "6 14" }
-
-      text "mês anda pelo calendário: 31/01 + 1 mês = 28/02" {
-        size: 12 color: #6C7086
-      }
+      text(
+        content = "mês anda pelo calendário: 31/01 + 1 mês = 28/02",
+        class = nota,
+      )
     }
 
     rule
 
     // O resumo é recalculado no script a cada alteração aceita.
-    column {
-      spacing: 6
-
-      text "@periodo" { size: 15 bold: true color: #CDD6F4 }
-      text "@resumo" { size: 14 color: #A6ADC8 }
-      text "@aviso" { if: @aviso not_equals: "" size: 13 color: #F38BA8 }
+    column(class = coluna_2) {
+      text(content = "@periodo", class = destaque)
+      text(content = "@resumo", class = texto_3)
+      text(if = @aviso, not_equals = "", content = "@aviso", class = texto_4)
     }
 
-    text """
-      Tente puxar a saída para antes da entrada, ou a entrada para ontem: o
-      script recusa, avisa e o campo volta ao valor anterior.
-    """ {
-      size: 12 color: #6C7086
-    }
+    text(
+      content = """
+        Tente puxar a saída para antes da entrada, ou a entrada para ontem: o
+        script recusa, avisa e o campo volta ao valor anterior.
+      """,
+      class = nota,
+    )
   }
 }

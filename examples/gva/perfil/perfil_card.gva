@@ -1,27 +1,23 @@
 <component>
+  <resources>
+    <link rel="stylesheet" href="examples/gva/perfil/app.gss" />
+  </resources>
  <container
-  padding="20"
-  width="300"
-  background="#1E1E2E"
-  border_radius="16"
-  border_width="1"
-  border_color="#313244"
-  align_x="Center"
+  class="caixa_3"
  >
-  <column spacing="15" align="Center">
+  <column align="Center" class="coluna_2">
    <image source="examples/gva/perfil/avatar.png" width="100" height="100" clip="Circle" />
 
-   <column spacing="5" align="Center">
-    <text size="20" bold="true" color="#CDD6F4">{user_name}</text>
-    <text size="14" color="#A6ADC8">{user_role}</text>
+   <column align="Center" class="coluna_3">
+    <text class="titulo_2">{user_name}</text>
+    <text class="texto">{user_role}</text>
    </column>
 
    <button
     text="{texto_botao}"
     on_click="seguir_usuario"
-    width="fill"
     color="{btn_color}"
-    padding="10 15"
+    class="botao_3"
    />
   </column>
  </container>

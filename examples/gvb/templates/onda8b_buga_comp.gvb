@@ -1,16 +1,16 @@
 component {
   resources {
-    script { src: onda8b_buga_comp.luau }
+    script(src = onda8b_buga_comp.luau)
 
-    dialog {
-      name: dlg_do_comp title: X
-      buttons: "Cancelar::|Salvar:CompX::salvar:accept"
-
+    dialog(
+      name = dlg_do_comp, title = X,
+      buttons = "Cancelar::|Salvar:CompX::salvar:accept",
+    ) {
       column {
-        textinput { value: __dialog.v on_change: __dialog.v }
+        textinput(:value = __dialog.v, on_change = __dialog.v)
       }
     }
   }
 
-  button { text: editar on_click: dialog:dlg_do_comp }
+  button(text = editar, on_click = dialog:dlg_do_comp)
 }

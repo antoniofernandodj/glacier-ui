@@ -19,7 +19,7 @@
         <column class="campo">
           <text class="rotulo">Nome</text>
           <textinput
-            value="__dialog.nome"
+            :value="__dialog.nome"
             on_change="__dialog.nome"
             placeholder="api-gateway"
             class="preenche"
@@ -33,7 +33,7 @@
                  shrink: um `fill` aqui colapsa o número. Por isso ele fica
                  inline, e não no `.gss` como largura de caixa. -->
             <spinbox
-              value="__dialog.replicas"
+              :value="__dialog.replicas"
               min="1"
               max="32"
               step="1"
@@ -43,8 +43,8 @@
           <column class="campo">
             <text class="rotulo">Ambiente</text>
             <select
-              options="ambientes"
-              value="__dialog.ambiente"
+              :options="ambientes"
+              :value="__dialog.ambiente"
               on_change="__dialog.ambiente"
               class="preenche"
             />
@@ -53,7 +53,7 @@
 
         <checkbox
           label="Reiniciar automaticamente"
-          checked="__dialog.restart"
+          :checked="__dialog.restart"
           on_toggle="__dialog.restart"
         />
       </column>
@@ -78,7 +78,7 @@
       <text class="status">{status}</text>
     </row>
 
-    <tabs value="aba" active="{aba}" items="abas" class="corpo">
+    <tabs :value="aba" active="{aba}" :items="abas" class="corpo">
       <!-- ══ O modal com corpo ═══════════════════════════════════════════ -->
       <template slot="modal">
         <column class="painel">
@@ -126,7 +126,7 @@
 
           <frame shape="box" class="bloco">
             <wizard
-              value="passo" active="{passo}"
+              :value="passo" active="{passo}"
               steps="plano,dominio,revisao"
               titles="Escolha o plano,Domínio,Revisão"
               valid="{passo_valido}"
@@ -135,7 +135,7 @@
             >
               <template slot="plano">
                 <column class="form">
-                  <radiogroup value="plano" items="planos" />
+                  <radiogroup :value="plano" :items="planos" />
                   <text class="rotulo">Plano: {plano}</text>
                 </column>
               </template>
@@ -144,7 +144,7 @@
                 <column class="form">
                   <text class="rotulo">Domínio do projeto</text>
                   <textinput
-                    value="dominio"
+                    :value="dominio"
                     on_change="dominio"
                     placeholder="exemplo.com.br"
                     class="preenche"
@@ -183,10 +183,10 @@
         <row class="colunas">
           <column class="painel">
             <text class="lead">colorwheel avulso</text>
-            <colorwheel value="cor" size="230" />
+            <colorwheel :value="cor" size="230" />
             <row class="acoes">
               <container class="amostra" background="{cor}" />
-              <textinput value="cor__hex" on_change="cor_digitada"
+              <textinput :value="cor__hex" on_change="cor_digitada"
                          placeholder="#rrggbb" class="campo-hex" />
             </row>
           </column>

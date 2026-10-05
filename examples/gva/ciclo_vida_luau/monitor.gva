@@ -1,25 +1,26 @@
 <screen title="Glacier - ciclo de vida (monitor)">
   <resources>
+    <link rel="stylesheet" href="examples/gva/ciclo_vida_luau/app.gss" />
     <link rel="theme" href="examples/gva/stream_lua/theme.json" />
     <script src="monitor.luau"></script>
   </resources>
 
-  <container padding="24" align_x="Center" align_y="Center" width="fill" height="fill">
-    <column spacing="14" align="Center" width="520">
-      <text size="18" bold="true" color="#ECEFF4">Monitor</text>
-      <text size="13" color="#EBCB8B">ciclo: {ciclo}</text>
+  <container class="caixa">
+    <column align="Center" class="coluna">
+      <text class="titulo">Monitor</text>
+      <text class="texto_2">ciclo: {ciclo}</text>
 
-      <text size="13" bold="true" color="#88C0D0">— SSE (/sse, um tick a cada 500 ms) —</text>
-      <text size="13" color="#EBCB8B">{sse_status}</text>
-      <text size="15" color="#A3BE8C">{sse_msg}</text>
+      <text class="destaque">— SSE (/sse, um tick a cada 500 ms) —</text>
+      <text class="texto_2">{sse_status}</text>
+      <text class="texto_3">{sse_msg}</text>
 
-      <text size="13" bold="true" color="#88C0D0">— WebSocket (/ws, eco + tick) —</text>
-      <text size="13" color="#EBCB8B">{ws_status}</text>
-      <text size="15" color="#A3BE8C">{ws_msg}</text>
-      <button on_click="enviar_ws" color="#A3BE8C" padding="10 18">
+      <text class="destaque">— WebSocket (/ws, eco + tick) —</text>
+      <text class="texto_2">{ws_status}</text>
+      <text class="texto_3">{ws_msg}</text>
+      <button on_click="enviar_ws" class="botao_2">
         Enviar ping
       </button>
-      <button on_click="voltar" color="#BF616A" padding="10 18">
+      <button on_click="voltar" class="botao_3">
         Voltar (fecha os streams)
       </button>
     </column>

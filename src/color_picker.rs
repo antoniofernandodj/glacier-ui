@@ -11,7 +11,7 @@
 //!
 //! # O valor mora numa chave, como em todo o resto
 //!
-//! `<colorwheel value="cor" />` escreve `#rrggbb` na chave `cor`, e lê dela o
+//! `<colorwheel :value="cor" />` escreve `#rrggbb` na chave `cor`, e lê dela o
 //! ponto onde desenhar os dois cursores. Não há estado de cor no widget: o
 //! `Program::State` guarda só **qual dos dois controles** está sendo arrastado
 //! agora, que é o que morre com o gesto.

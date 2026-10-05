@@ -28,7 +28,7 @@ O `<form>` declara o que fazer e as regras ficam nos campos:
 <form on_submit="salvar" on_validation_error="apontar" validate_on="submit">
   <input       form_control="f_nome" rules="required|minlen:3"  msg="informe ao menos 3 letras" />
   <maskedinput form_control="f_cpf"  rules="required|digits:11"  mask="cpf" />
-  <spinbox     form_control="f_idade" value="f_idade" rules="gte:18" />
+  <spinbox     form_control="f_idade" :value="f_idade" rules="gte:18" />
   <checkbox    form_control="f_aceite" rules="accepted" label="Aceito os termos" />
 
   <button type="reset"  on_click="limpar" text="Limpar" />

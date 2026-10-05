@@ -175,6 +175,17 @@ rodar um deles, comente o `autoexamples = false` do `Cargo.toml` da raiz:
 cargo run --example contador
 ```
 
+Cada exemplo existe nas duas grafias: `examples/gva/<nome>/` (XML) e
+`examples/gvb/<nome>/` (blocos), e o `.gvb` tem o `main.rs` dele, declarado no
+`Cargo.toml` como `gvb_<nome>`:
+
+```bash
+WGPU_BACKEND=gl cargo run --example gvb_contador
+```
+
+Os que não dependem de Rust do app (os `*_luau` e as telas estáticas) também
+abrem pelo `gvb_run`: `cargo run --example gvb_run -- examples/gvb/onda9_luau/app.gvb`.
+
 ---
 
 ### No navegador (WebAssembly)

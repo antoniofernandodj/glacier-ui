@@ -1,11 +1,10 @@
-screen {
-  title: "Detalhe (Lua)" size: "420 320"
-
+screen(title = "Detalhe (Lua)", size = "420 320") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/janelas_glacier/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/janelas_glacier/theme_detalhe.json" }
+    link(rel = theme, href = "examples/gvb/janelas_glacier/theme_detalhe.json")
 
     script """
       -- Semeia o estado inicial desta janela (contador próprio, isolado das demais).
@@ -41,29 +40,22 @@ screen {
     """
   }
 
-  container {
-    padding: 30 align_x: Center align_y: Center width: fill height: fill
+  container(class = caixa) {
+    column(class = coluna) {
+      text(content = "Detalhe (XML + Lua)", class = titulo)
+      text(content = "Aberto por: @origem", class = texto)
+      text(content = "Cliques nesta janela: @n", class = texto_2)
 
-    column {
-      spacing: 20 align_x: Center
+      button(text = Contar, on_click = contar, class = botao)
 
-      text "Detalhe (XML + Lua)" { size: 24 bold: true color: #F5E0DC }
-      text "Aberto por: @origem" { size: 13 color: #9399B2 }
-      text "Cliques nesta janela: @n" { size: 16 color: #89B4FA }
+      button(
+        text = "Abrir outra (Lua)", on_click = abrir_outra, class = botao_2,
+      )
 
-      button {
-        text: Contar on_click: contar color: #89B4FA width: 240 padding: 10
-      }
-
-      button {
-        text: "Abrir outra (Lua)" on_click: abrir_outra color: #A6E3A1
-        width: 240 padding: 10
-      }
-
-      button {
-        text: "Enviar ao painel e fechar" on_click: avisar_e_fechar
-        color: #F38BA8 width: 240 padding: 10
-      }
+      button(
+        text = "Enviar ao painel e fechar", on_click = avisar_e_fechar,
+        class = botao_3,
+      )
     }
   }
 }

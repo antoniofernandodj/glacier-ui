@@ -107,6 +107,25 @@
           ]
         },
         {
+          "comment": "Binding attribute `:name=\"key\"` — the value is the NAME of a context key (see src/bindings.rs)",
+          "begin": "(?<![\\w.:-])(:)([A-Za-z_][\\w.-]*)\\s*(=)\\s*(\")",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.binding.glacier-view" },
+            "2": { "name": "entity.other.attribute-name.binding.glacier-view" },
+            "3": { "name": "punctuation.separator.key-value.glacier-view" },
+            "4": { "name": "punctuation.definition.string.begin.glacier-view" }
+          },
+          "end": "(\")",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.string.end.glacier-view" }
+          },
+          "contentName": "string.quoted.double.glacier-view",
+          "patterns": [
+            { "include": "#interpolation" },
+            { "match": "[A-Za-z_][\\w.]*", "name": "variable.other.key.glacier-view" }
+          ]
+        },
+        {
           "comment": "Generic attribute name = \"value\"",
           "begin": "\\b([A-Za-z_][\\w.-]*)\\s*(=)\\s*(\")",
           "beginCaptures": {

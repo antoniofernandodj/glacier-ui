@@ -135,3 +135,8 @@ painel de um `<drawer>` sem reescrever o widget.
 
 .selo_azul  { background: var(--azul); }
 .selo_verde { background: var(--verde); }
+
+.coluna { spacing: 0; }
+.botao { width: fill; }
+.rolagem { width: fill; height: fill; }
+.controle { width: 130; }

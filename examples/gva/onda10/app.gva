@@ -20,7 +20,7 @@
           família — a linha que o separa de um `select` comum.
         </text>
         <fontselect
-          value="fonte"
+          :value="fonte"
           selected="{fonte}"
           preview="A rápida raposa marrom salta sobre o cão — 0123"
           height="240"
@@ -56,7 +56,7 @@
             `QPlainTextEdit` é "texto simples, fonte declarável". A segunda
             metade era esta onda.
           </text>
-          <texteditor value="nota" font="{fonte_mono}" class="editor" />
+          <texteditor :value="nota" font="{fonte_mono}" class="editor" />
         </column>
       </column>
     </row>

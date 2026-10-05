@@ -2,7 +2,7 @@
 ///
 /// ```xml
 /// <row width="fill" height="fill">
-///     <drawer value="menu" open="{menu}" size="260">
+///     <drawer :value="menu" open="{menu}" size="260">
 ///         <button text="Painel"   on_click="ir:painel" width="fill" />
 ///         <button text="Serviços" on_click="ir:servicos" width="fill" />
 ///     </drawer>

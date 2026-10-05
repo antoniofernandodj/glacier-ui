@@ -1,24 +1,20 @@
 <screen title="Webview" size="360 160" min_size="320 140">
   <resources>
+    <link rel="stylesheet" href="examples/gva/webview/app.gss" />
     <link rel="theme" href="examples/gva/webview/theme.json" />
   </resources>
 
   <container
-    padding="20"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="16" align_x="Center">
-      <text size="16" bold="true" color="#ECEFF4">
+    <column class="coluna">
+      <text class="destaque">
         Webview nativa
       </text>
       <button
         text="Abrir webview numa janela"
         on_click="abrir"
-        color="#88C0D0"
-        padding="10 20"
+        class="botao"
       />
     </column>
   </container>

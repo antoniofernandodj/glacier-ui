@@ -1,6 +1,4 @@
-screen {
-  title: "Glacier - Contador (script)"
-
+screen(title = "Glacier - Contador (script)") {
   resources {
     style """
       .center-xy  { align-x: Center; align-y: Center; }
@@ -12,6 +10,9 @@ screen {
       .green      { color: #A3BE8C; }
       .btn        { padding: 10 20; }
       .txt        { color: #ECEFF4; bold: true; size: 28; }
+
+      .coluna { spacing: 20; }
+      .linha { spacing: 15; }
     """
 
     script """
@@ -24,19 +25,13 @@ screen {
     """
   }
 
-  container {
-    class: "center-xy fill gray p-20"
+  container(class = "center-xy fill gray p-20") {
+    column(class = "center coluna") {
+      text(class = txt, content = "Valor do Contador: @contador")
 
-    column {
-      spacing: 20 class: center
-
-      text "Valor do Contador: @contador" { class: txt }
-
-      row {
-        spacing: 15 align: Center
-
-        button { text: Diminuir on_click: decrement class: "btn red" }
-        button { text: Aumentar on_click: increment class: "btn green" }
+      row(align = Center, class = linha) {
+        button(text = Diminuir, on_click = decrement, class = "btn red")
+        button(text = Aumentar, on_click = increment, class = "btn green")
       }
     }
   }

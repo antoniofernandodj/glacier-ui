@@ -1,221 +1,192 @@
 component {
   resources {
-    style """
+    style(scoped = true) """
       .painel     { background: var(--raised); border_radius: 8; border_width: 1; border_color: var(--border); padding: 12; spacing: 6; }
       .caixa_stack { width: fill; height: 120; background: var(--raised); border_radius: 8; }
       .marca_pos  { size: 11; bold: true; color: var(--accent); }
       .sino       { size: 20; }
       .arena      { width: fill; height: 180; background: var(--raised); border_radius: 8; }
       .arrasta    { size: 14; color: var(--muted); }
-    """ {
-      scoped: true
-    }
+
+      .coluna_2 { width: fill; height: fill; align_x: center; align_y: center; }
+      .coluna_3 { align_x: center; align_y: center; spacing: 10; }
+      .texto { cursor: grab; }
+    """
   }
 
-  column {
-    class: secao
+  column(class = secao) {
+    text(class = titulo_cat, content = "Overlays, dicas e utilitários")
 
-    text "Overlays, dicas e utilitários" { class: titulo_cat }
+    text(
+      class = intro,
+      content = """
+        `tooltip=` e `whats_this=` são atributos UNIVERSAIS — valem em qualquer
+        nó. `<shortcut>` mora no layout (não no `<resources>`) e não desenha nada.
+      """,
+    )
 
-    text """
-      `tooltip=` e `whats_this=` são atributos UNIVERSAIS — valem em qualquer
-      nó. `<shortcut>` mora no layout (não no `<resources>`) e não desenha nada.
-    """ {
-      class: intro
-    }
+    column(class = demos) {
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "tooltip= · whats_this= (modo pegajoso: whatsthis:toggle)",
+        )
 
-    column {
-      class: demos
+        row(class = linha) {
+          button(
+            class = btn, text = "pare o mouse aqui",
+            tooltip = "este é o balão de tooltip", on_click = dizer:tooltip,
+          )
 
-      column {
-        class: demo
-
-        text "tooltip= · whats_this= (modo pegajoso: whatsthis:toggle)" {
-          class: rotulo
-        }
-
-        row {
-          class: linha
-
-          button {
-            class: btn text: "pare o mouse aqui"
-            tooltip: "este é o balão de tooltip" on_click: dizer:tooltip
-          }
-
-          button {
-            class: btn text: "modo ajuda" on_click: whatsthis:toggle
-            whats_this: "Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip."
-          }
+          button(
+            class = btn, text = "modo ajuda", on_click = whatsthis:toggle,
+            whats_this = "Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip.",
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <popover> (ancorado ao gatilho) · <popup> (centrado na janela)
+          """,
+        )
 
-        text "<popover> (ancorado ao gatilho) · <popup> (centrado na janela)" {
-          class: rotulo
-        }
+        row(class = linha) {
+          popover(:value = ov_menu, placement = bottom, align = start) {
+            button(slot = anchor, class = btn, text = "Conta ▾")
 
-        row {
-          class: linha
-
-          popover {
-            value: ov_menu placement: bottom align: start
-
-            button { slot: anchor class: btn text: "Conta ▾" }
-
-            column {
-              class: painel
-
-              text "Perfil" { class: nota }
-              text "Configurações" { class: nota }
-              text "Sair" { class: nota }
+            column(class = painel) {
+              text(class = nota, content = "Perfil")
+              text(class = nota, content = "Configurações")
+              text(class = nota, content = "Sair")
             }
           }
 
-          popup {
-            value: ov_pop
+          popup(value = ov_pop) {
+            button(slot = anchor, class = btn, text = "Mostrar atalhos")
 
-            button { slot: anchor class: btn text: "Mostrar atalhos" }
-
-            column {
-              class: painel
-
-              text "Ctrl+S — salvar" { class: nota }
-              text "Ctrl+P — buscar" { class: nota }
+            column(class = painel) {
+              text(class = nota, content = "Ctrl+S — salvar")
+              text(class = nota, content = "Ctrl+P — buscar")
             }
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <stack> — filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=
+          """,
+        )
 
-        text "<stack> — filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=" {
-          class: rotulo
-        }
-
-        stack {
-          class: caixa_stack
-
-          container { class: caixa_stack }
-          text "TL" { anchor: top-left class: marca_pos }
-          text "C" { anchor: center class: marca_pos }
-          text "BR" { anchor: bottom-right class: marca_pos }
+        stack(class = caixa_stack) {
+          container(class = caixa_stack)
+          text(anchor = top-left, class = marca_pos, content = "TL")
+          text(anchor = center, class = marca_pos, content = "C")
+          text(anchor = bottom-right, class = marca_pos, content = "BR")
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <notificationdot show="@{…}"> — o pingo no canto do filho
+          """,
+        )
 
-        text """
-          <notificationdot show="@{…}"> — o pingo no canto do filho
-        """ {
-          class: rotulo
-        }
-
-        row {
-          class: linha
-
-          notificationdot {
-            show: @ov_notif
-
-            container {
-              class: painel
-
-              text "🔔" { class: sino }
+        row(class = linha) {
+          notificationdot(show = @ov_notif) {
+            container(class = painel) {
+              text(class = sino, content = "🔔")
             }
           }
 
-          button {
-            class: btn text: "alternar o ponto" on_click: ov_alternar_notif
-          }
+          button(
+            class = btn, text = "alternar o ponto",
+            on_click = ov_alternar_notif,
+          )
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <splashscreen show="@{…}"> — o `slot="splash"` cobre o conteúdo (slot
+            anônimo) enquanto `show` for verdadeiro
+          """,
+        )
 
-        text """
-          <splashscreen show="@{…}"> — o `slot="splash"` cobre o conteúdo (slot
-          anônimo) enquanto `show` for verdadeiro
-        """ {
-          class: rotulo
-        }
+        button(
+          class = btn, text = "mostrar/esconder a splash",
+          on_click = ov_alternar_splash,
+        )
 
-        button {
-          class: btn text: "mostrar/esconder a splash"
-          on_click: ov_alternar_splash
-        }
-
-        splashscreen {
-          show: @ov_splash width: fill height: 170 background: #181825
-
-          column {
-            class: coluna width: fill height: fill align_x: center
-            align_y: center
-
-            text "conteúdo real do app, por baixo" { class: nota }
+        splashscreen(
+          show = @ov_splash, width = fill, height = 170, background = #181825,
+        ) {
+          column(class = "coluna coluna_2") {
+            text(class = nota, content = "conteúdo real do app, por baixo")
           }
 
-          template {
-            slot: splash
-
-            column {
-              align_x: center align_y: center spacing: 10
-
-              text "MINHA FERRAMENTA" { class: marca_pos }
+          template(slot = splash) {
+            column(class = coluna_3) {
+              text(class = marca_pos, content = "MINHA FERRAMENTA")
               spinner
             }
           }
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<rubberband> — laço de seleção sobre alvos nomeados",
+        )
 
-        text "<rubberband> — laço de seleção sobre alvos nomeados" {
-          class: rotulo
-        }
+        rubberband(
+          items = ov_caixas, :selection = ov_marcados, class = arena,
+          height = 160,
+        )
 
-        rubberband {
-          items: ov_caixas selection: ov_marcados class: arena height: 160
-        }
-
-        text "ov_marcados = @ov_marcados" { class: nota }
+        text(class = nota, content = "ov_marcados = @ov_marcados")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<foreach on_reorder reorder_key> — arraste pela alça ⋮⋮",
+        )
 
-        text "<foreach on_reorder reorder_key> — arraste pela alça ⋮⋮" {
-          class: rotulo
-        }
-
-        column {
-          class: coluna
-
-          each @ov_tarefas as t {
-            on_reorder: dizer:reordenou reorder_key: id
-
-            row {
-              class: linha
-
-              text "⋮⋮" { class: arrasta drag_handle: true cursor: grab }
-              text "@t.nome" { class: nota }
+        column(class = coluna) {
+          each @ov_tarefas as t (
+            on_reorder = dizer:reordenou, reorder_key = id,
+          ) {
+            row(class = linha) {
+              text(
+                class = "arrasta texto", drag_handle = true,
+                content = "⋮⋮",
+              )
+              text(class = nota, content = "@t.nome")
             }
           }
         }
       }
 
-      text """
-        Há um <shortcut key="ctrl+j" on_press="dizer:ctrl+j"> ativo nesta tela —
-        sem modificador ele não roubaria a tecla de um campo focado.
-      """ {
-        class: nota
-      }
+      text(
+        class = nota,
+        content = """
+          Há um <shortcut key="ctrl+j" on_press="dizer:ctrl+j"> ativo nesta tela —
+          sem modificador ele não roubaria a tecla de um campo focado.
+        """,
+      )
 
-      shortcut { key: ctrl+j on_press: "dizer:atalho ctrl+j" }
+      shortcut(key = ctrl+j, on_press = "dizer:atalho ctrl+j")
     }
   }
 }

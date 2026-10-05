@@ -1,0 +1,13 @@
+/* Estilo que estava inline no markup. Os nomes são provisórios: renomeie
+   cada classe pelo papel que ela tem na tela. */
+
+.caixa {
+  padding: 20;
+  align_x: Center;
+  align_y: Center;
+  width: fill;
+  height: fill;
+}
+.coluna { spacing: 16; align_x: Center; }
+.destaque { size: 16; bold: true; color: #ECEFF4; }
+.botao { color: #88C0D0; padding: 10 20; }

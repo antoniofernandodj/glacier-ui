@@ -18,3 +18,5 @@ Estas classes só valem dentro deste componente e ficam EM CIMA das globais
 .btn-success {
   color: #A6E3A1;
 }
+
+.texto { color: #6C7086; }

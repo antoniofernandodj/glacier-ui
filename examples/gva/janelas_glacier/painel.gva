@@ -1,5 +1,6 @@
 <screen title="Glacier - Janela principal" size="520 400">
   <resources>
+    <link rel="stylesheet" href="examples/gva/janelas_glacier/app.gss" />
     <!-- O fundo da janela é do TEMA, não de um `background` na raiz: pintar
       um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
       em cada pixel da tela, e ela custa (ver AGENTS.md). -->
@@ -7,46 +8,38 @@
   </resources>
 
   <container
-    padding="30"
-    align_x="Center"
-    align_y="Center"
-    width="fill"
-    height="fill"
+    class="caixa"
   >
-    <column spacing="22" align="Center">
-      <text size="28" bold="true" color="#ECEFF4">
+    <column align="Center" class="coluna_2">
+      <text class="titulo_2">
         Painel (Rust)
       </text>
-      <text size="18" color="#A3BE8C">
+      <text class="texto_3">
         Contador desta janela: {valor}
       </text>
-      <text size="14" color="#EBCB8B">
+      <text class="texto_4">
         Broadcasts recebidos: {recebidos}
       </text>
 
       <button
         text="Incrementar"
         on_click="incrementar"
-        color="#5E81AC"
-        width="260"
-        padding="10"
+        class="botao_4"
       />
 
-      <text size="13" color="#81A1C1">
+      <text class="texto_5">
         Abrir nova janela:
       </text>
-      <row spacing="12" align="Center">
+      <row align="Center" class="linha">
         <button
           text="Component Rust"
           on_click="nova_rust"
-          color="#B48EAD"
-          padding="10 16"
+          class="botao_5"
         />
         <button
           text="XML (Lua)"
           on_click="nova_xml"
-          color="#D08770"
-          padding="10 16"
+          class="botao_6"
         />
       </row>
     </column>

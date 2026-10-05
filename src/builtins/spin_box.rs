@@ -10,8 +10,8 @@
 /// O `ctx` de um builtin é o contexto **global** — não há um slot por instância
 /// (ver o módulo pai). O `SpinBox` contorna isso não guardando valor nenhum: o
 /// número vive numa chave que **o app nomeia**, passada na prop `value`. Duas
-/// instâncias com chaves diferentes (`<SpinBox value="qtd_a"/>` e
-/// `<SpinBox value="qtd_b"/>`) são independentes.
+/// instâncias com chaves diferentes (`<SpinBox :value="qtd_a"/>` e
+/// `<SpinBox :value="qtd_b"/>`) são independentes.
 ///
 /// O elo que faltava é o `update` saber *qual* chave a instância clicada usa —
 /// ele recebe a ação, não as props. Por isso a ação carrega os parâmetros:
@@ -32,8 +32,8 @@
 ///   para valores que o usuário ajusta muito (zoom, quantidade num carrinho).
 ///
 /// ```xml
-/// <SpinBox value="quantidade" min="1" max="99" />
-/// <SpinBox value="zoom" min="25" max="400" step="25" layout="inline" />
+/// <SpinBox :value="quantidade" min="1" max="99" />
+/// <SpinBox :value="zoom" min="25" max="400" step="25" layout="inline" />
 /// ```
 ///
 /// # Aparência
@@ -61,7 +61,7 @@
 ///   markup (`step="0.25"` → 2 casas) — o que acerta na maioria dos casos e
 ///   erra justamente no que importa: `step="1"` sobre um preço formatava
 ///   `10`, não `10.00`. Com ela, o `step` volta a ser só o passo:
-///   `<SpinBox value="preco" step="1" decimals="2" />`.
+///   `<SpinBox :value="preco" step="1" decimals="2" />`.
 ///
 ///   Nos dois caminhos a formatação também evita o `0.30000000000000004` de
 ///   somar `f64`, que é o outro serviço que o `QDoubleSpinBox` presta.

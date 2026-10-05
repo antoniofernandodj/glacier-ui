@@ -1,7 +1,7 @@
 /// `Wizard` / `QWizard`: os passos com voltar, avançar e finalizar.
 ///
 /// ```xml
-/// <wizard value="passo" active="{passo}"
+/// <wizard :value="passo" active="{passo}"
 ///         steps="dados,pagamento,revisao"
 ///         titles="Seus dados,Pagamento,Revisão"
 ///         valid="{pode_avancar}"

@@ -1,11 +1,10 @@
-screen {
-  title: "Glacier - fetch em Lua"
-
+screen(title = "Glacier - fetch em Lua") {
   resources {
+    link(rel = stylesheet, href = "examples/gvb/fetch_luau/app.gss")
     // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
     // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
     // em cada pixel da tela, e ela custa (ver AGENTS.md).
-    link { rel: theme href: "examples/gvb/fetch_luau/theme.json" }
+    link(rel = theme, href = "examples/gvb/fetch_luau/theme.json")
 
     script """
 
@@ -33,22 +32,16 @@ screen {
     """
   }
 
-  container {
-    padding: 24 align_x: Center align_y: Center width: fill height: fill
+  container(class = caixa) {
+    column(align = Center, class = coluna) {
+      text(
+        content = "fetch em Lua (async/await via corrotina)", class = titulo,
+      )
 
-    column {
-      spacing: 16 align: Center
+      button(text = "Buscar meu IP", on_click = buscar, class = botao)
 
-      text "fetch em Lua (async/await via corrotina)" {
-        size: 22 bold: true color: #ECEFF4
-      }
-
-      button {
-        text: "Buscar meu IP" on_click: buscar color: #5E81AC padding: "12 24"
-      }
-
-      text "Status: @status" { size: 14 color: #EBCB8B }
-      text "@resultado" { size: 16 color: #A3BE8C }
+      text(content = "Status: @status", class = texto)
+      text(content = "@resultado", class = texto_2)
     }
   }
 }

@@ -1,12 +1,10 @@
-screen {
-  title: "Glacier - Componentes por atributo" size: "980 720"
-
+screen(title = "Glacier - Componentes por atributo", size = "980 720") {
   resources {
-    link { rel: theme href: "examples/gvb/componentes_por_atributo/theme.json" }
+    link(rel = theme, href = "examples/gvb/componentes_por_atributo/theme.json")
 
-    link {
-      rel: stylesheet href: "examples/gvb/componentes_por_atributo/app.gss"
-    }
+    link(
+      rel = stylesheet, href = "examples/gvb/componentes_por_atributo/app.gss",
+    )
 
     // ======================================================================
     // Os componentes abaixo não são usados por tag nesta tela: eles viajam
@@ -16,176 +14,145 @@ screen {
     //             vazio="ListaVazia" … />
     // ======================================================================
     // Cabeçalhos: a Vitrine recebe um deles em `cabecalho`.
-    component {
-      name: TituloDestaque
-
+    component(name = TituloDestaque) {
       props {
-        prop { name: titulo }
-        prop { name: total }
+        prop(name = titulo)
+        prop(name = total)
       }
 
-      row {
-        class: cabecalho
-
-        text "@titulo" { class: cabecalho-titulo }
+      row(class = cabecalho) {
+        text(class = cabecalho-titulo, content = "@titulo")
         space
-        badge { badge_text: @total }
+        badge(badge_text = @total)
       }
     }
 
-    component {
-      name: TituloDiscreto
-
+    component(name = TituloDiscreto) {
       props {
-        prop { name: titulo }
-        prop { name: total }
+        prop(name = titulo)
+        prop(name = total)
       }
 
-      row {
-        class: cabecalho
-
-        text "@titulo · @total" { class: cabecalho-discreto }
+      row(class = cabecalho) {
+        text(class = cabecalho-discreto, content = "@titulo · @total")
       }
     }
 
     // Linhas: a Vitrine repete uma delas por item, em `linha`.
-    component {
-      name: LinhaTarefa
-
+    component(name = LinhaTarefa) {
       props {
-        prop { name: id }
-        prop { name: texto }
-        prop { name: rotulo default: Concluir }
-        prop { name: acao default: concluir }
+        prop(name = id)
+        prop(name = texto)
+        prop(name = rotulo, default = Concluir)
+        prop(name = acao, default = concluir)
       }
 
-      row {
-        class: linha
-
-        text "@texto" { class: linha-texto }
-        button { class: linha-botao text: @rotulo on_click: @acao:@id }
+      row(class = linha) {
+        text(class = linha-texto, content = "@texto")
+        button(class = linha-botao, text = @rotulo, on_click = @acao:@id)
       }
     }
 
-    component {
-      name: LinhaCompra
-
+    component(name = LinhaCompra) {
       props {
-        prop { name: texto }
+        prop(name = texto)
       }
 
-      row {
-        class: linha
-
-        text "•" { class: linha-marca }
-        text "@texto" { class: linha-texto }
+      row(class = linha) {
+        text(class = linha-marca, content = "•")
+        text(class = linha-texto, content = "@texto")
       }
     }
 
     // Fallbacks: o que aparece quando a lista está vazia.
-    component {
-      name: ListaVazia
+    component(name = ListaVazia) {
+      column(class = vazio) {
+        text(class = vazio-titulo, content = "Nada por aqui")
 
-      column {
-        class: vazio
-
-        text "Nada por aqui" { class: vazio-titulo }
-
-        text "Adicione um item e a lista volta a aparecer." {
-          class: vazio-nota
-        }
+        text(
+          class = vazio-nota,
+          content = "Adicione um item e a lista volta a aparecer.",
+        )
       }
     }
 
     // Um fallback enxerga o contexto de quem escreveu o <foreach>: o
     // `{filtro}` abaixo é a chave da tela.
-    component {
-      name: SemResultado
-
-      column {
-        class: vazio
-
-        text "Nenhuma compra casa com “@filtro”" { class: vazio-titulo }
-        text "Apague o filtro para ver a lista inteira." { class: vazio-nota }
+    component(name = SemResultado) {
+      column(class = vazio) {
+        text(
+          class = vazio-titulo,
+          content = "Nenhuma compra casa com “@filtro”",
+        )
+        text(
+          class = vazio-nota,
+          content = "Apague o filtro para ver a lista inteira.",
+        )
       }
     }
 
-    import { name: Vitrine from: vitrine.gvb }
+    import(name = Vitrine, from = vitrine.gvb)
   }
 
-  column {
-    class: tela
-
-    row {
-      class: barra
-
-      text "Componentes por atributo" { class: titulo }
+  column(class = tela) {
+    row(class = barra) {
+      text(class = titulo, content = "Componentes por atributo")
       space
-      text "@status" { class: status }
+      text(class = status, content = "@status")
     }
 
     rule
 
-    scrollable {
-      class: rolagem
-
-      column {
-        class: corpo
-
-        row {
-          class: colunas
-
-          column {
-            class: coluna
-
-            row {
-              class: acoes
-
-              button { text: "Adicionar tarefa" on_click: adicionar }
-              button { class: btn-fraco text: Limpar on_click: limpar }
+    scrollable(class = rolagem) {
+      column(class = corpo) {
+        row(class = colunas) {
+          column(class = coluna) {
+            row(class = acoes) {
+              button(text = "Adicionar tarefa", on_click = adicionar)
+              button(class = btn-fraco, text = Limpar, on_click = limpar)
             }
 
             // A MESMA Vitrine duas vezes, com componentes diferentes em cada
             // papel.
-            Vitrine {
-              titulo: Tarefas total: @total_tarefas itens: tarefas
-              cabecalho: TituloDestaque linha: LinhaTarefa vazio: ListaVazia
-            }
+            Vitrine(
+              titulo = Tarefas, total = @total_tarefas, itens = tarefas,
+              cabecalho = TituloDestaque, linha = LinhaTarefa,
+              vazio = ListaVazia,
+            )
           }
 
-          column {
-            class: coluna
+          column(class = coluna) {
+            textinput(
+              class = filtro, :value = filtro, on_change = filtrar,
+              placeholder = "Filtrar compras…",
+            )
 
-            textinput {
-              class: filtro value: filtro on_change: filtrar
-              placeholder: "Filtrar compras…"
-            }
-
-            Vitrine {
-              titulo: Compras total: @total_compras itens: compras_filtradas
-              cabecalho: TituloDiscreto linha: LinhaCompra vazio: SemResultado
-            }
+            Vitrine(
+              titulo = Compras, total = @total_compras,
+              itens = compras_filtradas,
+              cabecalho = TituloDiscreto, linha = LinhaCompra,
+              vazio = SemResultado,
+            )
           }
         }
 
-        column {
-          class: coluna
+        column(class = coluna) {
+          text(class = secao, content = "Concluídas")
 
-          text "Concluídas" { class: secao }
+          text(
+            class = nota,
+            content = """
+              Aqui o fallback é literal, no foreach_fallback de um <template
+              foreach> escrito direto na tela.
+            """,
+          )
 
-          text """
-            Aqui o fallback é literal, no foreach_fallback de um <template
-            foreach> escrito direto na tela.
-          """ {
-            class: nota
-          }
-
-          template {
-            foreach: concluidas var: c foreach_fallback: ListaVazia
-
-            LinhaTarefa {
-              id: @c.id texto: @c.texto rotulo: Reabrir acao: reabrir
-            }
+          template(
+            foreach = concluidas, var = c, foreach_fallback = ListaVazia,
+          ) {
+            LinhaTarefa(
+              id = @c.id, texto = @c.texto, rotulo = Reabrir, acao = reabrir,
+            )
           }
         }
       }

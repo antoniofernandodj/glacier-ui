@@ -36,13 +36,13 @@ Uma tela se escreve de duas maneiras, e **as duas dão exatamente a mesma árvor
 
 | extensão | grafia | quando |
 |---|---|---|
-| `.gvb` | **blocos**: `tag { atributo: valor }`, sem tag de fechamento | o que o `glacier new` gera; escreva aqui por padrão |
+| `.gvb` | **blocos**: `tag(atributo = valor) { filhos }`, sem tag de fechamento | o que o `glacier new` gera; escreva aqui por padrão |
 | `.gva` | **atributos**: XML, `<tag atributo="valor">…</tag>` | o formato de sempre, com nome; todos os exemplos de markup **deste arquivo** estão nele |
 | `.gv` | o nome **legado** do `.gva` | continua abrindo, e é tratado como `.gva`; não crie novos |
 
 Cada arquivo escolhe a sua grafia, e um projeto pode misturar: `<link
-rel="import" href="views/cartao.gvb" />` num `.gva` e `link { rel: import href:
-"views/cartao.gva" }` num `.gvb` funcionam. A referência é sempre o **nome real
+rel="import" href="views/cartao.gvb" />` num `.gva` e `link(rel = import, href =
+"views/cartao.gva")` num `.gvb` funcionam. A referência é sempre o **nome real
 do arquivo**, com a extensão. Sem `.main_template`, o runner procura o template
 principal em `views/app.gva`, `views/app.gvb`, `views/app.gv`, `app.gva`,
 `app.gvb` e `app.gv`, nessa ordem.
@@ -73,11 +73,9 @@ A mesma tela, nas duas:
 ```
 
 ```
-screen {
-  title: Contador size: "320 240"
-
+screen(title = Contador, size = "320 240") {
   resources {
-    link { rel: stylesheet href: "views/styles/app.gss" }
+    link(rel = stylesheet, href = "views/styles/app.gss")
 
     script """
       function init() ctx.n = "0" end
@@ -85,18 +83,16 @@ screen {
     """
   }
 
-  column {
-    class: tela
-
-    text "@n" { class: numero }
+  column(class = tela) {
+    text(class = numero, content = "@n")
 
     if @n == "0" {
-      text "Ainda não clicou." { class: nota }
+      text(class = nota, content = "Ainda não clicou.")
     } else {
-      text "Clicou @n vezes." { class: nota }
+      text(class = nota, content = "Clicou @n vezes.")
     }
 
-    button "+" { class: btn on_click: somar }
+    button(class = btn, on_click = somar, text = "+")
   }
 }
 ```
@@ -108,38 +104,78 @@ erro aponta a linha do `.gvb` (o trecho citado é o do XML gerado). Tudo o que
 este arquivo ensina sobre tags, atributos, `.gss` e scripts vale igual; o que
 muda é só a grafia, e cabe em dez regras.
 
-1. **Bloco é `{ }`, e a quebra de linha não significa nada.** Não há tag de
-   fechamento nem indentação significativa; os atributos quebram onde você quiser
-   (dois espaços por convenção).
-2. **Antes das chaves vai só a tag** (e o texto, se houver). Atributo **nunca**
-   fica fora das chaves: `shortcut { key: ctrl+s on_press: salvar }`. Com filhos,
-   os atributos vão no topo do bloco, uma linha em branco, e os filhos depois.
-   O texto também é aceito **depois** do bloco — `text { class: nota } "oi"` é o
-   mesmo que `text "oi" { class: nota }` —, e as duas são válidas; a que se
-   escreve aqui é a do texto primeiro.
-3. **Atributo é `nome: valor`.** O valor é uma palavra solta (`on_click: somar`,
-   `size: 12`, `color: #7F849C`) ou uma string entre aspas (`size: "420 340"`,
-   `padding: "10 20"`). Entre aspas sempre que tiver espaço, vírgula, `{`, `}` ou
-   `//`.
+1. **Filhos são `{ }`, atributos são `( )`, e a quebra de linha não significa
+   nada.** Não há tag de fechamento nem indentação significativa; os atributos
+   quebram onde você quiser (dois espaços por convenção).
+2. **A forma é `tag(atributos) { filhos }`**, e cada parte é opcional. Atributo
+   **nunca** fica nas chaves, e as chaves **só** têm filhos: sem filhos, não há
+   chaves — `shortcut(key = ctrl+s, on_press = salvar)`.
+3. **Atributo é `nome = valor`, separados por vírgula** (a última é opcional). O
+   valor é uma palavra solta (`on_click = somar`, `size = 12`, `color = #7F849C`)
+   ou uma string entre aspas (`size = "420 340"`, `padding = "10 20"`). Entre
+   aspas sempre que tiver espaço, vírgula, `(`, `)` ou `//`. Quando não cabe em
+   80 colunas, um atributo por grupo de linha, e o `)` fecha sozinho:
+
+   ```
+   rangeslider(
+     start = preco_min, end = preco_max,
+     min = 0, max = 1000, step = 10,
+   )
+   ```
 4. **`class` e `id` são atributos como os outros** — não existe `tag.classe`
-   nem `tag#id`: `text "Olá" { class: titulo }`, `column { class: "caixa
-   destaque" }`. A ordem das classes importa como no `.gva` (a última vence).
-5. **`@chave` é DADO; nome solto é NOME DE CHAVE.** É a regra que mais rende: no
-   `.gva`, `value="x"` (o nome da chave) e `value="{x}"` (o valor dela) diferem
-   por dois caracteres dentro das aspas — a armadilha de maior custo deste
-   motor. No `.gvb` a diferença é visível: `value: preco` é o nome, `selected:
-   @aba` é o valor. Dentro de uma string, `"R$ @preco"` interpola; `@{preco}reais`
-   quando o nome encosta em letra; `@@` é um arroba literal. As chaves `{ }` só
-   servem para blocos.
-6. **Texto é o corpo, não atributo**: uma string solta depois da tag —
-   `text "Olá, @usuario" { class: titulo }`, `button "Salvar" { on_click: salvar }`.
-   Prosa longa vai em `"""…"""`, com o espaço em branco colapsado como no `.gva`,
-   então a quebra de linha é livre. E como não é XML, `<`, `>` e `&` não se
-   escapam.
-7. **`script` e `style` levam o corpo cru em `"""`**: sem `@`, sem escape, sem
-   colapso — é Luau e GSS. `script """ … """` (e `script { src: "x.luau" }` quando
-   o código mora em outro arquivo); com atributos, `script """ … """ { lang:
-   python }`. O corpo não pode conter `"""`.
+   nem `tag#id`: `text(class = titulo, content = "Olá")`, `column(class = "caixa
+   destaque") { … }`. A ordem das classes importa como no `.gva` (a última vence).
+5. **Três coisas que não se confundem: texto, valor e ligação.** É a regra que
+   mais rende. Pense no estado da tela como gavetas com etiqueta: a **chave** é
+   a etiqueta (`token`), e o **valor** é o que está dentro (`abc123`).
+
+   | no `.gvb` | é | no `.gva` |
+   |---|---|---|
+   | `align = center`, `class = "tela"` | **texto**, sempre | `align="center"` |
+   | `content = @token` | o **valor** da chave `token` (mostrado, e atualizado quando ela muda) | `content="{token}"` |
+   | `:value = token` | a **ligação**: o nome da chave, para o widget ler **e gravar** | `:value="token"` |
+
+   No `.gva` a marca é a mesma, no nome do atributo: `<progressbar :value="pct"
+   />`. Antes de ler o XML, o motor troca `:value` por `bind_value`, um atributo
+   de nome diferente; é isso que permite recusar (no `.gvb`) ou avisar (no `.gva`)
+   a ligação que veio sem o `:`.
+
+   Um `input` precisa da etiqueta e não do conteúdo, porque para gravar o que
+   se digita ele precisa saber **em qual gaveta**. Entregar o valor onde o
+   widget queria a ligação (`value = pct` sem o `:`, ou `value = @pct`) era a
+   armadilha mais cara do motor: o `progressbar` procurava uma chave chamada
+   "42" e a barra ficava vazia, sem erro nenhum. Por isso **um atributo de
+   ligação sem o `:` é erro no `.gvb`** (e aviso no `.gva`), com a linha. A lista
+   do que é ligação mora em `src/bindings.rs` (`value` do `progressbar`,
+   `slider`, `textinput`…; `checked` do `checkbox`; `group` do `radio`; `items`
+   das listas e gráficos; `value`/`items` do `tabbar`, `listview`…). `:value =
+   "campo_@id"` (o nome montado a partir de um dado) também vale. O `:` é só do
+   atributo: `on_click = salvar` é o nome de uma função, e não leva marca. Dentro
+   de uma string, `"R$ @preco"` interpola; `@{preco}reais` quando o nome encosta
+   em letra; `@@` é um arroba literal. As chaves `{ }` só servem para blocos.
+6. **Texto é atributo, sempre**: `content` no `<text>` e `text` no `<button>` —
+   `text(class = titulo, content = "Olá, @usuario")`, `button(on_click = salvar,
+   text = "Salvar")`. Não existe texto solto depois do cabeçalho (é erro, com a
+   dica). Prosa longa vai em `"""…"""`, e o espaço em branco colapsa como no
+   `.gva`, então a quebra de linha é livre:
+
+   ```
+   text(
+     class = nota,
+     content = """
+       Uma frase longa que quebra onde quiser; a quebra e a indentação
+       viram um espaço só.
+     """,
+   )
+   ```
+
+   Como não é XML, `<`, `>` e `&` não se escapam. (No `.gva`, o texto do
+   `<text>` é filho; é a tradução mecânica que o troca por `content`.)
+7. **`script` e `style` levam o corpo cru em `"""`**, depois do cabeçalho — a única
+   string solta que existe: sem `@`, sem escape, sem colapso, porque é Luau e
+   GSS. `script """ … """` (e `script(src = "x.luau")` quando
+   o código mora em outro arquivo); com atributos, `script(lang = python) """ … """`.
+   O corpo não pode conter `"""`.
 8. **Comentário é `//` ou `/* … */`**, e podem citar tags à vontade — o `--` não é
    proibido em lugar nenhum.
 9. **Condicional e repetição são notação**, com o mesmo significado de sempre:
@@ -154,23 +190,28 @@ muda é só a grafia, e cabe em dez regras.
    | `} else if … {` / `} else {` | `else_if` / `else` |
    | `each @servicos as s { … }` | `<foreach items="servicos" var="s">` |
 
-   Outras condições (`one_of`, `not_empty`…) e atributos do `<foreach>`
-   (`fallback`, `on_reorder`) vão como atributos comuns: `template { if: @k
-   one_of: "a,b" }`, e dentro do `each`, `fallback: SemItens`.
+   Os atributos do `<foreach>` (`fallback`, `on_reorder`) vão entre parênteses
+   depois da variável: `each @itens as item(fallback = SemItens) { … }`. Um
+   `if`/`else` não leva atributos; para `one_of`, `not_empty` e afins use o
+   `template` explícito: `template(if = @k, one_of = "a,b") { … }`.
 10. **A convenção de escrita não muda**: tags do motor em minúsculas,
-    componente do app em `CamelCase` (`CartaoServico { nome: api }`), atributos em
+    componente do app em `CamelCase` (`CartaoServico(nome = api)`), atributos em
     `snake_case`, estilo no `.gss`.
 
 ### Armadilhas do `.gvb`
 
-- **`//` dentro de um valor sem aspas vira comentário**: `href: https://x` perde
+- **`//` dentro de um valor sem aspas vira comentário**: `href = https://x` perde
   tudo depois da segunda barra. URL se escreve entre aspas.
-- **Vírgula em valor pede aspas**: `items: "norte,sul"` (ela é o separador dos
-  conjuntos que o `contains` lê).
+- **Vírgula e parêntese em valor pedem aspas**: `items = "norte,sul"` (a vírgula
+  separa os atributos, e é também o separador dos conjuntos que o `contains` lê).
+- **Esqueceu a vírgula entre atributos?** É erro, com a dica — não há separação
+  só por espaço.
+- **`nome: valor` dentro das chaves** (a grafia antiga) é erro, com a dica de que
+  o atributo vai no cabeçalho.
 - **`if`, `each` e `else` são palavras reservadas** como tag: não há como chamar
   um componente assim.
 - **Não escreva `text.titulo`.** O ponto é erro de leitura, com a dica de qual é a
-  forma certa: `text { class: titulo }`.
+  forma certa: `text(class = titulo)`.
 - **`@` solto em string de dado** vira interpolação: um e-mail literal é
   `"contato@@exemplo.com"`.
 
@@ -265,7 +306,7 @@ vazia vira `{}` em vez de `[]`, e o widget de coleção não acha itens.
    por exemplo), o motor grava `ctx["salvar"] = valor` e pronto.
 6. O que o passo 3/4 escreveu no `ctx` reavalia a tela.
 
-O passo 5 é o atalho que faz `<textinput value="nome" on_change="nome" />`
+O passo 5 é o atalho que faz `<textinput :value="nome" on_change="nome" />`
 funcionar sem uma linha de script: a ação tem o nome da chave, e o motor grava.
 
 **Ação com carga.** `on_click="remover:banco"` chama `remover("banco")` — o
@@ -1075,7 +1116,7 @@ o empurrador que joga o resto da `<row>` para a direita.
 **`<rule />`** — linha divisória. `direction="v"` (ou `vertical`) para vertical;
 qualquer outra coisa é horizontal.
 
-**`<splitter sizes="paineis">`** — painéis com alça arrastável entre cada par.
+**`<splitter :sizes="paineis">`** — painéis com alça arrastável entre cada par.
 Cada filho direto é um painel.
 
 | atributo | valor |
@@ -1152,7 +1193,7 @@ inteiro.
 `value=` não é apelido de `content` de propósito: em todo o resto do catálogo
 `value` significa nome de chave, e aqui significaria o oposto.
 
-**`<progressbar value="pct" />`** — barra determinada.
+**`<progressbar :value="pct" />`** — barra determinada.
 
 | atributo | default |
 |---|---|
@@ -1162,7 +1203,7 @@ inteiro.
 | `show_value` | `false` — a barra sozinha não escreve o número |
 | `color` | a primária do tema |
 
-**`<lcdnumber value="relogio" />`** — dígitos de sete segmentos.
+**`<lcdnumber :value="relogio" />`** — dígitos de sete segmentos.
 
 | atributo | default | o que faz |
 |---|---|---|
@@ -1206,16 +1247,16 @@ Todos gravam numa chave. O `on_change` é **opcional**: sem uma função global 
 aquele nome, o motor faz `ctx[nome] = valor` sozinho. Preencha só quando quiser
 interceptar.
 
-**`<textinput value="nome" />`** — campo de uma linha. `placeholder`,
+**`<textinput :value="nome" />`** — campo de uma linha. `placeholder`,
 `secure="true"` (senha), `on_change`.
 
-**`<textarea value="doc" />`** — multi-linha. `placeholder`, `on_change`. Para
+**`<textarea :value="doc" />`** — multi-linha. `placeholder`, `on_change`. Para
 um log vivo, use `readonly="true"` e escreva com `append_textarea` do Luau — que
 insere no fim sem recriar o buffer, preservando o scroll. `font="JetBrains Mono"`
 (uma família registrada, ver "O que vale em qualquer tag") é o `QPlainTextEdit`:
 texto simples, mono declarável.
 
-**`<maskedinput value="cpf" mask="cpf" />`** — guarda **cru** e exibe
+**`<maskedinput :value="cpf" mask="cpf" />`** — guarda **cru** e exibe
 mascarado. A chave nunca contém pontuação: é isso que faz um CPF gravado ser
 comparável.
 
@@ -1242,22 +1283,22 @@ Presets, no lugar da máscara literal:
 Qualquer outro valor é usado como máscara literal — `mask="+55 (##) ####-####"`
 funciona.
 
-**`<checkbox label="Usar proxy" checked="usar_proxy" />`** — a chave recebe
+**`<checkbox label="Usar proxy" :checked="usar_proxy" />`** — a chave recebe
 `"true"`/`"false"`. Com `tristate="true"` ela cicla `"false"` → `"mixed"` →
 `"true"`, e `"mixed"` desenha o traço parcial.
 
-**`<toggle label="Ativo" checked="ativo" />`** — mesma semântica de ligação, sem
+**`<toggle label="Ativo" :checked="ativo" />`** — mesma semântica de ligação, sem
 tristate.
 
-**`<radio label="Mensal" value="mensal" group="plano" />`** — `group` é o **nome
+**`<radio label="Mensal" value="mensal" :group="plano" />`** — `group` é o **nome
 da chave**; dois `<radio>` com o mesmo `group` são o mesmo grupo, e o `value` de
 cada um é o que a chave passa a conter.
 
-**`<RadioGroup items="planos" value="plano" />`** — o grupo inteiro a partir de
+**`<RadioGroup :items="planos" :value="plano" />`** — o grupo inteiro a partir de
 uma coleção. Cada item é `{ id, label }`. Props: `layout="row"` (default
 `column`), `spacing`, `options_class`, `option_class`.
 
-**`<SpinBox value="qtd" />`** — campo numérico com degraus.
+**`<SpinBox :value="qtd" />`** — campo numérico com degraus.
 
 | prop | default |
 |---|---|
@@ -1272,7 +1313,7 @@ uma coleção. Cada item é `{ id, label }`. Props: `layout="row"` (default
 O `width` descer para o campo é a armadilha: `width="fill"` ali vira um risco
 entre os dois botões, porque o campo está dentro de uma `<row>` `shrink`.
 
-**`<slider value="volume" />`**
+**`<slider :value="volume" />`**
 
 | atributo | default |
 |---|---|
@@ -1283,11 +1324,11 @@ entre os dois botões, porque o campo está dentro de uma `<row>` `shrink`.
 | `vertical` | `false` |
 | `on_change`, `on_release` | o segundo dispara só ao soltar — é onde vai o `fetch` |
 
-**`<rangeslider start="preco_min" end="preco_max" />`** — dois cursores, **duas**
+**`<rangeslider :start="preco_min" :end="preco_max" />`** — dois cursores, **duas**
 chaves. Mesmos `min`/`max`/`step`/`color`; `size` (default 240, entre 60 e 1600)
 é o comprimento da trilha.
 
-**`<dial value="volume" />`** — knob rotativo: arrasta, clica no arco ou rola a
+**`<dial :value="volume" />`** — knob rotativo: arrasta, clica no arco ou rola a
 roda.
 
 | atributo | default |
@@ -1298,11 +1339,11 @@ roda.
 | `show_value` | `false` (ao contrário do `<gauge>`: um knob existe para ser girado) |
 | `decimals`, `readonly`, `color`, `on_change`, `on_release` | |
 
-**`<colorwheel value="cor" />`** — anel de matiz + quadrado saturação/valor;
+**`<colorwheel :value="cor" />`** — anel de matiz + quadrado saturação/valor;
 grava `#rrggbb`. `size` default `220`, entre 80 e 640. `readonly="true"` mostra
 sem deixar mexer.
 
-**`<rating value="nota" />`** — estrelas com prévia no hover.
+**`<rating :value="nota" />`** — estrelas com prévia no hover.
 
 | atributo | default |
 |---|---|
@@ -1311,7 +1352,7 @@ sem deixar mexer.
 | `size` | `20` |
 | `readonly`, `color`, `on_change` | |
 
-**`<shortcutinput value="atalho_salvar" />`** — captura uma combinação e grava na
+**`<shortcutinput :value="atalho_salvar" />`** — captura uma combinação e grava na
 forma canônica `ctrl+shift+alt+super+tecla`, nessa ordem, minúscula. Só um campo
 captura por vez na tela.
 
@@ -1421,7 +1462,7 @@ end
 
 ### Escolha em lista
 
-**`<select options="regioes" value="regiao" />`** — dropdown fechado.
+**`<select :options="regioes" :value="regiao" />`** — dropdown fechado.
 
 `options` é o nome de uma chave com um array JSON. Cada elemento pode ser uma
 **string** (rótulo e valor iguais) ou um **objeto**:
@@ -1445,11 +1486,11 @@ campos quando o JSON vem de fora com outros nomes:
 Um objeto sem o campo de valor usa o rótulo como valor. Um valor não-string
 (número, booleano) é convertido para texto.
 
-**`<comboedit options="servidores" value="host" />`** — dropdown **editável**:
+**`<comboedit :options="servidores" :value="host" />`** — dropdown **editável**:
 `on_change` dispara a cada tecla, `on_select` só quando o usuário escolhe um
 item existente. Mesmos `options`/`labelField`/`valueField` do `<select>`.
 
-**`<autocomplete value="cidade" items="cidades" />`** — sugestões enquanto
+**`<autocomplete :value="cidade" :items="cidades" />`** — sugestões enquanto
 digita, num painel ancorado ao campo. Ignora acento e caixa; ▲▼ navegam, Enter
 aceita, Esc desiste.
 
@@ -1461,7 +1502,7 @@ aceita, Esc desiste.
 | `filter` | `true`; `filter="false"` mostra a lista inteira, para quando o filtro é do servidor |
 | `placeholder`, `on_change`, `on_select` | |
 
-**`<ListView items="servicos" value="servico" />`** — lista vertical com
+**`<ListView :items="servicos" :value="servico" />`** — lista vertical com
 seleção. Cada item é `{ id, label, sub }` — `sub` é a segunda linha, opcional.
 
 | prop | default |
@@ -1471,7 +1512,7 @@ seleção. Cada item é `{ id, label, sub }` — `sub` é a segunda linha, opcio
 | `virtualize` | `0` (desligado); ver "Listas longas" |
 | `list_class`, `item_class`, `selected_class`, `label_class`, `sub_class` | ganchos de `.gss` |
 
-**`<fontselect value="fonte" selected="{fonte}" />`** — a lista de famílias de
+**`<fontselect :value="fonte" selected="{fonte}" />`** — a lista de famílias de
 fonte, **cada uma desenhada nela mesma** (`QFontComboBox`). Lê `__fonts` por
 padrão (a chave que o motor semeia com as famílias que o app registrou —
 `GlacierDaemon::font_named`), ou o `items` que você der.
@@ -1483,7 +1524,7 @@ padrão (a chave que o motor semeia com as famílias que o app registrou —
 | `preview` | ausente — um texto de amostra abaixo da lista, na fonte selecionada |
 | `height`, `width` | `220`, `fill` |
 
-**`<tumbler value="mes" items="meses" />`** — roleta. Guarda o **texto** do item,
+**`<tumbler :value="mes" items="meses" />`** — roleta. Guarda o **texto** do item,
 não o índice. O `items` aceita as três formas: nome de chave, JSON literal, ou
 uma lista separada por vírgula (`items="jan,fev,mar"`).
 
@@ -1493,7 +1534,7 @@ uma lista separada por vírgula (`items="jan,fev,mar"`).
 | `row` | `34` (altura de um item) |
 | `size` | `120` (largura) |
 
-**`<pagination value="pagina" total="20" />`** — `« ‹ 1 … 4 [5] 6 … 20 › »`.
+**`<pagination :value="pagina" total="20" />`** — `« ‹ 1 … 4 [5] 6 … 20 › »`.
 
 | atributo | default |
 |---|---|
@@ -1504,7 +1545,7 @@ uma lista separada por vírgula (`items="jan,fev,mar"`).
 `<pageindicator …/>` é a **outra tag**, com os mesmos atributos: desenha
 bolinhas em vez de números. Não é um `dots="true"`.
 
-**`<rating value="nota" max="5" />`** — descrito em "Entrada de dados"; `max`
+**`<rating :value="nota" max="5" />`** — descrito em "Entrada de dados"; `max`
 interpola e fica preso entre 1 e 20.
 
 ### Data e hora
@@ -1516,7 +1557,7 @@ só a exibição.
 | tag | seções |
 |---|---|
 | `<dateedit value="nascimento" />` | ano, mês, dia |
-| `<timeedit value="hora" />` | hora, minuto (e segundo com `seconds="true"`) |
+| `<timeedit :value="hora" />` | hora, minuto (e segundo com `seconds="true"`) |
 | `<datetimeedit value="quando" />` | as duas famílias no mesmo campo |
 
 | atributo | valor |
@@ -1532,7 +1573,7 @@ As setas ▴▾ agem na seção ativa, e cada seção **vira dentro de si**: no 
 
 E a grade, que é **outra** primitiva com três tags:
 
-**`<calendar value="dia" />`** — grade 7×6, com drill-up dia → mês → ano ao
+**`<calendar :value="dia" />`** — grade 7×6, com drill-up dia → mês → ano ao
 clicar no título.
 
 | atributo | default |
@@ -1557,7 +1598,7 @@ Sem a prop, nenhum dia é destacado — degradação aceitável, não bug.
 
 ### Medidores e gráficos
 
-**`<gauge value="cpu" />`** — medidor de arco com faixas coloridas e agulha.
+**`<gauge :value="cpu" />`** — medidor de arco com faixas coloridas e agulha.
 
 | atributo | default | o que faz |
 |---|---|---|
@@ -1655,7 +1696,7 @@ Um elemento que é **número solto** (`[12, 31, 24]`) também funciona: vira um
 ponto com aquele valor e a posição como rótulo. Chave ausente, JSON inválido ou
 raiz que não é array dão uma **série vazia**, que desenha a moldura sem a linha.
 
-**`<linechart items="serie" />`**
+**`<linechart :items="serie" />`**
 
 | atributo | default |
 |---|---|
@@ -1684,12 +1725,12 @@ ctx.carga = json.encode(json.array({
 default `false` e `thickness` `1.5`: a linha sem moldura, para caber numa célula
 de tabela.
 
-**`<barchart items="serie" />`** — mesmos `min`/`max`/`color`/`axes`/`grid`,
+**`<barchart :items="serie" />`** — mesmos `min`/`max`/`color`/`axes`/`grid`,
 mais `colorful="true"` para uma cor por barra. A base é sempre o **zero** quando
 `min` não é declarado, e não o menor valor — uma barra que começa em 40 mente
 sobre a proporção.
 
-**`<piechart items="fatias" />`** e **`<donut items="fatias" />`** — a mesma
+**`<piechart :items="fatias" />`** e **`<donut :items="fatias" />`** — a mesma
 primitiva; `<donut>` é `donut="0.6"`. O `label` de cada ponto vira a legenda e o
 `value`, o tamanho da fatia.
 
@@ -1735,7 +1776,7 @@ markup. Sem `width`/`height`, é `300`×`200`.
 
 ### Model/view: tabela e árvore
 
-**`<tableview items="linhas" columns="colunas" value="sel" />`** — cabeçalho,
+**`<tableview :items="linhas" :columns="colunas" :value="sel" />`** — cabeçalho,
 ordenação por clique, seleção e colunas arrastáveis.
 
 `items` é o nome de uma chave com um array de **objetos**; cada coluna diz de
@@ -1784,7 +1825,7 @@ quando os cabeçalhos não importam.
 corpo, para quem monta as linhas à mão com um `for-each`. Compartilhar a chave
 de `widths` entre ele e as linhas é o que mantém tudo alinhado.
 
-**`<treeview items="arvore" open="abertos" />`** — árvore expansível. O item:
+**`<treeview :items="arvore" :open="abertos" />`** — árvore expansível. O item:
 
 | campo | apelidos | default |
 |---|---|---|
@@ -1803,7 +1844,7 @@ Aceita vírgula, ponto e vírgula ou espaço como separador na leitura. `value`
 guarda o caminho do nó selecionado, `indent` (default `16`, entre 0 e 64) é o
 recuo por nível.
 
-**`<columnview items="arvore" value="sel" />`** — navegação Miller (as colunas
+**`<columnview :items="arvore" :value="sel" />`** — navegação Miller (as colunas
 do Finder), sobre a **mesma** forma de árvore do `<treeview>`. `column_width`
 default `180` (entre 60 e 800); `path` é o nome de uma chave com o caminho
 aberto.
@@ -1820,11 +1861,11 @@ ctx.abas = json.encode(json.array({
 }))
 ```
 
-**`<TabBar items="abas" value="aba" active="{aba}" />`** — só a barra. Props de
+**`<TabBar :items="abas" :value="aba" active="{aba}" />`** — só a barra. Props de
 estilo: `tab_class`, `tab_active_class`, `label_class`, `padding` (`7 14`),
 `size` (13), `spacing` (2).
 
-**`<Tabs items="abas" value="aba" active="{aba}">`** — a barra **e** a página.
+**`<Tabs :items="abas" :value="aba" active="{aba}">`** — a barra **e** a página.
 Cada página é um `<template slot="id_da_aba">` no corpo:
 
 ```xml
@@ -1840,11 +1881,11 @@ Props extras: `page_class`, `page_spacing` (12), `tab_padding` (`7 14`).
 nome do slot, igual ao `<Tabs>`. É o que se usa quando a navegação está noutro
 lugar da tela.
 
-**`<swipeview value="pagina">`** — páginas trocadas **arrastando**; escolhe por
+**`<swipeview :value="pagina">`** — páginas trocadas **arrastando**; escolhe por
 **posição** (a chave guarda o índice, começando em 0), não por nome.
 `threshold` default `120` px é a distância mínima para virar a página.
 
-**`<Wizard steps="dados,rede" value="passo">`** — assistente completo: cabeçalho
+**`<Wizard steps="dados,rede" :value="passo">`** — assistente completo: cabeçalho
 com os títulos, navegação e validação.
 
 | prop | o que é |
@@ -1859,7 +1900,7 @@ com os títulos, navegação e validação.
 
 Cada passo é um `<template slot="id_do_passo">`, como no `<Tabs>`.
 
-**`<wizardnav steps="…" value="passo" valid="{ok}" />`** — só a barra de botões
+**`<wizardnav steps="…" :value="passo" valid="{ok}" />`** — só a barra de botões
 (voltar inerte no primeiro, "finalizar" no último), para quem monta o resto à
 mão.
 
@@ -1893,7 +1934,7 @@ controles na linha do título; `flat="true"` tira a borda. Props: `padding` (12)
 `spacing` (12), `title_size` (16), `subtitle_size` (13), `header_class`,
 `body_class`, `footer_class`.
 
-**`<Drawer value="menu" open="{menu}">`** — painel lateral que **empurra** o
+**`<Drawer :value="menu" open="{menu}">`** — painel lateral que **empurra** o
 conteúdo (quem cobre é um `<popover>`). Props: `size` (240), `duration` (180),
 `padding` (12), `panel_class`.
 
@@ -1902,7 +1943,7 @@ conteúdo (quem cobre é um `<popover>`). Props: `size` (240), `duration` (180),
 **`<stack>`** — descrito em "Layout e estrutura": camadas no mesmo espaço, com
 `anchor` ou `x`/`y` no filho.
 
-**`<popover value="menu">`** — conteúdo flutuante **ancorado ao gatilho**, que
+**`<popover :value="menu">`** — conteúdo flutuante **ancorado ao gatilho**, que
 vira de lado quando não cabe na janela. O gatilho é o filho com `slot="anchor"`;
 o resto é o painel.
 
@@ -1952,12 +1993,12 @@ Este widget já falhou de um jeito que vale conhecer: o template dele testava
 condição `"" != "false"` era sempre verdadeira e o painel nunca sumia. Sempre
 que um `<template if>` for sobre visibilidade, deixe-o **sem** comparador.
 
-**`<rubberband items="caixas" selection="marcados" />`** — retângulo de seleção
+**`<rubberband items="caixas" :selection="marcados" />`** — retângulo de seleção
 arrastado sobre uma área. Cada alvo é `{ id, x, y, w, h }` (o `id` cai para o
 índice quando falta), e `items` aceita chave **ou** JSON inline. A seleção sai
 como conjunto separado por vírgula na chave de `selection`.
 
-**`<dock mode="lado" edge="left">`** — o `QDockWidget`: um painel + um centro.
+**`<dock :mode="lado" edge="left">`** — o `QDockWidget`: um painel + um centro.
 **Dois filhos** — o painel (0) e o centro (1). N painéis = `<dock>` aninhados.
 
 ```xml
@@ -1993,7 +2034,7 @@ declare `on_change` e no handler grave as chaves (`storage.set` no Luau).
 | `<menu>` | `label`, `icon`, `disabled`, `items` |
 | `<menuitem>` | `label`, `icon`, `on_click`, `checked` (nome de chave, truthy), `disabled` |
 | `<menuseparator />` | — |
-| `<contextmenu items="acoes">` | botão direito no **primeiro** filho; o resto é o menu |
+| `<contextmenu :items="acoes">` | botão direito no **primeiro** filho; o resto é o menu |
 
 `items`, nos três que o aceitam, é o **nome de uma chave** com um array JSON que
 o motor mescla ao menu estático:
@@ -2408,7 +2449,7 @@ instância**: o que o usuário digita mora numa chave comum, como em qualquer
 `<textinput>`.
 
 - **Convenção:** prefixe as chaves do corpo com `__dialog.` (`__dialog.nome`,
-  `__dialog.cor`). Um `<textinput value="__dialog.nome" on_change="__dialog.nome">`
+  `__dialog.cor`). Um `<textinput :value="__dialog.nome" on_change="__dialog.nome">`
   grava nessa chave pelo binding legado (a ação é o nome da chave; sem um
   handler com esse nome, o motor escreve o valor ali).
 - **O rascunho sobrevive até o handler ler.** Quando o botão de aceite despacha

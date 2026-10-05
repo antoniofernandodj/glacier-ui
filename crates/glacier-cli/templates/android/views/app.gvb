@@ -1,9 +1,7 @@
-screen {
-  title: "{{titulo}}"
-
+screen(title = "{{titulo}}") {
   resources {
-    link { rel: theme href: "views/styles/theme.json" }
-    link { rel: stylesheet href: "views/styles/app.gss" }
+    link(rel = theme, href = "views/styles/theme.json")
+    link(rel = stylesheet, href = "views/styles/app.gss")
 
     script """
       function init()
@@ -32,23 +30,22 @@ screen {
     """
   }
 
-  column {
-    class: tela
+  column(class = tela) {
+    text(class = rotulo, content = "{{titulo}}")
+    text(class = numero, content = "@contador")
 
-    text "{{titulo}}" { class: rotulo }
-    text "@contador" { class: numero }
-
-    row {
-      class: acoes
-
-      button "-" { class: btn on_click: subtrair }
-      button "+" { class: btn on_click: somar }
+    row(class = acoes) {
+      button(class = btn, on_click = subtrair, text = "-")
+      button(class = btn, on_click = somar, text = "+")
     }
 
-    button "zerar" { class: btn_ghost on_click: zerar }
+    button(class = btn_ghost, on_click = zerar, text = "zerar")
 
-    text "no desktop, edite este arquivo ou o .gss e salve: o hot-reload aplica" {
-      class: dica
-    }
+    text(
+      class = dica,
+      content = """
+        no desktop, edite este arquivo ou o .gss e salve: o hot-reload aplica
+      """,
+    )
   }
 }

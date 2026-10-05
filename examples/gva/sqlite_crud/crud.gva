@@ -84,7 +84,7 @@
     <row class="form">
       <textinput
         class="campo"
-        value="novo"
+        :value="novo"
         on_change="definir_novo"
         placeholder="Nova tarefa…"
       />

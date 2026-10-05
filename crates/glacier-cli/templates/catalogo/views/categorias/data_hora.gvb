@@ -1,82 +1,76 @@
 component {
-  column {
-    class: secao
+  column(class = secao) {
+    text(class = titulo_cat, content = "Data e hora")
 
-    text "Data e hora" { class: titulo_cat }
+    text(
+      class = intro,
+      content = """
+        Uma primitiva, várias tags. A chave guarda SEMPRE ISO (`2026-09-09`,
+        `14:35`); `format="br"` muda só a exibição. `today="@hoje"` vem de
+        `date.today()` no `init` — sem ele nenhum dia é destacado.
+      """,
+    )
 
-    text """
-      Uma primitiva, várias tags. A chave guarda SEMPRE ISO (`2026-09-09`,
-      `14:35`); `format="br"` muda só a exibição. `today="@hoje"` vem de
-      `date.today()` no `init` — sem ele nenhum dia é destacado.
-    """ {
-      class: intro
-    }
+    column(class = demos) {
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "<calendar> — grade 7×6, drill-up dia → mês → ano",
+        )
 
-    column {
-      class: demos
-
-      column {
-        class: demo
-
-        text "<calendar> — grade 7×6, drill-up dia → mês → ano" {
-          class: rotulo
+        row(class = linha) {
+          calendar(:value = dh_dia, today = @hoje, first_day = monday)
+          calendar(:value = dh_ano, today = @hoje, mode = year)
         }
 
-        row {
-          class: linha
-
-          calendar { value: dh_dia today: @hoje first_day: monday }
-          calendar { value: dh_ano today: @hoje mode: year }
-        }
-
-        text "dh_dia = @dh_dia" { class: nota }
+        text(class = nota, content = "dh_dia = @dh_dia")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <monthyearpicker> — grava YYYY-MM · <daterangepicker> — duas chaves
+          """,
+        )
 
-        text """
-          <monthyearpicker> — grava YYYY-MM · <daterangepicker> — duas chaves
-        """ {
-          class: rotulo
+        row(class = linha) {
+          monthyearpicker(value = dh_mes, today = @hoje)
+          daterangepicker(
+            start = dh_de, end = dh_ate, months = 2, today = @hoje,
+          )
         }
 
-        row {
-          class: linha
-
-          monthyearpicker { value: dh_mes today: @hoje }
-          daterangepicker { start: dh_de end: dh_ate months: 2 today: @hoje }
-        }
-
-        text "dh_mes = @dh_mes · dh_de = @dh_de → dh_ate = @dh_ate" {
-          class: nota
-        }
+        text(
+          class = nota,
+          content = "dh_mes = @dh_mes · dh_de = @dh_de → dh_ate = @dh_ate",
+        )
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <dateedit> · <timeedit seconds> · <datetimeedit> — edição por seções
+          """,
+        )
 
-        text """
-          <dateedit> · <timeedit seconds> · <datetimeedit> — edição por seções
-        """ {
-          class: rotulo
+        row(class = linha) {
+          dateedit(
+            value = dh_data, format = br, calendar_popup = true, today = @hoje,
+            width = 170,
+          )
+
+          timeedit(:value = dh_hora, seconds = true, width = 150)
+          datetimeedit(value = dh_quando, width = 220)
         }
 
-        row {
-          class: linha
-
-          dateedit {
-            value: dh_data format: br calendar_popup: true today: @hoje
-            width: 170
-          }
-
-          timeedit { value: dh_hora seconds: true width: 150 }
-          datetimeedit { value: dh_quando width: 220 }
-        }
-
-        text "dh_data = @dh_data · dh_hora = @dh_hora · dh_quando = @dh_quando" {
-          class: nota
-        }
+        text(
+          class = nota,
+          content = """
+            dh_data = @dh_data · dh_hora = @dh_hora · dh_quando = @dh_quando
+          """,
+        )
       }
     }
   }

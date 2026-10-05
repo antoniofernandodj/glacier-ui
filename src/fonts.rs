@@ -100,8 +100,8 @@ pub fn registered_families() -> Vec<String> {
 }
 
 /// As famílias disponíveis como um **array JSON de strings** — o formato que
-/// `<combo items="__fonts">` e `<listview items="__fonts">` já consomem, sem
-/// API nova (a mesma convenção do `<menu items="chave">`).
+/// `<combo items="__fonts">` e `<listview :items="__fonts">` já consomem, sem
+/// API nova (a mesma convenção do `<menu :items="chave">`).
 ///
 /// [`crate::GlacierUI::set_initial_screen`] semeia isto na chave `__fonts` do
 /// contexto (a família do `__cal_hover`/`__band`/`__colgrip`).

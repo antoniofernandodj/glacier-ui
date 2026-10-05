@@ -4,110 +4,100 @@ component {
     // A varredura é recursiva, então declarar no `<resources>` de um componente
     // importado funciona. Abre com a ação `dialog:cat_form`, fecha ao clicar um
     // botão. Os campos gravam em chaves `__dialog.*` (limpas no fechamento).
-    dialog {
-      name: cat_form title: "Editar serviço" dismissible: true
-      buttons: "Cancelar::|Salvar:dlg_salvar:accept"
+    dialog(
+      name = cat_form, title = "Editar serviço", dismissible = true,
+      buttons = "Cancelar::|Salvar:dlg_salvar:accept",
+    ) {
+      column(class = coluna) {
+        text(class = rotulo, content = "Nome")
 
-      column {
-        class: coluna
+        textinput(
+          class = campo, :value = __dialog.nome, on_change = __dialog.nome,
+          placeholder = api-gateway,
+        )
 
-        text "Nome" { class: rotulo }
-
-        textinput {
-          class: campo value: __dialog.nome on_change: __dialog.nome
-          placeholder: api-gateway
-        }
-
-        text "Réplicas" { class: rotulo }
-        spinbox { value: __dialog.replicas min: 1 max: 32 width: 110 }
+        text(class = rotulo, content = "Réplicas")
+        spinbox(:value = __dialog.replicas, min = 1, max = 32, width = 110)
       }
     }
   }
 
-  column {
-    class: secao
+  column(class = secao) {
+    text(class = titulo_cat, content = "Diálogos")
 
-    text "Diálogos" { class: titulo_cat }
+    text(
+      class = intro,
+      content = """
+        Quase todo modal é uma CHAMADA da camada Luau que suspende o script e
+        volta com a resposta (`confirm@{}`, `prompt@{}`, `pick_color@{}`,
+        `open_file()`, `progress@{}`). O único que é markup é `<dialog name>`,
+        para um modal com corpo próprio.
+      """,
+    )
 
-    text """
-      Quase todo modal é uma CHAMADA da camada Luau que suspende o script e
-      volta com a resposta (`confirm@{}`, `prompt@{}`, `pick_color@{}`,
-      `open_file()`, `progress@{}`). O único que é markup é `<dialog name>`,
-      para um modal com corpo próprio.
-    """ {
-      class: intro
-    }
+    column(class = demos) {
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <dialog name="cat_form"> — modal com corpo em markup, aberto por
+            dialog:<nome>
+          """,
+        )
 
-    column {
-      class: demos
+        button(
+          class = btn_prim, text = "Abrir o formulário",
+          on_click = dialog:cat_form,
+        )
 
-      column {
-        class: demo
-
-        text """
-          <dialog name="cat_form"> — modal com corpo em markup, aberto por
-          dialog:<nome>
-        """ {
-          class: rotulo
-        }
-
-        button {
-          class: btn_prim text: "Abrir o formulário" on_click: dialog:cat_form
-        }
-
-        text "último salvo: @dlg_ultimo" { class: nota }
+        text(class = nota, content = "último salvo: @dlg_ultimo")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "Suspensivos da camada Luau (chamados de um handler)",
+        )
 
-        text "Suspensivos da camada Luau (chamados de um handler)" {
-          class: rotulo
+        row(class = linha) {
+          button(class = btn, text = "confirm@{}", on_click = dlg_confirmar)
+          button(class = btn, text = "prompt@{}", on_click = dlg_prompt)
+          button(class = btn, text = "pick_color@{}", on_click = dlg_cor)
+          button(class = btn, text = "open_file()", on_click = dlg_arquivo)
+          button(class = btn, text = "progress@{}", on_click = dlg_progresso)
         }
 
-        row {
-          class: linha
-
-          button { class: btn text: "confirm@{}" on_click: dlg_confirmar }
-          button { class: btn text: "prompt@{}" on_click: dlg_prompt }
-          button { class: btn text: "pick_color@{}" on_click: dlg_cor }
-          button { class: btn text: "open_file()" on_click: dlg_arquivo }
-          button { class: btn text: "progress@{}" on_click: dlg_progresso }
-        }
-
-        text "resposta: @dlg_resposta" { class: nota }
+        text(class = nota, content = "resposta: @dlg_resposta")
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = "toast(...) — info · sucesso · aviso · erro",
+        )
 
-        text "toast(...) — info · sucesso · aviso · erro" { class: rotulo }
+        row(class = linha) {
+          button(
+            class = btn, text = info, on_click = "dizer:mensagem informativa",
+          )
 
-        row {
-          class: linha
-
-          button {
-            class: btn text: info on_click: "dizer:mensagem informativa"
-          }
-
-          button { class: btn text: sucesso on_click: dlg_toast:success }
-          button { class: btn text: aviso on_click: dlg_toast:warning }
-          button { class: btn text: erro on_click: dlg_toast:error }
+          button(class = btn, text = sucesso, on_click = dlg_toast:success)
+          button(class = btn, text = aviso, on_click = dlg_toast:warning)
+          button(class = btn, text = erro, on_click = dlg_toast:error)
         }
       }
 
-      column {
-        class: demo
+      column(class = demo) {
+        text(
+          class = rotulo,
+          content = """
+            <colorwheel> — a roda de cor avulsa (também é o corpo do
+            pick_color@{})
+          """,
+        )
 
-        text """
-          <colorwheel> — a roda de cor avulsa (também é o corpo do
-          pick_color@{})
-        """ {
-          class: rotulo
-        }
-
-        colorwheel { value: dlg_cor_val size: 190 }
-        text "dlg_cor_val = @dlg_cor_val" { class: nota }
+        colorwheel(:value = dlg_cor_val, size = 190)
+        text(class = nota, content = "dlg_cor_val = @dlg_cor_val")
       }
     }
   }

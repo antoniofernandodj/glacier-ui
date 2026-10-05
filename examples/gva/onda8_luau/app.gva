@@ -23,7 +23,7 @@
         <column class="campo">
           <text class="rotulo">Texto</text>
           <textinput
-            value="__dialog.texto"
+            :value="__dialog.texto"
             on_change="__dialog.texto"
             placeholder="produção"
             class="preenche"
@@ -34,8 +34,8 @@
           <column class="campo">
             <text class="rotulo">Cor</text>
             <select
-              options="cores_rotulo"
-              value="__dialog.cor"
+              :options="cores_rotulo"
+              :value="__dialog.cor"
               on_change="__dialog.cor"
               class="preenche"
             />
@@ -45,7 +45,7 @@
             <!-- `width` do spinbox é a do CAMPO; a row interna dele é shrink e um
                  `fill` aqui colapsaria o número. Por isso fica inline. -->
             <spinbox
-              value="__dialog.tamanho"
+              :value="__dialog.tamanho"
               min="10"
               max="24"
               step="1"
@@ -56,7 +56,7 @@
 
         <checkbox
           label="Negrito"
-          checked="__dialog.negrito"
+          :checked="__dialog.negrito"
           on_toggle="__dialog.negrito"
         />
       </column>

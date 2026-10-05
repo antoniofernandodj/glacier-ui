@@ -84,6 +84,7 @@ pub mod grid;
 pub mod grip;
 pub mod keys;
 pub mod gva;
+pub mod bindings;
 pub mod gvb;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod luau;

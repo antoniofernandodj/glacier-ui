@@ -1,10 +1,8 @@
 // Teste de realce: um `script` e um `style` com o código escrito AQUI, no
-// próprio arquivo, em vez de `script { src: "…" }` apontando para um .luau.
+// próprio arquivo, em vez de `script(src = "…")` apontando para um .luau.
 // Rode com:
-//   WGPU_BACKEND=gl cargo run --example gvb_run -- examples/examples/gvb/inline_script/app.gvb
-screen {
-  title: "Glacier — script inline (.gvb)" size: "560 420"
-
+//   WGPU_BACKEND=gl cargo run --example gvb_inline_script
+screen(title = "Glacier — script inline (.gvb)", size = "560 420") {
   resources {
     style """
       /* GSS inline: o realce tem de pintar propriedades e cores. */
@@ -82,21 +80,17 @@ screen {
     """
   }
 
-  column {
-    class: tela
+  column(class = tela) {
+    text(class = titulo, content = "Script inline em .gvb")
+    text(class = valor, content = "@contador")
+    text(class = nota, content = "por extenso: @rotulo")
+    text(class = nota, content = "soma da tabela: @soma — @email")
 
-    text "Script inline em .gvb" { class: titulo }
-    text "@contador" { class: valor }
-    text "por extenso: @rotulo" { class: nota }
-    text "soma da tabela: @soma — @email" { class: nota }
-
-    row {
-      class: botoes
-
-      button { text: "−" on_click: decrementar }
-      button { text: "+" on_click: incrementar }
-      button { text: "Zerar" on_click: zerar }
-      button { text: "Ajuda" on_click: mostrar_ajuda }
+    row(class = botoes) {
+      button(text = "−", on_click = decrementar)
+      button(text = "+", on_click = incrementar)
+      button(text = "Zerar", on_click = zerar)
+      button(text = "Ajuda", on_click = mostrar_ajuda)
     }
   }
 }

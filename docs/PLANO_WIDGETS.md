@@ -1079,10 +1079,10 @@ mantinha essas três linhas marcadas como bloqueadas) está no blockquote da §2
 
 ```xml
 <!-- o caso simples: o widget grava a chave sozinho -->
-<calendar value="entrada" today="{hoje}" />
+<calendar :value="entrada" today="{hoje}" />
 
 <!-- com validação: quem grava é o handler -->
-<calendar value="entrada" onChange="validar_entrada" min="{hoje}" />
+<calendar :value="entrada" onChange="validar_entrada" min="{hoje}" />
 
 <!-- só mês e ano -->
 <monthyearpicker value="competencia" />
@@ -1592,7 +1592,7 @@ instância". Nenhum dos três exige, e aqui a marca é *estruturalmente*
 impossível: o diálogo é **singleton** no motor (`dialog: Option<DialogSpec>`,
 `lib.rs:176`), então nunca existe uma segunda instância com que colidir. O que
 o usuário digita mora numa **chave nomeada**, como no `SpinBox` (0.85) e no
-`Dial` (0.93) — `<textinput value="__dialog.nome"/>`, e o botão OK lê essa
+`Dial` (0.93) — `<textinput :value="__dialog.nome"/>`, e o botão OK lê essa
 chave. É a mesma pergunta que este documento errou dez vezes, e é a última vez
 que ela cabe: depois desta onda, todo `●` que sobra é de widget que existe **N
 vezes na mesma tela** (`Splitter`, `MdiArea`, `Dock`, `RangeSlider`, `Tumbler`),
@@ -1637,7 +1637,7 @@ Rust.
 |---|---|---|---|---|
 | 1 | **`Dialog`** (`QDialog`) | Motor + tag | P1 | O que o catálogo nunca listou, e é a **classe-base** de todo o resto da §2.10: um bloco `<dialog name="…">` no `.gv`, registrado como uma tela, aberto por `dialog:nome` e fechado por ação. Sai primeiro porque é o teste do habilitador antes de haver campo, progresso ou roda de cor por cima — o mesmo papel que o `GroupBox` teve para o `<slot/>` e o `<grid>` para a medição. Os botões continuam vindo do `DialogSpec`, não do markup: é lá que mora a ordem por plataforma que o `ButtonBox` (0.85) já resolveu |
 | 2 | **`InputDialog`** (`QInputDialog`) | Diál | **P1** | As quatro variantes do Qt (`getText`/`getInt`/`getDouble`/`getItem`) são **um** diálogo com corpos diferentes — `<textinput>`, `<spinbox decimals>` e `<select>`, três tags que já existem. O trabalho é a conveniência: `prompt{ kind = "text"|"int"|"double"|"item", … }` no Luau, com validação (`min`/`max`, obrigatório) travando o botão OK antes de retomar a corrotina |
-| 3 | **`ProgressDialog`** (`QProgressDialog`) | Diál | **P1** | O único da família que é **atualizado enquanto está aberto**, e o único que não suspende: quem suspende é o `fetch`/stream que ele acompanha. O progresso vai numa chave que o corpo lê (`<progressbar value="__dialog.progresso"/>`), o cancelamento escreve outra que o laço do app consulta. Fecha o par com o `Spinner` (0.66): indeterminado avulso lá, determinado e cancelável aqui |
+| 3 | **`ProgressDialog`** (`QProgressDialog`) | Diál | **P1** | O único da família que é **atualizado enquanto está aberto**, e o único que não suspende: quem suspende é o `fetch`/stream que ele acompanha. O progresso vai numa chave que o corpo lê (`<progressbar :value="__dialog.progresso"/>`), o cancelamento escreve outra que o laço do app consulta. Fecha o par com o `Spinner` (0.66): indeterminado avulso lá, determinado e cancelável aqui |
 | 4 | **`ColorDialog`** (`QColorDialog`) | Diál | P2 | Ficou de fora da Onda 7 por tamanho; agora custa menos, porque a roda é `crate::canvas::{arco, anel}` (0.93) e o campo hex é um `<maskedinput>` (0.85). Três painéis — roda HS + barra V, os canais em `<slider>`, e o hex —, todos escrevendo a **mesma** chave `#rrggbb`. É o primeiro consumidor do corpo em markup que não caberia em Rust sem duplicar meia dúzia de widgets |
 | 5 | **`StackView`** (`QStackedWidget`) | Prim | P1 | O 🟡 mais antigo da §2.8, que a Onda 5 devia ter fechado e não fechou: é `<tabs>` **sem a barra**, o mesmo nome dinâmico de slot (`<slot name="{passo}"/>`, 0.92). Sai aqui porque o item 6 precisa dele, e sozinho é a formalização que o documento promete desde a primeira revisão |
 | 6 | **`Wizard`** (`QWizard`) | Prim | P2 | No Qt o `QWizard` **é** um `QDialog` — então ele é a soma exata desta onda: o `<dialog>` do item 1, as páginas do item 5, o `<buttonbox>` (0.85) e o número do passo numa chave nomeada. A lógica que ele carrega é aritmética de passo com portão (`Voltar` inerte no primeiro, `Avançar` travado enquanto a página não valida, `Finalizar` no lugar de `Avançar` no último) — repetição dirigida por número, o padrão que a Onda 4 nomeou |

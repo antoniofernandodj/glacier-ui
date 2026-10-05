@@ -9,7 +9,7 @@
 // XML; `map[deslocamento]` é onde isso está no arquivo que a pessoa vê.
 //
 // É uma leitura **tolerante**, ao contrário da do motor: o arquivo está sendo
-// digitado, quase sempre incompleto, e um `{` aberto ou um `nome:` sem valor não
+// digitado, quase sempre incompleto, e um `{` aberto ou um `nome =` sem valor não
 // pode apagar os links do resto da tela. O que não se entende é pulado até a
 // próxima linha. Quem manda no que é erro é o motor (`src/gvb.rs`).
 
@@ -86,15 +86,15 @@ class Parser {
     return { raw, off, triple: false };
   }
 
-  /** O valor de um `nome:`. */
+  /** O valor de um `nome =`: entre aspas, ou nu até o espaço, a `,` ou o `)`. */
   value() {
     const c = this.peek();
     if (c === '"') return { kind: "src", ...this.string() };
-    if (c === undefined || c === "}" || c === "{") throw new Error("valor");
+    if (c === undefined || c === "," || c === ")") throw new Error("valor");
     const off = this.i;
     while (this.i < this.s.length) {
       const d = this.s[this.i];
-      if (isWs(d) || d === "{" || d === "}" || this.starts("//")) break;
+      if (isWs(d) || d === "," || d === ")" || this.starts("//")) break;
       this.i++;
     }
     return { kind: "src", raw: this.s.slice(off, this.i), off, triple: true };
@@ -160,7 +160,48 @@ class Parser {
     return [mk(key, asRef(first))];
   }
 
-  /** O conteúdo de um bloco: atributos e filhos de `node`, até o `}` (não consumido). */
+  /** Os atributos de `( nome = valor, … )` em `node` (o `(` sob o cursor). Tolerante: para no `)` ou numa linha que não se entende. */
+  attrs(node) {
+    this.i++; // `(`
+    for (;;) {
+      this.skipWs();
+      const c = this.peek();
+      if (c === undefined) return;
+      if (c === ")") {
+        this.i++;
+        return;
+      }
+      if (c === ",") {
+        this.i++;
+        continue;
+      }
+      if (!isIdent(c) && c !== ":") {
+        // o que está sendo digitado: pula a linha e segue (um `{` ou `}` encerra)
+        if (c === "{" || c === "}") return;
+        while (this.i < this.s.length && this.s[this.i] !== "\n") this.i++;
+        continue;
+      }
+      // `:nome` é uma ligação: o `:` entra no nome, e o XML gerado o leva junto.
+      const bound = c === ":";
+      if (bound) this.i++;
+      const w = this.ident();
+      if (bound) {
+        w.text = ":" + w.text;
+        w.off -= 1;
+      }
+      this.skipWs();
+      if (this.peek() !== "=") continue;
+      this.i++;
+      this.skipWs();
+      try {
+        node.attrs.push({ name: w.text, nameOff: w.off, v: this.value() });
+      } catch (_) {
+        // `nome =` sem valor ainda: o atributo fica de fora
+      }
+    }
+  }
+
+  /** O conteúdo de um bloco: os filhos de `node`, até o `}` (não consumido). */
   items(node, inBlock) {
     for (;;) {
       this.skipWs();
@@ -173,9 +214,7 @@ class Parser {
       }
       const before = this.i;
       try {
-        if (c === '"' && inBlock) {
-          node.text = { ...this.string(), raw_body: node.rawTag };
-        } else this.item(node);
+        this.item(node);
       } catch (_) {
         // pula o resto da linha: o que está sendo digitado não entra
         while (this.i < this.s.length && this.s[this.i] !== "\n") this.i++;
@@ -195,12 +234,7 @@ class Parser {
   item(parent) {
     if (!isIdent(this.peek())) throw new Error("item");
     const w = this.ident();
-    if (this.peek() === ":") {
-      this.i++;
-      this.skipWs();
-      parent.attrs.push({ name: w.text, nameOff: w.off, v: this.value() });
-      return;
-    }
+    if (this.peek() === ":") throw new Error("atributo fora dos parênteses");
     if (w.text === "if") return this.ifChain(parent, w.off);
     if (w.text === "each") return this.each(parent, w.off);
     if (w.text === "else") throw new Error("else");
@@ -220,24 +254,20 @@ class Parser {
     parent.children.push(node);
     let save = this.i;
     this.skipWs();
+    if (this.peek() === "(") {
+      this.attrs(node);
+      node.closeOff = this.i;
+      save = this.i;
+      this.skipWs();
+    }
     if (this.peek() === '"') {
       node.text = { ...this.string(), raw_body: node.rawTag };
       node.closeOff = this.i;
       save = this.i;
       this.skipWs();
     }
-    if (this.peek() === "{") {
-      this.block(node);
-      // O texto também pode vir depois do bloco: `text { class: nota } "oi"`.
-      if (node.children.length === 0 && !node.text) {
-        const after = this.i;
-        this.skipWs();
-        if (this.peek() === '"') {
-          node.text = { ...this.string(), raw_body: node.rawTag };
-          node.closeOff = this.i;
-        } else this.i = after;
-      }
-    } else this.i = save;
+    if (this.peek() === "{") this.block(node);
+    else this.i = save;
   }
 
   branch(parent, key, at) {
@@ -296,6 +326,10 @@ class Parser {
     };
     parent.children.push(node);
     this.skipWs();
+    if (this.peek() === "(") {
+      this.attrs(node);
+      this.skipWs();
+    }
     if (this.peek() === "{") this.block(node);
   }
 }

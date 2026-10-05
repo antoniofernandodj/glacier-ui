@@ -1,98 +1,91 @@
-screen {
-  title: "Glacier — Onda 10 (fontes)" size: "1000 720" min_size: "860 600"
-
+screen(
+  title = "Glacier — Onda 10 (fontes)", size = "1000 720", min_size = "860 600",
+) {
   resources {
-    link { rel: stylesheet href: "examples/gvb/onda10/app.gss" }
+    link(rel = stylesheet, href = "examples/gvb/onda10/app.gss")
   }
 
-  column {
-    class: tela
-
-    row {
-      class: barra
-
-      text "Onda 10 — a fonte que o motor não sabia nomear" { class: titulo }
-      space { class: empurra }
-      text "@status" { class: status }
+  column(class = tela) {
+    row(class = barra) {
+      text(
+        class = titulo,
+        content = "Onda 10 — a fonte que o motor não sabia nomear",
+      )
+      space(class = empurra)
+      text(class = status, content = "@status")
     }
 
-    row {
-      class: corpo
-
+    row(class = corpo) {
       // ══ O seletor: cada família desenhada nela mesma ══════════════
-      column {
-        class: coluna-lista
+      column(class = coluna-lista) {
+        text(class = secao, content = "fontselect")
 
-        text "fontselect" { class: secao }
+        text(
+          class = nota,
+          content = """
+            Lê a chave do motor `__fonts`, semeada pelo registro de
+            `src/fonts.rs`. Cada item desenha o próprio nome na própria família —
+            a linha que o separa de um `select` comum.
+          """,
+        )
 
-        text """
-          Lê a chave do motor `__fonts`, semeada pelo registro de
-          `src/fonts.rs`. Cada item desenha o próprio nome na própria família —
-          a linha que o separa de um `select` comum.
-        """ {
-          class: nota
-        }
-
-        fontselect {
-          value: fonte selected: @fonte
-          preview: "A rápida raposa marrom salta sobre o cão — 0123"
-          height: 240
-        }
+        fontselect(
+          :value = fonte, selected = @fonte,
+          preview = "A rápida raposa marrom salta sobre o cão — 0123",
+          height = 240,
+        )
       }
 
       // ══ O que o registro destrava ═══════════════════════════════
-      column {
-        class: coluna-demo
+      column(class = coluna-demo) {
+        column(class = bloco) {
+          text(class = secao, content = "font no .gva")
 
-        column {
-          class: bloco
-
-          text "font no .gva" { class: secao }
-
-          text """
-            Este título usa o atributo `font` ligado à chave que o fontselect
-            grava — troque a seleção ao lado e ele muda junto.
-          """ {
-            class: amostra font: @fonte
-          }
+          text(
+            class = amostra, font = @fonte,
+            content = """
+              Este título usa o atributo `font` ligado à chave que o fontselect
+              grava — troque a seleção ao lado e ele muda junto.
+            """,
+          )
         }
 
-        column {
-          class: bloco
+        column(class = bloco) {
+          text(class = secao, content = "font_family no .gss")
 
-          text "font_family no .gss" { class: secao }
+          text(
+            class = rotulo-serif,
+            content = """
+              Esta linha não tem `font` no markup: a família vem da classe
+              `.rotulo-serif` no app.gss, pelo mesmo funil (`font_for`).
+            """,
+          )
 
-          text """
-            Esta linha não tem `font` no markup: a família vem da classe
-            `.rotulo-serif` no app.gss, pelo mesmo funil (`font_for`).
-          """ {
-            class: rotulo-serif
-          }
-
-          text """
-            Um nome que ninguém registrou continua caindo na fonte padrão, em
-            silêncio — a degradação de sempre, agora só para o que realmente não
-            existe.
-          """ {
-            class: nota
-          }
+          text(
+            class = nota,
+            content = """
+              Um nome que ninguém registrou continua caindo na fonte padrão, em
+              silêncio — a degradação de sempre, agora só para o que realmente não
+              existe.
+            """,
+          )
         }
 
-        column {
-          class: "bloco bloco-cresce"
+        column(class = "bloco bloco-cresce") {
+          text(
+            class = secao,
+            content = "texteditor com fonte declarada — o PlainTextEditor",
+          )
 
-          text "texteditor com fonte declarada — o PlainTextEditor" {
-            class: secao
-          }
+          text(
+            class = nota,
+            content = """
+              `QPlainTextEdit` é "texto simples, fonte declarável". A segunda
+              metade era esta onda.
+            """,
+          )
 
-          text """
-            `QPlainTextEdit` é "texto simples, fonte declarável". A segunda
-            metade era esta onda.
-          """ {
-            class: nota
-          }
-
-          texteditor { value: nota font: @fonte_mono class: editor }
+          texteditor(:value = nota, font = @fonte_mono, class = editor)
         }
       }
     }

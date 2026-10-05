@@ -7,7 +7,7 @@
 /// nomeada pelo app, a ação carrega o nome, o `update` grava.
 ///
 /// ```xml
-/// <listview items="servicos" value="servico" selected="{servico}" height="240" />
+/// <listview :items="servicos" :value="servico" selected="{servico}" height="240" />
 /// ```
 ///
 /// # Os dois modos de seleção
@@ -63,7 +63,7 @@
 /// - `sub_class`      — a segunda linha (`it.sub`).
 ///
 /// ```xml
-/// <listview items="servicos" value="servico" selected="{servico}"
+/// <listview :items="servicos" :value="servico" selected="{servico}"
 ///           item_class="linha" selected_class="linha_ativa" />
 /// ```
 ///

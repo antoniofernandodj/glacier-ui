@@ -21,81 +21,92 @@ No `examples/gva/onda9/app.gva`, 297 linhas:
 - **24 `&lt;`/`&gt;`**, porque a prosa dos comentários e dos `<text>` cita tags
   o tempo todo e o XML não deixa;
 - **82 `class="…"`**, uma string por elemento para dizer o papel dele (no
-  `.gvb` continuam sendo 82, só que como `class: nome`);
+  `.gvb` continuam sendo 82, só que como `class = nome`);
 - 12 blocos de `<!-- -->`, onde `--` é proibido no meio;
 - 8 linhas passando de 80 colunas, sem jeito de quebrar.
 
 O mesmo arquivo em `.gvb`: 389 linhas, 13933 bytes (+0,4%), **nenhuma linha acima
 de 80 colunas**. Ganha-se quebra livre e perde-se em número de linhas — 52 delas
-são só `}`, e `class: nome` custa mais que `.nome` custaria. É a troca consciente da proposta, e a seção final explica por que ela
+são só `}`, e `class = nome` custa mais que `.nome` custaria. É a troca consciente da proposta, e a seção final explica por que ela
 compensa.
 
 ---
 
 ## As regras
 
-### 1. Bloco é `{ }`, e a quebra de linha não significa nada
+### 1. Filhos são `{ }`, atributos são `( )`, e a quebra de linha não significa nada
 
 Não existe fechamento com nome repetido, e não existe indentação significativa.
-Um valor é sempre consumido pelo `nome:` que vem antes dele, então um
-identificador solto só pode ser um irmão novo — o que faz a lista de atributos
-quebrar onde você quiser, sem vírgula nem contrabarra:
+Os atributos são `nome = valor` separados por **vírgula** (a última é opcional),
+e é a vírgula — não o espaço — que decide onde um acaba, então a lista quebra
+onde você quiser, sem contrabarra:
 
 ```
-rangeslider {
-  start: preco_min end: preco_max
-  min: 0 max: 1000 step: 10 size: 300
-  on_release: lacou
-}
+rangeslider(
+  start = preco_min, end = preco_max,
+  min = 0, max = 1000, step = 10, size = 300,
+  on_release = lacou,
+)
 ```
+
+Era `tag { nome: valor … }` (atributos soltos dentro das chaves, separados só por
+espaço). Foi trocado porque a chave fazia dois trabalhos — atributos e filhos
+no mesmo bloco — e porque a chamada `tag(a = 1, b = 2)` já é lida assim em
+qualquer linguagem: o que está nos parênteses descreve a tag, o que está nas
+chaves está dentro dela. Escrever `nome: valor` entre chaves é erro, com a dica.
 
 A indentação é de **dois espaços**, como no `.gv` e no `.gss`, mas por convenção:
 recortar e colar entre níveis é feiúra, nunca bug.
 
-### 2. Antes das chaves vai o NOME da tag; dentro vai todo o resto
+### 2. A forma é `tag(atributos) { filhos }`
 
-O que precede o `{` é só a tag — e, se houver, o texto. Não existe `tag.classe`
-nem `tag#id`: o ponto e o cerquilha não têm significado ali (escrevê-los é um
-erro, com a dica). A forma `objeto.atributo` das linguagens orientadas a objeto
-é a razão da escolha: lá o ponto **acessa** algo que o objeto tem, e numa
-abreviação de seletor ele significaria "etiqueta", que é uma leitura que cada
-pessoa precisa aprender.
-
-```
-text "…" { class: nota }
-container { class: "center-xy fill" id: exportar }
-```
-
-Atributo **nunca** fica fora das chaves. Sem filhos, o bloco cabe numa linha:
+Cada parte é opcional, e **atributo nunca fica fora dos parênteses**. Não existe
+`tag.classe` nem `tag#id`: o ponto e o cerquilha não têm significado ali
+(escrevê-los é um erro, com a dica). A forma `objeto.atributo` das linguagens
+orientadas a objeto é a razão da escolha: lá o ponto **acessa** algo que o objeto
+tem, e numa abreviação de seletor ele significaria "etiqueta", que é uma leitura
+que cada pessoa precisa aprender.
 
 ```
-shortcut { key: ctrl+s on_press: salvar }
+text(class = nota, content = "…")
+container(class = "center-xy fill", id = exportar) { … }
 ```
 
-Com filhos, as propriedades vão no topo, uma linha em branco, e os filhos
-depois:
+Sem filhos, não há chaves:
 
 ```
-splitter {
-  class: divide sizes: painel_h min: 120 handle: 6
+shortcut(key = ctrl+s, on_press = salvar)
+```
 
-  column { class: painel … }
+Com filhos, o cabeçalho fecha no `)` e as chaves trazem só eles:
+
+```
+splitter(class = divide, sizes = painel_h, min = 120, handle = 6) {
+  column(class = painel) { … }
 }
 ```
 
-A regra em uma frase: **cabeçalho ou bloco, nunca metade e metade.** É o que
-impede o `{` de ficar órfão no fim de uma lista de atributos quebrada em três
-linhas.
+Quando o cabeçalho não cabe em 80 colunas, ele quebra em grupos de linha e o `)`
+fecha sozinho, sem deixar um `{` órfão no fim de uma lista de três linhas:
+
+```
+toolbutton(
+  icon = "📄", text = Novo, layout = beside, tooltip = "Novo documento",
+  on_click = novo,
+) {
+  …
+}
+```
 
 ### 3. `class` e `id` são atributos como os outros
 
 ```
-column { class: "bloco bloco-cresce" }   /* ↔  class="bloco bloco-cresce" */
-button { class: "btn @estado" }          /* a variação vem do contexto */
-button { id: @c.id }
+column(class = "bloco bloco-cresce")   /* ↔  class="bloco bloco-cresce" */
+button(class = "btn @estado")          /* a variação vem do contexto */
+button(id = @c.id)
 ```
 
-Uma classe só dispensa as aspas (`class: nota`). Em CSS a ordem das classes não
+Uma classe só dispensa as aspas (`class = nota`). Em CSS a ordem das classes não
 diz nada, mas aqui diz: `resolve_classes` (`src/stylesheet.rs:375`) aplica **da
 esquerda para a direita, a última sobrescrevendo a anterior**. Os três níveis
 seguem o do motor: **tag < classe < id**.
@@ -106,42 +117,54 @@ Idêntico ao `.gv`, e pela mesma razão obrigatória: a tag de um componente é
 resolvida pelo nome com que ele foi registrado, e a busca é sensível a caixa.
 `MeuCartao` funciona; `meucartao` é `UnknownComponent`.
 
-### 5. `@chave` é DADO; nome nu é NOME DE CHAVE
+### 5. Texto, valor e ligação: `x`, `@x` e `:attr = x`
 
-Esta é a regra que mais rende, e não é economia de tecla. No `.gv` a diferença
-entre passar o nome de uma chave e passar o valor dela são dois caracteres
-dentro das aspas:
+Esta é a regra que mais rende, e não é economia de tecla. Há três coisas que um
+atributo pode receber, e no `.gv` duas delas se escreviam quase igual, dentro das
+aspas:
 
 ```xml
-value="x"      <!-- o nome da chave -->
+value="x"      <!-- o nome da chave… ou o texto "x"? o motor decide pelo widget -->
 value="{x}"    <!-- o valor dela -->
 ```
 
 É a armadilha que o `PRIMITIVAS.md` chama de a família de bug mais cara deste
 motor (`value="{x}"` num `<progressbar>` faz o widget procurar uma chave chamada
-"42"). No `.gvb` ela vira uma marca visível no meio da linha:
+"42"). O estado da tela são gavetas com etiqueta: a **chave** é a etiqueta, o
+**valor** é o que está dentro. O `.gvb` dá uma grafia a cada coisa:
 
 ```
-value: preco_min      /* o nome da chave */
-value: @preco_min     /* o valor dela   */
+align = center           /* texto: sempre literal */
+content = @preco_min     /* o VALOR da chave, mostrado e atualizado */
+:value = preco_min       /* a LIGAÇÃO: o nome da chave (o widget lê e grava) */
 ```
+
+A marca da ligação fica no **nome do atributo** (`:value`, como no Vue), porque é
+o atributo que é uma ligação, e não o valor que ele recebe. É a mesma no `.gva`
+(`<progressbar :value="x" />`). Antes de ler o XML, o motor troca `:value` por
+`bind_value`, dois atributos de nome diferente, e por isso consegue cobrar a
+marca: no `.gvb`, um atributo
+que é ligação (a lista está em `src/bindings.rs`) **sem o `:` é erro**, com a
+linha; no `.gva` é um aviso. `on_click = salvar` não leva marca: é o nome de uma
+função.
 
 Formas completas: `@{chave}` quando o nome encosta em letra (`"@{preco}reais"`),
-e `@@` para um arroba literal. O sigilo **não** é `$` de propósito — `R$ $preco`
-num arquivo brasileiro é ilegível.
+e `@@` para um arroba literal. O sigilo do valor **não** é `$` de propósito —
+`R$ $preco` num arquivo brasileiro é ilegível.
 
 O outro efeito é que `{` e `}` passam a ter um trabalho só. `else if @aba ==
 "teclado" {` não tem chave nenhuma disputando sentido com a do bloco.
 
-### 6. Texto é o corpo, não atributo
+### 6. Texto é atributo, sempre
 
-Uma string solta depois da tag é o filho de texto, e os atributos vêm depois,
-nas chaves. A ordem inversa, com o texto depois do bloco (`text { class: titulo }
-"Onda 9"`), também é válida e dá a mesma árvore; a que se escreve é esta:
+O texto de um `<text>` é o atributo `content`, e o de um `<button>`, `text`.
+Não existe texto solto depois do cabeçalho — escrevê-lo é erro, com a dica —,
+então um elemento é sempre `tag(tudo o que o descreve) { filhos }`, e o rótulo
+não fica pendurado depois do `)`:
 
 ```
-text "Onda 9 — o ponteiro preso" { class: titulo }
-text "R$ @preco_min — R$ @preco_max" { class: valor }
+text(class = titulo, content = "Onda 9 — o ponteiro preso")
+button(on_click = ir_monitor, color = #5E81AC, padding = "10 18", text = "Ir")
 ```
 
 Prosa longa vai em `"""`, desindentada e com o espaço em branco colapsado pela
@@ -149,18 +172,22 @@ mesma regra de hoje (`UiNode::normalize_text`), então quebrar a linha onde der 
 de graça:
 
 ```
-text """
-  Não existe página -1 nem página 3: o `Alvo::Indice` do grip prende o
-  resultado em [0, n-1], como a `Alvo::Trilha` prende a largura no piso.
-""" { class: nota }
+text(
+  class = nota,
+  content = """
+    Não existe página -1 nem página 3: o `Alvo::Indice` do grip prende o
+    resultado em [0, n-1], como a `Alvo::Trilha` prende a largura no piso.
+  """,
+)
 ```
 
-O texto fica **fora** das chaves porque é conteúdo, não propriedade — é a única
-coisa além da tag que fica. E, como o bloco não é XML, `<splitter>` se
-escreve `<splitter>`: os 24 `&lt;` do arquivo somem.
+Como o valor não é XML, `<splitter>` se escreve `<splitter>`: os 24 `&lt;` do
+arquivo somem. A exceção é o corpo cru de `script`/`style` (`style """…"""`),
+que é código, não texto, e fica depois do cabeçalho.
 
-`content:` existe no motor, mas é justamente a forma que a regra 2 do
-`CLAUDE.md` manda não escrever.
+Uma diferença com o `.gva`: `<button>Salvar</button>` vira, no motor, um `Text`
+dentro do botão; `text = "Salvar"` é o atalho que o motor já tem para o rótulo
+simples. O `Text` filho só importa para quem estiliza o rótulo por seletor de tag.
 
 ### 7. Comentário é `//` ou `/* … */`
 
@@ -184,7 +211,7 @@ Mapeamento fechado com o que o parser já lê:
 A chave é o que torna o encadeamento natural, e o caso trivial cabe numa linha:
 
 ```
-if "api" in @marcados { badge { badge_text: "api no laço" } }
+if "api" in @marcados { badge(badge_text = "api no laço") }
 ```
 
 ---

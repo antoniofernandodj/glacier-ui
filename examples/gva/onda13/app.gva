@@ -47,7 +47,7 @@
           <button text="raio +" on_click="maior" />
           <button text="raio −" on_click="menor" />
         </row>
-        <textinput value="onda" on_change="onda" placeholder="traçado SVG (M L Q T Z)" />
+        <textinput :value="onda" on_change="onda" placeholder="traçado SVG (M L Q T Z)" />
 
         <text class="secao">QWhatsThis</text>
         <row class="acoes">

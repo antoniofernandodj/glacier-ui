@@ -94,3 +94,10 @@ esqueleto da tela.
 .selo_verde { background: var(--verde); }
 .selo_roxo  { background: var(--roxo); }
 .selo_ambar { background: var(--ambar); }
+
+.coluna { spacing: 0; }
+.rolagem { width: fill; height: fill; }
+.grade_2 { spacing: 18; }
+.grade_3 { spacing: 12; width: fill; }
+.fluxo { spacing: 8; width: fill; }
+.grupo { width: 380; }
