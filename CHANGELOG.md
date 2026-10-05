@@ -10,6 +10,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Extensão do VS Code: o handler Luau de um componente importado vira link.** Um template
+  importado por uma tela não leva `<script>` próprio — o `on_click = salvar` dele é
+  respondido pelo script que a TELA carrega —, e a extensão só procurava a função no grafo de
+  scripts do próprio arquivo e em handlers Rust, então Ctrl+clique/F12 não abriam nada
+  (`form(on_submit = settings_save)` em `views/home/settings/web.gvb`, por exemplo). O índice do
+  workspace passa a guardar as funções Luau globais (`function nome(…)` ou `nome = function`, na
+  coluna 1; `local` e `function M.x` não são ação) e o link/F12 as consulta depois do script
+  próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
+  repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
+
 ## glacier-ui 0.119.0 — 2026-10-05
 
 - **O `app(...)` declara mais do `GlacierDaemon`.** `antialiasing = false`,

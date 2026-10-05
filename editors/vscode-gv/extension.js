@@ -1710,6 +1710,25 @@ function collectContextWrites(text, baseOffset) {
   return out;
 }
 
+/**
+ * Every global function a Luau chunk defines at column 1 — `function nome(…)`
+ * (with or without a type annotation) and `nome = function …` — which is exactly
+ * what the engine exposes as an action. `local` functions and `function M.x`
+ * are module-private/exported, never an action, so they stay out.
+ */
+function collectLuaFunctions(text) {
+  const out = [];
+  const code = maskLuaComments(text);
+  const patterns = [/^function[ \t]+([A-Za-z_]\w*)[ \t]*[(<]/gm, /^([A-Za-z_]\w*)[ \t]*=[ \t]*function\b/gm];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(code)) !== null) {
+      out.push({ name: m[1], offset: m.index + m[0].indexOf(m[1]) });
+    }
+  }
+  return out;
+}
+
 async function buildWorkspaceIndex() {
   const components = new Map();
   // Component names as WRITTEN (lowercased -> name), for completion: the keys
@@ -1724,6 +1743,11 @@ async function buildWorkspaceIndex() {
   // single context for the whole app, so a key a screen reads is often written
   // by a sibling screen's script.
   const luaKeys = new Map();
+  // Global Luau functions (= actions) defined anywhere in the workspace. A
+  // component imported by a screen carries no `<script>` of its own, but its
+  // `on_click="salvar"` is answered by the script the SCREEN loads — which is
+  // not in this template's own script graph.
+  const luaFunctions = new Map();
   // template fsPath -> the .rs files whose `impl Component` renders it, and
   // directory -> the .rs files sitting in it (the fallback when the template
   // path is built at runtime instead of written as a literal).
@@ -1836,6 +1860,13 @@ async function buildWorkspaceIndex() {
           position: offsetToPosition(text, hit.offset),
         });
       }
+      for (const hit of collectLuaFunctions(text)) {
+        indexAdd(luaFunctions, hit.name, {
+          fsPath: uri.fsPath,
+          offset: hit.offset,
+          position: offsetToPosition(text, hit.offset),
+        });
+      }
       continue;
     }
 
@@ -1869,7 +1900,7 @@ async function buildWorkspaceIndex() {
       }
     }
   }
-  return { components, componentNames, handlers, luaKeys, rustByTemplate, rustByDir, gssRules };
+  return { components, componentNames, handlers, luaKeys, luaFunctions, rustByTemplate, rustByDir, gssRules };
 }
 
 /** The `.rs` files that back `documentUri` — its renderer, or its neighbours. */
@@ -1888,6 +1919,17 @@ function rustFilesFor(index, documentUri) {
  */
 function resolveContextKeyInWorkspaceLua(index, documentUri, key) {
   const best = nearestHit(index.luaKeys.get(key), documentUri);
+  return best ? new vscode.Location(vscode.Uri.file(best.fsPath), best.position) : null;
+}
+
+/**
+ * The global Luau function `name` defined by some script in the workspace — how
+ * an imported component's action finds the handler the screen's script defines.
+ * Among repeats, the nearest to the document wins (the engine has one global
+ * namespace for actions, so the closest declaration is the one most likely meant).
+ */
+function resolveLuaFunctionInWorkspace(index, documentUri, name) {
+  const best = nearestHit(index.luaFunctions.get(name), documentUri);
   return best ? new vscode.Location(vscode.Uri.file(best.fsPath), best.position) : null;
 }
 
@@ -2527,6 +2569,21 @@ async function provideDocumentLinks(document) {
         break;
       }
       if (resolved) continue;
+      // Not a Rust arm: a global Luau function in another script of the
+      // workspace (the case of any component imported by a screen).
+      for (const c of handlerCandidates(pending.value)) {
+        const lua = resolveLuaFunctionInWorkspace(index, document.uri, c.name);
+        if (!lua) continue;
+        pending.link.range = pending.range(
+          pending.start + c.start,
+          pending.start + c.start + c.name.length
+        );
+        pending.link.target = uriAt(lua.uri, lua.range.start);
+        pending.link.tooltip = `Go to function ${c.name}()`;
+        resolved = true;
+        break;
+      }
+      if (resolved) continue;
       // No handler anywhere in the workspace either: the same legacy-binding
       // fallback, now against every Rust/Lua source the index knows about.
       for (const c of handlerCandidates(pending.value)) {
@@ -2689,6 +2746,10 @@ async function resolveDefinition(document, position) {
     for (const c of handlerCandidates(hit.name)) {
       const rust = rustHandlerFor(index, document.uri, c.name);
       if (rust) return [new vscode.Location(vscode.Uri.file(rust.fsPath), rust.position)];
+    }
+    for (const c of handlerCandidates(hit.name)) {
+      const lua = resolveLuaFunctionInWorkspace(index, document.uri, c.name);
+      if (lua) return [lua];
     }
     // No handler anywhere: the engine's own fallback for a 100%-script
     // component with no matching function (`LuauComponent::dispatch`'s
