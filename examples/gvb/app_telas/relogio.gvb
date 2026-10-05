@@ -1,0 +1,13 @@
+// UI da tela `relogio`, servida pelo `impl Component` do main.rs. O manifesto
+// (app.gvb) a declara sem corpo e sem `src`; quem aponta para este arquivo é o
+// `Component::template`. Raiz `screen`, como qualquer tela por arquivo.
+screen(title = "Relógio") {
+  container(class = caixa) {
+    column(class = coluna) {
+      Rotulo(texto = "Hora (UTC), calculada em Rust")
+      text(content = "@hora", class = destaque)
+      button(text = Atualizar, on_click = atualizar, class = botao)
+      button(text = Voltar, navigate_back = true, class = botao)
+    }
+  }
+}
