@@ -263,6 +263,9 @@ pub struct GlacierUI {
     /// o motor carregou um manifesto (ver [`GlacierUI::register_app`]). A janela
     /// é do app; o `title` continua sendo da tela.
     app_window: Option<parser::ScreenMeta>,
+    /// O `title` que o manifesto deu a uma tela com `src`: ele vence o do
+    /// arquivo da tela, inclusive depois do hot-reload dele.
+    screen_titles: HashMap<String, String>,
     /// O manifesto carregado por [`GlacierUI::register_app`], para o hot-reload e
     /// para o daemon saber quais nomes são telas do app.
     app_source: Option<AppSource>,
@@ -672,6 +675,7 @@ impl GlacierUI {
             registered_components: HashMap::default(),
             screen_meta: HashMap::default(),
             app_window: None,
+            screen_titles: HashMap::default(),
             app_source: None,
             inputs: render_inputs::RenderInputs::default(),
             evaluated_templates: HashMap::default(),
@@ -965,10 +969,13 @@ impl GlacierUI {
     /// declarações. Um `<screen>` perdido no meio do layout não é cabeçalho de
     /// nada e não vale — some na avaliação como qualquer declaração fora de lugar.
     fn record_screen_meta(&mut self, name: &str, ast: &UiNode) {
-        let meta = ast.children.iter().find_map(|c| match &c.kind {
+        let mut meta = ast.children.iter().find_map(|c| match &c.kind {
             NodeType::Screen(meta) if !meta.is_empty() => Some(meta.clone()),
             _ => None,
         });
+        if let Some(titulo) = self.screen_titles.get(name) {
+            meta.get_or_insert_with(Default::default).title = Some(titulo.clone());
+        }
         match meta {
             Some(meta) => {
                 self.screen_meta.insert(name.to_string(), meta);
@@ -1214,6 +1221,25 @@ impl GlacierUI {
                 message: format!("o app não tem uma tela chamada '{nome}'"),
             });
         }
+        let inicial = so.map(str::to_string).or_else(|| {
+            manifest
+                .screens
+                .iter()
+                .find(|s| s.initial)
+                .or_else(|| manifest.screens.first())
+                .map(|s| s.name.clone())
+        });
+        // Quem já estava registrado antes deste (re)carregamento (hot-reload).
+        let ja_registradas: Vec<String> = match &self.app_source {
+            Some(app) if !primeira => app
+                .screens
+                .iter()
+                .map(|(n, _)| n.clone())
+                .filter(|n| !app.pending.contains_key(n))
+                .collect(),
+            _ => Vec::new(),
+        };
+        let mut pendentes = HashMap::new();
         for tela in &manifest.screens {
             telas.push((
                 tela.name.clone(),
@@ -1223,41 +1249,89 @@ impl GlacierUI {
                 continue;
             }
             so_sem_corpo = matches!(tela.source, parser::ScreenSource::Rust);
-            match &tela.source {
-                parser::ScreenSource::Inline { tree, script } => {
-                    self.register_inline_screen(&tela.name, path, tree, script.as_deref())?;
-                }
-                parser::ScreenSource::File(src) => {
-                    // Num reload, o arquivo da tela tem o hot-reload dele.
-                    if primeira || !self.registered_components.contains_key(&tela.name) {
-                        let resolved = self.resolve_import_href(src, Some(path));
-                        self.register_component_inner(&tela.name, &resolved)?;
-                    }
-                }
-                parser::ScreenSource::Rust => {}
+            // Só a inicial (e a pedida, numa janela filha) entram já; as outras
+            // esperam virar a tela ativa. Num reload, ficam registradas as que já
+            // estavam.
+            let agora = so.is_some()
+                || (primeira && inicial.as_deref() == Some(tela.name.as_str()))
+                || ja_registradas.contains(&tela.name);
+            if agora {
+                self.register_screen_decl(tela, path, primeira)?;
+            } else {
+                pendentes.insert(tela.name.clone(), tela.clone());
             }
         }
         self.file_mod_times.insert(app_key(path), mod_time);
         self.app_source = Some(AppSource {
             path: path.to_string(),
+            pending: pendentes,
             so: so.map(str::to_string),
             screens: telas,
         });
 
-        if primeira {
-            let inicial = so.map(str::to_string).or_else(|| {
-                manifest
-                    .screens
-                    .iter()
-                    .find(|s| s.initial)
-                    .or_else(|| manifest.screens.first())
-                    .map(|s| s.name.clone())
-            });
-            if let Some(nome) = inicial {
-                self.set_initial_screen(&nome);
-            }
+        if primeira && let Some(nome) = inicial {
+            self.set_initial_screen(&nome);
         }
         Ok(so_sem_corpo)
+    }
+
+    /// Registra uma tela do manifesto, qualquer que seja a origem do corpo.
+    fn register_screen_decl(
+        &mut self,
+        tela: &parser::ScreenDecl,
+        path: &str,
+        primeira: bool,
+    ) -> Result<()> {
+        match &tela.source {
+            parser::ScreenSource::Inline { tree, script } => {
+                self.register_inline_screen(&tela.name, path, tree, script.as_deref())?;
+            }
+            parser::ScreenSource::File(src) => {
+                // Num reload, o arquivo da tela tem o hot-reload dele.
+                match &tela.title {
+                    Some(t) => {
+                        self.screen_titles.insert(tela.name.clone(), t.clone());
+                    }
+                    None => {
+                        self.screen_titles.remove(&tela.name);
+                    }
+                }
+                if primeira || !self.registered_components.contains_key(&tela.name) {
+                    let resolved = self.resolve_import_href(src, Some(path));
+                    self.register_component_inner(&tela.name, &resolved)?;
+                } else if let Some(t) = &tela.title {
+                    // Já registrada: só o título do manifesto mudou.
+                    let mut meta = self.screen_meta.get(&tela.name).cloned().unwrap_or_default();
+                    meta.title = Some(t.clone());
+                    self.screen_meta.insert(tela.name.clone(), meta);
+                }
+            }
+            parser::ScreenSource::Rust => {
+                // Sem corpo nem `src`: o `title` do manifesto é o da tela.
+                if let Some(t) = &tela.title {
+                    let mut meta = self.screen_meta.get(&tela.name).cloned().unwrap_or_default();
+                    meta.title = Some(t.clone());
+                    self.screen_meta.insert(tela.name.clone(), meta);
+                    self.screen_titles.insert(tela.name.clone(), t.clone());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Registra a tela `name` do app se ela ainda estava pendente. Chamado quando
+    /// ela vira a tela ativa (ver [`GlacierUI::reevaluate_all`]).
+    fn ensure_app_screen(&mut self, name: &str) {
+        let Some(app) = self.app_source.as_mut() else {
+            return;
+        };
+        let Some(decl) = app.pending.remove(name) else {
+            return;
+        };
+        let path = app.path.clone();
+        if let Err(e) = self.register_screen_decl(&decl, &path, true) {
+            eprintln!("app: não consegui carregar a tela '{name}': {e}");
+        }
     }
 
     /// Registra uma tela escrita **dentro** do manifesto: a árvore já vem
@@ -3991,6 +4065,10 @@ impl GlacierUI {
     /// cache que guarda árvores velhas é um render silenciosamente desatualizado
     /// esperando para acontecer.
     pub fn reevaluate_all(&mut self) -> Result<()> {
+        // Uma tela do app só é registrada quando vira a ativa.
+        if let Some(atual) = self.current_screen.clone() {
+            self.ensure_app_screen(&atual);
+        }
         self.sync_eval_cache();
 
         let names: Vec<String> = self
@@ -4653,6 +4731,10 @@ pub(crate) fn app_manifest(
 #[derive(Debug, Clone)]
 struct AppSource {
     path: String,
+    /// Telas declaradas e ainda **não registradas**: uma tela só é registrada
+    /// (e o `init` do script dela roda) quando vira a ativa. É o que mantém as
+    /// janelas filhas e as telas fundas fora do boot do motor da principal.
+    pending: HashMap<String, parser::ScreenDecl>,
     /// Num motor de janela filha, a única tela registrada (ver
     /// [`GlacierUI::register_app_screen`]); o hot-reload respeita isso.
     so: Option<String>,

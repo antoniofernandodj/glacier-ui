@@ -10,6 +10,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.117.2 — 2026-10-05
+
+- **As telas do app só são registradas quando viram a ativa.** `register_app`
+  registrava todas no boot, e o `init` do `script` de cada uma rodava no motor da
+  janela principal — inclusive o das telas que só existem para serem abertas em outra
+  janela. Agora entra já só a `initial`; as outras esperam a primeira navegação (ou o
+  `open_window`). Um componente declarado no `resources` de uma tela existe, portanto,
+  a partir do momento em que a tela é registrada.
+- **O `title` do manifesto vale numa tela com `src` (e numa tela sem corpo).** Antes
+  era ignorado em silêncio e valia o do arquivo; agora o do manifesto vence, inclusive
+  depois do hot-reload do arquivo da tela.
+
+---
+
 ## glacier-ui 0.117.1 — 2026-10-05
 
 - **Janela aberta numa tela do app registra só essa tela.** `open_window("tela", …)`
