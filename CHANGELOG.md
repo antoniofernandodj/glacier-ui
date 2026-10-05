@@ -16,6 +16,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   remove o recuo comum; o `@nome` continua interpolando (o `l` é de *linhas*, não de
   *raw*). Aditivo — nada do que já funcionava muda. A extensão do VS Code ganha o
   realce e o parser sombra do `l"""`. Ver `rascunhos/MARKUP.md`.
+- **Extensão do VS Code: o `src` de `screen(name = …, src = "…")` vira link.** O `src` da
+  `screen` declarada num `app(...)` aponta o template da tela, mas a extensão só conhecia o
+  `icon` dela, então Ctrl+clique/F12 não abriam `log_window.gvb` & cia. `PATH_ATTRS.Screen`
+  passa a incluir o `src` (só ele, como em `parse_screen_decl`).
 
 ## glacier-ui 0.118.0 — 2026-10-05
 

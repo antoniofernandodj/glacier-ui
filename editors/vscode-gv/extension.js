@@ -278,7 +278,10 @@ const PATH_ATTRS = {
   // fonte de assets (`TRAY_ICON_ATTRS` e `SCREEN_ICON_ATTRS` em src/parser.rs,
   // e o `apply_window_icon` em src/daemon.rs).
   Tray: ["icon", "icone", "ícone"],
-  Screen: ["icon", "icone", "ícone"],
+  // `screen(name = log, src = "log_window.gvb")` num `app(...)`: o `src` é o
+  // template da tela (só `src`, como em `parse_screen_decl`); o `icon` fica por
+  // compatibilidade com o `.gv` antigo, em que ele ainda era da `<screen>`.
+  Screen: ["src", "icon", "icone", "ícone"],
   // Caminho escrito na tag de um builtin, que lá dentro vira o `source` de um
   // `<Image>`/`<Svg>`.
   Avatar: ["src"],
