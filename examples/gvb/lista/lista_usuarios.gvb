@@ -9,7 +9,7 @@ screen(title = "Glacier - Lista de Membros") {
   }
 
   container(class = caixa_3) {
-    column(align = Center, class = coluna_2) {
+    column(class = "coluna_2 coluna_4") {
       text(content = "Equipe (@total)", class = titulo_3)
 
       // O componente CartaoUsuario é instanciado uma vez por item do loop,

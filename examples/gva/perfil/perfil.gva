@@ -11,12 +11,12 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_4">
       <text class="titulo">
         Painel de Controle de Usuário
       </text>
 
-      <row align="Center" class="linha">
+      <row class="linha linha_3">
         <!-- Left control panel -->
         <container
           class="caixa_2"

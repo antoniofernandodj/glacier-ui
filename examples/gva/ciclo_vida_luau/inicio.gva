@@ -6,7 +6,7 @@
   </resources>
 
   <container class="caixa">
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_2">
       <text class="titulo">Início</text>
       <text class="texto">
         O monitor abre SSE e WebSocket ao entrar e o motor os fecha ao sair.

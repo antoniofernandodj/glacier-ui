@@ -4,7 +4,7 @@
   </resources>
 
   <container class="tela">
-    <column class="coluna" align="Center">
+    <column class="coluna coluna_2">
       <text class="titulo">Painel</text>
       <text class="info">Entradas: {entradas} · saídas: {saidas}</text>
       <text class="info">Último gancho: {ultimo}</text>

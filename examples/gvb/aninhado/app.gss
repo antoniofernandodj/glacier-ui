@@ -24,3 +24,6 @@
 .coluna_2 { spacing: 20; width: 360; }
 .titulo_2 { size: 26; bold: true; }
 .botao_3 { color: #89B4FA; width: fill; padding: 12; }
+
+.coluna_3 { align_x: Center; }
+.linha { align_y: Center; }

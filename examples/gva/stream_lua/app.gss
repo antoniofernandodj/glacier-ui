@@ -19,3 +19,6 @@
 .botao_3 { color: #A3BE8C; padding: 10 18; }
 .coluna_2 { spacing: 14; width: 460; }
 .titulo_2 { size: 22; bold: true; color: #ECEFF4; }
+
+.coluna_3 { align_x: Center; }
+.linha_2 { align_y: Center; }

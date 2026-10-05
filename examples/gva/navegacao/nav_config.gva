@@ -10,7 +10,7 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_5">
       <text class="titulo">
         Configurações
       </text>

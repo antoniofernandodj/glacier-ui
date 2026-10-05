@@ -11,7 +11,7 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna_2">
+    <column class="coluna_2 coluna_3">
       <text class="titulo_2">
         SSE + WebSocket em Lua
       </text>
@@ -19,7 +19,7 @@
       <text class="destaque">
         — Server-Sent Events —
       </text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Abrir SSE"
           on_click="abrir_sse"
@@ -41,7 +41,7 @@
       <text class="destaque">
         — WebSocket (echo) —
       </text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Conectar"
           on_click="abrir_ws"

@@ -8,7 +8,7 @@ screen(title = "Glacier — Bandeja", size = "460 300") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_2") {
       text(content = "Exemplo de bandeja", class = titulo)
 
       text(

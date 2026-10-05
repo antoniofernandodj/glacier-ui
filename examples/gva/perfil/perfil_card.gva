@@ -5,10 +5,10 @@
  <container
   class="caixa_3"
  >
-  <column align="Center" class="coluna_2">
+  <column class="coluna_2 coluna_4">
    <image source="examples/gva/perfil/avatar.png" width="100" height="100" clip="Circle" />
 
-   <column align="Center" class="coluna_3">
+   <column class="coluna_3 coluna_4">
     <text class="titulo_2">{user_name}</text>
     <text class="texto">{user_role}</text>
    </column>

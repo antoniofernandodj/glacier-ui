@@ -8,10 +8,10 @@ component {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_3") {
       text(content = "Contador: @valor", class = titulo)
 
-      row(align = Center, class = coluna) {
+      row(class = "coluna linha") {
         button(text = -, on_click = decrementar, class = botao)
         button(text = +, on_click = incrementar, class = botao_2)
       }

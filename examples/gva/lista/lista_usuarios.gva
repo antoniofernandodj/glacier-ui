@@ -9,7 +9,7 @@
   </resources>
 
   <container class="caixa_3">
-    <column align="Center" class="coluna_2">
+    <column class="coluna_2 coluna_4">
       <text class="titulo_3">Equipe ({total})</text>
 
       <!-- O componente CartaoUsuario é instanciado uma vez por item do loop,

@@ -44,6 +44,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   de widget — `spinbox width`, `colorwheel size`, gráficos —, `screen size` e valores
   dirigidos por dado). As classes novas têm nome provisório (`texto`, `coluna_2`…);
   as telas não ficam necessariamente idênticas. Os `.gss` criados dizem isso no topo.
+- **Correção nos exemplos: `align` em `column`/`row` não fazia nada.** O motor só
+  lê `align` no `<popover>`; o alinhamento dos filhos de uma `column` é `align_x`, e
+  o de uma `row` é `align_y` (e `align_x`/`align_y` já são propriedades do `.gss`).
+  74 usos nos exemplos e presets foram trocados e movidos para o `.gss`, e o
+  `.center { align: Center }` do `contador_macro`, que o motor ignorava com aviso,
+  virou `align_x`.
 - **Exemplos em `.gvb` rodam sozinhos**: cada `examples/gvb/<nome>/` ganhou o
   `main.rs` do gêmeo `.gva` (caminhos para `.gvb`) e um `[[example]]` no
   `Cargo.toml` — `cargo run --example gvb_<nome>`. O `gvb_inline_script` é novo.

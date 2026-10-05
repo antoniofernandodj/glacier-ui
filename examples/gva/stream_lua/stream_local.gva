@@ -11,7 +11,7 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_3">
       <text class="titulo">
         SSE + WebSocket em Lua → API Python (localhost:8000)
       </text>
@@ -19,7 +19,7 @@
       <text class="destaque">
         — Server-Sent Events (/sse) —
       </text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Abrir SSE"
           on_click="abrir_sse"
@@ -41,7 +41,7 @@
       <text class="destaque">
         — WebSocket echo (/ws) —
       </text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Conectar"
           on_click="abrir_ws"

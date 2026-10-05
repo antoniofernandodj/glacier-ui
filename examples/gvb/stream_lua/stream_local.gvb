@@ -9,7 +9,7 @@ screen(title = "Glacier - SSE + WebSocket em Lua (local)") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_3") {
       text(
         content = "SSE + WebSocket em Lua → API Python (localhost:8000)",
         class = titulo,
@@ -17,7 +17,7 @@ screen(title = "Glacier - SSE + WebSocket em Lua (local)") {
 
       text(content = "— Server-Sent Events (/sse) —", class = destaque)
 
-      row(align = Center, class = linha) {
+      row(class = "linha linha_2") {
         button(text = "Abrir SSE", on_click = abrir_sse, class = botao)
 
         button(text = "Fechar SSE", on_click = fechar_sse, class = botao_2)
@@ -27,7 +27,7 @@ screen(title = "Glacier - SSE + WebSocket em Lua (local)") {
       text(content = "@sse_msg", class = texto_2)
       text(content = "— WebSocket echo (/ws) —", class = destaque)
 
-      row(align = Center, class = linha) {
+      row(class = "linha linha_2") {
         button(text = Conectar, on_click = abrir_ws, class = botao)
 
         button(text = "Enviar ping", on_click = enviar_ws, class = botao_3)

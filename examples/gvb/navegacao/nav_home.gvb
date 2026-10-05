@@ -8,7 +8,7 @@ screen(title = "Glacier - Navegação · Início") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna_3) {
+    column(class = "coluna_3 coluna_5") {
       text(content = "Início", class = titulo)
       text(content = "Bem-vinda, @user_name", class = texto)
 

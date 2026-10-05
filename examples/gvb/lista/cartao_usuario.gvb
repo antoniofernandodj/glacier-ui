@@ -19,7 +19,7 @@ component {
   }
 
   container(class = caixa) {
-    row(align = Center, class = linha) {
+    row(class = "linha linha_2") {
       // Avatar circular com a inicial do nome
       container(background = @cor, class = caixa_2) {
         text(content = "@inicial", class = titulo)

@@ -13,3 +13,6 @@
 .linha { spacing: 15; }
 .botao { color: #BF616A; padding: 10 20; }
 .botao_2 { color: #A3BE8C; padding: 10 20; }
+
+.coluna_2 { align_x: Center; }
+.linha_2 { align_y: Center; }

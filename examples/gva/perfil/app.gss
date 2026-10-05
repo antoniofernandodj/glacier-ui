@@ -38,3 +38,6 @@
 .titulo_2 { size: 20; bold: true; color: #CDD6F4; }
 .texto { size: 14; color: #A6ADC8; }
 .botao_3 { width: fill; padding: 10 15; }
+
+.coluna_4 { align_x: Center; }
+.linha_3 { align_y: Center; }

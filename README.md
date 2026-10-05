@@ -11,9 +11,9 @@ bloco `<script>` em **[Luau](https://luau.org)** interpretado em tempo de execu√
 ```xml
 <!-- examples/gva/contador/contador.gva -->
 <Container padding="20" alignX="Center" alignY="Center" width="fill" height="fill" background="#2E3440">
-    <Column spacing="20" align="Center">
+    <Column spacing="20" align_x="Center">
         <Text content="Valor do Contador: {contador}" size="28" bold="true" color="#ECEFF4" />
-        <Row spacing="15" align="Center">
+        <Row spacing="15" align_y="Center">
             <Button text="Diminuir" on_click="decrementar" color="#BF616A" padding="10 20" />
             <Button text="Aumentar" on_click="incrementar" color="#A3BE8C" padding="10 20" />
         </Row>

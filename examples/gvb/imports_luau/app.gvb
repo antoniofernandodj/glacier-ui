@@ -9,7 +9,7 @@ screen(title = "Glacier - imports em Luau") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_2") {
       text(
         content = "imports em Lua (require de bibliotecas)", class = titulo,
       )

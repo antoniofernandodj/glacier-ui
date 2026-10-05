@@ -32,3 +32,5 @@
 .titulo_2 { size: 22; bold: true; color: #CDD6F4; }
 .texto_2 { size: 14; color: #A6ADC8; }
 .botao_5 { color: #313244; width: 240; padding: 12; }
+
+.coluna_5 { align_x: Center; }

@@ -10,7 +10,7 @@
  <container
   class="caixa"
  >
-  <column align="Center" class="coluna_3">
+  <column class="coluna_3 coluna_5">
    <text class="titulo">Início</text>
    <text class="texto">Bem-vinda, {user_name}</text>
 

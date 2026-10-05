@@ -11,7 +11,7 @@ screen(title = "Glacier - Componentes Aninhados") {
   }
 
   container(class = caixa_2) {
-    column(align = Center, class = coluna_2) {
+    column(class = "coluna_2 coluna_3") {
       text(
         color = @cor_texto,
         content = "Painel (destaque @destaque)", class = titulo_2,

@@ -10,12 +10,12 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_3">
       <text class="titulo">Demonstração de if / else</text>
 
       <!-- Checagem truthy: renderiza só quando {logado} for verdadeiro -->
       <if cond="{logado}">
-        <column align="Center" class="coluna_2">
+        <column class="coluna_2 coluna_3">
           <text class="texto">
             Bem-vindo de volta, {usuario}!
           </text>
@@ -27,7 +27,7 @@
         </column>
       </if>
       <else>
-        <column align="Center" class="coluna_2">
+        <column class="coluna_2 coluna_3">
         <text class="texto_2">
           Você não está conectado.
         </text>

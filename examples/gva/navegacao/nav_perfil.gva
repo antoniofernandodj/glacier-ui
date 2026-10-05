@@ -10,13 +10,13 @@
  <container
   class="caixa"
  >
-  <column align="Center" class="coluna">
+  <column class="coluna coluna_5">
    <text class="titulo">Perfil</text>
 
    <container
     class="caixa_2"
    >
-    <column align="Center" class="coluna_4">
+    <column class="coluna_4 coluna_5">
      <!-- Lê o mesmo estado compartilhado editado na tela de Configurações -->
      <text class="titulo_2">{user_name}</text>
      <text class="texto_2">{user_role}</text>

@@ -21,3 +21,5 @@
 .info { size: 13; color: var(--destaque); }
 
 .botao { padding: 10 18; }
+
+.coluna_2 { align_x: Center; }

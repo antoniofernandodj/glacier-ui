@@ -4,13 +4,13 @@ component {
   }
 
   container(class = caixa_3) {
-    column(align = Center, class = coluna_2) {
+    column(class = "coluna_2 coluna_4") {
       image(
         source = "examples/gvb/perfil/avatar.png", width = 100, height = 100,
         clip = Circle,
       )
 
-      column(align = Center, class = coluna_3) {
+      column(class = "coluna_3 coluna_4") {
         text(content = "@user_name", class = titulo_2)
         text(content = "@user_role", class = texto)
       }

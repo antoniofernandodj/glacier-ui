@@ -4,7 +4,7 @@ screen(title = "Glacier - ciclo de vida (Rust)") {
   }
 
   container(class = tela) {
-    column(class = coluna, align = Center) {
+    column(class = "coluna coluna_2") {
       text(class = titulo, content = "Início")
       text(
         class = info,

@@ -10,11 +10,11 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_2">
       <text
         class="titulo"
       >Valor do Contador: {contador}</text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Diminuir"
           on_click="decrementar"

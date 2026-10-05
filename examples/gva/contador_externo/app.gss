@@ -17,3 +17,6 @@
 .botao { color: #BF616A; padding: 10 20; }
 .botao_2 { color: #4C566A; padding: 10 20; }
 .botao_3 { color: #A3BE8C; padding: 10 20; }
+
+.coluna_2 { align_x: Center; }
+.linha_3 { align_y: Center; }

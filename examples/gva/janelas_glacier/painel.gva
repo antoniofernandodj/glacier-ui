@@ -10,7 +10,7 @@
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna_2">
+    <column class="coluna_2 coluna_3">
       <text class="titulo_2">
         Painel (Rust)
       </text>
@@ -30,7 +30,7 @@
       <text class="texto_5">
         Abrir nova janela:
       </text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Component Rust"
           on_click="nova_rust"

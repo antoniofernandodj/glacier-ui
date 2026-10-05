@@ -8,7 +8,7 @@ widget; `{var}` interpola o contexto; `<script>` carrega o comportamento em Lua;
 
 ```gv
 <Container padding="24" background="#2E3440">
-  <Column spacing="16" align="Center">
+  <Column spacing="16" align_x="Center">
     <Text content="Olá {nome}" size="22" />
     <Button text="Clique" on_click="fazer_algo" />
   </Column>

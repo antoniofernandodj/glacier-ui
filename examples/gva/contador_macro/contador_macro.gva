@@ -2,7 +2,7 @@
   <resources>
     <style>
       .center-xy  { align-x: Center; align-y: Center; }
-      .center     { align: Center; }
+      .center     { align_x: Center; }
       .fill       { width: fill; height: fill; }
       .gray       { color: #2E3440; }
       .p-20       { padding: 20; }
@@ -12,6 +12,7 @@
       .txt        { color: #ECEFF4; bold: true; size: 28; }
       .coluna { spacing: 20; }
       .linha { spacing: 15; }
+      .linha_2 { align_y: Center; }
     </style>
 
     <script>
@@ -27,7 +28,7 @@
   <container class="center-xy fill gray p-20">
     <column class="center coluna">
       <text class="txt">Valor do Contador: {contador}</text>
-      <row align="Center" class="linha">
+      <row class="linha linha_2">
         <button
           text="Diminuir"
           on_click="decrement"

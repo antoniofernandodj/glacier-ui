@@ -4,7 +4,7 @@
   </resources>
 
   <container class="tela">
-    <column class="coluna" align="Center">
+    <column class="coluna coluna_2">
       <text class="titulo">Início</text>
       <text class="info">
         Entradas no painel: {entradas} · saídas: {saidas}

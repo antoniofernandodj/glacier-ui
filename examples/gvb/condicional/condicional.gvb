@@ -8,20 +8,18 @@ screen(title = "Glacier - Condicional") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_3") {
       text(content = "Demonstração de if / else", class = titulo)
 
       // Checagem truthy: renderiza só quando {logado} for verdadeiro
       if @logado {
-        column(align = Center, class = coluna_2) {
+        column(class = "coluna_2 coluna_3") {
           text(content = "Bem-vindo de volta, @usuario!", class = texto)
-
           button(text = Sair, on_click = logout, class = botao)
         }
       } else {
-        column(align = Center, class = coluna_2) {
+        column(class = "coluna_2 coluna_3") {
           text(content = "Você não está conectado.", class = texto_2)
-
           button(text = Entrar, on_click = login, class = botao_2)
         }
       }

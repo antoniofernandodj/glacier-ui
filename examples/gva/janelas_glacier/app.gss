@@ -24,3 +24,6 @@
 .linha { spacing: 12; }
 .botao_5 { color: #B48EAD; padding: 10 16; }
 .botao_6 { color: #D08770; padding: 10 16; }
+
+.coluna_3 { align_x: Center; }
+.linha_2 { align_y: Center; }

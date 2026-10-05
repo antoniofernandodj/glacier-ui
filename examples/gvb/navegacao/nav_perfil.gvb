@@ -8,11 +8,11 @@ screen(title = "Glacier - Navegação · Perfil") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_5") {
       text(content = "Perfil", class = titulo)
 
       container(class = caixa_2) {
-        column(align = Center, class = coluna_4) {
+        column(class = "coluna_4 coluna_5") {
           // Lê o mesmo estado compartilhado editado na tela de Configurações
           text(content = "@user_name", class = titulo_2)
           text(content = "@user_role", class = texto_2)

@@ -9,10 +9,10 @@ screen(title = "Glacier - Painel de Perfil") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_4") {
       text(content = "Painel de Controle de Usuário", class = titulo)
 
-      row(align = Center, class = linha) {
+      row(class = "linha linha_3") {
         // Left control panel
         container(class = caixa_2) {
           column(class = coluna_2) {

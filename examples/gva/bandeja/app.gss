@@ -14,3 +14,5 @@
 .texto_2 { size: 13; color: #81A1C1; }
 .botao { color: #5E81AC; width: 300; padding: 12; }
 .nota { size: 11; color: #4C566A; }
+
+.coluna_2 { align_x: Center; }

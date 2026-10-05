@@ -2,16 +2,17 @@
  Ele agrupa declarações como o `<screen>` de uma janela, mas não aceita
  `title`/`size` — não há janela nenhuma a que eles se aplicariam. Aqui não há o
  que declarar, então a casca entra sozinha, sem `<resources>
+   <link rel="stylesheet" href="examples/gva/aninhado/app.gss" />
    <link rel="stylesheet" href="examples/gva/aninhado/app.gss" />`. -->
 <component>
   <container
     class="caixa"
   >
-    <column align="Center" class="coluna">
+    <column class="coluna coluna_3">
       <text class="titulo">
         Contador: {valor}
       </text>
-      <row align="Center" class="coluna">
+      <row class="coluna linha">
         <button
           text="-"
           on_click="decrementar"

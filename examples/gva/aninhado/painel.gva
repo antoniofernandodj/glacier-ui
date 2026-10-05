@@ -13,7 +13,7 @@
   <container
     class="caixa_2"
   >
-    <column align="Center" class="coluna_2">
+    <column class="coluna_2 coluna_3">
     <text color="{cor_texto}" class="titulo_2">
       Painel (destaque {destaque})
     </text>

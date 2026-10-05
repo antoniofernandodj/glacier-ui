@@ -11,10 +11,10 @@ screen(title = "Glacier - Contador (script Lua externo)") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_2") {
       text(content = "Valor do Contador: @contador", class = titulo)
 
-      row(align = Center, class = linha) {
+      row(class = "linha linha_3") {
         text(content = "Passo:", class = texto)
 
         input(
@@ -23,7 +23,7 @@ screen(title = "Glacier - Contador (script Lua externo)") {
         )
       }
 
-      row(align = Center, class = linha_2) {
+      row(class = "linha_2 linha_3") {
         button(text = Diminuir, on_click = decrementar, class = botao)
         button(text = Zerar, on_click = zerar, class = botao_2)
         button(text = Aumentar, on_click = incrementar, class = botao_3)

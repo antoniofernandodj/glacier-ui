@@ -8,12 +8,10 @@ screen(title = "Glacier - Contador") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna) {
+    column(class = "coluna coluna_2") {
       text(content = "Valor do Contador: @contador", class = titulo)
-
-      row(align = Center, class = linha) {
+      row(class = "linha linha_2") {
         button(text = Diminuir, on_click = decrementar, class = botao)
-
         button(text = Aumentar, on_click = incrementar, class = botao_2)
       }
     }

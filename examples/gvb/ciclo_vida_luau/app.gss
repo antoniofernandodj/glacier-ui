@@ -17,3 +17,5 @@
 .texto_3 { size: 15; color: #A3BE8C; }
 .botao_2 { color: #A3BE8C; padding: 10 18; }
 .botao_3 { color: #BF616A; padding: 10 18; }
+
+.coluna_2 { align_x: Center; }

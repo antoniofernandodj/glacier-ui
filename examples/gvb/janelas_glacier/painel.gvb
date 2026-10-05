@@ -8,7 +8,7 @@ screen(title = "Glacier - Janela principal", size = "520 400") {
   }
 
   container(class = caixa) {
-    column(align = Center, class = coluna_2) {
+    column(class = "coluna_2 coluna_3") {
       text(content = "Painel (Rust)", class = titulo_2)
       text(content = "Contador desta janela: @valor", class = texto_3)
       text(content = "Broadcasts recebidos: @recebidos", class = texto_4)
@@ -17,7 +17,7 @@ screen(title = "Glacier - Janela principal", size = "520 400") {
 
       text(content = "Abrir nova janela:", class = texto_5)
 
-      row(align = Center, class = linha) {
+      row(class = "linha linha_2") {
         button(text = "Component Rust", on_click = nova_rust, class = botao_5)
 
         button(text = "XML (Lua)", on_click = nova_xml, class = botao_6)
