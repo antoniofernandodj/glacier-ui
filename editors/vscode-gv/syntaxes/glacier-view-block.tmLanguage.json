@@ -148,9 +148,9 @@
       ]
     },
     "prose": {
-      "comment": "Bloco de texto \"\"\" … \"\"\" — o filho de um <text>, colapsado como hoje.",
+      "comment": "Bloco de texto \"\"\" … \"\"\" (colapsado) ou l\"\"\" … \"\"\" (linhas: mantém as quebras e tira o recuo comum).",
       "name": "string.quoted.triple.glacier-view-block",
-      "begin": "\"\"\"",
+      "begin": "l?\"\"\"",
       "beginCaptures": {
         "0": {
           "name": "punctuation.definition.string.begin.glacier-view-block"

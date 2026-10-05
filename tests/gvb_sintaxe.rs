@@ -122,3 +122,37 @@ fn marcador_sem_valor() {
     assert_eq!(xml("template(else) { text(content = x) }"), r#"<templateelse=""><textcontent="x"/></template>"#);
     assert_eq!(xml("template(else, class = a)"), r#"<templateelse=""class="a"/>"#);
 }
+
+/// `l"""` guarda as quebras de linha e tira a indentação comum; o `@nome` segue
+/// interpolando e as aspas `"` entram sem escape. É o contrário do `"""`, que
+/// dobra as linhas num espaço só.
+#[test]
+fn bloco_de_linhas() {
+    let src = "textarea(placeholder = l\"\"\"\n    services:\n      app:\n        image: @img\n  \"\"\")";
+    let x = desugar(src).unwrap();
+    assert!(
+        x.contains(r#"placeholder="services:&#10;  app:&#10;    image: {img}""#),
+        "{x}"
+    );
+    // aspas dentro, sem escape; linha em branco no meio é preservada (vazia)
+    let x = desugar("t(p = l\"\"\"\n  a: [\"sh\", \"-c\"]\n\n  b\n\"\"\")").unwrap();
+    assert!(x.contains(r#"p="a: [&quot;sh&quot;, &quot;-c&quot;]&#10;&#10;b""#), "{x}");
+    // numa linha só, e o `l` que não abre `"""` segue sendo um valor nu
+    assert!(desugar("t(p = l\"\"\"x\"\"\")").unwrap().contains(r#"p="x""#));
+    assert!(desugar("t(p = lixo)").unwrap().contains(r#"p="lixo""#));
+    // texto na primeira linha entra como está e o recuo comum passa a ser o dele
+    let x = desugar("t(p = l\"\"\"a\n   b\n\"\"\")").unwrap();
+    assert!(x.contains(r#"p="a&#10;   b""#), "{x}");
+}
+
+/// O `l"""` come linhas do `.gvb`, mas o resto do arquivo continua apontando a
+/// linha certa: o XML alcança a do próximo nó.
+#[test]
+fn bloco_de_linhas_nao_desloca_as_linhas() {
+    let src = "column {\n  textarea(p = l\"\"\"\n    a\n    b\n  \"\"\")\n  text(content = x)\n}\n";
+    let x = desugar(src).unwrap();
+    assert_eq!(x.lines().position(|l| l.contains("<text ")), Some(5), "{x}");
+    // uma string nunca fechada aponta o `l"""`
+    let e = desugar("t(p = l\"\"\"abc)").unwrap_err();
+    assert!(e.message.contains("nunca fechada"), "{}", e.message);
+}

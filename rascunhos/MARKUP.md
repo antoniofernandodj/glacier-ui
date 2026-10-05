@@ -181,6 +181,41 @@ text(
 )
 ```
 
+**Quebras de linha numa string.** São três formas, e a diferença é o que a
+quebra de linha significa:
+
+| Forma | Quebra de linha | Recuo | `@nome` |
+|---|---|---|---|
+| `"…"` | preservada | preservado (cola na margem) | interpola |
+| `"""…"""` | **dobrada** num espaço (prosa) | some junto | interpola |
+| `l"""…"""` | **preservada** (linhas) | o recuo comum sai | interpola |
+
+`"…"` não interpreta `\n` (só `\"` e `\\` são escapes), então um texto
+multilinha nele só existe com a quebra literal, que não pode ser reindentada.
+Para YAML, JSON ou qualquer texto em que a quebra é conteúdo, use `l"""`:
+
+```
+textarea(
+  placeholder = l"""
+    services:
+      app:
+        image: @imagem
+  """,
+)
+```
+
+O `l` é de *linhas*, **não** de "raw": o `@nome` continua interpolando (`@@` é um
+arroba literal) e o texto não é interpretado de outra forma. Só muda o que a
+quebra de linha vale. Regras:
+
+- a primeira linha some se for só espaço (comece o texto na linha seguinte ao
+  `l"""`), e a última também (a do `"""` que fecha, com o recuo dela);
+- o recuo comum às linhas não vazias sai; o que passar disso fica — é o que
+  deixa o YAML recuado dentro do texto;
+- aspas `"` entram sem escape; só uma sequência `"""` termina o bloco;
+- linha em branco fica vazia, e `\r\n` vira `\n`;
+- vale onde um valor é aceito (atributos), não no corpo cru de `script`/`style`.
+
 Como o valor não é XML, `<splitter>` se escreve `<splitter>`: os 24 `&lt;` do
 arquivo somem. A exceção é o corpo cru de `script`/`style` (`style """…"""`),
 que é código, não texto, e fica depois do cabeçalho.

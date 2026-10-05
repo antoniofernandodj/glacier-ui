@@ -10,6 +10,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **`l"""…"""`: string de linhas no `.gvb`.** Um texto em que a quebra de linha é
+  conteúdo (um YAML num `placeholder`, um JSON) não tinha forma própria: `"…"` não
+  aceita recuo e `"""` dobra as linhas num espaço. O `l"""` mantém as quebras e
+  remove o recuo comum; o `@nome` continua interpolando (o `l` é de *linhas*, não de
+  *raw*). Aditivo — nada do que já funcionava muda. A extensão do VS Code ganha o
+  realce e o parser sombra do `l"""`. Ver `rascunhos/MARKUP.md`.
+
 ## glacier-ui 0.118.0 — 2026-10-05
 
 - **`open_window` aceita `decorations`.** `open_window{ component = "log", size = "900 560",

@@ -593,6 +593,40 @@ Componentes locais se compõem entre si e convivem com `<import>` no mesmo
 `<resources>`. Ver [`examples/gva/componentes_locais`](examples/gva/componentes_locais),
 que põe as duas formas lado a lado no mesmo arquivo.
 
+### Dividir uma tela grande em arquivos
+
+Um `<component>` importado serve também para fatiar uma tela que cresceu: o
+arquivo grande fica com o cabeçalho e o roteador (`if @view == …` /
+`if @tab == …`), e cada ramo vira um arquivo com a mesma casca. O componente é
+instanciado **sem props** e lê o estado global como o resto da tela — foi assim
+que um `shell.gvb` de 904 linhas virou ~200 e um `service.gvb` de 1860 virou
+~330, sem mudar a árvore avaliada. As regras que valem conferir:
+
+- **A condição vai na chamada, não na raiz do componente.** Um `if=` no nó raiz
+  do `<component>` **não é aplicado** (o conteúdo aparece sempre, sem erro). Use
+  o atributo no ponto de uso:
+
+  ```
+  ServiceLogsTab(if = @tab, equals = logs)        // .gvb
+  <ServiceLogsTab if="{tab}" equals="logs" />      <!-- .gv -->
+  ```
+
+  Para o corpo de um `if @x == "y" { … }` com vários filhos, extraia o **corpo**:
+  um `<component>` pode ter várias raízes.
+- **O `href` do `<import>`/`link(rel = import)` é relativo ao arquivo que
+  importa.** De dentro de `service/general.gvb`, o vizinho é `"general_git.gvb"`,
+  não `"service/general_git.gvb"`.
+- **Os nomes importados e o `<style>` inline são globais** (só `scoped="true"`
+  restringe o estilo): o arquivo extraído usa os componentes já importados sem
+  reimportar, e o CSS pode ficar no arquivo-mãe.
+- **O prefixo de dono das ações muda** (`Pai::acao` → `Filho::acao`). O dispatch
+  só o trata como dono se for um componente registrado com script; senão a ação
+  cai na tela atual — então é inócuo.
+- **Prove a equivalência pela árvore avaliada.** `render().is_ok()` não pega
+  conteúdo que sumiu ou apareceu na aba errada. Compare `{:#?}` de
+  `GlacierUI::evaluated(..)` antes e depois, normalizando `node_id` (contador
+  global) e o prefixo `Dono::`.
+
 ### `<props>`: o contrato do componente
 
 Um `<component>` pode declarar as props que aceita, e a declaração passa a ser

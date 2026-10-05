@@ -90,6 +90,11 @@ class Parser {
   value() {
     const c = this.peek();
     if (c === '"') return { kind: "src", ...this.string() };
+    // `l"""…"""`: o bloco de linhas; o `l` não faz parte do conteúdo.
+    if (c === "l" && this.starts('l"""')) {
+      this.i++;
+      return { kind: "src", ...this.string() };
+    }
     if (c === undefined || c === "," || c === ")") throw new Error("valor");
     const off = this.i;
     while (this.i < this.s.length) {

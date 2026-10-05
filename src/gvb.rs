@@ -705,6 +705,13 @@ impl Parser {
             // `"""…"""` é prosa: o espaço em branco colapsa como num texto do
             // `.gva`, então a quebra de linha é livre.
             Some('"') if self.starts_with("\"\"\"") => Ok(collapse(&self.string(false)?.0)),
+            // `l"""…"""` são LINHAS: as quebras ficam e a indentação comum sai.
+            // Não é "raw" (o `@nome` continua interpolando): o `l` só avisa que a
+            // quebra de linha é conteúdo, ao contrário do `"""` acima.
+            Some('l') if self.starts_with("l\"\"\"") => {
+                self.bump(); // o `l`
+                Ok(interpolate(&lines_block(&self.string(true)?.0)))
+            }
             Some('"') => Ok(self.string(false)?.0),
             None | Some(',' | ')') => self.err("esperava um valor depois do `=`"),
             _ => {
@@ -815,6 +822,41 @@ fn collapse(s: &str) -> String {
         }
     }
     out
+}
+
+/// O corpo de um `l"""`: as quebras de linha são conteúdo e a indentação comum sai.
+///
+/// - a primeira linha some se for só espaço (o texto começa na linha seguinte ao
+///   `l"""`), e a última também (a linha do `"""` que fecha, com o recuo dele);
+/// - o recuo comum às linhas não vazias é removido — o que vier a mais fica, é o
+///   que permite um YAML ou um JSON recuado dentro do texto;
+/// - linha em branco fica vazia; `\r\n` vira `\n`.
+///
+/// Roda sobre o texto **cru**, antes do `@nome` ser interpolado.
+fn lines_block(raw: &str) -> String {
+    let mut ls: Vec<&str> = raw.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
+    if ls.first().is_some_and(|l| l.trim().is_empty()) {
+        ls.remove(0);
+    }
+    if ls.last().is_some_and(|l| l.trim().is_empty()) {
+        ls.pop();
+    }
+    let recuo = ls
+        .iter()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.chars().take_while(|c| c.is_whitespace()).count())
+        .min()
+        .unwrap_or(0);
+    ls.iter()
+        .map(|l| {
+            if l.trim().is_empty() {
+                String::new()
+            } else {
+                l.chars().skip(recuo).collect()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A regra 5: `@nome` / `@{nome}` viram `{nome}`; `@@` é um arroba literal.
