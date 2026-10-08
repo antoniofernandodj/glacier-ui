@@ -28,6 +28,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
   repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
 
+## glacier-ui 0.120.0 — 2026-10-08
+
+- **`@glacier_window_maximized`: a janela sabe se está maximizada.** O `window:maximize` só
+  alterna, e nada no contexto dizia o estado atual — uma titlebar custom ficava com o mesmo
+  "▢" maximizada ou não. O daemon agora consulta `window::is_maximized` ao abrir cada janela
+  e a cada resize, e publica `"true"`/`"false"` sob `glacier_window_maximized`
+  (`daemon::WINDOW_MAXIMIZED_KEY`) no motor da janela — só quando muda, então arrastar o
+  canto não reavalia nada. Vale também quando quem maximizou foi a WM (Super+↑, snap).
+  Aditivo. Exemplo: `examples/gvb/titlebar_maximizar`.
+
 ## glacier-ui 0.119.1 — 2026-10-07
 
 - **Corrigido: o submit de um `<form>` com `rules` dentro de um componente importado era

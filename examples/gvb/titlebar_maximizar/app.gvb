@@ -1,0 +1,18 @@
+// O botão de maximizar troca para "restaurar" quando a janela está maximizada:
+// o daemon mantém `@glacier_window_maximized` em dia a cada resize — inclusive
+// quando quem maximiza é a WM (Super+↑, duplo-clique na barra nativa).
+//
+//     cargo run --example gvb_run -- examples/gvb/titlebar_maximizar/app.gvb
+screen(title = "Glacier - Titlebar") {
+  column(width = fill, padding = 16, spacing = 12) {
+    row(spacing = 8) {
+      text(content = "maximizada: @glacier_window_maximized")
+      button(on_click = window:minimize, text = "—")
+      if @glacier_window_maximized {
+        button(on_click = window:maximize, text = "❐ restaurar")
+      } else {
+        button(on_click = window:maximize, text = "▢ maximizar")
+      }
+    }
+  }
+}

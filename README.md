@@ -1702,6 +1702,18 @@ Permitem montar uma barra de título customizada para uma janela sem decoraçõe
 <Button text="✕" on_click="window:close" />
 ```
 
+O `window:maximize` só **alterna**; para o botão refletir o estado, o daemon mantém
+`glacier_window_maximized` (`"true"`/`"false"`) no contexto de cada janela,
+atualizado a cada resize — inclusive quando a WM maximiza (Super+↑, snap):
+
+```
+if @glacier_window_maximized {
+  button(on_click = window:maximize, text = "❐")
+} else {
+  button(on_click = window:maximize, text = "▢")
+}
+```
+
 ---
 
 ## Hot-reload

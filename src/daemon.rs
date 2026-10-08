@@ -972,6 +972,11 @@ pub enum DaemonMessage {
     /// fora de `webview_ids` (uma janela comum já resolve tamanho pelo
     /// próprio layout do `iced`).
     WebviewResized(window::Id, Size),
+    /// A resposta de `window::is_maximized`, consultada a cada resize e na
+    /// abertura de cada janela. Publicada no contexto do motor da janela sob
+    /// [`WINDOW_MAXIMIZED_KEY`] — só quando muda, para um arrasto no canto não
+    /// custar um re-eval por pixel.
+    Maximized(window::Id, bool),
     /// Tick para avançar o loop do GTK (ver `crate::webview::pump`) — só
     /// registrado enquanto houver alguma janela de webview aberta. Sem
     /// carga: o `update` só precisa saber que é hora de bombear.
@@ -1131,22 +1136,41 @@ impl Runtime {
                     })
                     .discard();
                 }
-                #[cfg(not(feature = "webview"))]
-                let _ = id;
-                Task::none()
+                // Estado inicial: a janela pode nascer maximizada (geometria
+                // lembrada, `maximized: true` no settings, regra da WM).
+                query_maximized(id)
             }
             DaemonMessage::WebviewResized(id, size) => {
+                // Maximizar/restaurar sempre muda o tamanho, então é aqui que o
+                // estado `glacier_window_maximized` se mantém em dia — inclusive
+                // quando quem maximizou foi a WM (Super+↑, snap, duplo-clique
+                // na barra nativa), não o `window:maximize` do markup.
+                let maximized = query_maximized(id);
                 #[cfg(feature = "webview")]
                 if self.webview_ids.contains(&id) {
                     let wh = (size.width, size.height);
                     return iced::window::run(id, move |_w| {
                         crate::webview::resize(id, wh);
                     })
-                    .discard();
+                    .discard()
+                    .chain(maximized);
                 }
                 #[cfg(not(feature = "webview"))]
-                let _ = (id, size);
-                Task::none()
+                let _ = size;
+                maximized
+            }
+            DaemonMessage::Maximized(id, maximized) => {
+                let value = maximized.to_string();
+                let unchanged = self.windows.get(&id).is_some_and(|e| {
+                    e.context().get(WINDOW_MAXIMIZED_KEY).map(String::as_str) == Some(&*value)
+                });
+                if unchanged || !self.windows.contains_key(&id) {
+                    return Task::none();
+                }
+                self.route(
+                    id,
+                    EngineMessage::ContextPatch(vec![(WINDOW_MAXIMIZED_KEY.to_string(), value)]),
+                )
             }
             DaemonMessage::WebviewPumpGtk => {
                 #[cfg(feature = "webview")]
@@ -2211,6 +2235,18 @@ fn file_stem(path: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or("janela")
         .to_string()
+}
+
+/// Chave de contexto com o estado de maximização da janela (`"true"`/`"false"`),
+/// mantida pelo daemon em cada motor. É o que deixa uma titlebar custom trocar o
+/// botão de maximizar pelo de restaurar:
+/// `if @glacier_window_maximized { … "❐" } else { … "▢" }`.
+pub const WINDOW_MAXIMIZED_KEY: &str = "glacier_window_maximized";
+
+/// Pergunta ao SO se a janela `id` está maximizada; a resposta volta como
+/// [`DaemonMessage::Maximized`].
+fn query_maximized(id: window::Id) -> Task<DaemonMessage> {
+    window::is_maximized(id).map(move |m| DaemonMessage::Maximized(id, m))
 }
 
 /// Traduz uma ação `window:<cmd>` da titlebar custom na `Task` do iced
