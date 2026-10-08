@@ -889,6 +889,107 @@ fn item_layer<'b>(
     (layer, this_key)
 }
 
+/// Os filhos avaliados de um `<tableview>` com `<tablecolumn>`s: primeiro uma
+/// cabeça por coluna visível (o `<tablecolumn>` avaliado **sem** o corpo — é
+/// dali que o widget lê `key`, `label`, `align` e a trilha, com a `class` e a
+/// `@media` já aplicadas), depois, linha a linha e na ordem do `sort`, uma
+/// célula por coluna: o corpo da coluna avaliado com a linha em `@<var>.campo`,
+/// embrulhado num `Column`. Uma coluna sem corpo ganha a célula vazia, e o
+/// widget escreve nela o texto do campo. Sem linha nenhuma, por fim, os
+/// filhos que não são coluna — o "carregando"/"nenhum item".
+///
+/// A ordenação acontece aqui, e não só no widget, porque as células já saem
+/// avaliadas: o widget só as encaixa na grade, na ordem em que chegaram.
+#[allow(clippy::too_many_arguments)]
+fn expand_table(
+    node: &UiNode,
+    kind: &NodeType,
+    context: &EvalCtx,
+    templates: &HashMap<String, UiNode>,
+    styles: &StyleContext,
+    scope: Option<&str>,
+    owner: Option<&str>,
+    slot: Option<&SlotContent>,
+    cache: &mut EvalCache,
+    out: &mut Vec<UiNode>,
+) -> Result<()> {
+    let NodeType::TableView {
+        items_var,
+        sort_var,
+        header_only,
+        row_var,
+        ..
+    } = kind
+    else {
+        return Ok(());
+    };
+
+    let mut colunas: Vec<&UiNode> = Vec::new();
+    for bruta in node
+        .children
+        .iter()
+        .filter(|c| matches!(c.kind, NodeType::TableColumn { .. }))
+    {
+        let mut cabeca = bruta.clone();
+        cabeca.children = Vec::new().into();
+        let cabeca = eval_owned(
+            &cabeca, context, templates, styles, scope, owner, None, None, None, None, slot, cache,
+        )?;
+        if cabeca.hidden == Some(true) {
+            continue;
+        }
+        colunas.push(bruta);
+        out.push(cabeca);
+    }
+    if *header_only || colunas.is_empty() {
+        return Ok(());
+    }
+
+    let mut linhas: Vec<serde_json::Value> = context
+        .get(items_var)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        .and_then(|v| match v {
+            serde_json::Value::Array(a) => Some(a),
+            _ => None,
+        })
+        .unwrap_or_default();
+    crate::widget::ordena_tabela(&mut linhas, context.get(sort_var));
+
+    for (i, linha) in linhas.iter().enumerate() {
+        let (layer, _) = item_layer(linha, row_var, None, context);
+        let linha_ctx = context.with(&layer, mix(node.node_id, i as u64));
+        for coluna in &colunas {
+            let mut celula = Vec::new();
+            expand_children(
+                &coluna.children,
+                &linha_ctx,
+                templates,
+                styles,
+                scope,
+                owner,
+                &mut celula,
+                slot,
+                cache,
+            )?;
+            out.push(crate::parser::empty_node(NodeType::Column, celula));
+        }
+    }
+    // O que não é coluna: o conteúdo de "sem linhas", no contexto da tela.
+    // Só é avaliado quando vai aparecer.
+    if linhas.is_empty() {
+        let resto: Vec<UiNode> = node
+            .children
+            .iter()
+            .filter(|c| !matches!(c.kind, NodeType::TableColumn { .. }))
+            .cloned()
+            .collect();
+        expand_children(
+            &resto, context, templates, styles, scope, owner, out, slot, cache,
+        )?;
+    }
+    Ok(())
+}
+
 /// Process string template by replacing `{key}` placeholders with values from context
 pub fn process_template(template: &str, context: &ContextMap) -> String {
     process_tpl(template, &EvalCtx::new(context))
@@ -3008,17 +3109,56 @@ fn eval_owned(
             row_height,
             on_select,
             on_sort,
-        } => NodeType::TableView {
-            items_var: process_tpl(items_var, context),
-            columns_var: process_tpl(columns_var, context),
-            value_var: process_tpl(value_var, context),
-            multi: *multi,
-            sort_var: process_tpl(sort_var, context),
-            widths_var: process_tpl(widths_var, context),
-            header_only: *header_only,
-            row_height: *row_height,
-            on_select: namespace_action(process_tpl(on_select, context), owner),
-            on_sort: namespace_action(process_tpl(on_sort, context), owner),
+            row_var,
+            row_key,
+            header_class,
+            row_class,
+            look: _,
+        } => {
+            let header_class = process_tpl(header_class, context);
+            let row_class = process_tpl(row_class, context);
+            // As classes da faixa do cabeçalho e da linha são resolvidas AQUI,
+            // contra as mesmas folhas (e a mesma `@media`) que um nó comum —
+            // o widget só recebe o resultado. Sem nenhuma das duas, `look`
+            // fica `None` e a tabela desenha como sempre desenhou.
+            let look = (!header_class.trim().is_empty() || !row_class.trim().is_empty()).then(|| {
+                let active = styles.active(scope);
+                let resolve = |c: &str| resolve_classes(None, c, None, &active, styles.viewport);
+                Box::new(crate::parser::TableLook {
+                    header: resolve(&header_class),
+                    row: resolve(&row_class),
+                    row_hover: resolve_state_classes(None, &row_class, None, &active, styles.viewport)
+                        .hover,
+                })
+            });
+            NodeType::TableView {
+                items_var: process_tpl(items_var, context),
+                columns_var: process_tpl(columns_var, context),
+                value_var: process_tpl(value_var, context),
+                multi: *multi,
+                sort_var: process_tpl(sort_var, context),
+                widths_var: process_tpl(widths_var, context),
+                header_only: *header_only,
+                row_height: *row_height,
+                on_select: namespace_action(process_tpl(on_select, context), owner),
+                on_sort: namespace_action(process_tpl(on_sort, context), owner),
+                row_var: process_tpl(row_var, context),
+                row_key: process_tpl(row_key, context),
+                header_class,
+                row_class,
+                look,
+            }
+        }
+        NodeType::TableColumn {
+            key,
+            label,
+            align,
+            sort_key,
+        } => NodeType::TableColumn {
+            key: process_tpl(key, context),
+            label: process_tpl(label, context),
+            align: process_tpl(align, context),
+            sort_key: process_tpl(sort_key, context),
         },
         NodeType::TreeView {
             items_var,
@@ -3320,19 +3460,39 @@ fn eval_owned(
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
     let mut children_eval = Vec::new();
-    expand_children(
-        &node.children,
-        context,
-        templates,
-        styles,
-        scope,
-        owner,
-        &mut children_eval,
-        // Um `<slot/>` a qualquer profundidade do template do componente ainda
-        // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
-        slot,
-        cache,
-    )?;
+    if matches!(kind_eval, NodeType::TableView { .. })
+        && node
+            .children
+            .iter()
+            .any(|c| matches!(c.kind, NodeType::TableColumn { .. }))
+    {
+        expand_table(
+            node,
+            &kind_eval,
+            context,
+            templates,
+            styles,
+            scope,
+            owner,
+            slot,
+            cache,
+            &mut children_eval,
+        )?;
+    } else {
+        expand_children(
+            &node.children,
+            context,
+            templates,
+            styles,
+            scope,
+            owner,
+            &mut children_eval,
+            // Um `<slot/>` a qualquer profundidade do template do componente ainda
+            // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
+            slot,
+            cache,
+        )?;
+    }
 
     // A `<Form>` hydrates every `formControl`-bound descendant (at any depth,
     // through nested Rows/Columns) with the shared scope, its evaluated

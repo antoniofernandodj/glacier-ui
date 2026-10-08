@@ -378,6 +378,41 @@ A tabela (`QTableView`/`QHeaderView`). **Uma primitiva só**: o cabeçalho é a 
 - **A ordenação é numérica** quando os dois lados parseiam como número, textual (sem caixa, sem acento) quando não. Sem isso, uma coluna de contagem coloca `"10"` antes de `"9"`.
 - **Clicar num cabeçalho ordena; de novo inverte.** Trocar de coluna sempre recomeça crescente.
 - **A alça de arrasto converte a trilha em fixa** e escreve na chave de `widths`, no mesmo formato de `columns` — o que permite ao app salvar e restaurar o layout do usuário. O arrasto mora em `__colgrip`, do motor, e é o único momento em que ele escuta o movimento do mouse.
+
+#### Colunas no markup: `<TableColumn>` (`<ColunaTabela>`)
+
+No lugar do `columns`, as colunas podem ser filhas da tabela — e aí cada uma pode ter **corpo**, o modelo da célula, avaliado uma vez por linha com a linha em `@<var>.<campo>`. Qualquer nó serve: badge, botão, componente.
+
+```gvb
+tableview(:items = containers, :sort = ordem, var = c, row_key = id,
+          header_class = "thead th", row_class = "trow td", height = fill) {
+  tablecolumn(key = name, label = NOME, class = col_nome) {
+    text(class = td_key, content = "@c.name")
+  }
+  tablecolumn(key = image, label = IMAGEM, width = fill)   // sem corpo: o texto do campo
+  tablecolumn(label = "AÇÃO", width = 120) {
+    button(on_click = remover:@c.id, text = Remover)
+  }
+}
+```
+
+| prop | onde | o que faz |
+| --- | --- | --- |
+| `key` | coluna | o campo: o texto da célula sem corpo e o que `sort` ordena. Sem `key`, a coluna não ordena |
+| `sort_key` | coluna | ordena por **outro** campo: a coluna mostra `"1.2 GB"` e ordena por `size_bytes` |
+| `label` | coluna | o rótulo do cabeçalho (vazio = o `key`) |
+| `align` | coluna | `left` / `center` / `right` |
+| `width` | coluna | a trilha: número fixa, `fill` reparte a sobra, ausente mede o conteúdo. Vale pela `class` também, inclusive em `@media` |
+| `hidden` | coluna | `true` (inline ou pela `class`) tira a coluna inteira |
+| `var` | tabela | o nome da linha no corpo das colunas. Default `row` |
+| `row_key` | tabela | o campo que identifica a linha para `value`/`onSelect`. Vazio = `id`, ou a primeira coluna |
+| `header_class` | tabela | a faixa do cabeçalho: `background`, `border-radius`, `padding` e o texto dos rótulos (`color`, `size`, `bold`) |
+| `row_class` | tabela | cada linha: `background` e `:hover`, `padding`, o texto das células sem corpo e — `border-color`/`border-width` — o fio sob a linha. `spacing` = o vão entre colunas |
+
+- O `padding` da faixa vale **para a linha**: à esquerda só na primeira coluna, à direita só na última.
+- A faixa é pintada **de ponta a ponta** pela grade, e é ela que recebe o clique de seleção — um botão dentro da célula continua sendo dele.
+- Com `height`, o **cabeçalho fica preso no topo** enquanto o corpo rola.
+- Os filhos que **não** são `tablecolumn` são o conteúdo de **"sem linhas"**, sob o cabeçalho: `if @carregando { LoadingRow } else { text(content = "Nenhum item.") }`.
 - **A identidade de uma linha** é o `id` dela, ou o valor da primeira coluna, ou o índice — nessa ordem.
 
 ### `<TreeView>` (`<Arvore>`)

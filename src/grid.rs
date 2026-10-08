@@ -64,9 +64,12 @@
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
-use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget};
-use iced::{Alignment, Element, Event, Length, Padding, Rectangle, Size, Vector, mouse};
+use iced::{
+    Alignment, Background, Border, Color, Element, Event, Length, Padding, Point, Rectangle, Size,
+    Vector, mouse,
+};
 
 /// A largura de uma coluna, como o markup a declarou.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -140,6 +143,35 @@ pub struct Grid<'a, Message> {
     height: Length,
     /// Alinhamento vertical de uma célula dentro da linha dela.
     align_y: Alignment,
+    /// A pintura de cada linha, por índice (ver [`Faixa`]). Mais curto que o
+    /// número de linhas = as que sobram não são pintadas.
+    faixas: Vec<Faixa>,
+    /// A mensagem do clique em cada linha, por índice — o clique que nenhuma
+    /// célula capturou (um botão dentro dela continua sendo dele).
+    cliques: Vec<Option<Message>>,
+    /// A primeira linha (o cabeçalho) fica presa no topo da janela de rolagem
+    /// enquanto o resto passa por baixo.
+    fixa: bool,
+}
+
+/// A pintura de uma linha **inteira** da grade — fundo, fundo sob o mouse e o
+/// fio de baixo. Desenhada pela grade, atrás das células, de ponta a ponta:
+/// pintar célula a célula deixaria a faixa recortada sempre que as células de
+/// uma linha tivessem alturas diferentes.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Faixa {
+    pub fundo: Option<Color>,
+    pub hover: Option<Color>,
+    pub raio: f32,
+    /// O fio sob a linha: cor e espessura.
+    pub fio: Option<(Color, f32)>,
+}
+
+/// O estado da grade entre quadros: a linha sob o mouse, para o `hover` só
+/// pedir redesenho quando ela muda.
+#[derive(Debug, Default)]
+struct Estado {
+    sob_o_mouse: Option<usize>,
 }
 
 /// Uma grade com as trilhas dadas. Uma lista de trilhas vazia vira uma coluna
@@ -162,6 +194,9 @@ pub fn grid<'a, Message>(
         width: Length::Shrink,
         height: Length::Shrink,
         align_y: Alignment::Start,
+        faixas: Vec::new(),
+        cliques: Vec::new(),
+        fixa: false,
     }
 }
 
@@ -189,6 +224,24 @@ impl<Message> Grid<'_, Message> {
 
     pub fn align_y(mut self, a: Alignment) -> Self {
         self.align_y = a;
+        self
+    }
+
+    /// Ver [`Faixa`]: uma por linha, na ordem das linhas.
+    pub fn faixas(mut self, faixas: Vec<Faixa>) -> Self {
+        self.faixas = faixas;
+        self
+    }
+
+    /// Uma mensagem (ou nenhuma) por linha, publicada no clique na linha.
+    pub fn cliques(mut self, cliques: Vec<Option<Message>>) -> Self {
+        self.cliques = cliques;
+        self
+    }
+
+    /// Prende a primeira linha no topo quando a grade rola. Ver `Self::fixa`.
+    pub fn primeira_fixa(mut self, sim: bool) -> Self {
+        self.fixa = sim;
         self
     }
 
@@ -268,7 +321,129 @@ fn larguras(
     base
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message> {
+/// O retângulo de cada linha, de ponta a ponta da grade: o topo é o da célula
+/// mais alta (que não leva deslocamento de `align_y`) e a altura a dela.
+fn retangulos(layout: Layout<'_>, colunas: usize) -> Vec<Rectangle> {
+    let caixa = layout.bounds();
+    let celulas: Vec<Rectangle> = layout.children().map(|l| l.bounds()).collect();
+    celulas
+        .chunks(colunas.max(1))
+        .map(|linha| {
+            let topo = linha.iter().map(|b| b.y).fold(f32::INFINITY, f32::min);
+            let base = linha
+                .iter()
+                .map(|b| b.y + b.height)
+                .fold(f32::NEG_INFINITY, f32::max);
+            Rectangle {
+                x: caixa.x,
+                y: topo,
+                width: caixa.width,
+                height: (base - topo).max(0.0),
+            }
+        })
+        .collect()
+}
+
+impl<Message> Grid<'_, Message> {
+    /// Quanto a primeira linha desce para ficar presa no topo de `viewport` —
+    /// sem passar do fim da grade. `0` quando ela não é fixa ou não rolou.
+    fn deslocamento_fixo(
+        &self,
+        layout: Layout<'_>,
+        linhas: &[Rectangle],
+        viewport: &Rectangle,
+    ) -> f32 {
+        if !self.fixa {
+            return 0.0;
+        }
+        let Some(primeira) = linhas.first() else {
+            return 0.0;
+        };
+        let caixa = layout.bounds();
+        let teto = caixa.y + caixa.height - primeira.height;
+        (viewport.y.min(teto) - primeira.y).max(0.0)
+    }
+
+    /// O cursor como as células da linha `linha` devem vê-lo: o cabeçalho fixo
+    /// o recebe deslocado (ele é desenhado mais abaixo do que o layout diz), e o
+    /// corpo não o vê enquanto ele estiver sobre o cabeçalho fixo — um clique
+    /// ali é do cabeçalho, não da linha que passa por baixo.
+    fn cursor_para(
+        &self,
+        linha: usize,
+        cursor: mouse::Cursor,
+        cabeca: Option<Rectangle>,
+        dy: f32,
+    ) -> mouse::Cursor {
+        if !self.fixa {
+            return cursor;
+        }
+        match cursor.position() {
+            Some(p) if linha == 0 => mouse::Cursor::Available(Point::new(p.x, p.y - dy)),
+            Some(p) if cabeca.is_some_and(|c| c.contains(p)) => mouse::Cursor::Unavailable,
+            _ => cursor,
+        }
+    }
+
+    /// A linha sob o cursor (o cabeçalho fixo cobre o que passa por baixo).
+    fn linha_sob(&self, linhas: &[Rectangle], cursor: mouse::Cursor, dy: f32) -> Option<usize> {
+        let p = cursor.position()?;
+        if self.fixa
+            && let Some(c) = linhas.first()
+            && (*c + Vector::new(0.0, dy)).contains(p)
+        {
+            return Some(0);
+        }
+        linhas.iter().position(|r| r.contains(p))
+    }
+
+    fn pinta(
+        &self,
+        renderer: &mut iced::Renderer,
+        faixa: &Faixa,
+        r: Rectangle,
+        sob: bool,
+        opaca: Option<Color>,
+    ) {
+        use iced::advanced::Renderer as _;
+        let fundo = if sob { faixa.hover.or(faixa.fundo) } else { faixa.fundo }.or(opaca);
+        if let Some(cor) = fundo {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: r,
+                    border: Border::default().rounded(faixa.raio),
+                    ..Default::default()
+                },
+                Background::Color(cor),
+            );
+        }
+        if let Some((cor, espessura)) = faixa.fio
+            && espessura > 0.0
+        {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: Rectangle {
+                        y: r.y + r.height - espessura,
+                        height: espessura,
+                        ..r
+                    },
+                    ..Default::default()
+                },
+                Background::Color(cor),
+            );
+        }
+    }
+}
+
+impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message> {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<Estado>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(Estado::default())
+    }
+
     fn children(&self) -> Vec<Tree> {
         self.children.iter().map(Tree::new).collect()
     }
@@ -433,15 +608,56 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message>
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        for ((filho, estado), layout) in self
+        let colunas = self.colunas();
+        let decorada = self.fixa || !self.faixas.is_empty() || !self.cliques.is_empty();
+        if !decorada {
+            for ((filho, estado), layout) in self
+                .children
+                .iter_mut()
+                .zip(&mut tree.children)
+                .zip(layout.children())
+            {
+                filho.as_widget_mut().update(
+                    estado, event, layout, cursor, renderer, clipboard, shell, viewport,
+                );
+            }
+            return;
+        }
+
+        let linhas = retangulos(layout, colunas);
+        let dy = self.deslocamento_fixo(layout, &linhas, viewport);
+        let cabeca = linhas.first().map(|c| *c + Vector::new(0.0, dy));
+        let cursores: Vec<mouse::Cursor> = (0..self.children.len())
+            .map(|i| self.cursor_para(i / colunas, cursor, cabeca, dy))
+            .collect();
+        let vp_cabeca = *viewport + Vector::new(0.0, -dy);
+        for (i, (((filho, estado), l), c)) in self
             .children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
+            .zip(cursores)
+            .enumerate()
         {
-            filho.as_widget_mut().update(
-                estado, event, layout, cursor, renderer, clipboard, shell, viewport,
-            );
+            let vp = if self.fixa && i < colunas { &vp_cabeca } else { viewport };
+            filho
+                .as_widget_mut()
+                .update(estado, event, l, c, renderer, clipboard, shell, vp);
+        }
+
+        let sob = self.linha_sob(&linhas, cursor, dy);
+        let estado = tree.state.downcast_mut::<Estado>();
+        if estado.sob_o_mouse != sob {
+            estado.sob_o_mouse = sob;
+            shell.request_redraw();
+        }
+        if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event
+            && !shell.is_event_captured()
+            && let Some(r) = sob
+            && let Some(Some(msg)) = self.cliques.get(r)
+        {
+            shell.publish(msg.clone());
+            shell.capture_event();
         }
     }
 
@@ -453,17 +669,37 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message>
         viewport: &Rectangle,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
-        self.children
+        let colunas = self.colunas();
+        let linhas = retangulos(layout, colunas);
+        let dy = self.deslocamento_fixo(layout, &linhas, viewport);
+        let cabeca = linhas.first().map(|c| *c + Vector::new(0.0, dy));
+        let dos_filhos = self
+            .children
             .iter()
             .zip(&tree.children)
             .zip(layout.children())
-            .map(|((filho, estado), layout)| {
+            .enumerate()
+            .map(|(i, ((filho, estado), layout))| {
+                let c = self.cursor_para(i / colunas, cursor, cabeca, dy);
+                let vp = if self.fixa && i < colunas {
+                    *viewport + Vector::new(0.0, -dy)
+                } else {
+                    *viewport
+                };
                 filho
                     .as_widget()
-                    .mouse_interaction(estado, layout, cursor, viewport, renderer)
+                    .mouse_interaction(estado, layout, c, &vp, renderer)
             })
             .max()
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let clicavel = self
+            .linha_sob(&linhas, cursor, dy)
+            .is_some_and(|r| matches!(self.cliques.get(r), Some(Some(_))));
+        if clicavel && dos_filhos == mouse::Interaction::None {
+            mouse::Interaction::Pointer
+        } else {
+            dos_filhos
+        }
     }
 
     fn draw(
@@ -476,20 +712,79 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message>
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        // Só as células que intersectam o viewport, como a `Row` do iced faz:
-        // numa tabela longa dentro de um `<scrollable>` isso já poupa o
-        // desenho das linhas fora da tela (medir, não — para isso é o
-        // `virtualize`).
-        for ((filho, estado), layout) in self
+        let decorada = self.fixa || !self.faixas.is_empty();
+        if !decorada {
+            // Só as células que intersectam o viewport, como a `Row` do iced
+            // faz: numa tabela longa dentro de um `<scrollable>` isso já poupa
+            // o desenho das linhas fora da tela (medir, não — para isso é o
+            // `virtualize`).
+            for ((filho, estado), layout) in self
+                .children
+                .iter()
+                .zip(&tree.children)
+                .zip(layout.children())
+                .filter(|(_, layout)| layout.bounds().intersects(viewport))
+            {
+                filho
+                    .as_widget()
+                    .draw(estado, renderer, theme, style, layout, cursor, viewport);
+            }
+            return;
+        }
+
+        use iced::advanced::Renderer as _;
+        let colunas = self.colunas();
+        let linhas = retangulos(layout, colunas);
+        let dy = self.deslocamento_fixo(layout, &linhas, viewport);
+        let cabeca = linhas.first().map(|c| *c + Vector::new(0.0, dy));
+        let sob = self.linha_sob(&linhas, cursor, dy);
+        let celulas: Vec<_> = self
             .children
             .iter()
             .zip(&tree.children)
             .zip(layout.children())
-            .filter(|(_, layout)| layout.bounds().intersects(viewport))
+            .collect();
+        let desenha_linha =
+            |renderer: &mut iced::Renderer, r: usize, c: mouse::Cursor, vp: &Rectangle| {
+                for ((filho, estado), l) in celulas.iter().skip(r * colunas).take(colunas) {
+                    filho
+                        .as_widget()
+                        .draw(estado, renderer, theme, style, *l, c, vp);
+                }
+            };
+
+        let primeira_do_corpo = usize::from(self.fixa);
+        for (r, ret) in linhas.iter().enumerate().skip(primeira_do_corpo) {
+            if !ret.intersects(viewport) {
+                continue;
+            }
+            if let Some(faixa) = self.faixas.get(r) {
+                self.pinta(renderer, faixa, *ret, sob == Some(r), None);
+            }
+            desenha_linha(renderer, r, self.cursor_para(r, cursor, cabeca, dy), viewport);
+        }
+
+        // O cabeçalho fixo por último, numa camada própria: no `iced` o texto
+        // de uma camada sai por cima dos quads dela, então pintá-lo na mesma
+        // camada do corpo deixaria as letras das linhas que passam por baixo
+        // vazando através do fundo dele. Sem fundo declarado, ganha o do tema
+        // — um cabeçalho transparente fixo mostraria as linhas por trás.
+        if self.fixa
+            && let Some(ret) = linhas.first()
         {
-            filho
-                .as_widget()
-                .draw(estado, renderer, theme, style, layout, cursor, viewport);
+            renderer.with_layer(*viewport, |renderer| {
+                renderer.with_translation(Vector::new(0.0, dy), |renderer| {
+                    let faixa = self.faixas.first().copied().unwrap_or_default();
+                    let opaca =
+                        (dy > 0.0).then(|| theme.extended_palette().background.base.color);
+                    self.pinta(renderer, &faixa, *ret, sob == Some(0), opaca);
+                    // O viewport no espaço do layout: as células do cabeçalho
+                    // estão, pelo layout, ACIMA da área visível — com o
+                    // viewport cru elas se descartariam como fora da tela.
+                    let vp = *viewport + Vector::new(0.0, -dy);
+                    desenha_linha(renderer, 0, self.cursor_para(0, cursor, cabeca, dy), &vp);
+                });
+            });
         }
     }
 
@@ -512,7 +807,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, Message>
     }
 }
 
-impl<'a, Message: 'a> From<Grid<'a, Message>>
+impl<'a, Message: Clone + 'a> From<Grid<'a, Message>>
     for Element<'a, Message, iced::Theme, iced::Renderer>
 {
     fn from(g: Grid<'a, Message>) -> Self {

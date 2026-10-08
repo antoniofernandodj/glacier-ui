@@ -28,6 +28,33 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
   repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
 
+## glacier-ui 0.121.0 — 2026-10-08
+
+- **`<tablecolumn>`: colunas do `<tableview>` no markup, com o modelo da célula no corpo.**
+  As células de uma tabela eram só texto, então uma tela com badge de estado ou botão por
+  linha montava a tabela à mão com `row`s e `column`s — sem ordenação, sem seleção, e com
+  o cabeçalho alinhado ao corpo por larguras fixas combinadas nos dois lados. Agora:
+  `tableview(:items = linhas, var = c) { tablecolumn(key = nome, label = NOME) { … @c.nome … } }`.
+  O corpo de cada coluna é avaliado uma vez por linha (no eval, já na ordem do `sort`), e
+  qualquer nó serve; sem corpo, a célula é o texto do campo. `width`/`hidden` da coluna valem
+  inline ou pela `class`, inclusive em `@media`. `align` vale para o corpo também. `sort_key`
+  ordena por outro campo (a coluna mostra `"1.2 GB"`, ordena por `size_bytes`); sem `key` nem
+  `sort_key`, a coluna não ordena. `row_key` escolhe o campo que identifica a linha para
+  `value`/`onSelect`.
+- **`header_class` / `row_class`.** A faixa do cabeçalho e cada linha são pintadas pela grade
+  de ponta a ponta (`background`, `border-radius`, `:hover` da linha, e `border-color`/
+  `border-width` como o fio sob a linha); o `padding` da classe vale para a **linha** (à
+  esquerda só na primeira coluna, à direita só na última) e `spacing` é o vão entre colunas;
+  `color`/`size`/`bold` estilizam os rótulos e as células sem corpo. O clique de seleção é da
+  linha — um botão dentro de uma célula continua sendo dele.
+- **Cabeçalho fixo.** Num `<tableview>` decorado (com `<tablecolumn>` ou uma das classes) e com
+  `height`, o cabeçalho fica preso no topo enquanto o corpo rola, e um clique nele não vaza
+  para a linha que passa por baixo.
+- **"Sem linhas".** Os filhos do `<tableview>` que não são `<tablecolumn>` aparecem sob o
+  cabeçalho quando a lista está vazia — o "carregando" e o "nenhum item".
+- Aditivo: um `<tableview>` sem `<tablecolumn>` e sem as classes desenha exatamente como
+  antes. Exemplo: `examples/gvb/tabela_colunas`.
+
 ## glacier-ui 0.120.0 — 2026-10-08
 
 - **`@glacier_window_maximized`: a janela sabe se está maximizada.** O `window:maximize` só

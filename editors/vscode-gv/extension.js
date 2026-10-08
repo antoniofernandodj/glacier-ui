@@ -99,6 +99,7 @@ const NATIVE_TAGS = {
   Flow: ["flow", "wrap", "fluxo"],
   TableView: ["tableview", "tabela"],
   TableHeader: ["tableheader", "cabecalhotabela", "cabecalho_tabela"],
+  TableColumn: ["tablecolumn", "colunatabela", "coluna_tabela"],
   TreeView: ["treeview", "arvore", "árvore"],
   ColumnView: ["columnview", "colunas", "miller"],
   // Onda 7: os sete que desenham no canvas (`src/canvas.rs` é a caixa de

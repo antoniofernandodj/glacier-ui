@@ -3150,6 +3150,16 @@ fn identidade_linha(linha: &serde_json::Value, colunas: &[Coluna], i: usize) -> 
     }
 }
 
+/// Ordena as linhas pela chave de `sort` (`"<coluna> asc|desc"`), como o
+/// `<tableview>` ordena — para o eval, que avalia as células de um
+/// `<tablecolumn>` já na ordem em que o widget vai desenhá-las.
+pub(crate) fn ordena_tabela(linhas: &mut [serde_json::Value], ordem: Option<&str>) {
+    let ordem = Ordem::parse(ordem.map(str::to_string).as_ref());
+    if !ordem.campo.is_empty() {
+        ordena(linhas, &ordem.campo, ordem.desc);
+    }
+}
+
 /// Ordena as linhas por uma coluna.
 ///
 /// **Numérica quando os dois lados parseiam como número**, textual (sem caixa e
@@ -3450,6 +3460,375 @@ fn render_tableview<'a>(
     // e o que ela cobre numa tabela é justamente a última coluna. Declarar o
     // vão (mesmo zero) faz o `scrollable` medir o filho contra a largura
     // descontada, e a coluna da direita volta a caber.
+    scrollable(grade)
+        .spacing(0)
+        .height(altura)
+        .width(Length::Fill)
+        .into()
+}
+
+/// As chaves de um `<tableview>` decorado, juntas para a assinatura de
+/// [`render_tabela_decorada`] não passar de uma dúzia de argumentos.
+struct TabelaChaves<'a> {
+    items_var: &'a str,
+    columns_var: &'a str,
+    value_var: &'a str,
+    multi: bool,
+    sort_var: &'a str,
+    widths_var: &'a str,
+    header_only: bool,
+    on_select: &'a str,
+    on_sort: &'a str,
+    row_key: &'a str,
+}
+
+/// A [`crate::grid::Faixa`] de uma classe resolvida: `background`, o
+/// `background` do `:hover`, `border-radius` e — `border-color` com
+/// `border-width` (default 1) — o fio sob a linha.
+fn faixa_de(regra: &crate::stylesheet::StyleRule, hover: Option<&crate::stylesheet::StyleRule>) -> crate::grid::Faixa {
+    let cor = |c: &Option<String>| c.as_deref().and_then(parse_hex_color);
+    crate::grid::Faixa {
+        fundo: cor(&regra.background),
+        hover: hover.and_then(|h| cor(&h.background)),
+        raio: regra.border_radius.unwrap_or(0.0),
+        fio: cor(&regra.border_color).map(|c| (c, regra.border_width.unwrap_or(1.0))),
+    }
+}
+
+/// O texto de uma célula sem corpo (ou de um rótulo do cabeçalho) com a cor,
+/// o tamanho e o negrito da classe da faixa.
+fn texto_de_faixa<'a>(
+    conteudo: String,
+    regra: Option<&crate::stylesheet::StyleRule>,
+    tamanho: f32,
+    align: iced::alignment::Horizontal,
+) -> iced::widget::Text<'a> {
+    let mut t = text(conteudo)
+        .size(regra.and_then(|r| r.size).unwrap_or(tamanho))
+        .width(Length::Fill)
+        .align_x(align);
+    if let Some(r) = regra {
+        if r.bold == Some(true) {
+            t = t.font(Font {
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            });
+        } else if let Some(f) = font_for(r.font.as_deref()) {
+            t = t.font(f);
+        }
+        if let Some(c) = r.color.as_deref().and_then(parse_hex_color) {
+            t = t.color(c);
+        }
+    }
+    t
+}
+
+/// O padding de cada célula de uma faixa: em cima e embaixo o da classe; à
+/// esquerda o dela só na primeira coluna, à direita só na última — entre duas
+/// colunas quem separa é o `spacing`. É o que faz o `padding: 13 18` de uma
+/// linha valer para a linha, não para cada célula.
+fn padding_da_celula(base: Padding, coluna: usize, total: usize) -> Padding {
+    Padding {
+        top: base.top,
+        bottom: base.bottom,
+        left: if coluna == 0 { base.left } else { 0.0 },
+        right: if coluna + 1 == total { base.right } else { 0.0 },
+    }
+}
+
+/// `<tableview>` com `<tablecolumn>`s e/ou `header_class`/`row_class`.
+///
+/// O mesmo widget de sempre — a mesma grade, a mesma ordenação, as mesmas
+/// alças —, com três diferenças: as células de uma coluna com corpo são os nós
+/// que o eval já avaliou por linha (ver `eval::expand_table`); cada linha é
+/// pintada de ponta a ponta pela grade ([`crate::grid::Faixa`]) e é ela, não
+/// um botão por célula, que recebe o clique de seleção; e o cabeçalho fica
+/// preso no topo enquanto o corpo rola.
+#[allow(clippy::too_many_arguments)]
+fn render_tabela_decorada<'a>(
+    node: &'a UiNode,
+    context: &'a ContextMap,
+    editors: &'a EditorMap,
+    combos: &'a ComboMap,
+    assets: &dyn crate::asset_source::AssetSource,
+    view: RenderView<'a>,
+    k: TabelaChaves<'a>,
+    look: Option<&'a crate::parser::TableLook>,
+) -> Element<'a, EngineMessage> {
+    let cabecas: Vec<&UiNode> = node
+        .children
+        .iter()
+        .take_while(|c| matches!(c.kind, NodeType::TableColumn { .. }))
+        .collect();
+    let corpo_avaliado = &node.children[cabecas.len()..];
+    let mut colunas: Vec<Coluna> = if cabecas.is_empty() {
+        colunas_de(context, k.columns_var)
+    } else {
+        cabecas
+            .iter()
+            .map(|c| {
+                let NodeType::TableColumn {
+                    key, label, align, ..
+                } = &c.kind
+                else {
+                    unreachable!("take_while acima só deixa passar TableColumn")
+                };
+                Coluna {
+                    campo: key.clone(),
+                    rotulo: if label.is_empty() { key.clone() } else { label.clone() },
+                    trilha: c
+                        .width
+                        .as_deref()
+                        .filter(|w| !w.trim().is_empty())
+                        .map(crate::grid::Trilha::parse_uma)
+                        .unwrap_or(crate::grid::Trilha::Auto),
+                    align: match align.trim().to_ascii_lowercase().as_str() {
+                        "right" | "direita" | "end" => iced::alignment::Horizontal::Right,
+                        "center" | "centro" => iced::alignment::Horizontal::Center,
+                        _ => iced::alignment::Horizontal::Left,
+                    },
+                }
+            })
+            .collect()
+    };
+    aplica_larguras(&mut colunas, context, k.widths_var);
+    if colunas.is_empty() {
+        return Space::new().into();
+    }
+    let n = colunas.len();
+    // O campo que cada cabeçalho ordena: o `sort_key` da coluna, ou o `key`.
+    let chaves_ordem: Vec<&str> = (0..n)
+        .map(|i| match cabecas.get(i).map(|c| &c.kind) {
+            Some(NodeType::TableColumn { sort_key, .. }) if !sort_key.is_empty() => {
+                sort_key.as_str()
+            }
+            _ => colunas[i].campo.as_str(),
+        })
+        .collect();
+    let ordem = Ordem::parse(context.get(k.sort_var));
+
+    let cab = look.map(|l| &l.header);
+    let lin = look.map(|l| &l.row);
+    let pad_cab = cab
+        .and_then(|r| r.padding.clone())
+        .map(|p| parse_padding(&Some(p)))
+        .unwrap_or(Padding::from([5, 6]));
+    let pad_lin = lin
+        .and_then(|r| r.padding.clone())
+        .map(|p| parse_padding(&Some(p)))
+        .unwrap_or(Padding::from([6, 6]));
+    let vao = lin.and_then(|r| r.spacing).unwrap_or(0.0);
+
+    // ── O cabeçalho: os rótulos, ordenáveis, com as alças ──────────────────
+    let mut celulas: Vec<Element<'a, EngineMessage>> = Vec::new();
+    for (i, col) in colunas.iter().enumerate() {
+        // `!chave.is_empty()`: uma coluna sem `key` (a de ações) casaria com a
+        // ordem vazia e ganharia a seta sem ordenar nada.
+        let chave = chaves_ordem[i];
+        let marca = if !chave.is_empty() && ordem.campo == chave {
+            if ordem.desc { " ▾" } else { " ▴" }
+        } else {
+            ""
+        };
+        let rotulo = texto_de_faixa(format!("{}{marca}", col.rotulo), cab, 12.0, col.align);
+        let pad = padding_da_celula(pad_cab, i, n);
+        let ordenavel = !k.sort_var.is_empty() && !chave.is_empty();
+        let mut celula: Element<'a, EngineMessage> = if ordenavel {
+            let nova = ordem.ao_clicar(chave);
+            let msg = if k.on_sort.is_empty() {
+                EngineMessage::ContextPatch(vec![(k.sort_var.to_string(), nova.serializa())])
+            } else {
+                EngineMessage::UiInputChanged {
+                    action: k.on_sort.to_string(),
+                    value: nova.serializa(),
+                }
+            };
+            button(rotulo)
+                .width(Length::Fill)
+                .padding(pad)
+                .on_press(msg)
+                .style(|_theme: &iced::Theme, _status: button::Status| button::Style {
+                    // A faixa é da grade: o botão só existe para o clique.
+                    background: None,
+                    border: Border::default(),
+                    ..Default::default()
+                })
+                .into()
+        } else {
+            container(rotulo).width(Length::Fill).padding(pad).into()
+        };
+        if !k.widths_var.is_empty() {
+            let alca = mouse_area(
+                container(Space::new().width(1).height(ALTURA_ALCA))
+                    .width(7)
+                    .height(ALTURA_ALCA)
+                    .align_x(iced::alignment::Horizontal::Center)
+                    .style(|theme: &iced::Theme| container::Style {
+                        background: Some(Background::Color(
+                            theme.extended_palette().background.strong.color,
+                        )),
+                        ..Default::default()
+                    }),
+            )
+            .interaction(iced::mouse::Interaction::ResizingHorizontally)
+            .on_press(EngineMessage::GripStart(crate::grip::Arrasto {
+                chave: k.widths_var.to_string(),
+                chave_y: None,
+                chave_modo: None,
+                indice: i,
+                eixo: crate::grip::Eixo::X,
+                origem: None,
+                origem_y: None,
+                valor0: largura_corrente(col.trilha),
+                valor0_y: 0.0,
+                alvo: crate::grip::Alvo::Trilha {
+                    min: LARGURA_MINIMA_COLUNA,
+                    max: LARGURA_MAXIMA_COLUNA,
+                },
+            }));
+            celula = row![celula, alca].align_y(iced::Alignment::Center).into();
+        }
+        celulas.push(celula);
+    }
+
+    // ── O corpo ────────────────────────────────────────────────────────────
+    let mut linhas: Vec<serde_json::Value> = if k.header_only {
+        Vec::new()
+    } else {
+        context
+            .get(k.items_var)
+            .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+            .and_then(|v| match v {
+                serde_json::Value::Array(a) => Some(a),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+    // A MESMA ordenação que o eval aplicou às células avaliadas — é o que
+    // casa a linha `i` daqui com o `i`-ésimo bloco de `corpo_avaliado`.
+    if !ordem.campo.is_empty() {
+        ordena(&mut linhas, &ordem.campo, ordem.desc);
+    }
+
+    let faixa_cab = cab.map(|r| faixa_de(r, None)).unwrap_or_default();
+    let faixa_lin = lin
+        .map(|r| faixa_de(r, look.map(|l| &l.row_hover)))
+        .unwrap_or_default();
+    let mut faixas = vec![faixa_cab];
+    let mut cliques: Vec<Option<EngineMessage>> = vec![None];
+
+    let selecao = context.get(k.value_var).cloned().unwrap_or_default();
+    for (i, linha) in linhas.iter().enumerate() {
+        let id = if k.row_key.is_empty() {
+            identidade_linha(linha, &colunas, i)
+        } else {
+            celula_texto(linha, k.row_key)
+        };
+        let marcada = !k.value_var.is_empty()
+            && if k.multi {
+                selecao
+                    .split([',', ';', ' '])
+                    .map(str::trim)
+                    .any(|t| !t.is_empty() && t == id)
+            } else {
+                selecao == id
+            };
+        cliques.push((!k.value_var.is_empty() || !k.on_select.is_empty()).then(|| {
+            let novo = if k.multi {
+                crate::builtins::list_view::alterna_no_conjunto(&selecao, &id)
+            } else {
+                id.clone()
+            };
+            if k.on_select.is_empty() {
+                EngineMessage::ContextPatch(vec![(k.value_var.to_string(), novo)])
+            } else {
+                EngineMessage::UiInputChanged {
+                    action: k.on_select.to_string(),
+                    value: novo,
+                }
+            }
+        }));
+        faixas.push(if marcada {
+            // A linha escolhida fica com o fundo do `:hover` da classe, aceso;
+            // sem um, um azul translúcido que lê em tema claro e escuro.
+            crate::grid::Faixa {
+                fundo: faixa_lin
+                    .hover
+                    .or(Some(Color::from_rgba(0.18, 0.51, 0.97, 0.22))),
+                ..faixa_lin
+            }
+        } else {
+            faixa_lin
+        });
+
+        let avaliadas = corpo_avaliado.get(i * n..(i + 1) * n);
+        for (c, col) in colunas.iter().enumerate() {
+            let pad = padding_da_celula(pad_lin, c, n);
+            let conteudo: Element<'a, EngineMessage> = match avaliadas.map(|a| &a[c]) {
+                Some(no) if !no.children.is_empty() => {
+                    let filhos: Vec<Element<'a, EngineMessage>> = no
+                        .children
+                        .iter()
+                        .filter(|f| f.hidden != Some(true))
+                        .map(|f| render_node(f, context, editors, combos, assets, view))
+                        .collect();
+                    let linha_de_nos =
+                        iced::widget::Row::with_children(filhos).align_y(iced::Alignment::Center);
+                    // `align` vale para o corpo também: à esquerda a fileira
+                    // ocupa a célula (um filho `fill` estica); centrada ou à
+                    // direita ela encolhe e o container a empurra.
+                    if col.align == iced::alignment::Horizontal::Left {
+                        linha_de_nos.width(Length::Fill).into()
+                    } else {
+                        container(linha_de_nos)
+                            .width(Length::Fill)
+                            .align_x(col.align)
+                            .into()
+                    }
+                }
+                _ => texto_de_faixa(celula_texto(linha, &col.campo), lin, 13.0, col.align).into(),
+            };
+            celulas.push(container(conteudo).width(Length::Fill).padding(pad).into());
+        }
+    }
+
+    // Sem linha nenhuma: o que o eval deixou depois das cabeças (os filhos
+    // que não são coluna) aparece sob o cabeçalho, de ponta a ponta.
+    let vazio: Vec<Element<'a, EngineMessage>> = if linhas.is_empty() && !k.header_only {
+        corpo_avaliado
+            .iter()
+            .filter(|f| f.hidden != Some(true))
+            .map(|f| render_node(f, context, editors, combos, assets, view))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let trilhas: Vec<crate::grid::Trilha> = colunas.iter().map(|c| c.trilha).collect();
+    let altura = parse_length(&node.height);
+    let rola = !k.header_only && altura != Length::Shrink;
+    let grade = crate::grid::grid(celulas, trilhas)
+        .spacing(vao, 0.0)
+        .align_y(iced::Alignment::Center)
+        .faixas(faixas)
+        .cliques(cliques)
+        .primeira_fixa(rola)
+        .width(if node.width.is_some() {
+            parse_length(&node.width)
+        } else {
+            Length::Fill
+        });
+    let grade: Element<'a, EngineMessage> = if vazio.is_empty() {
+        grade.into()
+    } else {
+        iced::widget::Column::with_children(std::iter::once(grade.into()).chain(vazio))
+            .width(Length::Fill)
+            .into()
+    };
+    if !rola {
+        return grade;
+    }
+    // Ver a nota do `.spacing(0)` em `render_tableview`.
     scrollable(grade)
         .spacing(0)
         .height(altura)
@@ -5567,9 +5946,51 @@ pub fn render_node<'a>(
             sort_var,
             widths_var,
             header_only,
+            on_select,
+            on_sort,
+            row_key,
+            look,
+            ..
+        } if look.is_some()
+            || node
+                .children
+                .first()
+                .is_some_and(|c| matches!(c.kind, NodeType::TableColumn { .. })) =>
+        {
+            render_tabela_decorada(
+                node,
+                context,
+                editors,
+                combos,
+                assets,
+                view,
+                TabelaChaves {
+                    items_var,
+                    columns_var,
+                    value_var,
+                    multi: *multi,
+                    sort_var,
+                    widths_var,
+                    header_only: *header_only,
+                    on_select,
+                    on_sort,
+                    row_key,
+                },
+                look.as_deref(),
+            )
+        }
+        NodeType::TableView {
+            items_var,
+            columns_var,
+            value_var,
+            multi,
+            sort_var,
+            widths_var,
+            header_only,
             row_height,
             on_select,
             on_sort,
+            ..
         } => render_tableview(
             node,
             context,
@@ -5584,6 +6005,9 @@ pub fn render_node<'a>(
             on_select,
             on_sort,
         ),
+        // Só tem sentido dentro de um `<tableview>`, que o consome sem
+        // renderizá-lo (ver `render_tabela_decorada`). Solto, não desenha nada.
+        NodeType::TableColumn { .. } => Space::new().into(),
         NodeType::TreeView {
             items_var,
             value_var,

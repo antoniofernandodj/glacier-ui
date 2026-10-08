@@ -1,0 +1,57 @@
+// `<tablecolumn>`: colunas no markup, com o modelo da célula no corpo — badge,
+// botão, qualquer nó —, avaliado por linha com a linha em `@c.campo`.
+// `header_class`/`row_class` pintam a faixa do cabeçalho e cada linha, e o
+// cabeçalho fica preso no topo enquanto o corpo rola.
+//
+//     cargo run --example gvb_run -- examples/gvb/tabela_colunas/app.gvb
+screen(title = "Glacier - Tabela com colunas") {
+  resources {
+    link(rel = data, href = "examples/gvb/tabela_colunas/dados.json", as = d)
+    style """
+    .cab     { background: #161B22; border-radius: 5; padding: 14 18; size: 11; bold: true; color: #6E7681; }
+    .lin     { padding: 12 18; size: 13; color: #C9D1D9; border-color: #21262D; }
+    .lin:hover { background: #0D1117; }
+    .nome    { size: 13; bold: true; color: #58A6FF; }
+    .apagado { size: 12; color: #8B949E; }
+    .ponto   { size: 11; }
+    .rot     { size: 12; }
+    .estado_ok   { color: #3FB950; }
+    .estado_bad  { color: #F85149; }
+    .estado_warn { color: #D29922; }
+    .remover { color: #DA3633; padding: 5 12; border-radius: 3; }
+    .col_nome { width: 220; }
+    @media (max-width: 800) {
+      .col_dono { hidden: true; }
+    }
+    """
+  }
+
+  column(width = fill, height = fill, padding = 20, spacing = 10) {
+    text(content = "ordem: @ordem   ·   escolhida: @escolhida   ·   estreite a janela: a coluna DONO some")
+
+    tableview(
+      :items = d.containers, var = c, :sort = ordem, :value = escolhida,
+      row_key = id, header_class = cab, row_class = lin, height = fill,
+    ) {
+      tablecolumn(key = name, label = NOME, class = col_nome) {
+        text(class = nome, content = "@c.name")
+      }
+      // Sem corpo: a célula é o texto do campo, no estilo da `row_class`.
+      tablecolumn(key = image, label = IMAGEM, width = fill)
+      tablecolumn(key = owner, label = DONO, width = 110, class = col_dono) {
+        text(class = apagado, content = "@c.owner")
+      }
+      tablecolumn(key = state_label, label = ESTADO, width = 150) {
+        row(spacing = 7, align_y = center) {
+          text(class = "ponto estado_@c.state_kind", content = "●")
+          text(class = "rot estado_@c.state_kind", content = "@c.state_label")
+        }
+      }
+      tablecolumn(key = n, label = "Nº", width = 60, align = right)
+      // Sem `key`: não ordena. O clique no botão é dele, não da linha.
+      tablecolumn(label = "AÇÃO", width = 130, align = right) {
+        button(if = @c.can_remove, equals = 1, class = remover, text = Remover)
+      }
+    }
+  }
+}

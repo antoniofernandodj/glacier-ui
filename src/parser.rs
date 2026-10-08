@@ -1489,6 +1489,19 @@ pub enum ButtonType {
     Reset,
 }
 
+/// A aparência de um `<tableview>` com `header_class`/`row_class`, já resolvida
+/// contra as folhas pelo eval (a `@media` do momento inclusa). Ver
+/// [`NodeType::TableView`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TableLook {
+    /// A faixa do cabeçalho.
+    pub header: StyleRule,
+    /// Cada linha do corpo.
+    pub row: StyleRule,
+    /// O `:hover` da classe da linha, por cima de `row`.
+    pub row_hover: StyleRule,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
     Container,
@@ -2626,6 +2639,61 @@ pub enum NodeType {
         /// Vazio = o widget grava as chaves sozinho; preenchido = delega.
         on_select: String,
         on_sort: String,
+        /// O nome da linha dentro de um `<tablecolumn>` com corpo: `@row.nome`.
+        /// Default `row`. Ver [`NodeType::TableColumn`].
+        row_var: String,
+        /// O campo que identifica a linha para a seleção (`value`/`onSelect`).
+        /// Vazio = o `id` da linha, ou a primeira coluna.
+        row_key: String,
+        /// Classe `.gss` da faixa do cabeçalho: `background`, `border-radius`,
+        /// `padding` e o texto (`color`, `size`, `bold`) dos rótulos.
+        header_class: String,
+        /// Classe `.gss` de cada linha do corpo: `background` (e `:hover`),
+        /// `padding`, o texto das células sem corpo e — `border-color` /
+        /// `border-width` — o fio entre uma linha e a próxima.
+        row_class: String,
+        /// As duas classes acima já resolvidas contra as folhas, preenchido
+        /// pelo eval. `None` = nenhuma das duas foi dada: a aparência de sempre.
+        look: Option<Box<TableLook>>,
+    },
+    /// `<tablecolumn>`: uma coluna de `<tableview>` declarada no markup, em vez
+    /// de no array JSON do `columns`.
+    ///
+    /// ```text
+    /// tableview(:items = containers, var = c, header_class = thead, row_class = trow) {
+    ///   tablecolumn(key = name, label = NOME, class = col_nome) {
+    ///     text(class = td_key, content = "@c.name")
+    ///   }
+    ///   tablecolumn(key = image, label = IMAGEM, width = fill)
+    ///   tablecolumn(label = "AÇÃO", width = 120) {
+    ///     button(on_click = remover:@c.id, text = Remover)
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// O **corpo** é o modelo da célula, avaliado uma vez por linha com a linha
+    /// em `@<var>.<campo>` — qualquer nó serve: badge, botão, componente. Sem
+    /// corpo, a célula é o texto do campo `key`, como numa coluna do JSON.
+    ///
+    /// `width` (inline ou pela `class`, inclusive em `@media`) é a trilha da
+    /// coluna: um número fixa, `fill` reparte a sobra, ausente mede o
+    /// conteúdo. `hidden: true` (idem) tira a coluna inteira — cabeçalho e
+    /// células. Uma coluna sem `key` (nem `sort_key`) não ordena.
+    ///
+    /// Os filhos do `<tableview>` que **não** são `<tablecolumn>` são o que
+    /// aparece sob o cabeçalho quando não há linha nenhuma — "carregando",
+    /// "nenhum item" —, avaliados no contexto da tela.
+    TableColumn {
+        /// O campo da linha: o texto da célula sem corpo e o que `sort` ordena.
+        key: String,
+        /// O rótulo no cabeçalho. Vazio = o próprio `key`.
+        label: String,
+        /// `left` (default), `center` ou `right`.
+        align: String,
+        /// O campo que o clique no cabeçalho ordena, quando não é o `key` —
+        /// uma coluna que mostra `"1.2 GB"` ordena por `size_bytes`. Vazio =
+        /// o próprio `key`.
+        sort_key: String,
     },
     /// `<treeview>` (`QTreeView`): a árvore com nós que abrem e fecham.
     ///
@@ -3210,6 +3278,7 @@ impl NodeType {
             NodeType::Grid { .. } => "grid",
             NodeType::Flow { .. } => "flow",
             NodeType::TableView { .. } => "tableview",
+            NodeType::TableColumn { .. } => "tablecolumn",
             NodeType::TreeView { .. } => "treeview",
             NodeType::ColumnView { .. } => "columnview",
             NodeType::Dial { .. } => "dial",
@@ -5293,6 +5362,39 @@ impl UiNode {
                     .unwrap_or_default(),
                     on_sort: Self::get_attr(&node, &["onSort", "on_sort", "on-sort", "aoOrdenar"])
                         .unwrap_or_default(),
+                    row_var: Self::get_attr(&node, &["var", "as", "variavel", "linha_var"])
+                        .filter(|v| !v.trim().is_empty())
+                        .unwrap_or_else(|| "row".to_string()),
+                    row_key: Self::get_attr(
+                        &node,
+                        &["row_key", "rowKey", "row-key", "chave_linha"],
+                    )
+                    .unwrap_or_default(),
+                    header_class: Self::get_attr(
+                        &node,
+                        &["header_class", "headerClass", "header-class", "classe_cabecalho"],
+                    )
+                    .unwrap_or_default(),
+                    row_class: Self::get_attr(
+                        &node,
+                        &["row_class", "rowClass", "row-class", "classe_linha"],
+                    )
+                    .unwrap_or_default(),
+                    look: None,
+                }
+            }
+            "TableColumn" | "tablecolumn" | "ColunaTabela" | "coluna_tabela" => {
+                NodeType::TableColumn {
+                    key: Self::get_attr(&node, &["key", "field", "campo", "chave"])
+                        .unwrap_or_default(),
+                    label: Self::get_attr(&node, &["label", "rotulo", "rótulo", "title"])
+                        .unwrap_or_default(),
+                    align: Self::get_attr(&node, &["align", "alinhamento"]).unwrap_or_default(),
+                    sort_key: Self::get_attr(
+                        &node,
+                        &["sort_key", "sortKey", "sort-key", "chave_ordem"],
+                    )
+                    .unwrap_or_default(),
                 }
             }
             "TreeView" | "treeview" | "Arvore" | "arvore" | "árvore" => NodeType::TreeView {

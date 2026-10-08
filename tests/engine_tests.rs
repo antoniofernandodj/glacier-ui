@@ -6741,6 +6741,185 @@ fn onda6_tableview_e_tableheader_sao_a_mesma_primitiva() {
     }
 }
 
+/// Monta uma tela com `<style>` e layout próprios, semeia o contexto e avalia.
+fn motor_tabela(nome: &str, estilo: &str, layout: &str, ctx: &[(&str, &str)]) -> GlacierUI {
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let caminho = format!("templates/test_{nome}.gv");
+    std::fs::write(
+        &caminho,
+        envolve(format!("<style>{estilo}</style><Column>{layout}</Column>")),
+    )
+    .unwrap();
+    motor.register_component(nome, &caminho).unwrap();
+    motor.navigate_to(nome);
+    let _ = motor.dispatch(&EngineMessage::ContextPatch(
+        ctx.iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+    ));
+    motor.reevaluate_all().unwrap();
+    std::fs::remove_file(&caminho).ok();
+    motor
+}
+
+const LINHAS_TABELA: &str = r#"[
+    {"id": "a", "nome": "alfa", "n": "2", "estado": "ok"},
+    {"id": "b", "nome": "beta", "n": "10", "estado": "falha"},
+    {"id": "c", "nome": "gama", "n": "9", "estado": "ok"}
+]"#;
+
+/// `<tablecolumn>`: uma cabeça por coluna visível e, linha a linha na ordem do
+/// `sort`, uma célula por coluna — o corpo avaliado com a linha em `@var.campo`.
+#[test]
+fn tablecolumn_avalia_o_corpo_por_linha_na_ordem_do_sort() {
+    let mut motor = motor_tabela(
+        "tabela_colunas",
+        ".col_oculta { hidden: true; }",
+        r#"<tableview items="linhas" sort="ordem" var="r">
+               <tablecolumn key="nome" label="NOME" width="120">
+                   <Text content="[{r.nome}]" />
+               </tablecolumn>
+               <tablecolumn key="n" label="N" align="right" />
+               <tablecolumn key="estado" class="col_oculta">
+                   <Text content="{r.estado}" />
+               </tablecolumn>
+               <tablecolumn label="AÇÃO">
+                   <Button text="Remover" on_click="rm:{r.id}" />
+               </tablecolumn>
+           </tableview>"#,
+        &[("linhas", LINHAS_TABELA), ("ordem", "n desc")],
+    );
+    let tabela = &motor.evaluated("tabela_colunas").unwrap().children[0];
+    assert!(matches!(tabela.kind, NodeType::TableView { .. }));
+
+    // A coluna `estado` sai inteira (cabeça e células) pelo `hidden` da classe.
+    let cabecas: Vec<(&str, &str, &str)> = tabela
+        .children
+        .iter()
+        .filter_map(|c| match &c.kind {
+            NodeType::TableColumn {
+                key, label, align, ..
+            } => {
+                Some((key.as_str(), label.as_str(), align.as_str()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        cabecas,
+        vec![("nome", "NOME", ""), ("n", "N", "right"), ("", "AÇÃO", "")]
+    );
+    assert_eq!(tabela.children[0].width.as_deref(), Some("120"));
+
+    // 3 linhas × 3 colunas visíveis, depois das 3 cabeças. Ordem numérica
+    // decrescente de `n`: beta (10), gama (9), alfa (2).
+    let celulas = &tabela.children[3..];
+    assert_eq!(celulas.len(), 9);
+    let nomes: Vec<Vec<String>> = celulas
+        .chunks(3)
+        .map(|linha| todos_os_textos(&linha[0]))
+        .collect();
+    assert_eq!(nomes, vec![vec!["[beta]"], vec!["[gama]"], vec!["[alfa]"]]);
+    // Coluna sem corpo: a célula vem vazia, e o widget escreve o campo.
+    assert!(celulas[1].children.is_empty());
+    // A ação da linha leva a identidade dela.
+    match &celulas[2].children[0].kind {
+        NodeType::Button { on_click, .. } => {
+            assert_eq!(on_click.as_deref(), Some("rm:b"))
+        }
+        outro => panic!("esperava Button, veio {outro:?}"),
+    }
+}
+
+/// Os filhos que não são `<tablecolumn>` são o "sem linhas": avaliados só
+/// quando a lista está vazia (ou ausente), depois das cabeças.
+#[test]
+fn tableview_sem_linhas_mostra_os_filhos_que_nao_sao_coluna() {
+    let tabela = |linhas: &str| {
+        let mut motor = motor_tabela(
+            "tabela_vazia",
+            "",
+            r#"<tableview items="linhas" var="r">
+                   <tablecolumn key="nome" />
+                   <Text content="nenhum item" />
+               </tableview>"#,
+            &[("linhas", linhas)],
+        );
+        motor.evaluated("tabela_vazia").unwrap().children[0].clone()
+    };
+    let vazia = tabela("[]");
+    assert_eq!(vazia.children.len(), 2, "1 cabeça + o texto");
+    assert_eq!(todos_os_textos(&vazia.children[1]), vec!["nenhum item"]);
+
+    let cheia = tabela(LINHAS_TABELA);
+    assert_eq!(cheia.children.len(), 1 + 3, "1 cabeça + 3 células, sem o texto");
+    assert!(!todos_os_textos(&cheia).contains(&"nenhum item".to_string()));
+}
+
+/// `sort_key`: a coluna mostra um campo e ordena por outro — e o eval avalia
+/// as células na ordem desse outro.
+#[test]
+fn tablecolumn_sort_key_ordena_por_outro_campo() {
+    let mut motor = motor_tabela(
+        "tabela_sort_key",
+        "",
+        r#"<tableview items="linhas" sort="ordem" var="r">
+               <tablecolumn key="nome" sort_key="n">
+                   <Text content="{r.nome}" />
+               </tablecolumn>
+           </tableview>"#,
+        &[("linhas", LINHAS_TABELA), ("ordem", "n asc")],
+    );
+    let tabela = &motor.evaluated("tabela_sort_key").unwrap().children[0];
+    match &tabela.children[0].kind {
+        NodeType::TableColumn { sort_key, .. } => assert_eq!(sort_key, "n"),
+        outro => panic!("esperava TableColumn, veio {outro:?}"),
+    }
+    let nomes: Vec<String> = tabela.children[1..]
+        .iter()
+        .flat_map(todos_os_textos)
+        .collect();
+    assert_eq!(nomes, vec!["alfa", "gama", "beta"], "2 < 9 < 10, numérico");
+}
+
+/// `header_class`/`row_class` chegam ao widget já resolvidas contra as folhas,
+/// com o `:hover` da linha à parte; sem nenhuma das duas, `look` é `None`.
+#[test]
+fn tableview_resolve_header_class_e_row_class() {
+    let mut motor = motor_tabela(
+        "tabela_look",
+        ".cab { background: #112233; padding: 14 18; border-radius: 5; size: 11; bold: true; }
+         .lin { padding: 13 18; border-color: #445566; }
+         .lin:hover { background: #778899; }",
+        r#"<tableview items="linhas" header_class="cab" row_class="lin">
+               <tablecolumn key="nome" />
+           </tableview>
+           <tableview items="linhas" columns="cols" />"#,
+        &[("linhas", LINHAS_TABELA)],
+    );
+    let raiz = motor.evaluated("tabela_look").unwrap();
+    match &raiz.children[0].kind {
+        NodeType::TableView { look: Some(look), row_var, .. } => {
+            assert_eq!(row_var, "row", "sem `var`, a linha é `@row`");
+            assert_eq!(look.header.background.as_deref(), Some("#112233"));
+            assert_eq!(look.header.padding.as_deref(), Some("14 18"));
+            assert_eq!(look.header.bold, Some(true));
+            assert_eq!(look.row.border_color.as_deref(), Some("#445566"));
+            assert_eq!(look.row_hover.background.as_deref(), Some("#778899"));
+        }
+        outro => panic!("esperava TableView com look, veio {outro:?}"),
+    }
+    match &raiz.children[1].kind {
+        NodeType::TableView { look, .. } => assert!(look.is_none()),
+        outro => panic!("esperava TableView, veio {outro:?}"),
+    }
+    assert!(
+        raiz.children[1].children.is_empty(),
+        "sem <tablecolumn>, nada é avaliado por linha"
+    );
+}
+
 /// `<treeview>` e `<columnview>`: a mesma coleção aninhada, o caminho como
 /// identidade.
 #[test]
