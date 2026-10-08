@@ -71,7 +71,10 @@ pub async fn run(spec: FileDialogSpec) -> FileDialogResult {
     // "cancelado", que é o único resultado que a corrotina à espera sabe tratar,
     // e diz por quê.
     #[cfg(target_arch = "wasm32")]
-    eprintln!("diálogo de arquivo não é suportado na web ({:?}) — ver docs/WEB.md", spec.mode);
+    eprintln!(
+        "diálogo de arquivo não é suportado na web ({:?}) — ver docs/WEB.md",
+        spec.mode
+    );
     #[cfg(target_os = "android")]
     log::warn!(
         "diálogo de arquivo ainda não é suportado no Android ({:?}) — ver o ANDROID_TODO.md do preset",

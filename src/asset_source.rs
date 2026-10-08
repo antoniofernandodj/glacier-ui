@@ -20,8 +20,8 @@
 //! the filesystem; an embedded source normalizes and looks them up in its
 //! bundle. See [`GlacierDaemon::assets`](crate::GlacierDaemon::assets).
 
-use std::borrow::Cow;
 use iced::time::SystemTime;
+use std::borrow::Cow;
 
 /// Lê um **template** pela fonte de assets, entregando sempre XML de `.gva`.
 ///
@@ -39,14 +39,12 @@ pub(crate) fn read_markup(
     if !crate::gvb::eh_gvb(path) {
         return Ok(content);
     }
-    crate::gvb::desugar(&content)
-        .map(Cow::Owned)
-        .map_err(|d| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                crate::error::GlacierError::Xml(Box::new(d.in_file(path, &content))).to_string(),
-            )
-        })
+    crate::gvb::desugar(&content).map(Cow::Owned).map_err(|d| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            crate::error::GlacierError::Xml(Box::new(d.in_file(path, &content))).to_string(),
+        )
+    })
 }
 
 /// Resolves logical asset paths to their contents.
@@ -160,7 +158,9 @@ impl EmbeddedAssets {
 
 impl AssetSource for EmbeddedAssets {
     fn read_bytes(&self, path: &str) -> std::io::Result<Cow<'static, [u8]>> {
-        self.buscar(path).map(Cow::Borrowed).ok_or_else(|| Self::faltando(path))
+        self.buscar(path)
+            .map(Cow::Borrowed)
+            .ok_or_else(|| Self::faltando(path))
     }
 
     fn read_to_string(&self, path: &str) -> std::io::Result<Cow<'static, str>> {
@@ -256,14 +256,20 @@ mod tests {
     fn acha_o_arquivo_pelas_grafias_de_um_href_relativo() {
         let assets = EmbeddedAssets::new(ARQUIVOS);
         for grafia in ["views/app.gv", "./views/app.gv", "views/outra/../app.gv"] {
-            assert_eq!(assets.read_to_string(grafia).unwrap(), "<screen/>", "{grafia}");
+            assert_eq!(
+                assets.read_to_string(grafia).unwrap(),
+                "<screen/>",
+                "{grafia}"
+            );
             assert!(assets.exists(grafia), "{grafia}");
         }
     }
 
     #[test]
     fn arquivo_fora_da_lista_e_not_found_com_o_caminho_na_mensagem() {
-        let erro = EmbeddedAssets::new(ARQUIVOS).read_to_string("views/falta.gss").unwrap_err();
+        let erro = EmbeddedAssets::new(ARQUIVOS)
+            .read_to_string("views/falta.gss")
+            .unwrap_err();
         assert_eq!(erro.kind(), std::io::ErrorKind::NotFound);
         assert!(erro.to_string().contains("views/falta.gss"), "{erro}");
     }
@@ -271,9 +277,15 @@ mod tests {
     #[test]
     fn binario_nao_utf8_le_como_bytes_e_falha_como_texto() {
         let assets = EmbeddedAssets::new(ARQUIVOS);
-        assert_eq!(&*assets.read_bytes("views/binario.png").unwrap(), &[0xff, 0xfe]);
         assert_eq!(
-            assets.read_to_string("views/binario.png").unwrap_err().kind(),
+            &*assets.read_bytes("views/binario.png").unwrap(),
+            &[0xff, 0xfe]
+        );
+        assert_eq!(
+            assets
+                .read_to_string("views/binario.png")
+                .unwrap_err()
+                .kind(),
             std::io::ErrorKind::InvalidData
         );
     }
@@ -288,7 +300,9 @@ mod tests {
     #[test]
     fn a_macro_embute_pelo_caminho_relativo_ao_crate() {
         let assets = crate::embed_assets!["examples/gva/web_contador/app.gva"];
-        let gv = assets.read_to_string("examples/gva/web_contador/app.gva").unwrap();
+        let gv = assets
+            .read_to_string("examples/gva/web_contador/app.gva")
+            .unwrap();
         assert!(gv.contains("<screen"), "{gv}");
     }
 }

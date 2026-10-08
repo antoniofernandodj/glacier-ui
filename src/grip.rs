@@ -423,7 +423,14 @@ mod tests {
     /// Um [`Arrasto`] de um eixo só (`Trilha`/`Indice`), com os campos novos
     /// da Onda 11 (`chave_y`/`origem_y`/`valor0_y`) no valor que eles têm
     /// sempre que o alvo não é [`Alvo::Ponto`].
-    fn arrasto_1d(chave: &str, indice: usize, eixo: Eixo, origem: Option<f32>, valor0: f32, alvo: Alvo) -> Arrasto {
+    fn arrasto_1d(
+        chave: &str,
+        indice: usize,
+        eixo: Eixo,
+        origem: Option<f32>,
+        valor0: f32,
+        alvo: Alvo,
+    ) -> Arrasto {
         Arrasto {
             chave: chave.into(),
             chave_y: None,

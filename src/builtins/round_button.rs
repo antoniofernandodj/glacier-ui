@@ -59,7 +59,7 @@ impl Component for RoundButton {
                     border_radius="{size|40}"
                     text_align="center"
                 />"#
-                .to_string(),
+            .to_string(),
         )
     }
 

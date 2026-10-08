@@ -140,7 +140,10 @@ pub struct ScreenDecl {
 pub enum ScreenSource {
     /// O corpo escrito no próprio manifesto: a árvore já montada (a mesma que um
     /// arquivo com raiz `screen` produziria) e o bloco `<script>` cru, se houver.
-    Inline { tree: UiNode, script: Option<String> },
+    Inline {
+        tree: UiNode,
+        script: Option<String>,
+    },
     /// `src = "..."`: um arquivo com raiz `screen`/`component`, como sempre.
     File(String),
     /// Sem corpo e sem `src`: servida por um `impl Component` registrado em Rust
@@ -309,8 +312,11 @@ const SCREEN_ATTR_GROUPS: &[&[&str]] = &[
 const APP_ID_ATTRS: &[&str] = &["id"];
 const APP_SINGLE_INSTANCE_ATTRS: &[&str] =
     &["single_instance", "single-instance", "instancia_unica"];
-const APP_REMEMBER_GEOMETRY_ATTRS: &[&str] =
-    &["remember_geometry", "remember-geometry", "lembrar_geometria"];
+const APP_REMEMBER_GEOMETRY_ATTRS: &[&str] = &[
+    "remember_geometry",
+    "remember-geometry",
+    "lembrar_geometria",
+];
 const APP_ANTIALIASING_ATTRS: &[&str] = &["antialiasing"];
 const APP_TOAST_PERIOD_ATTRS: &[&str] = &["toast_period", "toast-period"];
 const APP_RELOAD_PERIOD_ATTRS: &[&str] = &["reload_period", "reload-period"];
@@ -561,12 +567,15 @@ fn validate_header(fragment: Node, file: Option<&str>) -> Option<Diagnostic> {
         && let Some(a) = topo.iter().find(|n| is_app_tag(n.tag_name().name()))
     {
         return Some(
-            diagnostic_at(*a, "<app> é a raiz de um manifesto, não de uma tela".to_string())
-                .with_hint(
-                    "um arquivo com raiz app(...) carrega pelo daemon (`main_template`/o \
+            diagnostic_at(
+                *a,
+                "<app> é a raiz de um manifesto, não de uma tela".to_string(),
+            )
+            .with_hint(
+                "um arquivo com raiz app(...) carrega pelo daemon (`main_template`/o \
                      views/app padrão) ou por GlacierUI::register_app; register_component \
                      lê só telas (raiz screen/component)",
-                ),
+            ),
         );
     }
 
@@ -816,11 +825,13 @@ fn validate_template_fallback(root: Node) -> Option<Diagnostic> {
                 ),
             );
         }
-        let tem_fallback = TEMPLATE_FALLBACK_ATTRS.iter().find(|a| node.has_attribute(**a));
-        // `:for-each="lista"` chega como `bind_for-each` (ver `mark_bindings`)
-        let tem_foreach = TEMPLATE_FOREACH_ATTRS
+        let tem_fallback = TEMPLATE_FALLBACK_ATTRS
             .iter()
-            .any(|a| node.has_attribute(*a) || node.has_attribute(format!("{BIND_PREFIX}{a}").as_str()));
+            .find(|a| node.has_attribute(**a));
+        // `:for-each="lista"` chega como `bind_for-each` (ver `mark_bindings`)
+        let tem_foreach = TEMPLATE_FOREACH_ATTRS.iter().any(|a| {
+            node.has_attribute(*a) || node.has_attribute(format!("{BIND_PREFIX}{a}").as_str())
+        });
         if let (Some(attr), false) = (tem_fallback, tem_foreach) {
             return Some(
                 diagnostic_at(node, format!("`{attr}` num <template> sem `foreach`")).with_hint(
@@ -959,10 +970,11 @@ fn validate_resources(header: Node, tray_ok: bool) -> Option<Diagnostic> {
             if is_font_tag(name) {
                 if !tray_ok {
                     return Some(
-                        diagnostic_at(decl, format!("<{name}> fora do resources do app")).with_hint(
-                            "as fontes são do APLICATIVO (valem em todas as janelas): declare \
+                        diagnostic_at(decl, format!("<{name}> fora do resources do app"))
+                            .with_hint(
+                                "as fontes são do APLICATIVO (valem em todas as janelas): declare \
                              font(src = …, family = …) no resources do app(...) raiz",
-                        ),
+                            ),
                     );
                 }
                 if let Some(d) = validate_font(decl) {
@@ -980,13 +992,20 @@ fn validate_resources(header: Node, tray_ok: bool) -> Option<Diagnostic> {
             if is_tray_tag(name) {
                 if !tray_ok {
                     return Some(
-                        diagnostic_at(decl, format!("<{name}> fora do resources do app")).with_hint(
-                            "a <tray> descreve o APLICATIVO e só existe no resources do \
+                        diagnostic_at(decl, format!("<{name}> fora do resources do app"))
+                            .with_hint(
+                                "a <tray> descreve o APLICATIVO e só existe no resources do \
                              app(...) raiz; uma tela não tem como declará-la",
-                        ),
+                            ),
                     );
                 }
-                if res.children().filter(Node::is_element).filter(|d| is_tray_tag(d.tag_name().name())).count() > 1 {
+                if res
+                    .children()
+                    .filter(Node::is_element)
+                    .filter(|d| is_tray_tag(d.tag_name().name()))
+                    .count()
+                    > 1
+                {
                     return Some(
                         diagnostic_at(decl, format!("<{name}> declarado mais de uma vez"))
                             .with_hint("um aplicativo tem no máximo uma <tray>"),
@@ -1022,8 +1041,12 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
                  decorations, icon)"
             };
             return Some(
-                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido no <app>"))
-                    .with_hint(hint),
+                diagnostic_at_attr(
+                    decl,
+                    attr,
+                    format!("atributo '{name}' desconhecido no <app>"),
+                )
+                .with_hint(hint),
             );
         };
         let bool_attr = std::ptr::eq(*group, APP_SINGLE_INSTANCE_ATTRS)
@@ -1035,7 +1058,8 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
             Some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
         } else if periodo && !attr.value().trim().parse::<u64>().is_ok_and(|n| n > 0) {
             Some("um período é um número inteiro de milissegundos, maior que zero (`250`)")
-        } else if (std::ptr::eq(*group, APP_FONT_ATTRS) || std::ptr::eq(*group, APP_APPLICATION_ID_ATTRS))
+        } else if (std::ptr::eq(*group, APP_FONT_ATTRS)
+            || std::ptr::eq(*group, APP_APPLICATION_ID_ATTRS))
             && attr.value().trim().is_empty()
         {
             Some("o valor não pode ser vazio")
@@ -1085,8 +1109,12 @@ fn validate_font(decl: Node) -> Option<Diagnostic> {
         let name = attr.name();
         if !FONT_SRC_ATTRS.contains(&name) && !FONT_FAMILY_ATTRS.contains(&name) {
             return Some(
-                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido na <font>"))
-                    .with_hint("a font aceita src (o .ttf/.otf) e family (o nome da família)"),
+                diagnostic_at_attr(
+                    decl,
+                    attr,
+                    format!("atributo '{name}' desconhecido na <font>"),
+                )
+                .with_hint("a font aceita src (o .ttf/.otf) e family (o nome da família)"),
             );
         }
     }
@@ -1105,18 +1133,24 @@ fn validate_tray(decl: Node) -> Option<Diagnostic> {
         let name = attr.name();
         if !TRAY_ICON_ATTRS.contains(&name) && !TRAY_TOOLTIP_ATTRS.contains(&name) {
             return Some(
-                diagnostic_at_attr(decl, attr, format!("atributo '{name}' desconhecido na <tray>"))
-                    .with_hint(
-                        "a <tray> aceita icon e tooltip; os itens do menu são filhos: \
+                diagnostic_at_attr(
+                    decl,
+                    attr,
+                    format!("atributo '{name}' desconhecido na <tray>"),
+                )
+                .with_hint(
+                    "a <tray> aceita icon e tooltip; os itens do menu são filhos: \
                          <item>, <check> e <separator>",
-                    ),
+                ),
             );
         }
     }
     if UiNode::get_attr(&decl, TRAY_ICON_ATTRS).is_none_or(|i| i.trim().is_empty()) {
-        return Some(diagnostic_at(decl, "<tray> sem icon".to_string()).with_hint(
-            "sem ícone não há o que mostrar na bandeja: <tray icon=\"views/assets/icone.png\">",
-        ));
+        return Some(
+            diagnostic_at(decl, "<tray> sem icon".to_string()).with_hint(
+                "sem ícone não há o que mostrar na bandeja: <tray icon=\"views/assets/icone.png\">",
+            ),
+        );
     }
     let mut ids: Vec<String> = Vec::new();
     for item in decl.children().filter(Node::is_element) {
@@ -1157,8 +1191,12 @@ fn validate_tray(decl: Node) -> Option<Diagnostic> {
                     TrayItemKind::Check => "um <check> aceita id, label, checked e on_click",
                 };
                 return Some(
-                    diagnostic_at_attr(item, attr, format!("atributo '{name}' desconhecido no <{tag}>"))
-                        .with_hint(hint),
+                    diagnostic_at_attr(
+                        item,
+                        attr,
+                        format!("atributo '{name}' desconhecido no <{tag}>"),
+                    )
+                    .with_hint(hint),
                 );
             }
         }
@@ -1368,7 +1406,10 @@ fn mark_bindings(xml: &str) -> String {
             i = xml[i..].find("-->").map_or(b.len(), |e| i + e + 3);
             continue;
         }
-        if b[i] == b'<' && b.get(i + 1).is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') {
+        if b[i] == b'<'
+            && b.get(i + 1)
+                .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
+        {
             let nome_fim = xml[i + 1..]
                 .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
                 .map_or(b.len(), |e| i + 1 + e);
@@ -1387,7 +1428,8 @@ fn mark_bindings(xml: &str) -> String {
                         b'"' | b'\'' => aspas = Some(c),
                         b'>' => break,
                         b':' if b[j - 1].is_ascii_whitespace()
-                            && b.get(j + 1).is_some_and(|n| n.is_ascii_alphabetic() || *n == b'_') =>
+                            && b.get(j + 1)
+                                .is_some_and(|n| n.is_ascii_alphabetic() || *n == b'_') =>
                         {
                             out.push_str(&xml[last..j]);
                             out.push_str(BIND_PREFIX);
@@ -1432,19 +1474,33 @@ fn unmarked_bindings(fragment: Node) -> Vec<Diagnostic> {
             }
             // O `<check>` de uma `<tray>` é um item de bandeja, não um checkbox:
             // o `checked` dele é o valor (`{__notifications}`), não uma chave.
-            if el.parent().is_some_and(|p| p.tag_name().name().eq_ignore_ascii_case("tray")) {
+            if el
+                .parent()
+                .is_some_and(|p| p.tag_name().name().eq_ignore_ascii_case("tray"))
+            {
                 continue;
             }
             let name = attr.name();
             let (msg, hint) = if attr.value().contains('{') {
                 (
-                    format!("<{tag} {name}=\"{}\"> passa o VALOR onde o widget quer o NOME de uma chave", attr.value()),
-                    format!("escreva `:{name}=\"…\"` com o nome da chave; o valor interpolado vira o nome de uma chave que não existe"),
+                    format!(
+                        "<{tag} {name}=\"{}\"> passa o VALOR onde o widget quer o NOME de uma chave",
+                        attr.value()
+                    ),
+                    format!(
+                        "escreva `:{name}=\"…\"` com o nome da chave; o valor interpolado vira o nome de uma chave que não existe"
+                    ),
                 )
             } else {
                 (
-                    format!("<{tag} {name}=\"{}\"> é uma ligação sem a marca", attr.value()),
-                    format!("escreva `:{name}=\"{}\"` — o `:` diz que é o nome de uma chave, e não um texto", attr.value()),
+                    format!(
+                        "<{tag} {name}=\"{}\"> é uma ligação sem a marca",
+                        attr.value()
+                    ),
+                    format!(
+                        "escreva `:{name}=\"{}\"` — o `:` diz que é o nome de uma chave, e não um texto",
+                        attr.value()
+                    ),
                 )
             };
             out.push(diagnostic_at_attr(el, attr, msg).with_hint(hint));
@@ -4147,7 +4203,9 @@ impl UiNode {
         if v.is_none() && self.interact.is_none() {
             return;
         }
-        self.interact.get_or_insert_with(Default::default).whats_this = v;
+        self.interact
+            .get_or_insert_with(Default::default)
+            .whats_this = v;
     }
     /// Escreve [`Interact::tooltip_position`], alocando o grupo se preciso.
     pub fn set_tooltip_position(&mut self, v: Option<String>) {
@@ -4365,10 +4423,25 @@ impl UiNode {
     /// valor.
     fn shape_geo(node: &Node) -> Vec<(String, String)> {
         const PULA: &[&str] = &[
-            "class", "classe", "id", "identificador", "style", "hidden", "display",
-            "fill", "stroke", "stroke-width", "stroke_width", "strokeWidth",
-            "background", "bg", "fundo", "border-color", "border_color",
-            "border-width", "border_width",
+            "class",
+            "classe",
+            "id",
+            "identificador",
+            "style",
+            "hidden",
+            "display",
+            "fill",
+            "stroke",
+            "stroke-width",
+            "stroke_width",
+            "strokeWidth",
+            "background",
+            "bg",
+            "fundo",
+            "border-color",
+            "border_color",
+            "border-width",
+            "border_width",
         ];
         node.attributes()
             .filter(|a| !PULA.contains(&a.name()))
@@ -4843,8 +4916,10 @@ impl UiNode {
                     }
                 }
                 let secure = Self::get_attr_bool(&node, &["secure", "password", "seguro", "senha"]);
-                let menu_class =
-                    Self::get_attr(&node, &["menu_class", "menuClass", "menu-class", "classe_menu"]);
+                let menu_class = Self::get_attr(
+                    &node,
+                    &["menu_class", "menuClass", "menu-class", "classe_menu"],
+                );
                 NodeType::TextInput {
                     placeholder,
                     value_var,
@@ -4873,8 +4948,10 @@ impl UiNode {
                         "somente_leitura",
                     ],
                 );
-                let menu_class =
-                    Self::get_attr(&node, &["menu_class", "menuClass", "menu-class", "classe_menu"]);
+                let menu_class = Self::get_attr(
+                    &node,
+                    &["menu_class", "menuClass", "menu-class", "classe_menu"],
+                );
                 NodeType::TextArea {
                     placeholder,
                     value_var,
@@ -4908,10 +4985,8 @@ impl UiNode {
                         .unwrap_or_default(),
                     x_var: Self::get_attr(&node, &["x", "x_var"]).unwrap_or_default(),
                     y_var: Self::get_attr(&node, &["y", "y_var"]).unwrap_or_default(),
-                    w_var: Self::get_attr(&node, &["w", "w_var", "width_var"])
-                        .unwrap_or_default(),
-                    h_var: Self::get_attr(&node, &["h", "h_var", "height_var"])
-                        .unwrap_or_default(),
+                    w_var: Self::get_attr(&node, &["w", "w_var", "width_var"]).unwrap_or_default(),
+                    h_var: Self::get_attr(&node, &["h", "h_var", "height_var"]).unwrap_or_default(),
                     default_w: Self::get_attr_f32(&node, &["default_w", "w_default"], 320.0),
                     default_h: Self::get_attr_f32(&node, &["default_h", "h_default"], 220.0),
                 }
@@ -5200,8 +5275,7 @@ impl UiNode {
             | "Mascara" | "mascara" | "máscara" => {
                 let bruta = Self::get_attr(&node, &["mask", "mascara", "máscara", "format"])
                     .unwrap_or_default();
-                let mut value_var =
-                    Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
+                let mut value_var = Self::get_attr(&node, &["value", "valor"]).unwrap_or_default();
                 let mut on_change = Self::get_attr(
                     &node,
                     &["onChange", "on_change", "on-change", "aoMudar", "ao_mudar"],
@@ -5372,7 +5446,12 @@ impl UiNode {
                     .unwrap_or_default(),
                     header_class: Self::get_attr(
                         &node,
-                        &["header_class", "headerClass", "header-class", "classe_cabecalho"],
+                        &[
+                            "header_class",
+                            "headerClass",
+                            "header-class",
+                            "classe_cabecalho",
+                        ],
                     )
                     .unwrap_or_default(),
                     row_class: Self::get_attr(
@@ -5585,8 +5664,8 @@ impl UiNode {
             // usaria para um componente). Os nomes são os do SVG, que ninguém
             // registra como componente.
             "Canvas" | "canvas" | "Superficie" | "superficie" | "superfície" => NodeType::Canvas,
-            "path" | "Path" | "arc" | "Arc" | "circle" | "Circle" | "rect" | "Rect"
-            | "line" | "Line" | "polyline" | "Polyline" | "polygon" | "Polygon" => {
+            "path" | "Path" | "arc" | "Arc" | "circle" | "Circle" | "rect" | "Rect" | "line"
+            | "Line" | "polyline" | "Polyline" | "polygon" | "Polygon" => {
                 let kind = match tag.to_ascii_lowercase().as_str() {
                     "arc" => crate::shapes::FormaKind::Arc,
                     "circle" => crate::shapes::FormaKind::Circle,
@@ -6120,7 +6199,13 @@ impl UiNode {
                 );
                 let validate_on = Self::get_attr(
                     &node,
-                    &["validateOn", "validate_on", "validate-on", "validarEm", "validar_em"],
+                    &[
+                        "validateOn",
+                        "validate_on",
+                        "validate-on",
+                        "validarEm",
+                        "validar_em",
+                    ],
                 );
                 let error_prefix = Self::get_attr(
                     &node,
@@ -6347,7 +6432,9 @@ impl UiNode {
                     }
                 }
             }
-            "app" | "App" | "aplicativo" | "Aplicativo" => NodeType::App(Self::app_meta_from(&node)),
+            "app" | "App" | "aplicativo" | "Aplicativo" => {
+                NodeType::App(Self::app_meta_from(&node))
+            }
             // `<tray>`: os itens são lidos do XML aqui mesmo, como os `<prop>` de
             // um `<props>` — não são nós de layout, e o `<check>` de dentro nem
             // pode passar pelo `match` de tags (é apelido do `<checkbox>`).
@@ -6370,8 +6457,7 @@ impl UiNode {
                             kind,
                             id: Self::get_attr(&item, TRAY_ITEM_ID_ATTRS)
                                 .unwrap_or_else(|| format!("item{i}")),
-                            label: Self::get_attr(&item, TRAY_ITEM_LABEL_ATTRS)
-                                .unwrap_or_default(),
+                            label: Self::get_attr(&item, TRAY_ITEM_LABEL_ATTRS).unwrap_or_default(),
                             checked: Self::get_attr(&item, TRAY_ITEM_CHECKED_ATTRS),
                             on_click: Self::get_attr(&item, TRAY_ITEM_CLICK_ATTRS),
                         }
@@ -6447,9 +6533,7 @@ impl UiNode {
                             Some(PropDecl {
                                 name: Self::get_attr(&p, PROP_NAME_ATTRS)?,
                                 default: Self::get_attr(&p, PROP_DEFAULT_ATTRS),
-                                component: PROP_COMPONENT_ATTRS
-                                    .iter()
-                                    .any(|a| p.has_attribute(*a)),
+                                component: PROP_COMPONENT_ATTRS.iter().any(|a| p.has_attribute(*a)),
                             })
                         })
                         .collect(),
@@ -6926,11 +7010,8 @@ impl UiNode {
         let app_el = topo[0];
         if let Some(extra) = topo.get(1) {
             return Err(fail(
-                diagnostic_at(
-                    *extra,
-                    format!("<{}> fora do app", extra.tag_name().name()),
-                )
-                .with_hint("o app(...) envolve o arquivo inteiro: é a única tag no topo"),
+                diagnostic_at(*extra, format!("<{}> fora do app", extra.tag_name().name()))
+                    .with_hint("o app(...) envolve o arquivo inteiro: é a única tag no topo"),
             ));
         }
         if let Some(d) = validate_app(app_el)
@@ -7157,8 +7238,12 @@ impl UiNode {
                 Some(b) => b,
                 None => {
                     return Err(fail(
-                        diagnostic_at_attr(sc, a, format!("valor inválido em initial=\"{}\"", a.value()))
-                            .with_hint("um booleano é `true`/`false`"),
+                        diagnostic_at_attr(
+                            sc,
+                            a,
+                            format!("valor inválido em initial=\"{}\"", a.value()),
+                        )
+                        .with_hint("um booleano é `true`/`false`"),
                     ));
                 }
             },
@@ -7276,7 +7361,10 @@ fn lift_scripts(xml: &str) -> (String, Vec<(u32, String)>) {
                 out.extend(std::iter::repeat_n(' ', c.len_utf8()));
             }
         }
-        found.push((xml[..open].matches('\n').count() as u32 + 1, block.to_string()));
+        found.push((
+            xml[..open].matches('\n').count() as u32 + 1,
+            block.to_string(),
+        ));
         cursor = end;
     }
     out.push_str(&xml[cursor..]);

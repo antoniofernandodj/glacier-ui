@@ -17,7 +17,10 @@ fn gvs(dir: &Path, out: &mut Vec<PathBuf>) {
         let p = entry.path();
         if p.is_dir() {
             gvs(&p, out);
-        } else if p.extension().is_some_and(|e| e == "gv" || e == "gva" || e == "gvb") {
+        } else if p
+            .extension()
+            .is_some_and(|e| e == "gv" || e == "gva" || e == "gvb")
+        {
             out.push(p);
         }
     }

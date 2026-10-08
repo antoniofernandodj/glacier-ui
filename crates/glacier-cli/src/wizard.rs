@@ -311,7 +311,9 @@ fn proximos_passos(e: &Estilo, plano: &Plano) {
         );
         println!(
             "  {}",
-            e.fraco("Preset experimental: leia ANDROID_TODO.md antes de usar APIs do motor no celular.")
+            e.fraco(
+                "Preset experimental: leia ANDROID_TODO.md antes de usar APIs do motor no celular."
+            )
         );
     } else {
         println!("    cargo run");

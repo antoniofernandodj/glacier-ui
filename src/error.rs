@@ -262,7 +262,10 @@ impl fmt::Display for GlacierError {
             }
             #[cfg(feature = "micropython")]
             Self::MicroPython { component, message } => {
-                write!(f, "script MicroPython do componente '{component}': {message}")
+                write!(
+                    f,
+                    "script MicroPython do componente '{component}': {message}"
+                )
             }
             Self::Link { component, message } => {
                 write!(f, "<link> do componente '{component}': {message}")

@@ -61,7 +61,10 @@ fn textos(node: &UiNode, out: &mut Vec<String>) {
 
 /// `(on_click, color)` de cada botão, na ordem da tela.
 fn botoes(node: &UiNode, out: &mut Vec<(Option<String>, Option<String>)>) {
-    if let NodeType::Button { on_click, color, .. } = &node.kind {
+    if let NodeType::Button {
+        on_click, color, ..
+    } = &node.kind
+    {
         out.push((on_click.clone(), color.clone()));
     }
     for c in &node.children {
@@ -79,12 +82,18 @@ fn valor_na_tela(m: &mut GlacierUI) -> Vec<String> {
 fn a_tela_embutida_tem_o_valor_e_os_tres_botoes_estilizados() {
     let mut m = motor();
     let t = valor_na_tela(&mut m);
-    assert!(t.contains(&"0".to_string()), "o valor não chegou à tela: {t:?}");
+    assert!(
+        t.contains(&"0".to_string()),
+        "o valor não chegou à tela: {t:?}"
+    );
 
     let mut b = Vec::new();
     botoes(m.evaluated("contador").unwrap(), &mut b);
     let acoes: Vec<_> = b.iter().map(|(a, _)| a.as_deref()).collect();
-    assert_eq!(acoes, [Some("decrementar"), Some("zerar"), Some("incrementar")]);
+    assert_eq!(
+        acoes,
+        [Some("decrementar"), Some("zerar"), Some("incrementar")]
+    );
 
     // A cor vem de `.perigo { color: var(--perigo) }` no .gss EMBUTIDO. Se a
     // folha não tivesse sido achada pela fonte, isto seria `None` — e a tela

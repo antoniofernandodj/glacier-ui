@@ -87,7 +87,10 @@ impl Component for Dock {
             "// Arraste a faixa de título do painel para uma borda.\n// Solte: ele reancora ali.\n//\n// `✕` esconde; a aba `▸` traz de volta.\n// O layout é lembrado entre execuções (temp_dir/glacier-onda12-layout.json).".to_string(),
         );
         let lado = ctx.get("lado").cloned().unwrap_or_default();
-        ctx.set("status", format!("painel: {lado} (lembrado, se havia layout salvo)"));
+        ctx.set(
+            "status",
+            format!("painel: {lado} (lembrado, se havia layout salvo)"),
+        );
     }
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {

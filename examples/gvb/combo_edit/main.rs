@@ -21,7 +21,10 @@ impl Servidores {
             // sem precisar salvar nada primeiro.
             pares: vec![
                 ("https://prod.exemplo.com".into(), "tok_prod_abc123".into()),
-                ("https://staging.exemplo.com".into(), "tok_staging_xyz789".into()),
+                (
+                    "https://staging.exemplo.com".into(),
+                    "tok_staging_xyz789".into(),
+                ),
             ],
         }
     }

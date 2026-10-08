@@ -91,8 +91,7 @@ impl Serie {
         let Some(bruto) = context.get(chave) else {
             return Self::default();
         };
-        let Ok(serde_json::Value::Array(itens)) =
-            serde_json::from_str::<serde_json::Value>(bruto)
+        let Ok(serde_json::Value::Array(itens)) = serde_json::from_str::<serde_json::Value>(bruto)
         else {
             return Self::default();
         };
@@ -326,7 +325,9 @@ impl Escala {
         for i in 0..=quantas.clamp(0, 200) {
             v.push(self.min + self.passo * i as f64);
         }
-        if v.last().is_none_or(|u| (*u - self.max).abs() > self.passo * 0.5) {
+        if v.last()
+            .is_none_or(|u| (*u - self.max).abs() > self.passo * 0.5)
+        {
             v.push(self.max);
         }
         v
@@ -495,7 +496,10 @@ mod tests {
     fn serie_aceita_as_duas_formas() {
         let c = ctx(&[
             ("nums", "[1, 2.5, 3]"),
-            ("objs", r#"[{"label":"Jan","value":10},{"nome":"Fev","valor":"20"}]"#),
+            (
+                "objs",
+                r#"[{"label":"Jan","value":10},{"nome":"Fev","valor":"20"}]"#,
+            ),
         ]);
 
         let n = Serie::ler(&c, "nums");

@@ -19,5 +19,7 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new().main_template("examples/gva/foreach_fallback_luau/app.gva").run()
+    GlacierDaemon::new()
+        .main_template("examples/gva/foreach_fallback_luau/app.gva")
+        .run()
 }

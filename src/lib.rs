@@ -66,6 +66,7 @@ pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
+pub mod bindings;
 pub mod builtins;
 pub mod canvas;
 pub mod charts;
@@ -82,10 +83,9 @@ pub mod forms;
 pub mod gauges;
 pub mod grid;
 pub mod grip;
-pub mod keys;
 pub mod gva;
-pub mod bindings;
 pub mod gvb;
+pub mod keys;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod luau;
 #[cfg(target_arch = "wasm32")]
@@ -107,11 +107,11 @@ pub mod render_inputs;
 pub mod reveal;
 pub mod shapes;
 mod single_instance;
-mod timer;
 pub mod spinner;
 pub mod style;
-pub mod textarea;
 pub mod stylesheet;
+pub mod textarea;
+mod timer;
 pub mod toasts;
 pub mod tray;
 #[cfg(feature = "webview")]
@@ -168,8 +168,8 @@ pub use tray::{
 };
 pub use widget::{EngineMessage, TimeEditKey, render_node};
 
-use std::collections::HashMap;
 use gva::parse_markup;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 // `iced::time` e não `std::time`: no nativo são os MESMOS tipos (reexport do
@@ -1301,7 +1301,11 @@ impl GlacierUI {
                     self.register_component_inner(&tela.name, &resolved)?;
                 } else if let Some(t) = &tela.title {
                     // Já registrada: só o título do manifesto mudou.
-                    let mut meta = self.screen_meta.get(&tela.name).cloned().unwrap_or_default();
+                    let mut meta = self
+                        .screen_meta
+                        .get(&tela.name)
+                        .cloned()
+                        .unwrap_or_default();
                     meta.title = Some(t.clone());
                     self.screen_meta.insert(tela.name.clone(), meta);
                 }
@@ -1309,7 +1313,11 @@ impl GlacierUI {
             parser::ScreenSource::Rust => {
                 // Sem corpo nem `src`: o `title` do manifesto é o da tela.
                 if let Some(t) = &tela.title {
-                    let mut meta = self.screen_meta.get(&tela.name).cloned().unwrap_or_default();
+                    let mut meta = self
+                        .screen_meta
+                        .get(&tela.name)
+                        .cloned()
+                        .unwrap_or_default();
                     meta.title = Some(t.clone());
                     self.screen_meta.insert(tela.name.clone(), meta);
                     self.screen_titles.insert(tela.name.clone(), t.clone());
@@ -2208,8 +2216,7 @@ impl GlacierUI {
                 let mut modo_commitado: Option<String> = None;
                 if let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT)
                     && let Some(arrasto) = crate::grip::Arrasto::ler(bruto)
-                    && let Some((chave, borda)) =
-                        arrasto.modo_no_release(self.last_cursor_pos)
+                    && let Some((chave, borda)) = arrasto.modo_no_release(self.last_cursor_pos)
                 {
                     self.context_data.insert(chave.clone(), borda);
                     modo_commitado = Some(chave);
@@ -2403,9 +2410,9 @@ impl GlacierUI {
                 // Routed to `on_form_submit` / `on_form_validation_error`, never
                 // `update` — a form's field changes and its submission don't
                 // compete for the same `match` arm. Enter can also advance focus.
-                let focus_task = next_focus.clone().map(|id| {
-                    iced::widget::operation::focus::<EngineMessage>(id)
-                });
+                let focus_task = next_focus
+                    .clone()
+                    .map(|id| iced::widget::operation::focus::<EngineMessage>(id));
                 let fields = self.collect_form_rules(scope);
 
                 // No `rules` anywhere in the form: keep the pre-validation
@@ -2453,14 +2460,10 @@ impl GlacierUI {
                     let mut builder = forms::FormBuilder::new("form");
                     let mut script_rules: Vec<(String, Vec<String>)> = Vec::new();
                     for f in &fields {
-                        let parsed =
-                            forms::Validator::parse_rules(&f.rules).unwrap_or_else(|e| {
-                                eprintln!(
-                                    "[glacier-ui] <form>: regra inválida em '{}': {e}",
-                                    f.name
-                                );
-                                Vec::new()
-                            });
+                        let parsed = forms::Validator::parse_rules(&f.rules).unwrap_or_else(|e| {
+                            eprintln!("[glacier-ui] <form>: regra inválida em '{}': {e}", f.name);
+                            Vec::new()
+                        });
                         let mut builtin = Vec::new();
                         let mut scripts = Vec::new();
                         for v in parsed {
@@ -2476,9 +2479,8 @@ impl GlacierUI {
                             script_rules.push((f.name.clone(), scripts));
                         }
                         let cur = ctx.get(&f.name).cloned().unwrap_or_default();
-                        builder = builder.control(forms::FormControl::with_validators(
-                            &f.name, cur, builtin,
-                        ));
+                        builder = builder
+                            .control(forms::FormControl::with_validators(&f.name, cur, builtin));
                     }
                     let mut form = builder.build();
                     form.validate();
@@ -2544,7 +2546,8 @@ impl GlacierUI {
                     error_prefix.clone()
                 };
                 for f in self.collect_form_rules(scope) {
-                    self.context_data.insert(format!("{prefix}{}", f.name), String::new());
+                    self.context_data
+                        .insert(format!("{prefix}{}", f.name), String::new());
                 }
                 if reset_action.is_empty() {
                     let _ = self.reevaluate_all();
@@ -2575,9 +2578,7 @@ impl GlacierUI {
                 let action: &Action = if *single_line {
                     match action {
                         Action::Edit(Edit::Enter) => return iced::Task::none(),
-                        Action::Edit(Edit::Paste(s))
-                            if s.contains('\n') || s.contains('\r') =>
-                        {
+                        Action::Edit(Edit::Paste(s)) if s.contains('\n') || s.contains('\r') => {
                             let flat: String =
                                 s.chars().filter(|c| *c != '\n' && *c != '\r').collect();
                             owned_action = Action::Edit(Edit::Paste(std::sync::Arc::new(flat)));
@@ -2975,7 +2976,10 @@ impl GlacierUI {
                 // Sem thread nem D-Bus no navegador: vai para o console, para não
                 // sumir sem rastro.
                 #[cfg(target_arch = "wasm32")]
-                eprintln!("notify() não é suportado na web: {} — {}", spec.title, spec.body);
+                eprintln!(
+                    "notify() não é suportado na web: {} — {}",
+                    spec.title, spec.body
+                );
             }
         }
 
@@ -3105,13 +3109,12 @@ impl GlacierUI {
             let id = t.id;
             let owner_name = owner.to_string();
             let dur = std::time::Duration::from_millis(t.delay_ms);
-            tasks.push(iced::Task::perform(
-                crate::timer::sleep(dur),
-                move |()| EngineMessage::LuauTimer {
+            tasks.push(iced::Task::perform(crate::timer::sleep(dur), move |()| {
+                EngineMessage::LuauTimer {
                     owner: owner_name.clone(),
                     id,
-                },
-            ));
+                }
+            }));
         }
 
         // Newly opened streams are just recorded; `subscription()` (re-evaluated
@@ -3822,15 +3825,10 @@ impl GlacierUI {
     /// clique no item de menu tira o foco do `text_editor`/`text_input`, e
     /// **ambos só desenham o realce da seleção com foco** — sem o refoco,
     /// "Selecionar tudo" seleciona de fato mas não aparece nada na tela.
-    fn run_input_edit(
-        &mut self,
-        t: &menu::InputMenuTarget,
-        op: &str,
-    ) -> iced::Task<EngineMessage> {
+    fn run_input_edit(&mut self, t: &menu::InputMenuTarget, op: &str) -> iced::Task<EngineMessage> {
         use iced::widget::text_editor::{Action, Edit};
         let binding = t.binding.clone();
-        let refocus =
-            || iced::widget::operation::focus::<EngineMessage>(t.widget_id.clone());
+        let refocus = || iced::widget::operation::focus::<EngineMessage>(t.widget_id.clone());
 
         // "Colar" é igual para os dois sabores: lê o clipboard e volta por
         // `InputContextPasteResult`.
@@ -3889,7 +3887,12 @@ impl GlacierUI {
                 ])
             }
             "delete" => {
-                if self.editors.get(&binding).and_then(|c| c.selection()).is_none() {
+                if self
+                    .editors
+                    .get(&binding)
+                    .and_then(|c| c.selection())
+                    .is_none()
+                {
                     return iced::Task::none();
                 }
                 let after = self.editor_perform(&binding, Action::Edit(Edit::Backspace), true);
@@ -3929,10 +3932,8 @@ impl GlacierUI {
                 });
                 match restored {
                     Some(v) => {
-                        self.editors.insert(
-                            binding.clone(),
-                            crate::textarea::Content::with_text(&v),
-                        );
+                        self.editors
+                            .insert(binding.clone(), crate::textarea::Content::with_text(&v));
                         iced::Task::batch([
                             self.after_field_change(&binding, &t.on_change, v),
                             refocus(),
@@ -4181,7 +4182,9 @@ impl GlacierUI {
     fn dock_on_change(&self, mode_key: &str) -> Option<String> {
         fn busca(no: &UiNode, mode_key: &str) -> Option<String> {
             if let NodeType::Dock {
-                mode_var, on_change, ..
+                mode_var,
+                on_change,
+                ..
             } = &no.kind
                 && mode_var == mode_key
                 && !on_change.is_empty()
@@ -4328,10 +4331,8 @@ impl GlacierUI {
             let ctx_val = self.context_data.get(b).cloned().unwrap_or_default();
             let last = self.editor_synced.get(b);
             if !self.editors.contains_key(b) || last != Some(&ctx_val) {
-                self.editors.insert(
-                    b.clone(),
-                    crate::textarea::Content::with_text(&ctx_val),
-                );
+                self.editors
+                    .insert(b.clone(), crate::textarea::Content::with_text(&ctx_val));
                 self.editor_synced.insert(b.clone(), ctx_val);
             }
         }
@@ -4577,8 +4578,8 @@ impl GlacierUI {
             // perderia. Esse continua com o limite antigo (só o markup
             // recarrega) — é o `contains_key` abaixo que o exclui, já que ele
             // sempre tem uma entrada em `self.components`.
-            let pode_instalar_script = self.script_only_components.contains(&name)
-                || !self.components.contains_key(&name);
+            let pode_instalar_script =
+                self.script_only_components.contains(&name) || !self.components.contains_key(&name);
             // As entradas de `active_streams` da versão antiga são descartadas
             // antes: elas referenciam handlers da VM anterior, e a nova
             // instância recomeça a contagem de `id` em 1 — deixá-las seria
@@ -4716,7 +4717,11 @@ pub fn parse_app_manifest(xml: &str, file: Option<&str>) -> Result<Option<parser
 pub(crate) fn app_manifest(
     path: &str,
     content: &str,
-) -> Result<(Option<parser::AppMeta>, Option<parser::TrayMeta>, Option<String>)> {
+) -> Result<(
+    Option<parser::AppMeta>,
+    Option<parser::TrayMeta>,
+    Option<String>,
+)> {
     if let Some(manifest) = parser::UiNode::parse_app_xml(content, Some(path))? {
         let title = manifest
             .screens

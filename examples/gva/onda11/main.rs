@@ -81,10 +81,7 @@ impl Component for Onda11 {
         // console_w/console_h sem seed: nasce no default_w/default_h do markup.
 
         // ── 5. Chip ─────────────────────────────────────────────────────
-        ctx.set(
-            "tags",
-            r#"["produção","staging","us-east-1"]"#.to_string(),
-        );
+        ctx.set("tags", r#"["produção","staging","us-east-1"]"#.to_string());
 
         // ── 8. QrCode ───────────────────────────────────────────────────
         ctx.set("qr_texto", "https://glacier-ui.dev".to_string());
@@ -109,26 +106,37 @@ impl Component for Onda11 {
             }
             "fechar_splash" => {
                 ctx.set("carregando", String::new());
-                ctx.set("status", "Splash fechada — o conteúdo estava por baixo o tempo todo".to_string());
+                ctx.set(
+                    "status",
+                    "Splash fechada — o conteúdo estava por baixo o tempo todo".to_string(),
+                );
             }
             "abrir_splash" => {
                 ctx.set("carregando", "true".to_string());
             }
             "alternar_notificacao" => {
-                let ligado = ctx
-                    .get("tem_notificacao")
-                    .is_some_and(|v| {
-                        let s = v.trim().to_lowercase();
-                        !s.is_empty() && s != "false" && s != "0"
-                    });
+                let ligado = ctx.get("tem_notificacao").is_some_and(|v| {
+                    let s = v.trim().to_lowercase();
+                    !s.is_empty() && s != "false" && s != "0"
+                });
 
                 ctx.set(
                     "tem_notificacao",
-                    if ligado { "false".to_string() } else { "true".to_string() },
+                    if ligado {
+                        "false".to_string()
+                    } else {
+                        "true".to_string()
+                    },
                 );
             }
-            "instalar_tipica" => ctx.set("status", "CommandLink: instalação típica escolhida".to_string()),
-            "instalar_custom" => ctx.set("status", "CommandLink: instalação customizada escolhida".to_string()),
+            "instalar_tipica" => ctx.set(
+                "status",
+                "CommandLink: instalação típica escolhida".to_string(),
+            ),
+            "instalar_custom" => ctx.set(
+                "status",
+                "CommandLink: instalação customizada escolhida".to_string(),
+            ),
             "novo_item" => ctx.set("status", "RoundButton: novo item".to_string()),
             // O braço genérico de sempre: a ação É o nome da chave (o
             // `<textinput on_change="qr_texto">` do QrCode, o `<tabbar>`).

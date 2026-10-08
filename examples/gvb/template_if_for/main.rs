@@ -33,12 +33,21 @@ struct Tarefas {
 
 impl Tarefas {
     fn new() -> Self {
-        let titulos = ["Escrever o exemplo", "Rodar o exemplo", "Conferir o if", "Conferir o for"];
+        let titulos = [
+            "Escrever o exemplo",
+            "Rodar o exemplo",
+            "Conferir o if",
+            "Conferir o for",
+        ];
         Self {
             itens: titulos
                 .iter()
                 .enumerate()
-                .map(|(i, t)| Tarefa { id: i as u32 + 1, titulo: t.to_string(), feita: i == 0 })
+                .map(|(i, t)| Tarefa {
+                    id: i as u32 + 1,
+                    titulo: t.to_string(),
+                    feita: i == 0,
+                })
                 .collect(),
             proximo: titulos.len() as u32 + 1,
             so_pendentes: false,
@@ -60,11 +69,17 @@ impl Tarefas {
                 })
             })
             .collect();
-        ctx.set("tarefas", serde_json::Value::Array(visiveis.clone()).to_string());
+        ctx.set(
+            "tarefas",
+            serde_json::Value::Array(visiveis.clone()).to_string(),
+        );
         ctx.set("so_pendentes", self.so_pendentes.to_string());
         ctx.set("sem_tarefas", visiveis.is_empty().to_string());
         let pendentes = self.itens.iter().filter(|t| !t.feita).count();
-        ctx.set("resumo", format!("{pendentes} pendente(s) de {}", self.itens.len()));
+        ctx.set(
+            "resumo",
+            format!("{pendentes} pendente(s) de {}", self.itens.len()),
+        );
     }
 }
 
@@ -86,7 +101,11 @@ impl Component for Tarefas {
         let (nome, alvo) = action.split_once(':').unwrap_or((action, ""));
         match nome {
             "alternar" => {
-                if let Some(t) = alvo.parse::<u32>().ok().and_then(|id| self.itens.iter_mut().find(|t| t.id == id)) {
+                if let Some(t) = alvo
+                    .parse::<u32>()
+                    .ok()
+                    .and_then(|id| self.itens.iter_mut().find(|t| t.id == id))
+                {
                     t.feita = !t.feita;
                 }
             }
@@ -94,7 +113,11 @@ impl Component for Tarefas {
             "nova" => {
                 let n = self.proximo;
                 self.proximo += 1;
-                self.itens.push(Tarefa { id: n, titulo: format!("Tarefa nova #{n}"), feita: false });
+                self.itens.push(Tarefa {
+                    id: n,
+                    titulo: format!("Tarefa nova #{n}"),
+                    feita: false,
+                });
             }
             _ => return,
         }

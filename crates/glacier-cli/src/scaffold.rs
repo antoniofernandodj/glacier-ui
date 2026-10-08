@@ -126,7 +126,8 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gvb", "gva", "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh", "html", "conf",
+    "gvb", "gva", "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
+    "html", "conf",
 ];
 
 /// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`
@@ -417,11 +418,19 @@ mod testes {
         }
 
         let cargo = fs::read_to_string(destino.join("Cargo.toml")).expect("ler Cargo.toml");
-        assert!(cargo.contains("name = \"meu_app\""), "lib sem o nome de crate");
-        assert!(cargo.contains("package = \"com.example.meu_app\""));
-        assert!(cargo.contains("features = [\"android\"]"), "falta a feature android do motor");
         assert!(
-            cargo.contains("iced_winit = { git = \"https://github.com/antoniofernandodj/iced_winit\""),
+            cargo.contains("name = \"meu_app\""),
+            "lib sem o nome de crate"
+        );
+        assert!(cargo.contains("package = \"com.example.meu_app\""));
+        assert!(
+            cargo.contains("features = [\"android\"]"),
+            "falta a feature android do motor"
+        );
+        assert!(
+            cargo.contains(
+                "iced_winit = { git = \"https://github.com/antoniofernandodj/iced_winit\""
+            ),
             "o [patch] do iced_winit de Android sumiu"
         );
 

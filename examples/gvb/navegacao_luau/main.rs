@@ -10,5 +10,7 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new().main_template("examples/gvb/navegacao_luau/login.gvb").run()
+    GlacierDaemon::new()
+        .main_template("examples/gvb/navegacao_luau/login.gvb")
+        .run()
 }

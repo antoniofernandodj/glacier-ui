@@ -30,8 +30,8 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-use glacier_ui::mlua::{self, Lua, Table, UserData, UserDataMethods, Value};
 use glacier_ui::GlacierDaemon;
+use glacier_ui::mlua::{self, Lua, Table, UserData, UserDataMethods, Value};
 use rusqlite::Connection;
 use rusqlite::types::{Value as SqlValue, ValueRef};
 
@@ -69,7 +69,9 @@ fn instalar_sqlite(lua: &Lua) -> mlua::Result<()> {
 /// exemplo é re-executável sem sujar o repositório e os dados sobrevivem entre
 /// execuções. Um caminho com barra, ou `:memory:`, é usado como está.
 fn resolver_caminho(bruto: &str) -> PathBuf {
-    if bruto == ":memory:" || Path::new(bruto).is_absolute() || bruto.contains(std::path::MAIN_SEPARATOR)
+    if bruto == ":memory:"
+        || Path::new(bruto).is_absolute()
+        || bruto.contains(std::path::MAIN_SEPARATOR)
     {
         PathBuf::from(bruto)
     } else {
@@ -96,50 +98,60 @@ impl UserData for Conexao {
     fn add_methods<M: UserDataMethods<Self>>(m: &mut M) {
         // INSERT/UPDATE/DELETE/DDL de uma instrução. Devolve o nº de linhas
         // afetadas.
-        m.add_method("execute", |_, this, (sql, params): (String, Option<Table>)| {
-            let vals = ligar_params(params)?;
-            let n = this.com(|c| c.execute(&sql, rusqlite::params_from_iter(vals)))?;
-            Ok(n as i64)
-        });
+        m.add_method(
+            "execute",
+            |_, this, (sql, params): (String, Option<Table>)| {
+                let vals = ligar_params(params)?;
+                let n = this.com(|c| c.execute(&sql, rusqlite::params_from_iter(vals)))?;
+                Ok(n as i64)
+            },
+        );
 
         // SELECT. Devolve um array de tabelas (coluna → valor); `Text`/`Blob`
         // chegam como string Lua, `NULL` como `nil`.
-        m.add_method("query", |lua, this, (sql, params): (String, Option<Table>)| {
-            let vals = ligar_params(params)?;
-            let guarda = this.0.borrow();
-            let conn = guarda
-                .as_ref()
-                .ok_or_else(|| mlua::Error::runtime("conexão sqlite já fechada"))?;
-            let mut stmt = conn.prepare(&sql).map_err(mlua::Error::external)?;
-            let colunas: Vec<String> =
-                stmt.column_names().iter().map(|s| s.to_string()).collect();
-            let mut rows = stmt
-                .query(rusqlite::params_from_iter(vals))
-                .map_err(mlua::Error::external)?;
+        m.add_method(
+            "query",
+            |lua, this, (sql, params): (String, Option<Table>)| {
+                let vals = ligar_params(params)?;
+                let guarda = this.0.borrow();
+                let conn = guarda
+                    .as_ref()
+                    .ok_or_else(|| mlua::Error::runtime("conexão sqlite já fechada"))?;
+                let mut stmt = conn.prepare(&sql).map_err(mlua::Error::external)?;
+                let colunas: Vec<String> =
+                    stmt.column_names().iter().map(|s| s.to_string()).collect();
+                let mut rows = stmt
+                    .query(rusqlite::params_from_iter(vals))
+                    .map_err(mlua::Error::external)?;
 
-            let saida = lua.create_table()?;
-            let mut i = 1i64;
-            while let Some(row) = rows.next().map_err(mlua::Error::external)? {
-                let registro = lua.create_table()?;
-                for (idx, nome) in colunas.iter().enumerate() {
-                    let valor = match row.get_ref(idx).map_err(mlua::Error::external)? {
-                        ValueRef::Null => Value::Nil,
-                        ValueRef::Integer(n) => Value::Integer(n),
-                        ValueRef::Real(f) => Value::Number(f),
-                        ValueRef::Text(b) | ValueRef::Blob(b) => {
-                            Value::String(lua.create_string(b)?)
-                        }
-                    };
-                    registro.set(nome.as_str(), valor)?;
+                let saida = lua.create_table()?;
+                let mut i = 1i64;
+                while let Some(row) = rows.next().map_err(mlua::Error::external)? {
+                    let registro = lua.create_table()?;
+                    for (idx, nome) in colunas.iter().enumerate() {
+                        let valor = match row.get_ref(idx).map_err(mlua::Error::external)? {
+                            ValueRef::Null => Value::Nil,
+                            ValueRef::Integer(n) => Value::Integer(n),
+                            ValueRef::Real(f) => Value::Number(f),
+                            ValueRef::Text(b) | ValueRef::Blob(b) => {
+                                Value::String(lua.create_string(b)?)
+                            }
+                        };
+                        registro.set(nome.as_str(), valor)?;
+                    }
+                    saida.set(i, registro)?;
+                    i += 1;
                 }
-                saida.set(i, registro)?;
-                i += 1;
-            }
-            Ok(saida)
-        });
+                Ok(saida)
+            },
+        );
 
-        m.add_method("begin", |_, this, ()| this.com(|c| c.execute_batch("BEGIN")));
-        m.add_method("commit", |_, this, ()| this.com(|c| c.execute_batch("COMMIT")));
+        m.add_method("begin", |_, this, ()| {
+            this.com(|c| c.execute_batch("BEGIN"))
+        });
+        m.add_method("commit", |_, this, ()| {
+            this.com(|c| c.execute_batch("COMMIT"))
+        });
         m.add_method("rollback", |_, this, ()| {
             this.com(|c| c.execute_batch("ROLLBACK"))
         });

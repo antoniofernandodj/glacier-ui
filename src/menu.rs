@@ -136,7 +136,11 @@ impl MenuNode {
 
     /// Uma linha-folha simples `label` → dispara `action`. `disabled` pinta a
     /// linha apagada e tira o clique.
-    pub(crate) fn leaf(label: impl Into<String>, action: impl Into<String>, disabled: bool) -> Self {
+    pub(crate) fn leaf(
+        label: impl Into<String>,
+        action: impl Into<String>,
+        disabled: bool,
+    ) -> Self {
         Self {
             label: label.into(),
             icon: None,
@@ -340,10 +344,7 @@ fn position_y(y: f32, height: f32, viewport_h: f32) -> f32 {
 /// `dialogs.rs`/`DIALOGS.md`) mais um painel por nível de cascata aberto.
 /// Chame de [`crate::GlacierUI::render_current`], que já empilha isto por
 /// cima de tudo quando `active_menu.is_some()`.
-pub fn overlay<'a>(
-    state: &'a ActiveMenuState,
-    viewport: (f32, f32),
-) -> Element<'a, EngineMessage> {
+pub fn overlay<'a>(state: &'a ActiveMenuState, viewport: (f32, f32)) -> Element<'a, EngineMessage> {
     let style = &state.style;
     let (vw, vh) = viewport;
 

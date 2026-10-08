@@ -406,7 +406,12 @@ impl<Message> Grid<'_, Message> {
         opaca: Option<Color>,
     ) {
         use iced::advanced::Renderer as _;
-        let fundo = if sob { faixa.hover.or(faixa.fundo) } else { faixa.fundo }.or(opaca);
+        let fundo = if sob {
+            faixa.hover.or(faixa.fundo)
+        } else {
+            faixa.fundo
+        }
+        .or(opaca);
         if let Some(cor) = fundo {
             renderer.fill_quad(
                 renderer::Quad {
@@ -639,7 +644,11 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
             .zip(cursores)
             .enumerate()
         {
-            let vp = if self.fixa && i < colunas { &vp_cabeca } else { viewport };
+            let vp = if self.fixa && i < colunas {
+                &vp_cabeca
+            } else {
+                viewport
+            };
             filho
                 .as_widget_mut()
                 .update(estado, event, l, c, renderer, clipboard, shell, vp);
@@ -761,7 +770,12 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
             if let Some(faixa) = self.faixas.get(r) {
                 self.pinta(renderer, faixa, *ret, sob == Some(r), None);
             }
-            desenha_linha(renderer, r, self.cursor_para(r, cursor, cabeca, dy), viewport);
+            desenha_linha(
+                renderer,
+                r,
+                self.cursor_para(r, cursor, cabeca, dy),
+                viewport,
+            );
         }
 
         // O cabeçalho fixo por último, numa camada própria: no `iced` o texto
@@ -775,8 +789,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
             renderer.with_layer(*viewport, |renderer| {
                 renderer.with_translation(Vector::new(0.0, dy), |renderer| {
                     let faixa = self.faixas.first().copied().unwrap_or_default();
-                    let opaca =
-                        (dy > 0.0).then(|| theme.extended_palette().background.base.color);
+                    let opaca = (dy > 0.0).then(|| theme.extended_palette().background.base.color);
                     self.pinta(renderer, &faixa, *ret, sob == Some(0), opaca);
                     // O viewport no espaço do layout: as células do cabeçalho
                     // estão, pelo layout, ACIMA da área visível — com o

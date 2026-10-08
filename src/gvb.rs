@@ -167,7 +167,9 @@ impl Parser {
     }
 
     fn starts_with(&self, s: &str) -> bool {
-        s.chars().enumerate().all(|(i, c)| self.peek_at(i) == Some(c))
+        s.chars()
+            .enumerate()
+            .all(|(i, c)| self.peek_at(i) == Some(c))
     }
 
     fn err<T>(&self, msg: impl Into<String>) -> Res<T> {
@@ -336,7 +338,11 @@ impl Parser {
             // Um atributo sem `= valor` é um marcador (`else`, `component`): o
             // mesmo que `nome=""` no XML, e o `.gva` também o escreve sem valor.
             if matches!(self.peek(), Some(',' | ')')) {
-                attrs.push(Attr { name, value: String::new(), line });
+                attrs.push(Attr {
+                    name,
+                    value: String::new(),
+                    line,
+                });
                 if self.peek() == Some(',') {
                     self.bump();
                 }
@@ -412,7 +418,10 @@ impl Parser {
         // os outros (`class = `, `id = `), e o ponto fica livre para ser só ponto.
         if matches!(self.peek(), Some('.' | '#')) {
             return self.err_hint(
-                format!("`{tag}{}` — classe e id não vão na tag", self.peek().unwrap()),
+                format!(
+                    "`{tag}{}` — classe e id não vão na tag",
+                    self.peek().unwrap()
+                ),
                 "escreva `tag(class = nome)` (ou `id = nome`)",
             );
         }
@@ -479,7 +488,10 @@ impl Parser {
     fn check_bindings(&self, node: &Node) -> Res<()> {
         // O `<check>` de uma `<tray>` é um item de bandeja: o `checked` dele é o
         // valor (`@__notifications`), não o nome de uma chave.
-        let na_bandeja = self.open.last().is_some_and(|t| t.eq_ignore_ascii_case("tray"));
+        let na_bandeja = self
+            .open
+            .last()
+            .is_some_and(|t| t.eq_ignore_ascii_case("tray"));
         if !self.strict || na_bandeja {
             return Ok(());
         }
@@ -490,7 +502,10 @@ impl Parser {
             return Err(Error {
                 line: a.line,
                 col: 1,
-                msg: format!("`{} = …` em `{}` é uma ligação e precisa do `:`", a.name, node.tag),
+                msg: format!(
+                    "`{} = …` em `{}` é uma ligação e precisa do `:`",
+                    a.name, node.tag
+                ),
                 hint: Some(
                     "escreva `:nome = chave`: o `:` diz que o valor é o NOME de uma chave do contexto (ligação nos dois sentidos); sem ele o valor é um texto, e `@chave` é o valor dela",
                 ),
@@ -525,8 +540,19 @@ impl Parser {
                 return self.err("esperava `{` (ou `if`) depois do `else`");
             }
             let (children, end_line) = self.block()?;
-            let attrs = vec![Attr { name: "else".into(), value: String::new(), line: l }];
-            chain.push(Node { tag: "template".into(), attrs, text: None, children, line: l, end_line });
+            let attrs = vec![Attr {
+                name: "else".into(),
+                value: String::new(),
+                line: l,
+            }];
+            chain.push(Node {
+                tag: "template".into(),
+                attrs,
+                text: None,
+                children,
+                line: l,
+                end_line,
+            });
             return Ok(chain);
         }
     }
@@ -540,7 +566,14 @@ impl Parser {
             return self.err("esperava `{` depois da condição");
         }
         let (children, end_line) = self.block()?;
-        Ok(Node { tag: "template".into(), attrs, text: None, children, line, end_line })
+        Ok(Node {
+            tag: "template".into(),
+            attrs,
+            text: None,
+            children,
+            line,
+            end_line,
+        })
     }
 
     /// `COND` da regra 8, já traduzida para os atributos do `<template>`.
@@ -559,7 +592,10 @@ impl Parser {
             self.ident();
             self.skip_inline();
             let target = self.operand()?;
-            return Ok(vec![at(key, target.as_ref_value(self)?), at("contains", first.literal())]);
+            return Ok(vec![
+                at(key, target.as_ref_value(self)?),
+                at("contains", first.literal()),
+            ]);
         }
         // `@x is empty`
         if self.word_is("is") {
@@ -569,7 +605,10 @@ impl Parser {
                 return self.err("depois de `is` só existe `empty`");
             }
             self.ident();
-            return Ok(vec![at(key, first.as_ref_value(self)?), at("empty", "true".into())]);
+            return Ok(vec![
+                at(key, first.as_ref_value(self)?),
+                at("empty", "true".into()),
+            ]);
         }
         // `@x == v`, `@x != v`
         let op = if self.starts_with("==") {
@@ -584,7 +623,10 @@ impl Parser {
             self.bump();
             self.skip_inline();
             let rhs = self.operand()?;
-            return Ok(vec![at(key, first.as_ref_value(self)?), at(op, rhs.literal())]);
+            return Ok(vec![
+                at(key, first.as_ref_value(self)?),
+                at(op, rhs.literal()),
+            ]);
         }
         // `@x` — truthy
         Ok(vec![at(key, first.as_ref_value(self)?)])
@@ -636,7 +678,10 @@ impl Parser {
         while let Some(c) = self.peek() {
             let ok = c.is_alphanumeric()
                 || c == '_'
-                || (c == '.' && self.peek_at(1).is_some_and(|n| n.is_alphanumeric() || n == '_'));
+                || (c == '.'
+                    && self
+                        .peek_at(1)
+                        .is_some_and(|n| n.is_alphanumeric() || n == '_'));
             if !ok {
                 break;
             }
@@ -653,10 +698,7 @@ impl Parser {
         let items = match self.operand()? {
             Operand::Ref(n) => n,
             Operand::Lit(_) => {
-                return self.err_hint(
-                    "`each` quer uma `@lista`",
-                    "each @servicos as s { … }",
-                );
+                return self.err_hint("`each` quer uma `@lista`", "each @servicos as s { … }");
             }
         };
         self.skip_ws()?;
@@ -682,8 +724,16 @@ impl Parser {
         }
         let (children, end_line) = self.block()?;
         let mut attrs = vec![
-            Attr { name: "items".into(), value: items, line },
-            Attr { name: "var".into(), value: var, line },
+            Attr {
+                name: "items".into(),
+                value: items,
+                line,
+            },
+            Attr {
+                name: "var".into(),
+                value: var,
+                line,
+            },
         ];
         attrs.extend(body_attrs);
         Ok(Node {
@@ -834,7 +884,10 @@ fn collapse(s: &str) -> String {
 ///
 /// Roda sobre o texto **cru**, antes do `@nome` ser interpolado.
 fn lines_block(raw: &str) -> String {
-    let mut ls: Vec<&str> = raw.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
+    let mut ls: Vec<&str> = raw
+        .split('\n')
+        .map(|l| l.strip_suffix('\r').unwrap_or(l))
+        .collect();
     if ls.first().is_some_and(|l| l.trim().is_empty()) {
         ls.remove(0);
     }
@@ -894,7 +947,9 @@ fn interpolate(raw: &str) -> String {
                     && (cs[j].is_alphanumeric()
                         || cs[j] == '_'
                         || (cs[j] == '.'
-                            && cs.get(j + 1).is_some_and(|n| n.is_alphanumeric() || *n == '_')))
+                            && cs
+                                .get(j + 1)
+                                .is_some_and(|n| n.is_alphanumeric() || *n == '_')))
                 {
                     j += 1;
                 }
@@ -923,7 +978,10 @@ struct Out {
 
 impl Default for Out {
     fn default() -> Self {
-        Self { buf: String::new(), line: 1 }
+        Self {
+            buf: String::new(),
+            line: 1,
+        }
     }
 }
 

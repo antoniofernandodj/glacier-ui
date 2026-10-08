@@ -598,7 +598,12 @@ impl GlacierDaemon {
         // arquivo, logo depois, o reporta com o nome do componente.
         let (app_meta, tray_meta, screen_title) = manifest_path
             .as_deref()
-            .and_then(|p| Some((p, crate::asset_source::read_markup(self.assets.as_ref(), p).ok()?)))
+            .and_then(|p| {
+                Some((
+                    p,
+                    crate::asset_source::read_markup(self.assets.as_ref(), p).ok()?,
+                ))
+            })
             .and_then(|(p, conteudo)| crate::app_manifest(p, &conteudo).ok())
             .unwrap_or_default();
 
@@ -650,10 +655,16 @@ impl GlacierDaemon {
             .or(app_meta.as_ref().and_then(|a| a.antialiasing))
             .unwrap_or(true);
         let reload_period = reload_period
-            .or(app_meta.as_ref().and_then(|a| a.reload_period).map(Duration::from_millis))
+            .or(app_meta
+                .as_ref()
+                .and_then(|a| a.reload_period)
+                .map(Duration::from_millis))
             .unwrap_or(Duration::from_millis(500));
         let toast_period = toast_period
-            .or(app_meta.as_ref().and_then(|a| a.toast_period).map(Duration::from_millis))
+            .or(app_meta
+                .as_ref()
+                .and_then(|a| a.toast_period)
+                .map(Duration::from_millis))
             .unwrap_or(Duration::from_millis(400));
 
         // Fontes do `resources` do `app`: lidas pela fonte de assets (os bytes
@@ -672,7 +683,9 @@ impl GlacierDaemon {
                             crate::fonts::register_family(family);
                         }
                     }
-                    Err(erro) => eprintln!("<font src=\"{}\">: não consegui ler a fonte: {erro}", f.src),
+                    Err(erro) => {
+                        eprintln!("<font src=\"{}\">: não consegui ler a fonte: {erro}", f.src)
+                    }
                 }
             }
             if default_font.is_none()
@@ -686,7 +699,8 @@ impl GlacierDaemon {
 
         // O que o builder não disse, o `<app>` diz. O builder vence sempre: é
         // código explícito, e o markup é o padrão de quando nada foi dito.
-        let storage_dir = storage_dir.or_else(|| app_meta.as_ref().map(|app| app_data_dir(&app.id)));
+        let storage_dir =
+            storage_dir.or_else(|| app_meta.as_ref().map(|app| app_data_dir(&app.id)));
         let remember_geometry =
             remember_geometry || app_meta.as_ref().is_some_and(|app| app.remember_geometry);
 
@@ -694,23 +708,27 @@ impl GlacierDaemon {
         // é lido já, pela fonte de assets; sem ele não há bandeja — e o aviso
         // diz qual arquivo faltou, em vez de o app encerrar na última janela
         // sem explicação.
-        let tray_markup: Option<(Vec<u8>, String, Vec<TrayItemDecl>)> = match (&tray_config, tray_meta) {
-            (None, Some(meta)) => match assets.read_bytes(&meta.icon) {
-                Ok(icon) => Some((
-                    icon.into_owned(),
-                    meta.tooltip
-                        .clone()
-                        .or_else(|| screen_title.clone())
-                        .unwrap_or_else(|| title.clone()),
-                    meta.items,
-                )),
-                Err(erro) => {
-                    eprintln!("<tray icon=\"{}\">: não consegui ler o ícone: {erro}", meta.icon);
-                    None
-                }
-            },
-            _ => None,
-        };
+        let tray_markup: Option<(Vec<u8>, String, Vec<TrayItemDecl>)> =
+            match (&tray_config, tray_meta) {
+                (None, Some(meta)) => match assets.read_bytes(&meta.icon) {
+                    Ok(icon) => Some((
+                        icon.into_owned(),
+                        meta.tooltip
+                            .clone()
+                            .or_else(|| screen_title.clone())
+                            .unwrap_or_else(|| title.clone()),
+                        meta.items,
+                    )),
+                    Err(erro) => {
+                        eprintln!(
+                            "<tray icon=\"{}\">: não consegui ler o ícone: {erro}",
+                            meta.icon
+                        );
+                        None
+                    }
+                },
+                _ => None,
+            };
         let main_title = title.clone();
 
         // Sem `main` nem `main_template`: a principal é o primeiro template
@@ -821,9 +839,9 @@ impl GlacierDaemon {
             // subscription `theme_changes` só emite em MUDANÇAS. Só afeta o
             // tema se o app não fixou um estilo (ver `GlacierUI::theme`).
             let probe = iced::system::theme().map(|mode| {
-                DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(
-                    mode_to_appearance(mode),
-                ))
+                DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(mode_to_appearance(
+                    mode,
+                )))
             });
             (rt, Task::batch([open.map(DaemonMessage::Opened), probe]))
         };
@@ -1551,7 +1569,13 @@ impl Runtime {
         // mais curto, à parte do resto desta função (que é toda sobre montar
         // um `GlacierUI`).
         if let WindowSource::WebView(url) = spec.source {
-            return self.open_webview_child(url, spec.title, spec.size, spec.resizable, spec.decorations);
+            return self.open_webview_child(
+                url,
+                spec.title,
+                spec.size,
+                spec.resizable,
+                spec.decorations,
+            );
         }
         // O motor primeiro: é ele que sabe o que o `<screen>` do arquivo declara,
         // e a janela ainda não abriu — mesma janela de tempo que o boot usa para
@@ -1579,15 +1603,14 @@ impl Runtime {
             decorations,
             data,
         } = spec;
-        let (engine, fallback_title) =
-            build_engine_with(
-                source,
-                &data,
-                self.assets.clone(),
-                self.style.as_ref(),
-                Some(&self.main_setup),
-                self.manifest_path.as_deref(),
-            );
+        let (engine, fallback_title) = build_engine_with(
+            source,
+            &data,
+            self.assets.clone(),
+            self.style.as_ref(),
+            Some(&self.main_setup),
+            self.manifest_path.as_deref(),
+        );
         let meta = engine.current_screen_meta().cloned().unwrap_or_default();
         let screen = engine.current_screen_name().map(str::to_string);
 
@@ -1764,10 +1787,11 @@ impl Runtime {
             // é ela que decide `Theme::Light`/`Theme::Dark` (ver
             // `GlacierUI::theme`). Registrada uma vez no daemon, como os demais
             // listeners globais — cada mudança vai para TODAS as janelas.
-            iced::system::theme_changes()
-                .map(|mode| DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(
-                    mode_to_appearance(mode),
-                ))),
+            iced::system::theme_changes().map(|mode| {
+                DaemonMessage::TickAll(EngineMessage::SystemAppearanceChanged(mode_to_appearance(
+                    mode,
+                )))
+            }),
         ];
 
         // O movimento do mouse só é escutado quando alguma janela tem menu em
@@ -1929,7 +1953,10 @@ fn resolve_main_window(
         size = meta.effective_size();
     }
     if let Some(saved) = saved {
-        settings.size = clamp_to_max(clamp_to_min(saved.size, settings.min_size), settings.max_size);
+        settings.size = clamp_to_max(
+            clamp_to_min(saved.size, settings.min_size),
+            settings.max_size,
+        );
         if let Some(p) = saved.position {
             settings.position = window::Position::Specific(p);
         }
@@ -1996,7 +2023,9 @@ fn apply_window_icon(
     match assets.read_bytes(path) {
         Ok(bytes) => match window::icon::from_file_data(&bytes, None) {
             Ok(icon) => settings.icon = Some(icon),
-            Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui decodificar o ícone: {erro}"),
+            Err(erro) => {
+                eprintln!("<screen icon=\"{path}\">: não consegui decodificar o ícone: {erro}")
+            }
         },
         Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui ler o ícone: {erro}"),
     }
@@ -2056,7 +2085,11 @@ impl TrayBindings {
 
     /// A ação do item `id`, se ele tiver uma.
     fn action(&self, id: &str) -> Option<&str> {
-        self.items.iter().find(|item| item.id == id)?.on_click.as_deref()
+        self.items
+            .iter()
+            .find(|item| item.id == id)?
+            .on_click
+            .as_deref()
     }
 
     /// O `TrayConfig` inicial, com rótulos e marcações já resolvidos contra o

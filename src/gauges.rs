@@ -61,7 +61,10 @@ pub(crate) fn no_degrau(v: f64, min: f64, max: f64, step: f64) -> f64 {
 /// O texto de um valor de medidor: `decimals` casas, e sem `-0`.
 pub(crate) fn escreve(v: f64, decimals: usize) -> String {
     let s = com_casas(v, decimals);
-    if s.trim_start_matches('-').chars().all(|c| c == '0' || c == '.') {
+    if s.trim_start_matches('-')
+        .chars()
+        .all(|c| c == '0' || c == '.')
+    {
         s.trim_start_matches('-').to_string()
     } else {
         s
@@ -191,9 +194,7 @@ impl canvas::Program<EngineMessage> for ProgramaDial {
                 }
                 Some(canvas::Action::publish(self.mensagem(novo, &self.on_change)).and_capture())
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                if state.arrastando =>
-            {
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) if state.arrastando => {
                 state.arrastando = false;
                 // `on_release` é a porta de quem não quer um efeito colateral
                 // por pixel arrastado — rede, disco —, e é a mesma do
@@ -428,7 +429,11 @@ pub fn faixas(context: &ContextMap, bruto: &str) -> Vec<Faixa> {
         .collect();
     // Ordenadas por limite: o desenho pinta uma sobre a outra do fim para o
     // começo, e uma lista fora de ordem apagaria as anteriores.
-    v.sort_by(|a, b| a.ate.partial_cmp(&b.ate).unwrap_or(std::cmp::Ordering::Equal));
+    v.sort_by(|a, b| {
+        a.ate
+            .partial_cmp(&b.ate)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     v
 }
 
@@ -475,7 +480,13 @@ impl canvas::Program<EngineMessage> for ProgramaGauge {
             let f = fracao(self.valor, self.min, self.max);
             if f > 0.0 {
                 frame.fill(
-                    &anel(centro, raio, self.espessura, self.inicio, self.varredura * f),
+                    &anel(
+                        centro,
+                        raio,
+                        self.espessura,
+                        self.inicio,
+                        self.varredura * f,
+                    ),
                     cor,
                 );
             }
@@ -489,7 +500,13 @@ impl canvas::Program<EngineMessage> for ProgramaGauge {
                     continue;
                 }
                 frame.fill(
-                    &anel(centro, raio, self.espessura, self.inicio, self.varredura * f),
+                    &anel(
+                        centro,
+                        raio,
+                        self.espessura,
+                        self.inicio,
+                        self.varredura * f,
+                    ),
                     faixa.cor,
                 );
             }
@@ -500,15 +517,15 @@ impl canvas::Program<EngineMessage> for ProgramaGauge {
             let ponta = raio - self.espessura - 4.0;
             if ponta > 6.0 {
                 frame.stroke(
-                    &Path::line(na_borda(centro, ponta * 0.15, a), na_borda(centro, ponta, a)),
+                    &Path::line(
+                        na_borda(centro, ponta * 0.15, a),
+                        na_borda(centro, ponta, a),
+                    ),
                     Stroke::default()
                         .with_color(pal.background.base.text)
                         .with_width(2.0),
                 );
-                frame.fill(
-                    &Path::circle(centro, 3.5),
-                    pal.background.base.text,
-                );
+                frame.fill(&Path::circle(centro, 3.5), pal.background.base.text);
             }
         }
 
@@ -678,10 +695,7 @@ impl canvas::Program<EngineMessage> for ProgramaLcd {
         let pal = theme.extended_palette();
         let mut frame = Frame::new(renderer, bounds.size());
         let aceso = cor_ou(&self.cor, pal.primary.base.color);
-        let apagado = Color {
-            a: 0.16,
-            ..aceso
-        };
+        let apagado = Color { a: 0.16, ..aceso };
 
         let h = self.altura;
         let d = h * 0.6;
@@ -751,8 +765,8 @@ pub fn render_lcd_number<'a>(
     if digits > 0 {
         let faltam = digits.saturating_sub(texto.chars().filter(|c| !separador(*c)).count());
         if faltam > 0 {
-            let enchimento: String = std::iter::repeat_n(if pad_zeros { '0' } else { ' ' }, faltam)
-                .collect();
+            let enchimento: String =
+                std::iter::repeat_n(if pad_zeros { '0' } else { ' ' }, faltam).collect();
             // O sinal fica na frente do enchimento: `-007`, nunca `00-7`.
             texto = match texto.strip_prefix('-') {
                 Some(resto) => format!("-{enchimento}{resto}"),

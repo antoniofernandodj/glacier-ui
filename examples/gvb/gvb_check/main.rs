@@ -18,17 +18,26 @@ fn main() {
                 .replace("{{titulo}}", "Meu App")
                 .replace("{{versao_motor}}", "0.0.0");
             // um `.xml` entra como está (o XML que um parser antigo gerou)
-            let xml = if f.ends_with(".xml") { src.clone() } else { glacier_ui::gvb::desugar(&src).map_err(|d| d.message)? };
+            let xml = if f.ends_with(".xml") {
+                src.clone()
+            } else {
+                glacier_ui::gvb::desugar(&src).map_err(|d| d.message)?
+            };
             let (markup, script) = glacier_ui::eval::strip_script(&xml);
             let markup = glacier_ui::eval::normalize_bare_directives(&markup);
-            let t = UiNode::parse_xml_with_source(&markup, &src, None).map_err(|e| e.to_string())?;
+            let t =
+                UiNode::parse_xml_with_source(&markup, &src, None).map_err(|e| e.to_string())?;
             let mut ls: Vec<String> = format!("{t:#?}")
                 .lines()
                 .filter(|l| !l.contains("node_id:") && !l.trim_start().starts_with("line:"))
                 .map(|l| l.trim().to_string())
                 .collect();
             ls.sort();
-            Ok(format!("{}\n--script--\n{}", ls.join("\n"), script.unwrap_or_default()))
+            Ok(format!(
+                "{}\n--script--\n{}",
+                ls.join("\n"),
+                script.unwrap_or_default()
+            ))
         };
         match (tree(&args[1]), tree(&args[2])) {
             (Ok(a), Ok(b)) if a == b => println!("IGUAIS"),
@@ -58,7 +67,10 @@ fn main() {
                 Ok(t) => {
                     for l in format!("{t:#?}").lines() {
                         let tr = l.trim_start();
-                        if tr.starts_with("node_id:") || tr.starts_with("line:") || tr.starts_with("class") {
+                        if tr.starts_with("node_id:")
+                            || tr.starts_with("line:")
+                            || tr.starts_with("class")
+                        {
                             continue;
                         }
                         println!("{l}");
@@ -87,7 +99,10 @@ fn main() {
         return;
     }
     let gvb = std::fs::read_to_string(&args[0]).expect("lendo o .gvb");
-    if matches!(args.get(1).map(String::as_str), Some("--xml" | "--xml-lenient")) {
+    if matches!(
+        args.get(1).map(String::as_str),
+        Some("--xml" | "--xml-lenient")
+    ) {
         // `--xml-lenient` aceita uma ligação sem o `:` (os `.gvb` de antes da marca)
         match glacier_ui::gvb::desugar_with(&gvb, args[1] == "--xml") {
             Ok(x) => print!("{x}"),
@@ -110,7 +125,11 @@ fn main() {
             }
         }
         (a, b) => {
-            println!("gvb: {:?}\ngv: {:?}", a.err().map(|e| e.to_string()), b.err().map(|e| e.to_string()));
+            println!(
+                "gvb: {:?}\ngv: {:?}",
+                a.err().map(|e| e.to_string()),
+                b.err().map(|e| e.to_string())
+            );
         }
     }
 }

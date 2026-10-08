@@ -29,19 +29,44 @@ const TABELA: &[Linha] = &[
     (&["textinput", "input"], &["value", "valor"]),
     (&["textarea", "texteditor"], &["value", "valor"]),
     (&["maskedinput", "entradamascarada"], &["value", "valor"]),
-    (&["checkbox", "check"], &["checked", "value", "valor", "marcado"]),
-    (&["toggle", "toggler"], &["checked", "value", "valor", "marcado"]),
+    (
+        &["checkbox", "check"],
+        &["checked", "value", "valor", "marcado"],
+    ),
+    (
+        &["toggle", "toggler"],
+        &["checked", "value", "valor", "marcado"],
+    ),
     (&["progressbar", "progress"], &["value", "valor"]),
     (&["timeedit", "timepicker"], &["value", "valor"]),
     (
         &["calendar", "calendario"],
-        &["value", "valor", "start", "inicio", "end", "fim", "final", "month", "mesvisivel"],
+        &[
+            "value",
+            "valor",
+            "start",
+            "inicio",
+            "end",
+            "fim",
+            "final",
+            "month",
+            "mesvisivel",
+        ],
     ),
-    (&["pagination", "paginacao"], &["value", "valor", "page", "pagina"]),
+    (
+        &["pagination", "paginacao"],
+        &["value", "valor", "page", "pagina"],
+    ),
     (&["wizardnav"], &["value", "valor", "step", "passo"]),
-    (&["colorwheel", "rodadecor"], &["value", "valor", "color", "cor"]),
+    (
+        &["colorwheel", "rodadecor"],
+        &["value", "valor", "color", "cor"],
+    ),
     (&["rating", "nota"], &["value", "valor"]),
-    (&["popover", "painel"], &["value", "valor", "open", "aberto"]),
+    (
+        &["popover", "painel"],
+        &["value", "valor", "open", "aberto"],
+    ),
     (
         &["autocomplete", "completer"],
         &["value", "valor", "items", "itens", "options", "opcoes"],
@@ -49,8 +74,23 @@ const TABELA: &[Linha] = &[
     (
         &["tableview", "tabela"],
         &[
-            "items", "itens", "rows", "linhas", "columns", "colunas", "cols", "value", "valor",
-            "selected", "selecionada", "sort", "ordem", "ordenacao", "widths", "larguras", "resize",
+            "items",
+            "itens",
+            "rows",
+            "linhas",
+            "columns",
+            "colunas",
+            "cols",
+            "value",
+            "valor",
+            "selected",
+            "selecionada",
+            "sort",
+            "ordem",
+            "ordenacao",
+            "widths",
+            "larguras",
+            "resize",
         ],
     ),
     (
@@ -62,7 +102,9 @@ const TABELA: &[Linha] = &[
     ),
     (
         &["columnview", "colunas"],
-        &["items", "itens", "nodes", "nos", "value", "valor", "path", "caminho"],
+        &[
+            "items", "itens", "nodes", "nos", "value", "valor", "path", "caminho",
+        ],
     ),
     (&["dial", "knob"], &["value", "valor"]),
     (&["gauge", "medidor"], &["value", "valor"]),
@@ -71,27 +113,69 @@ const TABELA: &[Linha] = &[
         &["linechart", "graficolinha"],
         &["items", "itens", "data", "dados", "series"],
     ),
-    (&["barchart", "graficobarras"], &["items", "itens", "data", "dados"]),
+    (
+        &["barchart", "graficobarras"],
+        &["items", "itens", "data", "dados"],
+    ),
     (&["piechart", "donut"], &["items", "itens", "data", "dados"]),
-    (&["splitter", "divisor"], &["sizes", "tamanhos", "value", "valor"]),
+    (
+        &["splitter", "divisor"],
+        &["sizes", "tamanhos", "value", "valor"],
+    ),
     (
         &["dock", "dockwidget"],
-        &["mode", "modo", "value", "valor", "size", "sizes", "tamanho", "tamanhos", "floatx", "floaty", "x", "y"],
+        &[
+            "mode", "modo", "value", "valor", "size", "sizes", "tamanho", "tamanhos", "floatx",
+            "floaty", "x", "y",
+        ],
     ),
     (&["mdisubwindow", "janelainterna"], &["x", "y", "w", "h"]),
-    (&["swipeview", "carrossel"], &["value", "valor", "index", "indice"]),
-    (&["rangeslider", "faixadupla"], &["start", "inicio", "from", "end", "fim", "to"]),
+    (
+        &["swipeview", "carrossel"],
+        &["value", "valor", "index", "indice"],
+    ),
+    (
+        &["rangeslider", "faixadupla"],
+        &["start", "inicio", "from", "end", "fim", "to"],
+    ),
     (&["tumbler", "roleta"], &["value", "valor"]),
-    (&["rubberband", "laco"], &["selection", "selecao", "value", "valor", "selected"]),
+    (
+        &["rubberband", "laco"],
+        &["selection", "selecao", "value", "valor", "selected"],
+    ),
     (&["shortcutinput", "keysequenceedit"], &["value", "valor"]),
-    (&["radio", "radiobutton"], &["group", "grupo", "checked", "marcado", "selected", "selecionado"]),
+    (
+        &["radio", "radiobutton"],
+        &[
+            "group",
+            "grupo",
+            "checked",
+            "marcado",
+            "selected",
+            "selecionado",
+        ],
+    ),
     (&["slider", "deslizante"], &["value", "valor"]),
     (
         &["select", "dropdown", "comboedit", "editablecombo"],
-        &["value", "valor", "selected", "selecionado", "items", "itens", "options", "opcoes", "source", "origem"],
+        &[
+            "value",
+            "valor",
+            "selected",
+            "selecionado",
+            "items",
+            "itens",
+            "options",
+            "opcoes",
+            "source",
+            "origem",
+        ],
     ),
     (&["menuitem", "itemmenu"], &["checked", "marcado"]),
-    (&["menu", "cardapio", "contextmenu", "menucontexto"], &["items", "itens", "options", "opcoes"]),
+    (
+        &["menu", "cardapio", "contextmenu", "menucontexto"],
+        &["items", "itens", "options", "opcoes"],
+    ),
     // — qualquer tag: a repetição lê o NOME da chave com a lista —
     (&["*"], &["foreach", "each", "repeat"]),
     // — builtins (as props que viram nome de chave por dentro) —
@@ -112,11 +196,9 @@ fn norm(s: &str) -> String {
 /// Se o atributo `attr` da tag `tag` é uma ligação. `attr` sem o `:` da frente.
 pub fn is_binding(tag: &str, attr: &str) -> bool {
     let (tag, attr) = (norm(tag), norm(attr));
-    TABELA
-        .iter()
-        .any(|(tags, attrs)| {
-            (tags.contains(&tag.as_str()) || tags.contains(&"*")) && attrs.contains(&attr.as_str())
-        })
+    TABELA.iter().any(|(tags, attrs)| {
+        (tags.contains(&tag.as_str()) || tags.contains(&"*")) && attrs.contains(&attr.as_str())
+    })
 }
 
 /// Os atributos de ligação de uma tag, sem normalizar (para ferramentas que

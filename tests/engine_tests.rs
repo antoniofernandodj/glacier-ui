@@ -2093,7 +2093,10 @@ fn test_exemplo_luau_externo_ponta_a_ponta() {
 
     let mut motor = GlacierUI::new();
     motor
-        .register_component("contador", "examples/gva/contador_externo/contador_externo.gva")
+        .register_component(
+            "contador",
+            "examples/gva/contador_externo/contador_externo.gva",
+        )
         .expect("registrar a tela do exemplo");
     motor.set_initial_screen("contador");
 
@@ -3650,9 +3653,16 @@ fn validated_form_blocks_submit_and_publishes_per_field_errors() {
     // Invalid: `on_form_submit` must NOT run; `on_form_validation_error` must.
     assert_eq!(m.get_data("done"), None);
     // `msg=""` override wins over the engine's default English text.
-    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some("nome curto"));
+    assert_eq!(
+        m.get_data("erro_nome").map(String::as_str),
+        Some("nome curto")
+    );
     // No `msg` on cpf -> engine default, but non-empty.
-    assert!(m.get_data("erro_cpf").map(|s| !s.is_empty()).unwrap_or(false));
+    assert!(
+        m.get_data("erro_cpf")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+    );
     let errs = m.get_data("errs").cloned().unwrap_or_default();
     assert!(errs.contains("\"campo\":\"nome\""), "payload: {errs}");
 }
@@ -3677,7 +3687,10 @@ fn editing_a_field_clears_its_standing_error_in_submit_mode() {
     m.register(Box::new(ValidatedFormComp)).unwrap();
     m.set_initial_screen("vform");
     submit_vform(&mut m);
-    assert_eq!(m.get_data("erro_nome").map(String::as_str), Some("nome curto"));
+    assert_eq!(
+        m.get_data("erro_nome").map(String::as_str),
+        Some("nome curto")
+    );
 
     // Any edit to the field blanks its error key (default validate_on="submit").
     let _ = m.dispatch(&EngineMessage::UiInputChanged {
@@ -3686,7 +3699,11 @@ fn editing_a_field_clears_its_standing_error_in_submit_mode() {
     });
     assert_eq!(m.get_data("erro_nome").map(String::as_str), Some(""));
     // The other field's standing error is untouched.
-    assert!(m.get_data("erro_cpf").map(|s| !s.is_empty()).unwrap_or(false));
+    assert!(
+        m.get_data("erro_cpf")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+    );
 }
 
 #[test]
@@ -6800,9 +6817,7 @@ fn tablecolumn_avalia_o_corpo_por_linha_na_ordem_do_sort() {
         .filter_map(|c| match &c.kind {
             NodeType::TableColumn {
                 key, label, align, ..
-            } => {
-                Some((key.as_str(), label.as_str(), align.as_str()))
-            }
+            } => Some((key.as_str(), label.as_str(), align.as_str())),
             _ => None,
         })
         .collect();
@@ -6853,7 +6868,11 @@ fn tableview_sem_linhas_mostra_os_filhos_que_nao_sao_coluna() {
     assert_eq!(todos_os_textos(&vazia.children[1]), vec!["nenhum item"]);
 
     let cheia = tabela(LINHAS_TABELA);
-    assert_eq!(cheia.children.len(), 1 + 3, "1 cabeça + 3 células, sem o texto");
+    assert_eq!(
+        cheia.children.len(),
+        1 + 3,
+        "1 cabeça + 3 células, sem o texto"
+    );
     assert!(!todos_os_textos(&cheia).contains(&"nenhum item".to_string()));
 }
 
@@ -6900,7 +6919,11 @@ fn tableview_resolve_header_class_e_row_class() {
     );
     let raiz = motor.evaluated("tabela_look").unwrap();
     match &raiz.children[0].kind {
-        NodeType::TableView { look: Some(look), row_var, .. } => {
+        NodeType::TableView {
+            look: Some(look),
+            row_var,
+            ..
+        } => {
             assert_eq!(row_var, "row", "sem `var`, a linha é `@row`");
             assert_eq!(look.header.background.as_deref(), Some("#112233"));
             assert_eq!(look.header.padding.as_deref(), Some("14 18"));

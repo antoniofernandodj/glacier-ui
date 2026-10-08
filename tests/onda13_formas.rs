@@ -113,7 +113,10 @@ fn text_dentro_do_canvas_continua_um_text_com_posicao_em_x_y() {
     let txt = acha(arvore, "text").expect("o <text> do canvas está na árvore");
     match &txt.kind {
         NodeType::Text { content, .. } => {
-            assert_eq!(content, "ângulo 7", "o texto interpola como um <text> normal");
+            assert_eq!(
+                content, "ângulo 7",
+                "o texto interpola como um <text> normal"
+            );
         }
         outro => panic!("o <text> do canvas deveria ser NodeType::Text, é {outro:?}"),
     }
@@ -158,9 +161,12 @@ fn linha_do_canvas_segue_um_every_do_luau() {
         .unwrap();
     motor.navigate_to("tela");
 
-    let g0 = geo(acha(motor.evaluated("tela").unwrap(), "line").unwrap(), "x2")
-        .unwrap()
-        .to_string();
+    let g0 = geo(
+        acha(motor.evaluated("tela").unwrap(), "line").unwrap(),
+        "x2",
+    )
+    .unwrap()
+    .to_string();
     assert_eq!(g0, "10", "estado inicial de x2 = {{ponta_x}}");
 
     // Liga o timer (num handler — o motor encaminha).
@@ -171,9 +177,12 @@ fn linha_do_canvas_segue_um_every_do_luau() {
         id: 1,
     });
 
-    let g1 = geo(acha(motor.evaluated("tela").unwrap(), "line").unwrap(), "x2")
-        .unwrap()
-        .to_string();
+    let g1 = geo(
+        acha(motor.evaluated("tela").unwrap(), "line").unwrap(),
+        "x2",
+    )
+    .unwrap()
+    .to_string();
     assert_eq!(g1, "15", "o tique moveu ponta_x e o <line> seguiu");
 }
 

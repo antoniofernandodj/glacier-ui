@@ -29,10 +29,7 @@ pub fn eh_gva(path: &str) -> bool {
 ///
 /// `content` já é XML — para um `.gvb`, a leitura (ver
 /// [`crate::asset_source::read_markup`]) o dessugarou antes de chegar aqui.
-pub(crate) fn parse_markup(
-    path: Option<&str>,
-    content: &str,
-) -> Result<(UiNode, Option<String>)> {
+pub(crate) fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode, Option<String>)> {
     let (markup, script) = eval::strip_script(content);
     let markup = eval::normalize_bare_directives(&markup);
     // `content` (e não `markup`) como fonte dos trechos: o erro deve mostrar a

@@ -116,7 +116,9 @@ impl Validator {
                     if min == max {
                         Err(format!("\"{field}\" must have {min} digits"))
                     } else {
-                        Err(format!("\"{field}\" must have between {min} and {max} digits"))
+                        Err(format!(
+                            "\"{field}\" must have between {min} and {max} digits"
+                        ))
                     }
                 } else {
                     Ok(())
@@ -213,10 +215,7 @@ impl Validator {
                         ),
                         None => (whole("digits", Some(a)), whole("digits", Some(a))),
                     };
-                    Validator::Digits {
-                        min: lo?,
-                        max: hi?,
-                    }
+                    Validator::Digits { min: lo?, max: hi? }
                 }
                 "fn" => Validator::Script(need(name, arg)?.to_string()),
                 other => return Err(format!("unknown validation rule `{other}`")),

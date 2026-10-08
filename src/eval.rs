@@ -1809,8 +1809,13 @@ pub fn evaluate_template(
 /// dentro de um `<component>` com `<script>` virava `Comp::dialog:x`, e aí o
 /// `strip_prefix("dialog:")` do dispatch não casava e o modal não abria. É o
 /// caso de um componente que **encapsula o próprio `<dialog>`**.
-const BUILTIN_ACTION_PREFIXES: [&str; 5] =
-    ["clipboard:", "open:", "window:", "style:", DIALOG_ACTION_PREFIX];
+const BUILTIN_ACTION_PREFIXES: [&str; 5] = [
+    "clipboard:",
+    "open:",
+    "window:",
+    "style:",
+    DIALOG_ACTION_PREFIX,
+];
 
 /// Marca uma ação como **do aplicativo**, não do componente que a escreveu:
 /// `app:` é removido no lugar do prefixo de dono, então a ação sai "nua" da
@@ -3202,16 +3207,24 @@ fn eval_owned(
             // contra as mesmas folhas (e a mesma `@media`) que um nó comum —
             // o widget só recebe o resultado. Sem nenhuma das duas, `look`
             // fica `None` e a tabela desenha como sempre desenhou.
-            let look = (!header_class.trim().is_empty() || !row_class.trim().is_empty()).then(|| {
-                let active = styles.active(scope);
-                let resolve = |c: &str| resolve_classes(None, c, None, &active, styles.viewport);
-                Box::new(crate::parser::TableLook {
-                    header: resolve(&header_class),
-                    row: resolve(&row_class),
-                    row_hover: resolve_state_classes(None, &row_class, None, &active, styles.viewport)
+            let look =
+                (!header_class.trim().is_empty() || !row_class.trim().is_empty()).then(|| {
+                    let active = styles.active(scope);
+                    let resolve =
+                        |c: &str| resolve_classes(None, c, None, &active, styles.viewport);
+                    Box::new(crate::parser::TableLook {
+                        header: resolve(&header_class),
+                        row: resolve(&row_class),
+                        row_hover: resolve_state_classes(
+                            None,
+                            &row_class,
+                            None,
+                            &active,
+                            styles.viewport,
+                        )
                         .hover,
-                })
-            });
+                    })
+                });
             NodeType::TableView {
                 items_var: process_tpl(items_var, context),
                 columns_var: process_tpl(columns_var, context),

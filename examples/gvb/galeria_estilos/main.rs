@@ -76,14 +76,12 @@ impl Component for Galeria {
 }
 
 fn main() -> iced::Result {
-    let app = GlacierDaemon::new()
-        .style(style::FUSION)
-        .main(|motor| {
-            if let Err(e) = motor.register(Galeria::boxed()) {
-                eprintln!("erro ao registrar: {e}");
-            }
-            motor.set_initial_screen("galeria");
-        });
+    let app = GlacierDaemon::new().style(style::FUSION).main(|motor| {
+        if let Err(e) = motor.register(Galeria::boxed()) {
+            eprintln!("erro ao registrar: {e}");
+        }
+        motor.set_initial_screen("galeria");
+    });
 
     app.run()
 }

@@ -111,10 +111,8 @@ mod imp {
     pub fn acquire(app_id: &str) -> Lock {
         // `$TMPDIR` já é por usuário no macOS; nos BSDs o usuário vai no nome.
         let user = std::env::var("USER").unwrap_or_default();
-        let base = std::env::temp_dir().join(format!(
-            "glacier-single-{user}-{:016x}",
-            hash_of(app_id)
-        ));
+        let base =
+            std::env::temp_dir().join(format!("glacier-single-{user}-{:016x}", hash_of(app_id)));
         let sock = base.with_extension("sock");
 
         let Ok(lock) = std::fs::OpenOptions::new()
@@ -260,5 +258,9 @@ mod imp {
     }
 }
 
-#[cfg(all(any(unix, windows), not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(all(
+    any(unix, windows),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
 pub use imp::{acquire, event_stream, has_lock};

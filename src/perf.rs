@@ -54,9 +54,9 @@
 //!
 //! Desligado, o custo é uma leitura de `bool` já resolvida por quadro.
 
+use iced::time::{Duration, Instant};
 use std::cell::RefCell;
 use std::sync::OnceLock;
-use iced::time::{Duration, Instant};
 
 /// `GLACIER_PERF` definida e diferente de `0`/`false`/vazio.
 ///

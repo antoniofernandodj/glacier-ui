@@ -576,7 +576,10 @@ mod tests {
     #[test]
     fn rotulo_acao_papel_posicional() {
         let b = botoes("Salvar:salvar_perfil:accept");
-        assert_eq!(b, vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]);
+        assert_eq!(
+            b,
+            vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]
+        );
     }
 
     #[test]
@@ -600,12 +603,21 @@ mod tests {
     fn acao_pode_conter_dois_pontos_encadeamento_de_dialogo() {
         // A regressão que motivou o conserto: o papel sai do ÚLTIMO `:`, e o
         // que sobra no meio é a ação inteira — `dialog:editar`, não `dialog`.
-        let b = botoes("Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive");
+        let b =
+            botoes("Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive");
         assert_eq!(
             b,
             vec![
-                ("Voltar".into(), "dialog:editar_servico".into(), ButtonRole::Neutral),
-                ("Remover".into(), "remover_confirmado".into(), ButtonRole::Destructive),
+                (
+                    "Voltar".into(),
+                    "dialog:editar_servico".into(),
+                    ButtonRole::Neutral
+                ),
+                (
+                    "Remover".into(),
+                    "remover_confirmado".into(),
+                    ButtonRole::Destructive
+                ),
             ]
         );
     }
@@ -620,7 +632,10 @@ mod tests {
     #[test]
     fn espacos_em_volta_dos_campos_sao_tolerados() {
         let b = botoes(" Salvar : salvar_perfil : accept ");
-        assert_eq!(b, vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]);
+        assert_eq!(
+            b,
+            vec![("Salvar".into(), "salvar_perfil".into(), ButtonRole::Accept)]
+        );
     }
 
     #[test]

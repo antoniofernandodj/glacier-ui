@@ -43,5 +43,7 @@
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
-    GlacierDaemon::new().main_template("examples/gva/onda9_luau/app.gva").run()
+    GlacierDaemon::new()
+        .main_template("examples/gva/onda9_luau/app.gva")
+        .run()
 }

@@ -3230,10 +3230,11 @@ mod tests {
         let f = &ctx.fetches[0];
         assert_eq!(f.url, "https://ex.com/v1/itens?page=2&q=a%20b");
         assert_eq!(f.method, "GET");
-        assert!(f
-            .headers
-            .iter()
-            .any(|(k, v)| k == "Accept" && v == "application/json"));
+        assert!(
+            f.headers
+                .iter()
+                .any(|(k, v)| k == "Accept" && v == "application/json")
+        );
     }
 
     #[test]
@@ -3253,10 +3254,11 @@ mod tests {
         let f = &ctx.fetches[0];
         assert_eq!(f.method, "POST");
         assert_eq!(f.body.as_deref(), Some(r#"{"nome":"x"}"#));
-        assert!(f
-            .headers
-            .iter()
-            .any(|(k, v)| k.eq_ignore_ascii_case("content-type") && v == "application/json"));
+        assert!(
+            f.headers
+                .iter()
+                .any(|(k, v)| k.eq_ignore_ascii_case("content-type") && v == "application/json")
+        );
     }
 
     #[test]
@@ -3274,10 +3276,12 @@ mod tests {
         let mut data = HashMap::default();
         let mut ctx = Context::new(&mut data);
         comp.run("carregar", None, &mut ctx);
-        assert!(ctx.fetches[0]
-            .headers
-            .iter()
-            .any(|(k, v)| k == "X-Trace" && v == "abc"));
+        assert!(
+            ctx.fetches[0]
+                .headers
+                .iter()
+                .any(|(k, v)| k == "X-Trace" && v == "abc")
+        );
     }
 
     #[test]
@@ -3447,10 +3451,12 @@ mod tests {
             Some("3"),
             "log/warn passam no nível default; os dois logs após set_level('error') somem"
         );
-        let linhas: Vec<String> =
-            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        let linhas: Vec<String> = serde_json::from_str(data.get("linhas").unwrap()).unwrap();
         assert!(linhas[0].contains("INFO") && linhas[0].contains("oi 42"));
-        assert!(linhas[0].contains("id = 7"), "a tabela é inspecionada inline");
+        assert!(
+            linhas[0].contains("id = 7"),
+            "a tabela é inspecionada inline"
+        );
         assert!(linhas[1].contains("WARN") && linhas[1].contains("cuidado"));
         assert!(linhas[2].contains("ERROR") && linhas[2].contains("deu ruim"));
         // `color = false` → nenhum código ANSI (`\27[`) na saída.
@@ -3475,8 +3481,7 @@ mod tests {
         );
         let comp = LuauComponent::from_source(&src, "t.gv", "c").unwrap();
         let data = drive(&comp, "ir", None, HashMap::default());
-        let linhas: Vec<String> =
-            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        let linhas: Vec<String> = serde_json::from_str(data.get("linhas").unwrap()).unwrap();
         assert_eq!(linhas.len(), 1);
         assert!(linhas[0].starts_with("[api]"));
     }
@@ -3494,8 +3499,7 @@ mod tests {
         );
         let comp = LuauComponent::from_source(&src, "t.gv", "c").unwrap();
         let data = drive(&comp, "ir", None, HashMap::default());
-        let linhas: Vec<String> =
-            serde_json::from_str(data.get("linhas").unwrap()).unwrap();
+        let linhas: Vec<String> = serde_json::from_str(data.get("linhas").unwrap()).unwrap();
         let tudo = linhas.join("\n");
         assert!(tudo.contains('┌') && tudo.contains('┼') && tudo.contains('└'));
         assert!(tudo.contains("(índice)") && tudo.contains("nome") && tudo.contains("idade"));
@@ -4484,8 +4488,8 @@ mod tests {
 
     #[test]
     fn exemplo_navegacao_luau_login_correto_navega_para_o_dashboard() {
-        let comp =
-            LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau").unwrap();
+        let comp = LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau")
+            .unwrap();
         let mut data = HashMap::default();
         data.insert("usuario".into(), "admin".into());
         data.insert("senha".into(), "123".into());
@@ -4499,8 +4503,8 @@ mod tests {
 
     #[test]
     fn exemplo_navegacao_luau_login_errado_nao_navega_e_seta_erro() {
-        let comp =
-            LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau").unwrap();
+        let comp = LuauComponent::from_file("examples/gva/navegacao_luau/login.gva", "login_luau")
+            .unwrap();
         let mut data = HashMap::default();
         data.insert("usuario".into(), "quemquer".into());
         data.insert("senha".into(), "errada".into());
@@ -4517,9 +4521,11 @@ mod tests {
 
     #[test]
     fn exemplo_navegacao_luau_dashboard_sai_volta_e_limpa_senha() {
-        let comp =
-            LuauComponent::from_file("examples/gva/navegacao_luau/dashboard.gva", "dashboard_luau")
-                .unwrap();
+        let comp = LuauComponent::from_file(
+            "examples/gva/navegacao_luau/dashboard.gva",
+            "dashboard_luau",
+        )
+        .unwrap();
         let mut data = HashMap::default();
         data.insert("senha".into(), "123".into());
         {
@@ -4532,11 +4538,12 @@ mod tests {
 
     #[test]
     fn exemplo_robustez_luau_exercita_timers_storage_viewport_ctx_tabela_e_erro() {
-        let storage_file = PathBuf::from("examples/gva/robustez_luau/.glacier-storage/robustez.json");
+        let storage_file =
+            PathBuf::from("examples/gva/robustez_luau/.glacier-storage/robustez.json");
         let _ = std::fs::remove_file(&storage_file);
 
-        let comp =
-            LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez").unwrap();
+        let comp = LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez")
+            .unwrap();
         let mut data = HashMap::default();
 
         // init() lê o storage (vazio na primeira vez) e semeia os defaults.
@@ -4600,8 +4607,8 @@ mod tests {
             let mut ctx = Context::new(&mut data);
             comp.run("salvar_rascunho", None, &mut ctx);
         }
-        let comp2 =
-            LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez").unwrap();
+        let comp2 = LuauComponent::from_file("examples/gva/robustez_luau/robustez.gva", "robustez")
+            .unwrap();
         let mut data2 = HashMap::default();
         {
             let mut ctx2 = Context::new(&mut data2);

@@ -96,7 +96,9 @@ impl Forma {
                 let (w, h) = (self.n("w", 0.0).max(0.0), self.n("h", 0.0).max(0.0));
                 let rx = self.n("rx", 0.0).max(0.0).min(w.min(h) / 2.0);
                 if rx <= 0.5 {
-                    Some(Path::new(|b| b.rectangle(Point::new(x, y), Size::new(w, h))))
+                    Some(Path::new(|b| {
+                        b.rectangle(Point::new(x, y), Size::new(w, h))
+                    }))
                 } else {
                     Some(retangulo_arredondado(x, y, w, h, rx))
                 }
@@ -134,9 +136,7 @@ impl Forma {
                     }
                 }))
             }
-            FormaKind::Path => {
-                caminho_svg(self.geo.get("d").map(String::as_str).unwrap_or(""))
-            }
+            FormaKind::Path => caminho_svg(self.geo.get("d").map(String::as_str).unwrap_or("")),
             FormaKind::Text => None,
         }
     }
@@ -185,7 +185,9 @@ impl canvas::Program<EngineMessage> for ProgramaFormas {
             if let Some(c) = forma.stroke {
                 frame.stroke(
                     &path,
-                    Stroke::default().with_color(c).with_width(forma.stroke_width),
+                    Stroke::default()
+                        .with_color(c)
+                        .with_width(forma.stroke_width),
                 );
             }
             // Nem traço nem preenchimento declarados: um traço na cor do texto
@@ -419,7 +421,10 @@ mod tests {
     fn forma(kind: FormaKind, geo: &[(&str, &str)]) -> Forma {
         Forma {
             kind,
-            geo: geo.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            geo: geo
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             texto: String::new(),
             fill: None,
             stroke: None,
@@ -469,33 +474,56 @@ mod tests {
 
     #[test]
     fn circle_e_rect_constroem_path() {
-        assert!(forma(FormaKind::Circle, &[("cx", "10"), ("cy", "10"), ("r", "5")])
+        assert!(
+            forma(FormaKind::Circle, &[("cx", "10"), ("cy", "10"), ("r", "5")])
+                .caminho()
+                .is_some()
+        );
+        assert!(
+            forma(
+                FormaKind::Rect,
+                &[("x", "0"), ("y", "0"), ("w", "20"), ("h", "10")]
+            )
             .caminho()
-            .is_some());
-        assert!(forma(FormaKind::Rect, &[("x", "0"), ("y", "0"), ("w", "20"), ("h", "10")])
-            .caminho()
-            .is_some());
+            .is_some()
+        );
         // Rect com cantos.
-        assert!(forma(
-            FormaKind::Rect,
-            &[("x", "0"), ("y", "0"), ("w", "20"), ("h", "10"), ("rx", "3")]
-        )
-        .caminho()
-        .is_some());
+        assert!(
+            forma(
+                FormaKind::Rect,
+                &[
+                    ("x", "0"),
+                    ("y", "0"),
+                    ("w", "20"),
+                    ("h", "10"),
+                    ("rx", "3")
+                ]
+            )
+            .caminho()
+            .is_some()
+        );
     }
 
     #[test]
     fn polyline_precisa_de_dois_pontos() {
-        assert!(forma(FormaKind::Polyline, &[("points", "0,0 10,10")])
-            .caminho()
-            .is_some());
-        assert!(forma(FormaKind::Polyline, &[("points", "0,0")])
-            .caminho()
-            .is_none());
+        assert!(
+            forma(FormaKind::Polyline, &[("points", "0,0 10,10")])
+                .caminho()
+                .is_some()
+        );
+        assert!(
+            forma(FormaKind::Polyline, &[("points", "0,0")])
+                .caminho()
+                .is_none()
+        );
     }
 
     #[test]
     fn text_nao_tem_caminho() {
-        assert!(forma(FormaKind::Text, &[("x", "0"), ("y", "0")]).caminho().is_none());
+        assert!(
+            forma(FormaKind::Text, &[("x", "0"), ("y", "0")])
+                .caminho()
+                .is_none()
+        );
     }
 }

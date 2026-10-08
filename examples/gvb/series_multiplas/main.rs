@@ -50,7 +50,10 @@ impl Component for SeriesMultiplas {
     fn init(&mut self, ctx: &mut Context) {
         ctx.set("requisicoes", BASE.to_string());
         ctx.set("latencia", ESPARSO.to_string());
-        ctx.set("status", "3 séries — arraste os dados com o botão".to_string());
+        ctx.set(
+            "status",
+            "3 séries — arraste os dados com o botão".to_string(),
+        );
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
@@ -59,9 +62,13 @@ impl Component for SeriesMultiplas {
             // suficiente para ver que o desenho é lido do contexto a cada
             // quadro, sem reavaliar a árvore.
             "girar" => {
-                let girado = rotaciona_series(ctx.get("requisicoes").map(String::as_str).unwrap_or("[]"));
+                let girado =
+                    rotaciona_series(ctx.get("requisicoes").map(String::as_str).unwrap_or("[]"));
                 ctx.set("requisicoes", girado);
-                ctx.set("status", "girado — o gráfico seguiu sem handler próprio".to_string());
+                ctx.set(
+                    "status",
+                    "girado — o gráfico seguiu sem handler próprio".to_string(),
+                );
             }
             "resetar" => {
                 ctx.set("requisicoes", BASE.to_string());

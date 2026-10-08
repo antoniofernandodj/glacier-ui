@@ -33,7 +33,8 @@ fn texto_e_atributo() {
         xml(r#"text(class = tag_off, content = "parado")"#),
         r#"<textclass="tag_off"content="parado"/>"#
     );
-    let prosa = desugar("button(text = \"\"\"\n  Ir para\n  o monitor\n\"\"\", on_click = ir)").unwrap();
+    let prosa =
+        desugar("button(text = \"\"\"\n  Ir para\n  o monitor\n\"\"\", on_click = ir)").unwrap();
     assert!(prosa.contains(r#"text="Ir para o monitor""#), "{prosa}");
     let e = desugar(r#"button(on_click = ir) "Ir""#).unwrap_err();
     assert!(e.message.contains("texto solto"), "{}", e.message);
@@ -119,8 +120,14 @@ fn marcador_sem_valor() {
         xml("prop(component, name = linha)"),
         r#"<propcomponent=""name="linha"/>"#
     );
-    assert_eq!(xml("template(else) { text(content = x) }"), r#"<templateelse=""><textcontent="x"/></template>"#);
-    assert_eq!(xml("template(else, class = a)"), r#"<templateelse=""class="a"/>"#);
+    assert_eq!(
+        xml("template(else) { text(content = x) }"),
+        r#"<templateelse=""><textcontent="x"/></template>"#
+    );
+    assert_eq!(
+        xml("template(else, class = a)"),
+        r#"<templateelse=""class="a"/>"#
+    );
 }
 
 /// `l"""` guarda as quebras de linha e tira a indentação comum; o `@nome` segue
@@ -128,7 +135,8 @@ fn marcador_sem_valor() {
 /// dobra as linhas num espaço só.
 #[test]
 fn bloco_de_linhas() {
-    let src = "textarea(placeholder = l\"\"\"\n    services:\n      app:\n        image: @img\n  \"\"\")";
+    let src =
+        "textarea(placeholder = l\"\"\"\n    services:\n      app:\n        image: @img\n  \"\"\")";
     let x = desugar(src).unwrap();
     assert!(
         x.contains(r#"placeholder="services:&#10;  app:&#10;    image: {img}""#),
@@ -136,9 +144,16 @@ fn bloco_de_linhas() {
     );
     // aspas dentro, sem escape; linha em branco no meio é preservada (vazia)
     let x = desugar("t(p = l\"\"\"\n  a: [\"sh\", \"-c\"]\n\n  b\n\"\"\")").unwrap();
-    assert!(x.contains(r#"p="a: [&quot;sh&quot;, &quot;-c&quot;]&#10;&#10;b""#), "{x}");
+    assert!(
+        x.contains(r#"p="a: [&quot;sh&quot;, &quot;-c&quot;]&#10;&#10;b""#),
+        "{x}"
+    );
     // numa linha só, e o `l` que não abre `"""` segue sendo um valor nu
-    assert!(desugar("t(p = l\"\"\"x\"\"\")").unwrap().contains(r#"p="x""#));
+    assert!(
+        desugar("t(p = l\"\"\"x\"\"\")")
+            .unwrap()
+            .contains(r#"p="x""#)
+    );
     assert!(desugar("t(p = lixo)").unwrap().contains(r#"p="lixo""#));
     // texto na primeira linha entra como está e o recuo comum passa a ser o dele
     let x = desugar("t(p = l\"\"\"a\n   b\n\"\"\")").unwrap();

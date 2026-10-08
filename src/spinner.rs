@@ -26,8 +26,8 @@
 //! angular até a "cabeça" da rotação: o de trás é quase opaco, o mais distante
 //! quase invisível, dando o efeito de rastro giratório.
 
-use std::f32::consts::TAU;
 use iced::time::{Duration, Instant};
+use std::f32::consts::TAU;
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;

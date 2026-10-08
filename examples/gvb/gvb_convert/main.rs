@@ -70,7 +70,11 @@ fn parse_xml(src: &str) -> Result<Vec<X>, String> {
     while i < src.len() {
         if b[i] != b'<' {
             let j = src[i..].find('<').map_or(src.len(), |k| i + k);
-            stack.last_mut().unwrap().2.push(X::Text(decode(&src[i..j])));
+            stack
+                .last_mut()
+                .unwrap()
+                .2
+                .push(X::Text(decode(&src[i..j])));
             i = j;
             continue;
         }
@@ -85,7 +89,11 @@ fn parse_xml(src: &str) -> Result<Vec<X>, String> {
             i += e + 3;
         } else if rest.starts_with("<![CDATA[") {
             let e = rest.find("]]>").ok_or("CDATA sem fim")?;
-            stack.last_mut().unwrap().2.push(X::Raw(rest[9..e].to_string()));
+            stack
+                .last_mut()
+                .unwrap()
+                .2
+                .push(X::Raw(rest[9..e].to_string()));
             i += e + 3;
         } else if rest.starts_with("<?") {
             i += rest.find("?>").ok_or("<? sem fim")? + 2;
@@ -150,13 +158,17 @@ fn parse_xml(src: &str) -> Result<Vec<X>, String> {
                     if q != b'"' && q != b'\'' {
                         return Err(format!("atributo `{name}` sem aspas"));
                     }
-                    let e = src[j + 1..]
-                        .find(q as char)
-                        .ok_or("atributo sem fim")?;
+                    let e = src[j + 1..].find(q as char).ok_or("atributo sem fim")?;
                     // normalização de valor de atributo do XML: \n \t \r → espaço
                     let raw: String = src[j + 1..j + 1 + e]
                         .chars()
-                        .map(|c| if matches!(c, '\n' | '\t' | '\r') { ' ' } else { c })
+                        .map(|c| {
+                            if matches!(c, '\n' | '\t' | '\r') {
+                                ' '
+                            } else {
+                                c
+                            }
+                        })
                         .collect();
                     attrs.push((name, decode(&raw)));
                     j += e + 2;
@@ -166,11 +178,11 @@ fn parse_xml(src: &str) -> Result<Vec<X>, String> {
             }
             let lower = tag.to_ascii_lowercase();
             if self_close {
-                stack
-                    .last_mut()
-                    .unwrap()
-                    .2
-                    .push(X::Elem { tag, attrs, kids: vec![] });
+                stack.last_mut().unwrap().2.push(X::Elem {
+                    tag,
+                    attrs,
+                    kids: vec![],
+                });
             } else if lower == "script" || lower == "style" {
                 let close = format!("</{lower}>");
                 let e = src[j..]
@@ -199,12 +211,15 @@ fn parse_xml(src: &str) -> Result<Vec<X>, String> {
 // ───────────────────────────── valores ─────────────────────────────
 
 fn is_ident(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
 fn is_path(s: &str) -> bool {
     !s.is_empty()
-        && s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
         && !s.starts_with('.')
         && !s.ends_with('.')
 }
@@ -222,7 +237,9 @@ fn interp(v: &str) -> String {
             }
             // `{{marcador}}` — o que o scaffold do CLI substitui; passa intacto.
             '{' if cs.get(i + 1) == Some(&'{') => {
-                match (i + 2..cs.len().saturating_sub(1)).find(|&k| cs[k] == '}' && cs[k + 1] == '}') {
+                match (i + 2..cs.len().saturating_sub(1))
+                    .find(|&k| cs[k] == '}' && cs[k + 1] == '}')
+                {
                     Some(k) => {
                         o.extend(&cs[i..k + 2]);
                         i = k + 2;
@@ -268,14 +285,23 @@ fn quote(s: &str) -> String {
 
 fn bare_ok(s: &str) -> bool {
     !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '+' | '@' | ':' | '#' | '%'))
+        && s.chars().all(|c| {
+            c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '+' | '@' | ':' | '#' | '%')
+        })
         && !s.contains("//")
 }
 
 /// Atributos que o `.gva` escreve sem valor (`<prop component name="x" />`,
 /// `<template else>`): no `.gvb` também ficam sem `= valor`.
-const MARCADORES: &[&str] = &["else", "senao", "component", "not_empty", "notEmpty", "not-empty", "nao_vazio"];
+const MARCADORES: &[&str] = &[
+    "else",
+    "senao",
+    "component",
+    "not_empty",
+    "notEmpty",
+    "not-empty",
+    "nao_vazio",
+];
 
 /// `nome = valor`, ou só `nome` quando é um marcador vazio.
 fn attr_text(k: &str, v: &str) -> String {
@@ -400,7 +426,10 @@ fn comment_lines(body: &str, indent: usize) -> Vec<String> {
             out.push(format!("{}// {}", pad(indent), t));
         }
     }
-    while out.last().is_some_and(|l| l.trim_end() == format!("{}//", pad(indent)).trim_end()) {
+    while out
+        .last()
+        .is_some_and(|l| l.trim_end() == format!("{}//", pad(indent)).trim_end())
+    {
         out.pop();
     }
     out
@@ -457,7 +486,11 @@ impl Conv {
         if tag != "template" && tag != "if" {
             return None;
         }
-        if tag == "template" && get("else").is_some() && get("if").is_none() && get("else_if").is_none() {
+        if tag == "template"
+            && get("else").is_some()
+            && get("if").is_none()
+            && get("else_if").is_none()
+        {
             let o = others(&["else"], self);
             return Some((Head::Else, "else".into(), o));
         }
@@ -479,7 +512,11 @@ impl Conv {
         if ops.len() > 1 {
             return None;
         }
-        let kw = if matches!(head, Head::If) { "if" } else { "else if" };
+        let kw = if matches!(head, Head::If) {
+            "if"
+        } else {
+            "else if"
+        };
         let cond = match ops.first().copied() {
             None => format!("{kw} @{name}"),
             Some("equals") => format!("{kw} @{name} == {}", quote(&interp(&get("equals")?))),
@@ -532,7 +569,11 @@ impl Conv {
                         comment_between = true;
                     }
                 }
-                X::Elem { tag, attrs, kids: ek } => {
+                X::Elem {
+                    tag,
+                    attrs,
+                    kids: ek,
+                } => {
                     let class = self.classify(tag, attrs);
                     let mut lines = match class {
                         Some((head, cond, rest)) => {
@@ -583,7 +624,9 @@ impl Conv {
     ) -> Vec<String> {
         let _ = head;
         if !rest.is_empty() {
-            self.err(format!("`{cond}` com atributos: o `.gvb` não os tem num if/else"));
+            self.err(format!(
+                "`{cond}` com atributos: o `.gvb` não os tem num if/else"
+            ));
         }
         let mut lines = vec![format!("{}{} {{", pad(indent), cond)];
         let mut body = Vec::new();
@@ -608,8 +651,14 @@ impl Conv {
         let mut attrs_v: Vec<(String, String)> = attrs.to_vec();
         let mut each: Option<String> = None;
         if tag == "foreach" {
-            let items = attrs.iter().find(|(k, _)| k == "items").map(|(_, v)| v.clone());
-            let var = attrs.iter().find(|(k, _)| k == "var").map(|(_, v)| v.clone());
+            let items = attrs
+                .iter()
+                .find(|(k, _)| k == "items")
+                .map(|(_, v)| v.clone());
+            let var = attrs
+                .iter()
+                .find(|(k, _)| k == "var")
+                .map(|(_, v)| v.clone());
             if let (Some(i), Some(v)) = (items, var)
                 && is_path(&i)
                 && is_ident(&v)
@@ -658,7 +707,9 @@ impl Conv {
         let ind = pad(indent);
         let mut lit = String::new();
         if let Some(r) = raw {
-            if r.contains("\"\"\"") || r.trim_end_matches([' ', '\t', '\n']).ends_with('"') && !r.ends_with(['\n', ' ']) {
+            if r.contains("\"\"\"")
+                || r.trim_end_matches([' ', '\t', '\n']).ends_with('"') && !r.ends_with(['\n', ' '])
+            {
                 self.err("corpo cru com `\"\"\"` ou terminado em aspas");
             }
             if !r.is_empty() {
@@ -688,7 +739,9 @@ impl Conv {
                 match tag {
                     "text" => rest.push(format!("content = {lit}")),
                     "button" => rest.push(format!("text = {lit}")),
-                    _ => self.err(format!("<{tag}> tem texto, e só `text` e `button` o têm como atributo")),
+                    _ => self.err(format!(
+                        "<{tag}> tem texto, e só `text` e `button` o têm como atributo"
+                    )),
                 }
             }
         }
@@ -705,7 +758,11 @@ impl Conv {
                 lines.push(format!("{ind}{head}{sep}("));
                 for r in &rest {
                     if r.contains('\n') {
-                        lines.extend(format!("{}{r},", pad(indent + 2)).split('\n').map(str::to_string));
+                        lines.extend(
+                            format!("{}{r},", pad(indent + 2))
+                                .split('\n')
+                                .map(str::to_string),
+                        );
                     } else {
                         lines.push(format!("{}{r},", pad(indent + 2)));
                     }
@@ -791,7 +848,11 @@ fn botao_com_atributo(gv: &str) -> String {
         let corpo = &depois[gt + 1..];
         let fecha = corpo.find("</button>");
         match fecha {
-            Some(f) if !abre.ends_with('/') && !corpo[..f].contains('<') && !corpo[..f].trim().is_empty() => {
+            Some(f)
+                if !abre.ends_with('/')
+                    && !corpo[..f].contains('<')
+                    && !corpo[..f].trim().is_empty() =>
+            {
                 let txt = corpo[..f].split_whitespace().collect::<Vec<_>>().join(" ");
                 let _ = write!(out, "{abre} text=\"{}\"/>", txt.replace('"', "&quot;"));
                 rest = &corpo[f + "</button>".len()..];
@@ -809,14 +870,18 @@ fn botao_com_atributo(gv: &str) -> String {
 fn check(gv: &str, gvb: &str) -> Result<(), String> {
     let gv = &botao_com_atributo(gv);
     let (gv, gvb) = (&marcadores(gv), &marcadores(gvb));
-    let mutated = std::env::var("GVB_MUTATE").ok().map(|m| gvb.replacen(&m, "zzz", 1));
+    let mutated = std::env::var("GVB_MUTATE")
+        .ok()
+        .map(|m| gvb.replacen(&m, "zzz", 1));
     let gvb = mutated.as_deref().unwrap_or(gvb);
     let xml = glacier_ui::gvb::desugar(gvb).map_err(|d| format!("desugar: {}", d.message))?;
     let mut a = tree(gv, gv).map_err(|e| format!("original: {e}"))?;
     let mut b = tree(&xml, gvb).map_err(|e| format!("tradução: {e}"))?;
     // as referências `.gv` foram reescritas para `.gvb`; desfaz para comparar
     // as referências a templates foram reescritas para `.gvb`; desfaz para comparar
-    b.0 = b.0.replace(".gvb\"", ".gva\"").replace("\"examples/gvb/", "\"examples/gva/");
+    b.0 =
+        b.0.replace(".gvb\"", ".gva\"")
+            .replace("\"examples/gvb/", "\"examples/gva/");
     a.0 = a.0.replace(".gv\"", ".gva\"");
     if a.1 != b.1 {
         return Err("o <script> mudou".into());
@@ -825,7 +890,9 @@ fn check(gv: &str, gvb: &str) -> Result<(), String> {
         let (la, lb): (Vec<_>, Vec<_>) = (a.0.lines().collect(), b.0.lines().collect());
         let only_a: Vec<_> = la.iter().filter(|l| !lb.contains(l)).take(3).collect();
         let only_b: Vec<_> = lb.iter().filter(|l| !la.contains(l)).take(3).collect();
-        return Err(format!("árvores diferentes — só no .gv: {only_a:?} · só no .gvb: {only_b:?}"));
+        return Err(format!(
+            "árvores diferentes — só no .gv: {only_a:?} · só no .gvb: {only_b:?}"
+        ));
     }
     Ok(())
 }
@@ -836,7 +903,11 @@ fn main() {
     let in_place = args[0] == "--in-place";
     let out_dir = PathBuf::from(&args[0]);
     let args: Vec<String> = if in_place { args[1..].to_vec() } else { args };
-    let args = if in_place { [vec![String::new()], args].concat() } else { args };
+    let args = if in_place {
+        [vec![String::new()], args].concat()
+    } else {
+        args
+    };
     let (mut ok, mut bad) = (0, 0);
     for f in &args[1..] {
         let p = Path::new(f);
@@ -851,7 +922,10 @@ fn main() {
             rel
         };
         let (out_dir, rel) = if in_place {
-            (p.parent().unwrap().to_path_buf(), PathBuf::from(p.file_name().unwrap()).with_extension("gvb"))
+            (
+                p.parent().unwrap().to_path_buf(),
+                PathBuf::from(p.file_name().unwrap()).with_extension("gvb"),
+            )
         } else {
             (out_dir.clone(), rel)
         };

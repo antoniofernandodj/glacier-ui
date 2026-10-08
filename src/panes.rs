@@ -483,12 +483,13 @@ fn cabecalho_dock<'a>(
                 }
             }
         };
-        let btn = |glifo: &'static str, pares: Vec<(String, String)>| -> Element<'a, EngineMessage> {
-            mouse_area(container(text(glifo).size(12)).padding([2, 6]))
-                .interaction(iced::mouse::Interaction::Pointer)
-                .on_press(acao(pares))
-                .into()
-        };
+        let btn =
+            |glifo: &'static str, pares: Vec<(String, String)>| -> Element<'a, EngineMessage> {
+                mouse_area(container(text(glifo).size(12)).padding([2, 6]))
+                    .interaction(iced::mouse::Interaction::Pointer)
+                    .on_press(acao(pares))
+                    .into()
+            };
 
         // `❒` guarda o modo atual e flutua; `▣` volta para onde estava (ou a
         // borda default). É o "dock back" do `QDockWidget`.
@@ -682,7 +683,9 @@ pub fn render_dock<'a>(
         origem_y: None,
         valor0: 0.0,
         valor0_y: 0.0,
-        alvo: Alvo::Zona { limiar: LIMIAR_DOCK },
+        alvo: Alvo::Zona {
+            limiar: LIMIAR_DOCK,
+        },
     });
     let painel_col: Element<'a, EngineMessage> = container(column![
         cabecalho_dock(title, mode_var, modo, voltar_para, on_change, grip),

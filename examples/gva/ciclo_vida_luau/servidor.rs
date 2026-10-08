@@ -84,7 +84,9 @@ fn servir_ws(stream: TcpStream, contagem: &Contagem) {
     };
     // Leitura com prazo: entre uma mensagem do cliente e outra, o laço ainda
     // consegue mandar o `tick` do servidor.
-    let _ = ws.get_mut().set_read_timeout(Some(Duration::from_millis(250)));
+    let _ = ws
+        .get_mut()
+        .set_read_timeout(Some(Duration::from_millis(250)));
     let ativas = contagem.ws.fetch_add(1, Ordering::Relaxed) + 1;
     println!("[servidor] WS aberto    (ativos: {ativas})");
     let _ = ws.send(Message::text("olá do servidor"));

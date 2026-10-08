@@ -1045,7 +1045,10 @@ fn single_line_editor<'a>(
         let hover_ov = node.hover_style().cloned();
         let focus_ov = node.focus_style().cloned();
         let disabled_ov = node.disabled_style().cloned();
-        let invalid_ov = node.form_invalid().then(|| node.invalid_style().cloned()).flatten();
+        let invalid_ov = node
+            .form_invalid()
+            .then(|| node.invalid_style().cloned())
+            .flatten();
         ed = ed.style(move |theme, status| {
             use iced::widget::text_editor::Status;
             let mut style = iced::widget::text_editor::default(theme, status);
@@ -2564,8 +2567,7 @@ fn render_masked_input<'a>(
     // Dentro de um `<Form>`: Enter submete (e pode pular para o próximo
     // campo), como no `<TextInput>`.
     if !node.disabled.unwrap_or(false)
-        && let (Some(scope), Some(submit_action)) =
-            (node.form_scope(), node.form_submit_action())
+        && let (Some(scope), Some(submit_action)) = (node.form_scope(), node.form_submit_action())
     {
         let next_focus = node.form_next_focus().map(|n| form_input_id(scope, n));
         campo = campo.on_submit(EngineMessage::UiSubmit {
@@ -3485,7 +3487,10 @@ struct TabelaChaves<'a> {
 /// A [`crate::grid::Faixa`] de uma classe resolvida: `background`, o
 /// `background` do `:hover`, `border-radius` e — `border-color` com
 /// `border-width` (default 1) — o fio sob a linha.
-fn faixa_de(regra: &crate::stylesheet::StyleRule, hover: Option<&crate::stylesheet::StyleRule>) -> crate::grid::Faixa {
+fn faixa_de(
+    regra: &crate::stylesheet::StyleRule,
+    hover: Option<&crate::stylesheet::StyleRule>,
+) -> crate::grid::Faixa {
     let cor = |c: &Option<String>| c.as_deref().and_then(parse_hex_color);
     crate::grid::Faixa {
         fundo: cor(&regra.background),
@@ -3575,7 +3580,11 @@ fn render_tabela_decorada<'a>(
                 };
                 Coluna {
                     campo: key.clone(),
-                    rotulo: if label.is_empty() { key.clone() } else { label.clone() },
+                    rotulo: if label.is_empty() {
+                        key.clone()
+                    } else {
+                        label.clone()
+                    },
                     trilha: c
                         .width
                         .as_deref()
@@ -3647,12 +3656,14 @@ fn render_tabela_decorada<'a>(
                 .width(Length::Fill)
                 .padding(pad)
                 .on_press(msg)
-                .style(|_theme: &iced::Theme, _status: button::Status| button::Style {
-                    // A faixa é da grade: o botão só existe para o clique.
-                    background: None,
-                    border: Border::default(),
-                    ..Default::default()
-                })
+                .style(
+                    |_theme: &iced::Theme, _status: button::Status| button::Style {
+                        // A faixa é da grade: o botão só existe para o clique.
+                        background: None,
+                        border: Border::default(),
+                        ..Default::default()
+                    },
+                )
                 .into()
         } else {
             container(rotulo).width(Length::Fill).padding(pad).into()
@@ -3733,21 +3744,23 @@ fn render_tabela_decorada<'a>(
             } else {
                 selecao == id
             };
-        cliques.push((!k.value_var.is_empty() || !k.on_select.is_empty()).then(|| {
-            let novo = if k.multi {
-                crate::builtins::list_view::alterna_no_conjunto(&selecao, &id)
-            } else {
-                id.clone()
-            };
-            if k.on_select.is_empty() {
-                EngineMessage::ContextPatch(vec![(k.value_var.to_string(), novo)])
-            } else {
-                EngineMessage::UiInputChanged {
-                    action: k.on_select.to_string(),
-                    value: novo,
+        cliques.push(
+            (!k.value_var.is_empty() || !k.on_select.is_empty()).then(|| {
+                let novo = if k.multi {
+                    crate::builtins::list_view::alterna_no_conjunto(&selecao, &id)
+                } else {
+                    id.clone()
+                };
+                if k.on_select.is_empty() {
+                    EngineMessage::ContextPatch(vec![(k.value_var.to_string(), novo)])
+                } else {
+                    EngineMessage::UiInputChanged {
+                        action: k.on_select.to_string(),
+                        value: novo,
+                    }
                 }
-            }
-        }));
+            }),
+        );
         faixas.push(if marcada {
             // A linha escolhida fica com o fundo do `:hover` da classe, aceso;
             // sem um, um azul translúcido que lê em tema claro e escuro.
@@ -4292,25 +4305,22 @@ pub fn render_node<'a>(
                 // in `eval.rs`). A `type=` button outside any form falls
                 // through to on_click.
                 let form_action = match button_type {
-                    Some(crate::parser::ButtonType::Submit) => node.form_scope().map(|scope| {
-                        EngineMessage::UiSubmit {
+                    Some(crate::parser::ButtonType::Submit) => {
+                        node.form_scope().map(|scope| EngineMessage::UiSubmit {
                             action: node.form_submit_action().unwrap_or_default().to_string(),
-                            error_action: node
-                                .form_error_action()
-                                .unwrap_or_default()
-                                .to_string(),
+                            error_action: node.form_error_action().unwrap_or_default().to_string(),
                             error_prefix: form_error_prefix_of(node),
                             scope: scope.to_string(),
                             next_focus: None,
-                        }
-                    }),
-                    Some(crate::parser::ButtonType::Reset) => node.form_scope().map(|scope| {
-                        EngineMessage::UiFormReset {
+                        })
+                    }
+                    Some(crate::parser::ButtonType::Reset) => {
+                        node.form_scope().map(|scope| EngineMessage::UiFormReset {
                             reset_action: on_click.clone().unwrap_or_default(),
                             error_prefix: form_error_prefix_of(node),
                             scope: scope.to_string(),
-                        }
-                    }),
+                        })
+                    }
                     None => None,
                 };
                 if let Some(msg) = form_action {
@@ -4437,54 +4447,58 @@ pub fn render_node<'a>(
                 _ => synthetic_input_id(value_var),
             };
 
-            let inner: Element<'a, EngineMessage> = if *secure {
-                // ── Senha: fica no `text_input` do iced (é o único com render
-                //    mascarado). Menu de contexto reduzido — ver `InputFlavor`.
-                let mut input = text_input(placeholder.as_str(), current_value)
-                    .secure(true)
-                    .id(field_id.clone());
-                if !is_disabled {
-                    let action_clone = on_change.clone();
-                    input = input.on_input(move |val| EngineMessage::UiInputChanged {
-                        action: action_clone.clone(),
-                        value: val,
-                    });
-                }
-                if !is_disabled
-                    && let (Some(scope), Some(submit_action)) =
-                        (node.form_scope(), node.form_submit_action())
-                {
-                    let next_focus = node
-                        .form_next_focus()
-                        .map(|next| form_input_id(scope, next));
-                    input = input.on_submit(EngineMessage::UiSubmit {
-                        action: submit_action.to_string(),
-                        error_action: node.form_error_action().unwrap_or_default().to_string(),
-                        error_prefix: form_error_prefix_of(node),
-                        scope: scope.to_string(),
-                        next_focus,
-                    });
-                }
-                if node.width.is_some() {
-                    input = input.width(parse_length(&node.width));
-                }
-                if node.padding.is_some() {
-                    input = input.padding(parse_padding(&node.padding));
-                }
-                if node.hover_style().is_some()
-                    || node.focus_style().is_some()
-                    || node.disabled_style().is_some()
-                    || node.form_invalid()
-                {
-                    let hover_ov = node.hover_style().cloned();
-                    let focus_ov = node.focus_style().cloned();
-                    let disabled_ov = node.disabled_style().cloned();
-                    let invalid_ov =
-                        node.form_invalid().then(|| node.invalid_style().cloned()).flatten();
-                    input = input.style(move |theme, status| {
-                        use iced::widget::text_input::Status;
-                        let mut style = iced::widget::text_input::default(theme, status);
-                        let apply = |style: &mut iced::widget::text_input::Style,
+            let inner: Element<'a, EngineMessage> =
+                if *secure {
+                    // ── Senha: fica no `text_input` do iced (é o único com render
+                    //    mascarado). Menu de contexto reduzido — ver `InputFlavor`.
+                    let mut input = text_input(placeholder.as_str(), current_value)
+                        .secure(true)
+                        .id(field_id.clone());
+                    if !is_disabled {
+                        let action_clone = on_change.clone();
+                        input = input.on_input(move |val| EngineMessage::UiInputChanged {
+                            action: action_clone.clone(),
+                            value: val,
+                        });
+                    }
+                    if !is_disabled
+                        && let (Some(scope), Some(submit_action)) =
+                            (node.form_scope(), node.form_submit_action())
+                    {
+                        let next_focus = node
+                            .form_next_focus()
+                            .map(|next| form_input_id(scope, next));
+                        input = input.on_submit(EngineMessage::UiSubmit {
+                            action: submit_action.to_string(),
+                            error_action: node.form_error_action().unwrap_or_default().to_string(),
+                            error_prefix: form_error_prefix_of(node),
+                            scope: scope.to_string(),
+                            next_focus,
+                        });
+                    }
+                    if node.width.is_some() {
+                        input = input.width(parse_length(&node.width));
+                    }
+                    if node.padding.is_some() {
+                        input = input.padding(parse_padding(&node.padding));
+                    }
+                    if node.hover_style().is_some()
+                        || node.focus_style().is_some()
+                        || node.disabled_style().is_some()
+                        || node.form_invalid()
+                    {
+                        let hover_ov = node.hover_style().cloned();
+                        let focus_ov = node.focus_style().cloned();
+                        let disabled_ov = node.disabled_style().cloned();
+                        let invalid_ov = node
+                            .form_invalid()
+                            .then(|| node.invalid_style().cloned())
+                            .flatten();
+                        input =
+                            input.style(move |theme, status| {
+                                use iced::widget::text_input::Status;
+                                let mut style = iced::widget::text_input::default(theme, status);
+                                let apply = |style: &mut iced::widget::text_input::Style,
                                      r: &crate::stylesheet::StyleRule| {
                             if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
                                 style.background = Background::Color(bg);
@@ -4502,46 +4516,46 @@ pub fn render_node<'a>(
                                 style.value = tc;
                             }
                         };
-                        let overlay = match status {
-                            Status::Hovered => hover_ov.as_ref(),
-                            Status::Focused { .. } => focus_ov.as_ref(),
-                            Status::Disabled => disabled_ov.as_ref(),
-                            Status::Active => None,
-                        };
-                        if let Some(r) = overlay {
-                            apply(&mut style, r);
-                        }
-                        if !matches!(status, Status::Disabled)
-                            && let Some(r) = invalid_ov.as_ref()
-                        {
-                            apply(&mut style, r);
-                        }
-                        style
-                    });
-                }
-                input.into()
-            } else {
-                // ── Linha única comum: apoiada num `text_editor` de uma linha,
-                //    igual ao `<TextArea>` mas com Enter/`\n` interceptados
-                //    (`single_line`). É isso que dá ao `<TextInput>` o mesmo
-                //    menu de contexto completo (o `text_input` do iced não
-                //    expõe seleção nem `perform`).
-                match editors.get(value_var) {
-                    Some(content) => single_line_editor(
-                        node,
-                        content,
-                        &field_id,
-                        value_var,
-                        on_change,
-                        placeholder.as_str(),
-                        is_disabled,
-                    ),
-                    // Só no primeiro quadro, antes de `sync_editors` criar o
-                    // `Content` — degrada para um campo não-editável em vez de
-                    // sumir.
-                    None => text_input(placeholder.as_str(), current_value).into(),
-                }
-            };
+                                let overlay = match status {
+                                    Status::Hovered => hover_ov.as_ref(),
+                                    Status::Focused { .. } => focus_ov.as_ref(),
+                                    Status::Disabled => disabled_ov.as_ref(),
+                                    Status::Active => None,
+                                };
+                                if let Some(r) = overlay {
+                                    apply(&mut style, r);
+                                }
+                                if !matches!(status, Status::Disabled)
+                                    && let Some(r) = invalid_ov.as_ref()
+                                {
+                                    apply(&mut style, r);
+                                }
+                                style
+                            });
+                    }
+                    input.into()
+                } else {
+                    // ── Linha única comum: apoiada num `text_editor` de uma linha,
+                    //    igual ao `<TextArea>` mas com Enter/`\n` interceptados
+                    //    (`single_line`). É isso que dá ao `<TextInput>` o mesmo
+                    //    menu de contexto completo (o `text_input` do iced não
+                    //    expõe seleção nem `perform`).
+                    match editors.get(value_var) {
+                        Some(content) => single_line_editor(
+                            node,
+                            content,
+                            &field_id,
+                            value_var,
+                            on_change,
+                            placeholder.as_str(),
+                            is_disabled,
+                        ),
+                        // Só no primeiro quadro, antes de `sync_editors` criar o
+                        // `Content` — degrada para um campo não-editável em vez de
+                        // sumir.
+                        None => text_input(placeholder.as_str(), current_value).into(),
+                    }
+                };
 
             let flavor = if *secure {
                 InputFlavor::Secure
@@ -5847,8 +5861,21 @@ pub fn render_node<'a>(
                 .map(|c| render_node(c, context, editors, combos, assets, view))
                 .unwrap_or_else(|| iced::widget::Space::new().into());
             crate::panes::render_dock(
-                node, context, mode_var, edge, on_change, size_var, float_x_var, float_y_var,
-                title, *min, *handle, *float_w, *float_h, painel, centro,
+                node,
+                context,
+                mode_var,
+                edge,
+                on_change,
+                size_var,
+                float_x_var,
+                float_y_var,
+                title,
+                *min,
+                *handle,
+                *float_w,
+                *float_h,
+                painel,
+                centro,
             )
         }
         NodeType::SwipeView {
@@ -6716,9 +6743,7 @@ pub fn render_node<'a>(
     // `QWhatsThis` (Onda 13): com o modo pegajoso ligado (`__whatsthis`), um nó
     // com `whats_this=` mostra ESSA ajuda em vez do `tooltip=` transiente. Sem
     // o modo, ou sem `whats_this`, é o balão de sempre.
-    let modo_whats = context
-        .get("__whatsthis")
-        .is_some_and(|v| is_truthy(v));
+    let modo_whats = context.get("__whatsthis").is_some_and(|v| is_truthy(v));
     let tip_efetiva: Option<String> = if modo_whats {
         node.whats_this()
             .map(|s| format!("?  {s}"))

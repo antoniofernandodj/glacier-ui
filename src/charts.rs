@@ -174,8 +174,7 @@ impl SerieNomeada {
         let Some(bruto) = context.get(chave) else {
             return Vec::new();
         };
-        let Ok(serde_json::Value::Array(itens)) =
-            serde_json::from_str::<serde_json::Value>(bruto)
+        let Ok(serde_json::Value::Array(itens)) = serde_json::from_str::<serde_json::Value>(bruto)
         else {
             return Vec::new();
         };
@@ -187,8 +186,9 @@ impl SerieNomeada {
                 let obj = item.as_object()?;
                 let campo = |nomes: &[&str]| nomes.iter().find_map(|n| obj.get(*n));
 
-                let pontos_raw = campo(&["points", "pontos", "data", "dados", "values", "valores"])?
-                    .as_array()?;
+                let pontos_raw =
+                    campo(&["points", "pontos", "data", "dados", "values", "valores"])?
+                        .as_array()?;
                 let serie = Serie::de_array(pontos_raw);
 
                 let nome = campo(&["name", "nome", "label", "rotulo", "rótulo"])
@@ -212,7 +212,12 @@ impl SerieNomeada {
 /// compartilhado, então a escala tem de ver todos os pontos. Uma série
 /// sintética com tudo concatenado é o suficiente: [`Serie::faixa`] só olha
 /// valores, não posição.
-fn limites_multi(series: &[SerieNomeada], min: &str, max: &str, alvo_marcas: usize) -> (f64, f64, f64) {
+fn limites_multi(
+    series: &[SerieNomeada],
+    min: &str,
+    max: &str,
+    alvo_marcas: usize,
+) -> (f64, f64, f64) {
     let mut todos = Serie::default();
     for s in series {
         todos.pontos.extend(s.serie.pontos.iter().cloned());
@@ -269,10 +274,7 @@ fn desenha_legenda(
         let cy = y0 + pad + i as f32 * linha_h + linha_h / 2.0;
         let cor = s.cor.unwrap_or_else(|| cor_ciclica(pal, i));
         frame.fill(
-            &Path::rectangle(
-                Point::new(x0 + pad, cy - quad / 2.0),
-                Size::new(quad, quad),
-            ),
+            &Path::rectangle(Point::new(x0 + pad, cy - quad / 2.0), Size::new(quad, quad)),
             cor,
         );
         frame.fill_text(canvas::Text {
@@ -519,7 +521,14 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
             for (i, s) in self.series.iter().enumerate() {
                 let cor = s.cor.unwrap_or_else(|| cor_ciclica(pal, i));
                 desenha_serie(
-                    &mut frame, &m, &s.serie, cor, min, max, self.area, self.pontos,
+                    &mut frame,
+                    &m,
+                    &s.serie,
+                    cor,
+                    min,
+                    max,
+                    self.area,
+                    self.pontos,
                     self.espessura,
                 );
             }
@@ -543,12 +552,27 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
 
         if self.eixos {
             desenha_eixos(
-                &mut frame, pal, &m, &self.serie, min, max, passo, self.grade, false,
+                &mut frame,
+                pal,
+                &m,
+                &self.serie,
+                min,
+                max,
+                passo,
+                self.grade,
+                false,
             );
         }
 
         desenha_serie(
-            &mut frame, &m, &self.serie, cor, min, max, self.area, self.pontos,
+            &mut frame,
+            &m,
+            &self.serie,
+            cor,
+            min,
+            max,
+            self.area,
+            self.pontos,
             self.espessura,
         );
 
@@ -607,7 +631,15 @@ impl canvas::Program<EngineMessage> for ProgramaBarras {
 
         if self.eixos {
             desenha_eixos(
-                &mut frame, pal, &m, &self.serie, min, max, passo, self.grade, true,
+                &mut frame,
+                pal,
+                &m,
+                &self.serie,
+                min,
+                max,
+                passo,
+                self.grade,
+                true,
             );
         }
 
@@ -801,7 +833,11 @@ pub fn render_line_chart<'a>(
     grid: bool,
     thickness: f32,
 ) -> Element<'a, EngineMessage> {
-    let (w, h) = tamanho(node, if axes { 320.0 } else { 120.0 }, if axes { 180.0 } else { 34.0 });
+    let (w, h) = tamanho(
+        node,
+        if axes { 320.0 } else { 120.0 },
+        if axes { 180.0 } else { 34.0 },
+    );
     let series = if series_var.is_empty() {
         Vec::new()
     } else {

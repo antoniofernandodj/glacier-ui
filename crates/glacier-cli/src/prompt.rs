@@ -116,7 +116,8 @@ fn confirmar_texto(e: &Estilo, pergunta: &str, padrao: bool) -> bool {
 /// Menu de escolha. Setas ↑/↓ + Enter; sem modo raw, cai no menu numerado.
 /// Devolve o índice escolhido; o default é `padrao`.
 pub fn escolher(e: &Estilo, pergunta: &str, opcoes: &[(&str, &str)], padrao: usize) -> usize {
-    menu_setas(e, pergunta, opcoes, padrao).unwrap_or_else(|| escolher_numerado(e, pergunta, opcoes, padrao))
+    menu_setas(e, pergunta, opcoes, padrao)
+        .unwrap_or_else(|| escolher_numerado(e, pergunta, opcoes, padrao))
 }
 
 /// O menu navegável. `None` = não deu para entrar em modo raw (a chamada usa o

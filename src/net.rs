@@ -620,14 +620,23 @@ mod tests {
                 sock.flush().await.unwrap();
             });
 
-            let mut req = PendingFetch::new(1, format!("http://{addr}/thumb.jpg"), "GET".into(), None, Vec::new());
+            let mut req = PendingFetch::new(
+                1,
+                format!("http://{addr}/thumb.jpg"),
+                "GET".into(),
+                None,
+                Vec::new(),
+            );
             req.download_to = Some(dest.to_string_lossy().into_owned());
             let res = perform(req).await;
             let _ = server.await;
 
             assert!(res.ok, "deveria baixar: erro={}", res.error);
             assert_eq!(res.status, 200);
-            assert_eq!(res.body, "", "o corpo foi para o arquivo, não para a resposta");
+            assert_eq!(
+                res.body, "",
+                "o corpo foi para o arquivo, não para a resposta"
+            );
             assert_eq!(std::fs::read(&dest).unwrap(), raw);
         });
 

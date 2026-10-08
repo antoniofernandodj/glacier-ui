@@ -73,7 +73,11 @@ mod ffi {
             err_cap: usize,
         ) -> c_int;
         pub fn glacier_mp_ctx_reset(globals: GlacierMpGlobals);
-        pub fn glacier_mp_ctx_set(globals: GlacierMpGlobals, key: *const c_char, value: *const c_char);
+        pub fn glacier_mp_ctx_set(
+            globals: GlacierMpGlobals,
+            key: *const c_char,
+            value: *const c_char,
+        );
         pub fn glacier_mp_ctx_visit(globals: GlacierMpGlobals, cb: CtxVisitFn, user: *mut c_void);
     }
 }
@@ -118,11 +122,20 @@ fn c_string(s: &str, what: &str) -> std::result::Result<CString, String> {
 /// Compila e roda `src` em `globals`, devolvendo o texto da exceção (se
 /// houver) já formatado. `what` só entra na mensagem de erro do `CString`
 /// (um NUL embutido), não no traceback do MicroPython em si.
-fn exec_into(globals: ffi::GlacierMpGlobals, src: &str, what: &str) -> std::result::Result<(), String> {
+fn exec_into(
+    globals: ffi::GlacierMpGlobals,
+    src: &str,
+    what: &str,
+) -> std::result::Result<(), String> {
     let c_src = c_string(src, what)?;
     let mut err = [0u8; ERR_CAP];
     let status = unsafe {
-        ffi::glacier_mp_exec(globals, c_src.as_ptr(), err.as_mut_ptr() as *mut c_char, err.len())
+        ffi::glacier_mp_exec(
+            globals,
+            c_src.as_ptr(),
+            err.as_mut_ptr() as *mut c_char,
+            err.len(),
+        )
     };
     if status != ffi::GLACIER_MP_OK {
         return Err(read_c_err(&err));
@@ -202,7 +215,11 @@ impl MicropythonComponent {
     fn build(script: &str, path: String, name: String) -> std::result::Result<Self, String> {
         ensure_init();
         let globals = unsafe { ffi::glacier_mp_new_globals() };
-        let comp = Self { name, path, globals };
+        let comp = Self {
+            name,
+            path,
+            globals,
+        };
         // O prelúdio primeiro — `ctx` (o dotdict) precisa existir ANTES do
         // corpo do usuário, que pode referenciá-lo já no nível de topo
         // (mesma razão de `ctx_table` vir antes do script no lado Lua).
@@ -218,11 +235,7 @@ impl MicropythonComponent {
     /// rodou; `Ok(false)` = não existe função chamável com esse nome exato
     /// (quem chama decide o fallback — ver [`Self::run_inner`]); `Err` =
     /// exceção Python não capturada, com o traceback como texto.
-    fn call_raw(
-        &self,
-        name: &str,
-        args: &[&str],
-    ) -> std::result::Result<bool, String> {
+    fn call_raw(&self, name: &str, args: &[&str]) -> std::result::Result<bool, String> {
         let c_name = c_string(name, "o nome da ação")?;
         let c_args: Vec<CString> = args
             .iter()
@@ -287,8 +300,12 @@ impl MicropythonComponent {
             // NUL-terminados e válidos por baixo do texto UTF-8 checado na
             // criação da string Python.
             let visit = unsafe { &mut *(user as *mut Visit) };
-            let key = unsafe { CStr::from_ptr(key) }.to_string_lossy().into_owned();
-            let value = unsafe { CStr::from_ptr(value) }.to_string_lossy().into_owned();
+            let key = unsafe { CStr::from_ptr(key) }
+                .to_string_lossy()
+                .into_owned();
+            let value = unsafe { CStr::from_ptr(value) }
+                .to_string_lossy()
+                .into_owned();
             visit.present.insert(key.clone());
             visit.ctx.set(&key, value);
         }
@@ -520,23 +537,33 @@ mod tests {
 
     #[test]
     fn onchange_recebe_o_valor() {
-        let mut comp =
-            MicropythonComponent::from_source("def set_nome(v):\n    ctx['nome'] = v\n", "t.gv", "c")
-                .unwrap();
+        let mut comp = MicropythonComponent::from_source(
+            "def set_nome(v):\n    ctx['nome'] = v\n",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
         let data = drive(&mut comp, "set_nome", Some("Ana"), ContextMap::default());
         assert_eq!(data.get("nome").map(String::as_str), Some("Ana"));
     }
 
     #[test]
     fn atribuir_none_remove_a_chave_no_contexto() {
-        let mut comp =
-            MicropythonComponent::from_source("def limpar():\n    ctx['temp'] = None\n", "t.gv", "c")
-                .unwrap();
+        let mut comp = MicropythonComponent::from_source(
+            "def limpar():\n    ctx['temp'] = None\n",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
         let mut data = ContextMap::default();
         data.insert("temp".into(), "algo".into());
         data.insert("manter".into(), "ok".into());
         let data = drive(&mut comp, "limpar", None, data);
-        assert_eq!(data.get("temp"), None, "ctx['temp'] = None deveria remover a chave");
+        assert_eq!(
+            data.get("temp"),
+            None,
+            "ctx['temp'] = None deveria remover a chave"
+        );
         assert_eq!(data.get("manter").map(String::as_str), Some("ok"));
     }
 
@@ -546,8 +573,14 @@ mod tests {
         // separado como o Lua tem pros testes) — o fallback de "gravar sob
         // o nome da ação" quando nenhuma função casa é o mesmo de último
         // recurso que `LuauComponent::dispatch` aplica sem `inner`.
-        let mut comp = MicropythonComponent::from_source("def a():\n    pass\n", "t.gv", "c").unwrap();
-        let data = drive(&mut comp, "inexistente", Some("valor"), ContextMap::default());
+        let mut comp =
+            MicropythonComponent::from_source("def a():\n    pass\n", "t.gv", "c").unwrap();
+        let data = drive(
+            &mut comp,
+            "inexistente",
+            Some("valor"),
+            ContextMap::default(),
+        );
         assert_eq!(data.get("inexistente").map(String::as_str), Some("valor"));
     }
 
@@ -608,9 +641,12 @@ mod tests {
 
     #[test]
     fn excecao_nao_capturada_nao_trava_e_nao_altera_o_contexto() {
-        let mut comp =
-            MicropythonComponent::from_source("def falha():\n    raise ValueError('boom')\n", "t.gv", "c")
-                .unwrap();
+        let mut comp = MicropythonComponent::from_source(
+            "def falha():\n    raise ValueError('boom')\n",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
         let mut data = ContextMap::default();
         data.insert("antes".into(), "ok".into());
         let data = drive(&mut comp, "falha", None, data);

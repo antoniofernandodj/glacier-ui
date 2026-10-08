@@ -25,7 +25,7 @@
 use std::thread;
 use std::time::Duration;
 
-use glacier_ui::{external, GlacierDaemon};
+use glacier_ui::{GlacierDaemon, external};
 
 fn main() -> iced::Result {
     // O canal precisa existir ANTES de `run()`: é a existência dele que faz o
@@ -46,5 +46,7 @@ fn main() -> iced::Result {
         ui.click("conectar");
     });
 
-    GlacierDaemon::new().main_template("examples/gvb/controle_externo/controle_externo.gvb").run()
+    GlacierDaemon::new()
+        .main_template("examples/gvb/controle_externo/controle_externo.gvb")
+        .run()
 }

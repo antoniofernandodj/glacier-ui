@@ -22,7 +22,9 @@ fn main() -> iced::Result {
             // A URL do servidor chega ao script pelo contexto.
             motor.define_data("sse_url", &format!("http://127.0.0.1:{porta}/sse"));
             motor.define_data("ws_url", &format!("ws://127.0.0.1:{porta}/ws"));
-            if let Err(e) = motor.register_component("inicio", "examples/gva/ciclo_vida_luau/inicio.gva") {
+            if let Err(e) =
+                motor.register_component("inicio", "examples/gva/ciclo_vida_luau/inicio.gva")
+            {
                 eprintln!("Erro ao registrar 'inicio': {e}");
             }
             motor.set_initial_screen("inicio");
