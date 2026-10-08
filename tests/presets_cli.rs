@@ -14,20 +14,42 @@ use std::path::{Path, PathBuf};
 
 use glacier_ui::GlacierUI;
 
-/// Preset e os templates que o `src/main.rs` dele registra. Uma janela aberta
-/// só em runtime por `open_window` (o `detalhe.gv` do preset multi-janela) não
-/// é alcançada pela cascata de imports, então entra na lista explicitamente.
-const PRESETS: &[(&str, &[&str])] = &[
-    ("minimo", &["views/app.gv"]),
-    ("completo", &["views/app.gv"]),
-    ("janelas", &["views/painel.gv", "views/detalhe.gv"]),
-    ("rust", &["views/contador.gv"]),
-    ("wasm32", &["views/contador.gv"]),
-    ("catalogo", &["views/app.gv"]),
-    ("dashboard", &["views/app.gv"]),
-    ("formulario", &["views/app.gv"]),
-    ("crud", &["views/app.gv"]),
+/// Preset e as entradas que ele sobe: o arquivo que o `GlacierDaemon` acha
+/// sozinho (`views/app.gvb`, ou o que o `src/main.rs` passa em `main_template`)
+/// e, quando há, a tela que uma janela abre só em runtime por `open_window` — o
+/// `detalhe` do preset multi-janela, que é uma `screen` do `app` dele e não é
+/// alcançada pelo carregamento da janela principal.
+const PRESETS: &[(&str, &[(&str, Option<&str>)])] = &[
+    ("minimo", &[("views/app.gvb", None)]),
+    ("completo", &[("views/app.gvb", None)]),
+    (
+        "janelas",
+        &[
+            ("views/painel.gvb", None),
+            ("views/painel.gvb", Some("detalhe")),
+        ],
+    ),
+    ("rust", &[("views/contador.gvb", None)]),
+    ("wasm32", &[("views/contador.gvb", None)]),
+    ("android", &[("views/app.gvb", None)]),
+    ("catalogo", &[("views/app.gvb", None)]),
+    ("dashboard", &[("views/app.gvb", None)]),
+    ("formulario", &[("views/app.gvb", None)]),
+    ("crud", &[("views/app.gvb", None)]),
 ];
+
+/// Sobe `arquivo` como o daemon subiria: raiz `app(...)` é um manifesto
+/// (`register_app`, ou `register_app_screen` para a janela de uma tela só);
+/// qualquer outra raiz é uma tela (`register_component`). Ver o
+/// `template_setup` do `daemon.rs`.
+fn carregar(arquivo: &str, tela: Option<&str>) -> glacier_ui::Result<()> {
+    let mut motor = GlacierUI::new();
+    match tela {
+        Some(tela) => motor.register_app_screen(arquivo, tela).map(|_| ()),
+        None if motor.is_app_file(arquivo) => motor.register_app(arquivo),
+        None => motor.register_component("tela", arquivo),
+    }
+}
 
 #[test]
 fn todo_preset_da_cli_carrega_num_motor() {
@@ -48,14 +70,12 @@ fn todo_preset_da_cli_carrega_num_motor() {
         // relativos ao diretório de onde o app roda — é o que o `chdir` simula.
         std::env::set_current_dir(&destino).expect("entrar no preset");
 
-        let mut motor = GlacierUI::new();
-        for (i, entrada) in entradas.iter().enumerate() {
-            let nome = format!("tela_{i}");
-            if let Err(erro) = motor.register_component(&nome, entrada) {
+        for (arquivo, tela) in entradas.iter() {
+            if let Err(erro) = carregar(arquivo, *tela) {
                 // Volta antes do panic: um cwd deixado no temporário derrubaria
                 // os testes seguintes por um motivo sem relação com eles.
                 std::env::set_current_dir(&cwd_original).expect("voltar ao cwd");
-                panic!("preset '{preset}', {entrada}: {erro}");
+                panic!("preset '{preset}', {arquivo} {tela:?}: {erro}");
             }
         }
 

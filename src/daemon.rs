@@ -2330,7 +2330,7 @@ mod tests {
         let _ = motor.dispatch(&EngineMessage::UiClick("arquivo".into()));
         let pending = motor.take_pending_windows();
         assert_eq!(pending.len(), 1);
-        assert!(matches!(&pending[0].source, WindowSource::File(p) if p.ends_with("detalhe.gv")));
+        assert!(matches!(&pending[0].source, WindowSource::File(p) if p.ends_with("detalhe.gva")));
         assert_eq!(pending[0].title.as_deref(), Some("D"));
     }
 

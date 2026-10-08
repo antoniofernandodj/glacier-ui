@@ -136,7 +136,7 @@ screen(title = "Glacier - Onda 4", size = "960 780") {
             )
 
             row(class = par) {
-              groupbox(title = "Accordion — várias abertas", class = grupo) {
+              groupbox(title = "Accordion — várias abertas", width = 440) {
                 accordion {
                   accordionitem(
                     title = Rede, sub = "host, porta e proxy", value = abertas,
@@ -182,7 +182,7 @@ screen(title = "Glacier - Onda 4", size = "960 780") {
                 }
               }
 
-              groupbox(title = "ToolBox — uma por vez", class = grupo_2) {
+              groupbox(title = "ToolBox — uma por vez", width = 380) {
                 toolbox {
                   toolboxitem(
                     title = Medidas, value = ferramenta, open = @ferramenta,
@@ -271,7 +271,7 @@ screen(title = "Glacier - Onda 4", size = "960 780") {
             }
 
             row(class = par) {
-              groupbox(title = Rating, class = grupo_2) {
+              groupbox(title = Rating, width = 380) {
                 text(
                   class = nota,
                   content = """
@@ -304,7 +304,7 @@ screen(title = "Glacier - Onda 4", size = "960 780") {
                 }
               }
 
-              groupbox(title = "SpinBox com decimals", class = grupo_2) {
+              groupbox(title = "SpinBox com decimals", width = 380) {
                 text(
                   class = nota,
                   content = """

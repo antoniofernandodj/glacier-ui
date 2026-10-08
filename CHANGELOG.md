@@ -10,6 +10,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Exemplos da onda 4: as colunas do accordion e do toolbox voltam a aparecer.** A migração
+  para o `.gss` tinha levado a largura dos `groupbox` para `.grupo { width: 440 }`, que o
+  motor ignora — `width` é prop do builtin, e o template dele a escreve inline — e as duas
+  seções colapsavam para zero dentro da `row`. A largura volta a ser `width="440"`/`"380"` no
+  uso, como o comentário do próprio `.gss` manda. Nos quatro exemplos (`gva`/`gvb`, com e
+  sem Luau).
+- **Testes: a suíte volta ao verde.** Três testes estavam presos a formas antigas: o
+  `presets_cli` procurava `views/app.gv` (os presets são `.gvb`, e um deles tem raiz
+  `app(...)`; agora sobe cada um como o daemon sobe, e cobre também o `android`), dois do
+  `gvb_sintaxe` usavam ligação sem `:`, e um do daemon esperava `detalhe.gv`.
+
 - **Extensão do VS Code: a chave de erro de um `form` (`@erro_nome`) vira link para o `formControl`.**
   O `erro_<campo>` não é escrito por Luau nem por Rust — o motor o deriva do `formControl` do
   formulário (prefixo `erro_`, ou o `errorPrefix` do `<form>`) —, então o `if = @erro_ss_email` e o

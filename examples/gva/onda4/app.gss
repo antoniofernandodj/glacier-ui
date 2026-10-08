@@ -105,6 +105,4 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 
 .coluna { spacing: 0; }
 .rolagem { width: fill; height: fill; }
-.grupo { width: 440; }
 .barra { width: fill; }
-.grupo_2 { width: 380; }

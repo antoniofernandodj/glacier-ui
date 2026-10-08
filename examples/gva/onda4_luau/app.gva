@@ -156,7 +156,7 @@
             <row class="par">
               <groupbox
                 title="Accordion — várias abertas"
-                class="grupo"
+                width="440"
               >
                 <accordion>
                   <accordionitem
@@ -222,7 +222,7 @@
 
               <groupbox
                 title="ToolBox — uma por vez"
-                class="grupo_2"
+                width="380"
               >
                 <toolbox>
                   <toolboxitem
@@ -327,7 +327,7 @@
             <row class="par">
               <groupbox
                 title="Rating"
-                class="grupo_2"
+                width="380"
               >
                 <text class="nota">
                   Passe o mouse: a prévia acende até a estrela sob o cursor. Clicar na que já está
@@ -364,7 +364,7 @@
 
               <groupbox
                 title="SpinBox com decimals"
-                class="grupo_2"
+                width="380"
               >
                 <text class="nota">
                   Fecha o QDoubleSpinBox. Antes as casas saíam do `step`,

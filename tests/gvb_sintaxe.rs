@@ -19,10 +19,10 @@ fn atributos_no_cabecalho_e_filhos_nas_chaves() {
 /// vírgula é opcional.
 #[test]
 fn atributos_quebram_onde_quiser() {
-    let a = xml("rangeslider(start = lo, end = hi, min = 0)");
-    let b = xml("rangeslider(\n  start = lo,\n  end = hi,\n  min = 0,\n)");
+    let a = xml("rangeslider(:start = lo, :end = hi, min = 0)");
+    let b = xml("rangeslider(\n  :start = lo,\n  :end = hi,\n  min = 0,\n)");
     assert_eq!(a, b);
-    assert_eq!(a, r#"<rangesliderstart="lo"end="hi"min="0"/>"#);
+    assert_eq!(a, r#"<rangeslider:start="lo":end="hi"min="0"/>"#);
 }
 
 /// O texto é um atributo, em uma linha e em `"""` (que colapsa o espaço como a
@@ -52,8 +52,8 @@ fn corpo_cru_de_script() {
 #[test]
 fn valores() {
     assert_eq!(
-        xml(r#"progressbar(value = x, label = @x, items = "a,b")"#),
-        r#"<progressbarvalue="x"label="{x}"items="a,b"/>"#
+        xml(r#"progressbar(:value = x, label = @x, items = "a,b")"#),
+        r#"<progressbar:value="x"label="{x}"items="a,b"/>"#
     );
 }
 
