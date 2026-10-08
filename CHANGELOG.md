@@ -10,6 +10,40 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Extensão do VS Code: a chave de erro de um `form` (`@erro_nome`) vira link para o `formControl`.**
+  O `erro_<campo>` não é escrito por Luau nem por Rust — o motor o deriva do `formControl` do
+  formulário (prefixo `erro_`, ou o `errorPrefix` do `<form>`) —, então o `if = @erro_ss_email` e o
+  `content = "@erro_ss_email"` ficavam sem alvo. Link e F12 agora levam ao `formControl = ss_email`
+  (`form_control`, `form-control`… todas as grafias), no próprio arquivo primeiro e depois no
+  workspace; uma chave escrita de fato por um script continua tendo prioridade. No `rustploy-gui`:
+  20 links novos, nenhum perdido, e todas as 38 ocorrências de `@erro_*` resolvem.
+
+- **Extensão do VS Code: o handler Luau de um componente importado vira link.** Um template
+  importado por uma tela não leva `<script>` próprio — o `on_click = salvar` dele é
+  respondido pelo script que a TELA carrega —, e a extensão só procurava a função no grafo de
+  scripts do próprio arquivo e em handlers Rust, então Ctrl+clique/F12 não abriam nada
+  (`form(on_submit = settings_save)` em `views/home/settings/web.gvb`, por exemplo). O índice do
+  workspace passa a guardar as funções Luau globais (`function nome(…)` ou `nome = function`, na
+  coluna 1; `local` e `function M.x` não são ação) e o link/F12 as consulta depois do script
+  próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
+  repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
+
+## glacier-ui 0.122.0 — 2026-10-08
+
+### Quebras
+
+- **`StyleContext` ganhou campos.** `has_complex_rules`, `ancestors` e `pending_root`.
+  **Migração:** quem monta o `StyleContext` à mão acrescenta
+  `has_complex_rules: sheets.iter().any(|s| s.has_complex_rules())`,
+  `ancestors: Default::default()` e `pending_root: Default::default()`.
+- **`StyleSheet` e `MediaQuery` ganharam o campo `complex`.** **Migração:** num literal de
+  struct, `complex: Vec::new()` (ou `..Default::default()` no `StyleSheet`).
+- **Um `.gss` com seletor fora da gramática agora é erro de parse.** `+`, `~`, `[attr]`,
+  `::x`, `:not(…)` e `:estado` num ancestral eram aceitos e viravam uma regra que nó nenhum
+  casava. **Migração:** troque por classe (`.ativo` no lugar de `[ativo]`) ou por `>`/espaço.
+  E um seletor composto que antes não pegava (`.a .b`, `row.x`) passa a pegar — se uma folha
+  tinha um desses "desligado" sem saber, o estilo dele aparece agora.
+
 - **Testes: `make test` (núcleo, ~1 min) e `make test-completo` (tudo).** O `cargo test` puro
   compila e linka os 118 exemplos declarados no `Cargo.toml`, cada um com o motor inteiro
   dentro, e passava de uma hora. `make test` escolhe os alvos (`--lib --bins --tests`), então
@@ -28,28 +62,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   `:estado` vale no último seletor, e `@media` e vírgula valem como sempre. A raiz de um
   componente casa tanto pelo builtin do template quanto pelo uso (`.lista > Card.destaque`,
   `Card > text`), e o conteúdo de slot tem o uso como pai. `+`, `~`, `[attr]`, `::x`, `:not(…)`
-  e estado num ancestral são **erro de parse**. Aditivo: uma folha sem seletor composto não
-  muda de comportamento, e a avaliação só rastreia ancestrais quando alguma folha ativa tem
+  e estado num ancestral são **erro de parse** (ver Quebras). Uma folha sem seletor composto
+  não muda de comportamento, e a avaliação só rastreia ancestrais quando alguma folha ativa tem
   um. Uma classe dinâmica num ancestral (`class="{modo}"`) entra na chave do cache das
   subárvores de baixo, para um item de lista não servir o estilo do modo anterior.
-
-- **Extensão do VS Code: a chave de erro de um `form` (`@erro_nome`) vira link para o `formControl`.**
-  O `erro_<campo>` não é escrito por Luau nem por Rust — o motor o deriva do `formControl` do
-  formulário (prefixo `erro_`, ou o `errorPrefix` do `<form>`) —, então o `if = @erro_ss_email` e o
-  `content = "@erro_ss_email"` ficavam sem alvo. Link e F12 agora levam ao `formControl = ss_email`
-  (`form_control`, `form-control`… todas as grafias), no próprio arquivo primeiro e depois no
-  workspace; uma chave escrita de fato por um script continua tendo prioridade. No `rustploy-gui`:
-  20 links novos, nenhum perdido, e todas as 38 ocorrências de `@erro_*` resolvem.
-
-- **Extensão do VS Code: o handler Luau de um componente importado vira link.** Um template
-  importado por uma tela não leva `<script>` próprio — o `on_click = salvar` dele é
-  respondido pelo script que a TELA carrega —, e a extensão só procurava a função no grafo de
-  scripts do próprio arquivo e em handlers Rust, então Ctrl+clique/F12 não abriam nada
-  (`form(on_submit = settings_save)` em `views/home/settings/web.gvb`, por exemplo). O índice do
-  workspace passa a guardar as funções Luau globais (`function nome(…)` ou `nome = function`, na
-  coluna 1; `local` e `function M.x` não são ação) e o link/F12 as consulta depois do script
-  próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
-  repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
 
 ## glacier-ui 0.121.0 — 2026-10-08
 
