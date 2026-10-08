@@ -947,6 +947,12 @@ acima. É assim que um item da bandeja chama uma função sua.
 > para os atributos inline do template.** É a intuição do CSS — classe é
 > default do autor, inline é decisão dele.
 >
+> Para um seletor composto ou combinado do `.gss` (0.122), a raiz responde
+> pelos **dois** nomes: o tipo do template e o uso, com a classe e o id
+> escritos nele. `Card > text` e `column > text` alcançam os mesmos filhos, e
+> `.lista > Card.destaque` alcança a raiz. O conteúdo de slot tem o **uso** como
+> pai: em `<Caixa class="c"><text/></Caixa>`, `.c > text` casa.
+>
 > Ela aplica **só na raiz**. Estilizar um nó específico lá dentro é uma prop com
 > nome próprio, e **todo builtin da lib tem as suas** desde a 0.89 — o
 > `field_class` do `<SpinBox>` foi o primeiro, hoje é o padrão da biblioteca.

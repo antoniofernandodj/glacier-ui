@@ -2604,31 +2604,68 @@ prática: `.form`, cada `.campo`/`.row` intermediário e a classe do próprio
 
 ## A folha de estilo (`.gss`), por inteiro
 
-O `.gss` é CSS **de propósito reduzido**: não há herança em cascata por
-ancestral, nem seletor descendente, nem shorthand. Uma regra casa um nó e
-aplica as propriedades que esse nó entende.
+O `.gss` é CSS **de propósito reduzido**: não há herança de propriedade (a
+cor de um `column` não desce para os `text` dele) nem shorthand. Uma regra casa
+um nó e aplica as propriedades que esse nó entende.
 
-### Os três seletores
+### Os seletores
+
+As três formas simples:
 
 | forma | casa |
 |---|---|
 | `.cartao { }` | qualquer nó com `class="cartao"` (o atributo aceita várias, separadas por espaço) |
 | `#salvar { }` | o nó com `id="salvar"` |
-| `Button { }` | o **tipo** do nó: uma primitiva (`column`, `text`, `button`) ou o nome de um componente no uso (`Card`) |
+| `button { }` | o **tipo** do nó: uma primitiva (`column`, `text`, `button`) ou o nome de um componente no uso (`Card`) |
 
-Não existe `.a .b`, `.a > .b`, `.a.b` nem `*`. Uma lista separada por vírgula
-vale (`.a, .b { }`) e é expandida em regras independentes.
+E elas se **combinam** como no CSS (0.122):
+
+| forma | casa |
+|---|---|
+| `row.p-2`, `.a.b`, `button#ok` | **composto**: o nó que tem tudo isso ao mesmo tempo |
+| `row > text` | um `text` **filho direto** de um `row` |
+| `.lista text` | um `text` em **qualquer profundidade** dentro de `.lista` |
+| `*` | qualquer nó |
+
+```gss
+row.servico > text.nome          { bold: true; }
+row.servico.parado > text.nome   { color: var(--fraco); }
+.compacta .lista > row.servico   { padding: 4 10; }
+```
+
+É o que dispensa a classe "de cola" em cada nó: o markup dá papéis
+(`servico`, `nome`) e o lugar na árvore escolhe a regra. A classe de um
+ancestral pode ser **dinâmica** (`class="tela {densidade}"`) — trocar o valor
+reestiliza a subárvore inteira, inclusive itens de `foreach`. Exemplo completo:
+`examples/gva/seletores` (e `_luau`, e as versões `gvb`).
+
+Duas regras de árvore que não são óbvias:
+
+- a **raiz de um componente** responde pelo tipo do template e pelo uso: com
+  `<Card class="destaque"/>` cuja raiz é um `column`, tanto `Card > text` quanto
+  `column > text` alcançam os filhos, e `.lista > Card.destaque` alcança a raiz;
+- o **conteúdo de slot** tem o **uso** como pai: em `<Caixa class="c"><text/></Caixa>`,
+  `.c > text` casa.
+
+Fora da gramática — e **erro de parse**, não regra ignorada: os combinadores de
+irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`, `:not(…)` e as outras
+pseudo-classes funcionais. Uma lista separada por vírgula vale (`.a, .b { }`) e
+é expandida em regras independentes.
 
 **A ordem de especificidade**, do mais fraco ao mais forte:
 
 ```
-tag  <  classe  <  id  <  atributo inline no .gva
+*  <  tag  <  composto só de tags  <  classe  <  composto com classe
+   <  id  <  composto com id  <  atributo inline no .gva
 ```
 
-Um `#salvar` fora de `@media` ainda vence uma `.botao` dentro de `@media` — o
-tier mais alto ganha, a `@media` só desempata dentro do mesmo tier. E o atributo
-escrito no markup vence tudo, o que é a razão de a convenção deste projeto
-tirar estilo do `.gva`: um `size="12"` inline torna a classe inalcançável.
+Por dentro de cada degrau vale a conta do CSS — `(ids, classes + estados,
+tags)` —, então `row.servico.parado > text.nome` (0,3,2) vence
+`row.servico > text.nome` (0,2,2), que vence `.nome` (0,1,0). Um `#salvar` fora
+de `@media` ainda vence uma `.botao` dentro de `@media` — o degrau mais alto
+ganha, a `@media` só desempata dentro do mesmo degrau. E o atributo escrito no
+markup vence tudo, o que é a razão de a convenção deste projeto tirar estilo do
+`.gva`: um `size="12"` inline torna a classe inalcançável.
 
 Regras de mesmo seletor **mesclam**, não se sobrescrevem: um segundo bloco
 `.cartao { }` acrescenta o que declara e preserva o resto.
@@ -2671,7 +2708,8 @@ projeto escreve **sublinhado**, para casar com os atributos do `.gva`.
 
 ### Pseudo-estados
 
-Cinco, e só em seletor de classe, id ou tag — nunca aninhados:
+Cinco, pendurados no **último** seletor — `.botao:hover`, `row > button:hover`.
+Num ancestral (`row:hover > text`) é erro de parse:
 
 ```gss
 .botao          { background: #313244; }

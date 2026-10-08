@@ -10,6 +10,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## CLI 0.6.3 · vscode-gv 0.21.2 · glacier-gss 0.2.0 — 2026-10-08
+
+- **CLI: os projetos novos pedem `glacier-ui = "0.122"`, e o `AGENTS.md` deles ensina os
+  seletores compostos.** A seção "A folha de estilo" dizia que não existia `.a .b`,
+  `.a > .b`, `.a.b` nem `*` — o que deixou de ser verdade na 0.122. Agora ela traz as formas
+  simples e as combinadas, a escada de especificidade com os compostos, as duas regras de
+  árvore que não são óbvias (a raiz de componente responde pelo tipo do template e pelo uso;
+  o conteúdo de slot tem o uso como pai), o que é erro de parse, e o `:estado` só no último
+  seletor. Os READMEs dos presets `minimo` e `completo` ganharam o resumo.
+- **glacier-gss 0.2.0 (extensão do `.gss`).** Realça o combinador `>` e o universal `*` — um
+  seletor que começava com `*` nem era reconhecido como seletor —, marca `+`, `~` e `[attr]`
+  como erro (o motor os recusa), e para de marcar `:invalid` como pseudo-estado
+  desconhecido: ele existe desde o `<form>` validado, e a gramática nunca o tinha aprendido.
+- **vscode-gv 0.21.2.** A referência `glacier-view.md` explica como um seletor composto
+  enxerga a raiz de um componente e o conteúdo de slot.
+
 - **Exemplo `seletores`, em `.gva` e `.gvb`, com Rust e com Luau.** Uma lista de serviços em
   que linha, nome, estado e botão são estilizados pelo lugar na árvore
   (`row.servico > text.nome`), por uma classe vinda do dado (`row.servico.parado > …`

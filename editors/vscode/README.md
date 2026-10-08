@@ -9,7 +9,11 @@ format used by `glacier-ui`.
   - Class selectors (`.card`), id selectors (`#save`, higher specificity than
     a class), tag selectors (`Button`, `Card` — a builtin kind or a component
     name, lowest specificity), and pseudo-states (`:hover`, `:focus`, `:active`,
-    `:pressed`, `:disabled`) on any of them — unknown pseudo-states are flagged.
+    `:pressed`, `:disabled`, `:invalid`) on any of them — unknown pseudo-states
+    are flagged.
+  - Compound selectors and combinators (glacier-ui 0.122): `row.p-2 > text.title`,
+    `.list text`, `*`. The sibling combinators (`+`, `~`) and attribute
+    selectors (`[x]`) are flagged, since the engine rejects them.
   - `:root { --token: value; }` design tokens and `var(--token, fallback)`
     references.
   - `@media (min-width: 600) and (max-width: 900) { … }` responsive blocks.
@@ -26,8 +30,8 @@ format used by `glacier-ui`.
 ```bash
 cd editors/vscode
 npm install -g @vscode/vsce   # once
-vsce package                  # produces glacier-gss-0.1.0.vsix
-code --install-extension glacier-gss-0.1.0.vsix
+vsce package                  # produces glacier-gss-0.2.0.vsix
+code --install-extension glacier-gss-0.2.0.vsix
 ```
 
 Or press **F5** in VS Code with this folder open to launch an Extension

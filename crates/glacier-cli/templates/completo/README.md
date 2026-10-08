@@ -159,6 +159,11 @@ O retorno é `{ ok, status, body, error }`.
 Precedência do mais fraco ao mais forte: **tag < classe < id < inline**; num
 `class="a b"`, `b` sobrepõe `a`.
 
+Os seletores se combinam como no CSS: `row.servico > text.nome` (composto e
+filho direto), `.lista text` (descendente), `*`. Um composto fica logo acima do
+seu tier na escada (`row.x` vence `.x`), e `+`, `~` e `[attr]` são erro de
+parse. O `AGENTS.md` tem a gramática inteira.
+
 Os tokens em `:root` são a fonte única da paleta, e `var()` atravessa
 stylesheets — os mesmos nomes resolvem dentro dos `<style scoped>` dos
 templates. O `theme.json` é outra coisa: é o tema do iced, as cores base dos

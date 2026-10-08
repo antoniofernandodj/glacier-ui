@@ -48,6 +48,11 @@ um arquivo e use `<script src="scripts/x.luau">` — o `src` resolve relativo ao
 No `.gss`, precedência do mais fraco ao mais forte: **tag < classe < id <
 atributo inline** no nó; num `class="a b"`, `b` sobrepõe `a`.
 
+Os seletores se combinam como no CSS: `row.servico > text.nome` (composto e
+filho direto), `.lista text` (descendente), `*`. Um composto fica logo acima do
+seu tier na escada (`row.x` vence `.x`), e `+`, `~` e `[attr]` são erro de
+parse. O `AGENTS.md` tem a gramática inteira.
+
 Os tokens em `:root` são a fonte única da paleta, e `var()` atravessa
 stylesheets — os mesmos nomes valem dentro de um `<style>` no template.
 

@@ -88,7 +88,7 @@
       "patterns": [
         {
           "name": "meta.selector.gss",
-          "begin": "(?=[.#]|[A-Za-z_])",
+          "begin": "(?=[.#*]|[A-Za-z_])",
           "end": "(?=\\{|\\})",
           "patterns": [
             { "include": "#comments" },
@@ -112,7 +112,24 @@
               "name": "entity.name.tag.gss"
             },
             {
-              "match": "(:)(hover|focus|active|pressed|disabled)\\b",
+              "comment": "Combinators: `>` (child) and whitespace (descendant). Sibling combinators are a parse error in the engine.",
+              "match": ">",
+              "name": "keyword.operator.combinator.gss"
+            },
+            {
+              "match": "[+~]",
+              "name": "invalid.illegal.unsupported-combinator.gss"
+            },
+            {
+              "match": "\\[[^\\]]*\\]?",
+              "name": "invalid.illegal.attribute-selector.gss"
+            },
+            {
+              "match": "\\*",
+              "name": "entity.name.tag.wildcard.gss"
+            },
+            {
+              "match": "(:)(hover|focus|active|pressed|disabled|invalid)\\b",
               "captures": {
                 "1": { "name": "punctuation.definition.entity.pseudo.gss" },
                 "2": { "name": "entity.other.attribute-name.pseudo-class.gss" }

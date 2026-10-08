@@ -1403,9 +1403,13 @@ da markup e os agrupa em **classes**. Aplique com `class="..."`:
 2. um seletor de **id** (`#nome`) vence a classe;
 3. classes aplicam da **esquerda para a direita** (`class="a b"` → `b` sobrepõe `a`);
 4. um seletor de **tag** (`Button`, `Card`) é o de **menor** especificidade — abaixo de classe/id/inline;
-5. estilos **globais** primeiro, depois os **com escopo** do componente.
+5. um seletor **composto ou combinado** (`row.x`, `row > text`) fica logo acima
+   do tier simples correspondente — ver "Seletores compostos e combinadores" abaixo;
+6. estilos **globais** primeiro, depois os **com escopo** do componente.
 
-Especificidade, do mais fraco ao mais forte: **tag < classe < id < inline**.
+Especificidade, do mais fraco ao mais forte: **tag < classe < id < inline**, com
+cada composto logo acima do seu tier (`row > text` acima de `text`, `row.x`
+acima de `.x`).
 
 **Seletor de id.** Além de `.classe`, um bloco `#nome { }` casa o atributo
 `id="nome"` do nó e é aplicado **por cima** das classes (mas ainda por baixo do

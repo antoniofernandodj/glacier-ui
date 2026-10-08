@@ -31,7 +31,7 @@ em que ordem, como verificar, e quais decisões precisam de resposta antes de co
 |---|---|---|
 | `StyleRule` com 21 propriedades | `src/stylesheet.rs` | o alvo de tudo: um utilitário vira uma `StyleRule` |
 | Mesclagem esquerda → direita, "a última vence" | `resolve_classes` | `class="p-2 p-4"` dá `p-4`, de forma determinística |
-| Especificidade tag < classe < id < inline | `resolve_classes` | utilitário é só mais uma classe |
+| Especificidade tag < classe < id < inline (compostos logo acima do seu tier, 0.122) | `resolve_classes_in` | utilitário é só mais uma classe |
 | Pseudo-estados `:hover`, `:focus`, `:active`, `:disabled`, `:invalid` | `StateStyles`, `resolve_state_classes` | os prefixos `hover:`, `focus:`… |
 | `@media (min/max-width/height)` | `MediaQuery` | os prefixos `sm:`, `md:`, `lg:`… |
 | `:root { --x }` e `var(--x, fallback)` | `StyleSheet::variables` | os tokens do tema (cores, escalas) |
