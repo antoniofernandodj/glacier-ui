@@ -28,6 +28,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   próprio e dos handlers Rust, preferindo a declaração mais próxima do arquivo quando o nome se
   repete. No `rustploy-gui`: 173 links novos em 34 templates, nenhum perdido.
 
+## glacier-ui 0.119.1 — 2026-10-07
+
+- **Corrigido: o submit de um `<form>` com `rules` dentro de um componente importado era
+  descartado em silêncio.** O `scope` do formulário leva o componente em cujo template ele
+  foi escrito (`filho::cad`). Um componente só de template não tem comportamento registrado
+  — os handlers são os da TELA que o importa —, e o caminho validado do `UiSubmit` entregava
+  o envio direto a esse dono, que `run_on_owner` não achava: nem `on_form_submit` nem
+  `on_validation_error` rodavam, e o botão "não fazia nada". Sem `rules` o envio já caía na
+  tela dona (`route_to_owner`); agora o caminho validado faz o mesmo. Achado no
+  `rustploy-gui` (Adicionar variável de projeto). Teste novo:
+  `validated_form_in_imported_component_reaches_the_screen`.
+
 ## glacier-ui 0.119.0 — 2026-10-05
 
 - **O `app(...)` declara mais do `GlacierDaemon`.** `antialiasing = false`,

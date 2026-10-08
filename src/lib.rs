@@ -2420,10 +2420,16 @@ impl GlacierUI {
                     };
                 }
 
+                // O dono do scope é o componente em cujo template o `<form>` foi
+                // escrito. Um componente importado só de template (sem
+                // comportamento registrado) não tem handlers: o submit cai na
+                // tela dona, como `route_to_owner` faz para a ação sem regras.
+                // Sem isso o `run_on_owner` não achava o dono e descartava o
+                // envio em silêncio.
                 let Some(owner) = scope
                     .split_once("::")
                     .map(|(o, _)| o.to_string())
-                    .filter(|o| !o.is_empty())
+                    .filter(|o| !o.is_empty() && self.components.contains_key(o))
                     .or_else(|| self.current_screen.clone())
                 else {
                     return iced::Task::none();

@@ -7107,3 +7107,72 @@ fn onda7_nao_rouba_nome_de_componente_comum() {
     );
     std::fs::remove_file(tpl).ok();
 }
+
+/// Tela com comportamento que embute um componente SÓ de template (sem
+/// comportamento registrado) trazendo um `<form>` com `rules`.
+struct TelaComFormImportado;
+impl Component for TelaComFormImportado {
+    fn name(&self) -> &str {
+        "tela_form"
+    }
+    fn template(&self) -> Template {
+        Template::Inline(r#"<Column><Include src="filho_form" /></Column>"#.into())
+    }
+    fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    fn on_form_submit(&mut self, _a: &str, ctx: &mut Context) {
+        ctx.set("done", "yes");
+    }
+    fn on_form_validation_error(&mut self, _a: &str, errors_json: &str, ctx: &mut Context) {
+        ctx.set("errs", errors_json);
+    }
+}
+
+/// Um `<form>` com `rules` dentro de um componente importado (sem
+/// comportamento próprio) tem o dono `filho_form` no scope. O submit tem de cair
+/// na tela dona, como a ação sem regras já faz (`route_to_owner`) — antes era
+/// descartado em silêncio e o botão "não fazia nada".
+#[test]
+fn validated_form_in_imported_component_reaches_the_screen() {
+    let mut m = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+    let path = "templates/test_filho_form.gv";
+    std::fs::write(
+        path,
+        envolve(
+            r#"<form name="cad" on_submit="salvar" on_validation_error="apontar">
+                <input form_control="nome" rules="required" />
+                <button type="submit" text="ok" />
+            </form>"#,
+        ),
+    )
+    .unwrap();
+    m.register_component("filho_form", path).unwrap();
+    m.register(Box::new(TelaComFormImportado)).unwrap();
+    m.set_initial_screen("tela_form");
+
+    let arvore = m.evaluated("tela_form").expect("avaliar a tela").clone();
+    let no = no_do_form(&arvore).expect("o <form> hidratado na árvore avaliada");
+    let msg = |m: &mut GlacierUI| {
+        let _ = m.dispatch(&EngineMessage::UiSubmit {
+            action: no.form_submit_action().unwrap_or_default().to_string(),
+            error_action: no.form_error_action().unwrap_or_default().to_string(),
+            error_prefix: "erro_".into(),
+            scope: no.form_scope().unwrap_or_default().to_string(),
+            next_focus: None,
+        });
+    };
+
+    msg(&mut m);
+    assert!(
+        m.get_data("errs").is_some(),
+        "campo vazio: on_validation_error deveria rodar (scope {:?})",
+        no.form_scope()
+    );
+    assert_eq!(m.get_data("done"), None);
+
+    m.define_data("nome", "Ana");
+    msg(&mut m);
+    assert_eq!(m.get_data("done").map(String::as_str), Some("yes"));
+
+    std::fs::remove_file(path).ok();
+}
