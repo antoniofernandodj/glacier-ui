@@ -1,7 +1,7 @@
 /* Seletores compostos e combinadores (0.122).
-   Nenhuma regra abaixo precisa de uma classe "de cola" no markup: o lugar do
-   nó na árvore já diz qual regra vale. Cada bloco tem o seletor que ele
-   mostra no comentário de cima. */
+  Nenhuma regra abaixo precisa de uma classe "de cola" no markup: o lugar do
+  nó na árvore já diz qual regra vale. Cada bloco tem o seletor que ele
+  mostra no comentário de cima. */
 
 :root {
   --texto: #CDD6F4;
@@ -48,17 +48,17 @@ row.servico > button { color: var(--botao); text_color: var(--texto); border_rad
 row.servico > button:hover { color: var(--botao_hover); }
 
 /* CLASSE VINDA DO DADO: `class="servico {s.estado}"` dá `parado` à linha, e
-   estas regras, mais específicas que as de cima, vencem sem `!important`.
-   `row.servico.parado > text.nome` é (0,3,2) contra (0,2,2). */
+  estas regras, mais específicas que as de cima, vencem sem `!important`.
+  `row.servico.parado > text.nome` é (0,3,2) contra (0,2,2). */
 .lista > row.servico.parado { background: var(--cartao_parado); }
 row.servico.parado > text.nome { color: var(--fraco); bold: false; }
 row.servico.parado > text.estado { color: var(--vermelho); }
 row.servico.parado > button { text_color: var(--verde); }
 
 /* CLASSE DINÂMICA NUM ANCESTRAL: a raiz é `class="tela {densidade}"`, e o
-   botão "Densidade" troca `confortavel` por `compacta`. As linhas são itens de
-   lista, e o motor guarda cada um em cache — a classe do ancestral entra na
-   chave dele, então a troca reestiliza a lista inteira. */
+  botão "Densidade" troca `confortavel` por `compacta`. As linhas são itens de
+  lista, e o motor guarda cada um em cache — a classe do ancestral entra na
+  chave dele, então a troca reestiliza a lista inteira. */
 .compacta .lista { spacing: 2; }
 .compacta .lista > row.servico { padding: 4 10; border_radius: 4; }
 
