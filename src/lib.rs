@@ -5880,6 +5880,11 @@ mod editor_append_tests {
     // E sincroniza context_data (p/ clipboard) == editor_synced (p/ sync_editors
     // não reconstruir e perder o insert).
     #[test]
+    // ~60 s sozinho — mais que o resto da lib junto. Fica para a suíte completa.
+    #[cfg_attr(
+        not(feature = "suite-completa"),
+        ignore = "lento: roda em `make test-completo`"
+    )]
     fn append_creates_and_grows_without_replacing() {
         let mut motor = GlacierUI::new();
 

@@ -415,6 +415,13 @@ cc = { version = "1", optional = true }
 rusqlite = { version = "0.30", features = ["bundled"] }
 
 [features]
+# Liga a suíte de testes inteira. Sem ela, `make test` roda só o núcleo: os
+# testes de integração de baixo risco (os `[[test]]` com `required-features` no
+# fim deste arquivo) nem compilam — cada um linka o motor inteiro — e os testes
+# lentos da lib ficam `#[ignore]`. A CI usa `--all-features`, então lá ela está
+# sempre ligada. Rodar tudo localmente: `make test-completo`.
+suite-completa = []
+
 # O ponto de entrada do Android escondido no motor: `glacier_ui::android_main!`
 # + o fork do `iced_winit` (ver o bloco "Android" nas dependências). No desktop é
 # inofensiva — todas as dependências dela são só do alvo `android`. `fira-sans`
@@ -771,3 +778,60 @@ path = "examples/gvb/webview/main.rs"
 name = "gvb_app_telas"
 path = "examples/gvb/app_telas/main.rs"
 required-features = ["tray"]
+
+# ── Testes fora do `make test` ──────────────────────────────────────────────
+# Arquivos de `tests/` que só compilam com a feature `suite-completa` (ver o
+# comentário dela em `[features]`). São os de menor risco de regressão no dia a
+# dia — smoke, varredura dos exemplos, a CLI, a extensão, um benchmark —, e cada
+# um custa um link do motor inteiro. Não somem: `make test-completo` e a CI os
+# rodam. Para tirar um daqui, apague o bloco; o cargo volta a descobri-lo.
+
+[[test]]
+name = "ciclo_vida_servidor"
+path = "tests/ciclo_vida_servidor.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "exemplos_gv"
+path = "tests/exemplos_gv.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "extensao_doc"
+path = "tests/extensao_doc.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "menu_smoke"
+path = "tests/menu_smoke.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "onda13_formas"
+path = "tests/onda13_formas.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "onda8b_dialogos"
+path = "tests/onda8b_dialogos.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "perf_arvore"
+path = "tests/perf_arvore.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "presets_cli"
+path = "tests/presets_cli.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "web_contador"
+path = "tests/web_contador.rs"
+required-features = ["suite-completa"]
+
+[[test]]
+name = "xml_multi_root_fragment"
+path = "tests/xml_multi_root_fragment.rs"
+required-features = ["suite-completa"]

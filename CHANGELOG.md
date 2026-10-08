@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Testes: `make test` (núcleo, ~1 min) e `make test-completo` (tudo).** O `cargo test` puro
+  compila e linka os 118 exemplos declarados no `Cargo.toml`, cada um com o motor inteiro
+  dentro, e passava de uma hora. `make test` escolhe os alvos (`--lib --bins --tests`), então
+  exemplos e doctests ficam de fora, e a feature nova `suite-completa` separa o que é de baixo
+  risco: 10 arquivos de `tests/` (smoke, varredura dos exemplos, CLI, extensão, benchmark) só
+  compilam com ela, e o teste de ~60 s do `editor_append` fica `#[ignore]` sem ela. Nada foi
+  apagado: `make test-completo` e a CI (`--all-features`) rodam tudo. `make test FILTRO=x`
+  roda só os testes cujo nome contém `x`.
+
 - **`.gss`: seletores compostos e combinadores.** `row.p-2 > text.r_text`, `.lista text`,
   `.a.b`, `button#ok`, `*`. Antes um seletor desses caía no ramo de tag e virava uma "tag"
   chamada `row.p-2 > text.r_text`, que nó nenhum casa — sem erro, sem aviso. Agora o

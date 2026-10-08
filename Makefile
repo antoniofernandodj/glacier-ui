@@ -9,11 +9,28 @@ CLI := crates/glacier-cli
 
 .PHONY: help install-gv install-gss install-extensions reinstall-extensions uninstall-extensions \
         sync-extensions publish-cli clean-extensions \
-        deb-cli check-deb install-cli reinstall-cli uninstall-cli clean-deb
+        deb-cli check-deb install-cli reinstall-cli uninstall-cli clean-deb \
+        test test-completo
 
 help: ## Lista os alvos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+
+# ── Testes ──────────────────────────────────────────────────────────────────
+# O `cargo test` puro compila e linka TODOS os exemplos declarados no
+# Cargo.toml — mais de cem, cada um com o motor inteiro dentro —, e isso passa
+# de uma hora. `test` escolhe os alvos à mão (`--lib --bins --tests`), então os
+# exemplos e os doctests ficam de fora, e sem a feature `suite-completa` os
+# testes de baixo risco também (ver o comentário dela no Cargo.toml).
+#
+# Para rodar só um pedaço: `make test FILTRO=stylesheet`.
+
+test: ## Testes do núcleo — sem exemplos, doctests nem os testes de baixo risco
+	cargo test --workspace --lib --bins --tests --no-fail-fast -- $(FILTRO)
+
+test-completo: ## Tudo: suíte completa, compilação dos exemplos e doctests (demora)
+	cargo test --workspace --all-targets --no-fail-fast --features glacier-ui/suite-completa -- $(FILTRO)
+	cargo test --workspace --doc --no-fail-fast --features glacier-ui/suite-completa -- $(FILTRO)
 
 install-gv: ## Instala a extensão Glacier View (.gv) no VS Code
 	$(MAKE) -C $(GV) install
