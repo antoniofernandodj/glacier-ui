@@ -1,0 +1,70 @@
+/* Seletores compostos e combinadores (0.122).
+   Nenhuma regra abaixo precisa de uma classe "de cola" no markup: o lugar do
+   nó na árvore já diz qual regra vale. Cada bloco tem o seletor que ele
+   mostra no comentário de cima. */
+
+:root {
+  --texto: #CDD6F4;
+  --suave: #A6ADC8;
+  --fraco: #6C7086;
+  --cartao: #313244;
+  --cartao_parado: #292A3A;
+  --botao: #45475A;
+  --botao_hover: #585B70;
+  --verde: #A6E3A1;
+  --vermelho: #F38BA8;
+  --azul: #89B4FA;
+}
+
+.tela { width: fill; height: fill; padding: 24; spacing: 16; }
+
+/* DESCENDENTE (espaço): todo `text` em qualquer profundidade da tela.
+   Especificidade (0,1,1) — a base que as regras de baixo refinam. */
+.tela text { size: 13; color: var(--texto); }
+
+/* COMPOSTO + FILHO: o `text.titulo` filho direto do cabeçalho. */
+.cabecalho { spacing: 6; }
+.cabecalho > text.titulo { size: 22; bold: true; }
+.cabecalho > text.intro { color: var(--suave); }
+
+/* ESTADO NO ÚLTIMO SELETOR: só os botões filhos da barra. O `color` de um
+   botão pinta o fundo; o `:hover` precisa de uma cor base para sobrepor. */
+.barra { spacing: 8; }
+.barra > button { color: var(--botao); text_color: var(--texto); border_radius: 6; padding: 6 12; }
+.barra > button:hover { color: var(--botao_hover); }
+
+/* A linha de um serviço — o `row` filho direto da lista. */
+.lista { spacing: 8; }
+.lista > row.servico {
+  padding: 12 16;
+  spacing: 12;
+  align_y: center;
+  background: var(--cartao);
+  border_radius: 8;
+}
+row.servico > text.nome { width: fill; bold: true; }
+row.servico > text.estado { width: 70; color: var(--verde); }
+row.servico > button { color: var(--botao); text_color: var(--texto); border_radius: 6; padding: 4 10; }
+row.servico > button:hover { color: var(--botao_hover); }
+
+/* CLASSE VINDA DO DADO: `class = "servico @s.estado"` dá `parado` à linha, e
+   estas regras, mais específicas que as de cima, vencem sem `!important`.
+   `row.servico.parado > text.nome` é (0,3,2) contra (0,2,2). */
+.lista > row.servico.parado { background: var(--cartao_parado); }
+row.servico.parado > text.nome { color: var(--fraco); bold: false; }
+row.servico.parado > text.estado { color: var(--vermelho); }
+row.servico.parado > button { text_color: var(--verde); }
+
+/* CLASSE DINÂMICA NUM ANCESTRAL: a raiz é `class = "tela @densidade"`, e o
+   botão "Densidade" troca `confortavel` por `compacta`. As linhas são itens de
+   lista, e o motor guarda cada um em cache — a classe do ancestral entra na
+   chave dele, então a troca reestiliza a lista inteira. */
+.compacta .lista { spacing: 2; }
+.compacta .lista > row.servico { padding: 4 10; border_radius: 4; }
+
+/* FILHO x DESCENDENTE: `.legenda > text` pega só os textos soltos da legenda;
+   o `text.codigo` dentro do `row` dela é neto, e fica com a regra de baixo. */
+.legenda { spacing: 4; padding: 12 0 0 0; }
+.legenda > text { size: 12; color: var(--suave); }
+.legenda row { spacing: 8; }
+.legenda text.codigo { size: 12; color: var(--azul); font: mono; }

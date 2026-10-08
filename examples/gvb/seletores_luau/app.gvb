@@ -1,0 +1,53 @@
+screen(title = "Glacier - Seletores .gss (Luau)", size = "760 640") {
+  resources {
+    link(rel = theme, href = "examples/gvb/seletores_luau/theme.json")
+    // Todo o visual mora aqui, e quase nada no markup diz QUAL regra vale:
+    // é o lugar de cada nó na árvore. Ver os comentários do `.gss`.
+    link(rel = stylesheet, href = "examples/gvb/seletores_luau/app.gss")
+    // A única diferença para o `examples/gvb/seletores`: o comportamento é
+    // este script, e não um `impl Component` em Rust.
+    script(src = "scripts/app.luau")
+  }
+
+  // A classe `@densidade` é dinâmica: o botão "Densidade" alterna entre
+  // `confortavel` e `compacta`, e `.compacta .lista > row.servico` responde.
+  column(class = "tela @densidade") {
+    column(class = cabecalho) {
+      text(class = titulo, content = "Seletores compostos no .gss")
+      text(
+        class = intro,
+        content = """
+          Cada linha abaixo é estilizada pelo lugar dela na árvore, não por uma classe por
+          propósito: `row.servico > text.nome`, `row.servico.parado > text.estado`,
+          `.compacta .lista > row.servico`.
+        """,
+      )
+    }
+
+    row(class = barra) {
+      button(text = "Densidade: @densidade", on_click = densidade)
+      button(text = "Parar todos", on_click = parar_todos)
+      button(text = "Ligar todos", on_click = ligar_todos)
+    }
+
+    column(class = lista) {
+      each @servicos as s {
+        // `@s.estado` é `ativo` ou `parado`: a classe vem do dado.
+        row(class = "servico @s.estado") {
+          text(class = nome, content = @s.nome)
+          text(class = estado, content = @s.estado)
+          button(text = @s.acao, on_click = "alternar:@s.id")
+        }
+      }
+    }
+
+    column(class = legenda) {
+      text(content = "Filhos diretos da legenda: `.legenda > text`.")
+      text(content = "O código abaixo é neto dela, e fica com `.legenda text.codigo`:")
+      row {
+        text(class = codigo, content = "row.servico.parado > text.nome")
+        text(class = codigo, content = "(0,3,2) vence .tela text (0,1,1)")
+      }
+    }
+  }
+}

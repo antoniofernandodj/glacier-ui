@@ -78,6 +78,14 @@ name = "onda4_luau"
 path = "examples/gva/onda4_luau/main.rs"
 
 [[example]]
+name = "seletores"
+path = "examples/gva/seletores/main.rs"
+
+[[example]]
+name = "seletores_luau"
+path = "examples/gva/seletores_luau/main.rs"
+
+[[example]]
 name = "onda5"
 path = "examples/gva/onda5/main.rs"
 
@@ -677,6 +685,14 @@ path = "examples/gvb/onda4/main.rs"
 [[example]]
 name = "gvb_onda4_luau"
 path = "examples/gvb/onda4_luau/main.rs"
+
+[[example]]
+name = "gvb_seletores"
+path = "examples/gvb/seletores/main.rs"
+
+[[example]]
+name = "gvb_seletores_luau"
+path = "examples/gvb/seletores_luau/main.rs"
 
 [[example]]
 name = "gvb_onda5"

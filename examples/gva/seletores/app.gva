@@ -1,0 +1,49 @@
+<screen title="Glacier - Seletores .gss" size="760 640">
+  <resources>
+    <link rel="theme"      href="examples/gva/seletores/theme.json" />
+    <!-- Todo o visual mora aqui, e quase nada no markup diz QUAL regra vale:
+         é o lugar de cada nó na árvore. Ver os comentários do `.gss`. -->
+    <link rel="stylesheet" href="examples/gva/seletores/app.gss" />
+  </resources>
+
+  <!-- A classe `{densidade}` é dinâmica: o botão "Densidade" alterna entre
+       `confortavel` e `compacta`, e `.compacta .lista > row.servico` responde. -->
+  <column class="tela {densidade}">
+
+    <column class="cabecalho">
+      <text class="titulo">Seletores compostos no .gss</text>
+      <text class="intro">
+        Cada linha abaixo é estilizada pelo lugar dela na árvore, não por uma classe por
+        propósito: `row.servico > text.nome`, `row.servico.parado > text.estado`,
+        `.compacta .lista > row.servico`.
+      </text>
+    </column>
+
+    <row class="barra">
+      <button text="Densidade: {densidade}" on_click="densidade" />
+      <button text="Parar todos" on_click="parar_todos" />
+      <button text="Ligar todos" on_click="ligar_todos" />
+    </row>
+
+    <column class="lista">
+      <foreach items="servicos" var="s">
+        <!-- `{s.estado}` é `ativo` ou `parado`: a classe vem do dado. -->
+        <row class="servico {s.estado}">
+          <text class="nome">{s.nome}</text>
+          <text class="estado">{s.estado}</text>
+          <button text="{s.acao}" on_click="alternar:{s.id}" />
+        </row>
+      </foreach>
+    </column>
+
+    <column class="legenda">
+      <text>Filhos diretos da legenda: `.legenda > text`.</text>
+      <text>O código abaixo é neto dela, e fica com `.legenda text.codigo`:</text>
+      <row>
+        <text class="codigo">row.servico.parado > text.nome</text>
+        <text class="codigo">(0,3,2) vence .tela text (0,1,1)</text>
+      </row>
+    </column>
+
+  </column>
+</screen>

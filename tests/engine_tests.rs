@@ -7378,3 +7378,105 @@ fn validated_form_in_imported_component_reaches_the_screen() {
 
     std::fs::remove_file(path).ok();
 }
+
+/// O exemplo dos seletores compostos (`examples/*/seletores_luau`), olhando a
+/// ÁRVORE AVALIADA: cada estilo do teste vem de um seletor que só casa pelo
+/// lugar do nó (`row.servico.parado > text.nome`, `.compacta .lista >
+/// row.servico`, `.legenda > text`). Se o rastreio de ancestrais quebrar, o
+/// exemplo continua parseando e abrindo — só que sem estilo nenhum —, e é isso
+/// que este teste pega. As duas sintaxes, porque o `.gss` é o mesmo e o markup
+/// não.
+#[test]
+fn exemplo_seletores_estiliza_pelo_lugar_na_arvore() {
+    use glacier_ui::EngineMessage;
+
+    /// `(cor, negrito)` do texto na posição `i` de `linha`.
+    fn texto(linha: &UiNode, i: usize) -> (Option<String>, bool) {
+        match &linha.children[i].kind {
+            NodeType::Text { color, bold, .. } => (color.clone(), *bold),
+            outro => panic!("esperava text, veio {outro:?}"),
+        }
+    }
+
+    for (nome, arquivo) in [
+        ("seletores_gva", "examples/gva/seletores_luau/app.gva"),
+        ("seletores_gvb", "examples/gvb/seletores_luau/app.gvb"),
+    ] {
+        let mut motor = GlacierUI::new();
+        motor.register_component(nome, arquivo).expect(arquivo);
+        motor.set_initial_screen(nome);
+
+        let tela = motor.evaluated(nome).unwrap().clone();
+        let [cabecalho, _barra, lista, legenda] = &tela.children[..] else {
+            panic!(
+                "{arquivo}: a raiz deveria ter 4 filhos, tem {}",
+                tela.children.len()
+            );
+        };
+
+        // composto + filho: `.cabecalho > text.titulo`
+        match &cabecalho.children[0].kind {
+            NodeType::Text { size, bold, .. } => {
+                assert_eq!((*size, *bold), (Some(22.0), true), "{arquivo}: título")
+            }
+            outro => panic!("{outro:?}"),
+        }
+
+        // classe vinda do dado: `api` está ativo, `cache` parado.
+        assert_eq!(lista.children.len(), 5, "{arquivo}: cinco serviços");
+        let (api, cache) = (&lista.children[0], &lista.children[2]);
+        assert_eq!(
+            texto(api, 0),
+            (Some("#CDD6F4".into()), true),
+            "{arquivo}: nome ativo"
+        );
+        assert_eq!(
+            texto(api, 1).0.as_deref(),
+            Some("#A6E3A1"),
+            "{arquivo}: estado ativo"
+        );
+        assert_eq!(
+            texto(cache, 0),
+            (Some("#6C7086".into()), false),
+            "{arquivo}: nome parado"
+        );
+        assert_eq!(
+            texto(cache, 1).0.as_deref(),
+            Some("#F38BA8"),
+            "{arquivo}: estado parado"
+        );
+        assert_eq!(
+            api.padding.as_deref(),
+            Some("12 16"),
+            "{arquivo}: linha confortável"
+        );
+
+        // filho x descendente na legenda
+        match &legenda.children[0].kind {
+            NodeType::Text { color, size, .. } => {
+                assert_eq!((color.as_deref(), *size), (Some("#A6ADC8"), Some(12.0)))
+            }
+            outro => panic!("{outro:?}"),
+        }
+        assert_eq!(texto(&legenda.children[2], 0).0.as_deref(), Some("#89B4FA"));
+
+        // classe dinâmica no ancestral: a lista (itens em cache) reestiliza.
+        let _ = motor.dispatch(&EngineMessage::UiClick("densidade".into()));
+        let _ = motor.dispatch(&EngineMessage::UiClick("alternar:cache".into()));
+        let tela = motor.evaluated(nome).unwrap();
+        let lista = &tela.children[2];
+        assert_eq!(lista.spacing, Some(2.0), "{arquivo}: lista compacta");
+        for linha in lista.children.iter() {
+            assert_eq!(
+                linha.padding.as_deref(),
+                Some("4 10"),
+                "{arquivo}: linha compacta"
+            );
+        }
+        assert_eq!(
+            texto(&lista.children[2], 0),
+            (Some("#CDD6F4".into()), true),
+            "{arquivo}: `cache` religado perde o estilo de parado"
+        );
+    }
+}

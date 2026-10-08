@@ -10,6 +10,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **Exemplo `seletores`, em `.gva` e `.gvb`, com Rust e com Luau.** Uma lista de serviços em
+  que linha, nome, estado e botão são estilizados pelo lugar na árvore
+  (`row.servico > text.nome`), por uma classe vinda do dado (`row.servico.parado > …`
+  vence por especificidade) e por uma classe dinâmica num ancestral (`.compacta .lista >
+  row.servico`, alternada por um botão, sobre itens de lista em cache). Um teste no
+  `engine_tests` olha a árvore avaliada das duas variantes Luau antes e depois dos cliques.
+
 - **Exemplos da onda 4: as colunas do accordion e do toolbox voltam a aparecer.** A migração
   para o `.gss` tinha levado a largura dos `groupbox` para `.grupo { width: 440 }`, que o
   motor ignora — `width` é prop do builtin, e o template dele a escreve inline — e as duas

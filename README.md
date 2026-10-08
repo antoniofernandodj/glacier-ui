@@ -1472,6 +1472,11 @@ Fora da gramática, e **erro** de parse em vez de regra ignorada: os combinadore
 de irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`, `:not(…)` e similares,
 e `:estado` num ancestral.
 
+Exemplo: uma lista de serviços estilizada só pelo lugar de cada nó, com uma
+classe vinda do dado e outra dinâmica num ancestral, em
+`examples/gva/seletores` (`cargo run --example seletores`), na versão Luau
+(`seletores_luau`) e em `.gvb` (`gvb_seletores`, `gvb_seletores_luau`).
+
 #### `class` no **uso** de um componente (0.69)
 
 O outro extremo da escada. `Card {}` acima é o *default* de todo uso; a `class`
