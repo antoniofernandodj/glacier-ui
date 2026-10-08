@@ -4268,6 +4268,9 @@ impl GlacierUI {
                 // resolução de estilo para nós sem class/id — calculado uma vez
                 // aqui para não pagar por nó no caso comum (nenhum seletor de tag).
                 has_tag_rules: self.inputs.has_tag_rules(),
+                has_complex_rules: self.inputs.has_complex_rules(),
+                ancestors: Default::default(),
+                pending_root: Default::default(),
             };
             // The template's own name is the style scope, so its `<link>`ed
             // sheets apply to its subtree.

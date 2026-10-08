@@ -1440,6 +1440,38 @@ Card   { padding: 24; }        /* default de todo uso de <Card> (componente) */
 > quiser mirar um caso específico. Um componente de template **multi-raiz**
 > (`Fragment`) não recebe o underlay de `Card {}` — use uma raiz única.
 
+**Seletores compostos e combinadores.** Os seletores se combinam como no CSS:
+
+| Seletor | Casa |
+|---|---|
+| `row.p-2` | um `row` com a classe `p-2` |
+| `.a.b`, `button#ok` | um nó com as duas classes / um `button` com `id="ok"` |
+| `row > text` | um `text` **filho direto** de um `row` |
+| `.lista text` | um `text` em **qualquer profundidade** dentro de `.lista` |
+| `*` | qualquer nó (especificidade zero, abaixo da tag) |
+
+```gss
+row.p-2 > text.r_text { color: var(--fraco); }
+.lista > row:hover    { background: var(--realce); }
+Card > text           { size: 12; }
+```
+
+A especificidade é a do CSS (ids, depois classes e estados, depois tags), e a
+regra composta entra na escada logo **acima** do tier simples correspondente:
+`row.x` vence `.x`, `row > text` vence `text`, e `#id` simples ainda vence os
+dois. O inline continua vencendo tudo. Valem `:estado` (só no **último**
+seletor: `row > button:hover`), `@media` e vírgula.
+
+A raiz de um componente responde pelos dois nomes: o do builtin do template e o
+do uso, com a classe e o id escritos nele. Então `Card > text` alcança os filhos
+da raiz do `<Card/>`, e `.lista > Card.destaque` alcança a própria raiz. O
+conteúdo de slot tem o **uso** como pai (`<Caixa class="c"><text/></Caixa>` →
+`.c > text`).
+
+Fora da gramática, e **erro** de parse em vez de regra ignorada: os combinadores
+de irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`, `:not(…)` e similares,
+e `:estado` num ancestral.
+
 #### `class` no **uso** de um componente (0.69)
 
 O outro extremo da escada. `Card {}` acima é o *default* de todo uso; a `class`

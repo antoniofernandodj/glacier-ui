@@ -10,6 +10,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+- **`.gss`: seletores compostos e combinadores.** `row.p-2 > text.r_text`, `.lista text`,
+  `.a.b`, `button#ok`, `*`. Antes um seletor desses caía no ramo de tag e virava uma "tag"
+  chamada `row.p-2 > text.r_text`, que nó nenhum casa — sem erro, sem aviso. Agora o
+  composto casa tag + classes + ids juntos, `>` exige o pai imediato e o espaço aceita
+  qualquer ancestral. A especificidade é a do CSS, e a regra entra logo acima do tier simples
+  correspondente (`row.x` vence `.x`; `#id` simples ainda vence os dois; inline vence tudo).
+  `:estado` vale no último seletor, e `@media` e vírgula valem como sempre. A raiz de um
+  componente casa tanto pelo builtin do template quanto pelo uso (`.lista > Card.destaque`,
+  `Card > text`), e o conteúdo de slot tem o uso como pai. `+`, `~`, `[attr]`, `::x`, `:not(…)`
+  e estado num ancestral são **erro de parse**. Aditivo: uma folha sem seletor composto não
+  muda de comportamento, e a avaliação só rastreia ancestrais quando alguma folha ativa tem
+  um. Uma classe dinâmica num ancestral (`class="{modo}"`) entra na chave do cache das
+  subárvores de baixo, para um item de lista não servir o estilo do modo anterior.
+
 - **Extensão do VS Code: a chave de erro de um `form` (`@erro_nome`) vira link para o `formControl`.**
   O `erro_<campo>` não é escrito por Luau nem por Rust — o motor o deriva do `formControl` do
   formulário (prefixo `erro_`, ou o `errorPrefix` do `<form>`) —, então o `if = @erro_ss_email` e o

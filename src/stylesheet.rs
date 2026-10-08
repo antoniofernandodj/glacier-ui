@@ -298,6 +298,136 @@ pub struct MediaQuery {
     /// `Tag:estado { }` declarados dentro deste `@media` (ver
     /// [`StyleSheet::tag_states`]).
     pub tag_states: HashMap<String, HashMap<PseudoState, StyleRule>>,
+    /// Seletores compostos/combinados declarados dentro deste `@media` (ver
+    /// [`StyleSheet::complex`]).
+    pub complex: Vec<ComplexRule>,
+}
+
+/// Um elemento da árvore avaliada, visto por um seletor: as tags que ele
+/// responde, suas classes e seus ids.
+///
+/// São **listas** porque a raiz avaliada de um componente é dois elementos ao
+/// mesmo tempo: o builtin do template (`column`) e o uso (`<Card class="x">`).
+/// No markup são uma coisa só na tela, então um seletor tem de casar qualquer
+/// um dos dois nomes — `Card > text` e `column > text` alcançam o mesmo filho.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Element {
+    /// Em minúsculo, como os seletores de tag.
+    pub tags: Vec<String>,
+    pub classes: Vec<String>,
+    pub ids: Vec<String>,
+}
+
+impl Element {
+    pub fn new(tag: Option<&str>, classes: &str, id: Option<&str>) -> Self {
+        Element {
+            tags: tag.map(|t| vec![t.to_lowercase()]).unwrap_or_default(),
+            classes: classes.split_whitespace().map(str::to_string).collect(),
+            ids: id
+                .map(str::trim)
+                .filter(|i| !i.is_empty())
+                .map(|i| vec![i.to_string()])
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Junta a identidade de `other` a esta (raiz de componente + uso).
+    pub fn absorb(&mut self, other: Element) {
+        self.tags.extend(other.tags);
+        self.classes.extend(other.classes);
+        self.ids.extend(other.ids);
+    }
+}
+
+/// Um seletor composto — `row.p-2`, `button#ok`, `.a.b`, `*` —, sem
+/// pseudo-estado (que só vale no sujeito, ver [`ComplexSelector::state`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Compound {
+    /// `None` = qualquer tag (`*` ou um composto que começa por `.`/`#`).
+    pub tag: Option<String>,
+    pub classes: Vec<String>,
+    pub ids: Vec<String>,
+}
+
+impl Compound {
+    fn matches(&self, el: &Element) -> bool {
+        self.tag.as_ref().is_none_or(|t| el.tags.contains(t))
+            && self.classes.iter().all(|c| el.classes.contains(c))
+            && self.ids.iter().all(|i| el.ids.contains(i))
+    }
+}
+
+/// O que liga um composto ao de dentro dele.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Combinator {
+    /// `a > b` — `a` é o pai imediato de `b`.
+    Child,
+    /// `a b` — `a` é um ancestral qualquer de `b`.
+    Descendant,
+}
+
+/// Um seletor que não cabe nos mapas simples (`.a`, `#a`, `tag`): composto
+/// (`row.p-2`), com combinador (`row > text`, `column text`), ou universal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ComplexSelector {
+    /// O composto mais à direita — o nó que recebe o estilo.
+    pub subject: Compound,
+    pub state: Option<PseudoState>,
+    /// Os compostos à esquerda, **do pai para fora**, cada um com o combinador
+    /// que o liga ao composto logo à sua direita.
+    pub ancestors: Vec<(Combinator, Compound)>,
+    /// `(ids, classes + estados, tags)`, como no CSS.
+    pub specificity: (u32, u32, u32),
+}
+
+impl ComplexSelector {
+    /// `ancestors` vai da raiz até o pai de `subject`.
+    pub fn matches(&self, subject: &Element, ancestors: &[Element]) -> bool {
+        self.subject.matches(subject) && Self::matches_up(&self.ancestors, ancestors)
+    }
+
+    fn matches_up(parts: &[(Combinator, Compound)], ancestors: &[Element]) -> bool {
+        let Some(((comb, comp), rest)) = parts.split_first() else {
+            return true;
+        };
+        match comb {
+            Combinator::Child => match ancestors.split_last() {
+                Some((pai, acima)) => comp.matches(pai) && Self::matches_up(rest, acima),
+                None => false,
+            },
+            // Com retrocesso: `a b c` precisa tentar cada `b` acima de `c`, não
+            // só o primeiro — o `a` pode estar acima de um `b` mais alto.
+            Combinator::Descendant => (0..ancestors.len())
+                .rev()
+                .any(|i| comp.matches(&ancestors[i]) && Self::matches_up(rest, &ancestors[..i])),
+        }
+    }
+
+    /// Faixa de especificidade em que a regra entra na escada de
+    /// [`resolve_classes`]: 0 = abaixo da tag, 1 = tag, 2 = classe, 3 = id.
+    fn tier(&self) -> u8 {
+        match self.specificity {
+            (a, _, _) if a > 0 => 3,
+            (_, b, _) if b > 0 => 2,
+            (_, _, c) if c > 0 => 1,
+            _ => 0,
+        }
+    }
+}
+
+/// Uma regra de [`ComplexSelector`], na ordem em que apareceu no arquivo.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ComplexRule {
+    pub selector: ComplexSelector,
+    pub rule: StyleRule,
+}
+
+/// Um nó e seus ancestrais (da raiz até o pai), para casar seletores com
+/// combinador. Ver [`resolve_classes_in`].
+#[derive(Debug, Clone, Copy)]
+pub struct Lineage<'a> {
+    pub subject: &'a Element,
+    pub ancestors: &'a [Element],
 }
 
 /// A parsed `.gss` document: a map from class name (without the leading `.`)
@@ -333,20 +463,35 @@ pub struct StyleSheet {
     /// `Tag:estado { }` — pseudo-estados de seletor de tag (espelho de
     /// [`StyleSheet::states`] para tags).
     pub tag_states: HashMap<String, HashMap<PseudoState, StyleRule>>,
+    /// Seletores **compostos e combinados** (`row.p-2 > text.r_text`,
+    /// `column text`, `.a.b`, `*`), na ordem do arquivo. Não cabem nos mapas
+    /// acima porque casar um deles pode exigir olhar os ancestrais do nó; entram
+    /// na escada de especificidade pela faixa que a especificidade deles dá (ver
+    /// [`resolve_classes_in`]).
+    pub complex: Vec<ComplexRule>,
 }
 
 impl StyleSheet {
     /// `true` se este sheet (ou algum de seus blocos `@media`) declara qualquer
-    /// seletor de **tag**. Usado por `eval.rs` para manter o *fast-path* dos nós
-    /// sem `class`/`id`: só se houver regra de tag em jogo é que vale a pena
-    /// resolver estilo para um nó "pelado".
+    /// seletor que pode casar um nó **sem** `class`/`id` — de tag, ou composto/
+    /// combinado (`row > text`). Usado por `eval.rs` para manter o *fast-path*
+    /// dos nós sem `class`/`id`: só se houver regra assim em jogo é que vale a
+    /// pena resolver estilo para um nó "pelado".
     pub fn has_tag_rules(&self) -> bool {
         !self.tags.is_empty()
             || !self.tag_states.is_empty()
+            || self.has_complex_rules()
             || self
                 .media
                 .iter()
                 .any(|m| !m.tags.is_empty() || !m.tag_states.is_empty())
+    }
+
+    /// `true` se este sheet (ou algum `@media` dele) declara seletor composto ou
+    /// combinado. É o que liga, no `eval.rs`, o rastreio da cadeia de ancestrais
+    /// — que nenhum outro seletor precisa.
+    pub fn has_complex_rules(&self) -> bool {
+        !self.complex.is_empty() || self.media.iter().any(|m| !m.complex.is_empty())
     }
 }
 
@@ -386,7 +531,38 @@ pub fn resolve_classes(
     sheets: &[&StyleSheet],
     viewport: Option<(f32, f32)>,
 ) -> StyleRule {
+    resolve_classes_in(tag, classes, id, None, sheets, viewport)
+}
+
+/// [`resolve_classes`] ciente da posição do nó na árvore: `lineage` é o nó (com
+/// a identidade completa — numa raiz de componente, também a do uso) e seus
+/// ancestrais, para casar os seletores compostos/combinados
+/// ([`StyleSheet::complex`]). `None` casa só os que não olham para cima
+/// (`row.p-2`, `.a.b`), contra o elemento formado por `tag`/`classes`/`id`.
+///
+/// Uma regra composta entra na escada pela faixa da sua especificidade — logo
+/// depois do tier simples correspondente, porque ela é sempre mais específica
+/// que ele (`row.x` vence `.x`; `row > text` vence `text`) — e, dentro da
+/// faixa, por especificidade, depois `@media`, depois folha, depois a ordem do
+/// arquivo.
+pub fn resolve_classes_in(
+    tag: Option<&str>,
+    classes: &str,
+    id: Option<&str>,
+    lineage: Option<Lineage>,
+    sheets: &[&StyleSheet],
+    viewport: Option<(f32, f32)>,
+) -> StyleRule {
+    let hits = complex_hits(tag, classes, id, lineage, sheets, viewport);
+    let apply = |merged: &mut StyleRule, tier: usize| {
+        for c in &hits[tier] {
+            if c.selector.state.is_none() {
+                merged.merge_from(&c.rule);
+            }
+        }
+    };
     let mut merged = StyleRule::default();
+    apply(&mut merged, 0);
     // Ordem por **especificidade** (baixa → alta), e dentro de cada tier a
     // regra base primeiro e o overlay de `@media` por cima: assim classe vence
     // tag, id vence classe, e o inline (aplicado no eval, por cima de tudo)
@@ -413,6 +589,8 @@ pub fn resolve_classes(
         }
     }
 
+    apply(&mut merged, 1);
+
     // Tier 1 — classes (base, depois `@media`).
     for name in classes.split_whitespace() {
         for sheet in sheets {
@@ -435,6 +613,8 @@ pub fn resolve_classes(
         }
     }
 
+    apply(&mut merged, 2);
+
     // Tier 2 — id (base, depois `@media`), POR CIMA das classes.
     if let Some(id) = id {
         for sheet in sheets {
@@ -454,6 +634,7 @@ pub fn resolve_classes(
             }
         }
     }
+    apply(&mut merged, 3);
     // Design tokens (`:root { --x }`) de TODOS os sheets ativos, later-sheet
     // vence — assim uma paleta declarada uma vez (ex.: no `app.gss` global)
     // resolve `var(--x)` em qualquer regra, inclusive de sheets com escopo.
@@ -482,7 +663,30 @@ pub fn resolve_state_classes(
     sheets: &[&StyleSheet],
     viewport: Option<(f32, f32)>,
 ) -> StateStyles {
+    resolve_state_classes_in(tag, classes, id, None, sheets, viewport)
+}
+
+/// [`resolve_state_classes`] ciente da posição do nó — ver
+/// [`resolve_classes_in`]. Aqui entram as regras compostas cujo sujeito tem
+/// `:estado` (`row > button:hover`).
+pub fn resolve_state_classes_in(
+    tag: Option<&str>,
+    classes: &str,
+    id: Option<&str>,
+    lineage: Option<Lineage>,
+    sheets: &[&StyleSheet],
+    viewport: Option<(f32, f32)>,
+) -> StateStyles {
+    let hits = complex_hits(tag, classes, id, lineage, sheets, viewport);
+    let apply = |out: &mut StateStyles, tier: usize| {
+        for c in &hits[tier] {
+            if let Some(state) = c.selector.state {
+                out.get_mut(state).merge_from(&c.rule);
+            }
+        }
+    };
     let mut out = StateStyles::default();
+    apply(&mut out, 0);
     // Tier 0 — tag (base, depois `@media`). Menor especificidade.
     if let Some(tag) = tag {
         for sheet in sheets {
@@ -506,6 +710,7 @@ pub fn resolve_state_classes(
             }
         }
     }
+    apply(&mut out, 1);
     // Tier 1 — classes (base, depois `@media`).
     for name in classes.split_whitespace() {
         for sheet in sheets {
@@ -531,6 +736,7 @@ pub fn resolve_state_classes(
             }
         }
     }
+    apply(&mut out, 2);
     // Tier 2 — id (base, depois `@media`), POR CIMA das classes.
     if let Some(id) = id {
         for sheet in sheets {
@@ -554,6 +760,7 @@ pub fn resolve_state_classes(
             }
         }
     }
+    apply(&mut out, 3);
     let mut vars: HashMap<String, String> = HashMap::default();
     for sheet in sheets {
         for (k, v) in &sheet.variables {
@@ -565,6 +772,60 @@ pub fn resolve_state_classes(
     out.active.resolve_var_refs(&vars);
     out.disabled.resolve_var_refs(&vars);
     out.invalid.resolve_var_refs(&vars);
+    out
+}
+
+/// As regras compostas de `sheets` que casam o nó, repartidas pelas quatro
+/// faixas de [`ComplexSelector::tier`] e já na ordem de aplicação. Base e
+/// `:estado` saem juntos; quem chama filtra pelo que quer.
+fn complex_hits<'s>(
+    tag: Option<&str>,
+    classes: &str,
+    id: Option<&str>,
+    lineage: Option<Lineage>,
+    sheets: &[&'s StyleSheet],
+    viewport: Option<(f32, f32)>,
+) -> [Vec<&'s ComplexRule>; 4] {
+    let mut out: [Vec<&ComplexRule>; 4] = Default::default();
+    if !sheets.iter().any(|s| s.has_complex_rules()) {
+        return out;
+    }
+    let proprio;
+    let lineage = match lineage {
+        Some(l) => l,
+        None => {
+            proprio = Element::new(tag, classes, id);
+            Lineage {
+                subject: &proprio,
+                ancestors: &[],
+            }
+        }
+    };
+    // Chave de ordem: especificidade, depois `@media` por cima da base (como
+    // nos tiers simples), depois a folha, depois a posição no arquivo.
+    type Ordem = ((u32, u32, u32), bool, usize, usize);
+    let mut achadas: Vec<(Ordem, &ComplexRule)> = Vec::new();
+    let mut colhe = |rules: &'s [ComplexRule], media: bool, folha: usize| {
+        for (ordem, c) in rules.iter().enumerate() {
+            if c.selector.matches(lineage.subject, lineage.ancestors) {
+                achadas.push(((c.selector.specificity, media, folha, ordem), c));
+            }
+        }
+    };
+    for (folha, sheet) in sheets.iter().enumerate() {
+        colhe(&sheet.complex, false, folha);
+        if let Some((w, h)) = viewport {
+            for mq in &sheet.media {
+                if mq.condition.matches(w, h) {
+                    colhe(&mq.complex, true, folha);
+                }
+            }
+        }
+    }
+    achadas.sort_by_key(|&(ordem, _)| ordem);
+    for (_, c) in achadas {
+        out[c.selector.tier() as usize].push(c);
+    }
     out
 }
 
@@ -806,6 +1067,7 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
                 id_states: inner_sheet.id_states,
                 tags: inner_sheet.tags,
                 tag_states: inner_sheet.tag_states,
+                complex: inner_sheet.complex,
             });
             rest = remainder;
             continue;
@@ -871,10 +1133,12 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
     Ok(sheet)
 }
 
-/// Encaixa `rule` no mapa certo do `sheet` conforme a *forma* do seletor:
-/// `.classe`, `#id`, `Tag`, e a variante `:estado` de cada um. Extraído do laço
-/// principal para que o suporte a vírgula (`.a, .b { }`) reaproveite exatamente
-/// a mesma resolução em cada parte, em vez de duplicá-la.
+/// Encaixa `rule` no lugar certo do `sheet` conforme a *forma* do seletor.
+/// `.classe`, `#id` e `Tag` (com ou sem `:estado`) vão para os mapas simples;
+/// tudo o mais — composto (`row.p-2`), combinado (`row > text`, `column text`),
+/// universal (`*`) — vira uma [`ComplexRule`]. Extraído do laço principal para
+/// que o suporte a vírgula (`.a, .b { }`) reaproveite exatamente a mesma
+/// resolução em cada parte, em vez de duplicá-la.
 fn apply_selector(
     sheet: &mut StyleSheet,
     selector: &str,
@@ -883,106 +1147,237 @@ fn apply_selector(
     col: u32,
     err: &impl Fn(Diagnostic) -> GlacierError,
 ) -> Result<()> {
-    // Um estado pendurado no seletor (`.a:hover`, `#b:focus`, `Button:disabled`).
-    let split_state = |raw: &str| -> Result<(String, Option<PseudoState>)> {
-        match raw.split_once(':') {
-            Some((name, state_str)) => {
-                let name = name.trim();
-                if name.is_empty() {
-                    return Err(err(Diagnostic::new(
-                        line,
-                        col,
-                        format!("nome vazio antes do pseudo-estado em '{raw}'"),
-                    )));
-                }
-                let state = PseudoState::parse(state_str.trim()).ok_or_else(|| {
-                    err(Diagnostic::new(
-                        line,
-                        col,
-                        format!(
-                            "pseudo-estado ':{}' não suportado em '{}'",
-                            state_str.trim(),
-                            raw
-                        ),
-                    )
-                    .with_hint("os suportados são :hover, :focus, :active e :disabled"))
-                })?;
-                Ok((name.to_string(), Some(state)))
-            }
-            None => Ok((raw.trim().to_string(), None)),
-        }
-    };
+    let parsed = parse_selector(selector).map_err(|(msg, hint)| {
+        let d = Diagnostic::new(line, col, msg);
+        err(match hint {
+            Some(h) => d.with_hint(h),
+            None => d,
+        })
+    })?;
 
-    // `#nome { }` — seletor de id. Guardado à parte em `ids`/`id_states` (nunca
-    // em `rules`/`states`), casado depois pelo atributo `id` do nó.
-    if let Some(raw) = selector.strip_prefix('#') {
-        let raw = raw.trim();
-        if raw.is_empty() {
-            return Err(err(Diagnostic::new(line, col, "seletor de id vazio ('#')")));
-        }
-        let (name, state) = split_state(raw)?;
-        match state {
-            Some(s) => sheet
-                .id_states
-                .entry(name)
-                .or_default()
-                .entry(s)
-                .or_default()
-                .merge_from(&rule),
-            None => sheet.ids.entry(name).or_default().merge_from(&rule),
-        }
+    let c = &parsed.subject;
+    let simples = parsed.ancestors.is_empty()
+        && c.tag.is_some() as usize + c.classes.len() + c.ids.len() == 1;
+    if !simples {
+        sheet.complex.push(ComplexRule {
+            selector: parsed,
+            rule,
+        });
         return Ok(());
     }
 
-    // `.classe { }`. Classe duplicada no mesmo arquivo faz *merge* (não
-    // clobber): o CSS aplica ambas as regras de mesmo seletor. Campos `None` do
-    // 2º bloco preservam os do 1º; campos `Some` sobrescrevem.
-    if let Some(raw) = selector.strip_prefix('.') {
-        let raw = raw.trim();
-        if raw.is_empty() {
-            return Err(err(Diagnostic::new(
-                line,
-                col,
-                "seletor de classe vazio ('.')",
-            )));
-        }
-        let (name, state) = split_state(raw)?;
-        match state {
-            Some(s) => sheet
-                .states
-                .entry(name)
+    // Regra de mesmo seletor duplicada faz *merge* (não clobber): o CSS aplica
+    // ambas. Campos `None` do 2º bloco preservam os do 1º; `Some` sobrescrevem.
+    fn guarda(
+        base: &mut HashMap<String, StyleRule>,
+        estados: &mut HashMap<String, HashMap<PseudoState, StyleRule>>,
+        nome: String,
+        estado: Option<PseudoState>,
+        rule: &StyleRule,
+    ) {
+        match estado {
+            Some(s) => estados
+                .entry(nome)
                 .or_default()
                 .entry(s)
                 .or_default()
-                .merge_from(&rule),
-            None => sheet.rules.entry(name).or_default().merge_from(&rule),
+                .merge_from(rule),
+            None => base.entry(nome).or_default().merge_from(rule),
         }
-        return Ok(());
     }
-
-    // Seletor de **tag** — o que sobrou. Casa o tipo builtin do nó (`Column`,
-    // `Text`, …) OU o nome de um componente (`Card`) no seu uso. Normalizado
-    // para minúsculo, então `Button {}` == `button {}`.
-    if selector.is_empty() {
-        return Err(err(Diagnostic::new(
-            line,
-            col,
-            "seletor vazio antes de '{'",
-        )));
-    }
-    let (name, state) = split_state(selector)?;
-    let name = name.to_lowercase();
-    match state {
-        Some(s) => sheet
-            .tag_states
-            .entry(name)
-            .or_default()
-            .entry(s)
-            .or_default()
-            .merge_from(&rule),
-        None => sheet.tags.entry(name).or_default().merge_from(&rule),
+    let ComplexSelector { subject, state, .. } = parsed;
+    if let Some(id) = subject.ids.into_iter().next() {
+        // `#nome { }` — casado depois pelo atributo `id` do nó.
+        guarda(&mut sheet.ids, &mut sheet.id_states, id, state, &rule);
+    } else if let Some(class) = subject.classes.into_iter().next() {
+        guarda(&mut sheet.rules, &mut sheet.states, class, state, &rule);
+    } else if let Some(tag) = subject.tag {
+        // Seletor de **tag** — casa o tipo builtin do nó (`Column`, `Text`, …)
+        // OU o nome de um componente (`Card`) no seu uso. Já vem minúsculo, então
+        // `Button {}` == `button {}`.
+        guarda(&mut sheet.tags, &mut sheet.tag_states, tag, state, &rule);
     }
     Ok(())
+}
+
+/// Mensagem e dica de um seletor malformado.
+type SelectorError = (String, Option<&'static str>);
+
+/// Lê um seletor (já sem vírgula) para um [`ComplexSelector`].
+///
+/// A gramática é o subconjunto do CSS que o motor sabe casar: compostos de
+/// `tag`/`*`, `.classe` e `#id`, ligados por `>` (filho) ou espaço
+/// (descendente), com um `:estado` opcional **só no último**. O que fica de
+/// fora (`+`, `~`, `[attr]`, `::x`, `:not(…)`, estado num ancestral) é **erro**,
+/// não aviso: um seletor que o motor não entende e aceita em silêncio é a
+/// regra que "não pega" e ninguém sabe por quê.
+fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, SelectorError> {
+    let chars: Vec<char> = selector.chars().collect();
+    let is_ident = |c: char| c.is_alphanumeric() || c == '-' || c == '_';
+    let mut i = 0;
+    // Compostos da esquerda para a direita, cada um com o combinador que o liga
+    // ao ANTERIOR (o do primeiro é ignorado).
+    let mut partes: Vec<(Combinator, Compound, Option<PseudoState>)> = Vec::new();
+    let mut pendente: Option<Combinator> = None;
+
+    let ident = |i: &mut usize| -> String {
+        let start = *i;
+        while *i < chars.len() && is_ident(chars[*i]) {
+            *i += 1;
+        }
+        chars[start..*i].iter().collect()
+    };
+
+    while i < chars.len() {
+        let c = chars[i];
+        if c.is_whitespace() {
+            if !partes.is_empty() && pendente.is_none() {
+                pendente = Some(Combinator::Descendant);
+            }
+            i += 1;
+            continue;
+        }
+        if c == '>' {
+            if partes.is_empty() || pendente == Some(Combinator::Child) {
+                return Err((
+                    format!("'>' sem composto à esquerda em '{selector}'"),
+                    Some("o combinador de filho liga dois seletores: `row > text`"),
+                ));
+            }
+            pendente = Some(Combinator::Child);
+            i += 1;
+            continue;
+        }
+        if c == '+' || c == '~' {
+            return Err((
+                format!("combinador de irmão '{c}' não suportado em '{selector}'"),
+                Some("os combinadores suportados são `>` (filho) e o espaço (descendente)"),
+            ));
+        }
+        if c == '[' {
+            return Err((
+                format!("seletor de atributo não suportado em '{selector}'"),
+                Some("use uma classe: `.ativo` no lugar de `[ativo]`"),
+            ));
+        }
+
+        // Um composto.
+        if partes.last().is_some_and(|(_, _, st)| st.is_some()) {
+            return Err((
+                format!("pseudo-estado num ancestral em '{selector}'"),
+                Some(
+                    "o `:estado` só vale no último seletor (`row > button:hover`), não num ancestral",
+                ),
+            ));
+        }
+        if !partes.is_empty() && pendente.is_none() {
+            // Dois compostos colados sem espaço nem `>` só acontece com um
+            // caractere fora da gramática no meio (`row>text` passa pelo `>`).
+            return Err((format!("caractere inesperado '{c}' em '{selector}'"), None));
+        }
+        let mut comp = Compound::default();
+        let mut state = None;
+        if c == '*' {
+            i += 1;
+        } else if is_ident(c) {
+            comp.tag = Some(ident(&mut i).to_lowercase());
+        }
+        let mut vazio = comp.tag.is_none() && c != '*';
+        while i < chars.len() {
+            match chars[i] {
+                '.' => {
+                    i += 1;
+                    let nome = ident(&mut i);
+                    if nome.is_empty() {
+                        return Err(("seletor de classe vazio ('.')".to_string(), None));
+                    }
+                    comp.classes.push(nome);
+                }
+                '#' => {
+                    i += 1;
+                    let nome = ident(&mut i);
+                    if nome.is_empty() {
+                        return Err(("seletor de id vazio ('#')".to_string(), None));
+                    }
+                    comp.ids.push(nome);
+                }
+                ':' => {
+                    if vazio {
+                        return Err((
+                            format!("nome vazio antes do pseudo-estado em '{selector}'"),
+                            None,
+                        ));
+                    }
+                    i += 1;
+                    if chars.get(i) == Some(&':') {
+                        return Err((
+                            format!("pseudo-elemento ('::') não suportado em '{selector}'"),
+                            None,
+                        ));
+                    }
+                    let nome = ident(&mut i);
+                    if chars.get(i) == Some(&'(') {
+                        return Err((
+                            format!("pseudo-classe ':{nome}(…)' não suportada em '{selector}'"),
+                            Some("os suportados são :hover, :focus, :active, :disabled e :invalid"),
+                        ));
+                    }
+                    if state.is_some() {
+                        return Err((format!("dois pseudo-estados em '{selector}'"), None));
+                    }
+                    state = Some(PseudoState::parse(&nome).ok_or_else(|| {
+                        (
+                            format!("pseudo-estado ':{nome}' não suportado em '{selector}'"),
+                            Some("os suportados são :hover, :focus, :active, :disabled e :invalid"),
+                        )
+                    })?);
+                }
+                _ => break,
+            }
+            vazio = false;
+        }
+        if vazio {
+            return Err((format!("caractere inesperado '{c}' em '{selector}'"), None));
+        }
+        partes.push((
+            pendente.take().unwrap_or(Combinator::Descendant),
+            comp,
+            state,
+        ));
+    }
+
+    if pendente == Some(Combinator::Child) {
+        return Err((
+            format!("'>' sem composto à direita em '{selector}'"),
+            Some("o combinador de filho liga dois seletores: `row > text`"),
+        ));
+    }
+    let Some((mut liga, subject, state)) = partes.pop() else {
+        return Err(("seletor vazio antes de '{'".to_string(), None));
+    };
+
+    // Do pai para fora. Cada parte guarda o combinador que a liga à ANTERIOR;
+    // o ancestral precisa do que o liga à de DENTRO — o da parte seguinte.
+    let mut ancestors = Vec::with_capacity(partes.len());
+    for (comb, comp, _) in partes.into_iter().rev() {
+        ancestors.push((liga, comp));
+        liga = comb;
+    }
+
+    let mut spec = (0u32, 0u32, 0u32);
+    for comp in std::iter::once(&subject).chain(ancestors.iter().map(|(_, c)| c)) {
+        spec.0 += comp.ids.len() as u32;
+        spec.1 += comp.classes.len() as u32;
+        spec.2 += comp.tag.is_some() as u32;
+    }
+    spec.1 += state.is_some() as u32;
+
+    Ok(ComplexSelector {
+        subject,
+        state,
+        ancestors,
+        specificity: spec,
+    })
 }
 
 /// Dado o texto logo APÓS o `{` de um bloco, devolve `(interior, resto)` onde
@@ -1787,6 +2182,141 @@ mod tests {
             resolve_classes(Some("column"), "", None, &[&sheet], None).spacing,
             Some(8.0)
         );
+    }
+
+    #[test]
+    fn seletor_composto_e_combinado_vai_para_complex() {
+        let sheet = parse_gss("row.p-2 > text.r_text:hover { color: #fff; }").unwrap();
+        assert!(sheet.rules.is_empty() && sheet.tags.is_empty() && sheet.states.is_empty());
+        let sel = &sheet.complex[0].selector;
+        assert_eq!(sel.subject.tag.as_deref(), Some("text"));
+        assert_eq!(sel.subject.classes, vec!["r_text".to_string()]);
+        assert_eq!(sel.state, Some(PseudoState::Hover));
+        assert_eq!(sel.ancestors.len(), 1);
+        assert_eq!(sel.ancestors[0].0, Combinator::Child);
+        assert_eq!(sel.ancestors[0].1.tag.as_deref(), Some("row"));
+        assert_eq!(sel.ancestors[0].1.classes, vec!["p-2".to_string()]);
+        // 2 classes + 1 estado, 2 tags.
+        assert_eq!(sel.specificity, (0, 3, 2));
+        assert!(sheet.has_tag_rules() && sheet.has_complex_rules());
+    }
+
+    #[test]
+    fn combinadores_sem_espaco_e_misturados() {
+        let sheet = parse_gss("column .a>text { padding: 1; }").unwrap();
+        let sel = &sheet.complex[0].selector;
+        // do pai para fora: `.a` (filho), depois `column` (descendente)
+        assert_eq!(sel.ancestors[0].0, Combinator::Child);
+        assert_eq!(sel.ancestors[0].1.classes, vec!["a".to_string()]);
+        assert_eq!(sel.ancestors[1].0, Combinator::Descendant);
+        assert_eq!(sel.ancestors[1].1.tag.as_deref(), Some("column"));
+    }
+
+    #[test]
+    fn seletor_simples_continua_nos_mapas() {
+        // A forma antiga não muda de lugar — nem com espaço sobrando.
+        let sheet =
+            parse_gss(" .a { padding: 1; } #b:hover { padding: 2; } Button { padding: 3; }")
+                .unwrap();
+        assert!(sheet.complex.is_empty());
+        assert!(sheet.rules.contains_key("a"));
+        assert!(sheet.id_states.contains_key("b"));
+        assert!(sheet.tags.contains_key("button"));
+    }
+
+    #[test]
+    fn composto_sem_ancestral_resolve_sem_lineage() {
+        // `row.x` não olha para cima: casa pelo próprio tag/classe, mesmo no
+        // `resolve_classes` sem linhagem.
+        let sheet =
+            parse_gss(".x { padding: 1; } row.x { padding: 2; } .x.y { color: #111111; }").unwrap();
+        let r = resolve_classes(Some("row"), "x", None, &[&sheet], None);
+        assert_eq!(r.padding.as_deref(), Some("2"));
+        let c = resolve_classes(Some("column"), "x", None, &[&sheet], None);
+        assert_eq!(c.padding.as_deref(), Some("1"));
+        assert_eq!(c.color, None);
+        let xy = resolve_classes(Some("column"), "y x", None, &[&sheet], None);
+        assert_eq!(xy.color.as_deref(), Some("#111111"));
+    }
+
+    #[test]
+    fn universal_fica_abaixo_da_tag() {
+        let sheet = parse_gss("text { padding: 1; } * { padding: 0; spacing: 4; }").unwrap();
+        let r = resolve_classes(Some("text"), "", None, &[&sheet], None);
+        assert_eq!(
+            r.padding.as_deref(),
+            Some("1"),
+            "`*` tem especificidade zero"
+        );
+        assert_eq!(r.spacing, Some(4.0));
+    }
+
+    #[test]
+    fn composto_dentro_de_media_e_estado() {
+        let sheet = parse_gss(
+            "@media (max-width: 500) { row > text { padding: 9; } } \
+             row > button:hover { background: #222222; }",
+        )
+        .unwrap();
+        let pai = Element::new(Some("row"), "", None);
+        let filho = Element::new(Some("text"), "", None);
+        let ancestors = [pai];
+        let lin = Lineage {
+            subject: &filho,
+            ancestors: &ancestors,
+        };
+        let estreito = resolve_classes_in(
+            Some("text"),
+            "",
+            None,
+            Some(lin),
+            &[&sheet],
+            Some((400.0, 1.0)),
+        );
+        assert_eq!(estreito.padding.as_deref(), Some("9"));
+        let largo = resolve_classes_in(
+            Some("text"),
+            "",
+            None,
+            Some(lin),
+            &[&sheet],
+            Some((900.0, 1.0)),
+        );
+        assert_eq!(largo.padding, None);
+
+        let botao = Element::new(Some("button"), "", None);
+        let st = resolve_state_classes_in(
+            Some("button"),
+            "",
+            None,
+            Some(Lineage {
+                subject: &botao,
+                ancestors: &ancestors,
+            }),
+            &[&sheet],
+            None,
+        );
+        assert_eq!(st.hover.background.as_deref(), Some("#222222"));
+    }
+
+    #[test]
+    fn seletores_fora_da_gramatica_sao_erro() {
+        for (gss, trecho) in [
+            ("row + text { padding: 1; }", "irmão"),
+            ("row ~ text { padding: 1; }", "irmão"),
+            ("row > { padding: 1; }", "'>'"),
+            ("> text { padding: 1; }", "'>'"),
+            ("row > > text { padding: 1; }", "'>'"),
+            ("text[x] { padding: 1; }", "atributo"),
+            ("text::after { padding: 1; }", "pseudo-elemento"),
+            ("text:not(.a) { padding: 1; }", "não suportada"),
+            ("row:hover > text { padding: 1; }", "ancestral"),
+            ("row .  { padding: 1; }", "classe vazio"),
+            ("row @x { padding: 1; }", "inesperado"),
+        ] {
+            let e = parse_gss(gss).expect_err(gss).to_string();
+            assert!(e.contains(trecho), "{gss}: {e}");
+        }
     }
 
     #[test]

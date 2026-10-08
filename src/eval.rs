@@ -2,7 +2,8 @@ use crate::ContextMap;
 use crate::error::Result;
 use crate::parser::{BoolAttr, NodeType, NumAttr, UiNode};
 use crate::stylesheet::{
-    StateStyles, StyleRule, StyleSheet, resolve_classes, resolve_state_classes,
+    Element, Lineage, StateStyles, StyleRule, StyleSheet, resolve_classes, resolve_classes_in,
+    resolve_state_classes, resolve_state_classes_in,
 };
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -1160,9 +1161,48 @@ pub struct StyleContext<'a> {
     /// **tag** — atalho para pular a resolução de estilo em nós sem `class`/`id`
     /// quando não há nenhuma regra de tag para casar (ver `eval_owned`).
     pub has_tag_rules: bool,
+    /// `true` se algum sheet ativo declara seletor composto ou combinado
+    /// (`row.p-2 > text`). Só então a avaliação mantém [`Self::ancestors`] —
+    /// sem nenhum, ninguém pergunta quem é o pai de quem.
+    pub has_complex_rules: bool,
+    /// Os elementos de cima do nó em avaliação, da raiz até o pai. Empilhado em
+    /// volta da avaliação dos filhos de cada nó; é o que um seletor `a > b` ou
+    /// `a b` consulta. Ver [`Lineage`].
+    pub ancestors: std::cell::RefCell<Vec<Element>>,
+    /// A identidade do USO de um componente (`Card`, a classe e o id escritos
+    /// nele), à espera da raiz avaliada do template — que é o mesmo elemento
+    /// na tela. Posto logo antes de avaliar o template e consumido pelo
+    /// primeiro `eval_owned` que vier (ver o topo dele).
+    pub pending_root: std::cell::RefCell<Option<Element>>,
 }
 
 impl<'a> StyleContext<'a> {
+    /// Hash da cadeia de ancestrais, para as chaves de cache. Uma subárvore
+    /// cujo estilo depende de `row.x > text` depende da classe do pai — que foi
+    /// lida FORA dela e por isso não está entre as dependências que o cache
+    /// confere. Misturar a cadeia no caminho faz uma classe de ancestral
+    /// diferente ocupar outra entrada. Zero quando não há regra composta.
+    fn salt(&self, path: u64) -> u64 {
+        match self.lineage_sig() {
+            0 => path,
+            sig => mix(path, sig),
+        }
+    }
+
+    fn lineage_sig(&self) -> u64 {
+        if !self.has_complex_rules {
+            return 0;
+        }
+        let mut h = 0u64;
+        for el in self.ancestors.borrow().iter() {
+            for parte in el.tags.iter().chain(&el.classes).chain(&el.ids) {
+                h = mix(h, hash_str(parte));
+            }
+            h = mix(h, 0x2f);
+        }
+        h
+    }
+
     /// The ordered sheets that apply for the given component scope: global
     /// first (lowest priority), then that component's own scoped sheets.
     fn active(&self, scope: Option<&str>) -> Vec<&StyleSheet> {
@@ -1264,7 +1304,8 @@ fn expand_children(
                     // Variáveis do item numa CAMADA sobre o contexto, sem
                     // clonar a base (ver `EvalCtx`).
                     let (layer, this_key) = item_layer(item, var, reorder_key.as_deref(), context);
-                    let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
+                    let item_ctx =
+                        context.with(&layer, styles.salt(mix(child.node_id, index as u64)));
 
                     if cacheable && reuse(&item_ctx, cache, out) {
                         continue;
@@ -1454,7 +1495,8 @@ fn expand_children(
                         // clonar a base (ver `EvalCtx`).
                         let (layer, this_key) =
                             item_layer(item, var, reorder_key.as_deref(), context);
-                        let item_ctx = context.with(&layer, mix(child.node_id, index as u64));
+                        let item_ctx =
+                            context.with(&layer, styles.salt(mix(child.node_id, index as u64)));
 
                         if cacheable && reuse(&item_ctx, cache, out) {
                             continue;
@@ -1912,6 +1954,10 @@ fn eval_owned(
     // que `expand_children` espalha na lista do pai. Vem antes de tudo porque
     // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
     // desta vez com o dono errado (o componente, não quem chamou).
+    // A identidade do uso de um componente que espera por esta raiz de template
+    // (ver [`StyleContext::pending_root`]). Retirada AQUI, antes de qualquer
+    // ramo, para não vazar para o próximo nó avaliado se este não a usar.
+    let pendente = styles.pending_root.borrow_mut().take();
     if let NodeType::Slot { name } = &node.kind {
         // **Nome dinâmico** (habilitador A da Onda 5): o nome interpola antes da
         // busca, no contexto do componente — que é onde as props dele vivem.
@@ -1972,6 +2018,7 @@ fn eval_owned(
         // `{x}` que troca de componente ocupa outra entrada do cache, em vez
         // de servir a árvore do componente anterior.
         uso.node_id = mix(node.node_id, hash_str(nome));
+        *styles.pending_root.borrow_mut() = pendente;
         return eval_owned(
             &uso,
             context,
@@ -2035,6 +2082,33 @@ fn eval_owned(
         // que o atributo `slot="footer"` ainda existe (a avaliação o consome).
         // Cada balde é expandido por sua conta, o que preserva a semântica de
         // um `<if>`/`<for-each>` dentro de um slot nomeado.
+        // Classe/id escritos NO USO (`<spinbox class="campo_num"/>`). Resolvidos
+        // aqui, no escopo de QUEM USOU — é lá que a folha com `.campo_num` mora,
+        // não no escopo do componente — e entregues à raiz do template como
+        // `overlay`. Sem isto, `class` numa tag de componente era lida pelo
+        // parser, viajava no mapa de props e não pintava nada: falha silenciosa.
+        // Ver `PLANO_CLASS_EM_COMPONENTE.md`.
+        //
+        // A interpolação acontece contra o contexto de FORA (`context`), então
+        // um `class="{estado}"` registra a leitura no quadro de quem chamou,
+        // que é a quem a dependência de fato pertence.
+        let uso_class = node
+            .class
+            .as_deref()
+            .map(|c| process_tpl(c, context))
+            .unwrap_or_default();
+        let uso_id = node.id.as_deref().map(|i| process_tpl(i, context));
+
+        // O uso como elemento, para os seletores compostos: `Card`, mais a
+        // classe e o id escritos nele, somados à identidade de um componente de
+        // fora de que esta tag seja a raiz. É o pai do conteúdo de slot (como
+        // no markup) e se funde à raiz avaliada do template.
+        let uso_el = styles.has_complex_rules.then(|| {
+            let mut el = pendente.unwrap_or_default();
+            el.absorb(Element::new(Some(name), &uso_class, uso_id.as_deref()));
+            el
+        });
+
         let mut slot_conteudo = SlotContent::default();
         if !node.children.is_empty() {
             let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
@@ -2068,9 +2142,16 @@ fn eval_owned(
                     })
                     .collect();
                 let mut saida = Vec::new();
-                expand_children(
+                if let Some(el) = &uso_el {
+                    styles.ancestors.borrow_mut().push(el.clone());
+                }
+                let r = expand_children(
                     &crus, context, templates, styles, scope, owner, &mut saida, None, cache,
-                )?;
+                );
+                if uso_el.is_some() {
+                    styles.ancestors.borrow_mut().pop();
+                }
+                r?;
                 match destino {
                     None => slot_conteudo.anonimo = saida,
                     Some(nome) => slot_conteudo.nomeados.push((nome, saida)),
@@ -2234,22 +2315,6 @@ fn eval_owned(
                 layer.set(format!("slot_{nome}"), "true".to_string());
             }
         }
-        // Classe/id escritos NO USO (`<spinbox class="campo_num"/>`). Resolvidos
-        // aqui, no escopo de QUEM USOU — é lá que a folha com `.campo_num` mora,
-        // não no escopo do componente — e entregues à raiz do template como
-        // `overlay`. Sem isto, `class` numa tag de componente era lida pelo
-        // parser, viajava no mapa de props e não pintava nada: falha silenciosa.
-        // Ver `PLANO_CLASS_EM_COMPONENTE.md`.
-        //
-        // A interpolação acontece contra o contexto de FORA (`context`), então
-        // um `class="{estado}"` registra a leitura no quadro de quem chamou,
-        // que é a quem a dependência de fato pertence.
-        let uso_class = node
-            .class
-            .as_deref()
-            .map(|c| process_tpl(c, context))
-            .unwrap_or_default();
-        let uso_id = node.id.as_deref().map(|i| process_tpl(i, context));
 
         // A classe do uso entra na CHAVE do cache. O cache de componente é
         // indexado pelo caminho (derivado do `node_id`), e as dependências que
@@ -2270,7 +2335,7 @@ fn eval_owned(
                 assinatura_estilo = assinatura_estilo.wrapping_mul(0x100_0000_01b3);
             }
         }
-        let local_context = context.with(&layer, mix(node.node_id, assinatura_estilo));
+        let local_context = context.with(&layer, styles.salt(mix(node.node_id, assinatura_estilo)));
 
         // O uso de um componente é uma fronteira natural de cache: é uma
         // subárvore inteira com uma entrada de dados bem definida (as props). É
@@ -2347,6 +2412,7 @@ fn eval_owned(
 
         // The referenced subtree's actions and scoped styles belong to `name`
         // (innermost wins).
+        *styles.pending_root.borrow_mut() = uso_el;
         let root = eval_owned(
             template_ast,
             &local_context,
@@ -2385,6 +2451,9 @@ fn eval_owned(
     // `class`/`id` are interpolated (`id="item-{i}"` works). The `styles.active`
     // allocation is skipped for a node whose class list resolves to nothing,
     // unless a tag rule is in play.
+    let mut subject: Option<Element> = styles
+        .has_complex_rules
+        .then(|| pendente.unwrap_or_default());
     let (style, state_styles): (StyleRule, StateStyles) = {
         let mut base = underlay.cloned().unwrap_or_default();
         let mut states = underlay_states.cloned().unwrap_or_default();
@@ -2403,21 +2472,33 @@ fn eval_owned(
             .map(|c| process_tpl(c, context))
             .unwrap_or_default();
         let id = node.id.as_deref().map(|i| process_tpl(i, context));
+        // O nó como elemento, para os seletores compostos — fundido ao uso do
+        // componente quando este nó é a raiz de um template.
+        if let Some(el) = subject.as_mut() {
+            el.absorb(Element::new(tag, &processed, id.as_deref()));
+        }
         let needs_lookup =
             !processed.trim().is_empty() || id.is_some() || (tag.is_some() && styles.has_tag_rules);
         if needs_lookup {
             let active = styles.active(scope);
-            base.merge_from(&resolve_classes(
+            let ancestors = styles.ancestors.borrow();
+            let lineage = subject.as_ref().map(|subject| Lineage {
+                subject,
+                ancestors: &ancestors,
+            });
+            base.merge_from(&resolve_classes_in(
                 tag,
                 &processed,
                 id.as_deref(),
+                lineage,
                 &active,
                 styles.viewport,
             ));
-            states.merge_from(&resolve_state_classes(
+            states.merge_from(&resolve_state_classes_in(
                 tag,
                 &processed,
                 id.as_deref(),
+                lineage,
                 &active,
                 styles.viewport,
             ));
@@ -3460,7 +3541,12 @@ fn eval_owned(
     // Evaluate children recursively. ForEach/if/else/Import are structural:
     // they are expanded or dropped rather than rendered directly.
     let mut children_eval = Vec::new();
-    if matches!(kind_eval, NodeType::TableView { .. })
+    // Este nó é o pai dos filhos que vêm a seguir (ver
+    // [`StyleContext::ancestors`]). Desempilhado logo depois, com erro ou sem.
+    if let Some(el) = subject {
+        styles.ancestors.borrow_mut().push(el);
+    }
+    let filhos = if matches!(kind_eval, NodeType::TableView { .. })
         && node
             .children
             .iter()
@@ -3477,7 +3563,7 @@ fn eval_owned(
             slot,
             cache,
             &mut children_eval,
-        )?;
+        )
     } else {
         expand_children(
             &node.children,
@@ -3491,8 +3577,12 @@ fn eval_owned(
             // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
             slot,
             cache,
-        )?;
+        )
+    };
+    if styles.has_complex_rules {
+        styles.ancestors.borrow_mut().pop();
     }
+    filhos?;
 
     // A `<Form>` hydrates every `formControl`-bound descendant (at any depth,
     // through nested Rows/Columns) with the shared scope, its evaluated
@@ -3896,6 +3986,9 @@ mod tests {
             by_component: &by_component,
             viewport: None,
             has_tag_rules: global.iter().any(|s| s.has_tag_rules()),
+            has_complex_rules: global.iter().any(|s| s.has_complex_rules()),
+            ancestors: Default::default(),
+            pending_root: Default::default(),
         };
         evaluate_node(&parse(xml), &HashMap::default(), templates, &styles, None).unwrap()
     }
@@ -3909,6 +4002,9 @@ mod tests {
             by_component: &by_component,
             viewport: None,
             has_tag_rules: false,
+            has_complex_rules: false,
+            ancestors: Default::default(),
+            pending_root: Default::default(),
         };
         evaluate_node(node, ctx, &HashMap::default(), &styles, None).unwrap()
     }
@@ -3953,6 +4049,162 @@ mod tests {
         assert!(matches!(out.kind, NodeType::Column));
         assert_eq!(out.padding.as_deref(), Some("24")); // só o underlay declara
         assert_eq!(out.background.as_deref(), Some("#101010")); // classe vence o underlay
+    }
+
+    // --- Seletores compostos e combinados, fim-a-fim pelo eval ---------------
+    //
+    // Todos olham a ÁRVORE AVALIADA: o filho certo recebeu o estilo e o irmão
+    // que não casa ficou sem ele. Um teste que só olhasse o sheet passaria com o
+    // rastreio de ancestrais quebrado.
+
+    #[test]
+    fn filho_composto_casa_pai_e_classe() {
+        let out = eval_with(
+            r#"<column>
+                 <row class="p-2"><text class="r_text">a</text><text>b</text></row>
+                 <row><text class="r_text">c</text></row>
+               </column>"#,
+            "row.p-2 > text.r_text { padding: 5; }",
+            &HashMap::default(),
+        );
+        let casa = &out.children[0].children[0];
+        let sem_classe = &out.children[0].children[1];
+        let pai_errado = &out.children[1].children[0];
+        assert_eq!(casa.padding.as_deref(), Some("5"));
+        assert_eq!(sem_classe.padding, None);
+        assert_eq!(pai_errado.padding, None, "o pai não tem .p-2");
+    }
+
+    #[test]
+    fn filho_exige_pai_imediato_e_descendente_nao() {
+        let xml = r#"<column class="lista"><row><text>a</text></row><text>b</text></column>"#;
+        let filho = eval_with(xml, ".lista > text { padding: 1; }", &HashMap::default());
+        assert_eq!(
+            filho.children[0].children[0].padding, None,
+            "neto não é filho"
+        );
+        assert_eq!(filho.children[1].padding.as_deref(), Some("1"));
+
+        let desc = eval_with(xml, ".lista text { padding: 2; }", &HashMap::default());
+        assert_eq!(desc.children[0].children[0].padding.as_deref(), Some("2"));
+        assert_eq!(desc.children[1].padding.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn descendente_com_retrocesso() {
+        // `.a .b text`: o primeiro `.b` acima do text não tem `.a` acima dele; o
+        // segundo `.b`, mais alto, tem. Casar exige tentar os dois.
+        let out = eval_with(
+            r#"<column class="a"><column class="b"><column class="x"><column class="b">
+                 <text>t</text>
+               </column></column></column></column>"#,
+            ".a > .b text { padding: 3; }",
+            &HashMap::default(),
+        );
+        let t = &out.children[0].children[0].children[0].children[0];
+        assert_eq!(t.padding.as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn especificidade_do_composto_vence_a_classe_simples() {
+        // `row > .r` (0,1,1) vence `.r` (0,1,0) mesmo declarado antes; e o id
+        // simples ainda vence os dois.
+        let gss = "row > .r { padding: 2; } .r { padding: 1; } #fim { padding: 9; }";
+        let out = eval_with(
+            r#"<row><text class="r">a</text><text class="r" id="fim">b</text></row>"#,
+            gss,
+            &HashMap::default(),
+        );
+        assert_eq!(out.children[0].padding.as_deref(), Some("2"));
+        assert_eq!(out.children[1].padding.as_deref(), Some("9"));
+    }
+
+    #[test]
+    fn inline_vence_o_composto() {
+        let out = eval_with(
+            r#"<row><text padding="7">a</text></row>"#,
+            "row > text { padding: 2; }",
+            &HashMap::default(),
+        );
+        assert_eq!(out.children[0].padding.as_deref(), Some("7"));
+    }
+
+    #[test]
+    fn composto_alcanca_por_dentro_e_por_fora_de_componente() {
+        // A raiz do template é o `<Card>` na tela: `Card > text` casa o filho
+        // da raiz, e `.lista > Card` casa a própria raiz — com a classe do uso.
+        let mut templates = HashMap::default();
+        templates.insert(
+            "Card".to_string(),
+            parse(r#"<column><text>dentro</text></column>"#),
+        );
+        let out = eval_with(
+            r#"<column class="lista"><Card class="destaque" /></column>"#,
+            "Card > text { padding: 4; } .lista > Card.destaque { background: #123456; }",
+            &templates,
+        );
+        let raiz = &out.children[0];
+        assert!(matches!(raiz.kind, NodeType::Column));
+        assert_eq!(raiz.background.as_deref(), Some("#123456"));
+        assert_eq!(raiz.children[0].padding.as_deref(), Some("4"));
+    }
+
+    #[test]
+    fn conteudo_de_slot_tem_o_uso_como_pai() {
+        let mut templates = HashMap::default();
+        templates.insert(
+            "Caixa".to_string(),
+            parse(r#"<column class="moldura"><row><slot/></row></column>"#),
+        );
+        let out = eval_with(
+            r#"<Caixa class="c"><text>x</text></Caixa>"#,
+            ".c > text { padding: 6; }",
+            &templates,
+        );
+        // column > row > (fragment do slot espalhado) text
+        let t = &out.children[0].children[0];
+        assert!(matches!(t.kind, NodeType::Text { .. }));
+        assert_eq!(t.padding.as_deref(), Some("6"));
+    }
+
+    #[test]
+    fn classe_dinamica_do_ancestral_nao_serve_cache_velho() {
+        // O item da lista é cacheado; o estilo dele depende da classe do pai,
+        // lida FORA da entrada de cache. Trocar a classe tem de trocar o estilo.
+        let ast = parse(
+            r#"<column class="{modo}">
+                 <foreach items="itens" var="i"><text>{i}</text></foreach>
+               </column>"#,
+        );
+        let global = vec![StyleSheet::parse(".escuro > text { padding: 8; }").unwrap()];
+        let by_component: HashMap<String, Vec<StyleSheet>> = HashMap::default();
+        let styles = StyleContext {
+            global: &global,
+            by_component: &by_component,
+            viewport: None,
+            has_tag_rules: true,
+            has_complex_rules: true,
+            ancestors: Default::default(),
+            pending_root: Default::default(),
+        };
+        let mut ctx: ContextMap = HashMap::default();
+        ctx.insert("itens".to_string(), r#"["a","b"]"#.to_string());
+        ctx.insert("modo".to_string(), "claro".to_string());
+        let mut cache = EvalCache::default();
+        let (t, _) =
+            evaluate_template(&ast, &ctx, &HashMap::default(), &styles, None, &mut cache).unwrap();
+        assert_eq!(t.children[0].padding, None);
+
+        ctx.insert("modo".to_string(), "escuro".to_string());
+        let (t, _) =
+            evaluate_template(&ast, &ctx, &HashMap::default(), &styles, None, &mut cache).unwrap();
+        assert_eq!(t.children.len(), 2);
+        assert_eq!(t.children[0].padding.as_deref(), Some("8"));
+        assert_eq!(t.children[1].padding.as_deref(), Some("8"));
+        assert!(
+            styles.ancestors.borrow().is_empty(),
+            "pilha tem de voltar vazia"
+        );
     }
 
     #[test]

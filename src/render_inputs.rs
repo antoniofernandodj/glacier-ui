@@ -121,6 +121,17 @@ impl RenderInputs {
                 .any(|s| s.has_tag_rules())
     }
 
+    /// `true` se alguma folha (global ou de escopo) declara seletor composto ou
+    /// combinado — o que liga o rastreio de ancestrais na avaliação.
+    pub fn has_complex_rules(&self) -> bool {
+        self.stylesheets.iter().any(|s| s.has_complex_rules())
+            || self
+                .component_stylesheets
+                .values()
+                .flatten()
+                .any(|s| s.has_complex_rules())
+    }
+
     /// `true` se mover o viewport de `old` para `new` ativa ou desativa alguma
     /// `@media` — o que decide se vale reavaliar num resize.
     pub fn media_set_changes(&self, old: (f32, f32), new: (f32, f32)) -> bool {
