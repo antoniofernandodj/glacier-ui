@@ -327,10 +327,10 @@ impl Arrasto {
             if context.get(&self.chave) != Some(&novo_x) {
                 saida.push((self.chave.clone(), novo_x));
             }
-            if let Some(chave_y) = &self.chave_y {
-                if context.get(chave_y) != Some(&novo_y) {
-                    saida.push((chave_y.clone(), novo_y));
-                }
+            if let Some(chave_y) = &self.chave_y
+                && context.get(chave_y) != Some(&novo_y)
+            {
+                saida.push((chave_y.clone(), novo_y));
             }
             return saida;
         }

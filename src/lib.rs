@@ -620,12 +620,10 @@ impl EditHistory {
                 .last_edit_at
                 .is_some_and(|t| now.duration_since(t) < Self::COALESCE);
         self.last_edit_at = Some(now);
-        if !coalesce {
-            if self.undo.last().map(String::as_str) != Some(prev) {
-                self.undo.push(prev.to_string());
-                if self.undo.len() > Self::CAP {
-                    self.undo.remove(0);
-                }
+        if !coalesce && self.undo.last().map(String::as_str) != Some(prev) {
+            self.undo.push(prev.to_string());
+            if self.undo.len() > Self::CAP {
+                self.undo.remove(0);
             }
         }
         self.redo.clear();
@@ -2412,7 +2410,7 @@ impl GlacierUI {
                 // compete for the same `match` arm. Enter can also advance focus.
                 let focus_task = next_focus
                     .clone()
-                    .map(|id| iced::widget::operation::focus::<EngineMessage>(id));
+                    .map(iced::widget::operation::focus::<EngineMessage>);
                 let fields = self.collect_form_rules(scope);
 
                 // No `rules` anywhere in the form: keep the pre-validation

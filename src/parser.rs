@@ -136,6 +136,10 @@ pub struct ScreenDecl {
 }
 
 /// De onde vem o conteúdo de uma [`ScreenDecl`].
+// `Inline` carrega uma árvore inteira e as outras variantes quase nada; o clippy
+// pede um `Box`. Há um destes por tela, lido uma vez no boot — o tamanho não
+// pesa, e o `Box` quebraria quem casa `ScreenSource::Inline { tree, .. }`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum ScreenSource {
     /// O corpo escrito no próprio manifesto: a árvore já montada (a mesma que um

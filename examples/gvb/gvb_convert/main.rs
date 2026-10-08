@@ -61,10 +61,12 @@ fn decode(s: &str) -> String {
     o
 }
 
+/// Um elemento aberto durante a leitura: (tag, attrs, filhos).
+type Aberto = (String, Vec<(String, String)>, Vec<X>);
+
 fn parse_xml(src: &str) -> Result<Vec<X>, String> {
-    // Pilha de (tag, attrs, filhos) abertos; o fundo é o nível do arquivo.
-    let mut stack: Vec<(String, Vec<(String, String)>, Vec<X>)> =
-        vec![(String::new(), vec![], vec![])];
+    // Pilha de elementos abertos; o fundo é o nível do arquivo.
+    let mut stack: Vec<Aberto> = vec![(String::new(), vec![], vec![])];
     let b = src.as_bytes();
     let mut i = 0;
     while i < src.len() {
@@ -556,12 +558,8 @@ impl Conv {
                         continue;
                     }
                     if !out.is_empty() && !prev_was_comment && !out.last().unwrap().is_empty() {
-                        // comentário abre um parágrafo novo, salvo entre ramos
-                        if !prev_cond {
-                            out.push(String::new());
-                        } else {
-                            out.push(String::new());
-                        }
+                        // comentário abre um parágrafo novo
+                        out.push(String::new());
                     }
                     out.extend(ls);
                     prev_was_comment = true;

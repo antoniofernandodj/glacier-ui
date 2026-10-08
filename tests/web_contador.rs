@@ -105,10 +105,10 @@ fn a_tela_embutida_tem_o_valor_e_os_tres_botoes_estilizados() {
 #[test]
 fn clicar_muda_o_texto_na_arvore() {
     let mut m = motor();
-    m.dispatch(&EngineMessage::UiClick("incrementar".into()));
-    m.dispatch(&EngineMessage::UiClick("incrementar".into()));
+    let _ = m.dispatch(&EngineMessage::UiClick("incrementar".into()));
+    let _ = m.dispatch(&EngineMessage::UiClick("incrementar".into()));
     assert!(valor_na_tela(&mut m).contains(&"2".to_string()));
 
-    m.dispatch(&EngineMessage::UiClick("zerar".into()));
+    let _ = m.dispatch(&EngineMessage::UiClick("zerar".into()));
     assert!(valor_na_tela(&mut m).contains(&"0".to_string()));
 }

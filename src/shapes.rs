@@ -261,16 +261,13 @@ fn caminho_svg(d: &str) -> Option<Path> {
             i += 1;
             let rel = cmd.is_ascii_lowercase();
             let num = |toks: &[Tok], i: &mut usize| -> Option<f32> {
-                while *i < toks.len() {
-                    match toks[*i] {
-                        Tok::Num(n) => {
-                            *i += 1;
-                            return Some(n);
-                        }
-                        Tok::Cmd(_) => return None,
+                match toks.get(*i)? {
+                    Tok::Num(n) => {
+                        *i += 1;
+                        Some(*n)
                     }
+                    Tok::Cmd(_) => None,
                 }
-                None
             };
             match cmd.to_ascii_uppercase() {
                 'M' => {

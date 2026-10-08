@@ -14,12 +14,15 @@ use std::path::{Path, PathBuf};
 
 use glacier_ui::GlacierUI;
 
+/// O arquivo de entrada e, para uma janela de uma tela só, o nome da tela.
+type Entrada = (&'static str, Option<&'static str>);
+
 /// Preset e as entradas que ele sobe: o arquivo que o `GlacierDaemon` acha
 /// sozinho (`views/app.gvb`, ou o que o `src/main.rs` passa em `main_template`)
 /// e, quando há, a tela que uma janela abre só em runtime por `open_window` — o
 /// `detalhe` do preset multi-janela, que é uma `screen` do `app` dele e não é
 /// alcançada pelo carregamento da janela principal.
-const PRESETS: &[(&str, &[(&str, Option<&str>)])] = &[
+const PRESETS: &[(&str, &[Entrada])] = &[
     ("minimo", &[("views/app.gvb", None)]),
     ("completo", &[("views/app.gvb", None)]),
     (

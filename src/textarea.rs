@@ -40,6 +40,10 @@ pub use iced::advanced::text::editor::{
 
 type Editor = graphics::text::Editor;
 
+/// O tradutor de tecla do campo: o atalho pressionado vira um [`Binding`], ou
+/// nada (a tecla segue o comportamento padrão).
+type KeyBindingFn<'a, Message> = Box<dyn Fn(KeyPress) -> Option<Binding<Message>> + 'a>;
+
 /// Um campo multilinha (o `text_editor` do iced) com barra de rolagem.
 pub struct TextArea<'a, Highlighter, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
@@ -60,7 +64,7 @@ where
     padding: Padding,
     wrapping: Wrapping,
     class: Theme::Class<'a>,
-    key_binding: Option<Box<dyn Fn(KeyPress) -> Option<Binding<Message>> + 'a>>,
+    key_binding: Option<KeyBindingFn<'a, Message>>,
     on_edit: Option<Box<dyn Fn(Action) -> Message + 'a>>,
     highlighter_settings: Highlighter::Settings,
     highlighter_format: fn(&Highlighter::Highlight, &Theme) -> highlighter::Format<Renderer::Font>,

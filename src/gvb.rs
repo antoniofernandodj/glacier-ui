@@ -32,6 +32,10 @@ pub fn eh_gvb(path: &str) -> bool {
 }
 
 /// Dessugara um `.gvb` para o XML equivalente do `.gv`, linha por linha.
+// O `Diagnostic` é grande (posição, trecho, dica), e o clippy pede um `Box`.
+// Não compensa: isto roda uma vez por arquivo, não num laço quente, e trocar o
+// tipo do erro quebraria a API pública.
+#[allow(clippy::result_large_err)]
 pub fn desugar(src: &str) -> std::result::Result<String, Diagnostic> {
     desugar_with(src, true)
 }
@@ -39,6 +43,7 @@ pub fn desugar(src: &str) -> std::result::Result<String, Diagnostic> {
 /// Como [`desugar`], mas com `strict = false` aceita uma ligação sem o `:`
 /// (`value = chave`), que é como os `.gvb` eram escritos antes da marca. Existe
 /// para as ferramentas de migração; o motor usa sempre [`desugar`].
+#[allow(clippy::result_large_err)] // ver `desugar`
 pub fn desugar_with(src: &str, strict: bool) -> std::result::Result<String, Diagnostic> {
     let mut p = Parser::new(src);
     p.strict = strict;

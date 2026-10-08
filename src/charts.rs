@@ -192,9 +192,9 @@ impl SerieNomeada {
                 let serie = Serie::de_array(pontos_raw);
 
                 let nome = campo(&["name", "nome", "label", "rotulo", "rótulo"])
-                    .and_then(|v| match v {
-                        serde_json::Value::String(s) => Some(s.clone()),
-                        outro => Some(outro.to_string()),
+                    .map(|v| match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        outro => outro.to_string(),
                     })
                     .unwrap_or_else(|| format!("Série {}", i + 1));
 
