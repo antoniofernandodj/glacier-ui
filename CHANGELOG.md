@@ -10,6 +10,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## CLI 0.6.5 · vscode-gv 0.22.0 — 2026-10-12
+
+- **Extensão do VS Code: caminho que não resolve vira aviso.** Um `src`/`href`/`source` que
+  aponta para um arquivo inexistente — `screen(src = "…")`, `script(src = "…")`,
+  `link(href = "…")`, `image(source = "…")` e os outros de `PATH_ATTRS` — ganha um
+  *warning* `arquivo não encontrado` no valor. Antes ele só ficava sem sublinhado, o que
+  parecia "a extensão não linka isto" (foi assim que um `screen(src)` correto passou por
+  defeito numa extensão desatualizada) e só o motor, em runtime, dizia o contrário. A busca
+  é a mesma do link (pasta do arquivo, raiz do projeto, workspace), então "sem link" e
+  "aviso" sempre concordam; caminho interpolado (`{…}`) e remoto ficam de fora. Nenhum aviso
+  nos 196 templates de `examples/` e `templates/`.
+- **CLI 0.6.5** embute a extensão 0.22.0 no `glacier install-extensions`.
+
 ## CLI 0.6.4 — 2026-10-11
 
 - **CLI: o `AGENTS.md` dos projetos novos alcança a 0.122.** Ele parava na 0.117.0, e

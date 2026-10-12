@@ -3075,7 +3075,47 @@ async function refreshDiagnostics(document, collection) {
     }
   }
   await componentRefDiagnostics(document, text, out);
+  pathDiagnostics(document, text, out);
   collection.set(document.uri, out);
+}
+
+/**
+ * Path attributes (`PATH_ATTRS`) that point at a file nobody can find — the
+ * same lookup the DocumentLink uses, so "no link" and "warning" always agree.
+ * Without this, a wrong `src` in `screen(src = "…")` or `script(src = "…")`
+ * just shows no underline, which reads as "the extension doesn't link this"
+ * rather than "this path is wrong" — and the engine only says so at runtime.
+ *
+ * Warning, not error: an app can serve assets from somewhere the editor can't
+ * see (`.assets(…)` with embedded bytes). Interpolated (`{…}`) and remote
+ * paths are skipped, as in `resolveAssetPath`.
+ */
+function pathDiagnostics(document, text, out) {
+  const comments = commentRanges(text);
+  for (const tag of iterTags(text, comments)) {
+    if (tag.closing) continue;
+    const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
+    const pathAttrs = canon ? PATH_ATTRS[canon] : undefined;
+    if (!pathAttrs) continue;
+    const wanted = pathAttrs.map((n) => n.toLowerCase());
+    for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
+      if (!wanted.includes(attr.name.toLowerCase())) continue;
+      const raw = attr.value.trim();
+      const checkable =
+        raw && !raw.includes("{") && !/^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
+      if (checkable && !resolveAssetPath(document.uri, raw)) {
+        out.push(
+          new vscode.Diagnostic(
+            new vscode.Range(document.positionAt(attr.start), document.positionAt(attr.end)),
+            `arquivo não encontrado: "${raw}" — procurado a partir da pasta deste ` +
+              `arquivo e da raiz do projeto (a pasta com views/ ou Cargo.toml)`,
+            vscode.DiagnosticSeverity.Warning
+          )
+        );
+      }
+      break; // `get_attr` takes the first spelling present
+    }
+  }
 }
 
 /**

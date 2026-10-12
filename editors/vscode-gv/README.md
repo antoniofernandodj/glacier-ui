@@ -49,6 +49,7 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
   | `<link rel="import" href=…>`, `<import from=…>`, `<Include src=…>` | the imported template |
   | `<link rel="theme">` / `<link rel="data">` | the JSON file |
   | `<Image src=…>`, `<Svg src=…>` | the asset |
+  | `screen(name = log, src = "views/log.gvb")` in an `app(...)` | the screen's template |
   | `<PerfilCard/>` | the `.gv`/`.xml` declaring the component |
   | `navigateTo="perfil"` | the screen's template |
   | `<Button/>`, `<Badge/>`, … (native/builtin) | the bundled syntax reference |
@@ -60,9 +61,14 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
   nowhere in that graph falls through to the Rust behind the template, and then
   to any other script in the workspace (one app, one context: a screen commonly
   reads what a sibling screen wrote). Paths resolve the way the engine resolves
-  them: relative to the declaring file first, then to the workspace root. A reference that resolves to nothing — a
-  missing file, a handler defined nowhere — is deliberately left unlinked, so a
-  typo shows up as a missing underline.
+  them: relative to the declaring file first, then to the project root (the
+  folder with `views/` or `Cargo.toml`) and the workspace root. A reference that
+  resolves to nothing — a missing file, a handler defined nowhere — is
+  deliberately left unlinked, so a typo shows up as a missing underline. A
+  **file path** that resolves to nothing also gets a **warning** on the value
+  (`arquivo não encontrado`), so a wrong `screen(src = …)` or `script(src = …)`
+  doesn't pass for "the extension doesn't link this". Interpolated (`{…}`) and
+  remote (`https://…`) paths are left alone.
 
   `class`/`id` resolve the same way: this document's own `<link
   rel="stylesheet">`/`<style>` first, then — since a linked sheet styles the
