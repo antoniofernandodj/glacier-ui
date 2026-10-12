@@ -502,6 +502,24 @@ fn background_for(node: &UiNode) -> Option<Background> {
         .map(Background::Color)
 }
 
+/// A regra **base** de um campo de texto (`<textinput>`, `<textarea>`): o
+/// fundo, a borda e a cor do texto que a classe/tag declarou. Num campo, eles
+/// vão no estilo do próprio widget — o `container` genérico pintaria o fundo
+/// **atrás** do editor, que o cobre com a cor da paleta — e valem em todos os
+/// estados, por baixo do `:hover`/`:focus`/`:disabled`/`:invalid`. `None`
+/// quando nada foi declarado (o campo segue o tema, como sempre).
+fn campo_base(node: &UiNode) -> Option<crate::stylesheet::StyleRule> {
+    let r = crate::stylesheet::StyleRule {
+        background: node.background.clone(),
+        border_color: node.border_color().map(str::to_string),
+        border_width: node.border_width,
+        border_radius: node.border_radius,
+        text_color: node.text_color().map(str::to_string),
+        ..Default::default()
+    };
+    (r != crate::stylesheet::StyleRule::default()).then_some(r)
+}
+
 /// Qual widget está por trás de um campo de texto — decide o que o menu de
 /// contexto embutido (botão direito) consegue oferecer.
 ///
@@ -1037,7 +1055,9 @@ fn single_line_editor<'a>(
         ed = ed.height(parse_length(&node.height));
     }
 
-    if node.hover_style().is_some()
+    let base = campo_base(node);
+    if base.is_some()
+        || node.hover_style().is_some()
         || node.focus_style().is_some()
         || node.disabled_style().is_some()
         || node.form_invalid()
@@ -1070,6 +1090,9 @@ fn single_line_editor<'a>(
                     style.value = tc;
                 }
             };
+            if let Some(r) = base.as_ref() {
+                apply(&mut style, r);
+            }
             let overlay = match status {
                 Status::Hovered => hover_ov.as_ref(),
                 Status::Focused { .. } => focus_ov.as_ref(),
@@ -4482,7 +4505,9 @@ pub fn render_node<'a>(
                     if node.padding.is_some() {
                         input = input.padding(parse_padding(&node.padding));
                     }
-                    if node.hover_style().is_some()
+                    let base = campo_base(node);
+                    if base.is_some()
+                        || node.hover_style().is_some()
                         || node.focus_style().is_some()
                         || node.disabled_style().is_some()
                         || node.form_invalid()
@@ -4516,6 +4541,9 @@ pub fn render_node<'a>(
                                 style.value = tc;
                             }
                         };
+                                if let Some(r) = base.as_ref() {
+                                    apply(&mut style, r);
+                                }
                                 let overlay = match status {
                                     Status::Hovered => hover_ov.as_ref(),
                                     Status::Focused { .. } => focus_ov.as_ref(),
@@ -4612,6 +4640,42 @@ pub fn render_node<'a>(
                         .padding(parse_padding(&node.padding));
                     if let Some(f) = font_for(node.font()) {
                         ed = ed.font(f);
+                    }
+                    // Fundo/borda/cor da regra base e os estados, como no
+                    // campo de uma linha (ver `campo_base`).
+                    let base = campo_base(node);
+                    let hover_ov = node.hover_style().cloned();
+                    let focus_ov = node.focus_style().cloned();
+                    let disabled_ov = node.disabled_style().cloned();
+                    if base.is_some() || hover_ov.is_some() || focus_ov.is_some() || disabled_ov.is_some() {
+                        ed = ed.style(move |theme, status| {
+                            use iced::widget::text_editor::Status;
+                            let mut style = iced::widget::text_editor::default(theme, status);
+                            let overlay = match status {
+                                Status::Hovered => hover_ov.as_ref(),
+                                Status::Focused { .. } => focus_ov.as_ref(),
+                                Status::Disabled => disabled_ov.as_ref(),
+                                Status::Active => None,
+                            };
+                            for r in base.iter().chain(overlay) {
+                                if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                                    style.background = Background::Color(bg);
+                                }
+                                if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                                    style.border.color = bc;
+                                }
+                                if let Some(bw) = r.border_width {
+                                    style.border.width = bw;
+                                }
+                                if let Some(br) = r.border_radius {
+                                    style.border.radius = iced::border::Radius::new(br);
+                                }
+                                if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                                    style.value = tc;
+                                }
+                            }
+                            style
+                        });
                     }
                     ed.height(parse_length(&node.height)).into()
                 }
@@ -6634,9 +6698,12 @@ pub fn render_node<'a>(
             NodeType::ProgressBar { .. } | NodeType::Slider { .. } | NodeType::Reveal { .. }
         )
     {
-        let bg_opt = background_for(node);
-        let br_opt = node.border_radius;
-        let bw_opt = node.border_width.unwrap_or(0.0);
+        // Um campo de texto pinta fundo e borda no próprio widget (ver
+        // `campo_base`): embrulhado aqui, o fundo ficaria atrás do editor.
+        let campo = matches!(&node.kind, NodeType::TextInput { .. } | NodeType::TextArea { .. });
+        let bg_opt = if campo { None } else { background_for(node) };
+        let br_opt = if campo { None } else { node.border_radius };
+        let bw_opt = if campo { 0.0 } else { node.border_width.unwrap_or(0.0) };
         let bc_opt = node.border_color().and_then(parse_hex_color);
 
         // `GLACIER_NO_PAINT` pula o embrulho inteiro: sem fundo, sem borda,

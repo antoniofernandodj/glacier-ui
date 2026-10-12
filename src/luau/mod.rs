@@ -775,6 +775,13 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_style").unwrap_or(false) {
+                let name: String = req.get("name")?;
+                ctx.set_style(&name);
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_window").unwrap_or(false) {
                 ctx.open_window(build_window_spec(&self.luau, &req)?);
                 args = MultiValue::new();
@@ -3725,6 +3732,17 @@ mod tests {
         let mut ctx = Context::new(&mut data);
         comp.run("voltar", None, &mut ctx);
         assert!(matches!(ctx.nav, Some(crate::component::Nav::Back)));
+    }
+
+    #[test]
+    fn set_style_pede_estilo_ao_motor() {
+        let comp =
+            LuauComponent::from_source("function escuro() set_style('qt-escuro') end", "t.gv", "c")
+                .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("escuro", None, &mut ctx);
+        assert_eq!(ctx.style.as_deref(), Some("qt-escuro"));
     }
 
     #[test]

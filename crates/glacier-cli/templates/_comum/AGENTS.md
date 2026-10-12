@@ -964,9 +964,10 @@ Três formas de trazer outro template:
 | `<import name="Cartao" from="views/cartao.gva" />` | quando o nome do componente difere do arquivo |
 | `<include src="views/pedaco.gva" />` | cola o conteúdo ali, sem virar componente |
 
-Os `rel` que existem são cinco: `stylesheet`, `import`, `component` (apelido de
+Os `rel` que existem são seis: `stylesheet`, `import`, `component` (apelido de
 `import`), `data` — que carrega um JSON numa chave de contexto, e aí `as`/`name`
-é obrigatório — e `theme`. Qualquer outro é erro na carga, com a lista na
+é obrigatório —, `theme` e `style` (um estilo do app, com `as`; ver "Modo claro
+e escuro: `<link rel="style">`"). Qualquer outro é erro na carga, com a lista na
 mensagem.
 
 O `<dialog>` tem seção própria ("O `<dialog>` — o modal com corpo em markup"),
@@ -2922,6 +2923,59 @@ válido também é erro na carga, não um silêncio.
 
 O `theme.json` entra no hot-reload: salvar o arquivo repinta o app aberto.
 
+### Modo claro e escuro: `<link rel="style">`
+
+Um `theme.json` é **uma** paleta. Para o usuário escolher entre claro e escuro,
+o app declara **estilos**: cada um é um `.gss` cujo `:root` traz a paleta (os
+campos do `theme.json` como tokens) mais os tokens que o `app.gss` usa, e
+regras de tag para os widgets nativos.
+
+```xml
+<resources>
+  <link rel="style" as="claro"  href="views/styles/claro.gss" />
+  <link rel="style" as="escuro" href="views/styles/escuro.gss" />
+  <link rel="stylesheet" href="views/styles/app.gss" />
+</resources>
+```
+```gss
+/* views/styles/escuro.gss — o claro.gss declara OS MESMOS tokens */
+:root {
+  --background: #282828;  --text: #D4D4D4;   --primary: #4A9EE0;
+  --success: #5FB865;     --danger: #E06C75; --warning: #D9A441;
+  --base: #1F1F1F;        --border: #4A4A4A; --muted: #9A9A9A;
+}
+textinput       { background: var(--base); border_width: 1; border_color: var(--border); }
+textinput:focus { border_color: var(--primary); }
+```
+```lua
+function init(): ()
+  set_style(if storage.get("tema") == "claro" then "claro" else "escuro")  -- 1º quadro já no tema
+end
+function trocar_tema(v: string): ()
+  storage.set("tema", v)
+  set_style(v)
+end
+```
+
+- **`--background`, `--text`, `--primary`, `--success` e `--danger` são
+  obrigatórios** (`--warning` tem default): faltar um é erro na carga, com o
+  nome do token. Eles viram o tema do iced — fundo da janela, scrollbars,
+  checkbox.
+- **O `app.gss` não declara `:root`**, só usa `var(--…)`: a folha do estilo entra
+  **por baixo** de todas, e um token de mesmo nome no `app.gss` venceria o do
+  estilo, travando a cor nos dois modos. Pelo mesmo motivo, uma classe do app
+  vence a regra de tag do estilo.
+- **Troca:** `set_style(nome)` no script (no `init`, vale antes do primeiro
+  quadro), `on_click="style:nome"` num botão, ou `on_change="style:set"` num
+  `<select>`. Os builtin (`fusion`, `fusion-dark`, `frost`, `phantom`) continuam
+  valendo pelo nome. O ativo fica na chave `glacier_style`.
+- O motor **não guarda** a escolha: grave-a (`storage`, ou a config do app) e
+  reaplique no `init`.
+- O arquivo do estilo entra no hot-reload; o ativo é reinstalado ao salvar.
+- `<textinput>` e `<textarea>` aceitam `background`, `border_*` e `text_color`
+  na regra base (não só nos estados), que é o que dá o campo branco sobre a
+  janela cinza de um tema claro.
+
 ## As convenções que atravessam o catálogo inteiro
 
 **1. `value`/`items` são NOME DE CHAVE, não interpolação.** `value="volume"`,
@@ -3486,6 +3540,7 @@ chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
 ```lua
 navigate("sobre")        -- troca a tela desta janela
 navigate_back()          -- volta uma no histórico
+set_style("escuro")      -- troca o estilo (um <link rel="style"> ou um builtin)
 
 open_window("views/detalhe.gva")
 open_window({ file = "views/detalhe.gva", title = "Detalhe", width = 400, height = 300 })

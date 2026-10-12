@@ -524,6 +524,9 @@ pub struct Context<'a> {
     /// (`(binding, text)`); o motor os aplica ao `text_editor::Content` após o
     /// `update`, sem recriar o buffer. Ver `append_textarea` no prelúdio Lua.
     pub(crate) editor_appends: Vec<(String, String)>,
+    /// Estilo visual pedido via [`Context::set_style`] (`set_style(nome)` na
+    /// camada Luau); o motor o aplica após o `update` (ou após o `init`).
+    pub(crate) style: Option<String>,
     /// Viewport atual `(largura, altura)` em px lógicos, lido por
     /// `Context::viewport` (a camada Lua expõe isto via `viewport()`). Só o
     /// motor escreve aqui (ver [`Context::set_viewport`]); um componente lê.
@@ -589,6 +592,7 @@ impl<'a> Context<'a> {
             notifications: Vec::new(),
             close_self: false,
             editor_appends: Vec::new(),
+            style: None,
             viewport: (0.0, 0.0),
         }
     }
@@ -623,6 +627,15 @@ impl<'a> Context<'a> {
     /// Pede ao motor para voltar à tela anterior após o `update`.
     pub fn navigate_back(&mut self) {
         self.nav = Some(Nav::Back);
+    }
+
+    /// Pede ao motor para trocar o estilo visual (ver [`crate::style`]) após o
+    /// `update`: um declarado pelo app com `<link rel="style" as="nome">` ou um
+    /// builtin (`fusion-dark`). Chamado no `init`, vale já no primeiro quadro —
+    /// é como um app aplica o modo claro/escuro que o usuário salvou. Nome
+    /// desconhecido é logado e ignorado, como a ação `style:<nome>`.
+    pub fn set_style(&mut self, name: &str) {
+        self.style = Some(name.to_string());
     }
 
     /// Pede ao motor para exibir um diálogo modal (ver [`crate::dialogs`])

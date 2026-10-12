@@ -286,6 +286,10 @@ pub struct GlacierUI {
     system_appearance: widget::SystemAppearance,
     /// Path of the loaded theme file, kept for hot-reload.
     theme_path: Option<String>,
+    /// Estilos declarados pelo app com `<link rel="style" as="nome"
+    /// href="x.gss">`, por nome. A ação `style:<nome>` e o `set_style(nome)` do
+    /// Luau procuram aqui antes dos builtin (ver [`style`]).
+    app_styles: HashMap<String, AppStyle>,
     /// Data files loaded via `<link rel="data">`, as `(context key, path)`,
     /// kept for hot-reload.
     data_sources: Vec<(String, String)>,
@@ -690,6 +694,7 @@ impl GlacierUI {
             custom_theme: None,
             system_appearance: widget::SystemAppearance::Unknown,
             theme_path: None,
+            app_styles: HashMap::default(),
             data_sources: Vec::new(),
             editors: HashMap::default(),
             editor_synced: HashMap::default(),
@@ -910,20 +915,73 @@ impl GlacierUI {
     /// `style:<nome>`/`style:set`. Nome desconhecido ou falha de aplicação são
     /// logados e ignorados (uma ação de UI não tem para onde propagar `Err`).
     fn apply_style_by_name(&mut self, name: &str) {
-        match style::by_name(name) {
-            Some(s) => {
-                if let Err(e) = self.set_style(s) {
-                    eprintln!("[glacier-ui] style:{name}: falha ao aplicar: {e}");
+        if self.install_style_by_name(name) {
+            let _ = self.reevaluate_all();
+        }
+    }
+
+    /// Instala o estilo `name` sem reavaliar — um `<link rel="style">` do app
+    /// primeiro, depois os builtin. Devolve se instalou. É o que o `init` usa
+    /// (a primeira avaliação vem logo depois, de qualquer jeito); o resto passa
+    /// por [`GlacierUI::apply_style_by_name`].
+    fn install_style_by_name(&mut self, name: &str) -> bool {
+        let wanted = name.trim();
+        if let Some(s) = self.app_styles.get(wanted) {
+            self.custom_theme = Some(s.theme.clone());
+            self.inputs
+                .install_underlay_stylesheet(style::UNDERLAY_KEY.to_string(), s.sheet.clone());
+            self.context_data
+                .insert(style::CONTEXT_KEY.to_string(), wanted.to_string());
+            return true;
+        }
+        match style::by_name(wanted) {
+            Some(s) => match (s.theme(), s.sheet()) {
+                (Ok(theme), Ok(sheet)) => {
+                    self.custom_theme = Some(theme);
+                    self.inputs
+                        .install_underlay_stylesheet(style::UNDERLAY_KEY.to_string(), sheet);
+                    self.context_data
+                        .insert(style::CONTEXT_KEY.to_string(), s.name.to_string());
+                    true
                 }
-            }
+                (Err(e), _) | (_, Err(e)) => {
+                    eprintln!("[glacier-ui] style:{name}: falha ao aplicar: {e}");
+                    false
+                }
+            },
             None => {
-                let known: Vec<&str> = style::all().iter().map(|s| s.name).collect();
+                let mut known: Vec<&str> = self.app_styles.keys().map(String::as_str).collect();
+                known.sort_unstable();
+                known.extend(style::all().iter().map(|s| s.name));
                 eprintln!(
-                    "[glacier-ui] style:{name}: estilo desconhecido (builtin: {})",
+                    "[glacier-ui] style:{name}: estilo desconhecido (conhecidos: {})",
                     known.join(", ")
                 );
+                false
             }
         }
+    }
+
+    /// Lê um `<link rel="style" as="nome" href="x.gss">`: um `.gss` cujo `:root`
+    /// traz a paleta (`--background`, `--text`, `--primary`, `--success`,
+    /// `--danger` e, opcional, `--warning` — os campos do `theme.json`) e
+    /// quaisquer outras regras e tokens. Registra o estilo pelo nome; se ele é
+    /// o ativo (hot-reload), reinstala.
+    fn load_style_file(&mut self, name: &str, path: &str) -> Result<()> {
+        let content = self
+            .assets
+            .read_to_string(path)
+            .map_err(|e| GlacierError::io("estilo", path, e))?;
+        let sheet = stylesheet::StyleSheet::parse_in(&content, Some(path), 1)?;
+        let theme = theme_from_tokens(name, &sheet.variables, path)?;
+        let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
+        self.file_mod_times.insert(style_key(path), mod_time);
+        self.app_styles
+            .insert(name.to_string(), AppStyle { path: path.to_string(), theme, sheet });
+        if self.context_data.get(style::CONTEXT_KEY).map(String::as_str) == Some(name) {
+            self.install_style_by_name(name);
+        }
+        Ok(())
     }
 
     /// Reads, parses and installs (or replaces in place) an external `.gss`
@@ -1528,8 +1586,14 @@ impl GlacierUI {
             let mut ctx = component::Context::new(&mut self.context_data);
             ctx.set_viewport(self.inputs.viewport());
             comp.init(&mut ctx);
-            ctx.streams
+            (ctx.streams, ctx.style)
         };
+        let (init_streams, init_style) = init_streams;
+        // `set_style` no `init`: instala já, sem reavaliar — a primeira
+        // avaliação da tela vem depois e nasce com o estilo certo.
+        if let Some(name) = init_style {
+            self.install_style_by_name(&name);
+        }
         for req in init_streams {
             self.active_streams.insert((name.to_string(), req.id), req);
         }
@@ -2924,6 +2988,7 @@ impl GlacierUI {
             notifications,
             close_self,
             editor_appends,
+            style_req,
         ) = if let Some(comp) = self.components.get_mut(owner) {
             let mut ctx = component::Context::new(&mut self.context_data);
             ctx.set_viewport(self.inputs.viewport());
@@ -2943,10 +3008,15 @@ impl GlacierUI {
                 ctx.notifications,
                 ctx.close_self,
                 ctx.editor_appends,
+                ctx.style,
             )
         } else {
             return iced::Task::none();
         };
+
+        // `set_style(nome)` do handler: troca o estilo (paleta + underlay). A
+        // reavaliação do fim deste método já pega o estilo novo.
+        let style_changed = style_req.is_some_and(|name| self.install_style_by_name(&name));
 
         // Appends incrementais a <textarea> (append_textarea): insere `text` no
         // fim do Content mantido, sem recriar (preserva scroll; O(text)), e
@@ -3005,10 +3075,11 @@ impl GlacierUI {
             self.pending_windows.push(spec);
         }
 
-        // Mudança visual imediata? Nav/dialog/toast precisam refletir na hora,
+        // Mudança visual imediata? Nav/dialog/toast/estilo precisam refletir na hora,
         // então cancelam a coalescência (senão um toast pedido por um handler de
         // stream poderia demorar até um tick para aparecer).
-        let visual_change = nav.is_some() || dialog.is_some() || !toasts.is_empty();
+        let visual_change =
+            nav.is_some() || dialog.is_some() || !toasts.is_empty() || style_changed;
 
         // Navegação com ganchos: `on_leave` na tela que sai (ainda atual) e
         // fecha seus streams `scope = "screen"`; troca; `on_enter` na que chega.
@@ -3420,12 +3491,22 @@ impl GlacierUI {
                     self.load_data_file(&key, href)?;
                 }
                 "theme" => self.load_theme_file(href)?,
+                "style" => {
+                    let style_name = name.clone().ok_or_else(|| GlacierError::Link {
+                        component: component.to_string(),
+                        message: format!(
+                            "<link rel=\"style\" href=\"{href}\"> precisa de um atributo `as`/`name` \
+                             com o nome do estilo (o de `style:<nome>` e `set_style(nome)`)"
+                        ),
+                    })?;
+                    self.load_style_file(&style_name, href)?;
+                }
                 other => {
                     return Err(GlacierError::Link {
                         component: component.to_string(),
                         message: format!(
                             "rel=\"{other}\" (href=\"{href}\") não existe; os suportados são \
-                             stylesheet, import, component, data e theme"
+                             stylesheet, import, component, data, theme e style"
                         ),
                     });
                 }
@@ -4648,6 +4729,30 @@ impl GlacierUI {
             }
         }
 
+        // Reload a changed `<link rel="style">` file (reinstalled if active).
+        let styles: Vec<(String, String)> =
+            self.app_styles.iter().map(|(n, s)| (n.clone(), s.path.clone())).collect();
+        for (name, path) in styles {
+            if let Some(modified) = self.assets.modified(&path) {
+                let changed = self
+                    .file_mod_times
+                    .get(&style_key(&path))
+                    .is_none_or(|&last| modified > last);
+                if changed {
+                    match self.load_style_file(&name, &path) {
+                        Ok(()) => {
+                            reloaded.push(path.clone());
+                            dirty = true;
+                        }
+                        Err(e) => eprintln!(
+                            "Style '{}' has an error, keeping the previous version: {}",
+                            path, e
+                        ),
+                    }
+                }
+            }
+        }
+
         // Reload a changed `<link rel="theme">` palette file.
         if let Some(path) = self.theme_path.clone()
             && let Some(modified) = self.assets.modified(&path)
@@ -4781,6 +4886,44 @@ fn data_key(path: &str) -> String {
 }
 fn theme_key(path: &str) -> String {
     format!("theme::{}", path)
+}
+fn style_key(path: &str) -> String {
+    format!("style::{}", path)
+}
+
+/// Um estilo declarado pelo app (`<link rel="style">`): o arquivo (para o
+/// hot-reload), a paleta já como `iced::Theme` e a folha que entra como
+/// underlay.
+#[derive(Debug, Clone)]
+struct AppStyle {
+    path: String,
+    theme: iced::Theme,
+    sheet: stylesheet::StyleSheet,
+}
+
+/// A paleta de um `<link rel="style">`, tirada dos tokens do `:root` dele —
+/// os mesmos campos (e o mesmo default de `warning`) do `theme.json`.
+fn theme_from_tokens(name: &str, vars: &HashMap<String, String>, path: &str) -> Result<iced::Theme> {
+    let bad = |message: String| GlacierError::Theme { path: path.to_string(), message };
+    let color = |field: &str| -> Result<iced::Color> {
+        let hex = vars.get(&format!("--{field}")).ok_or_else(|| {
+            bad(format!(
+                "falta o token '--{field}' no :root (um estilo declara a paleta: \
+                 --background, --text, --primary, --success, --danger e, opcional, --warning)"
+            ))
+        })?;
+        widget::parse_hex_color(hex.trim())
+            .ok_or_else(|| bad(format!("'{hex}' não é um hex válido para '--{field}'")))
+    };
+    let palette = iced::theme::Palette {
+        background: color("background")?,
+        text: color("text")?,
+        primary: color("primary")?,
+        success: color("success")?,
+        warning: color("warning").unwrap_or_else(|_| widget::parse_hex_color("#D29922").unwrap()),
+        danger: color("danger")?,
+    };
+    Ok(iced::Theme::custom(name.to_string(), palette))
 }
 
 /// Milissegundos desde a época. É o relógio do `<delaybutton>`, e ele mede

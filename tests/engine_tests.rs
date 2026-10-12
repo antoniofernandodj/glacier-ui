@@ -7480,3 +7480,89 @@ fn exemplo_seletores_estiliza_pelo_lugar_na_arvore() {
         );
     }
 }
+
+// ── `<link rel="style">`: estilos declarados pelo app ──────────────────────
+
+#[test]
+fn link_rel_style_registra_e_set_style_troca() {
+    std::fs::create_dir_all("templates").ok();
+    let claro = "templates/test_estilo_claro.gss";
+    let escuro = "templates/test_estilo_escuro.gss";
+    std::fs::write(
+        claro,
+        ":root { --background: #EFEFEF; --text: #202020; --primary: #308CC6; \
+         --success: #2D7D46; --danger: #B4443C; --surface: #FFFFFF; }",
+    )
+    .unwrap();
+    std::fs::write(
+        escuro,
+        ":root { --background: #1E1F22; --text: #DFE1E5; --primary: #3574F0; \
+         --success: #5FB865; --danger: #E06C75; --surface: #2B2D30; }",
+    )
+    .unwrap();
+    let tpl = "templates/test_estilo.gv";
+    std::fs::write(
+        tpl,
+        envolve(
+            r##"
+        <link rel="style" as="qt-claro" href="templates/test_estilo_claro.gss" />
+        <link rel="style" as="qt-escuro" href="templates/test_estilo_escuro.gss" />
+        <script>
+          function init() set_style("qt-escuro") end
+          function clarear() set_style("qt-claro") end
+        </script>
+        <Text content="x" />
+        "##,
+        ),
+    )
+    .unwrap();
+
+    let mut motor = GlacierUI::new();
+    motor.register_component("estilos", tpl).unwrap();
+    motor.set_initial_screen("estilos");
+    let estilo = |m: &GlacierUI| m.get_data(glacier_ui::style::CONTEXT_KEY).cloned();
+
+    // `set_style` no `init` já vale antes do primeiro quadro.
+    assert_eq!(estilo(&motor).as_deref(), Some("qt-escuro"));
+    let bg = motor.theme().palette().background;
+    assert!((bg.r - 0x1E as f32 / 255.0).abs() < 1e-6, "fundo do escuro");
+
+    // De um handler Luau.
+    let _ = motor.dispatch(&EngineMessage::UiClick("clarear".into()));
+    assert_eq!(estilo(&motor).as_deref(), Some("qt-claro"));
+    let bg = motor.theme().palette().background;
+    assert!((bg.r - 0xEF as f32 / 255.0).abs() < 1e-6, "fundo do claro");
+
+    // A ação builtin acha o estilo do app, e um builtin continua valendo.
+    let _ = motor.dispatch(&EngineMessage::UiClick("style:qt-escuro".into()));
+    assert_eq!(estilo(&motor).as_deref(), Some("qt-escuro"));
+    let _ = motor.dispatch(&EngineMessage::UiClick("style:fusion".into()));
+    assert_eq!(estilo(&motor).as_deref(), Some("fusion"));
+
+    for f in [claro, escuro, tpl] {
+        std::fs::remove_file(f).ok();
+    }
+}
+
+#[test]
+fn link_rel_style_sem_paleta_e_erro() {
+    std::fs::create_dir_all("templates").ok();
+    let gss = "templates/test_estilo_incompleto.gss";
+    std::fs::write(gss, ":root { --background: #EFEFEF; --text: #202020; }").unwrap();
+    let tpl = "templates/test_estilo_incompleto.gv";
+    std::fs::write(
+        tpl,
+        envolve(
+            r##"
+        <link rel="style" as="x" href="templates/test_estilo_incompleto.gss" />
+        <Text content="x" />
+        "##,
+        ),
+    )
+    .unwrap();
+    let mut motor = GlacierUI::new();
+    let erro = motor.register_component("incompleto", tpl).unwrap_err().to_string();
+    assert!(erro.contains("--primary"), "{erro}");
+    std::fs::remove_file(gss).ok();
+    std::fs::remove_file(tpl).ok();
+}

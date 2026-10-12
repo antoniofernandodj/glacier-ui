@@ -316,6 +316,16 @@ function navigate_back()
     })
 end
 
+-- Troca o estilo visual: um `<link rel="style" as="nome">` do app ou um builtin
+-- (`fusion`, `fusion-dark`…). NÃO suspende: cede um pedido e o motor aplica
+-- depois do handler. No `init`, vale já no primeiro quadro.
+function set_style(name)
+    return coroutine.yield({
+        __glacier_style = true,
+        name = name,
+    })
+end
+
 -- Abre uma NOVA JANELA. NÃO suspende: cede um pedido, o daemon sobe um motor
 -- independente para a janela e retoma na hora. `opts` é uma string (caminho do
 -- arquivo) ou uma tabela:

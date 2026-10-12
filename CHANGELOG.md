@@ -10,6 +10,27 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+### Novidades
+
+- **Estilos declarados pelo app: `<link rel="style" as="nome" href="x.gss">`.** O modo
+  claro/escuro sem Rust. Um estilo é um `.gss` cujo `:root` traz a paleta
+  (`--background`, `--text`, `--primary`, `--success`, `--danger` e, opcional,
+  `--warning` — os campos do `theme.json`) mais os tokens e as regras de tag que o app
+  quiser; aplicado, a paleta vira o tema do iced e a folha entra como underlay, como num
+  builtin. A ação `style:<nome>` e o `<select on_change="style:set">` passam a achar os
+  estilos do app antes dos builtin. Faltar um token da paleta é erro na carga, com o nome
+  dele. O arquivo entra no hot-reload (e o ativo é reinstalado).
+- **`set_style(nome)` no Luau** (e `Context::set_style` no Rust): troca o estilo de dentro
+  de um handler. No `init`, vale antes do primeiro quadro — o app aplica o tema que o
+  usuário salvou sem piscar o padrão. Uma troca vinda de um handler de stream reavalia na
+  hora, como navegação e toast.
+- **`<textinput>` e `<textarea>` aceitam fundo, borda e cor do texto na regra base.** Antes
+  só os estados (`:hover`, `:focus`, `:disabled`, `:invalid`) chegavam ao widget; o
+  `background` da regra base era pintado pelo `container` genérico **atrás** do editor, que
+  o cobria com a cor da paleta — um campo branco sobre janela cinza era impossível. Agora
+  os campos pintam fundo e borda no próprio widget, e o `container` genérico não os
+  embrulha mais por isso.
+
 ## CLI 0.6.5 · vscode-gv 0.22.0 — 2026-10-12
 
 - **Extensão do VS Code: caminho que não resolve vira aviso.** Um `src`/`href`/`source` que

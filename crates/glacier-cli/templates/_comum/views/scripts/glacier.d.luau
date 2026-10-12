@@ -202,6 +202,9 @@ declare function progress_close(): ()
 
 declare function navigate(tela: string): ()
 declare function navigate_back(): ()
+-- Troca o estilo visual: um `<link rel="style" as="nome">` do app ou um builtin
+-- (`fusion`, `fusion-dark`…). Não suspende; no `init`, vale já no 1º quadro.
+declare function set_style(nome: string): ()
 
 declare function open_window(opts: any): ()
 declare function broadcast(event: string, payload: any?): ()
