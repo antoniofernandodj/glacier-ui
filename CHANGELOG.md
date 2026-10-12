@@ -10,6 +10,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## CLI 0.6.4 — 2026-10-11
+
+- **CLI: o `AGENTS.md` dos projetos novos alcança a 0.122.** Ele parava na 0.117.0, e
+  quem gerava um projeto com a 0.6.3 recebia um guia sem o que veio depois:
+  - **`l"""…"""`** (string de linhas do `.gvb`), com a tabela das três formas de string;
+  - **`<app>` da 0.119**: `application_id`, `font`, `antialiasing`, `reload_period`,
+    `toast_period` e `<font src family>` no `resources` do app. As tabelas "o mínimo de
+    Rust" e "migrando um `main.rs`" deixam de mandar essas chamadas para o Rust;
+  - **`open_window(…, { decorations = false })`** (0.118), no lugar do `.child_window`;
+  - **`glacier_window_maximized`** (0.120), com o exemplo da titlebar;
+  - **`<tablecolumn>`** (0.121): corpo por linha, `sort_key`, `row_key`, `var`,
+    `header_class`/`row_class`, cabeçalho fixo e o conteúdo de "sem linhas";
+  - **telas do `<app>` registradas sob demanda** (0.117.2): a seção do `init` dizia que
+    todo `init` roda no start, e o `title` do manifesto vence o do arquivo.
+
 ## CLI 0.6.3 · vscode-gv 0.21.2 · glacier-gss 0.2.0 — 2026-10-08
 
 - **CLI: os projetos novos pedem `glacier-ui = "0.122"`, e o `AGENTS.md` deles ensina os

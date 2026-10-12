@@ -173,6 +173,32 @@ muda é só a grafia, e cabe em dez regras.
 
    Como não é XML, `<`, `>` e `&` não se escapam. (No `.gva`, o texto do
    `<text>` é filho; é a tradução mecânica que o troca por `content`.)
+
+   Quando a quebra de linha **é conteúdo** (um YAML num `placeholder`, um
+   JSON), use **`l"""…"""`**: mantém as quebras e tira o recuo comum. São três
+   formas, e o que muda é o que a quebra vale:
+
+   | forma | quebra de linha | recuo | `@nome` |
+   |---|---|---|---|
+   | `"…"` | preservada | preservado (cola na margem) | interpola |
+   | `"""…"""` | **dobrada** num espaço (prosa) | some junto | interpola |
+   | `l"""…"""` | **preservada** (linhas) | o recuo comum sai | interpola |
+
+   ```
+   textarea(
+     placeholder = l"""
+       services:
+         app:
+           image: @imagem
+     """,
+   )
+   ```
+
+   O `l` é de *linhas*, não de "raw": o `@nome` continua interpolando (`@@` é
+   arroba literal). A primeira e a última linha somem se forem só espaço; o
+   recuo que passar do comum fica; `"` entra sem escape; vale em valor de
+   atributo, não no corpo cru de `script`/`style`. O `"…"` não interpreta `\n`
+   (só `\"` e `\\` são escapes).
 7. **`script` e `style` levam o corpo cru em `"""`**, depois do cabeçalho — a única
    string solta que existe: sem `@`, sem escape, sem colapso, porque é Luau e
    GSS. `script """ … """` (e `script(src = "x.luau")` quando
@@ -339,6 +365,17 @@ Nunca chegam ao seu código — e por isso não precisam de handler:
 | `open:{chave}` | abre a URL/arquivo que a chave guarda |
 | `textarea_end:doc` / `textarea_top:doc` | move o cursor do `<textarea>` |
 | `style:escuro` | troca o estilo builtin ativo |
+
+O `window:maximize` só **alterna**. O estado atual o motor publica sozinho na
+chave **`glacier_window_maximized`** (`"true"`/`"false"`), em cada janela, ao
+abrir e a cada resize, só quando muda. Vale também quando quem maximizou foi o
+gerenciador de janelas (Super+↑, snap). É o que deixa uma titlebar própria
+trocar o ícone:
+
+```xml
+<button if="{glacier_window_maximized}" on_click="window:maximize" text="❐" />
+<button else on_click="window:maximize" text="▢" />
+```
 
 E um que é o oposto — `app:` **desmarca** a ação de quem a repassou:
 
@@ -592,15 +629,17 @@ procure a forma no cabeçalho do template.
 | `.main_template("views/app.gvb")` | **é a forma markup.** Sem ela, o runner abre `views/app.*` |
 | `.title("Meu app")` | `<screen title="Meu app">` — **vence** o `.title` |
 | `.main_size(900.0, 600.0)` | `<screen size="900 600">` — **vence** o `.main_size` |
-| `.main_window(Settings)` | `<screen decorations="false" icon="…" min_size="…" max_size="…" fixed_size="…" resizable="false">`. Posição inicial e `platform_specific` só em Rust |
-| `.child_window(f)` | cada janela filha tem o próprio `<screen>` |
+| `.main_window(Settings)` | `<app decorations="false" icon="…" min_size="…" max_size="…" fixed_size="…" resizable="false" application_id="meu-app">` (ou num `<screen>` avulso, raiz do arquivo). Posição inicial e `platform_specific` só em Rust |
+| `.child_window(f)` | tamanho e moldura de cada filha na chamada: `open_window("nome", { size = "420 300", decorations = false })`; o resto (`platform_specific`…) só em Rust |
 | `.single_instance("id")` | `<app id="id" single_instance="true" />` |
 | `.remember_window_geometry(true)` | `<app id="id" remember_geometry="true" />` |
 | `.storage_dir(dir)` | sai do `id` do `<app>` (`~/.local/share/<id>`); outro diretório só em Rust |
 | `.tray(cfg)` + `.on_tray(f)` | `<tray>` com `<item>`/`<check>`/`<separator>`; `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho |
 | `.style(style::FUSION)` | `on_click="style:fusion"` num botão troca em tempo de execução; o estilo **inicial** só em Rust |
-| `.font(bytes)`, `.font_named(…)`, `.default_font(…)` | só em Rust (bytes do binário); depois, `font="Inter"` / `font_family: Inter` |
-| `.antialiasing`, `.reload_period`, `.toast_period`, `.assets`, `.lua_extension`, `.on_message`, `.on_close` | só em Rust |
+| `.font_named("Inter", bytes)` / `.default_font(…)` | `<font src="views/assets/fonts/Inter.ttf" family="Inter" />` no `<resources>` do `<app>`, e `<app font="Inter">` para torná-la a padrão. Depois, `font="Inter"` / `font_family: Inter`. Só os bytes embutidos com `include_bytes!` ficam em Rust |
+| `.antialiasing(false)` | `<app antialiasing="false">` |
+| `.reload_period(d)` / `.toast_period(d)` | `<app reload_period="500" toast_period="250">` (milissegundos) |
+| `.assets`, `.lua_extension`, `.on_message`, `.on_close` | só em Rust |
 
 Dentro de um `.main(|motor| …)`:
 
@@ -814,7 +853,7 @@ largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
 
 ## O catálogo de widgets
 
-São **110 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
+São **111 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
@@ -971,18 +1010,36 @@ runner lê o `<app>` **antes** de abrir qualquer janela, no template principal
 | `resizable` | `"false"` trava o redimensionamento |
 | `decorations` | `"false"` tira a moldura do sistema, para uma titlebar própria com `window:drag`/`window:close` |
 | `icon` | ícone da janela (herdado pelas filhas), com o caminho de um `<link href>` |
+| `application_id` | o app id do Linux (Wayland/X11: agrupa as janelas no dock e casa com o `.desktop`); vale para as filhas também |
+| `font` | a família padrão de todas as janelas — uma registrada por `<font>` (abaixo) ou pelo builder |
+| `antialiasing` | `"false"` desliga o MSAA |
+| `reload_period` / `toast_period` | período do hot-reload e da expiração de toasts, em **milissegundos** inteiros positivos |
+
+**Fontes no markup.** `<font src="views/assets/fonts/Inter.ttf" family="Inter" />`
+no `<resources>` do `<app>` registra a fonte; o arquivo é lido pela mesma fonte
+de assets dos templates (vale num binário com `.assets(…)`). Depois, `font="Inter"`
+no markup, `font_family: Inter` no `.gss` ou `<app font="Inter">` como padrão.
+`<font>` fora do `<resources>` do `<app>`, `<font>` sem `src` e um período que não
+seja inteiro positivo são erro de parse.
 
 | na `<screen>` | o que faz |
 |---|---|
 | `name` | o nome de `navigate_to`/`open_window`; com `src`, vale o nome do arquivo |
 | `initial="true"` | a tela que abre primeiro (uma só; sem nenhuma vale a primeira) |
-| `title` | título da barra; acompanha a navegação |
+| `title` | título da barra; acompanha a navegação. Numa tela com `src`, o do manifesto **vence** o do arquivo |
 | `src` | o arquivo da tela (raiz `<screen>`/`<component>`); sem `src` o corpo é escrito ali. Sem corpo nem `src`, a tela é servida por um `impl Component` registrado no `.main` |
 
+**As telas são registradas sob demanda.** No boot entra só a `initial`; as
+outras são registradas na primeira navegação até elas (ou no `open_window`).
+Por isso o `init` de uma tela secundária **não** roda no start, e um componente
+declarado no `<resources>` dela só existe depois disso. Uma janela aberta numa
+tela do app (`open_window("ajustes", …)`) carrega só as declarações globais e
+essa tela — o `<script>` da principal não roda de novo nela.
+
 A `<screen>` sob o `<app>` é **só conteúdo**: `size`, `icon` e o resto da janela
-nela são erro de parse. O tamanho de uma janela **filha** vai na chamada —
-`open_window("ajustes", { size = "420 300" })`, onde o nome é o de uma tela do
-app. `<app>` e `<tray>` **só existem na raiz**; dentro do `<resources>` de uma
+nela são erro de parse. O tamanho e a moldura de uma janela **filha** vão na
+chamada — `open_window("ajustes", { size = "420 300", decorations = false })`,
+onde o nome é o de uma tela do app. `<app>` e `<tray>` **só existem na raiz**; dentro do `<resources>` de uma
 tela são erro. Os nomes de componente são do app inteiro: repetir um (numa tela
 e no `<resources>` do app, ou em duas telas) é erro.
 
@@ -1007,8 +1064,9 @@ A `<tray>` pede a feature `tray` do `glacier-ui` no `Cargo.toml`, e com ela
   acompanha quando ela muda.
 
 O builder em Rust (`.single_instance`, `.remember_window_geometry`,
-`.storage_dir`, `.tray` + `.on_tray`, `.main_window`) continua existindo e
-**vence** o markup onde é usado — ele é para o que o markup não expressa.
+`.storage_dir`, `.tray` + `.on_tray`, `.main_window`, `.antialiasing`,
+`.toast_period`, `.default_font`…) continua existindo e **vence** o markup onde é
+usado — ele é para o que o markup não expressa.
 
 **Arquivos do app: `__data_dir`.** Com o diretório de dados definido (pelo
 `<app id>` ou pelo `.storage_dir`), o motor o semeia na chave `__data_dir` de
@@ -1029,7 +1087,10 @@ Rust, `lua_extension`, fontes embutidas, um contorno de driver):
 | `.main(\|m\| { m.register_component("app", "views/app.gva"); m.set_initial_screen("app") })` | nada — o runner abre `views/app.gva`; outro arquivo é `.main_template("views/x.gva")` |
 | `.main_window(Settings { decorations: false, … })` | `<app decorations="false">` |
 | `.main_window(Settings { icon: …, … })` + `include_bytes!` | `<app icon="views/assets/icone.png">` — o arquivo vai para `views/`, que o pacote leva |
-| `.child_window(\|_, s\| s.decorations = false)` | só em Rust (a `<screen>` não leva atributo de janela) |
+| `.child_window(\|_, s\| s.decorations = false)` | `open_window("tela", { decorations = false })` na chamada (a `<screen>` não leva atributo de janela) |
+| `.font_named("Inter", include_bytes!(…))` + `.default_font(…)` | `<font src="views/assets/fonts/Inter.ttf" family="Inter" />` no `<resources>` do `<app>` + `<app font="Inter">` |
+| `.antialiasing(false)`, `.toast_period(…)`, `.reload_period(…)` | `<app antialiasing="false" toast_period="250" reload_period="500">` |
+| `Settings { platform_specific: … application_id … }` | `<app application_id="meu-app">` |
 | `exit_on_close_request: false` | nada — o runner liga quando precisa |
 | `.storage_dir(diretorio_de_dados())` | `<app id="meu-app">` |
 | `.remember_window_geometry(true)` | `<app … remember_geometry="true">` |
@@ -1887,6 +1948,58 @@ quando os cabeçalhos não importam.
 | `row_height` | `0` (automático) |
 | `virtualize` | ver "Listas longas" |
 | `on_select` | |
+| `var` | `row` — o nome da linha no corpo de um `<tablecolumn>` (abaixo) |
+| `row_key` | o campo que identifica a linha para `value`/`on_select`. Vazio = `id`, ou a primeira coluna, ou o índice |
+| `header_class` / `row_class` | classes da faixa do cabeçalho e de cada linha (abaixo) |
+
+#### `<tablecolumn>` — colunas no markup, com o modelo da célula
+
+No lugar do `columns`, as colunas podem ser **filhas** da tabela, e cada uma
+pode ter **corpo**: o modelo da célula, avaliado uma vez por linha (já na ordem
+do `sort`) com a linha em `{<var>.campo}`. Qualquer nó serve — badge, botão,
+componente. É o que dispensa montar a tabela à mão com `row`s quando a célula
+não é só texto.
+
+```xml
+<tableview :items="linhas" var="c" :sort="ordem" :value="sel" row_key="id"
+           header_class="cab" row_class="lin" height="fill">
+  <tablecolumn key="nome" label="NOME" class="col_nome">
+    <text class="nome">{c.nome}</text>
+  </tablecolumn>
+  <!-- sem corpo: a célula é o texto do campo, no estilo da row_class -->
+  <tablecolumn key="imagem" label="IMAGEM" width="fill" />
+  <tablecolumn key="tamanho" sort_key="tamanho_bytes" label="TAMANHO" width="100" align="right" />
+  <!-- sem key: a coluna não ordena; o clique no botão é dele, não da linha -->
+  <tablecolumn label="AÇÃO" width="120" align="right">
+    <button class="remover" on_click="remover:{c.id}" text="Remover" />
+  </tablecolumn>
+
+  <!-- filhos que NÃO são tablecolumn: o conteúdo de "sem linhas" -->
+  <text class="vazio">Nenhum item.</text>
+</tableview>
+```
+
+| atributo do `<tablecolumn>` | o que faz |
+|---|---|
+| `key` | o campo: o texto da célula sem corpo e o que o `sort` ordena. Sem `key` (nem `sort_key`), a coluna não ordena |
+| `sort_key` | ordena por **outro** campo: mostra `"1.2 GB"`, ordena por `tamanho_bytes` |
+| `label` | o rótulo do cabeçalho (vazio = o `key`) |
+| `width` | a trilha: número fixa, `fill` reparte a sobra, ausente mede o conteúdo. Vale pela `class` também, inclusive em `@media` |
+| `align` | `left` / `center` / `right`; vale para o corpo também |
+| `hidden` | `true` (inline ou pela `class`) tira a coluna inteira — `@media (max-width: 800) { .col_dono { hidden: true; } }` |
+
+`header_class` e `row_class` pintam a faixa **de ponta a ponta** pela grade:
+
+- `background`, `border_radius` e o `:hover` da linha; `border_color`/`border_width`
+  na `row_class` viram o **fio sob a linha**;
+- o `padding` vale **para a linha** — à esquerda só na primeira coluna, à
+  direita só na última —, e `spacing` é o vão entre colunas;
+- `color`/`size`/`bold` estilizam os rótulos e as células **sem corpo**;
+- o clique de seleção é da linha; um botão dentro da célula continua sendo dele.
+
+Com `height` e alguma decoração (`<tablecolumn>` ou uma das classes), o
+**cabeçalho fica preso no topo** enquanto o corpo rola. Um `<tableview>` sem
+`<tablecolumn>` e sem as classes desenha exatamente como antes.
 
 **`<tableheader columns="…" widths="cols" />`** — o mesmo cabeçalho **sem** o
 corpo, para quem monta as linhas à mão com um `for-each`. Compartilhar a chave
@@ -2933,14 +3046,17 @@ function init(): ()
 end
 ```
 
-`init` é a única função com nome reservado, e ela roda quando o componente é
-**registrado** — ou seja, na subida do app, no `main()`. Duas consequências:
+`init` roda quando o componente é **registrado**, uma vez. Quando isso acontece
+depende de quem registra:
 
-- Se o `main()` registra três telas, os três `init` rodam no start, mesmo o das
-  telas que ninguém abriu ainda.
-- Navegar para uma tela **não** roda o `init` dela de novo. Se algo precisa
-  acontecer toda vez que a tela aparece, dispare de uma ação (o clique que
-  navegou), não do `init`.
+- **Telas de um `<app>`** são registradas sob demanda: a `initial` no start, as
+  outras na primeira navegação até elas (ou no `open_window`). O `init` de uma
+  tela que ninguém abriu **não** roda.
+- **Telas registradas à mão no `.main(|motor| …)`** rodam o `init` no start,
+  todas, mesmo as que ninguém abriu ainda.
+- Navegar de volta para uma tela **não** roda o `init` dela de novo. O que
+  precisa acontecer toda vez que a tela aparece vai em `on_enter` (ver "Ciclo
+  de vida"), não no `init`.
 
 Semear no `init` toda chave que o markup lê é o hábito que evita telas com
 buracos: um `{total}` que ninguém escreveu renderiza vazio, sem aviso.
@@ -3374,6 +3490,7 @@ navigate_back()          -- volta uma no histórico
 open_window("views/detalhe.gva")
 open_window({ file = "views/detalhe.gva", title = "Detalhe", width = 400, height = 300 })
 open_window({ component = "perfil", title = "Perfil" })   -- já registrado
+open_window("ajustes", { size = "420 300", decorations = false })  -- uma tela do <app>, sem moldura
 
 broadcast("item_criado", { id = "42", nome = "api" })     -- para as OUTRAS janelas
 close_window()                                            -- fecha a própria
@@ -3383,6 +3500,11 @@ close_window()                                            -- fecha a própria
 carga)` de cada outra janela. Uma tabela vira JSON na ida e chega decodificada
 do outro lado. O par `broadcast` + `close_window` é como uma janela auxiliar
 (um formulário) avisa e se dispensa.
+
+`decorations = false` abre a filha sem a moldura do sistema, para uma titlebar
+própria com `window:drag`/`window:close` (vale também para a webview). Em Rust,
+`WindowSpec::decorations(bool)`. A moldura de uma filha não precisa mais de um
+`.child_window(…)`.
 
 #### Ciclo de vida
 
