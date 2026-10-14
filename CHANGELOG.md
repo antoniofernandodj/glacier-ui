@@ -10,6 +10,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.122.1 — 2026-10-14
+
+### Corrigido
+
+- **`<popup>`/`<popover>`: o hover da camada de baixo não vaza mais para o painel.** Numa zona
+  sem widget interativo (título, padding, espaço entre botões) o painel devolvia
+  `Interaction::None`, e o `iced` só esconde o cursor da árvore de baixo quando o overlay
+  devolve algo diferente disso — a linha da tabela debaixo continuava mostrando o ponteiro de
+  clique. Agora, com o cursor sobre o painel, ele devolve no mínimo `Idle`.
+
 ### Novidades
 
 - **Estilos declarados pelo app: `<link rel="style" as="nome" href="x.gss">`.** O modo

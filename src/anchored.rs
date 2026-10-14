@@ -590,13 +590,24 @@ where
         cursor: mouse::Cursor,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
+        let interacao = self.content.as_widget().mouse_interaction(
             self.tree,
             layout,
             cursor,
             &layout.bounds(),
             renderer,
-        )
+        );
+
+        // O `iced` só esconde o cursor da árvore de baixo quando o overlay
+        // devolve algo diferente de `None`. Numa zona "morta" do painel (título,
+        // padding, espaço entre botões) o conteúdo devolve `None`, e o hover da
+        // tabela/botão que está DEBAIXO vazava para cima do painel. `Idle` é o
+        // cursor padrão, mas conta como "o overlay tratou o cursor aqui".
+        if interacao == mouse::Interaction::None && cursor.is_over(layout.bounds()) {
+            mouse::Interaction::Idle
+        } else {
+            interacao
+        }
     }
 
     fn draw(
