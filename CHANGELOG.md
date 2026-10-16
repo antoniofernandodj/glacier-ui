@@ -10,6 +10,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.122.2 — 2026-10-16
+
+### Corrigido
+
+- **`<scrollable>`: a roda do mouse rola com suavidade, não mais em degraus.** O `scrollable` do
+  iced converte cada clique da bolinha em 60 px fixos e aplica o salto na hora (há um
+  `TODO: Configurable speed/friction` no código dele); só o touchpad, que chega em pixels, era
+  fluido. Um widget novo (`smooth_scroll`) envolve o `scrollable`, guarda a distância pedida
+  pela roda e a entrega ao filho um pedaço por quadro (decaimento exponencial, ~0,1 s). A
+  distância total por clique não muda (60 px por passo), e limites, barra de rolagem e
+  virtualização continuam a cargo do iced. Touchpad e arrasto da barra passam direto.
+
 ## glacier-ui 0.122.1 — 2026-10-14
 
 ### Corrigido

@@ -4821,9 +4821,12 @@ pub fn render_node<'a>(
                     }
                 });
             }
-            s.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .into()
+            // Roda do mouse suave (o scrollable do iced rola em degraus de 60 px).
+            crate::smooth_scroll::smooth_scroll(
+                s.width(parse_length(&node.width))
+                    .height(parse_length(&node.height)),
+            )
+            .into()
         }
         NodeType::Checkbox {
             label,
