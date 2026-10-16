@@ -107,6 +107,7 @@ pub mod render_inputs;
 pub mod reveal;
 pub mod shapes;
 mod single_instance;
+mod no_shrink;
 mod smooth_scroll;
 pub mod spinner;
 pub mod style;

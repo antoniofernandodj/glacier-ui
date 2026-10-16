@@ -4446,7 +4446,14 @@ pub fn render_node<'a>(
             if node.padding.is_some() {
                 btn = btn.padding(parse_padding(&node.padding));
             }
-            btn.into()
+            // Botão de largura `Shrink` não encolhe abaixo do rótulo: sem isso,
+            // numa linha apertada o iced entrega aos últimos botões só o que
+            // sobrou e o texto vaza. Ver `crate::no_shrink`.
+            if matches!(parse_length(&node.width), Length::Shrink) {
+                crate::no_shrink::no_shrink(btn).into()
+            } else {
+                btn.into()
+            }
         }
         NodeType::TextInput {
             placeholder,

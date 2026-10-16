@@ -10,6 +10,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.122.3 — 2026-10-16
+
+### Corrigido
+
+- **`<button>`: não encolhe mais abaixo do próprio rótulo.** Numa `<row>` apertada o iced
+  entrega aos últimos filhos `Shrink` só o que sobrou da largura; o botão ficava menor que o
+  texto, o texto vazava e o resto da linha embaralhava. Um widget novo (`no_shrink`) mede o
+  botão com largura ilimitada e devolve o tamanho natural: se a linha não cabe, o excesso
+  transborda (a janela corta) em vez de espremer o texto. Vale só para botão de largura
+  `Shrink`; `fill` e larguras fixas seguem como o markup pede. Para a linha se acomodar, use
+  `<flow>` (quebra em várias linhas), que já existia.
+
 ## glacier-ui 0.122.2 — 2026-10-16
 
 ### Corrigido
