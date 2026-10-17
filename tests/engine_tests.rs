@@ -7561,7 +7561,10 @@ fn link_rel_style_sem_paleta_e_erro() {
     )
     .unwrap();
     let mut motor = GlacierUI::new();
-    let erro = motor.register_component("incompleto", tpl).unwrap_err().to_string();
+    let erro = motor
+        .register_component("incompleto", tpl)
+        .unwrap_err()
+        .to_string();
     assert!(erro.contains("--primary"), "{erro}");
     std::fs::remove_file(gss).ok();
     std::fs::remove_file(tpl).ok();

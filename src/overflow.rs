@@ -1,4 +1,15 @@
-//! Botão que não encolhe abaixo do próprio texto.
+//! Guardas contra conteúdo que transborda a própria caixa.
+//!
+//! Dois embrulhos, o mesmo widget por baixo:
+//!
+//! - [`no_shrink`]: o widget não encolhe abaixo do tamanho natural (botões).
+//! - [`clip`]: o widget **não desenha fora da própria caixa** (textos). O iced
+//!   pinta o `text` recortado pela *viewport* inteira, não pela caixa dele: um
+//!   título mais largo que a coluna que o recebeu passava por cima do botão ao
+//!   lado. Aqui a viewport do filho vira a interseção dela com a caixa, sem
+//!   camada extra: é só um retângulo menor no `draw`.
+//!
+//! ## `no_shrink`
 //!
 //! O layout de linha do iced entrega a cada filho `Shrink` o que **sobrou** da
 //! largura depois dos irmãos anteriores. Quando a janela estreita, os últimos
@@ -21,20 +32,37 @@ use iced::advanced::{Clipboard, Shell, Widget, overlay};
 use iced::{Element, Event, Length, Rectangle, Size, Vector, mouse};
 
 /// Ver o [módulo](self). Criado por [`no_shrink`].
-pub struct NoShrink<'a, Message> {
+pub struct Overflow<'a, Message> {
     content: Element<'a, Message, iced::Theme, iced::Renderer>,
+    /// Mede o filho com largura ilimitada (ver `no_shrink`).
+    sem_encolher: bool,
+    /// Recorta o desenho do filho na própria caixa (ver `clip`).
+    recortar: bool,
 }
 
 /// Envolve `content` para que ele não encolha abaixo do tamanho natural.
 pub fn no_shrink<'a, Message>(
     content: impl Into<Element<'a, Message, iced::Theme, iced::Renderer>>,
-) -> NoShrink<'a, Message> {
-    NoShrink {
+) -> Overflow<'a, Message> {
+    Overflow {
         content: content.into(),
+        sem_encolher: true,
+        recortar: false,
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NoShrink<'_, Message> {
+/// Envolve `content` para que ele não desenhe fora da própria caixa.
+pub fn clip<'a, Message>(
+    content: impl Into<Element<'a, Message, iced::Theme, iced::Renderer>>,
+) -> Overflow<'a, Message> {
+    Overflow {
+        content: content.into(),
+        sem_encolher: false,
+        recortar: true,
+    }
+}
+
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Overflow<'_, Message> {
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -53,15 +81,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NoShrink<'_, Mess
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let max = limits.max();
-        let livre = layout::Limits::new(
-            limits.min(),
-            Size::new(f32::INFINITY, max.height),
-        );
+        let livre;
+        let limits = if self.sem_encolher {
+            livre =
+                layout::Limits::new(limits.min(), Size::new(f32::INFINITY, limits.max().height));
+            &livre
+        } else {
+            limits
+        };
         let child = self
             .content
             .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, &livre);
+            .layout(&mut tree.children[0], renderer, limits);
         layout::Node::with_children(child.size(), vec![child])
     }
 
@@ -130,6 +161,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NoShrink<'_, Mess
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
+        let recorte;
+        let viewport = if self.recortar {
+            // Fora da caixa não há nada a desenhar (e a interseção vazia vira
+            // um retângulo zerado, que o renderer descarta).
+            recorte = layout
+                .bounds()
+                .intersection(viewport)
+                .unwrap_or(Rectangle::new(layout.bounds().position(), Size::ZERO));
+            &recorte
+        } else {
+            viewport
+        };
         self.content.as_widget().draw(
             &tree.children[0],
             renderer,
@@ -159,10 +202,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NoShrink<'_, Mess
     }
 }
 
-impl<'a, Message: 'a> From<NoShrink<'a, Message>>
+impl<'a, Message: 'a> From<Overflow<'a, Message>>
     for Element<'a, Message, iced::Theme, iced::Renderer>
 {
-    fn from(w: NoShrink<'a, Message>) -> Self {
+    fn from(w: Overflow<'a, Message>) -> Self {
         Element::new(w)
     }
 }

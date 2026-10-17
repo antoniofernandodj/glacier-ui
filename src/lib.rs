@@ -99,6 +99,7 @@ pub mod net;
 #[cfg(target_arch = "wasm32")]
 #[path = "net_web.rs"]
 pub mod net;
+mod overflow;
 pub mod panes;
 pub mod parser;
 mod perf;
@@ -107,7 +108,6 @@ pub mod render_inputs;
 pub mod reveal;
 pub mod shapes;
 mod single_instance;
-mod no_shrink;
 mod smooth_scroll;
 pub mod spinner;
 pub mod style;
@@ -978,9 +978,20 @@ impl GlacierUI {
         let theme = theme_from_tokens(name, &sheet.variables, path)?;
         let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
         self.file_mod_times.insert(style_key(path), mod_time);
-        self.app_styles
-            .insert(name.to_string(), AppStyle { path: path.to_string(), theme, sheet });
-        if self.context_data.get(style::CONTEXT_KEY).map(String::as_str) == Some(name) {
+        self.app_styles.insert(
+            name.to_string(),
+            AppStyle {
+                path: path.to_string(),
+                theme,
+                sheet,
+            },
+        );
+        if self
+            .context_data
+            .get(style::CONTEXT_KEY)
+            .map(String::as_str)
+            == Some(name)
+        {
             self.install_style_by_name(name);
         }
         Ok(())
@@ -4732,8 +4743,11 @@ impl GlacierUI {
         }
 
         // Reload a changed `<link rel="style">` file (reinstalled if active).
-        let styles: Vec<(String, String)> =
-            self.app_styles.iter().map(|(n, s)| (n.clone(), s.path.clone())).collect();
+        let styles: Vec<(String, String)> = self
+            .app_styles
+            .iter()
+            .map(|(n, s)| (n.clone(), s.path.clone()))
+            .collect();
         for (name, path) in styles {
             if let Some(modified) = self.assets.modified(&path) {
                 let changed = self
@@ -4905,8 +4919,15 @@ struct AppStyle {
 
 /// A paleta de um `<link rel="style">`, tirada dos tokens do `:root` dele —
 /// os mesmos campos (e o mesmo default de `warning`) do `theme.json`.
-fn theme_from_tokens(name: &str, vars: &HashMap<String, String>, path: &str) -> Result<iced::Theme> {
-    let bad = |message: String| GlacierError::Theme { path: path.to_string(), message };
+fn theme_from_tokens(
+    name: &str,
+    vars: &HashMap<String, String>,
+    path: &str,
+) -> Result<iced::Theme> {
+    let bad = |message: String| GlacierError::Theme {
+        path: path.to_string(),
+        message,
+    };
     let color = |field: &str| -> Result<iced::Color> {
         let hex = vars.get(&format!("--{field}")).ok_or_else(|| {
             bad(format!(

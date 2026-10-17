@@ -910,22 +910,34 @@ where
 
         if internal.editor.is_empty() {
             if let Some(placeholder) = self.placeholder.clone() {
-                renderer.fill_text(
-                    Text {
-                        content: placeholder.into_owned(),
-                        bounds: text_bounds.size(),
-                        size: self.text_size.unwrap_or_else(|| renderer.default_size()),
-                        line_height: self.line_height,
-                        font,
-                        align_x: text::Alignment::Default,
-                        align_y: alignment::Vertical::Top,
-                        shaping: text::Shaping::Advanced,
-                        wrapping: self.wrapping,
-                    },
-                    text_bounds.position(),
-                    style.placeholder,
-                    text_bounds,
-                );
+                // Camada recortada: o `clip_bounds` do `fill_text` não vale no
+                // renderer de software, e o placeholder vazava para o vizinho.
+                renderer.with_layer(text_bounds, |renderer| {
+                    renderer.fill_text(
+                        Text {
+                            content: placeholder.into_owned(),
+                            // `fill_text` (o caminho em cache) ignora o `wrapping`
+                            // e quebra sempre; sem quebra, a largura ilimitada é o
+                            // que impede o placeholder de descer para uma 2ª linha
+                            // e vazar da caixa (o `clip_bounds` abaixo corta o resto).
+                            bounds: if matches!(self.wrapping, Wrapping::None) {
+                                Size::new(f32::INFINITY, text_bounds.height)
+                            } else {
+                                text_bounds.size()
+                            },
+                            size: self.text_size.unwrap_or_else(|| renderer.default_size()),
+                            line_height: self.line_height,
+                            font,
+                            align_x: text::Alignment::Default,
+                            align_y: alignment::Vertical::Top,
+                            shaping: text::Shaping::Advanced,
+                            wrapping: self.wrapping,
+                        },
+                        text_bounds.position(),
+                        style.placeholder,
+                        text_bounds,
+                    );
+                });
             }
         } else {
             renderer.fill_editor(

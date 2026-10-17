@@ -4260,9 +4260,13 @@ pub fn render_node<'a>(
             if let Some(align) = parse_text_align(node.text_align()) {
                 t = t.align_x(align);
             }
-            t.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .into()
+            // Recortado na própria caixa: um título mais largo que a coluna não
+            // pinta por cima do botão vizinho. Ver `crate::overflow`.
+            crate::overflow::clip(
+                t.width(parse_length(&node.width))
+                    .height(parse_length(&node.height)),
+            )
+            .into()
         }
         NodeType::Button {
             text: btn_text,
@@ -4316,7 +4320,8 @@ pub fn render_node<'a>(
                 }
                 r.into()
             };
-            let mut btn = button(content);
+            // `clip`: o rótulo que não cabe é cortado na borda do botão, não vaza.
+            let mut btn = button(content).clip(true);
             // Um botão `disabled` não recebe handler algum: sem `on_press`, o
             // próprio iced já reporta `button::Status::Disabled` na closure de
             // estilo abaixo — não há necessidade de rastrear isso à parte.
@@ -4448,9 +4453,9 @@ pub fn render_node<'a>(
             }
             // Botão de largura `Shrink` não encolhe abaixo do rótulo: sem isso,
             // numa linha apertada o iced entrega aos últimos botões só o que
-            // sobrou e o texto vaza. Ver `crate::no_shrink`.
+            // sobrou e o texto vaza. Ver `crate::overflow`.
             if matches!(parse_length(&node.width), Length::Shrink) {
-                crate::no_shrink::no_shrink(btn).into()
+                crate::overflow::no_shrink(btn).into()
             } else {
                 btn.into()
             }
@@ -4654,7 +4659,11 @@ pub fn render_node<'a>(
                     let hover_ov = node.hover_style().cloned();
                     let focus_ov = node.focus_style().cloned();
                     let disabled_ov = node.disabled_style().cloned();
-                    if base.is_some() || hover_ov.is_some() || focus_ov.is_some() || disabled_ov.is_some() {
+                    if base.is_some()
+                        || hover_ov.is_some()
+                        || focus_ov.is_some()
+                        || disabled_ov.is_some()
+                    {
                         ed = ed.style(move |theme, status| {
                             use iced::widget::text_editor::Status;
                             let mut style = iced::widget::text_editor::default(theme, status);
@@ -4665,10 +4674,13 @@ pub fn render_node<'a>(
                                 Status::Active => None,
                             };
                             for r in base.iter().chain(overlay) {
-                                if let Some(bg) = r.background.as_deref().and_then(parse_hex_color) {
+                                if let Some(bg) = r.background.as_deref().and_then(parse_hex_color)
+                                {
                                     style.background = Background::Color(bg);
                                 }
-                                if let Some(bc) = r.border_color.as_deref().and_then(parse_hex_color) {
+                                if let Some(bc) =
+                                    r.border_color.as_deref().and_then(parse_hex_color)
+                                {
                                     style.border.color = bc;
                                 }
                                 if let Some(bw) = r.border_width {
@@ -4677,7 +4689,8 @@ pub fn render_node<'a>(
                                 if let Some(br) = r.border_radius {
                                     style.border.radius = iced::border::Radius::new(br);
                                 }
-                                if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
+                                if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color)
+                                {
                                     style.value = tc;
                                 }
                             }
@@ -6710,10 +6723,17 @@ pub fn render_node<'a>(
     {
         // Um campo de texto pinta fundo e borda no próprio widget (ver
         // `campo_base`): embrulhado aqui, o fundo ficaria atrás do editor.
-        let campo = matches!(&node.kind, NodeType::TextInput { .. } | NodeType::TextArea { .. });
+        let campo = matches!(
+            &node.kind,
+            NodeType::TextInput { .. } | NodeType::TextArea { .. }
+        );
         let bg_opt = if campo { None } else { background_for(node) };
         let br_opt = if campo { None } else { node.border_radius };
-        let bw_opt = if campo { 0.0 } else { node.border_width.unwrap_or(0.0) };
+        let bw_opt = if campo {
+            0.0
+        } else {
+            node.border_width.unwrap_or(0.0)
+        };
         let bc_opt = node.border_color().and_then(parse_hex_color);
 
         // `GLACIER_NO_PAINT` pula o embrulho inteiro: sem fundo, sem borda,

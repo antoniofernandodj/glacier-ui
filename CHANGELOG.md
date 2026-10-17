@@ -10,6 +10,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.122.4 — 2026-10-16
+
+### Corrigido
+
+- **Texto não vaza mais para dentro do vizinho.** O iced recorta um `<text>` pela viewport
+  inteira, não pela caixa dele: um título mais largo que a coluna que o recebeu era pintado por
+  cima do botão ao lado. O `<text>` agora é recortado na própria caixa (só um retângulo menor
+  no `draw`, sem camada extra), e o `<button>` passa a recortar o rótulo na borda (`clip`).
+- **Placeholder de `<input>`/`<textarea>` não quebra nem vaza.** O caminho em cache do
+  `fill_text` ignora o `wrapping`: um placeholder maior que o campo descia para uma segunda
+  linha e saía da caixa. Sem quebra, ele agora é medido com largura ilimitada e desenhado numa
+  camada recortada no campo (o recorte do `fill_text` não vale no renderer de software).
+- Interno: `no_shrink` virou `overflow` (`no_shrink` e `clip`). Exemplo novo `aperto` (janela
+  estreita com título, botões, input e textarea) para conferir o transbordo.
+
 ## glacier-ui 0.122.3 — 2026-10-16
 
 ### Corrigido
