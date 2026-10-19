@@ -10,6 +10,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.125.1 — 2026-10-19
+
+### Corrigido
+
+- `embed_dirs!` não exige mais `include_dir` no `Cargo.toml` do app (o `include_dir!` emite caminhos `include_dir::…`; a macro agora os resolve com `use`).
+
 ## glacier-ui 0.125.0 — 2026-10-19
 
 ### Adicionado

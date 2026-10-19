@@ -284,8 +284,11 @@ macro_rules! embed_dirs {
             $((
                 $prefixo,
                 {
-                    static DIR: $crate::include_dir::Dir<'static> =
-                        $crate::include_dir::include_dir!($pasta);
+                    // O `include_dir!` expande para caminhos `include_dir::…`: o `use`
+                    // os resolve no crate do app sem ele declarar a dependência.
+                    #[allow(unused_imports)]
+                    use $crate::include_dir;
+                    static DIR: include_dir::Dir<'static> = include_dir::include_dir!($pasta);
                     &DIR
                 },
             )),*
