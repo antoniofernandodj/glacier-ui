@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-build 0.1.0 — 2026-10-19
+
+### Adicionado
+
+- **Crate novo `glacier-build`**, para o `build.rs` de um app (como `[build-dependencies]`):
+  `windows_resource` (ícone/manifest/versão do `.exe`), `stage_images` (copia logos para o
+  `$OUT_DIR` reduzindo os raster) e `desktop_on_cargo_install` (grava o `.desktop` e os ícones
+  num `cargo install`). Veio do `build.rs` do `rustploy-gui`, que passa de 278 para ~12 linhas.
+
 ## glacier-ui 0.125.1 — 2026-10-19
 
 ### Corrigido

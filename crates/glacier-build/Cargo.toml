@@ -1,0 +1,16 @@
+[package]
+name = "glacier-build"
+version = "0.1.0"
+edition = "2024"
+description = "Helpers de build.rs para apps glacier-ui: recursos do .exe no Windows, logos reduzidos e .desktop no cargo install."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/antoniofernandodj/glacier-ui"
+readme = "README.md"
+keywords = ["glacier", "build-script", "gui"]
+categories = ["development-tools::build-utils", "gui"]
+
+[dependencies]
+# Ícone/versão do .exe (via RC; llvm-rc em cross build).
+embed-resource = "2.4"
+# Só o que os logos de um app costumam usar.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }

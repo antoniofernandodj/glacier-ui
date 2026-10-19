@@ -479,7 +479,7 @@ micropython = ["dep:cc"]
 # ela não depende de `iced`/`mlua`, então `cargo install glacier-cli` compila em
 # segundos em vez dos minutos que o motor leva.
 [workspace]
-members = ["crates/glacier-cli"]
+members = ["crates/glacier-cli", "crates/glacier-build"]
 
 [[example]]
 name = "gvb_check"
