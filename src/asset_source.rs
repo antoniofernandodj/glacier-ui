@@ -205,6 +205,130 @@ macro_rules! embed_assets {
     };
 }
 
+/// Um [`AssetSource`] que serve **pastas inteiras** embutidas, cada uma sob um
+/// prefixo lógico (`"views/"`, `"assets/icons/"`…). Monte com
+/// [`embed_dirs!`](crate::embed_dirs). Onde [`EmbeddedAssets`] lista arquivo por
+/// arquivo, este varre a pasta na compilação — é o que um app com centenas de
+/// templates/ícones precisa. Sem hot-reload.
+#[derive(Debug)]
+pub struct EmbeddedDirs {
+    rotas: Vec<(&'static str, &'static include_dir::Dir<'static>)>,
+}
+
+impl EmbeddedDirs {
+    /// Prefira [`embed_dirs!`](crate::embed_dirs). A ordem das rotas é a de busca.
+    pub fn new(rotas: Vec<(&'static str, &'static include_dir::Dir<'static>)>) -> Self {
+        Self { rotas }
+    }
+
+    fn buscar(&self, path: &str) -> Option<&'static include_dir::File<'static>> {
+        let chave = normalize_key(std::path::Path::new(path));
+        self.rotas.iter().find_map(|(prefixo, dir)| {
+            chave
+                .strip_prefix(prefixo.trim_start_matches("./"))
+                .and_then(|resto| dir.get_file(resto))
+        })
+    }
+
+    fn faltando(path: &str) -> std::io::Error {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("asset embutido não encontrado: {path}"),
+        )
+    }
+}
+
+impl AssetSource for EmbeddedDirs {
+    fn read_bytes(&self, path: &str) -> std::io::Result<Cow<'static, [u8]>> {
+        self.buscar(path)
+            .map(|f| Cow::Borrowed(f.contents()))
+            .ok_or_else(|| Self::faltando(path))
+    }
+
+    fn read_to_string(&self, path: &str) -> std::io::Result<Cow<'static, str>> {
+        let file = self.buscar(path).ok_or_else(|| Self::faltando(path))?;
+        file.contents_utf8().map(Cow::Borrowed).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("asset embutido não é UTF-8 válido: {path}"),
+            )
+        })
+    }
+
+    fn exists(&self, path: &str) -> bool {
+        self.buscar(path).is_some()
+    }
+
+    fn modified(&self, _path: &str) -> Option<SystemTime> {
+        None
+    }
+
+    fn supports_reload(&self) -> bool {
+        false
+    }
+}
+
+/// Monta um [`EmbeddedDirs`]: `prefixo_lógico => pasta`. O caminho da pasta
+/// aceita `$CARGO_MANIFEST_DIR` e `$OUT_DIR` (o `include_dir!` expande).
+///
+/// ```ignore
+/// GlacierDaemon::new().assets(std::sync::Arc::new(glacier_ui::embed_dirs! {
+///     "views/"        => "$CARGO_MANIFEST_DIR/views",
+///     "assets/icons/" => "$CARGO_MANIFEST_DIR/assets/icons",
+/// }))
+/// ```
+#[macro_export]
+macro_rules! embed_dirs {
+    ($($prefixo:literal => $pasta:tt),* $(,)?) => {
+        $crate::EmbeddedDirs::new(::std::vec![
+            $((
+                $prefixo,
+                {
+                    static DIR: $crate::include_dir::Dir<'static> =
+                        $crate::include_dir::include_dir!($pasta);
+                    &DIR
+                },
+            )),*
+        ])
+    };
+}
+
+/// Acha a pasta de assets de um app em **debug** (o release embute) e entra
+/// nela com `chdir`, para os caminhos relativos (`views/app.gvb`…) resolverem.
+/// Ordem: a variável `env_var`; o diretório do executável; o diretório atual
+/// (já serve: não muda nada); `system_prefix` (ex.: `/usr/share/meuapp`, do
+/// `.deb`). Uma pasta só vale se contém `marker` (ex.: `views/app.gvb`).
+pub fn locate_assets_and_chdir(marker: &str, env_var: &str, system_prefix: Option<&str>) {
+    let has = |base: &std::path::Path| base.join(marker).is_file();
+    let found = (|| {
+        if let Ok(dir) = std::env::var(env_var) {
+            let p = std::path::PathBuf::from(dir);
+            if has(&p) {
+                return Some(p);
+            }
+        }
+        if let Ok(exe) = std::env::current_exe()
+            && let Some(dir) = exe.parent()
+            && has(dir)
+        {
+            return Some(dir.to_path_buf());
+        }
+        if let Ok(cwd) = std::env::current_dir()
+            && has(&cwd)
+        {
+            return None;
+        }
+        system_prefix
+            .map(std::path::PathBuf::from)
+            .filter(|p| has(p))
+    })();
+    if let Some(base) = found
+        && let Err(e) = std::env::set_current_dir(&base)
+    {
+        eprintln!("assets: falha ao entrar em {}: {e}", base.display());
+    }
+}
+
 /// Colapsa `.`/`..` **lexicalmente** e unifica separadores em `/`, produzindo
 /// uma chave estável de identidade sem tocar o filesystem. Usado tanto pelo
 /// cache de `require` (deste módulo) quanto por
@@ -294,6 +418,22 @@ mod tests {
     fn embutido_nunca_recarrega() {
         let assets = EmbeddedAssets::new(ARQUIVOS);
         assert!(assets.modified("views/app.gv").is_none());
+        assert!(!assets.supports_reload());
+    }
+
+    #[test]
+    fn embed_dirs_serve_a_pasta_inteira_sob_o_prefixo() {
+        let assets = crate::embed_dirs! {
+            "gva/" => "$CARGO_MANIFEST_DIR/examples/gva/web_contador",
+        };
+        assert!(assets.exists("gva/app.gva"));
+        assert!(assets.exists("./gva/x/../app.gva"));
+        assert!(assets.read_to_string("gva/app.gva").unwrap().contains("<screen"));
+        assert!(!assets.exists("outro/app.gva"));
+        assert_eq!(
+            assets.read_to_string("gva/nao_existe").unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
         assert!(!assets.supports_reload());
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.124.0"
+version = "0.125.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -218,6 +218,8 @@ required-features = ["micropython"]
 # x11, wayland…); no navegador ele fica sem wgpu — ver o bloco "Só na web".
 iced = { version = "0.14", default-features = false, features = ["image", "svg", "tokio", "advanced", "canvas", "qr_code", "tiny-skia", "crisp", "web-colors"] }
 roxmltree = "0.21"
+# Embute PASTAS inteiras (`embed_dirs!`); `embed_assets!` só aceita arquivos um a um.
+include_dir = "0.7"
 image = "0.25"
 serde_json = "1.0"
 regex = "1"

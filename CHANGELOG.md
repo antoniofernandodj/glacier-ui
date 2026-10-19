@@ -10,6 +10,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.125.0 — 2026-10-19
+
+### Adicionado
+
+- **`embed_dirs!` / `EmbeddedDirs`: embutir PASTAS inteiras.** `embed_dirs! { "views/" => "$CARGO_MANIFEST_DIR/views", … }`
+  monta uma `AssetSource` que serve cada pasta sob um prefixo lógico (aceita `$OUT_DIR`). O
+  `embed_assets!` continua listando arquivo por arquivo; este é para app com centenas de arquivos.
+  Traz `include_dir` como dependência (reexportado, o app não precisa declará-lo).
+- **`locate_assets_and_chdir(marker, env_var, system_prefix)`**: em debug, acha a pasta de assets
+  (variável de ambiente, pasta do executável, pasta atual, prefixo do sistema) e entra nela.
+- **`GlacierDaemon::install_desktop(base, id)` + `--install-desktop`**: grava o `.desktop` e os
+  ícones hicolor em `~/.local/share` (Linux) lendo-os da `AssetSource` do app, e sai. Vinha do
+  `rustploy-gui` como código próprio.
+
 ## glacier-cli 0.7.1 — 2026-10-19
 
 ### Corrigido

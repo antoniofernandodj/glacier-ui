@@ -156,6 +156,8 @@ pub struct GlacierDaemon {
     /// principal, reabrindo-a onde parou. Requer [`GlacierDaemon::storage_dir`]
     /// (é lá que o arquivo mora). Ver [`GlacierDaemon::remember_window_geometry`].
     remember_geometry: bool,
+    /// Onde achar o `.desktop`/ícones para `--install-desktop`. Ver [`GlacierDaemon::install_desktop`].
+    desktop_entry: Option<crate::desktop_entry::DesktopEntry>,
     /// Configuração da bandeja (ícone + menu), quando o app quer sobreviver à
     /// última janela. Ver [`GlacierDaemon::tray`].
     tray_config: Option<TrayConfig>,
@@ -243,6 +245,7 @@ impl GlacierDaemon {
             toast_period: None,
             storage_dir: None,
             remember_geometry: false,
+            desktop_entry: None,
             tray_config: None,
             on_tray: None,
             assets: Arc::new(DiskAssets),
@@ -544,8 +547,26 @@ impl GlacierDaemon {
         self
     }
 
+    /// Liga o argumento `--install-desktop`: grava o `.desktop` e os ícones do app
+    /// em `~/.local/share` (para quem instalou por `cargo install`) e sai. Os
+    /// arquivos vêm da [`AssetSource`] do app, sob `base` (ex.: `"packaging/"`),
+    /// com a disposição descrita em [`crate::desktop_entry`]. Só Linux.
+    pub fn install_desktop(mut self, base: impl Into<String>, id: impl Into<String>) -> Self {
+        self.desktop_entry = Some(crate::desktop_entry::DesktopEntry {
+            base: base.into(),
+            id: id.into(),
+        });
+        self
+    }
+
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
+        if let Some(entry) = &self.desktop_entry
+            && let Some(code) = crate::desktop_entry::handle_args(entry, self.assets.as_ref())
+        {
+            std::process::exit(code);
+        }
+
         // `glacier test`: roda os testes Luau (com as extensões do app já
         // registradas) em vez de abrir janela. Ver `luau::testing`.
         #[cfg(not(target_arch = "wasm32"))]
@@ -646,6 +667,7 @@ impl GlacierDaemon {
             toast_period,
             storage_dir,
             remember_geometry,
+            desktop_entry: _,
             tray_config,
             on_tray,
             assets,

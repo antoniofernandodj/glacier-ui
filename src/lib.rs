@@ -73,6 +73,8 @@ pub mod charts;
 pub mod color_picker;
 pub mod component;
 pub mod daemon;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod desktop_entry;
 pub mod dialogs;
 pub mod error;
 pub mod eval;
@@ -141,7 +143,12 @@ pub use external::ExternalSender;
 pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
 
 pub use app::GlacierApp;
-pub use asset_source::{AssetSource, DiskAssets, EmbeddedAssets};
+pub use asset_source::{
+    AssetSource, DiskAssets, EmbeddedAssets, EmbeddedDirs, locate_assets_and_chdir,
+};
+/// Reexportado para o `embed_dirs!` expandir no crate do app sem ele depender de `include_dir`.
+#[doc(hidden)]
+pub use include_dir;
 pub use component::{
     BroadcastMessage, Component, Context, ContextVar, DialogAction, Effect, EffectOutcome,
     FetchResult, Nav, Template, WindowSource, WindowSpec,
