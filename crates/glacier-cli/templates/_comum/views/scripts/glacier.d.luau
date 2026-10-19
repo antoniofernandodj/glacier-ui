@@ -162,6 +162,12 @@ declare function append_file(path: string, contents: string): (boolean, string?)
 -- Compacta a árvore de `origem` num `.zip` em `destino`. Síncrono (não suspende):
 -- é I/O local, não rede nem diálogo.
 declare function zip_dir(origem: string, destino: string): (boolean, string?)
+-- `.zip` de entradas de TEXTO, sem diretório de staging. Síncronos. `zip_read` entrega
+-- todas as entradas (`text` falta em diretório e em conteúdo que não é UTF-8); quem decide
+-- quais nomes aceitar é o chamador.
+export type ZipEntry = { name: string, dir: boolean?, text: string? }
+declare function zip_write(destino: string, entradas: { ZipEntry }): (boolean, string?)
+declare function zip_read(origem: string): { ok: boolean, entries: { ZipEntry }?, error: string? }
 declare function sse(url: string, opts: StreamOptions?): StreamHandle
 declare function websocket(url: string, opts: StreamOptions?): StreamHandle
 

@@ -3644,6 +3644,8 @@ p:cancel()                                            -- interrompe as próximas
 local ok, erro = write_file("saida/relatorio.txt", texto)   -- sobrescreve
 local ok, erro = append_file("saida/log.txt", linha .. "\n") -- acrescenta
 zip_dir("pasta/origem", "saida/pacote.zip")                  -- compacta a árvore
+zip_write("saida/m.zip", { { name = "a.yml", text = "x: 1" } })  -- zip só de texto
+local lido = zip_read("saida/m.zip")   -- { ok, entries = { {name, dir, text?} }, error? }
 
 storage.set("ultimo_projeto", { id = "42", nome = "api" })   -- persiste entre execuções
 local ultimo = storage.get("ultimo_projeto")                 -- volta decodificado

@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.123.0 — 2026-10-19
+
+### Adicionado
+
+- **`zip_write(destino, entradas)` e `zip_read(origem)` na camada Luau.** Criam e leem um `.zip`
+  de entradas de texto direto, sem diretório de staging (o `zip_dir` só compacta uma árvore).
+  `zip_read` devolve `{ ok, entries = { {name, dir, text?} }, error? }` e deixa a validação
+  dos nomes para o chamador. Veio do `rustploy-gui`, que tinha isso como extensão em Rust.
+
 ## glacier-ui 0.122.4 — 2026-10-16
 
 ### Corrigido

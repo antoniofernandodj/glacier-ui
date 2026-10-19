@@ -319,6 +319,9 @@ impl LuauComponent {
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
         // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
         install_zip_dir(&luau).map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
+        // Expõe `zip_write(destino, entradas)` e `zip_read(origem)` (zip de texto).
+        install_zip_text(&luau)
+            .map_err(|e| format!("Erro ao instalar `zip_write`/`zip_read` Luau: {}", e))?;
         // Extensões da camada Lua registradas pelo app hospedeiro — funções
         // Rust visíveis no `<script>` (ver [`register_lua_extension`]). Depois
         // dos globais do motor, antes do script do usuário, para o corpo de
@@ -2252,6 +2255,103 @@ fn install_zip_dir(luau: &Lua) -> mlua::Result<()> {
         })?;
     luau.globals().set("zip_dir", zip_dir)?;
     Ok(())
+}
+
+/// Expõe `zip_write(destino, entradas)` e `zip_read(origem)`: criar e ler um
+/// `.zip` de entradas de TEXTO, sem passar por diretório de staging. Síncronos,
+/// pelo mesmo motivo de `zip_dir` (I/O local).
+///
+/// - `zip_write(destino, { { name = "a.yml", text = "…" }, … })` →
+///   `(ok, erro?)`. A ordem do array é a ordem no `.zip`.
+/// - `zip_read(origem)` → `{ ok = true, entries = { { name, dir, text? }, … } }`
+///   ou `{ ok = false, error }`. `text` falta em diretório e em entrada que
+///   não é UTF-8 válido; quem valida o conteúdo (quais nomes aceitar) é o
+///   chamador, o motor só entrega o que está no arquivo.
+fn install_zip_text(luau: &Lua) -> mlua::Result<()> {
+    let write = luau.create_function(|_, (dest, entries): (String, mlua::Table)| {
+        let mut list: Vec<(String, String)> = Vec::new();
+        for entry in entries.sequence_values::<mlua::Table>() {
+            let entry = entry?;
+            list.push((entry.get("name")?, entry.get("text")?));
+        }
+        match zip_write_text(&dest, &list) {
+            Ok(()) => Ok((true, None)),
+            Err(e) => Ok((false, Some(e.to_string()))),
+        }
+    })?;
+    luau.globals().set("zip_write", write)?;
+
+    let read = luau.create_function(|luau, source: String| {
+        let result = luau.create_table()?;
+        match zip_read_text(&source) {
+            Ok(entries) => {
+                let list = luau.create_table()?;
+                for (name, dir, text) in entries {
+                    let entry = luau.create_table()?;
+                    entry.set("name", name)?;
+                    entry.set("dir", dir)?;
+                    if let Some(text) = text {
+                        entry.set("text", text)?;
+                    }
+                    list.push(entry)?;
+                }
+                result.set("ok", true)?;
+                result.set("entries", list)?;
+            }
+            Err(e) => {
+                result.set("ok", false)?;
+                result.set("error", e)?;
+            }
+        }
+        Ok(result)
+    })?;
+    luau.globals().set("zip_read", read)?;
+    Ok(())
+}
+
+/// Grava `entries` (nome, texto) num `.zip` novo em `dest`, criando os
+/// diretórios pais que faltarem.
+fn zip_write_text(dest: &str, entries: &[(String, String)]) -> std::io::Result<()> {
+    use std::io::Write;
+    let dest_path = PathBuf::from(dest);
+    if let Some(parent) = dest_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&dest_path)?);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for (name, text) in entries {
+        zip.start_file(name, options).map_err(std::io::Error::other)?;
+        zip.write_all(text.as_bytes())?;
+    }
+    zip.finish().map_err(std::io::Error::other)?;
+    Ok(())
+}
+
+/// Lê todas as entradas de `source`: `(nome, é_diretório, texto UTF-8?)`.
+fn zip_read_text(source: &str) -> std::result::Result<Vec<(String, bool, Option<String>)>, String> {
+    use std::io::Read;
+    let file = std::fs::File::open(source).map_err(|e| format!("não consegui abrir o zip: {e}"))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("zip inválido: {e}"))?;
+    let mut out = Vec::with_capacity(zip.len());
+    for i in 0..zip.len() {
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| format!("erro ao ler a entrada {i} do zip: {e}"))?;
+        let name = entry.name().to_string();
+        if entry.is_dir() {
+            out.push((name, true, None));
+            continue;
+        }
+        let mut bytes = Vec::new();
+        entry
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("erro ao ler {name}: {e}"))?;
+        out.push((name, false, String::from_utf8(bytes).ok()));
+    }
+    Ok(out)
 }
 
 /// Compacta `source` (diretório) num `.zip` em `dest`, criando os diretórios
@@ -4720,6 +4820,45 @@ mod tests {
         let mut conteudo_filho = String::new();
         std::io::Read::read_to_string(&mut filho, &mut conteudo_filho).unwrap();
         assert_eq!(conteudo_filho, "conteúdo filho");
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// `zip_write` + `zip_read` fecham o ciclo: o que se grava volta igual, na
+    /// mesma ordem, e uma subpasta aparece com `dir = true`.
+    #[test]
+    fn zip_write_e_zip_read_fazem_round_trip() {
+        let base = std::env::temp_dir().join(format!("glacier_zip_rw_{}", std::process::id()));
+        let destino = base.join("saida").join("texto.zip");
+        let _ = std::fs::remove_dir_all(&base);
+
+        let comp = LuauComponent::from_source(
+            &format!(
+                "function ida_e_volta()\n\
+                   local ok, erro = zip_write({0:?}, {{\n\
+                     {{ name = 'a.yml', text = 'um: 1' }},\n\
+                     {{ name = 'b.toml', text = 'dois = 2' }},\n\
+                   }})\n\
+                   local lido = zip_read({0:?})\n\
+                   ctx.ok = tostring(ok and lido.ok)\n\
+                   ctx.erro = erro or lido.error or ''\n\
+                   ctx.n = tostring(#lido.entries)\n\
+                   ctx.nome = lido.entries[2].name\n\
+                   ctx.texto = lido.entries[2].text\n\
+                   ctx.ausente = tostring(zip_read('/nao/existe.zip').ok)\n\
+                 end",
+                destino.to_str().unwrap()
+            ),
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "ida_e_volta", None, HashMap::default());
+        assert_eq!(data.get("ok").map(String::as_str), Some("true"), "{:?}", data.get("erro"));
+        assert_eq!(data.get("n").map(String::as_str), Some("2"));
+        assert_eq!(data.get("nome").map(String::as_str), Some("b.toml"));
+        assert_eq!(data.get("texto").map(String::as_str), Some("dois = 2"));
+        assert_eq!(data.get("ausente").map(String::as_str), Some("false"));
 
         let _ = std::fs::remove_dir_all(&base);
     }
