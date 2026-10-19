@@ -183,6 +183,60 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
     Ok(op)
 }
 
+// ── test ──────────────────────────────────────────────────────────────────────
+
+/// `glacier test [arquivo|pasta] [-t trecho] [--release] [-F features]`: roda os
+/// `*.test.luau` do projeto. O app sobe em modo de teste (`GLACIER_TEST`, lido
+/// por `GlacierDaemon::run`) em vez de abrir janela, então os testes enxergam as
+/// extensões Rust do próprio app. Sem argumento, procura em `views/` e `tests/`.
+pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
+    let raiz = raiz_do_projeto()?;
+    let mut alvo = String::new();
+    let mut filtro = String::new();
+    let mut release = false;
+    let mut features = None;
+
+    let mut args = argv.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-t" | "--filter" => {
+                filtro = args
+                    .next()
+                    .ok_or_else(|| invalido(format!("`{arg}` precisa de um trecho do nome")))?;
+            }
+            "--release" => release = true,
+            "-F" | "--features" => {
+                features = Some(
+                    args.next()
+                        .ok_or_else(|| invalido(format!("`{arg}` precisa da lista de features")))?,
+                );
+            }
+            outro if outro.starts_with('-') => {
+                return Err(invalido(format!("opção desconhecida de `test`: '{outro}'")));
+            }
+            caminho => {
+                // Absoluto: o app roda com `current_dir` na raiz do projeto, não
+                // onde o comando foi digitado.
+                let abs = std::env::current_dir()?.join(caminho);
+                alvo = abs.to_string_lossy().into_owned();
+            }
+        }
+    }
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run").arg("--quiet").current_dir(&raiz);
+    if release {
+        cmd.arg("--release");
+    }
+    if let Some(features) = &features {
+        cmd.args(["--features", features]);
+    }
+    cmd.env("GLACIER_TEST", &alvo).env("GLACIER_TEST_FILTER", &filtro);
+
+    passo(e, "cargo run (modo de teste)");
+    exigir_sucesso(cmd.status(), "glacier test")
+}
+
 // ── desktop ───────────────────────────────────────────────────────────────────
 
 fn desktop(e: &Estilo, op: Opcoes) -> io::Result<()> {

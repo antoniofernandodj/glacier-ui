@@ -546,6 +546,13 @@ impl GlacierDaemon {
 
     /// Sobe o daemon e roda o loop do iced até a última janela fechar.
     pub fn run(self) -> iced::Result {
+        // `glacier test`: roda os testes Luau (com as extensões do app já
+        // registradas) em vez de abrir janela. Ver `luau::testing`.
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(code) = crate::luau::testing::run_from_env() {
+            std::process::exit(code);
+        }
+
         // Sem isto um `panic!` no navegador aparece como "unreachable executed",
         // sem mensagem nem linha.
         #[cfg(target_arch = "wasm32")]

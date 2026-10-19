@@ -295,3 +295,30 @@ declare storage: {
     set: (key: string, value: any) -> (),
     remove: (key: string) -> (),
 }
+
+-- ── Testes (`glacier test`): só existem em arquivos *.test.luau ──────────────
+export type Expectation = {
+    never: Expectation,
+    toBe: (self: Expectation, expected: any) -> (),
+    toEqual: (self: Expectation, expected: any) -> (),
+    toBeNil: (self: Expectation) -> (),
+    toBeTruthy: (self: Expectation) -> (),
+    toBeFalsy: (self: Expectation) -> (),
+    toContain: (self: Expectation, item: any) -> (),
+    toMatch: (self: Expectation, pattern: string) -> (),
+    toThrow: (self: Expectation, fragment: string?) -> (),
+}
+export type TestComponent = {
+    call: (self: TestComponent, action: string, value: string?) -> (),
+    get: (self: TestComponent, key: string) -> string?,
+    set: (self: TestComponent, key: string, value: string) -> (),
+    data: (self: TestComponent) -> { [string]: string },
+    toasts: (self: TestComponent) -> { { kind: string, message: string } },
+}
+declare function describe(name: string, body: () -> ()): ()
+declare function test(name: string, body: () -> ()): ()
+declare function it(name: string, body: () -> ()): ()
+declare function before_each(body: () -> ()): ()
+declare function fail(message: string?): ()
+declare function expect(actual: any): Expectation
+declare function component(path: string, initial_ctx: { [string]: any }?): TestComponent

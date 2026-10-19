@@ -11,6 +11,7 @@
 //! glacier serve wasm          compila para o navegador e serve em localhost
 //!                             (`--watch` recompila e recarrega a cada mudança)
 //! glacier serve desktop       roda o app no desktop (`cargo run` na raiz)
+//! glacier test [arquivo]      roda os testes Luau (`*.test.luau`)
 //! glacier install-extensions  só as extensões de VS Code
 //! glacier presets             lista os presets
 //! ```
@@ -52,6 +53,7 @@ fn main() -> ExitCode {
         Some("new") => novo(&e, args.collect()),
         Some("install-extensions") => instalar_extensoes(&e),
         Some("serve") => serve::serve(&e, args.collect()),
+        Some("test") => serve::testar(&e, args.collect()),
         Some(outro) => {
             eprintln!("{} comando desconhecido: '{outro}'", e.vermelho("erro:"));
             eprintln!("  rode `glacier --help` para ver os comandos.");
@@ -177,6 +179,7 @@ fn ajuda(e: &Estilo) {
     glacier new [nome]            cria um projeto — pergunta o resto
     glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
     glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
+    glacier test [arquivo|pasta]  roda os testes Luau (*.test.luau em views/ e tests/)
     glacier install-extensions    só instala as extensões de VS Code
     glacier presets               descreve os presets disponíveis
     glacier --version
@@ -197,17 +200,25 @@ fn ajuda(e: &Estilo) {
              -- <args>            repassa os argumentos ao app
     ambos    -F, --features <l>   features do projeto (ex.: web-gpu)
 
+  {opcoes_test}
+    -t, --filter <trecho>         só os testes cujo nome contém o trecho
+        --release                 build otimizado
+    -F, --features <l>            features do projeto
+
   {exemplos}
     glacier new
     glacier new painel --preset completo --extensions --no-build
     glacier new teste -p minimo -y
     glacier new site -p wasm32 -y && cd site && glacier serve wasm
+    glacier test
+    glacier test views/scripts/handlers/settings.test.luau -t zip
 ",
         titulo = e.negrito("glacier — a CLI do glacier-ui"),
         sub = e.fraco("cria um projeto pronto (templates .gvb/.gss + scripts Luau) e instala as extensões de VS Code"),
         uso = e.negrito("USO"),
         opcoes_new = e.negrito("OPÇÕES DE `new`"),
         opcoes_serve = e.negrito("OPÇÕES DE `serve`"),
+        opcoes_test = e.negrito("OPÇÕES DE `test`"),
         exemplos = e.negrito("EXEMPLOS"),
         presets = ids.join(" | "),
     );

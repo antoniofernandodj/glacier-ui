@@ -10,6 +10,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.124.0 / glacier-cli 0.7.0 — 2026-10-19
+
+### Adicionado
+
+- **Testes na camada Luau: `glacier test [arquivo|pasta] [-t trecho]`.** Roda `*.test.luau` /
+  `*_test.luau` de `views/` e `tests/` numa VM com todos os globais do motor e as `lua_extension`
+  do app. Traz `describe`/`test`/`it`/`before_each`, `expect(...)` (`toBe`, `toEqual`, `toBeNil`,
+  `toBeTruthy`, `toBeFalsy`, `toContain`, `toMatch`, `toThrow`, `.never`), `fail` e
+  `component(caminho, ctx?)`, que carrega um `.gv`/`.gvb` e permite `:call`, `:get`, `:set`,
+  `:data`, `:toasts` — um handler que falha lança o erro. A CLI faz `cargo run` com
+  `GLACIER_TEST`, que `GlacierDaemon::run` detecta (sem abrir janela); a API é
+  `glacier_ui::luau::testing`. Código de saída ≠ 0 se algo falhar.
+
 ## glacier-ui 0.123.0 — 2026-10-19
 
 ### Adicionado

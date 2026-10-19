@@ -19,6 +19,7 @@ então** escreve alguma coisa: até a confirmação final, nada foi criado.
 glacier new [nome]            cria um projeto — pergunta o resto
 glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
 glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
+glacier test [arquivo]        roda os testes Luau (`*.test.luau`)
 glacier install-extensions    só instala as extensões de VS Code
 glacier presets               descreve os presets disponíveis
 glacier --version

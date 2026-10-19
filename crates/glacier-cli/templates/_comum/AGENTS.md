@@ -3662,6 +3662,36 @@ contrário do `ctx`, ele sobrevive ao
 fechar do app e aceita tabelas de volta como tabelas. Para arquivos soltos no
 mesmo diretório (cache, downloads), use `ctx.__data_dir`.
 
+### Testes (`glacier test`)
+
+Arquivos `*.test.luau` (ou `*_test.luau`) em `views/` ou `tests/` rodam com
+`glacier test`; `glacier test views/x.test.luau` roda um só, `-t trecho` filtra
+pelo nome do teste. O app sobe em modo de teste (sem janela), então os testes
+enxergam os globais do motor e as extensões Rust do app.
+
+```lua
+describe("contador", function()
+    before_each(function() end)
+
+    test("incrementa", function()
+        local tela = component("views/contador.gv", { n = 1 })  -- ctx inicial
+        tela:call("incrementar")          -- um handler que falha LANÇA o erro
+        expect(tela:get("n")):toBe("2")   -- ctx vira string
+        expect(tela:toasts()).never:toEqual({})
+    end)
+
+    test("módulo puro", function()
+        local fmt = require("util/fmt")
+        expect(fmt.bytes(2048)):toBe("2 KB")
+        expect(function() fmt.bytes(nil) end):toThrow("nil")
+    end)
+end)
+```
+
+Matchers: `toBe`, `toEqual` (profundo), `toBeNil`, `toBeTruthy`, `toBeFalsy`,
+`toContain`, `toMatch`, `toThrow`; `.never` nega. Chamadas que suspendem
+(`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na suspensão.
+
 ### JSON
 
 ```lua

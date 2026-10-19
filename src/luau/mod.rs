@@ -103,6 +103,9 @@ use mlua::{
 /// (`on_message = "on_msg"`), como atalho — ver [`LuauComponent::handler_key`].
 const PRELUDE: &str = include_str!("prelude.luau");
 
+/// Runner de testes Luau (`glacier test`).
+pub mod testing;
+
 /// Um [`Component`] cujo comportamento vem de um bloco `<script>` em Luav.
 ///
 /// O template XML é lido do disco; seu `<script>` é extraído e
@@ -295,6 +298,20 @@ impl LuauComponent {
         module_base: &Path,
         assets: Arc<dyn AssetSource>,
     ) -> std::result::Result<Self, String> {
+        Self::build_with(script, path, name, module_base, assets, None)
+    }
+
+    /// [`Self::build`] com um gancho `pre` que roda na VM depois de TODOS os
+    /// globais do motor e antes do script — é por onde o runner de testes
+    /// (`glacier test`, ver [`testing`]) instala `test`/`expect`/`component`.
+    fn build_with(
+        script: &str,
+        path: String,
+        name: String,
+        module_base: &Path,
+        assets: Arc<dyn AssetSource>,
+        pre: Option<&dyn Fn(&Lua) -> mlua::Result<()>>,
+    ) -> std::result::Result<Self, String> {
         let luau = Lua::new();
         luau.load(PRELUDE)
             .set_name("<glacier prelude>")
@@ -348,6 +365,9 @@ impl LuauComponent {
         luau.globals()
             .set("ctx", &ctx_table)
             .map_err(|e| format!("Erro ao registrar ctx: {}", e))?;
+        if let Some(pre) = pre {
+            pre(&luau).map_err(|e| format!("Erro ao instalar o ambiente de testes: {}", e))?;
+        }
         luau.load(script)
             .set_name(format!("<script:{name}>"))
             .exec()
