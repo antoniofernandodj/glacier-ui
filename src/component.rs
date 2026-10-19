@@ -516,6 +516,7 @@ pub struct Context<'a> {
     /// drena após o `update` e as entrega ao SO (via `notify-rust`, fora da
     /// thread de UI). Ver [`NotificationSpec`].
     pub(crate) notifications: Vec<NotificationSpec>,
+    pub(crate) clipboard_writes: Vec<String>,
     /// Pedido de fechar a **própria** janela ([`Context::close_window`]); o motor
     /// o expõe via `take_close_requested` e o daemon/runtime fecha a janela dona
     /// deste motor após o `update` (o motor isolado não conhece o próprio `Id`).
@@ -590,6 +591,7 @@ impl<'a> Context<'a> {
             windows: Vec::new(),
             broadcasts: Vec::new(),
             notifications: Vec::new(),
+            clipboard_writes: Vec::new(),
             close_self: false,
             editor_appends: Vec::new(),
             style: None,
@@ -736,6 +738,15 @@ impl<'a> Context<'a> {
     /// ```
     pub fn notify(&mut self, spec: NotificationSpec) {
         self.notifications.push(spec);
+    }
+
+    /// Copia `text` para a área de transferência do sistema após o `update`
+    /// (`copy(texto)` no Luau). É o par programático do `clipboard:<chave>`
+    /// embutido: aceita um valor qualquer — inclusive o de um item de
+    /// `ForEach`, que não está no contexto global. Não há retorno de sucesso
+    /// (o iced não o informa); combine com [`Context::show_toast`] para avisar.
+    pub fn copy_to_clipboard(&mut self, text: impl Into<String>) {
+        self.clipboard_writes.push(text.into());
     }
 
     /// Pede para fechar a **própria** janela após o `update` (equivalente ao

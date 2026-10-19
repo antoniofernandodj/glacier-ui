@@ -3006,6 +3006,7 @@ impl GlacierUI {
             windows,
             broadcasts,
             notifications,
+            clipboard_writes,
             close_self,
             editor_appends,
             style_req,
@@ -3026,6 +3027,7 @@ impl GlacierUI {
                 ctx.windows,
                 ctx.broadcasts,
                 ctx.notifications,
+                ctx.clipboard_writes,
                 ctx.close_self,
                 ctx.editor_appends,
                 ctx.style,
@@ -3157,6 +3159,11 @@ impl GlacierUI {
                 }
             })
             .collect();
+
+        // `copy(texto)` do Luau / `Context::copy_to_clipboard`.
+        for text in clipboard_writes {
+            tasks.push(iced::clipboard::write(text));
+        }
 
         // Each `fetch` becomes an async HTTP task; its result is routed back to
         // this same component to resume the coroutine that awaited it.

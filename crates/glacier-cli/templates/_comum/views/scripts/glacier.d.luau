@@ -173,6 +173,7 @@ declare function websocket(url: string, opts: StreamOptions?): StreamHandle
 
 declare function toast(opts: any): ()
 declare function notify(opts: any): ()
+declare function copy(text: any): ()
 declare function confirm(opts: any): boolean
 
 -- Diálogos suspensivos (Onda 8). `prompt` e `pick_color` param a corrotina e

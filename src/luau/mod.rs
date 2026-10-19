@@ -779,6 +779,13 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_copy").unwrap_or(false) {
+                let text: String = req.get("text")?;
+                ctx.copy_to_clipboard(text);
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_notify").unwrap_or(false) {
                 ctx.notify(build_notification(&req)?);
                 args = MultiValue::new();

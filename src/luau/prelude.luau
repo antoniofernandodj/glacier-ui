@@ -68,6 +68,18 @@ function toast(opts)
     })
 end
 
+-- Copia `text` para a área de transferência do sistema. NÃO suspende e não
+-- informa sucesso (o iced não o reporta); para avisar o usuário, chame `toast`
+-- em seguida. Ao contrário do `clipboard:<chave>` da markup, aceita um valor
+-- qualquer — o de um item de ForEach, por exemplo, que não está no contexto
+-- global: `on_click = copy_name:@id` → `function copy_name(id) copy(...) end`.
+function copy(text)
+    return coroutine.yield({
+        __glacier_copy = true,
+        text = tostring(text),
+    })
+end
+
 -- Notificação NATIVA DO SISTEMA OPERACIONAL (via Context::notify). Diferente do
 -- `toast` (efêmero, desenhado dentro da própria janela), esta vai para a central
 -- de notificações do SO (freedesktop/D-Bus no Linux, WinRT no Windows,

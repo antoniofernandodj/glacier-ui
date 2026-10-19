@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.126.0 — 2026-10-19
+
+### Adicionado
+
+- **`copy(texto)` no Luau** (e `Context::copy_to_clipboard` em Rust): copia um valor qualquer para a
+  área de transferência. O `clipboard:<chave>` da markup só lê chaves do contexto global, então não
+  alcançava o valor de um item de `ForEach` (ex.: o nome/id de cada card). Não informa sucesso;
+  combine com `toast{...}` para avisar: `copy(name); toast{ message = "copiado", kind = "success" }`.
+
 ## glacier-build 0.1.0 — 2026-10-19
 
 ### Adicionado
