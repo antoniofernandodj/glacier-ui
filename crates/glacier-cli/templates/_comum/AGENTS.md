@@ -3689,7 +3689,7 @@ end)
 ```
 
 Matchers: `toBe`, `toEqual` (profundo), `toBeNil`, `toBeTruthy`, `toBeFalsy`,
-`toContain`, `toMatch`, `toThrow`; `.never` nega. Chamadas que suspendem
+`toContain`, `toMatch`, `toThrow`; `.never` nega. `require` num teste também enxerga `views/scripts` e `views/`. Chamadas que suspendem
 (`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na suspensão.
 
 ### JSON

@@ -231,6 +231,15 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     if let Some(features) = &features {
         cmd.args(["--features", features]);
     }
+    // `require` num teste sai do diretório do arquivo; acrescenta `views/scripts`
+    // e `views/` (a disposição de um projeto glacier) para um teste em `tests/`
+    // achar os módulos do app. O que o usuário já exportou continua valendo.
+    let mut caminhos = vec![raiz.join("views/scripts"), raiz.join("views")];
+    if let Some(atual) = std::env::var_os("GLACIER_LUAU_PATH") {
+        caminhos.extend(std::env::split_paths(&atual));
+    }
+    let caminhos = std::env::join_paths(caminhos).map_err(io::Error::other)?;
+    cmd.env("GLACIER_LUAU_PATH", caminhos);
     cmd.env("GLACIER_TEST", &alvo).env("GLACIER_TEST_FILTER", &filtro);
 
     passo(e, "cargo run (modo de teste)");

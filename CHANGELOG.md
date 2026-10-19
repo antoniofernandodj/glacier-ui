@@ -10,6 +10,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.7.1 — 2026-10-19
+
+### Corrigido
+
+- `glacier test`: `require` num teste em `tests/` passa a achar os módulos de `views/scripts` e `views/`.
+
 ## glacier-ui 0.124.0 / glacier-cli 0.7.0 — 2026-10-19
 
 ### Adicionado
