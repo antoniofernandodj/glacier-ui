@@ -1394,6 +1394,55 @@ fn diagnostic_at(node: Node, message: String) -> Diagnostic {
 /// `:value=` como `bind_value=`, e daí em diante são dois atributos de verdade.
 const BIND_PREFIX: &str = "bind_";
 
+/// As chaves de contexto que as **ligações** do markup nomeiam — `:value="nome"`,
+/// `:items="linhas"`, `:columns="colunas"` — e que, por isso, o widget lê só ao
+/// desenhar: o avaliador de `{chave}` nunca as vê (ver [`crate::bindings`]).
+///
+/// `tela`, se dada, restringe a busca à `<screen name="tela">` (um arquivo
+/// `app(...)` traz várias telas, e só a ativa precisa estar publicada). Valores
+/// interpolados (`{...}`) ficam de fora: não nomeiam uma chave, calculam uma.
+///
+/// Existe para o `:missing()` dos testes (`glacier test`). Devolve `Err` com a
+/// causa se o markup não parseia, em vez de uma lista vazia: uma verificação
+/// que passa em silêncio por não ter conseguido olhar é pior que nenhuma.
+pub(crate) fn binding_keys(
+    xml: &str,
+    tela: Option<&str>,
+) -> std::result::Result<Vec<String>, String> {
+    let (sem_script, _) = crate::eval::strip_script(xml);
+    let prepared = protect_style_bodies(&mark_bindings(&sem_script.replace("&nbsp;", "\u{00A0}")));
+    let wrapped = format!("{FRAGMENT_OPEN}{prepared}</__glacier_fragment__>");
+    let doc = roxmltree::Document::parse(&wrapped).map_err(|e| e.to_string())?;
+
+    let raiz = tela
+        .and_then(|nome| {
+            doc.descendants().find(|n| {
+                n.is_element()
+                    && n.tag_name().name().eq_ignore_ascii_case("screen")
+                    && n.attribute("name") == Some(nome)
+            })
+        })
+        .unwrap_or_else(|| doc.root_element());
+
+    let mut chaves = Vec::new();
+    for no in raiz.descendants().filter(|n| n.is_element()) {
+        let tag = no.tag_name().name();
+        for attr in no.attributes() {
+            let Some(nome) = attr.name().strip_prefix(BIND_PREFIX) else {
+                continue;
+            };
+            let valor = attr.value().trim();
+            if valor.is_empty() || valor.contains('{') || !crate::bindings::is_binding(tag, nome) {
+                continue;
+            }
+            chaves.push(valor.to_string());
+        }
+    }
+    chaves.sort();
+    chaves.dedup();
+    Ok(chaves)
+}
+
 /// Troca o `:` que abre um nome de atributo por [`BIND_PREFIX`], só dentro das
 /// tags (nunca em texto, comentário, string de atributo ou corpo de
 /// `<script>`/`<style>`). Preserva as linhas — a coluna da mesma linha avança.

@@ -996,6 +996,86 @@ pub fn process_template(template: &str, context: &ContextMap) -> String {
     process_tpl(template, &EvalCtx::new(context))
 }
 
+/// O que o `:missing()` dos testes quer ignorar numa avaliação: chaves ausentes
+/// que **não são esquecimento do autor**. Duas famílias, ambas opcionais por
+/// construção:
+///
+/// - lidas com valor padrão (`{k|padrão}`);
+/// - lidas **dentro do template de um builtin** (`<card>`, `<spinbox>`…), onde as
+///   props de estilo (`title_class`, `field_class`) são lidas sem padrão e vêm
+///   do uso quando o app quer injetá-las.
+///
+/// O que o autor escreveu na própria tela — `{total}`, `if="{status}"`,
+/// `:value="nome"` — continua contando.
+#[derive(Default)]
+struct Rastreio {
+    builtins: std::collections::HashSet<String>,
+    ignoradas: std::collections::HashSet<String>,
+    /// Quantos templates de builtin estão sendo avaliados agora (aninham).
+    dentro: u32,
+}
+
+thread_local! {
+    /// Ligado só durante [`rastrear_ausentes`]; fora dele é `None` e o custo é
+    /// um acesso a `thread_local` no caminho raro "chave ausente".
+    static RASTREIO: std::cell::RefCell<Option<Rastreio>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Roda `f` anotando as chaves ausentes que `missing_keys` deve ignorar (ver
+/// [`Rastreio`]). `builtins` são os nomes de componente que o motor registra
+/// como seus. Só o runner de testes usa.
+pub(crate) fn rastrear_ausentes<R>(
+    builtins: std::collections::HashSet<String>,
+    f: impl FnOnce() -> R,
+) -> (R, std::collections::HashSet<String>) {
+    RASTREIO.with(|r| {
+        *r.borrow_mut() = Some(Rastreio {
+            builtins,
+            ..Default::default()
+        })
+    });
+    let resultado = f();
+    let ignoradas = RASTREIO
+        .with(|r| r.borrow_mut().take())
+        .map(|r| r.ignoradas)
+        .unwrap_or_default();
+    (resultado, ignoradas)
+}
+
+/// Marca a entrada no template do componente `nome`, se for um builtin e o
+/// rastreio estiver ligado. Devolve se contou, para [`sair_de_builtin`].
+fn entrar_em_builtin(nome: &str) -> bool {
+    RASTREIO.with(|r| match r.borrow_mut().as_mut() {
+        Some(r) if r.builtins.contains(nome) => {
+            r.dentro += 1;
+            true
+        }
+        _ => false,
+    })
+}
+
+fn sair_de_builtin(contou: bool) {
+    if contou {
+        RASTREIO.with(|r| {
+            if let Some(r) = r.borrow_mut().as_mut() {
+                r.dentro -= 1;
+            }
+        });
+    }
+}
+
+/// Anota uma chave ausente que acabou de ser lida (`com_padrao` = a leitura
+/// tinha `|padrão`), se o rastreio mandar ignorá-la.
+fn anotar_ausente(chave: &str, com_padrao: bool) {
+    RASTREIO.with(|r| {
+        if let Some(r) = r.borrow_mut().as_mut()
+            && (com_padrao || r.dentro > 0)
+        {
+            r.ignoradas.insert(chave.to_string());
+        }
+    });
+}
+
 /// O `process_template` de verdade, sobre o [`EvalCtx`] (o público acima é a
 /// casca para quem só tem um `HashMap` em mãos).
 fn process_tpl(template: &str, context: &EvalCtx) -> String {
@@ -1026,8 +1106,11 @@ fn process_tpl(template: &str, context: &EvalCtx) -> String {
                 };
                 if let Some(val) = context.get(lookup) {
                     result.push_str(val);
-                } else if let Some(d) = default {
-                    result.push_str(d);
+                } else {
+                    anotar_ausente(lookup, default.is_some());
+                    if let Some(d) = default {
+                        result.push_str(d);
+                    }
                 }
                 // else: unknown key with no default -> empty (unchanged).
             } else {
@@ -2418,6 +2501,7 @@ fn eval_owned(
         // The referenced subtree's actions and scoped styles belong to `name`
         // (innermost wins).
         *styles.pending_root.borrow_mut() = uso_el;
+        let em_builtin = entrar_em_builtin(name);
         let root = eval_owned(
             template_ast,
             &local_context,
@@ -2431,7 +2515,9 @@ fn eval_owned(
             overlay_st.as_ref(),
             (!slot_conteudo.is_empty()).then_some(&slot_conteudo),
             cache,
-        )?;
+        );
+        sair_de_builtin(em_builtin);
+        let root = root?;
         if slot_conteudo.is_empty() {
             store(&local_context, cache, std::slice::from_ref(&root));
         } else {

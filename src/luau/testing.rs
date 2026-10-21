@@ -10,7 +10,9 @@
 //! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gvb` com `<script>`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. Um handler
-//!   que falha **lança** o erro (em produção ele viraria um toast).
+//!   que falha **lança** o erro (em produção ele viraria um toast); `:missing()`
+//!   avalia o template contra o `ctx` de agora e devolve as chaves que o markup
+//!   **lê e ninguém publicou** (ver [`missing_keys`]).
 //!
 //! `require` funciona como no app (relativo ao arquivo de teste), então módulos
 //! Luau puros testam-se só com `require` + `expect`.
@@ -190,6 +192,8 @@ pub fn run_file(path: &Path, filter: Option<&str>) -> Summary {
 /// Um componente carregado por `component(...)`, com o contexto que ele muta.
 struct TestComponent {
     comp: LuauComponent,
+    /// O arquivo de onde veio, para o `:missing()` reavaliar o template.
+    path: String,
     data: RefCell<ContextMap>,
     toasts: RefCell<Vec<(String, String)>>,
 }
@@ -214,6 +218,12 @@ impl UserData for TestComponent {
                 )));
             }
             Ok(())
+        });
+        methods.add_method("missing", |lua, this, ()| {
+            let data = this.data.borrow();
+            let keys = missing_keys(&this.path, &data)
+                .map_err(|e| mlua::Error::runtime(format!("missing: {e}")))?;
+            lua.create_sequence_from(keys)
         });
         methods.add_method("get", |_, this, key: String| {
             Ok(this.data.borrow().get(&key).cloned())
@@ -242,6 +252,83 @@ impl UserData for TestComponent {
     }
 }
 
+/// As chaves que o **markup** de `path` lê do contexto e que `data` não tem.
+///
+/// É o cruzamento que um teste de handler não faz: o handler escreve a chave A,
+/// o `.gvb` lê a chave B, e a tela aparece VAZIA sem erro nenhum. Aqui o
+/// template é carregado como o motor o carrega (um `app(...)` ou uma tela solta,
+/// com seus `import`s), avaliado contra `data`, e o rastreamento de leituras do
+/// próprio avaliador — o mesmo que decide o cache — diz o que foi consultado.
+///
+/// Cobre o que o avaliador lê (`{chave}`, `@chave`, `if=`, `for-each=` e afins)
+/// e as **ligações** do markup (`:value`, `:items`, `:columns`…), que o widget
+/// lê só ao desenhar e o avaliador nunca vê. Fica de fora o que o motor publica sozinho em tempo de
+/// execução (`__*`) e o que é variável local de um `for-each`.
+///
+/// Não contam: a chave lida com valor padrão (`{k|padrão}`), a lida dentro do
+/// template de um builtin (as props de estilo de um `<card>`, opcionais por
+/// construção) e o `erro_<campo>` de um `<form>` com
+/// `rules`, que o motor só publica ao enviar. Se ainda sobrar uma chave que é
+/// legitimamente tardia (um `if="{status}"` que um handler publica depois), o
+/// teste a **nomeia**, com o porquê; o resto da lista é a falha.
+fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
+    use crate::{GlacierError, GlacierUI, parser};
+
+    let content = crate::asset_source::read_markup(&DiskAssets, path)
+        .map_err(|e| GlacierError::io("template", path, e))?;
+    let is_app = parser::UiNode::parse_app_xml(&content, Some(path))?.is_some();
+
+    let mut ui = GlacierUI::new();
+    let name = if is_app {
+        ui.register_app(path)?;
+        ui.current_screen_name()
+            .map(str::to_string)
+            .ok_or(GlacierError::NoActiveScreen)?
+    } else {
+        ui.register_component("tela", path)?;
+        "tela".to_string()
+    };
+
+    // O contexto do teste substitui o que o registro semeou, e o que foi
+    // avaliado com o outro sai do cache.
+    ui.context_data = data.clone();
+    ui.evaluated_templates.clear();
+    ui.eval_deps.clear();
+    ui.tree_bindings.clear();
+    ui.eval_cache = Default::default();
+    let builtins = ui.builtin_component_names.clone();
+    let (avaliado, ignoradas) =
+        crate::eval::rastrear_ausentes(builtins, || ui.evaluate_into_cache(&name));
+    avaliado?;
+
+    let mut missing: Vec<String> = ui
+        .eval_deps
+        .get(&name)
+        .into_iter()
+        .flatten()
+        .filter(|(key, value)| value.is_none() && !ignoradas.contains(key))
+        .map(|(key, _)| key.clone())
+        .collect();
+    // As ligações (`:value`, `:items`, `:columns`…): o widget lê a chave só ao
+    // desenhar, então o avaliador acima não as viu.
+    let tela = is_app.then_some(name.as_str());
+    let ligadas = parser::binding_keys(&content, tela)
+        .map_err(|e| GlacierError::io("template", path, std::io::Error::other(e)))?;
+    missing.extend(ligadas.into_iter().filter(|key| !data.contains_key(key)));
+    // O `<form>` publica `erro_<campo>` sozinho, ao enviar: antes disso a chave
+    // não existe, e não é esquecimento de ninguém.
+    let erros_do_form: Vec<String> = ui
+        .tree_bindings
+        .get(&name)
+        .into_iter()
+        .flat_map(|b| b.form_fields.iter().map(|f| f.error_key.clone()))
+        .collect();
+    missing.retain(|key| !key.starts_with("__") && !erros_do_form.contains(key));
+    missing.sort();
+    missing.dedup();
+    Ok(missing)
+}
+
 fn install_component(lua: &Lua) -> mlua::Result<()> {
     let component = lua.create_function(|_, (path, initial): (String, Option<mlua::Table>)| {
         let comp = LuauComponent::from_file(path.clone(), path.clone())
@@ -262,6 +349,7 @@ fn install_component(lua: &Lua) -> mlua::Result<()> {
         }
         Ok(TestComponent {
             comp,
+            path,
             data: RefCell::new(data),
             toasts: RefCell::new(Vec::new()),
         })
@@ -312,6 +400,39 @@ mod tests {
                    c:call('inc')\n\
                    expect(c:get('n')):toBe('2')\n\
                    expect(function() c:call('nao_existe') end):toThrow('nao_existe')\n\
+                 end)",
+                tela.to_str().unwrap()
+            ),
+        )
+        .unwrap();
+        let s = run_file(&file, None);
+        assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// O handler publica `certo`, o markup lê `certo`, `errado` (interpolado) e
+    /// `ligada` (um `:value`): só as duas últimas são esquecimento. É a tela
+    /// vazia que um teste de handler não pega.
+    #[test]
+    fn missing_acusa_a_chave_que_o_markup_le_e_ninguem_publicou() {
+        let dir = std::env::temp_dir().join(format!("glacier_tm_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tela = dir.join("tela.gv");
+        std::fs::write(
+            &tela,
+            "<screen><script>function init() ctx.certo = 'x' end</script>\
+             <Column><Text content=\"{certo} {errado} {opcional|ok}\"/>\
+             <ProgressBar :value=\"ligada\"/></Column></screen>",
+        )
+        .unwrap();
+        let file = dir.join("t.test.luau");
+        std::fs::write(
+            &file,
+            format!(
+                "test('missing', function()\n\
+                   local c = component({:?})\n\
+                   c:call('init')\n\
+                   expect(c:missing()):toEqual({{ 'errado', 'ligada' }})\n\
                  end)",
                 tela.to_str().unwrap()
             ),

@@ -25,7 +25,8 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   `//` e `/* */`, vírgula final, `\uXXXX` com par substituto, erro com linha e coluna, chave repetida
   recusada.
 - **Todo preset sai com `glacier.jsonc`** (comentado campo a campo; o `wasm32` com a seção `wasm` e
-  as configurações `dev`/`prod`) **e com um `tests/*.test.luau`** que o `glacier test` roda. O
+  as configurações `dev`/`prod`) **e com um `tests/*.test.luau`** que o `glacier test` roda, incluindo
+  o cruzamento das chaves que a tela lê com as que o script publica (`tela:missing()`, do motor 0.127). O
   `make luau` passa a checar também `tests/`. O `AGENTS.md` dos projetos documenta os dois.
 
 ### Corrigido
@@ -37,6 +38,21 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   onde.
 - **`build.rs`**: um arquivo **novo** em `templates/` não recompilava a CLI (só os existentes eram
   vigiados), e o preset saía sem ele.
+
+## glacier-ui 0.127.0 — 2026-10-21
+
+### Adicionado
+
+- **`tela:missing()` nos testes (`glacier test`)**: avalia o template de `component(...)` contra o
+  `ctx` de agora e devolve, ordenadas, as chaves que o **markup lê e ninguém publicou**. É o teste
+  que pega a tela vazia — o handler escreve `total`, o `.gvb` lê `{totall}`, e todo teste de handler
+  passa. Cobre `{chave}`, `@chave`, `if=`, `for-each=` **e as ligações** (`:value`, `:items`,
+  `:columns`…), que o widget lê só ao desenhar. Não contam: chave lida com `{k|padrão}`, as props
+  opcionais que um builtin lê dentro do próprio template (`title_class`, `field_class`), o
+  `erro_<campo>` de um `<form>` (o motor o publica ao enviar) e `__*`. Uma ausência legítima
+  (ex.: um campo que só existe depois de digitar) se **nomeia** no `toEqual`.
+- Cada preset do `glacier new` passa a trazer esse teste (ver glacier-cli 0.8.0, que **exige** o
+  motor 0.127: publique o motor antes da CLI).
 
 ## glacier-ui 0.126.0 — 2026-10-19
 
