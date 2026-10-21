@@ -298,17 +298,7 @@ declare storage: {
 }
 
 -- ── Testes (`glacier test`): só existem em arquivos *.test.luau ──────────────
-export type Expectation = {
-    never: Expectation,
-    toBe: (self: Expectation, expected: any) -> (),
-    toEqual: (self: Expectation, expected: any) -> (),
-    toBeNil: (self: Expectation) -> (),
-    toBeTruthy: (self: Expectation) -> (),
-    toBeFalsy: (self: Expectation) -> (),
-    toContain: (self: Expectation, item: any) -> (),
-    toMatch: (self: Expectation, pattern: string) -> (),
-    toThrow: (self: Expectation, fragment: string?) -> (),
-}
+-- Um teste é uma função global `test_*`; o `---` acima dela é a documentação.
 export type TestComponent = {
     call: (self: TestComponent, action: string, value: string?) -> (),
     get: (self: TestComponent, key: string) -> string?,
@@ -318,10 +308,16 @@ export type TestComponent = {
     -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".
     missing: (self: TestComponent) -> { string },
 }
-declare function describe(name: string, body: () -> ()): ()
-declare function test(name: string, body: () -> ()): ()
-declare function it(name: string, body: () -> ()): ()
-declare function before_each(body: () -> ()): ()
+declare function assert_eq(got: any, expected: any): ()
+declare function assert_ne(got: any, unexpected: any): ()
+declare function assert_nil(value: any): ()
+declare function assert_not_nil(value: any): ()
+declare function assert_true(value: any): ()
+declare function assert_false(value: any): ()
+declare function assert_has(container: any, item: any): ()
+declare function assert_match(text: any, pattern: string): ()
+declare function assert_fails(body: () -> (), fragment: string?): ()
+declare function assert_complete(screen: TestComponent, expected_missing: { string }?): ()
+declare function each(cases: { { any } }, body: (...any) -> ()): ()
 declare function fail(message: string?): ()
-declare function expect(actual: any): Expectation
 declare function component(path: string, initial_ctx: { [string]: any }?): TestComponent

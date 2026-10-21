@@ -10,6 +10,45 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.9.0 — 2026-10-21
+
+### Adicionado
+
+- **`glacier test -v / -vv / -vvv`**: níveis de verbosidade. Sem flag, uma linha por arquivo
+  (`N ✓  M ✗`) e as falhas por inteiro; `-v` lista o nome de cada teste; `-vv` acrescenta a
+  documentação (`---`) de cada um; `-vvv` acrescenta o tempo e o stacktrace das falhas.
+- **`glacier test -s` / `--silent`**: esconde os logs (`print`, `console.*`) dos testes, que
+  aparecem por padrão sob o nome do teste que os escreveu. As letras se combinam: `-svvv`.
+
+### Alterado
+
+- Os 10 presets e a seção "Testes" do `AGENTS.md` passam para a sintaxe `test_*` / `assert_*` (ver
+  glacier-ui 0.128.0, que a CLI **exige**: publique o motor antes da CLI). O `glacier.d.luau` deixa
+  de declarar `describe`/`test`/`expect`.
+
+## glacier-ui 0.128.0 — 2026-10-21
+
+### Adicionado
+
+- **Sintaxe própria para os testes Luau** (`docs/PLANO_TESTES.md`). Um teste é uma função global
+  `test_*`, descoberta pelo nome e rodada na ordem do arquivo; `setup()` roda antes de cada um;
+  `grupo__caso` agrupa. Asserções `assert_eq / assert_ne / assert_nil / assert_not_nil / assert_true /
+  assert_false / assert_has / assert_match / assert_fails / assert_complete`, sempre
+  `(obtido, esperado)`; `each(casos, fn)` para tabela de casos (a falha diz qual linha).
+  `assert_complete(tela, esperadas?)` é a conta de conjuntos do `tela:missing()`: a falha nomeia as
+  chaves que sobraram e as que faltaram.
+- **Documentação do teste em `---`**: o comentário logo acima de um `test_*` aparece com `-vv` e
+  **sempre** numa falha, junto com a linha do teste e a linha do `assert_*`.
+- **Verbosidade e logs** no runner (`GLACIER_TEST_VERBOSE`, `GLACIER_TEST_SILENT`): `print` e
+  `console.*` de dentro de um teste são capturados e mostrados sob o nome dele; `-vvv` traz o
+  stacktrace.
+- Aviso quando o arquivo define o mesmo `test_x` duas vezes (a segunda sobrescrevia em silêncio).
+
+### Obsoleto
+
+- `describe`/`test`/`it`/`before_each`/`expect(v):toBe…` seguem funcionando, no mesmo arquivo que os
+  `test_*`, mas saíram do `glacier.d.luau`. A remoção é decisão de uma versão futura.
+
 ## glacier-cli 0.8.0 — 2026-10-21
 
 ### Adicionado

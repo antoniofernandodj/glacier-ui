@@ -2,6 +2,9 @@
 -- Testa o DEPOIS da validação sem abrir janela: `glacier test`.
 -- As regras (`rules="required|minlen:3"`) moram no <form> e o motor as aplica
 -- ao enviar — isso só se vê rodando o app. Aqui ficam os três handlers.
+--
+-- Cada função `test_*` é um teste; o `---` acima dela é a documentação
+-- (`glacier test -vv`, e sempre numa falha).
 
 local function nova()
     local tela = component("views/app.gvb")
@@ -9,43 +12,45 @@ local function nova()
     return tela
 end
 
-describe("cadastro", function()
-    test("o init semeia os valores iniciais", function()
-        local tela = nova()
-        expect(tela:get("f_nome")):toBe("")
-        expect(tela:get("f_idade")):toBe("25")
-        expect(tela:get("f_uf")):toBe("SP")
-    end)
+--- O init semeia os valores iniciais do formulário.
+function test_o_init_semeia_os_valores_iniciais()
+    local tela = nova()
+    assert_eq(tela:get("f_nome"), "")
+    assert_eq(tela:get("f_idade"), "25")
+    assert_eq(tela:get("f_uf"), "SP")
+end
 
-    test("salvar registra o resultado e avisa", function()
-        local tela = nova()
-        tela:set("f_nome", "Ana")
-        tela:call("salvar")
-        expect(tela:get("f_status")):toBe("salvo: Ana · SP")
-        expect(tela:toasts()[1].kind):toBe("success")
-    end)
+--- Salvar registra o resultado no status e mostra um toast de sucesso.
+function test_salvar_registra_o_resultado_e_avisa()
+    local tela = nova()
+    tela:set("f_nome", "Ana")
+    tela:call("salvar")
+    assert_eq(tela:get("f_status"), "salvo: Ana · SP")
+    assert_eq(tela:toasts()[1].kind, "success")
+end
 
-    test("apontar conta os campos com erro e limpa o status", function()
-        local tela = nova()
-        tela:call("apontar", '[{"campo":"f_nome","msg":"x"},{"campo":"f_cpf","msg":"y"}]')
-        expect(tela:get("f_status")):toBe("")
-        expect(tela:toasts()[1].message):toBe("Corrija 2 campo(s)")
-    end)
+--- Apontar conta os campos com erro e limpa o status.
+function test_apontar_conta_os_campos_com_erro_e_limpa_o_status()
+    local tela = nova()
+    tela:call("apontar", '[{"campo":"f_nome","msg":"x"},{"campo":"f_cpf","msg":"y"}]')
+    assert_eq(tela:get("f_status"), "")
+    assert_eq(tela:toasts()[1].message, "Corrija 2 campo(s)")
+end
 
-    test("limpar devolve tudo ao estado inicial", function()
-        local tela = nova()
-        tela:set("f_nome", "Ana")
-        tela:set("f_uf", "RJ")
-        tela:call("limpar")
-        expect(tela:get("f_nome")):toBe("")
-        expect(tela:get("f_uf")):toBe("SP")
-    end)
+--- Limpar devolve todos os campos ao estado inicial.
+function test_limpar_devolve_tudo_ao_estado_inicial()
+    local tela = nova()
+    tela:set("f_nome", "Ana")
+    tela:set("f_uf", "RJ")
+    tela:call("limpar")
+    assert_eq(tela:get("f_nome"), "")
+    assert_eq(tela:get("f_uf"), "SP")
+end
 
-    test("toda chave que a tela lê é publicada", function()
-        -- `missing()` cruza o que o .gvb lê ({x}, @x, :value, :items…) com o ctx
-        -- depois do init. Uma chave escrita errada num dos lados passa em todo
-        -- teste de handler e deixa a tela vazia; aqui ela aparece pelo nome.
-        -- Os `erro_<campo>` do <form> não entram: o motor os publica ao enviar.
-        expect(nova():missing()):toEqual({})
-    end)
-end)
+--- Uma chave escrita errada num dos lados passa em todo teste de handler e deixa
+--- a tela vazia; `missing()` cruza o que o .gvb lê ({x}, @x, :value, :items…)
+--- com o ctx depois do init e a nomeia.
+--- Os `erro_<campo>` do <form> não entram: o motor os publica ao enviar.
+function test_toda_chave_que_a_tela_le_e_publicada()
+    assert_complete(nova())
+end

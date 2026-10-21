@@ -223,7 +223,7 @@ fn opcoes(
 
 // ── test ──────────────────────────────────────────────────────────────────────
 
-/// `glacier test [arquivo|pasta] [-t trecho] [--release] [-F features]`: roda os
+/// `glacier test [arquivo|pasta] [-t trecho] [-s] [-v|-vv|-vvv] [--release] [-F features]`: roda os
 /// `*.test.luau` do projeto. O app sobe em modo de teste (`GLACIER_TEST`, lido
 /// por `GlacierDaemon::run`) em vez de abrir janela, então os testes enxergam as
 /// extensões Rust do próprio app. Sem argumento, procura em `views/` e `tests/`.
@@ -235,6 +235,8 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     let mut filtro = String::new();
     let mut release = cfg.booleano(&["test", "release"]).unwrap_or(false);
     let mut features = cfg.features(&["test"]);
+    let mut verbosidade: u8 = 0;
+    let mut silencioso = false;
 
     let mut args = argv.into_iter();
     while let Some(arg) = args.next() {
@@ -245,11 +247,27 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
                     .ok_or_else(|| invalido(format!("`{arg}` precisa de um trecho do nome")))?;
             }
             "--release" => release = true,
+            "--verbose" => verbosidade = verbosidade.saturating_add(1).min(3),
+            "--silent" => silencioso = true,
             "-F" | "--features" => {
                 features = Some(
                     args.next()
                         .ok_or_else(|| invalido(format!("`{arg}` precisa da lista de features")))?,
                 );
+            }
+            // `-v`, `-vv`, `-vvv`, `-s`, `-svvv`: letras de uma opção só, como
+            // no resto do mundo Unix.
+            curta if curta.len() > 1
+                && curta.starts_with('-')
+                && !curta.starts_with("--")
+                && curta[1..].chars().all(|c| c == 'v' || c == 's') =>
+            {
+                for letra in curta[1..].chars() {
+                    match letra {
+                        'v' => verbosidade = verbosidade.saturating_add(1).min(3),
+                        _ => silencioso = true,
+                    }
+                }
             }
             outro if outro.starts_with('-') => {
                 return Err(invalido(format!("opção desconhecida de `test`: '{outro}'")));
@@ -289,6 +307,8 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     let caminhos = std::env::join_paths(caminhos).map_err(io::Error::other)?;
     cmd.env("GLACIER_LUAU_PATH", caminhos);
     cmd.env("GLACIER_TEST", &alvo).env("GLACIER_TEST_FILTER", &filtro);
+    cmd.env("GLACIER_TEST_VERBOSE", verbosidade.to_string());
+    cmd.env("GLACIER_TEST_SILENT", if silencioso { "1" } else { "0" });
 
     passo(e, "cargo run (modo de teste)");
     exigir_sucesso(cmd.status(), "glacier test")

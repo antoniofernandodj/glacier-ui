@@ -3,10 +3,16 @@
 //! Um teste é um arquivo `*.test.luau` (ou `*_test.luau`). Ele roda numa VM com
 //! TODOS os globais do motor e as extensões do app (`lua_extension`), mais:
 //!
-//! - `describe(nome, fn)`, `test(nome, fn)` (`it`), `before_each(fn)`;
-//! - `expect(v):toBe / toEqual / toBeNil / toBeTruthy / toBeFalsy / toContain /
-//!   toMatch / toThrow`, e `.never` para negar (`expect(v).never:toBe(1)`);
+//! - cada função global `test_*` é um teste (descoberta pelo nome, na ordem em
+//!   que aparece no arquivo); `setup()`, se existir, roda antes de cada um;
+//! - `assert_eq / assert_ne / assert_nil / assert_not_nil / assert_true /
+//!   assert_false / assert_has / assert_match / assert_fails / assert_complete`,
+//!   sempre `(obtido, esperado)`, e `each(casos, fn)` para tabela de casos;
 //! - `fail(msg)`;
+//! - o comentário `---` logo acima de um `test_*` é a documentação dele (ver
+//!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
+//! - o formato antigo (`describe`, `test`, `before_each`, `expect(v):toBe…`)
+//!   continua aceito, obsoleto;
 //! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gvb` com `<script>`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. Um handler
@@ -39,6 +45,40 @@ const TEST_PRELUDE: &str = include_str!("testing.luau");
 pub const ENV_VAR: &str = "GLACIER_TEST";
 /// Filtro opcional por trecho do nome do teste.
 pub const ENV_FILTER: &str = "GLACIER_TEST_FILTER";
+/// Nível de verbosidade (`-v` = 1, `-vv` = 2, `-vvv` = 3).
+pub const ENV_VERBOSE: &str = "GLACIER_TEST_VERBOSE";
+/// `1` esconde os logs (`print`, `console.*`) dos testes (`-s`).
+pub const ENV_SILENT: &str = "GLACIER_TEST_SILENT";
+
+/// Como o relatório é impresso.
+///
+/// | nível | mostra |
+/// |---|---|
+/// | 0 | uma linha por arquivo; as falhas por inteiro |
+/// | 1 (`-v`) | o nome de cada teste |
+/// | 2 (`-vv`) | + a documentação (`---`) de cada teste |
+/// | 3 (`-vvv`) | + o tempo de cada teste e o stacktrace das falhas |
+///
+/// Os logs que o teste escreveu (`print`, `console.*`) aparecem em todos os
+/// níveis, a não ser com `silent` (`-s`). A falha mostra sempre a documentação,
+/// a linha e o obtido/esperado.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Options {
+    pub verbosity: u8,
+    pub silent: bool,
+}
+
+impl Options {
+    fn from_env() -> Self {
+        Self {
+            verbosity: std::env::var(ENV_VERBOSE)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
+            silent: std::env::var(ENV_SILENT).is_ok_and(|v| v == "1"),
+        }
+    }
+}
 
 /// Resultado agregado de uma execução.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +134,7 @@ fn walk(path: &Path, out: &mut Vec<PathBuf>) {
 }
 
 /// Roda os testes e imprime o relatório. Devolve o código de saída do processo.
-pub fn run_cli(target: Option<&str>, filter: Option<&str>) -> i32 {
+pub fn run_cli(target: Option<&str>, filter: Option<&str>, opts: Options) -> i32 {
     let files = discover(target);
     if files.is_empty() {
         eprintln!("nenhum arquivo *.test.luau encontrado (procurei em views/ e tests/)");
@@ -102,7 +142,7 @@ pub fn run_cli(target: Option<&str>, filter: Option<&str>) -> i32 {
     }
     let mut total = Summary::default();
     for file in &files {
-        let s = run_file(file, filter);
+        let s = run_file(file, filter, opts);
         total.passed += s.passed;
         total.failed += s.failed;
         total.broken_files += s.broken_files;
@@ -124,17 +164,107 @@ pub fn run_cli(target: Option<&str>, filter: Option<&str>) -> i32 {
 pub fn run_from_env() -> Option<i32> {
     let target = std::env::var(ENV_VAR).ok()?;
     let filter = std::env::var(ENV_FILTER).ok().filter(|f| !f.is_empty());
-    Some(run_cli(Some(&target), filter.as_deref()))
+    Some(run_cli(Some(&target), filter.as_deref(), Options::from_env()))
 }
 
-/// Roda um arquivo de teste e imprime ✓/✗ por teste.
-pub fn run_file(path: &Path, filter: Option<&str>) -> Summary {
-    println!("{}", path.display());
+/// O que o runner Luau devolve por teste.
+#[derive(Debug, Default)]
+struct Outcome {
+    name: String,
+    ok: bool,
+    /// Linha da definição do `test_*` (os do formato antigo não têm).
+    line: Option<i64>,
+    /// A asserção que falhou (`assert_eq`…), se foi uma.
+    kind: Option<String>,
+    detail: String,
+    /// Linha do `assert_*` que falhou.
+    assert_line: Option<i64>,
+    trace: String,
+    ms: f64,
+    logs: Vec<String>,
+}
+
+impl Outcome {
+    fn from_lua(r: &mlua::Table) -> Self {
+        Self {
+            name: r.get("name").unwrap_or_default(),
+            ok: r.get("ok").unwrap_or(false),
+            line: r.get("line").ok(),
+            kind: r.get("kind").ok(),
+            detail: r.get("detail").unwrap_or_default(),
+            assert_line: r.get("assert_line").ok(),
+            trace: r.get("trace").unwrap_or_default(),
+            ms: r.get("ms").unwrap_or_default(),
+            logs: r
+                .get::<mlua::Table>("logs")
+                .map(|t| t.sequence_values::<String>().flatten().collect())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// A documentação de um teste: os `---` consecutivos imediatamente acima da
+/// linha `line` (1-based) de `source`, sem o marcador. Vazia se não houver.
+///
+/// O Luau não tem docstring; o comentário `---` é a convenção que o `luau-lsp`
+/// já mostra no hover. O runner lê o texto do arquivo, então não custa nada em
+/// execução.
+pub fn doc_above(source: &str, line: usize) -> Vec<String> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut doc = Vec::new();
+    let mut i = line.saturating_sub(1);
+    while i > 0 {
+        let t = lines[i - 1].trim_start();
+        // `----` é régua de comentário, não documentação.
+        match t.strip_prefix("---") {
+            Some(rest) if !rest.starts_with('-') => {
+                doc.push(rest.strip_prefix(' ').unwrap_or(rest).trim_end().to_string());
+            }
+            _ => break,
+        }
+        i -= 1;
+    }
+    doc.reverse();
+    doc
+}
+
+/// O primeiro parágrafo de uma documentação (até a primeira linha em branco).
+fn first_paragraph(doc: &[String]) -> &[String] {
+    let end = doc.iter().position(|l| l.is_empty()).unwrap_or(doc.len());
+    &doc[..end]
+}
+
+/// Os `test_*` definidos mais de uma vez no arquivo: a segunda definição
+/// sobrescreve a primeira em silêncio, e quem lê o texto consegue avisar.
+fn duplicate_tests(source: &str) -> Vec<String> {
+    let mut seen: Vec<String> = Vec::new();
+    let mut dups: Vec<String> = Vec::new();
+    for line in source.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("function test_") else {
+            continue;
+        };
+        let name: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if seen.contains(&name) {
+            if !dups.contains(&name) {
+                dups.push(name);
+            }
+        } else {
+            seen.push(name);
+        }
+    }
+    dups
+}
+
+/// Roda um arquivo de teste e imprime o relatório (ver [`Options`]).
+pub fn run_file(path: &Path, filter: Option<&str>, opts: Options) -> Summary {
     let mut summary = Summary::default();
     let script = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => {
-            println!("  ✗ não consegui ler: {e}");
+            println!("{}\n  ✗ não consegui ler: {e}", path.display());
             summary.broken_files = 1;
             return summary;
         }
@@ -147,14 +277,14 @@ pub fn run_file(path: &Path, filter: Option<&str>) -> Summary {
     let comp = match LuauComponent::build_with(
         &script,
         path_str.clone(),
-        path_str,
+        path_str.clone(),
         path,
         Arc::new(DiskAssets),
         Some(&install),
     ) {
         Ok(c) => c,
         Err(e) => {
-            println!("  ✗ não carregou: {e}");
+            println!("{}\n  ✗ não carregou: {e}", path.display());
             summary.broken_files = 1;
             return summary;
         }
@@ -162,7 +292,7 @@ pub fn run_file(path: &Path, filter: Option<&str>) -> Summary {
     let run: mlua::Function = match comp.luau.globals().get("__glacier_run") {
         Ok(f) => f,
         Err(e) => {
-            println!("  ✗ {e}");
+            println!("{}\n  ✗ {e}", path.display());
             summary.broken_files = 1;
             return summary;
         }
@@ -170,23 +300,109 @@ pub fn run_file(path: &Path, filter: Option<&str>) -> Summary {
     let results: mlua::Table = match run.call(filter) {
         Ok(t) => t,
         Err(e) => {
-            println!("  ✗ {e}");
+            println!("{}\n  ✗ {e}", path.display());
             summary.broken_files = 1;
             return summary;
         }
     };
-    for r in results.sequence_values::<mlua::Table>().flatten() {
-        let name: String = r.get("name").unwrap_or_default();
-        if r.get::<bool>("ok").unwrap_or(false) {
-            println!("  ✓ {name}");
-            summary.passed += 1;
-        } else {
-            let err: String = r.get("err").unwrap_or_default();
-            println!("  ✗ {name}\n    {err}");
-            summary.failed += 1;
-        }
+    let outcomes: Vec<Outcome> = results
+        .sequence_values::<mlua::Table>()
+        .flatten()
+        .map(|r| Outcome::from_lua(&r))
+        .collect();
+    summary.passed = outcomes.iter().filter(|o| o.ok).count();
+    summary.failed = outcomes.len() - summary.passed;
+
+    if opts.verbosity == 0 {
+        println!(
+            "{}  {} ✓{}",
+            path.display(),
+            summary.passed,
+            if summary.failed > 0 {
+                format!("  {} ✗", summary.failed)
+            } else {
+                String::new()
+            }
+        );
+    } else {
+        println!("{}", path.display());
+    }
+    for dup in duplicate_tests(&script) {
+        println!("  aviso: test_{dup} é definida mais de uma vez; só a última roda");
+    }
+    for o in &outcomes {
+        print_outcome(path, &script, o, opts);
     }
     summary
+}
+
+/// Imprime um teste conforme o nível de verbosidade.
+fn print_outcome(path: &Path, script: &str, o: &Outcome, opts: Options) {
+    let doc = o
+        .line
+        .map(|l| doc_above(script, l as usize))
+        .unwrap_or_default();
+    let logs = !opts.silent && !o.logs.is_empty();
+    let timing = if opts.verbosity >= 3 {
+        format!("  ({:.1} ms)", o.ms)
+    } else {
+        String::new()
+    };
+
+    if o.ok {
+        if opts.verbosity >= 1 {
+            println!("  ✓ {}{timing}", o.name);
+            if opts.verbosity >= 2 {
+                for l in first_paragraph(&doc) {
+                    println!("      {l}");
+                }
+            }
+        } else if logs {
+            println!("  · {}", o.name);
+        }
+    } else {
+        let onde = o
+            .line
+            .map(|l| format!("   {}:{l}", path.display()))
+            .unwrap_or_default();
+        println!("  ✗ {}{onde}{timing}", o.name);
+        for l in &doc {
+            println!("{}", format!("      {l}").trim_end());
+        }
+        if !doc.is_empty() {
+            println!();
+        }
+        let em = o
+            .assert_line
+            .map(|l| format!(" (linha {l})"))
+            .unwrap_or_default();
+        match &o.kind {
+            Some(kind) => println!("      {kind}{em}"),
+            None if !em.is_empty() => println!("      erro{em}"),
+            None => {}
+        }
+        for l in o.detail.lines() {
+            // `detail` das asserções já vem com 2 espaços de recuo.
+            println!("      {l}");
+        }
+        if opts.verbosity >= 3 {
+            let trace = o.trace.trim();
+            if !trace.is_empty() {
+                println!("      stacktrace:");
+                // Os quadros do próprio runner (`<glacier test>`) não ajudam ninguém.
+                for l in trace.lines().filter(|l| !l.contains("<glacier test>")) {
+                    println!("        {}", l.trim());
+                }
+            }
+        }
+    }
+    if logs {
+        for entry in &o.logs {
+            for l in entry.lines() {
+                println!("      │ {l}");
+            }
+        }
+    }
 }
 
 /// Um componente carregado por `component(...)`, com o contexto que ele muta.
@@ -376,7 +592,7 @@ mod tests {
              end)",
         )
         .unwrap();
-        let s = run_file(&file, None);
+        let s = run_file(&file, None, Options::default());
         assert_eq!((s.passed, s.failed, s.broken_files), (3, 1, 0));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -405,7 +621,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let s = run_file(&file, None);
+        let s = run_file(&file, None, Options::default());
         assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -438,8 +654,51 @@ mod tests {
             ),
         )
         .unwrap();
-        let s = run_file(&file, None);
+        let s = run_file(&file, None, Options::default());
         assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn descobre_test_por_nome_e_roda_asserts_setup_e_each() {
+        let dir = std::env::temp_dir().join(format!("glacier_tn_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("n.test.luau");
+        std::fs::write(
+            &file,
+            "local n = 0\n\
+             function setup() n = n + 1 end\n\
+             --- Soma.\n\
+             function test_soma() assert_eq(1 + 1, 2); assert_eq(n, 1) end\n\
+             function test_quebra() assert_eq({ a = 1 }, { a = 2 }) end\n\
+             function test_tabela()\n\
+               each({ { 1, 2 }, { 2, 3 } }, function(a, b) assert_eq(a + 1, b) end)\n\
+             end\n\
+             function test_tabela_quebra()\n\
+               each({ { 1, 2 }, { 2, 9 } }, function(a, b) assert_eq(a + 1, b) end)\n\
+             end\n\
+             function test_lanca() assert_fails(function() error('boom') end, 'boom') end\n\
+             function test_nulos() assert_nil(nil); assert_not_nil(1); assert_ne(1, 2) end",
+        )
+        .unwrap();
+        let s = run_file(&file, None, Options::default());
+        assert_eq!((s.passed, s.failed, s.broken_files), (4, 2, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn doc_above_junta_os_tres_tracos_acima_da_funcao() {
+        let src = "-- nada\n--- Primeira.\n---\n--- Segunda.\n---- régua\nfunction test_x() end";
+        assert_eq!(doc_above(src, 6), vec!["", "Segunda."]);
+        let src = "--- Primeira.\n---\n--- Segunda.\nfunction test_x() end";
+        assert_eq!(doc_above(src, 4), vec!["Primeira.", "", "Segunda."]);
+        assert_eq!(first_paragraph(&doc_above(src, 4)), ["Primeira."]);
+        assert!(doc_above("function test_x() end", 1).is_empty());
+    }
+
+    #[test]
+    fn acusa_test_definido_duas_vezes() {
+        let src = "function test_a() end\nfunction test_b() end\nfunction test_a() end";
+        assert_eq!(duplicate_tests(src), vec!["a".to_string()]);
     }
 }

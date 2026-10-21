@@ -19,7 +19,7 @@ então** escreve alguma coisa: até a confirmação final, nada foi criado.
 glacier new [nome]            cria um projeto — pergunta o resto
 glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
 glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
-glacier test [arquivo]        roda os testes Luau (`*.test.luau`)
+glacier test [arquivo]        roda os testes Luau (`*.test.luau`); -v/-vv/-vvv detalham, -s esconde os logs
 glacier install-extensions    só instala as extensões de VS Code
 glacier presets               descreve os presets disponíveis
 glacier --version
@@ -52,6 +52,39 @@ Precedência: **flag › configuração (`-c`) › base do arquivo › padrão d
 arquivo é opcional. Um campo que a CLI não conhece, ou de tipo errado, é **erro**
 (todos de uma vez), não aviso — ignorar `"prot": 3000` em silêncio seria uma porta
 que não mudou sem ninguém saber por quê.
+
+## `test`: rodar os testes Luau
+
+```
+glacier test                       todos os *.test.luau de views/ e tests/
+glacier test tests/itens.test.luau um arquivo
+glacier test -t filtrar            só os testes cujo nome contém "filtrar"
+glacier test -vv                   nomes + documentação de cada teste
+glacier test -svvv                 sem logs; com tempo e stacktrace das falhas
+```
+
+Um teste é uma função `test_*`; o comentário `---` acima dela é a documentação:
+
+```lua
+--- Filtrar por "API" deixa só o serviço que contém o trecho.
+function test_filtrar_deixa_so_o_trecho()
+    local tela = component("views/app.gvb")
+    tela:call("init")
+    tela:call("filtrar", "API")
+    assert_eq(tela:get("total"), "3")
+end
+```
+
+| flag | mostra |
+|---|---|
+| (nenhuma) | uma linha por arquivo; cada falha por inteiro (linha, documentação, obtido/esperado) |
+| `-v` | o nome de cada teste |
+| `-vv` | + a documentação de cada teste |
+| `-vvv` | + o tempo de cada teste e o stacktrace das falhas |
+| `-s`, `--silent` | esconde os logs (`print`, `console.*`), que aparecem por padrão |
+
+As letras se combinam (`-svvv`). As asserções, `each`, `setup()` e `tela:missing()` estão
+no `AGENTS.md` que o `glacier new` gera ("Testes").
 
 ## Presets
 

@@ -489,7 +489,7 @@ mod testes {
             for (caminho, bytes) in testes {
                 let texto = std::str::from_utf8(bytes).expect("UTF-8");
                 assert!(
-                    texto.contains("describe(") && texto.contains("expect("),
+                    texto.contains("function test_") && texto.contains("assert_"),
                     "preset '{}': {caminho} não declara nenhum teste",
                     p.id
                 );

@@ -1,8 +1,9 @@
 # Plano: uma sintaxe própria para os testes Luau
 
-**Estado:** **proposta**, nada implementado. Escrita em 2026-10-21, depois de 340 testes
-escritos no `rustploy-gui` com a sintaxe atual. Abre uma conversa; as decisões em aberto estão
-na última seção, e nada aqui vale antes de elas serem tomadas.
+**Estado:** **implementado** no glacier-ui 0.128 (runner) e no glacier-cli 0.9 (flags e presets).
+Escrito em 2026-10-21, depois de 340 testes escritos no `rustploy-gui` com a sintaxe antiga. As
+decisões da última seção foram tomadas; a seção 2.7 (verbosidade) entrou junto com a
+implementação.
 
 ## 1. O problema
 
@@ -127,7 +128,23 @@ Onde aparece:
 - **Em falha, sempre:** o bloco inteiro, antes do `obtido`/`esperado`. É a *intenção* do teste, que
   é o que falta quando só se vê dois valores diferentes.
 
-### 2.6 Como fica a saída
+### 2.7 Verbosidade e logs
+
+| flag | mostra |
+|---|---|
+| (nenhuma) | uma linha por arquivo (`N ✓  M ✗`); cada falha por inteiro |
+| `-v` | o nome de cada teste, `✓`/`✗` |
+| `-vv` | + a documentação (primeiro parágrafo do `---`) |
+| `-vvv` | + o tempo de cada teste e o stacktrace das falhas |
+| `-s`, `--silent` | esconde os logs |
+
+As letras se combinam: `glacier test -svvv`. Os **logs** (`print`, `console.*` de dentro de um
+teste) aparecem por padrão, recuados sob o nome do teste que os escreveu; o runner substitui o
+`print` durante cada teste e devolve o que foi escrito. Uma falha mostra sempre, qualquer que seja o
+nível: a linha do teste, a documentação inteira e o obtido/esperado. A flag chega ao app por
+`GLACIER_TEST_VERBOSE` (0–3) e `GLACIER_TEST_SILENT` (`1`), como `GLACIER_TEST_FILTER`.
+
+### 2.6 Como fica a saída (com `-v`, `-vv` e numa falha)
 
 Sem `-v`:
 
@@ -213,16 +230,14 @@ Os testes atuais migram aos poucos, e a sintaxe antiga é marcada como obsoleta 
 5. `CHANGELOG`: motor (runner) e CLI (`-v`, templates).
 6. Os testes do `rustploy-gui` migram num projeto à parte, depois.
 
-## 7. Decisões em aberto
+## 7. Decisões
 
-1. **Descoberta por nome (`test_*`) ou registro (`test("…")`)?** (seção 2.1 contra seção 3).
-2. **Nomes das asserções em inglês (`assert_eq`) ou em português (`assert_igual`)?** Inglês
-   acompanha os globais do motor (`toast`, `open_window`); português acompanha o idioma do
-   repositório.
-3. **`assert_*` global ou módulo?** Hoje `describe`/`expect` são globais, sem `require`. Um módulo
-   (`local t = require("test")`) polui menos, mas custa uma linha por arquivo.
-4. **O resumo do `-v`** é o primeiro parágrafo do doc, ou o doc inteiro?
-5. **`---` em helpers e no `setup()`**: o runner só leria os `test_*`; um `---` em helper seria
-   documentação de código, sem efeito no runner. Confirmar que é isso mesmo.
-6. **`teardown()`**: existe um par de `setup()`, ou só o `setup()` basta (como hoje com `before_each`)?
-7. **Remover a sintaxe antiga** — quando, e em que versão.
+1. **Descoberta por nome** (`test_*`), não registro.
+2. **Asserções em inglês** (`assert_eq`), como os globais do motor.
+3. **Globais**, sem `require`.
+4. **`-vv` mostra o primeiro parágrafo** do doc; a falha mostra o doc inteiro.
+5. **`---` em helper e em `setup()`** não tem efeito no runner (só os `test_*` são lidos).
+6. **Sem `teardown()`**: só `setup()`, como era o `before_each`.
+7. **Sintaxe antiga**: aceita, obsoleta, fora do `glacier.d.luau`; a remoção fica para uma versão
+   futura.
+8. **Grupo**: `grupo__caso` aparece como `grupo › caso`.

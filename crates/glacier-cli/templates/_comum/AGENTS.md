@@ -3711,6 +3711,91 @@ enxergam os globais do motor e as extensões Rust do app. Cada preset já traz u
 `tests/*.test.luau` pequeno: copie o formato dele. Release e pastas extras do
 `require` se fixam em `test` no `glacier.jsonc`.
 
+**Um teste é uma função global `test_*`**, descoberta pelo nome e rodada na ordem
+do arquivo. As asserções são `assert_*(obtido, esperado)`. O comentário `---`
+logo acima da função é a documentação do teste:
+
+```lua
+local function nova()
+    local tela = component("views/contador.gv", { n = 1 })  -- ctx inicial
+    tela:call("init")
+    return tela
+end
+
+--- Incrementar soma um e não avisa ninguém.
+--- (A segunda linha só aparece quando o teste falha, ou com `-vv`.)
+function test_incrementa()
+    local tela = nova()
+    tela:call("incrementar")              -- um handler que falha LANÇA o erro
+    assert_eq(tela:get("n"), "2")         -- ctx vira string
+    assert_eq(tela:toasts(), {})
+end
+
+function test_modulo_puro()
+    local fmt = require("util/fmt")
+    assert_eq(fmt.bytes(2048), "2 KB")
+    assert_fails(function() fmt.bytes(nil) end, "nil")
+end
+```
+
+| asserção | passa quando |
+|---|---|
+| `assert_eq(a, b)` / `assert_ne(a, b)` | `a` é (não é) igual a `b`, comparando tabelas por conteúdo |
+| `assert_nil(v)` / `assert_not_nil(v)` | `v` é (não é) `nil` |
+| `assert_true(v)` / `assert_false(v)` | `v` é verdadeiro / falso (só `nil` e `false` são falsos) |
+| `assert_has(t, x)` | a tabela contém `x`, ou a string contém o trecho `x` |
+| `assert_match(s, padrão)` | a string casa com o padrão Luau |
+| `assert_fails(fn, trecho?)` | `fn` lança, e a mensagem contém o trecho |
+| `assert_complete(tela, esperadas?)` | `tela:missing()` é **exatamente** `esperadas` (padrão `{}`) |
+| `fail(msg)` | nunca: falha o teste |
+
+- **`each(casos, fn)`** roda `fn` em cada linha de uma tabela; a falha diz **qual**
+  linha foi (`caso #2 { 2, 9 }`):
+
+  ```lua
+  function test_rotulo_de_recorrencia()
+      each({
+          { nil,                    "manual" },
+          { { IntervalHours = 6 },  "a cada 6h" },
+      }, function(entrada, esperado)
+          assert_eq(Jobs.recurrence_label(entrada), esperado)
+      end)
+  end
+  ```
+
+- **`setup()`**, se existir, roda antes de cada `test_*` do arquivo.
+- **`grupo__caso`**: o que vem antes de `__` no nome é o grupo
+  (`test_nav__abas_gravam_a_chave` aparece como `nav › abas gravam a chave`).
+- Um helper **não** começa com `test_` (seria executado como teste). Definir o
+  mesmo `test_x` duas vezes é avisado: só a última roda.
+- O formato antigo (`describe`/`test`/`expect(v):toBe`) ainda roda, mas é
+  obsoleto e não está mais no `glacier.d.luau`: escreva `test_*`.
+
+**Verbosidade e logs.** O `print` e o `console.*` de dentro de um teste aparecem
+por padrão, sob o nome do teste que os escreveu.
+
+| flag | mostra |
+|---|---|
+| (nenhuma) | uma linha por arquivo (`N ✓  M ✗`); cada falha por inteiro |
+| `-v` | o nome de cada teste, `✓`/`✗` |
+| `-vv` | + a documentação (primeiro parágrafo do `---`) de cada teste |
+| `-vvv` | + o tempo de cada teste e o stacktrace das falhas |
+| `-s` | esconde os logs (`print`, `console.*`) |
+
+As letras se combinam: `glacier test -svvv` é "sem logs, com tudo o mais".
+
+Uma falha **sempre** mostra, qualquer que seja o nível, a linha do teste, a
+documentação inteira e o que a asserção viu:
+
+```
+  ✗ filtrar deixa so o trecho   tests/itens.test.luau:12
+      Filtrar por "API" deixa só o serviço que contém o trecho.
+
+      assert_eq (linha 15)
+        obtido:   { "api-gateway", "fila-jobs" }
+        esperado: { "api-gateway" }
+```
+
 `component()` **não chama o `init`** — chame `tela:call("init")` você mesmo,
 como o motor faria ao abrir a tela.
 
@@ -3719,46 +3804,27 @@ como o motor faria ao abrir a tela.
 vazio, sem erro. `missing()` carrega o template como o motor o carrega, avalia
 contra o `ctx` de agora e devolve as chaves que o **markup lê e ninguém
 publicou** (`{chave}`, `@chave`, `if=`, `for-each=`, `:value`). Chame-o depois
-do `init`, e afirme a lista inteira:
+do `init`, e afirme a lista inteira com `assert_complete`:
 
 ```lua
-test("toda chave que a tela lê é publicada", function()
+function test_toda_chave_que_a_tela_le_e_publicada()
     local tela = component("views/app.gvb")
     tela:call("init")
-    expect(tela:missing()).toEqual({})
-end)
+    assert_complete(tela)
+end
 ```
 
 Nem toda ausência é bug: `{k|padrão}` e `if="{erro_nome}"` leem chaves que só
 passam a existir depois (o valor padrão; o erro que o `<form>` publica ao
-enviar). Essas se **nomeiam** no `toEqual({ "erro_nome" })`, com um comentário
-dizendo por quê — o que sobrar na lista é a falha. Fica de fora o que o motor
-publica sozinho (`__*`) e as variáveis locais de um `for-each`. O que `missing()`
-não alcança é o **layout** (largura, `fill` dentro de `shrink`): isso só o
-`make run` mostra.
+enviar). Essas se **nomeiam** no `assert_complete(tela, { "erro_nome" })`, com um
+comentário dizendo por quê — o que sobrar é a falha, e ela diz quais chaves
+sobraram e quais faltaram. Fica de fora o que o motor publica sozinho (`__*`) e
+as variáveis locais de um `for-each`. O que `missing()` não alcança é o
+**layout** (largura, `fill` dentro de `shrink`): isso só o `make run` mostra.
 
-```lua
-describe("contador", function()
-    before_each(function() end)
-
-    test("incrementa", function()
-        local tela = component("views/contador.gv", { n = 1 })  -- ctx inicial
-        tela:call("incrementar")          -- um handler que falha LANÇA o erro
-        expect(tela:get("n")):toBe("2")   -- ctx vira string
-        expect(tela:toasts()).never:toEqual({})
-    end)
-
-    test("módulo puro", function()
-        local fmt = require("util/fmt")
-        expect(fmt.bytes(2048)):toBe("2 KB")
-        expect(function() fmt.bytes(nil) end):toThrow("nil")
-    end)
-end)
-```
-
-Matchers: `toBe`, `toEqual` (profundo), `toBeNil`, `toBeTruthy`, `toBeFalsy`,
-`toContain`, `toMatch`, `toThrow`; `.never` nega. `require` num teste também enxerga `views/scripts` e `views/`. Chamadas que suspendem
-(`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na suspensão.
+`require` num teste também enxerga `views/scripts` e `views/`. Chamadas que
+suspendem (`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na
+suspensão.
 
 ### JSON
 

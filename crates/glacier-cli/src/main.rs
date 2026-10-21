@@ -209,6 +209,11 @@ fn ajuda(e: &Estilo) {
 
   {opcoes_test}
     -t, --filter <trecho>         só os testes cujo nome contém o trecho
+    -v, --verbose                 mostra o nome de cada teste
+    -vv                           + a documentação (`---`) de cada teste
+    -vvv                          + tempo por teste e stacktrace das falhas
+    -s, --silent                  esconde os logs dos testes (print, console.*)
+                                  que aparecem por padrão; combina: -svvv
         --release                 build otimizado
     -F, --features <l>            features do projeto
     -c, --configuration <n>       configuração nomeada do glacier.jsonc
@@ -224,6 +229,8 @@ fn ajuda(e: &Estilo) {
     glacier new teste -p minimo -y
     glacier new site -p wasm32 -y && cd site && glacier serve wasm
     glacier test
+    glacier test -vv            nomes e documentação de cada teste
+    glacier test -svvv          sem logs, com tempo e stacktrace das falhas
     glacier test views/scripts/handlers/settings.test.luau -t zip
     glacier serve wasm -c dev
 ",
