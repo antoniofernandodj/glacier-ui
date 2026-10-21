@@ -10,6 +10,25 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.10.0 — 2026-10-21
+
+### Quebras
+
+- Acompanha o motor 0.129 (**publique o motor antes da CLI**). Nenhuma flag mudou; os presets e o
+  `AGENTS.md` já estavam na sintaxe `test_*`.
+
+## glacier-ui 0.129.0 — 2026-10-21
+
+### Quebras
+
+- **A sintaxe antiga de teste foi removida**: `describe`, `test`, `it`, `before_each` e
+  `expect(v):toBe / toEqual / toBeNil / toBeTruthy / toBeFalsy / toContain / toMatch / toThrow`
+  (com `.never`) não existem mais em `*.test.luau`. Migração: `expect(a):toBe(b)` →
+  `assert_eq(a, b)`; `.never:toBe` → `assert_ne`; `toBeNil` → `assert_nil`; `toContain` →
+  `assert_has`; `toMatch` → `assert_match`; `toThrow(x)` → `assert_fails(fn, x)`;
+  `test("nome", function() … end)` → `--- nome` + `function test_nome() … end`; `before_each` →
+  `setup()`. A tabela completa está em `docs/PLANO_TESTES.md`.
+
 ## glacier-cli 0.9.0 — 2026-10-21
 
 ### Adicionado

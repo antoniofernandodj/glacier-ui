@@ -11,8 +11,6 @@
 //! - `fail(msg)`;
 //! - o comentário `---` logo acima de um `test_*` é a documentação dele (ver
 //!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
-//! - o formato antigo (`describe`, `test`, `before_each`, `expect(v):toBe…`)
-//!   continua aceito, obsoleto;
 //! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gvb` com `<script>`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. Um handler
@@ -21,7 +19,7 @@
 //!   **lê e ninguém publicou** (ver [`missing_keys`]).
 //!
 //! `require` funciona como no app (relativo ao arquivo de teste), então módulos
-//! Luau puros testam-se só com `require` + `expect`.
+//! Luau puros testam-se só com `require` + `assert_*`.
 //!
 //! Chamadas que suspendem (`fetch`, `confirm`, diálogos) não são resolvidas aqui:
 //! o handler roda até a suspensão e para.
@@ -172,7 +170,7 @@ pub fn run_from_env() -> Option<i32> {
 struct Outcome {
     name: String,
     ok: bool,
-    /// Linha da definição do `test_*` (os do formato antigo não têm).
+    /// Linha da definição do `test_*`.
     line: Option<i64>,
     /// A asserção que falhou (`assert_eq`…), se foi uma.
     kind: Option<String>,
@@ -584,12 +582,10 @@ mod tests {
         let file = dir.join("a.test.luau");
         std::fs::write(
             &file,
-            "describe('soma', function()\n\
-               test('ok', function() expect(1 + 1):toBe(2) end)\n\
-               test('quebra', function() expect({a = 1}):toEqual({a = 2}) end)\n\
-               test('nega', function() expect(1).never:toBe(2) end)\n\
-               test('lanca', function() expect(function() error('boom') end):toThrow('boom') end)\n\
-             end)",
+            "function test_ok() assert_eq(1 + 1, 2) end\n\
+             function test_quebra() assert_eq({a = 1}, {a = 2}) end\n\
+             function test_nega() assert_ne(1, 2) end\n\
+             function test_lanca() assert_fails(function() error('boom') end, 'boom') end",
         )
         .unwrap();
         let s = run_file(&file, None, Options::default());
@@ -611,12 +607,12 @@ mod tests {
         std::fs::write(
             &file,
             format!(
-                "test('inc', function()\n\
+                "function test_inc()\n\
                    local c = component({:?}, {{ n = 1 }})\n\
                    c:call('inc')\n\
-                   expect(c:get('n')):toBe('2')\n\
-                   expect(function() c:call('nao_existe') end):toThrow('nao_existe')\n\
-                 end)",
+                   assert_eq(c:get('n'), '2')\n\
+                   assert_fails(function() c:call('nao_existe') end, 'nao_existe')\n\
+                 end",
                 tela.to_str().unwrap()
             ),
         )
@@ -645,11 +641,11 @@ mod tests {
         std::fs::write(
             &file,
             format!(
-                "test('missing', function()\n\
+                "function test_missing()\n\
                    local c = component({:?})\n\
                    c:call('init')\n\
-                   expect(c:missing()):toEqual({{ 'errado', 'ligada' }})\n\
-                 end)",
+                   assert_eq(c:missing(), {{ 'errado', 'ligada' }})\n\
+                 end",
                 tela.to_str().unwrap()
             ),
         )

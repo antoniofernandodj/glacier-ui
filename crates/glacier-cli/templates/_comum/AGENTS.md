@@ -3768,8 +3768,6 @@ end
   (`test_nav__abas_gravam_a_chave` aparece como `nav › abas gravam a chave`).
 - Um helper **não** começa com `test_` (seria executado como teste). Definir o
   mesmo `test_x` duas vezes é avisado: só a última roda.
-- O formato antigo (`describe`/`test`/`expect(v):toBe`) ainda roda, mas é
-  obsoleto e não está mais no `glacier.d.luau`: escreva `test_*`.
 
 **Verbosidade e logs.** O `print` e o `console.*` de dentro de um teste aparecem
 por padrão, sob o nome do teste que os escreveu.

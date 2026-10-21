@@ -1,6 +1,7 @@
 # Plano: uma sintaxe própria para os testes Luau
 
-**Estado:** **implementado** no glacier-ui 0.128 (runner) e no glacier-cli 0.9 (flags e presets).
+**Estado:** **implementado** no glacier-ui 0.128 (runner) e no glacier-cli 0.9 (flags e presets); a sintaxe
+antiga (`describe`/`expect`) foi **removida** no glacier-ui 0.129 e no glacier-cli 0.10.
 Escrito em 2026-10-21, depois de 340 testes escritos no `rustploy-gui` com a sintaxe antiga. As
 decisões da última seção foram tomadas; a seção 2.7 (verbosidade) entrou junto com a
 implementação.
@@ -212,10 +213,11 @@ nome duplicado, já que o nome passa a ser um texto livre).
 
 ## 5. Migração
 
-O motor aceita **os dois formatos** durante a transição: o runner roda as funções `test_*` e,
-no mesmo arquivo, o que foi registrado por `describe`/`test`. Nada quebra no dia em que isso sair.
-Os testes atuais migram aos poucos, e a sintaxe antiga é marcada como obsoleta no
-`glacier.d.luau` e na documentação antes de ser removida (decisão de versão, a tomar depois).
+Houve uma versão de transição (glacier-ui 0.128), em que o runner rodava os dois formatos. Na
+0.129 a sintaxe antiga saiu: `describe`, `test`, `it`, `before_each` e `expect` não existem mais, e
+um arquivo que ainda os usa falha ao carregar com `attempt to call a nil value`. Cada
+`expect(a):toBe(b)` vira `assert_eq(a, b)` (tabela da seção 2.2) e cada `test("nome", …)` vira
+`--- nome` + `function test_nome()`.
 
 ## 6. Passos
 
@@ -238,6 +240,5 @@ Os testes atuais migram aos poucos, e a sintaxe antiga é marcada como obsoleta 
 4. **`-vv` mostra o primeiro parágrafo** do doc; a falha mostra o doc inteiro.
 5. **`---` em helper e em `setup()`** não tem efeito no runner (só os `test_*` são lidos).
 6. **Sem `teardown()`**: só `setup()`, como era o `before_each`.
-7. **Sintaxe antiga**: aceita, obsoleta, fora do `glacier.d.luau`; a remoção fica para uma versão
-   futura.
+7. **Sintaxe antiga**: aceita só na 0.128; removida na 0.129.
 8. **Grupo**: `grupo__caso` aparece como `grupo › caso`.
