@@ -12,12 +12,17 @@
 //!                             (`--watch` recompila e recarrega a cada mudança)
 //! glacier serve desktop       roda o app no desktop (`cargo run` na raiz)
 //! glacier test [arquivo]      roda os testes Luau (`*.test.luau`)
+//!
+//! Os padrões de `serve` e `test` (porta, release, features, configurações
+//! nomeadas com `-c`) ficam no `glacier.jsonc` do projeto — ver `config`.
 //! glacier install-extensions  só as extensões de VS Code
 //! glacier presets             lista os presets
 //! ```
 
+mod config;
 mod embedded;
 mod extensions;
+mod json;
 mod prompt;
 mod scaffold;
 mod serve;
@@ -196,14 +201,22 @@ fn ajuda(e: &Estilo) {
     wasm     --port <n>           porta local (padrão 8080)
              --dev                build de debug (padrão: release)
          -w, --watch              recompila a cada mudança e recarrega a página
+             --no-watch           desliga o `watch` que o glacier.jsonc ligou
     desktop  --release            build otimizado (padrão: debug, como `cargo run`)
              -- <args>            repassa os argumentos ao app
     ambos    -F, --features <l>   features do projeto (ex.: web-gpu)
+         -c, --configuration <n>  configuração nomeada do glacier.jsonc
 
   {opcoes_test}
     -t, --filter <trecho>         só os testes cujo nome contém o trecho
         --release                 build otimizado
     -F, --features <l>            features do projeto
+    -c, --configuration <n>       configuração nomeada do glacier.jsonc
+
+  {arquivo}
+    glacier.jsonc na raiz do projeto: os padrões de `serve` e `test` (porta,
+    release, features, configurações nomeadas). Opcional; a flag sempre vence.
+    Campo desconhecido é erro. `glacier new` já o cria, comentado campo a campo.
 
   {exemplos}
     glacier new
@@ -212,6 +225,7 @@ fn ajuda(e: &Estilo) {
     glacier new site -p wasm32 -y && cd site && glacier serve wasm
     glacier test
     glacier test views/scripts/handlers/settings.test.luau -t zip
+    glacier serve wasm -c dev
 ",
         titulo = e.negrito("glacier — a CLI do glacier-ui"),
         sub = e.fraco("cria um projeto pronto (templates .gvb/.gss + scripts Luau) e instala as extensões de VS Code"),
@@ -219,6 +233,7 @@ fn ajuda(e: &Estilo) {
         opcoes_new = e.negrito("OPÇÕES DE `new`"),
         opcoes_serve = e.negrito("OPÇÕES DE `serve`"),
         opcoes_test = e.negrito("OPÇÕES DE `test`"),
+        arquivo = e.negrito("CONFIGURAÇÃO"),
         exemplos = e.negrito("EXEMPLOS"),
         presets = ids.join(" | "),
     );

@@ -66,6 +66,7 @@ mod testes {
                 "gitignore",
                 ".luaurc",
                 "AGENTS.md",
+                "glacier.jsonc",
                 "views/scripts/glacier.d.luau",
             ] {
                 assert!(

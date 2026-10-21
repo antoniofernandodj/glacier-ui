@@ -25,6 +25,34 @@ glacier presets               descreve os presets disponíveis
 glacier --version
 ```
 
+## `glacier.jsonc`
+
+Todo projeto criado leva um `glacier.jsonc` na raiz, com os padrões de `serve` e
+`test` — porta, `--release`, `--watch`, features do Cargo, argumentos do app — para
+não repeti-los a cada comando. É JSON com comentários (por isso `.jsonc`: o editor
+não sublinha os comentários), e o arquivo gerado explica cada campo no próprio
+campo.
+
+```jsonc
+{
+  "serve": { "wasm": { "port": 3000, "watch": true } },
+  "configurations": {
+    "prod": { "serve": { "wasm": { "release": true, "watch": false } } }
+  }
+}
+```
+
+```bash
+glacier serve wasm              # usa a base: porta 3000, com watch
+glacier serve wasm -c prod      # a configuração `prod` por cima da base
+glacier serve wasm --port 9000  # a flag sempre vence
+```
+
+Precedência: **flag › configuração (`-c`) › base do arquivo › padrão da CLI**. O
+arquivo é opcional. Um campo que a CLI não conhece, ou de tipo errado, é **erro**
+(todos de uma vez), não aviso — ignorar `"prot": 3000` em silêncio seria uma porta
+que não mudou sem ninguém saber por quê.
+
 ## Presets
 
 | id | O que é |

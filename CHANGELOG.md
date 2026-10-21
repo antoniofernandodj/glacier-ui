@@ -10,6 +10,34 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.8.0 — 2026-10-21
+
+### Adicionado
+
+- **`glacier.jsonc`**: os padrões de `glacier serve` e `glacier test` por projeto (porta, `release`,
+  `watch`, features, argumentos do app, pastas extras do `require`), no lugar de repetir as flags a
+  cada chamada. Flag › configuração › base do arquivo › padrão da CLI. **Configurações nomeadas**
+  (`glacier serve wasm -c dev`, `default_configuration`) se fundem por cima da base; lista é trocada,
+  não somada. Opcional: sem o arquivo nada muda. **Campo desconhecido ou de tipo errado é erro** (e
+  todos os problemas saem de uma vez), porque ignorá-lo em silêncio é uma porta que não mudou sem
+  ninguém saber por quê. Novas flags: `-c/--configuration` e `serve wasm --no-watch`.
+- **Parser JSONC próprio** (`json.rs`, `std` puro — a CLI continua sem dependências): comentários
+  `//` e `/* */`, vírgula final, `\uXXXX` com par substituto, erro com linha e coluna, chave repetida
+  recusada.
+- **Todo preset sai com `glacier.jsonc`** (comentado campo a campo; o `wasm32` com a seção `wasm` e
+  as configurações `dev`/`prod`) **e com um `tests/*.test.luau`** que o `glacier test` roda. O
+  `make luau` passa a checar também `tests/`. O `AGENTS.md` dos projetos documenta os dois.
+
+### Corrigido
+
+- **O leitor do `package.json` das extensões** (`vsix.rs`) era uma varredura de bytes atrás do nome
+  de uma chave: lia um campo escrito dentro de um comentário ou de um texto como se fosse o campo, e
+  pegava o primeiro `"categories"` do arquivo, onde quer que estivesse. Latente (os `package.json`
+  reais não têm nada disso), mas agora lê com o parser de verdade e recusa JSON malformado dizendo
+  onde.
+- **`build.rs`**: um arquivo **novo** em `templates/` não recompilava a CLI (só os existentes eram
+  vigiados), e o preset saía sem ele.
+
 ## glacier-ui 0.126.0 — 2026-10-19
 
 ### Adicionado

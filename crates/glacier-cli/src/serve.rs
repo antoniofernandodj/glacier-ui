@@ -44,6 +44,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
+use crate::config::{self, Config};
 use crate::prompt::Estilo;
 
 const ALVO_WASM: &str = "wasm32-unknown-unknown";
@@ -121,10 +122,17 @@ struct Opcoes {
 }
 
 pub fn serve(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
+    let (escolhida, argv) = config::extrair_configuracao(argv)?;
     let mut args = argv.into_iter();
     match args.next().as_deref() {
-        Some("wasm") => wasm(e, opcoes(args, Alvo::Wasm)?),
-        Some("desktop") => desktop(e, opcoes(args, Alvo::Desktop)?),
+        Some("wasm") => {
+            let cfg = carregar_config(e, escolhida.as_deref())?;
+            wasm(e, opcoes(args, Alvo::Wasm, &cfg)?)
+        }
+        Some("desktop") => {
+            let cfg = carregar_config(e, escolhida.as_deref())?;
+            desktop(e, opcoes(args, Alvo::Desktop, &cfg)?)
+        }
         Some(outro) => Err(invalido(format!(
             "alvo desconhecido de `serve`: '{outro}' (use `wasm` ou `desktop`)"
         ))),
@@ -140,14 +148,40 @@ enum Alvo {
     Desktop,
 }
 
-fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opcoes> {
+/// Lê o `glacier.jsonc` da raiz do projeto e avisa qual está valendo. Sem o
+/// arquivo é uma `Config` vazia, e a CLI se comporta como sempre.
+fn carregar_config(e: &Estilo, escolhida: Option<&str>) -> io::Result<Config> {
+    let cfg = Config::carregar(&raiz_do_projeto()?, escolhida)?;
+    if let Some(origem) = cfg.origem() {
+        println!("  {}", e.fraco(&format!("configuração: {origem}")));
+    }
+    Ok(cfg)
+}
+
+/// Os padrões vêm do `glacier.jsonc`; cada flag, se aparecer, vence.
+fn opcoes(
+    mut args: impl Iterator<Item = String>,
+    alvo: Alvo,
+    cfg: &Config,
+) -> io::Result<Opcoes> {
     let wasm = alvo == Alvo::Wasm;
+    let secao: &[&str] = if wasm {
+        &["serve", "wasm"]
+    } else {
+        &["serve", "desktop"]
+    };
+    let campo = |nome: &'static str| [secao[0], secao[1], nome];
+
     let mut op = Opcoes {
-        porta: PORTA_PADRAO,
-        release: wasm,
-        features: None,
-        watch: false,
-        resto: Vec::new(),
+        porta: cfg.porta(&campo("port")).unwrap_or(PORTA_PADRAO),
+        release: cfg.booleano(&campo("release")).unwrap_or(wasm),
+        features: cfg.features(secao),
+        watch: wasm && cfg.booleano(&campo("watch")).unwrap_or(false),
+        resto: if wasm {
+            Vec::new()
+        } else {
+            cfg.lista(&campo("args")).unwrap_or_default()
+        },
     };
 
     while let Some(arg) = args.next() {
@@ -162,6 +196,7 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
             }
             "--dev" if wasm => op.release = false,
             "--watch" | "-w" if wasm => op.watch = true,
+            "--no-watch" if wasm => op.watch = false,
             "--release" if !wasm => op.release = true,
             "--features" | "-F" => {
                 // Sem valor não pode virar "sem features" em silêncio: quem
@@ -171,7 +206,10 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
                     .ok_or_else(|| invalido(format!("`{arg}` precisa da lista de features")))?;
                 op.features = Some(valor);
             }
-            "--" if !wasm => op.resto.extend(args.by_ref()),
+            // Os argumentos da linha de comando SUBSTITUEM os do arquivo: somar
+            // os dois faria `-- --dev` repassar também o que o arquivo já
+            // passava, sem como desfazer.
+            "--" if !wasm => op.resto = args.by_ref().collect(),
             outro => {
                 let nome = if wasm { "wasm" } else { "desktop" };
                 return Err(invalido(format!(
@@ -191,10 +229,12 @@ fn opcoes(mut args: impl Iterator<Item = String>, alvo: Alvo) -> io::Result<Opco
 /// extensões Rust do próprio app. Sem argumento, procura em `views/` e `tests/`.
 pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     let raiz = raiz_do_projeto()?;
+    let (escolhida, argv) = config::extrair_configuracao(argv)?;
+    let cfg = carregar_config(e, escolhida.as_deref())?;
     let mut alvo = String::new();
     let mut filtro = String::new();
-    let mut release = false;
-    let mut features = None;
+    let mut release = cfg.booleano(&["test", "release"]).unwrap_or(false);
+    let mut features = cfg.features(&["test"]);
 
     let mut args = argv.into_iter();
     while let Some(arg) = args.next() {
@@ -235,6 +275,14 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     // e `views/` (a disposição de um projeto glacier) para um teste em `tests/`
     // achar os módulos do app. O que o usuário já exportou continua valendo.
     let mut caminhos = vec![raiz.join("views/scripts"), raiz.join("views")];
+    // As pastas extras do `glacier.jsonc` (`test.luau_path`) vêm depois das
+    // duas do projeto: não tiram o que um projeto glacier sempre enxerga.
+    caminhos.extend(
+        cfg.lista(&["test", "luau_path"])
+            .unwrap_or_default()
+            .iter()
+            .map(|p| raiz.join(p)),
+    );
     if let Some(atual) = std::env::var_os("GLACIER_LUAU_PATH") {
         caminhos.extend(std::env::split_paths(&atual));
     }
@@ -974,13 +1022,14 @@ mod testes {
 
     #[test]
     fn wasm_e_release_por_padrao_e_dev_desliga() {
-        let op = opcoes(args(&[]), Alvo::Wasm).unwrap();
+        let op = opcoes(args(&[]), Alvo::Wasm, &Config::vazia()).unwrap();
         assert!(op.release);
         assert_eq!(op.porta, PORTA_PADRAO);
 
         let op = opcoes(
             args(&["--dev", "--port", "9000", "-F", "web-gpu"]),
             Alvo::Wasm,
+            &Config::vazia(),
         )
         .unwrap();
         assert!(!op.release);
@@ -990,18 +1039,77 @@ mod testes {
 
     #[test]
     fn desktop_repassa_o_que_vem_depois_do_separador() {
-        let op = opcoes(args(&["--release", "--", "--dev", "x"]), Alvo::Desktop).unwrap();
+        let op = opcoes(args(&["--release", "--", "--dev", "x"]), Alvo::Desktop, &Config::vazia()).unwrap();
         assert!(op.release);
         assert_eq!(op.resto, ["--dev", "x"]);
     }
 
+    fn config(texto: &str) -> Config {
+        let dir = std::env::temp_dir().join(format!(
+            "glacier-serve-cfg-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(config::NOME), texto).unwrap();
+        let c = Config::carregar(&dir, None).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        c
+    }
+
+    #[test]
+    fn o_glacier_jsonc_define_os_padroes_e_a_flag_vence() {
+        let cfg = config(
+            r#"{
+              "features": ["web-gpu"],
+              "serve": { "wasm": { "port": 3000, "release": false, "watch": true } }
+            }"#,
+        );
+        let op = opcoes(args(&[]), Alvo::Wasm, &cfg).unwrap();
+        assert_eq!(op.porta, 3000);
+        assert!(!op.release);
+        assert!(op.watch);
+        assert_eq!(op.features.as_deref(), Some("web-gpu"));
+
+        let op = opcoes(
+            args(&["--port", "9000", "--no-watch", "-F", "outra"]),
+            Alvo::Wasm,
+            &cfg,
+        )
+        .unwrap();
+        assert_eq!(op.porta, 9000);
+        assert!(!op.watch);
+        assert_eq!(op.features.as_deref(), Some("outra"));
+    }
+
+    #[test]
+    fn argumentos_do_app_na_linha_de_comando_substituem_os_do_arquivo() {
+        let cfg = config(r#"{ "serve": { "desktop": { "args": ["--a"], "release": true } } }"#);
+        let op = opcoes(args(&[]), Alvo::Desktop, &cfg).unwrap();
+        assert_eq!(op.resto, ["--a"]);
+        assert!(op.release);
+
+        let op = opcoes(args(&["--", "--b"]), Alvo::Desktop, &cfg).unwrap();
+        assert_eq!(op.resto, ["--b"]);
+    }
+
+    /// O `watch` do arquivo é do alvo wasm: no desktop ele não existe, e uma
+    /// seção `desktop` não pode herdá-lo.
+    #[test]
+    fn o_watch_da_secao_wasm_nao_vaza_para_o_desktop() {
+        let cfg = config(r#"{ "serve": { "wasm": { "watch": true } } }"#);
+        assert!(opcoes(args(&[]), Alvo::Wasm, &cfg).unwrap().watch);
+        assert!(!opcoes(args(&[]), Alvo::Desktop, &cfg).unwrap().watch);
+    }
+
     #[test]
     fn opcao_de_um_alvo_e_recusada_no_outro() {
-        assert!(opcoes(args(&["--port", "1"]), Alvo::Desktop).is_err());
-        assert!(opcoes(args(&["--release"]), Alvo::Wasm).is_err());
-        assert!(opcoes(args(&["--port"]), Alvo::Wasm).is_err());
-        assert!(opcoes(args(&["--port", "abc"]), Alvo::Wasm).is_err());
-        assert!(opcoes(args(&["--features"]), Alvo::Wasm).is_err());
+        assert!(opcoes(args(&["--port", "1"]), Alvo::Desktop, &Config::vazia()).is_err());
+        assert!(opcoes(args(&["--release"]), Alvo::Wasm, &Config::vazia()).is_err());
+        assert!(opcoes(args(&["--port"]), Alvo::Wasm, &Config::vazia()).is_err());
+        assert!(opcoes(args(&["--port", "abc"]), Alvo::Wasm, &Config::vazia()).is_err());
+        assert!(opcoes(args(&["--features"]), Alvo::Wasm, &Config::vazia()).is_err());
     }
 
     #[test]
@@ -1118,10 +1226,10 @@ mod testes {
 
     #[test]
     fn watch_e_so_do_wasm() {
-        assert!(opcoes(args(&["--watch"]), Alvo::Wasm).unwrap().watch);
-        assert!(opcoes(args(&["-w"]), Alvo::Wasm).unwrap().watch);
-        assert!(!opcoes(args(&[]), Alvo::Wasm).unwrap().watch);
-        assert!(opcoes(args(&["--watch"]), Alvo::Desktop).is_err());
+        assert!(opcoes(args(&["--watch"]), Alvo::Wasm, &Config::vazia()).unwrap().watch);
+        assert!(opcoes(args(&["-w"]), Alvo::Wasm, &Config::vazia()).unwrap().watch);
+        assert!(!opcoes(args(&[]), Alvo::Wasm, &Config::vazia()).unwrap().watch);
+        assert!(opcoes(args(&["--watch"]), Alvo::Desktop, &Config::vazia()).is_err());
     }
 
     /// O script entra antes do `</body>`, e o arquivo no disco não muda.

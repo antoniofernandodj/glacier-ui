@@ -127,7 +127,7 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
     "gvb", "gva", "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
-    "html", "conf",
+    "html", "conf", "jsonc",
 ];
 
 /// Arquivos textuais que não têm extensão nenhuma. Sem esta lista o `Makefile`
@@ -439,6 +439,62 @@ mod testes {
         assert!(ignore.contains("release.keystore"));
 
         let _ = fs::remove_dir_all(&destino);
+    }
+
+    /// Todo preset sai com um `glacier.jsonc` que a própria CLI aceita. O
+    /// esquema é estrito (campo desconhecido é erro), então um template com um
+    /// campo errado criaria um projeto em que `glacier serve` já nasce quebrado.
+    #[test]
+    fn todo_preset_tem_um_glacier_jsonc_valido() {
+        for p in PRESETS {
+            let destino = std::env::temp_dir().join(format!(
+                "glacier-scaffold-cfg-{}-{}-{:?}",
+                p.id,
+                std::process::id(),
+                std::thread::current().id()
+            ));
+            let _ = fs::remove_dir_all(&destino);
+            criar(&destino, p.id, "meu-app", "0.1").expect("criar o preset");
+
+            let cfg = crate::config::Config::carregar(&destino, None)
+                .unwrap_or_else(|e| panic!("preset '{}': {e}", p.id));
+            assert!(cfg.origem().is_some(), "preset '{}' sem glacier.jsonc", p.id);
+
+            // As configurações que o arquivo anuncia também têm que existir e
+            // valer: o comentário do arquivo manda o usuário digitá-las.
+            let texto = fs::read_to_string(destino.join(crate::config::NOME)).unwrap();
+            for nome in ["release", "dev", "prod"] {
+                if texto.contains(&format!("\"{nome}\": {{")) {
+                    crate::config::Config::carregar(&destino, Some(nome))
+                        .unwrap_or_else(|e| panic!("preset '{}' -c {nome}: {e}", p.id));
+                }
+            }
+            let _ = fs::remove_dir_all(&destino);
+        }
+    }
+
+    /// Todo preset traz um teste de Luau para `glacier test` achar. O que ele
+    /// afirma só se sabe rodando (ver o `CLAUDE.md` do motor: teste que passa não
+    /// prova que a tela funciona); aqui se garante que o arquivo existe, está
+    /// onde o runner procura e declara pelo menos um teste.
+    #[test]
+    fn todo_preset_traz_um_teste_que_o_glacier_test_acha() {
+        for p in PRESETS {
+            let arquivos = embedded::arquivos_do_preset(p.id);
+            let testes: Vec<_> = arquivos
+                .iter()
+                .filter(|(c, _)| c.starts_with("tests/") && c.ends_with(".test.luau"))
+                .collect();
+            assert!(!testes.is_empty(), "preset '{}' sem tests/*.test.luau", p.id);
+            for (caminho, bytes) in testes {
+                let texto = std::str::from_utf8(bytes).expect("UTF-8");
+                assert!(
+                    texto.contains("describe(") && texto.contains("expect("),
+                    "preset '{}': {caminho} não declara nenhum teste",
+                    p.id
+                );
+            }
+        }
     }
 
     /// E todo preset precisa ser um projeto Cargo de verdade.

@@ -454,8 +454,10 @@ falsos — e é essa a forma de testar um texto.
 ```
 meu-app/
 ├── Cargo.toml
+├── glacier.jsonc         # padrões da CLI `glacier` (serve/test) — ver "O glacier.jsonc"
 ├── Makefile              # make run | lint | linux-dist | windows | deb
 ├── src/main.rs           # registra as telas e abre a janela
+├── tests/                # *.test.luau — rodam com `glacier test`
 └── views/                # LIDO EM RUNTIME — ver o aviso abaixo
     ├── app.gvb           # a tela raiz (.gvb; .gva e .gv também abrem)
     ├── components/       # os .gvb/.gva reutilizáveis
@@ -477,10 +479,48 @@ junto: um pacote sem `views/` compila, instala, abre e mostra uma janela vazia.
 Os comandos que importam:
 
 ```sh
-make run     # roda em debug
-make lint    # clippy + type-check dos .luau (é o que precisa passar)
-make luau    # só o type-check dos scripts
+make run       # roda em debug
+make lint      # clippy + type-check dos .luau (é o que precisa passar)
+make luau      # só o type-check dos scripts (views/ e tests/)
+glacier test   # roda os tests/*.test.luau, sem abrir janela
 ```
+
+O que `glacier serve` e `glacier test` assumem por padrão (porta, `--release`,
+features do Cargo) mora no `glacier.jsonc` da raiz — ver "O `glacier.jsonc`"
+logo abaixo, e **edite lá** em vez de repetir flags.
+
+### O `glacier.jsonc`
+
+Os padrões da CLI para este projeto. É JSON com comentários e vírgula final
+(JSONC); o arquivo que veio com o projeto explica cada campo no próprio campo, e
+vale ler antes de mexer. Ele é **opcional**: sem ele a CLI usa os padrões de
+fábrica.
+
+```jsonc
+{
+  "features": ["tray"],                          // -F de serve e test
+  "serve": {
+    "wasm":    { "port": 8080, "release": true, "watch": false },
+    "desktop": { "release": false, "args": [] }  // args vão ao app, após `--`
+  },
+  "test": { "release": false, "luau_path": [] }, // pastas extras do `require`
+  "configurations": {                            // glacier serve wasm -c dev
+    "dev": { "serve": { "wasm": { "release": false, "watch": true } } }
+  },
+  "default_configuration": "dev"                 // vale quando não há -c
+}
+```
+
+- **Quem vence:** flag da linha de comando › configuração (`-c nome`) › base do
+  arquivo › padrão da CLI. Uma configuração se funde por cima da base campo a
+  campo; **lista é trocada, não somada** (`"features": []` zera as da base).
+- **Campo desconhecido é erro, não aviso.** `"prot": 3000` para o comando
+  listando os campos que existem — é de propósito: o oposto seria uma porta que
+  não mudou sem ninguém saber por quê. A mesma preocupação do `.gss`
+  (propriedade desconhecida some em silêncio), aplicada onde dá para recusar.
+- **Isto configura a ferramenta, não o app.** Título, tamanho e ícone da janela
+  moram no cabeçalho do `.gvb` / no `main.rs`.
+- Os campos são só os do exemplo acima; a CLI valida contra essa lista.
 
 ## Um app inteiro, comentado
 
@@ -3664,10 +3704,17 @@ mesmo diretório (cache, downloads), use `ctx.__data_dir`.
 
 ### Testes (`glacier test`)
 
-Arquivos `*.test.luau` (ou `*_test.luau`) em `views/` ou `tests/` rodam com
-`glacier test`; `glacier test views/x.test.luau` roda um só, `-t trecho` filtra
+Arquivos `*.test.luau` (ou `*_test.luau`) em `tests/` ou `views/` rodam com
+`glacier test`; `glacier test tests/x.test.luau` roda um só, `-t trecho` filtra
 pelo nome do teste. O app sobe em modo de teste (sem janela), então os testes
-enxergam os globais do motor e as extensões Rust do app.
+enxergam os globais do motor e as extensões Rust do app. Cada preset já traz um
+`tests/*.test.luau` pequeno: copie o formato dele. Release e pastas extras do
+`require` se fixam em `test` no `glacier.jsonc`.
+
+`component()` **não chama o `init`** — chame `tela:call("init")` você mesmo,
+como o motor faria ao abrir a tela. E ele roda o **script**, não o layout: um
+widget ligado à chave errada passa aqui e aparece vazio na tela. O teste prova o
+que cada handler faz com o `ctx`; que a tela mostra isso, só `make run` mostra.
 
 ```lua
 describe("contador", function()
@@ -3917,6 +3964,8 @@ cancelar depois.
 ## Antes de dizer que está pronto
 
 - `make lint` passa (clippy + type-check dos `.luau`).
+- `glacier test` passa. Handler novo, teste novo em `tests/` — o do preset é o
+  molde.
 - O app **abre**: `make run`. Um `.gva` com erro de XML falha na carga com a linha
   e a coluna; um `UnknownComponent` é tag com a caixa errada.
 - Toda chave que o markup lê é escrita em algum lugar — um `{total}` que ninguém

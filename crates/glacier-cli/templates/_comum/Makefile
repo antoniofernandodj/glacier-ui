@@ -45,13 +45,13 @@ clippy: ## Roda o clippy com warnings como erro
 luau: ## Type-check dos scripts Luau com luau-lsp
 	@command -v luau-lsp >/dev/null 2>&1 || \
 		(echo "$(RED)luau-lsp não encontrado$(RESET) — https://github.com/JohnnyMorganz/luau-lsp" && exit 1)
-	@n=$$(find $(VIEWS) -name '*.luau' ! -name '*.d.luau' | wc -l); \
+	@n=$$(find $(VIEWS) $(wildcard tests) -name '*.luau' ! -name '*.d.luau' | wc -l); \
 	if [ "$$n" = 0 ]; then \
 		echo "  (nenhum .luau em $(VIEWS)/ — o comportamento está embutido nos .gvb)"; \
 	else \
 		luau-lsp analyze --platform=standard \
 			--definitions=$(VIEWS)/scripts/glacier.d.luau \
-			$$(find $(VIEWS) -name '*.luau' ! -name '*.d.luau'); \
+			$$(find $(VIEWS) $(wildcard tests) -name '*.luau' ! -name '*.d.luau'); \
 	fi
 
 .PHONY: lint

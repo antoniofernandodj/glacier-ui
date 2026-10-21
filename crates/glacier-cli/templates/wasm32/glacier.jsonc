@@ -1,0 +1,73 @@
+// glacier.jsonc — os padrões da CLI `glacier` para ESTE projeto.
+//
+// Lido por `glacier serve` e `glacier test`, a partir da raiz do projeto (a
+// pasta do Cargo.toml). É JSON com comentários (JSONC) e aceita vírgula no fim.
+// O arquivo é opcional: apagá-lo devolve a CLI aos padrões de fábrica.
+//
+// Quem vence, do mais forte ao mais fraco:
+//   1. a flag da linha de comando (`--dev`, `--port 9000`, `-F x`…);
+//   2. a configuração escolhida com `-c <nome>` (ou `default_configuration`);
+//   3. os campos da base, logo abaixo;
+//   4. o padrão da CLI.
+//
+// Um campo que a CLI não conhece é ERRO, não aviso: `"prot": 3000` pararia o
+// comando em vez de ser ignorado em silêncio.
+{
+  // Features do Cargo repassadas a `serve` e a `test` (o `-F` / `--features`).
+  // Cada seção abaixo pode ter as suas, que então substituem estas.
+  "features": [],
+
+  "serve": {
+    // `glacier serve wasm` — compila para o navegador e serve em localhost.
+    "wasm": {
+      // Porta em 127.0.0.1 (1 a 65535). Flag: `--port`.
+      "port": 8080,
+
+      // true = .wasm otimizado. É o padrão da web: um .wasm de debug tem
+      // centenas de MB e roda devagar. Flag: `--dev` desliga.
+      "release": true,
+
+      // true = recompila a cada mudança em src/, views/ e web/ e recarrega a
+      // página. Flags: `--watch` liga, `--no-watch` desliga.
+      "watch": false
+    },
+
+    // `glacier serve desktop` — o mesmo app, rodando como janela nativa.
+    "desktop": {
+      // true = `cargo run --release`. Flag: `--release`.
+      "release": false,
+
+      // Argumentos entregues ao app, depois do `--`. Os da linha de comando
+      // SUBSTITUEM estes.
+      "args": []
+    }
+  },
+
+  "test": {
+    // `glacier test`: true = o app de teste é compilado com --release.
+    "release": false,
+
+    // Pastas extras onde um `require` dentro de um teste procura módulos, além
+    // de `views/scripts` e `views`. Caminhos relativos à raiz do projeto.
+    "luau_path": []
+  },
+
+  // Nomes para conjuntos de ajustes: `glacier serve wasm -c dev`.
+  // Cada um tem o mesmo formato da base e se funde por cima dela; listas são
+  // TROCADAS, não somadas (`"features": []` zera as da base).
+  "configurations": {
+    // Ciclo de edição: build rápido e página que se recarrega sozinha.
+    "dev": {
+      "serve": { "wasm": { "release": false, "watch": true } }
+    },
+
+    // O que vai para a imagem Docker.
+    "prod": {
+      "serve": { "wasm": { "release": true, "watch": false } }
+    }
+  },
+
+  // Configuração usada quando não houver `-c`. Descomente e dê o nome de uma de
+  // `configurations`:
+  // "default_configuration": "dev",
+}

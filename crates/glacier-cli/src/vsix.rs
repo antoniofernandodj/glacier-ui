@@ -11,6 +11,8 @@
 
 use std::io;
 
+use crate::json::{self, Valor};
+
 /// Um arquivo dentro do zip: caminho (sempre com `/`) e conteúdo.
 type Entrada<'a> = (String, &'a [u8]);
 
@@ -61,20 +63,30 @@ impl Manifesto {
     pub fn ler(package_json: &[u8]) -> io::Result<Self> {
         let json =
             std::str::from_utf8(package_json).map_err(|_| erro("package.json não é UTF-8"))?;
+        let raiz = json::parse(json).map_err(|e| erro(&format!("package.json inválido: {e}")))?;
 
+        let texto = |caminho: &[&str]| raiz.caminho(caminho).and_then(Valor::como_str);
         let obrigatorio = |chave: &str| {
-            json_str(json, &[chave])
+            texto(&[chave])
+                .map(str::to_owned)
                 .ok_or_else(|| erro(&format!("package.json sem o campo '{chave}'")))
         };
+        let categorias: Vec<&str> = raiz
+            .get("categories")
+            .and_then(Valor::como_lista)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(Valor::como_str)
+            .collect();
 
         Ok(Self {
             publisher: obrigatorio("publisher")?,
             nome: obrigatorio("name")?,
             versao: obrigatorio("version")?,
-            display_name: json_str(json, &["displayName"]).unwrap_or_default(),
-            descricao: json_str(json, &["description"]).unwrap_or_default(),
-            engine: json_str(json, &["engines", "vscode"]).unwrap_or_else(|| "^1.75.0".into()),
-            categorias: json_lista(json, "categories").join(","),
+            display_name: texto(&["displayName"]).unwrap_or_default().to_owned(),
+            descricao: texto(&["description"]).unwrap_or_default().to_owned(),
+            engine: texto(&["engines", "vscode"]).unwrap_or("^1.75.0").to_owned(),
+            categorias: categorias.join(","),
         })
     }
 
@@ -189,127 +201,6 @@ fn content_type(ext: &str) -> &'static str {
     }
 }
 
-// ── JSON: leitura dos poucos campos que interessam ───────────────────────────
-
-/// Valor string em `caminho` (`["engines", "vscode"]`), varrendo o JSON com
-/// controle de aspas/escape e profundidade. É deliberadamente parcial — não
-/// existe aqui um parser de JSON, só o suficiente para ler um `package.json`
-/// de extensão sem arrastar `serde_json` para uma CLI sem dependências.
-fn json_str(json: &str, caminho: &[&str]) -> Option<String> {
-    let bytes = json.as_bytes();
-    let mut i = 0usize;
-    let mut profundidade = 0usize;
-    // Índice, em `caminho`, do próximo segmento a casar.
-    let mut nivel = 0usize;
-
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' | b'[' => {
-                profundidade += 1;
-                i += 1;
-            }
-            b'}' | b']' => {
-                profundidade = profundidade.saturating_sub(1);
-                // Saímos do objeto onde o segmento já casado vivia: desfaz o
-                // casamento, senão uma chave homônima mais adiante casaria.
-                if nivel > 0 && profundidade < nivel {
-                    nivel = profundidade;
-                }
-                i += 1;
-            }
-            b'"' => {
-                let (texto, fim) = ler_string(bytes, i)?;
-                let apos = pular_espacos(bytes, fim);
-                // Só é chave se vier `:` depois, e só interessa no nível certo.
-                if apos < bytes.len() && bytes[apos] == b':' && profundidade == nivel + 1 {
-                    if texto == caminho[nivel] {
-                        let v = pular_espacos(bytes, apos + 1);
-                        if nivel + 1 == caminho.len() {
-                            return ler_string(bytes, v).map(|(s, _)| s);
-                        }
-                        nivel += 1;
-                    }
-                    i = apos + 1;
-                } else {
-                    i = fim;
-                }
-            }
-            _ => i += 1,
-        }
-    }
-    None
-}
-
-/// Itens string de um array no nível de topo (`"categories": ["a", "b"]`).
-fn json_lista(json: &str, chave: &str) -> Vec<String> {
-    let bytes = json.as_bytes();
-    let alvo = format!("\"{chave}\"");
-    let Some(inicio) = json.find(&alvo) else {
-        return Vec::new();
-    };
-    let mut i = pular_espacos(bytes, inicio + alvo.len());
-    if i >= bytes.len() || bytes[i] != b':' {
-        return Vec::new();
-    }
-    i = pular_espacos(bytes, i + 1);
-    if i >= bytes.len() || bytes[i] != b'[' {
-        return Vec::new();
-    }
-    i += 1;
-
-    let mut itens = Vec::new();
-    while i < bytes.len() && bytes[i] != b']' {
-        if bytes[i] == b'"' {
-            let Some((texto, fim)) = ler_string(bytes, i) else {
-                break;
-            };
-            itens.push(texto);
-            i = fim;
-        } else {
-            i += 1;
-        }
-    }
-    itens
-}
-
-/// Lê a string JSON que começa em `inicio` (que aponta para a aspa de abertura).
-/// Devolve o conteúdo e o índice logo após a aspa de fechamento.
-fn ler_string(bytes: &[u8], inicio: usize) -> Option<(String, usize)> {
-    if bytes.get(inicio) != Some(&b'"') {
-        return None;
-    }
-    let mut texto = Vec::new();
-    let mut i = inicio + 1;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => {
-                // Escapes: só os que aparecem num package.json (`\"`, `\\`, `\/`,
-                // `\n`). `\uXXXX` fica literal — nenhum campo lido aqui o usa.
-                let proximo = *bytes.get(i + 1)?;
-                texto.push(match proximo {
-                    b'n' => b'\n',
-                    b't' => b'\t',
-                    outro => outro,
-                });
-                i += 2;
-            }
-            b'"' => return Some((String::from_utf8_lossy(&texto).into_owned(), i + 1)),
-            outro => {
-                texto.push(outro);
-                i += 1;
-            }
-        }
-    }
-    None
-}
-
-fn pular_espacos(bytes: &[u8], mut i: usize) -> usize {
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    i
-}
-
 // ── Zip (stored) ─────────────────────────────────────────────────────────────
 
 fn zip(entradas: &[Entrada]) -> Vec<u8> {
@@ -413,7 +304,32 @@ mod testes {
     /// `contributes`. Ler a aninhada daria um `.vsix` com a versão errada.
     #[test]
     fn chave_aninhada_nao_e_confundida_com_a_de_topo() {
-        assert_eq!(json_str(PACOTE, &["version"]).as_deref(), Some("0.3.0"));
+        let m = Manifesto::ler(PACOTE.as_bytes()).unwrap();
+        assert_eq!(m.versao, "0.3.0");
+    }
+
+    /// A varredura antiga lia o primeiro `"categories"` do texto, onde quer que
+    /// estivesse — inclusive dentro de outro campo — e um campo escrito num
+    /// comentário valia como o de verdade.
+    #[test]
+    fn campo_citado_em_texto_ou_comentario_nao_vale() {
+        let json = r#"{
+          // "version": "9.9.9"
+          "description": "lista em \"categories\": [\"Falsa\"] e \"version\": \"8.8.8\"",
+          "name": "x", "publisher": "p", "version": "1.2.3",
+          "categories": ["Verdadeira"]
+        }"#;
+        let m = Manifesto::ler(json.as_bytes()).unwrap();
+        assert_eq!(m.versao, "1.2.3");
+        assert_eq!(m.categorias, "Verdadeira");
+    }
+
+    #[test]
+    fn package_json_malformado_diz_onde() {
+        let Err(e) = Manifesto::ler(b"{\n  \"name\": ,\n}") else {
+            panic!("deveria falhar");
+        };
+        assert!(e.to_string().contains("2:"), "{e}");
     }
 
     #[test]

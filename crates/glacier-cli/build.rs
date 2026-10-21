@@ -46,6 +46,12 @@ fn emitir_templates(raiz: &Path) -> String {
     coletar(raiz, raiz, &mut arquivos, &[]);
     arquivos.sort();
 
+    // A pasta também, e não só cada arquivo: o cargo olha o mtime da árvore
+    // inteira de um diretório, e é isso que enxerga um arquivo NOVO. Vigiando
+    // só os que já existiam, um template adicionado depois não recompilava a
+    // CLI, e o preset saía sem ele.
+    println!("cargo:rerun-if-changed={}", raiz.display());
+
     let mut s = String::from("pub static TEMPLATES: &[(&str, &[u8])] = &[\n");
     for (rel, abs) in &arquivos {
         println!("cargo:rerun-if-changed={}", abs.display());
