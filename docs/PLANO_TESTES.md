@@ -241,4 +241,4 @@ um arquivo que ainda os usa falha ao carregar com `attempt to call a nil value`.
 5. **`---` em helper e em `setup()`** não tem efeito no runner (só os `test_*` são lidos).
 6. **Sem `teardown()`**: só `setup()`, como era o `before_each`.
 7. **Sintaxe antiga**: aceita só na 0.128; removida na 0.129.
-8. **Grupo**: `grupo__caso` aparece como `grupo › caso`.
+8. **Grupo**: (removido na 0.130; o nome sai como `pasta::arquivo::test_x`.)

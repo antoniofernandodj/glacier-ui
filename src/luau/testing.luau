@@ -204,24 +204,18 @@ end
 
 -- ── o runner ────────────────────────────────────────────────────────────────
 
--- "grupo__caso_x" → "grupo › caso x"; sem `__`, só troca `_` por espaço.
-local function display_name(raw: string): string
-    local group, rest = string.match(raw, "^(.-)__(.+)$")
-    if group ~= nil and group ~= "" then
-        return (string.gsub(group, "_", " ")) .. " › " .. (string.gsub(rest, "_", " "))
-    end
-    return (string.gsub(raw, "_", " "))
-end
-
--- Chamado pelo runner: roda cada teste isolado e devolve uma lista de
+-- Chamado pelo runner: roda cada teste isolado e entrega cada resultado a
+-- `emit` assim que ele termina (para o relatório sair em tempo real):
 -- { name, ok, line, kind, detail, assert_line, trace, ms, logs }.
-function __glacier_run(filter: string?)
+-- `prefix` é o caminho de módulos do arquivo (`format::dashboard`); o nome de
+-- cada teste é `prefix::test_x`, como um caminho Rust.
+function __glacier_run(filter: string?, prefix: string, emit: (any) -> ())
     local queue = {}
     local found = {}
     for key, fn in pairs(_G) do
         if type(key) == "string" and type(fn) == "function" and string.sub(key, 1, 5) == "test_" then
-            local raw = string.sub(key, 6)
-            table.insert(found, { name = display_name(raw), raw = raw, body = fn, line = debug.info(fn, "l") })
+            local full = if prefix ~= "" then prefix .. "::" .. key else key
+            table.insert(found, { name = full, raw = key, body = fn, line = debug.info(fn, "l") })
         end
     end
     table.sort(found, function(a, b)
@@ -234,15 +228,15 @@ function __glacier_run(filter: string?)
     local setup_fn = rawget(_G, "setup")
     local real_print = print
     local logs: { string } = {}
-    print = function(...)
+    local capture = function(...)
         local parts = {}
         for i = 1, select("#", ...) do
             parts[i] = tostring((select(i, ...)))
         end
         table.insert(logs, table.concat(parts, "\t"))
     end
+    print = capture
 
-    local results = {}
     for _, t in ipairs(queue) do
         if filter == nil or string.find(t.name, filter, 1, true) or string.find(t.raw, filter, 1, true) then
             logs = {}
@@ -269,9 +263,10 @@ function __glacier_run(filter: string?)
                     r.assert_line = tonumber(string.match(msg, '"%]:(%d+):'))
                 end
             end
-            table.insert(results, r)
+            print = real_print
+            emit(r)
+            print = capture
         end
     end
     print = real_print
-    return results
 end

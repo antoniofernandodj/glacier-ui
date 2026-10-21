@@ -4,7 +4,8 @@
 //! TODOS os globais do motor e as extensões do app (`lua_extension`), mais:
 //!
 //! - cada função global `test_*` é um teste (descoberta pelo nome, na ordem em
-//!   que aparece no arquivo); `setup()`, se existir, roda antes de cada um;
+//!   que aparece no arquivo; aparece no relatório como um caminho Rust,
+//!   `pasta::arquivo::test_x`, e cada um sai assim que termina); `setup()`, se existir, roda antes de cada um;
 //! - `assert_eq / assert_ne / assert_nil / assert_not_nil / assert_true /
 //!   assert_false / assert_has / assert_match / assert_fails / assert_complete`,
 //!   sempre `(obtido, esperado)`, e `each(casos, fn)` para tabela de casos;
@@ -24,7 +25,8 @@
 //! Chamadas que suspendem (`fetch`, `confirm`, diálogos) não são resolvidas aqui:
 //! o handler roda até a suspensão e para.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -147,8 +149,8 @@ pub fn run_cli(target: Option<&str>, filter: Option<&str>, opts: Options) -> i32
     }
     println!(
         "\n{} passaram, {} falharam{}",
-        total.passed,
-        total.failed,
+        paint(Green, &total.passed.to_string()),
+        paint(if total.failed > 0 { Red } else { Green }, &total.failed.to_string()),
         if total.broken_files > 0 {
             format!(", {} arquivo(s) não carregaram", total.broken_files)
         } else {
@@ -295,43 +297,123 @@ pub fn run_file(path: &Path, filter: Option<&str>, opts: Options) -> Summary {
             return summary;
         }
     };
-    let results: mlua::Table = match run.call(filter) {
-        Ok(t) => t,
+    // O cabeçalho sai antes do primeiro teste; cada resultado, assim que termina.
+    println!("{}", path.display());
+    flush();
+    for dup in duplicate_tests(&script) {
+        println!("  aviso: test_{dup} é definida mais de uma vez; só a última roda");
+    }
+    let tally = Rc::new(Cell::new((0usize, 0usize)));
+    let emit = {
+        let tally = Rc::clone(&tally);
+        let script = script.clone();
+        let path = path.to_path_buf();
+        comp.luau.create_function(move |_, r: mlua::Table| {
+            let o = Outcome::from_lua(&r);
+            let (p, f) = tally.get();
+            tally.set(if o.ok { (p + 1, f) } else { (p, f + 1) });
+            print_outcome(&path, &script, &o, opts);
+            flush();
+            Ok(())
+        })
+    };
+    let emit = match emit {
+        Ok(f) => f,
         Err(e) => {
-            println!("{}\n  ✗ {e}", path.display());
+            println!("  {} {e}", paint(Red, "✗"));
             summary.broken_files = 1;
             return summary;
         }
     };
-    let outcomes: Vec<Outcome> = results
-        .sequence_values::<mlua::Table>()
-        .flatten()
-        .map(|r| Outcome::from_lua(&r))
-        .collect();
-    summary.passed = outcomes.iter().filter(|o| o.ok).count();
-    summary.failed = outcomes.len() - summary.passed;
+    if let Err(e) = run.call::<()>((filter, module_prefix(path), emit)) {
+        println!("  {} {e}", paint(Red, "✗"));
+        summary.broken_files = 1;
+    }
+    (summary.passed, summary.failed) = tally.get();
 
     if opts.verbosity == 0 {
         println!(
-            "{}  {} ✓{}",
-            path.display(),
+            "  {} {}{}",
             summary.passed,
+            paint(Green, "✓"),
             if summary.failed > 0 {
-                format!("  {} ✗", summary.failed)
+                format!("  {} {}", summary.failed, paint(Red, "✗"))
             } else {
                 String::new()
             }
         );
-    } else {
-        println!("{}", path.display());
-    }
-    for dup in duplicate_tests(&script) {
-        println!("  aviso: test_{dup} é definida mais de uma vez; só a última roda");
-    }
-    for o in &outcomes {
-        print_outcome(path, &script, o, opts);
     }
     summary
+}
+
+/// O caminho de módulos de um arquivo de teste, no estilo Rust: os diretórios
+/// acima e o nome do arquivo sem o sufixo (`tests/format/dashboard.test.luau` →
+/// `format::dashboard`). A raiz `tests/`/`views/` não conta.
+fn module_prefix(path: &Path) -> String {
+    let rel = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| path.strip_prefix(cwd).ok().map(Path::to_path_buf))
+        .unwrap_or_else(|| path.to_path_buf());
+    let mut parts: Vec<String> = rel
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect();
+    if parts.len() > 1 && matches!(parts[0].as_str(), "tests" | "views") {
+        parts.remove(0);
+    }
+    if let Some(last) = parts.last_mut() {
+        for suffix in [".test.luau", "_test.luau", ".luau"] {
+            if let Some(stem) = last.strip_suffix(suffix) {
+                *last = stem.to_string();
+                break;
+            }
+        }
+    }
+    parts.join("::")
+}
+
+#[derive(Clone, Copy)]
+enum Tint {
+    Green,
+    Red,
+    Yellow,
+    Gray,
+}
+use Tint::*;
+
+/// Cores só em terminal (ou com `FORCE_COLOR`); `NO_COLOR` desliga.
+fn color_enabled() -> bool {
+    use std::io::IsTerminal;
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) {
+            return false;
+        }
+        std::env::var_os("FORCE_COLOR").is_some_and(|v| !v.is_empty() && v != "0")
+            || std::io::stdout().is_terminal()
+    })
+}
+
+fn paint(tint: Tint, text: &str) -> String {
+    if !color_enabled() {
+        return text.to_string();
+    }
+    let code = match tint {
+        Green => "32",
+        Red => "31",
+        Yellow => "33",
+        Gray => "38;5;250",
+    };
+    format!("\x1b[{code}m{text}\x1b[0m")
+}
+
+/// Sem isto o relatório fica retido no buffer quando a saída é um pipe.
+fn flush() {
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
 }
 
 /// Imprime um teste conforme o nível de verbosidade.
@@ -349,23 +431,23 @@ fn print_outcome(path: &Path, script: &str, o: &Outcome, opts: Options) {
 
     if o.ok {
         if opts.verbosity >= 1 {
-            println!("  ✓ {}{timing}", o.name);
+            println!("  {} {}{timing}", paint(Green, "✓"), paint(Yellow, &o.name));
             if opts.verbosity >= 2 {
                 for l in first_paragraph(&doc) {
-                    println!("      {l}");
+                    println!("      {}", paint(Gray, l));
                 }
             }
         } else if logs {
-            println!("  · {}", o.name);
+            println!("  · {}", paint(Yellow, &o.name));
         }
     } else {
         let onde = o
             .line
             .map(|l| format!("   {}:{l}", path.display()))
             .unwrap_or_default();
-        println!("  ✗ {}{onde}{timing}", o.name);
+        println!("  {} {}{onde}{timing}", paint(Red, "✗"), paint(Yellow, &o.name));
         for l in &doc {
-            println!("{}", format!("      {l}").trim_end());
+            println!("      {}", paint(Gray, l.trim_end()));
         }
         if !doc.is_empty() {
             println!();
@@ -375,13 +457,13 @@ fn print_outcome(path: &Path, script: &str, o: &Outcome, opts: Options) {
             .map(|l| format!(" (linha {l})"))
             .unwrap_or_default();
         match &o.kind {
-            Some(kind) => println!("      {kind}{em}"),
-            None if !em.is_empty() => println!("      erro{em}"),
+            Some(kind) => println!("      {}", paint(Red, &format!("{kind}{em}"))),
+            None if !em.is_empty() => println!("      {}", paint(Red, &format!("erro{em}"))),
             None => {}
         }
         for l in o.detail.lines() {
             // `detail` das asserções já vem com 2 espaços de recuo.
-            println!("      {l}");
+            println!("      {}", paint(Red, l));
         }
         if opts.verbosity >= 3 {
             let trace = o.trace.trim();
@@ -576,6 +658,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn prefixo_de_modulo_estilo_rust() {
+        let f = |p: &str| module_prefix(Path::new(p));
+        assert_eq!(f("tests/format/dashboard.test.luau"), "format::dashboard");
+        assert_eq!(f("views/a_test.luau"), "a");
+        assert_eq!(f("x.test.luau"), "x");
+    }
+
+    #[test]
     fn roda_um_arquivo_com_acertos_e_falhas() {
         let dir = std::env::temp_dir().join(format!("glacier_t_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -684,8 +774,11 @@ mod tests {
 
     #[test]
     fn doc_above_junta_os_tres_tracos_acima_da_funcao() {
-        let src = "-- nada\n--- Primeira.\n---\n--- Segunda.\n---- régua\nfunction test_x() end";
-        assert_eq!(doc_above(src, 6), vec!["", "Segunda."]);
+        // `----` é régua: corta a documentação, não entra nela.
+        let src = "-- nada\n---- régua\n--- Primeira.\n---\n--- Segunda.\nfunction test_x() end";
+        assert_eq!(doc_above(src, 6), vec!["Primeira.", "", "Segunda."]);
+        let src = "--- Perdida.\n---- régua\nfunction test_x() end";
+        assert!(doc_above(src, 3).is_empty());
         let src = "--- Primeira.\n---\n--- Segunda.\nfunction test_x() end";
         assert_eq!(doc_above(src, 4), vec!["Primeira.", "", "Segunda."]);
         assert_eq!(first_paragraph(&doc_above(src, 4)), ["Primeira."]);

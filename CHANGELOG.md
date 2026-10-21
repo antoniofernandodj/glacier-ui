@@ -10,6 +10,24 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.130.0 — 2026-10-21
+
+### Quebras
+
+- **O nome de um teste é um caminho Rust**: `format::dashboard::test_cards_de_servico`, os
+  diretórios acima do arquivo (sem a raiz `tests/`/`views/`) e o arquivo sem o sufixo, `::` e o nome
+  da função como está. Some o `grupo › caso` que o runner fabricava a partir de `grupo__caso`
+  (o nome da função aparece inteiro, e `-t` casa com o caminho completo ou com o nome da função).
+  Quem lia a saída por script precisa ajustar.
+
+### Alterado
+
+- **O relatório sai teste a teste**, assim que cada um termina (o `__glacier_run` entrega cada
+  resultado a um callback em vez de devolver a lista no fim), com flush a cada linha — também
+  quando a saída é um pipe. Antes, o arquivo inteiro rodava calado e despejava tudo de uma vez.
+- **Cores** (só em terminal; `FORCE_COLOR=1` força, `NO_COLOR` desliga): `✓` e totais em verde,
+  `✗` e o erro em vermelho, nomes dos testes em amarelo e a documentação (`---`) em cinza claro.
+
 ## glacier-cli 0.10.0 — 2026-10-21
 
 ### Quebras
