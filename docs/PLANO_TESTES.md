@@ -1,0 +1,228 @@
+# Plano: uma sintaxe própria para os testes Luau
+
+**Estado:** **proposta**, nada implementado. Escrita em 2026-10-21, depois de 340 testes
+escritos no `rustploy-gui` com a sintaxe atual. Abre uma conversa; as decisões em aberto estão
+na última seção, e nada aqui vale antes de elas serem tomadas.
+
+## 1. O problema
+
+O runner do `glacier test` (0.124) fala Jest:
+
+```lua
+describe("contador", function()
+    before_each(function() ... end)
+
+    test("soma e subtrai", function()
+        local tela = component("views/app.gvb")
+        tela:call("somar")
+        expect(tela:get("contador")):toBe("1")
+        expect(tela:toasts()).never:toEqual({})
+    end)
+end)
+```
+
+Três coisas incomodam:
+
+- **Parece coisa de Node.** `describe`/`it`/`expect` vêm do Jest, e o resto do motor não fala
+  assim. Os globais do Luau do motor são `toast`, `open_window`, `append_textarea`: verbos curtos
+  em snake_case.
+- **camelCase.** `toBe`, `toEqual`, `toBeNil`, `toBeTruthy`, `toContain`, `toThrow`, `.never`.
+  A convenção do repositório é `snake_case` (ver o `CLAUDE.md`), e esta é a única API do motor
+  que a quebra.
+- **Encadeamento.** `expect(a):toBe(b)` é uma frase com sujeito, verbo e advérbio para dizer
+  `a == b`. Negar exige outra peça (`.never`), e a falha não diz em que linha do teste ela está
+  (hoje sai `[string "<script:…>"]:47`).
+
+Há também um custo prático, visto ao escrever 328 testes: metade deles são laços
+`for _, caso in {...}`, e a conta "essas chaves, nem mais nem menos" do `tela:missing()` foi
+reescrita à mão num teste inteiro.
+
+## 2. A proposta
+
+### 2.1 O teste é uma função `test_*`
+
+Sem `describe`, sem registro, sem `it`. O motor já descobre `init` e os handlers **pelo nome**, e
+descobrir teste pelo nome segue a mesma regra (Rust, Go e Python fazem igual):
+
+```lua
+function test_filtrar_deixa_so_o_trecho()
+    local tela = nova()
+    tela:call("filtrar", "API")
+    assert_eq(nomes(tela), { "api-gateway" })
+    assert_eq(tela:get("total"), "3")
+end
+```
+
+Descoberta: depois de carregar o arquivo, o runner percorre `_G`, pega as funções cujo nome
+começa com `test_` e as ordena pela **linha de definição** (`debug.info(fn, "l")`), para a saída
+seguir a ordem do arquivo (`_G` não tem ordem).
+
+### 2.2 Asserções são funções `assert_*`, `(obtido, esperado)`
+
+No estilo dos `assert_eq!`/`assert_ne!` do Rust. A ordem é sempre `(obtido, esperado)`. O negado
+é outra função, não um `.never`.
+
+| hoje | proposta |
+|---|---|
+| `expect(a):toBe(b)` / `:toEqual(b)` | `assert_eq(a, b)` |
+| `expect(a).never:toBe(b)` | `assert_ne(a, b)` |
+| `expect(t):toContain(x)` | `assert_has(t, x)` |
+| `expect(t):toMatch(p)` | `assert_match(t, p)` |
+| `expect(v):toBeNil()` / `.never:toBeNil()` | `assert_nil(v)` / `assert_not_nil(v)` |
+| `expect(v):toBeTruthy()` / `:toBeFalsy()` | `assert_true(v)` / `assert_false(v)` |
+| `expect(fn):toThrow("x")` | `assert_fails(fn, "x")` |
+| `fail("msg")` | `fail("msg")` (fica) |
+| `expect(tela:missing()):toEqual({})` | `assert_complete(tela, { "ausente_esperada" })` |
+
+`assert_complete(tela, esperadas)` esconde a conta de conjuntos do `tela:missing()`: passa se as
+chaves ausentes forem **exatamente** `esperadas`, e a falha nomeia as que sobraram e as que
+faltaram (hoje cada projeto reescreve essa comparação).
+
+### 2.3 Tabela de casos: `each`
+
+```lua
+function test_rotulo_de_recorrencia()
+    each({
+        { nil,                                  "manual" },
+        { { IntervalHours = 6 },                "a cada 6h" },
+        { { Daily = { hour = 3, minute = 5 } }, "diariamente às 03:05" },
+    }, function(entrada, esperado)
+        assert_eq(Jobs.recurrence_label(entrada), esperado)
+    end)
+end
+```
+
+Cada linha da tabela é um caso. Quando um falha, a mensagem diz **qual** (o índice e os valores
+da linha), em vez de apontar o `assert_eq` de dentro do laço.
+
+### 2.4 `setup()` e grupos
+
+- `setup()`, se existir, roda antes de cada teste do arquivo (no lugar de `before_each`).
+- O **grupo é o arquivo**. Se um arquivo precisar de subgrupos, o sufixo `__` separa:
+  `test_nav__abas_gravam_a_chave`; o runner imprime o que vem antes de `__` como cabeçalho.
+
+### 2.5 Documentação do teste: comentário `---`
+
+O Luau não tem docstring (uma string solta no começo da função não é instrução válida). A
+documentação vai num bloco de `---` logo acima da função:
+
+```lua
+--- Filtrar por "API" deixa só o serviço que contém o trecho.
+--- O total continua 3: o filtro esconde linhas, não apaga serviços.
+function test_filtrar_deixa_so_o_trecho()
+```
+
+Como funciona:
+
+- O runner é Rust e já lê o arquivo (`read_to_string`). Para cada `test_*` ele pega a linha de
+  definição e junta os `---` consecutivos imediatamente acima. Os números de linha batem com o
+  arquivo (o chunk é carregado com o nome do arquivo, e hoje o erro já aponta a linha real).
+- Custo zero em execução, nenhuma sintaxe nova: o Luau vê comentário.
+- O `luau-lsp` já trata `---` como documentação: o texto aparece no hover do editor.
+
+Onde aparece:
+
+- **Sem `-v`:** nada, a saída continua enxuta.
+- **Com `-v`:** o **primeiro parágrafo** (até a linha em branco) sob o nome do teste.
+- **Em falha, sempre:** o bloco inteiro, antes do `obtido`/`esperado`. É a *intenção* do teste, que
+  é o que falta quando só se vê dois valores diferentes.
+
+### 2.6 Como fica a saída
+
+Sem `-v`:
+
+```
+tests/itens.test.luau
+  ✓ filtrar deixa so o trecho
+  ✓ editar e excluir sem selecao so avisam
+
+2 passaram, 0 falharam
+```
+
+Com `-v`:
+
+```
+tests/itens.test.luau
+  ✓ filtrar deixa so o trecho
+      Filtrar por "API" deixa só o serviço que contém o trecho.
+  ✓ editar e excluir sem selecao so avisam
+      Sem linha selecionada, os dois só mostram um toast de aviso.
+```
+
+Numa falha (note a linha do teste, que hoje não existe):
+
+```
+✗ filtrar deixa so o trecho              tests/itens.test.luau:12
+    Filtrar por "API" deixa só o serviço que contém o trecho.
+    O total continua 3: o filtro esconde linhas, não apaga serviços.
+
+    assert_eq
+      obtido:   { "api-gateway", "fila-jobs" }
+      esperado: { "api-gateway" }
+```
+
+O nome impresso é o da função sem o `test_`, com `_` trocado por espaço. A linha do `assert_*` que
+falhou vem de `debug.info(2, "l")` no momento da chamada.
+
+## 3. Alternativa mais leve
+
+Manter a chamada de registro, só sem o jeito Node:
+
+```lua
+--- Filtrar por "API" deixa só o serviço que contém o trecho.
+test("filtrar deixa só o trecho", function()
+    assert_eq(...)
+end)
+```
+
+com as mesmas `assert_*` e `each`. O `---` continua funcionando: o runner procura os comentários
+acima da **linha da chamada** `test(...)`, em vez da linha da função. Conserva os nomes com acento
+e espaço e a ordem natural do arquivo; perde só a descoberta por nome (e, com ela, o aviso de
+nome duplicado, já que o nome passa a ser um texto livre).
+
+## 4. O que isso custa
+
+- **O nome perde acento e espaço**: "ida e volta preserva yaml e toml" vira
+  `test_ida_e_volta_preserva_yaml_e_toml`. Lê bem, mas é uma troca.
+- **Colisão de nomes**: duas funções com o mesmo nome no mesmo arquivo — a segunda sobrescreve a
+  primeira, em silêncio. O runner pode avisar quando o arquivo *define* `test_x` duas vezes (ele
+  lê o texto, então consegue contar).
+- **Função `test_*` que não é teste**: um helper chamado `test_algo` seria executado. É a mesma
+  armadilha de qualquer descoberta por prefixo; a regra "helper não começa com `test_`" cabe na
+  documentação.
+- **Migração**: 10 presets do `glacier new`, a seção "Testes" do `AGENTS.md` gerado, o
+  `glacier.d.luau` e os testes dos projetos que já usam o formato atual (o `rustploy-gui` tem 340).
+
+## 5. Migração
+
+O motor aceita **os dois formatos** durante a transição: o runner roda as funções `test_*` e,
+no mesmo arquivo, o que foi registrado por `describe`/`test`. Nada quebra no dia em que isso sair.
+Os testes atuais migram aos poucos, e a sintaxe antiga é marcada como obsoleta no
+`glacier.d.luau` e na documentação antes de ser removida (decisão de versão, a tomar depois).
+
+## 6. Passos
+
+1. `src/luau/testing.luau`: `assert_*`, `each`, `setup`, o contador de casos e o formato das
+   mensagens com `obtido`/`esperado` e a linha (`debug.info`).
+2. `src/luau/testing.rs`: descoberta de `test_*` por prefixo e ordem por linha; extração dos `---`
+   acima de cada função; aviso de nome duplicado; formatação da saída (`-v`, doc em falha).
+3. `crates/glacier-cli`: a flag `-v`/`--verbose` em `glacier test` (repassada ao app por uma
+   variável de ambiente, como `GLACIER_TEST_FILTER`); a ajuda; `templates/_comum/views/scripts/glacier.d.luau`
+   com as declarações novas.
+4. Os testes dos 10 presets e a seção "Testes" do `AGENTS.md` passam para a sintaxe nova.
+5. `CHANGELOG`: motor (runner) e CLI (`-v`, templates).
+6. Os testes do `rustploy-gui` migram num projeto à parte, depois.
+
+## 7. Decisões em aberto
+
+1. **Descoberta por nome (`test_*`) ou registro (`test("…")`)?** (seção 2.1 contra seção 3).
+2. **Nomes das asserções em inglês (`assert_eq`) ou em português (`assert_igual`)?** Inglês
+   acompanha os globais do motor (`toast`, `open_window`); português acompanha o idioma do
+   repositório.
+3. **`assert_*` global ou módulo?** Hoje `describe`/`expect` são globais, sem `require`. Um módulo
+   (`local t = require("test")`) polui menos, mas custa uma linha por arquivo.
+4. **O resumo do `-v`** é o primeiro parágrafo do doc, ou o doc inteiro?
+5. **`---` em helpers e no `setup()`**: o runner só leria os `test_*`; um `---` em helper seria
+   documentação de código, sem efeito no runner. Confirmar que é isso mesmo.
+6. **`teardown()`**: existe um par de `setup()`, ou só o `setup()` basta (como hoje com `before_each`)?
+7. **Remover a sintaxe antiga** — quando, e em que versão.
