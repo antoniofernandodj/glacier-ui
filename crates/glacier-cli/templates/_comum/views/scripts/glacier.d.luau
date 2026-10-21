@@ -315,6 +315,8 @@ export type TestComponent = {
     set: (self: TestComponent, key: string, value: string) -> (),
     data: (self: TestComponent) -> { [string]: string },
     toasts: (self: TestComponent) -> { { kind: string, message: string } },
+    -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".
+    missing: (self: TestComponent) -> { string },
 }
 declare function describe(name: string, body: () -> ()): ()
 declare function test(name: string, body: () -> ()): ()

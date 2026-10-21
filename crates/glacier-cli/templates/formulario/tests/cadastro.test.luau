@@ -40,4 +40,12 @@ describe("cadastro", function()
         expect(tela:get("f_nome")):toBe("")
         expect(tela:get("f_uf")):toBe("SP")
     end)
+
+    test("toda chave que a tela lê é publicada", function()
+        -- `missing()` cruza o que o .gvb lê ({x}, @x, :value, :items…) com o ctx
+        -- depois do init. Uma chave escrita errada num dos lados passa em todo
+        -- teste de handler e deixa a tela vazia; aqui ela aparece pelo nome.
+        -- Os `erro_<campo>` do <form> não entram: o motor os publica ao enviar.
+        expect(nova():missing()):toEqual({})
+    end)
 end)

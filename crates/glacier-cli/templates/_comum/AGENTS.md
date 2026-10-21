@@ -3712,9 +3712,30 @@ enxergam os globais do motor e as extensões Rust do app. Cada preset já traz u
 `require` se fixam em `test` no `glacier.jsonc`.
 
 `component()` **não chama o `init`** — chame `tela:call("init")` você mesmo,
-como o motor faria ao abrir a tela. E ele roda o **script**, não o layout: um
-widget ligado à chave errada passa aqui e aparece vazio na tela. O teste prova o
-que cada handler faz com o `ctx`; que a tela mostra isso, só `make run` mostra.
+como o motor faria ao abrir a tela.
+
+**`tela:missing()` é o teste que pega a tela vazia.** Um handler que escreve
+`ctx.total` passa em todo teste de handler, e o `.gvb` que lê `{totall}` aparece
+vazio, sem erro. `missing()` carrega o template como o motor o carrega, avalia
+contra o `ctx` de agora e devolve as chaves que o **markup lê e ninguém
+publicou** (`{chave}`, `@chave`, `if=`, `for-each=`, `:value`). Chame-o depois
+do `init`, e afirme a lista inteira:
+
+```lua
+test("toda chave que a tela lê é publicada", function()
+    local tela = component("views/app.gvb")
+    tela:call("init")
+    expect(tela:missing()).toEqual({})
+end)
+```
+
+Nem toda ausência é bug: `{k|padrão}` e `if="{erro_nome}"` leem chaves que só
+passam a existir depois (o valor padrão; o erro que o `<form>` publica ao
+enviar). Essas se **nomeiam** no `toEqual({ "erro_nome" })`, com um comentário
+dizendo por quê — o que sobrar na lista é a falha. Fica de fora o que o motor
+publica sozinho (`__*`) e as variáveis locais de um `for-each`. O que `missing()`
+não alcança é o **layout** (largura, `fill` dentro de `shrink`): isso só o
+`make run` mostra.
 
 ```lua
 describe("contador", function()

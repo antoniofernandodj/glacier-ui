@@ -29,4 +29,11 @@ describe("contador", function()
         expect(tela:get("contador")):toBe("0")
         expect(tela:toasts()[1].message):toBe("Contador zerado")
     end)
+
+    test("toda chave que a tela lê é publicada", function()
+        -- `missing()` cruza o que o .gvb lê ({x}, @x, :value, :items…) com o ctx
+        -- depois do init. Uma chave escrita errada num dos lados passa em todo
+        -- teste de handler e deixa a tela vazia; aqui ela aparece pelo nome.
+        expect(nova():missing()):toEqual({})
+    end)
 end)
