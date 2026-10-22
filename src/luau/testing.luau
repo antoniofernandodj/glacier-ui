@@ -180,6 +180,55 @@ function assert_complete(screen: any, expected: { string }?)
     end
 end
 
+-- ── a árvore avaliada ────────────────────────────────────────────────────────
+
+-- `assert_renders("views/app.gvb")`: o app (ou a tela) carrega com TODOS os
+-- `import`s e a tela inicial avalia. Falha com a mensagem do parser — arquivo e
+-- linha — mesmo que a view quebrada seja uma que nenhum outro teste chama.
+function assert_renders(path: string)
+    local err = __glacier_render_check(path)
+    if err ~= nil then
+        raise("assert_renders", "  " .. path .. "\n  " .. string.gsub(err, "\n", "\n  "))
+    end
+end
+
+local function list_has(list: { string }, text: string): boolean
+    for _, t in ipairs(list) do
+        if t == text then
+            return true
+        end
+    end
+    return false
+end
+
+-- `assert_has_text(tela, "Exportar serviço")`: há um `<text>` visível com esse
+-- conteúdo exato na árvore avaliada.
+function assert_has_text(screen: any, text: string)
+    local texts = screen:texts()
+    if not list_has(texts, text) then
+        raise("assert_has_text", "  faltou:  " .. show(text) .. "\n  textos:  " .. show(texts))
+    end
+end
+
+function assert_no_text(screen: any, text: string)
+    if list_has(screen:texts(), text) then
+        raise("assert_no_text", "  não devia existir: " .. show(text))
+    end
+end
+
+function assert_has_button(screen: any, label: string)
+    local buttons = screen:buttons()
+    if not list_has(buttons, label) then
+        raise("assert_has_button", "  faltou:  " .. show(label) .. "\n  botões:  " .. show(buttons))
+    end
+end
+
+function assert_no_button(screen: any, label: string)
+    if list_has(screen:buttons(), label) then
+        raise("assert_no_button", "  não devia existir: " .. show(label))
+    end
+end
+
 -- `each({ { entrada, esperado }, … }, function(entrada, esperado) … end)`: roda a
 -- função em cada linha; a falha diz QUAL linha foi.
 function each(cases: { { any } }, fn: (...any) -> ())

@@ -1,7 +1,9 @@
 # Plano: checar o render pelo Luau, via a API da tela
 
-**Estado:** **proposto, não implementado.** Escrito em 2026-10-22, a partir de um experimento no
-`rustploy-gui` (seção 1). Nada aqui foi decidido: as perguntas em aberto estão na seção 6.
+**Estado:** **fases 1, 2 e 3 implementadas** (sem versão publicada ainda; em "Não lançado" do
+CHANGELOG). Escrito em 2026-10-22, a partir de um experimento no `rustploy-gui` (seção 1). As
+perguntas da seção 6 estão respondidas lá, com o que a implementação mostrou. O
+`templates_render.rs` do `rustploy-gui` **ainda não foi migrado** — ver "Próximo passo" na seção 6.
 
 ## 1. O problema
 
@@ -121,7 +123,42 @@ de teste. O ganho é de **manutenção** (um runner só, mesma sintaxe, mensagem
 linha), não de minutos. Se o objetivo for CI mais curto, o caminho é outro: cache do `target/` e
 compilar uma vez só para os dois runners.
 
-## 6. Perguntas em aberto
+## 6. Perguntas (respondidas na implementação)
+
+**Como ficou:** `assert_renders`, `assert_has_text`/`assert_no_text`, `assert_has_button`/
+`assert_no_button`, e em `tela`: `render`, `texts`, `buttons`, `find`, `find_all`,
+`set_viewport`, `style`. Código em `src/luau/testing.rs` (`carregar`, `com_arvore`,
+`no_para_lua`) e `testing.luau`. Não precisou do "resolvedor de estilo" separado que a seção 3.3
+temia: a avaliação já resolve seletor, combinador e `@media` nos campos do `UiNode`, e o
+`set_viewport` só reavalia com outro viewport.
+
+Desvio do desenho: o avaliador **zera `class` e `id`** dos nós (já foram resolvidos nos campos de
+estilo), então `find({ class = … })` não tinha o que olhar. Um interruptor por thread
+(`eval::manter_identidade`, ligado só pelo runner de testes) os devolve; fora dos testes o custo é a
+leitura de um `thread_local` por nó. Limites conhecidos: o `text` de um nó só existe para `text`,
+`button`, `checkbox` e `toggle`; `attrs` cobre `button`, `textinput`, `textarea`, `checkbox`,
+`toggle`, `image`/`svg` e `progressbar`; `class` de um componente aparece na raiz dele só pela
+classe do template, não pela escrita no uso. Cada chamada reavalia a tela do zero.
+
+1. **Propriedade GSS desconhecida.** Já **não** derruba a folha: o motor a ignora e avisa em
+   `stderr` (`propriedade GSS desconhecida 'border-bottom' em '.botao' (ignorada)`). O
+   `assert_renders` não a trata como falha (o aviso não chega ao teste). Se for desejável, o caminho
+   é capturar esses avisos durante a carga e expô-los — fica como melhoria.
+2. **Formato do nó.** `attrs` plano (`no.attrs.on_click`), com o estilo separado em `style`.
+3. **Estabilidade.** O formato é novo e pode crescer (mais variantes em `attrs`/`text`); tratar
+   como experimental até o `rustploy-gui` migrar.
+4. **Janelas auxiliares.** Em aberto: `component(path)` carrega uma tela/app; uma janela aberta por
+   `open_window` se testa carregando a tela dela (`component("views/x.gvb")`). `tela:windows()`
+   não foi feito.
+
+### Próximo passo
+
+Migrar `rustploy-gui/tests/templates_render.rs` para `*.test.luau` (publicar a glacier-ui primeiro —
+o app depende da versão do crates.io), conferindo caso a caso o que o Rust cobria: a sidebar virar
+drawer e as ações virarem ícone dependem de `set_viewport` + `style`, e o recolor por combinador de
+`style` do filho.
+
+### Perguntas originais
 
 1. **Propriedade GSS desconhecida.** Nenhum runner a pegou no experimento. O comentário antigo do
    `templates_render.rs` diz que ela derruba a folha inteira em silêncio. Isso ainda vale? Se sim,

@@ -307,7 +307,26 @@ export type TestComponent = {
     toasts: (self: TestComponent) -> { { kind: string, message: string } },
     -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".
     missing: (self: TestComponent) -> { string },
+    -- A árvore avaliada (ver AGENTS.md, "A árvore avaliada").
+    render: (self: TestComponent) -> RenderNode,
+    texts: (self: TestComponent) -> { string },
+    buttons: (self: TestComponent) -> { string },
+    find: (self: TestComponent, query: RenderQuery) -> RenderNode?,
+    find_all: (self: TestComponent, query: RenderQuery) -> { RenderNode },
+    set_viewport: (self: TestComponent, width: number, height: number) -> (),
+    style: (self: TestComponent, node_or_id: RenderNode | string) -> { [string]: any },
 }
+export type RenderNode = {
+    kind: string,
+    text: string?,
+    class: string?,
+    id: string?,
+    hidden: boolean,
+    attrs: { [string]: any },
+    style: { [string]: any },
+    children: { RenderNode },
+}
+export type RenderQuery = { kind: string?, text: string?, class: string?, id: string? }
 declare function assert_eq(got: any, expected: any): ()
 declare function assert_ne(got: any, unexpected: any): ()
 declare function assert_nil(value: any): ()
@@ -317,6 +336,11 @@ declare function assert_false(value: any): ()
 declare function assert_has(container: any, item: any): ()
 declare function assert_match(text: any, pattern: string): ()
 declare function assert_fails(body: () -> (), fragment: string?): ()
+declare function assert_renders(path: string): ()
+declare function assert_has_text(screen: TestComponent, text: string): ()
+declare function assert_no_text(screen: TestComponent, text: string): ()
+declare function assert_has_button(screen: TestComponent, label: string): ()
+declare function assert_no_button(screen: TestComponent, label: string): ()
 declare function assert_complete(screen: TestComponent, expected_missing: { string }?): ()
 declare function each(cases: { { any } }, body: (...any) -> ()): ()
 declare function fail(message: string?): ()

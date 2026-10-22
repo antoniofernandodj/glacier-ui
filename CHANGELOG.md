@@ -10,6 +10,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.133.0 — 2026-10-22
+
+### Adicionado
+
+- **`glacier test` confere o render, não só o estado.** `assert_renders(caminho)` carrega o
+  app/tela com todos os `import`s e avalia a tela inicial (falha com arquivo e linha do parser, mesmo
+  numa view que nenhum outro teste chama). Em `component(...)`: `:render()` (árvore aninhada
+  `{ kind, text, class, id, hidden, attrs, style, children }`), `:texts()`, `:buttons()`,
+  `:find(q)`, `:find_all(q)` (critérios `kind`, `text`, `class`, `id`), `:set_viewport(w, h)` e
+  `:style(no)` — o estilo já com seletor, combinador e `@media`. Asserções `assert_has_text`,
+  `assert_no_text`, `assert_has_button`, `assert_no_button`. Tipos em `glacier.d.luau`; ver
+  `docs/PLANO_RENDER_LUAU.md`.
+
 ## glacier-ui 0.132.0 — 2026-10-22
 
 ### Adicionado

@@ -17,7 +17,12 @@
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. Um handler
 //!   que falha **lança** o erro (em produção ele viraria um toast); `:missing()`
 //!   avalia o template contra o `ctx` de agora e devolve as chaves que o markup
-//!   **lê e ninguém publicou** (ver [`missing_keys`]).
+//!   **lê e ninguém publicou** (ver [`missing_keys`]);
+//! - a **árvore avaliada**: `:render()`, `:texts()`, `:buttons()`, `:find(q)`,
+//!   `:find_all(q)`, `:set_viewport(w, h)` e `:style(no)` (ver [`no_para_lua`]),
+//!   mais `assert_renders(caminho)` e `assert_has_text`/`assert_has_button`
+//!   (e os `assert_no_*`). Cada chamada reavalia a tela do zero contra o `ctx`
+//!   de agora.
 //!
 //! `require` funciona como no app (relativo ao arquivo de teste), então módulos
 //! Luau puros testam-se só com `require` + `assert_*`.
@@ -492,6 +497,18 @@ struct TestComponent {
     path: String,
     data: RefCell<ContextMap>,
     toasts: RefCell<Vec<(String, String)>>,
+    /// O viewport de `:set_viewport(w, h)`; `None` = o do motor (o padrão).
+    viewport: Cell<Option<(f32, f32)>>,
+}
+
+impl TestComponent {
+    /// Carrega, avalia contra o contexto de agora e entrega a árvore a `f`.
+    fn arvore<R>(
+        &self,
+        f: impl FnOnce(&crate::parser::UiNode) -> mlua::Result<R>,
+    ) -> mlua::Result<R> {
+        com_arvore(&self.path, &self.data.borrow(), self.viewport.get(), f)
+    }
 }
 
 impl UserData for TestComponent {
@@ -521,6 +538,72 @@ impl UserData for TestComponent {
                 .map_err(|e| mlua::Error::runtime(format!("missing: {e}")))?;
             lua.create_sequence_from(keys)
         });
+        // ── a árvore avaliada (ver `no_para_lua`) ───────────────────────────
+        methods.add_method("render", |lua, this, ()| {
+            this.arvore(|raiz| no_para_lua(lua, raiz))
+        });
+        methods.add_method("texts", |lua, this, ()| {
+            let mut out = Vec::new();
+            this.arvore(|raiz| Ok(coletar_textos(raiz, false, &mut out)))?;
+            lua.create_sequence_from(out)
+        });
+        methods.add_method("buttons", |lua, this, ()| {
+            let mut out = Vec::new();
+            this.arvore(|raiz| Ok(coletar_textos(raiz, true, &mut out)))?;
+            lua.create_sequence_from(out)
+        });
+        methods.add_method("find", |lua, this, criterio: mlua::Table| {
+            let c = Criterio::de_lua(&criterio)?;
+            this.arvore(|raiz| {
+                let mut achados = Vec::new();
+                achar(raiz, &c, true, &mut achados);
+                achados
+                    .first()
+                    .map(|n| no_para_lua(lua, n))
+                    .transpose()
+            })
+        });
+        methods.add_method("find_all", |lua, this, criterio: mlua::Table| {
+            let c = Criterio::de_lua(&criterio)?;
+            this.arvore(|raiz| {
+                let mut achados = Vec::new();
+                achar(raiz, &c, false, &mut achados);
+                let lista = lua.create_table()?;
+                for n in achados {
+                    lista.push(no_para_lua(lua, n)?)?;
+                }
+                Ok(lista)
+            })
+        });
+        methods.add_method("set_viewport", |_, this, (w, h): (f32, f32)| {
+            this.viewport.set(Some((w, h)));
+            Ok(())
+        });
+        // `:style(no)` — as propriedades resolvidas de um nó devolvido por
+        // `find`/`render`; também aceita o `id` do nó, como atalho.
+        methods.add_method("style", |lua, this, alvo: Value| match alvo {
+            Value::Table(t) => t.get::<Value>("style"),
+            Value::String(id) => {
+                let id = id.to_str()?.to_string();
+                let c = Criterio {
+                    id: Some(id.clone()),
+                    ..Default::default()
+                };
+                this.arvore(|raiz| {
+                    let mut achados = Vec::new();
+                    achar(raiz, &c, true, &mut achados);
+                    match achados.first() {
+                        Some(n) => no_para_lua(lua, n)?.get::<Value>("style"),
+                        None => Err(mlua::Error::runtime(format!(
+                            "style: nenhum nó com id '{id}'"
+                        ))),
+                    }
+                })
+            }
+            _ => Err(mlua::Error::runtime(
+                "style: esperava um nó (de find/render) ou um id",
+            )),
+        });
         methods.add_method("get", |_, this, key: String| {
             Ok(this.data.borrow().get(&key).cloned())
         });
@@ -548,6 +631,286 @@ impl UserData for TestComponent {
     }
 }
 
+/// Uma tela carregada como o motor a carrega, pronta para ser avaliada contra
+/// um contexto: o que `:missing()`, `:render()` e `assert_renders` compartilham.
+struct Carregada {
+    ui: crate::GlacierUI,
+    name: String,
+    is_app: bool,
+    content: String,
+}
+
+/// Carrega `path` (um `app(...)` com seus `import`s, ou uma tela solta), troca o
+/// contexto por `data` e esvazia tudo o que foi avaliado com o contexto do
+/// registro. Com `viewport`, as `@media` são resolvidas para aquela largura.
+///
+/// Falha com o erro do parser/avaliador (arquivo e linha) se qualquer view
+/// carregada estiver quebrada — inclusive uma que nenhum teste chama.
+fn carregar(
+    path: &str,
+    data: &ContextMap,
+    viewport: Option<(f32, f32)>,
+) -> crate::Result<Carregada> {
+    use crate::{GlacierError, GlacierUI, parser};
+
+    let content = crate::asset_source::read_markup(&DiskAssets, path)
+        .map_err(|e| GlacierError::io("template", path, e))?;
+    let is_app = parser::UiNode::parse_app_xml(&content, Some(path))?.is_some();
+
+    let mut ui = GlacierUI::new();
+    let name = if is_app {
+        ui.register_app(path)?;
+        ui.current_screen_name()
+            .map(str::to_string)
+            .ok_or(GlacierError::NoActiveScreen)?
+    } else {
+        ui.register_component("tela", path)?;
+        "tela".to_string()
+    };
+
+    if let Some(v) = viewport {
+        ui.inputs.set_viewport(v);
+    }
+    // O contexto do teste substitui o que o registro semeou, e o que foi
+    // avaliado com o outro sai do cache.
+    ui.context_data = data.clone();
+    ui.evaluated_templates.clear();
+    ui.eval_deps.clear();
+    ui.tree_bindings.clear();
+    ui.eval_cache = Default::default();
+    Ok(Carregada {
+        ui,
+        name,
+        is_app,
+        content: content.to_string(),
+    })
+}
+
+/// Carrega, avalia e entrega a árvore avaliada a `f`.
+fn com_arvore<R>(
+    path: &str,
+    data: &ContextMap,
+    viewport: Option<(f32, f32)>,
+    f: impl FnOnce(&crate::parser::UiNode) -> mlua::Result<R>,
+) -> mlua::Result<R> {
+    let rt = |e: crate::GlacierError| mlua::Error::runtime(e.to_string());
+    let mut c = carregar(path, data, viewport).map_err(rt)?;
+    crate::eval::manter_identidade(|| c.ui.evaluate_into_cache(&c.name)).map_err(rt)?;
+    let raiz = c
+        .ui
+        .evaluated_templates
+        .get(&c.name)
+        .ok_or_else(|| mlua::Error::runtime("a tela não produziu árvore"))?;
+    f(raiz)
+}
+
+// ── a árvore avaliada, em tabelas Luau ───────────────────────────────────────
+
+/// O texto "principal" de um nó: o conteúdo de um `text`, o rótulo de um
+/// `button`/`checkbox`/`toggle`. `None` nos que não têm um.
+fn texto_do_no(n: &crate::parser::UiNode) -> Option<&str> {
+    use crate::parser::NodeType as T;
+    match &n.kind {
+        T::Text { content, .. } => Some(content),
+        T::Button { text, .. } => Some(text),
+        T::Checkbox { label, .. } | T::Toggle { label, .. } => Some(label),
+        _ => None,
+    }
+}
+
+fn nome_do_no(n: &crate::parser::UiNode) -> &'static str {
+    n.kind.tag_name().unwrap_or("node")
+}
+
+fn escondido(n: &crate::parser::UiNode) -> bool {
+    n.hidden == Some(true)
+}
+
+fn set_some<V: mlua::IntoLua>(t: &mlua::Table, k: &str, v: Option<V>) -> mlua::Result<()> {
+    match v {
+        Some(v) => t.set(k, v),
+        None => Ok(()),
+    }
+}
+
+/// `{ kind, text, class, id, hidden, attrs, style, children }`.
+///
+/// - `attrs`: o que o autor escreveu e o widget usa (`on_click`, `value_var`,
+///   `checked_var`, `placeholder`, `source`, `disabled`…), com `{chave}` já
+///   resolvido contra o contexto;
+/// - `style`: as propriedades de caixa **depois** de seletor, combinador e
+///   `@media` (`width`, `padding`, `background`, `color`, `size`…).
+///
+/// Só aparece o que o nó tem: um campo ausente é `nil`, não `""`.
+fn no_para_lua(lua: &Lua, n: &crate::parser::UiNode) -> mlua::Result<mlua::Table> {
+    use crate::parser::NodeType as T;
+    let t = lua.create_table()?;
+    t.set("kind", nome_do_no(n))?;
+    set_some(&t, "text", texto_do_no(n))?;
+    set_some(&t, "class", n.class.as_deref())?;
+    set_some(&t, "id", n.id.as_deref())?;
+    t.set("hidden", escondido(n))?;
+
+    let attrs = lua.create_table()?;
+    set_some(&attrs, "disabled", n.disabled)?;
+    let style = lua.create_table()?;
+    set_some(&style, "width", n.width.as_deref())?;
+    set_some(&style, "height", n.height.as_deref())?;
+    set_some(&style, "padding", n.padding.as_deref())?;
+    set_some(&style, "spacing", n.spacing)?;
+    set_some(&style, "background", n.background.as_deref())?;
+    set_some(&style, "border_radius", n.border_radius)?;
+    set_some(&style, "border_width", n.border_width)?;
+    set_some(&style, "max_width", n.max_width)?;
+    set_some(&style, "max_height", n.max_height)?;
+    match &n.kind {
+        T::Text {
+            size, bold, color, ..
+        } => {
+            set_some(&style, "size", *size)?;
+            if *bold {
+                style.set("bold", true)?;
+            }
+            set_some(&style, "color", color.as_deref())?;
+        }
+        T::Button {
+            on_click,
+            navigate_to,
+            color,
+            ..
+        } => {
+            set_some(&attrs, "on_click", on_click.as_deref())?;
+            set_some(&attrs, "navigate_to", navigate_to.as_deref())?;
+            set_some(&style, "color", color.as_deref())?;
+        }
+        T::TextInput {
+            placeholder,
+            value_var,
+            on_change,
+            secure,
+            ..
+        } => {
+            attrs.set("placeholder", placeholder.as_str())?;
+            attrs.set("value_var", value_var.as_str())?;
+            attrs.set("on_change", on_change.as_str())?;
+            attrs.set("secure", *secure)?;
+        }
+        T::TextArea {
+            placeholder,
+            value_var,
+            on_change,
+            readonly,
+            ..
+        } => {
+            attrs.set("placeholder", placeholder.as_str())?;
+            attrs.set("value_var", value_var.as_str())?;
+            attrs.set("on_change", on_change.as_str())?;
+            attrs.set("readonly", *readonly)?;
+        }
+        T::Checkbox {
+            checked_var,
+            on_toggle,
+            ..
+        }
+        | T::Toggle {
+            checked_var,
+            on_toggle,
+            ..
+        } => {
+            attrs.set("checked_var", checked_var.as_str())?;
+            attrs.set("on_toggle", on_toggle.as_str())?;
+        }
+        T::Image { source, .. } | T::Svg { source, .. } => {
+            attrs.set("source", source.as_str())?;
+        }
+        T::ProgressBar { value_var, .. } => {
+            attrs.set("value_var", value_var.as_str())?;
+        }
+        _ => {}
+    }
+    t.set("attrs", attrs)?;
+    t.set("style", style)?;
+
+    let filhos = lua.create_table()?;
+    for f in n.children.iter() {
+        filhos.push(no_para_lua(lua, f)?)?;
+    }
+    t.set("children", filhos)?;
+    Ok(t)
+}
+
+/// Os textos (ou rótulos de botão) **visíveis**, em ordem. Um nó `hidden` leva a
+/// subárvore inteira junto, como no desenho.
+fn coletar_textos(
+    n: &crate::parser::UiNode,
+    so_botoes: bool,
+    out: &mut Vec<String>,
+) {
+    use crate::parser::NodeType as T;
+    if escondido(n) {
+        return;
+    }
+    let casa = if so_botoes {
+        matches!(n.kind, T::Button { .. })
+    } else {
+        matches!(n.kind, T::Text { .. })
+    };
+    if casa && let Some(t) = texto_do_no(n) {
+        out.push(t.to_string());
+    }
+    for f in n.children.iter() {
+        coletar_textos(f, so_botoes, out);
+    }
+}
+
+/// O que `find`/`find_all` aceitam: todo campo dado precisa casar.
+#[derive(Default)]
+struct Criterio {
+    kind: Option<String>,
+    text: Option<String>,
+    class: Option<String>,
+    id: Option<String>,
+}
+
+impl Criterio {
+    fn de_lua(t: &mlua::Table) -> mlua::Result<Self> {
+        Ok(Self {
+            kind: t.get("kind")?,
+            text: t.get("text")?,
+            class: t.get("class")?,
+            id: t.get("id")?,
+        })
+    }
+
+    fn casa(&self, n: &crate::parser::UiNode) -> bool {
+        self.kind.as_deref().is_none_or(|k| k.eq_ignore_ascii_case(nome_do_no(n)))
+            && self.text.as_deref().is_none_or(|x| texto_do_no(n) == Some(x))
+            && self.id.as_deref().is_none_or(|x| n.id.as_deref() == Some(x))
+            && self.class.as_deref().is_none_or(|c| {
+                n.class
+                    .as_deref()
+                    .is_some_and(|cs| cs.split_whitespace().any(|x| x == c))
+            })
+    }
+}
+
+fn achar<'a>(
+    n: &'a crate::parser::UiNode,
+    c: &Criterio,
+    primeiro: bool,
+    out: &mut Vec<&'a crate::parser::UiNode>,
+) {
+    if primeiro && !out.is_empty() {
+        return;
+    }
+    if c.casa(n) {
+        out.push(n);
+    }
+    for f in n.children.iter() {
+        achar(f, c, primeiro, out);
+    }
+}
+
 /// As chaves que o **markup** de `path` lê do contexto e que `data` não tem.
 ///
 /// É o cruzamento que um teste de handler não faz: o handler escreve a chave A,
@@ -568,30 +931,14 @@ impl UserData for TestComponent {
 /// legitimamente tardia (um `if="{status}"` que um handler publica depois), o
 /// teste a **nomeia**, com o porquê; o resto da lista é a falha.
 fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
-    use crate::{GlacierError, GlacierUI, parser};
+    use crate::{GlacierError, parser};
 
-    let content = crate::asset_source::read_markup(&DiskAssets, path)
-        .map_err(|e| GlacierError::io("template", path, e))?;
-    let is_app = parser::UiNode::parse_app_xml(&content, Some(path))?.is_some();
-
-    let mut ui = GlacierUI::new();
-    let name = if is_app {
-        ui.register_app(path)?;
-        ui.current_screen_name()
-            .map(str::to_string)
-            .ok_or(GlacierError::NoActiveScreen)?
-    } else {
-        ui.register_component("tela", path)?;
-        "tela".to_string()
-    };
-
-    // O contexto do teste substitui o que o registro semeou, e o que foi
-    // avaliado com o outro sai do cache.
-    ui.context_data = data.clone();
-    ui.evaluated_templates.clear();
-    ui.eval_deps.clear();
-    ui.tree_bindings.clear();
-    ui.eval_cache = Default::default();
+    let Carregada {
+        mut ui,
+        name,
+        is_app,
+        content,
+    } = carregar(path, data, None)?;
     let builtins = ui.builtin_component_names.clone();
     let (avaliado, ignoradas) =
         crate::eval::rastrear_ausentes(builtins, || ui.evaluate_into_cache(&name));
@@ -648,9 +995,25 @@ fn install_component(lua: &Lua) -> mlua::Result<()> {
             path,
             data: RefCell::new(data),
             toasts: RefCell::new(Vec::new()),
+            viewport: Cell::new(None),
         })
     })?;
-    lua.globals().set("component", component)
+    lua.globals().set("component", component)?;
+
+    // `assert_renders(path)` (em `testing.luau`) chama isto: carrega o app/tela
+    // com TODOS os `import`s e avalia a tela inicial. Devolve a mensagem do
+    // parser (arquivo e linha) em vez de lançar, para a asserção formatá-la.
+    let render_check = lua.create_function(|_, path: String| {
+        Ok(
+            match carregar(&path, &ContextMap::default(), None)
+                .and_then(|mut c| c.ui.evaluate_into_cache(&c.name))
+            {
+                Ok(()) => None,
+                Err(e) => Some(e.to_string()),
+            },
+        )
+    })?;
+    lua.globals().set("__glacier_render_check", render_check)
 }
 
 #[cfg(test)]
@@ -742,6 +1105,52 @@ mod tests {
         .unwrap();
         let s = run_file(&file, None, Options::default());
         assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A árvore avaliada: texto, botão, `if`, achar por classe/id e o estilo
+    /// resolvido numa largura; e `assert_renders` acusando uma view quebrada.
+    #[test]
+    fn arvore_avaliada_texts_find_style_e_assert_renders() {
+        let dir = std::env::temp_dir().join(format!("glacier_ta_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tela = dir.join("tela.gv");
+        std::fs::write(
+            &tela,
+            "<screen><style>.b { width: 240; } @media (max-width: 500) { .b { width: 100; } }</style>\
+             <column id=\"raiz\"><text>Oi</text>\
+             <button class=\"b\" on_click=\"salvar\" text=\"Salvar\"/></column></screen>",
+        )
+        .unwrap();
+        let quebrada = dir.join("quebrada.gv");
+        std::fs::write(&quebrada, "<screen><column>").unwrap();
+        let file = dir.join("t.test.luau");
+        std::fs::write(
+            &file,
+            format!(
+                "function test_arvore()\n\
+                   local t = component({tela:?})\n\
+                   assert_eq(t:texts(), {{ 'Oi' }})\n\
+                   assert_has_button(t, 'Salvar')\n\
+                   assert_no_text(t, 'Erro')\n\
+                   assert_eq(t:find({{ id = 'raiz' }}).kind, 'column')\n\
+                   assert_eq(t:find({{ class = 'b' }}).attrs.on_click, 'salvar')\n\
+                   assert_nil(t:find({{ text = 'nada' }}))\n\
+                   assert_eq(t:style(t:find({{ class = 'b' }})).width, '240')\n\
+                   t:set_viewport(400, 800)\n\
+                   assert_eq(t:style(t:find({{ class = 'b' }})).width, '100')\n\
+                 end\n\
+                 function test_renders() assert_renders({tela:?}) end\n\
+                 function test_quebrada()\n\
+                   assert_fails(function() assert_renders({quebrada:?}) end, 'quebrada.gv')\n\
+                 end",
+                tela = tela.to_str().unwrap(),
+                quebrada = quebrada.to_str().unwrap()
+            ),
+        )
+        .unwrap();
+        let s = run_file(&file, None, Options::default());
+        assert_eq!((s.passed, s.failed, s.broken_files), (3, 0, 0), "{s:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

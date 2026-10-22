@@ -1042,6 +1042,24 @@ pub(crate) fn rastrear_ausentes<R>(
     (resultado, ignoradas)
 }
 
+thread_local! {
+    /// Ligado só pelo runner de testes (ver [`manter_identidade`]).
+    static MANTER_IDENTIDADE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Roda `f` com a avaliação **mantendo** `class` e `id` nos nós avaliados.
+///
+/// Por padrão a avaliação os zera: já foram resolvidos nos campos de estilo e
+/// nada depois deles lê. O `tela:find({ class = … })` dos testes precisa deles
+/// para achar um nó, então o runner liga isto à volta da avaliação. Fora do
+/// runner o custo é a leitura de um `thread_local` por nó.
+pub(crate) fn manter_identidade<R>(f: impl FnOnce() -> R) -> R {
+    MANTER_IDENTIDADE.with(|m| m.set(true));
+    let r = f();
+    MANTER_IDENTIDADE.with(|m| m.set(false));
+    r
+}
+
 /// Marca a entrada no template do componente `nome`, se for um builtin e o
 /// rastreio estiver ligado. Devolve se contou, para [`sair_de_builtin`].
 fn entrar_em_builtin(nome: &str) -> bool {
@@ -3723,6 +3741,17 @@ fn eval_owned(
         );
     }
 
+    // Só o runner de testes liga isto (ver `manter_identidade`): reinterpola a
+    // classe e o id para devolvê-los no nó avaliado.
+    let identidade = MANTER_IDENTIDADE.with(|m| m.get()).then(|| {
+        (
+            node.class
+                .as_deref()
+                .map(|c| process_tpl(c, context))
+                .unwrap_or_default(),
+            node.id.as_deref().map(|i| process_tpl(i, context)),
+        )
+    });
     Ok(UiNode {
         node_id: node.node_id,
         kind: kind_eval,
@@ -3740,9 +3769,12 @@ fn eval_owned(
         border_radius: border_radius_eval,
         border_width: border_width_eval,
         // Classes and id are fully resolved into the fields above; nothing to
-        // carry on.
-        class: None,
-        id: None,
+        // carry on — a menos que o runner de testes peça (`manter_identidade`),
+        // para `tela:find` poder achar o nó por elas.
+        class: identidade
+            .as_ref()
+            .and_then(|(c, _)| (!c.trim().is_empty()).then(|| c.clone())),
+        id: identidade.and_then(|(_, i)| i),
         max_width: max_width_eval,
         max_height: max_height_eval,
         hidden: hidden_eval,

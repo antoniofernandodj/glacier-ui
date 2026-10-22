@@ -3754,6 +3754,9 @@ end
 | `assert_match(s, padrão)` | a string casa com o padrão Luau |
 | `assert_fails(fn, trecho?)` | `fn` lança, e a mensagem contém o trecho |
 | `assert_complete(tela, esperadas?)` | `tela:missing()` é **exatamente** `esperadas` (padrão `{}`) |
+| `assert_renders(caminho)` | o app/tela carrega com **todos** os `import`s e a tela inicial avalia |
+| `assert_has_text(tela, t)` / `assert_no_text(tela, t)` | há (não há) um `text` **visível** com esse conteúdo exato |
+| `assert_has_button(tela, r)` / `assert_no_button(tela, r)` | idem, para o rótulo de um `button` |
 | `fail(msg)` | nunca: falha o teste |
 
 - **`each(casos, fn)`** roda `fn` em cada linha de uma tabela; a falha diz **qual**
@@ -3826,6 +3829,40 @@ comentário dizendo por quê — o que sobrar é a falha, e ela diz quais chaves
 sobraram e quais faltaram. Fica de fora o que o motor publica sozinho (`__*`) e
 as variáveis locais de um `for-each`. O que `missing()` não alcança é o
 **layout** (largura, `fill` dentro de `shrink`): isso só o `make run` mostra.
+
+**A árvore avaliada.** `assert_renders("views/app.gvb")` falha com a mensagem do
+parser (arquivo e linha) se **qualquer** view importada estiver quebrada, mesmo
+uma que nenhum outro teste carrega. Para olhar o que a tela *mostra*:
+
+```lua
+local tela = component("views/service_export_window.gvb", { servico = "api" })
+tela:call("init")
+
+tela:texts()      -- { "Exportar serviço", "api" }  — só os visíveis, em ordem
+tela:buttons()    -- { "Cancelar", "Exportar" }
+local b = tela:find({ kind = "button", text = "Exportar" })   -- 1º que casa, ou nil
+b.attrs.on_click  -- "exportar"
+tela:find_all({ class = "card" })       -- todos; critérios: kind, text, class, id
+tela:render()     -- a árvore inteira, aninhada
+```
+
+Um nó é `{ kind, text, class, id, hidden, attrs, style, children }`. `attrs` é o
+que o autor escreveu e o widget usa (`on_click`, `value_var`, `checked_var`,
+`placeholder`, `source`, `disabled`), com `{chave}` já resolvido; `style` são as
+propriedades **depois** de seletor, combinador e `@media` (`width`, `padding`,
+`background`, `color`, `size`…). Um campo ausente é `nil`. Nó `hidden` leva a
+subárvore junto em `texts()`/`buttons()`.
+
+Para conferir o estilo numa largura, mude o viewport (padrão: o do motor) e leia
+o estilo de volta — cada chamada reavalia a tela do zero:
+
+```lua
+tela:set_viewport(400, 800)
+assert_eq(tela:style(tela:find({ id = "nav" })).width, "100")   -- ou tela:style("nav")
+```
+
+Não confere pixels, fontes nem posição, e a ação é disparada por nome
+(`tela:call`), não por clique.
 
 `require` num teste também enxerga `views/scripts` e `views/`. Chamadas que
 suspendem (`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na
