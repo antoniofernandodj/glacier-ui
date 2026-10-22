@@ -640,6 +640,10 @@ impl UserData for TestComponent {
                     Some(n) => Ok(Value::Number(n)),
                     None => lua.create_string(texto).map(Value::String),
                 },
+                Some(Tag::Json) => match super::json_to_table(lua, texto) {
+                    Some(t) => Ok(Value::Table(t)),
+                    None => lua.create_string(texto).map(Value::String),
+                },
                 None => lua.create_string(texto).map(Value::String),
             }
         });

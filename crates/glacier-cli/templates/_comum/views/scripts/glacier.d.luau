@@ -28,10 +28,10 @@ export type StreamOptions = {
 
 export type Viewport = { width: number, height: number }
 
--- Na LEITURA o contexto é sempre texto (é o que o motor guarda); na ESCRITA
--- ele aceita qualquer valor serializável — tabela e número passam por
--- `json.encode`/`tostring` por baixo. Daí `any`: declarar `string` mentia do
--- lado da escrita e transformava `ctx.tiques = 0` num erro falso.
+-- O markup lê TEXTO, mas o script lê o tipo que gravou: `boolean`, `number`
+-- ou `table` (uma lista/objeto de dados, com a marca de `json.array`/`json.object`);
+-- o que veio do markup, de um widget ou de uma string escrita à mão volta
+-- texto. Daí `any`: o tipo depende de quem escreveu a chave.
 declare ctx: { [string]: any }
 declare value: string?
 
@@ -234,6 +234,10 @@ declare json: {
     decode: (s: string) -> any,
     encode: (v: any) -> string,
     array: <T>(t: { T }) -> { T },
+    -- Marca a tabela como OBJETO (mesmo vazia): `ctx.x = json.object({})` grava `{}`;
+    -- uma tabela vazia sem marca vai para o `ctx` como `[]`. `tostring(t)` de uma
+    -- tabela marcada devolve o JSON dela.
+    object: <T>(t: T) -> T,
 }
 
 -- Aritmética de data/hora sobre strings ISO (`YYYY-MM-DD`, `HH:MM[:SS]`, ou as

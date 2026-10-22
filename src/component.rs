@@ -658,6 +658,34 @@ impl<'a> Context<'a> {
         }
     }
 
+    /// Grava um dado estruturado como JSON: o markup vê o texto JSON (é o formato
+    /// que `items=`/`:options` esperam) e o script Luau lê de volta uma **tabela**.
+    /// Só vale para listas e objetos; um escalar (`3`, `"x"`) não é tabela e
+    /// devolve `Err`.
+    pub fn set_json<T: serde::Serialize>(
+        &mut self,
+        key: &str,
+        value: &T,
+    ) -> std::result::Result<(), serde_json::Error> {
+        let json = serde_json::to_value(value)?;
+        if !json.is_array() && !json.is_object() {
+            return Err(serde::ser::Error::custom(
+                "set_json: só uma lista ou um objeto cabe numa chave JSON",
+            ));
+        }
+        self.set_tagged(
+            key,
+            serde_json::to_string(&json)?,
+            Some(crate::ctx_types::Tag::Json),
+        );
+        Ok(())
+    }
+
+    /// Lê `key` como JSON e a converte em `T`, se ela guardar um JSON desse tipo.
+    pub fn get_json<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        serde_json::from_str(self.data.get(key)?).ok()
+    }
+
     /// O booleano de `key`, se ela guarda `"true"`/`"false"`.
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         match self.data.get(key)?.as_str() {

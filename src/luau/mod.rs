@@ -68,6 +68,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -124,6 +125,9 @@ pub struct LuauComponent {
     /// contexto do motor. Mantida fixa para que corrotinas suspensas que a
     /// referenciam continuem válidas ao serem retomadas.
     ctx_table: Table,
+    /// As chaves JSON do `ctx` (ver [`JsonState`]): preguiçosas, para um handler que
+    /// não toca numa lista grande não pagar para decodificá-la nem recodificá-la.
+    json: Rc<RefCell<JsonState>>,
     /// Corrotinas suspensas num `fetch`, aguardando a resposta, por `id`.
     pending: RefCell<HashMap<u64, Thread>>,
     /// Streams de vida longa abertos (`sse`/`websocket`), por `id`: os handlers
@@ -369,6 +373,9 @@ impl LuauComponent {
         luau.globals()
             .set("ctx", &ctx_table)
             .map_err(|e| format!("Erro ao registrar ctx: {}", e))?;
+        let json = Rc::new(RefCell::new(JsonState::default()));
+        instalar_ctx_preguicoso(&luau, &ctx_table, &json)
+            .map_err(|e| format!("Erro ao instalar o ctx preguiçoso: {}", e))?;
         if let Some(pre) = pre {
             pre(&luau).map_err(|e| format!("Erro ao instalar o ambiente de testes: {}", e))?;
         }
@@ -381,6 +388,7 @@ impl LuauComponent {
             path,
             luau,
             ctx_table,
+            json,
             pending: RefCell::new(HashMap::default()),
             streams: RefCell::new(HashMap::default()),
             timers: RefCell::new(HashMap::default()),
@@ -419,16 +427,25 @@ impl LuauComponent {
     /// preservando referências de corrotinas suspensas.
     fn sync_to_luau(&self, ctx: &Context) -> mlua::Result<()> {
         self.ctx_table.clear()?;
+        let mut json = self.json.borrow_mut();
+        json.pendentes.clear();
+        // Só as chaves que ainda são JSON tipado ficam no cache.
+        json.cache.retain(|k, _| ctx.tag_of(k) == Some(Tag::Json));
         for (k, v) in ctx.data.iter() {
             // Uma chave que um script gravou com tipo volta com esse tipo —
             // desde que o texto ainda seja o que a tag gravou (ver `ctx_types`).
             match ctx.tag_of(k) {
-                Some(Tag::Bool) => self.ctx_table.set(k.as_str(), v == "true")?,
+                Some(Tag::Bool) => self.ctx_table.raw_set(k.as_str(), v == "true")?,
                 Some(Tag::Number) => match texto_para_numero(v) {
-                    Some(n) => self.ctx_table.set(k.as_str(), n)?,
-                    None => self.ctx_table.set(k.as_str(), v.as_str())?,
+                    Some(n) => self.ctx_table.raw_set(k.as_str(), n)?,
+                    None => self.ctx_table.raw_set(k.as_str(), v.as_str())?,
                 },
-                None => self.ctx_table.set(k.as_str(), v.as_str())?,
+                // Não vai para a tabela agora: o primeiro acesso do script a
+                // `ctx.chave` a materializa (ver `instalar_ctx_preguicoso`).
+                Some(Tag::Json) => {
+                    json.pendentes.insert(k.clone(), v.clone());
+                }
+                None => self.ctx_table.raw_set(k.as_str(), v.as_str())?,
             }
         }
         self.viewport_table.set("width", ctx.viewport.0)?;
@@ -445,11 +462,20 @@ impl LuauComponent {
     /// gravados.
     fn sync_from_luau(&self, ctx: &mut Context) -> mlua::Result<()> {
         let mut present = std::collections::HashSet::new();
+        // Uma chave JSON que o script não tocou neste turno não está na tabela, mas
+        // também não foi apagada: continua como estava.
+        present.extend(self.json.borrow().pendentes.keys().cloned());
         for pair in self.ctx_table.pairs::<String, Value>() {
             let (k, val) = pair?;
             present.insert(k.clone());
             match luau_value_to_ctx(&self.luau, &val) {
                 Some((s, tag)) => {
+                    if let (Some(Tag::Json), Value::Table(t)) = (tag, &val) {
+                        self.json
+                            .borrow_mut()
+                            .cache
+                            .insert(k.clone(), (s.clone(), t.clone()));
+                    }
                     // Sem mudança (texto e tipo iguais) não há o que gravar.
                     if ctx.data.get(&k) != Some(&s) || ctx.tag_of(&k) != tag {
                         ctx.set_tagged(&k, s, tag);
@@ -685,7 +711,10 @@ impl LuauComponent {
     /// nasceram.
     fn semeia(&self, ctx: &mut Context, chave: &str, valor: &str) -> mlua::Result<()> {
         ctx.set(chave, valor);
-        self.ctx_table.set(chave, valor)
+        // Escrita direta: não passa pelo `__newindex` do `ctx` preguiçoso, mas tira a
+        // chave das pendentes (o valor novo é texto, não mais o JSON de antes).
+        self.json.borrow_mut().pendentes.remove(chave);
+        self.ctx_table.raw_set(chave, valor)
     }
 
     /// Aloca o próximo `id` (único no componente, compartilhado por fetch/stream).
@@ -1758,12 +1787,129 @@ fn luau_value_to_ctx(lua: &Lua, v: &Value) -> Option<(String, Option<Tag>)> {
         Value::Integer(i) => Some((numero_para_texto(*i as f64)?, Some(Tag::Number))),
         Value::Number(n) => Some((numero_para_texto(*n)?, Some(Tag::Number))),
         Value::String(s) => Some((s.to_string_lossy(), None)),
-        Value::Table(_) => {
-            let json: serde_json::Value = lua.from_value(v.clone()).ok()?;
-            Some((serde_json::to_string(&json).ok()?, None))
-        }
+        Value::Table(t) => Some((table_to_json(lua, t)?, Some(Tag::Json))),
         _ => None,
     }
+}
+
+/// As chaves JSON do `ctx`, preguiçosas.
+///
+/// Decodificar uma lista de 10 000 itens para o Luau (e recodificá-la ao fim do
+/// turno para saber se mudou) custa centenas de milissegundos — e custaria a CADA
+/// evento, mexesse o handler na lista ou não. Por isso uma chave `Json` não vai
+/// para a tabela `ctx` no começo do turno: fica em `pendentes` (`chave → texto`) e
+/// só vira tabela no primeiro acesso do script a `ctx.chave`. No fim do turno só as
+/// materializadas são recodificadas; as outras ficam exatamente como estavam.
+#[derive(Default)]
+struct JsonState {
+    /// Chaves JSON ainda não tocadas neste turno: `chave → texto`.
+    pendentes: HashMap<String, String>,
+    /// As já decodificadas: `chave → (texto, tabela)`. Reusa o mesmo objeto Luau
+    /// enquanto o texto da chave for o mesmo, mantendo referências válidas.
+    cache: HashMap<String, (String, Table)>,
+}
+
+/// Dá à tabela `ctx` o `__index` que materializa uma chave JSON pendente no primeiro
+/// acesso, e o `__newindex` que, quando o script a sobrescreve (ou apaga) sem ler,
+/// a tira das pendentes. Chaves comuns nunca passam por aqui (já estão na tabela).
+fn instalar_ctx_preguicoso(
+    lua: &Lua,
+    ctx: &Table,
+    estado: &Rc<RefCell<JsonState>>,
+) -> mlua::Result<()> {
+    let mt = lua.create_table()?;
+    let e = estado.clone();
+    mt.set(
+        "__index",
+        lua.create_function(move |lua, (t, k): (Table, Value)| {
+            let Value::String(k) = k else {
+                return Ok(Value::Nil);
+            };
+            let k = k.to_str()?.to_string();
+            let mut st = e.borrow_mut();
+            let Some(texto) = st.pendentes.remove(&k) else {
+                return Ok(Value::Nil);
+            };
+            let tabela = match st.cache.get(&k).filter(|(snap, _)| *snap == texto) {
+                Some((_, tab)) => Some(tab.clone()),
+                None => json_to_table(lua, &texto),
+            };
+            match tabela {
+                Some(tab) => {
+                    st.cache.insert(k.clone(), (texto, tab.clone()));
+                    t.raw_set(k, tab.clone())?;
+                    Ok(Value::Table(tab))
+                }
+                None => {
+                    let s = lua.create_string(&texto)?;
+                    t.raw_set(k, s.clone())?;
+                    Ok(Value::String(s))
+                }
+            }
+        })?,
+    )?;
+    let e = estado.clone();
+    mt.set(
+        "__newindex",
+        lua.create_function(move |_, (t, k, v): (Table, Value, Value)| {
+            if let Value::String(s) = &k {
+                e.borrow_mut().pendentes.remove(s.to_str()?.as_ref());
+            }
+            t.raw_set(k, v)
+        })?,
+    )?;
+    ctx.set_metatable(Some(mt))?;
+    Ok(())
+}
+
+/// O metatable que marca uma tabela como **objeto** JSON (`json.object`), no registry.
+const OBJECT_MT: &str = "glacier.json_object";
+
+/// `true` se `t` tem o metatable de `mark` (array do `mlua` ou o de objeto nosso).
+fn tem_marca(t: &Table, marca: &Table) -> bool {
+    t.metatable()
+        .is_some_and(|m| m.to_pointer() == marca.to_pointer())
+}
+
+/// O JSON compacto de uma tabela do `ctx`, ou `None` se ela tem função/thread/
+/// userdata dentro (ou ciclo).
+///
+/// Uma tabela **vazia sem marca** vira `[]` (e não `{}`): no `ctx` ninguém quer um
+/// "objeto vazio", e a lista vazia é o caso comum; `json.object({})` é que dá `{}`.
+/// Uma tabela marcada como array mas que ganhou chaves que não são sequência
+/// (`ctx.x.foo = 1`) vira objeto — a marca não pode produzir um JSON que perde o dado.
+fn table_to_json(lua: &Lua, t: &Table) -> Option<String> {
+    let objeto = lua
+        .named_registry_value::<Table>(OBJECT_MT)
+        .ok()
+        .is_some_and(|mt| tem_marca(t, &mt));
+    if t.is_empty() && !objeto {
+        return Some("[]".to_string());
+    }
+    let array = tem_marca(t, &lua.array_metatable());
+    let misto = array && t.raw_len() == 0 && !t.is_empty();
+    let opts = mlua::DeserializeOptions::new().detect_mixed_tables(misto);
+    let json: serde_json::Value = lua.from_value_with(Value::Table(t.clone()), opts).ok()?;
+    serde_json::to_string(&json).ok()
+}
+
+/// A tabela Luau que o texto JSON `texto` descreve — o caminho do `json.decode`
+/// (arrays com a marca, `null` vira `nil`). Um **objeto** de topo ganha a marca de
+/// objeto, para um `{}` vazio voltar `{}` e não `[]`. `None` se não for JSON, ou se
+/// for um escalar (a tag `Json` só guarda tabelas).
+fn json_to_table(lua: &Lua, texto: &str) -> Option<Table> {
+    let v: serde_json::Value = serde_json::from_str(texto).ok()?;
+    let opts = mlua::SerializeOptions::new()
+        .serialize_none_to_null(false)
+        .serialize_unit_to_null(false);
+    let Value::Table(t) = lua.to_value_with(&v, opts).ok()? else {
+        return None;
+    };
+    if v.is_object() {
+        let mt = lua.named_registry_value::<Table>(OBJECT_MT).ok()?;
+        t.set_metatable(Some(mt)).ok()?;
+    }
+    Some(t)
 }
 
 /// Chave (no registry do interpretador) da tabela que cacheia os módulos já
@@ -2018,9 +2164,28 @@ fn install_json(luau: &Lua) -> mlua::Result<()> {
         Ok(t)
     })?;
 
+    // A marca de OBJETO: o metatable que diz "isto é um objeto JSON", mesmo
+    // vazio (`json.object({})` → `{}`, enquanto uma tabela vazia sem marca vai
+    // para o `ctx` como `[]`). Mora no registry para o Rust reconhecê-la.
+    let object_mt = luau.create_table()?;
+    luau.set_named_registry_value(OBJECT_MT, object_mt.clone())?;
+    let object = luau.create_function(|luau, t: Table| {
+        let mt: Table = luau.named_registry_value(OBJECT_MT)?;
+        t.set_metatable(Some(mt))?;
+        Ok(t)
+    })?;
+    // `tostring(t)` de uma tabela marcada devolve o JSON dela (e não uma chave nova
+    // no dado: um método `t:to_string()` colidiria com um campo de mesmo nome).
+    let tostring_json = luau.create_function(|luau, t: Table| {
+        table_to_json(luau, &t).ok_or_else(|| mlua::Error::runtime("tostring: tabela não serializável em JSON"))
+    })?;
+    object_mt.set("__tostring", tostring_json.clone())?;
+    luau.array_metatable().set("__tostring", tostring_json)?;
+
     json.set("decode", decode)?;
     json.set("encode", encode)?;
     json.set("array", array)?;
+    json.set("object", object)?;
     luau.globals().set("json", json)?;
     Ok(())
 }

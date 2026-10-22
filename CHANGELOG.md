@@ -10,6 +10,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.136.0 — 2026-10-22
+
+### Adicionado
+
+- **Uma tabela gravada no `ctx` volta tabela.** `ctx.itens = { {id="a"} }` grava o JSON
+  (o formato que `items=`/`:options` esperam) e o script lê de volta a **tabela** —
+  `#ctx.itens`, `ipairs`, `table.insert(ctx.itens, x)`; a mudança no lugar é gravada ao fim
+  do turno. Uma string JSON escrita à mão (`json.encode(t)`) continua string.
+- **A marca JSON.** `json.object(t)` marca a tabela como objeto (mesmo vazia), ao lado do
+  `json.array(t)`; as duas ganham `__tostring` (`tostring(t)` devolve o JSON). Uma tabela
+  **vazia sem marca** vai para o `ctx` como `[]` (não `{}`): `ctx.itens = {}` basta, e
+  `json.object({})` dá `{}`. Uma tabela marcada como array que ganhou chaves que não são
+  sequência (`ctx.x.foo = 1`) vira objeto.
+- **`Context::set_json` / `get_json`** para o lado Rust.
+- **Preguiçoso.** Uma chave JSON só é decodificada no primeiro acesso do handler a
+  `ctx.chave`, e só as tabelas tocadas são recodificadas ao fim do turno; o mesmo objeto
+  Luau é reaproveitado enquanto o texto não muda. Com uma lista de 10 000 itens, um handler
+  que não a toca custa ~0,1 ms (antes ~1 ms, copiando a string); um que a lê paga a
+  decodificação e a recodificação dela.
+
+### Quebras
+
+- **Quem grava uma tabela e relê com `json.decode(ctx.x)` quebra**: `ctx.x` agora é a
+  tabela, não o texto (`json.decode` de uma tabela falha). **Migrar:** use `ctx.x`
+  direto. Quem grava `json.encode(t)` (string) não muda.
+- `ctx.x = {}` agora grava `[]` (era `{}`). Para um objeto vazio, `json.object({})`.
+- `pairs(ctx)` / `next(ctx)` não enxergam uma chave JSON que o handler ainda não leu
+  (ela é materializada no primeiro `ctx.chave`).
+
 ## glacier-ui 0.135.0 — 2026-10-22
 
 ### Adicionado

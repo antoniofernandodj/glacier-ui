@@ -18,6 +18,8 @@
 //! # Canônicos
 //!
 //! - `Bool`: `"true"` / `"false"`;
+//! - `Json`: o JSON compacto de uma tabela Luau (lista de objetos, objeto). Uma
+//!   tabela **vazia sem marca** vira `[]`, não `{}`; `json.object({})` é que dá `{}`;
 //! - `Number`: um inteiro sem `.0` quando cabe exato num `f64` (até 2^53), senão
 //!   a forma mais curta que volta ao mesmo `f64` (`1e300` em notação científica).
 //!   `NaN` e `±inf` não têm representação e não são gravados.
@@ -31,6 +33,8 @@ use std::collections::HashMap;
 pub(crate) enum Tag {
     Bool,
     Number,
+    /// Uma tabela de dados: o texto é o JSON compacto dela.
+    Json,
 }
 
 /// Uma tag e o texto que a validava quando foi gravada.

@@ -283,8 +283,20 @@ Três consequências que mudam como se escreve:
    verdadeira. Se outro caminho sobrescrever a chave com texto, o tipo se perde
    e ela volta a ser string. NaN e infinito não têm representação e não são
    gravados.
-2. **Uma tabela vira JSON.** `ctx.itens = { {id="1"}, {id="2"} }` grava a string
-   JSON, que é o formato que `items="itens"` espera nos widgets de coleção.
+2. **Uma tabela vira JSON — e volta tabela.** `ctx.itens = { {id="1"}, {id="2"} }`
+   grava o JSON, que é o formato que `items="itens"` espera nos widgets de
+   coleção, e o script lê de volta **a tabela** (`#ctx.itens`, `ipairs`,
+   `table.insert(ctx.itens, x)` — a mudança no lugar é gravada ao fim do turno).
+   Uma string JSON escrita à mão (`ctx.itens = json.encode(t)`) continua
+   string, como qualquer texto.
+   - Lista vazia: `ctx.itens = json.array({})` (ou só `{}`: uma tabela vazia sem
+     marca vai para o `ctx` como `[]`). Objeto vazio: `json.object({})`.
+   - `ctx.itens = ctx.itens or json.array({})` semeia sem pisar no que já há.
+   - `tostring(t)` de uma tabela marcada (`json.array`/`json.object`/a que voltou
+     do `ctx`) devolve o JSON dela.
+   - O custo é de quem usa: uma chave JSON só vira tabela no primeiro acesso do
+     handler a `ctx.itens`, e só as tabelas tocadas são recodificadas ao fim — um
+     handler que não mexe numa lista grande não paga nada por ela.
 3. **Qualquer escrita reavalia a tela inteira.** Não existe atualização parcial —
    e não precisa existir: montar a árvore custa 0,07 ms (ver a primeira seção).
    Escreva no `ctx` e esqueça; o motor redesenha o que mudou.

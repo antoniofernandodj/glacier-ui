@@ -1,6 +1,6 @@
 # Plano: `ctx` tipado (e a saída do MicroPython)
 
-**Estado:** em implementação (ver "Decisões" abaixo). Nasce de uma pergunta: *o tipo que o
+**Estado:** Fases 0, 1 e 2 implementadas (0.134 a 0.136); Fases 3 a 5 pendentes (ver "Decisões" abaixo). Nasce de uma pergunta: *o tipo que o
 script Luau grava em `ctx` se perde, porque tudo vira string — dá para preservar
 e devolver com o tipo certo?* Dá. Este plano cobre o caminho inteiro, inclusive o
 que ficaria para depois.
@@ -198,7 +198,12 @@ Só o que corrige o bug do `false` truthy, ainda sem tabelas nem widgets.
    - Dois nomes para a mesma tabela (aliasing): cada chave tem o seu cache.
    - Widget sobrescrevendo uma chave `Json` com string: snapshot diverge →
      cache descartado → chave vira string.
-4. **Medição obrigatória** antes de fechar a fase: lista de 10 000 itens, mudança
+4. **Medido (build de depuração, lista de 10 000 objetos, 300 eventos):** re-codificar
+   toda tabela a cada turno custava **222 ms/evento** (contra 1,1 ms da string antiga) —
+   inviável. Solução implementada: chaves JSON **preguiçosas** (`__index`/`__newindex` no
+   `ctx`; decodifica no primeiro acesso, recodifica só o tocado). Resultado: handler que
+   não toca na lista **0,12 ms**; handler que a lê ~224 ms (custo de quem usa).
+   Medição original exigida antes de fechar a fase: lista de 10 000 itens, mudança
    de um campo, N eventos seguidos. Critério: nenhum regresso mensurável frente
    ao estado atual (há `src/perf.rs`). Se o re-encode por turno pesar, o plano B
    é uma tabela com `__newindex` marcando "suja" (mais complexo; só se medir mal).
