@@ -1791,6 +1791,9 @@ impl Runtime {
                 crate::viewport_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             iced::event::listen_with(|e, s, id| {
+                crate::back_key_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
+            }),
+            iced::event::listen_with(|e, s, id| {
                 crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
             // O sexto, e o habilitador B da Onda 9: `<shortcut>` e

@@ -630,6 +630,11 @@ pub enum EngineMessage {
         combo: String,
         capturado: bool,
     },
+    /// Backspace, `Alt+←` ou o botão "voltar" do mouse: volta uma tela na pilha
+    /// de navegação. O listener (`back_key_from_event`) já descarta o Backspace
+    /// que um campo de texto consumiu; quem recusa o resto (diálogo aberto,
+    /// atalhos desligados) é o `dispatch`.
+    BackKey,
     /// Um `<shortcutinput>` foi clicado: arma (ou desarma) a captura.
     ShortcutArm {
         value_var: String,
@@ -900,6 +905,7 @@ impl EngineMessage {
             Self::HoldEnd => "HoldEnd",
             Self::HoldTick => "HoldTick",
             Self::ShortcutKey { .. } => "ShortcutKey",
+            Self::BackKey { .. } => "BackKey",
             Self::ShortcutArm { .. } => "ShortcutArm",
             Self::UiEditorAction { .. } => "UiEditorAction",
             Self::UiComboInput { .. } => "UiComboInput",

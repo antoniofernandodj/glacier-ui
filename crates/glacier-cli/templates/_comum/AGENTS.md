@@ -399,6 +399,12 @@ Cada tela é um componente registrado. Trocar de tela é uma ação:
 navigate("sobre")      navigate_back()          -- do script
 ```
 
+**Voltar por atalho já vem pronto**: **Backspace**, **Alt+←** e o botão "voltar" do
+mouse desempilham uma tela, pelos mesmos ganchos (`on_leave`/`on_enter`) do
+`navigate_back`. Não fazem nada sem histórico nem com um diálogo aberto, e o
+Backspace de um campo de texto focado só apaga caractere. Um app em que isso não
+cabe (um wizard) desliga com `app.back_shortcuts(false)` no Rust.
+
 Muitos apps de uma janela só nem navegam: guardam a tela numa chave e trocam o
 ramo com um condicional — é o que o preset `completo` faz:
 
@@ -3579,7 +3585,7 @@ chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
 
 ```lua
 navigate("sobre")        -- troca a tela desta janela
-navigate_back()          -- volta uma no histórico
+navigate_back()          -- volta uma no histórico (Backspace, Alt+← e o botão "voltar" do mouse também)
 set_style("escuro")      -- troca o estilo (um <link rel="style"> ou um builtin)
 
 open_window("views/detalhe.gva")

@@ -282,6 +282,9 @@ pub struct GlacierUI {
     current_screen: Option<String>,
     /// Navigation history (stack of previous screens) used by `navigate_back`
     history: Vec<String>,
+    /// Backspace / `Alt+←` / botão "voltar" do mouse voltam uma tela. Ligado
+    /// por padrão; ver [`GlacierUI::back_shortcuts`].
+    back_shortcuts: bool,
     /// Registered components (UI + behavior), keyed by component name.
     components: HashMap<String, Box<dyn component::Component>>,
     /// The custom `iced::Theme` loaded via `<link rel="theme">` / `set_style`,
@@ -699,6 +702,7 @@ impl GlacierUI {
             file_mod_times: HashMap::default(),
             current_screen: None,
             history: Vec::new(),
+            back_shortcuts: true,
             components: HashMap::default(),
             custom_theme: None,
             system_appearance: widget::SystemAppearance::Unknown,
@@ -835,6 +839,13 @@ impl GlacierUI {
     /// Nome da tela ativa, se houver.
     pub fn current_screen(&self) -> Option<&str> {
         self.current_screen.as_deref()
+    }
+
+    /// Liga ou desliga os atalhos de "voltar uma tela" (Backspace, `Alt+←` e o
+    /// botão "voltar" do mouse). Ligados por padrão; um app em que o Backspace
+    /// não deve navegar (um wizard, por exemplo) os desliga.
+    pub fn back_shortcuts(&mut self, enabled: bool) {
+        self.back_shortcuts = enabled;
     }
 
     /// Pilha de navegação (telas anteriores), da mais antiga para a mais recente.
@@ -2131,6 +2142,17 @@ impl GlacierUI {
                 return task;
             }
             EngineMessage::NavigateBack => {
+                let task = self.navigate_with_hooks(component::Nav::Back);
+                let _ = self.reevaluate_all();
+                return task;
+            }
+            // Atalhos de teclado/mouse para voltar. Passam pelo mesmo caminho
+            // do `navigate_back` do markup (ganchos `on_leave`/`on_enter`).
+            // Com um diálogo modal aberto não navegamos por baixo dele.
+            EngineMessage::BackKey => {
+                if !self.back_shortcuts || self.dialog.is_some() || self.history.is_empty() {
+                    return iced::Task::none();
+                }
                 let task = self.navigate_with_hooks(component::Nav::Back);
                 let _ = self.reevaluate_all();
                 return task;
@@ -5358,6 +5380,37 @@ fn shortcut_from_event(
         combo: crate::keys::combinacao(&key, modifiers)?,
         capturado: status == iced::event::Status::Captured,
     })
+}
+
+/// Backspace, `Alt+←` e o botão "voltar" do mouse → [`EngineMessage::BackKey`].
+///
+/// O Backspace só vale quando **nenhum widget o consumiu**: num `<textinput>`
+/// focado ele apaga um caractere e o `iced` entrega `Status::Captured`. `Alt+←`
+/// e o botão do mouse não colidem com edição de texto e atravessam sempre.
+fn back_key_from_event(
+    event: iced::Event,
+    status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<EngineMessage> {
+    use iced::keyboard::{Event as Kbd, Key, key::Named};
+    match event {
+        iced::Event::Keyboard(Kbd::KeyPressed {
+            key: Key::Named(Named::Backspace),
+            modifiers,
+            ..
+        }) if modifiers.is_empty() && status == iced::event::Status::Ignored => {
+            Some(EngineMessage::BackKey)
+        }
+        iced::Event::Keyboard(Kbd::KeyPressed {
+            key: Key::Named(Named::ArrowLeft),
+            modifiers,
+            ..
+        }) if modifiers == iced::keyboard::Modifiers::ALT => Some(EngineMessage::BackKey),
+        iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Back)) => {
+            Some(EngineMessage::BackKey)
+        }
+        _ => None,
+    }
 }
 
 /// Mapeia a tecla Escape para [`EngineMessage::MenuDismiss`] — fecha o menu/

@@ -10,6 +10,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.131.0 — 2026-10-22
+
+### Adicionado
+
+- **Voltar uma tela por atalho**: Backspace, `Alt+←` e o botão "voltar" do mouse desempilham a
+  navegação, pelo mesmo caminho do `navigate_back` (ganchos `on_leave`/`on_enter`). Não fazem nada
+  sem histórico nem com um diálogo aberto. O Backspace só vale quando nenhum widget o consumiu — num
+  `<textinput>` focado ele continua apagando caractere; `Alt+←` e o mouse atravessam sempre.
+  Ligado por padrão; `GlacierUI::back_shortcuts(false)` desliga. Novo listener global
+  `back_key_from_event` e `EngineMessage::BackKey`.
+
 ## glacier-ui 0.130.0 — 2026-10-21
 
 ### Quebras
