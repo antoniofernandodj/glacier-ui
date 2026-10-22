@@ -485,6 +485,10 @@ impl ContextVar {
 /// `GlacierUI` inteiro.
 pub struct Context<'a> {
     pub(crate) data: &'a mut ContextMap,
+    /// O tipo de cada valor que um script gravou com tipo (`true`, `3`); ver
+    /// [`crate::ctx_types`]. Do motor, emprestado, quando vem de
+    /// [`Context::with_types`]; próprio e vazio no [`Context::new`].
+    pub(crate) types: crate::ctx_types::Tags<'a>,
     pub(crate) nav: Option<Nav>,
     pub(crate) effects: Vec<Effect>,
     pub(crate) dialog: Option<DialogAction>,
@@ -576,9 +580,24 @@ impl<'a> Context<'a> {
     /// Cria um contexto novo espelhando `data`, com todos os acumuladores
     /// (efeitos, fetches, streams, …) vazios. Ponto único de construção para
     /// que adicionar um acumulador não force editar cada call-site.
+    #[allow(dead_code)] // só os testes unitários constroem um contexto sem o mapa do motor
     pub(crate) fn new(data: &'a mut ContextMap) -> Self {
+        Self::build(data, crate::ctx_types::Tags::Proprio(Default::default()))
+    }
+
+    /// Como [`Context::new`], mas com o mapa de tipos do motor — o que faz um
+    /// `true` gravado num turno voltar como `true` no seguinte.
+    pub(crate) fn with_types(
+        data: &'a mut ContextMap,
+        types: &'a mut crate::ctx_types::TagMap,
+    ) -> Self {
+        Self::build(data, crate::ctx_types::Tags::Emprestado(types))
+    }
+
+    fn build(data: &'a mut ContextMap, types: crate::ctx_types::Tags<'a>) -> Self {
         Self {
             data,
+            types,
             nav: None,
             effects: Vec::new(),
             dialog: None,
@@ -612,12 +631,80 @@ impl<'a> Context<'a> {
     }
 
     /// Define/atualiza um valor do contexto de estado (visível aos templates).
+    /// É uma escrita **de texto**: apaga o tipo que a chave tinha, e o script a
+    /// lê de volta como string. Para gravar com tipo, [`Context::set_bool`] e
+    /// [`Context::set_number`].
     pub fn set(&mut self, key: &str, value: impl Into<String>) {
+        self.types.map_mut().remove(key);
         self.data.insert(key.to_string(), value.into());
+    }
+
+    /// Grava um booleano: o markup vê `"true"`/`"false"` e o script Luau lê de
+    /// volta `true`/`false`.
+    pub fn set_bool(&mut self, key: &str, value: bool) {
+        self.set_tagged(key, value.to_string(), Some(crate::ctx_types::Tag::Bool));
+    }
+
+    /// Grava um número: o markup vê o texto canônico (`3`, `3.5`) e o script Luau
+    /// lê de volta um `number`. `NaN` e `±inf` não têm representação e não são
+    /// gravados (devolve `false`).
+    pub fn set_number(&mut self, key: &str, value: f64) -> bool {
+        match crate::ctx_types::numero_para_texto(value) {
+            Some(texto) => {
+                self.set_tagged(key, texto, Some(crate::ctx_types::Tag::Number));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// O booleano de `key`, se ela guarda `"true"`/`"false"`.
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        match self.data.get(key)?.as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        }
+    }
+
+    /// O número de `key`, se ela guarda um número finito.
+    pub fn get_number(&self, key: &str) -> Option<f64> {
+        crate::ctx_types::texto_para_numero(self.data.get(key)?)
+    }
+
+    /// Grava `texto` com a tag `tag` (`None` = string). Ponto único da escrita
+    /// tipada — a tag leva o próprio texto como snapshot (ver `ctx_types`).
+    pub(crate) fn set_tagged(
+        &mut self,
+        key: &str,
+        texto: String,
+        tag: Option<crate::ctx_types::Tag>,
+    ) {
+        match tag {
+            Some(tag) => {
+                self.types.map_mut().insert(
+                    key.to_string(),
+                    crate::ctx_types::Tipado {
+                        tag,
+                        snapshot: texto.clone(),
+                    },
+                );
+            }
+            None => {
+                self.types.map_mut().remove(key);
+            }
+        }
+        self.data.insert(key.to_string(), texto);
+    }
+
+    /// A tag de `key` se ainda valer (o texto atual é o que ela gravou).
+    pub(crate) fn tag_of(&self, key: &str) -> Option<crate::ctx_types::Tag> {
+        crate::ctx_types::tag_valida(self.types.map(), self.data, key)
     }
 
     /// Aplica uma [`ContextVar`] (chave + valor) ao contexto.
     pub fn set_var(&mut self, var: &ContextVar) {
+        self.types.map_mut().remove(&var.key);
         self.data.insert(var.key.clone(), var.value.clone());
     }
 

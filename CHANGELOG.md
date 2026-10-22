@@ -10,6 +10,36 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.135.0 — 2026-10-22
+
+### Adicionado
+
+- **O `ctx` guarda o tipo que o script gravou.** `ctx.ativo = false` volta ao script como o
+  `boolean` `false` (antes era a string `"false"`, que é verdadeira em Luau e invertia
+  `if ctx.ativo then`); `ctx.total = 3` volta como o `number` `3`. O markup, o avaliador e os
+  widgets continuam lendo texto (`3`, `true`). O tipo mora num mapa ao lado do contexto e só
+  vale enquanto o texto da chave for o que foi gravado: se um widget, o Rust (`Context::set`)
+  ou um efeito sobrescrever a chave, ela volta a ser string. Uma string escrita à mão
+  (`ctx.x = "true"`) continua string. Ver `docs/PLANO_CTX_TIPADO.md`.
+- **`Context::set_bool` / `set_number` / `get_bool` / `get_number`** para o lado Rust.
+- **`tela:value(chave)`** nos testes: a chave como o script a enxerga (`boolean`/`number`
+  ou texto). `tela:get` continua devolvendo texto; `tela:set` e o `ctx` inicial de
+  `component(...)` gravam com tipo (`true`, `3`).
+
+### Corrigido
+
+- Um número fracionário zero acima de 2^53 (`1e300`) saturava em `i64::MAX` ao ir para o
+  `ctx`. Agora vira `1e300`. `NaN` e `±inf` não são gravados (com aviso), em vez de virar
+  o texto `"NaN"`.
+
+### Quebras
+
+- **Um script que grava `true`/`false`/número e depois compara com texto quebra**:
+  `ctx.ativo = true` ... `if ctx.ativo == "true"` agora é `false`, e `ctx.n == "2"` também.
+  **Migrar:** compare com `true`/`false` (ou use `ctx.ativo` direto) e com o número; quem
+  grava a *string* `"true"` não muda. `tonumber(ctx.n)` continua funcionando.
+  O `Context::set` do Rust apaga o tipo da chave (é uma escrita de texto).
+
 ## glacier-ui 0.134.0 — 2026-10-22
 
 ### Adicionado

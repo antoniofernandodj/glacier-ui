@@ -305,6 +305,9 @@ export type TestComponent = {
     -- Como `ctx.chave = valor` num script: texto, número e booleano viram texto; uma tabela vira
     -- JSON (use `json.array({})` para a lista vazia); `nil` remove a chave.
     set: (self: TestComponent, key: string, value: any) -> (),
+    -- Como o SCRIPT enxerga a chave: `boolean`/`number` se foi gravada com tipo (e
+    -- ainda vale), senão texto. `get` devolve sempre texto.
+    value: (self: TestComponent, key: string) -> any,
     data: (self: TestComponent) -> { [string]: string },
     toasts: (self: TestComponent) -> { { kind: string, message: string } },
     -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".

@@ -42,6 +42,7 @@ use super::LuauComponent;
 use crate::ContextMap;
 use crate::asset_source::DiskAssets;
 use crate::component::Context;
+use crate::ctx_types::{Tag, TagMap, Tipado, texto_para_numero};
 
 const TEST_PRELUDE: &str = include_str!("testing.luau");
 
@@ -497,6 +498,8 @@ struct TestComponent {
     /// O arquivo de onde veio, para o `:missing()` reavaliar o template.
     path: String,
     data: RefCell<ContextMap>,
+    /// Os tipos que o script (ou `:set`) gravou, entre uma chamada e outra.
+    types: RefCell<TagMap>,
     toasts: RefCell<Vec<(String, String)>>,
     /// O viewport de `:set_viewport(w, h)`; `None` = o do motor (o padrão).
     viewport: Cell<Option<(f32, f32)>>,
@@ -516,7 +519,8 @@ impl UserData for TestComponent {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("call", |_, this, (action, value): (String, Option<String>)| {
             let mut data = this.data.borrow_mut();
-            let mut ctx = Context::new(&mut data);
+            let mut types = this.types.borrow_mut();
+            let mut ctx = Context::with_types(&mut data, &mut types);
             let ran = this
                 .comp
                 .run_inner(&action, value.as_deref(), &mut ctx)
@@ -618,9 +622,26 @@ impl UserData for TestComponent {
                 this.data.borrow_mut().remove(&key);
                 return Ok(());
             }
-            let texto = ctx_text(lua, &key, &value)?;
-            this.data.borrow_mut().insert(key, texto);
+            let (texto, tag) = ctx_value(lua, &key, &value)?;
+            guardar(&mut this.data.borrow_mut(), &mut this.types.borrow_mut(), key, texto, tag);
             Ok(())
+        });
+        // `:value(chave)` — como o script enxerga a chave: `boolean`/`number` se
+        // ela foi gravada com tipo (e ainda vale), senão o texto. O `:get` devolve
+        // sempre texto.
+        methods.add_method("value", |lua, this, key: String| {
+            let data = this.data.borrow();
+            let Some(texto) = data.get(&key) else {
+                return Ok(Value::Nil);
+            };
+            match crate::ctx_types::tag_valida(&this.types.borrow(), &data, &key) {
+                Some(Tag::Bool) => Ok(Value::Boolean(texto == "true")),
+                Some(Tag::Number) => match texto_para_numero(texto) {
+                    Some(n) => Ok(Value::Number(n)),
+                    None => lua.create_string(texto).map(Value::String),
+                },
+                None => lua.create_string(texto).map(Value::String),
+            }
         });
         methods.add_method("data", |lua, this, ()| {
             let t = lua.create_table()?;
@@ -983,17 +1004,42 @@ fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
     Ok(missing)
 }
 
-/// O texto que o contexto guarda para `valor` — a mesma conversão de um
-/// `ctx.chave = valor` num script. Falha (em vez de descartar em silêncio) com um
-/// tipo que não cabe no contexto, como uma função.
-fn ctx_text(lua: &Lua, chave: &str, valor: &Value) -> mlua::Result<String> {
-    super::luau_value_to_string(lua, valor).ok_or_else(|| {
+/// O texto que o contexto guarda para `valor` e o tipo com que foi gravado — a
+/// mesma conversão de um `ctx.chave = valor` num script. Falha (em vez de
+/// descartar em silêncio) com um tipo que não cabe no contexto, como uma função.
+fn ctx_value(lua: &Lua, chave: &str, valor: &Value) -> mlua::Result<(String, Option<Tag>)> {
+    super::luau_value_to_ctx(lua, valor).ok_or_else(|| {
         mlua::Error::runtime(format!(
             "ctx '{chave}': um valor do tipo '{}' não cabe no contexto \
-             (texto, número, booleano ou tabela de dados)",
+             (texto, número finito, booleano ou tabela de dados)",
             valor.type_name()
         ))
     })
+}
+
+/// Grava `texto` em `data` e, se veio com tipo, a tag em `types` (senão a apaga).
+fn guardar(
+    data: &mut ContextMap,
+    types: &mut TagMap,
+    chave: String,
+    texto: String,
+    tag: Option<Tag>,
+) {
+    match tag {
+        Some(tag) => {
+            types.insert(
+                chave.clone(),
+                Tipado {
+                    tag,
+                    snapshot: texto.clone(),
+                },
+            );
+        }
+        None => {
+            types.remove(&chave);
+        }
+    }
+    data.insert(chave, texto);
 }
 
 fn install_component(lua: &Lua) -> mlua::Result<()> {
@@ -1001,20 +1047,22 @@ fn install_component(lua: &Lua) -> mlua::Result<()> {
         let comp = LuauComponent::from_file(path.clone(), path.clone())
             .map_err(|e| mlua::Error::runtime(e.to_string()))?;
         let mut data = ContextMap::default();
+        let mut types = TagMap::default();
         if let Some(initial) = initial {
             for pair in initial.pairs::<String, Value>() {
                 let (k, v) = pair?;
                 if matches!(v, Value::Nil) {
                     continue;
                 }
-                let s = ctx_text(lua, &k, &v)?;
-                data.insert(k, s);
+                let (s, tag) = ctx_value(lua, &k, &v)?;
+                guardar(&mut data, &mut types, k, s, tag);
             }
         }
         Ok(TestComponent {
             comp,
             path,
             data: RefCell::new(data),
+            types: RefCell::new(types),
             toasts: RefCell::new(Vec::new()),
             viewport: Cell::new(None),
         })

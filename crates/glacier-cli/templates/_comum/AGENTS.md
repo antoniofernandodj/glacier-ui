@@ -261,7 +261,7 @@ começa (inclusive de IA) vem de supor um modelo que não é este.
 | `.gss` | **como aparece** | sem estrutura, sem ação |
 | `.luau` (ou Rust) | **o que acontece** quando algo é disparado | sem markup |
 
-### O contexto é um mapa plano de strings
+### O contexto é um mapa plano, e o markup lê texto
 
 Existe **um** dicionário por janela, `chave → texto`. Tudo que a tela mostra sai
 dele, e é a única ponte entre o comportamento e o markup:
@@ -269,13 +269,20 @@ dele, e é a única ponte entre o comportamento e o markup:
 ```
         escreve                          lê
 script  ─────────►   ctx: { … }   ─────────►  markup
-ctx.total = "3"      total = "3"              <text>{total}</text>
+ctx.total = 3        total = "3"              <text>{total}</text>
 ```
 
 Três consequências que mudam como se escreve:
 
-1. **Tudo é texto.** `ctx.total = 3` funciona (o motor converte na escrita), mas
-   na leitura volta `"3"`. Compare com `tonumber(ctx.total)`, nunca com `3`.
+1. **O markup lê texto; o script lê o tipo que gravou.** `ctx.total = 3` mostra
+   `3` na tela e volta ao script como o `number` `3`; `ctx.ativo = false` volta
+   como o `boolean` `false` (e `if ctx.ativo then` é falso, como se espera).
+   Um valor que o script **não** gravou com tipo — o que veio do markup, de um
+   widget ou de uma string escrita à mão (`ctx.ativo = "false"`) — volta como
+   **texto**: `ctx.total = "3"` é a string `"3"`, e `"false"` como string é
+   verdadeira. Se outro caminho sobrescrever a chave com texto, o tipo se perde
+   e ela volta a ser string. NaN e infinito não têm representação e não são
+   gravados.
 2. **Uma tabela vira JSON.** `ctx.itens = { {id="1"}, {id="2"} }` grava a string
    JSON, que é o formato que `items="itens"` espera nos widgets de coleção.
 3. **Qualquer escrita reavalia a tela inteira.** Não existe atualização parcial —

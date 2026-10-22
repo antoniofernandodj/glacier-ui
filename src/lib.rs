@@ -99,6 +99,7 @@ pub mod net;
 #[cfg(target_arch = "wasm32")]
 #[path = "net_web.rs"]
 pub mod net;
+mod ctx_types;
 mod overflow;
 pub mod panes;
 pub mod parser;
@@ -258,6 +259,9 @@ pub struct GlacierUI {
     eval_cache: eval::EvalCache,
     /// In-memory context data for state binding
     context_data: ContextMap,
+    /// O tipo de cada valor do contexto que um script gravou com tipo (ver
+    /// [`ctx_types`]). Só vale enquanto o texto da chave for o que a tag gravou.
+    context_types: ctx_types::TagMap,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
     /// O que o `<screen>` de cada template registrado declarou sobre a janela
@@ -697,6 +701,7 @@ impl GlacierUI {
             eval_deps: HashMap::default(),
             eval_cache: eval::EvalCache::default(),
             context_data: HashMap::default(),
+            context_types: Default::default(),
             file_mod_times: HashMap::default(),
             current_screen: None,
             history: Vec::new(),
@@ -1604,7 +1609,7 @@ impl GlacierUI {
     /// [`luau::LuauComponent`] when the template carries a `<script>`).
     fn install_component(&mut self, name: &str, mut comp: Box<dyn component::Component>) {
         let init_streams = {
-            let mut ctx = component::Context::new(&mut self.context_data);
+            let mut ctx = component::Context::with_types(&mut self.context_data, &mut self.context_types);
             ctx.set_viewport(self.inputs.viewport());
             comp.init(&mut ctx);
             (ctx.streams, ctx.style)
@@ -3033,7 +3038,7 @@ impl GlacierUI {
             editor_appends,
             style_req,
         ) = if let Some(comp) = self.components.get_mut(owner) {
-            let mut ctx = component::Context::new(&mut self.context_data);
+            let mut ctx = component::Context::with_types(&mut self.context_data, &mut self.context_types);
             ctx.set_viewport(self.inputs.viewport());
             run(comp.as_mut(), &mut ctx);
             (

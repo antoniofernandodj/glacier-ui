@@ -19,9 +19,11 @@
 //! # Acesso ao contexto
 //!
 //! Cada função Luau enxerga uma tabela global `ctx` espelhando o
-//! [`Context`] do motor. Ler `ctx.contador` devolve o valor
-//! atual (string); atribuir `ctx.contador = ...` grava de volta. Como Luau
-//! coage strings numéricas em aritmética, um contador é só:
+//! [`Context`] do motor. Ler `ctx.contador` devolve o valor atual; atribuir
+//! `ctx.contador = ...` grava de volta. O markup lê **texto**, mas o script lê o
+//! **tipo** que gravou: `true`/`false` voltam `boolean` e um número volta `number`
+//! (ver [`crate::ctx_types`]); o que veio do markup ou de um widget volta string, e
+//! Luau coage strings numéricas em aritmética, então um contador é só:
 //!
 //! ```luau
 //! function incrementar()
@@ -69,6 +71,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::ctx_types::{Tag, numero_para_texto, texto_para_numero};
 use crate::asset_source::{AssetSource, DiskAssets};
 use crate::component::{
     Component, Context, DialogOutcome, FetchResult, PendingFetch, PendingTimer, StreamCommand,
@@ -417,7 +420,16 @@ impl LuauComponent {
     fn sync_to_luau(&self, ctx: &Context) -> mlua::Result<()> {
         self.ctx_table.clear()?;
         for (k, v) in ctx.data.iter() {
-            self.ctx_table.set(k.as_str(), v.as_str())?;
+            // Uma chave que um script gravou com tipo volta com esse tipo —
+            // desde que o texto ainda seja o que a tag gravou (ver `ctx_types`).
+            match ctx.tag_of(k) {
+                Some(Tag::Bool) => self.ctx_table.set(k.as_str(), v == "true")?,
+                Some(Tag::Number) => match texto_para_numero(v) {
+                    Some(n) => self.ctx_table.set(k.as_str(), n)?,
+                    None => self.ctx_table.set(k.as_str(), v.as_str())?,
+                },
+                None => self.ctx_table.set(k.as_str(), v.as_str())?,
+            }
         }
         self.viewport_table.set("width", ctx.viewport.0)?;
         self.viewport_table.set("height", ctx.viewport.1)?;
@@ -436,15 +448,21 @@ impl LuauComponent {
         for pair in self.ctx_table.pairs::<String, Value>() {
             let (k, val) = pair?;
             present.insert(k.clone());
-            match luau_value_to_string(&self.luau, &val) {
-                Some(s) => ctx.set(&k, s),
+            match luau_value_to_ctx(&self.luau, &val) {
+                Some((s, tag)) => {
+                    // Sem mudança (texto e tipo iguais) não há o que gravar.
+                    if ctx.data.get(&k) != Some(&s) || ctx.tag_of(&k) != tag {
+                        ctx.set_tagged(&k, s, tag);
+                    }
+                }
                 // `nil` é remoção deliberada (tratada abaixo via `present`);
                 // qualquer outro tipo que não virou string é descartado, mas
                 // avisado — ao contrário do silêncio total de antes.
                 None if !matches!(val, Value::Nil) => eprintln!(
                     "[glacier-ui] aviso: <script> Lua '{}' descartou ctx.{} ao sincronizar \
-                     (valor do tipo '{}' não é serializável — funções/threads/userdata não \
-                     podem ir para o contexto; tabelas com esses tipos dentro também falham)",
+                     (valor do tipo '{}' não é serializável — funções/threads/userdata, NaN e \
+                     inf não podem ir para o contexto; tabelas com esses tipos dentro \
+                     também falham)",
                     self.name,
                     k,
                     val.type_name()
@@ -1716,29 +1734,33 @@ fn build_notification(req: &Table) -> mlua::Result<crate::component::Notificatio
     })
 }
 
-/// Converte um [`Value`] Luau na string que o contexto do motor guarda. Números
-/// inteiros e floats de valor inteiro viram `"3"` (não `"3.0"`); `nil` devolve
-/// `None` para não sobrescrever chaves com valor vazio à toa. Uma **tabela**
-/// é serializada via `json.encode` por baixo (o mesmo caminho que `json`
-/// expõe ao script) — `ctx.foo = {1,2,3}` grava `"[1,2,3]"` em vez de
-/// desaparecer; uma tabela com função/thread/userdata dentro ainda falha
-/// (devolve `None`, e quem chama loga o motivo — ver [`LuauComponent::sync_from_luau`]).
+/// Converte um [`Value`] Luau na string que o contexto do motor guarda.
+/// Ver [`luau_value_to_ctx`], que também devolve o tipo.
 fn luau_value_to_string(lua: &Lua, v: &Value) -> Option<String> {
+    luau_value_to_ctx(lua, v).map(|(texto, _)| texto)
+}
+
+/// Converte um [`Value`] Luau no texto que o contexto do motor guarda e no **tipo**
+/// com que o script o escreveu (ver [`crate::ctx_types`]).
+///
+/// `true`/`false` viram `"true"`/`"false"` com a tag `Bool`; um número vira o
+/// texto canônico (`3`, `3.5`, `1e300`) com a tag `Number`; `NaN` e `±inf` não têm
+/// representação e devolvem `None`. `nil` devolve `None` para não sobrescrever
+/// chaves com valor vazio à toa. Uma **tabela** é serializada via `json.encode` por
+/// baixo (o mesmo caminho que `json` expõe ao script) — `ctx.foo = {1,2,3}`
+/// grava `"[1,2,3]"` em vez de desaparecer; uma tabela com função/thread/userdata
+/// dentro ainda falha (devolve `None`, e quem chama loga o motivo — ver
+/// [`LuauComponent::sync_from_luau`]). Uma string fica string (sem tag).
+fn luau_value_to_ctx(lua: &Lua, v: &Value) -> Option<(String, Option<Tag>)> {
     match v {
         Value::Nil => None,
-        Value::Boolean(b) => Some(b.to_string()),
-        Value::Integer(i) => Some(i.to_string()),
-        Value::Number(n) => {
-            if n.fract() == 0.0 && n.is_finite() {
-                Some((*n as i64).to_string())
-            } else {
-                Some(n.to_string())
-            }
-        }
-        Value::String(s) => Some(s.to_string_lossy()),
+        Value::Boolean(b) => Some((b.to_string(), Some(Tag::Bool))),
+        Value::Integer(i) => Some((numero_para_texto(*i as f64)?, Some(Tag::Number))),
+        Value::Number(n) => Some((numero_para_texto(*n)?, Some(Tag::Number))),
+        Value::String(s) => Some((s.to_string_lossy(), None)),
         Value::Table(_) => {
             let json: serde_json::Value = lua.from_value(v.clone()).ok()?;
-            serde_json::to_string(&json).ok()
+            Some((serde_json::to_string(&json).ok()?, None))
         }
         _ => None,
     }
