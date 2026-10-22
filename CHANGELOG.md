@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.132.0 — 2026-10-22
+
+### Adicionado
+
+- **`on_back()`**: gancho da tela para os atalhos de voltar (Backspace, `Alt+←`, botão "voltar" do
+  mouse) quando a pilha de navegação do motor está **vazia** — o caso dos apps de tela única, que
+  guardam o caminho (visão, item selecionado, aba) em chaves do `ctx`. Com histórico o motor volta a
+  tela sozinho e o gancho não roda. `Component::on_back`; o `LuauComponent` chama a global `on_back()`.
+
 ## glacier-ui 0.131.0 — 2026-10-22
 
 ### Adicionado

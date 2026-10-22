@@ -2150,8 +2150,18 @@ impl GlacierUI {
             // do `navigate_back` do markup (ganchos `on_leave`/`on_enter`).
             // Com um diálogo modal aberto não navegamos por baixo dele.
             EngineMessage::BackKey => {
-                if !self.back_shortcuts || self.dialog.is_some() || self.history.is_empty() {
+                if !self.back_shortcuts || self.dialog.is_some() {
                     return iced::Task::none();
+                }
+                // Sem histórico o motor não tem para onde voltar: quem sabe é
+                // a tela (`on_back`), nos apps que guardam o caminho em chaves.
+                if self.history.is_empty() {
+                    let Some(owner) = self.current_screen.clone() else {
+                        return iced::Task::none();
+                    };
+                    let task = self.run_on_owner(&owner, false, |comp, ctx| comp.on_back(ctx));
+                    let _ = self.reevaluate_all();
+                    return task;
                 }
                 let task = self.navigate_with_hooks(component::Nav::Back);
                 let _ = self.reevaluate_all();

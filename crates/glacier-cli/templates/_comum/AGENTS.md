@@ -3617,6 +3617,7 @@ as define:
 | `init()` | uma vez, quando a tela monta | é o único que roda na tela **inicial** |
 | `on_enter()` | a navegação **chega** a esta tela | depois da troca; não roda na tela inicial |
 | `on_leave()` | a navegação **sai** desta tela | antes da troca (ainda é a tela atual); depois dele o motor fecha os streams `scope = "screen"` |
+| `on_back()` | Backspace, `Alt+←` ou o botão "voltar" do mouse, com a pilha de telas **vazia** | para apps de tela única, que guardam o caminho em chaves do `ctx`; com histórico o motor volta sozinho e o gancho não roda |
 | `on_destroy()` | a janela é fechada de verdade | só a tela atual; `ctx` já não é desenhado, mas `fetch` ainda vale; não roda ao recolher a janela principal para a bandeja |
 | `on_broadcast(evento, carga)` | outra janela chamou `broadcast` | uma tabela chega decodificada |
 | `on_error(msg)` | um erro estourou em qualquer função do script | sem ele, o motor mostra um toast de erro |

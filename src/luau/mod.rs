@@ -1255,6 +1255,16 @@ impl Component for LuauComponent {
         }
     }
 
+    fn on_back(&mut self, ctx: &mut Context) {
+        if self.luau.globals().get::<Function>("on_back").is_ok() {
+            if let Err(e) = self.call_global_inner("on_back", ctx) {
+                self.report_error("on_back", e, ctx);
+            }
+        } else if let Some(inner) = &self.inner {
+            inner.borrow_mut().on_back(ctx);
+        }
+    }
+
     fn on_destroy(&mut self, ctx: &mut Context) {
         if self.luau.globals().get::<Function>("on_destroy").is_ok() {
             if let Err(e) = self.on_destroy_inner(ctx) {

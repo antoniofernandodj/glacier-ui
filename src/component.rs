@@ -979,6 +979,15 @@ pub trait Component {
     /// chamado direto pelo app Rust não passa por aqui.
     fn on_leave(&mut self, _ctx: &mut Context) {}
 
+    /// Chamado quando o usuário pede para **voltar** (Backspace, `Alt+←` ou o
+    /// botão "voltar" do mouse) e a pilha de navegação do motor está **vazia**.
+    /// É o gancho dos apps de tela única, que guardam o próprio caminho (a
+    /// visão, o item selecionado, a aba) em chaves do contexto: o motor não sabe
+    /// para onde voltar, a tela sabe. A [`crate::luau::LuauComponent`] chama a
+    /// função Lua global `on_back()`. Com histórico, o motor volta a tela por
+    /// conta própria (rodando `on_leave`/`on_enter`) e este gancho **não** roda.
+    fn on_back(&mut self, _ctx: &mut Context) {}
+
     /// Fontes contínuas de eventos externos (sockets, timers, watchers) que
     /// alimentam o contexto. Mapeie cada stream para
     /// [`crate::EngineMessage::ContextPatch`] e o motor mesclará os pares no
