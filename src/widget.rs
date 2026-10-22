@@ -559,7 +559,29 @@ pub enum SystemAppearance {
     Dark,
 }
 
-#[derive(Debug, Clone)]
+/// O tipo do valor que um widget escreve no `ctx` (ver
+/// [`EngineMessage::UiInputTyped`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputKind {
+    /// `"true"` / `"false"` → `boolean` no script.
+    Bool,
+    /// Um número finito → `number` no script.
+    Number,
+}
+
+impl InputKind {
+    /// A tag a gravar para `valor`, se ele é de fato desse tipo (um checkbox
+    /// tri-state escreve `"mixed"`, que fica texto).
+    pub(crate) fn tag_para(self, valor: &str) -> Option<crate::ctx_types::Tag> {
+        use crate::ctx_types::{Tag, texto_para_numero};
+        match self {
+            InputKind::Bool => matches!(valor, "true" | "false").then_some(Tag::Bool),
+            InputKind::Number => texto_para_numero(valor).map(|_| Tag::Number),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum EngineMessage {
     UiClick(String),
     /// Uma tecla dirigida ao `<datetimeedit>` cuja seção está selecionada (a
@@ -570,6 +592,16 @@ pub enum EngineMessage {
     UiInputChanged {
         action: String,
         value: String,
+    },
+    /// Como [`Self::UiInputChanged`], de um widget cujo valor tem **tipo**
+    /// (`checkbox`/`toggle` → booleano; `slider`/`rating`/`dial`/`pagination` →
+    /// número). O texto e o roteamento são os mesmos; o `kind` só diz ao `ctx` com
+    /// que tipo gravar a chave quando o app não tem handler próprio, para o script
+    /// ler `true` e `3` (e não `"true"` e `"3"`). Ver [`crate::ctx_types`].
+    UiInputTyped {
+        action: String,
+        value: String,
+        kind: InputKind,
     },
     /// Uma edição num `<MaskedInput>`.
     ///
@@ -699,6 +731,9 @@ pub enum EngineMessage {
     /// component subscriptions (long-lived streams emitting raw `EngineMessage`);
     /// the host app just forwards it to [`crate::GlacierUI::dispatch`].
     ContextPatch(Vec<(String, String)>),
+    /// Como [`Self::ContextPatch`], mas cada par pode levar o tipo do valor
+    /// (`None` = texto). É o que o widget sem `on_change` escreve direto no `ctx`.
+    ContextPatchTyped(Vec<(String, String, Option<InputKind>)>),
     /// An async effect ([`crate::component::Effect::Perform`]) completed with an
     /// [`crate::component::EffectOutcome`]: merge its `patch` into the context,
     /// show its `toast` (if any), and re-evaluate. Lets a `ctx.perform` future
@@ -898,6 +933,8 @@ impl EngineMessage {
             Self::UiClick { .. } => "UiClick",
             Self::TimeEditKey { .. } => "TimeEditKey",
             Self::UiInputChanged { .. } => "UiInputChanged",
+            Self::UiInputTyped { .. } => "UiInputTyped",
+            Self::ContextPatchTyped(..) => "ContextPatchTyped",
             Self::MaskedEdit { .. } => "MaskedEdit",
             Self::PatchThen { .. } => "PatchThen",
             Self::GripStart(..) => "GripStart",
@@ -2296,11 +2333,12 @@ fn render_pagination<'a>(
     let ir = move |n: usize| -> EngineMessage {
         let n = (n - desloca).to_string();
         if acao.is_empty() {
-            EngineMessage::ContextPatch(vec![(chave.clone(), n)])
+            EngineMessage::ContextPatchTyped(vec![(chave.clone(), n, Some(InputKind::Number))])
         } else {
-            EngineMessage::UiInputChanged {
+            EngineMessage::UiInputTyped {
                 action: acao.clone(),
                 value: n,
+                kind: InputKind::Number,
             }
         }
     };
@@ -2509,14 +2547,15 @@ fn render_rating<'a>(
         // resenha faz.
         let novo = if n == nota { 0 } else { n }.to_string();
         alvo = alvo.on_press(if acao.is_empty() {
-            EngineMessage::ContextPatch(vec![
-                (chave.clone(), novo),
-                (RATING_HOVER_CONTEXT.to_string(), String::new()),
+            EngineMessage::ContextPatchTyped(vec![
+                (chave.clone(), novo, Some(InputKind::Number)),
+                (RATING_HOVER_CONTEXT.to_string(), String::new(), None),
             ])
         } else {
-            EngineMessage::UiInputChanged {
+            EngineMessage::UiInputTyped {
                 action: acao.clone(),
                 value: novo,
+                kind: InputKind::Number,
             }
         });
         linha = linha.push(
@@ -4892,9 +4931,10 @@ pub fn render_node<'a>(
                 } else {
                     None
                 };
-                c = c.on_toggle(move |v| EngineMessage::UiInputChanged {
+                c = c.on_toggle(move |v| EngineMessage::UiInputTyped {
                     action: action.clone(),
                     value: next.map(str::to_string).unwrap_or_else(|| v.to_string()),
+                    kind: InputKind::Bool,
                 });
             }
             if let Some(s) = node.text_align().and(node.spacing) {
@@ -4916,9 +4956,10 @@ pub fn render_node<'a>(
             let mut t = crate::animated_toggler::animated_toggler(checked);
             if !node.disabled.unwrap_or(false) {
                 let action = on_toggle.clone();
-                t = t.on_toggle(move |v| EngineMessage::UiInputChanged {
+                t = t.on_toggle(move |v| EngineMessage::UiInputTyped {
                     action: action.clone(),
                     value: v.to_string(),
+                    kind: InputKind::Bool,
                 });
             }
             if label.is_empty() {
@@ -6206,11 +6247,12 @@ pub fn render_node<'a>(
             let casas = casas_decimais_do_step(step_raw);
             let acao = on_change.clone();
             let inerte = node.disabled.unwrap_or(false);
-            let ao_mudar = move |v: f32| EngineMessage::UiInputChanged {
+            let ao_mudar = move |v: f32| EngineMessage::UiInputTyped {
                 // Desabilitado: a ação some, e uma ação vazia não casa com
                 // handler nenhum. O cursor fica parado porque a chave não muda.
                 action: if inerte { String::new() } else { acao.clone() },
                 value: format!("{v:.casas$}"),
+                kind: InputKind::Number,
             };
 
             let cor = color.as_deref().and_then(parse_hex_color);

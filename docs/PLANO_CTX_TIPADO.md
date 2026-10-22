@@ -1,6 +1,6 @@
 # Plano: `ctx` tipado (e a saída do MicroPython)
 
-**Estado:** Fases 0, 1 e 2 implementadas (0.134 a 0.136); Fases 3 a 5 pendentes (ver "Decisões" abaixo). Nasce de uma pergunta: *o tipo que o
+**Estado:** Fases 0 a 3 implementadas (0.134 a 0.137); Fases 4 e 5 pendentes (ver "Decisões" abaixo). Nasce de uma pergunta: *o tipo que o
 script Luau grava em `ctx` se perde, porque tudo vira string — dá para preservar
 e devolver com o tipo certo?* Dá. Este plano cobre o caminho inteiro, inclusive o
 que ficaria para depois.
@@ -226,7 +226,16 @@ Só o que corrige o bug do `false` truthy, ainda sem tabelas nem widgets.
 
 O que torna o `<checkbox>` útil de verdade para quem escreve `if ctx.aceito then`.
 
-**Mecanismo.** Hoje os widgets emitem `EngineMessage::ContextPatch(Vec<(String,
+**Implementado (0.137.0):** `EngineMessage::UiInputTyped { action, value, kind }` (o mesmo
+roteamento de `UiInputChanged`, com o tipo como dica que o `Context::set_input` usa no
+fallback de escrita) e `ContextPatchTyped` (para a escrita direta sem `on_change`).
+Tipados: `checkbox`, `toggle` (Bool); `slider`, `spinbox`, `rating`, `dial`,
+`pagination` (Number). O argumento de um handler próprio continua texto. Um número
+que o script devolve sem mudar mantém o texto do widget (`0.50`). Ficam texto, por
+ora: `radiogroup`, `select`, `tabbar`/`tabs` (id), `accordion`/`drawer` (`""`/`"true"`),
+`splitter`/`grip`/`scroll` (escritas diretas do motor), `rangeslider`, `colorwheel`.
+
+**Mecanismo (desenho original).** Hoje os widgets emitem `EngineMessage::ContextPatch(Vec<(String,
 String)>)` (50 usos; tratado em `lib.rs:2174`) e `EffectOutcome.patch`. Em vez de
 mexer em todos os sítios, acrescentar uma variante irmã:
 

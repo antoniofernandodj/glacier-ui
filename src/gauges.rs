@@ -131,11 +131,16 @@ impl ProgramaDial {
     fn mensagem(&self, novo: f64, acao: &str) -> EngineMessage {
         let texto = escreve(novo, self.decimals.max(casas_do_passo(self.step)));
         if acao.is_empty() {
-            EngineMessage::ContextPatch(vec![(self.chave.clone(), texto)])
+            EngineMessage::ContextPatchTyped(vec![(
+                self.chave.clone(),
+                texto,
+                Some(crate::widget::InputKind::Number),
+            )])
         } else {
-            EngineMessage::UiInputChanged {
+            EngineMessage::UiInputTyped {
                 action: acao.to_string(),
                 value: texto,
+                kind: crate::widget::InputKind::Number,
             }
         }
     }

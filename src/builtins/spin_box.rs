@@ -300,6 +300,12 @@ impl Component for SpinBox {
         let novo = novo.clamp(min, max);
         // `-0` sai de `0.0 - 0.0` com sinal e formataria como "-0".
         let novo = if novo == 0.0 { 0.0 } else { novo };
-        ctx.set(chave, format!("{novo:.casas$}"));
+        // Número de verdade para o script (o texto mantém as casas decimais que o
+        // campo exibe: `5.00`).
+        ctx.set_tagged(
+            chave,
+            format!("{novo:.casas$}"),
+            Some(crate::ctx_types::Tag::Number),
+        );
     }
 }

@@ -489,6 +489,9 @@ pub struct Context<'a> {
     /// [`crate::ctx_types`]. Do motor, emprestado, quando vem de
     /// [`Context::with_types`]; próprio e vazio no [`Context::new`].
     pub(crate) types: crate::ctx_types::Tags<'a>,
+    /// O tipo do valor que o widget que disparou esta entrada escreve (`None` =
+    /// texto). Lido por [`Context::set_input`]; ver [`crate::widget::InputKind`].
+    pub(crate) input_hint: Option<crate::ctx_types::Tag>,
     pub(crate) nav: Option<Nav>,
     pub(crate) effects: Vec<Effect>,
     pub(crate) dialog: Option<DialogAction>,
@@ -598,6 +601,7 @@ impl<'a> Context<'a> {
         Self {
             data,
             types,
+            input_hint: None,
             nav: None,
             effects: Vec::new(),
             dialog: None,
@@ -637,6 +641,14 @@ impl<'a> Context<'a> {
     pub fn set(&mut self, key: &str, value: impl Into<String>) {
         self.types.map_mut().remove(key);
         self.data.insert(key.to_string(), value.into());
+    }
+
+    /// A escrita do **valor de um widget** quando o app não tem handler próprio
+    /// (`ctx[ação] = valor`): grava com o tipo que o widget declarou (`true` de um
+    /// checkbox, `3` de um slider), ou como texto se o widget não tem tipo.
+    pub fn set_input(&mut self, key: &str, value: &str) {
+        let tag = self.input_hint;
+        self.set_tagged(key, value.to_string(), tag);
     }
 
     /// Grava um booleano: o markup vê `"true"`/`"false"` e o script Luau lê de

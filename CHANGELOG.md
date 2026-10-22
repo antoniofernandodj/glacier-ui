@@ -10,6 +10,29 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.137.0 — 2026-10-22
+
+### Adicionado
+
+- **O valor de um widget grava com tipo.** Quando o app não trata o evento com um handler
+  próprio (a escrita direta `ctx[chave] = valor`), `checkbox` e `toggle` gravam `boolean`;
+  `slider`, `spinbox`, `rating`, `dial` e `pagination` gravam `number`. `if ctx.aceito then`
+  funciona direto num checkbox. O texto que o markup exibe é o que o widget escreveu
+  (`0.50` continua `0.50`, mesmo depois de um handler devolver o número). Os demais widgets
+  seguem gravando texto. O argumento de um handler próprio continua texto (`"true"`).
+  Mensagens novas: `EngineMessage::UiInputTyped` e `ContextPatchTyped` (com `InputKind`);
+  `Context::set_input`.
+- **`tela:input(ação, valor, tipo?)`** nos testes: faz o que o widget faz, no motor real
+  (`"bool"`, `"number"`, ou omitido para texto).
+
+### Quebras
+
+- **Quem lê a chave de um checkbox/toggle comparando com texto quebra**:
+  `ctx.aceito == "true"` agora é `false` quando o checkbox escreveu a chave (ela é o
+  `boolean` `true`). **Migrar:** use `ctx.aceito` direto (ou `== true`). Do mesmo modo,
+  `ctx.volume == "7"` de um slider vira `ctx.volume == 7`. `tonumber(ctx.volume)` e a
+  interpolação `{aceito}` no markup não mudam.
+
 ## glacier-ui 0.136.0 — 2026-10-22
 
 ### Adicionado

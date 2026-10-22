@@ -476,8 +476,15 @@ impl LuauComponent {
                             .cache
                             .insert(k.clone(), (s.clone(), t.clone()));
                     }
+                    // Um número que não mudou mantém o texto que o widget escreveu
+                    // (`0.50` de um slider, `5.00` de um spinbox): re-serializar
+                    // o `0.5` que o script devolveu mudaria o que o markup exibe.
+                    let mesmo_numero = tag == Some(Tag::Number)
+                        && ctx.tag_of(&k) == Some(Tag::Number)
+                        && ctx.data.get(&k).and_then(|c| texto_para_numero(c))
+                            == texto_para_numero(&s);
                     // Sem mudança (texto e tipo iguais) não há o que gravar.
-                    if ctx.data.get(&k) != Some(&s) || ctx.tag_of(&k) != tag {
+                    if !mesmo_numero && (ctx.data.get(&k) != Some(&s) || ctx.tag_of(&k) != tag) {
                         ctx.set_tagged(&k, s, tag);
                     }
                 }
@@ -530,7 +537,7 @@ impl LuauComponent {
                 Some(inner) => fallback(&mut **inner.borrow_mut(), ctx),
                 None => {
                     if let Some(v) = value {
-                        ctx.set(func, v);
+                        ctx.set_input(func, v);
                     }
                 }
             },

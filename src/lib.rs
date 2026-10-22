@@ -262,6 +262,9 @@ pub struct GlacierUI {
     /// O tipo de cada valor do contexto que um script gravou com tipo (ver
     /// [`ctx_types`]). Só vale enquanto o texto da chave for o que a tag gravou.
     context_types: ctx_types::TagMap,
+    /// O tipo do valor do widget cuja mensagem está sendo roteada agora (ver
+    /// [`widget::EngineMessage::UiInputTyped`]); consumido ao montar o `Context`.
+    input_hint: Option<ctx_types::Tag>,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
     /// O que o `<screen>` de cada template registrado declarou sobre a janela
@@ -702,6 +705,7 @@ impl GlacierUI {
             eval_cache: eval::EvalCache::default(),
             context_data: HashMap::default(),
             context_types: Default::default(),
+            input_hint: None,
             file_mod_times: HashMap::default(),
             current_screen: None,
             history: Vec::new(),
@@ -1646,6 +1650,9 @@ impl GlacierUI {
     }
 
     fn dispatch_interno(&mut self, msg: &EngineMessage) -> iced::Task<EngineMessage> {
+        // A dica de tipo de um widget vale só para ESTA mensagem: um retorno
+        // antecipado abaixo não pode deixá-la para o próximo evento.
+        self.input_hint = None;
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
         if let EngineMessage::UiClick(a) = msg {
@@ -2115,6 +2122,36 @@ impl GlacierUI {
                 if self.inputs.set_viewport(new) {
                     let _ = self.reevaluate_all();
                 }
+                return iced::Task::none();
+            }
+            EngineMessage::UiInputTyped {
+                action,
+                value,
+                kind,
+            } => {
+                // O mesmo que `UiInputChanged`, mais a dica de tipo para a escrita.
+                self.input_hint = kind.tag_para(value);
+                (action.as_str(), Some(value.as_str()))
+            }
+            EngineMessage::ContextPatchTyped(pairs) => {
+                for (k, v, kind) in pairs {
+                    match kind.and_then(|kd| kd.tag_para(v)) {
+                        Some(tag) => {
+                            self.context_types.insert(
+                                k.clone(),
+                                ctx_types::Tipado {
+                                    tag,
+                                    snapshot: v.clone(),
+                                },
+                            );
+                        }
+                        None => {
+                            self.context_types.remove(k);
+                        }
+                    }
+                    self.context_data.insert(k.clone(), v.clone());
+                }
+                let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
             EngineMessage::UiInputChanged { action, value } => {
@@ -2822,7 +2859,9 @@ impl GlacierUI {
                 .cloned()
         });
 
+        let hint = self.input_hint.take();
         self.route_to_owner(action, move |comp, bare_action, ctx| {
+            ctx.input_hint = hint;
             comp.update(bare_action, value, ctx);
             if let Some(ff) = &form_field {
                 let cur = ctx.get(&ff.name).cloned().unwrap_or_default();

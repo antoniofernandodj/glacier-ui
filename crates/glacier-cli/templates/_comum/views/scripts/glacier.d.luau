@@ -312,6 +312,11 @@ export type TestComponent = {
     -- Como o SCRIPT enxerga a chave: `boolean`/`number` se foi gravada com tipo (e
     -- ainda vale), senão texto. `get` devolve sempre texto.
     value: (self: TestComponent, key: string) -> any,
+    -- O que um widget faz quando é usado: despacha a mesma mensagem no motor real
+    -- (o handler de nome `action`, ou, sem ele, a escrita direta no `ctx`). `kind` é o
+    -- tipo do widget: "bool" (checkbox, toggle), "number" (slider, rating, dial,
+    -- pagination); omitido = texto.
+    input: (self: TestComponent, action: string, value: string, kind: ("bool" | "number")?) -> (),
     data: (self: TestComponent) -> { [string]: string },
     toasts: (self: TestComponent) -> { { kind: string, message: string } },
     -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".

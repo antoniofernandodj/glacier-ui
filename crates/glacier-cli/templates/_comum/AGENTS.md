@@ -283,6 +283,16 @@ Três consequências que mudam como se escreve:
    verdadeira. Se outro caminho sobrescrever a chave com texto, o tipo se perde
    e ela volta a ser string. NaN e infinito não têm representação e não são
    gravados.
+
+   **O valor de um widget também tem tipo** (quando o app não trata o evento com
+   um handler próprio): `checkbox` e `toggle` gravam `boolean`; `slider`,
+   `spinbox`, `rating`, `dial` e `pagination` gravam `number`. Os demais
+   (`textinput`, `select`, `combobox`, `radiogroup`, `dateedit`…) gravam texto.
+   `if ctx.aceito then` funciona direto num checkbox; o texto na tela segue o que o
+   widget escreveu (`0.50` de um slider continua `0.50`). **Atenção:** o argumento
+   de um handler (`on_change`/`on_toggle` apontando para uma função sua) continua
+   **texto** (`"true"`), como o global `value`; só a escrita direta no `ctx` é tipada.
+   Em teste, `tela:input("aceito", "true", "bool")` faz o que o checkbox faz.
 2. **Uma tabela vira JSON — e volta tabela.** `ctx.itens = { {id="1"}, {id="2"} }`
    grava o JSON, que é o formato que `items="itens"` espera nos widgets de
    coleção, e o script lê de volta **a tabela** (`#ctx.itens`, `ipairs`,

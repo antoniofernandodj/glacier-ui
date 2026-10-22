@@ -626,6 +626,43 @@ impl UserData for TestComponent {
             guardar(&mut this.data.borrow_mut(), &mut this.types.borrow_mut(), key, texto, tag);
             Ok(())
         });
+        // `:input(ação, valor, tipo?)` — o que um widget faz quando o usuário o usa:
+        // despacha a MESMA mensagem no motor real (handler com o nome da ação, ou, sem
+        // ele, a escrita direta no `ctx`). `tipo` é o do widget: "bool" (checkbox,
+        // toggle), "number" (slider, rating, dial, pagination) ou omitido (texto).
+        methods.add_method(
+            "input",
+            |_, this, (action, value, kind): (String, String, Option<String>)| {
+                use crate::widget::{EngineMessage, InputKind};
+                let msg = match kind.as_deref() {
+                    None | Some("text") => EngineMessage::UiInputChanged { action, value },
+                    Some("bool") => EngineMessage::UiInputTyped {
+                        action,
+                        value,
+                        kind: InputKind::Bool,
+                    },
+                    Some("number") => EngineMessage::UiInputTyped {
+                        action,
+                        value,
+                        kind: InputKind::Number,
+                    },
+                    Some(outro) => {
+                        return Err(mlua::Error::runtime(format!(
+                            "input: tipo '{outro}' desconhecido (use \"bool\", \"number\" ou omita)"
+                        )));
+                    }
+                };
+                let rt = |e: crate::GlacierError| mlua::Error::runtime(e.to_string());
+                let mut c = carregar(&this.path, &this.data.borrow(), this.viewport.get())
+                    .map_err(rt)?;
+                c.ui.context_types = this.types.borrow().clone();
+                c.ui.set_initial_screen(&c.name);
+                let _ = c.ui.dispatch(&msg);
+                *this.data.borrow_mut() = c.ui.context_data.clone();
+                *this.types.borrow_mut() = c.ui.context_types.clone();
+                Ok(())
+            },
+        );
         // `:value(chave)` — como o script enxerga a chave: `boolean`/`number` se
         // ela foi gravada com tipo (e ainda vale), senão o texto. O `:get` devolve
         // sempre texto.
