@@ -94,8 +94,6 @@ pub mod luau;
 #[path = "luau_web.rs"]
 pub mod luau;
 pub mod menu;
-#[cfg(feature = "micropython")]
-pub mod micropython;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;
 #[cfg(target_arch = "wasm32")]
@@ -398,7 +396,7 @@ pub struct GlacierUI {
     /// the app overrides it.
     builtin_component_names: std::collections::HashSet<String>,
     /// Nomes de componentes 100%-script — instalados via
-    /// [`luau::LuauComponent::from_file_with`]/[`micropython::MicropythonComponent::from_file_with`]
+    /// [`luau::LuauComponent::from_file_with`]
     /// em [`GlacierUI::register_component_inner`] (registro inicial) ou em
     /// [`GlacierUI::check_reload`] (quando um `<script>` é acrescentado a um
     /// componente que nasceu sem ele), sem nenhum `Component` Rust por baixo
@@ -1448,14 +1446,6 @@ impl GlacierUI {
 
         match script {
             Some(block) => {
-                if eval::script_lang(block).as_deref() == Some("micropython") {
-                    return Err(GlacierError::Link {
-                        component: name.to_string(),
-                        message: "script lang=\"python\" numa tela inline do app ainda não é \
-                                  suportado: ponha a tela em um arquivo (src)"
-                            .to_string(),
-                    });
-                }
                 let comp = luau::LuauComponent::from_markup_with(
                     block,
                     app_path,
@@ -3465,20 +3455,11 @@ impl GlacierUI {
         // Metadados de janela do `<screen>`, se o template tiver cabeçalho.
         self.record_screen_meta(name, &ast);
 
-        // Um `<script>` sem `lang` (ou `lang="lua"`) é Luau; `lang="micropython"`
-        // é a segunda linguagem (ver `crate::micropython`) — as duas checagens
-        // são mutuamente exclusivas (`luau::has_script` já ignora um bloco
-        // marcado `lang="micropython"`). Sem `<script>` nenhum, o componente
-        // fica UI-only (ações caem pra tela dona, exatamente como antes). Isto
-        // é o que unifica o registro por arquivo — não há `register_luau`
-        // separado, e componentes importados também podem ser scriptados.
-        #[cfg(feature = "micropython")]
-        if micropython::has_script(&content) {
-            let comp =
-                micropython::MicropythonComponent::from_file_with(path, name, self.assets.clone())?;
-            self.install_component(name, Box::new(comp));
-            self.script_only_components.insert(name.to_string());
-        }
+        // Um `<script>` é Luau (só existe essa linguagem; um `lang` desconhecido
+        // é recusado na carga). Sem `<script>` nenhum, o componente fica UI-only
+        // (ações caem pra tela dona, exatamente como antes). Isto é o que unifica
+        // o registro por arquivo — não há `register_luau` separado, e
+        // componentes importados também podem ser scriptados.
         if luau::has_script(&content) {
             let comp = luau::LuauComponent::from_file_with(path, name, self.assets.clone())?;
             self.install_component(name, Box::new(comp));
@@ -4609,7 +4590,7 @@ impl GlacierUI {
                 if last_modified.is_none_or(|&last| modified > last) {
                     // File changed, reload it (XML). `content` completo (não só o
                     // markup) segue adiante — é dele que o `<script>` sai, mais
-                    // abaixo, para recompilar o Luau/MicroPython do componente.
+                    // abaixo, para recompilar o Luau do componente.
                     if let Ok(content) = asset_source::read_markup(self.assets.as_ref(), path)
                         && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content)
                     {
@@ -4722,24 +4703,6 @@ impl GlacierUI {
             // antes: elas referenciam handlers da VM anterior, e a nova
             // instância recomeça a contagem de `id` em 1 — deixá-las seria
             // uma stream fantasma que nunca mais casa com nada.
-            #[cfg(feature = "micropython")]
-            if pode_instalar_script && micropython::has_script(&content) {
-                match micropython::MicropythonComponent::from_file_with(
-                    &path,
-                    &name,
-                    self.assets.clone(),
-                ) {
-                    Ok(comp) => {
-                        self.active_streams.retain(|(owner, _), _| owner != &name);
-                        self.install_component(&name, Box::new(comp));
-                        self.script_only_components.insert(name.clone());
-                    }
-                    Err(e) => eprintln!(
-                        "Script '{}' has an error, keeping the previous version: {}",
-                        path, e
-                    ),
-                }
-            }
             if pode_instalar_script && luau::has_script(&content) {
                 match luau::LuauComponent::from_file_with(&path, &name, self.assets.clone()) {
                     Ok(comp) => {

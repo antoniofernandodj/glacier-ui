@@ -44,8 +44,8 @@ fn texto_e_atributo() {
 #[test]
 fn corpo_cru_de_script() {
     assert_eq!(
-        xml("script(lang = python) \"\"\"x = 1\"\"\""),
-        r#"<scriptlang="python">x=1</script>"#
+        xml("script(lang = luau) \"\"\"x = 1\"\"\""),
+        r#"<scriptlang="luau">x=1</script>"#
     );
 }
 

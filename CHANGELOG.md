@@ -10,6 +10,26 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.134.0 — 2026-10-22
+
+### Adicionado
+
+- **`tela:set(chave, valor)` e `component(caminho, ctx)` aceitam tabelas.** Convertem como
+  um script (`ctx.chave = valor`): texto, número, booleano e tabela (vira JSON); `nil`
+  remove a chave. Uma lista de dados de exemplo é uma lista de objetos, não um JSON em string
+  (`json.array({})` para a lista vazia). Antes o `component()` descartava tabelas em
+  silêncio; agora um valor que não cabe no contexto (uma função) falha o teste.
+
+### Quebras
+
+- **O MicroPython saiu do motor.** `<script lang="micropython">` (e o apelido
+  `lang="python"`) não existe mais, nem a feature `micropython`, o módulo
+  `glacier_ui::micropython`, a variante `GlacierError::MicroPython` e os exemplos
+  `contador_micropython`. Só Luau é linguagem de `<script>`. Um `lang` que não seja
+  `lua`/`luau` falha na carga com `<script lang="…"> não é suportado: só Luau`, em vez de
+  rodar como Luau em silêncio. **Migrar:** reescreva o `.py` em Luau. O crate perde o
+  `build.rs` e ~3 MB de `vendor/`.
+
 ## glacier-ui 0.133.0 — 2026-10-22
 
 ### Adicionado

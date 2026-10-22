@@ -79,13 +79,10 @@ pub(crate) fn find_script_open(xml: &str) -> Option<usize> {
     None
 }
 
-/// Lê o atributo `lang="..."` da tag de abertura `<script ...>`, se houver —
-/// qual linguagem o bloco carrega, já normalizada pro id **canônico** que o
-/// resto do motor compara (`luau::has_script`, `micropython::has_script`):
-/// `None` é Luau (o padrão histórico, sem atributo — todo `.gv` existente
-/// continua funcionando sem mudar nada); `"python"` é só um apelido mais
-/// natural de escrever — normaliza para `"micropython"` (ver
-/// [`crate::micropython`]), que é o único outro id reconhecido hoje. Usa
+/// Lê o atributo `lang="..."` da tag de abertura `<script ...>`, se houver, em
+/// minúsculas: `None` é Luau (o padrão, sem atributo). Só Luau existe — `"lua"` e
+/// `"luau"` são aceitos; qualquer outro valor é recusado com erro claro por
+/// [`script_lang_suportada`]. Usa
 /// [`find_script_open`] — nunca um `find("<script")` cru —, então um
 /// `lang="..."` citado dentro de um comentário XML não conta (mesma razão de
 /// [`find_script_open`] existir: ver o doc dela).
@@ -99,10 +96,19 @@ pub(crate) fn script_lang(markup: &str) -> Option<String> {
         .captures(tag)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_ascii_lowercase())?;
-    Some(match raw.as_str() {
-        "python" => "micropython".to_string(),
-        _ => raw,
-    })
+    Some(raw)
+}
+
+/// `Ok` se o `<script>` de `markup` é Luau (sem `lang`, `"lua"` ou `"luau"`); senão
+/// o `lang` recusado. Um `lang="python"` não pode cair em Luau em silêncio: o
+/// código rodaria como Luau e falharia de forma obscura.
+pub(crate) fn script_lang_suportada(markup: &str) -> std::result::Result<(), String> {
+    match script_lang(markup).as_deref() {
+        None | Some("lua") | Some("luau") => Ok(()),
+        Some(outro) => Err(format!(
+            "<script lang=\"{outro}\"> não é suportado: só Luau (sem `lang`, `lua` ou `luau`)"
+        )),
+    }
 }
 
 /// Normalizes bare directives like `else` or `senao` (without value) inside XML tags
@@ -4061,6 +4067,16 @@ mod tests {
             normalize_bare_directives(input),
             r#"<Text if="{x}" not_empty="">A</Text>"#
         );
+    }
+
+    #[test]
+    fn script_lang_so_aceita_luau() {
+        let com = |lang: &str| format!(r#"<screen><script lang="{lang}">x</script></screen>"#);
+        assert!(script_lang_suportada("<screen><script>x</script></screen>").is_ok());
+        assert!(script_lang_suportada(&com("lua")).is_ok());
+        assert!(script_lang_suportada(&com("Luau")).is_ok());
+        let e = script_lang_suportada(&com("python")).unwrap_err();
+        assert!(e.contains("python") && e.contains("só Luau"), "{e}");
     }
 
     #[test]

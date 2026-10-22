@@ -244,6 +244,7 @@ impl LuauComponent {
         name: &str,
         assets: &Arc<dyn AssetSource>,
     ) -> std::result::Result<Self, String> {
+        crate::eval::script_lang_suportada(content)?;
         let (script, script_path) = resolve_script(content, path, assets.as_ref())?;
         // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do
         // SCRIPT (permite separar `views/` de `views/scripts/` e ainda
@@ -2447,10 +2448,7 @@ fn add_dir_recursive(
 /// usa isto para decidir, ao registrar um componente por arquivo, se liga um
 /// [`LuauComponent`] (há script) ou o mantém só-UI (não há).
 pub(crate) fn has_script(markup: &str) -> bool {
-    // `lang="micropython"` é de outra linguagem — ver `crate::micropython` —,
-    // então não conta como script Luau mesmo tendo corpo/`src`.
-    crate::eval::script_lang(markup).as_deref() != Some("micropython")
-        && (extract_script_src(markup).is_some() || extract_script(markup).is_some())
+    extract_script_src(markup).is_some() || extract_script(markup).is_some()
 }
 
 /// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo

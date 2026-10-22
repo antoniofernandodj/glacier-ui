@@ -134,8 +134,6 @@ Hoje `open_window` abre **uma janela do SO** (um `GlacierUI` por janela,
 - [ ] Fontes: o preset embute Fira Sans (feature `fira-sans` do `iced`). Texto
       fora do latino (CJK, árabe, emoji) depende de fonte de sistema —
       `/system/fonts` — e o caminho de descoberta no Android não foi testado.
-- [ ] MicroPython (`feature = "micropython"`): compila C com o NDK — não
-      testado.
 
 ## Permissões (AndroidManifest)
 

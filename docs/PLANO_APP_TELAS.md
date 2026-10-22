@@ -14,8 +14,8 @@ abaixo). O exemplo de aceitação é `examples/gvb/app_telas`.
   sombrear em silêncio, o parser dá **erro** para o mesmo nome em dois lugares do
   app (global × tela, ou tela × tela), com a linha. Um componente declarado numa
   tela também fica visível nas outras.
-- **Telas inline com `script`** só em Luau: `lang = python` numa tela inline dá
-  erro (ponha a tela em arquivo, `src`).
+- **Telas com `script`** só em Luau (a única linguagem de `<script>`): um `lang`
+  desconhecido, como `python`, dá erro na carga.
 - **Janela filha de uma tela do app** (`open_window("tela", { … })`) carrega o
   manifesto inteiro no motor novo e abre na tela pedida, via `WindowSource::AppScreen`.
   Uma tela servida por `impl Component` também abre assim (o `.main` roda de novo).
@@ -313,7 +313,7 @@ Quando os passos 1–5 estiverem prontos e verificados, o último entregável é
 inteiro, hoje impossíveis de declarar sem repetir em cada tela). Ele deve levantar,
 já com o manifesto funcionando:
 
-- onde o `script` do `app` roda (um runtime Luau/Python por app × um por tela) e o
+- onde o `script` do `app` roda (um runtime Luau por app × um por tela) e o
   que as telas enxergam dele (`ctx`, `storage`, funções);
 - a ordem de inicialização (`init` do app antes do `init` da primeira tela);
 - como convive com o `script` local de cada tela e com o hot-reload;

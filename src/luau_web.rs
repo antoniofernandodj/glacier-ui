@@ -38,8 +38,7 @@ pub fn storage_root() -> Option<&'static Path> {
 /// (`find_script_open` pula `<!-- <script> -->`). Aqui um `true` não liga Luau
 /// nenhum — faz o registro recusar o componente.
 pub(crate) fn has_script(markup: &str) -> bool {
-    crate::eval::script_lang(markup).as_deref() != Some("micropython")
-        && crate::eval::find_script_open(markup).is_some()
+    crate::eval::find_script_open(markup).is_some()
 }
 
 /// Nunca é construído na web: os construtores só devolvem erro. `enum` sem
