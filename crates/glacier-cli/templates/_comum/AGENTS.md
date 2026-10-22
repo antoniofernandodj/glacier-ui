@@ -3804,6 +3804,13 @@ documentação inteira e o que a asserção viu:
         esperado: { "api-gateway" }
 ```
 
+**Dados de exemplo são tabelas, não JSON em string.** O `ctx` inicial de
+`component(...)` e o `tela:set(chave, valor)` aceitam o mesmo que um script
+(`ctx.chave = valor`): texto, número, booleano e **tabela**, que vira JSON. Escreva
+`tela:set("itens", { { id = "a", label = "A" }, { id = "b", label = "B" } })`, não
+`'[{"id":"a",...}]'`. Lista vazia: `json.array({})` (um `{}` sozinho é objeto). Um
+valor que não cabe no contexto (uma função) falha o teste em vez de sumir.
+
 `component()` **não chama o `init`** — chame `tela:call("init")` você mesmo,
 como o motor faria ao abrir a tela.
 

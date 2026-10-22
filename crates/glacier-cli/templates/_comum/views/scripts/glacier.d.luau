@@ -302,7 +302,9 @@ declare storage: {
 export type TestComponent = {
     call: (self: TestComponent, action: string, value: string?) -> (),
     get: (self: TestComponent, key: string) -> string?,
-    set: (self: TestComponent, key: string, value: string) -> (),
+    -- Como `ctx.chave = valor` num script: texto, número e booleano viram texto; uma tabela vira
+    -- JSON (use `json.array({})` para a lista vazia); `nil` remove a chave.
+    set: (self: TestComponent, key: string, value: any) -> (),
     data: (self: TestComponent) -> { [string]: string },
     toasts: (self: TestComponent) -> { { kind: string, message: string } },
     -- Chaves que o markup LÊ e o ctx não tem (ordenadas). Ver AGENTS.md, "Testes".

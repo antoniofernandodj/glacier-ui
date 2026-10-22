@@ -14,7 +14,8 @@
 //!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
 //! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gvb` com `<script>`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
-//!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. Um handler
+//!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. O `ctx` inicial e o
+//!   `:set` aceitam tabelas (viram JSON, como `ctx.x = {...}` num script). Um handler
 //!   que falha **lança** o erro (em produção ele viraria um toast); `:missing()`
 //!   avalia o template contra o `ctx` de agora e devolve as chaves que o markup
 //!   **lê e ninguém publicou** (ver [`missing_keys`]);
@@ -607,8 +608,18 @@ impl UserData for TestComponent {
         methods.add_method("get", |_, this, key: String| {
             Ok(this.data.borrow().get(&key).cloned())
         });
-        methods.add_method("set", |_, this, (key, value): (String, String)| {
-            this.data.borrow_mut().insert(key, value);
+        // `:set(chave, valor)` grava como o `ctx.chave = valor` de um script:
+        // texto, número e booleano viram texto, e uma **tabela** vira JSON (uma
+        // lista de objetos é uma lista de objetos, sem escrever o JSON à mão).
+        // `nil` remove a chave. Para uma lista vazia, `json.array({})` — `{}`
+        // sozinho é um objeto.
+        methods.add_method("set", |lua, this, (key, value): (String, Value)| {
+            if matches!(value, Value::Nil) {
+                this.data.borrow_mut().remove(&key);
+                return Ok(());
+            }
+            let texto = ctx_text(lua, &key, &value)?;
+            this.data.borrow_mut().insert(key, texto);
             Ok(())
         });
         methods.add_method("data", |lua, this, ()| {
@@ -972,21 +983,31 @@ fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
     Ok(missing)
 }
 
+/// O texto que o contexto guarda para `valor` — a mesma conversão de um
+/// `ctx.chave = valor` num script. Falha (em vez de descartar em silêncio) com um
+/// tipo que não cabe no contexto, como uma função.
+fn ctx_text(lua: &Lua, chave: &str, valor: &Value) -> mlua::Result<String> {
+    super::luau_value_to_string(lua, valor).ok_or_else(|| {
+        mlua::Error::runtime(format!(
+            "ctx '{chave}': um valor do tipo '{}' não cabe no contexto \
+             (texto, número, booleano ou tabela de dados)",
+            valor.type_name()
+        ))
+    })
+}
+
 fn install_component(lua: &Lua) -> mlua::Result<()> {
-    let component = lua.create_function(|_, (path, initial): (String, Option<mlua::Table>)| {
+    let component = lua.create_function(|lua, (path, initial): (String, Option<mlua::Table>)| {
         let comp = LuauComponent::from_file(path.clone(), path.clone())
             .map_err(|e| mlua::Error::runtime(e.to_string()))?;
         let mut data = ContextMap::default();
         if let Some(initial) = initial {
             for pair in initial.pairs::<String, Value>() {
                 let (k, v) = pair?;
-                let s = match v {
-                    Value::String(s) => s.to_string_lossy().to_string(),
-                    Value::Integer(i) => i.to_string(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Boolean(b) => b.to_string(),
-                    _ => continue,
-                };
+                if matches!(v, Value::Nil) {
+                    continue;
+                }
+                let s = ctx_text(lua, &k, &v)?;
                 data.insert(k, s);
             }
         }

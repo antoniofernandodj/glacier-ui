@@ -59,9 +59,11 @@ end
 -- ── Handlers (chamados pelo motor, pelo nome) ───────────────────────────────
 
 function init(): ()
-    ctx.abas = '[{"id":"dia","label":"calendar"},' ..
-        '{"id":"mes","label":"monthyearpicker"},' ..
-        '{"id":"intervalo","label":"daterangepicker"}]'
+    ctx.abas = {
+        { id = "dia", label = "calendar" },
+        { id = "mes", label = "monthyearpicker" },
+        { id = "intervalo", label = "daterangepicker" },
+    }
     ctx.aba = "dia"
 
     -- A única linha que o `today` custa. Tudo abaixo sai dela.
