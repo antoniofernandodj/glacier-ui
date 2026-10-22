@@ -3827,8 +3827,11 @@ passam a existir depois (o valor padrão; o erro que o `<form>` publica ao
 enviar). Essas se **nomeiam** no `assert_complete(tela, { "erro_nome" })`, com um
 comentário dizendo por quê — o que sobrar é a falha, e ela diz quais chaves
 sobraram e quais faltaram. Fica de fora o que o motor publica sozinho (`__*`) e
-as variáveis locais de um `for-each`. O que `missing()` não alcança é o
-**layout** (largura, `fill` dentro de `shrink`): isso só o `make run` mostra.
+as variáveis locais de um `for-each`. `missing()` só olha as
+chaves; o que a tela **mostra** e o estilo declarado se conferem pela árvore
+avaliada (abaixo). O que nenhum teste alcança é a **geometria real** (a largura
+que um `fill` dentro de um pai `shrink` acaba ocupando): isso só o `make run`
+mostra.
 
 **A árvore avaliada.** `assert_renders("views/app.gvb")` falha com a mensagem do
 parser (arquivo e linha) se **qualquer** view importada estiver quebrada, mesmo
