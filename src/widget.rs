@@ -2877,9 +2877,8 @@ fn render_autocomplete<'a>(
     use crate::anchored::{Align, Largura, Placement, anchored};
 
     let digitado = context.get(value_var).cloned().unwrap_or_default();
-    let candidatos: Vec<SelectOption> = context
-        .get(items_var)
-        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+    let candidatos: Vec<SelectOption> = crate::ctx_path::get(context, items_var)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| match v {
             serde_json::Value::Array(a) => Some(a),
             _ => None,
@@ -3434,9 +3433,8 @@ fn render_tableview<'a>(
     let mut linhas: Vec<serde_json::Value> = if header_only {
         Vec::new()
     } else {
-        context
-            .get(items_var)
-            .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        crate::ctx_path::get(context, items_var)
+            .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
             .and_then(|v| match v {
                 serde_json::Value::Array(a) => Some(a),
                 _ => None,
@@ -3774,9 +3772,8 @@ fn render_tabela_decorada<'a>(
     let mut linhas: Vec<serde_json::Value> = if k.header_only {
         Vec::new()
     } else {
-        context
-            .get(k.items_var)
-            .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        crate::ctx_path::get(context, k.items_var)
+            .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
             .and_then(|v| match v {
                 serde_json::Value::Array(a) => Some(a),
                 _ => None,
@@ -3980,9 +3977,8 @@ fn achata_arvore(
 
 /// Lê o array JSON de uma chave, ou vazio.
 fn array_de(context: &ContextMap, chave: &str) -> Vec<serde_json::Value> {
-    context
-        .get(chave)
-        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+    crate::ctx_path::get(context, chave)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| match v {
             serde_json::Value::Array(a) => Some(a),
             _ => None,
@@ -4983,9 +4979,8 @@ pub fn render_node<'a>(
             color,
         } => {
             // Options come from a context JSON array (same shape as ForEach).
-            let opts: Vec<SelectOption> = context
-                .get(options)
-                .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+            let opts: Vec<SelectOption> = crate::ctx_path::get(context, options)
+                .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
                 .and_then(|v| match v {
                     serde_json::Value::Array(a) => Some(a),
                     _ => None,

@@ -10,6 +10,41 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.138.0 — 2026-10-23
+
+### Adicionado
+
+- **O markup lê um campo de uma tabela do `ctx` pelo caminho.** Com
+  `ctx.msg = { ola = "mundo" }`, `text(content = "@msg.ola")` mostra `mundo` (antes: texto
+  vazio, sem erro, porque o contexto é um mapa plano e só a variável de um `for-each` entendia
+  `var.campo`). Vale em todo `@…`/`{…}`, incluindo `{k|padrão}`, `if`/`equals`, `for-each` e
+  `:items`/`:options` dos widgets de coleção. Desce por campo de objeto, por **índice de lista
+  a partir de 0** (`@itens.0.nome`) e por qualquer profundidade (`@cfg.db.host`); dentro de um
+  `for-each`, `@i.endereco.cidade` também. A folha sai como o contexto guarda um valor (texto
+  cru; número/booleano pelo texto canônico; objeto e lista como JSON); `null` e caminho
+  inexistente são ausentes. A chave **exata** sempre vence, então uma chave com ponto no nome
+  continua funcionando — e `ctx["msg.ola"] = x` sombreia o campo da tabela. Só leitura.
+- Quando `@msg.ola` não resolve porque `msg` existe mas é **texto** (e não uma tabela), o
+  motor avisa uma vez em `stderr`. `tela:missing()` deixa de acusar um caminho que resolve.
+
+## glacier-cli 0.18.0 — 2026-10-22
+
+Motor dos projetos gerados: **glacier-ui 0.137**.
+
+### Corrigido
+
+- **Os presets e o `AGENTS.md` deixam de ensinar o modelo "tudo é texto".** Com o `ctx` tipado
+  (glacier-ui 0.135 a 0.137) um contador é `ctx.contador = (ctx.contador or 0) + 1`, e não
+  `tostring((tonumber(ctx.contador) or 0) + 1)`; um total é `ctx.total = #itens`; um booleano
+  que só o script alterna é `ctx.x = not ctx.x`. Corrigidos `minimo`, `android`, `janelas`,
+  `crud`, `completo`, `dashboard` e `catalogo`, e o exemplo do contador e as seções do
+  `AGENTS.md` ("O contexto é um mapa plano…", "LER/ESCREVER"). Os presets `minimo` e `android`
+  ganham um teste que trava o tipo (`tela:value("contador")` é `1`, não `"1"`).
+- Um projeto gerado por uma CLI antiga fica preso ao motor antigo — `glacier-ui = "0.133"` não
+  sobe sozinho para `0.134+` (no `0.x` a versão do meio é a que quebra) — e o `ctx` volta
+  como texto no segundo turno. **Migrar:** `glacier-ui = "0.137"` no `Cargo.toml` e
+  `cargo update -p glacier-ui`.
+
 ## glacier-ui 0.137.0 — 2026-10-22
 
 ### Adicionado

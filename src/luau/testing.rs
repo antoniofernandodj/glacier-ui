@@ -1030,7 +1030,13 @@ fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
     let tela = is_app.then_some(name.as_str());
     let ligadas = parser::binding_keys(&content, tela)
         .map_err(|e| GlacierError::io("template", path, std::io::Error::other(e)))?;
-    missing.extend(ligadas.into_iter().filter(|key| !data.contains_key(key)));
+    // Uma ligação por caminho (`:items = msg.lista`) não está ausente se o caminho
+    // resolve dentro de um JSON do contexto.
+    missing.extend(
+        ligadas
+            .into_iter()
+            .filter(|key| crate::ctx_path::get(data, key).is_none()),
+    );
     // O `<form>` publica `erro_<campo>` sozinho, ao enviar: antes disso a chave
     // não existe, e não é esquecimento de ninguém.
     let erros_do_form: Vec<String> = ui

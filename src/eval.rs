@@ -536,6 +536,18 @@ struct ItemVars<'a> {
 }
 
 impl ItemVars<'_> {
+    /// `var.campo.resto…` descendo direto no JSON já interpretado do item — sem
+    /// reserializar o campo para reinterpretá-lo (o caminho geral faria isso a
+    /// cada leitura). `None` se a chave não é desta variável ou o caminho não
+    /// resolve. Só os caminhos com **dois ou mais** segmentos depois da variável:
+    /// `var.campo` é o [`ItemVars::get`].
+    fn get_path(&self, key: &str) -> Option<String> {
+        let resto = key.strip_prefix(self.var)?.strip_prefix('.')?;
+        let (primeiro, caminho) = resto.split_once('.')?;
+        let (_, val, _) = self.campos.iter().find(|(k, _, _)| *k == primeiro)?;
+        crate::ctx_path::folha_em(val, caminho)
+    }
+
     /// O valor de `key` neste item, ou `None` se a chave não é dele.
     fn get(&self, key: &str) -> Option<&str> {
         if key == self.var {
@@ -653,6 +665,21 @@ impl<'a> Layer<'a> {
     /// O valor de `key` e a **profundidade** da camada que o resolveu, sabendo
     /// que `self` está em `depth`. Cada passo para fora desce um nível; 0 é a
     /// base. Ver [`Frame`].
+    /// O caminho aninhado de uma variável de item (`i.endereco.cidade`), na camada
+    /// mais interna que o resolve. Ver [`ItemVars::get_path`].
+    fn get_path(&self, key: &str, depth: u32) -> Option<(String, u32)> {
+        let mut cur = Some(self);
+        let mut d = depth;
+        while let Some(l) = cur {
+            if let Some(v) = l.item.as_ref().and_then(|i| i.get_path(key)) {
+                return Some((v, d));
+            }
+            cur = l.outer;
+            d = d.saturating_sub(1);
+        }
+        None
+    }
+
     fn get(&self, key: &str, depth: u32) -> Option<(&str, u32)> {
         let mut cur = Some(self);
         let mut d = depth;
@@ -698,10 +725,34 @@ impl<'a> EvalCtx<'a> {
 
     /// Resolve `key` sem registrar a leitura: o valor e a profundidade da camada
     /// que o deu (0 = base).
-    fn lookup(&self, key: &str) -> (Option<&str>, u32) {
+    ///
+    /// A chave **exata** vence (camadas, depois base); só se ela não existe e tem
+    /// ponto é que se tenta o caminho dentro de um JSON do contexto
+    /// (`@msg.ola`, ver [`crate::ctx_path`]). A profundidade do resultado é a do
+    /// prefixo que o deu — é o que mantém o rastreamento de dependências correto.
+    fn lookup(&self, key: &str) -> (Option<std::borrow::Cow<'_, str>>, u32) {
+        if let Some((v, d)) = self.exata(key) {
+            return (Some(std::borrow::Cow::Borrowed(v)), d);
+        }
+        if key.contains('.') {
+            // O item de um `for-each` já está interpretado: desce direto nele.
+            if let Some((v, d)) = self.layer.and_then(|l| l.get_path(key, self.depth)) {
+                return (Some(std::borrow::Cow::Owned(v)), d);
+            }
+            if let Some((v, d)) = crate::ctx_path::resolver(key, |k| {
+                self.exata(k).map(|(v, d)| (std::borrow::Cow::Borrowed(v), d))
+            }) {
+                return (Some(v), d);
+            }
+        }
+        (None, 0)
+    }
+
+    /// A chave exata, sem caminho: camadas locais primeiro, base depois.
+    fn exata(&self, key: &str) -> Option<(&str, u32)> {
         match self.layer.and_then(|l| l.get(key, self.depth)) {
-            Some((v, d)) => (Some(v), d),
-            None => (self.base.get(key).map(String::as_str), 0),
+            Some(achado) => Some(achado),
+            None => self.base.get(key).map(|v| (v.as_str(), 0)),
         }
     }
 
@@ -716,10 +767,10 @@ impl<'a> EvalCtx<'a> {
     /// **Único** caminho de leitura do contexto durante a avaliação — é o que
     /// permite ao rastreamento ser completo por construção, em vez de depender
     /// de eu ter lembrado de anotar cada call-site.
-    pub fn get(&self, key: &str) -> Option<&str> {
+    pub fn get(&self, key: &str) -> Option<std::borrow::Cow<'_, str>> {
         let (value, src) = self.lookup(key);
         if let Some(reads) = self.reads {
-            reads.record(key, value, src);
+            reads.record(key, value.as_deref(), src);
         }
         value
     }
@@ -756,7 +807,8 @@ impl<'a> EvalCtx<'a> {
     /// com o contexto de agora. É a pergunta "algo de que essa subárvore depende
     /// mudou?" — e nada além disso decide um acerto de cache.
     fn deps_hold(&self, deps: &[(String, Option<String>)]) -> bool {
-        deps.iter().all(|(k, v)| self.lookup(k).0 == v.as_deref())
+        deps.iter()
+            .all(|(k, v)| self.lookup(k).0.as_deref() == v.as_deref())
     }
 }
 
@@ -889,7 +941,7 @@ fn item_layer<'b>(
     // Drag highlight: expõe se ESTE item é o que está sendo arrastado, para o
     // template poder estilizar a linha agarrada (ver `crate::DRAG_KEY_CONTEXT`).
     if let Some(key) = &this_key {
-        let dragging = context.get(crate::DRAG_KEY_CONTEXT) == Some(key.as_str());
+        let dragging = context.get(crate::DRAG_KEY_CONTEXT).as_deref() == Some(key.as_str());
         layer.set(format!("{var}.__dragging"), dragging.to_string());
     }
 
@@ -954,13 +1006,13 @@ fn expand_table(
 
     let mut linhas: Vec<serde_json::Value> = context
         .get(items_var)
-        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| match v {
             serde_json::Value::Array(a) => Some(a),
             _ => None,
         })
         .unwrap_or_default();
-    crate::widget::ordena_tabela(&mut linhas, context.get(sort_var));
+    crate::widget::ordena_tabela(&mut linhas, context.get(sort_var).as_deref());
 
     for (i, linha) in linhas.iter().enumerate() {
         let (layer, _) = item_layer(linha, row_var, None, context);
@@ -1129,7 +1181,7 @@ fn process_tpl(template: &str, context: &EvalCtx) -> String {
                     None => (key.trim(), None),
                 };
                 if let Some(val) = context.get(lookup) {
-                    result.push_str(val);
+                    result.push_str(&val);
                 } else {
                     anotar_ausente(lookup, default.is_some());
                     if let Some(d) = default {
@@ -1388,7 +1440,7 @@ fn expand_children(
                 .map(|s| namespace_action(process_tpl(s, context), owner));
             if let Some(arr) = context
                 .get(&items_evaluated)
-                .and_then(|bruto| cache.array(&items_evaluated, bruto))
+                .and_then(|bruto| cache.array(&items_evaluated, &bruto))
             {
                 // Full identity snapshot, needed by the handle's `DragStart`.
                 let full_order: Vec<String> = match &reorder_key {
@@ -1582,7 +1634,7 @@ fn expand_children(
                 // `fallback` — a mesma leitura do `<if empty>`.
                 let arr = context
                     .get(&items_evaluated)
-                    .and_then(|bruto| cache.array(&items_evaluated, bruto))
+                    .and_then(|bruto| cache.array(&items_evaluated, &bruto))
                     .filter(|arr| !arr.is_empty());
                 if let Some(arr) = arr {
                     let full_order: Vec<String> = match &reorder_key {

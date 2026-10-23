@@ -99,6 +99,7 @@ pub mod net;
 #[cfg(target_arch = "wasm32")]
 #[path = "net_web.rs"]
 pub mod net;
+mod ctx_path;
 mod ctx_types;
 mod overflow;
 pub mod panes;
@@ -5657,6 +5658,103 @@ fn emit_via_notify_rust(spec: &component::NotificationSpec) {
 /// atacam exatamente isso: cada um muda alguma coisa e exige que a árvore reflita
 /// a mudança. Passar nos testes de funcionalidade não bastaria: uma árvore velha
 /// servida do cache é, por definição, uma árvore que já esteve certa.
+#[cfg(test)]
+mod caminho_tests {
+    use super::*;
+    use crate::component::{Component, Context, Template};
+
+    /// Uma tela que lê campos de tabelas do `ctx` por caminho: `{msg.ola}`, um
+    /// campo aninhado, um índice de lista e a variável de um `for-each` com campo
+    /// aninhado.
+    struct Tela;
+    impl Component for Tela {
+        fn name(&self) -> &str {
+            "tela"
+        }
+        fn template(&self) -> Template {
+            Template::Inline(
+                r#"<Column>
+                     <Text content="{msg.ola}" />
+                     <Text content="{cfg.db.host}" />
+                     <Text content="{itens.1.nome}" />
+                     <Text content="{msg.x|padrao}" />
+                     <Column for-each="itens" var="i">
+                       <Text content="{i.nome}/{i.end.cidade}" />
+                     </Column>
+                   </Column>"#
+                    .to_string(),
+            )
+        }
+        fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
+    }
+
+    fn textos(node: &UiNode, out: &mut Vec<String>) {
+        if let NodeType::Text { content, .. } = &node.kind {
+            out.push(content.clone());
+        }
+        for c in &node.children {
+            textos(c, out);
+        }
+    }
+
+    fn tela_com(dados: &[(&str, &str)]) -> GlacierUI {
+        let mut m = GlacierUI::new();
+        m.register(Box::new(Tela)).unwrap();
+        m.set_initial_screen("tela");
+        for (k, v) in dados {
+            m.define_data(k, v);
+        }
+        m
+    }
+
+    fn lê(m: &mut GlacierUI) -> Vec<String> {
+        let mut out = Vec::new();
+        textos(m.evaluated("tela").expect("avaliada"), &mut out);
+        out
+    }
+
+    const DADOS: &[(&str, &str)] = &[
+        ("msg", r#"{"ola":"mundo"}"#),
+        ("cfg", r#"{"db":{"host":"localhost"}}"#),
+        (
+            "itens",
+            r#"[{"nome":"a","end":{"cidade":"X"}},{"nome":"b","end":{"cidade":"Y"}}]"#,
+        ),
+    ];
+
+    #[test]
+    fn le_campo_aninhado_indice_e_variavel_de_for_each() {
+        let mut m = tela_com(DADOS);
+        m.reevaluate_all().unwrap();
+        assert_eq!(
+            lê(&mut m),
+            ["mundo", "localhost", "b", "padrao", "a/X", "b/Y"],
+            "caminho em objeto, aninhado, índice, `|padrão` e `for-each` com campo aninhado"
+        );
+    }
+
+    #[test]
+    fn o_cache_acompanha_so_o_campo_lido() {
+        let mut m = tela_com(DADOS);
+        m.reevaluate_all().unwrap();
+        // Mudou o campo que a tela lê: o texto muda (o cache invalida).
+        m.define_data("msg", r#"{"ola":"mudou"}"#);
+        m.reevaluate_all().unwrap();
+        assert_eq!(lê(&mut m)[0], "mudou");
+        // Mudou só um campo que ninguém lê: o resto continua certo.
+        m.define_data("msg", r#"{"ola":"mudou","outro":"nada"}"#);
+        m.reevaluate_all().unwrap();
+        assert_eq!(lê(&mut m)[0], "mudou");
+        // O campo some: vale o padrão da leitura, e a chave plana volta a mandar.
+        m.define_data("msg", r#"{"x":"agora existe"}"#);
+        m.reevaluate_all().unwrap();
+        assert_eq!(lê(&mut m)[3], "agora existe");
+        m.define_data("msg.ola", "plana");
+        m.reevaluate_all().unwrap();
+        assert_eq!(lê(&mut m)[0], "plana", "a chave exata sombreia o campo da tabela");
+    }
+}
+
 #[cfg(test)]
 mod dirty_tracking_tests {
     use super::*;
