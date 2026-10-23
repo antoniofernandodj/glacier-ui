@@ -22,6 +22,9 @@ format used by `glacier-ui`.
   - Hex colors (`#RRGGBB`/`#RRGGBBAA`), numbers with optional `px`, and value
     keywords (`fill`, `Center`, `none`, `true`, …).
   - `//` line comments and `/* … */` block comments.
+- **Go to Definition and hover on `var(--token)`** — F12 (or hover) on a token jumps to its
+  `--token: value` declaration, preferring the one in `:root` and the open file, then any `.gss`
+  in the workspace.
 - **Snippets**: `class`, `id`, `tag`, `hover`, `root`, `media`, `var`, `card`.
 - **A CSS-style file icon** so `.gss` files read as stylesheets in the explorer.
 
@@ -30,8 +33,8 @@ format used by `glacier-ui`.
 ```bash
 cd editors/vscode
 npm install -g @vscode/vsce   # once
-vsce package                  # produces glacier-gss-0.2.0.vsix
-code --install-extension glacier-gss-0.2.0.vsix
+vsce package                  # produces glacier-gss-0.3.0.vsix
+code --install-extension glacier-gss-0.3.0.vsix
 ```
 
 Or press **F5** in VS Code with this folder open to launch an Extension

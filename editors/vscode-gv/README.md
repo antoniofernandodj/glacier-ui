@@ -87,7 +87,11 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
   VS Code já faz pra `{ | }`. Antes o Enter só descia o `</tag>` pra uma linha
   sem indentação nenhuma, colado no cursor.
 
-Starts simple, meant to grow (hovers, unknown-handler diagnostics, completion).
+- **Hover** — over anything F12 resolves (a handler, a context key, a class, a native tag), shows the
+  target's first lines in place: the `function` body, the `ctx.x = …` line, the `.gss` rule, the
+  reference section.
+
+Starts simple, meant to grow (unknown-handler diagnostics, `.gvb` completion).
 
 ## Install (local)
 

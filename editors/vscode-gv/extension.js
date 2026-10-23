@@ -40,7 +40,7 @@
 // `</element>` e deixa o cursor no meio (`tagToClose`/`autoCloseTag`).
 //
 // Intentionally simple and dependency-free (plain JS, no build step). Meant to
-// grow: hovers, diagnostics for unknown handlers, completion, etc.
+// grow: diagnostics for unknown handlers, `.gvb` completion, etc.
 
 const vscode = require("vscode");
 const fs = require("fs");
@@ -3333,6 +3333,68 @@ function typeQuote(args) {
   return editor.edit((b) => b.insert(doc.positionAt(edit.at), edit.insert)).then(place);
 }
 
+// ---------------------------------------------------------------------------
+// Hover — o mesmo destino do F12, mostrado sem sair do arquivo
+// ---------------------------------------------------------------------------
+
+const HOVER_LANG = { ".luau": "lua", ".lua": "lua", ".rs": "rust", ".gss": "css", ".gva": "xml", ".gv": "xml", ".json": "json" };
+const HOVER_LINHAS = 8;
+
+/**
+ * O trecho do arquivo de destino que o hover mostra: a partir da linha do
+ * destino, até `HOVER_LINHAS` linhas ou até o `end` que fecha uma função Lua.
+ * Num `.md` (a referência embutida), a seção inteira até o próximo título.
+ */
+function trechoDoDestino(fsPath, linha) {
+  let texto;
+  try {
+    texto = fs.readFileSync(fsPath, "utf8");
+  } catch (_) {
+    return null;
+  }
+  const linhas = texto.split("\n");
+  const ext = path.extname(fsPath).toLowerCase();
+  const out = [];
+  if (ext === ".md") {
+    const nivel = /^(#+)\s/.exec(linhas[linha] || "");
+    for (let i = linha; i < linhas.length && out.length < HOVER_LINHAS * 2; i++) {
+      const t = /^(#+)\s/.exec(linhas[i]);
+      if (i > linha && t && nivel && t[1].length <= nivel[1].length) break;
+      out.push(linhas[i]);
+    }
+    return { lang: "", texto: out.join("\n").trim() };
+  }
+  const lang = HOVER_LANG[ext] || "";
+  // Uma função mostra o corpo; qualquer outro destino (`ctx.x = …`, uma regra
+  // `.gss`) já se explica na própria linha e nas vizinhas.
+  const corpo = /\bfunction\b|\bfn\b|\{\s*$/.test(linhas[linha] || "");
+  const limite = corpo ? HOVER_LINHAS : 2;
+  for (let i = linha; i < linhas.length && out.length < limite; i++) {
+    out.push(linhas[i]);
+    if (ext.startsWith(".lua") && i > linha && /^end\b/.test(linhas[i])) break;
+  }
+  return { lang, texto: out.join("\n").replace(/\s+$/, "") };
+}
+
+async function provideHover(document, position) {
+  let locs;
+  try {
+    locs = await resolveDefinition(adaptDocument(document), position);
+  } catch (_) {
+    return undefined;
+  }
+  const loc = locs && locs[0];
+  if (!loc || !loc.uri || !loc.range || loc.uri.scheme !== "file") return undefined;
+  const aqui = loc.uri.fsPath === document.uri.fsPath && loc.range.start.line === position.line;
+  if (aqui) return undefined;
+  const trecho = trechoDoDestino(loc.uri.fsPath, loc.range.start.line);
+  if (!trecho || !trecho.texto) return undefined;
+  const md = new vscode.MarkdownString();
+  md.appendMarkdown(`*${vscode.workspace.asRelativePath(loc.uri)}:${loc.range.start.line + 1}*\n\n`);
+  md.appendCodeblock(trecho.texto, trecho.lang || "text");
+  return new vscode.Hover(md);
+}
+
 function activate(context) {
   // Links, F12 e diagnósticos valem para as duas grafias; a completação e o
   // fechamento de tag falam XML e ficam só no `.gva`.
@@ -3362,6 +3424,7 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
+    vscode.languages.registerHoverProvider(selector, { provideHover }),
     vscode.languages.registerDocumentLinkProvider(selector, {
       provideDocumentLinks: (document) => provideDocumentLinks(adaptDocument(document)),
     }),

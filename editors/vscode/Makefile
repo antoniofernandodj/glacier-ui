@@ -19,7 +19,7 @@ help: ## Show this help
 
 package: $(VSIX) ## Build the .vsix package
 
-$(VSIX): package.json language-configuration.json syntaxes/*.json snippets/*.code-snippets
+$(VSIX): package.json extension.js language-configuration.json syntaxes/*.json snippets/*.code-snippets
 	$(VSCE) package
 
 install: package ## Build and install the extension into VS Code

@@ -4,6 +4,11 @@ Suporte de editor para as duas linguagens do glacier-ui. Instalação **local**
 apenas (publicação no Marketplace abandonada — burocracia de publisher/PAT do
 Azure, ver seção final).
 
+**Estado:** **concluído** (2026-10-23) para o escopo abaixo. As extensões estão em
+`glacier-view` **0.23.0** e `glacier-gss` **0.3.0**. As seções "Estado atual" descrevem a
+v0.2 de cada uma e o que veio depois está em "O que mudou desde então"; o que ficou de fora de
+propósito está em "Fora do escopo".
+
 ## Estado atual
 
 ### `editors/vscode/` — Glacier GSS (`.gss`) — v0.1
@@ -73,36 +78,50 @@ Azure, ver seção final).
   3 telas resolvem, ~2,6 ms por chamada do provider) +
   gramática 7/7 escopos (vscode-textmate, incl. `meta.embedded.block.lua`).
 
+## O que mudou desde então
+
+- **`.gvb` e `.gva`.** A extensão `glacier-view` cobre os dois formatos (`.gv` é legado e tratado
+  como `.gva`). Um `.gvb` é lido como o XML equivalente (`gvb-shadow.js`), com as posições
+  mapeadas de volta; links, F12 e diagnósticos valem para os dois.
+- **Completion** de tags, props e componentes (`.gva`), com `gvb-typing.js` cuidando da digitação
+  do `.gvb`.
+- **Diagnósticos:** prop desconhecida ou obrigatória que falta num `<props>`, referência de
+  componente e caminho de arquivo que não resolve.
+- **GSS:** `class="…"`/`id="…"` levam à regra no `.gss` (linkado, `<style>` inline ou qualquer
+  `.gss` do workspace).
+- **Hover** (`glacier-view` 0.23.0): sobre tudo o que o F12 resolve, mostra o trecho do destino
+  — o corpo da `function`, a linha `ctx.x = …`, a regra `.gss`, a seção da referência.
+- **`var(--token)`** (`glacier-gss` 0.3.0): F12 e hover levam à declaração `--token: …`,
+  preferindo o `:root` e o arquivo aberto, depois qualquer `.gss` do workspace.
+
 ## Roadmap
 
 ### Curto prazo
-- [x] **Fechamento automático de tag** — terminar `<element>` com `>` insere
-      `</element>` e deixa o cursor no meio. Fora as folhas (`<Image>`,
-      `<Badge>`, `<Radio>`, …), que o markup escreve com `/>`. *(v0.9.0)*
-- [ ] **Hover** — assinatura/props do widget nativo; corpo/1ª linha da função Lua
-      referenciada por uma ação.
-- [ ] **Diagnóstico** — sublinhar `on_click="x"` quando não existe `function x`
-      (no `<script>` inline nem no `src`); e `<import from="…">` com caminho
-      inexistente.
-- [ ] **Completion** — tags nativas + builtins, atributos por tag, e nomes de
-      ações já definidas no `<script>`.
+- [x] **Fechamento automático de tag** *(v0.9.0)*.
+- [x] **Hover** *(glacier-view 0.23.0)*.
+- [x] **Diagnóstico** de props, componente e caminho que não resolve. O aviso de
+      `on_click="x"` sem `function x` ficou fora (ver abaixo).
+- [x] **Completion** de tags, atributos e componentes (`.gva`).
 
 ### Médio prazo
-- [x] **DocumentLink** visível (sublinhado) nos valores de ação e nos nomes de
-      componente, além do go-to-definition. *(v0.2)*
-- [x] **Resolução de componente mais forte** — indexar `register_component`/
-      `<import>` do workspace num mapa nome→arquivo, em vez de varrer a cada
-      chamada; cachear e invalidar em `onDidChange`. *(v0.2)*
-- [ ] **GSS**: go-to-definition de `class="card"` no `.gv` → regra `.card` no
-      `.gss` linkado; e de `var(--x)` → declaração em `:root`.
-- [ ] **Migração `.xml` → `.gv`** — decidir se os templates viram `.gv` (o Rust
-      referencia por caminho; renomear exige atualizar os `register_component`).
+- [x] **DocumentLink** visível nos valores de ação e nos nomes de componente *(v0.2)*.
+- [x] **Resolução de componente mais forte** — índice do workspace, cacheado *(v0.2)*.
+- [x] **GSS**: `class`/`id` do markup → regra no `.gss`; `var(--x)` → declaração em `:root`
+      *(glacier-gss 0.3.0)*.
+- [x] **Migração `.xml` → `.gv`** — superada: o formato se chama `.gva` e `.gvb` é o segundo
+      formato; o `.gv` segue aceito como apelido.
 
-### Longo prazo
-- [ ] **Unificar** as duas extensões numa só "Glacier UI" (um install, um
-      Makefile, um publisher) — contribui as duas linguagens + providers.
-- [ ] **Formatter** (`.gv` e `.gss`).
-- [ ] **Preview** ao vivo da tela (reaproveitar o hot-reload do motor).
+### Fora do escopo
+
+Decidido não fazer neste plano; entram como melhoria nova se fizerem falta.
+
+- **Diagnóstico de handler que não existe** (`on_click="x"` sem `function x`). Um handler pode
+  vir de Rust, de outro `.luau` do workspace ou do "binding legado" (a chave de mesmo nome), então
+  o falso positivo custa mais do que o aviso vale.
+- **Completion em `.gvb`** (um `.gvb` não tem tag de fechamento; a digitação cuida do resto).
+- **Unificar** as duas extensões numa só "Glacier UI".
+- **Formatter** (`.gva`, `.gvb` e `.gss`).
+- **Preview** ao vivo da tela (reaproveitar o hot-reload do motor).
 
 ## Instalação (local)
 
