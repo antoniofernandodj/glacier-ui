@@ -1,9 +1,11 @@
 # Plano: `script` no nível do `app`
 
-**Estado:** proposta. Nasce de `PLANO_APP_TELAS.md` (seção 6): com o manifesto
-funcionando, o `script` ainda só existe **dentro de uma tela**.
+**Estado:** **implementado** (glacier-ui 0.139.0). Nasce de `PLANO_APP_TELAS.md` (seção 6):
+com o manifesto funcionando, o `script` ainda só existia **dentro de uma tela**. O exemplo de
+aceitação é `examples/gvb/app_script`. As perguntas da seção 1 estão respondidas em "O que ficou
+decidido", no fim.
 
-Hoje `script` no `resources` do `app` é erro de parse ("o script do app inteiro
+Antes da 0.139, `script` no `resources` do `app` era erro de parse ("o script do app inteiro
 ainda não existe"), e um `<script>` fora de qualquer tela também. O que falta é um
 lugar para o estado e a lógica que vivem o app inteiro, sem repetir em cada tela.
 
@@ -63,3 +65,22 @@ Mesmo princípio do plano das telas: olhar o **resultado**, não só o parse —
 `init` do app escreveu uma chave que a primeira tela **lê** (e a chave não é a
 mesma que o teste escreve), o estado sobrevive à navegação, e o hot-reload do
 manifesto não perde o que o `init` semeou.
+
+---
+
+## 4. O que ficou decidido
+
+- **1.1 Onde roda.** Um componente a mais por motor (`__app_script`), com a própria VM, ao lado
+  do de cada tela. O `ctx` é o mesmo (o contexto do motor já é um só por janela). Uma janela
+  filha (`open_window`) roda o script do app de novo, no contexto dela — estado isolado, como o
+  resto do motor.
+- **1.2 Ordem.** O `init` do app roda dentro do `load_app`, **antes** de registrar qualquer
+  tela, então antecede o `init` da primeira. Ações sem prefixo seguem para a tela ativa; o
+  caminho para o script do app é explícito: `app::nome`. Não há captura automática de `tray:*`
+  ou atalho — quem quiser, escreve `on_click = "app::…"`.
+- **1.3 Convivência.** Funções de mesmo nome não colidem: são VMs separadas, e o prefixo
+  escolhe o dono. Hot-reload: o texto do script mudou → VM nova e `init` de novo; igual → nada.
+  Tirar o script remove o componente. Uma tela chamada `app` tem precedência sobre o prefixo.
+- **Fora do escopo.** O `glacier test` (`component()`) não carrega o script do app; a lógica que
+  precisa de teste vai num módulo `require`ado. `lua_extension` e `storage` valem no script do
+  app como em qualquer script (são registrados por motor).

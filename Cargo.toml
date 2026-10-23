@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.138.0"
+version = "0.139.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -767,6 +767,10 @@ path = "examples/gvb/webview/main.rs"
 name = "gvb_app_telas"
 path = "examples/gvb/app_telas/main.rs"
 required-features = ["tray"]
+
+[[example]]
+name = "gvb_app_script"
+path = "examples/gvb/app_script/main.rs"
 
 # ── Testes fora do `make test` ──────────────────────────────────────────────
 # Arquivos de `tests/` que só compilam com a feature `suite-completa` (ver o

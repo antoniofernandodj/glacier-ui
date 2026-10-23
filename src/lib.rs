@@ -1306,6 +1306,8 @@ impl GlacierUI {
         self.load_imports(&globais, Some(path))?;
         self.process_links_from(APP_SCOPE, &globais, Some(path.to_string()))?;
 
+        self.install_app_script(manifest.script.as_deref(), path)?;
+
         let mut telas = Vec::new();
         let mut so_sem_corpo = false;
         if let Some(nome) = so
@@ -1362,12 +1364,39 @@ impl GlacierUI {
             pending: pendentes,
             so: so.map(str::to_string),
             screens: telas,
+            script: manifest.script.clone(),
         });
 
         if primeira && let Some(nome) = inicial {
             self.set_initial_screen(&nome);
         }
         Ok(so_sem_corpo)
+    }
+
+    /// Instala (ou troca, ou tira) o componente do `script` do app. Roda **antes**
+    /// das telas, então o `init` do app antecede o de qualquer uma. Num reload,
+    /// só recria a VM — e roda o `init` de novo — quando o bloco mudou.
+    fn install_app_script(&mut self, block: Option<&str>, path: &str) -> Result<()> {
+        let anterior = self.app_source.as_ref().and_then(|a| a.script.as_deref());
+        match block {
+            Some(b) if anterior != Some(b) || !self.components.contains_key(APP_SCRIPT) => {
+                let comp = luau::LuauComponent::from_markup_with(
+                    b,
+                    path,
+                    APP_SCRIPT,
+                    self.assets.clone(),
+                )?;
+                self.active_streams.retain(|(owner, _), _| owner != APP_SCRIPT);
+                self.install_component(APP_SCRIPT, Box::new(comp));
+            }
+            Some(_) => {}
+            None => {
+                if self.components.remove(APP_SCRIPT).is_some() {
+                    self.active_streams.retain(|(owner, _), _| owner != APP_SCRIPT);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Registra uma tela do manifesto, qualquer que seja a origem do corpo.
@@ -3023,6 +3052,11 @@ impl GlacierUI {
         let (owner, bare_action) = match action.split_once("::") {
             Some((prefix, rest)) if self.components.contains_key(prefix) => {
                 (prefix.to_string(), rest.to_string())
+            }
+            // `app::nome`: o script do app. Uma tela chamada `app` tem
+            // precedência (o braço acima).
+            Some(("app", rest)) if self.components.contains_key(APP_SCRIPT) => {
+                (APP_SCRIPT.to_string(), rest.to_string())
             }
             Some((_, rest)) => match &self.current_screen {
                 Some(screen) => (screen.clone(), rest.to_string()),
@@ -4928,10 +4962,18 @@ struct AppSource {
     /// `(nome, sem_corpo)`: `sem_corpo` é a tela declarada sem corpo nem `src`,
     /// que um `impl Component` registrado em Rust precisa servir.
     screens: Vec<(String, bool)>,
+    /// O bloco `<script>` do `resources` do app que está instalado como
+    /// [`APP_SCRIPT`] — o hot-reload só recria a VM quando ele muda.
+    script: Option<String>,
 }
 
 /// O nome sob o qual o `process_links` enxerga as declarações globais do `app`.
 const APP_SCOPE: &str = "__app";
+
+/// O nome do componente que serve o `script` do `resources` do app. Uma ação
+/// `app::nome` (a convenção `dono::ação`) chama a `function nome()` dele; o
+/// `init` roda uma vez por janela, antes do de qualquer tela.
+const APP_SCRIPT: &str = "__app_script";
 
 fn app_key(path: &str) -> String {
     format!("app::{}", path)

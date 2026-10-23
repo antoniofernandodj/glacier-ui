@@ -74,6 +74,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Inputs de texto](#inputs-de-texto)
   - [Formulários (Reactive Forms)](#formulários-reactive-forms)
   - [Navegação entre telas](#navegação-entre-telas)
+    - [O `script` do app](#o-script-do-app)
   - [Componentes e composição](#componentes-e-composição)
   - [Comportamento em `<script>` Luau](#comportamento-em-script-luau)
     - [`fetch`: rede async via corrotina](#fetch-rede-async-via-corrotina)
@@ -949,6 +950,43 @@ O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual;
 `navigateBack` volta. O estado de contexto é compartilhado entre telas. Veja
 [`examples/gva/navegacao`](examples/gva/navegacao) (declarativa) e
 [`examples/gva/navegacao_luau`](examples/gva/navegacao_luau) (via script).
+
+### O `script` do app
+
+Um app com várias telas (`<app>` na raiz) pode ter **um** `<script>` no `<resources>`
+do próprio app, para o estado e a lógica que vivem o app inteiro:
+
+```xml
+<app id="meu_app">
+  <resources>
+    <script>
+      function init()                 -- antes do init de qualquer tela
+        ctx.usuario = "Ana"
+        ctx.visitas = 0
+      end
+
+      function registrar_visita()
+        ctx.visitas = ctx.visitas + 1
+      end
+    </script>
+  </resources>
+
+  <screen name="home" initial="true">
+    <text>Olá, {usuario} — {visitas} visitas</text>
+    <button text="Contar" on_click="app::registrar_visita" />
+  </screen>
+</app>
+```
+
+- Roda **uma vez por janela**, antes das telas: o `init` do app antecede o da primeira
+  tela e navegar não o roda de novo. Uma janela aberta por `open_window` roda o script
+  do app outra vez, no contexto dela.
+- O `ctx` é o mesmo das telas — o que o app escreve, toda tela lê.
+- `app::nome` chama `function nome()` do script do app, com qualquer tela ativa. Uma
+  ação sem prefixo continua indo para a tela ativa.
+- Mudar o texto do script no hot-reload recria a VM do app e roda o `init` de novo.
+
+Exemplo: [`examples/gvb/app_script`](examples/gvb/app_script).
 
 ---
 

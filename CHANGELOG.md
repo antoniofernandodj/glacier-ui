@@ -10,6 +10,38 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.139.0 — 2026-10-23
+
+### Adicionado
+
+- **`script` no `resources` do `app`.** Um app com várias telas pode ter **um** script do app
+  inteiro: `app(…) { resources { script """ … """ } … }` (ou `script(src = "…")`). Roda **uma
+  vez por janela**, antes do `init` de qualquer tela — navegar entre telas não o roda de novo —,
+  no mesmo `ctx` das telas. Uma ação `app::nome` chama a `function nome()` dele com qualquer tela
+  ativa (a convenção `dono::ação`; uma tela chamada `app` tem precedência). Ação sem prefixo
+  continua indo para a tela ativa. No hot-reload, mudar o texto do script recria a VM e roda o
+  `init` de novo; sem mudança, o estado fica. Dois `script` no `resources` do app são erro, e um
+  `<script>` fora de uma tela e fora desse `resources` continua sendo erro (com a dica nova).
+  Exemplo: `examples/gvb/app_script`. Plano em `docs/PLANO_SCRIPT_APP.md`.
+
+### Quebras
+
+- `AppManifest` (pub) ganha o campo `script: Option<String>`. Só afeta quem o constrói à mão;
+  quem só lê o resultado de `parse_app_manifest` não muda nada.
+- O `glacier test` ainda não roda o script do app: `component()` carrega a tela. A lógica que
+  precisa de teste vai num módulo `require`ado.
+
+## glacier-cli 0.19.0 — 2026-10-23
+
+Motor dos projetos gerados: **glacier-ui 0.139**.
+
+### Adicionado
+
+- O `AGENTS.md` dos projetos ganha "O `script` do app" (quando usar, `app::nome`, a diferença
+  para o `app:{ação}` de componente, hot-reload).
+- As extensões embutidas passam a ser **glacier-view 0.23.0** (hover sobre o que o F12 resolve) e
+  **glacier-gss 0.3.0** (F12 e hover de `var(--token)`).
+
 ## glacier-ui 0.138.0 — 2026-10-23
 
 ### Adicionado

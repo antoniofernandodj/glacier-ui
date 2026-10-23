@@ -122,6 +122,10 @@ pub struct AppManifest {
     /// `dialog`, `import`), somadas às de cada tela.
     pub decls: Vec<UiNode>,
     pub screens: Vec<ScreenDecl>,
+    /// O bloco `<script>` cru do `resources` do `app`: o script do app inteiro,
+    /// que roda uma vez por janela, antes do `init` de qualquer tela (ver
+    /// `docs/PLANO_SCRIPT_APP.md`).
+    pub script: Option<String>,
 }
 
 /// Um `screen(...)` filho do `app`.
@@ -7092,6 +7096,8 @@ impl UiNode {
         // sobrescreveriam em silêncio.
         let mut componentes: Vec<(String, String)> = Vec::new();
         let mut faixas: Vec<(u32, u32)> = Vec::new();
+        // As linhas do(s) `resources` do próprio app: um `<script>` aqui é o do app.
+        let mut app_faixas: Vec<(u32, u32)> = Vec::new();
 
         if let Some(d) = declara_componentes(app_el, "o resources do app", &mut componentes) {
             return Err(fail(d));
@@ -7100,17 +7106,9 @@ impl UiNode {
         for child in app_el.children().filter(Node::is_element) {
             let tag = child.tag_name().name();
             if is_resources_tag(tag) {
+                app_faixas.push((row(child.range().start), row(child.range().end)));
                 for decl in child.children().filter(Node::is_element) {
                     let t = decl.tag_name().name();
-                    if t.eq_ignore_ascii_case("script") {
-                        return Err(fail(
-                            diagnostic_at(decl, "<script> no resources do app".to_string())
-                                .with_hint(
-                                    "o script do app inteiro ainda não existe; o script vive \
-                                     na tela: screen(name = x) { resources { script … } … }",
-                                ),
-                        ));
-                    }
                     if t.eq_ignore_ascii_case("style")
                         && Self::get_attr(&decl, &["scoped"])
                             .as_deref()
@@ -7187,22 +7185,37 @@ impl UiNode {
                     .with_hint("declare ao menos uma: screen(name = home) { … }"),
             ));
         }
-        // Um `<script>` fora de qualquer tela (no resources do app, ou solto)
-        // não pertence a ninguém: erro, em vez de sumir.
-        for (r, _) in &scripts {
-            if !faixas.iter().any(|(a, b)| r >= a && r <= b) {
-                return Err(fail(
-                    Diagnostic::new(*r, 1, "<script> fora de uma screen").with_hint(
-                        "o script do app inteiro ainda não existe; o script vive na tela",
-                    ),
-                ));
+        // O `<script>` do `resources` do app é o do app inteiro; só um. Um
+        // `<script>` fora de qualquer tela e fora desse `resources` não
+        // pertence a ninguém: erro, em vez de sumir.
+        let mut app_script: Option<String> = None;
+        for (r, bloco) in &scripts {
+            if faixas.iter().any(|(a, b)| r >= a && r <= b) {
+                continue;
             }
+            if app_faixas.iter().any(|(a, b)| r >= a && r <= b) {
+                if app_script.is_some() {
+                    return Err(fail(
+                        Diagnostic::new(*r, 1, "mais de um <script> no resources do app")
+                            .with_hint("o app tem um script só"),
+                    ));
+                }
+                app_script = Some(bloco.clone());
+                continue;
+            }
+            return Err(fail(
+                Diagnostic::new(*r, 1, "<script> fora de uma screen").with_hint(
+                    "o script de uma tela vive na tela: screen(name = x) { resources { script … } … }; \
+                     o do app inteiro vive no resources do app: app(…) { resources { script … } … }",
+                ),
+            ));
         }
         Ok(Some(AppManifest {
             app,
             tray,
             decls,
             screens,
+            script: app_script,
         }))
     }
 

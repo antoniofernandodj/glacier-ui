@@ -1,0 +1,49 @@
+// App com `script` no nível do app — ver docs/PLANO_SCRIPT_APP.md.
+//
+//   WGPU_BACKEND=gl cargo run --example gvb_app_script
+//
+// O `script` do `resources` do app roda UMA vez por janela, antes do `init` de
+// qualquer tela: é onde o estado do app inteiro nasce. As telas abaixo não têm
+// script nenhum — leem `usuario` e `visitas` do mesmo `ctx` e chamam a função do
+// app com `app::registrar_visita`.
+app(id = app_script, size = "520 360", min_size = "400 280") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/app_script/app.gss")
+
+    script """
+      -- Roda antes do init da primeira tela, uma vez por janela. Navegar entre
+      -- as telas NÃO roda de novo: o contador sobrevive.
+      function init()
+        ctx.usuario = "Ana"
+        ctx.visitas = 0
+      end
+
+      -- Chamada pelo markup como `app::registrar_visita`.
+      function registrar_visita()
+        ctx.visitas = ctx.visitas + 1
+      end
+    """
+  }
+
+  screen(name = home, initial = true, title = "Início") {
+    container(class = caixa) {
+      column(class = coluna) {
+        text(content = "Olá, {usuario}", class = titulo)
+        text(content = "Visitas registradas: {visitas}", class = rotulo)
+        button(text = "Registrar visita", on_click = "app::registrar_visita", class = botao)
+        button(text = "Ver o resumo", navigate_to = resumo, class = botao)
+      }
+    }
+  }
+
+  screen(name = resumo, title = "Resumo") {
+    container(class = caixa) {
+      column(class = coluna) {
+        text(content = "Resumo de {usuario}", class = titulo)
+        text(content = "Visitas registradas: {visitas}", class = rotulo)
+        button(text = "Registrar visita", on_click = "app::registrar_visita", class = botao)
+        button(text = Voltar, navigate_back = true, class = botao)
+      }
+    }
+  }
+}

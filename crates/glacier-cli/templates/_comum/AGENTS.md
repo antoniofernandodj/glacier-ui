@@ -453,6 +453,56 @@ ramo com um condicional — é o que o preset `completo` faz:
 <Sobre if="{view}" equals="sobre" />
 ```
 
+### O `script` do app: estado e lógica que vivem o app inteiro
+
+Num app com várias telas (`app(...)` na raiz), o `script` pode morar no
+`resources` **do app**, e não só dentro de uma tela:
+
+```gvb
+app(id = meu_app) {
+  resources {
+    script """
+      function init()          -- roda ANTES do init de qualquer tela
+        ctx.usuario = "Ana"
+        ctx.visitas = 0
+      end
+
+      function registrar_visita()
+        ctx.visitas = ctx.visitas + 1
+      end
+    """
+  }
+
+  screen(name = home, initial = true) {
+    text(content = "Olá, {usuario} — {visitas} visitas")
+    button(text = "Contar", on_click = "app::registrar_visita")
+  }
+}
+```
+
+- **Um por app.** Dois `script` no `resources` do app é erro; o de uma tela segue
+  valendo, ao lado.
+- **Roda uma vez por janela, antes das telas.** O `init` do app antecede o da
+  primeira tela, e navegar entre telas **não** o roda de novo — é por isso que ele
+  é o lugar de semear o que o app inteiro lê. Uma janela filha (`open_window`) é
+  isolada: ela roda o script do app de novo, no contexto dela.
+- **O `ctx` é o mesmo.** O que o app escreve, toda tela lê (e vice-versa); não há
+  tabela separada.
+- **Chamar uma função do app: `app::nome`** (a convenção `dono::ação`). `on_click =
+  "app::registrar_visita"` roda `function registrar_visita()` do script do app, mesmo
+  com outra tela ativa. Uma ação **sem** prefixo continua indo para a tela ativa. Uma
+  tela que se chame `app` tem precedência sobre o prefixo.
+- **Não confunda com `app:{ação}`** (um dois-pontos só, na seção acima): aquele
+  desmarca uma ação repassada por um componente; o `app::` escolhe o **script do app**
+  como dono.
+- **Hot-reload:** mudar o texto do script recria a VM do app e roda o `init` de novo;
+  sem mudança, o estado fica.
+
+Use quando duas ou mais telas repetiriam o mesmo `init`, ou quando uma ação (um
+botão de rodapé, um menu) não pertence a tela nenhuma. Para uma lógica que só uma tela
+usa, o script dela basta. Limite de hoje: o `glacier test` não roda o script do app
+(`component()` carrega a tela); teste a lógica num módulo `require`ado.
+
 ### Condicional e repetição são ATRIBUTOS
 
 Isto vale em **qualquer** tag, não só em `<template>` — e é a forma que se usa
