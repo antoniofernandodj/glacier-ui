@@ -1,9 +1,9 @@
 # Plano: checar o render pelo Luau, via a API da tela
 
-**Estado:** **fases 1, 2 e 3 implementadas** (sem versão publicada ainda; em "Não lançado" do
-CHANGELOG). Escrito em 2026-10-22, a partir de um experimento no `rustploy-gui` (seção 1). As
-perguntas da seção 6 estão respondidas lá, com o que a implementação mostrou. O
-`templates_render.rs` do `rustploy-gui` **ainda não foi migrado** — ver "Próximo passo" na seção 6.
+**Estado:** **concluído** (2026-10-22). Fases 1, 2 e 3 saíram na glacier-ui 0.133.0 e o
+`templates_render.rs` do `rustploy-gui` foi migrado para `tests/tela/render.test.luau`
+(commit `7e95b02`). Escrito a partir de um experimento no `rustploy-gui` (seção 1); as perguntas
+da seção 6 estão respondidas lá. Dois itens ficaram de fora de propósito — ver "Fora do escopo".
 
 ## 1. O problema
 
@@ -151,12 +151,18 @@ classe do template, não pela escrita no uso. Cada chamada reavalia a tela do ze
    `open_window` se testa carregando a tela dela (`component("views/x.gvb")`). `tela:windows()`
    não foi feito.
 
-### Próximo passo
+### Migração do rustploy-gui (feita)
 
-Migrar `rustploy-gui/tests/templates_render.rs` para `*.test.luau` (publicar a glacier-ui primeiro —
-o app depende da versão do crates.io), conferindo caso a caso o que o Rust cobria: a sidebar virar
-drawer e as ações virarem ícone dependem de `set_viewport` + `style`, e o recolor por combinador de
-`style` do filho.
+`rustploy-gui/tests/templates_render.rs` virou `tests/tela/render.test.luau` (commit `7e95b02`,
+glacier-ui 0.133). O app hoje depende da glacier-ui 0.138.0. O `embedded.rs`/`app_manifest.rs`
+ficam em Rust, porque conferem o empacotamento do binário, que não é render.
+
+### Fora do escopo
+
+- `tela:windows()` — uma janela aberta por `open_window` se testa carregando a tela dela.
+- Expor ao teste os avisos de propriedade GSS desconhecida (hoje só vão para `stderr`).
+
+Se algum dia fizerem falta, entram como melhoria nova, não como pendência deste plano.
 
 ### Perguntas originais
 
