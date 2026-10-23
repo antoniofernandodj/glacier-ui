@@ -41,3 +41,12 @@ end
 function test_toda_chave_que_a_tela_le_e_publicada()
     assert_complete(nova())
 end
+
+--- O contador é um `number` para o script, de um turno para o outro; o markup
+--- lê o texto. (`tela:get` devolve o texto, `tela:value` o tipo.)
+function test_o_contador_e_um_number()
+    local tela = nova()
+    tela:call("somar")
+    assert_eq(tela:value("contador"), 1)
+    assert_eq(tela:get("contador"), "1")
+end

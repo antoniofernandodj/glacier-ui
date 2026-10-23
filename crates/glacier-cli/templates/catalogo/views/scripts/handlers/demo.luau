@@ -41,17 +41,17 @@ end
 
 -- §2.12 alternar o ponto de notificação
 function ov_alternar_notif(): ()
-  ctx.ov_notif = if ctx.ov_notif == "true" then "false" else "true"
+  ctx.ov_notif = not ctx.ov_notif
 end
 
 -- §2.12 mostrar/esconder a splash de preview
 function ov_alternar_splash(): ()
-  ctx.ov_splash = if ctx.ov_splash == "true" then "false" else "true"
+  ctx.ov_splash = not ctx.ov_splash
 end
 
 -- §2.7 <reveal> — o botão só alterna a chave que ele lê em `open`
 function ct_revelar(): ()
-  ctx.ct_revela = if ctx.ct_revela == "true" then "false" else "true"
+  ctx.ct_revela = not ctx.ct_revela
 end
 
 -- §2.2 <form> — os três handlers do bloco de formulário do catálogo

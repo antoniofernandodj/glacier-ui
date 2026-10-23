@@ -30,8 +30,8 @@ function Dados.publicar(): ()
     end
 
     ctx.itens = json.encode(json.array(linhas))
-    ctx.total = tostring(#State.itens)
-    ctx.ativos = tostring(ativos)
+    ctx.total = #State.itens
+    ctx.ativos = ativos
 end
 
 function alternar_primeiro(): ()

@@ -54,8 +54,8 @@ A mesma tela, nas duas:
   <resources>
     <link rel="stylesheet" href="views/styles/app.gss" />
     <script>
-      function init() ctx.n = "0" end
-      function somar() ctx.n = tostring(tonumber(ctx.n) + 1) end
+      function init() ctx.n = 0 end
+      function somar() ctx.n = ctx.n + 1 end
     </script>
   </resources>
 
@@ -78,8 +78,8 @@ screen(title = Contador, size = "320 240") {
     link(rel = stylesheet, href = "views/styles/app.gss")
 
     script """
-      function init() ctx.n = "0" end
-      function somar() ctx.n = tostring(tonumber(ctx.n) + 1) end
+      function init() ctx.n = 0 end
+      function somar() ctx.n = ctx.n + 1 end
     """
   }
 
@@ -304,6 +304,17 @@ Três consequências que mudam como se escreve:
    - `ctx.itens = ctx.itens or json.array({})` semeia sem pisar no que já há.
    - `tostring(t)` de uma tabela marcada (`json.array`/`json.object`/a que voltou
      do `ctx`) devolve o JSON dela.
+   - **O markup lê um campo da tabela pelo caminho**: com `ctx.msg = { ola = "mundo" }`,
+     `text(content = "@msg.ola")` mostra `mundo`. Vale em qualquer `@…`/`{…}`
+     (`@cfg.db.host`, `{msg.x|padrão}`, `if @cfg.ativo == "true"`), desce em lista
+     por **índice a partir de 0** (`@itens.0.nome`) e em objeto aninhado pelo nome;
+     dentro de um `for-each`, também (`@i.endereco.cidade`). Uma folha número ou
+     booleano sai como texto (`3`, `true`); um objeto ou lista sai como o JSON em
+     texto; `null` ou um caminho que não existe é ausente (vale o `|padrão`). É só
+     **leitura**: um campo ligado a um widget de duas vias (`:value`) precisa ser uma
+     chave plana, e `ctx["msg.ola"] = x` grava uma chave de nome `msg.ola` que passa
+     a **sombrear** o campo da tabela (a chave exata sempre vence). Se `msg` for
+     texto, e não tabela, `@msg.ola` não resolve — o motor avisa uma vez em `stderr`.
    - O custo é de quem usa: uma chave JSON só vira tabela no primeiro acesso do
      handler a `ctx.itens`, e só as tabelas tocadas são recodificadas ao fim — um
      handler que não mexe numa lista grande não paga nada por ela.
@@ -335,7 +346,7 @@ function Dados.publicar(): ()
         table.insert(linhas, { id = it.id, nome = it.nome, ativo = if it.ativo then "1" else "0" })
     end
     ctx.itens = json.encode(json.array(linhas))   -- a coleção que o markup lê
-    ctx.total = tostring(#State.itens)            -- os derivados, já prontos
+    ctx.total = #State.itens                      -- os derivados, já prontos
 end
 
 return Dados
@@ -632,8 +643,8 @@ local function publicar(): ()
     end
 
     ctx.visiveis = json.encode(json.array(visiveis))  -- json.array: lista vazia = []
-    ctx.total    = tostring(#servicos)
-    ctx.ativos   = tostring(ativos)
+    ctx.total    = #servicos
+    ctx.ativos   = ativos
 end
 
 -- Chamado uma vez, quando a tela monta.
@@ -3193,12 +3204,14 @@ buracos: um `{total}` que ninguém escreveu renderiza vazio, sem aviso.
 ### Ler e escrever o contexto
 
 ```lua
--- LER: sempre texto, e `nil` se a chave nunca foi escrita.
+-- LER: o tipo que o SCRIPT gravou (number, boolean, tabela); texto se a chave veio
+-- do markup, de um widget sem tipo ou de uma string; `nil` se nunca foi escrita.
 local busca = ctx.busca or ""                 -- o `or ""` não é paranoia
-local n     = tonumber(ctx.total) or 0        -- compare com número, não com "3"
+local n     = tonumber(ctx.total) or 0        -- number se você o gravou; `tonumber`
+                                              -- cobre o que veio do markup como texto
 
--- ESCREVER: texto, número ou tabela (o motor serializa).
-ctx.total  = 12                                -- vira "12"
+-- ESCREVER: texto, número, booleano ou tabela (o motor serializa).
+ctx.total  = 12                                -- o markup lê "12"; você lê 12
 ctx.itens  = json.encode(json.array(linhas))   -- a forma que os widgets leem
 ctx.status = nil                               -- REMOVE a chave
 ```

@@ -5,11 +5,11 @@ screen(title = "{{titulo}}", size = "420 340", min_size = "320 280") {
 
     script """
       function init()
-        ctx.contador = "0"
+        ctx.contador = 0
       end
 
       local function passo(delta: number)
-        ctx.contador = tostring((tonumber(ctx.contador) or 0) + delta)
+        ctx.contador = (ctx.contador or 0) + delta
       end
 
       function somar()

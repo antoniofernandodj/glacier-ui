@@ -20,7 +20,7 @@ function Itens.publicar(): ()
     end
   end
   ctx.linhas = json.encode(json.array(linhas))
-  ctx.total = tostring(#State.itens)
+  ctx.total = #State.itens
 end
 
 local function achar(id: string): State.Servico?
@@ -68,7 +68,7 @@ function novo(): ()
     replicas = tonumber(rep) or 1,
   })
   State.seq += 1
-  ctx.sel = tostring(State.seq - 1)
+  ctx.sel = State.seq - 1
   Itens.publicar()
   toast({ message = `"{nome}" criado`, kind = "success" })
 end

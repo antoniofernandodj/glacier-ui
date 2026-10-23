@@ -104,7 +104,7 @@ function init(): ()
   ctx.ct_ed_x, ctx.ct_ed_y, ctx.ct_ed_w, ctx.ct_ed_h = "12", "12", "220", "120"
   ctx.ct_co_x, ctx.ct_co_y, ctx.ct_co_w, ctx.ct_co_h = "150", "70", "200", "110"
   ctx.ct_mode, ctx.ct_size, ctx.ct_fx, ctx.ct_fy = "left", "180", "40", "40"
-  ctx.ct_revela = "false"  -- <reveal open="{ct_revela}">
+  ctx.ct_revela = false  -- <reveal open="{ct_revela}">; o markup lê "false"
 
   -- §2.8 Navegação
   ctx.nv_aba, ctx.nv_aba2 = "geral", "geral"
@@ -121,8 +121,9 @@ function init(): ()
   ctx.bar_status = "ocioso"
 
   -- §2.12 Overlays
-  ctx.ov_menu, ctx.ov_pop, ctx.ov_notif, ctx.ov_marcados = "false", "false", "true", ""
-  ctx.ov_splash = "false"  -- <splashscreen show="{ov_splash}"> começa escondida
+  ctx.ov_menu, ctx.ov_pop, ctx.ov_marcados = "false", "false", ""
+  ctx.ov_notif = true
+  ctx.ov_splash = false  -- <splashscreen show="{ov_splash}"> começa escondida
   ctx.ov_caixas = json.encode(json.array({
     { id = "a", x = 16, y = 16, w = 80, h = 54 },
     { id = "b", x = 110, y = 16, w = 80, h = 54 },
