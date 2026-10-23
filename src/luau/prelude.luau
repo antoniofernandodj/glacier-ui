@@ -490,7 +490,7 @@ end
 -- O motor guarda data e hora como TEXTO ISO — `YYYY-MM-DD`, `HH:MM[:SS]`, ou os
 -- dois separados por espaço. É o que os `<dateedit>`/`<timeedit>`/
 -- `<datetimeedit>` escrevem na chave de contexto, e é o único formato que
--- atravessa a fronteira com o motor, onde `ctx` é `{[string]: string}`. Este
+-- atravessa a fronteira com o motor (um `<dateedit>` grava texto, e texto volta). Este
 -- módulo, portanto, recebe strings e devolve strings: não existe um "objeto
 -- data" para vazar daqui para uma chave.
 --

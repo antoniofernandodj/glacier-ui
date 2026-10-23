@@ -32,7 +32,7 @@ function init()
     ctx.aba = "empilhamento"
 
     -- ── NotificationDot ──────────────────────────────────────────────
-    ctx.tem_notificacao = "true"
+    ctx.tem_notificacao = true
 
     -- ── SplashScreen ─────────────────────────────────────────────────
     ctx.carregando = "true"
@@ -93,17 +93,17 @@ end
 
 function alternar_notificacao()
     if ctx.tem_notificacao == nil then
-        ctx.tem_notificacao = "false"
+        ctx.tem_notificacao = false
         return
     end
 
-    if ctx.tem_notificacao == "false" then
-        ctx.tem_notificacao = "true"
+    if ctx.tem_notificacao == false then
+        ctx.tem_notificacao = true
         return
     end
     
-    if ctx.tem_notificacao == "true" then
-        ctx.tem_notificacao = "false"
+    if ctx.tem_notificacao == true then
+        ctx.tem_notificacao = false
         return
     end
 end

@@ -1,6 +1,6 @@
 # Plano: `ctx` tipado (e a saída do MicroPython)
 
-**Estado:** Fases 0 a 3 implementadas (0.134 a 0.137); Fases 4 e 5 pendentes (ver "Decisões" abaixo). Nasce de uma pergunta: *o tipo que o
+**Estado:** Fases 0 a 4 implementadas (0.134 a 0.138); Fase 5 (rustploy-gui) parcial — ver "Fase 5" abaixo. Nasce de uma pergunta: *o tipo que o
 script Luau grava em `ctx` se perde, porque tudo vira string — dá para preservar
 e devolver com o tipo certo?* Dá. Este plano cobre o caminho inteiro, inclusive o
 que ficaria para depois.
@@ -269,6 +269,15 @@ Rodar o exemplo com `WGPU_BACKEND=gl`.
 
 ### Fase 4 — Acabamento (0.138.0)
 
+**Feita.** Verificado: `AGENTS.md` e presets do CLI (glacier-cli 0.18.0), cabeçalho de
+`src/luau/mod.rs`, `README.md` sem o modelo "tudo é texto"; `ctx_types="off"` não existe mais;
+`storage` e o payload de `broadcast` passam por JSON e já preservam o tipo (`storage.set("k", true)`
+volta `true`). O `ctx` inicial de uma janela filha segue como texto (decisão: não leva tag).
+Exemplos: `tem_notificacao` e `cancelado` viraram booleano em `gvb/` e `gva/`. Ficaram de
+propósito `__dialog.negrito == "true"` (chave de diálogo, não conferida em execução) e o
+`restart == "true"` do `main.rs` (a API Rust de `Context` é texto). O comentário do
+`prelude.luau` agora diz que o `<dateedit>` grava texto, sem afirmar que todo `ctx` é string.
+
 - Reescrever as "três consequências" em `crates/glacier-cli/templates/_comum/AGENTS.md`
   (hoje: *"Tudo é texto… compare com `tonumber`"*), o cabeçalho de `src/luau/mod.rs`
   e `README.md`; tirar o comentário `ctx é {[string]: string}` do `prelude.luau`.
@@ -286,6 +295,10 @@ Rodar o exemplo com `WGPU_BACKEND=gl`.
   `Bool`/`Number`, `Json` já viaja como JSON — `mod.rs:1023`).
 
 ### Fase 5 — Adotar no rustploy-gui
+
+**Parcial.** O commit `17a65e3` do rustploy-gui adotou as listas como tabela e o app usa a
+glacier-ui 0.138.0. Ainda restam ~16 `"[]"` nas `views/` e ~79 `== "true"`/`== "false"`
+(parte deles é markup `.gvb` e não muda). Só com pedido do usuário.
 
 Só depois de a 0.136.0 (Fase 2) estar publicada, e a 0.137.0 (Fase 3) para os
 widgets. O app é um repositório à parte (`../rustploy/rustploy-gui`); commits lá

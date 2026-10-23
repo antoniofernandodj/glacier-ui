@@ -136,7 +136,7 @@ end
 local PACOTES = 8
 
 function baixar()
-    ctx.cancelado = "false"
+    ctx.cancelado = false
     progress({
         title = "Baixando pacotes",
         label = "conectando…",
@@ -149,7 +149,7 @@ end
 
 function baixar_passo(i)
     i = tonumber(i) or 1
-    if ctx.cancelado == "true" then
+    if ctx.cancelado == true then
         ctx.progresso_fim = "abortado no pacote " .. i
         progress_close()
         return
@@ -170,7 +170,7 @@ end
 -- o app quiser. O `QProgressDialog::wasCanceled()` vira uma chave que o laço
 -- consulta.
 function abortar_download()
-    ctx.cancelado = "true"
+    ctx.cancelado = true
     ctx.status = "Download abortado"
 end
 
