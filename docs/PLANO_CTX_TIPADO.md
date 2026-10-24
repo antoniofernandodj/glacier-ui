@@ -1,6 +1,6 @@
 # Plano: `ctx` tipado (e a saída do MicroPython)
 
-**Estado:** Fases 0 a 4 implementadas (0.134 a 0.138); Fase 5 (rustploy-gui) parcial — ver "Fase 5" abaixo. Nasce de uma pergunta: *o tipo que o
+**Estado:** **concluído** — Fases 0 a 5 implementadas (0.134 a 0.138; rustploy-gui 0.1.19); Fase 5 (rustploy-gui) concluída — ver "Fase 5" abaixo. Nasce de uma pergunta: *o tipo que o
 script Luau grava em `ctx` se perde, porque tudo vira string — dá para preservar
 e devolver com o tipo certo?* Dá. Este plano cobre o caminho inteiro, inclusive o
 que ficaria para depois.
@@ -296,9 +296,12 @@ propósito `__dialog.negrito == "true"` (chave de diálogo, não conferida em ex
 
 ### Fase 5 — Adotar no rustploy-gui
 
-**Parcial.** O commit `17a65e3` do rustploy-gui adotou as listas como tabela e o app usa a
-glacier-ui 0.138.0. Ainda restam ~16 `"[]"` nas `views/` e ~79 `== "true"`/`== "false"`
-(parte deles é markup `.gvb` e não muda). Só com pedido do usuário.
+**Concluída** (rustploy-gui 0.1.19, commit `37d4b0a`). O app usa a glacier-ui 0.138.0. As
+listas viraram tabela (`17a65e3`); os seeds de `jobs`, `services` e `wizard` passaram a
+`json.array({})` e o `log_window` lê o seed com `Helpers.decode_list`. Os `== "true"` de
+Luau já tinham migrado (`ecc7159`: `Helpers.is_true/is_false`); os que sobram são markup
+`.gvb` e não mudam. A camada `format/` segue devolvendo `"[]"` em texto de propósito, e os
+testes dela o afirmam: `decode_list` aceita as duas formas. Suíte: 377 testes passam.
 
 Só depois de a 0.136.0 (Fase 2) estar publicada, e a 0.137.0 (Fase 3) para os
 widgets. O app é um repositório à parte (`../rustploy/rustploy-gui`); commits lá
