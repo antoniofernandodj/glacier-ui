@@ -1,5 +1,7 @@
 # Plano: checar o render pelo Luau, via a API da tela
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** **concluído** (2026-10-22). Fases 1, 2 e 3 saíram na glacier-ui 0.133.0 e o
 `templates_render.rs` do `rustploy-gui` foi migrado para `tests/tela/render.test.luau`
 (commit `7e95b02`). Escrito a partir de um experimento no `rustploy-gui` (seção 1); as perguntas

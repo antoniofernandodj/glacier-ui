@@ -1,5 +1,7 @@
 # Plano de construção da biblioteca de widgets — rumo a um "Qt em Rust"
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico. O catálogo foi dado por fechado; o que sobrou está marcado como fora de escopo ou aguarda pedido (Onda 14, `print{}`).
+
 Este documento é o **planejamento de longo prazo** da biblioteca de widgets do
 `glacier-ui`. A meta declarada é concorrer diretamente com o **Qt**: acumular,
 ao longo dos anos, um catálogo vasto de widgets — de `Button` a `QDateTimeEdit`,

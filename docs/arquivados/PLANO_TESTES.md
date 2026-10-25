@@ -1,5 +1,7 @@
 # Plano: uma sintaxe própria para os testes Luau
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** **implementado** no glacier-ui 0.128 (runner) e no glacier-cli 0.9 (flags e presets); a sintaxe
 antiga (`describe`/`expect`) foi **removida** no glacier-ui 0.129 e no glacier-cli 0.10.
 Escrito em 2026-10-21, depois de 340 testes escritos no `rustploy-gui` com a sintaxe antiga. As

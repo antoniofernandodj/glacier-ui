@@ -1,5 +1,7 @@
 # Plano — Extensões VS Code (Glacier)
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 Suporte de editor para as duas linguagens do glacier-ui. Instalação **local**
 apenas (publicação no Marketplace abandonada — burocracia de publisher/PAT do
 Azure, ver seção final).

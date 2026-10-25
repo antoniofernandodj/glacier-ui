@@ -1,5 +1,7 @@
 # Plano: o markup descreve o app, e o app tem telas
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** implementado (passos 1–5, exceto o que está em "O que ficou diferente"
 abaixo). O exemplo de aceitação é `examples/gvb/app_telas`.
 

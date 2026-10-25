@@ -1,5 +1,7 @@
 # Plano: `ctx` tipado (e a saída do MicroPython)
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** **concluído** — Fases 0 a 5 implementadas (0.134 a 0.138; rustploy-gui 0.1.19); Fase 5 (rustploy-gui) concluída — ver "Fase 5" abaixo. Nasce de uma pergunta: *o tipo que o
 script Luau grava em `ctx` se perde, porque tudo vira string — dá para preservar
 e devolver com o tipo certo?* Dá. Este plano cobre o caminho inteiro, inclusive o

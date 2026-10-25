@@ -1,5 +1,7 @@
 # Plano: `@msg.ola` — ler um campo de uma tabela do `ctx` no markup
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** **implementado na glacier-ui 0.138.0** (todas as fases; as decisões da seção 4 valeram). Nasce de um app de uma tela
 (`meu-app`) que faz `ctx.msg = { ola = "mundo" }` no `init` e escreve
 `text(content = "@msg.ola")` no markup: o texto não aparece, sem erro e sem aviso.

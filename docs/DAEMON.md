@@ -10,7 +10,7 @@ também se escreve no markup** — no manifesto do app. A regra deste projeto:
 ## 0. O app é a raiz, e as telas são filhos dele
 
 O arquivo que o daemon abre tem como raiz o **`app`** — o que é do aplicativo —, e
-as telas são filhas dele (planejamento em `PLANO_APP_TELAS.md`):
+as telas são filhas dele (planejamento em `arquivados/PLANO_APP_TELAS.md`):
 
 ```
 app(

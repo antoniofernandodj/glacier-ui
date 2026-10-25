@@ -1,5 +1,7 @@
 # Plano: `script` no nível do `app`
 
+> **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
+
 **Estado:** **implementado** (glacier-ui 0.139.0). Nasce de `PLANO_APP_TELAS.md` (seção 6):
 com o manifesto funcionando, o `script` ainda só existia **dentro de uma tela**. O exemplo de
 aceitação é `examples/gvb/app_script`. As perguntas da seção 1 estão respondidas em "O que ficou

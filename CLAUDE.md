@@ -2,7 +2,7 @@
 
 Instruções para quem trabalha neste repositório — pessoa ou agente.
 
-O `PLANO_WIDGETS.md` é o planejamento de longo prazo; `BUILTINS.md` e
+O `docs/arquivados/PLANO_WIDGETS.md` (os planos concluídos moram em `docs/arquivados/`) é o planejamento de longo prazo; `BUILTINS.md` e
 `PRIMITIVAS.md` dizem como escrever um widget; `DIALOGS.md`, `ANIMACOES.md` e
 `TROUBLESHOOTING.md` cobrem os assuntos que o nome anuncia. Este arquivo é só a
 convenção de escrita, e ela vale para **todo `.gv` e todo `.gss`** do
