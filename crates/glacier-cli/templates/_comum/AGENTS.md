@@ -553,6 +553,7 @@ meu-app/
 ├── glacier.jsonc         # padrões da CLI `glacier` (serve/test) — ver "O glacier.jsonc"
 ├── Makefile              # make run | lint | linux-dist | windows | deb
 ├── src/main.rs           # registra as telas e abre a janela
+├── services/             # módulos Luau puros (sem ctx), achados pelo `require` dos testes
 ├── tests/                # *.test.luau — rodam com `glacier test`
 └── views/                # LIDO EM RUNTIME — ver o aviso abaixo
     ├── app.gvb           # a tela raiz (.gvb; .gva e .gv também abrem)
@@ -599,7 +600,7 @@ fábrica.
     "wasm":    { "port": 8080, "release": true, "watch": false },
     "desktop": { "release": false, "args": [] }  // args vão ao app, após `--`
   },
-  "test": { "release": false, "luau_path": [] }, // pastas extras do `require`
+  "test": { "release": false, "luau_path": ["services"] }, // pastas extras do `require`
   "configurations": {                            // glacier serve wasm -c dev
     "dev": { "serve": { "wasm": { "release": false, "watch": true } } }
   },
@@ -614,6 +615,10 @@ fábrica.
   listando os campos que existem — é de propósito: o oposto seria uma porta que
   não mudou sem ninguém saber por quê. A mesma preocupação do `.gss`
   (propriedade desconhecida some em silêncio), aplicada onde dá para recusar.
+- **`services/` é o `test.luau_path` de exemplo.** O projeto nasce com
+  `services/saudacao.luau` (um módulo puro) e `tests/saudacao.test.luau`, que faz
+  `require("saudacao")` — sem extensão, e sem caminho, porque a pasta está no
+  `luau_path`. Uma pasta listada que não existe é ignorada em silêncio.
 - **Isto configura a ferramenta, não o app.** Título, tamanho e ícone da janela
   moram no cabeçalho do `.gvb` / no `main.rs`.
 - Os campos são só os do exemplo acima; a CLI valida contra essa lista.

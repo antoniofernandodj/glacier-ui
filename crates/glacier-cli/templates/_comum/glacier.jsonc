@@ -37,8 +37,9 @@
 
     // Pastas extras onde um `require` dentro de um teste procura módulos, além
     // de `views/scripts` e `views`, que o projeto sempre enxerga. Caminhos
-    // relativos à raiz do projeto.
-    "luau_path": []
+    // relativos à raiz do projeto. `services/` traz um módulo de exemplo
+    // (`services/saudacao.luau`), usado por `tests/saudacao.test.luau`.
+    "luau_path": ["services"]
   },
 
   // Nomes para conjuntos de ajustes: `glacier serve desktop -c release`.

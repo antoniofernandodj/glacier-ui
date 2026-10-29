@@ -10,6 +10,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.20.0 — 2026-10-29
+
+Motor dos projetos gerados: **glacier-ui 0.139**.
+
+### Adicionado
+
+- **Todo preset nasce com um service de exemplo.** `services/saudacao.luau` (um módulo Luau puro,
+  sem `ctx`) e `tests/saudacao.test.luau`, que o importa com `require("saudacao")`. A pasta vem
+  declarada em `test.luau_path` no `glacier.jsonc` — o caso de uso que o campo existe para
+  mostrar. O `AGENTS.md` ganha a linha em "A anatomia do projeto" e a explicação ao lado do
+  `glacier.jsonc`.
+
 ## glacier-ui 0.139.0 — 2026-10-23
 
 ### Adicionado
