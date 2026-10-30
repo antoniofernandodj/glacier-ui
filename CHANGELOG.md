@@ -22,6 +22,9 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ### Corrigido
 
+- `<prose>` e `<markdown>`: pontuação/letras coladas a um trecho em negrito ou itálico saíam no
+  estilo dele (`<b>Ana</b>!` com o `!` em negrito). Defeito do `cosmic-text` 0.15 com palavras
+  ASCII; contornado com um `U+2060` na fronteira de estilo.
 - `on_click = "app::nome"` (chamar uma função do script do app) não fazia nada: o escape `app:`
   comia o prefixo e deixava `:nome`, uma ação que ninguém trata. O exemplo `gvb_app_script`
   estava quebrado por isso desde a 0.139. `app::` agora passa intacto.

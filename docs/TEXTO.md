@@ -140,6 +140,29 @@ vir por `content` de uma chave do contexto.
 são recusados e a imagem vira `[imagem recusada: alt]`. O Markdown costuma vir de dado
 externo (um `fetch`), e ele não escolhe o que o app lê nem busca coisa na rede.
 
+## Um defeito do `cosmic-text` contornado aqui
+
+Pontuação ou letras coladas a um trecho estilizado saíam no estilo do trecho:
+`<b>Ana</b>!` desenhava o `!` em negrito, `<b>Ana</b>(x)` o `(x)` inteiro, `<i>it</i>ab`
+o `ab` em itálico, e `**negrito**,` no `<markdown>` a vírgula em negrito.
+
+A causa está no `cosmic-text` 0.15 (o motor de texto do iced), em `ShapeWord::build`: uma
+"palavra" só de ASCII é moldada **de uma vez, com a fonte do primeiro caractere**,
+ignorando a troca de estilo no meio. As palavras são unidades de quebra de linha
+(UAX #14), então também ` !` e ` ...` — que não podem abrir uma linha — ficam presos à
+palavra anterior. Uma palavra com um caractere não-ASCII cai no caminho completo, que
+respeita a troca de estilo; por isso `Olá` e `itálico` nunca tiveram o problema.
+
+**Contorno** (`precisa_juntar`, em `src/widget.rs`): onde a fonte muda sem uma quebra
+legítima entre os trechos, o Glacier põe um `U+2060` (WORD JOINER) na frente do trecho
+seguinte. Ele é invisível, não tem largura e não cria ponto de quebra, então o texto
+quebra exatamente onde quebraria sem ele, mas a palavra deixa de ser "só ASCII". Vale
+para o `<prose>` e para o `<markdown>`.
+
+Verificado de duas formas: moldando direto com o `cosmic-text` (o peso por glifo vai de
+700 para 400 no `!` e na vírgula, em todos os casos testados) e numa janela, ampliada.
+Quando o `cosmic-text` corrigir o atalho, o contorno vira inofensivo e pode sair.
+
 ## O que NÃO está feito
 
 - **Foco de teclado nos links do `<markdown>`** (só clique) e nos do texto selecionável

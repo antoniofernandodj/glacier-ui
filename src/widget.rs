@@ -4268,6 +4268,51 @@ fn render_canvas<'a>(node: &UiNode) -> Element<'a, EngineMessage> {
         .into()
 }
 
+/// `U+2060` (WORD JOINER): invisível, sem largura e sem ponto de quebra de linha.
+const JUNTA_PALAVRA: char = '\u{2060}';
+
+/// Se o trecho `proximo` precisa do [`JUNTA_PALAVRA`] na frente.
+///
+/// O `cosmic-text` 0.15 (o motor de texto do iced) tem um atalho em
+/// `ShapeWord::build`: uma "palavra" só de ASCII é moldada **de uma vez, com a fonte
+/// do primeiro caractere**, ignorando a troca de estilo no meio. As palavras são
+/// unidades de quebra de linha (UAX #14), então `<b>Ana</b>!`, `<b>Ana</b>(x)` e
+/// `<i>it</i>ab` saem inteiros em negrito/itálico — e o mesmo vale para ` !` e ` ...`,
+/// que não podem abrir uma linha e por isso ficam presos à palavra de antes. Uma
+/// palavra com um caractere não-ASCII cai no caminho completo, que respeita a troca
+/// por grafema. O caractere invisível na fronteira basta, e como o `U+2060` não cria
+/// ponto de quebra, o texto quebra exatamente onde quebraria sem ele.
+///
+/// Só quando a **fonte** muda (cor e sublinhado são por glifo e saem certos), e só
+/// onde não há uma quebra legítima: com um espaço de cada lado, o `U+2060` proibiria
+/// uma quebra que deve existir.
+pub(crate) fn precisa_juntar(
+    anterior: &str,
+    fonte_anterior: Option<Font>,
+    proximo: &str,
+    fonte_proximo: Option<Font>,
+) -> bool {
+    if fonte_anterior == fonte_proximo {
+        return false;
+    }
+    let (Some(a), Some(b)) = (anterior.chars().last(), proximo.chars().next()) else {
+        return false;
+    };
+    if !a.is_whitespace() && !b.is_whitespace() {
+        return true;
+    }
+    // Pontuação que não pode abrir uma linha: grudada à palavra mesmo depois de
+    // espaço (LB13 do UAX #14), então o atalho a atinge do mesmo jeito. O espaço
+    // que a separa da palavra pode estar no fim do trecho anterior OU no começo
+    // deste — por isso o primeiro caractere que não é espaço.
+    proximo
+        .chars()
+        .find(|c| !c.is_whitespace())
+        .is_some_and(|c| {
+            matches!(c, '!' | '?' | ',' | '.' | ':' | ';' | ')' | ']' | '}' | '%' | '»' | '”' | '’' | '…')
+        })
+}
+
 /// A mensagem de um clique num `<a>`: `href` abre no navegador do SO (a mesma
 /// ação built-in `open:` do `on_click`), `navigate` troca de tela, `on_click` é
 /// uma ação do app. Mais de um destino: vale o primeiro, nessa ordem.
@@ -4354,6 +4399,7 @@ pub fn render_node<'a>(
                 .collect();
             // Monta o parágrafo; `destaque` = ordinal do link em foco de teclado.
             let montar = |destaque: Option<usize>| -> Element<'a, EngineMessage> {
+                let mut anterior: Option<(&str, Font)> = None;
                 let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
                     .iter()
                     .enumerate()
@@ -4368,7 +4414,18 @@ pub fn render_node<'a>(
                         if sp.italic {
                             f.style = iced::font::Style::Italic;
                         }
-                        let mut s = span(sp.content.as_str()).font(f);
+                        // Ver `precisa_juntar`: um caractere invisível na fronteira de
+                        // estilo tira a palavra do atalho ASCII do `cosmic-text`.
+                        let junta = anterior.is_some_and(|(ant, fant)| {
+                            precisa_juntar(ant, Some(fant), &sp.content, Some(f))
+                        });
+                        anterior = Some((sp.content.as_str(), f));
+                        let texto: std::borrow::Cow<'a, str> = if junta {
+                            format!("{JUNTA_PALAVRA}{}", sp.content).into()
+                        } else {
+                            sp.content.as_str().into()
+                        };
+                        let mut s = span(texto).font(f);
                         if let Some(sz) = size {
                             s = s.size(*sz);
                         }

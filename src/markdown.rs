@@ -98,6 +98,17 @@ impl<'a, 'b> Montador<'a, 'b> {
         if self.italico > 0 {
             f.style = font::Style::Italic;
         }
+        // Ver `crate::widget::precisa_juntar`: o `cosmic-text` molda uma palavra ASCII
+        // inteira com a fonte do primeiro trecho, então `**negrito**,` deixava a
+        // vírgula em negrito. Um `U+2060` invisível na fronteira de estilo evita isso.
+        let junta = self.inline.last().is_some_and(|ant| {
+            crate::widget::precisa_juntar(&ant.text, ant.font, &conteudo, Some(f))
+        });
+        let conteudo = if junta {
+            format!("\u{2060}{conteudo}")
+        } else {
+            conteudo
+        };
         let mut s: Span<'a, String, Font> = span(conteudo).font(f).size(tam);
         if self.tachado > 0 {
             s = s.strikethrough(true);
