@@ -1,0 +1,13 @@
+:root {
+  --fraco: #A6ADC8;
+}
+
+.tela { padding: 20; spacing: 14; }
+.titulo { size: 24; bold: true; }
+.linha { spacing: 16; }
+.campo { width: 260; }
+.botao { padding: 8; }
+.lista { spacing: 6; width: 300; }
+.grafico { spacing: 8; }
+.item { size: 14; }
+.rotulo { size: 12; color: var(--fraco); }

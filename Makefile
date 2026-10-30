@@ -7,7 +7,7 @@ GV  := editors/vscode-gv
 GSS := editors/vscode
 CLI := crates/glacier-cli
 
-.PHONY: help install-gv install-gss install-extensions reinstall-extensions uninstall-extensions \
+.PHONY: medir help install-gv install-gss install-extensions reinstall-extensions uninstall-extensions \
         sync-extensions publish-cli clean-extensions \
         deb-cli check-deb install-cli reinstall-cli uninstall-cli clean-deb \
         test test-completo
@@ -24,6 +24,9 @@ help: ## Lista os alvos
 # testes de baixo risco também (ver o comentário dela no Cargo.toml).
 #
 # Para rodar só um pedaço: `make test FILTRO=stylesheet`.
+
+medir: ## Fase 0: tamanho, memória e tempo de início do painel de referência (release)
+	./scripts/medir.sh
 
 test: ## Testes do núcleo — sem exemplos, doctests nem os testes de baixo risco
 	cargo test --workspace --lib --bins --tests --no-fail-fast -- $(FILTRO)

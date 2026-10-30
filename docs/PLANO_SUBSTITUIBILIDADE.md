@@ -1,6 +1,8 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** proposta (2026-10-29), glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Estado:** em andamento (2026-10-30). Fases 0, 1 e 2 feitas, com as ressalvas listadas
+em cada uma (`docs/MEDICOES.md`, `docs/REMOTO.md`, `docs/TEXTO.md`); 3 a 8 não
+começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
@@ -237,4 +239,19 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 ## 7. O que ficou decidido
 
-_(vazio — preencher à medida que as perguntas da Fase 1 forem respondidas.)_
+Fase 1 (2026-10-30):
+
+- **Origem é parte da identidade.** O `storage` de um app remoto mora em
+  `<storage_dir>/origens/<origem>/`. Com telas remotas num app local, vale a origem
+  do app local.
+- **Quem assina: o autor do app, com a chave pública fixa no binário do cliente.**
+  Abrir uma URL arbitrária (várias chaves, "confiar neste autor?") fica para depois.
+- **As duas formas coexistem**, com o mesmo `HttpAssets`: app inteiro remoto
+  (`GlacierDaemon::assets(HttpAssets)`) ou só telas remotas
+  (`RoteadorAssets` montando um prefixo). Alternar é trocar a fonte de assets, sem
+  tocar no markup.
+- **Ficou de fora:** política de confiança por origem para o que um script remoto
+  pode chamar, e proteção contra rollback de manifesto. Ver `docs/REMOTO.md`.
+
+Fase 2 (2026-10-30): texto inline, `<a>` e `<markdown>` feitos; **seleção e cópia de
+texto estático não**, por limite do `iced` 0.14 (ver `docs/TEXTO.md`).

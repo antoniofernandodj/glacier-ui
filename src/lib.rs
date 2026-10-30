@@ -4652,6 +4652,7 @@ impl GlacierUI {
         // Com `GLACIER_PERF` ligada, cronometra o que é do motor e deixa o
         // resto do quadro sair por diferença — ver `crate::perf`. Desligada,
         // sobra a leitura de um `bool` já resolvido.
+        perf::primeira_tela();
         if perf::ligado() {
             let t0 = iced::time::Instant::now();
             let elemento = montar();

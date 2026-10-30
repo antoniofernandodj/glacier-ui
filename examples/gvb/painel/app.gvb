@@ -1,0 +1,32 @@
+// Painel de referência da Fase 0 do PLANO_SUBSTITUIBILIDADE: lista, formulário,
+// fetch e gráfico. É o MESMO painel que se mede contra uma aba do Chrome e contra
+// um equivalente Tauri — ver docs/MEDICOES.md. Não o enfeite: o que se mede só
+// vale se a tela for a mesma.
+screen(title = "Painel", size = "760 520") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/painel/app.gss")
+    script(src = "scripts/app.luau")
+  }
+
+  column(class = tela) {
+    text(content = "Painel de serviços", class = titulo)
+
+    row(class = linha) {
+      textinput(:value = novo_nome, placeholder = "Nome do serviço", class = campo)
+      button(text = Adicionar, on_click = adicionar, class = botao)
+    }
+
+    row(class = linha) {
+      column(class = lista) {
+        foreach(items = @servicos, var = s) {
+          text(content = "@s.nome — @s.estado", class = item)
+        }
+      }
+      column(class = grafico) {
+        text(content = "Requisições por hora (fetch)", class = rotulo)
+        barchart(:items = serie, colorful = true, width = 380, height = 220)
+        text(content = "@status", class = rotulo)
+      }
+    }
+  }
+}

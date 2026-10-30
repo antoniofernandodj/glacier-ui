@@ -1,0 +1,5 @@
+[
+  {"label": "00h", "value": 120}, {"label": "04h", "value": 80},
+  {"label": "08h", "value": 310}, {"label": "12h", "value": 450},
+  {"label": "16h", "value": 390}, {"label": "20h", "value": 260}
+]

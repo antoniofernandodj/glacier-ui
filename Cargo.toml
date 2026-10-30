@@ -773,6 +773,10 @@ name = "texto_rico"
 path = "examples/gva/texto_rico/main.rs"
 
 [[example]]
+name = "painel"
+path = "examples/gvb/painel/main.rs"
+
+[[example]]
 name = "remoto"
 path = "examples/gvb/remoto/main.rs"
 

@@ -328,3 +328,38 @@ mod tests {
         assert_eq!(med_p95(&mut []), (0.0, 0.0));
     }
 }
+
+/// `GLACIER_PRIMEIRA_TELA=1` — imprime, uma vez, quantos ms se passaram desde o
+/// início do **processo** até o primeiro `view` montado. É a medida da Fase 0 do
+/// `PLANO_SUBSTITUIBILIDADE.md` ("tempo até a primeira tela").
+///
+/// Limites, para não ler errado: mede até o motor ter montado a árvore, **não** até
+/// o `wgpu` apresentar o pixel — falta o layout e o primeiro desenho do `iced`,
+/// que são o mesmo custo para qualquer app `iced`. Só Linux (lê `/proc`), e assume
+/// 100 ticks/s (`CLK_TCK`), o valor de todo Linux comum.
+pub(crate) fn primeira_tela() {
+    static UMA_VEZ: std::sync::Once = std::sync::Once::new();
+    if std::env::var_os("GLACIER_PRIMEIRA_TELA").is_none() {
+        return;
+    }
+    UMA_VEZ.call_once(|| {
+        let ms = (|| -> Option<f64> {
+            let stat = std::fs::read_to_string("/proc/self/stat").ok()?;
+            // Os campos depois do `comm` (que pode ter espaço e parêntese).
+            let resto = &stat[stat.rfind(')')? + 2..];
+            // `starttime` é o campo 22 do stat; aqui o campo 3 é o primeiro.
+            let inicio: f64 = resto.split_whitespace().nth(19)?.parse().ok()?;
+            let uptime: f64 = std::fs::read_to_string("/proc/uptime")
+                .ok()?
+                .split_whitespace()
+                .next()?
+                .parse()
+                .ok()?;
+            Some((uptime - inicio / 100.0) * 1000.0)
+        })();
+        match ms {
+            Some(ms) => eprintln!("[glacier] primeira tela montada {ms:.0}ms após o início do processo"),
+            None => eprintln!("[glacier] primeira tela montada (sem /proc: tempo indisponível)"),
+        }
+    });
+}
