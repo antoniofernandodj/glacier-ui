@@ -32,6 +32,35 @@ Aninham (`<b><i>…</i></b>`). `{interpolação}` vale em cada trecho. Texto dir
 `<prose>`, sem `<p>`, é um parágrafo só. O espaço entre trechos é preservado como no
 HTML. No `.gvb` o texto é atributo: `b(content = "isto")`.
 
+### No `.gvb`
+
+O `.gvb` não mistura texto com elementos: o texto é sempre o atributo `content`. Então
+um parágrafo é uma sequência de trechos, cada um uma tag com `content`:
+
+```
+prose(class = corpo) {
+  p {
+    span(content = "Olá, ")
+    b(content = "{usuario}")
+    span(content = "! Veja ")
+    a(href = "https://exemplo.com", content = "o site")
+    b {
+      i(content = "negrito itálico")
+    }
+  }
+  p {
+    s(content = "tachado")
+  }
+}
+```
+
+As mesmas tags e os mesmos atributos do `.gva`; só muda o jeito de escrever o texto.
+**O espaço é do texto**, não do formato: `"Olá, "` leva o espaço dentro das aspas, e a
+quebra de linha entre duas tags não conta. (Dentro de `prose` e das tags inline o
+dessugar põe essa quebra num comentário XML — mantém a contagem de linhas dos erros e
+não vira espaço.) Conferido com `gvb_check`: o `.gvb` acima e o `.gva` equivalente dão
+a mesma árvore.
+
 ## `<a>`
 
 Só dentro de um `<prose>`. Destinos, em ordem de precedência:

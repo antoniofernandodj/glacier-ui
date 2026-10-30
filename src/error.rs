@@ -274,8 +274,8 @@ impl fmt::Display for GlacierError {
                 ) {
                     write!(
                         f,
-                        " — '<{name}>' só existe dentro de um <prose>: o <text> não aceita \
-                         texto inline"
+                        " — '<{name}>' só existe dentro de um <prose>: estilo inline e \
+                         parágrafos não valem fora dele (nem dentro de um <text>)"
                     )?;
                 }
                 Ok(())

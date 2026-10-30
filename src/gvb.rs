@@ -979,6 +979,10 @@ fn interpolate(raw: &str) -> String {
 struct Out {
     buf: String,
     line: u32,
+    /// Profundidade de tags **inline** (`prose`, `p`, `b`, `a`…) em que o emissor
+    /// está. Dentro delas uma quebra de linha não pode virar texto: ver
+    /// [`Out::quebra`].
+    inline: u32,
 }
 
 impl Default for Out {
@@ -986,8 +990,23 @@ impl Default for Out {
         Self {
             buf: String::new(),
             line: 1,
+            inline: 0,
         }
     }
+}
+
+/// Tags cujo conteúdo é texto corrido — o `<prose>` e o que vive dentro dele. Num
+/// `.gvb` cada filho fica na própria linha, e no XML a quebra entre dois elementos
+/// é um espaço: `b(content = "Ana")` seguido de `span(content = "!")` viraria
+/// "Ana !". Quem escreve `.gvb` põe o espaço **no texto** (`content = "Olá, "`),
+/// então a quebra de formatação não pode contar.
+fn tag_inline(tag: &str) -> bool {
+    matches!(
+        tag.to_ascii_lowercase().as_str(),
+        "prose" | "p" | "b" | "strong" | "negrito" | "i" | "em" | "italico" | "itálico"
+            | "code" | "codigo" | "código" | "u" | "underline" | "sublinhado" | "s" | "del"
+            | "strike" | "tachado" | "a" | "span"
+    )
 }
 
 impl Out {
@@ -1005,8 +1024,22 @@ impl Out {
         self.buf.push_str(s);
     }
 
+    /// Como [`Out::at`], mas para as quebras **entre** nós: dentro de uma tag
+    /// inline elas vão dentro de um comentário XML (`<!--\n-->`), que mantém a
+    /// contagem de linhas e não vira texto.
+    fn quebra(&mut self, line: u32) {
+        if self.inline == 0 || self.line >= line {
+            return self.at(line);
+        }
+        let n = (line - self.line) as usize;
+        self.buf.push_str("<!--");
+        self.buf.push_str(&"\n".repeat(n));
+        self.buf.push_str("-->");
+        self.line = line;
+    }
+
     fn node(&mut self, n: &Node) {
-        self.at(n.line);
+        self.quebra(n.line);
         self.push(&format!("<{}", n.tag));
         for a in &n.attrs {
             self.at(a.line);
@@ -1035,10 +1068,17 @@ impl Out {
                 self.push(&escape(&t.value, false));
             }
         }
+        let inline = tag_inline(&n.tag);
+        if inline {
+            self.inline += 1;
+        }
         for c in &n.children {
             self.node(c);
         }
-        self.at(n.end_line);
+        self.quebra(n.end_line);
+        if inline {
+            self.inline -= 1;
+        }
         self.push(&format!("</{}>", n.tag));
     }
 }
