@@ -4,7 +4,7 @@
 Uso (a janela precisa estar sob X11: `WAYLAND_DISPLAY= WGPU_BACKEND=gl cargo run --example X`):
 
     python3 tools/xtest.py mv:1100,300 click Tab Tab Return
-    python3 tools/xtest.py drag:340,225,640,225 wheel:25 shift+Tab
+    python3 tools/xtest.py drag:340,225,640,225 wheel:25 shift+Tab ctrl+c
 
 Capturar a janela:  xwd -id <id> | convert xwd:- png:saida.png
 (o id sai de `xwininfo -root -tree`). Precisa de python-xlib, xwd e ImageMagick.
@@ -19,15 +19,19 @@ def mover(x, y):
 def clicar():
     xtest.fake_input(d, X.ButtonPress, 1); d.sync(); time.sleep(0.05)
     xtest.fake_input(d, X.ButtonRelease, 1); d.sync(); time.sleep(0.3)
-def tecla(nome, shift=False):
+def tecla(spec):
+    # "ctrl+c", "shift+Tab", "ctrl+shift+Tab", "Return"
+    partes = spec.split("+")
+    nome, mods = partes[-1], partes[:-1]
+    nomes_mod = {"shift": "Shift_L", "ctrl": "Control_L", "alt": "Alt_L"}
+    mk = [d.keysym_to_keycode(XK.string_to_keysym(nomes_mod[m])) for m in mods]
     kc = d.keysym_to_keycode(XK.string_to_keysym(nome))
-    if shift:
-        sk = d.keysym_to_keycode(XK.string_to_keysym("Shift_L"))
-        xtest.fake_input(d, X.KeyPress, sk)
+    for m in mk:
+        xtest.fake_input(d, X.KeyPress, m)
     xtest.fake_input(d, X.KeyPress, kc); d.sync(); time.sleep(0.05)
     xtest.fake_input(d, X.KeyRelease, kc)
-    if shift:
-        xtest.fake_input(d, X.KeyRelease, sk)
+    for m in reversed(mk):
+        xtest.fake_input(d, X.KeyRelease, m)
     d.sync(); time.sleep(0.5)
 for a in sys.argv[1:]:
     if a.startswith("mv:"):
@@ -44,5 +48,4 @@ for a in sys.argv[1:]:
         for _ in range(int(a[6:])):
             xtest.fake_input(d, X.ButtonPress, 5); d.sync(); xtest.fake_input(d, X.ButtonRelease, 5); d.sync(); time.sleep(0.05)
         time.sleep(0.4)
-    elif a.startswith("shift+"): tecla(a[6:], True)
     else: tecla(a)
