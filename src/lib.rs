@@ -66,8 +66,6 @@ pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod remote_assets;
 pub mod bindings;
 pub mod builtins;
 pub mod canvas;
@@ -147,10 +145,8 @@ pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
 
 pub use app::GlacierApp;
 pub use asset_source::{
-    AssetSource, DiskAssets, EmbeddedAssets, EmbeddedDirs, RoteadorAssets, locate_assets_and_chdir,
+    AssetSource, DiskAssets, EmbeddedAssets, EmbeddedDirs, locate_assets_and_chdir,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub use remote_assets::HttpAssets;
 /// Reexportado para o `embed_dirs!` expandir no crate do app sem ele depender de `include_dir`.
 #[doc(hidden)]
 pub use include_dir;
@@ -4530,8 +4526,16 @@ impl GlacierUI {
             .values()
             .flat_map(|b| b.textareas.iter().cloned())
             .collect();
+        let fixos: HashMap<&str, &str> = self
+            .tree_bindings
+            .values()
+            .flat_map(|b| b.fixos.iter().map(|(k, t)| (k.as_str(), t.as_str())))
+            .collect();
         for b in &bindings {
-            let ctx_val = self.context_data.get(b).cloned().unwrap_or_default();
+            let ctx_val = match fixos.get(b.as_str()) {
+                Some(texto) => (*texto).to_string(),
+                None => self.context_data.get(b).cloned().unwrap_or_default(),
+            };
             let last = self.editor_synced.get(b);
             if !self.editors.contains_key(b) || last != Some(&ctx_val) {
                 self.editors
@@ -4540,6 +4544,13 @@ impl GlacierUI {
             }
         }
         self.edit_history.retain(|k, _| bindings.contains(k));
+        // Um texto selecionável que mudou ganhou outra chave; o buffer da antiga
+        // não serve a mais ninguém.
+        let prefixo = crate::eval::PREFIXO_SELECIONAVEL;
+        self.editors
+            .retain(|k, _| !k.starts_with(prefixo) || bindings.contains(k));
+        self.editor_synced
+            .retain(|k, _| !k.starts_with(prefixo) || bindings.contains(k));
     }
 
     /// Rebuilds a `<ComboEdit>`'s `combo_box::State` whenever its bound value
@@ -5077,6 +5088,9 @@ struct TreeBindings {
     /// `value_var` de cada `<TextArea>` e `<TextInput>` não-`secure` da árvore
     /// — os dois precisam de um `text_editor::Content` mantido pelo motor.
     textareas: Vec<String>,
+    /// `(chave, texto)` de cada texto estático selecionável (`<text selectable>`):
+    /// o buffer deles vem do texto, não do contexto.
+    fixos: Vec<(String, String)>,
     /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
     combos: Vec<(String, String, String, String)>,
     /// `(combinação normalizada, ação)` de cada `<shortcut>` — o habilitador B
@@ -5134,10 +5148,13 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
         }
     }
     match &node.kind {
-        NodeType::TextArea { value_var, .. }
+        NodeType::TextArea { value_var, fixo, .. }
             if !value_var.is_empty() && !out.textareas.contains(value_var) =>
         {
             out.textareas.push(value_var.clone());
+            if let Some(f) = fixo {
+                out.fixos.push((value_var.clone(), f.content.clone()));
+            }
         }
         // `<TextInput>` não-`secure` também é apoiado num `text_editor` agora
         // (ver o arm de `NodeType::TextInput` em `widget.rs`) — precisa do

@@ -1830,7 +1830,6 @@ dependencies = [
  "pulldown-cmark",
  "regex",
  "rfd",
- "ring",
  "roxmltree 0.21.1",
  "rusqlite",
  "rustls",

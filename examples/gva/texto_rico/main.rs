@@ -56,6 +56,9 @@ fn imprimir(n: &UiNode, nivel: usize) {
             println!("{recuo}Markdown ({} bytes):\n{content}", content.len());
         }
         NodeType::Text { content, .. } => println!("{recuo}Text {content:?}"),
+        NodeType::TextArea { value_var, readonly, fixo: Some(f), .. } => {
+            println!("{recuo}TextArea selecionável chave={value_var} readonly={readonly} size={:?} texto={:?}", f.size, f.content)
+        }
         _ => println!("{recuo}{:?}", std::mem::discriminant(&n.kind)),
     }
     for c in n.children.iter() {

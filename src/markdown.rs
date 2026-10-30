@@ -1,4 +1,4 @@
-//! `<markdown>`: CommonMark (com tabelas desligadas e tachado ligado) convertido em
+//! `<markdown>`: CommonMark (com tabelas e tachado) convertido em
 //! widgets do `iced` a cada `view`.
 //!
 //! Não usa o `iced::widget::markdown`: ele pede que os `Item`s já parseados vivam
@@ -8,10 +8,16 @@
 //!
 //! Suporta: títulos, parágrafos, ênfase/negrito/tachado/código inline, links
 //! (abrem pela ação built-in `open:`), listas (com ou sem número, aninhadas),
-//! citação, bloco de código e linha horizontal. HTML cru é ignorado.
+//! citação, bloco de código, linha horizontal, **tabelas** e **imagens locais**.
+//! HTML cru é ignorado.
+//!
+//! Imagem: só caminho **local**, lido pela fonte de assets do app. `http://`,
+//! `https://`, `data:`, caminho absoluto e `..` são recusados e a imagem vira o
+//! texto alternativo — o Markdown costuma vir de dado externo (um `fetch`), e ele
+//! não escolhe o que o app lê nem busca coisa na rede.
 
 use iced::widget::text::Span;
-use iced::widget::{Space, column, container, rich_text, row, span, text};
+use iced::widget::{Space, column, container, image, rich_text, row, span, text};
 use iced::{Background, Color, Element, Font, Length, font};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
@@ -24,9 +30,27 @@ enum Quadro {
     Lista(Option<u64>),
     Item,
     Citacao,
+    Tabela,
+    /// Uma linha de tabela (cabeçalho ou corpo).
+    Linha,
 }
 
-struct Montador<'a> {
+/// Caminho de imagem aceitável: relativo, sem esquema, sem `..`.
+fn caminho_local(url: &str) -> bool {
+    let u = url.trim();
+    !u.is_empty()
+        && !u.contains("://")
+        && !u.starts_with("data:")
+        && !u.starts_with('/')
+        && !u.starts_with('\\')
+        && !u.split(['/', '\\']).any(|p| p == "..")
+        && !u.contains(':')
+}
+
+struct Montador<'a, 'b> {
+    assets: &'b dyn crate::asset_source::AssetSource,
+    /// `(url, texto alternativo)` da imagem em curso.
+    imagem: Option<(String, String)>,
     pilha: Vec<(Quadro, Vec<Element<'a, EngineMessage>>)>,
     inline: Vec<Span<'a, String, Font>>,
     negrito: u32,
@@ -38,9 +62,11 @@ struct Montador<'a> {
     titulo: Option<HeadingLevel>,
 }
 
-impl<'a> Montador<'a> {
-    fn novo(tamanho: f32) -> Self {
+impl<'a, 'b> Montador<'a, 'b> {
+    fn novo(tamanho: f32, assets: &'b dyn crate::asset_source::AssetSource) -> Self {
         Self {
+            assets,
+            imagem: None,
             pilha: vec![(Quadro::Raiz, Vec::new())],
             inline: Vec::new(),
             negrito: 0,
@@ -77,7 +103,7 @@ impl<'a> Montador<'a> {
             s = s.strikethrough(true);
         }
         if let Some(url) = &self.link {
-            s = s.color(LINK).underline(true).link(url.clone());
+            s = s.color(LINK).link(url.clone());
         }
         self.inline.push(s);
     }
@@ -112,6 +138,19 @@ impl<'a> Montador<'a> {
                     self.descarregar();
                     self.pilha.push((Quadro::Citacao, Vec::new()));
                 }
+                Tag::Table(_) => {
+                    self.descarregar();
+                    self.pilha.push((Quadro::Tabela, Vec::new()));
+                }
+                Tag::TableHead => {
+                    self.negrito += 1;
+                    self.pilha.push((Quadro::Linha, Vec::new()));
+                }
+                Tag::TableRow => self.pilha.push((Quadro::Linha, Vec::new())),
+                Tag::Image { dest_url, .. } => {
+                    self.descarregar();
+                    self.imagem = Some((dest_url.to_string(), String::new()));
+                }
                 _ => {}
             },
             Event::End(fim) => match fim {
@@ -145,6 +184,68 @@ impl<'a> Montador<'a> {
                                 })
                                 .into(),
                         );
+                    }
+                }
+                TagEnd::TableCell => {
+                    let spans = std::mem::take(&mut self.inline);
+                    let celula: Element<'a, EngineMessage> = if spans.is_empty() {
+                        Space::new().into()
+                    } else {
+                        rich_text(spans)
+                            .on_link_click(|url: String| EngineMessage::UiClick(format!("open:{url}")))
+                            .width(Length::Fill)
+                            .into()
+                    };
+                    self.empurrar(
+                        container(celula)
+                            .padding(6)
+                            .width(Length::FillPortion(1))
+                            .into(),
+                    );
+                }
+                TagEnd::TableHead | TagEnd::TableRow => {
+                    let cabecalho = matches!(fim, TagEnd::TableHead);
+                    if cabecalho {
+                        self.negrito = self.negrito.saturating_sub(1);
+                    }
+                    if let Some((Quadro::Linha, celulas)) = self.pilha.pop() {
+                        let l = container(row(celulas).width(Length::Fill))
+                            .width(Length::Fill)
+                            .style(move |_| container::Style {
+                                background: cabecalho.then(|| {
+                                    Background::Color(Color::from_rgba(0.5, 0.5, 0.5, 0.18))
+                                }),
+                                border: iced::Border {
+                                    color: Color::from_rgba(0.5, 0.5, 0.5, 0.35),
+                                    width: 0.5,
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            });
+                        self.empurrar(l.into());
+                    }
+                }
+                TagEnd::Table => {
+                    if let Some((Quadro::Tabela, linhas)) = self.pilha.pop() {
+                        self.empurrar(column(linhas).width(Length::Fill).into());
+                    }
+                }
+                TagEnd::Image => {
+                    if let Some((url, alt)) = self.imagem.take() {
+                        let el: Element<'a, EngineMessage> = if caminho_local(&url)
+                            && self.assets.exists(&url)
+                        {
+                            container(image(crate::widget::cached_image_handle(&url, self.assets)))
+                                .max_width(640)
+                                .into()
+                        } else {
+                            // Remota, ilegível ou fora da raiz: o texto alternativo.
+                            let motivo = if caminho_local(&url) { "não encontrada" } else { "recusada" };
+                            text(format!("[imagem {motivo}: {alt}]"))
+                                .size(self.tamanho * 0.9)
+                                .into()
+                        };
+                        self.empurrar(el);
                     }
                 }
                 TagEnd::Item => {
@@ -185,6 +286,12 @@ impl<'a> Montador<'a> {
                 }
                 _ => {}
             },
+            // Dentro de `![alt](url)` o texto é o alternativo, não conteúdo.
+            Event::Text(t) if self.imagem.is_some() => {
+                if let Some((_, alt)) = &mut self.imagem {
+                    alt.push_str(&t);
+                }
+            }
             Event::Text(t) => match &mut self.codigo {
                 Some(buf) => buf.push_str(&t),
                 None => self.texto(t.to_string(), false),
@@ -236,9 +343,13 @@ fn escala(n: HeadingLevel) -> f32 {
 }
 
 /// Converte `fonte` (Markdown) em widgets. `tamanho` é o corpo do texto.
-pub(crate) fn view<'a>(fonte: &str, tamanho: f32) -> Element<'a, EngineMessage> {
-    let mut m = Montador::novo(tamanho);
-    for ev in Parser::new_ext(fonte, Options::ENABLE_STRIKETHROUGH) {
+pub(crate) fn view<'a>(
+    fonte: &str,
+    tamanho: f32,
+    assets: &dyn crate::asset_source::AssetSource,
+) -> Element<'a, EngineMessage> {
+    let mut m = Montador::novo(tamanho, assets);
+    for ev in Parser::new_ext(fonte, Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES) {
         m.evento(ev);
     }
     m.descarregar();

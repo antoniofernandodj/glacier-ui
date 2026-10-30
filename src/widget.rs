@@ -1295,7 +1295,7 @@ thread_local! {
 
 /// `image::Handle` para `source`, do cache ou construído (uma vez) a partir dos
 /// bytes da fonte de assets. Leitura falha → handle vazio (degrada, não quebra).
-fn cached_image_handle(
+pub(crate) fn cached_image_handle(
     source: &str,
     assets: &dyn crate::asset_source::AssetSource,
 ) -> image::Handle {
@@ -4336,7 +4336,7 @@ pub fn render_node<'a>(
             .into()
         }
         NodeType::Markdown { content, size } => crate::overflow::clip(
-            container(crate::markdown::view(content.as_str(), size.unwrap_or(16.0)))
+            container(crate::markdown::view(content.as_str(), size.unwrap_or(16.0), assets))
                 .width(parse_length(&node.width))
                 .height(parse_length(&node.height)),
         )
@@ -4362,7 +4362,8 @@ pub fn render_node<'a>(
                     if let Some(sz) = size {
                         s = s.size(*sz);
                     }
-                    // Link: azul sublinhado, a convenção que o usuário reconhece.
+                    // Link: azul, e sublinhado só sob o cursor (o `rich_text` do
+                    // iced sublinha o link em hover e troca o cursor do mouse).
                     // Cor explícita no trecho vence; depois a do parágrafo.
                     let propria = sp.color.as_deref().and_then(parse_hex_color);
                     let col = propria.or(if sp.link.is_some() {
@@ -4373,7 +4374,7 @@ pub fn render_node<'a>(
                     if let Some(c) = col {
                         s = s.color(c);
                     }
-                    if sp.underline || sp.link.is_some() {
+                    if sp.underline {
                         s = s.underline(true);
                     }
                     if sp.strike {
@@ -4811,6 +4812,7 @@ pub fn render_node<'a>(
             on_change,
             readonly,
             menu_class,
+            fixo,
         } => {
             // The engine keeps the `Content` for this binding (created by
             // `sync_editors` before render). If it is somehow missing on a first
@@ -4838,16 +4840,40 @@ pub fn render_node<'a>(
                     if let Some(f) = font_for(node.font()) {
                         ed = ed.font(f);
                     }
+                    // Texto estático selecionável: aparência de `<text>` — sem
+                    // borda, sem fundo, sem barra de rolagem —, não de campo.
+                    if let Some(f) = fixo {
+                        if let Some(sz) = f.size {
+                            ed = ed.size(sz);
+                        }
+                        if f.bold {
+                            ed = ed.font(Font {
+                                weight: iced::font::Weight::Bold,
+                                ..Default::default()
+                            });
+                        }
+                        let cor = f.color.as_deref().and_then(parse_hex_color);
+                        ed = ed.scrollbar(false).padding(0).style(move |theme, status| {
+                            let mut style = iced::widget::text_editor::default(theme, status);
+                            style.background = Background::Color(Color::TRANSPARENT);
+                            style.border.width = 0.0;
+                            if let Some(c) = cor {
+                                style.value = c;
+                            }
+                            style
+                        });
+                    }
                     // Fundo/borda/cor da regra base e os estados, como no
                     // campo de uma linha (ver `campo_base`).
                     let base = campo_base(node);
                     let hover_ov = node.hover_style().cloned();
                     let focus_ov = node.focus_style().cloned();
                     let disabled_ov = node.disabled_style().cloned();
-                    if base.is_some()
-                        || hover_ov.is_some()
-                        || focus_ov.is_some()
-                        || disabled_ov.is_some()
+                    if fixo.is_none()
+                        && (base.is_some()
+                            || hover_ov.is_some()
+                            || focus_ov.is_some()
+                            || disabled_ov.is_some())
                     {
                         ed = ed.style(move |theme, status| {
                             use iced::widget::text_editor::Status;
@@ -4882,7 +4908,13 @@ pub fn render_node<'a>(
                             style
                         });
                     }
-                    ed.height(parse_length(&node.height)).into()
+                    // Texto selecionável sem altura declarada encolhe ao conteúdo.
+                    let altura = if fixo.is_some() && node.height.is_none() {
+                        Length::Shrink
+                    } else {
+                        parse_length(&node.height)
+                    };
+                    ed.height(altura).into()
                 }
                 None => text(placeholder.as_str())
                     .width(parse_length(&node.width))

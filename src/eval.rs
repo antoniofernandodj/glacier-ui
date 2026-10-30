@@ -2006,6 +2006,17 @@ pub const APP_ACTION_PREFIX: &str = "app:";
 /// (ele é sobre *o que o motor faz* com ela).
 pub const DIALOG_ACTION_PREFIX: &str = "dialog:";
 
+/// Prefixo das chaves de buffer dos textos estáticos selecionáveis.
+pub(crate) const PREFIXO_SELECIONAVEL: &str = "__sel_";
+
+/// A chave do buffer de um texto selecionável: o hash do próprio texto.
+fn chave_selecionavel(texto: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    texto.hash(&mut h);
+    format!("{PREFIXO_SELECIONAVEL}{:016x}", h.finish())
+}
+
 fn namespace_action(action: String, owner: Option<&str>) -> String {
     // O escape vem antes de tudo: quem escreveu `app:` está dizendo que a ação
     // não é dele, então nem o dono nem os prefixos built-in se aplicam.
@@ -2802,17 +2813,48 @@ fn eval_owned(
             menu_class: menu_class.clone(),
         },
         NodeType::TextArea {
+            fixo: Some(f),
+            menu_class,
+            ..
+        } => {
+            // Texto estático selecionável: o buffer é endereçado pelo próprio
+            // texto já interpolado, então dois nós com o mesmo texto (um
+            // `foreach`, por exemplo) dividem o buffer sem se atrapalhar, e um
+            // texto que muda ganha um buffer novo.
+            let content = process_tpl(&f.content, context);
+            NodeType::TextArea {
+                placeholder: String::new(),
+                value_var: chave_selecionavel(&content),
+                on_change: String::new(),
+                readonly: true,
+                menu_class: menu_class.clone(),
+                fixo: Some(crate::parser::TextoFixo {
+                    content,
+                    size: num_template(NumAttr::Size).or(f.size).or(style.size),
+                    bold: f.bold || style.bold.unwrap_or(false),
+                    color: f
+                        .color
+                        .as_ref()
+                        .map(|c| process_tpl(c, context))
+                        .filter(|c| !c.trim().is_empty())
+                        .or_else(|| style.color.clone()),
+                }),
+            }
+        }
+        NodeType::TextArea {
             placeholder,
             value_var,
             on_change,
             readonly,
             menu_class,
+            fixo: None,
         } => NodeType::TextArea {
             placeholder: process_tpl(placeholder, context),
             value_var: process_tpl(value_var, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
             readonly: *readonly,
             menu_class: menu_class.clone(),
+            fixo: None,
         },
         NodeType::Image {
             source,

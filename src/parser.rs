@@ -1639,10 +1639,11 @@ pub enum NodeType {
         bold: bool,
         color: Option<String>,
     },
-    /// **Texto inline misto**: um parágrafo cujos trechos têm estilos diferentes
-    /// — `<text>Veja <b>isto</b>, <code>aquilo</code> e <a href="…">o site</a></text>`.
-    /// Nasce de um `<text>` com `<b>`/`<i>`/`<code>`/`<a>`/… como filhos, ou de um
-    /// `<a>` avulso. Um `<text>` só de texto continua sendo [`NodeType::Text`].
+    /// **Texto inline misto**, só dentro de um `<prose>`:
+    /// `<prose><p>Veja <b>isto</b> e <a href="…">o site</a></p></prose>`.
+    /// `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e `<p>` **não existem**
+    /// fora dele — de propósito: o `<text>` fica simples. Um `<p>` é um parágrafo
+    /// (uma linha em branco entre eles).
     ///
     /// `size` e `color` valem para o parágrafo; o que muda por trecho está em
     /// [`TextSpan`]. A interpolação (`{nome}`) vale em cada trecho.
@@ -1697,6 +1698,12 @@ pub enum NodeType {
         readonly: bool,
         /// Ver [`NodeType::TextInput::menu_class`].
         menu_class: Option<String>,
+        /// `Some` quando este nó é um **texto estático selecionável**
+        /// (`<text selectable>` / `<prose selectable>`): um `TextArea` somente
+        /// leitura cujo buffer vem deste texto — e não de uma chave do contexto —,
+        /// sem borda nem fundo. Perde o que um `text_editor` não tem: trechos
+        /// estilizados e links (ver `docs/TEXTO.md`).
+        fixo: Option<TextoFixo>,
     },
     Image {
         source: String,
@@ -3382,7 +3389,7 @@ impl NodeType {
             NodeType::MdiArea => "mdiarea",
             NodeType::MdiSubWindow { .. } => "mdisubwindow",
             NodeType::Text { .. } => "text",
-            NodeType::RichText { .. } => "text",
+            NodeType::RichText { .. } => "prose",
             NodeType::Markdown { .. } => "markdown",
             NodeType::Button { .. } => "button",
             NodeType::TextInput { .. } => "textinput",
@@ -3815,6 +3822,18 @@ pub struct Look {
     /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
     pub slot_name: Option<String>,
 }
+
+/// O texto de um [`NodeType::TextArea`] selecionável — ver o campo `fixo`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TextoFixo {
+    pub content: String,
+    pub size: Option<f32>,
+    pub color: Option<String>,
+    pub bold: bool,
+}
+
+/// O "trecho" que separa dois parágrafos de um `<prose>`: uma linha em branco.
+pub(crate) const QUEBRA_DE_PARAGRAFO: &str = "\n\n";
 
 /// Um trecho de um [`NodeType::RichText`]: o texto e como ele se veste.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -4645,27 +4664,6 @@ impl UiNode {
 
     /// Collect the direct text children of `node`, HTML-style. See
     /// [`UiNode::normalize_text`] for the whitespace/`&nbsp;` rules.
-    /// Tags que, dentro de um `<text>`, estilizam um trecho em vez de serem um widget.
-    fn tag_inline(tag: &str) -> bool {
-        matches!(
-            tag.to_ascii_lowercase().as_str(),
-            "b" | "strong" | "negrito"
-                | "i" | "em" | "italico" | "itálico"
-                | "code" | "codigo" | "código"
-                | "u" | "underline" | "sublinhado"
-                | "s" | "del" | "strike" | "tachado"
-                | "a"
-                | "span"
-        )
-    }
-
-    /// Um `<text>` só vira [`NodeType::RichText`] se tiver filho inline; sem isso
-    /// segue sendo o `Text` de sempre, com tudo que já tinha.
-    fn tem_filho_inline(node: &Node) -> bool {
-        node.children()
-            .any(|c| c.is_element() && Self::tag_inline(c.tag_name().name()))
-    }
-
     /// Colapsa espaço em branco como o HTML, **mas preserva uma borda**: entre
     /// `Olá ` e `<b>mundo</b>` o espaço é do texto, e `normalize_text` o apagaria.
     fn colapsar_espaco(raw: &str) -> String {
@@ -4691,48 +4689,75 @@ impl UiNode {
         out
     }
 
-    /// Monta o [`NodeType::RichText`] de um `<text>` com filhos inline ou de um `<a>`.
+    /// Um texto estático selecionável: um `TextArea` somente leitura, ver
+    /// [`NodeType::TextArea::fixo`]. A chave do buffer só se conhece na avaliação,
+    /// depois da interpolação.
+    fn selecionavel(fixo: TextoFixo) -> NodeType {
+        NodeType::TextArea {
+            placeholder: String::new(),
+            value_var: String::new(),
+            on_change: String::new(),
+            readonly: true,
+            menu_class: None,
+            fixo: Some(fixo),
+        }
+    }
+
+    /// Monta o [`NodeType::RichText`] de um `<prose>`.
     fn rich_text(
         node: &Node,
-        e_link: bool,
         numeric_templates: &mut Vec<(NumAttr, String)>,
     ) -> NodeType {
         let size = Self::get_attr_num(node, &["size", "tamanho"], NumAttr::Size, numeric_templates);
         let color = Self::get_attr(node, &["color", "cor"]);
-        let mut base = TextSpan {
+        let base = TextSpan {
             bold: Self::get_attr_bool(node, &["bold", "negrito"]),
             ..Default::default()
         };
-        if e_link {
-            base.link = Some(Self::ler_link(node));
-        }
         let mut spans = Vec::new();
-        // `.gvb` escreve o texto como atributo (`a(href = x, content = "aqui")`);
-        // no `.gv` ele é filho. Os dois entram, o atributo primeiro.
+        // `.gvb` escreve o texto como atributo (`prose(content = "…")`); no `.gv`
+        // ele é filho. Os dois entram, o atributo primeiro.
         if let Some(c) = Self::get_attr(node, &["content", "conteudo", "text", "texto"]) {
             spans.push(TextSpan {
                 content: Self::colapsar_espaco(&c),
                 ..base.clone()
             });
         }
-        Self::coletar_spans(node, &base, &mut spans);
-        // Sem espaço sobrando nas pontas do parágrafo, nem dobrado entre trechos.
-        if let Some(primeiro) = spans.first_mut() {
-            primeiro.content = primeiro.content.trim_start().to_string();
+        let mut paragrafo_pendente = false;
+        Self::coletar_spans(node, &base, &mut spans, &mut paragrafo_pendente);
+
+        // Espaço sobrando: nas pontas, antes/depois de uma quebra de parágrafo e
+        // dobrado entre trechos vizinhos.
+        let mut anterior_termina_em_espaco = true; // o início do texto também apara
+        for i in 0..spans.len() {
+            let e_quebra = spans[i].content == QUEBRA_DE_PARAGRAFO;
+            if e_quebra {
+                if i > 0 {
+                    let t = spans[i - 1].content.trim_end().to_string();
+                    spans[i - 1].content = t;
+                }
+                anterior_termina_em_espaco = true;
+                continue;
+            }
+            if anterior_termina_em_espaco {
+                let t = spans[i].content.trim_start().to_string();
+                spans[i].content = t;
+            }
+            if !spans[i].content.is_empty() {
+                anterior_termina_em_espaco = spans[i].content.ends_with(' ');
+            }
         }
-        if let Some(ultimo) = spans.last_mut() {
+        if let Some(ultimo) = spans.iter_mut().rev().find(|s| !s.content.is_empty()) {
             ultimo.content = ultimo.content.trim_end().to_string();
         }
-        let mut anterior_termina_em_espaco = false;
-        for sp in &mut spans {
-            if anterior_termina_em_espaco && sp.content.starts_with(' ') {
-                sp.content = sp.content.trim_start().to_string();
-            }
-            if !sp.content.is_empty() {
-                anterior_termina_em_espaco = sp.content.ends_with(' ');
-            }
-        }
         spans.retain(|s| !s.content.is_empty());
+        // Quebra de parágrafo sem texto de um lado ou do outro não é parágrafo.
+        while spans.first().is_some_and(|s| s.content == QUEBRA_DE_PARAGRAFO) {
+            spans.remove(0);
+        }
+        while spans.last().is_some_and(|s| s.content == QUEBRA_DE_PARAGRAFO) {
+            spans.pop();
+        }
         NodeType::RichText { spans, size, color }
     }
 
@@ -4750,35 +4775,69 @@ impl UiNode {
         }
     }
 
-    fn coletar_spans(node: &Node, base: &TextSpan, out: &mut Vec<TextSpan>) {
+    /// Percorre os filhos de um `<prose>` (ou de um trecho dele) acumulando
+    /// [`TextSpan`]. `paragrafo_pendente`: um `<p>` acabou de fechar, então o
+    /// próximo conteúdo abre outro parágrafo.
+    fn coletar_spans(
+        node: &Node,
+        base: &TextSpan,
+        out: &mut Vec<TextSpan>,
+        paragrafo_pendente: &mut bool,
+    ) {
+        let abrir_paragrafo = |out: &mut Vec<TextSpan>, pendente: &mut bool| {
+            if *pendente {
+                if !out.is_empty() {
+                    out.push(TextSpan {
+                        content: QUEBRA_DE_PARAGRAFO.to_string(),
+                        ..Default::default()
+                    });
+                }
+                *pendente = false;
+            }
+        };
         for filho in node.children() {
             if filho.is_text() {
                 let content = Self::colapsar_espaco(filho.text().unwrap_or_default());
-                if !content.is_empty() {
-                    out.push(TextSpan {
-                        content,
-                        ..base.clone()
-                    });
+                // Só espaço entre dois `<p>` (a indentação do arquivo) não abre
+                // parágrafo nem conta como texto.
+                if !content.trim().is_empty() || !*paragrafo_pendente {
+                    if !content.is_empty() {
+                        if !content.trim().is_empty() {
+                            abrir_paragrafo(out, paragrafo_pendente);
+                        }
+                        out.push(TextSpan {
+                            content,
+                            ..base.clone()
+                        });
+                    }
                 }
             } else if filho.is_element() {
                 let tag = filho.tag_name().name().to_ascii_lowercase();
                 let mut estilo = base.clone();
                 match tag.as_str() {
+                    "p" => {
+                        // Parágrafo: recomeça se já havia conteúdo, e fecha com
+                        // pendência para o que vier depois.
+                        if !out.is_empty() {
+                            *paragrafo_pendente = true;
+                        }
+                        abrir_paragrafo(out, paragrafo_pendente);
+                        Self::coletar_spans(&filho, &estilo, out, paragrafo_pendente);
+                        *paragrafo_pendente = true;
+                        continue;
+                    }
                     "b" | "strong" | "negrito" => estilo.bold = true,
                     "i" | "em" | "italico" | "itálico" => estilo.italic = true,
                     "code" | "codigo" | "código" => estilo.code = true,
                     "u" | "underline" | "sublinhado" => estilo.underline = true,
                     "s" | "del" | "strike" | "tachado" => estilo.strike = true,
-                    "a" => {
-                        estilo.link = Some(Self::ler_link(&filho));
-                    }
-                    "span" => {
-                        estilo.bold |= Self::get_attr_bool(&filho, &["bold", "negrito"]);
-                    }
+                    "a" => estilo.link = Some(Self::ler_link(&filho)),
+                    "span" => estilo.bold |= Self::get_attr_bool(&filho, &["bold", "negrito"]),
                     // Tag desconhecida dentro do parágrafo: o texto dela fica, o
                     // estilo não — melhor que sumir com as palavras.
                     _ => {}
                 }
+                abrir_paragrafo(out, paragrafo_pendente);
                 if let Some(c) = Self::get_attr(&filho, &["color", "cor"]) {
                     estilo.color = Some(c);
                 }
@@ -4788,7 +4847,7 @@ impl UiNode {
                         ..estilo.clone()
                     });
                 }
-                Self::coletar_spans(&filho, &estilo, out);
+                Self::coletar_spans(&filho, &estilo, out, paragrafo_pendente);
             }
         }
     }
@@ -5129,9 +5188,26 @@ impl UiNode {
                 );
                 NodeType::Markdown { content, size }
             }
-            "A" | "a" => Self::rich_text(&node, true, &mut numeric_templates),
-            "Text" | "text" | "Span" | "span" if Self::tem_filho_inline(&node) => {
-                Self::rich_text(&node, false, &mut numeric_templates)
+            "Prose" | "prose" => {
+                let rico = Self::rich_text(&node, &mut numeric_templates);
+                match rico {
+                    // `selectable`: vira um texto simples selecionável — o preço é
+                    // perder os trechos estilizados e os links.
+                    NodeType::RichText { spans, size, color }
+                        if Self::get_attr_bool(
+                            &node,
+                            &["selectable", "selecionavel", "selecionável"],
+                        ) =>
+                    {
+                        Self::selecionavel(TextoFixo {
+                            content: spans.iter().map(|s| s.content.as_str()).collect(),
+                            size,
+                            color,
+                            bold: Self::get_attr_bool(&node, &["bold", "negrito"]),
+                        })
+                    }
+                    outro => outro,
+                }
             }
             "Text" | "text" | "Span" | "span" => {
                 // Text accepts its content either via the `content` attribute or
@@ -5154,11 +5230,20 @@ impl UiNode {
                 );
                 let bold = Self::get_attr_bool(&node, &["bold", "negrito"]);
                 let color = Self::get_attr(&node, &["color", "cor"]);
-                NodeType::Text {
-                    content,
-                    size,
-                    bold,
-                    color,
+                if Self::get_attr_bool(&node, &["selectable", "selecionavel", "selecionável"]) {
+                    Self::selecionavel(TextoFixo {
+                        content,
+                        size,
+                        color,
+                        bold,
+                    })
+                } else {
+                    NodeType::Text {
+                        content,
+                        size,
+                        bold,
+                        color,
+                    }
                 }
             }
             "Button" | "button" | "Botao" | "botao" => {
@@ -5262,6 +5347,7 @@ impl UiNode {
                     on_change,
                     readonly,
                     menu_class,
+                    fixo: None,
                 }
             }
             "Image" | "image" | "Imagem" | "imagem" => {
@@ -6915,7 +7001,10 @@ impl UiNode {
         // duplicated.
         let wrap_loose_text = !matches!(
             kind,
-            NodeType::Text { .. } | NodeType::RichText { .. } | NodeType::Markdown { .. }
+            NodeType::Text { .. }
+                | NodeType::RichText { .. }
+                | NodeType::Markdown { .. }
+                | NodeType::TextArea { fixo: Some(_), .. }
         );
         // Os itens de uma `<tray>` já foram lidos no braço dela; parseá-los de
         // novo como nós faria o `<check>` virar um checkbox perdido na árvore.
@@ -6925,6 +7014,7 @@ impl UiNode {
                 | NodeType::Tray(_)
                 | NodeType::RichText { .. }
                 | NodeType::Markdown { .. }
+                | NodeType::TextArea { fixo: Some(_), .. }
         );
         let mut children = Vec::new();
         for child in node.children().filter(|_| le_filhos) {

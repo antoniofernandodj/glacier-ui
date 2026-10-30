@@ -263,10 +263,23 @@ impl fmt::Display for GlacierError {
                 f,
                 "nenhuma tela ativa: chame set_initial_screen(\"<componente>\") antes de renderizar"
             ),
-            Self::UnknownComponent(name) => write!(
-                f,
-                "componente '{name}' não registrado: confira o nome no <import>/register"
-            ),
+            Self::UnknownComponent(name) => {
+                write!(
+                    f,
+                    "componente '{name}' não registrado: confira o nome no <import>/register"
+                )?;
+                if matches!(
+                    name.to_ascii_lowercase().as_str(),
+                    "b" | "strong" | "i" | "em" | "code" | "u" | "s" | "del" | "a" | "p" | "span"
+                ) {
+                    write!(
+                        f,
+                        " — '<{name}>' só existe dentro de um <prose>: o <text> não aceita \
+                         texto inline"
+                    )?;
+                }
+                Ok(())
+            }
             Self::ComponentRecursion { name, limite } => write!(
                 f,
                 "componente '{name}' se expandiu além de {limite} níveis: quase sempre um \

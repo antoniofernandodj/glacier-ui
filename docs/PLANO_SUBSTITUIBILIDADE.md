@@ -1,8 +1,8 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** em andamento (2026-10-30). Fases 0, 1 e 2 feitas, com as ressalvas listadas
-em cada uma (`docs/MEDICOES.md`, `docs/REMOTO.md`, `docs/TEXTO.md`); 3 a 8 não
-começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Estado:** em andamento (2026-10-30). Fases 0 e 2 feitas, com as ressalvas listadas em
+cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada** (nada remoto
+além de dados); 3 a 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
@@ -37,7 +37,7 @@ binário pequeno, em vez de uma stack web.
 1. **Texto.** Sem `<a>`, sem texto inline misto (negrito no meio da frase), sem
    Markdown; seleção e cópia de texto estático não apareceram.
 2. **Acessibilidade.** Nenhuma menção a AccessKit, ARIA ou leitor de tela.
-3. **Carga remota.** O `AssetSource` só tem disco e embutido. Não existe "abrir uma
+3. **Carga remota** (descartada, ver Fase 1). O `AssetSource` só tem disco e embutido. Não existe "abrir uma
    URL e carregar o app"; cada atualização é um binário novo.
 4. **Mídia.** Sem `<audio>` nem `<video>`. Hoje só a `webview` nativa quebra o galho.
 5. **Alvo WASM incompleto.** Sem Luau e sem `fetch` no navegador (`WEB.md`); negrito e
@@ -85,26 +85,21 @@ Sem isso não há como dizer "menos recursos que o navegador".
 
 **Aceitação:** três números por alvo, reproduzíveis por um `make` documentado.
 
-### Fase 1 — Carga remota (`AssetSource` HTTP)
+### Fase 1 — Carga remota (DESCARTADA)
 
-O item que mais aproxima o conceito de "micro navegador" e o mais isolado: o
-`AssetSource` já é um trait (`src/asset_source.rs`).
+**Decidido em 2026-10-30: o Glacier não carrega app, tela nem asset de fora.** Tudo
+é local — `.gv`/`.gva`/`.gvb`, `.gss`, scripts, imagens, telas. A única coisa que vem
+de fora é dado, pelo `fetch` da camada Lua.
 
-- `HttpAssets`: base URL, `GET` dos mesmos caminhos lógicos que o disco serve.
-- Cache em disco com `ETag`/`If-None-Match`; offline serve o último cache.
-- Verificação de integridade: manifesto assinado (ed25519) ou hash por arquivo. Sem
-  isso, carregar markup e **script** de uma URL é execução remota de código.
-- Mapear `modified()` ao `ETag`, reaproveitando o hot-reload como mecanismo de
-  atualização ao vivo.
-- Política de confiança: o que um app remoto pode chamar (`storage`, `fetch`,
-  `open_window`, `LuaExtension`) precisa ser uma lista explícita, não herdada.
+A Fase 1 foi implementada (`HttpAssets` com manifesto ed25519, cache e modo offline;
+`RoteadorAssets` para telas remotas) e depois **removida por completo**: carregar
+markup e script de uma URL é execução remota de código, a superfície de ataque que o
+projeto decidiu não assumir (assinatura, rollback de manifesto, política de confiança
+por origem, confiança em chave…). O histórico git guarda a implementação
+(commit `5fb9487`) para quem precisar consultar; não há plano de retomá-la.
 
-**Perguntas a fechar antes de codar:** a origem é parte da identidade do app (escopo do
-`storage` por origem, como a web)? Quem assina? O `GlacierDaemon` abre `app.gv` remoto
-ou só `.gv` de telas?
-
-**Aceitação:** um exemplo que serve `views/` de um nginx local, abre, edita o arquivo no
-servidor e a tela atualiza; com arquivo adulterado, recusa e mostra erro visível.
+A idéia de "micro navegador" fica, portanto, restrita a: motor pequeno + app local +
+dados remotos. Ver "Fora do escopo".
 
 ### Fase 2 — Texto rico, links e seleção
 
@@ -159,7 +154,7 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 ### Fase 6 — Rede completa
 
-- Cookies e jar por origem (liga com a Fase 1).
+- Cookies e jar por host, só para o `fetch` (a Fase 1 foi descartada).
 - `multipart/form-data` e upload de arquivo.
 - Download em streaming com progresso (`on_progress`).
 - Cancelamento (`abort`) de `fetch`.
@@ -190,7 +185,7 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 ```
 Fase 0 (medir)
-   ├── Fase 1 (carga remota) ── Fase 6 (cookies por origem)
+   ├── Fase 6 (rede do fetch: cookies, upload)
    ├── Fase 2 (texto) ── Fase 3 (acessibilidade)
    ├── Fase 4 (WASM)
    ├── Fase 5 (CSS)
@@ -207,7 +202,7 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 | Fase | Geral | App interno |
 |---|---|---|
-| 1 carga remota | +0,08 | +0,05 |
+| 1 carga remota | descartada | descartada |
 | 2 texto rico | +0,05 | +0,05 |
 | 3 acessibilidade | +0,05 | +0,03 |
 | 4 WASM | +0,04 | +0,02 |
@@ -219,6 +214,7 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 ## 5. Fora do escopo (de propósito)
 
 - **SEO e indexação.** Um app em `<canvas>` não tem DOM. Quem precisa disso usa web.
+- **Carregar app, tela ou asset de uma URL** (Fase 1, descartada): só dados remotos.
 - **Compatibilidade com HTML/CSS/JS existentes.** O Glacier não é um motor de
   renderização da web; o markup é o dele.
 - **Extensões de navegador, DevTools completo, service workers.**
@@ -228,8 +224,6 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 - **Acessibilidade depende do upstream.** Se o `iced` não expuser AccessKit, a Fase 3
   vira "contribuir para o iced", com prazo fora do controle do projeto.
-- **Carga remota de script é superfície de ataque.** A Fase 1 sem assinatura não deve
-  ser publicada.
 - **Luau no WASM pode não ter caminho** (o `luau0-src` só gera wasm para emscripten).
   A Fase 4 pode terminar em "outra linguagem para o navegador", o que parte a
   promessa de um script só.
@@ -239,19 +233,10 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 ## 7. O que ficou decidido
 
-Fase 1 (2026-10-30):
+Fase 1 (2026-10-30): **descartada.** Sem app, tela ou asset remoto; só dados via
+`fetch`. A implementação foi removida (ver a seção da Fase 1).
 
-- **Origem é parte da identidade.** O `storage` de um app remoto mora em
-  `<storage_dir>/origens/<origem>/`. Com telas remotas num app local, vale a origem
-  do app local.
-- **Quem assina: o autor do app, com a chave pública fixa no binário do cliente.**
-  Abrir uma URL arbitrária (várias chaves, "confiar neste autor?") fica para depois.
-- **As duas formas coexistem**, com o mesmo `HttpAssets`: app inteiro remoto
-  (`GlacierDaemon::assets(HttpAssets)`) ou só telas remotas
-  (`RoteadorAssets` montando um prefixo). Alternar é trocar a fonte de assets, sem
-  tocar no markup.
-- **Ficou de fora:** política de confiança por origem para o que um script remoto
-  pode chamar, e proteção contra rollback de manifesto. Ver `docs/REMOTO.md`.
-
-Fase 2 (2026-10-30): texto inline, `<a>` e `<markdown>` feitos; **seleção e cópia de
-texto estático não**, por limite do `iced` 0.14 (ver `docs/TEXTO.md`).
+Fase 2 (2026-10-30): estilo inline só dentro de `<prose>` (com `<p>`); `<a>` com hover;
+`selectable` em `<text>`/`<prose>` (via `<textarea readonly>`, perdendo estilo e link);
+`<markdown>` com tabelas e imagens **locais**. Falta o foco de teclado nos links
+(ver `docs/TEXTO.md`).

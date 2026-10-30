@@ -1,9 +1,0 @@
-screen(title = "Novidades") {
-  container(class = caixa) {
-    column(class = coluna) {
-      text(content = "Novidades", class = titulo)
-      text(content = "Esta tela também foi baixada e verificada.", class = rotulo)
-      button(text = Voltar, navigate_back = true, class = botao)
-    }
-  }
-}

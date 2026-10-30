@@ -781,15 +781,6 @@ impl GlacierDaemon {
         // `boot` abaixo e cada janela-filha em `build_engine` instalam o global
         // `storage` no registro do componente, lendo esta raiz já definida).
         if let Some(dir) = storage_dir {
-            // Assets remotos: o `storage` é da ORIGEM, como no navegador — um app
-            // servido por `loja.com` não lê o que o de `banco.com` gravou.
-            #[cfg(not(target_arch = "wasm32"))]
-            let dir = match assets.origem() {
-                Some(origem) => dir
-                    .join("origens")
-                    .join(crate::remote_assets::pasta_da_origem(&origem)),
-                None => dir,
-            };
             crate::luau::set_storage_root(dir);
         }
 
