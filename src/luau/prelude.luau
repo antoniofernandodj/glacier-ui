@@ -1170,7 +1170,7 @@ function http(base_url: string?, opts: any?): any
     return setmetatable({
         base_url = base_url or "",
         headers = _http_merge(nil, opts.headers),
-        query = _http_merge(nil, opts.query),
+        params = _http_merge(nil, opts.query),
         timeout = opts.timeout,
         retries = opts.retries or 0,
         retry_on = opts.retry_on, -- function(res) -> boolean; nil = padrão (0, 429, 5xx)
@@ -1199,7 +1199,7 @@ function Http:remove_header(k: string)
     return self
 end
 function Http:set_query(k: string, v: any)
-    self.query[k] = v
+    self.params[k] = v
     return self
 end
 function Http:set_timeout(ms: number?)
@@ -1245,7 +1245,7 @@ function Http:extend(base_path: string?, opts: any?): any
     opts = opts or {}
     local child = http(_http_join(self.base_url, base_path or ""), {
         headers = _http_merge(self.headers, opts.headers),
-        query = _http_merge(self.query, opts.query),
+        query = _http_merge(self.params, opts.query),
         timeout = if opts.timeout ~= nil then opts.timeout else self.timeout,
         retries = if opts.retries ~= nil then opts.retries else self.retries,
         retry_on = opts.retry_on or self.retry_on,
@@ -1270,7 +1270,7 @@ function Http:request(spec: any): any
         method = string.upper(spec.method or "GET"),
         path = spec.path or spec.url or "",
         headers = _http_merge(self.headers, spec.headers),
-        query = _http_merge(self.query, spec.query),
+        query = _http_merge(self.params, spec.query),
         body = spec.body,
         timeout = if spec.timeout ~= nil then spec.timeout else self.timeout,
         cookies = if spec.cookies ~= nil then spec.cookies else self.cookies,
@@ -1307,6 +1307,23 @@ function Http:request(spec: any): any
 
     local url = _http_join(self.base_url, req.path) .. _http_query(req.query)
 
+    -- RFC 10008 §2: um QUERY sem corpo, ou sem Content-Type, é um pedido que o servidor deve
+    -- rejeitar — então nem sai. (`multipart` traz o próprio Content-Type.)
+    if req.method == "QUERY" and req.multipart == nil then
+        local tem_ct = false
+        for k in req.headers do
+            if string.lower(k) == "content-type" then
+                tem_ct = true
+                break
+            end
+        end
+        if body == nil or body == "" then
+            return { ok = false, status = 0, body = "", error = "QUERY needs a request body (the query itself) — RFC 10008 §2", request = { method = req.method, url = url } }
+        elseif not tem_ct then
+            return { ok = false, status = 0, body = "", error = "QUERY needs a Content-Type header — RFC 10008 §2", request = { method = req.method, url = url } }
+        end
+    end
+
     -- envia, repetindo enquanto `retry_on` disser que sim e ainda houver folga.
     local attempt = 0
     local res
@@ -1327,7 +1344,10 @@ function Http:request(spec: any): any
         elseif self.retry_on then
             repetir = self.retry_on(res) == true
         else
-            repetir = res.status == 0 or res.status == 429 or res.status >= 500
+            -- só se repete o que é idempotente: o 1º POST/PATCH pode ter chegado ao servidor.
+            local idem = req.method == "GET" or req.method == "HEAD" or req.method == "OPTIONS"
+                or req.method == "PUT" or req.method == "DELETE" or req.method == "QUERY"
+            repetir = idem and (res.status == 0 or res.status == 429 or res.status >= 500)
         end
         if res.ok or attempt > self.retries or not repetir then
             break
@@ -1379,6 +1399,14 @@ function Http:delete(path: string, spec: any?): any
 end
 function Http:head(path: string, spec: any?): any
     return self:request(_http_merge(spec, { method = "HEAD", path = path }))
+end
+function Http:options(path: string, spec: any?): any
+    return self:request(_http_merge(spec, { method = "OPTIONS", path = path }))
+end
+-- O método HTTP QUERY (RFC 10008): seguro e idempotente, com a consulta no CORPO.
+-- Precisa de corpo; uma tabela vira JSON com Content-Type.
+function Http:query(path: string, body: any?, spec: any?): any
+    return self:request(_http_merge(spec, { method = "QUERY", path = path, body = body }))
 end
 function Http:post(path: string, body: any?, spec: any?): any
     return self:request(_http_merge(spec, { method = "POST", path = path, body = body }))

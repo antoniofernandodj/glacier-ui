@@ -23,7 +23,7 @@ local function eco(r: any): string
 end
 
 function init()
-    for i = 1, 20 do
+    for i = 1, 21 do
         ctx["s" .. i] = "…"
     end
 
@@ -145,4 +145,11 @@ function init()
     end)
     local f = api:get("/lento", { signal = ctl2 })
     ctx.s20 = `ok={f.ok} error="{f.error}" (o cliente não repete uma chamada cancelada)`
+
+    -- QUERY (RFC 10008): seguro e idempotente, com a consulta no corpo
+    local q = api:query("/json", { termo = "glacier", limite = 10 })
+    ctx.s21 = `status {q.status}: ` .. eco(q)
+    -- sem corpo, o cliente nem envia (RFC 10008 §2)
+    local ruim = api:query("/json")
+    ctx.s21 ..= `\nsem corpo: ok={ruim.ok} status={ruim.status} error="{ruim.error}"`
 end

@@ -3593,7 +3593,7 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 | `headers` | cabeçalhos de base; um `headers` na chamada tem prioridade, chave a chave |
 | `query` | query params de base; idem, mesclados com os da chamada |
 | `timeout` | ms, por requisição — desce para o `fetch` |
-| `retries` | tentativas **extras** (0 = uma tentativa). Reenvia enquanto `status == 0`, `429` ou `>= 500` |
+| `retries` | tentativas **extras** (0 = uma tentativa). Reenvia enquanto `status == 0`, `429` ou `>= 500` — só métodos idempotentes (`GET/HEAD/OPTIONS/PUT/DELETE/QUERY`); um `POST`/`PATCH` não é refeito sozinho |
 | `retry_on` | `function(res) -> boolean` — sobrescreve o critério de retry |
 | `cookies` | `false` faz este cliente ignorar o jar (um `cookies` na chamada tem prioridade) |
 
@@ -3612,7 +3612,8 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 
 | método | |
 |---|---|
-| `client:get(path, spec?)` / `:delete` / `:head` | |
+| `client:get(path, spec?)` / `:delete` / `:head` / `:options` | |
+| `client:query(path, body, spec?)` | o método HTTP `QUERY` (RFC 10008): seguro e idempotente, a consulta no corpo. Sem corpo ou sem `Content-Type` o cliente nem envia (`ok = false`, `status = 0`) |
 | `client:post(path, body?, spec?)` / `:put` / `:patch` | `body` tabela → `json.encode` + `Content-Type: application/json` |
 | `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout?, cookies?, signal?, multipart? }` |
 
@@ -3628,6 +3629,8 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 devolve um cliente novo com a `base_url` estendida, os headers/query/timeout/
 retries mesclados e **os interceptors do pai copiados** (o filho acrescenta sem
 afetar o pai).
+
+**Em Rust** o mesmo existe em `glacier_ui::net::Client` (`get/post/put/patch/delete/head/options/query` → `.header/.param/.json/.multipart/.abort/.send().await`); ver `docs/REDE.md`.
 
 **O que ele não faz:** cabeçalhos da resposta (o `fetch` não os devolve)
 e backoff **entre** retries (os reenvios são imediatos — para

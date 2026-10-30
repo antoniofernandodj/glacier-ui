@@ -83,29 +83,59 @@ api:clear_cookies()                     -- esvazia os cookies do host da base_ur
 
 ## Em Rust: `glacier_ui::net`
 
-O mesmo que o `fetch` faz está disponível a quem escreve um `Component` em Rust, dentro de um
-`ctx.perform(async { … })`, pela mesma camada (o mesmo jar, o mesmo multipart, o mesmo cancelamento):
+O mesmo que o `fetch` e o `http()` fazem está disponível a quem escreve um `Component` em Rust,
+dentro de um `ctx.perform(async { … })`, pela mesma camada (o mesmo jar, o mesmo multipart, o
+mesmo cancelamento). Dois níveis:
 
 ```rust
-use glacier_ui::net::{AbortHandle, Multipart, ArquivoMultipart, Requisicao, limpar_cookies};
+use glacier_ui::net::{AbortHandle, Client, Multipart, MultipartFile, Request, clear_cookies};
 
-let res = Requisicao::post("https://api.exemplo/upload")
-    .cabecalho("Authorization", "Bearer …")
+// Request: um pedido (o `fetch` do Luau)
+let res = Request::post("https://api.example.com/upload")
+    .header("Authorization", "Bearer …")
     .timeout_ms(5000)
-    .multipart(Multipart { fields: vec![("titulo".into(), "olá".into())],
-                           files: vec![ArquivoMultipart { name: "anexo".into(), path: "a.pdf".into(),
-                                                          filename: None, content_type: None }] })
-    .enviar().await;                       // FetchResult { ok, status, body, error }
+    .multipart(Multipart { fields: vec![("title".into(), "hi".into())],
+                           files: vec![MultipartFile { name: "file".into(), path: "a.pdf".into(),
+                                                       filename: None, content_type: None }] })
+    .send().await;                          // FetchResult { ok, status, body, error }
 
-let ctl = AbortHandle::novo();
-let r = Requisicao::get(url).cancelavel(&ctl).enviar().await;   // ctl.abort() de outra thread
-Requisicao::get(url).sem_cookies().baixar_para("/tmp/x.bin").enviar().await;
-limpar_cookies(None);
+let ctl = AbortHandle::new();
+Request::get(url).abortable(&ctl).send().await;       // ctl.abort() de outra thread
+Request::get(url).no_cookies().download_to("/tmp/x.bin").send().await;
+clear_cookies(None);
+
+// Client: o `http()` do Luau, com um atalho por método
+let api = Client::new("https://api.example.com")
+    .default_header("Authorization", "Bearer …")
+    .default_param("version", "1")
+    .retries(2)
+    .on_error(|e| eprintln!("{} {} → {}", e.method, e.url, e.status));
+
+let r = api.get("/items").param("page", "2").send().await;     // r.ok(), r.status(), r.json()
+api.post("/items").json(&serde_json::json!({ "name": "x" })).send().await;
+api.put("/items/1").json(&body).send().await;
+api.patch("/items/1").json(&patch).send().await;
+api.delete("/items/1").send().await;
+api.head("/items").send().await;
+api.options("/items").send().await;
+api.query("/search").json(&serde_json::json!({ "term": "glacier" })).send().await;
 ```
 
-O cliente `http()` com `base_url`, interceptors e `retries` é do **Luau** (vive no prelúdio); em
-Rust, `examples/comum/rede_rust.rs` mostra um `Cliente` equivalente em ~100 linhas por cima de
-`Requisicao`.
+### O método `QUERY` (RFC 10008)
+
+`QUERY` (RFC 10008, 2026) é um método **seguro e idempotente com corpo**: como o `GET`, não muda
+nada no servidor; como o `POST`, leva a consulta no corpo — para consultas grandes ou
+estruturadas demais para uma URL. O servidor deve rejeitar um `QUERY` sem conteúdo ou com
+`Content-Type` ausente/incoerente (§2), então **o cliente nem envia** um `QUERY` sem corpo ou sem
+`Content-Type` (`.json(…)` põe os dois): volta `ok = false`, `status = 0`, sem tocar na rede. Em
+Luau: `api:query("/search", { termo = "glacier" })`.
+
+### Retries
+
+`retries(n)` refaz a chamada em falha de rede, `429` e `5xx` — **só para métodos idempotentes**
+(`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, `QUERY`): o primeiro `POST`/`PATCH` pode ter chegado ao
+servidor. `retry_on` troca a regra; uma chamada cancelada nunca se repete. Vale igual para o
+`http()` do Luau.
 
 ## Como foi verificado
 

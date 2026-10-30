@@ -100,6 +100,8 @@ mod transition;
 pub mod menu;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;
+#[cfg(not(target_arch = "wasm32"))]
+mod http_client;
 #[cfg(target_arch = "wasm32")]
 #[path = "net_web.rs"]
 pub mod net;

@@ -20,10 +20,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   `multipart/form-data` (`multipart = { fields, files }`) e cancelamento
   (`abort_controller()` + `signal`). O cliente `http()` repassa os três (`cookies`, `signal`,
   `multipart`; `set_cookies`, `clear_cookies`) e não repete uma chamada cancelada.
-- **`glacier_ui::net`** (Rust): `Requisicao`, `AbortHandle`, `Multipart` e `limpar_cookies`, a
-  mesma camada do `fetch` para quem escreve um `Component` em Rust.
+- **`glacier_ui::net`** (Rust): `Request`, `Client`, `AbortHandle`, `Multipart` e `clear_cookies`,
+  a mesma camada do `fetch` e do `http()` para quem escreve um `Component` em Rust. `Client` tem
+  um atalho por método — `get`, `post`, `put`, `patch`, `delete`, `head`, `options` e `query`
+  (o método HTTP `QUERY`, RFC 10008; o cliente recusa um `QUERY` sem corpo ou `Content-Type`).
+  O `http()` do Luau ganhou `:options` e `:query`; os retries agora só repetem métodos
+  idempotentes (um `POST` não é refeito sozinho). O campo interno `query` do cliente Luau virou
+  `params` (colidia com o método `:query`).
 - Exemplos `rede_completa`, `rede_completa_luau`, `gvb_rede_completa`, `gvb_rede_completa_luau`
-  (20 casos de rede cada, contra `tools/servidor_rede.py`), `css_moderno` e os verificadores
+  (21 casos de rede cada, contra `tools/servidor_rede.py`), `css_moderno` e os verificadores
   `css_estrutural_check`, `tools/transition_check`.
 
 ### Corrigido

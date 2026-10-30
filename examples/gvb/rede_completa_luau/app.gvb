@@ -51,6 +51,8 @@ screen(title = "Rede completa (Luau)", size = "860 880") {
         text("{s19}", class = valor)
         text("[http()] 20. cliente: abort numa chamada api:get", class = rotulo)
         text("{s20}", class = valor)
+        text("[http()] 21. cliente: QUERY (RFC 10008), a consulta no corpo", class = rotulo)
+        text("{s21}", class = valor)
       }
     }
   }

@@ -96,6 +96,16 @@ class H(BaseHTTPRequestHandler):
                 linhas.append(f"campo {nome.group(1).decode()}={dados.decode()}")
         self._resp(" | ".join(linhas))
 
+    def do_QUERY(self):
+        # RFC 10008 §2: sem conteúdo ou sem Content-Type, o servidor rejeita.
+        n = int(self.headers.get("Content-Length", 0))
+        corpo = self.rfile.read(n)
+        if not corpo or not self.headers.get("Content-Type"):
+            return self._resp("QUERY sem corpo ou sem Content-Type", 400)
+        if self._caminho() != "/json":
+            return self._resp("não achei", 404)
+        eco_json(self, corpo)
+
     def log_message(self, *a):
         pass
 

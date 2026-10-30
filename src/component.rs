@@ -119,12 +119,12 @@ pub struct Multipart {
     /// Campos de texto, na ordem.
     pub fields: Vec<(String, String)>,
     /// Arquivos do disco, na ordem.
-    pub files: Vec<ArquivoMultipart>,
+    pub files: Vec<MultipartFile>,
 }
 
 /// Um arquivo de um [`Multipart`].
 #[derive(Debug, Clone)]
-pub struct ArquivoMultipart {
+pub struct MultipartFile {
     /// O nome do campo do formulário.
     pub name: String,
     pub path: String,
@@ -147,7 +147,7 @@ struct AbortInner {
 }
 
 impl AbortHandle {
-    pub fn novo() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
 
@@ -161,22 +161,22 @@ impl AbortHandle {
         }
     }
 
-    pub fn abortado(&self) -> bool {
+    pub fn is_aborted(&self) -> bool {
         self.0.abortado.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Um futuro que fica pronto quando alguém chama [`AbortHandle::abort`].
-    pub fn esperar(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
+    pub fn wait(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
         let h = self.clone();
         std::future::poll_fn(move |cx| {
-            if h.abortado() {
+            if h.is_aborted() {
                 return std::task::Poll::Ready(());
             }
             if let Ok(mut w) = h.0.wakers.lock() {
                 w.push(cx.waker().clone());
             }
             // Pode ter sido cancelado entre o teste e o registro.
-            if h.abortado() {
+            if h.is_aborted() {
                 std::task::Poll::Ready(())
             } else {
                 std::task::Poll::Pending

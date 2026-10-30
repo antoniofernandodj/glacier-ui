@@ -1178,7 +1178,7 @@ impl LuauComponent {
                     if let Some(files) = m.get::<Option<Table>>("files")? {
                         for item in files.sequence_values::<Table>() {
                             let t = item?;
-                            mp.files.push(crate::component::ArquivoMultipart {
+                            mp.files.push(crate::component::MultipartFile {
                                 name: t.get::<Option<String>>("name")?.unwrap_or_else(|| "file".into()),
                                 path: t.get::<String>("path").map_err(|_| {
                                     mlua::Error::runtime("fetch: cada arquivo de `multipart.files` precisa de `path`")
@@ -1740,13 +1740,13 @@ impl mlua::UserData for AbortCtl {
             this.0.abort();
             Ok(())
         });
-        methods.add_method("aborted", |_, this, ()| Ok(this.0.abortado()));
+        methods.add_method("aborted", |_, this, ()| Ok(this.0.is_aborted()));
     }
 }
 
 /// `abort_controller()` e `clear_cookies(host?)`.
 fn install_rede(luau: &Lua) -> mlua::Result<()> {
-    let novo = luau.create_function(|_, ()| Ok(AbortCtl(crate::component::AbortHandle::novo())))?;
+    let novo = luau.create_function(|_, ()| Ok(AbortCtl(crate::component::AbortHandle::new())))?;
     luau.globals().set("abort_controller", novo)?;
     let limpa = luau.create_function(|_, host: Option<String>| {
         #[cfg(not(target_arch = "wasm32"))]

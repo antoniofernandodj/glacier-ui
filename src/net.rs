@@ -10,7 +10,7 @@ use http_body_util::{BodyExt, Full};
 use hyper::Method;
 use hyper::body::Bytes;
 use hyper_rustls::HttpsConnector;
-use hyper_util::client::legacy::Client;
+use hyper_util::client::legacy::Client as HyperClient;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::rt::TokioExecutor;
 
@@ -19,7 +19,7 @@ use crate::component::{FetchResult, PendingFetch, StreamKind};
 /// O corpo de um pedido: uma caixa, para o mesmo cliente enviar um texto, um
 /// `multipart/form-data` montado ou um fluxo.
 type Corpo = http_body_util::combinators::BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>;
-type HttpsClient = Client<HttpsConnector<HttpConnector>, Corpo>;
+type HttpsClient = HyperClient<HttpsConnector<HttpConnector>, Corpo>;
 
 fn corpo_cheio(b: Bytes) -> Corpo {
     use http_body_util::BodyExt as _;
@@ -79,7 +79,7 @@ fn client() -> &'static HttpsClient {
             false,
             std::sync::Arc::new(hyper_rustls::DefaultServerNameResolver::default()),
         );
-        Client::builder(TokioExecutor::new()).build(https)
+        HyperClient::builder(TokioExecutor::new()).build(https)
     })
 }
 
@@ -102,10 +102,10 @@ pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
     let enviar = async {
         match &req.abort {
             None => enviar.await,
-            Some(h) if h.abortado() => Ok(FetchResult::cancelado()),
+            Some(h) if h.is_aborted() => Ok(FetchResult::cancelado()),
             Some(h) => {
                 let h = h.clone();
-                let espera = Box::pin(h.esperar());
+                let espera = Box::pin(h.wait());
                 let envio = Box::pin(enviar);
                 match futures::future::select(envio, espera).await {
                     futures::future::Either::Left((r, _)) => r,
@@ -966,86 +966,13 @@ async fn montar_multipart(
     Ok((corpo, boundary))
 }
 
-// ──────────────────────── API em Rust (para quem não usa o Luau) ────────────────────────
 
-pub use crate::component::{AbortHandle, ArquivoMultipart, Multipart};
-pub use crate::component::FetchResult as Resposta;
+// ──── Rust API ────
 
-/// Um pedido HTTP montado **em Rust**, pela mesma camada que o `fetch` do Luau usa:
-/// o mesmo jar de cookies, o mesmo multipart, o mesmo cancelamento. É o que um
-/// [`Component`](crate::Component) escrito em Rust usa dentro de um `ctx.perform(async { … })`.
-///
-/// ```ignore
-/// let res = Requisicao::get("https://api.exemplo/itens")
-///     .cabecalho("Authorization", "Bearer …")
-///     .timeout_ms(5000)
-///     .enviar()
-///     .await;
-/// if res.ok { /* res.body */ }
-/// ```
-pub struct Requisicao(PendingFetch);
+pub use crate::component::{AbortHandle, Multipart, MultipartFile};
+pub use crate::http_client::{Client, ErrorInfo, Request, RequestBuilder, RequestParts, Response};
 
-impl Requisicao {
-    pub fn new(url: impl Into<String>, metodo: &str) -> Self {
-        Self(PendingFetch::new(0, url.into(), metodo.to_string(), None, Vec::new()))
-    }
-
-    pub fn get(url: impl Into<String>) -> Self {
-        Self::new(url, "GET")
-    }
-
-    pub fn post(url: impl Into<String>) -> Self {
-        Self::new(url, "POST")
-    }
-
-    pub fn cabecalho(mut self, nome: impl Into<String>, valor: impl Into<String>) -> Self {
-        self.0.headers.push((nome.into(), valor.into()));
-        self
-    }
-
-    /// Corpo textual.
-    pub fn corpo(mut self, corpo: impl Into<String>) -> Self {
-        self.0.body = Some(corpo.into());
-        self
-    }
-
-    /// Teto da requisição inteira, em milissegundos.
-    pub fn timeout_ms(mut self, ms: u64) -> Self {
-        self.0.timeout_ms = Some(ms);
-        self
-    }
-
-    /// Ignora o jar de cookies neste pedido (nada é enviado nem guardado).
-    pub fn sem_cookies(mut self) -> Self {
-        self.0.cookies = false;
-        self
-    }
-
-    /// `ctl.abort()` cancela o pedido (resultado: `ok = false`, `error = "cancelado"`).
-    pub fn cancelavel(mut self, ctl: &AbortHandle) -> Self {
-        self.0.abort = Some(ctl.clone());
-        self
-    }
-
-    /// Envia `multipart/form-data` (os arquivos são lidos do disco no envio).
-    pub fn multipart(mut self, mp: Multipart) -> Self {
-        self.0.multipart = Some(mp);
-        self
-    }
-
-    /// Grava o corpo da resposta CRU neste caminho (para binários); o `body` volta vazio.
-    pub fn baixar_para(mut self, caminho: impl Into<String>) -> Self {
-        self.0.download_to = Some(caminho.into());
-        self
-    }
-
-    /// Envia e espera a resposta. Nunca falha: um erro de rede vira `ok = false`.
-    pub async fn enviar(self) -> FetchResult {
-        perform(self.0).await
-    }
-}
-
-/// Esvazia o jar de cookies: de um host (`"api.exemplo"` ou `"127.0.0.1:8096"`) ou de todos.
-pub fn limpar_cookies(host: Option<&str>) {
-    limpa_cookies(host);
+/// Forget the stored cookies for `host` (or all of them with `None`).
+pub fn clear_cookies(host: Option<&str>) {
+    limpa_cookies(host)
 }

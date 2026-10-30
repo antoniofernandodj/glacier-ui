@@ -49,6 +49,8 @@
       <text class="valor">{s19}</text>
       <text class="rotulo">[http()] 20. cliente: abort numa chamada api:get</text>
       <text class="valor">{s20}</text>
+      <text class="rotulo">[http()] 21. cliente: QUERY (RFC 10008), a consulta no corpo</text>
+      <text class="valor">{s21}</text>
       </column>
     </scrollable>
   </container>
