@@ -66,6 +66,8 @@ pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod remote_assets;
 pub mod bindings;
 pub mod builtins;
 pub mod canvas;
@@ -144,8 +146,10 @@ pub use iced::{Element, Font, Point, Size, Subscription, Task, window};
 
 pub use app::GlacierApp;
 pub use asset_source::{
-    AssetSource, DiskAssets, EmbeddedAssets, EmbeddedDirs, locate_assets_and_chdir,
+    AssetSource, DiskAssets, EmbeddedAssets, EmbeddedDirs, RoteadorAssets, locate_assets_and_chdir,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use remote_assets::HttpAssets;
 /// Reexportado para o `embed_dirs!` expandir no crate do app sem ele depender de `include_dir`.
 #[doc(hidden)]
 pub use include_dir;

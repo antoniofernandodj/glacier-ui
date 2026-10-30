@@ -248,6 +248,8 @@ http-body-util = "0.1.3"
 tokio = { version = "1.52.3", features = ["rt", "net", "io-util", "time", "fs"] }
 hyper-rustls = { version = "0.27.9", default-features = false, features = ["ring", "webpki-roots", "http1"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
+# SHA-256 e ed25519 da verificação de `HttpAssets`; já vem com o rustls.
+ring = "0.17"
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # Notificações nativas do SO (freedesktop/D-Bus no Linux/BSD via zbus puro-Rust,
 # NSUserNotification no macOS, toast WinRT no Windows). Usado por `notify()` na
@@ -762,6 +764,14 @@ path = "examples/gvb/web_contador/main.rs"
 [[example]]
 name = "gvb_webview"
 path = "examples/gvb/webview/main.rs"
+
+[[example]]
+name = "remoto"
+path = "examples/gvb/remoto/main.rs"
+
+[[example]]
+name = "publicar_remoto"
+path = "examples/gvb/remoto/publicar.rs"
 
 [[example]]
 name = "gvb_app_telas"

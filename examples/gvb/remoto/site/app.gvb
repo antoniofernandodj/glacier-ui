@@ -1,0 +1,20 @@
+// O app INTEIRO servido pela rede: este arquivo, o .gss e a tela `novidades`
+// vêm do servidor (via HttpAssets), com a assinatura conferida. O cliente é só
+// uma casca com a chave pública do autor.
+app(id = remoto, size = "560 360", min_size = "420 280") {
+  resources {
+    link(rel = stylesheet, href = "app.gss")
+  }
+
+  screen(name = home, initial = true, title = "App remoto") {
+    container(class = caixa) {
+      column(class = coluna) {
+        text(content = "Este app veio da rede", class = titulo)
+        text(content = "Edite site/app.gvb, rode publicar_remoto de novo e a tela muda.", class = rotulo)
+        button(text = Novidades, navigate = novidades, class = botao)
+      }
+    }
+  }
+
+  screen(name = novidades, title = "Novidades", src = "novidades.gvb")
+}

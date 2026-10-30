@@ -1,0 +1,20 @@
+// Modo "telas remotas": o app é local (este arquivo, o tema e a home), e só a
+// tela `novidades` vem da rede — o prefixo `remoto/` é montado num HttpAssets
+// pelo RoteadorAssets do main.rs.
+app(id = remoto_telas, size = "560 360", min_size = "420 280") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/remoto/site/app.gss")
+  }
+
+  screen(name = home, initial = true, title = "App local") {
+    container(class = caixa) {
+      column(class = coluna) {
+        text(content = "App local, tela remota", class = titulo)
+        text(content = "Só a tela Novidades é baixada.", class = rotulo)
+        button(text = Novidades, navigate = novidades, class = botao)
+      }
+    }
+  }
+
+  screen(name = novidades, title = "Novidades", src = "remoto/novidades.gvb")
+}

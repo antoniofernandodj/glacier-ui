@@ -754,3 +754,74 @@ mod tests {
         });
     }
 }
+
+/// Resposta crua de um `GET`: os bytes sem decodificar e o `ETag`, que o
+/// `fetch` da camada Lua descarta mas o cache de [`crate::HttpAssets`] precisa.
+pub(crate) struct RawResponse {
+    pub status: u16,
+    pub etag: Option<String>,
+    pub body: Vec<u8>,
+}
+
+/// `GET` que devolve os bytes crus. Com `if_none_match`, manda o validador de
+/// cache; um `304` volta com `status == 304` e corpo vazio.
+pub(crate) async fn get_raw(
+    url: &str,
+    if_none_match: Option<&str>,
+) -> Result<RawResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let mut builder = hyper::Request::builder()
+        .method(Method::GET)
+        .uri(url)
+        .header(hyper::header::USER_AGENT, DEFAULT_USER_AGENT)
+        .header(hyper::header::ACCEPT_ENCODING, "gzip");
+    if let Some(etag) = if_none_match {
+        builder = builder.header(hyper::header::IF_NONE_MATCH, etag);
+    }
+    let response = client().request(builder.body(Full::new(Bytes::new()))?).await?;
+    let status = response.status().as_u16();
+    let etag = response
+        .headers()
+        .get(hyper::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let gzipped = response
+        .headers()
+        .get(hyper::header::CONTENT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.to_ascii_lowercase().contains("gzip"));
+    let raw = response.into_body().collect().await?.to_bytes();
+    let body = if gzipped { gunzip(&raw)? } else { raw.to_vec() };
+    Ok(RawResponse { status, etag, body })
+}
+
+/// [`get_raw`] de forma **síncrona**, com teto de tempo: o [`AssetSource`] é um
+/// trait síncrono, chamado de dentro do `update`/`view`, onde não há `.await`.
+/// Roda numa thread própria com um runtime `current_thread` — nunca dentro do
+/// executor do `iced`, onde um `block_on` aninhado entraria em pânico.
+///
+/// [`AssetSource`]: crate::AssetSource
+pub(crate) fn blocking_get(
+    url: &str,
+    if_none_match: Option<&str>,
+    timeout: std::time::Duration,
+) -> std::io::Result<RawResponse> {
+    let url = url.to_owned();
+    let etag = if_none_match.map(str::to_owned);
+    let fim = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| e.to_string())?;
+        rt.block_on(async {
+            match tokio::time::timeout(timeout, get_raw(&url, etag.as_deref())).await {
+                Ok(r) => r.map_err(|e| e.to_string()),
+                Err(_) => Err(format!("timeout após {}ms", timeout.as_millis())),
+            }
+        })
+    });
+    match fim.join() {
+        Ok(Ok(r)) => Ok(r),
+        Ok(Err(e)) => Err(std::io::Error::other(e)),
+        Err(_) => Err(std::io::Error::other("a thread de rede entrou em pânico")),
+    }
+}

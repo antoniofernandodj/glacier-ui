@@ -81,6 +81,14 @@ pub trait AssetSource: Send + Sync + std::fmt::Debug {
     fn supports_reload(&self) -> bool {
         true
     }
+
+    /// De onde vêm os assets, quando é um lugar **remoto** — `https://host:porta`.
+    /// `None` (o padrão) para disco e embutido. O [`GlacierDaemon`](crate::GlacierDaemon)
+    /// usa isto para separar o `storage` de cada origem, como o navegador faz: um
+    /// app servido por `loja.com` não lê o que um de `banco.com` gravou.
+    fn origem(&self) -> Option<String> {
+        None
+    }
 }
 
 /// The default [`AssetSource`]: reads straight from the filesystem, preserving
@@ -447,5 +455,85 @@ mod tests {
             .read_to_string("examples/gva/web_contador/app.gva")
             .unwrap();
         assert!(gv.contains("<screen"), "{gv}");
+    }
+}
+
+/// Compõe várias fontes de assets por **prefixo de caminho**: o que casa com um
+/// prefixo montado vai para a fonte dele, o resto vai para a fonte base.
+///
+/// É o que permite **telas remotas** num app local: a base é o disco (ou o
+/// embutido) e `remoto/` aponta para um [`HttpAssets`](crate::HttpAssets).
+/// No `app.gv`, `screen(name = ajustes, src = "remoto/ajustes.gvb")` busca só
+/// essa tela na rede; o `app.gv`, o tema e as demais telas seguem locais.
+///
+/// O prefixo é tirado do caminho antes de chegar à fonte montada: pedir
+/// `remoto/ajustes.gvb` entrega `ajustes.gvb` ao `HttpAssets`. Vence o prefixo
+/// mais longo. [`origem`](AssetSource::origem) é a da base: o `storage` do app
+/// continua sendo do app local, não da tela que veio da rede.
+#[derive(Debug)]
+pub struct RoteadorAssets {
+    base: std::sync::Arc<dyn AssetSource>,
+    montagens: Vec<(String, std::sync::Arc<dyn AssetSource>)>,
+}
+
+impl RoteadorAssets {
+    pub fn new(base: impl AssetSource + 'static) -> Self {
+        Self {
+            base: std::sync::Arc::new(base),
+            montagens: Vec::new(),
+        }
+    }
+
+    /// Monta `fonte` sob `prefixo` (`"remoto/"`). A barra final é acrescentada
+    /// se faltar, para `remoto` não capturar `remoto_antigo/x.gv`.
+    pub fn montar(mut self, prefixo: &str, fonte: impl AssetSource + 'static) -> Self {
+        let mut prefixo = prefixo.trim_start_matches("./").to_string();
+        if !prefixo.ends_with('/') {
+            prefixo.push('/');
+        }
+        self.montagens.push((prefixo, std::sync::Arc::new(fonte)));
+        self.montagens
+            .sort_by_key(|(p, _)| std::cmp::Reverse(p.len()));
+        self
+    }
+
+    fn rotear<'a>(&'a self, path: &'a str) -> (&'a dyn AssetSource, &'a str) {
+        let limpo = path.trim_start_matches("./");
+        for (prefixo, fonte) in &self.montagens {
+            if let Some(resto) = limpo.strip_prefix(prefixo.as_str()) {
+                return (fonte.as_ref(), resto);
+            }
+        }
+        (self.base.as_ref(), path)
+    }
+}
+
+impl AssetSource for RoteadorAssets {
+    fn read_bytes(&self, path: &str) -> std::io::Result<Cow<'static, [u8]>> {
+        let (fonte, resto) = self.rotear(path);
+        fonte.read_bytes(resto)
+    }
+
+    fn read_to_string(&self, path: &str) -> std::io::Result<Cow<'static, str>> {
+        let (fonte, resto) = self.rotear(path);
+        fonte.read_to_string(resto)
+    }
+
+    fn exists(&self, path: &str) -> bool {
+        let (fonte, resto) = self.rotear(path);
+        fonte.exists(resto)
+    }
+
+    fn modified(&self, path: &str) -> Option<SystemTime> {
+        let (fonte, resto) = self.rotear(path);
+        fonte.modified(resto)
+    }
+
+    fn supports_reload(&self) -> bool {
+        self.base.supports_reload() || self.montagens.iter().any(|(_, f)| f.supports_reload())
+    }
+
+    fn origem(&self) -> Option<String> {
+        self.base.origem()
     }
 }
