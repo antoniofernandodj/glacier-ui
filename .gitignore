@@ -15,3 +15,6 @@ editors/**/*.vsix
 # só para o `cargo publish` (ver crates/glacier-cli/build.rs). A fonte é editors/.
 crates/glacier-cli/extensions/
 crates/glacier-cli/engine-version.txt
+
+# Sessão local do editor/agente: nunca entra no repositório nem no pacote publicado.
+/last.session
