@@ -86,12 +86,18 @@ Tab / Shift+Tab andam de link em link dentro do parágrafo (e só saem dele depo
 clique). O link em foco aparece com fundo azul claro e sublinhado. Clicar fora tira o
 foco. Um `<prose>` sem link não é focável.
 
-Como foi verificado: a lógica (entrar no foco, andar, ativar, sair) roda sem janela em
-`tools/link_focus_check` (`cd tools/link_focus_check && cargo run`), com o `Rich` de
-verdade do iced e um renderizador nulo. **O desenho do destaque não foi visto** — essa
-parte precisa de uma janela, e esta máquina não captura tela. Por baixo, o destaque
-é uma variante pronta do parágrafo por link (o `Rich` não revela onde cada link está),
-então um parágrafo com N links monta N+1 cópias.
+Como foi verificado, em duas camadas:
+
+- a lógica (entrar no foco, andar, ativar, sair) roda sem janela em
+  `tools/link_focus_check` (`cd tools/link_focus_check && cargo run`), com o `Rich` de
+  verdade do iced e um renderizador nulo;
+- o **desenho** foi conferido numa janela real, sob X11, com teclas injetadas por
+  `tools/xtest.py` e a janela capturada: Tab destaca o primeiro link, Tab anda para o
+  seguinte, Enter no link de ação incrementa o contador (0 → 1) e Tab no último link
+  sai do parágrafo, sem destaque. O destaque é fundo azul claro com sublinhado.
+
+Por baixo, o destaque é uma variante pronta do parágrafo por link (o `Rich` não revela
+onde cada link está), então um parágrafo com N links monta N+1 cópias.
 
 Hover: o link fica azul e **sublinha sob o cursor** (e o cursor do mouse muda); o
 sublinhado permanente foi retirado para o hover ser visível.
@@ -109,7 +115,7 @@ sublinhado permanente foi retirado para o hover ser visível.
 **O que se perde** — um `text_editor` não tem: trechos estilizados e links. Um
 `<prose selectable>` vira texto simples. Quebra por palavra, tamanho, cor e negrito
 da classe `.gss` continuam valendo. Dois nós com o mesmo texto dividem o buffer (e a
-seleção). Não foi conferido visualmente que a altura encolhe ao conteúdo.
+seleção). Conferido numa janela: arrastar o mouse destaca o trecho, a altura encolhe ao conteúdo e não há borda. **Copiar (Ctrl+C) não foi testado** — só a seleção.
 
 ## `<markdown>`
 

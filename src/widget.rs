@@ -4419,9 +4419,14 @@ pub fn render_node<'a>(
                 if let Some(align) = parse_text_align(node.text_align()) {
                     t = t.align_x(align);
                 }
-                t.width(parse_length(&node.width))
-                    .height(parse_length(&node.height))
-                    .into()
+                // Um parágrafo ocupa a largura que houver (e quebra nela); sem isso
+                // ele se ajusta ao conteúdo e uma linha longa vaza em vez de quebrar.
+                let largura = if node.width.is_some() {
+                    parse_length(&node.width)
+                } else {
+                    Length::Fill
+                };
+                t.width(largura).height(parse_length(&node.height)).into()
             };
             // Sem link não há o que focar: o parágrafo é o `rich_text` direto.
             // Com link, o embrulho dá a ele foco de teclado (Tab, Enter, Espaço).

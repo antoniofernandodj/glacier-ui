@@ -2040,11 +2040,16 @@ impl GlacierUI {
             // Tab / Shift+Tab: move focus between focusable widgets. iced's text
             // inputs don't advance focus on Tab themselves, so a global keyboard
             // listener (`tab_focus_from_event`) turns the keypress into this.
+            // A operação de foco roda DEPOIS do quadro que a mensagem provocou, então o
+            // que ela muda no desenho (o destaque de um link do `<prose>`) só apareceria
+            // no próximo evento. O `ToastTick` é um no-op que força um quadro.
             EngineMessage::FocusNext => {
-                return iced::widget::operation::focus_next::<EngineMessage>();
+                return iced::widget::operation::focus_next::<EngineMessage>()
+                    .chain(iced::Task::done(EngineMessage::ToastTick));
             }
             EngineMessage::FocusPrev => {
-                return iced::widget::operation::focus_previous::<EngineMessage>();
+                return iced::widget::operation::focus_previous::<EngineMessage>()
+                    .chain(iced::Task::done(EngineMessage::ToastTick));
             }
             // Teclado do `<datetimeedit>`: setas ▲▼ mexem na seção selecionada,
             // ← → trocam de seção, e um algarismo digita nela. Quem trata é o

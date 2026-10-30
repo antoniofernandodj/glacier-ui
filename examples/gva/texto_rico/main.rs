@@ -82,8 +82,8 @@ fn main() -> iced::Result {
     }
     GlacierDaemon::new()
         .main(|motor| {
-            let _ = motor.register(Box::new(Detalhes));
             let _ = motor.register(Box::new(Sobre));
+            let _ = motor.register(Box::new(Detalhes));
             motor.set_initial_screen("texto_rico");
         })
         .run()
