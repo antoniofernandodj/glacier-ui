@@ -10,6 +10,8 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.140.0 — 2026-10-30
+
 ### Adicionado
 
 - `<tabbar active_bold="false">`: tira o negrito do rótulo da aba ativa. O
