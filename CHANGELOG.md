@@ -10,6 +10,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## Não lançado
+
+### Removido (quebra de API)
+
+- **`open_window({ webview_url })`**, `WindowSpec::webview`, `WindowSource::WebView` e a
+  feature `webview` (dependência `wry`, `src/webview.rs`, exemplos `webview`). O Glacier
+  não carrega mais nada de uma URL: apps, telas e assets são sempre locais; só dados
+  entram de fora, pelo `fetch` da camada Lua. `webview_url` num `open_window` agora é
+  erro explícito. O link `<a href>` e o `open:` continuam abrindo a URL no navegador do SO.
+
+### Adicionado
+
+- `<prose>` com `<p>`, `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>` e `<a>`: texto inline misto,
+  só dentro do `<prose>`. `selectable` em `<text>`/`<prose>`. `<markdown>` com tabelas e imagens
+  locais. No `.gvb`, o texto sem nome vale como `content` nas tags que carregam texto.
+
 ## glacier-cli 0.22.0 — 2026-10-30
 
 Motor dos projetos gerados: **glacier-ui 0.142**.

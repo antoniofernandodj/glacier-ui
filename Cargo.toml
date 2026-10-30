@@ -198,12 +198,6 @@ path = "examples/gva/sqlite_crud/main.rs"
 name = "web_contador"
 path = "examples/gva/web_contador/main.rs"
 
-# Requer `--features webview` (sem a feature, o botão abre uma janela vazia —
-# ver o comentário da dependência `wry` abaixo).
-[[example]]
-name = "webview"
-path = "examples/gva/webview/main.rs"
-
 [dependencies]
 # `default-features = false` e os defaults devolvidos por alvo logo abaixo: no
 # nativo o `iced` segue com EXATAMENTE os defaults de antes (wgpu, thread-pool,
@@ -323,44 +317,6 @@ winit = { version = "0.30", default-features = false, features = ["android-nativ
 android_logger = { version = "0.14", optional = true }
 log = { version = "0.4", optional = true }
 
-# ── Webview embutida — opcional, atrás da feature `webview` ──────────────────
-# `open_window({ webview_url = "..." })` na camada Lua: abre uma janela cujo
-# conteúdo INTEIRO é uma webview nativa do SO (WebKitGTK no Linux, WebView2 no
-# Windows, WKWebView no macOS — as features default do crate escolhem a certa
-# por alvo). Não é uma tag do motor: essa janela não roda `.gv`/`<script>`
-# nenhum, é webview pura — ver `src/webview.rs`. `raw-window-handle` 0.6.2 é a
-# mesma versão que o `iced_runtime` já usa (conferido via `cargo tree -i`), daí
-# `wry::WebViewBuilder::build` aceitar direto o `&dyn iced::window::Window` que
-# `iced::window::run` entrega — sem depender de `winit`/`raw-window-handle` como
-# dependências diretas deste crate.
-#
-# No Linux, exige `libwebkit2gtk-4.1-dev` (build) e `libwebkit2gtk-4.1-0`
-# (runtime) instaladas no sistema — não é um crate vendored. E só funciona sob
-# X11: a doc do `wry` é explícita que o caminho genérico por `HasWindowHandle`
-# (o único que um `winit::Window` cru oferece) é "Linux (X11 Only)" — Wayland
-# nativo exigiria um widget GTK, que o `winit` não expõe. Numa sessão Wayland, a
-# saída é rodar sob XWayland — o `GlacierDaemon::run` já força isso sozinho
-# quando esta feature está ligada (ver `forcar_x11_para_webview` em
-# `src/daemon.rs`), então normalmente não precisa de nada manual aqui.
-#
-# Se for reproduzir na mão: `WINIT_UNIX_BACKEND` (a env var clássica) foi
-# removida no winit 0.29 — desde então o `winit` só olha se `WAYLAND_DISPLAY`
-# está setada, e olhar só isso não basta, porque o GDK por baixo do `wry`
-# ainda recai em Wayland sozinho (`wl_display_connect(NULL)` tenta o socket
-# `wayland-0` por padrão mesmo sem a variável). A combinação que funciona:
-# `GDK_BACKEND=x11 WAYLAND_DISPLAY= ./seu-app` (o `DISPLAY` do XWayland já
-# existe por padrão na maioria das distros).
-#
-# INCOMPATÍVEL com a feature `tray` no Linux: as duas precisam de GTK
-# inicializado, cada uma numa thread diferente (a bandeja tem a própria; esta
-# exige a principal), e GTK só aceita uma inicialização por processo — a
-# segunda panica ("Attempted to initialize GTK from two different threads")
-# assim que a primeira janela de webview abre. Ver o comentário do bloco
-# `tray-icon` logo abaixo.
-[dependencies.wry]
-version = "0.57"
-optional = true
-
 # ── Bandeja (system tray) — opcional, atrás da feature `tray` ────────────────
 # Só compila quando um app pede `.tray(...)` E habilita `features = ["tray"]`;
 # assim quem não usa bandeja não arrasta GTK/tray-icon. No Linux a bandeja usa
@@ -368,8 +324,7 @@ optional = true
 # rodar o loop GTK; no Windows, do `windows-sys` para o message-loop Win32
 # (esta dep também serve ao mutex nomeado de `src/single_instance.rs`, por isso
 # não é opcional). macOS
-# não é suportado (exige a thread principal). INCOMPATÍVEL com `webview` no
-# Linux, pelo mesmo motivo do GTK — ver o comentário no bloco `wry` acima.
+# não é suportado (exige a thread principal).
 # Ver `src/tray.rs`.
 [dependencies.tray-icon]
 version = "0.24"
@@ -438,13 +393,6 @@ tray = ["dep:tray-icon", "dep:gtk", "dep:libc"]
 # com `GlacierDaemon::font_named`, que é o que um binário empacotado quer. Ver
 # `src/fonts.rs`, "A decisão da §4".
 system-fonts = ["dep:fontdb"]
-
-# Ver o comentário da dependência `wry` acima. `dep:gtk` é no-op fora do
-# Linux (é uma dependência por-alvo, como no `tray`) — no Linux, `wry` exige
-# `gtk::init()` chamado na MESMA thread que vai criar a webview antes da
-# primeira `WebViewBuilder::build` (ver `src/webview.rs`), porque por baixo
-# ainda é WebKitGTK mesmo passando só um handle X11.
-webview = ["dep:wry", "dep:gtk"]
 
 # Liga o wgpu (WebGPU, e WebGL2 quando o navegador não tem WebGPU) no build
 # para o navegador. No nativo não muda nada: o wgpu já está lá. Sem ela a web
@@ -761,10 +709,6 @@ path = "examples/gvb/toasts/main.rs"
 [[example]]
 name = "gvb_web_contador"
 path = "examples/gvb/web_contador/main.rs"
-
-[[example]]
-name = "gvb_webview"
-path = "examples/gvb/webview/main.rs"
 
 [[example]]
 name = "texto_rico"

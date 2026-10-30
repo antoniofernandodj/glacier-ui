@@ -1677,27 +1677,26 @@ fn build_file_dialog(req: &Table) -> mlua::Result<FileDialogSpec> {
 }
 
 /// Constrói o [`WindowSpec`] a partir do pedido `open_window(opts)` do prelúdio.
-/// A fonte é `webview_url` (webview nativa cobrindo a janela — ver
-/// [`crate::component::WindowSource::WebView`]), `file` (caminho de template)
-/// ou `component` (nome já registrado no motor de origem, resolvido para o
-/// arquivo em `run_on_owner`). `title`, `width`/`height`/`size`, `resizable` e
-/// `decorations` são opcionais. `webview_url` vence os outros dois quando mais de um vier
-/// preenchido — não há um motor por trás dela para `data`/`file`/`component`
-/// fazerem sentido junto.
+/// A fonte é `file` (caminho de template) ou `component` (nome já registrado no
+/// motor de origem, resolvido para o arquivo em `run_on_owner`). `title`,
+/// `width`/`height`/`size`, `resizable` e `decorations` são opcionais. Sempre
+/// local: uma janela nova nunca carrega nada de uma URL.
 fn build_window_spec(lua: &Lua, req: &Table) -> mlua::Result<crate::component::WindowSpec> {
     use crate::component::WindowSpec;
+    if req.get::<Option<String>>("webview_url")?.is_some() {
+        return Err(mlua::Error::RuntimeError(
+            "open_window: `webview_url` não existe mais — o Glacier só abre telas locais".into(),
+        ));
+    }
     let mut spec = match (
-        req.get::<Option<String>>("webview_url")?,
         req.get::<Option<String>>("file")?,
         req.get::<Option<String>>("component")?,
     ) {
-        (Some(url), _, _) => WindowSpec::webview(url),
-        (None, Some(file), _) => WindowSpec::file(file),
-        (None, None, Some(name)) => WindowSpec::named(name),
-        (None, None, None) => {
+        (Some(file), _) => WindowSpec::file(file),
+        (None, Some(name)) => WindowSpec::named(name),
+        (None, None) => {
             return Err(mlua::Error::RuntimeError(
-                "open_window: informe `webview_url`, `file` (caminho) ou `component` (nome registrado)"
-                    .into(),
+                "open_window: informe `file` (caminho) ou `component` (nome registrado)".into(),
             ));
         }
     };

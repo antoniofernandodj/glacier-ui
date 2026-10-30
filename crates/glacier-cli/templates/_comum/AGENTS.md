@@ -3700,7 +3700,7 @@ do outro lado. O par `broadcast` + `close_window` é como uma janela auxiliar
 (um formulário) avisa e se dispensa.
 
 `decorations = false` abre a filha sem a moldura do sistema, para uma titlebar
-própria com `window:drag`/`window:close` (vale também para a webview). Em Rust,
+própria com `window:drag`/`window:close`. Em Rust,
 `WindowSpec::decorations(bool)`. A moldura de uma filha não precisa mais de um
 `.child_window(…)`.
 

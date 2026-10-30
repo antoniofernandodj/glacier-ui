@@ -48,7 +48,7 @@ código do próprio motor para Android ainda **não foi compilado**):
       app — um `[patch]` só vale no `Cargo.toml` raiz, então o motor não
       consegue trazê-lo sozinho. Um `cargo check` do motor no CI precisaria
       declarar os dois. Fim da linha: o patch entrar no `iced`/`winit` upstream.
-- [ ] Features `tray`, `webview`, `system-fonts` e `single_instance`: **não
+- [ ] Features `tray`, `system-fonts` e `single_instance`: **não
       ligar** no Android (Linux/desktop). Garantir que ligá-las dá erro claro,
       não um erro de linker.
 
@@ -126,7 +126,6 @@ Hoje `open_window` abre **uma janela do SO** (um `GlacierUI` por janela,
 - [ ] `<tray>` / bandeja, `single_instance`: não se aplicam — ignorar com aviso.
 - [ ] Barra de título própria (`completo`: janela sem decoração): não se aplica;
       no Android quem manda é a status bar.
-- [ ] `webview_url` em `open_window` → `android.webkit.WebView` por JNI.
 - [ ] `open_file`, `open_files`, `save_file`, `pick_folder`: ver `rfd` acima.
 - [ ] `<menubar>`/`<menu>` estilo desktop: pensar em *bottom sheet* / *app bar*.
 - [ ] `prompt{}`/`confirm{}` desenhados pelo motor devem funcionar

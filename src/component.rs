@@ -352,13 +352,6 @@ pub enum WindowSource {
     /// manifesto inteiro — telas, componentes e estilos globais — e abre na tela
     /// pedida; é o que um `Named` vira quando o motor de origem é um app.
     AppScreen(String),
-    /// Uma URL carregada numa **webview nativa** que cobre a janela inteira —
-    /// sem `GlacierUI`/`.gv`/`<script>` nenhum por trás. Caminho da API Lua
-    /// (`open_window({ webview_url = "https://…" })`); exige o crate
-    /// compilado com `--features webview` (ver `src/webview.rs` e o
-    /// comentário da dependência `wry` no `Cargo.toml`) — sem a feature, o
-    /// pedido é ignorado com um aviso no terminal.
-    WebView(String),
 }
 
 /// Pedido de abrir uma nova janela, acumulado em [`Context`] durante o `update`
@@ -401,12 +394,6 @@ impl WindowSpec {
     /// Nova janela carregando um componente já registrado, pelo nome.
     pub fn named(name: impl Into<String>) -> Self {
         Self::from_source(WindowSource::Named(name.into()))
-    }
-
-    /// Nova janela cujo conteúdo inteiro é uma webview nativa carregando
-    /// `url` — ver [`WindowSource::WebView`].
-    pub fn webview(url: impl Into<String>) -> Self {
-        Self::from_source(WindowSource::WebView(url.into()))
     }
 
     fn from_source(source: WindowSource) -> Self {

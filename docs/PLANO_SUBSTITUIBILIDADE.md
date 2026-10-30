@@ -39,7 +39,7 @@ binário pequeno, em vez de uma stack web.
 2. **Acessibilidade.** Nenhuma menção a AccessKit, ARIA ou leitor de tela.
 3. **Carga remota** (descartada, ver Fase 1). O `AssetSource` só tem disco e embutido. Não existe "abrir uma
    URL e carregar o app"; cada atualização é um binário novo.
-4. **Mídia.** Sem `<audio>` nem `<video>`. Hoje só a `webview` nativa quebra o galho.
+4. **Mídia.** Sem `<audio>` nem `<video>`. Antes havia a `webview` nativa como saída; foi removida (nada remoto além de dados).
 5. **Alvo WASM incompleto.** Sem Luau e sem `fetch` no navegador (`WEB.md`); negrito e
    itálico somem sem fonte própria; GPU desligada por padrão; WebGPU/WebGL nunca
    vistos funcionando.
@@ -164,12 +164,11 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 ### Fase 7 — Mídia
 
 - `<audio>` primeiro (barato: `rodio`/`symphonia`), com `play/pause/seek` e eventos.
-- `<video>`: decidir entre decodificação própria (`ffmpeg`, pesado e com licença) e
-  manter a `webview` como saída oficial. **Recomendação:** documentar a `webview`
-  como a resposta suportada e só investir em `<video>` próprio se a Fase 0 mostrar que
-  vale a pena.
+- `<video>`: a `webview` nativa foi removida, então não há saída pronta. Decodificação
+  própria (`ffmpeg`, pesado e com licença) só se a Fase 0 mostrar que vale a pena;
+  senão, fora do escopo.
 
-**Aceitação:** `<audio>` tocando um MP3 remoto com barra de posição.
+**Aceitação:** `<audio>` tocando um MP3 **local** com barra de posição.
 
 ### Fase 8 — i18n
 
