@@ -4715,13 +4715,14 @@ impl UiNode {
             ..Default::default()
         };
         let mut spans = Vec::new();
-        // `.gvb` escreve o texto como atributo (`prose(content = "…")`); no `.gv`
-        // ele é filho. Os dois entram, o atributo primeiro.
-        if let Some(c) = Self::get_attr(node, &["content", "conteudo", "text", "texto"]) {
-            spans.push(TextSpan {
-                content: Self::colapsar_espaco(&c),
-                ..base.clone()
-            });
+        // O `<prose>` é só um contêiner: o texto está nos filhos (`<p>`, `<b>`,
+        // `<a>`…). Um `content` aqui não teria onde entrar, e ignorá-lo em silêncio
+        // deixaria a tela sem o texto que o autor acha que escreveu.
+        if Self::get_attr(node, &["content", "conteudo", "text", "texto"]).is_some() {
+            eprintln!(
+                "[glacier] aviso: <prose> não tem `content` — o texto vai nos filhos \
+                 (`p`, `b`, `a`…); o atributo foi ignorado"
+            );
         }
         let mut paragrafo_pendente = false;
         Self::coletar_spans(node, &base, &mut spans, &mut paragrafo_pendente);

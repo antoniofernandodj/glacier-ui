@@ -339,7 +339,7 @@ impl Parser {
                 let Some(nome) = posicional(tag) else {
                     return self.err_hint(
                         format!("`{tag}` não aceita texto sem nome"),
-                        "um atributo é `nome = valor`; o texto sem nome só vale nas tags de texto (`text`, `prose`, `p`, `b`, `i`, `a`…)",
+                        "um atributo é `nome = valor`; o texto sem nome só vale nas tags que carregam texto (`text`, `b`, `i`, `a`, `span`…); `prose` e `p` só têm filhos",
                     );
                 };
                 if !attrs.is_empty() {
@@ -1045,7 +1045,8 @@ impl Default for Out {
 /// "Ana !". Quem escreve `.gvb` põe o espaço **no texto** (`content = "Olá, "`),
 /// então a quebra de formatação não pode contar.
 /// A que atributo corresponde o texto sem nome de `tag(\"…\")`: `content`, nas tags
-/// cujo corpo é texto. Outras (`button` quer `text`, `textinput` quer `placeholder`…)
+/// que **carregam** texto (as folhas: `text`, `markdown`, `b`, `i`, `a`, `span`…).
+/// `prose` e `p` ficam de fora: são contêineres, o texto vive nos filhos deles. Outras (`button` quer `text`, `textinput` quer `placeholder`…)
 /// ficam de fora de propósito: lá "o texto" é ambíguo, e `nome = valor` diz qual.
 fn posicional(tag: &str) -> Option<&'static str> {
     matches!(
@@ -1053,7 +1054,10 @@ fn posicional(tag: &str) -> Option<&'static str> {
         "text" | "texto" | "markdown" | "md"
     )
     .then_some("content")
-    .or_else(|| tag_inline(tag).then_some("content"))
+    .or_else(|| {
+        (tag_inline(tag) && !matches!(tag.to_ascii_lowercase().as_str(), "prose" | "p"))
+            .then_some("content")
+    })
 }
 
 fn tag_inline(tag: &str) -> bool {

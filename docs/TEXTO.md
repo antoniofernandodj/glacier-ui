@@ -34,9 +34,10 @@ HTML. No `.gvb` o texto é atributo: `b(content = "isto")`.
 
 ### No `.gvb`
 
-O `.gvb` não mistura texto com elementos: o texto é sempre um atributo. Nas tags de
-texto (`text`, `markdown`, `prose`, `p`, `b`, `i`, `code`, `u`, `s`, `a`, `span`…) o
-**primeiro argumento sem nome** vale como `content`:
+O `.gvb` não mistura texto com elementos: o texto é sempre um atributo. Nas tags que
+**carregam** texto (`text`, `markdown`, `b`, `i`, `code`, `u`, `s`, `a`, `span`…) o
+**primeiro argumento sem nome** vale como `content`. `prose` e `p` são só contêineres
+(o texto vive nos filhos deles) e **não têm `content`**:
 
 ```
 prose(class = corpo) {
