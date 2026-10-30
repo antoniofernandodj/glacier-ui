@@ -10,6 +10,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-cli 0.22.0 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.142**.
+
+### Alterado
+
+- O `AGENTS.md` dos projetos gerados documenta `size`/`bold` no rótulo do `<button>`.
+
+## glacier-ui 0.142.0 — 2026-10-30
+
+### Adicionado
+
+- `<button>`: `size` e `bold` do `.gss` valem no rótulo (antes eram ignorados — o
+  tipo do botão não tem esses campos). Um `font` explícito continua escolhendo a
+  fonte.
+
 ## glacier-ui 0.141.0 — 2026-10-30
 
 ### Adicionado

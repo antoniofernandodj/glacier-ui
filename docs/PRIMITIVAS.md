@@ -83,7 +83,8 @@ campos; os raros vivem em **grupos** alocados só quando usados
 ```rust
 node.width.as_deref()      // campo:   width, height, padding, background, class, id, …
 node.border_color()        // acessor: align_x, align_y, border_color, font, gradient,
-                           //          text_align, text_color, slot_name          (Look)
+                           //          text_align, text_color, text_size, text_bold,
+                           //          slot_name                                  (Look)
 node.on_press()            // acessor: on_press, on_double_click, cursor, tooltip,
                            //          tooltip_position                       (Interact)
 node.set_tooltip(Some(s))  // escrita: sempre `set_<campo>`, aloca o grupo se preciso

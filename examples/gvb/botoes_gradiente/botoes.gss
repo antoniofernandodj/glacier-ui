@@ -38,6 +38,8 @@
   border_radius: 18;
   text_align: center;
   text_color: var(--texto);
+  size: 18;
+  bold: true;
 }
 
 /* O ângulo é opcional: sem ele vale 180 (de cima para baixo); 90 vai da
@@ -48,4 +50,4 @@
 .rosa  { gradient: 90 var(--rosa_a) var(--rosa_b); }
 
 /* Mais baixo e estreito, para comparar. */
-.pequeno { width: 160; padding: 10 16; border_radius: 12; }
+.pequeno { width: 160; padding: 10 16; border_radius: 12; size: 15; }

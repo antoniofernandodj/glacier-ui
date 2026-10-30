@@ -2949,8 +2949,8 @@ novas, é o mesmo campo com o nome do domínio.
 | `border_color` | `border-color` | cor |
 | `color` | — | cor do texto — **mas num `<button>` é a cor de FUNDO** |
 | `text_color` | `text-color` | cor do rótulo de um `<button>` (default branco) |
-| `size` | — | corpo da fonte |
-| `bold` | — | `true`/`false` |
+| `size` | — | corpo da fonte (num `<button>`, o do rótulo) |
+| `bold` | — | `true`/`false` (num `<button>`, o do rótulo; um `font` explícito vence) |
 | `font` | `font-family` | nome da família carregada |
 | `text_align` | `text-align` | `start`, `center`, `end` |
 | `cursor` | `cursor-icon` | ver a tabela de `cursor` acima |

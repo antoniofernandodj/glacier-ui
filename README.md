@@ -722,6 +722,7 @@ Disponíveis em **qualquer** tag:
 
 - **Eixos:** o eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
 - **Cores:** hex `#RRGGBB` ou `#RRGGBBAA`.
+- **Rótulo do `<button>`:** `size` e `bold` do `.gss` valem no texto do botão (um `font` explícito vence o `bold`); `text_color` é a cor, e `color` é o fundo.
 - **`fill` só "enche"** se todo container pai até ele também for `width=fill` (o default da maioria dos widgets é `shrink`).
 
 ---

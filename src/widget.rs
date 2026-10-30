@@ -4349,6 +4349,16 @@ pub fn render_node<'a>(
                 if let Some(f) = font_for(node.font()) {
                     t = t.font(f);
                 }
+                if let Some(sz) = node.text_size() {
+                    t = t.size(sz);
+                }
+                // `bold: true` no `.gss`; um `font` explícito já escolheu a fonte.
+                if node.text_bold() == Some(true) && node.font().is_none() {
+                    t = t.font(Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    });
+                }
                 // `textAlign` aligns the label inside the button. For a full-width
                 // button the label must fill the button's width to actually move,
                 // so `center`/`end` get `width: fill` on the text.

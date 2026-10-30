@@ -3768,6 +3768,11 @@ pub struct Look {
     pub text_align: Option<String>,
     /// Cor do rótulo de um `Button` (`textColor`); o `color` do botão é o fundo.
     pub text_color: Option<String>,
+    /// Tamanho do rótulo de um `Button` (`.classe { size }`): o botão não tem
+    /// `size` no tipo, e o `size` do `<text>` não se aplica ao rótulo dele.
+    pub text_size: Option<f32>,
+    /// `bold` do rótulo de um `Button`, o par de [`Look::text_size`].
+    pub text_bold: Option<bool>,
     /// `x="…"` dentro de um `<stack>`: posição livre em pixels sobre o
     /// `iced::widget::pin`. Valor dirigido por dado (a regra do `CLAUDE.md`),
     /// então só inline — sem `.classe { }` equivalente, como `on_press`.
@@ -4443,6 +4448,14 @@ impl UiNode {
             return;
         }
         self.look.get_or_insert_with(Default::default).text_color = v;
+    }
+    /// Ver [`Look::text_size`].
+    pub fn text_size(&self) -> Option<f32> {
+        self.look.as_ref()?.text_size
+    }
+    /// Ver [`Look::text_bold`].
+    pub fn text_bold(&self) -> Option<bool> {
+        self.look.as_ref()?.text_bold
     }
     /// Ver [`Look::slot_name`].
     pub fn slot_name(&self) -> Option<&str> {
@@ -6734,6 +6747,8 @@ impl UiNode {
                 gradient,
                 text_align,
                 text_color,
+                text_size: None,
+                text_bold: None,
                 pin_x,
                 pin_y,
                 anchor,

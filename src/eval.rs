@@ -3851,6 +3851,18 @@ fn eval_owned(
             gradient: gradient_eval,
             text_align: text_align_eval,
             text_color: text_color_eval,
+            // Só o `Button` lê: o tipo dele não tem `size`/`bold`, então o
+            // `.gss` chega ao rótulo por aqui.
+            text_size: if matches!(node.kind, NodeType::Button { .. }) {
+                node.text_size().or(style.size)
+            } else {
+                None
+            },
+            text_bold: if matches!(node.kind, NodeType::Button { .. }) {
+                node.text_bold().or(style.bold)
+            } else {
+                None
+            },
             pin_x: pin_x_eval,
             pin_y: pin_y_eval,
             anchor: anchor_eval,
