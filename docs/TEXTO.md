@@ -80,6 +80,19 @@ Só dentro de um `<prose>`. Destinos, em ordem de precedência:
 - `navigate_to` — troca de tela;
 - `on_click` — ação do app (namespaceada pelo componente dono, como num `<button>`).
 
+**Teclado** (`src/link_focus.rs`): um `<prose>` com link entra na ordem de Tab. Com o foco,
+Tab / Shift+Tab andam de link em link dentro do parágrafo (e só saem dele depois do
+último / antes do primeiro); **Enter** ou **Espaço** ativam o link (a mesma ação do
+clique). O link em foco aparece com fundo azul claro e sublinhado. Clicar fora tira o
+foco. Um `<prose>` sem link não é focável.
+
+Como foi verificado: a lógica (entrar no foco, andar, ativar, sair) roda sem janela em
+`tools/link_focus_check` (`cd tools/link_focus_check && cargo run`), com o `Rich` de
+verdade do iced e um renderizador nulo. **O desenho do destaque não foi visto** — essa
+parte precisa de uma janela, e esta máquina não captura tela. Por baixo, o destaque
+é uma variante pronta do parágrafo por link (o `Rich` não revela onde cada link está),
+então um parágrafo com N links monta N+1 cópias.
+
 Hover: o link fica azul e **sublinha sob o cursor** (e o cursor do mouse muda); o
 sublinhado permanente foi retirado para o hover ser visível.
 
@@ -113,11 +126,8 @@ externo (um `fetch`), e ele não escolhe o que o app lê nem busca coisa na rede
 
 ## O que NÃO está feito
 
-- **Foco de teclado nos links** (Tab até um link, Enter para ativar). O
-  `rich_text` do iced não é focável. Exige um widget próprio que embrulhe o
-  `rich_text`, implemente `Focusable`, trate Tab/Enter e guarde qual link está em
-  foco fora do `view` (o `view` reconstrói os trechos a cada quadro). Não foi
-  feito porque não dá para verificá-lo aqui: esta máquina não tem como injetar
-  teclado numa janela, e um widget de foco sem teste quebraria **todo** `<prose>`.
-- **Links no texto selecionável** (ver acima) e no Markdown além do clique.
+- **Foco de teclado nos links do `<markdown>`** (só clique) e nos do texto selecionável
+  (que nem tem link).
+- Ao voltar com Shift+Tab para um `<prose>`, o foco cai no **primeiro** link, não no último
+  (a operação de foco do iced não diz de que lado o foco chegou).
 - HTML cru no Markdown é ignorado.

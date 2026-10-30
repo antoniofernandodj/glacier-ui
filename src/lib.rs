@@ -93,6 +93,7 @@ pub mod luau;
 #[cfg(target_arch = "wasm32")]
 #[path = "luau_web.rs"]
 pub mod luau;
+mod link_focus;
 mod markdown;
 pub mod menu;
 #[cfg(not(target_arch = "wasm32"))]
@@ -5341,10 +5342,15 @@ fn drag_end_from_event(
 /// requires one. iced text inputs ignore Tab, so this is what makes it advance.
 fn tab_focus_from_event(
     event: iced::Event,
-    _status: iced::event::Status,
+    status: iced::event::Status,
     _window: iced::window::Id,
 ) -> Option<EngineMessage> {
     use iced::keyboard::{Event as Kbd, Key, key::Named};
+    // Um widget que consumiu o Tab (um `<prose>` andando de link em link) já
+    // usou a tecla: mover o foco também o faria pular o parágrafo inteiro.
+    if status == iced::event::Status::Captured {
+        return None;
+    }
     match event {
         iced::Event::Keyboard(Kbd::KeyPressed {
             key: Key::Named(Named::Tab),

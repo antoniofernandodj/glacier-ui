@@ -1,4 +1,5 @@
 /target
+/tools/*/target
 /.claude
 
 # Persistência local do global `storage` (Luau) — artefato de runtime dos exemplos

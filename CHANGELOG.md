@@ -25,6 +25,8 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 - `<prose>` com `<p>`, `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>` e `<a>`: texto inline misto,
   só dentro do `<prose>`. `selectable` em `<text>`/`<prose>`. `<markdown>` com tabelas e imagens
   locais. No `.gvb`, o texto sem nome vale como `content` nas tags que carregam texto.
+- Foco de teclado nos links do `<prose>`: Tab / Shift+Tab entre links, Enter / Espaço ativam.
+  O Tab global não mexe mais o foco quando um widget já consumiu a tecla.
 
 ## glacier-cli 0.22.0 — 2026-10-30
 

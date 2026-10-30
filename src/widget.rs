@@ -4344,65 +4344,101 @@ pub fn render_node<'a>(
         NodeType::RichText { spans, size, color } => {
             use iced::widget::{rich_text, span};
             let cor_base = color.as_deref().and_then(parse_hex_color);
-            let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
+            // Os índices (em `spans`) dos trechos que são link, na ordem do texto:
+            // é a ordem do foco de teclado.
+            let indices_link: Vec<usize> = spans
                 .iter()
                 .enumerate()
-                .map(|(i, sp)| {
-                    let mut f = Font::DEFAULT;
-                    if sp.code {
-                        f = Font::MONOSPACE;
-                    }
-                    if sp.bold {
-                        f.weight = iced::font::Weight::Bold;
-                    }
-                    if sp.italic {
-                        f.style = iced::font::Style::Italic;
-                    }
-                    let mut s = span(sp.content.as_str()).font(f);
-                    if let Some(sz) = size {
-                        s = s.size(*sz);
-                    }
-                    // Link: azul, e sublinhado só sob o cursor (o `rich_text` do
-                    // iced sublinha o link em hover e troca o cursor do mouse).
-                    // Cor explícita no trecho vence; depois a do parágrafo.
-                    let propria = sp.color.as_deref().and_then(parse_hex_color);
-                    let col = propria.or(if sp.link.is_some() {
-                        Some(Color::from_rgb8(0x89, 0xB4, 0xFA))
-                    } else {
-                        cor_base
-                    });
-                    if let Some(c) = col {
-                        s = s.color(c);
-                    }
-                    if sp.underline {
-                        s = s.underline(true);
-                    }
-                    if sp.strike {
-                        s = s.strikethrough(true);
-                    }
-                    if sp.link.is_some() {
-                        s = s.link(i);
-                    }
-                    s
-                })
+                .filter(|(_, s)| s.link.is_some())
+                .map(|(i, _)| i)
                 .collect();
-            let mut t = rich_text(itens).on_link_click(move |i: usize| {
-                match spans.get(i).and_then(|s| s.link.as_ref()) {
-                    Some(l) => link_message(l),
-                    None => EngineMessage::UiClick(String::new()),
+            // Monta o parágrafo; `destaque` = ordinal do link em foco de teclado.
+            let montar = |destaque: Option<usize>| -> Element<'a, EngineMessage> {
+                let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
+                    .iter()
+                    .enumerate()
+                    .map(|(i, sp)| {
+                        let mut f = Font::DEFAULT;
+                        if sp.code {
+                            f = Font::MONOSPACE;
+                        }
+                        if sp.bold {
+                            f.weight = iced::font::Weight::Bold;
+                        }
+                        if sp.italic {
+                            f.style = iced::font::Style::Italic;
+                        }
+                        let mut s = span(sp.content.as_str()).font(f);
+                        if let Some(sz) = size {
+                            s = s.size(*sz);
+                        }
+                        // Link: azul, e sublinhado só sob o cursor (o `rich_text`
+                        // do iced sublinha o link em hover e troca o cursor do
+                        // mouse). Cor explícita no trecho vence; depois a do
+                        // parágrafo.
+                        let propria = sp.color.as_deref().and_then(parse_hex_color);
+                        let col = propria.or(if sp.link.is_some() {
+                            Some(Color::from_rgb8(0x89, 0xB4, 0xFA))
+                        } else {
+                            cor_base
+                        });
+                        if let Some(c) = col {
+                            s = s.color(c);
+                        }
+                        if sp.underline {
+                            s = s.underline(true);
+                        }
+                        if sp.strike {
+                            s = s.strikethrough(true);
+                        }
+                        if sp.link.is_some() {
+                            s = s.link(i);
+                        }
+                        // O link em foco de teclado: fundo, borda e sublinhado.
+                        if destaque.is_some_and(|d| indices_link.get(d) == Some(&i)) {
+                            s = s
+                                .background(Color::from_rgba8(0x89, 0xB4, 0xFA, 0.28))
+                                .border(Border {
+                                    radius: 3.0.into(),
+                                    ..Default::default()
+                                })
+                                .underline(true);
+                        }
+                        s
+                    })
+                    .collect();
+                let mut t = rich_text(itens).on_link_click(move |i: usize| {
+                    match spans.get(i).and_then(|s| s.link.as_ref()) {
+                        Some(l) => link_message(l),
+                        None => EngineMessage::UiClick(String::new()),
+                    }
+                });
+                if let Some(sz) = size {
+                    t = t.size(*sz);
                 }
-            });
-            if let Some(sz) = size {
-                t = t.size(*sz);
-            }
-            if let Some(align) = parse_text_align(node.text_align()) {
-                t = t.align_x(align);
-            }
-            crate::overflow::clip(
+                if let Some(align) = parse_text_align(node.text_align()) {
+                    t = t.align_x(align);
+                }
                 t.width(parse_length(&node.width))
-                    .height(parse_length(&node.height)),
-            )
-            .into()
+                    .height(parse_length(&node.height))
+                    .into()
+            };
+            // Sem link não há o que focar: o parágrafo é o `rich_text` direto.
+            // Com link, o embrulho dá a ele foco de teclado (Tab, Enter, Espaço).
+            let corpo: Element<'a, EngineMessage> = if indices_link.is_empty() {
+                montar(None)
+            } else {
+                crate::link_focus::FocusLinks::new(
+                    montar(None),
+                    (0..indices_link.len()).map(|k| montar(Some(k))).collect(),
+                    indices_link
+                        .iter()
+                        .filter_map(|&i| spans[i].link.as_ref().map(link_message))
+                        .collect(),
+                )
+                .into()
+            };
+            crate::overflow::clip(corpo).into()
         }
         NodeType::Button {
             text: btn_text,
