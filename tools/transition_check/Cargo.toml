@@ -1,0 +1,12 @@
+[package]
+name = "transition_check"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Fora do workspace do motor: é um projeto de verificação independente.
+[workspace]
+
+[dependencies]
+iced = { version = "=0.14.0", default-features = false, features = ["advanced", "x11", "wayland", "thread-pool", "tiny-skia"] }
+iced_runtime = "=0.14.0"
