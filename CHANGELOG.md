@@ -8,7 +8,17 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## Não lançado
+## glacier-cli 0.24.0 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.144**. O `AGENTS.md` e o `glacier.d.luau` dos
+projetos gerados documentam `on_progress`, `:query`/`:options`, cookies, multipart e abort.
+
+## glacier-ui 0.144.0 — 2026-10-30
+
+Mudança de comportamento (minor): o `retries` do `http()` (Luau e `net::Client`) só refaz
+métodos idempotentes (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, `QUERY`). Antes, um `POST`
+também era repetido em 5xx/429/falha de rede; para manter, use `retry_on`.
+Em tabelas de cliente Luau, o campo interno `query` virou `params`.
 
 ### Adicionado
 
