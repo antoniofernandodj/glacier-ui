@@ -34,3 +34,11 @@
   width: calc(300 - 2 * 20);
 }
 .caixa_translucida { opacity: 50%; }
+
+/* seletores estruturais: posição entre os irmãos */
+.lista { spacing: 2; }
+.linha { padding: 6; background: #3B3E45; text-color: #FFFFFF; }
+.linha:nth-child(odd) { background: #4A4E57; }
+.linha:first-child { border-radius: 8; background: #5865F2; }
+.linha:last-child  { background: #E07A5F; }
+.linha:nth-child(3n) { background: #2E8B57; }

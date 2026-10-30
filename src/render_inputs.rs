@@ -132,6 +132,17 @@ impl RenderInputs {
                 .any(|s| s.has_complex_rules())
     }
 
+    /// `true` se alguma folha declara `:first-child`/`:last-child`/`:nth-child()` — o que
+    /// liga o cálculo da posição de cada nó entre os irmãos.
+    pub fn has_structural(&self) -> bool {
+        self.stylesheets.iter().any(|s| s.has_structural())
+            || self
+                .component_stylesheets
+                .values()
+                .flatten()
+                .any(|s| s.has_structural())
+    }
+
     /// `true` se mover o viewport de `old` para `new` ativa ou desativa alguma
     /// `@media` — o que decide se vale reavaliar num resize.
     pub fn media_set_changes(&self, old: (f32, f32), new: (f32, f32)) -> bool {

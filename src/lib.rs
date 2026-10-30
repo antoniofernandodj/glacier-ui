@@ -4515,6 +4515,9 @@ impl GlacierUI {
                 // aqui para não pagar por nó no caso comum (nenhum seletor de tag).
                 has_tag_rules: self.inputs.has_tag_rules(),
                 has_complex_rules: self.inputs.has_complex_rules(),
+                has_structural: self.inputs.has_structural(),
+                posicao: Default::default(),
+                posicao_fixa: Default::default(),
                 ancestors: Default::default(),
                 pending_root: Default::default(),
             };

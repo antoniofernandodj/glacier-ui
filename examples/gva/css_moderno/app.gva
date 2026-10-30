@@ -6,6 +6,16 @@
   <column class="tela">
     <text class="titulo">opacity, transition, calc() e var()</text>
 
+    <text class="nota">::first-child azul, :last-child laranja, odd mais claro, 3n verde (linhas 3 e 6).</text>
+    <column class="lista">
+      <container class="linha"><text>1 — first-child</text></container>
+      <container class="linha"><text>2</text></container>
+      <container class="linha"><text>3 — odd e 3n</text></container>
+      <container class="linha"><text>4</text></container>
+      <container class="linha"><text>5 — odd</text></container>
+      <container class="linha"><text>6 — last-child e 3n</text></container>
+    </column>
+
     <text class="nota">Sem transition: a troca de cor é instantânea.</text>
     <button class="botao seco" text="Sem transition" on_click="ok" />
 
@@ -18,5 +28,6 @@
     <text class="nota">calc(): largura 260 = calc(300 - 2 * 20); raio = calc(var(--raio) * 2).</text>
     <container class="caixa"><text>caixa sem opacity</text></container>
     <container class="caixa caixa_translucida"><text>caixa com opacity: 50%</text></container>
+
   </column>
 </screen>

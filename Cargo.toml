@@ -731,6 +731,10 @@ name = "css_moderno"
 path = "examples/gva/css_moderno/main.rs"
 
 [[example]]
+name = "css_estrutural_check"
+path = "examples/gva/css_estrutural_check/main.rs"
+
+[[example]]
 name = "prose_check"
 path = "examples/gva/prose_check/main.rs"
 

@@ -554,9 +554,19 @@ pub struct Element {
     pub tags: Vec<String>,
     pub classes: Vec<String>,
     pub ids: Vec<String>,
+    /// `(posição de 1 a n, n)` entre os irmãos, para `:first-child`, `:last-child` e
+    /// `:nth-child()`. `None` quando o nó não tem irmãos conhecidos (a raiz): nenhum
+    /// seletor estrutural casa. Num `foreach`, é a posição do item **na lista**; fora
+    /// dele, a do filho entre os escritos no markup do pai (um `foreach` conta um).
+    pub posicao: Option<(usize, usize)>,
 }
 
 impl Element {
+    pub fn com_posicao(mut self, p: Option<(usize, usize)>) -> Self {
+        self.posicao = p;
+        self
+    }
+
     pub fn new(tag: Option<&str>, classes: &str, id: Option<&str>) -> Self {
         Element {
             tags: tag.map(|t| vec![t.to_lowercase()]).unwrap_or_default(),
@@ -566,6 +576,7 @@ impl Element {
                 .filter(|i| !i.is_empty())
                 .map(|i| vec![i.to_string()])
                 .unwrap_or_default(),
+            posicao: None,
         }
     }
 
@@ -574,6 +585,62 @@ impl Element {
         self.tags.extend(other.tags);
         self.classes.extend(other.classes);
         self.ids.extend(other.ids);
+        if other.posicao.is_some() {
+            self.posicao = other.posicao;
+        }
+    }
+}
+
+/// `:first-child`, `:last-child`, `:only-child` e `:nth-child(an+b)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Estrutural {
+    Primeiro,
+    Ultimo,
+    Unico,
+    /// `an+b`: casa a posição `p` (de 1) se existe `n >= 0` com `a*n + b == p`.
+    Nth { a: i32, b: i32 },
+}
+
+impl Estrutural {
+    fn casa(self, (pos, total): (usize, usize)) -> bool {
+        let p = pos as i32;
+        match self {
+            Self::Primeiro => pos == 1,
+            Self::Ultimo => pos == total,
+            Self::Unico => total == 1,
+            Self::Nth { a, b } => {
+                if a == 0 {
+                    p == b
+                } else {
+                    let d = p - b;
+                    d % a == 0 && d / a >= 0
+                }
+            }
+        }
+    }
+
+    /// `odd`, `even`, `3`, `2n`, `2n+1`, `-n+3`, `n`.
+    fn parse_nth(s: &str) -> Option<Self> {
+        let t: String = s.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase();
+        match t.as_str() {
+            "odd" => return Some(Self::Nth { a: 2, b: 1 }),
+            "even" => return Some(Self::Nth { a: 2, b: 0 }),
+            _ => {}
+        }
+        if let Some(i) = t.find('n') {
+            let a = match &t[..i] {
+                "" | "+" => 1,
+                "-" => -1,
+                x => x.parse().ok()?,
+            };
+            let b = match &t[i + 1..] {
+                "" => 0,
+                x => x.parse().ok()?,
+            };
+            Some(Self::Nth { a, b })
+        } else {
+            Some(Self::Nth { a: 0, b: t.parse().ok()? })
+        }
     }
 }
 
@@ -585,6 +652,8 @@ pub struct Compound {
     pub tag: Option<String>,
     pub classes: Vec<String>,
     pub ids: Vec<String>,
+    /// `:first-child` & cia. — pseudo-classes que olham a posição entre os irmãos.
+    pub estrutural: Vec<Estrutural>,
 }
 
 impl Compound {
@@ -592,6 +661,10 @@ impl Compound {
         self.tag.as_ref().is_none_or(|t| el.tags.contains(t))
             && self.classes.iter().all(|c| el.classes.contains(c))
             && self.ids.iter().all(|i| el.ids.contains(i))
+            && self
+                .estrutural
+                .iter()
+                .all(|e| el.posicao.is_some_and(|p| e.casa(p)))
     }
 }
 
@@ -730,6 +803,17 @@ impl StyleSheet {
     /// — que nenhum outro seletor precisa.
     pub fn has_complex_rules(&self) -> bool {
         !self.complex.is_empty() || self.media.iter().any(|m| !m.complex.is_empty())
+    }
+
+    /// `true` se algum seletor (em qualquer composto) usa `:first-child`, `:last-child`,
+    /// `:only-child` ou `:nth-child()`. É o que liga, no `eval.rs`, o cálculo da posição
+    /// de cada nó entre os irmãos — que nenhum outro seletor precisa.
+    pub fn has_structural(&self) -> bool {
+        let tem = |c: &ComplexRule| {
+            !c.selector.subject.estrutural.is_empty()
+                || c.selector.ancestors.iter().any(|(_, comp)| !comp.estrutural.is_empty())
+        };
+        self.complex.iter().any(tem) || self.media.iter().any(|m| m.complex.iter().any(tem))
     }
 }
 
@@ -1395,6 +1479,7 @@ fn apply_selector(
 
     let c = &parsed.subject;
     let simples = parsed.ancestors.is_empty()
+        && c.estrutural.is_empty()
         && c.tag.is_some() as usize + c.classes.len() + c.ids.len() == 1;
     if !simples {
         sheet.complex.push(ComplexRule {
@@ -1554,10 +1639,42 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
                         ));
                     }
                     let nome = ident(&mut i);
+                    // Pseudo-classes estruturais: filtram por posição, valem em qualquer
+                    // composto (`li:first-child > a`) e NÃO são o estado do sujeito.
+                    match nome.as_str() {
+                        "first-child" => {
+                            comp.estrutural.push(Estrutural::Primeiro);
+                            continue;
+                        }
+                        "last-child" => {
+                            comp.estrutural.push(Estrutural::Ultimo);
+                            continue;
+                        }
+                        "only-child" => {
+                            comp.estrutural.push(Estrutural::Unico);
+                            continue;
+                        }
+                        "nth-child" if chars.get(i) == Some(&'(') => {
+                            let fim = chars[i..].iter().position(|c| *c == ')').ok_or_else(|| {
+                                (format!("':nth-child(' sem ')' em '{selector}'"), None)
+                            })?;
+                            let formula: String = chars[i + 1..i + fim].iter().collect();
+                            let e = Estrutural::parse_nth(&formula).ok_or_else(|| {
+                                (
+                                    format!("':nth-child({formula})' não é uma fórmula válida em '{selector}'"),
+                                    Some("use `odd`, `even`, um número (`3`) ou `an+b` (`2n+1`, `-n+3`)"),
+                                )
+                            })?;
+                            comp.estrutural.push(e);
+                            i += fim + 1;
+                            continue;
+                        }
+                        _ => {}
+                    }
                     if chars.get(i) == Some(&'(') {
                         return Err((
                             format!("pseudo-classe ':{nome}(…)' não suportada em '{selector}'"),
-                            Some("os suportados são :hover, :focus, :active, :disabled e :invalid"),
+                            Some("os suportados são :hover, :focus, :active, :disabled, :invalid, :first-child, :last-child, :only-child e :nth-child(an+b)"),
                         ));
                     }
                     if state.is_some() {
@@ -1566,7 +1683,7 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
                     state = Some(PseudoState::parse(&nome).ok_or_else(|| {
                         (
                             format!("pseudo-estado ':{nome}' não suportado em '{selector}'"),
-                            Some("os suportados são :hover, :focus, :active, :disabled e :invalid"),
+                            Some("os suportados são :hover, :focus, :active, :disabled, :invalid, :first-child, :last-child, :only-child e :nth-child(an+b)"),
                         )
                     })?);
                 }
@@ -1605,7 +1722,7 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
     let mut spec = (0u32, 0u32, 0u32);
     for comp in std::iter::once(&subject).chain(ancestors.iter().map(|(_, c)| c)) {
         spec.0 += comp.ids.len() as u32;
-        spec.1 += comp.classes.len() as u32;
+        spec.1 += comp.classes.len() as u32 + comp.estrutural.len() as u32;
         spec.2 += comp.tag.is_some() as u32;
     }
     spec.1 += state.is_some() as u32;

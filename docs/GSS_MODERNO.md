@@ -68,7 +68,28 @@ a medição por captura de tela precisa do ponteiro, e nesta sessão o ponteiro 
 de se mover. Quem rodar `css_moderno` deve ver o botão "Com transition" clarear/escurecer
 em ~400 ms, e o "Sem transition" saltar.
 
+## Seletores estruturais
+
+`:first-child`, `:last-child`, `:only-child` e `:nth-child(an+b)` (`odd`, `even`, `3`, `2n+1`,
+`-n+3`). Valem em qualquer composto (`li:first-child > a`) e contam como uma classe na
+especificidade.
+
+```gss
+.linha                 { background: #3B3E45; }
+.linha:nth-child(odd)  { background: #4A4E57; }   /* listras */
+.linha:first-child     { border-radius: 8; }
+.linha:last-child      { background: #E07A5F; }
+```
+
+**A posição que o motor usa:** num `<foreach>`, é a do item **na lista** (e o total entra na
+chave do cache, então acrescentar um item muda quem é o último). Fora dele, é a do filho entre
+os escritos no markup do pai. Dois limites: um `<foreach>` cujo corpo tem **mais de um nó** por
+item usa a posição entre esses nós, não na lista; e `if`/`else` no meio dos irmãos não são
+descontados da contagem.
+
+Verificado sem janela por `cargo run --example css_estrutural_check` (6, 4 e 1 itens) e numa
+janela em `css_moderno`.
+
 ## Fora desta fase
 
-`:first-child`, `:last-child`, `:nth-child` e `@keyframes` não foram feitos. `@font-face` já é
-coberto pelo `<font>` no markup do `<app>`.
+`@keyframes` não foi feito. `@font-face` já é coberto pelo `<font>` no markup do `<app>`.

@@ -1324,6 +1324,15 @@ pub struct StyleContext<'a> {
     /// (`row.p-2 > text`). Só então a avaliação mantém [`Self::ancestors`] —
     /// sem nenhum, ninguém pergunta quem é o pai de quem.
     pub has_complex_rules: bool,
+    /// `true` se algum sheet usa `:first-child`/`:last-child`/`:nth-child()`: só então a
+    /// avaliação calcula a posição de cada nó entre os irmãos.
+    pub has_structural: bool,
+    /// A posição `(de 1 a n, n)` do **próximo** nó a avaliar entre os irmãos, posta por
+    /// `expand_children` e retirada pelo `eval_owned` (como [`Self::pending_root`]).
+    pub posicao: std::cell::Cell<Option<(usize, usize)>>,
+    /// O `foreach` já fixou [`Self::posicao`] para o item que vai avaliar: o laço de
+    /// `expand_children` que o recebe (com um filho só) não a sobrescreve.
+    pub posicao_fixa: std::cell::Cell<bool>,
     /// Os elementos de cima do nó em avaliação, da raiz até o pai. Empilhado em
     /// volta da avaliação dos filhos de cada nó; é o que um seletor `a > b` ou
     /// `a b` consulta. Ver [`Lineage`].
@@ -1398,7 +1407,12 @@ fn expand_children(
     // Tracks the result of the immediately preceding `<if>`, so an `<else>`
     // can bind to it. Reset by any other (non-else) node.
     let mut last_if: Option<bool> = None;
-    for child in children {
+    for (idx_filho, child) in children.iter().enumerate() {
+        // A posição deste filho entre os irmãos escritos, para `:nth-child` & cia. (um
+        // `foreach` já a fixou para o item; ver `StyleContext::posicao_fixa`).
+        if styles.has_structural && !styles.posicao_fixa.replace(false) {
+            styles.posicao.set(Some((idx_filho + 1, children.len())));
+        }
         if matches!(
             child.kind,
             NodeType::Import { .. }
@@ -1464,7 +1478,7 @@ fn expand_children(
                     // clonar a base (ver `EvalCtx`).
                     let (layer, this_key) = item_layer(item, var, reorder_key.as_deref(), context);
                     let item_ctx =
-                        context.with(&layer, styles.salt(mix(child.node_id, index as u64)));
+                        context.with(&layer, styles.salt(mix(mix(child.node_id, index as u64), if styles.has_structural { arr.len() as u64 } else { 0 })));
 
                     if cacheable && reuse(&item_ctx, cache, out) {
                         continue;
@@ -1494,6 +1508,11 @@ fn expand_children(
                     let mut item_out = Vec::new();
                     if cacheable {
                         item_ctx.push_frame();
+                    }
+                    // A posição do item NA LISTA, para `:nth-child` & cia.
+                    if styles.has_structural {
+                        styles.posicao.set(Some((index + 1, arr.len())));
+                        styles.posicao_fixa.set(true);
                     }
                     expand_children(
                         std::slice::from_ref(&clone),
@@ -1654,8 +1673,13 @@ fn expand_children(
                         // clonar a base (ver `EvalCtx`).
                         let (layer, this_key) =
                             item_layer(item, var, reorder_key.as_deref(), context);
-                        let item_ctx =
-                            context.with(&layer, styles.salt(mix(child.node_id, index as u64)));
+                        let item_ctx = context.with(
+                            &layer,
+                            styles.salt(mix(
+                                mix(child.node_id, index as u64),
+                                if styles.has_structural { arr.len() as u64 } else { 0 },
+                            )),
+                        );
 
                         if cacheable && reuse(&item_ctx, cache, out) {
                             continue;
@@ -1682,6 +1706,13 @@ fn expand_children(
                         let mut item_out = Vec::new();
                         if cacheable {
                             item_ctx.push_frame();
+                        }
+                        // A posição do item NA LISTA (`:nth-child` & cia.). Com um nó por
+                        // item — o caso comum — ela vai para esse nó; com mais de um, cada
+                        // um é irmão dos outros do corpo, e vale a posição entre eles.
+                        if styles.has_structural && body.len() == 1 {
+                            styles.posicao.set(Some((index + 1, arr.len())));
+                            styles.posicao_fixa.set(true);
                         }
                         expand_children(
                             &body,
@@ -2192,6 +2223,7 @@ fn eval_owned(
     // (ver [`StyleContext::pending_root`]). Retirada AQUI, antes de qualquer
     // ramo, para não vazar para o próximo nó avaliado se este não a usar.
     let pendente = styles.pending_root.borrow_mut().take();
+    let posicao = if styles.has_structural { styles.posicao.take() } else { None };
     if let NodeType::Slot { name } = &node.kind {
         // **Nome dinâmico** (habilitador A da Onda 5): o nome interpola antes da
         // busca, no contexto do componente — que é onde as props dele vivem.
@@ -2339,7 +2371,7 @@ fn eval_owned(
         // no markup) e se funde à raiz avaliada do template.
         let uso_el = styles.has_complex_rules.then(|| {
             let mut el = pendente.unwrap_or_default();
-            el.absorb(Element::new(Some(name), &uso_class, uso_id.as_deref()));
+            el.absorb(Element::new(Some(name), &uso_class, uso_id.as_deref()).com_posicao(posicao));
             el
         });
 
@@ -2712,7 +2744,7 @@ fn eval_owned(
         // O nó como elemento, para os seletores compostos — fundido ao uso do
         // componente quando este nó é a raiz de um template.
         if let Some(el) = subject.as_mut() {
-            el.absorb(Element::new(tag, &processed, id.as_deref()));
+            el.absorb(Element::new(tag, &processed, id.as_deref()).com_posicao(posicao));
         }
         let needs_lookup =
             !processed.trim().is_empty() || id.is_some() || (tag.is_some() && styles.has_tag_rules);
@@ -4373,6 +4405,9 @@ mod tests {
             viewport: None,
             has_tag_rules: global.iter().any(|s| s.has_tag_rules()),
             has_complex_rules: global.iter().any(|s| s.has_complex_rules()),
+            has_structural: global.iter().any(|s| s.has_structural()),
+            posicao: Default::default(),
+            posicao_fixa: Default::default(),
             ancestors: Default::default(),
             pending_root: Default::default(),
         };
@@ -4389,6 +4424,9 @@ mod tests {
             viewport: None,
             has_tag_rules: false,
             has_complex_rules: false,
+            has_structural: false,
+            posicao: Default::default(),
+            posicao_fixa: Default::default(),
             ancestors: Default::default(),
             pending_root: Default::default(),
         };
@@ -4570,6 +4608,9 @@ mod tests {
             viewport: None,
             has_tag_rules: true,
             has_complex_rules: true,
+            has_structural: false,
+            posicao: Default::default(),
+            posicao_fixa: Default::default(),
             ancestors: Default::default(),
             pending_root: Default::default(),
         };
