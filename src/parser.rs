@@ -852,6 +852,63 @@ fn validate_template_fallback(root: Node) -> Option<Diagnostic> {
     None
 }
 
+/// As tags de estilo que vivem **dentro de um `<p>`** do `<prose>`.
+const TAGS_INLINE: &[&str] = &[
+    "b", "strong", "negrito", "i", "em", "italico", "itálico", "code", "codigo", "código", "u",
+    "underline", "sublinhado", "s", "del", "strike", "tachado", "a", "span",
+];
+
+/// Confere a forma de todo `<prose>`: ele só contém `<p>`, e um `<p>` só contém
+/// texto e as tags de [`TAGS_INLINE`]. Erra alto — texto solto ou uma tag fora do
+/// lugar num parágrafo sumiria ou sairia sem estilo, e a tela pareceria certa.
+fn validate_prose(root: Node) -> Option<Diagnostic> {
+    let minusculo = |n: Node| n.tag_name().name().to_ascii_lowercase();
+    for prose in root
+        .descendants()
+        .filter(|n| n.is_element() && minusculo(*n) == "prose")
+    {
+        for filho in prose.children() {
+            if filho.is_text() {
+                if !filho.text().unwrap_or_default().trim().is_empty() {
+                    return Some(
+                        diagnostic_at(prose, "texto solto dentro de <prose>".to_string())
+                            .with_hint("o <prose> só contém <p>: escreva <prose><p>o texto</p></prose>"),
+                    );
+                }
+            } else if filho.is_element() && minusculo(filho) != "p" {
+                return Some(
+                    diagnostic_at(
+                        filho,
+                        format!("<{}> direto no <prose>", filho.tag_name().name()),
+                    )
+                    .with_hint("o <prose> só contém <p>; as tags de estilo vão dentro de um <p>"),
+                );
+            }
+        }
+        for p in prose
+            .children()
+            .filter(|n| n.is_element() && minusculo(*n) == "p")
+        {
+            for neto in p.descendants().skip(1).filter(Node::is_element) {
+                let tag = minusculo(neto);
+                if !TAGS_INLINE.contains(&tag.as_str()) {
+                    return Some(
+                        diagnostic_at(
+                            neto,
+                            format!("<{}> dentro de um <p> do <prose>", neto.tag_name().name()),
+                        )
+                        .with_hint(
+                            "um parágrafo só tem texto e as tags b, i, code, u, s, span e a \
+                             (um <p> não entra em outro <p>)",
+                        ),
+                    );
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Confere o `<props>` de um `<component>`: só `<prop name="…">` entra nele,
 /// todo `<prop>` tem nome, e nenhum nome se repete.
 ///
@@ -7249,7 +7306,9 @@ impl UiNode {
         // tempo de execução: erra alto, antes de montar a árvore. É também aqui
         // que a obrigatoriedade mora — ver `validate_header`.
         if let Some(mut d) =
-            validate_header(fragment, file).or_else(|| validate_template_fallback(fragment))
+            validate_header(fragment, file)
+                .or_else(|| validate_template_fallback(fragment))
+                .or_else(|| validate_prose(fragment))
         {
             d = match file {
                 Some(f) => d.in_file(f, source),
@@ -7423,6 +7482,7 @@ impl UiNode {
         if let Some(d) = validate_app(app_el)
             .or_else(|| validate_resources(app_el, true))
             .or_else(|| validate_template_fallback(fragment))
+            .or_else(|| validate_prose(fragment))
         {
             return Err(fail(d));
         }

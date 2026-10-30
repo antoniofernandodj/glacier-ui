@@ -28,8 +28,12 @@ simples, de propósito: `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e 
 | `span color="#…"` | cor do trecho |
 | `a` | link |
 
-Aninham (`<b><i>…</i></b>`). `{interpolação}` vale em cada trecho. Texto direto no
-`<prose>`, sem `<p>`, é um parágrafo só. O espaço entre trechos é preservado como no
+Aninham (`<b><i>…</i></b>`). `{interpolação}` vale em cada trecho.
+
+**Forma obrigatória** (erro de carga, com linha e coluna, se violada): o `<prose>` só
+contém `<p>` — texto solto ou uma tag de estilo direto nele é erro — e um `<p>` só
+contém texto e as tags da tabela acima (nenhum outro elemento, e um `<p>` não entra em
+outro `<p>`). O espaço entre trechos é preservado como no
 HTML. No `.gvb` o texto é atributo: `b(content = "isto")`.
 
 ### No `.gvb`

@@ -81,7 +81,7 @@ gravado apenas em `.gz`, servido com `gzip_static always` + `gunzip on`. O
 | `fetch`, SSE, WebSocket | erro com a URL | O `net.rs` é hyper/rustls sobre socket. Hoje só a camada Luau chega aqui. |
 | `notify()` | vai para o console | Sem D-Bus/WinRT. |
 | Diálogo de arquivo | responde "cancelado" e avisa no console | Sem `rfd`. |
-| Bandeja, webview, instância única | desligados | Cada aba é a própria instância. |
+| Bandeja, instância única | desligados | Cada aba é a própria instância. |
 | Hot-reload | não há | Os assets são embutidos. |
 | Várias janelas | não testado | Cada janela do daemon vira outro canvas no `<body>`. |
 
