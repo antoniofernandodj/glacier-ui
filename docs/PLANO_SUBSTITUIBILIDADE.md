@@ -1,8 +1,9 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** em andamento (2026-10-30). Fases 0 e 2 feitas, com as ressalvas listadas em
-cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada** (nada remoto
-além de dados); 3 a 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Estado:** em andamento (2026-10-30), glacier-ui 0.143.0. **Fases 0 e 2 feitas**, com as
+ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada**
+(nada remoto além de dados); **3 e 4 adiadas** por decisão (acessibilidade e WASM);
+**5 e 6 são as próximas**; 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
@@ -112,6 +113,13 @@ dados remotos. Ver "Fora do escopo".
 
 **Aceitação:** uma tela de "Sobre" com parágrafo, link, código inline e lista, tudo
 selecionável; verificar a árvore avaliada dos spans (não só que renderiza).
+
+**O que saiu, além do pedido:** o texto de leitura virou uma lista de **blocos** no
+`<prose>` (parágrafo, `h1`–`h6`, citação com autoria, listas, **figura com legenda**,
+código, régua), e o `<prose syntax content>` lê o texto de uma chave do contexto — arquivo,
+`fetch` ou banco — em `gva`, `gvb`, `html` ou `markdown`, tratando-o como **não-confiável**
+(só links `http`/`https`/`mailto`, sem `on_click`/`navigate_to`, imagem só local). O foco de
+teclado nos links e a seleção de texto estão feitos. Ver `docs/TEXTO.md`.
 
 ### Fase 3 — Acessibilidade
 
@@ -235,7 +243,16 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 Fase 1 (2026-10-30): **descartada.** Sem app, tela ou asset remoto; só dados via
 `fetch`. A implementação foi removida (ver a seção da Fase 1).
 
-Fase 2 (2026-10-30): estilo inline só dentro de `<prose>` (com `<p>`); `<a>` com hover;
-`selectable` em `<text>`/`<prose>` (via `<textarea readonly>`, perdendo estilo e link);
-`<markdown>` com tabelas e imagens **locais**. Falta o foco de teclado nos links
-(ver `docs/TEXTO.md`).
+Fase 0 (2026-10-30): a primeira medição era de um painel que não carregava os dados nem a
+lista (defeito do motor no `init` + erro do painel); refeita. Ver `docs/MEDICOES.md`.
+
+Fase 2 (2026-10-30): estilo inline só dentro de `<prose>`, em blocos; `<a>` com hover e foco
+de teclado (Tab/Enter/Espaço); `selectable` em `<text>`/`<prose>` (via `<textarea readonly>`,
+perdendo estilo e link); `<markdown>` com tabelas, imagens **locais** e legenda;
+`<prose syntax content>` em `gva`/`gvb`/`html`/`markdown`, com o conteúdo dinâmico tratado
+como não-confiável. Fica fora: lista aninhada e tabela dentro do `<prose>`.
+
+Remoção do `webview_url` e da feature `webview` (2026-10-30): era uma tela remota por outro
+caminho, e a Fase 7 já não conta com ela para `<video>`.
+
+Fases 3 e 4 (2026-10-30): adiadas. A Fase 5 (CSS) e a 6 (rede do `fetch`) vêm antes.

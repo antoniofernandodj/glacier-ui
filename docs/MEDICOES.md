@@ -12,7 +12,7 @@ scripts/medir_chrome.sh 5      # o mesmo painel numa janela do Chrome, perfil no
 ## Resultado (2026-10-30, mediana de 5 rodadas)
 
 Máquina: Linux 7.0, Intel i5-3470 (Ivy Bridge, iGPU), `WGPU_BACKEND=gl`
-(o Vulkan desta iGPU é quebrado). Glacier 0.142.0, Chrome 155.
+(o Vulkan desta iGPU é quebrado). Glacier 0.143.0, Chrome 155.
 
 | | Glacier | Chrome (janela `--app`, perfil novo) |
 |---|---|---|

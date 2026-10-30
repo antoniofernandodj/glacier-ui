@@ -1445,6 +1445,105 @@ cada janela uma posição em cascata (`20 + i·24`).
 classe no `.gss`. O atributo `content="…"` continua funcionando e é o que os
 builtins usam internamente.
 
+**`<text selectable="true">`** — o mesmo texto, mas selecionável e copiável (arrastar o
+mouse, Ctrl+C, menu do botão direito). Por baixo é um `<textarea readonly>` sem
+borda nem fundo.
+
+**`<prose>`** — texto de **leitura**: parágrafos com negrito, itálico, código e links
+no meio da frase, mais títulos, citações, listas e figuras. É o único lugar onde esse
+estilo existe: `<b>`, `<i>`, `<a>`, `<p>` e os blocos abaixo **fora** de um `<prose>`
+dão erro (`'<b>' só existe dentro de um <prose>`), de propósito — o `<text>` fica simples.
+
+```xml
+<prose class="corpo">
+  <h2>Manchete</h2>
+  <p>Olá, <b>{usuario}</b>! Veja <code>.gss</code> e <a href="https://exemplo.com">o site</a>.</p>
+  <blockquote><p>Foi uma decisão difícil.</p><footer>Ana Souza</footer></blockquote>
+  <figure>
+    <img src="fotos/praia.png" alt="Praia"/>
+    <figcaption>A praia ao <b>amanhecer</b>.</figcaption>
+  </figure>
+  <ul><li>um</li><li>dois</li></ul>
+</prose>
+```
+
+| Bloco | Contém |
+|---|---|
+| `p`, `h1`…`h6` | texto e as tags inline |
+| `blockquote` | `<p>`s e, opcional, `<footer>`/`<cite>` com a autoria |
+| `ul`, `ol` | `<li>`s |
+| `figure` | um `<img>` e, opcional, um `<figcaption>` (texto rico) |
+| `img`, `pre`, `hr` | imagem sem legenda, código, régua |
+
+Inline: `b`/`strong`, `i`/`em`, `code`, `u`, `s`/`del`, `span color="#…"`, `a`.
+O `<prose>` só contém blocos (texto solto ou `<b>` direto nele é erro de carga, com
+linha e coluna), e um bloco de texto só contém texto e tags inline.
+
+Um `<a>` abre o navegador do SO com `href`, troca de tela com `navigate_to` ou dispara
+uma ação com `on_click` (nessa ordem de precedência). Com o teclado, **Tab** entra no
+parágrafo e anda de link em link, **Enter**/**Espaço** ativam. O link sublinha sob o
+cursor e, em foco de teclado, ganha fundo.
+
+**No `.gvb`** o texto é sempre um atributo, e o primeiro argumento sem nome vale como
+`content` nas tags que carregam texto (`b`, `i`, `a`, `span`, `h1`…`h6`, `li`,
+`figcaption`, `footer`, `text`, `markdown`). `prose`, `p`, `ul`, `ol`, `blockquote` e
+`figure` são só contêineres. **O espaço entre trechos vai dentro das aspas**: a quebra
+de linha entre duas tags não conta.
+
+```
+prose(class = corpo) {
+  p {
+    span("Olá, ") b("{usuario}") span("! Veja ")
+    a("o site", href = "https://exemplo.com")
+  }
+  figure {
+    img(src = "fotos/praia.png", alt = "Praia")
+    figcaption { span("A praia ao ") b("amanhecer") }
+  }
+}
+```
+
+**O texto vem de fora — `syntax` + `content`.** Um `<prose>` com `content` não tem
+filhos: o texto vem de uma chave do contexto (um arquivo lido, o resultado de um
+`fetch`, uma linha de banco) e é lido na avaliação.
+
+```xml
+<prose syntax="html"     content="{artigo}" />
+<prose syntax="markdown" content="{artigo}" />
+<prose syntax="gvb"      content="{artigo}" />   <!-- gvb: prose(syntax = html, content = "@artigo") -->
+```
+
+`syntax` é `gva`, `gvb`, `html` ou `markdown`; **omitido, vale a do documento** onde o
+`<prose>` está (um `.gva` lê `gva`, um `.gvb` lê `gvb`). O valor entra **literal** — um
+`{x}` ou `<b>` dentro dele não é reinterpretado, e o `@` do `.gvb` não vira ligação (um
+e-mail `a@b.com` fica `a@b.com`). O HTML é lido por um parser tolerante (`<p>`/`<li>`
+sem fechar, `&amp;`, `&ccedil;`…; `<script>`, `<style>`, `<iframe>` somem; `<div>` é
+transparente).
+
+**Conteúdo de `content` é dado, não código.** Por isso: só `href` com `http`, `https` ou
+`mailto` vira link; **`on_click` e `navigate_to` são recusados** (um registro com
+`on_click="app::apagar"` não pode disparar uma ação do app); imagem só de caminho
+**local** (relativo, sem `..`, sem `http://`) — o resto vira `[imagem recusada: alt]`;
+teto de 2 MiB. Um conteúdo ruim **não derruba a tela**: o `<prose>` mostra o erro em
+vermelho (`prose (gva): linha 3: …`).
+
+`selectable="true"` também vale num `<prose>` escrito no markup (perde estilo, links e
+figuras), mas não com `content`.
+
+**`<markdown>`** — CommonMark como widgets: títulos, ênfase, listas (aninhadas,
+numeradas), citação, código, régua, **tabelas** e **imagens locais**. O texto é o filho
+(com a indentação comum removida e as quebras de linha preservadas) ou o atributo
+`content`. `![alt](foto.png "legenda")`: o título da imagem vira a **legenda** da figura.
+Links só abrem `http`, `https` e `mailto`; imagem só local. `{chave}` no texto é
+interpolado — um bloco de código com chaves literais precisa vir por uma chave do
+contexto. No `.gvb`: `markdown(l"""…""", class = md)` (o `l"""` preserva as quebras de
+linha; o `"""` simples as colapsaria).
+
+**Qual usar com texto vindo de fora:** Markdown guardado no banco → `<markdown
+content="{corpo}">` ou `<prose syntax="markdown">`; HTML de um CMS → `<prose
+syntax="html">`; campos soltos (nome, bio) → `<prose><p><b>{nome}</b> — {bio}</p></prose>`,
+estilo no markup e só o texto vindo do dado.
+
 **`<image source="foto.png" />`** — bitmap. `clip="circle"` recorta em círculo
 (qualquer outro valor não recorta). Combine com `width`/`height` fixos: sem eles
 a imagem pede o tamanho natural do arquivo.
@@ -3256,6 +3355,12 @@ depende de quem registra:
 Semear no `init` toda chave que o markup lê é o hábito que evita telas com
 buracos: um `{total}` que ninguém escreveu renderiza vazio, sem aviso.
 
+`fetch`, `after` e `every` chamados no `init` **rodam**, mas só começam quando a janela
+abre (o `init` roda ao registrar, antes de haver um loop de tarefas). O `fetch`
+suspende o `init` até a resposta chegar; o que foi escrito no `ctx` antes dele já está
+na tela. Carregar um arquivo de texto serve igual a uma API: `fetch("file://caminho")`
+devolve o conteúdo no `res.body`.
+
 ### Ler e escrever o contexto
 
 ```lua
@@ -4179,6 +4284,21 @@ valida ao enviar (ver "Validação declarada no próprio `<form>`"):
 
 **Carregar dados ao abrir a tela** — chame do `init`; o `fetch` suspende sem
 travar a janela.
+
+**Mostrar um artigo que vem de fora** — o texto vai para uma chave, e o `<prose>` o
+lê na sintaxe em que está guardado:
+
+```lua
+function init()
+    local res = fetch("file://conteudo/artigo.html")   -- ou uma URL de API, ou um banco
+    ctx.artigo = res.ok and res.body or ""
+end
+```
+```xml
+<prose class="corpo" syntax="html" content="{artigo}" />
+```
+A estrutura (manchete, citação, figura com legenda) vem do próprio texto; o markup só
+decide onde ele aparece. Links de dado só abrem `http`/`https`/`mailto`.
 
 **Uma lista mestre-detalhe** — a lista escreve o id numa chave, o detalhe lê:
 

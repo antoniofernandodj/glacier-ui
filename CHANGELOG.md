@@ -8,7 +8,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## Não lançado
+## glacier-cli 0.23.0 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.143**.
+
+### Alterado
+
+- O `AGENTS.md` dos projetos gerados documenta o `<prose>` (blocos, `<a>` com foco de teclado,
+  `syntax`/`content`, conteúdo vindo de dado como não-confiável), o `<markdown>`, o
+  `<text selectable>`, o `fetch` no `init` e a receita "mostrar um artigo que vem de fora".
+
+## glacier-ui 0.143.0 — 2026-10-30
+
+Quebra de API (minor, como manda a convenção do projeto na série 0.x): remove a feature
+`webview` e a variante `NodeType::RichText` (vira `NodeType::Prose`).
 
 ## Não lançado
 
