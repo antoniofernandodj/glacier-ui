@@ -76,8 +76,8 @@ exemplo, não só o teste).
 Sem isso não há como dizer "menos recursos que o navegador".
 
 - Exemplo de referência: um painel com lista, formulário, `fetch` e um gráfico.
-- Medir: RSS em repouso e em uso, tamanho do binário (release, stripped), tempo até a
-  primeira tela. Comparar com o mesmo painel numa aba do Chrome (RSS da aba + processo
+- Medir: memória residente (Resident Set Size, `VmRSS` do kernel) em repouso e em uso, tamanho do binário (release, stripped), tempo até a
+  primeira tela. Comparar com o mesmo painel numa aba do Chrome (memória residente da aba + processo
   GPU) e com um equivalente Tauri.
 - Resultado em `docs/MEDICOES.md`, com a máquina e o backend (`WGPU_BACKEND=gl` aqui).
 
