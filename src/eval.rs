@@ -2018,6 +2018,13 @@ fn chave_selecionavel(texto: &str) -> String {
 }
 
 fn namespace_action(action: String, owner: Option<&str>) -> String {
+    // `app::nome` chama uma função do SCRIPT DO APP (ver `route_to_owner`) e já é um
+    // roteamento completo: passa intacto, sem dono e sem o escape logo abaixo —
+    // que, por começar com `app:`, o comeria e deixaria `:nome`, uma ação que
+    // ninguém trata (o botão simplesmente não fazia nada).
+    if action.starts_with("app::") {
+        return action;
+    }
     // O escape vem antes de tudo: quem escreveu `app:` está dizendo que a ação
     // não é dele, então nem o dono nem os prefixos built-in se aplicam.
     if let Some(bare) = action.strip_prefix(APP_ACTION_PREFIX) {

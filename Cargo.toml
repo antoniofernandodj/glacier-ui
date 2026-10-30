@@ -715,6 +715,18 @@ name = "texto_rico"
 path = "examples/gva/texto_rico/main.rs"
 
 [[example]]
+name = "texto_rico_luau"
+path = "examples/gva/texto_rico_luau/main.rs"
+
+[[example]]
+name = "gvb_texto_rico"
+path = "examples/gvb/texto_rico/main.rs"
+
+[[example]]
+name = "gvb_texto_rico_luau"
+path = "examples/gvb/texto_rico_luau/main.rs"
+
+[[example]]
 name = "painel"
 path = "examples/gvb/painel/main.rs"
 

@@ -20,6 +20,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   entram de fora, pelo `fetch` da camada Lua. `webview_url` num `open_window` agora é
   erro explícito. O link `<a href>` e o `open:` continuam abrindo a URL no navegador do SO.
 
+### Corrigido
+
+- `on_click = "app::nome"` (chamar uma função do script do app) não fazia nada: o escape `app:`
+  comia o prefixo e deixava `:nome`, uma ação que ninguém trata. O exemplo `gvb_app_script`
+  estava quebrado por isso desde a 0.139. `app::` agora passa intacto.
+
 ### Adicionado
 
 - `<prose>` com `<p>`, `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>` e `<a>`: texto inline misto,

@@ -335,7 +335,7 @@ impl Parser {
             // Texto sem nome, **primeiro** da lista: `b("negrito")`,
             // `a("o site", href = "…")`. Vale como `content` nas tags de texto
             // (ver `posicional`); é o que `content = "…"` diria, mais curto.
-            if self.peek() == Some('"') {
+            if self.peek() == Some('"') || self.starts_with("l\"\"\"") {
                 let Some(nome) = posicional(tag) else {
                     return self.err_hint(
                         format!("`{tag}` não aceita texto sem nome"),

@@ -1,0 +1,8 @@
+screen(title = "Detalhes") {
+  container(class = caixa) {
+    column(class = coluna) {
+      text("Detalhes", class = titulo)
+      button(text = Voltar, navigate_back = true)
+    }
+  }
+}

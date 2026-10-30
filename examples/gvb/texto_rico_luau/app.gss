@@ -1,0 +1,10 @@
+:root {
+  --fraco: #A6ADC8;
+}
+
+.caixa { padding: 24; width: fill; height: fill; }
+.coluna { spacing: 12; }
+.titulo { size: 26; bold: true; }
+.corpo { size: 15; color: var(--fraco); }
+.solto { size: 14; }
+.md { size: 14; }

@@ -1,7 +1,15 @@
 # Texto rico, links, seleção e Markdown
 
-Fase 2 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo: `examples/gva/texto_rico`
-(`--arvore` imprime a árvore avaliada).
+Fase 2 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplos (a mesma tela, em quatro formas):
+
+| | estado em Rust | estado em Luau |
+|---|---|---|
+| `.gva` | `texto_rico` | `texto_rico_luau` |
+| `.gvb` | `gvb_texto_rico` | `gvb_texto_rico_luau` |
+
+Os dois de Rust aceitam `--arvore` (imprime a árvore avaliada); a dos dois é idêntica
+linha a linha. Nos de Luau o estado vive em `scripts/app.luau` e as duas telas são filhas
+do `app`, sem `Component`.
 
 ## `<prose>`: texto inline misto
 
@@ -57,7 +65,9 @@ prose(class = corpo) {
 ```
 
 `b("x")` é `b(content = "x")`; o resto da lista segue `nome = valor`, depois de uma
-vírgula (`a("o site", href = …)`). O mesmo vale para `text("Olá", class = titulo)`.
+vírgula (`a("o site", href = …)`). O mesmo vale para `text("Olá", class = titulo)` e para o bloco que preserva as quebras
+de linha: `markdown(l"""…""", class = md)` (o `"""` simples colapsaria as quebras, e o
+Markdown precisa delas).
 
 - O texto sem nome vem **primeiro** na lista, e não pode coexistir com `content = …`
   na mesma tag (erro: "tem o texto duas vezes").
