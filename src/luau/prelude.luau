@@ -1276,6 +1276,7 @@ function Http:request(spec: any): any
         cookies = if spec.cookies ~= nil then spec.cookies else self.cookies,
         signal = spec.signal, -- abort_controller(): cancela esta chamada
         multipart = spec.multipart, -- { fields = {…}, files = {{ name, path, … }} }
+        on_progress = spec.on_progress, -- function({ phase, done, total?, fraction? })
     }
 
     -- interceptors de requisição: podem mutar `req` OU devolver uma tabela nova.
@@ -1337,6 +1338,7 @@ function Http:request(spec: any): any
             cookies = req.cookies,
             signal = req.signal,
             multipart = req.multipart,
+            on_progress = req.on_progress,
         })
         local repetir
         if res.error == "cancelado" then

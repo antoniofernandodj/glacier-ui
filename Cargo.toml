@@ -847,3 +847,7 @@ required-features = ["suite-completa"]
 [[example]]
 name = "aperto"
 path = "examples/gva/aperto/main.rs"
+
+[[example]]
+name = "rede_progresso"
+path = "examples/gva/rede_progresso/main.rs"

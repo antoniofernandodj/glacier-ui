@@ -3,7 +3,7 @@
 **Estado:** em andamento (2026-10-30), glacier-ui 0.143.0. **Fases 0 e 2 feitas**, com as
 ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada**
 (nada remoto além de dados); **3 e 4 adiadas** por decisão (acessibilidade e WASM);
-**Fase 5 feita, menos `@keyframes`** (`opacity`, `calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver `docs/GSS_MODERNO.md`); **Fase 6 em parte** (cookies por host, multipart, `abort`, também no cliente `http()`; falta o progresso — ver `docs/REDE.md`); 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Fase 5 feita, menos `@keyframes`** (`opacity`, `calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver `docs/GSS_MODERNO.md`); **Fase 6 feita** (cookies por host, multipart, `abort` e `on_progress`, também no cliente `http()`; sem streaming do corpo — ver `docs/REDE.md`); 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
@@ -158,16 +158,16 @@ Ordem pelo que mais aparece em tela real:
 Regra do projeto: propriedade desconhecida é **ignorada com aviso** — manter. Cada
 propriedade nova entra com o aviso de valor inválido e com teste na árvore avaliada.
 
-**Aceitação:** um botão com `transition: background 150ms` visível e medido (frames).
+**Aceitação:** um botão com `transition: background 150ms` visível e medido (frames). **Medida** numa janela real (Xvfb, ponteiro por XTEST): sem `transition` a cor salta de uma vez; com `transition: background 400ms ease-out` ela sobe de (88,101,242) a (224,122,95) em curva suave.
 
 ### Fase 6 — Rede completa
 
 - Cookies e jar por host, só para o `fetch` (a Fase 1 foi descartada).
 - `multipart/form-data` e upload de arquivo.
-- Download em streaming com progresso (`on_progress`).
+- Progresso de envio e recebimento (`on_progress`) — feito; o *streaming* do corpo (entregar pedaços antes do fim) não.
 - Cancelamento (`abort`) de `fetch`.
 
-**Aceitação:** upload de um arquivo de 50 MB com barra de progresso, sem travar a UI.
+**Aceitação:** upload de um arquivo de 50 MB com barra de progresso, sem travar a UI. **Medida** com o exemplo `rede_progresso` sob Xvfb: a barra vai de 0 a 100% em ~3,4 s no envio e ~5 s no download, linear.
 
 ### Fase 7 — Mídia
 

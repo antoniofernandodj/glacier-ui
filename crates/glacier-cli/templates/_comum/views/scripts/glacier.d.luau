@@ -37,7 +37,26 @@ declare value: string?
 
 declare function viewport(): Viewport
 
+-- `opts`: method, headers, body, body_base64, timeout (ms), response ("base64"),
+-- `cookies` (false = ignora o jar), `signal` (um `abort_controller()`),
+-- `on_progress` (function(p: FetchProgress): envio e recebimento, ver abaixo),
+-- `multipart` ({ fields = {…}, files = { { name, path, filename?, content_type? } } }).
+-- `phase` é "upload" (corpo do pedido) ou "download" (corpo da resposta); `total` é o
+-- tamanho do corpo enviado / o Content-Length da resposta (nil se não houver).
+export type FetchProgress = { phase: string, done: number, total: number?, fraction: number? }
+
 declare function fetch(url: string, opts: any?): FetchResult
+
+-- Cancelamento: `fetch(url, { signal = ctl })` termina com `ok = false`,
+-- `error = "cancelado"` quando `ctl:abort()` é chamado.
+export type AbortController = {
+    abort: (self: AbortController) -> (),
+    aborted: (self: AbortController) -> boolean,
+}
+declare function abort_controller(): AbortController
+
+-- Esvazia o jar de cookies (do host dado, ou de todos sem argumento).
+declare function clear_cookies(host: string?): ()
 
 -- Baixa um recurso remoto direto para um arquivo local, em bytes crus (sem
 -- passar pelo texto/UTF-8 do `fetch`, que corromperia um binário). `body` do
@@ -86,6 +105,7 @@ export type HttpOptions = {
     timeout: number?, -- ms, por requisição
     retries: number?, -- tentativas EXTRAS em falha de rede / 429 / 5xx
     retry_on: ((res: HttpResponse) -> boolean)?, -- sobrescreve o critério padrão
+    cookies: boolean?, -- false = este cliente ignora o jar de cookies
 }
 
 export type HttpRequestSpec = {
@@ -96,6 +116,11 @@ export type HttpRequestSpec = {
     query: { [string]: any }?,
     body: any,
     timeout: number?,
+    cookies: boolean?, -- false = esta chamada ignora o jar
+    signal: AbortController?, -- cancela a chamada (e ela não é repetida)
+    on_progress: ((p: FetchProgress) -> ())?, -- envio/recebimento (~20x/s)
+    -- multipart/form-data; o Content-Type (com o boundary) é do motor
+    multipart: { fields: { [string]: any }?, files: { { name: string, path: string, filename: string?, content_type: string? } }? }?,
 }
 
 export type HttpClient = {
@@ -105,6 +130,8 @@ export type HttpClient = {
     timeout: number?,
     retries: number,
 
+    set_cookies: (self: HttpClient, on: boolean) -> HttpClient,
+    clear_cookies: (self: HttpClient) -> HttpClient,
     set_base_url: (self: HttpClient, u: string) -> HttpClient,
     set_header: (self: HttpClient, k: string, v: any) -> HttpClient,
     set_headers: (self: HttpClient, t: { [string]: any }) -> HttpClient,
@@ -124,6 +151,9 @@ export type HttpClient = {
     get: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
     delete: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
     head: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
+    options: (self: HttpClient, path: string, spec: HttpRequestSpec?) -> HttpResponse,
+    -- O método HTTP QUERY (RFC 10008): seguro e idempotente, com a consulta no corpo.
+    query: (self: HttpClient, path: string, body: any, spec: HttpRequestSpec?) -> HttpResponse,
     post: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,
     put: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,
     patch: (self: HttpClient, path: string, body: any?, spec: HttpRequestSpec?) -> HttpResponse,

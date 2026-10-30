@@ -1,0 +1,8 @@
+:root { --fraco: #A6ADC8; --ok: #A6E3A1; }
+
+.caixa { width: fill; height: fill; }
+.tela { padding: 16; spacing: 12; width: fill; }
+.botoes { spacing: 8; }
+.titulo { size: 17; bold: true; }
+.rotulo { size: 11; color: var(--fraco); }
+.valor { size: 13; color: var(--ok); }

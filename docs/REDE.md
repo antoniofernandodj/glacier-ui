@@ -121,6 +121,25 @@ api.options("/items").send().await;
 api.query("/search").json(&serde_json::json!({ "term": "glacier" })).send().await;
 ```
 
+### Progresso (`on_progress`)
+
+`fetch(url, { on_progress = function(p) … end })` (e a mesma opção numa chamada do `http()`)
+recebe `{ phase = "upload" | "download", done, total?, fraction? }` enquanto o corpo do pedido
+sobe e o da resposta desce — no máximo ~20 vezes por segundo, mais uma ao fim de cada fase.
+`total` é o tamanho do corpo enviado, ou o `Content-Length` da resposta (ausente se não vier).
+O handler roda como uma ação qualquer: escreve em `ctx` e a barra anda.
+
+```lua
+local r = fetch(url, { method = "POST", body = grande, on_progress = function(p)
+    ctx.pct = (p.fraction or 0) * 100
+end })
+```
+
+Em Rust, `Request::on_progress(|p| …)` / `RequestBuilder::on_progress` chamam o closure **na
+tarefa de rede**; entregue o número à UI por um canal ou um `Arc<Mutex<_>>`.
+O exemplo `rede_progresso` sobe e baixa 50 MB contra `tools/servidor_rede.py` com um
+`<progressbar>`. Não há *streaming* do corpo da resposta (ele ainda chega inteiro no `body`).
+
 ### O método `QUERY` (RFC 10008)
 
 `QUERY` (RFC 10008, 2026) é um método **seguro e idempotente com corpo**: como o `GET`, não muda

@@ -27,6 +27,8 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
   O `http()` do Luau ganhou `:options` e `:query`; os retries agora só repetem métodos
   idempotentes (um `POST` não é refeito sozinho). O campo interno `query` do cliente Luau virou
   `params` (colidia com o método `:query`).
+- **`on_progress`** no `fetch` e no `http()`: `{ phase, done, total?, fraction? }` no envio e no
+  recebimento (50 MB com barra: exemplo `rede_progresso`); em Rust, `Request::on_progress`.
 - Exemplos `rede_completa`, `rede_completa_luau`, `gvb_rede_completa`, `gvb_rede_completa_luau`
   (21 casos de rede cada, contra `tools/servidor_rede.py`), `css_moderno` e os verificadores
   `css_estrutural_check`, `tools/transition_check`.

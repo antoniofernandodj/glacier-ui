@@ -58,7 +58,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::component::{AbortHandle, FetchResult, Multipart, PendingFetch};
+use crate::component::{AbortHandle, FetchResult, Multipart, PendingFetch, Progress, ProgressFn};
 
 // ───────────────────────────────────── Request ─────────────────────────────────────
 
@@ -113,6 +113,14 @@ impl Request {
         self
     }
 
+    /// Called while the request body is sent and the response body is received (about 20
+    /// times a second at most, plus once when each phase ends), from the network task — not
+    /// the UI thread. Hand the numbers to the UI through a channel or an `Arc<Mutex<…>>`.
+    pub fn on_progress(mut self, f: impl Fn(Progress) + Send + Sync + 'static) -> Self {
+        self.0.progress = Some(ProgressFn::new(f));
+        self
+    }
+
     /// Write the raw response body to this path (for binaries); the result's `body` is empty.
     pub fn download_to(mut self, path: impl Into<String>) -> Self {
         self.0.download_to = Some(path.into());
@@ -143,6 +151,7 @@ pub struct RequestParts {
     pub cookies: Option<bool>,
     /// `None` = the client's setting.
     pub timeout_ms: Option<u64>,
+    pub progress: Option<ProgressFn>,
 }
 
 /// A response: the raw result plus the decoded JSON, when the body is JSON.
@@ -458,6 +467,9 @@ impl Client {
             if let Some(m) = &p.multipart {
                 req = req.multipart(m.clone());
             }
+            if let Some(f) = &p.progress {
+                req.0.progress = Some(f.clone());
+            }
             let raw = req.send().await;
             let json = serde_json::from_str::<Value>(&raw.body).ok();
             response = Response {
@@ -554,6 +566,12 @@ impl RequestBuilder<'_> {
     /// `handle.abort()` cancels this call (which is then never retried).
     pub fn abort(mut self, handle: &AbortHandle) -> Self {
         self.parts.abort = Some(handle.clone());
+        self
+    }
+
+    /// See [`Request::on_progress`].
+    pub fn on_progress(mut self, f: impl Fn(Progress) + Send + Sync + 'static) -> Self {
+        self.parts.progress = Some(ProgressFn::new(f));
         self
     }
 

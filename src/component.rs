@@ -108,9 +108,52 @@ pub struct PendingFetch {
     /// `fetch(url, { signal = ctrl })`: o pedido termina com `ok = false` e
     /// `error = "cancelado"` quando alguém chama `ctrl:abort()`.
     pub(crate) abort: Option<AbortHandle>,
+    /// `fetch(url, { on_progress = fn })`: o motor liga um canal e entrega cada [`Progress`]
+    /// ao handler Lua (ver `EngineMessage::FetchProgress`). Quem usa a API Rust põe o
+    /// callback direto em `progress`.
+    pub(crate) progress: Option<ProgressFn>,
+    /// `true` quando há um handler Lua `on_progress` esperando os eventos.
+    pub(crate) wants_progress: bool,
     /// `fetch(url, { multipart = { fields = …, files = … } })`: o corpo é montado em
     /// `multipart/form-data` na hora de enviar, lendo os arquivos do disco.
     pub(crate) multipart: Option<Multipart>,
+}
+
+/// Qual lado da transferência um [`Progress`] mede.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgressPhase {
+    /// O corpo do pedido sendo enviado.
+    Upload,
+    /// O corpo da resposta sendo recebido.
+    Download,
+}
+
+/// Quanto de um envio ou recebimento já passou: o que `on_progress` recebe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Progress {
+    pub phase: ProgressPhase,
+    /// Bytes já transferidos.
+    pub done: u64,
+    /// Total de bytes, quando se sabe (o tamanho do corpo enviado; o `Content-Length`
+    /// da resposta). `None` numa resposta sem `Content-Length`.
+    pub total: Option<u64>,
+}
+
+/// O callback de progresso de um pedido. Roda na tarefa de rede (não na thread de UI),
+/// no máximo ~20 vezes por segundo, mais uma última vez ao terminar cada fase.
+#[derive(Clone)]
+pub struct ProgressFn(pub(crate) std::sync::Arc<dyn Fn(Progress) + Send + Sync>);
+
+impl ProgressFn {
+    pub fn new(f: impl Fn(Progress) + Send + Sync + 'static) -> Self {
+        Self(std::sync::Arc::new(f))
+    }
+}
+
+impl std::fmt::Debug for ProgressFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ProgressFn")
+    }
 }
 
 /// O que um `multipart = { … }` do `fetch` descreve.
@@ -205,6 +248,8 @@ impl PendingFetch {
             download_to: None,
             cookies: true,
             abort: None,
+            progress: None,
+            wants_progress: false,
             multipart: None,
         }
     }
@@ -1104,6 +1149,10 @@ pub trait Component {
     /// usa isto para retomar a corrotina Lua suspensa no ponto do `fetch`,
     /// passando o resultado — o que dá a aparência de `async/await`.
     fn resume_fetch(&mut self, _id: u64, _result: &FetchResult, _ctx: &mut Context) {}
+
+    /// O `fetch` `id` (com `on_progress`) avançou: bytes enviados ou recebidos até agora.
+    /// A [`crate::luau::LuauComponent`] chama o `on_progress` do script.
+    fn on_fetch_progress(&mut self, _id: u64, _progress: Progress, _ctx: &mut Context) {}
 
     /// Retoma a corrotina suspensa num `confirm{}`/`prompt{}` (ver
     /// [`Context::show_dialog_resumable`]) com a resposta do usuário — ver

@@ -137,6 +137,8 @@ pub struct LuauComponent {
     /// por `id`: o handler Lua a chamar quando o motor retomar via
     /// [`Component::resume_timer`].
     timers: RefCell<HashMap<u64, RegistryKey>>,
+    /// Handlers `on_progress` de `fetch`es em andamento, por `id` do fetch.
+    progress_handlers: RefCell<HashMap<u64, RegistryKey>>,
     /// Gerador de `id`, compartilhado por `fetch`es, streams e timers (ids
     /// únicos no componente).
     next_id: Cell<u64>,
@@ -394,6 +396,7 @@ impl LuauComponent {
             pending: RefCell::new(HashMap::default()),
             streams: RefCell::new(HashMap::default()),
             timers: RefCell::new(HashMap::default()),
+            progress_handlers: RefCell::new(HashMap::default()),
             next_id: Cell::new(1),
             viewport_table,
             inner: None,
@@ -635,6 +638,7 @@ impl LuauComponent {
 
     /// Retoma a corrotina suspensa `id` com o resultado do `fetch`.
     fn resume_inner(&self, id: u64, result: &FetchResult, ctx: &mut Context) -> mlua::Result<()> {
+        self.progress_handlers.borrow_mut().remove(&id);
         let Some(thread) = self.pending.borrow_mut().remove(&id) else {
             return Ok(());
         };
@@ -1060,6 +1064,40 @@ impl LuauComponent {
         self.drive(thread, args, ctx)
     }
 
+    /// Chama o `on_progress` de um `fetch` em andamento com
+    /// `{ phase = "upload"|"download", done, total?, fraction? }`. Sem handler (o fetch já
+    /// terminou), ignora.
+    fn on_fetch_progress_inner(
+        &self,
+        id: u64,
+        p: crate::component::Progress,
+        ctx: &mut Context,
+    ) -> mlua::Result<()> {
+        let func: Option<Function> = match self.progress_handlers.borrow().get(&id) {
+            Some(key) => Some(self.luau.registry_value(key)?),
+            None => None,
+        };
+        let Some(func) = func else { return Ok(()) };
+        let t = self.luau.create_table()?;
+        t.set(
+            "phase",
+            match p.phase {
+                crate::component::ProgressPhase::Upload => "upload",
+                crate::component::ProgressPhase::Download => "download",
+            },
+        )?;
+        t.set("done", p.done)?;
+        if let Some(total) = p.total {
+            t.set("total", total)?;
+            if total > 0 {
+                t.set("fraction", p.done as f64 / total as f64)?;
+            }
+        }
+        self.sync_to_luau(ctx)?;
+        let thread = self.luau.create_thread(func)?;
+        self.drive(thread, MultiValue::from_iter([Value::Table(t)]), ctx)
+    }
+
     /// Entrega um broadcast de outra janela chamando a função Lua global
     /// `on_broadcast(event, payload)`. `payload` (JSON) é decodificado para um
     /// valor Lua (tabela) antes da chamada; vazio vira `nil`, JSON inválido vira
@@ -1117,12 +1155,14 @@ impl LuauComponent {
         let mut cookies = true;
         let mut abort: Option<crate::component::AbortHandle> = None;
         let mut multipart: Option<crate::component::Multipart> = None;
+        let mut opts_progress: Option<Function> = None;
         let (method, body, headers) = match opts {
             Some(o) => {
                 let method = o
                     .get::<Option<String>>("method")?
                     .unwrap_or_else(|| "GET".into());
                 let body = o.get::<Option<String>>("body")?;
+                opts_progress = o.get::<Option<Function>>("on_progress")?;
                 // `timeout = <ms>`: teto da requisição inteira. `<= 0` = sem teto.
                 timeout_ms = o
                     .get::<Option<f64>>("timeout")?
@@ -1206,6 +1246,13 @@ impl LuauComponent {
             None => ("GET".into(), None, Vec::new()),
         };
         let mut pf = PendingFetch::new(id, url, method, body, headers);
+        // `on_progress = function(p) … end`: guarda o handler; o motor entrega cada
+        // `Progress` por `on_fetch_progress`.
+        if let Some(f) = opts_progress {
+            let key = self.luau.create_registry_value(f)?;
+            self.progress_handlers.borrow_mut().insert(id, key);
+            pf.wants_progress = true;
+        }
         pf.body_bytes = body_bytes;
         pf.response_base64 = response_base64;
         pf.timeout_ms = timeout_ms;
@@ -1301,6 +1348,12 @@ impl Component for LuauComponent {
                 self.report_error(&format!("validate_field '{rule}'"), e, ctx);
                 None
             }
+        }
+    }
+
+    fn on_fetch_progress(&mut self, id: u64, p: crate::component::Progress, ctx: &mut Context) {
+        if let Err(e) = self.on_fetch_progress_inner(id, p, ctx) {
+            self.report_error(&format!("on_progress #{id}"), e, ctx);
         }
     }
 

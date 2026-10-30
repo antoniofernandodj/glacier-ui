@@ -26,6 +26,67 @@ fn corpo_cheio(b: Bytes) -> Corpo {
     Full::new(b).map_err(|e| match e {}).boxed()
 }
 
+/// Limita as chamadas do callback a ~20/s; a última de cada fase passa sempre.
+struct Relato {
+    f: Option<crate::component::ProgressFn>,
+    fase: crate::component::ProgressPhase,
+    total: Option<u64>,
+    ultimo: Option<std::time::Instant>,
+}
+
+impl Relato {
+    fn novo(f: Option<crate::component::ProgressFn>, fase: crate::component::ProgressPhase, total: Option<u64>) -> Self {
+        Self { f, fase, total, ultimo: None }
+    }
+
+    fn feito(&mut self, done: u64) {
+        let Some(f) = &self.f else { return };
+        let fim = self.total == Some(done);
+        let agora = std::time::Instant::now();
+        if !fim && self.ultimo.is_some_and(|t| agora.duration_since(t).as_millis() < 50) {
+            return;
+        }
+        self.ultimo = Some(agora);
+        (f.0)(crate::component::Progress { phase: self.fase, done, total: self.total });
+    }
+}
+
+/// Um corpo de pedido que entrega os bytes em pedaços de 64 KiB e relata cada um. Tem
+/// tamanho exato, então o hyper manda `Content-Length` (e não `chunked`).
+struct CorpoComProgresso {
+    dados: Bytes,
+    pos: usize,
+    relato: Relato,
+}
+
+impl hyper::body::Body for CorpoComProgresso {
+    type Data = Bytes;
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<hyper::body::Frame<Bytes>, Self::Error>>> {
+        let this = &mut *self;
+        if this.pos >= this.dados.len() {
+            return std::task::Poll::Ready(None);
+        }
+        let fim = (this.pos + 64 * 1024).min(this.dados.len());
+        let pedaco = this.dados.slice(this.pos..fim);
+        this.pos = fim;
+        this.relato.feito(fim as u64);
+        std::task::Poll::Ready(Some(Ok(hyper::body::Frame::data(pedaco))))
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.pos >= self.dados.len()
+    }
+
+    fn size_hint(&self) -> hyper::body::SizeHint {
+        hyper::body::SizeHint::with_exact((self.dados.len() - self.pos) as u64)
+    }
+}
+
 /// User-Agent padrão dos `fetch`, usado quando o chamador não define um (nem por
 /// header nem pelo opt `user_agent`). Ver [`send`].
 const DEFAULT_USER_AGENT: &str = concat!("glacier-ui/", env!("CARGO_PKG_VERSION"));
@@ -191,7 +252,17 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
             None,
         ),
     };
-    let body = corpo_cheio(Bytes::from(raw_body));
+    let body = if req.progress.is_some() && !raw_body.is_empty() {
+        let total = raw_body.len() as u64;
+        CorpoComProgresso {
+            dados: Bytes::from(raw_body),
+            pos: 0,
+            relato: Relato::novo(req.progress.clone(), crate::component::ProgressPhase::Upload, Some(total)),
+        }
+        .boxed()
+    } else {
+        corpo_cheio(Bytes::from(raw_body))
+    };
 
     let mut builder = hyper::Request::builder().method(method).uri(&req.url);
     for (k, v) in &req.headers {
@@ -247,7 +318,29 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
         .get(hyper::header::CONTENT_ENCODING)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.to_ascii_lowercase().contains("gzip"));
-    let raw = response.into_body().collect().await?.to_bytes();
+    let total = response
+        .headers()
+        .get(hyper::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
+    let raw = if req.progress.is_some() {
+        // Recebe quadro a quadro para relatar; o total é o `Content-Length`.
+        let mut relato = Relato::novo(req.progress.clone(), crate::component::ProgressPhase::Download, total);
+        let mut corpo = response.into_body();
+        let mut acc: Vec<u8> = Vec::new();
+        while let Some(quadro) = corpo.frame().await {
+            if let Ok(dados) = quadro?.into_data() {
+                acc.extend_from_slice(&dados);
+                relato.feito(acc.len() as u64);
+            }
+        }
+        // Garante o relato final (o throttle pode ter engolido o último).
+        relato.total = Some(acc.len() as u64);
+        relato.feito(acc.len() as u64);
+        Bytes::from(acc)
+    } else {
+        response.into_body().collect().await?.to_bytes()
+    };
     let bytes = if gzipped { gunzip(&raw)? } else { raw.to_vec() };
     let ok = (200..300).contains(&status);
 
@@ -969,7 +1062,7 @@ async fn montar_multipart(
 
 // ──── Rust API ────
 
-pub use crate::component::{AbortHandle, Multipart, MultipartFile};
+pub use crate::component::{AbortHandle, Multipart, MultipartFile, Progress, ProgressFn, ProgressPhase};
 pub use crate::http_client::{Client, ErrorInfo, Request, RequestBuilder, RequestParts, Response};
 
 /// Forget the stored cookies for `host` (or all of them with `None`).

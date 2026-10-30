@@ -54,6 +54,18 @@ class H(BaseHTTPRequestHandler):
             return self._resp(json.dumps({"tentativa": n}), extra=[("Content-Type", "application/json")])
         if p.startswith("/status/"):
             return self._resp(f"status {p[8:]}", int(p[8:]))
+        if p.startswith("/grande"):
+            mb = int(parse_qs(urlparse(self.path).query).get("mb", ["50"])[0])
+            n = mb * 1024 * 1024
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(n))
+            self.end_headers()
+            pedaco = b"x" * 65536
+            for _ in range(n // 65536):
+                self.wfile.write(pedaco)
+                time.sleep(0.006)  # ~8 MB/s: dá para ver a barra andar
+            return
         if p == "/download":
             return self._resp("".join(chr(65 + i % 26) for i in range(2000)))
         if p == "/set":
@@ -73,9 +85,18 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
+        if self._caminho() == "/enviar":
+            # lê devagar (~16 MB/s), para a barra de envio ter o que mostrar
+            lido = 0
+            while lido < n:
+                lido += len(self.rfile.read(min(65536, n - lido)))
+                time.sleep(0.004)
+            return self._resp(f"recebi {lido} bytes")
         corpo = self.rfile.read(n)
         if self._caminho() in ("/json",):
             return eco_json(self, corpo)
+        if self._caminho() == "/enviar":
+            return self._resp(f"recebi {len(corpo)} bytes")
         if self._caminho() != "/upload":
             return self._resp("não achei", 404)
         tipo = self.headers.get("Content-Type", "")

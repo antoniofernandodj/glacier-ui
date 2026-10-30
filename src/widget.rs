@@ -834,6 +834,12 @@ pub enum EngineMessage {
         id: u64,
         result: crate::component::FetchResult,
     },
+    /// Progress of a `fetch` with `on_progress`: routed to `owner`'s Lua handler.
+    FetchProgress {
+        owner: String,
+        id: u64,
+        progress: crate::component::Progress,
+    },
     /// An event from a long-lived stream (`sse`/`websocket`) opened by a
     /// component's Lua: routed to `owner` so it can call the registered handler
     /// (`on_message`, …). `StreamEvent::Ready` also hands the engine the
@@ -979,6 +985,7 @@ impl EngineMessage {
             Self::Viewport { .. } => "Viewport",
             Self::LuauResume { .. } => "LuauResume",
             Self::LuauStream { .. } => "LuauStream",
+            Self::FetchProgress { .. } => "FetchProgress",
             Self::LuauTimer { .. } => "LuauTimer",
             Self::FileDialogResume { .. } => "FileDialogResume",
             Self::CursorMoved { .. } => "CursorMoved",

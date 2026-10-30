@@ -3617,7 +3617,7 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 | `client:post(path, body?, spec?)` / `:put` / `:patch` | `body` tabela → `json.encode` + `Content-Type: application/json` |
 | `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout?, cookies?, signal?, multipart? }` |
 
-`signal` (um `abort_controller()`) cancela a chamada — e **não** a repete, mesmo com `retries`.
+`on_progress = function(p)` recebe `{ phase = "upload"|"download", done, total?, fraction? }` (também no `fetch`); `signal` (um `abort_controller()`) cancela a chamada — e **não** a repete, mesmo com `retries`.
 `multipart` envia `multipart/form-data` pela `base_url` do cliente: `api:post("/upload", nil, { multipart = … })`.
 
 **A resposta** é a do `fetch` (`{ ok, status, body, error }`) mais:

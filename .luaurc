@@ -5,6 +5,8 @@
         "ctx",
         "value",
         "fetch",
+        "abort_controller",
+        "clear_cookies",
         "websocket",
         "sse",
         "require",

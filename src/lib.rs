@@ -1699,9 +1699,7 @@ impl GlacierUI {
             for req in fetches {
                 let id = req.id;
                 let dono = owner.clone();
-                tasks.push(iced::Task::perform(crate::net::perform(req), move |result| {
-                    EngineMessage::LuauResume { owner: dono.clone(), id, result }
-                }));
+                tasks.push(fetch_task(req, id, dono));
             }
             for t in timers {
                 let id = t.id;
@@ -2317,6 +2315,13 @@ impl GlacierUI {
             // to that component so it can resume the suspended coroutine. The
             // resumed coroutine may itself issue more `fetch`es (chained
             // requests), which `run_on_owner` turns into further tasks.
+            EngineMessage::FetchProgress { owner, id, progress } => {
+                let owner = owner.clone();
+                let (id, progress) = (*id, *progress);
+                return self.run_on_owner(&owner, false, move |comp, ctx| {
+                    comp.on_fetch_progress(id, progress, ctx);
+                });
+            }
             EngineMessage::LuauResume { owner, id, result } => {
                 let owner = owner.clone();
                 let id = *id;
@@ -3331,14 +3336,7 @@ impl GlacierUI {
         for req in fetches {
             let id = req.id;
             let owner_name = owner.to_string();
-            tasks.push(iced::Task::perform(
-                crate::net::perform(req),
-                move |result| EngineMessage::LuauResume {
-                    owner: owner_name.clone(),
-                    id,
-                    result,
-                },
-            ));
+            tasks.push(fetch_task(req, id, owner_name));
         }
 
         // Each native file/folder dialog request becomes an async task (the
@@ -6447,4 +6445,31 @@ mod effect_outcome_tests {
         assert_eq!(motor.get_data("n"), Some(&"42".to_string()));
         assert!(motor.toasts.is_empty(), "no toast requested");
     }
+}
+
+/// Roda um `fetch` como tarefa do iced. Com `on_progress` no script, o progresso viaja por um
+/// canal e chega como [`EngineMessage::FetchProgress`] antes do [`EngineMessage::LuauResume`].
+fn fetch_task(mut req: component::PendingFetch, id: u64, owner: String) -> iced::Task<EngineMessage> {
+    use futures::StreamExt as _;
+    if !req.wants_progress {
+        return iced::Task::perform(crate::net::perform(req), move |result| {
+            EngineMessage::LuauResume { owner: owner.clone(), id, result }
+        });
+    }
+    let (tx, rx) = futures::channel::mpsc::unbounded();
+    req.progress = Some(component::ProgressFn::new(move |p| {
+        let _ = tx.unbounded_send(p);
+    }));
+    let dono = owner.clone();
+    let andamento = rx.map(move |progress| EngineMessage::FetchProgress {
+        owner: dono.clone(),
+        id,
+        progress,
+    });
+    // O `tx` vive dentro de `req`: some quando `perform` termina, e o canal fecha.
+    let fim = futures::stream::once(async move {
+        let result = crate::net::perform(req).await;
+        EngineMessage::LuauResume { owner, id, result }
+    });
+    iced::Task::stream(futures::stream::select(andamento, fim))
 }
