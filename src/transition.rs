@@ -132,6 +132,20 @@ pub fn parse(s: &str) -> Option<Transicao> {
     (achou_duracao && (t.fundo || t.texto || t.borda) && !t.duracao.is_zero()).then_some(t)
 }
 
+/// A cor de um fundo, se ele é de uma cor só: uma cor sólida, ou um gradiente cujas
+/// paradas são todas iguais — que é como o botão monta o fundo de um estado
+/// (`:hover { background: … }`), sempre como gradiente.
+fn cor_unica(b: Background) -> Option<Color> {
+    match b {
+        Background::Color(c) => Some(c),
+        Background::Gradient(iced::Gradient::Linear(l)) => {
+            let mut cores = l.stops.iter().flatten().map(|s| s.color);
+            let primeira = cores.next()?;
+            cores.all(|c| c == primeira).then_some(primeira)
+        }
+    }
+}
+
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -197,8 +211,10 @@ impl Anim {
         let de = self.de.unwrap_or(alvo);
         let mut s = alvo;
         if tr.fundo
-            && let (Some(Background::Color(a)), Some(Background::Color(b))) =
-                (de.background, alvo.background)
+            && let (Some(a), Some(b)) = (
+                de.background.and_then(cor_unica),
+                alvo.background.and_then(cor_unica),
+            )
         {
             s.background = Some(Background::Color(lerp_cor(a, b, e)));
         }
