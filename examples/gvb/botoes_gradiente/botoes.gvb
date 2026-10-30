@@ -1,0 +1,28 @@
+// Botões grandes e largos com gradiente.
+//
+//   WGPU_BACKEND=gl cargo run --example gvb_botoes_gradiente
+//
+// `gradient:` no .gss pinta o fundo do próprio `button` (hover, pressed e
+// disabled derivam das paradas). O mesmo `gradient` vale em um `container`.
+screen(title = "Glacier - Botões com gradiente") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/botoes_gradiente/botoes.gss")
+  }
+
+  container(class = tela) {
+    column(class = coluna) {
+      text(class = titulo, content = "Botões com gradiente")
+      text(class = fraco, content = "Último clique: @ultimo")
+
+      button(class = "botao azul", text = "Começar", on_click = azul)
+      button(class = "botao roxo", text = "Atualizar para Pro", on_click = roxo)
+      button(class = "botao verde", text = "Salvar alterações", on_click = verde)
+      button(class = "botao rosa", text = "Limpar tudo", on_click = rosa)
+
+      row(spacing = 12) {
+        button(class = "botao pequeno azul", text = "Manter", on_click = azul)
+        button(class = "botao pequeno rosa", text = "Excluir", on_click = rosa)
+      }
+    }
+  }
+}

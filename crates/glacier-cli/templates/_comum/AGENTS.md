@@ -1260,7 +1260,7 @@ na tabela de cada widget:
 | `spacing` | um número; o vão entre os filhos de uma `<column>`/`<row>`/`<grid>`/`<flow>` |
 | `align_x`, `align_y` | exatamente `start`, `center` ou `end`. `left`/`right`/`top` **não existem** e caem no default |
 | `background` | `#rrggbb` ou `#rrggbbaa` |
-| `gradient` | `"180 #1e1e2e #313244"` — ângulo em graus (opcional, default 180) seguido de **duas ou mais** cores, distribuídas por igual. Vence o `background` |
+| `gradient` | `"180 #1e1e2e #313244"` — ângulo em graus (opcional, default 180) seguido de **duas ou mais** cores, distribuídas por igual. Vence o `background`. Só aceita hex (`var(--x)` de cor nomeada funciona). **Em `<button>`** pinta o fundo do próprio botão: hover clareia e pressed escurece 10%, `disabled` corta o alfa; `:hover { gradient: … }` no `.gss` vence a derivação |
 | `border_radius`, `border_width` | um número |
 | `border_color` | `#rrggbb`/`#rrggbbaa` |
 | `max_width`, `max_height` | um número; o motor embrulha o nó num container que limita |
@@ -2422,7 +2422,7 @@ botão de duas linhas com seta, o "próximo passo" de um assistente.
 
 **`<RoundButton text="+" color="#89B4FA" size="48" on_click="…" />`** — botão
 circular. O `color` **precisa** existir: o `<Button>` só aplica `border_radius`
-dentro do fecho de estilo que a cor liga, então sem cor sai um retângulo. O
+dentro do fecho de estilo que a cor (ou um `gradient`) liga, então sem nenhum dos dois sai um retângulo. O
 default é `#45475A` justamente por isso.
 
 **`<SizeGrip />`** — canto de redimensionar, para apps com titlebar própria.
@@ -2943,7 +2943,7 @@ novas, é o mesmo campo com o nome do domínio.
 | `align_x` | `align-x` | `start`, `center`, `end` |
 | `align_y` | `align-y` | idem |
 | `background` | `bg` | `#rrggbb`, `#rrggbbaa` |
-| `gradient` | — | `"180 #a #b"` — ângulo opcional + 2 ou mais cores |
+| `gradient` | — | `"180 #a #b"` — ângulo opcional + 2 ou mais cores; vale também em `<button>` |
 | `border_radius` | `border-radius` | número |
 | `border_width` | `border-width` | número |
 | `border_color` | `border-color` | cor |

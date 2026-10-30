@@ -708,7 +708,7 @@ Disponíveis em **qualquer** tag:
 | `alignY` | `align_y` | `start`, `center`, `end` |
 | `spacing` | `espacamento` | número (espaço entre filhos de `Row`/`Column`) |
 | `background` | `bg`, `fundo` | cor hex |
-| `gradient` | `gradiente` | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background` |
+| `gradient` | `gradiente` | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background`; em `<button>` pinta o fundo do botão (hover/pressed derivam das paradas, `disabled` corta o alfa) |
 | `borderRadius` | `border_radius`, `raio_borda` | número |
 | `borderWidth` | `border_width` | número |
 | `borderColor` | `border_color` | cor hex |

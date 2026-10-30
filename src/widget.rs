@@ -491,6 +491,19 @@ fn parse_gradient(spec: &str) -> Option<Gradient> {
     Some(Gradient::Linear(linear))
 }
 
+/// Aplica `f` à cor de cada parada de um gradiente (hover/pressed/disabled de
+/// um botão com `gradient`, no mesmo espírito do ±10% do fundo sólido).
+fn map_gradient(g: Gradient, f: impl Fn(Color) -> Color) -> Gradient {
+    match g {
+        Gradient::Linear(mut l) => {
+            for stop in l.stops.iter_mut().flatten() {
+                stop.color = f(stop.color);
+            }
+            Gradient::Linear(l)
+        }
+    }
+}
+
 /// Resolves the background of a node: a `gradient` wins over a solid `background`.
 fn background_for(node: &UiNode) -> Option<Background> {
     if let Some(g) = node.gradient().and_then(parse_gradient) {
@@ -4404,9 +4417,14 @@ pub fn render_node<'a>(
                 }
             }
 
-            if let Some(c_str) = color
-                && let Some(col) = parse_hex_color(c_str)
-            {
+            // `gradient` no botão: pinta o fundo no lugar da cor sólida. Sem
+            // `color`, a base é transparente — só o gradiente aparece.
+            let btn_gradient = node.gradient().and_then(parse_gradient);
+            let btn_color = color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .or_else(|| btn_gradient.is_some().then_some(Color::TRANSPARENT));
+            if let Some(col) = btn_color {
                 let br_radius = node.border_radius.unwrap_or(0.0);
                 let br_width = node.border_width.unwrap_or(0.0);
                 let br_color = node
@@ -4434,28 +4452,63 @@ pub fn render_node<'a>(
                         Status::Disabled => disabled_ov.as_ref(),
                         Status::Active => None,
                     };
-                    let bg_color = overlay
-                        .and_then(|r| r.background.as_deref())
-                        .and_then(parse_hex_color)
-                        .unwrap_or_else(|| match status {
-                            Status::Hovered => Color {
-                                r: (col.r * 1.1).min(1.0),
-                                g: (col.g * 1.1).min(1.0),
-                                b: (col.b * 1.1).min(1.0),
-                                a: col.a,
-                            },
-                            Status::Pressed => Color {
-                                r: (col.r * 0.9).min(1.0),
-                                g: (col.g * 0.9).min(1.0),
-                                b: (col.b * 0.9).min(1.0),
-                                a: col.a,
-                            },
-                            Status::Disabled => Color {
-                                a: col.a * 0.5,
-                                ..col
-                            },
-                            Status::Active => col,
+                    // O gradiente do próprio botão vale enquanto o `.gss` não
+                    // declara um fundo para o estado; hover clareia 10%,
+                    // pressed escurece 10%, disabled corta o alfa pela metade.
+                    let overlay_bg = overlay
+                        .and_then(|r| r.gradient.as_deref())
+                        .and_then(parse_gradient)
+                        .or_else(|| {
+                            overlay
+                                .and_then(|r| r.background.as_deref())
+                                .and_then(parse_hex_color)
+                                .map(|c| Gradient::Linear(Linear::new(Radians(0.0)).add_stop(0.0, c).add_stop(1.0, c)))
                         });
+                    let background = if let Some(g) = overlay_bg {
+                        Background::Gradient(g)
+                    } else if let Some(g) = btn_gradient {
+                        Background::Gradient(match status {
+                            Status::Hovered => map_gradient(g, |c| Color {
+                                r: (c.r * 1.1).min(1.0),
+                                g: (c.g * 1.1).min(1.0),
+                                b: (c.b * 1.1).min(1.0),
+                                a: c.a,
+                            }),
+                            Status::Pressed => map_gradient(g, |c| Color {
+                                r: c.r * 0.9,
+                                g: c.g * 0.9,
+                                b: c.b * 0.9,
+                                a: c.a,
+                            }),
+                            Status::Disabled => map_gradient(g, |c| Color { a: c.a * 0.5, ..c }),
+                            Status::Active => g,
+                        })
+                    } else {
+                        Background::Color(
+                            overlay
+                                .and_then(|r| r.background.as_deref())
+                                .and_then(parse_hex_color)
+                                .unwrap_or_else(|| match status {
+                                    Status::Hovered => Color {
+                                        r: (col.r * 1.1).min(1.0),
+                                        g: (col.g * 1.1).min(1.0),
+                                        b: (col.b * 1.1).min(1.0),
+                                        a: col.a,
+                                    },
+                                    Status::Pressed => Color {
+                                        r: (col.r * 0.9).min(1.0),
+                                        g: (col.g * 0.9).min(1.0),
+                                        b: (col.b * 0.9).min(1.0),
+                                        a: col.a,
+                                    },
+                                    Status::Disabled => Color {
+                                        a: col.a * 0.5,
+                                        ..col
+                                    },
+                                    Status::Active => col,
+                                }),
+                        )
+                    };
                     let text_color = overlay
                         .and_then(|r| r.text_color.as_deref())
                         .and_then(parse_hex_color)
@@ -4467,7 +4520,7 @@ pub fn render_node<'a>(
                         .and_then(parse_hex_color)
                         .unwrap_or(br_color);
                     iced::widget::button::Style {
-                        background: Some(Background::Color(bg_color)),
+                        background: Some(background),
                         text_color,
                         border: Border {
                             radius: iced::border::Radius::new(radius),
@@ -6770,7 +6823,11 @@ pub fn render_node<'a>(
             &node.kind,
             NodeType::TextInput { .. } | NodeType::TextArea { .. }
         );
-        let bg_opt = if campo { None } else { background_for(node) };
+        // Um `<button>` com `gradient` pinta o fundo no próprio estilo (com
+        // hover/disabled); um fundo por trás apareceria cheio no `disabled`.
+        let botao_gradiente =
+            matches!(&node.kind, NodeType::Button { .. }) && node.gradient().is_some();
+        let bg_opt = if campo || botao_gradiente { None } else { background_for(node) };
         let br_opt = if campo { None } else { node.border_radius };
         let bw_opt = if campo {
             0.0

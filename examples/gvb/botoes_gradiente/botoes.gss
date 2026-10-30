@@ -1,0 +1,51 @@
+:root {
+  --fundo: #E8EEFF;
+  --texto: #FFFFFF;
+  --titulo: #2B3A67;
+  --fraco: #6B7BA8;
+  --azul_a: #4F7BFF;
+  --azul_b: #2FC4F2;
+  --roxo_a: #8A5CF6;
+  --roxo_b: #5B7CFA;
+  --verde_a: #34D399;
+  --verde_b: #22A7E0;
+  --rosa_a: #F472B6;
+  --rosa_b: #FB923C;
+}
+
+.tela {
+  padding: 32;
+  width: fill;
+  height: fill;
+  background: var(--fundo);
+  align_x: Center;
+}
+
+.coluna {
+  spacing: 16;
+  width: 420;
+  align_x: Center;
+}
+
+.titulo { size: 24; bold: true; color: var(--titulo); }
+.fraco { size: 13; color: var(--fraco); }
+
+/* Botão grande e largo: `gradient` pinta o fundo do próprio <button>. Hover
+   clareia e pressed escurece 10% das paradas; disabled corta o alfa. */
+.botao {
+  width: fill;
+  padding: 18 24;
+  border_radius: 18;
+  text_align: center;
+  text_color: var(--texto);
+}
+
+/* O ângulo é opcional: sem ele vale 180 (de cima para baixo); 90 vai da
+   esquerda para a direita. */
+.azul  { gradient: 90 var(--azul_a) var(--azul_b); }
+.roxo  { gradient: 135 var(--roxo_a) var(--roxo_b); }
+.verde { gradient: 90 var(--verde_a) var(--verde_b); }
+.rosa  { gradient: 90 var(--rosa_a) var(--rosa_b); }
+
+/* Mais baixo e estreito, para comparar. */
+.pequeno { width: 160; padding: 10 16; border_radius: 12; }

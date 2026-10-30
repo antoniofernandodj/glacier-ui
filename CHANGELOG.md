@@ -10,6 +10,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+## glacier-ui 0.141.0 — 2026-10-30
+
+### Adicionado
+
+- `<button>` aceita `gradient` (`gradient: 90 #a #b` no `.gss`): pinta o fundo do
+  próprio botão; hover clareia e pressed escurece 10% das paradas, disabled corta
+  o alfa. Um `:hover { gradient: … }` no `.gss` vence a derivação. Exemplo:
+  `gvb_botoes_gradiente`.
+
 ## glacier-ui 0.140.0 — 2026-10-30
 
 ### Adicionado
@@ -17,6 +26,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 - `<tabbar active_bold="false">`: tira o negrito do rótulo da aba ativa. O
   padrão continua `true`. Negrito é mais largo que o regular, então a aba
   ativa crescia e empurrava as vizinhas a cada clique.
+
+## glacier-cli 0.21.0 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.141**.
+
+### Alterado
+
+- O `AGENTS.md` dos projetos gerados documenta `gradient` em `<button>` (hover,
+  pressed e `disabled` derivam das paradas) e a nota do `<RoundButton>`.
 
 ## glacier-cli 0.20.0 — 2026-10-29
 
