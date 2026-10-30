@@ -17,18 +17,29 @@ Máquina: Linux 7.0, Intel i5-3470 (Ivy Bridge, iGPU), `WGPU_BACKEND=gl`
 | | Glacier | Chrome (janela `--app`, perfil novo) |
 |---|---|---|
 | Processos | 1 | 11 |
-| Memória residente (RSS) em repouso | 89,3 MiB | 1252 MiB (soma, conta compartilhado em dobro) |
-| **PSS** em repouso | **35,4 MiB** | **385,9 MiB** |
-| RSS sob carga (um quadro por vsync, 10 s) | 89,2 MiB | não medido |
-| Binário release | 40,5 MiB | n/a |
-| Binário release, `strip` | 31,9 MiB | n/a |
-| Primeira tela montada | 120 ms | não medido |
+| Memória residente (RSS) em repouso | 89,7 MiB | 1252 MiB (soma, conta compartilhado em dobro) |
+| **PSS** em repouso | **38,5 MiB** | **385,9 MiB** |
+| RSS sob carga (um quadro por vsync, 10 s) | 89,9 MiB | não medido |
+| Binário release | 40,7 MiB | n/a |
+| Binário release, `strip` | 32,0 MiB | n/a |
+| Primeira tela montada | 130 ms | não medido |
 
 **Como ler.** O RSS conta cada biblioteca compartilhada (Mesa/GL, libc…) inteira,
 em cada processo que a mapeia; por isso a soma de 11 processos do Chrome é inflada.
 **PSS** divide as páginas compartilhadas entre quem as usa — é a comparação justa, e
-ela dá ~11× a favor do Glacier neste painel. O RSS do Glacier (89 MiB) é bem maior
-que o PSS dele (35 MiB) pelo mesmo motivo: a maior parte é biblioteca do sistema.
+ela dá ~10× a favor do Glacier neste painel. O RSS do Glacier (90 MiB) é bem maior
+que o PSS dele (38 MiB) pelo mesmo motivo: a maior parte é biblioteca do sistema.
+
+## Correção (2026-10-30): a primeira medição era de um painel quebrado
+
+A primeira versão deste documento (PSS 35,4 MiB, 120 ms) foi medida sobre um painel que
+**não carregava os dados**: o `fetch` do `init` nunca rodava (defeito do motor, corrigido
+em `take_init_tasks`) e a lista de serviços saía vazia (`foreach(items = @servicos)` no
+lugar de `items = servicos`, erro do próprio painel). Ou seja, medi uma tela sem gráfico e
+sem lista — e ninguém tinha olhado a janela. Os números acima são da nova medição, com o
+painel completo (lista, formulário, gráfico vindo do `fetch`, "ok (200)"). A diferença foi
+pequena (+3 MiB de PSS, +10 ms), mas a primeira medição não valia como medição do painel
+descrito.
 
 ## O que estas medições NÃO dizem
 

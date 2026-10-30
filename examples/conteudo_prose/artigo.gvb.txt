@@ -1,0 +1,26 @@
+h1("Ministra anuncia plano para a orla")
+p {
+  span("A ") b("ministra do Meio Ambiente")
+  span(" anunciou nesta terça-feira um plano de recuperação da orla, com obras previstas para “os próximos dois anos”. O projeto foi recebido com ")
+  i("cautela") span(" por moradores.")
+}
+blockquote {
+  p { span("Foi uma decisão difícil, mas necessária para a cidade.") }
+  footer("Ana Souza, ministra")
+}
+figure {      
+  img(src = "examples/conteudo_prose/foto.png", alt = "Vista da orla")
+  figcaption {
+    span("A orla ao ") b("amanhecer") span(", antes das obras. Foto de ") i("arquivo") span(".")
+  }
+}
+h3("O que muda")
+ul {
+  li { span("Calçadão ") b("novo") span(" em 3 km de extensão") }
+  li("Rede de drenagem refeita")
+  li("Ciclovia ligando os dois bairros")
+}
+p {
+  span("Mais detalhes no ") a("site do governo", href = "https://exemplo.com/orla")
+  span(" ou pelo e-mail ") a("imprensa@exemplo.com", href = "mailto:imprensa@exemplo.com") span(".")
+}

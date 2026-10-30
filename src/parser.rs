@@ -852,62 +852,86 @@ fn validate_template_fallback(root: Node) -> Option<Diagnostic> {
     None
 }
 
-/// As tags de estilo que vivem **dentro de um `<p>`** do `<prose>`.
-const TAGS_INLINE: &[&str] = &[
-    "b", "strong", "negrito", "i", "em", "italico", "itálico", "code", "codigo", "código", "u",
-    "underline", "sublinhado", "s", "del", "strike", "tachado", "a", "span",
-];
-
-/// Confere a forma de todo `<prose>`: ele só contém `<p>`, e um `<p>` só contém
-/// texto e as tags de [`TAGS_INLINE`]. Erra alto — texto solto ou uma tag fora do
-/// lugar num parágrafo sumiria ou sairia sem estilo, e a tela pareceria certa.
+/// Confere todo `<prose>`: ou ele tem `content` (conteúdo dinâmico, sem filhos) ou tem
+/// filhos que respeitam a gramática de blocos (ver `crate::prose`). Erra alto — texto
+/// solto ou uma tag fora do lugar sumiria ou sairia sem estilo, e a tela pareceria certa.
 fn validate_prose(root: Node) -> Option<Diagnostic> {
-    let minusculo = |n: Node| n.tag_name().name().to_ascii_lowercase();
+    use crate::prose::{Opcoes, Sintaxe};
     for prose in root
         .descendants()
-        .filter(|n| n.is_element() && minusculo(*n) == "prose")
+        .filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("prose"))
     {
-        for filho in prose.children() {
-            if filho.is_text() {
-                if !filho.text().unwrap_or_default().trim().is_empty() {
-                    return Some(
-                        diagnostic_at(prose, "texto solto dentro de <prose>".to_string())
-                            .with_hint("o <prose> só contém <p>: escreva <prose><p>o texto</p></prose>"),
-                    );
-                }
-            } else if filho.is_element() && minusculo(filho) != "p" {
+        if let Some(attr) = prose
+            .attributes()
+            .find(|a| PROSE_SYNTAX_ATTRS.contains(&a.name()))
+            && Sintaxe::parse(attr.value()).is_none()
+        {
+            return Some(
+                diagnostic_at_attr(
+                    prose,
+                    attr,
+                    format!("syntax=\"{}\" não existe", attr.value()),
+                )
+                .with_hint("as sintaxes são gva, gvb, html e markdown"),
+            );
+        }
+        let tem_content = prose.attributes().any(|a| PROSE_CONTENT_ATTRS.contains(&a.name()));
+        let filhos = crate::prose::de_xml(prose);
+        let tem_filhos = filhos.iter().any(|n| match n {
+            crate::prose::No::Texto(t, _) => !t.trim().is_empty(),
+            crate::prose::No::Elem { .. } => true,
+        });
+        if tem_content {
+            if tem_filhos {
                 return Some(
-                    diagnostic_at(
-                        filho,
-                        format!("<{}> direto no <prose>", filho.tag_name().name()),
-                    )
-                    .with_hint("o <prose> só contém <p>; as tags de estilo vão dentro de um <p>"),
+                    diagnostic_at(prose, "<prose> com `content` e com filhos".to_string())
+                        .with_hint("ou o conteúdo vem do atributo `content`, ou dos filhos — não dos dois"),
                 );
             }
+            continue;
         }
-        for p in prose
-            .children()
-            .filter(|n| n.is_element() && minusculo(*n) == "p")
-        {
-            for neto in p.descendants().skip(1).filter(Node::is_element) {
-                let tag = minusculo(neto);
-                if !TAGS_INLINE.contains(&tag.as_str()) {
-                    return Some(
-                        diagnostic_at(
-                            neto,
-                            format!("<{}> dentro de um <p> do <prose>", neto.tag_name().name()),
-                        )
-                        .with_hint(
-                            "um parágrafo só tem texto e as tags b, i, code, u, s, span e a \
-                             (um <p> não entra em outro <p>)",
-                        ),
-                    );
-                }
+        if let Err(e) = crate::prose::blocos(&filhos, Opcoes { confiavel: true, leniente: false }) {
+            let mut d = match e.pos {
+                Some(p) => position_of(prose, p, e.msg),
+                None => diagnostic_at(prose, e.msg),
+            };
+            if let Some(h) = e.dica {
+                d = d.with_hint(h);
             }
+            return Some(d);
         }
     }
     None
 }
+
+thread_local! {
+    /// A sintaxe do documento em leitura: o padrão de um `<prose content>` sem `syntax`.
+    static SINTAXE_DO_DOCUMENTO: std::cell::Cell<crate::prose::Sintaxe> =
+        const { std::cell::Cell::new(crate::prose::Sintaxe::Gva) };
+}
+
+fn sintaxe_do_documento() -> crate::prose::Sintaxe {
+    SINTAXE_DO_DOCUMENTO.with(std::cell::Cell::get)
+}
+
+/// Fixa a sintaxe do documento enquanto ele é lido e devolve a anterior ao sair.
+struct GuardaSintaxe(crate::prose::Sintaxe);
+
+impl GuardaSintaxe {
+    fn nova(file: Option<&str>) -> Self {
+        Self(SINTAXE_DO_DOCUMENTO.with(|c| c.replace(crate::prose::Sintaxe::do_arquivo(file))))
+    }
+}
+
+impl Drop for GuardaSintaxe {
+    fn drop(&mut self) {
+        SINTAXE_DO_DOCUMENTO.with(|c| c.set(self.0));
+    }
+}
+
+/// Os nomes do atributo de sintaxe e do de conteúdo de um `<prose>`.
+const PROSE_SYNTAX_ATTRS: &[&str] = &["syntax", "sintaxe", "sintax"];
+const PROSE_CONTENT_ATTRS: &[&str] = &["content", "conteudo", "conteúdo"];
 
 /// Confere o `<props>` de um `<component>`: só `<prop name="…">` entra nele,
 /// todo `<prop>` tem nome, e nenhum nome se repete.
@@ -1696,16 +1720,20 @@ pub enum NodeType {
         bold: bool,
         color: Option<String>,
     },
-    /// **Texto inline misto**, só dentro de um `<prose>`:
-    /// `<prose><p>Veja <b>isto</b> e <a href="…">o site</a></p></prose>`.
-    /// `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e `<p>` **não existem**
-    /// fora dele — de propósito: o `<text>` fica simples. Um `<p>` é um parágrafo
-    /// (uma linha em branco entre eles).
+    /// **Texto de leitura em blocos**: parágrafos, títulos, citações, listas, figuras
+    /// (imagem com legenda), código e régua, com negrito, itálico, código inline e
+    /// links dentro dos parágrafos. Só existe dentro de um `<prose>` — o `<text>` fica
+    /// simples, de propósito. Ver `crate::prose`.
     ///
-    /// `size` e `color` valem para o parágrafo; o que muda por trecho está em
-    /// [`TextSpan`]. A interpolação (`{nome}`) vale em cada trecho.
-    RichText {
-        spans: Vec<TextSpan>,
+    /// Os blocos vêm dos **filhos** do `<prose>` (lidos na carga) ou, se ele tem
+    /// `content`, de `fonte` (lida na avaliação: um texto vindo de um arquivo, de um
+    /// `fetch` ou de um banco, em `gva`, `gvb`, `html` ou `markdown`).
+    ///
+    /// `size` e `color` valem para o texto todo; o que muda por trecho está em
+    /// [`TextSpan`].
+    Prose {
+        blocos: Vec<crate::prose::Bloco>,
+        fonte: Option<crate::prose::FonteProse>,
         size: Option<f32>,
         color: Option<String>,
     },
@@ -3446,7 +3474,7 @@ impl NodeType {
             NodeType::MdiArea => "mdiarea",
             NodeType::MdiSubWindow { .. } => "mdisubwindow",
             NodeType::Text { .. } => "text",
-            NodeType::RichText { .. } => "prose",
+            NodeType::Prose { .. } => "prose",
             NodeType::Markdown { .. } => "markdown",
             NodeType::Button { .. } => "button",
             NodeType::TextInput { .. } => "textinput",
@@ -3889,10 +3917,7 @@ pub struct TextoFixo {
     pub bold: bool,
 }
 
-/// O "trecho" que separa dois parágrafos de um `<prose>`: uma linha em branco.
-pub(crate) const QUEBRA_DE_PARAGRAFO: &str = "\n\n";
-
-/// Um trecho de um [`NodeType::RichText`]: o texto e como ele se veste.
+/// Um trecho de um parágrafo de [`NodeType::Prose`]: o texto e como ele se veste.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TextSpan {
     pub content: String,
@@ -4721,31 +4746,6 @@ impl UiNode {
 
     /// Collect the direct text children of `node`, HTML-style. See
     /// [`UiNode::normalize_text`] for the whitespace/`&nbsp;` rules.
-    /// Colapsa espaço em branco como o HTML, **mas preserva uma borda**: entre
-    /// `Olá ` e `<b>mundo</b>` o espaço é do texto, e `normalize_text` o apagaria.
-    fn colapsar_espaco(raw: &str) -> String {
-        let mut out = String::new();
-        let mut pendente = false;
-        for ch in raw.chars() {
-            if ch == '\u{00A0}' {
-                out.push(' ');
-                pendente = false;
-            } else if ch.is_whitespace() {
-                pendente = true;
-            } else {
-                if pendente {
-                    out.push(' ');
-                    pendente = false;
-                }
-                out.push(ch);
-            }
-        }
-        if pendente {
-            out.push(' ');
-        }
-        out
-    }
-
     /// Um texto estático selecionável: um `TextArea` somente leitura, ver
     /// [`NodeType::TextArea::fixo`]. A chave do buffer só se conhece na avaliação,
     /// depois da interpolação.
@@ -4757,156 +4757,6 @@ impl UiNode {
             readonly: true,
             menu_class: None,
             fixo: Some(fixo),
-        }
-    }
-
-    /// Monta o [`NodeType::RichText`] de um `<prose>`.
-    fn rich_text(
-        node: &Node,
-        numeric_templates: &mut Vec<(NumAttr, String)>,
-    ) -> NodeType {
-        let size = Self::get_attr_num(node, &["size", "tamanho"], NumAttr::Size, numeric_templates);
-        let color = Self::get_attr(node, &["color", "cor"]);
-        let base = TextSpan {
-            bold: Self::get_attr_bool(node, &["bold", "negrito"]),
-            ..Default::default()
-        };
-        let mut spans = Vec::new();
-        // O `<prose>` é só um contêiner: o texto está nos filhos (`<p>`, `<b>`,
-        // `<a>`…). Um `content` aqui não teria onde entrar, e ignorá-lo em silêncio
-        // deixaria a tela sem o texto que o autor acha que escreveu.
-        if Self::get_attr(node, &["content", "conteudo", "text", "texto"]).is_some() {
-            eprintln!(
-                "[glacier] aviso: <prose> não tem `content` — o texto vai nos filhos \
-                 (`p`, `b`, `a`…); o atributo foi ignorado"
-            );
-        }
-        let mut paragrafo_pendente = false;
-        Self::coletar_spans(node, &base, &mut spans, &mut paragrafo_pendente);
-
-        // Espaço sobrando: nas pontas, antes/depois de uma quebra de parágrafo e
-        // dobrado entre trechos vizinhos.
-        let mut anterior_termina_em_espaco = true; // o início do texto também apara
-        for i in 0..spans.len() {
-            let e_quebra = spans[i].content == QUEBRA_DE_PARAGRAFO;
-            if e_quebra {
-                if i > 0 {
-                    let t = spans[i - 1].content.trim_end().to_string();
-                    spans[i - 1].content = t;
-                }
-                anterior_termina_em_espaco = true;
-                continue;
-            }
-            if anterior_termina_em_espaco {
-                let t = spans[i].content.trim_start().to_string();
-                spans[i].content = t;
-            }
-            if !spans[i].content.is_empty() {
-                anterior_termina_em_espaco = spans[i].content.ends_with(' ');
-            }
-        }
-        if let Some(ultimo) = spans.iter_mut().rev().find(|s| !s.content.is_empty()) {
-            ultimo.content = ultimo.content.trim_end().to_string();
-        }
-        spans.retain(|s| !s.content.is_empty());
-        // Quebra de parágrafo sem texto de um lado ou do outro não é parágrafo.
-        while spans.first().is_some_and(|s| s.content == QUEBRA_DE_PARAGRAFO) {
-            spans.remove(0);
-        }
-        while spans.last().is_some_and(|s| s.content == QUEBRA_DE_PARAGRAFO) {
-            spans.pop();
-        }
-        NodeType::RichText { spans, size, color }
-    }
-
-    fn ler_link(node: &Node) -> SpanLink {
-        SpanLink {
-            href: Self::get_attr(node, &["href", "url"]),
-            navigate: Self::get_attr(
-                node,
-                &["navigateTo", "navigate_to", "navigate-to", "navigate", "irPara", "ir_para"],
-            ),
-            on_click: Self::get_attr(
-                node,
-                &["onClick", "on_click", "on-click", "aoClicar", "ao_clicar"],
-            ),
-        }
-    }
-
-    /// Percorre os filhos de um `<prose>` (ou de um trecho dele) acumulando
-    /// [`TextSpan`]. `paragrafo_pendente`: um `<p>` acabou de fechar, então o
-    /// próximo conteúdo abre outro parágrafo.
-    fn coletar_spans(
-        node: &Node,
-        base: &TextSpan,
-        out: &mut Vec<TextSpan>,
-        paragrafo_pendente: &mut bool,
-    ) {
-        let abrir_paragrafo = |out: &mut Vec<TextSpan>, pendente: &mut bool| {
-            if *pendente {
-                if !out.is_empty() {
-                    out.push(TextSpan {
-                        content: QUEBRA_DE_PARAGRAFO.to_string(),
-                        ..Default::default()
-                    });
-                }
-                *pendente = false;
-            }
-        };
-        for filho in node.children() {
-            if filho.is_text() {
-                let content = Self::colapsar_espaco(filho.text().unwrap_or_default());
-                // Só espaço entre dois `<p>` (a indentação do arquivo) não abre
-                // parágrafo nem conta como texto.
-                if !content.trim().is_empty() || !*paragrafo_pendente {
-                    if !content.is_empty() {
-                        if !content.trim().is_empty() {
-                            abrir_paragrafo(out, paragrafo_pendente);
-                        }
-                        out.push(TextSpan {
-                            content,
-                            ..base.clone()
-                        });
-                    }
-                }
-            } else if filho.is_element() {
-                let tag = filho.tag_name().name().to_ascii_lowercase();
-                let mut estilo = base.clone();
-                match tag.as_str() {
-                    "p" => {
-                        // Parágrafo: recomeça se já havia conteúdo, e fecha com
-                        // pendência para o que vier depois.
-                        if !out.is_empty() {
-                            *paragrafo_pendente = true;
-                        }
-                        abrir_paragrafo(out, paragrafo_pendente);
-                        Self::coletar_spans(&filho, &estilo, out, paragrafo_pendente);
-                        *paragrafo_pendente = true;
-                        continue;
-                    }
-                    "b" | "strong" | "negrito" => estilo.bold = true,
-                    "i" | "em" | "italico" | "itálico" => estilo.italic = true,
-                    "code" | "codigo" | "código" => estilo.code = true,
-                    "u" | "underline" | "sublinhado" => estilo.underline = true,
-                    "s" | "del" | "strike" | "tachado" => estilo.strike = true,
-                    "a" => estilo.link = Some(Self::ler_link(&filho)),
-                    "span" => estilo.bold |= Self::get_attr_bool(&filho, &["bold", "negrito"]),
-                    // Tag desconhecida dentro do parágrafo: o texto dela fica, o
-                    // estilo não — melhor que sumir com as palavras.
-                    _ => {}
-                }
-                abrir_paragrafo(out, paragrafo_pendente);
-                if let Some(c) = Self::get_attr(&filho, &["color", "cor"]) {
-                    estilo.color = Some(c);
-                }
-                if let Some(c) = Self::get_attr(&filho, &["content", "conteudo", "text", "texto"]) {
-                    out.push(TextSpan {
-                        content: Self::colapsar_espaco(&c),
-                        ..estilo.clone()
-                    });
-                }
-                Self::coletar_spans(&filho, &estilo, out, paragrafo_pendente);
-            }
         }
     }
 
@@ -5247,24 +5097,53 @@ impl UiNode {
                 NodeType::Markdown { content, size }
             }
             "Prose" | "prose" => {
-                let rico = Self::rich_text(&node, &mut numeric_templates);
-                match rico {
-                    // `selectable`: vira um texto simples selecionável — o preço é
-                    // perder os trechos estilizados e os links.
-                    NodeType::RichText { spans, size, color }
-                        if Self::get_attr_bool(
-                            &node,
-                            &["selectable", "selecionavel", "selecionável"],
-                        ) =>
-                    {
-                        Self::selecionavel(TextoFixo {
-                            content: spans.iter().map(|s| s.content.as_str()).collect(),
+                let size = Self::get_attr_num(
+                    &node,
+                    &["size", "tamanho"],
+                    NumAttr::Size,
+                    &mut numeric_templates,
+                );
+                let color = Self::get_attr(&node, &["color", "cor"]);
+                let content = Self::get_attr(&node, crate::parser::PROSE_CONTENT_ATTRS);
+                match content {
+                    // Conteúdo dinâmico: lido na avaliação, depois da interpolação.
+                    Some(content) => {
+                        let sintaxe = Self::get_attr(&node, PROSE_SYNTAX_ATTRS)
+                            .and_then(|v| crate::prose::Sintaxe::parse(&v))
+                            .unwrap_or_else(sintaxe_do_documento);
+                        NodeType::Prose {
+                            blocos: Vec::new(),
+                            fonte: Some(crate::prose::FonteProse { sintaxe, content }),
                             size,
                             color,
-                            bold: Self::get_attr_bool(&node, &["bold", "negrito"]),
-                        })
+                        }
                     }
-                    outro => outro,
+                    None => {
+                        let nos = crate::prose::de_xml(node);
+                        let blocos = crate::prose::blocos(
+                            &nos,
+                            crate::prose::Opcoes { confiavel: true, leniente: false },
+                        )
+                        // `validate_prose` já recusou o erro com posição; aqui só
+                        // sobra o caso de uma árvore montada sem passar por ele.
+                        .unwrap_or_else(|e| vec![crate::prose::Bloco::Erro(e.msg)]);
+                        // `selectable`: vira um texto simples selecionável — o preço é
+                        // perder os trechos estilizados, os links e as figuras.
+                        if Self::get_attr_bool(&node, &["selectable", "selecionavel", "selecionável"]) {
+                            Self::selecionavel(TextoFixo {
+                                content: blocos
+                                    .iter()
+                                    .map(|b| b.texto_simples())
+                                    .collect::<Vec<_>>()
+                                    .join("\n\n"),
+                                size,
+                                color,
+                                bold: Self::get_attr_bool(&node, &["bold", "negrito"]),
+                            })
+                        } else {
+                            NodeType::Prose { blocos, fonte: None, size, color }
+                        }
+                    }
                 }
             }
             "Text" | "text" | "Span" | "span" => {
@@ -7060,7 +6939,7 @@ impl UiNode {
         let wrap_loose_text = !matches!(
             kind,
             NodeType::Text { .. }
-                | NodeType::RichText { .. }
+                | NodeType::Prose { .. }
                 | NodeType::Markdown { .. }
                 | NodeType::TextArea { fixo: Some(_), .. }
         );
@@ -7070,7 +6949,7 @@ impl UiNode {
             kind,
             NodeType::App(_)
                 | NodeType::Tray(_)
-                | NodeType::RichText { .. }
+                | NodeType::Prose { .. }
                 | NodeType::Markdown { .. }
                 | NodeType::TextArea { fixo: Some(_), .. }
         );
@@ -7294,6 +7173,7 @@ impl UiNode {
     /// escreveu, que é o que ele espera ver de volta na mensagem de erro. Como
     /// as passadas preservam a contagem de linhas, a linha serve para os dois.
     pub fn parse_xml_with_source(xml: &str, source: &str, file: Option<&str>) -> Result<Self> {
+        let _sintaxe = GuardaSintaxe::nova(file);
         // `&nbsp;` isn't a predefined XML entity, so roxmltree would reject it.
         // Rewrite it to a literal non-breaking space (U+00A0) up front; the text
         // normalizer then preserves it as a hard space (see `normalize_text`).
@@ -7452,6 +7332,7 @@ impl UiNode {
     /// cuja faixa de linhas caem. Cada tela inline passa depois por
     /// [`UiNode::assemble`], o mesmo caminho de um arquivo com raiz `screen`.
     pub(crate) fn parse_app_xml(source: &str, file: Option<&str>) -> Result<Option<AppManifest>> {
+        let _sintaxe = GuardaSintaxe::nova(file);
         if !first_tag_is_app(source) {
             return Ok(None);
         }

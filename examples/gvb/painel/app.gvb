@@ -18,8 +18,8 @@ screen(title = "Painel", size = "760 520") {
 
     row(class = linha) {
       column(class = lista) {
-        foreach(items = @servicos, var = s) {
-          text(content = "@s.nome — @s.estado", class = item)
+        foreach(items = servicos, var = s) {
+          text(content = "{s.nome} — {s.estado}", class = item)
         }
       }
       column(class = grafico) {

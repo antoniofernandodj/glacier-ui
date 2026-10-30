@@ -1,0 +1,24 @@
+<h1>Ministra anuncia plano para a orla</h1>
+<p>
+  A <b>ministra do Meio Ambiente</b> anunciou nesta terça-feira um plano de recuperação
+  da orla, com obras previstas para “os próximos dois anos”. O projeto foi recebido com
+  <i>cautela</i> por moradores.
+</p>
+<blockquote>
+  <p>Foi uma decisão difícil, mas necessária para a cidade.</p>
+  <footer>Ana Souza, ministra</footer>
+</blockquote>
+<figure>  
+  <img src="examples/conteudo_prose/foto.png" alt="Vista da orla"/>
+  <figcaption>A orla ao <b>amanhecer</b>, antes das obras. Foto de <i>arquivo</i>.</figcaption>
+</figure>
+<h3>O que muda</h3>
+<ul>
+  <li>Calçadão <b>novo</b> em 3 km de extensão</li>
+  <li>Rede de drenagem refeita</li>
+  <li>Ciclovia ligando os dois bairros</li>
+</ul>
+<p>
+  Mais detalhes no <a href="https://exemplo.com/orla">site do governo</a> ou pelo e-mail
+  <a href="mailto:imprensa@exemplo.com">imprensa@exemplo.com</a>.
+</p>

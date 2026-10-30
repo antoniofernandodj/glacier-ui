@@ -40,6 +40,22 @@ pub fn desugar(src: &str) -> std::result::Result<String, Diagnostic> {
     desugar_with(src, true)
 }
 
+/// Como [`desugar`], mas **sem interpolação**: `@nome` e `@{nome}` ficam como estão.
+/// É o dessugar de um `.gvb` que chega como dado — o texto de um artigo vindo do
+/// banco, num `<prose syntax="gvb" content="…">` —, em que `a@b.com` é um e-mail, e
+/// não uma ligação a uma chave do contexto.
+#[allow(clippy::result_large_err)] // ver `desugar`
+pub fn desugar_literal(src: &str) -> std::result::Result<String, Diagnostic> {
+    let mut p = Parser::new(src);
+    p.literal = true;
+    let nodes = p.file().map_err(|e| e.into_diagnostic())?;
+    let mut out = Out::default();
+    for n in &nodes {
+        out.node(n);
+    }
+    Ok(out.buf)
+}
+
 /// Como [`desugar`], mas com `strict = false` aceita uma ligação sem o `:`
 /// (`value = chave`), que é como os `.gvb` eram escritos antes da marca. Existe
 /// para as ferramentas de migração; o motor usa sempre [`desugar`].
@@ -133,6 +149,9 @@ struct Parser {
     strict: bool,
     /// As tags cujo bloco está aberto: o pai de quem está sendo lido.
     open: Vec<String>,
+    /// Não interpola: `@nome` fica como está. Para um `.gvb` que vem de **dado**
+    /// (ver [`desugar_literal`]), onde um `@` é o de um e-mail, não uma ligação.
+    literal: bool,
 }
 
 /// O que pode vir dentro de um bloco: um filho — ou uma cadeia
@@ -148,6 +167,15 @@ impl Parser {
             line_start: 0,
             strict: true,
             open: Vec::new(),
+            literal: false,
+        }
+    }
+
+    fn interpola(&self, raw: &str) -> String {
+        if self.literal {
+            raw.to_string()
+        } else {
+            interpolate(raw)
         }
     }
 
@@ -809,7 +837,8 @@ impl Parser {
             // quebra de linha é conteúdo, ao contrário do `"""` acima.
             Some('l') if self.starts_with("l\"\"\"") => {
                 self.bump(); // o `l`
-                Ok(interpolate(&lines_block(&self.string(true)?.0)))
+                let corpo = lines_block(&self.string(true)?.0);
+                Ok(self.interpola(&corpo))
             }
             Some('"') => Ok(self.string(false)?.0),
             None | Some(',' | ')') => self.err("esperava um valor depois do `=`"),
@@ -822,7 +851,7 @@ impl Parser {
                     raw.push(c);
                     self.bump();
                 }
-                Ok(interpolate(&raw))
+                Ok(self.interpola(&raw))
             }
         }
     }
@@ -870,7 +899,7 @@ impl Parser {
         if raw_body {
             return Ok((raw, self.line));
         }
-        Ok((interpolate(&raw), self.line))
+        Ok((self.interpola(&raw), self.line))
     }
 }
 
@@ -1039,34 +1068,35 @@ impl Default for Out {
     }
 }
 
-/// Tags cujo conteúdo é texto corrido — o `<prose>` e o que vive dentro dele. Num
-/// `.gvb` cada filho fica na própria linha, e no XML a quebra entre dois elementos
-/// é um espaço: `b(content = "Ana")` seguido de `span(content = "!")` viraria
-/// "Ana !". Quem escreve `.gvb` põe o espaço **no texto** (`content = "Olá, "`),
-/// então a quebra de formatação não pode contar.
-/// A que atributo corresponde o texto sem nome de `tag(\"…\")`: `content`, nas tags
-/// que **carregam** texto (as folhas: `text`, `markdown`, `b`, `i`, `a`, `span`…).
-/// `prose` e `p` ficam de fora: são contêineres, o texto vive nos filhos deles. Outras (`button` quer `text`, `textinput` quer `placeholder`…)
-/// ficam de fora de propósito: lá "o texto" é ambíguo, e `nome = valor` diz qual.
-fn posicional(tag: &str) -> Option<&'static str> {
-    matches!(
-        tag.to_ascii_lowercase().as_str(),
-        "text" | "texto" | "markdown" | "md"
-    )
-    .then_some("content")
-    .or_else(|| {
-        (tag_inline(tag) && !matches!(tag.to_ascii_lowercase().as_str(), "prose" | "p"))
-            .then_some("content")
-    })
-}
-
+/// Tags cujo conteúdo é texto corrido — o `<prose>` e tudo o que vive dentro dele. Num
+/// `.gvb` cada filho fica na própria linha, e no XML a quebra entre dois elementos é um
+/// espaço: `b(content = "Ana")` seguido de `span(content = "!")` viraria "Ana !". Quem
+/// escreve `.gvb` põe o espaço **no texto** (`content = "Olá, "`), então a quebra de
+/// formatação não pode contar. (`pre` fica de fora: lá o espaço é conteúdo.)
 fn tag_inline(tag: &str) -> bool {
     matches!(
         tag.to_ascii_lowercase().as_str(),
         "prose" | "p" | "b" | "strong" | "negrito" | "i" | "em" | "italico" | "itálico"
             | "code" | "codigo" | "código" | "u" | "underline" | "sublinhado" | "s" | "del"
             | "strike" | "tachado" | "a" | "span"
+            | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote" | "ul" | "ol" | "li"
+            | "figure" | "figcaption" | "footer" | "cite"
     )
+}
+
+/// A que atributo corresponde o texto sem nome de `tag("…")`: `content`, nas tags que
+/// **carregam** texto — as folhas (`text`, `markdown`, `b`, `i`, `a`, `span`…) e os
+/// blocos de uma linha só (títulos, `li`, `figcaption`, `footer`, `cite`). Os
+/// contêineres (`prose`, `p`, `ul`, `ol`, `blockquote`, `figure`) ficam de fora: o texto
+/// vive nos filhos deles. Outras (`button` quer `text`, `textinput` quer
+/// `placeholder`…) ficam de fora de propósito: lá "o texto" é ambíguo, e
+/// `nome = valor` diz qual.
+fn posicional(tag: &str) -> Option<&'static str> {
+    let t = tag.to_ascii_lowercase();
+    let carrega = matches!(t.as_str(), "text" | "texto" | "markdown" | "md")
+        || (tag_inline(tag)
+            && !matches!(t.as_str(), "prose" | "p" | "ul" | "ol" | "blockquote" | "figure"));
+    carrega.then_some("content")
 }
 
 impl Out {

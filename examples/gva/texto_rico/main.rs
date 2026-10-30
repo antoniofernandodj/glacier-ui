@@ -45,11 +45,10 @@ impl Component for Sobre {
 fn imprimir(n: &UiNode, nivel: usize) {
     let recuo = "  ".repeat(nivel);
     match &n.kind {
-        NodeType::RichText { spans, size, .. } => {
-            println!("{recuo}RichText size={size:?}");
-            for s in spans {
-                println!("{recuo}  {:?} b={} i={} code={} u={} s={} cor={:?} link={:?}",
-                    s.content, s.bold, s.italic, s.code, s.underline, s.strike, s.color, s.link);
+        NodeType::Prose { blocos, size, .. } => {
+            println!("{recuo}Prose size={size:?} ({} blocos)", blocos.len());
+            for b in blocos {
+                println!("{recuo}  {b:?}");
             }
         }
         NodeType::Markdown { content, .. } => {

@@ -22,6 +22,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ### Corrigido
 
+- **`fetch`, `after` e `every` chamados no `init` nunca rodavam**: o `init` ligava só os
+  streams, então a corrotina suspendia no `fetch` e a resposta nunca voltava — ao
+  contrário do que o `AGENTS.md` manda ("carregar dados ao abrir a tela — chame do
+  `init`"). Agora viram tarefas quando a janela abre (`GlacierUI::take_init_tasks`).
 - `<prose>` e `<markdown>`: pontuação/letras coladas a um trecho em negrito ou itálico saíam no
   estilo dele (`<b>Ana</b>!` com o `!` em negrito). Defeito do `cosmic-text` 0.15 com palavras
   ASCII; contornado com um `U+2060` na fronteira de estilo.
@@ -31,6 +35,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ### Adicionado
 
+- **`<prose>` em blocos** (parágrafo, `h1`–`h6`, `blockquote` com autoria, `ul`/`ol`, `figure` com
+  `figcaption`, `img`, `pre`, `hr`) e **`<prose syntax content>`**: o texto vem de uma chave do
+  contexto — arquivo, `fetch`, banco — em `gva`, `gvb`, `html` ou `markdown`; sem `syntax`,
+  vale a do documento. Conteúdo dinâmico é tratado como não-confiável: só links
+  `http`/`https`/`mailto`, nada de `on_click`/`navigate_to`, imagem só local, teto de 2 MiB;
+  um conteúdo ruim vira um erro visível, não derruba a tela. No `<markdown>`, o título da
+  imagem (`![alt](src "legenda")`) vira a legenda, e os links também só abrem esses três esquemas.
 - `<prose>` com `<p>`, `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>` e `<a>`: texto inline misto,
   só dentro do `<prose>`. `selectable` em `<text>`/`<prose>`. `<markdown>` com tabelas e imagens
   locais. No `.gvb`, o texto sem nome vale como `content` nas tags que carregam texto.

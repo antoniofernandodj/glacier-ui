@@ -2006,6 +2006,58 @@ pub const APP_ACTION_PREFIX: &str = "app:";
 /// (ele é sobre *o que o motor faz* com ela).
 pub const DIALOG_ACTION_PREFIX: &str = "dialog:";
 
+/// Interpola os trechos de um `<prose>` escrito no markup: `{nome}` no texto, no `href` e
+/// na cor, e o namespace do dono na ação de um link (como num `<button>`).
+fn interpola_spans(
+    spans: &[crate::parser::TextSpan],
+    context: &EvalCtx<'_>,
+    owner: Option<&str>,
+) -> Vec<crate::parser::TextSpan> {
+    spans
+        .iter()
+        .map(|sp| crate::parser::TextSpan {
+            content: process_tpl(&sp.content, context),
+            color: sp.color.as_ref().map(|c| process_tpl(c, context)),
+            link: sp.link.as_ref().map(|l| crate::parser::SpanLink {
+                href: l.href.as_ref().map(|h| process_tpl(h, context)),
+                navigate: l.navigate.as_ref().map(|n| process_tpl(n, context)),
+                on_click: l
+                    .on_click
+                    .as_ref()
+                    .map(|o| namespace_action(process_tpl(o, context), owner)),
+            }),
+            ..sp.clone()
+        })
+        .collect()
+}
+
+fn interpola_bloco(
+    b: &crate::prose::Bloco,
+    context: &EvalCtx<'_>,
+    owner: Option<&str>,
+) -> crate::prose::Bloco {
+    use crate::prose::Bloco;
+    let sp = |s: &[crate::parser::TextSpan]| interpola_spans(s, context, owner);
+    match b {
+        Bloco::Paragrafo(s) => Bloco::Paragrafo(sp(s)),
+        Bloco::Titulo { nivel, spans } => Bloco::Titulo { nivel: *nivel, spans: sp(spans) },
+        Bloco::Citacao { paragrafos, autoria } => Bloco::Citacao {
+            paragrafos: paragrafos.iter().map(|p| sp(p)).collect(),
+            autoria: sp(autoria),
+        },
+        Bloco::Lista { ordenada, itens } => Bloco::Lista {
+            ordenada: *ordenada,
+            itens: itens.iter().map(|i| sp(i)).collect(),
+        },
+        Bloco::Figura { src, alt, legenda } => Bloco::Figura {
+            src: process_tpl(src, context),
+            alt: process_tpl(alt, context),
+            legenda: sp(legenda),
+        },
+        outro => outro.clone(),
+    }
+}
+
 /// Prefixo das chaves de buffer dos textos estáticos selecionáveis.
 pub(crate) const PREFIXO_SELECIONAVEL: &str = "__sel_";
 
@@ -2761,23 +2813,24 @@ fn eval_owned(
             content: process_tpl(content, context),
             size: num_template(NumAttr::Size).or(*size).or(style.size),
         },
-        NodeType::RichText { spans, size, color } => NodeType::RichText {
-            spans: spans
-                .iter()
-                .map(|sp| crate::parser::TextSpan {
-                    content: process_tpl(&sp.content, context),
-                    color: sp.color.as_ref().map(|c| process_tpl(c, context)),
-                    link: sp.link.as_ref().map(|l| crate::parser::SpanLink {
-                        href: l.href.as_ref().map(|h| process_tpl(h, context)),
-                        navigate: l.navigate.as_ref().map(|n| process_tpl(n, context)),
-                        on_click: l
-                            .on_click
-                            .as_ref()
-                            .map(|o| namespace_action(process_tpl(o, context), owner)),
-                    }),
-                    ..sp.clone()
-                })
-                .collect(),
+        NodeType::Prose {
+            blocos,
+            fonte,
+            size,
+            color,
+        } => NodeType::Prose {
+            blocos: match fonte {
+                // Conteúdo dinâmico: interpola o `content` (a chave do contexto vira o
+                // texto) e só então lê o resultado. O valor entra LITERAL — um `{x}`
+                // ou um `<b>` dentro dele não é reinterpretado —, e a leitura é a de
+                // conteúdo não-confiável (ver `crate::prose`).
+                Some(f) => crate::prose::de_conteudo(f.sintaxe, &process_tpl(&f.content, context)),
+                None => blocos
+                    .iter()
+                    .map(|b| interpola_bloco(b, context, owner))
+                    .collect(),
+            },
+            fonte: None,
             size: num_template(NumAttr::Size).or(*size).or(style.size),
             color: color
                 .as_ref()

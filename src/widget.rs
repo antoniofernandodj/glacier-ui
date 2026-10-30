@@ -4326,6 +4326,224 @@ fn link_message(l: &crate::parser::SpanLink) -> EngineMessage {
     EngineMessage::UiClick(l.on_click.clone().unwrap_or_default())
 }
 
+/// Como um parágrafo de [`NodeType::Prose`] se veste, por cima do estilo de cada trecho.
+#[derive(Clone, Copy)]
+struct EstiloParagrafo {
+    size: Option<f32>,
+    cor: Option<Color>,
+    negrito: bool,
+    italico: bool,
+    align: Option<iced::alignment::Horizontal>,
+}
+
+/// Um parágrafo: os trechos (`TextSpan`) num `rich_text`, e — se algum é link — o
+/// embrulho que dá a ele foco de teclado (Tab, Enter, Espaço; ver `crate::link_focus`).
+fn paragrafo<'a>(spans: &'a [crate::parser::TextSpan], e: EstiloParagrafo) -> Element<'a, EngineMessage> {
+    use iced::widget::{rich_text, span};
+    // Os índices (em `spans`) dos trechos que são link, na ordem do texto: é a ordem
+    // do foco de teclado.
+    let indices_link: Vec<usize> = spans
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.link.is_some())
+        .map(|(i, _)| i)
+        .collect();
+    // Monta o parágrafo; `destaque` = ordinal do link em foco de teclado.
+    let montar = |destaque: Option<usize>| -> Element<'a, EngineMessage> {
+        let mut anterior: Option<(&str, Font)> = None;
+        let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
+            .iter()
+            .enumerate()
+            .map(|(i, sp)| {
+                let mut f = Font::DEFAULT;
+                if sp.code {
+                    f = Font::MONOSPACE;
+                }
+                if sp.bold || e.negrito {
+                    f.weight = iced::font::Weight::Bold;
+                }
+                if sp.italic || e.italico {
+                    f.style = iced::font::Style::Italic;
+                }
+                // Ver `precisa_juntar`: um caractere invisível na fronteira de estilo
+                // tira a palavra do atalho ASCII do `cosmic-text`.
+                let junta = anterior
+                    .is_some_and(|(ant, fant)| precisa_juntar(ant, Some(fant), &sp.content, Some(f)));
+                anterior = Some((sp.content.as_str(), f));
+                let texto: std::borrow::Cow<'a, str> = if junta {
+                    format!("{JUNTA_PALAVRA}{}", sp.content).into()
+                } else {
+                    sp.content.as_str().into()
+                };
+                let mut s = span(texto).font(f);
+                if let Some(sz) = e.size {
+                    s = s.size(sz);
+                }
+                // Link: azul, e sublinhado só sob o cursor (o `rich_text` do iced
+                // sublinha o link em hover e troca o cursor do mouse). Cor explícita
+                // no trecho vence; depois a do parágrafo.
+                let propria = sp.color.as_deref().and_then(parse_hex_color);
+                let col = propria.or(if sp.link.is_some() {
+                    Some(Color::from_rgb8(0x89, 0xB4, 0xFA))
+                } else {
+                    e.cor
+                });
+                if let Some(c) = col {
+                    s = s.color(c);
+                }
+                if sp.underline {
+                    s = s.underline(true);
+                }
+                if sp.strike {
+                    s = s.strikethrough(true);
+                }
+                if sp.link.is_some() {
+                    s = s.link(i);
+                }
+                // O link em foco de teclado: fundo, borda e sublinhado.
+                if destaque.is_some_and(|d| indices_link.get(d) == Some(&i)) {
+                    s = s
+                        .background(Color::from_rgba8(0x89, 0xB4, 0xFA, 0.28))
+                        .border(Border {
+                            radius: 3.0.into(),
+                            ..Default::default()
+                        })
+                        .underline(true);
+                }
+                s
+            })
+            .collect();
+        let mut t = rich_text(itens).on_link_click(move |i: usize| {
+            match spans.get(i).and_then(|s| s.link.as_ref()) {
+                Some(l) => link_message(l),
+                None => EngineMessage::UiClick(String::new()),
+            }
+        });
+        if let Some(sz) = e.size {
+            t = t.size(sz);
+        }
+        if let Some(align) = e.align {
+            t = t.align_x(align);
+        }
+        // Um parágrafo ocupa a largura que houver (e quebra nela); sem isso ele se
+        // ajusta ao conteúdo e uma linha longa vaza em vez de quebrar.
+        t.width(Length::Fill).into()
+    };
+    // Sem link não há o que focar: o parágrafo é o `rich_text` direto.
+    if indices_link.is_empty() {
+        return montar(None);
+    }
+    crate::link_focus::FocusLinks::new(
+        montar(None),
+        (0..indices_link.len()).map(|k| montar(Some(k))).collect(),
+        indices_link
+            .iter()
+            .filter_map(|&i| spans[i].link.as_ref().map(link_message))
+            .collect(),
+    )
+    .into()
+}
+
+/// O `<prose>`: uma coluna de blocos.
+fn render_prose<'a>(
+    node: &'a UiNode,
+    blocos: &'a [crate::prose::Bloco],
+    size: Option<f32>,
+    color: Option<&str>,
+    assets: &dyn crate::asset_source::AssetSource,
+) -> Element<'a, EngineMessage> {
+    use crate::prose::Bloco;
+    let tam = size.unwrap_or(16.0);
+    let base = EstiloParagrafo {
+        size,
+        cor: color.and_then(parse_hex_color),
+        negrito: false,
+        italico: false,
+        align: parse_text_align(node.text_align()),
+    };
+    let mut itens: Vec<Element<'a, EngineMessage>> = Vec::new();
+    for b in blocos {
+        let el: Element<'a, EngineMessage> = match b {
+            Bloco::Paragrafo(s) => paragrafo(s, base),
+            Bloco::Titulo { nivel, spans } => {
+                let escala = match nivel {
+                    1 => 2.0,
+                    2 => 1.6,
+                    3 => 1.35,
+                    4 => 1.2,
+                    _ => 1.05,
+                };
+                paragrafo(spans, EstiloParagrafo { size: Some(tam * escala), negrito: true, ..base })
+            }
+            Bloco::Citacao { paragrafos, autoria } => {
+                let barra = container(Space::new()).width(3).height(Length::Fill).style(|_| {
+                    container::Style {
+                        background: Some(Background::Color(Color::from_rgba(0.5, 0.5, 0.5, 0.6))),
+                        ..Default::default()
+                    }
+                });
+                let mut corpo = column![].spacing(6).width(Length::Fill);
+                for p in paragrafos {
+                    corpo = corpo.push(paragrafo(p, EstiloParagrafo { italico: true, ..base }));
+                }
+                if !autoria.is_empty() {
+                    corpo = corpo.push(paragrafo(
+                        autoria,
+                        EstiloParagrafo {
+                            size: Some(tam * 0.85),
+                            cor: Some(crate::markdown::LEGENDA),
+                            ..base
+                        },
+                    ));
+                }
+                row![barra, corpo].spacing(10).height(Length::Shrink).into()
+            }
+            Bloco::Lista { ordenada, itens: li } => {
+                let mut c = column![].spacing(4).width(Length::Fill);
+                for (n, item) in li.iter().enumerate() {
+                    let marcador = if *ordenada { format!("{}.", n + 1) } else { "•".to_string() };
+                    c = c.push(
+                        row![text(marcador).size(tam), paragrafo(item, base)]
+                            .spacing(8)
+                            .width(Length::Fill),
+                    );
+                }
+                c.into()
+            }
+            Bloco::Figura { src, alt, legenda } => {
+                let leg = (!legenda.is_empty()).then(|| {
+                    paragrafo(
+                        legenda,
+                        EstiloParagrafo {
+                            size: Some(tam * 0.85),
+                            cor: Some(crate::markdown::LEGENDA),
+                            italico: true,
+                            ..base
+                        },
+                    )
+                });
+                crate::markdown::figura(crate::markdown::imagem(src, alt, tam, assets), leg)
+            }
+            Bloco::Codigo(c) => crate::markdown::bloco_codigo(c.clone(), tam),
+            Bloco::Regua => crate::markdown::regua(),
+            Bloco::Markdown(m) => crate::markdown::view(m, tam, assets),
+            Bloco::Erro(e) => text(e.as_str())
+                .size(tam * 0.9)
+                .color(Color::from_rgb(0.95, 0.45, 0.5))
+                .into(),
+        };
+        itens.push(el);
+    }
+    let largura = if node.width.is_some() { parse_length(&node.width) } else { Length::Fill };
+    crate::overflow::clip(
+        column(itens)
+            .spacing(node.spacing.unwrap_or(10.0))
+            .width(largura)
+            .height(parse_length(&node.height)),
+    )
+    .into()
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -4386,122 +4604,12 @@ pub fn render_node<'a>(
                 .height(parse_length(&node.height)),
         )
         .into(),
-        NodeType::RichText { spans, size, color } => {
-            use iced::widget::{rich_text, span};
-            let cor_base = color.as_deref().and_then(parse_hex_color);
-            // Os índices (em `spans`) dos trechos que são link, na ordem do texto:
-            // é a ordem do foco de teclado.
-            let indices_link: Vec<usize> = spans
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| s.link.is_some())
-                .map(|(i, _)| i)
-                .collect();
-            // Monta o parágrafo; `destaque` = ordinal do link em foco de teclado.
-            let montar = |destaque: Option<usize>| -> Element<'a, EngineMessage> {
-                let mut anterior: Option<(&str, Font)> = None;
-                let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
-                    .iter()
-                    .enumerate()
-                    .map(|(i, sp)| {
-                        let mut f = Font::DEFAULT;
-                        if sp.code {
-                            f = Font::MONOSPACE;
-                        }
-                        if sp.bold {
-                            f.weight = iced::font::Weight::Bold;
-                        }
-                        if sp.italic {
-                            f.style = iced::font::Style::Italic;
-                        }
-                        // Ver `precisa_juntar`: um caractere invisível na fronteira de
-                        // estilo tira a palavra do atalho ASCII do `cosmic-text`.
-                        let junta = anterior.is_some_and(|(ant, fant)| {
-                            precisa_juntar(ant, Some(fant), &sp.content, Some(f))
-                        });
-                        anterior = Some((sp.content.as_str(), f));
-                        let texto: std::borrow::Cow<'a, str> = if junta {
-                            format!("{JUNTA_PALAVRA}{}", sp.content).into()
-                        } else {
-                            sp.content.as_str().into()
-                        };
-                        let mut s = span(texto).font(f);
-                        if let Some(sz) = size {
-                            s = s.size(*sz);
-                        }
-                        // Link: azul, e sublinhado só sob o cursor (o `rich_text`
-                        // do iced sublinha o link em hover e troca o cursor do
-                        // mouse). Cor explícita no trecho vence; depois a do
-                        // parágrafo.
-                        let propria = sp.color.as_deref().and_then(parse_hex_color);
-                        let col = propria.or(if sp.link.is_some() {
-                            Some(Color::from_rgb8(0x89, 0xB4, 0xFA))
-                        } else {
-                            cor_base
-                        });
-                        if let Some(c) = col {
-                            s = s.color(c);
-                        }
-                        if sp.underline {
-                            s = s.underline(true);
-                        }
-                        if sp.strike {
-                            s = s.strikethrough(true);
-                        }
-                        if sp.link.is_some() {
-                            s = s.link(i);
-                        }
-                        // O link em foco de teclado: fundo, borda e sublinhado.
-                        if destaque.is_some_and(|d| indices_link.get(d) == Some(&i)) {
-                            s = s
-                                .background(Color::from_rgba8(0x89, 0xB4, 0xFA, 0.28))
-                                .border(Border {
-                                    radius: 3.0.into(),
-                                    ..Default::default()
-                                })
-                                .underline(true);
-                        }
-                        s
-                    })
-                    .collect();
-                let mut t = rich_text(itens).on_link_click(move |i: usize| {
-                    match spans.get(i).and_then(|s| s.link.as_ref()) {
-                        Some(l) => link_message(l),
-                        None => EngineMessage::UiClick(String::new()),
-                    }
-                });
-                if let Some(sz) = size {
-                    t = t.size(*sz);
-                }
-                if let Some(align) = parse_text_align(node.text_align()) {
-                    t = t.align_x(align);
-                }
-                // Um parágrafo ocupa a largura que houver (e quebra nela); sem isso
-                // ele se ajusta ao conteúdo e uma linha longa vaza em vez de quebrar.
-                let largura = if node.width.is_some() {
-                    parse_length(&node.width)
-                } else {
-                    Length::Fill
-                };
-                t.width(largura).height(parse_length(&node.height)).into()
-            };
-            // Sem link não há o que focar: o parágrafo é o `rich_text` direto.
-            // Com link, o embrulho dá a ele foco de teclado (Tab, Enter, Espaço).
-            let corpo: Element<'a, EngineMessage> = if indices_link.is_empty() {
-                montar(None)
-            } else {
-                crate::link_focus::FocusLinks::new(
-                    montar(None),
-                    (0..indices_link.len()).map(|k| montar(Some(k))).collect(),
-                    indices_link
-                        .iter()
-                        .filter_map(|&i| spans[i].link.as_ref().map(link_message))
-                        .collect(),
-                )
-                .into()
-            };
-            crate::overflow::clip(corpo).into()
-        }
+        NodeType::Prose {
+            blocos,
+            size,
+            color,
+            ..
+        } => render_prose(node, blocos, *size, color.as_deref(), assets),
         NodeType::Button {
             text: btn_text,
             on_click,

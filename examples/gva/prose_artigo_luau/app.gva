@@ -1,0 +1,42 @@
+<screen title="Artigo — quatro sintaxes (Luau)" size="900 760">
+  <resources>
+    <link rel="stylesheet" href="examples/gva/prose_artigo_luau/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <container class="caixa">
+    <scrollable class="rolagem">
+      <column class="coluna">
+        <text class="titulo">Um artigo, quatro sintaxes</text>
+        <text class="rotulo">O mesmo texto em arquivos; cada &lt;prose&gt; lê uma chave do contexto.</text>
+  
+        <text class="secao">HTML — syntax="html"</text>
+        <prose class="corpo" syntax="html" content="{artigo_html}" />
+  
+        <text class="secao">gva — sem syntax (vale a do documento)</text>
+        <prose class="corpo" content="{artigo_gva}" />
+  
+        <text class="secao">gvb — syntax="gvb"</text>
+        <prose class="corpo" syntax="gvb" content="{artigo_gvb}" />
+  
+        <text class="secao">Markdown — syntax="markdown"</text>
+        <prose class="corpo" syntax="markdown" content="{artigo_md}" />
+  
+        <text class="secao">Conteúdo hostil (on_click vindo de dado) — recusado</text>
+        <prose class="corpo" syntax="gva" content="{artigo_ruim}" />
+  
+        <text class="secao">Escrito direto no markup (estático)</text>
+        <prose class="corpo">
+          <blockquote>
+            <p>Citações, listas e figuras também existem no markup.</p>
+            <footer>a documentação</footer>
+          </blockquote>
+          <figure>
+            <img src="examples/conteudo_prose/foto.png" alt="foto" />
+            <figcaption>Uma figura estática, com <b>legenda</b> rica.</figcaption>
+          </figure>
+        </prose>
+      </column>
+    </scrollable>
+  </container>
+</screen>

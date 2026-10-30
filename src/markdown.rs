@@ -7,7 +7,7 @@
 //! direto dos eventos do parser dá `Element`s que **possuem** suas strings.
 //!
 //! Suporta: títulos, parágrafos, ênfase/negrito/tachado/código inline, links
-//! (abrem pela ação built-in `open:`), listas (com ou sem número, aninhadas),
+//! (só `http`, `https` e `mailto`; abrem pela ação built-in `open:`), listas (com ou sem número, aninhadas),
 //! citação, bloco de código, linha horizontal, **tabelas** e **imagens locais**.
 //! HTML cru é ignorado.
 //!
@@ -35,22 +35,68 @@ enum Quadro {
     Linha,
 }
 
-/// Caminho de imagem aceitável: relativo, sem esquema, sem `..`.
-fn caminho_local(url: &str) -> bool {
-    let u = url.trim();
-    !u.is_empty()
-        && !u.contains("://")
-        && !u.starts_with("data:")
-        && !u.starts_with('/')
-        && !u.starts_with('\\')
-        && !u.split(['/', '\\']).any(|p| p == "..")
-        && !u.contains(':')
+/// A cor da legenda de uma figura.
+pub(crate) const LEGENDA: Color = Color::from_rgb(0.62, 0.65, 0.76);
+
+/// A imagem de uma figura: só caminho **local**, lido pela fonte de assets. Remota,
+/// ilegível ou fora da raiz vira um aviso com o texto alternativo.
+pub(crate) fn imagem<'a>(
+    url: &str,
+    alt: &str,
+    tamanho: f32,
+    assets: &dyn crate::asset_source::AssetSource,
+) -> Element<'a, EngineMessage> {
+    let local = crate::prose::caminho_local(url);
+    if local && assets.exists(url) {
+        container(image(crate::widget::cached_image_handle(url, assets)))
+            .max_width(640)
+            .into()
+    } else {
+        let motivo = if local { "não encontrada" } else { "recusada" };
+        text(format!("[imagem {motivo}: {alt}]")).size(tamanho * 0.9).into()
+    }
+}
+
+/// Uma imagem com a legenda embaixo (quando há).
+pub(crate) fn figura<'a>(
+    img: Element<'a, EngineMessage>,
+    legenda: Option<Element<'a, EngineMessage>>,
+) -> Element<'a, EngineMessage> {
+    let mut c = column![img].spacing(6);
+    if let Some(l) = legenda {
+        c = c.push(container(l).max_width(640));
+    }
+    c.into()
+}
+
+pub(crate) fn bloco_codigo<'a>(codigo: String, tamanho: f32) -> Element<'a, EngineMessage> {
+    container(text(codigo).font(Font::MONOSPACE).size(tamanho * 0.9))
+        .padding(10)
+        .width(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color::from_rgba(0.5, 0.5, 0.5, 0.15))),
+            border: iced::Border { radius: 6.0.into(), ..Default::default() },
+            ..Default::default()
+        })
+        .into()
+}
+
+pub(crate) fn regua<'a>() -> Element<'a, EngineMessage> {
+    container(Space::new())
+        .width(Length::Fill)
+        .height(1)
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color::from_rgba(0.5, 0.5, 0.5, 0.5))),
+            ..Default::default()
+        })
+        .into()
 }
 
 struct Montador<'a, 'b> {
     assets: &'b dyn crate::asset_source::AssetSource,
-    /// `(url, texto alternativo)` da imagem em curso.
-    imagem: Option<(String, String)>,
+    /// `(url, texto alternativo, título)` da imagem em curso. O título (`![alt](url "título")`)
+    /// vira a **legenda** da figura.
+    imagem: Option<(String, String, String)>,
     pilha: Vec<(Quadro, Vec<Element<'a, EngineMessage>>)>,
     inline: Vec<Span<'a, String, Font>>,
     negrito: u32,
@@ -138,7 +184,11 @@ impl<'a, 'b> Montador<'a, 'b> {
                 Tag::Strong => self.negrito += 1,
                 Tag::Emphasis => self.italico += 1,
                 Tag::Strikethrough => self.tachado += 1,
-                Tag::Link { dest_url, .. } => self.link = Some(dest_url.to_string()),
+                // Só web e e-mail: o Markdown costuma vir de dado, e um `file:` ou um
+                // esquema de outro programa não deve abrir com um clique.
+                Tag::Link { dest_url, .. } => {
+                    self.link = crate::prose::href_seguro(&dest_url).then(|| dest_url.to_string());
+                }
                 Tag::CodeBlock(_) => self.codigo = Some(String::new()),
                 Tag::List(n) => {
                     self.descarregar();
@@ -158,9 +208,9 @@ impl<'a, 'b> Montador<'a, 'b> {
                     self.pilha.push((Quadro::Linha, Vec::new()));
                 }
                 Tag::TableRow => self.pilha.push((Quadro::Linha, Vec::new())),
-                Tag::Image { dest_url, .. } => {
+                Tag::Image { dest_url, title, .. } => {
                     self.descarregar();
-                    self.imagem = Some((dest_url.to_string(), String::new()));
+                    self.imagem = Some((dest_url.to_string(), String::new(), title.to_string()));
                 }
                 _ => {}
             },
@@ -176,25 +226,8 @@ impl<'a, 'b> Montador<'a, 'b> {
                 TagEnd::Link => self.link = None,
                 TagEnd::CodeBlock => {
                     if let Some(codigo) = self.codigo.take() {
-                        let corpo = text(codigo.trim_end_matches('\n').to_string())
-                            .font(Font::MONOSPACE)
-                            .size(self.tamanho * 0.9);
-                        self.empurrar(
-                            container(corpo)
-                                .padding(10)
-                                .width(Length::Fill)
-                                .style(|_| container::Style {
-                                    background: Some(Background::Color(Color::from_rgba(
-                                        0.5, 0.5, 0.5, 0.15,
-                                    ))),
-                                    border: iced::Border {
-                                        radius: 6.0.into(),
-                                        ..Default::default()
-                                    },
-                                    ..Default::default()
-                                })
-                                .into(),
-                        );
+                        let el = bloco_codigo(codigo.trim_end_matches('\n').to_string(), self.tamanho);
+                        self.empurrar(el);
                     }
                 }
                 TagEnd::TableCell => {
@@ -242,21 +275,16 @@ impl<'a, 'b> Montador<'a, 'b> {
                     }
                 }
                 TagEnd::Image => {
-                    if let Some((url, alt)) = self.imagem.take() {
-                        let el: Element<'a, EngineMessage> = if caminho_local(&url)
-                            && self.assets.exists(&url)
-                        {
-                            container(image(crate::widget::cached_image_handle(&url, self.assets)))
-                                .max_width(640)
+                    if let Some((url, alt, titulo)) = self.imagem.take() {
+                        let legenda = (!titulo.trim().is_empty()).then(|| {
+                            text(titulo)
+                                .size(self.tamanho * 0.85)
+                                .font(Font { style: font::Style::Italic, ..Font::DEFAULT })
+                                .color(LEGENDA)
                                 .into()
-                        } else {
-                            // Remota, ilegível ou fora da raiz: o texto alternativo.
-                            let motivo = if caminho_local(&url) { "não encontrada" } else { "recusada" };
-                            text(format!("[imagem {motivo}: {alt}]"))
-                                .size(self.tamanho * 0.9)
-                                .into()
-                        };
-                        self.empurrar(el);
+                        });
+                        let fig = figura(imagem(&url, &alt, self.tamanho, self.assets), legenda);
+                        self.empurrar(fig);
                     }
                 }
                 TagEnd::Item => {
@@ -299,7 +327,7 @@ impl<'a, 'b> Montador<'a, 'b> {
             },
             // Dentro de `![alt](url)` o texto é o alternativo, não conteúdo.
             Event::Text(t) if self.imagem.is_some() => {
-                if let Some((_, alt)) = &mut self.imagem {
+                if let Some((_, alt, _)) = &mut self.imagem {
                     alt.push_str(&t);
                 }
             }
@@ -312,18 +340,7 @@ impl<'a, 'b> Montador<'a, 'b> {
             Event::HardBreak => self.texto("\n".into(), false),
             Event::Rule => {
                 self.descarregar();
-                self.empurrar(
-                    container(Space::new())
-                        .width(Length::Fill)
-                        .height(1)
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(Color::from_rgba(
-                                0.5, 0.5, 0.5, 0.5,
-                            ))),
-                            ..Default::default()
-                        })
-                        .into(),
-                );
+                self.empurrar(regua());
             }
             _ => {}
         }

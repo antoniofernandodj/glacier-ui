@@ -1,0 +1,14 @@
+:root {
+  --fraco: #A6ADC8;
+  --destaque: #89B4FA;
+}
+
+.caixa { padding: 24; width: fill; height: fill; }
+.coluna { spacing: 12; width: fill; padding: 0 16 0 0; }
+.titulo { size: 26; bold: true; }
+.corpo { size: 15; color: var(--fraco); }
+.solto { size: 14; }
+.md { size: 14; }
+.secao { size: 13; bold: true; color: var(--destaque); }
+.rotulo { size: 13; color: var(--fraco); }
+.rolagem { width: fill; height: fill; }

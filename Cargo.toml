@@ -711,6 +711,26 @@ name = "gvb_web_contador"
 path = "examples/gvb/web_contador/main.rs"
 
 [[example]]
+name = "prose_artigo"
+path = "examples/gva/prose_artigo/main.rs"
+
+[[example]]
+name = "prose_artigo_luau"
+path = "examples/gva/prose_artigo_luau/main.rs"
+
+[[example]]
+name = "gvb_prose_artigo"
+path = "examples/gvb/prose_artigo/main.rs"
+
+[[example]]
+name = "gvb_prose_artigo_luau"
+path = "examples/gvb/prose_artigo_luau/main.rs"
+
+[[example]]
+name = "prose_check"
+path = "examples/gva/prose_check/main.rs"
+
+[[example]]
 name = "texto_rico"
 path = "examples/gva/texto_rico/main.rs"
 

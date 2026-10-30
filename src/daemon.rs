@@ -1099,7 +1099,17 @@ impl Runtime {
             DaemonMessage::Opened(id) => {
                 // Estado inicial: a janela pode nascer maximizada (geometria
                 // lembrada, `maximized: true` no settings, regra da WM).
-                query_maximized(id)
+                //
+                // E o que o `init` das telas pediu — `fetch`, `after`, `every` —, que só
+                // aqui tem um loop de tarefas para rodar.
+                let init = self
+                    .windows
+                    .get_mut(&id)
+                    .map(|e| e.take_init_tasks().map(move |m| DaemonMessage::Ui { id, msg: m }));
+                match init {
+                    Some(t) => Task::batch([query_maximized(id), t]),
+                    None => query_maximized(id),
+                }
             }
             DaemonMessage::Resized(id) => {
                 // Maximizar/restaurar sempre muda o tamanho, então é aqui que o

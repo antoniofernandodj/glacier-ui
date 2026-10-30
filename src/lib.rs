@@ -95,6 +95,7 @@ pub mod luau;
 pub mod luau;
 mod link_focus;
 mod markdown;
+pub mod prose;
 pub mod menu;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;
@@ -392,6 +393,10 @@ pub struct GlacierUI {
     /// `iced::Subscription`, so inserting/removing here starts/stops the actual
     /// connection on the next runtime re-evaluation.
     active_streams: HashMap<(String, u64), component::StreamRequest>,
+    /// `fetch` e `after`/`every` que um `init` pediu: o `init` roda ao registrar o
+    /// componente, antes de existir um loop de tarefas, então eles esperam aqui até o
+    /// daemon abrir a janela e chamar [`GlacierUI::take_init_tasks`].
+    init_pendente: Vec<(String, Vec<component::PendingFetch>, Vec<component::PendingTimer>)>,
     /// Outbound command channels for live WebSocket streams, keyed the same way.
     /// Populated when a stream signals [`net::StreamEvent::Ready`]; used to
     /// deliver `conn:send`/`conn:close` to the connection task.
@@ -733,6 +738,7 @@ impl GlacierUI {
             toasts: Vec::new(),
             next_toast_id: 0,
             active_streams: HashMap::default(),
+            init_pendente: Vec::new(),
             stream_senders: HashMap::default(),
             builtin_component_names: std::collections::HashSet::new(),
             script_only_components: std::collections::HashSet::new(),
@@ -1646,9 +1652,16 @@ impl GlacierUI {
             let mut ctx = component::Context::with_types(&mut self.context_data, &mut self.context_types);
             ctx.set_viewport(self.inputs.viewport());
             comp.init(&mut ctx);
-            (ctx.streams, ctx.style)
+            (ctx.streams, ctx.style, ctx.fetches, ctx.timers)
         };
-        let (init_streams, init_style) = init_streams;
+        let (init_streams, init_style, init_fetches, init_timers) = init_streams;
+        // `fetch`, `after` e `every` pedidos pelo `init`: sem isto o `init` suspendia no
+        // `fetch` e a resposta nunca era entregue (o `AGENTS.md` manda carregar dados
+        // ao abrir a tela, pelo `init`). Viram tarefas em `take_init_tasks`.
+        if !init_fetches.is_empty() || !init_timers.is_empty() {
+            self.init_pendente
+                .push((name.to_string(), init_fetches, init_timers));
+        }
         // `set_style` no `init`: instala já, sem reavaliar — a primeira
         // avaliação da tela vem depois e nasce com o estilo certo.
         if let Some(name) = init_style {
@@ -1658,6 +1671,32 @@ impl GlacierUI {
             self.active_streams.insert((name.to_string(), req.id), req);
         }
         self.components.insert(name.to_string(), comp);
+    }
+
+    /// As tarefas que o `init` dos componentes pediu — `fetch`, `after`, `every` — e que
+    /// só podem começar agora, com um loop de tarefas rodando. O daemon chama isto
+    /// quando a janela do motor abre; quem usa o motor sem daemon deve chamá-lo uma vez
+    /// depois de registrar as telas.
+    pub fn take_init_tasks(&mut self) -> iced::Task<EngineMessage> {
+        let mut tasks = Vec::new();
+        for (owner, fetches, timers) in std::mem::take(&mut self.init_pendente) {
+            for req in fetches {
+                let id = req.id;
+                let dono = owner.clone();
+                tasks.push(iced::Task::perform(crate::net::perform(req), move |result| {
+                    EngineMessage::LuauResume { owner: dono.clone(), id, result }
+                }));
+            }
+            for t in timers {
+                let id = t.id;
+                let dono = owner.clone();
+                let dur = std::time::Duration::from_millis(t.delay_ms);
+                tasks.push(iced::Task::perform(crate::timer::sleep(dur), move |()| {
+                    EngineMessage::LuauTimer { owner: dono.clone(), id }
+                }));
+            }
+        }
+        iced::Task::batch(tasks)
     }
 
     /// Routes an [`EngineMessage`] to the owning component (the one backing the

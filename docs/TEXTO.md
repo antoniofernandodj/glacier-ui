@@ -11,23 +11,41 @@ Os dois de Rust aceitam `--arvore` (imprime a árvore avaliada); a dos dois é i
 linha a linha. Nos de Luau o estado vive em `scripts/app.luau` e as duas telas são filhas
 do `app`, sem `Component`.
 
-## `<prose>`: texto inline misto
+## `<prose>`: texto de leitura em blocos
 
 Estilo **dentro** do parágrafo existe só dentro de um `<prose>`. O `<text>` continua
-simples, de propósito: `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e `<p>`
-**não existem** fora dele — usar um num `<text>` dá erro na avaliação, apontando o
-`<prose>`, em vez de perder as palavras.
+simples, de propósito: `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>`, `<p>` e os
+blocos abaixo **não existem** fora dele — usar um num `<text>` dá erro na avaliação,
+apontando o `<prose>`, em vez de perder as palavras.
+
+Um `<prose>` é uma lista de **blocos**:
 
 ```xml
 <prose>
+  <h2>Manchete</h2>
   <p>Olá, <b>{usuario}</b>! Veja <code>.gss</code> e <a href="https://…">o site</a>.</p>
-  <p>Segundo parágrafo, com <i>itálico</i> e <s>tachado</s>.</p>
+  <blockquote><p>Foi uma decisão difícil.</p><footer>Ana Souza</footer></blockquote>
+  <figure>
+    <img src="fotos/praia.png" alt="Praia"/>
+    <figcaption>A praia ao <b>amanhecer</b>.</figcaption>
+  </figure>
+  <ul><li>um</li><li>dois</li></ul>
 </prose>
 ```
 
-| Tag | Efeito |
+| Bloco | Contém |
 |---|---|
-| `p` | parágrafo (uma linha em branco entre eles) |
+| `p` | texto e as tags inline |
+| `h1`…`h6` | texto e as tags inline |
+| `blockquote` | `<p>`s e, opcional, um `<footer>`/`<cite>` com a autoria |
+| `ul`, `ol` | `<li>`s (texto e tags inline) |
+| `figure` | um `<img>` (imagem **local**) e, opcional, um `<figcaption>` (texto rico) |
+| `img` | uma imagem sem legenda |
+| `pre` | texto cru, em fonte monoespaçada |
+| `hr` | uma régua |
+
+| Tag inline | Efeito |
+|---|---|
 | `b` `strong` | negrito |
 | `i` `em` | itálico |
 | `code` | fonte monoespaçada |
@@ -39,17 +57,71 @@ simples, de propósito: `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e 
 Aninham (`<b><i>…</i></b>`). `{interpolação}` vale em cada trecho.
 
 **Forma obrigatória** (erro de carga, com linha e coluna, se violada): o `<prose>` só
-contém `<p>` — texto solto ou uma tag de estilo direto nele é erro — e um `<p>` só
-contém texto e as tags da tabela acima (nenhum outro elemento, e um `<p>` não entra em
-outro `<p>`). O espaço entre trechos é preservado como no
-HTML. No `.gvb` o texto é atributo: `b(content = "isto")`.
+contém os blocos da primeira tabela — texto solto ou uma tag de estilo direto nele é
+erro —, e um bloco de texto só contém texto e as tags inline (nenhum outro elemento, e um
+`<p>` não entra em outro `<p>`). O espaço entre trechos é preservado como no HTML.
+
+## `<prose syntax content>`: o texto vem de fora
+
+Um `<prose>` com `content` não tem filhos: o texto vem de uma chave do contexto — um
+arquivo lido, o resultado de um `fetch`, uma linha de banco — e é lido **na avaliação**, na
+sintaxe pedida:
+
+```xml
+<prose syntax="html"     content="{artigo}" />
+<prose syntax="gva"      content="{artigo}" />   <!-- o mesmo que omitir `syntax` num .gva -->
+<prose syntax="gvb"      content="{artigo}" />
+<prose syntax="markdown" content="{artigo}" />
+```
+
+No `.gvb`: `prose(syntax = html, content = "@artigo")`. `syntax` aceita `gva`, `gvb`,
+`html` e `markdown`. **Omitido, vale a sintaxe do documento** onde o `<prose>` está: um
+`.gva` lê `gva`, um `.gvb` lê `gvb`. (`sintaxe` e `sintax` também são aceitos.) `content`
+junto com filhos é erro de carga; um `syntax` que não existe também.
+
+O valor entra **literal**: um `{x}` ou um `<b>` dentro dele não é reinterpretado como
+modelo do app (o `@` do `.gvb` também não vira ligação — um e-mail `a@b.com` fica
+`a@b.com`).
+
+| Sintaxe | Como é lida |
+|---|---|
+| `gva` | XML, com a mesma gramática de blocos de cima. Estrito: fora dela é erro. |
+| `gvb` | o `.gvb` dessugarado, **sem interpolação**, e depois como `gva`. Estrito. |
+| `html` | parser próprio e **tolerante**: `<p>`/`<li>` sem fechar, entidades (`&amp;`, `&nbsp;`, `&ccedil;`…), comentários, atributos sem aspas. `<script>`, `<style>`, `<iframe>`, `<form>` e afins somem com o conteúdo; `<div>`/`<section>`/`<article>` são transparentes; tag desconhecida perde a tag e fica o texto. |
+| `markdown` | o renderizador de `<markdown>` (abaixo). |
+
+### Conteúdo vindo de dado não é de confiança
+
+O texto de um banco ou de uma API não foi escrito por quem escreveu o app. Por isso, em
+`content`:
+
+- **só `href` vira link, e só `http`, `https` e `mailto`.** `javascript:`, `file:` e
+  qualquer protocolo registrado por outro programa não viram link (o texto fica);
+- **`on_click` e `navigate_to` são recusados.** Sem isso, um registro com
+  `on_click="app::apagar"` dispararia uma ação do app. Em `gva`/`gvb` é um erro visível;
+  em `html` o atributo é ignorado;
+- **imagem só de caminho local** (relativo, sem esquema, sem `..`). `http://`, `data:` e
+  caminho absoluto aparecem como `[imagem recusada: alt]`;
+- o conteúdo tem teto de **2 MiB**, e o aninhamento do HTML, de 100 níveis.
+
+Um conteúdo que não dá para ler **não derruba a tela**: o `<prose>` mostra o erro, em
+vermelho (`prose (gva): linha 3: <div> direto no <prose> …`), e o resto segue de pé.
+`selectable` vale só para `<prose>` escrito no markup, não para `content`.
+
+Exemplos (o mesmo artigo — manchete, citação, **figura com legenda**, lista, links — em
+HTML, gva, gvb e Markdown, lido de arquivos em `examples/conteudo_prose`): `prose_artigo`
+(`.gva`, Rust), `prose_artigo_luau` (`.gva`, `fetch("file://…")`), `gvb_prose_artigo`,
+`gvb_prose_artigo_luau`. `cargo run --example prose_check` roda o parser de blocos contra
+entradas difíceis (HTML sujo de CMS, links perigosos, `@` em e-mail, XML quebrado) sem
+janela.
 
 ### No `.gvb`
 
 O `.gvb` não mistura texto com elementos: o texto é sempre um atributo. Nas tags que
 **carregam** texto (`text`, `markdown`, `b`, `i`, `code`, `u`, `s`, `a`, `span`…) o
-**primeiro argumento sem nome** vale como `content`. `prose` e `p` são só contêineres
-(o texto vive nos filhos deles) e **não têm `content`**:
+**primeiro argumento sem nome** vale como `content`. `prose`, `p`, `ul`, `ol`, `blockquote` e `figure` são só contêineres (o texto vive nos filhos
+deles) e **não têm texto sem nome**; títulos (`h1`…`h6`), `li`, `figcaption`, `footer` e
+`cite` têm:
 
 ```
 prose(class = corpo) {
@@ -79,7 +151,22 @@ Markdown precisa delas).
   dessugar põe essa quebra num comentário XML — mantém a contagem de linhas dos erros e
   não vira espaço.)
 
-Conferido com `gvb_check`: o `.gvb` acima e o `.gva` equivalente dão a mesma árvore.
+Os blocos no `.gvb`:
+
+```
+prose {
+  h2("Manchete")
+  blockquote { p { span("Foi uma decisão difícil.") } footer("Ana Souza") }
+  figure {
+    img(src = "fotos/praia.png", alt = "Praia")
+    figcaption { span("A praia ao ") b("amanhecer") span(".") }
+  }
+  ul { li("um") li { span("dois ") b("negrito") } }
+}
+```
+
+Conferido com `gvb_check`: o `.gvb` do primeiro exemplo e o `.gva` equivalente dão a mesma
+árvore.
 
 ## `<a>`
 
@@ -165,8 +252,18 @@ Quando o `cosmic-text` corrigir o atalho, o contorno vira inofensivo e pode sair
 
 ## O que NÃO está feito
 
+- **Listas aninhadas e tabelas dentro do `<prose>`.** Os blocos acima são todos; `<table>` e
+  `<ul>` dentro de `<li>` não entram (no HTML, o texto da tabela segue no fluxo; no `gva`/`gvb`
+  é erro). O `<markdown>`, sim, tem lista aninhada e tabela.
+- **O parser de HTML não é o do HTML5.** Cobre o que um texto de leitura usa (ver a tabela
+  acima). `<p>` dentro de `<p>` sem fechar o primeiro funciona, mas um aninhamento torto de
+  `<b><i></b></i>` é resolvido do jeito simples (fecha até a tag que casa).
+- **`selectable` com `content`** e, no `<prose>` estático, `selectable` perde estilo, links e
+  figuras (vira texto simples).
 - **Foco de teclado nos links do `<markdown>`** (só clique) e nos do texto selecionável
   (que nem tem link).
-- Ao voltar com Shift+Tab para um `<prose>`, o foco cai no **primeiro** link, não no último
-  (a operação de foco do iced não diz de que lado o foco chegou).
-- HTML cru no Markdown é ignorado.
+- Ao voltar com Shift+Tab para um parágrafo com links, o foco cai no **primeiro** link, não
+  no último (a operação de foco do iced não diz de que lado o foco chegou). Com vários
+  parágrafos, cada um é um ponto de parada do Tab.
+- Imagem **remota** (`https://…`) nunca é carregada: de propósito, o Glacier não busca
+  nada de uma URL além de dados pelo `fetch`.
