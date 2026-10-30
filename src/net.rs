@@ -965,3 +965,87 @@ async fn montar_multipart(
     corpo.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     Ok((corpo, boundary))
 }
+
+// ──────────────────────── API em Rust (para quem não usa o Luau) ────────────────────────
+
+pub use crate::component::{AbortHandle, ArquivoMultipart, Multipart};
+pub use crate::component::FetchResult as Resposta;
+
+/// Um pedido HTTP montado **em Rust**, pela mesma camada que o `fetch` do Luau usa:
+/// o mesmo jar de cookies, o mesmo multipart, o mesmo cancelamento. É o que um
+/// [`Component`](crate::Component) escrito em Rust usa dentro de um `ctx.perform(async { … })`.
+///
+/// ```ignore
+/// let res = Requisicao::get("https://api.exemplo/itens")
+///     .cabecalho("Authorization", "Bearer …")
+///     .timeout_ms(5000)
+///     .enviar()
+///     .await;
+/// if res.ok { /* res.body */ }
+/// ```
+pub struct Requisicao(PendingFetch);
+
+impl Requisicao {
+    pub fn new(url: impl Into<String>, metodo: &str) -> Self {
+        Self(PendingFetch::new(0, url.into(), metodo.to_string(), None, Vec::new()))
+    }
+
+    pub fn get(url: impl Into<String>) -> Self {
+        Self::new(url, "GET")
+    }
+
+    pub fn post(url: impl Into<String>) -> Self {
+        Self::new(url, "POST")
+    }
+
+    pub fn cabecalho(mut self, nome: impl Into<String>, valor: impl Into<String>) -> Self {
+        self.0.headers.push((nome.into(), valor.into()));
+        self
+    }
+
+    /// Corpo textual.
+    pub fn corpo(mut self, corpo: impl Into<String>) -> Self {
+        self.0.body = Some(corpo.into());
+        self
+    }
+
+    /// Teto da requisição inteira, em milissegundos.
+    pub fn timeout_ms(mut self, ms: u64) -> Self {
+        self.0.timeout_ms = Some(ms);
+        self
+    }
+
+    /// Ignora o jar de cookies neste pedido (nada é enviado nem guardado).
+    pub fn sem_cookies(mut self) -> Self {
+        self.0.cookies = false;
+        self
+    }
+
+    /// `ctl.abort()` cancela o pedido (resultado: `ok = false`, `error = "cancelado"`).
+    pub fn cancelavel(mut self, ctl: &AbortHandle) -> Self {
+        self.0.abort = Some(ctl.clone());
+        self
+    }
+
+    /// Envia `multipart/form-data` (os arquivos são lidos do disco no envio).
+    pub fn multipart(mut self, mp: Multipart) -> Self {
+        self.0.multipart = Some(mp);
+        self
+    }
+
+    /// Grava o corpo da resposta CRU neste caminho (para binários); o `body` volta vazio.
+    pub fn baixar_para(mut self, caminho: impl Into<String>) -> Self {
+        self.0.download_to = Some(caminho.into());
+        self
+    }
+
+    /// Envia e espera a resposta. Nunca falha: um erro de rede vira `ok = false`.
+    pub async fn enviar(self) -> FetchResult {
+        perform(self.0).await
+    }
+}
+
+/// Esvazia o jar de cookies: de um host (`"api.exemplo"` ou `"127.0.0.1:8096"`) ou de todos.
+pub fn limpar_cookies(host: Option<&str>) {
+    limpa_cookies(host);
+}

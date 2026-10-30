@@ -739,6 +739,18 @@ name = "rede_completa"
 path = "examples/gva/rede_completa/main.rs"
 
 [[example]]
+name = "gvb_rede_completa"
+path = "examples/gvb/rede_completa/main.rs"
+
+[[example]]
+name = "gvb_rede_completa_luau"
+path = "examples/gvb/rede_completa_luau/main.rs"
+
+[[example]]
+name = "rede_completa_luau"
+path = "examples/gva/rede_completa_luau/main.rs"
+
+[[example]]
 name = "prose_check"
 path = "examples/gva/prose_check/main.rs"
 

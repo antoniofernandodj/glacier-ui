@@ -397,7 +397,12 @@ pub struct GlacierUI {
     /// `fetch` e `after`/`every` que um `init` pediu: o `init` roda ao registrar o
     /// componente, antes de existir um loop de tarefas, então eles esperam aqui até o
     /// daemon abrir a janela e chamar [`GlacierUI::take_init_tasks`].
-    init_pendente: Vec<(String, Vec<component::PendingFetch>, Vec<component::PendingTimer>)>,
+    init_pendente: Vec<(
+        String,
+        Vec<component::PendingFetch>,
+        Vec<component::PendingTimer>,
+        Vec<component::Effect>,
+    )>,
     /// Outbound command channels for live WebSocket streams, keyed the same way.
     /// Populated when a stream signals [`net::StreamEvent::Ready`]; used to
     /// deliver `conn:send`/`conn:close` to the connection task.
@@ -1653,15 +1658,15 @@ impl GlacierUI {
             let mut ctx = component::Context::with_types(&mut self.context_data, &mut self.context_types);
             ctx.set_viewport(self.inputs.viewport());
             comp.init(&mut ctx);
-            (ctx.streams, ctx.style, ctx.fetches, ctx.timers)
+            (ctx.streams, ctx.style, ctx.fetches, ctx.timers, ctx.effects)
         };
-        let (init_streams, init_style, init_fetches, init_timers) = init_streams;
+        let (init_streams, init_style, init_fetches, init_timers, init_efeitos) = init_streams;
         // `fetch`, `after` e `every` pedidos pelo `init`: sem isto o `init` suspendia no
         // `fetch` e a resposta nunca era entregue (o `AGENTS.md` manda carregar dados
         // ao abrir a tela, pelo `init`). Viram tarefas em `take_init_tasks`.
-        if !init_fetches.is_empty() || !init_timers.is_empty() {
+        if !init_fetches.is_empty() || !init_timers.is_empty() || !init_efeitos.is_empty() {
             self.init_pendente
-                .push((name.to_string(), init_fetches, init_timers));
+                .push((name.to_string(), init_fetches, init_timers, init_efeitos));
         }
         // `set_style` no `init`: instala já, sem reavaliar — a primeira
         // avaliação da tela vem depois e nasce com o estilo certo.
@@ -1680,7 +1685,15 @@ impl GlacierUI {
     /// depois de registrar as telas.
     pub fn take_init_tasks(&mut self) -> iced::Task<EngineMessage> {
         let mut tasks = Vec::new();
-        for (owner, fetches, timers) in std::mem::take(&mut self.init_pendente) {
+        for (owner, fetches, timers, efeitos) in std::mem::take(&mut self.init_pendente) {
+            // `ctx.perform(…)` no `init` de um componente Rust.
+            for efeito in efeitos {
+                match efeito {
+                    component::Effect::Perform(futuro) => {
+                        tasks.push(iced::Task::perform(futuro, EngineMessage::EffectOutcome));
+                    }
+                }
+            }
             for req in fetches {
                 let id = req.id;
                 let dono = owner.clone();

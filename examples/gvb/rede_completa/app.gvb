@@ -1,0 +1,56 @@
+// Toda a rede do Glacier (estado em Rust). Precisa do servidor de teste:
+//   python3 tools/servidor_rede.py
+screen(title = "Rede completa (Rust)", size = "860 880") {
+  resources {
+    link(rel = stylesheet, href = "examples/gvb/rede_completa/app.gss")
+  }
+
+  container(class = caixa) {
+    scrollable(class = rolagem) {
+      column(class = tela) {
+        text("Rede: fetch, cliente http(), cookies, multipart e abort", class = titulo)
+        text("Precisa do servidor de teste: python3 tools/servidor_rede.py (porta 8096).", class = rotulo)
+        text("[fetch] 1. GET simples com query", class = rotulo)
+        text("{s1}", class = valor)
+        text("[fetch] 2. POST com corpo JSON e cabeçalho próprio", class = rotulo)
+        text("{s2}", class = valor)
+        text("[fetch] 3. timeout = 300 ms contra uma rota de 4 s", class = rotulo)
+        text("{s3}", class = valor)
+        text("[fetch] 4. fetch('file://…') lê um arquivo local", class = rotulo)
+        text("{s4}", class = valor)
+        text("[fetch] 5. download_file grava o corpo cru em disco", class = rotulo)
+        text("{s5}", class = valor)
+        text("[cookies] 6. o jar guarda e devolve os cookies sozinho", class = rotulo)
+        text("{s6}", class = valor)
+        text("[cookies] 7. cookies = false: este pedido ignora o jar", class = rotulo)
+        text("{s7}", class = valor)
+        text("[cookies] 8. Max-Age=0 apaga um cookie; o outro fica", class = rotulo)
+        text("{s8}", class = valor)
+        text("[cookies] 9. clear_cookies() esvazia o jar", class = rotulo)
+        text("{s9}", class = valor)
+        text("[multipart] 10. multipart/form-data: campos + arquivo do disco", class = rotulo)
+        text("{s10}", class = valor)
+        text("[abort] 11. abort_controller cancela o fetch de 4 s", class = rotulo)
+        text("{s11}", class = valor)
+        text("[http()] 12. cliente: base_url + headers + query", class = rotulo)
+        text("{s12}", class = valor)
+        text("[http()] 13. cliente: POST com tabela vira JSON", class = rotulo)
+        text("{s13}", class = valor)
+        text("[http()] 14. cliente: on_request / on_response (interceptors)", class = rotulo)
+        text("{s14}", class = valor)
+        text("[http()] 15. cliente: retries refaz a chamada em 5xx", class = rotulo)
+        text("{s15}", class = valor)
+        text("[http()] 16. cliente: on_error para um 404", class = rotulo)
+        text("{s16}", class = valor)
+        text("[http()] 17. cliente: extend('/v1') herda a configuração", class = rotulo)
+        text("{s17}", class = valor)
+        text("[http()] 18. cliente: cookies = false e clear_cookies()", class = rotulo)
+        text("{s18}", class = valor)
+        text("[http()] 19. cliente: multipart numa chamada api:post", class = rotulo)
+        text("{s19}", class = valor)
+        text("[http()] 20. cliente: abort numa chamada api:get", class = rotulo)
+        text("{s20}", class = valor)
+      }
+    }
+  }
+}

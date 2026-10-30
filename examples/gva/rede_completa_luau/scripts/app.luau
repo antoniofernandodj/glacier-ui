@@ -4,7 +4,7 @@
 -- Cada `s<N>` abaixo é uma seção da tela; o que aparece é o que o servidor realmente recebeu.
 
 local BASE = "http://127.0.0.1:8096"
-local AMOSTRA = "examples/gva/rede_completa/amostra.txt"
+local AMOSTRA = "examples/comum/rede_amostra.txt"
 
 -- Resume o eco JSON do servidor numa linha.
 local function eco(r: any): string

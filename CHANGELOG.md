@@ -8,6 +8,29 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## Não lançado
+
+### Adicionado
+
+- **`.gss`:** `opacity`, `calc()` (`+ - * /`, parênteses, `px`), `var()` em campos numéricos
+  (`spacing: var(--gap)`), `transition: background 150ms` em `<button>`, e os seletores
+  `:first-child`, `:last-child`, `:only-child` e `:nth-child(an+b)` (inclusive dentro de
+  `<foreach>`). Ver `docs/GSS_MODERNO.md`.
+- **Rede do `fetch`:** cookies por host (jar em memória; `cookies = false`, `clear_cookies()`),
+  `multipart/form-data` (`multipart = { fields, files }`) e cancelamento
+  (`abort_controller()` + `signal`). O cliente `http()` repassa os três (`cookies`, `signal`,
+  `multipart`; `set_cookies`, `clear_cookies`) e não repete uma chamada cancelada.
+- **`glacier_ui::net`** (Rust): `Requisicao`, `AbortHandle`, `Multipart` e `limpar_cookies`, a
+  mesma camada do `fetch` para quem escreve um `Component` em Rust.
+- Exemplos `rede_completa`, `rede_completa_luau`, `gvb_rede_completa`, `gvb_rede_completa_luau`
+  (20 casos de rede cada, contra `tools/servidor_rede.py`), `css_moderno` e os verificadores
+  `css_estrutural_check`, `tools/transition_check`.
+
+### Corrigido
+
+- `ctx.perform(…)` chamado no `init` de um componente Rust também era descartado (como o
+  `fetch`/`every` do Luau); agora roda quando a janela abre.
+
 ## glacier-cli 0.23.0 — 2026-10-30
 
 Motor dos projetos gerados: **glacier-ui 0.143**.

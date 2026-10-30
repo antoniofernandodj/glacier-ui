@@ -1,8 +1,16 @@
 # Rede do `fetch`: cookies, multipart e cancelamento
 
-Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo: `examples/gva/rede_completa` — `fetch`, o
-cliente `http()`, cookies, multipart, `abort`, `timeout`, `file://` e `download_file`, em 20
-casos na tela (precisa do servidor de teste: `python3 tools/servidor_rede.py`).
+Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em quatro formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
+`timeout`, `file://` e `download_file`, em 20 casos na tela (precisa do servidor de teste:
+`python3 tools/servidor_rede.py`):
+
+| | estado em Rust | estado em Luau |
+|---|---|---|
+| `.gva` | `rede_completa` | `rede_completa_luau` |
+| `.gvb` | `gvb_rede_completa` | `gvb_rede_completa_luau` |
+
+Os de Rust usam a API pública `glacier_ui::net` (abaixo) e um `Cliente` mínimo
+(`examples/comum/rede_rust.rs`); os de Luau, o `fetch` e o `http()` do prelúdio.
 
 O Glacier só traz **dados** de fora, pelo `fetch` da camada Lua. Isto é o que esse `fetch` aprendeu.
 
@@ -73,11 +81,38 @@ api:clear_cookies()                     -- esvazia os cookies do host da base_ur
 
 `cookies` no `http(base, opts)` é o padrão do cliente; um `cookies` na chamada vence.
 
+## Em Rust: `glacier_ui::net`
+
+O mesmo que o `fetch` faz está disponível a quem escreve um `Component` em Rust, dentro de um
+`ctx.perform(async { … })`, pela mesma camada (o mesmo jar, o mesmo multipart, o mesmo cancelamento):
+
+```rust
+use glacier_ui::net::{AbortHandle, Multipart, ArquivoMultipart, Requisicao, limpar_cookies};
+
+let res = Requisicao::post("https://api.exemplo/upload")
+    .cabecalho("Authorization", "Bearer …")
+    .timeout_ms(5000)
+    .multipart(Multipart { fields: vec![("titulo".into(), "olá".into())],
+                           files: vec![ArquivoMultipart { name: "anexo".into(), path: "a.pdf".into(),
+                                                          filename: None, content_type: None }] })
+    .enviar().await;                       // FetchResult { ok, status, body, error }
+
+let ctl = AbortHandle::novo();
+let r = Requisicao::get(url).cancelavel(&ctl).enviar().await;   // ctl.abort() de outra thread
+Requisicao::get(url).sem_cookies().baixar_para("/tmp/x.bin").enviar().await;
+limpar_cookies(None);
+```
+
+O cliente `http()` com `base_url`, interceptors e `retries` é do **Luau** (vive no prelúdio); em
+Rust, `examples/comum/rede_rust.rs` mostra um `Cliente` equivalente em ~100 linhas por cima de
+`Requisicao`.
+
 ## Como foi verificado
 
 O `rede_completa` roda contra o servidor de teste e mostra, em cada caso, o que o servidor
-**de fato recebeu** (cabeçalhos, corpo, cookies, partes do multipart). Os 20 casos passam
-(`docs/REDE.md` não lista os valores: eles estão na tela). Rodado num X virtual (`Xvfb`).
+**de fato recebeu** (cabeçalhos, corpo, cookies, partes do multipart). Os 20 casos passam nas
+quatro variantes, com os mesmos valores (a única diferença esperada é o caso 5, em que o Rust
+confere o tamanho do arquivo gravado e o Luau o relê em base64). Rodado num X virtual (`Xvfb`).
 
 ## O que NÃO está feito
 
