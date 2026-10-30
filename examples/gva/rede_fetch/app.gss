@@ -1,0 +1,4 @@
+.tela { padding: 20; spacing: 8; }
+.titulo { size: 22; bold: true; }
+.rotulo { size: 12; color: #A6ADC8; }
+.valor { size: 14; color: #A6E3A1; }

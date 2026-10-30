@@ -338,6 +338,8 @@ impl LuauComponent {
             storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
         )
         .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
+        // `abort_controller()` e `clear_cookies()`: o cancelamento e o jar do `fetch`.
+        install_rede(&luau).map_err(|e| format!("Erro ao instalar a rede Luau: {}", e))?;
         // Expõe o global `write_file(path, conteúdo)` (escrita de arquivo local).
         // A leitura correspondente é `fetch("file://…")` (ver `net::perform`).
         install_write_file(&luau)
@@ -1112,6 +1114,9 @@ impl LuauComponent {
         let mut body_bytes: Option<Vec<u8>> = None;
         let mut response_base64 = false;
         let mut timeout_ms: Option<u64> = None;
+        let mut cookies = true;
+        let mut abort: Option<crate::component::AbortHandle> = None;
+        let mut multipart: Option<crate::component::Multipart> = None;
         let (method, body, headers) = match opts {
             Some(o) => {
                 let method = o
@@ -1140,6 +1145,51 @@ impl LuauComponent {
                 if let Some(r) = o.get::<Option<String>>("response")? {
                     response_base64 = r.eq_ignore_ascii_case("base64");
                 }
+                // `cookies = false`: nada é enviado nem guardado no jar.
+                if let Some(c) = o.get::<Option<bool>>("cookies")? {
+                    cookies = c;
+                }
+                // `signal = abort_controller()`: permite cancelar o pedido depois.
+                if let Some(ud) = o.get::<Option<mlua::AnyUserData>>("signal")? {
+                    let ctl = ud.borrow::<AbortCtl>().map_err(|_| {
+                        mlua::Error::runtime("fetch: `signal` deve vir de abort_controller()")
+                    })?;
+                    abort = Some(ctl.0.clone());
+                }
+                // `multipart = { fields = { k = "v" }, files = { { name, path, filename?, content_type? } } }`
+                if let Some(m) = o.get::<Option<Table>>("multipart")? {
+                    let mut mp = crate::component::Multipart::default();
+                    if let Some(f) = m.get::<Option<Table>>("fields")? {
+                        for par in f.pairs::<String, mlua::Value>() {
+                            let (k, v) = par?;
+                            let texto = match v {
+                                mlua::Value::String(t) => t.to_str()?.to_string(),
+                                mlua::Value::Integer(n) => n.to_string(),
+                                mlua::Value::Number(n) => match numero_para_texto(n) { Some(t) => t, None => continue },
+                                mlua::Value::Boolean(b) => b.to_string(),
+                                _ => continue,
+                            };
+                            mp.fields.push((k, texto));
+                        }
+                        // `pairs` não tem ordem; a do formulário não importa para o servidor,
+                        // mas ordenar deixa a saída reproduzível.
+                        mp.fields.sort_by(|a, b| a.0.cmp(&b.0));
+                    }
+                    if let Some(files) = m.get::<Option<Table>>("files")? {
+                        for item in files.sequence_values::<Table>() {
+                            let t = item?;
+                            mp.files.push(crate::component::ArquivoMultipart {
+                                name: t.get::<Option<String>>("name")?.unwrap_or_else(|| "file".into()),
+                                path: t.get::<String>("path").map_err(|_| {
+                                    mlua::Error::runtime("fetch: cada arquivo de `multipart.files` precisa de `path`")
+                                })?,
+                                filename: t.get::<Option<String>>("filename")?,
+                                content_type: t.get::<Option<String>>("content_type")?,
+                            });
+                        }
+                    }
+                    multipart = Some(mp);
+                }
                 let mut headers = parse_headers_table(&o)?;
                 // Atalho `user_agent = "..."`: vira um header User-Agent, a menos
                 // que o chamador já tenha posto um em `headers` (esse vence). Sem
@@ -1160,6 +1210,9 @@ impl LuauComponent {
         pf.response_base64 = response_base64;
         pf.timeout_ms = timeout_ms;
         pf.download_to = download_to;
+        pf.cookies = cookies;
+        pf.abort = abort;
+        pf.multipart = multipart;
         Ok(pf)
     }
 
@@ -1674,6 +1727,36 @@ fn build_file_dialog(req: &Table) -> mlua::Result<FileDialogSpec> {
         default_name,
         filters,
     })
+}
+
+/// O que `abort_controller()` devolve: o lado que cancela de um `fetch`.
+struct AbortCtl(crate::component::AbortHandle);
+
+impl mlua::UserData for AbortCtl {
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        // `ctrl:abort()` — todo `fetch` que usa este controle termina com
+        // `ok = false` e `error = "cancelado"`.
+        methods.add_method("abort", |_, this, ()| {
+            this.0.abort();
+            Ok(())
+        });
+        methods.add_method("aborted", |_, this, ()| Ok(this.0.abortado()));
+    }
+}
+
+/// `abort_controller()` e `clear_cookies(host?)`.
+fn install_rede(luau: &Lua) -> mlua::Result<()> {
+    let novo = luau.create_function(|_, ()| Ok(AbortCtl(crate::component::AbortHandle::novo())))?;
+    luau.globals().set("abort_controller", novo)?;
+    let limpa = luau.create_function(|_, host: Option<String>| {
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::net::limpa_cookies(host.as_deref());
+        #[cfg(target_arch = "wasm32")]
+        let _ = host;
+        Ok(())
+    })?;
+    luau.globals().set("clear_cookies", limpa)?;
+    Ok(())
 }
 
 /// Constrói o [`WindowSpec`] a partir do pedido `open_window(opts)` do prelúdio.

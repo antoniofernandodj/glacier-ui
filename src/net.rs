@@ -16,7 +16,15 @@ use hyper_util::rt::TokioExecutor;
 
 use crate::component::{FetchResult, PendingFetch, StreamKind};
 
-type HttpsClient = Client<HttpsConnector<HttpConnector>, Full<Bytes>>;
+/// O corpo de um pedido: uma caixa, para o mesmo cliente enviar um texto, um
+/// `multipart/form-data` montado ou um fluxo.
+type Corpo = http_body_util::combinators::BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>;
+type HttpsClient = Client<HttpsConnector<HttpConnector>, Corpo>;
+
+fn corpo_cheio(b: Bytes) -> Corpo {
+    use http_body_util::BodyExt as _;
+    Full::new(b).map_err(|e| match e {}).boxed()
+}
 
 /// User-Agent padrão dos `fetch`, usado quando o chamador não define um (nem por
 /// header nem pelo opt `user_agent`). Ver [`send`].
@@ -89,6 +97,23 @@ pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
         return read_file(path, req.response_base64).await;
     }
     let enviar = send(&req);
+    // `signal = ctrl`: `ctrl:abort()` interrompe o pedido onde ele estiver (conexão,
+    // envio ou leitura) e o resultado é um erro `cancelado`, não uma resposta.
+    let enviar = async {
+        match &req.abort {
+            None => enviar.await,
+            Some(h) if h.abortado() => Ok(FetchResult::cancelado()),
+            Some(h) => {
+                let h = h.clone();
+                let espera = Box::pin(h.esperar());
+                let envio = Box::pin(enviar);
+                match futures::future::select(envio, espera).await {
+                    futures::future::Either::Left((r, _)) => r,
+                    futures::future::Either::Right(_) => Ok(FetchResult::cancelado()),
+                }
+            }
+        }
+    };
     let resultado = match req.timeout_ms {
         Some(ms) => {
             match tokio::time::timeout(std::time::Duration::from_millis(ms), enviar).await {
@@ -149,17 +174,42 @@ async fn read_file(path: &str, as_base64: bool) -> FetchResult {
 
 async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Error + Send + Sync>> {
     let method = Method::from_bytes(req.method.to_uppercase().as_bytes())?;
-    // Corpo binário (`body_base64`) vence o textual (`body`); quando nenhum foi
-    // definido, corpo vazio.
-    let raw_body = match &req.body_bytes {
-        Some(bytes) => bytes.clone(),
-        None => req.body.clone().unwrap_or_default().into_bytes(),
+    // `multipart = { … }`: o corpo é montado aqui, lendo os arquivos do disco, e o
+    // `Content-Type` (com o boundary) é o dele — vence o que o chamador pôs.
+    let (raw_body, tipo_multipart) = match &req.multipart {
+        Some(mp) => {
+            let (bytes, boundary) = montar_multipart(mp).await?;
+            (bytes, Some(format!("multipart/form-data; boundary={boundary}")))
+        }
+        // Corpo binário (`body_base64`) vence o textual (`body`); quando nenhum foi
+        // definido, corpo vazio.
+        None => (
+            match &req.body_bytes {
+                Some(bytes) => bytes.clone(),
+                None => req.body.clone().unwrap_or_default().into_bytes(),
+            },
+            None,
+        ),
     };
-    let body = Full::new(Bytes::from(raw_body));
+    let body = corpo_cheio(Bytes::from(raw_body));
 
     let mut builder = hyper::Request::builder().method(method).uri(&req.url);
     for (k, v) in &req.headers {
+        if tipo_multipart.is_some() && k.eq_ignore_ascii_case("content-type") {
+            continue;
+        }
         builder = builder.header(k.as_str(), v.as_str());
+    }
+    if let Some(t) = &tipo_multipart {
+        builder = builder.header(hyper::header::CONTENT_TYPE, t.as_str());
+    }
+    // Cookies: os que o jar guarda para este host, a menos que o chamador mande o
+    // próprio `Cookie` ou desligue (`cookies = false`).
+    if req.cookies
+        && !req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("cookie"))
+        && let Some(c) = cookie_header(&req.url)
+    {
+        builder = builder.header(hyper::header::COOKIE, c);
     }
     // User-Agent padrão quando o chamador não definiu um (via header ou o opt
     // `user_agent` de `fetch`): alguns servidores rejeitam/roteiam diferente sem
@@ -188,6 +238,9 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
 
     let response = client().request(request).await?;
     let status = response.status().as_u16();
+    if req.cookies {
+        guarda_cookies(&req.url, response.headers());
+    }
     // Lê o Content-Encoding ANTES de consumir o corpo.
     let gzipped = response
         .headers()
@@ -322,7 +375,7 @@ pub(crate) fn sse(url: String, headers: Vec<(String, String)>) -> impl Stream<It
             for (k, v) in &headers {
                 builder = builder.header(k.as_str(), v.as_str());
             }
-            let request = match builder.body(Full::new(Bytes::new())) {
+            let request = match builder.body(corpo_cheio(Bytes::new())) {
                 Ok(r) => r,
                 Err(e) => {
                     let _ = output.send(StreamEvent::Error(e.to_string())).await;
@@ -753,4 +806,162 @@ mod tests {
             assert_eq!(msgs, vec!["hello".to_string(), "world".to_string()]);
         });
     }
+}
+
+// ───────────────────────────────── Cookies ─────────────────────────────────
+
+/// Um cookie guardado. **Só do host que o definiu** (o atributo `Domain` é ignorado):
+/// um cookie nunca vai para um host que não o escreveu — a escolha segura, e a que cobre
+/// o uso de um app falando com a própria API.
+#[derive(Debug, Clone)]
+struct Cookie {
+    nome: String,
+    valor: String,
+    caminho: String,
+    seguro: bool,
+    expira: Option<std::time::Instant>,
+}
+
+/// O jar do processo, por host (com a porta). Em memória: não sobrevive ao app.
+fn jar() -> &'static std::sync::Mutex<std::collections::HashMap<String, Vec<Cookie>>> {
+    static JAR: OnceLock<std::sync::Mutex<std::collections::HashMap<String, Vec<Cookie>>>> =
+        OnceLock::new();
+    JAR.get_or_init(Default::default)
+}
+
+fn host_chave(uri: &hyper::Uri) -> Option<String> {
+    let h = uri.host()?.to_ascii_lowercase();
+    Some(match uri.port_u16() {
+        Some(p) => format!("{h}:{p}"),
+        None => h,
+    })
+}
+
+/// O valor do header `Cookie` para `url`, se o jar guarda algum que valha.
+fn cookie_header(url: &str) -> Option<String> {
+    let uri: hyper::Uri = url.parse().ok()?;
+    let chave = host_chave(&uri)?;
+    let https = uri.scheme_str() == Some("https");
+    let caminho = uri.path();
+    let agora = std::time::Instant::now();
+    let mut jar = jar().lock().ok()?;
+    let lista = jar.get_mut(&chave)?;
+    lista.retain(|c| c.expira.is_none_or(|e| e > agora));
+    let pares: Vec<String> = lista
+        .iter()
+        .filter(|c| (!c.seguro || https) && caminho.starts_with(&c.caminho))
+        .map(|c| format!("{}={}", c.nome, c.valor))
+        .collect();
+    (!pares.is_empty()).then(|| pares.join("; "))
+}
+
+/// Guarda os `Set-Cookie` de uma resposta. `Max-Age <= 0` apaga o cookie.
+fn guarda_cookies(url: &str, headers: &hyper::HeaderMap) {
+    let Ok(uri) = url.parse::<hyper::Uri>() else { return };
+    let Some(chave) = host_chave(&uri) else { return };
+    let mut novos = Vec::new();
+    for v in headers.get_all(hyper::header::SET_COOKIE) {
+        let Ok(texto) = v.to_str() else { continue };
+        let mut partes = texto.split(';');
+        let Some((nome, valor)) = partes.next().and_then(|p| p.split_once('=')) else { continue };
+        let mut c = Cookie {
+            nome: nome.trim().to_string(),
+            valor: valor.trim().to_string(),
+            caminho: "/".to_string(),
+            seguro: false,
+            expira: None,
+        };
+        let mut apagar = false;
+        for atr in partes {
+            let atr = atr.trim();
+            let (k, val) = atr.split_once('=').map_or((atr, ""), |(k, v)| (k, v));
+            match k.to_ascii_lowercase().as_str() {
+                "path" if val.starts_with('/') => c.caminho = val.to_string(),
+                "secure" => c.seguro = true,
+                "max-age" => match val.trim().parse::<i64>() {
+                    Ok(n) if n <= 0 => apagar = true,
+                    Ok(n) => c.expira = Some(std::time::Instant::now() + std::time::Duration::from_secs(n as u64)),
+                    Err(_) => {}
+                },
+                _ => {}
+            }
+        }
+        if !c.nome.is_empty() {
+            novos.push((c, apagar));
+        }
+    }
+    if novos.is_empty() {
+        return;
+    }
+    if let Ok(mut jar) = jar().lock() {
+        let lista = jar.entry(chave).or_default();
+        for (c, apagar) in novos {
+            lista.retain(|x| !(x.nome == c.nome && x.caminho == c.caminho));
+            if !apagar {
+                lista.push(c);
+            }
+        }
+    }
+}
+
+/// Esvazia o jar (de um host, ou de todos com `None`).
+pub(crate) fn limpa_cookies(host: Option<&str>) {
+    if let Ok(mut jar) = jar().lock() {
+        match host {
+            Some(h) => {
+                jar.remove(&h.to_ascii_lowercase());
+            }
+            None => jar.clear(),
+        }
+    }
+}
+
+// ─────────────────────────────── Multipart ────────────────────────────────
+
+/// Monta um `multipart/form-data`: devolve o corpo e o boundary. Lê cada arquivo inteiro
+/// em memória (`tokio::fs`, sem bloquear a UI).
+async fn montar_multipart(
+    mp: &crate::component::Multipart,
+) -> Result<(Vec<u8>, String), Box<dyn std::error::Error + Send + Sync>> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let boundary = format!("----glacier{nanos:x}{:x}", N.fetch_add(1, Ordering::Relaxed));
+    let mut corpo: Vec<u8> = Vec::new();
+    // Aspas e quebras de linha no nome quebrariam o cabeçalho (e seriam injeção nele).
+    let limpa = |s: &str| s.replace(['"', '\r', '\n'], "_");
+    for (nome, valor) in &mp.fields {
+        corpo.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{}\"\r\n\r\n", limpa(nome)).as_bytes());
+        corpo.extend_from_slice(valor.as_bytes());
+        corpo.extend_from_slice(b"\r\n");
+    }
+    for f in &mp.files {
+        let bytes = tokio::fs::read(&f.path)
+            .await
+            .map_err(|e| format!("multipart: não consegui ler '{}': {e}", f.path))?;
+        let arquivo = f.filename.clone().unwrap_or_else(|| {
+            std::path::Path::new(&f.path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("arquivo")
+                .to_string()
+        });
+        let tipo = f.content_type.as_deref().unwrap_or("application/octet-stream");
+        corpo.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\nContent-Type: {}\r\n\r\n",
+                limpa(&f.name),
+                limpa(&arquivo),
+                limpa(tipo)
+            )
+            .as_bytes(),
+        );
+        corpo.extend_from_slice(&bytes);
+        corpo.extend_from_slice(b"\r\n");
+    }
+    corpo.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    Ok((corpo, boundary))
 }

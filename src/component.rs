@@ -102,6 +102,87 @@ pub struct PendingFetch {
     /// `fetch` decodifica a resposta como texto (`String::from_utf8_lossy`),
     /// o que destrói bytes que não são UTF-8 válido.
     pub(crate) download_to: Option<String>,
+    /// `fetch(url, { cookies = false })` desliga o jar: nada é enviado nem guardado.
+    /// Ligado por padrão (ver `crate::net`, "Cookies").
+    pub(crate) cookies: bool,
+    /// `fetch(url, { signal = ctrl })`: o pedido termina com `ok = false` e
+    /// `error = "cancelado"` quando alguém chama `ctrl:abort()`.
+    pub(crate) abort: Option<AbortHandle>,
+    /// `fetch(url, { multipart = { fields = …, files = … } })`: o corpo é montado em
+    /// `multipart/form-data` na hora de enviar, lendo os arquivos do disco.
+    pub(crate) multipart: Option<Multipart>,
+}
+
+/// O que um `multipart = { … }` do `fetch` descreve.
+#[derive(Debug, Clone, Default)]
+pub struct Multipart {
+    /// Campos de texto, na ordem.
+    pub fields: Vec<(String, String)>,
+    /// Arquivos do disco, na ordem.
+    pub files: Vec<ArquivoMultipart>,
+}
+
+/// Um arquivo de um [`Multipart`].
+#[derive(Debug, Clone)]
+pub struct ArquivoMultipart {
+    /// O nome do campo do formulário.
+    pub name: String,
+    pub path: String,
+    /// O nome que o servidor recebe; padrão: o último componente de `path`.
+    pub filename: Option<String>,
+    /// Padrão: `application/octet-stream`.
+    pub content_type: Option<String>,
+}
+
+/// O lado que **cancela** de um `fetch` — o `abort_controller()` do Luau — e o futuro que
+/// o lado que espera aguarda. Feito à mão (flag + wakers), sem `tokio::sync`, para
+/// valer igual no alvo web.
+#[derive(Debug, Clone, Default)]
+pub struct AbortHandle(std::sync::Arc<AbortInner>);
+
+#[derive(Debug, Default)]
+struct AbortInner {
+    abortado: std::sync::atomic::AtomicBool,
+    wakers: std::sync::Mutex<Vec<std::task::Waker>>,
+}
+
+impl AbortHandle {
+    pub fn novo() -> Self {
+        Self::default()
+    }
+
+    /// Cancela: todo `fetch` que usa este controle termina como cancelado.
+    pub fn abort(&self) {
+        self.0.abortado.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(mut w) = self.0.wakers.lock() {
+            for waker in w.drain(..) {
+                waker.wake();
+            }
+        }
+    }
+
+    pub fn abortado(&self) -> bool {
+        self.0.abortado.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Um futuro que fica pronto quando alguém chama [`AbortHandle::abort`].
+    pub fn esperar(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
+        let h = self.clone();
+        std::future::poll_fn(move |cx| {
+            if h.abortado() {
+                return std::task::Poll::Ready(());
+            }
+            if let Ok(mut w) = h.0.wakers.lock() {
+                w.push(cx.waker().clone());
+            }
+            // Pode ter sido cancelado entre o teste e o registro.
+            if h.abortado() {
+                std::task::Poll::Ready(())
+            } else {
+                std::task::Poll::Pending
+            }
+        })
+    }
 }
 
 impl PendingFetch {
@@ -122,6 +203,9 @@ impl PendingFetch {
             response_base64: false,
             timeout_ms: None,
             download_to: None,
+            cookies: true,
+            abort: None,
+            multipart: None,
         }
     }
 }
@@ -141,6 +225,12 @@ pub struct FetchResult {
 }
 
 impl FetchResult {
+    /// O pedido foi cancelado por `ctrl:abort()`: `ok = false`, `status = 0` e
+    /// `error = "cancelado"`.
+    pub fn cancelado() -> Self {
+        Self::error("cancelado")
+    }
+
     /// Um resultado de falha (sem resposta): `ok = false`, `status = 0`.
     pub fn error(msg: impl Into<String>) -> Self {
         Self {
