@@ -34,32 +34,37 @@ HTML. No `.gvb` o texto é atributo: `b(content = "isto")`.
 
 ### No `.gvb`
 
-O `.gvb` não mistura texto com elementos: o texto é sempre o atributo `content`. Então
-um parágrafo é uma sequência de trechos, cada um uma tag com `content`:
+O `.gvb` não mistura texto com elementos: o texto é sempre um atributo. Nas tags de
+texto (`text`, `markdown`, `prose`, `p`, `b`, `i`, `code`, `u`, `s`, `a`, `span`…) o
+**primeiro argumento sem nome** vale como `content`:
 
 ```
 prose(class = corpo) {
   p {
-    span(content = "Olá, ")
-    b(content = "{usuario}")
-    span(content = "! Veja ")
-    a(href = "https://exemplo.com", content = "o site")
-    b {
-      i(content = "negrito itálico")
-    }
+    span("Olá, ") b("{usuario}") span("! Veja ")
+    a("o site", href = "https://exemplo.com")
+    b { i("negrito itálico") }
   }
   p {
-    s(content = "tachado")
+    s("tachado")
   }
 }
 ```
 
-As mesmas tags e os mesmos atributos do `.gva`; só muda o jeito de escrever o texto.
-**O espaço é do texto**, não do formato: `"Olá, "` leva o espaço dentro das aspas, e a
-quebra de linha entre duas tags não conta. (Dentro de `prose` e das tags inline o
-dessugar põe essa quebra num comentário XML — mantém a contagem de linhas dos erros e
-não vira espaço.) Conferido com `gvb_check`: o `.gvb` acima e o `.gva` equivalente dão
-a mesma árvore.
+`b("x")` é `b(content = "x")`; o resto da lista segue `nome = valor`, depois de uma
+vírgula (`a("o site", href = …)`). O mesmo vale para `text("Olá", class = titulo)`.
+
+- O texto sem nome vem **primeiro** na lista, e não pode coexistir com `content = …`
+  na mesma tag (erro: "tem o texto duas vezes").
+- Fora das tags de texto continua erro (`button("Salvar")` → "não aceita texto sem
+  nome"): em `button` o texto é `text`, em `textinput` é `placeholder`, e `nome = valor`
+  diz qual. Estender é uma linha na tabela `posicional` de `src/gvb.rs`.
+- **O espaço é do texto**, não do formato: `"Olá, "` leva o espaço dentro das aspas, e a
+  quebra de linha entre duas tags não conta. (Dentro de `prose` e das tags inline o
+  dessugar põe essa quebra num comentário XML — mantém a contagem de linhas dos erros e
+  não vira espaço.)
+
+Conferido com `gvb_check`: o `.gvb` acima e o `.gva` equivalente dão a mesma árvore.
 
 ## `<a>`
 

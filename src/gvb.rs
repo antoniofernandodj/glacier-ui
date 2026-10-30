@@ -303,7 +303,7 @@ impl Parser {
     /// Os atributos de `( nome = valor, … )`, com o `(` sob o cursor. Devolve
     /// também a linha do `)`. A vírgula separa; a última é opcional; a quebra
     /// de linha não significa nada.
-    fn attrs(&mut self) -> Res<(Vec<Attr>, u32)> {
+    fn attrs(&mut self, tag: &str) -> Res<(Vec<Attr>, u32)> {
         let (open_line, open_col) = (self.line, (self.pos - self.line_start + 1) as u32);
         self.bump(); // `(`
         let mut attrs = Vec::new();
@@ -323,7 +323,7 @@ impl Parser {
                     self.bump();
                     return Ok((attrs, end));
                 }
-                Some(c) if Self::is_ident(c) || c == ':' => {}
+                Some(c) if Self::is_ident(c) || c == ':' || c == '"' => {}
                 Some(c) => {
                     return self.err_hint(
                         format!("não esperava `{c}` na lista de atributos"),
@@ -332,6 +332,43 @@ impl Parser {
                 }
             }
             let line = self.line;
+            // Texto sem nome, **primeiro** da lista: `b("negrito")`,
+            // `a("o site", href = "…")`. Vale como `content` nas tags de texto
+            // (ver `posicional`); é o que `content = "…"` diria, mais curto.
+            if self.peek() == Some('"') {
+                let Some(nome) = posicional(tag) else {
+                    return self.err_hint(
+                        format!("`{tag}` não aceita texto sem nome"),
+                        "um atributo é `nome = valor`; o texto sem nome só vale nas tags de texto (`text`, `prose`, `p`, `b`, `i`, `a`…)",
+                    );
+                };
+                if !attrs.is_empty() {
+                    return self.err_hint(
+                        "o texto sem nome vem primeiro na lista",
+                        "o texto vai antes dos atributos: `tag(\"texto\", outro = valor)`",
+                    );
+                }
+                let value = self.value()?;
+                attrs.push(Attr {
+                    name: nome.to_string(),
+                    value,
+                    line,
+                });
+                self.skip_ws()?;
+                match self.peek() {
+                    Some(',') => {
+                        self.bump();
+                    }
+                    Some(')') => {}
+                    _ => {
+                        return self.err_hint(
+                            "esperava `,` ou `)` depois do texto",
+                            "os demais atributos vêm depois de uma vírgula: `a(\"o site\", href = x)`",
+                        );
+                    }
+                }
+                continue;
+            }
             // `:nome` é uma ligação: o valor é o NOME de uma chave do contexto.
             let bind = self.peek() == Some(':');
             if bind {
@@ -444,9 +481,16 @@ impl Parser {
         let m = self.mark();
         self.skip_ws()?;
         if self.peek() == Some('(') {
-            let (attrs, end) = self.attrs()?;
+            let (attrs, end) = self.attrs(&node.tag)?;
             node.attrs = attrs;
             node.end_line = end;
+            // `content` duas vezes (sem nome e com nome) é engano, não escolha.
+            if node.attrs.iter().filter(|a| a.name == "content").count() > 1 {
+                return self.err_hint(
+                    format!("`{}` tem o texto duas vezes", node.tag),
+                    "use o texto sem nome OU `content = \"…\"`, não os dois",
+                );
+            }
             self.check_bindings(&node)?;
         } else {
             self.reset(m);
@@ -458,7 +502,7 @@ impl Parser {
         if self.peek() == Some('"') && !raw {
             return self.err_hint(
                 format!("texto solto depois de `{}`", node.tag),
-                "o texto é um atributo: `button(text = \"Salvar\")`, `text(content = \"oi\")`",
+                "o texto é um atributo: `button(text = \"Salvar\")`, `text(\"oi\")`",
             );
         }
         if self.peek() == Some('"') {
@@ -721,7 +765,7 @@ impl Parser {
         // parênteses, depois da variável: `each @itens as item(fallback = X) { … }`.
         let mut body_attrs = Vec::new();
         if self.peek() == Some('(') {
-            body_attrs = self.attrs()?.0;
+            body_attrs = self.attrs("")?.0;
             self.skip_ws()?;
         }
         if self.peek() != Some('{') {
@@ -1000,6 +1044,18 @@ impl Default for Out {
 /// é um espaço: `b(content = "Ana")` seguido de `span(content = "!")` viraria
 /// "Ana !". Quem escreve `.gvb` põe o espaço **no texto** (`content = "Olá, "`),
 /// então a quebra de formatação não pode contar.
+/// A que atributo corresponde o texto sem nome de `tag(\"…\")`: `content`, nas tags
+/// cujo corpo é texto. Outras (`button` quer `text`, `textinput` quer `placeholder`…)
+/// ficam de fora de propósito: lá "o texto" é ambíguo, e `nome = valor` diz qual.
+fn posicional(tag: &str) -> Option<&'static str> {
+    matches!(
+        tag.to_ascii_lowercase().as_str(),
+        "text" | "texto" | "markdown" | "md"
+    )
+    .then_some("content")
+    .or_else(|| tag_inline(tag).then_some("content"))
+}
+
 fn tag_inline(tag: &str) -> bool {
     matches!(
         tag.to_ascii_lowercase().as_str(),
