@@ -3518,10 +3518,41 @@ local res = fetch(url, {
 | `user_agent` | atalho para o header (um `headers` explícito ganha) |
 | `timeout` | teto em **milissegundos** para a requisição inteira; estourado, `ok=false`, `status=0`, `error="timeout após …"` |
 | `response = "base64"` | só para `file://`: devolve bytes em base64 em vez de texto |
+| `cookies` | `false` ignora o jar de cookies neste pedido (ligado por padrão) |
+| `signal` | um `abort_controller()`: `ctl:abort()` cancela o pedido |
+| `multipart` | `{ fields = {…}, files = {{ name, path, filename?, content_type? }} }` → `multipart/form-data` |
 
 `res.ok` é o que se testa — `status` é o código HTTP e `error` traz a mensagem
 quando a requisição nem chegou a responder. **`url` aceita `file://`**, que é
 como se lê um arquivo local (a escrita é `write_file`).
+
+**Cookies, `multipart` e cancelamento do `fetch`:**
+
+```lua
+-- Cookies: um jar por HOST, em memória. O Set-Cookie é guardado e o Cookie vai sozinho.
+fetch("https://api.exemplo/login", { method = "POST", body = creds })   -- guarda a sessão
+local perfil = fetch("https://api.exemplo/perfil")                       -- a sessão vai junto
+fetch(url, { cookies = false })        -- este pedido ignora o jar
+clear_cookies()                        -- esvazia tudo; clear_cookies("api.exemplo") só um host
+
+-- Upload: campos + arquivos do disco, lidos no envio (sem travar a janela).
+local up = fetch(url, { method = "POST", multipart = {
+    fields = { titulo = "olá" },
+    files = { { name = "anexo", path = "relatorio.pdf", content_type = "application/pdf" } },
+} })
+
+-- Cancelar: o controle vai em `signal`; abort() pode vir de um botão ou de um timer.
+local ctl = abort_controller()
+after(5000, function() ctl:abort() end)
+local res = fetch(url, { signal = ctl })
+if res.error == "cancelado" then … end   -- ok = false, status = 0
+```
+
+O cookie só vai para o **host que o definiu** (o `Domain` é ignorado); vale `Path`,
+`Secure` (só em `https`) e `Max-Age` (`<= 0` apaga). `Expires`/`SameSite` não são lidos, e o
+jar não vai para o disco. Um `Cookie` escrito em `headers` vence o jar. O multipart lê cada
+arquivo **inteiro em memória**. `sse` e `websocket` não usam o jar nem o `signal`.
+O exemplo `rede_completa` roda tudo isso contra `tools/servidor_rede.py`.
 
 #### `http(base_url?, opts?) -> client` — um cliente reutilizável sobre o `fetch`
 
@@ -3564,10 +3595,12 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 | `timeout` | ms, por requisição — desce para o `fetch` |
 | `retries` | tentativas **extras** (0 = uma tentativa). Reenvia enquanto `status == 0`, `429` ou `>= 500` |
 | `retry_on` | `function(res) -> boolean` — sobrescreve o critério de retry |
+| `cookies` | `false` faz este cliente ignorar o jar (um `cookies` na chamada tem prioridade) |
 
 **Setters (encadeáveis, cada um devolve o cliente):** `set_base_url`,
 `set_header(k, v)`, `set_headers(t)`, `remove_header(k)`, `set_query(k, v)`,
-`set_timeout(ms)`, `set_retries(n)`, `set_retry_on(fn)`.
+`set_timeout(ms)`, `set_retries(n)`, `set_retry_on(fn)`, `set_cookies(bool)`, e
+`client:clear_cookies()` (esvazia os cookies do host da `base_url`).
 
 **Interceptors** (rodam na ordem de registro):
 
@@ -3581,7 +3614,10 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 |---|---|
 | `client:get(path, spec?)` / `:delete` / `:head` | |
 | `client:post(path, body?, spec?)` / `:put` / `:patch` | `body` tabela → `json.encode` + `Content-Type: application/json` |
-| `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout? }` |
+| `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout?, cookies?, signal?, multipart? }` |
+
+`signal` (um `abort_controller()`) cancela a chamada — e **não** a repete, mesmo com `retries`.
+`multipart` envia `multipart/form-data` pela `base_url` do cliente: `api:post("/upload", nil, { multipart = … })`.
 
 **A resposta** é a do `fetch` (`{ ok, status, body, error }`) mais:
 
@@ -3593,8 +3629,8 @@ devolve um cliente novo com a `base_url` estendida, os headers/query/timeout/
 retries mesclados e **os interceptors do pai copiados** (o filho acrescenta sem
 afetar o pai).
 
-**O que ele não faz:** cabeçalhos da resposta (o `fetch` não os devolve),
-cancelamento e backoff **entre** retries (os reenvios são imediatos — para
+**O que ele não faz:** cabeçalhos da resposta (o `fetch` não os devolve)
+e backoff **entre** retries (os reenvios são imediatos — para
 espaçar, componha com `after`).
 
 #### `sse(url, opts?) -> handle` e `websocket(url, opts?) -> handle`

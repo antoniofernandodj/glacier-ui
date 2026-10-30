@@ -1,0 +1,55 @@
+<screen title="Rede completa" size="860 880">
+  <resources>
+    <link rel="stylesheet" href="examples/gva/rede_completa/app.gss" />
+    <script src="scripts/app.luau"></script>
+  </resources>
+
+  <container class="caixa">
+    <scrollable class="rolagem">
+      <column class="tela">
+        <text class="titulo">Rede: fetch, cliente http(), cookies, multipart e abort</text>
+        <text class="rotulo">Precisa do servidor de teste: python3 tools/servidor_rede.py (porta 8096).</text>
+      <text class="rotulo">[fetch] 1. GET simples com query</text>
+      <text class="valor">{s1}</text>
+      <text class="rotulo">[fetch] 2. POST com corpo JSON e cabeçalho próprio</text>
+      <text class="valor">{s2}</text>
+      <text class="rotulo">[fetch] 3. timeout = 300 ms contra uma rota de 4 s</text>
+      <text class="valor">{s3}</text>
+      <text class="rotulo">[fetch] 4. fetch("file://…") lê um arquivo local</text>
+      <text class="valor">{s4}</text>
+      <text class="rotulo">[fetch] 5. download_file grava o corpo cru em disco</text>
+      <text class="valor">{s5}</text>
+      <text class="rotulo">[cookies] 6. o jar guarda e devolve os cookies sozinho</text>
+      <text class="valor">{s6}</text>
+      <text class="rotulo">[cookies] 7. cookies = false: este pedido ignora o jar</text>
+      <text class="valor">{s7}</text>
+      <text class="rotulo">[cookies] 8. Max-Age=0 apaga um cookie; o outro fica</text>
+      <text class="valor">{s8}</text>
+      <text class="rotulo">[cookies] 9. clear_cookies() esvazia o jar</text>
+      <text class="valor">{s9}</text>
+      <text class="rotulo">[multipart] 10. multipart/form-data: campos + arquivo do disco</text>
+      <text class="valor">{s10}</text>
+      <text class="rotulo">[abort] 11. abort_controller cancela o fetch de 4 s</text>
+      <text class="valor">{s11}</text>
+      <text class="rotulo">[http()] 12. cliente: base_url + headers + query</text>
+      <text class="valor">{s12}</text>
+      <text class="rotulo">[http()] 13. cliente: POST com tabela vira JSON</text>
+      <text class="valor">{s13}</text>
+      <text class="rotulo">[http()] 14. cliente: on_request / on_response (interceptors)</text>
+      <text class="valor">{s14}</text>
+      <text class="rotulo">[http()] 15. cliente: retries refaz a chamada em 5xx</text>
+      <text class="valor">{s15}</text>
+      <text class="rotulo">[http()] 16. cliente: on_error para um 404</text>
+      <text class="valor">{s16}</text>
+      <text class="rotulo">[http()] 17. cliente: extend("/v1") herda a configuração</text>
+      <text class="valor">{s17}</text>
+      <text class="rotulo">[http()] 18. cliente: cookies = false e clear_cookies()</text>
+      <text class="valor">{s18}</text>
+      <text class="rotulo">[http()] 19. cliente: multipart numa chamada api:post</text>
+      <text class="valor">{s19}</text>
+      <text class="rotulo">[http()] 20. cliente: abort numa chamada api:get</text>
+      <text class="valor">{s20}</text>
+      </column>
+    </scrollable>
+  </container>
+</screen>

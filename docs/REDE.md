@@ -1,7 +1,8 @@
 # Rede do `fetch`: cookies, multipart e cancelamento
 
-Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo: `examples/gva/rede_fetch` (precisa do servidor
-de teste: `python3 tools/servidor_rede.py`).
+Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo: `examples/gva/rede_completa` — `fetch`, o
+cliente `http()`, cookies, multipart, `abort`, `timeout`, `file://` e `download_file`, em 20
+casos na tela (precisa do servidor de teste: `python3 tools/servidor_rede.py`).
 
 O Glacier só traz **dados** de fora, pelo `fetch` da camada Lua. Isto é o que esse `fetch` aprendeu.
 
@@ -57,6 +58,26 @@ if res.error == "cancelado" then … end           -- ok = false, status = 0
 
 `ctl:abort()` interrompe o pedido onde ele estiver (conexão, envio ou leitura), e `ctl:aborted()`
 diz se já foi chamado. Um mesmo controle pode cancelar vários `fetch`.
+
+## No cliente `http()`
+
+O cliente `http(base_url, opts)` repassa tudo ao `fetch`:
+
+```lua
+local api = http("https://api.exemplo", { headers = { ["X-Api-Key"] = k }, cookies = true })
+api:post("/upload", nil, { multipart = { fields = { t = "x" }, files = {{ name = "f", path = "a.pdf" }} } })
+api:get("/lento", { signal = ctl })     -- cancela; e um cancelamento NUNCA é repetido pelos retries
+api:set_cookies(false)                  -- este cliente ignora o jar
+api:clear_cookies()                     -- esvazia os cookies do host da base_url
+```
+
+`cookies` no `http(base, opts)` é o padrão do cliente; um `cookies` na chamada vence.
+
+## Como foi verificado
+
+O `rede_completa` roda contra o servidor de teste e mostra, em cada caso, o que o servidor
+**de fato recebeu** (cabeçalhos, corpo, cookies, partes do multipart). Os 20 casos passam
+(`docs/REDE.md` não lista os valores: eles estão na tela). Rodado num X virtual (`Xvfb`).
 
 ## O que NÃO está feito
 

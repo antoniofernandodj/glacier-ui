@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
-"""Servidor local para testar o `fetch` (examples/gva/rede_fetch): cookie, eco, upload, rota lenta.
+"""Servidor local para testar a rede do Glacier (examples/gva/rede_completa): cookies, eco JSON,
+upload multipart, rota lenta, falhas com contagem (retries), status e download.
 
     python3 tools/servidor_rede.py [porta]     # padrão 8096
 """
-import re, sys, time
+import json, re, sys, time
+from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+CONTADORES = {}
+
+
+def eco_json(h, corpo=b""):
+    u = urlparse(h.path)
+    pegar = ("x-api-key", "x-trace", "authorization", "accept", "content-type", "cookie")
+    dados = {
+        "method": h.command,
+        "path": u.path,
+        "query": {k: v[0] for k, v in parse_qs(u.query).items()},
+        "headers": {k: h.headers.get(k) for k in pegar if h.headers.get(k) is not None},
+        "body": corpo.decode("utf-8", "replace"),
+    }
+    h._resp(json.dumps(dados), extra=[("Content-Type", "application/json")])
+
 
 class H(BaseHTTPRequestHandler):
     def _resp(self, texto, status=200, extra=None):
@@ -17,14 +35,34 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _caminho(self):
+        # `/v1/...` é o mesmo que `/...`: serve para testar `api:extend("/v1")`.
+        return re.sub(r"^/v1", "", urlparse(self.path).path)
+
     def do_GET(self):
-        if self.path == "/set":
+        p = self._caminho()
+        if p == "/json":
+            return eco_json(self)
+        if p == "/falha":
+            # falha com 500 nas primeiras `ate` chamadas, depois responde 200.
+            ate = int(parse_qs(urlparse(self.path).query).get("ate", ["2"])[0])
+            n = CONTADORES.get("falha", 0) + 1
+            CONTADORES["falha"] = n
+            if n <= ate:
+                return self._resp(f"falhou na tentativa {n}", 500)
+            CONTADORES["falha"] = 0
+            return self._resp(json.dumps({"tentativa": n}), extra=[("Content-Type", "application/json")])
+        if p.startswith("/status/"):
+            return self._resp(f"status {p[8:]}", int(p[8:]))
+        if p == "/download":
+            return self._resp("".join(chr(65 + i % 26) for i in range(2000)))
+        if p == "/set":
             self._resp("cookie definido", extra=[("Set-Cookie", "sid=abc123; Path=/"), ("Set-Cookie", "tema=escuro; Path=/; Max-Age=3600")])
-        elif self.path == "/apaga":
+        elif p == "/apaga":
             self._resp("cookie apagado", extra=[("Set-Cookie", "sid=; Path=/; Max-Age=0")])
-        elif self.path == "/eco":
+        elif p == "/eco":
             self._resp("Cookie: " + self.headers.get("Cookie", "(nenhum)"))
-        elif self.path == "/lento":
+        elif p == "/lento":
             time.sleep(4)
             try:
                 self._resp("demorou 4s")
@@ -36,7 +74,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         corpo = self.rfile.read(n)
-        if self.path != "/upload":
+        if self._caminho() in ("/json",):
+            return eco_json(self, corpo)
+        if self._caminho() != "/upload":
             return self._resp("não achei", 404)
         tipo = self.headers.get("Content-Type", "")
         m = re.search(r"boundary=(.+)", tipo)

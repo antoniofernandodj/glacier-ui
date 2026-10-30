@@ -1102,6 +1102,9 @@ end
 --
 --   local r = api:get("/itens", { query = { page = 1 } })
 --   local r = api:post("/itens", { nome = "x" })   -- body tabela → JSON + Content-Type
+--   api:post("/upload", nil, { multipart = { fields = { t = "x" }, files = {{ name = "f", path = "a.pdf" }} } })
+--   api:get("/lento", { signal = ctl })               -- ctl = abort_controller()
+--   http(base, { cookies = false })                   -- este cliente ignora o jar
 --   if r.ok then usar(r.json) end                  -- r.json = corpo já decodificado
 --
 -- A resposta é a do `fetch` (`{ ok, status, body, error }`) mais:
@@ -1171,6 +1174,7 @@ function http(base_url: string?, opts: any?): any
         timeout = opts.timeout,
         retries = opts.retries or 0,
         retry_on = opts.retry_on, -- function(res) -> boolean; nil = padrão (0, 429, 5xx)
+        cookies = opts.cookies, -- false = o cliente ignora o jar; nil = ligado (o padrão do fetch)
         _req = {}, -- interceptors de requisição
         _res = {}, -- interceptors de resposta
         _err = {}, -- error handlers
@@ -1210,6 +1214,17 @@ function Http:set_retry_on(fn: any)
     self.retry_on = fn
     return self
 end
+-- `false` desliga o jar de cookies para todas as chamadas deste cliente.
+function Http:set_cookies(ligado: boolean?)
+    self.cookies = ligado
+    return self
+end
+-- Esvazia os cookies guardados para o host da `base_url` deste cliente.
+function Http:clear_cookies()
+    local host = string.match(self.base_url, "^https?://([^/]+)")
+    clear_cookies(host)
+    return self
+end
 function Http:on_request(fn: any)
     table.insert(self._req, fn)
     return self
@@ -1234,6 +1249,7 @@ function Http:extend(base_path: string?, opts: any?): any
         timeout = if opts.timeout ~= nil then opts.timeout else self.timeout,
         retries = if opts.retries ~= nil then opts.retries else self.retries,
         retry_on = opts.retry_on or self.retry_on,
+        cookies = if opts.cookies ~= nil then opts.cookies else self.cookies,
     })
     for _, h in self._req do
         table.insert(child._req, h)
@@ -1257,6 +1273,9 @@ function Http:request(spec: any): any
         query = _http_merge(self.query, spec.query),
         body = spec.body,
         timeout = if spec.timeout ~= nil then spec.timeout else self.timeout,
+        cookies = if spec.cookies ~= nil then spec.cookies else self.cookies,
+        signal = spec.signal, -- abort_controller(): cancela esta chamada
+        multipart = spec.multipart, -- { fields = {…}, files = {{ name, path, … }} }
     }
 
     -- interceptors de requisição: podem mutar `req` OU devolver uma tabela nova.
@@ -1267,9 +1286,12 @@ function Http:request(spec: any): any
         end
     end
 
-    -- corpo tabela → JSON, com Content-Type se ninguém pôs um.
+    -- corpo tabela → JSON, com Content-Type se ninguém pôs um. Com `multipart`, o corpo é
+    -- o formulário montado pelo motor (e o Content-Type, com o boundary, é dele).
     local body = req.body
-    if type(body) == "table" then
+    if req.multipart ~= nil then
+        body = nil
+    elseif type(body) == "table" then
         body = json.encode(body)
         local tem_ct = false
         for k in req.headers do
@@ -1295,9 +1317,14 @@ function Http:request(spec: any): any
             headers = req.headers,
             body = body,
             timeout = req.timeout,
+            cookies = req.cookies,
+            signal = req.signal,
+            multipart = req.multipart,
         })
         local repetir
-        if self.retry_on then
+        if res.error == "cancelado" then
+            repetir = false -- cancelar é decisão de quem chamou: não se repete
+        elseif self.retry_on then
             repetir = self.retry_on(res) == true
         else
             repetir = res.status == 0 or res.status == 429 or res.status >= 500

@@ -735,8 +735,8 @@ name = "css_estrutural_check"
 path = "examples/gva/css_estrutural_check/main.rs"
 
 [[example]]
-name = "rede_fetch"
-path = "examples/gva/rede_fetch/main.rs"
+name = "rede_completa"
+path = "examples/gva/rede_completa/main.rs"
 
 [[example]]
 name = "prose_check"

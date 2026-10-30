@@ -3,7 +3,7 @@
 **Estado:** em andamento (2026-10-30), glacier-ui 0.143.0. **Fases 0 e 2 feitas**, com as
 ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada**
 (nada remoto além de dados); **3 e 4 adiadas** por decisão (acessibilidade e WASM);
-**Fase 5 feita, menos `@keyframes`** (`opacity`, `calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver `docs/GSS_MODERNO.md`); **Fase 6 em parte** (cookies por host, multipart e `abort`; falta o progresso — ver `docs/REDE.md`); 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Fase 5 feita, menos `@keyframes`** (`opacity`, `calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver `docs/GSS_MODERNO.md`); **Fase 6 em parte** (cookies por host, multipart, `abort`, também no cliente `http()`; falta o progresso — ver `docs/REDE.md`); 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
