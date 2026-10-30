@@ -4268,6 +4268,19 @@ fn render_canvas<'a>(node: &UiNode) -> Element<'a, EngineMessage> {
         .into()
 }
 
+/// A mensagem de um clique num `<a>`: `href` abre no navegador do SO (a mesma
+/// ação built-in `open:` do `on_click`), `navigate` troca de tela, `on_click` é
+/// uma ação do app. Mais de um destino: vale o primeiro, nessa ordem.
+fn link_message(l: &crate::parser::SpanLink) -> EngineMessage {
+    if let Some(href) = l.href.as_ref().filter(|h| !h.trim().is_empty()) {
+        return EngineMessage::UiClick(format!("open:{}", href.trim()));
+    }
+    if let Some(destino) = l.navigate.as_ref().filter(|n| !n.trim().is_empty()) {
+        return EngineMessage::Navigate(destino.clone());
+    }
+    EngineMessage::UiClick(l.on_click.clone().unwrap_or_default())
+}
+
 pub fn render_node<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -4316,6 +4329,74 @@ pub fn render_node<'a>(
             }
             // Recortado na própria caixa: um título mais largo que a coluna não
             // pinta por cima do botão vizinho. Ver `crate::overflow`.
+            crate::overflow::clip(
+                t.width(parse_length(&node.width))
+                    .height(parse_length(&node.height)),
+            )
+            .into()
+        }
+        NodeType::Markdown { content, size } => crate::overflow::clip(
+            container(crate::markdown::view(content.as_str(), size.unwrap_or(16.0)))
+                .width(parse_length(&node.width))
+                .height(parse_length(&node.height)),
+        )
+        .into(),
+        NodeType::RichText { spans, size, color } => {
+            use iced::widget::{rich_text, span};
+            let cor_base = color.as_deref().and_then(parse_hex_color);
+            let itens: Vec<iced::widget::text::Span<'a, usize, Font>> = spans
+                .iter()
+                .enumerate()
+                .map(|(i, sp)| {
+                    let mut f = Font::DEFAULT;
+                    if sp.code {
+                        f = Font::MONOSPACE;
+                    }
+                    if sp.bold {
+                        f.weight = iced::font::Weight::Bold;
+                    }
+                    if sp.italic {
+                        f.style = iced::font::Style::Italic;
+                    }
+                    let mut s = span(sp.content.as_str()).font(f);
+                    if let Some(sz) = size {
+                        s = s.size(*sz);
+                    }
+                    // Link: azul sublinhado, a convenção que o usuário reconhece.
+                    // Cor explícita no trecho vence; depois a do parágrafo.
+                    let propria = sp.color.as_deref().and_then(parse_hex_color);
+                    let col = propria.or(if sp.link.is_some() {
+                        Some(Color::from_rgb8(0x89, 0xB4, 0xFA))
+                    } else {
+                        cor_base
+                    });
+                    if let Some(c) = col {
+                        s = s.color(c);
+                    }
+                    if sp.underline || sp.link.is_some() {
+                        s = s.underline(true);
+                    }
+                    if sp.strike {
+                        s = s.strikethrough(true);
+                    }
+                    if sp.link.is_some() {
+                        s = s.link(i);
+                    }
+                    s
+                })
+                .collect();
+            let mut t = rich_text(itens).on_link_click(move |i: usize| {
+                match spans.get(i).and_then(|s| s.link.as_ref()) {
+                    Some(l) => link_message(l),
+                    None => EngineMessage::UiClick(String::new()),
+                }
+            });
+            if let Some(sz) = size {
+                t = t.size(*sz);
+            }
+            if let Some(align) = parse_text_align(node.text_align()) {
+                t = t.align_x(align);
+            }
             crate::overflow::clip(
                 t.width(parse_length(&node.width))
                     .height(parse_length(&node.height)),

@@ -95,6 +95,7 @@ pub mod luau;
 #[cfg(target_arch = "wasm32")]
 #[path = "luau_web.rs"]
 pub mod luau;
+mod markdown;
 pub mod menu;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;

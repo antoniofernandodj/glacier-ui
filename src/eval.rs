@@ -2739,6 +2739,34 @@ fn eval_owned(
                 .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
+        NodeType::Markdown { content, size } => NodeType::Markdown {
+            content: process_tpl(content, context),
+            size: num_template(NumAttr::Size).or(*size).or(style.size),
+        },
+        NodeType::RichText { spans, size, color } => NodeType::RichText {
+            spans: spans
+                .iter()
+                .map(|sp| crate::parser::TextSpan {
+                    content: process_tpl(&sp.content, context),
+                    color: sp.color.as_ref().map(|c| process_tpl(c, context)),
+                    link: sp.link.as_ref().map(|l| crate::parser::SpanLink {
+                        href: l.href.as_ref().map(|h| process_tpl(h, context)),
+                        navigate: l.navigate.as_ref().map(|n| process_tpl(n, context)),
+                        on_click: l
+                            .on_click
+                            .as_ref()
+                            .map(|o| namespace_action(process_tpl(o, context), owner)),
+                    }),
+                    ..sp.clone()
+                })
+                .collect(),
+            size: num_template(NumAttr::Size).or(*size).or(style.size),
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
+                .or_else(|| style.color.clone()),
+        },
         NodeType::Button {
             text,
             on_click,

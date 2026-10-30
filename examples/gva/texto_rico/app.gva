@@ -1,0 +1,47 @@
+<screen title="Texto rico">
+  <resources>
+    <link rel="stylesheet" href="examples/gva/texto_rico/app.gss" />
+  </resources>
+
+  <container class="caixa">
+    <column class="coluna">
+      <text class="titulo">Sobre o Glacier</text>
+
+      <text class="corpo">
+        Olá, <b>{usuario}</b>! O motor lê <i>markup</i>, <code>.gss</code> e Luau,
+        e tudo isso cabe em <b><i>um binário</i></b>. Veja o
+        <a href="https://github.com/antoniofernandodj/glacier-ui">repositório</a>
+        ou <a navigate_to="detalhes">a tela de detalhes</a>.
+      </text>
+
+      <text class="corpo">
+        Tachado: <s>antigo</s>, sublinhado: <u>novo</u>, cor:
+        <span color="#F38BA8">alerta</span>.
+      </text>
+
+      <a class="solto" on_click="contar">Um link avulso — cliques: {cliques}</a>
+
+      <markdown class="md">
+        ## Markdown também
+
+        Um parágrafo com **negrito**, *itálico*, `código` e um
+        [link](https://example.com).
+
+        - primeiro item
+        - segundo item
+          - aninhado
+
+        1. um
+        2. dois
+
+        > uma citação
+
+        ```
+        let x = 1;
+        ```
+
+        ---
+      </markdown>
+    </column>
+  </container>
+</screen>

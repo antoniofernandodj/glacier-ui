@@ -222,6 +222,9 @@ futures = "0.3"
 # net.rs. Backend puro-Rust (miniz_oxide, default), sem dependência de C.
 flate2 = "1"
 
+# `<markdown>`: só o parser (CommonMark + tabelas/tachado), sem o renderizador HTML.
+pulldown-cmark = { version = "0.13", default-features = false }
+
 # Corpo binário em `fetch` (`body_base64`) e leitura de arquivo local em base64
 # (`fetch("file://…", { response = "base64" })`). Necessário porque tanto o corpo
 # da requisição quanto o `body` do FetchResult trafegam como texto (String) na
@@ -764,6 +767,10 @@ path = "examples/gvb/web_contador/main.rs"
 [[example]]
 name = "gvb_webview"
 path = "examples/gvb/webview/main.rs"
+
+[[example]]
+name = "texto_rico"
+path = "examples/gva/texto_rico/main.rs"
 
 [[example]]
 name = "remoto"
