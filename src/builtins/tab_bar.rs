@@ -54,6 +54,9 @@
 /// - `spacing` — espaço entre as abas. Default: `2`.
 /// - `size`    — corpo do rótulo. Default: `13`.
 /// - `width`   — largura da barra. Default: `fill`.
+/// - `active_bold` — negrito no rótulo da aba ativa. Default: `true`. Com
+///   `false` a barra não muda de largura ao trocar de aba (negrito é mais
+///   largo que o regular e empurra as vizinhas).
 ///
 /// # Aparência
 ///
@@ -111,7 +114,12 @@ impl Component for TabBar {
                                 on_click="pick:{value}|{tab.id}"
                                 padding="{padding|7 14}"
                             >
-                                <Text class="{label_class}" content="{tab.label}" size="{size|13}" bold="true" />
+                                <template if="{active_bold|true}" equals="false">
+                                    <Text class="{label_class}" content="{tab.label}" size="{size|13}" />
+                                </template>
+                                <template else>
+                                    <Text class="{label_class}" content="{tab.label}" size="{size|13}" bold="true" />
+                                </template>
                             </Button>
                         </template>
                         <template else>

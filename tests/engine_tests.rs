@@ -991,6 +991,33 @@ fn test_builtins_onda2_disponiveis_sem_registro() {
 }
 
 #[test]
+fn test_builtin_tabbar_active_bold_false_tira_o_negrito_da_ativa() {
+    // Negrito é mais largo: sem isso a aba ativa cresce e empurra as vizinhas.
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "abas",
+        r#"[{"id":"geral","label":"Geral"},{"id":"rede","label":"Rede"}]"#,
+    );
+    motor.define_data("aba", "geral");
+
+    std::fs::create_dir_all("templates").ok();
+    let tela_path = "templates/test_builtin_tabbar_active_bold.gv";
+    std::fs::write(
+        tela_path,
+        envolve(r#"<TabBar value="aba" active="{aba}" items="abas" active_bold="false" />"#),
+    )
+    .unwrap();
+    motor.register_component("tela_tabs_ab", tela_path).unwrap();
+
+    let avaliado = motor.evaluated("tela_tabs_ab").unwrap();
+    match &avaliado.children[0].children[0].kind {
+        NodeType::Text { bold, .. } => assert!(!*bold, "active_bold=false"),
+        outro => panic!("esperava o rótulo da aba, veio {outro:?}"),
+    }
+    std::fs::remove_file(tela_path).ok();
+}
+
+#[test]
 fn test_builtin_tabbar_escreve_a_chave_do_app() {
     // `TabBar` usa o padrão do `SpinBox`: a chave vem por prop e viaja dentro
     // da ação (`pick:aba|rede`), então o `update` do widget sabe onde escrever

@@ -10,6 +10,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ## Não lançado
 
+### Adicionado
+
+- `<tabbar active_bold="false">`: tira o negrito do rótulo da aba ativa. O
+  padrão continua `true`. Negrito é mais largo que o regular, então a aba
+  ativa crescia e empurrava as vizinhas a cada clique.
+
 ## glacier-cli 0.20.0 — 2026-10-29
 
 Motor dos projetos gerados: **glacier-ui 0.139**.
