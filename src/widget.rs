@@ -4715,6 +4715,10 @@ pub fn render_node<'a>(
                 }
             }
 
+            // `transition` no `.gss`: sem ela o botão é o de sempre; com ela, ganha o
+            // embrulho que guarda a animação e pede quadros (ver `crate::transition`).
+            let transicao = node.transition().and_then(crate::transition::parse);
+            let slot = crate::transition::novo_slot();
             // `gradient` no botão: pinta o fundo no lugar da cor sólida. Sem
             // `color`, a base é transparente — só o gradiente aparece.
             let btn_gradient = node.gradient().and_then(parse_gradient);
@@ -4742,6 +4746,10 @@ pub fn render_node<'a>(
                 let hover_ov = node.hover_style().cloned();
                 let active_ov = node.active_style().cloned();
                 let disabled_ov = node.disabled_style().cloned();
+                // `transition` do `.gss`: o estilo calculado abaixo passa por uma
+                // animação cujo estado mora na árvore (ver `crate::transition`).
+                let transicao_estilo = transicao;
+                let slot_estilo = slot.clone();
                 btn = btn.style(move |_theme, status| {
                     use iced::widget::button::Status;
                     let overlay = match status {
@@ -4817,7 +4825,7 @@ pub fn render_node<'a>(
                         .and_then(|r| r.border_color.as_deref())
                         .and_then(parse_hex_color)
                         .unwrap_or(br_color);
-                    iced::widget::button::Style {
+                    let estilo = iced::widget::button::Style {
                         background: Some(background),
                         text_color,
                         border: Border {
@@ -4827,6 +4835,12 @@ pub fn render_node<'a>(
                         },
                         shadow: iced::Shadow::default(),
                         snap: false,
+                    };
+                    match (transicao_estilo, slot_estilo.borrow().clone()) {
+                        (Some(tr), Some(anim)) => {
+                            anim.borrow_mut().estilo(estilo, &tr, std::time::Instant::now())
+                        }
+                        _ => estilo,
                     }
                 });
             }
@@ -4846,10 +4860,15 @@ pub fn render_node<'a>(
             // Botão de largura `Shrink` não encolhe abaixo do rótulo: sem isso,
             // numa linha apertada o iced entrega aos últimos botões só o que
             // sobrou e o texto vaza. Ver `crate::overflow`.
-            if matches!(parse_length(&node.width), Length::Shrink) {
+            let el: Element<'a, EngineMessage> = if matches!(parse_length(&node.width), Length::Shrink) {
                 crate::overflow::no_shrink(btn).into()
             } else {
                 btn.into()
+            };
+            if transicao.is_some() {
+                crate::transition::Transicionado::new(el, slot).into()
+            } else {
+                el
             }
         }
         NodeType::TextInput {

@@ -3906,6 +3906,9 @@ pub struct Look {
     /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
     /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
     pub slot_name: Option<String>,
+    /// `transition: background 150ms` do `.gss` (texto cru): o botão o lê para animar
+    /// a troca entre os estados (repouso, hover, pressionado). Ver `crate::transition`.
+    pub transition: Option<String>,
 }
 
 /// O texto de um [`NodeType::TextArea`] selecionável — ver o campo `fixo`.
@@ -4581,6 +4584,10 @@ impl UiNode {
             return;
         }
         self.look.get_or_insert_with(Default::default).text_align = v;
+    }
+    /// Ver [`Look::transition`].
+    pub fn transition(&self) -> Option<&str> {
+        self.look.as_ref()?.transition.as_deref()
     }
     /// Ver [`Look::text_color`].
     pub fn text_color(&self) -> Option<&str> {
@@ -7023,6 +7030,7 @@ impl UiNode {
                 pin_y,
                 anchor,
                 slot_name,
+                transition: None,
             }),
             interact: caixa(Interact {
                 on_press,

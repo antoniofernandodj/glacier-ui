@@ -57,6 +57,20 @@ pub struct StyleRule {
     /// (busca, status, cards) em janelas estreitas, evitando que Rows estourem
     /// e sobreponham botões/textos (o motor não reflui Row↔Column).
     pub hidden: Option<bool>,
+    /// `opacity: 0.5` (ou `50%`): multiplica o alfa das cores do **próprio** nó —
+    /// fundo, borda e texto. Não afeta os filhos (o `iced` não compõe grupo com
+    /// opacidade), e é por isso que num `<button>`, `<text>` ou `<container>` com
+    /// fundo ela se comporta como se espera, e num contêiner sem cor própria não
+    /// faz nada visível.
+    pub opacity: Option<f32>,
+    /// `transition: background 150ms` — ver [`crate::transition`]. Texto cru: quem
+    /// o lê é o botão, na hora de montar o estilo.
+    pub transition: Option<String>,
+    /// Valores numéricos que citam `var()` (`spacing: var(--gap)`), guardados como
+    /// `(propriedade, valor)` até as variáveis existirem — ver
+    /// [`StyleRule::resolve_var_refs`]. Os campos numéricos correspondentes ficam
+    /// `None` enquanto isso.
+    pub pendentes: Vec<(&'static str, String)>,
 }
 
 impl StyleRule {
@@ -126,16 +140,96 @@ impl StyleRule {
         if other.hidden.is_some() {
             self.hidden = other.hidden;
         }
+        if other.opacity.is_some() {
+            self.opacity = other.opacity;
+        }
+        if other.transition.is_some() {
+            self.transition = other.transition.clone();
+        }
+        // Um valor numérico concreto de `other` apaga o `var()` pendente de `self`
+        // para a mesma propriedade, e um pendente de `other` apaga o concreto: vale
+        // sempre o mais recente, como nos demais campos.
+        for (chave, _) in other.numericos_concretos() {
+            self.pendentes.retain(|(k, _)| *k != chave);
+        }
+        for (chave, valor) in &other.pendentes {
+            self.pendentes.retain(|(k, _)| k != chave);
+            self.limpa_numerico(chave);
+            self.pendentes.push((chave, valor.clone()));
+        }
     }
 
-    /// Resolve `var(--x)` em todos os campos String da regra contra `vars`
-    /// (os campos numéricos não suportam `var()`).
+    /// As propriedades numéricas que esta regra define de fato.
+    fn numericos_concretos(&self) -> Vec<(&'static str, f32)> {
+        let mut v = Vec::new();
+        for (k, o) in [
+            ("spacing", self.spacing),
+            ("border-radius", self.border_radius),
+            ("border-width", self.border_width),
+            ("size", self.size),
+            ("max-width", self.max_width),
+            ("max-height", self.max_height),
+            ("opacity", self.opacity),
+        ] {
+            if let Some(n) = o {
+                v.push((k, n));
+            }
+        }
+        v
+    }
+
+    fn limpa_numerico(&mut self, chave: &str) {
+        match chave {
+            "spacing" => self.spacing = None,
+            "border-radius" => self.border_radius = None,
+            "border-width" => self.border_width = None,
+            "size" => self.size = None,
+            "max-width" => self.max_width = None,
+            "max-height" => self.max_height = None,
+            "opacity" => self.opacity = None,
+            _ => {}
+        }
+    }
+
+    fn define_numerico(&mut self, chave: &str, n: f32) {
+        match chave {
+            "spacing" => self.spacing = Some(n),
+            "border-radius" => self.border_radius = Some(n),
+            "border-width" => self.border_width = Some(n),
+            "size" => self.size = Some(n),
+            "max-width" => self.max_width = Some(n),
+            "max-height" => self.max_height = Some(n),
+            "opacity" => self.opacity = Some(n.clamp(0.0, 1.0)),
+            _ => {}
+        }
+    }
+
+    /// Resolve `var(--x)` em todos os campos da regra contra `vars` — os de texto e,
+    /// via [`StyleRule::pendentes`], os numéricos —, e então calcula os `calc()` que
+    /// sobraram (`calc(var(--gap) * 2)`).
     fn resolve_var_refs(&mut self, vars: &HashMap<String, String>) {
+        for (chave, valor) in std::mem::take(&mut self.pendentes) {
+            let v = substitute_vars(&valor, vars);
+            let v = if v.contains("calc(") { eval_calc_in(&v).unwrap_or(v) } else { v };
+            let n = if let Some(p) = v.trim().strip_suffix('%') { p.trim().parse::<f32>().ok().map(|x| x / 100.0) } else { v.trim().parse::<f32>().ok() };
+            match n {
+                Some(n) => self.define_numerico(chave, n),
+                None => eprintln!(
+                    "[glacier] aviso: '{chave}: {valor}' não virou um número (resultado: '{}') — ignorado",
+                    v.trim()
+                ),
+            }
+        }
         let sub = |o: &mut Option<String>| {
-            if let Some(v) = o
-                && v.contains("var(")
-            {
-                *v = substitute_vars(v, vars);
+            if let Some(v) = o {
+                if v.contains("var(") {
+                    *v = substitute_vars(v, vars);
+                }
+                if v.contains("calc(") {
+                    if let Some(c) = eval_calc_in(v) {
+                        *v = c;
+                    }
+                }
             }
         };
         sub(&mut self.width);
@@ -151,6 +245,150 @@ impl StyleRule {
         sub(&mut self.text_align);
         sub(&mut self.cursor);
         sub(&mut self.text_color);
+    }
+}
+
+/// Calcula cada `calc( … )` de um valor — `calc(100 - 2 * 8)` vira `84` — e devolve o
+/// valor com os resultados no lugar. `None` se algum não for calculável (uma unidade
+/// que não seja `px`, divisão por zero, parênteses desbalanceados): quem chama deixa o
+/// valor como está, e o erro do número aparece no lugar certo.
+///
+/// Só aritmética de **números**: `+ - * /`, parênteses, `calc()` aninhado e o sufixo
+/// `px`. Porcentagem de uma dimensão do pai e `em` não têm o que medir aqui — o motor
+/// não mede o pai no `.gss` —, então ficam de fora.
+fn eval_calc_in(value: &str) -> Option<String> {
+    let mut out = String::with_capacity(value.len());
+    let mut rest = value;
+    while let Some(i) = rest.find("calc(") {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 5..];
+        let mut fundo = 1usize;
+        let mut fim = None;
+        for (j, c) in after.char_indices() {
+            match c {
+                '(' => fundo += 1,
+                ')' => {
+                    fundo -= 1;
+                    if fundo == 0 {
+                        fim = Some(j);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let fim = fim?;
+        let n = calc_expr(&after[..fim])?;
+        out.push_str(&formata_numero(n));
+        rest = &after[fim + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
+fn formata_numero(n: f64) -> String {
+    if (n - n.round()).abs() < 1e-9 {
+        format!("{}", n.round() as i64)
+    } else {
+        let s = format!("{n:.3}");
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
+
+/// `expr := termo (('+'|'-') termo)*`, `termo := fator (('*'|'/') fator)*`.
+fn calc_expr(s: &str) -> Option<f64> {
+    let cs: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    let v = calc_soma(&cs, &mut i)?;
+    skip_ws(&cs, &mut i);
+    (i == cs.len()).then_some(v)
+}
+
+fn skip_ws(cs: &[char], i: &mut usize) {
+    while *i < cs.len() && cs[*i].is_whitespace() {
+        *i += 1;
+    }
+}
+
+fn calc_soma(cs: &[char], i: &mut usize) -> Option<f64> {
+    let mut v = calc_produto(cs, i)?;
+    loop {
+        skip_ws(cs, i);
+        match cs.get(*i) {
+            Some('+') => {
+                *i += 1;
+                v += calc_produto(cs, i)?;
+            }
+            Some('-') => {
+                *i += 1;
+                v -= calc_produto(cs, i)?;
+            }
+            _ => return Some(v),
+        }
+    }
+}
+
+fn calc_produto(cs: &[char], i: &mut usize) -> Option<f64> {
+    let mut v = calc_fator(cs, i)?;
+    loop {
+        skip_ws(cs, i);
+        match cs.get(*i) {
+            Some('*') => {
+                *i += 1;
+                v *= calc_fator(cs, i)?;
+            }
+            Some('/') => {
+                *i += 1;
+                let d = calc_fator(cs, i)?;
+                if d == 0.0 {
+                    return None;
+                }
+                v /= d;
+            }
+            _ => return Some(v),
+        }
+    }
+}
+
+fn calc_fator(cs: &[char], i: &mut usize) -> Option<f64> {
+    skip_ws(cs, i);
+    match cs.get(*i)? {
+        '-' => {
+            *i += 1;
+            Some(-calc_fator(cs, i)?)
+        }
+        '+' => {
+            *i += 1;
+            calc_fator(cs, i)
+        }
+        '(' => {
+            *i += 1;
+            let v = calc_soma(cs, i)?;
+            skip_ws(cs, i);
+            (cs.get(*i) == Some(&')')).then(|| {
+                *i += 1;
+                v
+            })
+        }
+        'c' if cs[*i..].starts_with(&['c', 'a', 'l', 'c', '(']) => {
+            *i += 4; // o `calc`; o `(` entra como parêntese comum
+            calc_fator(cs, i)
+        }
+        c if c.is_ascii_digit() || *c == '.' => {
+            let ini = *i;
+            while *i < cs.len() && (cs[*i].is_ascii_digit() || cs[*i] == '.') {
+                *i += 1;
+            }
+            let n: f64 = cs[ini..*i].iter().collect::<String>().parse().ok()?;
+            // `px` é a única unidade; qualquer outra (`%`, `em`) não é calculável.
+            if cs[*i..].starts_with(&['p', 'x']) {
+                *i += 2;
+            } else if cs.get(*i).is_some_and(|c| c.is_alphabetic() || *c == '%') {
+                return None;
+            }
+            Some(n)
+        }
+        _ => None,
     }
 }
 
@@ -1516,6 +1754,31 @@ fn parse_rule_body(
             )));
         }
 
+        // Número que cita `var()`: espera as variáveis (ver `StyleRule::pendentes`).
+        let canon_numerica = match key {
+            "spacing" => Some("spacing"),
+            "border-radius" | "border_radius" => Some("border-radius"),
+            "border-width" | "border_width" | "stroke-width" | "stroke_width" => Some("border-width"),
+            "size" => Some("size"),
+            "max-width" | "max_width" | "maxWidth" => Some("max-width"),
+            "max-height" | "max_height" | "maxHeight" => Some("max-height"),
+            "opacity" => Some("opacity"),
+            _ => None,
+        };
+        if let Some(canon) = canon_numerica
+            && value.contains("var(")
+        {
+            rule.pendentes.push((canon, value));
+            continue;
+        }
+        // `calc()` sem variável dentro: calculado já. Com `var()` num valor de texto,
+        // fica para `resolve_var_refs`, depois da substituição.
+        let value = if value.contains("calc(") && !value.contains("var(") {
+            eval_calc_in(&value).unwrap_or(value)
+        } else {
+            value
+        };
+
         let parse_f32 = |v: &str| -> Result<f32> {
             v.parse::<f32>().map_err(|_| {
                 ctx.err(
@@ -1558,6 +1821,14 @@ fn parse_rule_body(
             "max-height" | "max_height" | "maxHeight" => rule.max_height = Some(parse_f32(&value)?),
             // `hidden: true|false` ou `display: none|flex|block` (só `none`
             // esconde; qualquer outro valor de `display` = visível).
+            "opacity" => {
+                let n = match value.trim().strip_suffix('%') {
+                    Some(p) => parse_f32(p.trim())? / 100.0,
+                    None => parse_f32(&value)?,
+                };
+                rule.opacity = Some(n.clamp(0.0, 1.0));
+            }
+            "transition" => rule.transition = Some(value),
             "hidden" => rule.hidden = Some(value.eq_ignore_ascii_case("true") || value == "1"),
             "display" => rule.hidden = Some(value.eq_ignore_ascii_case("none")),
             // Propriedade desconhecida: pular com aviso, sem derrubar o arquivo
@@ -1615,6 +1886,8 @@ const KNOWN_PROPERTIES: &[&str] = &[
     "max-height",
     "hidden",
     "display",
+    "opacity",
+    "transition",
 ];
 
 /// A propriedade conhecida mais próxima de `name`, se houver uma perto o

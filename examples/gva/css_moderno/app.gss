@@ -1,0 +1,36 @@
+:root {
+  --gap: 12;
+  --raio: 8;
+  --azul: #5865F2;
+  --laranja: #E07A5F;
+  --fundo: #2B2D31;
+}
+
+.tela { padding: calc(var(--gap) * 2); spacing: calc(var(--gap) * 1.5); width: fill; height: fill; }
+.titulo { size: 22; bold: true; }
+.nota { size: 13; color: #A6ADC8; }
+
+.botao {
+  /* no <button>, o fundo de repouso é `color`; nos estados, `background` */
+  color: var(--azul);
+  text-color: #FFFFFF;
+  padding: 14;
+  border-radius: var(--raio);
+  width: 280;
+}
+.botao:hover { background: var(--laranja); }
+.botao:active { background: #FFFFFF; text-color: #000000; }
+
+/* a MESMA troca de estado, animada em 400 ms */
+.suave { transition: background 400ms ease-out; }
+
+/* opacity: 35% de alfa no fundo e no rótulo do próprio botão */
+.fantasma { opacity: 0.35; }
+
+.caixa {
+  background: var(--laranja);
+  padding: var(--gap);
+  border-radius: calc(var(--raio) * 2);
+  width: calc(300 - 2 * 20);
+}
+.caixa_translucida { opacity: 50%; }

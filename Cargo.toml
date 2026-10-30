@@ -727,6 +727,10 @@ name = "gvb_prose_artigo_luau"
 path = "examples/gvb/prose_artigo_luau/main.rs"
 
 [[example]]
+name = "css_moderno"
+path = "examples/gva/css_moderno/main.rs"
+
+[[example]]
 name = "prose_check"
 path = "examples/gva/prose_check/main.rs"
 

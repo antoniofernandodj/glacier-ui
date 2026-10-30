@@ -96,6 +96,7 @@ pub mod luau;
 mod link_focus;
 mod markdown;
 pub mod prose;
+mod transition;
 pub mod menu;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;

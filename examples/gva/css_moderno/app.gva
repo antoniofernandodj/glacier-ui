@@ -1,0 +1,22 @@
+<screen title="CSS moderno" size="520 640">
+  <resources>
+    <link rel="stylesheet" href="examples/gva/css_moderno/app.gss" />
+  </resources>
+
+  <column class="tela">
+    <text class="titulo">opacity, transition, calc() e var()</text>
+
+    <text class="nota">Sem transition: a troca de cor é instantânea.</text>
+    <button class="botao seco" text="Sem transition" on_click="ok" />
+
+    <text class="nota">Com transition: background 400ms ease-out.</text>
+    <button class="botao suave" text="Com transition (400 ms)" on_click="ok" />
+
+    <text class="nota">opacity: 0.35 num botão (alfa nas cores do próprio botão).</text>
+    <button class="botao fantasma" text="Botão com opacity" on_click="ok" />
+
+    <text class="nota">calc(): largura 260 = calc(300 - 2 * 20); raio = calc(var(--raio) * 2).</text>
+    <container class="caixa"><text>caixa sem opacity</text></container>
+    <container class="caixa caixa_translucida"><text>caixa com opacity: 50%</text></container>
+  </column>
+</screen>

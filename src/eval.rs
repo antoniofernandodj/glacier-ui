@@ -3940,7 +3940,7 @@ fn eval_owned(
             node.id.as_deref().map(|i| process_tpl(i, context)),
         )
     });
-    Ok(UiNode {
+    let mut saida = UiNode {
         node_id: node.node_id,
         kind: kind_eval,
         children: children_eval.into(),
@@ -4019,6 +4019,7 @@ fn eval_owned(
                     d.to_string()
                 }
             }),
+            transition: style.transition.clone(),
         }),
         interact: crate::parser::caixa(crate::parser::Interact {
             on_press: on_press_eval,
@@ -4075,7 +4076,51 @@ fn eval_owned(
             form_validate_on: node.form_validate_on().map(str::to_string),
             form_invalid: node.form_invalid(),
         }),
-    })
+    };
+    if let Some(o) = style.opacity {
+        aplica_opacidade(&mut saida, o);
+    }
+    Ok(saida)
+}
+
+/// `opacity` do `.gss`: multiplica o alfa das cores do **próprio** nó — fundo, borda,
+/// texto e a `color` do tipo (rótulo de `<text>`, fundo de `<button>`). Os filhos não
+/// entram: o `iced` não compõe um grupo com opacidade, então ela vale onde o nó pinta
+/// algo. Um gradiente não é alterado.
+fn aplica_opacidade(n: &mut UiNode, o: f32) {
+    let o = o.clamp(0.0, 1.0);
+    if (o - 1.0).abs() < f32::EPSILON {
+        return;
+    }
+    let escala = |c: &str| -> Option<String> {
+        let cor = crate::widget::parse_hex_color(c)?;
+        let a = (cor.a * o * 255.0).round().clamp(0.0, 255.0) as u8;
+        Some(format!(
+            "#{:02X}{:02X}{:02X}{a:02X}",
+            (cor.r * 255.0).round() as u8,
+            (cor.g * 255.0).round() as u8,
+            (cor.b * 255.0).round() as u8
+        ))
+    };
+    if let Some(c) = n.background.as_deref().and_then(escala) {
+        n.background = Some(c);
+    }
+    if let Some(c) = n.border_color().and_then(escala) {
+        n.set_border_color(Some(c));
+    }
+    if let Some(c) = n.text_color().and_then(escala) {
+        n.set_text_color(Some(c));
+    }
+    match &mut n.kind {
+        NodeType::Text { color, .. }
+        | NodeType::Prose { color, .. }
+        | NodeType::Button { color, .. } => {
+            if let Some(c) = color.as_deref().and_then(escala) {
+                *color = Some(c);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Collects the `form_control` name of every node across `nodes` (a `<Form>`'s
