@@ -1,6 +1,6 @@
 //! `on_progress` em Rust: a mesma barra do `rede_progresso`, num `Component`.
 //!
-//!   python3 tools/servidor_rede.py &
+//!   (o exemplo liga e desliga o servidor de teste sozinho)
 //!   WGPU_BACKEND=gl cargo run --example rede_progresso_rust
 //!
 //! `Request::on_progress` roda na tarefa de rede, não na thread da UI: o closure só anota o
@@ -90,7 +90,11 @@ impl Component for Progresso {
     }
 }
 
+#[path = "../../comum/servidor_teste.rs"]
+mod servidor_teste;
+
 fn main() -> iced::Result {
+    let _servidor = servidor_teste::ligar();
     GlacierDaemon::new()
         .main(|motor| {
             if let Err(e) = motor.register(Box::new(Progresso::default())) {

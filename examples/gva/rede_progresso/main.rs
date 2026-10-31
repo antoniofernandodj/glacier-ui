@@ -1,6 +1,6 @@
 //! `on_progress`: uma barra que anda enquanto 50 MB sobem (POST) ou descem (GET).
 //!
-//!   python3 tools/servidor_rede.py &
+//!   (o exemplo liga e desliga o servidor de teste sozinho)
 //!   WGPU_BACKEND=gl cargo run --example rede_progresso
 //!
 //! O `fetch(url, { on_progress = function(p) … end })` recebe `{ phase, done, total?, fraction? }`
@@ -8,7 +8,11 @@
 
 use glacier_ui::GlacierDaemon;
 
+#[path = "../../comum/servidor_teste.rs"]
+mod servidor_teste;
+
 fn main() -> iced::Result {
+    let _servidor = servidor_teste::ligar();
     GlacierDaemon::new()
         .main_template("examples/gva/rede_progresso/app.gva")
         .run()

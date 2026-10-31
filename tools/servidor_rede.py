@@ -4,7 +4,7 @@ upload multipart, rota lenta, falhas com contagem (retries), status e download.
 
     python3 tools/servidor_rede.py [porta]     # padrão 8096
 """
-import json, re, sys, time
+import json, os, re, sys, threading, time
 from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -130,6 +130,18 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+def sair_com_o_pai():
+    """Com `--sair-com-o-pai` (usado pelos exemplos que ligam este servidor), encerra assim que
+    o processo que o ligou morre — por Ctrl+C, por fechar a janela ou por um kill."""
+    pai = os.getppid()
+    while os.getppid() == pai:
+        time.sleep(0.3)
+    os._exit(0)
+
+
 if __name__ == "__main__":
-    porta = int(sys.argv[1]) if len(sys.argv) > 1 else 8096
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    porta = int(args[0]) if args else 8096
+    if "--sair-com-o-pai" in sys.argv:
+        threading.Thread(target=sair_com_o_pai, daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", porta), H).serve_forever()
