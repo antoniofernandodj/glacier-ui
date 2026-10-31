@@ -186,6 +186,42 @@ declare console: {
     config: (opts: ConsoleConfig?) -> any,
 }
 
+-- i18n: a locale ativa é a chave `__locale` do contexto (trocá-la reavalia as `{t("…")}` do
+-- markup). O catálogo é um JSON por idioma, carregado no daemon (`locales_dir`/`locale_json`)
+-- ou aqui com `load`. O que o script monta com `t`/`num`/`date` não se reavalia sozinho.
+declare i18n: {
+    -- A locale ativa, ou a melhor para o sistema se nenhuma foi escolhida.
+    locale: () -> string,
+    -- Escolhe a locale (`pt` acha `pt-br`); devolve a que ficou ativa, ou nil se nenhuma serve.
+    set_locale: (pedida: string) -> string?,
+    available: () -> { string },
+    -- Carrega um catálogo (texto JSON); devolve quantas chaves.
+    load: (locale: string, json_text: string) -> number,
+    -- `args` preenche `{nome}` na mensagem e escolhe o plural (`n` ou `count`).
+    t: (chave: string, args: { [string]: any }?) -> string,
+    num: (valor: number, casas: number?) -> string,
+    -- `valor`: segundos Unix ou "AAAA-MM-DD" (UTC).
+    date: (valor: any) -> string,
+}
+
+-- `<audio name="…">`: controla a fonte pelo nome. Precisa da feature `audio` do glacier-ui.
+declare audio: {
+    play: (name: string) -> (),
+    pause: (name: string) -> (),
+    toggle: (name: string) -> (),
+    stop: (name: string) -> (),
+    -- Segundos.
+    seek: (name: string, segundos: number) -> (),
+    volume: (name: string, volume: number) -> (),
+    position: (name: string) -> number,
+    -- nil se o formato não informa a duração.
+    duration: (name: string) -> number?,
+    playing: (name: string) -> boolean,
+    error: (name: string) -> string?,
+    -- false se a feature `audio` está desligada neste build.
+    available: () -> boolean,
+}
+
 declare function write_file(path: string, contents: string): (boolean, string?)
 -- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
 -- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um

@@ -60,6 +60,7 @@ const NATIVE_TAGS = {
   // dentro do `<prose>` estão em `PROSE_TAGS`, logo abaixo da `TRAY_CHILD_TAGS`.
   Prose: ["prose"],
   Markdown: ["markdown", "md"],
+  Audio: ["audio", "som"],
   Button: ["button", "botao"],
   TextInput: ["textinput", "input", "entradatexto", "entrada_texto"],
   TextArea: ["textarea", "texteditor", "editor", "areatexto", "area_texto"],

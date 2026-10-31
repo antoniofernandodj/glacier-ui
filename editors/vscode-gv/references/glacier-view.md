@@ -54,6 +54,14 @@ não tem filhos: o texto vem do contexto e é tratado como **não-confiável** (
 No `.gvb`: `prose(class = corpo) { p { span("Olá, ") b("{usuario}") } }`.
 Ver `docs/TEXTO.md`.
 
+### `<audio>` (`<som>`)
+Arquivo de áudio **local** (MP3, WAV, OGG, FLAC) com player: botão ▶/⏸, barra de posição (clicar
+ou arrastar faz *seek*) e `m:ss / m:ss`. Precisa da feature `audio` do `glacier-ui`. Atributos:
+`src` (caminho), `name` (identifica a fonte; sem ele vale o `src`), `controls="false"` (só a
+fonte, sem player), `autoplay`, `loop`, `volume` (0 a 1), `on_ended`, `on_error`. Controle de
+fora: `on_click="audio:play:NOME"` (`pause`, `toggle`, `stop`) ou o global Luau `audio`.
+`<video>` não existe. Ver `docs/AUDIO.md`.
+
 ### `<markdown>` (`<md>`)
 CommonMark: títulos, ênfase, listas, citação, código, links, imagens **locais** e tabelas.
 O texto é o filho (indentação comum removida) ou `content`. Atributo: `size`.

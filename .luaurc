@@ -29,6 +29,8 @@
         "pick_font",
         "http",
         "console",
-        "open_window"
+        "open_window",
+        "i18n",
+        "audio"
     ]
 }

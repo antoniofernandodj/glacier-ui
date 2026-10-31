@@ -1544,6 +1544,19 @@ content="{corpo}">` ou `<prose syntax="markdown">`; HTML de um CMS → `<prose
 syntax="html">`; campos soltos (nome, bio) → `<prose><p><b>{nome}</b> — {bio}</p></prose>`,
 estilo no markup e só o texto vindo do dado.
 
+**`<audio name="musica" src="sons/tema.mp3" />`** — um arquivo de áudio **local** (MP3, WAV,
+OGG, FLAC) com player: botão ▶/⏸, barra de posição (clicar ou arrastar faz *seek*) e
+`m:ss / m:ss`. **Precisa da feature `audio`** do `glacier-ui` (`features = ["audio"]`;
+no Linux o `rodio` pede `libasound2-dev` para compilar) — sem ela o player mostra
+`erro: feature `audio` desligada`. Atributos: `src` (caminho do arquivo, relativo ao
+diretório de trabalho; **não** lê de `embed_assets!`), `name` (identifica a fonte; sem ele
+vale o `src`), `controls="false"` (só a fonte, sem player), `autoplay`, `loop`, `volume`
+(0 a 1), `on_ended` e `on_error` (nomes de ação). Controle de fora:
+`on_click="audio:play:musica"` (também `pause`, `toggle`, `stop`) ou o global Luau `audio`
+(ver "Áudio" nas funções Luau). Registrar é idempotente: reavaliar a tela não reabre o
+arquivo. No `.gvb`: `audio(name = musica, src = "sons/tema.mp3", on_ended = proxima)`.
+**Não existe `<video>`.** Ver `docs/AUDIO.md` do repositório do glacier-ui.
+
 **`<image source="foto.png" />`** — bitmap. `clip="circle"` recorta em círculo
 (qualquer outro valor não recorta). Combine com `width`/`height` fixos: sem eles
 a imagem pede o tamanho natural do arquivo.
@@ -3249,6 +3262,19 @@ vazia: o widget desenha vazio. Isso é deliberado — uma tela que ainda não
 carregou é uma moldura, não um pânico — e é por isso que semear as chaves no
 `init` importa.
 
+**8. Acessibilidade: `role`, `aria_label`, `aria_hidden`.** Três atributos universais, em
+qualquer tag. `aria_label="Fechar janela"` é o nome que o leitor de tela lê no lugar do texto
+do nó — indispensável num botão só com ícone (`text = "✕"`); `role="button"` dá o papel
+quando o padrão da tag não serve (um `<container on_click>` que é, na prática, um botão);
+`aria_hidden="true"` tira um nó decorativo da árvore. Com a feature **`a11y`** (só Linux) o
+motor publica a árvore da tela no AT-SPI. **Teclado:** o `<button>` entra na ordem de
+**Tab / Shift+Tab**, mostra um anel de foco e **Enter/Espaço** disparam o `on_click`; um
+`disabled` fica de fora. Os demais widgets (checkbox, radio, slider, select…) **ainda não**
+têm teclado auditado. O `.gss` **avisa no stderr** quando o par `color`/`background` de uma
+regra falha no WCAG AA (4,5:1; 3:1 para texto grande) — olhe o terminal ao escrever cores.
+Ver `docs/ACESSIBILIDADE.md` do repositório do glacier-ui, com o que não está feito (Orca
+não testado, foco e geometria não chegam ao leitor).
+
 ## Armadilhas que já custaram tempo
 
 Todas silenciosas — nenhuma dá erro:
@@ -3825,6 +3851,58 @@ escalares (viram a coluna `valor`). `columns` opcional escolhe e ordena as
 chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
 é sempre `(índice)` — a chave/posição da linha.
 
+### Internacionalização (i18n)
+
+No **markup**, uma chamada dentro de `{…}`: `{t("titulo")}`, `{t("ola", nome=usuario)}`,
+`{t("itens", n=contagem)}` (plural), `{num(preco, 2)}` e `{date(quando)}`. No `.gvb`, dentro de uma
+string e com aspas simples por dentro: `text("{t('titulo')}")`. Nome sem aspas é uma **chave
+do contexto** (`n=contagem` lê `contagem`); com aspas ou número é literal.
+
+**O motor não traduz nada sozinho:** você escreve um JSON por idioma e ele só troca a chave
+pelo texto. `locales/pt-BR.json`: `{ "titulo": "Painel", "itens": { "one": "{n} item",
+"other": "{n} itens" } }` (um objeto cujas chaves são todas `zero|one|two|few|many|other` é
+plural; qualquer outro objeto agrupa: `menu.abrir`). Chave ausente: aparece a própria chave
+e o stderr avisa.
+
+A **locale ativa é a chave `__locale`** do contexto — escrevê-la troca o idioma ao vivo, sem
+reiniciar. Com catálogo carregado o motor a semeia com a do sistema (ou a padrão) e semeia
+`__locales` (lista JSON das disponíveis, para um `<combo items="__locales">`).
+
+```lua
+i18n.set_locale("en")              -- troca ao vivo; aceita `pt` e acha `pt-br`
+i18n.locale()                      -- "pt-br"
+i18n.t("itens", { n = 3 })         -- "3 itens"   (também {nome = ...} para {nome} na mensagem)
+i18n.num(1234.5, 2)                -- "1.234,50" em pt-BR, "1,234.50" em en
+i18n.date("2026-10-31")            -- "31/10/2026" / "10/31/2026" (segundos Unix também vale; UTC)
+i18n.available()                   -- { "en", "pt-br" }
+i18n.load("es", json_texto)        -- carrega um catálogo em tempo de execução
+```
+
+O que o script monta (plural com argumento, número, data) **não se reavalia sozinho** ao trocar
+a locale — recalcule as chaves no handler que troca o idioma (`atualizar()`); o que está no
+markup com `{t(…)}` se reavalia sozinho. Plural: regras do CLDR para pt, fr, en, de, es, it, ru,
+uk, pl, ar, ja, zh, ko…; os demais caem na do inglês. **Não há** RTL espelhado (o texto em
+árabe sai certo dentro da linha, mas o layout não inverte), nem dígitos locais, hora ou moeda.
+Ver `docs/I18N.md` do repositório do glacier-ui.
+
+### Áudio
+
+O global `audio` controla um `<audio name="…">` pelo nome (precisa da feature `audio`):
+
+```lua
+audio.play("musica")   audio.pause("musica")   audio.toggle("musica")   audio.stop("musica")
+audio.seek("musica", 30.5)         -- segundos
+audio.volume("musica", 0.5)
+audio.position("musica")           -- segundos
+audio.duration("musica")           -- número ou nil (o formato pode não informar)
+audio.playing("musica")            -- boolean
+audio.error("musica")              -- string ou nil
+audio.available()                  -- false se a feature `audio` está desligada
+```
+
+O estado vem de uma thread própria do áudio, então `audio.position` é um retrato de até
+~50 ms atrás. `on_ended`/`on_error` do `<audio>` chegam como ações comuns. Ver `docs/AUDIO.md`.
+
 ### Navegação e janelas
 
 ```lua
@@ -4306,6 +4384,20 @@ quem não tem o builder à mão. Registrar duas vezes instala duas vezes.
 O exemplo `sqlite_crud` do repositório do glacier-ui leva isso ao fim: um global
 `sqlite` com `connect`/`execute`/`query`/`begin`/`commit`/`close`, e um CRUD
 escrito só no `<script>`.
+
+### i18n, áudio e acessibilidade no `GlacierDaemon`
+
+```rust
+GlacierDaemon::new()
+    .locales_dir("locales")                                   // pt-BR.json, en.json… (só nativo)
+    .locale_json("es", include_str!("../locales/es.json"))    // embutido: serve na web também
+    .default_locale("pt-BR")                                  // padrão: o primeiro carregado
+```
+
+`ctx.set("__locale", "en".into())` troca o idioma num `Component`. Áudio: a API pública é
+`glacier_ui::audio::{play, pause, toggle, stop, seek, set_volume, status}`; as features do
+`Cargo.toml` do app são `audio` (o `<audio>`) e `a11y` (a árvore no AT-SPI, só Linux):
+`glacier-ui = { version = "…", features = ["audio", "a11y"] }`.
 
 ## Receitas
 
