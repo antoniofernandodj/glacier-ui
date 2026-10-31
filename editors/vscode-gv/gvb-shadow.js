@@ -180,6 +180,18 @@ class Parser {
         this.i++;
         continue;
       }
+      // Texto sem nome, primeiro da lista: `span("Olá, ")`, `a("o site", href = x)`.
+      // O motor lê como `content = "…"` (src/gvb.rs, `posicional`); sem isto o
+      // leitor pulava a linha inteira e só o primeiro elemento dela existia.
+      if (c === '"' || this.starts('l"""')) {
+        const at = this.i;
+        try {
+          node.attrs.push({ name: "content", nameOff: at, v: this.value() });
+        } catch (_) {
+          // texto ainda por fechar: fica de fora
+        }
+        continue;
+      }
       if (!isIdent(c) && c !== ":") {
         // o que está sendo digitado: pula a linha e segue (um `{` ou `}` encerra)
         if (c === "{" || c === "}") return;

@@ -56,6 +56,10 @@ const NATIVE_TAGS = {
   Column: ["column"],
   Row: ["row"],
   Text: ["text", "span"],
+  // Texto de leitura: `<prose>` (blocos + estilo inline) e `<markdown>`. As tags de
+  // dentro do `<prose>` estão em `PROSE_TAGS`, logo abaixo da `TRAY_CHILD_TAGS`.
+  Prose: ["prose"],
+  Markdown: ["markdown", "md"],
   Button: ["button", "botao"],
   TextInput: ["textinput", "input", "entradatexto", "entrada_texto"],
   TextArea: ["textarea", "texteditor", "editor", "areatexto", "area_texto"],
@@ -769,6 +773,66 @@ function trayRanges(text) {
 
 // Os filhos da `<tray>` cuja documentação é a seção da própria `<tray>`.
 const TRAY_CHILD_TAGS = new Set(["TrayItem", "TraySeparator", "Checkbox"]);
+
+// As tags que só existem DENTRO de um `<prose>` (src/prose.rs: `TAGS_BLOCO` e
+// `TAGS_INLINE`). Ficam fora do `NATIVE_TAGS` de propósito: `b`, `i`, `p`, `a`…
+// fora do `<prose>` não são do motor, e tratá-las como nativas em todo lugar
+// calaria o aviso de componente desconhecido. O contexto é o `proseRanges`,
+// o mesmo desenho do `trayRanges` acima. Cada canônico é só uma chave: o
+// cabeçalho do `references/glacier-view.md` é achado pela primeira grafia que
+// tiver um (ver `resolveNative`).
+const PROSE_TAGS = {
+  ProseParagraph: ["p"],
+  ProseHeading: ["h1", "h2", "h3", "h4", "h5", "h6"],
+  ProseQuote: ["blockquote", "footer", "cite"],
+  ProseList: ["ul", "ol", "li"],
+  ProseFigure: ["figure", "figcaption", "img"],
+  ProsePre: ["pre"],
+  ProseRule: ["hr"],
+  ProseBold: ["b", "strong", "negrito", "mark"],
+  ProseItalic: ["i", "em", "italico", "itálico"],
+  ProseCode: ["code", "codigo", "código", "kbd", "samp"],
+  ProseUnderline: ["u", "underline", "sublinhado", "ins"],
+  ProseStrike: ["s", "del", "strike", "tachado"],
+  ProseSpan: ["span", "small", "abbr", "var", "sub", "sup"],
+  ProseLink: ["a"],
+  ProseBreak: ["br"],
+};
+const PROSE_LOOKUP = {};
+for (const [canon, variants] of Object.entries(PROSE_TAGS)) {
+  for (const v of variants) PROSE_LOOKUP[v.toLowerCase()] = canon;
+}
+
+/**
+ * Os corpos de `<prose>…</prose>` (um `<prose content="…"/>` não tem corpo).
+ * A busca respeita aspas nos atributos: um `>` dentro de `content="a > b"` não
+ * fecha a tag de abertura.
+ */
+function proseRanges(text) {
+  const out = [];
+  const open = /<prose\b((?:"[^"]*"|'[^']*'|[^>"'])*)>/gi;
+  let m;
+  while ((m = open.exec(text)) !== null) {
+    if (/\/\s*$/.test(m[1])) continue; // auto-fechada: sem corpo
+    const start = m.index + m[0].length;
+    const close = text.toLowerCase().indexOf("</prose", start);
+    const end = close < 0 ? text.length : close;
+    out.push([start, end]);
+    open.lastIndex = end;
+  }
+  return out;
+}
+
+/**
+ * O canônico da tag em `nameStart`: dentro de um `<prose>` vale a tabela de
+ * texto (`span` ali é um trecho de estilo, não o `<text>`); fora dele, o
+ * catálogo nativo.
+ */
+function canonicalAt(name, nameStart, proseRs) {
+  const lower = name.toLowerCase();
+  if (PROSE_LOOKUP[lower] && inRanges(proseRs, nameStart)) return PROSE_LOOKUP[lower];
+  return NATIVE_LOOKUP[lower];
+}
 
 /**
  * Yield every element tag in `text` as
@@ -2138,7 +2202,7 @@ function resolveNative(canonical) {
   const ref = path.join(extensionPath, "references", "glacier-view.md");
   const text = readFileCached(ref);
   if (text === null) return [];
-  const grafias = [canonical, ...(NATIVE_TAGS[canonical] || [])];
+  const grafias = [canonical, ...(NATIVE_TAGS[canonical] || PROSE_TAGS[canonical] || [])];
   for (const nome of grafias) {
     // O cabeçalho que NOMEIA a tag, ou — para uma grafia documentada como
     // apelido, tipo `<Else>` sob o título de `<If>` — o primeiro cabeçalho que
@@ -2710,9 +2774,10 @@ function classify(document, position) {
     }
   }
 
+  const proseRs = proseRanges(text);
   for (const tag of iterTags(text)) {
     if (offset < tag.nameStart) break; // tags come in document order
-    const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
+    const canon = canonicalAt(tag.name, tag.nameStart, proseRs);
 
     if (offset >= tag.nameStart && offset <= tag.nameStart + tag.name.length) {
       const naBandeja = TRAY_CHILD_TAGS.has(canon) && inRanges(trayRanges(text), tag.nameStart);

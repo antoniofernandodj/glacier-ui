@@ -43,6 +43,77 @@ Empilha filhos na horizontal. Atributos: `spacing`, `align` (eixo cruzado = Y).
 ### `<Text>` (`<Span>`)
 Texto. Conteúdo via `content="…"` ou filho `<Text>…</Text>`. Atributos: `size`, `bold`, `color`.
 
+### `<prose>`
+Texto de leitura em **blocos**, com estilo dentro do parágrafo. É o único lugar onde
+existem `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>` e `<p>`: num `<text>` eles
+dão erro na avaliação. Os filhos são só os blocos (`<p>`, `<h1>`…`<h6>`, `<blockquote>`,
+`<ul>`/`<ol>`, `<figure>`, `<img>`, `<pre>`, `<hr>`); texto solto direto no `<prose>` é erro
+de carga. Atributos: `size`, `color`. Com `content="{chave}"` (e `syntax="gva|gvb|html|markdown"`)
+não tem filhos: o texto vem do contexto e é tratado como **não-confiável** (só links
+`http`/`https`/`mailto`, sem `on_click`/`navigate_to`, imagem só local).
+No `.gvb`: `prose(class = corpo) { p { span("Olá, ") b("{usuario}") } }`.
+Ver `docs/TEXTO.md`.
+
+### `<markdown>` (`<md>`)
+CommonMark: títulos, ênfase, listas, citação, código, links, imagens **locais** e tabelas.
+O texto é o filho (indentação comum removida) ou `content`. Atributo: `size`.
+
+### `<p>`
+Parágrafo do `<prose>`: texto e as tags inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`, `br`).
+Um `<p>` não entra em outro `<p>`. `{interpolação}` vale em cada trecho. Só existe dentro de `<prose>`.
+
+### `<h1>` … `<h6>`
+Título do `<prose>`, do maior ao menor. Conteúdo: texto e tags inline. Só dentro de `<prose>`.
+
+### `<blockquote>` (`<footer>`, `<cite>`)
+Citação do `<prose>`. Contém `<p>`s e, opcional, um `<footer>` (ou `<cite>`) com a autoria.
+Só dentro de `<prose>`.
+
+### `<ul>` (`<ol>`, `<li>`)
+Lista do `<prose>`: `ul` com marcadores, `ol` numerada. Cada `<li>` leva texto e tags inline.
+Lista aninhada ainda não é suportada. Só dentro de `<prose>`.
+
+### `<figure>` (`<figcaption>`, `<img>`)
+Figura do `<prose>`: um `<img src="…" alt="…"/>` (caminho **local**, relativo, sem `..`) e,
+opcional, um `<figcaption>` com a legenda (aceita tags inline). Um `<img>` sozinho é uma
+imagem sem legenda.
+
+### `<pre>`
+Texto cru do `<prose>`, em fonte monoespaçada. Só dentro de `<prose>`.
+
+### `<hr>` (no `<prose>`)
+Régua horizontal entre blocos do `<prose>`. Fora dele, `<hr>` é a `<Rule>`.
+
+### `<b>` (`<strong>`, `<negrito>`)
+Negrito dentro de um `<prose>`; aninha (`<b><i>…</i></b>`). `<mark>` também vira negrito.
+Aceita `color` como qualquer tag inline. Só dentro de `<prose>`.
+
+### `<i>` (`<em>`, `<italico>`)
+Itálico dentro de um `<prose>`. Só dentro de `<prose>`.
+
+### `<code>` (`<codigo>`, `<kbd>`, `<samp>`)
+Trecho em fonte monoespaçada dentro de um `<prose>`. Só dentro de `<prose>`.
+
+### `<u>` (`<underline>`, `<sublinhado>`)
+Sublinhado dentro de um `<prose>`. Só dentro de `<prose>`.
+
+### `<s>` (`<del>`, `<strike>`, `<tachado>`)
+Tachado dentro de um `<prose>`. Só dentro de `<prose>`.
+
+### `<span>` (no `<prose>`)
+Trecho sem estilo próprio dentro de um `<prose>`, para pôr `color="#…"` (ou `cor`) e, opcional,
+`bold="true"` só nele. É o jeito de escrever texto puro no `.gvb` (`span("Olá, ")`).
+`<small>`, `<abbr>`, `<var>`, `<sub>` e `<sup>` são aceitos mas ainda não mudam o aspecto.
+Fora do `<prose>`, `<span>` é o `<Text>`.
+
+### `<a>`
+Link dentro de um `<prose>`, com hover e foco de teclado (Tab/Enter/Espaço). Atributos:
+`href` (abre no navegador do SO; só `http`, `https` e `mailto`), `navigate_to` (vai para outra
+tela) ou `on_click` (um handler). O texto do link é o conteúdo. Só dentro de `<prose>`.
+
+### `<br>`
+Quebra de linha dentro de um parágrafo do `<prose>`.
+
 ### `<Button>` (`<Botao>`)
 Botão. Atributos: `text`, `on_click`, `navigateTo`, `navigateBack`, `color`, `type`.
 `type="submit"`/`"reset"` (dentro de um `<Form>`): o clique dispara o envio /
