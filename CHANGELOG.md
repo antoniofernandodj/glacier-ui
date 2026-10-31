@@ -8,6 +8,20 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.24.2 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.144.2**. Sem mudanças na CLI.
+
+## glacier-ui 0.144.2 — 2026-10-30
+
+Rodada da suíte completa (`make test-completo`: 761 testes + doctests).
+
+### Corrigido
+
+- O exemplo `gvb_botoes_gradiente` pintava a janela inteira com um `background` num `.tela`
+  `fill/fill` (o teste `nenhum_exemplo_pinta_a_janela_inteira` falhava); o fundo claro agora
+  vem de um tema (`theme.json`), com a mesma aparência.
+
 ## glacier-cli 0.24.1 — 2026-10-30
 
 Motor dos projetos gerados: **glacier-ui 0.144.1**. O `AGENTS.md` menciona o `rede_progresso`.

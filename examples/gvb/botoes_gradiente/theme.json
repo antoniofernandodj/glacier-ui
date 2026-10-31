@@ -1,0 +1,9 @@
+{
+    "name": "Gelo claro",
+    "background": "#E8EEFF",
+    "text": "#2B3A67",
+    "primary": "#4F7BFF",
+    "success": "#34D399",
+    "warning": "#FB923C",
+    "danger": "#F472B6"
+}

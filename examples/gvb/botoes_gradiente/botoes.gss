@@ -1,5 +1,4 @@
 :root {
-  --fundo: #E8EEFF;
   --texto: #FFFFFF;
   --titulo: #2B3A67;
   --fraco: #6B7BA8;
@@ -17,7 +16,6 @@
   padding: 32;
   width: fill;
   height: fill;
-  background: var(--fundo);
   align_x: Center;
 }
 

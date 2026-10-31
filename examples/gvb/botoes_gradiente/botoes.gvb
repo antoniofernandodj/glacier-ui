@@ -6,6 +6,7 @@
 // disabled derivam das paradas). O mesmo `gradient` vale em um `container`.
 screen(title = "Glacier - Botões com gradiente") {
   resources {
+    link(rel = theme, href = "examples/gvb/botoes_gradiente/theme.json")
     link(rel = stylesheet, href = "examples/gvb/botoes_gradiente/botoes.gss")
   }
 
