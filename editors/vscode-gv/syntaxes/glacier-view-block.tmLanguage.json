@@ -230,6 +230,28 @@
               "name": "entity.other.attribute-name.id.glacier-view-block"
             }
           }
+        },
+        {
+          "comment": "O mesmo, para o elemento que vem depois de um `)` ou `}` na mesma linha (`span(\"a\") b(\"c\") i { … }`): sem isto só a primeira tag da linha ganhava cor.",
+          "match": "(?<=[)}])\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
+          "captures": {
+            "1": {
+              "name": "entity.name.tag.component.glacier-view-block"
+            },
+            "2": {
+              "name": "entity.name.tag.glacier-view-block"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#selector-class"
+                }
+              ]
+            },
+            "4": {
+              "name": "entity.other.attribute-name.id.glacier-view-block"
+            }
+          }
         }
       ]
     },
