@@ -1,6 +1,6 @@
 # Texto rico, links, seleção e Markdown
 
-Fase 2 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplos (a mesma tela, em quatro formas):
+Fase 1 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplos (a mesma tela, em quatro formas):
 
 | | estado em Rust | estado em Luau |
 |---|---|---|

@@ -1,9 +1,13 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** em andamento (2026-10-30), glacier-ui 0.143.0. **Fases 0 e 2 feitas**, com as
-ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **Fase 1 descartada**
-(nada remoto além de dados); **3 e 4 adiadas** por decisão (acessibilidade e WASM);
-**Fase 5 feita, menos `@keyframes`** (`opacity`, `calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver `docs/GSS_MODERNO.md`); **Fase 6 feita** (cookies por host, multipart, `abort` e `on_progress`, também no cliente `http()`; sem streaming do corpo — ver `docs/REDE.md`); 7 e 8 não começaram. Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
+**Estado:** em andamento (2026-10-31), glacier-ui 0.145.0. **Fases 0 e 1 feitas**, com as
+ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **2 e 3 adiadas** por
+decisão (acessibilidade e WASM); **Fase 4 feita, menos `@keyframes` e `@font-face`** (`opacity`,
+`calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver
+`docs/GSS_MODERNO.md`); **Fase 5 feita** (cookies por host, multipart, `abort`, `on_progress`,
+`body_file`, `max_redirects` e `max_bytes`, também no cliente `http()`; sem streaming do corpo —
+ver `docs/REDE.md`); 6 e 7 não começaram. Carga remota de app, tela ou asset foi **descartada**
+(nada remoto além de dados; ver "Fora do escopo"). Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
 binário pequeno, em vez de uma stack web.
@@ -38,10 +42,8 @@ binário pequeno, em vez de uma stack web.
 1. **Texto.** Sem `<a>`, sem texto inline misto (negrito no meio da frase), sem
    Markdown; seleção e cópia de texto estático não apareceram.
 2. **Acessibilidade.** Nenhuma menção a AccessKit, ARIA ou leitor de tela.
-3. **Carga remota** (descartada, ver Fase 1). O `AssetSource` só tem disco e embutido. Não existe "abrir uma
-   URL e carregar o app"; cada atualização é um binário novo.
-4. **Mídia.** Sem `<audio>` nem `<video>`. Antes havia a `webview` nativa como saída; foi removida (nada remoto além de dados).
-5. **Alvo WASM incompleto.** Sem Luau e sem `fetch` no navegador (`WEB.md`); negrito e
+3. **Mídia.** Sem `<audio>` nem `<video>`. Antes havia a `webview` nativa como saída; foi removida (nada remoto além de dados).
+4. **Alvo WASM incompleto.** Sem Luau e sem `fetch` no navegador (`WEB.md`); negrito e
    itálico somem sem fonte própria; GPU desligada por padrão; WebGPU/WebGL nunca
    vistos funcionando.
 
@@ -86,23 +88,7 @@ Sem isso não há como dizer "menos recursos que o navegador".
 
 **Aceitação:** três números por alvo, reproduzíveis por um `make` documentado.
 
-### Fase 1 — Carga remota (DESCARTADA)
-
-**Decidido em 2026-10-30: o Glacier não carrega app, tela nem asset de fora.** Tudo
-é local — `.gv`/`.gva`/`.gvb`, `.gss`, scripts, imagens, telas. A única coisa que vem
-de fora é dado, pelo `fetch` da camada Lua.
-
-A Fase 1 foi implementada (`HttpAssets` com manifesto ed25519, cache e modo offline;
-`RoteadorAssets` para telas remotas) e depois **removida por completo**: carregar
-markup e script de uma URL é execução remota de código, a superfície de ataque que o
-projeto decidiu não assumir (assinatura, rollback de manifesto, política de confiança
-por origem, confiança em chave…). O histórico git guarda a implementação
-(commit `5fb9487`) para quem precisar consultar; não há plano de retomá-la.
-
-A idéia de "micro navegador" fica, portanto, restrita a: motor pequeno + app local +
-dados remotos. Ver "Fora do escopo".
-
-### Fase 2 — Texto rico, links e seleção
+### Fase 1 — Texto rico, links e seleção
 
 - `<a href="…" on_click="…">` com estados de foco/hover, abrindo URL externa ou
   navegando entre telas.
@@ -121,7 +107,7 @@ código, régua), e o `<prose syntax content>` lê o texto de uma chave do conte
 (só links `http`/`https`/`mailto`, sem `on_click`/`navigate_to`, imagem só local). O foco de
 teclado nos links e a seleção de texto estão feitos. Ver `docs/TEXTO.md`.
 
-### Fase 3 — Acessibilidade
+### Fase 2 — Acessibilidade
 
 Decide o uso público e, em alguns mercados, a conformidade legal.
 
@@ -133,7 +119,7 @@ Decide o uso público e, em alguns mercados, a conformidade legal.
 
 **Aceitação:** o exemplo da Fase 0 navegável só com teclado e lido por Orca (Linux).
 
-### Fase 4 — Alvo WASM de verdade
+### Fase 3 — Alvo WASM de verdade
 
 - `fetch`/SSE/WebSocket no WASM via `web-sys` (hoje `net_web.rs` só devolve erro).
 - Lógica no navegador sem Luau: avaliar o MicroPython (já no repo) ou um interpretador
@@ -144,7 +130,7 @@ Decide o uso público e, em alguns mercados, a conformidade legal.
 
 **Aceitação:** o exemplo da Fase 0 rodando no Chrome com `fetch` real.
 
-### Fase 5 — CSS que falta
+### Fase 4 — CSS que falta
 
 Ordem pelo que mais aparece em tela real:
 
@@ -160,16 +146,16 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 **Aceitação:** um botão com `transition: background 150ms` visível e medido (frames). **Medida** numa janela real (Xvfb, ponteiro por XTEST): sem `transition` a cor salta de uma vez; com `transition: background 400ms ease-out` ela sobe de (88,101,242) a (224,122,95) em curva suave.
 
-### Fase 6 — Rede completa
+### Fase 5 — Rede completa
 
-- Cookies e jar por host, só para o `fetch` (a Fase 1 foi descartada).
+- Cookies e jar por host, só para o `fetch`.
 - `multipart/form-data` e upload de arquivo.
 - Progresso de envio e recebimento (`on_progress`) — feito; o *streaming* do corpo (entregar pedaços antes do fim) não.
 - Cancelamento (`abort`) de `fetch`.
 
 **Aceitação:** upload de um arquivo de 50 MB com barra de progresso, sem travar a UI. **Medida** com o exemplo `rede_progresso` sob Xvfb: a barra vai de 0 a 100% em ~3,4 s no envio e ~5 s no download, linear.
 
-### Fase 7 — Mídia
+### Fase 6 — Mídia
 
 - `<audio>` primeiro (barato: `rodio`/`symphonia`), com `play/pause/seek` e eventos.
 - `<video>`: a `webview` nativa foi removida, então não há saída pronta. Decodificação
@@ -178,7 +164,7 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 **Aceitação:** `<audio>` tocando um MP3 **local** com barra de posição.
 
-### Fase 8 — i18n
+### Fase 7 — i18n
 
 - `{t("chave")}` com catálogo JSON por locale e troca ao vivo.
 - Plural e formato de número/data por locale.
@@ -192,16 +178,16 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 ```
 Fase 0 (medir)
-   ├── Fase 6 (rede do fetch: cookies, upload)
-   ├── Fase 2 (texto) ── Fase 3 (acessibilidade)
-   ├── Fase 4 (WASM)
-   ├── Fase 5 (CSS)
-   ├── Fase 7 (mídia)
-   └── Fase 8 (i18n)
+   ├── Fase 5 (rede do fetch: cookies, upload)
+   ├── Fase 1 (texto) ── Fase 2 (acessibilidade)
+   ├── Fase 3 (WASM)
+   ├── Fase 4 (CSS)
+   ├── Fase 6 (mídia)
+   └── Fase 7 (i18n)
 ```
 
-A Fase 0 vem primeiro. Depois, 1 e 2 são as de maior retorno e podem andar em
-paralelo; a 3 espera o desenho do texto da 2, porque os papéis moram nos mesmos nós.
+A Fase 0 vem primeiro. Depois, a 1 (texto) é a de maior retorno e as 4 e 5 podem andar em
+paralelo; a 2 espera o desenho do texto da 1, porque os papéis moram nos mesmos nós.
 
 ## 4. Quanto cada fase move a nota
 
@@ -209,19 +195,21 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 | Fase | Geral | App interno |
 |---|---|---|
-| 1 carga remota | descartada | descartada |
-| 2 texto rico | +0,05 | +0,05 |
-| 3 acessibilidade | +0,05 | +0,03 |
-| 4 WASM | +0,04 | +0,02 |
-| 5 CSS | +0,03 | +0,03 |
-| 6 rede | +0,02 | +0,03 |
-| 7 mídia | +0,02 | +0,01 |
-| 8 i18n | +0,01 | +0,02 |
+| 1 texto rico | +0,05 | +0,05 |
+| 2 acessibilidade | +0,05 | +0,03 |
+| 3 WASM | +0,04 | +0,02 |
+| 4 CSS | +0,03 | +0,03 |
+| 5 rede | +0,02 | +0,03 |
+| 6 mídia | +0,02 | +0,01 |
+| 7 i18n | +0,01 | +0,02 |
 
 ## 5. Fora do escopo (de propósito)
 
 - **SEO e indexação.** Um app em `<canvas>` não tem DOM. Quem precisa disso usa web.
-- **Carregar app, tela ou asset de uma URL** (Fase 1, descartada): só dados remotos.
+- **Carregar app, tela ou asset de uma URL.** Foi implementado (`HttpAssets` com manifesto
+  ed25519, cache e modo offline; commit `5fb9487`) e **removido por completo em 2026-10-30**:
+  é execução remota de código, a superfície de ataque que o projeto decidiu não assumir. Só
+  dados remotos, pelo `fetch`.
 - **Compatibilidade com HTML/CSS/JS existentes.** O Glacier não é um motor de
   renderização da web; o markup é o dele.
 - **Extensões de navegador, DevTools completo, service workers.**
@@ -229,10 +217,10 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 ## 6. Riscos
 
-- **Acessibilidade depende do upstream.** Se o `iced` não expuser AccessKit, a Fase 3
+- **Acessibilidade depende do upstream.** Se o `iced` não expuser AccessKit, a Fase 2
   vira "contribuir para o iced", com prazo fora do controle do projeto.
 - **Luau no WASM pode não ter caminho** (o `luau0-src` só gera wasm para emscripten).
-  A Fase 4 pode terminar em "outra linguagem para o navegador", o que parte a
+  A Fase 3 pode terminar em "outra linguagem para o navegador", o que parte a
   promessa de um script só.
 - **Superfície crescendo sem teste de ponta a ponta.** O histórico do repo (widget que
   passa nos testes e aparece vazio) vale para toda fase: o critério de aceitação é
@@ -240,19 +228,16 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 ## 7. O que ficou decidido
 
-Fase 1 (2026-10-30): **descartada.** Sem app, tela ou asset remoto; só dados via
-`fetch`. A implementação foi removida (ver a seção da Fase 1).
-
 Fase 0 (2026-10-30): a primeira medição era de um painel que não carregava os dados nem a
 lista (defeito do motor no `init` + erro do painel); refeita. Ver `docs/MEDICOES.md`.
 
-Fase 2 (2026-10-30): estilo inline só dentro de `<prose>`, em blocos; `<a>` com hover e foco
+Fase 1 (2026-10-30): estilo inline só dentro de `<prose>`, em blocos; `<a>` com hover e foco
 de teclado (Tab/Enter/Espaço); `selectable` em `<text>`/`<prose>` (via `<textarea readonly>`,
 perdendo estilo e link); `<markdown>` com tabelas, imagens **locais** e legenda;
 `<prose syntax content>` em `gva`/`gvb`/`html`/`markdown`, com o conteúdo dinâmico tratado
 como não-confiável. Fica fora: lista aninhada e tabela dentro do `<prose>`.
 
 Remoção do `webview_url` e da feature `webview` (2026-10-30): era uma tela remota por outro
-caminho, e a Fase 7 já não conta com ela para `<video>`.
+caminho, e a Fase 6 já não conta com ela para `<video>`.
 
-Fases 3 e 4 (2026-10-30): adiadas. A Fase 5 (CSS) e a 6 (rede do `fetch`) vêm antes.
+Fases 2 e 3 (2026-10-30): adiadas. A Fase 4 (CSS) e a 5 (rede do `fetch`) vêm antes.

@@ -1,6 +1,6 @@
 # Rede: `fetch`, `http()`, cookies, multipart, cancelamento e progresso
 
-Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em quatro formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
+Fase 5 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em quatro formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
 `timeout`, `file://`, `download_file` e o método `QUERY`, em 21 casos na tela. Os exemplos **ligam e
 desligam sozinhos** o servidor de teste (`tools/servidor_rede.py`, porta 8096; se já houver um na
 porta, usam o existente). Ao rodar o script à mão: `python3 tools/servidor_rede.py`.

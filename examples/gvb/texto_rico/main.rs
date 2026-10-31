@@ -1,4 +1,4 @@
-//! Texto inline misto, `<a>` e `<markdown>` — Fase 2 do `PLANO_SUBSTITUIBILIDADE.md`.
+//! Texto inline misto, `<a>` e `<markdown>` — Fase 1 do `PLANO_SUBSTITUIBILIDADE.md`.
 //!
 //!   WGPU_BACKEND=gl cargo run --example gvb_texto_rico
 //!   cargo run --example gvb_texto_rico -- --arvore     (imprime a árvore avaliada)
