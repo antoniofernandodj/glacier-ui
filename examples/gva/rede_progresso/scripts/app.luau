@@ -27,6 +27,26 @@ function enviar()
     ctx.estado = if r.ok then `pronto: {r.body}` else `falhou: {r.error}`
 end
 
+-- `body_file`: o corpo é o conteúdo cru de um arquivo, lido pelo motor ao enviar — sem base64 e
+-- sem carregar os 50 MB no Lua (o `enviar` acima manda uma string de 50 MB que o Lua guarda).
+function enviar_arquivo()
+    ctx.pct = 0
+    local caminho = "/tmp/glacier_rede_progresso_50mb.bin"
+    local gravou, erro = write_file(caminho, string.rep("x", 50 * MB))
+    if not gravou then
+        ctx.estado = `não consegui gravar o arquivo: {erro}`
+        return
+    end
+    ctl = abort_controller()
+    local r = fetch(BASE .. "/enviar", {
+        method = "POST",
+        body_file = caminho,
+        signal = ctl,
+        on_progress = mostra,
+    })
+    ctx.estado = if r.ok then `pronto: {r.body}` else `falhou: {r.error}`
+end
+
 function baixar()
     ctx.pct = 0
     ctl = abort_controller()

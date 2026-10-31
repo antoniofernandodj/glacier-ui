@@ -27,6 +27,9 @@ Pedidos do `rustploy-gui` (upload de zip, atualizador do app) que o `fetch` não
   `Authorization` e `Cookie`.
 - `max_bytes` (`Request::max_bytes`): teto para o corpo da resposta, checado pelo
   `Content-Length` e durante a leitura.
+- O exemplo `rede_progresso` ganhou "Enviar arquivo de 50 MB" (`body_file` com barra).
+- Verificado numa janela real: o `rustploy-gui` enviando um zip de 32 MB (barra 37% → 75% → 100%, bytes
+  idênticos no servidor, cancelamento no meio) e baixando uma release do GitHub por redirecionamento.
 
 ## glacier-cli 0.24.2 — 2026-10-30
 
