@@ -815,6 +815,9 @@ pub enum EngineMessage {
     /// prunes expired toasts from the active list. Carries no data of its
     /// own — the engine compares each toast's own timestamp against `now`.
     ToastTick,
+    /// O idioma mudou em alguma janela (`i18n.set_locale`): o daemon difunde para TODAS as
+    /// janelas, e cada motor grava `__locale` no próprio contexto e reavalia.
+    LocaleChanged(String),
     /// Tick de 100 ms enquanto um `<audio>` toca (ver [`crate::audio::ativo`]): pede o
     /// próximo quadro (a barra de posição anda) e entrega os eventos `on_ended`/`on_error`.
     AudioTick,
@@ -984,6 +987,7 @@ impl EngineMessage {
             Self::ToastDismiss { .. } => "ToastDismiss",
             Self::ToastTick { .. } => "ToastTick",
             Self::AudioTick { .. } => "AudioTick",
+            Self::LocaleChanged { .. } => "LocaleChanged",
             Self::FocusNext { .. } => "FocusNext",
             Self::FocusPrev { .. } => "FocusPrev",
             Self::Viewport { .. } => "Viewport",

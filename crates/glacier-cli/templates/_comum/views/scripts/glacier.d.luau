@@ -199,6 +199,8 @@ declare i18n: {
     load: (locale: string, json_text: string) -> number,
     -- `args` preenche `{nome}` na mensagem e escolhe o plural (`n` ou `count`).
     t: (chave: string, args: { [string]: any }?) -> string,
+    -- Traduz pelo texto de origem (gettext): sem entrada no catálogo devolve o próprio texto.
+    tr: (source: string) -> string,
     num: (valor: number, casas: number?) -> string,
     -- `valor`: segundos Unix ou "AAAA-MM-DD" (UTC).
     date: (valor: any) -> string,

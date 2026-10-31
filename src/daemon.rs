@@ -1122,7 +1122,14 @@ impl Runtime {
             // Sempre na principal — inclusive quando ela está recolhida na
             // bandeja, caso em que o motor segue vivo sob o `main_id` e só a
             // janela sumiu. É o que mantém um app de bandeja dirigível de fora.
-            DaemonMessage::External(msg) => self.route(self.main_id, msg),
+            //
+            // Exceção: a troca de idioma (`i18n.set_locale`) vale para todas as janelas.
+            DaemonMessage::External(msg) => {
+                if matches!(msg, EngineMessage::LocaleChanged(_)) {
+                    return self.update(DaemonMessage::TickAll(msg));
+                }
+                self.route(self.main_id, msg)
+            }
             DaemonMessage::Opened(id) => {
                 // Estado inicial: a janela pode nascer maximizada (geometria
                 // lembrada, `maximized: true` no settings, regra da WM).
@@ -1618,10 +1625,17 @@ impl Runtime {
     }
 
     fn title(&self, id: window::Id) -> String {
-        self.titles
+        let bruto = self
+            .titles
             .get(&id)
             .cloned()
-            .unwrap_or_else(|| "Glacier".to_string())
+            .unwrap_or_else(|| "Glacier".to_string());
+        // O título do `screen(title = …)` pode levar `{chave}`/`{t('…')}`: resolve contra o
+        // contexto da janela a cada leitura, então trocar o idioma troca o título também.
+        match self.windows.get(&id) {
+            Some(engine) if bruto.contains('{') => engine.interpolate(&bruto),
+            _ => bruto,
+        }
     }
 
     fn theme(&self, id: window::Id) -> iced::Theme {

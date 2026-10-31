@@ -1746,7 +1746,7 @@ i18n = {}
 function i18n.locale(): string
     local l = ctx["__locale"]
     if l == nil or l == "" then
-        return __i18n_best(__i18n_system() or "") or (i18n.available()[1] or "en")
+        return __i18n_fallback() or "en"
     end
     return tostring(l)
 end
@@ -1754,7 +1754,9 @@ end
 -- Escolhe a locale; se não houver catálogo exato, a mais próxima (`pt` → `pt-br`).
 -- Devolve a locale que ficou ativa, ou nil (e não muda nada) se nenhuma serve.
 function i18n.set_locale(pedida: string): string?
-    local l = __i18n_best(pedida)
+    -- `__i18n_activate` guarda a locale no processo e a espalha para as OUTRAS janelas;
+    -- o `ctx` abaixo faz a desta mesma janela já, sem esperar a mensagem voltar.
+    local l = __i18n_activate(pedida)
     if l == nil then
         return nil
     end
@@ -1779,6 +1781,13 @@ function i18n.t(chave: string, args: { [string]: any }?): string
         end
     end
     return __i18n_t(i18n.locale(), chave, flat)
+end
+
+-- Traduz pelo TEXTO DE ORIGEM (gettext): o texto do código é a chave do catálogo. Sem
+-- entrada, devolve o próprio texto, sem aviso. Serve a `i18n.tr("Remover tag?")` e a
+-- `string.format(i18n.tr("%d arquivo(s)"), n)`.
+function i18n.tr(source: string): string
+    return __i18n_tr(i18n.locale(), source)
 end
 
 function i18n.num(valor: number, casas: number?): string

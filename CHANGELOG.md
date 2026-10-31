@@ -8,6 +8,33 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.26.2 — 2026-10-31
+
+Motor dos projetos gerados: **glacier-ui 0.147.0**. O `glacier.d.luau` do template ganha `i18n.tr`.
+
+## glacier-ui 0.147.0 — 2026-10-31
+
+Pedido da aplicação do i18n no `rustploy` (app multi-janela).
+
+### Adicionado
+
+- **O idioma vale para todas as janelas.** `i18n.set_locale(l)` agora também guarda a locale
+  **ativa do processo** (`glacier_ui::i18n::{set_active, active}`) e a difunde a todas as janelas
+  (`EngineMessage::LocaleChanged`, tratada no daemon como um `TickAll`): cada janela é um motor
+  isolado com o próprio `__locale`, e antes só a que chamava `set_locale` trocava. Uma janela
+  **nova** nasce na locale ativa, não na do sistema.
+
+- `i18n.tr("texto")` (Luau) e `i18n::translate_source`: traduz pelo **texto de origem** (estilo
+  gettext) — o texto do código é a chave do catálogo, e sem entrada devolve o próprio texto, sem
+  aviso. Para toasts, confirmações e mensagens montadas em código.
+- O `title` de um `screen(...)` aceita `{chave}` e `{t('…')}`: é resolvido contra o contexto da
+  janela a cada leitura, então trocar o idioma troca o título da janela.
+
+### Corrigido
+
+- `{t(chave_sem_aspas, n=…)}`: os argumentos eram ignorados quando a chave de tradução vinha de
+  uma chave de contexto (`t(estado, n=contagem)`); agora valem como no `t("chave", n=…)`.
+
 ## glacier-cli 0.26.1 — 2026-10-31
 
 Motor dos projetos gerados: **glacier-ui 0.146.1**. Sem mudança no template.

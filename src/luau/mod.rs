@@ -1853,6 +1853,12 @@ fn install_i18n(luau: &Lua) -> mlua::Result<()> {
         )?,
     )?;
     g.set(
+        "__i18n_tr",
+        luau.create_function(|_, (locale, source): (String, String)| {
+            Ok(crate::i18n::translate_source(&locale, &source))
+        })?,
+    )?;
+    g.set(
         "__i18n_load",
         luau.create_function(|_, (locale, json): (String, String)| {
             crate::i18n::load_json(&locale, &json).map_err(mlua::Error::RuntimeError)
@@ -1861,6 +1867,25 @@ fn install_i18n(luau: &Lua) -> mlua::Result<()> {
     g.set(
         "__i18n_available",
         luau.create_function(|_, ()| Ok(crate::i18n::available()))?,
+    )?;
+    // Define a locale ativa do processo e a espalha para todas as janelas (cada janela é um
+    // motor isolado, com o próprio `__locale`). Devolve a locale que ficou, ou nil.
+    g.set(
+        "__i18n_activate",
+        luau.create_function(|_, pedida: String| {
+            let Some(l) = crate::i18n::set_active(&pedida) else { return Ok(None) };
+            #[cfg(not(target_arch = "wasm32"))]
+            crate::external::sender().send(crate::widget::EngineMessage::LocaleChanged(l.clone()));
+            Ok(Some(l))
+        })?,
+    )?;
+    // A locale de reserva de uma janela sem `__locale` próprio: a ativa do processo, senão a
+    // padrão — a MESMA cadeia do `{t(…)}` do markup (não a do sistema, que só semeia a partida).
+    g.set(
+        "__i18n_fallback",
+        luau.create_function(|_, ()| {
+            Ok(crate::i18n::active().or_else(crate::i18n::default_locale))
+        })?,
     )?;
     g.set(
         "__i18n_best",

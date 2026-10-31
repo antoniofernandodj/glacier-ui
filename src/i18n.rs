@@ -148,6 +148,27 @@ pub fn set_default(locale: &str) {
     catalogo().write().unwrap_or_else(|e| e.into_inner()).padrao = Some(norm(locale));
 }
 
+/// A locale **ativa do processo**: o que uma janela sem `__locale` próprio (uma janela nova,
+/// ainda não semeada) usa. É escrita por [`set_active`] — o que o `i18n.set_locale` do Luau
+/// faz — e é o que o daemon espalha para todas as janelas quando o idioma muda.
+fn ativa() -> &'static RwLock<Option<String>> {
+    static A: OnceLock<RwLock<Option<String>>> = OnceLock::new();
+    A.get_or_init(|| RwLock::new(None))
+}
+
+/// Define a locale ativa do processo (a melhor carregada para `locale`). Devolve a escolhida,
+/// ou `None` (sem mudar nada) se nenhum catálogo serve.
+pub fn set_active(locale: &str) -> Option<String> {
+    let l = best_match(locale)?;
+    *ativa().write().unwrap_or_else(|e| e.into_inner()) = Some(l.clone());
+    Some(l)
+}
+
+/// A locale ativa do processo, se alguma foi escolhida.
+pub fn active() -> Option<String> {
+    ativa().read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
 /// A locale padrão, se algum catálogo foi carregado.
 pub fn default_locale() -> Option<String> {
     catalogo().read().unwrap_or_else(|e| e.into_inner()).padrao.clone()
@@ -424,6 +445,24 @@ pub fn translate(locale: &str, chave: &str, args: &HashMap<String, String>) -> S
     }
 }
 
+/// Traduz pelo **texto de origem** (estilo gettext): o próprio texto escrito no código é a
+/// chave do catálogo (`"Remover tag?"` → `"Remove tag?"`). Sem entrada na locale (nem na
+/// padrão), devolve o texto de origem **sem aviso** — um texto ainda não traduzido não é um
+/// erro, só aparece no idioma em que foi escrito. É o `i18n.tr` do Luau.
+pub fn translate_source(locale: &str, source: &str) -> String {
+    let c = catalogo().read().unwrap_or_else(|e| e.into_inner());
+    let loc = if locale.trim().is_empty() {
+        c.padrao.clone().unwrap_or_default()
+    } else {
+        locale.to_string()
+    };
+    match acha(&c, &loc, source) {
+        Some(Msg::Texto(t)) => t.clone(),
+        Some(Msg::Plural(f)) => f.get("other").cloned().unwrap_or_else(|| source.to_string()),
+        None => source.to_string(),
+    }
+}
+
 // ───────────────────────────── a chamada `{t(…)}` ─────────────────────────────
 
 /// Os argumentos de uma chamada: `("chave", n=contagem, nome="lit")`.
@@ -500,6 +539,7 @@ pub fn avalia_chamada(expr: &str, leitura: &mut dyn FnMut(&str) -> Option<String
     let (primeiro, resto) = args_da_chamada(&e[abre + 1..e.len() - 1])?;
     let loc = leitura(CHAVE_LOCALE)
         .filter(|l| !l.trim().is_empty())
+        .or_else(active)
         .or_else(default_locale)
         .unwrap_or_else(|| "en".to_string());
     fn resolve(a: &Arg, leitura: &mut dyn FnMut(&str) -> Option<String>) -> String {
@@ -510,18 +550,18 @@ pub fn avalia_chamada(expr: &str, leitura: &mut dyn FnMut(&str) -> Option<String
     }
     match fn_nome {
         "t" => {
-            let Arg::Literal(chave) = Arg::de(&primeiro) else {
-                // `t(chave)` sem aspas: o nome de uma chave de contexto que guarda a chave de tradução.
-                let k = primeiro.trim_start_matches('@');
-                let valor = leitura(k).unwrap_or_default();
-                return Some(translate(&loc, &valor, &HashMap::new()));
-            };
             let mut args = HashMap::new();
             for (k, v) in &resto {
                 if !k.is_empty() {
                     args.insert(k.clone(), resolve(v, leitura));
                 }
             }
+            let chave = match Arg::de(&primeiro) {
+                Arg::Literal(chave) => chave,
+                // `t(chave)` sem aspas: o nome de uma chave de contexto que guarda a chave de
+                // tradução — e os argumentos (`t(estado, n=contagem)`) valem do mesmo jeito.
+                Arg::Chave(k) => leitura(&k).unwrap_or_default(),
+            };
             Some(translate(&loc, &chave, &args))
         }
         "num" => {

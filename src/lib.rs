@@ -1138,8 +1138,8 @@ impl GlacierUI {
         // Um app que já escreveu `__locale` antes (restaurou a preferência) vence.
         if i18n::default_locale().is_some() {
             if !self.context_data.contains_key(i18n::CHAVE_LOCALE) {
-                let escolhida = i18n::system_locale()
-                    .and_then(|l| i18n::best_match(&l))
+                let escolhida = i18n::active()
+                    .or_else(|| i18n::system_locale().and_then(|l| i18n::best_match(&l)))
                     .or_else(i18n::default_locale)
                     .unwrap_or_default();
                 self.context_data.insert(i18n::CHAVE_LOCALE.to_string(), escolhida);
@@ -2110,6 +2110,11 @@ impl GlacierUI {
             }
             // Enquanto um `<audio>` toca: o tick só existe para forçar o quadro (a barra anda)
             // e para entregar o fim/erro da reprodução como a ação que o markup declarou.
+            EngineMessage::LocaleChanged(l) => {
+                self.context_data.insert(i18n::CHAVE_LOCALE.to_string(), l.clone());
+                let _ = self.reevaluate_all();
+                return iced::Task::none();
+            }
             EngineMessage::AudioTick => {
                 let tarefas: Vec<_> = audio::drena_eventos()
                     .iter()
@@ -4421,6 +4426,12 @@ impl GlacierUI {
             a11y::arvore::publica(raiz, atual, &|k| ctx.get(k).cloned());
         }
         Ok(())
+    }
+
+    /// Resolve `{chave}` e `{t('…')}` de um texto contra o contexto desta janela (usado no
+    /// título da janela, que o `screen(title = …)` declara).
+    pub(crate) fn interpolate(&self, template: &str) -> String {
+        eval::process_template(template, &self.context_data)
     }
 
     /// O motor precisa acompanhar a posição do mouse nesta janela?
