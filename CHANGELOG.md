@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.26.1 — 2026-10-31
+
+Motor dos projetos gerados: **glacier-ui 0.146.1**. Sem mudança no template.
+
+## glacier-ui 0.146.1 — 2026-10-31
+
+Só exemplos e docs; o motor não mudou.
+
+### Alterado
+
+- O painel de referência da Fase 0 (`examples/gvb/painel`) troca **pt-BR ↔ en** ao vivo (catálogos em
+  `locales/`, botões Português/English) e o `web/index.html` ganhou os mesmos botões e traduções.
+  Os números de `docs/MEDICOES.md` são anteriores a isso e **não foram refeitos**.
+- O `main.rs` do painel sobe sozinho o servidor local do `dados.json` (thread que morre com o
+  processo; porta 8098 ocupada = usa o que está lá). Não precisa mais de `python3 -m http.server`.
+
 ## glacier-cli 0.26.0 — 2026-10-31
 
 Motor dos projetos gerados: **glacier-ui 0.146.0**. O `AGENTS.md` do template ganha o `<audio>`, o

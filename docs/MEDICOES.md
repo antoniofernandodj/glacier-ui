@@ -9,6 +9,11 @@ make medir                     # Glacier: build release + 5 rodadas
 scripts/medir_chrome.sh 5      # o mesmo painel numa janela do Chrome, perfil novo
 ```
 
+Para só **abrir** o painel (sem medir): `WGPU_BACKEND=gl cargo run --example painel`. O `main.rs`
+sobe sozinho um servidor local para o `dados.json` (uma thread que morre com o processo; se a
+porta 8098 já estiver ocupada — o `make medir` sobe o dele —, usa o que está lá). A versão web
+(`web/index.html`) ainda pede um servidor de arquivos: `python3 -m http.server 8098` na pasta do painel.
+
 ## Resultado (2026-10-30, mediana de 5 rodadas)
 
 Máquina: Linux 7.0, Intel i5-3470 (Ivy Bridge, iGPU), `WGPU_BACKEND=gl`
@@ -29,6 +34,15 @@ em cada processo que a mapeia; por isso a soma de 11 processos do Chrome é infl
 **PSS** divide as páginas compartilhadas entre quem as usa — é a comparação justa, e
 ela dá ~10× a favor do Glacier neste painel. O RSS do Glacier (90 MiB) é bem maior
 que o PSS dele (38 MiB) pelo mesmo motivo: a maior parte é biblioteca do sistema.
+
+## A tela mudou depois destas medições (2026-10-31)
+
+O painel ganhou **i18n** (Fase 7): os textos vêm de `locales/*.json` por `{t('…')}` e há dois
+botões, Português e English, que trocam o idioma ao vivo. O `web/index.html` ganhou os mesmos
+botões e as mesmas traduções, para a tela continuar sendo a mesma dos dois lados. **Os números
+acima são da versão anterior e não foram refeitos** (`make medir` e `scripts/medir_chrome.sh`):
+o painel agora monta duas chamadas `t()` a mais por texto e um catálogo de duas locales,
+o que deve custar pouco, mas é uma hipótese até medir.
 
 ## Correção (2026-10-30): a primeira medição era de um painel quebrado
 

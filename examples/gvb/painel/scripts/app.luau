@@ -1,5 +1,6 @@
 -- Painel de referência. `fetch` lê a série de um servidor local (a Fase 0 mede a
--- aplicação, não a internet): python3 -m http.server na pasta de `dados.json`.
+-- aplicação, não a internet): o `main.rs` do painel sobe um servidor local que serve o
+-- `dados.json` (ou usa o que já estiver na porta 8098).
 -- `estado` e `status_estado` são CHAVES do catálogo (locales/*.json); o markup as traduz
 -- com `{t(…)}`, então trocar o idioma reescreve a tela sem este script fazer nada.
 local servicos = {

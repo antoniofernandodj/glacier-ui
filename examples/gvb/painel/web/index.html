@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>Painel de serviços</h1>
+<h1 id="titulo">Painel de serviços</h1>
 <div class="linha">
   <input id="nome" placeholder="Nome do serviço">
   <button id="add">Adicionar</button>
@@ -24,17 +24,43 @@
 <div class="linha">
   <div class="lista" id="lista"></div>
   <div class="grafico">
-    <div class="rotulo">Requisições por hora (fetch)</div>
+    <div class="rotulo" id="grafico">Requisições por hora (fetch)</div>
     <canvas id="g" width="380" height="220"></canvas>
     <div class="rotulo" id="status">carregando…</div>
   </div>
 </div>
+<div class="linha">
+  <button id="pt">Português</button>
+  <button id="en">English</button>
+</div>
 <script>
+  // As mesmas traduções de locales/*.json do painel Glacier — a tela tem de ser a mesma.
+  const T = {
+    "pt-BR": {titulo:"Painel de serviços", nome_servico:"Nome do serviço", adicionar:"Adicionar",
+              grafico:"Requisições por hora (fetch)",
+              estado:{ok:"ok", lento:"lento", novo:"novo"}, status:{carregando:"carregando…", ok:"ok", falhou:"falhou"}},
+    "en":    {titulo:"Services dashboard", nome_servico:"Service name", adicionar:"Add",
+              grafico:"Requests per hour (fetch)",
+              estado:{ok:"ok", lento:"slow", novo:"new"}, status:{carregando:"loading…", ok:"ok", falhou:"failed"}},
+  };
+  let idioma = "pt-BR";
+  let statusEstado = "carregando", statusSufixo = "";
   const servicos = [{nome:"api",estado:"ok"},{nome:"banco",estado:"ok"},{nome:"fila",estado:"lento"}];
   const lista = document.getElementById("lista");
   function publicar() {
-    lista.replaceChildren(...servicos.map(s => Object.assign(document.createElement("div"), {textContent: `${s.nome} — ${s.estado}`})));
+    lista.replaceChildren(...servicos.map(s => Object.assign(document.createElement("div"), {textContent: `${s.nome} — ${T[idioma].estado[s.estado]}`})));
   }
+  function traduzir() {
+    const t = T[idioma];
+    document.getElementById("titulo").textContent = t.titulo;
+    document.getElementById("nome").placeholder = t.nome_servico;
+    document.getElementById("add").textContent = t.adicionar;
+    document.getElementById("grafico").textContent = t.grafico;
+    document.getElementById("status").textContent = t.status[statusEstado] + statusSufixo;
+    publicar();
+  }
+  document.getElementById("pt").onclick = () => { idioma = "pt-BR"; traduzir(); };
+  document.getElementById("en").onclick = () => { idioma = "en"; traduzir(); };
   document.getElementById("add").onclick = () => {
     const i = document.getElementById("nome");
     if (!i.value) return;
@@ -53,8 +79,8 @@
       c.fillRect(i * w + 8, 200 - h, w - 16, h);
       c.fillStyle = "#a6adc8"; c.fillText(x.label, i * w + 12, 215);
     });
-    document.getElementById("status").textContent = "ok (" + r.status + ")";
-  })).catch(e => document.getElementById("status").textContent = "falhou: " + e);
+    statusEstado = "ok"; statusSufixo = " (" + r.status + ")"; traduzir();
+  })).catch(e => { statusEstado = "falhou"; statusSufixo = ": " + e; traduzir(); });
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** em andamento (2026-10-31), glacier-ui 0.146.0. **Fases 0, 1, 5 e 7 feitas**, com as
+**Estado:** em andamento (2026-10-31), glacier-ui 0.146.1. **Fases 0, 1, 5 e 7 feitas**, com as
 ressalvas de cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`, `docs/REDE.md`, `docs/I18N.md`);
 **Fase 4 feita, menos `@keyframes` e `@font-face`** (ver `docs/GSS_MODERNO.md`);
 **Fase 2 parcial** (árvore no AT-SPI, teclado nos botões e aviso de contraste; **falta** o teste
@@ -197,7 +197,8 @@ markup (`.gva` e `.gvb`), catálogo JSON por locale com plural (CLDR para pt/en/
 locale ativa na chave `__locale` (a do sistema por padrão), `locales_dir`/`locale_json` no
 daemon e o global Luau `i18n`. **Medida** com o exemplo `gvb_i18n` (Rust) e `gvb_i18n_luau`
 em janela real: en → pt-BR → ru trocando ao vivo, com plural, número e data. **Ressalvas:**
-medida com um exemplo próprio, **não** com o painel da Fase 0; **RTL**: o `cosmic-text` faz o
+conferida também no **painel da Fase 0** (`examples/gvb/painel`, com botões Português/English;
+o `web/index.html` ganhou os mesmos, e os números de `docs/MEDICOES.md` **não foram refeitos**); **RTL**: o `cosmic-text` faz o
 bidi *dentro* da linha (conferido em árabe), mas o **layout não espelha**; sem dígitos/
 calendários locais, hora, moeda, gênero/ICU `select`, hot-reload do catálogo. Ver
 `docs/I18N.md`.
