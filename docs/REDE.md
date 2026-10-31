@@ -124,6 +124,23 @@ api.options("/items").send().await;
 api.query("/search").json(&serde_json::json!({ "term": "glacier" })).send().await;
 ```
 
+### Corpo vindo de arquivo, redirecionamentos e teto de download
+
+```rust
+// o zip sai do disco em bytes crus, sem base64, com barra de progresso
+Request::post(url).header("Content-Type", "application/zip")
+    .body_file("/tmp/app.zip").on_progress(|p| …).send().await;
+
+// baixar seguindo redirecionamentos (releases do GitHub redirecionam), com teto de tamanho
+Request::get(asset_url).max_redirects(5).max_bytes(200 << 20)
+    .download_to("/tmp/app.deb").send().await;
+```
+
+No Luau: `fetch(url, { body_file = caminho })`, `{ max_redirects = 5 }`, `{ max_bytes = n }` e o
+mesmo no `http()` (`body_file`). O redirecionamento nunca desce de https para http, e um salto
+para outro host deixa `Authorization` e `Cookie` para trás; 301/302/303 viram `GET` sem corpo,
+307/308 repetem o método e o corpo.
+
 ### Progresso (`on_progress`)
 
 `fetch(url, { on_progress = function(p) … end })` (e a mesma opção numa chamada do `http()`)

@@ -1272,6 +1272,7 @@ function Http:request(spec: any): any
         headers = _http_merge(self.headers, spec.headers),
         query = _http_merge(self.params, spec.query),
         body = spec.body,
+        body_file = spec.body_file, -- caminho de um arquivo: o corpo é o conteúdo cru dele
         timeout = if spec.timeout ~= nil then spec.timeout else self.timeout,
         cookies = if spec.cookies ~= nil then spec.cookies else self.cookies,
         signal = spec.signal, -- abort_controller(): cancela esta chamada
@@ -1318,7 +1319,7 @@ function Http:request(spec: any): any
                 break
             end
         end
-        if body == nil or body == "" then
+        if (body == nil or body == "") and req.body_file == nil then
             return { ok = false, status = 0, body = "", error = "QUERY needs a request body (the query itself) — RFC 10008 §2", request = { method = req.method, url = url } }
         elseif not tem_ct then
             return { ok = false, status = 0, body = "", error = "QUERY needs a Content-Type header — RFC 10008 §2", request = { method = req.method, url = url } }
@@ -1334,6 +1335,7 @@ function Http:request(spec: any): any
             method = req.method,
             headers = req.headers,
             body = body,
+            body_file = req.body_file,
             timeout = req.timeout,
             cookies = req.cookies,
             signal = req.signal,

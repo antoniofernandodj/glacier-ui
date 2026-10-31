@@ -87,6 +87,10 @@ pub struct PendingFetch {
     /// `body` textual — usado para enviar bytes arbitrários (ex.: um .zip) que
     /// não sobreviveriam à fronteira Lua↔Rust como String UTF-8.
     pub(crate) body_bytes: Option<Vec<u8>>,
+    /// `fetch(url, { body_file = "/caminho" })`: o corpo é o conteúdo CRU deste arquivo, lido
+    /// pelo motor na hora de enviar — sem passar por base64 nem pela memória do Lua. Vence
+    /// `body` e `body_base64`.
+    pub(crate) body_file: Option<String>,
     pub(crate) headers: Vec<(String, String)>,
     /// `fetch("file://…", { response = "base64" })`: lê o arquivo como bytes crus
     /// e devolve o conteúdo base64-encodado no `body` (em vez de UTF-8).
@@ -117,6 +121,13 @@ pub struct PendingFetch {
     /// `fetch(url, { multipart = { fields = …, files = … } })`: o corpo é montado em
     /// `multipart/form-data` na hora de enviar, lendo os arquivos do disco.
     pub(crate) multipart: Option<Multipart>,
+    /// `fetch(url, { max_redirects = 5 })`: segue até N redirecionamentos (301/302/303/307/308).
+    /// `0` (padrão) devolve o 3xx como veio. Nunca desce de https para http, e um salto para
+    /// OUTRO host esquece `Authorization` e `Cookie`.
+    pub(crate) max_redirects: u32,
+    /// `fetch(url, { max_bytes = N })`: teto para o corpo da RESPOSTA; passou, o pedido falha
+    /// (`ok = false`) sem encher a memória nem o disco. `None` = sem teto.
+    pub(crate) max_bytes: Option<u64>,
 }
 
 /// Qual lado da transferência um [`Progress`] mede.
@@ -242,6 +253,7 @@ impl PendingFetch {
             method,
             body,
             body_bytes: None,
+            body_file: None,
             headers,
             response_base64: false,
             timeout_ms: None,
@@ -251,6 +263,8 @@ impl PendingFetch {
             progress: None,
             wants_progress: false,
             multipart: None,
+            max_redirects: 0,
+            max_bytes: None,
         }
     }
 }

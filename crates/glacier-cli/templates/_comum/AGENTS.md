@@ -3515,6 +3515,9 @@ local res = fetch(url, {
 | `headers` | tabela `{ [nome] = valor }` |
 | `body` | corpo textual |
 | `body_base64` | corpo **binário** em base64; vence o `body` |
+| `body_file` | caminho de um arquivo: o corpo é o conteúdo **cru** dele, lido pelo motor ao enviar (sem base64, sem passar pelo Lua); vence `body` e `body_base64` |
+| `max_redirects` | segue até N redirecionamentos (301/302/303/307/308); padrão `0` devolve o 3xx. Nunca desce de https para http; outro host esquece `Authorization`/`Cookie` |
+| `max_bytes` | teto para o corpo da **resposta**; passou, `ok=false` sem encher memória/disco (vale também no `download_file`) |
 | `user_agent` | atalho para o header (um `headers` explícito ganha) |
 | `timeout` | teto em **milissegundos** para a requisição inteira; estourado, `ok=false`, `status=0`, `error="timeout após …"` |
 | `response = "base64"` | só para `file://`: devolve bytes em base64 em vez de texto |

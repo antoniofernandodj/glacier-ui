@@ -89,6 +89,27 @@ impl Request {
         self
     }
 
+    /// The raw contents of a file as the body, read when the request is sent (no base64, no
+    /// copy through a `String`). Wins over [`body`](Request::body).
+    pub fn body_file(mut self, path: impl Into<String>) -> Self {
+        self.0.body_file = Some(path.into());
+        self
+    }
+
+    /// Follow up to `n` redirects (301/302/303/307/308). `0` (the default) returns the 3xx as is.
+    /// Never goes from https to http, and a hop to another host drops `Authorization` and `Cookie`.
+    pub fn max_redirects(mut self, n: u32) -> Self {
+        self.0.max_redirects = n;
+        self
+    }
+
+    /// A ceiling for the response body, in bytes: past it the request fails (`ok = false`)
+    /// without filling memory or disk.
+    pub fn max_bytes(mut self, n: u64) -> Self {
+        self.0.max_bytes = Some(n);
+        self
+    }
+
     /// A ceiling for the whole request, in milliseconds.
     pub fn timeout_ms(mut self, ms: u64) -> Self {
         self.0.timeout_ms = Some(ms);
@@ -145,6 +166,8 @@ pub struct RequestParts {
     /// Query-string parameters (`?a=1&b=2`), added after the client's default ones.
     pub params: Vec<(String, String)>,
     pub body: Option<String>,
+    /// A file whose raw contents are the body (see [`Request::body_file`]).
+    pub body_file: Option<String>,
     pub multipart: Option<Multipart>,
     pub abort: Option<AbortHandle>,
     /// `None` = the client's setting.
@@ -426,7 +449,7 @@ impl Client {
         // RFC 10008 §2: a QUERY without content, or without an accurate Content-Type, is a request
         // the server must reject. Do not send it.
         if p.method == "QUERY" && p.multipart.is_none() {
-            if p.body.as_deref().is_none_or(str::is_empty) {
+            if p.body.as_deref().is_none_or(str::is_empty) && p.body_file.is_none() {
                 let r = fail(
                     "QUERY needs a request body (the query itself) — RFC 10008 §2".into(),
                     0,
@@ -454,6 +477,9 @@ impl Client {
             }
             if let Some(body) = &p.body {
                 req = req.body(body.clone());
+            }
+            if let Some(path) = &p.body_file {
+                req = req.body_file(path.clone());
             }
             if let Some(ms) = timeout {
                 req = req.timeout_ms(ms);
@@ -543,6 +569,12 @@ impl RequestBuilder<'_> {
     /// A text body. Set a `Content-Type` yourself (or use [`json`](RequestBuilder::json)).
     pub fn body(mut self, body: impl Into<String>) -> Self {
         self.parts.body = Some(body.into());
+        self
+    }
+
+    /// The raw contents of a file as the body (see [`Request::body_file`]).
+    pub fn body_file(mut self, path: impl Into<String>) -> Self {
+        self.parts.body_file = Some(path.into());
         self
     }
 

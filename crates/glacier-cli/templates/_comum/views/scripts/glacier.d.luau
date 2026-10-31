@@ -37,7 +37,8 @@ declare value: string?
 
 declare function viewport(): Viewport
 
--- `opts`: method, headers, body, body_base64, timeout (ms), response ("base64"),
+-- `opts`: method, headers, body, body_base64, body_file (caminho: o corpo é o conteúdo cru do arquivo), timeout (ms), response ("base64"),
+-- `max_redirects` (segue até N redirecionamentos; padrão 0), `max_bytes` (teto do corpo da resposta),
 -- `cookies` (false = ignora o jar), `signal` (um `abort_controller()`),
 -- `on_progress` (function(p: FetchProgress): envio e recebimento, ver abaixo),
 -- `multipart` ({ fields = {…}, files = { { name, path, filename?, content_type? } } }).
@@ -115,6 +116,7 @@ export type HttpRequestSpec = {
     headers: { [string]: any }?,
     query: { [string]: any }?,
     body: any,
+    body_file: string?, -- caminho: o corpo é o conteúdo cru do arquivo (sem base64)
     timeout: number?,
     cookies: boolean?, -- false = esta chamada ignora o jar
     signal: AbortController?, -- cancela a chamada (e ela não é repetida)

@@ -1150,6 +1150,9 @@ impl LuauComponent {
         let download_to: Option<String> = req.get("download_to")?;
         let opts: Option<Table> = req.get("opts")?;
         let mut body_bytes: Option<Vec<u8>> = None;
+        let mut body_file: Option<String> = None;
+        let mut max_redirects: u32 = 0;
+        let mut max_bytes: Option<u64> = None;
         let mut response_base64 = false;
         let mut timeout_ms: Option<u64> = None;
         let mut cookies = true;
@@ -1180,6 +1183,17 @@ impl LuauComponent {
                             })?,
                     );
                 }
+                // `body_file`: o corpo é o conteúdo cru de um arquivo (lido ao enviar).
+                body_file = o.get::<Option<String>>("body_file")?;
+                // `max_redirects = N`: segue até N redirecionamentos (padrão 0 = devolve o 3xx).
+                if let Some(n) = o.get::<Option<f64>>("max_redirects")? {
+                    max_redirects = n.max(0.0) as u32;
+                }
+                // `max_bytes = N`: teto do corpo da resposta.
+                max_bytes = o
+                    .get::<Option<f64>>("max_bytes")?
+                    .filter(|n| *n > 0.0)
+                    .map(|n| n as u64);
                 // `response = "base64"`: aplicável a `file://` — devolve o conteúdo
                 // do arquivo como base64 em vez de texto UTF-8 (ver net::read_file).
                 if let Some(r) = o.get::<Option<String>>("response")? {
@@ -1254,6 +1268,9 @@ impl LuauComponent {
             pf.wants_progress = true;
         }
         pf.body_bytes = body_bytes;
+        pf.body_file = body_file;
+        pf.max_redirects = max_redirects;
+        pf.max_bytes = max_bytes;
         pf.response_base64 = response_base64;
         pf.timeout_ms = timeout_ms;
         pf.download_to = download_to;

@@ -233,7 +233,72 @@ async fn read_file(path: &str, as_base64: bool) -> FetchResult {
     }
 }
 
+/// Resultado de UM salto: a resposta final ou um redirecionamento a seguir.
+enum Salto {
+    Fim(FetchResult),
+    Redireciona { status: u16, location: String },
+}
+
+/// Resolve o `Location` de um redirecionamento contra a URL atual (absoluta, `/caminho` ou relativa).
+fn resolve_location(atual: &str, location: &str) -> Option<String> {
+    if location.starts_with("http://") || location.starts_with("https://") {
+        return Some(location.to_string());
+    }
+    let uri: hyper::Uri = atual.parse().ok()?;
+    let base = format!("{}://{}", uri.scheme_str()?, uri.authority()?);
+    if let Some(resto) = location.strip_prefix('/') {
+        return Some(format!("{base}/{resto}"));
+    }
+    let caminho = uri.path();
+    let pasta = &caminho[..caminho.rfind('/').map_or(0, |i| i + 1)];
+    Some(format!("{base}{pasta}{location}"))
+}
+
+fn host_de(url: &str) -> Option<String> {
+    let uri: hyper::Uri = url.parse().ok()?;
+    uri.authority().map(|a| a.as_str().to_ascii_lowercase())
+}
+
 async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Error + Send + Sync>> {
+    let mut atual = req.clone();
+    let mut saltos = 0u32;
+    loop {
+        match send_salto(&atual).await? {
+            Salto::Fim(r) => return Ok(r),
+            Salto::Redireciona { status, location } => {
+                saltos += 1;
+                if saltos > req.max_redirects {
+                    return Err(format!("redirecionamentos demais (máximo {})", req.max_redirects).into());
+                }
+                let destino = resolve_location(&atual.url, &location)
+                    .ok_or_else(|| format!("Location inválido: {location}"))?;
+                if atual.url.starts_with("https://") && !destino.starts_with("https://") {
+                    return Err(format!("recusei o redirecionamento de https para http: {destino}").into());
+                }
+                // Outro host: as credenciais não vão junto.
+                if host_de(&atual.url) != host_de(&destino) {
+                    atual.headers.retain(|(k, _)| {
+                        !k.eq_ignore_ascii_case("authorization") && !k.eq_ignore_ascii_case("cookie")
+                    });
+                }
+                // 301/302/303 viram GET sem corpo; 307/308 repetem o método e o corpo.
+                if matches!(status, 301 | 302 | 303) && !atual.method.eq_ignore_ascii_case("HEAD") {
+                    atual.method = "GET".into();
+                    atual.body = None;
+                    atual.body_bytes = None;
+                    atual.body_file = None;
+                    atual.multipart = None;
+                    atual.headers.retain(|(k, _)| {
+                        !k.eq_ignore_ascii_case("content-type") && !k.eq_ignore_ascii_case("content-length")
+                    });
+                }
+                atual.url = destino;
+            }
+        }
+    }
+}
+
+async fn send_salto(req: &PendingFetch) -> Result<Salto, Box<dyn std::error::Error + Send + Sync>> {
     let method = Method::from_bytes(req.method.to_uppercase().as_bytes())?;
     // `multipart = { … }`: o corpo é montado aqui, lendo os arquivos do disco, e o
     // `Content-Type` (com o boundary) é o dele — vence o que o chamador pôs.
@@ -245,9 +310,13 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
         // Corpo binário (`body_base64`) vence o textual (`body`); quando nenhum foi
         // definido, corpo vazio.
         None => (
-            match &req.body_bytes {
-                Some(bytes) => bytes.clone(),
-                None => req.body.clone().unwrap_or_default().into_bytes(),
+            match (&req.body_file, &req.body_bytes) {
+                // `body_file`: bytes crus do disco, sem base64 pelo caminho.
+                (Some(path), _) => tokio::fs::read(path)
+                    .await
+                    .map_err(|e| format!("body_file `{path}`: {e}"))?,
+                (None, Some(bytes)) => bytes.clone(),
+                (None, None) => req.body.clone().unwrap_or_default().into_bytes(),
             },
             None,
         ),
@@ -312,6 +381,15 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
     if req.cookies {
         guarda_cookies(&req.url, response.headers());
     }
+    if req.max_redirects > 0
+        && matches!(status, 301 | 302 | 303 | 307 | 308)
+        && let Some(location) = response
+            .headers()
+            .get(hyper::header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+    {
+        return Ok(Salto::Redireciona { status, location: location.to_string() });
+    }
     // Lê o Content-Encoding ANTES de consumir o corpo.
     let gzipped = response
         .headers()
@@ -323,7 +401,12 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
         .get(hyper::header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
-    let raw = if req.progress.is_some() {
+    if let (Some(max), Some(total)) = (req.max_bytes, total)
+        && total > max
+    {
+        return Err(format!("a resposta tem {total} bytes, acima do teto de {max}").into());
+    }
+    let raw = if req.progress.is_some() || req.max_bytes.is_some() {
         // Recebe quadro a quadro para relatar; o total é o `Content-Length`.
         let mut relato = Relato::novo(req.progress.clone(), crate::component::ProgressPhase::Download, total);
         let mut corpo = response.into_body();
@@ -331,6 +414,11 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
         while let Some(quadro) = corpo.frame().await {
             if let Ok(dados) = quadro?.into_data() {
                 acc.extend_from_slice(&dados);
+                if let Some(max) = req.max_bytes
+                    && acc.len() as u64 > max
+                {
+                    return Err(format!("a resposta passou do teto de {max} bytes").into());
+                }
                 relato.feito(acc.len() as u64);
             }
         }
@@ -355,38 +443,38 @@ async fn send(req: &PendingFetch) -> Result<FetchResult, Box<dyn std::error::Err
                 && !parent.as_os_str().is_empty()
                 && let Err(e) = tokio::fs::create_dir_all(parent).await
             {
-                return Ok(FetchResult {
+                return Ok(Salto::Fim(FetchResult {
                     ok: false,
                     status,
                     body: String::new(),
                     error: e.to_string(),
-                });
+                }));
             }
             if let Err(e) = tokio::fs::write(path, &bytes).await {
-                return Ok(FetchResult {
+                return Ok(Salto::Fim(FetchResult {
                     ok: false,
                     status,
                     body: String::new(),
                     error: e.to_string(),
-                });
+                }));
             }
         }
-        return Ok(FetchResult {
+        return Ok(Salto::Fim(FetchResult {
             ok,
             status,
             body: String::new(),
             error: String::new(),
-        });
+        }));
     }
 
     let text = String::from_utf8_lossy(&bytes).into_owned();
 
-    Ok(FetchResult {
+    Ok(Salto::Fim(FetchResult {
         ok,
         status,
         body: text,
         error: String::new(),
-    })
+    }))
 }
 
 /// Descomprime um corpo `Content-Encoding: gzip`. Um erro de descompressão sobe
@@ -859,6 +947,125 @@ mod tests {
     /// eventos e fecha; confere que a leitura frame-a-frame + o parser produzem
     /// exatamente `["hello", "world"]` e depois `Closed`. Exercita o mesmo
     /// caminho de rede do `fetch` (cliente hyper), só que lendo em stream.
+    #[test]
+    fn body_file_envia_os_bytes_crus_do_arquivo() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!("glacier-body-file-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let arquivo = dir.join("pacote.zip");
+        // Bytes que não são UTF-8 válido: um `String` os destruiria.
+        let cru: Vec<u8> = vec![0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0x00, 0x80, 0x01];
+        std::fs::write(&arquivo, &cru).unwrap();
+
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let esperado = cru.clone();
+            let server = tokio::spawn(async move {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut recebido = Vec::new();
+                let mut buf = [0u8; 1024];
+                // Lê até ter os cabeçalhos e o corpo inteiro (Content-Length).
+                loop {
+                    let n = sock.read(&mut buf).await.unwrap();
+                    recebido.extend_from_slice(&buf[..n]);
+                    if let Some(fim) = recebido.windows(4).position(|w| w == b"\r\n\r\n") {
+                        if recebido.len() >= fim + 4 + esperado.len() || n == 0 {
+                            break;
+                        }
+                    } else if n == 0 {
+                        break;
+                    }
+                }
+                let fim = recebido.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+                let cabecalho = String::from_utf8_lossy(&recebido[..fim]).to_lowercase();
+                assert!(cabecalho.contains(&format!("content-length: {}", esperado.len())));
+                assert_eq!(&recebido[fim..], &esperado[..]);
+                sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                    .await
+                    .unwrap();
+                sock.flush().await.unwrap();
+            });
+
+            let mut req = PendingFetch::new(
+                1,
+                format!("http://{addr}/archive"),
+                "POST".into(),
+                Some("isto é ignorado".into()),
+                Vec::new(),
+            );
+            req.body_file = Some(arquivo.to_string_lossy().into_owned());
+            let res = perform(req).await;
+            server.await.unwrap();
+            assert!(res.ok, "{res:?}");
+            assert_eq!(res.body, "ok");
+
+            // Arquivo que não existe: falha local, sem rede.
+            let mut ruim = PendingFetch::new(2, format!("http://{addr}/x"), "POST".into(), None, Vec::new());
+            ruim.body_file = Some(dir.join("nao-existe").to_string_lossy().into_owned());
+            let res = perform(ruim).await;
+            assert!(!res.ok);
+            assert!(res.error.contains("body_file"), "{}", res.error);
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_location_cobre_absoluta_raiz_e_relativa() {
+        assert_eq!(resolve_location("https://a.com/x/y", "https://b.com/z").unwrap(), "https://b.com/z");
+        assert_eq!(resolve_location("https://a.com/x/y", "/z").unwrap(), "https://a.com/z");
+        assert_eq!(resolve_location("https://a.com/x/y", "z").unwrap(), "https://a.com/x/z");
+    }
+
+    #[test]
+    fn segue_redirecionamento_e_respeita_teto_de_bytes() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            // 3 conexões: /a (302 → /b), /b (200, 10 bytes), /b de novo (200, 10 bytes).
+            let server = tokio::spawn(async move {
+                for _ in 0..4 {
+                    let (mut sock, _) = listener.accept().await.unwrap();
+                    let mut buf = [0u8; 2048];
+                    let n = sock.read(&mut buf).await.unwrap();
+                    let pedido = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let resp = if pedido.starts_with("GET /a ") {
+                        "HTTP/1.1 302 Found\r\nLocation: /b\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string()
+                    } else {
+                        "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\n0123456789".to_string()
+                    };
+                    sock.write_all(resp.as_bytes()).await.unwrap();
+                    sock.flush().await.unwrap();
+                }
+            });
+            // sem `max_redirects`, o 302 volta como veio
+            let r = perform(PendingFetch::new(1, format!("http://{addr}/a"), "GET".into(), None, Vec::new())).await;
+            assert_eq!(r.status, 302);
+            // com, segue até o corpo
+            let mut seg = PendingFetch::new(2, format!("http://{addr}/a"), "GET".into(), None, Vec::new());
+            seg.max_redirects = 3;
+            let r = perform(seg).await;
+            assert!(r.ok, "{r:?}");
+            assert_eq!(r.body, "0123456789");
+            // o teto de bytes recusa pelo Content-Length
+            let mut teto = PendingFetch::new(3, format!("http://{addr}/b"), "GET".into(), None, Vec::new());
+            teto.max_bytes = Some(5);
+            let r = perform(teto).await;
+            assert!(!r.ok);
+            assert!(r.error.contains("teto"), "{}", r.error);
+            server.abort();
+        });
+    }
+
     #[test]
     fn sse_le_e_parseia_eventos_de_um_servidor_local() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -8,6 +8,26 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.25.0 — 2026-10-31
+
+Motor dos projetos gerados: **glacier-ui 0.145.0**. O `glacier.d.luau` e o `AGENTS.md` do
+template ganham `body_file`, `max_redirects` e `max_bytes`.
+
+## glacier-ui 0.145.0 — 2026-10-31
+
+Pedidos do `rustploy-gui` (upload de zip, atualizador do app) que o `fetch` não atendia.
+
+### Adicionado
+
+- `fetch(url, { body_file = caminho })` / `Request::body_file`: o corpo é o conteúdo **cru** de um
+  arquivo, lido pelo motor ao enviar — sem base64 (que inflava 33%) e sem passar pelo Lua.
+  Funciona com `on_progress`, no `http()` e no QUERY.
+- `max_redirects` (Luau `fetch`/`download_file`, Rust `Request::max_redirects`): segue
+  redirecionamentos. Padrão `0` = como antes. Nunca desce de https para http; outro host esquece
+  `Authorization` e `Cookie`.
+- `max_bytes` (`Request::max_bytes`): teto para o corpo da resposta, checado pelo
+  `Content-Length` e durante a leitura.
+
 ## glacier-cli 0.24.2 — 2026-10-30
 
 Motor dos projetos gerados: **glacier-ui 0.144.2**. Sem mudanças na CLI.
