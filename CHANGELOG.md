@@ -8,6 +8,22 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.24.1 — 2026-10-30
+
+Motor dos projetos gerados: **glacier-ui 0.144.1**. O `AGENTS.md` menciona o `rede_progresso`.
+
+## glacier-ui 0.144.1 — 2026-10-30
+
+### Adicionado
+
+- Exemplos `rede_progresso` (Luau) e `rede_progresso_rust` (`Request::on_progress` + `subscription`).
+- Os exemplos de rede ligam e desligam o `tools/servidor_rede.py` sozinhos
+  (`examples/comum/servidor_teste.rs`; o servidor ganhou `--sair-com-o-pai`).
+
+### Alterado
+
+- `docs/REDE.md` cobre `Client`, `QUERY`, retries, `on_progress` e os exemplos.
+
 ## glacier-cli 0.24.0 — 2026-10-30
 
 Motor dos projetos gerados: **glacier-ui 0.144**. O `AGENTS.md` e o `glacier.d.luau` dos

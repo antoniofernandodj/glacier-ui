@@ -1,16 +1,19 @@
-# Rede do `fetch`: cookies, multipart e cancelamento
+# Rede: `fetch`, `http()`, cookies, multipart, cancelamento e progresso
 
 Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em quatro formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
-`timeout`, `file://` e `download_file`, em 20 casos na tela (precisa do servidor de teste:
-`python3 tools/servidor_rede.py`):
+`timeout`, `file://`, `download_file` e o método `QUERY`, em 21 casos na tela. Os exemplos **ligam e
+desligam sozinhos** o servidor de teste (`tools/servidor_rede.py`, porta 8096; se já houver um na
+porta, usam o existente). Ao rodar o script à mão: `python3 tools/servidor_rede.py`.
 
 | | estado em Rust | estado em Luau |
 |---|---|---|
 | `.gva` | `rede_completa` | `rede_completa_luau` |
 | `.gvb` | `gvb_rede_completa` | `gvb_rede_completa_luau` |
 
-Os de Rust usam a API pública `glacier_ui::net` (abaixo) e um `Cliente` mínimo
-(`examples/comum/rede_rust.rs`); os de Luau, o `fetch` e o `http()` do prelúdio.
+Os de Rust usam a API pública `glacier_ui::net` (abaixo: `Request`, `Client`…) por
+`examples/comum/rede_rust.rs`; os de Luau, o `fetch` e o `http()` do prelúdio. Para o progresso
+há `rede_progresso` (Luau) e `rede_progresso_rust` (Rust, com `Request::on_progress` e uma
+`subscription` que leva o número à UI).
 
 O Glacier só traz **dados** de fora, pelo `fetch` da camada Lua. Isto é o que esse `fetch` aprendeu.
 
@@ -137,7 +140,7 @@ end })
 
 Em Rust, `Request::on_progress(|p| …)` / `RequestBuilder::on_progress` chamam o closure **na
 tarefa de rede**; entregue o número à UI por um canal ou um `Arc<Mutex<_>>`.
-O exemplo `rede_progresso` sobe e baixa 50 MB contra `tools/servidor_rede.py` com um
+Os exemplos `rede_progresso` e `rede_progresso_rust` sobem e baixam 50 MB com um
 `<progressbar>`. Não há *streaming* do corpo da resposta (ele ainda chega inteiro no `body`).
 
 ### O método `QUERY` (RFC 10008)

@@ -3552,7 +3552,7 @@ O cookie só vai para o **host que o definiu** (o `Domain` é ignorado); vale `P
 `Secure` (só em `https`) e `Max-Age` (`<= 0` apaga). `Expires`/`SameSite` não são lidos, e o
 jar não vai para o disco. Um `Cookie` escrito em `headers` vence o jar. O multipart lê cada
 arquivo **inteiro em memória**. `sse` e `websocket` não usam o jar nem o `signal`.
-O exemplo `rede_completa` roda tudo isso contra `tools/servidor_rede.py`.
+O exemplo `rede_completa` roda tudo isso contra `tools/servidor_rede.py` (que ele mesmo liga e desliga); `rede_progresso` mostra o `on_progress` com uma barra.
 
 #### `http(base_url?, opts?) -> client` — um cliente reutilizável sobre o `fetch`
 
