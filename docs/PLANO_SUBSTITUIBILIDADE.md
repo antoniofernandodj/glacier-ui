@@ -198,7 +198,7 @@ locale ativa na chave `__locale` (a do sistema por padrão), `locales_dir`/`loca
 daemon e o global Luau `i18n`. **Medida** com o exemplo `gvb_i18n` (Rust) e `gvb_i18n_luau`
 em janela real: en → pt-BR → ru trocando ao vivo, com plural, número e data. **Ressalvas:**
 conferida também no **painel da Fase 0** (`examples/gvb/painel`, com botões Português/English;
-o `web/index.html` ganhou os mesmos, e os números de `docs/MEDICOES.md` **não foram refeitos**); **RTL**: o `cosmic-text` faz o
+o `web/index.html` ganhou os mesmos; a coluna do Glacier de `docs/MEDICOES.md` foi **refeita** com ele — sem diferença mensurável —, a do Chrome não); **RTL**: o `cosmic-text` faz o
 bidi *dentro* da linha (conferido em árabe), mas o **layout não espelha**; sem dígitos/
 calendários locais, hora, moeda, gênero/ICU `select`, hot-reload do catálogo. Ver
 `docs/I18N.md`.

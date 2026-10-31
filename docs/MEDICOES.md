@@ -19,15 +19,27 @@ porta 8098 já estiver ocupada — o `make medir` sobe o dele —, usa o que est
 Máquina: Linux 7.0, Intel i5-3470 (Ivy Bridge, iGPU), `WGPU_BACKEND=gl`
 (o Vulkan desta iGPU é quebrado). Glacier 0.143.0, Chrome 155.
 
-| | Glacier | Chrome (janela `--app`, perfil novo) |
-|---|---|---|
-| Processos | 1 | 11 |
-| Memória residente (RSS) em repouso | 89,7 MiB | 1252 MiB (soma, conta compartilhado em dobro) |
-| **PSS** em repouso | **38,5 MiB** | **385,9 MiB** |
-| RSS sob carga (um quadro por vsync, 10 s) | 89,9 MiB | não medido |
-| Binário release | 40,7 MiB | n/a |
-| Binário release, `strip` | 32,0 MiB | n/a |
-| Primeira tela montada | 130 ms | não medido |
+| | Glacier 0.143.0 (30/10) | Glacier 0.146.1, com i18n (31/10) | Chrome (janela `--app`, perfil novo) |
+|---|---|---|---|
+| Processos | 1 | 1 | 11 |
+| Memória residente (RSS) em repouso | 89,7 MiB | 90,6 MiB | 1252 MiB (soma, conta compartilhado em dobro) |
+| **PSS** em repouso | **38,5 MiB** | **35,2 MiB** | **385,9 MiB** |
+| RSS sob carga (um quadro por vsync, 10 s) | 89,9 MiB | 90,5 MiB | não medido |
+| Binário release | 40,7 MiB | 41,5 MiB | n/a |
+| Binário release, `strip` | 32,0 MiB | 32,7 MiB | n/a |
+| Primeira tela montada | 130 ms | 110 ms | não medido |
+
+A coluna do meio é o painel **com i18n** (botões Português/English, textos por `{t('…')}`),
+medido com `make medir` em 2026-10-31. A do Chrome **não foi refeita** (é de 2026-10-30, e o
+HTML mudou só pelos botões e traduções). O que mudou no Glacier:
+
+- **Binário: +0,8 MiB** (com e sem `strip`) — é o motor da 0.146 (i18n, ponte de acessibilidade
+  e o foco de teclado do botão), não só o painel. As features `audio` e `a11y` não entram neste build.
+- **RSS: +0,9 MiB** em repouso e +0,6 MiB sob carga — dentro do que uma rodada varia.
+- **PSS e primeira tela vieram MENORES** (35,2 contra 38,5 MiB; 110 contra 130 ms). **Não leia
+  isso como ganho**: ninguém otimizou nada nesta rodada, e são medianas de 5 execuções numa máquina
+  só, com a mesma variação entre rodadas que já havia. O que se pode dizer é que o i18n **não
+  deixou o painel mais pesado de forma mensurável**; não que o deixou mais leve.
 
 **Como ler.** O RSS conta cada biblioteca compartilhada (Mesa/GL, libc…) inteira,
 em cada processo que a mapeia; por isso a soma de 11 processos do Chrome é inflada.
@@ -35,14 +47,12 @@ em cada processo que a mapeia; por isso a soma de 11 processos do Chrome é infl
 ela dá ~10× a favor do Glacier neste painel. O RSS do Glacier (90 MiB) é bem maior
 que o PSS dele (38 MiB) pelo mesmo motivo: a maior parte é biblioteca do sistema.
 
-## A tela mudou depois destas medições (2026-10-31)
+## O painel ganhou i18n depois da primeira medição (2026-10-31)
 
 O painel ganhou **i18n** (Fase 7): os textos vêm de `locales/*.json` por `{t('…')}` e há dois
 botões, Português e English, que trocam o idioma ao vivo. O `web/index.html` ganhou os mesmos
-botões e as mesmas traduções, para a tela continuar sendo a mesma dos dois lados. **Os números
-acima são da versão anterior e não foram refeitos** (`make medir` e `scripts/medir_chrome.sh`):
-o painel agora monta duas chamadas `t()` a mais por texto e um catálogo de duas locales,
-o que deve custar pouco, mas é uma hipótese até medir.
+botões e as mesmas traduções, para a tela continuar sendo a mesma dos dois lados. A coluna do
+Glacier acima foi **refeita** com essa versão; a do Chrome (`scripts/medir_chrome.sh`) **não**.
 
 ## Correção (2026-10-30): a primeira medição era de um painel quebrado
 
