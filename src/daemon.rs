@@ -479,6 +479,33 @@ impl GlacierDaemon {
         self
     }
 
+    /// Carrega o catálogo de uma locale (`"pt-BR"`, `"en"`) a partir do texto JSON —
+    /// tipicamente `include_str!("../locales/pt-BR.json")`, que serve também na web.
+    /// Ver [`crate::i18n`]. O primeiro catálogo carregado é a locale padrão.
+    pub fn locale_json(self, locale: &str, json: &str) -> Self {
+        if let Err(e) = crate::i18n::load_json(locale, json) {
+            eprintln!("[glacier i18n] {e}");
+        }
+        self
+    }
+
+    /// Carrega todo `*.json` de uma pasta como catálogos (o nome do arquivo é a
+    /// locale: `locales/pt-BR.json`). Só no nativo.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn locales_dir(self, dir: impl AsRef<std::path::Path>) -> Self {
+        if let Err(e) = crate::i18n::load_dir(dir.as_ref()) {
+            eprintln!("[glacier i18n] {e}");
+        }
+        self
+    }
+
+    /// A locale usada quando o contexto não tem `__locale` e quando uma chave falta
+    /// na locale pedida. Padrão: a primeira carregada.
+    pub fn default_locale(self, locale: &str) -> Self {
+        crate::i18n::set_default(locale);
+        self
+    }
+
     /// Define o diretório onde o global `storage` (persistência local em JSON,
     /// análoga a `localStorage`) grava seus arquivos — aplicado a todas as
     /// janelas do app. Passe um diretório gravável pelo usuário (ex.: o data dir
@@ -1686,6 +1713,15 @@ impl Runtime {
             subs.push(
                 iced::time::every(self.toast_period)
                     .map(|_| DaemonMessage::TickAll(EngineMessage::ToastTick)),
+            );
+        }
+
+        // O player do `<audio>` anda sozinho (a barra de posição) e entrega `on_ended`:
+        // 100 ms, e só enquanto algo toca (ou acabou de receber um comando).
+        if crate::audio::ativo() {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(100))
+                    .map(|_| DaemonMessage::TickAll(EngineMessage::AudioTick)),
             );
         }
 

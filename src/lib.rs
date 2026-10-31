@@ -62,10 +62,12 @@ macro_rules! android_main {
     };
 }
 
+pub mod a11y;
 pub mod anchored;
 pub mod animated_toggler;
 pub mod app;
 pub mod asset_source;
+pub mod audio;
 pub mod bindings;
 pub mod builtins;
 pub mod canvas;
@@ -81,10 +83,12 @@ pub mod eval;
 pub mod external;
 pub mod file_dialog;
 pub mod fonts;
+pub mod focus_button;
 pub mod forms;
 pub mod gauges;
 pub mod grid;
 pub mod grip;
+pub mod i18n;
 pub mod gva;
 pub mod gvb;
 pub mod keys;
@@ -1128,6 +1132,23 @@ impl GlacierUI {
         // primeiro ponto em que o registro já está completo.
         self.context_data
             .insert("__fonts".to_string(), fonts::families_json());
+        // i18n: com algum catálogo carregado, a locale ativa nasce na chave
+        // `__locale` (a do sistema, se houver catálogo para ela; senão a padrão)
+        // e as disponíveis em `__locales` (para um `<combo items="__locales">`).
+        // Um app que já escreveu `__locale` antes (restaurou a preferência) vence.
+        if i18n::default_locale().is_some() {
+            if !self.context_data.contains_key(i18n::CHAVE_LOCALE) {
+                let escolhida = i18n::system_locale()
+                    .and_then(|l| i18n::best_match(&l))
+                    .or_else(i18n::default_locale)
+                    .unwrap_or_default();
+                self.context_data.insert(i18n::CHAVE_LOCALE.to_string(), escolhida);
+            }
+            self.context_data.insert(
+                "__locales".to_string(),
+                serde_json::to_string(&i18n::available()).unwrap_or_else(|_| "[]".into()),
+            );
+        }
         let _ = self.reevaluate_all();
     }
 
@@ -1739,6 +1760,11 @@ impl GlacierUI {
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
         if let EngineMessage::UiClick(a) = msg {
+            // Built-in: `audio:<toggle|play|pause|stop>:<nome>` controla um `<audio>`.
+            if a.starts_with("audio:") {
+                audio::aplica_acao(a, None);
+                return iced::Task::none();
+            }
             if let Some(key) = a.strip_prefix("clipboard:") {
                 let value = self.context_data.get(key).cloned().unwrap_or_default();
                 return iced::clipboard::write(value);
@@ -2082,6 +2108,16 @@ impl GlacierUI {
                 self.dismiss_toast(*id);
                 return iced::Task::none();
             }
+            // Enquanto um `<audio>` toca: o tick só existe para forçar o quadro (a barra anda)
+            // e para entregar o fim/erro da reprodução como a ação que o markup declarou.
+            EngineMessage::AudioTick => {
+                let tarefas: Vec<_> = audio::drena_eventos()
+                    .iter()
+                    .filter_map(audio::acao_do_evento)
+                    .map(|a| iced::Task::done(EngineMessage::UiClick(a)))
+                    .collect();
+                return iced::Task::batch(tarefas);
+            }
             EngineMessage::ToastTick => {
                 self.prune_expired_toasts();
                 // Escoa o resíduo da coalescência de stream (ver `pending_reeval`):
@@ -2217,6 +2253,12 @@ impl GlacierUI {
                 value,
                 kind,
             } => {
+                // `audio:seek:<nome>` (a barra de posição do `<audio>`) é do serviço de
+                // áudio, não de um componente: o valor é a posição em segundos.
+                if action.starts_with("audio:") {
+                    audio::aplica_acao(action, Some(value));
+                    return iced::Task::none();
+                }
                 // O mesmo que `UiInputChanged`, mais a dica de tipo para a escrita.
                 self.input_hint = kind.tag_para(value);
                 (action.as_str(), Some(value.as_str()))
@@ -4370,6 +4412,14 @@ impl GlacierUI {
 
         self.sync_editors();
         self.sync_combos();
+        // Acessibilidade: com a feature `a11y`, a árvore avaliada da tela ativa vai ao
+        // leitor de tela. No-op sem a feature (e barato sem cliente AT-SPI conectado).
+        if let Some(atual) = &self.current_screen
+            && let Some(raiz) = self.evaluated_templates.get(atual)
+        {
+            let ctx = &self.context_data;
+            a11y::arvore::publica(raiz, atual, &|k| ctx.get(k).cloned());
+        }
         Ok(())
     }
 

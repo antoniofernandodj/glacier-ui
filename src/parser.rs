@@ -1853,6 +1853,21 @@ pub enum NodeType {
     Spinner {
         color: Option<String>,
     },
+    /// `<audio name src …>`: um arquivo de áudio **local** e o player dele (botão, barra de
+    /// posição, tempo). `src` e `name` chegam crus (`{…}` resolvido no eval). O estado de
+    /// reprodução NÃO mora no contexto: está no serviço [`crate::audio`], por `name`, e o
+    /// widget o lê a cada quadro. `controls = false` não desenha nada (só a fonte, para
+    /// controlar por `audio:play:nome` ou pelo global Luau `audio`).
+    Audio {
+        name: String,
+        src: String,
+        autoplay: bool,
+        looping: bool,
+        volume: String,
+        controls: bool,
+        on_ended: Option<String>,
+        on_error: Option<String>,
+    },
     /// `<Reveal>`/`<Collapse>`: um corpo que **abre e fecha animado** — a
     /// altura do filho interpolada de 0 até a natural (e de volta), com o que
     /// transborda recortado. Ver [`crate::reveal`].
@@ -3538,6 +3553,7 @@ impl NodeType {
             NodeType::Shortcut { .. } => "shortcut",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
+            NodeType::Audio { .. } => "audio",
             NodeType::Reveal { .. } => "reveal",
             NodeType::Form { .. } => "form",
             NodeType::MenuBar => "menubar",
@@ -3835,6 +3851,16 @@ pub struct Interact {
     /// elemento mostra este texto em vez do `tooltip` transiente. Atributo
     /// universal, como `tooltip=`.
     pub whats_this: Option<String>,
+    /// `role="button"` (acessibilidade): o papel do nó para um leitor de tela, quando o
+    /// padrão da tag não serve (um `<container on_click>` que é, na prática, um botão).
+    /// Valores: ver [`crate::a11y::papel`]. Atributo universal, como `tooltip=`.
+    pub role: Option<String>,
+    /// `aria_label="Fechar"` (acessibilidade): o nome que o leitor de tela lê, no lugar do
+    /// texto do nó — um botão só com ícone (`✕`) precisa dele. `aria_hidden="true"` (abaixo)
+    /// tira o nó da árvore de acessibilidade.
+    pub aria_label: Option<String>,
+    /// `aria_hidden="true"`: decorativo, fora da árvore de acessibilidade.
+    pub aria_hidden: bool,
 }
 
 /// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
@@ -4407,6 +4433,18 @@ impl UiNode {
     pub fn whats_this(&self) -> Option<&str> {
         self.interact.as_ref()?.whats_this.as_deref()
     }
+    /// Ver [`Interact::role`].
+    pub fn role(&self) -> Option<&str> {
+        self.interact.as_ref()?.role.as_deref()
+    }
+    /// Ver [`Interact::aria_label`].
+    pub fn aria_label(&self) -> Option<&str> {
+        self.interact.as_ref()?.aria_label.as_deref()
+    }
+    /// Ver [`Interact::aria_hidden`].
+    pub fn aria_hidden(&self) -> bool {
+        self.interact.as_ref().is_some_and(|i| i.aria_hidden)
+    }
     /// Escreve [`Interact::whats_this`], alocando o grupo se preciso.
     pub fn set_whats_this(&mut self, v: Option<String>) {
         if v.is_none() && self.interact.is_none() {
@@ -4967,6 +5005,9 @@ impl UiNode {
                 "oque_e_isso",
             ],
         );
+        let role = Self::get_attr(&node, &["role", "papel"]);
+        let aria_label = Self::get_attr(&node, &["aria_label", "aria-label", "ariaLabel", "rotulo_acessivel"]);
+        let aria_hidden = Self::get_attr_bool(&node, &["aria_hidden", "aria-hidden", "ariaHidden"]);
         let max_width = Self::get_attr_num(
             &node,
             &["maxWidth", "max_width", "max-width", "largura_max"],
@@ -6316,6 +6357,24 @@ impl UiNode {
                 let color = Self::get_attr(&node, &["color", "cor"]);
                 NodeType::Spinner { color }
             }
+            "Audio" | "audio" | "Som" | "som" => {
+                let src = Self::get_attr(&node, &["src", "source", "arquivo", "file"])
+                    .unwrap_or_default();
+                // Sem `name`, o próprio caminho identifica a fonte.
+                let name = Self::get_attr(&node, &["name", "nome", "id"]).unwrap_or_else(|| src.clone());
+                NodeType::Audio {
+                    name,
+                    src,
+                    autoplay: Self::get_attr_bool(&node, &["autoplay", "tocar"]),
+                    looping: Self::get_attr_bool(&node, &["loop", "repetir"]),
+                    volume: Self::get_attr(&node, &["volume"]).unwrap_or_else(|| "1".into()),
+                    controls: Self::get_attr(&node, &["controls", "controles"])
+                        .map(|v| !(v.eq_ignore_ascii_case("false") || v == "0"))
+                        .unwrap_or(true),
+                    on_ended: Self::get_attr(&node, &["on_ended", "onEnded", "on-ended", "aoTerminar", "ao_terminar"]),
+                    on_error: Self::get_attr(&node, &["on_error", "onError", "on-error", "aoErrar", "ao_errar"]),
+                }
+            }
             "Reveal" | "reveal" | "Collapse" | "collapse" | "Revelar" | "revelar" | "Sanfona"
             | "sanfona" => {
                 // `open` e `duration` ficam CRUS (`Option<String>`): os dois
@@ -7039,6 +7098,9 @@ impl UiNode {
                 tooltip,
                 tooltip_position,
                 whats_this,
+                role,
+                aria_label,
+                aria_hidden,
             }),
             pseudo: None,
             cond: caixa(Cond {

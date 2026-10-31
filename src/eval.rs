@@ -1176,6 +1176,16 @@ fn process_tpl(template: &str, context: &EvalCtx) -> String {
                 // `|` the behavior is unchanged: a missing key resolves to empty.
                 // This is what lets a component default its own props per instance
                 // without seeding — or polluting — the global context.
+                // `{t("chave")}`, `{num(x, 2)}`, `{date(x)}`: chamadas do i18n. A
+                // locale ativa é lida do contexto (`__locale`) por `context.get`,
+                // então a dependência fica registrada e a troca de idioma
+                // reavalia a subárvore.
+                if let Some(traduzido) =
+                    crate::i18n::avalia_chamada(&key, &mut |k| context.get(k).map(|v| v.to_string()))
+                {
+                    result.push_str(&traduzido);
+                    continue;
+                }
                 let (lookup, default) = match key.split_once('|') {
                     Some((k, d)) => (k.trim(), Some(d.trim())),
                     None => (key.trim(), None),
@@ -3652,6 +3662,53 @@ fn eval_owned(
                 .filter(|c| !c.trim().is_empty())
                 .or_else(|| style.color.clone()),
         },
+        NodeType::Audio {
+            name,
+            src,
+            autoplay,
+            looping,
+            volume,
+            controls,
+            on_ended,
+            on_error,
+        } => {
+            let src = process_tpl(src, context);
+            let name = process_tpl(name, context);
+            let volume = process_tpl(volume, context);
+            let on_ended = on_ended
+                .as_ref()
+                .map(|a| namespace_action(process_tpl(a, context), owner));
+            let on_error = on_error
+                .as_ref()
+                .map(|a| namespace_action(process_tpl(a, context), owner));
+            // Registrar é idempotente (mesmo `name` e `src` = no-op), então reavaliar a
+            // tela a cada quadro não reabre o arquivo.
+            if !src.trim().is_empty() {
+                crate::audio::registra_acoes(
+                    &name,
+                    crate::audio::Acoes { ao_terminar: on_ended.clone(), ao_errar: on_error.clone() },
+                );
+                crate::audio::registra(
+                    &name,
+                    src.trim(),
+                    crate::audio::Opcoes {
+                        autoplay: *autoplay,
+                        repetir: *looping,
+                        volume: volume.trim().parse().unwrap_or(1.0),
+                    },
+                );
+            }
+            NodeType::Audio {
+                name,
+                src,
+                autoplay: *autoplay,
+                looping: *looping,
+                volume,
+                controls: *controls,
+                on_ended,
+                on_error,
+            }
+        }
         NodeType::Reveal {
             open,
             duration,
@@ -3843,6 +3900,9 @@ fn eval_owned(
     let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
     let tooltip_position_eval = node.tooltip_position().map(str::to_string);
     let whats_this_eval = node.whats_this().map(|s| process_tpl(s, context));
+    let role_eval = node.role().map(str::to_string);
+    let aria_label_eval = node.aria_label().map(|s| process_tpl(s, context));
+    let aria_hidden_eval = node.aria_hidden();
     let max_width_eval = num_template(NumAttr::MaxWidth)
         .or(node.max_width)
         .or(style.max_width);
@@ -4060,6 +4120,9 @@ fn eval_owned(
             tooltip: tooltip_eval,
             tooltip_position: tooltip_position_eval,
             whats_this: whats_this_eval,
+            role: role_eval,
+            aria_label: aria_label_eval,
+            aria_hidden: aria_hidden_eval,
         }),
         pseudo: crate::parser::caixa(crate::parser::Pseudo {
             hover_style: hover_style_eval,

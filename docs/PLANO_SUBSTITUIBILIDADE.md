@@ -1,12 +1,12 @@
 # Plano: Glacier como "micro navegador" (substituibilidade da web)
 
-**Estado:** em andamento (2026-10-31), glacier-ui 0.145.0. **Fases 0 e 1 feitas**, com as
-ressalvas listadas em cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`); **2 e 3 adiadas** por
-decisão (acessibilidade e WASM); **Fase 4 feita, menos `@keyframes` e `@font-face`** (`opacity`,
-`calc()`, `var()` numérico, `transition` de botão e `:first/last/only/nth-child`; ver
-`docs/GSS_MODERNO.md`); **Fase 5 feita** (cookies por host, multipart, `abort`, `on_progress`,
-`body_file`, `max_redirects` e `max_bytes`, também no cliente `http()`; sem streaming do corpo —
-ver `docs/REDE.md`); 6 e 7 não começaram. Carga remota de app, tela ou asset foi **descartada**
+**Estado:** em andamento (2026-10-31), glacier-ui 0.146.0. **Fases 0, 1, 5 e 7 feitas**, com as
+ressalvas de cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`, `docs/REDE.md`, `docs/I18N.md`);
+**Fase 4 feita, menos `@keyframes` e `@font-face`** (ver `docs/GSS_MODERNO.md`);
+**Fase 2 parcial** (árvore no AT-SPI, teclado nos botões e aviso de contraste; **falta** o teste
+com o Orca, o foco no leitor e o teclado nos demais widgets — `docs/ACESSIBILIDADE.md`);
+**Fase 6 parcial: só o `<audio>`** (`docs/AUDIO.md`), **o `<video>` está INCOMPLETO** (não foi feito);
+**Fase 3 adiada** por decisão (WASM). Carga remota de app, tela ou asset foi **descartada**
 (nada remoto além de dados; ver "Fora do escopo"). Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
 quer entregá-lo como markup + stylesheet + script + camada de rede, embutidos num
@@ -119,6 +119,17 @@ Decide o uso público e, em alguns mercados, a conformidade legal.
 
 **Aceitação:** o exemplo da Fase 0 navegável só com teclado e lido por Orca (Linux).
 
+**Estado (2026-10-31): parcial.** Feito: `role`/`aria_label`/`aria_hidden` no markup; a
+árvore de acessibilidade da tela avaliada publicada no AT-SPI pelo `accesskit_unix` (feature
+`a11y`, só Linux — o `iced`/`winit` não expõem o AccessKit, então a ponte não passa pelo
+`winit`); `<button>` com Tab, anel de foco e Enter/Espaço; aviso de contraste WCAG AA no
+`.gss` (primeiro achado real: `.env__del` no rustploy, 3,30:1). **Medido:** a árvore lida
+pelo barramento AT-SPI (papéis e nomes certos) e `DoAction` num botão fechando o ciclo; o
+teclado numa janela real. **Em aberto:** a aceitação ("lido por Orca") **não foi
+verificada** — o Orca não foi usado; o foco do `iced` não chega ao leitor e os nós não têm
+geometria; só o botão ganhou teclado (checkbox, radio, slider, select, abas, tabela…
+não auditados); só Linux. Ver `docs/ACESSIBILIDADE.md`.
+
 ### Fase 3 — Alvo WASM de verdade
 
 - `fetch`/SSE/WebSocket no WASM via `web-sys` (hoje `net_web.rs` só devolve erro).
@@ -164,6 +175,15 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 **Aceitação:** `<audio>` tocando um MP3 **local** com barra de posição.
 
+**Estado (2026-10-31): parcial — só o `<audio>`.** Feito: `<audio>` (MP3, WAV, OGG/Vorbis,
+FLAC; feature `audio`, `rodio`) com player (botão, barra de posição com *seek*, tempo),
+`on_ended`/`on_error`, ações `audio:play|pause|toggle|stop|seek:NOME` e o global Luau `audio`.
+**Medido** numa janela real com o dispositivo de áudio da máquina: a barra anda (0:03 / 0:08
+após 3 s), o clique na barra faz seek, o fim volta o ícone a ▶ e dispara `on_ended`, tocar de
+novo recomeça. **`<video>` INCOMPLETO: não foi feito** (pedido para ficar de fora desta
+rodada; continua sem saída pronta, ver acima). Também em aberto: ler o `src` do `AssetSource`
+(`embed_assets!`) em vez do disco; macOS/Windows não rodados. Ver `docs/AUDIO.md`.
+
 ### Fase 7 — i18n
 
 - `{t("chave")}` com catálogo JSON por locale e troca ao vivo.
@@ -171,6 +191,16 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 - RTL/bidi: depende do `cosmic-text`; avaliar e documentar o limite.
 
 **Aceitação:** o exemplo da Fase 0 trocando pt-BR ↔ en sem reiniciar.
+
+**Estado (2026-10-31): feita, com ressalvas.** `{t("chave", n=…)}`, `{num(…)}` e `{date(…)}` no
+markup (`.gva` e `.gvb`), catálogo JSON por locale com plural (CLDR para pt/en/ru/ar/fr/pl…),
+locale ativa na chave `__locale` (a do sistema por padrão), `locales_dir`/`locale_json` no
+daemon e o global Luau `i18n`. **Medida** com o exemplo `gvb_i18n` (Rust) e `gvb_i18n_luau`
+em janela real: en → pt-BR → ru trocando ao vivo, com plural, número e data. **Ressalvas:**
+medida com um exemplo próprio, **não** com o painel da Fase 0; **RTL**: o `cosmic-text` faz o
+bidi *dentro* da linha (conferido em árabe), mas o **layout não espelha**; sem dígitos/
+calendários locais, hora, moeda, gênero/ICU `select`, hot-reload do catálogo. Ver
+`docs/I18N.md`.
 
 ---
 
@@ -241,3 +271,5 @@ Remoção do `webview_url` e da feature `webview` (2026-10-30): era uma tela rem
 caminho, e a Fase 6 já não conta com ela para `<video>`.
 
 Fases 2 e 3 (2026-10-30): adiadas. A Fase 4 (CSS) e a 5 (rede do `fetch`) vêm antes.
+Depois (2026-10-31): a Fase 2 foi retomada, parcialmente; a Fase 6 foi feita só no `<audio>`, com o
+`<video>` **deixado de fora e marcado como incompleto**; a Fase 7 foi feita. A Fase 3 segue adiada.

@@ -19,5 +19,8 @@ Ferramentas, em `examples/gvb/gvb_*` (cada uma com o seu `main.rs`):
   (`--same A B` compara a árvore de dois `.gvb`; `--xml A` mostra o XML gerado);
 - `gvb_run <arquivo>` — abre um template numa janela.
 
+`examples/comum/` guarda o que mais de um exemplo compartilha (o servidor de teste da rede, os
+catálogos de i18n em `comum/i18n/`).
+
 `examples/gvb/inline_script` é escrito à mão: o teste de realce de `script` e
 `style` com o código no próprio arquivo.

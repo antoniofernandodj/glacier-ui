@@ -84,6 +84,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [`viewport`, `toast`, `confirm`, `navigate`](#viewport-toast-confirm-navigate)
     - [Erros visíveis: `on_error`](#erros-visíveis-on_error)
     - [Streams: SSE e WebSocket](#streams-sse-e-websocket)
+  - [Internacionalização e acessibilidade](#internacionalização-e-acessibilidade)
   - [Estilos `.gss`](#estilos-gss)
     - [Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`](#pseudo-estados-hover--focus--active--disabled)
   - [`<link rel="…">` e temas](#link-rel-e-temas)
@@ -167,6 +168,16 @@ Lua/Luau no sistema), `hyper` + `rustls` para `fetch`, e `tokio-tungstenite` par
 WebSocket. O `iced` é re-exportado em `glacier_ui::iced`, então a sua `main`
 pode nem listar `iced` como dependência direta. Requer Rust **edition 2024**
 (≥ 1.85).
+
+**Features opcionais** (todas desligadas por padrão):
+
+| Feature | O que liga | Custo |
+|---|---|---|
+| `audio` | o `<audio>` (MP3/WAV/OGG/FLAC pelo `rodio`) — [`docs/AUDIO.md`](docs/AUDIO.md) | `libasound2-dev` para compilar no Linux |
+| `a11y` | a árvore de acessibilidade no AT-SPI (Orca & cia.), só Linux — [`docs/ACESSIBILIDADE.md`](docs/ACESSIBILIDADE.md) | o `accesskit_unix` |
+| `tray` | ícone de bandeja | GTK/`libappindicator` no Linux |
+| `system-fonts` | lista as fontes instaladas no SO em `__fonts` | `fontdb` |
+| `web-gpu` | WebGPU/WebGL2 no build para o navegador | — |
 
 Os exemplos do repositório (`examples/`) não são compilados por padrão: são 31,
 cada um linka o motor inteiro, e juntos passavam de 15 GiB em `target/`. Para
@@ -342,6 +353,9 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 | `<Button>` | `button`, `Botao` | `text`/`texto`, `on_click`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
 | `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara), `formControl` (liga a um `FormControl`) |
 | `<TextArea>` | `TextEditor`, `Editor`, `AreaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar` (editor multilinha) |
+| `<Audio>` | `audio`, `som` | `src`, `name`, `controls`, `autoplay`, `loop`, `volume`, `on_ended`, `on_error` — player de áudio **local** (feature `audio`); ver [`docs/AUDIO.md`](docs/AUDIO.md). **Não há `<video>`** |
+| `<Prose>` | `prose` | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |
+| `<Markdown>` | `markdown`, `md` | CommonMark (tabelas, imagens locais), `content`, `size` — [`docs/TEXTO.md`](docs/TEXTO.md) |
 | `<Form>` | `Formulario` | `onSubmit`/`aoSubmeter`, `name`/`nome` — renderiza como `<Column>` |
 | `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave com array JSON), `value`/`valor`, `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`) |
 | `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
@@ -1407,6 +1421,20 @@ script e `navigate_to=`/`navigate_back` do markup; não rodam para a tela inicia
 
 ---
 
+## Internacionalização e acessibilidade
+
+**i18n.** `{t("chave")}` no markup troca a chave pelo texto do catálogo JSON da **locale ativa**
+(a chave `__locale`); escrevê-la troca o idioma ao vivo. O motor **não traduz** — você escreve
+um JSON por idioma. Plural (`{t("itens", n=contagem)}`), número (`{num(v, 2)}`) e data
+(`{date(v)}`) seguem a locale. Carregue com `GlacierDaemon::locales_dir("locales")` ou
+`.locale_json("en", include_str!(…))`; em Luau, o global `i18n`. Ver
+[`docs/I18N.md`](docs/I18N.md) — inclusive o que não existe (RTL espelhado, hora, moeda).
+
+**Acessibilidade.** Três atributos em qualquer tag — `role`, `aria_label`, `aria_hidden` —; o
+`<button>` entra na ordem de Tab com anel de foco e Enter/Espaço o acionam; o `.gss` avisa
+contraste abaixo do WCAG AA; a feature `a11y` publica a árvore no AT-SPI (só Linux). **Parcial:**
+o Orca não foi testado e só o botão ganhou teclado. Ver [`docs/ACESSIBILIDADE.md`](docs/ACESSIBILIDADE.md).
+
 ## Estilos `.gss`
 
 Um `.gss` (*glacier stylesheet*) é um arquivo CSS-like que tira estilos repetidos
@@ -1758,6 +1786,7 @@ componente:
 | `window:close` | fecha a janela |
 | `window:drag` | inicia o arraste — use em `onPress` de uma região da barra de título |
 | `window:resize:<dir>` | inicia o redimensionamento — `<dir>` ∈ `n,s,e,w,ne,nw,se,sw` |
+| `audio:toggle:<nome>` | toca/pausa o `<audio name="<nome>">` (também `audio:play:`, `audio:pause:`, `audio:stop:`) |
 
 Permitem montar uma barra de título customizada para uma janela sem decorações
 (`decorations: false` nas `window::Settings`):
@@ -1909,6 +1938,8 @@ pub enum EngineMessage {
 | `storage.get/set/remove` | persistência local em JSON | não |
 | `date.today/now/add/diff/format/…` | data e hora sobre strings ISO | não |
 | `json.encode/decode/array` | (de)serialização JSON | não |
+| `i18n.t/num/date/set_locale/locale/available/load` | traduz, formata e troca a locale ativa (`__locale`) — [`docs/I18N.md`](docs/I18N.md) | não |
+| `audio.play/pause/toggle/stop/seek/volume/position/duration/playing/error` | controla um `<audio name="…">` (feature `audio`) | não |
 | `require(mod)` | importa uma biblioteca `.luau` | não |
 | `on_error(msg)` | hook opcional de erro de script | — |
 

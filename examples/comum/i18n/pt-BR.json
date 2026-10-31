@@ -1,0 +1,17 @@
+{
+  "titulo": "Painel de serviços",
+  "ola": "Olá, {nome}!",
+  "itens": {
+    "one": "{n} serviço ativo",
+    "other": "{n} serviços ativos"
+  },
+  "rotulo": {
+    "preco": "Preço",
+    "data": "Último deploy",
+    "idioma": "Idioma"
+  },
+  "botao": {
+    "mais": "Adicionar",
+    "menos": "Remover"
+  }
+}

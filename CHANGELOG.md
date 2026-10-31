@@ -8,6 +8,35 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.26.0 — 2026-10-31
+
+Motor dos projetos gerados: **glacier-ui 0.146.0**. O `AGENTS.md` do template ganha o `<audio>`, o
+i18n (`{t("…")}`, `i18n.*`), a acessibilidade e o áudio na camada Luau; o `glacier.d.luau` e o
+`.luaurc` ganham os globais `i18n` e `audio`. A extensão do VS Code embutida vai a 0.23.3
+(documentação das tags de texto do `<prose>` e do `<audio>`).
+
+## glacier-ui 0.146.0 — 2026-10-31
+
+Fases 2, 6 (só áudio) e 7 do `docs/PLANO_SUBSTITUIBILIDADE.md`.
+
+### Adicionado
+
+- **i18n** (`docs/I18N.md`): `{t("chave", n=…)}`, `{num(v, casas)}` e `{date(v)}` no markup, catálogo JSON
+  por locale com plural, locale ativa na chave `__locale` (troca ao vivo; a do sistema por padrão),
+  `GlacierDaemon::{locales_dir, locale_json, default_locale}` e o global Luau `i18n`.
+  Exemplos `gvb_i18n` e `gvb_i18n_luau`.
+- **`<audio>`** (`docs/AUDIO.md`), feature `audio` (`rodio`): MP3/WAV/OGG/FLAC local, player com
+  barra de posição e *seek*, `on_ended`/`on_error`, ações `audio:*:NOME` e o global Luau `audio`.
+  Exemplo `gvb_audio`. **`<video>` não foi feito.**
+- **Acessibilidade** (`docs/ACESSIBILIDADE.md`): atributos `role`, `aria_label` e `aria_hidden`;
+  feature `a11y` (só Linux) publica a árvore da tela no AT-SPI pelo `accesskit_unix`; o `<button>`
+  entra na ordem de Tab com anel de foco e Enter/Espaço; o `.gss` avisa contraste abaixo do WCAG AA.
+
+### Alterado
+
+- `<button>`: agora é focável por Tab e acionável por Enter/Espaço (antes o teclado o ignorava).
+  Quem não quiser o anel de foco não tem como desligar ainda.
+
 ## glacier-cli 0.25.0 — 2026-10-31
 
 Motor dos projetos gerados: **glacier-ui 0.145.0**. O `glacier.d.luau` e o `AGENTS.md` do

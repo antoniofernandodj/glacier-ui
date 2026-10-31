@@ -340,6 +340,10 @@ impl LuauComponent {
             storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
         )
         .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
+        // `audio`: o controle de `<audio>` pelo script (ver `crate::audio`).
+        install_audio(&luau).map_err(|e| format!("Erro ao instalar `audio` Luau: {}", e))?;
+        // `i18n`: as funções cruas que o prelúdio embrulha (`i18n.t`, `i18n.load`…).
+        install_i18n(&luau).map_err(|e| format!("Erro ao instalar `i18n` Luau: {}", e))?;
         // `abort_controller()` e `clear_cookies()`: o cancelamento e o jar do `fetch`.
         install_rede(&luau).map_err(|e| format!("Erro ao instalar a rede Luau: {}", e))?;
         // Expõe o global `write_file(path, conteúdo)` (escrita de arquivo local).
@@ -1815,6 +1819,72 @@ impl mlua::UserData for AbortCtl {
 }
 
 /// `abort_controller()` e `clear_cookies(host?)`.
+/// O global `audio`: controla um `<audio>` pelo `name` (ver [`crate::audio`]).
+fn install_audio(luau: &Lua) -> mlua::Result<()> {
+    let t = luau.create_table()?;
+    let f = |luau: &Lua, t: &Table, nome: &str, f: fn(&str)| -> mlua::Result<()> {
+        t.set(nome, luau.create_function(move |_, n: String| { f(&n); Ok(()) })?)
+    };
+    f(luau, &t, "play", crate::audio::play)?;
+    f(luau, &t, "pause", crate::audio::pause)?;
+    f(luau, &t, "toggle", crate::audio::toggle)?;
+    f(luau, &t, "stop", crate::audio::stop)?;
+    t.set("seek", luau.create_function(|_, (n, s): (String, f64)| { crate::audio::seek(&n, s); Ok(()) })?)?;
+    t.set("volume", luau.create_function(|_, (n, v): (String, f32)| { crate::audio::set_volume(&n, v); Ok(()) })?)?;
+    t.set("position", luau.create_function(|_, n: String| Ok(crate::audio::status(&n).posicao))?)?;
+    t.set("duration", luau.create_function(|_, n: String| Ok(crate::audio::status(&n).duracao))?)?;
+    t.set("playing", luau.create_function(|_, n: String| Ok(crate::audio::status(&n).tocando))?)?;
+    t.set("error", luau.create_function(|_, n: String| Ok(crate::audio::status(&n).erro))?)?;
+    t.set("available", luau.create_function(|_, ()| Ok(crate::audio::compilado()))?)?;
+    luau.globals().set("audio", t)?;
+    Ok(())
+}
+
+/// As funções cruas do catálogo (ver [`crate::i18n`]); o prelúdio monta o global
+/// `i18n` em cima delas, porque a locale ativa mora no `ctx`, que só o Luau enxerga.
+fn install_i18n(luau: &Lua) -> mlua::Result<()> {
+    let g = luau.globals();
+    g.set(
+        "__i18n_t",
+        luau.create_function(
+            |_, (locale, chave, args): (String, String, Option<std::collections::HashMap<String, String>>)| {
+                Ok(crate::i18n::translate(&locale, &chave, &args.unwrap_or_default()))
+            },
+        )?,
+    )?;
+    g.set(
+        "__i18n_load",
+        luau.create_function(|_, (locale, json): (String, String)| {
+            crate::i18n::load_json(&locale, &json).map_err(mlua::Error::RuntimeError)
+        })?,
+    )?;
+    g.set(
+        "__i18n_available",
+        luau.create_function(|_, ()| Ok(crate::i18n::available()))?,
+    )?;
+    g.set(
+        "__i18n_best",
+        luau.create_function(|_, pedida: String| Ok(crate::i18n::best_match(&pedida)))?,
+    )?;
+    g.set(
+        "__i18n_system",
+        luau.create_function(|_, ()| Ok(crate::i18n::system_locale()))?,
+    )?;
+    g.set(
+        "__i18n_num",
+        luau.create_function(|_, (locale, v, casas): (String, f64, Option<usize>)| {
+            Ok(crate::i18n::formata_numero(&locale, v, casas.unwrap_or(0)))
+        })?,
+    )?;
+    g.set(
+        "__i18n_date",
+        luau.create_function(|_, (locale, v): (String, String)| {
+            Ok(crate::i18n::formata_data(&locale, &v))
+        })?,
+    )?;
+    Ok(())
+}
+
 fn install_rede(luau: &Lua) -> mlua::Result<()> {
     let novo = luau.create_function(|_, ()| Ok(AbortCtl(crate::component::AbortHandle::new())))?;
     luau.globals().set("abort_controller", novo)?;

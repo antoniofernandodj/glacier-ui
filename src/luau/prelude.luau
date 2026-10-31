@@ -1730,3 +1730,62 @@ function console.table(rows: any, columns: any?)
     print(regua("└", "┴", "┘"))
 end
 
+
+-- ── i18n ────────────────────────────────────────────────────────────────────
+--
+-- A locale ativa é a chave `__locale` do contexto: trocá-la reavalia toda
+-- interpolação `{t("…")}` na tela, sem reiniciar. O catálogo é global ao processo
+-- (carregado no daemon com `locale_json`/`locales_dir`, ou aqui com `i18n.load`).
+--
+--   i18n.set_locale("en")                       -- troca ao vivo
+--   i18n.locale()                               -- "pt-br"
+--   i18n.t("itens", { n = 3 })                  -- "3 itens"
+--   i18n.num(1234.5, 2)  /  i18n.date("2026-10-31")
+i18n = {}
+
+function i18n.locale(): string
+    local l = ctx["__locale"]
+    if l == nil or l == "" then
+        return __i18n_best(__i18n_system() or "") or (i18n.available()[1] or "en")
+    end
+    return tostring(l)
+end
+
+-- Escolhe a locale; se não houver catálogo exato, a mais próxima (`pt` → `pt-br`).
+-- Devolve a locale que ficou ativa, ou nil (e não muda nada) se nenhuma serve.
+function i18n.set_locale(pedida: string): string?
+    local l = __i18n_best(pedida)
+    if l == nil then
+        return nil
+    end
+    ctx["__locale"] = l
+    return l
+end
+
+function i18n.available(): { string }
+    return __i18n_available()
+end
+
+-- Carrega um catálogo a partir de um texto JSON.
+function i18n.load(locale: string, json_text: string): number
+    return __i18n_load(locale, json_text)
+end
+
+function i18n.t(chave: string, args: { [string]: any }?): string
+    local flat: { [string]: string } = {}
+    if args ~= nil then
+        for k, v in args do
+            flat[k] = tostring(v)
+        end
+    end
+    return __i18n_t(i18n.locale(), chave, flat)
+end
+
+function i18n.num(valor: number, casas: number?): string
+    return __i18n_num(i18n.locale(), valor, casas)
+end
+
+-- `valor`: segundos Unix ou `AAAA-MM-DD`.
+function i18n.date(valor: any): string
+    return __i18n_date(i18n.locale(), tostring(valor)) or tostring(valor)
+end

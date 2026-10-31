@@ -815,6 +815,9 @@ pub enum EngineMessage {
     /// prunes expired toasts from the active list. Carries no data of its
     /// own — the engine compares each toast's own timestamp against `now`.
     ToastTick,
+    /// Tick de 100 ms enquanto um `<audio>` toca (ver [`crate::audio::ativo`]): pede o
+    /// próximo quadro (a barra de posição anda) e entrega os eventos `on_ended`/`on_error`.
+    AudioTick,
     /// Tab / Shift+Tab pressed (global keyboard subscription): move focus to the
     /// next / previous focusable widget. iced's text inputs don't advance focus
     /// on Tab on their own, so the engine drives it (see `tab_focus_from_event`).
@@ -980,6 +983,7 @@ impl EngineMessage {
             Self::DialogDismiss { .. } => "DialogDismiss",
             Self::ToastDismiss { .. } => "ToastDismiss",
             Self::ToastTick { .. } => "ToastTick",
+            Self::AudioTick { .. } => "AudioTick",
             Self::FocusNext { .. } => "FocusNext",
             Self::FocusPrev { .. } => "FocusPrev",
             Self::Viewport { .. } => "Viewport",
@@ -4685,6 +4689,8 @@ pub fn render_node<'a>(
             // próprio iced já reporta `button::Status::Disabled` na closure de
             // estilo abaixo — não há necessidade de rastrear isso à parte.
             let is_disabled = node.disabled.unwrap_or(false);
+            // A mesma mensagem que o `on_press` leva: o `FocusButton` a publica em Enter/Espaço.
+            let mut msg_clique: Option<EngineMessage> = None;
             if !is_disabled {
                 // `type="submit"`/`"reset"` inside a `<Form>` wins over the
                 // generic on_click: the click fires the enclosing form instead
@@ -4711,13 +4717,17 @@ pub fn render_node<'a>(
                     None => None,
                 };
                 if let Some(msg) = form_action {
+                    msg_clique = Some(msg.clone());
                     btn = btn.on_press(msg);
                 } else if *navigate_back {
                     // Navigation takes priority over the generic on_click.
+                    msg_clique = Some(EngineMessage::NavigateBack);
                     btn = btn.on_press(EngineMessage::NavigateBack);
                 } else if let Some(destination) = navigate_to {
+                    msg_clique = Some(EngineMessage::Navigate(destination.clone()));
                     btn = btn.on_press(EngineMessage::Navigate(destination.clone()));
                 } else if let Some(action) = on_click {
+                    msg_clique = Some(EngineMessage::UiClick(action.clone()));
                     btn = btn.on_press(EngineMessage::UiClick(action.clone()));
                 }
             }
@@ -4872,8 +4882,15 @@ pub fn render_node<'a>(
             } else {
                 btn.into()
             };
-            if transicao.is_some() {
+            let el = if transicao.is_some() {
                 crate::transition::Transicionado::new(el, slot).into()
+            } else {
+                el
+            };
+            // Foco de teclado: Tab chega ao botão, Enter/Espaço o acionam (ver
+            // `crate::focus_button`). Sem mensagem (desabilitado, ou sem ação) fica de fora.
+            if msg_clique.is_some() {
+                crate::focus_button::FocusButton::new(el, msg_clique).into()
             } else {
                 el
             }
@@ -6751,6 +6768,46 @@ pub fn render_node<'a>(
                 sp = sp.color(c);
             }
             sp.into()
+        }
+        NodeType::Audio { name, controls, src, .. } => {
+            if !*controls {
+                return iced::widget::Space::new().width(0).height(0).into();
+            }
+            // O estado de reprodução vem do serviço (`crate::audio`), lido a cada
+            // quadro: um tick de 100 ms (ver `DaemonMessage`/`AudioTick`) é o que pede o
+            // próximo desenho enquanto algo toca.
+            let st = crate::audio::status(name);
+            let dur = st.duracao.unwrap_or(0.0);
+            let pos = st.posicao.min(if dur > 0.0 { dur } else { f64::MAX });
+            let rotulo = if st.tocando { "⏸" } else { "▶" };
+            let alternar = EngineMessage::UiClick(format!("audio:toggle:{name}"));
+            let nome = name.clone();
+            let ao_buscar = move |v: f32| EngineMessage::UiInputTyped {
+                action: format!("audio:seek:{nome}"),
+                value: format!("{v:.2}"),
+                kind: InputKind::Number,
+            };
+            let barra: Element<'a, EngineMessage> = if dur > 0.0 {
+                slider(0.0..=dur as f32, pos as f32, ao_buscar).step(0.1f32).width(Length::Fill).into()
+            } else {
+                // Duração desconhecida (um formato sem cabeçalho): barra parada.
+                slider(0.0..=1.0f32, 0.0, |_| EngineMessage::UiClick(String::new())).width(Length::Fill).into()
+            };
+            let texto = match &st.erro {
+                Some(e) => format!("erro: {e}"),
+                None if dur > 0.0 => {
+                    format!("{} / {}", crate::audio::formata_tempo(pos), crate::audio::formata_tempo(dur))
+                }
+                None if st.carregado => crate::audio::formata_tempo(pos),
+                None if src.trim().is_empty() => "sem arquivo".to_string(),
+                None => "carregando…".to_string(),
+            };
+            let largura = if node.width.is_some() { parse_length(&node.width) } else { Length::Fixed(360.0) };
+            row![button(text(rotulo)).on_press(alternar), barra, text(texto).size(13)]
+                .spacing(node.spacing.unwrap_or(10.0))
+                .align_y(iced::Alignment::Center)
+                .width(largura)
+                .into()
         }
         NodeType::Reveal {
             open,

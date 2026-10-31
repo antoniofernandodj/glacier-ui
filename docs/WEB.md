@@ -82,6 +82,9 @@ gravado apenas em `.gz`, servido com `gzip_static always` + `gunzip on`. O
 | `notify()` | vai para o console | Sem D-Bus/WinRT. |
 | Diálogo de arquivo | responde "cancelado" e avisa no console | Sem `rfd`. |
 | Bandeja, instância única | desligados | Cada aba é a própria instância. |
+| `<audio>` (feature `audio`) | erro no player | O `rodio`/`cpal` é dependência só do nativo; o módulo existe sem a feature, mas ligá-la no alvo `wasm32` não é suportado (nem foi compilado aqui). |
+| Acessibilidade (feature `a11y`) | desligada | A ponte é o `accesskit_unix` (AT-SPI), só Linux. Os atributos `role`/`aria_label` são lidos e ignorados. |
+| i18n | deve funcionar com `locale_json(include_str!(…))` — **não foi compilado para wasm** | O catálogo e o `{t(…)}` são Rust puro (sem `fs` nem `env` no alvo web); `locales_dir` (lê o disco) não existe, e a locale do sistema não é lida (comece em `__locale`). |
 | Hot-reload | não há | Os assets são embutidos. |
 | Várias janelas | não testado | Cada janela do daemon vira outro canvas no `<body>`. |
 

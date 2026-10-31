@@ -1,0 +1,12 @@
+:root {
+  --fundo: #1E1E2E;
+  --texto: #CDD6F4;
+  --fraco: #7F849C;
+}
+
+.caixa  { width: fill; height: fill; padding: 24; }
+.coluna { width: fill; spacing: 12; }
+.titulo { size: 22; bold: true; color: var(--texto); }
+.corpo  { size: 15; color: var(--texto); }
+.rotulo { size: 12; color: var(--fraco); }
+.linha  { spacing: 8; }

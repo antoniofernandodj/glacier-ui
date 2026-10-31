@@ -1,0 +1,17 @@
+{
+  "titulo": "Services dashboard",
+  "ola": "Hello, {nome}!",
+  "itens": {
+    "one": "{n} active service",
+    "other": "{n} active services"
+  },
+  "rotulo": {
+    "preco": "Price",
+    "data": "Last deploy",
+    "idioma": "Language"
+  },
+  "botao": {
+    "mais": "Add",
+    "menos": "Remove"
+  }
+}

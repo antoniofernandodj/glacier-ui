@@ -1452,6 +1452,41 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
         )));
     }
 
+    // Contraste das regras que usam `var(--x)`: o `parse_rule_body` não as enxerga (o valor
+    // ainda é `var(...)`), então aqui, com as variáveis do próprio sheet já lidas, resolve-se
+    // uma cópia e mede-se. Variável que vem de OUTRO sheet fica sem aviso (não dá para saber).
+    let com_var = |r: &StyleRule| {
+        [&r.color, &r.background, &r.text_color].iter().any(|c| c.as_deref().is_some_and(|v| v.contains("var(")))
+    };
+    let onde = file.unwrap_or("<inline>");
+    let mut medir: Vec<(String, StyleRule)> = Vec::new();
+    for (k, r) in &sheet.rules {
+        if com_var(r) {
+            medir.push((format!(".{k}"), r.clone()));
+        }
+    }
+    for (k, r) in &sheet.tags {
+        if com_var(r) {
+            medir.push((k.clone(), r.clone()));
+        }
+    }
+    for (k, r) in &sheet.ids {
+        if com_var(r) {
+            medir.push((format!("#{k}"), r.clone()));
+        }
+    }
+    medir.sort_by(|a, b| a.0.cmp(&b.0));
+    for (sel, mut r) in medir {
+        r.resolve_var_refs(&sheet.variables);
+        if let (Some(bg), Some(fg)) = (r.background.as_deref(), r.text_color.as_deref().or(r.color.as_deref())) {
+            if let Some(aviso) =
+                crate::a11y::aviso_de_contraste(&sel, fg, bg, r.size, r.bold.unwrap_or(false))
+            {
+                eprintln!("glacier-ui: {onde}: {aviso}");
+            }
+        }
+    }
+
     Ok(sheet)
 }
 
@@ -1969,6 +2004,24 @@ fn parse_rule_body(
                     selector,
                     suggestion
                 );
+            }
+        }
+    }
+    // Acessibilidade: o par texto/fundo da regra passa no WCAG AA? (só cores `#hex` opacas —
+    // gradiente, transparência e `var()` não resolvida não dão para medir, e então calam.)
+    // Num `<button>` o `color` pinta o FUNDO e o rótulo é o `text_color`, então ali o par
+    // é `text_color`/`color`.
+    if let Some(bg) = rule.background.as_deref() {
+        if let Some(fg) = rule.text_color.as_deref().or(rule.color.as_deref()) {
+            if let Some(aviso) = crate::a11y::aviso_de_contraste(
+                selector,
+                fg,
+                bg,
+                rule.size,
+                rule.bold.unwrap_or(false),
+            ) {
+                let (linha, _) = ctx.at(body_at);
+                eprintln!("glacier-ui: {}: {aviso}", ctx.where_at(linha));
             }
         }
     }

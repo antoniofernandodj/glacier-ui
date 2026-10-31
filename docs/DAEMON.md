@@ -86,6 +86,7 @@ isso se escreve no markup**.
 | `.remember_window_geometry(true)` | grava o tamanho/posição ao fechar e restaura ao abrir | `app(id = meu_app, remember_geometry = true)` |
 | `.storage_dir(dir)` | onde o global `storage` e a geometria gravam | sai do `id` do `app` (`~/.local/share/<id>`). Um diretório próprio só em Rust |
 | `.tray(TrayConfig)` + `.on_tray(f)` | ícone de bandeja e menu | `tray` com `item`, `check` e `separator` no `resources` do `app`; as ações `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho, o resto vai para o `<script>` |
+| `.locales_dir(dir)` / `.locale_json("pt-BR", json)` / `.default_locale("pt-BR")` | carrega os catálogos de i18n (um JSON por locale) e escolhe a padrão; `locales_dir` só no nativo | `{t("chave")}` no markup e a chave `__locale` — ver [`I18N.md`](I18N.md). **Só em Rust** (o catálogo é dado do app) |
 | `.style(style::FUSION)` | estilo visual embutido da janela | um botão com `on_click="style:fusion"` troca em tempo de execução; o estilo **inicial** só em Rust |
 | `.font(bytes)` / `.font_named("Inter", bytes)` / `.default_font(f)` | embute uma fonte no binário | `font(src = "assets/fonts/Inter.ttf", family = Inter)` no `resources` do `app`, e `app(font = Inter)` para torná-la a padrão. O arquivo é lido pela fonte de assets (`.assets(…)` a embute). `font="Inter"` no markup e `font_family: Inter` no `.gss` a usam |
 | `.antialiasing(false)` | liga/desliga o MSAA | `app(antialiasing = false)` |
