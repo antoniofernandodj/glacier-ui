@@ -1,0 +1,8 @@
+{
+  "titulo": "Services dashboard",
+  "nome_servico": "Service name",
+  "adicionar": "Add",
+  "grafico": "Requests per hour (fetch)",
+  "estado": { "ok": "ok", "lento": "slow", "novo": "new" },
+  "status": { "carregando": "loading…", "ok": "ok", "falhou": "failed" }
+}

@@ -17,15 +17,15 @@ screen(title = "Texto rico") {
 
         prose(class = corpo) {
           p {
-            span("Olá, ") b("{usuario}") span("! O motor lê ") i("markup") span(", ")
-            code(".gss") span(" e Luau, e tudo isso cabe em ") b { i("um binário") }
-            span(". Veja o ")
+            span("Olá, ") b("{usuario}") span("! O motor lê ") i("markup")
+            span(", ") code(".gss") span(" e Luau, e tudo isso cabe em ")
+            b { i("um binário") } span(". Veja o ")
             a("repositório", href = "https://github.com/antoniofernandodj/glacier-ui")
             span(" ou ") a("a tela de detalhes", navigate_to = detalhes) span(".")
           }
           p {
-            span("Tachado: ") s("antigo") span(", sublinhado: ") u("novo") span(", cor: ")
-            span("alerta", color = "#F38BA8")
+            span("Tachado: ") s("antigo") span(", sublinhado: ") u("novo")
+            span(", cor: ") span("alerta", color = "#F38BA8")
             span(". Um link que dispara uma ação: ")
             a("cliques: {cliques}", on_click = contar) span(".")
           }

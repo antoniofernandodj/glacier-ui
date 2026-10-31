@@ -1,0 +1,8 @@
+{
+  "titulo": "Painel de serviços",
+  "nome_servico": "Nome do serviço",
+  "adicionar": "Adicionar",
+  "grafico": "Requisições por hora (fetch)",
+  "estado": { "ok": "ok", "lento": "lento", "novo": "novo" },
+  "status": { "carregando": "carregando…", "ok": "ok", "falhou": "falhou" }
+}

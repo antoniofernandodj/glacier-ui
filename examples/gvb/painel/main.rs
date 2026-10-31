@@ -7,6 +7,8 @@ use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {
     GlacierDaemon::new()
+        .locales_dir("examples/gvb/painel/locales")
+        .default_locale("pt-BR")
         .main_template("examples/gvb/painel/app.gvb")
         .run()
 }
