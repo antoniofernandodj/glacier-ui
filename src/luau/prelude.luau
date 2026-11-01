@@ -13,7 +13,7 @@ end
 -- passar pelo texto/UTF-8 do `fetch` (que corrompe um binário como JPEG/PNG
 -- via `String::from_utf8_lossy`, ver src/net.rs). É o caminho para cachear
 -- uma imagem remota (thumbnail, avatar) em disco e exibi-la com
--- `<image source="{caminho}">`, que só lê do sistema de arquivos — o motor
+-- `image(source = @caminho)`, que só lê do sistema de arquivos — o motor
 -- não faz fetch de imagem por URL. Suspende como o `fetch` cru; mesmos
 -- `opts` (`headers`, `timeout`, `user_agent`). Devolve `{ ok, status, error }`
 -- (sem `body`: o conteúdo foi para o arquivo, não para a resposta).
@@ -259,7 +259,7 @@ function progress_set(value, label)
     else
         ctx["__dialog.progresso"] = tostring(value)
         -- A barra desenha na escala 0–100 porque o `min`/`max` de um
-        -- `<progressbar>` é literal: ele não aceita `{interpolação}`. A conta
+        -- `progressbar` é literal: ele não aceita `{interpolação}`. A conta
         -- vive aqui, onde o `max` declarado na abertura está à mão.
         local max = tonumber(ctx["__dialog.max"]) or 100
         local pct = if max > 0 then (tonumber(value) or 0) / max * 100 else 0
@@ -328,7 +328,7 @@ function navigate_back()
     })
 end
 
--- Troca o estilo visual: um `<link rel="style" as="nome">` do app ou um builtin
+-- Troca o estilo visual: um `link(rel = style, as = nome)` do app ou um builtin
 -- (`fusion`, `fusion-dark`…). NÃO suspende: cede um pedido e o motor aplica
 -- depois do handler. No `init`, vale já no primeiro quadro.
 function set_style(name)
@@ -385,7 +385,7 @@ function close_window()
     })
 end
 
--- Anexa `text` ao FIM do <textarea> ligado a `binding` (a chave usada no seu
+-- Anexa `text` ao FIM do textarea ligado a `binding` (a chave usada no seu
 -- `value`), de forma INCREMENTAL: o motor faz um insert no fim do buffer do
 -- text_editor em vez de recriá-lo, então o scroll é preservado e o custo é
 -- O(text), não O(conteúdo todo). Ideal para logs vivos — cada linha nova é
@@ -488,9 +488,9 @@ end
 -- ── `date`: aritmética de data e hora sobre strings ISO ─────────────────────
 --
 -- O motor guarda data e hora como TEXTO ISO — `YYYY-MM-DD`, `HH:MM[:SS]`, ou os
--- dois separados por espaço. É o que os `<dateedit>`/`<timeedit>`/
--- `<datetimeedit>` escrevem na chave de contexto, e é o único formato que
--- atravessa a fronteira com o motor (um `<dateedit>` grava texto, e texto volta). Este
+-- dois separados por espaço. É o que os `dateedit`/`timeedit`/
+-- `datetimeedit` escrevem na chave de contexto, e é o único formato que
+-- atravessa a fronteira com o motor (um `dateedit` grava texto, e texto volta). Este
 -- módulo, portanto, recebe strings e devolve strings: não existe um "objeto
 -- data" para vazar daqui para uma chave.
 --
@@ -759,18 +759,18 @@ end
 -- relógio aqui: uma tela que precisa andar sozinha combina isto com `every`
 -- (`every(1000, function() ctx.agora = date.now() end)`).
 
--- Hoje, em `YYYY-MM-DD` — pronto para ir direto a um `<dateedit>`.
+-- Hoje, em `YYYY-MM-DD` — pronto para ir direto a um `dateedit`.
 function date.today(): string
     return os.date("%Y-%m-%d") :: string
 end
 
 -- Agora, em `YYYY-MM-DD HH:MM` (`:SS` com `segundos = true`) — o formato do
--- `<datetimeedit>`, com e sem a seção de segundos.
+-- `datetimeedit`, com e sem a seção de segundos.
 function date.now(segundos: boolean?): string
     return os.date(if segundos then "%Y-%m-%d %H:%M:%S" else "%Y-%m-%d %H:%M") :: string
 end
 
--- A hora do relógio, em `HH:MM` — o formato do `<timeedit>`.
+-- A hora do relógio, em `HH:MM` — o formato do `timeedit`.
 function date.time(segundos: boolean?): string
     return os.date(if segundos then "%H:%M:%S" else "%H:%M") :: string
 end

@@ -1,16 +1,16 @@
-//! Os três medidores da Onda 7: `<dial>`, `<gauge>` e `<lcdnumber>` — o
+//! Os três medidores da Onda 7: `dial`, `gauge` e `lcdnumber` — o
 //! `QDial`, o *Gauge* do QML e o `QLCDNumber`.
 //!
 //! Os três desenham no `canvas` (ver [`crate::canvas`], o habilitador da onda),
-//! e os três seguem a regra que o `<slider>` e o `<rating>` já seguiam: **o
+//! e os três seguem a regra que o `slider` e o `rating` já seguiam: **o
 //! valor mora na chave que o markup nomeia**. O `canvas::Program::State` do
-//! `iced` guarda só o que morre com o gesto — se a alça do `<dial>` está presa
+//! `iced` guarda só o que morre com o gesto — se a alça do `dial` está presa
 //! agora —, então N medidores na mesma tela não se veem.
 //!
 //! # A reclassificação
 //!
 //! O `PLANO_WIDGETS.md` catalogava os três como **componente** e marcava
-//! `<dial>` com `●` ("exige estado por instância"). Não exige, e pela terceira
+//! `dial` com `●` ("exige estado por instância"). Não exige, e pela terceira
 //! vez na história deste catálogo: o `Spinner` (0.66) e o `Rating` (0.85) já
 //! tinham descido de `●` para primitiva pelo mesmo motivo. O que parecia estado
 //! por instância era o **valor**, e o valor sempre coube numa chave que o app
@@ -36,10 +36,10 @@ pub const VARREDURA_PADRAO: f32 = 270.0;
 /// Lê o valor de um medidor: **primeiro como chave** do contexto, e só depois
 /// como número escrito à mão.
 ///
-/// A ordem importa e é a mesma do `<progressbar>`: `value="cpu"` é o nome de
+/// A ordem importa e é a mesma do `progressbar`: `value="cpu"` é o nome de
 /// uma chave, não a string "cpu". O fallback para literal existe porque
-/// `<gauge>` e `<lcdnumber>` são apresentacionais e aparecem muito numa tela de
-/// exemplo com número fixo — mas um `<dial>`, que **escreve** de volta, sem
+/// `gauge` e `lcdnumber` são apresentacionais e aparecem muito numa tela de
+/// exemplo com número fixo — mas um `dial`, que **escreve** de volta, sem
 /// chave não tem onde gravar, e é por isso que ele exige uma.
 pub(crate) fn valor_de(context: &ContextMap, chave: &str, padrao: f64) -> f64 {
     context
@@ -72,13 +72,13 @@ pub(crate) fn escreve(v: f64, decimals: usize) -> String {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <dial> — o knob rotativo
+// dial — o knob rotativo
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// O que o `<dial>` guarda entre eventos: só o arrasto.
+/// O que o `dial` guarda entre eventos: só o arrasto.
 ///
 /// **Não** é o valor — o valor é do app, e está na chave. Se este `State`
-/// guardasse o valor, dois `<dial>` na mesma tela ainda funcionariam (o `iced`
+/// guardasse o valor, dois `dial` na mesma tela ainda funcionariam (o `iced`
 /// dá um `State` por widget), mas o app não conseguiria ler nem escrever o que
 /// a pessoa girou, que é o ponto todo.
 #[derive(Debug, Default)]
@@ -86,7 +86,7 @@ pub struct EstadoDial {
     arrastando: bool,
 }
 
-/// `<dial>` — ver [`crate::parser::NodeType::Dial`].
+/// `dial` — ver [`crate::parser::NodeType::Dial`].
 pub struct ProgramaDial {
     pub valor: f64,
     pub min: f64,
@@ -147,7 +147,7 @@ impl ProgramaDial {
 }
 
 /// Quantas casas o passo pede. `step="0.5"` escrevendo `"3"` perderia a metade
-/// no caminho de volta — é a mesma conta que o `<slider>` faz a partir do
+/// no caminho de volta — é a mesma conta que o `slider` faz a partir do
 /// `step` como escrito.
 pub(crate) fn casas_do_passo(step: f64) -> usize {
     if step <= 0.0 || step >= 1.0 {
@@ -203,7 +203,7 @@ impl canvas::Program<EngineMessage> for ProgramaDial {
                 state.arrastando = false;
                 // `on_release` é a porta de quem não quer um efeito colateral
                 // por pixel arrastado — rede, disco —, e é a mesma do
-                // `<slider>`. Sem ele, soltar não diz nada: o valor já foi.
+                // `slider`. Sem ele, soltar não diz nada: o valor já foi.
                 if self.on_release.is_empty() {
                     Some(canvas::Action::capture())
                 } else {
@@ -350,7 +350,7 @@ impl canvas::Program<EngineMessage> for ProgramaDial {
     }
 }
 
-/// Monta o `<dial>` a partir do nó já avaliado.
+/// Monta o `dial` a partir do nó já avaliado.
 #[allow(clippy::too_many_arguments)]
 pub fn render_dial<'a>(
     context: &ContextMap,
@@ -394,10 +394,10 @@ pub fn render_dial<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <gauge> — o medidor de arco
+// gauge — o medidor de arco
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Uma faixa colorida do `<gauge>`: até onde ela vai, e de que cor.
+/// Uma faixa colorida do `gauge`: até onde ela vai, e de que cor.
 #[derive(Debug, Clone, Copy)]
 pub struct Faixa {
     pub ate: f64,
@@ -407,8 +407,8 @@ pub struct Faixa {
 /// Lê as faixas de `bands`, que pode ser o **nome de uma chave** ou o JSON
 /// escrito direto no atributo.
 ///
-/// ```xml
-/// <gauge :value="cpu" bands='[{"to":60,"color":"#A6E3A1"},{"to":85,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]' />
+/// ```gv
+/// gauge(:value = cpu, bands = "[{\"to\":60,\"color\":\"#A6E3A1\"},{\"to\":85,\"color\":\"#F9E2AF\"},{\"to\":100,\"color\":\"#F38BA8\"}]")
 /// ```
 ///
 /// As duas formas porque as duas aparecem: os limites de um medidor de CPU são
@@ -425,8 +425,8 @@ pub fn faixas(context: &ContextMap, bruto: &str) -> Vec<Faixa> {
         .filter_map(|item| {
             let o = item.as_object()?;
             let pega = |nomes: &[&str]| nomes.iter().find_map(|n| o.get(*n));
-            let ate = pega(&["to", "ate", "até", "max"])?.as_f64()?;
-            let cor = pega(&["color", "cor"])
+            let ate = pega(&["to", "ate", "max"])?.as_f64()?;
+            let cor = pega(&["color"])
                 .and_then(|c| c.as_str())
                 .and_then(parse_hex_color)?;
             Some(Faixa { ate, cor })
@@ -442,7 +442,7 @@ pub fn faixas(context: &ContextMap, bruto: &str) -> Vec<Faixa> {
     v
 }
 
-/// `<gauge>` — ver [`crate::parser::NodeType::Gauge`].
+/// `gauge` — ver [`crate::parser::NodeType::Gauge`].
 pub struct ProgramaGauge {
     pub valor: f64,
     pub min: f64,
@@ -535,8 +535,8 @@ impl canvas::Program<EngineMessage> for ProgramaGauge {
         }
 
         // O número no meio, a unidade colada nele e a legenda embaixo — a
-        // pilha que todo medidor de painel tem, e a razão de o `<gauge>` não
-        // precisar de um `<text>` ao lado no markup.
+        // pilha que todo medidor de painel tem, e a razão de o `gauge` não
+        // precisar de um `text` ao lado no markup.
         // A pilha do meio: número em cima, legenda embaixo. As duas alturas
         // saem do MIOLO (raio menos o anel), não do raio — senão um medidor de
         // anel grosso escreve por cima do próprio arco. E o número sobe meia
@@ -574,7 +574,7 @@ impl canvas::Program<EngineMessage> for ProgramaGauge {
     }
 }
 
-/// Monta o `<gauge>`.
+/// Monta o `gauge`.
 #[allow(clippy::too_many_arguments)]
 pub fn render_gauge<'a>(
     context: &ContextMap,
@@ -616,10 +616,10 @@ pub fn render_gauge<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <lcdnumber> — o display de sete segmentos
+// lcdnumber — o display de sete segmentos
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `<lcdnumber>` — ver [`crate::parser::NodeType::LcdNumber`].
+/// `lcdnumber` — ver [`crate::parser::NodeType::LcdNumber`].
 pub struct ProgramaLcd {
     pub texto: String,
     pub altura: f32,
@@ -740,7 +740,7 @@ impl canvas::Program<EngineMessage> for ProgramaLcd {
     }
 }
 
-/// Monta o `<lcdnumber>`.
+/// Monta o `lcdnumber`.
 ///
 /// `digits` preenche à esquerda até o comprimento pedido — com zeros quando o
 /// markup pede (`pad="0"`), com espaço em branco por padrão. É o

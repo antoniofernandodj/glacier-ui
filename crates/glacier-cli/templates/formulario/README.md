@@ -1,7 +1,7 @@
 # {{titulo}}
 
 Um **formulário validado** com [glacier-ui](https://crates.io/crates/glacier-ui):
-as regras moram no `<form>` e o motor faz o ciclo inteiro no envio — roda as
+as regras moram no `form` e o motor faz o ciclo inteiro no envio — roda as
 regras, mostra a mensagem por campo, acende o destaque vermelho e chama o
 handler certo.
 
@@ -14,7 +14,7 @@ cargo run
 ```
 src/main.rs                          a casca: registra views/app.gv
 views/
-├── app.gv                           o <form> com rules="…" nos campos; mostra {erro_<campo>}
+├── app.gv                           o form com rules="…" nos campos; mostra {erro_<campo>}
 ├── scripts/app.luau                 init(): semeia as UFs, a data de hoje e o status
 ├── scripts/handlers/validar.luau    salvar() / apontar() / limpar() — só o "depois"
 └── styles/{theme.json, app.gss}
@@ -22,7 +22,7 @@ views/
 
 ## Como funciona
 
-O `<form>` declara o que fazer e as regras ficam nos campos:
+O `form` declara o que fazer e as regras ficam nos campos:
 
 ```gv
 form(on_submit = salvar, on_validation_error = apontar, validate_on = submit) {

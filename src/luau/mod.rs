@@ -1,14 +1,14 @@
 //! Comportamento de componente escrito em **Luau**, interpretado em tempo de
 //! execução — sem etapa de compilação.
 //!
-//! O bloco `<script>` de um template guarda **Luau** (5.4, via [`mlua`]):
+//! O bloco `script` de um template guarda **Luau** (5.4, via [`mlua`]):
 //! [`LuauComponent`] o carrega do arquivo e executa as funções quando uma ação
 //! chega — nada é compilado, então mudar a lógica não exige recompilar o app.
 //!
 //! # Combinando com um `Component` Rust
 //!
-//! `<script>` não exige abrir mão de um [`Component`] Rust: quando
-//! `GlacierUI::register` encontra `<script>` no template de um componente
+//! `script` não exige abrir mão de um [`Component`] Rust: quando
+//! `GlacierUI::register` encontra `script` no template de um componente
 //! registrado normalmente (via `Box<dyn Component>`), [`LuauComponent::wrap`]
 //! embrulha esse componente — por ação, a função Lua de mesmo nome vence se
 //! existir; senão o hook Rust correspondente (`update`, `init`,
@@ -46,7 +46,7 @@
 //!
 //! # Imports / módulos
 //!
-//! O `<script>` pode dividir a lógica em **bibliotecas** e importá-las com
+//! O `script` pode dividir a lógica em **bibliotecas** e importá-las com
 //! `require`, mantendo cada peça encapsulada (um client de rede, utilitários,
 //! etc.):
 //!
@@ -61,7 +61,7 @@
 //! ```
 //!
 //! `require("a.b")` procura `a/b.luau` (e `a/b/init.luau`) resolvido, na ordem:
-//! diretório do template → `<dir>/lib` → cada caminho em `GLACIER_LUAU_PATH`
+//! diretório do template → `dir/lib` → cada caminho em `GLACIER_LUAU_PATH`
 //! (separados por `:`). Módulos rodam no **mesmo** interpretador do componente,
 //! então enxergam `fetch` e são carregados uma única vez (cacheados como no Luau
 //! padrão). Ver `install_module_system`.
@@ -84,7 +84,7 @@ use mlua::{
     Function, Lua, LuaSerdeExt, MultiValue, RegistryKey, Table, Thread, ThreadStatus, Value,
 };
 
-/// Prelúdio Lua injetado antes do `<script>` do usuário. Define `fetch` e,
+/// Prelúdio Lua injetado antes do `script` do usuário. Define `fetch` e,
 /// para streams de vida longa, `sse` / `websocket` (ver [`LuauComponent::drive`]).
 ///
 /// `fetch` **suspende** a corrotina até a resposta (aparência de `await`).
@@ -110,9 +110,9 @@ const PRELUDE: &str = include_str!("prelude.luau");
 /// Runner de testes Luau (`glacier test`).
 pub mod testing;
 
-/// Um [`Component`] cujo comportamento vem de um bloco `<script>` em Luav.
+/// Um [`Component`] cujo comportamento vem de um bloco `script` em Luav.
 ///
-/// O template XML é lido do disco; seu `<script>` é extraído e
+/// O template XML é lido do disco; seu `script` é extraído e
 /// carregado num interpretador Luau próprio. Cada ação (`on_click`, `onChange`,
 /// `onSubmit`) roda como uma **corrotina**: chama a função Luau homônima, que
 /// lê/escreve o contexto via a tabela global `ctx` e pode chamar `fetch` para
@@ -146,13 +146,13 @@ pub struct LuauComponent {
     /// chamadas), atualizada em [`Self::sync_to_luau`] com o viewport atual do
     /// motor — é o que o `viewport()` do prelúdio lê.
     viewport_table: Table,
-    /// Componente Rust opcional que este `<script>` **complementa**: por
+    /// Componente Rust opcional que este `script` **complementa**: por
     /// ação, a função Lua de mesmo nome vence se existir; senão o hook
     /// correspondente de `inner` roda (ver [`Self::dispatch`]). `None` no
     /// caminho 100%-script (`from_file`/`from_source`, usado por
     /// `register_component` sem `Box<dyn Component>` nenhum); `Some` só via
     /// [`Self::wrap`], usado por `GlacierUI::register` quando o template de
-    /// um `Component` Rust também carrega `<script>`. `RefCell` porque os
+    /// um `Component` Rust também carrega `script`. `RefCell` porque os
     /// hooks do `Component` pedem `&mut self`, mas `LuauComponent` só empresta
     /// `&self` (mesmo padrão de `pending`/`streams`/`timers`).
     inner: Option<RefCell<Box<dyn Component>>>,
@@ -184,9 +184,9 @@ impl LuauComponent {
     /// Cria um componente Luau a partir de um arquivo de template.
     ///
     /// O corpo Luau vem de uma de duas fontes:
-    /// - **externo**: `<script src="arquivo.luau">` (ou `from="..."`) carrega o
+    /// - **externo**: `script(src = "arquivo.luau")` (ou `from="..."`) carrega o
     ///   Luau de outro arquivo, resolvido relativo ao diretório do template;
-    /// - **inline**: senão, o corpo do próprio bloco `<script>...</script>`.
+    /// - **inline**: senão, o corpo do próprio bloco `script...`.
     ///
     /// O script é executado uma vez para definir as funções. Erros de I/O ou de
     /// sintaxe Luau viram [`GlacierError::Luau`], já anotados com o componente
@@ -200,7 +200,7 @@ impl LuauComponent {
         Self::from_file_with(path, name, Arc::new(DiskAssets))
     }
 
-    /// Como [`LuauComponent::from_file`], mas lendo o template, o `<script src>`
+    /// Como [`LuauComponent::from_file`], mas lendo o template, o `script(src)`
     /// externo e os módulos `require`d através de um [`AssetSource`] — o que
     /// permite um binário standalone com os scripts embutidos. A variante sem
     /// `assets` usa [`DiskAssets`].
@@ -218,7 +218,7 @@ impl LuauComponent {
     }
 
     /// Cria o componente de uma tela **inline** de um `app(...)`: `markup` é o
-    /// bloco `<script>` cru (inline ou com `src`), e `path` é o arquivo do
+    /// bloco `script` cru (inline ou com `src`), e `path` é o arquivo do
     /// manifesto — âncora do `src` e do `require`, como o template é para uma
     /// tela em arquivo.
     pub(crate) fn from_markup_with(
@@ -255,7 +255,7 @@ impl LuauComponent {
     ) -> std::result::Result<Self, String> {
         crate::eval::script_lang_suportada(content)?;
         let (script, script_path) = resolve_script(content, path, assets.as_ref())?;
-        // `require` de um `<script src>` EXTERNO resolve relativo ao diretório do
+        // `require` de um `script(src)` EXTERNO resolve relativo ao diretório do
         // SCRIPT (permite separar `views/` de `views/scripts/` e ainda
         // `require("net/api")` a partir do script); inline, relativo ao template.
         let module_base = script_path.unwrap_or_else(|| PathBuf::from(path));
@@ -340,7 +340,7 @@ impl LuauComponent {
             storage_path(module_base, &name, STORAGE_ROOT.get().map(|p| p.as_path())),
         )
         .map_err(|e| format!("Erro ao instalar `storage` Luau: {}", e))?;
-        // `audio`: o controle de `<audio>` pelo script (ver `crate::audio`).
+        // `audio`: o controle de `audio` pelo script (ver `crate::audio`).
         install_audio(&luau).map_err(|e| format!("Erro ao instalar `audio` Luau: {}", e))?;
         // `i18n`: as funções cruas que o prelúdio embrulha (`i18n.t`, `i18n.load`…).
         install_i18n(&luau).map_err(|e| format!("Erro ao instalar `i18n` Luau: {}", e))?;
@@ -356,7 +356,7 @@ impl LuauComponent {
         install_zip_text(&luau)
             .map_err(|e| format!("Erro ao instalar `zip_write`/`zip_read` Luau: {}", e))?;
         // Extensões da camada Lua registradas pelo app hospedeiro — funções
-        // Rust visíveis no `<script>` (ver [`register_lua_extension`]). Depois
+        // Rust visíveis no `script` (ver [`register_lua_extension`]). Depois
         // dos globais do motor, antes do script do usuário, para o corpo de
         // topo já poder usá-las.
         install_app_extensions(&luau)
@@ -390,7 +390,7 @@ impl LuauComponent {
         luau.load(script)
             .set_name(format!("<script:{name}>"))
             .exec()
-            .map_err(|e| format!("Erro ao carregar <script> Luau de '{}': {}", name, e))?;
+            .map_err(|e| format!("Erro ao carregar script Luau de '{}': {}", name, e))?;
         Ok(Self {
             name,
             path,
@@ -408,11 +408,11 @@ impl LuauComponent {
     }
 
     /// Como [`Self::from_file_with`], mas embrulhando um `Component` Rust já
-    /// pronto (`inner`) em vez de deixá-lo 100%-script: o `<script>` do
+    /// pronto (`inner`) em vez de deixá-lo 100%-script: o `script` do
     /// template de `inner` vira uma camada por-ação sobre seus hooks (Lua
     /// primeiro, `inner` como fallback — ver [`Self::dispatch`]). Usado por
     /// `GlacierUI::register_one` quando `luau::has_script` encontra
-    /// `<script>` num componente `Template::File` registrado via
+    /// `script` num componente `Template::File` registrado via
     /// `GlacierUI::register`.
     pub(crate) fn wrap(
         name: &str,
@@ -573,7 +573,7 @@ impl LuauComponent {
     /// Nunca propaga: se o próprio `on_error` falhar, só loga (evita loop).
     fn report_error(&self, where_: &str, err: impl std::fmt::Display, ctx: &mut Context) {
         let msg = format!(
-            "[glacier-ui] erro em <script> Lua '{}::{}': {}",
+            "[glacier-ui] erro em script Lua '{}::{}': {}",
             self.name, where_, err
         );
         eprintln!("{msg}");
@@ -1170,7 +1170,7 @@ impl LuauComponent {
                     .unwrap_or_else(|| "GET".into());
                 let body = o.get::<Option<String>>("body")?;
                 opts_progress = o.get::<Option<Function>>("on_progress")?;
-                // `timeout = <ms>`: teto da requisição inteira. `<= 0` = sem teto.
+                // `timeout = ms`: teto da requisição inteira. `<= 0` = sem teto.
                 timeout_ms = o
                     .get::<Option<f64>>("timeout")?
                     .filter(|ms| *ms > 0.0)
@@ -1463,7 +1463,7 @@ impl Component for LuauComponent {
         }
     }
 
-    /// Delega ao `inner` (Rust) embrulhado, se houver — o `<script>` em si
+    /// Delega ao `inner` (Rust) embrulhado, se houver — o `script` em si
     /// não tem subscriptions próprias fora do que `sse`/`websocket`/`after`
     /// já cobrem via `Context` (drenados pelo motor, não por este método).
     fn subscription(&self) -> iced::Subscription<crate::EngineMessage> {
@@ -1575,7 +1575,7 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     });
 
     if fonte {
-        // A família inicial é o que veio em `value` (ou vazio: o `<fontselect>`
+        // A família inicial é o que veio em `value` (ou vazio: o `fontselect`
         // abre sem seleção, degradação aceitável). O tamanho semeia o campo —
         // é pré-visualização, não faz parte do retorno.
         let familia = req.get::<Option<String>>("value")?.unwrap_or_default();
@@ -1647,7 +1647,7 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     ];
     if kind == "int" || kind == "double" {
         // O default de `decimals` é o que separa as duas: `getInt` é
-        // `getDouble` com zero casas, e é assim que o `<spinbox>` já lê o
+        // `getDouble` com zero casas, e é assim que o `spinbox` já lê o
         // número desde a 0.85.
         let decimals = req
             .get::<Option<i64>>("decimals")?
@@ -1667,7 +1667,7 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
         && let Some(items) = req.get::<Option<Value>>("items")?
     {
         // A lista chega como tabela-array do Luau e vai para o contexto como
-        // JSON — a MESMA convenção de `items="chave"` que o `<menu>` usa desde
+        // JSON — a MESMA convenção de `items="chave"` que o `menu` usa desde
         // sempre, e que a Onda 6 descobriu que já era o "binding a coleção".
         let json = serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string());
         rascunho.push(("__dialog.items".to_string(), json));
@@ -1717,7 +1717,7 @@ fn build_progress_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
             formata_numero(req.get::<Option<f64>>("max")?.unwrap_or(100.0)),
         ),
         // Sem `value`, o rascunho nasce vazio — e vazio é o indeterminado, que
-        // o corpo desenha como `<spinner>`. É o default certo: quem abre um
+        // o corpo desenha como `spinner`. É o default certo: quem abre um
         // progresso quase nunca sabe o primeiro número ainda.
         (
             "__dialog.progresso".to_string(),
@@ -1752,7 +1752,7 @@ fn build_progress_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
 }
 
 /// Escreve um `f64` como o Luau o escreveria: sem o `.0` quando é inteiro.
-/// `min=0` virando `"0"` e não `"0.0"` importa porque quem lê é o `<spinbox>`,
+/// `min=0` virando `"0"` e não `"0.0"` importa porque quem lê é o `spinbox`,
 /// e ele deduz as casas decimais do texto do `step` (ver `builtins::spin_box`).
 fn formata_numero(v: f64) -> String {
     if v.fract() == 0.0 && v.abs() < 1e15 {
@@ -1819,7 +1819,7 @@ impl mlua::UserData for AbortCtl {
 }
 
 /// `abort_controller()` e `clear_cookies(host?)`.
-/// O global `audio`: controla um `<audio>` pelo `name` (ver [`crate::audio`]).
+/// O global `audio`: controla um `audio` pelo `name` (ver [`crate::audio`]).
 fn install_audio(luau: &Lua) -> mlua::Result<()> {
     let t = luau.create_table()?;
     let f = |luau: &Lua, t: &Table, nome: &str, f: fn(&str)| -> mlua::Result<()> {
@@ -2172,7 +2172,7 @@ fn json_to_table(lua: &Lua, texto: &str) -> Option<Table> {
 const LOADED_KEY: &str = "glacier.loaded";
 
 /// Diretórios onde `require` procura módulos, em ordem de prioridade, a partir
-/// de `base_file` — o **script externo** (`<script src>`) quando há um, senão o
+/// de `base_file` — o **script externo** (`script(src)`) quando há um, senão o
 /// próprio template (script inline):
 ///
 /// 1. o diretório de `base_file`;
@@ -2369,7 +2369,7 @@ fn install_module_system(
 
 /// Instala o global `json` com `json.encode(value)` e `json.decode(str)`,
 /// ponte para o `serde_json` via [`LuaSerdeExt`] do `mlua`. É o que permite ao
-/// `<script>` consumir a resposta de um `fetch` (`json.decode(res.body)`) e
+/// `script` consumir a resposta de um `fetch` (`json.decode(res.body)`) e
 /// montar payloads/strings JSON que os templates iteram
 /// (`ctx.lista = json.encode(t)`), sem um parser em Lua puro.
 ///
@@ -2474,8 +2474,8 @@ pub fn storage_root() -> Option<&'static std::path::Path> {
 }
 
 /// Uma extensão da camada Lua registrada pelo **app hospedeiro**: recebe cada
-/// VM Luau nova (uma por componente com `<script>`, em qualquer janela) e
-/// instala nela globais/tabelas — a ponte de funções Rust para o `<script>`.
+/// VM Luau nova (uma por componente com `script`, em qualquer janela) e
+/// instala nela globais/tabelas — a ponte de funções Rust para o `script`.
 /// Um cliente SQLite (ver o exemplo `sqlite_crud`), um cofre de segredos, um
 /// cliente gRPC: o que o app precisar expor.
 ///
@@ -2485,9 +2485,9 @@ pub fn storage_root() -> Option<&'static std::path::Path> {
 pub trait LuaExtension: Send + Sync + 'static {
     /// Instala esta extensão numa VM Luau recém-criada. Roda **depois** dos
     /// globais do motor (`fetch`, `json`, `storage`, …) e **antes** do
-    /// `<script>` do usuário, então o corpo de topo do script já enxerga o que
+    /// `script` do usuário, então o corpo de topo do script já enxerga o que
     /// ela expõe. Um `Err` aqui aborta a construção do componente com o mesmo
-    /// erro de um `<script>` malformado — melhor que um componente
+    /// erro de um `script` malformado — melhor que um componente
     /// meio-instalado.
     fn install(&self, lua: &mlua::Lua) -> mlua::Result<()>;
 }
@@ -2607,7 +2607,7 @@ fn write_storage_file(path: &Path, map: &serde_json::Map<String, serde_json::Val
 /// JSON análoga ao `localStorage` do browser — o que sobrevive a um restart
 /// do processo (ao contrário de `ctx`, que é só memória). Cada chamada lê/
 /// grava o arquivo inteiro (simples e correto para o volume de dados que um
-/// `<script>` de UI guarda; não pensado para alta frequência/concorrência).
+/// `script` de UI guarda; não pensado para alta frequência/concorrência).
 ///
 /// - `storage.get(key)`: devolve o valor guardado (qualquer tipo
 ///   JSON-serializável — string, número, booleano, tabela) ou `nil`.
@@ -2660,7 +2660,7 @@ fn install_storage(luau: &Lua, path: PathBuf) -> mlua::Result<()> {
 /// a corrotina. Nunca derruba o script — falha de I/O vira valor de retorno:
 ///
 /// - sucesso: `write_file(path, txt)` → `true`
-/// - falha:   `write_file(path, txt)` → `false, "<mensagem>"`
+/// - falha:   `write_file(path, txt)` → `false, "mensagem"`
 fn install_write_file(luau: &Lua) -> mlua::Result<()> {
     let write_file = luau.create_function(|_, (path, contents): (String, String)| {
         let path = PathBuf::from(path);
@@ -2884,7 +2884,7 @@ fn add_dir_recursive(
     Ok(())
 }
 
-/// Se o template tem um bloco `<script>` (inline ou apontando para um `.luau`
+/// Se o template tem um bloco `script` (inline ou apontando para um `.luau`
 /// externo via `src`/`from`) — ou seja, se ele traz comportamento Luau. O motor
 /// usa isto para decidir, ao registrar um componente por arquivo, se liga um
 /// [`LuauComponent`] (há script) ou o mantém só-UI (não há).
@@ -2892,11 +2892,11 @@ pub(crate) fn has_script(markup: &str) -> bool {
     extract_script_src(markup).is_some() || extract_script(markup).is_some()
 }
 
-/// Resolve o corpo Luau de um template: se o `<script>` referencia um arquivo
+/// Resolve o corpo Luau de um template: se o `script` referencia um arquivo
 /// externo via `src="..."` (ou `from="..."`), lê esse arquivo (caminho relativo
 /// ao diretório do `template_path`); senão, usa o corpo inline do bloco.
 /// Devolve `(conteúdo, Option<caminho do script externo>)`. Para um
-/// `<script src>` externo, o caminho é resolvido relativo ao diretório do
+/// `script(src)` externo, o caminho é resolvido relativo ao diretório do
 /// template e devolvido para ancorar a resolução de `require` (ver
 /// [`LuauComponent::from_file`]). Inline → `(corpo, None)`.
 fn resolve_script(
@@ -2924,11 +2924,11 @@ fn resolve_script(
     Ok((extract_script(markup).unwrap_or_default(), None))
 }
 
-/// Lê o atributo `src`/`from` da tag de abertura `<script ...>`, se houver — o
+/// Lê o atributo `src`/`from` da tag de abertura `script(...)`, se houver — o
 /// caminho de um arquivo `.luau` externo.
 fn extract_script_src(markup: &str) -> Option<String> {
     let lower = markup.to_ascii_lowercase();
-    // `find_script_open` e não `find("<script")`: um `<script src="…">` citado
+    // `find_script_open` e não `find("<script")`: um `script(src = "…")` citado
     // dentro de um comentário XML não abre bloco nenhum (ver o doc dela).
     let open = crate::eval::find_script_open(markup)?;
     // Só o texto da tag de abertura (até o primeiro `>`).
@@ -2940,7 +2940,7 @@ fn extract_script_src(markup: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// Extrai o corpo de um bloco `<script>...</script>` de um template XML.
+/// Extrai o corpo de um bloco `script...` de um template XML.
 /// Espelha a lógica de remoção do parser (`eval::strip_script`) — a MESMA
 /// varredura inclusive, para as duas nunca apontarem para blocos diferentes —,
 /// mas devolve o conteúdo em vez de descartá-lo.
@@ -3640,7 +3640,7 @@ mod tests {
         let tpl = dir.join("t.gv");
         let luau = dir.join("beh.luau");
         std::fs::write(&luau, "function incrementar() ctx.n = ctx.n + 1 end").unwrap();
-        std::fs::write(&tpl, r#"<Text/><script src="beh.luau"></script>"#).unwrap();
+        std::fs::write(&tpl, r#"<text/><script src="beh.luau"></script>"#).unwrap();
 
         let comp = LuauComponent::from_file(tpl.to_str().unwrap(), "c").unwrap();
         let mut data = HashMap::default();
@@ -4112,15 +4112,15 @@ mod tests {
 
     #[test]
     fn require_de_script_externo_resolve_relativo_ao_script() {
-        // Template em <dir>/app.gv com `<script src="scripts/app.luau">`; o
-        // script faz `require("m")` que deve resolver <dir>/scripts/m.luau
+        // Template em dir/app.gv com `script(src = "scripts/app.luau")`; o
+        // script faz `require("m")` que deve resolver dir/scripts/m.luau
         // (relativo ao SCRIPT, não ao template) — permite separar views/scripts.
         let dir = std::env::temp_dir().join(format!("glacier_ext_{}", std::process::id()));
         let scripts = dir.join("scripts");
         std::fs::create_dir_all(&scripts).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<Column></Column>\n<script src=\"scripts/app.luau\"></script>",
+            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
         )
         .unwrap();
         std::fs::write(
@@ -4138,9 +4138,9 @@ mod tests {
 
     #[test]
     fn require_bare_entre_irmaos_em_modulo_aninhado_resolve_pelo_proprio_diretorio() {
-        // <dir>/app.gv (template) -> scripts/app.luau (topo) faz
+        // dir/app.gv (template) -> scripts/app.luau (topo) faz
         // require("pkg/a"); pkg/a.luau, por sua vez, faz require("b") (NOME
-        // NU, sem prefixo) esperando achar pkg/b.luau — não <dir>/scripts/b.luau.
+        // NU, sem prefixo) esperando achar pkg/b.luau — não dir/scripts/b.luau.
         // Antes do fix, a resolução era sempre pelas roots fixas (dir do
         // script de ENTRADA), então isto teria falhado: o bare "b" só existia
         // relativo ao pacote pkg/, não à raiz.
@@ -4150,7 +4150,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<Column></Column>\n<script src=\"scripts/app.luau\"></script>",
+            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
         )
         .unwrap();
         std::fs::write(
@@ -4182,7 +4182,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<Column></Column>\n<script src=\"scripts/app.luau\"></script>",
+            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
         )
         .unwrap();
         std::fs::write(
@@ -4218,7 +4218,7 @@ mod tests {
         std::fs::create_dir_all(&pb).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<Column></Column>\n<script src=\"scripts/app.luau\"></script>",
+            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
         )
         .unwrap();
         std::fs::write(
@@ -4280,11 +4280,11 @@ mod tests {
     #[test]
     fn extrai_script_de_xml() {
         assert_eq!(
-            extract_script("<Text/>\n<script> a </script>").as_deref(),
+            extract_script("<text/>\n<script> a </script>").as_deref(),
             Some(" a ")
         );
-        // Sem bloco <script>: nada a extrair.
-        assert_eq!(extract_script("<Text/>"), None);
+        // Sem bloco script: nada a extrair.
+        assert_eq!(extract_script("<text/>"), None);
     }
 
     #[test]
@@ -5339,18 +5339,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
-    // ── `<script>` citado em comentário XML ──────────────────────────────────
+    // ── `script` citado em comentário XML ──────────────────────────────────
     //
     // `eval::strip_script` sempre pulou comentários; estas três funções não —
     // elas faziam um `find("<script")` cru. O markup ia para o parser sem o
     // bloco certo enquanto o Luau compilava o texto errado: o corpo "extraído"
-    // começava no `>` da tag CITADA e ia até o `</script>` de verdade,
+    // começava no `>` da tag CITADA e ia até o `` de verdade,
     // arrastando o resto do comentário e a tag de abertura real como se fossem
     // código. O erro saía como um `syntax error` na linha 1, sem nada que
     // apontasse para o comentário. Encontrado escrevendo os templates do
     // `glacier new`, que documentavam a própria tag num comentário.
 
-    /// Um `<script>` citado num comentário não abre bloco: o corpo extraído é o
+    /// Um `script` citado num comentário não abre bloco: o corpo extraído é o
     /// do bloco de verdade, que vem depois.
     #[test]
     fn extract_script_ignora_script_citado_em_comentario() {
@@ -5384,9 +5384,9 @@ mod tests {
     /// Um template cujo ÚNICO `<script` está num comentário não tem script
     /// nenhum: ele segue só-UI, e suas ações caem na tela que o hospeda.
     ///
-    /// O par `<script></script>` COMPLETO dentro do comentário é o que dá
+    /// O par `script</script>` COMPLETO dentro do comentário é o que dá
     /// dentes ao teste: com só a tag de abertura citada, a varredura antiga já
-    /// devolvia `None` — por não achar um `</script>` adiante, e não por ter
+    /// devolvia `None` — por não achar um `` adiante, e não por ter
     /// entendido o comentário.
     #[test]
     fn has_script_e_falso_quando_a_unica_tag_esta_comentada() {

@@ -136,7 +136,7 @@ pub mod wizard;
 /// separate dependency.
 pub use iced;
 
-/// Re-export of the [`mlua`] crate the engine runs `<script>` blocks on, so a
+/// Re-export of the [`mlua`] crate the engine runs `script` blocks on, so a
 /// host app writing a [`luau::LuaExtension`] (bridging Rust functions into the
 /// Lua layer) reaches `mlua::Lua`, `mlua::Table`, `mlua::UserData`, … as
 /// `glacier_ui::mlua::*` without pinning a matching `mlua` version itself.
@@ -217,7 +217,7 @@ struct PendingDialogResume {
     ///
     /// Ler a resposta **no aceite**, e não guardá-la aqui, é o que faz o
     /// diálogo com campo dispensar estado por instância: o valor mora no
-    /// contexto o tempo todo, como o de qualquer `<textinput>`, e este campo
+    /// contexto o tempo todo, como o de qualquer `textinput`, e este campo
     /// só guarda o endereço dele.
     resume_key: Option<String>,
 }
@@ -237,18 +237,18 @@ pub struct GlacierUI {
     /// tela atual e os fixados por [`GlacierUI::keep_evaluated`]. Ver
     /// [`GlacierUI::reevaluate_all`] para o porquê.
     evaluated_templates: HashMap<String, UiNode>,
-    /// Deslocamento de rolagem de cada `<scrollable>`, pelo `node_id` dele.
+    /// Deslocamento de rolagem de cada `scrollable`, pelo `node_id` dele.
     /// Lido pelo render para decidir a janela visível de um `virtualize=`
     /// (ver [`crate::parser::UiNode::virtualize`]); escrito por
     /// [`EngineMessage::Scrolled`], que não dispara reavaliação.
     scroll_offsets: crate::eval::FxMapPub<u64, f32>,
     /// Os widgets **com buffer próprio** encontrados em cada árvore avaliada:
-    /// os `value_var` dos `<TextArea>` e as quatro pontas de cada `<ComboEdit>`.
+    /// os `value_var` dos `TextArea` e as quatro pontas de cada `ComboEdit`.
     ///
     /// Existe para não varrer a árvore inteira atrás deles a cada reavaliação.
     /// Eram duas varreduras completas — uma por tipo de widget —, ~5% de todo o
     /// trabalho de uma mudança de estado numa lista grande, e quase sempre para
-    /// não achar nada: a tela típica não tem `<TextArea>` nenhum. Agora a coleta
+    /// não achar nada: a tela típica não tem `TextArea` nenhum. Agora a coleta
     /// acontece uma vez só, junto da avaliação que produziu a árvore, e uma
     /// árvore reaproveitada não é varrida de novo.
     tree_bindings: HashMap<String, TreeBindings>,
@@ -275,7 +275,7 @@ pub struct GlacierUI {
     input_hint: Option<ctx_types::Tag>,
     /// File modification times to support hot reloading
     file_mod_times: HashMap<String, SystemTime>,
-    /// O que o `<screen>` de cada template registrado declarou sobre a janela
+    /// O que o `screen` de cada template registrado declarou sobre a janela
     /// (título, tamanho, …), por nome de componente. Só entra quem declarou
     /// alguma coisa — um template sem cabeçalho não ocupa espaço aqui. Quem lê é
     /// o daemon, ao abrir a janela e a cada troca de tela; ver
@@ -300,7 +300,7 @@ pub struct GlacierUI {
     back_shortcuts: bool,
     /// Registered components (UI + behavior), keyed by component name.
     components: HashMap<String, Box<dyn component::Component>>,
-    /// The custom `iced::Theme` loaded via `<link rel="theme">` / `set_style`,
+    /// The custom `iced::Theme` loaded via `link(rel = theme)` / `set_style`,
     /// if any. Apps read it through [`GlacierUI::theme`]. When `None`, the
     /// engine falls back to the OS light/dark preference (`system_appearance`).
     custom_theme: Option<iced::Theme>,
@@ -315,20 +315,20 @@ pub struct GlacierUI {
     /// href="x.gss">`, por nome. A ação `style:<nome>` e o `set_style(nome)` do
     /// Luau procuram aqui antes dos builtin (ver [`style`]).
     app_styles: HashMap<String, AppStyle>,
-    /// Data files loaded via `<link rel="data">`, as `(context key, path)`,
+    /// Data files loaded via `link(rel = data)`, as `(context key, path)`,
     /// kept for hot-reload.
     data_sources: Vec<(String, String)>,
-    /// Stateful `text_editor` buffers for `<TextArea>` widgets, keyed by binding.
+    /// Stateful `text_editor` buffers for `TextArea` widgets, keyed by binding.
     editors: widget::EditorMap,
     /// Last text each editor pushed into the context, to tell an external context
     /// change (reload editor) from the editor's own edit (leave it alone).
     editor_synced: ContextMap,
-    /// Pilha de desfazer/refazer por binding de editor (`<TextArea>` e
-    /// `<TextInput>` não-`secure`), alimentada em `UiEditorAction` e consumida
+    /// Pilha de desfazer/refazer por binding de editor (`TextArea` e
+    /// `TextInput` não-`secure`), alimentada em `UiEditorAction` e consumida
     /// pelos itens "Desfazer"/"Refazer" do menu de contexto embutido. Limpa
     /// junto com `editor_synced` quando o binding some da árvore.
     edit_history: HashMap<String, EditHistory>,
-    /// Stateful `combo_box::State` buffers for `<ComboEdit>` widgets, keyed by
+    /// Stateful `combo_box::State` buffers for `ComboEdit` widgets, keyed by
     /// `value` binding — same role as `editors` above.
     combos: widget::ComboMap,
     /// Last `ctx[value_var]` each combo itself pushed (own keystroke/selection),
@@ -337,7 +337,7 @@ pub struct GlacierUI {
     /// `editor_synced`.
     combo_synced: ContextMap,
     /// Last raw `options` JSON synced into each combo's `State`, keyed by the
-    /// same `value` binding. A `<ComboEdit>`'s option list changing (e.g. a
+    /// same `value` binding. A `ComboEdit`'s option list changing (e.g. a
     /// new saved server added) needs a rebuild even when `value` didn't.
     combo_options_synced: ContextMap,
     /// The reorderable list drag in progress, if any — outside the Context
@@ -354,7 +354,7 @@ pub struct GlacierUI {
     /// quem retomar e com o quê. Um clique num botão (ou dismiss) retoma essa
     /// corrotina em vez de despachar a `action` do botão como ação normal.
     /// `None` quando o diálogo veio de um `Component::update` Rust ou de um
-    /// `<dialog>` declarativo — os dois roteiam por `action`.
+    /// `dialog` declarativo — os dois roteiam por `action`.
     dialog_resume: Option<PendingDialogResume>,
     /// O nome do corpo que o diálogo em exibição mantém **avaliado** (ver
     /// [`GlacierUI::fixa_corpo_do_dialogo`]).
@@ -370,7 +370,7 @@ pub struct GlacierUI {
     /// menu/cascata pode estar aberto por vez no app inteiro, como diálogos
     /// reais de SO desktop. [`GlacierUI::render_current`] o sobrepõe por
     /// cima de tudo (inclusive diálogo e toasts); [`GlacierUI::dispatch`] o
-    /// fecha num clique-fora, Escape, ou ao clicar um `<MenuItem>` folha.
+    /// fecha num clique-fora, Escape, ou ao clicar um `MenuItem` folha.
     active_menu: Option<menu::ActiveMenuState>,
     /// Liga o menu de contexto embutido dos campos de texto (botão direito).
     /// `true` por default; um app o desliga chamando
@@ -414,7 +414,7 @@ pub struct GlacierUI {
     stream_senders: HashMap<(String, u64), net::WsSender>,
     /// Names of the components the lib registers itself in [`GlacierUI::new`]
     /// (see [`crate::builtins`]). They live in the same name space as app
-    /// components, so this set lets an explicit app `<import>` of the same name
+    /// components, so this set lets an explicit app `import` of the same name
     /// override the builtin instead of being skipped by the "already loaded"
     /// guard in [`GlacierUI::load_imports`]. A name is dropped from the set once
     /// the app overrides it.
@@ -422,28 +422,28 @@ pub struct GlacierUI {
     /// Nomes de componentes 100%-script — instalados via
     /// [`luau::LuauComponent::from_file_with`]
     /// em [`GlacierUI::register_component_inner`] (registro inicial) ou em
-    /// [`GlacierUI::check_reload`] (quando um `<script>` é acrescentado a um
+    /// [`GlacierUI::check_reload`] (quando um `script` é acrescentado a um
     /// componente que nasceu sem ele), sem nenhum `Component` Rust por baixo
     /// (`inner: None`). É o marcador que [`GlacierUI::check_reload`] usa —
     /// junto com a ausência de entrada em `self.components` — para saber
-    /// quando é seguro (re)instalar o `<script>` do zero: um componente Lua
-    /// criado via [`luau::LuauComponent::wrap`] (Rust + `<script>` por cima,
+    /// quando é seguro (re)instalar o `script` do zero: um componente Lua
+    /// criado via [`luau::LuauComponent::wrap`] (Rust + `script` por cima,
     /// via [`GlacierUI::register`]) guarda um `inner` que o motor não tem como
     /// reconstruir aqui fora, então fica de fora deste conjunto e o
     /// hot-reload dele continua só no markup, como já era.
     script_only_components: std::collections::HashSet<String>,
     /// Nomes registrados por uma **declaração local** — o
-    /// `<component name="X">` de um `<resources>` (ver
+    /// `component(name = X)` de um `resources` (ver
     /// [`crate::parser::NodeType::Define`]).
     ///
     /// Existe por causa do hot-reload. A regra de instalação é a mesma do
-    /// `<import>` ("o nome está livre?"), e no *reload* o nome nunca está: ele
+    /// `import` ("o nome está livre?"), e no *reload* o nome nunca está: ele
     /// foi tomado pela versão anterior da própria declaração, e editar o corpo
     /// não teria efeito nenhum. Este conjunto responde a pergunta que falta —
     /// *este nome é meu?* — e é o que separa "reescrever a minha declaração"
     /// de "atropelar o componente de verdade que o app registrou".
     defined_components: std::collections::HashSet<String>,
-    /// As molduras dos `<dialog name="…">` declarados no markup (Onda 8),
+    /// As molduras dos `dialog(name = "…")` declarados no markup (Onda 8),
     /// prontas para virar o `self.dialog` quando a ação `dialog:nome` chegar.
     ///
     /// O **corpo** de cada um não está aqui: ele foi instalado como um template
@@ -521,7 +521,7 @@ struct ActiveToast {
 /// visually distinguish the grabbed row without any cursor tracking.
 pub(crate) const DRAG_KEY_CONTEXT: &str = "__drag_key";
 
-/// One `form_control` inside a `<Form>` with declarative validation, as
+/// One `form_control` inside a `Form` with declarative validation, as
 /// gathered from the evaluated tree by [`GlacierUI::collect_form_rules`] when
 /// the form is submitted.
 struct FormFieldRules {
@@ -628,7 +628,7 @@ struct DragState {
 }
 
 /// Histórico de desfazer/refazer de **um** campo de texto apoiado num
-/// `text_editor` (`<TextArea>` e `<TextInput>` não-`secure`).
+/// `text_editor` (`TextArea` e `TextInput` não-`secure`).
 ///
 /// Nenhum dos dois widgets do iced 0.14 tem pilha de undo; esta é a do motor.
 /// `undo` guarda estados anteriores (o mais recente no fim); `redo` os que
@@ -764,7 +764,7 @@ impl GlacierUI {
             last_stream_reeval: None,
             assets: Arc::new(asset_source::DiskAssets),
         };
-        // `__data_dir`: o diretório de dados do app (o `<app id>` ou o
+        // `__data_dir`: o diretório de dados do app (o `app(id)` ou o
         // `.storage_dir(...)`), para o script gravar arquivos seus — cache de
         // imagem, downloads — no mesmo lugar que a geometria e o `storage`.
         // Semeado aqui, antes de qualquer `init`, porque o script roda já no
@@ -791,22 +791,18 @@ impl GlacierUI {
 
     /// Registra os componentes que a lib traz embutidos (ver [`crate::builtins`])
     /// para que fiquem disponíveis por tag em qualquer template, sem o app
-    /// precisar `register`á-los — é o que torna `<Badge/>` "sempre disponível",
+    /// precisar `register`á-los — é o que torna `Badge` "sempre disponível",
     /// como uma primitiva.
     ///
     /// Roda dentro de [`GlacierUI::new`], antes de `self` retornar. Usa
     /// [`GlacierUI::register_one`] (sem reavaliar a cada um; a reavaliação
     /// acontece quando o app registra suas telas). Como todo builtin usa
-    /// [`Template::Inline`] — XML compilado na crate — uma falha de parse é bug
+    /// [`Template::Inline`] — `.gv` compilado na crate — uma falha de parse é bug
     /// da própria lib, então `expect` mantém `new` infalível.
     fn register_builtins(&mut self) {
-        // Os canônicos (`<GroupBox/>`) e, logo depois, os apelidos em
-        // minúsculas (`<groupbox/>`) — ver `builtins::builtin_aliases`, que
-        // explica por que um builtin precisa de um segundo registro para ter a
-        // grafia minúscula que toda primitiva já tem de graça.
-        let todos = builtins::builtin_components()
-            .into_iter()
-            .chain(builtins::builtin_aliases());
+        // Cada builtin responde só pelo nome em minúsculas (`groupbox`), como
+        // toda primitiva — ver `builtins::builtin_aliases`.
+        let todos = builtins::builtin_aliases();
         for comp in todos {
             let name = comp.name().to_string();
             self.register_one(comp).unwrap_or_else(|e| {
@@ -816,7 +812,7 @@ impl GlacierUI {
         }
     }
 
-    /// The current `iced::Theme`: the one loaded via `<link rel="theme">` /
+    /// The current `iced::Theme`: the one loaded via `link(rel = theme)` /
     /// `set_style` if present; otherwise the OS light/dark preference
     /// (`Theme::Light`/`Theme::Dark`), falling back to `Theme::Dark` while that
     /// preference is unknown. Wire it into your app with
@@ -836,7 +832,7 @@ impl GlacierUI {
     /// direito com desfazer/refazer/recortar/copiar/apagar/selecionar tudo/
     /// limpar tudo). Ligado por default. Desligar também dispensa o rastreio de
     /// cursor que a âncora do menu exige — útil num app que prefira o seu
-    /// próprio `<ContextMenu>`. Chame no `setup` da janela (o hook recebe
+    /// próprio `ContextMenu`. Chame no `setup` da janela (o hook recebe
     /// `&mut GlacierUI`); vale a partir da próxima reavaliação.
     pub fn set_input_context_menu(&mut self, on: bool) {
         self.input_context_menu = on;
@@ -883,7 +879,7 @@ impl GlacierUI {
         self.dialog.as_ref()
     }
 
-    /// O tema carregado por `<link rel="theme">`, se houver. Para o tema
+    /// O tema carregado por `link(rel = theme)`, se houver. Para o tema
     /// *efetivo* (com o default), use [`GlacierUI::theme`].
     pub fn custom_theme(&self) -> Option<&iced::Theme> {
         self.custom_theme.as_ref()
@@ -937,7 +933,7 @@ impl GlacierUI {
     }
 
     /// Aplica um estilo builtin (ver [`crate::style`]): a paleta vira o tema do
-    /// app (mesmo slot de um `<link rel="theme">`, que portanto o sobrescreve se
+    /// app (mesmo slot de um `link(rel = theme)`, que portanto o sobrescreve se
     /// vier depois) e o GSS do estilo entra como **underlay** — abaixo de todo
     /// `.gss` do app, então classes/ids/atributos inline continuam vencendo.
     /// Trocar de estilo substitui o anterior no lugar; o nome do ativo é
@@ -945,7 +941,7 @@ impl GlacierUI {
     ///
     /// Num app de daemon, prefira [`GlacierDaemon::style`], que aplica isto a
     /// todas as janelas. Em runtime, as ações builtin `style:<nome>` (botão) e
-    /// `style:set` (`onChange` de um `<Select>`) chamam este método por baixo.
+    /// `style:set` (`onChange` de um `Select`) chamam este método por baixo.
     pub fn set_style(&mut self, style: &style::Style) -> Result<()> {
         self.custom_theme = Some(style.theme()?);
         let sheet = style.sheet()?;
@@ -965,7 +961,7 @@ impl GlacierUI {
         }
     }
 
-    /// Instala o estilo `name` sem reavaliar — um `<link rel="style">` do app
+    /// Instala o estilo `name` sem reavaliar — um `link(rel = style)` do app
     /// primeiro, depois os builtin. Devolve se instalou. É o que o `init` usa
     /// (a primeira avaliação vem logo depois, de qualquer jeito); o resto passa
     /// por [`GlacierUI::apply_style_by_name`].
@@ -1007,7 +1003,7 @@ impl GlacierUI {
         }
     }
 
-    /// Lê um `<link rel="style" as="nome" href="x.gss">`: um `.gss` cujo `:root`
+    /// Lê um `link(rel = style, as = nome, href = "x.gss")`: um `.gss` cujo `:root`
     /// traz a paleta (`--background`, `--text`, `--primary`, `--success`,
     /// `--danger` e, opcional, `--warning` — os campos do `theme.json`) e
     /// quaisquer outras regras e tokens. Registra o estilo pelo nome; se ele é
@@ -1042,8 +1038,8 @@ impl GlacierUI {
 
     /// Reads, parses and installs (or replaces in place) an external `.gss`
     /// file into the global sheet set, keyed by its own path — shared by the
-    /// public [`GlacierUI::load_stylesheet`] and by `<link rel="stylesheet">`
-    /// encountered while processing a template's `<link>`s. Does not
+    /// public [`GlacierUI::load_stylesheet`] and by `link(rel = stylesheet)`
+    /// encountered while processing a template's `link`s. Does not
     /// re-evaluate; callers batch that themselves.
     fn load_global_stylesheet_file(&mut self, path: &str) -> Result<()> {
         let content = self
@@ -1063,7 +1059,7 @@ impl GlacierUI {
 
     /// Installs (or replaces in place, keyed by `key`) a parsed sheet into the
     /// global sheet set. `key` is a real file path for linked sheets, or a
-    /// synthetic per-component key for a global inline `<style>` block (see
+    /// synthetic per-component key for a global inline `style` block (see
     /// [`inline_style_key`]) — either way it is what makes reloading replace
     /// the same slot instead of accumulating duplicates.
     fn install_global_stylesheet(&mut self, key: String, sheet: stylesheet::StyleSheet) {
@@ -1072,13 +1068,13 @@ impl GlacierUI {
         self.inputs.install_stylesheet(key, sheet);
     }
 
-    /// Guarda (ou esquece) o que o `<screen>` deste template declara sobre a
+    /// Guarda (ou esquece) o que o `screen` deste template declara sobre a
     /// janela. Reescrito a cada registro, que é o mesmo caminho do hot-reload —
     /// então apagar o `title=` do arquivo e salvar realmente o apaga daqui, em
     /// vez de deixar o valor velho pendurado.
     ///
     /// Só olha os filhos **diretos** da raiz: é lá que o parse deposita as
-    /// declarações. Um `<screen>` perdido no meio do layout não é cabeçalho de
+    /// declarações. Um `screen` perdido no meio do layout não é cabeçalho de
     /// nada e não vale — some na avaliação como qualquer declaração fora de lugar.
     fn record_screen_meta(&mut self, name: &str, ast: &UiNode) {
         let mut meta = ast.children.iter().find_map(|c| match &c.kind {
@@ -1098,7 +1094,7 @@ impl GlacierUI {
         }
     }
 
-    /// O que o `<screen>` do template `name` declarou sobre a janela, se algo.
+    /// O que o `screen` do template `name` declarou sobre a janela, se algo.
     pub fn screen_meta(&self, name: &str) -> Option<&parser::ScreenMeta> {
         self.screen_meta.get(name)
     }
@@ -1124,8 +1120,8 @@ impl GlacierUI {
         self.current_screen = Some(name.to_string());
         self.history.clear();
         // Onda 10: a lista de famílias de fonte na chave do motor `__fonts`,
-        // para um `<combo items="__fonts">`/`<fontselect>` consumi-la sem API
-        // nova (a convenção do `<menu items="chave">`). Semeada aqui e não em
+        // para um `combo(items = __fonts)`/`fontselect` consumi-la sem API
+        // nova (a convenção do `menu(:items = chave)`). Semeada aqui e não em
         // `new()` porque o app registra as fontes no *builder* do daemon, que
         // roda antes de qualquer tela existir; `set_initial_screen` é o
         // primeiro ponto em que o registro já está completo.
@@ -1133,7 +1129,7 @@ impl GlacierUI {
             .insert("__fonts".to_string(), fonts::families_json());
         // i18n: com algum catálogo carregado, a locale ativa nasce na chave
         // `__locale` (a do sistema, se houver catálogo para ela; senão a padrão)
-        // e as disponíveis em `__locales` (para um `<combo items="__locales">`).
+        // e as disponíveis em `__locales` (para um `combo(items = __locales)`).
         // Um app que já escreveu `__locale` antes (restaurou a preferência) vence.
         if i18n::default_locale().is_some() {
             if !self.context_data.contains_key(i18n::CHAVE_LOCALE) {
@@ -1239,7 +1235,7 @@ impl GlacierUI {
         // ativo); o `iced` diferencia `Element` pelo tipo do widget, então
         // trocar a raiz de `Container` para `Stack` (e de volta) descartava o
         // `tree::State` da subárvore inteira — o deslocamento de cada
-        // `<scrollable>`, o foco e a seleção do campo de texto. O menu de
+        // `scrollable`, o foco e a seleção do campo de texto. O menu de
         // contexto embutido dos inputs (botão direito) tornava isso visível a
         // cada clique: a tela saltava para o topo. Um `Stack` de um filho só
         // mede e desenha idêntico a esse filho — o que importa é o nó da raiz
@@ -1253,7 +1249,7 @@ impl GlacierUI {
             // O corpo em markup (Onda 8): o `DialogSpec` guarda o **nome** de um
             // template, montado pelo mesmo `render` de qualquer tela. Um nome
             // que não resolve cai para o corpo vazio (o `QMessageBox` de
-            // sempre), em vez de tirar a tela do ar por um `<dialog>` mal
+            // sempre), em vez de tirar a tela do ar por um `dialog` mal
             // escrito — o erro aparece na validação do template.
             let body = spec.body.as_deref().and_then(|nome| self.render(nome).ok());
             camadas.push(dialogs::overlay(spec, &self.theme(), body));
@@ -1273,14 +1269,14 @@ impl GlacierUI {
     }
 
     /// Registers a component from its XML file, recursively loading any
-    /// components it declares via `<import name="..." from="..." />`.
+    /// components it declares via `import(name = "...", from = "...")`.
     ///
     /// The single entry point for file-based components: if the template carries
-    /// a `<script>` block (inline or an external `src`/`from` pointing at a
+    /// a `script` block (inline or an external `src`/`from` pointing at a
     /// `.luau` file), its **Luau** behavior is wired automatically — the Luau
     /// functions read/write the context via the global `ctx` table and each one
     /// answers the action of the same name (see [`crate::luau`]). A template
-    /// without a `<script>` is UI-only. Either way there is no separate
+    /// without a `script` is UI-only. Either way there is no separate
     /// registration call for scripted vs. plain components.
     pub fn register_component(&mut self, name: &str, path: &str) -> Result<()> {
         self.register_component_inner(name, path)?;
@@ -1501,7 +1497,7 @@ impl GlacierUI {
     }
 
     /// Registra uma tela escrita **dentro** do manifesto: a árvore já vem
-    /// montada, e o `<script>` (Luau) vira um [`luau::LuauComponent`] ancorado no
+    /// montada, e o `script` (Luau) vira um [`luau::LuauComponent`] ancorado no
     /// arquivo do manifesto.
     fn register_inline_screen(
         &mut self,
@@ -1577,7 +1573,7 @@ impl GlacierUI {
     }
 
     /// O que a janela **principal** deve ser agora: os atributos do `app(...)`
-    /// (ou, sem manifesto, os do `<screen>` ativo) com o `title` da tela ativa.
+    /// (ou, sem manifesto, os do `screen` ativo) com o `title` da tela ativa.
     pub fn main_window_meta(&self) -> Option<parser::ScreenMeta> {
         match &self.app_window {
             Some(janela) => {
@@ -1620,10 +1616,10 @@ impl GlacierUI {
                 self.file_mod_times.insert(name.clone(), mod_time);
                 (content, Some(path))
             }
-            Template::Inline(s) => (s, None),
+            Template::Inline(s) => (gv::desugar_inline(&s).map_err(|e| e.in_component(&name))?, None),
         };
 
-        // Parse the XML markup. A `<script>` block is stripped from the AST
+        // Parse the XML markup. A `script` block is stripped from the AST
         // here either way — its Lua body doesn't drive the template — but is
         // no longer discarded: see the `has_script` check below.
         let (ast, _script) =
@@ -1644,12 +1640,12 @@ impl GlacierUI {
         //     and register each child recursively.
         let children = comp.children();
 
-        // A `Template::File` component whose markup carries a `<script>` gets
+        // A `Template::File` component whose markup carries a `script` gets
         // Lua wired as a per-action layer over its own hooks (`update`,
         // `init`, `on_form_submit`, `on_broadcast`): the Lua function of the
         // same name wins if defined, otherwise the Rust hook runs — see
         // `luau::LuauComponent::wrap`. `Template::Inline` components can't
-        // carry a `<script>` (no path to resolve `src`/`require` against),
+        // carry a `script` (no path to resolve `src`/`require` against),
         // same limitation `LuauComponent` always had.
         let comp: Box<dyn component::Component> = match &path {
             Some(p) if luau::has_script(&markup) => Box::new(luau::LuauComponent::wrap(
@@ -1674,7 +1670,7 @@ impl GlacierUI {
     /// [`GlacierUI::dispatch`] can route actions to it. Shared by the
     /// `Box<dyn Component>` path ([`GlacierUI::register_one`]) and the file-based
     /// path ([`GlacierUI::register_component_inner`], which wires a
-    /// [`luau::LuauComponent`] when the template carries a `<script>`).
+    /// [`luau::LuauComponent`] when the template carries a `script`).
     fn install_component(&mut self, name: &str, mut comp: Box<dyn component::Component>) {
         let init_streams = {
             let mut ctx = component::Context::with_types(&mut self.context_data, &mut self.context_types);
@@ -1759,7 +1755,7 @@ impl GlacierUI {
         // Built-in: `clipboard:<key>` copies a context value to the system
         // clipboard without involving a component.
         if let EngineMessage::UiClick(a) = msg {
-            // Built-in: `audio:<toggle|play|pause|stop>:<nome>` controla um `<audio>`.
+            // Built-in: `audio:<toggle|play|pause|stop>:<nome>` controla um `audio`.
             if a.starts_with("audio:") {
                 audio::aplica_acao(a, None);
                 return iced::Task::none();
@@ -1778,8 +1774,8 @@ impl GlacierUI {
                     .get("__whatsthis")
                     .is_some_and(|v| widget::is_truthy(v));
                 let novo = match cmd {
-                    "on" | "ligar" => true,
-                    "off" | "desligar" => false,
+                    "on" => true,
+                    "off" => false,
                     _ => !ligado, // toggle
                 };
                 if novo {
@@ -1792,7 +1788,7 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             // Built-in: `open:<alvo>` abre uma URL no navegador padrão do SO, sem
-            // envolver um componente. `<alvo>` é uma chave de contexto (abre o
+            // envolver um componente. `alvo` é uma chave de contexto (abre o
             // valor guardado, como o `clipboard:`) ou, se não existir tal chave,
             // a própria string literal (`open:https://exemplo`). Útil para
             // fluxos OAuth: o script guarda a URL no contexto e a markup faz
@@ -1806,7 +1802,7 @@ impl GlacierUI {
                 open_url(&url);
                 return iced::Task::none();
             }
-            // Built-in: `textarea_end:<binding>` rola o <textarea> de `binding`
+            // Built-in: `textarea_end:<binding>` rola o textarea de `binding`
             // até o FIM (e leva o cursor pro fim), sem envolver um componente.
             // Útil para um botão "ir ao fim" num log longo. Faz Scroll por
             // line_count (clampa no fundo) + Move(DocumentEnd).
@@ -1820,7 +1816,7 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
-            // Built-in: `textarea_top:<binding>` rola o <textarea> até o TOPO (e
+            // Built-in: `textarea_top:<binding>` rola o textarea até o TOPO (e
             // leva o cursor pro começo) — o par de `textarea_end`, para um botão
             // "ao topo". Faz Scroll por -line_count (clampa no topo) +
             // Move(DocumentStart). Útil quando não há barra de rolagem visível.
@@ -1870,7 +1866,7 @@ impl GlacierUI {
                 };
             }
         }
-        // Clicar em QUALQUER outra coisa abandona a seção de `<datetimeedit>`
+        // Clicar em QUALQUER outra coisa abandona a seção de `datetimeedit`
         // que estivesse selecionada. Sem isto, a seleção sobrevive à saída do
         // widget e as setas ▲▼ continuariam mexendo nela de longe — o clique
         // numa seção usa `ContextPatch`, não `UiClick`, então ele não se
@@ -1922,7 +1918,7 @@ impl GlacierUI {
                 // enquanto o usuário digitava. É todo o mecanismo do diálogo
                 // com campo, e é por isso que ele não precisa de estado por
                 // instância: o valor mora no contexto como o de qualquer
-                // `<textinput>`, e `resume_key` é só o endereço dele.
+                // `textinput`, e `resume_key` é só o endereço dele.
                 if let Some(p) = self.dialog_resume.take() {
                     let aceitou = action.as_str() == dialogs::CONFIRM_YES;
                     let saida = match (&p.resume_key, aceitou) {
@@ -1977,7 +1973,7 @@ impl GlacierUI {
             EngineMessage::CursorMoved(p) => {
                 let anterior = self.last_cursor_pos;
                 self.last_cursor_pos = *p;
-                // Com uma alça de coluna presa (`<tableheader>`, Onda 6), o
+                // Com uma alça de coluna presa (`tableheader`, Onda 6), o
                 // movimento deixa de ser só rastreio e vira a largura nova. É o
                 // ÚNICO caso em que esta mensagem reavalia — e é por isso que o
                 // motor só escuta o mouse enquanto o arrasto existe (ver
@@ -2079,7 +2075,7 @@ impl GlacierUI {
                     None => iced::Task::none(),
                 };
             }
-            // Clique num `<MenuItem>` folha: fecha o menu/cascata inteiro e
+            // Clique num `MenuItem` folha: fecha o menu/cascata inteiro e
             // roteia `action` exatamente como um `UiClick` comum (mesma
             // chamada que `DialogButton` já faz) — a prova de que nenhum
             // código novo de dispatch/Luau é necessário para menus.
@@ -2107,7 +2103,7 @@ impl GlacierUI {
                 self.dismiss_toast(*id);
                 return iced::Task::none();
             }
-            // Enquanto um `<audio>` toca: o tick só existe para forçar o quadro (a barra anda)
+            // Enquanto um `audio` toca: o tick só existe para forçar o quadro (a barra anda)
             // e para entregar o fim/erro da reprodução como a ação que o markup declarou.
             EngineMessage::LocaleChanged(l) => {
                 self.context_data.insert(i18n::CHAVE_LOCALE.to_string(), l.clone());
@@ -2134,7 +2130,7 @@ impl GlacierUI {
             // inputs don't advance focus on Tab themselves, so a global keyboard
             // listener (`tab_focus_from_event`) turns the keypress into this.
             // A operação de foco roda DEPOIS do quadro que a mensagem provocou, então o
-            // que ela muda no desenho (o destaque de um link do `<prose>`) só apareceria
+            // que ela muda no desenho (o destaque de um link do `prose`) só apareceria
             // no próximo evento. O `ToastTick` é um no-op que força um quadro.
             EngineMessage::FocusNext => {
                 return iced::widget::operation::focus_next::<EngineMessage>()
@@ -2144,7 +2140,7 @@ impl GlacierUI {
                 return iced::widget::operation::focus_previous::<EngineMessage>()
                     .chain(iced::Task::done(EngineMessage::ToastTick));
             }
-            // Teclado do `<datetimeedit>`: setas ▲▼ mexem na seção selecionada,
+            // Teclado do `datetimeedit`: setas ▲▼ mexem na seção selecionada,
             // ← → trocam de seção, e um algarismo digita nela. Quem trata é o
             // motor, e não o widget, porque a seleção é uma chave global
             // (`__timeedit`) e o listener de teclado é global também — o widget
@@ -2257,7 +2253,7 @@ impl GlacierUI {
                 value,
                 kind,
             } => {
-                // `audio:seek:<nome>` (a barra de posição do `<audio>`) é do serviço de
+                // `audio:seek:<nome>` (a barra de posição do `audio`) é do serviço de
                 // áudio, não de um componente: o valor é a posição em segundos.
                 if action.starts_with("audio:") {
                     audio::aplica_acao(action, Some(value));
@@ -2289,7 +2285,7 @@ impl GlacierUI {
                 return iced::Task::none();
             }
             EngineMessage::UiInputChanged { action, value } => {
-                // Built-in: `onChange="style:set"` num `<Select>` troca o estilo
+                // Built-in: `onChange="style:set"` num `Select` troca o estilo
                 // builtin para o valor escolhido (ver `crate::style`) — o
                 // `set_style` por baixo republica o nome em `glacier_style`,
                 // que é o `value` que o próprio Select exibe.
@@ -2490,15 +2486,15 @@ impl GlacierUI {
                 // once the item is released (see `DragStart`).
                 self.context_data.remove(DRAG_KEY_CONTEXT);
                 // O mesmo soltar encerra o arrasto de uma alça de coluna
-                // (`<tableheader>`, Onda 6). As duas coisas compartilham este
+                // (`tableheader`, Onda 6). As duas coisas compartilham este
                 // braço de propósito: só um arrasto existe por vez no app, e o
                 // botão do mouse é um só.
                 //
-                // Onda 12: um [`crate::grip::Alvo::Zona`] (o `<dock>`) não
+                // Onda 12: um [`crate::grip::Alvo::Zona`] (o `dock`) não
                 // escreveu nada durante o gesto — é **aqui** que ele comete a
                 // borda escolhida, do ponto de soltura (`last_cursor_pos`, que
                 // esteve vivo o arrasto inteiro porque `precisa_do_cursor` o
-                // manteve). A troca de `<splitter>`↔`<stack>` de pai acontece
+                // manteve). A troca de `splitter`↔`stack` de pai acontece
                 // no `reevaluate_all` seguinte, entre quadros.
                 let mut modo_commitado: Option<String> = None;
                 if let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT)
@@ -2517,7 +2513,7 @@ impl GlacierUI {
                         value,
                     });
                 }
-                // Reancorou por arrasto e o `<dock>` tem `on_change`: reavalia
+                // Reancorou por arrasto e o `dock` tem `on_change`: reavalia
                 // (a troca de pai) e dispara a persistência, como os botões do
                 // cabeçalho fazem via `PatchThen`.
                 if let Some(mk) = modo_commitado
@@ -2528,7 +2524,7 @@ impl GlacierUI {
                 let _ = self.reevaluate_all();
                 return iced::Task::none();
             }
-            // ── Onda 9, o `<delaybutton>`: o arrasto em que anda o TEMPO ────
+            // ── Onda 9, o `delaybutton`: o arrasto em que anda o TEMPO ────
             //
             // As três mensagens são um relógio, e a chave `__hold` é o
             // interruptor dele: enquanto ela existir, o daemon registra o
@@ -2610,8 +2606,8 @@ impl GlacierUI {
                     .get(crate::keys::CAPTURA_CONTEXT)
                     .cloned()
                     .filter(|c| !c.is_empty());
-                // Com um `<shortcutinput>` armado, a tecla é DADO e não comando
-                // — inclusive uma que casaria com um `<shortcut>` da tela. É o
+                // Com um `shortcutinput` armado, a tecla é DADO e não comando
+                // — inclusive uma que casaria com um `shortcut` da tela. É o
                 // que deixa gravar `Ctrl+S` num campo de atalhos sem salvar o
                 // arquivo no caminho.
                 if let Some(chave) = armado {
@@ -2632,7 +2628,7 @@ impl GlacierUI {
                     let _ = self.reevaluate_all();
                     return iced::Task::none();
                 }
-                // Sem campo armado: procura um `<shortcut>` que case. Um atalho
+                // Sem campo armado: procura um `shortcut` que case. Um atalho
                 // SEM modificador não passa por cima de um campo focado — ver a
                 // nota em `crate::keys`.
                 if *capturado && !combo.contains('+') {
@@ -2664,7 +2660,7 @@ impl GlacierUI {
             }
             EngineMessage::PatchThen { patch, inner } => {
                 // O patch primeiro (é estado do MOTOR: o realce de um
-                // `<autocomplete>`, por exemplo), a ação do app depois — que é
+                // `autocomplete`, por exemplo), a ação do app depois — que é
                 // a ordem que faz o `update` dele já enxergar o contexto novo.
                 // Sem `reevaluate_all` aqui: quem despacha `inner` reavalia, e
                 // reavaliar duas vezes por tecla é o dobro do trabalho para o
@@ -2676,7 +2672,7 @@ impl GlacierUI {
             }
             EngineMessage::MaskedEdit { id, cursor, inner } => {
                 // A gravação é a mensagem de sempre (`ContextPatch` ou
-                // `UiInputChanged`): quem escuta um `<MaskedInput>` não vê esta
+                // `UiInputChanged`): quem escuta um `MaskedInput` não vê esta
                 // variante. O que ela acrescenta é recolocar o cursor depois da
                 // remascaração — ver `widget::cursor_remascarado`. A ordem
                 // importa: o `iced` reconstrói a view antes de rodar as ações,
@@ -2714,7 +2710,7 @@ impl GlacierUI {
                     };
                 }
 
-                // O dono do scope é o componente em cujo template o `<form>` foi
+                // O dono do scope é o componente em cujo template o `form` foi
                 // escrito. Um componente importado só de template (sem
                 // comportamento registrado) não tem handlers: o submit cai na
                 // tela dona, como `route_to_owner` faz para a ação sem regras.
@@ -2748,7 +2744,7 @@ impl GlacierUI {
                     let mut script_rules: Vec<(String, Vec<String>)> = Vec::new();
                     for f in &fields {
                         let parsed = forms::Validator::parse_rules(&f.rules).unwrap_or_else(|e| {
-                            eprintln!("[glacier-ui] <form>: regra inválida em '{}': {e}", f.name);
+                            eprintln!("[glacier-ui] form: regra inválida em '{}': {e}", f.name);
                             Vec::new()
                         });
                         let mut builtin = Vec::new();
@@ -2852,14 +2848,14 @@ impl GlacierUI {
                 single_line,
             } => {
                 use iced::widget::text_editor::{Action, Edit};
-                // Read-only (<textarea readonly>): ignora EDIÇÕES (digitar/apagar/
+                // Read-only (textarea(readonly)): ignora EDIÇÕES (digitar/apagar/
                 // colar), mantendo navegação/seleção/scroll — o texto continua
                 // selecionável, copiável e rolável, só não é alterável.
                 if *readonly && matches!(action, Action::Edit(_)) {
                     return iced::Task::none();
                 }
-                // Linha única (`<TextInput>` comum, apoiado num `text_editor`):
-                // `Enter` sem `<Form>` chega aqui e é engolido; um paste com
+                // Linha única (`TextInput` comum, apoiado num `text_editor`):
+                // `Enter` sem `Form` chega aqui e é engolido; um paste com
                 // quebras é reescrito sem elas — o buffer nunca passa de 1 linha.
                 let owned_action;
                 let action: &Action = if *single_line {
@@ -2904,7 +2900,7 @@ impl GlacierUI {
                 let text = content.text();
                 // Só o texto mudou é que precisa refluir a árvore / avisar o
                 // app. Mover o cursor, clicar, rolar ou selecionar (o comum
-                // num `<TextInput>`, que antes era `text_input` e tratava isso
+                // num `TextInput`, que antes era `text_input` e tratava isso
                 // sem custo) não mexem no contexto — o iced já redesenha a
                 // seleção sozinho depois desta mensagem.
                 if text == prev {
@@ -2975,17 +2971,17 @@ impl GlacierUI {
         // O prefixo `dialog:` (Onda 8, habilitador C) — a terceira família de
         // prefixos de ação, depois do `app:` (0.63) e do `::` de dono.
         //
-        // É o que faz um `<dialog>` ser um widget do catálogo e não uma API de
+        // É o que faz um `dialog` ser um widget do catálogo e não uma API de
         // Rust: até aqui, abrir um modal exigia `ctx.show_dialog` num `update`
         // em Rust ou um `confirm()` em Luau, e uma tela puramente declarativa
         // não conseguia. Fica DEPOIS do match de mensagem, e não dentro dele,
         // para valer em qualquer rota que produza uma ação — `<button
-        // on_click>`, `<menuitem>`, um botão de outro diálogo.
+        // on_click>`, `menuitem`, um botão de outro diálogo.
         if let Some(alvo) = action.strip_prefix(DIALOG_ACTION_PREFIX) {
             return self.abre_dialogo_nomeado(alvo);
         }
 
-        // A `form_control` inside a `<Form>` that declared `rules`: after the
+        // A `form_control` inside a `Form` that declared `rules`: after the
         // value lands, keep its `{prefix}{name}` error key honest — cleared on
         // any edit (`validate_on="submit"`, the default: errors only show after
         // a submit and vanish as you fix the field), or re-checked live
@@ -3026,7 +3022,7 @@ impl GlacierUI {
     /// avaliado" e o cartão aparece **sem o conteúdo**: título, botões, e um
     /// buraco onde deveria estar o campo.
     ///
-    /// O `render_current` engole esse erro de propósito (um `<dialog>` com nome
+    /// O `render_current` engole esse erro de propósito (um `dialog` com nome
     /// errado não pode derrubar a tela), e é por isso que o sintoma era mudo.
     ///
     /// A avaliação imediata, além do `pinned`, cobre o caminho do host que
@@ -3058,7 +3054,7 @@ impl GlacierUI {
     ///
     /// O corpo de um diálogo é avaliado no contexto do app, e é isso que faz um
     /// diálogo com campo dispensar estado por instância: o que o usuário digita
-    /// mora numa chave comum, como o de qualquer `<textinput>`. O preço é que a
+    /// mora numa chave comum, como o de qualquer `textinput`. O preço é que a
     /// chave **sobrevive** ao diálogo, e a segunda abertura viria preenchida
     /// com a resposta da primeira — o bug que ninguém reporta e todo mundo
     /// estranha.
@@ -3072,7 +3068,7 @@ impl GlacierUI {
             .retain(|k, _| !k.starts_with(dialogs::DIALOG_KEY_PREFIX));
     }
 
-    /// Abre o `<dialog name="…">` declarado no markup, ou fecha o que estiver
+    /// Abre o `dialog(name = "…")` declarado no markup, ou fecha o que estiver
     /// aberto quando o alvo é `close`/`fechar`.
     ///
     /// Um nome que não existe é **ignorado em silêncio**, e essa é uma escolha:
@@ -3099,7 +3095,7 @@ impl GlacierUI {
         iced::Task::none()
     }
 
-    /// Every `form_control` node under the `<Form>` identified by `scope`
+    /// Every `form_control` node under the `Form` identified by `scope`
     /// (`"{owner}::{name}"`), paired with its declarative validation config, in
     /// document order. Returns **empty** when no control in that form carries a
     /// `rules` (or `pattern`) attribute — the signal for the caller to keep the
@@ -3146,7 +3142,7 @@ impl GlacierUI {
     }
 
     /// Resolves which component owns `action` (an action namespaced as
-    /// `Child::act`, produced when a `<Component>` subtree is inlined, routes
+    /// `Child::act`, produced when a `Component` subtree is inlined, routes
     /// to `Child` when it has registered behavior; otherwise — and for plain,
     /// un-namespaced actions — it falls back to the active screen), then
     /// calls `route` with that component and the de-namespaced action,
@@ -3252,7 +3248,7 @@ impl GlacierUI {
         // reavaliação do fim deste método já pega o estilo novo.
         let style_changed = style_req.is_some_and(|name| self.install_style_by_name(&name));
 
-        // Appends incrementais a <textarea> (append_textarea): insere `text` no
+        // Appends incrementais a textarea (append_textarea): insere `text` no
         // fim do Content mantido, sem recriar (preserva scroll; O(text)), e
         // sincroniza context_data + editor_synced para `clipboard:` copiar tudo e
         // sync_editors não reconstruir depois. Ver `Context::append_textarea`.
@@ -3628,18 +3624,18 @@ impl GlacierUI {
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
 
-        // Componentes declarados no próprio arquivo (`<component name="…">`),
-        // depois os trazidos de fora (`<import>`).
+        // Componentes declarados no próprio arquivo (`component(name = "…")`),
+        // depois os trazidos de fora (`import`).
         self.load_defines(&ast);
-        // Recursively load components declared with `<import>`.
+        // Recursively load components declared with `import`.
         self.load_imports(&ast, Some(path))?;
-        // Process this component's `<link>` declarations.
+        // Process this component's `link` declarations.
         self.process_links(name, &ast)?;
-        // Metadados de janela do `<screen>`, se o template tiver cabeçalho.
+        // Metadados de janela do `screen`, se o template tiver cabeçalho.
         self.record_screen_meta(name, &ast);
 
-        // Um `<script>` é Luau (só existe essa linguagem; um `lang` desconhecido
-        // é recusado na carga). Sem `<script>` nenhum, o componente fica UI-only
+        // Um `script` é Luau (só existe essa linguagem; um `lang` desconhecido
+        // é recusado na carga). Sem `script` nenhum, o componente fica UI-only
         // (ações caem pra tela dona, exatamente como antes). Isto é o que unifica
         // o registro por arquivo — não há `register_luau` separado, e
         // componentes importados também podem ser scriptados.
@@ -3652,15 +3648,15 @@ impl GlacierUI {
         Ok(())
     }
 
-    /// Processes the `<link>` declarations in `ast`, dispatching on `rel`:
+    /// Processes the `link` declarations in `ast`, dispatching on `rel`:
     /// `stylesheet` (scoped to `component`), `import`/`component` (load another
     /// template), `data` (merge JSON into the context) and `theme` (set the
     /// app theme). Re-run on hot-reload of the template, so stylesheet links
     /// are rebuilt for `component` (cleared when it declares none).
     fn process_links(&mut self, component: &str, ast: &UiNode) -> Result<()> {
         // `component`'s own file, if it has one — the anchor for resolving a
-        // relative `href` (`<link rel="import" href="…">`) against, same as
-        // `load_imports`/`resolve_import_href` does for the `<Import>` tag
+        // relative `href` (`link(rel = import, href = "…")`) against, same as
+        // `load_imports`/`resolve_import_href` does for the `Import` tag
         // form.
         let importer_path = self.registered_components.get(component).cloned();
         self.process_links_from(component, ast, importer_path)
@@ -3686,14 +3682,14 @@ impl GlacierUI {
                 "stylesheet" => self.load_global_stylesheet_file(href)?,
                 "import" | "component" => {
                     let comp_name = name.clone().unwrap_or_else(|| file_stem(href));
-                    // Mesma regra do `<import>` em `load_imports`: carrega se o
+                    // Mesma regra do `import` em `load_imports`: carrega se o
                     // nome está livre **ou** se ele hoje guarda um builtin da
                     // lib, que o app está deliberadamente sombreando.
                     //
                     // Faltava aqui, e ficou invisível enquanto os builtins se
                     // chamavam `Badge`/`SpinBox`/`TimePicker` — nomes que um app
                     // não disputa. A onda 2 trouxe `Card`, `Frame`, `Avatar`,
-                    // `ToolBar`: aí um `<link rel="import" as="Card">` do app
+                    // `ToolBar`: aí um `link(rel = import, as = Card)` do app
                     // passou a ser engolido em silêncio, com o builtin
                     // renderizando no lugar do componente importado.
                     let is_builtin = self.builtin_component_names.contains(&comp_name);
@@ -3736,7 +3732,7 @@ impl GlacierUI {
             }
         }
 
-        // Inline `<style>` blocks: `scoped="true"` ones stay component-scoped
+        // Inline `style` blocks: `scoped="true"` ones stay component-scoped
         // (rebuilt here, in document order, later rules winning on a tie);
         // the rest (the default) are promoted to the global sheet set, each
         // keyed by its position among `component`'s own inline blocks so a
@@ -3746,7 +3742,7 @@ impl GlacierUI {
         collect_inline_styles(ast, &mut scoped_css, &mut global_css);
 
         // O arquivo do componente (quando ele veio de um) e a linha de cada
-        // `<style>` posicionam um erro do `.gss` inline no XML que o declarou:
+        // `style` posicionam um erro do `.gss` inline no XML que o declarou:
         // "home.xml:207", não "linha 3 de um texto que você não sabe qual é".
         let file = importer_path.clone();
         let parse_inline = |css: &str, line: u32| -> Result<stylesheet::StyleSheet> {
@@ -3808,7 +3804,7 @@ impl GlacierUI {
         Ok(())
     }
 
-    /// Walks a parsed tree and registers every `<import>`ed component not yet
+    /// Walks a parsed tree and registers every `import`ed component not yet
     /// loaded. `importer_path` is the `.gv` file `node` itself came from
     /// (`None` for an inline template, which has no file to resolve a
     /// relative `href` against) — passed through so each `<link rel="import"
@@ -3817,7 +3813,7 @@ impl GlacierUI {
     fn load_imports(&mut self, node: &UiNode, importer_path: Option<&str>) -> Result<()> {
         if let NodeType::Import { name, from } = &node.kind {
             // Load if the name is free, or if it currently holds a builtin the
-            // app is deliberately shadowing (an explicit `<import>` wins over a
+            // app is deliberately shadowing (an explicit `import` wins over a
             // lib builtin). Once overridden, the name is a normal component and
             // later imports of it are skipped as before.
             let is_builtin = self.builtin_component_names.contains(name);
@@ -3835,29 +3831,29 @@ impl GlacierUI {
     }
 
     /// Registra cada componente **declarado no próprio template**
-    /// (`<component name="X">…</component>` dentro do `<resources>`), a
+    /// (`component(name = X)…` dentro do `resources`), a
     /// terceira forma de ter um componente — ver [`crate::parser::NodeType::Define`].
     ///
-    /// Roda **antes** do `load_imports` de propósito: assim um `<import>` do
+    /// Roda **antes** do `load_imports` de propósito: assim um `import` do
     /// mesmo arquivo consegue sombrear uma declaração local, e não o contrário.
     /// A ordem importa pouco na prática (é raro alguém escrever as duas para o
     /// mesmo nome), mas escolher uma explicitamente é melhor do que depender de
     /// qual passada roda primeiro.
     ///
-    /// A regra de nome é a mesma do `<import>`: declara se o nome está livre
+    /// A regra de nome é a mesma do `import`: declara se o nome está livre
     /// **ou** se hoje ele guarda um builtin da lib que o app está
     /// deliberadamente sombreando. Um nome já tomado por um componente de
     /// verdade não é redefinido — e não é erro: é o que permite um `.gv`
     /// incluído duas vezes não brigar consigo mesmo.
     fn load_defines(&mut self, node: &UiNode) {
-        // Um `<dialog name="…">` (Onda 8) é uma declaração de componente com
+        // Um `dialog(name = "…")` (Onda 8) é uma declaração de componente com
         // moldura: o corpo entra no mesmo `parsed_templates` de qualquer outro,
         // sob o mesmo nome, e é por isso que `render(nome)` o monta sem saber
         // que aquilo é um diálogo. A moldura fica ao lado, em `dialog_defs`.
         //
         // A regra de nome é a mesma dos outros dois casos, e de propósito: um
-        // `<dialog name="Badge">` sombreia o builtin `Badge` exatamente como um
-        // `<component name="Badge">` sombrearia — melhor uma regra só, mesmo
+        // `dialog(name = Badge)` sombreia o builtin `Badge` exatamente como um
+        // `component(name = Badge)` sombrearia — melhor uma regra só, mesmo
         // que ninguém vá escrever isso, do que duas regras que divergem no dia
         // em que alguém escrever.
         if let NodeType::DialogDef(meta) = &node.kind
@@ -3888,7 +3884,7 @@ impl GlacierUI {
                 None => spec.body = None,
             }
             // A moldura é reinstalada sempre, inclusive quando o corpo não foi
-            // (nome já tomado): editar só o `title=` de um `<dialog>` com
+            // (nome já tomado): editar só o `title=` de um `dialog` com
             // hot-reload tem de aparecer, e a moldura não disputa nome com
             // ninguém — ela vive num mapa só dela.
             self.dialog_defs.insert(meta.name.clone(), spec);
@@ -3917,7 +3913,7 @@ impl GlacierUI {
         }
     }
 
-    /// Resolves the `href` of a `<link rel="import" href="…">` **relative to
+    /// Resolves the `href` of a `link(rel = import, href = "…")` **relative to
     /// the importing file's own directory** — the same idea as Luau's
     /// `require` since 0.22 (see `luau::module_roots`), just outside the Luau
     /// universe. Falls back to `href` exactly as written — the historical
@@ -4071,7 +4067,7 @@ impl GlacierUI {
     }
 
     /// Resolve o [`menu::MenuStyle`] de um menu de campo: parte do default do
-    /// tema e, se o `<input menu_class="x">` apontou uma classe, sobrescreve o
+    /// tema e, se o `input(menu_class = x)` apontou uma classe, sobrescreve o
     /// que a `.gss` declarou — `.x` no corpo, `.x-item` / `.x-item:hover` /
     /// `.x-item:active` nas linhas.
     fn resolve_menu_style(&self, menu_class: Option<&str>) -> menu::MenuStyle {
@@ -4166,7 +4162,7 @@ impl GlacierUI {
             };
         }
 
-        // ── editor (`<TextArea>` / `<TextInput>` comum) ──
+        // ── editor (`TextArea` / `TextInput` comum) ──
         match op {
             "copy" => {
                 let write = self
@@ -4436,7 +4432,7 @@ impl GlacierUI {
     /// O motor precisa acompanhar a posição do mouse nesta janela?
     ///
     /// Só quando há um abridor de menu na tela (ou um menu já aberto): a âncora
-    /// de um `<ContextMenu>`/`<MenuBar>` é a posição do cursor no instante do
+    /// de um `ContextMenu`/`MenuBar` é a posição do cursor no instante do
     /// clique, e a única forma de sabê-la é escutar o movimento.
     ///
     /// **Por que isso é caro quando não precisa.** No `iced`, cada mensagem
@@ -4464,11 +4460,11 @@ impl GlacierUI {
     /// e o arrasto **converte** a trilha tocada em fixa: uma coluna que se
     /// redimensiona à mão deixa de ser flexível, que é o que a pessoa acabou de
     /// pedir ao arrastá-la.
-    /// A ação de um `<shortcut>` que case com a combinação, se a tela avaliada
+    /// A ação de um `shortcut` que case com a combinação, se a tela avaliada
     /// declarar um.
     ///
     /// Varre **todas** as árvores avaliadas e não só a da tela ativa: um
-    /// `<shortcut>` dentro de um componente vale enquanto o componente estiver
+    /// `shortcut` dentro de um componente vale enquanto o componente estiver
     /// montado, que é o que "pertence à tela" quer dizer aqui.
     fn atalho_para(&self, combo: &str) -> Option<String> {
         self.tree_bindings
@@ -4480,7 +4476,7 @@ impl GlacierUI {
 
     /// O motor precisa de um tique de relógio nesta janela?
     ///
-    /// Só enquanto um `<delaybutton>` estiver apertado. Mesma economia (e mesmo
+    /// Só enquanto um `delaybutton` estiver apertado. Mesma economia (e mesmo
     /// motivo) do [`Self::precisa_do_cursor`]: no `iced` toda mensagem provoca
     /// um quadro, e um ticker permanente redesenharia o app trinta vezes por
     /// segundo com a tela parada.
@@ -4490,7 +4486,7 @@ impl GlacierUI {
             .is_some_and(|v| !v.is_empty())
     }
 
-    /// O `on_change` de um `<dock>` cujo `mode=` é `mode_key`, buscado na
+    /// O `on_change` de um `dock` cujo `mode=` é `mode_key`, buscado na
     /// árvore avaliada da tela ativa. `None` se não há tal dock ou ele não
     /// declarou `on_change`. Usado pelo `DragEnd` de um [`crate::grip::Alvo::Zona`]
     /// para disparar a persistência depois de reancorar por arrasto — os botões
@@ -4519,7 +4515,7 @@ impl GlacierUI {
     /// Toda a conta mora em [`crate::grip::Arrasto::aplica`]; o que sobrou aqui
     /// é ler a chave, escrever a chave e nada mais. Era `arrasta_coluna`, com o
     /// mapeamento de pixel para largura embutido: a Onda 9 tirou a conta de
-    /// dentro e ganhou o `<splitter>` e o `<swipeview>` com ela.
+    /// dentro e ganhou o `splitter` e o `swipeview` com ela.
     fn arrasta(&mut self, p: iced::Point) -> bool {
         let Some(bruto) = self.context_data.get(crate::grip::GRIP_CONTEXT) else {
             return false;
@@ -4594,7 +4590,7 @@ impl GlacierUI {
                 ancestors: Default::default(),
                 pending_root: Default::default(),
             };
-            // The template's own name is the style scope, so its `<link>`ed
+            // The template's own name is the style scope, so its `link`ed
             // sheets apply to its subtree.
             eval::evaluate_template(
                 ast,
@@ -4634,7 +4630,7 @@ impl GlacierUI {
         false
     }
 
-    /// Keeps the stateful `<TextArea>` / plain `<TextInput>` buffers in step
+    /// Keeps the stateful `TextArea` / plain `TextInput` buffers in step
     /// with the context: creates a buffer the first time a binding appears, and
     /// reloads it when the context value changed from outside the editor (e.g.
     /// a fetch). The editor's own edits set `editor_synced`, so they are not
@@ -4673,7 +4669,7 @@ impl GlacierUI {
             .retain(|k, _| !k.starts_with(prefixo) || bindings.contains(k));
     }
 
-    /// Rebuilds a `<ComboEdit>`'s `combo_box::State` whenever its bound value
+    /// Rebuilds a `ComboEdit`'s `combo_box::State` whenever its bound value
     /// or its options list genuinely changed from *outside* the combo itself
     /// (its own keystrokes/selections already keep `combo_synced` in step via
     /// `UiComboInput`/`UiComboSelected` — see `dispatch`). `combo_box::State`
@@ -4805,7 +4801,7 @@ impl GlacierUI {
                 let last_modified = self.file_mod_times.get(name);
                 if last_modified.is_none_or(|&last| modified > last) {
                     // File changed, reload it (XML). `content` completo (não só o
-                    // markup) segue adiante — é dele que o `<script>` sai, mais
+                    // markup) segue adiante — é dele que o `script` sai, mais
                     // abaixo, para recompilar o Luau do componente.
                     if let Ok(content) = asset_source::read_markup(self.assets.as_ref(), path)
                         && let Ok((new_ast, _script)) = parse_markup(Some(path.as_str()), &content)
@@ -4824,7 +4820,7 @@ impl GlacierUI {
         }
 
         // Detect changed `.gss` files the same way. Only global sheets carry a
-        // real path to watch — inline `<style>` blocks (global or scoped) are
+        // real path to watch — inline `style` blocks (global or scoped) are
         // rebuilt when their declaring template reloads, in the loop below.
         // (An inline global block's synthetic key simply misses `fs::metadata`
         // and is skipped here, harmlessly.)
@@ -4877,20 +4873,20 @@ impl GlacierUI {
 
         // Apply XML template changes.
         for (name, new_ast, modified, path, content) in updates {
-            // Pick up any newly-added `<import>`/`<link>` declarations — e as
-            // declarações locais (`<component name="…">`), que o `load_defines`
+            // Pick up any newly-added `import`/`link` declarations — e as
+            // declarações locais (`component(name = "…")`), que o `load_defines`
             // reescreve porque o nome é dele (ver `defined_components`).
             self.load_defines(&new_ast);
             let _ = self.load_imports(&new_ast, Some(&path));
             let _ = self.process_links(&name, &new_ast);
-            // …e o `<screen>`, que é declaração como as outras: editar o
+            // …e o `screen`, que é declaração como as outras: editar o
             // `title=` do arquivo tem de trocar o título da janela sem
             // recompilar — é metade do motivo de o cabeçalho existir.
             self.record_screen_meta(&name, &new_ast);
             self.inputs.insert_template(name.clone(), new_ast);
             self.file_mod_times.insert(name.clone(), modified);
 
-            // Recompila o `<script>` do componente, se houver. Sem isto, o
+            // Recompila o `script` do componente, se houver. Sem isto, o
             // hot-reload só via o markup: `function init()` nunca rodava de
             // novo e uma função/variável nova no script não existia até
             // reiniciar o app inteiro. `from_file_with` recria a VM do zero
@@ -4901,13 +4897,13 @@ impl GlacierUI {
             // Seguro quando o componente já é 100%-script
             // (`script_only_components` — ver seu doc no struct) OU quando
             // ele ainda nem tem `Component` nenhum instalado (`self.components`
-            // sem entrada pro nome): uma tela registrada sem `<script>` fica
+            // sem entrada pro nome): uma tela registrada sem `script` fica
             // UI-only, sem nada em `self.components`, e é exatamente o caso de
-            // alguém ACRESCENTAR um `<script>` depois — sem este segundo braço,
-            // o `<script>` novo nunca era instalado, só o markup reavaliava.
+            // alguém ACRESCENTAR um `script` depois — sem este segundo braço,
+            // o `script` novo nunca era instalado, só o markup reavaliava.
             //
             // O único caso que fica de fora é um componente Lua criado via
-            // `luau::LuauComponent::wrap` (Rust + `<script>` por cima, via
+            // `luau::LuauComponent::wrap` (Rust + `script` por cima, via
             // `GlacierUI::register`): ele guarda um `inner: Box<dyn Component>`
             // que não dá pra reconstruir aqui, então recriar do zero o
             // perderia. Esse continua com o limite antigo (só o markup
@@ -4945,7 +4941,7 @@ impl GlacierUI {
             self.file_mod_times.insert(stylesheet_key(&path), modified);
         }
 
-        // Reload a changed `<link rel="data">` JSON file (re-merged into context).
+        // Reload a changed `link(rel = data)` JSON file (re-merged into context).
         for (key, path) in self.data_sources.clone() {
             if let Some(modified) = self.assets.modified(&path) {
                 let changed = self
@@ -4967,7 +4963,7 @@ impl GlacierUI {
             }
         }
 
-        // Reload a changed `<link rel="style">` file (reinstalled if active).
+        // Reload a changed `link(rel = style)` file (reinstalled if active).
         let styles: Vec<(String, String)> = self
             .app_styles
             .iter()
@@ -4994,7 +4990,7 @@ impl GlacierUI {
             }
         }
 
-        // Reload a changed `<link rel="theme">` palette file.
+        // Reload a changed `link(rel = theme)` palette file.
         if let Some(path) = self.theme_path.clone()
             && let Some(modified) = self.assets.modified(&path)
         {
@@ -5042,8 +5038,8 @@ impl GlacierUI {
 }
 
 /// Parses a template's XML source into a [`UiNode`], returning the tree and its
-/// `<script>` body (if any). `path` é citado nos erros de sintaxe — as duas
-/// passadas de pré-processamento aqui (tirar o `<script>`, normalizar diretivas
+/// `script` body (if any). `path` é citado nos erros de sintaxe — as duas
+/// passadas de pré-processamento aqui (tirar o `script`, normalizar diretivas
 /// nuas) preservam a contagem de linhas de propósito, para a linha reportada ser
 /// a do arquivo que o autor escreveu.
 /// Lê o XML de um arquivo com raiz `app(...)` no seu [`parser::AppManifest`];
@@ -5053,7 +5049,7 @@ pub fn parse_app_manifest(xml: &str, file: Option<&str>) -> Result<Option<parser
     parser::UiNode::parse_app_xml(xml, file)
 }
 
-/// O `app(...)`, a `<tray>` e o título da tela inicial de um arquivo, lidos
+/// O `app(...)`, a `tray` e o título da tela inicial de um arquivo, lidos
 /// **antes** de o daemon subir o iced — ver [`parser::AppMeta`]. O arquivo é
 /// parseado inteiro (com a mesma validação de sempre); um erro aqui é devolvido,
 /// e o registro normal, logo depois, o reporta de novo com o nome do componente.
@@ -5076,7 +5072,7 @@ pub(crate) fn app_manifest(
         return Ok((Some(manifest.app), manifest.tray, title));
     }
     let (root, _script) = parse_markup(Some(path), content)?;
-    // As declarações do `<resources>` viajam penduradas na raiz (ver
+    // As declarações do `resources` viajam penduradas na raiz (ver
     // `UiNode::parse_xml_with_source`), então basta olhar os filhos dela.
     let title = root.children.iter().find_map(|child| match &child.kind {
         parser::NodeType::Screen(meta) => meta.title.clone(),
@@ -5099,7 +5095,7 @@ struct AppSource {
     /// `(nome, sem_corpo)`: `sem_corpo` é a tela declarada sem corpo nem `src`,
     /// que um `impl Component` registrado em Rust precisa servir.
     screens: Vec<(String, bool)>,
-    /// O bloco `<script>` do `resources` do app que está instalado como
+    /// O bloco `script` do `resources` do app que está instalado como
     /// [`APP_SCRIPT`] — o hot-reload só recria a VM quando ele muda.
     script: Option<String>,
 }
@@ -5123,7 +5119,7 @@ fn stylesheet_key(path: &str) -> String {
     format!("gss::{}", path)
 }
 /// Synthetic `stylesheet_paths`/`file_mod_times`-style key for a global inline
-/// `<style>` block (no `scoped` attribute) — `idx` is its position among the
+/// `style` block (no `scoped` attribute) — `idx` is its position among the
 /// declaring component's own inline blocks, so re-registration (hot-reload)
 /// replaces the same slot in [`GlacierUI::stylesheets`] instead of piling up
 /// duplicates each time the template is re-parsed.
@@ -5140,7 +5136,7 @@ fn style_key(path: &str) -> String {
     format!("style::{}", path)
 }
 
-/// Um estilo declarado pelo app (`<link rel="style">`): o arquivo (para o
+/// Um estilo declarado pelo app (`link(rel = style)`): o arquivo (para o
 /// hot-reload), a paleta já como `iced::Theme` e a folha que entra como
 /// underlay.
 #[derive(Debug, Clone)]
@@ -5150,7 +5146,7 @@ struct AppStyle {
     sheet: stylesheet::StyleSheet,
 }
 
-/// A paleta de um `<link rel="style">`, tirada dos tokens do `:root` dele —
+/// A paleta de um `link(rel = style)`, tirada dos tokens do `:root` dele —
 /// os mesmos campos (e o mesmo default de `warning`) do `theme.json`.
 fn theme_from_tokens(
     name: &str,
@@ -5182,7 +5178,7 @@ fn theme_from_tokens(
     Ok(iced::Theme::custom(name.to_string(), palette))
 }
 
-/// Milissegundos desde a época. É o relógio do `<delaybutton>`, e ele mede
+/// Milissegundos desde a época. É o relógio do `delaybutton`, e ele mede
 /// tempo de PAREDE de propósito: a fração do anel tem de andar igual num app
 /// que está engasgando e num que não está, senão soltar "no fim" acontece cedo
 /// demais numa máquina lenta.
@@ -5193,27 +5189,27 @@ fn agora_ms() -> u128 {
         .unwrap_or(0)
 }
 
-/// Collects the `value` binding of every `<TextArea>` and plain `<TextInput>`
+/// Collects the `value` binding of every `TextArea` and plain `TextInput`
 /// in an evaluated tree, so the engine can keep a stateful editor buffer per
 /// binding.
 #[derive(Default)]
 struct TreeBindings {
-    /// A árvore tem algum abridor de menu (`<MenuBar>`, `<Menu>`,
-    /// `<ContextMenu>`), ou algum campo de texto com o menu de contexto
+    /// A árvore tem algum abridor de menu (`MenuBar`, `Menu`,
+    /// `ContextMenu`), ou algum campo de texto com o menu de contexto
     /// embutido ligado? Só então o motor precisa saber onde o cursor está —
     /// ver [`GlacierUI::precisa_do_cursor`]. Um campo de texto numa tela faz o
     /// app redesenhar a cada movimento do mouse (o mesmo custo já aceito pelo
-    /// `<ContextMenu>`); `GlacierUI::set_input_context_menu(false)` o dispensa.
+    /// `ContextMenu`); `GlacierUI::set_input_context_menu(false)` o dispensa.
     usa_cursor: bool,
-    /// `value_var` de cada `<TextArea>` e `<TextInput>` não-`secure` da árvore
+    /// `value_var` de cada `TextArea` e `TextInput` não-`secure` da árvore
     /// — os dois precisam de um `text_editor::Content` mantido pelo motor.
     textareas: Vec<String>,
-    /// `(chave, texto)` de cada texto estático selecionável (`<text selectable>`):
+    /// `(chave, texto)` de cada texto estático selecionável (`text(selectable)`):
     /// o buffer deles vem do texto, não do contexto.
     fixos: Vec<(String, String)>,
-    /// `(value_var, options, label_field, value_field)` de cada `<ComboEdit>`.
+    /// `(value_var, options, label_field, value_field)` de cada `ComboEdit`.
     combos: Vec<(String, String, String, String)>,
-    /// `(combinação normalizada, ação)` de cada `<shortcut>` — o habilitador B
+    /// `(combinação normalizada, ação)` de cada `shortcut` — o habilitador B
     /// da Onda 9. Fica aqui, e não num registro do app, porque o atalho
     /// pertence à **tela**: a que sai de cena leva os dela junto, sem ninguém
     /// desregistrar nada. Ver [`crate::keys`].
@@ -5234,7 +5230,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
         out.usa_cursor = true;
     }
     // Qualquer campo de texto com o menu de contexto embutido ligado ancora no
-    // cursor (mesmo custo já aceito pelo `<ContextMenu>`).
+    // cursor (mesmo custo já aceito pelo `ContextMenu`).
     if input_context_menu
         && matches!(
             node.kind,
@@ -5243,7 +5239,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
     {
         out.usa_cursor = true;
     }
-    // A `form_control` inside a `<Form>` carrying `rules`/`pattern`: index it so
+    // A `form_control` inside a `Form` carrying `rules`/`pattern`: index it so
     // the on-change path keeps its `{prefix}{name}` error key honest without a
     // per-keystroke tree walk. Independent of `node.kind` (any input can be a
     // control), so it lives here, not in the `match` below.
@@ -5276,7 +5272,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
                 out.fixos.push((value_var.clone(), f.content.clone()));
             }
         }
-        // `<TextInput>` não-`secure` também é apoiado num `text_editor` agora
+        // `TextInput` não-`secure` também é apoiado num `text_editor` agora
         // (ver o arm de `NodeType::TextInput` em `widget.rs`) — precisa do
         // mesmo `Content`. O `secure` fica no `text_input` do iced, sem buffer.
         NodeType::TextInput {
@@ -5302,7 +5298,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
         }
         NodeType::Shortcut { key, action } if crate::keys::declarado(key, action) => {
             let combo = crate::keys::normaliza(key);
-            // O primeiro declarado ganha: dois `<shortcut>` com a mesma
+            // O primeiro declarado ganha: dois `shortcut` com a mesma
             // combinação na mesma tela é um bug de quem escreveu a tela, e
             // disparar os dois seria pior do que ignorar o segundo.
             if !out.atalhos.iter().any(|(c, _)| *c == combo) {
@@ -5317,7 +5313,7 @@ fn collect_tree_bindings(node: &UiNode, out: &mut TreeBindings, input_context_me
 }
 
 /// The file stem of a path (`templates/perfil_card.gv` -> `perfil_card`),
-/// used as the default component name for `<link rel="import">`.
+/// used as the default component name for `link(rel = import)`.
 fn file_stem(path: &str) -> String {
     std::path::Path::new(path)
         .file_stem()
@@ -5326,12 +5322,12 @@ fn file_stem(path: &str) -> String {
         .to_string()
 }
 
-/// Collects a component's inline `<style>` blocks' `.gss` bodies, in document
+/// Collects a component's inline `style` blocks' `.gss` bodies, in document
 /// order, split by their `scoped` attribute — `scoped` into `scoped_out`
 /// (layered on top of the global sheets, only inside this component), the
 /// rest (the default) into `global_out` (promoted to the global sheet set,
-/// same as a `<link rel="stylesheet">`). Blank bodies are skipped.
-/// Cada bloco vem com a **linha** do seu `<style>` no arquivo, que é o que
+/// same as a `link(rel = stylesheet)`). Blank bodies are skipped.
+/// Cada bloco vem com a **linha** do seu `style` no arquivo, que é o que
 /// traduz "linha 3 do CSS" em "linha 207 do home.xml" ao reportar um erro de
 /// GSS inline (ver [`stylesheet::parse_gss_in`]).
 fn collect_inline_styles(
@@ -5353,7 +5349,7 @@ fn collect_inline_styles(
     }
 }
 
-/// Collects every `<link>` in a parsed tree as `(rel, href, name)`, in
+/// Collects every `link` in a parsed tree as `(rel, href, name)`, in
 /// document order. Links with an empty `href` are skipped.
 fn collect_links(node: &UiNode, out: &mut Vec<(String, String, Option<String>)>) {
     if let NodeType::Link { rel, href, name } = &node.kind
@@ -5467,7 +5463,7 @@ fn tab_focus_from_event(
     _window: iced::window::Id,
 ) -> Option<EngineMessage> {
     use iced::keyboard::{Event as Kbd, Key, key::Named};
-    // Um widget que consumiu o Tab (um `<prose>` andando de link em link) já
+    // Um widget que consumiu o Tab (um `prose` andando de link em link) já
     // usou a tecla: mover o foco também o faria pular o parágrafo inteiro.
     if status == iced::event::Status::Captured {
         return None;
@@ -5486,15 +5482,15 @@ fn tab_focus_from_event(
     }
 }
 
-/// Teclado do `<datetimeedit>`: ▲▼ mexem na seção selecionada, ← → trocam de
+/// Teclado do `datetimeedit`: ▲▼ mexem na seção selecionada, ← → trocam de
 /// seção e um algarismo digita nela — o teclado do `QDateTimeEdit`.
 ///
 /// **O guarda que importa é o `status`.** Este listener é global e não sabe o
-/// que está focado; sem o filtro, a seta de um `<TextInput>` focado (que move o
+/// que está focado; sem o filtro, a seta de um `TextInput` focado (que move o
 /// cursor) e cada dígito digitado nele virariam TAMBÉM um passo de hora. O
 /// `iced` já entrega `Status::Captured` quando algum widget consumiu o evento,
 /// então só tratamos o que ninguém quis. Quem decide se a tecla é mesmo para um
-/// `<datetimeedit>` é o `update` do motor, que enxerga a chave `__timeedit`.
+/// `datetimeedit` é o `update` do motor, que enxerga a chave `__timeedit`.
 ///
 /// Uma `fn` simples porque `iced::event::listen_with` exige uma.
 fn timeedit_key_from_event(
@@ -5571,10 +5567,10 @@ fn cursor_from_event(
 ///
 /// Ele reporta o `status` em vez de filtrar por ele (como o
 /// `timeedit_key_from_event` faz), e a diferença é a razão de o atalho existir:
-/// digitar `s` num `<textinput>` não pode disparar um `<shortcut key="s">`, mas
+/// digitar `s` num `textinput` não pode disparar um `shortcut(key = s)`, mas
 /// `Ctrl+S` **tem** de atravessar — nenhum campo de texto consome `Ctrl+S`, e um
 /// atalho que morresse porque há um campo focado não seria um atalho. Quem
-/// decide é o `dispatch`, que é quem sabe se há um `<shortcutinput>` armado.
+/// decide é o `dispatch`, que é quem sabe se há um `shortcutinput` armado.
 fn shortcut_from_event(
     event: iced::Event,
     status: iced::event::Status,
@@ -5592,7 +5588,7 @@ fn shortcut_from_event(
 
 /// Backspace, `Alt+←` e o botão "voltar" do mouse → [`EngineMessage::BackKey`].
 ///
-/// O Backspace só vale quando **nenhum widget o consumiu**: num `<textinput>`
+/// O Backspace só vale quando **nenhum widget o consumiu**: num `textinput`
 /// focado ele apaga um caractere e o `iced` entrega `Status::Captured`. `Alt+←`
 /// e o botão do mouse não colidem com edição de texto e atravessam sempre.
 fn back_key_from_event(
@@ -5683,7 +5679,7 @@ fn reorder_context_json(context: &mut ContextMap, list: &str, reorder_key: &str,
 /// - an array or scalar is stored as the single entry `key`.
 ///
 /// String values are stored verbatim; everything else as compact JSON (so a
-/// nested array under `key.list` still feeds `<ForEach items="key.list">`).
+/// nested array under `key.list` still feeds `ForEach(items = "key.list")`).
 fn merge_json(context: &mut ContextMap, key: &str, value: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
@@ -5763,7 +5759,7 @@ fn resize_direction(s: &str) -> Option<iced::window::Direction> {
         "w" | "west" | "left" => West,
         "ne" | "northeast" | "north-east" => NorthEast,
         "nw" | "northwest" | "north-west" => NorthWest,
-        "se" | "southeast" | "south-east" => SouthEast,
+        "southeast" => SouthEast,
         "sw" | "southwest" | "south-west" => SouthWest,
         _ => return None,
     })
@@ -5863,15 +5859,17 @@ mod caminho_tests {
         }
         fn template(&self) -> Template {
             Template::Inline(
-                r#"<Column>
-                     <Text content="{msg.ola}" />
-                     <Text content="{cfg.db.host}" />
-                     <Text content="{itens.1.nome}" />
-                     <Text content="{msg.x|padrao}" />
-                     <Column for-each="itens" var="i">
-                       <Text content="{i.nome}/{i.end.cidade}" />
-                     </Column>
-                   </Column>"#
+                r##"
+column {
+  text(content = @msg.ola)
+  text(content = @cfg.db.host)
+  text(content = @itens.1.nome)
+  text(content = "{msg.x|padrao}")
+  column(:for_each = itens, var = i) {
+    text(content = "{i.nome}/{i.end.cidade}")
+  }
+}
+"##
                     .to_string(),
             )
         }
@@ -5960,13 +5958,15 @@ mod dirty_tracking_tests {
         }
         fn template(&self) -> Template {
             Template::Inline(
-                r#"<Column>
-                     <Cartao rotulo="{titulo}" />
-                     <Text content="titulo: {titulo}" />
-                     <Column for-each="linhas" var="l">
-                       <Text content="{l.nome}" />
-                     </Column>
-                   </Column>"#
+                r##"
+column {
+  Cartao(rotulo = @titulo)
+  text(content = "titulo: {titulo}")
+  column(:for_each = linhas, var = l) {
+    text(content = @l.nome)
+  }
+}
+"##
                     .to_string(),
             )
         }
@@ -5983,7 +5983,11 @@ mod dirty_tracking_tests {
             "Cartao"
         }
         fn template(&self) -> Template {
-            Template::Inline(r#"<Column><Text content="cartao: {rotulo}" /></Column>"#.to_string())
+            Template::Inline(r##"
+column {
+  text(content = "cartao: {rotulo}")
+}
+"##.to_string())
         }
         fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
     }
@@ -6203,7 +6207,11 @@ mod dirty_tracking_tests {
             "tela_classe"
         }
         fn template(&self) -> Template {
-            Template::Inline(r#"<Column class="alvo"><Text content="x" /></Column>"#.to_string())
+            Template::Inline(r##"
+column(class = alvo) {
+  text(content = x)
+}
+"##.to_string())
         }
         fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
     }
@@ -6222,7 +6230,9 @@ mod ciclo_de_vida_tests {
             "a"
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"a\" />".to_string())
+            Template::Inline(r##"
+text(content = a)
+"##.to_string())
         }
         fn init(&mut self, ctx: &mut Context) {
             let mk = |id, scope| {
@@ -6254,7 +6264,9 @@ mod ciclo_de_vida_tests {
             "b"
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"b\" />".to_string())
+            Template::Inline(r##"
+text(content = b)
+"##.to_string())
         }
         fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
             if action == "voltar" {
@@ -6326,7 +6338,9 @@ mod scoped_eval_tests {
             self.0
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"{msg}\" />".to_string())
+            Template::Inline(r##"
+text(content = @msg)
+"##.to_string())
         }
         fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
     }

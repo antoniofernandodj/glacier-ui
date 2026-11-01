@@ -32,7 +32,7 @@ local function achar(id: string): State.Servico?
   return nil
 end
 
--- on_change do <textinput> de filtro
+-- on_change do textinput de filtro
 function filtrar(texto: string): ()
   ctx.q = texto
   Itens.publicar()

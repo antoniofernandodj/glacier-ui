@@ -2,9 +2,9 @@
 -- Toda a lógica da tela da Onda 3. O `main.rs` só registra o template.
 --
 -- O exemplo existe para mostrar as duas metades do contrato do calendário, que
--- é o mesmo do `<textinput>` e do `<dateedit>`:
+-- é o mesmo do `textinput` e do `dateedit`:
 --
---   * **sem `onChange`** o widget grava a chave sozinho — o `<calendar>` da
+--   * **sem `onChange`** o widget grava a chave sozinho — o `calendar` da
 --     primeira caixa não tem uma linha de script atrás dele;
 --   * **com `onChange`** ele só avisa, e quem decide se o valor entra é este
 --     arquivo. É o que permite recusar um fim de semana, contar as noites de
@@ -47,7 +47,7 @@ local MESES: { string } = {
 
 -- `DD/MM/YYYY` mais o dia da semana. A chave continua ISO o tempo todo: isto é
 -- só o que vai para a tela — a mesma separação entre valor e exibição que o
--- `format="br"` do `<dateedit>` faz.
+-- `format="br"` do `dateedit` faz.
 local function por_extenso(iso: string): string
     local dia: number? = date.weekday(iso)
     if dia == nil then

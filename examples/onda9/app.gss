@@ -6,10 +6,10 @@ comportamento — nome de chave, ação, `slot` — e nenhuma cor, nenhum tamanh
 texto, nenhum espaçamento.
 
 A exceção desta onda está no `.gv`, e é a de sempre (ver o CLAUDE.md): o `size`
-de um `<rangeslider>` é o COMPRIMENTO DA BARRA e o `size` de um `<tumbler>` é a
+de um `rangeslider` é o COMPRIMENTO DA BARRA e o `size` de um `tumbler` é a
 largura da roleta — medidas com significado de widget, não largura de caixa.
 Movê-las para cá as confundiria com uma coisa que elas não são, que é
-exatamente a armadilha do `width` do `<spinbox>` que o PRIMITIVAS.md registra.
+exatamente a armadilha do `width` do `spinbox` que o PRIMITIVAS.md registra.
 */
 
 :root {
@@ -122,7 +122,7 @@ exatamente a armadilha do `width` do `<spinbox>` que o PRIMITIVAS.md registra.
 /* ── 1. Splitter ─────────────────────────────────────────────────────── */
 
 /* A altura fixa é o que torna o arrasto vertical demonstrável: dentro de uma
-   coluna que cresce com o conteúdo, um `<splitter direction="v">` não teria
+   coluna que cresce com o conteúdo, um `splitter(direction = v)` não teria
    sobra para repartir. */
 .divide {
   width: fill;
@@ -145,7 +145,7 @@ exatamente a armadilha do `width` do `<spinbox>` que o PRIMITIVAS.md registra.
   height: 260;
 }
 
-/* A página de um `<swipeview>` preenche os dois eixos, e por isso ela NÃO
+/* A página de um `swipeview` preenche os dois eixos, e por isso ela NÃO
    pode declarar `background` junto: uma classe com os três (background +
    fill + fill) pinta a janela inteira se alguém a reaproveitar na raiz, e há
    um teste no repositório que recusa o par (`nenhum_exemplo_pinta_a_janela_

@@ -32,7 +32,7 @@
 //!
 //! E o mecanismo já existia, escrito três vezes em lugares que não se
 //! conheciam: o `__drag_key` da lista reordenável, o `__colgrip` da alça de
-//! coluna do `<tableheader>` (Onda 6) e o `Program::State` do `<dial>` (Onda 7).
+//! coluna do `tableheader` (Onda 6) e o `Program::State` do `dial` (Onda 7).
 //! Nenhum dos três estava catalogado como *capacidade* no §3 do plano — a
 //! terceira vez que o gargalo real não estava naquela lista, depois da medição
 //! de colunas (Onda 6) e do corpo do diálogo (Onda 8).
@@ -63,7 +63,7 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
 struct Onda9;
 
-/// As caixas que o `<rubberband>` seleciona: `id` mais geometria.
+/// As caixas que o `rubberband` seleciona: `id` mais geometria.
 ///
 /// A geometria mora no **dado**, e não no widget, e é o que torna o laço
 /// genérico: ele não sabe o que são essas caixas, só quais delas o retângulo
@@ -104,8 +104,8 @@ impl Component for Onda9 {
 
         // ── 1. Splitter ─────────────────────────────────────────────────
         //
-        // A chave guarda TRILHAS, no mesmo formato do `columns` do `<grid>` —
-        // e é a mesma chave que a alça de coluna de um `<tableheader>` escreve,
+        // A chave guarda TRILHAS, no mesmo formato do `columns` do `grid` —
+        // e é a mesma chave que a alça de coluna de um `tableheader` escreve,
         // porque agora é o mesmo código. `fill` é o painel que fica com o
         // resto; arrastar a alça converte o painel tocado em pixels fixos.
         ctx.set("painel_h", "260 fill".to_string());
@@ -113,7 +113,7 @@ impl Component for Onda9 {
 
         // ── 2. RangeSlider ──────────────────────────────────────────────
         //
-        // DUAS chaves, que é a mesma forma do `<daterangepicker range>` da Onda
+        // DUAS chaves, que é a mesma forma do `daterangepicker(range)` da Onda
         // 3 — e a razão de o `●` do catálogo nunca ter valido aqui.
         ctx.set("preco_min", "120".to_string());
         ctx.set("preco_max", "780".to_string());
@@ -141,7 +141,7 @@ impl Component for Onda9 {
         // ── 6. RubberBand ───────────────────────────────────────────────
         ctx.set("caixas", caixas_json());
         // O conjunto nomeado que o laço escreve — a mesma grafia separada por
-        // vírgula que o `<listview mode="multi">` guarda desde a 0.85, e que o
+        // vírgula que o `listview(mode = multi)` guarda desde a 0.85, e que o
         // `contains` do condicional lê.
         ctx.set("marcados", String::new());
 
@@ -155,7 +155,7 @@ impl Component for Onda9 {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
-            // Os dois `<shortcut>` da tela. São ações comuns: um atalho não é
+            // Os dois `shortcut` da tela. São ações comuns: um atalho não é
             // um tipo novo de evento, é o teclado despachando o que um botão
             // despacharia.
             "salvar" => {
@@ -172,14 +172,14 @@ impl Component for Onda9 {
             }
             "buscar" => ctx.set("status", "Busca aberta pelo atalho".to_string()),
 
-            // O `<delaybutton>`: a ação só chega aqui quando o anel FECHA.
+            // O `delaybutton`: a ação só chega aqui quando o anel FECHA.
             // Soltar antes não despacha nada — não há o que tratar.
             "apagar_tudo" => {
                 ctx.set("marcados", String::new());
                 ctx.set("status", "Tudo apagado — o anel fechou".to_string());
             }
 
-            // O `<rubberband>`: a geometria do laço ao soltar. O que ele
+            // O `rubberband`: a geometria do laço ao soltar. O que ele
             // SELECIONOU já está em `marcados`, escrito pelo próprio widget; o
             // que chega aqui é o retângulo, para quem quiser fazer outra coisa
             // com ele.
@@ -195,7 +195,7 @@ impl Component for Onda9 {
             }
 
             // O braço genérico de sempre: a ação É o nome da chave. É por aqui
-            // que passa o `onChange` do `<swipeview>` — e é o único dos nove
+            // que passa o `onChange` do `swipeview` — e é o único dos nove
             // widgets desta onda que o markup mandou delegar.
             chave if value.is_some() => {
                 let v = value.unwrap_or_default();
@@ -207,7 +207,7 @@ impl Component for Onda9 {
     }
 }
 
-/// As caixas na forma que o `<rubberband>` lê (`id`/`x`/`y`/`w`/`h`) — e que o
+/// As caixas na forma que o `rubberband` lê (`id`/`x`/`y`/`w`/`h`) — e que o
 /// `for-each` do `.gv` também usa para desenhá-las.
 fn caixas_json() -> String {
     let arr: Vec<serde_json::Value> = CAIXAS
@@ -217,7 +217,7 @@ fn caixas_json() -> String {
                 "id": id, "x": x, "y": y, "w": LADO, "h": ALTURA,
                 // O `.gv` posiciona por `padding`, então ele quer os números
                 // já prontos: um markup não faz aritmética, e essa é a lição
-                // que a Onda 8 aprendeu com o `<wizard>`.
+                // que a Onda 8 aprendeu com o `wizard`.
                 "rotulo": id,
             })
         })

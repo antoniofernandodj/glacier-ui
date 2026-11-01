@@ -3,7 +3,7 @@
 -- (o motor chama os handlers pelo nome; o lsp não vê a chamada)
 
 -- A cozinha, em Luau. O markup é o mesmo do exemplo `foreach_fallback`: cada
--- etapa é um <foreach fallback="{vazio}">, e o script não sabe nada sobre os
+-- etapa é um foreach(fallback = @vazio), e o script não sabe nada sobre os
 -- fallbacks — ele só publica listas. Uma lista vazia vira `[]`, e é isso que
 -- faz o componente de "vazio" entrar.
 --

@@ -8,18 +8,18 @@
 //!   `on_change="style:set"` (nenhum código de componente envolvido); um botão
 //!   com `on_click="style:<nome>"` faria o mesmo;
 //! - o nome do estilo ativo fica no contexto em `glacier_style`, que é o
-//!   `value` que o próprio `<select>` exibe.
+//!   `value` que o próprio `select` exibe.
 //!
-//! De quebra, a seção "Indicadores" mostra o `<progressbar>` (formalizado
-//! como primitiva) e o `<spinner>` (indicador indeterminado/"busy" — gira
+//! De quebra, a seção "Indicadores" mostra o `progressbar` (formalizado
+//! como primitiva) e o `spinner` (indicador indeterminado/"busy" — gira
 //! sozinho, sem precisar de estado no contexto; ver `src/spinner.rs`).
 //!
-//! `Galeria` também mostra `<script>` Lua coexistindo com um `Component`
+//! `Galeria` também mostra `script` Lua coexistindo com um `Component`
 //! Rust no mesmo `register()`: `galeria.gv` define `avancar_progresso()` em
 //! Lua, que vence sobre o `update()` Rust para essa ação; todo o resto
 //! (checkbox, combos, textarea, ...) não tem função Lua e cai no `update()`
 //! Rust normalmente — a camada por-ação que `GlacierUI::register` liga
-//! automaticamente quando o template carrega `<script>`.
+//! automaticamente quando o template carrega `script`.
 //!
 //! Rode com: `cargo run --example galeria_estilos`
 use glacier_ui::{Component, Context, GlacierDaemon, Template, style};
@@ -49,7 +49,7 @@ impl Component for Galeria {
             .collect();
 
         ctx.set("estilos", format!("[{}]", nomes.join(",")));
-        // `<progressbar>`: valor no range 0..1 (widget clampa, mas mantemos
+        // `progressbar`: valor no range 0..1 (widget clampa, mas mantemos
         // a fonte da verdade já dentro do range configurado no template).
         ctx.set("progresso", "0.3");
         ctx.set("marcado", "true");
@@ -67,7 +67,7 @@ impl Component for Galeria {
         // A maioria dos controles liga `on_change`/`on_toggle` direto à sua
         // própria variável de contexto (ramo genérico abaixo); a troca de
         // estilo nem passa por aqui (é a ação builtin `style:set`). O botão
-        // do `<progressbar>` ("avancar_progresso") tem função Lua homônima em
+        // do `progressbar` ("avancar_progresso") tem função Lua homônima em
         // `galeria.gv` — ela vence e este `update()` nunca vê essa ação.
         if let Some(v) = value {
             ctx.set(action, v.to_string());

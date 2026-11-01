@@ -10,7 +10,7 @@ screen(title = "Glacier - ciclo de vida (início)") {
     column(class = "coluna coluna_2") {
       text(content = "Início", class = titulo)
       text(
-        content = """
+        """
           O monitor abre SSE e WebSocket ao entrar e o motor os fecha ao sair.
           Abra e volte; olhe o terminal (log do servidor) e os estados abaixo.
         """,

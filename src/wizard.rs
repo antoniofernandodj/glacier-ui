@@ -1,23 +1,23 @@
-//! A navegação do `<wizard>` (Onda 8): o cabeçalho de passo e a fileira de
+//! A navegação do `wizard` (Onda 8): o cabeçalho de passo e a fileira de
 //! botões que anda entre eles.
 //!
-//! # Por que isto é primitiva, e o `<wizard>` não
+//! # Por que isto é primitiva, e o `wizard` não
 //!
-//! O `<wizard>` inteiro é um **builtin** — ele precisa hospedar as páginas, e
-//! página é `<slot>`, que é mecanismo de componente. Mas um builtin é um
+//! O `wizard` inteiro é um **builtin** — ele precisa hospedar as páginas, e
+//! página é `slot`, que é mecanismo de componente. Mas um builtin é um
 //! template, e template não calcula: dizer "este é o primeiro passo, então
 //! `Voltar` fica inerte" exige achar a posição de `active` dentro de `steps`,
 //! e não há como escrever isso em markup.
 //!
-//! Então a onda faz o que a Onda 5 fez com o `<tabs>`: **parte em dois**. O
+//! Então a onda faz o que a Onda 5 fez com o `tabs`: **parte em dois**. O
 //! composto (páginas + navegação) é o builtin; a aritmética é esta primitiva,
 //! que recebe a lista de passos como texto e resolve tudo no render.
 //!
-//! É o mesmo desenho da `<pagination>` da Onda 4 — inclusive na peça que o faz
+//! É o mesmo desenho da `pagination` da Onda 4 — inclusive na peça que o faz
 //! caber em tão pouco código: a [`EngineMessage::ContextPatch`], que deixa uma
 //! primitiva **escrever a chave sozinha**, sem `update` de componente nenhum.
 //! O botão inerte no limite também é dela: um builtin não consegue desabilitar
-//! um botão por condição, e é o limite conhecido que fez a `<pagination>` subir
+//! um botão por condição, e é o limite conhecido que fez a `pagination` subir
 //! de nível na 0.85.
 
 use iced::widget::{Space, button, column, container, row, text};
@@ -56,7 +56,7 @@ impl Plano {
         let total = passos.len();
         // Um passo que não está na lista — a primeira abertura, com a chave
         // vazia, ou um id que alguém renomeou — é o passo zero. É o que faz
-        // `<wizard>` funcionar sem o app semear a chave antes, e o que faz um
+        // `wizard` funcionar sem o app semear a chave antes, e o que faz um
         // id trocado degradar para "começa do início" em vez de para uma tela
         // vazia.
         let i = passos.iter().position(|p| *p == atual).unwrap_or(0);
@@ -98,7 +98,7 @@ struct Botao {
 
 /// Desenha o cabeçalho ("Passo 2 de 3") e a fileira de botões.
 ///
-/// Os parâmetros são os atributos do `<wizardnav>`, já interpolados — `steps` e
+/// Os parâmetros são os atributos do `wizardnav`, já interpolados — `steps` e
 /// `titles` chegam como as listas separadas por vírgula que o markup escreveu,
 /// e `active` sai do contexto pela chave `value_var`.
 #[allow(clippy::too_many_arguments)]
@@ -118,7 +118,7 @@ pub fn render_wizard_nav<'a>(
 ) -> Element<'a, EngineMessage> {
     let passos: Vec<&str> = lista(steps);
     if passos.is_empty() {
-        // Sem passos não há wizard. Some inteiro, como a `<pagination>` de uma
+        // Sem passos não há wizard. Some inteiro, como a `pagination` de uma
         // página — a mesma degradação de uma chave ainda não semeada.
         return Space::new()
             .width(Length::Shrink)

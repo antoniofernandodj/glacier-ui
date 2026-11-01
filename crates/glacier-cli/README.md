@@ -90,7 +90,7 @@ no `AGENTS.md` que o `glacier new` gera ("Testes").
 
 | id | O que é |
 |---|---|
-| `completo` | Janela sem decoração com titlebar própria, tema + `.gss`, componentes com `<props>`, navegação, `fetch`, toasts, `@media` |
+| `completo` | Janela sem decoração com titlebar própria, tema + `.gss`, componentes com `props`, navegação, `fetch`, toasts, `@media` |
 | `minimo` | Uma tela, um `.gss` e um bloco de script Luau — o menor projeto que ainda mostra a ideia |
 | `janelas` | Multi-janela (`open_window`/`broadcast`/`close_window`), ícone de bandeja, instância única, geometria lembrada |
 | `rust` | O trait `Component` com estado tipado em Rust, em vez de comportamento em Luau |

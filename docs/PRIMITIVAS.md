@@ -7,7 +7,7 @@ Diferente de um builtin (`impl Component` sobre primitivas existentes), uma
 primitiva é um nó **nativo** do motor, mapeado 1:1 a um widget do `iced` — e
 por isso mexe nos três arquivos centrais do pipeline de avaliação/render.
 
-Motivado pelo `<ProgressBar>` (0.53.0): a primitiva funcionou, mas sumiu da
+Motivado pelo `progressbar` (0.53.0): a primitiva funcionou, mas sumiu da
 tela na primeira vez que ganhou uma regra de estilo builtin — não por bug no
 widget em si, mas por uma interação sutil com um mecanismo **compartilhado**
 de `render_node` que toda primitiva nova herda sem saber. A seção
@@ -24,14 +24,14 @@ porquê; o resto do documento é o passo a passo geral.
 2. **`src/eval.rs`** — um braço espelhado no `match` gigante de `eval_owned`
    (perto de `NodeType::Select`/`NodeType::Checkbox`): resolve `{template}`
    nos campos string via `process_tpl`, aplica `namespace_action` em ações, e
-   — se o widget tiver uma cor/campo próprio (como o `color` do `Button`) —
+   — se o widget tiver uma cor/campo próprio (como o `color` do `button`) —
    cai no fallback `.or_else(|| style.color.clone())` para herdar de uma
    classe `.gss`.
 3. **`src/widget.rs`** — um braço no `match` de `render_node` que constrói o
    widget do `iced` de fato. É aqui que mora a armadilha abaixo.
 
 Widgets **bindados a uma variável de contexto** (não um valor literal) seguem
-a convenção de `TextInput`/`Checkbox`/`Select`: o atributo guarda o **nome da
+a convenção de `textinput`/`checkbox`/`Select`: o atributo guarda o **nome da
 chave** (`value="progresso"`), não o valor (`value="{progresso}"` — isso
 bindaria contra o valor CRU de `progresso`, uma indireção a mais e quase
 sempre um erro de quem está escrevendo o template).
@@ -39,7 +39,7 @@ sempre um erro de quem está escrevendo o template).
 ## O mecanismo compartilhado: o wrap de background/borda
 
 No fim de `render_node`, depois do `match` que constrói cada widget, existe um
-bloco único que embrulha **qualquer** nó (exceto `Container`) num `container()`
+bloco único que embrulha **qualquer** nó (exceto `container`) num `container()`
 extra, se o nó tiver `background`, `border_radius` ou `border_width > 0`:
 
 ```rust
@@ -58,16 +58,16 @@ if node.kind != NodeType::Container {
 }
 ```
 
-É o que dá a **qualquer** widget (`Checkbox`, `TextInput`, `Toggle`, …) a
+É o que dá a **qualquer** widget (`checkbox`, `textinput`, `toggle`, …) a
 capacidade de ganhar um fundo/borda via `.gss` sem cada `match` arm precisar
 implementar isso por conta própria — um atalho genuinamente útil, usado o
-tempo todo (é assim que uma classe `.card { background: #222; border-radius: 12; }`
+tempo todo (é assim que uma classe `.card { background: #222; border_radius: 12; }`
 funciona em qualquer coisa).
 
 `node.background`/`node.border_radius`/`node.border_width`/`node.border_color()`
 são campos **genéricos** do `UiNode` — resolvidos **uma vez por nó**, iguais
 para todo `NodeType` (não são exclusivos de nenhum widget). Uma regra `.gss`
-de **tag** (`ProgressBar { background: #ccc; border-radius: 3; }`) escreve
+de **tag** (`ProgressBar { background: #ccc; border_radius: 3; }`) escreve
 exatamente nesses campos genéricos — não existe um jeito de "escopar" essa
 regra só para o `.style()` interno do widget, porque o resolvedor de
 `.gss`/`eval.rs` não sabe (nem precisa saber) que tipo de nó está resolvendo.
@@ -124,7 +124,7 @@ pixel.
 
 1. **Não pinte a janela inteira.** O tema já pinta o fundo; um
    `column(background = "…", width = fill, height = fill)` por cima é uma camada
-   redobrada em cada pixel. Prefira `theme` ou `<style>` no `<screen>`.
+   redobrada em cada pixel. Prefira `theme` ou `style` no `screen`.
 2. **Menos camadas sobrepostas.** `groupbox` dentro de `frame` dentro de
    container pintado são três passadas na mesma área. Escolha uma.
 3. **Canto arredondado só onde se vê.** Numa área grande ele custa o dobro de um
@@ -181,7 +181,7 @@ motor.
 
 ## Virtualizar uma lista longa (0.77)
 
-Um `<scrollable>` entrega ao `iced` **todos** os filhos, e o `iced` mede e
+Um `scrollable` entrega ao `iced` **todos** os filhos, e o `iced` mede e
 desenha todos — inclusive os que estão fora da tela. Numa lista de 300 cartões
 isso é o custo dominante de cada quadro, e nenhuma otimização do motor alcança
 (o trabalho é do layout do `iced`, não do render do glacier).
@@ -205,12 +205,12 @@ Três coisas para acertar:
    que é justamente o trabalho a evitar — a mesma troca do `uniformItemSizes` do
    `QListView`. Todo filho precisa ter a mesma altura, e o valor é a do
    **cartão**; o `spacing` da coluna o motor soma sozinho.
-2. **A coluna precisa ser filha direta do `<scrollable>`.** É onde o motor
+2. **A coluna precisa ser filha direta do `scrollable`.** É onde o motor
    procura, e é o que decide se ele pendura o aviso de rolagem.
 3. **Errar a altura não quebra**, só desalinha a barra de rolagem: os vãos de
    cima e de baixo são calculados com o valor declarado.
 
-Sem `<scrollable>` acima, com `virtualize="0"` ou com a lista já cabendo inteira
+Sem `scrollable` acima, com `virtualize="0"` ou com a lista já cabendo inteira
 na tela, o nó renderiza normalmente — a virtualização degrada para o
 comportamento de sempre, nunca para uma tela vazia.
 
@@ -230,19 +230,19 @@ deixa de medir e desenhar 290 cartões.
 
 O `container(element).width(parse_length(&node.width))` do wrap acima usa
 `parse_length(&None) == Length::Shrink` quando o nó não tem `width` — o que é
-inofensivo para um widget cujo tamanho **natural** já é `Shrink` (um `Button`,
+inofensivo para um widget cujo tamanho **natural** já é `Shrink` (um `button`,
 um `Select` sem `width` explícito: embrulhar um `Shrink` num `Shrink` não muda
 nada). Mas o `progress_bar` do `iced` é **`Length::Fill` por padrão** — e um
-`Container` `Shrink` ao redor de um filho `Fill` não sabe quanto espaço lhe
+`container` `Shrink` ao redor de um filho `Fill` não sabe quanto espaço lhe
 dar (o `Fill` precisa de um pai com largura determinada para "encher"), e
 colapsa o filho a quase-zero.
 
 Foi exatamente isso que aconteceu: os quatro estilos builtin (`src/style.rs`)
-declaram `ProgressBar { background: …; border-radius: … }` como regra de tag —
+declaram `ProgressBar { background: …; border_radius: … }` como regra de tag —
 campos genéricos, então o wrap acima entrava em ação sempre que o app não
 desse um `width` explícito à barra. O resultado: a barra "sumia" (colapsada a
 1-2px), sobrando visível só o que estivesse ao lado dela (no caso, um
-`<Spinner>`) — o sintoma reportado foi "isso que foi colocado foi um spinner,
+`spinner`) — o sintoma reportado foi "isso que foi colocado foi um spinner,
 não um progress bar", quando na verdade os dois widgets estavam lá; um só
 estava invisível.
 
@@ -263,42 +263,42 @@ if node.kind != NodeType::Container && !matches!(&node.kind, NodeType::ProgressB
 > **Toda primitiva nova cujo tamanho natural no `iced` seja `Length::Fill`
 > (não `Shrink`) por padrão precisa ficar de fora do wrap genérico de
 > background/borda** — do contrário, a primeira regra `.gss` de tag que
-> declarar `background`/`border-radius`/`border-width` para ela (e é comum
+> declarar `background`/`border_radius`/`border_width` para ela (e é comum
 > que um estilo builtin faça isso) a colapsa silenciosamente sempre que o
 > template não fixar um `width`. Pinte o próprio background/borda dentro do
 > `.style()` do widget (lendo `background_for(node)`/`node.border_radius`/
-> `node.border_width`/`node.border_color` como o `ProgressBar` já faz) — é
+> `node.border_width`/`node.border_color` como o `progressbar` já faz) — é
 > menos código no fim das contas, e evita a ambiguidade Shrink-ao-redor-de-Fill.
 >
-> São **três** casos hoje: `ProgressBar`, `Slider` (0.66) e `Reveal` (0.90).
+> São **três** casos hoje: `progressbar`, `slider` (0.66) e `reveal` (0.90).
 > O terceiro entra por um motivo mais forte que o tamanho natural: a altura
-> dele **é** a animação, e um `Container` por fora mediria o filho por conta
-> própria, desfazendo o recorte. Fundo e borda de um `<reveal>` vão no filho,
-> que é onde precisam ser recortados junto. O `DateTimeEdit` (0.68), o `Calendar` (0.84) e o
-> `Pagination`/`Rating` (0.85) não entram na lista por outro motivo: eles não
+> dele **é** a animação, e um `container` por fora mediria o filho por conta
+> própria, desfazendo o recorte. Fundo e borda de um `reveal` vão no filho,
+> que é onde precisam ser recortados junto. O `datetimeedit` (0.68), o `calendar` (0.84) e o
+> `pagination`/`rating` (0.85) não entram na lista por outro motivo: eles não
 > são widgets do `iced` embrulhados, são **composições montadas em Rust**
 > (`row`/`column`/`button`), então já controlam o próprio tamanho — o wrap
-> genérico nunca chega a decidir por eles. O `MaskedInput` (0.85) é a exceção
+> genérico nunca chega a decidir por eles. O `maskedinput` (0.85) é a exceção
 > dentro da exceção: ele **é** um `text_input` embrulhado, e por isso repete a
 > ressalva dele — só chama `.width()` quando o nó declara uma. O `slider`/`vertical_slider` do iced também nasce
 > `Length::Fill` no eixo principal, então ele entrou na mesma exclusão do wrap
 > e pinta trilho/cursor no próprio `.style()`, lendo `background_for(node)` e
 > a `color` — exatamente o que esta seção mandava fazer.
 
-### A gêmea, do outro lado do eixo: `Fill` dentro de um `<scrollable>` (0.92)
+### A gêmea, do outro lado do eixo: `Fill` dentro de um `scrollable` (0.92)
 
 A armadilha acima é sobre **largura**: um `Shrink` ao redor de um `Fill`
 colapsa o filho. Esta é sobre **altura**, e o sintoma é o oposto — nada colapsa,
 tudo some.
 
-Um `<scrollable>` vertical oferece aos filhos um teto de altura **infinito** (é
+Um `scrollable` vertical oferece aos filhos um teto de altura **infinito** (é
 o que o torna rolável). Qualquer filho que se declare `height="fill"` mede,
 então, infinito — e quem somar essa altura para posicionar o que vem depois
 empurra tudo para fora da tela.
 
-Foi o que aconteceu com a alça de arrasto do `<tableheader>` (Onda 6): um
-`Space` de 1px de largura com `height(Length::Fill)`, para a alça acompanhar a
-altura do cabeçalho. Dentro do `<scrollable>` da tabela, a linha do cabeçalho
+Foi o que aconteceu com a alça de arrasto do `tableheader` (Onda 6): um
+`space` de 1px de largura com `height(Length::Fill)`, para a alça acompanhar a
+altura do cabeçalho. Dentro do `scrollable` da tabela, a linha do cabeçalho
 passou a medir infinito e o corpo inteiro saiu de vista. **A tabela aparecia
 vazia, sem erro nenhum** — nem um `NaN`, nem um `panic`, nem um aviso.
 
@@ -326,7 +326,7 @@ spinbox(:value = qtd, width = fill)  // o campo COLAPSA
 spinbox(:value = qtd, width = 120)  // é isto
 ```
 
-No `<spinbox>` o `width` desce para o `<TextInput>`, e a `<Row>` que segura
+No `spinbox` o `width` desce para o `textinput`, e a `row` que segura
 campo + degraus é `shrink`. Um `Fill` dentro de um `Shrink` não tem de que
 encher, então o campo vira um risco entre os dois botões: os degraus continuam
 funcionando, o número não cabe mais.
@@ -337,7 +337,7 @@ correta; o que estava errado era o número que ela carregava).
 
 > **A regra para quem usa:** antes de escrever `width="fill"` numa tag de
 > builtin, veja no template dele onde essa prop cai. Se cair num filho dentro de
-> uma `<Row>`/`<Column>` sem largura, `fill` não é largura — é colapso. Para
+> uma `row`/`column` sem largura, `fill` não é largura — é colapso. Para
 > alinhar um widget desses com campos que preenchem a linha, envolva-o numa
 > `Row(width = fill)` com um `Space(width = fill)` ao lado.
 
@@ -347,11 +347,11 @@ As três acima colapsam a quase zero ou somam infinito — o sintoma é sempre
 "sumiu" ou "estourou". Esta é mais traiçoeira: o widget **aparece**, do
 tamanho errado, e passa por despercebido porque "tem alguma coisa ali".
 
-Achado lendo o flex do `iced` ao caçar outro bug (o `<SplashScreen>` da Onda
-11, que no fim era conteúdo passando da janela sem `<scrollable>` — ver
-abaixo): um `<Column>`/`<Row>` sem `width` (`Shrink`) contendo um filho
+Achado lendo o flex do `iced` ao caçar outro bug (o `splashscreen` da Onda
+11, que no fim era conteúdo passando da janela sem `scrollable` — ver
+abaixo): um `column`/`row` sem `width` (`Shrink`) contendo um filho
 `height` **fixa** e `width="fill"` — e MAIS algum irmão de tamanho natural
-(um `<Text>`, um `<Button>`). O algoritmo de
+(um `text`, um `button`). O algoritmo de
 flex do `iced` (`iced_core::layout::flex::resolve`) mede um item destes numa
 **quarta passagem**, condicional, que existe só para quem é fixo no eixo
 principal e fluido no cruzado — e o teto que ela usa para o eixo cruzado é o
@@ -365,7 +365,7 @@ column {
   // Shrink: sem width
   text("Rótulo qualquer")  // mede ~120px, e vira o teto
   button(text = Ação)  // mede ~90px
-  SplashScreen(height = 220)  // quer width=fill, largura=height fixa
+  splashscreen(height = 220)  // quer width=fill, largura=height fixa
 }
 // vira ~120px de largura, não a do app
 ```
@@ -377,13 +377,13 @@ porque a suspeita natural é lógica/estado, não layout.
 > **A regra:** um filho `width="fill"` só mede pelo espaço de verdade quando
 > TODO ancestral no caminho até um bound determinado (`Fixed` ou a janela) é
 > `width="fill"` também — nunca `Shrink`. Não basta corrigir o widget; a
-> `<Column>`/`<Row>` que o envolve também precisa de `width="fill"` quando ele
+> `column`/`row` que o envolve também precisa de `width="fill"` quando ele
 > não está sozinho ao lado de irmãos de tamanho natural.
 
 ### E a que não é de `Fill` nenhum: o widget que nasce abaixo da dobra (0.96)
 
 Esta não é armadilha de layout do `iced` — é de quem escreve a TELA, e custou
-**três rodadas de correção erradas** no `<SplashScreen>` da Onda 11 antes de
+**três rodadas de correção erradas** no `splashscreen` da Onda 11 antes de
 alguém desconfiar dela. Vale escrita porque o sintoma é indistinguível de um
 bug de widget:
 
@@ -392,14 +392,14 @@ bug de widget:
 O widget estava certo o tempo todo. A árvore avaliada estava certa (o painel
 lá, com fundo, na camada de cima, do tamanho certo — verificado com um dump
 da árvore, que é exatamente o que o `CLAUDE.md` manda fazer antes de dizer que
-funciona). O que estava errado era a **tela**: uma `<Column>` sem
-`<scrollable>` com mais conteúdo do que cabe na janela. O que passa da borda
+funciona). O que estava errado era a **tela**: uma `column` sem
+`scrollable` com mais conteúdo do que cabe na janela. O que passa da borda
 inferior não some com erro nem com aviso — some em silêncio, e não há barra
 para alcançá-lo. O widget defeituoso era o último elemento da coluna.
 
 Duas lições, e a segunda é a cara:
 
-1. **Toda tela cujo conteúdo pode crescer precisa de `<scrollable>`** — e a
+1. **Toda tela cujo conteúdo pode crescer precisa de `scrollable`** — e a
    coluna de dentro dele **não** pode ter `height="fill"` (é a gêmea, logo
    acima). Se duas abas da mesma tela têm scrollable e a terceira não, isso é
    um bug esperando o texto certo para aparecer.
@@ -419,8 +419,8 @@ ela só reserva espaço quando um `spacing` é declarado na direção
 largura inteira e a barra cobre o que estiver na borda direita — numa tabela,
 exatamente a última coluna.
 
-`Button`/`TextInput`/`Select`/`Checkbox`/`Toggle` não precisam dessa exclusão:
-o tamanho natural deles é `Shrink` (ou, no caso do `TextInput`, `Fill` mas já
+`button`/`textinput`/`Select`/`checkbox`/`toggle` não precisam dessa exclusão:
+o tamanho natural deles é `Shrink` (ou, no caso do `textinput`, `Fill` mas já
 tratado à parte — ver o comentário "iced's own default for `text_input` é
 `Length::Fill`" em `render_node`, que só chama `.width(...)` quando
 `node.width.is_some()`, nunca deixando o wrap genérico decidir por ele).
@@ -430,18 +430,18 @@ tratado à parte — ver o comentário "iced's own default for `text_input` é
 O passo 3 acima pergunta "qual o tamanho natural deste widget no `iced`?" e
 pressupõe que exista um widget do `iced` por trás. Nem sempre existe.
 
-O `DateTimeEdit` (`<dateedit>`/`<timeedit>`/`<datetimeedit>`, 0.68) é uma
+O `datetimeedit` (`dateedit`/`timeedit`/`datetimeedit`, 0.68) é uma
 primitiva que o `render_node` **compõe**: uma `row` de `button`s (as seções),
 `text` (os separadores), uma `column` com as setas, tudo dentro de um
 `container` que desenha a borda. Nada disso é um widget novo do `iced`.
 
-O `Calendar` (`<calendar>`/`<monthyearpicker>`/`<daterangepicker>`, 0.84) é o
+O `calendar` (`calendar`/`monthyearpicker`/`daterangepicker`, 0.84) é o
 segundo, e mais extremo: uma `column` de `row`s de `button` — a grade 7×6 — mais
 o cabeçalho de navegação, tudo montado num laço. Ele é a demonstração prática do
-sinal abaixo: o `PLANO_WIDGETS.md` listou o `Grid` (`QGridLayout`) como
+sinal abaixo: o `PLANO_WIDGETS.md` listou o `grid` (`QGridLayout`) como
 pré-requisito do calendário por três revisões, o que só faria sentido para um
 **builtin** (cujo template é markup e precisaria de uma grade declarativa). Em
-Rust, grade é um `for`, e o `Grid` deixou de estar no caminho crítico.
+Rust, grade é um `for`, e o `grid` deixou de estar no caminho crítico.
 
 Vale saber quando esse caminho é o certo, porque ele parece "coisa de builtin":
 
@@ -459,24 +459,24 @@ uma capacidade é, quase sempre, uma primitiva mal classificada.**
 ### Os três sinais, depois de seis casos (0.85)
 
 O sinal acima é o primeiro de três, e o projeto já usou os três. Vale a lista,
-porque ela **prevê** — o `Grid` e o `Flow` da Onda 6 caem no segundo antes de
+porque ela **prevê** — o `grid` e o `flow` da Onda 6 caem no segundo antes de
 alguém escrever uma linha deles:
 
 1. **O template precisaria ler uma chave cujo *nome* vem de uma prop** — a
-   indireção `{{value}}`. Casos: `<timeedit>` (0.68), `<calendar>` (0.84),
-   `<maskedinput>` (0.85).
-2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for-each`
+   indireção `{{value}}`. Casos: `timeedit` (0.68), `calendar` (0.84),
+   `maskedinput` (0.85).
+2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for_each`
    do motor lê uma chave com um array JSON. A janela `4 5 6` de uma paginação e
    as cinco estrelas de uma nota não existem em array nenhum: são derivadas de
-   `pagina`/`total` e de `max`. A alternativa de builtin — o app calcular o
+   `total` e de `max`. A alternativa de builtin — o app calcular o
    array e passá-lo por `items=` — é exatamente o trabalho que o widget existe
-   para poupar. Casos: `<pagination>` e `<rating>` (0.85), `<grid>`
-   (`columns="3"`) e `<flow>` (0.92) — os dois **previstos por escrito** por
+   para poupar. Casos: `pagination` e `rating` (0.85), `grid`
+   (`columns="3"`) e `flow` (0.92) — os dois **previstos por escrito** por
    esta lista antes de alguém tocar neles, que é o que uma regra útil faz.
-   Continua previsto: `PageIndicator`.
+   Continua previsto: `pageindicator`.
 3. **O widget precisa de um evento que o markup não expõe.** Há `on_press`,
    `on_double_click`, `cursor` e `tooltip` em qualquer nó — não há `on_enter`.
-   Caso: o hover do `<rating>` (0.85), e o da faixa do `<daterangepicker>`
+   Caso: o hover do `rating` (0.85), e o da faixa do `daterangepicker`
    (0.84).
 
 Um **quarto** apareceu na Onda 5, e ele é de outra natureza: os três acima são
@@ -485,24 +485,24 @@ pôr.
 
 4. **O widget precisa de uma CAMADA, não de nós.** Um painel que sai do fluxo,
    se mede contra a janela e vira para o outro lado quando não cabe não é
-   composição de `Row`/`Column` — é um `iced::advanced::Overlay`. Casos:
-   `<popover>`, `<popup>`, `<autocomplete>` e o `calendarPopup` do `<dateedit>`
+   composição de `row`/`column` — é um `iced::advanced::Overlay`. Casos:
+   `popover`, `popup`, `autocomplete` e o `calendar_popup` do `dateedit`
    (0.92), todos sobre `src/anchored.rs`.
 
    O sinal irmão, do lado do layout: **se a medida de um filho depende dos
    irmãos dele, é primitiva.** A largura de uma coluna é o máximo das células
-   dela, e uma `Row` de `Column`s não consegue saber isso — cada coluna mede só
-   os próprios filhos. Casos: `<grid>`, `<tableview>`, `<tableheader>` e
-   `<columnview>` (0.92), todos sobre `src/grid.rs`.
+   dela, e uma `row` de `column`s não consegue saber isso — cada coluna mede só
+   os próprios filhos. Casos: `grid`, `tableview`, `tableheader` e
+   `columnview` (0.92), todos sobre `src/grid.rs`.
 
-O contrário também vale, e a Onda 4 tem o exemplo: `ListView`, `Accordion`,
-`ToolBox` e `ButtonBox` são **builtins** porque nenhum dos três sinais aparece
+O contrário também vale, e a Onda 4 tem o exemplo: `listview`, `accordion`,
+`toolbox` e `buttonbox` são **builtins** porque nenhum dos três sinais aparece
 neles — repetem sobre uma coleção de verdade, comparam com `equals`/`contains`
 e reagem a clique.
 
 ## Uma primitiva que anima o **layout** (0.90)
 
-O `<Reveal>` (`src/reveal.rs` — o corpo de um `<accordion>`/`<toolbox>`
+O `reveal` (`src/reveal.rs` — o corpo de um `accordion`/`toolbox`
 abrindo e fechando) é o primeiro nó cujo **tamanho** muda entre um quadro e
 outro sem que a view seja reconstruída. Isso muda duas coisas no passo 3:
 
@@ -521,7 +521,7 @@ suficiente. Um builtin não tem onde guardar progresso entre rebuilds da view
 nem como pedir o quadro seguinte.
 
 `axis="x"` (0.92) anima a **largura** em vez da altura, para a gaveta lateral do
-`<drawer>`: as três frentes de contenção acima valem iguais, só que contra a
+`drawer`: as três frentes de contenção acima valem iguais, só que contra a
 faixa horizontal.
 
 ## Uma primitiva que vive numa camada de cima (0.92)
@@ -535,11 +535,11 @@ Três coisas que só aparecem nessa posição, e que valem para a próxima:
 
 1. **O overlay recebe os eventos ANTES da árvore normal**, e se ele consumir um,
    a árvore de baixo não o vê (`UserInterface::update` do `iced_runtime`). É o
-   que faz ▲▼/Enter de um `<autocomplete>` ganharem do `text_input` focado sem
+   que faz ▲▼/Enter de um `autocomplete` ganharem do `text_input` focado sem
    listener global nenhum — e o que faz o clique que fecha um painel não chegar
    a mais nada.
 2. **O `Widget::update` é a única forma de reagir a um clique no gatilho antes
-   dele.** Um `<button>` **consome** o pressionar dentro dos limites dele, então
+   dele.** Um `button` **consome** o pressionar dentro dos limites dele, então
    um `mouse_area` por fora nunca dispararia. Quem manda na ordem é o widget que
    embrulha os dois.
 3. **A âncora é `layout.bounds() + translation`.** Sem somar o `translation`, um
@@ -553,34 +553,34 @@ definitiva da coluna, que só existe depois de a primeira passada terminar.
 
 É o preço de qualquer motor de layout de tabela, e ele é conhecido. O que **não**
 se paga com ele é a virtualização: para uma grade longa, `virtualize` na coluna
-de dentro de um `<scrollable>` continua sendo a saída (ver acima).
+de dentro de um `scrollable` continua sendo a saída (ver acima).
 
 ## Uma primitiva que **desenha** (0.93)
 
-A Onda 7 pôs sete primitivas no `canvas` do `iced` — `<dial>`, `<gauge>`,
-`<lcdnumber>`, `<sparkline>`, `<linechart>`, `<barchart>`, `<piechart>` — e a
+A Onda 7 pôs sete primitivas no `canvas` do `iced` — `dial`, `gauge`,
+`lcdnumber`, `sparkline`, `linechart`, `barchart`, `piechart` — e a
 caixa de ferramentas delas mora em `src/canvas.rs`. O que se aprendeu ali, e que
 vale para a próxima:
 
 ### O `canvas` é capacidade, não tag
 
 O `iced` tem `canvas`, e a tradução literal do `QGraphicsView` seria expor um
-`<canvas>` com um callback de desenho em Rust. **Não foi feito**, e a razão é a
+`canvas` com um callback de desenho em Rust. **Não foi feito**, e a razão é a
 promessa da primeira linha do `README`: estrutura, estilo e comportamento
 declarados. Uma superfície de desenho livre devolve ao app um bloco imperativo
 que o `.gv` não lê, o `.gss` não estiliza e o Luau não alcança — três regressões
-para ganhar uma. Se um dia sair um `<canvas>`, sai como **vocabulário
-declarativo** (`<path>`, `<arc>`, `<circle>` interpolando o contexto).
+para ganhar uma. Se um dia sair um `canvas`, sai como **vocabulário
+declarativo** (`<path>`, `arc`, `circle` interpolando o contexto).
 
 ### O `Program::State` não é estado do app
 
 O `canvas::Program` do `iced` tem um `State` próprio, guardado na árvore de
-widgets. Ele vale para o que **morre com o gesto** — se a alça de um `<dial>`
+widgets. Ele vale para o que **morre com o gesto** — se a alça de um `dial`
 está presa agora —, nunca para o valor: o valor mora na chave que o markup
-nomeia, como no `<slider>` e no `<rating>`. É o que faz N medidores conviverem
+nomeia, como no `slider` e no `rating`. É o que faz N medidores conviverem
 numa tela sem se ver, e é a terceira vez que um item catalogado como "exige
 estado por instância" (`●`) desce para primitiva por esse motivo — depois do
-`Spinner` (0.66) e do `Rating` (0.85).
+`spinner` (0.66) e do `rating` (0.85).
 
 ### `Builder::arc` sempre começa um sub-caminho
 
@@ -588,7 +588,7 @@ A armadilha cara desta onda. O `arc` do `iced` chama `Builder::ellipse`, e essa
 função faz `move_to` **sempre**. Ou seja: dois arcos no mesmo `Path` viram dois
 sub-caminhos soltos, e o `close()` fecha coisa nenhuma. Um anel construído como
 "arco externo de ida, arco interno de volta" preenche errado — as fatias de uma
-pizza saem com pedaços faltando perto do centro e as faixas de um `<gauge>`
+pizza saem com pedaços faltando perto do centro e as faixas de um `gauge`
 preenchem até o miolo em vez de ficarem no anel.
 
 `crate::canvas::arco` e `crate::canvas::anel` desenham por **polilinha**, um
@@ -612,17 +612,15 @@ com `cargo tree -i iced_tiny_skia` — ver `TROUBLESHOOTING.md`.
 
 ### Um substantivo comum não vira tag
 
-`<linha>` chegou a ser apelido do `<linechart>` e **roubou o nome de todo
-componente chamado `Linha`** — o parser mapeia a tag antes de procurar
-componentes, então um `component(name = Linha)` do app passava a ser ignorado
-em silêncio. O mesmo valia para `<display>`, `<barras>` e `<pizza>`. Os apelidos
-em pt-BR de uma tag nova ficam nos nomes que ninguém usaria para um componente
-próprio (`grafico_linha`, `medidor`, `minigrafico`). Há teste para isso.
+Um nome de tag comum **rouba o nome de todo componente** que o app der a ele —
+o parser mapeia a tag antes de procurar componentes, então um `component(name =
+...)` do app passava a ser ignorado em silêncio. Por isso uma tag nova usa o
+nome do widget (`linechart`, `gauge`), nunca um substantivo que um app usaria
+para um componente próprio. Há teste para isso.
 
 **E há uma segunda metade da regra, que a Onda 9 descobriu pisando nela:** o
-apelido também não pode ser o de **outra tag**. `<deslizante>` foi a primeira
-escolha para o `<swipeview>` e já era apelido do `<slider>` desde sempre — o
-`match` casava no braço de cima e o de baixo virava código morto. Esta metade é
+nome também não pode ser o de **outra tag**: o `match` casava no braço de cima e
+o de baixo virava código morto. Esta metade é
 barata porque o compilador a pega (`unreachable pattern`); a primeira, não, e é
 por isso que ela custou mais.
 
@@ -632,16 +630,16 @@ Duas famílias, e a diferença entre elas não é o gesto — é se o widget tem
 **filhos**.
 
 **Quem desenha a si mesmo num `canvas` já tem onde guardar o arrasto.** O
-`Program::State` é por instância e o `iced` o entrega de graça: `<dial>` (0.93),
-`<rangeslider>`, `<tumbler>` e `<rubberband>` (0.95) guardam ali *qual ponta
+`Program::State` é por instância e o `iced` o entrega de graça: `dial` (0.93),
+`rangeslider`, `tumbler` e `rubberband` (0.95) guardam ali *qual ponta
 está presa*, *desde que y* — e **nunca o valor**, que é do app e mora na chave
 (ver "O `Program::State` não é estado do app", acima).
 
 **Quem tem filhos não tem esse luxo**, e é para isso que existe o `crate::grip`
 (`src/grip.rs`): o arrasto acontece *entre* os filhos, num quadro em que o
 widget já não existe como valor. Ele mora numa chave do motor (`__grip`), **uma
-por app** — só se arrasta uma coisa por vez numa tela. O `<splitter>` e o
-`<swipeview>` passam por ali, e a alça de coluna do `<tableheader>` (0.92)
+por app** — só se arrasta uma coisa por vez numa tela. O `splitter` e o
+`swipeview` passam por ali, e a alça de coluna do `tableheader` (0.92)
 passou a passar.
 
 Duas armadilhas, as duas já resolvidas dentro do `grip` — mas saiba que existem
@@ -658,7 +656,7 @@ antes de escrever a próxima:
    `listen_with` do movimento para sempre estrangula a rolagem do app inteiro: a
    medição está em `precisa_do_cursor`, e é 70 movimentos por segundo dando 65
    quadros contra 110 dando 10. A mesma economia condicional vale para o
-   **ticker** do `<delaybutton>`, que só é registrado enquanto a chave `__hold`
+   **ticker** do `delaybutton`, que só é registrado enquanto a chave `__hold`
    existe (`precisa_do_relogio`).
 
 E o soltar é um só: `EngineMessage::DragEnd`, que já encerrava o arrasto de uma
@@ -666,18 +664,18 @@ lista reordenável. Não invente um segundo — o botão do mouse é um.
 
 ## Uma primitiva que faz a conta que o builtin não pode (0.94)
 
-A `<wizardnav>` (`src/wizard.rs`) nasceu de uma contradição que apareceu ao
-escrever o `<wizard>` da Onda 8, e o critério que saiu dela vale para o próximo
+A `wizardnav` (`src/wizard.rs`) nasceu de uma contradição que apareceu ao
+escrever o `wizard` da Onda 8, e o critério que saiu dela vale para o próximo
 widget composto:
 
-- um wizard **hospeda páginas**, e página é `<slot>` — mecanismo de
+- um wizard **hospeda páginas**, e página é `slot` — mecanismo de
   **componente**. Uma primitiva não tem slots;
 - mas um builtin é um **template**, e template **não calcula**. Dizer "este é o
   primeiro passo, então `Voltar` fica inerte" exige achar `active` dentro de
   `steps`, e não há como escrever isso em markup.
 
-A saída é a mesma que o `<tabs>`/`<tabbar>` já usava sem nomear: **partir em
-dois**. O `<wizard>` é o builtin que compõe; a `<wizardnav>` é a primitiva que
+A saída é a mesma que o `tabs`/`tabbar` já usava sem nomear: **partir em
+dois**. O `wizard` é o builtin que compõe; a `wizardnav` é a primitiva que
 faz a conta e desenha os botões.
 
 > **O critério:** slots pedem builtin, contas pedem primitiva — e um widget que
@@ -687,32 +685,32 @@ Duas peças tornam isso barato, e as duas já existiam:
 
 1. **`EngineMessage::ContextPatch`** deixa a primitiva **escrever a chave
    sozinha**, sem `update` de componente nenhum. É o caminho que a
-   `<pagination>` (0.85) abriu, e é por isso que o `<wizard>` não tem um braço
+   `pagination` (0.85) abriu, e é por isso que o `wizard` não tem um braço
    de `update` para "avançar".
 2. **O botão inerte no limite.** Um builtin não consegue desabilitar um botão
-   por condição — foi o limite conhecido que fez a `<pagination>` subir de nível
+   por condição — foi o limite conhecido que fez a `pagination` subir de nível
    na 0.85, e é o mesmo aqui: `Voltar` no primeiro passo fica inerte, não some.
    Sumir faria a fileira dançar a cada passo, com o `Avançar` mudando de lugar
    debaixo do cursor.
 
-### Um `<slot>` não atravessa a fronteira de um componente aninhado
+### Um `slot` não atravessa a fronteira de um componente aninhado
 
-A armadilha da Onda 8, e ela falha **em silêncio**. O `<wizard>` deveria
-delegar as páginas ao `<stackview>`:
+A armadilha da Onda 8, e ela falha **em silêncio**. O `wizard` deveria
+delegar as páginas ao `stackview`:
 
 ```gv
-StackView(active = @active) {
+stackview(active = @active) {
   slot(name = @active)
 }
 ```
 
 Não funciona. A partição do `slot` acontece **uma vez**, sobre os filhos crus
-de quem escreveu a tag; o que chega ao `StackView` é um filho **já resolvido e
+de quem escreveu a tag; o que chega ao `stackview` é um filho **já resolvido e
 sem etiqueta**, e o `slot(name = @active)` do template dele não acha etiqueta
 com que casar. O resultado é uma página em branco, sem erro nenhum.
 
 Quem precisa do conteúdo repassa o markup, não o slot — ou monta a coluna ele
-mesmo, que foi o que o `<wizard>` fez.
+mesmo, que foi o que o `wizard` fez.
 
 ## Quatro armadilhas que falham EM SILÊNCIO (0.94)
 
@@ -756,19 +754,19 @@ ele, com a linha — é o que tira esta armadilha do silêncio. A lista do que �
 ligação está em `src/bindings.rs`; um primitivo novo com um campo `*_var` entra
 lá.
 
-Vale para `<progressbar>`, `<slider>`, `<dial>`, `<textinput>`, `<colorwheel>` —
+Vale para `progressbar`, `slider`, `dial`, `textinput`, `colorwheel` —
 todo widget cujo valor mora numa chave. A interpolação é para *mostrar* o valor
 (`content="{progresso}%"`), não para ligá-lo.
 
 **4. Nem todo atributo numérico aceita `{interpolação}`.**
 
 Só os que entram no `numeric_templates` — `size`, `spacing`, `border_radius`,
-`border_width`, `max_width`, `max_height`. O `min`/`max` de um `<progressbar>` ou
-de um `<slider>` é lido com `parse_f32` **no parse**, então `max="{total}"` não
+`border_width`, `max_width`, `max_height`. O `min`/`max` de um `progressbar` ou
+de um `slider` é lido com `parse_f32` **no parse**, então `max="{total}"` não
 resolve e cai no default, calado.
 
 Quando o limite precisa vir do dado, a saída é normalizar o valor: o
-`<progressbar>` do `ProgressDialog` desenha numa escala fixa 0–100 e quem calcula
+`progressbar` do `ProgressDialog` desenha numa escala fixa 0–100 e quem calcula
 a porcentagem é o `progress_set`, onde o `max` está à mão.
 
 **Como testar as quatro.** Nenhuma aparece num teste que escreve a chave e lê a
@@ -790,14 +788,14 @@ procurar tipos de nó em vez de confiar no contexto.
    de **tag** (`MeuWidget { background: … }`) sem `width` no nó — é
    exatamente esse caso que expõe a armadilha acima; um teste só com `class`
    + `width` fixo (como os exemplos costumam escrever) não pega o bug.
-5. Se o widget puder aparecer dentro de um `<scrollable>`, confira que **nenhum
+5. Se o widget puder aparecer dentro de um `scrollable`, confira que **nenhum
    filho dele mede `height="fill"`** — o teto vertical ali é infinito, e o
    sintoma (tudo abaixo sai da tela) não produz erro nenhum. Ver a gêmea da
    armadilha do `Length::Fill`, acima.
 6. Se a primitiva **desenha** (`canvas`), releia a seção acima: `arc` começa
-   sub-caminho, o `Program::State` não é estado do app, e o apelido em pt-BR
+   sub-caminho, o `Program::State` não é estado do app, e o nome
    não pode ser um substantivo que um app usaria para um componente dele — nem
-   o apelido de outra tag.
+   o de outra tag.
 7. Se a primitiva **arrasta**, pergunte primeiro se ela tem filhos: sem filhos o
    arrasto vive no `Program::State`; com filhos, no `crate::grip`. Nos dois
    casos o **valor** vai para a chave que o markup nomeia, e o soltar é o

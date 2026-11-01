@@ -2,14 +2,14 @@
 /// título e sem semântica de agrupamento.
 ///
 /// É o [`super::group_box::GroupBox`] descascado, e a peça mais genérica da
-/// família que o `<slot/>` destrancou: onde o `GroupBox` diz *"estes controles
+/// família que o `slot` destrancou: onde o `GroupBox` diz *"estes controles
 /// são um grupo chamado Rede"*, o `Frame` só diz *"desenhe uma caixa em volta
 /// disto"*.
 ///
-/// ```xml
-/// <Frame shape="filled" padding="16">
-///     <Text content="dentro de uma caixa preenchida" />
-/// </Frame>
+/// ```gv
+/// Frame(shape = filled, padding = 16) {
+///   Text(content = "dentro de uma caixa preenchida")
+/// }
 /// ```
 ///
 /// # As três formas
@@ -39,13 +39,13 @@
 ///
 /// # Aparência
 ///
-/// Mesma regra dos outros builtins: as cores vêm de um `<style>` global do
+/// Mesma regra dos outros builtins: as cores vêm de um `style` global do
 /// próprio template, instalado antes de qualquer `.gss` do app — redefinir
 /// `.frame-box` / `.frame-filled` numa folha do app repinta os dois.
 ///
 /// # Classes nos nós de dentro
 ///
-/// `class` no uso aplica na raiz — que aqui é um `<Container>` sem desenho
+/// `class` no uso aplica na raiz — que aqui é um `Container` sem desenho
 /// nenhum, só largura. Quem tem borda e fundo é a caixa de dentro, e é por
 /// isso que este widget precisa das props mais do que os outros:
 ///
@@ -53,10 +53,10 @@
 ///   caixa a estilizar).
 /// - `content_class` — a coluna dos filhos, nas três formas.
 ///
-/// ```xml
-/// <frame shape="filled" box_class="painel">
-///     <text content="dentro" />
-/// </frame>
+/// ```gv
+/// frame(shape = filled, box_class = painel) {
+///   text(content = dentro)
+/// }
 /// ```
 use crate::component::{Component, Context, Template};
 
@@ -79,55 +79,40 @@ impl Component for Frame {
         // a classe, e o mesmo atributo cobre os dois casos: prop por instância,
         // classe quando ela não vem. Os dois braços viraram um.
         Template::Inline(
-            r#"<Container width="{width|fill}">
-                    <style>
-                        .frame-box {
-                            border-width: 1;
-                            border-color: #80808059;
-                            border-radius: 6;
-                        }
-                        .frame-filled {
-                            background: #8080801f;
-                            border-radius: 6;
-                        }
-                    </style>
-
-                    <template if="{shape|box}" equals="filled">
-                        <Container
-                            class="frame-filled {box_class}"
-                            background="{background}"
-                            padding="{padding|12}"
-                            width="{width|fill}"
-                        >
-                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
-                                <slot/>
-                            </Column>
-                        </Container>
-                    </template>
-
-                    <template else-if="{shape|box}" equals="none">
-                        <Column
-                            class="{content_class}"
-                            spacing="{spacing|8}"
-                            padding="{padding|12}"
-                            width="{width|fill}"
-                        >
-                            <slot/>
-                        </Column>
-                    </template>
-
-                    <template else>
-                        <Container
-                            class="frame-box {box_class}"
-                            padding="{padding|12}"
-                            width="{width|fill}"
-                        >
-                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
-                                <slot/>
-                            </Column>
-                        </Container>
-                    </template>
-                </Container>"#
+            r##"
+                container(width = "{width|fill}") {
+                  style """
+                                        .frame-box {
+                                            border_width: 1;
+                                            border_color: #80808059;
+                                            border_radius: 6;
+                                        }
+                                        .frame-filled {
+                                            background: #8080801f;
+                                            border_radius: 6;
+                                        }
+                                    """
+                  template(if = "{shape|box}", equals = filled) {
+                    container(class = "frame-filled {box_class}", background = @background, padding = "{padding|12}", width = "{width|fill}") {
+                      column(class = @content_class, spacing = "{spacing|8}", width = "{width|fill}") {
+                        slot
+                      }
+                    }
+                  }
+                  template(else_if = "{shape|box}", equals = none) {
+                    column(class = @content_class, spacing = "{spacing|8}", padding = "{padding|12}", width = "{width|fill}") {
+                      slot
+                    }
+                  }
+                  template(else) {
+                    container(class = "frame-box {box_class}", padding = "{padding|12}", width = "{width|fill}") {
+                      column(class = @content_class, spacing = "{spacing|8}", width = "{width|fill}") {
+                        slot
+                      }
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

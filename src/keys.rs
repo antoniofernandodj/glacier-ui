@@ -10,10 +10,10 @@
 //! **sexto**, e as duas tags que ele entrega são o mesmo listener em dois
 //! modos:
 //!
-//! - `<shortcut key="ctrl+s" on_press="salvar"/>` — casa a combinação contra os
+//! - `shortcut(key = ctrl+s, on_press = salvar)` — casa a combinação contra os
 //!   atalhos que a **árvore avaliada** declara (colhidos em
-//!   `collect_tree_bindings`, ao lado dos `<textarea>` e `<comboedit>`);
-//! - `<shortcutinput :value="chave"/>` — o `QKeySequenceEdit`: em vez de casar, a
+//!   `collect_tree_bindings`, ao lado dos `textarea` e `comboedit`);
+//! - `shortcutinput(:value = chave)` — o `QKeySequenceEdit`: em vez de casar, a
 //!   combinação é **gravada**.
 //!
 //! # Por que o atalho mora no markup
@@ -27,21 +27,21 @@
 //! # A tecla de um campo focado não é um atalho
 //!
 //! `timeedit_key_from_event` já tinha aprendido isso (`if status == Captured {
-//! return None }`) e a regra vale igual aqui: digitar `s` num `<textinput>` não
-//! pode disparar o `<shortcut key="s">` da tela. O que muda é que uma
+//! return None }`) e a regra vale igual aqui: digitar `s` num `textinput` não
+//! pode disparar o `shortcut(key = s)` da tela. O que muda é que uma
 //! combinação **com modificador** (`ctrl+s`) atravessa mesmo com campo focado,
 //! porque nenhum campo de texto consome `Ctrl+S` — e é justamente para isso que
 //! um atalho existe.
 
 use iced::keyboard::{Key, Modifiers, key::Named};
 
-/// Qual `<shortcutinput>` está armado, ou vazio. **Um por tela**, e por isso sem
+/// Qual `shortcutinput` está armado, ou vazio. **Um por tela**, e por isso sem
 /// mapa: só um campo captura por vez. O valor é o nome da chave que ele edita —
 /// a mesma forma do `__timeedit`, que guarda `"inicio:h"` desde a 0.70.
 pub(crate) const CAPTURA_CONTEXT: &str = "__shortcut_cap";
 
 /// Uma combinação de teclas, na grafia canônica deste motor:
-/// `ctrl+shift+alt+super+<tecla>`, modificadores nessa ordem, tudo minúsculo.
+/// `ctrl+shift+alt+super+tecla`, modificadores nessa ordem, tudo minúsculo.
 ///
 /// A ordem é fixa **na saída** e livre na entrada: `"shift+ctrl+s"` escrito no
 /// markup casa com o `ctrl+shift+s` que o teclado produz, porque os dois passam
@@ -77,7 +77,7 @@ fn monta(mods: [bool; 4], tecla: &str) -> String {
 /// A combinação que um evento de tecla produz, ou `None` quando o evento não é
 /// uma combinação **completa**.
 ///
-/// Apertar só `Ctrl` não é um atalho — é o começo de um. Um `<shortcutinput>`
+/// Apertar só `Ctrl` não é um atalho — é o começo de um. Um `shortcutinput`
 /// que gravasse `"ctrl+"` no primeiro modificador nunca chegaria a gravar
 /// `ctrl+s`, porque o modificador chega antes da letra.
 pub fn combinacao(key: &Key, modifiers: Modifiers) -> Option<String> {
@@ -143,7 +143,7 @@ fn nome_de(n: Named) -> Option<&'static str> {
 }
 
 /// Um atalho declarado só vale se tiver **as duas** metades. Um
-/// `<shortcut key="ctrl+s"/>` sem ação é um nó decorativo, e um sem `key` casaria
+/// `shortcut(key = ctrl+s)` sem ação é um nó decorativo, e um sem `key` casaria
 /// com a combinação vazia — que é o que um modificador solto produziria se
 /// [`combinacao`] não o filtrasse.
 pub fn declarado(key: &str, action: &str) -> bool {
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn um_modificador_sozinho_nao_e_combinacao() {
-        // Senão um `<shortcutinput>` gravaria `"ctrl+"` e nunca chegaria ao
+        // Senão um `shortcutinput` gravaria `"ctrl+"` e nunca chegaria ao
         // `ctrl+s` — o modificador chega antes da letra.
         assert_eq!(
             combinacao(&Key::Named(Named::Control), Modifiers::CTRL),

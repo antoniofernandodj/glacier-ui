@@ -14,8 +14,8 @@ repositório — os que já existem e os que vierem.
 
 ```gv
 // não
-Column(spacing = 10) {
-  TextInput(onChange = salvar, minSize = "200 100")
+column(spacing = 10) {
+  textinput(on_change = salvar, min_size = "200 100")
 }
 // sim
 column {
@@ -23,10 +23,9 @@ column {
 }
 ```
 
-Vale para **primitivas e builtins** — o motor aceita `CamelCase`, `camelCase` e
-`kebab-case` como apelidos, e é por isso que a regra precisa estar escrita: nada
-quebra se você misturar, e um arquivo com quatro grafias da mesma coisa é o
-resultado natural de não decidir.
+Vale para **primitivas e builtins**: o motor só conhece a grafia em minúsculas
+(`textinput`, `min_size`); qualquer outra é `UnknownComponent` ou um atributo
+ignorado com aviso.
 
 **A exceção é obrigatória, não estilística:** a tag de um componente do app é
 resolvida pelo **nome com que ele foi registrado**, e a busca é sensível a
@@ -89,8 +88,7 @@ Nos dois arquivos, `.gv` e `.gss`.
 
 Propriedades em `snake_case`: `border_radius`, `border_width`, `border_color`,
 `align_x`, `align_y`, `text_align`, `text_color`, `max_width`, `max_height`,
-`font_family`. O motor aceita a forma com hífen como apelido; a forma escrita
-aqui é a com sublinhado, para casar com os atributos do `.gv`.
+`font_family`. O motor só aceita a forma com sublinhado, a mesma dos atributos do `.gv`.
 
 Uma exceção, e ela é obrigatória: dentro de `@media` o nome é uma **feature do
 CSS**, não uma propriedade do motor, e só a forma com hífen é aceita.
@@ -124,7 +122,7 @@ widget quebrado.
 
 Um teste de widget precisa olhar a **árvore avaliada**:
 
-- o ramo que deveria existir está lá? (uma escada de `se`/`senao` que não casa
+- o ramo que deveria existir está lá? (uma escada de `if`/`else` que não casa
   não é erro, é um buraco);
 - o `value_var` do nó é o **nome de chave** que você escreveu, ou o valor já
   interpolado? (`value = @x` num `progressbar` faz o widget procurar uma

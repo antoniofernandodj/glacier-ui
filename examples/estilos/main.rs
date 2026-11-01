@@ -1,15 +1,15 @@
 use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
-/// Demonstra stylesheets `.gss` e `<link>` no template:
+/// Demonstra stylesheets `.gss` e `link` no template:
 /// - GLOBAL: `examples/estilos/app.gss`, carregada via `motor.load_stylesheet(...)`,
 ///   vale para todos os componentes (card, title, subtitle, stack, actions).
-/// - ESCOPADA: `<link rel="stylesheet" href="examples/estilos/estilos.gss">`, válida só
+/// - ESCOPADA: `link(rel = stylesheet, href = "examples/estilos/estilos.gss")`, válida só
 ///   neste componente (as classes `.btn*`).
-/// - TEMA: `<link rel="theme" href="examples/estilos/theme.json">` define a paleta do
+/// - TEMA: `link(rel = theme, href = "examples/estilos/theme.json")` define a paleta do
 ///   `iced`; o `GlacierDaemon` aplica o tema da janela automaticamente (via
 ///   `motor.theme()`), sem wiring manual.
 ///
-/// (`<link>` também aceita `rel="import"`/`"component"` e `rel="data"`.)
+/// (`link` também aceita `rel="import"`/`"component"` e `rel="data"`.)
 /// Atributos inline no nó sempre vencem a classe. Todos os arquivos têm
 /// hot-reload: edite-os com a app rodando.
 struct Estilos;

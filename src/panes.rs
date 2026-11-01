@@ -1,12 +1,12 @@
-//! Os widgets que arrastam sobre **filhos**: `<splitter>` (`QSplitter`) e
-//! `<swipeview>` (`QML SwipeView`) da Onda 9, mais `<mdiarea>`/`<mdisubwindow>`
+//! Os widgets que arrastam sobre **filhos**: `splitter` (`QSplitter`) e
+//! `swipeview` (`QML SwipeView`) da Onda 9, mais `mdiarea`/`mdisubwindow`
 //! (`QMdiArea`) da Onda 11.
 //!
-//! # Por que estes widgets estão juntos, e o `<dial>` não
+//! # Por que estes widgets estão juntos, e o `dial` não
 //!
 //! Um widget que desenha a si mesmo num `canvas` ganha do `iced` um
 //! `Program::State` por instância e guarda ali o "estou arrastando" — foi assim
-//! no `<dial>` da Onda 7 e é assim nos quatro do [`crate::pointer`]. Um widget
+//! no `dial` da Onda 7 e é assim nos quatro do [`crate::pointer`]. Um widget
 //! que tem **filhos** não tem esse luxo: ele monta `Element`s de verdade e o
 //! arrasto acontece *entre* eles, num quadro em que o widget nem existe mais
 //! como valor. Esse arrasto mora numa chave do motor, e a chave é o
@@ -15,20 +15,20 @@
 //! É a única diferença entre os grupos, e ela não é sobre estado por
 //! instância — a marca `●` que o catálogo dava a todos eles nunca valeu. O que
 //! o arrasto move é sempre um valor que o app nomeia: as trilhas de um
-//! `<splitter>`, o índice de um `<swipeview>`, a posição/tamanho de um
-//! `<mdisubwindow>`.
+//! `splitter`, o índice de um `swipeview`, a posição/tamanho de um
+//! `mdisubwindow`.
 //!
-//! # `<mdiarea>`: a mesma capacidade, em duas dimensões
+//! # `mdiarea`: a mesma capacidade, em duas dimensões
 //!
-//! O `<splitter>`/`<swipeview>` arrastam em **um** eixo (`grip::Alvo::Trilha`/
+//! O `splitter`/`swipeview` arrastam em **um** eixo (`grip::Alvo::Trilha`/
 //! `Indice`); uma janela interna arrasta nos **dois** ao mesmo tempo — o
 //! habilitador B da Onda 11, `grip::Alvo::Ponto`. É a mesma extensão que a
 //! Onda 9 fez ao tirar a conta de dentro do `__colgrip`, um nível acima: nem
 //! a âncora no primeiro movimento, nem o listener condicional, precisaram
 //! mudar — só o mapeamento de pixel para valor ganhou uma segunda dimensão.
 //!
-//! Cada `<mdisubwindow>` nomeia QUATRO chaves (`x`/`y`/`w`/`h`), a mesma forma
-//! que o `<rangeslider>` usa para duas — e é por isso que o `●` do catálogo
+//! Cada `mdisubwindow` nomeia QUATRO chaves (`x`/`y`/`w`/`h`), a mesma forma
+//! que o `rangeslider` usa para duas — e é por isso que o `●` do catálogo
 //! nunca valeu aqui também (17ª correção de nível): mover é escrever em duas
 //! chaves com `Alvo::Ponto`, redimensionar é escrever nas outras duas com o
 //! MESMO `Alvo::Ponto`, só com outros limites.
@@ -47,7 +47,7 @@ use crate::widget::EngineMessage;
 const MAXIMO_PAINEL: f32 = 4000.0;
 
 /// Traduz uma trilha na `Length` que o `iced` entende. Uma trilha `Auto` num
-/// painel é `Fill`, e **não** `Shrink`: um painel de `<splitter>` que encolhesse
+/// painel é `Fill`, e **não** `Shrink`: um painel de `splitter` que encolhesse
 /// até o conteúdo não repartiria nada, que é o que um splitter existe para
 /// fazer.
 fn largura_de(t: Trilha) -> Length {
@@ -61,7 +61,7 @@ fn largura_de(t: Trilha) -> Length {
 /// A medida que um arrasto começa carregando. Uma trilha flexível não tem
 /// pixels ainda — o `valor0` dela sai como zero e o primeiro movimento a
 /// converte em fixa a partir dali, que é a mesma conversão que a alça de coluna
-/// do `<tableheader>` faz desde a Onda 6.
+/// do `tableheader` faz desde a Onda 6.
 fn medida_inicial(t: Trilha, padrao: f32) -> f32 {
     match t {
         Trilha::Fixa(px) => px,
@@ -69,7 +69,7 @@ fn medida_inicial(t: Trilha, padrao: f32) -> f32 {
     }
 }
 
-/// `<splitter>` — ver [`crate::parser::NodeType::Splitter`].
+/// `splitter` — ver [`crate::parser::NodeType::Splitter`].
 ///
 /// Os painéis são os filhos; as alças vão **entre** eles, como irmãs numa
 /// `Row`/`Column`, nunca por cima. Um overlay aqui roubaria o clique do
@@ -142,7 +142,7 @@ fn alca<'a>(
     trilha: Trilha,
 ) -> Element<'a, EngineMessage> {
     // **Nunca `Fill` no eixo transverso quando o pai pode ser infinito.** Um
-    // `<splitter>` dentro de um `<scrollable>` recebe altura infinita, e um
+    // `splitter` dentro de um `scrollable` recebe altura infinita, e um
     // `Fill` aqui empurraria o conteúdo inteiro para fora da tela sem erro
     // nenhum — a armadilha que o `PRIMITIVAS.md` registra e que a alça de
     // coluna já tinha pisado. `Fill` no eixo transverso de um Row/Column é
@@ -191,10 +191,10 @@ fn alca<'a>(
     .into()
 }
 
-/// `<swipeview>` — ver [`crate::parser::NodeType::SwipeView`].
+/// `swipeview` — ver [`crate::parser::NodeType::SwipeView`].
 ///
 /// Renderiza **só** a página ativa, embrulhada num `mouse_area` que começa o
-/// arrasto. Ao contrário do `<tabs>`/`<stackview>` (que avaliam todas as
+/// arrasto. Ao contrário do `tabs`/`stackview` (que avaliam todas as
 /// páginas e renderizam uma), aqui as páginas são filhos crus da árvore: a
 /// avaliação já aconteceu, e o que se escolhe é qual `Element` montar.
 pub fn render_swipeview<'a>(
@@ -246,11 +246,11 @@ pub fn render_swipeview<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <mdiarea> / <mdisubwindow> — a Onda 11
+// mdiarea / mdisubwindow — a Onda 11
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Faixa de tamanho de um `<mdisubwindow>`. Como o `MAXIMO_PAINEL` do
-/// `<splitter>`: não é estética, é o que evita uma janela arrastada rápido
+/// Faixa de tamanho de um `mdisubwindow`. Como o `MAXIMO_PAINEL` do
+/// `splitter`: não é estética, é o que evita uma janela arrastada rápido
 /// demais sumir com um número de cinco dígitos, ou encolher a zero e virar
 /// impossível de agarrar de novo.
 const LARGURA_MINIMA_JANELA: f32 = 160.0;
@@ -261,7 +261,7 @@ const ALTURA_MAXIMA_JANELA: f32 = 1600.0;
 /// O lado do quadrado de redimensionar, no canto inferior direito.
 const GRIP_JANELA: f32 = 14.0;
 
-/// `<mdiarea>` — ver [`crate::parser::NodeType::MdiArea`].
+/// `mdiarea` — ver [`crate::parser::NodeType::MdiArea`].
 ///
 /// Só empilha e posiciona; a posição de cada `(x, y, Element)` já veio
 /// resolvida de quem chamou (`widget.rs`, que é quem tem o `context` e o
@@ -377,7 +377,7 @@ pub fn render_mdi_subwindow<'a>(
     }));
 
     // O grip fica POR CIMA do corpo, no canto — o mesmo truque do `%` sobre a
-    // `<progressbar>`, com o `<stack>` da Onda 11 no lugar do `stack!` cru.
+    // `progressbar`, com o `stack` da Onda 11 no lugar do `stack!` cru.
     let corpo_com_grip = Stack::new()
         .push(container(corpo).width(Length::Fill).height(Length::Fill))
         .push(
@@ -407,7 +407,7 @@ pub fn render_mdi_subwindow<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <dock> — o habilitador D da Onda 12
+// dock — o habilitador D da Onda 12
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Quão longe o cabeçalho precisa ser arrastado para reancorar. Abaixo disso
@@ -415,7 +415,7 @@ pub fn render_mdi_subwindow<'a>(
 const LIMIAR_DOCK: f32 = 36.0;
 
 /// O estilo da faixa de título e da aba de restaurar — o mesmo fundo forte do
-/// `<mdisubwindow>`.
+/// `mdisubwindow`.
 fn fundo_forte(theme: &iced::Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(
@@ -444,7 +444,7 @@ fn moldura_painel(theme: &iced::Theme) -> container::Style {
 ///
 /// `grip` é o arrasto que o título dispara — [`Alvo::Zona`] quando acoplado
 /// (arrastar para uma borda reancora) ou [`Alvo::Ponto`] quando flutuante
-/// (arrastar move, como uma janela do `<mdiarea>`). `None` quando o `<dock>`
+/// (arrastar move, como uma janela do `mdiarea`). `None` quando o `dock`
 /// não tem `mode=` e portanto não muda de estado.
 #[allow(clippy::too_many_arguments)]
 fn cabecalho_dock<'a>(
@@ -470,7 +470,7 @@ fn cabecalho_dock<'a>(
 
     if !mode_var.is_empty() {
         // Um botão troca `mode` e, opcionalmente, guarda o modo atual em
-        // `<mode>__prev` (para o "voltar" saber onde estava). `on_change`, se
+        // `mode__prev` (para o "voltar" saber onde estava). `on_change`, se
         // houver, é disparado depois da escrita — o gancho de persistência.
         let prev_key = format!("{mode_var}__prev");
         let acao = |pares: Vec<(String, String)>| -> EngineMessage {
@@ -524,7 +524,7 @@ fn cabecalho_dock<'a>(
 }
 
 /// A aba fina que traz um painel `hidden` de volta. `alvo` é o modo para onde
-/// voltar (o `<mode>__prev` guardado, ou a borda default), e `edge` decide de
+/// voltar (o `mode__prev` guardado, ou a borda default), e `edge` decide de
 /// que lado ela encosta e se é vertical.
 fn aba_restaurar<'a>(
     mode_var: &str,
@@ -563,25 +563,25 @@ fn aba_restaurar<'a>(
         .into()
 }
 
-/// `<dock>` (`QDockWidget`) — ver [`crate::parser::NodeType::Dock`].
+/// `dock` (`QDockWidget`) — ver [`crate::parser::NodeType::Dock`].
 ///
 /// Dois filhos: o **painel** (0) e o **centro** (1). Uma chave (`mode=`) diz
 /// onde o painel está — `left`/`right`/`top`/`bottom` (acoplado, num
-/// `<splitter>` reutilizado; arrastável se `size=` foi dado), `float` (solto num
-/// `<stack>`, movido como uma janela do `<mdiarea>`) ou `hidden` (só a aba de
+/// `splitter` reutilizado; arrastável se `size=` foi dado), `float` (solto num
+/// `stack`, movido como uma janela do `mdiarea`) ou `hidden` (só a aba de
 /// restaurar).
 ///
 /// # A troca de pai acontece ENTRE quadros
 ///
-/// É o que a Onda 11 cortou: acoplar↔soltar trocaria `<splitter>` por `<stack>`
+/// É o que a Onda 11 cortou: acoplar↔soltar trocaria `splitter` por `stack`
 /// no meio do arrasto. Aqui o cabeçalho dispara um [`Alvo::Zona`], que **não
 /// escreve nada durante o gesto** e comete a borda na soltura
 /// ([`Arrasto::modo_no_release`], via `DragEnd`); o `render_dock` seguinte lê a
 /// chave e monta o pai certo. É o mesmo princípio de todo widget com estado
 /// deste motor — uma chave nomeada, escrita por uma ação, lida no render.
 ///
-/// N painéis = `<dock>` aninhados, um por painel — a saída do
-/// `<accordion>`/`<accordionitem>`.
+/// N painéis = `dock` aninhados, um por painel — a saída do
+/// `accordion`/`accordionitem`.
 #[allow(clippy::too_many_arguments)]
 pub fn render_dock<'a>(
     node: &'a crate::parser::UiNode,
@@ -610,7 +610,7 @@ pub fn render_dock<'a>(
         _ => "left",
     };
 
-    // Para onde `▣` e a aba de restaurar voltam: o `<mode>__prev` guardado
+    // Para onde `▣` e a aba de restaurar voltam: o `mode__prev` guardado
     // pelo `❒`/`✕` (se for uma borda válida), senão a borda default.
     let voltar_para: &str = context
         .get(&format!("{mode_var}__prev"))
@@ -711,7 +711,7 @@ mod tests {
     #[test]
     fn trilha_auto_de_painel_e_fill_e_nao_shrink() {
         // Um painel que encolhesse até o conteúdo não reparte nada — e um
-        // `<splitter>` existe para repartir.
+        // `splitter` existe para repartir.
         assert_eq!(largura_de(Trilha::Auto), Length::Fill);
         assert_eq!(largura_de(Trilha::Fixa(240.0)), Length::Fixed(240.0));
         assert_eq!(largura_de(Trilha::Flexivel(2)), Length::FillPortion(2));

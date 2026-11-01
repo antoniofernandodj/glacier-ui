@@ -42,7 +42,7 @@ app(id = bandeja, size = "460 300") {
         )
 
         text(
-          content = """
+          """
             (o item "Notificações" da bandeja liga/desliga isto)
           """,
           class = nota,

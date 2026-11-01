@@ -3,12 +3,12 @@
 -- O que este arquivo mostra e a versão Rust não mostra: quase nada precisou
 -- de função Luau nenhuma.
 --
--- `<stack>`, `x=`/`y=`/`anchor=`, `<mdiarea>`/`<mdisubwindow>` inteiros — são
+-- `stack`, `x=`/`y=`/`anchor=`, `mdiarea`/`mdisubwindow` inteiros — são
 -- ATRIBUTOS DE MARKUP e um arrasto que escreve direto nas chaves que o
--- `<mdisubwindow>` nomeia. Nenhum dos dois pediu uma linha aqui: o habilitador
--- A (`<stack>`) é resolvido no parser/render, e o habilitador B
+-- `mdisubwindow` nomeia. Nenhum dos dois pediu uma linha aqui: o habilitador
+-- A (`stack`) é resolvido no parser/render, e o habilitador B
 -- (`grip::Alvo::Ponto`) escreve as chaves do motor pra baixo, do mesmo jeito
--- que o `<slider>` já escrevia desde a 0.63. É o MESMO terceiro regime de
+-- que o `slider` já escrevia desde a 0.63. É o MESMO terceiro regime de
 -- custo que a Onda 9 já tinha medido em Luau: um habilitador de motor que
 -- rende meia dúzia de widgets e ainda assim custa zero na camada de cima.
 --

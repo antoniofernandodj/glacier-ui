@@ -24,7 +24,7 @@
 //!
 //! **O `Flow` já existia**, e não no motor: `Row::wrap()` do próprio `iced`
 //! quebra linha exatamente como o plano descrevia, com alinhamento por linha e
-//! vão vertical próprio. `<flow>` são três linhas em `widget.rs` e não passa
+//! vão vertical próprio. `flow` são três linhas em `widget.rs` e não passa
 //! pela medição — a sexta vez que este projeto descobre que um item catalogado
 //! como caro já estava pronto, e a primeira em que quem já tinha era a
 //! biblioteca de baixo.
@@ -32,7 +32,7 @@
 //! **A ligação a coleção também já existia.** O §3 lista "binding a coleção
 //! (model/view)" como o habilitador P2 "caro, e o maior investimento restante".
 //! `items="chave"` — um array JSON numa chave de contexto — é o que o
-//! `<menu items>` e o `<tabbar items>` usam desde sempre. O que faltava era a
+//! `menu(items)` e o `tabbar(items)` usam desde sempre. O que faltava era a
 //! medição, e convencionar seleção e ordenação; as duas últimas são o padrão do
 //! `SpinBox`, que já estava escrito.
 //!
@@ -41,7 +41,7 @@
 //! O `TreeView`. O §3 o punha atrás do "estado por instância" — o item que este
 //! documento chamou por três revisões de "o desbloqueio de maior alavancagem".
 //! O conjunto de nós abertos é um **conjunto nomeado** (`"raiz,raiz/src"`),
-//! exatamente como as seções de um `<accordion>`, e o `contains` que o
+//! exatamente como as seções de um `accordion`, e o `contains` que o
 //! destrancou saiu na 0.84.
 //!
 //! # O que o app escreve, e o que ele não escreve
@@ -93,7 +93,7 @@ impl Component for Onda6 {
         ctx.set("aba", "layout".to_string());
 
         // As colunas da tabela: a mesma convenção `items="chave"` que o
-        // `<menu>` e o `<tabbar>` já usavam — um array JSON numa chave. O que a
+        // `menu` e o `tabbar` já usavam — um array JSON numa chave. O que a
         // Onda 6 acrescentou não foi a ligação, foi a MEDIÇÃO.
         //
         // `align: "right"` numa coluna de número não é enfeite: é o que faz os
@@ -152,7 +152,7 @@ impl Component for Onda6 {
     }
 }
 
-/// As linhas em JSON, no formato que o `<tableview>` lê: um objeto por linha,
+/// As linhas em JSON, no formato que o `tableview` lê: um objeto por linha,
 /// com uma chave por coluna (mais o `id`, que é a identidade da seleção).
 fn linhas_json() -> String {
     let linhas: Vec<serde_json::Value> = SERVICOS
@@ -171,7 +171,7 @@ fn linhas_json() -> String {
 }
 
 /// A árvore em JSON: `{id, label, items}` aninhado, a mesma forma que o
-/// `<menu items>` já usava para submenus.
+/// `menu(items)` já usava para submenus.
 fn arvore_json() -> String {
     serde_json::json!([
         {

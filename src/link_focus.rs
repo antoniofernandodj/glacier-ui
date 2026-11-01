@@ -1,4 +1,4 @@
-//! Foco de teclado para os links de um `<prose>`.
+//! Foco de teclado para os links de um `prose`.
 //!
 //! O `rich_text` do `iced` desenha e clica os links, mas não é *focável*: Tab passa
 //! reto por ele. [`FocusLinks`] o embrulha e acrescenta o que falta:

@@ -8,7 +8,7 @@ aceitação é `examples/app_script`. As perguntas da seção 1 estão respondid
 decidido", no fim.
 
 Antes da 0.139, `script` no `resources` do `app` era erro de parse ("o script do app inteiro
-ainda não existe"), e um `<script>` fora de qualquer tela também. O que falta é um
+ainda não existe"), e um `script` fora de qualquer tela também. O que falta é um
 lugar para o estado e a lógica que vivem o app inteiro, sem repetir em cada tela.
 
 ---

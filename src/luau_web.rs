@@ -3,11 +3,11 @@
 //! O Luau é C++ vendorizado (`luau0-src`), e esse crate só gera wasm para
 //! `wasm32-unknown-emscripten`; o iced/winit roda no navegador em
 //! `wasm32-unknown-unknown`. Os dois não moram no mesmo binário, então na web a
-//! camada `<script>` não existe.
+//! camada `script` não existe.
 //!
 //! Este arquivo mantém a superfície que o resto do motor usa (`has_script`,
 //! `storage_root`, `LuauComponent`) para `lib.rs` e `daemon.rs` não se encherem
-//! de `cfg`. O que ele NÃO faz é ignorar um `<script>`: um template com script
+//! de `cfg`. O que ele NÃO faz é ignorar um `script`: um template com script
 //! falha no registro com um [`GlacierError::Luau`] que diz o motivo. Uma tela
 //! que aparece com os botões mortos é justamente a falha silenciosa que este
 //! motor mais caro já pagou (ver CLAUDE.md, "Antes de dizer que funciona").
@@ -35,7 +35,7 @@ pub fn storage_root() -> Option<&'static Path> {
 }
 
 /// A mesma pergunta do nativo, com a mesma regra de comentário
-/// (`find_script_open` pula `<!-- <script> -->`). Aqui um `true` não liga Luau
+/// (`find_script_open` pula `<!-- script -->`). Aqui um `true` não liga Luau
 /// nenhum — faz o registro recusar o componente.
 pub(crate) fn has_script(markup: &str) -> bool {
     crate::eval::find_script_open(markup).is_some()

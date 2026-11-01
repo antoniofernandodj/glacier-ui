@@ -1,4 +1,4 @@
-//! Foco de teclado para o `<button>`.
+//! Foco de teclado para o `button`.
 //!
 //! O `button` do `iced` não é *focável*: Tab passa reto por ele, e Enter/Espaço não o
 //! acionam. Para quem só usa o teclado (ou um leitor de tela) um app inteiro de botões

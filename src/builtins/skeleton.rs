@@ -1,9 +1,9 @@
 /// O placeholder de carregamento: uma barra cinza do tamanho que o conteúdo
 /// real vai ocupar, para a tela não "pular" quando ele chegar.
 ///
-/// ```xml
-/// <Skeleton width="200" height="16" />
-/// <Skeleton width="fill" height="120" radius="8" />
+/// ```gv
+/// Skeleton(width = 200, height = 16)
+/// Skeleton(width = fill, height = 120, radius = 8)
 /// ```
 ///
 /// # Por que ele é só isso
@@ -35,17 +35,13 @@ impl Component for Skeleton {
 
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<Container
-                    class="skeleton-placeholder"
-                    background="{background}"
-                    width="{width|fill}"
-                    height="{height|16}"
-                    border_radius="{radius|4}"
-                >
-                    <style>
-                        .skeleton-placeholder { background: #8080802f; }
-                    </style>
-                </Container>"#
+            r##"
+                container(class = skeleton-placeholder, background = @background, width = "{width|fill}", height = "{height|16}", border_radius = "{radius|4}") {
+                  style """
+                                        .skeleton-placeholder { background: #8080802f; }
+                                    """
+                }
+            "##
                 .to_string(),
         )
     }

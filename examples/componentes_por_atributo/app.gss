@@ -3,8 +3,8 @@ examples/componentes_por_atributo/app.gss — visual da tela e dos componentes
 que viajam por atributo até a Vitrine.
 
 Nada aqui pinta área grande (ver "As três regras de estilo" no AGENTS.md): o
-fundo é do theme.json, as seções se separam por `<rule />` e espaçamento, e
-canto arredondado só existe dentro do <badge>.
+fundo é do theme.json, as seções se separam por `rule` e espaçamento, e
+canto arredondado só existe dentro do badge.
 */
 
 :root {

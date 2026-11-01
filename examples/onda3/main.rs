@@ -2,8 +2,8 @@
 //!
 //! Rode com: `cargo run --example onda3`
 //!
-//! `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são o **mesmo**
-//! `NodeType::Calendar`, exatamente como `<dateedit>`/`<timeedit>` são o mesmo
+//! `calendar`, `monthyearpicker` e `daterangepicker` são o **mesmo**
+//! `NodeType::Calendar`, exatamente como `dateedit`/`timeedit` são o mesmo
 //! `NodeType::DateTimeEdit`. O que muda entre elas é o que um clique grava (um
 //! dia, um mês, duas datas) e quantas grades aparecem — nada mais.
 //!
@@ -18,7 +18,7 @@
 //! O resto do exemplo aproveita a mesma carona: as regras de intervalo
 //! (quantas noites, recusar uma saída antes da entrada) são de **negócio**, não
 //! do widget, e é o `onChange` que as torna possíveis — o mesmo contrato do
-//! `<textinput>` e do `<dateedit>`.
+//! `textinput` e do `dateedit`.
 //!
 //! Compare com `examples/data_hora_luau`, que é a mesma inversão sobre os
 //! campos por seções: lá se **digita** a data, aqui se **aponta** para ela.

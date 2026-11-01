@@ -18,7 +18,7 @@ Isso vale enquanto todo diálogo é uma **caixa de mensagem**: ícone, título,
 texto, botões — e os cinco construtores de conveniência dão conta. Deixa de
 valer no instante em que um diálogo precisa de um **campo**. O
 `QInputDialog::getText` é um `QLineEdit` dentro de um cartão, e o motor já sabe
-desenhar `<textinput>`, estilizá-lo pelo `.gss` e ligá-lo a uma chave; escrever
+desenhar `textinput`, estilizá-lo pelo `.gss` e ligá-lo a uma chave; escrever
 um segundo caminho de render, em Rust, para cada diálogo com conteúdo seria
 escrever o motor duas vezes.
 
@@ -30,7 +30,7 @@ nenhuma.
 
 Esse singleton não é detalhe de implementação: é o que faz um diálogo com campo
 **não precisar de estado por instância**. O que o usuário digita mora numa chave
-de contexto comum, como em qualquer `<textinput>`, e não há como duas instâncias
+de contexto comum, como em qualquer `textinput`, e não há como duas instâncias
 do mesmo diálogo disputarem essa chave — não existe uma segunda.
 
 ## API
@@ -62,7 +62,7 @@ detalhe destacado, tipo `QMessageBox::setDetailedText`), `.dismissible(bool)`.
 ### `DialogButton` — um botão
 
 `label`, `action` (string roteada ao `Component::update` do dono da tela
-quando clicado — mesma convenção de `on_click="..."` num `<Button>`), `role`
+quando clicado — mesma convenção de `on_click="..."` num `button`), `role`
 (`ButtonRole::Accept|Neutral|Destructive`, só controla a cor). Atalhos:
 `ok`, `yes`, `no`, `cancel`, `save`, `discard`, `retry`, `close`.
 
@@ -114,7 +114,7 @@ componente dono da tela ativa, exatamente como um `UiClick` comum.
 
 ### `dialog(name = "…")` — o `QDialog`
 
-Uma declaração do `<resources>`, ao lado do `component(name = "…")` — e por um
+Uma declaração do `resources`, ao lado do `component(name = "…")` — e por um
 bom motivo: é o mesmo objeto, um template registrado sob um nome. O que ele tem
 a mais é a moldura.
 
@@ -122,18 +122,18 @@ a mais é a moldura.
 screen {
   resources {
     dialog(name = editar_servico, title = "Editar serviço", buttons = "Cancelar::|Salvar:salvar_servico:accept") {
-      Column(spacing = 10, width = fill) {
-        TextInput(:value = "__dialog.nome", placeholder = api-gateway, width = fill)
-        SpinBox(:value = "__dialog.replicas", min = 1, max = 32)
+      column(spacing = 10, width = fill) {
+        textinput(:value = "__dialog.nome", placeholder = api-gateway, width = fill)
+        spinbox(:value = "__dialog.replicas", min = 1, max = 32)
       }
     }
   }
-  Button(text = Editar, on_click = "dialog:editar_servico")
+  button(text = Editar, on_click = "dialog:editar_servico")
 }
 ```
 
 Nada desenha onde a tag está escrita: a declaração viaja pendurada na raiz, como
-`<screen>` e `<props>`. O que a faz aparecer é a ação `dialog:nome`.
+`screen` e `props`. O que a faz aparecer é a ação `dialog:nome`.
 
 **Atributos:** `name` (obrigatório), `title`, `message`, `icon`
 (`information`/`warning`/`error`/`question`), `buttons` e `dismissible`.
@@ -159,7 +159,7 @@ um `update` chamado `cancelar`, ele passaria a disparar sozinho.
 
 A terceira família de prefixos de ação, depois do `app:` (0.63) e do `::` de
 dono. `dialog:nome` abre; `dialog:close` (ou `dialog:fechar`) fecha. Vale em
-qualquer rota que produza uma ação — `button(on_click)`, `<menuitem>`, e o botão
+qualquer rota que produza uma ação — `button(on_click)`, `menuitem`, e o botão
 de outro diálogo, que é como um modal encadeia noutro.
 
 Um nome que não existe é **ignorado em silêncio**: a alternativa seria derrubar o
@@ -182,7 +182,7 @@ ctx.show_dialog(
 );
 ```
 
-Os dois caminhos chegam ao mesmo lugar: o `<dialog>` do `.gv` registra o corpo
+Os dois caminhos chegam ao mesmo lugar: o `dialog` do `.gv` registra o corpo
 dele como um template comum, e o Rust o monta pelo nome.
 
 ### As chaves `__dialog.*`, e por que elas são apagadas
@@ -247,7 +247,7 @@ o cancelamento é uma **ação comum** (`on_cancel="…"`), não um mecanismo no
 ## Exemplo
 
 O corpo em markup e os suspensivos da Onda 8: `cargo run --example onda8`
-(o `<dialog>` declarativo, o wizard, a roda de cor) e
+(o `dialog` declarativo, o wizard, a roda de cor) e
 `cargo run --example onda8_luau` (`prompt`, `progress`, `pick_color`,
 `confirm`).
 
@@ -289,8 +289,8 @@ match (self.interaction, content_interaction) {
 }
 ```
 
-`Space`/`Container` não têm opinião sobre cursor — devolvem
-`Interaction::None`. Para o `Stack`, `None` **não** significa "cursor
+`space`/`container` não têm opinião sobre cursor — devolvem
+`Interaction::None`. Para o `stack`, `None` **não** significa "cursor
 padrão"; significa "não sei, pergunta pra camada de baixo". Resultado: ele
 ignorava o backdrop inteiro e ia direto checar a tela por trás do modal,
 achava o botão sob o cursor e usava o `Pointer` dele.
@@ -315,7 +315,7 @@ Ao investigar o `mouse_interaction`, o `update()` do `MouseArea`
 sério: `shell.capture_event()` só é chamado se houver um handler de
 `on_press` registrado. Diálogos não-dismissíveis (`error`, `question`,
 `confirm`) não tinham `on_press` no backdrop antes da correção — então um
-clique nele **não era capturado**: o evento vazava pro `Stack` continuar
+clique nele **não era capturado**: o evento vazava pro `stack` continuar
 procurando na camada de baixo e **acionava de verdade** o botão da tela por
 trás do modal, na mesma posição de tela. Não era só cosmético — dava pra
 clicar "através" de um diálogo de erro/confirmação.
@@ -342,7 +342,7 @@ pro usuário em diálogos não-dismissíveis.
 ### Lição para o resto do framework
 
 Qualquer widget futuro que precise "bloquear" uma área por cima de outra
-camada de um `Stack` (outro tipo de overlay, um tooltip, etc.) precisa dos
+camada de um `stack` (outro tipo de overlay, um tooltip, etc.) precisa dos
 dois cuidados juntos: `.interaction(Interaction::Idle)` (não deixar
 `mouse_interaction` cair em `None`) **e** um `on_press`/`on_release` sempre
 presente (não deixar o `update()` deixar de capturar o evento) — só cobrir

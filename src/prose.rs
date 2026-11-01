@@ -1,10 +1,10 @@
-//! O modelo de blocos do `<prose>` e os quatro jeitos de chegar a ele.
+//! O modelo de blocos do `prose` e os quatro jeitos de chegar a ele.
 //!
-//! Um `<prose>` é uma lista de [`Bloco`]s — parágrafo, título, citação, lista,
+//! Um `prose` é uma lista de [`Bloco`]s — parágrafo, título, citação, lista,
 //! figura (imagem com legenda), código e régua. Eles vêm de:
 //!
 //! - **filhos escritos no markup** (`.gv`), lidos na carga;
-//! - **conteúdo dinâmico** (`<prose syntax="html" content="{corpo}">`), lido na
+//! - **conteúdo dinâmico** (`prose(syntax = html, content = @corpo)`), lido na
 //!   avaliação a partir de uma chave do contexto, em `gv`, `html` ou
 //!   `markdown` — o texto de um artigo que veio de um arquivo, de um `fetch` ou de
 //!   um banco.
@@ -91,7 +91,7 @@ impl Bloco {
     }
 }
 
-/// A sintaxe do texto de um `<prose syntax="…" content="…">`.
+/// A sintaxe do texto de um `prose(syntax = "…", content = "…")`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sintaxe {
     Gv,
@@ -110,7 +110,7 @@ impl Sintaxe {
     }
 }
 
-/// De onde vêm os blocos de um `<prose>` dinâmico.
+/// De onde vêm os blocos de um `prose` dinâmico.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FonteProse {
     pub sintaxe: Sintaxe,
@@ -120,7 +120,7 @@ pub struct FonteProse {
 
 // ───────────────────────────── a árvore intermediária ─────────────────────────────
 
-/// Um nó de XML ou de HTML, só com o que o `<prose>` precisa.
+/// Um nó de XML ou de HTML, só com o que o `prose` precisa.
 #[derive(Debug, Clone)]
 pub enum No {
     Elem {
@@ -195,10 +195,10 @@ const TAGS_BLOCO: &[&str] = &[
     "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "figure", "pre", "hr",
     "img",
 ];
-/// Contêineres que o HTML usa só para agrupar: o conteúdo deles é do `<prose>`.
+/// Contêineres que o HTML usa só para agrupar: o conteúdo deles é do `prose`.
 const TAGS_TRANSPARENTES: &[&str] = &[
     "div", "section", "article", "main", "header", "footer", "aside", "nav", "body", "html",
-    "span-bloco", "center",
+    "center",
 ];
 /// Elementos cujo conteúdo nunca é texto de leitura: somem com tudo dentro.
 const TAGS_DESCARTADAS: &[&str] = &[
@@ -207,8 +207,8 @@ const TAGS_DESCARTADAS: &[&str] = &[
     "base",
 ];
 const TAGS_INLINE: &[&str] = &[
-    "b", "strong", "negrito", "i", "em", "italico", "itálico", "code", "codigo", "código", "u",
-    "underline", "sublinhado", "s", "del", "strike", "tachado", "a", "span", "br", "mark", "cite",
+    "b", "strong", "i", "em", "code", "u",
+    "underline", "s", "del", "strike", "a", "span", "br", "mark", "cite",
     "small", "abbr", "kbd", "samp", "var", "sub", "sup",
 ];
 
@@ -238,7 +238,7 @@ pub fn href_seguro(href: &str) -> bool {
 
 // ───────────────────────────────── os blocos ─────────────────────────────────
 
-/// Constrói os blocos de uma lista de nós (os filhos de um `<prose>`).
+/// Constrói os blocos de uma lista de nós (os filhos de um `prose`).
 pub fn blocos(filhos: &[No], o: Opcoes) -> Result<Vec<Bloco>, Erro> {
     let mut out = Vec::new();
     let mut pend: Vec<&No> = Vec::new();
@@ -275,8 +275,8 @@ fn nivel_bloco<'a>(
                 } else if o.leniente {
                     pend.push(no);
                 } else {
-                    return Err(Erro::novo("texto solto dentro de <prose>", *pos)
-                        .dica("o <prose> só contém blocos (<p>, <h2>, <blockquote>, <ul>, <figure>…): escreva <prose><p>o texto</p></prose>"));
+                    return Err(Erro::novo("texto solto dentro de prose", *pos)
+                        .dica("o prose só contém blocos (p, h2, blockquote, ul, figure…): escreva prose { p(\"o texto\") }"));
                 }
             }
             No::Elem { tag, filhos: fs, pos, .. } => {
@@ -289,8 +289,8 @@ fn nivel_bloco<'a>(
                         pend.push(no);
                         continue;
                     }
-                    return Err(Erro::novo(format!("<{tag}> direto no <prose>"), *pos)
-                        .dica("o <prose> só contém blocos; as tags de estilo vão dentro de um <p>"));
+                    return Err(Erro::novo(format!("{tag} direto no prose"), *pos)
+                        .dica("o prose só contém blocos; as tags de estilo vão dentro de um p"));
                 }
                 if o.leniente && TAGS_TRANSPARENTES.contains(&tag) {
                     flush(pend, o, out)?;
@@ -304,8 +304,8 @@ fn nivel_bloco<'a>(
                         pend.push(no);
                         continue;
                     }
-                    return Err(Erro::novo(format!("<{tag}> direto no <prose>"), *pos).dica(
-                        "dentro de um <prose> cabem p, h1–h6, blockquote, ul, ol, figure, img, pre e hr",
+                    return Err(Erro::novo(format!("{tag} direto no prose"), *pos).dica(
+                        "dentro de um prose cabem p, h1–h6, blockquote, ul, ol, figure, img, pre e hr",
                     ));
                 }
                 flush(pend, o, out)?;
@@ -354,11 +354,11 @@ fn bloco(no: &No, o: Opcoes, out: &mut Vec<Bloco>) -> Result<(), Erro> {
                             continue;
                         }
                         let (nome, p) = match other {
-                            No::Elem { tag, pos, .. } => (format!("<{tag}>"), *pos),
+                            No::Elem { tag, pos, .. } => (format!("{tag}"), *pos),
                             No::Texto(_, p) => ("texto solto".to_string(), *p),
                         };
-                        return Err(Erro::novo(format!("{nome} dentro de <{tag}>"), p)
-                            .dica("uma lista só contém <li>"));
+                        return Err(Erro::novo(format!("{nome} dentro de {tag}"), p)
+                            .dica("uma lista só contém li"));
                     }
                 }
             }
@@ -393,15 +393,15 @@ fn bloco(no: &No, o: Opcoes, out: &mut Vec<Bloco>) -> Result<(), Erro> {
                     }
                     No::Texto(t, p) => {
                         if !t.trim().is_empty() && !o.leniente {
-                            return Err(Erro::novo("texto solto dentro de <blockquote>", *p)
-                                .dica("a citação contém <p> e, se quiser, um <footer> com a autoria"));
+                            return Err(Erro::novo("texto solto dentro de blockquote", *p)
+                                .dica("a citação contém p e, se quiser, um footer com a autoria"));
                         }
                         soltos.push(f.clone());
                     }
                     No::Elem { tag, pos, .. } => {
                         if !o.leniente {
-                            return Err(Erro::novo(format!("<{tag}> dentro de <blockquote>"), *pos)
-                                .dica("a citação só contém <p> e <footer>"));
+                            return Err(Erro::novo(format!("{tag} dentro de blockquote"), *pos)
+                                .dica("a citação só contém p e footer"));
                         }
                         soltos.push(f.clone());
                     }
@@ -420,7 +420,7 @@ fn bloco(no: &No, o: Opcoes, out: &mut Vec<Bloco>) -> Result<(), Erro> {
                     No::Elem { tag, .. } if tag == "figcaption" => legenda = conteudo_de(f),
                     No::Texto(t, _) if t.trim().is_empty() => {}
                     No::Texto(_, p) | No::Elem { pos: p, .. } if !o.leniente => {
-                        return Err(Erro::novo("só <img> e <figcaption> cabem num <figure>", *p));
+                        return Err(Erro::novo("só img e figcaption cabem num figure", *p));
                     }
                     _ => {}
                 }
@@ -429,8 +429,8 @@ fn bloco(no: &No, o: Opcoes, out: &mut Vec<Bloco>) -> Result<(), Erro> {
                 Some(i) => out.push(figura(i, &legenda, o)?),
                 None if o.leniente => {}
                 None => {
-                    return Err(Erro::novo("<figure> sem <img>", *pos)
-                        .dica("<figure><img src=\"…\" alt=\"…\"/><figcaption>legenda</figcaption></figure>"));
+                    return Err(Erro::novo("figure sem img", *pos)
+                        .dica("figure { img(src = \"…\", alt = \"…\") figcaption(\"legenda\") }"));
                 }
             }
         }
@@ -441,13 +441,13 @@ fn bloco(no: &No, o: Opcoes, out: &mut Vec<Bloco>) -> Result<(), Erro> {
 
 fn figura(img: &No, legenda: &[No], o: Opcoes) -> Result<Bloco, Erro> {
     let pos = if let No::Elem { pos, .. } = img { *pos } else { None };
-    let src = img.attr(&["src", "source", "caminho"]).unwrap_or_default().trim().to_string();
+    let src = img.attr(&["src", "source"]).unwrap_or_default().trim().to_string();
     if src.is_empty() && !o.leniente {
-        return Err(Erro::novo("<img> sem src", pos));
+        return Err(Erro::novo("img sem src", pos));
     }
     Ok(Bloco::Figura {
         src,
-        alt: img.attr(&["alt", "texto"]).unwrap_or_default().to_string(),
+        alt: img.attr(&["alt"]).unwrap_or_default().to_string(),
         legenda: spans_de(legenda, o)?,
     })
 }
@@ -457,7 +457,7 @@ fn figura(img: &No, legenda: &[No], o: Opcoes) -> Result<Bloco, Erro> {
 fn conteudo_de(no: &No) -> Vec<No> {
     let No::Elem { filhos, .. } = no else { return Vec::new() };
     let mut v = Vec::with_capacity(filhos.len() + 1);
-    if let Some(c) = no.attr(&["content", "conteudo", "conteúdo", "text", "texto"]) {
+    if let Some(c) = no.attr(&["content", "text"]) {
         v.push(No::Texto(c.to_string(), None));
     }
     v.extend(filhos.iter().cloned());
@@ -558,28 +558,28 @@ fn coletar(
                         out.push(TextSpan { content: "\n".into(), ..base.clone() });
                         continue;
                     }
-                    "b" | "strong" | "negrito" => estilo.bold = true,
-                    "i" | "em" | "italico" | "itálico" | "cite" => estilo.italic = true,
-                    "code" | "codigo" | "código" | "kbd" | "samp" => estilo.code = true,
-                    "u" | "underline" | "sublinhado" | "ins" => estilo.underline = true,
-                    "s" | "del" | "strike" | "tachado" => estilo.strike = true,
+                    "b" | "strong" => estilo.bold = true,
+                    "i" | "em" | "cite" => estilo.italic = true,
+                    "code" | "kbd" | "samp" => estilo.code = true,
+                    "u" | "underline" | "ins" => estilo.underline = true,
+                    "s" | "del" | "strike" => estilo.strike = true,
                     "mark" => estilo.bold = true,
                     "a" => {
                         let link = ler_link(f, o, *pos)?;
                         estilo.link = link;
                     }
                     "span" => {
-                        estilo.bold |= f.attr(&["bold", "negrito"]).is_some_and(|v| v == "true" || v == "1");
+                        estilo.bold |= f.attr(&["bold"]).is_some_and(|v| v == "true" || v == "1");
                     }
                     "small" | "abbr" | "var" | "sub" | "sup" => {}
                     other => {
                         if !o.leniente {
-                            return Err(Erro::novo(format!("<{other}> dentro de um parágrafo"), *pos)
-                                .dica("um parágrafo só tem texto e as tags b, i, code, u, s, span e a (um <p> não entra em outro <p>)"));
+                            return Err(Erro::novo(format!("{other} dentro de um parágrafo"), *pos)
+                                .dica("um parágrafo só tem texto e as tags b, i, code, u, s, span e a (um p não entra em outro p)"));
                         }
                     }
                 }
-                if let Some(c) = f.attr(&["color", "cor"]).filter(|c| cor_valida(c)) {
+                if let Some(c) = f.attr(&["color"]).filter(|c| cor_valida(c)) {
                     estilo.color = Some(c.trim().to_string());
                 }
                 coletar(&conteudo_de(f), &estilo, o, out, fundo + 1)?;
@@ -596,8 +596,8 @@ fn cor_valida(c: &str) -> bool {
 
 fn ler_link(a: &No, o: Opcoes, pos: Option<usize>) -> Result<Option<SpanLink>, Erro> {
     let href = a.attr(&["href", "url"]).map(str::to_string);
-    let navigate = a.attr(&["navigateTo", "navigate_to", "navigate-to", "navigate", "irPara", "ir_para"]);
-    let on_click = a.attr(&["onClick", "on_click", "on-click", "aoClicar", "ao_clicar", "onclick"]);
+    let navigate = a.attr(&["navigate_to", "navigate"]);
+    let on_click = a.attr(&["on_click", "onclick"]);
     if o.confiavel {
         return Ok(Some(SpanLink {
             href,
@@ -688,7 +688,7 @@ fn entidade(nome: &str) -> Option<char> {
 
 /// Um parser de HTML **tolerante**, só do que um texto de leitura usa: tags, atributos,
 /// comentários, entidades, elementos vazios, `<p>` e `<li>` que fecham sozinhos e
-/// fechamentos fora de ordem. Não é o algoritmo do HTML5 — o `<prose>` descarta o que
+/// fechamentos fora de ordem. Não é o algoritmo do HTML5 — o `prose` descarta o que
 /// não reconhece de qualquer jeito.
 pub fn parse_html(src: &str) -> Vec<No> {
     struct Aberto {
@@ -865,7 +865,7 @@ pub fn parse_html(src: &str) -> Vec<No> {
 
 // ───────────────────────────── o conteúdo dinâmico ─────────────────────────────
 
-/// Lê o texto de um `<prose syntax="…" content="…">`. Nunca falha: um conteúdo ruim
+/// Lê o texto de um `prose(syntax = "…", content = "…")`. Nunca falha: um conteúdo ruim
 /// vira um [`Bloco::Erro`] visível na tela, e o resto da tela segue de pé.
 pub fn de_conteudo(sintaxe: Sintaxe, conteudo: &str) -> Vec<Bloco> {
     if conteudo.len() > LIMITE_BYTES {

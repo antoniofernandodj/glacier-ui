@@ -1,24 +1,24 @@
 /// `QFontComboBox`: a lista de famílias de fonte, **cada uma desenhada nela
 /// mesma**.
 ///
-/// ```xml
-/// <fontselect :value="fonte" selected="{fonte}" preview="Sphinx of black quartz" />
+/// ```gv
+/// fontselect(:value = fonte, selected = @fonte, preview = "Sphinx of black quartz")
 /// ```
 ///
 /// # Por que é builtin, e a 16ª correção de nível
 ///
 /// O catálogo (§2.4) marcava o `FontComboBox` como `Comp ●` — "exige estado por
 /// instância". Não exige: a família escolhida é **um texto numa chave que o app
-/// nomeia** (`value="fonte"`), o padrão do `<SpinBox>` pela enésima vez. O que
+/// nomeia** (`value="fonte"`), o padrão do `SpinBox` pela enésima vez. O que
 /// faltava não era o motor, era o **registro de famílias** — a Onda 10
 /// (`src/fonts.rs`), que também semeia a chave `__fonts` de onde esta lista lê
 /// por padrão.
 ///
-/// # O que o separa de um `<select>` qualquer
+/// # O que o separa de um `select` qualquer
 ///
-/// Uma linha: `font="{familia}"` no `<Text>` de cada item. Um `<pick_list>` do
+/// Uma linha: `font="{familia}"` no `Text` de cada item. Um `pick_list` do
 /// `iced` não deixa estilizar cada opção do dropdown; por isso o corpo é uma
-/// lista de botões (a forma do `<listview>`), onde cada rótulo é um nó que
+/// lista de botões (a forma do `listview`), onde cada rótulo é um nó que
 /// aceita `font=` — e aí o nome "JetBrains Mono" aparece **em** JetBrains Mono.
 ///
 /// # Props
@@ -49,58 +49,43 @@ impl Component for FontSelect {
 
     fn template(&self) -> Template {
         // `for-each="{items|__fonts}"` sobre um array de STRINGS — `var="fam"`
-        // dá a string nua (como o `<Chip for-each="tags">` da Onda 11), não um
+        // dá a string nua (como o `Chip(:for-each = tags)` da Onda 11), não um
         // `{it.id}`/`{it.label}`.
         Template::Inline(
-            r#"<Column spacing="8" width="{width|fill}" class="{class}">
-                    <style>
-                        .fontselect-item {
-                            color: #00000000;
-                            text-color: #cdd6f4;
-                            border-width: 0;
-                            border-radius: 5;
+            r##"
+                column(spacing = 8, width = "{width|fill}", class = @class) {
+                  style """
+                                        .fontselect-item {
+                                            color: #00000000;
+                                            text_color: #cdd6f4;
+                                            border_width: 0;
+                                            border_radius: 5;
+                                        }
+                                        .fontselect-item:hover { background: #8080803d; }
+                                        .fontselect-item-sel { color: #8080805c; }
+                                        .fontselect-preview { color: #a6adc8; }
+                                    """
+                  scrollable(width = fill, height = "{height|220}") {
+                    column(spacing = 2, width = fill) {
+                      template(:for_each = "{items|__fonts}", var = fam) {
+                        template(if = @fam, equals = @selected) {
+                          button(class = "fontselect-item fontselect-item-sel {item_class} {selected_class}", on_click = "pick:{value}|{fam}", padding = "8 12", width = fill) {
+                            text(content = @fam, font = @fam, size = "{size|15}")
+                          }
                         }
-                        .fontselect-item:hover { background: #8080803d; }
-                        .fontselect-item-sel { color: #8080805c; }
-                        .fontselect-preview { color: #a6adc8; }
-                    </style>
-
-                    <Scrollable width="fill" height="{height|220}">
-                        <Column spacing="2" width="fill">
-                            <template for-each="{items|__fonts}" var="fam">
-                                <template if="{fam}" equals="{selected}">
-                                    <Button
-                                        class="fontselect-item fontselect-item-sel {item_class} {selected_class}"
-                                        on_click="pick:{value}|{fam}"
-                                        padding="8 12"
-                                        width="fill"
-                                    >
-                                        <Text content="{fam}" font="{fam}" size="{size|15}" />
-                                    </Button>
-                                </template>
-                                <template else>
-                                    <Button
-                                        class="fontselect-item {item_class}"
-                                        on_click="pick:{value}|{fam}"
-                                        padding="8 12"
-                                        width="fill"
-                                    >
-                                        <Text content="{fam}" font="{fam}" size="{size|15}" />
-                                    </Button>
-                                </template>
-                            </template>
-                        </Column>
-                    </Scrollable>
-
-                    <template if="{preview}" notEquals="">
-                        <Text
-                            class="fontselect-preview"
-                            content="{preview}"
-                            font="{selected}"
-                            size="18"
-                        />
-                    </template>
-                </Column>"#
+                        template(else) {
+                          button(class = "fontselect-item {item_class}", on_click = "pick:{value}|{fam}", padding = "8 12", width = fill) {
+                            text(content = @fam, font = @fam, size = "{size|15}")
+                          }
+                        }
+                      }
+                    }
+                  }
+                  template(if = @preview, not_equals = "") {
+                    text(class = fontselect-preview, content = @preview, font = @selected, size = 18)
+                  }
+                }
+            "##
                 .to_string(),
         )
     }
@@ -108,7 +93,7 @@ impl Component for FontSelect {
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
         // `pick:fonte|JetBrains Mono` — a chave que o app nomeou e a família
         // clicada. A chave viaja na ação porque o `update` não enxerga as props
-        // da instância (a mesma razão do payload do `<listview>`/`<spinbox>`).
+        // da instância (a mesma razão do payload do `listview`/`spinbox`).
         let Some(("pick", payload)) = action.split_once(':') else {
             return;
         };

@@ -19,7 +19,7 @@
 -- O que NÃO muda entre as duas versões é o mais importante: nenhum dos sete
 -- widgets pede uma linha de script. Paginação, seleção, seções, estrelas e
 -- máscara gravam as chaves sozinhos. O que está aqui é só o que é do APP —
--- recortar a lista, e reagir aos botões da `<buttonbox>`.
+-- recortar a lista, e reagir aos botões da `buttonbox`.
 
 -- A lista inteira, da qual a paginação recorta uma página. Num app de verdade
 -- viria de um backend; aqui é literal para o exemplo não depender de rede.
@@ -38,12 +38,12 @@ local SERVICOS: { { id: string, label: string } } = {
     { id = "backup", label = "Backup noturno" },
 }
 
--- Quantos itens cabem numa página. O `<pagination>` não sabe disto — ele conta
+-- Quantos itens cabem numa página. O `pagination` não sabe disto — ele conta
 -- PÁGINAS, não itens; recortar a lista é do app, porque só o app sabe o que é
 -- um item.
 local POR_PAGINA = 4
 
--- Recorta a página visível e a grava na chave que o `<listview>` lê.
+-- Recorta a página visível e a grava na chave que o `listview` lê.
 --
 -- É a divisão de trabalho da paginação: o widget escreve o número da página, o
 -- app decide o que aquele número significa.
@@ -92,7 +92,7 @@ function init()
     ctx.abertas = "rede"
     ctx.ferramenta = "medidas"
 
-    -- Campos. O `<maskedinput>` guarda o valor CRU aqui e mostra o mascarado na
+    -- Campos. O `maskedinput` guarda o valor CRU aqui e mostra o mascarado na
     -- tela, então começar vazio é o certo.
     ctx.cpf = ""
     ctx.telefone = ""
@@ -114,7 +114,7 @@ function init()
 end
 
 -- A paginação de cima tem `on_change`, então ela DELEGA: quem grava `pagina` é
--- esta função. É o mesmo contrato do `<textinput>` e do `<calendar>`, e aqui ele
+-- esta função. É o mesmo contrato do `textinput` e do `calendar`, e aqui ele
 -- paga o aluguel — o app precisa recortar a lista no mesmo passo em que a
 -- página muda, e não há gancho melhor.
 --

@@ -18,7 +18,7 @@ function init()
     ctx.progresso_fim = "—"
     ctx.cor = "#89B4FA"
 
-    -- Item 1: o resultado do `<dialog>` e as opções do `<select>` que vive
+    -- Item 1: o resultado do `dialog` e as opções do `select` que vive
     -- DENTRO dele. `cores_rotulo` é uma chave comum do app — o corpo do modal é
     -- avaliado no contexto do app, então enxerga tudo o que a tela enxerga.
     ctx.rotulo = "— nada ainda —"
@@ -30,9 +30,9 @@ function init()
     ]]
 end
 
--- ── Item 1: o botão "Salvar" do `<dialog name="editar_rotulo">` ─────────
+-- ── Item 1: o botão "Salvar" do `dialog(name = editar_rotulo)` ─────────
 --
--- Chega aqui como uma AÇÃO comum — a mesma rota de um `<button on_click>`. O
+-- Chega aqui como uma AÇÃO comum — a mesma rota de um `button(on_click)`. O
 -- motor já fechou o diálogo antes de despachar, e as chaves `__dialog.*` ainda
 -- estão no contexto neste instante (são apagadas logo depois, no fechamento).
 -- É o contraste com os suspensivos abaixo: nada de corrotina, nada de retorno —
@@ -166,7 +166,7 @@ function baixar_passo(i)
 end
 
 -- O cancelamento é uma AÇÃO comum, não um mecanismo novo: o botão despacha
--- `abortar_download` como qualquer `<button on_click>`, e o handler faz o que
+-- `abortar_download` como qualquer `button(on_click)`, e o handler faz o que
 -- o app quiser. O `QProgressDialog::wasCanceled()` vira uma chave que o laço
 -- consulta.
 function abortar_download()

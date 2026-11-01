@@ -7,10 +7,10 @@
 //! Nada de API nova — e **é essa a observação**, a mesma que a Onda 9 já
 //! tinha registrado do lado do script.
 //!
-//! O habilitador A (`<stack>`, `x=`/`y=`/`anchor=`) é markup puro: nenhuma das
-//! duas formas de posicionar um filho pede uma linha de `<script>`. O
+//! O habilitador A (`stack`, `x=`/`y=`/`anchor=`) é markup puro: nenhuma das
+//! duas formas de posicionar um filho pede uma linha de `script`. O
 //! habilitador B (`grip::Alvo::Ponto`) escreve direto nas quatro chaves que
-//! um `<mdisubwindow>` nomeia — o mesmo binding que um `<slider>` já usava
+//! um `mdisubwindow` nomeia — o mesmo binding que um `slider` já usava
 //! desde a 0.63, só que em duas dimensões de uma vez.
 //!
 //! O que sobra para o script fazer são quatro coisas pequenas: semear

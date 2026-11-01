@@ -2,7 +2,7 @@
 examples/foreach_fallback/app.gss — visual da cozinha.
 
 Nada aqui pinta área grande (ver "As três regras de estilo" no AGENTS.md): o
-fundo é do theme.json, as etapas se separam por espaçamento e `<rule />`, o
+fundo é do theme.json, as etapas se separam por espaçamento e `rule`, o
 cartão de pedido tem só borda, e canto arredondado fica nos botões.
 */
 

@@ -1,7 +1,7 @@
 # {{titulo}}
 
 App Android com [glacier-ui](https://crates.io/crates/glacier-ui): o layout mora
-em blocos (`.gv`), o estilo num `.gss` e o comportamento num `<script>` Luau — o
+em blocos (`.gv`), o estilo num `.gss` e o comportamento num `script` Luau — o
 mesmo código roda no desktop (onde se desenvolve) e no celular.
 
 > **Preset experimental.** O glacier-ui ainda não foi adaptado ao Android: este
@@ -31,7 +31,7 @@ No Windows não há `make`: `fazer setup`, `fazer doctor`, `fazer build`,
 |---|---|
 | `src/lib.rs` | o app (`run()`) + `glacier_ui::android_main!(run)`, que gera o ponto de entrada do `NativeActivity` |
 | `src/main.rs` | o desktop: chama o mesmo `run()` |
-| `views/app.gv` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
+| `views/app.gv` | a tela: `screen` + `resources` + layout + `script` |
 | `views/styles/` | `theme.json` (fundo da janela) e `app.gss` (paleta e classes) |
 | `Makefile` / `fazer.bat` | setup da máquina, build, instalação, logcat |
 | `ANDROID_TODO.md` | o que ainda não funciona no Android |

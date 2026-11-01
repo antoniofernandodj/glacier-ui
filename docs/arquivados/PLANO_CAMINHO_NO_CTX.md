@@ -14,7 +14,7 @@
 ## 1. Diagnóstico
 
 O markup não consegue ler `msg.ola` porque **o contexto é um mapa plano e o motor só
-resolve `var.campo` para a variável de um `for-each`**.
+resolve `var.campo` para a variável de um `for_each`**.
 
 - `@msg.ola` vira o placeholder `{msg.ola}`; `process_tpl` (`src/eval.rs:1105`) faz
   `context.get("msg.ola")`.
@@ -22,7 +22,7 @@ resolve `var.campo` para a variável de um `for-each`**.
   procura a chave exata, primeiro nas camadas locais e depois em `self.base.get(key)`,
   que é o `ContextMap` plano.
 - A única coisa que entende `var.campo` é `ItemVars::get` (`src/eval.rs:540`), e só para a
-  variável de um `for-each` (`var = t` → `@t.tag`). Nem aí há caminho aninhado:
+  variável de um `for_each` (`var = t` → `@t.tag`). Nem aí há caminho aninhado:
   `@t.endereco.cidade` procura um campo literalmente chamado `endereco.cidade`.
 - `ctx.msg = { ola = "mundo" }` grava **uma** chave, `msg`, com o texto
   `{"ola":"mundo"}`. A chave `msg.ola` nunca existe, e uma chave ausente interpola como
@@ -54,9 +54,9 @@ Resolver o caminho **dentro do `EvalCtx::lookup`**, como fallback — não antes
    (`msg`), interpretar o valor dele como JSON e descer pelos segmentos restantes.
    - objeto: campo pelo nome; array: segmento numérico é o índice (`@lista.0.nome`);
    - folha string sai crua; número/booleano pelo texto canônico (`3`, `true`); objeto ou
-     array sai como JSON (é o que `spread=` e `for-each` esperam); `null` ou caminho
+     array sai como JSON (é o que `spread=` e `for_each` esperam); `null` ou caminho
      inexistente = ausente (e então vale o `{msg.x|padrão}`);
-   - o mesmo para uma variável de `for-each` (`@t.endereco.cidade`).
+   - o mesmo para uma variável de `for_each` (`@t.endereco.cidade`).
 
 Por que no `lookup`: ele é o único ponto de leitura, então `{…}`, `{k|padrão}`, `if`/`equals`,
 atributos interpolados e o rastreamento de dependências ganham o caminho de uma vez. O cache
@@ -88,11 +88,11 @@ de `msg` muda.
 1. **Teste que reproduz.** No harness (`glacier test`): `ctx.msg = { ola = "mundo" }` +
    `assert_has_text(tela, "mundo")` (falha hoje) e `assert_complete` listando `msg.ola`.
    Casos: caminho aninhado; índice de array; folha número/booleano; objeto/array como folha;
-   `null` e inexistente com `{msg.x|padrão}`; chave com ponto literal vence; `for-each` com
+   `null` e inexistente com `{msg.x|padrão}`; chave com ponto literal vence; `for_each` com
    `@t.endereco.cidade`; o cache invalida quando só o campo lido muda, e **não** quando muda
    outro campo.
 2. **Motor.** O fallback no `EvalCtx::lookup` + o memo do JSON; manter o caminho exato intacto.
-3. **Coleções e widgets.** O auxiliar compartilhado em `for-each`, `:items`, `:options`,
+3. **Coleções e widgets.** O auxiliar compartilhado em `for_each`, `:items`, `:options`,
    `:columns` etc.
 4. **Diagnóstico.** O ajuste do `missing()` e o aviso em `stderr`.
 5. **Medição** (o mesmo harness da Fase 2 do `PLANO_CTX_TIPADO.md`): leitura **plana** sem
@@ -107,7 +107,7 @@ de `msg` muda.
 1. **Índice de array no caminho** (`@lista.0.nome`): **entra agora.** Custa uma linha e fecha
    o caso `@itens.0`. O segmento numérico indexa um array (base 0); num objeto, é o nome do
    campo.
-2. **Folha objeto/array:** **sai como o JSON em texto** (casa com `spread=` e com `for-each`).
+2. **Folha objeto/array:** **sai como o JSON em texto** (casa com `spread=` e com `for_each`).
 3. **Escrever em caminho** (`ctx["msg.ola"] = x` atualizando `msg.ola` dentro da tabela): **fora
    do escopo.** Hoje isso grava uma chave plana de nome `msg.ola` — e, com a leitura por
    caminho, ela passa a **sombrear** o campo da tabela (a chave exata vence). Aceitável e

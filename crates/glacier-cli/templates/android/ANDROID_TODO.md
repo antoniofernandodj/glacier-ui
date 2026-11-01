@@ -110,24 +110,24 @@ Hoje `open_window` abre **uma janela do SO** (um `GlacierUI` por janela,
 
 - [ ] **Toque ≠ mouse.** `:hover` não existe no toque (e "gruda" depois do
       toque em alguns casos); `:active` precisa valer no `touch down`.
-- [ ] **Rolagem por gesto** com inércia em `<scrollable>` e `<tableview>`; arrastar não pode disparar `on_click`.
+- [ ] **Rolagem por gesto** com inércia em `scrollable` e `tableview`; arrastar não pode disparar `on_click`.
 - [ ] **Pressionar e segurar** como clique direito (menus de contexto) e como "mostrar tooltip".
 - [ ] **Teclado virtual / IME.** O `NativeActivity` do winit tem suporte fraco a
-      IME; `<textinput>`/`<textarea>`/`<maskedinput>` podem não abrir o
+      IME; `textinput`/`textarea`/`maskedinput` podem não abrir o
       teclado. Avaliar `GameActivity` (`android-game-activity`), que exige uma
       parte Java/Kotlin no APK, ou JNI direto (`showSoftInput`).
 - [ ] **Seleção de texto** com as alças do Android; copiar/colar (a
       `window_clipboard` no Android: não verificado).
-- [ ] Alvos de toque: os widgets do motor (`<checkbox>`, `<slider>`, `<switch>`…) têm área de acerto de desktop (~20px). Um modo
+- [ ] Alvos de toque: os widgets do motor (`checkbox`, `slider`, `switch`…) têm área de acerto de desktop (~20px). Um modo
       "touch" no tema que aumente o `padding` mínimo.
 
 ## Widgets e APIs sem equivalente direto
 
-- [ ] `<tray>` / bandeja, `single_instance`: não se aplicam — ignorar com aviso.
+- [ ] `tray` / bandeja, `single_instance`: não se aplicam — ignorar com aviso.
 - [ ] Barra de título própria (`completo`: janela sem decoração): não se aplica;
       no Android quem manda é a status bar.
 - [ ] `open_file`, `open_files`, `save_file`, `pick_folder`: ver `rfd` acima.
-- [ ] `<menubar>`/`<menu>` estilo desktop: pensar em *bottom sheet* / *app bar*.
+- [ ] `menubar`/`menu` estilo desktop: pensar em *bottom sheet* / *app bar*.
 - [ ] `prompt{}`/`confirm{}` desenhados pelo motor devem funcionar
       (são widgets), mas conferir foco e teclado virtual dentro deles.
 - [ ] Fontes: o preset embute Fira Sans (feature `fira-sans` do `iced`). Texto

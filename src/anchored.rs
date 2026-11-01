@@ -1,13 +1,13 @@
 //! `Anchored`: um painel que **flutua sobre a tela**, ancorado a um widget —
 //! o habilitador B da Onda 5 do `PLANO_WIDGETS.md`, e o motor por trás de
-//! `<popover>`, `<popup>`, `<autocomplete>` e do `calendarPopup` do
-//! `<dateedit>`.
+//! `popover`, `popup`, `autocomplete` e do `calendarPopup` do
+//! `dateedit`.
 //!
-//! ```xml
-//! <popover :open="menu_usuario" placement="bottom" align="end">
-//!     <button slot="anchor" text="Antônio ▾" on_click="app:toggle:menu_usuario" />
-//!     <column class="painel"> … </column>
-//! </popover>
+//! ```gv
+//! popover(:open = menu_usuario, placement = bottom, align = end) {
+//!   button(slot = anchor, text = "Antônio ▾", on_click = "app:toggle:menu_usuario")
+//!   column("…", class = painel)
+//! }
 //! ```
 //!
 //! # Por que este módulo existe, e não mais um `stack![]`
@@ -47,9 +47,9 @@
 //! | `anchor` | no fluxo normal, onde o markup o pôs | sempre |
 //! | `content` | numa camada por cima de tudo | só com `open` |
 //!
-//! O `anchor` é o que dá o **lugar**: mesmo num `<popup>` centrado na janela
+//! O `anchor` é o que dá o **lugar**: mesmo num `popup` centrado na janela
 //! (que não usa a âncora para posicionar) ele continua sendo o gatilho, e é
-//! quem o `Tab` alcança. Um popover sem gatilho nenhum escreve um `<space/>`
+//! quem o `Tab` alcança. Um popover sem gatilho nenhum escreve um `space`
 //! ali — o motor faz isso sozinho quando o markup não marca `slot="anchor"`.
 //!
 //! # Quem fecha o painel
@@ -72,9 +72,9 @@
 //!
 //! # O que ele **não** faz
 //!
-//! Modalidade. Um `<dialog>` bloqueia a tela atrás dele (ver `DIALOGS.md`);
+//! Modalidade. Um `dialog` bloqueia a tela atrás dele (ver `DIALOGS.md`);
 //! este painel não escurece nada nem impede o resto de existir — ele só está
-//! por cima. É a diferença entre `QDialog` e `QMenu`, e é a razão de `<popup>`
+//! por cima. É a diferença entre `QDialog` e `QMenu`, e é a razão de `popup`
 //! não ser um diálogo centrado: um diálogo já existe.
 
 use iced::advanced::layout::{self, Layout};
@@ -102,8 +102,8 @@ pub enum Placement {
     Right,
     /// À esquerda.
     Left,
-    /// **Ignora a âncora** e centra o painel na janela. É o `<popup>`: a mesma
-    /// primitiva sem ancoragem, pelo padrão `<dateedit>`/`<timeedit>`.
+    /// **Ignora a âncora** e centra o painel na janela. É o `popup`: a mesma
+    /// primitiva sem ancoragem, pelo padrão `dateedit`/`timeedit`.
     Center,
 }
 
@@ -112,10 +112,10 @@ impl Placement {
     /// em pt-BR que o resto do markup aceita.
     pub fn parse(s: &str) -> Self {
         match s.trim().to_ascii_lowercase().as_str() {
-            "top" | "acima" | "cima" => Self::Top,
-            "right" | "direita" => Self::Right,
-            "left" | "esquerda" => Self::Left,
-            "center" | "centro" | "centro_janela" | "screen" => Self::Center,
+            "top" => Self::Top,
+            "right" => Self::Right,
+            "left" => Self::Left,
+            "center" | "screen" => Self::Center,
             _ => Self::Bottom,
         }
     }
@@ -144,8 +144,8 @@ pub enum Align {
 impl Align {
     pub fn parse(s: &str) -> Self {
         match s.trim().to_ascii_lowercase().as_str() {
-            "center" | "centro" | "middle" | "meio" => Self::Center,
-            "end" | "fim" | "final" | "right" | "direita" | "bottom" | "baixo" => Self::End,
+            "center" | "middle" => Self::Center,
+            "end" | "right" | "bottom" => Self::End,
             _ => Self::Start,
         }
     }
@@ -166,7 +166,7 @@ pub enum Largura {
     /// O que o conteúdo pedir. O default.
     #[default]
     Natural,
-    /// Exatamente a do gatilho — o que um `<autocomplete>` quer, e o que faz a
+    /// Exatamente a do gatilho — o que um `autocomplete` quer, e o que faz a
     /// lista de sugestões parecer parte do campo em vez de um painel solto.
     Ancora,
     /// Um número de pixels, escrito no markup.
@@ -194,8 +194,8 @@ pub struct Anchored<'a, Message> {
     /// faz *além* do que o markup pediu, não em vez disso.
     on_open: Option<Message>,
     /// Navegação por teclado **enquanto o painel está aberto** — ▲, ▼ e Enter.
-    /// É o que faz um `<autocomplete>` ser usável sem o mouse, e mora aqui (e
-    /// não num listener global como o do `<datetimeedit>`) porque o overlay
+    /// É o que faz um `autocomplete` ser usável sem o mouse, e mora aqui (e
+    /// não num listener global como o do `datetimeedit`) porque o overlay
     /// recebe o evento antes de qualquer outra coisa: nem o `text_input`
     /// focado logo abaixo chega a ver a tecla.
     on_prev: Option<Message>,
@@ -254,7 +254,7 @@ impl<'a, Message> Anchored<'a, Message> {
     }
 
     /// A mensagem publicada quando o gatilho é pressionado com o painel
-    /// fechado — é o que faz um `<popover>` abrir sem uma linha de app.
+    /// fechado — é o que faz um `popover` abrir sem uma linha de app.
     pub fn on_open(mut self, m: Option<Message>) -> Self {
         self.on_open = m;
         self
@@ -262,7 +262,7 @@ impl<'a, Message> Anchored<'a, Message> {
 
     /// ▲, ▼ e Enter enquanto o painel está aberto. Cada uma consome a tecla —
     /// declarar só as que fazem sentido é o que deixa Enter passar para o
-    /// `<textinput>` de baixo quando o painel não é uma lista.
+    /// `textinput` de baixo quando o painel não é uma lista.
     pub fn on_keys(
         mut self,
         prev: Option<Message>,
@@ -342,7 +342,7 @@ where
         let layout_gatilho = layout.children().next().unwrap();
 
         // Abrir vem ANTES de o gatilho ver o evento, e por um motivo concreto:
-        // um `<button>` **consome** o pressionar dentro dos limites dele, então
+        // um `button` **consome** o pressionar dentro dos limites dele, então
         // um `mouse_area` por fora nunca chegaria a disparar. Aqui, quem manda
         // na ordem somos nós.
         //
@@ -419,7 +419,7 @@ where
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
         // `split_at_mut` porque as duas metades saem daqui emprestadas ao mesmo
-        // tempo: o gatilho pode ter overlay dele (um `<select>` no botão), e o
+        // tempo: o gatilho pode ter overlay dele (um `select` no botão), e o
         // painel é o nosso.
         let (gatilho_el, painel_el) = self.children.split_at_mut(1);
         let (gatilho_tree, painel_tree) = tree.children.split_at_mut(1);
@@ -486,7 +486,7 @@ where
 {
     fn layout(&mut self, renderer: &iced::Renderer, bounds: Size) -> layout::Node {
         // O teto é a janela inteira; um painel maior que ela vira um painel do
-        // tamanho dela (e o `<scrollable>` de dentro, se houver, cuida do
+        // tamanho dela (e o `scrollable` de dentro, se houver, cuida do
         // resto).
         let mut limites = layout::Limits::new(Size::ZERO, bounds);
         limites = match self.largura {
@@ -525,7 +525,7 @@ where
         }
 
         // ▲ ▼ Enter, antes de qualquer coisa lá embaixo: é aqui que a lista de
-        // sugestões do `<autocomplete>` ganha do `text_input` focado — ele
+        // sugestões do `autocomplete` ganha do `text_input` focado — ele
         // nem chega a ver a tecla.
         if let Event::Keyboard(keyboard::Event::KeyPressed {
             key: keyboard::Key::Named(nomeada),
@@ -553,7 +553,7 @@ where
         let dispensa = match event {
             // Só o **pressionar**. `FingerMoved`/`FingerLifted` entrariam num
             // arrasto que começou dentro do painel e saiu dele — o cursor de um
-            // `<slider>` no meio do caminho —, e o painel se fecharia debaixo do
+            // `slider` no meio do caminho —, e o painel se fecharia debaixo do
             // dedo.
             Event::Mouse(mouse::Event::ButtonPressed(_))
             | Event::Touch(iced::touch::Event::FingerPressed { .. }) => !cursor.is_over(limites),
@@ -629,7 +629,7 @@ where
         layout: Layout<'c>,
         renderer: &iced::Renderer,
     ) -> Option<overlay::Element<'c, Message, iced::Theme, iced::Renderer>> {
-        // Um `<select>` dentro do painel abre o menu dele por aqui — é a
+        // Um `select` dentro do painel abre o menu dele por aqui — é a
         // cascata que o `menu.rs` faz à mão, e que o `iced` já sabe aninhar.
         self.content.as_widget_mut().overlay(
             self.tree,

@@ -8,7 +8,7 @@ screen(title = "Glacier - Componentes por atributo", size = "980 720") {
 
     // ======================================================================
     // Os componentes abaixo não são usados por tag nesta tela: eles viajam
-    // por ATRIBUTO até a <Vitrine>, que decide onde cada um aparece.
+    // por ATRIBUTO até a Vitrine, que decide onde cada um aparece.
     //
     //     <Vitrine cabecalho="TituloDestaque" linha="LinhaTarefa"
     //             vazio="ListaVazia" … />
@@ -76,7 +76,7 @@ screen(title = "Glacier - Componentes por atributo", size = "980 720") {
       }
     }
 
-    // Um fallback enxerga o contexto de quem escreveu o <foreach>: o
+    // Um fallback enxerga o contexto de quem escreveu o foreach: o
     // `{filtro}` abaixo é a chave da tela.
     component(name = SemResultado) {
       column(class = vazio) {
@@ -140,11 +140,11 @@ screen(title = "Glacier - Componentes por atributo", size = "980 720") {
           text(class = secao, content = "Concluídas")
 
           text(
-            class = nota,
-            content = """
+            """
               Aqui o fallback é literal, no foreach_fallback de um <template
               foreach> escrito direto na tela.
             """,
+            class = nota,
           )
 
           template(

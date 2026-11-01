@@ -20,30 +20,30 @@ screen(
       scrollable {
         column(class = corpo-rolavel) {
           text(
-            class = lead,
-            content = """
-              O `<stack>` empilha filhos no mesmo espaço. Um filho com `anchor=`
+            """
+              O `stack` empilha filhos no mesmo espaço. Um filho com `anchor=`
               gruda num dos nove cantos sem precisar de coordenada; um filho com
               `x=`/`y=` usa posição livre em pixels (`pin`). Os dois são atributos
               de MARKUP — nenhum dos dois pede uma linha de script.
             """,
+            class = lead,
           )
 
           column(class = "bloco bloco-fill") {
             text(class = secao, content = "SplashScreen")
 
             text(
-              class = nota,
-              content = """
+              """
                 Cobre o conteúdo principal enquanto `show` for verdadeiro. Sem
-                animação — um `<reveal>` não interpola um filho `height="fill"` (a
+                animação — um `reveal` não interpola um filho `height="fill"` (a
                 armadilha do `Length::Fill`, ver `PRIMITIVAS.md`).
               """,
+              class = nota,
             )
 
             button(text = "reabrir a splash", on_click = abrir_splash)
 
-            SplashScreen(
+            splashscreen(
               show = @carregando, height = 220, class = demo-splash,
             ) {
               container(class = conteudo-real) {
@@ -99,7 +99,7 @@ screen(
               text(class = secao, content = "NotificationDot")
 
               row(class = notif-linha) {
-                NotificationDot(show = @tem_notificacao) {
+                notificationdot(show = @tem_notificacao) {
                   container(class = icone-sino) {
                     text(class = icone-emoji, content = "🔔")
                   }
@@ -109,12 +109,12 @@ screen(
               }
 
               text(
-                class = nota,
-                content = """
-                  `<stack>` (a primeira camada) + `anchor="top-right"` (a segunda)
+                """
+                  `stack` (a primeira camada) + `anchor="top-right"` (a segunda)
                   — sem `pin`, porque um canto não precisa saber o tamanho do
                   ícone. tem_notificacao: @tem_notificacao
                 """,
+                class = nota,
               )
             }
           }
@@ -126,15 +126,15 @@ screen(
     if @aba == "mdi" {
       column(class = corpo) {
         text(
-          class = lead,
-          content = """
+          """
             Duas janelas nomeiam QUATRO chaves cada (`x_var`/`y_var`/`w_var`/
             `h_var` — a forma curta `x`/`y`/`w`/`h` também funciona, mas colide de
-            NOME com o `x`/`y` do `<stack>` acima). Arraste a barra de título para
+            NOME com o `x`/`y` do `stack` acima). Arraste a barra de título para
             mover; arraste o canto inferior direito para redimensionar — o MESMO
             `grip::Alvo::Ponto`, com limites diferentes. O arrasto inteiro é do
             MOTOR: nenhuma das quatro chaves tem função Luau nenhuma por trás.
           """,
+          class = lead,
         )
 
         mdiarea(class = mdi-fundo) {
@@ -165,11 +165,11 @@ screen(
               text(class = secao, content = "Console")
 
               text(
-                class = nota,
-                content = """
+                """
                   Esta janela não recebeu seed nem para `w`/`h` — nasce em
                   `default_w`/`default_h` (300×180), do markup.
                 """,
+                class = nota,
               )
             }
           }
@@ -182,11 +182,11 @@ screen(
       scrollable {
         column(class = corpo-rolavel) {
           text(
-            class = lead,
-            content = """
+            """
               Cinco widgets pequenos que a §6.3 do `PLANO_WIDGETS.md` guardava
               como "não abre rodada sozinho" — a Onda 11 passou no lugar deles.
             """,
+            class = lead,
           )
 
           row(class = linha) {
@@ -200,11 +200,11 @@ screen(
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   `on_change="qr_texto"` sem função Luau nenhuma com esse nome: o
                   `dispatch` cai no binding legado `ctx.qr_texto = value` sozinho.
                 """,
+                class = nota,
               )
             }
 
@@ -212,19 +212,19 @@ screen(
               text(class = secao, content = "Chip")
 
               row(class = chip-linha) {
-                Chip(
-                  :for-each = tags, var = tag, label = @tag,
+                chip(
+                  :for_each = tags, var = tag, label = @tag,
                   on_remove = remover_tag:@tag,
                 )
               }
 
               text(
-                class = nota,
-                content = """
+                """
                   `remover_tag:@tag` chama `remover_tag(tag)` — a convenção
                   `nome:sufixo` do dispatcher Luau, a mesma que um componente Rust
                   faria fatiando a string à mão.
                 """,
+                class = nota,
               )
             }
 
@@ -232,9 +232,9 @@ screen(
               text(class = secao, content = "Skeleton")
 
               column(class = skeleton-lista) {
-                Skeleton(width = 220, height = 14)
-                Skeleton(width = 180, height = 14)
-                Skeleton(width = fill, height = 60, radius = 8)
+                skeleton(width = 220, height = 14)
+                skeleton(width = 180, height = 14)
+                skeleton(width = fill, height = 60, radius = 8)
               }
             }
           }
@@ -243,13 +243,13 @@ screen(
             column(class = "bloco bloco-largo") {
               text(class = secao, content = "CommandLink")
 
-              CommandLink(
+              commandlink(
                 title = "Instalação típica",
                 description = "Recomendado para a maioria dos usuários",
                 on_click = instalar_tipica,
               )
 
-              CommandLink(
+              commandlink(
                 title = "Instalação customizada",
                 description = "Escolha componentes individualmente",
                 on_click = instalar_custom,
@@ -259,7 +259,7 @@ screen(
             column(class = bloco) {
               text(class = secao, content = "RoundButton")
 
-              RoundButton(
+              roundbutton(
                 text = +, color = #89B4FA, on_click = novo_item, size = 48,
               )
             }

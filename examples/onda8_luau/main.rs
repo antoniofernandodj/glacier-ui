@@ -5,7 +5,7 @@
 //!
 //! # O que este exemplo mostra
 //!
-//! **Item 1 — o `<dialog>` declarativo** aparece nos dois exemplos, por
+//! **Item 1 — o `dialog` declarativo** aparece nos dois exemplos, por
 //! paridade: a mesma tag do `onda8`, um corpo em markup, aberto por
 //! `dialog:editar_rotulo`. Ele NÃO é API de script — o botão "Salvar" despacha
 //! `salvar_rotulo`, um handler Luau comum, que lê as chaves `__dialog.*`.

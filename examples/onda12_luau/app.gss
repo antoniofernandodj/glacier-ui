@@ -84,7 +84,7 @@ examples/dock_luau/app.gss — visual da tela.
   color: var(--texto);
 }
 
-/* Sem `width: fill`: o `<texteditor>` já estica na `.centro` (que é `fill`), e
+/* Sem `width: fill`: o `texteditor` já estica na `.centro` (que é `fill`), e
    background + fill + fill numa classe dispara o teste da janela inteira. */
 .editor {
   height: fill;

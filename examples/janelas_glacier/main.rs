@@ -6,7 +6,7 @@
 //!    `ctx.open_window_component(Box::new(Painel::new()))`, subindo outra janela
 //!    com um `Painel` **independente** (contador próprio, prova de isolamento).
 //! 2. **XML via Lua** — o botão "Abrir detalhe" pede uma janela carregando
-//!    `detalhe.gv`; esse arquivo tem um `<script>` cujo `open_window(...)` abre,
+//!    `detalhe.gv`; esse arquivo tem um `script` cujo `open_window(...)` abre,
 //!    por sua vez, mais uma janela XML — o caminho Lua puro.
 //!
 //! Cada janela é um motor Glacier próprio: fechar uma não afeta as outras;
@@ -57,7 +57,7 @@ impl Component for Painel {
                 ctx.open_window_component(Box::new(Painel::new()));
             }
             // Caminho XML: abre uma janela carregando um template (que tem seu
-            // próprio `<script>` Lua), passando de onde veio via `data`.
+            // próprio `script` Lua), passando de onde veio via `data`.
             "nova_xml" => {
                 ctx.open_window(
                     WindowSpec::file("examples/janelas_glacier/detalhe.gv")

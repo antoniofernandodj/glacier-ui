@@ -12,12 +12,12 @@ screen(title = "Glacier - Seletores .gss", size = "760 640") {
     column(class = cabecalho) {
       text(class = titulo, content = "Seletores compostos no .gss")
       text(
-        class = intro,
-        content = """
+        """
           Cada linha abaixo é estilizada pelo lugar dela na árvore, não por uma classe por
           propósito: `row.servico > text.nome`, `row.servico.parado > text.estado`,
           `.compacta .lista > row.servico`.
         """,
+        class = intro,
       )
     }
 

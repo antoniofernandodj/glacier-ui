@@ -1,4 +1,4 @@
-//! Imports na camada Lua: o `<script>` de `app.gv` divide a lógica em
+//! Imports na camada Lua: o `script` de `app.gv` divide a lógica em
 //! bibliotecas e as importa com `require`, mantendo tudo encapsulado:
 //!
 //! ```luau

@@ -1,4 +1,4 @@
-//! `transition` do `.gss`: a troca de estilo de um `<button>` — repouso, hover,
+//! `transition` do `.gss`: a troca de estilo de um `button` — repouso, hover,
 //! pressionado — passa a ser **animada** em vez de instantânea.
 //!
 //! ```gss
@@ -68,7 +68,7 @@ impl Curva {
     }
 }
 
-/// `transition: <propriedades> <duração> [curva]`, já lida.
+/// `transition: propriedades duração [curva]`, já lida.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transicao {
     pub fundo: bool,

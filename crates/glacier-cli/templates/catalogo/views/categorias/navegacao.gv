@@ -7,16 +7,16 @@ component {
     text(class = titulo_cat, content = "Navegação")
 
     text(
-      class = intro,
-      content = """
+      """
         `tabbar`/`tabs`/`stackview`/`wizard` usam `active="@chave"` (leitura) ao
         lado de `value="chave"` (escrita). A página é escolhida por NOME de slot.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
-        text(class = rotulo, content = "<tabbar> — só a barra")
+        text(class = rotulo, content = "tabbar — só a barra")
         tabbar(:value = nv_aba, active = @nv_aba, :items = nv_abas)
         text(class = nota, content = "nv_aba = @nv_aba")
       }
@@ -24,7 +24,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<tabs> — barra + páginas por <template slot>",
+          content = "tabs — barra + páginas por template(slot)",
         )
 
         tabs(
@@ -47,11 +47,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <stackview active="@{…}"> — troca de painel por nome, sem escada de
+          """
+            stackview(active = "@{…}") — troca de painel por nome, sem escada de
             se/senao
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -73,7 +73,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<wizard> — passos + validação que trava o \"Avançar\"",
+          content = "wizard — passos + validação que trava o \"Avançar\"",
         )
 
         wizard(
@@ -98,11 +98,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <wizardnav> — SÓ a barra de botões (voltar/avançar/finalizar), para
+          """
+            wizardnav — SÓ a barra de botões (voltar/avançar/finalizar), para
             quem monta os passos à mão
           """,
+          class = rotulo,
         )
 
         wizardnav(
@@ -120,7 +120,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<swipeview> — páginas deslizáveis (arraste na horizontal)",
+          content = "swipeview — páginas deslizáveis (arraste na horizontal)",
         )
 
         swipeview(:value = nv_pagina, threshold = 120, class = area) {
@@ -143,7 +143,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<drawer> — painel lateral que EMPURRA (não cobre)",
+          content = "drawer — painel lateral que EMPURRA (não cobre)",
         )
 
         button(

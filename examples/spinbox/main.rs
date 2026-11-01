@@ -1,4 +1,4 @@
-//! O builtin `<spinbox/>` — campo numérico com os degraus ▴▾, o `QSpinBox` do Qt.
+//! O builtin `spinbox` — campo numérico com os degraus ▴▾, o `QSpinBox` do Qt.
 //!
 //! Rode com: `cargo run --example spinbox`
 //!

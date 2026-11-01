@@ -63,7 +63,7 @@ declare function clear_cookies(host: string?): ()
 -- passar pelo texto/UTF-8 do `fetch`, que corromperia um binário). `body` do
 -- retorno vem sempre vazio — o conteúdo foi para `path`, não para a resposta.
 -- É o caminho certo para cachear uma imagem remota e exibi-la com
--- `<image source="{path}">`.
+-- `image(source = @path)`.
 declare function download_file(url: string, path: string, opts: any?): FetchResult
 
 -- ── http: cliente HTTP reutilizável sobre `fetch` ─────────────────────────
@@ -206,7 +206,7 @@ declare i18n: {
     date: (valor: any) -> string,
 }
 
--- `<audio name="…">`: controla a fonte pelo nome. Precisa da feature `audio` do glacier-ui.
+-- `audio(name = "…")`: controla a fonte pelo nome. Precisa da feature `audio` do glacier-ui.
 declare audio: {
     play: (name: string) -> (),
     pause: (name: string) -> (),
@@ -279,7 +279,7 @@ declare function progress_close(): ()
 
 declare function navigate(tela: string): ()
 declare function navigate_back(): ()
--- Troca o estilo visual: um `<link rel="style" as="nome">` do app ou um builtin
+-- Troca o estilo visual: um `link(rel = style, as = nome)` do app ou um builtin
 -- (`fusion`, `fusion-dark`…). Não suspende; no `init`, vale já no 1º quadro.
 declare function set_style(nome: string): ()
 
@@ -311,8 +311,8 @@ declare json: {
 }
 
 -- Aritmética de data/hora sobre strings ISO (`YYYY-MM-DD`, `HH:MM[:SS]`, ou as
--- duas separadas por espaço) — o formato que os <dateedit>/<timeedit>/
--- <datetimeedit> gravam na chave. Devolve `nil` quando a entrada não é ISO
+-- duas separadas por espaço) — o formato que os dateedit/timeedit/
+-- datetimeedit gravam na chave. Devolve `nil` quando a entrada não é ISO
 -- válida, inclusive para uma data que não existe (31/02).
 export type DateParts = {
     year: number,

@@ -5,7 +5,7 @@ ressalvas de cada uma (`docs/MEDICOES.md`, `docs/TEXTO.md`, `docs/REDE.md`, `doc
 **Fase 4 feita, menos `@keyframes` e `@font-face`** (ver `docs/GSS_MODERNO.md`);
 **Fase 2 parcial** (árvore no AT-SPI, teclado nos botões e aviso de contraste; **falta** o teste
 com o Orca, o foco no leitor e o teclado nos demais widgets — `docs/ACESSIBILIDADE.md`);
-**Fase 6 parcial: só o `<audio>`** (`docs/AUDIO.md`), **o `<video>` está INCOMPLETO** (não foi feito);
+**Fase 6 parcial: só o `audio`** (`docs/AUDIO.md`), **o `video` está INCOMPLETO** (não foi feito);
 **Fase 3 adiada** por decisão (WASM). Carga remota de app, tela ou asset foi **descartada**
 (nada remoto além de dados; ver "Fora do escopo"). Proposta de 2026-10-29, glacier-ui 0.139.0. Nasce de uma auditoria do que o
 motor cobre da plataforma web. A premissa: alguém que sobe **hoje** um serviço novo e
@@ -26,7 +26,7 @@ binário pequeno, em vez de uma stack web.
 |---|---|---|
 | HTML | `.gv`/`.gv`, 60+ tags (`grid`, `flow`, `tableview`, `treeview`, `form`, `select`, `calendar`, gráficos…) | forte |
 | CSS | `.gss`: classes, `#id`, tag, combinadores, pseudo-estados, `@media`, `var(--x)`, `gradient`, escopo por componente | bom |
-| JS | Luau em `<script>`: corrotinas, `require`, timers, `storage` | bom |
+| JS | Luau em `script`: corrotinas, `require`, timers, `storage` | bom |
 | `fetch` | HTTP/HTTPS (hyper + rustls), gzip, timeout, headers | cobre API JSON |
 | SSE / WebSocket | `sse()` / `websocket()` | presente |
 | localStorage | `storage` | presente |
@@ -39,10 +39,10 @@ binário pequeno, em vez de uma stack web.
 
 **Bloqueadores** (decidem se dá para chamar de substituto):
 
-1. **Texto.** Sem `<a>`, sem texto inline misto (negrito no meio da frase), sem
+1. **Texto.** Sem `a`, sem texto inline misto (negrito no meio da frase), sem
    Markdown; seleção e cópia de texto estático não apareceram.
 2. **Acessibilidade.** Nenhuma menção a AccessKit, ARIA ou leitor de tela.
-3. **Mídia.** Sem `<audio>` nem `<video>`. Antes havia a `webview` nativa como saída; foi removida (nada remoto além de dados).
+3. **Mídia.** Sem `audio` nem `video`. Antes havia a `webview` nativa como saída; foi removida (nada remoto além de dados).
 4. **Alvo WASM incompleto.** Sem Luau e sem `fetch` no navegador (`WEB.md`); negrito e
    itálico somem sem fonte própria; GPU desligada por padrão; WebGPU/WebGL nunca
    vistos funcionando.
@@ -53,7 +53,7 @@ binário pequeno, em vez de uma stack web.
 - CSS: sem `transition`, `@keyframes`, `calc()`, `@font-face`, `opacity`, `filter`,
   `position`/`z-index` genéricos, `::before`, `:nth-*`.
 - i18n: sem tradução, plural, formato por locale, RTL/bidi.
-- Descoberta: sem URL por tela, sem conteúdo indexável (na web o app é um `<canvas>`).
+- Descoberta: sem URL por tela, sem conteúdo indexável (na web o app é um `canvas`).
 
 ### 1.3 Nota de partida
 
@@ -92,16 +92,16 @@ Sem isso não há como dizer "menos recursos que o navegador".
 
 - `a(href = "…", on_click = "…")` com estados de foco/hover, abrindo URL externa ou
   navegando entre telas.
-- Texto inline misto: `<text>` com filhos `<b>`, `<i>`, `<code>`, `<a>`. O `iced` tem
+- Texto inline misto: `text` com filhos `b`, `i`, `code`, `a`. O `iced` tem
   `rich_text`/`span`; o trabalho é o parser e o `{interpolação}` dentro dos spans.
-- `<markdown>` (via `iced::widget::markdown` ou `pulldown-cmark`).
+- `markdown` (via `iced::widget::markdown` ou `pulldown-cmark`).
 - Seleção e cópia de texto estático (`selectable="true"`); avaliar o custo no upstream.
 
 **Aceitação:** uma tela de "Sobre" com parágrafo, link, código inline e lista, tudo
 selecionável; verificar a árvore avaliada dos spans (não só que renderiza).
 
 **O que saiu, além do pedido:** o texto de leitura virou uma lista de **blocos** no
-`<prose>` (parágrafo, `h1`–`h6`, citação com autoria, listas, **figura com legenda**,
+`prose` (parágrafo, `h1`–`h6`, citação com autoria, listas, **figura com legenda**,
 código, régua), e o `prose(syntax, content)` lê o texto de uma chave do contexto — arquivo,
 `fetch` ou banco — em `gv`, `html` ou `markdown`, tratando-o como **não-confiável**
 (só links `http`/`https`/`mailto`, sem `on_click`/`navigate_to`, imagem só local). O foco de
@@ -122,7 +122,7 @@ Decide o uso público e, em alguns mercados, a conformidade legal.
 **Estado (2026-10-31): parcial.** Feito: `role`/`aria_label`/`aria_hidden` no markup; a
 árvore de acessibilidade da tela avaliada publicada no AT-SPI pelo `accesskit_unix` (feature
 `a11y`, só Linux — o `iced`/`winit` não expõem o AccessKit, então a ponte não passa pelo
-`winit`); `<button>` com Tab, anel de foco e Enter/Espaço; aviso de contraste WCAG AA no
+`winit`); `button` com Tab, anel de foco e Enter/Espaço; aviso de contraste WCAG AA no
 `.gss` (primeiro achado real: `.env__del` no rustploy, 3,30:1). **Medido:** a árvore lida
 pelo barramento AT-SPI (papéis e nomes certos) e `DoAction` num botão fechando o ciclo; o
 teclado numa janela real. **Em aberto:** a aceitação ("lido por Orca") **não foi
@@ -168,19 +168,19 @@ propriedade nova entra com o aviso de valor inválido e com teste na árvore ava
 
 ### Fase 6 — Mídia
 
-- `<audio>` primeiro (barato: `rodio`/`symphonia`), com `play/pause/seek` e eventos.
-- `<video>`: a `webview` nativa foi removida, então não há saída pronta. Decodificação
+- `audio` primeiro (barato: `rodio`/`symphonia`), com `play/pause/seek` e eventos.
+- `video`: a `webview` nativa foi removida, então não há saída pronta. Decodificação
   própria (`ffmpeg`, pesado e com licença) só se a Fase 0 mostrar que vale a pena;
   senão, fora do escopo.
 
-**Aceitação:** `<audio>` tocando um MP3 **local** com barra de posição.
+**Aceitação:** `audio` tocando um MP3 **local** com barra de posição.
 
-**Estado (2026-10-31): parcial — só o `<audio>`.** Feito: `<audio>` (MP3, WAV, OGG/Vorbis,
+**Estado (2026-10-31): parcial — só o `audio`.** Feito: `audio` (MP3, WAV, OGG/Vorbis,
 FLAC; feature `audio`, `rodio`) com player (botão, barra de posição com *seek*, tempo),
 `on_ended`/`on_error`, ações `audio:play|pause|toggle|stop|seek:NOME` e o global Luau `audio`.
 **Medido** numa janela real com o dispositivo de áudio da máquina: a barra anda (0:03 / 0:08
 após 3 s), o clique na barra faz seek, o fim volta o ícone a ▶ e dispara `on_ended`, tocar de
-novo recomeça. **`<video>` INCOMPLETO: não foi feito** (pedido para ficar de fora desta
+novo recomeça. **`video` INCOMPLETO: não foi feito** (pedido para ficar de fora desta
 rodada; continua sem saída pronta, ver acima). Também em aberto: ler o `src` do `AssetSource`
 (`embed_assets!`) em vez do disco; macOS/Windows não rodados. Ver `docs/AUDIO.md`.
 
@@ -236,7 +236,7 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 
 ## 5. Fora do escopo (de propósito)
 
-- **SEO e indexação.** Um app em `<canvas>` não tem DOM. Quem precisa disso usa web.
+- **SEO e indexação.** Um app em `canvas` não tem DOM. Quem precisa disso usa web.
 - **Carregar app, tela ou asset de uma URL.** Foi implementado (`HttpAssets` com manifesto
   ed25519, cache e modo offline; commit `5fb9487`) e **removido por completo em 2026-10-30**:
   é execução remota de código, a superfície de ataque que o projeto decidiu não assumir. Só
@@ -262,15 +262,15 @@ Estimativa, não medição. Vale revisar depois da Fase 0.
 Fase 0 (2026-10-30): a primeira medição era de um painel que não carregava os dados nem a
 lista (defeito do motor no `init` + erro do painel); refeita. Ver `docs/MEDICOES.md`.
 
-Fase 1 (2026-10-30): estilo inline só dentro de `<prose>`, em blocos; `<a>` com hover e foco
-de teclado (Tab/Enter/Espaço); `selectable` em `<text>`/`<prose>` (via `textarea(readonly)`,
-perdendo estilo e link); `<markdown>` com tabelas, imagens **locais** e legenda;
+Fase 1 (2026-10-30): estilo inline só dentro de `prose`, em blocos; `a` com hover e foco
+de teclado (Tab/Enter/Espaço); `selectable` em `text`/`prose` (via `textarea(readonly)`,
+perdendo estilo e link); `markdown` com tabelas, imagens **locais** e legenda;
 `prose(syntax, content)` em `gv`/`html`/`markdown`, com o conteúdo dinâmico tratado
-como não-confiável. Fica fora: lista aninhada e tabela dentro do `<prose>`.
+como não-confiável. Fica fora: lista aninhada e tabela dentro do `prose`.
 
 Remoção do `webview_url` e da feature `webview` (2026-10-30): era uma tela remota por outro
-caminho, e a Fase 6 já não conta com ela para `<video>`.
+caminho, e a Fase 6 já não conta com ela para `video`.
 
 Fases 2 e 3 (2026-10-30): adiadas. A Fase 4 (CSS) e a 5 (rede do `fetch`) vêm antes.
-Depois (2026-10-31): a Fase 2 foi retomada, parcialmente; a Fase 6 foi feita só no `<audio>`, com o
-`<video>` **deixado de fora e marcado como incompleto**; a Fase 7 foi feita. A Fase 3 segue adiada.
+Depois (2026-10-31): a Fase 2 foi retomada, parcialmente; a Fase 6 foi feita só no `audio`, com o
+`video` **deixado de fora e marcado como incompleto**; a Fase 7 foi feita. A Fase 3 segue adiada.

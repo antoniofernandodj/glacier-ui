@@ -43,7 +43,7 @@ pub struct RenderInputs {
     /// Caminhos das folhas globais, paralelo a `stylesheets` — os dois **têm** de
     /// andar juntos, que é outra razão para não serem `pub`.
     stylesheet_paths: Vec<String>,
-    /// Folhas com escopo de componente (`<style scoped>`).
+    /// Folhas com escopo de componente (`style(scoped)`).
     component_stylesheets: HashMap<String, Vec<StyleSheet>>,
     /// Templates parseados, por nome.
     templates: HashMap<String, UiNode>,
@@ -158,7 +158,7 @@ impl RenderInputs {
     // ── Mutação (cada uma avança a época) ───────────────────────────────────
 
     /// Instala (ou substitui no lugar, pela chave) uma folha global. `key` é o
-    /// caminho do arquivo, ou uma chave sintética para um `<style>` inline — é o
+    /// caminho do arquivo, ou uma chave sintética para um `style` inline — é o
     /// que faz o hot-reload trocar a mesma posição em vez de empilhar cópias.
     pub fn install_stylesheet(&mut self, key: String, sheet: StyleSheet) {
         match self.stylesheet_paths.iter().position(|p| *p == key) {

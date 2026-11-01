@@ -7,7 +7,7 @@
 //!    inclusive em várias linhas. */
 //! .card {
 //!     background: #2E3440;
-//!     border-radius: 12;
+//!     border_radius: 12;
 //!     padding: 16;
 //! }
 //! ```
@@ -59,7 +59,7 @@ pub struct StyleRule {
     pub hidden: Option<bool>,
     /// `opacity: 0.5` (ou `50%`): multiplica o alfa das cores do **próprio** nó —
     /// fundo, borda e texto. Não afeta os filhos (o `iced` não compõe grupo com
-    /// opacidade), e é por isso que num `<button>`, `<text>` ou `<container>` com
+    /// opacidade), e é por isso que num `button`, `text` ou `container` com
     /// fundo ela se comporta como se espera, e num contêiner sem cor própria não
     /// faz nada visível.
     pub opacity: Option<f32>,
@@ -435,7 +435,7 @@ pub enum PseudoState {
     Active,
     Disabled,
     /// `.classe:invalid { }` — NOT an iced `Status`. The engine tracks it: a
-    /// `form_control` inside a `<Form>` is invalid while its
+    /// `form_control` inside a `Form` is invalid while its
     /// `{error_prefix}{name}` context key is non-empty (see
     /// `eval.rs`'s form post-pass and `UiNode::form_invalid`).
     Invalid,
@@ -545,7 +545,7 @@ pub struct MediaQuery {
 /// responde, suas classes e seus ids.
 ///
 /// São **listas** porque a raiz avaliada de um componente é dois elementos ao
-/// mesmo tempo: o builtin do template (`column`) e o uso (`<Card class="x">`).
+/// mesmo tempo: o builtin do template (`column`) e o uso (`Card(class = x)`).
 /// No markup são uma coisa só na tela, então um seletor tem de casar qualquer
 /// um dos dois nomes — `Card > text` e `column > text` alcançam o mesmo filho.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -768,7 +768,7 @@ pub struct StyleSheet {
     /// **em minúsculo** (`Button {}` == `button {}`). Casadas por dois caminhos,
     /// ambos com a **menor especificidade** (abaixo de classe/id/inline): o tipo
     /// builtin do nó (`Column`, `Text`, …) e o **nome de um componente** no seu
-    /// uso (`<Card/>`) — neste caso aplicadas como underlay na raiz avaliada do
+    /// uso (`Card`) — neste caso aplicadas como underlay na raiz avaliada do
     /// template, já que o componente é inlinado. Ver [`resolve_classes`].
     pub tags: HashMap<String, StyleRule>,
     /// `Tag:estado { }` — pseudo-estados de seletor de tag (espelho de
@@ -827,7 +827,7 @@ impl StyleSheet {
 
     /// Igual a [`StyleSheet::parse`], citando `file` nos erros e deslocando as
     /// linhas em `line_offset` (1 para um `.gss` de verdade; a linha do
-    /// `<style>` para um bloco inline). Ver [`parse_gss_in`].
+    /// `style` para um bloco inline). Ver [`parse_gss_in`].
     pub fn parse_in(input: &str, file: Option<&str>, line_offset: u32) -> Result<Self> {
         parse_gss_in(input, file, line_offset)
     }
@@ -1333,7 +1333,7 @@ pub fn parse_gss(input: &str) -> Result<StyleSheet> {
 /// `input`.
 ///
 /// `line_offset` existe porque nem todo `.gss` é um arquivo `.gss`: um bloco
-/// `<style>` inline começa lá pela linha 200 de um `.xml`, e um erro na 3ª linha
+/// `style` inline começa lá pela linha 200 de um `.xml`, e um erro na 3ª linha
 /// *dele* precisa sair como "linha 202 do home.xml", não "linha 3" de coisa
 /// nenhuma. Para um arquivo `.gss` de verdade, `line_offset` é 1 e as duas
 /// numerações coincidem.
@@ -1909,11 +1909,11 @@ fn parse_rule_body(
         // Número que cita `var()`: espera as variáveis (ver `StyleRule::pendentes`).
         let canon_numerica = match key {
             "spacing" => Some("spacing"),
-            "border-radius" | "border_radius" => Some("border-radius"),
-            "border-width" | "border_width" | "stroke-width" | "stroke_width" => Some("border-width"),
+            "border_radius" => Some("border-radius"),
+            "border_width" | "stroke_width" => Some("border-width"),
             "size" => Some("size"),
-            "max-width" | "max_width" | "maxWidth" => Some("max-width"),
-            "max-height" | "max_height" | "maxHeight" => Some("max-height"),
+            "max_width" => Some("max-width"),
+            "max_height" => Some("max-height"),
             "opacity" => Some("opacity"),
             _ => None,
         };
@@ -1949,28 +1949,28 @@ fn parse_rule_body(
             "height" | "h" => rule.height = Some(value),
             "padding" => rule.padding = Some(value),
             "spacing" => rule.spacing = Some(parse_f32(&value)?),
-            "align-x" | "align_x" | "alignX" => rule.align_x = Some(value),
-            "align-y" | "align_y" | "alignY" => rule.align_y = Some(value),
-            // `fill`/`stroke`/`stroke-width`: apelidos de forma do `<canvas>`
+            "align_x" => rule.align_x = Some(value),
+            "align_y" => rule.align_y = Some(value),
+            // `fill`/`stroke`/`stroke-width`: apelidos de forma do `canvas`
             // (Onda 13). O preenchimento é o `background`, o traço é a borda —
             // reusar os campos evita três novos e faz `.classe { fill: … }`
             // funcionar pelo caminho que já resolve estilo.
             "background" | "bg" | "fill" => rule.background = Some(value),
-            "border-radius" | "border_radius" => rule.border_radius = Some(parse_f32(&value)?),
-            "border-width" | "border_width" | "stroke-width" | "stroke_width" => {
+            "border_radius" => rule.border_radius = Some(parse_f32(&value)?),
+            "border_width" | "stroke_width" => {
                 rule.border_width = Some(parse_f32(&value)?)
             }
-            "border-color" | "border_color" | "stroke" => rule.border_color = Some(value),
+            "border_color" | "stroke" => rule.border_color = Some(value),
             "color" => rule.color = Some(value),
             "size" => rule.size = Some(parse_f32(&value)?),
             "bold" => rule.bold = Some(value.eq_ignore_ascii_case("true") || value == "1"),
-            "font" | "font-family" | "font_family" => rule.font = Some(value),
+            "font" | "font_family" => rule.font = Some(value),
             "gradient" => rule.gradient = Some(value),
-            "text-align" | "text_align" | "textAlign" => rule.text_align = Some(value),
-            "cursor" | "cursor-icon" | "cursorIcon" => rule.cursor = Some(value),
-            "text-color" | "text_color" | "textColor" => rule.text_color = Some(value),
-            "max-width" | "max_width" | "maxWidth" => rule.max_width = Some(parse_f32(&value)?),
-            "max-height" | "max_height" | "maxHeight" => rule.max_height = Some(parse_f32(&value)?),
+            "text_align" => rule.text_align = Some(value),
+            "cursor" => rule.cursor = Some(value),
+            "text_color" => rule.text_color = Some(value),
+            "max_width" => rule.max_width = Some(parse_f32(&value)?),
+            "max_height" => rule.max_height = Some(parse_f32(&value)?),
             // `hidden: true|false` ou `display: none|flex|block` (só `none`
             // esconde; qualquer outro valor de `display` = visível).
             "opacity" => {
@@ -2009,7 +2009,7 @@ fn parse_rule_body(
     }
     // Acessibilidade: o par texto/fundo da regra passa no WCAG AA? (só cores `#hex` opacas —
     // gradiente, transparência e `var()` não resolvida não dão para medir, e então calam.)
-    // Num `<button>` o `color` pinta o FUNDO e o rótulo é o `text_color`, então ali o par
+    // Num `button` o `color` pinta o FUNDO e o rótulo é o `text_color`, então ali o par
     // é `text_color`/`color`.
     if let Some(bg) = rule.background.as_deref() {
         if let Some(fg) = rule.text_color.as_deref().or(rule.color.as_deref()) {
@@ -2163,12 +2163,12 @@ mod diagnostic_tests {
         );
     }
 
-    // `line_offset`: um `.gss` inline num `<style>` lá pela linha 200 reporta a
+    // `line_offset`: um `.gss` inline num `style` lá pela linha 200 reporta a
     // linha do ARQUIVO, não a do corpo do bloco.
     #[test]
     fn line_offset_traduz_para_a_linha_do_arquivo() {
         let css = "\n.card {\n  size: nao-numero;\n}\n";
-        // O `<style>` está na linha 200 do home.xml.
+        // O `style` está na linha 200 do home.xml.
         let err = parse_gss_in(css, Some("home.xml"), 200).unwrap_err();
         let d = err.diagnostic().unwrap();
         assert_eq!(d.line, 202, "linha 3 do CSS = linha 202 do arquivo");
@@ -2207,7 +2207,7 @@ mod tests {
             // a comment
             .card {
                 background: #2E3440;
-                border-radius: 12;
+                border_radius: 12;
                 padding: 16;
             }
         ";
@@ -2297,7 +2297,7 @@ mod tests {
     #[test]
     fn parses_text_color_and_max_size() {
         let sheet =
-            parse_gss(".btn { text-color: #0D1117; } .panel { max-width: 640; max-height: 480; }")
+            parse_gss(".btn { text_color: #0D1117; } .panel { max_width: 640; max_height: 480; }")
                 .unwrap();
         assert_eq!(sheet.rules["btn"].text_color.as_deref(), Some("#0D1117"));
         assert_eq!(sheet.rules["panel"].max_width, Some(640.0));
@@ -2403,7 +2403,7 @@ mod tests {
         let sheet = parse_gss(
             ".btn { background: #111111; } \
              .btn:hover { background: #222222; } \
-             .btn:disabled { background: #333333; text-color: #999999; }",
+             .btn:disabled { background: #333333; text_color: #999999; }",
         )
         .unwrap();
         assert_eq!(sheet.rules["btn"].background.as_deref(), Some("#111111"));
@@ -2423,7 +2423,7 @@ mod tests {
     #[test]
     fn duplicate_pseudo_state_merges_not_clobbers() {
         let sheet =
-            parse_gss(".btn:hover { background: #222222; } .btn:hover { text-color: #ffffff; }")
+            parse_gss(".btn:hover { background: #222222; } .btn:hover { text_color: #ffffff; }")
                 .unwrap();
         let states = resolve_state_classes(None, "btn", None, &[&sheet], None);
         assert_eq!(states.hover.background.as_deref(), Some("#222222"));

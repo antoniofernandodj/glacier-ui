@@ -1,4 +1,4 @@
-//! Streams de vida longa (SSE e WebSocket) a partir do `<script>` Lua.
+//! Streams de vida longa (SSE e WebSocket) a partir do `script` Lua.
 //!
 //! No template `stream_lua.gv`:
 //! ```luau

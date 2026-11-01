@@ -1,7 +1,7 @@
 # {{titulo}}
 
 Uma **lista editável (model/view)** com [glacier-ui](https://crates.io/crates/glacier-ui):
-uma `<tableview>` ligada a um array do contexto, com Novo / Editar / Excluir via
+uma `tableview` ligada a um array do contexto, com Novo / Editar / Excluir via
 `prompt{}` e `confirm{}` da camada Luau. Os dados vivem em memória.
 
 ```
@@ -13,7 +13,7 @@ cargo run
 ```
 src/main.rs                        a casca: registra views/app.gv
 views/
-├── app.gv                         <tableview :items="linhas" :columns="colunas" :value="sel" :sort="ordem">
+├── app.gv                         tableview(:items = linhas, :columns = colunas, :value = sel, :sort = ordem)
 ├── scripts/state.luau             o DEPÓSITO: { itens: {Servico}, seq } tipado
 ├── scripts/handlers/itens.luau    a VITRINE: publicar() filtra e encoda; novo()/editar()/excluir()
 └── styles/{theme.json, app.gss}
@@ -23,7 +23,7 @@ views/
 
 - **Duas memórias.** `state.luau` guarda a lista de verdade (structs tipadas);
   `Itens.publicar()` a projeta em `ctx.linhas` como JSON, já filtrada por
-  `ctx.q`. O `<tableview>` lê essa chave.
+  `ctx.q`. O `tableview` lê essa chave.
 - **`value="sel"`** recebe o `id` da linha selecionada — `editar()`/`excluir()`
   acham o item por ele.
 - **Os modais suspendem.** `prompt{}` e `confirm{}` param a corrotina da ação e

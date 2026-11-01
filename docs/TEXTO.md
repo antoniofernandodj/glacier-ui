@@ -9,14 +9,14 @@ Fase 1 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplos (a mesma tela, em duas formas):
 O de Rust aceita `--arvore` (imprime a árvore avaliada). No de Luau o estado vive em
 `scripts/app.luau` e as telas são filhas do `app`, sem `Component`.
 
-## `<prose>`: texto de leitura em blocos
+## `prose`: texto de leitura em blocos
 
-Estilo **dentro** do parágrafo existe só dentro de um `<prose>`. O `<text>` continua
-simples, de propósito: `<b>`, `<i>`, `<code>`, `<u>`, `<s>`, `<span>`, `<a>`, `<p>` e os
-blocos abaixo **não existem** fora dele — usar um num `<text>` dá erro na avaliação,
-apontando o `<prose>`, em vez de perder as palavras.
+Estilo **dentro** do parágrafo existe só dentro de um `prose`. O `text` continua
+simples, de propósito: `b`, `i`, `code`, `u`, `s`, `span`, `a`, `p` e os
+blocos abaixo **não existem** fora dele — usar um num `text` dá erro na avaliação,
+apontando o `prose`, em vez de perder as palavras.
 
-Um `<prose>` é uma lista de **blocos**:
+Um `prose` é uma lista de **blocos**:
 
 ```gv
 prose {
@@ -53,9 +53,9 @@ prose {
 |---|---|
 | `p` | texto e as tags inline |
 | `h1`…`h6` | texto e as tags inline |
-| `blockquote` | `<p>`s e, opcional, um `<footer>`/`<cite>` com a autoria |
-| `ul`, `ol` | `<li>`s (texto e tags inline) |
-| `figure` | um `<img>` (imagem **local**) e, opcional, um `<figcaption>` (texto rico) |
+| `blockquote` | `p`s e, opcional, um `footer`/`cite` com a autoria |
+| `ul`, `ol` | `li`s (texto e tags inline) |
+| `figure` | um `img` (imagem **local**) e, opcional, um `figcaption` (texto rico) |
 | `img` | uma imagem sem legenda |
 | `pre` | texto cru, em fonte monoespaçada |
 | `hr` | uma régua |
@@ -72,14 +72,14 @@ prose {
 
 Aninham (`b { i("…") }`). `{interpolação}` vale em cada trecho.
 
-**Forma obrigatória** (erro de carga, com linha e coluna, se violada): o `<prose>` só
+**Forma obrigatória** (erro de carga, com linha e coluna, se violada): o `prose` só
 contém os blocos da primeira tabela — texto solto ou uma tag de estilo direto nele é
 erro —, e um bloco de texto só contém texto e as tags inline (nenhum outro elemento, e um
-`<p>` não entra em outro `<p>`). O espaço entre trechos é preservado como no HTML.
+`p` não entra em outro `p`). O espaço entre trechos é preservado como no HTML.
 
 ## `prose(syntax, content)`: o texto vem de fora
 
-Um `<prose>` com `content` não tem filhos: o texto vem de uma chave do contexto — um
+Um `prose` com `content` não tem filhos: o texto vem de uma chave do contexto — um
 arquivo lido, o resultado de um `fetch`, uma linha de banco — e é lido **na avaliação**, na
 sintaxe pedida:
 
@@ -89,19 +89,18 @@ prose(syntax = gv, content = @artigo)  // o mesmo que omitir `syntax`
 prose(syntax = markdown, content = @artigo)
 ```
 
-`syntax` aceita `gv`, `html` e `markdown`. **Omitido, vale `gv`.** (`sintaxe` e `sintax`
-também são aceitos.) `content`
+`syntax` aceita `gv`, `html` e `markdown`. **Omitido, vale `gv`.** `content`
 junto com filhos é erro de carga; um `syntax` que não existe também.
 
-O valor entra **literal**: um `{x}` ou um `<b>` dentro dele não é reinterpretado como
+O valor entra **literal**: um `{x}` ou um `b` dentro dele não é reinterpretado como
 modelo do app (o `@` do `.gv` também não vira ligação — um e-mail `a@b.com` fica
 `a@b.com`).
 
 | Sintaxe | Como é lida |
 |---|---|
 | `gv` | o `.gv` dessugarado, **sem interpolação**, com a gramática de blocos de cima. Estrito: fora dela é erro. |
-| `html` | parser próprio e **tolerante**: `<p>`/`<li>` sem fechar, entidades (`&amp;`, `&nbsp;`, `&ccedil;`…), comentários, atributos sem aspas. `<script>`, `<style>`, `<iframe>`, `<form>` e afins somem com o conteúdo; `<div>`/`<section>`/`<article>` são transparentes; tag desconhecida perde a tag e fica o texto. |
-| `markdown` | o renderizador de `<markdown>` (abaixo). |
+| `html` | parser próprio e **tolerante**: `p`/`li` sem fechar, entidades (`&amp;`, `&nbsp;`, `&ccedil;`…), comentários, atributos sem aspas. `script`, `style`, `<iframe>`, `form` e afins somem com o conteúdo; `<div>`/`<section>`/`<article>` são transparentes; tag desconhecida perde a tag e fica o texto. |
+| `markdown` | o renderizador de `markdown` (abaixo). |
 
 ### Conteúdo vindo de dado não é de confiança
 
@@ -117,9 +116,9 @@ O texto de um banco ou de uma API não foi escrito por quem escreveu o app. Por 
   caminho absoluto aparecem como `[imagem recusada: alt]`;
 - o conteúdo tem teto de **2 MiB**, e o aninhamento do HTML, de 100 níveis.
 
-Um conteúdo que não dá para ler **não derruba a tela**: o `<prose>` mostra o erro, em
-vermelho (`prose (gv): linha 3: <div> direto no <prose> …`), e o resto segue de pé.
-`selectable` vale só para `<prose>` escrito no markup, não para `content`.
+Um conteúdo que não dá para ler **não derruba a tela**: o `prose` mostra o erro, em
+vermelho (`prose (gv): linha 3: <div> direto no prose …`), e o resto segue de pé.
+`selectable` vale só para `prose` escrito no markup, não para `content`.
 
 Exemplos (o mesmo artigo — manchete, citação, **figura com legenda**, lista, links — em
 HTML, gv e Markdown, lido de arquivos em `examples/conteudo_prose`): `prose_artigo`
@@ -177,20 +176,20 @@ prose {
 }
 ```
 
-## `<a>`
+## `a`
 
-Só dentro de um `<prose>`. Destinos, em ordem de precedência:
+Só dentro de um `prose`. Destinos, em ordem de precedência:
 
 - `href` — abre no **navegador do SO** (a ação built-in `open:`); o app não carrega
   nada da URL;
 - `navigate_to` — troca de tela;
-- `on_click` — ação do app (namespaceada pelo componente dono, como num `<button>`).
+- `on_click` — ação do app (namespaceada pelo componente dono, como num `button`).
 
-**Teclado** (`src/link_focus.rs`): um `<prose>` com link entra na ordem de Tab. Com o foco,
+**Teclado** (`src/link_focus.rs`): um `prose` com link entra na ordem de Tab. Com o foco,
 Tab / Shift+Tab andam de link em link dentro do parágrafo (e só saem dele depois do
 último / antes do primeiro); **Enter** ou **Espaço** ativam o link (a mesma ação do
 clique). O link em foco aparece com fundo azul claro e sublinhado. Clicar fora tira o
-foco. Um `<prose>` sem link não é focável.
+foco. Um `prose` sem link não é focável.
 
 Como foi verificado, em duas camadas:
 
@@ -210,7 +209,7 @@ sublinhado permanente foi retirado para o hover ser visível.
 
 ## Texto selecionável
 
-`selectable="true"` num `<text>` ou `<prose>` o torna selecionável e copiável
+`selectable="true"` num `text` ou `prose` o torna selecionável e copiável
 (arrastar o mouse, Ctrl+C, menu de contexto do botão direito). Por baixo é um
 `textarea(readonly)` sem borda nem fundo, com o buffer vindo do próprio texto.
 
@@ -223,7 +222,7 @@ text("Selecione e copie isto.", selectable = true)
 da classe `.gss` continuam valendo. Dois nós com o mesmo texto dividem o buffer (e a
 seleção). Conferido numa janela: arrastar o mouse destaca o trecho, a altura encolhe ao conteúdo e não há borda. **Copiar (Ctrl+C) não foi testado** — só a seleção.
 
-## `<markdown>`
+## `markdown`
 
 CommonMark: títulos, ênfase, negrito, tachado, código inline e em bloco, links,
 listas (aninhadas, numeradas), citação, linha horizontal e **tabelas**. O texto é o
@@ -239,8 +238,8 @@ externo (um `fetch`), e ele não escolhe o que o app lê nem busca coisa na rede
 ## Um defeito do `cosmic-text` contornado aqui
 
 Pontuação ou letras coladas a um trecho estilizado saíam no estilo do trecho:
-`<b>Ana</b>!` desenhava o `!` em negrito, `<b>Ana</b>(x)` o `(x)` inteiro, `<i>it</i>ab`
-o `ab` em itálico, e `**negrito**,` no `<markdown>` a vírgula em negrito.
+`bAna</b>!` desenhava o `!` em negrito, `bAna</b>(x)` o `(x)` inteiro, `iit</i>ab`
+o `ab` em itálico, e `**negrito**,` no `markdown` a vírgula em negrito.
 
 A causa está no `cosmic-text` 0.15 (o motor de texto do iced), em `ShapeWord::build`: uma
 "palavra" só de ASCII é moldada **de uma vez, com a fonte do primeiro caractere**,
@@ -253,7 +252,7 @@ respeita a troca de estilo; por isso `Olá` e `itálico` nunca tiveram o problem
 legítima entre os trechos, o Glacier põe um `U+2060` (WORD JOINER) na frente do trecho
 seguinte. Ele é invisível, não tem largura e não cria ponto de quebra, então o texto
 quebra exatamente onde quebraria sem ele, mas a palavra deixa de ser "só ASCII". Vale
-para o `<prose>` e para o `<markdown>`.
+para o `prose` e para o `markdown`.
 
 Verificado de duas formas: moldando direto com o `cosmic-text` (o peso por glifo vai de
 700 para 400 no `!` e na vírgula, em todos os casos testados) e numa janela, ampliada.
@@ -261,15 +260,15 @@ Quando o `cosmic-text` corrigir o atalho, o contorno vira inofensivo e pode sair
 
 ## O que NÃO está feito
 
-- **Listas aninhadas e tabelas dentro do `<prose>`.** Os blocos acima são todos; `<table>` e
-  `<ul>` dentro de `<li>` não entram (no HTML, o texto da tabela segue no fluxo; no `gv`
-  é erro). O `<markdown>`, sim, tem lista aninhada e tabela.
+- **Listas aninhadas e tabelas dentro do `prose`.** Os blocos acima são todos; `<table>` e
+  `ul` dentro de `li` não entram (no HTML, o texto da tabela segue no fluxo; no `gv`
+  é erro). O `markdown`, sim, tem lista aninhada e tabela.
 - **O parser de HTML não é o do HTML5.** Cobre o que um texto de leitura usa (ver a tabela
-  acima). `<p>` dentro de `<p>` sem fechar o primeiro funciona, mas um aninhamento torto de
-  `<b><i></b></i>` é resolvido do jeito simples (fecha até a tag que casa).
-- **`selectable` com `content`** e, no `<prose>` estático, `selectable` perde estilo, links e
+  acima). `p` dentro de `p` sem fechar o primeiro funciona, mas um aninhamento torto de
+  `bi` é resolvido do jeito simples (fecha até a tag que casa).
+- **`selectable` com `content`** e, no `prose` estático, `selectable` perde estilo, links e
   figuras (vira texto simples).
-- **Foco de teclado nos links do `<markdown>`** (só clique) e nos do texto selecionável
+- **Foco de teclado nos links do `markdown`** (só clique) e nos do texto selecionável
   (que nem tem link).
 - Ao voltar com Shift+Tab para um parágrafo com links, o foco cai no **primeiro** link, não
   no último (a operação de foco do iced não diz de que lado o foco chegou). Com vários

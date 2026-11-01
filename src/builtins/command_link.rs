@@ -4,12 +4,8 @@
 /// instalador do Windows: "Instalação típica → " / "recomendado para a
 /// maioria dos usuários").
 ///
-/// ```xml
-/// <CommandLink
-///     title="Instalação típica"
-///     description="Recomendado para a maioria dos usuários"
-///     on_click="instalar:tipica"
-/// />
+/// ```gv
+/// CommandLink(title = "Instalação típica", description = "Recomendado para a maioria dos usuários", on_click = "instalar:tipica")
 /// ```
 ///
 /// # Por que ele esperou a Onda 11
@@ -18,10 +14,10 @@
 /// que faltava era assunto de verdade por perto para justificar a rodada, não
 /// nenhum habilitador. A Onda 11 é esse assunto.
 ///
-/// # Por que `<Button>` com filhos, não `<Row on_press>`
+/// # Por que `Button` com filhos, não `Row(on_press)`
 ///
-/// O `<Button>` do motor aceita filhos desde a convergência de templates: sem
-/// eles, `text=` é o atalho de sempre; com mais de um, viram um `<Row>`
+/// O `Button` do motor aceita filhos desde a convergência de templates: sem
+/// eles, `text=` é o atalho de sempre; com mais de um, viram um `Row`
 /// implícito. Isso dá ao `CommandLink` o `on_click` de **soltar** (não de
 /// pressionar, como um `on_press` genérico daria) e o estado `disabled`/hover
 /// do botão de verdade, de graça.
@@ -49,31 +45,24 @@ impl Component for CommandLink {
 
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<Button on_click="{on_click}" width="{width|fill}">
-                    <style>
-                        .commandlink-title { color: #cdd6f4; }
-                        .commandlink-desc { color: #7f849c; }
-                        .commandlink-arrow { color: #7f849c; }
-                    </style>
-
-                    <Row spacing="12" align_y="center" width="fill">
-                        <Column spacing="2" width="fill">
-                            <Text
-                                class="commandlink-title {title_class}"
-                                content="{title}"
-                                bold="true"
-                            />
-                            <template if="{description}" notEquals="">
-                                <Text
-                                    class="commandlink-desc {desc_class}"
-                                    content="{description}"
-                                    size="12"
-                                />
-                            </template>
-                        </Column>
-                        <Text class="commandlink-arrow" content="→" size="18" />
-                    </Row>
-                </Button>"#
+            r##"
+                button(on_click = @on_click, width = "{width|fill}") {
+                  style """
+                                        .commandlink-title { color: #cdd6f4; }
+                                        .commandlink-desc { color: #7f849c; }
+                                        .commandlink-arrow { color: #7f849c; }
+                                    """
+                  row(spacing = 12, align_y = center, width = fill) {
+                    column(spacing = 2, width = fill) {
+                      text(class = "commandlink-title {title_class}", content = @title, bold = true)
+                      template(if = @description, not_equals = "") {
+                        text(class = "commandlink-desc {desc_class}", content = @description, size = 12)
+                      }
+                    }
+                    text(class = commandlink-arrow, content = "→", size = 18)
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

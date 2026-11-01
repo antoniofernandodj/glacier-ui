@@ -3,27 +3,27 @@ component {
     text(class = titulo_cat, content = "Seleção, listas e árvores")
 
     text(
-      class = intro,
-      content = """
+      """
         O par `value` + `selected="@{…}"`: `value` é a chave que o clique escreve,
         `selected` o valor que o markup lê para destacar. Faltando o segundo, a
         lista fica toda esmaecida.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
-        text(class = rotulo, content = "<select> — dropdown fechado")
+        text(class = rotulo, content = "select — dropdown fechado")
         select(class = campo_curto, :options = se_regioes, :value = se_regiao)
         text(class = nota, content = "se_regiao = @se_regiao")
       }
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <listview> · <listview mode="multi">
+          """
+            listview · listview(mode = multi)
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -47,7 +47,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<tableview> — cabeçalho, ordenação, colunas arrastáveis",
+          content = "tableview — cabeçalho, ordenação, colunas arrastáveis",
         )
 
         tableview(
@@ -61,10 +61,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <treeview> · <columnview> (mesma árvore, identidade por caminho)
+          """
+            treeview · columnview (mesma árvore, identidade por caminho)
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -88,11 +88,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <pagination> · <pageindicator> (mesma chave; um conta de 1, o outro de
+          """
+            pagination · pageindicator (mesma chave; um conta de 1, o outro de
             0)
           """,
+          class = rotulo,
         )
 
         pagination(:value = pg_pagina, total = 20)
@@ -102,10 +102,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
+          """
             <fontselect> — cada família desenhada nela mesma (lê __fonts)
           """,
+          class = rotulo,
         )
 
         fontselect(:value = ft_fonte, selected = @ft_fonte, height = 150)

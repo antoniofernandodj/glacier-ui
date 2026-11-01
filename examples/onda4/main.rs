@@ -59,13 +59,13 @@ const SERVICOS: &[(&str, &str)] = &[
     ("backup", "Backup noturno"),
 ];
 
-/// Quantos itens cabem numa página. O `<pagination>` não sabe disto — ele
+/// Quantos itens cabem numa página. O `pagination` não sabe disto — ele
 /// conta **páginas**, não itens; recortar a lista é do app, porque só o app
 /// sabe o que é um item.
 const POR_PAGINA: usize = 4;
 
 impl Onda4 {
-    /// Recorta a página visível e a grava na chave que o `<listview>` lê.
+    /// Recorta a página visível e a grava na chave que o `listview` lê.
     ///
     /// Esta é a divisão de trabalho da paginação: o widget escreve o número da
     /// página, o app decide o que aquele número significa.
@@ -133,9 +133,9 @@ impl Component for Onda4 {
         ctx.set("ferramenta", "medidas".to_string());
 
         // As três chaves que o conteúdo das seções lê. Sem semeá-las, o
-        // `<checkbox>` e o `<toggle>` nascem desmarcados e — o que é pior —
+        // `checkbox` e o `toggle` nascem desmarcados e — o que é pior —
         // NÃO alternam: o clique escreve `true`, mas a chave que o widget lê
-        // continua ausente no primeiro quadro. E a `<progressbar>` sem chave
+        // continua ausente no primeiro quadro. E a `progressbar` sem chave
         // desenha a barra vazia, que parece um bug de render e não é.
         ctx.set("usar_proxy", "false".to_string());
         ctx.set("avisar", "true".to_string());
@@ -159,8 +159,8 @@ impl Component for Onda4 {
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
             // A paginação de cima tem `on_change`, então ela **delega**: quem
-            // grava `pagina` é este braço. É o mesmo contrato do `<textinput>`
-            // e do `<calendar>`, e aqui ele paga o aluguel — o app precisa
+            // grava `pagina` é este braço. É o mesmo contrato do `textinput`
+            // e do `calendar`, e aqui ele paga o aluguel — o app precisa
             // recortar a lista no mesmo passo em que a página muda, e não há
             // gancho melhor. A paginação de baixo, sem `on_change`, grava
             // sozinha e não passa por aqui.

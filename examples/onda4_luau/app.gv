@@ -24,22 +24,22 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
       )
 
       text(
-        class = intro,
-        content = """
+        """
           O que une estas sete linhas do catálogo não é a aparência: é o `update`.
           Todas fazem conta — a janela de números de uma paginação, a alternância
           de um item num conjunto, a máscara de um CPF, o clamp de um preço com
           duas casas.
         """,
+        class = intro,
       )
 
       text(
-        class = crua,
-        content = """
+        """
           Mesma tela do exemplo `onda4`, com o `impl Component` de Rust trocado
           por `scripts/app.luau`. O markup não mudou — é o que o exemplo existe
           para mostrar.
         """,
+        class = crua,
       )
 
       // `tab_class`/`tab_active_class` (0.89) alcançam as abas de dentro da
@@ -57,13 +57,13 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
           column(class = secao) {
             groupbox(title = "ListView — seleção simples") {
               text(
-                class = nota,
-                content = """
+                """
                   A coleção numa chave, o item escolhido noutra: é o `tabbar` na
                   vertical, com scroll. `value` é o NOME da chave e `selected` é o
                   VALOR dela — o par que todo widget desta biblioteca repete,
                   porque o template não lê a chave cujo nome está numa prop.
                 """,
+                class = nota,
               )
 
               listview(
@@ -81,21 +81,21 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
 
             groupbox(title = "Pagination — a aritmética de página") {
               text(
-                class = nota,
-                content = """
+                """
                   A janela de números anda com a página e gruda nas pontas; as
                   reticências só aparecem quando há mesmo algo escondido, e as
                   setas ficam INERTES no limite — o que o `spinbox`, por ser
                   builtin, não consegue fazer.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   Esta tem `on_change`, então DELEGA: quem grava `pagina` é o
                   update da tela, que precisa recortar a lista no mesmo passo.
                 """,
+                class = nota,
               )
 
               pagination(
@@ -110,14 +110,14 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
               flat = true,
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   `mode="multi"` guarda um CONJUNTO numa chave só (`"api,cache"`)
                   e o destaque testa `contains`, o habilitador da 0.84. Sem ele,
                   cada item precisaria da própria chave — que é exatamente o
                   "estado por instância" que o plano dizia faltar, e que não
                   faltava.
                 """,
+                class = nota,
               )
 
               listview(
@@ -143,14 +143,14 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
         else if @aba == "secoes" {
           column(class = secao) {
             text(
-              class = intro,
-              content = """
+              """
                 Os dois modos do mesmo widget, e a diferença cabe numa linha: o
                 accordion guarda um CONJUNTO de seções abertas, o tool box guarda
                 UMA. Uma tag por seção porque o conteúdo de cada uma é diferente —
                 e conteúdo é de quem escreve a tela, o que só o `slot` (0.65)
                 tornou possível.
               """,
+              class = intro,
             )
 
             row(class = par) {
@@ -225,12 +225,12 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
                 }
 
                 text(
-                  class = nota,
-                  content = """
+                  """
                     Clicar na seção já aberta a FECHA — a chave vira vazia. É o
                     `toolbox` sendo gentil, e é o que se espera de um cabeçalho
                     clicável.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha) {
@@ -251,13 +251,13 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
           column(class = secao) {
             groupbox(title = "MaskedInput — cru na chave, mascarado na tela") {
               text(
-                class = nota,
-                content = """
+                """
                   A mesma separação valor/exibição do `dateedit`: a chave guarda
                   `"12345678901"`, que é o que um backend espera; a tela mostra
                   `"123.456.789-01"`, que é o que uma pessoa lê. A dica default é
                   a própria máscara com `_` no lugar dos símbolos.
                 """,
+                class = nota,
               )
 
               row(class = linha_campo) {
@@ -279,26 +279,26 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
               }
 
               text(
-                class = nota,
-                content = """
+                """
                   A placa é máscara MISTA (`AAA#*##`, o padrão Mercosul): letra
                   onde é letra, dígito onde é dígito. Filtrar só por “não é
                   dígito” erraria aqui.
                 """,
+                class = nota,
               )
             }
 
             row(class = par) {
               groupbox(title = Rating, width = 380) {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     Passe o mouse: a prévia acende até a estrela sob o cursor.
                     Clicar na que já está marcada ZERA a nota — é como se tira uma
                     avaliação sem um botão “limpar” ao lado. A linha de baixo tem
                     `max` diferente, então tem CHAVE própria: quem compartilha a
                     chave (o readonly, abaixo) compartilha também a escala.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_larga) {
@@ -317,19 +317,19 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
                 }
 
                 row(class = linha_larga) {
-                  rating(:value = nota, readonly = true, size = 14)
+                  rating(:value = nota, read_only = true, size = 14)
                   text(class = nota, content = "readonly: nem clique nem hover")
                 }
               }
 
               groupbox(title = "SpinBox com decimals", width = 380) {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     Fecha o QDoubleSpinBox. Antes as casas saíam do `step`, o que
                     acertava por acidente e errava em `step="1"` sobre um preço:
                     10 em vez de 10,00.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_larga) {
@@ -349,25 +349,25 @@ screen(title = "Glacier - Onda 4 (Luau)", size = "960 780") {
                 }
 
                 text(
-                  class = nota,
-                  content = """
+                  """
                     O de baixo não tem `decimals`: as casas continuam saindo do
                     `step`, como sempre.
                   """,
+                  class = nota,
                 )
               }
             }
 
             groupbox(title = "ButtonBox — papéis, e a ordem é da plataforma") {
               text(
-                class = nota,
-                content = """
+                """
                   Onde fica o botão principal é convenção do sistema, não decisão
                   de quem escreve a tela — é por isso que o Qt tem um
                   QDialogButtonBox em vez de um QHBoxLayout com dois botões. Aqui
                   a escolha é feita em Rust, no `template()`, por
                   `cfg!(target_os)`.
                 """,
+                class = nota,
               )
 
               buttonbox(

@@ -1,11 +1,11 @@
 //! O `canvas` como capacidade do motor — o **habilitador da Onda 7** do
 //! `PLANO_WIDGETS.md`, e o que destrava de uma vez a família de medidores
-//! (`<dial>`, `<gauge>`, `<lcdnumber>`) e a §2.13 inteira (`<sparkline>`,
-//! `<linechart>`, `<barchart>`, `<piechart>`).
+//! (`dial`, `gauge`, `lcdnumber`) e a §2.13 inteira (`sparkline`,
+//! `linechart`, `barchart`, `piechart`).
 //!
 //! # Por que o `canvas` não vira tag
 //!
-//! O `iced` tem `canvas`, e expor um `<canvas>` ao markup seria a tradução
+//! O `iced` tem `canvas`, e expor um `canvas` ao markup seria a tradução
 //! literal do `QGraphicsView`. O projeto não faz isso, e a razão é a promessa
 //! da primeira linha do `README`: estrutura, estilo e comportamento
 //! **declarados**. Uma superfície de desenho livre devolveria ao app um bloco
@@ -17,9 +17,9 @@
 //! qualquer outro widget do motor — valor numa chave que ele nomeia, cor da
 //! paleta do tema, `on_change` para delegar.
 //!
-//! (O `<canvas>` avulso continua catalogado, em P3 e marcado `●` na §2.6. Se um
+//! (O `canvas` avulso continua catalogado, em P3 e marcado `●` na §2.6. Se um
 //! dia sair, sai como *outra* coisa: um vocabulário declarativo de desenho —
-//! `<path>`, `<arc>`, `<circle>` interpolando o contexto —, não como um
+//! `path`, `arc`, `circle` interpolando o contexto —, não como um
 //! callback em Rust.)
 //!
 //! # O que mora aqui
@@ -28,10 +28,10 @@
 //!
 //! - [`arco`] e [`anel`] — a geometria de todo medidor circular;
 //! - [`Serie`] — a leitura de uma chave de contexto como série de dados, na
-//!   mesma convenção `items="chave"` que o `<select>` e o `<autocomplete>` já
+//!   mesma convenção `items="chave"` que o `select` e o `autocomplete` já
 //!   usam;
 //! - [`escala`] — os degraus "bonitos" (1·2·5 × 10ⁿ) de um eixo;
-//! - [`segmentos`] — a tabela de sete segmentos do `<lcdnumber>`;
+//! - [`segmentos`] — a tabela de sete segmentos do `lcdnumber`;
 //! - [`compacto`] — o número como uma pessoa o lê num eixo.
 //!
 //! O desenho de cada widget mora com ele: os medidores em `src/gauges.rs`, os
@@ -41,8 +41,8 @@
 //!
 //! O `canvas::Program` do `iced` tem um `type State` próprio, guardado na
 //! árvore de widgets. **Ele não é estado do app.** Vale para o que morre com o
-//! quadro — se a alça de um `<dial>` está presa agora —, nunca para o valor: o
-//! valor mora na chave que o markup nomeia, como no `<slider>` e no `<rating>`.
+//! quadro — se a alça de um `dial` está presa agora —, nunca para o valor: o
+//! valor mora na chave que o markup nomeia, como no `slider` e no `rating`.
 //! É o que faz N instâncias do mesmo widget conviverem numa tela sem se ver, e
 //! é a mesma conclusão a que as ondas 4 e 6 chegaram ao reclassificar o
 //! `Spinner` e o `Rating` de `●` para primitiva.
@@ -63,7 +63,7 @@ pub struct Ponto {
 
 /// Uma série de dados lida de uma chave do contexto.
 ///
-/// A convenção do `items` é a **mesma** do `<select>` e do `<autocomplete>` —
+/// A convenção do `items` é a **mesma** do `select` e do `autocomplete` —
 /// uma chave que guarda um array JSON —, com as duas formas que um gráfico
 /// aceita:
 ///
@@ -73,7 +73,7 @@ pub struct Ponto {
 /// ```
 ///
 /// Na primeira, o rótulo é o índice (`"1"`, `"2"`, …) — é o que um
-/// `<sparkline>` quer, e ele nem desenha rótulo. Na segunda, `label` e `value`
+/// `sparkline` quer, e ele nem desenha rótulo. Na segunda, `label` e `value`
 /// com os sinônimos que o resto do markup aceita (`rotulo`/`nome`,
 /// `valor`/`y`), porque um JSON que veio de um backend raramente escolhe o
 /// nome que a gente teria escolhido.
@@ -111,13 +111,13 @@ impl Serie {
                     let campo = |nomes: &[&str]| -> Option<&serde_json::Value> {
                         nomes.iter().find_map(|n| o.get(*n))
                     };
-                    let rotulo = campo(&["label", "rotulo", "rótulo", "nome", "x"])
+                    let rotulo = campo(&["label", "x"])
                         .map(|v| match v {
                             serde_json::Value::String(s) => s.clone(),
                             outro => outro.to_string(),
                         })
                         .unwrap_or_else(|| (i + 1).to_string());
-                    let valor = campo(&["value", "valor", "y"])
+                    let valor = campo(&["value", "y"])
                         .and_then(numero)
                         .unwrap_or(0.0);
                     Ponto { rotulo, valor }
@@ -175,7 +175,7 @@ impl Serie {
         (min, max)
     }
 
-    /// A soma, para o `<piechart>`. Fatias negativas não existem num setor
+    /// A soma, para o `piechart`. Fatias negativas não existem num setor
     /// circular: elas entram como zero, e a fatia some em vez de comer as
     /// vizinhas.
     pub fn soma_positiva(&self) -> f64 {
@@ -204,7 +204,7 @@ fn numero(v: &serde_json::Value) -> Option<f64> {
 /// porque o Y da tela cresce para baixo.
 ///
 /// Existe como função porque a alternativa — espalhar `to_radians()` por três
-/// arquivos — foi o que fez a primeira versão do `<gauge>` abrir para o lado
+/// arquivos — foi o que fez a primeira versão do `gauge` abrir para o lado
 /// errado.
 #[inline]
 pub fn graus(g: f32) -> Radians {
@@ -230,7 +230,7 @@ fn passos(varredura: f32, raio: f32) -> usize {
 /// `move_to` **sempre**. Ou seja: dois arcos no mesmo caminho viram dois
 /// sub-caminhos soltos, e o preenchimento de um anel sai deformado — as fatias
 /// de uma pizza apareciam com pedaços faltando perto do centro, e as faixas de
-/// um `<gauge>` preenchiam até o miolo em vez de ficarem no anel. Com a
+/// um `gauge` preenchiam até o miolo em vez de ficarem no anel. Com a
 /// polilinha o caminho é UM só, e o `close()` fecha o que se espera.
 pub fn arco(centro: Point, raio: f32, inicio: f32, varredura: f32) -> Path {
     let n = passos(varredura, raio);
@@ -267,7 +267,7 @@ pub fn anel(centro: Point, raio: f32, espessura: f32, inicio: f32, varredura: f3
             }
         }
         // Raio interno nulo é uma FATIA, não um anel: fecha pelo centro, que é
-        // o que um `<piechart>` sem buraco desenha.
+        // o que um `piechart` sem buraco desenha.
         if interno <= 0.5 {
             b.line_to(centro);
         } else {
@@ -397,8 +397,8 @@ pub fn compacto(v: f64) -> String {
     }
 }
 
-/// O valor formatado com um número fixo de casas — o que o `<gauge>` e o
-/// `<dial>` escrevem no meio, onde o dado é um valor só e o arredondamento do
+/// O valor formatado com um número fixo de casas — o que o `gauge` e o
+/// `dial` escrevem no meio, onde o dado é um valor só e o arredondamento do
 /// eixo seria mentira.
 pub fn com_casas(v: f64, casas: usize) -> String {
     format!("{v:.*}", casas.min(6))
@@ -457,7 +457,7 @@ pub fn segmentos(c: char) -> u8 {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A cor que o markup pediu, ou a do tema quando ele não pediu nada — o mesmo
-/// fallback do `color` do `<rating>` e do `<progressbar>`.
+/// fallback do `color` do `rating` e do `progressbar`.
 #[inline]
 pub fn cor_ou(prop: &str, padrao: Color) -> Color {
     parse_hex_color(prop).unwrap_or(padrao)

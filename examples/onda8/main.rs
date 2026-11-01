@@ -6,7 +6,7 @@
 //! ```text
 //! Habilitador — o modal ganha CORPO e RETORNO   (motor: dialogs.rs, lib.rs, luau/)
 //!
-//! 1. Dialog          — o `<dialog>` próprio, que é o QDialog     (motor + tag)
+//! 1. Dialog          — o `dialog` próprio, que é o QDialog     (motor + tag)
 //! 2. InputDialog     — pede texto, número ou item de lista       (diálogo)
 //! 3. ProgressDialog  — progresso cancelável                      (diálogo)
 //! 4. ColorDialog     — roda/HSV/hex, sobre o canvas da Onda 7    (diálogo)
@@ -14,8 +14,8 @@
 //! 6. Wizard          — passos com voltar/avançar/finalizar       (builtin+prim)
 //! ```
 //!
-//! Este exemplo mostra o lado **Rust/declarativo** da onda: o `<dialog>` do
-//! item 1 escrito no `.gv`, o wizard, o `<stackview>` e a roda de cor avulsa.
+//! Este exemplo mostra o lado **Rust/declarativo** da onda: o `dialog` do
+//! item 1 escrito no `.gv`, o wizard, o `stackview` e a roda de cor avulsa.
 //! Os itens 2, 3 e 4 como *diálogos* são API da camada Luau — eles estão em
 //! `cargo run --example onda8_luau`.
 //!
@@ -25,7 +25,7 @@
 //! transiente e construído inteiramente em Rust, **sem markup**"*. Isso vale
 //! enquanto todo diálogo é uma caixa de mensagem. Deixa de valer no instante em
 //! que um diálogo precisa de um **campo** — o `QInputDialog::getText` é um
-//! `QLineEdit` dentro de um cartão, e o motor já sabe desenhar `<textinput>`,
+//! `QLineEdit` dentro de um cartão, e o motor já sabe desenhar `textinput`,
 //! estilizá-lo pelo `.gss` e ligá-lo a uma chave.
 //!
 //! Escrever um segundo caminho de render, em Rust, para cada diálogo com
@@ -38,7 +38,7 @@
 //! ("exige estado por instância"). Nenhum exige — e aqui a marca é
 //! *estruturalmente* impossível: o diálogo é **singleton** no motor, então
 //! nunca existe uma segunda instância com que colidir. O que o usuário digita
-//! mora numa chave (`__dialog.nome`), como em qualquer `<textinput>`.
+//! mora numa chave (`__dialog.nome`), como em qualquer `textinput`.
 //!
 //! As dez reclassificações anteriores descobriram que o estado era o *valor*.
 //! Esta descobre algo mais simples e mais fácil de checar antes de escrever
@@ -70,7 +70,7 @@ impl Component for Onda8 {
         );
         ctx.set("aba", "modal".to_string());
 
-        // As opções do `<select>` que vive DENTRO do diálogo. Repare que ela é
+        // As opções do `select` que vive DENTRO do diálogo. Repare que ela é
         // uma chave comum do app: o corpo do modal é avaliado no contexto do
         // app, então ele enxerga tudo o que a tela enxerga.
         ctx.set(
@@ -94,7 +94,7 @@ impl Component for Onda8 {
 
         ctx.set("painel", "resumo".to_string());
         // As duas chaves da cor nascem iguais: a cometida e o texto que o campo
-        // mostra. A `<colorwheel>` reescreve as duas a cada gesto.
+        // mostra. A `colorwheel` reescreve as duas a cada gesto.
         ctx.set("cor", "#89B4FA".to_string());
         ctx.set("cor__hex", "#89B4FA".to_string());
 
@@ -105,10 +105,10 @@ impl Component for Onda8 {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
-            // ── O botão Salvar do `<dialog name="editar_servico">` ───────
+            // ── O botão Salvar do `dialog(name = editar_servico)` ───────
             //
             // Ele chega aqui como uma ação COMUM — a mesma rota de um
-            // `<Button on_click>`. O motor já fechou o diálogo antes de
+            // `Button(on_click)`. O motor já fechou o diálogo antes de
             // despachar, e as chaves `__dialog.*` ainda estão no contexto
             // neste instante: são apagadas depois, no fechamento.
             "salvar_servico" => {
@@ -149,7 +149,7 @@ impl Component for Onda8 {
             // (`GlacierUI::render`), e passar o nome mantém o `DialogSpec`
             // barato de clonar e guardar.
             //
-            // O nome aqui é o do `<dialog>` do `.gv` — a declaração registra o
+            // O nome aqui é o do `dialog` do `.gv` — a declaração registra o
             // corpo dela como um template comum, e é isso que faz os dois
             // caminhos (markup e Rust) chegarem ao mesmo lugar.
             "abrir_do_rust" => {
@@ -179,9 +179,9 @@ impl Component for Onda8 {
             // ── O wizard ─────────────────────────────────────────────────
             //
             // Repare no que NÃO está aqui: nenhum braço para "avançar" ou
-            // "voltar". Quem anda entre os passos é a `<WizardNav>`, e ela
+            // "voltar". Quem anda entre os passos é a `wizardnav`, e ela
             // escreve a chave sozinha pelo `ContextPatch` — o mesmo caminho da
-            // `<pagination>` da Onda 4.
+            // `pagination` da Onda 4.
             "finalizar" => {
                 let plano = ctx.get("plano").cloned().unwrap_or_default();
                 let dominio = ctx.get("dominio").cloned().unwrap_or_default();
@@ -194,19 +194,19 @@ impl Component for Onda8 {
             }
 
             // `painel:resumo` / `painel:detalhe` — a troca de página do
-            // `<stackview>`. Duas linhas, porque trocar de página é escrever
+            // `stackview`. Duas linhas, porque trocar de página é escrever
             // uma chave: o widget não tem ação própria.
             a if a.starts_with("painel:") => {
                 ctx.set("painel", a.trim_start_matches("painel:").to_string());
             }
 
             // O campo hexadecimal do seletor de cor, e ele mostra o padrão que
-            // um app precisa conhecer: **um `<TextInput>` nunca grava a chave
+            // um app precisa conhecer: **um `textinput` nunca grava a chave
             // sozinho**. Ele despacha `onChange` com o texto novo, e quem
             // escreve é quem trata a ação — sem isso o campo é decorativo.
             //
             // Aqui o texto vai para uma chave de rascunho (`cor__hex`, que é a
-            // chave irmã que a própria `<colorwheel>` reescreve a cada gesto) e
+            // chave irmã que a própria `colorwheel` reescreve a cada gesto) e
             // a cor só é **cometida** quando o texto é uma cor inteira. É o que
             // impede a roda de piscar enquanto alguém digita `#ff8800`.
             "cor_digitada" => {

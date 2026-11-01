@@ -7,19 +7,19 @@ component {
     text(class = titulo_cat, content = "Containers e agrupadores")
 
     text(
-      class = intro,
-      content = """
-        §2.11 (layouts) mora aqui também: `<row>`/`<column>`/`<grid>`/ `<flow>`
-        estão em uso em toda tela deste catálogo; `<space>` tem um bloco próprio
+      """
+        §2.11 (layouts) mora aqui também: `row`/`column`/`grid`/ `flow`
+        estão em uso em toda tela deste catálogo; `space` tem um bloco próprio
         abaixo.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<groupbox> — moldura com título + ações no cabeçalho",
+          content = "groupbox — moldura com título + ações no cabeçalho",
         )
 
         groupbox(title = Rede) {
@@ -38,10 +38,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <grid columns="140 fill 80"> · <flow> — quebra sozinho
+          """
+            grid(columns = "140 fill 80") · flow — quebra sozinho
           """,
+          class = rotulo,
         )
 
         grid(columns = "140 fill 80", row_spacing = 6, class = grade) {
@@ -61,11 +61,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <space> — vazio elástico: sem width/height é `fill` nos dois eixos,
+          """
+            space — vazio elástico: sem width/height é `fill` nos dois eixos,
             empurra os vizinhos
           """,
+          class = rotulo,
         )
 
         row(class = "linha linha_2") {
@@ -77,10 +77,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <splitter sizes="ct_split"> — alça arrastável (chave "260 fill")
+          """
+            splitter(:sizes = ct_split) — alça arrastável (chave "260 fill")
           """,
+          class = rotulo,
         )
 
         splitter(:sizes = ct_split, min = 100, handle = 6, class = area) {
@@ -96,11 +96,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <accordion> + <accordionitem> — VÁRIAS abertas ao mesmo tempo; o
+          """
+            accordion + accordionitem — VÁRIAS abertas ao mesmo tempo; o
             conjunto vive numa chave só (`value`)
           """,
+          class = rotulo,
         )
 
         accordion {
@@ -110,11 +110,11 @@ component {
             id = rede,
           ) {
             text(
-              class = nota,
-              content = """
+              """
                 conteúdo de Rede — arraste a chave `ct_abertas` (`"rede,disco"`)
                 para abrir mais de um
               """,
+              class = nota,
             )
           }
 
@@ -138,11 +138,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <toolbox> + <toolboxitem> — o mesmo, mas só UMA aberta por vez (a
+          """
+            toolbox + toolboxitem — o mesmo, mas só UMA aberta por vez (a
             chave guarda um id)
           """,
+          class = rotulo,
         )
 
         toolbox {
@@ -164,11 +164,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <reveal open="@{…}"> — abre/fecha ANIMADO, interpolando a altura do
+          """
+            reveal(open = "@{…}") — abre/fecha ANIMADO, interpolando a altura do
             filho de 0 até a natural
           """,
+          class = rotulo,
         )
 
         button(
@@ -184,11 +184,11 @@ component {
             )
 
             text(
-              class = nota,
-              content = """
+              """
                 `duration="180"` (ms); `axis="x"` anima a largura no lugar da
                 altura.
               """,
+              class = nota,
             )
           }
         }
@@ -196,11 +196,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <mdiarea> + <mdisubwindow> — janelas internas (posição/tamanho em
+          """
+            mdiarea + mdisubwindow — janelas internas (posição/tamanho em
             chaves)
           """,
+          class = rotulo,
         )
 
         mdiarea(class = area) {
@@ -225,10 +225,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
+          """
             <dock> — painel acoplável (mode/size/float_* em chaves; dois filhos)
           """,
+          class = rotulo,
         )
 
         dock(
@@ -238,11 +238,11 @@ component {
         ) {
           column(class = coluna) {
             text(
-              class = nota,
-              content = """
+              """
                 painel — arraste o cabeçalho para as bordas ou solte no meio para
                 flutuar
               """,
+              class = nota,
             )
           }
 

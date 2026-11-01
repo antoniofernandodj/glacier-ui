@@ -1,17 +1,17 @@
 /// `QStatusBar`: o rodapé de status — uma mensagem à esquerda e os indicadores
 /// permanentes à direita.
 ///
-/// ```xml
-/// <StatusBar message="Pronto">
-///     <Badge badge_text="3 erros" badge_bg="#F38BA8" />
-///     <Text content="UTF-8" />
-/// </StatusBar>
+/// ```gv
+/// StatusBar(message = Pronto) {
+///   Badge(badge_text = "3 erros", badge_bg = #F38BA8)
+///   Text(content = UTF-8)
+/// }
 /// ```
 ///
 /// A divisão espelha o `QStatusBar` de verdade, que tem duas zonas com regras
 /// diferentes: o `showMessage()` (texto transitório, à esquerda) e os
 /// *permanent widgets* (`addPermanentWidget`, à direita, que a mensagem nunca
-/// cobre). Aqui a mensagem é a prop `message` e os permanentes são o `<slot/>`
+/// cobre). Aqui a mensagem é a prop `message` e os permanentes são o `slot`
 /// — o empurrão para a direita sai do `width="fill"` na mensagem, que come todo
 /// o espaço sobrando antes do conteúdo.
 ///
@@ -24,9 +24,9 @@
 /// - `size`     — corpo do texto da mensagem. Default: `12`.
 /// - `divider`  — linha de separação sobre a barra. Default: `true`.
 /// - `width`    — largura. Default: `fill`.
-/// - `bar_class`     — classe da faixa pintada (o `<Container>`).
+/// - `bar_class`     — classe da faixa pintada (o `Container`).
 /// - `message_class` — classe do texto da esquerda.
-/// - `content_class` — classe da linha que segura mensagem e `<slot/>`.
+/// - `content_class` — classe da linha que segura mensagem e `slot`.
 ///
 /// `class` no uso aplica na raiz, que aqui é a coluna que empilha a linha
 /// divisória e a faixa — quem tem fundo é a faixa, e é `bar_class` que a
@@ -46,32 +46,27 @@ impl Component for StatusBar {
     }
 
     fn template(&self) -> Template {
-        // A `<Row>` de fora tem `width="fill"` e a mensagem TAMBÉM: é a
-        // mensagem que ocupa a sobra e joga o `<slot/>` para a borda direita.
+        // A `Row` de fora tem `width="fill"` e a mensagem TAMBÉM: é a
+        // mensagem que ocupa a sobra e joga o `slot` para a borda direita.
         // Sem o `fill` no texto, os dois ficariam colados à esquerda.
         Template::Inline(
-            r#"<Column spacing="0" width="{width|fill}">
-                    <style>
-                        .statusbar { background: #8080801f; }
-                        .statusbar-message { color: #80868d; }
-                    </style>
-
-                    <template if="{divider|true}" equals="true">
-                        <Rule />
-                    </template>
-
-                    <Container class="statusbar {bar_class}" padding="{padding|4 10}" width="{width|fill}">
-                        <Row class="{content_class}" spacing="{spacing|10}" align_y="center" width="{width|fill}">
-                            <Text
-                                class="statusbar-message {message_class}"
-                                content="{message}"
-                                size="{size|12}"
-                                width="fill"
-                            />
-                            <slot/>
-                        </Row>
-                    </Container>
-                </Column>"#
+            r##"
+                column(spacing = 0, width = "{width|fill}") {
+                  style """
+                                        .statusbar { background: #8080801f; }
+                                        .statusbar-message { color: #80868d; }
+                                    """
+                  template(if = "{divider|true}", equals = true) {
+                    rule
+                  }
+                  container(class = "statusbar {bar_class}", padding = "{padding|4 10}", width = "{width|fill}") {
+                    row(class = @content_class, spacing = "{spacing|10}", align_y = center, width = "{width|fill}") {
+                      text(class = "statusbar-message {message_class}", content = @message, size = "{size|12}", width = fill)
+                      slot
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

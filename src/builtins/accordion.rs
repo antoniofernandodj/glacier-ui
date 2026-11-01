@@ -6,36 +6,35 @@
 /// — e por isso o primeiro precisou do `contains` (0.84) e o segundo não
 /// precisa de nada.
 ///
-/// ```xml
-/// <accordion>
-///     <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
-///         <input :value="host" />
-///     </accordionitem>
-///     <accordionitem title="Disco" value="abertas" open="{abertas}" id="disco">
-///         <text>Nada por aqui ainda.</text>
-///     </accordionitem>
-/// </accordion>
-///
-/// <toolbox>
-///     <toolboxitem title="Ferramentas" value="secao" open="{secao}" id="ferr"> … </toolboxitem>
-///     <toolboxitem title="Camadas"     value="secao" open="{secao}" id="cam">  … </toolboxitem>
-/// </toolbox>
+/// ```gv
+/// accordion {
+///   accordionitem(title = Rede, value = abertas, open = @abertas, id = rede) {
+///     input(:value = host)
+///   }
+///   accordionitem(title = Disco, value = abertas, open = @abertas, id = disco) {
+///     text("Nada por aqui ainda.")
+///   }
+/// }
+/// toolbox {
+///   toolboxitem("…", title = Ferramentas, value = secao, open = @secao, id = ferr)
+///   toolboxitem("…", title = Camadas, value = secao, open = @secao, id = cam)
+/// }
 /// ```
 ///
 /// # Por que uma tag por item, e não uma coleção
 ///
 /// Porque o **conteúdo** de cada seção é diferente, e conteúdo é do app: um
 /// `items="secoes"` daria os títulos, mas o corpo teria de sair de um
-/// `<slot/>` por seção — e os nomes de slot são fixos no template do
+/// `slot` por seção — e os nomes de slot são fixos no template do
 /// componente (0.67), então o widget não pode inventar um por item da coleção.
 ///
 /// A saída é a do próprio Qt: `QToolBox::addItem(widget, "Título")` também
 /// recebe uma seção por chamada. Aqui a chamada é uma tag, o widget é o que
-/// está escrito entre elas, e o `<slot/>` (0.65) é o que torna isso possível.
+/// está escrito entre elas, e o `slot` (0.65) é o que torna isso possível.
 ///
 /// # O `Accordion`/`ToolBox` de fora é só a moldura
 ///
-/// Um `<Column>` com espaçamento e uma borda opcional. Todo o comportamento
+/// Um `Column` com espaçamento e uma borda opcional. Todo o comportamento
 /// mora no **item** — que por isso funciona sozinho, sem a moldura, quando o
 /// que se quer é uma seção dobrável solta no meio de um formulário.
 ///
@@ -50,7 +49,7 @@
 /// # Abre e fecha animado (0.90)
 ///
 /// O corpo desliza para dentro e para fora em 180ms, em vez de aparecer e
-/// sumir entre dois quadros. Quem faz isso é a primitiva `<Reveal>`
+/// sumir entre dois quadros. Quem faz isso é a primitiva `Reveal`
 /// (ver [`crate::reveal`]), que o item já embrulha sozinho: o corpo está
 /// **sempre** na árvore — é de onde a altura encolhe ao fechar — e o widget é
 /// que decide quanto dele mostrar a cada quadro.
@@ -87,17 +86,16 @@
 /// biblioteca, e o que faz um accordion caber num tema do app sem reescrever o
 /// widget:
 ///
-/// - `head_class`  — o `<Button>` do cabeçalho (aceita `:hover`).
+/// - `head_class`  — o `Button` do cabeçalho (aceita `:hover`).
 /// - `mark_class`  — o glifo `▾`/`▸`.
 /// - `title_class` — o título.
 /// - `sub_class`   — a segunda linha.
-/// - `body_class`  — a coluna do corpo (dentro do `<Reveal>` que a anima).
+/// - `body_class`  — a coluna do corpo (dentro do `Reveal` que a anima).
 ///
-/// ```xml
-/// <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede"
-///                head_class="sec_cabecalho" body_class="sec_corpo">
-///     <input :value="host" />
-/// </accordionitem>
+/// ```gv
+/// accordionitem(title = Rede, value = abertas, open = @abertas, id = rede, head_class = sec_cabecalho, body_class = sec_corpo) {
+///   input(:value = host)
+/// }
 /// ```
 use crate::component::{Component, Context, Template};
 
@@ -106,14 +104,16 @@ pub struct AccordionItem;
 pub struct ToolBox;
 pub struct ToolBoxItem;
 
-/// O corpo comum das duas molduras: uma `<Column>` que só empilha o que
+/// O corpo comum das duas molduras: uma `Column` que só empilha o que
 /// escreverem dentro dela. `op` distingue o que o item faz no clique.
 fn moldura(largura_padrao: &str) -> Template {
-    Template::Inline(format!(
-        r#"<Column spacing="{{spacing|4}}" width="{{width|{largura_padrao}}}">
-                <slot/>
-            </Column>"#
-    ))
+    Template::Inline(
+        r##"
+column(spacing = "{spacing|4}", width = "{width|%LARGURA%}") {
+  slot
+}"##
+            .replace("%LARGURA%", largura_padrao),
+    )
 }
 
 /// O item: um cabeçalho clicável e um corpo que **abre e fecha animado**.
@@ -124,85 +124,87 @@ fn moldura(largura_padrao: &str) -> Template {
 ///
 /// # Por que os dois braços repetem o corpo inteiro
 ///
-/// Porque o `<Reveal>` precisa de um `open` **booleano**, e derivá-lo de um
+/// Porque o `Reveal` precisa de um `open` **booleano**, e derivá-lo de um
 /// `contains`/`equals` é exatamente a indireção que o interpolador não tem
 /// (a mesma razão de `value`/`open` andarem em par, lá em cima). Então quem
-/// decide continua sendo o `<template if>`, e cada braço escreve o literal
+/// decide continua sendo o `template(if)`, e cada braço escreve o literal
 /// que lhe cabe: `open="true"` num, `open="false"` no outro.
 ///
 /// O que **não** muda entre os dois braços é a FORMA da árvore — cabeçalho e
-/// `<Reveal>`, nessa ordem, nos dois. É disso que a animação depende: o
-/// `iced` casa o estado da árvore por posição, então o `<Reveal>` do braço
+/// `Reveal`, nessa ordem, nos dois. É disso que a animação depende: o
+/// `iced` casa o estado da árvore por posição, então o `Reveal` do braço
 /// aberto e o do braço fechado são o MESMO widget para ele, e a transição de
 /// `open` é o que o `diff()` dele enxerga (ver `ANIMACOES.md`). Um braço com
 /// um filho a mais que o outro desalinharia as posições e a animação sumiria
 /// — o corpo voltaria a piscar.
 fn item(op: &str, teste: &str) -> Template {
-    let corpo = r#"<Reveal open="{ABERTO}" duration="{duration|180}" width="fill">
-                        <Column
-                            class="accordion-body {body_class}"
-                            spacing="{spacing|8}"
-                            padding="{padding|12}"
-                            width="fill"
-                        >
-                            <slot/>
-                        </Column>
-                    </Reveal>"#;
+    let corpo = r##"
+reveal(open = %ABERTO%, duration = "{duration|180}", width = fill) {
+  column(
+    class = "accordion-body {body_class}",
+    spacing = "{spacing|8}",
+    padding = "{padding|12}",
+    width = fill,
+  ) {
+    slot
+  }
+}"##;
 
-    Template::Inline(format!(
-        r#"<Column spacing="0" width="{{width|fill}}">
-                <style>
-                    .accordion-head {{
-                        color: #8080801f;
-                        text-color: #cdd6f4;
-                        border-width: 0;
-                        border-radius: 5;
-                    }}
-                    .accordion-head:hover {{ background: #8080803d; }}
-                    .accordion-mark {{ color: #80868d; }}
-                    .accordion-sub  {{ color: #80868d; }}
-                </style>
+    Template::Inline(
+        r##"
+column(spacing = 0, width = "{width|fill}") {
+  style """
+    .accordion-head {
+      color: #8080801f;
+      text_color: #cdd6f4;
+      border_width: 0;
+      border_radius: 5;
+    }
+    .accordion-head:hover { background: #8080803d; }
+    .accordion-mark { color: #80868d; }
+    .accordion-sub  { color: #80868d; }
+  """
 
-                <template if="{{open}}" {teste}>
-                    {aberto}
-                    {corpo_aberto}
-                </template>
+  template(if = @open, %TESTE%) {
+    %ABERTO%
+    %CORPO_ABERTO%
+  }
 
-                <template else>
-                    {fechado}
-                    {corpo_fechado}
-                </template>
-            </Column>"#,
-        teste = teste,
-        aberto = cabecalho("▾").replace("{OP}", op),
-        fechado = cabecalho("▸").replace("{OP}", op),
-        corpo_aberto = corpo.replace("{ABERTO}", "true"),
-        corpo_fechado = corpo.replace("{ABERTO}", "false"),
-    ))
+  template(else) {
+    %FECHADO%
+    %CORPO_FECHADO%
+  }
+}"##
+        .replace("%TESTE%", teste)
+        .replace("%ABERTO%", &cabecalho("▾").replace("%OP%", op))
+        .replace("%FECHADO%", &cabecalho("▸").replace("%OP%", op))
+        .replace("%CORPO_ABERTO%", &corpo.replace("%ABERTO%", "true"))
+        .replace("%CORPO_FECHADO%", &corpo.replace("%ABERTO%", "false")),
+    )
 }
 
 /// O cabeçalho, com o glifo do estado. Repetido nos dois braços porque a
-/// alternativa — um `<slot/>` interno — não existe: o slot é o conteúdo de
+/// alternativa — um `slot` interno — não existe: o slot é o conteúdo de
 /// quem USA o widget, não um mecanismo de reuso dentro do template.
 fn cabecalho(marca: &str) -> String {
-    format!(
-        r#"<Button
-                        class="accordion-head {{head_class}}"
-                        on_click="{{OP}}:{{value}}|{{id}}"
-                        padding="{{head_padding|9 12}}"
-                        width="fill"
-                    >
-                        <Row spacing="8" align_y="center" width="fill">
-                            <Text class="accordion-mark {{mark_class}}" content="{marca}" size="12" />
-                            <Column spacing="1" width="fill">
-                                <Text class="{{title_class}}" content="{{title}}" size="{{size|13}}" bold="true" />
-                                <template if="{{sub}}" notEquals="">
-                                    <Text class="accordion-sub {{sub_class}}" content="{{sub}}" size="11" />
-                                </template>
-                            </Column>
-                        </Row>
-                    </Button>"#
-    )
+    r##"
+button(
+  class = "accordion-head {head_class}",
+  on_click = "%OP%:{value}|{id}",
+  padding = "{head_padding|9 12}",
+  width = fill,
+) {
+  row(spacing = 8, align_y = center, width = fill) {
+    text(class = "accordion-mark {mark_class}", content = "%MARCA%", size = 12)
+    column(spacing = 1, width = fill) {
+      text(class = "{title_class}", content = "{title}", size = "{size|13}", bold = true)
+      template(if = @sub, not_equals = "") {
+        text(class = "accordion-sub {sub_class}", content = "{sub}", size = 11)
+      }
+    }
+  }
+}"##
+    .replace("%MARCA%", marca)
 }
 
 impl Component for Accordion {
@@ -237,7 +239,7 @@ impl Component for AccordionItem {
         // que o habilitador da 0.84 paga o aluguel — sem ele, cada seção
         // precisaria da sua própria chave, que é exatamente o "estado por
         // instância" que o plano dizia faltar.
-        item("toggle", r#"contains="{id}""#)
+        item("toggle", r#"contains = "{id}""#)
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
@@ -265,7 +267,7 @@ impl Component for ToolBoxItem {
     fn template(&self) -> Template {
         // `equals`: a chave guarda UMA seção. É o `TabBar` na vertical, e por
         // isso nunca precisou do `contains` — nem esteve bloqueado por nada.
-        item("only", r#"equals="{id}""#)
+        item("only", r#"equals = "{id}""#)
     }
 
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {

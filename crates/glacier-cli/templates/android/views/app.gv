@@ -42,10 +42,10 @@ screen(title = "{{titulo}}") {
     button(class = btn_ghost, on_click = zerar, text = "zerar")
 
     text(
-      class = dica,
-      content = """
+      """
         no desktop, edite este arquivo ou o .gss e salve: o hot-reload aplica
       """,
+      class = dica,
     )
   }
 }

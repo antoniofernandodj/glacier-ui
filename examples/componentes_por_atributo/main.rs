@@ -6,26 +6,26 @@
 //!
 //! # Componente como atributo
 //!
-//! A `<Vitrine>` (em `vitrine.gv`) não sabe desenhar cabeçalho, linha nem lista
+//! A `Vitrine` (em `vitrine.gv`) não sabe desenhar cabeçalho, linha nem lista
 //! vazia. Quem usa diz quais componentes fazem cada papel, pelo **nome**:
 //!
 //! ```xml
-//! <Vitrine cabecalho="TituloDestaque" linha="LinhaTarefa" vazio="ListaVazia" … />
+//! Vitrine(cabecalho = TituloDestaque, linha = LinhaTarefa, vazio = ListaVazia)
 //! ```
 //!
-//! e a Vitrine os desenha com `<render>`, que resolve um nome vindo de prop:
+//! e a Vitrine os desenha com `render`, que resolve um nome vindo de prop:
 //!
 //! ```xml
-//! <render component="{cabecalho}" titulo="{titulo}" total="{total}" />
+//! render(component = @cabecalho, titulo = @titulo, total = @total)
 //! ```
 //!
 //! # `fallback`
 //!
-//! `<foreach>` aceita `fallback="Nome"` — no `<template foreach>`, que também é
+//! `foreach` aceita `fallback="Nome"` — no `template(foreach)`, que também é
 //! `if`/`else`, o atributo se chama `foreach_fallback`: o componente
 //! desenhado quando a lista está vazia. O nome pode ser literal
 //! (`fallback="ListaVazia"`) ou chegar por prop (`fallback="{vazio}"`). Tem de
-//! ser um componente já declarado no `<resources>`, importado ou registrado — um
+//! ser um componente já declarado no `resources`, importado ou registrado — um
 //! nome errado é `UnknownComponent` já na primeira avaliação, mesmo com a lista
 //! cheia.
 //!
@@ -66,7 +66,7 @@ impl ComponentesPorAtributo {
     }
 
     /// Serializa as listas para o contexto. Uma lista vazia vira `[]`, que é o
-    /// que faz o `fallback` do `<foreach>` entrar.
+    /// que faz o `fallback` do `foreach` entrar.
     fn sincronizar(&self, ctx: &mut Context) {
         let filtro = self.filtro.to_lowercase();
         let compras: Vec<&Item> = self

@@ -85,14 +85,14 @@ isso se escreve no markup**.
 | `.single_instance("meu-app")` | uma segunda execução foca a primeira e sai | `app(id = meu_app, single_instance = true)` |
 | `.remember_window_geometry(true)` | grava o tamanho/posição ao fechar e restaura ao abrir | `app(id = meu_app, remember_geometry = true)` |
 | `.storage_dir(dir)` | onde o global `storage` e a geometria gravam | sai do `id` do `app` (`~/.local/share/<id>`). Um diretório próprio só em Rust |
-| `.tray(TrayConfig)` + `.on_tray(f)` | ícone de bandeja e menu | `tray` com `item`, `check` e `separator` no `resources` do `app`; as ações `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho, o resto vai para o `<script>` |
+| `.tray(TrayConfig)` + `.on_tray(f)` | ícone de bandeja e menu | `tray` com `item`, `check` e `separator` no `resources` do `app`; as ações `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho, o resto vai para o `script` |
 | `.locales_dir(dir)` / `.locale_json("pt-BR", json)` / `.default_locale("pt-BR")` | carrega os catálogos de i18n (um JSON por locale) e escolhe a padrão; `locales_dir` só no nativo | `{t("chave")}` no markup e a chave `__locale` — ver [`I18N.md`](I18N.md). **Só em Rust** (o catálogo é dado do app) |
 | `.style(style::FUSION)` | estilo visual embutido da janela | um botão com `on_click="style:fusion"` troca em tempo de execução; o estilo **inicial** só em Rust |
 | `.font(bytes)` / `.font_named("Inter", bytes)` / `.default_font(f)` | embute uma fonte no binário | `font(src = "assets/fonts/Inter.ttf", family = Inter)` no `resources` do `app`, e `app(font = Inter)` para torná-la a padrão. O arquivo é lido pela fonte de assets (`.assets(…)` a embute). `font="Inter"` no markup e `font_family: Inter` no `.gss` a usam |
 | `.antialiasing(false)` | liga/desliga o MSAA | `app(antialiasing = false)` |
 | `.reload_period(d)` / `.toast_period(d)` | período do hot-reload e da expiração de toasts | `app(reload_period = 500, toast_period = 250)` (milissegundos) |
 | `.assets(fonte)` | embute templates/estilos no binário (web, standalone) | só em Rust |
-| `.lua_extension(f)` | expõe funções Rust como globais do `<script>` | só em Rust |
+| `.lua_extension(f)` | expõe funções Rust como globais do `script` | só em Rust |
 | `.on_message(f)` / `.on_close(f)` | observa cada mensagem despachada / o fechamento da principal | só em Rust |
 | `.main(\|motor\| …)` | configura o motor à mão | quase sempre dispensável: ver a seção 2 |
 | `.run()` | sobe o loop | — |
@@ -110,7 +110,7 @@ isso se escreve no markup**.
    a não ser que o `views/app.*` padrão seja um manifesto (raiz `app`).
 
 **Um app com bandeja não precisa de `.main`.** Prefira a lógica da tela no
-`<script>` Luau (`notify(…)`, `toast(…)`, `ctx`) a um `impl Component` só para
+`script` Luau (`notify(…)`, `toast(…)`, `ctx`) a um `impl Component` só para
 disparar uma notificação: o exemplo `bandeja` é isso, sem uma linha de Rust além
 do `main_template`.
 
@@ -127,10 +127,10 @@ tudo o que se faz ali tem uma forma no markup:
 | `motor.register_component("detalhe", "views/detalhe.gv")` | registra outra tela | `screen(name = detalhe, src = "views/detalhe.gv")` no `app` (ou `link(rel = import, …)` num `resources`) |
 | `motor.load_stylesheet("views/app.gss")` | carrega uma folha global | `link(rel = stylesheet, href = "views/app.gss")` |
 | `motor.define_data("paises", json)` | publica um JSON no contexto | `link(rel = data, as = paises, href = "views/paises.json")` |
-| `motor.define_data("qtd", "1")` | valor inicial de uma chave | `<script>` com `function init() ctx.qtd = "1" end` |
+| `motor.define_data("qtd", "1")` | valor inicial de uma chave | `script` com `function init() ctx.qtd = "1" end` |
 | `motor.register(Box::new(MeuComponente))` | liga um `impl Component` (lógica em Rust) | **só em Rust.** No manifesto, a tela aparece como `screen(name = x)` **sem corpo e sem `src`**, e o `.main` registra o componente com esse nome. Sem registro, o app não sobe e o erro cita o nome |
 
-Uma tela **sem lógica em Rust** — a lógica mora no `<script>` Luau do template — não
+Uma tela **sem lógica em Rust** — a lógica mora no `script` Luau do template — não
 precisa de `.main`. Esta:
 
 ```rust

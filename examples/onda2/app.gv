@@ -8,8 +8,8 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
   }
 
   // A janela inteira: barra de ferramentas, abas, conteúdo rolável e
-  // rodapé. É o esqueleto de uma QMainWindow — o <menubar> (que já era
-  // nativo antes desta onda) entraria acima da <toolbar>.
+  // rodapé. É o esqueleto de uma QMainWindow — o menubar (que já era
+  // nativo antes desta onda) entraria acima da toolbar.
   column(class = coluna) {
     // 8. ToolButton dentro de 9. ToolBar ===
     // Os botões são do app: `on_click="novo"` chega no update desta tela,
@@ -45,7 +45,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
         if @aba == "grupos" {
           column(class = coluna_3) {
             text(
-              content = """
+              """
                 GroupBox — a moldura com título do Qt. O que ele desenha não vem
                 de prop: vem do que está escrito entre as tags dele.
               """,
@@ -107,7 +107,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
         else if @aba == "molduras" {
           column(class = coluna_3) {
             text(
-              content = """
+              """
                 Frame — a moldura sozinha, sem título e sem semântica de grupo. As
                 três formas cobrem o QFrame::Shape: contorno, contraste ou nada.
               """,
@@ -116,7 +116,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
 
             frame(shape = box) {
               text(
-                content = """
+                """
                   shape="box" (default) — borda de 1px, o QFrame::Box.
                 """,
                 class = texto_4,
@@ -125,7 +125,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
 
             frame(shape = filled) {
               text(
-                content = """
+                """
                   shape="filled" — sem borda, com fundo próprio: o QFrame::Panel.
                   A caixa se destaca por contraste.
                 """,
@@ -135,7 +135,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
 
             frame(shape = none) {
               text(
-                content = """
+                """
                   shape="none" — nem borda nem fundo: o QFrame::NoFrame. Sobra o
                   padding e o spacing padronizados.
                 """,
@@ -150,7 +150,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
 
               card(title = Aninhado, subtitle = "slot dentro de slot") {
                 text(
-                  content = """
+                  """
                     O conteúdo continua pertencendo a quem o escreveu.
                   """,
                   class = texto_5,
@@ -164,7 +164,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
         else if @aba == "cartoes" {
           column(class = coluna_3) {
             text(
-              content = """
+              """
                 Card — a superfície de um item: fundo próprio, cantos redondos e
                 um cabeçalho com hierarquia. É a peça de uma lista ou grade, não
                 de um formulário. O primeiro cartão tem rodapé (slot nomeado); os
@@ -201,7 +201,7 @@ screen(title = "Glacier - Onda 2", size = "880 660") {
 
             card(subtitle = "cartão sem título, largura fill") {
               text(
-                content = """
+                """
                   O cabeçalho aparece se houver título OU subtítulo — os dois são
                   independentes.
                 """,

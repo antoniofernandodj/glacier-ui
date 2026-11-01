@@ -7,7 +7,7 @@ format used by `glacier-ui`.
 
 - **Syntax highlighting** tuned to the GSS grammar:
   - Class selectors (`.card`), id selectors (`#save`, higher specificity than
-    a class), tag selectors (`Button`, `Card` — a builtin kind or a component
+    a class), tag selectors (`button`, `card` — a builtin kind or a component
     name, lowest specificity), and pseudo-states (`:hover`, `:focus`, `:active`,
     `:pressed`, `:disabled`, `:invalid`) on any of them — unknown pseudo-states
     are flagged.
@@ -43,5 +43,5 @@ Development Host.
 ## Grammar reference
 
 The highlighting mirrors `src/stylesheet.rs`. Supported property names include
-their `kebab`, `snake`, and `camel` spellings (e.g. `align-x` / `align_x` /
-`alignX`) plus the `w`/`h`/`bg` shorthands.
+their `kebab`, `snake`, and `camel` spellings (e.g. `align_x` / `align_x` /
+`align_x`) plus the `w`/`h`/`bg` shorthands.

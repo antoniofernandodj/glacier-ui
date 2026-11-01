@@ -1,7 +1,7 @@
 # {{titulo}}
 
 Aplicação desktop com [glacier-ui](https://crates.io/crates/glacier-ui), com o
-comportamento em **Rust** (o trait `Component`) em vez de num `<script>` Luau.
+comportamento em **Rust** (o trait `Component`) em vez de num `script` Luau.
 
 ```
 cargo run
@@ -12,7 +12,7 @@ cargo run
 O glacier-ui aceita as duas formas de dar comportamento a um template, e elas
 convivem no mesmo app:
 
-| | `impl Component` (Rust) | `<script>` (Luau) |
+| | `impl Component` (Rust) | `script` (Luau) |
 |---|---|---|
 | Estado | campos tipados na struct | chaves de string no `ctx` |
 | Erro | em tempo de compilação | em runtime |
@@ -20,7 +20,7 @@ convivem no mesmo app:
 
 Este preset usa o primeiro. O markup continua recarregando a quente: salvar
 `views/contador.gv` ou `views/styles/app.gss` redesenha sem recompilar. E um
-`<script>` pode ser acrescentado depois sem tirar o `Component` do lugar — por
+`script` pode ser acrescentado depois sem tirar o `Component` do lugar — por
 isso o `views/scripts/glacier.d.luau` já vem junto.
 
 ## O mapa
@@ -30,7 +30,7 @@ src/main.rs                     a casca: sobe o runner e registra o componente
 src/contador.rs                 o Component: template + estado + update
 views/contador.gv               o layout
 views/styles/app.gss            a paleta (:root) e as classes
-views/scripts/glacier.d.luau    tipos dos globais do Luau, se um dia entrar um <script>
+views/scripts/glacier.d.luau    tipos dos globais do Luau, se um dia entrar um script
 ```
 
 ## O contrato
@@ -59,8 +59,8 @@ onde o app roda (a raiz do projeto, num `cargo run`).
 `ctx.set("contador", …)` é o que o `{contador}` do template lê.
 
 **`update` recebe todo clique.** `value` traz o texto de um `on_change`/
-`on_toggle` e é `None` num clique simples. Um `TextInput` faz binding de mão
-dupla: `value` aponta para a chave exibida e `onChange` dispara a ação a cada
+`on_toggle` e é `None` num clique simples. Um `textinput` faz binding de mão
+dupla: `value` aponta para a chave exibida e `on_change` dispara a ação a cada
 tecla.
 
 Duas decisões no `update` que valem copiar:

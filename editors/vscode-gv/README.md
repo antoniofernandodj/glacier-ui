@@ -15,7 +15,7 @@ auto-closing are gone with the XML spelling they served.
 - **Syntax highlighting** for Glacier View markup:
   - Tags (primitives, builtins, and app components), attributes, `{interpolation}`
     with `{key|default}`, and hex colors.
-  - Action attributes (`on_click`, `onChange`, `on_toggle`, …) are highlighted
+  - Action attributes (`on_click`, `on_change`, `on_toggle`, …) are highlighted
     distinctly, and their handler names are scoped as functions.
   - **Embedded Lua** inside `script """…"""`.
   - **Embedded GSS** inside `style """…"""` (needs the *Glacier GSS* extension
@@ -26,30 +26,30 @@ auto-closing are gone with the XML spelling they served.
   | in the `.gv` | jumps to |
   | --- | --- |
   | `script(src = "app.luau")` | the `.luau` file |
-  | `on_click="salvar"` | `function salvar()` in that `.luau`, or in the inline `<script>` |
+  | `on_click="salvar"` | `function salvar()` in that `.luau`, or in the inline `script` |
   | `onToggle="escolher_tipo:roadmap"` | `function escolher_tipo(…)` — the `nome:sufixo` convention links on the name half |
   | `on_click="MeuComp::salvar"` | `function salvar()` — the `owner::action` convention links on the action half |
   | `on_click="clipboard:obra_pasta"` | where that context key is written (`ctx.obra_pasta = …`, `ctx.set("obra_pasta", …)`) — same for `open:`, `textarea_end:`, `textarea_top:` |
   | `on_click="window:close"`, `style:…` | the built-in actions table in the bundled reference |
   | `hidden="{sem_perguntas}"`, `{status}`, `{modelo\|padrão}` | where that context key is written |
-  | `value="user_name"`, `items="tarefas"`, `checked="marcado"`, `cond=…` | idem: a binding attribute names a context key |
-  | `{c.titulo}` under `for-each="…" var="c"` | the `var="c"` that declares the loop variable |
-  | `on_click="salvar"` with no `<script>` | the `"salvar" =>` arm of the Rust `Component::update` |
-  | `on_click="dialog:editar"` | the `dialog(name = editar)` (or component/screen) it opens |
-  | `dialog(buttons = "Salvar:salvar:accept\\|Voltar:dialog:editar:neutral")` | each button's action token — the `function`, or the chained `<dialog>` (the label and role keyword aren't linked) |
-  | `link(rel = stylesheet, href = "app.gss")`, `<style href=…>` | the GSS sheet |
-  | `class="cartao destaque"` | each class's `.cartao`/`.destaque` rule — in a linked sheet, an inline `<style>`, or (falling back) any other `.gss`/`<style>` in the workspace |
-  | `id="unico"` | the matching `#unico` rule, same search order |
-  | `<link rel="import" href=…>`, `<import from=…>`, `<Include src=…>` | the imported template |
+  | `value = "user_name"`, `items = "tarefas"`, `checked = "marcado"`, `cond=…` | idem: a binding attribute names a context key |
+  | `{c.titulo}` under `for-each="…" var="c"` | the `var = "c"` that declares the loop variable |
+  | `on_click = "salvar"` with no `script` | the `"salvar" =>` arm of the Rust `Component::update` |
+  | `on_click = "dialog:editar"` | the `dialog(name = editar)` (or component/screen) it opens |
+  | `dialog(buttons = "Salvar:salvar:accept\\|Voltar:dialog:editar:neutral")` | each button's action token — the `function`, or the chained `dialog` (the label and role keyword aren't linked) |
+  | `link(rel = stylesheet, href = "app.gss")`, `style(href = …)` | the GSS sheet |
+  | `class = "cartao destaque"` | each class's `.cartao`/`.destaque` rule — in a linked sheet, an inline `style`, or (falling back) any other `.gss`/`style` in the workspace |
+  | `id = "unico"` | the matching `#unico` rule, same search order |
+  | `link(rel = import, href = …)`, `import(from = …)`, `include(src = …)` | the imported template |
   | `link(rel = theme)` / `link(rel = data)` | the JSON file |
-  | `<Image src=…>`, `<Svg src=…>` | the asset |
+  | `image(src = …)`, `svg(src = …)` | the asset |
   | `screen(name = log, src = "views/log.gv")` in an `app(...)` | the screen's template |
   | `PerfilCard` | the `.gv`/`.xml` declaring the component |
   | `navigateTo="perfil"` | the screen's template |
-  | `Button`, `Badge`, … (native/builtin) | the bundled syntax reference |
+  | `button`, `badge`, … (native/builtin) | the bundled syntax reference |
 
   Context keys resolve **script first**, following the same chain the engine
-  builds: the template's own `<script>` (inline or `src`), then every module it
+  builds: the template's own `script` (inline or `src`), then every module it
   `require`s — transitively, resolved like `luau::resolve_module`, so a
   `ctx.erro = …` inside `lib/entrevista.luau` is found. Only a key written
   nowhere in that graph falls through to the Rust behind the template, and then
@@ -64,16 +64,15 @@ auto-closing are gone with the XML spelling they served.
   doesn't pass for "the extension doesn't link this". Interpolated (`{…}`) and
   remote (`https://…`) paths are left alone.
 
-  `class`/`id` resolve the same way: this document's own `<link
-  rel="stylesheet">`/`<style>` first, then — since a linked sheet styles the
+  `class`/`id` resolve the same way: this document's own `link(rel = stylesheet)`/`style` first, then — since a linked sheet styles the
   **whole app**, not just the file that links it (see `CLAUDE.md`'s markup
-  convention) — any other `.gss` file or `<style>` block anywhere in the
+  convention) — any other `.gss` file or `style` block anywhere in the
   workspace, nearest one winning when a name repeats.
 
 - **Fechamento automático de tag** — terminar uma abertura com `>` já escreve o
-  par: `<Column>` vira `<Column></Column>` com o cursor no meio. Vale para
+  par: `column` vira `column` com o cursor no meio. Vale para
   componentes do app também; fica de fora só o que o motor lê como folha
-  (`<Image>`, `<Badge>`, `<Radio>`, …), que o markup sempre escreve com `/>`.
+  (`image`, `badge`, `radio`, …), que o markup sempre escreve com `/>`.
   Desliga em `glacierView.autoClosingTags`.
 - **Enter entre `<tag>` e `</tag>`** quebra o par em três linhas — a de cima
   com a abertura, o cursor numa linha própria já indentada um nível, e o

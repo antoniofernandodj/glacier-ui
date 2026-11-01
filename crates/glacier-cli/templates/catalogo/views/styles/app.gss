@@ -19,7 +19,7 @@
 .janela  { width: fill; height: fill; }
 
 /* A largura/altura/padding/spacing do painel da gaveta vêm das props do
- `<drawer>` no `.gv` (`size`, `padding`, `spacing`); aqui fica só a cor. */
+ `drawer` no `.gv` (`size`, `padding`, `spacing`); aqui fica só a cor. */
 .sidebar { background: var(--surface); }
 .gaveta  { background: var(--surface); border_width: 1; border_color: var(--accent); }
 .marca   { size: 10; bold: true; color: var(--faint); padding: 4 6 12 6; }
@@ -40,7 +40,7 @@
 .rotulo { size: 11; bold: true; color: var(--muted); }
 .nota   { size: 11; color: var(--faint); }
 /* Sem `width` de propósito: `.linha` também embrulha listas `shrink` (o
- `<foreach on_reorder>` em Overlays). Quem precisa esticar filhos `fill` (os
+ `foreach(on_reorder)` em Overlays). Quem precisa esticar filhos `fill` (os
  gráficos de dois) põe `width="fill"` inline — funciona porque ali o pai é a
  `.demo`, que é `fill`. Um `width: fill` aqui colapsaria a lista de reorder,
  que vive dentro de uma `.coluna` `shrink`. */
@@ -61,7 +61,7 @@
 .campo  { width: fill; padding: 9 11; border_radius: 6; }
 .campo_curto { width: 220; padding: 9 11; border_radius: 6; }
 /* Acende sozinho enquanto `{erro_<campo>}` estiver preenchido — não é uma
- classe que o script liga (ver AGENTS.md, "Validação declarada no próprio <form>"). */
+ classe que o script liga (ver AGENTS.md, "Validação declarada no próprio form"). */
 .campo:invalid { border_width: 1; border_color: var(--danger); }
 .erro   { size: 11; color: var(--danger); }
 

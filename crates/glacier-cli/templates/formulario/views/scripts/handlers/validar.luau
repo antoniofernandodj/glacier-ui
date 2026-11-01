@@ -1,6 +1,6 @@
 --!strict
 --!nolint FunctionUnused
--- O `<form>` declara as regras nos campos (`rules="required|minlen:3"`, etc.) e
+-- O `form` declara as regras nos campos (`rules="required|minlen:3"`, etc.) e
 -- o motor faz o ciclo inteiro no envio: roda as regras, publica
 -- `{erro_<campo>}`, acende o `:invalid` no `.gss` e chama UM destes:
 --   • `on_submit="salvar"`            — tudo passou;

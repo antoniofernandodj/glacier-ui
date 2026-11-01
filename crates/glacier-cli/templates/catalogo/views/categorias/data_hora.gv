@@ -3,19 +3,19 @@ component {
     text(class = titulo_cat, content = "Data e hora")
 
     text(
-      class = intro,
-      content = """
+      """
         Uma primitiva, várias tags. A chave guarda SEMPRE ISO (`2026-09-09`,
         `14:35`); `format="br"` muda só a exibição. `today="@hoje"` vem de
         `date.today()` no `init` — sem ele nenhum dia é destacado.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<calendar> — grade 7×6, drill-up dia → mês → ano",
+          content = "calendar — grade 7×6, drill-up dia → mês → ano",
         )
 
         row(class = linha) {
@@ -28,10 +28,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <monthyearpicker> — grava YYYY-MM · <daterangepicker> — duas chaves
+          """
+            monthyearpicker — grava YYYY-MM · daterangepicker — duas chaves
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -49,10 +49,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <dateedit> · <timeedit seconds> · <datetimeedit> — edição por seções
+          """
+            dateedit · timeedit(seconds) · datetimeedit — edição por seções
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -66,10 +66,10 @@ component {
         }
 
         text(
-          class = nota,
-          content = """
+          """
             dh_data = @dh_data · dh_hora = @dh_hora · dh_quando = @dh_quando
           """,
+          class = nota,
         )
       }
     }

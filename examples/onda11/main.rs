@@ -1,11 +1,11 @@
-//! **Onda 11** do `PLANO_WIDGETS.md`: o que fica por cima (`<stack>`/`pin`) —
-//! e o `<mdiarea>` que sai dela de graça.
+//! **Onda 11** do `PLANO_WIDGETS.md`: o que fica por cima (`stack`/`pin`) —
+//! e o `mdiarea` que sai dela de graça.
 //!
 //! Rode com: `cargo run --example onda11` (nesta máquina, com
 //! `WGPU_BACKEND=gl` — o Vulkan da GPU integrada está quebrado).
 //!
 //! ```text
-//! Habilitador A — o <stack> como capacidade         (motor, `NodeType::Stack`)
+//! Habilitador A — o stack como capacidade         (motor, `NodeType::Stack`)
 //!
 //! 1. NotificationDot — pontinho ancorado num canto   (builtin)
 //! 2. SplashScreen     — cobre e some                 (builtin)
@@ -23,20 +23,20 @@
 //! 8. RoundButton — Button com border_radius total     (builtin)
 //! ```
 //!
-//! # A descoberta da onda: `<stack>`/`pin` já existiam no iced
+//! # A descoberta da onda: `stack`/`pin` já existiam no iced
 //!
 //! Quatro linhas ⬜ do catálogo já escreviam o nome do que faltava —
 //! `MdiArea`/`SplashScreen` diziam "stack" na coluna "Base iced",
 //! `NotificationDot` dizia "pede Stack dentro do builtin" na nota, e o
 //! `RubberBand` da Onda 9 registrou por escrito que "o motor não tem
-//! `<stack>` no markup". O `widget.rs` até usava `stack!` uma vez, hardcoded,
-//! para centralizar o percentual sobre o `<progressbar>`. Nunca virou tag.
+//! `stack` no markup". O `widget.rs` até usava `stack!` uma vez, hardcoded,
+//! para centralizar o percentual sobre o `progressbar`. Nunca virou tag.
 //!
 //! # A 17ª correção de nível
 //!
 //! `MdiArea` estava marcado `Comp ●` — "exige estado por instância". Não
 //! exige: sub-janelas são um valor que o app nomeia, quatro chaves por janela
-//! (`x`/`y`/`w`/`h`), a mesma forma que o `<rangeslider>` usa para duas. Mover
+//! (`x`/`y`/`w`/`h`), a mesma forma que o `rangeslider` usa para duas. Mover
 //! e redimensionar são o MESMO `grip::Alvo::Ponto`, só com limites diferentes.
 use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
@@ -139,7 +139,7 @@ impl Component for Onda11 {
             ),
             "novo_item" => ctx.set("status", "RoundButton: novo item".to_string()),
             // O braço genérico de sempre: a ação É o nome da chave (o
-            // `<textinput on_change="qr_texto">` do QrCode, o `<tabbar>`).
+            // `textinput(on_change = qr_texto)` do QrCode, o `tabbar`).
             chave if value.is_some() => {
                 let v = value.unwrap_or_default();
                 ctx.set(chave, v.to_string());

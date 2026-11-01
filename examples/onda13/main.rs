@@ -7,7 +7,7 @@
 //! O habilitador — o vocabulário de formas
 //!
 //!   <canvas> como pai; sob ele <path>/<arc>/<circle>/<rect>/<line>/
-//!   <polyline>/<polygon> (cada um um NodeType::Shape) e <text> (que continua
+//!   <polyline>/<polygon> (cada um um NodeType::Shape) e text (que continua
 //!   um NodeType::Text, lido como forma de texto pela posição x/y).
 //!
 //!   Geometria (cx, d, points) é DADO — inline no .gv, interpola no eval.
@@ -53,7 +53,7 @@ impl Component for Formas {
                 ctx.set("raio", format!("{novo:.0}"));
                 ctx.set("status", format!("raio = {novo:.0}"));
             }
-            // O braço genérico: a ação É o nome da chave (o `<textinput>` do
+            // O braço genérico: a ação É o nome da chave (o `textinput` do
             // traçado).
             chave if value.is_some() => ctx.set(chave, value.unwrap_or_default().to_string()),
             _ => {}

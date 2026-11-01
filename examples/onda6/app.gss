@@ -5,14 +5,14 @@ Todo o visual desta tela. O `app.gv` ao lado ficou com estrutura e
 comportamento — nome de chave, ação, `slot` — e nenhuma cor.
 
 Uma observação que só esta onda torna visível: **a tabela não tem classe
-nenhuma aqui.** O `<tableview>` é uma primitiva, e uma primitiva não tem props
+nenhuma aqui.** O `tableview` é uma primitiva, e uma primitiva não tem props
 por nó interno (isso é capacidade de builtin, 0.89) — ela se pinta pela paleta
-do `theme.json`, como o `<select>` e o `<calendar>` já faziam. Trocar o tema
+do `theme.json`, como o `select` e o `calendar` já faziam. Trocar o tema
 troca a tabela junto, que é exatamente o que se quer; cravar cor de linha aqui
 brigaria com ele.
 
 O que esta folha pinta são as caixas que o markup escreveu: as células de um
-`<grid>` (que são `<text>` comuns), os chips do `<flow>` (que são `<badge>`) e o
+`grid` (que são `text` comuns), os chips do `flow` (que são `badge`) e o
 esqueleto da tela.
 */
 
@@ -37,7 +37,7 @@ esqueleto da tela.
 
 /* Duas colunas lado a lado.
  A largura da coluna da esquerda NÃO está aqui: ela é `width="380"` no próprio
- `<groupbox>`, e tem de ser. `width` é uma PROP do widget, e o template dele
+ `groupbox`, e tem de ser. `width` é uma PROP do widget, e o template dele
  escreve `width="{width|fill}"` inline — um default inline resolve sempre, e um
  valor inline vence toda classe, então `.par > groupbox { width: 380 }` seria
  ignorada em silêncio. A regra, que vale para todo builtin: o que o widget
@@ -64,14 +64,14 @@ esqueleto da tela.
 /* ── A grade ───────────────────────────────────────────────────────────── */
 
 /* Sem fundo e sem borda: a grade é LAYOUT, e pintar a caixa dela seria uma
- camada por cima do que o `<groupbox>` já pinta. O que dá forma às colunas é o
+ camada por cima do que o `groupbox` já pinta. O que dá forma às colunas é o
  `spacing`, que é do markup (é prop de layout, não estilo). */
 .grade { width: fill; }
 
 .celula       { size: 13; color: var(--texto); }
 .celula_forte { size: 12; bold: true; color: var(--fraco); }
 
-/* ── Os chips do `<flow>` ──────────────────────────────────────────────── */
+/* ── Os chips do `flow` ──────────────────────────────────────────────── */
 
 /* Caixa pequena, e é aqui que o `border-radius` é barato e faz a aparência —
  arredondar exige matemática de distância por pixel do retângulo inteiro, o
@@ -89,7 +89,7 @@ esqueleto da tela.
 /* ── Selos ─────────────────────────────────────────────────────────────── */
 
 /* Cada selo nomeia a chave que o widget ao lado escreve; a cor é o código dessa
- chave, repetido no `<badge>` e em nada mais. */
+ chave, repetido no `badge` e em nada mais. */
 .selo_azul  { background: var(--azul); }
 .selo_verde { background: var(--verde); }
 .selo_roxo  { background: var(--roxo); }

@@ -63,7 +63,7 @@ const MARKUP: &str = r#"<screen>
 
 const GSS: &str = r#".tela-desenho { width: 200; height: 120; }
 .cheia { fill: #ff0000; }
-.traco { stroke: #00ff00; stroke-width: 3; }
+.traco { stroke: #00ff00; stroke_width: 3; }
 .rot { size: 11; }
 "#;
 
@@ -98,7 +98,7 @@ fn fill_e_stroke_vem_da_classe_gss() {
     let circulo = acha(arvore, "circle").unwrap();
     assert_eq!(circulo.background.as_deref(), Some("#ff0000"));
 
-    // `.traco { stroke: #00ff00; stroke-width: 3 }` → borda.
+    // `.traco { stroke: #00ff00; stroke_width: 3 }` → borda.
     let path = acha(arvore, "path").unwrap();
     assert_eq!(path.border_color(), Some("#00ff00"));
     assert_eq!(path.border_width, Some(3.0));

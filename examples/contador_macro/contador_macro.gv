@@ -1,7 +1,7 @@
 screen(title = "Glacier - Contador (script)") {
   resources {
     style """
-      .center-xy  { align-x: Center; align-y: Center; }
+      .center-xy  { align_x: Center; align_y: Center; }
       .center     { align_x: Center; }
       .fill       { width: fill; height: fill; }
       .gray       { color: #2E3440; }

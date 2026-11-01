@@ -8,15 +8,15 @@ use iced::widget::{
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-/// Chave **global** onde vive a seção selecionada de um `<timeedit>`, no
-/// formato `"<chave-do-app>:<h|m|s>"`.
+/// Chave **global** onde vive a seção selecionada de um `timeedit`, no
+/// formato `"chave-do-app:<h|m|s>"`.
 ///
 /// Global porque foco é global: só uma seção da tela inteira pode estar
 /// selecionada por vez. A identidade da instância viaja no valor, e é ela que
-/// mantém dois `<timeedit>` independentes. Mesma família do `__drag_key`.
+/// mantém dois `timeedit` independentes. Mesma família do `__drag_key`.
 pub(crate) const TIMEEDIT_SEL_CONTEXT: &str = "__timeedit";
 
-/// A seção selecionada de um `<datetimeedit>`, com a configuração da instância
+/// A seção selecionada de um `datetimeedit`, com a configuração da instância
 /// dona dela — tudo numa chave global do motor (`__timeedit`), porque só uma
 /// seção da tela pode estar selecionada por vez.
 ///
@@ -42,7 +42,7 @@ pub(crate) struct TimeEditSel {
 }
 
 /// O que o teclado pode fazer com a seção selecionada de um
-/// `<datetimeedit>` — o teclado do `QDateTimeEdit`.
+/// `datetimeedit` — o teclado do `QDateTimeEdit`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeEditKey {
     /// ▲ / ▼: mesmo passo dos botões de seta, na seção selecionada.
@@ -96,7 +96,7 @@ impl TimeEditSel {
     }
 }
 
-/// Um instante como as seções do `<datetimeedit>` o tratam. Sem dependência de
+/// Um instante como as seções do `datetimeedit` o tratam. Sem dependência de
 /// datas: o que o widget precisa é somar 1 numa seção e saber quantos dias o mês
 /// tem — quatro linhas de aritmética, não um crate.
 ///
@@ -131,7 +131,7 @@ fn dias_no_mes(ano: i64, mes: i64) -> i64 {
 /// que é a forma fechada de contar dias sem tabela nem laço.
 ///
 /// Existe por uma razão só: descobrir **em que dia da semana um mês começa**,
-/// que é a única coisa que a grade do `<calendar>` precisa e que o `Instante`
+/// que é a única coisa que a grade do `calendar` precisa e que o `Instante`
 /// não sabia dizer. O `PLANO_WIDGETS.md` §4 afirmava que isto já existia do
 /// lado Rust; não existia — só no `prelude.luau`.
 pub(crate) fn days_from_civil(ano: i64, mes: i64, dia: i64) -> i64 {
@@ -298,7 +298,7 @@ impl Instante {
     }
 }
 
-/// As seções de um `<datetimeedit>` na ordem em que aparecem na tela — a mesma
+/// As seções de um `datetimeedit` na ordem em que aparecem na tela — a mesma
 /// que o render monta. Existe à parte porque o teclado (setas ← →, e o avanço
 /// automático ao encher uma seção) precisa da ordem sem ter o nó em mãos.
 pub(crate) fn secoes_visiveis(
@@ -325,7 +325,7 @@ pub(crate) fn secoes_visiveis(
     v
 }
 
-/// Casas decimais que a saída de um `<Slider>` deve ter/// Casas decimais que a saída de um `<Slider>` deve ter, deduzidas do `step`
+/// Casas decimais que a saída de um `Slider` deve ter/// Casas decimais que a saída de um `Slider` deve ter, deduzidas do `step`
 /// **como escrito no markup** (`"0.05"` → 2). Sem isto, arrastar um passo
 /// fracionário grava `0.30000001192092896` na chave de contexto.
 ///
@@ -340,7 +340,7 @@ fn casas_decimais_do_step(step: &str) -> usize {
     }
 }
 
-/// One option of a `<Select>`: `label` is shown, `value` is dispatched. Equality
+/// One option of a `Select`: `label` is shown, `value` is dispatched. Equality
 /// (used by `pick_list` to mark the current selection) is by `value` only.
 #[derive(Debug, Clone)]
 pub struct SelectOption {
@@ -395,12 +395,12 @@ impl PartialEq for SelectOption {
     }
 }
 
-/// Stateful `text_editor` buffers, keyed by a `<TextArea>`'s `value` binding.
+/// Stateful `text_editor` buffers, keyed by a `TextArea`'s `value` binding.
 /// Owned by [`crate::GlacierUI`] and borrowed during render so the editors keep
 /// their content/cursor across frames (glacier is otherwise stateless).
 pub type EditorMap = HashMap<String, crate::textarea::Content>;
 
-/// Stateful `combo_box::State` buffers, keyed by a `<ComboEdit>`'s `value`
+/// Stateful `combo_box::State` buffers, keyed by a `ComboEdit`'s `value`
 /// binding — same idea as `EditorMap` above, needed because
 /// `combo_box::State` has no public "replace the options" setter other than
 /// reconstructing it (see [`crate::GlacierUI::sync_combos`]).
@@ -425,7 +425,7 @@ fn font_for(hint: Option<&str>) -> Option<Font> {
         })
     } else {
         // Apelidos do motor primeiro (acima, compatibilidade); família
-        // registrada depois. É o que faz `<texteditor font="JetBrains Mono">`
+        // registrada depois. É o que faz `texteditor(font = "JetBrains Mono")`
         // — o `PlainTextEditor` da §2.2 — deixar de cair na fonte padrão.
         crate::fonts::resolve(s)
     }
@@ -466,8 +466,8 @@ fn parse_text_align(s: Option<&str>) -> Option<iced::alignment::Horizontal> {
 
 /// Parses a gradient spec into an `iced::Gradient`.
 ///
-/// Forms: `"#a #b"` (top→bottom, 180deg) or `"<angle> #a #b [#c ...]"` where
-/// `<angle>` is in degrees (0 = upward). Needs at least two color stops.
+/// Forms: `"#a #b"` (top→bottom, 180deg) or `"angle #a #b [#c ...]"` where
+/// `angle` is in degrees (0 = upward). Needs at least two color stops.
 fn parse_gradient(spec: &str) -> Option<Gradient> {
     let mut tokens = spec.split_whitespace().peekable();
     let mut angle_deg = 180.0_f32;
@@ -515,7 +515,7 @@ fn background_for(node: &UiNode) -> Option<Background> {
         .map(Background::Color)
 }
 
-/// A regra **base** de um campo de texto (`<textinput>`, `<textarea>`): o
+/// A regra **base** de um campo de texto (`textinput`, `textarea`): o
 /// fundo, a borda e a cor do texto que a classe/tag declarou. Num campo, eles
 /// vão no estilo do próprio widget — o `container` genérico pintaria o fundo
 /// **atrás** do editor, que o cobre com a cor da paleta — e valem em todos os
@@ -536,12 +536,12 @@ fn campo_base(node: &UiNode) -> Option<crate::stylesheet::StyleRule> {
 /// Qual widget está por trás de um campo de texto — decide o que o menu de
 /// contexto embutido (botão direito) consegue oferecer.
 ///
-/// - `LineEditor`: `<TextInput>` não-`secure`, hoje renderizado com um
+/// - `LineEditor`: `TextInput` não-`secure`, hoje renderizado com um
 ///   `text_editor` de uma linha (ver o arm de `NodeType::TextInput`). Menu
 ///   completo: desfazer/refazer, recortar/copiar/apagar seleção, selecionar
 ///   tudo, limpar tudo.
-/// - `MultilineEditor`: `<TextArea>` — mesmo menu completo.
-/// - `Secure`: `<TextInput secure>` (senha). Fica no `text_input` do iced, que
+/// - `MultilineEditor`: `TextArea` — mesmo menu completo.
+/// - `Secure`: `TextInput(secure)` (senha). Fica no `text_input` do iced, que
 ///   não expõe a seleção nem uma pilha de undo — menu reduzido (colar,
 ///   selecionar tudo, limpar tudo, e desfazer/refazer sobre o valor inteiro).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -597,10 +597,10 @@ impl InputKind {
 #[derive(Clone, Debug)]
 pub enum EngineMessage {
     UiClick(String),
-    /// Uma tecla dirigida ao `<datetimeedit>` cuja seção está selecionada (a
+    /// Uma tecla dirigida ao `datetimeedit` cuja seção está selecionada (a
     /// chave global `__timeedit`). Só chega aqui quando **nenhum** widget
     /// consumiu o evento (`event::Status::Ignored`) — é isso que impede a
-    /// seta de um `<TextInput>` focado de virar um passo de hora.
+    /// seta de um `TextInput` focado de virar um passo de hora.
     TimeEditKey(TimeEditKey),
     UiInputChanged {
         action: String,
@@ -616,7 +616,7 @@ pub enum EngineMessage {
         value: String,
         kind: InputKind,
     },
-    /// Uma edição num `<MaskedInput>`.
+    /// Uma edição num `MaskedInput`.
     ///
     /// `inner` é a mensagem que grava o valor — a mesma de sempre
     /// ([`Self::ContextPatch`] sem `onChange`, [`Self::UiInputChanged`] com
@@ -630,8 +630,8 @@ pub enum EngineMessage {
         cursor: usize,
         inner: Box<EngineMessage>,
     },
-    /// Começou um arrasto — a alça de uma coluna de `<tableheader>`, a de um
-    /// `<splitter>` ou o dedo sobre um `<swipeview>`.
+    /// Começou um arrasto — a alça de uma coluna de `tableheader`, a de um
+    /// `splitter` ou o dedo sobre um `swipeview`.
     ///
     /// A mensagem carrega **o que o widget sabe** — qual chave, qual índice, em
     /// que eixo e qual o valor de partida — e nada mais. A posição inicial do
@@ -651,7 +651,7 @@ pub enum EngineMessage {
     /// Onda 9 ao perder o mapeamento de pixel para largura para o
     /// [`crate::grip::Alvo`].
     GripStart(crate::grip::Arrasto),
-    /// Um `<delaybutton>` foi apertado: começa a contar.
+    /// Um `delaybutton` foi apertado: começa a contar.
     ///
     /// O motor guarda a ação e o instante em `__hold` e liga um ticker — e
     /// **só** enquanto a chave existir, pela mesma economia do cursor: um tick
@@ -660,17 +660,17 @@ pub enum EngineMessage {
         action: String,
         duracao: f32,
     },
-    /// Soltaram o `<delaybutton>` antes do fim: desiste, sem disparar nada.
+    /// Soltaram o `delaybutton` antes do fim: desiste, sem disparar nada.
     HoldEnd,
     /// Um tick do apertar em curso. Recalcula a fração do relógio e, quando ela
     /// fecha, despacha a ação — que é o único caminho pelo qual um
-    /// `<delaybutton>` dispara.
+    /// `delaybutton` dispara.
     HoldTick,
     /// Uma combinação de teclas chegou ([`crate::keys`]).
     ///
     /// O mesmo evento serve às duas tags do habilitador B, e quem decide é o
-    /// contexto: com um `<shortcutinput>` armado ele **grava**; sem, ele
-    /// procura um `<shortcut>` que case na árvore avaliada.
+    /// contexto: com um `shortcutinput` armado ele **grava**; sem, ele
+    /// procura um `shortcut` que case na árvore avaliada.
     ShortcutKey {
         combo: String,
         capturado: bool,
@@ -680,7 +680,7 @@ pub enum EngineMessage {
     /// que um campo de texto consumiu; quem recusa o resto (diálogo aberto,
     /// atalhos desligados) é o `dispatch`.
     BackKey,
-    /// Um `<shortcutinput>` foi clicado: arma (ou desarma) a captura.
+    /// Um `shortcutinput` foi clicado: arma (ou desarma) a captura.
     ShortcutArm {
         value_var: String,
     },
@@ -689,7 +689,7 @@ pub enum EngineMessage {
     ///
     /// Existe pelo mesmo motivo de [`Self::MaskedEdit`] — uma mensagem do motor
     /// carrega **uma** ação, e alguns widgets precisam mexer numa chave *do
-    /// motor* no mesmo passo em que avisam o app. O `<autocomplete>` é o caso
+    /// motor* no mesmo passo em que avisam o app. O `autocomplete` é o caso
     /// que a criou: uma tecla move o realce (chave `__ac_<valor>`, que é do
     /// motor) **e** notifica o `onChange` do app (que é dele). Sem esta
     /// variante, uma das duas coisas teria de esperar o quadro seguinte — e o
@@ -701,13 +701,13 @@ pub enum EngineMessage {
         patch: Vec<(String, String)>,
         inner: Box<EngineMessage>,
     },
-    /// An edit on a `<TextArea>` — or on a plain (non-`secure`) `<TextInput>`,
+    /// An edit on a `TextArea` — or on a plain (non-`secure`) `TextInput`,
     /// which is now backed by a one-line `text_editor` too. `binding` is its
     /// `value` key, `action` is the editor action to apply to the kept
     /// `Content`, `on_change` is the action dispatched (with the new full text)
-    /// after applying it. `single_line` (a `<TextInput>`) makes the engine drop
+    /// after applying it. `single_line` (a `TextInput`) makes the engine drop
     /// `Edit::Enter` and strip newlines out of a paste, so the buffer stays on
-    /// one line; `readonly` (a `<TextArea readonly>`) drops every `Edit`.
+    /// one line; `readonly` (a `TextArea(readonly)`) drops every `Edit`.
     UiEditorAction {
         binding: String,
         on_change: String,
@@ -715,11 +715,11 @@ pub enum EngineMessage {
         readonly: bool,
         single_line: bool,
     },
-    /// Free text typed into a `<ComboEdit>` (fires on every keystroke):
+    /// Free text typed into a `ComboEdit` (fires on every keystroke):
     /// `binding` is its `value` key, `on_change` is the action dispatched
     /// (with the new text, if non-empty) after applying it. Auto-writes
     /// `binding` into the context and keeps `combo_synced` in step — like
-    /// `UiEditorAction` does for `<TextArea>` — so the persisted
+    /// `UiEditorAction` does for `TextArea` — so the persisted
     /// `combo_box::State` never gets rebuilt mid-keystroke and stomps what
     /// the user is typing.
     UiComboInput {
@@ -727,7 +727,7 @@ pub enum EngineMessage {
         on_change: String,
         value: String,
     },
-    /// An existing option picked from a `<ComboEdit>` (click, or Enter on a
+    /// An existing option picked from a `ComboEdit` (click, or Enter on a
     /// filtered match): `binding` is its `value` key, `on_select` is the
     /// action dispatched (with the option's value, if non-empty).
     UiComboSelected {
@@ -772,8 +772,8 @@ pub enum EngineMessage {
     /// Left mouse button released anywhere (global subscription): ends the
     /// drag in progress, if any, dispatching `on_reorder` with the final order.
     DragEnd,
-    /// A `<Form>` was submitted — Enter inside a `formControl`-bound input, or
-    /// a click on a `<button type="submit">`. `GlacierUI::dispatch` runs the
+    /// A `Form` was submitted — Enter inside a `formControl`-bound input, or
+    /// a click on a `button(type = submit)`. `GlacierUI::dispatch` runs the
     /// form's declarative `rules` (if any control carries them): on success it
     /// routes `action` to `Component::on_form_submit`; on failure it publishes
     /// `{error_prefix}{control}` per field and routes `error_action` to
@@ -782,16 +782,16 @@ pub enum EngineMessage {
     /// (Enter only) is the next input's stable id, focused Tab-like.
     UiSubmit {
         action: String,
-        /// The `<Form>`'s `on_validation_error` action (empty when unset).
+        /// The `Form`'s `on_validation_error` action (empty when unset).
         error_action: String,
-        /// The `<Form>`'s `error_prefix` (already defaulted to `"erro_"`).
+        /// The `Form`'s `error_prefix` (already defaulted to `"erro_"`).
         error_prefix: String,
         /// `"{owner}::{form name}"` — identifies which form's subtree to scan
         /// for controls and their `rules`.
         scope: String,
         next_focus: Option<String>,
     },
-    /// A `<button type="reset">` inside a `<Form>` was clicked. Clears every
+    /// A `button(type = reset)` inside a `Form` was clicked. Clears every
     /// `{error_prefix}{control}` key for the form (dropping `:invalid`), then
     /// routes `reset_action` (the button's own `on_click`, empty when unset) so
     /// the script can re-seed the fields.
@@ -818,7 +818,7 @@ pub enum EngineMessage {
     /// O idioma mudou em alguma janela (`i18n.set_locale`): o daemon difunde para TODAS as
     /// janelas, e cada motor grava `__locale` no próprio contexto e reavalia.
     LocaleChanged(String),
-    /// Tick de 100 ms enquanto um `<audio>` toca (ver [`crate::audio::ativo`]): pede o
+    /// Tick de 100 ms enquanto um `audio` toca (ver [`crate::audio::ativo`]): pede o
     /// próximo quadro (a barra de posição anda) e entrega os eventos `on_ended`/`on_error`.
     AudioTick,
     /// Tab / Shift+Tab pressed (global keyboard subscription): move focus to the
@@ -880,7 +880,7 @@ pub enum EngineMessage {
     /// janela, então rastrear globalmente evita cada gatilho precisar saber
     /// sua própria posição de tela. Ver [`crate::menu`].
     CursorMoved(iced::Point),
-    /// Um `<scrollable>` rolou. `key` é o `node_id` dele (estável no template),
+    /// Um `scrollable` rolou. `key` é o `node_id` dele (estável no template),
     /// `offset` é o deslocamento absoluto no eixo principal.
     ///
     /// Existe só para a **virtualização**: guardar o deslocamento é o que
@@ -891,12 +891,12 @@ pub enum EngineMessage {
         key: u64,
         offset: f32,
     },
-    /// Um gatilho de `<MenuBar>`/`<Menu>` (topo) foi clicado: abre `tree`
+    /// Um gatilho de `MenuBar`/`Menu` (topo) foi clicado: abre `tree`
     /// ancorado na última posição de cursor conhecida.
     OpenMenuBarDropdown {
         tree: std::sync::Arc<Vec<crate::menu::MenuNode>>,
     },
-    /// Um `<ContextMenu>` foi clicado com o botão direito: abre `tree`
+    /// Um `ContextMenu` foi clicado com o botão direito: abre `tree`
     /// ancorado na última posição de cursor conhecida.
     OpenContextMenu {
         tree: std::sync::Arc<Vec<crate::menu::MenuNode>>,
@@ -908,13 +908,13 @@ pub enum EngineMessage {
     MenuHoverSubmenu {
         path: Vec<usize>,
     },
-    /// Um `<MenuItem>` folha foi clicado: despacha `action` como um
+    /// Um `MenuItem` folha foi clicado: despacha `action` como um
     /// `UiClick` comum, depois fecha o menu/cascata inteiro.
     MenuItemClick(String),
     /// Clique-fora ou Escape: fecha o menu/cascata aberto sem despachar
     /// nenhuma ação.
     MenuDismiss,
-    /// Botão direito sobre um campo de texto (`<TextInput>`/`<TextArea>` e os
+    /// Botão direito sobre um campo de texto (`TextInput`/`TextArea` e os
     /// builtins que geram um): abre o menu de contexto embutido, ancorado na
     /// última posição de cursor conhecida (como `OpenContextMenu`). `binding` é
     /// a chave `value` do campo, `on_change` a ação que ele dispara ao mudar,
@@ -926,7 +926,7 @@ pub enum EngineMessage {
         on_change: String,
         flavor: InputFlavor,
         menu_class: Option<String>,
-        /// Id estável do widget (o do `<Form>` ou um sintético) — só o item
+        /// Id estável do widget (o do `Form` ou um sintético) — só o item
         /// "Selecionar tudo" de um campo `secure` precisa dele, para a
         /// `operation` do iced achar o `text_input` mascarado.
         widget_id: String,
@@ -1011,13 +1011,13 @@ impl EngineMessage {
 }
 
 /// The stable focus id of a form-bound `TextInput`: `scope` is the enclosing
-/// `<Form>`'s `"{owner}::{form name}"` prefix (shared by every control in that
+/// `Form`'s `"{owner}::{form name}"` prefix (shared by every control in that
 /// form), `control` its own `formControl` name.
 pub fn form_input_id(scope: &str, control: &str) -> String {
     format!("glacier_form::{scope}::{control}")
 }
 
-/// The enclosing `<Form>`'s `error_prefix` as hydrated onto this node, falling
+/// The enclosing `Form`'s `error_prefix` as hydrated onto this node, falling
 /// back to `"erro_"` (the same default `eval.rs` applies).
 fn form_error_prefix_of(node: &UiNode) -> String {
     node.form_error_prefix()
@@ -1026,7 +1026,7 @@ fn form_error_prefix_of(node: &UiNode) -> String {
         .to_string()
 }
 
-/// O id estável de um `<MaskedInput>`, derivado da chave a que ele se liga.
+/// O id estável de um `MaskedInput`, derivado da chave a que ele se liga.
 ///
 /// Existe por uma razão só: o motor precisa **operar o cursor** desse campo
 /// depois de cada tecla (ver `cursor_remascarado`), e uma operação do `iced`
@@ -1036,7 +1036,7 @@ pub fn masked_input_id(binding: &str) -> String {
     format!("glacier_mask::{binding}")
 }
 
-/// O id sintético de um `<TextInput>` que não está dentro de um `<Form>` —
+/// O id sintético de um `TextInput` que não está dentro de um `Form` —
 /// dá ao item "Selecionar tudo" do menu de contexto de um campo `secure` um
 /// alvo para a `operation` do iced (o único caminho para operar um
 /// `text_input` mascarado). Derivado da chave, então dois campos na mesma
@@ -1045,7 +1045,7 @@ pub fn synthetic_input_id(binding: &str) -> String {
     format!("glacier_input::{binding}")
 }
 
-/// Um `<TextInput>` comum (não-`secure`): um `text_editor` preso a uma linha.
+/// Um `TextInput` comum (não-`secure`): um `text_editor` preso a uma linha.
 /// `Enter` e quebras vindas de um paste são barrados no `update` do motor via
 /// a flag `single_line` de [`EngineMessage::UiEditorAction`]; aqui só montamos
 /// o widget com a mesma paridade de estilo/tamanho do antigo `text_input`.
@@ -1058,8 +1058,8 @@ fn single_line_editor<'a>(
     placeholder: &'a str,
     is_disabled: bool,
 ) -> Element<'a, EngineMessage> {
-    // Enter num campo dentro de `<Form>` submete o formulário (e pode pular
-    // para o próximo campo) — mesmíssimo contrato do `<TextInput>` de antes.
+    // Enter num campo dentro de `Form` submete o formulário (e pode pular
+    // para o próximo campo) — mesmíssimo contrato do `TextInput` de antes.
     let submit_msg: Option<EngineMessage> = if is_disabled {
         None
     } else if let (Some(_), Some(scope), Some(submit_action)) = (
@@ -1105,7 +1105,7 @@ fn single_line_editor<'a>(
         });
     }
 
-    // `id` para o Tab/foco de `<Form>` (`text_editor` implementa `focusable`);
+    // `id` para o Tab/foco de `Form` (`text_editor` implementa `focusable`);
     // `field_id` já é o do form quando ligado a um, senão o sintético.
     ed = ed.id(field_id.to_string());
 
@@ -1256,7 +1256,7 @@ fn parse_alignment(s: Option<&str>) -> Option<Alignment> {
     }
 }
 
-/// `anchor="…"` num filho de `<stack>`: um dos nove cantos da grade 3×3, sem
+/// `anchor="…"` num filho de `stack`: um dos nove cantos da grade 3×3, sem
 /// coordenada — o par de [`Alignment`] que um `container` `Fill` usa para
 /// grudar naquele canto. Aceita hífen ou sublinhado; o que não casa cai no
 /// canto superior esquerdo, como um `x="0" y="0"` teria dado.
@@ -1266,7 +1266,7 @@ fn anchor_align(s: &str) -> (Alignment, Alignment) {
         "top" => (Alignment::Center, Alignment::Start),
         "top-right" | "topright" => (Alignment::End, Alignment::Start),
         "left" => (Alignment::Start, Alignment::Center),
-        "center" | "centro" | "middle" => (Alignment::Center, Alignment::Center),
+        "center" | "middle" => (Alignment::Center, Alignment::Center),
         "right" => (Alignment::End, Alignment::Center),
         "bottom-left" | "bottomleft" => (Alignment::Start, Alignment::End),
         "bottom" => (Alignment::Center, Alignment::End),
@@ -1336,7 +1336,7 @@ thread_local! {
 /// `qr_code::Data` para `content`, cacheado por `QR_DATA`. Um conteúdo maior
 /// que o que um QR code aguenta (a versão 40, o teto do padrão) devolve o
 /// `Data` de uma string vazia — o mesmo "degrada em silêncio" de um
-/// `<image>` sem `src`, em vez de um `panic` por causa de um texto grande
+/// `image` sem `src`, em vez de um `panic` por causa de um texto grande
 /// demais colado num atributo.
 fn qr_data_for(content: &str) -> &'static iced::widget::qr_code::Data {
     use iced::widget::qr_code;
@@ -1363,27 +1363,27 @@ fn cached_svg_handle(source: &str, assets: &dyn crate::asset_source::AssetSource
 /// Generate Iced widgets recursively from UiNode tree.
 /// References to strings are borrowed directly from the AST node with lifetime 'a.
 /// O que o render sabe da **janela**, e que não está na árvore: onde cada
-/// `<scrollable>` está rolado e qual a altura da área visível.
+/// `scrollable` está rolado e qual a altura da área visível.
 ///
 /// Desce junto com a recursão porque a virtualização de um `Column` precisa
-/// saber a janela do `<scrollable>` que o envolve — informação que só existe um
+/// saber a janela do `scrollable` que o envolve — informação que só existe um
 /// nível acima dele.
 #[derive(Clone, Copy)]
 pub struct RenderView<'a> {
-    /// Deslocamento de cada `<scrollable>`, pelo `node_id`.
+    /// Deslocamento de cada `scrollable`, pelo `node_id`.
     pub scroll: &'a crate::eval::FxMapPub<u64, f32>,
-    /// Altura da janela do app — o teto de quanto um `<scrollable>` pode
+    /// Altura da janela do app — o teto de quanto um `scrollable` pode
     /// mostrar. Usar a altura da janela (e não a do próprio scrollable, que só
     /// o layout do iced conhece) faz a conta pecar **por excesso**: monta-se
     /// alguns itens a mais, nunca de menos.
     pub altura_janela: f32,
-    /// A janela do `<scrollable>` mais próximo acima: `(deslocamento, altura)`.
+    /// A janela do `scrollable` mais próximo acima: `(deslocamento, altura)`.
     /// `None` fora de um scrollable — e aí não há o que virtualizar.
     pub janela: Option<(f32, f32)>,
 }
 
 impl RenderView<'_> {
-    /// A fatia de filhos que cai na janela visível deste `<scrollable>`.
+    /// A fatia de filhos que cai na janela visível deste `scrollable`.
     fn fatia(&self, total: usize, passo: f32) -> Option<(usize, usize)> {
         let (deslocamento, altura) = self.janela?;
         janela_visivel(total, passo, deslocamento, altura, MARGEM_VIRTUAL)
@@ -1429,7 +1429,7 @@ fn janela_visivel(
 
 // ── O calendário: uma primitiva, três tags ───────────────────────────────────
 
-/// Chave **global** com o dia sob o cursor num `<daterangepicker>` cujo fim
+/// Chave **global** com o dia sob o cursor num `daterangepicker` cujo fim
 /// ainda não foi escolhido — é ela que pinta a faixa provisória entre o início
 /// e o cursor.
 ///
@@ -1515,7 +1515,7 @@ fn iso_ymd(bruto: &str) -> Option<(i64, i64, i64)> {
         return None;
     }
     // Um `YYYY-MM-DD HH:MM` também entra: quem grava a mesma chave com um
-    // `<datetimeedit>` do lado não devia perder o realce por causa da hora.
+    // `datetimeedit` do lado não devia perder o realce por causa da hora.
     let data = bruto.split([' ', 'T']).next().unwrap_or(bruto);
     let mut it = data.split('-');
     let ano = it.next()?.trim().parse::<i64>().ok()?;
@@ -1613,7 +1613,7 @@ fn cal_celula<'a>(
     b.into()
 }
 
-/// O `<calendar>` / `<monthyearpicker>` / `<daterangepicker>`: a grade, a
+/// O `calendar` / `monthyearpicker` / `daterangepicker`: a grade, a
 /// navegação e a escada de drill-up.
 ///
 /// Longa porque a grade é um laço e os três níveis são três laços — mas é tudo
@@ -1640,7 +1640,7 @@ fn render_calendar<'a>(
     // navegação de mês, que não escolhe nada.
     //
     // Existe por causa de um consumidor só, e ele explica a forma: o
-    // `calendarPopup` do `<dateedit>` precisa **fechar o painel** no mesmo
+    // `calendarPopup` do `dateedit` precisa **fechar o painel** no mesmo
     // passo em que o dia é escolhido. Fosse uma segunda mensagem, o painel
     // ficaria um quadro no ar depois do clique.
     //
@@ -1698,7 +1698,7 @@ fn render_calendar<'a>(
     let chave_fim = end_var.to_string();
     let chave_view_c = chave_view.clone();
 
-    // Gravar é sempre a mesma decisão, e é o contrato do `<TextInput>`: sem
+    // Gravar é sempre a mesma decisão, e é o contrato do `TextInput`: sem
     // `onChange` o widget escreve; com ele, avisa. `extra` são os pares do
     // MOTOR (mês visível, nível, hover) — esses vão junto no modo que grava, e
     // sozinhos no modo que delega, porque navegar não é escolher.
@@ -1998,7 +1998,7 @@ fn render_calendar<'a>(
                         CelEstado::Normal
                     };
                     // Clicar num mês GRAVA quando o piso da escada é o mês
-                    // (`<monthyearpicker>`); senão só desce um degrau.
+                    // (`monthyearpicker`); senão só desce um degrau.
                     let msg = if mode == 'M' {
                         let iso = format!("{:04}-{m:02}", view.ano);
                         Some(commit(vec![(chave.clone(), iso.clone())], iso))
@@ -2091,12 +2091,12 @@ fn render_calendar<'a>(
 
 // ── Paginação, nota por estrelas e campo mascarado ───────────────────────────
 
-/// Chave **global** com a estrela sob o cursor num `<rating>`, no formato
-/// `"<chave>:<n>"`.
+/// Chave **global** com a estrela sob o cursor num `rating`, no formato
+/// `"chave:<n>"`.
 ///
 /// Global pelo mesmo motivo do [`CAL_HOVER_CONTEXT`]: só uma estrela da tela
 /// inteira está sob o cursor por vez. A identidade da instância viaja no valor,
-/// e é ela que mantém dois `<rating>` independentes.
+/// e é ela que mantém dois `rating` independentes.
 pub(crate) const RATING_HOVER_CONTEXT: &str = "__rating";
 
 /// A janela de números de uma paginação: quais páginas aparecem, dado o total,
@@ -2260,11 +2260,11 @@ fn cursor_remascarado(antes: &str, digitado: &str, mascara: &str) -> usize {
 /// O que o cursor conhecido mudou, então, foi só o **cursor** — o valor
 /// continua saindo da mesma volta pura `extrai_cru` → `aplica_mascara`.
 ///
-/// `<pagination>`: primeira · anterior · a janela de números · próxima · última.
-/// `<shortcutinput>` — ver [`NodeType::ShortcutInput`], e [`crate::keys`] para o
+/// `pagination`: primeira · anterior · a janela de números · próxima · última.
+/// `shortcutinput` — ver [`NodeType::ShortcutInput`], e [`crate::keys`] para o
 /// listener que o alimenta.
 ///
-/// Um botão, e não um `<textinput>`: o que se faz aqui não é digitar. Um campo
+/// Um botão, e não um `textinput`: o que se faz aqui não é digitar. Um campo
 /// de texto de verdade consumiria as teclas (`Status::Captured`) antes de o
 /// listener global as ver — e é exatamente o que o `Ctrl+S` **não** pode
 /// encontrar pela frente.
@@ -2344,8 +2344,8 @@ fn render_pagination<'a>(
             .into();
     }
     // As duas tags contam de bases diferentes, e não é capricho: o
-    // `<pagination>` numera páginas para gente ler (a primeira é a 1), o
-    // `<pageindicator>` marca o índice de um `<swipeview>`, que é o
+    // `pagination` numera páginas para gente ler (a primeira é a 1), o
+    // `pageindicator` marca o índice de um `swipeview`, que é o
     // `currentIndex` do QML e começa em zero. Aqui dentro tudo é base 1, e o
     // `desloca` traduz nas duas pontas.
     let desloca = usize::from(dots);
@@ -2414,10 +2414,10 @@ fn render_pagination<'a>(
         b
     };
 
-    // `<pageindicator>`: os pontinhos. Sem setas, sem reticências e sem
+    // `pageindicator`: os pontinhos. Sem setas, sem reticências e sem
     // janela — um indicador de página mostra TODAS as páginas ou não indica
     // nada, e é por isso que a janela de números (a parte cara do
-    // `<pagination>`) não entra aqui.
+    // `pagination`) não entra aqui.
     if dots {
         let mut pontos = row![].spacing(6).align_y(iced::Alignment::Center);
         for n in 1..=total {
@@ -2497,7 +2497,7 @@ fn render_pagination<'a>(
     linha.into()
 }
 
-/// `<rating>`: N alvos numa linha, com pré-visualização no hover.
+/// `rating`: N alvos numa linha, com pré-visualização no hover.
 #[allow(clippy::too_many_arguments)]
 fn render_rating<'a>(
     context: &'a ContextMap,
@@ -2601,7 +2601,7 @@ fn render_rating<'a>(
     linha.into()
 }
 
-/// `<maskedinput>`: cru na chave, mascarado na tela.
+/// `maskedinput`: cru na chave, mascarado na tela.
 fn render_masked_input<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -2633,7 +2633,7 @@ fn render_masked_input<'a>(
         .id(id.clone())
         .on_input(move |digitado| {
             let novo = extrai_cru(&digitado, &mascara);
-            // O mesmo contrato do `<TextInput>`: sem `onChange` o widget grava a
+            // O mesmo contrato do `TextInput`: sem `onChange` o widget grava a
             // chave sozinho; com ele, entrega o valor **cru** — nunca o mascarado,
             // que é exatamente a separação que o widget existe para manter.
             let grava = if acao.is_empty() {
@@ -2655,13 +2655,13 @@ fn render_masked_input<'a>(
         });
     campo = campo.padding(8);
     // Como o `text_input` do iced é `Length::Fill` por padrão, só chamamos
-    // `.width()` quando o nó declara uma — a mesma ressalva que o `<TextInput>`
+    // `.width()` quando o nó declara uma — a mesma ressalva que o `TextInput`
     // já carregava (ver `PRIMITIVAS.md`).
     if node.width.is_some() {
         campo = campo.width(parse_length(&node.width));
     }
-    // Dentro de um `<Form>`: Enter submete (e pode pular para o próximo
-    // campo), como no `<TextInput>`.
+    // Dentro de um `Form`: Enter submete (e pode pular para o próximo
+    // campo), como no `TextInput`.
     if !node.disabled.unwrap_or(false)
         && let (Some(scope), Some(submit_action)) = (node.form_scope(), node.form_submit_action())
     {
@@ -2674,7 +2674,7 @@ fn render_masked_input<'a>(
             next_focus,
         });
     }
-    // `:invalid` — pintado quando o `<Form>` marcou este controle.
+    // `:invalid` — pintado quando o `Form` marcou este controle.
     if node.form_invalid() && node.invalid_style().is_some() {
         let invalid_ov = node.invalid_style().cloned();
         campo = campo.style(move |theme, status| {
@@ -2705,28 +2705,28 @@ fn render_masked_input<'a>(
     campo.into()
 }
 
-/// Prefixo da chave do motor que guarda o realce de um `<autocomplete>` —
+/// Prefixo da chave do motor que guarda o realce de um `autocomplete` —
 /// `-1` (ou ausente) = painel fechado. Derivada da chave editada, como o
-/// `__cal_` do `<calendar>`: duas buscas na mesma tela navegam sozinhas.
+/// `__cal_` do `calendar`: duas buscas na mesma tela navegam sozinhas.
 const AC_PREFIX: &str = "__ac_";
 
-/// Prefixo da chave do motor que diz se o `calendarPopup` de um `<dateedit>`
+/// Prefixo da chave do motor que diz se o `calendarPopup` de um `dateedit`
 /// está aberto. Derivada da chave editada, como o `__cal_` — dois campos na
 /// mesma tela abrem e fecham sem se ver.
 const DTPOP_PREFIX: &str = "__dtpop_";
 
-/// Os nomes que marcam o **gatilho** de um `<popover>`, no `slot` do filho.
+/// Os nomes que marcam o **gatilho** de um `popover`, no `slot` do filho.
 fn e_ancora(node: &UiNode) -> bool {
     matches!(
         node.slot_name().map(str::trim),
-        Some("anchor" | "ancora" | "âncora" | "trigger" | "gatilho")
+        Some("anchor" | "trigger")
     )
 }
 
 /// Empilha um punhado de filhos num elemento só, sem embrulhar quando é um.
 ///
 /// Não embrulhar o caso de um filho é o que deixa o painel escrito no markup
-/// (`<column class="painel">`) ser ele mesmo a caixa pintada: uma `Column`
+/// (`column(class = painel)`) ser ele mesmo a caixa pintada: uma `Column`
 /// implícita por fora seria uma camada a mais medindo a mesma área, que é
 /// exatamente o que o `AGENTS.md` dos templates manda evitar.
 fn empilha<'a>(
@@ -2750,7 +2750,7 @@ fn empilha<'a>(
     }
 }
 
-/// `<popover>` / `<popup>` — ver [`NodeType::Popover`] e [`crate::anchored`].
+/// `popover` / `popup` — ver [`NodeType::Popover`] e [`crate::anchored`].
 #[allow(clippy::too_many_arguments)]
 fn render_popover<'a>(
     node: &'a UiNode,
@@ -2779,7 +2779,7 @@ fn render_popover<'a>(
     // A partição, em duas regras e nesta ordem:
     //  1. algum filho marcado `slot="anchor"` → é ele o gatilho, e o resto é o
     //     painel (a forma explícita, e a que sobrevive a reordenar o markup);
-    //  2. ninguém marcado → num `<popup>` centrado não há gatilho nenhum (todos
+    //  2. ninguém marcado → num `popup` centrado não há gatilho nenhum (todos
     //     os filhos são painel); num ancorado, o PRIMEIRO é o gatilho.
     let (ancoras, painel): (Vec<&UiNode>, Vec<&UiNode>) = if visiveis.iter().any(|c| e_ancora(c)) {
         visiveis.iter().partition(|c| e_ancora(c))
@@ -2808,7 +2808,7 @@ fn render_popover<'a>(
 
     let aberto = context.get(value_var).is_some_and(|v| is_truthy(v));
 
-    // Fechar é a mesma decisão de sempre — o contrato do `<textinput>`: sem
+    // Fechar é a mesma decisão de sempre — o contrato do `textinput`: sem
     // `onClose` o widget zera a chave; com ele, delega. O valor entregue é
     // vazio de propósito: quem fecha não escolheu nada.
     let fechar = (dismiss && !value_var.is_empty()).then(|| {
@@ -2837,7 +2837,7 @@ fn render_popover<'a>(
         .into()
 }
 
-/// As sugestões que um `<autocomplete>` mostra agora: a lista inteira recortada
+/// As sugestões que um `autocomplete` mostra agora: a lista inteira recortada
 /// pelo texto digitado, sem acento e sem caixa, limitada a `max_items`.
 ///
 /// Separada do render porque as mensagens de teclado precisam do **mesmo**
@@ -2888,7 +2888,7 @@ fn dobra(s: &str) -> String {
         .collect()
 }
 
-/// `<autocomplete>` / `<completer>` — ver [`NodeType::Autocomplete`].
+/// `autocomplete` / `completer` — ver [`NodeType::Autocomplete`].
 #[allow(clippy::too_many_arguments)]
 fn render_autocomplete<'a>(
     node: &'a UiNode,
@@ -3001,8 +3001,8 @@ fn render_autocomplete<'a>(
 
     // ── O painel ─────────────────────────────────────────────────────────
     //
-    // O painel se pinta pela paleta do tema, como o `<select>` e o
-    // `<calendar>`: uma primitiva não tem props por nó interno (isso é
+    // O painel se pinta pela paleta do tema, como o `select` e o
+    // `calendar`: uma primitiva não tem props por nó interno (isso é
     // capacidade de builtin, 0.89), e cravar cor aqui brigaria com o
     // `theme.json` do app.
     let mut lista = column![].width(Length::Fill);
@@ -3097,7 +3097,7 @@ fn render_autocomplete<'a>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A chave do motor que guarda o arrasto de coluna em curso:
-/// `"<chave_larguras>|<indice>|<x_inicial>|<largura_inicial>"`.
+/// `"chave_larguras|indice|x_inicial|largura_inicial"`.
 ///
 /// Global, e legitimamente: só uma alça do app inteiro está sob o cursor por
 /// vez — a mesma família do `__timeedit` e do `__cal_hover`. A identidade da
@@ -3111,7 +3111,7 @@ pub(crate) const LARGURA_MAXIMA_COLUNA: f32 = 1200.0;
 /// medida — ver o comentário em `celulas_cabecalho`.
 const ALTURA_ALCA: f32 = 20.0;
 
-/// Uma coluna de `<tableview>`, como o app a declarou.
+/// Uma coluna de `tableview`, como o app a declarou.
 #[derive(Debug, Clone)]
 struct Coluna {
     /// A chave lida de cada linha.
@@ -3137,22 +3137,22 @@ impl Coluna {
         };
         match v {
             serde_json::Value::Object(o) => {
-                let campo = texto(o.get("key").or_else(|| o.get("campo")))
+                let campo = texto(o.get("key"))
                     .or_else(|| texto(o.get("id")))
                     .unwrap_or_default();
-                let rotulo = texto(o.get("label").or_else(|| o.get("rotulo")))
+                let rotulo = texto(o.get("label"))
                     .unwrap_or_else(|| campo.clone());
-                let trilha = texto(o.get("width").or_else(|| o.get("largura")))
+                let trilha = texto(o.get("width"))
                     .map(|w| crate::grid::Trilha::parse_uma(&w))
                     .unwrap_or(crate::grid::Trilha::Auto);
-                let align = match texto(o.get("align").or_else(|| o.get("alinhamento")))
+                let align = match texto(o.get("align"))
                     .unwrap_or_default()
                     .trim()
                     .to_ascii_lowercase()
                     .as_str()
                 {
-                    "right" | "direita" | "end" => iced::alignment::Horizontal::Right,
-                    "center" | "centro" => iced::alignment::Horizontal::Center,
+                    "right" | "end" => iced::alignment::Horizontal::Right,
+                    "center" => iced::alignment::Horizontal::Center,
                     _ => iced::alignment::Horizontal::Left,
                 };
                 Self {
@@ -3247,9 +3247,9 @@ fn identidade_linha(linha: &serde_json::Value, colunas: &[Coluna], i: usize) -> 
     }
 }
 
-/// Ordena as linhas pela chave de `sort` (`"<coluna> asc|desc"`), como o
-/// `<tableview>` ordena — para o eval, que avalia as células de um
-/// `<tablecolumn>` já na ordem em que o widget vai desenhá-las.
+/// Ordena as linhas pela chave de `sort` (`"coluna asc|desc"`), como o
+/// `tableview` ordena — para o eval, que avalia as células de um
+/// `tablecolumn` já na ordem em que o widget vai desenhá-las.
 pub(crate) fn ordena_tabela(linhas: &mut [serde_json::Value], ordem: Option<&str>) {
     let ordem = Ordem::parse(ordem.map(str::to_string).as_ref());
     if !ordem.campo.is_empty() {
@@ -3273,7 +3273,7 @@ fn ordena(linhas: &mut [serde_json::Value], campo: &str, desc: bool) {
     });
 }
 
-/// As colunas de um `<tableview>`: do array JSON na chave, ou — quando o
+/// As colunas de um `tableview`: do array JSON na chave, ou — quando o
 /// atributo não nomeia chave nenhuma — da própria especificação de trilhas.
 fn colunas_de(context: &ContextMap, spec: &str) -> Vec<Coluna> {
     if let Some(json) = context.get(spec)
@@ -3282,7 +3282,7 @@ fn colunas_de(context: &ContextMap, spec: &str) -> Vec<Coluna> {
         return arr.iter().map(Coluna::from_json).collect();
     }
     // Sem chave, `columns="140 fill 80"` ainda descreve a grade — só que sem
-    // rótulos. É a saída de quem monta o cabeçalho à mão com `<tableheader>`.
+    // rótulos. É a saída de quem monta o cabeçalho à mão com `tableheader`.
     crate::grid::Trilha::parse_faixas(spec)
         .into_iter()
         .enumerate()
@@ -3387,7 +3387,7 @@ fn celulas_cabecalho(
             // overlay aqui roubaria o clique de ordenar.
             if !widths_var.is_empty() {
                 // **Altura fixa, nunca `Fill`.** Uma tabela mora dentro de um
-                // `<scrollable>`, e um scrollable oferece altura INFINITA aos
+                // `scrollable`, e um scrollable oferece altura INFINITA aos
                 // filhos: um `Length::Fill` aqui fazia a linha do cabeçalho
                 // medir infinito e empurrar o corpo inteiro para fora da tela —
                 // a tabela aparecia vazia, sem erro nenhum. É a mesma armadilha
@@ -3428,7 +3428,7 @@ fn celulas_cabecalho(
         .collect()
 }
 
-/// `<tableview>` / `<tableheader>` — ver [`NodeType::TableView`].
+/// `tableview` / `tableheader` — ver [`NodeType::TableView`].
 #[allow(clippy::too_many_arguments)]
 fn render_tableview<'a>(
     node: &'a UiNode,
@@ -3543,9 +3543,9 @@ fn render_tableview<'a>(
                 Length::Fill
             });
 
-    // `height` num `<tableview>` é a altura da JANELA de rolagem, não a da
+    // `height` num `tableview` é a altura da JANELA de rolagem, não a da
     // grade: uma tabela de mil linhas dentro de um nó de 320px é o caso comum,
-    // e é o `<scrollable>` que a torna usável.
+    // e é o `scrollable` que a torna usável.
     let altura = parse_length(&node.height);
     if header_only || altura == Length::Shrink {
         return grade.into();
@@ -3563,7 +3563,7 @@ fn render_tableview<'a>(
         .into()
 }
 
-/// As chaves de um `<tableview>` decorado, juntas para a assinatura de
+/// As chaves de um `tableview` decorado, juntas para a assinatura de
 /// [`render_tabela_decorada`] não passar de uma dúzia de argumentos.
 struct TabelaChaves<'a> {
     items_var: &'a str,
@@ -3635,7 +3635,7 @@ fn padding_da_celula(base: Padding, coluna: usize, total: usize) -> Padding {
     }
 }
 
-/// `<tableview>` com `<tablecolumn>`s e/ou `header_class`/`row_class`.
+/// `tableview` com `tablecolumn`s e/ou `header_class`/`row_class`.
 ///
 /// O mesmo widget de sempre — a mesma grade, a mesma ordenação, as mesmas
 /// alças —, com três diferenças: as células de uma coluna com corpo são os nós
@@ -3686,8 +3686,8 @@ fn render_tabela_decorada<'a>(
                         .map(crate::grid::Trilha::parse_uma)
                         .unwrap_or(crate::grid::Trilha::Auto),
                     align: match align.trim().to_ascii_lowercase().as_str() {
-                        "right" | "direita" | "end" => iced::alignment::Horizontal::Right,
-                        "center" | "centro" => iced::alignment::Horizontal::Center,
+                        "right" | "end" => iced::alignment::Horizontal::Right,
+                        "center" => iced::alignment::Horizontal::Center,
                         _ => iced::alignment::Horizontal::Left,
                     },
                 }
@@ -4014,7 +4014,7 @@ fn array_de(context: &ContextMap, chave: &str) -> Vec<serde_json::Value> {
         .unwrap_or_default()
 }
 
-/// `<treeview>` — ver [`NodeType::TreeView`].
+/// `treeview` — ver [`NodeType::TreeView`].
 fn render_treeview<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -4098,7 +4098,7 @@ fn render_treeview<'a>(
     }
 }
 
-/// `<columnview>` — ver [`NodeType::ColumnView`].
+/// `columnview` — ver [`NodeType::ColumnView`].
 fn render_columnview<'a>(
     node: &'a UiNode,
     context: &'a ContextMap,
@@ -4219,11 +4219,11 @@ fn render_columnview<'a>(
     linha.into()
 }
 
-/// `<canvas>` (Onda 13): monta a lista de formas a partir dos filhos já
+/// `canvas` (Onda 13): monta a lista de formas a partir dos filhos já
 /// avaliados e entrega a um [`crate::shapes::ProgramaFormas`].
 ///
-/// Os filhos-forma (`<circle>`, `<path>`, …) são [`NodeType::Shape`]; um
-/// `<text>` continua um [`NodeType::Text`] normal (interpolação, `size` da
+/// Os filhos-forma (`circle`, `path`, …) são [`NodeType::Shape`]; um
+/// `text` continua um [`NodeType::Text`] normal (interpolação, `size` da
 /// classe) e é lido aqui como forma de texto, pela posição em `x=`/`y=`. O
 /// traço/preenchimento sai dos campos de `Look` que o `fill=`/`stroke=` (ou uma
 /// classe `.gss`) já preencheram.
@@ -4459,7 +4459,7 @@ fn paragrafo<'a>(spans: &'a [crate::parser::TextSpan], e: EstiloParagrafo) -> El
     .into()
 }
 
-/// O `<prose>`: uma coluna de blocos.
+/// O `prose`: uma coluna de blocos.
 fn render_prose<'a>(
     node: &'a UiNode,
     blocos: &'a [crate::prose::Bloco],
@@ -4633,14 +4633,14 @@ pub fn render_node<'a>(
             color,
             button_type,
         } => {
-            // `<button>` filhos (Fase 1, item 1 do plano de convergência de
+            // `button` filhos (Fase 1, item 1 do plano de convergência de
             // templates): quando o nó tem filhos visíveis, eles viram o
             // conteúdo do botão — `text="…"` continua funcionando como
             // atalho só quando não há nenhum. Um filho só usa o próprio
-            // elemento direto (mesma ideia do `<Container>`, que também não
+            // elemento direto (mesma ideia do `Container`, que também não
             // embrulha um filho único); mais de um vira um `Row` implícito
             // (o caso comum é ícone + rótulo lado a lado — era exatamente o
-            // hack que forçava usar `<row on_press>` em vez de `<button>`
+            // hack que forçava usar `row(on_press)` em vez de `button`
             // de verdade), respeitando `spacing`/`align-y` do próprio nó.
             let visible_children: Vec<&UiNode> = node
                 .children
@@ -4696,7 +4696,7 @@ pub fn render_node<'a>(
             // A mesma mensagem que o `on_press` leva: o `FocusButton` a publica em Enter/Espaço.
             let mut msg_clique: Option<EngineMessage> = None;
             if !is_disabled {
-                // `type="submit"`/`"reset"` inside a `<Form>` wins over the
+                // `type="submit"`/`"reset"` inside a `Form` wins over the
                 // generic on_click: the click fires the enclosing form instead
                 // of a named action (the form scope is hydrated onto the button
                 // in `eval.rs`). A `type=` button outside any form falls
@@ -4869,7 +4869,7 @@ pub fn render_node<'a>(
             let mut btn = btn
                 .width(parse_length(&node.width))
                 .height(parse_length(&node.height));
-            // Mesma história do `<TextInput>` logo abaixo: o padding default do
+            // Mesma história do `TextInput` logo abaixo: o padding default do
             // `button` do iced é `DEFAULT_PADDING` (5px), não zero. Chamar
             // `.padding()` incondicionalmente colapsava para `Padding::ZERO`
             // todo botão que não declarasse um — o fundo colado nos glifos, que
@@ -4911,7 +4911,7 @@ pub fn render_node<'a>(
             // `Status::Disabled` (não editável, cursor não pisca) sem o motor
             // precisar rastrear isso à parte — mesmo truque do botão.
             let is_disabled = node.disabled.unwrap_or(false);
-            // O id estável do widget: o do `<Form>` quando ligado a um (para o
+            // O id estável do widget: o do `Form` quando ligado a um (para o
             // Tab/Enter-para-o-próximo continuarem chegando aqui), senão um
             // sintético derivado da chave. O menu de contexto o carrega de
             // volta na mensagem, para o "Selecionar tudo" de um campo `secure`
@@ -5015,8 +5015,8 @@ pub fn render_node<'a>(
                     input.into()
                 } else {
                     // ── Linha única comum: apoiada num `text_editor` de uma linha,
-                    //    igual ao `<TextArea>` mas com Enter/`\n` interceptados
-                    //    (`single_line`). É isso que dá ao `<TextInput>` o mesmo
+                    //    igual ao `TextArea` mas com Enter/`\n` interceptados
+                    //    (`single_line`). É isso que dá ao `TextInput` o mesmo
                     //    menu de contexto completo (o `text_input` do iced não
                     //    expõe seleção nem `perform`).
                     match editors.get(value_var) {
@@ -5093,7 +5093,7 @@ pub fn render_node<'a>(
                     if let Some(f) = font_for(node.font()) {
                         ed = ed.font(f);
                     }
-                    // Texto estático selecionável: aparência de `<text>` — sem
+                    // Texto estático selecionável: aparência de `text` — sem
                     // borda, sem fundo, sem barra de rolagem —, não de campo.
                     if let Some(f) = fixo {
                         if let Some(sz) = f.size {
@@ -5228,7 +5228,7 @@ pub fn render_node<'a>(
                 img.width(w_len).height(h_len).into()
             }
         }
-        // `<qrcode>` — o último item barato da Fase A, de carona na Onda 11.
+        // `qrcode` — o último item barato da Fase A, de carona na Onda 11.
         NodeType::QrCode { content, color } => {
             if content.trim().is_empty() {
                 return Space::new().into();
@@ -5236,7 +5236,7 @@ pub fn render_node<'a>(
             let data = qr_data_for(content);
             let mut q = iced::widget::QRCode::new(data);
             // `width`/`height` aqui não é a caixa ao redor — é o próprio
-            // tamanho renderizado, a mesma convenção do `<svg>`/`<image>`
+            // tamanho renderizado, a mesma convenção do `svg`/`image`
             // (medida com significado de widget, `PRIMITIVAS.md`/`CLAUDE.md`:
             // fica inline, não no `.gss`). Um QR code é sempre quadrado
             // (`data.width` é igual nos dois eixos), então o primeiro dos
@@ -5518,7 +5518,7 @@ pub fn render_node<'a>(
             // O motor mantém o `combo_box::State` deste binding (criado por
             // `sync_combos` antes do render). Se estiver faltando num primeiro
             // frame, cai pra um placeholder estático em vez de gerar um widget
-            // sem estado nenhum — mesmo truque do `<TextArea>` acima.
+            // sem estado nenhum — mesmo truque do `TextArea` acima.
             match combos.get(value_var) {
                 Some(state) => {
                     let current = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
@@ -5584,7 +5584,7 @@ pub fn render_node<'a>(
                         cb = cb.font(f);
                     }
 
-                    // Overlays por pseudo-estado, igual ao `<TextInput>` acima —
+                    // Overlays por pseudo-estado, igual ao `TextInput` acima —
                     // parte do estilo padrão do tema (`text_input::default`,
                     // já que o campo de digitação do combo é um `text_input`
                     // por baixo) e sobrescreve só o que o `.gss` declarou.
@@ -5858,7 +5858,7 @@ pub fn render_node<'a>(
                 }
             }
 
-            // Dois modos, e é o mesmo contrato do `<TextInput>`: **sem**
+            // Dois modos, e é o mesmo contrato do `TextInput`: **sem**
             // `onChange` o widget grava a chave sozinho (nenhuma linha do lado
             // do app); **com** `onChange`, ele só avisa, e quem grava é o
             // handler — que é o que deixa o app validar um intervalo ou recusar
@@ -5974,7 +5974,7 @@ pub fn render_node<'a>(
                     }
                 });
 
-            // A solda. A grade é a MESMA primitiva do `<calendar>` — mesmo
+            // A solda. A grade é a MESMA primitiva do `calendar` — mesmo
             // `render_calendar`, mesma chave `__cal_<chave>` de mês visível,
             // mesmo contrato de `onChange`. O que o popup acrescenta é onde
             // ela aparece.
@@ -6216,9 +6216,9 @@ pub fn render_node<'a>(
             *percentages,
             colors,
         ),
-        // Onda 13: o `<canvas>` desenha os filhos-forma na ordem do markup.
+        // Onda 13: o `canvas` desenha os filhos-forma na ordem do markup.
         NodeType::Canvas => render_canvas(node),
-        // Uma forma fora de um `<canvas>` não tem onde ser desenhada — o
+        // Uma forma fora de um `canvas` não tem onde ser desenhada — o
         // `render_canvas` lê os filhos-forma direto, sem passar por aqui.
         NodeType::Shape { .. } => iced::widget::Space::new().width(0).height(0).into(),
         NodeType::Popover {
@@ -6276,8 +6276,8 @@ pub fn render_node<'a>(
                 .into()
         }
         // ── Onda 9 — o ponteiro preso ───────────────────────────────────────
-        // `<mdiarea>` — ver `NodeType::MdiArea`. Cada filho é um
-        // `<mdisubwindow>`; a posição vem da chave que ELE nomeia (com um
+        // `mdiarea` — ver `NodeType::MdiArea`. Cada filho é um
+        // `mdisubwindow`; a posição vem da chave que ELE nomeia (com um
         // cascade quando ainda não tem valor, para N janelas novas não
         // nascerem empilhadas na mesma coordenada), e quem desenha a moldura
         // + arrasto é `crate::panes`.
@@ -6311,8 +6311,8 @@ pub fn render_node<'a>(
                 .collect();
             let area = crate::panes::render_mdi_area(posicionados);
 
-            // Diferente do `<stack>` genérico (que fica em `Shrink` sem
-            // `width`/`height`, como `Container`), um `<mdiarea>` sem tamanho
+            // Diferente do `stack` genérico (que fica em `Shrink` sem
+            // `width`/`height`, como `Container`), um `mdiarea` sem tamanho
             // declarado enche o espaço disponível por padrão — é a área de
             // trabalho de um MDI de verdade, não uma caixa que abraça o
             // conteúdo. A mesma exceção que `ProgressBar`/`Slider` têm no
@@ -6499,13 +6499,13 @@ pub fn render_node<'a>(
             placeholder,
             on_change,
         } => render_shortcut_input(context, value_var, placeholder, on_change),
-        // Um `<shortcut>` não desenha: ele é uma **declaração** que o motor
+        // Um `shortcut` não desenha: ele é uma **declaração** que o motor
         // colhe da árvore avaliada (`collect_tree_bindings`) e casa contra o
         // teclado. Sai do layout inteiro, como um `hidden`.
         NodeType::Shortcut { .. } => Space::new().width(0).height(0).into(),
         NodeType::Flow { row_spacing } => {
             // O `Row::wrap()` do próprio iced. A Onda 6 catalogava este item
-            // como "a mesma medição num eixo só", saindo do `<grid>`; ele já
+            // como "a mesma medição num eixo só", saindo do `grid`; ele já
             // existia pronto, e escrever de novo o que a biblioteca de baixo
             // tem seria o oposto do que este projeto vem fazendo.
             let vao = node.spacing.unwrap_or(0.0);
@@ -6590,7 +6590,7 @@ pub fn render_node<'a>(
             on_select,
             on_sort,
         ),
-        // Só tem sentido dentro de um `<tableview>`, que o consome sem
+        // Só tem sentido dentro de um `tableview`, que o consome sem
         // renderizá-lo (ver `render_tabela_decorada`). Solto, não desenha nada.
         NodeType::TableColumn { .. } => Space::new().into(),
         NodeType::TreeView {
@@ -6736,7 +6736,7 @@ pub fn render_node<'a>(
         }
         NodeType::Space => {
             // Sem `width`/`height` no markup, `Length::Fill` nos dois eixos: um
-            // `<Space/>` pelado é o espaçador FLEXÍVEL (o que empurra o resto
+            // `Space` pelado é o espaçador FLEXÍVEL (o que empurra o resto
             // para a borda), não um vão de zero pixel — que é o que o
             // `parse_length(&None) == Shrink` genérico daria, e que não serve
             // para nada. Com `width="24"` vira o vão fixo.
@@ -6923,7 +6923,7 @@ pub fn render_node<'a>(
                 .height(parse_length(&node.height))
                 .into()
         }
-        // `<stack>` — a Onda 11 do `PLANO_WIDGETS.md`: empilha os filhos no
+        // `stack` — a Onda 11 do `PLANO_WIDGETS.md`: empilha os filhos no
         // mesmo espaço, o primeiro embaixo. Ver `NodeType::Stack` para o que
         // `x`/`y`/`anchor` fazem num filho.
         NodeType::Stack => {
@@ -6934,10 +6934,10 @@ pub fn render_node<'a>(
 
             // `iced::widget::Stack` não tem `.style()` — ao contrário de
             // `Container`, ele não pinta nada por si. Um `background`/`border`
-            // no `<stack>` vira uma camada SINTÉTICA, a primeira (a "base",
+            // no `stack` vira uma camada SINTÉTICA, a primeira (a "base",
             // que também é a que dita o tamanho do stack quando `width`/
             // `height` ficam de fora — ver a nota abaixo). É o mesmo papel que
-            // o retângulo de fundo de um `<progressbar>` cumpre dentro do seu
+            // o retângulo de fundo de um `progressbar` cumpre dentro do seu
             // próprio `.style()`, só que aqui precisa ser um NÓ, porque o
             // widget que o contém não sabe desenhar.
             let bg_opt = background_for(node);
@@ -6989,7 +6989,7 @@ pub fn render_node<'a>(
             st.width(width).height(height).into()
         }
         NodeType::Form { .. } => {
-            // A `<Form>` is a layout container like `<Column>` — its
+            // A `Form` is a layout container like `Column` — its
             // `onSubmit`/`formControl` wiring lives entirely in the hydrated
             // `form_*` fields of its descendants (see `eval.rs`), nothing to
             // render here beyond stacking its children.
@@ -7059,7 +7059,7 @@ pub fn render_node<'a>(
         )
         .into(),
         NodeType::Render { component, .. } => container(
-            text(format!("Unresolved <render component=\"{}\">", component))
+            text(format!("Unresolved render(component = \"{}\")", component))
                 .color(Color::from_rgb(1.0, 0.0, 0.0)),
         )
         .into(),
@@ -7072,15 +7072,15 @@ pub fn render_node<'a>(
             // Import declarations are stripped during evaluation; render nothing.
             column![].into()
         }
-        // `<app>`/`<tray>` são lidos pelo daemon antes do boot e descartados na
+        // `app`/`tray` são lidos pelo daemon antes do boot e descartados na
         // avaliação; chegar aqui não desenha nada.
         NodeType::App(_) | NodeType::Tray(_) => column![].into(),
         NodeType::Link { .. } => {
-            // <link> declarations are stripped during evaluation; render nothing.
+            // link declarations are stripped during evaluation; render nothing.
             column![].into()
         }
         NodeType::Style { .. } => {
-            // Inline <style> blocks are stripped during evaluation; render nothing.
+            // Inline style blocks are stripped during evaluation; render nothing.
             column![].into()
         }
         NodeType::Screen(_)
@@ -7090,9 +7090,9 @@ pub fn render_node<'a>(
         | NodeType::Resources
         | NodeType::Props(_)
         | NodeType::Prop => {
-            // O cabeçalho (`<screen>`/`<resources>`) é declaração: o daemon lê os
+            // O cabeçalho (`screen`/`resources`) é declaração: o daemon lê os
             // metadados, a avaliação strip a; aqui não há o que desenhar. O
-            // `<component name="…">` entra aqui pela mesma razão — quem o lê é
+            // `component(name = "…")` entra aqui pela mesma razão — quem o lê é
             // o `load_defines` do registro, e o corpo dele só desenha através
             // da tag que ele publica.
             column![].into()
@@ -7118,8 +7118,8 @@ pub fn render_node<'a>(
             items,
             ..
         } => {
-            // Gatilho de dropdown: tanto o topo de uma `<MenuBar>` quanto um
-            // `<Menu>` avulso (fora de qualquer `MenuBar`) caem aqui e
+            // Gatilho de dropdown: tanto o topo de uma `MenuBar` quanto um
+            // `Menu` avulso (fora de qualquer `MenuBar`) caem aqui e
             // renderizam igual — um botão que abre `tree` ancorado no cursor.
             // A árvore em si (`crate::menu::build_tree`) consome
             // `node.children`/`items` diretamente; `render_node` nunca
@@ -7180,14 +7180,14 @@ pub fn render_node<'a>(
             // Só alcançados como filho de `MenuBar`/`Menu`/`ContextMenu`,
             // consumidos diretamente por `crate::menu::build_tree` — nunca
             // pela recursão comum de `render_node` acima. Chegar aqui de
-            // verdade seria um bug (um `<MenuItem>` fora de um `<Menu>`);
+            // verdade seria um bug (um `MenuItem` fora de um `Menu`);
             // não ocupa espaço.
             Space::new()
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .into()
         }
-        // Um `<slot/>` some na avaliação (vira `Fragment`, ver `eval`), então
+        // Um `slot` some na avaliação (vira `Fragment`, ver `eval`), então
         // aqui ele é tratado igual — se algum dia chegar, empilha o que embrulha.
         NodeType::Slot { .. } | NodeType::Fragment => {
             // A `Fragment`'s children are normally spliced into the parent
@@ -7226,7 +7226,7 @@ pub fn render_node<'a>(
     // `Reveal` (0.90) é o terceiro, por um motivo mais forte: a altura dele é
     // a animação, e um `Container` por fora com `Length::Shrink` mediria o
     // filho por conta própria — desfazendo o recorte. Fundo/borda de um
-    // `<reveal>` vão no filho, que é onde precisam ser recortados junto.
+    // `reveal` vão no filho, que é onde precisam ser recortados junto.
     if node.kind != NodeType::Container
         && !matches!(
             &node.kind,
@@ -7239,7 +7239,7 @@ pub fn render_node<'a>(
             &node.kind,
             NodeType::TextInput { .. } | NodeType::TextArea { .. }
         );
-        // Um `<button>` com `gradient` pinta o fundo no próprio estilo (com
+        // Um `button` com `gradient` pinta o fundo no próprio estilo (com
         // hover/disabled); um fundo por trás apareceria cheio no `disabled`.
         let botao_gradiente =
             matches!(&node.kind, NodeType::Button { .. }) && node.gradient().is_some();
@@ -7410,7 +7410,7 @@ fn cursor_interaction(name: &str) -> Option<iced::mouse::Interaction> {
         "resize-h" | "ew" | "ew-resize" | "e" | "w" | "col-resize" => ResizingHorizontally,
         "resize-v" | "ns" | "ns-resize" | "n" | "s" | "row-resize" => ResizingVertically,
         "resize-ne" | "ne" | "sw" | "nesw" | "nesw-resize" => ResizingDiagonallyUp,
-        "resize-nw" | "nw" | "se" | "nwse" | "nwse-resize" => ResizingDiagonallyDown,
+        "nw" | "nwse" => ResizingDiagonallyDown,
         _ => return None,
     })
 }
@@ -7588,7 +7588,7 @@ mod length_tests {
     /// O `iced` de mentira: aplica uma tecla ao texto exibido do jeito que ele
     /// aplica (edita a string que mostra e anda um caractere), e devolve o que
     /// o campo mostra e onde o cursor fica **depois** da remascaração. É o laço
-    /// inteiro do `<MaskedInput>` em quatro linhas.
+    /// inteiro do `MaskedInput` em quatro linhas.
     fn tecla(estado: (String, usize), c: char, mascara: &str) -> (String, usize) {
         let (exibido, cursor) = estado;
         let chars: Vec<char> = exibido.chars().collect();
@@ -7716,7 +7716,7 @@ mod length_tests {
     fn iso_ymd_devolve_none_para_o_que_nao_e_data() {
         assert_eq!(iso_ymd("2026-09-01"), Some((2026, 9, 1)));
         assert_eq!(iso_ymd("  2026-09-01  "), Some((2026, 9, 1)));
-        // A hora de um `<datetimeedit>` gravando a mesma chave não pode
+        // A hora de um `datetimeedit` gravando a mesma chave não pode
         // apagar o realce do dia.
         assert_eq!(iso_ymd("2026-09-01 13:45"), Some((2026, 9, 1)));
         // `YYYY-MM` e `YYYY` completam com 1 — é o que o modo mês/ano grava.
@@ -7763,7 +7763,7 @@ mod length_tests {
         assert_eq!(preso.mes, 12);
     }
 
-    // --- Instante: a aritmética de seção do `<datetimeedit>` -----------------
+    // --- Instante: a aritmética de seção do `datetimeedit` -----------------
 
     #[test]
     fn instante_le_as_tres_formas() {

@@ -57,10 +57,10 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 struct Onda7;
 
 /// A latência de cada serviço nas últimas 24 horas — a série que alimenta as
-/// três `<sparkline>`.
+/// três `sparkline`.
 ///
 /// Números crus num array: é a forma curta que a convenção `items` aceita, e a
-/// que um `<sparkline>` quer (ele não desenha rótulo nenhum). A forma longa —
+/// que um `sparkline` quer (ele não desenha rótulo nenhum). A forma longa —
 /// `[{"label": "Jan", "value": 12}]` — aparece logo abaixo, nas vendas.
 const LAT_API: &[f64] = &[
     38.0, 41.0, 39.0, 44.0, 52.0, 47.0, 43.0, 40.0, 38.0, 37.0, 39.0, 45.0, 61.0, 58.0, 49.0, 44.0,
@@ -77,7 +77,7 @@ const LAT_FILA: &[f64] = &[
 
 /// As vendas do semestre, na forma longa: rótulo e valor.
 ///
-/// É o que o eixo X de um `<linechart>` e de um `<barchart>` desenha — e a
+/// É o que o eixo X de um `linechart` e de um `barchart` desenha — e a
 /// razão de a convenção aceitar as duas formas em vez de exigir a longa sempre.
 const VENDAS: &[(&str, f64)] = &[
     ("jan", 128.0),
@@ -88,7 +88,7 @@ const VENDAS: &[(&str, f64)] = &[
     ("jun", 164.0),
 ];
 
-/// As fatias do `<piechart>`. Mesma forma longa.
+/// As fatias do `piechart`. Mesma forma longa.
 const FATIAS: &[(&str, f64)] = &[
     ("API", 42.0),
     ("Banco", 27.0),
@@ -119,7 +119,7 @@ impl Component for Onda7 {
         //
         // Uma chave por widget, e nada mais. Nenhuma delas é escrita por este
         // arquivo depois daqui: quem escreve `volume` e `brilho` é o próprio
-        // `<dial>`, porque o markup não lhe deu `onChange`.
+        // `dial`, porque o markup não lhe deu `onChange`.
         ctx.set("volume", "7".to_string());
         ctx.set("brilho", "60".to_string());
         ctx.set("cpu", "72".to_string());
@@ -129,14 +129,14 @@ impl Component for Onda7 {
 
         // As faixas de um medidor podem vir de uma CHAVE, e não só do atributo:
         // é o caso em que os limites são do backend, não do desenho. O
-        // `<gauge>` do disco usa esta; os outros escrevem o JSON inline.
+        // `gauge` do disco usa esta; os outros escrevem o JSON inline.
         ctx.set(
             "limites_disco",
             r##"[{"to":70,"color":"#A6E3A1"},{"to":90,"color":"#F9E2AF"},{"to":100,"color":"#F38BA8"}]"##
                 .to_string(),
         );
 
-        // O `<lcdnumber>` lê o valor como TEXTO — é o que deixa um relógio
+        // O `lcdnumber` lê o valor como TEXTO — é o que deixa um relógio
         // passar inteiro pelos dois-pontos.
         ctx.set("relogio", hora_local());
 
@@ -162,7 +162,7 @@ impl Component for Onda7 {
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         match action {
             // O braço genérico de sempre: a ação É o nome da chave. É por aqui
-            // que o `<slider>` da CPU passa — e repare que nenhum dos SETE
+            // que o `slider` da CPU passa — e repare que nenhum dos SETE
             // widgets desta onda precisa de um braço próprio.
             chave if value.is_some() => {
                 ctx.set(chave, value.unwrap_or_default().to_string());
@@ -189,7 +189,7 @@ fn serie_longa(vs: &[(&str, f64)]) -> String {
 }
 
 /// O p95 da série, pelo método do índice — o número que a coluna da direita
-/// mostra ao lado de cada `<sparkline>`.
+/// mostra ao lado de cada `sparkline`.
 ///
 /// Mora no app, e é o ponto: o widget desenha a série, o app decide o que ela
 /// significa. Um gráfico que calculasse percentil sozinho estaria adivinhando.
@@ -203,7 +203,7 @@ fn p95(vs: &[f64]) -> f64 {
     ord[i.min(ord.len() - 1)]
 }
 
-/// A hora do sistema como `HH:MM`, para o `<lcdnumber>`.
+/// A hora do sistema como `HH:MM`, para o `lcdnumber`.
 ///
 /// A mesma lição da Onda 3 e da Onda 5, agora num display: **o relógio é do
 /// app**, não do motor. O widget desenha o texto que a chave tem; quem sabe que

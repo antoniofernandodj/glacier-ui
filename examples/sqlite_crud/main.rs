@@ -1,9 +1,9 @@
 //! Registrar funções Rust na camada Lua — um cliente **SQLite** completo,
-//! usado por um mini-CRUD escrito inteiramente no `<script>`.
+//! usado por um mini-CRUD escrito inteiramente no `script`.
 //!
 //! # A ideia
 //!
-//! O motor expõe alguns globais ao `<script>` (`fetch`, `json`, `storage`, …),
+//! O motor expõe alguns globais ao `script` (`fetch`, `json`, `storage`, …),
 //! mas não um banco de dados — e não deveria: cada app quer o seu. A ponte é
 //! [`GlacierDaemon::lua_extension`]: um closure `Fn(&mlua::Lua) -> Result<()>`
 //! que roda em cada VM Luau nova e instala nela o que quiser. Aqui ele instala
@@ -37,7 +37,7 @@ use rusqlite::types::{Value as SqlValue, ValueRef};
 
 fn main() -> glacier_ui::iced::Result {
     GlacierDaemon::new()
-        // A ÚNICA linha que liga o banco: a partir daqui, todo `<script>` deste
+        // A ÚNICA linha que liga o banco: a partir daqui, todo `script` deste
         // app enxerga o global `sqlite`.
         .lua_extension(instalar_sqlite)
         .main_template("examples/sqlite_crud/crud.gv")

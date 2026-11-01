@@ -6,14 +6,14 @@ comportamento — nome de chave, ação, `slot` — e quase nenhuma cor.
 
 O "quase" é a observação desta onda, e ela é diferente da anterior. Os sete
 widgets que desenham **também** se pintam pela paleta do `theme.json`, como o
-`<tableview>` da Onda 6 e o `<select>` antes dele. Mas eles aceitam `color` —
+`tableview` da Onda 6 e o `select` antes dele. Mas eles aceitam `color` —
 e, quando o atributo está vazio, a cor cai na CLASSE. Ou seja: as três regras
 de cor logo abaixo pintam gráficos inteiros sem que o markup diga nada.
 
   .grafico_alerta { color: #F38BA8; }
-  <linechart class="grafico_alerta" items="erros" />
+  linechart(class = grafico_alerta, :items = erros)
 
-É o mesmo fallback que o `<rating>` e o `<progressbar>` já tinham; nesta onda
+É o mesmo fallback que o `rating` e o `progressbar` já tinham; nesta onda
 ele passa a valer para sete widgets de uma vez, e é o que faz um painel inteiro
 trocar de cor por folha de estilo.
 */

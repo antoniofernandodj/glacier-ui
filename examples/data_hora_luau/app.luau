@@ -1,10 +1,10 @@
 --!strict
 -- Toda a lógica desta tela. O `main.rs` só registra o template.
 --
--- O ponto do exemplo: os `<dateedit>`/`<timeedit>` estão com `onChange`, e isso
+-- O ponto do exemplo: os `dateedit`/`timeedit` estão com `onChange`, e isso
 -- inverte quem manda. Sem `onChange` o widget grava a chave sozinho; com ele, o
 -- widget só avisa — quem decide se o valor entra é este script. É o mesmo
--- contrato do `<TextInput>`, e é o que torna possível recusar um valor.
+-- contrato do `textinput`, e é o que torna possível recusar um valor.
 --
 -- O segundo ponto é o global `date` (prelúdio, `src/luau/prelude.luau`): as
 -- regras aqui embaixo são de negócio, mas as contas que elas fazem — quantas
@@ -82,7 +82,7 @@ end
 
 function init(): ()
     -- Semeado a partir do relógio do sistema, não de datas fixas: `today` e
-    -- `add` já devolvem no formato que o `<dateedit>` espera, então o valor sai
+    -- `add` já devolvem no formato que o `dateedit` espera, então o valor sai
     -- daqui e entra no widget sem conversão nenhuma no meio.
     ctx.checkin = date.today()
     ctx.checkout = date.add(ctx.checkin, { days = 2 })
@@ -96,7 +96,7 @@ end
 
 -- Duas regras, e é aqui que o `date` paga o aluguel: `is_before` compara pelo
 -- INSTANTE, não pelo texto. Comparar as strings direto funcionaria entre dois
--- `<dateedit>` (ISO ordena), mas quebra assim que uma das pontas tem hora —
+-- `dateedit` (ISO ordena), mas quebra assim que uma das pontas tem hora —
 -- `"2026-09-10 08:00" > "2026-09-10"` é verdadeiro só porque a string é mais
 -- longa. Uma comparação só, sem recortar nada antes.
 function set_checkin(novo: string): ()
@@ -169,7 +169,7 @@ end
 -- experimentar com uma entrada em 31 de janeiro.
 function daqui_um_mes(): ()
     -- `assert` porque toda função de `date` devolve `nil` para entrada que não
-    -- é ISO válida, e aqui a entrada vem de um `<dateedit>` — se ela não for
+    -- é ISO válida, e aqui a entrada vem de um `dateedit` — se ela não for
     -- válida, o certo é explodir aqui e não propagar `nil` pelas três linhas
     -- seguintes. O `assert` também é o que refina `string?` para `string`.
     local entrada: string = assert(date.add(ctx.checkin, { months = 1 }))

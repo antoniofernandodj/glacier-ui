@@ -157,7 +157,7 @@ end })
 Em Rust, `Request::on_progress(|p| …)` / `RequestBuilder::on_progress` chamam o closure **na
 tarefa de rede**; entregue o número à UI por um canal ou um `Arc<Mutex<_>>`.
 Os exemplos `rede_progresso` e `rede_progresso_rust` sobem e baixam 50 MB com um
-`<progressbar>`. Não há *streaming* do corpo da resposta (ele ainda chega inteiro no `body`).
+`progressbar`. Não há *streaming* do corpo da resposta (ele ainda chega inteiro no `body`).
 
 ### O método `QUERY` (RFC 10008)
 

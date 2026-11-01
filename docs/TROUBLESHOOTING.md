@@ -84,10 +84,10 @@ driver) no stderr antes de aplicar esta correção.
 ### Sintoma
 
 Um painel com **sombra** que vive numa camada por cima da tela — o painel de
-sugestões do `<autocomplete>`, um `<dialog>`, um toast — vai ficando
+sugestões do `autocomplete`, um `dialog`, um toast — vai ficando
 progressivamente mais escuro a cada quadro, até virar um retângulo preto. O
 detalhe que denuncia o mecanismo: **as linhas por onde o cursor passa voltam ao
-normal** e as outras continuam escurecendo. Num `<autocomplete>` filtrado até
+normal** e as outras continuam escurecendo. Num `autocomplete` filtrado até
 sobrar uma opção só, o efeito **não** aparece — a única linha é sempre a
 realçada, e a realçada desenha fundo opaco todo quadro.
 
@@ -112,7 +112,7 @@ correta e estável.
 ambiente valem igual).
 
 Do lado do motor, nada mais depende disso: os três painéis que traziam sombra —
-o do `<autocomplete>` (`src/widget.rs`), o cartão do `<dialog>` (`src/dialogs.rs`)
+o do `autocomplete` (`src/widget.rs`), o cartão do `dialog` (`src/dialogs.rs`)
 e o cartão do toast (`src/toasts.rs`) — perderam a `shadow` e ganharam a elevação
 por um **fundo opaco mais claro** (`background.weak`) mais a borda que cada um já
 tinha. Opacos, e por isso imunes ao acúmulo em qualquer driver.
@@ -126,8 +126,8 @@ prefira elevar com **cor de fundo** a elevar com sombra.
 
 ### Sintoma
 
-Numa tela com `<gauge>`, `<dial>`, `<lcdnumber>`, `<linechart>`, `<barchart>`,
-`<piechart>` ou `<sparkline>`, os **números dos eixos e os rótulos aparecem** e
+Numa tela com `gauge`, `dial`, `lcdnumber`, `linechart`, `barchart`,
+`piechart` ou `sparkline`, os **números dos eixos e os rótulos aparecem** e
 nenhuma forma é desenhada — nem linha, nem barra, nem arco, nem fatia. Olhando
 com atenção há um segundo detalhe: o **primeiro** desenho da tela costuma
 aparecer, cortado em cima e à esquerda, e todos os seguintes somem.

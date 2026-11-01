@@ -482,13 +482,13 @@ fn rubberband_le_a_colecao_pelo_nome_da_chave() {
 // 7–8. SizeGrip e PageIndicator — os dois de carona
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// O `<SizeGrip>` é um **builtin**, e o que ele emite é a ação de janela que a
+/// O `<sizegrip>` é um **builtin**, e o que ele emite é a ação de janela que a
 /// titlebar custom já usava. As duas metades existiam antes da onda.
 #[test]
 fn sizegrip_emite_a_acao_de_janela_que_ja_existia() {
     let (mut motor, caminho) = tela(
         "onda9_grip",
-        r#"<screen><row><space /><SizeGrip /></row></screen>"#,
+        r#"<screen><row><space /><sizegrip /></row></screen>"#,
     );
 
     let arvore = motor.evaluated("tela").unwrap();
@@ -507,7 +507,7 @@ fn sizegrip_emite_a_acao_de_janela_que_ja_existia() {
         }
     }
     varre(arvore, &mut achou);
-    assert!(achou, "o <SizeGrip> emite window:resize:se");
+    assert!(achou, "o <sizegrip> emite window:resize:se");
 
     // E em minúsculas também — o alias automático dos builtins.
     assert!(motor.is_registered("sizegrip"));
@@ -714,7 +714,7 @@ fn clicar_no_campo_armado_desarma() {
 /// Este teste existe por causa da advertência do `CLAUDE.md`: este repositório
 /// já produziu, mais de uma vez, um widget que passava em todos os testes e
 /// aparecia **vazio na tela**. Rodar o exemplo sem erro não prova nada — uma
-/// escada de `se`/`senao` que não casa não é erro, é um buraco. O que prova é
+/// escada de `if`/`else` que não casa não é erro, é um buraco. O que prova é
 /// olhar o ramo.
 #[test]
 fn o_exemplo_rust_monta_as_nove_tags() {

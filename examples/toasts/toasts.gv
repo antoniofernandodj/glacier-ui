@@ -15,7 +15,7 @@ screen(title = "Glacier - Toasts") {
       text(content = "Toasts (info / sucesso / aviso / erro)", class = titulo)
 
       text(
-        content = """
+        """
           Clique num botão para empilhar o toast correspondente; cada um some
           sozinho depois de alguns segundos.
         """,

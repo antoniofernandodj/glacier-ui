@@ -23,10 +23,10 @@ screen(
       space(class = empurra)
 
       text(
-        class = dica,
-        content = """
+        """
           …ou arraste a faixa de título do painel para uma borda e solte.
         """,
+        class = dica,
       )
     }
 

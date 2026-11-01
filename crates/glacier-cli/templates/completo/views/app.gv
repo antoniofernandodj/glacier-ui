@@ -17,14 +17,14 @@ app(
       script(src = "scripts/app.luau")
 
       style(scoped = true) """
-        .titlebar       { width: fill; height: 34; background: var(--surface); align-y: center; }
-        .titlebar_drag  { width: fill; height: fill; align-y: center; padding: 0 0 0 14; spacing: 9; }
+        .titlebar       { width: fill; height: 34; background: var(--surface); align_y: center; }
+        .titlebar_drag  { width: fill; height: fill; align_y: center; padding: 0 0 0 14; spacing: 9; }
         .titlebar_ponto { size: 10; color: var(--accent); }
         .titlebar_nome  { size: 12; bold: true; color: var(--muted); }
-        .win_btn        { width: 46; padding: 5 0; color: var(--surface); text-color: var(--muted); text-align: center; }
-        .win_btn:hover  { color: var(--border); text-color: var(--text); }
-        .win_fechar       { width: 46; padding: 5 0; color: var(--surface); text-color: var(--muted); text-align: center; }
-        .win_fechar:hover { color: var(--danger); text-color: var(--text); }
+        .win_btn        { width: 46; padding: 5 0; color: var(--surface); text_color: var(--muted); text_align: center; }
+        .win_btn:hover  { color: var(--border); text_color: var(--text); }
+        .win_fechar       { width: 46; padding: 5 0; color: var(--surface); text_color: var(--muted); text_align: center; }
+        .win_fechar:hover { color: var(--danger); text_color: var(--text); }
 
         .rz_topo   { width: fill; height: 5; }
         .rz_baixo  { width: fill; height: 5; }

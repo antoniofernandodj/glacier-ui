@@ -1,6 +1,6 @@
-// A forma com cabeçalho: a raiz é a `<screen>`, que declara o que a JANELA é
-// (título, tamanho) e agrupa em `<resources>` o que a tela precisa para existir
-// (estilo, script). Depois do `</resources>` vem só layout — nada que não
+// A forma com cabeçalho: a raiz é a `screen`, que declara o que a JANELA é
+// (título, tamanho) e agrupa em `resources` o que a tela precisa para existir
+// (estilo, script). Depois do `` vem só layout — nada que não
 // desenhe fica no meio dos widgets.
 //
 // O `main.rs` deste exemplo também chama `.title(...)`/`.main_size(...)`; o que
@@ -56,11 +56,11 @@ screen(title = "Controle externo", size = "1000 700", min_size = "480 360") {
       text(class = titulo, content = "Controle externo")
 
       text(
-        class = subtitulo,
-        content = """
+        """
           Ninguém toca nesta janela. Uma thread do próprio programa manda as ações
           pelo canal `external`.
         """,
+        class = subtitulo,
       )
 
       container(class = painel) {

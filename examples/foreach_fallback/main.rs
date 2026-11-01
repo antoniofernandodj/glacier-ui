@@ -1,5 +1,5 @@
-//! **`<foreach fallback>`** — uma cozinha com três etapas, cada uma um
-//! `<foreach>` com o seu componente de lista vazia.
+//! **`foreach(fallback)`** — uma cozinha com três etapas, cada uma um
+//! `foreach` com o seu componente de lista vazia.
 //!
 //! Rode com: `cargo run --example foreach_fallback` (com `WGPU_BACKEND=gl`
 //! nesta máquina). O par em Luau, com o mesmo markup, é
@@ -7,7 +7,7 @@
 //!
 //! # O que este exemplo mostra
 //!
-//! - `<foreach items="…" fallback="Componente">`: a tag de repetição e o que
+//! - `foreach(items = "…", fallback = Componente)`: a tag de repetição e o que
 //!   aparece no lugar da lista quando ela está vazia. A lista de entregues usa
 //!   um nome literal (`fallback="SemEntregas"`).
 //! - O fallback chegando por prop: o componente `Etapa` recebe

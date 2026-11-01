@@ -1,4 +1,4 @@
-//! `<audio>` — Fase 6 do `PLANO_SUBSTITUIBILIDADE.md` (só o áudio; `<video>` não foi feito).
+//! `audio` — Fase 6 do `PLANO_SUBSTITUIBILIDADE.md` (só o áudio; `<video>` não foi feito).
 //!
 //!   WGPU_BACKEND=gl cargo run --example audio --features audio
 //!

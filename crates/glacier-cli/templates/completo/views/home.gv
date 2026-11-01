@@ -8,10 +8,10 @@ component {
       text(class = titulo, content = "Início")
 
       text(
-        class = subtitulo,
-        content = """
+        """
           tudo nesta tela vem de views/home.gv e views/scripts/handlers/
         """,
+        class = subtitulo,
       )
     }
 
@@ -33,7 +33,7 @@ component {
     }
 
     column(class = lista) {
-      row(class = item, :for-each = itens, var = i) {
+      row(class = item, :for_each = itens, var = i) {
         text(class = item_nome, content = "@i.nome")
         text(class = tag_ok, if = @i.ativo, equals = 1, content = "ativo")
         text(class = tag_off, else, content = "parado")

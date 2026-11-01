@@ -1,6 +1,6 @@
 use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
-/// Demonstra renderização condicional com `<if>` / `<else>`.
+/// Demonstra renderização condicional com `if` / `else`.
 /// O componente encapsula UI + comportamento: o botão alterna `logado`.
 struct Condicional;
 

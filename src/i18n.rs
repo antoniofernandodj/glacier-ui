@@ -3,11 +3,11 @@
 //! No markup, uma chamada dentro de `{…}`:
 //!
 //! ```text
-//! <text>{t("titulo")}</text>
-//! <text>{t("itens", n=contagem)}</text>        <!-- plural: o catálogo escolhe a forma -->
-//! <text>{t("ola", nome=usuario)}</text>         <!-- {nome} dentro da mensagem -->
-//! <text>{num(preco, 2)}</text>                  <!-- 1.234,56 em pt-BR, 1,234.56 em en -->
-//! <text>{date(quando)}</text>                   <!-- 31/10/2026 em pt-BR, 10/31/2026 em en -->
+//! text{t("titulo")}
+//! text{t("itens", n=contagem)}        <!-- plural: o catálogo escolhe a forma -->
+//! text{t("ola", nome=usuario)}         <!-- {nome} dentro da mensagem -->
+//! text{num(preco, 2)}                  <!-- 1.234,56 em pt-BR, 1,234.56 em en -->
+//! text{date(quando)}                   <!-- 31/10/2026 em pt-BR, 10/31/2026 em en -->
 //! ```
 //!
 //! No `.gv` é igual, dentro de uma string (`text("{t('titulo')}")`).

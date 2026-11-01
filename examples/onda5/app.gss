@@ -19,7 +19,7 @@ Três coisas que valem para esta folha em particular:
 
 As classes de nó interno de builtin (`.aba`, `.gaveta`, …) são a capacidade da
 0.89: um builtin aceita uma classe por nó de dentro, então esta folha alcança o
-painel de um `<drawer>` sem reescrever o widget.
+painel de um `drawer` sem reescrever o widget.
 */
 
 :root {
@@ -86,7 +86,7 @@ painel de um `<drawer>` sem reescrever o widget.
 .btn_icone { padding: 4 10; border_radius: 5; }
 
 /* Um item de menu é PLANO: num painel de menu, um botão com o fundo primário
- compete com o próprio painel pela atenção. `color` num `<button>` é o fundo
+ compete com o próprio painel pela atenção. `color` num `button` é o fundo
  dele (a mesma convenção que `.tab` e `.accordion-head` usam na lib); o
  `:hover` é que acende. */
 .btn_gaveta       { color: #00000000; text_color: var(--texto); border_width: 0;
@@ -99,7 +99,7 @@ painel de um `<drawer>` sem reescrever o widget.
 
 /* ── Os painéis flutuantes ─────────────────────────────────────────────── */
 
-/* Esta é a caixa que o `<popover>`/`<popup>` levanta para a camada de cima.
+/* Esta é a caixa que o `popover`/`popup` levanta para a camada de cima.
  Ela PRECISA de fundo próprio: um painel translúcido sobre a tela seria
  ilegível, e este é o único lugar da folha onde pintar uma caixa não é uma
  camada redobrada — atrás dela não há nada pintado por nós. */

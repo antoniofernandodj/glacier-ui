@@ -21,12 +21,12 @@ screen(
         text(class = secao, content = "fontselect")
 
         text(
-          class = nota,
-          content = """
+          """
             Lê a chave do motor `__fonts`, semeada pelo registro de
             `src/fonts.rs`. Cada item desenha o próprio nome na própria família —
             a linha que o separa de um `select` comum.
           """,
+          class = nota,
         )
 
         fontselect(
@@ -42,11 +42,11 @@ screen(
           text(class = secao, content = "font no .gv")
 
           text(
-            class = amostra, font = @fonte,
-            content = """
+            """
               Este título usa o atributo `font` ligado à chave que o fontselect
               grava — troque a seleção ao lado e ele muda junto.
             """,
+            font = @fonte, class = amostra,
           )
         }
 
@@ -54,20 +54,20 @@ screen(
           text(class = secao, content = "font_family no .gss")
 
           text(
-            class = rotulo-serif,
-            content = """
+            """
               Esta linha não tem `font` no markup: a família vem da classe
               `.rotulo-serif` no app.gss, pelo mesmo funil (`font_for`).
             """,
+            class = rotulo-serif,
           )
 
           text(
-            class = nota,
-            content = """
+            """
               Um nome que ninguém registrou continua caindo na fonte padrão, em
               silêncio — a degradação de sempre, agora só para o que realmente não
               existe.
             """,
+            class = nota,
           )
         }
 
@@ -78,11 +78,11 @@ screen(
           )
 
           text(
-            class = nota,
-            content = """
+            """
               `QPlainTextEdit` é "texto simples, fonte declarável". A segunda
               metade era esta onda.
             """,
+            class = nota,
           )
 
           texteditor(:value = nota, font = @fonte_mono, class = editor)

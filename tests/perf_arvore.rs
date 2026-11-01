@@ -23,24 +23,26 @@ impl Component for Tela {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r##"<component>
-              <Column spacing="6" padding="12">
-                <Text content="Pedidos ({total})" size="22" bold="true" />
-                <Scrollable height="fill">
-                  <Column spacing="4">
-                    <ForEach items="linhas" var="l">
-                      <Row spacing="8" padding="6" background="#1b1f27" border_radius="6">
-                        <Text content="{l.id}" size="13" />
-                        <Text content="{l.cliente}" size="13" width="fill" />
-                        <Badge content="{l.status}" />
-                        <Text content="{l.valor}" size="13" />
-                        <Button text="abrir" on_click="abrir" />
-                      </Row>
-                    </ForEach>
-                  </Column>
-                </Scrollable>
-              </Column>
-            </component>"##
+            r##"
+component {
+  column(spacing = 6, padding = 12) {
+    text(content = "Pedidos ({total})", size = 22, bold = true)
+    scrollable(height = fill) {
+      column(spacing = 4) {
+        each @linhas as l {
+          row(spacing = 8, padding = 6, background = #1b1f27, border_radius = 6) {
+            text(content = @l.id, size = 13)
+            text(content = @l.cliente, size = 13, width = fill)
+            badge(content = @l.status)
+            text(content = @l.valor, size = 13)
+            button(text = abrir, on_click = abrir)
+          }
+        }
+      }
+    }
+  }
+}
+"##
                 .to_string(),
         )
     }

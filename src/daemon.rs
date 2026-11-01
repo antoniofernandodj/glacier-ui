@@ -256,7 +256,7 @@ impl GlacierDaemon {
     }
 
     /// Registra uma **extensão da camada Lua**: funções Rust que passam a
-    /// existir como globais no `<script>` de qualquer componente, em qualquer
+    /// existir como globais no `script` de qualquer componente, em qualquer
     /// janela. É a ponte para acoplar ao app um cliente de banco, um cofre de
     /// segredos, um SDK — coisas que o motor não traz e não deveria trazer.
     ///
@@ -272,7 +272,7 @@ impl GlacierDaemon {
     ///
     /// Ver o exemplo `sqlite_crud` para uma ponte completa — um cliente SQLite
     /// com `connect` / `execute` / `query` / `begin` / `commit` / `close` — e
-    /// um mini-CRUD que a usa inteiramente do `<script>`.
+    /// um mini-CRUD que a usa inteiramente do `script`.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn lua_extension(self, ext: impl crate::luau::LuaExtension) -> Self {
         crate::luau::register_lua_extension(ext);
@@ -330,7 +330,7 @@ impl GlacierDaemon {
     /// a resolvê-la pelo caminho que já existe (`font_for` → [`crate::fonts`]).
     /// A chave de contexto `__fonts` (semeada em
     /// [`GlacierUI::set_initial_screen`](crate::GlacierUI::set_initial_screen))
-    /// passa a listá-la, então `<fontselect>` / `<combo items="__fonts">` a
+    /// passa a listá-la, então `fontselect` / `combo(items = __fonts)` a
     /// mostram sem configuração.
     ///
     /// Encadeável; chame uma vez por peso. Para usá-la como padrão de todas as
@@ -569,7 +569,7 @@ impl GlacierDaemon {
             let _ = console_log::init_with_level(log::Level::Warn);
         }
 
-        // O `<app>`/`<tray>` do template principal, lidos ANTES de tudo: a
+        // O `app`/`tray` do template principal, lidos ANTES de tudo: a
         // instância única decide aqui mesmo se o processo segue, e o diretório
         // de dados precisa existir antes do primeiro motor. Só dá para saber
         // qual é o template principal quando o `setup` é o padrão ou veio de
@@ -615,7 +615,7 @@ impl GlacierDaemon {
         // Checagem de instância única ANTES de qualquer coisa (winit, GPU,
         // motor) — uma segunda tentativa só precisa pingar a primeira e sair,
         // não vale gastar nada além disso. Ver [`GlacierDaemon::single_instance`].
-        // O builder vence o `<app single_instance>`.
+        // O builder vence o `app(single_instance)`.
         let single_instance_id = self.single_instance_id.clone().or_else(|| {
             app_meta
                 .as_ref()
@@ -690,7 +690,7 @@ impl GlacierDaemon {
                         }
                     }
                     Err(erro) => {
-                        eprintln!("<font src=\"{}\">: não consegui ler a fonte: {erro}", f.src)
+                        eprintln!("font(src = \"{}\"): não consegui ler a fonte: {erro}", f.src)
                     }
                 }
             }
@@ -703,14 +703,14 @@ impl GlacierDaemon {
         // `application_id` (Linux): as janelas se anunciam ao desktop com ele.
         let application_id = app_meta.as_ref().and_then(|a| a.application_id.clone());
 
-        // O que o builder não disse, o `<app>` diz. O builder vence sempre: é
+        // O que o builder não disse, o `app` diz. O builder vence sempre: é
         // código explícito, e o markup é o padrão de quando nada foi dito.
         let storage_dir =
             storage_dir.or_else(|| app_meta.as_ref().map(|app| app_data_dir(&app.id)));
         let remember_geometry =
             remember_geometry || app_meta.as_ref().is_some_and(|app| app.remember_geometry);
 
-        // A `<tray>` do template, quando o builder não configurou uma. O ícone
+        // A `tray` do template, quando o builder não configurou uma. O ícone
         // é lido já, pela fonte de assets; sem ele não há bandeja — e o aviso
         // diz qual arquivo faltou, em vez de o app encerrar na última janela
         // sem explicação.
@@ -727,7 +727,7 @@ impl GlacierDaemon {
                     )),
                     Err(erro) => {
                         eprintln!(
-                            "<tray icon=\"{}\">: não consegui ler o ícone: {erro}",
+                            "tray(icon = \"{}\"): não consegui ler o ícone: {erro}",
                             meta.icon
                         );
                         None
@@ -748,7 +748,7 @@ impl GlacierDaemon {
         let geometry_dir = remember_geometry.then(|| storage_dir.clone()).flatten();
 
         // A geometria salva, lida uma vez. Ela é aplicada lá dentro do `boot`,
-        // **depois** do `<screen>` do template: o tamanho declarado no arquivo é
+        // **depois** do `screen` do template: o tamanho declarado no arquivo é
         // o de primeira abertura, enquanto a geometria lembrada é uma decisão que
         // o usuário tomou arrastando a janela — e essa ganha. (Aplicar depois
         // também deixa o `min-size` do template valer no clamp.)
@@ -776,7 +776,7 @@ impl GlacierDaemon {
             }
             // O `setup` já registrou os componentes e definiu a tela inicial, e a
             // janela ainda não existe — esta é a única janela de tempo em que o
-            // `<screen>` do template pode decidir título e tamanho **sem** o pulo
+            // `screen` do template pode decidir título e tamanho **sem** o pulo
             // visível de abrir num tamanho e redimensionar depois.
             let mut main_settings = main_settings.clone();
             apply_application_id(&mut main_settings, application_id.as_deref());
@@ -826,7 +826,7 @@ impl GlacierDaemon {
                 rt.tray = crate::tray::spawn(cfg);
                 rt.on_tray = on_tray.clone();
             } else if let Some((icon, tooltip, items)) = tray_markup.clone() {
-                // A `<tray>` do template: os rótulos com `{chave}` já saem
+                // A `tray` do template: os rótulos com `{chave}` já saem
                 // resolvidos contra o motor recém-montado, e daí em diante
                 // `Runtime::sync_tray` manda à bandeja só o que mudar.
                 let mut binds = TrayBindings::new(items);
@@ -1014,13 +1014,13 @@ fn mode_to_appearance(mode: iced::theme::Mode) -> crate::widget::SystemAppearanc
 struct Runtime {
     windows: HashMap<window::Id, GlacierUI>,
     titles: HashMap<window::Id, String>,
-    /// O título de cada janela **sem** o que o `<screen>` diz: o do builder, para
+    /// O título de cada janela **sem** o que o `screen` diz: o do builder, para
     /// a principal, ou o do `WindowSpec`/nome do arquivo, para as filhas. É para
     /// cá que o título volta ao navegar para uma tela que não declara `title`.
     base_titles: HashMap<window::Id, String>,
     /// Por janela, qual tela ditou o tamanho atual e qual foi o valor aplicado.
     /// Serve para o hot-reload: salvar o arquivo só redimensiona a janela quando
-    /// o número escrito no `<screen>` mudou de fato — senão cada `Ctrl+S`
+    /// o número escrito no `screen` mudou de fato — senão cada `Ctrl+S`
     /// desfaria o arrasto que o usuário acabou de fazer no canto da janela.
     sized_by: HashMap<window::Id, (String, (f32, f32))>,
     /// `Id` da janela principal, conhecido já no `boot` (`window::open` o
@@ -1044,7 +1044,7 @@ struct Runtime {
     tray: Option<TrayHandle>,
     /// Gancho de clique dos itens da bandeja.
     on_tray: Option<TrayHook>,
-    /// A bandeja declarada numa `<tray>` do template principal, quando foi de
+    /// A bandeja declarada numa `tray` do template principal, quando foi de
     /// lá que ela veio: a ação de cada item e os rótulos já enviados.
     tray_markup: Option<TrayBindings>,
     /// O `setup`/`settings`/`título` da principal, guardados para **reabri-la**
@@ -1245,7 +1245,7 @@ impl Runtime {
                     actions.request
                 }
                 // Sem gancho em Rust, quem decide é o `on_click` do item na
-                // `<tray>` do template.
+                // `tray` do template.
                 (None, Some(_)) => {
                     let acao = self
                         .tray_markup
@@ -1287,7 +1287,7 @@ impl Runtime {
         }
     }
 
-    /// Reavalia os rótulos e marcações da `<tray>` do template contra o motor da
+    /// Reavalia os rótulos e marcações da `tray` do template contra o motor da
     /// principal e manda à bandeja o que mudou. No-op sem bandeja em markup.
     fn sync_tray(&mut self) {
         let (Some(handle), Some(binds)) = (&self.tray, &mut self.tray_markup) else {
@@ -1415,7 +1415,7 @@ impl Runtime {
 
         let mut tasks = vec![ui_task];
 
-        // Um rótulo da `<tray>` com `{chave}` pode ter mudado com esta ação.
+        // Um rótulo da `tray` com `{chave}` pode ter mudado com esta ação.
         if id == self.main_id {
             self.sync_tray();
         }
@@ -1471,7 +1471,7 @@ impl Runtime {
         Task::batch(tasks)
     }
 
-    /// Reacerta a janela `id` com o que a **tela ativa** declara no `<screen>`.
+    /// Reacerta a janela `id` com o que a **tela ativa** declara no `screen`.
     ///
     /// O título acompanha a navegação: entrar numa tela que declara `title` troca
     /// o da janela, e sair dela para uma que não declara nada devolve o título
@@ -1494,7 +1494,7 @@ impl Runtime {
             return Task::none();
         };
         let screen = engine.current_screen_name().map(str::to_string);
-        // A janela do app é a principal; uma filha é só o `<screen>` dela.
+        // A janela do app é a principal; uma filha é só o `screen` dela.
         let meta = if id == self.main_id {
             engine.main_window_meta()
         } else {
@@ -1523,7 +1523,7 @@ impl Runtime {
     /// Materializa um [`WindowSpec`] numa janela nova: constrói um motor fresco,
     /// abre a janela (o `Id` vem síncrono) e registra motor + título.
     fn open_child(&mut self, spec: WindowSpec) -> Task<DaemonMessage> {
-        // O motor primeiro: é ele que sabe o que o `<screen>` do arquivo declara,
+        // O motor primeiro: é ele que sabe o que o `screen` do arquivo declara,
         // e a janela ainda não abriu — mesma janela de tempo que o boot usa para
         // a principal. Assim `open_window({ file = "detalhe.gv" })` herda título e
         // tamanho de `detalhe.gv`, em vez de exigir que quem chama os repita.
@@ -1559,7 +1559,7 @@ impl Runtime {
         let screen = engine.current_screen_name().map(str::to_string);
 
         // Quem abre a janela ainda manda: sabe do contexto que o arquivo não sabe
-        // ("Editando nginx"). O `<screen>` é o padrão de quando não disseram nada.
+        // ("Editando nginx"). O `screen` é o padrão de quando não disseram nada.
         let (w, h) = size.or(meta.size).unwrap_or((640.0, 480.0));
         let mut settings = window::Settings {
             size: Size::new(w, h),
@@ -1567,7 +1567,7 @@ impl Runtime {
             min_size: meta.min_size.map(|(w, h)| Size::new(w, h)),
             ..window::Settings::default()
         };
-        // `max_size`, `fixed_size`, `decorations` e `icon` do `<screen>` da
+        // `max_size`, `fixed_size`, `decorations` e `icon` do `screen` da
         // filha: cada janela declara a própria moldura, como a principal.
         apply_window_bounds(&meta, &mut settings);
         // Quem abre a janela decide a moldura: `open_window{ decorations = false }`.
@@ -1664,8 +1664,8 @@ impl Runtime {
             iced::event::listen_with(|e, s, id| {
                 crate::menu_escape_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
             }),
-            // O sexto, e o habilitador B da Onda 9: `<shortcut>` e
-            // `<shortcutinput>` são o MESMO listener em dois modos, e quem
+            // O sexto, e o habilitador B da Onda 9: `shortcut` e
+            // `shortcutinput` são o MESMO listener em dois modos, e quem
             // decide qual é o contexto (ver `crate::keys`).
             iced::event::listen_with(|e, s, id| {
                 crate::shortcut_from_event(e, s, id).map(|msg| DaemonMessage::Ui { id, msg })
@@ -1726,7 +1726,7 @@ impl Runtime {
             );
         }
 
-        // O player do `<audio>` anda sozinho (a barra de posição) e entrega `on_ended`:
+        // O player do `audio` anda sozinho (a barra de posição) e entrega `on_ended`:
         // 100 ms, e só enquanto algo toca (ou acabou de receber um comando).
         if crate::audio::ativo() {
             subs.push(
@@ -1735,7 +1735,7 @@ impl Runtime {
             );
         }
 
-        // O relógio do `<delaybutton>` (Onda 9), e só enquanto um estiver
+        // O relógio do `delaybutton` (Onda 9), e só enquanto um estiver
         // apertado — a mesma economia condicional do cursor logo acima. 30ms dá
         // um anel liso o bastante para o olho e um trigésimo do custo de pedir
         // um quadro por vsync.
@@ -1806,7 +1806,7 @@ impl Runtime {
 /// sido resolvido para `File` no motor de origem (ver `run_on_owner`). `data`
 /// (pares `open_window({ data = ... })`) é semeado no contexto **antes** de
 /// registrar o componente, para que seu `init` já enxergue os valores.
-/// Sobrepõe às `window::Settings`/título da janela o que o `<screen>` do
+/// Sobrepõe às `window::Settings`/título da janela o que o `screen` do
 /// template declarou.
 ///
 /// **O template ganha do builder.** Enquanto nenhum `.gv` tinha cabeçalho, o
@@ -1820,14 +1820,14 @@ impl Runtime {
 ///
 /// 1. o **builder** (`GlacierDaemon::title`/`main_size`/`main_window`), que é o
 ///    default de quem escreveu o app;
-/// 2. o **`<screen>` do template**, que é o default de quem escreveu a tela;
+/// 2. o **`screen` do template**, que é o default de quem escreveu a tela;
 /// 3. a **geometria lembrada** (`remember_window_geometry`), que não é default
 ///    nenhum: é o tamanho em que o usuário deixou a janela da última vez.
 ///
 /// A ordem importa de verdade num app que lembra geometria: se o `size` do
 /// arquivo viesse por último, toda abertura desfaria o redimensionamento do
 /// usuário — o arquivo mandaria mais que a pessoa usando o programa. Aplicar o
-/// `<screen>` primeiro também faz o `min-size` declarado valer no clamp da
+/// `screen` primeiro também faz o `min-size` declarado valer no clamp da
 /// geometria salva.
 ///
 /// Devolve o tamanho que de fato ficou, quando alguém opinou — é o valor que o
@@ -1876,7 +1876,7 @@ fn apply_screen_meta(
     apply_window_bounds(meta, settings);
 }
 
-/// O que o `<screen>` diz da janela além de título, tamanho e mínimo:
+/// O que o `screen` diz da janela além de título, tamanho e mínimo:
 /// `max_size`, `fixed_size` e `decorations`. Partilhado pela principal
 /// ([`apply_screen_meta`]) e pelas filhas (`Runtime::open_child`), onde o
 /// tamanho segue outra regra — quem abre a janela pode pedir um.
@@ -1900,7 +1900,7 @@ fn apply_window_bounds(meta: &crate::ScreenMeta, settings: &mut window::Settings
     }
 }
 
-/// `icon="…"` do `<screen>`: lido pela fonte de assets e decodificado. Um
+/// `icon="…"` do `screen`: lido pela fonte de assets e decodificado. Um
 /// arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem
 /// ícone — nunca a impede de abrir.
 fn apply_window_icon(
@@ -1915,10 +1915,10 @@ fn apply_window_icon(
         Ok(bytes) => match window::icon::from_file_data(&bytes, None) {
             Ok(icon) => settings.icon = Some(icon),
             Err(erro) => {
-                eprintln!("<screen icon=\"{path}\">: não consegui decodificar o ícone: {erro}")
+                eprintln!("screen(icon = \"{path}\"): não consegui decodificar o ícone: {erro}")
             }
         },
-        Err(erro) => eprintln!("<screen icon=\"{path}\">: não consegui ler o ícone: {erro}"),
+        Err(erro) => eprintln!("screen(icon = \"{path}\"): não consegui ler o ícone: {erro}"),
     }
 }
 
@@ -1935,8 +1935,8 @@ fn apply_application_id(settings: &mut window::Settings, id: Option<&str>) {
 }
 
 /// O diretório de dados do app `id`, onde moram a geometria lembrada e o global
-/// `storage`: `$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`,
-/// `~/Library/Application Support/<id>` ou `~/.local/share/<id>` — o mesmo lugar
+/// `storage`: `$XDG_DATA_HOME/id`, `%APPDATA%\id`,
+/// `~/Library/Application Support/id` ou `~/.local/share/id` — o mesmo lugar
 /// que os templates do `glacier new` calculavam à mão no `main.rs`.
 fn app_data_dir(id: &str) -> PathBuf {
     std::env::var_os("XDG_DATA_HOME")
@@ -1956,7 +1956,7 @@ fn app_data_dir(id: &str) -> PathBuf {
         .join(id)
 }
 
-/// A bandeja declarada numa `<tray>` do template principal: o que cada item faz
+/// A bandeja declarada numa `tray` do template principal: o que cada item faz
 /// e os últimos rótulos/marcações enviados à thread da bandeja, para só mandar
 /// o que mudou.
 struct TrayBindings {
@@ -2038,7 +2038,7 @@ impl TrayBindings {
     }
 }
 
-/// O texto de um item da `<tray>`, interpolado no contexto da janela principal.
+/// O texto de um item da `tray`, interpolado no contexto da janela principal.
 /// `{__notifications}` é a chave do motor para o interruptor global das
 /// notificações (`notifications:toggle`), que não mora no contexto de motor
 /// nenhum.
@@ -2214,7 +2214,9 @@ mod tests {
             "abridor"
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"x\" />".to_string())
+            Template::Inline(r##"
+text(content = x)
+"##.to_string())
         }
         fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
             match action {
@@ -2306,7 +2308,9 @@ mod tests {
             "emissor"
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"x\" />".to_string())
+            Template::Inline(r##"
+text(content = x)
+"##.to_string())
         }
         fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
             match action {
@@ -2322,7 +2326,9 @@ mod tests {
             "receptor"
         }
         fn template(&self) -> Template {
-            Template::Inline("<Text content=\"x\" />".to_string())
+            Template::Inline(r##"
+text(content = x)
+"##.to_string())
         }
         fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
         fn on_broadcast(&mut self, event: &str, payload: &str, ctx: &mut Context) {
@@ -2389,7 +2395,7 @@ mod tests {
     }
 
     /// Uma tela de teste com markup inline — o atalho para registrar um
-    /// `<screen>` sem tocar no disco.
+    /// `screen` sem tocar no disco.
     struct TelaInline(&'static str, String);
     impl Component for TelaInline {
         fn name(&self) -> &str {
@@ -2405,7 +2411,7 @@ mod tests {
         Box::new(TelaInline(nome, markup.to_string()))
     }
 
-    /// O `<screen title>` da tela ativa manda na barra da janela, e a navegação
+    /// O `screen(title)` da tela ativa manda na barra da janela, e a navegação
     /// leva o título junto — inclusive de volta ao título base quando a tela
     /// seguinte não declara nenhum.
     #[test]
@@ -2415,16 +2421,20 @@ mod tests {
         motor
             .register(tela(
                 "lista",
-                r#"<screen title="Lista"><column /></screen>"#,
+                r##"screen(title = Lista) {
+  column
+}"##,
             ))
             .unwrap();
         motor
             .register(tela(
                 "detalhe",
-                r#"<screen title="Detalhe"><column /></screen>"#,
+                r##"screen(title = Detalhe) {
+  column
+}"##,
             ))
             .unwrap();
-        motor.register(tela("anonima", "<column />")).unwrap();
+        motor.register(tela("anonima", r##"column"##)).unwrap();
         motor.set_initial_screen("lista");
         rt.windows.insert(id, motor);
         rt.base_titles.insert(id, "T".to_string());
@@ -2455,7 +2465,9 @@ mod tests {
         motor
             .register(tela(
                 "lista",
-                r#"<screen title="Lista"><column /></screen>"#,
+                r##"screen(title = Lista) {
+  column
+}"##,
             ))
             .unwrap();
         motor.set_initial_screen("lista");
@@ -2468,7 +2480,7 @@ mod tests {
         rt.windows
             .get_mut(&id)
             .unwrap()
-            .register(tela("lista", "<column />"))
+            .register(tela("lista", r##"column"##))
             .unwrap();
         let _ = rt.sync_window_meta(id);
         assert_eq!(rt.title(id), "T");
@@ -2483,13 +2495,17 @@ mod tests {
         motor
             .register(tela(
                 "lista",
-                r#"<screen title="L" size="800 600"><column /></screen>"#,
+                r##"screen(title = L, size = "800 600") {
+  column
+}"##,
             ))
             .unwrap();
         motor
             .register(tela(
                 "outra",
-                r#"<screen title="O" size="1200 900"><column /></screen>"#,
+                r##"screen(title = O, size = "1200 900") {
+  column
+}"##,
             ))
             .unwrap();
         motor.set_initial_screen("lista");
@@ -2518,7 +2534,9 @@ mod tests {
             .unwrap()
             .register(tela(
                 "lista",
-                r#"<screen title="L" size="900 640"><column /></screen>"#,
+                r##"screen(title = L, size = "900 640") {
+  column
+}"##,
             ))
             .unwrap();
         let _ = rt.sync_window_meta(id);

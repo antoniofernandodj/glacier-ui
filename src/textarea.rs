@@ -1,4 +1,4 @@
-//! `<textarea>` do glacier-ui: o `text_editor` do iced (copiado de
+//! `textarea` do glacier-ui: o `text_editor` do iced (copiado de
 //! `iced_widget` 0.14.2) com **barra de rolagem** embutida.
 //!
 //! Por que uma cópia: o `text_editor` do iced não desenha barra de rolagem e
@@ -180,7 +180,7 @@ where
         self
     }
 
-    /// Liga/desliga a barra de rolagem (ligada por padrão). O `<TextInput>` de
+    /// Liga/desliga a barra de rolagem (ligada por padrão). O `TextInput` de
     /// uma linha a desliga.
     #[must_use]
     pub fn scrollbar(mut self, scrollbar: bool) -> Self {

@@ -1,16 +1,16 @@
-//! `<Reveal>`: o corpo que **abre e fecha animado** — a altura do filho
+//! `Reveal`: o corpo que **abre e fecha animado** — a altura do filho
 //! crescendo de 0 até a natural (e voltando), com o que transborda recortado.
 //!
-//! É a peça que faltava para `<accordion>`/`<toolbox>` (0.84) não abrirem "de
-//! estalo": antes, o corpo era um `<template if>` que existia ou não existia, e
+//! É a peça que faltava para `accordion`/`toolbox` (0.84) não abrirem "de
+//! estalo": antes, o corpo era um `template(if)` que existia ou não existia, e
 //! a seção pulava de 0 para a altura final entre dois quadros. Agora o corpo
-//! está **sempre** na árvore, dentro de um `<Reveal>` que sabe quanto dele
+//! está **sempre** na árvore, dentro de um `Reveal` que sabe quanto dele
 //! mostrar neste instante.
 //!
-//! ```xml
-//! <Reveal open="{mostrar}" duration="180">
-//!     <Column padding="12">…</Column>
-//! </Reveal>
+//! ```gv
+//! Reveal(open = @mostrar, duration = 180) {
+//!   Column("…", padding = 12)
+//! }
 //! ```
 //!
 //! # Por que uma primitiva, e não um builtin
@@ -81,7 +81,7 @@ pub struct Reveal<'a, Message> {
     duration: Duration,
     easing: Easing,
     /// Anima a **largura** em vez da altura. É a gaveta lateral
-    /// (`<drawer side="left">`) — o mesmo mecanismo no outro eixo, e a razão de
+    /// (`drawer(side = left)`) — o mesmo mecanismo no outro eixo, e a razão de
     /// o eixo ser um campo e não um segundo widget.
     horizontal: bool,
 }
@@ -390,7 +390,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
-        // Um `<select>` dentro de uma seção só abre o menu dele quando a seção
+        // Um `select` dentro de uma seção só abre o menu dele quando a seção
         // está inteiramente aberta: um overlay não é recortado por
         // `with_layer`, então ele escaparia da dobra durante a transição.
         if tree.state.downcast_ref::<State>().progress() < 1.0 {

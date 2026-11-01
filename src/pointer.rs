@@ -1,12 +1,12 @@
 //! Os quatro widgets da Onda 9 que **desenham o próprio arrasto**:
-//! `<rangeslider>`, `<tumbler>`, `<delaybutton>` e `<rubberband>`.
+//! `rangeslider`, `tumbler`, `delaybutton` e `rubberband`.
 //!
 //! # Por que estes não passam pelo [`crate::grip`]
 //!
 //! Um `canvas::Program` do `iced` ganha um `State` por instância de graça, e é
-//! ali que mora o "estou arrastando" — foi assim no `<dial>` da Onda 7 e é
+//! ali que mora o "estou arrastando" — foi assim no `dial` da Onda 7 e é
 //! assim aqui. O [`crate::grip`] existe para o arrasto que acontece *entre*
-//! filhos, onde não há `Program` nenhum (o `<splitter>` e o `<swipeview>`, em
+//! filhos, onde não há `Program` nenhum (o `splitter` e o `swipeview`, em
 //! [`crate::panes`]).
 //!
 //! O que os quatro compartilham com aqueles dois é o que importa, e é a tese da
@@ -15,7 +15,7 @@
 //! funcionariam (o `iced` dá um `State` por widget), mas o app não conseguiria
 //! ler nem escrever o que a pessoa mexeu, que é o ponto todo.
 //!
-//! # O `<delaybutton>` é o de fora, e vale dizer por quê
+//! # O `delaybutton` é o de fora, e vale dizer por quê
 //!
 //! Nele o que anda é o **tempo**, não o pixel: segurar não move nada, só deixa
 //! o relógio correr. Por isso ele é o único dos quatro que precisa de um
@@ -31,7 +31,7 @@ use crate::canvas::{anel, cor_ou, fracao, rotulo};
 use crate::gauges::{casas_do_passo, escreve, no_degrau, valor_de};
 use crate::widget::EngineMessage;
 
-/// O `<delaybutton>` apertado agora: `acao|inicio_ms|duracao_ms`.
+/// O `delaybutton` apertado agora: `acao|inicio_ms|duracao_ms`.
 ///
 /// **Um por app**, como todo estado de ponteiro deste motor (`__grip`,
 /// `__colgrip` antes dele, `__timeedit`): não se segura dois botões ao mesmo
@@ -39,13 +39,13 @@ use crate::widget::EngineMessage;
 /// cada tick, que é o que evita ter duas fontes de verdade para a mesma coisa.
 pub(crate) const HOLD_CONTEXT: &str = "__hold";
 
-/// O retângulo do `<rubberband>` em curso: `x0,y0,x1,y1` em coordenadas do
+/// O retângulo do `rubberband` em curso: `x0,y0,x1,y1` em coordenadas do
 /// próprio widget. Some ao soltar. Mesma família do `__cal_hover` do
-/// `<calendar>` — um por tela, e por isso sem identidade no nome.
+/// `calendar` — um por tela, e por isso sem identidade no nome.
 pub(crate) const BAND_CONTEXT: &str = "__band";
 
 /// Um valor que o markup escreveu ou que a chave guarda, com o texto exato de
-/// volta. Serve às duas pontas do `<rangeslider>`.
+/// volta. Serve às duas pontas do `rangeslider`.
 fn le(context: &ContextMap, chave: &str, padrao: f64) -> f64 {
     valor_de(context, chave, padrao)
 }
@@ -64,12 +64,12 @@ fn grava(chave: &str, texto: String, acao: &str) -> EngineMessage {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <rangeslider> — a faixa com duas pontas
+// rangeslider — a faixa com duas pontas
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Qual das duas pontas está presa. É **todo** o estado do widget, e é por isso
 /// que o `●` do catálogo nunca valeu aqui: o par de valores mora em duas chaves
-/// nomeadas, exatamente como no `<daterangepicker range>` da Onda 3.
+/// nomeadas, exatamente como no `daterangepicker(range)` da Onda 3.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Ponta {
     #[default]
@@ -276,7 +276,7 @@ impl canvas::Program<EngineMessage> for ProgramaFaixa {
     }
 }
 
-/// `<rangeslider>` — ver [`crate::parser::NodeType::RangeSlider`].
+/// `rangeslider` — ver [`crate::parser::NodeType::RangeSlider`].
 #[allow(clippy::too_many_arguments)]
 pub fn render_range_slider<'a>(
     context: &'a ContextMap,
@@ -317,7 +317,7 @@ pub fn render_range_slider<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <tumbler> — o <dial> desenrolado numa linha
+// tumbler — o dial desenrolado numa linha
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Default)]
@@ -344,7 +344,7 @@ impl ProgramaRoleta {
             return None;
         }
         // A roleta **vira dentro de si** — o `wrapping` do `QAbstractSpinBox`,
-        // a mesma decisão que as seções do `<timeedit>` tomaram na 0.68. É o
+        // a mesma decisão que as seções do `timeedit` tomaram na 0.68. É o
         // que faz "dezembro → janeiro" acontecer sem sair da roda.
         let n = self.itens.len() as i64;
         let novo = (self.indice as i64 + degraus).rem_euclid(n) as usize;
@@ -474,9 +474,9 @@ impl canvas::Program<EngineMessage> for ProgramaRoleta {
     }
 }
 
-/// Lê a coleção de um `<tumbler>`: chave do contexto, JSON escrito no atributo,
+/// Lê a coleção de um `tumbler`: chave do contexto, JSON escrito no atributo,
 /// ou lista separada por vírgula. As três formas que todo `items=` do motor
-/// aceita desde o `<menu>`.
+/// aceita desde o `menu`.
 pub(crate) fn lista_de(context: &ContextMap, bruto: &str) -> Vec<String> {
     let texto = context.get(bruto).map(String::as_str).unwrap_or(bruto);
     if let Ok(serde_json::Value::Array(arr)) = serde_json::from_str::<serde_json::Value>(texto) {
@@ -502,7 +502,7 @@ pub(crate) fn lista_de(context: &ContextMap, bruto: &str) -> Vec<String> {
         .collect()
 }
 
-/// `<tumbler>` — ver [`crate::parser::NodeType::Tumbler`].
+/// `tumbler` — ver [`crate::parser::NodeType::Tumbler`].
 pub fn render_tumbler<'a>(
     context: &'a ContextMap,
     value_var: &'a str,
@@ -532,7 +532,7 @@ pub fn render_tumbler<'a>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <delaybutton> — o botão que se segura
+// delaybutton — o botão que se segura
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub struct ProgramaDemora {
@@ -593,7 +593,7 @@ impl canvas::Program<EngineMessage> for ProgramaDemora {
         let espessura = (raio * 0.16).clamp(3.0, 12.0);
 
         // O anel começa em cima e dá a volta inteira — um relógio, e não os 270°
-        // do `<dial>`: aqui não há faixa útil nem abertura, o que se mostra é
+        // do `dial`: aqui não há faixa útil nem abertura, o que se mostra é
         // tempo, e tempo fecha o círculo.
         frame.fill(
             &anel(centro, raio, espessura, -90.0, 360.0),
@@ -638,7 +638,7 @@ impl canvas::Program<EngineMessage> for ProgramaDemora {
     }
 }
 
-/// `<delaybutton>` — ver [`crate::parser::NodeType::DelayButton`].
+/// `delaybutton` — ver [`crate::parser::NodeType::DelayButton`].
 pub fn render_delay_button<'a>(
     context: &'a ContextMap,
     text: &'a str,
@@ -647,7 +647,7 @@ pub fn render_delay_button<'a>(
     size: f32,
     color: &'a str,
 ) -> Element<'a, EngineMessage> {
-    // A fração é do apertar em curso, e só dele: um `<delaybutton>` que não é o
+    // A fração é do apertar em curso, e só dele: um `delaybutton` que não é o
     // apertado desenha o anel vazio, mesmo que outro esteja enchendo.
     let fracao = context
         .get(HOLD_CONTEXT)
@@ -671,16 +671,16 @@ pub fn render_delay_button<'a>(
 }
 
 /// A fração já decorrida do apertar em curso, `"0"` a `"1"`. Separada do
-/// [`HOLD_CONTEXT`] porque só ela muda a cada tick: um `<delaybutton>` que
+/// [`HOLD_CONTEXT`] porque só ela muda a cada tick: um `delaybutton` que
 /// dependesse da chave inteira reavaliaria a árvore por causa da ação e da
 /// duração, que não mudaram.
 pub(crate) const HOLD_FRAC_CONTEXT: &str = "__hold_frac";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <rubberband> — o retângulo de seleção
+// rubberband — o retângulo de seleção
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Um retângulo da coleção de um `<rubberband>`, em coordenadas do widget.
+/// Um retângulo da coleção de um `rubberband`, em coordenadas do widget.
 #[derive(Debug, Clone)]
 pub struct Alvo {
     pub id: String,
@@ -706,7 +706,7 @@ pub struct ProgramaLaco {
     ///
     /// Não é o que o `QRubberBand` faz — lá a faixa é um widget solto e quem
     /// desenha o conteúdo é a view por baixo. Aqui não há por baixo: o motor
-    /// não tem `<stack>` no markup, então um laço que só desenhasse a faixa
+    /// não tem `stack` no markup, então um laço que só desenhasse a faixa
     /// pediria para arrastar sobre o vazio. Como o widget **já tem** a
     /// geometria dos alvos (é com ela que decide o que tocou), desenhá-los é
     /// de graça — e é o que torna o widget demonstrável sozinho.
@@ -715,7 +715,7 @@ pub struct ProgramaLaco {
 
 impl ProgramaLaco {
     /// Os `id` que o retângulo toca, como conjunto nomeado — a mesma grafia
-    /// separada por vírgula que o `<listview mode="multi">` guarda desde a 0.85,
+    /// separada por vírgula que o `listview(mode = multi)` guarda desde a 0.85,
     /// e que o `contains` do condicional lê.
     fn tocados(&self, r: Rectangle) -> String {
         self.alvos
@@ -878,7 +878,7 @@ impl canvas::Program<EngineMessage> for ProgramaLaco {
     }
 }
 
-/// Lê a coleção de retângulos de um `<rubberband>`.
+/// Lê a coleção de retângulos de um `rubberband`.
 fn alvos_de(context: &ContextMap, bruto: &str) -> Vec<Alvo> {
     let texto = context.get(bruto).map(String::as_str).unwrap_or(bruto);
     let Ok(serde_json::Value::Array(arr)) = serde_json::from_str::<serde_json::Value>(texto) else {
@@ -903,15 +903,15 @@ fn alvos_de(context: &ContextMap, bruto: &str) -> Vec<Alvo> {
                 r: Rectangle {
                     x: num(&["x"]),
                     y: num(&["y"]),
-                    width: num(&["w", "width", "largura"]),
-                    height: num(&["h", "height", "altura"]),
+                    width: num(&["w", "width"]),
+                    height: num(&["h", "height"]),
                 },
             })
         })
         .collect()
 }
 
-/// `<rubberband>` — ver [`crate::parser::NodeType::RubberBand`].
+/// `rubberband` — ver [`crate::parser::NodeType::RubberBand`].
 pub fn render_rubber_band<'a>(
     node: &'a crate::parser::UiNode,
     context: &'a ContextMap,

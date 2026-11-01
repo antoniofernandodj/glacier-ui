@@ -1,6 +1,6 @@
 -- Onda 12 em Luau — o <dock> do lado do script.
 --
--- O <dock> inteiro é markup e motor: o <splitter> acoplado, o <stack>
+-- O <dock> inteiro é markup e motor: o splitter acoplado, o stack
 -- flutuante, os botões `❒`/`✕` do cabeçalho, a aba de restaurar e o arrasto de
 -- reancoragem (grip::Alvo::Zona, que comete a borda na soltura). Nenhuma linha
 -- aqui desenha ou posiciona.

@@ -15,8 +15,8 @@
 //!
 //!   1. font="{familia}" no `.gv`      → resolve pelo registro (antes: silêncio)
 //!   2. font_family no `.gss`          → o MESMO funil (`font_for`)
-//!   3. <fontselect>                   → builtin, `<listview>` sobre `__fonts`
-//!   4. <texteditor font="…">          → o PlainTextEditor da §2.2, agora ✅
+//!   3. <fontselect>                   → builtin, `listview` sobre `__fonts`
+//!   4. texteditor(font = "…")          → o PlainTextEditor da §2.2, agora ✅
 //! ```
 //!
 //! # Por que o exemplo lê `.ttf` do disco
@@ -43,11 +43,11 @@ impl Component for Fontes {
 
     fn init(&mut self, ctx: &mut Context) {
         // A família escolhida no `<fontselect>` — a chave que o app nomeia, o
-        // padrão do `<spinbox>` pela enésima vez. Sem seed, a lista abre sem
+        // padrão do `spinbox` pela enésima vez. Sem seed, a lista abre sem
         // seleção (degradação aceitável).
         ctx.set("fonte", "DejaVu Serif".to_string());
 
-        // A fonte do `<texteditor>` (o PlainTextEditor): declarável agora que
+        // A fonte do `texteditor` (o PlainTextEditor): declarável agora que
         // `font_for` consulta o registro.
         ctx.set("fonte_mono", "DejaVu Sans Mono".to_string());
 
@@ -63,7 +63,7 @@ impl Component for Fontes {
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         // O braço genérico de sempre: a ação É o nome da chave (o
         // `<fontselect>` despacha `pick:` e trata sozinho; o que chega aqui é
-        // o `on_change` do `<texteditor>`).
+        // o `on_change` do `texteditor`).
         if let Some(v) = value {
             ctx.set(action, v.to_string());
         }

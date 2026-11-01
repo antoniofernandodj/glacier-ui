@@ -1,21 +1,21 @@
 /// `QToolBar`: a faixa de ações no topo da tela — normalmente uma fileira de
 /// [`super::tool_button::ToolButton`], com separadores entre os grupos.
 ///
-/// ```xml
-/// <ToolBar>
-///     <ToolButton icon="📄" tooltip="Novo"  on_click="novo" />
-///     <ToolButton icon="💾" tooltip="Salvar" on_click="salvar" />
-///     <Rule direction="vertical" />
-///     <ToolButton icon="🗑" tooltip="Excluir" on_click="excluir" />
-/// </ToolBar>
+/// ```gv
+/// ToolBar {
+///   ToolButton(icon = "📄", tooltip = Novo, on_click = novo)
+///   ToolButton(icon = "💾", tooltip = Salvar, on_click = salvar)
+///   Rule(direction = vertical)
+///   ToolButton(icon = "🗑", tooltip = Excluir, on_click = excluir)
+/// }
 /// ```
 ///
-/// A barra não sabe o que carrega: o conteúdo é `<slot/>`, então o que entra
-/// nela é decisão de quem a usa — botões, um `<Select>`, um `<TextInput>` de
+/// A barra não sabe o que carrega: o conteúdo é `slot`, então o que entra
+/// nela é decisão de quem a usa — botões, um `Select`, um `TextInput` de
 /// busca. É o mesmo contrato do `QToolBar`, que aceita qualquer `QWidget` via
 /// `addWidget`, não só `QAction`.
 ///
-/// Com o `<MenuBar>` (já nativo) e o [`super::status_bar::StatusBar`], fecha o
+/// Com o `MenuBar` (já nativo) e o [`super::status_bar::StatusBar`], fecha o
 /// esqueleto de uma `QMainWindow`: menu, barra de ferramentas, conteúdo, rodapé.
 ///
 /// # Props
@@ -27,10 +27,10 @@
 /// - `width`    — largura. Default: `fill` — uma barra de ferramentas que não
 ///   atravessa a janela não lê como barra.
 /// - `align_y`  — alinhamento vertical dos itens. Default: `center`.
-/// - `bar_class`     — classe da faixa pintada (o `<Container>`).
-/// - `content_class` — classe da `<Row>` que segura os itens.
+/// - `bar_class`     — classe da faixa pintada (o `Container`).
+/// - `content_class` — classe da `Row` que segura os itens.
 ///
-/// Como na `<statusbar>`, `class` no uso aplica na coluna externa (faixa +
+/// Como na `statusbar`, `class` no uso aplica na coluna externa (faixa +
 /// divisória); quem tem fundo é a faixa, e é `bar_class` que a alcança.
 ///
 /// # Aparência
@@ -50,26 +50,21 @@ impl Component for ToolBar {
 
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<Column spacing="0" width="{width|fill}">
-                    <style>
-                        .toolbar { background: #8080801f; }
-                    </style>
-
-                    <Container class="toolbar {bar_class}" padding="{padding|6 8}" width="{width|fill}">
-                        <Row
-                            class="{content_class}"
-                            spacing="{spacing|4}"
-                            align_y="{align_y|center}"
-                            width="{width|fill}"
-                        >
-                            <slot/>
-                        </Row>
-                    </Container>
-
-                    <template if="{divider|true}" equals="true">
-                        <Rule />
-                    </template>
-                </Column>"#
+            r##"
+                column(spacing = 0, width = "{width|fill}") {
+                  style """
+                                        .toolbar { background: #8080801f; }
+                                    """
+                  container(class = "toolbar {bar_class}", padding = "{padding|6 8}", width = "{width|fill}") {
+                    row(class = @content_class, spacing = "{spacing|4}", align_y = "{align_y|center}", width = "{width|fill}") {
+                      slot
+                    }
+                  }
+                  template(if = "{divider|true}", equals = true) {
+                    rule
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

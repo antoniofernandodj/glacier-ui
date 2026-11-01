@@ -12,7 +12,7 @@
 //! - `fail(msg)`;
 //! - o comentário `---` logo acima de um `test_*` é a documentação dele (ver
 //!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
-//! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gv` com `<script>`
+//! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gv` com `script`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. O `ctx` inicial e o
 //!   `:set` aceitam tabelas (viram JSON, como `ctx.x = {...}` num script). Um handler
@@ -476,7 +476,7 @@ fn print_outcome(path: &Path, script: &str, o: &Outcome, opts: Options) {
             let trace = o.trace.trim();
             if !trace.is_empty() {
                 println!("      stacktrace:");
-                // Os quadros do próprio runner (`<glacier test>`) não ajudam ninguém.
+                // Os quadros do próprio runner (`glacier(test)`) não ajudam ninguém.
                 for l in trace.lines().filter(|l| !l.contains("<glacier test>")) {
                     println!("        {}", l.trim());
                 }
@@ -998,8 +998,8 @@ fn achar<'a>(
 /// execução (`__*`) e o que é variável local de um `for-each`.
 ///
 /// Não contam: a chave lida com valor padrão (`{k|padrão}`), a lida dentro do
-/// template de um builtin (as props de estilo de um `<card>`, opcionais por
-/// construção) e o `erro_<campo>` de um `<form>` com
+/// template de um builtin (as props de estilo de um `card`, opcionais por
+/// construção) e o `erro_<campo>` de um `form` com
 /// `rules`, que o motor só publica ao enviar. Se ainda sobrar uma chave que é
 /// legitimamente tardia (um `if="{status}"` que um handler publica depois), o
 /// teste a **nomeia**, com o porquê; o resto da lista é a falha.
@@ -1037,7 +1037,7 @@ fn missing_keys(path: &str, data: &ContextMap) -> crate::Result<Vec<String>> {
             .into_iter()
             .filter(|key| crate::ctx_path::get(data, key).is_none()),
     );
-    // O `<form>` publica `erro_<campo>` sozinho, ao enviar: antes disso a chave
+    // O `form` publica `erro_<campo>` sozinho, ao enviar: antes disso a chave
     // não existe, e não é esquecimento de ninguém.
     let erros_do_form: Vec<String> = ui
         .tree_bindings
@@ -1202,8 +1202,8 @@ mod tests {
         std::fs::write(
             &tela,
             "<screen><script>function init() ctx.certo = 'x' end</script>\
-             <Column><Text content=\"{certo} {errado} {opcional|ok}\"/>\
-             <ProgressBar :value=\"ligada\"/></Column></screen>",
+             <column><text content=\"{certo} {errado} {opcional|ok}\"/>\
+             <progressbar :value=\"ligada\"/></column></screen>",
         )
         .unwrap();
         let file = dir.join("t.test.luau");

@@ -428,8 +428,7 @@ pub enum StreamEventKind {
 pub enum Template {
     /// Caminho em disco — mantém o hot-reload do motor.
     File(String),
-    /// Markup em XML interno embutido no binário (o que o `.gv` dessugara): é o formato dos
-    /// builtins da lib, não uma sintaxe de autoria — um app escreve `.gv` e usa [`Template::File`].
+    /// Texto `.gv` embutido no binário (os builtins da lib, por exemplo).
     Inline(String),
 }
 
@@ -665,7 +664,7 @@ pub struct Context<'a> {
     /// o expõe via `take_close_requested` e o daemon/runtime fecha a janela dona
     /// deste motor após o `update` (o motor isolado não conhece o próprio `Id`).
     pub(crate) close_self: bool,
-    /// Appends incrementais a `<textarea>`s pedidos via [`Context::append_textarea`]
+    /// Appends incrementais a `textarea`s pedidos via [`Context::append_textarea`]
     /// (`(binding, text)`); o motor os aplica ao `text_editor::Content` após o
     /// `update`, sem recriar o buffer. Ver `append_textarea` no prelúdio Lua.
     pub(crate) editor_appends: Vec<(String, String)>,
@@ -896,7 +895,7 @@ impl<'a> Context<'a> {
     }
 
     /// Pede ao motor para trocar o estilo visual (ver [`crate::style`]) após o
-    /// `update`: um declarado pelo app com `<link rel="style" as="nome">` ou um
+    /// `update`: um declarado pelo app com `link(rel = style, as = nome)` ou um
     /// builtin (`fusion-dark`). Chamado no `init`, vale já no primeiro quadro —
     /// é como um app aplica o modo claro/escuro que o usuário salvou. Nome
     /// desconhecido é logado e ignorado, como a ação `style:<nome>`.
@@ -924,7 +923,7 @@ impl<'a> Context<'a> {
     ///
     /// A chave é o mecanismo inteiro do diálogo com campo (Onda 8), e é por
     /// isso que ele **não** exige estado por instância: o que o usuário digita
-    /// mora no contexto como o de qualquer `<textinput>`, e o aceite só lê de
+    /// mora no contexto como o de qualquer `textinput`, e o aceite só lê de
     /// lá. Uso interno da [`crate::luau::LuauComponent`]; um `Component` Rust
     /// usa [`Context::show_dialog`] com botões que roteiam ações.
     pub(crate) fn show_dialog_resumable(
@@ -1022,7 +1021,7 @@ impl<'a> Context<'a> {
         self.close_self = true;
     }
 
-    /// Anexa `text` ao fim do buffer do `<textarea>` ligado a `binding` (ver
+    /// Anexa `text` ao fim do buffer do `textarea` ligado a `binding` (ver
     /// `append_textarea` no prelúdio Lua). O motor faz o insert incremental no
     /// [`iced::widget::text_editor::Content`] após o `update` e sincroniza
     /// `data[binding]` — não recria o buffer (preserva scroll; O(text)).
@@ -1089,12 +1088,12 @@ impl<'a> Context<'a> {
 
 /// Encapsula a UI, o comportamento e o estado próprio de um componente.
 ///
-/// Se o `template()` (`Template::File`) carrega um `<script>` Luau,
+/// Se o `template()` (`Template::File`) carrega um `script` Luau,
 /// `GlacierUI::register` liga esse script como uma camada sobre os hooks
 /// deste `Component`: por ação, a função Lua de mesmo nome vence se
 /// existir; senão o hook Rust correspondente (`update`, `init`,
 /// `on_form_submit`, `on_broadcast`) roda no lugar (ver
-/// [`crate::luau::LuauComponent::wrap`]). Um `Component` sem `<script>`
+/// [`crate::luau::LuauComponent::wrap`]). Um `Component` sem `script`
 /// funciona exatamente como antes.
 pub trait Component {
     /// Nome único, usado para registrar o template e rotear as ações.
@@ -1108,7 +1107,7 @@ pub trait Component {
 
     /// Sub-componentes que este componente possui. Ao registrar o pai, o motor
     /// registra cada filho em cascata (template + `init`), e as ações vindas da
-    /// UI de um filho (referenciado por `<Component name="...">`) são roteadas
+    /// UI de um filho (referenciado por `Component(name = "...")`) são roteadas
     /// para o `update` do próprio filho.
     ///
     /// Padrão: sem filhos.
@@ -1122,10 +1121,10 @@ pub trait Component {
     /// cliques (`UiClick`).
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
 
-    /// Reage ao `onSubmit` de um `<Form>` (veja [`crate::forms::Form`]). Ao
+    /// Reage ao `onSubmit` de um `Form` (veja [`crate::forms::Form`]). Ao
     /// contrário de `update` — que recebe todo o resto (cliques, `onChange`,
     /// drag-and-drop, ...) — Enter num `formControl` ou um botão de submit
-    /// dentro de um `<Form>` chegam aqui, não em `update`: a atualização de
+    /// dentro de um `Form` chegam aqui, não em `update`: a atualização de
     /// cada campo e a submissão do formulário nunca competem pelo mesmo
     /// `match`. `action` é a string do `onSubmit` (já sem o namespace do
     /// componente). Padrão: no-op — componentes sem formulário não precisam
@@ -1138,19 +1137,19 @@ pub trait Component {
     /// ```
     fn on_form_submit(&mut self, _action: &str, _ctx: &mut Context) {}
 
-    /// Reage a um envio de `<Form>` que **falhou** as `rules` declaradas nos
+    /// Reage a um envio de `Form` que **falhou** as `rules` declaradas nos
     /// seus controles. O motor já publicou `{error_prefix}{campo}` para cada
     /// campo (o que acende `{erro_campo}` no markup e o `:invalid` no `.gss`);
     /// isto é o gancho para o *extra* — um `toast`, focar o primeiro campo
     /// ruim, telemetria. `errors_json` é um array JSON
     /// `[{"campo":"nome","msg":"..."}]` na ordem do documento. Padrão: no-op.
-    /// Só dispara no caminho validado (algum controle tem `rules`); um `<Form>`
+    /// Só dispara no caminho validado (algum controle tem `rules`); um `Form`
     /// sem `rules` mantém o contrato antigo e cai sempre em `on_form_submit`.
     fn on_form_validation_error(&mut self, _action: &str, _errors_json: &str, _ctx: &mut Context) {}
 
     /// Roda uma regra `fn:NOME` de um `rules="..."`: recebe o valor atual do
     /// campo, devolve `Some(mensagem)` quando inválido ou `None` quando ok. O
-    /// motor chama isto durante a validação de um `<Form>`, depois das regras
+    /// motor chama isto durante a validação de um `Form`, depois das regras
     /// embutidas. Padrão: `None` (nenhuma regra script). A
     /// [`crate::luau::LuauComponent`] despacha para a função global de mesmo
     /// nome.

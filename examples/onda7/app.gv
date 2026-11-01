@@ -12,12 +12,12 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
       )
 
       text(
-        class = intro,
-        content = """
+        """
           O habilitador é uma capacidade, não uma tag: o motor ganhou uma caixa de
           ferramentas de desenho e o app continua escrevendo markup. Nenhuma linha
           desta tela desenha nada — ela nomeia chaves, como sempre.
         """,
+        class = intro,
       )
     }
 
@@ -31,14 +31,14 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
           template(slot = medidores) {
             groupbox(title = "Dial — o knob que escreve na chave") {
               text(
-                class = nota,
-                content = """
+                """
                   Arraste o anel, clique num ponto dele ou role a roda. O valor
                   vai para a chave que o markup nomeia — `value="volume"`,
-                  exatamente como num `<slider>`. O catálogo marcava este widget
+                  exatamente como num `slider`. O catálogo marcava este widget
                   como "exige estado por instância"; não exige, e é a terceira vez
                   que essa marca cai (Spinner na 0.66, Rating na 0.85).
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -66,9 +66,9 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
 
                 column(class = medidor) {
                   // `readonly` desenha e não aceita gesto — o mesmo papel que
-                  // ele tem no `<rating>` de uma lista.
+                  // ele tem no `rating` de uma lista.
                   dial(
-                    :value = brilho, max = 100, readonly = true,
+                    :value = brilho, max = 100, read_only = true,
                     show_value = true,
                     size = 72,
                   )
@@ -81,12 +81,12 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
                   text(class = valor, content = "brilho: @brilho%")
 
                   text(
-                    class = nota,
-                    content = """
-                      O `<dial>` sem `onChange` grava sozinho. Com `onChange`, ele
-                      delega — o mesmo contrato do `<textinput>`, e a razão de
+                    """
+                      O `dial` sem `onChange` grava sozinho. Com `onChange`, ele
+                      delega — o mesmo contrato do `textinput`, e a razão de
                       nenhum destes três precisar de handler.
                     """,
+                    class = nota,
                   )
 
                   row(class = linha) {
@@ -105,13 +105,13 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
 
             groupbox(title = "Gauge — o mesmo arco, sem gesto e com faixas") {
               text(
-                class = nota,
-                content = """
+                """
                   Apresentacional: não escreve, não recebe clique. As faixas são
                   JSON escrito no atributo (constantes do desenho) ou o nome de
                   uma chave (quando vêm do backend) — as duas formas, porque as
                   duas aparecem.
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -156,13 +156,13 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
               title = "LcdNumber — sete segmentos, e o valor lido como texto",
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   O valor só vira número formatado quando parseia como número; um
                   `12:34` de relógio passa inteiro. Ponto e dois-pontos ocupam
                   menos que um dígito, como num mostrador de verdade — é o que faz
                   `12:34` caber onde caberiam cinco dígitos.
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -209,12 +209,12 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
           template(slot = graficos) {
             groupbox(title = "Sparkline — a linha sem moldura") {
               text(
-                class = nota,
-                content = """
-                  É `<linechart axes="false">`: a mesma primitiva, outros
+                """
+                  É `linechart(axes = false)`: a mesma primitiva, outros
                   defaults. Uma tag a menos no motor, e um lugar a menos onde um
                   bug de escala pode morar.
                 """,
+                class = nota,
               )
 
               grid(class = "grade grade_2", columns = 3, row_spacing = 10) {
@@ -244,14 +244,14 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
               title = "LineChart e BarChart — a mesma série, dois eixos",
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   `min`/`max` vazios são automáticos; escritos, fixam a escala.
                   Fixar importa: dois gráficos lado a lado com escalas automáticas
                   diferentes é a forma clássica de mentir com um painel sem
                   querer. A barra, além disso, nasce sempre do ZERO quando ninguém
                   declara `min` — começar em 40 exagera a diferença entre 41 e 42.
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -285,13 +285,13 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
               title = "PieChart e Donut — a mesma tag, o buraco aberto",
             ) {
               text(
-                class = nota,
-                content = """
-                  `<donut>` é `<piechart donut="0.6">` — o mesmo atalho que
-                  `<popup>` é para `<popover placement="center">`. As cores saem
+                """
+                  `donut` é `piechart(donut = 0.6)` — o mesmo atalho que
+                  `popup` é para `popover(placement = center)`. As cores saem
                   da paleta do tema quando o markup não escolhe nenhuma: trocar o
                   `theme.json` troca o gráfico junto.
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -314,12 +314,12 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
 
             groupbox(title = "Série vazia", flat = true) {
               text(
-                class = nota,
-                content = """
+                """
                   Um gráfico sem dados que desenha NADA é indistinguível de um
                   gráfico quebrado. Os quatro escrevem "sem dados" — a tela que
                   ainda não carregou continua parecendo uma tela carregando.
                 """,
+                class = nota,
               )
 
               row(class = linha_larga) {
@@ -333,24 +333,24 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
           template(slot = fecho) {
             groupbox(title = "O que esta onda fechou") {
               text(
-                class = nota,
-                content = """
+                """
                   §2.13 — gráficos: de 0/6 para 5/6 (só o 3D fica, e é wgpu).
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   §2.3 — Dial, Gauge e LcdNumber saem de ⬜, e nenhum era `●`.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   §4 — a decisão "canvas na mão vs. plotters" fecha: na mão.
                 """,
+                class = nota,
               )
             }
 
@@ -358,24 +358,24 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
               title = "A decisão que sustenta as sete tags", flat = true,
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   O `canvas` NÃO virou tag. Uma superfície de desenho livre
                   devolveria ao app um bloco imperativo que o `.gv` não lê, o
                   `.gss` não estiliza e o Luau não alcança — três regressões para
                   ganhar uma. Ele ficou como capacidade do motor, e o que o app vê
                   são sete widgets que se comportam como todos os outros.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   E uma lição de nome: `<linha>` chegou a ser apelido do
-                  `<linechart>` e roubou o nome de todo componente chamado `Linha`
+                  `linechart` e roubou o nome de todo componente chamado `Linha`
                   — o parser mapeia a tag antes de procurar componentes.
                   Substantivo comum não vira tag.
                 """,
+                class = nota,
               )
             }
           }

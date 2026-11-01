@@ -6,8 +6,8 @@
 /// que faltava era **a seleção**, e ela é o padrão do `SpinBox`: a chave é
 /// nomeada pelo app, a ação carrega o nome, o `update` grava.
 ///
-/// ```xml
-/// <listview :items="servicos" :value="servico" selected="{servico}" height="240" />
+/// ```gv
+/// listview(:items = servicos, :value = servico, selected = @servico, height = 240)
 /// ```
 ///
 /// # Os dois modos de seleção
@@ -53,7 +53,7 @@
 ///
 /// # Classes nos nós de dentro
 ///
-/// `class` no uso aplica no `<Scrollable>` (a raiz). O que uma lista precisa
+/// `class` no uso aplica no `Scrollable` (a raiz). O que uma lista precisa
 /// mesmo estilizar é o **item**, e para isso há uma prop por nó:
 ///
 /// - `list_class`     — a coluna que empilha os itens.
@@ -62,9 +62,8 @@
 /// - `label_class`    — a primeira linha do item.
 /// - `sub_class`      — a segunda linha (`it.sub`).
 ///
-/// ```xml
-/// <listview :items="servicos" :value="servico" selected="{servico}"
-///           item_class="linha" selected_class="linha_ativa" />
+/// ```gv
+/// listview(:items = servicos, :value = servico, selected = @servico, item_class = linha, selected_class = linha_ativa)
 /// ```
 ///
 /// As classes injetadas entram **depois** das da lib na mesma lista, na ordem
@@ -106,102 +105,77 @@ impl Component for ListView {
         // Três braços de destaque, não dois: o modo múltiplo testa `contains`
         // (o conjunto está na chave) e o simples testa `equals`. As duas
         // diretivas não compõem numa tag só, então cada uma tem o seu
-        // `<template>`.
+        // `template`.
         //
-        // A `<Column>` é filha DIRETA do `<Scrollable>` de propósito: é onde o
+        // A `Column` é filha DIRETA do `Scrollable` de propósito: é onde o
         // motor procura o `virtualize` (ver `PRIMITIVAS.md`).
         Template::Inline(
-            r#"<Scrollable width="{width|fill}" height="{height|240}">
-                    <style>
-                        .listview-item {
-                            color: #00000000;
-                            text-color: #cdd6f4;
-                            border-width: 0;
-                            border-radius: 5;
+            r##"
+                scrollable(width = "{width|fill}", height = "{height|240}") {
+                  style """
+                                        .listview-item {
+                                            color: #00000000;
+                                            text_color: #cdd6f4;
+                                            border_width: 0;
+                                            border_radius: 5;
+                                        }
+                                        .listview-item:hover { background: #8080803d; }
+                                        .listview-item-sel {
+                                            color: #8080805c;
+                                            text_color: #cdd6f4;
+                                        }
+                                        .listview-sub { color: #80868d; }
+                                    """
+                  column(class = @list_class, spacing = "{spacing|2}", width = fill, virtualize = "{virtualize|0}") {
+                    template(:for_each = "{items}", var = it) {
+                      template(if = "{mode|single}", equals = multi) {
+                        template(if = @selected, contains = @it.id) {
+                          button(class = "listview-item listview-item-sel {item_class} {selected_class}", on_click = "pick:{mode|single}|{value}|{it.id}", padding = "{padding|8 12}", width = fill) {
+                            column(spacing = 1, width = fill) {
+                              text(class = @label_class, content = @it.label, size = "{size|13}", bold = true)
+                              template(if = @it.sub, not_equals = "") {
+                                text(class = "listview-sub {sub_class}", content = @it.sub, size = 11)
+                              }
+                            }
+                          }
                         }
-                        .listview-item:hover { background: #8080803d; }
-                        .listview-item-sel {
-                            color: #8080805c;
-                            text-color: #cdd6f4;
+                        template(else) {
+                          button(class = "listview-item {item_class}", on_click = "pick:{mode|single}|{value}|{it.id}", padding = "{padding|8 12}", width = fill) {
+                            column(spacing = 1, width = fill) {
+                              text(class = @label_class, content = @it.label, size = "{size|13}")
+                              template(if = @it.sub, not_equals = "") {
+                                text(class = "listview-sub {sub_class}", content = @it.sub, size = 11)
+                              }
+                            }
+                          }
                         }
-                        .listview-sub { color: #80868d; }
-                    </style>
-
-                    <Column
-                        class="{list_class}"
-                        spacing="{spacing|2}"
-                        width="fill"
-                        virtualize="{virtualize|0}"
-                    >
-                        <template for-each="{items}" var="it">
-                            <template if="{mode|single}" equals="multi">
-                                <template if="{selected}" contains="{it.id}">
-                                    <Button
-                                        class="listview-item listview-item-sel {item_class} {selected_class}"
-                                        on_click="pick:{mode|single}|{value}|{it.id}"
-                                        padding="{padding|8 12}"
-                                        width="fill"
-                                    >
-                                        <Column spacing="1" width="fill">
-                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" bold="true" />
-                                            <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
-                                            </template>
-                                        </Column>
-                                    </Button>
-                                </template>
-                                <template else>
-                                    <Button
-                                        class="listview-item {item_class}"
-                                        on_click="pick:{mode|single}|{value}|{it.id}"
-                                        padding="{padding|8 12}"
-                                        width="fill"
-                                    >
-                                        <Column spacing="1" width="fill">
-                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" />
-                                            <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
-                                            </template>
-                                        </Column>
-                                    </Button>
-                                </template>
-                            </template>
-
-                            <template else>
-                                <template if="{it.id}" equals="{selected}">
-                                    <Button
-                                        class="listview-item listview-item-sel {item_class} {selected_class}"
-                                        on_click="pick:{mode|single}|{value}|{it.id}"
-                                        padding="{padding|8 12}"
-                                        width="fill"
-                                    >
-                                        <Column spacing="1" width="fill">
-                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" bold="true" />
-                                            <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
-                                            </template>
-                                        </Column>
-                                    </Button>
-                                </template>
-                                <template else>
-                                    <Button
-                                        class="listview-item {item_class}"
-                                        on_click="pick:{mode|single}|{value}|{it.id}"
-                                        padding="{padding|8 12}"
-                                        width="fill"
-                                    >
-                                        <Column spacing="1" width="fill">
-                                            <Text class="{label_class}" content="{it.label}" size="{size|13}" />
-                                            <template if="{it.sub}" notEquals="">
-                                                <Text class="listview-sub {sub_class}" content="{it.sub}" size="11" />
-                                            </template>
-                                        </Column>
-                                    </Button>
-                                </template>
-                            </template>
-                        </template>
-                    </Column>
-                </Scrollable>"#
+                      }
+                      template(else) {
+                        template(if = @it.id, equals = @selected) {
+                          button(class = "listview-item listview-item-sel {item_class} {selected_class}", on_click = "pick:{mode|single}|{value}|{it.id}", padding = "{padding|8 12}", width = fill) {
+                            column(spacing = 1, width = fill) {
+                              text(class = @label_class, content = @it.label, size = "{size|13}", bold = true)
+                              template(if = @it.sub, not_equals = "") {
+                                text(class = "listview-sub {sub_class}", content = @it.sub, size = 11)
+                              }
+                            }
+                          }
+                        }
+                        template(else) {
+                          button(class = "listview-item {item_class}", on_click = "pick:{mode|single}|{value}|{it.id}", padding = "{padding|8 12}", width = fill) {
+                            column(spacing = 1, width = fill) {
+                              text(class = @label_class, content = @it.label, size = "{size|13}")
+                              template(if = @it.sub, not_equals = "") {
+                                text(class = "listview-sub {sub_class}", content = @it.sub, size = 11)
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

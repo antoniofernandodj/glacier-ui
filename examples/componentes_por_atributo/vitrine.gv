@@ -2,7 +2,7 @@ component {
   // Um componente que recebe OUTROS componentes por atributo.
   //
   // `cabecalho`, `linha` e `vazio` não são texto para mostrar: são NOMES de
-  // componentes já declarados no <resources> de quem usa a Vitrine (ou
+  // componentes já declarados no resources de quem usa a Vitrine (ou
   // importados, ou registrados pelo app). A Vitrine não conhece nenhum deles —
   // ela só decide ONDE cada um aparece.
   props {
@@ -19,7 +19,7 @@ component {
   }
 
   column(class = vitrine) {
-    // `<render>` desenha o componente cujo nome está na prop. Os outros
+    // `render` desenha o componente cujo nome está na prop. Os outros
     // atributos são as props DELE, como numa tag escrita à mão.
     render(component = @cabecalho, titulo = @titulo, total = @total)
     rule

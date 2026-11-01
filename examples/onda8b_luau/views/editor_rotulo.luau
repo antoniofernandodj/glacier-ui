@@ -1,6 +1,6 @@
 -- O handler do componente que embrulha o diálogo (Onda 8b, lado A).
 --
--- Ele mora AQUI, no `<script>` do próprio componente — não na tela. É o que o
+-- Ele mora AQUI, no `script` do próprio componente — não na tela. É o que o
 -- `::` de dono no `buttons=` (`Salvar:EditorRotulo::salvar:accept`) garante: a
 -- ação do botão do diálogo volta para este componente, e `salvar` é uma função
 -- global deste chunk.

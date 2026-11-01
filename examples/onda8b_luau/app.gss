@@ -3,7 +3,7 @@ examples/onda8b_luau/app.gss
 
 Folha global. Ela cobre a tela, o corpo dos dois diálogos e os dois
 componentes — uma folha global vale em qualquer nó, inclusive nos que um
-`<component>` ou um `<dialog>` montam.
+`component` ou um `dialog` montam.
 */
 
 :root {
@@ -41,7 +41,7 @@ componentes — uma folha global vale em qualquer nó, inclusive nos que um
 .nota   { size: 12; color: var(--fraco); }
 .status { size: 12; color: var(--fraco); }
 
-/* ── B: corpo do `<dialog editar_perfil>` + o componente `CampoForm` ───── */
+/* ── B: corpo do `dialog(editar_perfil)` + o componente `CampoForm` ───── */
 /*
 A cadeia toda é `width: fill` — um `fill` dentro de um pai `shrink` colapsa
 o campo (armadilha do PRIMITIVAS.md). Por isso `.cf-campo` também leva.
@@ -51,7 +51,7 @@ o campo (armadilha do PRIMITIVAS.md). Por isso `.cf-campo` também leva.
 .cf-campo  { width: fill; spacing: 6; }
 .cf-label  { size: 12; color: var(--suave); }
 
-/* ── A: o cartão do `<EditorRotulo>` e o corpo do diálogo dele ────────── */
+/* ── A: o cartão do `EditorRotulo` e o corpo do diálogo dele ────────── */
 
 .erd-cartao {
   width: fill;

@@ -1,4 +1,4 @@
-//! `<dateedit>`, `<timeedit>` e `<datetimeedit>` — o `QDateEdit`, o
+//! `dateedit`, `timeedit` e `datetimeedit` — o `QDateEdit`, o
 //! `QTimeEdit` e o `QDateTimeEdit` do Qt.
 //!
 //! Rode com: `cargo run --example timepicker`

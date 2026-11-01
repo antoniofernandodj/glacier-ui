@@ -6,7 +6,7 @@ comportamento — nome de chave, ação, `slot` — e nenhuma cor, nenhum tamanh
 texto, nenhum espaçamento.
 
 A exceção desta onda (ver o CLAUDE.md) é `x`/`y`/`anchor` dentro de um
-`<stack>`: são dado, não estilo — a posição de um filho é o que está sendo
+`stack`: são dado, não estilo — a posição de um filho é o que está sendo
 mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 */
 
@@ -65,7 +65,7 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
   height: fill;
 }
 
-/* A mesma coisa, SEM `height: fill` — para usar dentro de um `<scrollable>`.
+/* A mesma coisa, SEM `height: fill` — para usar dentro de um `scrollable`.
    Um filho `height="fill"` dentro de um scrollable mede INFINITO (o teto de
    altura de um scrollable é livre: é o que o torna rolável), e quem somar essa
    altura empurra o resto para fora da tela. É a armadilha gêmea do
@@ -96,13 +96,13 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
   border_color: var(--linha);
 }
 
-/* Modificador: só o bloco do `<CommandLink>` pede uma largura fixa (os
-   outros ficam soltos na `<row>`, do tamanho do conteúdo). */
+/* Modificador: só o bloco do `commandlink` pede uma largura fixa (os
+   outros ficam soltos na `row`, do tamanho do conteúdo). */
 .bloco-largo {
   width: 360;
 }
 
-/* Modificador: o bloco da `<SplashScreen>` (fora de qualquer `<row>`, sozinho
+/* Modificador: o bloco da `splashscreen` (fora de qualquer `row`, sozinho
    na coluna) precisa de `width: fill` — sem ele, a coluna fica `Shrink` e um
    filho `Fill` dentro de uma coluna `Shrink` não mede pela largura do APP,
    mede pela largura do IRMÃO mais largo (o texto/botão ao lado): é a
@@ -133,7 +133,7 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
   font: mono;
 }
 
-/* ── Habilitador A: <stack>, anchor e x/y ───────────────────────────── */
+/* ── Habilitador A: stack, anchor e x/y ───────────────────────────── */
 
 .demo-anchor {
   width: 300;
@@ -186,9 +186,9 @@ mostrado, não decoração — e por isso ficam inline no `.gv`, nunca aqui.
 
 /* ── SplashScreen ────────────────────────────────────────────────────── */
 
-/* Sem width/height aqui: no `<SplashScreen>` eles são PROPS (`height="220"`
+/* Sem width/height aqui: no `splashscreen` eles são PROPS (`height="220"`
    no uso, ao lado de `class`), não estilo de caixa — a mesma exceção do
-   `size` de um `<colorwheel>` (ver o doc do widget, `splash_screen.rs`). */
+   `size` de um `colorwheel` (ver o doc do widget, `splash_screen.rs`). */
 .demo-splash {
   border_radius: 8;
   border_width: 1;

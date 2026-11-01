@@ -1,4 +1,4 @@
-//! O `<colorwheel>` da Onda 8: a roda de matiz mais o quadrado de
+//! O `colorwheel` da Onda 8: a roda de matiz mais o quadrado de
 //! saturação/valor — o miolo do `QColorDialog`.
 //!
 //! # O que a Onda 7 pagou por este widget
@@ -6,17 +6,17 @@
 //! O `ColorDialog` estava na proposta da Onda 7 e ficou de fora por tamanho.
 //! O que mudou desde então é que a onda deixou pronto exatamente o que faltava:
 //! [`crate::canvas`] (os arcos e o anel desenhados por polilinha, um segmento
-//! por grau) e o `<maskedinput>` da Onda 4, que é o campo hexadecimal sem uma
+//! por grau) e o `maskedinput` da Onda 4, que é o campo hexadecimal sem uma
 //! linha nova. O que sobra aqui é a conversão HSV↔RGB e o gesto.
 //!
 //! # O valor mora numa chave, como em todo o resto
 //!
-//! `<colorwheel :value="cor" />` escreve `#rrggbb` na chave `cor`, e lê dela o
+//! `colorwheel(:value = cor)` escreve `#rrggbb` na chave `cor`, e lê dela o
 //! ponto onde desenhar os dois cursores. Não há estado de cor no widget: o
 //! `Program::State` guarda só **qual dos dois controles** está sendo arrastado
 //! agora, que é o que morre com o gesto.
 //!
-//! É a mesma regra do `<dial>` (0.93), do `<slider>` e do `<rating>` — e é o
+//! É a mesma regra do `dial` (0.93), do `slider` e do `rating` — e é o
 //! que faz o `ColorDialog` não precisar de estado por instância, que é como o
 //! catálogo o classificava.
 //!
@@ -391,7 +391,7 @@ fn contraste(fundo: Color) -> Color {
     if l > 0.6 { Color::BLACK } else { Color::WHITE }
 }
 
-/// Monta o `<colorwheel>`.
+/// Monta o `colorwheel`.
 pub fn render_color_wheel<'a>(
     context: &'a ContextMap,
     value_var: &'a str,

@@ -19,7 +19,7 @@ screen(title = "Glacier - Componentes Aninhados") {
 
       // Filho COM comportamento próprio. Os botões dentro de
       // cartao_contador.gv são roteados para o update de CartaoContador,
-      // não para o do Painel. Sem <import>: o children() do Painel já
+      // não para o do Painel. Sem import: o children() do Painel já
       // registra o template e o comportamento do filho.
       CartaoContador
 

@@ -22,7 +22,7 @@ screen(
   }
 
   row(class = janela) {
-    // A barra lateral é uma GAVETA: o `<drawer>` não desenha gatilho nenhum,
+    // A barra lateral é uma GAVETA: o `drawer` não desenha gatilho nenhum,
     // então o botão ☰ mora no conteúdo (abaixo) e a ação carrega o nome da
     // chave — `drawer::toggle:menu` funciona de qualquer lugar da tela.
     drawer(

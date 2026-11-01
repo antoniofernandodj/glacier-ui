@@ -18,12 +18,12 @@ screen(
     scrollable(class = rolagem) {
       column(class = corpo) {
         text(
-          class = lead,
-          content = """
+          """
             `series="chave"` guarda um array de `@{ name, points, color? }`. A
             moldura, a escala e a legenda são do motor; sem `color`, cada linha
             recebe uma cor do ciclo do tema.
           """,
+          class = lead,
         )
 
         column(class = bloco) {
@@ -39,11 +39,11 @@ screen(
           }
 
           text(
-            class = nota,
-            content = """
+            """
               O botão troca a chave inteira; o gráfico relê no render seguinte,
               sem handler próprio — como todo widget de `canvas` desde a Onda 7.
             """,
+            class = nota,
           )
         }
 
@@ -73,11 +73,11 @@ screen(
           text(class = secao, content = "sparkline — sem eixos, sem legenda")
 
           text(
-            class = nota,
-            content = """
+            """
               Multi-série vale aqui também, mas a legenda só sai quando há eixos:
               num sparkline não cabe.
             """,
+            class = nota,
           )
 
           sparkline(series = latencia, class = mini)

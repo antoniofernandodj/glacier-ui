@@ -1,4 +1,4 @@
-// Sem `size` no <screen>: no navegador o tamanho é o da página (o canvas
+// Sem `size` no screen: no navegador o tamanho é o da página (o canvas
 // ocupa 100% dela, ver web/index.html). Um tamanho fixo aqui encolheria o app
 // para um retângulo no canto da aba.
 screen(title = "{{titulo}}") {

@@ -7,9 +7,9 @@
 //! embutida com [`embed_dirs!`](crate::embed_dirs)), numa pasta com a disposição:
 //!
 //! ```text
-//! <base>/<id>.desktop
-//! <base>/icons/hicolor/<NxN>/apps/<id>.png     (16 32 48 64 128 256, os que existirem)
-//! <base>/icons/hicolor/scalable/apps/<id>.svg  (opcional)
+//! base/id.desktop
+//! base/icons/hicolor/NxN/apps/id.png     (16 32 48 64 128 256, os que existirem)
+//! base/icons/hicolor/scalable/apps/id.svg  (opcional)
 //! ```
 //!
 //! Nunca roda sozinho: só com o argumento `--install-desktop`.
@@ -24,7 +24,7 @@ use crate::asset_source::AssetSource;
 pub struct DesktopEntry {
     /// Pasta lógica na `AssetSource`, com `/` no fim (ex.: `"packaging/"`).
     pub base: String,
-    /// Nome dos arquivos: `<id>.desktop`, `<id>.png`, `<id>.svg`.
+    /// Nome dos arquivos: `id.desktop`, `id.png`, `id.svg`.
     pub id: String,
 }
 

@@ -14,11 +14,11 @@ screen(title = "Glacier - Pseudo-estados (:hover/:focus/:active/:disabled)") {
       )
 
       text(
-        class = subtitle,
-        content = """
+        """
           Passe o mouse, clique e compare com a versão desabilitada de cada
           widget.
         """,
+        class = subtitle,
       )
 
       // Button: :hover (passe o mouse) / :active (segure o clique) / :disabled

@@ -19,7 +19,7 @@ screen(title = "Glacier - notificações do SO") {
       )
 
       text(
-        content = """
+        """
           Clique num botão: a notificação aparece na central do SO, não dentro
           desta janela. Minimize o app e veja que ela chega mesmo assim.
         """,

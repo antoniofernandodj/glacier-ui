@@ -7,7 +7,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
     link(rel = theme, href = "examples/onda3/theme.json")
 
     // Sem isto o comportamento em Lua nunca é carregado: o motor liga o
-    // script pelo <script> do template, não por convenção de nome.
+    // script pelo script do template, não por convenção de nome.
     script(src = app.luau)
   }
 
@@ -16,7 +16,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
       text(content = "Onda 3 — o calendário", class = titulo)
 
       text(
-        content = """
+        """
           Uma primitiva, três tags. O que muda de uma para a outra é o que um
           clique grava — e é a mesma economia que fez
           `dateedit`/`timeedit`/`datetimeedit` serem um nó só.
@@ -29,13 +29,13 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
 
     scrollable(class = rolagem) {
       column(class = coluna_3) {
-        // ABA 1 — <calendar> ================================================
+        // ABA 1 — calendar ================================================
         if @aba == "dia" {
           column(class = coluna_4) {
             row(class = linha) {
               groupbox(title = "O caso simples", class = grupo) {
                 text(
-                  content = """
+                  """
                     Sem on_change, o widget grava a chave sozinho — nenhuma linha
                     de script para o calendário funcionar. `today` é prop: é
                     `date.today()` no init.
@@ -51,7 +51,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
                 }
 
                 text(
-                  content = """
+                  """
                     Clique no TÍTULO para subir a escada de drill-up: dia → mês →
                     ano, a mesma do QCalendarWidget. Descer de volta escolhe o
                     mês/ano visível, sem tocar na chave.
@@ -62,7 +62,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
 
               groupbox(title = "Com validação e limites", class = grupo) {
                 text(
-                  content = """
+                  """
                     Com `on_change` quem grava é o handler — e é isso que permite
                     recusar um valor. Aqui a entrega não pode cair num fim de
                     semana, e min/max apagam o que está fora da faixa.
@@ -89,7 +89,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
 
             groupbox(title = "A semana começa onde o app disser", flat = true) {
               text(
-                content = """
+                """
                   `first_day="monday"` gira o cabeçalho de sete iniciais; o
                   calendário da esquerda usa o default (domingo), o da direita,
                   segunda. E os rótulos vêm por prop: sem elas, o pt-BR embutido.
@@ -110,11 +110,11 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
           }
         }
 
-        // ABA 2 — <monthyearpicker> =========================================
+        // ABA 2 — monthyearpicker =========================================
         else if @aba == "mes" {
           column(class = coluna_4) {
             text(
-              content = """
+              """
                 A tela de drill-up do QCalendarWidget, promovida a tag. É a MESMA
                 primitiva em `mode="month"` — custo marginal quase zero depois da
                 grade de dias, e é por isso que esta linha subiu de P3 para P2 no
@@ -142,7 +142,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
 
               groupbox(title = "Só o ano (mode=\"year\")", class = grupo) {
                 text(
-                  content = """
+                  """
                     O terceiro degrau da mesma escada. `mode` diz onde o clique
                     PARA de navegar e passa a gravar.
                   """,
@@ -163,11 +163,11 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
           }
         }
 
-        // ABA 3 — <daterangepicker> =========================================
+        // ABA 3 — daterangepicker =========================================
         else if @aba == "intervalo" {
           column(class = coluna_4) {
             text(
-              content = """
+              """
                 Duas datas em DUAS chaves — não `"a/b"` numa só, para o
                 `date.diff` do Luau ler as duas direto. O primeiro clique marca o
                 início; o segundo fecha o intervalo. Passe o mouse entre um e
@@ -196,7 +196,7 @@ screen(title = "Glacier - Onda 3", size = "960 760") {
 
             groupbox(title = "O mês visível pode vir de fora", flat = true) {
               text(
-                content = """
+                """
                   Sem `month`, o mês visível mora numa chave do motor derivada da
                   chave editada (`__cal_<chave>`) e o app não configura nada. Com
                   `month="chave"`, quem manda é o app — e dois botões bastam para

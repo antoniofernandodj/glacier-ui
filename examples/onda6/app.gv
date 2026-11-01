@@ -18,19 +18,19 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
       )
 
       text(
-        class = intro,
-        content = """
+        """
           O catálogo listava o Grid e o TableView como dois itens caros, sem notar
           que a parte difícil dos dois é a MESMA: descobrir a largura de uma
           coluna a partir de todas as células que passam por ela, antes de
           desenhar qualquer uma. Feita uma vez, ela paga seis linhas da tabela.
         """,
+        class = intro,
       )
     }
 
     scrollable(class = rolagem) {
       column(class = corpo) {
-        // A navegação é o `<tabs>` da Onda 5 — cada onda usa a anterior.
+        // A navegação é o `tabs` da Onda 5 — cada onda usa a anterior.
         tabs(
           :value = aba, active = @aba, :items = abas, tab_class = aba,
           tab_active_class = aba_ativa, page_spacing = 18,
@@ -41,14 +41,14 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
               title = "Grid — a medição, e o widget mais simples que a exercita",
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   Uma `row` de `column`s não resolve: cada coluna mede só os
                   próprios filhos e ignora as vizinhas, então a segunda linha sai
                   desalinhada da primeira no primeiro texto longo. A medição
                   precisa ser bidimensional — e é isso que a grade faz, em dois
                   passos.
                 """,
+                class = nota,
               )
 
               // Um número solto quer dizer N colunas MEDIDAS: a largura de
@@ -70,13 +70,13 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
 
             groupbox(title = "Grid — trilhas declaradas", flat = true) {
               text(
-                class = nota,
-                content = """
+                """
                   `columns="140 fill 80"` mistura fixa, flexível e fixa. A
                   flexível recebe o que sobra da largura disponível — e nunca
                   encolhe abaixo do que o conteúdo dela precisa: melhor
                   transbordar do que sumir.
                 """,
+                class = nota,
               )
 
               grid(
@@ -89,10 +89,10 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
                 text(class = celula, content = "timeout")
 
                 text(
-                  class = celula,
-                  content = """
+                  """
                     Quanto esperar antes de desistir de uma requisição
                   """,
+                  class = celula,
                 )
 
                 text(class = celula, content = "30s")
@@ -109,8 +109,7 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
 
             groupbox(title = "Flow — a fileira que quebra linha", flat = true) {
               text(
-                class = nota,
-                content = """
+                """
                   A correção de rota desta onda: o plano listava o Flow como "a
                   mesma medição num eixo só", saindo do mesmo mecanismo do Grid. O
                   iced já tinha — `Row::wrap()` quebra linha exatamente assim. É a
@@ -118,6 +117,7 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
                   caro já existia, e a primeira em que quem já tinha era o iced,
                   não o motor.
                 """,
+                class = nota,
               )
 
               flow(row_spacing = 8, class = fluxo) {
@@ -148,23 +148,23 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
               title = "TableView — cabeçalho, ordenação, seleção e alças",
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   Cabeçalho e corpo são a MESMA grade — é o que garante que a
                   coluna do rótulo e a da célula tenham a mesma largura sem
                   ninguém combinar nada. Clique num cabeçalho para ordenar (de
                   novo inverte); arraste a alça entre duas colunas para
                   redimensionar.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   A ordenação é numérica quando os dois lados parseiam como
                   número: sem isso, uma coluna de contagem coloca "10" antes de
                   "9" — o bug de tabela mais clássico que existe.
                 """,
+                class = nota,
               )
 
               tableview(
@@ -186,13 +186,13 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
 
             groupbox(title = "TableView — seleção múltipla", flat = true) {
               text(
-                class = nota,
-                content = """
+                """
                   `mode="multi"` guarda um CONJUNTO numa chave só, e o destaque
                   testa pertencimento — o mesmo mecanismo do `listview` da Onda 4,
                   e o mesmo `contains` da 0.84. Sem `sort`, a tabela não é
                   ordenável e os cabeçalhos deixam de ser clicáveis.
                 """,
+                class = nota,
               )
 
               tableview(
@@ -215,12 +215,12 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
               flat = true,
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   Para quem monta o corpo à mão. É a divisão de
                   `dateedit`/`timeedit`: uma primitiva, duas tags, mudando só o
                   que aparece.
                 """,
+                class = nota,
               )
 
               tableheader(columns = colunas, sort = ordem, width = fill)
@@ -233,8 +233,7 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
               title = "TreeView — e a décima linha que este plano dizia estar bloqueada",
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   O §3 punha a árvore atrás do "estado por instância" — o
                   habilitador que o documento chamou por três revisões de "o
                   desbloqueio de maior alavancagem". Não era: o conjunto de nós
@@ -242,15 +241,16 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
                   as seções de um accordion, e o `contains` que o destrancou saiu
                   na 0.84.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   A identidade de um nó é o CAMINHO, não o id: um `id` repetido em
                   ramos diferentes não colide, e o conjunto de abertos é legível a
                   olho — o que importa quando quem o semeia é um script.
                 """,
+                class = nota,
               )
 
               row(class = par) {
@@ -278,21 +278,21 @@ screen(title = "Glacier - Onda 6", size = "1060 820") {
               title = "ColumnView — a navegação Miller (o Finder)", flat = true,
             ) {
               text(
-                class = nota,
-                content = """
+                """
                   Uma lista por nível, o nível escolhido numa chave. Quase de
                   graça depois da árvore: a mesma coleção aninhada, a mesma
                   identidade por caminho — o que muda é o desenho, que põe os
                   níveis lado a lado em vez de recuados.
                 """,
+                class = nota,
               )
 
               text(
-                class = nota,
-                content = """
+                """
                   Repare que a trilha INTEIRA fica acesa até a folha, não só a
                   ponta: é metade do que uma navegação Miller comunica.
                 """,
+                class = nota,
               )
 
               columnview(

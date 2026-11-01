@@ -10,9 +10,9 @@ que ficaria para depois.
 Duas decisões já tomadas, que moldam o resto:
 
 1. **O MicroPython sai do motor.** Deixa de existir a segunda linguagem de
-   `<script>`; sobra só o Luau. Isso tira do caminho a distinção `int`/`float`:
+   `script`; sobra só o Luau. Isso tira do caminho a distinção `int`/`float`:
    no lado Luau só existe `number`.
-2. **Os widgets também gravam com tipo.** Um `<checkbox value="aceito">` faz
+2. **Os widgets também gravam com tipo.** Um `checkbox(:value = aceito)` faz
    `ctx.aceito` chegar ao script como `boolean`, não como `"true"`.
 
 ## Decisões (2026-10-22)
@@ -132,7 +132,7 @@ Primeiro, porque simplifica tudo depois: um só runtime de script para tipar.
 **O que muda de comportamento (cuidado)**
 
 - `eval::script_lang` normaliza `"python"` → `"micropython"` (`eval.rs:86-103`).
-  Depois da remoção, um `<script lang="python">` **não pode** cair em Luau em
+  Depois da remoção, um `script(lang = python)` **não pode** cair em Luau em
   silêncio (rodaria Python como Luau e falharia de forma obscura). Deve dar um
   erro claro: *"lang=\"python\" não é mais suportado; só Luau"*. Vale para
   qualquer `lang` desconhecido.
@@ -181,7 +181,7 @@ Só o que corrige o bug do `false` truthy, ainda sem tabelas nem widgets.
 - **Lint de carga:** ao carregar um script, varrer o texto por
   `ctx.<nome> ==/~= "true"|"false"` e emitir um aviso *uma vez* ("`ctx.x` agora
   pode ser boolean; compare com `true`/`false`"). É heurístico e barato.
-- **Válvula de escape temporária:** `<script ctx_types="off">` mantém o
+- **Válvula de escape temporária:** `script(ctx_types = off)` mantém o
   comportamento antigo por script. Removida na versão seguinte à da Fase 3.
   *(Decisão aberta — ver seção 6.)*
 
@@ -225,7 +225,7 @@ Só o que corrige o bug do `false` truthy, ainda sem tabelas nem widgets.
 
 ### Fase 3 — Widgets gravam com tipo (0.137.0)
 
-O que torna o `<checkbox>` útil de verdade para quem escreve `if ctx.aceito then`.
+O que torna o `checkbox` útil de verdade para quem escreve `if ctx.aceito then`.
 
 **Implementado (0.137.0):** `EngineMessage::UiInputTyped { action, value, kind }` (o mesmo
 roteamento de `UiInputChanged`, com o tipo como dica que o `Context::set_input` usa no
@@ -277,7 +277,7 @@ volta `true`). O `ctx` inicial de uma janela filha segue como texto (decisão: n
 Exemplos: `tem_notificacao` e `cancelado` viraram booleano em `gv/`. Ficaram de
 propósito `__dialog.negrito == "true"` (chave de diálogo, não conferida em execução) e o
 `restart == "true"` do `main.rs` (a API Rust de `Context` é texto). O comentário do
-`prelude.luau` agora diz que o `<dateedit>` grava texto, sem afirmar que todo `ctx` é string.
+`prelude.luau` agora diz que o `dateedit` grava texto, sem afirmar que todo `ctx` é string.
 
 - Reescrever as "três consequências" em `crates/glacier-cli/templates/_comum/AGENTS.md`
   (hoje: *"Tudo é texto… compare com `tonumber`"*), o cabeçalho de `src/luau/mod.rs`
@@ -329,7 +329,7 @@ toca ~112 usos, todo o `eval`, todos os widgets e a API pública
 emprestar a string, e a leitura de contexto é o caminho mais quente do motor.
 *Critério para reabrir:* se o sidecar mostrar-se insuficiente (por exemplo, se
 surgirem muitas chaves tipadas escritas por caminhos que o sidecar não alcança),
-ou se o motor ganhar uma segunda fonte de dados tipados (ex.: um `<datasource>`
+ou se o motor ganhar uma segunda fonte de dados tipados (ex.: um `datasource`
 que já nasça estruturado). Antes de decidir: medir o custo de formatação no
 `perf.rs`.
 
@@ -438,7 +438,7 @@ bump do app da Fase 3 e a adaptação dos `.luau` entram no **mesmo commit**.
 
 ## 6. Decisões em aberto
 
-1. **Válvula de escape.** `<script ctx_types="off">` por script (recomendado,
+1. **Válvula de escape.** `script(ctx_types = off)` por script (recomendado,
    remove em 1 release) ou nenhuma, apoiando-se só no lint e nas **Quebras**?
    A convenção do projeto aceita quebra em minor; a válvula só suaviza a
    migração dos apps que já existem.

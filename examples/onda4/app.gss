@@ -17,7 +17,7 @@ Três coisas que a separação torna visíveis, e que o markup misturado escondi
 
 As classes de nó interno de builtin (`.item`, `.item_ativo`, `.aba`, …) são a
 capacidade da 0.89: um builtin aceita uma classe por nó de dentro, então esta
-folha alcança o item de um `<listview>` sem reescrever o widget.
+folha alcança o item de um `listview` sem reescrever o widget.
 */
 
 :root {
@@ -40,10 +40,10 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 
 /* Duas colunas lado a lado.
    A largura das colunas NÃO está aqui: ela é `width="440"` no próprio
-   `<groupbox>`, e tem de ser. `width` é uma PROP do widget, e o template dele
+   `groupbox`, e tem de ser. `width` é uma PROP do widget, e o template dele
    escreve `width="{width|fill}"` inline — um default inline resolve sempre, e um
    valor inline vence toda classe, então `.col_larga { width: 440 }` seria
-   ignorada em silêncio. Pior: o default `fill` dentro desta `<row>` sem largura
+   ignorada em silêncio. Pior: o default `fill` dentro desta `row` sem largura
    colapsa a coluna para zero, e as duas seções somem da tela.
    A regra, que vale para todo builtin: **o que o widget documenta como prop
    continua prop; a folha fica com o que é estilo.** */
@@ -72,8 +72,8 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 
 /* ── Widgets ───────────────────────────────────────────────────────────── */
 
-/* `<maskedinput>` é PRIMITIVA: não há template com `width` inline no caminho,
-   então a classe pinta normalmente. `<listview height>` e `<spinbox width>` são
+/* `maskedinput` é PRIMITIVA: não há template com `width` inline no caminho,
+   então a classe pinta normalmente. `listview(height)` e `spinbox(width)` são
    props de builtin e ficaram no markup, pelo motivo acima. */
 .campo { width: 200; }
 .btn   { padding: 6 12; }
@@ -89,15 +89,15 @@ folha alcança o item de um `<listview>` sem reescrever o widget.
 .item_ativo { color: var(--realce); }
 .item_sub   { color: var(--fraco); }
 
-/* A cor de um `<rating>` cai na classe quando o atributo não a dá — o mesmo
-   fallback do `color` de um `<button>`. É por isso que a estrela de cor própria
+/* A cor de um `rating` cai na classe quando o atributo não a dá — o mesmo
+   fallback do `color` de um `button`. É por isso que a estrela de cor própria
    não precisa de um atributo inline aqui. */
 .estrelas_ambar { color: var(--ambar); }
 
 .secao_topo { border_radius: 5; }
 
 /* Cada selo nomeia a chave que o widget ao lado escreve; a cor é o código dessa
-   chave, repetido no `<badge>` e em nada mais. */
+   chave, repetido no `badge` e em nada mais. */
 .selo_azul  { background: var(--azul); }
 .selo_verde { background: var(--verde); }
 .selo_roxo  { background: var(--roxo); }

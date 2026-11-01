@@ -8,7 +8,7 @@ use crate::stylesheet::{
 use std::cell::OnceCell;
 use std::collections::HashMap;
 
-/// Splits a `<script>...</script>` block out of an XML document, returning the
+/// Splits a `script...` block out of an XML document, returning the
 /// markup with the block removed and the script body (if any).
 ///
 /// The script is stripped *before* XML parsing, so it may sit as a sibling of
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 /// [`crate::luau::LuauComponent`].
 ///
 /// O bloco é substituído por **tantas quebras de linha quantas ele ocupava**, em
-/// vez de simplesmente sumir. Sem isso, todo o markup abaixo de um `<script>`
+/// vez de simplesmente sumir. Sem isso, todo o markup abaixo de um `script`
 /// inline de 30 linhas subiria 30 linhas aos olhos do parser de XML — e um erro
 /// na linha 80 sairia reportado como linha 50, que é pior do que não ter linha
 /// nenhuma: manda o autor olhar para um trecho inocente.
@@ -25,7 +25,7 @@ pub fn strip_script(xml: &str) -> (String, Option<String>) {
     let Some(open_start) = find_script_open(xml) else {
         return (xml.to_string(), None);
     };
-    // Find the end of the opening tag (supports `<script>` and `<script ...>`).
+    // Find the end of the opening tag (supports `script` and `script(...)`).
     let Some(gt_rel) = xml[open_start..].find('>') else {
         return (xml.to_string(), None);
     };
@@ -49,7 +49,7 @@ pub fn strip_script(xml: &str) -> (String, Option<String>) {
 }
 
 /// Índice do `<script` que abre o bloco de script — ignorando um citado dentro
-/// de um comentário XML (`<!-- <script> -->`), que não é um bloco de verdade.
+/// de um comentário XML (`<!-- script -->`), que não é um bloco de verdade.
 ///
 /// É a **única** definição de onde o bloco começa, e por isso é `pub(crate)`:
 /// além do [`strip_script`] aqui, a camada Luau precisa exatamente da mesma
@@ -57,7 +57,7 @@ pub fn strip_script(xml: &str) -> (String, Option<String>) {
 /// tinha uma varredura própria — um `find("<script")` cru, sem pular
 /// comentários —, as duas discordavam: o parser de markup via o bloco certo e o
 /// Luau via o do comentário, extraindo como código o texto entre a tag citada e
-/// o `</script>` de verdade. O sintoma era um erro de sintaxe Luau na linha 1,
+/// o `` de verdade. O sintoma era um erro de sintaxe Luau na linha 1,
 /// sem relação visível com o comentário que o causou.
 ///
 /// O índice vale tanto no texto original quanto no minúsculo: `to_ascii_lowercase`
@@ -79,7 +79,7 @@ pub(crate) fn find_script_open(xml: &str) -> Option<usize> {
     None
 }
 
-/// Lê o atributo `lang="..."` da tag de abertura `<script ...>`, se houver, em
+/// Lê o atributo `lang="..."` da tag de abertura `script(...)`, se houver, em
 /// minúsculas: `None` é Luau (o padrão, sem atributo). Só Luau existe — `"lua"` e
 /// `"luau"` são aceitos; qualquer outro valor é recusado com erro claro por
 /// [`script_lang_suportada`]. Usa
@@ -99,20 +99,20 @@ pub(crate) fn script_lang(markup: &str) -> Option<String> {
     Some(raw)
 }
 
-/// `Ok` se o `<script>` de `markup` é Luau (sem `lang`, `"lua"` ou `"luau"`); senão
+/// `Ok` se o `script` de `markup` é Luau (sem `lang`, `"lua"` ou `"luau"`); senão
 /// o `lang` recusado. Um `lang="python"` não pode cair em Luau em silêncio: o
 /// código rodaria como Luau e falharia de forma obscura.
 pub(crate) fn script_lang_suportada(markup: &str) -> std::result::Result<(), String> {
     match script_lang(markup).as_deref() {
         None | Some("lua") | Some("luau") => Ok(()),
         Some(outro) => Err(format!(
-            "<script lang=\"{outro}\"> não é suportado: só Luau (sem `lang`, `lua` ou `luau`)"
+            "script(lang = \"{outro}\") não é suportado: só Luau (sem `lang`, `lua` ou `luau`)"
         )),
     }
 }
 
-/// Normalizes bare directives like `else` or `senao` (without value) inside XML tags
-/// by rewriting them to `else=""` or `senao=""` before XML parsing.
+/// Normalizes bare directives like `else` (without value) inside XML tags
+/// by rewriting them to `else=""` before XML parsing.
 pub fn normalize_bare_directives(xml: &str) -> String {
     let mut result = String::with_capacity(xml.len());
     let mut in_tag = false;
@@ -183,18 +183,13 @@ pub fn normalize_bare_directives(xml: &str) -> String {
                     // happens to be a PREFIX of a longer one (there isn't
                     // one today, but keep the invariant) never shadows it.
                     //
-                    // `component`/`componente` é o marcador de
-                    // `<prop component name="vazio" />` (ver `PropDecl`).
-                    // `componente` vem antes: `component` é prefixo dele, e o
-                    // laço para no primeiro que casa.
+                    // `component` é o marcador de
+                    // `prop(component, name = vazio)` (ver `PropDecl`).
                     const BARE_WORDS: &[&str] = &[
                         "not_empty",
-                        "componente",
                         "component",
-                        "senao",
                         "empty",
                         "else",
-                        "vazio",
                     ];
 
                     let mut matched_len = None;
@@ -823,7 +818,7 @@ impl EvalCtx<'_> {
 
     /// Fecha o quadro sem guardar entrada de cache, para a subárvore que abriu
     /// um quadro e no fim **não** é cacheável (o uso de componente com conteúdo
-    /// de `<slot/>`).
+    /// de `slot`).
     ///
     /// O quadro precisa fechar de todo jeito. Ele é a única coisa que restaura
     /// o topo da pilha, e o topo é onde toda leitura seguinte é anotada: um
@@ -948,8 +943,8 @@ fn item_layer<'b>(
     (layer, this_key)
 }
 
-/// Os filhos avaliados de um `<tableview>` com `<tablecolumn>`s: primeiro uma
-/// cabeça por coluna visível (o `<tablecolumn>` avaliado **sem** o corpo — é
+/// Os filhos avaliados de um `tableview` com `tablecolumn`s: primeiro uma
+/// cabeça por coluna visível (o `tablecolumn` avaliado **sem** o corpo — é
 /// dali que o widget lê `key`, `label`, `align` e a trilha, com a `class` e a
 /// `@media` já aplicadas), depois, linha a linha e na ordem do `sort`, uma
 /// célula por coluna: o corpo da coluna avaliado com a linha em `@<var>.campo`,
@@ -1059,7 +1054,7 @@ pub fn process_template(template: &str, context: &ContextMap) -> String {
 /// construção:
 ///
 /// - lidas com valor padrão (`{k|padrão}`);
-/// - lidas **dentro do template de um builtin** (`<card>`, `<spinbox>`…), onde as
+/// - lidas **dentro do template de um builtin** (`card`, `spinbox`…), onde as
 ///   props de estilo (`title_class`, `field_class`) são lidas sem padrão e vêm
 ///   do uso quando o app quer injetá-las.
 ///
@@ -1214,11 +1209,11 @@ fn process_tpl(template: &str, context: &EvalCtx) -> String {
 fn is_truthy(s: &str) -> bool {
     matches!(
         s.trim().to_ascii_lowercase().as_str(),
-        "true" | "1" | "yes" | "on" | "sim"
+        "true" | "1" | "yes" | "on"
     )
 }
 
-/// Evaluate an `<if>` condition against the context.
+/// Evaluate an `if` condition against the context.
 /// With `equals`/`not_equals` it compares strings; otherwise it is a truthy check.
 #[allow(clippy::too_many_arguments)]
 fn eval_condition(
@@ -1314,9 +1309,9 @@ pub fn current_platform() -> &'static str {
 /// The stylesheets in effect during evaluation, split by scope.
 ///
 /// `global` sheets apply everywhere: loaded via `GlacierUI::load_stylesheet`,
-/// via a `<link rel="stylesheet">`, or an inline `<style>` block without
+/// via a `link(rel = stylesheet)`, or an inline `style` block without
 /// `scoped="true"` — all three land in the same set. `by_component` holds only
-/// the sheets a component declared with `<style scoped="true">`, keyed by
+/// the sheets a component declared with `style(scoped = true)`, keyed by
 /// component name; they apply only inside that component's subtree, layered
 /// *on top of* the global ones so a scoped class can override a global one
 /// locally.
@@ -1395,10 +1390,10 @@ impl<'a> StyleContext<'a> {
 }
 
 /// Expands a sibling list of children into evaluated nodes, applying the
-/// structural rules: `<if>`/`<else>` are resolved against the context (binding
-/// `<else>` to the immediately preceding `<if>`), `<ForEach>` is unrolled over
+/// structural rules: `if`/`else` are resolved against the context (binding
+/// `else` to the immediately preceding `if`), `ForEach` is unrolled over
 /// its JSON array (re-expanding its own body so nested `if`/`else`/`ForEach`
-/// work at any depth), and `<import>`/`<link>` are dropped. Everything else is
+/// work at any depth), and `import`/`link` are dropped. Everything else is
 /// evaluated normally and pushed to `out`.
 #[allow(clippy::too_many_arguments)]
 fn expand_children(
@@ -1409,12 +1404,12 @@ fn expand_children(
     scope: Option<&str>,
     owner: Option<&str>,
     out: &mut Vec<UiNode>,
-    // Repassado a cada filho para que um `<slot/>` a qualquer profundidade do
-    // template (dentro de um `<if>`, de um `<Row>`, …) ainda o enxergue.
+    // Repassado a cada filho para que um `slot` a qualquer profundidade do
+    // template (dentro de um `if`, de um `Row`, …) ainda o enxergue.
     slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<()> {
-    // Tracks the result of the immediately preceding `<if>`, so an `<else>`
+    // Tracks the result of the immediately preceding `if`, so an `else`
     // can bind to it. Reset by any other (non-else) node.
     let mut last_if: Option<bool> = None;
     for (idx_filho, child) in children.iter().enumerate() {
@@ -1445,7 +1440,7 @@ fn expand_children(
         // `last_if`, doesn't need a `cond`): `platform="desktop"`/`"web"` on
         // ANY element, alone or combined with another directive on the same
         // node. A mismatch makes the node vanish entirely, same treatment
-        // as the `<import>`/`<link>`/`<style>` skip just above — so it's
+        // as the `import`/`link`/`style` skip just above — so it's
         // checked here, before for-each/else/else-if/if even see the node.
         if let Some(platform) = child.if_platform()
             && platform != current_platform()
@@ -1561,7 +1556,7 @@ fn expand_children(
         }
 
         // 2.5. Process else-if attribute directive — chains off the SAME
-        // `last_if` an `<if>`/`<else-if>` before it left behind. Only
+        // `last_if` an `if`/`else-if` before it left behind. Only
         // evaluates its own condition when the chain is still open
         // (`last_if == Some(false)`); once something upstream matched
         // (`Some(true)`), every further `else-if`/`else` in the chain is
@@ -1633,7 +1628,7 @@ fn expand_children(
 
         // 4. Fallback to legacy tag-based conditionals/loops
         match &child.kind {
-            // `<import>`/`<link>`/`<style>` declarations are skipped above.
+            // `import`/`link`/`style` declarations are skipped above.
             NodeType::Import { .. }
             | NodeType::Link { .. }
             | NodeType::Style { .. }
@@ -1653,14 +1648,14 @@ fn expand_children(
             } => {
                 let items_evaluated = process_tpl(items, context);
                 let fallback = resolve_fallback(fallback.as_deref(), context, templates)?;
-                // Drag-and-drop: `onReorder`/`reorderKey` on the `<ForEach>` tag
+                // Drag-and-drop: `onReorder`/`reorderKey` on the `ForEach` tag
                 // itself (a plain node attribute, same as `onPress`/`cursor`).
                 let reorder_key = child.reorder_key().map(|s| process_tpl(s, context));
                 let on_reorder = child
                     .on_reorder()
                     .map(|s| namespace_action(process_tpl(s, context), owner));
                 // Lista vazia e chave sem array são o mesmo caso para o
-                // `fallback` — a mesma leitura do `<if empty>`.
+                // `fallback` — a mesma leitura do `if(empty)`.
                 let arr = context
                     .get(&items_evaluated)
                     .and_then(|bruto| cache.array(&items_evaluated, &bruto))
@@ -1695,7 +1690,7 @@ fn expand_children(
                             continue;
                         }
 
-                        // The `<ForEach>` tag's body isn't a single node like
+                        // The `ForEach` tag's body isn't a single node like
                         // the attribute form's — clone its children so the
                         // hydration below has somewhere of its own to live.
                         let mut body: Vec<UiNode> = child.children.to_vec();
@@ -1860,7 +1855,7 @@ fn expand_children(
 }
 
 /// FNV-1a de uma string. Mistura um nome de componente resolvido na avaliação
-/// ao `node_id` do nó que o escreveu (ver [`expand_fallback`] e o `<render>` em
+/// ao `node_id` do nó que o escreveu (ver [`expand_fallback`] e o `render` em
 /// [`eval_owned`]): o cache de componente é chaveado pelo caminho, e dois
 /// componentes diferentes pelo mesmo nó não podem dividir uma entrada.
 fn hash_str(s: &str) -> u64 {
@@ -1869,7 +1864,7 @@ fn hash_str(s: &str) -> u64 {
     })
 }
 
-/// O nome do componente de `fallback` de um `<foreach>`, já interpolado.
+/// O nome do componente de `fallback` de um `foreach`, já interpolado.
 /// `None` quando o atributo não veio ou resolveu para vazio — um `fallback`
 /// opcional recebido por prop (`fallback="{vazio}"` com `vazio=""`).
 ///
@@ -1897,9 +1892,9 @@ fn resolve_fallback(
     Ok(Some(nome.to_string()))
 }
 
-/// Desenha o componente `nome` no lugar de uma lista vazia, como se `<Nome/>`
+/// Desenha o componente `nome` no lugar de uma lista vazia, como se `Nome`
 /// (sem props) estivesse escrito ali: no contexto e com o dono de quem escreveu
-/// o `<foreach>`, então ele enxerga as chaves e as props de fora.
+/// o `foreach`, então ele enxerga as chaves e as props de fora.
 #[allow(clippy::too_many_arguments)]
 fn expand_fallback(
     lista: &UiNode,
@@ -1938,7 +1933,7 @@ fn expand_fallback(
 /// `styles` are the loaded `.gss` documents; any `class="..."` on a node is
 /// resolved against them and merged underneath the node's inline attributes.
 /// `scope` is the name of the component being evaluated, used to pick up its
-/// `<link>`-scoped stylesheets.
+/// `link`-scoped stylesheets.
 pub fn evaluate_node(
     node: &UiNode,
     context: &ContextMap,
@@ -1983,7 +1978,7 @@ pub fn evaluate_template(
     // `store` (ou no `pop_frame` de quem não guarda). Um quadro que sobra vira
     // o topo da pilha e passa a receber as leituras de TODO o resto da
     // avaliação — e o `pop` acima devolve as dependências dele, não as da tela.
-    // Foi exatamente esse o bug do `<accordion>` na 0.90 (ver `pop_frame`), e
+    // Foi exatamente esse o bug do `accordion` na 0.90 (ver `pop_frame`), e
     // ele é silencioso: a tela simplesmente para de reavaliar. A asserção custa
     // um `len()` por avaliação e só existe em debug, onde os testes rodam.
     debug_assert!(
@@ -1997,7 +1992,7 @@ pub fn evaluate_template(
 }
 
 /// Prefixes an action with its owning component, so `dispatch` can route it.
-/// Actions inside a `<Component name="X">` subtree become `X::action`.
+/// Actions inside a `Component(name = X)` subtree become `X::action`.
 /// Empty actions and navigation are left untouched.
 /// Prefixos de ações built-in tratadas pelo próprio motor (`dispatch`) antes de
 /// qualquer roteamento a componente — ver `GlacierUI::dispatch`. São globais, não
@@ -2005,10 +2000,10 @@ pub fn evaluate_template(
 /// `strip_prefix("clipboard:")`/`"open:"`/`"window:"` erra dentro de um
 /// componente importado (ex.: `ServiceDetail::clipboard:foo`).
 ///
-/// `dialog:` entra aqui pelo mesmo motivo — um `<button on_click="dialog:x">`
-/// dentro de um `<component>` com `<script>` virava `Comp::dialog:x`, e aí o
+/// `dialog:` entra aqui pelo mesmo motivo — um `button(on_click = "dialog:x")`
+/// dentro de um `component` com `script` virava `Comp::dialog:x`, e aí o
 /// `strip_prefix("dialog:")` do dispatch não casava e o modal não abria. É o
-/// caso de um componente que **encapsula o próprio `<dialog>`**.
+/// caso de um componente que **encapsula o próprio `dialog`**.
 const BUILTIN_ACTION_PREFIXES: [&str; 5] = [
     "clipboard:",
     "open:",
@@ -2022,8 +2017,8 @@ const BUILTIN_ACTION_PREFIXES: [&str; 5] = [
 /// avaliação e o `dispatch` a entrega à tela atual.
 ///
 /// Existe para o caso do **widget composto que delega**: um builtin como o
-/// `<TimePicker/>` recebe `on_pick="abrir_modal"` por prop e repassa ao
-/// `<Button/>` interno. Sem escape, o `namespace_action` prefixaria com o dono
+/// `TimePicker` recebe `on_pick="abrir_modal"` por prop e repassa ao
+/// `Button` interno. Sem escape, o `namespace_action` prefixaria com o dono
 /// (`TimePicker::abrir_modal`), o `dispatch` acharia o `TimePicker` no mapa de
 /// componentes e chamaria o `update` **dele** — que não conhece ação nenhuma do
 /// app. O handler do app nunca rodava, sem erro nenhum: o botão simplesmente
@@ -2036,7 +2031,7 @@ const BUILTIN_ACTION_PREFIXES: [&str; 5] = [
 /// `ctx.dispatch` no motor, que não existe.
 pub const APP_ACTION_PREFIX: &str = "app:";
 
-/// `dialog:` — o prefixo que abre um `<dialog name="…">` declarado no markup
+/// `dialog:` — o prefixo que abre um `dialog(name = "…")` declarado no markup
 /// (Onda 8), e que `dialog:close`/`dialog:fechar` usam para fechar o que
 /// estiver aberto.
 ///
@@ -2047,8 +2042,8 @@ pub const APP_ACTION_PREFIX: &str = "app:";
 /// (ele é sobre *o que o motor faz* com ela).
 pub const DIALOG_ACTION_PREFIX: &str = "dialog:";
 
-/// Interpola os trechos de um `<prose>` escrito no markup: `{nome}` no texto, no `href` e
-/// na cor, e o namespace do dono na ação de um link (como num `<button>`).
+/// Interpola os trechos de um `prose` escrito no markup: `{nome}` no texto, no `href` e
+/// na cor, e o namespace do dono na ação de um link (como num `button`).
 fn interpola_spans(
     spans: &[crate::parser::TextSpan],
     context: &EvalCtx<'_>,
@@ -2160,14 +2155,14 @@ const PROFUNDIDADE_MAXIMA: u32 = 16;
 /// `slot="nome"`.
 ///
 /// Existe porque um único `Vec` não bastava a partir do momento em que um
-/// widget passou a ter mais de uma região — o rodapé de um `<card>`, as ações
-/// no cabeçalho de um `<groupbox>`. A partição acontece uma vez, na fronteira
+/// widget passou a ter mais de uma região — o rodapé de um `card`, as ações
+/// no cabeçalho de um `groupbox`. A partição acontece uma vez, na fronteira
 /// do componente, sobre os filhos **crus** (é neles que o atributo `slot`
 /// ainda existe); cada balde é expandido no contexto e com o dono de quem
 /// escreveu, exatamente como antes.
 #[derive(Default)]
 pub(crate) struct SlotContent {
-    /// O que não foi etiquetado — o que um `<slot/>` sem `name` recebe.
+    /// O que não foi etiquetado — o que um `slot` sem `name` recebe.
     anonimo: Vec<UiNode>,
     /// `nome -> conteúdo`. Vec de pares, não mapa: são dois ou três slots por
     /// widget, e a busca linear numa lista desse tamanho é mais barata que o
@@ -2177,7 +2172,7 @@ pub(crate) struct SlotContent {
 
 impl SlotContent {
     /// O conteúdo de um slot, ou `None` se o uso não preencheu esse destino —
-    /// caso em que o `<slot>` cai no conteúdo de reserva dele.
+    /// caso em que o `slot` cai no conteúdo de reserva dele.
     fn get(&self, name: Option<&str>) -> Option<&[UiNode]> {
         let bucket = match name {
             None => &self.anonimo,
@@ -2192,8 +2187,8 @@ impl SlotContent {
 }
 
 /// Core of [`evaluate_node`]. `owner` is the name of the nearest enclosing
-/// `<Component>`/`<Include>` reference, used to namespace its actions. `scope`
-/// is the component whose `<link>`-scoped stylesheets are currently in effect
+/// `Component`/`Include` reference, used to namespace its actions. `scope`
+/// is the component whose `link`-scoped stylesheets are currently in effect
 /// (it follows the same component boundaries as `owner`).
 #[allow(clippy::too_many_arguments)]
 fn eval_owned(
@@ -2219,13 +2214,13 @@ fn eval_owned(
     overlay_states: Option<&StateStyles>,
     // Conteúdo escrito entre as tags do componente que está sendo expandido —
     // **já avaliado**, no contexto e com o dono de QUEM USOU, repartido por
-    // destino. É o que um `<slot/>` no template devolve. `None` fora de um
+    // destino. É o que um `slot` no template devolve. `None` fora de um
     // componente. Ver [`SlotContent`] e [`crate::parser::NodeType::Slot`].
     slot: Option<&SlotContent>,
     cache: &mut EvalCache,
 ) -> Result<UiNode> {
-    // `<slot/>`: devolve o conteúdo do uso (ou, se ele não veio, o conteúdo de
-    // reserva escrito dentro do próprio `<slot>`) embrulhado num `Fragment`,
+    // `slot`: devolve o conteúdo do uso (ou, se ele não veio, o conteúdo de
+    // reserva escrito dentro do próprio `slot`) embrulhado num `Fragment`,
     // que `expand_children` espalha na lista do pai. Vem antes de tudo porque
     // o conteúdo já foi avaliado — reavaliá-lo aqui o namespaçaria de novo,
     // desta vez com o dono errado (o componente, não quem chamou).
@@ -2237,16 +2232,16 @@ fn eval_owned(
     if let NodeType::Slot { name } = &node.kind {
         // **Nome dinâmico** (habilitador A da Onda 5): o nome interpola antes da
         // busca, no contexto do componente — que é onde as props dele vivem.
-        // `<slot name="{active}"/>` num `<tabs>` resolve para `geral` e vai
+        // `slot(name = @active)` num `tabs` resolve para `geral` e vai
         // buscar o balde que o uso etiquetou com `slot="geral"`.
         //
         // Sem isto, os nomes de slot eram literais de template (0.67) e um
         // widget não conseguia escolher a região por um valor de contexto — que
-        // é exatamente o que separa a `<tabbar>` (só a fileira) do
+        // é exatamente o que separa a `tabbar` (só a fileira) do
         // `QTabWidget` (a fileira mais a página).
         //
         // Um nome que interpola para vazio volta a ser o slot **anônimo**: é o
-        // que faz `<slot name="{aba}"/>` cair no conteúdo sem etiqueta enquanto
+        // que faz `slot(name = @aba)` cair no conteúdo sem etiqueta enquanto
         // a chave não foi semeada, em vez de sumir da tela.
         let name: Option<String> = match name {
             Some(n) if n.contains('{') => {
@@ -2257,7 +2252,7 @@ fn eval_owned(
         };
         let conteudo: Vec<UiNode> = match slot.and_then(|s| s.get(name.as_deref())) {
             Some(nodes) => nodes.to_vec(),
-            // Reserva: os filhos do `<slot>` são do componente, então avaliam
+            // Reserva: os filhos do `slot` são do componente, então avaliam
             // no contexto dele — inclusive enxergando as props da instância.
             _ => {
                 let mut reserva = Vec::new();
@@ -2310,8 +2305,8 @@ fn eval_owned(
             cache,
         );
     }
-    // A component reference — either the legacy `<Include src="..." />` or a tag
-    // named after a registered component (e.g. `<PerfilCard ... />`) — is replaced
+    // A component reference — either the legacy `Include(src = "...")` or a tag
+    // named after a registered component (e.g. `PerfilCard(...)`) — is replaced
     // with the evaluated template root, with its attributes passed in as props.
     let reference: Option<(&String, &ContextMap)> = match &node.kind {
         NodeType::Include { src, props } => Some((src, props)),
@@ -2344,21 +2339,21 @@ fn eval_owned(
             .get(name)
             .ok_or_else(|| crate::error::GlacierError::UnknownComponent(name.clone()))?;
 
-        // O conteúdo entre as tags (`<GroupBox>ISTO</GroupBox>`) é avaliado
+        // O conteúdo entre as tags (`GroupBoxISTO</GroupBox>`) é avaliado
         // AQUI, ainda no contexto e com o dono de quem escreveu — antes de
         // qualquer camada de props entrar em cena. É o que garante que
-        // `<GroupBox><Button on_click="salvar"/></GroupBox>` despache `salvar`
+        // `GroupBoxButton(on_click = salvar)` despache `salvar`
         // para a tela, e não `GroupBox::salvar` para o `update` do builtin.
         //
-        // Nada de `slot` do nível de fora atravessa: um `<slot/>` escrito no
+        // Nada de `slot` do nível de fora atravessa: um `slot` escrito no
         // uso pertence ao componente que envolve ESTE uso, e já foi resolvido
         // pela chamada que nos trouxe até aqui.
         //
         // A partição por destino roda sobre os filhos **crus**, porque é neles
         // que o atributo `slot="footer"` ainda existe (a avaliação o consome).
         // Cada balde é expandido por sua conta, o que preserva a semântica de
-        // um `<if>`/`<for-each>` dentro de um slot nomeado.
-        // Classe/id escritos NO USO (`<spinbox class="campo_num"/>`). Resolvidos
+        // um `if`/`for-each` dentro de um slot nomeado.
+        // Classe/id escritos NO USO (`spinbox(class = campo_num)`). Resolvidos
         // aqui, no escopo de QUEM USOU — é lá que a folha com `.campo_num` mora,
         // não no escopo do componente — e entregues à raiz do template como
         // `overlay`. Sem isto, `class` numa tag de componente era lida pelo
@@ -2390,7 +2385,7 @@ fn eval_owned(
             let mut baldes: Vec<(Option<String>, Vec<&UiNode>)> = Vec::new();
             for filho in &node.children {
                 // O nome do destino também interpola, pelo mesmo motivo que
-                // o do `<slot/>` (habilitador A da Onda 5) — só que deste lado
+                // o do `slot` (habilitador A da Onda 5) — só que deste lado
                 // o contexto é o de QUEM USA, então `slot="{item.id}"` dentro
                 // de um `for-each` etiqueta cada página com o id do seu item.
                 let destino = filho.slot_name().map(|d| {
@@ -2410,7 +2405,7 @@ fn eval_owned(
                     .into_iter()
                     .map(|f| {
                         // A diretiva já foi consumida pela partição; deixá-la
-                        // no clone faria um `<card slot="footer">` aninhado
+                        // no clone faria um `card(slot = footer)` aninhado
                         // reetiquetar o conteúdo do componente de dentro.
                         let mut c = f.clone();
                         c.set_slot_name(None);
@@ -2435,7 +2430,7 @@ fn eval_owned(
             }
         }
 
-        // Contrato do componente, quando ele declara um (`<props>` no cabeçalho).
+        // Contrato do componente, quando ele declara um (`props` no cabeçalho).
         // Declarar é opcional; a partir do momento em que existe, ele é a
         // verdade — ver `PropDecl`.
         let declaradas = template_ast.children.iter().find_map(|c| match &c.kind {
@@ -2455,7 +2450,7 @@ fn eval_owned(
         // digitação, sem informação nenhuma.
         //
         // O que ele deliberadamente NÃO faz é virar uma prop-objeto (`{card.id}`
-        // dentro do componente): ali o `<props>` passaria a declarar `card` e
+        // dentro do componente): ali o `props` passaria a declarar `card` e
         // mais nada, e `{card.nmae}` voltaria a renderizar vazio em silêncio —
         // o typo invisível que o contrato existe para fechar. Semeando as props
         // DECLARADAS, o dentro do componente não muda (`{id}`, `{nome}`), todas
@@ -2530,7 +2525,7 @@ fn eval_owned(
                 }
             }
         } else {
-            // Sem `<props>` não há contrato, e portanto não há o que filtrar:
+            // Sem `props` não há contrato, e portanto não há o que filtrar:
             // todo campo do objeto entra, do mesmo jeito que o `item_layer` faz
             // com um item de `for-each`. Mantém valendo a regra da 0.61 — quem
             // não declara não é checado.
@@ -2547,7 +2542,7 @@ fn eval_owned(
             layer.set(key.clone(), process_tpl(val_template, context));
         }
 
-        // `<prop component name="vazio" />`: o valor é o NOME de um componente.
+        // `prop(component, name = vazio)`: o valor é o NOME de um componente.
         // Conferido aqui, na fronteira, e não só quando alguém o desenha — um
         // `vazio="FilaVasia"` numa lista que nunca esvazia passaria meses sem
         // errar. Vazio é "nenhum componente" (a prop opcional, `default=""`).
@@ -2578,11 +2573,11 @@ fn eval_owned(
         // `{slot_footer}` = "true" quando o uso preencheu `slot="footer"`.
         //
         // Sem isto, um widget não consegue **decorar** um slot opcional: o
-        // `<card>` quer uma linha divisória acima do rodapé só quando existe
+        // `card` quer uma linha divisória acima do rodapé só quando existe
         // rodapé, e o template não tem como perguntar isso — o nome do slot não
         // é uma prop, e o conteúdo dele nem chega ao interpolador. O marcador é
         // a resposta mínima: um booleano por slot nomeado preenchido, que o
-        // `<template if>` já sabe ler.
+        // `template(if)` já sabe ler.
         //
         // Entra DEPOIS das props de propósito: uma prop escrita à mão com o
         // mesmo nome vence, em vez de o motor sobrescrever o que o app pediu.
@@ -2616,9 +2611,9 @@ fn eval_owned(
         // O uso de um componente é uma fronteira natural de cache: é uma
         // subárvore inteira com uma entrada de dados bem definida (as props). É
         // o que faz uma linha de log nova não reconstruir a sidebar — cada
-        // `<NavItem/>` dela é um componente cujas props não mudaram.
+        // `NavItem` dela é um componente cujas props não mudaram.
         //
-        // **Exceção do `<slot/>`:** um uso COM conteúdo fica de fora do cache.
+        // **Exceção do `slot`:** um uso COM conteúdo fica de fora do cache.
         // A entrada é chaveada pelas dependências lidas dentro da expansão, e
         // o conteúdo do slot foi avaliado do lado de fora — suas leituras
         // pertencem ao quadro de quem chamou. Uma entrada aqui não teria como
@@ -2724,7 +2719,7 @@ fn eval_owned(
     // from the very same class list/sheets/viewport, so they stay consistent.
     // Style resolution, by ascending specificity (each overriding the previous):
     //   component-tag underlay  <  builtin-tag  <  class  <  id  <  inline
-    // The underlay (from an enclosing `<Card/>`, if any) is the base; the tag
+    // The underlay (from an enclosing `Card`, if any) is the base; the tag
     // (this node's builtin kind), classes and id are merged on top by
     // `resolve_classes`; inline attrs win last, in the per-field match below.
     // `class`/`id` are interpolated (`id="item-{i}"` works). The `styles.active`
@@ -2819,7 +2814,7 @@ fn eval_owned(
 
     // A cor de um nó que se DESENHA (os sete da Onda 7): o atributo, ou a cor
     // da classe `.gss` quando o atributo está vazio. É o mesmo fallback que o
-    // `<button>`, o `<progressbar>` e o `<rating>` já faziam à mão — aqui virou
+    // `button`, o `progressbar` e o `rating` já faziam à mão — aqui virou
     // uma linha porque sete nós o repetiriam.
     let cor_ou_classe = |color: &str| -> String {
         let c = process_tpl(color, context);
@@ -2976,8 +2971,8 @@ fn eval_owned(
             default_h,
         } => NodeType::MdiSubWindow {
             title: process_tpl(title, context),
-            // As quatro chaves são NOMES, como `value_var` do `<slider>` — mas
-            // interpolam do mesmo jeito que ele: um `<mdisubwindow x="{id}_x">`
+            // As quatro chaves são NOMES, como `value_var` do `slider` — mas
+            // interpolam do mesmo jeito que ele: um `mdisubwindow(:x = "{id}_x")`
             // dentro de um `for-each` compõe um nome de chave por janela.
             x_var: process_tpl(x_var, context),
             y_var: process_tpl(y_var, context),
@@ -3183,7 +3178,7 @@ fn eval_owned(
         // ── Onda 7 ──────────────────────────────────────────────────────────
         //
         // A `cor` das sete cai na classe `.gss` quando o atributo não a dá — o
-        // mesmo fallback do `<rating>` logo acima, e a razão de um painel
+        // mesmo fallback do `rating` logo acima, e a razão de um painel
         // inteiro poder trocar de cor por folha de estilo.
         NodeType::Dial {
             value_var,
@@ -3215,7 +3210,7 @@ fn eval_owned(
         // ── Onda 9 ──────────────────────────────────────────────────────────
         //
         // A `cor` das quatro que desenham cai na classe `.gss` quando o
-        // atributo não a dá — o mesmo fallback do `<dial>` acima. As chaves
+        // atributo não a dá — o mesmo fallback do `dial` acima. As chaves
         // passam pelo `process_tpl` porque o nome de uma chave pode vir de uma
         // prop (`sizes="{painel}"`), e as ações pelo `namespace_action` porque
         // uma ação escrita dentro de um componente pertence a ele.
@@ -3442,11 +3437,11 @@ fn eval_owned(
             size: *size,
             donut: *donut,
             percentages: *percentages,
-            // Como o `bands` do `<gauge>`: nome de chave ou JSON, nunca
+            // Como o `bands` do `gauge`: nome de chave ou JSON, nunca
             // template.
             colors: colors.clone(),
         },
-        // Onda 13: o `<canvas>` só empilha; cada valor de geometria de uma
+        // Onda 13: o `canvas` só empilha; cada valor de geometria de uma
         // forma interpola aqui (`cx="{x}"`, `d="{traçado}"`), como o
         // `background="{cor}"` de qualquer nó.
         NodeType::Canvas => NodeType::Canvas,
@@ -3819,8 +3814,8 @@ fn eval_owned(
         // spliced into the parent by `expand_children` (below), so it stays
         // transparent instead of collapsing into a `Container` box.
         NodeType::Fragment => NodeType::Fragment,
-        // Um `<slot/>` só vira conteúdo dentro da expansão de um componente
-        // (tratado no topo de `eval_owned`). Chegar aqui significa `<slot/>`
+        // Um `slot` só vira conteúdo dentro da expansão de um componente
+        // (tratado no topo de `eval_owned`). Chegar aqui significa `slot`
         // escrito fora de um componente: vira `Fragment`, ou seja, some e
         // deixa no lugar o próprio conteúdo de reserva que ele embrulha.
         NodeType::Slot { .. } => NodeType::Fragment,
@@ -3970,8 +3965,8 @@ fn eval_owned(
             scope,
             owner,
             &mut children_eval,
-            // Um `<slot/>` a qualquer profundidade do template do componente ainda
-            // recebe o conteúdo do uso: `<Column><Row><slot/></Row></Column>`.
+            // Um `slot` a qualquer profundidade do template do componente ainda
+            // recebe o conteúdo do uso: `ColumnRowslot</Row>`.
             slot,
             cache,
         )
@@ -3981,12 +3976,12 @@ fn eval_owned(
     }
     filhos?;
 
-    // A `<Form>` hydrates every `formControl`-bound descendant (at any depth,
+    // A `Form` hydrates every `formControl`-bound descendant (at any depth,
     // through nested Rows/Columns) with the shared scope, its evaluated
     // `onSubmit`/`onValidationError` actions, the error prefix and validate-on
     // mode, and — per control, in document order — the name of the next one,
     // mirroring how a reorderable for-each hydrates its `dragHandle` (see
-    // `hydrate_drag_item` below). Submit/reset `<button>`s get the same form
+    // `hydrate_drag_item` below). Submit/reset `button`s get the same form
     // context (minus the per-control bits) so a click knows which form it fires.
     if let NodeType::Form {
         on_submit,
@@ -4096,13 +4091,13 @@ fn eval_owned(
             // O que sobra — e por isso a etiqueta atravessa a avaliação desde a
             // Onda 5 — é o `slot` escrito num filho de uma **primitiva**, que
             // não tem fronteira de componente para consumi-lo. É como o
-            // `<popover>` separa o gatilho do painel:
+            // `popover` separa o gatilho do painel:
             //
             // ```xml
-            // <popover value="menu">
+            // popover(:value = menu)
             //     <button slot="anchor" text="Antônio ▾" … />
-            //     <column class="painel"> … </column>
-            // </popover>
+            //     column(class = painel) … 
+            // 
             // ```
             slot_name: node.slot_name().map(|d| {
                 if d.contains('{') {
@@ -4153,13 +4148,13 @@ fn eval_owned(
             form_control: node.form_control().map(|s| process_tpl(s, context)),
             // `rules`/`msg`/`pattern` are authored in the markup and interpolated
             // here — a builtin forwards its props into these attributes
-            // (`<SpinBox>`'s inner `<TextInput rules="{rules|}">`), and a hand
+            // (`SpinBox`'s inner `TextInput(rules = "{rules|}")`), and a hand
             // written `minlen:{n}` is legal too. `{rules|}` with no prop
             // collapses to `""`, which `parse_rules` treats as "no rules".
             rules: node.rules().map(|s| process_tpl(s, context)),
             msg: node.form_msg().map(|s| process_tpl(s, context)),
             pattern: node.form_pattern().map(|s| process_tpl(s, context)),
-            // Hydrated (if at all) by the enclosing `<Form>`'s post-pass above,
+            // Hydrated (if at all) by the enclosing `Form`'s post-pass above,
             // on this very (already evaluated) node — carried through as a
             // default of `None`/`false` here, same as the drag_* fields are for
             // a plain for-each item.
@@ -4179,7 +4174,7 @@ fn eval_owned(
 }
 
 /// `opacity` do `.gss`: multiplica o alfa das cores do **próprio** nó — fundo, borda,
-/// texto e a `color` do tipo (rótulo de `<text>`, fundo de `<button>`). Os filhos não
+/// texto e a `color` do tipo (rótulo de `text`, fundo de `button`). Os filhos não
 /// entram: o `iced` não compõe um grupo com opacidade, então ela vale onde o nó pinta
 /// algo. Um gradiente não é alterado.
 fn aplica_opacidade(n: &mut UiNode, o: f32) {
@@ -4218,7 +4213,7 @@ fn aplica_opacidade(n: &mut UiNode, o: f32) {
     }
 }
 
-/// Collects the `form_control` name of every node across `nodes` (a `<Form>`'s
+/// Collects the `form_control` name of every node across `nodes` (a `Form`'s
 /// already-evaluated subtree) in document order — the tab/Enter order used to
 /// find each control's "next" one.
 fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
@@ -4231,12 +4226,12 @@ fn collect_form_control_names(nodes: &[UiNode], out: &mut Vec<String>) {
 }
 
 /// Hydrates every `form_control`-bound node across `nodes` with the enclosing
-/// `<Form>`'s `scope` (used to build a stable focus id), its evaluated
+/// `Form`'s `scope` (used to build a stable focus id), its evaluated
 /// `on_submit`/`on_validation_error` actions, the error-key prefix and
 /// validate-on mode, plus the name of the next control in `order` (`None` on
 /// the last one). A control whose `{prefix}{name}` context key is already
 /// non-empty is marked `form_invalid` so `:invalid` styling shows on the next
-/// frame. Submit/reset `<button>`s get the form context too (no per-control
+/// frame. Submit/reset `button`s get the form context too (no per-control
 /// bits) so a click can find its form.
 #[allow(clippy::too_many_arguments)]
 fn hydrate_form_controls(
@@ -4342,28 +4337,24 @@ mod tests {
 
     // --- normalize_bare_directives ---------------------------------------
 
-    /// `else`/`senao` sem valor viram `else=""`/`senao=""` — o mecanismo que
-    /// deixa `<Text else>` valer como XML.
+    /// `else` sem valor vira `else=""` — o mecanismo que
+    /// deixa `text(else)` valer como XML.
     #[test]
     fn normalize_bare_directives_reescreve_else_sem_valor() {
         assert_eq!(
-            normalize_bare_directives(r#"<Text else>D</Text>"#),
-            r#"<Text else="">D</Text>"#
-        );
-        assert_eq!(
-            normalize_bare_directives(r#"<Text senao>D</Text>"#),
-            r#"<Text senao="">D</Text>"#
+            normalize_bare_directives(r#"<text else>D</Text>"#),
+            r#"<text else="">D</Text>"#
         );
     }
 
-    /// Regressão: um atributo mais longo que só COMEÇA com "else"/"senao"
+    /// Regressão: um atributo mais longo que só COMEÇA com "else"
     /// (`else-if`) não pode ser confundido com o `else` desacompanhado —
     /// virava `else=""-if="…"`, XML inválido ("expected a whitespace not
     /// '-'"). Achado ao implementar `else-if` (Fase 1, item 2 do plano de
     /// convergência de templates do rustploy).
     #[test]
     fn normalize_bare_directives_nao_mexe_em_else_if() {
-        let input = r#"<Text else-if="{x}" equals="b">B</Text>"#;
+        let input = r#"<text else_if="{x}" equals="b">B</Text>"#;
         assert_eq!(normalize_bare_directives(input), input);
     }
 
@@ -4371,7 +4362,7 @@ mod tests {
     /// `else=""=""`.
     #[test]
     fn normalize_bare_directives_nao_mexe_em_else_com_valor_ja_presente() {
-        let input = r#"<Text else="">D</Text>"#;
+        let input = r#"<text else="">D</Text>"#;
         assert_eq!(normalize_bare_directives(input), input);
     }
 
@@ -4381,12 +4372,12 @@ mod tests {
     #[test]
     fn normalize_bare_directives_reescreve_empty_e_not_empty_sem_valor() {
         assert_eq!(
-            normalize_bare_directives(r#"<Text if="{proj_secrets}" empty>vazio</Text>"#),
-            r#"<Text if="{proj_secrets}" empty="">vazio</Text>"#
+            normalize_bare_directives(r#"<text if="{proj_secrets}" empty>vazio</Text>"#),
+            r#"<text if="{proj_secrets}" empty="">vazio</Text>"#
         );
         assert_eq!(
-            normalize_bare_directives(r#"<Text if="{proj_secrets}" not_empty>tem</Text>"#),
-            r#"<Text if="{proj_secrets}" not_empty="">tem</Text>"#
+            normalize_bare_directives(r#"<text if="{proj_secrets}" not_empty>tem</Text>"#),
+            r#"<text if="{proj_secrets}" not_empty="">tem</Text>"#
         );
     }
 
@@ -4396,10 +4387,10 @@ mod tests {
     /// `_`, não espaço) com um atributo `empty` desacompanhado de verdade.
     #[test]
     fn normalize_bare_directives_nao_confunde_empty_dentro_de_not_empty() {
-        let input = r#"<Text if="{x}" not_empty>A</Text>"#;
+        let input = r#"<text if="{x}" not_empty>A</Text>"#;
         assert_eq!(
             normalize_bare_directives(input),
-            r#"<Text if="{x}" not_empty="">A</Text>"#
+            r#"<text if="{x}" not_empty="">A</Text>"#
         );
     }
 
@@ -4500,7 +4491,7 @@ mod tests {
     fn builtin_tag_selector_applies_to_node() {
         // `Button { padding: 7 }` casa o kind builtin, sem class/id no nó.
         let out = eval_with(
-            r#"<Button text="x" />"#,
+            r#"<button text="x" />"#,
             "Button { padding: 7; }",
             &HashMap::default(),
         );
@@ -4510,7 +4501,7 @@ mod tests {
     #[test]
     fn inline_wins_over_builtin_tag() {
         let out = eval_with(
-            r#"<Button text="x" padding="20" />"#,
+            r#"<button text="x" padding="20" />"#,
             "Button { padding: 7; }",
             &HashMap::default(),
         );
@@ -4524,12 +4515,12 @@ mod tests {
         // mas o `padding`, que só o underlay declara, sobrevive.
         let mut templates = HashMap::default();
         templates.insert(
-            "Card".to_string(),
-            parse(r#"<Column class="root"><Text content="oi" /></Column>"#),
+            "card".to_string(),
+            parse(r#"<column class="root"><text content="oi" /></column>"#),
         );
         let out = eval_with(
-            r#"<Card />"#,
-            ".root { background: #101010; } Card { padding: 24; background: #ffffff; }",
+            r#"<card />"#,
+            ".root { background: #101010; } card { padding: 24; background: #ffffff; }",
             &templates,
         );
         // A raiz avaliada é a Column do template.
@@ -4618,16 +4609,16 @@ mod tests {
 
     #[test]
     fn composto_alcanca_por_dentro_e_por_fora_de_componente() {
-        // A raiz do template é o `<Card>` na tela: `Card > text` casa o filho
+        // A raiz do template é o `Card` na tela: `Card > text` casa o filho
         // da raiz, e `.lista > Card` casa a própria raiz — com a classe do uso.
         let mut templates = HashMap::default();
         templates.insert(
-            "Card".to_string(),
+            "card".to_string(),
             parse(r#"<column><text>dentro</text></column>"#),
         );
         let out = eval_with(
-            r#"<column class="lista"><Card class="destaque" /></column>"#,
-            "Card > text { padding: 4; } .lista > Card.destaque { background: #123456; }",
+            r#"<column class="lista"><card class="destaque" /></column>"#,
+            "card > text { padding: 4; } .lista > card.destaque { background: #123456; }",
             &templates,
         );
         let raiz = &out.children[0];
@@ -4701,7 +4692,7 @@ mod tests {
     fn tag_selector_ignored_without_any_tag_rule() {
         // Sem regra de tag no sheet, um nó pelado não paga resolução e nada muda.
         let out = eval_with(
-            r#"<Button text="x" />"#,
+            r#"<button text="x" />"#,
             ".unused { padding: 9; }",
             &HashMap::default(),
         );
@@ -4719,7 +4710,7 @@ mod tests {
         ctx.insert("oculto".to_string(), "true".to_string());
         ctx.insert("travado".to_string(), "false".to_string());
 
-        let node = parse(r#"<Button text="x" hidden="{oculto}" disabled="{travado}" />"#);
+        let node = parse(r#"<button text="x" hidden="{oculto}" disabled="{travado}" />"#);
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(true), "hidden deve seguir o contexto");
         assert_eq!(out.disabled, Some(false), "disabled deve seguir o contexto");
@@ -4742,11 +4733,11 @@ mod tests {
     #[test]
     fn hidden_literal_e_chave_ausente_seguem_valendo() {
         let ctx = HashMap::default();
-        let node = parse(r#"<Button text="x" hidden="true" />"#);
+        let node = parse(r#"<button text="x" hidden="true" />"#);
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(true));
 
-        let node = parse(r#"<Button text="x" hidden="{nao_existe}" />"#);
+        let node = parse(r#"<button text="x" hidden="{nao_existe}" />"#);
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(false));
     }

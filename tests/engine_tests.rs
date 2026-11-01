@@ -3,12 +3,12 @@ use glacier_ui::{GlacierUI, NodeType, UiNode};
 #[test]
 fn test_parser_basic() {
     let xml = r##"
-    <Container padding="15" width="200" background="#FFFFFF">
-        <Column spacing="10">
-            <Text content="Hello World" size="20" bold="true" />
-            <Button text="Click Me" on_click="btn_click" />
-        </Column>
-    </Container>
+    <container padding="15" width="200" background="#FFFFFF">
+        <column spacing="10">
+            <text content="Hello World" size="20" bold="true" />
+            <button text="Click Me" on_click="btn_click" />
+        </column>
+    </container>
     "##;
 
     let ast = UiNode::parse_xml(xml).unwrap();
@@ -57,7 +57,7 @@ fn test_interpolation() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         temp_xml_path,
-        envolve(r##"<Text content="Welcome, {user_name}! Role: {user_role}" />"##),
+        envolve(r##"<text content="Welcome, {user_name}! Role: {user_role}" />"##),
     )
     .unwrap();
 
@@ -89,7 +89,7 @@ fn test_includes() {
 
     std::fs::write(
         card_path,
-        envolve(r##"<Container background="#222"><Text content="User: {name}" /></Container>"##),
+        envolve(r##"<container background="#222"><text content="User: {name}" /></container>"##),
     )
     .unwrap();
 
@@ -97,10 +97,10 @@ fn test_includes() {
         main_path,
         envolve(
             r##"
-        <Column>
-            <Include src="test_card" name="Alice" />
-            <Include src="test_card" name="Charlie" />
-        </Column>
+        <column>
+            <include src="test_card" name="Alice" />
+            <include src="test_card" name="Charlie" />
+        </column>
         "##,
         ),
     )
@@ -142,17 +142,17 @@ fn test_if_else() {
         path,
         envolve(
             r##"
-        <Column>
-            <if cond="{logado}">
-                <Text content="Olá, {usuario}" />
-            </if>
-            <else>
-                <Text content="Entre, por favor" />
-            </else>
-            <if cond="{papel}" equals="admin">
-                <Text content="painel admin" />
-            </if>
-        </Column>
+        <column>
+            <template if="{logado}">
+                <text content="Olá, {usuario}" />
+            </template>
+            <template else>
+                <text content="Entre, por favor" />
+            </template>
+            <template if="{papel}" equals="admin">
+                <text content="painel admin" />
+            </template>
+        </column>
         "##,
         ),
     )
@@ -204,19 +204,19 @@ fn test_import_recursivo() {
     let badge_path = "templates/test_imp_badge.xml";
 
     // badge: folha, sem imports.
-    std::fs::write(badge_path, envolve(r##"<Text content="[{label}]" />"##)).unwrap();
+    std::fs::write(badge_path, envolve(r##"<text content="[{label}]" />"##)).unwrap();
 
     // card: importa badge e o usa pelo nome.
     std::fs::write(
         card_path,
         envolve(
-            r##"<import name="Badge" from="templates/test_imp_badge.xml" />
-        <Container background="#222">
-            <Column>
-                <Text content="User: {name}" />
-                <Badge label="ok" />
-            </Column>
-        </Container>"##,
+            r##"<import name="badge" from="templates/test_imp_badge.xml" />
+        <container background="#222">
+            <column>
+                <text content="User: {name}" />
+                <badge label="ok" />
+            </column>
+        </container>"##,
         ),
     )
     .unwrap();
@@ -225,10 +225,10 @@ fn test_import_recursivo() {
     std::fs::write(
         main_path,
         envolve(
-            r##"<import name="Card" from="templates/test_imp_card.xml" />
-        <Column>
-            <Card name="Alice" />
-        </Column>"##,
+            r##"<import name="card" from="templates/test_imp_card.xml" />
+        <column>
+            <card name="Alice" />
+        </column>"##,
         ),
     )
     .unwrap();
@@ -238,11 +238,11 @@ fn test_import_recursivo() {
 
     // Os imports recursivos devem ter sido carregados automaticamente.
     assert!(
-        motor.is_registered("Card"),
+        motor.is_registered("card"),
         "Card deveria ter sido importado"
     );
     assert!(
-        motor.is_registered("Badge"),
+        motor.is_registered("badge"),
         "Badge deveria ter sido importado recursivamente"
     );
 
@@ -284,19 +284,19 @@ fn test_componente_por_nome() {
 
     std::fs::write(
         card_path,
-        envolve(r##"<Container background="#222"><Text content="User: {name}" /></Container>"##),
+        envolve(r##"<container background="#222"><text content="User: {name}" /></container>"##),
     )
     .unwrap();
 
-    // Reuse via the component's own tag name instead of <Include>
+    // Reuse via the component's own tag name instead of <include>
     std::fs::write(
         main_path,
         envolve(
             r##"
-        <Column>
+        <column>
             <UserCard name="Alice" />
             <UserCard name="Charlie" />
-        </Column>
+        </column>
         "##,
         ),
     )
@@ -343,10 +343,10 @@ fn test_builtin_badge_disponivel_sem_registro() {
         tela_path,
         envolve(
             r##"
-        <Column>
-            <Badge />
-            <Badge badge_text="Novo" badge_bg="#A6E3A1" />
-        </Column>
+        <column>
+            <badge />
+            <badge badge_text="Novo" badge_bg="#A6E3A1" />
+        </column>
         "##,
         ),
     )
@@ -411,10 +411,10 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         tela_path,
         envolve(
             r#"
-        <Column>
-            <SpinBox value="qtd" min="1" max="3" />
-            <SpinBox value="preco" min="0" max="1" step="0.25" width="90" />
-        </Column>
+        <column>
+            <spinbox value="qtd" min="1" max="3" />
+            <spinbox value="preco" min="0" max="1" step="0.25" width="90" />
+        </column>
         "#,
         ),
     )
@@ -526,7 +526,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
 #[test]
 fn test_primitivas_onda1_slider_space_radio() {
     // As três primitivas da onda 1 (`PLANO_WIDGETS.md` §6). O `Slider` e o
-    // `Radio` seguem o contrato do `<TextInput>`/`<Checkbox>`: disparam a ação
+    // `Radio` seguem o contrato do `<textinput>`/`<checkbox>`: disparam a ação
     // com o valor novo e NÃO gravam a chave — quem grava é o app.
     let mut motor = GlacierUI::new();
     motor.define_data("volume", "42");
@@ -538,12 +538,12 @@ fn test_primitivas_onda1_slider_space_radio() {
         tela_path,
         envolve(
             r#"
-        <Column>
-            <Slider value="volume" min="0" max="100" step="5" onChange="ajustar" />
-            <Space />
-            <Radio label="Free" value="free" group="plano" onChange="escolher" />
-            <Radio label="Pro" value="pro" group="plano" onChange="escolher" />
-        </Column>
+        <column>
+            <slider value="volume" min="0" max="100" step="5" on_change="ajustar" />
+            <space />
+            <radio label="Free" value="free" group="plano" on_change="escolher" />
+            <radio label="Pro" value="pro" group="plano" on_change="escolher" />
+        </column>
         "#,
         ),
     )
@@ -577,7 +577,7 @@ fn test_primitivas_onda1_slider_space_radio() {
     assert_eq!(avaliado.children[1].kind, NodeType::Space);
 
     // `group` é o NOME da chave, não o valor — a mesma convenção do `checked=`
-    // do `<Checkbox>`. Quem compara é o render (`ctx.get(group) == value`).
+    // do `<checkbox>`. Quem compara é o render (`ctx.get(group) == value`).
     // Interpolar aqui (`group="{plano}"`) faria a busca cair numa chave chamada
     // "free", que não existe, e o grupo inteiro apareceria desmarcado.
     match (&avaliado.children[2].kind, &avaliado.children[3].kind) {
@@ -604,7 +604,7 @@ fn test_primitivas_onda1_slider_space_radio() {
 
 #[test]
 fn test_builtin_radiogroup_escreve_a_chave_do_app() {
-    // Ao contrário da primitiva `<Radio>`, o builtin grava a chave sozinho —
+    // Ao contrário da primitiva `<radio>`, o builtin grava a chave sozinho —
     // padrão do `SpinBox`: a chave vem por prop e viaja dentro da ação.
     use glacier_ui::EngineMessage;
 
@@ -619,7 +619,7 @@ fn test_builtin_radiogroup_escreve_a_chave_do_app() {
     let tela_path = "templates/test_builtin_radiogroup.xml";
     std::fs::write(
         tela_path,
-        envolve(r#"<RadioGroup value="plano" items="planos" />"#),
+        envolve(r#"<radiogroup value="plano" items="planos" />"#),
     )
     .unwrap();
     motor.register_component("tela_rg", tela_path).unwrap();
@@ -673,7 +673,7 @@ fn test_link_import_sobrescreve_builtin_de_mesmo_nome() {
     let meu_card = "templates/test_meu_card.xml";
     std::fs::write(
         meu_card,
-        r#"<component><Text content="CARD DO APP" /></component>"#,
+        r#"<component><text content="CARD DO APP" /></component>"#,
     )
     .unwrap();
 
@@ -682,8 +682,8 @@ fn test_link_import_sobrescreve_builtin_de_mesmo_nome() {
         tela_path,
         format!(
             r#"<screen title="T">
-                <resources><link rel="import" href="{meu_card}" as="Card" /></resources>
-                <Column><Card /></Column>
+                <resources><link rel="import" href="{meu_card}" as="card" /></resources>
+                <column><card /></column>
             </screen>"#
         ),
     )
@@ -721,12 +721,12 @@ fn test_builtin_em_minusculas_resolve_e_roteia() {
         tela_path,
         envolve(
             r#"
-        <Column>
+        <column>
             <groupbox title="Grupo">
                 <spinbox value="qtd" min="1" max="3" />
             </groupbox>
             <avatar initials="AF" />
-        </Column>
+        </column>
         "#,
         ),
     )
@@ -778,10 +778,10 @@ fn test_slot_conteudo_do_uso_pertence_a_quem_escreveu() {
         tela_path,
         envolve(
             r#"
-        <GroupBox title="Rede">
-            <Button text="Salvar" on_click="salvar" />
-            <Text content="{host}" />
-        </GroupBox>
+        <groupbox title="Rede">
+            <button text="Salvar" on_click="salvar" />
+            <text content="{host}" />
+        </groupbox>
         "#,
         ),
     )
@@ -831,11 +831,11 @@ fn test_slot_nomeado_reparte_o_conteudo_por_destino() {
         tela_path,
         envolve(
             r#"
-        <Card title="Servidor">
-            <Text content="corpo A" />
-            <template slot="footer"><Button text="Reiniciar" on_click="reiniciar" /></template>
-            <Text content="corpo B" />
-        </Card>
+        <card title="Servidor">
+            <text content="corpo A" />
+            <template slot="footer"><button text="Reiniciar" on_click="reiniciar" /></template>
+            <text content="corpo B" />
+        </card>
         "#,
         ),
     )
@@ -862,7 +862,7 @@ fn test_slot_nomeado_reparte_o_conteudo_por_destino() {
 fn test_slot_nomeado_marcador_permite_decorar_o_opcional() {
     // O template não tem como perguntar "veio rodapé?" — o nome do slot não é
     // uma prop. O motor semeia `{slot_<nome>}` na fronteira do componente para
-    // cada slot nomeado preenchido, e é isso que deixa o `<Card>` pagar a linha
+    // cada slot nomeado preenchido, e é isso que deixa o `<card>` pagar a linha
     // divisória do rodapé só quando existe rodapé.
     let mut motor = GlacierUI::new();
 
@@ -872,10 +872,10 @@ fn test_slot_nomeado_marcador_permite_decorar_o_opcional() {
         tela_path,
         envolve(
             r#"
-        <Column>
-            <Card title="Com"><Text content="c" /><template slot="footer"><Text content="pe" /></template></Card>
-            <Card title="Sem"><Text content="c" /></Card>
-        </Column>
+        <column>
+            <card title="Com"><text content="c" /><template slot="footer"><text content="pe" /></template></card>
+            <card title="Sem"><text content="c" /></card>
+        </column>
         "#,
         ),
     )
@@ -891,7 +891,7 @@ fn test_slot_nomeado_marcador_permite_decorar_o_opcional() {
     assert!(contem_texto(com, "pe"));
     assert!(
         conta_regras(com) > conta_regras(sem),
-        "o cartão com rodapé paga uma <Rule> a mais que o sem"
+        "o cartão com rodapé paga uma <rule> a mais que o sem"
     );
     // E o marcador não vaza para o contexto global do app.
     assert!(!motor.context().contains_key("slot_footer"));
@@ -899,7 +899,7 @@ fn test_slot_nomeado_marcador_permite_decorar_o_opcional() {
     std::fs::remove_file(tela_path).ok();
 }
 
-/// Quantas `<Rule>` a subárvore tem.
+/// Quantas `<rule>` a subárvore tem.
 fn conta_regras(no: &UiNode) -> usize {
     let eu = usize::from(matches!(no.kind, NodeType::Rule { .. }));
     eu + no.children.iter().map(conta_regras).sum::<usize>()
@@ -920,10 +920,10 @@ fn test_slot_reserva_quando_o_uso_nao_passa_nada() {
         tela_path,
         envolve(
             r#"
-        <Column>
+        <column>
             <CaixaComReserva titulo="Rede" />
-            <CaixaComReserva titulo="Disco"><Text content="conteudo do uso" /></CaixaComReserva>
-        </Column>
+            <CaixaComReserva titulo="Disco"><text content="conteudo do uso" /></CaixaComReserva>
+        </column>
         "#,
         ),
     )
@@ -955,12 +955,12 @@ fn test_builtins_onda2_disponiveis_sem_registro() {
         tela_path,
         envolve(
             r#"
-        <Column>
-            <Frame shape="none"><Text content="F" /></Frame>
-            <Card title="T" subtitle="S"><Text content="C" /></Card>
-            <ToolBar><Text content="TB" /></ToolBar>
-            <StatusBar message="Pronto"><Text content="SB" /></StatusBar>
-        </Column>
+        <column>
+            <frame shape="none"><text content="F" /></frame>
+            <card title="T" subtitle="S"><text content="C" /></card>
+            <toolbar><text content="TB" /></toolbar>
+            <statusbar message="Pronto"><text content="SB" /></statusbar>
+        </column>
         "#,
         ),
     )
@@ -1004,7 +1004,7 @@ fn test_builtin_tabbar_active_bold_false_tira_o_negrito_da_ativa() {
     let tela_path = "templates/test_builtin_tabbar_active_bold.xml";
     std::fs::write(
         tela_path,
-        envolve(r#"<TabBar value="aba" active="{aba}" items="abas" active_bold="false" />"#),
+        envolve(r#"<tabbar value="aba" active="{aba}" items="abas" active_bold="false" />"#),
     )
     .unwrap();
     motor.register_component("tela_tabs_ab", tela_path).unwrap();
@@ -1035,7 +1035,7 @@ fn test_builtin_tabbar_escreve_a_chave_do_app() {
     let tela_path = "templates/test_builtin_tabbar.xml";
     std::fs::write(
         tela_path,
-        envolve(r#"<TabBar value="aba" active="{aba}" items="abas" />"#),
+        envolve(r#"<tabbar value="aba" active="{aba}" items="abas" />"#),
     )
     .unwrap();
     motor.register_component("tela_tabs", tela_path).unwrap();
@@ -1074,7 +1074,13 @@ impl glacier_ui::Component for CaixaComReserva {
     }
     fn template(&self) -> glacier_ui::Template {
         glacier_ui::Template::Inline(
-            r#"<Column><slot><Text content="vazio: {titulo}" /></slot></Column>"#.into(),
+            r##"
+column {
+  slot {
+    text(content = "vazio: {titulo}")
+  }
+}
+"##.into(),
         )
     }
     fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut glacier_ui::Context) {}
@@ -1102,7 +1108,7 @@ fn test_builtin_spinbox_layout_inline() {
     let tela_path = "templates/test_builtin_spinbox_inline.xml";
     std::fs::write(
         tela_path,
-        envolve(r#"<SpinBox value="zoom" min="25" max="400" step="25" layout="inline" />"#),
+        envolve(r#"<spinbox value="zoom" min="25" max="400" step="25" layout="inline" />"#),
     )
     .unwrap();
     motor
@@ -1143,20 +1149,20 @@ fn test_prefixo_app_escapa_do_namespace_do_dono() {
     std::fs::write(
         comp_path,
         envolve(
-            r#"<Column>
-                <Button text="dele" on_click="minha_acao" />
-                <Button text="do app" on_click="app:acao_do_app" />
-            </Column>"#,
+            r#"<column>
+                <button text="dele" on_click="minha_acao" />
+                <button text="do app" on_click="app:acao_do_app" />
+            </column>"#,
         ),
     )
     .unwrap();
     std::fs::write(
         tela_path,
         envolve(
-            r#"<Column>
+            r#"<column>
                 <import name="Delegante" from="templates/test_app_prefix_comp.xml" />
                 <Delegante />
-            </Column>"#,
+            </column>"#,
         ),
     )
     .unwrap();
@@ -1439,11 +1445,11 @@ fn declaracao_local_respeita_o_registro_do_app_e_sombreia_o_builtin() {
                 <component name="ChildComp">
                     <text content="local venceu" />
                 </component>
-                <component name="Badge">
+                <component name="badge">
                     <text content="badge local" />
                 </component>
             </resources>
-            <column><ChildComp /><Badge /></column>
+            <column><ChildComp /><badge /></column>
         </screen>"#,
     )
     .unwrap();
@@ -1676,7 +1682,7 @@ fn test_exemplo_onda4_ponta_a_ponta() {
     );
     // `abertas="rede"` — só a seção "rede" está aberta, e é o `contains` que
     // decide isso. Desde a 0.90 o corpo das FECHADAS também está na árvore
-    // (dentro de um `<Reveal open="false">`, que é de onde a altura encolhe ao
+    // (dentro de um `<reveal open="false">`, que é de onde a altura encolhe ao
     // fechar), então quem responde "aberta ou não" é o `open` do reveal, não
     // mais a presença do texto.
     let reveals = todos_os_reveals(motor.evaluated("onda4").unwrap());
@@ -1845,8 +1851,8 @@ impl glacier_ui::Component for TelaOnda4 {
     }
 }
 
-/// Toda ação alcançável na árvore avaliada — `on_click` de um `<Button>` e o
-/// `on_change` de um `<TextInput>`, que é onde as ações de builtin aparecem
+/// Toda ação alcançável na árvore avaliada — `on_click` de um `<button>` e o
+/// `on_change` de um `<textinput>`, que é onde as ações de builtin aparecem
 /// depois da expansão.
 fn todas_as_acoes(n: &UiNode) -> Vec<String> {
     let mut fora = Vec::new();
@@ -2174,14 +2180,14 @@ fn test_atributo_numerico_templado() {
     let card_path = "templates/test_num_card.xml";
     let main_path = "templates/test_num_main.xml";
 
-    std::fs::write(card_path, envolve(r##"<Text content="oi" size="{s}" />"##)).unwrap();
+    std::fs::write(card_path, envolve(r##"<text content="oi" size="{s}" />"##)).unwrap();
     std::fs::write(
         main_path,
         envolve(
-            r##"<Column>
+            r##"<column>
             <NumCard s="28" />
             <NumCard />
-        </Column>"##,
+        </column>"##,
         ),
     )
     .unwrap();
@@ -2220,7 +2226,7 @@ fn test_foreach_com_componente() {
     std::fs::write(
         card_path,
         envolve(
-            r##"<Container background="#222"><Text content="{nome} - {cargo}" /></Container>"##,
+            r##"<container background="#222"><text content="{nome} - {cargo}" /></container>"##,
         ),
     )
     .unwrap();
@@ -2230,11 +2236,11 @@ fn test_foreach_com_componente() {
         main_path,
         envolve(
             r##"
-        <Column>
-            <ForEach items="membros" var="m">
+        <column>
+            <foreach items="membros" var="m">
                 <Cartao nome="{m.nome}" cargo="{m.cargo}" />
-            </ForEach>
-        </Column>
+            </foreach>
+        </column>
         "##,
         ),
     )
@@ -2310,11 +2316,11 @@ fn test_foreach() {
         path,
         envolve(
             r##"
-        <Column>
-            <ForEach items="items" var="it">
-                <Text content="Item: {it.name} ({it.val})" />
-            </ForEach>
-        </Column>
+        <column>
+            <foreach items="items" var="it">
+                <text content="Item: {it.name} ({it.val})" />
+            </foreach>
+        </column>
         "##,
         ),
     )
@@ -2369,7 +2375,11 @@ impl Component for ChildComp {
         "ChildComp"
     }
     fn template(&self) -> Template {
-        Template::Inline(r#"<Container><Button text="C" on_click="ping" /></Container>"#.into())
+        Template::Inline(r##"
+container {
+  button(text = C, on_click = ping)
+}
+"##.into())
     }
     fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
         if action == "ping" {
@@ -2386,7 +2396,12 @@ impl Component for ParentComp {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<Container><Button text="P" on_click="parent_act" /><ChildComp /></Container>"#
+            r##"
+container {
+  button(text = P, on_click = parent_act)
+  ChildComp
+}
+"##
                 .into(),
         )
     }
@@ -2473,15 +2488,15 @@ impl Component for EnvComp {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r#"
-            <Column>
-                <ForEach items="rows" var="e" onReorder="reordered" reorderKey="key">
-                    <Row>
-                        <Text content="{e.key}" dragHandle="true" />
-                    </Row>
-                </ForEach>
-            </Column>
-        "#
+            r##"
+column {
+  foreach(items = rows, var = e, on_reorder = reordered, reorder_key = key) {
+    row {
+      text(content = @e.key, drag_handle = true)
+    }
+  }
+}
+"##
             .into(),
         )
     }
@@ -2570,16 +2585,16 @@ fn test_drag_hover_ignores_other_lists_and_self() {
 
 #[test]
 fn test_gss_fill_and_max_width_resolve_from_class() {
-    // `.panel { width: fill; max-width: N }` — the responsive readability-cap
+    // `.panel { width: fill; max_width: N }` — the responsive readability-cap
     // pattern (fill up to N, shrink below). Both must land on the node.
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
 
     let gss = "templates/test_maxw.gss";
-    std::fs::write(gss, ".panel { width: fill; max-width: 640; }").unwrap();
+    std::fs::write(gss, ".panel { width: fill; max_width: 640; }").unwrap();
 
     let path = "templates/test_maxw.xml";
-    std::fs::write(path, envolve(r##"<Container class="panel" />"##)).unwrap();
+    std::fs::write(path, envolve(r##"<container class="panel" />"##)).unwrap();
 
     motor.load_stylesheet(gss).unwrap();
     motor.register_component("maxw", path).unwrap();
@@ -2631,7 +2646,7 @@ fn test_link_stylesheet_is_global() {
         envolve(
             r##"
         <link rel="stylesheet" href="templates/test_linked.gss" />
-        <Text class="box linked" content="A" />
+        <text class="box linked" content="A" />
         "##,
         ),
     )
@@ -2641,7 +2656,7 @@ fn test_link_stylesheet_is_global() {
     let b_path = "templates/test_scoped_b.xml";
     std::fs::write(
         b_path,
-        envolve(r##"<Text class="box linked" content="B" />"##),
+        envolve(r##"<text class="box linked" content="B" />"##),
     )
     .unwrap();
 
@@ -2700,7 +2715,7 @@ fn test_inline_style_block_default_is_global() {
             .box { padding: 9; }
             .inlined { color: #abcabc; }
         </style>
-        <Text class="box inlined" content="A" />
+        <text class="box inlined" content="A" />
         "##,
         ),
     )
@@ -2710,7 +2725,7 @@ fn test_inline_style_block_default_is_global() {
     let b_path = "templates/test_istyle_b.xml";
     std::fs::write(
         b_path,
-        envolve(r##"<Text class="box inlined" content="B" />"##),
+        envolve(r##"<text class="box inlined" content="B" />"##),
     )
     .unwrap();
 
@@ -2769,7 +2784,7 @@ fn test_inline_style_block_scoped_true_is_scoped() {
             .box { padding: 9; }
             .scoped { color: #abcabc; }
         </style>
-        <Text class="box scoped" content="A" />
+        <text class="box scoped" content="A" />
         "##,
         ),
     )
@@ -2779,7 +2794,7 @@ fn test_inline_style_block_scoped_true_is_scoped() {
     let b_path = "templates/test_istyle_scoped_b.xml";
     std::fs::write(
         b_path,
-        envolve(r##"<Text class="box scoped" content="B" />"##),
+        envolve(r##"<text class="box scoped" content="B" />"##),
     )
     .unwrap();
 
@@ -2833,7 +2848,7 @@ fn test_inline_style_overrides_linked_by_document_order() {
             r##"
         <link rel="stylesheet" href="templates/test_istyle_order.gss" />
         <style>.tag { color: #bbbbbb; }</style>
-        <Text class="tag" content="x" />
+        <text class="tag" content="x" />
         "##,
         ),
     )
@@ -2865,7 +2880,7 @@ fn test_inline_style_reloads_with_template() {
     let path = "templates/test_istyle_reload.xml";
     std::fs::write(
         path,
-        envolve(r##"<style>.t { color: #010101; }</style><Text class="t" content="x" />"##),
+        envolve(r##"<style>.t { color: #010101; }</style><text class="t" content="x" />"##),
     )
     .unwrap();
     motor.register_component("rel", path).unwrap();
@@ -2876,7 +2891,7 @@ fn test_inline_style_reloads_with_template() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     std::fs::write(
         path,
-        envolve(r##"<style>.t { color: #020202; }</style><Text class="t" content="x" />"##),
+        envolve(r##"<style>.t { color: #020202; }</style><text class="t" content="x" />"##),
     )
     .unwrap();
     let _ = filetime_touch(path);
@@ -2912,7 +2927,7 @@ fn test_inline_attribute_wins_over_class() {
     // Inline color overrides the class; padding falls back to the class.
     std::fs::write(
         path,
-        envolve(r##"<Text class="tag" content="x" color="#ff0000" />"##),
+        envolve(r##"<text class="tag" content="x" color="#ff0000" />"##),
     )
     .unwrap();
 
@@ -2941,7 +2956,7 @@ fn test_link_rel_import() {
     std::fs::create_dir_all("templates").ok();
 
     let child = "templates/test_li_child.xml";
-    std::fs::write(child, envolve(r##"<Text content="child:{x}" />"##)).unwrap();
+    std::fs::write(child, envolve(r##"<text content="child:{x}" />"##)).unwrap();
 
     let parent = "templates/test_li_parent.xml";
     // Declarative import via <link>; the component is then referenced by name.
@@ -2950,9 +2965,9 @@ fn test_link_rel_import() {
         envolve(
             r##"
         <link rel="import" href="templates/test_li_child.xml" as="ChildLink" />
-        <Column>
+        <column>
             <ChildLink x="42" />
-        </Column>
+        </column>
         "##,
         ),
     )
@@ -2979,9 +2994,9 @@ fn test_link_rel_import() {
 
 #[test]
 fn test_textarea_parses_and_syncs() {
-    // A `<TextArea>` parses to its own node and the engine seeds a stateful
+    // A `<textarea>` parses to its own node and the engine seeds a stateful
     // editor buffer from the bound context value.
-    let xml = r##"<TextArea value="dotenv" placeholder="KEY=VALUE" onChange="env_changed" />"##;
+    let xml = r##"<textarea value="dotenv" placeholder="KEY=VALUE" on_change="env_changed" />"##;
     let ast = UiNode::parse_xml(xml).unwrap();
     match &ast.kind {
         NodeType::TextArea {
@@ -3000,7 +3015,7 @@ fn test_textarea_parses_and_syncs() {
     }
 
     // `readonly` liga via atributo.
-    let ro = UiNode::parse_xml(r##"<TextArea value="x" readonly="true" />"##).unwrap();
+    let ro = UiNode::parse_xml(r##"<textarea value="x" read_only="true" />"##).unwrap();
     match &ro.kind {
         NodeType::TextArea { readonly, .. } => assert!(readonly, "readonly=true deve parsear"),
         other => panic!("expected TextArea, got {other:?}"),
@@ -3023,9 +3038,9 @@ fn test_textarea_parses_and_syncs() {
 
 #[test]
 fn test_select_parses_and_renders() {
-    // A `<Select>` parses to its own node and renders from a context JSON array,
+    // A `<select>` parses to its own node and renders from a context JSON array,
     // marking the bound value as selected.
-    let xml = r##"<Select options="repos" value="chosen" onChange="pick" placeholder="escolha" labelField="full_name" valueField="clone_url" />"##;
+    let xml = r##"<select options="repos" value="chosen" on_change="pick" placeholder="escolha" label_field="full_name" value_field="clone_url" />"##;
     let ast = UiNode::parse_xml(xml).unwrap();
     match &ast.kind {
         NodeType::Select {
@@ -3066,7 +3081,7 @@ fn test_select_parses_and_renders() {
 
 #[test]
 fn test_if_else_inside_foreach() {
-    // Regression: `<if>`/`<else>` nested directly under a `<ForEach>` must be
+    // Regression: `<if>`/`<template else>` nested directly under a `<foreach>` must be
     // resolved per item (only the matching branch renders), not emitted as
     // plain nodes with both branches expanded.
     let mut motor = GlacierUI::new();
@@ -3085,16 +3100,16 @@ fn test_if_else_inside_foreach() {
         envolve(
             r##"
         <link rel="data" href="templates/test_ifforeach.json" as="d" />
-        <Column>
-            <ForEach items="d.rows" var="r">
-                <if cond="{r.filler}" equals="1">
-                    <Text content="GAP" />
-                </if>
-                <else>
-                    <Text content="{r.name}" />
-                </else>
-            </ForEach>
-        </Column>
+        <column>
+            <foreach items="d.rows" var="r">
+                <template if="{r.filler}" equals="1">
+                    <text content="GAP" />
+                </template>
+                <template else>
+                    <text content="{r.name}" />
+                </template>
+            </foreach>
+        </column>
         "##,
         ),
     )
@@ -3139,12 +3154,12 @@ fn test_link_rel_data() {
         envolve(
             r##"
         <link rel="data" href="templates/test_data.json" as="app" />
-        <Column>
-            <Text content="{app.title}" />
-            <ForEach items="app.users" var="u">
-                <Text content="{u.name}" />
-            </ForEach>
-        </Column>
+        <column>
+            <text content="{app.title}" />
+            <foreach items="app.users" var="u">
+                <text content="{u.name}" />
+            </foreach>
+        </column>
         "##,
         ),
     )
@@ -3192,7 +3207,7 @@ fn test_link_rel_theme() {
         envolve(
             r##"
         <link rel="theme" href="templates/test_theme.json" />
-        <Text content="x" />
+        <text content="x" />
         "##,
         ),
     )
@@ -3227,13 +3242,13 @@ fn test_link_rel_theme() {
 #[test]
 fn parses_new_widget_tags() {
     let xml = r##"
-    <Column>
-        <Scrollable direction="vertical"><Text content="a" /></Scrollable>
-        <Checkbox label="Remember" checked="remember" onToggle="toggle_remember" />
-        <Toggle label="Enabled" checked="enabled" onToggle="toggle_enabled" />
-        <Rule direction="horizontal" />
-        <Svg source="icons/rocket.svg" color="#89B4FA" />
-    </Column>
+    <column>
+        <scrollable direction="vertical"><text content="a" /></scrollable>
+        <checkbox label="Remember" checked="remember" on_toggle="toggle_remember" />
+        <toggle label="Enabled" checked="enabled" on_toggle="toggle_enabled" />
+        <rule direction="horizontal" />
+        <svg source="icons/rocket.svg" color="#89B4FA" />
+    </column>
     "##;
     let ast = UiNode::parse_xml(xml).unwrap();
     let kinds: Vec<&NodeType> = ast.children.iter().map(|c| &c.kind).collect();
@@ -3262,7 +3277,7 @@ fn parses_new_widget_tags() {
 #[test]
 fn parses_font_gradient_text_align() {
     let xml =
-        r##"<Text content="Hi" font="mono" gradient="180 #000000 #FFFFFF" textAlign="center" />"##;
+        r##"<text content="Hi" font="mono" gradient="180 #000000 #FFFFFF" text_align="center" />"##;
     let ast = UiNode::parse_xml(xml).unwrap();
     assert_eq!(ast.font(), Some("mono"));
     assert_eq!(ast.gradient(), Some("180 #000000 #FFFFFF"));
@@ -3284,7 +3299,7 @@ fn context_patch_merges_into_context() {
 #[test]
 fn gss_supports_font_and_text_align() {
     use glacier_ui::StyleSheet;
-    let sheet = StyleSheet::parse(".mono { font: mono; text-align: center; }").unwrap();
+    let sheet = StyleSheet::parse(".mono { font: mono; text_align: center; }").unwrap();
     let rule = sheet.rules.get("mono").unwrap();
     assert_eq!(rule.font.as_deref(), Some("mono"));
     assert_eq!(rule.text_align.as_deref(), Some("center"));
@@ -3300,12 +3315,12 @@ fn test_directives_as_attributes() {
         path,
         envolve(
             r##"
-        <Column>
-            <Text content="Olá, {usuario}" if="{logado}" />
-            <Text content="Entre, por favor" senao />
-            <Text content="painel admin" if="{papel}" equals="admin" />
-            <Text content="painel comum" if="{papel}" notEquals="admin" />
-        </Column>
+        <column>
+            <text content="Olá, {usuario}" if="{logado}" />
+            <text content="Entre, por favor" else />
+            <text content="painel admin" if="{papel}" equals="admin" />
+            <text content="painel comum" if="{papel}" not_equals="admin" />
+        </column>
         "##,
         ),
     )
@@ -3319,13 +3334,13 @@ fn test_directives_as_attributes() {
     motor.define_data("papel", "user");
 
     let ev = motor.evaluated("cond_attr").unwrap();
-    // O primeiro Text (if) é ocultado. O segundo Text (senao) é exibido.
+    // O primeiro Text (if) é ocultado. O segundo Text (else) é exibido.
     // O terceiro (if papel equals admin) é ocultado. O quarto (if papel notEquals admin) é exibido.
     assert_eq!(ev.children.len(), 2);
     if let NodeType::Text { content, .. } = &ev.children[0].kind {
         assert_eq!(content, "Entre, por favor");
     } else {
-        panic!("esperava o Text do senao");
+        panic!("esperava o Text do else");
     }
     if let NodeType::Text { content, .. } = &ev.children[1].kind {
         assert_eq!(content, "painel comum");
@@ -3338,7 +3353,7 @@ fn test_directives_as_attributes() {
     motor.define_data("papel", "admin");
 
     let ev = motor.evaluated("cond_attr").unwrap();
-    // O primeiro Text (if) é exibido. O segundo (senao) é ocultado.
+    // O primeiro Text (if) é exibido. O segundo (else) é ocultado.
     // O terceiro (if papel equals admin) é exibido. O quarto (if papel notEquals admin) é ocultado.
     assert_eq!(ev.children.len(), 2);
     if let NodeType::Text { content, .. } = &ev.children[0].kind {
@@ -3365,9 +3380,9 @@ fn test_precedence_foreach_if_attributes() {
         path,
         envolve(
             r##"
-        <Column>
-            <Text content="Item: {u.nome}" for-each="usuarios" var="u" if="{u.ativo}" />
-        </Column>
+        <column>
+            <text content="Item: {u.nome}" for_each="usuarios" var="u" if="{u.ativo}" />
+        </column>
         "##,
         ),
     )
@@ -3409,7 +3424,7 @@ fn test_unknown_extension_falls_back_to_xml() {
     let path = "templates/test_fallback.tmpl";
     std::fs::write(
         path,
-        envolve(r##"<Text content="via XML fallback" size="18" />"##),
+        envolve(r##"<text content="via XML fallback" size="18" />"##),
     )
     .unwrap();
 
@@ -3425,7 +3440,7 @@ fn test_unknown_extension_falls_back_to_xml() {
     std::fs::remove_file(path).ok();
 }
 
-// --- Formulários (`<Form>` / `formControl`) ---------------------------------
+// --- Formulários (`<form>` / `formControl`) ---------------------------------
 
 /// Coleta, em ordem de documento, cada nó com `formControl` definido: o nome
 /// do controle e o próprio nó (já avaliado/hidratado), clonado para escapar do
@@ -3439,7 +3454,7 @@ fn collect_form_inputs(node: &UiNode, out: &mut Vec<(String, UiNode)>) {
     }
 }
 
-/// Componente com um `<Form>` de dois campos, usado pelos testes de
+/// Componente com um `<form>` de dois campos, usado pelos testes de
 /// hidratação e de dispatch abaixo.
 struct FormTestComp;
 impl Component for FormTestComp {
@@ -3448,12 +3463,12 @@ impl Component for FormTestComp {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r#"
-            <Form onSubmit="enviar">
-                <TextInput formControl="usuario" />
-                <TextInput formControl="senha" secure="true" />
-            </Form>
-        "#
+            r##"
+form(on_submit = enviar) {
+  textinput(form_control = usuario)
+  textinput(form_control = senha, secure = true)
+}
+"##
             .into(),
         )
     }
@@ -3496,13 +3511,13 @@ fn test_form_hydrates_scope_submit_and_next_focus() {
     assert_eq!(usuario_name, "usuario");
     assert_eq!(senha_name, "senha");
 
-    // O `onSubmit` do `<Form>` chega em todo controle, para o Enter sempre
+    // O `onSubmit` do `<form>` chega em todo controle, para o Enter sempre
     // disparar a submissão — independente de qual campo está com foco.
     assert_eq!(usuario.form_submit_action(), Some("enviar"));
     assert_eq!(senha.form_submit_action(), Some("enviar"));
 
     // Mesmo `scope` (prefixo do id de foco) em ambos, por pertencerem ao
-    // mesmo `<Form>`.
+    // mesmo `<form>`.
     assert!(usuario.form_scope().is_some());
     assert_eq!(usuario.form_scope(), senha.form_scope());
 
@@ -3561,9 +3576,9 @@ fn test_ui_submit_always_dispatches_regardless_of_next_focus() {
 #[test]
 fn test_form_control_defaults_value_and_on_change() {
     let xml = r#"
-        <Form onSubmit="entrar">
-            <TextInput formControl="usuario" />
-        </Form>
+        <form on_submit="entrar">
+            <textinput form_control="usuario" />
+        </form>
     "#;
     let ast = UiNode::parse_xml(xml).unwrap();
     match &ast.kind {
@@ -3589,9 +3604,9 @@ fn test_form_control_defaults_value_and_on_change() {
 #[test]
 fn test_form_control_respects_explicit_value_and_on_change() {
     let xml = r#"
-        <Form>
-            <TextInput formControl="usuario" value="outro_valor" onChange="outraAcao" />
-        </Form>
+        <form>
+            <textinput form_control="usuario" value="outro_valor" on_change="outraAcao" />
+        </form>
     "#;
     let ast = UiNode::parse_xml(xml).unwrap();
     let input = &ast.children[0];
@@ -3617,13 +3632,13 @@ impl Component for ValidatedFormComp {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r#"
-            <form name="cad" on_submit="salvar" on_validation_error="apontar">
-                <input form_control="nome" rules="required|minlen:3" msg="nome curto" />
-                <input form_control="cpf" rules="digits:11" />
-                <button type="submit" text="ok" />
-            </form>
-        "#
+            r##"
+form(name = cad, on_submit = salvar, on_validation_error = apontar) {
+  input(form_control = nome, rules = "required|minlen:3", msg = "nome curto")
+  input(form_control = cpf, rules = "digits:11")
+  button(type = submit, text = ok)
+}
+"##
             .into(),
         )
     }
@@ -3785,13 +3800,15 @@ impl Component for SpinRulesComp {
         "spinrules"
     }
     fn template(&self) -> Template {
-        // `<SpinBox>` forwards its props into the inner `<TextInput rules="{rules|}">`;
+        // `<spinbox>` forwards its props into the inner `<textinput rules="{rules|}">`;
         // that `{rules|}` must be interpolated at eval, not reach `parse_rules`
         // as a literal.
         Template::Inline(
-            r#"<form name="f" on_submit="s">
-                 <spinbox value="idade" form_control="idade" min="14" max="90" rules="gte:18" />
-               </form>"#
+            r##"
+form(name = f, on_submit = s) {
+  spinbox(:value = idade, form_control = idade, min = 14, max = 90, rules = "gte:18")
+}
+"##
                 .into(),
         )
     }
@@ -3859,10 +3876,10 @@ fn test_fragment_component_splices_if_else_branch() {
         card,
         envolve(
             r#"
-        <Column if="{filler}" equals="1" class="filler" />
-        <Column else class="card">
-          <Text content="{name}" />
-        </Column>
+        <column if="{filler}" equals="1" class="filler" />
+        <column else class="card">
+          <text content="{name}" />
+        </column>
         "#,
         ),
     )
@@ -3872,10 +3889,10 @@ fn test_fragment_component_splices_if_else_branch() {
         envolve(
             r#"
         <import name="FragCard" from="templates/test_frag_card.xml" />
-        <Column class="grid">
+        <column class="grid">
           <FragCard filler="0" name="Alice" />
           <FragCard filler="1" name="Zzz" />
-        </Column>
+        </column>
         "#,
         ),
     )
@@ -3939,10 +3956,10 @@ fn test_register_component_wires_luau_when_script_present() {
         path,
         envolve(
             r#"
-<Container>
-  <Text content="{n}" />
-  <Button text="+" onClick="inc" />
-</Container>
+<container>
+  <text content="{n}" />
+  <button text="+" on_click="inc" />
+</container>
 <script>
 function init() ctx.n = ctx.n or 0 end
 function inc() ctx.n = ctx.n + 1 end
@@ -3975,7 +3992,7 @@ fn test_register_component_ui_only_when_no_script() {
     let path = "templates/test_uionly_unified.xml";
     std::fs::write(
         path,
-        envolve(r#"<Container><Button text="x" onClick="nada" /></Container>"#),
+        envolve(r#"<container><button text="x" on_click="nada" /></container>"#),
     )
     .unwrap();
 
@@ -4019,10 +4036,10 @@ fn test_register_wires_luau_as_layer_over_rust_component() {
         path,
         envolve(
             r#"
-<Container>
-  <Button text="lua" onClick="lua_only" />
-  <Button text="rust" onClick="rust_only" />
-</Container>
+<container>
+  <button text="lua" on_click="lua_only" />
+  <button text="rust" on_click="rust_only" />
+</container>
 <script>
 function lua_only() ctx.from = "lua" end
 </script>
@@ -4054,7 +4071,7 @@ function lua_only() ctx.from = "lua" end
 #[test]
 fn test_text_child_content() {
     // Child text is accepted and normalized (trim + collapse whitespace).
-    let xml = "<Text>  lorem   ipsum \n  dolor  </Text>";
+    let xml = "<text>  lorem   ipsum \n  dolor  </text>";
     let ast = UiNode::parse_xml(xml).unwrap();
     if let NodeType::Text { content, .. } = &ast.kind {
         assert_eq!(content, "lorem ipsum dolor");
@@ -4066,7 +4083,7 @@ fn test_text_child_content() {
 #[test]
 fn test_text_child_wins_over_attribute() {
     // When both are given, the child takes precedence.
-    let xml = r#"<Text content="from attr">from child</Text>"#;
+    let xml = r#"<text content="from attr">from child</Text>"#;
     let ast = UiNode::parse_xml(xml).unwrap();
     if let NodeType::Text { content, .. } = &ast.kind {
         assert_eq!(content, "from child");
@@ -4077,7 +4094,7 @@ fn test_text_child_wins_over_attribute() {
 
 #[test]
 fn test_text_attribute_fallback_when_no_child() {
-    let xml = r#"<Text content="only attr" />"#;
+    let xml = r#"<text content="only attr" />"#;
     let ast = UiNode::parse_xml(xml).unwrap();
     if let NodeType::Text { content, .. } = &ast.kind {
         assert_eq!(content, "only attr");
@@ -4091,18 +4108,18 @@ fn tooltip_parses_interpolates_and_renders() {
     // Atributo cru: `tooltip` e o alias `title` (HTML-like) parseiam pro mesmo
     // campo; `tooltipPosition` é opcional (default resolvido em widget.rs, não
     // no parser — aqui só confere que o valor cru sobrevive).
-    let ast = UiNode::parse_xml(r#"<Button text="x" tooltip="Ajuda" />"#).unwrap();
+    let ast = UiNode::parse_xml(r#"<button text="x" tooltip="Ajuda" />"#).unwrap();
     assert_eq!(ast.tooltip(), Some("Ajuda"));
 
-    let ast_alias = UiNode::parse_xml(r#"<Button text="x" title="Ajuda 2" />"#).unwrap();
+    let ast_alias = UiNode::parse_xml(r#"<button text="x" title="Ajuda 2" />"#).unwrap();
     assert_eq!(ast_alias.tooltip(), Some("Ajuda 2"));
 
     let ast_pos =
-        UiNode::parse_xml(r#"<Button text="x" tooltip="Ajuda" tooltipPosition="left" />"#).unwrap();
+        UiNode::parse_xml(r#"<button text="x" tooltip="Ajuda" tooltip_position="left" />"#).unwrap();
     assert_eq!(ast_pos.tooltip_position(), Some("left"));
 
     // Sem tooltip, o campo fica None (não vira string vazia nem afeta o render).
-    let ast_none = UiNode::parse_xml(r#"<Button text="x" />"#).unwrap();
+    let ast_none = UiNode::parse_xml(r#"<button text="x" />"#).unwrap();
     assert_eq!(ast_none.tooltip(), None);
 
     // Interpolação (`tooltip="{var}"`) + render de ponta a ponta, com um botão
@@ -4110,12 +4127,12 @@ fn tooltip_parses_interpolates_and_renders() {
     // depois do mouse_area em widget.rs; isso confere que ambos os caminhos
     // (com e sem mouse_area) compilam/renderizam sem panicar.
     let xml = r#"
-        <Column>
-            <Button text="Doc" tooltip="{help_text}" onClick="noop" />
-            <Row tooltip="linha sem clique" tooltipPosition="bottom">
-                <Text content="ícone" />
-            </Row>
-        </Column>
+        <column>
+            <button text="Doc" tooltip="{help_text}" on_click="noop" />
+            <row tooltip="linha sem clique" tooltip_position="bottom">
+                <text content="ícone" />
+            </row>
+        </column>
     "#;
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
@@ -4150,7 +4167,11 @@ impl Component for GaleriaMinima {
         "galeria_minima"
     }
     fn template(&self) -> Template {
-        Template::Inline(r#"<Container><Button text="Ok" on_click="ok" /></Container>"#.into())
+        Template::Inline(r##"
+container {
+  button(text = Ok, on_click = ok)
+}
+"##.into())
     }
     fn update(&mut self, _action: &str, _v: Option<&str>, _ctx: &mut Context) {}
 }
@@ -4272,7 +4293,7 @@ fn acoes_builtin_style_trocam_o_estilo() {
 #[test]
 fn checkbox_tristate_parseia() {
     let ast = UiNode::parse_xml(
-        r#"<Checkbox label="Tri" checked="estado" onToggle="estado" tristate="true" />"#,
+        r#"<checkbox label="Tri" checked="estado" on_toggle="estado" tristate="true" />"#,
     )
     .unwrap();
     assert!(matches!(
@@ -4281,15 +4302,15 @@ fn checkbox_tristate_parseia() {
     ));
 }
 
-// --- `<Button>` com filhos (Fase 1, item 1 do plano de convergência de
+// --- `<button>` com filhos (Fase 1, item 1 do plano de convergência de
 // templates GUI↔webui: elimina o hack de `<row on_click>` no lugar de um
-// `<Button>` de verdade — ver `docs/plano-convergencia-templates-gui-webui.md`
+// `<button>` de verdade — ver `docs/plano-convergencia-templates-gui-webui.md`
 // no rustploy) --------------------------------------------------------------
 
 /// `text="…"` continua funcionando (nenhum filho) — o atalho não quebrou.
 #[test]
 fn button_sem_filhos_usa_o_atalho_text() {
-    let ast = UiNode::parse_xml(r#"<Button text="Salvar" on_click="save" />"#).unwrap();
+    let ast = UiNode::parse_xml(r#"<button text="Salvar" on_click="save" />"#).unwrap();
     assert_eq!(ast.children.len(), 0);
     match &ast.kind {
         NodeType::Button { text, .. } => assert_eq!(text, "Salvar"),
@@ -4303,7 +4324,7 @@ fn button_sem_filhos_usa_o_atalho_text() {
 #[test]
 fn button_com_um_filho_captura_o_filho() {
     let ast =
-        UiNode::parse_xml(r#"<Button on_click="menu"><Text content="☰" /></Button>"#).unwrap();
+        UiNode::parse_xml(r#"<button on_click="menu"><text content="☰" /></button>"#).unwrap();
     assert_eq!(ast.children.len(), 1);
     match &ast.children[0].kind {
         NodeType::Text { content, .. } => assert_eq!(content, "☰"),
@@ -4316,7 +4337,7 @@ fn button_com_um_filho_captura_o_filho() {
 #[test]
 fn button_com_varios_filhos_captura_todos_em_ordem() {
     let ast = UiNode::parse_xml(
-        r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#,
+        r#"<button on_click="nav_projects"><text content="▤" /><text content="Projects" /></button>"#,
     )
     .unwrap();
     assert_eq!(ast.children.len(), 2);
@@ -4331,7 +4352,7 @@ fn button_com_varios_filhos_captura_todos_em_ordem() {
     assert_eq!(contents, ["▤", "Projects"]);
 }
 
-/// Ponta a ponta: um `<Button>` com filhos (ícone+rótulo, o caso que
+/// Ponta a ponta: um `<button>` com filhos (ícone+rótulo, o caso que
 /// `nav_item.xml` cobria com `<row on_press>`) renderiza sem panicar — a
 /// mudança em `widget.rs` (conteúdo do botão vira `children` quando há
 /// algum, em vez de só `text=`) constrói o `Row` implícito sem quebrar.
@@ -4342,7 +4363,7 @@ fn button_com_filhos_renderiza() {
     let tpl = "templates/test_button_children.xml";
     std::fs::write(
         tpl,
-        envolve(r#"<Button on_click="nav_projects"><Text content="▤" /><Text content="Projects" /></Button>"#),
+        envolve(r#"<button on_click="nav_projects"><text content="▤" /><text content="Projects" /></button>"#),
     )
     .unwrap();
     motor.register_component("btncomp", tpl).unwrap();
@@ -4355,7 +4376,7 @@ fn button_com_filhos_renderiza() {
 
 // --- `else-if` (Fase 1, item 2 do plano de convergência de templates:
 // aplaina cadeias de tela que hoje precisam de um `<if>` aninhado dentro de
-// cada `<else>` — ver `docs/plano-convergencia-templates-gui-webui.md` no
+// cada `<template else>` — ver `docs/plano-convergencia-templates-gui-webui.md` no
 // rustploy) -----------------------------------------------------------------
 
 /// Todo `Text` avaliado, em ordem de documento — o jeito mais simples de
@@ -4375,7 +4396,7 @@ fn all_texts(node: &UiNode) -> Vec<String> {
     out
 }
 
-/// Cada `<Reveal>` da árvore como `(open, textos que ele embrulha)` — é assim
+/// Cada `<reveal>` da árvore como `(open, textos que ele embrulha)` — é assim
 /// que se pergunta "esta seção do accordion/toolbox está aberta?" desde a 0.90,
 /// quando o corpo passou a existir aberto OU fechado (ver `src/reveal.rs`).
 fn todos_os_reveals(node: &UiNode) -> Vec<(String, Vec<String>)> {
@@ -4392,7 +4413,7 @@ fn todos_os_reveals(node: &UiNode) -> Vec<(String, Vec<String>)> {
     out
 }
 
-// --- `<Reveal>`: a primitiva que abre e fecha animado (0.90) ---------------
+// --- `<reveal>`: a primitiva que abre e fecha animado (0.90) ---------------
 
 /// `open` e `duration` são **valores**, não nomes de chave — os dois passam
 /// pelo interpolador na avaliação, que é o que permite ao `<accordionitem>`
@@ -4405,11 +4426,11 @@ fn reveal_interpola_open_e_duration() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Reveal open="{mostrar}" duration="{ms}">
-                <Text>corpo</Text>
-            </Reveal>
-        </Column>"#,
+            r#"<column>
+            <reveal open="{mostrar}" duration="{ms}">
+                <text>corpo</Text>
+            </reveal>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4437,7 +4458,7 @@ fn reveal_interpola_open_e_duration() {
             }
         }
         walk(tela, &mut achou, mostrar, ms);
-        assert!(achou, "cadê o <Reveal> na árvore?");
+        assert!(achou, "cadê o <reveal> na árvore?");
         // Aberto ou fechado, o corpo está SEMPRE na árvore: é de onde a altura
         // encolhe ao fechar (um nó que não existe não tem de onde animar).
         assert!(
@@ -4451,9 +4472,9 @@ fn reveal_interpola_open_e_duration() {
 
 /// O invariante de que a animação depende: os dois braços do `<accordionitem>`
 /// (aberto e fechado) precisam produzir a MESMA forma de árvore —
-/// cabeçalho + `<Reveal>` —, porque o `iced` casa o estado do widget por
+/// cabeçalho + `<reveal>` —, porque o `iced` casa o estado do widget por
 /// posição na árvore. Um braço com um filho a mais que o outro e a transição
-/// some: o `<Reveal>` do braço novo nasceria zerado em vez de continuar de onde
+/// some: o `<reveal>` do braço novo nasceria zerado em vez de continuar de onde
 /// o antigo parou.
 #[test]
 fn accordion_tem_a_mesma_forma_aberto_e_fechado() {
@@ -4492,7 +4513,7 @@ fn accordion_tem_a_mesma_forma_aberto_e_fechado() {
             envolve(
                 r#"<accordion>
                 <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
-                    <Text>corpo</Text>
+                    <text>corpo</Text>
                 </accordionitem>
             </accordion>"#,
             ),
@@ -4513,7 +4534,7 @@ fn accordion_tem_a_mesma_forma_aberto_e_fechado() {
     assert_eq!(
         forma_aberta, forma_fechada,
         "os dois braços do accordionitem têm que ter a mesma forma, senão o \
-         <Reveal> perde o estado da animação ao trocar de branch"
+         <reveal> perde o estado da animação ao trocar de branch"
     );
     assert_eq!(
         forma_aberta,
@@ -4544,12 +4565,12 @@ fn else_if_atributo_encadeia_com_if_anterior() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Text if="{x}" equals="a">A</Text>
-            <Text else-if="{x}" equals="b">B</Text>
-            <Text else-if="{x}" equals="c">C</Text>
-            <Text else>D</Text>
-        </Column>"#,
+            r#"<column>
+            <text if="{x}" equals="a">A</Text>
+            <text else_if="{x}" equals="b">B</Text>
+            <text else_if="{x}" equals="c">C</Text>
+            <text else>D</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4569,8 +4590,8 @@ fn else_if_atributo_encadeia_com_if_anterior() {
     std::fs::remove_file(tpl).ok();
 }
 
-/// Forma **tag** (`<ElseIf cond="…" equals="…">`, a mesma sintaxe de
-/// `<If cond="…">`/`<Else>` já usadas em `shell.xml`/`home.xml`) — mesma
+/// Forma **tag** (`<template else_if="…" equals="…">`, a mesma sintaxe de
+/// `<template if="…">`/`<template else>` já usadas em `shell.xml`/`home.xml`) — mesma
 /// varredura da versão em atributo.
 #[test]
 fn else_if_tag_encadeia_com_if_anterior() {
@@ -4580,12 +4601,12 @@ fn else_if_tag_encadeia_com_if_anterior() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <If cond="{x}" equals="a"><Text>A</Text></If>
-            <ElseIf cond="{x}" equals="b"><Text>B</Text></ElseIf>
-            <ElseIf cond="{x}" equals="c"><Text>C</Text></ElseIf>
-            <Else><Text>D</Text></Else>
-        </Column>"#,
+            r#"<column>
+            <template if="{x}" equals="a"><text>A</Text></template>
+            <template else_if="{x}" equals="b"><text>B</Text></template>
+            <template else_if="{x}" equals="c"><text>C</Text></template>
+            <template else><text>D</Text></template>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4617,11 +4638,11 @@ fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Text if="{x}" equals="a">A</Text>
-            <Text else-if="{x}" equals="b">B1</Text>
-            <Text else-if="{x}" equals="b">B2</Text>
-        </Column>"#,
+            r#"<column>
+            <text if="{x}" equals="a">A</Text>
+            <text else_if="{x}" equals="b">B1</Text>
+            <text else_if="{x}" equals="b">B2</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4658,7 +4679,7 @@ fn one_of_atributo_casa_qualquer_token_da_lista() {
         // na raiz avaliada diretamente, então a raiz sozinha ignoraria a
         // condição.
         envolve(
-            r#"<Column><Text if="{view}" one_of="projects project new_service service">aceso</Text></Column>"#,
+            r#"<column><text if="{view}" one_of="projects project new_service service">aceso</Text></column>"#,
         ),
     )
     .unwrap();
@@ -4688,7 +4709,7 @@ fn one_of_atributo_casa_qualquer_token_da_lista() {
     std::fs::remove_file(tpl).ok();
 }
 
-/// Forma **tag** — `<If cond="…" one_of="a b c">`/`<ElseIf … one_of="…">` —
+/// Forma **tag** — `<template if="…" one_of="a b c">`/`<elseif … one_of="…">` —
 /// mesma varredura, e confirma que `one_of` funciona encadeado num
 /// `else-if` também (não só no `if` inicial da cadeia).
 #[test]
@@ -4698,11 +4719,11 @@ fn one_of_tag_funciona_em_if_e_em_else_if() {
     let tpl = "templates/test_one_of_tag.xml";
     std::fs::write(
         tpl,
-        envolve(r#"<Column>
-            <If cond="{view}" one_of="deployments deploy_engine"><Text>ops</Text></If>
-            <ElseIf cond="{view}" one_of="projects project new_service service"><Text>projects</Text></ElseIf>
-            <Else><Text>outro</Text></Else>
-        </Column>"#),
+        envolve(r#"<column>
+            <template if="{view}" one_of="deployments deploy_engine"><text>ops</Text></template>
+            <template else_if="{view}" one_of="projects project new_service service"><text>projects</Text></template>
+            <template else><text>outro</Text></template>
+        </column>"#),
     )
     .unwrap();
     motor.register_component("oneoftag", tpl).unwrap();
@@ -4741,7 +4762,7 @@ fn contains_atributo_le_a_lista_da_chave() {
     let tpl = "templates/test_contains_attr.xml";
     std::fs::write(
         tpl,
-        envolve(r#"<Column><Text if="{abertas}" contains="rede">aberta</Text></Column>"#),
+        envolve(r#"<column><text if="{abertas}" contains="rede">aberta</Text></column>"#),
     )
     .unwrap();
     motor.register_component("containsattr", tpl).unwrap();
@@ -4788,11 +4809,11 @@ fn contains_tag_encadeia_e_interpola_o_item() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <template if="{sel}" contains="{alvo}"><Text>tem</Text></template>
-            <template else-if="{sel}" contains="outro"><Text>outro</Text></template>
-            <template else><Text>nada</Text></template>
-        </Column>"#,
+            r#"<column>
+            <template if="{sel}" contains="{alvo}"><text>tem</Text></template>
+            <template else_if="{sel}" contains="outro"><text>outro</Text></template>
+            <template else><text>nada</Text></template>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4835,10 +4856,10 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Text if="{items}" empty>nada</Text>
-            <Text if="{items}" not_empty>tem coisa</Text>
-        </Column>"#,
+            r#"<column>
+            <text if="{items}" empty>nada</Text>
+            <text if="{items}" not_empty>tem coisa</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4863,7 +4884,7 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
     std::fs::remove_file(tpl).ok();
 }
 
-/// Forma **tag** — `<If cond="…" empty>`/`<ElseIf … not_empty>` — mesma
+/// Forma **tag** — `<template if="…" empty>`/`<elseif … not_empty>` — mesma
 /// varredura, e confirma que `not_empty` funciona encadeado num `else-if`.
 #[test]
 fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
@@ -4873,10 +4894,10 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <If cond="{items}" empty><Text>nada</Text></If>
-            <ElseIf cond="{items}" not_empty><Text>tem coisa</Text></ElseIf>
-        </Column>"#,
+            r#"<column>
+            <template if="{items}" empty><text>nada</Text></template>
+            <template else_if="{items}" not_empty><text>tem coisa</Text></template>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -4896,14 +4917,14 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
     std::fs::remove_file(tpl).ok();
 }
 
-// --- `<hr>` como alias de `<Rule>` (Fase 1, item 5 do plano de convergência
+// --- `<hr>` como alias de `<rule>` (Fase 1, item 5 do plano de convergência
 // de templates: aliases de tag, o mecanismo já existe (if/se, on_change/
 // on-change…) — só faltava esse — ver docs/plano-convergencia-templates-
 // gui-webui.md no rustploy) --------------------------------------------------
 
 #[test]
 fn hr_e_alias_de_rule() {
-    for tag in ["<hr />", "<Hr />", "<HR />", "<rule />", "<Rule />"] {
+    for tag in ["<hr />", "<hr />", "<hr />", "<rule />", "<rule />"] {
         let ast = UiNode::parse_xml(tag).unwrap_or_else(|e| panic!("{tag}: {e}"));
         assert!(
             matches!(ast.kind, NodeType::Rule { horizontal: true }),
@@ -4930,10 +4951,10 @@ fn import_href_relativo_ao_arquivo_importador() {
     let parent_path = format!("{dir}/parent.xml");
     let child_path = format!("{dir}/child.xml");
 
-    std::fs::write(&child_path, envolve(r#"<Text content="do filho" />"#)).unwrap();
+    std::fs::write(&child_path, envolve(r#"<text content="do filho" />"#)).unwrap();
     std::fs::write(
         &parent_path,
-        envolve(r#"<link rel="import" href="child.xml" as="Child" /><Column><Child /></Column>"#),
+        envolve(r#"<link rel="import" href="child.xml" as="Child" /><column><Child /></column>"#),
     )
     .unwrap();
 
@@ -4970,11 +4991,11 @@ fn import_href_absoluto_continua_funcionando_como_fallback() {
     let child_path = "templates/import_abs_child_only_here.xml";
     let parent_path = "templates/import_abs_sub/parent.xml";
 
-    std::fs::write(child_path, envolve(r#"<Text content="raiz" />"#)).unwrap();
+    std::fs::write(child_path, envolve(r#"<text content="raiz" />"#)).unwrap();
     std::fs::write(
         parent_path,
         envolve(format!(
-            r#"<link rel="import" href="{child_path}" as="Child" /><Column><Child /></Column>"#
+            r#"<link rel="import" href="{child_path}" as="Child" /><column><Child /></column>"#
         )),
     )
     .unwrap();
@@ -5021,10 +5042,10 @@ fn platform_filtra_sozinho_sem_precisar_de_cond() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Text platform="desktop">só desktop</Text>
-            <Text platform="web">só web</Text>
-        </Column>"#,
+            r#"<column>
+            <text platform="desktop">só desktop</Text>
+            <text platform="web">só web</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -5051,12 +5072,12 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <Text if="{x}" equals="a">A</Text>
-            <Text else-if="{x}" equals="b" platform="web">B (só web, nunca aqui)</Text>
-            <Text else-if="{x}" equals="b">B</Text>
-            <Text else>C</Text>
-        </Column>"#,
+            r#"<column>
+            <text if="{x}" equals="a">A</Text>
+            <text else_if="{x}" equals="b" platform="web">B (só web, nunca aqui)</text>
+            <text else_if="{x}" equals="b">B</Text>
+            <text else>C</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -5076,8 +5097,8 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
     std::fs::remove_file(tpl).ok();
 }
 
-// --- `<template>` (estudo pós-Fase-1: unifica `<ForEach>`/`<If>`/
-// `<ElseIf>`/`<Else>` numa tag só, mapeando para os mesmos NodeType — ver
+// --- `<template>` (estudo pós-Fase-1: unifica `<foreach>`/`<if>`/
+// `<elseif>`/`<template else>` numa tag só, mapeando para os mesmos NodeType — ver
 // docs/plano-convergencia-templates-gui-webui.md no rustploy e o nome
 // `<template x-if>`/`<template x-for>` que a Fase 4 (transpilação p/ Alpine)
 // já teria como alvo) --------------------------------------------------
@@ -5087,7 +5108,7 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
 /// `hr_e_alias_de_rule`.
 #[test]
 fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
-    let for_each = UiNode::parse_xml(r#"<template for-each="items" var="i"><Text/></template>"#)
+    let for_each = UiNode::parse_xml(r#"<template for_each="items" var="i"><text/></template>"#)
         .expect("for-each");
     assert!(
         matches!(for_each.kind, NodeType::ForEach { .. }),
@@ -5098,14 +5119,14 @@ fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
     // `else` bare (sem valor) só vira `else=""` via `normalize_bare_directives`,
     // que roda no carregamento de arquivo — não em `parse_xml` isolado (ver
     // `normalize_bare_directives_nao_mexe_em_else_com_valor_ja_presente`).
-    let else_node = UiNode::parse_xml(r#"<template else=""><Text/></template>"#).expect("else");
+    let else_node = UiNode::parse_xml(r#"<template else=""><text/></template>"#).expect("else");
     assert!(
         matches!(else_node.kind, NodeType::Else),
         "template com else bare deveria virar NodeType::Else, foi {:?}",
         else_node.kind
     );
 
-    let else_if = UiNode::parse_xml(r#"<template else-if="{x}" equals="a"><Text/></template>"#)
+    let else_if = UiNode::parse_xml(r#"<template else_if="{x}" equals="a"><text/></template>"#)
         .expect("else-if");
     assert!(
         matches!(else_if.kind, NodeType::ElseIf { .. }),
@@ -5114,14 +5135,14 @@ fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
     );
 
     let if_node =
-        UiNode::parse_xml(r#"<template if="{x}" equals="a"><Text/></template>"#).expect("if");
+        UiNode::parse_xml(r#"<template if="{x}" equals="a"><text/></template>"#).expect("if");
     assert!(
         matches!(if_node.kind, NodeType::If { .. }),
         "template com if deveria virar NodeType::If, foi {:?}",
         if_node.kind
     );
 
-    let bare = UiNode::parse_xml(r#"<template><Text/></template>"#).expect("bare");
+    let bare = UiNode::parse_xml(r#"<template><text/></template>"#).expect("bare");
     assert!(
         matches!(bare.kind, NodeType::If { ref cond, .. } if cond == "true"),
         "template sem atributo nenhum deveria virar um If sempre-verdadeiro, foi {:?}",
@@ -5130,9 +5151,9 @@ fn template_resolve_para_o_nodetype_certo_conforme_o_atributo_presente() {
 }
 
 /// `<template if=…>`/`<template else-if=…>`/`<template else>` encadeiam
-/// exatamente como `<If>`/`<ElseIf>`/`<Else>` — e, como essas tags, cada
+/// exatamente como `<if>`/`<elseif>`/`<template else>` — e, como essas tags, cada
 /// branch **agrupa múltiplos filhos como irmãos do pai**, sem nenhum
-/// `<Column>`/`<Row>` extra por baixo (é isso que a forma-atributo `if=`
+/// `<column>`/`<row>` extra por baixo (é isso que a forma-atributo `if=`
 /// num elemento comum NÃO consegue: ela sempre produz UM nó — o próprio
 /// elemento —, nunca uma lista de irmãos).
 #[test]
@@ -5143,19 +5164,19 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
+            r#"<column>
             <template if="{view}" equals="a">
-                <Text>A1</Text>
-                <Text>A2</Text>
+                <text>A1</Text>
+                <text>A2</Text>
             </template>
-            <template else-if="{view}" equals="b">
-                <Text>B1</Text>
+            <template else_if="{view}" equals="b">
+                <text>B1</Text>
             </template>
             <template else>
-                <Text>C1</Text>
-                <Text>C2</Text>
+                <text>C1</Text>
+                <text>C2</Text>
             </template>
-        </Column>"#,
+        </column>"#,
         ),
     )
     .unwrap();
@@ -5171,7 +5192,7 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
         motor.reevaluate_all().unwrap();
         let evaluated = motor.evaluated("templateifchain").unwrap();
         assert_eq!(evaluated.kind, NodeType::Column);
-        // Os filhos do branch que casou estão DIRETO sob o <Column> — sem
+        // Os filhos do branch que casou estão DIRETO sob o <column> — sem
         // nenhum nó intermediário representando o <template>.
         assert_eq!(
             evaluated.children.len(),
@@ -5189,7 +5210,7 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
     std::fs::remove_file(tpl).ok();
 }
 
-/// `<template for-each=… var=…>` itera como `<ForEach>` — cada iteração
+/// `<template for-each=… var=…>` itera como `<foreach>` — cada iteração
 /// pode emitir MAIS de um nó, todos irmãos diretos do pai, sem um wrapper
 /// por item.
 #[test]
@@ -5200,12 +5221,12 @@ fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
-            <template for-each="items" var="it">
-                <Text>{it.name}</Text>
-                <Text>#{it.val}</Text>
+            r#"<column>
+            <template for_each="items" var="it">
+                <text>{it.name}</text>
+                <text>#{it.val}</text>
             </template>
-        </Column>"#,
+        </column>"#,
         ),
     )
     .unwrap();
@@ -5233,7 +5254,7 @@ fn template_for_each_itera_varios_filhos_por_item_sem_wrapper() {
 
 /// `<template>` sem atributo nenhum é um agrupador incondicional — sempre
 /// hoista os filhos como irmãos. Serve pra um componente devolver mais de
-/// uma raiz sem precisar de um `<Row>`/`<Column>` artificial.
+/// uma raiz sem precisar de um `<row>`/`<column>` artificial.
 #[test]
 fn template_bare_agrupa_filhos_incondicionalmente() {
     let mut motor = GlacierUI::new();
@@ -5242,13 +5263,13 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
     std::fs::write(
         tpl,
         envolve(
-            r#"<Column>
+            r#"<column>
             <template>
-                <Text>um</Text>
-                <Text>dois</Text>
+                <text>um</Text>
+                <text>dois</Text>
             </template>
-            <Text>tres</Text>
-        </Column>"#,
+            <text>tres</Text>
+        </column>"#,
         ),
     )
     .unwrap();
@@ -5283,7 +5304,7 @@ fn test_screen_meta_reloads_with_template() {
     let path = "templates/test_screen_reload.xml";
     std::fs::write(
         path,
-        r#"<screen title="Antes" size="800 600"><Text content="x" /></screen>"#,
+        r#"<screen title="Antes" size="800 600"><text content="x" /></screen>"#,
     )
     .unwrap();
     motor.register_component("tela", path).unwrap();
@@ -5296,7 +5317,7 @@ fn test_screen_meta_reloads_with_template() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     std::fs::write(
         path,
-        r#"<screen title="Depois" size="900 640"><Text content="x" /></screen>"#,
+        r#"<screen title="Depois" size="900 640"><text content="x" /></screen>"#,
     )
     .unwrap();
     let _ = filetime_touch(path);
@@ -5311,7 +5332,7 @@ fn test_screen_meta_reloads_with_template() {
     // Trocar o <screen> por um <component> (o cabeçalho sem metadados de
     // janela) também tem de apagar os metadados no motor.
     std::thread::sleep(std::time::Duration::from_millis(10));
-    std::fs::write(path, envolve(r#"<Text content="x" />"#)).unwrap();
+    std::fs::write(path, envolve(r#"<text content="x" />"#)).unwrap();
     let _ = filetime_touch(path);
     motor.check_reload();
     assert!(motor.current_screen_meta().is_none());
@@ -5335,11 +5356,11 @@ fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
         comp,
         r#"<component>
             <resources><style>
-            .interno { background: #111111; border-radius: 3; }
+            .interno { background: #111111; border_radius: 3; }
             </style></resources>
-            <Column class="interno" padding="7">
-                <Text content="oi" />
-            </Column>
+            <column class="interno" padding="7">
+                <text content="oi" />
+            </column>
         </component>"#,
     )
     .unwrap();
@@ -5352,10 +5373,10 @@ fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
         <style>
         .de_fora { background: #abcdef; padding: 99; }
         </style>
-        <Column>
+        <column>
             <Caixa class="de_fora" />
             <Caixa />
-        </Column>
+        </column>
         "#,
         ),
     )
@@ -5407,7 +5428,7 @@ fn class_no_uso_de_componente_pinta_a_raiz_expandida() {
 
 /// O mesmo, mas num BUILTIN da lib (`spinbox`), que é o caso que originou a
 /// mudança — e junto as duas props novas: `field_class` e `form_control`
-/// chegam ao `<TextInput>` de dentro, e a `<Form>` que envolve o widget
+/// chegam ao `<textinput>` de dentro, e a `<form>` que envolve o widget
 /// hidrata esse campo (id de foco + ação de submit + qual é o controle
 /// seguinte, para onde o Enter avança), porque a hidratação roda depois da
 /// expansão de componente. Nada disto tem a ver com Tab: a travessia por Tab é
@@ -5423,14 +5444,14 @@ fn spinbox_repassa_field_class_e_form_control() {
             r#"
         <style>
         .campo_num { background: #123456; }
-        .moldura   { border-radius: 9; }
+        .moldura   { border_radius: 9; }
         </style>
-        <Form name="f" on_submit="salvar">
-            <TextInput formControl="antes" value="antes" />
-            <SpinBox value="qtd" min="1" max="9"
+        <form name="f" on_submit="salvar">
+            <textinput form_control="antes" value="antes" />
+            <spinbox value="qtd" min="1" max="9"
                      class="moldura" field_class="campo_num" form_control="qtd" />
-            <TextInput formControl="depois" value="depois" />
-        </Form>
+            <textinput form_control="depois" value="depois" />
+        </form>
         "#,
         ),
     )
@@ -5482,7 +5503,7 @@ fn spinbox_repassa_field_class_e_form_control() {
 /// aba "Accordion + ToolBox" da Onda 4 é onde isso aparece na cara.
 ///
 /// A armadilha, que já quebrou esta tela: mover `width="440"` de prop para
-/// `class="col_larga"` parece a mesma coisa e não é. O template do `<GroupBox>`
+/// `class="col_larga"` parece a mesma coisa e não é. O template do `<groupbox>`
 /// escreve `width="{width|fill}"` **inline**, e um default inline resolve
 /// sempre — a classe do uso perde. O `width` vira `fill`, e dois filhos `fill`
 /// dentro de uma `<row>` sem largura colapsam para zero: as duas seções somem da
@@ -5675,7 +5696,7 @@ fn exemplo_onda4_pega_todo_o_estilo_do_gss() {
         }
         match &n.kind {
             NodeType::Text { color: Some(c), .. } => cores.push(c.clone()),
-            // O fundo de um `<Button>` não é `background`: é o campo `color` do
+            // O fundo de um `<button>` não é `background`: é o campo `color` do
             // próprio nó (é assim que `.tab`/`.listview-item` o pintam).
             NodeType::Button { color: Some(c), .. } => fundos.push(c.clone()),
             _ => {}
@@ -5694,7 +5715,7 @@ fn exemplo_onda4_pega_todo_o_estilo_do_gss() {
     );
     // `.item_ativo`/`.aba_ativa { color: var(--realce) }` — nós de DENTRO do
     // `<listview>` e do `<tabbar>`, que só a injeção de classe alcança. O campo
-    // `color` de um `<Button>` é o fundo dele.
+    // `color` de um `<button>` é o fundo dele.
     assert!(
         fundos.iter().any(|c| c.eq_ignore_ascii_case("#8080803D")),
         "o realce injetado não chegou ao item/aba: {fundos:?}"
@@ -5727,20 +5748,21 @@ fn builtins_aceitam_classe_nos_nos_de_dentro() {
         }
         fn template(&self) -> Template {
             Template::Inline(
-                r##"<component>
-        <style>
+                r##"
+component {
+  style """
         .linha       { background: #101010; }
         .linha_ativa { background: #202020; }
         .titulo_card { color: #303030; }
         .selo_txt    { color: #404040; }
-        </style>
-        <column>
-            <listview items="itens" value="qual" selected="{qual}"
-                      item_class="linha" selected_class="linha_ativa" />
-            <card title="Servidor" title_class="titulo_card" />
-            <badge badge_text="Novo" text_class="selo_txt" />
-        </column>
-    </component>"##
+        """
+  column {
+    listview(:items = itens, :value = qual, selected = @qual, item_class = linha, selected_class = linha_ativa)
+    card(title = Servidor, title_class = titulo_card)
+    badge(badge_text = Novo, text_class = selo_txt)
+  }
+}
+"##
                     .to_string(),
             )
         }
@@ -6058,7 +6080,7 @@ fn textos_do_foreach(dados: &str, corpo: &str) -> Vec<String> {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         &caminho,
-        format!(r#"<component><Column><ForEach items="dados" var="l">{corpo}</ForEach></Column></component>"#),
+        format!(r#"<component><column><foreach items="dados" var="l">{corpo}</foreach></column></component>"#),
     )
     .unwrap();
     motor.register_component("Tela", &caminho).unwrap();
@@ -6086,7 +6108,7 @@ fn foreach_preguicoso_campo_de_texto() {
     assert_eq!(
         textos_do_foreach(
             r#"[{"nome":"Ana"},{"nome":"Beto"}]"#,
-            r#"<Text content="{l.nome}" />"#
+            r#"<text content="{l.nome}" />"#
         ),
         vec!["Ana", "Beto"]
     );
@@ -6099,7 +6121,7 @@ fn foreach_preguicoso_escalares_nao_texto() {
     assert_eq!(
         textos_do_foreach(
             r#"[{"n":42,"b":true,"z":null,"f":1.5}]"#,
-            r#"<Text content="{l.n}|{l.b}|{l.z}|{l.f}" />"#
+            r#"<text content="{l.n}|{l.b}|{l.z}|{l.f}" />"#
         ),
         vec!["42|true|null|1.5"]
     );
@@ -6111,7 +6133,7 @@ fn foreach_preguicoso_escalares_nao_texto() {
 #[test]
 fn foreach_preguicoso_item_inteiro_de_objeto() {
     assert_eq!(
-        textos_do_foreach(r#"[{"a":1,"b":"x"}]"#, r#"<Text content="{l}" />"#),
+        textos_do_foreach(r#"[{"a":1,"b":"x"}]"#, r#"<text content="{l}" />"#),
         vec![r#"{"a":1,"b":"x"}"#]
     );
 }
@@ -6121,7 +6143,7 @@ fn foreach_preguicoso_item_inteiro_de_objeto() {
 #[test]
 fn foreach_preguicoso_item_escalar() {
     assert_eq!(
-        textos_do_foreach(r#"["um","dois",3]"#, r#"<Text content="{l}" />"#),
+        textos_do_foreach(r#"["um","dois",3]"#, r#"<text content="{l}" />"#),
         vec!["um", "dois", "3"]
     );
 }
@@ -6137,7 +6159,7 @@ fn foreach_preguicoso_prefixo_nao_e_campo() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         caminho,
-        r#"<component><Column><ForEach items="dados" var="l"><Text content="{lista}/{l.nome}" /></ForEach></Column></component>"#,
+        r#"<component><column><foreach items="dados" var="l"><text content="{lista}/{l.nome}" /></foreach></column></component>"#,
     )
     .unwrap();
     motor.register_component("Tela", caminho).unwrap();
@@ -6168,10 +6190,10 @@ fn foreach_preguicoso_prefixo_nao_e_campo() {
 #[test]
 fn foreach_preguicoso_campo_inexistente() {
     assert_eq!(
-        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#),
-        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#)
+        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<text content="[{l.zzz}]" />"#),
+        textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<text content="[{l.zzz}]" />"#)
     );
-    let v = textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<Text content="[{l.zzz}]" />"#);
+    let v = textos_do_foreach(r#"[{"nome":"Ana"}]"#, r#"<text content="[{l.zzz}]" />"#);
     assert_eq!(v.len(), 1, "o item renderiza mesmo com campo ausente");
 }
 
@@ -6186,7 +6208,7 @@ fn foreach_preguicoso_cache_por_item_continua_correto() {
     std::fs::create_dir_all("templates").ok();
     std::fs::write(
         caminho,
-        r#"<component><Column><ForEach items="dados" var="l"><Text content="{l.nome}" /></ForEach></Column></component>"#,
+        r#"<component><column><foreach items="dados" var="l"><text content="{l.nome}" /></foreach></column></component>"#,
     )
     .unwrap();
     motor.register_component("Tela", caminho).unwrap();
@@ -6274,7 +6296,7 @@ fn tela_com_widget_de_slot_continua_reavaliando() {
 
     const ITEM: &str = r#"<accordion>
             <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
-                <Text content="corpo" />
+                <text content="corpo" />
             </accordionitem>
         </accordion>"#;
 
@@ -6297,7 +6319,7 @@ fn tela_com_widget_de_slot_continua_reavaliando() {
     //    não só o widget.
     let (mut motor, tpl) = monta(
         "irmao",
-        &format!(r#"<Column><Text content="marca:{{abertas}}" />{ITEM}</Column>"#),
+        &format!(r#"<column><text content="marca:{{abertas}}" />{ITEM}</column>"#),
     );
     let _ = motor.evaluated("irmao").unwrap();
     motor.define_data("abertas", "rede");
@@ -6338,28 +6360,28 @@ fn motor_com(layout: &str) -> GlacierUI {
 #[test]
 fn tela_sem_menu_nao_rastreia_o_cursor() {
     let motor =
-        motor_com(r#"<Column><Text content="oi" /><Button text="b" on_click="x" /></Column>"#);
+        motor_com(r#"<column><text content="oi" /><button text="b" on_click="x" /></column>"#);
     assert!(
         !motor.precisa_do_cursor(),
         "sem menu na árvore, escutar o mouse só gera quadro à toa"
     );
 }
 
-/// Um `<MenuBar>` precisa: a âncora do dropdown é onde o cursor está.
+/// Um `<menubar>` precisa: a âncora do dropdown é onde o cursor está.
 #[test]
 fn menubar_rastreia_o_cursor() {
     let motor = motor_com(
-        r#"<Column><MenuBar><Menu label="Arquivo"><MenuItem label="Sair" on_click="sair" /></Menu></MenuBar></Column>"#,
+        r#"<column><menubar><menu label="Arquivo"><menuitem label="Sair" on_click="sair" /></menu></menubar></column>"#,
     );
     assert!(motor.precisa_do_cursor());
 }
 
-/// Um `<ContextMenu>` idem — e ele costuma estar fundo na árvore, então a
+/// Um `<contextmenu>` idem — e ele costuma estar fundo na árvore, então a
 /// varredura tem de ser recursiva.
 #[test]
 fn context_menu_fundo_na_arvore_rastreia_o_cursor() {
     let motor = motor_com(
-        r#"<Column><Container><Row><ContextMenu items="acoes"><Text content="clique com o direito" /></ContextMenu></Row></Container></Column>"#,
+        r#"<column><container><row><contextmenu items="acoes"><text content="clique com o direito" /></contextmenu></row></container></column>"#,
     );
     assert!(
         motor.precisa_do_cursor(),
@@ -6375,14 +6397,14 @@ fn context_menu_fundo_na_arvore_rastreia_o_cursor() {
 
 /// Uma tela solta, com um nome por caso (a suíte roda em paralelo).
 ///
-/// O `<Column>` por fora não é decoração: um template de raiz única avalia para
+/// O `<column>` por fora não é decoração: um template de raiz única avalia para
 /// o próprio nó, e aí `children[0]` seria o primeiro filho do widget em vez do
 /// widget. Com a coluna, `children[0]` é sempre o que o teste escreveu.
 fn motor_tela(nome: &str, layout: &str) -> GlacierUI {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let caminho = format!("templates/test_{nome}.xml");
-    std::fs::write(&caminho, envolve(format!("<Column>{layout}</Column>"))).unwrap();
+    std::fs::write(&caminho, envolve(format!("<column>{layout}</column>"))).unwrap();
     motor.register_component(nome, &caminho).unwrap();
     motor.navigate_to(nome);
     motor.reevaluate_all().unwrap();
@@ -6418,7 +6440,7 @@ fn onda5_slot_com_nome_dinamico_escolhe_a_regiao() {
     let painel = "templates/test_slot_din_painel.xml";
     std::fs::write(
         painel,
-        r#"<component><Column><slot name="{aba}"/></Column></component>"#,
+        r#"<component><column><slot name="{aba}"/></column></component>"#,
     )
     .unwrap();
     let tela = "templates/test_slot_din_tela.xml";
@@ -6426,8 +6448,8 @@ fn onda5_slot_com_nome_dinamico_escolhe_a_regiao() {
         tela,
         r#"<component>
             <PainelDin aba="{aba}">
-                <template slot="geral"><Text content="pagina-geral" /></template>
-                <template slot="rede"><Text content="pagina-rede" /></template>
+                <template slot="geral"><text content="pagina-geral" /></template>
+                <template slot="rede"><text content="pagina-rede" /></template>
             </PainelDin>
         </component>"#,
     )
@@ -6476,8 +6498,8 @@ fn onda5_tabs_troca_a_pagina_com_a_chave() {
         caminho,
         envolve(
             r#"<tabs value="aba" active="{aba}" items="abas">
-                   <template slot="geral"><Text content="corpo-geral" /></template>
-                   <template slot="rede"><Text content="corpo-rede" /></template>
+                   <template slot="geral"><text content="corpo-geral" /></template>
+                   <template slot="rede"><text content="corpo-rede" /></template>
                </tabs>"#,
         ),
     )
@@ -6498,7 +6520,7 @@ fn onda5_tabs_troca_a_pagina_com_a_chave() {
     // Os rótulos da barra saem do `items`, não do markup das páginas.
     assert!(textos.contains(&"Geral".to_string()) && textos.contains(&"Rede".to_string()));
 
-    // Clicar numa aba é o `update` da `<TabBar>` embutida — nenhuma linha de
+    // Clicar numa aba é o `update` da `<tabbar>` embutida — nenhuma linha de
     // app envolvida.
     let _ = motor.dispatch(&EngineMessage::UiClick("tabbar::pick:aba|rede".into()));
     assert_eq!(motor.context().get("aba").map(String::as_str), Some("rede"));
@@ -6515,7 +6537,7 @@ fn onda5_popover_parte_gatilho_e_painel() {
     let mut motor = motor_tela(
         "onda5_popover",
         r#"<popover value="menu" placement="top" align="end" panel_width="anchor">
-               <column class="painel"><Text content="painel" /></column>
+               <column class="painel"><text content="painel" /></column>
                <button slot="anchor" text="abrir" on_click="x" />
            </popover>"#,
     );
@@ -6552,7 +6574,7 @@ fn onda5_popover_parte_gatilho_e_painel() {
 fn onda5_popup_e_a_mesma_primitiva_centrada() {
     let mut motor = motor_tela(
         "onda5_popup",
-        r#"<popup value="atalhos"><Text content="ajuda" /></popup>"#,
+        r#"<popup value="atalhos"><text content="ajuda" /></popup>"#,
     );
     match &motor.evaluated("onda5_popup").unwrap().children[0].kind {
         NodeType::Popover { placement, .. } => {
@@ -6567,7 +6589,7 @@ fn onda5_popup_e_a_mesma_primitiva_centrada() {
 fn onda5_dateedit_com_calendar_popup() {
     let mut motor = motor_tela(
         "onda5_dtpop",
-        r#"<dateedit value="entrada" calendarPopup="true" today="2026-09-04" min="2026-01-01" />"#,
+        r#"<dateedit value="entrada" calendar_popup="true" today="2026-09-04" min="2026-01-01" />"#,
     );
     match &motor.evaluated("onda5_dtpop").unwrap().children[0].kind {
         NodeType::DateTimeEdit {
@@ -6584,7 +6606,7 @@ fn onda5_dateedit_com_calendar_popup() {
     // de mês num campo de hora não escreveria nada.
     let mut motor = motor_tela(
         "onda5_dtpop_hora",
-        r#"<timeedit value="hora" calendarPopup="true" />"#,
+        r#"<timeedit value="hora" calendar_popup="true" />"#,
     );
     match &motor.evaluated("onda5_dtpop_hora").unwrap().children[0].kind {
         NodeType::DateTimeEdit { popup, .. } => assert!(!popup),
@@ -6624,7 +6646,7 @@ fn onda5_autocomplete_props() {
 /// `PatchThen`: grava o estado do motor e só então entrega a ação ao app.
 #[test]
 fn onda5_patch_then_grava_antes_de_despachar() {
-    let mut motor = motor_tela("onda5_patch", r#"<Text content="{eco}" />"#);
+    let mut motor = motor_tela("onda5_patch", r#"<text content="{eco}" />"#);
     motor.define_data("eco", "");
     let _ = motor.dispatch(&EngineMessage::PatchThen {
         patch: vec![("__ac_cidade".into(), "2".into())],
@@ -6650,7 +6672,7 @@ fn onda5_drawer_alterna_a_chave_nomeada() {
     let mut motor = motor_tela(
         "onda5_drawer",
         r#"<row>
-               <drawer value="menu" open="{menu}"><Text content="lateral" /></drawer>
+               <drawer value="menu" open="{menu}"><text content="lateral" /></drawer>
                <button text="≡" on_click="drawer::toggle:menu" />
            </row>"#,
     );
@@ -6668,8 +6690,8 @@ fn onda5_drawer_alterna_a_chave_nomeada() {
 fn onda5_reveal_aceita_o_eixo_horizontal() {
     let mut motor = motor_tela(
         "onda5_reveal_x",
-        r#"<reveal open="true" axis="x"><Text content="lado" /></reveal>
-           <reveal open="true"><Text content="baixo" /></reveal>"#,
+        r#"<reveal open="true" axis="x"><text content="lado" /></reveal>
+           <reveal open="true"><text content="baixo" /></reveal>"#,
     );
     let col = motor.evaluated("onda5_reveal_x").unwrap();
     match (&col.children[0].kind, &col.children[1].kind) {
@@ -6694,9 +6716,9 @@ fn onda6_grid_e_flow_leem_as_trilhas() {
     let mut motor = motor_tela(
         "onda6_grid",
         r#"<grid columns="140 fill 80" spacing="8" row_spacing="4">
-               <Text content="a" /><Text content="b" /><Text content="c" />
+               <text content="a" /><text content="b" /><text content="c" />
            </grid>
-           <flow spacing="6"><Text content="x" /></flow>"#,
+           <flow spacing="6"><text content="x" /></flow>"#,
     );
     let raiz = motor.evaluated("onda6_grid").unwrap();
     match &raiz.children[0].kind {
@@ -6727,7 +6749,7 @@ fn onda6_grid_e_flow_leem_as_trilhas() {
 fn onda6_grid_interpola_as_colunas() {
     let mut motor = motor_tela(
         "onda6_grid_tpl",
-        r#"<grid columns="{trilhas}"><Text content="a" /></grid>"#,
+        r#"<grid columns="{trilhas}"><text content="a" /></grid>"#,
     );
     motor.define_data("trilhas", "100 fill");
     motor.reevaluate_all().unwrap();
@@ -6792,7 +6814,7 @@ fn motor_tabela(nome: &str, estilo: &str, layout: &str, ctx: &[(&str, &str)]) ->
     let caminho = format!("templates/test_{nome}.xml");
     std::fs::write(
         &caminho,
-        envolve(format!("<style>{estilo}</style><Column>{layout}</Column>")),
+        envolve(format!("<style>{estilo}</style><column>{layout}</column>")),
     )
     .unwrap();
     motor.register_component(nome, &caminho).unwrap();
@@ -6822,14 +6844,14 @@ fn tablecolumn_avalia_o_corpo_por_linha_na_ordem_do_sort() {
         ".col_oculta { hidden: true; }",
         r#"<tableview items="linhas" sort="ordem" var="r">
                <tablecolumn key="nome" label="NOME" width="120">
-                   <Text content="[{r.nome}]" />
+                   <text content="[{r.nome}]" />
                </tablecolumn>
                <tablecolumn key="n" label="N" align="right" />
                <tablecolumn key="estado" class="col_oculta">
-                   <Text content="{r.estado}" />
+                   <text content="{r.estado}" />
                </tablecolumn>
                <tablecolumn label="AÇÃO">
-                   <Button text="Remover" on_click="rm:{r.id}" />
+                   <button text="Remover" on_click="rm:{r.id}" />
                </tablecolumn>
            </tableview>"#,
         &[("linhas", LINHAS_TABELA), ("ordem", "n desc")],
@@ -6884,7 +6906,7 @@ fn tableview_sem_linhas_mostra_os_filhos_que_nao_sao_coluna() {
             "",
             r#"<tableview items="linhas" var="r">
                    <tablecolumn key="nome" />
-                   <Text content="nenhum item" />
+                   <text content="nenhum item" />
                </tableview>"#,
             &[("linhas", linhas)],
         );
@@ -6912,7 +6934,7 @@ fn tablecolumn_sort_key_ordena_por_outro_campo() {
         "",
         r#"<tableview items="linhas" sort="ordem" var="r">
                <tablecolumn key="nome" sort_key="n">
-                   <Text content="{r.nome}" />
+                   <text content="{r.nome}" />
                </tablecolumn>
            </tableview>"#,
         &[("linhas", LINHAS_TABELA), ("ordem", "n asc")],
@@ -6935,8 +6957,8 @@ fn tablecolumn_sort_key_ordena_por_outro_campo() {
 fn tableview_resolve_header_class_e_row_class() {
     let mut motor = motor_tabela(
         "tabela_look",
-        ".cab { background: #112233; padding: 14 18; border-radius: 5; size: 11; bold: true; }
-         .lin { padding: 13 18; border-color: #445566; }
+        ".cab { background: #112233; padding: 14 18; border_radius: 5; size: 11; bold: true; }
+         .lin { padding: 13 18; border_color: #445566; }
          .lin:hover { background: #778899; }",
         r#"<tableview items="linhas" header_class="cab" row_class="lin">
                <tablecolumn key="nome" />
@@ -7128,7 +7150,7 @@ fn onda6_a_coluna_arrastada_tem_piso() {
 fn onda7_dial_props() {
     let mut motor = motor_tela(
         "onda7_dial",
-        r#"<dial value="volume" min="0" max="11" step="0.5" notches="11" showValue="true" />"#,
+        r#"<dial value="volume" min="0" max="11" step="0.5" notches="11" show_value="true" />"#,
     );
     match &motor.evaluated("onda7_dial").unwrap().children[0].kind {
         NodeType::Dial {
@@ -7345,7 +7367,11 @@ impl Component for TelaComFormImportado {
         "tela_form"
     }
     fn template(&self) -> Template {
-        Template::Inline(r#"<Column><Include src="filho_form" /></Column>"#.into())
+        Template::Inline(r##"
+column {
+  include(src = filho_form)
+}
+"##.into())
     }
     fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {}
     fn on_form_submit(&mut self, _a: &str, ctx: &mut Context) {
@@ -7537,7 +7563,7 @@ fn link_rel_style_registra_e_set_style_troca() {
           function init() set_style("qt-escuro") end
           function clarear() set_style("qt-claro") end
         </script>
-        <Text content="x" />
+        <text content="x" />
         "##,
         ),
     )
@@ -7581,7 +7607,7 @@ fn link_rel_style_sem_paleta_e_erro() {
         envolve(
             r##"
         <link rel="style" as="x" href="templates/test_estilo_incompleto.gss" />
-        <Text content="x" />
+        <text content="x" />
         "##,
         ),
     )

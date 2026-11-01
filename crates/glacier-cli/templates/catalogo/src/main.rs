@@ -4,7 +4,7 @@
 //! `src/main.rs` é só a casca: sobe o runner e registra `views/app.gv`
 //! automaticamente. Título, tamanho, tema e todo o resto moram nos
 //! `.gv`/`.gss`/`.luau` e recarregam a quente. As telas de categoria
-//! entram por `<link rel="import">` em cascata a partir de `views/app.gv`
+//! entram por `link(rel = import)` em cascata a partir de `views/app.gv`
 //! — nenhuma precisa ser registrada aqui.
 
 use glacier_ui::GlacierDaemon;

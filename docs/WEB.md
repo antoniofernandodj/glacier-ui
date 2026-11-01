@@ -1,6 +1,6 @@
 # Glacier no navegador (WebAssembly)
 
-O motor compila para `wasm32-unknown-unknown` e roda num `<canvas>` do
+O motor compila para `wasm32-unknown-unknown` e roda num `canvas` do
 navegador pelo mesmo caminho que o iced usa na web: winit cria o canvas, o wgpu
 desenha por WebGL (ou WebGPU, onde houver) e o executor de tarefas é o
 `wasm-bindgen-futures`. Um app é o mesmo `GlacierDaemon`, os mesmos
@@ -76,19 +76,19 @@ gravado apenas em `.gz`, servido com `gzip_static always` + `gunzip on`. O
 
 | Recurso | No navegador | Por quê |
 | --- | --- | --- |
-| `<script>` Luau | **erro no registro do componente** | O Luau é C++ e o `luau0-src` só gera wasm para emscripten; o iced roda em `wasm32-unknown-unknown`. |
+| `script` Luau | **erro no registro do componente** | O Luau é C++ e o `luau0-src` só gera wasm para emscripten; o iced roda em `wasm32-unknown-unknown`. |
 | `LuaExtension`, `glacier_ui::mlua` | não compilam | Idem. |
 | `fetch`, SSE, WebSocket | erro com a URL | O `net.rs` é hyper/rustls sobre socket. Hoje só a camada Luau chega aqui. |
 | `notify()` | vai para o console | Sem D-Bus/WinRT. |
 | Diálogo de arquivo | responde "cancelado" e avisa no console | Sem `rfd`. |
 | Bandeja, instância única | desligados | Cada aba é a própria instância. |
-| `<audio>` (feature `audio`) | erro no player | O `rodio`/`cpal` é dependência só do nativo; o módulo existe sem a feature, mas ligá-la no alvo `wasm32` não é suportado (nem foi compilado aqui). |
+| `audio` (feature `audio`) | erro no player | O `rodio`/`cpal` é dependência só do nativo; o módulo existe sem a feature, mas ligá-la no alvo `wasm32` não é suportado (nem foi compilado aqui). |
 | Acessibilidade (feature `a11y`) | desligada | A ponte é o `accesskit_unix` (AT-SPI), só Linux. Os atributos `role`/`aria_label` são lidos e ignorados. |
 | i18n | deve funcionar com `locale_json(include_str!(…))` — **não foi compilado para wasm** | O catálogo e o `{t(…)}` são Rust puro (sem `fs` nem `env` no alvo web); `locales_dir` (lê o disco) não existe, e a locale do sistema não é lida (comece em `__locale`). |
 | Hot-reload | não há | Os assets são embutidos. |
 | Várias janelas | não testado | Cada janela do daemon vira outro canvas no `<body>`. |
 
-A regra de desenho é **nunca ignorar em silêncio**. Um `<script>` num template
+A regra de desenho é **nunca ignorar em silêncio**. Um `script` num template
 não é descartado: o registro devolve `GlacierError::Luau` explicando o motivo,
 porque uma tela com os botões mortos é o pior bug que este motor já teve.
 

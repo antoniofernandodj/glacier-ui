@@ -1,6 +1,6 @@
 use glacier_ui::{Component, Context, Template};
 
-/// O comportamento mora aqui, em Rust, e não num `<script>` Luau: o Luau é C++
+/// O comportamento mora aqui, em Rust, e não num `script` Luau: o Luau é C++
 /// e não compila para o alvo que o navegador usa. É o mesmo `Component` que
 /// roda no desktop.
 pub struct Contador {

@@ -4,7 +4,7 @@
 //! Rode com: `cargo run --example onda7_luau`
 //!
 //! Os dois exemplos compartilham o markup — `app.gv` é o mesmo arquivo, linha
-//! por linha, tirando o `<script src>` e o título. O que muda é onde mora o
+//! por linha, tirando o `script(src)` e o título. O que muda é onde mora o
 //! comportamento:
 //!
 //! ```text
@@ -25,7 +25,7 @@
 //! partir da **chave**, que é o contrato de todo widget deste motor.
 //!
 //! Vale dizer o que isso **não** significa: nenhum dos sete precisa do `every`
-//! para funcionar. Girar o `<dial>`, ler um `<gauge>`, desenhar as séries — o
+//! para funcionar. Girar o `dial`, ler um `gauge`, desenhar as séries — o
 //! `init` sozinho já entrega tudo isso, exatamente como na versão Rust. O
 //! temporizador está aqui para provar a outra metade.
 //!

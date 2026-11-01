@@ -5,7 +5,7 @@ Todo o visual da tela. O `app.gv` ao lado ficou com estrutura e comportamento �
 nome de chave, ação — e nenhuma cor, nenhum tamanho de texto, nenhum
 espaçamento.
 
-A exceção desta onda: `font` no `<text class="amostra">` é DADO (a família que
+A exceção desta onda: `font` no `text(class = amostra)` é DADO (a família que
 o `<fontselect>` grava, mostrada como está), não decoração — por isso fica
 inline no `.gv`. Já `.rotulo-serif` abaixo usa `font_family` no `.gss` de
 propósito: é o papel "rótulo em serifa", e é o que prova que os dois caminhos

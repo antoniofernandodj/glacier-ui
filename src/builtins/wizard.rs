@@ -1,27 +1,23 @@
 /// `Wizard` / `QWizard`: os passos com voltar, avançar e finalizar.
 ///
-/// ```xml
-/// <wizard :value="passo" active="{passo}"
-///         steps="dados,pagamento,revisao"
-///         titles="Seus dados,Pagamento,Revisão"
-///         valid="{pode_avancar}"
-///         on_finish="salvar_pedido">
-///     <template slot="dados">     … </template>
-///     <template slot="pagamento"> … </template>
-///     <template slot="revisao">   … </template>
-/// </wizard>
+/// ```gv
+/// wizard(:value = passo, active = @passo, steps = "dados,pagamento,revisao", titles = "Seus dados,Pagamento,Revisão", valid = @pode_avancar, on_finish = salvar_pedido) {
+///   template("…", slot = dados)
+///   template("…", slot = pagamento)
+///   template("…", slot = revisao)
+/// }
 /// ```
 ///
 /// # Ele é a soma desta onda
 ///
 /// No Qt o `QWizard` **é** um `QDialog` — e aqui isso deixou de ser trivia e
 /// virou o desenho: com o corpo em markup (habilitador A), um wizard é o
-/// `<dialog>` do item 1 com este widget dentro, e nada mais precisou existir.
+/// `dialog` do item 1 com este widget dentro, e nada mais precisou existir.
 /// As peças são todas anteriores:
 ///
 /// - as páginas são o [`super::stack_view::StackView`] (item 5), que por sua
 ///   vez é o nome dinâmico de slot da Onda 5;
-/// - a fileira de botões é o `<buttonbox>` da Onda 4, com a ordem por
+/// - a fileira de botões é o `buttonbox` da Onda 4, com a ordem por
 ///   plataforma que ele já resolve;
 /// - o passo atual mora numa **chave nomeada**, o padrão do `SpinBox` (0.85).
 ///
@@ -29,7 +25,7 @@
 /// instância". Não precisa — mas repare que aqui o argumento é o *outro*: não é
 /// que o widget seja singleton (ele não é, dá para ter dois na mesma tela), é
 /// que o passo é **o valor**, e valor sempre coube numa chave que o app nomeia.
-/// É a mesma correção do `<tabbar>`, do `<pagination>` e do `<dial>`.
+/// É a mesma correção do `tabbar`, do `pagination` e do `dial`.
 ///
 /// # A lógica que ele carrega
 ///
@@ -50,7 +46,7 @@
 /// - `value`     — **obrigatória**: o nome da chave que guarda o passo atual.
 /// - `active`    — o valor atual dessa chave (o par `value`/`active` de novo).
 /// - `steps`     — **obrigatória**: os ids dos passos, separados por vírgula.
-///   São eles que casam com o `slot=` de cada `<template>`.
+///   São eles que casam com o `slot=` de cada `template`.
 /// - `titles`    — os rótulos do cabeçalho, na mesma ordem. Sem eles, o
 ///   cabeçalho mostra os ids.
 /// - `valid`     — enquanto for falso, `Avançar`/`Finalizar` fica inerte.
@@ -76,53 +72,37 @@ impl Component for Wizard {
         // de `steps`. Fazer a conta duas vezes seria dois lugares para ela
         // divergir.
         //
-        // # Por que a página é montada aqui, e não por um `<StackView>`
+        // # Por que a página é montada aqui, e não por um `StackView`
         //
         // Seria a composição óbvia — e não funciona, por uma regra do
-        // `<slot/>` que vale a pena ter escrita em algum lugar: **um slot não
+        // `slot` que vale a pena ter escrita em algum lugar: **um slot não
         // atravessa a fronteira de um componente aninhado**. A partição
         // acontece uma vez, sobre os filhos crus de QUEM ESCREVEU a tag; um
-        // `<StackView><slot name="dados"/></StackView>` entrega ao StackView um
-        // filho já resolvido, sem etiqueta, e o `<slot name="{active}"/>` do
+        // `StackViewslot(name = dados)` entrega ao StackView um
+        // filho já resolvido, sem etiqueta, e o `slot(name = @active)` do
         // template dele não acha etiqueta nenhuma para casar. O resultado é uma
         // página em branco, sem erro.
         //
         // Então o wizard monta a coluna da página ele mesmo — as mesmas quatro
-        // linhas do `<StackView>`, que continua existindo para quem troca de
+        // linhas do `StackView`, que continua existindo para quem troca de
         // página sem ser um wizard.
         Template::Inline(
-            r#"<Column spacing="{spacing|14}" width="{width|fill}">
-                    <Column
-                        class="stackview-page {page_class}"
-                        width="fill"
-                        padding="{padding|0}"
-                        spacing="{page_spacing|12}"
-                    >
-                        <slot name="{active}"/>
-                    </Column>
-
-                    <WizardNav
-                        value="{value}"
-                        steps="{steps}"
-                        titles="{titles}"
-                        valid="{valid}"
-                        on_finish="{on_finish}"
-                        on_cancel="{on_cancel}"
-                        back_label="{back_label}"
-                        next_label="{next_label}"
-                        finish_label="{finish_label}"
-                        cancel_label="{cancel_label}"
-                        header="{header|true}"
-                    />
-                </Column>"#
+            r##"
+                column(spacing = "{spacing|14}", width = "{width|fill}") {
+                  column(class = "stackview-page {page_class}", width = fill, padding = "{padding|0}", spacing = "{page_spacing|12}") {
+                    slot(name = @active)
+                  }
+                  wizardnav(:value = "{value}", steps = @steps, titles = @titles, valid = @valid, on_finish = @on_finish, on_cancel = @on_cancel, back_label = @back_label, next_label = @next_label, finish_label = @finish_label, cancel_label = @cancel_label, header = "{header|true}")
+                }
+            "##
                 .to_string(),
         )
     }
 
     fn update(&mut self, _a: &str, _v: Option<&str>, _c: &mut Context) {
-        // Nada: quem anda entre os passos é a `<WizardNav>`, e ela escreve a
+        // Nada: quem anda entre os passos é a `WizardNav`, e ela escreve a
         // chave sozinha pelo `ContextPatch` — o mesmo caminho da
-        // `<pagination>`. Este componente é a composição páginas+navegação, e
+        // `pagination`. Este componente é a composição páginas+navegação, e
         // composição não tem estado.
     }
 }

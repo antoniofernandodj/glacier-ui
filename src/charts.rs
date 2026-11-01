@@ -1,5 +1,5 @@
-//! Os quatro gráficos da Onda 7 — `<sparkline>`, `<linechart>`, `<barchart>` e
-//! `<piechart>`, a §2.13 inteira do `PLANO_WIDGETS.md`, que estava em 0 de 6.
+//! Os quatro gráficos da Onda 7 — `sparkline`, `linechart`, `barchart` e
+//! `piechart`, a §2.13 inteira do `PLANO_WIDGETS.md`, que estava em 0 de 6.
 //!
 //! # `canvas` na mão, e não `plotters`
 //!
@@ -27,11 +27,11 @@
 //! como previsto: uma segunda convenção de dados (`series="chave"`, um array de
 //! `{name, points, color?}` — ver [`SerieNomeada`]), uma legenda
 //! (`desenha_legenda`) e um ciclo de cores do tema (`cor_ciclica`, que o
-//! `<piechart>` já usava). **A `Moldura` e a `escala` não mudaram** — o eixo é
+//! `piechart` já usava). **A `Moldura` e a `escala` não mudaram** — o eixo é
 //! compartilhado, e `limites_multi` só concatena os pontos para a faixa.
 //!
-//! Vale para o `<linechart>` (e portanto para `area=`/`points=`, o
-//! `AreaChart`/`Scatter` da §2.13). `<barchart>` e `<piechart>` seguem
+//! Vale para o `linechart` (e portanto para `area=`/`points=`, o
+//! `AreaChart`/`Scatter` da §2.13). `barchart` e `piechart` seguem
 //! série-única: barras agrupadas e setores concêntricos são outra decisão de
 //! layout, não a mesma.
 //!
@@ -64,7 +64,7 @@ pub struct Moldura {
 
 impl Moldura {
     /// As margens: à esquerda cabem os números do eixo Y, embaixo os rótulos do
-    /// X. Sem eixos, tudo vira 2px de respiro — que é o `<sparkline>`.
+    /// X. Sem eixos, tudo vira 2px de respiro — que é o `sparkline`.
     pub fn nova(bounds: Rectangle, eixos: bool) -> Self {
         let (esq, base, topo, dir) = if eixos {
             (36.0, 18.0, 8.0, 10.0)
@@ -102,7 +102,7 @@ impl Moldura {
 /// A cor da i-ésima fatia/barra quando o markup não escolheu nenhuma.
 ///
 /// Um ciclo pela paleta estendida do tema, e não um arco-íris fixo: é o que faz
-/// um `<piechart>` continuar parecendo parte do app quando o `theme.json` muda.
+/// um `piechart` continuar parecendo parte do app quando o `theme.json` muda.
 /// Dez cores antes de repetir — mais que isso, um gráfico de setores já não é
 /// legível de qualquer jeito.
 fn cor_ciclica(pal: &iced::theme::palette::Extended, i: usize) -> Color {
@@ -187,18 +187,18 @@ impl SerieNomeada {
                 let campo = |nomes: &[&str]| nomes.iter().find_map(|n| obj.get(*n));
 
                 let pontos_raw =
-                    campo(&["points", "pontos", "data", "dados", "values", "valores"])?
+                    campo(&["points", "data", "values"])?
                         .as_array()?;
                 let serie = Serie::de_array(pontos_raw);
 
-                let nome = campo(&["name", "nome", "label", "rotulo", "rótulo"])
+                let nome = campo(&["name", "label"])
                     .map(|v| match v {
                         serde_json::Value::String(s) => s.clone(),
                         outro => outro.to_string(),
                     })
                     .unwrap_or_else(|| format!("Série {}", i + 1));
 
-                let cor = campo(&["color", "cor"])
+                let cor = campo(&["color"])
                     .and_then(|v| v.as_str())
                     .and_then(parse_hex_color);
 
@@ -229,7 +229,7 @@ fn limites_multi(
 /// direito da moldura, sobre um retângulo translúcido para não brigar com a
 /// linha por baixo.
 ///
-/// Só sai quando há **eixos** (um `<sparkline>` não tem espaço) e quando a
+/// Só sai quando há **eixos** (um `sparkline` não tem espaço) e quando a
 /// moldura é larga o bastante para o nome mais comprido — senão vira uma tarja,
 /// a mesma decisão dos rótulos do X em [`desenha_eixos`].
 fn desenha_legenda(
@@ -293,7 +293,7 @@ fn desenha_legenda(
 ///
 /// Os rótulos do X são **ralos quando não cabem**: escrever doze meses num
 /// gráfico de 200px produz uma tarja preta, não uma legenda. A conta é a mesma
-/// que o `<pagination>` faz com a janela de páginas — mostrar o que cabe, e o
+/// que o `pagination` faz com a janela de páginas — mostrar o que cabe, e o
 /// que cabe é uma divisão.
 #[allow(clippy::too_many_arguments)]
 fn desenha_eixos(
@@ -387,13 +387,13 @@ fn vazio(frame: &mut Frame, pal: &iced::theme::palette::Extended, bounds: Rectan
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <sparkline> e <linechart> — a mesma linha, com e sem moldura
+// sparkline e linechart — a mesma linha, com e sem moldura
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `<sparkline>` e `<linechart>` — ver [`crate::parser::NodeType::LineChart`].
+/// `sparkline` e `linechart` — ver [`crate::parser::NodeType::LineChart`].
 ///
 /// Um programa só para os dois porque a diferença entre eles é literalmente um
-/// booleano: um `<sparkline>` é um `<linechart>` sem eixos, sem grade e sem
+/// booleano: um `sparkline` é um `linechart` sem eixos, sem grade e sem
 /// pontos. Duplicar o desenho para isso seria duplicar o lugar onde um bug de
 /// escala pode morar.
 pub struct ProgramaLinha {
@@ -581,10 +581,10 @@ impl canvas::Program<EngineMessage> for ProgramaLinha {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <barchart>
+// barchart
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `<barchart>` — ver [`crate::parser::NodeType::BarChart`].
+/// `barchart` — ver [`crate::parser::NodeType::BarChart`].
 pub struct ProgramaBarras {
     pub serie: Serie,
     pub min: String,
@@ -673,10 +673,10 @@ impl canvas::Program<EngineMessage> for ProgramaBarras {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// <piechart>
+// piechart
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `<piechart>` — ver [`crate::parser::NodeType::PieChart`].
+/// `piechart` — ver [`crate::parser::NodeType::PieChart`].
 pub struct ProgramaPizza {
     pub serie: Serie,
     /// Buraco do meio, em fração do raio. `0` é pizza, `0.6` é rosquinha.
@@ -768,7 +768,7 @@ fn contraste(c: Color) -> Color {
 }
 
 /// Cores declaradas no markup: chave do contexto ou JSON inline, como o
-/// `bands` do `<gauge>`.
+/// `bands` do `gauge`.
 fn cores_de(context: &ContextMap, bruto: &str) -> Vec<Color> {
     if bruto.trim().is_empty() {
         return Vec::new();
@@ -796,7 +796,7 @@ fn cores_de(context: &ContextMap, bruto: &str) -> Vec<Color> {
 /// Largura e altura do gráfico: o que o nó declarou, ou o default da tag.
 ///
 /// Passa pelo `parse_length` do motor, então `width="fill"` e `width="fill 2"`
-/// valem num gráfico como valem numa `<row>` — é o que permite um painel de
+/// valem num gráfico como valem numa `row` — é o que permite um painel de
 /// quatro gráficos dividir a linha sem contas no markup.
 fn tamanho(node: &UiNode, padrao_w: f32, padrao_h: f32) -> (Length, Length) {
     let w = if node.width.is_some() {
@@ -812,7 +812,7 @@ fn tamanho(node: &UiNode, padrao_w: f32, padrao_h: f32) -> (Length, Length) {
     (w, h)
 }
 
-/// Monta `<linechart>` e `<sparkline>`.
+/// Monta `linechart` e `sparkline`.
 ///
 /// `series_var` (o atributo `series=`) vem antes de `items_var` na precedência:
 /// se ele nomeia ao menos uma série utilizável, o gráfico é multi-série e
@@ -864,7 +864,7 @@ pub fn render_line_chart<'a>(
     .into()
 }
 
-/// Monta `<barchart>`.
+/// Monta `barchart`.
 #[allow(clippy::too_many_arguments)]
 pub fn render_bar_chart<'a>(
     node: &UiNode,
@@ -892,7 +892,7 @@ pub fn render_bar_chart<'a>(
     .into()
 }
 
-/// Monta `<piechart>`.
+/// Monta `piechart`.
 pub fn render_pie_chart<'a>(
     node: &UiNode,
     context: &ContextMap,

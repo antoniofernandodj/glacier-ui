@@ -28,7 +28,7 @@ function dlg_toast(kind: string): ()
   toast({ message = "toast do tipo " .. kind, kind = kind })
 end
 
--- §2.6 remover uma tag do <chip for-each>
+-- §2.6 remover uma tag do chip(for-each)
 function di_tirar_tag(tag: string): ()
   local restantes = {}
   for _, t in ipairs(json.decode(ctx.di_tags)) do
@@ -49,12 +49,12 @@ function ov_alternar_splash(): ()
   ctx.ov_splash = not ctx.ov_splash
 end
 
--- §2.7 <reveal> — o botão só alterna a chave que ele lê em `open`
+-- §2.7 reveal — o botão só alterna a chave que ele lê em `open`
 function ct_revelar(): ()
   ctx.ct_revela = not ctx.ct_revela
 end
 
--- §2.2 <form> — os três handlers do bloco de formulário do catálogo
+-- §2.2 form — os três handlers do bloco de formulário do catálogo
 function fm_enviar(): ()
   toast({ message = "formulário válido — enviado: " .. ctx.fm_nome, kind = "success" })
 end

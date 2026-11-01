@@ -87,7 +87,7 @@ não no `.gss`.
   color: var(--texto);
 }
 
-/* Sem `width: fill` aqui de propósito: o `<texteditor>` já estica na largura
+/* Sem `width: fill` aqui de propósito: o `texteditor` já estica na largura
    da `.centro` (que é `fill`), e uma classe com background + fill + fill dispara
    o teste que proíbe pintar a janela inteira por uma classe de raiz. */
 .editor {

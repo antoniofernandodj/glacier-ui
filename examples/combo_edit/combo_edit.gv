@@ -7,7 +7,7 @@ screen(title = "Glacier - ComboEdit (servidores salvos)") {
     link(rel = theme, href = "examples/combo_edit/theme.json")
   }
 
-  // `<comboedit>`: dropdown editável (combo_box do iced). Digite um servidor
+  // `comboedit`: dropdown editável (combo_box do iced). Digite um servidor
   // novo à vontade, ou escolha um dos já salvos na lista — escolher um
   // preenche o token sozinho (veja `servidor_selecionado` em main.rs).
   container(class = caixa) {

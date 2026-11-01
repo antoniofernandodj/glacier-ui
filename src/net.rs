@@ -150,7 +150,7 @@ fn client() -> &'static HttpsClient {
 pub(crate) async fn perform(req: PendingFetch) -> FetchResult {
     // `fetch("file://…")`: leitura de arquivo local em vez de requisição HTTP. O
     // Luau recebe o MESMO formato `{ ok, status, body, error }` de sempre, então
-    // um `<script>` lê um arquivo com a mesma chamada com que faria um GET. Ao
+    // um `script` lê um arquivo com a mesma chamada com que faria um GET. Ao
     // contrário do browser (que bloqueia `file://` de propósito, por ser código
     // remoto não confiável), aqui o Luau é código do próprio app — acesso ao FS
     // local é esperado.

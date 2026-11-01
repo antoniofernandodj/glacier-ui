@@ -3,8 +3,8 @@
 //! Ao contrário de um [`Component`] do app — que o host precisa `register`ar —
 //! estes componentes a própria lib registra sozinha em [`crate::GlacierUI::new`]
 //! (via `register_builtins`), antes de `self` retornar. O efeito é que a tag
-//! fica disponível em qualquer template **sem o app configurar nada**: `<Badge/>`
-//! funciona igual a uma primitiva `<Button/>`.
+//! fica disponível em qualquer template **sem o app configurar nada**: `Badge`
+//! funciona igual a uma primitiva `Button`.
 //!
 //! O passo a passo para adicionar um widget está em `BUILTINS.md`; este
 //! módulo documenta as garantias e restrições do motor que moldam o formato de
@@ -18,7 +18,7 @@
 //! registra as telas). O nome de cada builtin também entra num conjunto
 //! (`builtin_component_names`) usado para a regra de override abaixo.
 //!
-//! Todo builtin usa [`Template::Inline`](crate::Template::Inline) — XML **compilado no binário**, nunca
+//! Todo builtin usa [`Template::Inline`](crate::Template::Inline) — `.gv` **compilado no binário**, nunca
 //! lido de disco. Isso torna o parse determinístico: se ele falhar é bug *da
 //! lib* (não do app), então `register_builtins` usa `expect`/`panic`, o que
 //! mantém `new()` infalível (devolve `Self`, não `Result`). Um builtin que
@@ -34,7 +34,7 @@
 //!
 //! - `register(Box::new(MeuBadge))` e `register_component("Badge", …)` inserem
 //!   por cima no `parsed_templates` e removem o nome de `builtin_component_names`.
-//! - `<import name="Badge" from="…"/>`: o guarda de `load_imports` normalmente
+//! - `import(name = Badge, from = "…")`: o guarda de `load_imports` normalmente
 //!   pula um nome já carregado, mas abre exceção quando o nome atual é um builtin
 //!   — o import assume e o nome deixa de ser builtin.
 //!
@@ -47,7 +47,7 @@
 //! Dois mecanismos (ver `crate::eval` e [`crate::parser::NumAttr`]) tornam um
 //! widget parametrizável sem estado externo:
 //!
-//! 1. **Props em qualquer atributo.** As props de `<Badge foo="x"/>` são
+//! 1. **Props em qualquer atributo.** As props de `Badge(foo = x)` são
 //!    mescladas num *clone por instância* do contexto durante a avaliação, então
 //!    `{foo}` no template resolve por instância. Atributos string (`content`,
 //!    `color`, `background`, `width`, `height`, `padding`, …) sempre aceitaram
@@ -202,16 +202,16 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
 }
 
 /// O mesmo widget publicado sob um **segundo nome, todo em minúsculas**:
-/// `<groupbox/>` além de `<GroupBox/>`, `<toolbutton/>` além de `<ToolButton/>`.
+/// `groupbox` além de `GroupBox`, `toolbutton` além de `ToolButton`.
 ///
 /// # Por que precisa de um wrapper
 ///
 /// Primitiva e builtin resolvem por caminhos diferentes. Uma primitiva casa num
 /// `match` de tags que já lista as grafias à mão (`"TextInput" | "textinput" |
-/// "Input" | …` em `parser.rs`), então `<textinput/>` sempre funcionou. Um
+/// "Input" | …` em `parser.rs`), então `textinput` sempre funcionou. Um
 /// builtin, não: a tag desconhecida vira uma referência de componente resolvida
 /// por `parsed_templates.get(name)` — igualdade exata de string. Sem um segundo
-/// registro, `<groupbox/>` não seria um widget em minúsculas, seria um
+/// registro, `groupbox` não seria um widget em minúsculas, seria um
 /// `UnknownComponent`.
 ///
 /// A grafia escolhida é a **concatenada** (`groupbox`, `toolbutton`), não
@@ -225,7 +225,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
 /// Tudo o que tem efeito: `template`, `init` e todos os hooks de comportamento.
 /// O alias é um registro independente no mapa de componentes, com sua própria
 /// instância — o que importa porque as ações carregam o nome pelo qual a tag
-/// foi resolvida (`namespace_action`): escrever `<tabbar/>` produz
+/// foi resolvida (`namespace_action`): escrever `tabbar` produz
 /// `tabbar::pick:aba|rede`, e é a instância registrada sob `tabbar` que recebe
 /// esse `update`. Como todo builtin desta lib é sem estado (o estado mora em
 /// chaves que o app nomeia), as duas instâncias serem separadas não muda nada.

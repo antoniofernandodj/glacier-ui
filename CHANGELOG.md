@@ -8,6 +8,33 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.28.0 — 2026-11-01
+
+Motor dos projetos gerados: **glacier-ui 0.149.0**. Templates, exemplos e `AGENTS.md` só com o vocabulário `snake_case` em inglês; o texto longo de um `text` vai como primeiro argumento (`text("""…""", class = x)`).
+
+## glacier-ui 0.149.0 — 2026-11-01
+
+Só `snake_case`, só em inglês, só `.gv`.
+
+### Quebras
+
+- **Os builtins viraram `.gv`**: `Template::Inline` agora recebe `.gv` (antes, XML). Todos os
+  builtins da lib foram reescritos.
+- **Só a grafia em minúsculas.** Tags e atributos aceitam apenas `snake_case`: saíram os
+  apelidos em `CamelCase`, `camelCase` e `kebab-case` (`Column`, `onClick`, `for-each`,
+  `else-if`, `min-size`…) e todos os apelidos em português (`Botao`, `senao`, `texto`,
+  `aoClicar`, `editor_hora`, `area_texto`, `enviar`/`limpar` em `type`…). Atributos que só
+  existiam em kebab/camel ganharam a forma `snake_case`: `for_each`, `read_only`,
+  `tri_state`, `whats_this`.
+- **Builtins respondem só em minúsculas** (`card`, `spinbox`, `groupbox`); o nome
+  `CamelCase` fica livre para componentes do app.
+- Propriedades de `.gss` só em `snake_case` (`border_radius`, `text_color`, `max_width`…).
+- As tags avulsas `if`/`else`/`elseif` (com `cond`) saíram: use `if @x { }`/`else`, ou
+  `template(if = …)`/`template(else)`/`template(else_if = …)`.
+- A extensão de VS Code espelha o vocabulário novo.
+
+---
+
 ## glacier-cli 0.27.0 — 2026-11-01
 
 Motor dos projetos gerados: **glacier-ui 0.148.0**. Os templates e o `AGENTS.md` usam só a sintaxe `.gv`.

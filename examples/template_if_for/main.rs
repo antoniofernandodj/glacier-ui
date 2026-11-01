@@ -1,4 +1,4 @@
-//! **`<template>` com `if` e com `for-each`** — uma lista de tarefas escrita só
+//! **`template` com `if` e com `for-each`** — uma lista de tarefas escrita só
 //! com a tag `template`, sem o açúcar `if @x { }` / `each @l as i { }`.
 //!
 //! Rode com: `WGPU_BACKEND=gl cargo run --example template_if_for`.

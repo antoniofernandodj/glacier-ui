@@ -9,9 +9,11 @@
 //!
 //! A saída é marcar a ligação **no nome do atributo**, como o `:value` do Vue:
 //!
-//! ```xml
-//! <progressbar :value="progresso" />      <!-- a ligação: a chave `progresso` -->
-//! <text content="{progresso}%" />         <!-- o dado: o valor dela -->
+//! ```gv
+//! progressbar(:value = progresso)
+//! // a ligação: a chave `progresso`
+//! text(content = "{progresso}%")
+//! // o dado: o valor dela
 //! ```
 //!
 //! Este módulo é a lista do que é ligação. Quem a consulta: o parser do `.gv`
@@ -26,158 +28,136 @@ type Linha = (&'static [&'static str], &'static [&'static str]);
 /// repassadas como nome de chave.
 const TABELA: &[Linha] = &[
     // — primitivos —
-    (&["textinput", "input"], &["value", "valor"]),
-    (&["textarea", "texteditor"], &["value", "valor"]),
-    (&["maskedinput", "entradamascarada"], &["value", "valor"]),
+    (&["textinput", "input"], &["value"]),
+    (&["textarea", "texteditor"], &["value"]),
+    (&["maskedinput"], &["value"]),
     (
         &["checkbox", "check"],
-        &["checked", "value", "valor", "marcado"],
+        &["checked", "value"],
     ),
     (
         &["toggle", "toggler"],
-        &["checked", "value", "valor", "marcado"],
+        &["checked", "value"],
     ),
-    (&["progressbar", "progress"], &["value", "valor"]),
-    (&["timeedit", "timepicker"], &["value", "valor"]),
+    (&["progressbar", "progress"], &["value"]),
+    (&["timeedit", "timepicker"], &["value"]),
     (
-        &["calendar", "calendario"],
+        &["calendar"],
         &[
             "value",
-            "valor",
             "start",
-            "inicio",
             "end",
-            "fim",
-            "final",
             "month",
             "mesvisivel",
         ],
     ),
     (
-        &["pagination", "paginacao"],
-        &["value", "valor", "page", "pagina"],
+        &["pagination"],
+        &["value", "page"],
     ),
-    (&["wizardnav"], &["value", "valor", "step", "passo"]),
+    (&["wizardnav"], &["value", "step"]),
     (
-        &["colorwheel", "rodadecor"],
-        &["value", "valor", "color", "cor"],
+        &["colorwheel"],
+        &["value", "color"],
     ),
-    (&["rating", "nota"], &["value", "valor"]),
+    (&["rating"], &["value"]),
     (
-        &["popover", "painel"],
-        &["value", "valor", "open", "aberto"],
+        &["popover"],
+        &["value", "open"],
     ),
     (
         &["autocomplete", "completer"],
-        &["value", "valor", "items", "itens", "options", "opcoes"],
+        &["value", "items", "options"],
     ),
     (
-        &["tableview", "tabela"],
+        &["tableview"],
         &[
             "items",
-            "itens",
             "rows",
-            "linhas",
             "columns",
-            "colunas",
             "cols",
             "value",
-            "valor",
             "selected",
-            "selecionada",
             "sort",
-            "ordem",
-            "ordenacao",
             "widths",
-            "larguras",
             "resize",
         ],
     ),
     (
-        &["treeview", "arvore"],
+        &["treeview"],
         &[
-            "items", "itens", "nodes", "nos", "value", "valor", "selected", "open", "aberto",
-            "abertos", "expanded",
+            "items", "nodes", "value", "selected", "open", "expanded",
         ],
     ),
     (
-        &["columnview", "colunas"],
+        &["columnview"],
         &[
-            "items", "itens", "nodes", "nos", "value", "valor", "path", "caminho",
-        ],
+            "items", "nodes", "value", "path", ],
     ),
-    (&["dial", "knob"], &["value", "valor"]),
-    (&["gauge", "medidor"], &["value", "valor"]),
-    (&["lcdnumber", "lcd"], &["value", "valor"]),
+    (&["dial", "knob"], &["value"]),
+    (&["gauge"], &["value"]),
+    (&["lcdnumber", "lcd"], &["value"]),
     (
-        &["linechart", "graficolinha"],
-        &["items", "itens", "data", "dados", "series"],
+        &["linechart"],
+        &["items", "data", "series"],
     ),
     (
-        &["barchart", "graficobarras"],
-        &["items", "itens", "data", "dados"],
+        &["barchart"],
+        &["items", "data"],
     ),
-    (&["piechart", "donut"], &["items", "itens", "data", "dados"]),
+    (&["piechart", "donut"], &["items", "data"]),
     (
-        &["splitter", "divisor"],
-        &["sizes", "tamanhos", "value", "valor"],
+        &["splitter"],
+        &["sizes", "value"],
     ),
     (
         &["dock", "dockwidget"],
         &[
-            "mode", "modo", "value", "valor", "size", "sizes", "tamanho", "tamanhos", "floatx",
+            "mode", "value", "size", "sizes", "floatx",
             "floaty", "x", "y",
         ],
     ),
-    (&["mdisubwindow", "janelainterna"], &["x", "y", "w", "h"]),
+    (&["mdisubwindow"], &["x", "y", "w", "h"]),
     (
-        &["swipeview", "carrossel"],
-        &["value", "valor", "index", "indice"],
+        &["swipeview"],
+        &["value", "index"],
     ),
     (
-        &["rangeslider", "faixadupla"],
-        &["start", "inicio", "from", "end", "fim", "to"],
+        &["rangeslider"],
+        &["start", "from", "end", "to"],
     ),
-    (&["tumbler", "roleta"], &["value", "valor"]),
+    (&["tumbler"], &["value"]),
     (
-        &["rubberband", "laco"],
-        &["selection", "selecao", "value", "valor", "selected"],
+        &["rubberband"],
+        &["selection", "value", "selected"],
     ),
-    (&["shortcutinput", "keysequenceedit"], &["value", "valor"]),
+    (&["shortcutinput", "keysequenceedit"], &["value"]),
     (
         &["radio", "radiobutton"],
         &[
             "group",
-            "grupo",
             "checked",
-            "marcado",
             "selected",
-            "selecionado",
-        ],
+            ],
     ),
-    (&["slider", "deslizante"], &["value", "valor"]),
+    (&["slider"], &["value"]),
     (
         &["select", "dropdown", "comboedit", "editablecombo"],
         &[
             "value",
-            "valor",
             "selected",
-            "selecionado",
             "items",
-            "itens",
             "options",
-            "opcoes",
             "source",
-            "origem",
-        ],
+            ],
     ),
-    (&["menuitem", "itemmenu"], &["checked", "marcado"]),
+    (&["menuitem"], &["checked"]),
     (
-        &["menu", "cardapio", "contextmenu", "menucontexto"],
-        &["items", "itens", "options", "opcoes"],
+        &["menu", "contextmenu"],
+        &["items", "options"],
     ),
     // — qualquer tag: a repetição lê o NOME da chave com a lista —
-    (&["*"], &["foreach", "each", "repeat"]),
+    (&["*"], &["for_each", "foreach", "each", "repeat"]),
     // — builtins (as props que viram nome de chave por dentro) —
     (&["tabbar", "tabs"], &["value", "items"]),
     (&["listview"], &["value", "items"]),

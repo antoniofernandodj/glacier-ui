@@ -32,11 +32,11 @@ pub fn eh_gv(path: &str) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case(EXTENSAO))
 }
 
-/// O markup de um template em `UiNode`, mais o `<script>` que ele carregava.
+/// O markup de um template em `UiNode`, mais o `script` que ele carregava.
 ///
 /// `content` já é o XML interno: a leitura (ver
 /// [`crate::asset_source::read_markup`]) dessugarou o `.gv` antes de chegar
-/// aqui. Tira o `<script>`, normaliza as diretivas nuas (`else`) e parseia.
+/// aqui. Tira o `script`, normaliza as diretivas nuas (`else`) e parseia.
 pub(crate) fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode, Option<String>)> {
     let (markup, script) = eval::strip_script(content);
     let markup = eval::normalize_bare_directives(&markup);
@@ -46,6 +46,12 @@ pub(crate) fn parse_markup(path: Option<&str>, content: &str) -> Result<(UiNode,
         UiNode::parse_xml_with_source(&markup, content, path)?,
         script,
     ))
+}
+
+/// Dessugara o texto de um [`Template::Inline`](crate::Template::Inline): o mesmo
+/// `.gv`, só que embutido no binário.
+pub(crate) fn desugar_inline(src: &str) -> Result<String> {
+    desugar(src).map_err(|d| GlacierError::Xml(Box::new(d.with_source(src))))
 }
 
 /// Dessugara um `.gv` para o XML interno equivalente, linha por linha.
@@ -59,7 +65,7 @@ pub fn desugar(src: &str) -> std::result::Result<String, Diagnostic> {
 
 /// Como [`desugar`], mas **sem interpolação**: `@nome` e `@{nome}` ficam como estão.
 /// É o dessugar de um `.gv` que chega como dado — o texto de um artigo vindo do
-/// banco, num `<prose syntax="gv" content="…">` —, em que `a@b.com` é um e-mail, e
+/// banco, num `prose(syntax = gv, content = "…")` —, em que `a@b.com` é um e-mail, e
 /// não uma ligação a uma chave do contexto.
 #[allow(clippy::result_large_err)] // ver `desugar`
 pub fn desugar_literal(src: &str) -> std::result::Result<String, Diagnostic> {
@@ -580,7 +586,7 @@ impl Parser {
     /// progresso` é o texto "progresso" e `value = @progresso` o valor da chave,
     /// e o widget que queria o nome dela falha em silêncio.
     fn check_bindings(&self, node: &Node) -> Res<()> {
-        // O `<check>` de uma `<tray>` é um item de bandeja: o `checked` dele é o
+        // O `check` de uma `tray` é um item de bandeja: o `checked` dele é o
         // valor (`@__notifications`), não o nome de uma chave.
         let na_bandeja = self
             .open
@@ -611,7 +617,7 @@ impl Parser {
     // — condicional —
 
     /// `if COND { … }` (o `if` já consumido), com os `else if`/`else` que o
-    /// seguem. Cada ramo vira um `<template>` irmão — é assim que o XML interno os
+    /// seguem. Cada ramo vira um `template` irmão — é assim que o XML interno os
     /// representa.
     fn if_chain(&mut self, line: u32) -> Res<Vec<Node>> {
         let mut chain = vec![self.branch("if", line)?];
@@ -670,7 +676,7 @@ impl Parser {
         })
     }
 
-    /// `COND` da regra 8, já traduzida para os atributos do `<template>`.
+    /// `COND` da regra 8, já traduzida para os atributos do `template`.
     /// `key` é `if` ou `else_if`.
     fn condition(&mut self, key: &str, line: u32) -> Res<Vec<Attr>> {
         let at = |name: &str, value: String| Attr {
@@ -1085,7 +1091,7 @@ impl Default for Out {
     }
 }
 
-/// Tags cujo conteúdo é texto corrido — o `<prose>` e tudo o que vive dentro dele. Num
+/// Tags cujo conteúdo é texto corrido — o `prose` e tudo o que vive dentro dele. Num
 /// `.gv` cada filho fica na própria linha, e no XML a quebra entre dois elementos é um
 /// espaço: `b(content = "Ana")` seguido de `span(content = "!")` viraria "Ana !". Quem
 /// escreve `.gv` põe o espaço **no texto** (`content = "Olá, "`), então a quebra de
@@ -1152,8 +1158,8 @@ impl Out {
             self.at(a.line);
             self.push(&format!(" {}=\"{}\"", a.name, escape(&a.value, true)));
         }
-        // `script`/`style` sempre abrem e fecham: o motor procura o `</script>`,
-        // então `script { src: "x" }` sem corpo não pode sair como `<script/>`.
+        // `script`/`style` sempre abrem e fecham: o motor procura o ``,
+        // então `script { src: "x" }` sem corpo não pode sair como `script`.
         let raw_tag = matches!(n.tag.as_str(), "script" | "style");
         if n.text.is_none() && n.children.is_empty() && !raw_tag {
             self.at(n.end_line);

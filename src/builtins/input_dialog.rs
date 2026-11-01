@@ -10,14 +10,14 @@
 /// O `QInputDialog` tem quatro entradas estáticas — `getText`, `getInt`,
 /// `getDouble`, `getItem` — e elas diferem em **uma** coisa: o widget do campo.
 /// A moldura, o par de botões, a validação e o retorno são idênticos nas
-/// quatro. Aqui isso vira uma tag com um `kind`, e o `se`/`senao` escolhe entre
+/// quatro. Aqui isso vira uma tag com um `kind`, e o `if`/`else` escolhe entre
 /// três widgets que já existiam:
 ///
 /// | `kind`            | widget            |
 /// |-------------------|-------------------|
-/// | `text` (default)  | `<TextInput>`     |
-/// | `int` / `double`  | `<SpinBox>`       |
-/// | `item`            | `<Select>`        |
+/// | `text` (default)  | `TextInput`     |
+/// | `int` / `double`  | `SpinBox`       |
+/// | `item`            | `Select`        |
 ///
 /// # Por que ele lê chaves globais em vez de props
 ///
@@ -28,7 +28,7 @@
 /// contexto que o motor semeia antes de abrir (ver
 /// [`crate::dialogs::DIALOG_KEY_PREFIX`]).
 ///
-/// É a mesma escolha que o `<datetimeedit>` fez com o `__timeedit` na 0.70, e
+/// É a mesma escolha que o `datetimeedit` fez com o `__timeedit` na 0.70, e
 /// pelo mesmo motivo: o widget não existe como nó que alguém escreveu, então
 /// não há atributo para ler.
 ///
@@ -70,68 +70,52 @@ impl Component for InputDialog {
         // aceita digitação e **não guarda nada**. Escrever o namespace aqui é o
         // preço de o corpo do diálogo não ser um uso de tag como os outros.
         Template::Inline(
-            r#"<Column spacing="8" width="fill">
-                    <!-- `not_equals=""` e NÃO `not_empty`: no motor, `empty`/
-                         `not_empty` perguntam se o valor é um **array JSON
-                         vazio** (é o teste que o `<listview>` usa), não se a
-                         string está em branco. Um texto comum nunca é um array
-                         válido, então `not_empty` daria sempre falso — e o
-                         ramo simplesmente não apareceria, sem erro nenhum. -->
-                    <se cond="{__dialog.label}" not_equals="">
-                        <Text content="{__dialog.label}" size="13" />
-                    </se>
+            r##"
+                column(spacing = 8, width = fill) {
+                  /* `not_equals=""` e NÃO `not_empty`: no motor, `empty`/
+                                         `not_empty` perguntam se o valor é um **array JSON
+                                         vazio** (é o teste que o `<listview>` usa), não se a
+                                         string está em branco. Um texto comum nunca é um array
+                                         válido, então `not_empty` daria sempre falso — e o
+                                         ramo simplesmente não apareceria, sem erro nenhum. */
+                  template(if = @__dialog.label, not_equals = "") {
+                    text(content = @__dialog.label, size = 13)
+                  }
+                  /* `one_of` separa por ESPAÇO, não por vírgula:
+                                         `one_of="int,double"` seria um token só, e nunca
+                                         casaria com `int`. */
+                  template(if = @__dialog.kind, one_of = "int double") {
+                    /* `width` do `<spinbox>` é a largura do CAMPO, não
+                                             a do conjunto: ele desce para o `<TextInput>` de
+                                             dentro, e a `<Row>` que segura campo+degraus é
+                                             `shrink`. Um `fill` aqui vira um campo que tenta
+                                             preencher uma linha que não se estica, e ele
+                                             colapsa a ponto de o número não caber.
 
-                    <!-- `one_of` separa por ESPAÇO, não por vírgula:
-                         `one_of="int,double"` seria um token só, e nunca
-                         casaria com `int`. -->
-                    <se cond="{__dialog.kind}" one_of="int double">
-                        <!-- `width` do `<spinbox>` é a largura do CAMPO, não
-                             a do conjunto: ele desce para o `<TextInput>` de
-                             dentro, e a `<Row>` que segura campo+degraus é
-                             `shrink`. Um `fill` aqui vira um campo que tenta
-                             preencher uma linha que não se estica, e ele
-                             colapsa a ponto de o número não caber.
-
-                             120 é largura de número, não de frase — que é o
-                             que este campo é. -->
-                        <SpinBox
-                            value="__dialog.value"
-                            min="{__dialog.min|0}"
-                            max="{__dialog.max|100}"
-                            step="{__dialog.step|1}"
-                            decimals="{__dialog.decimals|0}"
-                            width="120"
-                        />
-                    </se>
-                    <senaose cond="{__dialog.kind}" equals="item">
-                        <Select
-                            options="__dialog.items"
-                            value="__dialog.value"
-                            onChange="__InputDialog::editar"
-                            width="fill"
-                        />
-                    </senaose>
-                    <senao>
-                        <TextInput
-                            value="__dialog.value"
-                            placeholder="{__dialog.placeholder}"
-                            onChange="__InputDialog::editar"
-                            width="fill"
-                        />
-                    </senao>
-                </Column>"#
+                                             120 é largura de número, não de frase — que é o
+                                             que este campo é. */
+                    spinbox(:value = "__dialog.value", min = "{__dialog.min|0}", max = "{__dialog.max|100}", step = "{__dialog.step|1}", decimals = "{__dialog.decimals|0}", width = 120)
+                  }
+                  template(else_if = @__dialog.kind, equals = item) {
+                    select(:options = "__dialog.items", :value = "__dialog.value", on_change = "__InputDialog::editar", width = fill)
+                  }
+                  template(else) {
+                    textinput(:value = "__dialog.value", placeholder = @__dialog.placeholder, on_change = "__InputDialog::editar", width = fill)
+                  }
+                }
+            "##
                 .to_string(),
         )
     }
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
-        // Um `<TextInput>`/`<Select>` **não grava a chave sozinho**: ele
+        // Um `TextInput`/`Select` **não grava a chave sozinho**: ele
         // despacha `onChange` com o texto novo, e quem escreve é quem trata a
         // ação. Sem este `update` o campo seria decorativo — mostra o valor
         // inicial, aceita digitação e não guarda nada, e o aceite devolveria o
         // valor de antes.
         //
-        // O `<SpinBox>` do ramo numérico não passa por aqui: ele é builtin e
+        // O `SpinBox` do ramo numérico não passa por aqui: ele é builtin e
         // escreve a própria chave (`spin_box.rs`), que é a razão de o template
         // acima não lhe dar `onChange`.
         if action == "editar"

@@ -13,7 +13,7 @@ screen(
 
       text(
         class = subtitulo,
-        content = "as regras estão no <form>; o motor valida ao enviar",
+        content = "as regras estão no form; o motor valida ao enviar",
       )
     }
 

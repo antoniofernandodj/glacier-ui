@@ -3,15 +3,15 @@
 /// É o **primeiro widget do motor que envolve conteúdo** — o que ele renderiza
 /// não vem de props, vem do que se escreve entre as tags dele:
 ///
-/// ```xml
-/// <GroupBox title="Rede">
-///     <Checkbox label="Usar proxy" :checked="proxy" />
-///     <TextInput :value="host" placeholder="127.0.0.1" />
-/// </GroupBox>
+/// ```gv
+/// GroupBox(title = Rede) {
+///   Checkbox(label = "Usar proxy", :checked = proxy)
+///   TextInput(:value = host, placeholder = "127.0.0.1")
+/// }
 /// ```
 ///
-/// Isso só existe a partir do `<slot/>` (ver [`crate::parser::NodeType::Slot`]):
-/// antes dele, os filhos de um `<Componente>` eram descartados na expansão, e
+/// Isso só existe a partir do `slot` (ver [`crate::parser::NodeType::Slot`]):
+/// antes dele, os filhos de um `Componente` eram descartados na expansão, e
 /// todo widget-recipiente ficava fora do nível Builtin. O `GroupBox` é o caso
 /// mais simples possível dessa família, e por isso o primeiro a nascer.
 ///
@@ -40,16 +40,16 @@
 /// # Ações no cabeçalho
 ///
 /// O slot nomeado `actions` põe controles na direita da linha do título — é
-/// onde vai o "Mostrar tudo" de um grupo, ou o `<checkbox>` que faz o papel do
+/// onde vai o "Mostrar tudo" de um grupo, ou o `checkbox` que faz o papel do
 /// `QGroupBox::setCheckable`:
 ///
-/// ```xml
-/// <groupbox title="Rede">
-///     <template slot="actions">
-///         <checkbox label="Ativado" :checked="rede_ativa" />
-///     </template>
-///     <input :value="host" />
-/// </groupbox>
+/// ```gv
+/// groupbox(title = Rede) {
+///   template(slot = actions) {
+///     checkbox(label = Ativado, :checked = rede_ativa)
+///   }
+///   input(:value = host)
+/// }
 /// ```
 ///
 /// # Props
@@ -64,7 +64,7 @@
 ///
 /// # Aparência
 ///
-/// Mesma escolha do [`super::spin_box::SpinBox`]: as cores saem de um `<style>`
+/// Mesma escolha do [`super::spin_box::SpinBox`]: as cores saem de um `style`
 /// **global** declarado no próprio template — instalado em `GlacierUI::new`,
 /// portanto antes de qualquer `.gss` do app, que por isso vence por ordem.
 /// Redefinir `.groupbox-frame` / `.groupbox-title` numa folha do app é o
@@ -78,10 +78,10 @@
 /// - `actions_class` — a faixa do `slot="actions"`.
 /// - `content_class` — a coluna dos filhos, nas duas formas.
 ///
-/// ```xml
-/// <groupbox title="Rede" frame_class="painel" title_class="rotulo_cap">
-///     <input :value="host" />
-/// </groupbox>
+/// ```gv
+/// groupbox(title = Rede, frame_class = painel, title_class = rotulo_cap) {
+///   input(:value = host)
+/// }
 /// ```
 ///
 /// O cinza translúcido (`#80808059`) é deliberado: clareia sobre tema escuro e
@@ -97,70 +97,55 @@ impl Component for GroupBox {
     }
 
     fn template(&self) -> Template {
-        // O `<slot/>` aparece nos dois braços do `flat`, e isso é seguro: só um
+        // O `slot` aparece nos dois braços do `flat`, e isso é seguro: só um
         // sobrevive à expansão, então o conteúdo do uso é resolvido uma vez só.
         //
         // `notEquals=""` é o teste de "tem título?" — `if="{title}"` sozinho
         // aplicaria `is_truthy` ao texto, e um título como "Rede" não é
         // "true"/"1"/"sim".
         Template::Inline(
-            r#"<Column spacing="6" width="{width|fill}">
-                    <style>
-                        .groupbox-frame {
-                            border-width: 1;
-                            border-color: #80808059;
-                            border-radius: 6;
+            r##"
+                column(spacing = 6, width = "{width|fill}") {
+                  style """
+                                        .groupbox-frame {
+                                            border_width: 1;
+                                            border_color: #80808059;
+                                            border_radius: 6;
+                                        }
+                                        .groupbox-title { color: #80868d; }
+                                    """
+                  /* Cabeçalho: o título à esquerda e, quando o uso
+                                         preenche `slot="actions"`, os controles à direita —
+                                         o "Mostrar tudo" de um grupo, o `setCheckable` do Qt
+                                         feito com um `<checkbox>` de verdade. O `<Space/>` é
+                                         quem empurra; o marcador `{slot_actions}` evita pagar
+                                         a `<Row>` quando não há ação nenhuma. */
+                  template(if = "{title}{slot_actions|}", not_equals = "") {
+                    row(class = @header_class, align_y = center, width = "{width|fill}") {
+                      text(class = "groupbox-title {title_class}", content = @title, size = "{title_size|13}", bold = true)
+                      template(if = "{slot_actions|false}", equals = true) {
+                        space
+                        row(class = @actions_class, spacing = 8, align_y = center) {
+                          slot(name = actions)
                         }
-                        .groupbox-title { color: #80868d; }
-                    </style>
-
-                    <!-- Cabeçalho: o título à esquerda e, quando o uso
-                         preenche `slot="actions"`, os controles à direita —
-                         o "Mostrar tudo" de um grupo, o `setCheckable` do Qt
-                         feito com um `<checkbox>` de verdade. O `<Space/>` é
-                         quem empurra; o marcador `{slot_actions}` evita pagar
-                         a `<Row>` quando não há ação nenhuma. -->
-                    <template if="{title}{slot_actions|}" notEquals="">
-                        <Row class="{header_class}" align_y="center" width="{width|fill}">
-                            <Text
-                                class="groupbox-title {title_class}"
-                                content="{title}"
-                                size="{title_size|13}"
-                                bold="true"
-                            />
-                            <template if="{slot_actions|false}" equals="true">
-                                <Space />
-                                <Row class="{actions_class}" spacing="8" align_y="center">
-                                    <slot name="actions"/>
-                                </Row>
-                            </template>
-                        </Row>
-                    </template>
-
-                    <template if="{flat|false}" equals="true">
-                        <Rule />
-                        <Column
-                            class="{content_class}"
-                            spacing="{spacing|8}"
-                            padding="{padding|8 2}"
-                            width="{width|fill}"
-                        >
-                            <slot/>
-                        </Column>
-                    </template>
-
-                    <template else>
-                        <Container
-                            class="groupbox-frame {frame_class}"
-                            padding="{padding|12}"
-                            width="{width|fill}"
-                        >
-                            <Column class="{content_class}" spacing="{spacing|8}" width="{width|fill}">
-                                <slot/>
-                            </Column>
-                        </Container>
-                    </template>
-                </Column>"#
+                      }
+                    }
+                  }
+                  template(if = "{flat|false}", equals = true) {
+                    rule
+                    column(class = @content_class, spacing = "{spacing|8}", padding = "{padding|8 2}", width = "{width|fill}") {
+                      slot
+                    }
+                  }
+                  template(else) {
+                    container(class = "groupbox-frame {frame_class}", padding = "{padding|12}", width = "{width|fill}") {
+                      column(class = @content_class, spacing = "{spacing|8}", width = "{width|fill}") {
+                        slot
+                      }
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.148.0"
+version = "0.149.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -216,7 +216,7 @@ futures = "0.3"
 # net.rs. Backend puro-Rust (miniz_oxide, default), sem dependência de C.
 flate2 = "1"
 
-# `<markdown>`: só o parser (CommonMark + tabelas/tachado), sem o renderizador HTML.
+# `markdown`: só o parser (CommonMark + tabelas/tachado), sem o renderizador HTML.
 pulldown-cmark = { version = "0.13", default-features = false }
 
 # Corpo binário em `fetch` (`body_base64`) e leitura de arquivo local em base64
@@ -231,7 +231,7 @@ base64 = "0.22"
 # - `mlua` com Luau vendored é C++ compilado pelo `cc`, e o `luau0-src` só sabe
 #   gerar wasm para `wasm32-unknown-emscripten` — que não é o alvo em que o
 #   winit/iced rodam no navegador (`wasm32-unknown-unknown`). Na web, o módulo
-#   `luau` é trocado por `src/luau_web.rs`, que recusa `<script>` com erro.
+#   `luau` é trocado por `src/luau_web.rs`, que recusa `script` com erro.
 # - hyper/tokio/rustls/tungstenite abrem socket, e o navegador não dá socket; o
 #   `ring` por baixo do rustls ainda arrasta o `getrandom` 0.2, que nem compila
 #   em `wasm32-unknown-unknown` sem a feature `js`. Na web, `src/net_web.rs`.
@@ -255,7 +255,7 @@ tokio-tungstenite = { version = "0.29", default-features = false, features = ["c
 # camada Luau — ver Context::notify.
 notify-rust = "4.18"
 
-# Reprodução de áudio do `<audio>` (src/audio.rs). Opcional e desligada por padrão:
+# Reprodução de áudio do `audio` (src/audio.rs). Opcional e desligada por padrão:
 # o `cpal` por baixo precisa de `libasound2-dev` para compilar no Linux. Só os
 # formatos que o `symphonia` decodifica sem arrastar o resto (MP3, WAV, Vorbis, FLAC).
 rodio = { version = "0.23", default-features = false, features = ["playback", "mp3", "wav", "vorbis", "flac"], optional = true }
@@ -397,8 +397,8 @@ android = ["dep:iced_winit", "dep:winit", "dep:android_logger", "dep:log", "iced
 # existem, então a feature é a mesma nas três plataformas.
 tray = ["dep:tray-icon", "dep:gtk", "dep:libc"]
 
-# Liga o `<audio>`: reprodução de MP3/WAV/OGG/FLAC local pelo `rodio`. Desligada
-# por padrão (precisa de `libasound2-dev` para compilar no Linux). Sem ela, o `<audio>`
+# Liga o `audio`: reprodução de MP3/WAV/OGG/FLAC local pelo `rodio`. Desligada
+# por padrão (precisa de `libasound2-dev` para compilar no Linux). Sem ela, o `audio`
 # avisa no log e mostra o erro no player. Ver `src/audio.rs` e `docs/AUDIO.md`.
 audio = ["dep:rodio"]
 

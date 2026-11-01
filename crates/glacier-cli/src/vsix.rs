@@ -171,17 +171,17 @@ fn content_types(nomes: &[String]) -> String {
     );
     for ext in exts {
         s.push_str(&format!(
-            "  <Default Extension=\".{ext}\" ContentType=\"{}\"/>\n",
+            "  Default(Extension = \".{ext}\", ContentType = \"{}\")\n",
             content_type(ext)
         ));
     }
     for nome in sem_extensao {
         s.push_str(&format!(
-            "  <Override PartName=\"/{}\" ContentType=\"text/plain\"/>\n",
+            "  Override(PartName = \"/{}\", ContentType = \"text/plain\")\n",
             xml(nome)
         ));
     }
-    s.push_str("</Types>\n");
+    s.push_str("\n");
     s
 }
 

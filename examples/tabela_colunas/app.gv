@@ -1,4 +1,4 @@
-// `<tablecolumn>`: colunas no markup, com o modelo da célula no corpo — badge,
+// `tablecolumn`: colunas no markup, com o modelo da célula no corpo — badge,
 // botão, qualquer nó —, avaliado por linha com a linha em `@c.campo`.
 // `header_class`/`row_class` pintam a faixa do cabeçalho e cada linha, e o
 // cabeçalho fica preso no topo enquanto o corpo rola.
@@ -8,8 +8,8 @@ screen(title = "Glacier - Tabela com colunas") {
   resources {
     link(rel = data, href = "examples/tabela_colunas/dados.json", as = d)
     style """
-    .cab     { background: #161B22; border-radius: 5; padding: 14 18; size: 11; bold: true; color: #6E7681; }
-    .lin     { padding: 12 18; size: 13; color: #C9D1D9; border-color: #21262D; }
+    .cab     { background: #161B22; border_radius: 5; padding: 14 18; size: 11; bold: true; color: #6E7681; }
+    .lin     { padding: 12 18; size: 13; color: #C9D1D9; border_color: #21262D; }
     .lin:hover { background: #0D1117; }
     .nome    { size: 13; bold: true; color: #58A6FF; }
     .apagado { size: 12; color: #8B949E; }
@@ -18,7 +18,7 @@ screen(title = "Glacier - Tabela com colunas") {
     .estado_ok   { color: #3FB950; }
     .estado_bad  { color: #F85149; }
     .estado_warn { color: #D29922; }
-    .remover { color: #DA3633; padding: 5 12; border-radius: 3; }
+    .remover { color: #DA3633; padding: 5 12; border_radius: 3; }
     .col_nome { width: 220; }
     @media (max-width: 800) {
       .col_dono { hidden: true; }

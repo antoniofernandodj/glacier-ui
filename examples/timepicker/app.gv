@@ -24,7 +24,7 @@ screen(title = "Glacier - Data e Hora", size = "640 480") {
       text(content = "QDateEdit · QTimeEdit · QDateTimeEdit", class = titulo)
 
       text(
-        content = """
+        """
           Um campo por valor, editado por seções: clique numa seção para
           selecioná-la (ela ganha o realce) e use ▴▾ para alterá-la. Cada seção
           vira dentro de si — mexer no minuto não empurra a hora.
@@ -74,7 +74,7 @@ screen(title = "Glacier - Data e Hora", size = "640 480") {
     }
 
     text(
-      content = """
+      """
         Fevereiro: ponha a data em 2024-01-31 e suba o mês — o dia satura em 29
         (bissexto), como no QDateEdit.
       """,

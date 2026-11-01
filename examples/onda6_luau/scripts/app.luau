@@ -40,7 +40,7 @@ local SERVICOS = {
     { id = "busca", nome = "Índice de busca", ambiente = "produção", replicas = "8", uso = "70" },
 }
 
--- As colunas: a mesma convenção `items="chave"` que o `<menu>` e o `<tabbar>` já
+-- As colunas: a mesma convenção `items="chave"` que o `menu` e o `tabbar` já
 -- usavam — um array numa chave. O que a Onda 6 acrescentou não foi a ligação,
 -- foi a MEDIÇÃO.
 --
@@ -54,13 +54,13 @@ local COLUNAS = {
     { key = "uso", label = "Uso %", width = "90", align = "right" },
 }
 
--- A árvore: `{id, label, items}` aninhado, a mesma forma que o `<menu items>` já
+-- A árvore: `{id, label, items}` aninhado, a mesma forma que o `menu(items)` já
 -- usava para submenus. É aqui que a versão Luau fica visivelmente mais curta —
 -- do lado Rust isto é um `serde_json::json!` de trinta linhas.
 -- O tipo é declarado, e não inferido, porque a árvore é HETEROGÊNEA: um nó
 -- folha não tem `items`, e o inferidor do Luau pega a forma do primeiro
 -- elemento e recusa os demais. Escrevê-lo custa cinco linhas e documenta o
--- formato que o `<treeview>` espera — que num exemplo é o ponto.
+-- formato que o `treeview` espera — que num exemplo é o ponto.
 --
 -- O `:: { No }` lá embaixo é pela mesma razão, uma camada mais fundo: a
 -- anotação da variável não alcança um literal ANINHADO — o inferidor resolve

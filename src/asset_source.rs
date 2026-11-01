@@ -27,7 +27,7 @@ use std::borrow::Cow;
 /// parser consome.
 ///
 /// Um `.gv` (ver [`crate::gv`]) é dessugarado aqui, na leitura — e é por isso
-/// que todo o resto do motor (o `<script>`, o `<style>`, as diretivas, o
+/// que todo o resto do motor (o `script`, o `style`, as diretivas, o
 /// parser) nunca precisa saber a sintaxe em que o autor escreveu. Preserva a
 /// contagem de linhas, então o `line` de um erro continua sendo o do `.gv`; só
 /// o trecho citado é o do XML gerado. Qualquer outra extensão passa intacta.
@@ -120,7 +120,7 @@ impl AssetSource for DiskAssets {
 ///
 /// Monte com [`embed_assets!`](crate::embed_assets), que chama `include_bytes!`
 /// para cada caminho e guarda o mesmo texto de caminho que o markup usa: o
-/// `Template::File("examples/app/app.gv")` e o `<link href="examples/app/app.gss">`
+/// `Template::File("examples/app/app.gv")` e o `link(href = "examples/app/app.gss")`
 /// acham seus arquivos sem mudar uma letra.
 ///
 /// Um arquivo que ficou fora da lista é um erro de leitura igual ao de um
@@ -336,7 +336,7 @@ pub fn locate_assets_and_chdir(marker: &str, env_var: &str, system_prefix: Optio
 /// uma chave estável de identidade sem tocar o filesystem. Usado tanto pelo
 /// cache de `require` (deste módulo) quanto por
 /// [`GlacierUI::resolve_import_href`](crate::GlacierUI::resolve_import_href)
-/// (`href` de `<link rel="import">` relativo ao arquivo importador — mesma
+/// (`href` de `link(rel = import)` relativo ao arquivo importador — mesma
 /// ideia de resolução, fora do universo Luau).
 ///
 /// Antes o cache de `require` usava [`Path::canonicalize`], que exige o arquivo

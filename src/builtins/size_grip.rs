@@ -1,11 +1,11 @@
 /// `QSizeGrip`: o canto que redimensiona a janela.
 ///
-/// ```xml
-/// <row class="rodape">
-///     <text class="status">Pronto</text>
-///     <space />
-///     <SizeGrip />
-/// </row>
+/// ```gv
+/// row(class = rodape) {
+///   text("Pronto", class = status)
+///   space
+///   SizeGrip
+/// }
 /// ```
 ///
 /// # O item mais barato da Onda 9, e vale registrar por quê
@@ -49,7 +49,7 @@ impl Component for SizeGrip {
     }
 
     fn template(&self) -> Template {
-        // As três barrinhas na diagonal são desenhadas com `<rule>`, e não com
+        // As três barrinhas na diagonal são desenhadas com `rule`, e não com
         // um `.svg`: um builtin que dependesse de arquivo deixaria de ser
         // `Template::Inline` (compilado no binário) e quebraria a garantia de
         // que `GlacierUI::new()` é infalível — ver o cabeçalho de `builtins`.
@@ -58,24 +58,19 @@ impl Component for SizeGrip {
         // botão APERTADO, e um clique só chega no soltar, quando não há mais o
         // que arrastar.
         Template::Inline(
-            r#"<Container
-                    class="sizegrip {grip_class}"
-                    width="{size|14}"
-                    height="{size|14}"
-                    on_press="window:resize:{corner|se}"
-                    cursor="{corner|se}"
-                    tooltip="{tooltip|}"
-                >
-                    <style>
-                        .sizegrip { padding: 2; }
-                        .sizegrip-marca { color: var(--sizegrip-cor, #6C7086); }
-                    </style>
-                    <Column spacing="2" align_x="end">
-                        <Rule class="sizegrip-marca" width="4" />
-                        <Rule class="sizegrip-marca" width="8" />
-                        <Rule class="sizegrip-marca" width="12" />
-                    </Column>
-                </Container>"#
+            r##"
+                container(class = "sizegrip {grip_class}", width = "{size|14}", height = "{size|14}", on_press = "window:resize:{corner|se}", cursor = "{corner|se}", tooltip = "{tooltip|}") {
+                  style """
+                                        .sizegrip { padding: 2; }
+                                        .sizegrip-marca { color: var(--sizegrip-cor, #6C7086); }
+                                    """
+                  column(spacing = 2, align_x = end) {
+                    rule(class = sizegrip-marca, width = 4)
+                    rule(class = sizegrip-marca, width = 8)
+                    rule(class = sizegrip-marca, width = 12)
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

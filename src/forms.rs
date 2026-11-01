@@ -1,6 +1,6 @@
 //! Angular-Reactive-Forms-inspired form state: [`FormBuilder`] declares a
 //! [`Form`]'s [`FormControl`]s (name, initial value, validators), the
-//! component owns the built `Form` in its own state, and the `<Form>`/
+//! component owns the built `Form` in its own state, and the `Form`/
 //! `formControl` template attributes (see `parser.rs`/`eval.rs`) bind inputs
 //! to it by name — mirroring Angular's `FormGroup`/`formControlName`.
 //!
@@ -48,7 +48,7 @@ pub enum Validator {
     /// The value, parsed as a number, must be `<=` this. Non-numeric fails.
     Lte(f64),
     /// The value must read as accepted — `"true"`, `"on"`, `"1"`, `"yes"`,
-    /// `"sim"` (case-insensitive). For a `<checkbox>`'s `"true"`/`"false"`.
+    /// `"sim"` (case-insensitive). For a `checkbox`'s `"true"`/`"false"`.
     Accepted,
     /// The value must look like an email address (a pragmatic pattern, not the
     /// full RFC). Empty passes — pair with `Required` to forbid blank.
@@ -309,7 +309,7 @@ impl FormControl {
     }
 
     /// A control pre-loaded with `validators` — e.g. the output of
-    /// [`Validator::parse_rules`] applied to a `<input rules="...">` string.
+    /// [`Validator::parse_rules`] applied to a `input(rules = "...")` string.
     pub fn with_validators(
         name: impl Into<String>,
         initial_value: impl Into<String>,

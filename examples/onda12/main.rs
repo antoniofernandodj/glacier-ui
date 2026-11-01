@@ -9,7 +9,7 @@
 //!   O cabeçalho do painel dispara um arrasto que NÃO escreve nada durante o
 //!   gesto e comete a borda na SOLTURA (Arrasto::modo_no_release, via DragEnd).
 //!   O render_dock seguinte lê a chave `mode` e monta o pai certo —
-//!   <splitter> acoplado, <stack> flutuante. A troca de pai acontece ENTRE
+//!   splitter acoplado, stack flutuante. A troca de pai acontece ENTRE
 //!   quadros, dirigida por uma chave nomeada.
 //! ```
 //!
@@ -102,7 +102,7 @@ impl Component for Dock {
             ctx.set("status", format!("layout salvo — painel: {lado}"));
             return;
         }
-        // Atalhos da barra: `<button on_click="lado:left">`.
+        // Atalhos da barra: `button(on_click = "lado:left")`.
         if let Some((chave, valor)) = action.split_once(':') {
             ctx.set(chave, valor.to_string());
             if chave == "lado" {
@@ -111,8 +111,8 @@ impl Component for Dock {
             }
             return;
         }
-        // O braço genérico: a ação É o nome da chave (o `<listview>`, o
-        // `<texteditor>`).
+        // O braço genérico: a ação É o nome da chave (o `listview`, o
+        // `texteditor`).
         if let Some(v) = value {
             ctx.set(action, v.to_string());
         }

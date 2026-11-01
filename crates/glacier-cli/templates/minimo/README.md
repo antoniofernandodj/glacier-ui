@@ -2,7 +2,7 @@
 
 Interface declarativa com [glacier-ui](https://crates.io/crates/glacier-ui): o
 layout mora em blocos (`.gv`), o estilo num `.gss` CSS-like e o comportamento num
-`<script>` Luau interpretado em runtime.
+`script` Luau interpretado em runtime.
 
 ```
 cargo run
@@ -13,7 +13,7 @@ cargo run
 | Arquivo | O que é |
 |---|---|
 | `src/main.rs` | a casca: sobe o runner e registra a tela |
-| `views/contador.gv` | a tela: `<screen>` + `<resources>` + layout + `<script>` |
+| `views/contador.gv` | a tela: `screen` + `resources` + layout + `script` |
 | `views/styles/app.gss` | a paleta (`:root`) e as classes |
 | `views/scripts/glacier.d.luau` | tipos dos globais do motor, só para o luau-lsp |
 | `.luaurc` | declara esses globais para o type-checker |
@@ -28,17 +28,17 @@ raiz do projeto, num `cargo run`), não ao `src/`. O mesmo vale para o `href` de
 uma stylesheet.
 
 Título e tamanho da janela **não** estão no Rust: quem os declara é o
-`<screen>` do próprio `.gv`, junto da tela que eles descrevem — e assim o
+`screen` do próprio `.gv`, junto da tela que eles descrevem — e assim o
 título recarrega a quente. O erro de `register_component` já traz
 `arquivo:linha:coluna`, o trecho e uma dica, então basta imprimi-lo.
 
-**O comportamento vive no `<script>`.** Cada função global do bloco é um destino
+**O comportamento vive no `script`.** Cada função global do bloco é um destino
 possível para um `on_click`. `init()` é chamada pelo motor quando a tela entra.
 
 O contexto (`ctx`) guarda **strings** — é o que os `{marcadores}` do markup
 leem. Daí o `tostring`/`tonumber` no contador.
 
-O corpo do `<script>` é recortado por texto **antes** do parse de XML, então
+O corpo do `script` é recortado por texto **antes** do parse de XML, então
 `<`, `>` e `&` podem aparecer no Luau à vontade. Quando ele crescer, mova-o para
 um arquivo e use `script(src = "scripts/x.luau")` — o `src` resolve relativo ao
 `.gv`, e não ao diretório de onde o app roda.
@@ -54,9 +54,9 @@ seu tier na escada (`row.x` vence `.x`), e `+`, `~` e `[attr]` são erro de
 parse. O `AGENTS.md` tem a gramática inteira.
 
 Os tokens em `:root` são a fonte única da paleta, e `var()` atravessa
-stylesheets — os mesmos nomes valem dentro de um `<style>` no template.
+stylesheets — os mesmos nomes valem dentro de um `style` no template.
 
-Num `Button`, `color` é o **fundo** e `text-color` é o texto. Cada bloco de
+Num `button`, `color` é o **fundo** e `text_color` é o texto. Cada bloco de
 pseudo-estado (`:hover`, `:active`, `:focus`, `:disabled`) sobrescreve só o
 campo que declara, por cima da regra base.
 

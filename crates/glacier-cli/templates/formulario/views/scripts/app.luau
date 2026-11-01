@@ -4,7 +4,7 @@
 require("handlers/validar")
 
 -- `init` só semeia valores. Não há `erro_<campo>` nem classe de destaque para
--- semear: as regras moram no `<form>` (`rules="required|minlen:3"` etc.) e o
+-- semear: as regras moram no `form` (`rules="required|minlen:3"` etc.) e o
 -- motor publica os `{erro_<campo>}` e acende o `:invalid` sozinho ao enviar.
 function init(): ()
   ctx.f_nome, ctx.f_cpf, ctx.f_tel = "", "", ""

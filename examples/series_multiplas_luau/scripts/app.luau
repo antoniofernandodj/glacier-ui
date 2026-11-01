@@ -1,7 +1,7 @@
 -- Onda 11, habilitador C, em Luau — séries múltiplas do lado do script.
 --
 -- `series="carga"` é uma convenção de DADOS. O script mantém uma tabela de
--- séries e a escreve em `ctx.carga`; o `<linechart>` lê essa chave no render e
+-- séries e a escreve em `ctx.carga`; o `linechart` lê essa chave no render e
 -- desenha uma linha por série, com a legenda e o ciclo de cores do motor.
 -- Nenhuma função aqui toca em pixel.
 

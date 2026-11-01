@@ -20,7 +20,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
     //
     // Ela existe porque a maior parte dos componentes de uma tela é pequena e
     // só serve àquela tela. Obrigar cada um a virar arquivo troca três linhas
-    // de markup por um arquivo, um caminho relativo e um <import>.
+    // de markup por um arquivo, um caminho relativo e um import.
     // ======================================================================
     // 1. Um componente de uma linha só. Este é o caso que a forma de arquivo
     // atende mal: um `.gv` inteiro para isto seria mais cerimônia do que
@@ -65,7 +65,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
 
     // 3. Um componente com mais de um nó de layout na raiz. Vira um
     // Fragment, exatamente como num arquivo: os irmãos são costurados no lugar
-    // de quem usou a tag, sem uma <column> fantasma por volta.
+    // de quem usou a tag, sem uma column fantasma por volta.
     component(name = Metrica) {
       props {
         prop(name = rotulo)
@@ -96,7 +96,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
       Rotulo(
         texto = """
           Os três componentes desta tela (Rotulo, LinhaLog, Metrica)
-          estão declarados no <resources> acima. O CartaoServico veio
+          estão declarados no resources acima. O CartaoServico veio
           de um arquivo. Os quatro se usam do mesmo jeito.
         """,
         tamanho = 13,
@@ -108,7 +108,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
         groupbox(title = "Métricas — um componente com vários nós de raiz") {
           row(class = linha_2) {
             Metrica(
-              :for-each = metricas, var = m, rotulo = @m.rotulo,
+              :for_each = metricas, var = m, rotulo = @m.rotulo,
               valor = @m.valor,
               delta = @m.delta,
             )
@@ -123,7 +123,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
 
           row(class = linha_3) {
             CartaoServico(
-              :for-each = servicos, var = s, id = @s.id, nome = @s.nome,
+              :for_each = servicos, var = s, id = @s.id, nome = @s.nome,
               estado = @s.estado, cor = @s.cor, uptime = @s.uptime,
             )
           }
@@ -139,7 +139,7 @@ screen(title = "Glacier - Componentes locais", size = "900 720") {
 
           frame(shape = box, class = moldura_2) {
             LinhaLog(
-              :for-each = log, var = l, hora = @l.hora, nivel = @l.nivel,
+              :for_each = log, var = l, hora = @l.hora, nivel = @l.nivel,
               texto = @l.texto,
             )
           }

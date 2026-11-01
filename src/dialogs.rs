@@ -8,7 +8,7 @@
 //! [`DialogSpec`], o motor o sobrepõe (overlay) à tela atual em
 //! [`crate::GlacierUI::render_current`], e o clique num botão chega de volta
 //! ao `update()` do mesmo componente como uma ação comum — a mesma rota de
-//! um `<Button on_click="...">`.
+//! um `Button(on_click = "...")`.
 //!
 //! ```ignore
 //! ctx.show_dialog(DialogSpec::question("Excluir?", "Essa ação não pode ser desfeita.")
@@ -66,7 +66,7 @@ pub(crate) const CONFIRM_YES: &str = "\0glacier:confirm:yes";
 pub(crate) const CONFIRM_NO: &str = "\0glacier:confirm:no";
 
 /// Ação sentinela do botão que **só fecha** — o `Fechar` que um
-/// `<dialog name="…">` sem `buttons` ganha, e o que um `Cancelar::` sem ação
+/// `dialog(name = "…")` sem `buttons` ganha, e o que um `Cancelar::` sem ação
 /// escrita vira. O motor a reconhece, fecha o diálogo e **não roteia nada**:
 /// sem ela, um botão de cancelar despacharia uma ação fantasma que nenhum
 /// componente trata, e um dia alguém escreveria um `update` chamado "cancelar"
@@ -85,7 +85,7 @@ pub const DIALOG_CLOSE: &str = "\0glacier:dialog:close";
 /// O corpo de um diálogo é avaliado no contexto do **app**, então as chaves que
 /// ele escreve são chaves do app. Isso é o que faz um diálogo com campo
 /// dispensar estado por instância — o valor mora no contexto como o de qualquer
-/// `<textinput>` — e é também a única armadilha real da forma: dois diálogos
+/// `textinput` — e é também a única armadilha real da forma: dois diálogos
 /// que usem `nome` colidem, mesmo sendo os dois singletons.
 ///
 /// O prefixo separa esse rascunho do resto, e o motor apaga tudo que começa com
@@ -113,7 +113,7 @@ pub enum ButtonRole {
 
 /// Um botão do diálogo: rótulo mostrado, ação despachada ao `update()` do
 /// componente dono da tela quando clicado (a mesma convenção de
-/// `on_click="..."` num `<Button>`), e papel visual.
+/// `on_click="..."` num `Button`), e papel visual.
 #[derive(Debug, Clone)]
 pub struct DialogButton {
     pub label: String,
@@ -183,7 +183,7 @@ pub struct DialogSpec {
     /// um `StandardButton`).
     pub dismissible: bool,
     /// O **corpo em markup** do diálogo: o nome de um template já avaliado
-    /// (componente, tela ou um `<dialog name="…">` do `<resources>`), montado
+    /// (componente, tela ou um `dialog(name = "…")` do `resources`), montado
     /// entre a mensagem e os botões por [`crate::GlacierUI::render_current`].
     ///
     /// É o que separa um `QMessageBox` de um `QDialog`. Sem ele o diálogo é o
@@ -191,7 +191,7 @@ pub struct DialogSpec {
     /// o cartão vira uma **moldura em volta de uma tela**: o conteúdo passa
     /// pelo mesmo `render_node` de qualquer outro nó, é estilizável pelo
     /// `.gss`, e o que o usuário digita mora numa chave de contexto como em
-    /// qualquer `<textinput>` — que é por que um diálogo com campo **não**
+    /// qualquer `textinput` — que é por que um diálogo com campo **não**
     /// exige estado por instância (o diálogo é singleton; nunca há uma segunda
     /// instância com que colidir).
     pub body: Option<String>,
@@ -273,11 +273,11 @@ impl DialogSpec {
         self
     }
 
-    /// Monta a especificação a partir de um `<dialog name="…">` declarado no
+    /// Monta a especificação a partir de um `dialog(name = "…")` declarado no
     /// markup (ver [`crate::parser::DialogMeta`]).
     ///
     /// O corpo já sai apontado para o próprio nome da declaração, porque são a
-    /// mesma coisa: o `<dialog name="editar">` registra o conteúdo dele como o
+    /// mesma coisa: o `dialog(name = editar)` registra o conteúdo dele como o
     /// template `editar`, e o `DialogSpec` só precisa dizer "monte `editar`
     /// aqui dentro".
     pub fn from_meta(meta: &crate::parser::DialogMeta) -> Self {
@@ -323,7 +323,7 @@ impl DialogSpec {
     }
 }
 
-/// Lê o `icon=` de um `<dialog>`. Desconhecido vira [`DialogIcon::None`] em vez
+/// Lê o `icon=` de um `dialog`. Desconhecido vira [`DialogIcon::None`] em vez
 /// de erro: um ícone errado não é motivo para o diálogo não abrir.
 fn icone_de(nome: Option<&str>) -> DialogIcon {
     match nome
@@ -333,14 +333,14 @@ fn icone_de(nome: Option<&str>) -> DialogIcon {
         .as_str()
     {
         "information" | "info" | "informacao" | "informação" => DialogIcon::Information,
-        "warning" | "warn" | "aviso" => DialogIcon::Warning,
-        "error" | "critical" | "erro" => DialogIcon::Error,
-        "question" | "pergunta" => DialogIcon::Question,
+        "warning" | "warn" => DialogIcon::Warning,
+        "error" | "critical" => DialogIcon::Error,
+        "question" => DialogIcon::Question,
         _ => DialogIcon::None,
     }
 }
 
-/// Lê um botão da lista compacta do `<dialog buttons="…">`, na forma
+/// Lê um botão da lista compacta do `dialog(buttons = "…")`, na forma
 /// `Rótulo:ação:papel` — ação e papel opcionais.
 ///
 /// O rótulo é separado do resto pelo **primeiro** `:`; o papel, quando é uma
@@ -381,9 +381,9 @@ fn botao_de(bruto: &str) -> Option<DialogButton> {
 /// Uma palavra-chave de papel de botão de diálogo, ou `None`.
 fn papel_de(s: &str) -> Option<ButtonRole> {
     match s.trim().to_lowercase().as_str() {
-        "accept" | "aceitar" | "principal" => Some(ButtonRole::Accept),
-        "neutral" | "neutro" | "cancel" | "cancelar" => Some(ButtonRole::Neutral),
-        "destructive" | "destrutivo" | "perigo" | "danger" => Some(ButtonRole::Destructive),
+        "accept" => Some(ButtonRole::Accept),
+        "neutral" | "cancel" => Some(ButtonRole::Neutral),
+        "destructive" | "danger" => Some(ButtonRole::Destructive),
         _ => None,
     }
 }
@@ -470,7 +470,7 @@ pub fn overlay<'a>(
     let card_border = palette.background.strong.color;
     // 380 é a largura de uma frase; um formulário não cabe nela. Com corpo, o
     // cartão vai a 480 — ainda estreito o bastante para ler como modal, largo o
-    // bastante para um `<form>` de duas colunas não quebrar.
+    // bastante para um `form` de duas colunas não quebrar.
     let largura = if spec.body.is_some() { 480.0 } else { 380.0 };
     let card_box = container(card)
         .width(Length::Fixed(largura))

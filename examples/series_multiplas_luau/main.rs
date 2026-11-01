@@ -7,7 +7,7 @@
 //!
 //! Nada de API nova — a mesma observação das ondas 9 a 11. O `series="chave"`
 //! é uma convenção de DADOS: o script escreve uma tabela de
-//! `{ name, points, color? }` na chave, e o `<linechart>` a lê no render. O que
+//! `{ name, points, color? }` na chave, e o `linechart` a lê no render. O que
 //! sobra para o Luau é semear e, opcionalmente, mexer nos números — as duas
 //! coisas de sempre.
 use glacier_ui::GlacierDaemon;

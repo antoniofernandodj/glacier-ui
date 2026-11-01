@@ -7,8 +7,8 @@
 //! | Onde | O que guardava o arrasto |
 //! |---|---|
 //! | reordenar uma lista | `__drag_key` + `{var}.__dragging` por item ([`crate::DRAG_KEY_CONTEXT`]) |
-//! | a alça de coluna do `<tableheader>` | `__colgrip` = `chave\|indice\|x0\|w0`, aplicado num `arrasta_coluna` de quarenta linhas |
-//! | o giro do `<dial>` | `EstadoDial { arrastando }` no `canvas::Program::State` ([`crate::gauges`]) |
+//! | a alça de coluna do `tableheader` | `__colgrip` = `chave\|indice\|x0\|w0`, aplicado num `arrasta_coluna` de quarenta linhas |
+//! | o giro do `dial` | `EstadoDial { arrastando }` no `canvas::Program::State` ([`crate::gauges`]) |
 //!
 //! Os três já tinham resolvido, cada um por si, os dois problemas difíceis do
 //! arrasto — e nenhum dos três estava catalogado como *capacidade* no §3 do
@@ -17,11 +17,11 @@
 //! as outras duas).
 //!
 //! Este módulo é o segundo deles — o `__colgrip` — com a **conta fatorada para
-//! fora**. O terceiro (o `<dial>`) continua onde estava, e de propósito: quem
+//! fora**. O terceiro (o `dial`) continua onde estava, e de propósito: quem
 //! desenha o próprio widget num `canvas` já ganha um `State` por instância do
 //! `iced` e não precisa de chave global nenhuma. O que precisa de chave global
-//! é o arrasto sobre widgets que têm **filhos** — um `<splitter>` não é um
-//! canvas, e o `<swipeview>` menos ainda.
+//! é o arrasto sobre widgets que têm **filhos** — um `splitter` não é um
+//! canvas, e o `swipeview` menos ainda.
 //!
 //! # Os dois problemas difíceis, e onde a resposta já estava
 //!
@@ -44,11 +44,11 @@
 //! cobrem os três consumidores:
 //!
 //! - [`Alvo::Trilha`] — pixels viram a medida de **uma trilha** numa lista no
-//!   formato do `columns` do `<grid>` (`"160 fill 90"`). É o `<tableheader>`
-//!   (que era o dono do código) e o `<splitter>`, que é a mesma alça aplicada a
+//!   formato do `columns` do `grid` (`"160 fill 90"`). É o `tableheader`
+//!   (que era o dono do código) e o `splitter`, que é a mesma alça aplicada a
 //!   um container em vez de a um cabeçalho;
 //! - [`Alvo::Indice`] — cada `passo` pixels andam **um inteiro** numa chave. É
-//!   o `<swipeview>`: arrastar meia tela vira a página.
+//!   o `swipeview`: arrastar meia tela vira a página.
 //!
 //! O soltar continua sendo o [`crate::EngineMessage::DragEnd`], que já era a
 //! mensagem de soltar de dois dos três — só existe um botão do mouse, e só um
@@ -69,10 +69,10 @@ pub(crate) const GRIP_CONTEXT: &str = "__grip";
 /// Em que eixo o movimento do ponteiro conta.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Eixo {
-    /// Horizontal: colunas de tabela, `<splitter>` de painéis lado a lado,
-    /// `<swipeview>`.
+    /// Horizontal: colunas de tabela, `splitter` de painéis lado a lado,
+    /// `swipeview`.
     X,
-    /// Vertical: `<splitter direction="v">`.
+    /// Vertical: `splitter(direction = v)`.
     Y,
 }
 
@@ -108,13 +108,13 @@ pub enum Alvo {
     /// Um índice inteiro, um degrau a cada `passo` pixels, saturando em `[0, max]`.
     Indice { passo: f32, max: usize },
     /// Arrasto livre em **duas dimensões** — o habilitador B da Onda 11: uma
-    /// janela interna (`MdiArea`) ou o painel flutuante de um `<dock>`. As
+    /// janela interna (`MdiArea`) ou o painel flutuante de um `dock`. As
     /// bordas são as do container-pai, em pixels de janela.
     ///
     /// É o único `Alvo` que ignora [`Arrasto::eixo`] (arrasta nos dois eixos
     /// de uma vez) e escreve em **duas** chaves — `Arrasto::chave` para `x`,
     /// [`Arrasto::chave_y`] para `y` — porque a posição de uma janela é dois
-    /// números nomeados pelo app, a mesma forma que o `<daterangepicker>` usa
+    /// números nomeados pelo app, a mesma forma que o `daterangepicker` usa
     /// para `start`/`end`.
     Ponto {
         min_x: f32,
@@ -123,7 +123,7 @@ pub enum Alvo {
         max_y: f32,
     },
     /// Arrasto que **não escreve nada durante o gesto** e comete um valor
-    /// discreto **na soltura** — o habilitador D da Onda 12, para o `<dock>`.
+    /// discreto **na soltura** — o habilitador D da Onda 12, para o `dock`.
     ///
     /// Enquanto o dedo está apertado, `aplica` só ancora a origem nos dois
     /// eixos (é o que dá a [`Arrasto::modo_no_release`] o `dx`/`dy` do gesto
@@ -133,7 +133,7 @@ pub enum Alvo {
     /// borda (`left`/`right`/`top`/`bottom`) e o valor vai para
     /// [`Arrasto::chave_modo`].
     ///
-    /// É a resposta ao que a Onda 11 cortou: trocar `<splitter>`↔`<stack>` de
+    /// É a resposta ao que a Onda 11 cortou: trocar `splitter`↔`stack` de
     /// pai **entre quadros**, dirigido por uma chave nomeada, em vez de
     /// reparentar no meio do arrasto.
     Zona { limiar: f32 },
@@ -297,7 +297,7 @@ impl Arrasto {
     pub fn aplica(&mut self, p: Point, context: &ContextMap) -> Vec<(String, String)> {
         // [`Alvo::Zona`] não escreve nada durante o gesto — só ancora os dois
         // eixos para que o `dx`/`dy` do arrasto inteiro exista na soltura (ver
-        // [`Arrasto::modo_no_release`]). A troca de `<splitter>`↔`<stack>`
+        // [`Arrasto::modo_no_release`]). A troca de `splitter`↔`stack`
         // acontece depois, entre quadros.
         if matches!(self.alvo, Alvo::Zona { .. }) {
             if self.origem.is_none() {

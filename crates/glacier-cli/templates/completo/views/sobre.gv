@@ -1,7 +1,7 @@
 component {
   resources {
     style(scoped = true) """
-      .linha_doc { spacing: 10; align-y: center; }
+      .linha_doc { spacing: 10; align_y: center; }
       .chave { width: 150; size: 12; bold: true; color: var(--muted); }
       .valor { size: 12; color: var(--text-2); }
     """
@@ -57,10 +57,10 @@ component {
     }
 
     text(
-      class = apagado,
-      content = """
+      """
         salve qualquer .gv ou .gss com o app aberto: o hot-reload aplica na hora
       """,
+      class = apagado,
     )
   }
 }

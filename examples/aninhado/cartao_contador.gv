@@ -1,7 +1,7 @@
-// Um componente (filho de `painel.gv`), não uma tela: a raiz é `<component>`.
-// Ele agrupa declarações como o `<screen>` de uma janela, mas não aceita
+// Um componente (filho de `painel.gv`), não uma tela: a raiz é `component`.
+// Ele agrupa declarações como o `screen` de uma janela, mas não aceita
 // `title`/`size` — não há janela nenhuma a que eles se aplicariam. Aqui não há o
-// que declarar, então a casca entra sozinha, sem `<resources>`.
+// que declarar, então a casca entra sozinha, sem `resources`.
 component {
   resources {
     link(rel = stylesheet, href = "examples/aninhado/app.gss")

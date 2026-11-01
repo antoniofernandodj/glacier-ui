@@ -19,7 +19,7 @@ impl Component for Perfil {
 
     fn template(&self) -> Template {
         // Só o componente de entrada precisa ser declarado; PerfilCard é puxado
-        // pelo <import> no topo de perfil.gv.
+        // pelo import no topo de perfil.gv.
         Template::File("examples/perfil/perfil.gv".into())
     }
 

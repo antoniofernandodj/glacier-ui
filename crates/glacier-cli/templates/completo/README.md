@@ -13,11 +13,11 @@ cargo run
 ```
 src/main.rs                     a casca: só sobe o runner
 views/
-├── app.gv                      a JANELA: <screen>, titlebar própria, sidebar, roteador
-├── home.gv                     rota "home"   — <component>, cards, for-each, if/else
-├── sobre.gv                    rota "sobre"  — <component>
+├── app.gv                      a JANELA: screen, titlebar própria, sidebar, roteador
+├── home.gv                     rota "home"   — component, cards, for-each, if/else
+├── sobre.gv                    rota "sobre"  — component
 ├── components/
-│   ├── nav_item.gv             item de sidebar, com contrato em <props>
+│   ├── nav_item.gv             item de sidebar, com contrato em props
 │   └── stat_card.gv            cartão de número, com prop opcional
 ├── scripts/
 │   ├── app.luau                entrada: carrega os handlers e define init()
@@ -35,7 +35,7 @@ views/
 - **Um registro só.** O runner abre `views/app.gv` sozinho; os outros templates
   entram por `link(rel = import)` e são carregados em cascata.
 - **Um script só.** O contexto do motor é global, então `views/app.gv` é o único
-  template com `<script>`: os `on_click` dos templates importados resolvem para
+  template com `script`: os `on_click` dos templates importados resolvem para
   as funções globais declaradas em `views/scripts/`.
 - **Duas memórias.** `ctx` guarda strings — é o que os `{marcadores}` do markup
   leem. `state.luau` guarda as estruturas de verdade; `Dados.publicar()` copia
@@ -100,7 +100,7 @@ Todo `.gv` começa com uma casca que envolve o arquivo inteiro:
 Dentro da casca, `resources` guarda o que ela precisa (estilos, scripts, `link`)
 e o resto é o layout.
 
-## `<props>`: o contrato de um componente
+## `props`: o contrato de um componente
 
 `components/nav_item.gv` e `components/stat_card.gv` declaram as props que
 aceitam, com default para as opcionais. Uma prop ausente e sem default vale
@@ -112,7 +112,7 @@ contexto global por conta própria: ele só compara o que recebeu.
 
 ## Controle de fluxo
 
-`if`/`else` e `for-each` são **atributos**, aplicáveis a qualquer elemento — não
+`if`/`else` e `for_each` são **atributos**, aplicáveis a qualquer elemento — não
 é preciso uma tag invólucro para condicionar um nó só:
 
 ```gv
@@ -120,7 +120,7 @@ text("ativo", class = tag_ok, if = @i.ativo, equals = 1)
 text("parado", class = tag_off, else)
 ```
 
-`for-each` itera um **array JSON** guardado no contexto (daí o `json.encode` em
+`for_each` itera um **array JSON** guardado no contexto (daí o `json.encode` em
 `handlers/dados.luau`); `var` nomeia a variável de cada volta, e um objeto vira
 `{i.campo}`.
 
@@ -169,10 +169,10 @@ stylesheets — os mesmos nomes resolvem dentro dos `style(scoped)` dos
 templates. O `theme.json` é outra coisa: é o tema do iced, as cores base dos
 widgets.
 
-Num `Button`, `color` é o **fundo** e `text-color` é o texto.
+Num `button`, `color` é o **fundo** e `text_color` é o texto.
 
 `@media` casa contra o tamanho da janela em px lógicos. O motor **não reflui
-`Row` para `Column`**, então em janelas estreitas o caminho é esconder o cromo
+`row` para `column`**, então em janelas estreitas o caminho é esconder o cromo
 de menor prioridade (`hidden: true`) em vez de tentar recolocá-lo.
 
 ## Hot-reload

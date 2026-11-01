@@ -8,7 +8,7 @@
 -- para e volta com a resposta, e sem um global não haveria como parar. Um
 -- arrasto não suspende nada. Ele escreve numa chave, e o Luau já lê e escreve
 -- chaves desde sempre — `ctx.painel_h = "260 fill"` é a mesma linha que
--- configuraria um `<slider>` da 0.63.
+-- configuraria um `slider` da 0.63.
 --
 -- Então o que este exemplo demonstra é o contrário do da Onda 8: um habilitador
 -- de motor que **não custou nada** à camada de script. As nove tags chegam ao
@@ -21,15 +21,15 @@ function init()
 
     -- ── 1. Splitter ────────────────────────────────────────────────────
     --
-    -- A chave guarda TRILHAS, no formato do `columns` do `<grid>`: um número é
+    -- A chave guarda TRILHAS, no formato do `columns` do `grid`: um número é
     -- pixel, `fill` fica com o resto. É a mesma chave que a alça de coluna de
-    -- um `<tableheader>` escreve — na Onda 9 os dois viraram o mesmo código.
+    -- um `tableheader` escreve — na Onda 9 os dois viraram o mesmo código.
     ctx.painel_h = "300 fill"
     ctx.painel_v = "150 fill"
 
     -- ── 2. RangeSlider ─────────────────────────────────────────────────
     --
-    -- DUAS chaves, a mesma forma do `<daterangepicker range>` da Onda 3.
+    -- DUAS chaves, a mesma forma do `daterangepicker(range)` da Onda 3.
     ctx.preco_min = "150"
     ctx.preco_max = "820"
 
@@ -65,7 +65,7 @@ end
 -- A geometria mora no DADO e não no widget, e é o que torna o laço genérico:
 -- ele não sabe o que são essas caixas, só quais o retângulo tocou. Aqui a
 -- aritmética de posicionar a grade é do script — um markup não faz conta, que é
--- a lição que a Onda 8 aprendeu com o `<wizard>`.
+-- a lição que a Onda 8 aprendeu com o `wizard`.
 function caixas()
     local nomes = { "api", "banco", "fila", "cdn", "cache", "proxy" }
     local out = {}
@@ -83,7 +83,7 @@ function caixas()
     return out
 end
 
--- ── Item 8: os dois `<shortcut>` da tela ────────────────────────────────
+-- ── Item 8: os dois `shortcut` da tela ────────────────────────────────
 --
 -- São funções comuns. Um atalho não é um tipo novo de evento: é o teclado
 -- despachando o que um botão despacharia, e é por isso que o habilitador B não
@@ -100,7 +100,7 @@ function buscar()
     ctx.status = "Busca aberta pelo atalho"
 end
 
--- ── Item 5: o `<delaybutton>` ───────────────────────────────────────────
+-- ── Item 5: o `delaybutton` ───────────────────────────────────────────
 --
 -- A ação só chega aqui quando o anel FECHA. Soltar antes não despacha nada —
 -- não há o que tratar, e é o ponto todo do widget.
@@ -109,7 +109,7 @@ function apagar_tudo()
     ctx.status = "Tudo apagado — o anel fechou"
 end
 
--- ── Item 6: o `<rubberband>` ────────────────────────────────────────────
+-- ── Item 6: o `rubberband` ────────────────────────────────────────────
 --
 -- O que ele SELECIONOU já está em `ctx.marcados`, escrito pelo próprio widget.
 -- O que chega aqui é a geometria do retângulo, para quem quiser fazer outra
@@ -122,7 +122,7 @@ function lacou(retangulo)
     ctx.status = string.format("Laço %s → %d serviço(s)", retangulo or "", quantos)
 end
 
--- ── Item 4: o `on_change` do `<swipeview>` ──────────────────────────────
+-- ── Item 4: o `on_change` do `swipeview` ──────────────────────────────
 --
 -- O único dos nove que o markup mandou delegar. Os outros oito gravam a chave
 -- sozinhos — o par `on_change` vazio / preenchido de todo widget deste motor.

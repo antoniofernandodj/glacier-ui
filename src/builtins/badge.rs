@@ -8,18 +8,18 @@
 /// - `badge_size`  — tamanho do texto (numérico, templado). Default: `13`.
 /// - `text_class`  — classe aplicada **ao texto de dentro**, não à pílula.
 ///
-/// ```xml
-/// <Badge badge_text="Novo" badge_bg="#A6E3A1" badge_size="15" />
+/// ```gv
+/// Badge(badge_text = Novo, badge_bg = #A6E3A1, badge_size = 15)
 /// ```
 ///
 /// # Estilizar por classe
 ///
 /// `class` no uso pinta a **pílula** (a raiz expandida); `text_class` alcança o
-/// `<Text>` de dentro, que a classe do uso não atinge — a classe do uso aplica
+/// `Text` de dentro, que a classe do uso não atinge — a classe do uso aplica
 /// só na raiz, por decisão da 0.69.
 ///
-/// ```xml
-/// <Badge class="selo" text_class="selo_txt" badge_text="Novo" />
+/// ```gv
+/// Badge(class = selo, text_class = selo_txt, badge_text = Novo)
 /// ```
 use crate::component::{Component, Context, Template};
 
@@ -40,25 +40,15 @@ impl Component for Badge {
         // qualquer classe. Com a prop vazia caindo na classe (ver `resolve` em
         // `eval.rs`), a escada fica: prop > classe injetada > default da lib.
         Template::Inline(
-            r#"<Container
-                    class="badge-pill"
-                    background="{badge_bg}"
-                    padding="4 10"
-                    border_radius="12"
-                >
-                    <style>
-                        .badge-pill { background: #89B4FA; }
-                        .badge-text { color: #11111B; }
-                    </style>
-
-                    <Text
-                        class="badge-text {text_class}"
-                        content="{badge_text|Badge}"
-                        color="{badge_fg}"
-                        size="{badge_size|13}"
-                        bold="true"
-                    />
-                </Container>"#
+            r##"
+                container(class = badge-pill, background = @badge_bg, padding = "4 10", border_radius = 12) {
+                  style """
+                                        .badge-pill { background: #89B4FA; }
+                                        .badge-text { color: #11111B; }
+                                    """
+                  text(class = "badge-text {text_class}", content = "{badge_text|Badge}", color = @badge_fg, size = "{badge_size|13}", bold = true)
+                }
+            "##
                 .to_string(),
         )
     }

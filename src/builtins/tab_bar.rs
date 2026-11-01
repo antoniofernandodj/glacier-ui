@@ -1,29 +1,26 @@
 /// `QTabBar`: a fileira de abas, com a ativa em destaque.
 ///
-/// ```xml
-/// <TabBar :value="aba" active="{aba}" :items="abas" />
-///
-/// <template if="{aba}" equals="geral">  … conteúdo da aba Geral …  </template>
-/// <template else-if="{aba}" equals="rede"> … </template>
+/// ```gv
+/// span("TabBar(:value = aba, active = @aba, :items = abas) template(if = @aba, equals = geral) … conteúdo da aba Geral … } template(else_if = @aba, equals = rede) { … }")
 /// ```
 ///
 /// # Por que só a barra, e não o `QTabWidget` inteiro
 ///
 /// O `QTabWidget` do Qt é a barra **mais** o empilhado de páginas. A barra sai
 /// hoje; o empilhado não, porque cada página precisaria do seu próprio buraco
-/// no template (`<slot name="geral"/>`, `<slot name="rede"/>`) e o `<slot/>` do
+/// no template (`slot(name = geral)`, `slot(name = rede)`) e o `slot` do
 /// motor é único e anônimo. Enquanto o slot nomeado não existe, o conteúdo
-/// troca com `se`/`senao` na tela — que é o que o exemplo acima faz, e o que o
+/// troca com `if`/`else` na tela — que é o que o exemplo acima faz, e o que o
 /// motor já sabia fazer antes desta barra existir.
 ///
 /// A parte que valia entregar agora é justamente a barra: é ela que tem estado,
-/// destaque e área de clique — o `se`/`senao` do lado do conteúdo nunca foi o
+/// destaque e área de clique — o `if`/`else` do lado do conteúdo nunca foi o
 /// problema.
 ///
 /// # As abas vêm de uma coleção do contexto
 ///
 /// `items` é o **nome de uma chave** que guarda um array JSON de `{id, label}`
-/// — a mesma convenção do `<Menu :items="…">` e de qualquer `for-each` do motor
+/// — a mesma convenção do `Menu(:items = "…")` e de qualquer `for-each` do motor
 /// (uma lista literal no atributo não existe: o `for-each` lê chave, não texto).
 ///
 /// ```rust,ignore
@@ -65,15 +62,14 @@
 /// sob a aba precisaria de borda por lado, que o motor não tem.
 ///
 /// Para repintar uma barra só, sem mexer nas outras, uma prop por nó — `class`
-/// no uso aplica na `<Row>` que as segura, não nas abas:
+/// no uso aplica na `Row` que as segura, não nas abas:
 ///
 /// - `tab_class`        — toda aba, ativa ou não.
 /// - `tab_active_class` — só a ativa, **por cima** de `tab_class`.
 /// - `label_class`      — o rótulo dentro da aba.
 ///
-/// ```xml
-/// <tabbar :value="aba" active="{aba}" :items="abas"
-///         tab_class="aba" tab_active_class="aba_ativa" />
+/// ```gv
+/// tabbar(:value = aba, active = @aba, :items = abas, tab_class = aba, tab_active_class = aba_ativa)
 /// ```
 use crate::component::{Component, Context, Template};
 
@@ -86,53 +82,46 @@ impl Component for TabBar {
 
     fn template(&self) -> Template {
         // O `if`/`else` fica DENTRO do corpo do `for-each`, não no mesmo nó:
-        // as duas diretivas não compõem numa tag só (ver o braço `<template>`
+        // as duas diretivas não compõem numa tag só (ver o braço `template`
         // em `parser.rs`).
         //
         // `on_click="pick:{value}|{tab.id}"` é o payload do padrão SpinBox: o
         // `|` de fora é separador de campo, e o `update` abaixo o desmonta.
         Template::Inline(
-            r#"<Row spacing="{spacing|2}" align_y="center" width="{width|fill}">
-                    <style>
-                        .tab {
-                            color: #00000000;
-                            text-color: #80868d;
-                            border-width: 0;
-                            border-radius: 6;
+            r##"
+                row(spacing = "{spacing|2}", align_y = center, width = "{width|fill}") {
+                  style """
+                                        .tab {
+                                            color: #00000000;
+                                            text_color: #80868d;
+                                            border_width: 0;
+                                            border_radius: 6;
+                                        }
+                                        .tab:hover { background: #8080803d; }
+                                        .tab-active {
+                                            color: #8080803d;
+                                            text_color: #cdd6f4;
+                                        }
+                                    """
+                  template(:for_each = "{items}", var = tab) {
+                    template(if = @tab.id, equals = @active) {
+                      button(class = "tab tab-active {tab_class} {tab_active_class}", on_click = "pick:{value}|{tab.id}", padding = "{padding|7 14}") {
+                        template(if = "{active_bold|true}", equals = false) {
+                          text(class = @label_class, content = @tab.label, size = "{size|13}")
                         }
-                        .tab:hover { background: #8080803d; }
-                        .tab-active {
-                            color: #8080803d;
-                            text-color: #cdd6f4;
+                        template(else) {
+                          text(class = @label_class, content = @tab.label, size = "{size|13}", bold = true)
                         }
-                    </style>
-
-                    <template for-each="{items}" var="tab">
-                        <template if="{tab.id}" equals="{active}">
-                            <Button
-                                class="tab tab-active {tab_class} {tab_active_class}"
-                                on_click="pick:{value}|{tab.id}"
-                                padding="{padding|7 14}"
-                            >
-                                <template if="{active_bold|true}" equals="false">
-                                    <Text class="{label_class}" content="{tab.label}" size="{size|13}" />
-                                </template>
-                                <template else>
-                                    <Text class="{label_class}" content="{tab.label}" size="{size|13}" bold="true" />
-                                </template>
-                            </Button>
-                        </template>
-                        <template else>
-                            <Button
-                                class="tab {tab_class}"
-                                on_click="pick:{value}|{tab.id}"
-                                padding="{padding|7 14}"
-                            >
-                                <Text class="{label_class}" content="{tab.label}" size="{size|13}" />
-                            </Button>
-                        </template>
-                    </template>
-                </Row>"#
+                      }
+                    }
+                    template(else) {
+                      button(class = "tab {tab_class}", on_click = "pick:{value}|{tab.id}", padding = "{padding|7 14}") {
+                        text(class = @label_class, content = @tab.label, size = "{size|13}")
+                      }
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

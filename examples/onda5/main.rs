@@ -39,7 +39,7 @@
 //!
 //! Repare no `update` abaixo. Ele trata **três** ações, e nenhuma delas abre ou
 //! fecha um painel: pressionar o gatilho abre, clicar fora fecha, Esc fecha —
-//! tudo dentro do widget, como o `<spinbox>` faz a conta dele. O que o app faz
+//! tudo dentro do widget, como o `spinbox` faz a conta dele. O que o app faz
 //! é o que nenhum widget podia saber: o que significa clicar em "Sair", e qual
 //! é a data de hoje.
 //!
@@ -51,7 +51,7 @@ use glacier_ui::{Component, Context, GlacierDaemon, Template};
 
 struct Onda5;
 
-/// As cidades que o `<autocomplete>` filtra. Uma lista literal, para o exemplo
+/// As cidades que o `autocomplete` filtra. Uma lista literal, para o exemplo
 /// não depender de rede — e propositalmente com acento, que é o que o
 /// recorte sem acento do widget existe para resolver: "sao paulo" acha
 /// "São Paulo".
@@ -79,7 +79,7 @@ const CIDADES: &[&str] = &[
 ];
 
 /// Os serviços, com `id` separado do rótulo — é o par que o `onSelect` do
-/// `<autocomplete>` entrega: o widget grava o RÓTULO no campo (é o que a pessoa
+/// `autocomplete` entrega: o widget grava o RÓTULO no campo (é o que a pessoa
 /// vê) e manda o `id` para quem pediu (é o que liga a escolha a um registro).
 const SERVICOS: &[(&str, &str)] = &[
     ("api", "API pública"),
@@ -102,7 +102,7 @@ impl Component for Onda5 {
     }
 
     fn init(&mut self, ctx: &mut Context) {
-        // As abas do `<tabs>`: a MESMA chave que antes alimentava a `<tabbar>`.
+        // As abas do `tabs`: a MESMA chave que antes alimentava a `tabbar`.
         // O que mudou é que a lista não aparece mais uma segunda vez numa
         // escada de `se`/`senão` — as páginas são `slot="…"` no markup.
         ctx.set(
@@ -123,15 +123,15 @@ impl Component for Onda5 {
         ctx.set("gaveta", String::new());
 
         // O conteúdo do painel de filtros. Semeá-las é o que faz a tela abrir
-        // coerente com o que o app considera o estado inicial — o `<checkbox>`
-        // e o `<slider>` só LEEM estas chaves; quem as escreve é o braço
+        // coerente com o que o app considera o estado inicial — o `checkbox`
+        // e o `slider` só LEEM estas chaves; quem as escreve é o braço
         // genérico do `update` abaixo, porque os dois são primitivas da Onda 1
         // (disparam a ação, não gravam).
         ctx.set("so_no_ar", "true".to_string());
         ctx.set("arquivados", "false".to_string());
         ctx.set("uso_max", "80".to_string());
 
-        // O `<autocomplete>`: a lista inteira numa chave, o texto noutra. Quem
+        // O `autocomplete`: a lista inteira numa chave, o texto noutra. Quem
         // recorta é o widget — é a razão de ser dele.
         let cidades: Vec<serde_json::Value> =
             CIDADES.iter().map(|c| serde_json::json!(c)).collect();
@@ -178,7 +178,7 @@ impl Component for Onda5 {
                 ctx.set("menu_usuario", String::new());
                 ctx.set("status", format!("Menu: {item}"));
             }
-            // O `<autocomplete>` com `onSelect` DELEGA: ele entrega o `id`, e
+            // O `autocomplete` com `onSelect` DELEGA: ele entrega o `id`, e
             // quem decide o que fazer com ele é o app. Sem `onSelect`, o widget
             // grava o rótulo na chave e ninguém passa por aqui — que é o caso
             // do campo "Cidade" logo acima na tela.

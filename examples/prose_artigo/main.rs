@@ -1,6 +1,6 @@
 //! **Um artigo, três sintaxes**: o texto vem de ARQUIVOS (`examples/conteudo_prose`),
-//! lidos aqui em Rust, e entra nos `<prose syntax content>` da tela. É o mesmo caminho de
-//! um texto que viesse de um banco ou de uma API — o `<prose>` só vê a chave do contexto.
+//! lidos aqui em Rust, e entra nos `prose(syntax, content)` da tela. É o mesmo caminho de
+//! um texto que viesse de um banco ou de uma API — o `prose` só vê a chave do contexto.
 //! Ver `docs/TEXTO.md`.
 //!
 //! Rode com: `WGPU_BACKEND=gl cargo run --example prose_artigo`

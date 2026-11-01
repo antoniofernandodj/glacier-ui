@@ -1,12 +1,16 @@
 //! `Grid`: a **medição de colunas** — o habilitador da Onda 6 do
-//! `PLANO_WIDGETS.md`, e o item de motor de que saem `<grid>`, `<tableheader>`,
-//! `<tableview>` e `<columnview>`.
+//! `PLANO_WIDGETS.md`, e o item de motor de que saem `grid`, `tableheader`,
+//! `tableview` e `columnview`.
 //!
-//! ```xml
-//! <grid columns="3" spacing="8">
-//!     <text>Nome</text>   <text>Estado</text>  <text>Uso</text>
-//!     <text>api</text>    <text>no ar</text>   <text>41%</text>
-//! </grid>
+//! ```gv
+//! grid(columns = 3, spacing = 8) {
+//!   text("Nome")
+//!   text("Estado")
+//!   text("Uso")
+//!   text("api")
+//!   text("no ar")
+//!   text("41%")
+//! }
 //! ```
 //!
 //! # O que faltava, exatamente
@@ -29,12 +33,12 @@
 //!    contra a largura definitiva da coluna dela.
 //!
 //! Dois passos são o preço, e ele é conhecido: é o mesmo que qualquer motor de
-//! layout de tabela paga. Para uma grade grande dentro de um `<scrollable>`, a
+//! layout de tabela paga. Para uma grade grande dentro de um `scrollable`, a
 //! saída continua sendo a de sempre — `virtualize` (ver `PRIMITIVAS.md`).
 //!
 //! # As trilhas
 //!
-//! `columns` aceita duas formas, e a segunda é a que o `<tableview>` usa:
+//! `columns` aceita duas formas, e a segunda é a que o `tableview` usa:
 //!
 //! | escrito | quer dizer |
 //! |---|---|
@@ -57,7 +61,7 @@
 //!
 //! O plano listava `Flow`/`Wrap` como "a mesma medição num eixo só", saindo
 //! deste mesmo mecanismo. **O `iced` já tinha**: `Row::wrap()`
-//! (`iced_widget::row::Wrapping`) quebra linha exatamente assim. `<flow>` é um
+//! (`iced_widget::row::Wrapping`) quebra linha exatamente assim. `flow` é um
 //! `Row` embrulhado, três linhas em `widget.rs`, e não passa por aqui — a sexta
 //! vez que este projeto descobre que um item catalogado como caro já existia.
 
@@ -105,7 +109,7 @@ impl Trilha {
 
     /// Uma trilha por palavra, **sem** o atalho do número solto.
     ///
-    /// É a leitura que a chave de `widths` de um `<tableview>` precisa: ali
+    /// É a leitura que a chave de `widths` de um `tableview` precisa: ali
     /// `"160"` quer dizer *uma coluna de 160px*, não *160 colunas*. A diferença
     /// entre esta e a [`Self::parse_lista`] é exatamente essa, e ela custou um
     /// teste vermelho para aparecer.
@@ -291,7 +295,7 @@ fn larguras(
         return base;
     }
 
-    // `disponivel` infinito acontece dentro de um `<scrollable>` horizontal:
+    // `disponivel` infinito acontece dentro de um `scrollable` horizontal:
     // ali não há sobra para repartir, e a coluna flexível cai na largura
     // natural dela. Sem esta guarda, `INFINITY - x` viraria uma largura
     // infinita e o layout inteiro sairia `NaN`.
@@ -528,7 +532,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
             let no = filho
                 .as_widget_mut()
                 .layout(&mut tree.children[i], renderer, &celula);
-            // O `max` ignora altura não-finita. Dentro de um `<scrollable>` o
+            // O `max` ignora altura não-finita. Dentro de um `scrollable` o
             // teto vertical é infinito, e uma célula que se declare
             // `height="fill"` mede infinito — o que faria a linha inteira
             // (e a grade, e a tela) sumir sem erro nenhum. Uma célula assim
@@ -724,7 +728,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
         let decorada = self.fixa || !self.faixas.is_empty();
         if !decorada {
             // Só as células que intersectam o viewport, como a `Row` do iced
-            // faz: numa tabela longa dentro de um `<scrollable>` isso já poupa
+            // faz: numa tabela longa dentro de um `scrollable` isso já poupa
             // o desenho das linhas fora da tela (medir, não — para isso é o
             // `virtualize`).
             for ((filho, estado), layout) in self
@@ -838,7 +842,7 @@ mod testes {
     }
 
     /// A mesma string, lida como faixas, é UMA coluna de 3px. É a diferença
-    /// que a chave de `widths` de um `<tableview>` precisa: ali `"160"` quer
+    /// que a chave de `widths` de um `tableview` precisa: ali `"160"` quer
     /// dizer uma coluna de 160, não 160 colunas.
     #[test]
     fn parse_faixas_nao_tem_o_atalho_do_numero_solto() {
@@ -926,7 +930,7 @@ mod testes {
 
     #[test]
     fn largura_infinita_nao_produz_nan() {
-        // Dentro de um `<scrollable>` horizontal o teto é infinito; sem a
+        // Dentro de um `scrollable` horizontal o teto é infinito; sem a
         // guarda, `INFINITY - x` viraria uma largura infinita e o layout
         // inteiro sairia NaN — um nó que some sem erro nenhum.
         let w = larguras(

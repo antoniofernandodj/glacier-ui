@@ -20,7 +20,7 @@
 //! Um [`Style`] é dois ingredientes, ambos declarativos:
 //!
 //! 1. **Paleta** (`background`/`text`/`primary`/…): vira o `iced::Theme` do
-//!    app — o mesmo slot de um `<link rel="theme">`. É ela que pinta o fundo
+//!    app — o mesmo slot de um `link(rel = theme)`. É ela que pinta o fundo
 //!    da janela, os widgets que seguem o tema (checkbox, toggle, slider,
 //!    inputs) e os defaults de texto.
 //! 2. **GSS embutido** ([`Style::gss`]): regras de **tag** (`Button { }`,
@@ -38,17 +38,17 @@
 //! Duas ações builtin (nenhum componente envolvido), no espírito do combo
 //! "Style:" do Widget Gallery do Qt:
 //!
-//! - `on_click="style:<nome>"` num botão troca para o estilo `<nome>`;
-//! - um `<Select>` com `onChange="style:set"` troca para o valor escolhido.
+//! - `on_click="style:<nome>"` num botão troca para o estilo `nome`;
+//! - um `Select` com `onChange="style:set"` troca para o valor escolhido.
 //!
 //! O nome do estilo ativo fica no contexto sob [`CONTEXT_KEY`] (`glacier_style`)
-//! — é o que um `<Select :value="glacier_style">` usa para exibir a seleção.
+//! — é o que um `Select(:value = glacier_style)` usa para exibir a seleção.
 
 use crate::error::Result;
 use crate::stylesheet::StyleSheet;
 
 /// Chave de contexto onde o motor publica o nome do estilo ativo (atualizada a
-/// cada [`crate::GlacierUI::set_style`]). Um `<Select :value="glacier_style">`
+/// cada [`crate::GlacierUI::set_style`]). Um `Select(:value = glacier_style)`
 /// exibe — e, com `onChange="style:set"`, troca — o estilo em runtime.
 pub const CONTEXT_KEY: &str = "glacier_style";
 
@@ -147,29 +147,29 @@ pub const FROST: Style = Style {
 }
 Button {
     color: #fdfdfd;
-    text-color: #1a1a1a;
-    border-width: 1;
-    border-color: #d0d0d0;
-    border-radius: 4;
+    text_color: #1a1a1a;
+    border_width: 1;
+    border_color: #d0d0d0;
+    border_radius: 4;
     padding: 6 14;
 }
-Button:hover { background: #e0eef9; border-color: #0078d7; }
-Button:active { background: #cce4f7; border-color: #005fb8; }
-Button:disabled { background: #f5f5f5; text-color: #a3a3a3; border-color: #e0e0e0; }
-TextInput:hover { border-color: #b8b8b8; }
-TextInput:focus { border-color: #0078d7; }
+Button:hover { background: #e0eef9; border_color: #0078d7; }
+Button:active { background: #cce4f7; border_color: #005fb8; }
+Button:disabled { background: #f5f5f5; text_color: #a3a3a3; border_color: #e0e0e0; }
+TextInput:hover { border_color: #b8b8b8; }
+TextInput:focus { border_color: #0078d7; }
 Select {
     background: #fdfdfd;
-    border-width: 1;
-    border-color: #d0d0d0;
-    border-radius: 4;
+    border_width: 1;
+    border_color: #d0d0d0;
+    border_radius: 4;
     padding: 6 10;
 }
-Select:hover { border-color: #0078d7; }
+Select:hover { border_color: #0078d7; }
 ProgressBar {
     background: #e6e6e6;
     color: #107c10;
-    border-radius: 3;
+    border_radius: 3;
 }
 "#,
 };
@@ -194,29 +194,29 @@ pub const FUSION: Style = Style {
 }
 Button {
     color: #e8e8e8;
-    text-color: #252525;
-    border-width: 1;
-    border-color: #b4b4b4;
-    border-radius: 2;
+    text_color: #252525;
+    border_width: 1;
+    border_color: #b4b4b4;
+    border_radius: 2;
     padding: 5 14;
 }
 Button:hover { background: #f2f2f2; }
-Button:active { background: #d4d4d4; border-color: #9a9a9a; }
-Button:disabled { background: #ececec; text-color: #9a9a9a; border-color: #cfcfcf; }
-TextInput:hover { border-color: #9a9a9a; }
-TextInput:focus { border-color: #308cc6; }
+Button:active { background: #d4d4d4; border_color: #9a9a9a; }
+Button:disabled { background: #ececec; text_color: #9a9a9a; border_color: #cfcfcf; }
+TextInput:hover { border_color: #9a9a9a; }
+TextInput:focus { border_color: #308cc6; }
 Select {
     background: #e8e8e8;
-    border-width: 1;
-    border-color: #b4b4b4;
-    border-radius: 2;
+    border_width: 1;
+    border_color: #b4b4b4;
+    border_radius: 2;
     padding: 6 10;
 }
-Select:hover { border-color: #308cc6; }
+Select:hover { border_color: #308cc6; }
 ProgressBar {
     background: #d8d8d8;
     color: #308cc6;
-    border-radius: 2;
+    border_radius: 2;
 }
 "#,
 };
@@ -241,29 +241,29 @@ pub const FUSION_DARK: Style = Style {
 }
 Button {
     color: #3c3f41;
-    text-color: #d8d8d8;
-    border-width: 1;
-    border-color: #555555;
-    border-radius: 2;
+    text_color: #d8d8d8;
+    border_width: 1;
+    border_color: #555555;
+    border_radius: 2;
     padding: 5 14;
 }
-Button:hover { background: #46494c; border-color: #2a82da; }
-Button:active { background: #2a82da; text-color: #ffffff; }
-Button:disabled { background: #333537; text-color: #777777; border-color: #444444; }
-TextInput:hover { border-color: #666666; }
-TextInput:focus { border-color: #2a82da; }
+Button:hover { background: #46494c; border_color: #2a82da; }
+Button:active { background: #2a82da; text_color: #ffffff; }
+Button:disabled { background: #333537; text_color: #777777; border_color: #444444; }
+TextInput:hover { border_color: #666666; }
+TextInput:focus { border_color: #2a82da; }
 Select {
     background: #3c3f41;
-    border-width: 1;
-    border-color: #555555;
-    border-radius: 2;
+    border_width: 1;
+    border_color: #555555;
+    border_radius: 2;
     padding: 6 10;
 }
-Select:hover { border-color: #2a82da; }
+Select:hover { border_color: #2a82da; }
 ProgressBar {
     background: #1e1f20;
     color: #2a82da;
-    border-radius: 2;
+    border_radius: 2;
 }
 "#,
 };
@@ -288,29 +288,29 @@ pub const PHANTOM: Style = Style {
 }
 Button {
     color: #46494c;
-    text-color: #ced2d6;
-    border-width: 1;
-    border-color: #2f3234;
-    border-radius: 3;
+    text_color: #ced2d6;
+    border_width: 1;
+    border_color: #2f3234;
+    border_radius: 3;
     padding: 5 14;
 }
 Button:hover { background: #505356; }
-Button:active { background: #3a3d3f; border-color: #7d9fc4; }
-Button:disabled { background: #404346; text-color: #7d8288; border-color: #35383a; }
-TextInput:hover { border-color: #26282a; }
-TextInput:focus { border-color: #7d9fc4; }
+Button:active { background: #3a3d3f; border_color: #7d9fc4; }
+Button:disabled { background: #404346; text_color: #7d8288; border_color: #35383a; }
+TextInput:hover { border_color: #26282a; }
+TextInput:focus { border_color: #7d9fc4; }
 Select {
     background: #2e3133;
-    border-width: 1;
-    border-color: #26282a;
-    border-radius: 3;
+    border_width: 1;
+    border_color: #26282a;
+    border_radius: 3;
     padding: 6 10;
 }
-Select:hover { border-color: #7d9fc4; }
+Select:hover { border_color: #7d9fc4; }
 ProgressBar {
     background: #2b2d2f;
     color: #7d9fc4;
-    border-radius: 3;
+    border_radius: 3;
 }
 "#,
 };

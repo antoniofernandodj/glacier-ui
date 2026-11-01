@@ -1,6 +1,6 @@
 screen(title = "Glacier — Galeria de Estilos", size = "560 640") {
   resources {
-    // Todo o estilo da galeria vive no <style> abaixo (GSS inline; `scoped` limita
+    // Todo o estilo da galeria vive no style abaixo (GSS inline; `scoped` limita
     // as classes a este componente). A markup carrega só estrutura e comportamento
     // (bindings/ações) — o visual dos widgets em si (fundo/borda/hover de botões,
     // select, inputs) vem do ESTILO BUILTIN ativo, não daqui.
@@ -8,7 +8,7 @@ screen(title = "Glacier — Galeria de Estilos", size = "560 640") {
       .galeria { padding: 16; width: fill; height: fill; }
       .pilha { spacing: 14; width: fill; }
       /* A barra do combo "Style:". */
-      .toolbar { spacing: 10; align-y: center; }
+      .toolbar { spacing: 10; align_y: center; }
       .combo-estilo { width: 180; }
       .grupos { spacing: 24; width: fill; }
       .grupo { spacing: 8; }
@@ -20,7 +20,7 @@ screen(title = "Glacier — Galeria de Estilos", size = "560 640") {
       .botao { width: 200; }
       /* Classe vence o estilo builtin (mesma precedência do Qt: stylesheet > QStyle);
         um atributo inline, por sua vez, venceria a classe. */
-      .accent { color: #308cc6; text-color: #ffffff; border-radius: 3; padding: 6 14; }
+      .accent { color: #308cc6; text_color: #ffffff; border_radius: 3; padding: 6 14; }
       .linha-inputs { spacing: 10; width: fill; }
       .input { width: fill; padding: 7 9; }
       .notas { height: 120; padding: 8; }
@@ -83,7 +83,7 @@ screen(title = "Glacier — Galeria de Estilos", size = "560 640") {
           // `tristate`: cicla false → mixed → true, como o Qt::CheckState.
           checkbox(
             label = "Tri-state check box", :checked = tres_estados,
-            on_toggle = tres_estados, tristate = true,
+            on_toggle = tres_estados, tri_state = true,
           )
 
           toggle(label = "Toggle switch", :checked = ligado, on_toggle = ligado)

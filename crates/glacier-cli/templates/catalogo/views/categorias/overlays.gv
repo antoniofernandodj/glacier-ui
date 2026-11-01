@@ -18,11 +18,11 @@ component {
     text(class = titulo_cat, content = "Overlays, dicas e utilitários")
 
     text(
-      class = intro,
-      content = """
+      """
         `tooltip=` e `whats_this=` são atributos UNIVERSAIS — valem em qualquer
-        nó. `<shortcut>` mora no layout (não no `<resources>`) e não desenha nada.
+        nó. `shortcut` mora no layout (não no `resources`) e não desenha nada.
       """,
+      class = intro,
     )
 
     column(class = demos) {
@@ -47,10 +47,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <popover> (ancorado ao gatilho) · <popup> (centrado na janela)
+          """
+            popover (ancorado ao gatilho) · popup (centrado na janela)
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -77,10 +77,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <stack> — filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=
+          """
+            stack — filhos no mesmo espaço; anchor= em 9 cantos, ou x=/y=
           """,
+          class = rotulo,
         )
 
         stack(class = caixa_stack) {
@@ -93,10 +93,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <notificationdot show="@{…}"> — o pingo no canto do filho
+          """
+            notificationdot(show = "@{…}") — o pingo no canto do filho
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -115,11 +115,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <splashscreen show="@{…}"> — o `slot="splash"` cobre o conteúdo (slot
+          """
+            splashscreen(show = "@{…}") — o `slot="splash"` cobre o conteúdo (slot
             anônimo) enquanto `show` for verdadeiro
           """,
+          class = rotulo,
         )
 
         button(
@@ -146,7 +146,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<rubberband> — laço de seleção sobre alvos nomeados",
+          content = "rubberband — laço de seleção sobre alvos nomeados",
         )
 
         rubberband(
@@ -160,7 +160,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<foreach on_reorder reorder_key> — arraste pela alça ⋮⋮",
+          content = "foreach(on_reorder, reorder_key) — arraste pela alça ⋮⋮",
         )
 
         column(class = coluna) {
@@ -179,11 +179,11 @@ component {
       }
 
       text(
-        class = nota,
-        content = """
-          Há um <shortcut key="ctrl+j" on_press="dizer:ctrl+j"> ativo nesta tela —
+        """
+          Há um shortcut(key = ctrl+j, on_press = "dizer:ctrl+j") ativo nesta tela —
           sem modificador ele não roubaria a tecla de um campo focado.
         """,
+        class = nota,
       )
 
       shortcut(key = ctrl+j, on_press = "dizer:atalho ctrl+j")

@@ -1,4 +1,4 @@
-//! Navegação decidida pelo `<script>` Lua (`navigate`/`navigate_back`), ao
+//! Navegação decidida pelo `script` Lua (`navigate`/`navigate_back`), ao
 //! invés dos atributos declarativos `navigateTo`/`navigateBack` (ver o
 //! exemplo `navegacao`, que só troca de tela).
 //!

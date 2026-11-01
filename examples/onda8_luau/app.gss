@@ -38,7 +38,7 @@ qualquer tela.
 
 .amostra { width: 44; height: 32; border_radius: 6; border_width: 1; }
 
-/* ── Corpo do `<dialog>` (Item 1) ─────────────────────────────────────── */
+/* ── Corpo do `dialog` (Item 1) ─────────────────────────────────────── */
 /*
 A cadeia inteira precisa ser `width: fill` — um `fill` dentro de um pai
 `shrink` colapsa o campo (ver a armadilha no PRIMITIVAS.md). Por isso

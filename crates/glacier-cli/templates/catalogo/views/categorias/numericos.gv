@@ -7,20 +7,20 @@ component {
     text(class = titulo_cat, content = "Numéricas e de valor")
 
     text(
-      class = intro,
-      content = """
+      """
         `min`/`max`/`step` são inline (medida de widget). O `step` cru decide as
         casas decimais gravadas: `step="0.25"` grava `"7.25"`.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <spinbox> · <spinbox decimals> · <spinbox layout="inline">
+          """
+            spinbox · spinbox(decimals) · spinbox(layout = inline)
           """,
+          class = rotulo,
         )
 
         row(class = linha) {
@@ -41,7 +41,7 @@ component {
       }
 
       column(class = demo) {
-        text(class = rotulo, content = "<slider> · <slider vertical>")
+        text(class = rotulo, content = "slider · slider(vertical)")
 
         row(class = linha) {
           slider(
@@ -65,7 +65,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<rangeslider> — dois cursores, duas chaves",
+          content = "rangeslider — dois cursores, duas chaves",
         )
 
         rangeslider(
@@ -77,7 +77,7 @@ component {
       }
 
       column(class = demo) {
-        text(class = rotulo, content = "<dial> · <tumbler> · <rating>")
+        text(class = rotulo, content = "dial · tumbler · rating")
 
         row(class = linha) {
           dial(
@@ -89,22 +89,22 @@ component {
 
           column(class = coluna) {
             rating(:value = ra_nota)
-            rating(:value = ra_nota, readonly = true, size = 14)
+            rating(:value = ra_nota, read_only = true, size = 14)
           }
         }
 
         text(
-          class = nota,
-          content = """
+          """
             di_ganho = @di_ganho · tu_mes = @tu_mes · ra_nota = @ra_nota
           """,
+          class = nota,
         )
       }
 
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<progressbar> · <spinner> · <gauge> · <lcdnumber>",
+          content = "progressbar · spinner · gauge · lcdnumber",
         )
 
         row(class = linha) {

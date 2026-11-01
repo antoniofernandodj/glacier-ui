@@ -13,7 +13,7 @@ glacier serve wasm       # compila para o navegador e serve em http://127.0.0.1:
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version <a do Cargo.lock>
+cargo install wasm-bindgen-cli --version a(do, Cargo.lock)
 ```
 
 O `glacier serve wasm` confere as duas coisas antes de começar. Se a versão do
@@ -105,7 +105,7 @@ docker/nginx.conf      a configuração desse nginx (gzip, tipo do .wasm, cache)
 | --- | --- | --- |
 | `views/` | lida do disco, com hot-reload | embutida no `.wasm` por `embed_assets!` |
 | desenho | GPU | software (tiny-skia), ou GPU com `--features web-gpu` |
-| `<script>` Luau | funciona | **não existe** (o Luau é C++ e não compila para esse alvo) |
+| `script` Luau | funciona | **não existe** (o Luau é C++ e não compila para esse alvo) |
 | fontes | as do sistema | só a Fira Sans Regular: **negrito some** sem registrar a face Bold |
 | `fetch`, notificação, diálogo de arquivo | funcionam | não existem |
 

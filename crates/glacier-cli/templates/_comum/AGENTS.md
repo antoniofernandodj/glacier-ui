@@ -123,11 +123,11 @@ screen(title = Contador, size = "320 240") {
 
    ```gv
    text(
-     class = nota,
-     content = """
+     """
        Uma frase longa que quebra onde quiser; a quebra e a indentação
        viram um espaço só.
      """,
+     class = nota,
    )
    ```
 
@@ -265,7 +265,7 @@ Três consequências que mudam como se escreve:
      `text(content = "@msg.ola")` mostra `mundo`. Vale em qualquer `@…`/`{…}`
      (`@cfg.db.host`, `{msg.x|padrão}`, `if @cfg.ativo == "true"`), desce em lista
      por **índice a partir de 0** (`@itens.0.nome`) e em objeto aninhado pelo nome;
-     dentro de um `for-each`, também (`@i.endereco.cidade`). Uma folha número ou
+     dentro de um `for_each`, também (`@i.endereco.cidade`). Uma folha número ou
      booleano sai como texto (`3`, `true`); um objeto ou lista sai como o JSON em
      texto; `null` ou um caminho que não existe é ausente (vale o `|padrão`). É só
      **leitura**: um campo ligado a um widget de duas vias (`:value`) precisa ser uma
@@ -339,7 +339,7 @@ sufixo depois do `:` vira o primeiro argumento. É como uma linha de lista passa
 o próprio id:
 
 ```gv
-button(for-each = itens, var = i, text = "✕", on_click = "remover:{i.id}")
+button(for_each = itens, var = i, text = "✕", on_click = "remover:{i.id}")
 ```
 ```lua
 function remover(id: string): ()  …  end
@@ -468,7 +468,7 @@ quando há uma tag só para condicionar:
 ```gv
 text("{erro}", if = @erro, class = erro)
 text("tudo certo", else, class = ok)
-Card(for-each = servicos, var = s, title = @s.nome, estado = @s.estado)
+card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
 ```
 
 `template` existe para quando o condicional precisa envolver **vários** nós
@@ -607,10 +607,10 @@ screen(title = Serviços, size = "720 520", min_size = "480 360") {
     text("nenhum serviço encontrado", if = @visiveis, empty, class = vazio)
     scrollable(height = fill) {
       column(class = lista) {
-        row(for-each = visiveis, var = s, class = linha) {
+        row(for_each = visiveis, var = s, class = linha) {
           text("{s.nome}", class = nome)
           space
-          Badge(badge_text = @s.estado)
+          badge(badge_text = @s.estado)
           button(class = btn, text = alternar, on_click = "alternar:{s.id}")
         }
       }
@@ -815,7 +815,7 @@ que já está pintado ali embaixo.
 Arredondar exige matemática de distância em cada pixel do retângulo — inclusive
 no meio dele, longe dos cantos. Numa caixa que ocupa a tela, isso é caro e o
 detalhe de 7px quase não se nota; num crachá ou botão, é barato e faz a
-aparência. Guarde o `border-radius` para as caixas pequenas.
+aparência. Guarde o `border_radius` para as caixas pequenas.
 
 ## Como medir, em vez de adivinhar
 
@@ -877,17 +877,15 @@ propósito.
 ## Como se escreve um `.gv` e um `.gss` aqui
 
 A convenção vale para **todo** template (`.gv`) e toda folha do projeto — os que já
-existem e os que vierem. O motor aceita `CamelCase`, `camelCase` e `kebab-case` como apelido, e é
-justamente por isso que a regra precisa estar escrita: nada quebra se você
-misturar, e um arquivo com quatro grafias da mesma coisa é o resultado natural
-de não decidir.
+existem e os que vierem. O motor só conhece a grafia em minúsculas (`textinput`,
+`min_size`); qualquer outra é `UnknownComponent` ou um atributo ignorado com aviso.
 
 **1. Tags do motor em minúsculas, atributos em `snake_case`.**
 
 ```gv
 // não
-Column(spacing = 10) {
-  TextInput(onChange = salvar, minSize = "200 100")
+column(spacing = 10) {
+  textinput(on_change = salvar, min_size = "200 100")
 }  // sim
 column {
   textinput(on_change = salvar, min_size = "200 100")
@@ -962,10 +960,10 @@ Como saber, olhando uma tela, o que é o quê:
 | tag | o que é | onde mora |
 |---|---|---|
 | `column`, `textinput` | **primitiva** do motor | `src/parser.rs` + `src/widget.rs` |
-| `Card`, `TabBar` | **builtin** da lib (template de markup) | `src/builtins/` |
+| `card`, `tabbar` | **builtin** da lib (template de markup) | `src/builtins/` |
 | `MeuCartao` | **componente deste app** | um `.gv` seu |
 
-Builtins também respondem em minúscula colada (`card` == `Card`). A
+Builtins também respondem em minúscula colada (`card` == `card`). A
 convenção deste projeto usa minúscula para tudo do motor/lib e `CamelCase` só
 para o que é seu — assim a caixa da letra já diz de onde a tag vem.
 
@@ -973,9 +971,8 @@ para o que é seu — assim a caixa da letra já diz de onde a tag vem.
 ele entende, com o valor aceito e o default; os atributos genéricos (`class`,
 `width`, `padding`, `background`, `hidden`…) valem em todos e estão numa seção
 só, logo abaixo. Quando o widget lê uma coleção, a forma exata do JSON está
-junto, com um exemplo de como o script a produz. O motor aceita `CamelCase`,
-`camelCase`, `kebab-case` e nomes em português como apelidos de quase todo
-atributo; as tabelas mostram **uma** grafia, a que este projeto escreve.
+junto, com um exemplo de como o script a produz. Atributos e tags se escrevem em `snake_case`, em minúsculas; as tabelas mostram
+essa grafia.
 
 ### O esqueleto de um `.gv`
 
@@ -1036,7 +1033,7 @@ component {
 }
 ```
 ```gv
-Lista(titulo = Serviços, itens = servicos, cabecalho = TituloGrande, vazio = NenhumServico)
+lista(titulo = Serviços, itens = servicos, cabecalho = TituloGrande, vazio = NenhumServico)
 ```
 
 - `render(component = @x, …)` é a tag `X(…)` com o nome vindo de dado. Como
@@ -1059,7 +1056,7 @@ Três formas de trazer outro template:
 | `import(name = Cartao, from = "views/cartao.gv")` | quando o nome do componente difere do arquivo |
 | `include(src = "views/pedaco.gv")` | cola o conteúdo ali, sem virar componente |
 
-Os `rel` que existem são seis: `stylesheet`, `import`, `component` (apelido de
+Os `rel` que existem são seis: `stylesheet`, `import`, `component` (o mesmo que
 `import`), `data` — que carrega um JSON numa chave de contexto, e aí `as`/`name`
 é obrigatório —, `theme` e `style` (um estilo do app, com `as`; ver "Modo claro
 e escuro: `link(rel = style)`"). Qualquer outro é erro na carga, com a lista na
@@ -1218,13 +1215,13 @@ na tabela de cada widget:
 | `hidden`, `disabled` | truthy: `"true"`/`"1"` liga; vazio, `"false"` e `"0"` desligam. Aceitam `{chave}` — é assim que se liga ao dado |
 | `tooltip`, `tooltip_position` | texto do balão; a posição é `top`/`bottom`/`left`/`right` |
 | `whats_this` | ajuda do `QWhatsThis`. Só aparece com o **modo pegajoso** ligado (ação `whatsthis:on`/`off`/`toggle` → chave `__whatsthis`), e aí toma o lugar do `tooltip=` no hover |
-| `cursor` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not-allowed`, `none`, e as alças `resize-h`, `resize-v`, `resize-ne`, `resize-nw` (com os apelidos de bússola `n`, `s`, `e`, `w`, `ne`, `nw`, `se`, `sw`) |
+| `cursor` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not_allowed`, `none`, e as alças `resize_h`, `resize_v`, `resize_ne`, `resize_nw` (com os apelidos de bússola `n`, `s`, `e`, `w`, `ne`, `nw`, `sw`) |
 | `on_press`, `on_double_click` | nome de uma ação; clique em **qualquer** elemento (o `on_click` é do `button`) |
 | `font`, `text_align`, `text_color`, `size`, `bold`, `color` | o texto **dentro** do nó |
 | `virtualize` | só numa `column`/`row` dentro de `scrollable` — ver "Listas longas" |
 | `x`, `y`, `anchor` | só num filho de `stack` — ver Sobreposição |
 | `form_control` | liga o campo à `form` que o envolve; com `rules="…"`, `msg="…"`, `pattern="…"` o motor valida esse campo no envio (ver "Validação declarada no próprio `form`") |
-| `if`, `else`, `else-if`, `for-each`, `var`, `slot` | diretivas; ver "Estrutura de template" |
+| `if`, `else`, `else_if`, `for_each`, `var`, `slot` | diretivas; ver "Estrutura de template" |
 
 Cor sempre em hexadecimal — não há `rgb()`, nem nome de cor, nem `transparent`
 (o equivalente é `#00000000`).
@@ -1265,7 +1262,7 @@ parsear o valor como JSON e, se não for JSON, trata como nome de chave:
 | `columns` | `tableview`/`tableheader` (JSON de colunas **ou** especificação de trilhas) |
 
 Todo o resto que é lista (`linechart(items)`, `listview(items)`,
-`treeview(items)`, `for-each`) é **só nome de chave**. Uma lista literal no
+`treeview(items)`, `for_each`) é **só nome de chave**. Uma lista literal no
 atributo não existe ali.
 
 **Uma chave que não existe, ou um JSON inválido, não dá erro:** o widget
@@ -1276,7 +1273,7 @@ renderiza vazio. Semear a chave no `init` do script é o que evita isso.
 Vários widgets pedem os dois, e parece redundância:
 
 ```gv
-TabBar(:items = abas, :value = aba, active = @aba)
+tabbar(:items = abas, :value = aba, active = @aba)
 ```
 
 `value="aba"` é o **nome da chave que o clique escreve**; `active="{aba}"` é o
@@ -1309,7 +1306,7 @@ A especificação de trilhas é uma lista separada por espaço, e vale também n
 
 | token | o que faz |
 |---|---|
-| `140` | largura fixa em pixels |
+| — | largura fixa em pixels |
 | `fill` | divide o que sobrou, peso 1 (`flex` é apelido) |
 | `fill2`, `fill-2`, `fill_2` | o mesmo, com peso 2 |
 | `auto` ou `*` | o que o conteúdo pedir |
@@ -1580,7 +1577,7 @@ do filho de 0 até a natural.
 **`Badge(badge_text = Novo)`** — pílula de rótulo. Props: `badge_text`
 (default `"Badge"`), `badge_bg`, `badge_fg`, `badge_size` (13), `text_class`.
 
-**`Avatar`** — foto circular com iniciais como reserva. Props: `src`,
+**`avatar`** — foto circular com iniciais como reserva. Props: `src`,
 `initials` (default `"?"`), `size` (40), `bg` (`#8080803d`), `fg`,
 `image_class`, `fallback_class`, `initials_class`. Com `src` vazio, cai nas
 iniciais — é o caminho normal, não um erro.
@@ -1628,8 +1625,8 @@ Presets, no lugar da máscara literal:
 | `cep` | `#####-###` |
 | `placa` | `AAA#*##` (Mercosul; a antiga cabe na mesma) |
 | `date` / `data` | `##/##/####` |
-| `time` / `hora` | `##:##` |
-| `card` / `cartao` | `#### #### #### ####` |
+| `time` | `##:##` |
+| `card` | `#### #### #### ####` |
 
 Qualquer outro valor é usado como máscara literal — `mask="+55 (##) ####-####"`
 funciona.
@@ -1658,7 +1655,7 @@ uma coleção. Cada item é `{ id, label }`. Props: `layout="row"` (default
 | `decimals` | inteiro |
 | `width` | `72` — a largura do **campo**, não da caixa |
 | `layout` | `stacked` (▴▾ empilhados) ou qualquer outro valor para `−`/`+` lado a lado |
-| `placeholder`, `field_class`, `step_class`, `glyph_class` | |
+| `placeholder`, `field_class`, `step_class`, `glyph_class` | — |
 | `form_control`, `rules`, `msg` | repassados ao `input` de dentro — dentro de um `form`, o campo entra na validação (ver "Validação declarada no próprio `form`"). O `value=` continua **obrigatório**: é ele que diz onde o número mora. |
 
 O `width` descer para o campo é a armadilha: `width="fill"` ali vira um risco
@@ -1688,7 +1685,7 @@ roda.
 | `size` | `96` (diâmetro) |
 | `notches` | `0` — marcas ao redor do arco |
 | `show_value` | `false` (ao contrário do `gauge`: um knob existe para ser girado) |
-| `decimals`, `readonly`, `color`, `on_change`, `on_release` | |
+| `decimals`, `color`, `on_change`, `on_release` | — |
 
 **`colorwheel(:value = cor)`** — anel de matiz + quadrado saturação/valor;
 grava `#rrggbb`. `size` default `220`, entre 80 e 640. `readonly="true"` mostra
@@ -1701,7 +1698,7 @@ sem deixar mexer.
 | `max` | `5` |
 | `filled` / `empty` | `★` / `☆` — qualquer caractere serve |
 | `size` | `20` |
-| `readonly`, `color`, `on_change` | |
+| `color`, `on_change` | — |
 
 **`shortcutinput(:value = atalho_salvar)`** — captura uma combinação e grava na
 forma canônica `ctrl+shift+alt+super+tecla`, nessa ordem, minúscula. Só um campo
@@ -1760,7 +1757,7 @@ form(name = cadastro, on_submit = salvar, on_validation_error = apontar, validat
 | `digits:N` ou `digits:MIN,MAX` | fora dessa contagem de **dígitos** (ignora ponto, traço, parênteses — feito para CPF e telefone) |
 | `gte:N` / `lte:N` | número fora do limite |
 | `email` | não parece e-mail (vazio passa — combine com `required`) |
-| `accepted` | não é `true`/`on`/`1`/`yes`/`sim` — para o `checkbox` de "aceito os termos" |
+| `accepted` | não é `true`/`on`/`1`/`yes` — para o `checkbox` de "aceito os termos" |
 | `fn:NOME` | a função global Luau `NOME(valor)` devolveu uma string (a mensagem). `nil` ou `""` = ok. O escape hatch para o que o vocabulário não cobre (dígito verificador de CPF, "senha ≠ login", …). |
 
 - **`pattern="\d{11}"`** é atributo separado — uma regex tem `|` e `:` e não
@@ -1820,11 +1817,11 @@ ctx.regioes = json.encode(json.array({
 }))
 ```
 
-`labelField` (default `"label"`) e `valueField` (default `"value"`) renomeiam os
+`label_field` (default `"label"`) e `value_field` (default `"value"`) renomeiam os
 campos quando o JSON vem de fora com outros nomes:
 
 ```gv
-select(:options = paises, :value = pais, labelField = nome, valueField = sigla)
+select(:options = paises, :value = pais, label_field = nome, value_field = sigla)
 ```
 
 Um objeto sem o campo de valor usa o rótulo como valor. Um valor não-string
@@ -1832,7 +1829,7 @@ Um objeto sem o campo de valor usa o rótulo como valor. Um valor não-string
 
 **`comboedit(:options = servidores, :value = host)`** — dropdown **editável**:
 `on_change` dispara a cada tecla, `on_select` só quando o usuário escolhe um
-item existente. Mesmos `options`/`labelField`/`valueField` do `select`.
+item existente. Mesmos `options`/`label_field`/`value_field` do `select`.
 
 **`autocomplete(:value = cidade, :items = cidades)`** — sugestões enquanto
 digita, num painel ancorado ao campo. Ignora acento e caixa; ▲▼ navegam, Enter
@@ -1844,7 +1841,7 @@ aceita, Esc desiste.
 | `min_chars` | `1` — quantas letras antes de sugerir |
 | `max_items` | `8` (entre 1 e 50) |
 | `filter` | `true`; `filter="false"` mostra a lista inteira, para quando o filtro é do servidor |
-| `placeholder`, `on_change`, `on_select` | |
+| `placeholder`, `on_change`, `on_select` | — |
 
 **`ListView(:items = servicos, :value = servico)`** — lista vertical com
 seleção. Cada item é `{ id, label, sub }` — `sub` é a segunda linha, opcional.
@@ -1970,8 +1967,8 @@ anterior terminou, e a primeira começa no `min`.
 
 | campo | apelidos | obrigatório |
 |---|---|---|
-| `to` | `ate`, `até`, `max` | sim — o limite superior, na escala de `min`..`max` |
-| `color` | `cor` | sim — `#rrggbb` ou `#rrggbbaa` |
+| `to` | `ate`, `max` | sim — o limite superior, na escala de `min`..`max` |
+| `color` | — | sim — `#rrggbb` ou `#rrggbbaa` |
 
 Um objeto sem um dos dois, ou com cor que não é hexadecimal, é **descartado em
 silêncio**. As faixas são ordenadas pelo limite antes de desenhar, então a
@@ -2032,8 +2029,8 @@ ctx.serie = json.encode(json.array({
 
 | campo do ponto | apelidos | ausente vira |
 |---|---|---|
-| `label` | `rotulo`, `rótulo`, `nome`, `x` | a posição do item (1, 2, 3…) |
-| `value` | `valor`, `y` | `0` |
+| `label` | `x` | a posição do item (1, 2, 3…) |
+| `value` | `y` | `0` |
 
 Um elemento que é **número solto** (`[12, 31, 24]`) também funciona: vira um
 ponto com aquele valor e a posição como rótulo. Chave ausente, JSON inválido ou
@@ -2113,8 +2110,8 @@ canvas(class = tela) {
 | `text` | `x y` + texto como filho; segue as regras de um `text` normal |
 
 - **Geometria é dado**: `cx="{x}"`, `d="{traçado}"` — inline no `.gv`.
-- **Traço e preenchimento são estilo**: `fill` / `stroke` / `stroke-width` numa
-  **classe `.gss`** (apelidos de `background` / `border-color` / `border-width`).
+- **Traço e preenchimento são estilo**: `fill` / `stroke` / `stroke_width` numa
+  **classe `.gss`** (apelidos de `background` / `border_color` / `border_width`).
 - Sem `on_click`/hover/animação numa forma.
 
 ### Model/view: tabela e árvore
@@ -2146,10 +2143,10 @@ ctx.colunas = json.encode(json.array({
 
 | campo da coluna | apelidos | default |
 |---|---|---|
-| `key` | `campo`, `id` | — o campo do item que a célula mostra |
-| `label` | `rotulo` | o próprio `key` |
-| `width` | `largura` | `auto` — aceita os mesmos tokens da especificação de trilhas |
-| `align` | `alinhamento` | `start`; aceita `right`/`direita`/`end` e `center`/`centro` |
+| `key` | `id` | — o campo do item que a célula mostra |
+| `label` | — | o próprio `key` |
+| `width` | — | `auto` — aceita os mesmos tokens da especificação de trilhas |
+| `align` | — | `start`; aceita `right`/`end` e `center` |
 
 2. ou uma **especificação de trilhas** escrita direto (`columns="fill 120 80"`),
 quando os cabeçalhos não importam.
@@ -2162,7 +2159,7 @@ quando os cabeçalhos não importam.
 | `widths` | nome de chave onde as larguras arrastadas são gravadas |
 | `row_height` | `0` (automático) |
 | `virtualize` | ver "Listas longas" |
-| `on_select` | |
+| `on_select` | — |
 | `var` | `row` — o nome da linha no corpo de um `tablecolumn` (abaixo) |
 | `row_key` | o campo que identifica a linha para `value`/`on_select`. Vazio = `id`, ou a primeira coluna, ou o índice |
 | `header_class` / `row_class` | classes da faixa do cabeçalho e de cada linha (abaixo) |
@@ -2215,7 +2212,7 @@ Com `height` e alguma decoração (`tablecolumn` ou uma das classes), o
 `tablecolumn` e sem as classes desenha exatamente como antes.
 
 **`tableheader(columns = "…", widths = cols)`** — o mesmo cabeçalho **sem** o
-corpo, para quem monta as linhas à mão com um `for-each`. Compartilhar a chave
+corpo, para quem monta as linhas à mão com um `for_each`. Compartilhar a chave
 de `widths` entre ele e as linhas é o que mantém tudo alinhado.
 
 **`treeview(:items = arvore, :open = abertos)`** — árvore expansível. O item:
@@ -2244,7 +2241,7 @@ aberto.
 
 ### Navegação e agrupadores
 
-Os itens de `TabBar` e `Tabs` são `{ id, label }`; o `id` é o que a chave
+Os itens de `tabbar` e `tabs` são `{ id, label }`; o `id` é o que a chave
 recebe e o que o `template(slot = "…")` casa.
 
 ```lua
@@ -2262,7 +2259,7 @@ estilo: `tab_class`, `tab_active_class`, `label_class`, `padding` (`7 14`),
 Cada página é um `template(slot = id_da_aba)` no corpo:
 
 ```gv
-Tabs(:items = abas, :value = aba, active = @aba) {
+tabs(:items = abas, :value = aba, active = @aba) {
   template("…", slot = geral)
   template("…", slot = rede)
 }
@@ -2271,7 +2268,7 @@ Tabs(:items = abas, :value = aba, active = @aba) {
 Props extras: `page_class`, `page_spacing` (12), `tab_padding` (`7 14`).
 
 **`StackView(active = @passo)`** — as páginas **sem** a barra; escolhe pelo
-nome do slot, igual ao `Tabs`. É o que se usa quando a navegação está noutro
+nome do slot, igual ao `tabs`. É o que se usa quando a navegação está noutro
 lugar da tela.
 
 **`swipeview(:value = pagina)`** — páginas trocadas **arrastando**; escolhe por
@@ -2291,19 +2288,19 @@ com os títulos, navegação e validação.
 | `back_label`, `next_label`, `finish_label`, `cancel_label` | textos dos botões |
 | `header="false"` | esconde o cabeçalho de passos |
 
-Cada passo é um `template(slot = id_do_passo)`, como no `Tabs`.
+Cada passo é um `template(slot = id_do_passo)`, como no `tabs`.
 
 **`wizardnav(steps = "…", :value = passo, valid = @ok)`** — só a barra de botões
 (voltar inerte no primeiro, "finalizar" no último), para quem monta o resto à
 mão.
 
-**`Accordion` + `AccordionItem`** — **várias** seções abertas ao mesmo
+**`accordion` + `accordionitem`** — **várias** seções abertas ao mesmo
 tempo, guardadas num conjunto numa chave só:
 
 ```gv
-Accordion {
-  AccordionItem("…", value = abertas, id = rede, title = Rede)
-  AccordionItem("…", value = abertas, id = disco, title = Disco)
+accordion {
+  accordionitem("…", value = abertas, id = rede, title = Rede)
+  accordionitem("…", value = abertas, id = disco, title = Disco)
 }
 ```
 
@@ -2311,7 +2308,7 @@ Props do item: `id`, `title`, `sub`, `value` (a chave do conjunto), `duration`
 (180), `padding` (12), e as classes `head_class`, `body_class`, `title_class`,
 `sub_class`, `mark_class`.
 
-**`ToolBox` + `ToolBoxItem`** — o mesmo, com **uma** aberta por vez (a chave
+**`toolbox` + `toolboxitem`** — o mesmo, com **uma** aberta por vez (a chave
 guarda um id, não um conjunto).
 
 **`GroupBox(title = Rede)`** — moldura com título. `slot="actions"` põe
@@ -2349,7 +2346,7 @@ o resto é o painel.
 | `dismiss` | `true` | clicar fora fecha |
 | `trigger` | `true` | `trigger="none"` faz o gatilho não abrir sozinho — o script controla |
 | `panel_width` | natural | `anchor` copia a largura do gatilho, ou um número em pixels. **Não use `width`**: nele, `width` é a largura do gatilho, que é quem está no fluxo |
-| `on_close` | | |
+| `on_close` | — | — |
 
 Sem nenhum filho marcado com `slot="anchor"`, o **primeiro** filho vira o
 gatilho e o resto, o painel. Abrir, fechar por clique fora, por Esc e por novo
@@ -2366,7 +2363,7 @@ embrulha. Props: `show` (truthy, default `true`), `anchor` (`top-right`), `size`
 conteúdo normal é o `slot`; o painel de cima é o `slot="splash"`:
 
 ```gv
-SplashScreen(show = @carregando, background = #1e1e2e) {
+splashscreen(show = @carregando, background = #1e1e2e) {
   template(slot = splash) {
     column(align_x = center, spacing = 12) {
       spinner
@@ -2441,9 +2438,9 @@ ctx.acoes = json.encode(json.array({
 | campo | apelidos |
 |---|---|
 | `label` | `text` |
-| `action` | `onClick`, `on_click` |
+| `action` | `on_click`, `on_click` |
 | `icon`, `disabled`, `checked` | — |
-| `separator` | `isSeparator` — sozinho já basta, vira uma linha |
+| `separator` | `is_separator` — sozinho já basta, vira uma linha |
 | `items` | submenu, recursivo |
 
 O `checked` de um `menuitem` só **mostra** o check: quem o alterna é o handler
@@ -2455,9 +2452,9 @@ Na prática funciona, porque uma ação sem prefixo cai de volta na tela ativa;
 para um menu que pertence a outro componente, escreva o prefixo à mão
 (`action = "OutroComponente::acao"`).
 
-**`ToolBar` + `ToolButton`** — faixa de ações.
+**`toolbar` + `toolbutton`** — faixa de ações.
 
-| prop do `ToolButton` | default |
+| prop do `toolbutton` | default |
 |---|---|
 | `icon` | `●` — um caractere ou emoji |
 | `icon_src` | um `.svg`, no lugar do `icon` |
@@ -2465,9 +2462,9 @@ para um menu que pertence a outro componente, escreva o prefixo à mão
 | `icon_color` | tema |
 | `text` | o rótulo |
 | `layout` | `icon` (só o ícone), `beside` (ao lado), `under` (embaixo) |
-| `on_click`, `tooltip` | |
+| `on_click`, `tooltip` | — |
 
-`ToolBar` tem `divider` (default `true`), `padding` (`6 8`), `spacing` (4),
+`toolbar` tem `divider` (default `true`), `padding` (`6 8`), `spacing` (4),
 `align_y` (`center`).
 
 **`StatusBar(message = @status)`** — mensagem à esquerda, permanentes à direita
@@ -2484,18 +2481,18 @@ papéis, na ordem da plataforma.
 
 **Um botão sem rótulo não aparece** — uma caixa só com `accept` é um botão só.
 `order` (`gnome` ou `windows`) força a ordem; sem ele, vale a do alvo de
-compilação. `class` no uso pinta a `Row` inteira, não os botões.
+compilação. `class` no uso pinta a `row` inteira, não os botões.
 
 **`CommandLink(title = "Instalação típica", description = "…", on_click = "…")`** —
 botão de duas linhas com seta, o "próximo passo" de um assistente.
 
 **`RoundButton(text = +, color = #89B4FA, size = 48, on_click = "…")`** — botão
-circular. O `color` **precisa** existir: o `Button` só aplica `border_radius`
+circular. O `color` **precisa** existir: o `button` só aplica `border_radius`
 dentro do fecho de estilo que a cor (ou um `gradient`) liga, então sem nenhum dos dois sai um retângulo. O
 default é `#45475A` justamente por isso.
 
-**`SizeGrip`** — canto de redimensionar, para apps com titlebar própria.
-`corner` default `se`, `size` (14).
+**`sizegrip`** — canto de redimensionar, para apps com titlebar própria.
+`corner` default `size` (14).
 
 **`mdiarea` / `mdisubwindow`** — descritos em "Layout e estrutura".
 
@@ -2521,14 +2518,14 @@ Estas não desenham nada — decidem o que existe.
 parseia como array conta como vazio. Para testar uma string, use o teste truthy
 (`if="{erro}"`) ou `not_equals=""`.
 
-`else-if` e `else` encadeiam com o `if` **imediatamente anterior**, no mesmo
+`else_if` e `else` encadeiam com o `if` **imediatamente anterior**, no mesmo
 nível:
 
 ```gv
 template(if = @estado, equals = ok) {
   text("no ar", class = ok)
 }
-template(else-if = @estado, equals = lento) {
+template(else_if = @estado, equals = lento) {
   text("lento", class = alerta)
 }
 template(else) {
@@ -2539,13 +2536,13 @@ template(else) {
 Uma escada que não casa nenhum ramo não é erro — é um buraco na tela, sem aviso.
 Termine sempre com um `template(else)` quando o valor puder ser inesperado.
 
-**Repetição.** `for-each` é um **atributo**, na própria tag repetida:
+**Repetição.** `for_each` é um **atributo**, na própria tag repetida:
 
 ```gv
-Card(for-each = servicos, var = s, title = @s.nome, estado = @s.estado)
+card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
 ```
 
-`for-each` recebe o **nome da chave**; `var` batiza o item. Dentro do corpo:
+`for_each` recebe o **nome da chave**; `var` batiza o item. Dentro do corpo:
 
 | forma | quando |
 |---|---|
@@ -2559,7 +2556,7 @@ dedicada e o `template`:
 ```gv
 foreach(items = servicos, var = s, fallback = NenhumServico) {
   text("{s.nome}", class = nome)
-  Badge(badge_text = @s.estado)
+  badge(badge_text = @s.estado)
 }
 template(foreach = servicos, var = s, foreach_fallback = NenhumServico) {
   text("{s.nome}", class = nome)
@@ -2576,8 +2573,8 @@ mostrar `nada casa com “{busca}”`.
 | onde | atributo |
 |---|---|
 | `foreach` | `fallback` |
-| `template(foreach)` | `foreach_fallback` (ou `foreach-fallback`) |
-| `for-each` num elemento | não existe — ali `fallback` seria uma prop do componente repetido |
+| `template(foreach)` | `foreach_fallback` (ou `foreach_fallback`) |
+| `for_each` num elemento | não existe — ali `fallback` seria uma prop do componente repetido |
 
 O nome no `template` é mais longo de propósito: ele também é `if`/`else`/
 `slot`, e `fallback` ali leria como "senão". Por isso `fallback` num
@@ -2645,7 +2642,7 @@ condicionais:
 template(if = @cabecalho, equals = TituloGrande) {
   TituloGrande(titulo = @titulo)
 }
-template(else-if = @cabecalho, equals = TituloCompacto) {
+template(else_if = @cabecalho, equals = TituloCompacto) {
   TituloCompacto(titulo = @titulo)
 }
 template(else) {
@@ -2669,8 +2666,8 @@ component {
 }
 ```
 ```gv
-Lista(titulo = Serviços, cabecalho = TituloGrande)
-Lista(titulo = Filas, cabecalho = TituloCompacto)
+lista(titulo = Serviços, cabecalho = TituloGrande)
+lista(titulo = Filas, cabecalho = TituloCompacto)
 ```
 
 **Como ele se comporta.** Resolvido o nome, o `render` vira **exatamente** a
@@ -2678,11 +2675,11 @@ tag `Nome(…)`, e tudo o que vale para uma tag de componente vale para ele:
 
 | no `render` | vira |
 |---|---|
-| `component="{x}"` (apelidos `componente`, `is`) | o nome, interpolado no contexto de quem escreveu o `render` |
+| `component = @x` (ou `is`) | o nome, interpolado no contexto de quem escreveu o `render` |
 | os outros atributos | as props do componente, conferidas pelo `props` dele |
 | os filhos | o conteúdo do `slot` do componente |
 | `class` / `id` | a classe e o id do uso, como numa tag comum |
-| `if`, `for-each`, … | diretivas, avaliadas antes, como em qualquer nó |
+| `if`, `for_each`, … | diretivas, avaliadas antes, como em qualquer nó |
 
 E três regras próprias:
 
@@ -2702,7 +2699,7 @@ E três regras próprias:
   no markup:
 
   ```gv
-Lista(titulo = Serviços, cabecalho = @cabecalho)
+lista(titulo = Serviços, cabecalho = @cabecalho)
 ```
   ```lua
   function alternar_cabecalho(): ()
@@ -2802,7 +2799,7 @@ end
 | `name` | — (**obrigatório**) | como o modal é aberto (`dialog:name`) e o nome do template do corpo. **Único no app inteiro** — os diálogos vivem num mapa global e são singleton (só um aberto por vez) |
 | `title` | — | título do cartão; vazio esconde a linha do cabeçalho |
 | `message` | — | um texto acima do corpo; vazio some (não vira linha em branco). Quase sempre ausente num diálogo com conteúdo — o conteúdo já diz o que ele pede |
-| `icon` | `none` | `information` (`info`/`informacao`), `warning` (`warn`/`aviso`), `error` (`critical`/`erro`), `question` (`pergunta`), `none`. Um valor desconhecido vira `none`, sem erro |
+| `icon` | `none` | `information` (`info`), `warning` (`warn`), `error` (`critical`), `question`, `none`. Um valor desconhecido vira `none`, sem erro |
 | `buttons` | um `Fechar` | a lista compacta — ver abaixo |
 | `dismissible` | `true` | se clicar no fundo escurecido fecha (sem despachar nada). `false` obriga a escolher um botão |
 
@@ -2823,13 +2820,13 @@ opcionais). O parsing:
 |---|---|
 | `Salvar:salvar_perfil:accept` | rótulo `Salvar`, ação `salvar_perfil`, papel `accept` |
 | `Salvar:salvar_perfil` | idem — **papel ausente com ação escrita ⇒ `accept`** |
-| `Cancelar::` / `Cancelar:` / `Cancelar` | rótulo `Cancelar`, **ação vazia ⇒ só fecha**, não despacha nada; papel `neutral` |
+| `Cancelar::` / `Cancelar:` | rótulo `Cancelar`, **ação vazia ⇒ só fecha**, não despacha nada; papel `neutral` |
 | `Voltar:dialog:editar:neutral` | encadeia: fecha este, abre o `dialog(name = editar)` |
 | `Remover:remover:destructive` | papel `destructive` (tom de perigo) |
 | `Salvar:MeuComp::salvar:accept` | ação `MeuComp::salvar` — o `::` de dono, para um modal encapsulado num componente (ver adiante) |
 
-Papéis (**só mudam a cor**, nunca o roteamento): `accept`/`aceitar`/`principal`,
-`neutral`/`neutro`/`cancel`/`cancelar`, `destructive`/`destrutivo`/`perigo`/`danger`.
+Papéis (**só mudam a cor**, nunca o roteamento): `accept`,
+`neutral`/`cancel`, `destructive`/`danger`.
 
 Casos de borda: `buttons=""` (presente e vazio) → **nenhum** botão, só o fundo
 fecha (útil num `progress` que não dá para cancelar). Sem o atributo → um único
@@ -2943,7 +2940,7 @@ As três formas simples:
 |---|---|
 | `.cartao { }` | qualquer nó com `class="cartao"` (o atributo aceita várias, separadas por espaço) |
 | `#salvar { }` | o nó com `id="salvar"` |
-| `button { }` | o **tipo** do nó: uma primitiva (`column`, `text`, `button`) ou o nome de um componente no uso (`Card`) |
+| `button { }` | o **tipo** do nó: uma primitiva (`column`, `text`, `button`) ou o nome de um componente no uso (`card`) |
 
 E elas se **combinam** como no CSS (0.122):
 
@@ -3003,7 +3000,7 @@ São 21, e **só estas**. Qualquer outra é ignorada com um aviso no terminal �
 `border-bottom`, `margin`, `display: flex`, `box-shadow` não existem.
 
 Numa forma de `canvas` (Onda 13), `fill` é apelido de `background`, `stroke`
-de `border-color` e `stroke-width` de `border-width` — não são propriedades
+de `border_color` e `stroke_width` de `border_width` — não são propriedades
 novas, é o mesmo campo com o nome do domínio.
 
 | propriedade | apelidos | valor |
@@ -3012,26 +3009,25 @@ novas, é o mesmo campo com o nome do domínio.
 | `height` | `h` | idem |
 | `padding` | — | 1, 2 ou 4 números |
 | `spacing` | — | número |
-| `align_x` | `align-x` | `start`, `center`, `end` |
-| `align_y` | `align-y` | idem |
+| `align_x` | `align_x` | `start`, `center`, `end` |
+| `align_y` | `align_y` | idem |
 | `background` | `bg` | `#rrggbb`, `#rrggbbaa` |
 | `gradient` | — | `"180 #a #b"` — ângulo opcional + 2 ou mais cores; vale também em `button` |
-| `border_radius` | `border-radius` | número |
-| `border_width` | `border-width` | número |
-| `border_color` | `border-color` | cor |
+| `border_radius` | `border_radius` | número |
+| `border_width` | `border_width` | número |
+| `border_color` | `border_color` | cor |
 | `color` | — | cor do texto — **mas num `button` é a cor de FUNDO** |
-| `text_color` | `text-color` | cor do rótulo de um `button` (default branco) |
+| `text_color` | `text_color` | cor do rótulo de um `button` (default branco) |
 | `size` | — | corpo da fonte (num `button`, o do rótulo) |
 | `bold` | — | `true`/`false` (num `button`, o do rótulo; um `font` explícito vence) |
-| `font` | `font-family` | nome da família carregada |
-| `text_align` | `text-align` | `start`, `center`, `end` |
-| `cursor` | `cursor-icon` | ver a tabela de `cursor` acima |
-| `max_width` | `max-width` | número |
-| `max_height` | `max-height` | número |
+| `font` | `font_family` | nome da família carregada |
+| `text_align` | `text_align` | `start`, `center`, `end` |
+| `cursor` | `cursor_icon` | ver a tabela de `cursor` acima |
+| `max_width` | `max_width` | número |
+| `max_height` | `max_height` | número |
 | `hidden` | — | `true`/`false`; `display: none` é apelido de `hidden: true` |
 
-O motor aceita a forma com hífen como apelido de todas. A convenção deste
-projeto escreve **sublinhado**, para casar com os atributos do `.gv`.
+O motor só aceita a forma com sublinhado, a mesma dos atributos do `.gv`.
 
 ### Pseudo-estados
 
@@ -3087,7 +3083,7 @@ componente.
 @media (min-width: 900) and (min-height: 600) { … }
 ```
 
-As features são quatro: `min-width`, `max-width`, `min-height`, `max-height`,
+As features são quatro: `min-width`, `max_width`, `min-height`, `max_height`,
 medidas em pixels da **janela** (o sufixo `px` é tolerado e ignorado). Todas as
 condições de uma consulta são combinadas com E — o `and` é opcional na escrita, e
 não existe `or`, `not` nem `only screen`. Uma feature fora dessas quatro é erro
@@ -3208,7 +3204,7 @@ veio. É como um builtin se configura sem semear nada no contexto global — e �
 forma que você usa nos seus próprios componentes.
 
 **5. Conjunto nomeado = uma chave com itens separados por vírgula.** Seleção
-múltipla, `Accordion`, nós abertos de uma árvore, `rubberband`: todos usam a
+múltipla, `accordion`, nós abertos de uma árvore, `rubberband`: todos usam a
 mesma ideia, e o teste no markup é `contains`. A escrita normaliza para vírgula;
 a leitura aceita vírgula, ponto e vírgula e espaço.
 
@@ -3245,7 +3241,7 @@ Todas silenciosas — nenhuma dá erro:
 - **`fill` dentro de `scrollable` some.** O scrollable oferece altura
   infinita; um `height="fill"` ali mede infinito e empurra o resto para fora.
   Dentro de um scrollable, altura **declarada**.
-- **`fill` numa prop de builtin não é largura de caixa.** No `SpinBox` o
+- **`fill` numa prop de builtin não é largura de caixa.** No `spinbox` o
   `width` desce para o campo, dentro de uma `row` `shrink` — `fill` ali vira
   um risco entre os dois botões.
 - **`padding` com três números vira zero.** O motor aceita 1, 2 ou 4; três é
@@ -3261,14 +3257,13 @@ Todas silenciosas — nenhuma dá erro:
 - **Desligar uma chave é gravar vazio nela.** Por isso um `template(if)` de
   visibilidade não leva comparador: sem ele a condição é **truthy**. Com
   `not_equals="false"`, o vazio passa — e o painel abre e nunca fecha. Foi
-  exatamente esse o bug que deixou o `SplashScreen` visível para sempre.
+  exatamente esse o bug que deixou o `splashscreen` visível para sempre.
 - **`empty`/`not_empty` testam array JSON, não texto.** Num valor que não
   parseia como array, `empty` é sempre verdadeiro.
-- **Nome de componente que já é apelido de tag nunca é alcançado.** O motor
-  mapeia a tag antes de procurar componentes: `Painel` é apelido do `popover`,
-  então `component(name = Painel)` é ignorado e `Painel` vira um popover
-  vazio. Antes de batizar um componente com um substantivo comum em português,
-  confira que ele não é uma tag.
+- **Nome de componente que já é uma tag nunca é alcançado.** O motor mapeia a
+  tag antes de procurar componentes: um `component(name = popover)` é ignorado e
+  `popover` vira a primitiva. Componentes do app usam `CamelCase`, e por isso não
+  colidem.
 - **`pageindicator` é uma tag, não um `dots="true"`.**
 - **Conteúdo que passa da janela some sem barra.** Se a tela pode crescer, ela
   precisa de `scrollable` — e a coluna dentro dele **não** pode ter
@@ -3601,7 +3596,7 @@ if r.ok then usar(r.json) end                           -- r.json = corpo já de
 
 | método | |
 |---|---|
-| `client:get(path, spec?)` / `:delete` / `:head` / `:options` | |
+| `client:get(path, spec?)` / `:delete` / `:head` / `:options` | — |
 | `client:query(path, body, spec?)` | o método HTTP `QUERY` (RFC 10008): seguro e idempotente, a consulta no corpo. Sem corpo ou sem `Content-Type` o cliente nem envia (`ok = false`, `status = 0`) |
 | `client:post(path, body?, spec?)` / `:put` / `:patch` | `body` tabela → `json.encode` + `Content-Type: application/json` |
 | `client:request(spec)` | a forma geral: `{ method, path, url?, headers?, query?, body?, timeout?, cookies?, signal?, multipart? }` |
@@ -4116,7 +4111,7 @@ passam a existir depois (o valor padrão; o erro que o `form` publica ao
 enviar). Essas se **nomeiam** no `assert_complete(tela, { "erro_nome" })`, com um
 comentário dizendo por quê — o que sobrar é a falha, e ela diz quais chaves
 sobraram e quais faltaram. Fica de fora o que o motor publica sozinho (`__*`) e
-as variáveis locais de um `for-each`. `missing()` só olha as
+as variáveis locais de um `for_each`. `missing()` só olha as
 chaves; o que a tela **mostra** e o estilo declarado se conferem pela árvore
 avaliada (abaixo). O que nenhum teste alcança é a **geometria real** (a largura
 que um `fill` dentro de um pai `shrink` acaba ocupando): isso só o `make run`
@@ -4397,7 +4392,7 @@ decide onde ele aparece. Links de dado só abrem `http`/`https`/`mailto`.
 **Uma lista mestre-detalhe** — a lista escreve o id numa chave, o detalhe lê:
 
 ```gv
-ListView(:items = servicos, :value = sel, selected = @sel)
+listview(:items = servicos, :value = sel, selected = @sel)
 column("… {sel_nome} …", if = @sel, class = detalhe)
 ```
 O script observa a ação de seleção e publica os campos do detalhe.
@@ -4441,5 +4436,5 @@ cancelar depois.
   o `.d.luau` já o declara. E um global **novo** se declara no `.d.luau`, não
   aqui.
 - **Um valor que o app nomeia não precisa de estado por instância.** A chave
-  entra por prop e a ação carrega a chave — é como `SpinBox`, `TabBar` e
-  `Pagination` funcionam sem colidir entre instâncias.
+  entra por prop e a ação carrega a chave — é como `spinbox`, `tabbar` e
+  `pagination` funcionam sem colidir entre instâncias.

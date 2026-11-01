@@ -4,29 +4,29 @@
 //
 //   * DocumentLink — underlined, Ctrl/Cmd+clickable targets for every reference
 //     a template makes to another file:
-//       <script src="app.luau">          -> the .luau file
-//       on_click="foo"                   -> `function foo()` inside that .luau
-//                                           (or inside the inline <script>)
-//       on_click="MeuComp::salvar"       -> `function salvar()` (owner::action)
-//       on_click="dialog:editar"         -> the <dialog name="editar"> it opens
-//       <dialog buttons="X:foo:accept">  -> `function foo()` for each button's
+//       script(src = "app.luau")          -> the .luau file
+//       on_click = "foo"                   -> `function foo()` inside that .luau
+//                                           (or inside the inline script)
+//       on_click = "MeuComp::salvar"       -> `function salvar()` (owner::action)
+//       on_click = "dialog:editar"         -> the dialog(name = editar) it opens
+//       dialog(buttons = "X:foo:accept")  -> `function foo()` for each button's
 //                                           action token (label/role untouched)
-//       <link rel="stylesheet" href=…>   -> the .gss sheet
-//       <style href="…">                 -> idem
-//       class="cartao destaque"          -> each class's `.cartao`/`.destaque`
+//       link(rel = stylesheet, href = …)   -> the .gss sheet
+//       style(href = "…")                 -> idem
+//       class = "cartao destaque"          -> each class's `.cartao`/`.destaque`
 //                                           rule, in a linked `.gss`, an inline
-//                                           <style>, or (falling back) any
+//                                           style, or (falling back) any
 //                                           other sheet in the workspace
-//       id="unico"                       -> the matching `#unico` rule, same
+//       id = "unico"                       -> the matching `#unico` rule, same
 //                                           search order
-//       <link rel="import" href=…>,
-//       <import from=…>, <Include src=…> -> the imported template
-//       <link rel="theme|data" href=…>   -> the JSON file
-//       <Image src=…>, <Svg src=…>       -> the asset
-//       <PerfilCard/>                    -> the .gv/.xml declaring the component
-//       navigateTo="perfil"              -> the screen's template
-//       {sem_perguntas}, value="nome"    -> where that context key is written
-//       {c.titulo} under var="c"         -> the loop variable's declaration
+//       link(rel = import, href = …),
+//       import(from = …), include(src = …) -> the imported template
+//       link(rel = "theme|data", href = …)   -> the JSON file
+//       image(src = …), svg(src = …)       -> the asset
+//       PerfilCard                    -> the .gv/.xml declaring the component
+//       navigateTo = "perfil"              -> the screen's template
+//       {sem_perguntas}, value = "nome"    -> where that context key is written
+//       {c.titulo} under var = "c"         -> the loop variable's declaration
 //
 //     Anything backed by code resolves **script first**: a handler with no Lua
 //     behind it (the template's behaviour lives in a Rust `Component`) falls
@@ -53,72 +53,68 @@ const NATIVE_TAGS = {
   Column: ["column"],
   Row: ["row"],
   Text: ["text", "span"],
-  // Texto de leitura: `<prose>` (blocos + estilo inline) e `<markdown>`. As tags de
-  // dentro do `<prose>` estão em `PROSE_TAGS`, logo abaixo da `TRAY_CHILD_TAGS`.
+  // Texto de leitura: `prose` (blocos + estilo inline) e `markdown`. As tags de
+  // dentro do `prose` estão em `PROSE_TAGS`, logo abaixo da `TRAY_CHILD_TAGS`.
   Prose: ["prose"],
   Markdown: ["markdown", "md"],
-  Audio: ["audio", "som"],
-  Button: ["button", "botao"],
-  TextInput: ["textinput", "input", "entradatexto", "entrada_texto"],
-  TextArea: ["textarea", "texteditor", "editor", "areatexto", "area_texto"],
-  Image: ["image", "imagem"],
-  Svg: ["svg", "icon", "icone"],
-  Scrollable: ["scrollable", "scroll", "rolagem"],
+  Audio: ["audio"],
+  Button: ["button"],
+  TextInput: ["textinput", "input"],
+  TextArea: ["textarea", "texteditor", "editor"],
+  Image: ["image"],
+  Svg: ["svg", "icon"],
+  Scrollable: ["scrollable", "scroll"],
   Checkbox: ["checkbox", "check"],
   Toggle: ["toggle", "toggler", "switch"],
-  Rule: ["rule", "divider", "divisoria", "hr"],
-  ProgressBar: ["progressbar", "progress", "barraprogresso", "barra_progresso"],
+  Rule: ["rule", "divider", "hr"],
+  ProgressBar: ["progressbar", "progress"],
   Spinner: [
     "spinner", "busyindicator", "busy_indicator",
-    "indicadorocupado", "indicador_ocupado", "carregando",
   ],
-  Slider: ["slider", "deslizante"],
-  Reveal: ["reveal", "collapse", "revelar", "sanfona"],
+  Slider: ["slider"],
+  Reveal: ["reveal", "collapse"],
   // Uma primitiva só; a tag decide quais seções o campo mostra.
-  TimeEdit: ["timeedit", "timepicker", "editorhora", "editor_hora"],
-  DateEdit: ["dateedit", "datepicker", "editordata", "editor_data"],
+  TimeEdit: ["timeedit", "timepicker"],
+  DateEdit: ["dateedit", "datepicker"],
   DateTimeEdit: [
-    "datetimeedit", "datetimepicker", "editordatahora", "editor_data_hora",
+    "datetimeedit", "datetimepicker",
   ],
   // Idem: uma primitiva só (a grade), e a tag decide o que um clique grava.
-  Calendar: ["calendar", "calendario"],
-  MonthYearPicker: ["monthyearpicker", "seletormesano", "seletor_mes_ano"],
+  Calendar: ["calendar"],
+  MonthYearPicker: ["monthyearpicker"],
   DateRangePicker: [
-    "daterangepicker", "seletorintervalo", "seletor_intervalo",
+    "daterangepicker",
   ],
   MaskedInput: [
-    "maskedinput", "entradamascarada", "entrada_mascarada", "mascara", "máscara",
+    "maskedinput",
   ],
-  // Onda 5: o painel que flutua. Uma primitiva só — `<popup>` é ela sem
+  // Onda 5: o painel que flutua. Uma primitiva só — `popup` é ela sem
   // âncora, centrada na janela (ver `src/anchored.rs`).
-  Popover: ["popover", "painel"],
+  Popover: ["popover"],
   Popup: ["popup"],
-  Autocomplete: ["autocomplete", "completer", "autocompletar"],
+  Autocomplete: ["autocomplete", "completer"],
   // Onda 6: a grade e a família que sai da medição de colunas
-  // (`src/grid.rs`). O `<flow>` é o único que não passa por ela — é o
+  // (`src/grid.rs`). O `flow` é o único que não passa por ela — é o
   // `Row::wrap()` do próprio iced.
-  Grid: ["grid", "grade"],
-  Flow: ["flow", "wrap", "fluxo"],
-  TableView: ["tableview", "tabela"],
-  TableHeader: ["tableheader", "cabecalhotabela", "cabecalho_tabela"],
-  TableColumn: ["tablecolumn", "colunatabela", "coluna_tabela"],
-  TreeView: ["treeview", "arvore", "árvore"],
-  ColumnView: ["columnview", "colunas", "miller"],
+  Grid: ["grid"],
+  Flow: ["flow", "wrap"],
+  TableView: ["tableview"],
+  TableHeader: ["tableheader"],
+  TableColumn: ["tablecolumn"],
+  TreeView: ["treeview"],
+  ColumnView: ["columnview", "miller"],
   // Onda 7: os sete que desenham no canvas (`src/canvas.rs` é a caixa de
-  // ferramentas; `src/gauges.rs` e `src/charts.rs` os widgets). Nenhum apelido
-  // em pt-BR aqui é substantivo comum, de propósito: `<linha>` chegou a existir
-  // e roubou o nome de todo componente chamado `Linha`.
-  Dial: ["dial", "knob", "botao_giratorio"],
-  Gauge: ["gauge", "medidor"],
+  // ferramentas; `src/gauges.rs` e `src/charts.rs` os widgets).
+  Dial: ["dial", "knob"],
+  Gauge: ["gauge"],
   LcdNumber: ["lcdnumber", "lcd"],
   LineChart: [
-    "linechart", "sparkline", "grafico_linha", "gráfico_linha",
-    "minigrafico", "minigráfico",
+    "linechart", "sparkline",
   ],
-  BarChart: ["barchart", "grafico_barras", "gráfico_barras"],
-  PieChart: ["piechart", "donut", "grafico_pizza", "gráfico_pizza"],
-  // Onda 8: o diálogo que carrega markup. O `<dialog>` NÃO entra aqui — ele é
-  // uma declaração do `<resources>`, como o `<component name>`, e não um
+  BarChart: ["barchart"],
+  PieChart: ["piechart", "donut"],
+  // Onda 8: o diálogo que carrega markup. O `dialog` NÃO entra aqui — ele é
+  // uma declaração do `resources`, como o `component(name)`, e não um
   // widget que se escreve no layout (ver a lista de declarações abaixo).
   //
   // `stack`/`pilha` NUNCA foram apelido de `StackView` de verdade — o motor só
@@ -127,87 +123,82 @@ const NATIVE_TAGS = {
   // que este catálogo nasceu, e a Onda 11 os reclamou para uma tag genuína e
   // diferente (ver `Stack` abaixo). Corrigido junto.
   StackView: ["stackview"],
-  Wizard: ["wizard", "assistente"],
-  WizardNav: ["wizardnav", "wizard_nav", "wizard-nav"],
-  ColorWheel: ["colorwheel", "color-wheel", "rodadecor", "roda_de_cor"],
+  Wizard: ["wizard"],
+  WizardNav: ["wizardnav", "wizard_nav"],
+  ColorWheel: ["colorwheel"],
   // Onda 9: o ponteiro preso (`src/grip.rs` é o arrasto; `src/panes.rs` os que
   // arrastam sobre FILHOS, `src/pointer.rs` os que desenham o próprio arrasto).
-  // Nenhum apelido em pt-BR aqui é substantivo comum — e nenhum é apelido de
-  // outra tag, que é a metade da regra que esta onda descobriu: `<deslizante>`
-  // foi a primeira escolha para o `<swipeview>` e já era do `<slider>`.
-  Splitter: ["splitter", "divisor", "panegrid"],
-  SwipeView: ["swipeview", "carrossel"],
-  RangeSlider: ["rangeslider", "faixa_dupla"],
-  Tumbler: ["tumbler", "roleta"],
-  DelayButton: ["delaybutton", "botao_demorado"],
-  RubberBand: ["rubberband", "laco", "laço"],
+  Splitter: ["splitter", "panegrid"],
+  SwipeView: ["swipeview"],
+  RangeSlider: ["rangeslider"],
+  Tumbler: ["tumbler"],
+  DelayButton: ["delaybutton"],
+  RubberBand: ["rubberband"],
   ShortcutInput: ["shortcutinput", "keysequenceedit"],
-  // `<shortcut>` não desenha nada, mas é do LAYOUT e não do `<resources>`: quem
+  // `shortcut` não desenha nada, mas é do LAYOUT e não do `resources`: quem
   // o encontra é o coletor que varre a árvore avaliada. Por isso ele fica aqui,
-  // entre os widgets, e não com o `<dialog>` lá embaixo.
-  Shortcut: ["shortcut", "atalho", "action"],
-  // Onda 11: o que fica por cima. `<stack>` empilha filhos no mesmo espaço —
+  // entre os widgets, e não com o `dialog` lá embaixo.
+  Shortcut: ["shortcut", "action"],
+  // Onda 11: o que fica por cima. `stack` empilha filhos no mesmo espaço —
   // `x`/`y` (pixels, via `pin`) ou `anchor` (um dos nove cantos) num FILHO
   // dele decidem a posição; nenhum dos dois é apelido de tag, são atributos
-  // universais lidos só quando o pai é um `<stack>`. Nenhum apelido em pt-BR
   // é substantivo comum, pela mesma regra da Onda 9 — e "pilha" não colide
   // com nada: nunca foi alias de verdade de `StackView` (ver a correção ali
   // em cima).
-  Stack: ["stack", "pilha"],
-  // Janelas internas (`QMdiArea`): `<mdiarea>` empilha `<mdisubwindow>`s, cada
+  Stack: ["stack"],
+  // Janelas internas (`QMdiArea`): `mdiarea` empilha `mdisubwindow`s, cada
   // uma nomeando QUATRO chaves (posição/tamanho) — a forma preferida é
   // `x_var`/`y_var`/`w_var`(ou `width_var`)/`h_var`(ou `height_var`); `x`/`y`/
   // `w`/`h` também funcionam, mas colidem de NOME (não de efeito) com os
-  // atributos `x`/`y` do `<stack>` acima, então ficam fora do binding de
+  // atributos `x`/`y` do `stack` acima, então ficam fora do binding de
   // Ctrl+clique — ver `BINDING_ATTRS`.
   MdiArea: ["mdiarea"],
   MdiSubWindow: ["mdisubwindow"],
   QrCode: ["qrcode", "qr"],
-  // `<pageindicator>` é `<pagination>` com pontos — a MESMA primitiva, como
-  // `<sparkline>` é `<linechart>` sem moldura.
+  // `pageindicator` é `pagination` com pontos — a MESMA primitiva, como
+  // `sparkline` é `linechart` sem moldura.
   Pagination: [
-    "pagination", "paginacao", "paginação",
-    "pageindicator", "indicador_pagina",
+    "pagination",
+    "pageindicator",
   ],
-  Rating: ["rating", "nota", "estrelas"],
-  Radio: ["radio", "radiobutton", "opcao"],
-  Space: ["space", "espaco", "espaço", "spacer"],
+  Rating: ["rating"],
+  Radio: ["radio", "radiobutton"],
+  Space: ["space", "spacer"],
   Select: ["select", "dropdown", "picklist", "combobox", "combo", "seletor"],
   ComboEdit: [
-    "comboedit", "editablecombo", "editableselect", "comboeditavel",
-    "combo_editavel",
+    "comboedit", "editablecombo", "editableselect",
   ],
-  Form: ["form", "formulario"],
-  MenuBar: ["menubar", "barramenu", "barra_menu"],
-  Menu: ["menu", "cardapio"],
-  MenuItem: ["menuitem", "itemmenu", "item_menu"],
-  MenuSeparator: ["menuseparator", "separadormenu", "separador_menu"],
-  ContextMenu: ["contextmenu", "menucontexto", "menu_contexto"],
-  Include: ["include", "incluir"],
-  Import: ["import", "importar"],
+  Form: ["form"],
+  MenuBar: ["menubar"],
+  Menu: ["menu"],
+  MenuItem: ["menuitem"],
+  MenuSeparator: ["menuseparator"],
+  ContextMenu: ["contextmenu"],
+  Include: ["include"],
+  Import: ["import"],
   ForEach: ["foreach", "for"],
-  If: ["if", "se"],
-  ElseIf: ["elseif", "else-if", "senaose", "senao-se"],
-  Else: ["else", "senao"],
-  Template: ["template", "gabarito"],
-  // `<render component="{x}"/>` — o componente cujo nome veio por prop.
-  Render: ["render", "renderizar"],
-  // `<app>`/`<tray>` no <resources> do template principal: o que é do
+  If: ["if"],
+  ElseIf: [],
+  Else: ["else"],
+  Template: ["template"],
+  // `render(component = @x)` — o componente cujo nome veio por prop.
+  Render: ["render"],
+  // `app`/`tray` no resources do template principal: o que é do
   // aplicativo (instância única, geometria, bandeja).
-  App: ["app", "aplicativo"],
-  Tray: ["tray", "bandeja"],
-  // Os itens do menu da `<tray>`. Não são `NodeType` nenhum — o parser os lê
-  // como `TrayItemDecl` ali mesmo, do jeito que um `<props>` lê os `<prop>` —,
-  // mas precisam estar aqui pelo mesmo motivo que o `<prop>` está: sem isso a
+  App: ["app"],
+  Tray: ["tray"],
+  // Os itens do menu da `tray`. Não são `NodeType` nenhum — o parser os lê
+  // como `TrayItemDecl` ali mesmo, do jeito que um `props` lê os `prop` —,
+  // mas precisam estar aqui pelo mesmo motivo que o `prop` está: sem isso a
   // extensão os toma por componente do app, não acha arquivo nenhum e o
-  // Ctrl+clique/F12 neles não vai a lugar nenhum. `<check>` já resolvia, só
-  // que para o `<Checkbox>` — ver `trayRanges`, que desfaz o engano.
+  // Ctrl+clique/F12 neles não vai a lugar nenhum. `check` já resolvia, só
+  // que para o `checkbox` — ver `trayRanges`, que desfaz o engano.
   TrayItem: ["item"],
-  TraySeparator: ["separator", "separador"],
+  TraySeparator: ["separator"],
   Link: ["link"],
   Style: ["style", "stylesheet"],
   Script: ["script"],
-  Slot: ["slot", "conteudo", "conteúdo"],
+  Slot: ["slot"],
   // Builtins da lib (`src/builtins/`). Cada um é publicado sob o nome canônico
   // e sob a grafia minúscula colada — ver `builtins::builtin_aliases`.
   Accordion: ["accordion"],
@@ -219,29 +210,29 @@ const NATIVE_TAGS = {
   // Onda 11: `Badge` com um "×" que dispara `on_remove` — sem ele, o "×" nem
   // desenha.
   Chip: ["chip"],
-  // Onda 11: título + descrição + seta, sobre o `<Button>` com filhos.
+  // Onda 11: título + descrição + seta, sobre o `button` com filhos.
   CommandLink: ["commandlink"],
   Drawer: ["drawer"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
   ListView: ["listview"],
-  // Onda 11: `<stack>` (a primeira camada é o `<slot/>`) + `anchor` (a
+  // Onda 11: `stack` (a primeira camada é o `slot`) + `anchor` (a
   // segunda, o pontinho) — o primeiro consumidor do habilitador A.
   NotificationDot: ["notificationdot"],
   RadioGroup: ["radiogroup"],
-  // Onda 11: `<Button>` com `border_radius` total — a mesma conta do círculo
-  // de iniciais do `<Avatar>` (passar o LADO inteiro, não a metade).
+  // Onda 11: `button` com `border_radius` total — a mesma conta do círculo
+  // de iniciais do `avatar` (passar o LADO inteiro, não a metade).
   RoundButton: ["roundbutton"],
   // Onda 9, e o item mais barato dela: `window:resize:se` e `cursor="se"` já
   // existiam, então ele é builtin e não motor.
   SizeGrip: ["sizegrip"],
-  // Onda 11: um `<Container>` cinza do tamanho declarado. Sem pulsação
+  // Onda 11: um `container` cinza do tamanho declarado. Sem pulsação
   // animada, de propósito.
   Skeleton: ["skeleton"],
   SpinBox: ["spinbox"],
-  // Onda 11: cobre o `<slot/>` principal com um `<slot name="splash">`
+  // Onda 11: cobre o `slot` principal com um `slot(name = splash)`
   // enquanto `show` for verdadeiro. Sem animação — ver o `PRIMITIVAS.md`
-  // sobre a armadilha do `Length::Fill` dentro de um `<reveal>`.
+  // sobre a armadilha do `Length::Fill` dentro de um `reveal`.
   SplashScreen: ["splashscreen"],
   StatusBar: ["statusbar"],
   TabBar: ["tabbar"],
@@ -250,12 +241,12 @@ const NATIVE_TAGS = {
   ToolBox: ["toolbox"],
   ToolBoxItem: ["toolboxitem"],
   ToolButton: ["toolbutton"],
-  Screen: ["screen", "tela"],
-  ComponentRoot: ["component", "componente"],
+  Screen: ["screen"],
+  ComponentRoot: ["component"],
   // Onda 8: a declaração de um modal com corpo em markup. Declaração, como
   // as três acima — nada desenha onde a tag está escrita.
-  DialogDef: ["dialog", "dialogo", "diálogo"],
-  Resources: ["resources", "recursos"],
+  DialogDef: ["dialog"],
+  Resources: ["resources"],
   Props: ["props"],
   Prop: ["prop"],
 };
@@ -271,22 +262,22 @@ for (const [canon, variants] of Object.entries(NATIVE_TAGS)) {
 // order src/parser.rs reads them (`get_attr` takes the first one present).
 const PATH_ATTRS = {
   Script: ["src", "from"],
-  Link: ["href", "src", "from", "caminho"],
-  Style: ["href", "src", "from", "caminho"],
-  Import: ["from", "de", "src", "path", "caminho"],
-  Include: ["src", "fonte"],
-  Image: ["source", "src", "origem", "caminho"],
-  Svg: ["source", "src", "origem", "caminho"],
+  Link: ["href", "src", "from"],
+  Style: ["href", "src", "from"],
+  Import: ["from", "src", "path"],
+  Include: ["src"],
+  Image: ["source", "src"],
+  Svg: ["source", "src"],
   // Os `icon=` que SÃO caminho: o da bandeja e o da janela, os dois lidos pela
   // fonte de assets (`TRAY_ICON_ATTRS` e `SCREEN_ICON_ATTRS` em src/parser.rs,
   // e o `apply_window_icon` em src/daemon.rs).
-  Tray: ["icon", "icone", "ícone"],
+  Tray: ["icon"],
   // `screen(name = log, src = "log_window.gv")` num `app(...)`: o `src` é o
   // template da tela (só `src`, como em `parse_screen_decl`); o `icon` fica por
-  // compatibilidade com o `.gv` antigo, em que ele ainda era da `<screen>`.
-  Screen: ["src", "icon", "icone", "ícone"],
+  // compatibilidade com o `.gv` antigo, em que ele ainda era da `screen`.
+  Screen: ["src", "icon"],
   // Caminho escrito na tag de um builtin, que lá dentro vira o `source` de um
-  // `<Image>`/`<Svg>`.
+  // `image`/`svg`.
   Avatar: ["src"],
   ToolButton: ["icon_src"],
 };
@@ -294,9 +285,9 @@ const PATH_ATTRS = {
 // Os `icon=` que NÃO são caminho, e por isso ficam de fora da tabela acima —
 // mesmo nome, outro significado, que é a família de bug mais cara deste motor:
 //
-//   <dialog icon="warning">   palavra-chave (`information`/`warning`/`error`/
+//   dialog(icon = warning)   palavra-chave (`information`/`warning`/`error`/
 //                             `question`/`none`) — ver `icone_de`, src/dialogs.rs
-//   <ToolButton icon="✂">     o GLIFO do botão; o caminho dele é o `icon_src`
+//   ToolButton(icon = "✂")     o GLIFO do botão; o caminho dele é o `icon_src`
 //
 // Um link neles abriria um arquivo que não existe — ou, pior, um homônimo.
 
@@ -304,62 +295,60 @@ const PATH_ATTRS = {
 // handler that runs it — a Lua function or a Rust `update` arm.
 const ACTION_ATTRS = new Set(
   [
-    "onClick", "on_click", "on-click", "aoClicar", "ao_clicar",
-    "onPress", "on_press", "on-press", "aoPressionar", "ao_pressionar",
-    "onDoubleClick", "on_double_click", "on-double-click", "aoClicarDuplo",
-    "onChange", "on_change", "on-change", "aoMudar", "ao_mudar",
-    "onToggle", "on_toggle", "on-toggle",
-    "onSelect", "on_select", "on-select", "aoSelecionar", "ao_selecionar",
-    "onSubmit", "on_submit", "on-submit", "aoSubmeter", "ao_submeter",
-    "onValidationError", "on_validation_error", "on-validation-error",
-    "aoFalharValidacao", "ao_falhar_validacao",
-    "onReorder", "on_reorder", "on-reorder", "aoReordenar",
-    "onRelease", "on_release", "on-release", "aoSoltar", "ao_soltar",
-    "onOpen", "on_open", "on-open",
-    "onMessage", "on_message", "on-message",
-    "onError", "on_error", "on-error",
-    "onClose", "on_close", "on-close",
+    "on_click",
+    "on_press",
+    "on_double_click",
+    "on_change",
+    "on_toggle",
+    "on_select",
+    "on_submit",
+    "on_validation_error",
+    "on_reorder",
+    "on_release",
+    "on_open",
+    "on_message",
+    "on_error",
+    "on_close",
   ].map((s) => s.toLowerCase())
 );
 
 // Atributos que o motor consome como **diretiva** em qualquer nó, inclusive no
-// uso de um componente (`<ServiceCard for-each="r.cards" var="c" … />`). Eles
+// uso de um componente (`ServiceCard(for_each = r.cards, var = c)`). Eles
 // entram no mapa de props junto com o resto, mas NÃO são props: quem os lê é o
 // `expand_children`, antes de o componente ser inlinado, e a checagem do
-// `<props>` os pula. Espelha `DIRECTIVE_ATTRS` de src/parser.rs — sem isto o
+// `props` os pula. Espelha `DIRECTIVE_ATTRS` de src/parser.rs — sem isto o
 // diagnóstico acusava `for-each`/`var` de prop desconhecida em toda lista.
 const DIRECTIVE_ATTRS = new Set(
   [
     // condicionais
-    "if", "se", "else", "senao", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
-    "cond", "condition", "when", "quando", "condicao",
-    "equals", "eq", "igual_a", "notEquals", "not_equals", "ne", "diferente_de",
-    "one_of", "oneOf", "one-of", "equals_any", "equalsAny", "algum_de",
-    "contains", "contem", "contém", "has", "inclui",
-    "empty", "vazio", "not_empty", "notEmpty", "not-empty", "nao_vazio",
-    "platform", "plataforma",
+    "if", "else", "else_if",
+    "equals", "eq", "not_equals", "ne",
+    "one_of", "equals_any",
+    "contains", "has",
+    "empty", "not_empty",
+    "platform",
     // repetição
-    "for-each", "forEach", "foreach", "each", "repeat", "var", "variavel",
-    // destino num slot nomeado do componente (`<template slot="footer">`)
+    "foreach", "each", "repeat", "var",
+    // destino num slot nomeado do componente (`template(slot = footer)`)
     "slot",
     // arrastar-e-soltar da lista repetida
-    "onReorder", "on_reorder", "on-reorder", "aoReordenar",
-    "reorderKey", "reorder_key", "reorder-key", "chaveReordenar",
+    "on_reorder",
+    "reorder_key",
   ].map((a) => a.toLowerCase())
 );
 
 // `class`/`id` (src/parser.rs's `class`/`classe` and `id`/`identificador`) —
 // the attributes a `.gss` rule matches against. `class` holds a
 // whitespace-separated list; `id` a single name.
-const CLASS_ATTRS = new Set(["class", "classe"]);
-const ID_ATTRS = new Set(["id", "identificador"]);
+const CLASS_ATTRS = new Set(["class"]);
+const ID_ATTRS = new Set(["id"]);
 
 // `spread="{c}"` passa um objeto inteiro no lugar de um atributo por campo.
 // Como as diretivas, ele entra no markup mas não é uma prop — e, diferente
 // delas, ele também SUPRIME o diagnóstico de prop obrigatória: quem preenche as
 // props é o dado em tempo de execução, que o editor não tem como ver. Espelha
 // `SPREAD_ATTRS` de src/parser.rs.
-const SPREAD_ATTRS = new Set(["spread", "espalhar"]);
+const SPREAD_ATTRS = new Set(["spread"]);
 
 // A component name paired with the template file it renders, as written on the
 // Rust/Lua side. Nothing may sit between the two literals but plain expression
@@ -369,26 +358,26 @@ const NAMED_TEMPLATE_RE = /"([A-Za-z_][\w-]*)"[^";{}]{0,160}"([^"]*\.(?:gv|xml))
 // Attributes naming a screen to navigate to (src/parser.rs). The value is a
 // registered component's name, so it resolves like a component tag.
 const NAV_ATTRS = new Set(
-  ["navigateTo", "navigate_to", "navigate-to", "irPara", "ir_para"].map((s) =>
+  ["navigate_to"].map((s) =>
     s.toLowerCase()
   )
 );
 
 // Attributes whose value NAMES A COMPONENT, per native tag — each set mirrors
 // the list src/parser.rs reads for that tag:
-//   <foreach fallback="ListaVazia">                  FALLBACK_ATTRS
-//   <template foreach="…" foreach_fallback="…">     TEMPLATE_FALLBACK_ATTRS
-//   <render component="Cabecalho">                   RENDER_COMPONENT_ATTRS
+//   foreach(fallback = ListaVazia)                  FALLBACK_ATTRS
+//   template(:foreach = "…", foreach_fallback = "…")     TEMPLATE_FALLBACK_ATTRS
+//   render(component = Cabecalho)                   RENDER_COMPONENT_ATTRS
 // Per tag, not global: `fallback` on a component tag is an ordinary prop, and a
-// bare `fallback` on a <template> is a parse error, not a reference.
-const FOREACH_FALLBACK_ATTRS = new Set(["fallback", "reserva"]);
+// bare `fallback` on a template is a parse error, not a reference.
+const FOREACH_FALLBACK_ATTRS = new Set(["fallback"]);
 const TEMPLATE_FALLBACK_ATTRS = new Set([
-  "foreach_fallback", "foreach-fallback", "for_each_fallback", "for-each-fallback",
+  "foreach_fallback", "for_each_fallback",
 ]);
-const RENDER_COMPONENT_ATTRS = new Set(["component", "componente", "is"]);
-// What makes a <template> a repetition (src/parser.rs's TEMPLATE_FOREACH_ATTRS).
+const RENDER_COMPONENT_ATTRS = new Set(["component", "is"]);
+// What makes a template a repetition (src/parser.rs's TEMPLATE_FOREACH_ATTRS).
 const TEMPLATE_FOREACH_ATTRS = new Set(
-  ["for-each", "forEach", "foreach", "each", "repeat", "items", "itens", "source", "origem"].map(
+  ["foreach", "each", "repeat", "items", "source"].map(
     (s) => s.toLowerCase()
   )
 );
@@ -406,30 +395,29 @@ function componentRefAttrs(canon) {
 // through `{interpolation}`, which is matched separately.
 const BINDING_ATTRS = new Set(
   [
-    "value", "valor", "value_var", "selected", "selecionado",
-    "checked", "marcado",
-    // `<Radio group="plano">` — o NOME da chave que guarda a escolha do grupo,
+    "value", "value_var", "selected",
+    "checked",
+    // `Radio(:group = plano)` — o NOME da chave que guarda a escolha do grupo,
     // não o valor dela (por isso sem `{}`).
-    "group", "grupo",
-    "items", "itens", "options", "opcoes", "source", "origem",
-    // `<daterangepicker start="entrada" end="saida" month="mes_visivel">` — os
+    "group",
+    "items", "options", "source",
+    // `daterangepicker(start = entrada, end = saida, month = mes_visivel)` — os
     // três nomeiam chaves, como o `value` de qualquer outro widget bindado. O
-    // `<rangeslider start="preco_min" end="preco_max">` da Onda 9 reusa o par.
-    "start", "inicio", "end", "fim", "final", "month", "mes_visivel",
-    // Onda 9. `<splitter sizes="painel">` guarda as TRILHAS dos painéis numa
-    // chave, e `<rubberband selection="marcados">` o conjunto nomeado dos
+    // `rangeslider(:start = preco_min, :end = preco_max)` da Onda 9 reusa o par.
+    "start", "end", "month",
+    // Onda 9. `splitter(:sizes = painel)` guarda as TRILHAS dos painéis numa
+    // chave, e `rubberband(:selection = marcados)` o conjunto nomeado dos
     // alvos tocados — os dois são nome de chave, não valor.
-    "sizes", "tamanhos", "selection", "selecao", "seleção",
-    // Onda 11. `<mdisubwindow x_var="…" y_var="…" w_var="…" h_var="…">` nomeia
+    "sizes", "selection",
+    // Onda 11. `mdisubwindow(x_var = "…", y_var = "…", w_var = "…", h_var = "…")` nomeia
     // QUATRO chaves — a forma longa, de propósito: a curta (`x`/`y`/`w`/`h`)
-    // também funciona no motor, mas o NOME colide com `x`/`y` do `<stack>`
+    // também funciona no motor, mas o NOME colide com `x`/`y` do `stack`
     // (ali um pixel literal, aqui o nome de uma chave) e o binding é por nome
     // de atributo, sem olhar a tag. Só a forma longa entra na lista — a curta
     // fica sem link de Ctrl+clique, o preço de reusar um nome tão comum.
     "x_var", "y_var", "w_var", "h_var", "width_var", "height_var",
-    "cond", "condition", "when", "quando", "condicao",
-    "if", "se", "else-if", "elseIf", "else_if", "senaoSe", "senao_se",
-    "for-each", "forEach", "foreach", "each", "repeat",
+    "if", "else_if",
+    "foreach", "each", "repeat",
   ].map((a) => a.toLowerCase())
 );
 
@@ -451,7 +439,7 @@ const BUILTIN_ACTIONS = {
 };
 
 // As ações que o **runner** (`Daemon::on_tray`, não o `dispatch` do motor)
-// trata sozinho a partir de um item da `<tray>`. Lista FECHADA, e de propósito:
+// trata sozinho a partir de um item da `tray`. Lista FECHADA, e de propósito:
 // qualquer outro `tray:…` desce ao script/`update` da tela principal como
 // `tray(sufixo, value)` — igual a qualquer ação com `:` —, então tratar o
 // prefixo inteiro como built-in roubaria o link de um handler de verdade.
@@ -484,7 +472,7 @@ const BUILTIN_ACTIONS_HEADING = /^##+\s*A(?:ç|c)(?:ões|oes) built-in/m;
 // The reference doc heading listing the tray actions above.
 const TRAY_ACTIONS_HEADING = /^####\s*A(?:ç|c)(?:ões|oes) da bandeja/m;
 
-// The reference doc heading listing the `<dialog buttons="…">` role keywords
+// The reference doc heading listing the `dialog(buttons = "…")` role keywords
 // (see `DIALOG_BUTTON_ROLES` below).
 const DIALOG_ROLE_HEADING = /^####\s*Pap(?:é|e)is do bot(?:ã|a)o/m;
 
@@ -500,12 +488,12 @@ const DIALOG_DRAFT_KEY_RE = /^__dialog\.[A-Za-z_]\w*$/;
 const DIALOG_DRAFT_KEY_HEADING = /^####\s*Chaves de rascunho `__dialog/m;
 
 // `on*`/`ao*` attributes that name something other than a handler.
-const NOT_ACTION_ATTRS = new Set(["oneof", "one_of", "one-of"]);
+const NOT_ACTION_ATTRS = new Set(["oneof", "one_of"]);
 
 /**
  * Whether `name` is an attribute whose value is a handler name. Beyond the
  * spellings the parser knows, any `on…`/`ao…` attribute counts: a component
- * takes its actions as plain props (`<ToolButton on_click="salvar"/>` forwards
+ * takes its actions as plain props (`ToolButton(on_click = salvar)` forwards
  * `{on_click}` into a nested `on_click`), so the set is open-ended. A
  * false positive costs nothing — a name that resolves to no function is simply
  * not linked.
@@ -660,7 +648,7 @@ function readFileCached(fsPath) {
 /**
  * Resolve a path written in a template to a file on disk, mirroring the engine:
  * a relative path is tried against the declaring file's own directory first
- * (`GlacierUI::resolve_import_href`, and `<script src>` in `luau::resolve_script`)
+ * (`GlacierUI::resolve_import_href`, and `script(src)` in `luau::resolve_script`)
  * and then against the asset root — in practice the workspace folder, since the
  * engine resolves the fallback against the process CWD. Returns null when the
  * path is interpolated, remote, or simply doesn't exist.
@@ -677,7 +665,7 @@ function resolveAssetPath(documentUri, raw) {
     const dir = path.dirname(documentUri.fsPath);
     roots.push(dir);
     // A raiz de assets do motor é a do PROJETO, não a da janela do editor: um
-    // `<tray icon="views/assets/icone.png">` é escrito a partir da pasta que
+    // `tray(icon = "views/assets/icone.png")` é escrito a partir da pasta que
     // tem o `views/`, e o processo roda com ela de CWD. Sem isto, todo `.gv`
     // que não está na raiz do workspace — um template do `glacier new` dentro
     // deste repo, um app numa pasta de um monorepo — ficava com o caminho
@@ -753,9 +741,9 @@ function embeddedRanges(text) {
 }
 
 /**
- * Char ranges of `<tray>…</tray>` bodies. Dentro deles, `<item>`, `<check>` e
- * `<separator>` são itens do menu da bandeja e nada mais — em particular o
- * `<check>`, que fora dali é apelido do `<Checkbox>` e mandava o F12 para a
+ * Char ranges of `tray…` bodies. Dentro deles, `item`, `check` e
+ * `separator` são itens do menu da bandeja e nada mais — em particular o
+ * `check`, que fora dali é apelido do `checkbox` e mandava o F12 para a
  * seção errada da referência.
  */
 function trayRanges(text) {
@@ -769,12 +757,12 @@ function trayRanges(text) {
   return out;
 }
 
-// Os filhos da `<tray>` cuja documentação é a seção da própria `<tray>`.
-const TRAY_CHILD_TAGS = new Set(["TrayItem", "TraySeparator", "Checkbox"]);
+// Os filhos da `tray` cuja documentação é a seção da própria `tray`.
+const TRAY_CHILD_TAGS = new Set([]);
 
-// As tags que só existem DENTRO de um `<prose>` (src/prose.rs: `TAGS_BLOCO` e
+// As tags que só existem DENTRO de um `prose` (src/prose.rs: `TAGS_BLOCO` e
 // `TAGS_INLINE`). Ficam fora do `NATIVE_TAGS` de propósito: `b`, `i`, `p`, `a`…
-// fora do `<prose>` não são do motor, e tratá-las como nativas em todo lugar
+// fora do `prose` não são do motor, e tratá-las como nativas em todo lugar
 // calaria o aviso de componente desconhecido. O contexto é o `proseRanges`,
 // o mesmo desenho do `trayRanges` acima. Cada canônico é só uma chave: o
 // cabeçalho do `references/glacier-view.md` é achado pela primeira grafia que
@@ -787,11 +775,11 @@ const PROSE_TAGS = {
   ProseFigure: ["figure", "figcaption", "img"],
   ProsePre: ["pre"],
   ProseRule: ["hr"],
-  ProseBold: ["b", "strong", "negrito", "mark"],
-  ProseItalic: ["i", "em", "italico", "itálico"],
-  ProseCode: ["code", "codigo", "código", "kbd", "samp"],
-  ProseUnderline: ["u", "underline", "sublinhado", "ins"],
-  ProseStrike: ["s", "del", "strike", "tachado"],
+  ProseBold: ["b", "strong", "mark"],
+  ProseItalic: ["i", "em"],
+  ProseCode: ["code", "kbd", "samp"],
+  ProseUnderline: ["u", "underline", "ins"],
+  ProseStrike: ["s", "del", "strike"],
   ProseSpan: ["span", "small", "abbr", "var", "sub", "sup"],
   ProseLink: ["a"],
   ProseBreak: ["br"],
@@ -802,7 +790,7 @@ for (const [canon, variants] of Object.entries(PROSE_TAGS)) {
 }
 
 /**
- * Os corpos de `<prose>…</prose>` (um `<prose content="…"/>` não tem corpo).
+ * Os corpos de `prose…` (um `prose(content = "…")` não tem corpo).
  * A busca respeita aspas nos atributos: um `>` dentro de `content="a > b"` não
  * fecha a tag de abertura.
  */
@@ -822,8 +810,8 @@ function proseRanges(text) {
 }
 
 /**
- * O canônico da tag em `nameStart`: dentro de um `<prose>` vale a tabela de
- * texto (`span` ali é um trecho de estilo, não o `<text>`); fora dele, o
+ * O canônico da tag em `nameStart`: dentro de um `prose` vale a tabela de
+ * texto (`span` ali é um trecho de estilo, não o `text`); fora dele, o
  * catálogo nativo.
  */
 function canonicalAt(name, nameStart, proseRs) {
@@ -837,7 +825,7 @@ function canonicalAt(name, nameStart, proseRs) {
  * `{ name, nameStart, attrsText, attrsStart, attrsEnd, closing, selfClosing }`
  * (offsets are absolute char offsets into `text`).
  *
- * The body of `<script>`/`<style>` is skipped: Lua's `a < b` and GSS's `>` would
+ * The body of `script`/`style` is skipped: Lua's `a < b` and GSS's `>` would
  * otherwise be scanned as markup.
  */
 function* iterTags(text, comments) {
@@ -1052,8 +1040,8 @@ function resolveLuauModule(fromFsPath, modname) {
 const MAX_SCRIPT_SOURCES = 60;
 
 /**
- * All the Lua a template can reach: the inline `<script>` bodies, the file of
- * every `<script src>`, and — breadth-first — every module those `require`,
+ * All the Lua a template can reach: the inline `script` bodies, the file of
+ * every `script(src)`, and — breadth-first — every module those `require`,
  * transitively. A helper library is where a big app actually writes the context
  * (`E.erro()` doing `ctx.erro = …` from `lib/entrevista.luau`), so stopping at
  * the template's own script would miss most of it.
@@ -1179,19 +1167,19 @@ function handlerCandidates(value) {
   return out.filter((c) => c.name && !seen.has(c.name) && seen.add(c.name));
 }
 
-// `<dialog buttons="…">` spellings, and the role keywords `botao_de`
+// `dialog(buttons = "…")` spellings, and the role keywords `botao_de`
 // (src/dialogs.rs) peels off the END of a button spec.
-const DIALOG_BUTTONS_ATTRS = new Set(["buttons", "botoes", "botões"]);
+const DIALOG_BUTTONS_ATTRS = new Set(["buttons"]);
 const DIALOG_BUTTON_ROLES = new Set([
-  "accept", "aceitar", "principal",
-  "neutral", "neutro", "cancel", "cancelar",
-  "destructive", "destrutivo", "perigo", "danger",
+  "accept",
+  "neutral", "cancel",
+  "destructive", "danger",
 ]);
 
 /**
  * The action a `dialog:<name>` value chains to (the engine's
  * `DIALOG_ACTION_PREFIX` — a button that opens another dialog), or null. Used to
- * point such an action at the `<dialog name="…">`/component it names instead of
+ * point such an action at the `dialog(name = "…")`/component it names instead of
  * hunting for a `function dialog()`.
  */
 function dialogChainName(value) {
@@ -1200,7 +1188,7 @@ function dialogChainName(value) {
 }
 
 /**
- * Parse a `<dialog buttons="…">` value the way `botao_de` (src/dialogs.rs)
+ * Parse a `dialog(buttons = "…")` value the way `botao_de` (src/dialogs.rs)
  * does, yielding `{ action, start, end }` for every button that carries a
  * non-empty action — `start`/`end` are offsets into the value string covering
  * just the action token (not the label, not the trailing role keyword).
@@ -1236,7 +1224,7 @@ function* dialogButtonActions(value) {
 }
 
 /**
- * Parse a `<dialog buttons="…">` value the same way, yielding `{ role, start,
+ * Parse a `dialog(buttons = "…")` value the same way, yielding `{ role, start,
  * end }` for every button that carries an explicit, KNOWN role keyword —
  * `start`/`end` cover just that trailing word. A button with no third
  * segment, or whose last segment isn't one of `DIALOG_BUTTON_ROLES`, yields
@@ -1326,7 +1314,7 @@ function braceBlock(text, from) {
 
 /**
  * Action names dispatched by a Rust `Component::update` — the `"nome" =>` arms
- * of its `match action`. A template with no `<script>` gets its handlers from
+ * of its `match action`. A template with no `script` gets its handlers from
  * Rust, and those are what an action attribute names there.
  *
  * Each hit carries the `Template::File("…")` of the `impl Component` block it
@@ -1449,10 +1437,10 @@ function gssSelectors(gssText) {
 }
 
 /**
- * All the `.gss` a document can reach: every inline `<style>` body (scoped or
+ * All the `.gss` a document can reach: every inline `style` body (scoped or
  * global — both style somewhere in this document's tree) and every external
- * sheet named by `<link rel="stylesheet" href>` / `<style href>` (`rel`
- * defaults to `stylesheet`, mirroring `localImports`; a `<style href>` is the
+ * sheet named by `link(rel = stylesheet, href)` / `style(href)` (`rel`
+ * defaults to `stylesheet`, mirroring `localImports`; a `style(href)` is the
  * engine's own sugar for a linked sheet — see `PATH_ATTRS.Style`). Returns
  * `[{ uri, text, bodyStart, full }]`, `bodyStart` the offset the body sits at
  * inside `full` (0 for a file) — the same shape `scriptSources` returns, for
@@ -1478,7 +1466,7 @@ function styleSources(documentUri, text) {
     const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
     if (canon !== "Link" && canon !== "Style") continue;
     if (canon === "Link") {
-      const rel = (attrValue(tag, ["rel", "tipo"]) || "stylesheet").toLowerCase();
+      const rel = (attrValue(tag, ["rel"]) || "stylesheet").toLowerCase();
       if (rel !== "stylesheet") continue;
     }
     const p = resolveAssetPath(documentUri, attrValue(tag, PATH_ATTRS[canon]));
@@ -1514,8 +1502,8 @@ function componentKeys(name) {
 }
 
 /**
- * Components declared by the document itself: `<import name="X" from="…">` and
- * `<link rel="import" href="…" as="X">`, yielded as `{ name, fsPath }` with the
+ * Components declared by the document itself: `import(name = X, from = "…")` and
+ * `link(rel = import, href = "…", as = X)`, yielded as `{ name, fsPath }` with the
  * name as written (it defaults to the file stem, like the engine's `file_stem`
  * fallback in `process_links`).
  */
@@ -1527,12 +1515,12 @@ function* importDecls(documentUri, text) {
     let name;
     if (canon === "Import") {
       href = attrValue(tag, PATH_ATTRS.Import);
-      name = attrValue(tag, ["name", "nome", "as"]);
+      name = attrValue(tag, ["name", "as"]);
     } else if (canon === "Link") {
-      const rel = (attrValue(tag, ["rel", "tipo"]) || "stylesheet").toLowerCase();
+      const rel = (attrValue(tag, ["rel"]) || "stylesheet").toLowerCase();
       if (rel !== "import" && rel !== "component") continue;
       href = attrValue(tag, PATH_ATTRS.Link);
-      name = attrValue(tag, ["as", "name", "nome"]);
+      name = attrValue(tag, ["as", "name"]);
     } else {
       continue;
     }
@@ -1552,7 +1540,7 @@ function localImports(documentUri, text) {
 
 
 // ---------------------------------------------------------------------------
-// Props declaradas (<props> no cabeçalho de um <component>)
+// Props declaradas (props no cabeçalho de um component)
 // ---------------------------------------------------------------------------
 
 const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
@@ -1561,15 +1549,15 @@ const PROPS_BLOCK_RE = /<props\s*>([\s\S]*?)<\/props\s*>/i;
  * O contrato de props de um `.gv`, ou `null` quando o arquivo não declara um.
  *
  * `null` e `[]` querem dizer coisas diferentes, e a distinção é a mesma do
- * motor: sem `<props>` nada é checado; um `<props>` vazio declara que o
+ * motor: sem `props` nada é checado; um `props` vazio declara que o
  * componente não aceita prop nenhuma.
  */
 function declaredProps(fsPath) {
   const text = readFileCached(fsPath);
   if (!text) return null;
-  // Um `<screen>` é uma janela: ninguém o usa como tag, e ele não tem contrato
-  // de props. Um `<props>` que apareça nele é de um `<component name>` declarado
-  // no `<resources>` — lido aqui, faria `<app>` (que casa com `views/app.gv`
+  // Um `screen` é uma janela: ninguém o usa como tag, e ele não tem contrato
+  // de props. Um `props` que apareça nele é de um `component(name)` declarado
+  // no `resources` — lido aqui, faria `app` (que casa com `views/app.gv`
   // pelo nome do arquivo) herdar as props do primeiro componente local da tela.
   const raiz = iterTags(text).next().value;
   if (raiz && /^(screen|tela)$/i.test(raiz.name)) return null;
@@ -1577,8 +1565,8 @@ function declaredProps(fsPath) {
 }
 
 /**
- * `text` com cada `<component name="…">…</component>` apagado (trocado por
- * espaços do mesmo tamanho), para o `<props>` de um componente local não passar
+ * `text` com cada `component(name = "…")…` apagado (trocado por
+ * espaços do mesmo tamanho), para o `props` de um componente local não passar
  * pelo contrato do arquivo que o declara.
  */
 function semComponentesLocais(text) {
@@ -1593,7 +1581,7 @@ function semComponentesLocais(text) {
 }
 
 /**
- * Os nomes, como escritos, de todo `<component name="X">` declarado no
+ * Os nomes, como escritos, de todo `component(name = X)` declarado no
  * documento — fora de comentário. É o que o autocompletar oferece e o que o
  * índice do workspace registra; o bloco em si é o [`localDefine`].
  */
@@ -1604,8 +1592,8 @@ function localDefineNames(text) {
     // `localDefine` abaixo.
     if (tag.closing || tag.selfClosing) continue;
     const lower = tag.name.toLowerCase();
-    if (lower !== "component" && lower !== "componente") continue;
-    const name = attrValue(tag, ["name", "nome", "as", "como"]);
+    if (lower !== "component") continue;
+    const name = attrValue(tag, ["name", "as"]);
     if (name && name.trim()) out.push(name.trim());
   }
   return out;
@@ -1613,42 +1601,42 @@ function localDefineNames(text) {
 
 /**
  * O bloco de um componente **declarado no próprio documento** —
- * `<component name="X"> … </component>` dentro do `<resources>`.
+ * `component(name = X) … ` dentro do `resources`.
  *
  * Devolve `{ start, end, nameStart }` (deslocamentos no texto) ou `null`. O
- * casamento do fechamento conta os `<component>` aninhados, que na prática não
+ * casamento do fechamento conta os `component` aninhados, que na prática não
  * existem, mas custam três linhas a menos do que um parser de verdade e evitam
- * que um `</component>` de dentro corte o bloco no lugar errado.
+ * que um `` de dentro corte o bloco no lugar errado.
  */
 function localDefine(text, tagName) {
   const alvo = tagName.toLowerCase();
-  // Um `<dialog name="X">` (Onda 8) declara um template sob o nome dele,
-  // exatamente como um `<component name="X">` — então "ir para a definição"
+  // Um `dialog(name = X)` (Onda 8) declara um template sob o nome dele,
+  // exatamente como um `component(name = X)` — então "ir para a definição"
   // tem de achar os dois.
   const abre = /<(component|componente|dialog|dialogo|diálogo)\b([^>]*)>/gi;
   let m;
   while ((m = abre.exec(text)) !== null) {
     const selfClosing = /\/\s*>$/.test(m[0]);
     const isComponent = /^(component|componente)$/i.test(m[1]);
-    // `<component name="X"/>` auto-fechado não tem corpo: não é declaração.
-    // Mas `<dialog name="X"/>` auto-fechado É uma — a caixa de mensagem, sem
+    // `component(name = X)` auto-fechado não tem corpo: não é declaração.
+    // Mas `dialog(name = X)` auto-fechado É uma — a caixa de mensagem, sem
     // corpo em markup —, e `dialog:X` a abre igual, então tem de ser achada.
     if (selfClosing && isComponent) continue;
     let nome = null;
     for (const attr of iterAttrs(m[2], 0)) {
       const n = attr.name.toLowerCase();
-      if (n === "name" || n === "nome" || n === "as" || n === "como") nome = attr.value;
+      if (n === "name" || n === "as") nome = attr.value;
     }
     if (!nome || nome.toLowerCase() !== alvo) continue;
 
-    // Um `<dialog .../>` auto-fechado é o bloco inteiro — não há fechamento
+    // Um `dialog(...)` auto-fechado é o bloco inteiro — não há fechamento
     // para procurar.
     if (selfClosing) {
       return { start: m.index, end: m.index + m[0].length, nameStart: m.index + 1 };
     }
 
     // Fim do bloco, contando aninhamento — da MESMA família da tag que abriu.
-    // Procurar `</component>` num bloco aberto por `<dialog>` não acharia
+    // Procurar `` num bloco aberto por `dialog` não acharia
     // fim nenhum, e o bloco se estenderia até o fim do arquivo.
     const familia = isComponent ? "component|componente" : "dialog|dialogo|diálogo";
     const dentro = new RegExp(`<(${familia})\\b[^>]*>|</(${familia})\\s*>`, "gi");
@@ -1670,7 +1658,7 @@ function localDefine(text, tagName) {
 }
 
 /**
- * As props de um `<props>` avulso, dado o texto que o contém. Partilhada entre
+ * As props de um `props` avulso, dado o texto que o contém. Partilhada entre
  * o componente de arquivo ([`declaredProps`]) e o declarado no próprio
  * documento ([`localDefine`]) — as duas formas escrevem o MESMO bloco, e ler
  * cada uma com o seu parser seria pedir para elas divergirem.
@@ -1684,18 +1672,17 @@ function propsFromText(text) {
   while ((m = re.exec(block[1])) !== null) {
     const attrs = {};
     for (const attr of iterAttrs(m[1], 0)) attrs[attr.name.toLowerCase()] = attr.value;
-    const name = attrs.name || attrs.nome;
+    const name = attrs.name;
     if (!name) continue;
-    const padrao = attrs.default ?? attrs.padrao ?? attrs["padrão"];
-    // `<prop component name="vazio" />`: o valor da prop é o NOME de um
+    const padrao = attrs.default;
+    // `prop(component, name = vazio)`: o valor da prop é o NOME de um
     // componente. O marcador é um atributo sem valor (o motor o normaliza para
     // `component=""`), que `iterAttrs` não enxerga — daí a busca no texto da
     // tag, com os valores entre aspas apagados antes.
     const semValores = m[1].replace(/"[^"]*"|'[^']*'/g, '""');
     const component =
       "component" in attrs ||
-      "componente" in attrs ||
-      /(^|\s)componente?(?=[\s/>]|$)/i.test(semValores);
+      /(^|\s)component(?=[\s/>]|$)/i.test(semValores);
     props.push({ name, default: padrao, component });
   }
   return props;
@@ -1704,8 +1691,8 @@ function propsFromText(text) {
 /** As props declaradas pelo componente que a tag `name` referencia. */
 async function propsForTag(document, tagName) {
   if (NATIVE_LOOKUP[tagName.toLowerCase()]) return null;
-  // Um componente declarado no próprio documento (`<component name="X">` no
-  // `<resources>`) vem primeiro: ele não tem arquivo, então o índice do
+  // Um componente declarado no próprio documento (`component(name = X)` no
+  // `resources`) vem primeiro: ele não tem arquivo, então o índice do
   // workspace nunca o encontraria — e sem isto a tag ficaria sem completação
   // nem diagnóstico de prop, que é metade do que o editor faz por um
   // componente importado.
@@ -1751,7 +1738,7 @@ function indexAdd(map, key, value, front) {
  * `components` — name key -> declaring file, from
  *   1. template file names (`perfil_card.gv` answers both `perfil_card` and
  *      `PerfilCard`);
- *   2. `<import name="X" from="…">` / `<link rel="import" as="X">` in any
+ *   2. `import(name = X, from = "…")` / `link(rel = import, as = X)` in any
  *      template (a component registered by one screen is visible to all);
  *   3. a name paired with a template path on the Rust/Lua side, in whatever
  *      shape the registration takes (`register_component`, a struct literal,
@@ -1759,7 +1746,7 @@ function indexAdd(map, key, value, front) {
  *
  * `handlers` — action name -> the `"nome" =>` arm of a Rust `update`.
  */
-/** Every `ctx.chave = …` / `ctx["chave"] = …` written in a Luau chunk. */
+/** Every `ctx.key = …` / `ctx["key"] = …` written in a Luau chunk. */
 function collectContextWrites(text, baseOffset) {
   const out = [];
   const code = maskLuaComments(text);
@@ -1807,7 +1794,7 @@ async function buildWorkspaceIndex() {
   // by a sibling screen's script.
   const luaKeys = new Map();
   // Global Luau functions (= actions) defined anywhere in the workspace. A
-  // component imported by a screen carries no `<script>` of its own, but its
+  // component imported by a screen carries no `script` of its own, but its
   // `on_click="salvar"` is answered by the script the SCREEN loads — which is
   // not in this template's own script graph.
   const luaFunctions = new Map();
@@ -1821,9 +1808,9 @@ async function buildWorkspaceIndex() {
   const rustByTemplate = new Map();
   const rustByDir = new Map();
   // `.gss` selectors declared anywhere in the workspace — external sheets and
-  // every template's inline `<style>` bodies. A linked sheet applies
+  // every template's inline `style` bodies. A linked sheet applies
   // globally in the engine, so a class used by a component that carries no
-  // `<link>` of its own (the common case: only the app's root screen links
+  // `link` of its own (the common case: only the app's root screen links
   // one) still needs to resolve somewhere.
   const gssRules = new Map(); // ".name" | "#name" -> [{ fsPath, offset, position }]
 
@@ -1858,7 +1845,7 @@ async function buildWorkspaceIndex() {
         addName(d.name);
       }
     }
-    // `<component name="X">` in a template's <resources>: the engine puts it in
+    // `component(name = X)` in a template's resources: the engine puts it in
     // the same namespace as any other component, so another screen may use it.
     if (/<\s*componente?\b/i.test(text)) {
       for (const name of localDefineNames(text)) {
@@ -1986,7 +1973,7 @@ function rustFilesFor(index, documentUri) {
   return near.map((v) => v.fsPath);
 }
 
-// A `<form>` derives one context key per bound control: `{prefix}{formControl}`,
+// A `form` derives one context key per bound control: `{prefix}{formControl}`,
 // where the prefix is the form's own `errorPrefix` or `erro_` by default
 // (`hydrate_form_controls` in eval.rs). Nothing in Luau or Rust writes
 // `erro_ss_email`; the engine does, when `ss_email` fails validation.
@@ -2138,7 +2125,7 @@ function sharedPathDepth(a, b) {
 }
 
 /**
- * The declaring file of component `tag`, or null. The document's own `<import>`
+ * The declaring file of component `tag`, or null. The document's own `import`
  * wins; then, among the workspace candidates, the nearest one — a name like
  * `perfil` can be both `examples/perfil/perfil.gv` and the screen registered as
  * `perfil` next door, and the one sharing the most path with the document is
@@ -2192,7 +2179,7 @@ function referenceLocation(pattern) {
  *
  * Tenta o nome canônico e, se ele não tiver cabeçalho, cada apelido. Isso
  * importa para as tags cujo canônico é um nome INTERNO do motor que ninguém
- * escreve: `<dialog>` é `DialogDef`, `<component>` é `ComponentRoot`, e o doc
+ * escreve: `dialog` é `DialogDef`, `component` é `ComponentRoot`, e o doc
  * — corretamente — documenta a grafia que se escreve, não a do `NodeType`.
  * Sem a busca por apelido, essas duas caíam na linha 1 do arquivo.
  */
@@ -2203,10 +2190,10 @@ function resolveNative(canonical) {
   const grafias = [canonical, ...(NATIVE_TAGS[canonical] || PROSE_TAGS[canonical] || [])];
   for (const nome of grafias) {
     // O cabeçalho que NOMEIA a tag, ou — para uma grafia documentada como
-    // apelido, tipo `<Else>` sob o título de `<If>` — o primeiro cabeçalho que
+    // apelido, tipo `else` sob o título de `template` — o primeiro cabeçalho que
     // a menciona.
     const own = new RegExp("^#+\\s*`?<?" + escapeRe(nome) + "\\b", "mi");
-    const alias = new RegExp("^#+.*<" + escapeRe(nome) + ">", "mi");
+    const alias = new RegExp("^#+.*`" + escapeRe(nome) + "`", "mi");
     const m = own.exec(text) || alias.exec(text);
     if (m) {
       return [
@@ -2241,7 +2228,7 @@ function pathTooltip(fsPath) {
 }
 
 /**
- * The loop variables a template declares: `<ForEach var="c">`, `<template
+ * The loop variables a template declares: `ForEach(var = c)`, `<template
  * for-each="…" var="c">`. Returns `[{ name, start, end }]` in document order —
  * a `{c.titulo}` refers to one of these, not to a context key.
  */
@@ -2251,7 +2238,7 @@ function loopVars(text, comments) {
     if (tag.closing) continue;
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
       const lower = attr.name.toLowerCase();
-      if (lower !== "var" && lower !== "variavel") continue;
+      if (lower !== "var") continue;
       const name = attr.value.trim();
       if (!/^[A-Za-z_]\w*$/.test(name)) continue;
       const start = attr.start + attr.value.indexOf(name);
@@ -2273,7 +2260,7 @@ function loopVarFor(vars, name, offset) {
 
 /**
  * Every file reference the document makes, as an underlined Ctrl/Cmd+clickable
- * link: `<script src>`, action handlers, `<link>`/`<style>` sheets, imports and
+ * link: `script(src)`, action handlers, `link`/`style` sheets, imports and
  * includes, assets, and component tags. References that resolve to nothing (a
  * missing file, a handler that exists nowhere) are dropped rather than linked
  * to a wrong target — the absent underline is itself the hint.
@@ -2297,9 +2284,9 @@ async function provideDocumentLinks(document) {
     new vscode.Range(document.positionAt(start), document.positionAt(end));
 
   // A literal component name in an attribute value -> its declaration. Only
-  // the name is underlined. A `<component name>` declared in this file's
-  // <resources> comes first — it has no file, so the workspace index would
-  // never find it —, then `<import>`, then the index. `{vazio}` is left alone:
+  // the name is underlined. A `component(name)` declared in this file's
+  // resources comes first — it has no file, so the workspace index would
+  // never find it —, then `import`, then the index. `{vazio}` is left alone:
   // that name only exists at runtime.
   const linkComponentValue = (attr) => {
     const name = attr.value.trim();
@@ -2319,8 +2306,8 @@ async function provideDocumentLinks(document) {
     if (tag.closing) continue;
     const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
 
-    // 1. Path attributes: <script src>, <link href>, <style href>, <import
-    //    from>, <Include src>, <Image src>, <Svg src>.
+    // 1. Path attributes: script(src), link(href), style(href), <import
+    //    from>, Include(src), Image(src), Svg(src).
     const pathAttrs = canon ? PATH_ATTRS[canon] : undefined;
     if (pathAttrs) {
       const wanted = pathAttrs.map((n) => n.toLowerCase());
@@ -2349,7 +2336,7 @@ async function provideDocumentLinks(document) {
       const start = attr.start + attr.value.indexOf(value);
 
       // `dialog:nome` — the engine opens that dialog; point at its
-      // `<dialog name="nome">` (or the component/screen of that name).
+      // `dialog(name = nome)` (or the component/screen of that name).
       const chain = dialogChainName(value);
       if (chain) {
         const link = new vscode.DocumentLink(range(start, start + value.length));
@@ -2444,7 +2431,7 @@ async function provideDocumentLinks(document) {
       links.push(link);
     }
 
-    // 2b. <dialog buttons="Rótulo:ação:papel|…"> — each button's action token
+    // 2b. dialog(buttons = "Rótulo:ação:papel|…") — each button's action token
     //     links like an action attribute; a `dialog:nome` chain points at that
     //     dialog. The trailing role keyword (`accept`/`neutral`/`destructive`,
     //     see `dialogButtonRoles`) links to the reference doc's table of them.
@@ -2533,10 +2520,10 @@ async function provideDocumentLinks(document) {
     }
 
     // 3b. class="cartao destaque" / id="unico": each name is a `.gss`
-    //     selector. Local sheets (this document's `<link>`/`<style>`) are
+    //     selector. Local sheets (this document's `link`/`style`) are
     //     tried first; a class defined only in another sheet falls back to
     //     the workspace index — styles apply globally in the engine, so a
-    //     screen with no `<link>` of its own commonly still uses classes an
+    //     screen with no `link` of its own commonly still uses classes an
     //     `app.gss` loaded elsewhere declares.
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
       const lower = attr.name.toLowerCase();
@@ -2567,7 +2554,7 @@ async function provideDocumentLinks(document) {
     }
 
     // 4b. A component named by value on a native tag: <foreach
-    //     fallback="ListaVazia">, <template foreach_fallback="…">, <render
+    //     fallback="ListaVazia">, template(foreach_fallback = "…"), <render
     //     component="…">. See `linkComponentValue`.
     const refAttrs = componentRefAttrs(canon);
     if (refAttrs) {
@@ -2576,7 +2563,7 @@ async function provideDocumentLinks(document) {
       }
     }
 
-    // 5. Component tag: <PerfilCard/> -> the file declaring it.
+    // 5. Component tag: PerfilCard -> the file declaring it.
     if (!canon) {
       const link = new vscode.DocumentLink(
         range(tag.nameStart, tag.nameStart + tag.name.length)
@@ -2584,7 +2571,7 @@ async function provideDocumentLinks(document) {
       link.tooltip = "Open component";
       // Declarado no próprio arquivo primeiro — a mesma ordem do F12 e do
       // `linkComponentValue`. Sem isto, o índice do workspace (que também
-      // registra `<component name>`) resolvia para o topo do arquivo, e não
+      // registra `component(name)`) resolvia para o topo do arquivo, e não
       // para a linha da declaração.
       const local = localDefine(text, tag.name);
       const direct = imports.get(tag.name.toLowerCase());
@@ -2593,9 +2580,9 @@ async function provideDocumentLinks(document) {
       else pendingComponents.push({ link, name: tag.name });
       links.push(link);
 
-      // 5b. A prop the component declares `<prop component name="…" />`: its
-      //     value names a component (<Etapa vazio="FilaVazia">). Which props
-      //     those are is read from the component's own <props>.
+      // 5b. A prop the component declares `prop(component, name = "…")`: its
+      //     value names a component (Etapa(vazio = FilaVazia)). Which props
+      //     those are is read from the component's own props.
       const props = await propsForTag(document, tag.name).catch(() => null);
       const componentProps = new Set(
         (props || []).filter((p) => p.component).map((p) => p.name.toLowerCase())
@@ -2806,13 +2793,13 @@ function classify(document, position) {
         return name ? { kind: "tag", name, canonical: undefined } : null;
       }
       // `fallback`/`foreach_fallback`/`component` — see `componentRefAttrs`.
-      // Resolves like a component tag, local `<component name>` first.
+      // Resolves like a component tag, local `component(name)` first.
       if (componentRefAttrs(canon)?.has(lower)) {
         const name = attr.value.trim();
         if (!name || name.includes("{")) return null;
         return { kind: "tag", name, canonical: undefined };
       }
-      // Inside a <dialog buttons="…"> value: which button's action — or role
+      // Inside a dialog(buttons = "…") value: which button's action — or role
       // keyword — is under the cursor? (The label classifies as nothing.)
       if (canon === "DialogDef" && DIALOG_BUTTONS_ATTRS.has(lower)) {
         const rel = offset - attr.start;
@@ -2833,8 +2820,8 @@ function classify(document, position) {
         return null;
       }
       if (wanted.includes(lower)) return { kind: "path", value: attr.value };
-      // Any other attribute of a component tag may be a `<prop component>`.
-      // Whether it is depends on the component's <props>, which only the
+      // Any other attribute of a component tag may be a `prop(component)`.
+      // Whether it is depends on the component's props, which only the
       // (async) definition resolver reads — see "componentProp" there.
       if (!canon) {
         const name = attr.value.trim();
@@ -2857,7 +2844,7 @@ async function resolveDefinition(document, position) {
   if (hit.kind === "action") {
     const sources = scriptSources(document.uri, text);
 
-    // `dialog:nome` opens another dialog — jump to its `<dialog name="nome">`
+    // `dialog:nome` opens another dialog — jump to its `dialog(name = nome)`
     // (or the component/screen registered under that name).
     const chain = dialogChainName(hit.name);
     if (chain) {
@@ -2959,7 +2946,7 @@ async function resolveDefinition(document, position) {
     return p ? [new vscode.Location(vscode.Uri.file(p), new vscode.Position(0, 0))] : undefined;
   }
 
-  // <Etapa vazio="FilaVazia">: only a prop declared `<prop component …/>` names
+  // Etapa(vazio = FilaVazia): only a prop declared `prop(component)` names
   // a component; any other prop value is plain text, with nothing to open.
   if (hit.kind === "componentProp") {
     const props = await propsForTag(document, hit.tagName);
@@ -2970,7 +2957,7 @@ async function resolveDefinition(document, position) {
 
   // tag
   if (hit.canonical) return resolveNative(hit.canonical);
-  // Declarado no próprio arquivo (`<component name="X">` no `<resources>`):
+  // Declarado no próprio arquivo (`component(name = X)` no `resources`):
   // o destino é o bloco, algumas linhas acima — não há arquivo para abrir, e
   // sem este ramo o F12 numa tag local simplesmente não faria nada.
   const local = localDefine(text, hit.name);
@@ -2989,7 +2976,7 @@ async function resolveDefinition(document, position) {
 
 /**
  * Marca no editor as mesmas violações que o motor recusaria no parse: prop
- * passada que o `<props>` não declara, e prop obrigatória faltando.
+ * passada que o `props` não declara, e prop obrigatória faltando.
  */
 async function refreshDiagnostics(document, collection) {
   if (document.languageId !== "glacier-view") return;
@@ -3028,7 +3015,7 @@ async function refreshDiagnostics(document, collection) {
       out.push(
         new vscode.Diagnostic(
           range,
-          `<${tag.name}> não aceita a prop '${attr.name}' — o <props> dele declara: ${lista}`,
+          `${tag.name} não aceita a prop '${attr.name}' — o props dele declara: ${lista}`,
           vscode.DiagnosticSeverity.Error
         )
       );
@@ -3044,7 +3031,7 @@ async function refreshDiagnostics(document, collection) {
             document.positionAt(tag.nameStart),
             document.positionAt(tag.nameStart + tag.name.length)
           ),
-          `<${tag.name}> precisa da prop '${p.name}': declarada sem default, então é obrigatória`,
+          `${tag.name} precisa da prop '${p.name}': declarada sem default, então é obrigatória`,
           vscode.DiagnosticSeverity.Error
         )
       );
@@ -3095,13 +3082,13 @@ function pathDiagnostics(document, text, out) {
 }
 
 /**
- * Component names written as values — `<foreach fallback>`, `<template
- * foreach_fallback>`, `<render component>` and the props a component declares
- * `<prop component>` — that resolve to nothing this editor can see.
+ * Component names written as values — `foreach(fallback)`, `<template
+ * foreach_fallback>`, `render(component)` and the props a component declares
+ * `prop(component)` — that resolve to nothing this editor can see.
  *
  * Warning, not error: a component registered from Rust in a shape the workspace
  * index doesn't recognize is still valid, and only the engine knows for sure.
- * The two `<template>` mistakes the parser refuses outright are errors.
+ * The two `template` mistakes the parser refuses outright are errors.
  */
 async function componentRefDiagnostics(document, text, out) {
   const imports = localImports(document.uri, text);
@@ -3136,12 +3123,12 @@ async function componentRefDiagnostics(document, text, out) {
         if (FOREACH_FALLBACK_ATTRS.has(lower)) {
           erroNoAtributo(
             a,
-            `\`${a.name}\` num <template>: use \`foreach_fallback\` — o <template> também é if/else, e ali \`fallback\` leria como um senão`
+            `\`${a.name}\` num template: use \`foreach_fallback\` — o template também é if/else, e ali \`fallback\` leria como um senão`
           );
         } else if (TEMPLATE_FALLBACK_ATTRS.has(lower) && !temForeach) {
           erroNoAtributo(
             a,
-            `\`${a.name}\` num <template> sem \`foreach\`: não há lista para estar vazia (para um senão, use <template else>)`
+            `\`${a.name}\` num template sem \`foreach\`: não há lista para estar vazia (para um else, use template(else))`
           );
         }
       }
@@ -3162,7 +3149,7 @@ async function componentRefDiagnostics(document, text, out) {
       out.push(
         new vscode.Diagnostic(
           new vscode.Range(document.positionAt(start), document.positionAt(start + name.length)),
-          `'${name}' não é um componente conhecido: declare-o no <resources>, importe-o ou registre-o (o motor erra ao avaliar se ele não existir)`,
+          `'${name}' não é um componente conhecido: declare-o no resources, importe-o ou registre-o (o motor erra ao avaliar se ele não existir)`,
           vscode.DiagnosticSeverity.Warning
         )
       );

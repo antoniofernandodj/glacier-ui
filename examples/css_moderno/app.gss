@@ -11,15 +11,15 @@
 .nota { size: 13; color: #A6ADC8; }
 
 .botao {
-  /* no <button>, o fundo de repouso é `color`; nos estados, `background` */
+  /* no button, o fundo de repouso é `color`; nos estados, `background` */
   color: var(--azul);
-  text-color: #FFFFFF;
+  text_color: #FFFFFF;
   padding: 14;
-  border-radius: var(--raio);
+  border_radius: var(--raio);
   width: 280;
 }
 .botao:hover { background: var(--laranja); }
-.botao:active { background: #FFFFFF; text-color: #000000; }
+.botao:active { background: #FFFFFF; text_color: #000000; }
 
 /* a MESMA troca de estado, animada em 400 ms */
 .suave { transition: background 400ms ease-out; }
@@ -30,15 +30,15 @@
 .caixa {
   background: var(--laranja);
   padding: var(--gap);
-  border-radius: calc(var(--raio) * 2);
+  border_radius: calc(var(--raio) * 2);
   width: calc(300 - 2 * 20);
 }
 .caixa_translucida { opacity: 50%; }
 
 /* seletores estruturais: posição entre os irmãos */
 .lista { spacing: 2; }
-.linha { padding: 6; background: #3B3E45; text-color: #FFFFFF; }
+.linha { padding: 6; background: #3B3E45; text_color: #FFFFFF; }
 .linha:nth-child(odd) { background: #4A4E57; }
-.linha:first-child { border-radius: 8; background: #5865F2; }
+.linha:first-child { border_radius: 8; background: #5865F2; }
 .linha:last-child  { background: #E07A5F; }
 .linha:nth-child(3n) { background: #2E8B57; }

@@ -52,7 +52,7 @@ pub const COLOR_DIALOG_BODY: &str = "__ColorDialog";
 
 /// A chave do **texto em digitação** do campo hexadecimal — o rascunho que a
 /// roda não lê. Segue a convenção de chave irmã do
-/// [`crate::color_picker`]: `<chave da cor>__hex`.
+/// [`crate::color_picker`]: `chave(da, cor)__hex`.
 pub const HEX_KEY: &str = "__dialog.value__hex";
 
 pub struct ColorDialog;
@@ -64,31 +64,21 @@ impl Component for ColorDialog {
 
     fn template(&self) -> Template {
         Template::Inline(
-            r##"<Column spacing="12" width="fill">
-                    <Row width="fill">
-                        <Space width="fill" />
-                        <ColorWheel value="__dialog.value" size="{__dialog.size|220}" />
-                        <Space width="fill" />
-                    </Row>
-
-                    <Row spacing="10" width="fill">
-                        <!-- A amostra: o único lugar onde a cor aparece
-                             sozinha, sem a roda em volta dela. -->
-                        <Container
-                            width="44"
-                            height="32"
-                            background="{__dialog.value}"
-                            border_radius="6"
-                            border_width="1"
-                        />
-                        <TextInput
-                            value="__dialog.value__hex"
-                            placeholder="#rrggbb"
-                            onChange="__ColorDialog::hex"
-                            width="fill"
-                        />
-                    </Row>
-                </Column>"##
+            r##"
+                column(spacing = 12, width = fill) {
+                  row(width = fill) {
+                    space(width = fill)
+                    colorwheel(:value = "__dialog.value", size = "{__dialog.size|220}")
+                    space(width = fill)
+                  }
+                  row(spacing = 10, width = fill) {
+                    /* A amostra: o único lugar onde a cor aparece
+                                             sozinha, sem a roda em volta dela. */
+                    container(width = 44, height = 32, background = @__dialog.value, border_radius = 6, border_width = 1)
+                    textinput(:value = "__dialog.value__hex", placeholder = "#rrggbb", on_change = "__ColorDialog::hex", width = fill)
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

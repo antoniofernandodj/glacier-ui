@@ -5,8 +5,8 @@
 //!
 //! # O que este exemplo mostra
 //!
-//! A mesma observação das ondas 9 a 11: o `<dock>` inteiro — o `<splitter>`
-//! acoplado, o `<stack>` flutuante, os botões do cabeçalho e o arrasto de
+//! A mesma observação das ondas 9 a 11: o `<dock>` inteiro — o `splitter`
+//! acoplado, o `stack` flutuante, os botões do cabeçalho e o arrasto de
 //! reancoragem (`grip::Alvo::Zona`) — é **markup e motor**. O que sobra para o
 //! Luau é semear e, se quiser, um atalho que escreve a chave `mode`. Nada aqui
 //! desenha nem posiciona.

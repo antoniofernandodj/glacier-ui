@@ -1,12 +1,12 @@
-//! **`<foreach fallback>`, em Luau** — o par do exemplo `foreach_fallback`,
-//! com o mesmo markup e a lógica num `<script>`.
+//! **`foreach(fallback)`, em Luau** — o par do exemplo `foreach_fallback`,
+//! com o mesmo markup e a lógica num `script`.
 //!
 //! Rode com: `cargo run --example foreach_fallback_luau` (com
 //! `WGPU_BACKEND=gl` nesta máquina).
 //!
 //! # O que este exemplo mostra
 //!
-//! Cada etapa da cozinha é um `<foreach items="…" fallback="{vazio}">` dentro
+//! Cada etapa da cozinha é um `foreach(items = "…", fallback = @vazio)` dentro
 //! do componente `Etapa`, que recebe o componente de "vazio" por atributo
 //! (`vazio="FilaVazia"`). A lista de entregues usa o `fallback` literal.
 //!

@@ -13,12 +13,12 @@ screen(
 
     column(class = corpo) {
       text(
-        class = lead,
-        content = """
+        """
           `console.log` / `.info` / `.warn` / `.error` / `.debug` / `.table`
           escrevem no stdout do processo, com cor, glifo, rótulo e hora. O nível e
           a cor são ajustáveis por `console.config` / `console.set_level`.
         """,
+        class = lead,
       )
 
       row(class = acoes) {

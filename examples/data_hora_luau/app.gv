@@ -7,7 +7,7 @@ screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
     link(rel = theme, href = "examples/data_hora_luau/theme.json")
 
     // Sem isto o comportamento em Lua nunca é carregado: o motor liga o
-    // script pelo <script> do template, não por convenção de nome.
+    // script pelo script do template, não por convenção de nome.
     script(src = app.luau)
   }
 
@@ -16,7 +16,7 @@ screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
       text(content = "Reserva — regras em Luau", class = titulo)
 
       text(
-        content = """
+        """
           Cada campo tem on_change, então o widget NÃO grava a chave: ele avisa, e
           o script decide. É o que permite recusar uma saída anterior à entrada —
           uma regra de negócio, que não cabe dentro do widget.
@@ -25,7 +25,7 @@ screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
       )
 
       text(
-        content = """
+        """
           As contas de data ficam com o global `date` do prelúdio (Luau puro sobre
           strings ISO): os valores iniciais saem do relógio do sistema, e as
           comparações não olham o texto, olham o instante.
@@ -49,7 +49,7 @@ screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
       text(content = "tem de ser depois da entrada", class = nota)
     }
 
-    // O <datetimeedit> junta as duas famílias de seção no mesmo campo.
+    // O datetimeedit junta as duas famílias de seção no mesmo campo.
     // A regra dele é a mais sutil da tela: comparar um `YYYY-MM-DD HH:MM`
     // com um `YYYY-MM-DD` não dá certo como texto puro — ver o script.
     row(class = linha) {
@@ -89,7 +89,7 @@ screen(title = "Glacier - Data e Hora (Luau)", size = "700 580") {
     }
 
     text(
-      content = """
+      """
         Tente puxar a saída para antes da entrada, ou a entrada para ontem: o
         script recusa, avisa e o campo volta ao valor anterior.
       """,

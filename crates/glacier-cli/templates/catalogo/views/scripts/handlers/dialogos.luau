@@ -1,9 +1,9 @@
 --!strict
 --!nolint FunctionUnused
--- §2.10 — os modais. `<dialog name>` é markup (em dialogos.gv); estes aqui são
+-- §2.10 — os modais. `dialog(name)` é markup (em dialogos.gv); estes aqui são
 -- as CHAMADAS suspensivas da camada Luau.
 
--- Aceite do `<dialog name="cat_form">`: no aceite, o rascunho `__dialog.*` ainda
+-- Aceite do `dialog(name = cat_form)`: no aceite, o rascunho `__dialog.*` ainda
 -- está no contexto (o motor o apaga depois). Leia aqui.
 function dlg_salvar(): ()
   local nome = ctx["__dialog.nome"] or ""

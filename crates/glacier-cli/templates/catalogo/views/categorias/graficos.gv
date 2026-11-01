@@ -7,17 +7,17 @@ component {
     text(class = titulo_cat, content = "Gráficos e visualização")
 
     text(
-      class = intro,
-      content = """
+      """
         Todos leem `items` como NOME de chave (aqui não vale JSON inline). `min`/
         `max` vazios = escala automática 1·2·5; `series="chave"` (várias séries)
-        vence `items` e só o `<linechart>`/`<sparkline>` o aceita.
+        vence `items` e só o `linechart`/`sparkline` o aceita.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
-        text(class = rotulo, content = "<linechart> · <linechart area points>")
+        text(class = rotulo, content = "linechart · linechart(area, points)")
 
         row(class = "linha linha_2") {
           linechart(:items = gr_serie, min = 0, class = grafico)
@@ -31,11 +31,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <linechart series="…"> — várias séries, legenda e ciclo de cores do
+          """
+            linechart(:series = "…") — várias séries, legenda e ciclo de cores do
             tema
           """,
+          class = rotulo,
         )
 
         linechart(:series = gr_carga, min = 0, grid = true, class = grafico)
@@ -44,7 +44,7 @@ component {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<barchart colorful> · <piechart> · <donut>",
+          content = "barchart(colorful) · piechart · donut",
         )
 
         row(class = "linha linha_2") {
@@ -56,10 +56,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <sparkline> — é <linechart axes="false" grid="false">, para uma célula
+          """
+            sparkline — é linechart(axes = false, grid = false), para uma célula
           """,
+          class = rotulo,
         )
 
         row(class = linha) {

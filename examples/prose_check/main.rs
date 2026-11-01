@@ -1,4 +1,4 @@
-//! Verificador, SEM janela, do `<prose syntax content>`: roda o parser de blocos contra
+//! Verificador, SEM janela, do `prose(syntax, content)`: roda o parser de blocos contra
 //! entradas difíceis e imprime o que saiu. Ver `docs/TEXTO.md`.
 //!
 //!   cargo run --example prose_check
@@ -61,7 +61,7 @@ fn main() {
         }
     };
 
-    // 1. HTML de CMS: <p> sem fechar, <li> sem fechar, entidades, script, atributos de evento
+    // 1. HTML de CMS: p sem fechar, li sem fechar, entidades, script, atributos de evento
     let html = r#"<!DOCTYPE html><html><head><title>x</title><style>p{}</style></head><body>
       <div class="artigo"><h1>Título &amp; subtítulo</h1>
       <p>Primeiro <strong>parágrafo</strong> com <em>ênfase</em> e &ldquo;aspas&rdquo;&nbsp;aqui.
@@ -75,7 +75,7 @@ fn main() {
       </div></body></html>"#;
     let b = mostrar("HTML sujo de CMS", Sintaxe::Html, html);
     confere("html: 1 título", contagem(&b, |x| matches!(x, Bloco::Titulo { nivel: 1, .. })) == 1);
-    confere("html: <p> sem fechar viram 3 parágrafos", contagem(&b, |x| matches!(x, Bloco::Paragrafo(_))) == 3);
+    confere("html: p sem fechar viram 3 parágrafos", contagem(&b, |x| matches!(x, Bloco::Paragrafo(_))) == 3);
     confere("html: script e style sumiram", !format!("{b:?}").contains("alert"));
     confere("html: citação com autoria", b.iter().any(|x| matches!(x, Bloco::Citacao { autoria, .. } if !autoria.is_empty())));
     confere("html: lista de 2 itens", b.iter().any(|x| matches!(x, Bloco::Lista { itens, .. } if itens.len() == 2)));

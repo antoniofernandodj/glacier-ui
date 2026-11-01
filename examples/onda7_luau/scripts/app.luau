@@ -19,11 +19,11 @@
 --
 -- O que NÃO muda entre as duas versões é o mais importante: nenhum dos sete
 -- widgets desta onda pede uma linha de script para funcionar. Girar o
--- `<dial>`, ler um `<gauge>`, desenhar as séries — tudo isso já acontece com o
+-- `dial`, ler um `gauge`, desenhar as séries — tudo isso já acontece com o
 -- `init` sozinho. O `every` abaixo existe para mostrar outra coisa.
 
 -- A latência de cada serviço nas últimas 24 h. Números crus: a forma curta da
--- convenção `items`, e a que uma `<sparkline>` quer (ela não desenha rótulo).
+-- convenção `items`, e a que uma `sparkline` quer (ela não desenha rótulo).
 local LAT_API = {
     38, 41, 39, 44, 52, 47, 43, 40, 38, 37, 39, 45,
     61, 58, 49, 44, 41, 40, 42, 46, 51, 48, 43, 39,
@@ -38,7 +38,7 @@ local LAT_FILA = {
 }
 
 -- As vendas do semestre, na forma longa: rótulo e valor. É o que o eixo X de um
--- `<linechart>` e de um `<barchart>` desenha.
+-- `linechart` e de um `barchart` desenha.
 local VENDAS = {
     { label = "jan", value = 128 },
     { label = "fev", value = 141 },
@@ -55,7 +55,7 @@ local FATIAS = {
     { label = "CDN", value = 13 },
 }
 
--- As faixas de um `<gauge>` também são uma tabela — e esta vai para uma CHAVE,
+-- As faixas de um `gauge` também são uma tabela — e esta vai para uma CHAVE,
 -- não para o atributo: é o caso em que os limites são do backend, não do
 -- desenho.
 local LIMITES_DISCO = {
@@ -92,7 +92,7 @@ function init()
     ctx.aba = "medidores"
 
     -- Uma chave por medidor. Nenhuma delas é escrita por este arquivo depois
-    -- daqui: quem escreve `volume` e `brilho` é o próprio `<dial>`, porque o
+    -- daqui: quem escreve `volume` e `brilho` é o próprio `dial`, porque o
     -- markup não lhe deu `onChange`.
     ctx.volume = 7
     ctx.brilho = 60
@@ -102,7 +102,7 @@ function init()
     ctx.rede = 420
     ctx.limites_disco = LIMITES_DISCO
 
-    -- O `<lcdnumber>` lê o valor como TEXTO — é o que deixa um relógio passar
+    -- O `lcdnumber` lê o valor como TEXTO — é o que deixa um relógio passar
     -- inteiro pelos dois-pontos. E o relógio é do APP, não do motor: a mesma
     -- lição da Onda 3, agora num display.
     ctx.relogio = date.time()

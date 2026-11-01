@@ -5,7 +5,7 @@
 -- Comportamento da tela de contatos.
 --
 -- O ponto do exemplo: o NOME de um componente é um dado como outro qualquer.
--- `ctx.cabecalho` e `ctx.vazio` guardam qual componente a <Vitrine> desenha em
+-- `ctx.cabecalho` e `ctx.vazio` guardam qual componente a Vitrine desenha em
 -- cada papel, e trocar a string troca o componente na tela — sem uma linha de
 -- markup condicional.
 --

@@ -305,7 +305,7 @@ pub mod arvore {
             if d.oculto {
                 return Vec::new();
             }
-            // Filhos (e os blocos do `<prose>`).
+            // Filhos (e os blocos do `prose`).
             let mut filhos = Vec::new();
             for (i, f) in no.children.iter().enumerate() {
                 caminho.push(i);

@@ -21,11 +21,11 @@ screen(
     scrollable(class = rolagem) {
       column(class = corpo) {
         text(
-          class = lead,
-          content = """
+          """
             O script escreve uma tabela `name, points, color?` na chave; o gráfico
             a lê no render. Nenhuma linha de Luau desenha nada.
           """,
+          class = lead,
         )
 
         column(class = bloco) {

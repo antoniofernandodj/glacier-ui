@@ -2,19 +2,15 @@
 /// ordem decidida pela plataforma.
 ///
 /// Existia desde sempre dentro de `src/dialogs.rs` (é o que desenha os botões
-/// de um `QMessageBox`), mas só como parte do diálogo. Com o `<slot/>` (0.65)
+/// de um `QMessageBox`), mas só como parte do diálogo. Com o `slot` (0.65)
 /// ele vira widget de tela — que é onde a maior parte dos formulários vive.
 ///
-/// ```xml
-/// <buttonbox
-///     accept="Salvar"      on_accept="salvar"
-///     reject="Cancelar"    on_reject="cancelar"
-///     destructive="Excluir" on_destructive="excluir"
-/// >
-///     <!-- o slot vai à ESQUERDA, longe das ações: é o "Ajuda"/"Restaurar
-///          padrões" do Qt, que não deve encostar no botão principal -->
-///     <button text="Ajuda" on_click="ajuda" padding="8 16" />
-/// </buttonbox>
+/// ```gv
+/// buttonbox(accept = Salvar, on_accept = salvar, reject = Cancelar, on_reject = cancelar, destructive = Excluir, on_destructive = excluir) {
+///   /* o slot vai à ESQUERDA, longe das ações: é o "Ajuda"/"Restaurar
+///          padrões" do Qt, que não deve encostar no botão principal */
+///   button(text = Ajuda, on_click = ajuda, padding = "8 16")
+/// }
 /// ```
 ///
 /// # A ordem é da plataforma, não da tela
@@ -58,12 +54,11 @@
 /// - `spacing` — espaço entre os botões. Default: `8`.
 /// - `padding` — área de clique de cada botão. Default: `8 16`.
 /// - `accept_class` / `reject_class` / `destructive_class` — classe aplicada
-///   **a cada botão**, por papel. `class` no uso pinta a `<Row>` inteira, que
+///   **a cada botão**, por papel. `class` no uso pinta a `Row` inteira, que
 ///   não é o que se quer quando o app tem um botão primário próprio.
 ///
-/// ```xml
-/// <buttonbox accept="Salvar"   on_accept="salvar"   accept_class="btn_primario"
-///            reject="Cancelar" on_reject="cancelar" reject_class="btn_ghost" />
+/// ```gv
+/// buttonbox(accept = Salvar, on_accept = salvar, accept_class = btn_primario, reject = Cancelar, on_reject = cancelar, reject_class = btn_ghost)
 /// ```
 ///
 /// A classe injetada entra **depois** da classe da lib na mesma lista, então
@@ -77,17 +72,18 @@ pub struct ButtonBox;
 /// função porque as duas ordens usam exatamente os mesmos três blocos — a
 /// única diferença entre as plataformas é a sequência em que eles entram.
 fn botao(papel: &str, classe: &str) -> String {
-    format!(
-        r#"<template if="{{{papel}}}" notEquals="">
-                    <Button
-                        class="{classe} {{{papel}_class}}"
-                        on_click="app:{{on_{papel}}}"
-                        padding="{{padding|8 16}}"
-                    >
-                        <Text content="{{{papel}}}" size="13" bold="true" />
-                    </Button>
-                </template>"#
-    )
+    r##"
+template(if = @%PAPEL%, not_equals = "") {
+  button(
+    class = "%CLASSE% {%PAPEL%_class}",
+    on_click = "app:{on_%PAPEL%}",
+    padding = "{padding|8 16}",
+  ) {
+    text(content = "{%PAPEL%}", size = 13, bold = true)
+  }
+}"##
+    .replace("%PAPEL%", papel)
+    .replace("%CLASSE%", classe)
 }
 
 impl Component for ButtonBox {
@@ -117,48 +113,52 @@ impl Component for ButtonBox {
             (&ordem_gnome, &ordem_win, "windows")
         };
 
-        Template::Inline(format!(
-            r#"<Row spacing="{{spacing|8}}" align_y="center" width="{{width|fill}}">
-                    <style>
-                        .bbox-accept {{
-                            color: #89b4fa;
-                            text-color: #11111b;
-                            border-width: 0;
-                            border-radius: 6;
-                        }}
-                        .bbox-accept:hover {{ background: #a6c8ff; }}
-                        .bbox-reject {{
-                            color: #8080803d;
-                            text-color: #cdd6f4;
-                            border-width: 0;
-                            border-radius: 6;
-                        }}
-                        .bbox-reject:hover {{ background: #80808066; }}
-                        .bbox-destructive {{
-                            color: #f38ba8;
-                            text-color: #11111b;
-                            border-width: 0;
-                            border-radius: 6;
-                        }}
-                        .bbox-destructive:hover {{ background: #ff9fb8; }}
-                    </style>
+        Template::Inline(
+            r##"
+row(spacing = "{spacing|8}", align_y = center, width = "{width|fill}") {
+  style """
+    .bbox-accept {
+      color: #89b4fa;
+      text_color: #11111b;
+      border_width: 0;
+      border_radius: 6;
+    }
+    .bbox-accept:hover { background: #a6c8ff; }
+    .bbox-reject {
+      color: #8080803d;
+      text_color: #cdd6f4;
+      border_width: 0;
+      border_radius: 6;
+    }
+    .bbox-reject:hover { background: #80808066; }
+    .bbox-destructive {
+      color: #f38ba8;
+      text_color: #11111b;
+      border_width: 0;
+      border_radius: 6;
+    }
+    .bbox-destructive:hover { background: #ff9fb8; }
+  """
 
-                    <!-- O destrutivo e o conteúdo do slot ficam na esquerda,
-                         separados das ações por um <Space/>: é a única
-                         separação que impede um clique errado de ser
-                         irreversível. -->
-                    {destrutivo}
-                    <slot/>
-                    <Space />
+  // O destrutivo e o conteúdo do slot ficam na esquerda, separados das ações
+  // por um `space`: é a única separação que impede um clique errado de ser
+  // irreversível.
+  %DESTRUTIVO%
+  slot
+  space
 
-                    <template if="{{order|}}" equals="{forca_alternativa}">
-                        {alternativa}
-                    </template>
-                    <template else>
-                        {padrao}
-                    </template>
-                </Row>"#
-        ))
+  template(if = "{order|}", equals = "%FORCA%") {
+    %ALTERNATIVA%
+  }
+  template(else) {
+    %PADRAO%
+  }
+}"##
+            .replace("%DESTRUTIVO%", &destrutivo)
+            .replace("%FORCA%", forca_alternativa)
+            .replace("%ALTERNATIVA%", alternativa)
+            .replace("%PADRAO%", padrao),
+        )
     }
 
     fn update(&mut self, _action: &str, _value: Option<&str>, _ctx: &mut Context) {

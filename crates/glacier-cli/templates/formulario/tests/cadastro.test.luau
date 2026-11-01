@@ -1,6 +1,6 @@
 --!strict
 -- Testa o DEPOIS da validação sem abrir janela: `glacier test`.
--- As regras (`rules="required|minlen:3"`) moram no <form> e o motor as aplica
+-- As regras (`rules="required|minlen:3"`) moram no form e o motor as aplica
 -- ao enviar — isso só se vê rodando o app. Aqui ficam os três handlers.
 --
 -- Cada função `test_*` é um teste; o `---` acima dela é a documentação
@@ -50,7 +50,7 @@ end
 --- Uma chave escrita errada num dos lados passa em todo teste de handler e deixa
 --- a tela vazia; `missing()` cruza o que o .gv lê ({x}, @x, :value, :items…)
 --- com o ctx depois do init e a nomeia.
---- Os `erro_<campo>` do <form> não entram: o motor os publica ao enviar.
+--- Os `erro_<campo>` do form não entram: o motor os publica ao enviar.
 function test_toda_chave_que_a_tela_le_e_publicada()
     assert_complete(nova())
 end

@@ -83,7 +83,7 @@ fn main() {
         return;
     }
     // `--load a.gv b.gv …`: registra cada arquivo pelo CARREGADOR de verdade
-    // (leitura, `.gv` dessugarado, `<script>`, `<link>`), sem abrir janela.
+    // (leitura, `.gv` dessugarado, `script`, `link`), sem abrir janela.
     if args.first().map(String::as_str) == Some("--load") {
         let (mut ok, mut ruim) = (0, 0);
         for f in &args[1..] {

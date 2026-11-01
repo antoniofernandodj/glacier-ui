@@ -1,8 +1,8 @@
-//! Igual ao `contador_macro`, mas o `<script>` **aponta para um arquivo Lua
+//! Igual ao `contador_macro`, mas o `script` **aponta para um arquivo Lua
 //! externo** em vez de embutir o código:
 //!
 //! ```xml
-//! <script src="contador_externo.luau"></script>
+//! script(src = "contador_externo.luau")
 //! ```
 //!
 //! O caminho é resolvido relativo ao diretório do template. `register_component` lê o

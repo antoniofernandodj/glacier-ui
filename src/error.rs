@@ -14,9 +14,9 @@
 //! ```text
 //! views/home.xml:5:3: esperava a tag de fechamento 'Text', encontrei 'style'
 //!   |
-//! 5 |   </style>
+//! 5 |   
 //!   |   ^
-//!   = dica: um `<` dentro do corpo de <style> é lido como XML — envolva o CSS
+//!   = dica: um `<` dentro do corpo de style é lido como XML — envolva o CSS
 //!     em /* ... */ não basta; use apenas texto sem tags.
 //! ```
 
@@ -26,14 +26,14 @@ use std::fmt;
 ///
 /// `line`/`col` são **1-based** e se referem ao arquivo **como o autor o
 /// escreveu** — não à forma interna que o motor passa ao parser. Isso é um
-/// requisito, não um detalhe: o motor pré-processa o XML (tira o `<script>`,
+/// requisito, não um detalhe: o motor pré-processa o XML (tira o `script`,
 /// embrulha o documento num nó-raiz sintético) e o `.gss` (tira comentários), e
 /// cada uma dessas passadas mexeria nas posições se não fosse escrita para
 /// preservá-las. Ver `eval::strip_script` e `stylesheet::strip_comments`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
     /// Caminho do arquivo, quando o erro veio de um (`None` para markup inline,
-    /// ex.: um `Template::Inline` ou um `<style>` de teste).
+    /// ex.: um `Template::Inline` ou um `style` de teste).
     pub file: Option<String>,
     /// Nome do componente que declarou o trecho, quando conhecido — o que o
     /// autor procura quando o arquivo é `components/card.xml` mas o erro
@@ -98,7 +98,7 @@ impl Diagnostic {
 
     /// Define o trecho ofensor explicitamente, para quando a linha reportada
     /// (`self.line`, absoluta no arquivo) **não** indexa a fonte que temos em
-    /// mãos. É o caso de um `.gss` inline: o corpo do `<style>` começa na linha
+    /// mãos. É o caso de um `.gss` inline: o corpo do `style` começa na linha
     /// 200 do XML, então a linha 3 *dele* é a linha 202 *do arquivo* — quem
     /// recorta o trecho é o chamador, que conhece os dois sistemas de
     /// coordenadas. Ver [`crate::stylesheet::parse_gss_in`].
@@ -175,7 +175,7 @@ pub enum GlacierError {
     Xml(Box<Diagnostic>),
     /// Um `.gss` não parseou. Ver [`Diagnostic`].
     Gss(Box<Diagnostic>),
-    /// Um JSON (`<link rel="data">` ou tema) não parseou.
+    /// Um JSON (`link(rel = data)` ou tema) não parseou.
     Json {
         path: String,
         source: serde_json::Error,
@@ -185,7 +185,7 @@ pub enum GlacierError {
     Theme { path: String, message: String },
     /// O script Luau de um componente falhou ao carregar ou ao rodar.
     Luau { component: String, message: String },
-    /// Um `<link rel="...">` é desconhecido ou está incompleto.
+    /// Um `link(rel = "...")` é desconhecido ou está incompleto.
     Link { component: String, message: String },
     /// [`crate::GlacierUI::render_current`] sem tela ativa — falta chamar
     /// [`crate::GlacierUI::set_initial_screen`].
@@ -209,7 +209,7 @@ pub enum GlacierError {
     /// `UnknownComponent` genérico) porque a causa e a saída são outras: não é
     /// um nome errado, é um template fora de uso.
     NotEvaluated(String),
-    /// Quem usa o componente passou uma prop que o `<props>` dele não declara.
+    /// Quem usa o componente passou uma prop que o `props` dele não declara.
     /// Quase sempre um typo — e sem esta checagem ele seria **invisível**: a
     /// prop errada não casa com nenhum `{placeholder}` do template, e o
     /// placeholder de verdade cai para o contexto de baixo, renderizando outro
@@ -219,21 +219,21 @@ pub enum GlacierError {
         prop: String,
         declaradas: Vec<String>,
     },
-    /// O `<props>` declara a prop **sem** `default` — o que a torna obrigatória
+    /// O `props` declara a prop **sem** `default` — o que a torna obrigatória
     /// — e quem usou o componente não a passou.
     MissingProp { component: String, prop: String },
     /// O `spread="{…}"` recebeu algo que não é um objeto JSON. Erra em vez de
     /// ignorar porque o silêncio aqui é indistinguível do acerto: um spread que
     /// não semeia nada deixa cada prop cair para o contexto de baixo, e a tela
-    /// renderiza valores plausíveis e errados — o mesmo silêncio que o `<props>`
+    /// renderiza valores plausíveis e errados — o mesmo silêncio que o `props`
     /// existe para fechar. Valor **vazio** não chega aqui: é tratado como
     /// "nenhum campo", e a prop obrigatória que faltar erra como `MissingProp`,
     /// que aponta o problema com mais precisão.
     InvalidSpread { component: String, value: String },
-    /// Uma prop declarada `<prop component name="…" />` recebeu um valor que
+    /// Uma prop declarada `prop(component, name = "…")` recebeu um valor que
     /// não é o nome de um componente registrado.
     ///
-    /// Conferida na fronteira do componente, e não só quando o `<render>` ou o
+    /// Conferida na fronteira do componente, e não só quando o `render` ou o
     /// `fallback` a desenha: sem isto, um typo no fallback de uma lista que
     /// nunca esvazia não erraria nunca.
     NotAComponent {
@@ -257,16 +257,16 @@ impl fmt::Display for GlacierError {
                 write!(f, "script Luau do componente '{component}': {message}")
             }
             Self::Link { component, message } => {
-                write!(f, "<link> do componente '{component}': {message}")
+                write!(f, "link do componente '{component}': {message}")
             }
             Self::NoActiveScreen => write!(
                 f,
-                "nenhuma tela ativa: chame set_initial_screen(\"<componente>\") antes de renderizar"
+                "nenhuma tela ativa: chame set_initial_screen(\"componente\") antes de renderizar"
             ),
             Self::UnknownComponent(name) => {
                 write!(
                     f,
-                    "componente '{name}' não registrado: confira o nome no <import>/register"
+                    "componente '{name}' não registrado: confira o nome no import/register"
                 )?;
                 if matches!(
                     name.to_ascii_lowercase().as_str(),
@@ -299,7 +299,7 @@ impl fmt::Display for GlacierError {
                 declaradas,
             } => write!(
                 f,
-                "'{component}' não aceita a prop '{prop}' — o <props> dele declara: {}",
+                "'{component}' não aceita a prop '{prop}' — o props dele declara: {}",
                 if declaradas.is_empty() {
                     "nenhuma".to_string()
                 } else {
@@ -309,7 +309,7 @@ impl fmt::Display for GlacierError {
             Self::MissingProp { component, prop } => write!(
                 f,
                 "'{component}' precisa da prop '{prop}': ela é declarada sem default, então \
-                 é obrigatória (dê um default=\"…\" no <prop> para torná-la opcional)"
+                 é obrigatória (dê um default=\"…\" no prop para torná-la opcional)"
             ),
             Self::InvalidSpread { component, value } => write!(
                 f,
@@ -392,7 +392,7 @@ mod tests {
     // acionável sem abrir o editor.
     #[test]
     fn display_desenha_caret_na_coluna() {
-        let src = "<Column>\n  <Text content=\"a\" />\n</Colunm>\n";
+        let src = "<column>\n  <text content=\"a\" />\n</Colunm>\n";
         let d = Diagnostic::new(3, 3, "esperava 'Column', encontrei 'Colunm'")
             .in_file("views/home.xml", src)
             .with_hint("confira a grafia da tag de fechamento");
@@ -418,7 +418,7 @@ mod tests {
     // empurrar o `^` para a direita.
     #[test]
     fn caret_conta_caracteres_nao_bytes() {
-        let src = "<Text content=\"ação\" />";
+        let src = "<text content=\"ação\" />";
         let d = Diagnostic::new(1, 5, "x").with_source(src);
         let out = d.to_string();
         let caret_line = out.lines().last().unwrap();

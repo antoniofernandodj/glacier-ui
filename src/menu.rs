@@ -44,10 +44,10 @@ use std::sync::Arc;
 
 /// Cores e medidas já resolvidas de um painel de menu — o corpo e as linhas.
 ///
-/// Um menu de app (`<MenuBar>`/`<Menu>`/`<ContextMenu>`) usa sempre
+/// Um menu de app (`MenuBar`/`Menu`/`ContextMenu`) usa sempre
 /// [`MenuStyle::from_palette`], que reproduz exatamente o visual histórico. O
 /// menu de contexto embutido dos campos de texto parte do mesmo default e,
-/// quando o `<input menu_class="x">` aponta uma classe, o motor sobrescreve os
+/// quando o `input(menu_class = x)` aponta uma classe, o motor sobrescreve os
 /// campos que a `.gss` declarou (`.x` no corpo, `.x-item` / `.x-item:hover` /
 /// `.x-item:active` nas linhas) — ver `GlacierUI::resolve_menu_style`.
 #[derive(Debug, Clone, Copy)]
@@ -94,7 +94,7 @@ pub struct InputMenuTarget {
 }
 
 /// Um nó já resolvido da árvore de menu — independente de ter vindo de
-/// markup estático (`<Menu>`/`<MenuItem>`/`<MenuSeparator>`) ou de um array
+/// markup estático (`Menu`/`MenuItem`/`MenuSeparator`) ou de um array
 /// JSON dinâmico (`items="chave_de_contexto"`, mesma convenção de
 /// `Select::options` — ver [`build_tree`]/[`MenuNode::from_json`]).
 #[derive(Debug, Clone)]
@@ -173,7 +173,7 @@ impl MenuNode {
         };
         let get_bool = |k: &str| o.get(k).and_then(|x| x.as_bool()).unwrap_or(false);
 
-        if get_bool("separator") || get_bool("isSeparator") {
+        if get_bool("separator") {
             return Some(Self::separator_node());
         }
 
@@ -182,7 +182,6 @@ impl MenuNode {
             .unwrap_or_default();
         let icon = get_str("icon");
         let on_click = get_str("action")
-            .or_else(|| get_str("onClick"))
             .or_else(|| get_str("on_click"));
         let checked = o.get("checked").and_then(|x| x.as_bool());
         let disabled = get_bool("disabled");
@@ -204,8 +203,8 @@ impl MenuNode {
     }
 }
 
-/// Converte os filhos avaliados de um `<Menu>`/`<ContextMenu>` (markup
-/// `<Menu>`/`<MenuItem>`/`<MenuSeparator>` estático, recursivo — um `<Menu>`
+/// Converte os filhos avaliados de um `Menu`/`ContextMenu` (markup
+/// `Menu`/`MenuItem`/`MenuSeparator` estático, recursivo — um `Menu`
 /// aninhado vira um `MenuNode` cujos `children` são a mesma chamada
 /// recursiva) numa árvore [`MenuNode`], mesclando ao final as entradas de um
 /// array JSON dinâmico se `items_key` apontar para uma chave de contexto
@@ -256,7 +255,7 @@ pub fn build_tree(
                 separator: false,
                 children: build_tree(&child.children, items.as_deref(), context),
             }),
-            // Qualquer outra coisa dentro de um <Menu>/<ContextMenu> (texto
+            // Qualquer outra coisa dentro de um Menu/ContextMenu (texto
             // solto, um nó não-relacionado a menu) é ignorada silenciosamente
             // — só os três tipos de menu compõem a árvore.
             _ => {}
@@ -502,7 +501,7 @@ fn render_row<'a>(
     // Um `container` comum não tem noção de hover — só widgets com
     // `Status` (como `button`) recebem um estado de "sendo apontado" do
     // iced para se restylizar sozinhos. Por isso cada linha é um `button`
-    // (mesmo truque já usado no gatilho da MenuBar/`<Menu>` avulso), não um
+    // (mesmo truque já usado no gatilho da MenuBar/`Menu` avulso), não um
     // `container`: o brilho ao mirar vem de graça do próprio widget, sem o
     // motor precisar rastrear "qual linha está sob o cursor" como estado.
     //

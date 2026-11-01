@@ -1,12 +1,12 @@
-//! O **vocabulário de formas** do `<canvas>` — o habilitador da Onda 13 do
+//! O **vocabulário de formas** do `canvas` — o habilitador da Onda 13 do
 //! `PLANO_WIDGETS.md`.
 //!
 //! # A decisão da Onda 7, executada
 //!
 //! A Onda 7 pôs o `canvas` do `iced` no motor como **capacidade**
 //! ([`crate::canvas`]) e escreveu a condicional: *"se o `Canvas` sair, sai como
-//! vocabulário declarativo (`<path>`, `<arc>`, `<circle>`)"*. É o que este
-//! módulo faz — `<canvas>` como pai, e sob ele nós de forma, cada um lido no
+//! vocabulário declarativo (`path`, `arc`, `circle`)"*. É o que este
+//! módulo faz — `canvas` como pai, e sob ele nós de forma, cada um lido no
 //! render e traduzido para um [`canvas::Path`]. Nenhum callback imperativo: o
 //! `.gv` descreve a geometria, o `.gss` o traço.
 //!
@@ -21,8 +21,8 @@
 //!
 //! # O que fica de fora, por escrito
 //!
-//! O comando `A`/`a` de `<path>` (arco elíptico) — pede a decomposição elíptica
-//! que nenhuma das formas nomeadas precisa; use `<arc>` para arco circular.
+//! O comando `A`/`a` de `path` (arco elíptico) — pede a decomposição elíptica
+//! que nenhuma das formas nomeadas precisa; use `arc` para arco circular.
 //! Interação (`on_click`/hover numa forma) e animação: a Onda 7 já decidiu que
 //! um alvo de clique dentro de um `canvas` é geometria que o `.gv` não
 //! descreve.
@@ -34,26 +34,26 @@ use iced::{Color, Point, Rectangle, Size, mouse};
 
 use crate::widget::EngineMessage;
 
-/// As oito formas nomeadas. `<canvas>` é o pai; cada uma é um nó filho.
+/// As oito formas nomeadas. `canvas` é o pai; cada uma é um nó filho.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormaKind {
-    /// `<path d="M0 0 L10 10 …">` — subconjunto de comandos SVG (`M L H V C Q Z`,
+    /// `path(d = "M0 0 L10 10 …")` — subconjunto de comandos SVG (`M L H V C Q Z`,
     /// maiúsculo absoluto, minúsculo relativo). Sem `A` (ver o doc do módulo).
     Path,
-    /// `<arc cx cy r start sweep>` — ângulos em graus, `start=0` à direita,
+    /// `arc(cx, cy, r, start, sweep)` — ângulos em graus, `start=0` à direita,
     /// `sweep` positivo horário (a convenção de [`crate::canvas::graus`]).
     Arc,
-    /// `<circle cx cy r>`.
+    /// `circle(cx, cy, r)`.
     Circle,
-    /// `<rect x y w h>` (mais `rx` para cantos, opcional).
+    /// `rect(x, y, w, h)` (mais `rx` para cantos, opcional).
     Rect,
-    /// `<line x1 y1 x2 y2>`.
+    /// `line(x1, y1, x2, y2)`.
     Line,
-    /// `<polyline points="x,y x,y …">` — aberta.
+    /// `polyline(points = "x,y x,y …")` — aberta.
     Polyline,
-    /// `<polygon points="x,y x,y …">` — fechada.
+    /// `polygon(points = "x,y x,y …")` — fechada.
     Polygon,
-    /// `<text x y>conteúdo</text>` — o `size` vem do `.gss` (`size:`).
+    /// `text(x, y)conteúdo</text>` — o `size` vem do `.gss` (`size:`).
     Text,
 }
 
@@ -65,12 +65,12 @@ pub struct Forma {
     /// Um mapa em vez de doze `Option<String>`: as formas não compartilham os
     /// mesmos atributos e a leitura é por nome.
     pub geo: HashMap<String, String>,
-    /// O texto de um `<text>`.
+    /// O texto de um `text`.
     pub texto: String,
     pub fill: Option<Color>,
     pub stroke: Option<Color>,
     pub stroke_width: f32,
-    /// Corpo do `<text>`, do `.gss` (`size:`). Default 13.
+    /// Corpo do `text`, do `.gss` (`size:`). Default 13.
     pub text_size: f32,
 }
 
@@ -142,8 +142,8 @@ impl Forma {
     }
 }
 
-/// O `canvas::Program` de um `<canvas>`: desenha a lista de formas, na ordem do
-/// markup (a de cima primeiro, como o `<stack>` da Onda 11).
+/// O `canvas::Program` de um `canvas`: desenha a lista de formas, na ordem do
+/// markup (a de cima primeiro, como o `stack` da Onda 11).
 pub struct ProgramaFormas {
     pub formas: Vec<Forma>,
 }
@@ -238,7 +238,7 @@ fn retangulo_arredondado(x: f32, y: f32, w: f32, h: f32, r: f32) -> Path {
     })
 }
 
-/// Um `<path d="…">` num `canvas::Path`. Subconjunto de SVG: `M L H V C Q Z`,
+/// Um `path(d = "…")` num `canvas::Path`. Subconjunto de SVG: `M L H V C Q Z`,
 /// maiúsculo = absoluto, minúsculo = relativo ao ponto atual. `A` (arco
 /// elíptico) não — ver o doc do módulo. `None` se não há comando utilizável.
 fn caminho_svg(d: &str) -> Option<Path> {

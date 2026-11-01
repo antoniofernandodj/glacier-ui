@@ -91,7 +91,7 @@ assert_no_text(tela, "Erro")
 ### 3.3 Estilo resolvido e largura
 
 ```lua
-tela:set_viewport(480, 800)         -- largura/altura lógicas; padrão: a do <screen>
+tela:set_viewport(480, 800)         -- largura/altura lógicas; padrão: a do screen
 local nav = tela:find({ id = "nav-projects" })
 tela:style(nav)                     -- { color = "#fff", padding = 8, ... } já com @media e combinadores
 ```

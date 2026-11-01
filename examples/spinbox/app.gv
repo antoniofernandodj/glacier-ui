@@ -1,7 +1,7 @@
 screen(title = "Glacier - SpinBox", size = "620 560") {
   resources {
     script """
-      -- Valor inicial de cada chave: um `<spinbox/>` cuja chave nunca foi escrita
+      -- Valor inicial de cada chave: um `spinbox` cuja chave nunca foi escrita
       -- nasce em branco (o primeiro clique num degrau o inicializa no `min`), e um
       -- campo numérico vazio parece um campo quebrado.
       function init()
@@ -21,7 +21,7 @@ screen(title = "Glacier - SpinBox", size = "620 560") {
     link(rel = theme, href = "examples/spinbox/theme.json")
 
     style """
-      .moldura   { border-width: 1; border-color: #89B4FA; border-radius: 6; padding: 4; }
+      .moldura   { border_width: 1; border_color: #89B4FA; border_radius: 6; padding: 4; }
       .campo_num { background: #11111B; }
 
       .coluna { padding: 28; spacing: 20; width: fill; height: fill; }
@@ -45,7 +45,7 @@ screen(title = "Glacier - SpinBox", size = "620 560") {
       text(content = "SpinBox — o QSpinBox do Qt", class = titulo)
 
       text(
-        content = """
+        """
           O app só registra o template e semeia os valores iniciais. Somar,
           subtrair e saturar é do widget, que vem embutido na lib e escreve na
           chave de contexto que cada instância nomeia.
@@ -110,9 +110,9 @@ screen(title = "Glacier - SpinBox", size = "620 560") {
     //   class       -> a RAIZ do widget: a Row inteira, campo + degraus. É o
     //           que estilizar um QSpinBox significa no Qt, e antes da
     //           0.69 era um no-op silencioso aqui.
-    //   field_class -> só o <input> de dentro.
+    //   field_class -> só o input de dentro.
     //
-    // form_control põe o campo na cadeia de tabulação da <form> que o envolve
+    // form_control põe o campo na cadeia de tabulação da form que o envolve
     // — sem ele o Tab pula o widget inteiro.
     text(content = "class × field_class (0.69):", class = destaque)
 

@@ -1,4 +1,4 @@
-//! Chamadas de rede a partir do `<script>` Lua, sem bloquear a UI.
+//! Chamadas de rede a partir do `script` Lua, sem bloquear a UI.
 //!
 //! No template `fetch_luau.gv`, a função `buscar` faz:
 //! ```luau

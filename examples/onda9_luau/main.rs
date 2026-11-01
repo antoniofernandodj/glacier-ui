@@ -14,7 +14,7 @@
 //!
 //! Um arrasto não suspende nada. Ele escreve numa chave, e o Luau já lê e
 //! escreve chaves desde a 0.60 — `ctx.painel_h = "300 fill"` é a mesma linha
-//! que configuraria um `<slider>`. Os nove widgets desta onda chegam ao script
+//! que configuraria um `slider`. Os nove widgets desta onda chegam ao script
 //! prontos, sem uma linha em `src/luau/`.
 //!
 //! Isso vale registrar porque é o **terceiro regime de custo** que o
@@ -26,18 +26,18 @@
 //!
 //! Exatamente três coisas, e todas as três já eram possíveis antes:
 //!
-//! 1. **semear** as chaves (`init`) — inclusive a coleção do `<tumbler>`, que
+//! 1. **semear** as chaves (`init`) — inclusive a coleção do `tumbler`, que
 //!    do lado Luau é uma tabela e vira JSON sozinha;
-//! 2. **receber o `on_change`** de quem delega — aqui só o `<swipeview>`, porque
+//! 2. **receber o `on_change`** de quem delega — aqui só o `swipeview`, porque
 //!    os outros oito gravam a chave sozinhos;
-//! 3. **reagir a um atalho** — e um `<shortcut>` despacha uma função comum, não
+//! 3. **reagir a um atalho** — e um `shortcut` despacha uma função comum, não
 //!    um evento de tipo novo.
 //!
 //! # A aritmética é do script, e continua sendo
 //!
-//! Os alvos do `<rubberband>` são posicionados por uma conta em `caixas()`.
+//! Os alvos do `rubberband` são posicionados por uma conta em `caixas()`.
 //! Podia parecer trabalho para o markup, e não é: um template não calcula, que
-//! é a descoberta que a Onda 8 escreveu ao partir o `<wizard>` em builtin (os
+//! é a descoberta que a Onda 8 escreveu ao partir o `wizard` em builtin (os
 //! slots) mais primitiva (as contas).
 
 use glacier_ui::GlacierDaemon;

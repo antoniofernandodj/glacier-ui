@@ -4,21 +4,21 @@ screen(title = "Glacier - Estilos inline (XML)") {
     link(rel = theme, href = "examples/estilos_inline/theme.json")
 
     // Estilos COM ESCOPO, escritos INLINE no próprio template.
-    // O corpo do <style> é GSS (mesma gramática do .gss); scoped="true" restringe
-    // as classes a este componente — sem `scoped`, um <style> vale globalmente
-    // (igual a <link rel="stylesheet"> ou motor.load_stylesheet()).
+    // O corpo do style é GSS (mesma gramática do .gss); scoped="true" restringe
+    // as classes a este componente — sem `scoped`, um style vale globalmente
+    // (igual a link(rel = stylesheet) ou motor.load_stylesheet()).
     // Edite os valores abaixo com a app rodando: o hot-reload recarrega junto.
     style(scoped = true) """
       .card {
         padding: 28;
         background: #1E1E2E;
-        border-radius: 18;
-        border-width: 1;
-        border-color: #313244;
-        align-x: Center;
+        border_radius: 18;
+        border_width: 1;
+        border_color: #313244;
+        align_x: Center;
       }
       .stack {
-        spacing: 18; align-x: Center;
+        spacing: 18; align_x: Center;
       }
       .title {
         size: 28; bold: true; color: #CDD6F4;

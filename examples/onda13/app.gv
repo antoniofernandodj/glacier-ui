@@ -17,11 +17,11 @@ screen(
         text(class = secao, content = "formas nomeadas")
 
         text(
-          class = nota,
-          content = """
+          """
             Geometria inline (é dado); traço e preenchimento vêm das classes
             `.contorno` e `.solido` no app.gss.
           """,
+          class = nota,
         )
 
         canvas(class = tela-desenho) {
@@ -50,11 +50,11 @@ screen(
         text(class = secao, content = "geometria dirigida por dado")
 
         text(
-          class = nota,
-          content = """
+          """
             O raio e o traçado abaixo saem de chaves do contexto — mude e o canvas
             relê no render, sem reavaliar a árvore.
           """,
+          class = nota,
         )
 
         canvas(class = tela-desenho) {

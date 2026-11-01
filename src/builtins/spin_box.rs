@@ -10,8 +10,8 @@
 /// O `ctx` de um builtin é o contexto **global** — não há um slot por instância
 /// (ver o módulo pai). O `SpinBox` contorna isso não guardando valor nenhum: o
 /// número vive numa chave que **o app nomeia**, passada na prop `value`. Duas
-/// instâncias com chaves diferentes (`<SpinBox :value="qtd_a"/>` e
-/// `<SpinBox :value="qtd_b"/>`) são independentes.
+/// instâncias com chaves diferentes (`SpinBox(:value = qtd_a)` e
+/// `SpinBox(:value = qtd_b)`) são independentes.
 ///
 /// O elo que faltava é o `update` saber *qual* chave a instância clicada usa —
 /// ele recebe a ação, não as props. Por isso a ação carrega os parâmetros:
@@ -31,16 +31,16 @@
 ///   dois degraus nas pontas, alvo de clique grande. É a forma para toque e
 ///   para valores que o usuário ajusta muito (zoom, quantidade num carrinho).
 ///
-/// ```xml
-/// <SpinBox :value="quantidade" min="1" max="99" />
-/// <SpinBox :value="zoom" min="25" max="400" step="25" layout="inline" />
+/// ```gv
+/// SpinBox(:value = quantidade, min = 1, max = 99)
+/// SpinBox(:value = zoom, min = 25, max = 400, step = 25, layout = inline)
 /// ```
 ///
 /// # Aparência
 ///
 /// Os degraus não são botões primários (não seriam o widget que o Qt desenha:
 /// lá eles são cromo discreto ao lado do campo, não a ação principal da tela).
-/// O visual sai de um `<style>` **global** declarado no próprio template — uma
+/// O visual sai de um `style` **global** declarado no próprio template — uma
 /// folha instalada em `GlacierUI::new`, portanto **antes** de qualquer `.gss`
 /// do app, que por isso vence por ordem: redefinir `.spinbox-step` numa folha
 /// do app é o caminho suportado para repintá-los.
@@ -61,22 +61,22 @@
 ///   markup (`step="0.25"` → 2 casas) — o que acerta na maioria dos casos e
 ///   erra justamente no que importa: `step="1"` sobre um preço formatava
 ///   `10`, não `10.00`. Com ela, o `step` volta a ser só o passo:
-///   `<SpinBox :value="preco" step="1" decimals="2" />`.
+///   `SpinBox(:value = preco, step = 1, decimals = 2)`.
 ///
 ///   Nos dois caminhos a formatação também evita o `0.30000000000000004` de
 ///   somar `f64`, que é o outro serviço que o `QDoubleSpinBox` presta.
 /// - `layout`      — `stacked` (default) ou `inline`; ver acima.
 /// - `width`       — largura do **campo**, não a do conjunto. Default: `72`.
 ///
-///   Ela desce para o `<TextInput>` de dentro; a `<Row>` que segura
+///   Ela desce para o `TextInput` de dentro; a `Row` que segura
 ///   campo+degraus é `shrink`, e continua sendo. Por isso `width="fill"`
 ///   **não** faz o spinbox ocupar a linha: faz o campo tentar preencher um
 ///   pai que não se estica, e ele colapsa a ponto de o número não caber — sem
 ///   erro nenhum, só um retângulo fino entre os dois degraus.
 ///
 ///   Para um spinbox largo, dê um número (`width="120"`). Para alinhá-lo com
-///   campos que preenchem a linha, envolva-o numa `<Row width="fill">` com um
-///   `<Space width="fill"/>` ao lado.
+///   campos que preenchem a linha, envolva-o numa `Row(width = fill)` com um
+///   `Space(width = fill)` ao lado.
 /// - `placeholder` — dica quando a chave está vazia. Default: vazio.
 /// - `field_class` — classe aplicada **ao campo de dentro**, não ao widget.
 /// - `step_class`  — classe dos dois botões de degrau (aceita `:hover`).
@@ -86,14 +86,14 @@
 ///   degraus), que é o que estilizar um `QSpinBox` significa no Qt. As duas
 ///   coisas são legítimas e diferentes; colapsá-las no mesmo nome seria criar
 ///   uma ambiguidade que não dá para desfazer depois.
-/// - `form_control` — repassado ao campo de dentro, o que o liga à `<Form>` que
+/// - `form_control` — repassado ao campo de dentro, o que o liga à `Form` que
 ///   o envolve: o campo ganha um id de foco estável e passa a responder ao
 ///   **Enter** — submetendo, e avançando para o controle seguinte. Sem ele o
 ///   campo engolia o Enter. Não confundir com **Tab**: a travessia por Tab é um
 ///   listener global do motor (`focus_next`) e já alcançava este campo antes,
 ///   com ou sem `form_control`. Sem prefixo `field_` porque não há ambiguidade:
 ///   só existe um nó focável aqui dentro.
-///   Funciona porque a hidratação da `<Form>` roda **depois** da expansão de
+///   Funciona porque a hidratação da `Form` roda **depois** da expansão de
 ///   componente (`eval.rs`), então ela enxerga um `formControl` que só passou a
 ///   existir na expansão.
 /// - `dec_text` / `inc_text` — glifos dos degraus. Default: `▾` / `▴` no
@@ -103,7 +103,7 @@
 ///
 /// # Limites conhecidos
 ///
-/// - **Sem `on_change` para o app.** O `onChange` do `<TextInput>` é um só, e o
+/// - **Sem `on_change` para o app.** O `onChange` do `TextInput` é um só, e o
 ///   `SpinBox` usa o dele para filtrar a digitação; repassar *também* ao app
 ///   exigiria um `ctx.dispatch` que o motor não tem (o prefixo `app:`, que
 ///   resolve o caso do widget que só delega — ver `TimePicker` —, não serve
@@ -117,7 +117,7 @@
 ///   ler o *valor* da chave cujo *nome* está numa prop — uma indireção
 ///   (`{{value}}`) que o interpolador não tem. Clicar no limite não faz nada.
 /// - **A altura casa por aritmética, não por estica.** O `iced` não estica o
-///   conteúdo de um `<Button>`, então os dois degraus empilhados alcançam a
+///   conteúdo de um `Button`, então os dois degraus empilhados alcançam a
 ///   altura do campo por soma (2 × 1,3 × `glyph_size` ≈ a linha do campo mais o
 ///   padding dele). Um `glyph_size` muito fora do default desencontra os dois.
 use crate::component::{Component, Context, Template};
@@ -179,78 +179,44 @@ impl Component for SpinBox {
         // `{min|0}` é o default inline do interpolador (`|` dentro das chaves),
         // enquanto o `|` de fora é literal e separa os campos do payload.
         //
-        // `spacing="0"` na `<Row>` é o que faz os degraus lerem como parte do
+        // `spacing="0"` na `Row` é o que faz os degraus lerem como parte do
         // campo, e não como dois botões que por acaso estão ao lado dele — a
-        // borda do `<TextInput>` já é a moldura do conjunto.
+        // borda do `TextInput` já é a moldura do conjunto.
         Template::Inline(
-            r#"<Row spacing="0" align_y="center">
-                    <style>
-                        .spinbox-step {
-                            color: #8080801f;
-                            text-color: #80868d;
-                            border-width: 0;
-                            border-radius: 3;
-                        }
-                        .spinbox-step:hover  { background: #8080803d; }
-                        .spinbox-step:active { background: #80808066; }
-                    </style>
-
-                    <template if="{layout|stacked}" equals="inline">
-                        <Button
-                            class="spinbox-step {step_class}"
-                            on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                            padding="6 12"
-                        >
-                            <Text class="{glyph_class}" content="{dec_text|−}" size="{glyph_size|15}" />
-                        </Button>
-                        <TextInput
-                            class="{field_class}"
-                            formControl="{form_control}"
-                            rules="{rules|}"
-                            msg="{msg|}"
-                            value="{value}"
-                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                            placeholder="{placeholder}"
-                            width="{width|72}"
-                        />
-                        <Button
-                            class="spinbox-step {step_class}"
-                            on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                            padding="6 12"
-                        >
-                            <Text class="{glyph_class}" content="{inc_text|+}" size="{glyph_size|15}" />
-                        </Button>
-                    </template>
-
-                    <template else>
-                        <TextInput
-                            class="{field_class}"
-                            formControl="{form_control}"
-                            rules="{rules|}"
-                            msg="{msg|}"
-                            value="{value}"
-                            onChange="edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                            placeholder="{placeholder}"
-                            width="{width|72}"
-                        />
-                        <Column spacing="1">
-                            <Button
-                                class="spinbox-step {step_class}"
-                                on_click="inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                                padding="0 7"
-                            >
-                                <Text class="{glyph_class}" content="{inc_text|▴}" size="{glyph_size|11}" />
-                            </Button>
-                            <Button
-                                class="spinbox-step {step_class}"
-                                on_click="dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}"
-                                padding="0 7"
-                            >
-                                <Text class="{glyph_class}" content="{dec_text|▾}" size="{glyph_size|11}" />
-                            </Button>
-                        </Column>
-                    </template>
-                </Row>"#
+            r##"
+                row(spacing = 0, align_y = center) {
+                  style """
+                                        .spinbox-step {
+                                            color: #8080801f;
+                                            text_color: #80868d;
+                                            border_width: 0;
+                                            border_radius: 3;
+                                        }
+                                        .spinbox-step:hover  { background: #8080803d; }
+                                        .spinbox-step:active { background: #80808066; }
+                                    """
+                  template(if = "{layout|stacked}", equals = inline) {
+                    button(class = "spinbox-step {step_class}", on_click = "dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", padding = "6 12") {
+                      text(class = @glyph_class, content = "{dec_text|−}", size = "{glyph_size|15}")
+                    }
+                    textinput(class = @field_class, form_control = @form_control, rules = "{rules|}", msg = "{msg|}", :value = "{value}", on_change = "edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", placeholder = @placeholder, width = "{width|72}")
+                    button(class = "spinbox-step {step_class}", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", padding = "6 12") {
+                      text(class = @glyph_class, content = "{inc_text|+}", size = "{glyph_size|15}")
+                    }
+                  }
+                  template(else) {
+                    textinput(class = @field_class, form_control = @form_control, rules = "{rules|}", msg = "{msg|}", :value = "{value}", on_change = "edit:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", placeholder = @placeholder, width = "{width|72}")
+                    column(spacing = 1) {
+                      button(class = "spinbox-step {step_class}", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", padding = "0 7") {
+                        text(class = @glyph_class, content = "{inc_text|▴}", size = "{glyph_size|11}")
+                      }
+                      button(class = "spinbox-step {step_class}", on_click = "dec:{value}|{min|0}|{max|100}|{step|1}|{decimals|}", padding = "0 7") {
+                        text(class = @glyph_class, content = "{dec_text|▾}", size = "{glyph_size|11}")
+                      }
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }
@@ -263,7 +229,7 @@ impl Component for SpinBox {
         };
         let mut campos = payload.split('|');
         let Some(chave) = campos.next().map(str::trim).filter(|c| !c.is_empty()) else {
-            // `<SpinBox/>` sem `value` não tem onde escrever: não faz nada, em
+            // `SpinBox` sem `value` não tem onde escrever: não faz nada, em
             // vez de inventar uma chave e poluir o contexto do app.
             return;
         };

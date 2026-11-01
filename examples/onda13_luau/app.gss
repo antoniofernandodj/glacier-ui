@@ -89,7 +89,7 @@ das formas mora nas classes abaixo.
 
 .aro {
   stroke: var(--linha);
-  stroke-width: 2;
+  stroke_width: 2;
 }
 
 .setor {
@@ -98,7 +98,7 @@ das formas mora nas classes abaixo.
 
 .agulha {
   stroke: var(--agulha);
-  stroke-width: 3;
+  stroke_width: 3;
 }
 
 .miolo {

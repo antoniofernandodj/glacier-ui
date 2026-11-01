@@ -31,7 +31,7 @@ glacier-ui = { version = "0.146", features = ["a11y"] }
 A cada reavaliação da tela, o motor monta a árvore de acessibilidade **da árvore avaliada** —
 papel pela tag (`button`, `checkbox`, `textbox`, `slider`, `progressbar`, `heading`, `table`…),
 nome pelo texto, estado pelo contexto (marcado, valor) — e a entrega ao AT-SPI pelo
-`accesskit_unix`. O `<prose>` vira parágrafos, títulos com nível, citações e listas.
+`accesskit_unix`. O `prose` vira parágrafos, títulos com nível, citações e listas.
 `GLACIER_A11Y=0` desliga a ponte em tempo de execução.
 
 **Por que o AT-SPI direto, e não o `accesskit_winit`.** O `iced` 0.14 e o `winit` 0.30 não
@@ -61,20 +61,20 @@ com o Accerciser ou o Orca.
 
 ## Teclado
 
-O `<button>` agora entra na ordem de **Tab / Shift+Tab**, mostra um **anel de foco** de 2 px na
+O `button` agora entra na ordem de **Tab / Shift+Tab**, mostra um **anel de foco** de 2 px na
 cor de destaque do tema, e **Enter** ou **Espaço** disparam a mesma ação do clique
 (`on_click`, `navigate_to`, envio de formulário…). Um botão `disabled` ou sem ação fica
 fora da ordem. Medido numa janela real (Xvfb, teclas por XTEST): Tab põe o anel em "Add", Enter
 duas vezes sobe a contagem para 3, Tab move o anel para "Remove", Espaço desce para 2.
-Feito em `src/focus_button.rs`, no padrão do `src/link_focus.rs` (links do `<prose>`).
+Feito em `src/focus_button.rs`, no padrão do `src/link_focus.rs` (links do `prose`).
 
-Já tinham teclado: `<textinput>`/`<textarea>` (nativos do `iced`), links do `<prose>`.
+Já tinham teclado: `textinput`/`textarea` (nativos do `iced`), links do `prose`.
 
 ## Contraste (WCAG AA)
 
 O `.gss` avisa (stderr, com arquivo:linha) quando uma regra tem `color` e `background`
 opacos que falham no AA: **4,5:1** para texto normal, **3:1** para texto grande (24 px, ou 18,66
-px em negrito). Num `<button>` o par é `text_color` sobre `color` (o `color` do botão é o
+px em negrito). Num `button` o par é `text_color` sobre `color` (o `color` do botão é o
 fundo). Vale também para regras que usam `var(--x)` declarado no **mesmo** arquivo.
 
 Primeiro achado real, no `app.gss` do rustploy: `.env__del` — `#DA3633` sobre `#21262D` dá
@@ -92,14 +92,14 @@ alarme, não uma garantia: a ausência de aviso não prova que a tela passa.
   `iced` (qual botão tem o anel) não chega ao AT-SPI, então o Orca não anuncia a troca de
   foco ao apertar Tab. Os nós também não têm **posição/tamanho**: leitura por "onde está o
   mouse" e a ampliação (lupa) não funcionam.
-- **Só o botão ganhou teclado.** `<checkbox>`, `<toggle>`, `<radio>`, `<slider>`, `<select>`,
+- **Só o botão ganhou teclado.** `checkbox`, `toggle`, `radio`, `slider`, `select`,
   as abas, a árvore, a tabela, o calendário: **não foram auditados** e o `iced` não os torna
   focáveis por si. A lista de "Navegação por teclado completa nos builtins" segue aberta.
 - **Só Linux, uma janela.** Sem NVDA/UIA (Windows) nem VoiceOver (macOS); e um app com várias
   janelas publica só a tela da janela ativa de cada reavaliação num único adaptador.
 - **Sem texto selecionado, sem live regions**, sem `aria-describedby`/`labelledby`, sem
-  relação `label → campo` (um `<textinput>` é nomeado pelo `placeholder` ou por `aria_label`).
-- **Links do `<prose>`** não viram nós `link` na árvore (o parágrafo é um texto só).
+  relação `label → campo` (um `textinput` é nomeado pelo `placeholder` ou por `aria_label`).
+- **Links do `prose`** não viram nós `link` na árvore (o parágrafo é um texto só).
 - **Ação do leitor de tela** só `Click`, em botões (o que tem `on_click`/`on_press`); `Focus`,
   `SetValue`, `Increment` não.
 - **Web (wasm):** nada.

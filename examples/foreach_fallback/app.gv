@@ -31,7 +31,7 @@ screen(
 
     // Uma etapa da cozinha. `itens` é o NOME da chave com a lista, e `vazio`
     // é o componente que aparece quando ela não tem pedido nenhum — ele
-    // chega por atributo e vai direto para o `fallback` do <foreach>.
+    // chega por atributo e vai direto para o `fallback` do foreach.
     component(name = Etapa) {
       props {
         prop(name = titulo)
@@ -125,7 +125,7 @@ screen(
           )
         }
 
-        // E o <foreach> direto na tela, com o fallback literal.
+        // E o foreach direto na tela, com o fallback literal.
         column(class = historico) {
           text(class = secao, content = "Entregues")
 

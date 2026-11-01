@@ -201,7 +201,7 @@ local function list_has(list: { string }, text: string): boolean
     return false
 end
 
--- `assert_has_text(tela, "Exportar serviço")`: há um `<text>` visível com esse
+-- `assert_has_text(tela, "Exportar serviço")`: há um `text` visível com esse
 -- conteúdo exato na árvore avaliada.
 function assert_has_text(screen: any, text: string)
     local texts = screen:texts()

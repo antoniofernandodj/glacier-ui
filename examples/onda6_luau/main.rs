@@ -4,7 +4,7 @@
 //! Rode com: `cargo run --example onda6_luau`
 //!
 //! Os dois exemplos compartilham o markup — `app.gv` é o mesmo arquivo, linha
-//! por linha, tirando o `<script src>` e o título. O que muda é onde mora o
+//! por linha, tirando o `script(src)` e o título. O que muda é onde mora o
 //! comportamento:
 //!
 //! ```text

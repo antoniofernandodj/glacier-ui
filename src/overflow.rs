@@ -19,7 +19,7 @@
 //! Este widget mede o filho com largura **ilimitada** e devolve o tamanho
 //! natural dele: o botão nunca fica menor que o conteúdo. Se a linha não cabe,
 //! o excesso transborda (e a janela corta) em vez de espremer o texto; quem
-//! quer que a linha se acomode usa `<flow>`, que quebra em várias linhas.
+//! quer que a linha se acomode usa `flow`, que quebra em várias linhas.
 //!
 //! Só se aplica a filho de largura `Shrink`: `fill` e larguras fixas seguem
 //! mandando, como o autor da tela pediu.

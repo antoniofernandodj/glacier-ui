@@ -18,7 +18,7 @@ const CANDIDATOS: [(&str, &str); 4] = [
 ];
 
 /// Componente que encapsula UI + comportamento de uma lista de membros.
-/// Demonstra um sub-componente (`CartaoUsuario`) instanciado num `<foreach>`;
+/// Demonstra um sub-componente (`CartaoUsuario`) instanciado num `foreach`;
 /// o estado da lista vive no próprio componente e é serializado para o contexto.
 struct Lista {
     membros: Vec<Membro>,
@@ -27,7 +27,7 @@ struct Lista {
 
 impl Lista {
     /// Serializa a lista de membros para JSON e publica no contexto.
-    /// O `<foreach items="usuarios">` consome esse array.
+    /// O `foreach(items = usuarios)` consome esse array.
     fn sincronizar(&self, ctx: &mut Context) {
         let arr: Vec<serde_json::Value> = self
             .membros
@@ -60,7 +60,7 @@ impl Component for Lista {
     }
 
     fn template(&self) -> Template {
-        // CartaoUsuario é carregado pelo <import> no topo de lista_usuarios.gv.
+        // CartaoUsuario é carregado pelo import no topo de lista_usuarios.gv.
         Template::File("examples/lista/lista_usuarios.gv".into())
     }
 

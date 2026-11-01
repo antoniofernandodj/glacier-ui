@@ -3,19 +3,19 @@ component {
     text(class = titulo_cat, content = "Janela principal e barras")
 
     text(
-      class = intro,
-      content = """
-        `<menubar>`/`<toolbar>`/`<statusbar>` são markup comum — dá para pô-los na
-        moldura de qualquer `<screen>`. `<menu>` aninha submenus a profundidade
+      """
+        `menubar`/`toolbar`/`statusbar` são markup comum — dá para pô-los na
+        moldura de qualquer `screen`. `menu` aninha submenus a profundidade
         arbitrária.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
         text(
           class = rotulo,
-          content = "<menubar> + <menu> + <menuitem> + <menuseparator>",
+          content = "menubar + menu + menuitem + menuseparator",
         )
 
         menubar {
@@ -49,10 +49,10 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <contextmenu> — o primeiro filho é a área do gatilho (botão direito)
+          """
+            contextmenu — o primeiro filho é a área do gatilho (botão direito)
           """,
+          class = rotulo,
         )
 
         contextmenu {
@@ -74,7 +74,7 @@ component {
       }
 
       column(class = demo) {
-        text(class = rotulo, content = "<toolbar> · <statusbar> · <sizegrip>")
+        text(class = rotulo, content = "toolbar · statusbar · sizegrip")
 
         toolbar(divider = true) {
           toolbutton(

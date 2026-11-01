@@ -1,4 +1,4 @@
-//! Reprodução de áudio local para o `<audio>`.
+//! Reprodução de áudio local para o `audio`.
 //!
 //! Atrás da feature **`audio`** (`rodio` + `symphonia`: MP3, WAV, OGG/Vorbis, FLAC). Sem
 //! ela o módulo existe com a mesma API e tudo devolve "áudio não compilado" — um app que
@@ -13,7 +13,7 @@
 //! retrato do estado (`Status`) numa tabela compartilhada. A UI nunca fala com o `rodio`:
 //! escreve comandos e lê retratos. Nada bloqueia o desenho.
 //!
-//! O dispositivo só é aberto no primeiro som (um app com `<audio>` que o usuário nunca
+//! O dispositivo só é aberto no primeiro som (um app com `audio` que o usuário nunca
 //! aperta não toca no hardware). Se não houver dispositivo, o erro aparece no `Status` e
 //! no evento `on_error`, não derruba o app.
 //!
@@ -50,7 +50,7 @@ pub enum Evento {
     Erro(String, String),
 }
 
-/// As opções de uma fonte (os atributos do `<audio>`).
+/// As opções de uma fonte (os atributos do `audio`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Opcoes {
     pub autoplay: bool,

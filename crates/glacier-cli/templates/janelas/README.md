@@ -77,7 +77,7 @@ primeira e sai; a instância viva reabre e foca a janela principal.
 
 `tray:open`, `tray:quit` e `notifications:toggle` o runner trata sozinho — o
 último alterna o interruptor global das notificações do SO, e `{__notifications}`
-é o estado dele, que o `<check>` mostra. Qualquer outra ação num item vai para o
+é o estado dele, que o `check` mostra. Qualquer outra ação num item vai para o
 script da janela principal, cujo motor continua vivo com a janela recolhida; um
 `label` ou `checked` com `{chave}` acompanha o contexto dela.
 

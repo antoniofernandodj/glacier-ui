@@ -1,4 +1,4 @@
-// `<template>` explícito, com `if` e com `for-each`. O `if @x { }` e o
+// `template` explícito, com `if` e com `for-each`. O `if @x { }` e o
 // `each @l as i { }` do `.gv` dessugaram para estas mesmas tags; aqui elas
 // aparecem como são no XML interno.
 screen(title = "Glacier - template com if e for", size = "520 520") {
@@ -26,7 +26,7 @@ screen(title = "Glacier - template com if e for", size = "520 520") {
 
     // `template` com `for-each`: `:for-each` é uma LIGAÇÃO (o nome da chave com
     // o array JSON), e `var` batiza o item. Dentro do corpo, `@t.campo` lê o item.
-    template(:for-each = tarefas, var = t) {
+    template(:for_each = tarefas, var = t) {
       row(class = linha) {
         // `if` e `for-each` não compõem numa tag só: o `if` vai DENTRO do corpo
         // da repetição, num `template` filho.

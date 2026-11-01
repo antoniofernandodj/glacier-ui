@@ -14,7 +14,7 @@ cargo run
 ```
 src/main.rs                      a casca: sobe o runner, registra views/app.gv
 views/
-├── app.gv                       a JANELA: <drawer> de categorias + roteador (um <Categoria> por rota)
+├── app.gv                       a JANELA: drawer de categorias + roteador (um Categoria por rota)
 ├── components/nav_item.gv       o item da gaveta lateral
 ├── categorias/                  UMA tela por seção da tabela de widgets
 │   ├── botoes.gv                button, toolbutton, radio, checkbox, toggle, buttonbox, …
@@ -28,7 +28,7 @@ views/
 │   ├── barras.gv                menubar, contextmenu, toolbar, statusbar, sizegrip
 │   ├── overlays.gv              tooltip=, whats_this=, popover, popup, stack, notificationdot, splashscreen, rubberband, …
 │   ├── graficos.gv              linechart (+ série múltipla), barchart, piechart/donut, sparkline
-│   └── dialogos.gv              <dialog> declarativo + confirm{}/prompt{}/pick_color{}/toast()
+│   └── dialogos.gv              dialog declarativo + confirm{}/prompt{}/pick_color{}/toast()
 ├── scripts/
 │   ├── app.luau                 init(): SEMEIA toda chave que os demos leem
 │   └── handlers/                demo.luau (ir/dizer/def) + dialogos.luau (os modais)
@@ -41,9 +41,9 @@ views/
 
 - **Um registro só.** `src/main.rs` registra `views/app.gv`; cada `categorias/*.gv`
   entra por `link(rel = import)` e é carregado em cascata.
-- **Sem escada de `se`.** `app.gv` guarda a categoria atual em `{view}` e o
+- **Sem escada de `if`.** `app.gv` guarda a categoria atual em `{view}` e o
   roteador é uma linha por tela: `Botoes(if = @view, equals = botoes)`.
-- **A barra lateral é um `<drawer>`.** Ele empurra o conteúdo (não cobre); o
+- **A barra lateral é um `drawer`.** Ele empurra o conteúdo (não cobre); o
   botão `☰` faz `drawer::toggle:menu`, e `init()` semeia `menu = "true"` para
   ela começar aberta.
 - **Todo widget grava numa chave.** O nome dela está no `value`/`checked`/

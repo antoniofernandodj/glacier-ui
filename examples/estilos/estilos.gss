@@ -1,7 +1,7 @@
 /* 
 styles/estilos.gss
 Stylesheet COM ESCOPO do componente "estilos", carregada pelo
-`<link rel="stylesheet" href="styles/estilos.gss" />` no template.
+`link(rel = stylesheet, href = "styles/estilos.gss")` no template.
 Estas classes só valem dentro deste componente e ficam EM CIMA das globais
 (uma classe aqui com o mesmo nome de uma global venceria, localmente).
 */

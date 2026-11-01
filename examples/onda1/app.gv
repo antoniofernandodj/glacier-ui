@@ -28,7 +28,7 @@ screen(title = "Glacier - Onda 1", size = "900 700") {
         // 1. Slider ===============================================
         groupbox(title = "Slider — o QSlider") {
           text(
-            content = """
+            """
               Primitiva: dispara onChange com o valor novo, e quem grava a chave é
               o update da tela. Sem esse handler, o cursor não sairia do lugar.
             """,
@@ -115,7 +115,7 @@ screen(title = "Glacier - Onda 1", size = "900 700") {
           title = "Radio e RadioGroup — o QRadioButton e o QButtonGroup",
         ) {
           text(
-            content = """
+            """
               Os dois caminhos escrevendo na MESMA chave 'plano'. O grupo é a
               chave, não um nó pai: todo Radio que aponta para o mesmo valor é do
               mesmo grupo.
@@ -164,7 +164,7 @@ screen(title = "Glacier - Onda 1", size = "900 700") {
         // 4. Avatar ================================================
         groupbox(title = Avatar) {
           text(
-            content = """
+            """
               Sempre ocupa o mesmo espaço, com foto ou sem: numa lista de usuários
               a foto que falta é o caso comum, e um buraco vazio quebraria o
               alinhamento da linha.
@@ -179,7 +179,7 @@ screen(title = "Glacier - Onda 1", size = "900 700") {
             avatar(size = 56)
 
             text(
-              content = """
+              """
                 foto · iniciais · cores por instância · sem nada (o '?')
               """,
               class = texto,
@@ -190,7 +190,7 @@ screen(title = "Glacier - Onda 1", size = "900 700") {
         // 2. Space (fixo) ==========================================
         groupbox(title = "Space — o QSpacerItem", flat = true) {
           text(
-            content = """
+            """
               Sem width/height é Length::Fill nos dois eixos (o espaçador
               flexível, como no topo desta janela); com eles, vira um vão fixo.
             """,

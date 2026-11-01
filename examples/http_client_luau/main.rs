@@ -7,7 +7,7 @@
 //!
 //! Tudo o que este exemplo mostra é MARKUP + `scripts/app.luau`. Nenhuma linha
 //! de Rust além do bootstrap: o `http` é global do prelúdio, disponível em
-//! qualquer `<script>`.
+//! qualquer `script`.
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {

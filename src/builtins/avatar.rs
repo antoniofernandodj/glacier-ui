@@ -1,9 +1,9 @@
 /// O avatar: a foto de uma pessoa num círculo, com as iniciais como reserva
 /// quando não há foto.
 ///
-/// ```xml
-/// <Avatar src="fotos/ana.png" />
-/// <Avatar initials="AF" bg="#89B4FA" />
+/// ```gv
+/// Avatar(src = "fotos/ana.png")
+/// Avatar(initials = AF, bg = #89B4FA)
 /// ```
 ///
 /// A reserva não é enfeite: numa lista de usuários, a foto que falta é o caso
@@ -26,17 +26,17 @@
 /// porque as cores deste widget são props e uma classe é o único jeito de
 /// pintar por `@media` ou por pseudo-estado:
 ///
-/// - `image_class`    — a `<Image>` do braço com foto.
+/// - `image_class`    — a `Image` do braço com foto.
 /// - `fallback_class` — o círculo das iniciais.
-/// - `initials_class` — o `<Text>` com as letras.
+/// - `initials_class` — o `Text` com as letras.
 ///
-/// ```xml
-/// <Avatar initials="AF" fallback_class="avatar_reserva" />
+/// ```gv
+/// Avatar(initials = AF, fallback_class = avatar_reserva)
 /// ```
 ///
 /// # Prop e classe convivem no mesmo campo — desde a 0.89
 ///
-/// Este widget foi por um tempo o único da lib **sem** folha `<style>`, e a
+/// Este widget foi por um tempo o único da lib **sem** folha `style`, e a
 /// causa era do motor: um campo resolvia por `inline.or_else(classe)`, então um
 /// `background="{bg}"` escrito no template vencia a classe **mesmo quando a
 /// prop não vinha e ele resolvia para vazio** — o círculo sairia sem fundo
@@ -51,7 +51,7 @@
 /// # Limites conhecidos
 ///
 /// - **O corte circular é da imagem, não do widget.** A foto usa o
-///   `clip="Circle"` do `<Image>`; o círculo das iniciais é um `border_radius`
+///   `clip="Circle"` do `Image`; o círculo das iniciais é um `border_radius`
 ///   igual à metade do lado. Um `size` ímpar pode deixar meio pixel de
 ///   diferença entre as duas formas.
 /// - **`initials` não é derivado do nome.** Passar `initials="AF"` é trabalho
@@ -60,7 +60,7 @@
 ///   layout.
 /// - **Sem indicador de presença.** O pontinho verde de "online" no canto
 ///   pediria sobreposição (`Stack`) dentro de um builtin; hoje se faz por fora,
-///   com o `<Badge>` ao lado.
+///   com o `Badge` ao lado.
 use crate::component::{Component, Context, Template};
 
 pub struct Avatar;
@@ -78,41 +78,22 @@ impl Component for Avatar {
         // `align_x`/`align_y` centram a letra no círculo — sem eles ela encosta
         // no canto superior esquerdo, que é o default do container.
         Template::Inline(
-            r##"<Container>
-                    <style>
-                        .avatar-fallback { background: #8080803d; }
-                        .avatar-initials { color: #cdd6f4; }
-                    </style>
-
-                    <template if="{src}" notEquals="">
-                        <Image
-                            class="{image_class}"
-                            source="{src}"
-                            width="{size|40}"
-                            height="{size|40}"
-                            clip="Circle"
-                        />
-                    </template>
-
-                    <template else>
-                        <Container
-                            class="avatar-fallback {fallback_class}"
-                            background="{bg}"
-                            width="{size|40}"
-                            height="{size|40}"
-                            border_radius="{size|40}"
-                            align_x="center"
-                            align_y="center"
-                        >
-                            <Text
-                                class="avatar-initials {initials_class}"
-                                content="{initials|?}"
-                                color="{fg}"
-                                bold="true"
-                            />
-                        </Container>
-                    </template>
-                </Container>"##
+            r##"
+                container {
+                  style """
+                                        .avatar-fallback { background: #8080803d; }
+                                        .avatar-initials { color: #cdd6f4; }
+                                    """
+                  template(if = @src, not_equals = "") {
+                    image(class = @image_class, source = @src, width = "{size|40}", height = "{size|40}", clip = Circle)
+                  }
+                  template(else) {
+                    container(class = "avatar-fallback {fallback_class}", background = @bg, width = "{size|40}", height = "{size|40}", border_radius = "{size|40}", align_x = center, align_y = center) {
+                      text(class = "avatar-initials {initials_class}", content = "{initials|?}", color = @fg, bold = true)
+                    }
+                  }
+                }
+            "##
                 .to_string(),
         )
     }

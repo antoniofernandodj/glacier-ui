@@ -1,11 +1,11 @@
-# Áudio (`<audio>`)
+# Áudio (`audio`)
 
-Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`, **só o áudio**: o `<video>` não foi feito (ver o fim).
+Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`, **só o áudio**: o `video` não foi feito (ver o fim).
 Exemplo: `examples/audio` — `cargo run --example audio --features audio`.
 
 ## Ligar
 
-O `<audio>` mora atrás da feature **`audio`** (desligada por padrão): ela traz o `rodio`
+O `audio` mora atrás da feature **`audio`** (desligada por padrão): ela traz o `rodio`
 (MP3, WAV, OGG/Vorbis, FLAC), e o `cpal` por baixo precisa de `libasound2-dev` para
 compilar no Linux. Quem não toca som não paga nada disso.
 
@@ -13,7 +13,7 @@ compilar no Linux. Quem não toca som não paga nada disso.
 glacier-ui = { version = "0.146", features = ["audio"] }
 ```
 
-Sem a feature o `<audio>` ainda existe: o player mostra `erro: feature `audio` desligada` e
+Sem a feature o `audio` ainda existe: o player mostra `erro: feature `audio` desligada` e
 o log avisa uma vez.
 
 ## No markup
@@ -85,7 +85,7 @@ fim recomeça do zero; pausar segura a posição. Tanto com o MP3 quanto com o W
 
 ## O que NÃO está feito
 
-- **`<video>` não foi feito.** A fase pedia `<audio>` primeiro; decodificar vídeo é outro
+- **`video` não foi feito.** A fase pedia `audio` primeiro; decodificar vídeo é outro
   projeto (decodificador, sincronia com áudio, textura por quadro) e a `webview` que servia de
   saída foi removida. Fica pendente no plano.
 - **Só arquivo no disco.** Não lê de `embed_assets!` nem do `AssetSource`; o `src` é um
@@ -96,7 +96,7 @@ fim recomeça do zero; pausar segura a posição. Tanto com o MP3 quanto com o W
 - **Vários windows:** o tick vai a todas as janelas, e o `on_ended` é entregue à primeira que
   o recebe. Um app multi-janela que precise do evento numa janela específica deve
   usar uma só janela dona do áudio.
-- **Web (wasm):** sem som. O módulo existe sem a feature (o `<audio>` mostra o erro), mas ligar
+- **Web (wasm):** sem som. O módulo existe sem a feature (o `audio` mostra o erro), mas ligar
   `audio` no alvo `wasm32` não é suportado — o `rodio` é dependência só do nativo. Nem este
   caminho foi compilado para wasm aqui.
 - Verificado em **Linux** (ALSA/PipeWire). macOS e Windows usam o mesmo `cpal`, mas não foram

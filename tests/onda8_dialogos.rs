@@ -30,12 +30,12 @@ fn dialog_declara_corpo_e_moldura() {
                 <resources>
                     <dialog name="editar" title="Editar perfil" icon="question"
                             buttons="Cancelar::|Salvar:salvar:accept">
-                        <Column spacing="8">
-                            <TextInput value="__dialog.nome" placeholder="Nome" />
-                        </Column>
+                        <column spacing="8">
+                            <textinput value="__dialog.nome" placeholder="Nome" />
+                        </column>
                     </dialog>
                 </resources>
-                <Button text="Editar" on_click="dialog:editar" />
+                <button text="Editar" on_click="dialog:editar" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -69,9 +69,9 @@ fn dialog_fecha_e_ignora_nome_desconhecido() {
         "onda8_fecha",
         r##"<screen>
                 <resources>
-                    <dialog name="aviso" title="Oi"><Text content="olá" /></dialog>
+                    <dialog name="aviso" title="Oi"><text content="olá" /></dialog>
                 </resources>
-                <Text content="tela" />
+                <text content="tela" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -105,9 +105,9 @@ fn botao_sem_acao_so_fecha() {
         "onda8_fechar",
         r##"<screen>
                 <resources>
-                    <dialog name="so_texto"><Text content="nada a fazer" /></dialog>
+                    <dialog name="so_texto"><text content="nada a fazer" /></dialog>
                 </resources>
-                <Text content="tela" />
+                <text content="tela" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -133,9 +133,9 @@ fn botao_sem_acao_so_fecha() {
 fn dialog_sem_nome_e_erro_de_template() {
     let xml = r##"<screen>
             <resources>
-                <dialog title="Sem nome"><Text content="x" /></dialog>
+                <dialog title="Sem nome"><text content="x" /></dialog>
             </resources>
-            <Text content="tela" />
+            <text content="tela" />
         </screen>"##;
     let erro = glacier_ui::UiNode::parse_xml(xml).unwrap_err();
     let msg = format!("{erro}");
@@ -167,7 +167,7 @@ fn prompt_devolve_o_valor_da_chave() {
                         end
                     </script>
                 </resources>
-                <Button text="Pedir" on_click="pedir" />
+                <button text="Pedir" on_click="pedir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -232,7 +232,7 @@ fn prompt_cancelado_devolve_nil() {
                         end
                     </script>
                 </resources>
-                <Button text="Pedir" on_click="pedir" />
+                <button text="Pedir" on_click="pedir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -265,7 +265,7 @@ fn confirm_continua_booleano_e_sem_corpo() {
                         end
                     </script>
                 </resources>
-                <Button text="Perguntar" on_click="perguntar" />
+                <button text="Perguntar" on_click="perguntar" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -311,7 +311,7 @@ fn progresso_nao_suspende_e_mora_numa_chave() {
                         end
                     </script>
                 </resources>
-                <Button text="Baixar" on_click="baixar" />
+                <button text="Baixar" on_click="baixar" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -371,7 +371,7 @@ fn progresso_sem_on_cancel_nao_tem_botao() {
                         function ir() progress({ title = "Gravando" }) end
                     </script>
                 </resources>
-                <Button text="Ir" on_click="ir" />
+                <button text="Ir" on_click="ir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -410,7 +410,7 @@ fn progresso_volta_ao_indeterminado() {
                         end
                     </script>
                 </resources>
-                <Button text="Ir" on_click="ir" />
+                <button text="Ir" on_click="ir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -484,8 +484,8 @@ fn wizard_e_stackview_montam() {
                 <wizard value="passo" active="{passo}"
                         steps="dados,revisao" titles="Dados,Revisão"
                         on_finish="salvar">
-                    <template slot="dados"><Text content="PAGINA_DADOS" /></template>
-                    <template slot="revisao"><Text content="PAGINA_REVISAO" /></template>
+                    <template slot="dados"><text content="PAGINA_DADOS" /></template>
+                    <template slot="revisao"><text content="PAGINA_REVISAO" /></template>
                 </wizard>
             </screen>"##,
     );
@@ -555,7 +555,7 @@ fn pick_color_e_um_prompt_com_roda() {
                         end
                     </script>
                 </resources>
-                <Button text="Cor" on_click="escolher" />
+                <button text="Cor" on_click="escolher" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -616,7 +616,7 @@ fn exemplos_da_onda_avaliam() {
 ///
 /// O teste anterior (`prompt_devolve_o_valor_da_chave`) escrevia a chave com
 /// `define_data`, que é o que o campo *deveria* fazer — e por isso não pegava
-/// o buraco: um `<TextInput>` **nunca grava a chave sozinho**; ele despacha
+/// o buraco: um `<textinput>` **nunca grava a chave sozinho**; ele despacha
 /// `UiInputChanged` com a ação declarada, e sem `onChange` a ação é vazia.
 #[test]
 fn digitar_no_prompt_escreve_a_chave() {
@@ -632,7 +632,7 @@ fn digitar_no_prompt_escreve_a_chave() {
                         end
                     </script>
                 </resources>
-                <Button text="Pedir" on_click="pedir" />
+                <button text="Pedir" on_click="pedir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -645,7 +645,7 @@ fn digitar_no_prompt_escreve_a_chave() {
     let acao = acao_do_primeiro_textinput(corpo).expect("o corpo tem um <textinput>");
     assert!(
         !acao.is_empty(),
-        "um <TextInput> sem onChange despacha ação vazia e não grava nada"
+        "um <textinput> sem onChange despacha ação vazia e não grava nada"
     );
 
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
@@ -675,7 +675,7 @@ fn digitar_no_prompt_escreve_a_chave() {
     std::fs::remove_file(&caminho).ok();
 }
 
-/// A ação de `onChange` do primeiro `<TextInput>` de uma árvore avaliada.
+/// A ação de `onChange` do primeiro `<textinput>` de uma árvore avaliada.
 fn acao_do_primeiro_textinput(no: &glacier_ui::UiNode) -> Option<String> {
     if let NodeType::TextInput { on_change, .. } = &no.kind {
         return Some(on_change.clone());
@@ -702,7 +702,7 @@ fn hex_parcial_nao_mexe_na_cor() {
                         end
                     </script>
                 </resources>
-                <Button text="Cor" on_click="escolher" />
+                <button text="Cor" on_click="escolher" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -1021,7 +1021,7 @@ fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
                             end
                         </script>
                     </resources>
-                    <Button text="P" on_click="pedir" />
+                    <button text="P" on_click="pedir" />
                 </screen>"##
             ),
         );
@@ -1033,7 +1033,7 @@ fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
         let achou = match esperado {
             "TextInput" => procura(&arvore, |n| matches!(n.kind, NodeType::TextInput { .. })),
             "Select" => procura(&arvore, |n| matches!(n.kind, NodeType::Select { .. })),
-            // O `<SpinBox>` é builtin: no template avaliado ele já foi inlinado,
+            // O `<spinbox>` é builtin: no template avaliado ele já foi inlinado,
             // e o que sobra é o campo mais os dois degraus. O que o separa do
             // ramo de texto é justamente ter BOTÕES ao lado do campo.
             _ => procura(&arvore, |n| matches!(n.kind, NodeType::Button { .. })),
@@ -1046,7 +1046,7 @@ fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
 
 /// O campo numérico do `prompt{}` tem largura de número, não `fill`.
 ///
-/// A prop `width` do `<spinbox>` é a largura do **campo**, e a `<Row>` que
+/// A prop `width` do `<spinbox>` é a largura do **campo**, e a `<row>` que
 /// segura campo + degraus é `shrink`: um `fill` ali colapsa o campo a um risco
 /// entre os dois botões — os degraus continuam funcionando, o número não cabe.
 ///
@@ -1066,7 +1066,7 @@ fn o_campo_numerico_do_prompt_nao_colapsa() {
                         end
                     </script>
                 </resources>
-                <Button text="P" on_click="pedir" />
+                <button text="P" on_click="pedir" />
             </screen>"##,
     );
     motor.register_component("tela", &caminho).unwrap();
@@ -1078,13 +1078,13 @@ fn o_campo_numerico_do_prompt_nao_colapsa() {
     assert!(
         largura.parse::<f32>().is_ok(),
         "a largura do campo tem de ser um número; `{largura}` colapsa o campo \
-         dentro da <Row> shrink do spinbox"
+         dentro da <row> shrink do spinbox"
     );
 
     std::fs::remove_file(&caminho).ok();
 }
 
-/// A largura declarada no primeiro `<TextInput>` da árvore.
+/// A largura declarada no primeiro `<textinput>` da árvore.
 fn largura_do_primeiro_textinput(no: &glacier_ui::UiNode) -> Option<String> {
     if matches!(no.kind, NodeType::TextInput { .. }) {
         return Some(no.width.clone().unwrap_or_default());

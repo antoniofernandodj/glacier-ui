@@ -23,13 +23,13 @@ propósito está em "Fora do escopo".
 
 ### `editors/vscode-gv/` — Glacier View (`.gv`) — v0.2
 - Realce: tags (componente vs. primitiva), atributos (ações destacadas),
-  interpolação `{var|default}`, cores; **Lua embutido** em `<script>` e
-  **GSS embutido** em `<style>`.
+  interpolação `{var|default}`, cores; **Lua embutido** em `script` e
+  **GSS embutido** em `style`.
 - **DocumentLink + Go to Definition** — toda referência a arquivo fica
   sublinhada (Ctrl/Cmd+Click) e responde a F12:
-  - `<script src="app.luau">` → o arquivo `.luau`.
-  - `on_click="fn"` → `function fn()` no `.luau` externo ou no `<script>` inline;
-    sem `<script>`, o braço `"fn" =>` (ou `if action == "fn"`,
+  - `script(src = "app.luau")` → o arquivo `.luau`.
+  - `on_click="fn"` → `function fn()` no `.luau` externo ou no `script` inline;
+    sem `script`, o braço `"fn" =>` (ou `if action == "fn"`,
     `strip_prefix("fn:")`) do `Component::update` em Rust do bloco `impl` que
     declara **este** template.
   - `onToggle="escolher_tipo:roadmap"` → a convenção `nome:sufixo` do
@@ -42,15 +42,15 @@ propósito está em "Fora do escopo".
     `define_data` no Rust do componente que renderiza este template);
     `window:*` e `style:*` linkam para a tabela de ações built-in da
     referência, assim como uma chave que não é escrita em lugar nenhum.
-  - `<link rel="stylesheet" href>` / `<style href>` → a folha `.gss`;
+  - `link(rel = stylesheet, href)` / `style(href)` → a folha `.gss`;
     `rel="theme"`/`rel="data"` → o JSON.
-  - `<link rel="import">`, `<import from>`, `<Include src>` → o template
-    importado; `<Image src>`/`<Svg src>` → o asset.
+  - `link(rel = import)`, `import(from)`, `Include(src)` → o template
+    importado; `Image(src)`/`Svg(src)` → o asset.
   - **Variáveis de contexto** → onde a chave é escrita, **script primeiro**:
     `{chave}`/`{chave|default}` em qualquer lugar da markup (fora de
-    `<script>`/`<style>`/comentário) e os atributos que bindam contexto
-    (`value`, `checked`, `items`/`options`, `cond`, `for-each`, …). A cadeia,
-    na ordem: `ctx.chave = …`/`ctx["chave"] = …` no `<script>` do template →
+    `script`/`style`/comentário) e os atributos que bindam contexto
+    (`value`, `checked`, `items`/`options`, `cond`, `for_each`, …). A cadeia,
+    na ordem: `ctx.chave = …`/`ctx["chave"] = …` no `script` do template →
     nos módulos que ele `require` (transitivo, resolvido como
     `luau::resolve_module`: `dir`, `dir/lib`, `GLACIER_LUAU_PATH`, `.luau`
     antes de `.lua`, `x.luau` antes de `x/init.luau`) → `ctx.set`/`define_data`
@@ -60,8 +60,8 @@ propósito está em "Fora do escopo".
   - **Variável de laço** (`{c.titulo}` sob `for-each="…" var="c"`) → a
     declaração `var="c"` mais próxima acima; ela sombreia o contexto, então
     responde antes da cadeia acima.
-  - `<Componente/>` e `navigateTo="tela"` → o `.gv`/`.xml` que o declara
-    (`<import>` do próprio arquivo, `<import>` de qualquer template do
+  - `Componente` e `navigateTo="tela"` → o `.gv`/`.xml` que o declara
+    (`import` do próprio arquivo, `import` de qualquer template do
     workspace, `register_component("Nome","path")`/`nome:`+`template:` no Rust,
     ou convenção de nome snake_case).
   - Tag nativa/builtin → seção no doc de referência embutido
@@ -86,9 +86,9 @@ propósito está em "Fora do escopo".
   equivalente (`gv-shadow.js`), com as posições mapeadas de volta; links, F12 e diagnósticos
   valem sobre ele.
 - `gv-typing.js` cuida da digitação do `.gv`.
-- **Diagnósticos:** prop desconhecida ou obrigatória que falta num `<props>`, referência de
+- **Diagnósticos:** prop desconhecida ou obrigatória que falta num `props`, referência de
   componente e caminho de arquivo que não resolve.
-- **GSS:** `class="…"`/`id="…"` levam à regra no `.gss` (linkado, `<style>` inline ou qualquer
+- **GSS:** `class="…"`/`id="…"` levam à regra no `.gss` (linkado, `style` inline ou qualquer
   `.gss` do workspace).
 - **Hover** (`glacier-view` 0.23.0): sobre tudo o que o F12 resolve, mostra o trecho do destino
   — o corpo da `function`, a linha `ctx.x = …`, a regra `.gss`, a seção da referência.

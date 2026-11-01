@@ -12,18 +12,18 @@ de `src/builtins/mod.rs`; aqui o foco é o passo a passo.
 
 | | Onde vive | Precisa registrar? | Disponível como |
 |---|---|---|---|
-| **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `Button`, `Text`, … |
-| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `Badge`, `SpinBox`, `GroupBox` e afins |
-| **Componente do app** | código/arquivos do app, ou o `<resources>` de um template | sim (`register`/`import`), exceto a forma declarada | `PerfilCard` |
+| **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `button`, `text`, … |
+| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `badge`, `spinbox`, `groupbox` e afins |
+| **Componente do app** | código/arquivos do app, ou o `resources` de um template | sim (`register`/`import`), exceto a forma declarada | `PerfilCard` |
 
 Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
 **Primitiva** nova — inclusive uma armadilha real do motor (`Length::Fill` vs.
 o wrap genérico de background/borda) — ver [`PRIMITIVAS.md`](PRIMITIVAS.md).
 
 Um componente do app tem **três** formas de existir, e a terceira dispensa
-arquivo: `component("…", name = X)` dentro do `<resources>` de um
+arquivo: `component("…", name = X)` dentro do `resources` de um
 template declara o componente ali mesmo (ver `README.md`). Ela usa a mesma casca
-de um `.gv` — `<props>` e layout — e serve às peças pequenas de uma tela só; um
+de um `.gv` — `props` e layout — e serve às peças pequenas de uma tela só; um
 builtin continua sendo o caminho para o que a **lib** publica a todos os apps.
 
 ### Como saber se o widget é builtin ou primitiva
@@ -34,36 +34,36 @@ que não tinha como funcionar. Os quatro sinais que já apareceram:
 
 1. **O template precisaria ler uma chave cujo *nome* vem de uma prop.** É a
    indireção `{{value}}`, que o interpolador não tem. Foi o que reclassificou
-   `TimePicker` → `<timeedit>` (0.68), `Calendar` (0.84) e `MaskedInput` (0.85).
-2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for-each`
+   `timepicker` → `timeedit` (0.68), `calendar` (0.84) e `maskedinput` (0.85).
+2. **A repetição é dirigida por um *número*, não por uma coleção.** O `for_each`
    lê uma chave com um array JSON; a janela `4 5 6` de uma paginação e as cinco
    estrelas de uma nota não existem em array nenhum — são derivadas. Foi o que
-   reclassificou `Pagination` e `Rating` (0.85).
+   reclassificou `pagination` e `rating` (0.85).
 3. **O widget precisa de um evento que o markup não expõe.** O motor dá
    `on_press`, `on_double_click`, `cursor` e `tooltip` a qualquer nó, mas não um
-   `on_enter`. Foi o segundo motivo do `Rating`, e é o que a pré-visualização no
+   `on_enter`. Foi o segundo motivo do `rating`, e é o que a pré-visualização no
    hover exige.
 4. **O widget precisa de uma camada, ou de medir os irmãos.** Um painel que sai
    do fluxo e se posiciona contra a janela é um `iced::advanced::Overlay`
-   (`<popover>`, `<popup>`, `<autocomplete>`, 0.92); uma coluna cuja largura é o
-   máximo das células dela precisa de uma medição bidimensional (`<grid>`,
-   `<tableview>`, 0.92). Nenhuma das duas é composição de nós.
+   (`popover`, `popup`, `autocomplete`, 0.92); uma coluna cuja largura é o
+   máximo das células dela precisa de uma medição bidimensional (`grid`,
+   `tableview`, 0.92). Nenhuma das duas é composição de nós.
 
 A regra prática, que o [`PRIMITIVAS.md`](PRIMITIVAS.md) já registrava: **um
 builtin que só funcionaria se o interpolador (ou o markup) tivesse mais uma
 capacidade é, quase sempre, uma primitiva mal classificada.**
 
 E a recíproca, que a Onda 5 acrescentou: **um builtin adiado por um habilitador
-merece uma releitura antes de virar uma rodada.** O `Tabs` completo esperava
+merece uma releitura antes de virar uma rodada.** O `tabs` completo esperava
 "estado por instância" desde a 0.65; o que faltava era **interpolar o nome de um
-slot**, uma linha no `eval.rs`. O `Drawer` esperava "a animação do motor"; o que
-faltava era um eixo no `<reveal>`. Os dois viraram builtins na 0.92, sem nada de
+slot**, uma linha no `eval.rs`. O `drawer` esperava "a animação do motor"; o que
+faltava era um eixo no `reveal`. Os dois viraram builtins na 0.92, sem nada de
 extraordinário.
 
 Um **builtin** é um componente comum (`impl Component`) — a única diferença é que
 a lib o registra em `GlacierUI::new()`, então ele não exige `register()` do app.
 Uma tag desconhecida no XML vira uma referência de componente resolvida pelo
-nome; como o builtin já está registrado, `Badge` "simplesmente funciona".
+nome; como o builtin já está registrado, `badge` "simplesmente funciona".
 
 ## Passo a passo: adicionar um widget
 
@@ -84,12 +84,13 @@ impl Component for Divider {
 
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<Container
-                    background="{divider_color|#313244}"
-                    width="fill"
-                    height="{divider_height|1}"
-                />"#
-                .to_string(),
+            r##"
+container(
+  background = "{divider_color|#313244}",
+  width = fill,
+  height = "{divider_height|1}",
+)"##
+            .to_string(),
         )
     }
 
@@ -111,7 +112,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
 }
 ```
 
-Pronto. `Divider` já está disponível em qualquer template. Nada mais na lib
+Pronto. `divider` já está disponível em qualquer template. Nada mais na lib
 precisa mudar.
 
 ### 3. Teste (ver a seção _Testando_)
@@ -123,12 +124,12 @@ Definido em `src/component.rs`. Para um widget apresentacional você só impleme
 
 | Método | Obrigatório | Papel |
 |---|---|---|
-| `name(&self) -> &str` | sim | Nome único = a tag usada no XML (`"Badge"` → `Badge`). |
+| `name(&self) -> &str` | sim | Nome único = a tag usada no XML (`"Badge"` → `badge`). |
 | `template(&self) -> Template` | sim | A UI. Em builtin, **sempre** `Template::Inline` (ver abaixo). |
 | `update(&mut self, action, value, ctx)` | sim | Reage a ações da própria UI. Vazio se apresentacional. |
 | `init(&mut self, ctx)` | não | Semeia estado inicial. **Evite em builtins** (ver restrições). |
 | `children(&self) -> Vec<Box<dyn Component>>` | não | Subcomponentes próprios, registrados em cascata. |
-| `on_form_submit(&mut self, action, ctx)` | não | Trata o `onSubmit` de um `<Form>`. |
+| `on_form_submit(&mut self, action, ctx)` | não | Trata o `on_submit` de um `form`. |
 
 ### Por que `Template::Inline` e não `Template::File`
 
@@ -150,7 +151,7 @@ contexto *só daquela instância* durante a avaliação. No template, `{foo}` re
 para o valor da prop.
 
 ```gv
-Badge(badge_text = Novo, badge_bg = #A6E3A1)
+badge(badge_text = Novo, badge_bg = #A6E3A1)
 ```
 ```rust
 // no template do Badge:
@@ -181,7 +182,7 @@ string. O motor detecta o `{`, adia a conversão e resolve para `f32` na
 avaliação (mecanismo em `src/parser.rs`, enum `NumAttr`).
 
 ```gv
-Text(content = "{badge_text|Badge}", size = "{badge_size|13}")
+text(content = "{badge_text|Badge}", size = "{badge_size|13}")
 ```
 
 Se o valor resolvido não for um número (ex.: prop omitida e sem default), o
@@ -200,7 +201,7 @@ A ressalva do degrau 1 é o que faz prop e classe conviverem no mesmo campo. Um
 valor**: o campo cai para a classe. Antes da 0.89 ele vencia mesmo vazio, e o
 efeito era um widget sem fundo nenhum — o `Frame(shape = filled)` chegou a ter
 o braço inteiro duplicado (um com o atributo, outro sem) só para contornar isso,
-e o `<Avatar>` foi o único builtin sem folha `<style>` pela mesma razão. Os dois
+e o `avatar` foi o único builtin sem folha `style` pela mesma razão. Os dois
 voltaram à forma simples.
 
 O corolário para quem escreve um builtin: **o default de uma cor vai numa
@@ -217,11 +218,11 @@ este item de lista com a cor do meu tema"*.
 A resposta é uma **prop por nó**, com nome que diz o alvo, encaminhada à `class`
 daquele nó no template:
 
-```rust
+```gv
 // no template do builtin
-r#"<Button class="listview-item {item_class}" …>
-       <Text class="{label_class}" content="{it.label}" />
-   </Button>"#
+button(class = "listview-item {item_class}") {
+  text(class = "{label_class}", content = "{it.label}")
+}
 ```
 
 ```gv
@@ -240,7 +241,7 @@ Três regras que a biblioteca inteira segue desde a 0.89:
    `selected_class` vence `item_class` porque está à direita.
 3. **Nó de raiz não ganha prop.** O `class` do uso já o alcança, e uma prop a
    mais ali seria um segundo jeito de fazer a mesma coisa. É por isso que o
-   `<toolbutton>` — cuja raiz *é* o `<Button>` — não tem `button_class`.
+   `toolbutton` — cuja raiz *é* o `button` — não tem `button_class`.
 
 Um nó sem classe própria da lib recebe `class="{alguma_class}"` puro. Isso não
 custa nada quando ninguém injeta: o eval interpola a classe **antes** de decidir
@@ -257,40 +258,42 @@ continua prop — e trocar uma pela outra falha em silêncio, porque a precedên
 está do lado do template:
 
 ```gv
-<groupbox title="Rede" class="col_larga" />   <!-- NÃO: .col_larga { width: 440 } é ignorada -->
-<groupbox title="Rede" width="440" />          <!-- sim -->
+groupbox(title = Rede, class = col_larga)
+// NÃO: .col_larga { width: 440 } é ignorada
+groupbox(title = Rede, width = 440)
+// sim
 ```
 
-O template do `<GroupBox>` escreve `width="{width|fill}"` inline. Um default
+O template do `groupbox` escreve `width="{width|fill}"` inline. Um default
 inline **resolve sempre**, e um valor inline vence toda classe — inclusive a do
 uso. A classe não pinta nada, e o `width` cai no default `fill`.
 
 O estrago passa do cosmético quando o default é `fill`: dois filhos `fill`
-dentro de uma `<row>` sem largura colapsam para zero, e a seção inteira some da
+dentro de uma `row` sem largura colapsam para zero, e a seção inteira some da
 tela — sem erro, sem aviso, com a árvore avaliada intacta. Foi o que aconteceu
 com a aba "Accordion + ToolBox" do `examples/onda4` ao migrar os estilos para o
 `.gss`; `tests/engine_tests.rs` tem o teste que o pega agora.
 
 As três props de geometria que hoje se comportam assim, e que portanto ficam no
-markup: `width` do `<GroupBox>`/`<Frame>`/`<Card>`, `height` do `<ListView>`
-(`{height|240}`) e `width` do `<SpinBox>` (`{width|72}`, que é o campo interno —
-uma classe no uso pinta a `Row` de fora e deixa o campo em 72).
+markup: `width` do `groupbox`/`frame`/`card`, `height` do `listview`
+(`{height|240}`) e `width` do `spinbox` (`{width|72}`, que é o campo interno —
+uma classe no uso pinta a `row` de fora e deixa o campo em 72).
 
 Numa **primitiva** o problema não existe: não há template no caminho, então
 `maskedinput(class = campo)` com `.campo { width: 200 }` funciona.
 
 ## Menu de contexto embutido dos campos de texto
 
-Todo `<textinput>` e `<textarea>` (e os builtins que geram um — `<spinbox>`,
-`<inputdialog>`, os campos de `<fontdialog>`/`<colordialog>`) traz, no botão
+Todo `textinput` e `textarea` (e os builtins que geram um — `spinbox`,
+`inputdialog`, os campos de `fontdialog`/`colordialog`) traz, no botão
 direito, um menu com **desfazer, refazer, recortar, copiar, apagar** (a
 seleção), **selecionar tudo, limpar tudo** e **colar**. Não é preciso escrever
 nada — vem ligado.
 
 Detalhes que valem saber:
 
-- **`<textinput>` comum é apoiado num `text_editor` de uma linha** (o mesmo
-  widget do `<textarea>`, com `Enter` e quebras de um paste barrados). É isso
+- **`textinput` comum é apoiado num `text_editor` de uma linha** (o mesmo
+  widget do `textarea`, com `Enter` e quebras de um paste barrados). É isso
   que dá a ele a seleção e o `perform` que o `text_input` do `iced` não expõe.
   O `textinput(secure)` (senha) fica no `text_input` mascarado e recebe um
   menu reduzido: **colar, selecionar tudo, limpar tudo** — sem copiar/recortar
@@ -302,46 +305,41 @@ Detalhes que valem saber:
   app não fixou um estilo). Para estilizar um campo específico, `menu_class`:
 
   ```gv
-  <textarea value="notas" menu_class="ctx" />
-  ```
+textarea(:value = notas, menu_class = ctx)
+```
 
   ```gss
-  .ctx { background: var(--surface); border-color: var(--border); border-radius: 6; }
-  .ctx-item { text-color: var(--text); }
+  .ctx { background: var(--surface); border_color: var(--border); border_radius: 6; }
+  .ctx-item { text_color: var(--text); }
   .ctx-item:hover  { background: var(--primary); }
   .ctx-item:active { background: var(--primary); }
   ```
 
-  `.<classe>` pinta o corpo do painel (`background`, `border-color`,
-  `border-width`, `border-radius`); `.<classe>-item` os itens (`text-color`), com
+  `.<classe>` pinta o corpo do painel (`background`, `border_color`,
+  `border_width`, `border_radius`); `.<classe>-item` os itens (`text_color`), com
   `:hover`/`:active` para o realce. Só folhas `.gss` **globais** — um bloco
   `style(scoped)` não alcança o overlay.
 - **Desligar**: `engine.set_input_context_menu(false)` no `setup` da janela.
   Também dispensa o rastreio de cursor que a âncora do menu exige (um campo de
   texto na tela passa a fazer o app redesenhar a cada movimento do mouse, o
-  mesmo custo que um `<ContextMenu>` já cobra).
+  mesmo custo que um `contextmenu` já cobra).
 
-## Grafia da tag: `GroupBox` e `groupbox`
+## Nome da tag: `groupbox`
 
-Todo builtin é publicado sob **dois** nomes: o canônico e o mesmo em minúsculas
-coladas. É a convenção que as primitivas já tinham (`textinput`,
-`progressbar`, `contextmenu`); o `snake_case` no motor é a convenção dos
-apelidos em **português** (`entrada_texto`, `barra_progresso`).
+Todo builtin responde pelo nome em **minúsculas coladas** (`groupbox`, `tabbar`,
+`spinbox`), a mesma convenção das primitivas (`textinput`, `progressbar`,
+`contextmenu`). O nome CamelCase do `Component::name()` não é uma tag.
 
-Você não faz nada para isso: `register_builtins` registra a lista de
-[`builtin_components`] e, em seguida, os apelidos que `builtin_aliases` deriva
-dela. Vale saber **por que** o segundo registro é necessário, porque o mecanismo
-difere do das primitivas: uma primitiva casa num `match` de tags que lista as
-grafias à mão, enquanto um builtin resolve por `parsed_templates.get(name)` —
-igualdade exata de string. Sem o alias, `groupbox` seria `UnknownComponent`.
+Você não faz nada para isso: `register_builtins` registra os nomes que
+`builtin_aliases` deriva de `builtin_components`. O mecanismo difere do das
+primitivas: uma primitiva casa num `match` de tags, enquanto um builtin resolve
+por `parsed_templates.get(name)` — igualdade exata de string.
 
-O alias é uma **instância própria** no mapa de componentes, e isso importa para
+A instância registrada é um `Alias` com o nome em minúsculas, e isso importa para
 quem escreve um widget com comportamento: a ação carrega o nome pelo qual a tag
-foi resolvida, então `tabbar` produz `tabbar::pick:…` e é a instância do
-alias que recebe esse `update`. Como todo builtin da lib é sem estado (o estado
-mora em chaves que o app nomeia), as duas instâncias serem separadas não muda
-nada — mas um builtin que **guardasse** estado em `self` teria dois estados
-independentes, um por grafia. É mais uma razão para não guardar.
+foi resolvida, então `tabbar` produz `tabbar::pick:…` e é essa instância que
+recebe o `update`. Todo builtin da lib é sem estado (o estado mora em chaves que o
+app nomeia).
 
 ## Espaço de nomes e override
 
@@ -353,17 +351,17 @@ nome:
   cima.
 - `import(name = Badge, from = "…")` e `link(rel = import, href = "…", as = Badge)`
   também sobrescrevem (os dois guardas abrem exceção para nomes que ainda são
-  builtin). O caminho do `<link>` só ganhou essa exceção na 0.66 — até então ele
+  builtin). O caminho do `link` só ganhou essa exceção na 0.66 — até então ele
   era engolido em silêncio, o que ninguém notava enquanto nenhum builtin tinha
   um nome que um app fosse querer.
 
 As duas grafias entram no conjunto de nomes builtin, então a regra vale igual
-para `Badge` e `badge` — mas **uma de cada vez**: registrar `Badge` não desativa
+para `badge` e `badge` — mas **uma de cada vez**: registrar `badge` não desativa
 `badge`. Um app que queira mesmo cobrir o nome inteiro registra as duas.
 
 Ou seja: escolha nomes bons, mas saiba que o app sempre pode substituir. Evite
-colidir com **primitivas** (`Button`, `Text`, `Column`, `Row`, `Container`,
-`Image`, `Svg`, `Checkbox`, `Toggle`, `Select`, `Form`, `Rule`, …) — essas são
+colidir com **primitivas** (`button`, `text`, `column`, `row`, `container`,
+`image`, `svg`, `checkbox`, `toggle`, `Select`, `Form`, `rule`, …) — essas são
 resolvidas antes e não são sobrescrevíveis por um componente.
 
 ## Restrição importante: contexto global único
@@ -380,7 +378,7 @@ global — não há estado por instância. Consequências práticas:
 - ✅ **Widgets com comportamento cujo valor o app nomeia** (SpinBox): a chave de
   contexto entra por prop e a ação a carrega — ver a seção adiante. Também são
   usáveis N vezes.
-- ✅ **Widgets que ESCOLHEM conteúdo por uma chave nomeada** (`Tabs`, 0.92): a
+- ✅ **Widgets que ESCOLHEM conteúdo por uma chave nomeada** (`tabs`, 0.92): a
   aba ativa é uma chave do app, e o nome do slot **interpola** contra ela
   (`slot(name = @active)`). Duas instâncias com chaves diferentes não se
   veem. Vale saber o preço: o conteúdo de **todos** os slots é avaliado, porque
@@ -400,7 +398,7 @@ por quem o usa.
 ## Widget com comportamento: a chave vem por prop, os parâmetros vêm na ação
 
 A restrição acima diz que builtin não pode guardar estado. Ela **não** diz que
-builtin não pode ter comportamento — e a diferença é o `SpinBox`
+builtin não pode ter comportamento — e a diferença é o `spinbox`
 (`src/builtins/spin_box.rs`), que soma, subtrai e satura em Rust.
 
 O truque tem duas partes:
@@ -415,12 +413,12 @@ O truque tem duas partes:
    Então o template escreve os parâmetros dentro da própria ação:
 
    ```gv
-Button(text = "▲", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}")
+button(text = "▲", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}")
 ```
 
    O eval interpola (`inc:qtd|1|99|1`) e prefixa o dono
    (`namespace_action` → `SpinBox::inc:qtd|1|99|1`). O motor quebra no `::`,
-   encontra `SpinBox` no mapa de componentes — builtin entra lá igual a
+   encontra `spinbox` no mapa de componentes — builtin entra lá igual a
    componente de app — e chama o `update` **do widget**, não o da tela.
 
    ```rust
@@ -440,45 +438,45 @@ Button(text = "▲", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}")
 ## Widget que delega: `app:` na frente da ação
 
 O padrão acima é para o widget que **age**. O oposto é o widget que **delega** —
-o `ToolButton` recebe `on_click` por prop e só repassa ao botão interno.
+o `toolbutton` recebe `on_click` por prop e só repassa ao botão interno.
 
 A armadilha: o `namespace_action` prefixa **toda** ação com o dono, então
-`on_click="{on_click}"` vira `ToolButton::salvar`, o motor acha o `ToolButton`
+`on_click="{on_click}"` vira `ToolButton::salvar`, o motor acha o `toolbutton`
 no mapa de componentes e chama o `update` **dele** — que não conhece ação nenhuma
 do app. O handler nunca roda e não há erro: o botão só não faz nada.
 
 O escape é o prefixo `app:`, que sai no lugar do prefixo de dono:
 
 ```gv
-Button(text = @text, on_click = "app:{on_click}")
-TextInput(value = @value, onChange = "app:{on_change}")
+button(text = @text, on_click = "app:{on_click}")
+textinput(value = @value, on_change = "app:{on_change}")
 ```
 
 `app:` significa **a tela atual** (é onde o `dispatch` cai sem dono), não o
 componente intermediário que porventura tenha usado o widget — delegar de
 componente para componente ainda depende de um `ctx.dispatch` que o motor não
 tem. Do lado Rust a limitação continua: um `update` não consegue despachar outra
-ação, então um builtin que trata o `on_change` para si (como o `SpinBox`) não
-tem como *também* repassá-lo — um `<TextInput>` só tem um `onChange`.
+ação, então um builtin que trata o `on_change` para si (como o `spinbox`) não
+tem como *também* repassá-lo — um `textinput` só tem um `on_change`.
 
 ## Widget que embrulha conteúdo: o `slot`
 
 As duas seções acima são sobre widgets que recebem **valores**. Um recipiente
-recebe outra coisa: **markup**. `<GroupBox>` não tem prop nenhuma que descreva o
+recebe outra coisa: **markup**. `groupbox` não tem prop nenhuma que descreva o
 que ele mostra — o que ele mostra é o que se escreve entre as tags dele.
 
 ```gv
-GroupBox(title = Rede) {
-  Checkbox(label = "Usar proxy", :checked = proxy)
-  Button(text = Salvar, on_click = salvar)
+groupbox(title = Rede) {
+  checkbox(label = "Usar proxy", :checked = proxy)
+  button(text = Salvar, on_click = salvar)
 }
 ```
 
 Escreva `slot` no template do builtin onde esse conteúdo deve entrar:
 
 ```gv
-Container(class = groupbox-frame, padding = "{padding|12}") {
-  Column(spacing = "{spacing|8}") {
+container(class = groupbox-frame, padding = "{padding|12}") {
+  column(spacing = "{spacing|8}") {
     slot
   }
 }
@@ -495,7 +493,7 @@ O conteúdo do slot é avaliado no **contexto** e com o **dono** de quem usou o
 widget — antes de qualquer prop entrar em cena. Consequências práticas:
 
 - `on_click="salvar"` lá em cima chega no `update` da **tela**, não no do
-  `GroupBox`. **Não** se escreve `app:` no conteúdo — esse prefixo é para o
+  `groupbox`. **Não** se escreve `app:` no conteúdo — esse prefixo é para o
   outro caso, o da ação recebida por prop (seção anterior).
 - `{host}` dentro do conteúdo lê o contexto da tela, e **não** enxerga as props
   do recipiente (`{title}` ali dentro não resolve para o título do GroupBox).
@@ -504,13 +502,13 @@ widget — antes de qualquer prop entrar em cena. Consequências práticas:
 
 ### Conteúdo de reserva
 
-Os filhos escritos dentro do próprio `<slot>` aparecem quando quem usou não
+Os filhos escritos dentro do próprio `slot` aparecem quando quem usou não
 escreveu nada. Esses são do componente — avaliam no contexto dele e **enxergam**
 as props da instância:
 
 ```gv
 slot {
-  Text(content = "Nada em {title}")
+  text(content = "Nada em {title}")
 }
 ```
 
@@ -568,11 +566,11 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
 ### Limites
 
 - **Nome fixo, resolvido no template.** `slot(name = @aba)` — nome vindo do
-  contexto — ainda não existe. É o que separa o `<tabbar>` de hoje de um
+  contexto — ainda não existe. É o que separa o `tabbar` de hoje de um
   `QTabWidget` inteiro, cuja página visível depende do valor de uma chave.
 
   A saída, quando o conteúdo varia por seção, é **uma tag por seção** em vez de
-  uma coleção: `<accordion>` + `<accordionitem>`, `<toolbox>` + `<toolboxitem>`
+  uma coleção: `accordion` + `accordionitem`, `toolbox` + `toolboxitem`
   (0.85). Cada item tem o seu `slot` anônimo, e o conteúdo continua sendo de
   quem escreveu a tela. É a mesma forma que o Qt usa —
   `QToolBox::addItem(widget, "Título")` também recebe uma seção por chamada.
@@ -581,12 +579,12 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
   como perceber que ele mudou. Custo desprezível — são os containers da tela —,
   mesma exceção que uma lista reordenável já tinha.
 
-## Componente recebido por atributo: `<render>`
+## Componente recebido por atributo: `render`
 
 O `slot` recebe **markup**. Às vezes o que um componente precisa receber é
 **outro componente** — o cabeçalho de uma lista, a linha que ela repete, o que
 aparece quando ela está vazia — escolhido por quem usa. A prop leva o **nome**
-do componente, e o `<render>` o desenha:
+do componente, e o `render` o desenha:
 
 ```gv
 // no uso
@@ -600,18 +598,18 @@ foreach(items = @itens, var = item, fallback = @vazio) {
 }
 ```
 
-- O nome interpola no contexto de quem escreveu o `<render>`. Dali em diante o
+- O nome interpola no contexto de quem escreveu o `render`. Dali em diante o
   nó **é** a tag `TituloDestaque(…)`: os outros atributos são as props, os
   filhos são o conteúdo do slot, `class`/`id` viram overlay e a guarda de
   recursão vale.
 - Nome que resolve para vazio não desenha nada — é o componente opcional
   (`prop(name = rodape, default = "")`).
 - Nome que não está registrado é `UnknownComponent`. Vale qualquer nome do
-  espaço de componentes: declarado no `<resources>`, importado, registrado pelo
+  espaço de componentes: declarado no `resources`, importado, registrado pelo
   app ou builtin.
-- `<renderizar>` é apelido; o nome aceita `component`, `componente` ou `is`.
+- O nome aceita `component` ou `is`.
 - `spread="{item}"` combina bem com linhas intercambiáveis: cada componente
-  recebe só os campos que **ele** declara no `<props>`.
+  recebe só os campos que **ele** declara no `props`.
 
 ### Declarar a prop como componente: `prop(component)`
 
@@ -635,12 +633,12 @@ não muda (`cabecalho="TituloDestaque"`), e ganha duas coisas:
   `cabecalho="TituloDestaque"` leva à declaração, e o F12 também. Numa prop
   sem o marcador o valor continua sendo texto, sem link.
 
-`componente` é apelido. Escrito com valor (`component="Titulo"`) é erro de
-parse: o nome vem de quem usa, não do `<prop>`.
+Escrito com valor (`component="Titulo"`) é erro de
+parse: o nome vem de quem usa, não do `prop`.
 
 ## Lista vazia: `fallback`
 
-`<foreach>` aceita `fallback` (apelido `reserva`): o componente desenhado **no
+`foreach` aceita `fallback`: o componente desenhado **no
 lugar** da lista quando ela não tem item nenhum — array vazio, ou a chave ainda
 sem array (a mesma leitura do `if(empty)`).
 
@@ -650,8 +648,8 @@ foreach(items = concluidas, var = c, fallback = ListaVazia) {
 }
 ```
 
-No `<template>` o atributo se chama **`foreach_fallback`** (ou
-`foreach-fallback`):
+No `template` o atributo se chama **`foreach_fallback`** (ou
+`foreach_fallback`):
 
 ```gv
 template(foreach = concluidas, var = c, foreach_fallback = ListaVazia) {
@@ -659,32 +657,30 @@ template(foreach = concluidas, var = c, foreach_fallback = ListaVazia) {
 }
 ```
 
-O nome é mais longo de propósito. O `<template>` também é `if`, `else-if`,
+O nome é mais longo de propósito. O `template` também é `if`, `else_if`,
 `else` e `slot`, e um `fallback` solto num `template(if)` leria como "senão".
-Com o papel no nome não há o que adivinhar — e `fallback` num `<template>` é
+Com o papel no nome não há o que adivinhar — e `fallback` num `template` é
 erro de parse, que aponta para `foreach_fallback`.
 
 - O valor é um **nome de componente**, literal ou interpolado
   (`fallback="{vazio}"`, que é como um componente repassa o que recebeu por
   prop). Resolveu para vazio: sem fallback.
 - O componente entra sem props, no contexto e com o dono de quem escreveu o
-  `<foreach>`: ele enxerga as chaves da tela e as props do componente em volta
+  `foreach`: ele enxerga as chaves da tela e as props do componente em volta
   (um `SemResultado` pode mostrar `{filtro}`).
 - O nome é conferido a **cada avaliação**, com a lista cheia ou não. Um
   `fallback="LsitaVazia"` erra na primeira vez que a tela aparece, e não no dia
   em que a lista esvaziar.
-- `foreach_fallback` num `<template>` sem `foreach` também é erro de parse.
-- O atributo `for-each` de um elemento (`Cartao(:for-each = "…")`) não aceita
+- `foreach_fallback` num `template` sem `foreach` também é erro de parse.
+- O atributo `for_each` de um elemento (`Cartao(:for_each = "…")`) não aceita
   nenhum dos dois: ali `fallback` seria uma prop do componente repetido.
 
-### Armadilha: nome de componente que já é apelido de primitiva
+### Armadilha: nome de componente que já é uma tag do motor
 
-O parser mapeia a tag **antes** de procurar componentes. `Painel` é apelido do
-`<popover>`, então um `component(name = Painel)` nunca é alcançado:
-`Painel(…)` vira um popover vazio, sem erro. Os exemplos
-`componentes_por_atributo` usam `Vitrine` por isso. Antes de batizar um
-componente com um substantivo comum em português, procure o nome entre as tags
-de `parser.rs`.
+O parser mapeia a tag **antes** de procurar componentes. Um `component(name =
+popover)` nunca é alcançado: `popover(…)` vira a primitiva, sem erro. Antes de
+batizar um componente, procure o nome entre as tags de `parser.rs` (componentes do
+app usam `CamelCase`, e por isso não colidem).
 
 ## Um builtin que é o corpo de um diálogo (0.94)
 
@@ -698,22 +694,22 @@ props**. Então a configuração chega por onde ela pode chegar — **chaves de
 contexto** com o prefixo `__dialog.` (ver `dialogs::DIALOG_KEY_PREFIX`):
 
 ```gv
-se(cond = @__dialog.kind, one_of = "int,double") {
-  SpinBox(:value = "__dialog.value", min = "{__dialog.min|0}", …)
+template(if = @__dialog.kind, one_of = "int double") {
+  spinbox(:value = "__dialog.value", min = "{__dialog.min|0}", …)
 }
-senaose(cond = @__dialog.kind, equals = item) {
-  Select(:options = "__dialog.items", :value = "__dialog.value", …)
+template(else_if = @__dialog.kind, equals = item) {
+  select(:options = "__dialog.items", :value = "__dialog.value", …)
 }
-senao {
-  TextInput(:value = "__dialog.value", placeholder = @__dialog.placeholder, …)
+template(else) {
+  textinput(:value = "__dialog.value", placeholder = @__dialog.placeholder, …)
 }
 ```
 
-É a mesma escolha que o `<datetimeedit>` fez com o `__timeedit` na 0.70, e pelo
+É a mesma escolha que o `datetimeedit` fez com o `__timeedit` na 0.70, e pelo
 mesmo motivo: o widget não existe como nó que alguém escreveu.
 
 O `__` no nome não é decoração — ele diz que a peça é interna. Um builtin normal
-ganha um nome que o app escreveria (`Badge`, `Card`, `ToolBar`).
+ganha um nome que o app escreveria (`badge`, `card`, `toolbar`).
 
 ### O prefixo é apagado no fechamento
 
@@ -729,7 +725,7 @@ sido lida.
 O motor só mantém avaliada a **tela ativa** — uma economia deliberada do
 `reevaluate_all` —, e o corpo de um diálogo não é a tela ativa. Sem fixá-lo,
 `GlacierUI::render` falha com "registrado mas não avaliado", o `render_current`
-engole o erro (de propósito: um `<dialog>` com nome errado não pode derrubar a
+engole o erro (de propósito: um `dialog` com nome errado não pode derrubar a
 tela) e o cartão aparece **sem o conteúdo**: título, botões, e um buraco.
 
 Quem cuida disso é `fixa_corpo_do_dialogo`/`solta_corpo_do_dialogo`, chamados em
@@ -738,12 +734,12 @@ abertura, ele precisa fixar — o sintoma de esquecer é mudo.
 
 ### Duas armadilhas, e as duas custaram um bug silencioso
 
-**1. Um `<TextInput>`/`<Select>` não grava a chave sozinho.** Ele despacha
-`onChange` com o texto novo, e quem escreve é quem trata a ação. Sem a prop, a
+**1. Um `textinput`/`select` não grava a chave sozinho.** Ele despacha
+`on_change` com o texto novo, e quem escreve é quem trata a ação. Sem a prop, a
 ação sai **vazia** — é roteada para a tela ativa, que não a trata, e o campo
 fica decorativo: mostra o valor inicial, aceita digitação e não guarda nada.
 
-Um `<SpinBox>` não tem esse problema porque é builtin e escreve a própria chave;
+Um `spinbox` não tem esse problema porque é builtin e escreve a própria chave;
 a diferença entre os dois é fácil de esquecer justamente por isso.
 
 **2. A ação de um corpo de diálogo não ganha namespace.** Uma ação num template
@@ -753,10 +749,10 @@ não inlinado numa tela, então não há dono — e a ação sai nua, indo parar
 ativa. Por isso o template escreve o namespace à mão:
 
 ```gv
-TextInput(:value = "__dialog.value", onChange = "__InputDialog::editar")
+textinput(:value = "__dialog.value", on_change = "__InputDialog::editar")
 ```
 
-**Como testar isso**, já que o sintoma é silencioso: procure a ação de `onChange`
+**Como testar isso**, já que o sintoma é silencioso: procure a ação de `on_change`
 na árvore **avaliada** e falhe se ela for vazia, em vez de escrever a chave com
 `define_data` — que é exatamente o que o campo deveria fazer, e por isso esconde
 o buraco.
@@ -794,7 +790,7 @@ fn test_divider_disponivel_sem_registro() {
     let mut motor = GlacierUI::new();
     std::fs::create_dir_all("templates").ok();
     let tela = "templates/test_divider.gv";
-    std::fs::write(tela, r##"<Column><Divider divider_color="#f00" /></Column>"##).unwrap();
+    std::fs::write(tela, r##"column { divider(divider_color = "#f00") }"##).unwrap();
 
     motor.register_component("tela", tela).unwrap(); // NÃO registra Divider
 
@@ -812,7 +808,7 @@ Veja `tests/engine_tests.rs`:
 - `test_slot_conteudo_do_uso_pertence_a_quem_escreveu` — a garantia central do `slot`.
 - `test_slot_reserva_quando_o_uso_nao_passa_nada` — o conteúdo de reserva.
 - `test_builtins_onda2_disponiveis_sem_registro` — os quatro recipientes embrulhando conteúdo.
-- `test_builtin_tabbar_escreve_a_chave_do_app` — a barra de abas pelo padrão do `SpinBox`.
+- `test_builtin_tabbar_escreve_a_chave_do_app` — a barra de abas pelo padrão do `spinbox`.
 - `test_atributo_numerico_templado` — prop num atributo numérico.
 - `test_template_default_inline` — a sintaxe `{prop|default}`.
 
@@ -828,9 +824,9 @@ Veja `tests/engine_tests.rs`:
 - [ ] Se embrulha conteúdo: `slot` no template, e um teste de que a ação de
       dentro chega na tela sem o prefixo do dono.
 
-## Referência: o `Badge`
+## Referência: o `badge`
 
-`Badge` é o exemplo canônico — uma "pílula" de rótulo, puramente apresentacional,
+`badge` é o exemplo canônico — uma "pílula" de rótulo, puramente apresentacional,
 com props string e numérica, todas com default inline. Veja o código-fonte em
 `src/builtins/badge.rs` e o exemplo executável em `examples/builtins/` (`cargo run
 --example builtins`).

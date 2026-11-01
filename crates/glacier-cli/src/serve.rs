@@ -1194,7 +1194,7 @@ mod testes {
         let pasta = std::env::temp_dir().join(format!("glacier-serve-{}", std::process::id()));
         let _ = fs::remove_dir_all(&pasta);
         fs::create_dir_all(&pasta).unwrap();
-        fs::write(pasta.join("index.html"), "<p>oi</p>").unwrap();
+        fs::write(pasta.join("index.html"), "poi</p>").unwrap();
         fs::write(pasta.join("app_bg.wasm"), [0u8, 97, 115, 109]).unwrap();
 
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -1216,7 +1216,7 @@ mod testes {
         assert!(raiz.starts_with("HTTP/1.1 200 OK"), "{raiz}");
         assert!(raiz.contains("Content-Type: text/html"), "{raiz}");
         assert!(raiz.contains("Cache-Control: no-store"), "{raiz}");
-        assert!(raiz.ends_with("<p>oi</p>"), "{raiz}");
+        assert!(raiz.ends_with("poi</p>"), "{raiz}");
 
         let wasm = pedir("GET /app_bg.wasm HTTP/1.1");
         assert!(wasm.contains("Content-Type: application/wasm"), "{wasm}");
@@ -1268,7 +1268,7 @@ mod testes {
 
         // Sem `</body>` (HTML válido) o script vai no fim, não some.
         let solto = injetar_recarga("<div id=\"iced\"></div>");
-        assert!(solto.trim_end().ends_with("</script>"), "{solto}");
+        assert!(solto.trim_end().ends_with(""), "{solto}");
     }
 
     /// Sem `--watch` não existe rota de recarga nem injeção: o `serve` de

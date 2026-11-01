@@ -2,7 +2,7 @@
 --
 -- O texto do artigo mora em ARQUIVOS (examples/conteudo_prose): o `fetch("file://…")` os
 -- lê e as chaves do contexto alimentam os `prose(content = "{chave}")` da tela. É o
--- mesmo caminho de um texto que viesse de uma API ou de um banco — o `<prose>` só vê a
+-- mesmo caminho de um texto que viesse de uma API ou de um banco — o `prose` só vê a
 -- chave. Três sintaxes para o MESMO artigo.
 
 local function ler(caminho: string): string

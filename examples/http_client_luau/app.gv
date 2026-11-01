@@ -16,12 +16,12 @@ screen(
 
     column(class = corpo) {
       text(
-        class = lead,
-        content = """
+        """
           Um `http("https://…", @{ headers, timeout, retries })` com interceptors
           de requisição/resposta e um error handler. Cada botão é um método do
           client; as chamadas suspendem, sem travar a janela.
         """,
+        class = lead,
       )
 
       row(class = acoes) {

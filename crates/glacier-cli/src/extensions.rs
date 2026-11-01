@@ -1,6 +1,6 @@
 //! Instalação das extensões de VS Code embutidas no binário.
 //!
-//! O caminho é: `package.json` → `.vsix` (ver [`crate::vsix`]) → `<editor>
+//! O caminho é: `package.json` → `.vsix` (ver [`crate::vsix`]) → `editor
 //! --install-extension`. Nada de `npx`/`vsce`: quem roda `cargo install
 //! glacier-cli` não necessariamente tem Node, e a extensão é só markup +
 //! JavaScript já pronto.

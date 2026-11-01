@@ -1,4 +1,4 @@
-// `<audio>`: um arquivo de áudio local com player (botão, barra de posição, tempo). Ver docs/AUDIO.md.
+// `audio`: um arquivo de áudio local com player (botão, barra de posição, tempo). Ver docs/AUDIO.md.
 //
 //   WGPU_BACKEND=gl cargo run --example audio --features audio
 //
@@ -12,7 +12,7 @@ screen(title = "Áudio") {
 
   container(class = caixa) {
     column(class = coluna) {
-      text("<audio>", class = titulo)
+      text("audio", class = titulo)
 
       text("MP3 (8 s, silêncio)", class = rotulo)
       audio(name = mp3, src = "examples/audio/sons/silencio.mp3")

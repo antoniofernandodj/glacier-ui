@@ -15,7 +15,7 @@ pub use iced_winit::android::AndroidApp;
 
 /// Registra o `AndroidApp` no `iced_winit` e liga o logger do `logcat`.
 /// Chamada pela macro, antes de qualquer janela; `tag` é o filtro do
-/// `adb logcat -s <tag>`.
+/// `adb logcat -s tag`.
 pub fn init(app: AndroidApp, tag: &str) {
     android_logger::init_once(
         android_logger::Config::default()

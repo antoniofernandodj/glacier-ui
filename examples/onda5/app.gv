@@ -13,7 +13,7 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
   column(class = "tela coluna") {
     column(class = cabecalho) {
       row(class = linha_titulo) {
-        // O gatilho da gaveta NÃO mora dentro dela: o `<drawer>` não desenha
+        // O gatilho da gaveta NÃO mora dentro dela: o `drawer` não desenha
         // botão nenhum, e a ação carrega o nome da chave — é por isso que
         // ela funciona daqui.
         button(
@@ -28,29 +28,29 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
       }
 
       text(
-        class = intro,
-        content = """
+        """
           Duas coisas que o app montava à mão, na tela, e que agora moram DENTRO
           do widget: a página de uma aba e o painel que flutua. São dois
           habilitadores diferentes — o nome de slot dinâmico e o overlay ancorado
           — mas a pergunta é a mesma: de quem é este conteúdo?
         """,
+        class = intro,
       )
     }
 
     row(class = corpo_com_gaveta) {
-      // A gaveta EMPURRA, não cobre: ela é filha desta `<row>`, com a largura
-      // animada de 0 até 220. Um painel que cobre a tela é um `<popover>`
+      // A gaveta EMPURRA, não cobre: ela é filha desta `row`, com a largura
+      // animada de 0 até 220. Um painel que cobre a tela é um `popover`
       // colado na borda, e o motor já tem um.
       drawer(:value = gaveta, open = @gaveta, size = 220, panel_class = gaveta) {
         text(class = gaveta_titulo, content = "Atalhos")
 
         text(
-          class = nota,
-          content = """
-            `axis="x"` no `<reveal>` é a peça que faltava: o motor já animava
+          """
+            `axis="x"` no `reveal` é a peça que faltava: o motor já animava
             altura desde a 0.90.
           """,
+          class = nota,
         )
 
         button(
@@ -73,7 +73,7 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
 
       scrollable(class = rolagem) {
         column(class = corpo) {
-          // O `<tabs>` é o item 1 da onda, e esta tela o usa como a própria
+          // O `tabs` é o item 1 da onda, e esta tela o usa como a própria
           // navegação: a barra e as três páginas são UM widget. Antes, a
           // lista de abas aparecia duas vezes — uma em `items` e outra numa
           // escada de `se`/`senão`.
@@ -85,14 +85,14 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
             template(slot = paineis) {
               groupbox(title = "Popover — o painel ancorado ao gatilho") {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     A âncora é o LAYOUT do botão, não a posição do cursor: o
                     painel acompanha o gatilho quando a tela rola, e vira para
                     cima sozinho quando o rodapé corta. As duas coisas vêm do
                     `Widget::overlay()` do iced, que mede o painel antes de
                     posicioná-lo.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_larga) {
@@ -137,14 +137,14 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                       // Duas coisas, e a segunda é a que engana.
                       //
                       // `checked` é o NOME da chave, não o valor dela: o
-                      // `<checkbox>` é primitiva e lê o contexto direto, sem
+                      // `checkbox` é primitiva e lê o contexto direto, sem
                       // a indireção `value`/`{value}` que um builtin precisa.
                       //
-                      // E `on_toggle` NÃO é opcional aqui. `<checkbox>` e
-                      // `<slider>` são primitivas da Onda 1: elas disparam a
+                      // E `on_toggle` NÃO é opcional aqui. `checkbox` e
+                      // `slider` são primitivas da Onda 1: elas disparam a
                       // ação e quem grava a chave é o APP — ao contrário do
-                      // `<radiogroup>` (builtin), que grava sozinho, e do
-                      // `<popover>` desta onda, que também grava. Sem a ação,
+                      // `radiogroup` (builtin), que grava sozinho, e do
+                      // `popover` desta onda, que também grava. Sem a ação,
                       // o clique vira uma mensagem de ação vazia e não chega
                       // a lugar nenhum: a caixa não marca e o cursor do
                       // slider não anda, sem erro nenhum.
@@ -183,12 +183,12 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
 
                     column(class = painel) {
                       text(
-                        class = nota_painel,
-                        content = """
+                        """
                           Este abre à direita. Encolha a janela e ele passa a
                           abrir à esquerda — a conta é a mesma que o
                           `overlay::menu` do iced faz entre acima e abaixo.
                         """,
+                        class = nota_painel,
                       )
                     }
                   }
@@ -201,13 +201,13 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                 title = "Popup — a mesma primitiva sem âncora", flat = true,
               ) {
                 text(
-                  class = nota,
-                  content = """
-                    Centrado na janela, e SEM a modalidade de um `<dialog>`: ele
+                  """
+                    Centrado na janela, e SEM a modalidade de um `dialog`: ele
                     não escurece nada nem impede o resto de existir — só está por
                     cima. É a diferença entre QDialog e QMenu, e é por isso que
                     ele não é um diálogo centrado (um diálogo já existe).
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_larga) {
@@ -245,12 +245,12 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                       rule
 
                       text(
-                        class = crua,
-                        content = """
+                        """
                           Clique fora também fecha — e o clique que fecha não
                           chega a mais nada, que é o comportamento de um menu de
                           sistema.
                         """,
+                        class = crua,
                       )
                     }
                   }
@@ -262,14 +262,14 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
             template(slot = busca) {
               groupbox(title = "Autocomplete — filtrar enquanto se digita") {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     A função de verdade desta onda. Ele recorta a lista sozinho
                     (sem acento e sem caixa: "sao paulo" acha "São Paulo"), navega
                     com ▲▼, aceita com Enter e desiste com Esc — e as três teclas
                     ganham do campo focado porque quem as recebe é o OVERLAY, que
                     vem antes na ordem de eventos do iced.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_campo) {
@@ -285,7 +285,7 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                   text(class = rotulo, content = "Serviço")
 
                   // Com `onSelect`, quem grava é o app — e ele recebe o `id`,
-                  // não o rótulo. É o contrato do `<textinput>` mais uma
+                  // não o rótulo. É o contrato do `textinput` mais uma
                   // vez.
                   autocomplete(
                     :value = servico_busca, :items = servicos,
@@ -302,14 +302,14 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                 flat = true,
               ) {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     A linha do QDateEdit está pronta desde a 0.68 carregando um
                     "falta a variante calendarPopup" desde então — porque ela é
                     uma COMPOSIÇÃO: o campo por seções (0.68), a grade (0.84) e o
                     overlay ancorado (esta onda). Os três lados já existiam; isto
                     é a solda.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_campo) {
@@ -337,14 +337,14 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                 }
 
                 text(
-                  class = nota,
-                  content = """
+                  """
                     As duas grades navegam meses independentes: o mês visível mora
                     numa chave derivada da chave editada (`__cal_<chave>`), não
                     numa global. Escolher um dia fecha o painel no MESMO passo em
                     que grava — fosse uma segunda mensagem, o painel ficaria um
                     quadro no ar depois do clique.
                   """,
+                  class = nota,
                 )
               }
             }
@@ -355,22 +355,22 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                 title = "Drawer — o único item da onda que não precisou de habilitador",
               ) {
                 text(
-                  class = nota,
-                  content = """
-                    O plano já o marcava assim: `<slot/>` (0.65) + uma chave
+                  """
+                    O plano já o marcava assim: `slot` (0.65) + uma chave
                     nomeada + a animação que o motor já tinha. Ele entra na onda
                     por PARENTESCO — a mesma pergunta, "de quem é este conteúdo?"
                     —, não por bloqueio.
                   """,
+                  class = nota,
                 )
 
                 text(
-                  class = nota,
-                  content = """
-                    A única peça que faltava era o eixo: o `<reveal>` da 0.90
+                  """
+                    A única peça que faltava era o eixo: o `reveal` da 0.90
                     animava só a altura. `axis="x"` é o mesmo mecanismo na
                     largura.
                   """,
+                  class = nota,
                 )
 
                 row(class = linha_larga) {
@@ -384,38 +384,38 @@ screen(title = "Glacier - Onda 5", size = "1000 800") {
                 }
 
                 text(
-                  class = crua,
-                  content = """
+                  """
                     Repare que o botão acima e o ☰ do cabeçalho fazem a mesma
                     coisa, de lugares diferentes da árvore. A ação carrega o nome
                     da chave (`toggle:gaveta`), que é o padrão do SpinBox — e é o
                     que faz duas gavetas na mesma tela não colidirem.
                   """,
+                  class = crua,
                 )
               }
 
               groupbox(title = "O que esta onda fechou", flat = true) {
                 text(
-                  class = nota,
-                  content = """
+                  """
                     §2.8 — o QTabWidget: a barra saiu na 0.65, a página é esta
                     onda.
                   """,
+                  class = nota,
                 )
 
                 text(
-                  class = nota,
-                  content = """
+                  """
                     §2.12 — de 2/11 para 5/11: Popover, Popup e Autocomplete.
                   """,
+                  class = nota,
                 )
 
                 text(
-                  class = nota,
-                  content = """
+                  """
                     §2.5 — o foco declarado do projeto termina AQUI, não na Onda
                     3.
                   """,
+                  class = nota,
                 )
               }
             }

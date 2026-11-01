@@ -16,7 +16,7 @@ abaixo). O exemplo de aceitação é `examples/app_telas`.
   sombrear em silêncio, o parser dá **erro** para o mesmo nome em dois lugares do
   app (global × tela, ou tela × tela), com a linha. Um componente declarado numa
   tela também fica visível nas outras.
-- **Telas com `script`** só em Luau (a única linguagem de `<script>`): um `lang`
+- **Telas com `script`** só em Luau (a única linguagem de `script`): um `lang`
   desconhecido, como `python`, dá erro na carga.
 - **Janela filha de uma tela do app** (`open_window("tela", { … })`) carrega o
   manifesto inteiro no motor novo e abre na tela pedida, via `WindowSource::AppScreen`.
@@ -30,10 +30,10 @@ abaixo). O exemplo de aceitação é `examples/app_telas`.
 
 ## 0. A ideia
 
-Hoje a raiz de um arquivo é um `<screen>`, e o que é do **aplicativo** (`app`,
-`tray`) vai pendurado no `<resources>` dele. Isso tem dois defeitos:
+Hoje a raiz de um arquivo é um `screen`, e o que é do **aplicativo** (`app`,
+`tray`) vai pendurado no `resources` dele. Isso tem dois defeitos:
 
-1. Um app com várias telas não tem onde declarar o que é do app. `<app>` e `<tray>`
+1. Um app com várias telas não tem onde declarar o que é do app. `app` e `tray`
    "só valem no template principal" (`parser.rs`, doc do `AppMeta`) — numa outra
    tela são **ignorados em silêncio**. É a família de bug que o `CLAUDE.md` chama
    de a mais cara: declaração que parece valer e não vale.
@@ -66,7 +66,7 @@ O que isso garante **por construção**: só existe um `app`, ele só pode estar
 e portanto nenhuma tela tem como discordar dele (`id`, instância única, geometria,
 bandeja, tema, folhas globais).
 
-`app` não precisa de outro nome. Ele já existe, mas **dentro do `<resources>`**; a
+`app` não precisa de outro nome. Ele já existe, mas **dentro do `resources`**; a
 posição não precisa desambiguar: `app` só existe na raiz (a forma dentro de `resources` é removida, ver 1.5).
 
 ---
@@ -131,7 +131,7 @@ que muda é que agora existe um arquivo com raiz `app` que os lista.
 
 ### 1.4 Janela × tela (decidido: opção B)
 
-Hoje `<screen>` mistura **destino de navegação** com **dados da janela do SO**
+Hoje `screen` mistura **destino de navegação** com **dados da janela do SO**
 (`size`, `decorations`…), e o atributo de janela numa tela que não é a inicial era
 ignorado ao navegar — declaração que parece valer e não vale. A separação:
 
@@ -162,7 +162,7 @@ Só o autor usa o framework hoje, então **não se mantém código para as duas 
 - Um arquivo com raiz `screen` continua sendo uma tela válida (é o que `src` aponta
   e o que uma app de uma tela só, sem `app`/`tray`, pode ser). Um arquivo com raiz
   `screen` que declare `app`/`tray` é erro.
-- `<component>` (arquivo que só é pedaço de tela) não muda.
+- `component` (arquivo que só é pedaço de tela) não muda.
 - Todo template, exemplo e doc que usa a forma antiga é migrado **no mesmo
   trabalho** (passo 4); nada fica quebrado no fim.
 - O `.gv` e o XML interno usam a **mesma estrutura** (`app { screen }` e
@@ -204,7 +204,7 @@ Cada passo termina compilando; o passo 1 já remove a forma antiga, então ele e
   a `ScreenMeta` fica só com `title`, e a `ScreenDecl` carrega `name`/`initial`/`src`.
   Atributo de janela num `screen` é erro de parse (1.4).
 - `decls` globais incluem os `component` inline e os `link(rel = import)` do `resources` do `app`.
-- Cada tela inline passa **pelo mesmo caminho de hoje** (um header `Screen` + filhos
+- Cada tela inline passa **pelo mesmo caminho de hoje** (um header `screen` + filhos
   → a lógica existente de dissolver `resources`), uma vez por tela. Reaproveitar,
   não reescrever: o resto do motor nunca soube que existiu cabeçalho.
 - `app`/`tray` dentro de `resources` viram erro (1.5), e o ramo que os lia de lá
@@ -224,14 +224,14 @@ Cada passo termina compilando; o passo 1 já remove a forma antiga, então ele e
   `set_initial_screen`.
 - `template_setup` (`daemon.rs` ~93) vira: se o arquivo tem raiz `app`,
   `register_app`; senão, o comportamento atual. O `run` já sabe se o template vem do
-  padrão/`main_template` (é o que hoje habilita `<app>`/`<tray>`); a regra "só no
+  padrão/`main_template` (é o que hoje habilita `app`/`tray`); a regra "só no
   principal" deixa de existir, porque a raiz `app` é por definição a principal.
 
 ### Passo 3 — hot-reload
 
 Hoje as chaves de `file_mod_times` são por componente. Com telas inline, várias
 telas partilham um arquivo: mudou o arquivo → **re-registrar todas as telas dele**
-(mesmo padrão de `inline_style_key`, que já resolve o mesmo problema para `<style>`).
+(mesmo padrão de `inline_style_key`, que já resolve o mesmo problema para `style`).
 Garantir que a tela ativa e o histórico de navegação sobrevivem ao reload.
 
 ### Passo 4 — documentação, ferramentas e modelos
@@ -239,7 +239,7 @@ Garantir que a tela ativa e o histórico de navegação sobrevivem ao reload.
 - `docs/DAEMON.md`: reescrever as seções 1–3 em torno do `app`; a tabela
   "No markup" aponta para o manifesto; "Antes e depois" ganha o caso de várias telas
   e a tabela do `.main(…)` perde as linhas de `register_component`/`set_initial_screen`.
-- `README.md`, `CHANGELOG.md`, `docs/PRIMITIVAS.md`/`BUILTINS.md` onde citarem `<app>`.
+- `README.md`, `CHANGELOG.md`, `docs/PRIMITIVAS.md`/`BUILTINS.md` onde citarem `app`.
 - `open_window` em Luau passa a aceitar a tabela de opções de janela (`size`, …),
   espelhando o `WindowSpec`; `docs/DIALOGS.md`/`DAEMON.md` e o template `janelas`
   deixam de pôr `size` no `screen` da janela filha.
@@ -247,7 +247,7 @@ Garantir que a tela ativa e o histórico de navegação sobrevivem ao reload.
   `main.rs`/`README.md`/`AGENTS.md` passam para a forma nova; **o `glacier new`
   gera a forma nova**.
 - `examples/convert` (usa `app`): ensinar o conversor `.gv` → `.gv` a
-  emitir a raiz `app` quando houver `<app>`.
+  emitir a raiz `app` quando houver `app`.
 - `editors/vscode-gv` (`extension.js`, `references/glacier-view.md`): completions,
   snippets e validação do `app`/`screen(name, initial, src)`; subir a versão
   (padrão dos últimos commits).

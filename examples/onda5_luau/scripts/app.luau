@@ -10,7 +10,7 @@
 --     sobrevive entre ações mora no `ctx` (o que a tela precisa ver) ou num
 --     `local` do módulo (o que ela não precisa).
 --  2. **`ctx` guarda texto.** Atribuir uma tabela a uma chave a codifica em
---     JSON — que é exatamente o formato que o `items` de um `<autocomplete>`
+--     JSON — que é exatamente o formato que o `items` de um `autocomplete`
 --     (e de qualquer `for-each`) lê.
 --
 -- E uma terceira, que é a que este exemplo em particular torna visível:
@@ -27,7 +27,7 @@
 -- pressionar o gatilho abre, clicar fora fecha, Esc fecha, ▲▼ navegam. O que
 -- está aqui é só o que é do APP.
 
--- As cidades que o `<autocomplete>` filtra. Uma lista literal, para o exemplo
+-- As cidades que o `autocomplete` filtra. Uma lista literal, para o exemplo
 -- não depender de rede — e propositalmente com acento, que é o que o recorte
 -- sem acento do widget existe para resolver: "sao paulo" acha "São Paulo".
 local CIDADES: { string } = {
@@ -54,7 +54,7 @@ local CIDADES: { string } = {
 }
 
 -- Os serviços, com `id` separado do rótulo — é o par que o `onSelect` do
--- `<autocomplete>` entrega: o widget grava o RÓTULO no campo (é o que a pessoa
+-- `autocomplete` entrega: o widget grava o RÓTULO no campo (é o que a pessoa
 -- vê) e manda o `id` para quem pediu (é o que liga a escolha a um registro).
 local SERVICOS: { { id: string, label: string } } = {
     { id = "api", label = "API pública" },
@@ -68,7 +68,7 @@ local SERVICOS: { { id: string, label: string } } = {
 }
 
 function init()
-    -- As abas do `<tabs>`: a MESMA chave que antes alimentava a `<tabbar>`. O
+    -- As abas do `tabs`: a MESMA chave que antes alimentava a `tabbar`. O
     -- que mudou é que a lista não aparece mais uma segunda vez numa escada de
     -- `se`/`senão` — as páginas são `slot="…"` no markup.
     ctx.abas = {
@@ -93,7 +93,7 @@ function init()
     ctx.arquivados = "false"
     ctx.uso_max = "80"
 
-    -- O `<autocomplete>`: a lista inteira numa chave, o texto noutra. Quem
+    -- O `autocomplete`: a lista inteira numa chave, o texto noutra. Quem
     -- recorta é o widget — é a razão de ser dele.
     ctx.cidades = CIDADES
     ctx.cidade = ""
@@ -134,8 +134,8 @@ end
 
 -- As três chaves do painel de filtros.
 --
--- `<checkbox>` e `<slider>` são primitivas da Onda 1: elas **disparam a ação** e
--- quem grava a chave é o app — ao contrário do `<popover>` que as envolve, que
+-- `checkbox` e `slider` são primitivas da Onda 1: elas **disparam a ação** e
+-- quem grava a chave é o app — ao contrário do `popover` que as envolve, que
 -- abre e fecha sozinho. É a mesma divisão que o exemplo `onda1` existe para
 -- mostrar, e a razão de estas três funções existirem: sem elas, a caixa não
 -- marca e o cursor do slider não anda.
@@ -155,7 +155,7 @@ function uso_max()
     ctx.uso_max = value
 end
 
--- O `<autocomplete>` com `onSelect` DELEGA: ele entrega o `id`, e quem decide o
+-- O `autocomplete` com `onSelect` DELEGA: ele entrega o `id`, e quem decide o
 -- que fazer com ele é o app. Sem `onSelect`, o widget grava o rótulo na chave e
 -- ninguém passa por aqui — que é o caso do campo "Cidade" logo acima na tela.
 function escolher_servico()

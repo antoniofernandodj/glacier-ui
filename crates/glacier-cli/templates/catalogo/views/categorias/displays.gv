@@ -5,8 +5,8 @@ component {
        `stroke-width` são apelidos de `background`/`border-color`/`border-width`. */
       .tela_desenho { width: fill; height: 180; background: var(--raised); border_radius: 8; }
       .solido    { fill: var(--accent); }
-      .contorno  { stroke: var(--ok); stroke-width: 2; }
-      .regua     { stroke: var(--border); stroke-width: 1; }
+      .contorno  { stroke: var(--ok); stroke_width: 2; }
+      .regua     { stroke: var(--border); stroke_width: 1; }
       .marca_svg { size: 11; color: var(--muted); }
 
       .cartao { width: 200; }
@@ -17,16 +17,16 @@ component {
     text(class = titulo_cat, content = "Displays e indicadores")
 
     text(
-      class = intro,
-      content = """
-        Tudo aqui é apresentacional — não grava nada. `<qrcode>` usa `content=`
+      """
+        Tudo aqui é apresentacional — não grava nada. `qrcode` usa `content=`
         (interpolado), nunca `value=`.
       """,
+      class = intro,
     )
 
     column(class = demos) {
       column(class = demo) {
-        text(class = rotulo, content = "<text> · <image> · <svg> · <rule>")
+        text(class = rotulo, content = "text · image · svg · rule")
 
         row(class = linha) {
           text(content = "texto simples")
@@ -40,23 +40,23 @@ component {
           rule(direction = vertical)
 
           text(
-            class = marca_svg,
-            content = """
-              um <rule direction="vertical"> à esquerda
+            """
+              um rule(direction = vertical) à esquerda
             """,
+            class = marca_svg,
           )
         }
       }
 
       column(class = demo) {
-        text(class = rotulo, content = "<badge> · <chip> · <avatar>")
+        text(class = rotulo, content = "badge · chip · avatar")
 
         row(class = linha) {
           badge(badge_text = online, badge_bg = #A6E3A1, badge_size = 11)
           badge(badge_text = 3, badge_bg = #F38BA8, badge_size = 11)
 
           chip(
-            :for-each = di_tags, var = tag, label = @tag, class = chip,
+            :for_each = di_tags, var = tag, label = @tag, class = chip,
             on_remove = di_tirar_tag:@tag,
           )
 
@@ -66,7 +66,7 @@ component {
       }
 
       column(class = demo) {
-        text(class = rotulo, content = "<card> · <frame> · <skeleton>")
+        text(class = rotulo, content = "card · frame · skeleton")
 
         row(class = linha) {
           card(title = Servidor, subtitle = produção, class = cartao) {
@@ -95,11 +95,11 @@ component {
 
       column(class = demo) {
         text(
-          class = rotulo,
-          content = """
-            <qrcode content="@{…}"> · <canvas> + formas (<rect> <circle> <line>
+          """
+            qrcode(content = "@{…}") · <canvas> + formas (<rect> <circle> <line>
             <polyline> <polygon> <arc> <path>)
           """,
+          class = rotulo,
         )
 
         row(class = linha) {

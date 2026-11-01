@@ -43,11 +43,11 @@ use iced::Font;
 ///
 /// `Vec` e não `HashMap`: a lista é curta (uma família por peso que o app
 /// embute, tipicamente menos de dez) e a **ordem de registro** é a ordem em que
-/// o `<fontselect>` mostra as opções — um mapa a perderia.
+/// o `fontselect` mostra as opções — um mapa a perderia.
 static REGISTRO: RwLock<Vec<(String, Font)>> = RwLock::new(Vec::new());
 
-/// Registra uma família sob `nome`, para que `font="<nome>"` no `.gv` e
-/// `font_family: <nome>` no `.gss` passem a resolvê-la pelo caminho que **já
+/// Registra uma família sob `nome`, para que `font="nome"` no `.gv` e
+/// `font_family: nome` no `.gss` passem a resolvê-la pelo caminho que **já
 /// existe** (`font_for` → aqui).
 ///
 /// Isto **não carrega bytes** — quem faz isso é
@@ -100,8 +100,8 @@ pub fn registered_families() -> Vec<String> {
 }
 
 /// As famílias disponíveis como um **array JSON de strings** — o formato que
-/// `<combo items="__fonts">` e `<listview :items="__fonts">` já consomem, sem
-/// API nova (a mesma convenção do `<menu :items="chave">`).
+/// `combo(items = __fonts)` e `listview(:items = __fonts)` já consomem, sem
+/// API nova (a mesma convenção do `menu(:items = chave)`).
 ///
 /// [`crate::GlacierUI::set_initial_screen`] semeia isto na chave `__fonts` do
 /// contexto (a família do `__cal_hover`/`__band`/`__colgrip`).

@@ -1,7 +1,7 @@
 /*
 examples/fontes_luau/app.gss
 
-Visual da tela. `font` na `<text class="amostra">` é DADO (a família escolhida,
+Visual da tela. `font` na `text(class = amostra)` é DADO (a família escolhida,
 mostrada como está) — por isso inline no `.gv`, não aqui.
 */
 

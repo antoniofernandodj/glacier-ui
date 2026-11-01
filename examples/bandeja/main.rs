@@ -1,14 +1,14 @@
 //! **Ícone de bandeja** (system tray) + app que **sobrevive à última janela**,
-//! tudo declarado no markup: a `<tray>` e o `<script>` moram no `painel.gv`, e o
+//! tudo declarado no markup: a `tray` e o `script` moram no `painel.gv`, e o
 //! Rust só diz qual arquivo abre.
 //!
-//! Com a `<tray>` no `<resources>`, fechar a janela **não encerra** o app: ele
+//! Com a `tray` no `resources`, fechar a janela **não encerra** o app: ele
 //! recolhe para a bandeja. O menu do ícone controla o ciclo de vida, e o runner
 //! trata as três ações sozinho:
 //!
 //! - **Abrir** (`tray:open`) — reabre (ou foca) a janela principal.
 //! - **Notificações** (`notifications:toggle`) — liga/desliga as notificações do
-//!   SO; o `<check>` acompanha o estado (`{{__notifications}}`).
+//!   SO; o `check` acompanha o estado (`{{__notifications}}`).
 //! - **Sair** (`tray:quit`) — encerra o app de vez.
 //!
 //! No Windows o clique **esquerdo** no ícone também reabre a janela; no Linux não

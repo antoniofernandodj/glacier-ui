@@ -31,7 +31,7 @@ fn motor_com(caso: &str, uso: &str) -> (GlacierUI, String) {
                 <prop name="nome" />
                 <prop name="cor" default="#89B4FA" />
             </props>
-            <Text content="{nome} / {cor}" />
+            <text content="{nome} / {cor}" />
         </component>"##,
     );
     let tela = escreve(
@@ -42,7 +42,7 @@ fn motor_com(caso: &str, uso: &str) -> (GlacierUI, String) {
                 <resources>
                     <link rel="import" href="{cartao}" as="Cartao" />
                 </resources>
-                <Column>{uso}</Column>
+                <column>{uso}</column>
             </screen>"##
         ),
     );
@@ -112,7 +112,7 @@ fn componente_sem_props_nao_e_checado() {
     let livre = escreve(
         CASO,
         "livre.xml",
-        r##"<component><Text content="{qualquer}" /></component>"##,
+        r##"<component><text content="{qualquer}" /></component>"##,
     );
     let tela = escreve(
         CASO,
@@ -120,7 +120,7 @@ fn componente_sem_props_nao_e_checado() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{livre}" as="Livre" /></resources>
-                <Column><Livre inventada="x" /></Column>
+                <column><Livre inventada="x" /></column>
             </screen>"##
         ),
     );
@@ -140,7 +140,7 @@ fn props_vazio_recusa_qualquer_prop() {
     let fechado = escreve(
         CASO,
         "fechado.xml",
-        r##"<component><props></props><Text content="x" /></component>"##,
+        r##"<component><props></props><text content="x" /></component>"##,
     );
     let tela = escreve(
         CASO,
@@ -148,7 +148,7 @@ fn props_vazio_recusa_qualquer_prop() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{fechado}" as="Fechado" /></resources>
-                <Column><Fechado qualquer="x" /></Column>
+                <column><Fechado qualquer="x" /></column>
             </screen>"##
         ),
     );
@@ -172,7 +172,7 @@ fn diretivas_nao_contam_como_prop() {
         "cartao_lista.xml",
         r##"<component>
             <props><prop name="nome" /></props>
-            <Text content="{nome}" />
+            <text content="{nome}" />
         </component>"##,
     );
     let tela = escreve(
@@ -181,7 +181,7 @@ fn diretivas_nao_contam_como_prop() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
-                <Column><Cartao for-each="itens" var="i" nome="{{i.nome}}" /></Column>
+                <column><Cartao for_each="itens" var="i" nome="{{i.nome}}" /></column>
             </screen>"##
         ),
     );
@@ -210,7 +210,7 @@ fn motor_spread(caso: &str, contrato: &str, uso: &str, dados: &str) -> GlacierUI
         &format!(
             r##"<component>
                 {contrato}
-                <Text content="{{nome}}/{{cor}}" />
+                <text content="{{nome}}/{{cor}}" />
             </component>"##
         ),
     );
@@ -220,7 +220,7 @@ fn motor_spread(caso: &str, contrato: &str, uso: &str, dados: &str) -> GlacierUI
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
-                <Column>{uso}</Column>
+                <column>{uso}</column>
             </screen>"##
         ),
     );
@@ -241,7 +241,7 @@ fn spread_preenche_as_props_declaradas() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" />"##,
         r#"[{"nome":"Alice","cor":"rosa"},{"nome":"Bob","cor":"verde"}]"#,
     );
     motor.reevaluate_all().unwrap();
@@ -259,7 +259,7 @@ fn spread_ignora_campo_que_o_contrato_nao_declara() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" />"##,
         r#"[{"nome":"Alice","cor":"rosa","id":7,"interno":{"x":1}}]"#,
     );
     motor
@@ -277,7 +277,7 @@ fn atributo_explicito_ganha_do_spread() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" cor="OVERRIDE" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" cor="OVERRIDE" />"##,
         r#"[{"nome":"Alice","cor":"rosa"}]"#,
     );
     motor.reevaluate_all().unwrap();
@@ -294,7 +294,7 @@ fn spread_nao_dispensa_obrigatoria_ausente_no_dado() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" />"##,
         r#"[{"cor":"rosa"}]"#,
     );
     let msg = motor.reevaluate_all().unwrap_err().to_string();
@@ -309,12 +309,12 @@ fn spread_deixa_o_default_valer() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" />"##,
         r#"[{"nome":"Alice"}]"#,
     );
     motor.reevaluate_all().unwrap();
     let arv = format!("{:?}", motor.evaluated("tela").unwrap());
-    assert!(arv.contains("Alice/azul"), "o default do <prop>: {arv}");
+    assert!(arv.contains("Alice/azul"), "o default do prop: {arv}");
 }
 
 /// Spread de um escalar (ou de uma lista) é erro. Ignorar seria pior: sem
@@ -326,7 +326,7 @@ fn spread_que_nao_e_objeto_erra() {
     let mut motor = motor_spread(
         CASO,
         CONTRATO,
-        r##"<Cartao for-each="itens" var="c" spread="{c}" />"##,
+        r##"<Cartao for_each="itens" var="c" spread="{c}" />"##,
         r#"["Alice"]"#,
     );
     let msg = motor.reevaluate_all().unwrap_err().to_string();
@@ -344,7 +344,7 @@ fn spread_vazio_vale_como_nenhum_campo() {
         "so_opcional.xml",
         r##"<component>
             <props><prop name="cor" default="azul" /></props>
-            <Text content="{cor}" />
+            <text content="{cor}" />
         </component>"##,
     );
     let tela = escreve(
@@ -353,7 +353,7 @@ fn spread_vazio_vale_como_nenhum_campo() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
-                <Column><Cartao spread="{{nao_carregou}}" /></Column>
+                <column><Cartao spread="{{nao_carregou}}" /></column>
             </screen>"##
         ),
     );
@@ -374,7 +374,7 @@ fn spread_sem_contrato_semeia_todo_campo() {
     let livre = escreve(
         CASO,
         "livre_spread.xml",
-        r##"<component><Text content="{a}-{b}" /></component>"##,
+        r##"<component><text content="{a}-{b}" /></component>"##,
     );
     let tela = escreve(
         CASO,
@@ -382,7 +382,7 @@ fn spread_sem_contrato_semeia_todo_campo() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{livre}" as="Livre" /></resources>
-                <Column><Livre for-each="itens" var="c" spread="{{c}}" /></Column>
+                <column><Livre for_each="itens" var="c" spread="{{c}}" /></column>
             </screen>"##
         ),
     );
@@ -406,7 +406,7 @@ fn spread_preserva_lista_aninhada() {
         "card_tags.xml",
         r##"<component>
             <props><prop name="tags" /></props>
-            <Column><Text for-each="tags" var="t" content="[{t}]" /></Column>
+            <column><text for_each="tags" var="t" content="[{t}]" /></column>
         </component>"##,
     );
     let tela = escreve(
@@ -415,7 +415,7 @@ fn spread_preserva_lista_aninhada() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{card}" as="Card" /></resources>
-                <Column><Card for-each="itens" var="c" spread="{{c}}" /></Column>
+                <column><card for_each="itens" var="c" spread="{{c}}" /></column>
             </screen>"##
         ),
     );

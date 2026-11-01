@@ -10,16 +10,16 @@
 //!   series="chave"  → [ { name, points, color? }, … ]
 //!     · a MESMA Moldura e a MESMA escala 1·2·5 da Onda 7
 //!     · limites_multi() só concatena os pontos para a faixa do eixo
-//!     · cor_ciclica() — o ciclo do tema que o <piechart> já usava
+//!     · cor_ciclica() — o ciclo do tema que o piechart já usava
 //!     · uma legenda no canto, translúcida
 //!
-//! Vale para <linechart> e portanto para area= / points=
+//! Vale para linechart e portanto para area= / points=
 //!   → o AreaChart/Scatter da §2.13 sai de 🟡 para ✅
 //! ```
 //!
 //! # O que NÃO mudou
 //!
-//! `<barchart>` e `<piechart>` seguem série-única de propósito (barras
+//! `barchart` e `piechart` seguem série-única de propósito (barras
 //! agrupadas e setores concêntricos são outra decisão de layout), e a leitura
 //! continua sendo em tempo de render: o `update` abaixo troca a chave inteira
 //! e o gráfico se redesenha sozinho, sem handler próprio.

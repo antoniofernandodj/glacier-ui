@@ -14,7 +14,17 @@ impl Component for Lista {
     }
     fn template(&self) -> Template {
         Template::Inline(
-            r#"<screen><column><foreach items="itens" var="s"><container class="item"><text>{s}</text></container></foreach></column></screen>"#
+            r##"
+screen {
+  column {
+    each @itens as s {
+      container(class = item) {
+        text("{s}")
+      }
+    }
+  }
+}
+"##
                 .to_string(),
         )
     }

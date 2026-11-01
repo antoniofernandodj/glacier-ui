@@ -28,7 +28,7 @@
 .titulo { size: 24; bold: true; color: var(--titulo); }
 .fraco { size: 13; color: var(--fraco); }
 
-/* Botão grande e largo: `gradient` pinta o fundo do próprio <button>. Hover
+/* Botão grande e largo: `gradient` pinta o fundo do próprio button. Hover
    clareia e pressed escurece 10% das paradas; disabled corta o alfa. */
 .botao {
   width: fill;

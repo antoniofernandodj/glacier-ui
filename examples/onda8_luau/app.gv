@@ -80,12 +80,12 @@ screen(
 
     column(class = corpo) {
       text(
-        class = lead,
-        content = """
+        """
           Os quatro suspensivos abaixo deixam o fluxo SÍNCRONO: a corrotina para
           no diálogo e volta com a resposta. Cancelar devolve nil — a mesma
           convenção do open_file().
         """,
+        class = lead,
       )
 
       // ── Item 1: o `dialog` declarativo (a mesma tag do exemplo Rust) ──
@@ -104,13 +104,13 @@ screen(
           text(class = valor, content = "Rótulo: @rotulo")
 
           text(
-            class = nota,
-            content = """
+            """
               Este NÃO suspende a corrotina: o botão Salvar despacha uma ação
               comum e o handler Luau lê as chaves __dialog.* que o corpo
               preencheu. O corpo é avaliado no contexto do app, como qualquer tela
               — por isso um diálogo com campo não pede estado por instância.
             """,
+            class = nota,
           )
         }
       }
@@ -130,12 +130,12 @@ screen(
           text(class = valor, content = "Última resposta: @resposta")
 
           text(
-            class = nota,
-            content = """
+            """
               As quatro variantes estáticas do Qt são UM diálogo com corpos
               diferentes — campo de texto, spinbox e lista suspensa, três tags que
               já existiam.
             """,
+            class = nota,
           )
         }
       }
@@ -154,12 +154,12 @@ screen(
             text(class = valor, content = "@progresso_fim")
 
             text(
-              class = nota,
-              content = """
+              """
                 O único da família que NÃO suspende: ele acompanha um trabalho que
                 continua rodando. O número mora numa chave, não no DialogSpec — e
                 o trabalho tem de CEDER A VEZ, senão nenhum quadro é pintado.
               """,
+              class = nota,
             )
           }
         }
@@ -176,11 +176,11 @@ screen(
             }
 
             text(
-              class = nota,
-              content = """
+              """
                 Um prompt cujo campo é uma roda: mesma porta, mesmo retorno. A
                 roda desenha sobre o canvas da Onda 7.
               """,
+              class = nota,
             )
           }
         }
@@ -196,11 +196,11 @@ screen(
           }
 
           text(
-            class = nota,
-            content = """
+            """
               Generalizar o retorno não podia custar a forma que já existia:
               confirm@{} continua sem corpo e continua devolvendo booleano.
             """,
+            class = nota,
           )
         }
       }

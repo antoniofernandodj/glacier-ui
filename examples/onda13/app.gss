@@ -91,7 +91,7 @@ Geometria (`cx`, `d`, `points`, `x`, `y`) é DADO e fica inline no .gv.
 /* Só contorno. */
 .contorno {
   stroke: var(--realce);
-  stroke-width: 2;
+  stroke_width: 2;
 }
 
 /* Preenchida. */
@@ -102,7 +102,7 @@ Geometria (`cx`, `d`, `points`, `x`, `y`) é DADO e fica inline no .gv.
 /* Uma linha fina de referência. */
 .regua {
   stroke: var(--linha);
-  stroke-width: 1;
+  stroke_width: 1;
 }
 
 /* Texto dentro do canvas: `size:` da classe é lido pelo render_canvas. */

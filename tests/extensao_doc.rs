@@ -49,8 +49,8 @@ fn tags_da_extensao(js: &str) -> BTreeMap<String, Vec<String>> {
 }
 
 /// O mesmo casamento que a `resolveNative` do `extension.js` faz: o cabeçalho
-/// que nomeia a grafia, ou um cabeçalho que a mencione entre `<>` (o caso de
-/// `<Else>`, documentado sob o título do `<If>`).
+/// que nomeia a grafia, ou um cabeçalho que a mencione entre crases (o caso de
+/// `else`, documentado sob o título do `template`).
 fn tem_secao(doc_min: &str, grafia: &str) -> bool {
     let g = grafia.to_lowercase();
     doc_min.lines().filter(|l| l.starts_with('#')).any(|l| {
@@ -60,7 +60,7 @@ fn tem_secao(doc_min: &str, grafia: &str) -> bool {
             .trim_start_matches('<')
             .strip_prefix(&g)
             .is_some_and(|r| !r.starts_with(|c: char| c.is_alphanumeric() || c == '_'));
-        nomeia || titulo.contains(&format!("<{g}>"))
+        nomeia || titulo.contains(&format!("`{g}`"))
     })
 }
 

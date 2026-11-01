@@ -6,13 +6,13 @@ screen(
     script(src = "scripts/app.luau")
 
     // ── A: o componente que embrulha um diálogo inteiro ─────────────────
-    // Ele traz o próprio `<dialog>`, o próprio botão e o próprio handler.
+    // Ele traz o próprio `dialog`, o próprio botão e o próprio handler.
     // Ver `views/editor_rotulo.gv`.
     import(name = EditorRotulo, from = "views/editor_rotulo.gv")
 
     // ── B: o componente que um diálogo usa NO CORPO ─────────────────────
-    // `CampoForm` é só rótulo + `<slot/>`. Declarado aqui, montado dentro
-    // do corpo do `<dialog>` abaixo.
+    // `CampoForm` é só rótulo + `slot`. Declarado aqui, montado dentro
+    // do corpo do `dialog` abaixo.
     component(name = CampoForm) {
       props {
         prop(name = label)
@@ -24,7 +24,7 @@ screen(
       }
     }
 
-    // Direction B: um `<dialog>` cujo corpo compõe dois `<CampoForm>`. O
+    // Direction B: um `dialog` cujo corpo compõe dois `CampoForm`. O
     // binding de cada campo (`__dialog.*`) fica aqui, literal; o handler
     // `salvar_perfil` mora no `scripts/app.luau` da tela.
     dialog(
@@ -70,13 +70,13 @@ screen(
           )
 
           text(
-            class = nota,
-            content = """
-              O <EditorRotulo/> traz o próprio <dialog>, o próprio botão e o
+            """
+              O EditorRotulo traz o próprio dialog, o próprio botão e o
               próprio handler. A tela abaixo não declara nada disso — só escreve a
               tag. O botão Salvar do diálogo despacha EditorRotulo::salvar (o ::
               de dono).
             """,
+            class = nota,
           )
 
           EditorRotulo
@@ -98,13 +98,13 @@ screen(
           text(class = valor, content = "Perfil: @perfil")
 
           text(
-            class = nota,
-            content = """
-              O corpo do <dialog name="editar_perfil"> monta dois <CampoForm>
+            """
+              O corpo do dialog(name = editar_perfil) monta dois CampoForm
               (rótulo + slot). Um component avaliado no contexto do app, como
               qualquer nó — o binding de cada campo continua uma chave __dialog.*
               literal.
             """,
+            class = nota,
           )
         }
       }

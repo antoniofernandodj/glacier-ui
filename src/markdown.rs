@@ -1,4 +1,4 @@
-//! `<markdown>`: CommonMark (com tabelas e tachado) convertido em
+//! `markdown`: CommonMark (com tabelas e tachado) convertido em
 //! widgets do `iced` a cada `view`.
 //!
 //! Não usa o `iced::widget::markdown`: ele pede que os `Item`s já parseados vivam
