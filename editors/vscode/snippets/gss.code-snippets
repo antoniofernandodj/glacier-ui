@@ -40,9 +40,9 @@
       ".${1:card} {",
       "\tpadding: ${2:24};",
       "\tbackground: ${3:#1E1E2E};",
-      "\tborder-radius: ${4:16};",
-      "\tborder-width: 1;",
-      "\tborder-color: ${5:#313244};",
+      "\tborder_radius: ${4:16};",
+      "\tborder_width: 1;",
+      "\tborder_color: ${5:#313244};",
       "}"
     ],
     "description": "A card container preset"

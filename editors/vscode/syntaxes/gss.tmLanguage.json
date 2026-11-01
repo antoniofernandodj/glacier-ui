@@ -158,7 +158,7 @@
       "patterns": [
         { "include": "#comments" },
         {
-          "match": "\\b(width|w|height|h|padding|spacing|align-x|align_x|alignX|align-y|align_y|alignY|background|bg|border-radius|border_radius|border-width|border_width|border-color|border_color|color|size|bold|font|font-family|font_family|gradient|text-align|text_align|textAlign|cursor|cursor-icon|cursorIcon|text-color|text_color|textColor|max-width|max_width|maxWidth|max-height|max_height|maxHeight|hidden|display)\\b(?=\\s*:)",
+          "match": "\\b(width|height|padding|spacing|align_x|align_y|background|border_radius|border_width|border_color|stroke|stroke_width|fill|color|size|bold|font|font_family|gradient|text_align|cursor|text_color|max_width|max_height|opacity|transition|hidden|display)\\b(?=\\s*:)",
           "name": "support.type.property-name.gss"
         },
         {
