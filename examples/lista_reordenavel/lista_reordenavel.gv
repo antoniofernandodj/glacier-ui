@@ -1,0 +1,46 @@
+// Lista de tarefas reordenável por drag-and-drop: arraste pelo "⋮⋮" (o
+// `dragHandle`) de um item até a posição de outro para trocá-los de lugar.
+// `on_reorder` dispara quando o item é solto, carregando a nova ordem como um
+// array JSON dos valores de `reorderKey` (aqui, o campo "id" de cada tarefa).
+screen(title = "Glacier - Lista Reordenável (drag-and-drop)") {
+  resources {
+    link(rel = stylesheet, href = "examples/lista_reordenavel/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/lista_reordenavel/theme.json")
+  }
+
+  container(class = caixa) {
+    column(class = coluna) {
+      text(
+        content = "Tarefas (@total) — arraste pelo ⋮⋮ para reordenar",
+        class = titulo,
+      )
+
+      column(class = coluna_2) {
+        // Durante o arrasto, cada item recebe `{t.__dragging}` = "true" no
+        // item que está sendo segurado (injetado pelo engine). Trocamos o
+        // fundo/borda para destacar a linha agarrada — o resto da lista
+        // reflui em volta.
+        each @tarefas as t (on_reorder = reordenar, reorder_key = id) {
+          row(if = @t.__dragging, equals = true, class = linha) {
+            text(drag_handle = true, content = "⋮⋮", class = texto)
+
+            text(content = "@t.nome", class = texto_2)
+          }
+
+          row(else = true, class = linha_2) {
+            text(drag_handle = true, content = "⋮⋮", class = texto_3)
+
+            text(content = "@t.nome", class = texto_2)
+          }
+        }
+      }
+
+      text(
+        content = "Última ordem confirmada: @ultima_ordem", class = texto_4,
+      )
+    }
+  }
+}

@@ -24,7 +24,7 @@ binário pequeno, em vez de uma stack web.
 
 | Peça da web | No Glacier | Estado |
 |---|---|---|
-| HTML | `.gv`/`.gvb`, 60+ tags (`grid`, `flow`, `tableview`, `treeview`, `form`, `select`, `calendar`, gráficos…) | forte |
+| HTML | `.gv`/`.gv`, 60+ tags (`grid`, `flow`, `tableview`, `treeview`, `form`, `select`, `calendar`, gráficos…) | forte |
 | CSS | `.gss`: classes, `#id`, tag, combinadores, pseudo-estados, `@media`, `var(--x)`, `gradient`, escopo por componente | bom |
 | JS | Luau em `<script>`: corrotinas, `require`, timers, `storage` | bom |
 | `fetch` | HTTP/HTTPS (hyper + rustls), gzip, timeout, headers | cobre API JSON |
@@ -90,7 +90,7 @@ Sem isso não há como dizer "menos recursos que o navegador".
 
 ### Fase 1 — Texto rico, links e seleção
 
-- `<a href="…" on_click="…">` com estados de foco/hover, abrindo URL externa ou
+- `a(href = "…", on_click = "…")` com estados de foco/hover, abrindo URL externa ou
   navegando entre telas.
 - Texto inline misto: `<text>` com filhos `<b>`, `<i>`, `<code>`, `<a>`. O `iced` tem
   `rich_text`/`span`; o trabalho é o parser e o `{interpolação}` dentro dos spans.
@@ -102,8 +102,8 @@ selecionável; verificar a árvore avaliada dos spans (não só que renderiza).
 
 **O que saiu, além do pedido:** o texto de leitura virou uma lista de **blocos** no
 `<prose>` (parágrafo, `h1`–`h6`, citação com autoria, listas, **figura com legenda**,
-código, régua), e o `<prose syntax content>` lê o texto de uma chave do contexto — arquivo,
-`fetch` ou banco — em `gva`, `gvb`, `html` ou `markdown`, tratando-o como **não-confiável**
+código, régua), e o `prose(syntax, content)` lê o texto de uma chave do contexto — arquivo,
+`fetch` ou banco — em `gv`, `html` ou `markdown`, tratando-o como **não-confiável**
 (só links `http`/`https`/`mailto`, sem `on_click`/`navigate_to`, imagem só local). O foco de
 teclado nos links e a seleção de texto estão feitos. Ver `docs/TEXTO.md`.
 
@@ -193,11 +193,11 @@ rodada; continua sem saída pronta, ver acima). Também em aberto: ler o `src` d
 **Aceitação:** o exemplo da Fase 0 trocando pt-BR ↔ en sem reiniciar.
 
 **Estado (2026-10-31): feita, com ressalvas.** `{t("chave", n=…)}`, `{num(…)}` e `{date(…)}` no
-markup (`.gva` e `.gvb`), catálogo JSON por locale com plural (CLDR para pt/en/ru/ar/fr/pl…),
+markup (`.gv`), catálogo JSON por locale com plural (CLDR para pt/en/ru/ar/fr/pl…),
 locale ativa na chave `__locale` (a do sistema por padrão), `locales_dir`/`locale_json` no
-daemon e o global Luau `i18n`. **Medida** com o exemplo `gvb_i18n` (Rust) e `gvb_i18n_luau`
+daemon e o global Luau `i18n`. **Medida** com o exemplo `i18n` (Rust) e `i18n_luau`
 em janela real: en → pt-BR → ru trocando ao vivo, com plural, número e data. **Ressalvas:**
-conferida também no **painel da Fase 0** (`examples/gvb/painel`, com botões Português/English;
+conferida também no **painel da Fase 0** (`examples/painel`, com botões Português/English;
 o `web/index.html` ganhou os mesmos; as colunas do Glacier e do Chrome de `docs/MEDICOES.md` foram **refeitas** com ele — sem diferença mensurável); **RTL**: o `cosmic-text` faz o
 bidi *dentro* da linha (conferido em árabe), mas o **layout não espelha**; sem dígitos/
 calendários locais, hora, moeda, gênero/ICU `select`, hot-reload do catálogo. Ver
@@ -263,9 +263,9 @@ Fase 0 (2026-10-30): a primeira medição era de um painel que não carregava os
 lista (defeito do motor no `init` + erro do painel); refeita. Ver `docs/MEDICOES.md`.
 
 Fase 1 (2026-10-30): estilo inline só dentro de `<prose>`, em blocos; `<a>` com hover e foco
-de teclado (Tab/Enter/Espaço); `selectable` em `<text>`/`<prose>` (via `<textarea readonly>`,
+de teclado (Tab/Enter/Espaço); `selectable` em `<text>`/`<prose>` (via `textarea(readonly)`,
 perdendo estilo e link); `<markdown>` com tabelas, imagens **locais** e legenda;
-`<prose syntax content>` em `gva`/`gvb`/`html`/`markdown`, com o conteúdo dinâmico tratado
+`prose(syntax, content)` em `gv`/`html`/`markdown`, com o conteúdo dinâmico tratado
 como não-confiável. Fica fora: lista aninhada e tabela dentro do `<prose>`.
 
 Remoção do `webview_url` e da feature `webview` (2026-10-30): era uma tela remota por outro

@@ -7,7 +7,7 @@
 
 use glacier_ui::{EngineMessage, GlacierUI, NodeType};
 
-/// Um `.gv` (e um `.gss` irmão) temporário, com nome ÚNICO por teste — os
+/// Um `.xml` (e um `.gss` irmão) temporário, com nome ÚNICO por teste — os
 /// testes rodam em paralelo e um nome fixo faria um sobrescrever o arquivo do
 /// outro no meio do `register_component`. `{GSS}` no markup vira o caminho do
 /// `.gss`.
@@ -15,7 +15,7 @@ fn tela(nome: &str, markup: &str, gss: &str) -> GlacierUI {
     std::fs::create_dir_all("templates").ok();
     let gss_path = format!("templates/{nome}.gss");
     std::fs::write(&gss_path, gss).unwrap();
-    let gv = format!("templates/{nome}.gv");
+    let gv = format!("templates/{nome}.xml");
     std::fs::write(&gv, markup.replace("{GSS}", &gss_path)).unwrap();
     let mut motor = GlacierUI::new();
     motor.register_component("tela", &gv).unwrap();
@@ -153,11 +153,11 @@ fn linha_do_canvas_segue_um_every_do_luau() {
          function init() ctx.ponta_x = tostring(x) end\n",
     )
     .unwrap();
-    std::fs::write("templates/onda13_agulha.gv", markup).unwrap();
+    std::fs::write("templates/onda13_agulha.xml", markup).unwrap();
 
     let mut motor = GlacierUI::new();
     motor
-        .register_component("tela", "templates/onda13_agulha.gv")
+        .register_component("tela", "templates/onda13_agulha.xml")
         .unwrap();
     motor.navigate_to("tela");
 

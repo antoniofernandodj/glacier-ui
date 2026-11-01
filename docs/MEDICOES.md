@@ -1,7 +1,7 @@
 # Medições (Fase 0 do `PLANO_SUBSTITUIBILIDADE.md`)
 
 O painel de referência tem uma lista, um formulário, um `fetch` e um gráfico de
-barras: `examples/gvb/painel` (Glacier) e `examples/gvb/painel/web/index.html` (o
+barras: `examples/painel` (Glacier) e `examples/painel/web/index.html` (o
 equivalente em HTML, sem framework). Reproduzir:
 
 ```

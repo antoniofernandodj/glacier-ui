@@ -10,9 +10,9 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                 a casca: registra views/app.gvb e abre a janela
+src/main.rs                 a casca: registra views/app.gv e abre a janela
 views/
-├── app.gvb                  KPIs (<card>) + <linechart series>/<barchart>/<donut>/<gauge>/<sparkline>
+├── app.gv                  KPIs (<card>) + <linechart series>/<barchart>/<donut>/<gauge>/<sparkline>
 ├── scripts/app.luau        janelas rolantes por série; every(1000) as empurra e re-projeta no ctx
 └── styles/
     ├── theme.json          cores base
@@ -26,9 +26,9 @@ O `ctx` é a **vitrine**, não o depósito. As séries de verdade são arrays Lu
 mais antigo e re-encoda tudo em `ctx.serie_req`, `ctx.spark_cpu`, … Os widgets
 leem essas chaves e redesenham — nenhum deles sabe que existe um `every`.
 
-`<linechart series="serie_req">` recebe `[{ name, points }]` — várias linhas com
+`linechart(:series = serie_req)` recebe `[{ name, points }]` — várias linhas com
 legenda e cores do ciclo do tema. `<barchart>`, `<piechart>`/`<donut>` seguem
-série única. `<gauge bands="g_bands" needle="true">` pinta as faixas inteiras e
+série única. `gauge(bands = g_bands, needle = true)` pinta as faixas inteiras e
 deixa a agulha apontar a leitura.
 
 ## Trocar a fonte dos dados
@@ -39,4 +39,4 @@ suspende sem travar a UI) ou por leituras de `/proc`, mantendo o mesmo
 
 ## Hot-reload
 
-Salve `app.gvb`, `app.gss` ou `app.luau` com a janela aberta: aplica na hora.
+Salve `app.gv`, `app.gss` ou `app.luau` com a janela aberta: aplica na hora.

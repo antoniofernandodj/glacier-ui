@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Gera os áudios do exemplo `gvb_audio`, sem encoder nem arquivo de terceiros.
+"""Gera os áudios do exemplo `audio`, sem encoder nem arquivo de terceiros.
 
-  python3 tools/gera_audio_exemplo.py examples/gvb/audio/sons
+  python3 tools/gera_audio_exemplo.py examples/audio/sons
 
 - `tom.wav`: seno de 440 Hz com decaimento, 8 s, 16 bits mono 22,05 kHz (audível).
 - `silencio.mp3`: 8 s de MP3 válido (MPEG-1 Layer III, 128 kbps, 44,1 kHz, estéreo) feito só de

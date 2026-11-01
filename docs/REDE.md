@@ -1,17 +1,16 @@
 # Rede: `fetch`, `http()`, cookies, multipart, cancelamento e progresso
 
-Fase 5 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em quatro formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
+Fase 5 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo completo, em duas formas — `fetch`, o cliente `http()`, cookies, multipart, `abort`,
 `timeout`, `file://`, `download_file` e o método `QUERY`, em 21 casos na tela. Os exemplos **ligam e
 desligam sozinhos** o servidor de teste (`tools/servidor_rede.py`, porta 8096; se já houver um na
 porta, usam o existente). Ao rodar o script à mão: `python3 tools/servidor_rede.py`.
 
-| | estado em Rust | estado em Luau |
-|---|---|---|
-| `.gva` | `rede_completa` | `rede_completa_luau` |
-| `.gvb` | `gvb_rede_completa` | `gvb_rede_completa_luau` |
+| estado em Rust | estado em Luau |
+|---|---|
+| `rede_completa` | `rede_completa_luau` |
 
 Os de Rust usam a API pública `glacier_ui::net` (abaixo: `Request`, `Client`…) por
-`examples/comum/rede_rust.rs`; os de Luau, o `fetch` e o `http()` do prelúdio. Para o progresso
+`examples/rede_completa/rede_rust.rs`; os de Luau, o `fetch` e o `http()` do prelúdio. Para o progresso
 há `rede_progresso` (Luau) e `rede_progresso_rust` (Rust, com `Request::on_progress` e uma
 `subscription` que leva o número à UI).
 

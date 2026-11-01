@@ -1,0 +1,48 @@
+screen(
+  title = "Glacier — séries múltiplas (Luau)", size = "980 720",
+  min_size = "840 580",
+) {
+  resources {
+    link(rel = stylesheet, href = "examples/series_multiplas_luau/app.gss")
+    script(src = "scripts/app.luau")
+  }
+
+  column(class = tela) {
+    row(class = barra) {
+      text(
+        class = titulo,
+        content = "Onda 11 · habilitador C — séries múltiplas (Luau)",
+      )
+
+      space(class = empurra)
+      text(class = status, content = "@status")
+    }
+
+    scrollable(class = rolagem) {
+      column(class = corpo) {
+        text(
+          class = lead,
+          content = """
+            O script escreve uma tabela `name, points, color?` na chave; o gráfico
+            a lê no render. Nenhuma linha de Luau desenha nada.
+          """,
+        )
+
+        column(class = bloco) {
+          text(class = secao, content = "linechart — carga por serviço")
+          linechart(:series = carga, min = 0, grid = true, class = grafico)
+
+          row(class = acoes) {
+            button(text = "+1 amostra", on_click = amostrar)
+            button(text = zerar, on_click = zerar, class = btn-fraco)
+          }
+        }
+
+        column(class = bloco) {
+          text(class = secao, content = "area — a mesma série, preenchida")
+          linechart(:series = carga, min = 0, area = true, class = grafico)
+        }
+      }
+    }
+  }
+}

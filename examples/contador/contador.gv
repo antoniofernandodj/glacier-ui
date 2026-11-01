@@ -1,0 +1,19 @@
+screen(title = "Glacier - Contador") {
+  resources {
+    link(rel = stylesheet, href = "examples/contador/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/contador/theme.json")
+  }
+
+  container(class = caixa) {
+    column(class = "coluna coluna_2") {
+      text(content = "Valor do Contador: @contador", class = titulo)
+      row(class = "linha linha_2") {
+        button(text = Diminuir, on_click = decrementar, class = botao)
+        button(text = Aumentar, on_click = incrementar, class = botao_2)
+      }
+    }
+  }
+}

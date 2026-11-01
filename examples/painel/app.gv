@@ -1,0 +1,39 @@
+// Painel de referência da Fase 0 do PLANO_SUBSTITUIBILIDADE: lista, formulário,
+// fetch e gráfico. É o MESMO painel que se mede contra uma aba do Chrome e contra
+// um equivalente Tauri — ver docs/MEDICOES.md. Não o enfeite: o que se mede só
+// vale se a tela for a mesma (por isso o web/index.html tem os mesmos botões de idioma
+// e as mesmas traduções). Os textos vêm de locales/*.json: `{t('chave')}`; o idioma
+// inicial é pt-BR, o de antes, e os botões de baixo trocam pt-BR ↔ en ao vivo.
+screen(title = "Painel", size = "760 520") {
+  resources {
+    link(rel = stylesheet, href = "examples/painel/app.gss")
+    script(src = "scripts/app.luau")
+  }
+
+  column(class = tela) {
+    text(content = "{t('titulo')}", class = titulo)
+
+    row(class = linha) {
+      textinput(:value = novo_nome, placeholder = "{t('nome_servico')}", class = campo)
+      button(text = "{t('adicionar')}", on_click = adicionar, class = botao)
+    }
+
+    row(class = linha) {
+      column(class = lista) {
+        foreach(items = servicos, var = s) {
+          text(content = "{s.nome} — {t(s.estado)}", class = item)
+        }
+      }
+      column(class = grafico) {
+        text(content = "{t('grafico')}", class = rotulo)
+        barchart(:items = serie, colorful = true, width = 380, height = 220)
+        text(content = "{t(status_estado)}{status_sufixo}", class = rotulo)
+      }
+    }
+
+    row(class = linha) {
+      button(text = "Português", on_click = idioma_pt, class = botao)
+      button(text = "English", on_click = idioma_en, class = botao)
+    }
+  }
+}

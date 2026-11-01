@@ -12,12 +12,15 @@ repositório — os que já existem e os que vierem.
 
 ### 1. Tags do motor em minúsculas; componentes do app com o nome registrado
 
-```xml
-<!-- não -->
-<Column spacing="10"><TextInput onChange="salvar" minSize="200 100" /></Column>
-
-<!-- sim -->
-<column><textinput on_change="salvar" min_size="200 100" /></column>
+```gv
+// não
+Column(spacing = 10) {
+  TextInput(onChange = salvar, minSize = "200 100")
+}
+// sim
+column {
+  textinput(on_change = salvar, min_size = "200 100")
+}
 ```
 
 Vale para **primitivas e builtins** — o motor aceita `CamelCase`, `camelCase` e
@@ -27,29 +30,28 @@ resultado natural de não decidir.
 
 **A exceção é obrigatória, não estilística:** a tag de um componente do app é
 resolvida pelo **nome com que ele foi registrado**, e a busca é sensível a
-caixa. `<MeuCartao/>` funciona; `<meucartao/>` é `UnknownComponent`.
+caixa. `MeuCartao` funciona; `meucartao` é `UnknownComponent`.
 
 Isso dá à convenção uma propriedade que vale de graça: numa tela, **`CamelCase`
 significa "componente deste app"** e minúscula significa "widget do motor". Dá
 para saber o que é seu só de olhar.
 
-```xml
-<column class="lista">      <!-- motor -->
-  <CartaoServico nome="api" />  <!-- do app -->
-</column>
+```gv
+column(class = lista) {  // motor
+  CartaoServico(nome = api)  // do app
+}
 ```
 
-### 2. O texto de um `<text>` é FILHO, não atributo
+### 2. O texto de um `text` é o primeiro argumento, não o atributo `content`
 
-```xml
-<!-- não -->
-<text content="Serviços ativos" />
-
-<!-- sim -->
-<text>Serviços ativos</text>
+```gv
+// não
+text(content = "Serviços ativos")
+// sim
+text("Serviços ativos")
 ```
 
-Interpolação continua valendo no filho (`<text>Olá, {usuario}</text>`). O
+Interpolação continua valendo (`text("Olá, {usuario}")`). O
 atributo `content` segue funcionando e não vai sumir; só não é a forma que se
 escreve aqui.
 
@@ -58,12 +60,11 @@ escreve aqui.
 Cor, tamanho, espaçamento, padding e largura de caixa saem do `.gv`. No lugar
 deles, uma **classe com nome de papel**:
 
-```xml
-<!-- não -->
-<text size="12" color="#7F849C">Último salvamento</text>
-
-<!-- sim -->
-<text class="rotulo">Último salvamento</text>
+```gv
+// não
+text("Último salvamento", size = 12, color = #7F849C)
+// sim
+text("Último salvamento", class = rotulo)
 ```
 
 ```gss
@@ -72,10 +73,10 @@ deles, uma **classe com nome de papel**:
 
 **Três coisas continuam inline, porque não são estilo:**
 
-- **valor dirigido por dado** — `background="{cor}"` é o dado sendo mostrado, não
+- **valor dirigido por dado** — `background = @cor` é o dado sendo mostrado, não
   decoração;
-- **medida com significado de widget** — o `size` de um `<colorwheel>` é o
-  diâmetro da roda, o `width` de um `<spinbox>` é a largura do **campo** (ver a
+- **medida com significado de widget** — o `size` de um `colorwheel` é o
+  diâmetro da roda, o `width` de um `spinbox` é a largura do **campo** (ver a
   armadilha no `PRIMITIVAS.md`). Movê-los para o `.gss` os confunde com largura
   de caixa;
 - **estrutura e ação** — `value`, `items`, `slot`, `on_click`, `steps`.
@@ -126,7 +127,7 @@ Um teste de widget precisa olhar a **árvore avaliada**:
 - o ramo que deveria existir está lá? (uma escada de `se`/`senao` que não casa
   não é erro, é um buraco);
 - o `value_var` do nó é o **nome de chave** que você escreveu, ou o valor já
-  interpolado? (`value="{x}"` num `<progressbar>` faz o widget procurar uma
+  interpolado? (`value = @x` num `progressbar` faz o widget procurar uma
   chave chamada "42");
 - a largura declarada é um número, ou um `fill` dentro de um pai `shrink`?
 

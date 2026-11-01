@@ -1,0 +1,27 @@
+screen(title = "Glacier - ciclo de vida (início)") {
+  resources {
+    link(rel = import, href = "examples/ciclo_vida_luau/monitor.gv")
+    link(rel = stylesheet, href = "examples/ciclo_vida_luau/app.gss")
+    link(rel = theme, href = "examples/stream_lua/theme.json")
+    script(src = inicio.luau)
+  }
+
+  container(class = caixa) {
+    column(class = "coluna coluna_2") {
+      text(content = "Início", class = titulo)
+      text(
+        content = """
+          O monitor abre SSE e WebSocket ao entrar e o motor os fecha ao sair.
+          Abra e volte; olhe o terminal (log do servidor) e os estados abaixo.
+        """,
+        class = texto,
+      )
+
+      button(on_click = ir_monitor, text = "Ir para o monitor", class = botao)
+      text(content = "— último estado do monitor —", class = destaque)
+      text(content = "ciclo: @ciclo", class = texto_2)
+      text(content = "SSE: @sse_status", class = texto_2)
+      text(content = "WS: @ws_status", class = texto_2)
+    }
+  }
+}

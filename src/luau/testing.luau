@@ -182,7 +182,7 @@ end
 
 -- ── a árvore avaliada ────────────────────────────────────────────────────────
 
--- `assert_renders("views/app.gvb")`: o app (ou a tela) carrega com TODOS os
+-- `assert_renders("views/app.gv")`: o app (ou a tela) carrega com TODOS os
 -- `import`s e a tela inicial avalia. Falha com a mensagem do parser — arquivo e
 -- linha — mesmo que a view quebrada seja uma que nenhum outro teste chama.
 function assert_renders(path: string)

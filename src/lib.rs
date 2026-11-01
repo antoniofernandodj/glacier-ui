@@ -89,8 +89,7 @@ pub mod gauges;
 pub mod grid;
 pub mod grip;
 pub mod i18n;
-pub mod gva;
-pub mod gvb;
+pub mod gv;
 pub mod keys;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod luau;
@@ -185,7 +184,7 @@ pub use tray::{
 };
 pub use widget::{EngineMessage, TimeEditKey, render_node};
 
-use gva::parse_markup;
+use gv::parse_markup;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;

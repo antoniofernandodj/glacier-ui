@@ -1,20 +1,14 @@
 # Glacier View — VS Code extension
 
-Language support for **Glacier View**, the markup of `glacier-ui`, in its two spellings:
+Language support for **Glacier View**, the markup of `glacier-ui` (`.gv`): blocks —
+`tag(class = nome) { filhos }`, no closing tags.
 
-| extension | format |
-| --- | --- |
-| `.gva` | attributes — the XML spelling. This is the format's name now |
-| `.gv` | **legacy**: still opened, and treated exactly as `.gva` |
-| `.gvb` | blocks — `tag(class = nome) { filhos }`, no closing tags (see `rascunhos/MARKUP.md`) |
-
-Highlighting covers all three. Links, go-to-definition and the props diagnostics
-work on `.gva`/`.gv` **and** `.gvb`: a `.gvb` is read as the XML it means (see
-`gvb-shadow.js`), with every position mapped back to the file you see — so
-`on_click: salvar`, `value: preco`, `selected: @aba`, `class: nome` and
-`script { src: … }` link exactly like their `.gva` spelling. The reading is
-tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
-(a `.gvb` has no closing tags).
+Highlighting, links, go-to-definition and the props diagnostics all work on `.gv`.
+The engine reads a `.gv` by desugaring it to an internal XML; the extension does the
+same (see `gv-shadow.js`), with every position mapped back to the file you see — so
+`on_click = salvar`, `:value = preco`, `class = nome` and `script(src = "…")` link to
+what they name. The reading is tolerant of half-typed code. Tag completion and
+auto-closing are gone with the XML spelling they served.
 
 ## Features
 
@@ -23,15 +17,15 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
     with `{key|default}`, and hex colors.
   - Action attributes (`on_click`, `onChange`, `on_toggle`, …) are highlighted
     distinctly, and their handler names are scoped as functions.
-  - **Embedded Lua** inside `<script>…</script>`.
-  - **Embedded GSS** inside `<style>…</style>` (needs the *Glacier GSS* extension
+  - **Embedded Lua** inside `script """…"""`.
+  - **Embedded GSS** inside `style """…"""` (needs the *Glacier GSS* extension
     for full GSS colors).
 - **Links** — every file a template names is underlined and Ctrl/Cmd+clickable,
   and answers **Go to Definition** (F12) too:
 
   | in the `.gv` | jumps to |
   | --- | --- |
-  | `<script src="app.luau">` | the `.luau` file |
+  | `script(src = "app.luau")` | the `.luau` file |
   | `on_click="salvar"` | `function salvar()` in that `.luau`, or in the inline `<script>` |
   | `onToggle="escolher_tipo:roadmap"` | `function escolher_tipo(…)` — the `nome:sufixo` convention links on the name half |
   | `on_click="MeuComp::salvar"` | `function salvar()` — the `owner::action` convention links on the action half |
@@ -41,18 +35,18 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
   | `value="user_name"`, `items="tarefas"`, `checked="marcado"`, `cond=…` | idem: a binding attribute names a context key |
   | `{c.titulo}` under `for-each="…" var="c"` | the `var="c"` that declares the loop variable |
   | `on_click="salvar"` with no `<script>` | the `"salvar" =>` arm of the Rust `Component::update` |
-  | `on_click="dialog:editar"` | the `<dialog name="editar">` (or component/screen) it opens |
-  | `<dialog buttons="Salvar:salvar:accept\|Voltar:dialog:editar:neutral">` | each button's action token — the `function`, or the chained `<dialog>` (the label and role keyword aren't linked) |
-  | `<link rel="stylesheet" href="app.gss">`, `<style href=…>` | the GSS sheet |
+  | `on_click="dialog:editar"` | the `dialog(name = editar)` (or component/screen) it opens |
+  | `dialog(buttons = "Salvar:salvar:accept\\|Voltar:dialog:editar:neutral")` | each button's action token — the `function`, or the chained `<dialog>` (the label and role keyword aren't linked) |
+  | `link(rel = stylesheet, href = "app.gss")`, `<style href=…>` | the GSS sheet |
   | `class="cartao destaque"` | each class's `.cartao`/`.destaque` rule — in a linked sheet, an inline `<style>`, or (falling back) any other `.gss`/`<style>` in the workspace |
   | `id="unico"` | the matching `#unico` rule, same search order |
   | `<link rel="import" href=…>`, `<import from=…>`, `<Include src=…>` | the imported template |
-  | `<link rel="theme">` / `<link rel="data">` | the JSON file |
+  | `link(rel = theme)` / `link(rel = data)` | the JSON file |
   | `<Image src=…>`, `<Svg src=…>` | the asset |
-  | `screen(name = log, src = "views/log.gvb")` in an `app(...)` | the screen's template |
-  | `<PerfilCard/>` | the `.gv`/`.xml` declaring the component |
+  | `screen(name = log, src = "views/log.gv")` in an `app(...)` | the screen's template |
+  | `PerfilCard` | the `.gv`/`.xml` declaring the component |
   | `navigateTo="perfil"` | the screen's template |
-  | `<Button/>`, `<Badge/>`, … (native/builtin) | the bundled syntax reference |
+  | `Button`, `Badge`, … (native/builtin) | the bundled syntax reference |
 
   Context keys resolve **script first**, following the same chain the engine
   builds: the template's own `<script>` (inline or `src`), then every module it
@@ -91,7 +85,7 @@ tolerant of half-typed code. Tag completion and auto-closing stay `.gva`-only
   target's first lines in place: the `function` body, the `ctx.x = …` line, the `.gss` rule, the
   reference section.
 
-Starts simple, meant to grow (unknown-handler diagnostics, `.gvb` completion).
+Starts simple, meant to grow (unknown-handler diagnostics, `.gv` completion).
 
 ## Install (local)
 

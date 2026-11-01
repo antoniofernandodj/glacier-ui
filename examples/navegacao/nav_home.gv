@@ -1,0 +1,32 @@
+screen(title = "Glacier - Navegação · Início") {
+  resources {
+    link(rel = import, href = "examples/navegacao/nav_perfil.gv", as = perfil)
+    link(rel = import, href = "examples/navegacao/nav_config.gv", as = config)
+
+    script """
+      -- Estado compartilhado entre as telas (não pertence a uma tela só).
+      function init()
+        ctx.user_name = "Clara Silva"
+        ctx.user_role = "Engenheira de Software"
+      end
+    """
+
+    link(rel = stylesheet, href = "examples/navegacao/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/navegacao/theme.json")
+  }
+
+  container(class = caixa) {
+    column(class = "coluna_3 coluna_5") {
+      text(content = "Início", class = titulo)
+      text(content = "Bem-vinda, @user_name", class = texto)
+
+      // navigate_to empilha a tela atual e troca para o destino
+      button(text = "Ver perfil", navigate_to = perfil, class = botao_3)
+
+      button(text = Configurações, navigate_to = config, class = botao_4)
+    }
+  }
+}

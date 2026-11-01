@@ -1,0 +1,77 @@
+// Texto rico em `.gv`, com o estado em Rust (`main.rs`). Ver docs/TEXTO.md.
+//
+//   WGPU_BACKEND=gl cargo run --example texto_rico
+//
+// O `.gv` não mistura texto com elementos: o texto de cada
+// trecho é o primeiro argumento (`b("negrito")`), e o espaço entre trechos vai
+// DENTRO das aspas (`span("Olá, ")`) — a quebra de linha entre duas tags não conta.
+screen(title = "Texto rico") {
+  resources {
+    link(rel = stylesheet, href = "examples/texto_rico/app.gss")
+  }
+
+  container(class = caixa) {
+    scrollable {
+      column(class = coluna) {
+        text("Sobre o Glacier", class = titulo)
+
+        prose(class = corpo) {
+          p {
+            span("Olá, ") b("{usuario}") span("! O motor lê ") i("markup")
+            span(", ") code(".gss") span(" e Luau, e tudo isso cabe em ")
+            b { i("um binário") } span(". Veja o ")
+            a("repositório", href = "https://github.com/antoniofernandodj/glacier-ui")
+            span(" ou ") a("a tela de detalhes", navigate_to = detalhes) span(".")
+          }
+          p {
+            span("Tachado: ") s("antigo") span(", sublinhado: ") u("novo")
+            span(", cor: ") span("alerta", color = "#F38BA8")
+            span(". Um link que dispara uma ação: ")
+            a("cliques: {cliques}", on_click = contar) span(".")
+          }
+        }
+
+        text(
+          "Este parágrafo é selecionável: arraste o mouse e copie com Ctrl+C.",
+          class = corpo, selectable = true,
+        )
+
+        // `l"""…"""` preserva as quebras de linha (o `"""` simples as colapsaria, e
+        // o Markdown precisa delas) e tira a indentação comum.
+        markdown(
+          l"""
+            ## Markdown também
+
+            Um parágrafo com **negrito**, *itálico*, `código` e um
+            [link](https://example.com).
+
+            - primeiro item
+            - segundo item
+              - aninhado
+
+            1. um
+            2. dois
+
+            > uma citação
+
+            ```
+            let x = 1;
+            ```
+
+            | serviço | estado |
+            |--------|--------|
+            | api    | ok     |
+            | fila   | lento  |
+
+            ![ícone](examples/bandeja/icon.png)
+
+            ![remota](https://exemplo.com/x.png)
+
+            ---
+          """,
+          class = md,
+        )
+      }
+    }
+  }
+}

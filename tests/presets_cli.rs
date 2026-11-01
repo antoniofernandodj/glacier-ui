@@ -18,27 +18,27 @@ use glacier_ui::GlacierUI;
 type Entrada = (&'static str, Option<&'static str>);
 
 /// Preset e as entradas que ele sobe: o arquivo que o `GlacierDaemon` acha
-/// sozinho (`views/app.gvb`, ou o que o `src/main.rs` passa em `main_template`)
+/// sozinho (`views/app.gv`, ou o que o `src/main.rs` passa em `main_template`)
 /// e, quando há, a tela que uma janela abre só em runtime por `open_window` — o
 /// `detalhe` do preset multi-janela, que é uma `screen` do `app` dele e não é
 /// alcançada pelo carregamento da janela principal.
 const PRESETS: &[(&str, &[Entrada])] = &[
-    ("minimo", &[("views/app.gvb", None)]),
-    ("completo", &[("views/app.gvb", None)]),
+    ("minimo", &[("views/app.gv", None)]),
+    ("completo", &[("views/app.gv", None)]),
     (
         "janelas",
         &[
-            ("views/painel.gvb", None),
-            ("views/painel.gvb", Some("detalhe")),
+            ("views/painel.gv", None),
+            ("views/painel.gv", Some("detalhe")),
         ],
     ),
-    ("rust", &[("views/contador.gvb", None)]),
-    ("wasm32", &[("views/contador.gvb", None)]),
-    ("android", &[("views/app.gvb", None)]),
-    ("catalogo", &[("views/app.gvb", None)]),
-    ("dashboard", &[("views/app.gvb", None)]),
-    ("formulario", &[("views/app.gvb", None)]),
-    ("crud", &[("views/app.gvb", None)]),
+    ("rust", &[("views/contador.gv", None)]),
+    ("wasm32", &[("views/contador.gv", None)]),
+    ("android", &[("views/app.gv", None)]),
+    ("catalogo", &[("views/app.gv", None)]),
+    ("dashboard", &[("views/app.gv", None)]),
+    ("formulario", &[("views/app.gv", None)]),
+    ("crud", &[("views/app.gv", None)]),
 ];
 
 /// Sobe `arquivo` como o daemon subiria: raiz `app(...)` é um manifesto

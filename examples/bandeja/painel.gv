@@ -1,0 +1,53 @@
+app(id = bandeja, size = "460 300") {
+  resources {
+    tray(icon = "examples/bandeja/icon.png", tooltip = "Glacier — exemplo de bandeja") {
+      item(label = Abrir, on_click = tray:open)
+      check(label = Notificações, checked = @__notifications, on_click = notifications:toggle)
+      separator
+      item(label = Sair, on_click = tray:quit)
+    }
+
+    link(rel = stylesheet, href = "examples/bandeja/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/bandeja/theme.json")
+  }
+
+  screen(name = painel, title = "Glacier — Bandeja") {
+    resources {
+      script """
+        -- Respeita o toggle da bandeja: desligado, `notify` vira no-op.
+        function notificar()
+          notify({ title = "Bandeja", body = "Uma notificação de teste." })
+        end
+      """
+    }
+
+    container(class = caixa) {
+      column(class = "coluna coluna_2") {
+        text(content = "Exemplo de bandeja", class = titulo)
+        text(
+          content = "Feche esta janela: o app continua na bandeja.",
+          class = texto,
+        )
+
+        text(
+          content = "Reabra pelo item 'Open' do menu do ícone.", class = texto_2,
+        )
+
+        button(
+          text = "Disparar notificação do SO", on_click = notificar,
+          class = botao,
+        )
+
+        text(
+          content = """
+            (o item "Notificações" da bandeja liga/desliga isto)
+          """,
+          class = nota,
+        )
+      }
+    }
+  }
+}

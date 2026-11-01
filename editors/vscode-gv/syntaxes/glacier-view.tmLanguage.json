@@ -1,170 +1,384 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "Glacier View",
-  "scopeName": "text.glacier-view",
+  "name": "Glacier View (blocos)",
+  "scopeName": "source.glacier-view",
   "patterns": [
-    { "include": "#comment" },
-    { "include": "#script-embed" },
-    { "include": "#style-embed" },
-    { "include": "#tag" }
+    {
+      "include": "#script-embed"
+    },
+    {
+      "include": "#style-embed"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#prose"
+    },
+    {
+      "include": "#control"
+    },
+    {
+      "include": "#element"
+    },
+    {
+      "include": "#property"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#interpolation"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#block"
+    }
   ],
   "repository": {
-    "comment": {
-      "name": "comment.block.glacier-view",
-      "begin": "<!--",
-      "end": "-->"
-    },
-
     "script-embed": {
-      "comment": "Inline <script> body is Lua. <script src=...> is handled as a normal tag.",
-      "begin": "(<)(script)(?![^>]*\\bsrc\\s*=)((?:\\s+[^>]*)?)(>)",
+      "comment": "`script \"\"\"` … `\"\"\"` e `script(atributos) \"\"\"` … `\"\"\"` — corpo cru.",
+      "begin": "^(\\s*)(script)((?:\\s*\\([^()\\n]*\\))?)(\\s+)(\"\"\")",
       "beginCaptures": {
-        "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-        "2": { "name": "entity.name.tag.script.glacier-view" },
-        "3": { "patterns": [{ "include": "#tag-attributes" }] },
-        "4": { "name": "punctuation.definition.tag.end.glacier-view" }
-      },
-      "end": "(</)(script)(\\s*>)",
-      "endCaptures": {
-        "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-        "2": { "name": "entity.name.tag.script.glacier-view" },
-        "3": { "name": "punctuation.definition.tag.end.glacier-view" }
-      },
-      "contentName": "meta.embedded.block.lua",
-      "patterns": [{ "include": "source.glacier-luau" }]
-    },
-
-    "style-embed": {
-      "comment": "Bodied <style> without href is inline GSS source.",
-      "begin": "(<)(style)(?![^>]*\\b(?:href|src)\\s*=)((?:\\s+[^>]*)?)(>)",
-      "beginCaptures": {
-        "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-        "2": { "name": "entity.name.tag.style.glacier-view" },
-        "3": { "patterns": [{ "include": "#tag-attributes" }] },
-        "4": { "name": "punctuation.definition.tag.end.glacier-view" }
-      },
-      "end": "(</)(style)(\\s*>)",
-      "endCaptures": {
-        "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-        "2": { "name": "entity.name.tag.style.glacier-view" },
-        "3": { "name": "punctuation.definition.tag.end.glacier-view" }
-      },
-      "contentName": "meta.embedded.block.gss",
-      "patterns": [{ "include": "source.gss" }]
-    },
-
-    "tag": {
-      "patterns": [
-        {
-          "comment": "Closing tag </Name>",
-          "match": "(</)([A-Za-z_][\\w.-]*)(\\s*>)",
-          "captures": {
-            "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-            "2": { "name": "entity.name.tag.glacier-view" },
-            "3": { "name": "punctuation.definition.tag.end.glacier-view" }
-          }
+        "2": {
+          "name": "entity.name.tag.script.glacier-view"
         },
-        {
-          "comment": "Opening / self-closing tag: capture name, then attributes until > or />",
-          "begin": "(<)([A-Z][\\w.-]*)|(<)([a-z_][\\w.-]*)",
-          "beginCaptures": {
-            "1": { "name": "punctuation.definition.tag.begin.glacier-view" },
-            "2": { "name": "entity.name.tag.component.glacier-view" },
-            "3": { "name": "punctuation.definition.tag.begin.glacier-view" },
-            "4": { "name": "entity.name.tag.glacier-view" }
-          },
-          "end": "(/?>)",
-          "endCaptures": {
-            "1": { "name": "punctuation.definition.tag.end.glacier-view" }
-          },
-          "patterns": [{ "include": "#tag-attributes" }]
-        }
-      ]
-    },
-
-    "tag-attributes": {
-      "patterns": [
-        { "include": "#comment" },
-        {
-          "comment": "Action attributes (on_click, onChange, on-toggle, aoClicar, ...) — value is a handler name",
-          "begin": "\\b(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)\\s*(=)\\s*(\")",
-          "beginCaptures": {
-            "1": { "name": "entity.other.attribute-name.action.glacier-view" },
-            "2": { "name": "punctuation.separator.key-value.glacier-view" },
-            "3": { "name": "punctuation.definition.string.begin.glacier-view" }
-          },
-          "end": "(\")",
-          "endCaptures": {
-            "1": { "name": "punctuation.definition.string.end.glacier-view" }
-          },
-          "contentName": "string.quoted.double.glacier-view",
+        "3": {
           "patterns": [
-            { "include": "#interpolation" },
             {
-              "match": "[A-Za-z_]\\w*",
-              "name": "entity.name.function.action.glacier-view"
+              "include": "#block"
+            },
+            {
+              "include": "#property"
+            },
+            {
+              "include": "#string"
+            },
+            {
+              "include": "#number"
             }
           ]
         },
+        "5": {
+          "name": "punctuation.definition.string.begin.glacier-view"
+        }
+      },
+      "end": "(\"\"\")",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.string.end.glacier-view"
+        }
+      },
+      "contentName": "meta.embedded.block.lua",
+      "patterns": [
         {
-          "comment": "Binding attribute `:name=\"key\"` — the value is the NAME of a context key (see src/bindings.rs)",
-          "begin": "(?<![\\w.:-])(:)([A-Za-z_][\\w.-]*)\\s*(=)\\s*(\")",
-          "beginCaptures": {
-            "1": { "name": "punctuation.definition.binding.glacier-view" },
-            "2": { "name": "entity.other.attribute-name.binding.glacier-view" },
-            "3": { "name": "punctuation.separator.key-value.glacier-view" },
-            "4": { "name": "punctuation.definition.string.begin.glacier-view" }
-          },
-          "end": "(\")",
-          "endCaptures": {
-            "1": { "name": "punctuation.definition.string.end.glacier-view" }
-          },
-          "contentName": "string.quoted.double.glacier-view",
-          "patterns": [
-            { "include": "#interpolation" },
-            { "match": "[A-Za-z_][\\w.]*", "name": "variable.other.key.glacier-view" }
-          ]
-        },
-        {
-          "comment": "Generic attribute name = \"value\"",
-          "begin": "\\b([A-Za-z_][\\w.-]*)\\s*(=)\\s*(\")",
-          "beginCaptures": {
-            "1": { "name": "entity.other.attribute-name.glacier-view" },
-            "2": { "name": "punctuation.separator.key-value.glacier-view" },
-            "3": { "name": "punctuation.definition.string.begin.glacier-view" }
-          },
-          "end": "(\")",
-          "endCaptures": {
-            "1": { "name": "punctuation.definition.string.end.glacier-view" }
-          },
-          "contentName": "string.quoted.double.glacier-view",
-          "patterns": [
-            { "include": "#interpolation" },
-            { "include": "#color" }
-          ]
-        },
-        {
-          "comment": "Boolean/bare attribute name",
-          "match": "\\b([A-Za-z_][\\w.-]*)\\b",
-          "name": "entity.other.attribute-name.glacier-view"
+          "include": "source.glacier-luau"
         }
       ]
     },
-
-    "interpolation": {
-      "comment": "{context_var} template interpolation inside attribute values",
-      "name": "meta.interpolation.glacier-view",
-      "begin": "\\{",
-      "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.glacier-view" } },
-      "end": "\\}",
-      "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.glacier-view" } },
+    "style-embed": {
+      "comment": "`style \"\"\"` … `\"\"\"` e `style(atributos) \"\"\"` … `\"\"\"` — corpo cru.",
+      "begin": "^(\\s*)(style)((?:\\s*\\([^()\\n]*\\))?)(\\s+)(\"\"\")",
+      "beginCaptures": {
+        "2": {
+          "name": "entity.name.tag.style.glacier-view"
+        },
+        "3": {
+          "patterns": [
+            {
+              "include": "#block"
+            },
+            {
+              "include": "#property"
+            },
+            {
+              "include": "#string"
+            },
+            {
+              "include": "#number"
+            }
+          ]
+        },
+        "5": {
+          "name": "punctuation.definition.string.begin.glacier-view"
+        }
+      },
+      "end": "(\"\"\")",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.string.end.glacier-view"
+        }
+      },
+      "contentName": "meta.embedded.block.gss",
       "patterns": [
-        { "name": "punctuation.separator.default.glacier-view", "match": "\\|" },
-        { "include": "#color" },
-        { "name": "variable.other.interpolation.glacier-view", "match": "[A-Za-z_][\\w.]*" }
+        {
+          "include": "source.gss"
+        }
       ]
     },
-
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.glacier-view",
+          "begin": "//",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.glacier-view"
+            }
+          },
+          "end": "$"
+        },
+        {
+          "name": "comment.block.glacier-view",
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.begin.glacier-view"
+            }
+          },
+          "end": "\\*/",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.end.glacier-view"
+            }
+          }
+        }
+      ]
+    },
+    "prose": {
+      "comment": "Bloco de texto \"\"\" … \"\"\" (colapsado) ou l\"\"\" … \"\"\" (linhas: mantém as quebras e tira o recuo comum).",
+      "name": "string.quoted.triple.glacier-view",
+      "begin": "l?\"\"\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.glacier-view"
+        }
+      },
+      "end": "\"\"\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.glacier-view"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#interpolation"
+        }
+      ]
+    },
+    "control": {
+      "patterns": [
+        {
+          "comment": "if / else if / else, e os operadores do condicional do motor",
+          "match": "(?<![\\w.])(if|else|each|as)(?![\\w-])",
+          "name": "keyword.control.conditional.glacier-view"
+        },
+        {
+          "match": "(?<![\\w.])(in|is|not|empty)(?![\\w-])",
+          "name": "keyword.operator.word.glacier-view"
+        },
+        {
+          "match": "==|!=",
+          "name": "keyword.operator.comparison.glacier-view"
+        }
+      ]
+    },
+    "element": {
+      "comment": "O nome da tag do elemento (classe e id são atributos, `class =`/`id =`). A negativa `(?![\\w-]*\\s*=)` é o que separa um elemento de uma propriedade.",
+      "patterns": [
+        {
+          "match": "^\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
+          "captures": {
+            "1": {
+              "name": "entity.name.tag.component.glacier-view"
+            },
+            "2": {
+              "name": "entity.name.tag.glacier-view"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#selector-class"
+                }
+              ]
+            },
+            "4": {
+              "name": "entity.other.attribute-name.id.glacier-view"
+            }
+          }
+        },
+        {
+          "comment": "O mesmo, para o elemento que abre logo depois de uma chave numa linha só.",
+          "match": "(?<=\\{)\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
+          "captures": {
+            "1": {
+              "name": "entity.name.tag.component.glacier-view"
+            },
+            "2": {
+              "name": "entity.name.tag.glacier-view"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#selector-class"
+                }
+              ]
+            },
+            "4": {
+              "name": "entity.other.attribute-name.id.glacier-view"
+            }
+          }
+        },
+        {
+          "comment": "O mesmo, para o elemento que vem depois de um `)` ou `}` na mesma linha (`span(\"a\") b(\"c\") i { … }`): sem isto só a primeira tag da linha ganhava cor.",
+          "match": "(?<=[)}])\\s*(?!(?:if|else|each|as|in|is|not|empty)(?![\\w-]))(?:([A-Z][A-Za-z0-9_-]*)|([a-z_][A-Za-z0-9_-]*))(?![\\w-]*\\s*=)",
+          "captures": {
+            "1": {
+              "name": "entity.name.tag.component.glacier-view"
+            },
+            "2": {
+              "name": "entity.name.tag.glacier-view"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#selector-class"
+                }
+              ]
+            },
+            "4": {
+              "name": "entity.other.attribute-name.id.glacier-view"
+            }
+          }
+        }
+      ]
+    },
+    "selector-class": {
+      "match": "(\\.)([A-Za-z_][\\w-]*)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.entity.glacier-view"
+        },
+        "2": {
+          "name": "entity.other.attribute-name.class.glacier-view"
+        }
+      }
+    },
+    "property": {
+      "patterns": [
+        {
+          "comment": "Propriedade de ação (on_press, onChange, aoClicar…): o valor é o nome de um handler.",
+          "match": "(?<![\\w.])(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)(\\s*=\\s*)([A-Za-z_]\\w*)?",
+          "captures": {
+            "1": {
+              "name": "entity.other.attribute-name.action.glacier-view"
+            },
+            "2": {
+              "name": "punctuation.separator.key-value.glacier-view"
+            },
+            "3": {
+              "name": "entity.name.function.action.glacier-view"
+            }
+          }
+        },
+        {
+          "comment": "Propriedade comum. O valor sem aspas é NOME DE CHAVE — por isso tem cor diferente de um @valor. Com `:` na frente (`:value = chave`) é uma LIGAÇÃO: o valor é o nome de uma chave.",
+          "match": "(?<![\\w.])(:)?([A-Za-z_][\\w-]*)(\\s*=\\s*)((?:@\\{[A-Za-z_][\\w.]*\\}|@[A-Za-z_][\\w.]*|-?\\d+(?:\\.\\d+)?|[A-Za-z_][\\w.+-]*))?",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.binding.glacier-view"
+            },
+            "2": {
+              "name": "entity.other.attribute-name.glacier-view"
+            },
+            "3": {
+              "name": "punctuation.separator.key-value.glacier-view"
+            },
+            "4": {
+              "patterns": [
+                {
+                  "include": "#interpolation"
+                },
+                {
+                  "include": "#number"
+                },
+                {
+                  "match": "[A-Za-z_][\\w.+-]*",
+                  "name": "variable.other.key.glacier-view"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.glacier-view",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.glacier-view"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.glacier-view"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#interpolation"
+        },
+        {
+          "include": "#color"
+        }
+      ]
+    },
+    "interpolation": {
+      "comment": "@chave e @{chave} — o dado. A chave é o único uso de @; @@ é um arroba literal.",
+      "patterns": [
+        {
+          "match": "@@",
+          "name": "constant.character.escape.glacier-view"
+        },
+        {
+          "match": "(@\\{)([A-Za-z_][\\w.]*)(\\})",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.interpolation.begin.glacier-view"
+            },
+            "2": {
+              "name": "variable.other.interpolation.glacier-view"
+            },
+            "3": {
+              "name": "punctuation.section.interpolation.end.glacier-view"
+            }
+          }
+        },
+        {
+          "match": "(@)([A-Za-z_][\\w]*(?:\\.[A-Za-z_][\\w]*)*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.interpolation.begin.glacier-view"
+            },
+            "2": {
+              "name": "variable.other.interpolation.glacier-view"
+            }
+          }
+        }
+      ]
+    },
+    "number": {
+      "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?(?![\\w.])",
+      "name": "constant.numeric.glacier-view"
+    },
+    "block": {
+      "match": "[{}()]",
+      "name": "punctuation.section.block.glacier-view"
+    },
     "color": {
       "name": "constant.other.color.rgb-value.hex.glacier-view",
       "match": "#([0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3,4})\\b"

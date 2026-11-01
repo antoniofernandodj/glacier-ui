@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.147.0"
+version = "0.148.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -23,7 +23,7 @@ categories = ["gui"]
 #
 #     [[example]]
 #     name = "contador"
-#     path = "examples/gva/contador/main.rs"
+#     path = "examples/contador/main.rs"
 #
 # Para rodar um exemplo antigo sem declará-lo, o caminho é reativar a descoberta
 # pontualmente: `cargo run --example contador` depois de comentar a linha abaixo.
@@ -31,172 +31,172 @@ autoexamples = false
 
 [[example]]
 name = "ciclo_vida_luau"
-path = "examples/gva/ciclo_vida_luau/main.rs"
+path = "examples/ciclo_vida_luau/main.rs"
 
 [[example]]
 name = "ciclo_vida_rust"
-path = "examples/gva/ciclo_vida_rust/main.rs"
+path = "examples/ciclo_vida_rust/main.rs"
 
 [[example]]
 name = "spinbox"
-path = "examples/gva/spinbox/main.rs"
+path = "examples/spinbox/main.rs"
 
 [[example]]
 name = "timepicker"
-path = "examples/gva/timepicker/main.rs"
+path = "examples/timepicker/main.rs"
 
 [[example]]
 name = "data_hora_luau"
-path = "examples/gva/data_hora_luau/main.rs"
+path = "examples/data_hora_luau/main.rs"
 
 [[example]]
 name = "componentes_locais"
-path = "examples/gva/componentes_locais/main.rs"
+path = "examples/componentes_locais/main.rs"
 
 [[example]]
 name = "componentes_por_atributo"
-path = "examples/gva/componentes_por_atributo/main.rs"
+path = "examples/componentes_por_atributo/main.rs"
 
 [[example]]
 name = "componentes_por_atributo_luau"
-path = "examples/gva/componentes_por_atributo_luau/main.rs"
+path = "examples/componentes_por_atributo_luau/main.rs"
 
 [[example]]
 name = "foreach_fallback"
-path = "examples/gva/foreach_fallback/main.rs"
+path = "examples/foreach_fallback/main.rs"
 
 [[example]]
 name = "foreach_fallback_luau"
-path = "examples/gva/foreach_fallback_luau/main.rs"
+path = "examples/foreach_fallback_luau/main.rs"
 
 [[example]]
 name = "onda4"
-path = "examples/gva/onda4/main.rs"
+path = "examples/onda4/main.rs"
 
 [[example]]
 name = "onda4_luau"
-path = "examples/gva/onda4_luau/main.rs"
+path = "examples/onda4_luau/main.rs"
 
 [[example]]
 name = "seletores"
-path = "examples/gva/seletores/main.rs"
+path = "examples/seletores/main.rs"
 
 [[example]]
 name = "seletores_luau"
-path = "examples/gva/seletores_luau/main.rs"
+path = "examples/seletores_luau/main.rs"
 
 [[example]]
 name = "onda5"
-path = "examples/gva/onda5/main.rs"
+path = "examples/onda5/main.rs"
 
 [[example]]
 name = "onda5_luau"
-path = "examples/gva/onda5_luau/main.rs"
+path = "examples/onda5_luau/main.rs"
 
 [[example]]
 name = "onda6"
-path = "examples/gva/onda6/main.rs"
+path = "examples/onda6/main.rs"
 
 [[example]]
 name = "onda6_luau"
-path = "examples/gva/onda6_luau/main.rs"
+path = "examples/onda6_luau/main.rs"
 
 [[example]]
 name = "onda9"
-path = "examples/gva/onda9/main.rs"
+path = "examples/onda9/main.rs"
 
 [[example]]
 name = "onda9_luau"
-path = "examples/gva/onda9_luau/main.rs"
+path = "examples/onda9_luau/main.rs"
 
 [[example]]
 name = "onda11"
-path = "examples/gva/onda11/main.rs"
+path = "examples/onda11/main.rs"
 
 [[example]]
 name = "onda11_luau"
-path = "examples/gva/onda11_luau/main.rs"
+path = "examples/onda11_luau/main.rs"
 
 [[example]]
 name = "onda8"
-path = "examples/gva/onda8/main.rs"
+path = "examples/onda8/main.rs"
 
 [[example]]
 name = "onda8_luau"
-path = "examples/gva/onda8_luau/main.rs"
+path = "examples/onda8_luau/main.rs"
 
 [[example]]
 name = "onda8b_luau"
-path = "examples/gva/onda8b_luau/main.rs"
+path = "examples/onda8b_luau/main.rs"
 
 [[example]]
 name = "onda7"
-path = "examples/gva/onda7/main.rs"
+path = "examples/onda7/main.rs"
 
 [[example]]
 name = "onda7_luau"
-path = "examples/gva/onda7_luau/main.rs"
+path = "examples/onda7_luau/main.rs"
 
 [[example]]
 name = "onda3"
-path = "examples/gva/onda3/main.rs"
+path = "examples/onda3/main.rs"
 
 [[example]]
 name = "onda1"
-path = "examples/gva/onda1/main.rs"
+path = "examples/onda1/main.rs"
 
 [[example]]
 name = "onda2"
-path = "examples/gva/onda2/main.rs"
+path = "examples/onda2/main.rs"
 
 [[example]]
 name = "onda10"
-path = "examples/gva/onda10/main.rs"
+path = "examples/onda10/main.rs"
 
 [[example]]
 name = "onda10_luau"
-path = "examples/gva/onda10_luau/main.rs"
+path = "examples/onda10_luau/main.rs"
 
 [[example]]
 name = "series_multiplas"
-path = "examples/gva/series_multiplas/main.rs"
+path = "examples/series_multiplas/main.rs"
 
 [[example]]
 name = "series_multiplas_luau"
-path = "examples/gva/series_multiplas_luau/main.rs"
+path = "examples/series_multiplas_luau/main.rs"
 
 [[example]]
 name = "onda12"
-path = "examples/gva/onda12/main.rs"
+path = "examples/onda12/main.rs"
 
 [[example]]
 name = "onda12_luau"
-path = "examples/gva/onda12_luau/main.rs"
+path = "examples/onda12_luau/main.rs"
 
 [[example]]
 name = "onda13"
-path = "examples/gva/onda13/main.rs"
+path = "examples/onda13/main.rs"
 
 [[example]]
 name = "onda13_luau"
-path = "examples/gva/onda13_luau/main.rs"
+path = "examples/onda13_luau/main.rs"
 
 [[example]]
 name = "http_client_luau"
-path = "examples/gva/http_client_luau/main.rs"
+path = "examples/http_client_luau/main.rs"
 
 [[example]]
 name = "console_luau"
-path = "examples/gva/console_luau/main.rs"
+path = "examples/console_luau/main.rs"
 
 [[example]]
 name = "sqlite_crud"
-path = "examples/gva/sqlite_crud/main.rs"
+path = "examples/sqlite_crud/main.rs"
 
 # Roda também no navegador — ver docs/WEB.md e `make web-contador`.
 [[example]]
 name = "web_contador"
-path = "examples/gva/web_contador/main.rs"
+path = "examples/web_contador/main.rs"
 
 [dependencies]
 # `default-features = false` e os defaults devolvidos por alvo logo abaixo: no
@@ -427,384 +427,188 @@ web-gpu = ["iced/wgpu", "iced/webgl"]
 members = ["crates/glacier-cli", "crates/glacier-build"]
 
 [[example]]
-name = "gvb_check"
-path = "examples/gvb/gvb_check/main.rs"
+name = "gv_check"
+path = "examples/gv_check/main.rs"
 
 [[example]]
-name = "gvb_convert"
-path = "examples/gvb/gvb_convert/main.rs"
+name = "gv_run"
+path = "examples/gv_run/main.rs"
 
-[[example]]
-name = "gvb_run"
-path = "examples/gvb/gvb_run/main.rs"
-
-# — os exemplos em `.gvb` (`examples/gvb/<nome>/main.rs`), um por exemplo do `.gva` —
-# Rodar: `WGPU_BACKEND=gl cargo run --example gvb_<nome>`.
-
-[[example]]
-name = "gvb_aninhado"
-path = "examples/gvb/aninhado/main.rs"
-
-[[example]]
-name = "gvb_bandeja"
-path = "examples/gvb/bandeja/main.rs"
-
-[[example]]
-name = "gvb_ciclo_vida_luau"
-path = "examples/gvb/ciclo_vida_luau/main.rs"
-
-[[example]]
-name = "gvb_ciclo_vida_rust"
-path = "examples/gvb/ciclo_vida_rust/main.rs"
-
-[[example]]
-name = "gvb_combo_edit"
-path = "examples/gvb/combo_edit/main.rs"
-
-[[example]]
-name = "gvb_componentes_locais"
-path = "examples/gvb/componentes_locais/main.rs"
-
-[[example]]
-name = "gvb_componentes_por_atributo"
-path = "examples/gvb/componentes_por_atributo/main.rs"
-
-[[example]]
-name = "gvb_componentes_por_atributo_luau"
-path = "examples/gvb/componentes_por_atributo_luau/main.rs"
-
-[[example]]
-name = "gvb_condicional"
-path = "examples/gvb/condicional/main.rs"
-
-[[example]]
-name = "gvb_console_luau"
-path = "examples/gvb/console_luau/main.rs"
-
-[[example]]
-name = "gvb_contador"
-path = "examples/gvb/contador/main.rs"
-
-[[example]]
-name = "gvb_contador_externo"
-path = "examples/gvb/contador_externo/main.rs"
-
-[[example]]
-name = "gvb_contador_macro"
-path = "examples/gvb/contador_macro/main.rs"
-
-[[example]]
-name = "gvb_controle_externo"
-path = "examples/gvb/controle_externo/main.rs"
-
-[[example]]
-name = "gvb_data_hora_luau"
-path = "examples/gvb/data_hora_luau/main.rs"
-
-[[example]]
-name = "gvb_dialogs"
-path = "examples/gvb/dialogs/main.rs"
-
-[[example]]
-name = "gvb_estilos"
-path = "examples/gvb/estilos/main.rs"
-
-[[example]]
-name = "gvb_estilos_inline"
-path = "examples/gvb/estilos_inline/main.rs"
-
-[[example]]
-name = "gvb_fetch_luau"
-path = "examples/gvb/fetch_luau/main.rs"
-
-[[example]]
-name = "gvb_file_dialog"
-path = "examples/gvb/file_dialog/main.rs"
-
-[[example]]
-name = "gvb_foreach_fallback"
-path = "examples/gvb/foreach_fallback/main.rs"
-
-[[example]]
-name = "gvb_foreach_fallback_luau"
-path = "examples/gvb/foreach_fallback_luau/main.rs"
-
-[[example]]
-name = "gvb_formulario_login"
-path = "examples/gvb/formulario_login/main.rs"
-
-[[example]]
-name = "gvb_galeria_estilos"
-path = "examples/gvb/galeria_estilos/main.rs"
-
-[[example]]
-name = "gvb_http_client_luau"
-path = "examples/gvb/http_client_luau/main.rs"
-
-[[example]]
-name = "gvb_imports_luau"
-path = "examples/gvb/imports_luau/main.rs"
-
-[[example]]
-name = "gvb_inline_script"
-path = "examples/gvb/inline_script/main.rs"
-
-[[example]]
-name = "gvb_janelas_glacier"
-path = "examples/gvb/janelas_glacier/main.rs"
-
-[[example]]
-name = "gvb_lista"
-path = "examples/gvb/lista/main.rs"
-
-[[example]]
-name = "gvb_lista_reordenavel"
-path = "examples/gvb/lista_reordenavel/main.rs"
-
-[[example]]
-name = "gvb_menus"
-path = "examples/gvb/menus/main.rs"
-
-[[example]]
-name = "gvb_navegacao"
-path = "examples/gvb/navegacao/main.rs"
-
-[[example]]
-name = "gvb_navegacao_luau"
-path = "examples/gvb/navegacao_luau/main.rs"
-
-[[example]]
-name = "gvb_notificacoes"
-path = "examples/gvb/notificacoes/main.rs"
-
-[[example]]
-name = "gvb_onda1"
-path = "examples/gvb/onda1/main.rs"
-
-[[example]]
-name = "gvb_onda10"
-path = "examples/gvb/onda10/main.rs"
-
-[[example]]
-name = "gvb_onda10_luau"
-path = "examples/gvb/onda10_luau/main.rs"
-
-[[example]]
-name = "gvb_onda11"
-path = "examples/gvb/onda11/main.rs"
-
-[[example]]
-name = "gvb_onda11_luau"
-path = "examples/gvb/onda11_luau/main.rs"
-
-[[example]]
-name = "gvb_onda12"
-path = "examples/gvb/onda12/main.rs"
-
-[[example]]
-name = "gvb_onda12_luau"
-path = "examples/gvb/onda12_luau/main.rs"
-
-[[example]]
-name = "gvb_onda13"
-path = "examples/gvb/onda13/main.rs"
+# — os exemplos (`examples/<nome>/main.rs`) —
+# Rodar: `WGPU_BACKEND=gl cargo run --example <nome>`.
 
 [[example]]
-name = "gvb_onda13_luau"
-path = "examples/gvb/onda13_luau/main.rs"
+name = "aninhado"
+path = "examples/aninhado/main.rs"
 
 [[example]]
-name = "gvb_onda2"
-path = "examples/gvb/onda2/main.rs"
+name = "bandeja"
+path = "examples/bandeja/main.rs"
 
 [[example]]
-name = "gvb_onda3"
-path = "examples/gvb/onda3/main.rs"
+name = "combo_edit"
+path = "examples/combo_edit/main.rs"
 
 [[example]]
-name = "gvb_onda4"
-path = "examples/gvb/onda4/main.rs"
+name = "condicional"
+path = "examples/condicional/main.rs"
 
 [[example]]
-name = "gvb_onda4_luau"
-path = "examples/gvb/onda4_luau/main.rs"
+name = "contador"
+path = "examples/contador/main.rs"
 
 [[example]]
-name = "gvb_seletores"
-path = "examples/gvb/seletores/main.rs"
+name = "contador_externo"
+path = "examples/contador_externo/main.rs"
 
 [[example]]
-name = "gvb_seletores_luau"
-path = "examples/gvb/seletores_luau/main.rs"
+name = "contador_macro"
+path = "examples/contador_macro/main.rs"
 
 [[example]]
-name = "gvb_onda5"
-path = "examples/gvb/onda5/main.rs"
+name = "controle_externo"
+path = "examples/controle_externo/main.rs"
 
 [[example]]
-name = "gvb_onda5_luau"
-path = "examples/gvb/onda5_luau/main.rs"
+name = "dialogs"
+path = "examples/dialogs/main.rs"
 
 [[example]]
-name = "gvb_onda6"
-path = "examples/gvb/onda6/main.rs"
+name = "estilos"
+path = "examples/estilos/main.rs"
 
 [[example]]
-name = "gvb_onda6_luau"
-path = "examples/gvb/onda6_luau/main.rs"
+name = "estilos_inline"
+path = "examples/estilos_inline/main.rs"
 
 [[example]]
-name = "gvb_onda7"
-path = "examples/gvb/onda7/main.rs"
+name = "fetch_luau"
+path = "examples/fetch_luau/main.rs"
 
 [[example]]
-name = "gvb_onda7_luau"
-path = "examples/gvb/onda7_luau/main.rs"
+name = "file_dialog"
+path = "examples/file_dialog/main.rs"
 
 [[example]]
-name = "gvb_onda8"
-path = "examples/gvb/onda8/main.rs"
+name = "formulario_login"
+path = "examples/formulario_login/main.rs"
 
 [[example]]
-name = "gvb_onda8_luau"
-path = "examples/gvb/onda8_luau/main.rs"
+name = "galeria_estilos"
+path = "examples/galeria_estilos/main.rs"
 
 [[example]]
-name = "gvb_onda8b_luau"
-path = "examples/gvb/onda8b_luau/main.rs"
+name = "imports_luau"
+path = "examples/imports_luau/main.rs"
 
 [[example]]
-name = "gvb_onda9"
-path = "examples/gvb/onda9/main.rs"
+name = "inline_script"
+path = "examples/inline_script/main.rs"
 
 [[example]]
-name = "gvb_onda9_luau"
-path = "examples/gvb/onda9_luau/main.rs"
+name = "janelas_glacier"
+path = "examples/janelas_glacier/main.rs"
 
 [[example]]
-name = "gvb_perfil"
-path = "examples/gvb/perfil/main.rs"
+name = "lista"
+path = "examples/lista/main.rs"
 
 [[example]]
-name = "gvb_pseudo_estados"
-path = "examples/gvb/pseudo_estados/main.rs"
+name = "lista_reordenavel"
+path = "examples/lista_reordenavel/main.rs"
 
 [[example]]
-name = "gvb_robustez_luau"
-path = "examples/gvb/robustez_luau/main.rs"
+name = "menus"
+path = "examples/menus/main.rs"
 
 [[example]]
-name = "gvb_series_multiplas"
-path = "examples/gvb/series_multiplas/main.rs"
+name = "navegacao"
+path = "examples/navegacao/main.rs"
 
 [[example]]
-name = "gvb_series_multiplas_luau"
-path = "examples/gvb/series_multiplas_luau/main.rs"
+name = "navegacao_luau"
+path = "examples/navegacao_luau/main.rs"
 
 [[example]]
-name = "gvb_spinbox"
-path = "examples/gvb/spinbox/main.rs"
+name = "notificacoes"
+path = "examples/notificacoes/main.rs"
 
 [[example]]
-name = "gvb_sqlite_crud"
-path = "examples/gvb/sqlite_crud/main.rs"
+name = "perfil"
+path = "examples/perfil/main.rs"
 
 [[example]]
-name = "gvb_stream_lua"
-path = "examples/gvb/stream_lua/main.rs"
+name = "pseudo_estados"
+path = "examples/pseudo_estados/main.rs"
 
 [[example]]
-name = "gvb_timepicker"
-path = "examples/gvb/timepicker/main.rs"
+name = "robustez_luau"
+path = "examples/robustez_luau/main.rs"
 
 [[example]]
-name = "gvb_template_if_for"
-path = "examples/gvb/template_if_for/main.rs"
+name = "stream_lua"
+path = "examples/stream_lua/main.rs"
 
 [[example]]
-name = "gvb_toasts"
-path = "examples/gvb/toasts/main.rs"
+name = "template_if_for"
+path = "examples/template_if_for/main.rs"
 
 [[example]]
-name = "gvb_web_contador"
-path = "examples/gvb/web_contador/main.rs"
+name = "toasts"
+path = "examples/toasts/main.rs"
 
 [[example]]
 name = "prose_artigo"
-path = "examples/gva/prose_artigo/main.rs"
+path = "examples/prose_artigo/main.rs"
 
 [[example]]
 name = "prose_artigo_luau"
-path = "examples/gva/prose_artigo_luau/main.rs"
-
-[[example]]
-name = "gvb_prose_artigo"
-path = "examples/gvb/prose_artigo/main.rs"
-
-[[example]]
-name = "gvb_prose_artigo_luau"
-path = "examples/gvb/prose_artigo_luau/main.rs"
+path = "examples/prose_artigo_luau/main.rs"
 
 [[example]]
 name = "css_moderno"
-path = "examples/gva/css_moderno/main.rs"
+path = "examples/css_moderno/main.rs"
 
 [[example]]
 name = "css_estrutural_check"
-path = "examples/gva/css_estrutural_check/main.rs"
+path = "examples/css_estrutural_check/main.rs"
 
 [[example]]
 name = "rede_completa"
-path = "examples/gva/rede_completa/main.rs"
-
-[[example]]
-name = "gvb_rede_completa"
-path = "examples/gvb/rede_completa/main.rs"
-
-[[example]]
-name = "gvb_rede_completa_luau"
-path = "examples/gvb/rede_completa_luau/main.rs"
+path = "examples/rede_completa/main.rs"
 
 [[example]]
 name = "rede_completa_luau"
-path = "examples/gva/rede_completa_luau/main.rs"
+path = "examples/rede_completa_luau/main.rs"
 
 [[example]]
 name = "prose_check"
-path = "examples/gva/prose_check/main.rs"
+path = "examples/prose_check/main.rs"
 
 [[example]]
 name = "texto_rico"
-path = "examples/gva/texto_rico/main.rs"
+path = "examples/texto_rico/main.rs"
 
 [[example]]
 name = "texto_rico_luau"
-path = "examples/gva/texto_rico_luau/main.rs"
-
-[[example]]
-name = "gvb_texto_rico"
-path = "examples/gvb/texto_rico/main.rs"
-
-[[example]]
-name = "gvb_texto_rico_luau"
-path = "examples/gvb/texto_rico_luau/main.rs"
+path = "examples/texto_rico_luau/main.rs"
 
 [[example]]
 name = "painel"
-path = "examples/gvb/painel/main.rs"
+path = "examples/painel/main.rs"
 
 [[example]]
-name = "gvb_app_telas"
-path = "examples/gvb/app_telas/main.rs"
+name = "app_telas"
+path = "examples/app_telas/main.rs"
 required-features = ["tray"]
 
 [[example]]
-name = "gvb_app_script"
-path = "examples/gvb/app_script/main.rs"
+name = "app_script"
+path = "examples/app_script/main.rs"
 
 [[example]]
-name = "gvb_botoes_gradiente"
-path = "examples/gvb/botoes_gradiente/main.rs"
+name = "botoes_gradiente"
+path = "examples/botoes_gradiente/main.rs"
 
 # ── Testes fora do `make test` ──────────────────────────────────────────────
 # Arquivos de `tests/` que só compilam com a feature `suite-completa` (ver o
@@ -865,25 +669,25 @@ required-features = ["suite-completa"]
 
 [[example]]
 name = "aperto"
-path = "examples/gva/aperto/main.rs"
+path = "examples/aperto/main.rs"
 
 [[example]]
 name = "rede_progresso"
-path = "examples/gva/rede_progresso/main.rs"
+path = "examples/rede_progresso/main.rs"
 
 [[example]]
 name = "rede_progresso_rust"
-path = "examples/gva/rede_progresso_rust/main.rs"
+path = "examples/rede_progresso_rust/main.rs"
 
 [[example]]
-name = "gvb_i18n"
-path = "examples/gvb/i18n/main.rs"
+name = "i18n"
+path = "examples/i18n/main.rs"
 
 [[example]]
-name = "gvb_i18n_luau"
-path = "examples/gvb/i18n_luau/main.rs"
+name = "i18n_luau"
+path = "examples/i18n_luau/main.rs"
 
 [[example]]
-name = "gvb_audio"
-path = "examples/gvb/audio/main.rs"
+name = "audio"
+path = "examples/audio/main.rs"
 required-features = ["audio"]

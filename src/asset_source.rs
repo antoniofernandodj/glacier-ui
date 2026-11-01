@@ -23,23 +23,23 @@
 use iced::time::SystemTime;
 use std::borrow::Cow;
 
-/// Lê um **template** pela fonte de assets, entregando sempre XML de `.gva`.
+/// Lê um **template** pela fonte de assets, entregando o XML interno que o
+/// parser consome.
 ///
-/// Um `.gvb` (markup de blocos, ver [`crate::gvb`]) é dessugarado aqui, na
-/// leitura — e é por isso que todo o resto do motor (o `<script>`, o `<style>`,
-/// as diretivas, o parser) nunca precisa saber que ele existe. Preserva a
-/// contagem de linhas, então o `line` de um erro continua sendo o do `.gvb`; só
-/// o trecho citado é o do XML gerado. `.gva`, `.gv` (legado) e qualquer outra
-/// extensão passam intactos.
+/// Um `.gv` (ver [`crate::gv`]) é dessugarado aqui, na leitura — e é por isso
+/// que todo o resto do motor (o `<script>`, o `<style>`, as diretivas, o
+/// parser) nunca precisa saber a sintaxe em que o autor escreveu. Preserva a
+/// contagem de linhas, então o `line` de um erro continua sendo o do `.gv`; só
+/// o trecho citado é o do XML gerado. Qualquer outra extensão passa intacta.
 pub(crate) fn read_markup(
     assets: &dyn AssetSource,
     path: &str,
 ) -> std::io::Result<Cow<'static, str>> {
     let content = assets.read_to_string(path)?;
-    if !crate::gvb::eh_gvb(path) {
+    if !crate::gv::eh_gv(path) {
         return Ok(content);
     }
-    crate::gvb::desugar(&content).map(Cow::Owned).map_err(|d| {
+    crate::gv::desugar(&content).map(Cow::Owned).map_err(|d| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             crate::error::GlacierError::Xml(Box::new(d.in_file(path, &content))).to_string(),
@@ -297,10 +297,10 @@ macro_rules! embed_dirs {
 }
 
 /// Acha a pasta de assets de um app em **debug** (o release embute) e entra
-/// nela com `chdir`, para os caminhos relativos (`views/app.gvb`…) resolverem.
+/// nela com `chdir`, para os caminhos relativos (`views/app.gv`…) resolverem.
 /// Ordem: a variável `env_var`; o diretório do executável; o diretório atual
 /// (já serve: não muda nada); `system_prefix` (ex.: `/usr/share/meuapp`, do
-/// `.deb`). Uma pasta só vale se contém `marker` (ex.: `views/app.gvb`).
+/// `.deb`). Uma pasta só vale se contém `marker` (ex.: `views/app.gv`).
 pub fn locate_assets_and_chdir(marker: &str, env_var: &str, system_prefix: Option<&str>) {
     let has = |base: &std::path::Path| base.join(marker).is_file();
     let found = (|| {
@@ -427,14 +427,14 @@ mod tests {
     #[test]
     fn embed_dirs_serve_a_pasta_inteira_sob_o_prefixo() {
         let assets = crate::embed_dirs! {
-            "gva/" => "$CARGO_MANIFEST_DIR/examples/gva/web_contador",
+            "gv/" => "$CARGO_MANIFEST_DIR/examples/web_contador",
         };
-        assert!(assets.exists("gva/app.gva"));
-        assert!(assets.exists("./gva/x/../app.gva"));
-        assert!(assets.read_to_string("gva/app.gva").unwrap().contains("<screen"));
-        assert!(!assets.exists("outro/app.gva"));
+        assert!(assets.exists("gv/app.gv"));
+        assert!(assets.exists("./gv/x/../app.gv"));
+        assert!(assets.read_to_string("gv/app.gv").unwrap().contains("screen("));
+        assert!(!assets.exists("outro/app.gv"));
         assert_eq!(
-            assets.read_to_string("gva/nao_existe").unwrap_err().kind(),
+            assets.read_to_string("gv/nao_existe").unwrap_err().kind(),
             std::io::ErrorKind::NotFound
         );
         assert!(!assets.supports_reload());
@@ -442,10 +442,10 @@ mod tests {
 
     #[test]
     fn a_macro_embute_pelo_caminho_relativo_ao_crate() {
-        let assets = crate::embed_assets!["examples/gva/web_contador/app.gva"];
+        let assets = crate::embed_assets!["examples/web_contador/app.gv"];
         let gv = assets
-            .read_to_string("examples/gva/web_contador/app.gva")
+            .read_to_string("examples/web_contador/app.gv")
             .unwrap();
-        assert!(gv.contains("<screen"), "{gv}");
+        assert!(gv.contains("screen("), "{gv}");
     }
 }

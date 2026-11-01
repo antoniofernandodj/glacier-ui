@@ -21,10 +21,10 @@
 use glacier_ui::{EngineMessage, GlacierUI, NodeType};
 use iced::Point;
 
-/// Escreve um `.gv` temporário e devolve o caminho.
+/// Escreve um `.xml` temporário e devolve o caminho.
 fn escreve(nome: &str, conteudo: &str) -> String {
     std::fs::create_dir_all("templates").ok();
-    let caminho = format!("templates/{nome}.gv");
+    let caminho = format!("templates/{nome}.xml");
     std::fs::write(&caminho, conteudo).unwrap();
     caminho
 }
@@ -709,7 +709,7 @@ fn clicar_no_campo_armado_desarma() {
 // Os exemplos, avaliados de verdade
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// As nove tags da onda aparecem na árvore avaliada de `examples/gva/onda9`.
+/// As nove tags da onda aparecem na árvore avaliada de `examples/onda9`.
 ///
 /// Este teste existe por causa da advertência do `CLAUDE.md`: este repositório
 /// já produziu, mais de uma vez, um widget que passava em todos os testes e
@@ -720,7 +720,7 @@ fn clicar_no_campo_armado_desarma() {
 fn o_exemplo_rust_monta_as_nove_tags() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda9", "examples/gva/onda9/app.gva")
+        .register_component("onda9", "examples/onda9/app.gv")
         .expect("a tela do exemplo registra");
     motor.navigate_to("onda9");
 
@@ -761,7 +761,7 @@ fn o_exemplo_rust_monta_as_nove_tags() {
 fn o_exemplo_aninha_dois_splitters_com_chaves_diferentes() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda9", "examples/gva/onda9/app.gva")
+        .register_component("onda9", "examples/onda9/app.gv")
         .unwrap();
     motor.navigate_to("onda9");
     let _ = motor.dispatch(&EngineMessage::ContextPatch(vec![(
@@ -796,7 +796,7 @@ fn o_exemplo_aninha_dois_splitters_com_chaves_diferentes() {
 fn o_exemplo_luau_monta_e_o_script_semeia() {
     let mut motor = GlacierUI::new();
     motor
-        .register_component("onda9_luau", "examples/gva/onda9_luau/app.gva")
+        .register_component("onda9_luau", "examples/onda9_luau/app.gv")
         .expect("a tela Luau registra");
     motor.navigate_to("onda9_luau");
 

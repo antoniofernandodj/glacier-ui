@@ -17,7 +17,7 @@ describe("contador", function()
     before_each(function() ... end)
 
     test("soma e subtrai", function()
-        local tela = component("views/app.gvb")
+        local tela = component("views/app.gv")
         tela:call("somar")
         expect(tela:get("contador")):toBe("1")
         expect(tela:toasts()).never:toEqual({})

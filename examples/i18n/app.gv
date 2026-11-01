@@ -1,0 +1,37 @@
+// i18n: `{t("chave")}` no markup, a locale ativa na chave `__locale`. Ver docs/I18N.md.
+//
+//   WGPU_BACKEND=gl cargo run --example i18n
+//
+// Os botões de idioma só escrevem `__locale`; toda interpolação que chama `t(…)`
+// depende dessa chave e se reavalia sozinha, sem reiniciar.
+screen(title = "i18n") {
+  resources {
+    link(rel = stylesheet, href = "examples/i18n/app.gss")
+  }
+
+  container(class = caixa) {
+    column(class = coluna) {
+      text("{t('titulo')}", class = titulo)
+      text("{t('ola', nome=usuario)}", class = corpo)
+      text("{t('itens', n=contagem)}", class = corpo)
+
+      row(class = linha) {
+        button(text = "{t('botao.mais')}", on_click = mais)
+        button(text = "{t('botao.menos')}", on_click = menos)
+      }
+
+      text("{t('rotulo.preco')}", class = rotulo)
+      text("{num(preco, 2)}", class = corpo)
+      text("{t('rotulo.data')}", class = rotulo)
+      text("{date(quando)}", class = corpo)
+
+      text("{t('rotulo.idioma')}: {__locale}", class = rotulo)
+      row(class = linha) {
+        button(text = "Português", on_click = idioma_pt)
+        button(text = "English", on_click = idioma_en)
+        button(text = "Русский", on_click = idioma_ru)
+        button(text = "العربية", on_click = idioma_ar)
+      }
+    }
+  }
+}

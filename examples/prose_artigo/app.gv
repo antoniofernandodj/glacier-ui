@@ -1,0 +1,39 @@
+// Um artigo em três sintaxes, com o texto lido de arquivos em Rust. Ver docs/TEXTO.md.
+screen(title = "Artigo — três sintaxes", size = "900 760") {
+  resources {
+    link(rel = stylesheet, href = "examples/prose_artigo/app.gss")
+  }
+
+  container(class = caixa) {
+    scrollable(class = rolagem) {
+      column(class = coluna) {
+        text("Um artigo, três sintaxes", class = titulo)
+        text("O mesmo texto em arquivos; cada prose lê uma chave do contexto.", class = rotulo)
+
+        text("HTML — syntax = html", class = secao)
+        prose(class = corpo, syntax = html, content = "@artigo_html")
+
+        text("gv — sem syntax (é o padrão)", class = secao)
+        prose(class = corpo, content = "@artigo_gv")
+
+        text("Markdown — syntax = markdown", class = secao)
+        prose(class = corpo, syntax = markdown, content = "@artigo_md")
+
+        text("Conteúdo hostil (on_click vindo de dado) — recusado", class = secao)
+        prose(class = corpo, content = "@artigo_ruim")
+
+        text("Escrito direto no markup (estático)", class = secao)
+        prose(class = corpo) {
+          blockquote {
+            p { span("Citações, listas e figuras também existem no markup.") }
+            footer("a documentação")
+          }
+          figure {
+            img(src = "examples/conteudo_prose/foto.png", alt = "foto")
+            figcaption { span("Uma figura estática, com ") b("legenda") span(" rica.") }
+          }
+        }
+      }
+    }
+  }
+}

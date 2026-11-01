@@ -872,7 +872,7 @@ fn validate_prose(root: Node) -> Option<Diagnostic> {
                     attr,
                     format!("syntax=\"{}\" não existe", attr.value()),
                 )
-                .with_hint("as sintaxes são gva, gvb, html e markdown"),
+                .with_hint("as sintaxes são gv, html e markdown"),
             );
         }
         let tem_content = prose.attributes().any(|a| PROSE_CONTENT_ATTRS.contains(&a.name()));
@@ -904,29 +904,9 @@ fn validate_prose(root: Node) -> Option<Diagnostic> {
     None
 }
 
-thread_local! {
-    /// A sintaxe do documento em leitura: o padrão de um `<prose content>` sem `syntax`.
-    static SINTAXE_DO_DOCUMENTO: std::cell::Cell<crate::prose::Sintaxe> =
-        const { std::cell::Cell::new(crate::prose::Sintaxe::Gva) };
-}
-
+/// A sintaxe de um `<prose content>` sem `syntax`: a do próprio `.gv`.
 fn sintaxe_do_documento() -> crate::prose::Sintaxe {
-    SINTAXE_DO_DOCUMENTO.with(std::cell::Cell::get)
-}
-
-/// Fixa a sintaxe do documento enquanto ele é lido e devolve a anterior ao sair.
-struct GuardaSintaxe(crate::prose::Sintaxe);
-
-impl GuardaSintaxe {
-    fn nova(file: Option<&str>) -> Self {
-        Self(SINTAXE_DO_DOCUMENTO.with(|c| c.replace(crate::prose::Sintaxe::do_arquivo(file))))
-    }
-}
-
-impl Drop for GuardaSintaxe {
-    fn drop(&mut self) {
-        SINTAXE_DO_DOCUMENTO.with(|c| c.set(self.0));
-    }
+    crate::prose::Sintaxe::Gv
 }
 
 /// Os nomes do atributo de sintaxe e do de conteúdo de um `<prose>`.
@@ -1727,7 +1707,7 @@ pub enum NodeType {
     ///
     /// Os blocos vêm dos **filhos** do `<prose>` (lidos na carga) ou, se ele tem
     /// `content`, de `fonte` (lida na avaliação: um texto vindo de um arquivo, de um
-    /// `fetch` ou de um banco, em `gva`, `gvb`, `html` ou `markdown`).
+    /// `fetch` ou de um banco, em `gv`, `html` ou `markdown`).
     ///
     /// `size` e `color` valem para o texto todo; o que muda por trecho está em
     /// [`TextSpan`].
@@ -7243,7 +7223,6 @@ impl UiNode {
     /// escreveu, que é o que ele espera ver de volta na mensagem de erro. Como
     /// as passadas preservam a contagem de linhas, a linha serve para os dois.
     pub fn parse_xml_with_source(xml: &str, source: &str, file: Option<&str>) -> Result<Self> {
-        let _sintaxe = GuardaSintaxe::nova(file);
         // `&nbsp;` isn't a predefined XML entity, so roxmltree would reject it.
         // Rewrite it to a literal non-breaking space (U+00A0) up front; the text
         // normalizer then preserves it as a hard space (see `normalize_text`).
@@ -7267,7 +7246,7 @@ impl UiNode {
             return Err(GlacierError::Xml(Box::new(d)));
         }
 
-        // Uma ligação sem o `:` não é erro (o `.gva` antigo é todo assim), mas é a
+        // Uma ligação sem o `:` não é erro (o jeito antigo de escrever é todo assim), mas é a
         // família de bug que falha calada: avisa, com a linha.
         if file.is_some() {
             for d in unmarked_bindings(fragment) {
@@ -7402,7 +7381,6 @@ impl UiNode {
     /// cuja faixa de linhas caem. Cada tela inline passa depois por
     /// [`UiNode::assemble`], o mesmo caminho de um arquivo com raiz `screen`.
     pub(crate) fn parse_app_xml(source: &str, file: Option<&str>) -> Result<Option<AppManifest>> {
-        let _sintaxe = GuardaSintaxe::nova(file);
         if !first_tag_is_app(source) {
             return Ok(None);
         }
@@ -7647,7 +7625,7 @@ impl UiNode {
             return Err(fail(
                 diagnostic_at(sc, "screen sem name nem src".to_string()).with_hint(
                     "toda tela tem um nome (é o de navigate_to/open_window): \
-                     screen(name = home) { … }, ou screen(src = \"views/ajustes.gvb\")",
+                     screen(name = home) { … }, ou screen(src = \"views/ajustes.gv\")",
                 ),
             ));
         };

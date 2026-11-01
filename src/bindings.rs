@@ -14,8 +14,8 @@
 //! <text content="{progresso}%" />         <!-- o dado: o valor dela -->
 //! ```
 //!
-//! Este módulo é a lista do que é ligação. Quem a consulta: o parser do `.gva`
-//! (que avisa quando uma ligação chega sem o `:`), o dessugarador do `.gvb`
+//! Este módulo é a lista do que é ligação. Quem a consulta: o parser do `.gv`
+//! (que avisa quando uma ligação chega sem o `:`), o dessugarador do `.gv`
 //! (que recusa) e as ferramentas de migração.
 
 /// `(tags, atributos)`: em cada uma das `tags` (e seus apelidos), os `atributos`

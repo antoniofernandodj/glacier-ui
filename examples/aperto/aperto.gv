@@ -1,0 +1,25 @@
+screen(title = "Glacier - Aperto") {
+  resources {
+    link(rel = stylesheet, href = "examples/aperto/app.gss")
+    link(rel = theme, href = "examples/aperto/theme.json")
+  }
+
+  column(spacing = 14, padding = 10) {
+    row(spacing = 10) {
+      column(width = fill) {
+        text("Deployments", size = 30, bold = true)
+        text("Real-time status of services in the cluster.")
+      }
+      button(text = "Limpar parados/falhas", on_click = x)
+    }
+    row(spacing = 10) {
+      text("Real-time status of services in the cluster.")
+      button(text = "Stop All", on_click = x)
+    }
+    row(spacing = 10) {
+      input(width = 110, placeholder = "Search deployments, nodes…", :value = v, on_change = x)
+      button(text = Disconnect, on_click = x)
+    }
+    textarea(width = 70, height = 60, placeholder = "Descrição do serviço aqui", :value = v, on_change = x)
+  }
+}

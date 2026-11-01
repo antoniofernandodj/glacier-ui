@@ -1,0 +1,34 @@
+component {
+  resources {
+    link(rel = stylesheet, href = "examples/lista/app.gss")
+  }
+
+  // O contrato do componente. Até a 0.60 isto era um comentário ("recebe as
+  // props nome, cargo, inicial e cor") que nada verificava — e um typo no uso
+  // (`nomee="{u.nome}"`) não dava erro nenhum: a prop errada não casava com
+  // `{nome}`, e o `{nome}` do template caía para o contexto de baixo. Declarado
+  // aqui, o mesmo typo vira erro citando as props que existem.
+  //
+  // `cor` tem `default`, então é opcional; as outras três não têm, então são
+  // obrigatórias.
+  props {
+    prop(name = nome)
+    prop(name = cargo)
+    prop(name = inicial)
+    prop(name = cor, default = #89B4FA)
+  }
+
+  container(class = caixa) {
+    row(class = "linha linha_2") {
+      // Avatar circular com a inicial do nome
+      container(background = @cor, class = caixa_2) {
+        text(content = "@inicial", class = titulo)
+      }
+
+      column(class = coluna) {
+        text(content = "@nome", class = titulo_2)
+        text(content = "@cargo", class = texto)
+      }
+    }
+  }
+}

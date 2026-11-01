@@ -1,6 +1,0 @@
-.caixa { width: fill; height: fill; }
-.rolagem { width: fill; height: fill; }
-.tela { padding: 8; spacing: 1; width: fill; }
-.titulo { size: 17; bold: true; }
-.rotulo { size: 11; color: #A6ADC8; }
-.valor { size: 12; color: #A6E3A1; }

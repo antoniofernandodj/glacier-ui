@@ -12,9 +12,9 @@ cargo run
 ```
 src/main.rs                     só diz qual template abre
 views/
-├── painel.gvb                   o app(...): janela principal, tray e as telas
+├── painel.gv                   o app(...): janela principal, tray e as telas
 ├── assets/icone.png            ícone da janela e da bandeja
-├── detalhe.gvb                  tela da janela filha (aberta por open_window)
+├── detalhe.gv                  tela da janela filha (aberta por open_window)
 ├── scripts/
 │   ├── painel.luau             abrir filha, notificar, receber broadcast
 │   ├── detalhe.luau            contador próprio, broadcast + close_window
@@ -42,16 +42,16 @@ janela — quem fecha é o daemon. O par `broadcast` + `close_window` é o padr�
 "janela auxiliar devolve um resultado e some".
 
 O nome do `open_window` é o de uma `screen` do `app` (`screen(name = detalhe,
-src = "detalhe.gvb")`), e a janela nova herda dele o ícone e as folhas de estilo.
+src = "detalhe.gv")`), e a janela nova herda dele o ícone e as folhas de estilo.
 O **tamanho vai na chamada**: a tela é só conteúdo, e `size` num `screen` sob o
 `app` é erro de parse. O `title` fica na tela.
 
-O contador do `detalhe.gvb` prova o isolamento: abra duas filhas e compare.
+O contador do `detalhe.gv` prova o isolamento: abra duas filhas e compare.
 
 ## A bandeja
 
 O ícone, o menu e o que cada item faz estão no `resources` do `app` de
-`views/painel.gvb`:
+`views/painel.gv`:
 
 ```
 app(id = …, single_instance = true, remember_geometry = true, size = "520 460") {

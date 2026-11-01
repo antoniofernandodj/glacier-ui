@@ -1,7 +1,0 @@
-screen {
-  resources {
-    import(name = CompX, from = onda8b_buga_comp.gvb)
-  }
-
-  CompX
-}

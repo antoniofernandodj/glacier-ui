@@ -1,0 +1,19 @@
+screen(title = "Rede: progresso", size = "560 300") {
+  resources {
+    link(rel = stylesheet, href = "examples/rede_progresso_rust/app.gss")
+  }
+
+  container(class = caixa) {
+    column(class = tela) {
+      text("Progresso de envio e recebimento", class = titulo)
+      text("Precisa do servidor de teste: python3 tools/servidor_rede.py (porta 8096).", class = rotulo)
+      row(class = botoes) {
+        button(text = "Enviar 50 MB", on_click = enviar)
+        button(text = "Baixar 50 MB", on_click = baixar)
+        button(text = Cancelar, on_click = cancelar)
+      }
+      progressbar(:value = pct)
+      text("{estado}", class = valor)
+    }
+  }
+}

@@ -1,0 +1,24 @@
+component {
+  resources {
+    link(rel = stylesheet, href = "examples/perfil/app.gss")
+  }
+
+  container(class = caixa_3) {
+    column(class = "coluna_2 coluna_4") {
+      image(
+        source = "examples/perfil/avatar.png", width = 100, height = 100,
+        clip = Circle,
+      )
+
+      column(class = "coluna_3 coluna_4") {
+        text(content = "@user_name", class = titulo_2)
+        text(content = "@user_role", class = texto)
+      }
+
+      button(
+        text = @texto_botao, on_click = seguir_usuario,
+        color = @btn_color, class = botao_3,
+      )
+    }
+  }
+}

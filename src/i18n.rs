@@ -10,7 +10,7 @@
 //! <text>{date(quando)}</text>                   <!-- 31/10/2026 em pt-BR, 10/31/2026 em en -->
 //! ```
 //!
-//! No `.gvb` é igual, dentro de uma string (`text("{t('titulo')}")`).
+//! No `.gv` é igual, dentro de uma string (`text("{t('titulo')}")`).
 //!
 //! **A locale ativa é uma chave do contexto, `__locale`.** É isso que faz a troca
 //! ao vivo funcionar sem reiniciar: toda interpolação que chama `t(…)` lê essa

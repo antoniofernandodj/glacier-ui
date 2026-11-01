@@ -69,18 +69,14 @@ type SetupHook = Rc<dyn Fn(&mut GlacierUI)>;
 const DEFAULT_MAIN_DIRS: [&str; 2] = ["./views/app", "app"];
 
 /// O template principal que o `run` usa quando o app não escolheu um: o
-/// primeiro de [`DEFAULT_MAIN_DIRS`] × extensões que a fonte de assets tiver —
-/// `.gva`, depois `.gvb`, depois o `.gv` legado. Sem nenhum, o primeiro
-/// candidato, para o erro do registro dizer qual arquivo faltou.
+/// primeiro de [`DEFAULT_MAIN_DIRS`] com a extensão `.gv` que a fonte de assets
+/// tiver. Sem nenhum, o primeiro candidato, para o erro do registro dizer qual
+/// arquivo faltou.
 fn default_main_template(assets: &dyn AssetSource) -> String {
-    let exts = std::iter::once(crate::gva::EXTENSOES[0])
-        .chain([crate::gvb::EXTENSAO])
-        .chain(crate::gva::EXTENSOES[1..].iter().copied());
-    let candidatos: Vec<String> = exts
-        .flat_map(|ext| DEFAULT_MAIN_DIRS.map(|base| format!("{base}.{ext}")))
+    let candidatos: Vec<String> = DEFAULT_MAIN_DIRS
+        .iter()
+        .map(|base| format!("{base}.{}", crate::gv::EXTENSAO))
         .collect();
-    // A ordem de busca é diretório-dentro-de-extensão: `./views/app.gva` e
-    // `app.gva` antes de qualquer `.gvb`.
     candidatos
         .iter()
         .find(|p| assets.exists(p))
@@ -2224,7 +2220,7 @@ mod tests {
             match action {
                 "rust" => ctx.open_window_component(Box::new(Abridor)),
                 "arquivo" => ctx.open_window(
-                    WindowSpec::file("examples/gva/janelas_glacier/detalhe.gva").title("D"),
+                    WindowSpec::file("examples/janelas_glacier/detalhe.gv").title("D"),
                 ),
                 "nomeado" => ctx.open_window(WindowSpec::named("detalhe")),
                 _ => {}
@@ -2251,7 +2247,7 @@ mod tests {
         let _ = motor.dispatch(&EngineMessage::UiClick("arquivo".into()));
         let pending = motor.take_pending_windows();
         assert_eq!(pending.len(), 1);
-        assert!(matches!(&pending[0].source, WindowSource::File(p) if p.ends_with("detalhe.gva")));
+        assert!(matches!(&pending[0].source, WindowSource::File(p) if p.ends_with("detalhe.gv")));
         assert_eq!(pending[0].title.as_deref(), Some("D"));
     }
 
@@ -2261,7 +2257,7 @@ mod tests {
         // Registra "detalhe" como componente de arquivo; a resolução Named→File
         // acontece na drenagem do Context (ver `run_on_owner`).
         motor
-            .register_component("detalhe", "examples/gva/janelas_glacier/detalhe.gva")
+            .register_component("detalhe", "examples/janelas_glacier/detalhe.gv")
             .unwrap();
         motor.register(Box::new(Abridor)).unwrap();
         motor.set_initial_screen("abridor");
@@ -2270,7 +2266,7 @@ mod tests {
         let pending = motor.take_pending_windows();
         assert_eq!(pending.len(), 1);
         match &pending[0].source {
-            WindowSource::File(p) => assert_eq!(p, "examples/gva/janelas_glacier/detalhe.gva"),
+            WindowSource::File(p) => assert_eq!(p, "examples/janelas_glacier/detalhe.gv"),
             _ => panic!("Named deveria ter sido resolvido para File"),
         }
     }
@@ -2278,7 +2274,7 @@ mod tests {
     #[test]
     fn build_engine_de_arquivo_usa_stem_como_titulo() {
         let (engine, title) = build_engine(
-            WindowSource::File("examples/gva/janelas_glacier/detalhe.gva".into()),
+            WindowSource::File("examples/janelas_glacier/detalhe.gv".into()),
             &[],
             Arc::new(DiskAssets),
             None,
@@ -2291,7 +2287,7 @@ mod tests {
     #[test]
     fn build_engine_semeia_data_no_contexto() {
         let (engine, _) = build_engine(
-            WindowSource::File("examples/gva/janelas_glacier/detalhe.gva".into()),
+            WindowSource::File("examples/janelas_glacier/detalhe.gv".into()),
             &[
                 ("url".into(), "http://x".into()),
                 ("token".into(), "abc".into()),

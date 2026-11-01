@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Servidor local para testar a rede do Glacier (examples/gva/rede_completa): cookies, eco JSON,
+"""Servidor local para testar a rede do Glacier (examples/rede_completa): cookies, eco JSON,
 upload multipart, rota lenta, falhas com contagem (retries), status e download.
 
     python3 tools/servidor_rede.py [porta]     # padrão 8096

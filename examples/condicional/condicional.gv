@@ -1,0 +1,36 @@
+screen(title = "Glacier - Condicional") {
+  resources {
+    link(rel = stylesheet, href = "examples/condicional/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/condicional/theme.json")
+  }
+
+  container(class = caixa) {
+    column(class = "coluna coluna_3") {
+      text(content = "Demonstração de if / else", class = titulo)
+
+      // Checagem truthy: renderiza só quando {logado} for verdadeiro
+      if @logado {
+        column(class = "coluna_2 coluna_3") {
+          text(content = "Bem-vindo de volta, @usuario!", class = texto)
+          button(text = Sair, on_click = logout, class = botao)
+        }
+      } else {
+        column(class = "coluna_2 coluna_3") {
+          text(content = "Você não está conectado.", class = texto_2)
+          button(text = Entrar, on_click = login, class = botao_2)
+        }
+      }
+
+      // Comparação explícita
+      if @logado == "false" {
+        text(
+          content = "(dica: clique em Entrar para ver o conteúdo)",
+          class = nota,
+        )
+      }
+    }
+  }
+}

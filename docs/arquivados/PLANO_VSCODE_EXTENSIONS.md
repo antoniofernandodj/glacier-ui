@@ -82,11 +82,10 @@ propósito está em "Fora do escopo".
 
 ## O que mudou desde então
 
-- **`.gvb` e `.gva`.** A extensão `glacier-view` cobre os dois formatos (`.gv` é legado e tratado
-  como `.gva`). Um `.gvb` é lido como o XML equivalente (`gvb-shadow.js`), com as posições
-  mapeadas de volta; links, F12 e diagnósticos valem para os dois.
-- **Completion** de tags, props e componentes (`.gva`), com `gvb-typing.js` cuidando da digitação
-  do `.gvb`.
+- **`.gv`.** A extensão `glacier-view` cobre o formato. Um `.gv` é lido como o XML interno
+  equivalente (`gv-shadow.js`), com as posições mapeadas de volta; links, F12 e diagnósticos
+  valem sobre ele.
+- `gv-typing.js` cuida da digitação do `.gv`.
 - **Diagnósticos:** prop desconhecida ou obrigatória que falta num `<props>`, referência de
   componente e caminho de arquivo que não resolve.
 - **GSS:** `class="…"`/`id="…"` levam à regra no `.gss` (linkado, `<style>` inline ou qualquer
@@ -103,15 +102,13 @@ propósito está em "Fora do escopo".
 - [x] **Hover** *(glacier-view 0.23.0)*.
 - [x] **Diagnóstico** de props, componente e caminho que não resolve. O aviso de
       `on_click="x"` sem `function x` ficou fora (ver abaixo).
-- [x] **Completion** de tags, atributos e componentes (`.gva`).
 
 ### Médio prazo
 - [x] **DocumentLink** visível nos valores de ação e nos nomes de componente *(v0.2)*.
 - [x] **Resolução de componente mais forte** — índice do workspace, cacheado *(v0.2)*.
 - [x] **GSS**: `class`/`id` do markup → regra no `.gss`; `var(--x)` → declaração em `:root`
       *(glacier-gss 0.3.0)*.
-- [x] **Migração `.xml` → `.gv`** — superada: o formato se chama `.gva` e `.gvb` é o segundo
-      formato; o `.gv` segue aceito como apelido.
+- [x] **Migração `.xml` → `.gv`** — o formato se chama `.gv`.
 
 ### Fora do escopo
 
@@ -120,9 +117,9 @@ Decidido não fazer neste plano; entram como melhoria nova se fizerem falta.
 - **Diagnóstico de handler que não existe** (`on_click="x"` sem `function x`). Um handler pode
   vir de Rust, de outro `.luau` do workspace ou do "binding legado" (a chave de mesmo nome), então
   o falso positivo custa mais do que o aviso vale.
-- **Completion em `.gvb`** (um `.gvb` não tem tag de fechamento; a digitação cuida do resto).
+- **Completion em `.gv`** (um `.gv` não tem tag de fechamento; a digitação cuida do resto).
 - **Unificar** as duas extensões numa só "Glacier UI".
-- **Formatter** (`.gva`, `.gvb` e `.gss`).
+- **Formatter** (`.gv` e `.gss`).
 - **Preview** ao vivo da tela (reaproveitar o hot-reload do motor).
 
 ## Instalação (local)

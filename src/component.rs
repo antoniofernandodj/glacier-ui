@@ -428,7 +428,8 @@ pub enum StreamEventKind {
 pub enum Template {
     /// Caminho em disco — mantém o hot-reload do motor.
     File(String),
-    /// XML embutido no binário.
+    /// Markup em XML interno embutido no binário (o que o `.gv` dessugara): é o formato dos
+    /// builtins da lib, não uma sintaxe de autoria — um app escreve `.gv` e usa [`Template::File`].
     Inline(String),
 }
 

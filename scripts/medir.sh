@@ -23,7 +23,7 @@ cp "$BIN" "$TMP/painel-strip" && strip "$TMP/painel-strip"
 TAM_BRUTO=$(stat -c %s "$BIN")
 TAM_STRIP=$(stat -c %s "$TMP/painel-strip")
 
-(cd examples/gvb/painel && exec python3 -m http.server "$PORTA" >/dev/null 2>&1) &
+(cd examples/painel && exec python3 -m http.server "$PORTA" >/dev/null 2>&1) &
 sleep 1
 
 # kB de um campo de /proc/PID/<arquivo>

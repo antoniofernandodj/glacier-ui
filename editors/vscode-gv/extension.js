@@ -1,4 +1,4 @@
-// Glacier View (.gva, .gvb; .gv legado = .gva) language support.
+// Glacier View (.gv) language support.
 //
 // Two navigation providers, both driven by the same tag scanner (`iterTags`):
 //
@@ -36,17 +36,14 @@
 //   * Definition (F12) — the same targets, plus the bundled syntax reference for
 //     native/builtin tags.
 //
-// Mais o fechamento automático de tag: terminar `<element>` insere
-// `</element>` e deixa o cursor no meio (`tagToClose`/`autoCloseTag`).
-//
 // Intentionally simple and dependency-free (plain JS, no build step). Meant to
-// grow: diagnostics for unknown handlers, `.gvb` completion, etc.
+// grow: diagnostics for unknown handlers, `.gv` completion, etc.
 
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
-const gvbShadow = require("./gvb-shadow");
-const gvbTyping = require("./gvb-typing");
+const gvShadow = require("./gv-shadow");
+const gvTyping = require("./gv-typing");
 
 // Canonical native tag -> all recognised spellings (from src/parser.rs). Used to
 // tell a native/builtin widget apart from an app component, and to anchor the
@@ -284,7 +281,7 @@ const PATH_ATTRS = {
   // fonte de assets (`TRAY_ICON_ATTRS` e `SCREEN_ICON_ATTRS` em src/parser.rs,
   // e o `apply_window_icon` em src/daemon.rs).
   Tray: ["icon", "icone", "ícone"],
-  // `screen(name = log, src = "log_window.gvb")` num `app(...)`: o `src` é o
+  // `screen(name = log, src = "log_window.gv")` num `app(...)`: o `src` é o
   // template da tela (só `src`, como em `parse_screen_decl`); o `icon` fica por
   // compatibilidade com o `.gv` antigo, em que ele ainda era da `<screen>`.
   Screen: ["src", "icon", "icone", "ícone"],
@@ -367,7 +364,7 @@ const SPREAD_ATTRS = new Set(["spread", "espalhar"]);
 // A component name paired with the template file it renders, as written on the
 // Rust/Lua side. Nothing may sit between the two literals but plain expression
 // text — no quote, no `;`, no brace — so the pair belongs to one statement.
-const NAMED_TEMPLATE_RE = /"([A-Za-z_][\w-]*)"[^";{}]{0,160}"([^"]*\.(?:gva|gvb|gv|xml))"/g;
+const NAMED_TEMPLATE_RE = /"([A-Za-z_][\w-]*)"[^";{}]{0,160}"([^"]*\.(?:gv|xml))"/g;
 
 // Attributes naming a screen to navigate to (src/parser.rs). The value is a
 // registered component's name, so it resolves like a component tag.
@@ -521,7 +518,7 @@ function isActionAttr(name) {
 }
 
 // What a workspace scan looks at, and what it never looks at.
-const TEMPLATE_GLOB = "**/*.{gva,gvb,gv,xml}";
+const TEMPLATE_GLOB = "**/*.{gv,xml}";
 const CODE_GLOB = "**/*.{rs,lua,luau}";
 const STYLE_GLOB = "**/*.gss";
 const EXCLUDE_GLOB = "**/{target,node_modules,.git,dist,out}/**";
@@ -531,16 +528,16 @@ function escapeRe(s) {
 }
 
 // ---------------------------------------------------------------------------
-// `.gvb`: o mesmo markup, em outra grafia
+// `.gv`: o mesmo markup, em outra grafia
 // ---------------------------------------------------------------------------
 
-// O XML gerado de cada `.gvb` lido -> { orig, map, inv }. É pela chave (o texto
+// O XML gerado de cada `.gv` lido -> { orig, map, inv }. É pela chave (o texto
 // do XML) que `offsetToPosition` reconhece que um deslocamento é do XML e não do
 // arquivo, e o traduz de volta.
 const SHADOWS = new Map();
-const SHADOW_BY_SOURCE = new Map(); // texto do .gvb -> o mesmo registro
+const SHADOW_BY_SOURCE = new Map(); // texto do .gv -> o mesmo registro
 
-/** `.gvb` -> `{ xml, orig, map, inv }` (ver `gvb-shadow.js`), memoizado. */
+/** `.gv` -> `{ xml, orig, map, inv }` (ver `gv-shadow.js`), memoizado. */
 function shadowOf(orig) {
   let sh = SHADOW_BY_SOURCE.get(orig);
   if (sh) {
@@ -548,7 +545,7 @@ function shadowOf(orig) {
     SHADOW_BY_SOURCE.delete(orig);
     SHADOWS.delete(sh.xml);
   } else {
-    const { xml, map } = gvbShadow.toXml(orig);
+    const { xml, map } = gvShadow.toXml(orig);
     // origem -> XML: o primeiro caractere do XML que veio de cada posição; as
     // posições sem origem (espaço, `:`) herdam a seguinte.
     const inv = new Int32Array(orig.length + 2).fill(-1);
@@ -572,13 +569,13 @@ function shadowOf(orig) {
 }
 
 /**
- * O `document` com que os provedores trabalham: o de um `.gva` é ele mesmo; o de
- * um `.gvb` é um que fala XML (`getText`) e traduz os deslocamentos de ida
+ * O `document` com que os provedores trabalham: o de um outro idioma é ele mesmo; o de
+ * um `.gv` é um que fala o XML interno (`getText`) e traduz os deslocamentos de ida
  * (`offsetAt`) e de volta (`positionAt`). Só esses três e `uri`/`languageId` são
  * usados pelos provedores.
  */
 function adaptDocument(document) {
-  if (document.languageId !== "glacier-view-block") return document;
+  if (document.languageId !== "glacier-view") return document;
   const sh = shadowOf(document.getText());
   const clamp = (o) => Math.max(0, Math.min(o, sh.map.length - 1));
   return {
@@ -645,10 +642,10 @@ function readFileCached(fsPath) {
   } catch (_) {
     return null;
   }
-  // Um `.gvb` entra como o XML equivalente (ver `shadowOf`): todo scanner abaixo
-  // lê `.gva`, e `offsetToPosition` devolve a posição no arquivo de verdade.
+  // Um `.gv` entra como o XML equivalente (ver `shadowOf`): todo scanner abaixo
+  // lê o XML interno, e `offsetToPosition` devolve a posição no arquivo de verdade.
   let shadow = null;
-  if (/\.gvb$/i.test(fsPath)) {
+  if (/\.gv$/i.test(fsPath)) {
     shadow = shadowOf(text);
     text = shadow.xml;
   }
@@ -1952,7 +1949,7 @@ async function buildWorkspaceIndex() {
     // `Template::File("ui/inicio.gv")`, `register_component("inicio", …)`, a
     // struct literal, anything. A file that names the template is the file
     // that stands behind it.
-    const tplRe = /"([^"]*\.(?:gva|gvb|gv|xml))"/g;
+    const tplRe = /"([^"]*\.(?:gv|xml))"/g;
     let t;
     while ((t = tplRe.exec(text)) !== null) {
       const resolved = resolveAssetPath(uri, t[1]);
@@ -1999,7 +1996,7 @@ const FORM_ERROR_PREFIX_RE =
   /\b(?:errorPrefix|error_prefix|error-prefix|prefixoErro|prefixo_erro)\s*=\s*"?([A-Za-z_]\w*)/g;
 const DEFAULT_FORM_ERROR_PREFIX = "erro_";
 
-/** `[{ name, offset }]` for every `formControl = nome` in `text` (`.gva` or `.gvb`). */
+/** `[{ name, offset }]` for every `formControl = nome` in `text` (`.gv`). */
 function formControlsIn(text) {
   const out = [];
   FORM_CONTROL_RE.lastIndex = 0;
@@ -2022,7 +2019,7 @@ function formErrorPrefixesIn(text) {
 /**
  * The `formControl = nome` behind an engine-derived error key such as
  * `erro_ss_email` — this document first (positions go through `document` so a
- * `.gvb` shadow maps back to the source), then the nearest one in the workspace.
+ * `.gv` shadow maps back to the source), then the nearest one in the workspace.
  * Returns `{ location, control }` or null.
  */
 function resolveFormErrorKey(document, index, key) {
@@ -2143,7 +2140,7 @@ function sharedPathDepth(a, b) {
 /**
  * The declaring file of component `tag`, or null. The document's own `<import>`
  * wins; then, among the workspace candidates, the nearest one — a name like
- * `perfil` can be both `examples/gva/perfil/perfil.gva` and the screen registered as
+ * `perfil` can be both `examples/perfil/perfil.gv` and the screen registered as
  * `perfil` next door, and the one sharing the most path with the document is
  * the one that screen means.
  */
@@ -2233,8 +2230,6 @@ function pathTooltip(fsPath) {
     case ".gss":
     case ".css":
       return "Open GSS stylesheet";
-    case ".gva":
-    case ".gvb":
     case ".gv":
     case ".xml":
       return "Open template";
@@ -2989,93 +2984,8 @@ async function resolveDefinition(document, position) {
 
 
 // ---------------------------------------------------------------------------
-// Completar e diagnosticar props
+// Diagnosticar props
 // ---------------------------------------------------------------------------
-
-/** A tag de abertura que contém `offset`, se houver. */
-function openTagAt(text, offset) {
-  for (const tag of iterTags(text)) {
-    if (tag.closing) continue;
-    if (offset > tag.attrsStart && offset <= tag.attrsEnd + 1) return tag;
-  }
-  return null;
-}
-
-/** Whether attribute `attrName` of `tag` takes a component name as its value. */
-async function namesComponent(document, tag, attrName) {
-  const lower = attrName.toLowerCase();
-  const canon = NATIVE_LOOKUP[tag.name.toLowerCase()];
-  if (canon) return !!componentRefAttrs(canon)?.has(lower);
-  const props = await propsForTag(document, tag.name).catch(() => null);
-  return (props || []).some((p) => p.component && p.name.toLowerCase() === lower);
-}
-
-/**
- * Completion items for a component-name value, replacing the whole value: this
- * file's own declarations first, then its imports, then the workspace. A name
- * that is also a native tag is left out — the tag wins, and a component under
- * that name is never reached.
- */
-async function componentCompletions(document, attr) {
-  const text = document.getText();
-  const range = new vscode.Range(document.positionAt(attr.start), document.positionAt(attr.end));
-  const seen = new Set();
-  const items = [];
-  const add = (name, detail, rank) => {
-    const lower = name.toLowerCase();
-    if (seen.has(lower) || NATIVE_LOOKUP[lower]) return;
-    seen.add(lower);
-    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Class);
-    item.detail = detail;
-    item.range = range;
-    item.sortText = rank + name;
-    items.push(item);
-  };
-  for (const name of localDefineNames(text)) add(name, "componente declarado neste arquivo", "0");
-  for (const d of importDecls(document.uri, text)) add(d.name, "componente importado neste arquivo", "1");
-  const index = await workspaceIndex();
-  for (const name of index.componentNames.values()) add(name, "componente do workspace", "2");
-  return items;
-}
-
-const provideCompletion = {
-  async provideCompletionItems(document, position) {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const tag = openTagAt(text, offset);
-    if (!tag) return null;
-
-    // Inside an attribute value: only a value that names a component
-    // (`fallback`, `foreach_fallback`, `<render component>`, a `<prop
-    // component>`) has something to offer. Prop names don't belong in a value.
-    const valor = [...iterAttrs(tag.attrsText, tag.attrsStart)].find(
-      (a) => offset >= a.start && offset <= a.end
-    );
-    if (valor) {
-      if (!(await namesComponent(document, tag, valor.name))) return null;
-      return componentCompletions(document, valor);
-    }
-
-    const props = await propsForTag(document, tag.name);
-    if (!props || !props.length) return null;
-    const jaEscritas = new Set(
-      [...iterAttrs(tag.attrsText, tag.attrsStart)].map((a) => a.name.toLowerCase())
-    );
-    return props
-      .filter((p) => !jaEscritas.has(p.name.toLowerCase()))
-      .map((p) => {
-        const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Property);
-        item.detail =
-          p.default === undefined
-            ? `${tag.name} — obrigatória`
-            : `${tag.name} — opcional (default: ${p.default})`;
-        item.insertText = new vscode.SnippetString(`${p.name}="$1"`);
-        // Obrigatórias primeiro: são as que, faltando, quebram o render.
-        item.sortText = (p.default === undefined ? "0" : "1") + p.name;
-        return item;
-      });
-  },
-};
 
 /**
  * Marca no editor as mesmas violações que o motor recusaria no parse: prop
@@ -3260,115 +3170,9 @@ async function componentRefDiagnostics(document, text, out) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Fechamento automático de tag
-// ---------------------------------------------------------------------------
-
-// Tags nativas folha: o motor lê só os atributos delas, e o markup do projeto
-// inteiro as escreve com `/>`. Fechar `<Image src="…">` em `<Image …></Image>`
-// seria devolver lixo para o usuário apagar, então elas ficam de fora. O que
-// não está aqui fecha — inclusive todo componente do app, que é o caso em que
-// o editor não tem como saber e o par vazio é o palpite certo.
-const VOID_TAGS = new Set([
-  "Image", "Svg", "Rule", "Space", "Slider", "ProgressBar", "Spinner",
-  "Checkbox", "Toggle", "Radio", "RadioGroup", "Select", "ComboEdit",
-  "SpinBox", "TextInput", "DateEdit", "TimeEdit", "DateTimeEdit",
-  "Avatar", "Badge", "MenuItem", "MenuSeparator",
-  // Os itens da `<tray>`: `<item …/>`, `<separator />`. O `<check>` da bandeja
-  // já entra aqui pelo `Checkbox`.
-  "TrayItem", "TraySeparator",
-  "Link", "Import", "Include", "Slot", "Prop",
-  // Onda 9. `Splitter` e `SwipeView` ficam de FORA de propósito: os dois
-  // renderizam `node.children` (os painéis e as páginas), então o par de
-  // fechamento é o que se quer ao digitar `>`.
-  "RangeSlider", "Tumbler", "DelayButton", "RubberBand",
-  "ShortcutInput", "Shortcut", "SizeGrip",
-  // `<pageindicator>` resolve para o canônico `Pagination`, e nenhum dos dois
-  // tem filhos — sem isto, digitar `<pageindicator>` inseria um
-  // `</pageindicator>` que não faz sentido.
-  "Pagination",
-  // Onda 11. `Stack`, `MdiArea`, `MdiSubWindow`, `NotificationDot` e
-  // `SplashScreen` ficam de FORA de propósito — os cinco renderizam
-  // `node.children`/`<slot/>`. Os cinco abaixo só levam props: nenhum tem
-  // filho para o par de fechamento embrulhar.
-  "QrCode", "Chip", "Skeleton", "CommandLink", "RoundButton",
-]);
-
 /**
- * O nome da tag que o `>` em `gtOffset` acaba de abrir, ou `null` quando esse
- * `>` não termina uma abertura que peça par: fim de `</x>` ou de `<x/>`, `>`
- * solto dentro de um valor de atributo, tag em comentário ou dentro do corpo
- * de um `<script>`/`<style>`, e as folhas de `VOID_TAGS`.
- */
-function tagToClose(text, gtOffset) {
-  if (text[gtOffset] !== ">") return null;
-  const lt = text.lastIndexOf("<", gtOffset);
-  if (lt < 0) return null;
-  const body = text.slice(lt + 1, gtOffset);
-  // Um `>` antes deste já fechou aquele `<`: o que se digita agora é texto
-  // solto, não markup.
-  if (body.includes(">")) return null;
-  // `</x>`, `<!-- … -->`, `<?…?>` e `<x/>` já vêm fechados.
-  if (/^[/!?]/.test(body) || body.endsWith("/")) return null;
-  // Aspas ímpares: o `>` caiu dentro de um valor (`title="a > b"`).
-  if ((body.match(/"/g) || []).length % 2 !== 0) return null;
-  const m = /^([A-Za-z_][\w.-]*)/.exec(body);
-  if (!m) return null;
-  const canonica = NATIVE_LOOKUP[m[1].toLowerCase()];
-  if (canonica && VOID_TAGS.has(canonica)) return null;
-  if (inRanges(commentRanges(text), lt)) return null;
-  if (inRanges(embeddedRanges(text), lt)) return null;
-  return m[1];
-}
-
-/**
- * Ao terminar `<element>`, insere `</element>` e deixa o cursor entre os dois.
- *
- * Mora no change, e não num provider, porque o VS Code não tem gancho
- * declarativo para isto — é o mesmo caminho que a extensão de HTML segue. Por
- * isso também o par `<`/`>` saiu de `autoClosingPairs` no
- * language-configuration.json: com o `>` já auto-inserido, digitá-lo apenas
- * sobrescreve o caractere e change nenhum chega aqui.
- *
- * O par que sobra aberto quando o Enter vem logo em seguida — cursor entre
- * `<element>` e `</element>` — é quem as `onEnterRules` do mesmo
- * `language-configuration.json` quebram em três linhas (a mesma coisa que o
- * VS Code já faz pra `{ | }`). Armadilha: no JSON a chave é `action.indent`,
- * não `action.indentAction` (esse é o nome da API TypeScript). Com o nome
- * errado o VS Code descarta a regra só com um `console.warn`, e o Enter volta
- * ao indent default sem erro visível no editor.
- */
-async function autoCloseTag(event) {
-  const doc = event.document;
-  if (doc.languageId !== "glacier-view") return;
-  if (
-    event.reason === vscode.TextDocumentChangeReason.Undo ||
-    event.reason === vscode.TextDocumentChangeReason.Redo
-  ) {
-    return;
-  }
-  const cfg = vscode.workspace.getConfiguration("glacierView", doc);
-  if (!cfg.get("autoClosingTags", true)) return;
-  // Um cursor só: com multi-cursor cada offset anda conforme o anterior é
-  // editado, e o ganho não paga a conta.
-  if (event.contentChanges.length !== 1) return;
-  const change = event.contentChanges[0];
-  if (change.text !== ">") return;
-  const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document !== doc) return;
-  const nome = tagToClose(doc.getText(), change.rangeOffset);
-  if (!nome) return;
-  // O `$0` do snippet é o que deixa o cursor entre abertura e fechamento.
-  await editor.insertSnippet(
-    new vscode.SnippetString(`$0</${nome}>`),
-    doc.positionAt(change.rangeOffset + 1),
-    { undoStopBefore: false, undoStopAfter: true }
-  );
-}
-
-/**
- * A aspa dupla no `.gvb` — ver `gvb-typing.js`. O comando `type` é o que o
- * editor chama a cada tecla; aqui só a `"` num `.gvb` é tratada, e todo o resto
+ * A aspa dupla no `.gv` — ver `gv-typing.js`. O comando `type` é o que o
+ * editor chama a cada tecla; aqui só a `"` num `.gv` é tratada, e todo o resto
  * segue para o `default:type`.
  */
 function typeQuote(args) {
@@ -3378,7 +3182,7 @@ function typeQuote(args) {
     !editor ||
     !args ||
     args.text !== '"' ||
-    editor.document.languageId !== "glacier-view-block" ||
+    editor.document.languageId !== "glacier-view" ||
     editor.selections.length !== 1 ||
     !editor.selection.isEmpty
   ) {
@@ -3386,7 +3190,7 @@ function typeQuote(args) {
   }
   const doc = editor.document;
   const offset = doc.offsetAt(editor.selection.active);
-  const edit = gvbTyping.quoteEdit(gvbTyping.decideQuote(doc.getText(), offset), offset);
+  const edit = gvTyping.quoteEdit(gvTyping.decideQuote(doc.getText(), offset), offset);
   if (!edit) return delegate();
   const place = () => {
     const p = doc.positionAt(edit.cursor);
@@ -3403,7 +3207,7 @@ function typeQuote(args) {
 // Hover — o mesmo destino do F12, mostrado sem sair do arquivo
 // ---------------------------------------------------------------------------
 
-const HOVER_LANG = { ".luau": "lua", ".lua": "lua", ".rs": "rust", ".gss": "css", ".gva": "xml", ".gv": "xml", ".json": "json" };
+const HOVER_LANG = { ".luau": "lua", ".lua": "lua", ".rs": "rust", ".gss": "css", ".gv": "xml", ".json": "json" };
 const HOVER_LINHAS = 8;
 
 /**
@@ -3462,17 +3266,14 @@ async function provideHover(document, position) {
 }
 
 function activate(context) {
-  // Links, F12 e diagnósticos valem para as duas grafias; a completação e o
-  // fechamento de tag falam XML e ficam só no `.gva`.
-  const selector = [{ language: "glacier-view" }, { language: "glacier-view-block" }];
-  const gvaSelector = { language: "glacier-view" };
+  const selector = [{ language: "glacier-view" }];
 
   extensionPath = context.extensionPath;
   const definitionProvider = {
     provideDefinition: (document, position) => resolveDefinition(adaptDocument(document), position),
   };
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gva,gvb,gv,xml,rs,lua,luau,gss}");
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{gv,xml,rs,lua,luau,gss}");
   watcher.onDidCreate(invalidateWorkspaceIndex);
   watcher.onDidDelete(invalidateWorkspaceIndex);
   watcher.onDidChange(invalidateWorkspaceIndex);
@@ -3494,15 +3295,9 @@ function activate(context) {
     vscode.languages.registerDocumentLinkProvider(selector, {
       provideDocumentLinks: (document) => provideDocumentLinks(adaptDocument(document)),
     }),
-    // O ` ` fecha o caso de digitar a prop logo após o nome da tag; o `"`, o de
-    // abrir o valor de um atributo que recebe um componente (`fallback="`).
-    vscode.languages.registerCompletionItemProvider(gvaSelector, provideCompletion, " ", '"'),
     props,
     vscode.workspace.onDidOpenTextDocument(revalida),
-    vscode.workspace.onDidChangeTextDocument((e) => {
-      revalida(e.document);
-      autoCloseTag(e).catch(() => {});
-    }),
+    vscode.workspace.onDidChangeTextDocument((e) => revalida(e.document)),
     vscode.workspace.onDidCloseTextDocument((doc) => props.delete(doc.uri)),
     watcher,
     vscode.workspace.onDidChangeWorkspaceFolders(invalidateWorkspaceIndex)

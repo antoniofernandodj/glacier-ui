@@ -21,7 +21,7 @@ app(
     link(rel = theme, href = "views/styles/theme.json")
     link(rel = stylesheet, href = "views/styles/app.gss")
     component(name = Rotulo) { … }                    // global: vale em todas as telas
-    link(rel = import, href = "components/nav_item.gvb", as = NavItem)
+    link(rel = import, href = "components/nav_item.gv", as = NavItem)
     tray(icon = "views/assets/icone.png") { … }
   }
 
@@ -29,7 +29,7 @@ app(
     column { … }
   }
 
-  screen(name = ajustes, title = "Ajustes", src = "views/ajustes.gvb")  // em arquivo
+  screen(name = ajustes, title = "Ajustes", src = "views/ajustes.gv")  // em arquivo
   screen(name = relogio, title = "Relógio")   // sem corpo: um `impl Component` em Rust
 }
 ```
@@ -52,7 +52,7 @@ app(
 - `app` e `tray` **só existem na raiz**: dentro do `resources` de uma tela são erro.
   Um arquivo com raiz `screen` continua sendo uma tela válida (o app de uma tela só
   pode seguir sem `app`, e sem bandeja nem `id`).
-- `.gv`/`.gva` (XML) e `.gvb` usam a mesma estrutura (`<app><screen/></app>`).
+- Um `.gv` com raiz `app` tem a estrutura `app { screen }`.
 
 O programa mais curto possível é este, e é o que a maioria dos apps precisa:
 
@@ -60,11 +60,11 @@ O programa mais curto possível é este, e é o que a maioria dos apps precisa:
 use glacier_ui::GlacierDaemon;
 
 fn main() -> glacier_ui::iced::Result {
-    GlacierDaemon::new().run()                      // abre views/app.gvb (ou .gva, .gv)
+    GlacierDaemon::new().run()                      // abre views/app.gv (ou app.gv)
 }
 
 // ou, com outro arquivo:
-//     GlacierDaemon::new().main_template("views/painel.gvb").run()
+//     GlacierDaemon::new().main_template("views/painel.gv").run()
 ```
 
 O resto desta página responde a duas perguntas: **o que cada chamada faz** e **onde
@@ -77,7 +77,7 @@ isso se escreve no markup**.
 | Chamada em Rust | O que faz | No markup |
 |---|---|---|
 | `GlacierDaemon::new()` | cria o daemon | — |
-| `.main_template("views/app.gvb")` | diz qual arquivo é o manifesto (ou a tela) principal | **é a forma markup.** Sem ela, o `run` abre `./views/app.*` ou `app.*` |
+| `.main_template("views/app.gv")` | diz qual arquivo é o manifesto (ou a tela) principal | **é a forma markup.** Sem ela, o `run` abre `./views/app.*` ou `app.*` |
 | `.title("Meu app")` | título da janela principal | `screen(title = …)`, a da tela ativa — **vence** o `.title` |
 | `.main_size(900.0, 600.0)` | tamanho inicial | `app(size = "900 600")` — **vence** o `.main_size` |
 | `.main_window(Settings)` | `decorations`, `icon`, `min_size`, `resizable`… e o `application_id` (Linux): `app(application_id = meu-app)` | `app(decorations = false, icon = "…", min_size = "…", max_size = "…", fixed_size = "…", resizable = false)`. Posição inicial, `platform_specific` e `exit_on_close_request` só em Rust |
@@ -123,10 +123,10 @@ tudo o que se faz ali tem uma forma no markup:
 
 | Chamada no `.main` | O que faz | No markup |
 |---|---|---|
-| `motor.register_component("app", "views/app.gvb")` + `motor.set_initial_screen("app")` | registra o template e o torna a tela inicial | `.main_template("views/app.gvb")` |
-| `motor.register_component("detalhe", "views/detalhe.gvb")` | registra outra tela | `screen(name = detalhe, src = "views/detalhe.gvb")` no `app` (ou `link(rel = import, …)` num `resources`) |
-| `motor.load_stylesheet("views/app.gss")` | carrega uma folha global | `<link rel="stylesheet" href="views/app.gss" />` |
-| `motor.define_data("paises", json)` | publica um JSON no contexto | `<link rel="data" as="paises" href="views/paises.json" />` |
+| `motor.register_component("app", "views/app.gv")` + `motor.set_initial_screen("app")` | registra o template e o torna a tela inicial | `.main_template("views/app.gv")` |
+| `motor.register_component("detalhe", "views/detalhe.gv")` | registra outra tela | `screen(name = detalhe, src = "views/detalhe.gv")` no `app` (ou `link(rel = import, …)` num `resources`) |
+| `motor.load_stylesheet("views/app.gss")` | carrega uma folha global | `link(rel = stylesheet, href = "views/app.gss")` |
+| `motor.define_data("paises", json)` | publica um JSON no contexto | `link(rel = data, as = paises, href = "views/paises.json")` |
 | `motor.define_data("qtd", "1")` | valor inicial de uma chave | `<script>` com `function init() ctx.qtd = "1" end` |
 | `motor.register(Box::new(MeuComponente))` | liga um `impl Component` (lógica em Rust) | **só em Rust.** No manifesto, a tela aparece como `screen(name = x)` **sem corpo e sem `src`**, e o `.main` registra o componente com esse nome. Sem registro, o app não sobe e o erro cita o nome |
 
@@ -137,7 +137,7 @@ precisa de `.main`. Esta:
 GlacierDaemon::new()
     .title("Glacier - Console")
     .main(|motor| {
-        if let Err(e) = motor.register_component("console", "views/console.gvb") {
+        if let Err(e) = motor.register_component("console", "views/console.gv") {
             eprintln!("Erro ao registrar a tela: {e}");
         }
         motor.set_initial_screen("console");
@@ -148,7 +148,7 @@ GlacierDaemon::new()
 é, por inteiro, isto (com o `title` indo para o `screen(title = …)`):
 
 ```rust
-GlacierDaemon::new().main_template("views/console.gvb").run()
+GlacierDaemon::new().main_template("views/console.gv").run()
 ```
 
 Uma tela **com** `impl Component` em Rust precisa do `.main`, mas só dele:
@@ -163,7 +163,7 @@ GlacierDaemon::new()
 
 A tela inicial, o título, o tamanho, o ícone e as folhas de estilo ficam no
 manifesto (`app(size = …)`, `screen(name = relogio, title = …)`,
-`link(rel = stylesheet, …)`). Exemplo: `examples/gvb/app_telas`.
+`link(rel = stylesheet, …)`). Exemplo: `examples/app_telas`.
 
 ---
 
@@ -179,7 +179,7 @@ GlacierDaemon::new()
     .remember_window_geometry(true)
     .main(|motor| {
         motor.load_stylesheet("views/app.gss").ok();
-        motor.register_component("app", "views/app.gvb").ok();
+        motor.register_component("app", "views/app.gv").ok();
         motor.set_initial_screen("app");
     })
     .run()
@@ -188,7 +188,7 @@ GlacierDaemon::new()
 **Depois** — o Rust diz só qual arquivo abre, e o manifesto diz o resto:
 
 ```rust
-GlacierDaemon::new().main_template("views/app.gvb").run()
+GlacierDaemon::new().main_template("views/app.gv").run()
 ```
 
 ```

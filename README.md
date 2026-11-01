@@ -1,33 +1,33 @@
 # glacier-ui
 
 **Glacier** é um motor de UI declarativa para Rust: você descreve a interface em
-**XML** e o motor a renderiza com [`iced`](https://iced.rs). O comportamento pode
+**`.gv`** (blocos, sem tag de fechamento) e o motor a renderiza com [`iced`](https://iced.rs). O comportamento pode
 morar em **Rust** (o trait `Component`) ou **dentro do próprio template**, num
-bloco `<script>` em **[Luau](https://luau.org)** interpretado em tempo de execução
+bloco `script` em **[Luau](https://luau.org)** interpretado em tempo de execução
 — com **hot-reload**, **data binding**, **componentes**, **navegação**,
 **formulários reativos**, **stylesheets `.gss`** (CSS-like), **rede assíncrona**
 (`fetch`/SSE/WebSocket), **toasts** e **diálogos**.
 
-```xml
-<!-- examples/gva/contador/contador.gva -->
-<Container padding="20" alignX="Center" alignY="Center" width="fill" height="fill" background="#2E3440">
-    <Column spacing="20" align_x="Center">
-        <Text content="Valor do Contador: {contador}" size="28" bold="true" color="#ECEFF4" />
-        <Row spacing="15" align_y="Center">
-            <Button text="Diminuir" on_click="decrementar" color="#BF616A" padding="10 20" />
-            <Button text="Aumentar" on_click="incrementar" color="#A3BE8C" padding="10 20" />
-        </Row>
-    </Column>
-</Container>
+```gv
+// examples/contador/contador.gv
+Container(padding = 20, alignX = Center, alignY = Center, width = fill, height = fill, background = #2E3440) {
+  Column(spacing = 20, align_x = Center) {
+    Text(content = "Valor do Contador: {contador}", size = 28, bold = true, color = #ECEFF4)
+    Row(spacing = 15, align_y = Center) {
+      Button(text = Diminuir, on_click = decrementar, color = #BF616A, padding = "10 20")
+      Button(text = Aumentar, on_click = incrementar, color = #A3BE8C, padding = "10 20")
+    }
+  }
+}
 ```
 
-Duas formas de dar comportamento a esse XML — escolha por caso de uso:
+Duas formas de dar comportamento a essa tela — escolha por caso de uso:
 
 ```rust
 // 1) Em Rust: um Component tipado, com estado próprio.
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("examples/gva/contador/contador.gva".into()) }
+    fn template(&self) -> Template { Template::File("examples/contador/contador.gv".into()) }
     fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
         match action {
@@ -41,7 +41,7 @@ impl Component for Contador {
 ```
 
 ```lua
--- 2) No próprio template, num <script> Luau (sem recompilar):
+-- 2) No próprio template, num `script` Luau (sem recompilar):
 function init()        ctx.contador = ctx.contador or 0 end
 function incrementar() ctx.contador = ctx.contador + 1 end
 function decrementar() ctx.contador = ctx.contador - 1 end
@@ -65,8 +65,8 @@ function decrementar() ctx.contador = ctx.contador - 1 end
     - [Layout](#layout)
     - [Conteúdo e controles](#conteúdo-e-controles)
     - [Estruturais (composição, fluxo, recursos)](#estruturais-composição-fluxo-recursos)
-  - [Cabeçalho: `<screen>`, `<component>` e `<resources>`](#cabeçalho-screen-component-e-resources)
-    - [`<props>`: o contrato do componente](#props-o-contrato-do-componente)
+  - [Cabeçalho: `screen`, `component` e `resources`](#cabeçalho-screen-component-e-resources)
+    - [`props`: o contrato do componente](#props-o-contrato-do-componente)
     - [`spread`: o objeto inteiro de uma vez](#spread-o-objeto-inteiro-de-uma-vez)
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
@@ -76,7 +76,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Navegação entre telas](#navegação-entre-telas)
     - [O `script` do app](#o-script-do-app)
   - [Componentes e composição](#componentes-e-composição)
-  - [Comportamento em `<script>` Luau](#comportamento-em-script-luau)
+  - [Comportamento em `script` Luau](#comportamento-em-script-luau)
     - [`fetch`: rede async via corrotina](#fetch-rede-async-via-corrotina)
     - [`require`: módulos Luau](#require-módulos-luau)
     - [Timers: `after` e `every`](#timers-after-e-every)
@@ -87,7 +87,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Internacionalização e acessibilidade](#internacionalização-e-acessibilidade)
   - [Estilos `.gss`](#estilos-gss)
     - [Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`](#pseudo-estados-hover--focus--active--disabled)
-  - [`<link rel="…">` e temas](#link-rel-e-temas)
+  - [`link(rel = "…")` e temas](#link-rel-e-temas)
   - [Toasts e diálogos (em Rust)](#toasts-e-diálogos-em-rust)
   - [Drag-and-drop: listas reordenáveis](#drag-and-drop-listas-reordenáveis)
   - [Ações built-in](#ações-built-in)
@@ -106,11 +106,11 @@ function decrementar() ctx.contador = ctx.contador - 1 end
 
 ## Por que Glacier
 
-- **Declarativo de verdade** — a UI é um arquivo XML, não uma árvore de chamadas Rust.
-- **Comportamento onde couber melhor** — em Rust (tipado, com estado forte) ou em Luau dentro do `<script>` (interpretado, sem recompilar).
-- **Hot-reload** — edite o XML, os estilos `.gss`, os dados JSON, o tema ou a lógica Luau com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
+- **Declarativo de verdade** — a UI é um arquivo `.gv`, não uma árvore de chamadas Rust.
+- **Comportamento onde couber melhor** — em Rust (tipado, com estado forte) ou em Luau dentro do `script` (interpretado, sem recompilar).
+- **Hot-reload** — edite o `.gv`, os estilos `.gss`, os dados JSON, o tema ou a lógica Luau com a app rodando e veja a mudança na hora; só a lógica em Rust exige recompilar.
 - **Data binding por placeholders** — `{chave}` em qualquer atributo, resolvido contra um contexto de estado compartilhado.
-- **Componentes** — encapsulam UI + comportamento + estado num único tipo Rust, compostos por `<import>`, referência por nome ou `children()`.
+- **Componentes** — encapsulam UI + comportamento + estado num único tipo Rust, compostos por `import`, referência por nome ou `children()`.
 - **Assíncrono sem travar a UI** — `fetch` (HTTP), `sse`/`websocket` (streams) na camada Luau; `ctx.perform` e `Component::subscription` na camada Rust.
 - **Estilos reutilizáveis** — classes `.gss` (CSS-like) globais ou com escopo por componente, com a precedência do CSS e pseudo-estados (`:hover`/`:focus`/`:active`/`:disabled`).
 - **Renderiza com `iced`** — widgets nativos, multiplataforma, tema configurável.
@@ -173,7 +173,7 @@ pode nem listar `iced` como dependência direta. Requer Rust **edition 2024**
 
 | Feature | O que liga | Custo |
 |---|---|---|
-| `audio` | o `<audio>` (MP3/WAV/OGG/FLAC pelo `rodio`) — [`docs/AUDIO.md`](docs/AUDIO.md) | `libasound2-dev` para compilar no Linux |
+| `audio` | o `audio` (MP3/WAV/OGG/FLAC pelo `rodio`) — [`docs/AUDIO.md`](docs/AUDIO.md) | `libasound2-dev` para compilar no Linux |
 | `a11y` | a árvore de acessibilidade no AT-SPI (Orca & cia.), só Linux — [`docs/ACESSIBILIDADE.md`](docs/ACESSIBILIDADE.md) | o `accesskit_unix` |
 | `tray` | ícone de bandeja | GTK/`libappindicator` no Linux |
 | `system-fonts` | lista as fontes instaladas no SO em `__fonts` | `fontdb` |
@@ -187,25 +187,24 @@ rodar um deles, comente o `autoexamples = false` do `Cargo.toml` da raiz:
 cargo run --example contador
 ```
 
-Cada exemplo existe nas duas grafias: `examples/gva/<nome>/` (XML) e
-`examples/gvb/<nome>/` (blocos), e o `.gvb` tem o `main.rs` dele, declarado no
-`Cargo.toml` como `gvb_<nome>`:
+Cada exemplo mora em `examples/nome/`, com o `main.rs` dele declarado no
+`Cargo.toml` pelo mesmo nome:
 
 ```bash
-WGPU_BACKEND=gl cargo run --example gvb_contador
+WGPU_BACKEND=gl cargo run --example contador
 ```
 
 Os que não dependem de Rust do app (os `*_luau` e as telas estáticas) também
-abrem pelo `gvb_run`: `cargo run --example gvb_run -- examples/gvb/onda9_luau/app.gvb`.
+abrem pelo `gv_run`: `cargo run --example gv_run -- examples/onda9_luau/app.gv`.
 
 ---
 
 ### No navegador (WebAssembly)
 
 O mesmo app (`GlacierDaemon`, `Component`s Rust, `.gv` e `.gss`) compila para
-`wasm32-unknown-unknown` e roda num `<canvas>`. Os assets entram no binário por
-`embed_assets!`, e a camada `<script>` Luau não existe no navegador. O exemplo
-completo está em `examples/gva/web_contador`:
+`wasm32-unknown-unknown` e roda num `canvas`. Os assets entram no binário por
+`embed_assets!`, e a camada `script` Luau não existe no navegador. O exemplo
+completo está em `examples/web_contador`:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -219,18 +218,18 @@ Pré-requisitos, limitações e diagnóstico em [`docs/WEB.md`](docs/WEB.md).
 
 | Peça | Papel |
 |---|---|
-| **Template XML** | descreve a árvore de UI (layout, texto, botões, imagens, …). |
+| **Template `.gv`** | descreve a árvore de UI (layout, texto, botões, imagens, …). |
 | **Contexto** | mapa `String -> String` com o estado; templates leem dele via `{chave}`. |
 | **`GlacierUI`** | o motor: registra templates/componentes/estilos, avalia o contexto e renderiza para `iced`. |
 | **`Component`** | tipo Rust que junta **UI** (template) + **comportamento** (reação a ações) + **estado** próprio. |
-| **`<script>` Luau** | comportamento embutido no template, alternativa interpretada ao `Component`. |
+| **`script` Luau** | comportamento embutido no template, alternativa interpretada ao `Component`. |
 | **`EngineMessage`** | mensagens que o `iced` entrega ao motor (cliques, inputs, navegação, reload, efeitos). |
 | **Stylesheet `.gss`** | classes de estilo reutilizáveis (CSS-like), globais ou por componente. |
 
 O fluxo de cada frame de estado:
 
 ```
-XML  ──parse──▶  AST  ──avalia (contexto + estilos + includes + if/for-each)──▶  AST resolvido  ──render──▶  widgets iced
+.gv ──dessugara+parse──▶  AST  ──avalia (contexto + estilos + includes + if/for-each)──▶  AST resolvido  ──render──▶  widgets iced
                                                    ▲                                                            │
                                                    └────────── ação vira EngineMessage, roteada ao Component ◀──┘
 ```
@@ -245,7 +244,7 @@ chama `motor.render_current()`.
 
 Um app é uma casca fina em volta de um `GlacierUI`: registra os componentes,
 repassa mensagens a `dispatch` e renderiza com `render_current`. Toda a lógica
-vive nos componentes (Rust) ou nos `<script>` (Luau).
+vive nos componentes (Rust) ou nos `script` (Luau).
 
 ```rust
 use glacier_ui::{GlacierUI, EngineMessage, Component, Context, Template};
@@ -255,7 +254,7 @@ struct Contador { valor: i32 }
 
 impl Component for Contador {
     fn name(&self) -> &str { "contador" }
-    fn template(&self) -> Template { Template::File("examples/gva/contador/contador.gva".into()) }
+    fn template(&self) -> Template { Template::File("examples/contador/contador.gv".into()) }
     fn init(&mut self, ctx: &mut Context) { ctx.set("contador", self.valor.to_string()); }
     fn update(&mut self, action: &str, _value: Option<&str>, ctx: &mut Context) {
         match action {
@@ -296,8 +295,8 @@ fn main() -> iced::Result {
 
 Para um comportamento embutido no template, troque `register(Box::new(...))` por
 `register_component("contador", "caminho/para/contador.gv")`: se o template tiver
-um `<script>`, o motor liga a lógica **Luau** automaticamente (ver
-[`examples/gva/contador_macro`](examples/gva/contador_macro)).
+um `script`, o motor liga a lógica **Luau** automaticamente (ver
+[`examples/contador_macro`](examples/contador_macro)).
 
 ### Ligando ao `iced`: `GlacierApp::bootstrap`
 
@@ -327,7 +326,7 @@ fn main() -> iced::Result {
 }
 ```
 
-Veja [`examples/gva/navegacao_luau`](examples/gva/navegacao_luau).
+Veja [`examples/navegacao_luau`](examples/navegacao_luau).
 
 ---
 
@@ -339,117 +338,115 @@ Todas as tags aceitam variações de caixa e nomes em inglês **ou** português.
 
 | Tag | Aliases | Descrição |
 |---|---|---|
-| `<Container>` | `container` | caixa única (1 filho lógico); base para cartões/painéis. |
-| `<Column>` | `column` | empilha os filhos verticalmente. |
-| `<Row>` | `row` | dispõe os filhos horizontalmente. |
-| `<Scrollable>` | `Scroll`, `Rolagem` | viewport rolável de 1 filho; `direction`: `vertical` (padrão), `horizontal`, `both`. |
-| `<Rule>` | `Divider`, `Divisoria` | linha separadora; `direction`: `horizontal` (padrão) ou `vertical`. |
+| `Container` | `container` | caixa única (1 filho lógico); base para cartões/painéis. |
+| `Column` | `column` | empilha os filhos verticalmente. |
+| `Row` | `row` | dispõe os filhos horizontalmente. |
+| `Scrollable` | `Scroll`, `Rolagem` | viewport rolável de 1 filho; `direction`: `vertical` (padrão), `horizontal`, `both`. |
+| `Rule` | `Divider`, `Divisoria` | linha separadora; `direction`: `horizontal` (padrão) ou `vertical`. |
 
 ### Conteúdo e controles
 
 | Tag | Aliases | Atributos próprios |
 |---|---|---|
-| `<Text>` | `text` | `content`/`texto`, `size`/`tamanho`, `bold`/`negrito`, `color`/`cor`, `textAlign` |
-| `<Button>` | `button`, `Botao` | `text`/`texto`, `on_click`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
-| `<TextInput>` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara), `formControl` (liga a um `FormControl`) |
-| `<TextArea>` | `TextEditor`, `Editor`, `AreaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar` (editor multilinha) |
-| `<Audio>` | `audio`, `som` | `src`, `name`, `controls`, `autoplay`, `loop`, `volume`, `on_ended`, `on_error` — player de áudio **local** (feature `audio`); ver [`docs/AUDIO.md`](docs/AUDIO.md). **Não há `<video>`** |
-| `<Prose>` | `prose` | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |
-| `<Markdown>` | `markdown`, `md` | CommonMark (tabelas, imagens locais), `content`, `size` — [`docs/TEXTO.md`](docs/TEXTO.md) |
-| `<Form>` | `Formulario` | `onSubmit`/`aoSubmeter`, `name`/`nome` — renderiza como `<Column>` |
-| `<Select>` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave com array JSON), `value`/`valor`, `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`) |
-| `<Image>` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
-| `<Svg>` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
-| `<Checkbox>` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange`, `tristate` (cicla `false → mixed → true`, como o `Qt::CheckState`) |
-| `<Toggle>` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
-| `<ProgressBar>` | `Progress`, `BarraProgresso` | `value`/`valor` (chave de contexto numérica), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue` (percentual centralizado), `color`/`cor` (preenchimento; o `background` genérico é o trilho) |
-| `<Spinner>` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
-| `<Reveal>` | `Collapse`, `Revelar`, `Sanfona` | abre e fecha o conteúdo **animando a altura** (o que transborda é recortado): `open`/`aberto` (valor, não chave: `true`/`false` ou um `{var}`), `duration`/`duracao` em ms (padrão `180`; `0` desliga), `axis="x"` (anima a **largura** em vez da altura — é o que a gaveta do `<drawer>` usa). O filho fica na árvore fechado ou aberto — é o que o `<accordion>`/`<toolbox>` usa por dentro |
-| `<DateEdit>` · `<TimeEdit>` · `<DateTimeEdit>` | `DatePicker`, `TimePicker`, `EditorData`, `EditorHora` | edição por **seções** (`QDateTimeEdit`): `value`/`valor` (chave), `onChange`/`aoMudar` (vazio = o widget grava sozinho), `seconds`/`segundos`, `format="br"` (só a exibição — a chave é sempre ISO), `calendarPopup="true"` (põe um botão 📅 que abre a grade do `<calendar>` **ancorada ao campo**, com `today`/`min`/`max` repassados a ela). A tag decide quais seções aparecem |
-| `<Calendar>` · `<MonthYearPicker>` · `<DateRangePicker>` | `Calendario`, `SeletorMesAno`, `SeletorIntervalo` | a **grade** (`QCalendarWidget`): `value`/`valor` (chave; `start`/`end` no intervalo), `onChange`, `today`/`hoje` (realce — **prop, não relógio**: `date.today()`), `min`/`max`, `mode` (`day`/`month`/`year`, a escada de drill-up), `first_day="monday"`, `months="2"`, `month`/`mes_visivel` (chave que dirige o mês visível), `month_names`/`day_names`. A tag decide o que um clique grava |
-| `<MaskedInput>` | `EntradaMascarada`, `Mascara` | `QLineEdit` com `setInputMask`: guarda **cru** na chave e exibe mascarado. `value`/`valor`, `mask`/`mascara` (gramática `#` dígito · `A` letra · `*` alfanumérico + literais, ou um preset: `cpf`, `cnpj`, `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`), `onChange` (recebe o **cru**), `placeholder` (default: a máscara com `_`) |
-| `<Pagination>` | `Paginacao` | `« ‹ 1 … 4 [5] 6 … 20 › »`: `value`/`valor` (chave com a página, base 1), `total`/`paginas`, `window`/`janela` (quantos números, default `5`), `ends="false"` (esconde `«`/`»`), `onChange`. Um total de 0 ou 1 esconde o widget |
-| `<Popover>` · `<Popup>` | `Painel` | um painel que **flutua sobre a tela**: `value`/`valor` (chave do aberto/fechado), `placement`/`posicao` (`bottom` default · `top` · `left` · `right`), `align`/`alinhamento` (`start` · `center` · `end`), `offset`/`folga`, `panel_width` (um número ou `anchor`), `dismiss="false"`, `trigger="none"`, `onClose`. O filho marcado `slot="anchor"` é o **gatilho** (fica no fluxo); o resto é o painel. `<popup>` é a mesma primitiva **sem âncora**, centrada na janela. Abre no clique do gatilho, fecha no clique fora e no Esc — sem uma linha de app |
-| `<Autocomplete>` | `Completer`, `AutoCompletar` | o campo que **filtra enquanto se digita** (`QCompleter`): `value`/`valor` (chave com o texto), `items`/`itens` (chave com o array de candidatos — strings ou `{id,label}`), `placeholder`, `min_chars` (default `1`; `0` abre ao focar), `max_items` (default `8`), `filter="false"` (quem filtra é o app), `onChange`, `onSelect` (recebe o `id`). Recorta sem acento e sem caixa; ▲▼ navegam, Enter aceita, Esc desiste |
-| `<Grid>` | `Grade` | a grade com **colunas medidas** (`QGridLayout`): `columns`/`colunas` — um número (`"3"`, três colunas medidas) ou uma trilha por palavra (`"140 fill 80"`) —, `spacing` (vão horizontal) e `row_spacing` (vertical; sem ele, o `spacing`). A largura de uma coluna é o **máximo das células dela** |
-| `<Flow>` | `Wrap`, `Fluxo` | a fileira que **quebra linha** quando não cabe: `spacing`, `row_spacing`, `align_y`. É o que um campo de tags/chips pede |
-| `<TableView>` · `<TableHeader>` | `Tabela`, `CabecalhoTabela` | a tabela (`QTableView`/`QHeaderView`): `items`/`linhas` (chave com o array), `columns`/`colunas` (chave com `{key,label,width,align}` — ou uma spec de trilhas), `value` (linha escolhida), `mode="multi"`, `sort`/`ordem` (chave com `"coluna asc"`), `widths`/`larguras` (chave; a presença dela põe as **alças de arrasto**), `height` (a janela de rolagem), `onSelect`, `onSort`. Cabeçalho e corpo são a **mesma grade**, e a ordenação é numérica quando os dois lados são número. As colunas também podem ser filhas `<tablecolumn key label width align>` com **corpo** — o modelo da célula, avaliado por linha com `@<var>.campo` (`var`, default `row`) —, e `header_class`/`row_class` estilizam a faixa do cabeçalho e cada linha (fundo, `:hover`, `padding`, fio); com `height`, o cabeçalho fica preso no topo. `sort_key` numa coluna ordena por outro campo, e os filhos que não são coluna aparecem quando não há linhas. Exemplo: `examples/gvb/tabela_colunas` |
-| `<TreeView>` | `Arvore` | a árvore (`QTreeView`): `items` (array JSON aninhado com `{id,label,items}`), `value` (o nó escolhido — o **caminho** dele), `open`/`abertos` (o **conjunto** de caminhos abertos, `"raiz,raiz/src"`), `indent`/`recuo`, `onSelect` |
-| `<ColumnView>` | `Colunas`, `Miller` | a navegação Miller do Finder: `items` (a mesma árvore), `value`/`caminho`, `column_width`, `onSelect` |
-| `<Dial>` | `Knob` | o knob rotativo (`QDial`): `value` (chave), `min`/`max`/`step`, `size`, `notches`, `color`, `showValue`, `decimals`, `readonly`, `onChange`/`onRelease`. Arrasta, clica no arco ou rola a roda |
-| `<Gauge>` | `Medidor` | o medidor de arco: `value` (chave **ou** número), `min`/`max`, `size`/`thickness`, `start`/`sweep` (graus), `bands` (faixas coloridas: chave ou JSON), `needle`, `showValue`, `decimals`, `unit`, `label`. Apresentacional |
-| `<LcdNumber>` | `Lcd` | dígitos de sete segmentos (`QLCDNumber`): `value` (lido como **texto** — um `12:34` passa inteiro), `digits`, `size`, `color`, `decimals`, `pad`, `ghost` |
-| `<LineChart>` | `Sparkline`, `grafico_linha` | a linha: `items` (chave com `[1,2,3]` ou `[{label,value}]`), `min`/`max` (vazio = automático), `color`, `area`, `points`, `axes`, `grid`, `thickness`. `<sparkline>` é esta tag com `axes="false"` |
-| `<BarChart>` | `grafico_barras` | barras: `items`, `min`/`max`, `color`, `colorful` (uma cor por categoria), `axes`, `grid`. A base é sempre o **zero** quando `min` não é declarado |
-| `<PieChart>` | `Donut`, `grafico_pizza` | setores: `items`, `size`, `donut` (buraco como fração do raio), `percentages`, `colors`. `<donut>` é esta tag com o buraco já aberto |
-| `<Rating>` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
-| `<Splitter>` | `Divisor`, `PaneGrid` | painéis com alça arrastável entre cada par (`QSplitter`): `sizes` (chave com trilhas, no formato do `columns` do `<grid>`), `direction`/`vertical`, `handle` (espessura), `min` (piso de um painel). É a alça de coluna do `<tableheader>` aplicada a um container |
-| `<SwipeView>` | `Carrossel` | páginas trocadas arrastando (`QML SwipeView`): `value` (chave com o índice, base **0**), `threshold` (pixels para virar), `onChange`. Cada filho é uma página; o conteúdo segue o dedo e satura nas pontas |
-| `<RangeSlider>` | `faixa_dupla` | faixa com **dois** cursores: `start`/`end` (duas chaves), `min`/`max`/`step`, `size` (comprimento da barra), `color`, `readonly`, `onChange`, `onRelease`. As pontas não se cruzam |
-| `<Tumbler>` | `Roleta` | a roleta de valores (`QML Tumbler`): `value` (chave com o **texto** escolhido), `items`, `visible` (ímpar), `row` (altura do item), `size`, `onChange`. Arrasta e rola; vira dentro de si |
-| `<DelayButton>` | `botao_demorado` | o botão que só dispara depois de segurado: `text`, `onPress`, `delay` (ms), `size`, `color`. Soltar antes do fim desiste |
-| `<RubberBand>` | `Laco` | retângulo de seleção arrastado sobre uma área: `items` (alvos `[{id,x,y,w,h}]`), `selection` (chave que recebe o conjunto nomeado), `onSelect` (recebe `"x,y,w,h"`), `color`. Desenha os alvos que conhece |
-| `<PageIndicator>` | `indicador_pagina` | os pontinhos de página: `value` (chave, base **0**), `total`, `onChange`. É `<pagination>` com pontos, e lê a mesma chave de um `<swipeview>` |
-| `<Shortcut>` | `Atalho`, `Action` | atalho global de teclado, **declarado no layout** (não desenha nada): `key` (`"ctrl+s"`, `"f5"`; a ordem dos modificadores não importa) e `onPress`. Vale enquanto a tela estiver montada |
-| `<ShortcutInput>` | `KeySequenceEdit` | o campo que captura uma combinação (`QKeySequenceEdit`): `value` (chave), `placeholder`, `onChange`. Clique e tecle; Esc desiste, Backspace limpa |
-| `<SizeGrip>` | `sizegrip` | o canto que redimensiona a janela (`QSizeGrip`), para apps com titlebar própria: `corner` (default `se`), `size`. Builtin |
+| `Text` | `text` | `content`/`texto`, `size`/`tamanho`, `bold`/`negrito`, `color`/`cor`, `textAlign` |
+| `Button` | `button`, `Botao` | `text`/`texto`, `on_click`/`aoClicar`, `navigateTo`/`irPara`, `navigateBack`/`voltar`, `color`/`cor` |
+| `TextInput` | `Input`, `EntradaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar`, `secure`/`password` (mascara), `formControl` (liga a um `FormControl`) |
+| `TextArea` | `TextEditor`, `Editor`, `AreaTexto` | `placeholder`/`dica`, `value`/`valor`, `onChange`/`aoMudar` (editor multilinha) |
+| `Audio` | `audio`, `som` | `src`, `name`, `controls`, `autoplay`, `loop`, `volume`, `on_ended`, `on_error` — player de áudio **local** (feature `audio`); ver [`docs/AUDIO.md`](docs/AUDIO.md). **Não há `video`** |
+| `Prose` | `prose` | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |
+| `Markdown` | `markdown`, `md` | CommonMark (tabelas, imagens locais), `content`, `size` — [`docs/TEXTO.md`](docs/TEXTO.md) |
+| `Form` | `Formulario` | `onSubmit`/`aoSubmeter`, `name`/`nome` — renderiza como `Column` |
+| `Select` | `Dropdown`, `PickList`, `ComboBox`, `Seletor` | `options`/`items` (chave com array JSON), `value`/`valor`, `onChange`/`onSelect`, `placeholder`, `labelField` (padrão `label`), `valueField` (padrão `value`) |
+| `Image` | `Imagem` | `source`/`src`/`caminho`, `clip="Circle"` (corte circular) |
+| `Svg` | `Icon`, `Icone` | `source`/`src`, `color`/`cor` (tinge o ícone vetorial) |
+| `Checkbox` | `Check` | `label`, `checked`/`value` (chave de contexto), `onToggle`/`onChange`, `tristate` (cicla `false → mixed → true`, como o `Qt::CheckState`) |
+| `Toggle` | `Toggler`, `Switch` | `label`, `checked`/`value`, `onToggle`/`onChange` — a bolinha desliza animada (200ms) |
+| `ProgressBar` | `Progress`, `BarraProgresso` | `value`/`valor` (chave de contexto numérica), `min`/`max` (padrão `0`/`100`), `vertical`, `showValue` (percentual centralizado), `color`/`cor` (preenchimento; o `background` genérico é o trilho) |
+| `Spinner` | `BusyIndicator`, `IndicadorOcupado`, `Carregando` | indicador **indeterminado** (`QProgressBar` com `setRange(0,0)`); `color`/`cor` (padrão: `primary` do tema); `width`/`height` define o diâmetro (padrão 24px). Gira sozinho — nenhum estado no contexto |
+| `Reveal` | `Collapse`, `Revelar`, `Sanfona` | abre e fecha o conteúdo **animando a altura** (o que transborda é recortado): `open`/`aberto` (valor, não chave: `true`/`false` ou um `{var}`), `duration`/`duracao` em ms (padrão `180`; `0` desliga), `axis="x"` (anima a **largura** em vez da altura — é o que a gaveta do `drawer` usa). O filho fica na árvore fechado ou aberto — é o que o `accordion`/`toolbox` usa por dentro |
+| `DateEdit` · `TimeEdit` · `DateTimeEdit` | `DatePicker`, `TimePicker`, `EditorData`, `EditorHora` | edição por **seções** (`QDateTimeEdit`): `value`/`valor` (chave), `onChange`/`aoMudar` (vazio = o widget grava sozinho), `seconds`/`segundos`, `format="br"` (só a exibição — a chave é sempre ISO), `calendarPopup="true"` (põe um botão 📅 que abre a grade do `calendar` **ancorada ao campo**, com `today`/`min`/`max` repassados a ela). A tag decide quais seções aparecem |
+| `Calendar` · `MonthYearPicker` · `DateRangePicker` | `Calendario`, `SeletorMesAno`, `SeletorIntervalo` | a **grade** (`QCalendarWidget`): `value`/`valor` (chave; `start`/`end` no intervalo), `onChange`, `today`/`hoje` (realce — **prop, não relógio**: `date.today()`), `min`/`max`, `mode` (`day`/`month`/`year`, a escada de drill-up), `first_day="monday"`, `months="2"`, `month`/`mes_visivel` (chave que dirige o mês visível), `month_names`/`day_names`. A tag decide o que um clique grava |
+| `MaskedInput` | `EntradaMascarada`, `Mascara` | `QLineEdit` com `setInputMask`: guarda **cru** na chave e exibe mascarado. `value`/`valor`, `mask`/`mascara` (gramática `#` dígito · `A` letra · `*` alfanumérico + literais, ou um preset: `cpf`, `cnpj`, `telefone`, `cep`, `placa`, `date`, `hora`, `cartao`), `onChange` (recebe o **cru**), `placeholder` (default: a máscara com `_`) |
+| `Pagination` | `Paginacao` | `« ‹ 1 … 4 [5] 6 … 20 › »`: `value`/`valor` (chave com a página, base 1), `total`/`paginas`, `window`/`janela` (quantos números, default `5`), `ends="false"` (esconde `«`/`»`), `onChange`. Um total de 0 ou 1 esconde o widget |
+| `Popover` · `Popup` | `Painel` | um painel que **flutua sobre a tela**: `value`/`valor` (chave do aberto/fechado), `placement`/`posicao` (`bottom` default · `top` · `left` · `right`), `align`/`alinhamento` (`start` · `center` · `end`), `offset`/`folga`, `panel_width` (um número ou `anchor`), `dismiss="false"`, `trigger="none"`, `onClose`. O filho marcado `slot="anchor"` é o **gatilho** (fica no fluxo); o resto é o painel. `popup` é a mesma primitiva **sem âncora**, centrada na janela. Abre no clique do gatilho, fecha no clique fora e no Esc — sem uma linha de app |
+| `Autocomplete` | `Completer`, `AutoCompletar` | o campo que **filtra enquanto se digita** (`QCompleter`): `value`/`valor` (chave com o texto), `items`/`itens` (chave com o array de candidatos — strings ou `{id,label}`), `placeholder`, `min_chars` (default `1`; `0` abre ao focar), `max_items` (default `8`), `filter="false"` (quem filtra é o app), `onChange`, `onSelect` (recebe o `id`). Recorta sem acento e sem caixa; ▲▼ navegam, Enter aceita, Esc desiste |
+| `Grid` | `Grade` | a grade com **colunas medidas** (`QGridLayout`): `columns`/`colunas` — um número (`"3"`, três colunas medidas) ou uma trilha por palavra (`"140 fill 80"`) —, `spacing` (vão horizontal) e `row_spacing` (vertical; sem ele, o `spacing`). A largura de uma coluna é o **máximo das células dela** |
+| `Flow` | `Wrap`, `Fluxo` | a fileira que **quebra linha** quando não cabe: `spacing`, `row_spacing`, `align_y`. É o que um campo de tags/chips pede |
+| `TableView` · `TableHeader` | `Tabela`, `CabecalhoTabela` | a tabela (`QTableView`/`QHeaderView`): `items`/`linhas` (chave com o array), `columns`/`colunas` (chave com `{key,label,width,align}` — ou uma spec de trilhas), `value` (linha escolhida), `mode="multi"`, `sort`/`ordem` (chave com `"coluna asc"`), `widths`/`larguras` (chave; a presença dela põe as **alças de arrasto**), `height` (a janela de rolagem), `onSelect`, `onSort`. Cabeçalho e corpo são a **mesma grade**, e a ordenação é numérica quando os dois lados são número. As colunas também podem ser filhas `tablecolumn(key, label, width, align)` com **corpo** — o modelo da célula, avaliado por linha com `@var.campo` (`var`, default `row`) —, e `header_class`/`row_class` estilizam a faixa do cabeçalho e cada linha (fundo, `:hover`, `padding`, fio); com `height`, o cabeçalho fica preso no topo. `sort_key` numa coluna ordena por outro campo, e os filhos que não são coluna aparecem quando não há linhas. Exemplo: `examples/tabela_colunas` |
+| `TreeView` | `Arvore` | a árvore (`QTreeView`): `items` (array JSON aninhado com `{id,label,items}`), `value` (o nó escolhido — o **caminho** dele), `open`/`abertos` (o **conjunto** de caminhos abertos, `"raiz,raiz/src"`), `indent`/`recuo`, `onSelect` |
+| `ColumnView` | `Colunas`, `Miller` | a navegação Miller do Finder: `items` (a mesma árvore), `value`/`caminho`, `column_width`, `onSelect` |
+| `Dial` | `Knob` | o knob rotativo (`QDial`): `value` (chave), `min`/`max`/`step`, `size`, `notches`, `color`, `showValue`, `decimals`, `readonly`, `onChange`/`onRelease`. Arrasta, clica no arco ou rola a roda |
+| `Gauge` | `Medidor` | o medidor de arco: `value` (chave **ou** número), `min`/`max`, `size`/`thickness`, `start`/`sweep` (graus), `bands` (faixas coloridas: chave ou JSON), `needle`, `showValue`, `decimals`, `unit`, `label`. Apresentacional |
+| `LcdNumber` | `Lcd` | dígitos de sete segmentos (`QLCDNumber`): `value` (lido como **texto** — um `12:34` passa inteiro), `digits`, `size`, `color`, `decimals`, `pad`, `ghost` |
+| `LineChart` | `Sparkline`, `grafico_linha` | a linha: `items` (chave com `[1,2,3]` ou `[{label,value}]`), `min`/`max` (vazio = automático), `color`, `area`, `points`, `axes`, `grid`, `thickness`. `sparkline` é esta tag com `axes="false"` |
+| `BarChart` | `grafico_barras` | barras: `items`, `min`/`max`, `color`, `colorful` (uma cor por categoria), `axes`, `grid`. A base é sempre o **zero** quando `min` não é declarado |
+| `PieChart` | `Donut`, `grafico_pizza` | setores: `items`, `size`, `donut` (buraco como fração do raio), `percentages`, `colors`. `donut` é esta tag com o buraco já aberto |
+| `Rating` | `Nota`, `Estrelas` | a nota por estrelas: `value`/`valor` (chave), `max` (default `5`), `filled`/`empty_icon` (glifos, default `★`/`☆`), `size`, `color`, `readonly`, `onChange`. Prévia no hover; clicar na estrela já marcada zera |
+| `Splitter` | `Divisor`, `PaneGrid` | painéis com alça arrastável entre cada par (`QSplitter`): `sizes` (chave com trilhas, no formato do `columns` do `grid`), `direction`/`vertical`, `handle` (espessura), `min` (piso de um painel). É a alça de coluna do `tableheader` aplicada a um container |
+| `SwipeView` | `Carrossel` | páginas trocadas arrastando (`QML SwipeView`): `value` (chave com o índice, base **0**), `threshold` (pixels para virar), `onChange`. Cada filho é uma página; o conteúdo segue o dedo e satura nas pontas |
+| `RangeSlider` | `faixa_dupla` | faixa com **dois** cursores: `start`/`end` (duas chaves), `min`/`max`/`step`, `size` (comprimento da barra), `color`, `readonly`, `onChange`, `onRelease`. As pontas não se cruzam |
+| `Tumbler` | `Roleta` | a roleta de valores (`QML Tumbler`): `value` (chave com o **texto** escolhido), `items`, `visible` (ímpar), `row` (altura do item), `size`, `onChange`. Arrasta e rola; vira dentro de si |
+| `DelayButton` | `botao_demorado` | o botão que só dispara depois de segurado: `text`, `onPress`, `delay` (ms), `size`, `color`. Soltar antes do fim desiste |
+| `RubberBand` | `Laco` | retângulo de seleção arrastado sobre uma área: `items` (alvos `[{id,x,y,w,h}]`), `selection` (chave que recebe o conjunto nomeado), `onSelect` (recebe `"x,y,w,h"`), `color`. Desenha os alvos que conhece |
+| `PageIndicator` | `indicador_pagina` | os pontinhos de página: `value` (chave, base **0**), `total`, `onChange`. É `pagination` com pontos, e lê a mesma chave de um `swipeview` |
+| `Shortcut` | `Atalho`, `Action` | atalho global de teclado, **declarado no layout** (não desenha nada): `key` (`"ctrl+s"`, `"f5"`; a ordem dos modificadores não importa) e `onPress`. Vale enquanto a tela estiver montada |
+| `ShortcutInput` | `KeySequenceEdit` | o campo que captura uma combinação (`QKeySequenceEdit`): `value` (chave), `placeholder`, `onChange`. Clique e tecle; Esc desiste, Backspace limpa |
+| `SizeGrip` | `sizegrip` | o canto que redimensiona a janela (`QSizeGrip`), para apps com titlebar própria: `corner` (default `se`), `size`. Builtin |
 
 ### Estruturais (composição, fluxo, recursos)
 
 | Tag | Aliases | Descrição |
 |---|---|---|
-| `<import>` | `Import`, `Importar` | declara um componente carregado de um arquivo: `name`/`nome`/`as`, `from`/`de`/`src`. |
-| `<Include>` | `Incluir` | inclui outro template: `src`/`fonte`; demais atributos viram props. |
-| `<NomeDoComponente .../>` | — | qualquer tag desconhecida referencia um componente por nome; atributos viram props. |
-| `<ForEach>` | `For` | repete os filhos por item: `items`/`itens`, `var`/`variavel`. |
-| `<if>` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
-| `<else>` | `Senao` | renderiza quando o `<if>` imediatamente anterior foi falso. |
-| `<template>` | `Gabarito` | `<ForEach>`/`<if>`/`<ElseIf>`/`<else>` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
-| `<screen>` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
-| `<props>` / `<prop>` | — | contrato de props de um `<component>`. Ver "Cabeçalho". |
-| `<component>` | `Component`, `componente`, `Componente` | mesma casca do `<screen>` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
-| `<resources>` | `Resources`, `recursos`, `Recursos` | dentro do `<screen>`/`<component>`, agrupa o que não desenha: `<style>`, `<script>`, `<link>`, `<import>` e `<component name="…">`. |
-| `<component name="…">` | `Componente` | **dentro do `<resources>`**, declara um componente na própria tela, sem arquivo: `<props>` + layout, a mesma casca de um `.gv`. Ver "Cabeçalho". |
-| `<link>` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
-| `<style>` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
-| `<script>` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
+| `import` | `Import`, `Importar` | declara um componente carregado de um arquivo: `name`/`nome`/`as`, `from`/`de`/`src`. |
+| `Include` | `Incluir` | inclui outro template: `src`/`fonte`; demais atributos viram props. |
+| `NomeDoComponente(...)` | — | qualquer tag desconhecida referencia um componente por nome; atributos viram props. |
+| `ForEach` | `For` | repete os filhos por item: `items`/`itens`, `var`/`variavel`. |
+| `if` | `Se` | renderiza condicionalmente: `cond`, `equals`, `notEquals`. |
+| `else` | `Senao` | renderiza quando o `if` imediatamente anterior foi falso. |
+| `template` | `Gabarito` | `ForEach`/`if`/`ElseIf`/`else` sob um nome só — a flavour depende do atributo presente (`for-each`/`items`, `else`, `else-if`, `if`/`cond`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
+| `screen` | `Screen`, `tela`, `Tela` | cabeçalho da tela: metadados da janela (`title`, `size`, `min-size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
+| `props` / `prop` | — | contrato de props de um `component`. Ver "Cabeçalho". |
+| `component` | `Component`, `componente`, `Componente` | mesma casca do `screen` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
+| `resources` | `Resources`, `recursos`, `Recursos` | dentro do `screen`/`component`, agrupa o que não desenha: `style`, `script`, `link`, `import` e `component(name = "…")`. |
+| `component(name = "…")` | `Componente` | **dentro do `resources`**, declara um componente na própria tela, sem arquivo: `props` + layout, a mesma casca de um `.gv`. Ver "Cabeçalho". |
+| `link` | `Link` | carrega um recurso: stylesheet, componente, dados ou tema. |
+| `style` | `Style` | classes `.gss` inline (global por padrão ou `scoped="true"`), ou externa com `href`. |
+| `script` | — | comportamento Luau embutido (inline ou `src="arquivo.luau"`). |
 
 ---
 
-## Cabeçalho: `<screen>`, `<component>` e `<resources>`
+## Cabeçalho: `screen`, `component` e `resources`
 
 Um template pode declarar, no próprio arquivo, **o que a janela é** — e separar
 o que não desenha do que desenha:
 
-```xml
-<screen title="Detalhe do serviço" size="960 700" min-size="640 480">
-    <resources>
-        <style scoped="true">
+```gv
+screen(title = "Detalhe do serviço", size = "960 700", min-size = "640 480") {
+  resources {
+    style(scoped = true) """
             .card { padding: 18; background: #161B22; }
-        </style>
-        <script src="detalhe.luau"></script>
-    </resources>
-
-    <container class="card">
-        <text content="{servico}" />
-    </container>
-</screen>
+        """
+    script(src = "detalhe.luau")
+  }
+  container(class = card) {
+    text(content = @servico)
+  }
+}
 ```
 
-Dentro do `<screen>`, o `<resources>` guarda o que a tela **precisa** (estilo,
-script, `<link>`, `<import>`) e o resto é o layout. Sem ele, um `<style>` fica
+Dentro do `screen`, o `resources` guarda o que a tela **precisa** (estilo,
+script, `link`, `import`) e o resto é o layout. Sem ele, um `style` fica
 lado a lado com os widgets, no mesmo nível de indentação de algo que aparece na
 tela — que é justamente o que este cabeçalho existe para evitar.
 
-O `<resources>` é **opcional**: num arquivo com uma ou duas declarações, elas
-podem ficar soltas dentro do `<screen>` mesmo, que o efeito é o mesmo.
+O `resources` é **opcional**: num arquivo com uma ou duas declarações, elas
+podem ficar soltas dentro do `screen` mesmo, que o efeito é o mesmo.
 
-```xml
-<screen title="Sobre" size="480 320">
-    <style scoped="true"> … </style>
-
-    <column> … </column>
-</screen>
+```gv
+screen(title = Sobre, size = "480 320") {
+  style(scoped = true) """ … """
+  column("…")
+}
 ```
 
 | Atributo | Aliases | O que faz |
@@ -466,8 +463,8 @@ layout (`fill`, `shrink`, `fill 2`).
 As regras:
 
 - **O cabeçalho é obrigatório num arquivo** (desde a 0.61). Todo `.gv` começa com
-  `<screen>` (uma janela) ou `<component>` (o resto), e ele envolve o arquivo
-  inteiro — `<resources>`, `<props>` e o layout vão dentro. Um arquivo sem
+  `screen` (uma janela) ou `component` (o resto), e ele envolve o arquivo
+  inteiro — `resources`, `props` e o layout vão dentro. Um arquivo sem
   cabeçalho não carrega, e o erro ensina a forma. A exceção é markup **inline**
   (`Template::Inline`, o que os builtins da própria lib usam): ali não há arquivo
   nem janela a que um cabeçalho se aplique, e ele segue sendo um fragmento — a
@@ -478,7 +475,7 @@ As regras:
 - **O título acompanha a navegação.** Ir para uma tela que declara `title` troca
   o título da janela; ir para uma que não declara devolve o título base.
 - **O tamanho é de quem abre a janela.** Navegar nunca redimensiona, e salvar o
-  arquivo (hot-reload) só redimensiona quando o número mudou no `<screen>` — do
+  arquivo (hot-reload) só redimensiona quando o número mudou no `screen` — do
   contrário cada `Ctrl+S` desfaria o arrasto que você acabou de dar no canto da
   janela.
 - **A geometria lembrada ganha do `size`.** Num app com
@@ -490,148 +487,145 @@ As regras:
   título e o tamanho declarados lá dentro, sem repeti-los na chamada — que
   continua podendo sobrepor os dois quando sabe algo que o arquivo não sabe
   (`title = "Editando nginx"`).
-- **Componente importado usa `<component>`.** Um `.gv` trazido por `<import>` é
+- **Componente importado usa `component`.** Um `.gv` trazido por `import` é
   um pedaço de tela, não uma janela; `title`/`size` ali não teriam a quem se
-  aplicar, e o `<component>` os recusa em vez de ignorá-los.
+  aplicar, e o `component` os recusa em vez de ignorá-los.
 
-### `<component>`: a mesma casca para quem não é janela
+### `component`: a mesma casca para quem não é janela
 
-Nem todo `.gv` é uma tela. Um arquivo importado por outro (`<import>`) é um
+Nem todo `.gv` é uma tela. Um arquivo importado por outro (`import`) é um
 pedaço de tela — um card, um item de menu, um badge — e ali `title`/`size` não
-teriam a quem se aplicar. Para esses, a raiz é `<component>` (apelido:
-`<componente>`):
+teriam a quem se aplicar. Para esses, a raiz é `component` (apelido:
+`componente`):
 
-```xml
-<component>
-    <resources>
-        <style>
+```gv
+component {
+  resources {
+    style """
             .stat_card { background: #161B22; padding: 16 22; }
-        </style>
-    </resources>
-
-    <column class="stat_card">
-        <text class="stat_num" content="{value}" />
-    </column>
-</component>
+        """
+  }
+  column(class = stat_card) {
+    text(class = stat_num, content = @value)
+  }
+}
 ```
 
-É o mesmo agrupamento do `<screen>`, com uma diferença deliberada: **o
-`<component>` não leva atributo nenhum**. Escrever `title=` nele é erro de
+É o mesmo agrupamento do `screen`, com uma diferença deliberada: **o
+`component` não leva atributo nenhum**. Escrever `title=` nele é erro de
 parse, com a explicação junto (`title/size descrevem uma JANELA, e um
-<component> não é uma`) — em vez de aceitar em silêncio um atributo que nunca
+component não é uma`) — em vez de aceitar em silêncio um atributo que nunca
 teria efeito. As props de um componente continuam vindo de quem o usa
-(`<MeuCard prop="…" />`), não do arquivo.
+(`MeuCard(prop = "…")`), não do arquivo.
 
 E, porque o cabeçalho é a parte do template que **não desenha nada**, um engano
 nele não teria sintoma nenhum — a tela abriria igual, só que sem o que você
 escreveu. Por isso ele erra alto, com linha, coluna e o trecho ofensor:
 
 ```
-erro de XML — views/detalhe.gv:1:9: atributo 'titel' desconhecido no <screen>
+erro — views/detalhe.gv:1:9: atributo 'titel' desconhecido no screen
   |
-1 | <screen titel="Detalhe" size="960 700">
-  |         ^
+1 | screen(titel = Detalhe, size = "960 700") {
+  |        ^
   = dica: o cabeçalho aceita title, size, min-size e resizable (apelidos: titulo, tamanho, tamanho-minimo, redimensionavel)
 ```
 
 São erros de parse (o template não carrega): arquivo sem cabeçalho; cabeçalho
 que não envolve o arquivo inteiro (escrito como *irmão* do layout, ou aninhado
-no meio dele); atributo desconhecido no `<screen>` ou no `<resources>`; qualquer
-atributo no `<component>` de raiz (o declarado no `<resources>` aceita só o
+no meio dele); atributo desconhecido no `screen` ou no `resources`; qualquer
+atributo no `component` de raiz (o declarado no `resources` aceita só o
 `name`, e sem ele é erro); `size`/`min-size` que não seja um par de números;
-`resizable` que não seja booleano; um widget dentro do `<resources>`; um
-`<resources>`/`<props>` fora de um cabeçalho; um `<props>` num `<screen>` (uma
-janela não tem quem lhe passe props); `<prop>` sem `name` ou repetido.
+`resizable` que não seja booleano; um widget dentro do `resources`; um
+`resources`/`props` fora de um cabeçalho; um `props` num `screen` (uma
+janela não tem quem lhe passe props); `prop` sem `name` ou repetido.
 
-### `<component name="…">`: declarar um componente na própria tela
+### `component(name = "…")`: declarar um componente na própria tela
 
 A terceira forma de ter um componente. As outras duas trazem de um arquivo:
 
-```xml
-<import name="LinhaLog" from="linha_log.gv" />
-<link rel="component" href="linha_log.gv" as="LinhaLog" />
+```gv
+import(name = LinhaLog, from = "linha_log.gv")
+link(rel = component, href = "linha_log.gv", as = LinhaLog)
 ```
 
-Esta declara ali mesmo, dentro do `<resources>` — o componente **é** o que está
+Esta declara ali mesmo, dentro do `resources` — o componente **é** o que está
 escrito entre as tags:
 
-```xml
-<screen title="Serviços" size="900 700">
-    <resources>
-        <component name="LinhaLog">
-            <props>
-                <prop name="hora" />
-                <prop name="texto" />
-                <prop name="nivel" default="info" />
-            </props>
-            <row spacing="12" align_y="center">
-                <text content="{hora}" color="#6C7086" size="11" />
-                <badge badge_text="{nivel}" />
-                <text content="{texto}" />
-            </row>
-        </component>
-    </resources>
-
-    <column>
-        <LinhaLog for-each="log" var="l" hora="{l.hora}" texto="{l.texto}" nivel="{l.nivel}" />
-    </column>
-</screen>
+```gv
+screen(title = Serviços, size = "900 700") {
+  resources {
+    component(name = LinhaLog) {
+      props {
+        prop(name = hora)
+        prop(name = texto)
+        prop(name = nivel, default = info)
+      }
+      row(spacing = 12, align_y = center) {
+        text(content = @hora, color = #6C7086, size = 11)
+        badge(badge_text = @nivel)
+        text(content = @texto)
+      }
+    }
+  }
+  column {
+    LinhaLog(for-each = log, var = l, hora = @l.hora, texto = @l.texto, nivel = @l.nivel)
+  }
+}
 ```
 
 **Por que ela existe:** a maior parte dos componentes de uma tela é pequena e só
 serve àquela tela — a linha de um item, o cabeçalho de um cartão, um rótulo com
-um `<badge>` do lado. Obrigar cada um a virar arquivo troca três linhas de
-markup por um arquivo, um caminho relativo e um `<import>`, e espalha por seis
-arquivos o que se lê melhor num. É a mesma razão de existir um `<style>` inline
-ao lado do `<link rel="stylesheet">`: a forma curta para o que é local, o
+um `badge` do lado. Obrigar cada um a virar arquivo troca três linhas de
+markup por um arquivo, um caminho relativo e um `import`, e espalha por seis
+arquivos o que se lê melhor num. É a mesma razão de existir um `style` inline
+ao lado do `link(rel = stylesheet)`: a forma curta para o que é local, o
 arquivo para o que é compartilhado.
 
-**A casca é a mesma, de propósito.** O que vai entre `<component name="X">` e
-`</component>` é *byte a byte* o que iria num `.gv` próprio: `<props>` e depois
-o layout. A única diferença é o `name` — no arquivo o nome vem do `<import>` que
+**A casca é a mesma, de propósito.** O que vai entre `component(name = X)` e
+`component` é *byte a byte* o que iria num `.gv` próprio: `props` e depois
+o layout. A única diferença é o `name` — no arquivo o nome vem do `import` que
 o traz; aqui ele precisa ser dito. Promover uma declaração a arquivo (ou o
 contrário) é recortar e colar, sem reescrever uma linha.
 
 O que ele **não** tem:
 
-- **`<script>` próprio.** Não há arquivo contra o qual resolver um
+- **`script` próprio.** Não há arquivo contra o qual resolver um
   `src`/`require` — a mesma limitação do markup inline dos builtins. Na prática
   é o comportamento desejado: as ações escritas dentro de um componente local
   caem no `update` da **tela que o declarou**, que é de quem elas são. O id do
-  item viaja dentro da ação, como no `<SpinBox>`: `on_click="detalhar:{s.id}"`.
+  item viaja dentro da ação, como no `SpinBox`: `on_click="detalhar:{s.id}"`.
 - **Escopo.** O nome entra no mesmo espaço de nomes de tudo o mais
-  (`<import>`, builtins, `register`), com a mesma regra: declara se o nome está
+  (`import`, builtins, `register`), com a mesma regra: declara se o nome está
   livre **ou** se hoje ele guarda um builtin da lib. Um componente registrado
   pelo app vence a declaração local.
 
-Componentes locais se compõem entre si e convivem com `<import>` no mesmo
-`<resources>`. Ver [`examples/gva/componentes_locais`](examples/gva/componentes_locais),
+Componentes locais se compõem entre si e convivem com `import` no mesmo
+`resources`. Ver [`examples/componentes_locais`](examples/componentes_locais),
 que põe as duas formas lado a lado no mesmo arquivo.
 
 ### Dividir uma tela grande em arquivos
 
-Um `<component>` importado serve também para fatiar uma tela que cresceu: o
+Um `component` importado serve também para fatiar uma tela que cresceu: o
 arquivo grande fica com o cabeçalho e o roteador (`if @view == …` /
 `if @tab == …`), e cada ramo vira um arquivo com a mesma casca. O componente é
 instanciado **sem props** e lê o estado global como o resto da tela — foi assim
-que um `shell.gvb` de 904 linhas virou ~200 e um `service.gvb` de 1860 virou
+que um `shell.gv` de 904 linhas virou ~200 e um `service.gv` de 1860 virou
 ~330, sem mudar a árvore avaliada. As regras que valem conferir:
 
 - **A condição vai na chamada, não na raiz do componente.** Um `if=` no nó raiz
-  do `<component>` **não é aplicado** (o conteúdo aparece sempre, sem erro). Use
+  do `component` **não é aplicado** (o conteúdo aparece sempre, sem erro). Use
   o atributo no ponto de uso:
 
   ```
-  ServiceLogsTab(if = @tab, equals = logs)        // .gvb
-  <ServiceLogsTab if="{tab}" equals="logs" />      <!-- .gv -->
+  ServiceLogsTab(if = @tab, equals = logs)
   ```
 
   Para o corpo de um `if @x == "y" { … }` com vários filhos, extraia o **corpo**:
-  um `<component>` pode ter várias raízes.
-- **O `href` do `<import>`/`link(rel = import)` é relativo ao arquivo que
-  importa.** De dentro de `service/general.gvb`, o vizinho é `"general_git.gvb"`,
-  não `"service/general_git.gvb"`.
-- **Os nomes importados e o `<style>` inline são globais** (só `scoped="true"`
+  um `component` pode ter várias raízes.
+- **O `href` do `import`/`link(rel = import)` é relativo ao arquivo que
+  importa.** De dentro de `service/general.gv`, o vizinho é `"general_git.gv"`,
+  não `"service/general_git.gv"`.
+- **Os nomes importados e o `style` inline são globais** (só `scoped="true"`
   restringe o estilo): o arquivo extraído usa os componentes já importados sem
   reimportar, e o CSS pode ficar no arquivo-mãe.
 - **O prefixo de dono das ações muda** (`Pai::acao` → `Filho::acao`). O dispatch
@@ -642,32 +636,31 @@ que um `shell.gvb` de 904 linhas virou ~200 e um `service.gvb` de 1860 virou
   `GlacierUI::evaluated(..)` antes e depois, normalizando `node_id` (contador
   global) e o prefixo `Dono::`.
 
-### `<props>`: o contrato do componente
+### `props`: o contrato do componente
 
-Um `<component>` pode declarar as props que aceita, e a declaração passa a ser
+Um `component` pode declarar as props que aceita, e a declaração passa a ser
 verificada no ponto de **uso**:
 
-```xml
-<component>
-    <props>
-        <prop name="nome" />
-        <prop name="cor" default="#89B4FA" />
-    </props>
-
-    <text content="{nome}" color="{cor}" />
-</component>
+```gv
+component {
+  props {
+    prop(name = nome)
+    prop(name = cor, default = #89B4FA)
+  }
+  text(content = @nome, color = @cor)
+}
 ```
 
 - prop passada e não declarada é erro, citando as que existem;
 - prop declarada **sem** `default` é obrigatória; com `default`, o valor entra
   quando quem chama omite;
-- um `<props>` vazio é um contrato ("não aceito prop nenhuma"), não a ausência
+- um `props` vazio é um contrato ("não aceito prop nenhuma"), não a ausência
   de um;
-- **sem `<props>`, nada é checado** — declarar é opcional.
+- **sem `props`, nada é checado** — declarar é opcional.
 
 O motivo de isto ser uma feature e não um comentário no topo do arquivo: as props
 entram como uma **camada** sobre o contexto de quem usa, e um lookup que falha na
-camada cai para o contexto de baixo. Sem contrato, `<Cartao nomee="Alice" />` não
+camada cai para o contexto de baixo. Sem contrato, `Cartao(nomee = Alice)` não
 renderiza vazio — renderiza o `nome` que existir no contexto global, e o typo
 fica invisível até alguém reparar no valor errado na tela.
 
@@ -676,15 +669,14 @@ fica invisível até alguém reparar no valor errado na tela.
 Um card em lista costuma receber um atributo por campo, e **todos** são
 mapeamentos identidade — o nome à esquerda igual ao campo à direita:
 
-```xml
-<ServiceCard for-each="linhas" var="c"
-    id="{c.id}" nome="{c.nome}" porta="{c.porta}" cpu="{c.cpu}" mem="{c.mem}" />
+```gv
+ServiceCard(for-each = linhas, var = c, id = @c.id, nome = @c.nome, porta = @c.porta, cpu = @c.cpu, mem = @c.mem)
 ```
 
 `spread` passa o item inteiro no lugar dessa parede:
 
-```xml
-<ServiceCard for-each="linhas" var="c" spread="{c}" />
+```gv
+ServiceCard(for-each = linhas, var = c, spread = @c)
 ```
 
 Cada campo do objeto cai na prop declarada de mesmo nome. **Dentro do componente
@@ -692,18 +684,18 @@ nada muda** — continua `{id}`, `{nome}`, `{porta}` —, e é isso que preserva
 contrato: não existe uma prop-objeto `card` cujo `{card.nmae}` renderizaria vazio
 em silêncio. As regras:
 
-- só as props que o `<props>` **declara** entram; campo sobrando no objeto é
+- só as props que o `props` **declara** entram; campo sobrando no objeto é
   ignorado (o dado quase sempre carrega mais do que o componente usa);
 - atributo escrito à mão **ganha** do spread — `spread="{c}" cor="#F00"` sobrepõe
   aquele campo;
-- campo ausente cai no `default` do `<prop>`; sem default, é `MissingProp` —
+- campo ausente cai no `default` do `prop`; sem default, é `MissingProp` —
   o contrato ganha alcance, pegando também a obrigatória que o **dado** não
   trouxe, não só a que o markup esqueceu;
-- sem `<props>`, não há o que filtrar: todo campo do objeto entra na camada;
+- sem `props`, não há o que filtrar: todo campo do objeto entra na camada;
 - valor **vazio** (a chave ainda não carregou) vale como "nenhum campo"; um
   escalar ou uma lista, aí sim, é erro;
 - uma lista aninhada atravessa como JSON e volta a ser lista num `for-each` de
-  dentro (`spread="{c}"` com `c.tags` → `<text :for-each="tags" var="t">`).
+  dentro (`spread="{c}"` com `c.tags` → `text(:for-each = tags, var = t)`).
 
 Apelido em português: `espalhar`.
 
@@ -722,7 +714,7 @@ Disponíveis em **qualquer** tag:
 | `alignY` | `align_y` | `start`, `center`, `end` |
 | `spacing` | `espacamento` | número (espaço entre filhos de `Row`/`Column`) |
 | `background` | `bg`, `fundo` | cor hex |
-| `gradient` | `gradiente` | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background`; em `<button>` pinta o fundo do botão (hover/pressed derivam das paradas, `disabled` corta o alfa) |
+| `gradient` | `gradiente` | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background`; em `button` pinta o fundo do botão (hover/pressed derivam das paradas, `disabled` corta o alfa) |
 | `borderRadius` | `border_radius`, `raio_borda` | número |
 | `borderWidth` | `border_width` | número |
 | `borderColor` | `border_color` | cor hex |
@@ -736,7 +728,7 @@ Disponíveis em **qualquer** tag:
 
 - **Eixos:** o eixo cruzado de uma `Column` é o `alignX`; o de uma `Row` é o `alignY`.
 - **Cores:** hex `#RRGGBB` ou `#RRGGBBAA`.
-- **Rótulo do `<button>`:** `size` e `bold` do `.gss` valem no texto do botão (um `font` explícito vence o `bold`); `text_color` é a cor, e `color` é o fundo.
+- **Rótulo do `button`:** `size` e `bold` do `.gss` valem no texto do botão (um `font` explícito vence o `bold`); `text_color` é a cor, e `color` é o fundo.
 - **`fill` só "enche"** se todo container pai até ele também for `width=fill` (o default da maioria dos widgets é `shrink`).
 
 ---
@@ -746,9 +738,9 @@ Disponíveis em **qualquer** tag:
 Qualquer valor de atributo pode conter placeholders `{chave}`, substituídos pelos
 valores do contexto durante a avaliação:
 
-```xml
-<Text content="Olá, {user_name}!" color="{cor_texto}" />
-<Container background="{painel_bg}"> ... </Container>
+```gv
+Text(content = "Olá, {user_name}!", color = @cor_texto)
+Container("...", background = @painel_bg)
 ```
 
 O componente publica valores com `ctx.set("user_name", "Clara")` (Rust) ou
@@ -762,22 +754,22 @@ compartilhado entre todas as telas.
 ## Controle de fluxo
 
 A forma recomendada são **atributos diretiva** aplicados em qualquer elemento
-(estilo Vue/Angular). A sintaxe antiga de tags-invólucro (`<if>`, `<else>`,
-`<ForEach>`) continua suportada por retrocompatibilidade.
+(estilo Vue/Angular). A sintaxe antiga de tags-invólucro (`if`, `else`,
+`ForEach`) continua suportada por retrocompatibilidade.
 
 **Condicional** — `if` renderiza truthy (`true`/`1`/`yes`/`on`/`sim`); `else`
 (pelado) se conecta ao `if` anterior; `equals`/`notEquals` comparam explicitamente:
 
-```xml
-<Column if="{logado}"><Text content="Bem-vindo!" /></Column>
-<Column else><Text content="Por favor, conecte-se." /></Column>
-
-<Text content="Painel Admin"  if="{papel}" equals="admin" />
-<Text content="Acesso Comum"  if="{papel}" notEquals="admin" />
+```gv
+Column(if = @logado) {
+  Text(content = "Bem-vindo!")
+}
+Column(else) {
+  Text(content = "Por favor, conecte-se.")
+}
+Text(content = "Painel Admin", if = @papel, equals = admin)
+Text(content = "Acesso Comum", if = @papel, notEquals = admin)
 ```
-
-> *XML estrito:* atributos pelados como `else` não são válidos no padrão; o
-> Glacier faz um pré-processamento transparente convertendo `else` → `else=""`.
 
 Mais quatro comparadores, todos sobre o mesmo `if`/`else-if`:
 
@@ -793,19 +785,18 @@ de texto que o app nomeia, sem estado por instância. Os separadores aceitos sã
 vírgula, ponto-e-vírgula e espaço, os três ao mesmo tempo, e o item comparado
 também interpola:
 
-```xml
-<!-- ctx.abertas = "rede,disco" -->
-<template for-each="secoes" var="s">
-    <Column if="{abertas}" contains="{s.id}"> … </Column>
-</template>
+```gv
+// ctx.abertas = "rede,disco"
+template(for-each = secoes, var = s) {
+  Column("…", if = @abertas, contains = @s.id)
+}
 ```
 
 **Loop** — `for-each` itera sobre um **array JSON** do contexto; `var` nomeia a
 variável (padrão `item`). Objetos viram `{u.campo}`; escalares ficam em `{u}`:
 
-```xml
-<CartaoUsuario for-each="usuarios" var="u"
-    nome="{u.nome}" cargo="{u.cargo}" cor="{u.cor}" />
+```gv
+CartaoUsuario(for-each = usuarios, var = u, nome = @u.nome, cargo = @u.cargo, cor = @u.cor)
 ```
 
 ```rust
@@ -817,51 +808,48 @@ ctx.set("usuarios", serde_json::json!([
 
 Combinados no mesmo elemento, `for-each` tem precedência: desenrola o loop
 primeiro e o `if` filtra cada item gerado no contexto local. Veja
-[`examples/gva/condicional`](examples/gva/condicional) e [`examples/gva/lista`](examples/gva/lista).
+[`examples/condicional`](examples/condicional) e [`examples/lista`](examples/lista).
 
-**Agrupar sem wrapper (`<template>`)** — nem a forma-atributo nem `for-each`
+**Agrupar sem wrapper (`template`)** — nem a forma-atributo nem `for-each`
 num elemento comum resolvem "quero 2+ nós irmãos por condição/iteração, sem
-um `<Row>`/`<Column>` extra por baixo" — `if`/`for-each` num elemento SEMPRE
+um `Row`/`Column` extra por baixo" — `if`/`for-each` num elemento SEMPRE
 produzem aquele elemento (um nó), nunca uma lista solta. Para isso, use
-`<template>` — o mesmo nome e a mesma ideia do `<template v-if>`/`<template
-x-for>` do Vue/Alpine (que hoje já são o alvo de uma futura transpilação
-deste dialeto para o browser):
+`template` — o mesmo nome e a mesma ideia do `template(v-if)`/`template(x-for)` do Vue/Alpine:
 
-```xml
-<template if="{aba}" equals="detalhes">
-    <Text content="Detalhes" />
-    <Text content="{descricao}" />
-</template>
-<template else-if="{aba}" equals="historico">
-    <Text content="Histórico" />
-</template>
-<template else>
-    <Text content="Selecione uma aba" />
-</template>
-
-<template for-each="itens" var="i">
-    <Text content="{i.nome}" />
-    <Text content="{i.detalhe}" />
-</template>
+```gv
+template(if = @aba, equals = detalhes) {
+  Text(content = Detalhes)
+  Text(content = @descricao)
+}
+template(else-if = @aba, equals = historico) {
+  Text(content = Histórico)
+}
+template(else) {
+  Text(content = "Selecione uma aba")
+}
+template(for-each = itens, var = i) {
+  Text(content = @i.nome)
+  Text(content = @i.detalhe)
+}
 ```
 
-Cada `<Text>` acima sai como irmão direto do pai de `<template>` — não há
-nó `<template>` nenhum na árvore renderizada. É a mesma mecânica que
-`<If>`/`<ForEach>` (tags legadas) já tinham; `<template>` só lhes dá um
-nome único e comum aos dois lados (se um dia a `<template>`-condição
-precisar filtrar itens de um `<template for-each>`, aninhe-a no CORPO do
+Cada `Text` acima sai como irmão direto do pai de `template` — não há
+nó `template` nenhum na árvore renderizada. É a mesma mecânica que
+`If`/`ForEach` (tags legadas) já tinham; `template` só lhes dá um
+nome único e comum aos dois lados (se um dia a `template`-condição
+precisar filtrar itens de um `template(for-each)`, aninhe-a no CORPO do
 loop — as duas diretivas não se combinam na mesma tag).
 
 ---
 
 ## Inputs de texto
 
-`<TextInput>` faz binding bidirecional: `value` aponta para a chave exibida e
+`TextInput` faz binding bidirecional: `value` aponta para a chave exibida e
 `onChange` dispara uma ação com o novo texto a cada tecla. No `update`, o texto
 chega em `value: Option<&str>`:
 
-```xml
-<TextInput placeholder="Seu nome..." value="user_name" onChange="mudar_nome" width="fill" padding="10" />
+```gv
+TextInput(placeholder = "Seu nome...", :value = user_name, onChange = mudar_nome, width = fill, padding = 10)
 ```
 
 ```rust
@@ -872,7 +860,7 @@ fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
 }
 ```
 
-Veja [`examples/gva/perfil`](examples/gva/perfil) e [`examples/gva/navegacao`](examples/gva/navegacao).
+Veja [`examples/perfil`](examples/perfil) e [`examples/navegacao`](examples/navegacao).
 
 ---
 
@@ -900,12 +888,12 @@ let form = FormBuilder::new("login")
     .build();
 ```
 
-```xml
-<Form onSubmit="entrar" name="login" width="fill">
-    <TextInput formControl="username" placeholder="usuário" width="fill" />
-    <TextInput formControl="password" placeholder="senha" secure="true" width="fill" />
-    <Button text="Entrar" on_click="entrar" />
-</Form>
+```gv
+Form(onSubmit = entrar, name = login, width = fill) {
+  TextInput(formControl = username, placeholder = usuário, width = fill)
+  TextInput(formControl = password, placeholder = senha, secure = true, width = fill)
+  Button(text = Entrar, on_click = entrar)
+}
 ```
 
 `TextInput formControl="username"` sem `value`/`onChange` usa o nome do controle
@@ -930,7 +918,7 @@ Validadores: `.required()`, `.min_length(n)`, `.max_length(n)`,
 publica o primeiro erro de cada campo (`"{prefixo}{nome}"`) para exibir inline com
 `Text "{erro_username}"`. Enter em qualquer campo dispara o `onSubmit` **e** avança
 o foco — dá para preencher e enviar o formulário sem tocar no mouse. Veja
-[`examples/gva/formulario_login`](examples/gva/formulario_login).
+[`examples/formulario_login`](examples/formulario_login).
 
 ---
 
@@ -938,11 +926,11 @@ o foco — dá para preencher e enviar o formulário sem tocar no mouse. Veja
 
 Cada tela é um componente registrado. Há três formas de trocar de tela:
 
-**1. Declarativa (atributos no XML):**
+**1. Declarativa (atributos no `.gv`):**
 
-```xml
-<Button text="Ver perfil" navigateTo="perfil" />
-<Button text="Voltar" navigateBack="true" />
+```gv
+Button(text = "Ver perfil", navigateTo = perfil)
+Button(text = Voltar, navigateBack = true)
 ```
 
 **2. Imperativa (Rust):** de dentro do `update`, via `ctx.navigate_to(...)` /
@@ -963,18 +951,18 @@ end
 
 O motor mantém uma **pilha de histórico**: `navigateTo` empilha a tela atual;
 `navigateBack` volta. O estado de contexto é compartilhado entre telas. Veja
-[`examples/gva/navegacao`](examples/gva/navegacao) (declarativa) e
-[`examples/gva/navegacao_luau`](examples/gva/navegacao_luau) (via script).
+[`examples/navegacao`](examples/navegacao) (declarativa) e
+[`examples/navegacao_luau`](examples/navegacao_luau) (via script).
 
 ### O `script` do app
 
-Um app com várias telas (`<app>` na raiz) pode ter **um** `<script>` no `<resources>`
+Um app com várias telas (`app` na raiz) pode ter **um** `script` no `resources`
 do próprio app, para o estado e a lógica que vivem o app inteiro:
 
-```xml
-<app id="meu_app">
-  <resources>
-    <script>
+```gv
+app(id = meu_app) {
+  resources {
+    script """
       function init()                 -- antes do init de qualquer tela
         ctx.usuario = "Ana"
         ctx.visitas = 0
@@ -983,14 +971,14 @@ do próprio app, para o estado e a lógica que vivem o app inteiro:
       function registrar_visita()
         ctx.visitas = ctx.visitas + 1
       end
-    </script>
-  </resources>
+    """
+  }
 
-  <screen name="home" initial="true">
-    <text>Olá, {usuario} — {visitas} visitas</text>
-    <button text="Contar" on_click="app::registrar_visita" />
-  </screen>
-</app>
+  screen(name = home, initial = true) {
+    text("Olá, {usuario} — {visitas} visitas")
+    button(text = Contar, on_click = "app::registrar_visita")
+  }
+}
 ```
 
 - Roda **uma vez por janela**, antes das telas: o `init` do app antecede o da primeira
@@ -1001,7 +989,7 @@ do próprio app, para o estado e a lógica que vivem o app inteiro:
   ação sem prefixo continua indo para a tela ativa.
 - Mudar o texto do script no hot-reload recria a VM do app e roda o `init` de novo.
 
-Exemplo: [`examples/gvb/app_script`](examples/gvb/app_script).
+Exemplo: [`examples/app_script`](examples/app_script).
 
 ---
 
@@ -1010,12 +998,11 @@ Exemplo: [`examples/gvb/app_script`](examples/gvb/app_script).
 **Composição a nível de template** — duas formas equivalentes; os atributos viram
 **props** interpoladas no contexto local do filho:
 
-```xml
-<import name="PerfilCard" from="examples/gva/perfil/perfil_card.gva" />
-<PerfilCard nome="{user_name}" cargo="{user_role}" />
-
-<!-- ou -->
-<Include src="perfil_card.gv" nome="{user_name}" />
+```gv
+import(name = PerfilCard, from = "examples/perfil/perfil_card.gv")
+PerfilCard(nome = @user_name, cargo = @user_role)
+// ou
+Include(src = "perfil_card.gv", nome = @user_name)
 ```
 
 **O trait `Component`** — encapsula UI + comportamento + estado:
@@ -1023,7 +1010,7 @@ Exemplo: [`examples/gvb/app_script`](examples/gvb/app_script).
 ```rust
 pub trait Component {
     fn name(&self) -> &str;                  // nome (registro + roteamento)
-    fn template(&self) -> Template;          // Template::File(path) | Template::Inline(xml)
+    fn template(&self) -> Template;          // Template::File(path) | Template::Inline(xml interno)
     fn init(&mut self, ctx: &mut Context) {} // estado inicial (opcional)
     fn children(&self) -> Vec<Box<dyn Component>> { Vec::new() } // sub-componentes (opcional)
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context);
@@ -1042,7 +1029,7 @@ prefixa as ações da subárvore com o nome do componente
 - ação sem prefixo, ou prefixo só de UI → cai na **tela ativa** (fallback) — é o
   que mantém includes puramente visuais funcionando.
 
-> **Limite conhecido:** um filho referenciado N vezes (ex.: dentro de `<ForEach>`)
+> **Limite conhecido:** um filho referenciado N vezes (ex.: dentro de `ForEach`)
 > compartilha um único objeto e um único `update`.
 
 **`ContextVar`** — açúcar para declarar variáveis legíveis em vez de chaves soltas:
@@ -1051,32 +1038,32 @@ prefixa as ações da subárvore com o nome do componente
 ctx.set_var(&ContextVar::new("user_name", "Clara Silva"));
 ```
 
-Veja [`examples/gva/aninhado`](examples/gva/aninhado), [`examples/gva/lista`](examples/gva/lista)
-e [`examples/gva/perfil`](examples/gva/perfil).
+Veja [`examples/aninhado`](examples/aninhado), [`examples/lista`](examples/lista)
+e [`examples/perfil`](examples/perfil).
 
 ---
 
-## Comportamento em `<script>` Luau
+## Comportamento em `script` Luau
 
 Dá para colocar o comportamento **dentro do próprio template**, num bloco
-`<script>` com funções **Luau**. Ao registrar com `register_component`, o motor
-detecta o `<script>`, carrega o script e roteia cada ação
+`script` com funções **Luau**. Ao registrar com `register_component`, o motor
+detecta o `script`, carrega o script e roteia cada ação
 (`on_click`/`onChange`/`onSubmit`) para a função de mesmo nome — tudo
 **interpretado em tempo de execução**, sem recompilar.
 
-```xml
-<Button text="+" on_click="incrementar" />
-<Button text="-" on_click="decrementar" />
+```gv
+button(text = "+", on_click = incrementar)
+button(text = "-", on_click = decrementar)
 
-<script>
-function init()        ctx.contador = ctx.contador or 0 end
-function incrementar() ctx.contador = ctx.contador + 1 end
-function decrementar() ctx.contador = ctx.contador - 1 end
-</script>
+script """
+  function init()        ctx.contador = ctx.contador or 0 end
+  function incrementar() ctx.contador = ctx.contador + 1 end
+  function decrementar() ctx.contador = ctx.contador - 1 end
+"""
 ```
 
 ```rust
-motor.register_component("contador", "examples/gva/contador_macro/contador_macro.gva")?;
+motor.register_component("contador", "examples/contador_macro/contador_macro.gv")?;
 ```
 
 Como funciona:
@@ -1090,12 +1077,12 @@ Como funciona:
 **Arquivo externo** — aponte para um `.luau` separado com `src` (resolvido
 relativo ao diretório do template):
 
-```xml
-<script src="contador_externo.luau"></script>
+```gv
+script(src = "contador_externo.luau")
 ```
 
-Veja [`examples/gva/contador_macro`](examples/gva/contador_macro) (inline) e
-[`examples/gva/contador_externo`](examples/gva/contador_externo) (externo).
+Veja [`examples/contador_macro`](examples/contador_macro) (inline) e
+[`examples/contador_externo`](examples/contador_externo) (externo).
 
 ### `fetch`: rede async via corrotina
 
@@ -1118,7 +1105,7 @@ end
 
 O retorno é `{ ok, status, body, error }`. O 2º argumento `opts` é opcional:
 `{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
-Veja [`examples/gva/fetch_luau`](examples/gva/fetch_luau).
+Veja [`examples/fetch_luau`](examples/fetch_luau).
 
 ### `require`: módulos Luau
 
@@ -1144,7 +1131,7 @@ function carregar() local res = api:get("/dados"); if res.ok then ctx.dados = re
 diretório do template; (2) um subdir `lib/`; (3) cada caminho em
 `GLACIER_LUAU_PATH` (separados por `:`). O módulo roda no **mesmo** interpretador,
 então enxerga `fetch` e as globais; é carregado **uma vez** e cacheado. Veja
-[`examples/gva/imports_luau`](examples/gva/imports_luau).
+[`examples/imports_luau`](examples/imports_luau).
 
 ### Timers: `after` e `every`
 
@@ -1162,7 +1149,7 @@ function tique() ctx.tiques = ctx.tiques + 1 end
 function parar() cronometro:cancel() end
 ```
 
-Veja [`examples/gva/robustez_luau`](examples/gva/robustez_luau).
+Veja [`examples/robustez_luau`](examples/robustez_luau).
 
 ### `storage`: persistência local
 
@@ -1176,8 +1163,8 @@ function salvar() storage.set("rascunho", ctx.rascunho) end
 
 ### `date`: data e hora sobre strings ISO
 
-Os campos `<dateedit>`/`<timeedit>`/`<datetimeedit>` e as grades
-`<calendar>`/`<monthyearpicker>`/`<daterangepicker>` gravam **sempre em ISO** —
+Os campos `dateedit`/`timeedit`/`datetimeedit` e as grades
+`calendar`/`monthyearpicker`/`daterangepicker` gravam **sempre em ISO** —
 `YYYY-MM-DD`, `HH:MM[:SS]`, ou os dois separados por espaço. O global `date`
 opera nesse mesmo formato: recebe string, devolve string, e por isso nada de
 "objeto data" vaza para uma chave de contexto (que é sempre texto).
@@ -1270,7 +1257,7 @@ nenhum valor.
 > e é o que o `date` usa por dentro. Se você tem código que faz a conta na mão,
 > vale conferir.
 
-Veja [`examples/gva/data_hora_luau`](examples/gva/data_hora_luau).
+Veja [`examples/data_hora_luau`](examples/data_hora_luau).
 
 ### `viewport`, `toast`, `confirm`, `navigate`
 
@@ -1318,12 +1305,12 @@ funções do prelúdio coordenam janelas (nenhuma suspende a corrotina):
 
 Do lado Rust, os equivalentes são `Context::open_window` / `Context::broadcast`
 / `Context::close_window` e o método `Component::on_broadcast`. Veja
-[`examples/gva/janelas_glacier`](examples/gva/janelas_glacier).
+[`examples/janelas_glacier`](examples/janelas_glacier).
 
 Quando a janela principal é só um `.gv`, `main_template` poupa o `setup`: ele
 registra o arquivo com o nome sem extensão (`views/app.gv` → `app`) e o torna a
 tela inicial. `load_stylesheet` e mais componentes não pedem `.main`: são
-`<link rel="stylesheet">` e `<link rel="import">` no `<resources>` (a tabela do que
+`link(rel = stylesheet)` e `link(rel = import)` no `resources` (a tabela do que
 cada chamada do builder vira no markup está em [`docs/DAEMON.md`](docs/DAEMON.md)).
 Sem nenhum dos dois, o `run` abre `./views/app.gv` ou, se ele não
 existir, `app.gv`.
@@ -1417,7 +1404,7 @@ script e `navigate_to=`/`navigate_back` do markup; não rodam para a tela inicia
 **Importante:** os streams viram `iced::Subscription`s produzidas por
 `GlacierUI::subscription`. O `subscription()` do app precisa incluir
 `self.motor.subscription()` — sem isso, nenhuma conexão é aberta. Veja
-[`examples/gva/stream_lua`](examples/gva/stream_lua).
+[`examples/stream_lua`](examples/stream_lua).
 
 ---
 
@@ -1431,7 +1418,7 @@ um JSON por idioma. Plural (`{t("itens", n=contagem)}`), número (`{num(v, 2)}`)
 [`docs/I18N.md`](docs/I18N.md) — inclusive o que não existe (RTL espelhado, hora, moeda).
 
 **Acessibilidade.** Três atributos em qualquer tag — `role`, `aria_label`, `aria_hidden` —; o
-`<button>` entra na ordem de Tab com anel de foco e Enter/Espaço o acionam; o `.gss` avisa
+`button` entra na ordem de Tab com anel de foco e Enter/Espaço o acionam; o `.gss` avisa
 contraste abaixo do WCAG AA; a feature `a11y` publica a árvore no AT-SPI (só Linux). **Parcial:**
 o Orca não foi testado e só o botão ganhou teclado. Ver [`docs/ACESSIBILIDADE.md`](docs/ACESSIBILIDADE.md).
 
@@ -1446,8 +1433,10 @@ da markup e os agrupa em **classes**. Aplique com `class="..."`:
 .title { size: 26; bold: true; color: #CDD6F4; }
 ```
 
-```xml
-<Container class="card"><Text class="title" content="Olá" /></Container>
+```gv
+Container(class = card) {
+  Text(class = title, content = Olá)
+}
 ```
 
 **Precedência (igual à do CSS):**
@@ -1475,21 +1464,21 @@ unicidade não é exigida — vários nós podem compartilhar o mesmo `id`.
 #hero   { color: #F38BA8; }   /* vence a .title onde id="hero" */
 ```
 
-```xml
-<Text id="hero" class="title" content="Olá" />
+```gv
+Text(id = hero, class = title, content = Olá)
 ```
 
 **Seletor de tag.** Um bloco `Tag { }` casa elementos pela **tag da markup**, com
 a **menor** especificidade (abaixo de classe/id/inline) — bom para *defaults*.
 Casa por dois caminhos: o **tipo builtin** do nó (`Button`, `Column`, `Text`, …)
-e o **nome de um componente** no seu uso (`<Card/>`). Como o componente é
+e o **nome de um componente** no seu uso (`Card`). Como o componente é
 inlinado, um `Card {}` é aplicado como base na **raiz** do template dele. O nome
 é normalizado para minúsculo (`Button {}` == `button {}`) e aceita pseudo-estados
 (`Button:hover { }`) e `@media`.
 
 ```gss
 Button { border-radius: 8; }   /* default de todo Button (builtin) */
-Card   { padding: 24; }        /* default de todo uso de <Card> (componente) */
+Card   { padding: 24; }        /* default de todo uso de Card (componente) */
 ```
 
 > Cuidado com o alcance: uma regra de tag **global** atinge o elemento em
@@ -1521,8 +1510,8 @@ seletor: `row > button:hover`), `@media` e vírgula.
 
 A raiz de um componente responde pelos dois nomes: o do builtin do template e o
 do uso, com a classe e o id escritos nele. Então `Card > text` alcança os filhos
-da raiz do `<Card/>`, e `.lista > Card.destaque` alcança a própria raiz. O
-conteúdo de slot tem o **uso** como pai (`<Caixa class="c"><text/></Caixa>` →
+da raiz do `Card`, e `.lista > Card.destaque` alcança a própria raiz. O
+conteúdo de slot tem o **uso** como pai (`Caixa(class = c) { text }` →
 `.c > text`).
 
 Fora da gramática, e **erro** de parse em vez de regra ignorada: os combinadores
@@ -1531,8 +1520,8 @@ e `:estado` num ancestral.
 
 Exemplo: uma lista de serviços estilizada só pelo lugar de cada nó, com uma
 classe vinda do dado e outra dinâmica num ancestral, em
-`examples/gva/seletores` (`cargo run --example seletores`), na versão Luau
-(`seletores_luau`) e em `.gvb` (`gvb_seletores`, `gvb_seletores_luau`).
+`examples/seletores` (`cargo run --example seletores`), na versão Luau
+(`seletores_luau`) e em `.gv` (`seletores`, `seletores_luau`).
 
 #### `class` no **uso** de um componente (0.69)
 
@@ -1540,7 +1529,7 @@ O outro extremo da escada. `Card {}` acima é o *default* de todo uso; a `class`
 escrita **num** uso mira só aquele, e também aplica na **raiz** expandida:
 
 ```gv
-<Card class="destaque" />
+Card(class = destaque)
 ```
 
 ```gss
@@ -1560,18 +1549,19 @@ componente é um *default*, o atributo que ele cravou inline é uma *decisão*.
 
 > Antes da 0.69 escrever `class` num componente era um **no-op silencioso**: a
 > classe era lida, viajava no mapa de props e não pintava nada, sem erro nem
-> aviso. Se você contornou isso embrulhando o componente numa `<Column
-> class="…">`, o embrulho pode sair.
+> aviso. Se você contornou isso embrulhando o componente numa `Column`, o embrulho pode sair.
 
 Ela aplica **só na raiz**. Para estilizar um nó específico lá dentro, o
 componente expõe uma prop com nome próprio — e **todo builtin da lib tem as
 suas** desde a 0.89:
 
 ```gv
-<listview items="servicos" value="qual" selected="{qual}"
-          item_class="linha" selected_class="linha_ativa" />
+listview(
+  :items = servicos, :value = qual, :selected = qual,
+  item_class = linha, selected_class = linha_ativa,
+)
 
-<card title="Servidor" class="destaque" title_class="titulo_card" />
+card(title = Servidor, class = destaque, title_class = titulo_card)
 ```
 
 O sufixo é sempre `_class` e o prefixo nomeia o alvo (`field_class`,
@@ -1584,7 +1574,7 @@ biblioteca inteira segue, e que valem para um componente seu:
    `item_class` primeiro, `selected_class` depois, e o segundo vence no item
    selecionado.
 3. **Nó de raiz não ganha prop** — o `class` do uso já o alcança. É por isso que
-   o `<toolbutton>`, cuja raiz *é* o `<Button>`, não tem `button_class`.
+   o `toolbutton`, cuja raiz *é* o `Button`, não tem `button_class`.
 
 A tabela por widget está em [`BUILTINS.md`](BUILTINS.md).
 
@@ -1601,20 +1591,20 @@ A tabela por widget está em [`BUILTINS.md`](BUILTINS.md).
 `border-color`, `color`, `text-color`, `size`, `bold`, `hidden`.
 
 Carregue por código (`motor.load_stylesheet("styles/app.gss")` — sempre **global**)
-ou declare no template. Um `<style>` inline é **global** por padrão, ou **com
+ou declare no template. Um `style` inline é **global** por padrão, ou **com
 escopo** ao componente com `scoped="true"` — a única forma de escopar um `.gss`:
 
-```xml
-<style>
+```gv
+style """
     .card  { padding: 24; background: #1E1E2E; border-radius: 16; }
-</style>
-<style scoped="true">
+"""
+style(scoped = true) """
     .only_here { color: red; }
-</style>
+"""
 ```
 
-Veja [`examples/gva/estilos`](examples/gva/estilos) (arquivo + `<link>`) e
-[`examples/gva/estilos_inline`](examples/gva/estilos_inline) (bloco `<style>`).
+Veja [`examples/estilos`](examples/estilos) (arquivo + `link`) e
+[`examples/estilos_inline`](examples/estilos_inline) (bloco `style`).
 
 ### Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`
 
@@ -1636,26 +1626,26 @@ rastrear hover manualmente. **Cobertura atual:**
 - **`Select`** — só `:hover` (o `pick_list` do iced não tem `Status::Disabled`).
 - **`Checkbox`/`Toggle`** — só o atributo `disabled` (usam o visual padrão do tema).
 
-Veja [`examples/gva/pseudo_estados`](examples/gva/pseudo_estados).
+Veja [`examples/pseudo_estados`](examples/pseudo_estados).
 
 ---
 
-## `<link rel="…">` e temas
+## `link(rel = "…")` e temas
 
-O `<link>` declara um recurso externo; `rel` escolhe o tipo:
+O `link` declara um recurso externo; `rel` escolhe o tipo:
 
 | `rel` | O que faz | Atributos |
 |---|---|---|
 | `stylesheet` (padrão) | carrega um `.gss` **global** | `href` |
-| `import` / `component` | carrega outro template (igual a `<import>`) | `href`, `as`/`name` |
+| `import` / `component` | carrega outro template (igual a `import`) | `href`, `as`/`name` |
 | `data` | faz merge de um JSON no contexto | `href`, `as`/`name` |
 | `theme` | aplica uma paleta como `iced::Theme` | `href` |
 
-```xml
-<link rel="stylesheet" href="styles/estilos.gss" />
-<link rel="import" href="templates/perfil_card.gv" as="PerfilCard" />
-<link rel="data" href="data/equipe.json" as="app" />   <!-- {app.campo}, <ForEach items="app.lista"> -->
-<link rel="theme" href="styles/theme.json" />
+```gv
+link(rel = stylesheet, href = "styles/estilos.gss")
+link(rel = import, href = "templates/perfil_card.gv", as = PerfilCard)
+link(rel = data, href = "data/equipe.json", as = app)  // {app.campo}, each @app.lista as item
+link(rel = theme, href = "styles/theme.json")
 ```
 
 **Tema** — um JSON de cores hex aplicado como `iced::Theme`:
@@ -1674,7 +1664,7 @@ iced::application(App::new, App::update, App::view)
     .run()
 ```
 
-Como os `<import>`, os `<link>`/`<style>`/`<script>` podem ficar no topo do
+Como os `import`, os `link`/`style`/`script` podem ficar no topo do
 arquivo, como irmãos da raiz, e não renderizam nada.
 
 ---
@@ -1687,7 +1677,7 @@ Quatro estilos prontos em [`glacier_ui::style`](src/style.rs) — o análogo dos
 (escuro grafite). Cada um é uma `const Style` com **paleta** (vira o
 `iced::Theme` do app) + **GSS de regras de tag** (`Button { }`, `Select { }`,
 com pseudo-estados), instalado como *underlay* — abaixo de qualquer `.gss` do
-app, então classes, ids, atributos inline e `<link rel="theme">` continuam
+app, então classes, ids, atributos inline e `link(rel = theme)` continuam
 vencendo, exatamente como um stylesheet vence o QStyle no Qt.
 
 ```rust
@@ -1703,9 +1693,9 @@ Num app de janela única, `motor.set_style(&style::FUSION)?`. Para trocar em
 runtime (o combo "Style:" do Widget Gallery do Qt), duas ações builtin — nenhum
 código de componente envolvido:
 
-```xml
-<Button text="Escuro" on_click="style:fusion-dark" />
-<Select options="estilos" value="glacier_style" onChange="style:set" />
+```gv
+Button(text = Escuro, on_click = "style:fusion-dark")
+Select(:options = estilos, :value = glacier_style, onChange = "style:set")
 ```
 
 O nome do estilo ativo fica no contexto em `glacier_style`
@@ -1727,7 +1717,7 @@ ctx.show_toast(ToastSpec::warning("Fica 10s.").with_title("Custom").with_duratio
 ```
 
 Requer `GlacierUI::toast_subscription(...)` no `subscription()` do app — sem ele,
-os toasts só fecham no "×". Veja [`examples/gva/toasts`](examples/gva/toasts).
+os toasts só fecham no "×". Veja [`examples/toasts`](examples/toasts).
 
 **Diálogos** — modais estilo `QMessageBox` (informação, aviso, erro, pergunta,
 confirmação), sobrepostos pelo motor:
@@ -1743,33 +1733,33 @@ ctx.show_dialog(
 
 Os botões despacham ações (`"ok"`, `"yes"`, `"no"`, `"cancel"`, ou a ação
 customizada) roteadas ao `update` — o motor já fechou o diálogo antes. Veja
-[`examples/gva/dialogs`](examples/gva/dialogs). (Da camada Luau, use `confirm(opts)`.)
+[`examples/dialogs`](examples/dialogs). (Da camada Luau, use `confirm(opts)`.)
 
 ---
 
 ## Drag-and-drop: listas reordenáveis
 
-Um `<ForEach>` com `onReorder` + `reorderKey` vira uma lista reordenável por
+Um `ForEach` com `onReorder` + `reorderKey` vira uma lista reordenável por
 arrasto: arraste pelo elemento marcado `dragHandle="true"`. Ao soltar, `onReorder`
 entrega a nova ordem (array JSON dos valores de `reorderKey`). Durante o arrasto,
 o item agarrado recebe `{t.__dragging} = "true"` para destacá-lo:
 
-```xml
-<ForEach items="tarefas" var="t" onReorder="reordenar" reorderKey="id">
-    <Row if="{t.__dragging}" equals="true" background="#434C5E" borderColor="#88C0D0" ...>
-        <Text content="⋮⋮" dragHandle="true" cursor="grabbing" />
-        <Text content="{t.nome}" width="fill" />
-    </Row>
-    <Row else="true" background="#3B4252" ...>
-        <Text content="⋮⋮" dragHandle="true" cursor="grab" />
-        <Text content="{t.nome}" width="fill" />
-    </Row>
-</ForEach>
+```gv
+ForEach(items = tarefas, var = t, onReorder = reordenar, reorderKey = id) {
+  Row(if = @t.__dragging, equals = true, background = #434C5E, borderColor = #88C0D0, ...) {
+    Text(content = "⋮⋮", dragHandle = true, cursor = grabbing)
+    Text(content = @t.nome, width = fill)
+  }
+  Row(else = true, background = #3B4252, ...) {
+    Text(content = "⋮⋮", dragHandle = true, cursor = grab)
+    Text(content = @t.nome, width = fill)
+  }
+}
 ```
 
 Requer `self.motor.subscription()` no `subscription()` do app (carrega o listener
 global de "soltar o mouse" que encerra o drag). Veja
-[`examples/gva/lista_reordenavel`](examples/gva/lista_reordenavel).
+[`examples/lista_reordenavel`](examples/lista_reordenavel).
 
 ---
 
@@ -1780,21 +1770,23 @@ componente:
 
 | Ação | Efeito |
 |---|---|
-| `clipboard:<chave>` | copia o valor de contexto `<chave>` para a área de transferência |
+| `clipboard:chave` | copia o valor de contexto `chave` para a área de transferência |
 | `window:minimize` | minimiza a janela |
 | `window:maximize` | alterna maximizar/restaurar (alias `window:toggle_maximize`) |
 | `window:close` | fecha a janela |
 | `window:drag` | inicia o arraste — use em `onPress` de uma região da barra de título |
-| `window:resize:<dir>` | inicia o redimensionamento — `<dir>` ∈ `n,s,e,w,ne,nw,se,sw` |
-| `audio:toggle:<nome>` | toca/pausa o `<audio name="<nome>">` (também `audio:play:`, `audio:pause:`, `audio:stop:`) |
+| `window:resize:dir` | inicia o redimensionamento — `dir` ∈ `n,s,e,w,ne,nw,se,sw` |
+| `audio:toggle:nome` | toca/pausa o `audio(name = "nome")` (também `audio:play:`, `audio:pause:`, `audio:stop:`) |
 
 Permitem montar uma barra de título customizada para uma janela sem decorações
 (`decorations: false` nas `window::Settings`):
 
-```xml
-<Row width="fill" onPress="window:drag"><Text content="Meu App" /></Row>
-<Button text="—" on_click="window:minimize" />
-<Button text="✕" on_click="window:close" />
+```gv
+Row(width = fill, onPress = "window:drag") {
+  Text(content = "Meu App")
+}
+Button(text = "—", on_click = "window:minimize")
+Button(text = "✕", on_click = "window:close")
 ```
 
 O `window:maximize` só **alterna**; para o botão refletir o estado, o daemon mantém
@@ -1814,8 +1806,8 @@ if @glacier_window_maximized {
 ## Hot-reload
 
 Recursos carregados de arquivo são recarregados quando mudam em disco: **templates**
-(inclusive `<import>`/`<link>` novos), **stylesheets `.gss`**, **dados**
-(`<link rel="data">`), **tema** e a **lógica Luau** de um `<script src>`. Ligue a
+(inclusive `import`/`link` novos), **stylesheets `.gss`**, **dados**
+(`link(rel = data)`), **tema** e a **lógica Luau** de um `script(src)`. Ligue a
 subscription:
 
 ```rust
@@ -1824,7 +1816,7 @@ fn subscription(&self) -> iced::Subscription<EngineMessage> {
 }
 ```
 
-Edite o XML, o `.gss`, o JSON, o tema ou o `.luau` e veja a UI atualizar sem
+Edite o `.gv`, o `.gss`, o JSON, o tema ou o `.luau` e veja a UI atualizar sem
 recompilar. Só a lógica em Rust exige um novo build.
 
 ---
@@ -1852,7 +1844,7 @@ fn update(&mut self, action: &str, _v: Option<&str>, ctx: &mut Context) {
 }
 ```
 
-Para isso, `dispatch` devolve `iced::Task<EngineMessage>` — repasse-a no `update`
+Para isso, `dispatch` devolve `iced::TaskEngineMessage` — repasse-a no `update`
 da app (`self.motor.dispatch(&msg)`).
 
 **Fluxos contínuos** — implemente `Component::subscription` devolvendo uma
@@ -1879,9 +1871,9 @@ fn subscription(&self) -> iced::Subscription<EngineMessage> {
 |---|---|
 | `new()` | cria um motor vazio. |
 | `register(Box<dyn Component>)` | registra um componente (UI + comportamento + `children()` em cascata). |
-| `register_component(name, path)` | registra de um arquivo; liga o comportamento Luau se houver `<script>`. |
+| `register_component(name, path)` | registra de um arquivo; liga o comportamento Luau se houver `script`. |
 | `load_stylesheet(path)` | carrega/recarrega um `.gss` **global** e reavalia tudo. |
-| `theme()` | o `iced::Theme` do `<link rel="theme">`, ou `Theme::Dark`. |
+| `theme()` | o `iced::Theme` do `link(rel = theme)`, ou `Theme::Dark`. |
 | `dispatch(&EngineMessage)` | roteia a mensagem, aplica navegação/reload/patch e devolve uma `iced::Task` com os efeitos. |
 | `subscription()` | agrega as `Component::subscription` (rede, streams, drag) numa `iced::Subscription`. |
 | `set_initial_screen(name)` | define a tela ativa inicial e limpa o histórico. |
@@ -1939,7 +1931,7 @@ pub enum EngineMessage {
 | `date.today/now/add/diff/format/…` | data e hora sobre strings ISO | não |
 | `json.encode/decode/array` | (de)serialização JSON | não |
 | `i18n.t/num/date/set_locale/locale/available/load` | traduz, formata e troca a locale ativa (`__locale`) — [`docs/I18N.md`](docs/I18N.md) | não |
-| `audio.play/pause/toggle/stop/seek/volume/position/duration/playing/error` | controla um `<audio name="…">` (feature `audio`) | não |
+| `audio.play/pause/toggle/stop/seek/volume/position/duration/playing/error` | controla um `audio(name = "…")` (feature `audio`) | não |
 | `require(mod)` | importa uma biblioteca `.luau` | não |
 | `on_error(msg)` | hook opcional de erro de script | — |
 
@@ -1948,7 +1940,7 @@ pub enum EngineMessage {
 O motor não traz banco de dados, cofre de segredos nem SDK — cada app quer o
 seu. A ponte é `GlacierDaemon::lua_extension` (ou `glacier_ui::register_lua_extension`):
 um closure `Fn(&mlua::Lua) -> mlua::Result<()>` que roda em **cada VM Luau
-nova** (uma por componente com `<script>`, em qualquer janela), depois dos
+nova** (uma por componente com `script`, em qualquer janela), depois dos
 globais do motor e antes do script do usuário. O `mlua` é re-exportado como
 `glacier_ui::mlua`, então o app não precisa fixar uma versão própria.
 
@@ -1959,36 +1951,36 @@ GlacierDaemon::new()
             Ok(std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs())
         })?;
-        lua.globals().set("agora_unix", agora)   // → `agora_unix()` no <script>
+        lua.globals().set("agora_unix", agora)   // → `agora_unix()` no `script`
     })
 ```
 
-O exemplo [`sqlite_crud`](examples/gva/sqlite_crud) leva isso ao fim: um global
+O exemplo [`sqlite_crud`](examples/sqlite_crud) leva isso ao fim: um global
 `sqlite` com `connect(path)` devolvendo uma conexão (`:execute`, `:query`,
 `:begin`/`:commit`/`:rollback`, `:last_insert_id`, `:close`), e um CRUD de
-tarefas escrito só no `<script>`.
+tarefas escrito só no `script`.
 
 ---
 
 ## Exemplos
 
-Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
+Todos em [`examples/`](examples), rodáveis com `cargo run --example nome`.
 
 | Exemplo | Demonstra |
 |---|---|
 | `contador` | `Component` básico com estado e cliques (Rust). |
-| `contador_macro` | comportamento embutido via `<script>` Luau + `<style>` inline. |
-| `contador_externo` | `<script src="...luau">` externo; `onChange` num input define o passo. |
-| `perfil` | inputs, `<import>` de um cartão, `Image` circular e `ContextVar`. |
-| `lista` | `<ForEach>` sobre JSON com um componente (`<import>`) por item. |
+| `contador_macro` | comportamento embutido via `script` Luau + `style` inline. |
+| `contador_externo` | `script(src = "...luau")` externo; `onChange` num input define o passo. |
+| `perfil` | inputs, `import` de um cartão, `Image` circular e `ContextVar`. |
+| `lista` | `ForEach` sobre JSON com um componente (`import`) por item. |
 | `lista_reordenavel` | drag-and-drop: `onReorder`/`reorderKey`/`dragHandle`. |
-| `condicional` | `<if>`/`<else>` (truthy e comparação). |
+| `condicional` | `if`/`else` (truthy e comparação). |
 | `aninhado` | componente dentro de outro via `children()`, roteamento por namespace. |
 | `navegacao` | múltiplas telas, histórico e `navigateTo`/`navigateBack` declarativos. |
 | `navegacao_luau` | navegação decidida pelo script (`navigate` após validar); `GlacierApp::bootstrap`. |
 | `formulario_login` | `Form`/`FormBuilder`/`FormControl`: validação, Enter para submeter/avançar. |
-| `estilos` | `.gss` de arquivo (global + escopado via `<link>`), classes e tema. |
-| `estilos_inline` | classes `.gss` inline e escopadas via bloco `<style>`. |
+| `estilos` | `.gss` de arquivo (global + escopado via `link`), classes e tema. |
+| `estilos_inline` | classes `.gss` inline e escopadas via bloco `style`. |
 | `pseudo_estados` | `:hover`/`:focus`/`:active`/`:disabled` em Button/TextInput/Select. |
 | `galeria_estilos` | estilos builtin (`style::FUSION`, …) com troca em runtime via `style:set`. |
 | `dialogs` | diálogos modais estilo QMessageBox (Rust). |
@@ -1997,11 +1989,11 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `imports_luau` | `require` de bibliotecas Luau (client de rede + utilitários). |
 | `robustez_luau` | timers (`after`/`every`), `storage`, `viewport`, tabelas em `ctx`, `on_error`. |
 | `stream_lua` | streams de vida longa: SSE + WebSocket a partir do Luau. |
-| `sqlite_crud` | **o app registra funções Rust na camada Lua** (`GlacierDaemon::lua_extension`): uma ponte SQLite completa (`connect`/`execute`/`query`/`begin`/`commit`/`close`) e um mini-CRUD que a usa inteiramente do `<script>`. |
-| `spinbox` | o builtin `<SpinBox/>`: campo numérico com degraus, nas duas formas do Qt. |
-| `timepicker` | `<dateedit>`/`<timeedit>`/`<datetimeedit>`: edição por seções, sem uma linha de código do app. |
+| `sqlite_crud` | **o app registra funções Rust na camada Lua** (`GlacierDaemon::lua_extension`): uma ponte SQLite completa (`connect`/`execute`/`query`/`begin`/`commit`/`close`) e um mini-CRUD que a usa inteiramente do `script`. |
+| `spinbox` | o builtin `SpinBox`: campo numérico com degraus, nas duas formas do Qt. |
+| `timepicker` | `dateedit`/`timeedit`/`datetimeedit`: edição por seções, sem uma linha de código do app. |
 | `data_hora_luau` | os mesmos campos com `onChange`, **inteiramente controlados por Luau** — validação e regras no script (sobre o global `date`), zero lógica em Rust. |
-| `componentes_locais` | `<component name="…">` no `<resources>`: declarar um componente na própria tela, com a forma de arquivo (`<import>`) ao lado para comparar. |
+| `componentes_locais` | `component(name = "…")` no `resources`: declarar um componente na própria tela, com a forma de arquivo (`import`) ao lado para comparar. |
 | `onda9` | o ponteiro preso: `splitter` (a alça de coluna aplicada a um container), `rangeslider`, `tumbler`, `swipeview`/`pageindicator`, `delaybutton`, `rubberband`, `sizegrip` e os dois do teclado — `shortcut` e `shortcutinput`. Um habilitador (`src/grip.rs`) e nove widgets. |
 | `onda9_luau` | a **mesma tela** em Luau, e o que ela mostra é uma ausência: nenhuma API nova. A Onda 8 custou quatro globais ao script porque um diálogo *suspende*; um arrasto escreve numa chave, e o Luau já escrevia chaves. |
 | `onda7` | o canvas e os sete que saem dele: `dial`, `gauge`, `lcdnumber`, `sparkline`, `linechart`, `barchart` e `piechart`/`donut`. O `canvas` ficou como **capacidade** do motor, não como tag — o app continua escrevendo markup. |
@@ -2012,8 +2004,8 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example <nome>`.
 | `onda5_luau` | a **mesma tela** sem `impl Component`. Mostra que nenhum dos seis widgets pede script — e que `date.today()` é uma linha onde o Rust precisa de vinte. |
 | `onda4` | os widgets que têm **função**: `pagination`, `listview` (seleção simples e múltipla), `accordion`/`toolbox`, `buttonbox`, `maskedinput`, `rating` e o `decimals` do `spinbox`. O `.gv` não tem uma cor — tudo em `app.gss`, inclusive os nós de dentro dos builtins. |
 | `onda4_luau` | a **mesma tela**, sem `impl Component`: o `main.rs` só registra o `.gv` e todo o comportamento vive em `scripts/app.luau`. Lado a lado com o `onda4`, mostra que nenhum dos sete widgets pede script. |
-| `onda3` | o calendário: `<calendar>`, `<monthyearpicker>` e `<daterangepicker>` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
-| `onda2` | os recipientes que o `<slot/>` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
+| `onda3` | o calendário: `calendar`, `monthyearpicker` e `daterangepicker` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
+| `onda2` | os recipientes que o `slot` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
 
 ---

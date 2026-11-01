@@ -12,16 +12,16 @@ de `src/builtins/mod.rs`; aqui o foco é o passo a passo.
 
 | | Onde vive | Precisa registrar? | Disponível como |
 |---|---|---|---|
-| **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `<Button/>`, `<Text/>`, … |
-| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `<Badge/>`, `<SpinBox/>`, `<GroupBox/>` e afins |
-| **Componente do app** | código/arquivos do app, ou o `<resources>` de um template | sim (`register`/`import`), exceto a forma declarada | `<PerfilCard/>` |
+| **Primitiva** | `src/widget.rs` + `src/parser.rs` | não | `Button`, `Text`, … |
+| **Builtin** | `src/builtins/` (um arquivo por widget) | não (a lib registra) | `Badge`, `SpinBox`, `GroupBox` e afins |
+| **Componente do app** | código/arquivos do app, ou o `<resources>` de um template | sim (`register`/`import`), exceto a forma declarada | `PerfilCard` |
 
 Este documento cobre só o nível **Builtin**. Para o passo a passo de uma
 **Primitiva** nova — inclusive uma armadilha real do motor (`Length::Fill` vs.
 o wrap genérico de background/borda) — ver [`PRIMITIVAS.md`](PRIMITIVAS.md).
 
 Um componente do app tem **três** formas de existir, e a terceira dispensa
-arquivo: `<component name="X">…</component>` dentro do `<resources>` de um
+arquivo: `component("…", name = X)` dentro do `<resources>` de um
 template declara o componente ali mesmo (ver `README.md`). Ela usa a mesma casca
 de um `.gv` — `<props>` e layout — e serve às peças pequenas de uma tela só; um
 builtin continua sendo o caminho para o que a **lib** publica a todos os apps.
@@ -63,7 +63,7 @@ extraordinário.
 Um **builtin** é um componente comum (`impl Component`) — a única diferença é que
 a lib o registra em `GlacierUI::new()`, então ele não exige `register()` do app.
 Uma tag desconhecida no XML vira uma referência de componente resolvida pelo
-nome; como o builtin já está registrado, `<Badge/>` "simplesmente funciona".
+nome; como o builtin já está registrado, `Badge` "simplesmente funciona".
 
 ## Passo a passo: adicionar um widget
 
@@ -111,7 +111,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
 }
 ```
 
-Pronto. `<Divider/>` já está disponível em qualquer template. Nada mais na lib
+Pronto. `Divider` já está disponível em qualquer template. Nada mais na lib
 precisa mudar.
 
 ### 3. Teste (ver a seção _Testando_)
@@ -123,7 +123,7 @@ Definido em `src/component.rs`. Para um widget apresentacional você só impleme
 
 | Método | Obrigatório | Papel |
 |---|---|---|
-| `name(&self) -> &str` | sim | Nome único = a tag usada no XML (`"Badge"` → `<Badge/>`). |
+| `name(&self) -> &str` | sim | Nome único = a tag usada no XML (`"Badge"` → `Badge`). |
 | `template(&self) -> Template` | sim | A UI. Em builtin, **sempre** `Template::Inline` (ver abaixo). |
 | `update(&mut self, action, value, ctx)` | sim | Reage a ações da própria UI. Vazio se apresentacional. |
 | `init(&mut self, ctx)` | não | Semeia estado inicial. **Evite em builtins** (ver restrições). |
@@ -145,12 +145,12 @@ basta — mas `r##` sempre funciona.
 
 ## Props: passar valores por instância
 
-Os atributos de `<Badge foo="x"/>` viram **props**: são mesclados num clone do
+Os atributos de `Badge(foo = x)` viram **props**: são mesclados num clone do
 contexto *só daquela instância* durante a avaliação. No template, `{foo}` resolve
 para o valor da prop.
 
-```xml
-<Badge badge_text="Novo" badge_bg="#A6E3A1" />
+```gv
+Badge(badge_text = Novo, badge_bg = #A6E3A1)
 ```
 ```rust
 // no template do Badge:
@@ -165,8 +165,8 @@ Não é obrigatório, mas evita confusão com chaves de contexto do app.
 Um placeholder pode declarar um default inline após `|`. Se a prop não for
 passada, usa-se o texto depois do `|`:
 
-```xml
-background="{badge_bg|#89B4FA}"   <!-- sem a prop badge_bg, fica #89B4FA -->
+```gv
+background = "{badge_bg|#89B4FA}"   // sem a prop badge_bg, fica #89B4FA
 ```
 
 Isso é o jeito **correto** de dar defaults a um builtin — não semeie defaults no
@@ -180,8 +180,8 @@ Atributos numéricos — `size`, `spacing`, `border_radius`, `border_width`,
 string. O motor detecta o `{`, adia a conversão e resolve para `f32` na
 avaliação (mecanismo em `src/parser.rs`, enum `NumAttr`).
 
-```xml
-<Text content="{badge_text|Badge}" size="{badge_size|13}" />
+```gv
+Text(content = "{badge_text|Badge}", size = "{badge_size|13}")
 ```
 
 Se o valor resolvido não for um número (ex.: prop omitida e sem default), o
@@ -198,7 +198,7 @@ Do mais forte ao mais fraco:
 A ressalva do degrau 1 é o que faz prop e classe conviverem no mesmo campo. Um
 `background="{bg}"` cuja prop não veio resolve para vazio, e vazio **não é um
 valor**: o campo cai para a classe. Antes da 0.89 ele vencia mesmo vazio, e o
-efeito era um widget sem fundo nenhum — o `<Frame shape="filled">` chegou a ter
+efeito era um widget sem fundo nenhum — o `Frame(shape = filled)` chegou a ter
 o braço inteiro duplicado (um com o atributo, outro sem) só para contornar isso,
 e o `<Avatar>` foi o único builtin sem folha `<style>` pela mesma razão. Os dois
 voltaram à forma simples.
@@ -210,7 +210,7 @@ resolvendo sempre ele vence toda classe — inclusive a que o app injetou.
 ## Deixar o app estilizar o que está DENTRO do widget
 
 `class` no uso de um componente aplica na **raiz expandida** e só nela (0.69).
-É o certo — `<card class="destaque">` deve pintar o cartão, não o subtítulo —
+É o certo — `card(class = destaque)` deve pintar o cartão, não o subtítulo —
 mas deixa sem resposta o pedido mais comum de quem adota a biblioteca: *"quero
 este item de lista com a cor do meu tema"*.
 
@@ -224,10 +224,9 @@ r#"<Button class="listview-item {item_class}" …>
    </Button>"#
 ```
 
-```xml
-<!-- no uso -->
-<listview items="servicos" value="qual" selected="{qual}"
-          item_class="linha" selected_class="linha_ativa" />
+```gv
+// no uso
+listview(:items = servicos, :value = qual, selected = @qual, item_class = linha, selected_class = linha_ativa)
 ```
 
 Três regras que a biblioteca inteira segue desde a 0.89:
@@ -269,7 +268,7 @@ uso. A classe não pinta nada, e o `width` cai no default `fill`.
 O estrago passa do cosmético quando o default é `fill`: dois filhos `fill`
 dentro de uma `<row>` sem largura colapsam para zero, e a seção inteira some da
 tela — sem erro, sem aviso, com a árvore avaliada intacta. Foi o que aconteceu
-com a aba "Accordion + ToolBox" do `examples/gva/onda4` ao migrar os estilos para o
+com a aba "Accordion + ToolBox" do `examples/onda4` ao migrar os estilos para o
 `.gss`; `tests/engine_tests.rs` tem o teste que o pega agora.
 
 As três props de geometria que hoje se comportam assim, e que portanto ficam no
@@ -278,7 +277,7 @@ markup: `width` do `<GroupBox>`/`<Frame>`/`<Card>`, `height` do `<ListView>`
 uma classe no uso pinta a `Row` de fora e deixa o campo em 72).
 
 Numa **primitiva** o problema não existe: não há template no caminho, então
-`<maskedinput class="campo">` com `.campo { width: 200 }` funciona.
+`maskedinput(class = campo)` com `.campo { width: 200 }` funciona.
 
 ## Menu de contexto embutido dos campos de texto
 
@@ -293,7 +292,7 @@ Detalhes que valem saber:
 - **`<textinput>` comum é apoiado num `text_editor` de uma linha** (o mesmo
   widget do `<textarea>`, com `Enter` e quebras de um paste barrados). É isso
   que dá a ele a seleção e o `perform` que o `text_input` do `iced` não expõe.
-  O `<textinput secure>` (senha) fica no `text_input` mascarado e recebe um
+  O `textinput(secure)` (senha) fica no `text_input` mascarado e recebe um
   menu reduzido: **colar, selecionar tudo, limpar tudo** — sem copiar/recortar
   (não há como ler a seleção de um campo mascarado) nem desfazer.
 - **Desfazer/refazer é do motor**, não do `iced`: uma pilha por campo,
@@ -316,17 +315,17 @@ Detalhes que valem saber:
   `.<classe>` pinta o corpo do painel (`background`, `border-color`,
   `border-width`, `border-radius`); `.<classe>-item` os itens (`text-color`), com
   `:hover`/`:active` para o realce. Só folhas `.gss` **globais** — um bloco
-  `<style scoped>` não alcança o overlay.
+  `style(scoped)` não alcança o overlay.
 - **Desligar**: `engine.set_input_context_menu(false)` no `setup` da janela.
   Também dispensa o rastreio de cursor que a âncora do menu exige (um campo de
   texto na tela passa a fazer o app redesenhar a cada movimento do mouse, o
   mesmo custo que um `<ContextMenu>` já cobra).
 
-## Grafia da tag: `<GroupBox/>` e `<groupbox/>`
+## Grafia da tag: `GroupBox` e `groupbox`
 
 Todo builtin é publicado sob **dois** nomes: o canônico e o mesmo em minúsculas
-coladas. É a convenção que as primitivas já tinham (`<textinput/>`,
-`<progressbar/>`, `<contextmenu/>`); o `snake_case` no motor é a convenção dos
+coladas. É a convenção que as primitivas já tinham (`textinput`,
+`progressbar`, `contextmenu`); o `snake_case` no motor é a convenção dos
 apelidos em **português** (`entrada_texto`, `barra_progresso`).
 
 Você não faz nada para isso: `register_builtins` registra a lista de
@@ -334,11 +333,11 @@ Você não faz nada para isso: `register_builtins` registra a lista de
 dela. Vale saber **por que** o segundo registro é necessário, porque o mecanismo
 difere do das primitivas: uma primitiva casa num `match` de tags que lista as
 grafias à mão, enquanto um builtin resolve por `parsed_templates.get(name)` —
-igualdade exata de string. Sem o alias, `<groupbox/>` seria `UnknownComponent`.
+igualdade exata de string. Sem o alias, `groupbox` seria `UnknownComponent`.
 
 O alias é uma **instância própria** no mapa de componentes, e isso importa para
 quem escreve um widget com comportamento: a ação carrega o nome pelo qual a tag
-foi resolvida, então `<tabbar/>` produz `tabbar::pick:…` e é a instância do
+foi resolvida, então `tabbar` produz `tabbar::pick:…` e é a instância do
 alias que recebe esse `update`. Como todo builtin da lib é sem estado (o estado
 mora em chaves que o app nomeia), as duas instâncias serem separadas não muda
 nada — mas um builtin que **guardasse** estado em `self` teria dois estados
@@ -352,7 +351,7 @@ nome:
 
 - `register(Box::new(MeuBadge))` ou `register_component("Badge", …)` inserem por
   cima.
-- `<import name="Badge" from="…"/>` e `<link rel="import" href="…" as="Badge"/>`
+- `import(name = Badge, from = "…")` e `link(rel = import, href = "…", as = Badge)`
   também sobrescrevem (os dois guardas abrem exceção para nomes que ainda são
   builtin). O caminho do `<link>` só ganhou essa exceção na 0.66 — até então ele
   era engolido em silêncio, o que ninguém notava enquanto nenhum builtin tinha
@@ -377,13 +376,13 @@ global — não há estado por instância. Consequências práticas:
   colisão.
 - ✅ **Recipientes** (GroupBox, Frame, Card, ToolBar, StatusBar): o que eles
   mostram nem é deles — é o conteúdo que quem usa escreve entre as tags, via
-  `<slot/>` (seção adiante). Sem estado nenhum, usáveis N vezes.
+  `slot` (seção adiante). Sem estado nenhum, usáveis N vezes.
 - ✅ **Widgets com comportamento cujo valor o app nomeia** (SpinBox): a chave de
   contexto entra por prop e a ação a carrega — ver a seção adiante. Também são
   usáveis N vezes.
 - ✅ **Widgets que ESCOLHEM conteúdo por uma chave nomeada** (`Tabs`, 0.92): a
   aba ativa é uma chave do app, e o nome do slot **interpola** contra ela
-  (`<slot name="{active}"/>`). Duas instâncias com chaves diferentes não se
+  (`slot(name = @active)`). Duas instâncias com chaves diferentes não se
   veem. Vale saber o preço: o conteúdo de **todos** os slots é avaliado, porque
   a partição acontece uma vez na fronteira do componente; só o escolhido é
   renderizado.
@@ -407,7 +406,7 @@ builtin não pode ter comportamento — e a diferença é o `SpinBox`
 O truque tem duas partes:
 
 1. **O valor mora numa chave que o app nomeia.** O widget não inventa chave
-   nenhuma: recebe o nome dela por prop (`<SpinBox value="qtd"/>`). Como as
+   nenhuma: recebe o nome dela por prop (`SpinBox(:value = qtd)`). Como as
    chaves são do app, duas instâncias são independentes — o contexto continua
    global, mas ninguém disputa a mesma posição.
 
@@ -415,9 +414,9 @@ O truque tem duas partes:
    `(action, value, ctx)` — ele **não** enxerga as props de quem o disparou.
    Então o template escreve os parâmetros dentro da própria ação:
 
-   ```xml
-   <Button text="▲" on_click="inc:{value}|{min|0}|{max|100}|{step|1}" />
-   ```
+   ```gv
+Button(text = "▲", on_click = "inc:{value}|{min|0}|{max|100}|{step|1}")
+```
 
    O eval interpola (`inc:qtd|1|99|1`) e prefixa o dono
    (`namespace_action` → `SpinBox::inc:qtd|1|99|1`). O motor quebra no `::`,
@@ -441,7 +440,7 @@ O truque tem duas partes:
 ## Widget que delega: `app:` na frente da ação
 
 O padrão acima é para o widget que **age**. O oposto é o widget que **delega** —
-o `<ToolButton/>` recebe `on_click` por prop e só repassa ao botão interno.
+o `ToolButton` recebe `on_click` por prop e só repassa ao botão interno.
 
 A armadilha: o `namespace_action` prefixa **toda** ação com o dono, então
 `on_click="{on_click}"` vira `ToolButton::salvar`, o motor acha o `ToolButton`
@@ -450,9 +449,9 @@ do app. O handler nunca roda e não há erro: o botão só não faz nada.
 
 O escape é o prefixo `app:`, que sai no lugar do prefixo de dono:
 
-```xml
-<Button text="{text}" on_click="app:{on_click}" />
-<TextInput value="{value}" onChange="app:{on_change}" />
+```gv
+Button(text = @text, on_click = "app:{on_click}")
+TextInput(value = @value, onChange = "app:{on_change}")
 ```
 
 `app:` significa **a tela atual** (é onde o `dispatch` cai sem dono), não o
@@ -462,27 +461,27 @@ tem. Do lado Rust a limitação continua: um `update` não consegue despachar ou
 ação, então um builtin que trata o `on_change` para si (como o `SpinBox`) não
 tem como *também* repassá-lo — um `<TextInput>` só tem um `onChange`.
 
-## Widget que embrulha conteúdo: o `<slot/>`
+## Widget que embrulha conteúdo: o `slot`
 
 As duas seções acima são sobre widgets que recebem **valores**. Um recipiente
 recebe outra coisa: **markup**. `<GroupBox>` não tem prop nenhuma que descreva o
 que ele mostra — o que ele mostra é o que se escreve entre as tags dele.
 
-```xml
-<GroupBox title="Rede">
-    <Checkbox label="Usar proxy" checked="proxy" />
-    <Button text="Salvar" on_click="salvar" />
-</GroupBox>
+```gv
+GroupBox(title = Rede) {
+  Checkbox(label = "Usar proxy", :checked = proxy)
+  Button(text = Salvar, on_click = salvar)
+}
 ```
 
-Escreva `<slot/>` no template do builtin onde esse conteúdo deve entrar:
+Escreva `slot` no template do builtin onde esse conteúdo deve entrar:
 
-```xml
-<Container class="groupbox-frame" padding="{padding|12}">
-    <Column spacing="{spacing|8}">
-        <slot/>
-    </Column>
-</Container>
+```gv
+Container(class = groupbox-frame, padding = "{padding|12}") {
+  Column(spacing = "{spacing|8}") {
+    slot
+  }
+}
 ```
 
 Até a 0.64 isso não existia: `NodeType::Component` carregava só props e os
@@ -500,7 +499,7 @@ widget — antes de qualquer prop entrar em cena. Consequências práticas:
   outro caso, o da ação recebida por prop (seção anterior).
 - `{host}` dentro do conteúdo lê o contexto da tela, e **não** enxerga as props
   do recipiente (`{title}` ali dentro não resolve para o título do GroupBox).
-- Um recipiente dentro de outro funciona sem cerimônia: cada `<slot/>` recebe o
+- Um recipiente dentro de outro funciona sem cerimônia: cada `slot` recebe o
   conteúdo do **seu** uso.
 
 ### Conteúdo de reserva
@@ -509,36 +508,41 @@ Os filhos escritos dentro do próprio `<slot>` aparecem quando quem usou não
 escreveu nada. Esses são do componente — avaliam no contexto dele e **enxergam**
 as props da instância:
 
-```xml
-<slot><Text content="Nada em {title}" /></slot>
+```gv
+slot {
+  Text(content = "Nada em {title}")
+}
 ```
 
 ### Mais de um buraco: o slot nomeado
 
 Um widget com duas regiões distintas — corpo e rodapé, título e ações —
-declara um `<slot name="…"/>` por região, e quem usa etiqueta o conteúdo com o
+declara um `slot(name = "…")` por região, e quem usa etiqueta o conteúdo com o
 atributo `slot`:
 
-```xml
-<!-- no template do builtin -->
-<column>
-    <slot/>                       <!-- o anônimo: tudo que não foi etiquetado -->
-    <rule />
-    <row><slot name="footer"/></row>
-</column>
+```gv
+// no template do builtin
+column {
+  slot
+  // o anônimo: tudo que não foi etiquetado
+  rule
+  row {
+    slot(name = footer)
+  }
+}
 ```
-```xml
-<!-- no uso -->
-<card title="Servidor">
-    <text content="uptime 31 dias" />
-    <template slot="footer">
-        <button text="Reiniciar" on_click="reiniciar" />
-    </template>
-</card>
+```gv
+// no uso
+card(title = Servidor) {
+  text(content = "uptime 31 dias")
+  template(slot = footer) {
+    button(text = Reiniciar, on_click = reiniciar)
+  }
+}
 ```
 
-`<template slot="…">` agrupa vários nós; para um nó só, o atributo direto
-(`<button slot="footer" …/>`) evita o embrulho. Vários blocos com o mesmo nome
+`template(slot = "…")` agrupa vários nós; para um nó só, o atributo direto
+(`button(slot = footer, …)`) evita o embrulho. Vários blocos com o mesmo nome
 se concatenam na ordem em que foram escritos, e o conteúdo anônimo preserva a
 ordem de documento mesmo quando um bloco nomeado é escrito no meio dele.
 
@@ -549,11 +553,13 @@ O template não consegue perguntar isso sozinho: o nome do slot não é uma prop
 o conteúdo nem chega ao interpolador. Por isso o motor semeia, na fronteira do
 componente, um marcador por slot nomeado preenchido:
 
-```xml
-<template if="{slot_footer|false}" equals="true">
-    <rule />
-    <row><slot name="footer"/></row>
-</template>
+```gv
+template(if = "{slot_footer|false}", equals = true) {
+  rule
+  row {
+    slot(name = footer)
+  }
+}
 ```
 
 Ele entra na camada **depois** das props, então uma prop escrita à mão com o
@@ -561,13 +567,13 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
 
 ### Limites
 
-- **Nome fixo, resolvido no template.** `<slot name="{aba}"/>` — nome vindo do
+- **Nome fixo, resolvido no template.** `slot(name = @aba)` — nome vindo do
   contexto — ainda não existe. É o que separa o `<tabbar>` de hoje de um
   `QTabWidget` inteiro, cuja página visível depende do valor de uma chave.
 
   A saída, quando o conteúdo varia por seção, é **uma tag por seção** em vez de
   uma coleção: `<accordion>` + `<accordionitem>`, `<toolbox>` + `<toolboxitem>`
-  (0.85). Cada item tem o seu `<slot/>` anônimo, e o conteúdo continua sendo de
+  (0.85). Cada item tem o seu `slot` anônimo, e o conteúdo continua sendo de
   quem escreveu a tela. É a mesma forma que o Qt usa —
   `QToolBox::addItem(widget, "Título")` também recebe uma seção por chamada.
 - **Um uso com conteúdo não entra no cache de componente.** As dependências do
@@ -577,29 +583,29 @@ mesmo nome vence. Não existe marcador para o slot anônimo.
 
 ## Componente recebido por atributo: `<render>`
 
-O `<slot/>` recebe **markup**. Às vezes o que um componente precisa receber é
+O `slot` recebe **markup**. Às vezes o que um componente precisa receber é
 **outro componente** — o cabeçalho de uma lista, a linha que ela repete, o que
 aparece quando ela está vazia — escolhido por quem usa. A prop leva o **nome**
 do componente, e o `<render>` o desenha:
 
-```xml
-<!-- no uso -->
-<Vitrine itens="tarefas" cabecalho="TituloDestaque" linha="LinhaTarefa" vazio="ListaVazia" />
+```gv
+// no uso
+Vitrine(itens = tarefas, cabecalho = TituloDestaque, linha = LinhaTarefa, vazio = ListaVazia)
 ```
-```xml
-<!-- no template da Vitrine -->
-<render component="{cabecalho}" titulo="{titulo}" />
-<foreach items="{itens}" var="item" fallback="{vazio}">
-  <render component="{linha}" spread="{item}" />
-</foreach>
+```gv
+// no template da Vitrine
+render(component = @cabecalho, titulo = @titulo)
+foreach(items = @itens, var = item, fallback = @vazio) {
+  render(component = @linha, spread = @item)
+}
 ```
 
 - O nome interpola no contexto de quem escreveu o `<render>`. Dali em diante o
-  nó **é** a tag `<TituloDestaque …/>`: os outros atributos são as props, os
+  nó **é** a tag `TituloDestaque(…)`: os outros atributos são as props, os
   filhos são o conteúdo do slot, `class`/`id` viram overlay e a guarda de
   recursão vale.
 - Nome que resolve para vazio não desenha nada — é o componente opcional
-  (`<prop name="rodape" default="" />`).
+  (`prop(name = rodape, default = "")`).
 - Nome que não está registrado é `UnknownComponent`. Vale qualquer nome do
   espaço de componentes: declarado no `<resources>`, importado, registrado pelo
   app ou builtin.
@@ -607,14 +613,14 @@ do componente, e o `<render>` o desenha:
 - `spread="{item}"` combina bem com linhas intercambiáveis: cada componente
   recebe só os campos que **ele** declara no `<props>`.
 
-### Declarar a prop como componente: `<prop component>`
+### Declarar a prop como componente: `prop(component)`
 
-```xml
-<props>
-  <prop component name="cabecalho" />
-  <prop component name="vazio" default="" />
-  <prop name="titulo" />
-</props>
+```gv
+props {
+  prop(component, name = cabecalho)
+  prop(component, name = vazio, default = "")
+  prop(name = titulo)
+}
 ```
 
 O marcador sem valor diz que a prop recebe o **nome de um componente**. O uso
@@ -636,25 +642,25 @@ parse: o nome vem de quem usa, não do `<prop>`.
 
 `<foreach>` aceita `fallback` (apelido `reserva`): o componente desenhado **no
 lugar** da lista quando ela não tem item nenhum — array vazio, ou a chave ainda
-sem array (a mesma leitura do `<if empty>`).
+sem array (a mesma leitura do `if(empty)`).
 
-```xml
-<foreach items="concluidas" var="c" fallback="ListaVazia">
-  <LinhaTarefa spread="{c}" />
-</foreach>
+```gv
+foreach(items = concluidas, var = c, fallback = ListaVazia) {
+  LinhaTarefa(spread = @c)
+}
 ```
 
 No `<template>` o atributo se chama **`foreach_fallback`** (ou
 `foreach-fallback`):
 
-```xml
-<template foreach="concluidas" var="c" foreach_fallback="ListaVazia">
-  <LinhaTarefa spread="{c}" />
-</template>
+```gv
+template(foreach = concluidas, var = c, foreach_fallback = ListaVazia) {
+  LinhaTarefa(spread = @c)
+}
 ```
 
 O nome é mais longo de propósito. O `<template>` também é `if`, `else-if`,
-`else` e `slot`, e um `fallback` solto num `<template if>` leria como "senão".
+`else` e `slot`, e um `fallback` solto num `template(if)` leria como "senão".
 Com o papel no nome não há o que adivinhar — e `fallback` num `<template>` é
 erro de parse, que aponta para `foreach_fallback`.
 
@@ -668,14 +674,14 @@ erro de parse, que aponta para `foreach_fallback`.
   `fallback="LsitaVazia"` erra na primeira vez que a tela aparece, e não no dia
   em que a lista esvaziar.
 - `foreach_fallback` num `<template>` sem `foreach` também é erro de parse.
-- O atributo `for-each` de um elemento (`<Cartao :for-each="…"/>`) não aceita
+- O atributo `for-each` de um elemento (`Cartao(:for-each = "…")`) não aceita
   nenhum dos dois: ali `fallback` seria uma prop do componente repetido.
 
 ### Armadilha: nome de componente que já é apelido de primitiva
 
 O parser mapeia a tag **antes** de procurar componentes. `Painel` é apelido do
-`<popover>`, então um `<component name="Painel">` nunca é alcançado:
-`<Painel …/>` vira um popover vazio, sem erro. Os exemplos
+`<popover>`, então um `component(name = Painel)` nunca é alcançado:
+`Painel(…)` vira um popover vazio, sem erro. Os exemplos
 `componentes_por_atributo` usam `Vitrine` por isso. Antes de batizar um
 componente com um substantivo comum em português, procure o nome entre as tags
 de `parser.rs`.
@@ -691,16 +697,16 @@ Isso muda uma coisa só, e é a que importa: **não há um uso de tag onde pendu
 props**. Então a configuração chega por onde ela pode chegar — **chaves de
 contexto** com o prefixo `__dialog.` (ver `dialogs::DIALOG_KEY_PREFIX`):
 
-```xml
-<se cond="{__dialog.kind}" one_of="int,double">
-    <SpinBox value="__dialog.value" min="{__dialog.min|0}" … />
-</se>
-<senaose cond="{__dialog.kind}" equals="item">
-    <Select options="__dialog.items" value="__dialog.value" … />
-</senaose>
-<senao>
-    <TextInput value="__dialog.value" placeholder="{__dialog.placeholder}" … />
-</senao>
+```gv
+se(cond = @__dialog.kind, one_of = "int,double") {
+  SpinBox(:value = "__dialog.value", min = "{__dialog.min|0}", …)
+}
+senaose(cond = @__dialog.kind, equals = item) {
+  Select(:options = "__dialog.items", :value = "__dialog.value", …)
+}
+senao {
+  TextInput(:value = "__dialog.value", placeholder = @__dialog.placeholder, …)
+}
 ```
 
 É a mesma escolha que o `<datetimeedit>` fez com o `__timeedit` na 0.70, e pelo
@@ -746,8 +752,8 @@ a exceção: ele é montado por `GlacierUI::render(nome)` como template **de top
 não inlinado numa tela, então não há dono — e a ação sai nua, indo parar na tela
 ativa. Por isso o template escreve o namespace à mão:
 
-```xml
-<TextInput value="__dialog.value" onChange="__InputDialog::editar" />
+```gv
+TextInput(:value = "__dialog.value", onChange = "__InputDialog::editar")
 ```
 
 **Como testar isso**, já que o sintoma é silencioso: procure a ação de `onChange`
@@ -803,7 +809,7 @@ fn test_divider_disponivel_sem_registro() {
 
 Veja `tests/engine_tests.rs`:
 - `test_builtin_badge_disponivel_sem_registro` — disponibilidade sem registro + defaults + não-poluição do contexto.
-- `test_slot_conteudo_do_uso_pertence_a_quem_escreveu` — a garantia central do `<slot/>`.
+- `test_slot_conteudo_do_uso_pertence_a_quem_escreveu` — a garantia central do `slot`.
 - `test_slot_reserva_quando_o_uso_nao_passa_nada` — o conteúdo de reserva.
 - `test_builtins_onda2_disponiveis_sem_registro` — os quatro recipientes embrulhando conteúdo.
 - `test_builtin_tabbar_escreve_a_chave_do_app` — a barra de abas pelo padrão do `SpinBox`.
@@ -819,12 +825,12 @@ Veja `tests/engine_tests.rs`:
 - [ ] Adicionado a `builtin_components()`.
 - [ ] Docstring no `struct` listando as props e seus defaults.
 - [ ] Teste de disponibilidade-sem-registro em `tests/engine_tests.rs`.
-- [ ] Se embrulha conteúdo: `<slot/>` no template, e um teste de que a ação de
+- [ ] Se embrulha conteúdo: `slot` no template, e um teste de que a ação de
       dentro chega na tela sem o prefixo do dono.
 
 ## Referência: o `Badge`
 
 `Badge` é o exemplo canônico — uma "pílula" de rótulo, puramente apresentacional,
 com props string e numérica, todas com default inline. Veja o código-fonte em
-`src/builtins/badge.rs` e o exemplo executável em `examples/gva/builtins/` (`cargo run
+`src/builtins/badge.rs` e o exemplo executável em `examples/builtins/` (`cargo run
 --example builtins`).

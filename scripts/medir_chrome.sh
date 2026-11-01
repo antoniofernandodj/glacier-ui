@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fase 0: o MESMO painel (examples/gvb/painel/web/index.html) numa janela do Chrome
+# Fase 0: o MESMO painel (examples/painel/web/index.html) numa janela do Chrome
 # com perfil novo — uma aba só, nada de extensão. Soma todos os processos do Chrome
 # (browser + GPU + renderer + utilitários): é o custo de "mostrar este painel".
 #
@@ -10,7 +10,7 @@ PORTA=8098
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TMP"' EXIT
-(cd "$RAIZ/examples/gvb/painel" && exec python3 -m http.server "$PORTA" >/dev/null 2>&1) &
+(cd "$RAIZ/examples/painel" && exec python3 -m http.server "$PORTA" >/dev/null 2>&1) &
 sleep 1
 mediana() { sort -n | awk '{a[NR]=$1} END {print a[int((NR+1)/2)]}'; }
 

@@ -3,7 +3,7 @@
 > **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico.
 
 **Estado:** implementado (passos 1–5, exceto o que está em "O que ficou diferente"
-abaixo). O exemplo de aceitação é `examples/gvb/app_telas`.
+abaixo). O exemplo de aceitação é `examples/app_telas`.
 
 ### O que ficou diferente do plano
 
@@ -58,7 +58,7 @@ app(
     column { … }
   }
 
-  screen(name = ajustes, title = "Ajustes", src = "views/ajustes.gvb")
+  screen(name = ajustes, title = "Ajustes", src = "views/ajustes.gv")
 }
 ```
 
@@ -95,7 +95,7 @@ cada uma repetir o `link(rel = import)`:
 app(id = meu_app) {
   resources {
     component(name = Rotulo) { props { prop(name = texto) } text(content = "@texto") }
-    link(rel = import, href = "components/nav_item.gvb", as = NavItem)
+    link(rel = import, href = "components/nav_item.gv", as = NavItem)
   }
   screen(name = home) { column { Rotulo(texto = "oi") NavItem(…) } }
 }
@@ -114,8 +114,8 @@ app(id = meu_app) {
 As duas formas, porque um app grande em um arquivo só vira inviável:
 
 - **inline:** `screen(name = home) { … }` — o corpo é o layout;
-- **por arquivo:** `screen(name = ajustes, src = "views/ajustes.gvb")` — o arquivo é
-  um `.gvb` de hoje (raiz `screen`/`component`). **Esses arquivos não mudam.**
+- **por arquivo:** `screen(name = ajustes, src = "views/ajustes.gv")` — o arquivo é
+  um `.gv` de hoje (raiz `screen`/`component`). **Esses arquivos não mudam.**
 
 Isso faz a migração ser aditiva: todo arquivo com raiz `screen` continua válido; o
 que muda é que agora existe um arquivo com raiz `app` que os lista.
@@ -165,17 +165,16 @@ Só o autor usa o framework hoje, então **não se mantém código para as duas 
 - `<component>` (arquivo que só é pedaço de tela) não muda.
 - Todo template, exemplo e doc que usa a forma antiga é migrado **no mesmo
   trabalho** (passo 4); nada fica quebrado no fim.
-- `.gv` (XML), `.gva` e `.gvb` usam a **mesma estrutura** (`<app><screen/></app>` e
-  equivalentes); o parser é um só, então não há implementação por formato — só
-  conferir com um teste por extensão.
+- O `.gv` e o XML interno usam a **mesma estrutura** (`app { screen }` e
+  equivalentes); o parser é um só, então não há implementação por formato.
 
 ### 1.6 Rust
 
 Depois do plano, o `GlacierDaemon` só precisa de:
 
 ```rust
-GlacierDaemon::new().run()                                    // views/app.gvb, raiz `app`
-GlacierDaemon::new().main_template("views/app.gvb").run()
+GlacierDaemon::new().run()                                    // views/app.gv, raiz `app`
+GlacierDaemon::new().main_template("views/app.gv").run()
 ```
 
 `.main(|motor| …)` fica **só** para o que não tem forma em markup:
@@ -211,7 +210,7 @@ Cada passo termina compilando; o passo 1 já remove a forma antiga, então ele e
 - `app`/`tray` dentro de `resources` viram erro (1.5), e o ramo que os lia de lá
   é apagado. Validar: dois `app`, `app`/`tray` fora da raiz, duas `initial`,
   nomes de tela repetidos, tela sem `name` nem `src`.
-- Os preprocessamentos do `.gvb`/XML preservam a contagem de linhas de propósito:
+- Os preprocessamentos do `.gv`/XML preservam a contagem de linhas de propósito:
   manter, para o erro apontar a linha do arquivo do autor.
 
 ### Passo 2 — `app_manifest` e registro de telas
@@ -244,10 +243,10 @@ Garantir que a tela ativa e o histórico de navegação sobrevivem ao reload.
 - `open_window` em Luau passa a aceitar a tabela de opções de janela (`size`, …),
   espelhando o `WindowSpec`; `docs/DIALOGS.md`/`DAEMON.md` e o template `janelas`
   deixam de pôr `size` no `screen` da janela filha.
-- `crates/glacier-cli/templates/{completo,janelas}`: `app.gvb`/`painel.gvb` e o
+- `crates/glacier-cli/templates/{completo,janelas}`: `app.gv`/`painel.gv` e o
   `main.rs`/`README.md`/`AGENTS.md` passam para a forma nova; **o `glacier new`
   gera a forma nova**.
-- `examples/gvb/gvb_convert` (usa `app`): ensinar o conversor `.gv` → `.gvb` a
+- `examples/convert` (usa `app`): ensinar o conversor `.gv` → `.gv` a
   emitir a raiz `app` quando houver `<app>`.
 - `editors/vscode-gv` (`extension.js`, `references/glacier-view.md`): completions,
   snippets e validação do `app`/`screen(name, initial, src)`; subir a versão
@@ -293,7 +292,7 @@ com `cargo check` / `cargo publish --dry-run`, e rodar o exemplo novo com
 - **Tela com `src` cuja raiz não é `screen`/`component`**: erro claro.
 - **`size`/`decorations` esquecidos no `screen`** de arquivos antigos: erro de parse
   apontando para o `app` (1.4); o passo 4 os migra (`grep` por `size =` em `screen`).
-- **Nome `app` já ocupado** pelo arquivo padrão `views/app.gvb`: sem conflito, é nome
+- **Nome `app` já ocupado** pelo arquivo padrão `views/app.gv`: sem conflito, é nome
   de arquivo, não de tag.
 
 ---
@@ -304,7 +303,7 @@ com `cargo check` / `cargo publish --dry-run`, e rodar o exemplo novo com
 2. **Tela servida por `impl Component`:** `screen(name = x)` sem corpo; o `.main`
    registra o componente — ver 1.6.
 3. **Sem `initial`:** vale a primeira tela — ver 1.3.
-4. **`.gva`/`.gv`/`.gvb`:** mesma estrutura — ver 1.5.
+4. **`.gv`:** a estrutura do `app` — ver 1.5.
 5. **`script` global do app:** fora deste plano, mas **vira o próximo plano**
    (item 6).
 

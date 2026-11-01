@@ -1,0 +1,39 @@
+// i18n em Luau: o estado e a troca de idioma moram em scripts/app.luau, com o global
+// `i18n` (`i18n.set_locale`, `i18n.t`, `i18n.num`, `i18n.date`). O markup usa `{t("…")}`
+// onde o texto é fixo e chaves do contexto onde o script formata.
+//
+//   WGPU_BACKEND=gl cargo run --example i18n_luau
+app(id = i18n_luau, size = "1024 768") {
+  resources {
+    link(rel = stylesheet, href = "examples/i18n/app.gss")
+    script(src = "scripts/app.luau")
+  }
+
+  screen(name = home, initial = true, title = "i18n (Luau)") {
+    container(class = caixa) {
+      column(class = coluna) {
+        text("{t('titulo')}", class = titulo)
+        text("{ola}", class = corpo)
+        text("{itens}", class = corpo)
+
+        row(class = linha) {
+          button(text = "{t('botao.mais')}", on_click = "app::mais")
+          button(text = "{t('botao.menos')}", on_click = "app::menos")
+        }
+
+        text("{t('rotulo.preco')}", class = rotulo)
+        text("{preco_fmt}", class = corpo)
+        text("{t('rotulo.data')}", class = rotulo)
+        text("{quando_fmt}", class = corpo)
+
+        text("{t('rotulo.idioma')}: {__locale}", class = rotulo)
+        row(class = linha) {
+          button(text = "Português", on_click = "app::idioma_pt")
+          button(text = "English", on_click = "app::idioma_en")
+          button(text = "Русский", on_click = "app::idioma_ru")
+          button(text = "العربية", on_click = "app::idioma_ar")
+        }
+      }
+    }
+  }
+}

@@ -100,7 +100,7 @@ bytes em *todos* os nós da árvore, usados ou não.
 Numa GPU integrada antiga, **pintar** é o item mais caro de uma tela glacier — e
 não tem relação com quantos nós ela tem.
 
-Medido numa Intel HD 2500 (Ivy Bridge, 2012), no `examples/gva/componentes_locais`:
+Medido numa Intel HD 2500 (Ivy Bridge, 2012), no `examples/componentes_locais`:
 **111 nós, 20 caixas pintadas**, janela de 900×720.
 
 | | intervalo por quadro |
@@ -123,7 +123,7 @@ pixel.
 **O que fazer, em ordem de retorno:**
 
 1. **Não pinte a janela inteira.** O tema já pinta o fundo; um
-   `<column background="…" width="fill" height="fill">` por cima é uma camada
+   `column(background = "…", width = fill, height = fill)` por cima é uma camada
    redobrada em cada pixel. Prefira `theme` ou `<style>` no `<screen>`.
 2. **Menos camadas sobrepostas.** `groupbox` dentro de `frame` dentro de
    container pintado são três passadas na mesma área. Escolha uma.
@@ -188,14 +188,15 @@ isso é o custo dominante de cada quadro, e nenhuma otimização do motor alcan�
 
 `virtualize` na coluna resolve: o motor monta só os filhos visíveis.
 
-```xml
-<scrollable height="fill">
-  <column spacing="12" virtualize="300">   <!-- 300 = altura de CADA cartão -->
-    <ForEach items="servicos" var="s">
-      <container ...>…</container>
-    </ForEach>
-  </column>
-</scrollable>
+```gv
+scrollable(height = fill) {
+  column(spacing = 12, virtualize = 300) {
+    // 300 = altura de CADA cartão
+    each @servicos as s {
+      container("…", ...)
+    }
+  }
+}
 ```
 
 Três coisas para acertar:
@@ -320,9 +321,9 @@ As duas acima são de quem escreve a primitiva. Esta é de quem **usa** um
 builtin, e é a mais fácil de cometer: a prop `width` de um widget composto quase
 nunca é a largura do conjunto — é a de um filho lá dentro.
 
-```xml
-<spinbox value="qtd" width="fill" />   <!-- o campo COLAPSA -->
-<spinbox value="qtd" width="120" />    <!-- é isto -->
+```gv
+spinbox(:value = qtd, width = fill)  // o campo COLAPSA
+spinbox(:value = qtd, width = 120)  // é isto
 ```
 
 No `<spinbox>` o `width` desce para o `<TextInput>`, e a `<Row>` que segura
@@ -338,7 +339,7 @@ correta; o que estava errado era o número que ela carregava).
 > builtin, veja no template dele onde essa prop cai. Se cair num filho dentro de
 > uma `<Row>`/`<Column>` sem largura, `fill` não é largura — é colapso. Para
 > alinhar um widget desses com campos que preenchem a linha, envolva-o numa
-> `<Row width="fill">` com um `<Space width="fill"/>` ao lado.
+> `Row(width = fill)` com um `Space(width = fill)` ao lado.
 
 ### A quarta forma: `Fill` sobrevive, mas do tamanho do IRMÃO (0.96)
 
@@ -359,12 +360,14 @@ não-fluidos, não o espaço realmente disponível do container. Na prática: o
 filho `width="fill"` mede a largura do irmão mais largo da coluna, não a
 largura do app.
 
-```xml
-<column>                          <!-- Shrink: sem width -->
-  <text>Rótulo qualquer</text>    <!-- mede ~120px, e vira o teto -->
-  <button text="Ação" />          <!-- mede ~90px -->
-  <SplashScreen height="220" />   <!-- quer width=fill, largura=height fixa -->
-</column>                         <!-- vira ~120px de largura, não a do app -->
+```gv
+column {
+  // Shrink: sem width
+  text("Rótulo qualquer")  // mede ~120px, e vira o teto
+  button(text = Ação)  // mede ~90px
+  SplashScreen(height = 220)  // quer width=fill, largura=height fixa
+}
+// vira ~120px de largura, não a do app
 ```
 
 O sintoma no ecrã: o widget renderiza, só que espremido na largura do texto ou
@@ -611,7 +614,7 @@ com `cargo tree -i iced_tiny_skia` — ver `TROUBLESHOOTING.md`.
 
 `<linha>` chegou a ser apelido do `<linechart>` e **roubou o nome de todo
 componente chamado `Linha`** — o parser mapeia a tag antes de procurar
-componentes, então um `<component name="Linha">` do app passava a ser ignorado
+componentes, então um `component(name = Linha)` do app passava a ser ignorado
 em silêncio. O mesmo valia para `<display>`, `<barras>` e `<pizza>`. Os apelidos
 em pt-BR de uma tag nova ficam nos nomes que ninguém usaria para um componente
 próprio (`grafico_linha`, `medidor`, `minigrafico`). Há teste para isso.
@@ -697,13 +700,15 @@ Duas peças tornam isso barato, e as duas já existiam:
 A armadilha da Onda 8, e ela falha **em silêncio**. O `<wizard>` deveria
 delegar as páginas ao `<stackview>`:
 
-```xml
-<StackView active="{active}"><slot name="{active}"/></StackView>
+```gv
+StackView(active = @active) {
+  slot(name = @active)
+}
 ```
 
-Não funciona. A partição do `<slot/>` acontece **uma vez**, sobre os filhos crus
+Não funciona. A partição do `slot` acontece **uma vez**, sobre os filhos crus
 de quem escreveu a tag; o que chega ao `StackView` é um filho **já resolvido e
-sem etiqueta**, e o `<slot name="{active}"/>` do template dele não acha etiqueta
+sem etiqueta**, e o `slot(name = @active)` do template dele não acha etiqueta
 com que casar. O resultado é uma página em branco, sem erro nenhum.
 
 Quem precisa do conteúdo repassa o markup, não o slot — ou monta a coluna ele
@@ -717,20 +722,20 @@ deveria, comece por aqui.
 
 **1. `empty`/`not_empty` são sobre arrays JSON, não sobre strings.**
 
-```xml
-<se cond="{rotulo}" not_empty="true">   <!-- NUNCA casa com um texto -->
-<se cond="{rotulo}" not_equals="">      <!-- é isto que se quer -->
+```gv
+template(if = @rotulo, not_empty = true) { … }   // NUNCA casa com um texto
+if @rotulo != "" { … }          // é isto que se quer
 ```
 
 `json_array_is_empty` tenta ler o valor como array; um texto comum não é um
-array válido e conta como **vazio**. O teste existe para `<listview items>` e
+array válido e conta como **vazio**. O teste existe para `listview(items)` e
 companhia, e o nome dele engana.
 
 **2. `one_of` separa por ESPAÇO, não por vírgula.**
 
-```xml
-<se cond="{kind}" one_of="int,double">  <!-- um token só: "int,double" -->
-<se cond="{kind}" one_of="int double">  <!-- dois tokens -->
+```gv
+template(if = @kind, one_of = "int,double") { … }   // um token só: "int,double"
+template(if = @kind, one_of = "int double") { … }   // dois tokens
 ```
 
 O simétrico dele, o `contains`, aceita vírgula **e** espaço — porque lá a lista é
@@ -739,14 +744,14 @@ espaço.
 
 **3. `value` de um widget de valor é NOME DE CHAVE, não interpolação.**
 
-```xml
-<progressbar value="{progresso}" />   <!-- procura a chave chamada "42" -->
-<progressbar :value="progresso" />    <!-- lê a chave `progresso` -->
+```gv
+progressbar(value = @progresso)  // procura a chave chamada "42"
+progressbar(:value = progresso)  // lê a chave `progresso`
 ```
 
 O `:` é a marca de **ligação**: diz que o valor é o nome de uma chave, e não um
 texto nem um dado interpolado. Antes de ler o XML, o motor troca `:value` por `bind_value` (dois atributos de
-nome diferente; ele aceita os dois onde lê `value`), e o parser **avisa** (e o `.gvb` **recusa**) uma ligação escrita sem
+nome diferente; ele aceita os dois onde lê `value`), e o parser **avisa** (e o `.gv` **recusa**) uma ligação escrita sem
 ele, com a linha — é o que tira esta armadilha do silêncio. A lista do que é
 ligação está em `src/bindings.rs`; um primitivo novo com um campo `*_var` entra
 lá.

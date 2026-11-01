@@ -1,6 +1,6 @@
 # `.gss` moderno: `opacity`, `transition`, `calc()` e `var()` numérico
 
-Fase 4 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo: `examples/gva/css_moderno`.
+Fase 4 do `PLANO_SUBSTITUIBILIDADE.md`. Exemplo: `examples/css_moderno`.
 
 ## `var()` em campos numéricos
 

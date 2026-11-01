@@ -12,7 +12,7 @@
 //! - `fail(msg)`;
 //! - o comentário `---` logo acima de um `test_*` é a documentação dele (ver
 //!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
-//! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gvb` com `<script>`
+//! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gv` com `<script>`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. O `ctx` inicial e o
 //!   `:set` aceitam tabelas (viram JSON, como `ctx.x = {...}` num script). Um handler
@@ -987,7 +987,7 @@ fn achar<'a>(
 /// As chaves que o **markup** de `path` lê do contexto e que `data` não tem.
 ///
 /// É o cruzamento que um teste de handler não faz: o handler escreve a chave A,
-/// o `.gvb` lê a chave B, e a tela aparece VAZIA sem erro nenhum. Aqui o
+/// o `.gv` lê a chave B, e a tela aparece VAZIA sem erro nenhum. Aqui o
 /// template é carregado como o motor o carrega (um `app(...)` ou uma tela solta,
 /// com seus `import`s), avaliado contra `data`, e o rastreamento de leituras do
 /// próprio avaliador — o mesmo que decide o cache — diz o que foi consultado.
@@ -1166,7 +1166,7 @@ mod tests {
     fn component_chama_handler_e_le_o_contexto() {
         let dir = std::env::temp_dir().join(format!("glacier_tc_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let tela = dir.join("tela.gv");
+        let tela = dir.join("tela.xml");
         std::fs::write(
             &tela,
             "<screen><script>function inc() ctx.n = ctx.n + 1 end</script></screen>",
@@ -1198,7 +1198,7 @@ mod tests {
     fn missing_acusa_a_chave_que_o_markup_le_e_ninguem_publicou() {
         let dir = std::env::temp_dir().join(format!("glacier_tm_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let tela = dir.join("tela.gv");
+        let tela = dir.join("tela.xml");
         std::fs::write(
             &tela,
             "<screen><script>function init() ctx.certo = 'x' end</script>\
@@ -1230,7 +1230,7 @@ mod tests {
     fn arvore_avaliada_texts_find_style_e_assert_renders() {
         let dir = std::env::temp_dir().join(format!("glacier_ta_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let tela = dir.join("tela.gv");
+        let tela = dir.join("tela.xml");
         std::fs::write(
             &tela,
             "<screen><style>.b { width: 240; } @media (max-width: 500) { .b { width: 100; } }</style>\
@@ -1238,7 +1238,7 @@ mod tests {
              <button class=\"b\" on_click=\"salvar\" text=\"Salvar\"/></column></screen>",
         )
         .unwrap();
-        let quebrada = dir.join("quebrada.gv");
+        let quebrada = dir.join("quebrada.xml");
         std::fs::write(&quebrada, "<screen><column>").unwrap();
         let file = dir.join("t.test.luau");
         std::fs::write(
@@ -1258,7 +1258,7 @@ mod tests {
                  end\n\
                  function test_renders() assert_renders({tela:?}) end\n\
                  function test_quebrada()\n\
-                   assert_fails(function() assert_renders({quebrada:?}) end, 'quebrada.gv')\n\
+                   assert_fails(function() assert_renders({quebrada:?}) end, 'quebrada.xml')\n\
                  end",
                 tela = tela.to_str().unwrap(),
                 quebrada = quebrada.to_str().unwrap()

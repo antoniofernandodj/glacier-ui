@@ -1,8 +1,0 @@
-<screen title="Detalhes">
-  <container class="caixa">
-    <column class="coluna">
-      <text class="titulo">Detalhes</text>
-      <button text="Voltar" navigate_back="true" />
-    </column>
-  </container>
-</screen>

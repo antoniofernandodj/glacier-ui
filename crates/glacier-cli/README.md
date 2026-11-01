@@ -68,7 +68,7 @@ Um teste é uma função `test_*`; o comentário `---` acima dela é a documenta
 ```lua
 --- Filtrar por "API" deixa só o serviço que contém o trecho.
 function test_filtrar_deixa_so_o_trecho()
-    local tela = component("views/app.gvb")
+    local tela = component("views/app.gv")
     tela:call("init")
     tela:call("filtrar", "API")
     assert_eq(tela:get("total"), "3")

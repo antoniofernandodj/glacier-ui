@@ -122,9 +122,8 @@ Primeiro, porque simplifica tudo depois: um só runtime de script para tipar.
 - `build.rs`: hoje só compila o MicroPython — apagar o arquivo, o `build =` e a
   dependência de build `cc` (conferir no `Cargo.lock` se algo mais usa `cc`).
 - `Cargo.toml`: a feature `micropython`, o `[[example]] contador_micropython`
-  (gva e gvb) e os comentários associados (~linhas 207, 409, 465, 552).
-- Exemplos `examples/gva/contador_micropython/` e
-  `examples/gvb/contador_micropython/` (`.py`, `.gss`, `.gva`/`.gvb`, `main.rs`).
+  e os comentários associados (~linhas 207, 409, 465, 552).
+- Exemplo `examples/contador_micropython/` (`.py`, `.gss`, `.gv`, `main.rs`).
 - `src/lib.rs`: `pub mod micropython` (97), os desvios de `has_script` (~3475 e
   ~4725), o erro de tela inline `lang="python"` (~1451) e os comentários.
 - `src/error.rs`: a variante `GlacierError::MicroPython`.
@@ -137,7 +136,7 @@ Primeiro, porque simplifica tudo depois: um só runtime de script para tipar.
   silêncio (rodaria Python como Luau e falharia de forma obscura). Deve dar um
   erro claro: *"lang=\"python\" não é mais suportado; só Luau"*. Vale para
   qualquer `lang` desconhecido.
-- `tests/gvb_sintaxe.rs:47` usa `script(lang = python)` como amostra de sintaxe;
+- `tests/gv_sintaxe.rs:47` usa `script(lang = python)` como amostra de sintaxe;
   trocar por outro atributo.
 
 **Auditar** (podem ter referência a Python que não seja o motor): `crates/glacier-cli`
@@ -150,7 +149,7 @@ agora é erro); histórico antigo do CHANGELOG fica intacto. Atualizar/remover a
 memória `micropython-script-lang.md` do projeto.
 
 **Verificação:** o crate compila sem a feature; `cargo publish --dry-run`; o
-pacote publicado encolhe ~3 MB; os exemplos `gva`/`gvb` restantes carregam.
+pacote publicado encolhe ~3 MB; os exemplos `gv` restantes carregam.
 
 ### Fase 1 — Núcleo: bool e number (0.135.0)
 
@@ -275,7 +274,7 @@ Rodar o exemplo com `WGPU_BACKEND=gl`.
 `src/luau/mod.rs`, `README.md` sem o modelo "tudo é texto"; `ctx_types="off"` não existe mais;
 `storage` e o payload de `broadcast` passam por JSON e já preservam o tipo (`storage.set("k", true)`
 volta `true`). O `ctx` inicial de uma janela filha segue como texto (decisão: não leva tag).
-Exemplos: `tem_notificacao` e `cancelado` viraram booleano em `gvb/` e `gva/`. Ficaram de
+Exemplos: `tem_notificacao` e `cancelado` viraram booleano em `gv/`. Ficaram de
 propósito `__dialog.negrito == "true"` (chave de diálogo, não conferida em execução) e o
 `restart == "true"` do `main.rs` (a API Rust de `Context` é texto). O comentário do
 `prelude.luau` agora diz que o `<dateedit>` grava texto, sem afirmar que todo `ctx` é string.
@@ -302,7 +301,7 @@ propósito `__dialog.negrito == "true"` (chave de diálogo, não conferida em ex
 listas viraram tabela (`17a65e3`); os seeds de `jobs`, `services` e `wizard` passaram a
 `json.array({})` e o `log_window` lê o seed com `Helpers.decode_list`. Os `== "true"` de
 Luau já tinham migrado (`ecc7159`: `Helpers.is_true/is_false`); os que sobram são markup
-`.gvb` e não mudam. A camada `format/` segue devolvendo `"[]"` em texto de propósito, e os
+`.gv` e não mudam. A camada `format/` segue devolvendo `"[]"` em texto de propósito, e os
 testes dela o afirmam: `decode_list` aceita as duas formas. Suíte: 377 testes passam.
 
 Só depois de a 0.136.0 (Fase 2) estar publicada, e a 0.137.0 (Fase 3) para os
@@ -315,7 +314,7 @@ só quando o usuário pedir.
   comparações como `ctx.new_job_git_providers == "[]"` viram `#ctx.x == 0`.
 - **Booleanos e números** (Fases 1 e 3): os ~80 `== "true"`/`== "false"` dos
   `.luau` migram caso a caso (quem escreve a chave: checkbox → `boolean`; script →
-  o que gravou). Os `if @x == "true"` dos `.gvb` são markup e **não mudam**.
+  o que gravou). Os `if @x == "true"` dos `.gv` são markup e **não mudam**.
 - Bump da dependência `glacier-ui` no `Cargo.toml` e no `Cargo.lock`; testes
   (`glacier test`, `cargo test --test app_manifest`) e telas de `settings`,
   `new_service` e `docker`.
@@ -365,7 +364,7 @@ commit próprio, só quando o usuário pedir.
   funcionando — string gravada como string continua string. Não é preciso mexer,
   mas na Fase 3 vale trocar por `true`/`false` onde o valor é lógico.
 - **Comparações `== "true"`/`== "false"`:** ~80 no total. Dois grupos:
-  - em `.gvb` (`if @x == "true"`, ex.: `new_service.gvb:101`): é **markup**, o motor
+  - em `.gv` (`if @x == "true"`, ex.: `new_service.gv:101`): é **markup**, o motor
     compara strings. **Não muda.**
   - em `.luau` (concentrados em `scripts/handlers/settings.luau` — 13, além de
     `stream`, `services`, `bundle_import`, `projects`, `wizard`, `docker`): este é o

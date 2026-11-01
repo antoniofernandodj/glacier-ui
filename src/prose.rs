@@ -3,14 +3,14 @@
 //! Um `<prose>` é uma lista de [`Bloco`]s — parágrafo, título, citação, lista,
 //! figura (imagem com legenda), código e régua. Eles vêm de:
 //!
-//! - **filhos escritos no markup** (`.gva`/`.gvb`), lidos na carga;
+//! - **filhos escritos no markup** (`.gv`), lidos na carga;
 //! - **conteúdo dinâmico** (`<prose syntax="html" content="{corpo}">`), lido na
-//!   avaliação a partir de uma chave do contexto, em `gva`, `gvb`, `html` ou
+//!   avaliação a partir de uma chave do contexto, em `gv`, `html` ou
 //!   `markdown` — o texto de um artigo que veio de um arquivo, de um `fetch` ou de
 //!   um banco.
 //!
-//! Os três primeiros passam por uma árvore intermediária, [`No`]: o XML do `.gva` (e
-//! do `.gvb` dessugarado) entra por [`de_xml`], o HTML por [`parse_html`], e o mesmo
+//! Os dois primeiros passam por uma árvore intermediária, [`No`]: o `.gv`
+//! dessugarado (XML interno) entra por [`de_xml`], o HTML por [`parse_html`], e o mesmo
 //! construtor, [`blocos`], faz o resto. O Markdown tem renderizador próprio
 //! (`crate::markdown`), então só passa adiante como [`Bloco::Markdown`].
 //!
@@ -94,8 +94,7 @@ impl Bloco {
 /// A sintaxe do texto de um `<prose syntax="…" content="…">`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sintaxe {
-    Gva,
-    Gvb,
+    Gv,
     Html,
     Markdown,
 }
@@ -103,21 +102,10 @@ pub enum Sintaxe {
 impl Sintaxe {
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
-            "gva" | "gv" | "xml" => Some(Self::Gva),
-            "gvb" => Some(Self::Gvb),
+            "gv" => Some(Self::Gv),
             "html" => Some(Self::Html),
             "markdown" | "md" => Some(Self::Markdown),
             _ => None,
-        }
-    }
-
-    /// A sintaxe do documento onde o `<prose>` está escrito: a que vale quando o
-    /// `syntax` é omitido. Um `.gvb` é `gvb`; todo o resto (`.gva`, `.gv`, um
-    /// template inline) é `gva`.
-    pub fn do_arquivo(path: Option<&str>) -> Self {
-        match path {
-            Some(p) if crate::gvb::eh_gvb(p) => Self::Gvb,
-            _ => Self::Gva,
         }
     }
 }
@@ -464,8 +452,8 @@ fn figura(img: &No, legenda: &[No], o: Opcoes) -> Result<Bloco, Erro> {
     })
 }
 
-/// Os filhos de um elemento, com o atributo `content` na frente: é como o `.gvb` escreve
-/// o texto de `b("x")`, `h3("x")` ou `li("x")` (o `.gva` põe o texto como filho).
+/// Os filhos de um elemento, com o atributo `content` na frente: é como o `.gv` escreve
+/// o texto de `b("x")`, `h3("x")` ou `li("x")`.
 fn conteudo_de(no: &No) -> Vec<No> {
     let No::Elem { filhos, .. } = no else { return Vec::new() };
     let mut v = Vec::with_capacity(filhos.len() + 1);
@@ -917,14 +905,10 @@ fn ler(sintaxe: Sintaxe, conteudo: &str) -> Vec<Bloco> {
                 Err(e) => erro(e.msg),
             }
         }
-        Sintaxe::Gva | Sintaxe::Gvb => {
-            let xml = if sintaxe == Sintaxe::Gvb {
-                match crate::gvb::desugar_literal(conteudo) {
-                    Ok(x) => x,
-                    Err(d) => return erro(format!("linha {}: {}", d.line, d.message)),
-                }
-            } else {
-                conteudo.to_string()
+        Sintaxe::Gv => {
+            let xml = match crate::gv::desugar_literal(conteudo) {
+                Ok(x) => x,
+                Err(d) => return erro(format!("linha {}: {}", d.line, d.message)),
             };
             let envolto = format!("<prose>{xml}</prose>");
             let doc = match roxmltree::Document::parse(&envolto) {
@@ -947,8 +931,7 @@ fn ler(sintaxe: Sintaxe, conteudo: &str) -> Vec<Bloco> {
 
 fn nome(s: Sintaxe) -> &'static str {
     match s {
-        Sintaxe::Gva => "gva",
-        Sintaxe::Gvb => "gvb",
+        Sintaxe::Gv => "gv",
         Sintaxe::Html => "html",
         Sintaxe::Markdown => "markdown",
     }

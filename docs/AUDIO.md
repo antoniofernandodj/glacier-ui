@@ -1,7 +1,7 @@
 # Áudio (`<audio>`)
 
 Fase 6 do `PLANO_SUBSTITUIBILIDADE.md`, **só o áudio**: o `<video>` não foi feito (ver o fim).
-Exemplo: `examples/gvb/audio` — `cargo run --example gvb_audio --features audio`.
+Exemplo: `examples/audio` — `cargo run --example audio --features audio`.
 
 ## Ligar
 
@@ -18,10 +18,10 @@ o log avisa uma vez.
 
 ## No markup
 
-```xml
-<audio name="musica" src="sons/tema.mp3" />                       <!-- player: ▶/⏸, barra, tempo -->
-<audio name="aviso" src="sons/ding.wav" controls="false" />       <!-- só a fonte -->
-<audio name="fundo" src="sons/loop.ogg" autoplay="true" loop="true" volume="0.3" />
+```gv
+audio(name = musica, src = "sons/tema.mp3")  // player: ▶/⏸, barra, tempo
+audio(name = aviso, src = "sons/ding.wav", controls = false)  // só a fonte
+audio(name = fundo, src = "sons/loop.ogg", autoplay = true, loop = true, volume = 0.3)
 ```
 
 ```

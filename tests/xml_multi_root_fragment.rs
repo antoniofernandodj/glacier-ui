@@ -17,7 +17,7 @@ fn write_tmp(name: &str, content: &str) -> String {
 #[test]
 fn navitem_if_else_por_atributo_em_componente_multi_raiz() {
     let nav_item = write_tmp(
-        "nav_item.gv",
+        "nav_item.xml",
         r#"<component>
 <props>
   <prop name="label" />
@@ -29,7 +29,7 @@ fn navitem_if_else_por_atributo_em_componente_multi_raiz() {
 </component>"#,
     );
     let shell = write_tmp(
-        "shell.gv",
+        "shell.xml",
         &format!(
             r#"<screen title="Shell">
 <resources>

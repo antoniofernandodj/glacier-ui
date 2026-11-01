@@ -8,10 +8,10 @@ Orca**") não foi verificado com o Orca de verdade. Leia "O que NÃO está feito
 
 Três atributos universais, em qualquer tag (como `tooltip=`):
 
-```xml
-<button on_click="fechar" aria_label="Fechar janela" text="✕" />
-<container role="button" on_click="abrir" aria_label="Abrir o menu" />
-<image src="enfeite.png" aria_hidden="true" />
+```gv
+button(on_click = fechar, aria_label = "Fechar janela", text = "✕")
+container(role = button, on_click = abrir, aria_label = "Abrir o menu")
+image(src = "enfeite.png", aria_hidden = true)
 ```
 
 | Atributo | Efeito |
@@ -20,7 +20,7 @@ Três atributos universais, em qualquer tag (como `tooltip=`):
 | `aria_label` | o nome que o leitor de tela lê, no lugar do texto do nó. Indispensável num botão só com ícone |
 | `aria_hidden="true"` | decorativo: fora da árvore (e seus filhos junto) |
 
-No `.gvb`: `button(text = "✕", on_click = fechar, aria_label = "Fechar janela")`.
+No `.gv`: `button(text = "✕", on_click = fechar, aria_label = "Fechar janela")`.
 
 ## A árvore (feature `a11y`, só Linux)
 
@@ -45,7 +45,7 @@ construção de árvore por reavaliação, que a feature desligada não paga.
 
 ### Medido
 
-Com o exemplo `gvb_i18n` (`--features a11y`), lendo pelo barramento AT-SPI da sessão
+Com o exemplo `i18n` (`--features a11y`), lendo pelo barramento AT-SPI da sessão
 (`busctl` no `org.a11y.Bus`, já que esta máquina não tem `pyatspi`):
 
 - o app aparece como um nó `application` (papel 75) → `frame` (23, a janela "i18n") → os

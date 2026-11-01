@@ -17,6 +17,6 @@
 --- usuário digita (`mudar_passo`), e ele começa vazio de propósito. É a ÚNICA
 --- ausência esperada; qualquer outra é um erro.
 function test_toda_chave_que_a_tela_le_e_publicada_pelo_component()
-    local tela = component("views/contador.gvb", { contador = "0", passo = "1" })
+    local tela = component("views/contador.gv", { contador = "0", passo = "1" })
     assert_complete(tela, { "passo_texto" })
 end

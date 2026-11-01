@@ -1,0 +1,139 @@
+screen(title = "Glacier - Componentes por atributo (Luau)", size = "900 720") {
+  resources {
+    link(
+      rel = theme,
+      href = "examples/componentes_por_atributo_luau/theme.json",
+    )
+
+    link(
+      rel = stylesheet,
+      href = "examples/componentes_por_atributo_luau/app.gss",
+    )
+
+    script(src = script.luau)
+
+    // Cabeçalhos. Qual deles a Vitrine desenha é decidido pelo script, em
+    // `ctx.cabecalho` — o nome de um componente também é dado.
+    component(name = TituloGrande) {
+      props {
+        prop(name = titulo)
+        prop(name = total)
+      }
+
+      row(class = cabecalho) {
+        text(class = cabecalho-titulo, content = "@titulo")
+        space
+        badge(badge_text = @total)
+      }
+    }
+
+    component(name = TituloCompacto) {
+      props {
+        prop(name = titulo)
+        prop(name = total)
+      }
+
+      row(class = cabecalho) {
+        text(class = cabecalho-discreto, content = "@titulo · @total")
+      }
+    }
+
+    component(name = LinhaContato) {
+      props {
+        prop(name = id)
+        prop(name = nome)
+        prop(name = email)
+        prop(name = rotulo, default = Favoritar)
+        prop(name = acao, default = favoritar)
+      }
+
+      row(class = linha) {
+        column(class = linha-dados) {
+          text(class = linha-texto, content = "@nome")
+          text(class = linha-email, content = "@email")
+        }
+
+        button(class = linha-botao, text = @rotulo, on_click = @acao:@id)
+      }
+    }
+
+    // Dois fallbacks para a MESMA lista: o script escolhe em `ctx.vazio`
+    // conforme o motivo de ela estar vazia.
+    component(name = NenhumContato) {
+      column(class = vazio) {
+        text(class = vazio-titulo, content = "Nenhum contato ainda")
+        text(class = vazio-nota, content = "Clique em “Adicionar contato”.")
+      }
+    }
+
+    component(name = BuscaSemResultado) {
+      column(class = vazio) {
+        text(class = vazio-titulo, content = "Ninguém casa com “@busca”")
+        text(class = vazio-nota, content = "Apague a busca para ver todos.")
+      }
+    }
+
+    component(name = SemFavoritos) {
+      column(class = vazio) {
+        text(class = vazio-titulo, content = "Sem favoritos")
+        text(class = vazio-nota, content = "Use “Favoritar” numa linha acima.")
+      }
+    }
+
+    import(name = Vitrine, from = vitrine.gv)
+  }
+
+  column(class = tela) {
+    row(class = barra) {
+      text(class = titulo, content = "Componentes por atributo — Luau")
+      space
+      text(class = status, content = "@status")
+    }
+
+    rule
+
+    scrollable(class = rolagem) {
+      column(class = corpo) {
+        row(class = acoes) {
+          button(text = "Adicionar contato", on_click = adicionar)
+
+          button(
+            class = btn-fraco, text = "Remover todos", on_click = remover_todos,
+          )
+
+          button(
+            class = btn-fraco, text = "Trocar cabeçalho",
+            on_click = trocar_cabecalho,
+          )
+        }
+
+        textinput(
+          class = filtro, :value = busca, on_change = filtrar,
+          placeholder = "Buscar por nome…",
+        )
+
+        Vitrine(
+          titulo = Contatos, total = @total, itens = visiveis,
+          cabecalho = @cabecalho,
+          linha = LinhaContato, vazio = @vazio,
+        )
+
+        column(class = coluna) {
+          text(class = secao, content = "Favoritos")
+          text(
+            class = nota,
+            content = "A tag <foreach> com um fallback literal.",
+          )
+
+          each @favoritos as f (fallback = SemFavoritos) {
+            LinhaContato(
+              id = @f.id, nome = @f.nome, email = @f.email,
+              rotulo = Desfavoritar,
+              acao = desfavoritar,
+            )
+          }
+        }
+      }
+    }
+  }
+}

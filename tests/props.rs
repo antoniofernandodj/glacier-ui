@@ -25,7 +25,7 @@ fn escreve(caso: &str, nome: &str, markup: &str) -> String {
 fn motor_com(caso: &str, uso: &str) -> (GlacierUI, String) {
     let cartao = escreve(
         caso,
-        "cartao.gv",
+        "cartao.xml",
         r##"<component>
             <props>
                 <prop name="nome" />
@@ -36,7 +36,7 @@ fn motor_com(caso: &str, uso: &str) -> (GlacierUI, String) {
     );
     let tela = escreve(
         caso,
-        "tela.gv",
+        "tela.xml",
         &format!(
             r##"<screen title="T">
                 <resources>
@@ -105,18 +105,18 @@ fn default_ganha_da_chave_global_de_mesmo_nome() {
 
 /// Declarar é opcional: um `<component>` sem `<props>` não ganha checagem
 /// nenhuma — é o que mantém compatível todo componente que lê o contexto
-/// global em vez de receber props (o `perfil_card.gv` dos exemplos é assim).
+/// global em vez de receber props (o `perfil_card.xml` dos exemplos é assim).
 #[test]
 fn componente_sem_props_nao_e_checado() {
     const CASO: &str = "componente_sem_props_nao_e_checado";
     let livre = escreve(
         CASO,
-        "livre.gv",
+        "livre.xml",
         r##"<component><Text content="{qualquer}" /></component>"##,
     );
     let tela = escreve(
         CASO,
-        "tela_livre.gv",
+        "tela_livre.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{livre}" as="Livre" /></resources>
@@ -139,12 +139,12 @@ fn props_vazio_recusa_qualquer_prop() {
     const CASO: &str = "props_vazio_recusa_qualquer_prop";
     let fechado = escreve(
         CASO,
-        "fechado.gv",
+        "fechado.xml",
         r##"<component><props></props><Text content="x" /></component>"##,
     );
     let tela = escreve(
         CASO,
-        "tela_fechada.gv",
+        "tela_fechada.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{fechado}" as="Fechado" /></resources>
@@ -169,7 +169,7 @@ fn diretivas_nao_contam_como_prop() {
     const CASO: &str = "diretivas_nao_contam_como_prop";
     let cartao = escreve(
         CASO,
-        "cartao_lista.gv",
+        "cartao_lista.xml",
         r##"<component>
             <props><prop name="nome" /></props>
             <Text content="{nome}" />
@@ -177,7 +177,7 @@ fn diretivas_nao_contam_como_prop() {
     );
     let tela = escreve(
         CASO,
-        "tela_lista.gv",
+        "tela_lista.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
@@ -206,7 +206,7 @@ fn diretivas_nao_contam_como_prop() {
 fn motor_spread(caso: &str, contrato: &str, uso: &str, dados: &str) -> GlacierUI {
     let cartao = escreve(
         caso,
-        "cartao_spread.gv",
+        "cartao_spread.xml",
         &format!(
             r##"<component>
                 {contrato}
@@ -216,7 +216,7 @@ fn motor_spread(caso: &str, contrato: &str, uso: &str, dados: &str) -> GlacierUI
     );
     let tela = escreve(
         caso,
-        "tela_spread.gv",
+        "tela_spread.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
@@ -341,7 +341,7 @@ fn spread_vazio_vale_como_nenhum_campo() {
     const CASO: &str = "spread_vazio_vale_como_nenhum_campo";
     let cartao = escreve(
         CASO,
-        "so_opcional.gv",
+        "so_opcional.xml",
         r##"<component>
             <props><prop name="cor" default="azul" /></props>
             <Text content="{cor}" />
@@ -349,7 +349,7 @@ fn spread_vazio_vale_como_nenhum_campo() {
     );
     let tela = escreve(
         CASO,
-        "tela_vazia.gv",
+        "tela_vazia.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{cartao}" as="Cartao" /></resources>
@@ -373,12 +373,12 @@ fn spread_sem_contrato_semeia_todo_campo() {
     const CASO: &str = "spread_sem_contrato_semeia_todo_campo";
     let livre = escreve(
         CASO,
-        "livre_spread.gv",
+        "livre_spread.xml",
         r##"<component><Text content="{a}-{b}" /></component>"##,
     );
     let tela = escreve(
         CASO,
-        "tela_livre_spread.gv",
+        "tela_livre_spread.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{livre}" as="Livre" /></resources>
@@ -403,7 +403,7 @@ fn spread_preserva_lista_aninhada() {
     const CASO: &str = "spread_preserva_lista_aninhada";
     let card = escreve(
         CASO,
-        "card_tags.gv",
+        "card_tags.xml",
         r##"<component>
             <props><prop name="tags" /></props>
             <Column><Text for-each="tags" var="t" content="[{t}]" /></Column>
@@ -411,7 +411,7 @@ fn spread_preserva_lista_aninhada() {
     );
     let tela = escreve(
         CASO,
-        "tela_tags.gv",
+        "tela_tags.xml",
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{card}" as="Card" /></resources>

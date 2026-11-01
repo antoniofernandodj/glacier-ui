@@ -22,8 +22,8 @@ pub static PRESETS: &[Preset] = &[
         titulo: "App completo",
         descricao: "Janela sem decoração com titlebar própria, tema + .gss, componentes, navegação, fetch e toasts.",
         destaques: &[
-            "views/app.gvb com <screen>, <resources> e titlebar custom",
-            "views/components/ — componentes com <props>",
+            "views/app.gv com screen, resources e titlebar custom",
+            "views/components/ — componentes com props",
             "views/scripts/handlers/ — comportamento em Luau, um módulo por domínio",
             "views/styles/ — theme.json (var()) + app.gss com pseudo-estados e @media",
         ],
@@ -31,9 +31,9 @@ pub static PRESETS: &[Preset] = &[
     Preset {
         id: "minimo",
         titulo: "Mínimo",
-        descricao: "Uma tela, um .gss e um <script> Luau. O menor projeto que ainda mostra a ideia.",
+        descricao: "Uma tela, um .gss e um script Luau. O menor projeto que ainda mostra a ideia.",
         destaques: &[
-            "views/contador.gvb — uma <screen> com <script> Luau embutido",
+            "views/contador.gv — uma screen com script Luau embutido",
             "views/styles/app.gss — classes em vez de atributos inline",
         ],
     },
@@ -62,7 +62,7 @@ pub static PRESETS: &[Preset] = &[
         descricao: "O mesmo app no desktop e no navegador: componente em Rust, views/ embutida no .wasm e `glacier serve wasm` para compilar e servir.",
         destaques: &[
             "src/main.rs — embed_assets! só no alvo wasm32; no desktop, disco + hot-reload",
-            "src/contador.rs — impl Component (no navegador não há <script> Luau)",
+            "src/contador.rs — impl Component (no navegador não há script Luau)",
             "web/index.html — a página que carrega o app.js gerado pelo wasm-bindgen",
             "Dockerfile multi-stage: a imagem de produção leva só a página, o .js e o .wasm",
             "glacier serve wasm / glacier serve desktop",
@@ -85,7 +85,7 @@ pub static PRESETS: &[Preset] = &[
         descricao: "Uma sidebar de categorias; cada tela mostra dezenas de widgets do motor com um exemplo mínimo e vivo, feito para copiar.",
         destaques: &[
             "views/categorias/ — uma tela por seção da tabela de widgets (§2 do PLANO)",
-            "views/app.gvb — sidebar + roteador por {view}, sem escada de <se>",
+            "views/app.gv — sidebar + roteador por {view}, sem escada de se/senao",
             "views/scripts/app.luau — init() semeia toda chave que os demos leem",
         ],
     },
@@ -94,27 +94,27 @@ pub static PRESETS: &[Preset] = &[
         titulo: "Painel de dados",
         descricao: "KPIs e gráficos que andam sozinhos: linechart de série múltipla, barchart, piechart, gauge e sparkline, alimentados por every(1000).",
         destaques: &[
-            "views/app.gvb — cards de KPI + <linechart series>/<barchart>/<gauge>",
+            "views/app.gv — cards de KPI + linechart(series)/barchart/gauge",
             "views/scripts/app.luau — every(1000, …) empurra as séries sem os widgets saberem do relógio",
         ],
     },
     Preset {
         id: "formulario",
         titulo: "Formulário validado",
-        descricao: "App de cadastro: textinput/maskedinput/spinbox/dateedit/select/checkbox num <form> com regras declaradas (rules=\"…\"); o motor valida ao enviar.",
+        descricao: "App de cadastro: textinput/maskedinput/spinbox/dateedit/select/checkbox num form com regras declaradas (rules=\"…\"); o motor valida ao enviar.",
         destaques: &[
-            "<form on_submit/on_validation_error> com rules=\"required|minlen:3|digits:11|…\" nos campos",
-            "pseudo-estado :invalid no .gss; <button type=\"submit\">/\"reset\"",
+            "form(on_submit, on_validation_error) com rules=\"required|minlen:3|digits:11|…\" nos campos",
+            "pseudo-estado :invalid no .gss; button(type = submit/reset)",
             "validar.luau reduzido a salvar()/apontar()/limpar() — sem revalidar() na mão",
         ],
     },
     Preset {
         id: "crud",
         titulo: "Lista editável (model/view)",
-        descricao: "Uma <tableview> ligada a um array do contexto, com Novo/Editar/Excluir via prompt{} e confirm{} da camada Luau. Dados em memória.",
+        descricao: "Uma tableview ligada a um array do contexto, com Novo/Editar/Excluir via prompt{} e confirm{} da camada Luau. Dados em memória.",
         destaques: &[
             "views/scripts/state.luau — o depósito tipado; handlers/itens.luau — a vitrine",
-            "prompt{}/confirm{} suspensivos; ordenação e seleção no <tableview>",
+            "prompt{}/confirm{} suspensivos; ordenação e seleção no tableview",
         ],
     },
 ];
@@ -126,7 +126,7 @@ pub fn preset(id: &str) -> Option<&'static Preset> {
 /// Extensões cujo conteúdo passa pela substituição de marcadores. O resto
 /// (ícones, fontes) é copiado byte a byte — um `replace` num PNG o corromperia.
 const TEXTUAIS: &[&str] = &[
-    "gvb", "gva", "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
+    "gv", "gss", "luau", "rs", "toml", "json", "md", "luaurc", "txt", "bat", "sh",
     "html", "conf", "jsonc",
 ];
 
@@ -230,7 +230,7 @@ fn renomear(rel: &str) -> String {
 }
 
 /// Marcadores em chave dupla — `{{nome}}` — porque a chave simples já é a
-/// sintaxe de data binding dos `.gvb` (`{contador}`), e um marcador em chave
+/// sintaxe de data binding dos `.gv` (`{contador}`), e um marcador em chave
 /// simples seria indistinguível de um binding de verdade.
 fn substituir(texto: &str, nome: &str, versao_motor: &str) -> String {
     texto
@@ -305,7 +305,7 @@ mod testes {
 
     #[test]
     fn marcador_em_chave_dupla_nao_toca_binding_do_gv() {
-        let gv = r#"<text content="{contador}" /> <!-- {{nome_projeto}} -->"#;
+        let gv = r#"text(content = "{contador}") // {{nome_projeto}}"#;
         let saida = substituir(gv, "meu-app", "0.61");
         assert!(saida.contains("{contador}"));
         assert!(saida.contains("meu-app"));
@@ -316,7 +316,7 @@ mod testes {
         assert_eq!(renomear("gitignore"), ".gitignore");
         assert_eq!(renomear("sub/gitignore"), "sub/.gitignore");
         assert_eq!(renomear("Cargo.toml.template"), "Cargo.toml");
-        assert_eq!(renomear("views/app.gvb"), "views/app.gvb");
+        assert_eq!(renomear("views/app.gv"), "views/app.gv");
     }
 
     /// Todo preset anunciado no questionário precisa existir de fato — o build
@@ -397,7 +397,7 @@ mod testes {
             "ANDROID_TODO.md",
             "src/lib.rs",
             "src/main.rs",
-            "views/app.gvb",
+            "views/app.gv",
         ] {
             assert!(destino.join(esperado).is_file(), "faltou '{esperado}'");
         }
@@ -408,7 +408,7 @@ mod testes {
             "Cargo.toml",
             "src/lib.rs",
             "src/main.rs",
-            "views/app.gvb",
+            "views/app.gv",
         ] {
             let conteudo = fs::read_to_string(destino.join(texto)).expect("ler");
             assert!(

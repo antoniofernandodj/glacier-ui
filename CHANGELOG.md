@@ -8,6 +8,34 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-cli 0.27.0 — 2026-11-01
+
+Motor dos projetos gerados: **glacier-ui 0.148.0**. Os templates e o `AGENTS.md` usam só a sintaxe `.gv`.
+
+## glacier-ui 0.148.0 — 2026-11-01
+
+O `.gv` passa a ser a **única** sintaxe de markup.
+
+### Quebras
+
+- **A sintaxe de atributos (XML) deixou de existir como forma de escrever uma tela.** Um
+  `.gv` agora é sempre o markup de blocos (`tag(atributo = valor) { filhos }`), que antes
+  se chamava `.gvb`: renomeie os `.gvb` para `.gv` (o conteúdo não muda) e reescreva em
+  blocos os templates que ainda estejam em XML. O XML sobrevive só como formato **interno**
+  — o que o dessugarador entrega ao parser — e qualquer arquivo com outra extensão (`.xml`)
+  continua sendo lido como esse XML, sem dessugarar.
+- `glacier_ui::gvb` virou `glacier_ui::gv` (`gv::desugar`, `gv::eh_gv`, `gv::EXTENSAO`);
+  `UiNode::parse_gvb_in` virou `parse_gv_in`; o módulo `glacier_ui::gva` foi removido.
+- `<prose syntax="…">` aceita `gv`, `html` e `markdown`; sem `syntax`, vale `gv`.
+- O runner sem `.main_template` procura `views/app.gv` e `app.gv`.
+- Exemplos: `examples/gva` e `examples/gvb` viraram `examples/<nome>/` (o subdiretório de sintaxe e `examples/comum` deixaram de existir; os arquivos compartilhados foram para a pasta de quem os usa, e `rascunhos/` foi removido); os alvos do `cargo run
+  --example` perderam o prefixo (`gvb_contador` → `contador`; `gv_check` e `gv_run` ficam).
+  O `gvb_convert` foi removido.
+- Extensão de VS Code (0.24.0): uma linguagem só (`glacier-view`, `.gv`); a completação e o
+  fechamento automático de tag, que eram do XML, saíram.
+
+---
+
 ## glacier-cli 0.26.2 — 2026-10-31
 
 Motor dos projetos gerados: **glacier-ui 0.147.0**. O `glacier.d.luau` do template ganha `i18n.tr`.

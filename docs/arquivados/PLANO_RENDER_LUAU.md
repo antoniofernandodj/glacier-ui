@@ -20,10 +20,10 @@ propósito e rodar os dois runners.
 
 | Quebra injetada | `glacier test` | `cargo test --test templates_render` |
 |---|---|---|
-| `<tagquebrada` solta no fim de `views/app.gvb` | passou (60 testes) | **falhou** |
+| `<tagquebrada` solta no fim de `views/app.gv` | passou (60 testes) | **falhou** |
 | propriedade inexistente em `views/styles/app.gss` | passou | passou |
 
-Por que o Luau não pega: `component("views/app.gvb")` só carrega as views que o teste chama, e o
+Por que o Luau não pega: `component("views/app.gv")` só carrega as views que o teste chama, e o
 objeto `tela` expõe apenas `call`, `get`, `set`, `data`, `missing` e `toasts` (ver
 `src/luau/testing.rs`, `impl UserData for TestComponent`). Ele olha o **estado**, nunca a **árvore
 avaliada**. O Rust consegue porque chama `GlacierUI::register_app` e percorre os `UiNode`.
@@ -54,7 +54,7 @@ de janela.
 
 ```lua
 function test_o_app_todo_carrega()
-    assert_renders("views/app.gvb")   -- parseia o app e todos os imports, avalia a tela inicial
+    assert_renders("views/app.gv")   -- parseia o app e todos os imports, avalia a tela inicial
 end
 ```
 
@@ -65,7 +65,7 @@ o item de **menor custo e maior valor** deste plano.
 ### 3.2 A árvore avaliada na `tela`
 
 ```lua
-local tela = component("views/service_export_window.gvb", { ... })
+local tela = component("views/service_export_window.gv", { ... })
 tela:call("init")
 
 local arvore = tela:render()                 -- tabela aninhada
@@ -150,7 +150,7 @@ classe do template, não pela escrita no uso. Cada chamada reavalia a tela do ze
 3. **Estabilidade.** O formato é novo e pode crescer (mais variantes em `attrs`/`text`); tratar
    como experimental até o `rustploy-gui` migrar.
 4. **Janelas auxiliares.** Em aberto: `component(path)` carrega uma tela/app; uma janela aberta por
-   `open_window` se testa carregando a tela dela (`component("views/x.gvb")`). `tela:windows()`
+   `open_window` se testa carregando a tela dela (`component("views/x.gv")`). `tela:windows()`
    não foi feito.
 
 ### Migração do rustploy-gui (feita)

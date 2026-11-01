@@ -1,0 +1,67 @@
+/*
+examples/onda8b_luau/app.gss
+
+Folha global. Ela cobre a tela, o corpo dos dois diálogos e os dois
+componentes — uma folha global vale em qualquer nó, inclusive nos que um
+`<component>` ou um `<dialog>` montam.
+*/
+
+:root {
+  --texto: #CDD6F4;
+  --suave: #A6ADC8;
+  --fraco: #7F849C;
+  --faixa: #181825;
+  --borda: #313244;
+}
+
+/* ── Esqueleto ────────────────────────────────────────────────────────── */
+
+.tela  { width: fill; height: fill; }
+.corpo { width: fill; padding: 18 22; spacing: 18; }
+
+.barra {
+  width: fill;
+  padding: 14 18;
+  spacing: 12;
+  align_y: center;
+  background: var(--faixa);
+}
+
+.empurra { width: fill; }
+
+.bloco  { width: fill; padding: 16; }
+.painel { width: fill; spacing: 10; }
+.acoes  { spacing: 10; align_y: center; }
+
+/* ── Texto ────────────────────────────────────────────────────────────── */
+
+.titulo { size: 16; bold: true; color: var(--texto); }
+.secao  { size: 14; bold: true; color: var(--texto); }
+.valor  { size: 13; color: var(--texto); }
+.nota   { size: 12; color: var(--fraco); }
+.status { size: 12; color: var(--fraco); }
+
+/* ── B: corpo do `<dialog editar_perfil>` + o componente `CampoForm` ───── */
+/*
+A cadeia toda é `width: fill` — um `fill` dentro de um pai `shrink` colapsa
+o campo (armadilha do PRIMITIVAS.md). Por isso `.cf-campo` também leva.
+*/
+.dlg-form  { width: fill; spacing: 14; }
+.dlg-fill  { width: fill; }
+.cf-campo  { width: fill; spacing: 6; }
+.cf-label  { size: 12; color: var(--suave); }
+
+/* ── A: o cartão do `<EditorRotulo>` e o corpo do diálogo dele ────────── */
+
+.erd-cartao {
+  width: fill;
+  spacing: 10;
+  padding: 12;
+  border_width: 1;
+  border_color: var(--borda);
+  border_radius: 8;
+}
+.erd-valor { size: 13; color: var(--texto); }
+.erd-form  { width: fill; spacing: 12; }
+.erd-fill  { width: fill; }
+.erd-label { size: 12; color: var(--suave); }

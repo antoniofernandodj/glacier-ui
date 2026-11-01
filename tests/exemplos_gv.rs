@@ -19,23 +19,19 @@ fn gvs(dir: &Path, out: &mut Vec<PathBuf>) {
             gvs(&p, out);
         } else if p
             .extension()
-            .is_some_and(|e| e == "gv" || e == "gva" || e == "gvb")
+            .is_some_and(|e| e == "gv")
         {
             out.push(p);
         }
     }
 }
 
-/// O markup de um template como XML: um `.gvb` é dessugarado (como o motor faz
-/// na leitura), um `.gva`/`.gv` já é XML.
+/// O markup de um template como XML: o `.gv` é dessugarado, como o motor faz
+/// na leitura.
 fn ler_markup(arquivo: &Path) -> String {
     let src = std::fs::read_to_string(arquivo).expect("ler template");
-    if arquivo.extension().is_some_and(|e| e == "gvb") {
-        glacier_ui::gvb::desugar(&src)
-            .unwrap_or_else(|d| panic!("{}: {}", arquivo.display(), d.message))
-    } else {
-        src
-    }
+    glacier_ui::gv::desugar(&src)
+        .unwrap_or_else(|d| panic!("{}: {}", arquivo.display(), d.message))
 }
 
 /// Tira os comentários para "a primeira tag" ser a primeira tag de verdade.
@@ -124,7 +120,7 @@ fn todo_exemplo_parseia_e_tem_cabecalho() {
 /// O parse de um `.gv` não resolve o `src` — o bloco de script é recortado por
 /// texto antes, e o caminho só é lido quando o motor REGISTRA o componente. Um
 /// `src` errado passava por todos os testes e só aparecia ao abrir o app; foi
-/// assim que `examples/gva/stream_lua` ficou apontando para um `.luau` enquanto o
+/// assim que `examples/stream_lua` ficou apontando para um `.luau` enquanto o
 /// arquivo no disco era `.lua`.
 #[test]
 fn todo_script_src_aponta_para_um_arquivo_existente() {

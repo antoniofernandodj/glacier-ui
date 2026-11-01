@@ -4,7 +4,7 @@
 
 **Estado:** **implementado** (glacier-ui 0.139.0). Nasce de `PLANO_APP_TELAS.md` (seção 6):
 com o manifesto funcionando, o `script` ainda só existia **dentro de uma tela**. O exemplo de
-aceitação é `examples/gvb/app_script`. As perguntas da seção 1 estão respondidas em "O que ficou
+aceitação é `examples/app_script`. As perguntas da seção 1 estão respondidas em "O que ficou
 decidido", no fim.
 
 Antes da 0.139, `script` no `resources` do `app` era erro de parse ("o script do app inteiro

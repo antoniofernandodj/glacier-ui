@@ -1,0 +1,109 @@
+screen(title = "Glacier - robustez da camada Luau") {
+  resources {
+    link(rel = stylesheet, href = "examples/robustez_luau/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/robustez_luau/theme.json")
+    script(src = robustez.luau)
+  }
+
+  container(class = caixa) {
+    column(class = coluna) {
+      text(content = "Robustez da camada Luau", class = titulo)
+
+      // storage: persiste em disco, sobrevive a fechar e reabrir o app
+      column(class = coluna_2) {
+        text(
+          content = "Rascunho (storage.get/set — sobrevive a reiniciar o app)",
+          class = nota,
+        )
+
+        input(
+          placeholder = "Escreva algo e clique em Salvar...", :value = rascunho,
+          on_change = rascunho, class = campo,
+        )
+
+        button(
+          text = "Salvar rascunho", on_click = salvar_rascunho, class = botao,
+        )
+      }
+
+      rule(width = 500)
+
+      // after(): temporizador de disparo único, cancelável
+      column(class = coluna_3) {
+        text(content = "Status: @status", class = texto)
+
+        row(class = linha) {
+          button(
+            text = "Iniciar contagem (3s)", on_click = iniciar_temporizador,
+            class = botao_2,
+          )
+
+          button(
+            text = Cancelar, on_click = cancelar_temporizador, class = botao_3,
+          )
+        }
+      }
+
+      rule(width = 500)
+
+      // every(): temporizador repetitivo (equivalente a setInterval),
+      // construído em cima de after()
+      column(class = coluna_3) {
+        text(content = "Tiques: @tiques", class = texto)
+
+        row(class = linha) {
+          button(
+            text = "Iniciar cronômetro (1s)", on_click = iniciar_cronometro,
+            class = botao_2,
+          )
+
+          button(text = Parar, on_click = parar_cronometro, class = botao_3)
+        }
+      }
+
+      rule(width = 500)
+
+      // viewport(): tamanho atual da janela, lido pelo script
+      column(class = coluna_3) {
+        text(
+          content = "Janela na última leitura: @{largura}x@altura",
+          class = texto_2,
+        )
+
+        button(
+          text = "Ler tamanho da janela", on_click = ler_viewport,
+          class = botao,
+        )
+      }
+
+      rule(width = 500)
+
+      // ctx aceita tabela: serializada via json.encode automaticamente
+      column(class = coluna_3) {
+        text(
+          content = "Preferências (tabela -> JSON): @prefs", class = nota_2,
+        )
+
+        button(
+          text = "Gerar preferências (tabela Lua)", on_click = gerar_prefs,
+          class = botao_4,
+        )
+      }
+
+      rule(width = 500)
+
+      // erro de script agora é visível: on_error customiza o toast
+      column(class = coluna_3) {
+        text(content = "Último erro capturado: @ultimo_erro", class = nota_3)
+
+        button(
+          text = "Provocar erro (veja o toast)", on_click = provocar_erro,
+          class = botao_5,
+        )
+      }
+    }
+  }
+}

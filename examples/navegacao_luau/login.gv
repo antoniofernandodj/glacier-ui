@@ -1,0 +1,47 @@
+screen(title = "Glacier - navegação via script Lua · Login") {
+  resources {
+    link(rel = import, href = "examples/navegacao_luau/dashboard.gv", as = dashboard_luau)
+    link(rel = stylesheet, href = "examples/navegacao_luau/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/navegacao_luau/theme.json")
+
+    script """
+      -- Ao contrário do atributo declarativo `navigateTo` (troca de tela sempre que
+      -- o botão é clicado), `navigate(tela)` deixa o SCRIPT decidir: aqui só troca
+      -- de tela se a validação passar — o botão em si não sabe para onde vai.
+      function entrar()
+        if ctx.usuario == "admin" and ctx.senha == "123" then
+          ctx.erro=""
+          navigate("dashboard_luau")
+        else
+          ctx.erro="Usuário ou senha inválidos."
+        end
+      end
+    """
+  }
+
+  container(class = caixa) {
+    column(class = coluna) {
+      text(content = "Entrar", class = titulo)
+      text(content = "dica: admin / 123", class = nota)
+
+      column(class = coluna_2) {
+        input(
+          placeholder = usuário, :value = usuario, on_change = usuario,
+          class = campo,
+        )
+
+        input(
+          placeholder = senha, :value = senha, on_change = senha, secure = true,
+          class = campo,
+        )
+      }
+
+      button(text = Entrar, on_click = entrar, class = botao_2)
+
+      text(content = "@erro", class = texto_2)
+    }
+  }
+}

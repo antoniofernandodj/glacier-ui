@@ -7,7 +7,7 @@
 -- documentação: aparece com `glacier test -vv` e sempre que o teste falha.
 
 local function nova()
-    local tela = component("views/app.gvb")
+    local tela = component("views/app.gv")
     tela:call("init")
     return tela
 end
@@ -36,7 +36,7 @@ function test_zerar_volta_a_zero_e_avisa()
 end
 
 --- Uma chave escrita errada num dos lados passa em todo teste de handler e deixa
---- a tela vazia; `missing()` cruza o que o .gvb lê ({x}, @x, :value, :items…)
+--- a tela vazia; `missing()` cruza o que o .gv lê ({x}, @x, :value, :items…)
 --- com o ctx depois do init e a nomeia.
 function test_toda_chave_que_a_tela_le_e_publicada()
     assert_complete(nova())

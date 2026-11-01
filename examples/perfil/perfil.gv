@@ -1,0 +1,50 @@
+screen(title = "Glacier - Painel de Perfil") {
+  resources {
+    link(rel = stylesheet, href = "examples/perfil/app.gss")
+    // O fundo da janela é do TEMA, não de um `background` na raiz: pintar
+    // um nó `fill/fill` com a cor que o tema já pinta é uma camada a mais
+    // em cada pixel da tela, e ela custa (ver AGENTS.md).
+    link(rel = theme, href = "examples/perfil/theme.json")
+    import(name = PerfilCard, from = "examples/perfil/perfil_card.gv")
+  }
+
+  container(class = caixa) {
+    column(class = "coluna coluna_4") {
+      text(content = "Painel de Controle de Usuário", class = titulo)
+
+      row(class = "linha linha_3") {
+        // Left control panel
+        container(class = caixa_2) {
+          column(class = coluna_2) {
+            text(content = "Editar Nome:", class = destaque)
+
+            input(
+              placeholder = "Digite o nome...", :value = user_name,
+              on_change = mudar_nome, class = campo,
+            )
+
+            text(content = "Editar Cargo:", class = destaque)
+
+            input(
+              placeholder = "Digite o cargo...", :value = user_role,
+              on_change = mudar_cargo, class = campo,
+            )
+
+            text(content = "Atalhos de Cargo:", class = destaque)
+
+            row(class = linha_2) {
+              button(text = Desenvolvedora, on_click = set_dev, class = botao)
+
+              button(
+                text = Designer, on_click = set_designer, class = botao_2,
+              )
+            }
+          }
+        }
+
+        // Right preview card
+        PerfilCard
+      }
+    }
+  }
+}

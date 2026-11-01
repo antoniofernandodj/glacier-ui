@@ -40,7 +40,7 @@ fn on_click_de(node: &glacier_ui::UiNode) -> Option<String> {
 #[test]
 fn rascunho_do_dialogo_sobrevive_ate_o_handler_ler() {
     let gv = escreve(
-        "onda8b_bugb.gv",
+        "onda8b_bugb.xml",
         r#"<screen>
   <resources>
     <script>
@@ -97,7 +97,7 @@ fn dialog_dentro_de_componente_com_script_abre_e_salva() {
         "function salvar()\n  ctx.res = ctx[\"__dialog.v\"] or \"VAZIO\"\nend\n",
     );
     escreve(
-        "onda8b_buga_comp.gv",
+        "onda8b_buga_comp.xml",
         r#"<component>
   <resources>
     <script src="onda8b_buga_comp.luau"></script>
@@ -112,10 +112,10 @@ fn dialog_dentro_de_componente_com_script_abre_e_salva() {
 </component>"#,
     );
     let gv = escreve(
-        "onda8b_buga.gv",
+        "onda8b_buga.xml",
         r#"<screen>
   <resources>
-    <import name="CompX" from="onda8b_buga_comp.gv" />
+    <import name="CompX" from="onda8b_buga_comp.xml" />
   </resources>
   <CompX />
 </screen>"#,

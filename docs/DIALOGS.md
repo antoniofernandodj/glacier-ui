@@ -112,27 +112,24 @@ componente dono da tela ativa, exatamente como um `UiClick` comum.
 
 ## O corpo em markup (`0.94`)
 
-### `<dialog name="…">` — o `QDialog`
+### `dialog(name = "…")` — o `QDialog`
 
-Uma declaração do `<resources>`, ao lado do `<component name="…">` — e por um
+Uma declaração do `<resources>`, ao lado do `component(name = "…")` — e por um
 bom motivo: é o mesmo objeto, um template registrado sob um nome. O que ele tem
 a mais é a moldura.
 
-```xml
-<screen>
-    <resources>
-        <dialog name="editar_servico"
-                title="Editar serviço"
-                buttons="Cancelar::|Salvar:salvar_servico:accept">
-            <Column spacing="10" width="fill">
-                <TextInput value="__dialog.nome" placeholder="api-gateway" width="fill" />
-                <SpinBox value="__dialog.replicas" min="1" max="32" />
-            </Column>
-        </dialog>
-    </resources>
-
-    <Button text="Editar" on_click="dialog:editar_servico" />
-</screen>
+```gv
+screen {
+  resources {
+    dialog(name = editar_servico, title = "Editar serviço", buttons = "Cancelar::|Salvar:salvar_servico:accept") {
+      Column(spacing = 10, width = fill) {
+        TextInput(:value = "__dialog.nome", placeholder = api-gateway, width = fill)
+        SpinBox(:value = "__dialog.replicas", min = 1, max = 32)
+      }
+    }
+  }
+  Button(text = Editar, on_click = "dialog:editar_servico")
+}
 ```
 
 Nada desenha onde a tag está escrita: a declaração viaja pendurada na raiz, como
@@ -162,7 +159,7 @@ um `update` chamado `cancelar`, ele passaria a disparar sozinho.
 
 A terceira família de prefixos de ação, depois do `app:` (0.63) e do `::` de
 dono. `dialog:nome` abre; `dialog:close` (ou `dialog:fechar`) fecha. Vale em
-qualquer rota que produza uma ação — `<button on_click>`, `<menuitem>`, e o botão
+qualquer rota que produza uma ação — `button(on_click)`, `<menuitem>`, e o botão
 de outro diálogo, que é como um modal encadeia noutro.
 
 Um nome que não existe é **ignorado em silêncio**: a alternativa seria derrubar o

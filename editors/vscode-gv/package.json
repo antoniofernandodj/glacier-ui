@@ -1,8 +1,8 @@
 {
   "name": "glacier-view",
   "displayName": "Glacier View",
-  "description": "Language support for Glacier View markup — .gva (attributes/XML, the former .gv, still accepted) and .gvb (blocks): syntax highlighting plus clickable links and go-to-definition from <script src>, action attributes, <link>/<style> sheets, class/id attributes, imports and component tags to the files (and functions) they name.",
-  "version": "0.23.3",
+  "description": "Language support for Glacier View markup (.gv): syntax highlighting plus clickable links and go-to-definition from script(src), action attributes, link/style sheets, class/id attributes, imports and component tags to the files (and functions) they name.",
+  "version": "0.24.0",
   "publisher": "antoniofernandodj",
   "license": "MIT",
   "author": {
@@ -23,46 +23,25 @@
     "glacier",
     "glacier-ui",
     "gv",
-    "gva",
-    "gvb",
     "glacier view"
   ],
   "icon": "icons/marketplace.png",
   "activationEvents": [
-    "onLanguage:glacier-view",
-    "onLanguage:glacier-view-block"
+    "onLanguage:glacier-view"
   ],
   "contributes": {
     "languages": [
       {
         "id": "glacier-view",
         "aliases": [
-          "Glacier View (gva)",
           "Glacier View",
           "GlacierView",
-          "gva",
           "gv"
         ],
         "extensions": [
-          ".gva",
           ".gv"
         ],
         "configuration": "./language-configuration.json",
-        "icon": {
-          "light": "./icons/gv-file.svg",
-          "dark": "./icons/gv-file.svg"
-        }
-      },
-      {
-        "id": "glacier-view-block",
-        "aliases": [
-          "Glacier View (blocos)",
-          "gvb"
-        ],
-        "extensions": [
-          ".gvb"
-        ],
-        "configuration": "./language-configuration-block.json",
         "icon": {
           "light": "./icons/gv-file.svg",
           "dark": "./icons/gv-file.svg"
@@ -72,7 +51,7 @@
     "grammars": [
       {
         "language": "glacier-view",
-        "scopeName": "text.glacier-view",
+        "scopeName": "source.glacier-view",
         "path": "./syntaxes/glacier-view.tmLanguage.json",
         "embeddedLanguages": {
           "meta.embedded.block.lua": "lua",
@@ -82,26 +61,7 @@
       {
         "scopeName": "source.glacier-luau",
         "path": "./syntaxes/glacier-luau.tmLanguage.json"
-      },
-      {
-        "language": "glacier-view-block",
-        "scopeName": "source.glacier-view-block",
-        "path": "./syntaxes/glacier-view-block.tmLanguage.json",
-        "embeddedLanguages": {
-          "meta.embedded.block.lua": "lua",
-          "meta.embedded.block.gss": "gss"
-        }
       }
-    ],
-    "configuration": {
-      "title": "Glacier View",
-      "properties": {
-        "glacierView.autoClosingTags": {
-          "type": "boolean",
-          "default": true,
-          "description": "Ao terminar uma tag de abertura com `>`, inserir a tag de fechamento correspondente e deixar o cursor entre as duas."
-        }
-      }
-    }
+    ]
   }
 }

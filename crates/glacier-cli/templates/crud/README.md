@@ -11,9 +11,9 @@ cargo run
 ## O mapa
 
 ```
-src/main.rs                        a casca: registra views/app.gvb
+src/main.rs                        a casca: registra views/app.gv
 views/
-├── app.gvb                         <tableview :items="linhas" :columns="colunas" :value="sel" :sort="ordem">
+├── app.gv                         <tableview :items="linhas" :columns="colunas" :value="sel" :sort="ordem">
 ├── scripts/state.luau             o DEPÓSITO: { itens: {Servico}, seq } tipado
 ├── scripts/handlers/itens.luau    a VITRINE: publicar() filtra e encoda; novo()/editar()/excluir()
 └── styles/{theme.json, app.gss}
