@@ -88,7 +88,13 @@ fn main() {
         let (mut ok, mut ruim) = (0, 0);
         for f in &args[1..] {
             let mut ui = glacier_ui::GlacierUI::new();
-            match ui.register_component("t", f) {
+            // Raiz `app(...)`: é um manifesto, carregado como o daemon o faz.
+            let r = if ui.is_app_file(f) {
+                ui.register_app(f)
+            } else {
+                ui.register_component("t", f)
+            };
+            match r {
                 Ok(()) => ok += 1,
                 Err(e) => {
                     ruim += 1;
