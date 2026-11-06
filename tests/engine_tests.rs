@@ -2611,6 +2611,30 @@ fn test_gss_fill_and_max_width_resolve_from_class() {
     std::fs::remove_file(path).ok();
 }
 
+#[test]
+fn test_gss_size_and_bold_reach_a_textinput() {
+    // Um "título editável" é um `textinput` com `size`/`bold` na classe: o
+    // `.gss` precisa chegar ao nó (antes só o `Button` recebia).
+    let mut motor = GlacierUI::new();
+    std::fs::create_dir_all("templates").ok();
+
+    let gss = "templates/test_titulo_input.gss";
+    std::fs::write(gss, ".titulo { size: 30; bold: true; }").unwrap();
+
+    let path = "templates/test_titulo_input.xml";
+    std::fs::write(path, envolve(r##"<textinput class="titulo" />"##)).unwrap();
+
+    motor.load_stylesheet(gss).unwrap();
+    motor.register_component("titulo_input", path).unwrap();
+
+    let n = motor.evaluated("titulo_input").unwrap();
+    assert_eq!(n.text_size(), Some(30.0), "size da classe chega ao textinput");
+    assert_eq!(n.text_bold(), Some(true), "bold da classe chega ao textinput");
+
+    std::fs::remove_file(gss).ok();
+    std::fs::remove_file(path).ok();
+}
+
 /// Helper: extract the `color` of an evaluated Text node.
 fn text_color(node: &NodeType) -> Option<String> {
     if let NodeType::Text { color, .. } = node {

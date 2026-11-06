@@ -4068,14 +4068,20 @@ fn eval_owned(
             gradient: gradient_eval,
             text_align: text_align_eval,
             text_color: text_color_eval,
-            // Só o `Button` lê: o tipo dele não tem `size`/`bold`, então o
-            // `.gss` chega ao rótulo por aqui.
-            text_size: if matches!(node.kind, NodeType::Button { .. }) {
+            // Só o `Button` e o `TextInput` leem: o tipo deles não tem
+            // `size`/`bold`, então o `.gss` chega ao rótulo/texto por aqui.
+            text_size: if matches!(
+                node.kind,
+                NodeType::Button { .. } | NodeType::TextInput { .. }
+            ) {
                 node.text_size().or(style.size)
             } else {
                 None
             },
-            text_bold: if matches!(node.kind, NodeType::Button { .. }) {
+            text_bold: if matches!(
+                node.kind,
+                NodeType::Button { .. } | NodeType::TextInput { .. }
+            ) {
                 node.text_bold().or(style.bold)
             } else {
                 None

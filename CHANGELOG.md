@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.150.1 — 2026-11-06
+
+- Correção da 0.150.0: o `size`/`bold` vindos de uma classe `.gss` só chegavam ao `Button`; agora chegam também ao `textinput`, que é onde a 0.150.0 os lê.
+
 ## glacier-ui 0.150.0 — 2026-11-06
 
 - `textinput` de uma linha passa a honrar `size` e `bold` da classe (antes só `font`): dá para fazer um "título editável", um input sem borda com a cara de um `text`.
