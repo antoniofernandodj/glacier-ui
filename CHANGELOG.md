@@ -8,6 +8,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.150.0 — 2026-11-06
+
+- `textinput` de uma linha passa a honrar `size` e `bold` da classe (antes só `font`): dá para fazer um "título editável", um input sem borda com a cara de um `text`.
+
+---
+
 ## glacier-cli 0.28.0 — 2026-11-01
 
 Motor dos projetos gerados: **glacier-ui 0.149.0**. Templates, exemplos e `AGENTS.md` só com o vocabulário `snake_case` em inglês; o texto longo de um `text` vai como primeiro argumento (`text("""…""", class = x)`).

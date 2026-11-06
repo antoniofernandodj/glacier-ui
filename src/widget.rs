@@ -1111,6 +1111,17 @@ fn single_line_editor<'a>(
 
     if let Some(f) = font_for(node.font()) {
         ed = ed.font(f);
+    } else if node.text_bold() == Some(true) {
+        // `bold: true` na classe (o mesmo de um `text`), sem `font` explícito.
+        ed = ed.font(Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        });
+    }
+    // `size` da classe: o campo de uma linha também pode ser um "título
+    // editável" (input disfarçado de `text`), não só um campo de 13px.
+    if let Some(sz) = node.text_size() {
+        ed = ed.size(sz);
     }
     // Largura: o default do `text_editor` já é `Fill` (igual ao `text_input`);
     // só um px fixo do markup precisa ser aplicado (o setter é `impl Into<Pixels>`).
