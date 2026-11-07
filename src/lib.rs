@@ -1212,7 +1212,8 @@ impl GlacierUI {
     fn prune_expired_toasts(&mut self) {
         let now = iced::time::Instant::now();
         self.toasts
-            .retain(|t| now.duration_since(t.shown_at) < t.spec.duration);
+            // `EXIT`: depois do tempo de exibição o cartão ainda desliza para fora.
+            .retain(|t| now.duration_since(t.shown_at) < t.spec.duration + toasts::EXIT);
     }
 
     /// Renders the current active screen, with the active dialog (if any),
@@ -1255,7 +1256,11 @@ impl GlacierUI {
             camadas.push(dialogs::overlay(spec, &self.theme(), body));
         }
         if !self.toasts.is_empty() {
-            let active = self.toasts.iter().map(|t| (t.id, &t.spec));
+            let agora = iced::time::Instant::now();
+            let active = self
+                .toasts
+                .iter()
+                .map(|t| (t.id, &t.spec, agora.duration_since(t.shown_at)));
             camadas.push(toasts::overlay(active, &self.theme()));
         }
         if let Some(state) = &self.active_menu {

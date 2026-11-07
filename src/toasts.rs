@@ -18,9 +18,14 @@
 //! sem ele os toasts continuam sendo mostrados/fechados manualmente (clique no
 //! "×"), só não somem sozinhos.
 
+use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::{Clipboard, Layout, Shell, Widget, layout, mouse, overlay, renderer};
 use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
-use std::time::Duration;
+use iced::{
+    Alignment, Background, Border, Color, Element, Event, Length, Rectangle, Shadow, Size, Vector,
+    window,
+};
+use std::time::{Duration, Instant};
 
 use crate::widget::EngineMessage;
 
@@ -119,6 +124,213 @@ impl ToastSpec {
     }
 }
 
+/// Quanto dura a entrada (o cartão sobe de baixo) e a saída (desliza para fora da tela).
+/// A saída acontece **depois** de `duration`, então o motor só remove o toast ao fim dela
+/// (ver [`EXIT`] em `prune_expired_toasts`).
+pub const ENTER: Duration = Duration::from_millis(280);
+pub const EXIT: Duration = Duration::from_millis(240);
+
+/// Quanto o cartão sobe na entrada, em pixels.
+const ENTER_RISE: f32 = 28.0;
+
+fn ease_out(t: f32) -> f32 {
+    1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
+}
+
+fn ease_in(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * t
+}
+
+/// Embrulho que anima o cartão: **sobe** ao aparecer, **desliza para a direita** ao sair e
+/// desenha uma barra lateral que começa cheia e vai esvaziando até o fim do tempo de exibição.
+///
+/// O relógio é do próprio widget (`base` + o tempo desde que a `view` foi montada), e não do
+/// motor, porque o iced só remonta a `view` a cada mensagem: entre duas mensagens o `draw` roda
+/// com o mesmo `Element`, e é ele quem tem de saber que o tempo passou. Sem estado na árvore
+/// de propósito — a árvore do iced é posicional, e quando um toast da frente some os de trás
+/// herdariam o estado errado.
+struct Animado<'a> {
+    filho: Element<'a, EngineMessage>,
+    /// Há quanto tempo o toast estava em exibição quando a `view` foi montada.
+    base: Duration,
+    montado_em: Instant,
+    duration: Duration,
+    accent: Color,
+}
+
+impl Animado<'_> {
+    fn decorrido(&self) -> Duration {
+        self.base + self.montado_em.elapsed()
+    }
+
+    fn terminou(&self) -> bool {
+        self.decorrido() >= self.duration + EXIT
+    }
+}
+
+impl<'a> Widget<EngineMessage, iced::Theme, iced::Renderer> for Animado<'a> {
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.filho)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.filho));
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.filho.as_widget().size()
+    }
+
+    fn size_hint(&self) -> Size<Length> {
+        self.filho.as_widget().size_hint()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &iced::Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.filho
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        use iced::advanced::Renderer as _;
+
+        let bounds = layout.bounds();
+        let e = self.decorrido();
+
+        // Entrada: sobe e assenta. Saída: desliza para fora pela direita.
+        let t_in = e.as_secs_f32() / ENTER.as_secs_f32();
+        let t_out = e.saturating_sub(self.duration).as_secs_f32() / EXIT.as_secs_f32();
+        let deslocamento = Vector::new(
+            ease_in(t_out) * (bounds.width + 40.0),
+            (1.0 - ease_out(t_in)) * ENTER_RISE,
+        );
+
+        renderer.with_translation(deslocamento, |renderer| {
+            self.filho.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                style,
+                layout,
+                cursor,
+                viewport,
+            );
+
+            // A barra lateral: cheia no começo, vazia no fim; o topo desce.
+            let restante = 1.0 - (e.as_secs_f32() / self.duration.as_secs_f32().max(0.001)).clamp(0.0, 1.0);
+            let altura_total = (bounds.height - 18.0).max(0.0);
+            let altura = altura_total * restante;
+            if altura > 0.5 {
+                renderer.fill_quad(
+                    renderer::Quad {
+                        bounds: Rectangle {
+                            x: bounds.x + 5.0,
+                            y: bounds.y + 9.0 + (altura_total - altura),
+                            width: 3.0,
+                            height: altura,
+                        },
+                        border: Border {
+                            radius: iced::border::Radius::new(1.5),
+                            ..Border::default()
+                        },
+                        ..renderer::Quad::default()
+                    },
+                    Background::Color(self.accent),
+                );
+            }
+        });
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        op: &mut dyn Operation,
+    ) {
+        self.filho
+            .as_widget_mut()
+            .operate(&mut tree.children[0], layout, renderer, op);
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, EngineMessage>,
+        viewport: &Rectangle,
+    ) {
+        self.filho.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+        // O iced redesenha sob demanda: enquanto o toast anima (entra, esvazia a barra, sai),
+        // cada quadro pede o seguinte (~30 fps bastam para uma barra e um deslize).
+        if let Event::Window(window::Event::RedrawRequested(now)) = event
+            && !self.terminou()
+        {
+            shell.request_redraw_at(*now + Duration::from_millis(33));
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        self.filho
+            .as_widget()
+            .mouse_interaction(&tree.children[0], layout, cursor, viewport, renderer)
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &iced::Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, EngineMessage, iced::Theme, iced::Renderer>> {
+        self.filho
+            .as_widget_mut()
+            .overlay(&mut tree.children[0], layout, renderer, viewport, translation)
+    }
+}
+
+impl<'a> From<Animado<'a>> for Element<'a, EngineMessage> {
+    fn from(w: Animado<'a>) -> Self {
+        Element::new(w)
+    }
+}
+
 /// Renderiza a pilha de toasts ativos como um overlay não-modal, ancorado no
 /// canto inferior direito da tela. Ao contrário de [`crate::dialogs::overlay`],
 /// não cobre a tela inteira com um fundo capturando clique/hover — só os
@@ -127,17 +339,25 @@ impl ToastSpec {
 ///
 /// `active` é `(id, spec)` de cada toast em exibição, na ordem em que devem
 /// aparecer (mais antigo no topo, mais recente embaixo — a ordem de
-/// [`crate::GlacierUI`]'s lista interna). Cada cartão tem um botão "×" que
+/// [`crate::GlacierUI`]'s lista interna), com há quanto tempo cada um está em exibição
+/// (anima a entrada, a barra de tempo e a saída). Cada cartão tem um botão "×" que
 /// despacha [`EngineMessage::ToastDismiss`] com o `id` correspondente.
 pub fn overlay<'a>(
-    active: impl IntoIterator<Item = (u64, &'a ToastSpec)>,
+    active: impl IntoIterator<Item = (u64, &'a ToastSpec, Duration)>,
     theme: &iced::Theme,
 ) -> Element<'a, EngineMessage> {
     let palette = theme.extended_palette();
 
     let mut list = column![].spacing(10).align_x(Alignment::End);
-    for (id, spec) in active {
-        list = list.push(toast_card(id, spec, palette));
+    let montado_em = Instant::now();
+    for (id, spec, decorrido) in active {
+        list = list.push(Animado {
+            filho: toast_card(id, spec, palette),
+            base: decorrido,
+            montado_em,
+            duration: spec.duration,
+            accent: spec.kind.color(palette),
+        });
     }
 
     container(list)
@@ -182,7 +402,12 @@ fn toast_card<'a>(
     let card_bg = palette.background.weak.color;
     container(card)
         .width(Length::Fixed(320.0))
-        .padding(14)
+        .padding(iced::Padding {
+            top: 14.0,
+            right: 14.0,
+            bottom: 14.0,
+            left: 20.0,
+        })
         .style(move |_theme: &iced::Theme| container::Style {
             background: Some(Background::Color(card_bg)),
             border: Border {

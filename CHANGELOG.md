@@ -8,6 +8,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.151.0 — 2026-11-07
+
+- **`textinput` de uma linha rola na horizontal.** O `text_editor` do iced nunca rolou o campo: o texto digitado ou colado além da largura ficava escondido e o cursor saía de vista. Agora a janela acompanha o cursor (digitar, colar, setas, Home/End, seleção por Shift e arrasto), e cliques e IME levam a rolagem em conta. O deslocamento é inteiro: um valor fracionário mutilava os glifos no renderer.
+- **Toast animado.** O cartão sobe ao aparecer, uma barra lateral na cor do tipo esvazia até o fim do tempo de exibição, e depois o cartão desliza para a direita e sai (`toasts::ENTER`/`EXIT`). O motor mantém o toast por `duration` + `EXIT`. A animação usa o relógio do próprio widget, sem depender do período de `toast_subscription`.
+- `toasts::overlay` recebe agora `(id, spec, decorrido)` em vez de `(id, spec)` (API interna do motor; não afeta quem só usa `show_toast`).
+
 ## glacier-ui 0.150.1 — 2026-11-06
 
 - Correção da 0.150.0: o `size`/`bold` vindos de uma classe `.gss` só chegavam ao `Button`; agora chegam também ao `textinput`, que é onde a 0.150.0 os lê.

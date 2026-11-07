@@ -28,7 +28,7 @@ use iced::{
     Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
 };
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::ops;
 use std::ops::DerefMut;
@@ -270,7 +270,8 @@ where
         let internal = self.content.0.borrow_mut();
 
         let text_bounds = bounds.shrink(self.padding);
-        let translation = text_bounds.position() - Point::ORIGIN;
+        let translation =
+            text_bounds.position() - Point::ORIGIN - Vector::new(state.hscroll.get(), 0.0);
 
         let cursor = match internal.editor.selection() {
             Selection::Caret(position) => position,
@@ -421,6 +422,12 @@ pub struct State<Highlighter: text::Highlighter> {
     drag_click: Option<mouse::click::Kind>,
     partial_scroll: f32,
     scroll_drag: Option<ScrollDrag>,
+    /// Deslocamento horizontal do texto (só com `Wrapping::None`): o iced não rola o campo
+    /// para o cursor, então o `draw` calcula aqui quanto do começo da linha fica escondido.
+    hscroll: Cell<f32>,
+    /// Onde o cursor estava na última vez que não havia seleção — a âncora de uma seleção
+    /// com Shift+setas ou arrasto, para saber qual ponta dela é o cursor.
+    last_caret_x: Cell<f32>,
     last_theme: RefCell<Option<String>>,
     highlighter: RefCell<Highlighter>,
     highlighter_settings: Highlighter::Settings,
@@ -494,6 +501,8 @@ where
             drag_click: None,
             partial_scroll: 0.0,
             scroll_drag: None,
+            hscroll: Cell::new(0.0),
+            last_caret_x: Cell::new(0.0),
             last_theme: RefCell::default(),
             highlighter: RefCell::new(Highlighter::new(&self.highlighter_settings)),
             highlighter_settings: self.highlighter_settings.clone(),
@@ -939,16 +948,26 @@ where
                     );
                 });
             }
-        } else {
-            renderer.fill_editor(
-                &internal.editor,
-                text_bounds.position(),
-                style.value,
-                text_bounds,
-            );
         }
 
-        let translation = text_bounds.position() - Point::ORIGIN;
+        // Rolagem horizontal (só sem quebra de linha): mantém o cursor à vista.
+        let hscroll = if matches!(self.wrapping, Wrapping::None) {
+            let hs = hscroll_to_follow_caret(&internal.editor, state, text_bounds.width);
+            state.hscroll.set(hs);
+            hs
+        } else {
+            0.0
+        };
+        let origin = Point::new(text_bounds.x - hscroll, text_bounds.y);
+
+        if !internal.editor.is_empty() {
+            // Camada recortada: com o texto deslocado, o que passa da caixa não pode vazar.
+            renderer.with_layer(text_bounds, |renderer| {
+                renderer.fill_editor(&internal.editor, origin, style.value, text_bounds);
+            });
+        }
+
+        let translation = origin - Point::ORIGIN;
 
         if let Some(focus) = state.focus.as_ref() {
             match internal.editor.selection() {
@@ -1120,6 +1139,63 @@ enum Ime {
     Commit(String),
 }
 
+/// Quanto do começo de uma linha sem quebra fica escondido à esquerda para o cursor aparecer.
+///
+/// O `text_editor` do iced (que esta cópia herda) nunca rola na horizontal: o texto digitado
+/// além da largura do campo ficava escondido, com a janela parada no começo. Aqui o cursor
+/// manda: se sai pela direita a janela anda até ele, se sai pela esquerda volta, e com o cursor
+/// no fim do texto a janela encosta nele (apagar não deixa um vazio à direita).
+fn hscroll_to_follow_caret<H: Highlighter>(
+    editor: &Editor,
+    state: &State<H>,
+    width: f32,
+) -> f32 {
+    const MARGIN: f32 = 2.0;
+    let mut hs = state.hscroll.get();
+
+    let caret_x = match editor.selection() {
+        Selection::Caret(point) => {
+            state.last_caret_x.set(point.x);
+            point.x
+        }
+        Selection::Range(ranges) => {
+            let anchor = state.last_caret_x.get();
+            let left = ranges.iter().map(|r| r.x).fold(f32::INFINITY, f32::min);
+            let right = ranges
+                .iter()
+                .map(|r| r.x + r.width)
+                .fold(f32::NEG_INFINITY, f32::max);
+            if !left.is_finite() || !right.is_finite() {
+                return hs;
+            }
+            // O cursor é a ponta da seleção que não é a âncora.
+            if (anchor - left).abs() < (anchor - right).abs() {
+                right
+            } else {
+                left
+            }
+        }
+    };
+
+    if caret_x < hs {
+        hs = caret_x;
+    } else if caret_x + MARGIN > hs + width {
+        hs = caret_x + MARGIN - width;
+    } else if hs > 0.0 {
+        let cursor = editor.cursor();
+        let at_end = editor.line(cursor.position.line).is_some_and(|line| {
+            cursor.position.column >= line.text.chars().count()
+                || cursor.position.column >= line.text.len()
+        });
+        if at_end {
+            hs = (caret_x + MARGIN - width).max(0.0);
+        }
+    }
+
+    // Inteiro: um deslocamento fracionário desalinha o cache de glifos do renderer.
+    hs.max(0.0).ceil()
+}
+
 impl<Message> Update<Message> {
     fn from_event<H: Highlighter>(
         event: &Event,
@@ -1135,8 +1211,8 @@ impl<Message> Update<Message> {
             Event::Mouse(event) => match event {
                 mouse::Event::ButtonPressed(mouse::Button::Left) => {
                     if let Some(cursor_position) = cursor.position_in(bounds) {
-                        let cursor_position =
-                            cursor_position - Vector::new(padding.left, padding.top);
+                        let cursor_position = cursor_position
+                            - Vector::new(padding.left - state.hscroll.get(), padding.top);
 
                         let click = mouse::Click::new(
                             cursor_position,
@@ -1154,8 +1230,8 @@ impl<Message> Update<Message> {
                 mouse::Event::ButtonReleased(mouse::Button::Left) => Some(Update::Release),
                 mouse::Event::CursorMoved { .. } => match state.drag_click {
                     Some(mouse::click::Kind::Single) => {
-                        let cursor_position =
-                            cursor.position_in(bounds)? - Vector::new(padding.left, padding.top);
+                        let cursor_position = cursor.position_in(bounds)?
+                            - Vector::new(padding.left - state.hscroll.get(), padding.top);
 
                         Some(Update::Drag(cursor_position))
                     }
