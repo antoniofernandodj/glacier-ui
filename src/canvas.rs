@@ -498,7 +498,7 @@ mod tests {
             ("nums", "[1, 2.5, 3]"),
             (
                 "objs",
-                r#"[{"label":"Jan","value":10},{"nome":"Fev","valor":"20"}]"#,
+                r#"[{"label":"Jan","value":10},{"label":"Fev","value":"20"}]"#,
             ),
         ]);
 

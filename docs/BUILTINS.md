@@ -684,7 +684,7 @@ app usam `CamelCase`, e por isso não colidem).
 
 ## Um builtin que é o corpo de um diálogo (0.94)
 
-Três builtins da Onda 8 — `__InputDialog`, `__ProgressDialog` e `__ColorDialog`
+Três builtins da Onda 8 — `__inputdialog`, `__progressdialog` e `__colordialog`
 — quebram a regra que todos os outros seguem: eles **não são escritos como tag
 numa tela**. Quem os monta é o motor, como corpo de um `DialogSpec`, a partir de
 um `prompt{}`/`progress{}`/`pick_color{}` da camada Luau.
@@ -749,7 +749,7 @@ não inlinado numa tela, então não há dono — e a ação sai nua, indo parar
 ativa. Por isso o template escreve o namespace à mão:
 
 ```gv
-textinput(:value = "__dialog.value", on_change = "__InputDialog::editar")
+textinput(:value = "__dialog.value", on_change = "__inputdialog::editar")
 ```
 
 **Como testar isso**, já que o sintoma é silencioso: procure a ação de `on_change`

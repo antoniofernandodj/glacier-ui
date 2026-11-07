@@ -51,7 +51,7 @@ use crate::component::{Component, Context, Template};
 
 /// O nome sob o qual o motor monta este corpo. `__` porque é peça interna, não
 /// tag para escrever numa tela.
-pub const PROGRESS_DIALOG_BODY: &str = "__ProgressDialog";
+pub const PROGRESS_DIALOG_BODY: &str = "__progressdialog";
 
 pub struct ProgressDialog;
 

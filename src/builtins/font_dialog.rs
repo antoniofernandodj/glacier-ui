@@ -27,7 +27,7 @@
 ///
 /// # Por que lê chaves globais em vez de props
 ///
-/// A mesma razão do `__InputDialog`/`__ColorDialog`: este corpo é montado por
+/// A mesma razão do `__inputdialog`/`__colordialog`: este corpo é montado por
 /// `render(nome)` como template de topo, não inlinado numa tela, então não há
 /// uso de tag onde pendurar props. A configuração chega por chaves que o motor
 /// semeia (`__dialog.value` = família, `__dialog.size` = tamanho).
@@ -35,7 +35,7 @@ use crate::component::{Component, Context, Template};
 
 /// O nome sob o qual o motor monta este corpo. `__` porque é peça interna, não
 /// tag de tela.
-pub const FONT_DIALOG_BODY: &str = "__FontDialog";
+pub const FONT_DIALOG_BODY: &str = "__fontdialog";
 
 pub struct FontDialog;
 
@@ -48,7 +48,7 @@ impl Component for FontDialog {
         // `FontSelect` escreve `__dialog.value` sozinho (o payload `pick:` já
         // carrega a chave), e o `SpinBox` escreve `__dialog.size` sozinho —
         // por isso este corpo não tem `update`: não há campo decorativo a
-        // socorrer, ao contrário do `TextInput` do `__InputDialog`.
+        // socorrer, ao contrário do `TextInput` do `__inputdialog`.
         Template::Inline(
             r##"
                 column(spacing = 12, width = fill) {
@@ -69,6 +69,6 @@ impl Component for FontDialog {
     /// Sem estado próprio: o `FontSelect` e o `SpinBox` de dentro escrevem
     /// as próprias chaves (`__dialog.value` / `__dialog.size`), e o aceite lê
     /// `__dialog.value` direto. Não há campo decorativo a socorrer como o
-    /// `TextInput` do `__InputDialog`.
+    /// `TextInput` do `__inputdialog`.
     fn update(&mut self, _action: &str, _value: Option<&str>, _ctx: &mut Context) {}
 }

@@ -415,7 +415,7 @@ fn spread_preserva_lista_aninhada() {
         &format!(
             r##"<screen title="T">
                 <resources><link rel="import" href="{card}" as="Card" /></resources>
-                <column><card for_each="itens" var="c" spread="{{c}}" /></column>
+                <column><Card for_each="itens" var="c" spread="{{c}}" /></column>
             </screen>"##
         ),
     );

@@ -178,7 +178,7 @@ fn prompt_devolve_o_valor_da_chave() {
     // O diálogo abriu com corpo, e o rascunho já está semeado — o valor
     // inicial precisa estar lá no PRIMEIRO quadro, senão o campo pisca vazio.
     let spec = motor.dialog().expect("prompt abriu um diálogo");
-    assert_eq!(spec.body.as_deref(), Some("__InputDialog"));
+    assert_eq!(spec.body.as_deref(), Some("__inputdialog"));
     assert_eq!(
         motor.get_data("__dialog.value").map(String::as_str),
         Some("antes")
@@ -326,7 +326,7 @@ fn progresso_nao_suspende_e_mora_numa_chave() {
         "progress() não pode suspender — ele acompanha um trabalho em curso"
     );
     let spec = motor.dialog().expect("o diálogo continua aberto");
-    assert_eq!(spec.body.as_deref(), Some("__ProgressDialog"));
+    assert_eq!(spec.body.as_deref(), Some("__progressdialog"));
     assert!(
         !spec.dismissible,
         "não se dispensa um progresso clicando fora"
@@ -563,7 +563,7 @@ fn pick_color_e_um_prompt_com_roda() {
     let _ = motor.dispatch(&EngineMessage::UiClick("escolher".into()));
 
     let spec = motor.dialog().expect("abriu");
-    assert_eq!(spec.body.as_deref(), Some("__ColorDialog"));
+    assert_eq!(spec.body.as_deref(), Some("__colordialog"));
     assert_eq!(
         motor.get_data("__dialog.value").map(String::as_str),
         Some("#336699"),
@@ -641,7 +641,7 @@ fn digitar_no_prompt_escreve_a_chave() {
 
     // A ação que o campo do corpo realmente despacha. Achá-la na árvore
     // avaliada é o ponto do teste: se ela for vazia, o campo é decorativo.
-    let corpo = motor.evaluated("__InputDialog").expect("corpo montado");
+    let corpo = motor.evaluated("__inputdialog").expect("corpo montado");
     let acao = acao_do_primeiro_textinput(corpo).expect("o corpo tem um <textinput>");
     assert!(
         !acao.is_empty(),
@@ -718,7 +718,7 @@ fn hex_parcial_nao_mexe_na_cor() {
     // Digitando `#ff8800` uma tecla por vez. Só a última é uma cor.
     for parcial in ["", "#", "#f", "#ff", "#ff8", "#ff88", "#ff880"] {
         let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-            action: "__ColorDialog::hex".into(),
+            action: "__colordialog::hex".into(),
             value: parcial.into(),
         });
         assert_eq!(
@@ -734,7 +734,7 @@ fn hex_parcial_nao_mexe_na_cor() {
     }
 
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "__ColorDialog::hex".into(),
+        action: "__colordialog::hex".into(),
         value: "#ff8800".into(),
     });
     assert_eq!(
@@ -746,7 +746,7 @@ fn hex_parcial_nao_mexe_na_cor() {
     // A caixa alta comete, normalizada — uma chave que ora tem `#FF00AA` ora
     // `#ff00aa` faz duas comparações de igualdade discordarem.
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "__ColorDialog::hex".into(),
+        action: "__colordialog::hex".into(),
         value: "FF00AA".into(),
     });
     assert_eq!(
@@ -757,7 +757,7 @@ fn hex_parcial_nao_mexe_na_cor() {
     // Aceitar com o campo num estado inválido devolve a última cor VÁLIDA, não
     // o texto quebrado — quem chamou `pick_color{}` não precisa validar.
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "__ColorDialog::hex".into(),
+        action: "__colordialog::hex".into(),
         value: "#zz".into(),
     });
     let aceitar = motor
@@ -829,8 +829,8 @@ fn o_corpo_do_dialogo_chega_a_tela() {
     // Uma tela de verdade, com mais de um template registrado — é a condição
     // em que a economia do motor descarta o que não está em uso.
     for (acao, corpo) in [
-        ("pedir_texto", "__InputDialog"),
-        ("escolher_cor", "__ColorDialog"),
+        ("pedir_texto", "__inputdialog"),
+        ("escolher_cor", "__colordialog"),
     ] {
         let mut motor = GlacierUI::new();
         motor
@@ -901,7 +901,7 @@ fn o_corpo_e_solto_no_fechamento() {
     motor.navigate_to("onda8_luau");
 
     let _ = motor.dispatch(&EngineMessage::UiClick("pedir_texto".into()));
-    assert!(motor.render("__InputDialog").is_ok());
+    assert!(motor.render("__inputdialog").is_ok());
 
     let cancelar = motor.dialog().unwrap().buttons[0].action.clone();
     let _ = motor.dispatch(&EngineMessage::DialogButton(cancelar));
@@ -910,7 +910,7 @@ fn o_corpo_e_solto_no_fechamento() {
     // (`evaluated`) mas fora do trabalho de todo quadro.
     assert!(motor.dialog().is_none());
     assert!(
-        motor.render("__InputDialog").is_err(),
+        motor.render("__inputdialog").is_err(),
         "o corpo continuou fixado depois de o diálogo fechar"
     );
 }
@@ -934,9 +934,9 @@ fn progresso_sobrevive_ao_turno_que_o_abriu() {
     let spec = motor
         .dialog()
         .expect("o progresso tem de continuar aberto depois do turno");
-    assert_eq!(spec.body.as_deref(), Some("__ProgressDialog"));
+    assert_eq!(spec.body.as_deref(), Some("__progressdialog"));
     assert!(
-        motor.render("__ProgressDialog").is_ok(),
+        motor.render("__progressdialog").is_ok(),
         "e o corpo dele tem de chegar à tela"
     );
     assert_eq!(
@@ -976,7 +976,7 @@ fn o_corpo_do_progresso_tem_conteudo() {
     let _ = motor.dispatch(&EngineMessage::UiClick("baixar".into()));
 
     let arvore = motor
-        .evaluated("__ProgressDialog")
+        .evaluated("__progressdialog")
         .expect("avaliado")
         .clone();
     assert!(
@@ -1029,7 +1029,7 @@ fn as_quatro_variantes_do_prompt_desenham_campos_diferentes() {
         motor.navigate_to("tela");
         let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
 
-        let arvore = motor.evaluated("__InputDialog").expect("avaliado").clone();
+        let arvore = motor.evaluated("__inputdialog").expect("avaliado").clone();
         let achou = match esperado {
             "TextInput" => procura(&arvore, |n| matches!(n.kind, NodeType::TextInput { .. })),
             "Select" => procura(&arvore, |n| matches!(n.kind, NodeType::Select { .. })),
@@ -1073,7 +1073,7 @@ fn o_campo_numerico_do_prompt_nao_colapsa() {
     motor.navigate_to("tela");
     let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
 
-    let arvore = motor.evaluated("__InputDialog").expect("avaliado").clone();
+    let arvore = motor.evaluated("__inputdialog").expect("avaliado").clone();
     let largura = largura_do_primeiro_textinput(&arvore).expect("o ramo numérico tem um campo");
     assert!(
         largura.parse::<f32>().is_ok(),

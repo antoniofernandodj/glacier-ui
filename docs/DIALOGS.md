@@ -222,9 +222,9 @@ o que deixa o fluxo linear — a mesma aparência síncrona que o `fetch` tem.
 | Função | Devolve | Corpo |
 |---|---|---|
 | `confirm{}` | `boolean` | nenhum (a caixa de mensagem de sempre) |
-| `prompt{}` | `string` ou `nil` | `__InputDialog` |
-| `pick_color{}` | `"#rrggbb"` ou `nil` | `__ColorDialog` |
-| `progress{}` | **não suspende** | `__ProgressDialog` |
+| `prompt{}` | `string` ou `nil` | `__inputdialog` |
+| `pick_color{}` | `"#rrggbb"` ou `nil` | `__colordialog` |
+| `progress{}` | **não suspende** | `__progressdialog` |
 
 ```lua
 local nome = prompt({ title = "Renomear", label = "Novo nome", value = atual })

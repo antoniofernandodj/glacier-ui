@@ -438,7 +438,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
             ..
         } => {
             assert_eq!(value_var, "qtd", "o campo escreve na chave do app");
-            assert_eq!(on_change, "SpinBox::edit:qtd|1|3|1|");
+            assert_eq!(on_change, "spinbox::edit:qtd|1|3|1|");
         }
         outro => panic!("esperava o campo, veio {outro:?}"),
     }
@@ -463,7 +463,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         NodeType::Button { on_click, .. } => on_click.clone().expect("degrau ▴ sem ação"),
         outro => panic!("esperava o degrau ▴, veio {outro:?}"),
     };
-    assert_eq!(acao_inc, "SpinBox::inc:qtd|1|3|1|");
+    assert_eq!(acao_inc, "spinbox::inc:qtd|1|3|1|");
 
     // --- a aritmética --------------------------------------------------------
     // Chave ainda vazia: o primeiro clique inicializa no mínimo (não min+step).
@@ -484,7 +484,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
         NodeType::Button { on_click, .. } => on_click.clone().unwrap(),
         outro => panic!("esperava o degrau ▴ do preço, veio {outro:?}"),
     };
-    assert_eq!(inc_preco, "SpinBox::inc:preco|0|1|0.25|");
+    assert_eq!(inc_preco, "spinbox::inc:preco|0|1|0.25|");
 
     let _ = motor.dispatch(&EngineMessage::UiClick(inc_preco.clone()));
     // `step="0.25"` -> 2 casas, inclusive na inicialização.
@@ -512,7 +512,7 @@ fn test_builtin_spinbox_soma_satura_e_nao_colide() {
     // O `edit` filtra o que não é número e escreve na chave (sem saturar,
     // como o QSpinBox, que só valida ao terminar a edição).
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
-        action: "SpinBox::edit:qtd|1|3|1|".into(),
+        action: "spinbox::edit:qtd|1|3|1|".into(),
         value: "12a.5x".into(),
     });
     assert_eq!(motor.context().get("qtd").map(String::as_str), Some("12.5"));
@@ -645,7 +645,7 @@ fn test_builtin_radiogroup_escreve_a_chave_do_app() {
         }
         outro => panic!("esperava a opção Pro, veio {outro:?}"),
     };
-    assert_eq!(acao_pro, "RadioGroup::pick:plano|pro");
+    assert_eq!(acao_pro, "radiogroup::pick:plano|pro");
 
     let _ = motor.dispatch(&EngineMessage::UiInputChanged {
         action: acao_pro,
@@ -1058,7 +1058,7 @@ fn test_builtin_tabbar_escreve_a_chave_do_app() {
         NodeType::Button { on_click, .. } => on_click.clone().expect("aba sem ação"),
         outro => panic!("esperava a aba, veio {outro:?}"),
     };
-    assert_eq!(clique_rede, "TabBar::pick:aba|rede");
+    assert_eq!(clique_rede, "tabbar::pick:aba|rede");
 
     let _ = motor.dispatch(&EngineMessage::UiClick(clique_rede));
     assert_eq!(motor.context().get("aba").map(String::as_str), Some("rede"));
@@ -1123,8 +1123,8 @@ fn test_builtin_spinbox_layout_inline() {
         NodeType::Button { on_click, .. } => on_click.clone().expect("degrau sem ação"),
         outro => panic!("esperava um degrau, veio {outro:?}"),
     };
-    assert_eq!(acao(&spin.children[0]), "SpinBox::dec:zoom|25|400|25|");
-    assert_eq!(acao(&spin.children[2]), "SpinBox::inc:zoom|25|400|25|");
+    assert_eq!(acao(&spin.children[0]), "spinbox::dec:zoom|25|400|25|");
+    assert_eq!(acao(&spin.children[2]), "spinbox::inc:zoom|25|400|25|");
     // Os glifos desta forma são `−`/`+` (os `▾`/`▴` são os do `stacked`).
     let glifo = |n: &UiNode| match &n.children[0].kind {
         NodeType::Text { content, .. } => content.clone(),
@@ -4107,7 +4107,7 @@ fn test_text_child_content() {
 #[test]
 fn test_text_child_wins_over_attribute() {
     // When both are given, the child takes precedence.
-    let xml = r#"<text content="from attr">from child</Text>"#;
+    let xml = r#"<text content="from attr">from child</text>"#;
     let ast = UiNode::parse_xml(xml).unwrap();
     if let NodeType::Text { content, .. } = &ast.kind {
         assert_eq!(content, "from child");
@@ -4317,7 +4317,7 @@ fn acoes_builtin_style_trocam_o_estilo() {
 #[test]
 fn checkbox_tristate_parseia() {
     let ast = UiNode::parse_xml(
-        r#"<checkbox label="Tri" checked="estado" on_toggle="estado" tristate="true" />"#,
+        r#"<checkbox label="Tri" checked="estado" on_toggle="estado" tri_state="true" />"#,
     )
     .unwrap();
     assert!(matches!(
@@ -4452,7 +4452,7 @@ fn reveal_interpola_open_e_duration() {
         envolve(
             r#"<column>
             <reveal open="{mostrar}" duration="{ms}">
-                <text>corpo</Text>
+                <text>corpo</text>
             </reveal>
         </column>"#,
         ),
@@ -4537,7 +4537,7 @@ fn accordion_tem_a_mesma_forma_aberto_e_fechado() {
             envolve(
                 r#"<accordion>
                 <accordionitem title="Rede" value="abertas" open="{abertas}" id="rede">
-                    <text>corpo</Text>
+                    <text>corpo</text>
                 </accordionitem>
             </accordion>"#,
             ),
@@ -4590,10 +4590,10 @@ fn else_if_atributo_encadeia_com_if_anterior() {
         tpl,
         envolve(
             r#"<column>
-            <text if="{x}" equals="a">A</Text>
-            <text else_if="{x}" equals="b">B</Text>
-            <text else_if="{x}" equals="c">C</Text>
-            <text else>D</Text>
+            <text if="{x}" equals="a">A</text>
+            <text else_if="{x}" equals="b">B</text>
+            <text else_if="{x}" equals="c">C</text>
+            <text else>D</text>
         </column>"#,
         ),
     )
@@ -4626,10 +4626,10 @@ fn else_if_tag_encadeia_com_if_anterior() {
         tpl,
         envolve(
             r#"<column>
-            <template if="{x}" equals="a"><text>A</Text></template>
-            <template else_if="{x}" equals="b"><text>B</Text></template>
-            <template else_if="{x}" equals="c"><text>C</Text></template>
-            <template else><text>D</Text></template>
+            <template if="{x}" equals="a"><text>A</text></template>
+            <template else_if="{x}" equals="b"><text>B</text></template>
+            <template else_if="{x}" equals="c"><text>C</text></template>
+            <template else><text>D</text></template>
         </column>"#,
         ),
     )
@@ -4663,9 +4663,9 @@ fn else_if_nao_avalia_apos_um_branch_anterior_ja_ter_casado() {
         tpl,
         envolve(
             r#"<column>
-            <text if="{x}" equals="a">A</Text>
-            <text else_if="{x}" equals="b">B1</Text>
-            <text else_if="{x}" equals="b">B2</Text>
+            <text if="{x}" equals="a">A</text>
+            <text else_if="{x}" equals="b">B1</text>
+            <text else_if="{x}" equals="b">B2</text>
         </column>"#,
         ),
     )
@@ -4703,7 +4703,7 @@ fn one_of_atributo_casa_qualquer_token_da_lista() {
         // na raiz avaliada diretamente, então a raiz sozinha ignoraria a
         // condição.
         envolve(
-            r#"<column><text if="{view}" one_of="projects project new_service service">aceso</Text></column>"#,
+            r#"<column><text if="{view}" one_of="projects project new_service service">aceso</text></column>"#,
         ),
     )
     .unwrap();
@@ -4744,9 +4744,9 @@ fn one_of_tag_funciona_em_if_e_em_else_if() {
     std::fs::write(
         tpl,
         envolve(r#"<column>
-            <template if="{view}" one_of="deployments deploy_engine"><text>ops</Text></template>
-            <template else_if="{view}" one_of="projects project new_service service"><text>projects</Text></template>
-            <template else><text>outro</Text></template>
+            <template if="{view}" one_of="deployments deploy_engine"><text>ops</text></template>
+            <template else_if="{view}" one_of="projects project new_service service"><text>projects</text></template>
+            <template else><text>outro</text></template>
         </column>"#),
     )
     .unwrap();
@@ -4786,7 +4786,7 @@ fn contains_atributo_le_a_lista_da_chave() {
     let tpl = "templates/test_contains_attr.xml";
     std::fs::write(
         tpl,
-        envolve(r#"<column><text if="{abertas}" contains="rede">aberta</Text></column>"#),
+        envolve(r#"<column><text if="{abertas}" contains="rede">aberta</text></column>"#),
     )
     .unwrap();
     motor.register_component("containsattr", tpl).unwrap();
@@ -4834,9 +4834,9 @@ fn contains_tag_encadeia_e_interpola_o_item() {
         tpl,
         envolve(
             r#"<column>
-            <template if="{sel}" contains="{alvo}"><text>tem</Text></template>
-            <template else_if="{sel}" contains="outro"><text>outro</Text></template>
-            <template else><text>nada</Text></template>
+            <template if="{sel}" contains="{alvo}"><text>tem</text></template>
+            <template else_if="{sel}" contains="outro"><text>outro</text></template>
+            <template else><text>nada</text></template>
         </column>"#,
         ),
     )
@@ -4881,8 +4881,8 @@ fn empty_e_not_empty_atributo_leem_a_lista_direto() {
         tpl,
         envolve(
             r#"<column>
-            <text if="{items}" empty>nada</Text>
-            <text if="{items}" not_empty>tem coisa</Text>
+            <text if="{items}" empty>nada</text>
+            <text if="{items}" not_empty>tem coisa</text>
         </column>"#,
         ),
     )
@@ -4919,8 +4919,8 @@ fn empty_e_not_empty_tag_funcionam_em_if_e_else_if() {
         tpl,
         envolve(
             r#"<column>
-            <template if="{items}" empty><text>nada</Text></template>
-            <template else_if="{items}" not_empty><text>tem coisa</Text></template>
+            <template if="{items}" empty><text>nada</text></template>
+            <template else_if="{items}" not_empty><text>tem coisa</text></template>
         </column>"#,
         ),
     )
@@ -5067,8 +5067,8 @@ fn platform_filtra_sozinho_sem_precisar_de_cond() {
         tpl,
         envolve(
             r#"<column>
-            <text platform="desktop">só desktop</Text>
-            <text platform="web">só web</Text>
+            <text platform="desktop">só desktop</text>
+            <text platform="web">só web</text>
         </column>"#,
         ),
     )
@@ -5097,10 +5097,10 @@ fn platform_combinado_com_if_nao_atrapalha_a_cadeia() {
         tpl,
         envolve(
             r#"<column>
-            <text if="{x}" equals="a">A</Text>
+            <text if="{x}" equals="a">A</text>
             <text else_if="{x}" equals="b" platform="web">B (só web, nunca aqui)</text>
-            <text else_if="{x}" equals="b">B</Text>
-            <text else>C</Text>
+            <text else_if="{x}" equals="b">B</text>
+            <text else>C</text>
         </column>"#,
         ),
     )
@@ -5190,15 +5190,15 @@ fn template_if_else_if_else_agrupam_varios_filhos_sem_wrapper() {
         envolve(
             r#"<column>
             <template if="{view}" equals="a">
-                <text>A1</Text>
-                <text>A2</Text>
+                <text>A1</text>
+                <text>A2</text>
             </template>
             <template else_if="{view}" equals="b">
-                <text>B1</Text>
+                <text>B1</text>
             </template>
             <template else>
-                <text>C1</Text>
-                <text>C2</Text>
+                <text>C1</text>
+                <text>C2</text>
             </template>
         </column>"#,
         ),
@@ -5289,10 +5289,10 @@ fn template_bare_agrupa_filhos_incondicionalmente() {
         envolve(
             r#"<column>
             <template>
-                <text>um</Text>
-                <text>dois</Text>
+                <text>um</text>
+                <text>dois</text>
             </template>
-            <text>tres</Text>
+            <text>tres</text>
         </column>"#,
         ),
     )

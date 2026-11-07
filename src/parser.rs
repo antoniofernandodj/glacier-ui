@@ -7789,7 +7789,7 @@ mod diagnostic_tests {
     // nunca abriu, apontando o ``. Agora o corpo do style é opaco.
     #[test]
     fn tag_em_comentario_de_css_nao_quebra_o_parse() {
-        let xml = "<column>\n  <style>\n    /* o card vira <text> aqui */\n    .card { padding: 8; }\n  </style>\n  <text content=\"oi\" />\n</Column>";
+        let xml = "<column>\n  <style>\n    /* o card vira <text> aqui */\n    .card { padding: 8; }\n  </style>\n  <text content=\"oi\" />\n</column>";
         let root = UiNode::parse_xml(xml).expect("o corpo do <style> não é XML");
         let css = root.children.iter().find_map(|c| match &c.kind {
             NodeType::Style { css, .. } => Some(css.as_str()),
@@ -7813,7 +7813,7 @@ mod diagnostic_tests {
     #[test]
     fn caractere_multibyte_apos_menor_que_nao_entra_em_panico() {
         let xml =
-            "<column>\n  <!-- ── separador ────── -->\n  <text content=\"ação\" />\n</Column>";
+            "<column>\n  <!-- ── separador ────── -->\n  <text content=\"ação\" />\n</column>";
         assert!(UiNode::parse_xml(xml).is_ok());
     }
 
@@ -8060,7 +8060,7 @@ mod loose_text_tests {
     // Text interleaved with elements yields one implicit `Text` per run.
     #[test]
     fn loose_text_interleaved_with_elements() {
-        let root = UiNode::parse_xml("<row>antes<Text content=\"meio\"/>depois</Row>").unwrap();
+        let root = UiNode::parse_xml("<row>antes<text content=\"meio\"/>depois</row>").unwrap();
         let contents: Vec<_> = root.children.iter().filter_map(text_of).collect();
         assert_eq!(contents, vec!["antes", "meio", "depois"]);
     }
@@ -8069,7 +8069,7 @@ mod loose_text_tests {
     // implicit node is inserted alongside the parsed `content`.
     #[test]
     fn text_node_does_not_double_wrap() {
-        let root = UiNode::parse_xml("<text>ola</Text>").unwrap();
+        let root = UiNode::parse_xml("<text>ola</text>").unwrap();
         assert_eq!(text_of(&root), Some("ola"));
         assert!(
             root.children.is_empty(),
@@ -8081,7 +8081,7 @@ mod loose_text_tests {
     // empty `Text`.
     #[test]
     fn whitespace_only_text_is_ignored() {
-        let root = UiNode::parse_xml("<column>\n  <text content=\"a\"/>\n</Column>").unwrap();
+        let root = UiNode::parse_xml("<column>\n  <text content=\"a\"/>\n</column>").unwrap();
         assert_eq!(root.children.len(), 1);
         assert_eq!(text_of(&root.children[0]), Some("a"));
     }
@@ -8094,14 +8094,14 @@ mod loose_text_tests {
         assert_eq!(text_of(&root), Some(" ola "));
 
         // Multiple NBSP are all preserved as spaces (hard, non-collapsing).
-        let root = UiNode::parse_xml("<text>a&nbsp;&nbsp;&nbsp;b</Text>").unwrap();
+        let root = UiNode::parse_xml("<text>a&nbsp;&nbsp;&nbsp;b</text>").unwrap();
         assert_eq!(text_of(&root), Some("a   b"));
     }
 
     // A NBSP absorbs adjacent collapsible whitespace so it stays a single space.
     #[test]
     fn nbsp_absorbs_adjacent_whitespace() {
-        let root = UiNode::parse_xml("<text>a &nbsp; b</Text>").unwrap();
+        let root = UiNode::parse_xml("<text>a &nbsp; b</text>").unwrap();
         assert_eq!(text_of(&root), Some("a b"));
     }
 
@@ -8248,13 +8248,14 @@ mod screen_tests {
         );
     }
 
-    /// Apelidos em português, como no resto do vocabulário de tags.
+    /// `title` e `size` do `<screen>` viram metadado, e o `<resources>` se dissolve nas declarações da
+    /// raiz. (Os apelidos em português — `tela`/`titulo`/`tamanho`/`recursos` — saíram na 0.149.0.)
     #[test]
-    fn apelidos_em_portugues() {
-        let xml = r#"<tela titulo="Detalhe" tamanho="800 600">
-            <recursos><style>.a { padding: 4; }</style></recursos>
+    fn screen_com_title_size_e_resources() {
+        let xml = r#"<screen title="Detalhe" size="800 600">
+            <resources><style>.a { padding: 4; }</style></resources>
             <column />
-        </tela>"#;
+        </screen>"#;
         let root = UiNode::parse_xml(xml).expect("parse");
         let meta = meta_of(&root).expect("declaração");
         assert_eq!(meta.title.as_deref(), Some("Detalhe"));
@@ -8263,7 +8264,7 @@ mod screen_tests {
             root.children
                 .iter()
                 .any(|c| matches!(c.kind, NodeType::Style { .. })),
-            "o <recursos> se dissolve nas declarações da raiz"
+            "o <resources> se dissolve nas declarações da raiz"
         );
     }
 
@@ -8475,15 +8476,17 @@ mod component_root_tests {
         let xml = r#"<component>
             <resources><style>.a { padding: 4; }</style></resources>
             <template if="{on}"><column /></template>
-            <template else><row /></template>
+            <template else="true"><row /></template>
         </component>"#;
         let root = UiNode::parse_xml(xml).expect("parse");
         assert!(matches!(root.kind, NodeType::Fragment));
     }
 
+    /// O `<resources>` de um `<component>` se dissolve e a raiz vira o filho de layout. Os apelidos em
+    /// português (`componente`/`recursos`) saíram na 0.149.0 — só o vocabulário em inglês vale.
     #[test]
-    fn apelido_em_portugues() {
-        let xml = "<componente><recursos><style>.a { padding: 4; }</style></recursos><column /></componente>";
+    fn component_com_resources_vira_a_raiz() {
+        let xml = "<component><resources><style>.a { padding: 4; }</style></resources><column /></component>";
         let root = UiNode::parse_xml(xml).expect("parse");
         assert!(matches!(root.kind, NodeType::Column));
     }

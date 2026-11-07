@@ -4726,13 +4726,13 @@ mod tests {
         // A mesma árvore com o contexto invertido produz o inverso — é o ponto
         // todo do binding: o valor acompanha o estado, não o texto do template.
         ctx.insert("oculto".to_string(), "false".to_string());
-        ctx.insert("travado".to_string(), "sim".to_string());
+        ctx.insert("travado".to_string(), "yes".to_string());
         let out = eval_ctx(&node, &ctx);
         assert_eq!(out.hidden, Some(false));
         assert_eq!(
             out.disabled,
             Some(true),
-            "`sim` também é verdade, como no `if`"
+            "`yes` também é verdade, como no `if`"
         );
     }
 

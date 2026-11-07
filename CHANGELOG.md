@@ -8,6 +8,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.152.1 — 2026-11-07
+
+- **Correção: os diálogos que carregam corpo não montavam desde a 0.149.0.** `pedir_texto` (`__InputDialog`), `escolher_cor`, o seletor de fonte e o diálogo de progresso falhavam com "componente não registrado": os builtins passaram a ser registrados só em minúsculas, mas o motor ainda montava o corpo pelo nome antigo. Os corpos internos agora se chamam `__inputdialog`, `__colordialog`, `__fontdialog` e `__progressdialog`, e `builtin_aliases` registra também os builtins que já nascem em minúsculas. Quem referenciava esses nomes à mão (ação `__InputDialog::editar`, `render("__InputDialog")`) troca pela grafia em minúsculas.
+- Testes: 48 testes (18 da lib e 30 de integração) estavam desatualizados em relação à 0.149.0 (XML com tags em `CamelCase`, apelidos em português, `tristate`, `sim`) e foram atualizados; a suíte completa (`--features suite-completa`) passa.
+
 ## glacier-ui 0.152.0 — 2026-11-07
 
 - **`textinput(autofocus = true)`**: o campo de uma linha pega o foco assim que aparece, uma vez por instância do widget, com o texto selecionado. É o que faz a **edição no lugar** funcionar: um campo que nasce de um clique (✏️ numa linha de lista) já nasce pronto para digitar, sem um segundo clique. Não vale para `secure`.

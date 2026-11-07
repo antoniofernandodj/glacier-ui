@@ -267,14 +267,19 @@ impl Component for Alias {
 pub fn builtin_aliases() -> Vec<Box<dyn Component>> {
     builtin_components()
         .into_iter()
-        .filter_map(|c| {
+        .map(|c| {
             let minusculo = c.name().to_lowercase();
-            (minusculo != c.name()).then(|| {
+            if minusculo == c.name() {
+                // Já nasceu em minúsculas (os corpos internos `__inputdialog`, `__progressdialog`…):
+                // é registrado como está. Antes só os nomes com maiúscula entravam, e estes ficavam
+                // de fora — `pedir_texto`/`escolher_cor`/o progresso deixaram de montar o corpo.
+                c
+            } else {
                 Box::new(Alias {
                     nome: minusculo,
                     inner: c,
                 }) as Box<dyn Component>
-            })
+            }
         })
         .collect()
 }

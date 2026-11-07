@@ -46,7 +46,7 @@ pub struct InputDialog;
 
 /// O nome sob o qual o motor monta este corpo. Começa com `__` porque não é
 /// para ser escrito numa tela: é uma peça interna, e o nome diz isso.
-pub const INPUT_DIALOG_BODY: &str = "__InputDialog";
+pub const INPUT_DIALOG_BODY: &str = "__inputdialog";
 
 impl Component for InputDialog {
     fn name(&self) -> &str {
@@ -61,7 +61,7 @@ impl Component for InputDialog {
         // # Por que o `onChange` traz o nome do componente escrito à mão
         //
         // Uma ação num template de componente normalmente ganha o namespace do
-        // dono na avaliação (`editar` → `__InputDialog::editar`). Este corpo é
+        // dono na avaliação (`editar` → `__inputdialog::editar`). Este corpo é
         // a exceção: ele é montado por `GlacierUI::render(nome)` como template
         // **de topo**, não inlinado numa tela, então não há dono e a ação sai
         // nua — e uma ação nua é roteada para a tela ativa, que não a trata.
@@ -97,10 +97,10 @@ impl Component for InputDialog {
                     spinbox(:value = "__dialog.value", min = "{__dialog.min|0}", max = "{__dialog.max|100}", step = "{__dialog.step|1}", decimals = "{__dialog.decimals|0}", width = 120)
                   }
                   template(else_if = @__dialog.kind, equals = item) {
-                    select(:options = "__dialog.items", :value = "__dialog.value", on_change = "__InputDialog::editar", width = fill)
+                    select(:options = "__dialog.items", :value = "__dialog.value", on_change = "__inputdialog::editar", width = fill)
                   }
                   template(else) {
-                    textinput(:value = "__dialog.value", placeholder = @__dialog.placeholder, on_change = "__InputDialog::editar", width = fill)
+                    textinput(:value = "__dialog.value", placeholder = @__dialog.placeholder, on_change = "__inputdialog::editar", width = fill)
                   }
                 }
             "##

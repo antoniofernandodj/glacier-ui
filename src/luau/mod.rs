@@ -3640,7 +3640,11 @@ mod tests {
         let tpl = dir.join("t.gv");
         let luau = dir.join("beh.luau");
         std::fs::write(&luau, "function incrementar() ctx.n = ctx.n + 1 end").unwrap();
-        std::fs::write(&tpl, r#"<text/><script src="beh.luau"></script>"#).unwrap();
+        std::fs::write(
+            &tpl,
+            "screen {\n  resources {\n    script(src = \"beh.luau\")\n  }\n  text(\"x\")\n}\n",
+        )
+        .unwrap();
 
         let comp = LuauComponent::from_file(tpl.to_str().unwrap(), "c").unwrap();
         let mut data = HashMap::default();
@@ -4120,7 +4124,7 @@ mod tests {
         std::fs::create_dir_all(&scripts).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
+            "screen {\n  resources {\n    script(src = \"scripts/app.luau\")\n  }\n  column {\n  }\n}\n",
         )
         .unwrap();
         std::fs::write(
@@ -4150,7 +4154,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
+            "screen {\n  resources {\n    script(src = \"scripts/app.luau\")\n  }\n  column {\n  }\n}\n",
         )
         .unwrap();
         std::fs::write(
@@ -4182,7 +4186,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
+            "screen {\n  resources {\n    script(src = \"scripts/app.luau\")\n  }\n  column {\n  }\n}\n",
         )
         .unwrap();
         std::fs::write(
@@ -4218,7 +4222,7 @@ mod tests {
         std::fs::create_dir_all(&pb).unwrap();
         std::fs::write(
             dir.join("app.gv"),
-            "<column></column>\n<script src=\"scripts/app.luau\"></script>",
+            "screen {\n  resources {\n    script(src = \"scripts/app.luau\")\n  }\n  column {\n  }\n}\n",
         )
         .unwrap();
         std::fs::write(

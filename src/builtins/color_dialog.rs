@@ -48,7 +48,7 @@
 use crate::component::{Component, Context, Template};
 
 /// O nome sob o qual o motor monta este corpo.
-pub const COLOR_DIALOG_BODY: &str = "__ColorDialog";
+pub const COLOR_DIALOG_BODY: &str = "__colordialog";
 
 /// A chave do **texto em digitação** do campo hexadecimal — o rascunho que a
 /// roda não lê. Segue a convenção de chave irmã do
@@ -75,7 +75,7 @@ impl Component for ColorDialog {
                     /* A amostra: o único lugar onde a cor aparece
                                              sozinha, sem a roda em volta dela. */
                     container(width = 44, height = 32, background = @__dialog.value, border_radius = 6, border_width = 1)
-                    textinput(:value = "__dialog.value__hex", placeholder = "#rrggbb", on_change = "__ColorDialog::hex", width = fill)
+                    textinput(:value = "__dialog.value__hex", placeholder = "#rrggbb", on_change = "__colordialog::hex", width = fill)
                   }
                 }
             "##
@@ -85,7 +85,7 @@ impl Component for ColorDialog {
 
     fn update(&mut self, action: &str, value: Option<&str>, ctx: &mut Context) {
         // O namespace vem escrito no template pelo mesmo motivo do
-        // `__InputDialog`: este corpo é montado como template de topo, não
+        // `__inputdialog`: este corpo é montado como template de topo, não
         // inlinado numa tela, então a avaliação não tem dono para prefixar.
         if action != "hex" {
             return;

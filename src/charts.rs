@@ -1006,7 +1006,7 @@ mod tests {
             "s",
             r##"[
                 { "name": "API", "points": [1, 2, 3], "color": "#89b4fa" },
-                { "nome": "DB",  "pontos": [{ "label": "Jan", "value": 8 }] }
+                { "name": "DB",  "points": [{ "label": "Jan", "value": 8 }] }
             ]"##,
         )]);
         let series = SerieNomeada::ler(&c, "s");
