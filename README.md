@@ -350,7 +350,7 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 |---|---|---|
 | `text` | — | `content`, `size`, `bold`, `color`, `text_align` |
 | `button` | — | `text`, `on_click`, `navigate_to`, `navigate_back`, `color` |
-| `textinput` | `input` | `placeholder`, `value`, `on_change`, `secure`/`password` (mascara), `form_control` (liga a um `FormControl`) |
+| `textinput` | `input` | `placeholder`, `value`, `on_change`, `secure`/`password` (mascara), `autofocus` (o campo de uma linha pega o foco **ao aparecer**, uma vez por instância, com o texto selecionado — para a edição no lugar), `form_control` (liga a um `FormControl`) |
 | `textarea` | `texteditor`, `editor` | `placeholder`, `value`, `on_change` (editor multilinha) |
 | `audio` | — | `src`, `name`, `controls`, `autoplay`, `loop`, `volume`, `on_ended`, `on_error` — player de áudio **local** (feature `audio`); ver [`docs/AUDIO.md`](docs/AUDIO.md). **Não há `video`** |
 | `prose` | — | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |

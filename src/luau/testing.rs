@@ -861,12 +861,16 @@ fn no_para_lua(lua: &Lua, n: &crate::parser::UiNode) -> mlua::Result<mlua::Table
             value_var,
             on_change,
             secure,
+            autofocus,
             ..
         } => {
             attrs.set("placeholder", placeholder.as_str())?;
             attrs.set("value_var", value_var.as_str())?;
             attrs.set("on_change", on_change.as_str())?;
             attrs.set("secure", *secure)?;
+            if *autofocus {
+                attrs.set("autofocus", true)?;
+            }
         }
         T::TextArea {
             placeholder,

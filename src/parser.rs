@@ -1706,6 +1706,10 @@ pub enum NodeType {
         on_change: String,
         /// Masks the input (passwords/tokens) when true (`secure`/`password`).
         secure: bool,
+        /// `autofocus`: o campo **recebe o foco ao aparecer** (uma vez por instância do widget).
+        /// Serve à edição no lugar — um campo que nasce de um clique (✏️) já nasce pronto para
+        /// digitar. Só vale para o campo de uma linha comum (não `secure`).
+        autofocus: bool,
         /// `.gss` class styling the built-in right-click context menu
         /// (`menu_class="x"` → `.x` on the panel body, `.x-item` /
         /// `.x-item:hover` / `.x-item:active` on the rows). `None` → the menu
@@ -5181,6 +5185,7 @@ impl UiNode {
                     }
                 }
                 let secure = Self::get_attr_bool(&node, &["secure", "password"]);
+                let autofocus = Self::get_attr_bool(&node, &["autofocus"]);
                 let menu_class = Self::get_attr(
                     &node,
                     &["menu_class"],
@@ -5190,6 +5195,7 @@ impl UiNode {
                     value_var,
                     on_change,
                     secure,
+                    autofocus,
                     menu_class,
                 }
             }

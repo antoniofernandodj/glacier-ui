@@ -2901,12 +2901,14 @@ fn eval_owned(
             value_var,
             on_change,
             secure,
+            autofocus,
             menu_class,
         } => NodeType::TextInput {
             placeholder: process_tpl(placeholder, context),
             value_var: process_tpl(value_var, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
             secure: *secure,
+            autofocus: *autofocus,
             menu_class: menu_class.clone(),
         },
         NodeType::TextArea {

@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.152.0 — 2026-11-07
+
+- **`textinput(autofocus = true)`**: o campo de uma linha pega o foco assim que aparece, uma vez por instância do widget, com o texto selecionado. É o que faz a **edição no lugar** funcionar: um campo que nasce de um clique (✏️ numa linha de lista) já nasce pronto para digitar, sem um segundo clique. Não vale para `secure`.
+
 ## glacier-ui 0.151.0 — 2026-11-07
 
 - **`textinput` de uma linha rola na horizontal.** O `text_editor` do iced nunca rolou o campo: o texto digitado ou colado além da largura ficava escondido e o cursor saía de vista. Agora a janela acompanha o cursor (digitar, colar, setas, Home/End, seleção por Shift e arrasto), e cliques e IME levam a rolagem em conta. O deslocamento é inteiro: um valor fracionário mutilava os glifos no renderer.

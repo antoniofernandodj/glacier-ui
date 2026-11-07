@@ -1049,6 +1049,7 @@ pub fn synthetic_input_id(binding: &str) -> String {
 /// `Enter` e quebras vindas de um paste são barrados no `update` do motor via
 /// a flag `single_line` de [`EngineMessage::UiEditorAction`]; aqui só montamos
 /// o widget com a mesma paridade de estilo/tamanho do antigo `text_input`.
+#[allow(clippy::too_many_arguments)]
 fn single_line_editor<'a>(
     node: &'a UiNode,
     content: &'a crate::textarea::Content,
@@ -1057,6 +1058,7 @@ fn single_line_editor<'a>(
     on_change: &str,
     placeholder: &'a str,
     is_disabled: bool,
+    autofocus: bool,
 ) -> Element<'a, EngineMessage> {
     // Enter num campo dentro de `Form` submete o formulário (e pode pular
     // para o próximo campo) — mesmíssimo contrato do `TextInput` de antes.
@@ -1085,7 +1087,8 @@ fn single_line_editor<'a>(
     let mut ed = crate::textarea::TextArea::new(content)
         .scrollbar(false)
         .placeholder(placeholder)
-        .wrapping(iced::widget::text::Wrapping::None);
+        .wrapping(iced::widget::text::Wrapping::None)
+        .autofocus(autofocus && !is_disabled);
 
     if !is_disabled {
         ed = ed.on_action(move |action| {
@@ -4915,6 +4918,7 @@ pub fn render_node<'a>(
             value_var,
             on_change,
             secure,
+            autofocus,
             menu_class,
         } => {
             let current_value = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
@@ -5039,6 +5043,7 @@ pub fn render_node<'a>(
                             on_change,
                             placeholder.as_str(),
                             is_disabled,
+                            *autofocus,
                         ),
                         // Só no primeiro quadro, antes de `sync_editors` criar o
                         // `Content` — degrada para um campo não-editável em vez de
