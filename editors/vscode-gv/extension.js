@@ -3252,6 +3252,104 @@ async function provideHover(document, position) {
   return new vscode.Hover(md);
 }
 
+// ---------- i18n: Ctrl+clique / hover em `t('tela.chave')` ----------
+
+// A chave sob o cursor numa chamada `t('...')`, ou undefined.
+function chaveI18nEm(document, position) {
+  const linha = document.lineAt(position.line).text;
+  const re = /\bt\(\s*(['"])([^'"\n]+)\1/g;
+  let m;
+  while ((m = re.exec(linha))) {
+    const ini = m.index + m[0].indexOf(m[1]) + 1;
+    const fim = ini + m[2].length;
+    if (position.character >= ini && position.character <= fim) {
+      return { chave: m[2], range: new vscode.Range(position.line, ini, position.line, fim) };
+    }
+  }
+  return undefined;
+}
+
+// Os catálogos `locales/*.json` do projeto: o `locales/` mais próximo subindo
+// a partir do arquivo; se não houver, os do workspace.
+async function catalogosI18n(document) {
+  const fs = require("fs");
+  const path = require("path");
+  let dir = path.dirname(document.uri.fsPath);
+  for (let i = 0; i < 8; i++) {
+    const loc = path.join(dir, "locales");
+    try {
+      if (fs.statSync(loc).isDirectory()) {
+        return fs
+          .readdirSync(loc)
+          .filter((f) => f.endsWith(".json"))
+          .sort()
+          .map((f) => path.join(loc, f));
+      }
+    } catch (_) {}
+    const pai = path.dirname(dir);
+    if (pai === dir) break;
+    dir = pai;
+  }
+  const uris = await vscode.workspace.findFiles("**/locales/*.json", "**/{node_modules,target}/**", 20);
+  return uris.map((u) => u.fsPath);
+}
+
+// Onde a chave é definida num catálogo: { linha, valor } ou undefined.
+function entradaI18n(arquivo, chave) {
+  const fs = require("fs");
+  let texto;
+  try {
+    texto = fs.readFileSync(arquivo, "utf8");
+  } catch (_) {
+    return undefined;
+  }
+  const alvo = JSON.stringify(chave);
+  const linhas = texto.split("\n");
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i];
+    const t = l.trimStart();
+    if (t.startsWith(alvo + ":") || t.startsWith(alvo + " :")) {
+      let valor = "";
+      try {
+        valor = JSON.parse("{" + l.trim().replace(/,$/, "") + "}")[chave];
+      } catch (_) {}
+      return { linha: i, col: l.indexOf(alvo), valor: typeof valor === "string" ? valor : "" };
+    }
+  }
+  return undefined;
+}
+
+const i18nDefinition = {
+  async provideDefinition(document, position) {
+    const alvo = chaveI18nEm(document, position);
+    if (!alvo) return undefined;
+    const out = [];
+    for (const arq of await catalogosI18n(document)) {
+      const e = entradaI18n(arq, alvo.chave);
+      if (e) out.push(new vscode.Location(vscode.Uri.file(arq), new vscode.Position(e.linha, e.col)));
+    }
+    return out;
+  },
+};
+
+const i18nHover = {
+  async provideHover(document, position) {
+    const alvo = chaveI18nEm(document, position);
+    if (!alvo) return undefined;
+    const path = require("path");
+    const md = new vscode.MarkdownString();
+    let achou = false;
+    for (const arq of await catalogosI18n(document)) {
+      const e = entradaI18n(arq, alvo.chave);
+      if (!e) continue;
+      achou = true;
+      md.appendMarkdown(`**${path.basename(arq, ".json")}** — ${e.valor.replace(/\n/g, " ⏎ ")}\n\n`);
+    }
+    if (!achou) md.appendMarkdown(`⚠️ chave \`${alvo.chave}\` não existe em nenhum catálogo`);
+    return new vscode.Hover(md, alvo.range);
+  },
+};
+
 function activate(context) {
   const selector = [{ language: "glacier-view" }];
 
@@ -3279,6 +3377,8 @@ function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
     vscode.languages.registerHoverProvider(selector, { provideHover }),
+    vscode.languages.registerDefinitionProvider(selector, i18nDefinition),
+    vscode.languages.registerHoverProvider(selector, i18nHover),
     vscode.languages.registerDocumentLinkProvider(selector, {
       provideDocumentLinks: (document) => provideDocumentLinks(adaptDocument(document)),
     }),

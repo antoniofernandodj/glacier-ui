@@ -164,6 +164,9 @@
       },
       "patterns": [
         {
+          "include": "#interp-brace"
+        },
+        {
           "include": "#interpolation"
         }
       ]
@@ -330,6 +333,9 @@
       },
       "patterns": [
         {
+          "include": "#interp-brace"
+        },
+        {
           "include": "#interpolation"
         },
         {
@@ -382,6 +388,43 @@
     "color": {
       "name": "constant.other.color.rgb-value.hex.glacier-view",
       "match": "#([0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3,4})\\b"
+    },
+    "interp-brace": {
+      "comment": "{expr} — interpolação de chaves e chamadas, p.ex. {usuario} e {t('tela.chave')} (i18n).",
+      "name": "meta.interpolation.glacier-view",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.glacier-view"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.glacier-view"
+        }
+      },
+      "patterns": [
+        {
+          "match": "'[^'\\n]*'",
+          "name": "string.quoted.single.i18n-key.glacier-view"
+        },
+        {
+          "match": "\\b([A-Za-z_]\\w*)(?=\\s*\\()",
+          "name": "entity.name.function.glacier-view"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "match": "[A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*",
+          "name": "variable.other.interpolation.glacier-view"
+        },
+        {
+          "match": "[(),]",
+          "name": "punctuation.separator.glacier-view"
+        }
+      ]
     }
   }
 }
