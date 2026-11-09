@@ -3233,22 +3233,43 @@ function trechoDoDestino(fsPath, linha) {
   return { lang, texto: out.join("\n").replace(/\s+$/, "") };
 }
 
+// As props que o componente sob o cursor declara, em markdown — ou "" quando a
+// tag não é um componente com contrato. `default` ausente = obrigatória.
+async function propsMarkdown(document, position) {
+  const adaptado = adaptDocument(document);
+  const hit = classify(adaptado, position);
+  if (!hit || hit.kind !== "tag" || hit.canonical) return "";
+  const props = await propsForTag(adaptado, hit.name).catch(() => null);
+  if (!props || !props.length) return "";
+  const linhas = props.map((p) => {
+    const tipo = p.component ? " *(componente)*" : "";
+    const padrao = p.default === undefined ? " — obrigatória" : ` = \`${p.default}\``;
+    return `- \`${p.name}\`${tipo}${padrao}`;
+  });
+  return `**Props** de \`${hit.name}\`\n\n${linhas.join("\n")}`;
+}
+
 async function provideHover(document, position) {
   let locs;
   try {
     locs = await resolveDefinition(adaptDocument(document), position);
   } catch (_) {
-    return undefined;
+    locs = undefined;
   }
-  const loc = locs && locs[0];
-  if (!loc || !loc.uri || !loc.range || loc.uri.scheme !== "file") return undefined;
-  const aqui = loc.uri.fsPath === document.uri.fsPath && loc.range.start.line === position.line;
-  if (aqui) return undefined;
-  const trecho = trechoDoDestino(loc.uri.fsPath, loc.range.start.line);
-  if (!trecho || !trecho.texto) return undefined;
   const md = new vscode.MarkdownString();
-  md.appendMarkdown(`*${vscode.workspace.asRelativePath(loc.uri)}:${loc.range.start.line + 1}*\n\n`);
-  md.appendCodeblock(trecho.texto, trecho.lang || "text");
+  const propsMd = await propsMarkdown(document, position).catch(() => "");
+  if (propsMd) md.appendMarkdown(propsMd + "\n\n---\n\n");
+  const loc = locs && locs[0];
+  if (loc && loc.uri && loc.range && loc.uri.scheme === "file") {
+    const aqui = loc.uri.fsPath === document.uri.fsPath && loc.range.start.line === position.line;
+    const trecho = aqui ? null : trechoDoDestino(loc.uri.fsPath, loc.range.start.line);
+    if (trecho && trecho.texto) {
+      md.appendMarkdown(`*${vscode.workspace.asRelativePath(loc.uri)}:${loc.range.start.line + 1}*\n\n`);
+      md.appendCodeblock(trecho.texto, trecho.lang || "text");
+    }
+  }
+  if (!md.value.trim()) return undefined;
+  if (propsMd && !md.value.includes("```")) md.value = md.value.replace(/\n\n---\n\n$/, "");
   return new vscode.Hover(md);
 }
 
