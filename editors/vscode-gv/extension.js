@@ -328,7 +328,7 @@ const DIRECTIVE_ATTRS = new Set(
     "empty", "not_empty",
     "platform",
     // repetição
-    "foreach", "each", "repeat", "var",
+    "for_each", "foreach", "each", "repeat", "var",
     // destino num slot nomeado do componente (`template(slot = footer)`)
     "slot",
     // arrastar-e-soltar da lista repetida
@@ -377,7 +377,7 @@ const TEMPLATE_FALLBACK_ATTRS = new Set([
 const RENDER_COMPONENT_ATTRS = new Set(["component", "is"]);
 // What makes a template a repetition (src/parser.rs's TEMPLATE_FOREACH_ATTRS).
 const TEMPLATE_FOREACH_ATTRS = new Set(
-  ["foreach", "each", "repeat", "items", "source"].map(
+  ["for_each", "foreach", "each", "repeat", "items", "source"].map(
     (s) => s.toLowerCase()
   )
 );
