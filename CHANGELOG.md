@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.159.0 — 2026-11-12
+
+- **`open_dialog(nome, dados?)`: o segundo argumento são os dados do diálogo.** Em vez de escrever `ctx["__dialog.plano"] = …` antes de abrir, passa-se `open_dialog("deploy_plan", { plano = plano })`: cada par vira a chave `__dialog.<nome>`, que o corpo, o `title`, o `message` e os rótulos leem como `{__dialog.plano}`. Os valores seguem a regra de `ctx.x = …` (texto, número, booleano, tabela → JSON), e as chaves são apagadas quando o diálogo fecha, depois do handler retomado. Sem o argumento, nada muda; um segundo argumento que não é tabela lança. Quem escreve as chaves à mão (o caminho de `on_click = "dialog:nome"`) continua podendo.
+
 ## glacier-ui 0.158.0 — 2026-11-12
 
 - **`tela:answer(valor)` no harness de testes.** Responde o diálogo em que o handler suspendeu (`confirm{}`, `prompt{}`, `open_dialog`) e o retoma: uma string (o `value` de um `choice`, ou o texto de um `prompt`), `nil` (desistiu / fechou) ou `true`/`false` (um `confirm{}`). Sem diálogo pendente, ou com um valor de outro tipo, lança. Se o handler retomado abre outro diálogo, ele fica pendente para o próximo `answer`. Com isso o teste cobre o fluxo inteiro de um handler que decide pelo retorno de `open_dialog`, e não só até o diálogo abrir.

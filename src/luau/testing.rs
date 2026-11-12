@@ -1303,6 +1303,40 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Erro de uso do `open_dialog(nome, dados)`: `dados` é uma tabela.
+    #[test]
+    fn open_dialog_valida_os_argumentos() {
+        let dir = std::env::temp_dir().join(format!("glacier_tod_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tela = dir.join("tela.xml");
+        std::fs::write(
+            &tela,
+            "<screen><script>\
+             function a() open_dialog('x', 'texto') end\n\
+             function c() open_dialog('x', { k = 'v' }) ctx.fim = ctx['__dialog.k'] end\
+             </script></screen>",
+        )
+        .unwrap();
+        let file = dir.join("t.test.luau");
+        std::fs::write(
+            &file,
+            format!(
+                "function test_args()\n\
+                   local c = component({:?}, {{}})\n\
+                   assert_fails(function() c:call('a') end, 'tabela {{ chave = valor }}')\n\
+                   c:call('c')\n\
+                   c:answer(nil)\n\
+                   assert_eq(c:get('fim'), 'v')\n\
+                 end",
+                tela.to_str().unwrap()
+            ),
+        )
+        .unwrap();
+        let s = run_file(&file, None, Options::default());
+        assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// `:answer` retoma o handler suspenso num diálogo: `string` (um `choice`),
     /// `nil` (desistiu) e `boolean` (um `confirm{}`); sem diálogo pendente, lança;
     /// e um handler que abre outro diálogo deixa-o pendente para o próximo answer.

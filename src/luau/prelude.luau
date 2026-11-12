@@ -273,12 +273,25 @@ end
 -- Abre um `dialog(name = "…")` declarado no markup e SUSPENDE (como `confirm` e
 -- `prompt`) até o usuário escolher. Devolve o `value` do `choice(…, value = v)` que
 -- ele clicou, ou `nil` se clicou num `button` do diálogo (o que só fecha), no fundo
--- ou se o nome não existe — um único tipo: `string?`. Escreva as chaves `__dialog.*`
--- antes de chamar (elas semeiam o corpo); o handler as lê depois do retorno.
---   ctx["__dialog.plano"] = texto
---   local escolha = open_dialog("deploy_com_dependencias")
+-- ou se o nome não existe — um único tipo: `string?`.
+--
+-- O 2º argumento são os DADOS do diálogo: cada par vira a chave `__dialog.<nome>` do
+-- contexto, que o corpo, o `title`, o `message` e os rótulos leem como
+-- `{__dialog.<nome>}`. As chaves são do diálogo: o motor as apaga quando ele fecha
+-- (depois de o handler retomado rodar), então a próxima abertura vem limpa.
+--   local escolha = open_dialog("deploy_com_dependencias", { message = texto })
 --   if escolha == "aceitar" then ... end
-function open_dialog(name)
+-- Equivale a escrever `ctx["__dialog.message"] = texto` antes de abrir (o caminho de um
+-- `on_click = "dialog:nome"`, que não passa por aqui).
+function open_dialog(name, data)
+    if data ~= nil then
+        if type(data) ~= "table" then
+            error("open_dialog: o segundo argumento é uma tabela { chave = valor } com os dados do diálogo", 2)
+        end
+        for chave, valor in pairs(data) do
+            ctx["__dialog." .. tostring(chave)] = valor
+        end
+    end
     return coroutine.yield({ __glacier_dialog_named = true, name = name })
 end
 

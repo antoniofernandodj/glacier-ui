@@ -2895,7 +2895,7 @@ de carga** (linha e coluna). `choice` aceita `role` como o `button`.
 
 **Fluxo A — formulário que salva (`button` + `on_click`).** O diálogo edita
 algo; o resultado do clique é "gravar". Abre com `on_click = "dialog:X"` (ou
-`open_dialog("X")`), e o handler da ação lê o rascunho `__dialog.*`.
+`open_dialog("X", dados)`), e o handler da ação lê o rascunho `__dialog.*`.
 
 **Fluxo B — decisão que volta como valor (`choice` + `open_dialog`).** O handler
 faz um trabalho, mostra opções e precisa da escolha **para continuar**.
@@ -2915,8 +2915,8 @@ dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
 ```lua
 function iniciar_deploy(): ()
   local alvo = ctx.selecionado                 -- variáveis LOCAIS: o fluxo é linear
-  ctx["__dialog.plano"] = calcular_plano(alvo) -- semeia o corpo
-  local escolha = open_dialog("deploy")        -- ⏸ espera o clique
+  -- 2º argumento = os dados do diálogo: viram __dialog.plano, que o corpo lê como {__dialog.plano}.
+  local escolha = open_dialog("deploy", { plano = calcular_plano(alvo) })  -- ⏸ espera o clique
   if escolha == "aceitar" then
     deploy_com_deps(alvo)
   elseif escolha == "so" then
@@ -2946,8 +2946,13 @@ Regras:
 - **O handler lê o rascunho depois do retorno.** Se o corpo tem campos
   (`__dialog.*`), eles ainda estão no contexto quando `open_dialog` volta; o motor
   só os apaga depois que o handler termina (a menos que ele abra outro diálogo).
-- **Abrir já preenchido:** escreva as chaves `__dialog.*` **antes** do
-  `open_dialog`/`dialog:X`.
+- **Os dados do diálogo:** o 2º argumento do `open_dialog` é uma tabela
+  `{ chave = valor }`; cada par vira `__dialog.<chave>` (valores como em
+  `ctx.x = …`: texto, número, booleano, tabela → JSON). O corpo, o `title`, o
+  `message` e os rótulos leem `{__dialog.<chave>}`. Serve também para abrir **já
+  preenchido** um formulário (`open_dialog("editar", { nome = item.nome })`). De um
+  `on_click = "dialog:X"`, que não passa pelo `open_dialog`, escreva as chaves
+  `ctx["__dialog.chave"] = …` **antes** de abrir.
 
 #### `buttons=` — a lista compacta (forma antiga)
 

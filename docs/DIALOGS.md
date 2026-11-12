@@ -193,8 +193,8 @@ erros de carga.
 ```lua
 function iniciar()
     local alvo = ctx.selecionado                  -- variável local: fluxo linear
-    ctx["__dialog.plano"] = montar_plano(alvo)    -- semeia o corpo
-    local escolha = open_dialog("deploy")         -- ⏸ suspende até o clique
+    -- O 2º argumento são os dados do diálogo (viram __dialog.plano; o corpo lê {__dialog.plano}).
+    local escolha = open_dialog("deploy", { plano = montar_plano(alvo) })  -- ⏸ até o clique
     if escolha == "aceitar" then executar(alvo)
     elseif escolha == "so" then executar_so(alvo) end   -- nil = fechou
 end
@@ -274,7 +274,7 @@ o que deixa o fluxo linear — a mesma aparência síncrona que o `fetch` tem.
 | Função | Devolve | Corpo |
 |---|---|---|
 | `confirm{}` | `boolean` | nenhum (a caixa de mensagem de sempre) |
-| `open_dialog(nome)` | `string` (o `value` de um `choice`) ou `nil` | o do `dialog(name = nome)` declarado |
+| `open_dialog(nome, dados?)` | `string` (o `value` de um `choice`) ou `nil` | o do `dialog(name = nome)` declarado |
 | `prompt{}` | `string` ou `nil` | `__inputdialog` |
 | `pick_color{}` | `"#rrggbb"` ou `nil` | `__colordialog` |
 | `progress{}` | **não suspende** | `__progressdialog` |

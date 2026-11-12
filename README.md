@@ -1014,7 +1014,7 @@ e `button` com `value` são **erros de carga**, com linha e coluna. Ambos aceita
 | de onde | como |
 |---|---|
 | um botão/menu do markup | `on_click = "dialog:editar_servico"` |
-| um handler Luau | `open_dialog("editar_servico")` |
+| um handler Luau | `open_dialog("editar_servico")` ou `open_dialog("editar_servico", { nome = "api" })` (o 2º argumento são os dados do diálogo) |
 | Rust | `ctx.open_dialog("editar_servico")` ou `ctx.show_dialog(DialogSpec…)` |
 
 `dialog:close` (ou `fechar`) fecha o que estiver aberto; um nome inexistente é
@@ -1040,8 +1040,11 @@ end
 O corpo escreve em chaves `__dialog.*` (o prefixo é a convenção). O motor as
 **apaga quando o diálogo fecha**, depois de o handler rodar — por isso a
 segunda abertura vem limpa, e não preenchida com o que sobrou da primeira. Para
-abrir **já preenchido** (editar um item existente), escreva as chaves antes de
-abrir: `ctx["__dialog.nome"] = item.nome; open_dialog("editar_servico")`.
+abrir **já preenchido** (editar um item existente), passe os dados no segundo
+argumento do `open_dialog`: `open_dialog("editar_servico", { nome = item.nome })`.
+Cada par vira a chave `__dialog.<nome>`, que o corpo, o `title`, o `message` e os
+rótulos leem como `{__dialog.nome}`. (De um `on_click = "dialog:…"`, que não passa
+pelo `open_dialog`, escreva as chaves `ctx["__dialog.nome"] = …` antes de abrir.)
 
 ### Fluxo B — a decisão que volta como valor (`choice` + `open_dialog`)
 
@@ -1069,8 +1072,8 @@ function iniciar_deploy(): ()
   local servico = ctx.selecionado
   local plano = calcular_plano(servico)         -- um RPC, por exemplo
 
-  ctx["__dialog.plano"] = plano                  -- semeia o corpo
-  local escolha = open_dialog("deploy_plan")     -- ⏸ espera o usuário
+  -- O 2º argumento são os dados do diálogo: o corpo os lê como {__dialog.plano}.
+  local escolha = open_dialog("deploy_plan", { plano = plano })   -- ⏸ espera o usuário
 
   if escolha == "aceitar" then
     deploy_com_dependencias(servico)
@@ -1100,9 +1103,9 @@ Duas regras para não se perder:
   `dialog:nome` (do markup) não há ninguém esperando, então o `choice` apenas
   fecha. E num diálogo aberto por `open_dialog`, um `button(on_click = …)` não
   dispara a ação: ele fecha e devolve `nil`. Escolha o fluxo A ou o B por diálogo.
-- **O handler lê o rascunho depois do retorno.** Se o corpo tem campos
-  (`__dialog.*`), eles ainda estão no contexto quando `open_dialog` volta; o
-  motor só os apaga depois que o handler termina.
+- **O handler lê o rascunho depois do retorno.** Os dados que você passou e os
+  campos que o corpo preencheu (`__dialog.*`) ainda estão no contexto quando
+  `open_dialog` volta; o motor só os apaga depois que o handler termina.
 
 ### Dispensar, `dismissible` e `message`
 

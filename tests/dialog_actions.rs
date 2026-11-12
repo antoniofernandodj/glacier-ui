@@ -345,6 +345,66 @@ fn open_dialog_devolve_o_valor_do_choice_e_o_handler_continua() {
     std::fs::remove_file(&c).ok();
 }
 
+/// `open_dialog(nome, { chave = valor })`: cada par vira `__dialog.<chave>`, o corpo e o
+/// título leem `{__dialog.chave}`, o handler retomado ainda lê, e depois tudo é apagado.
+#[test]
+fn open_dialog_ctx_semeia_o_dialogo_e_e_limpo_depois() {
+    let mut motor = GlacierUI::new();
+    let c = escreve(
+        "open_dialog_ctx",
+        "xml",
+        r##"<screen>
+              <resources>
+                <script>
+                  function pedir()
+                    local r = open_dialog("d", { message = "1. db\n2. api", n = 3, ok = true })
+                    ctx.lido = ctx["__dialog.message"] or "vazio"
+                    ctx.r = tostring(r)
+                  end
+                  function sem_dados()
+                    local r = open_dialog("d")
+                    ctx.r = tostring(r)
+                  end
+                </script>
+                <dialog name="d" title="Plano {__dialog.n}">
+                  <text content="{__dialog.message}" />
+                  <actions><choice text="Ok {__dialog.n}" value="ok" /></actions>
+                </dialog>
+              </resources>
+              <button text="x" on_click="pedir" />
+            </screen>"##,
+    );
+    motor.register_component("tela", &c).unwrap();
+    motor.navigate_to("tela");
+
+    let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
+    let spec = motor.dialog().expect("aberto");
+    assert_eq!(spec.title, "Plano 3", "o título lê {{__dialog.n}} na abertura");
+    assert_eq!(spec.buttons[0].label, "Ok 3");
+    assert_eq!(
+        motor.get_data("__dialog.message").map(String::as_str),
+        Some("1. db\n2. api")
+    );
+    assert_eq!(motor.get_data("__dialog.ok").map(String::as_str), Some("true"));
+
+    let ok = spec.buttons[0].action.clone();
+    let _ = motor.dispatch(&EngineMessage::DialogButton(ok));
+    assert_eq!(motor.get_data("r").map(String::as_str), Some("ok"));
+    assert_eq!(
+        motor.get_data("lido").map(String::as_str),
+        Some("1. db\n2. api"),
+        "o handler retomado ainda lê os dados"
+    );
+    assert_eq!(motor.get_data("__dialog.message"), None, "apagados depois");
+    assert_eq!(motor.get_data("__dialog.n"), None);
+
+    // Sem `opts`, continua como antes: nada semeado.
+    let _ = motor.dispatch(&EngineMessage::UiClick("sem_dados".into()));
+    assert!(motor.dialog().is_some());
+    assert_eq!(motor.get_data("__dialog.message"), None);
+    std::fs::remove_file(&c).ok();
+}
+
 /// Dispensar o diálogo (clicar no fundo) também devolve `nil`, e uma corrotina
 /// nunca fica presa: um nome inexistente retoma na hora com `nil`.
 #[test]
