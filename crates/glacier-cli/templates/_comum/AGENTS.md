@@ -4261,6 +4261,33 @@ Para ler algo de volta, grave no `ctx` dentro do `eval` e use `tela:get`. Um err
 no trecho lança no teste, com o prefixo `eval:`. Como um handler, o trecho **pode
 suspender** (e então para ali, como no resto do harness).
 
+**`tela:answer(valor)` responde o diálogo em que o handler suspendeu.** Um
+handler que chama `confirm{}`, `prompt{}` ou `open_dialog(…)` **para** ali; o
+teste olha o que ficou pronto até aí (o `ctx` semeado, o que *não* foi enviado
+ainda) e então responde, e o handler continua de onde parou:
+
+```lua
+function test_aceitar_deploya_com_dependencias()
+    local tela = nova_com_api(PLANO_3)
+    tela:call("running_deploy", "svc_1")      -- para em open_dialog("deploy_plan")
+    assert_eq(enviados(tela), "DeployWithDependenciesPlan")   -- nada deployado ainda
+    tela:answer("aceitar")                    -- o `value` do choice clicado
+    assert_eq(enviados(tela), "DeployWithDependenciesPlan,DeployWithDependencies")
+end
+```
+
+| `answer(...)` | equivale a | o handler recebe |
+|---|---|---|
+| `"aceitar"` | clicar o `choice(value = aceitar)` / digitar num `prompt` | a string |
+| `nil` | rejeitar, clicar no fundo, desistir | `nil` |
+| `true` / `false` | os botões de um `confirm{}` | o booleano |
+
+Sem diálogo pendente, `answer` **lança** (o handler não suspendeu em lugar
+nenhum); um valor de outro tipo também. Se o handler retomado abre **outro**
+diálogo, ele fica pendente para o próximo `answer`. O harness não renderiza o
+diálogo: ele responde pelo valor, sem conferir qual botão o produziria — isso é o
+contrato do `dialog`/`choice`, testado no motor.
+
 **`tela:missing()` é o teste que pega a tela vazia.** Um handler que escreve
 `ctx.total` passa em todo teste de handler, e o `.gv` que lê `{totall}` aparece
 vazio, sem erro. `missing()` carrega o template como o motor o carrega, avalia
@@ -4321,9 +4348,9 @@ assert_eq(tela:style(tela:find({ id = "nav" })).width, "100")   -- ou tela:style
 Não confere pixels, fontes nem posição, e a ação é disparada por nome
 (`tela:call`), não por clique.
 
-`require` num teste também enxerga `views/scripts` e `views/`. Chamadas que
-suspendem (`fetch`, `confirm`, diálogos) não são resolvidas: o handler para na
-suspensão.
+`require` num teste também enxerga `views/scripts` e `views/`. O `fetch` não é
+resolvido: o handler para na suspensão. Um diálogo (`confirm`, `prompt`,
+`open_dialog`) também para o handler, mas se responde com `tela:answer(valor)`.
 
 ### JSON
 

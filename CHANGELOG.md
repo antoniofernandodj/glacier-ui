@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.158.0 — 2026-11-12
+
+- **`tela:answer(valor)` no harness de testes.** Responde o diálogo em que o handler suspendeu (`confirm{}`, `prompt{}`, `open_dialog`) e o retoma: uma string (o `value` de um `choice`, ou o texto de um `prompt`), `nil` (desistiu / fechou) ou `true`/`false` (um `confirm{}`). Sem diálogo pendente, ou com um valor de outro tipo, lança. Se o handler retomado abre outro diálogo, ele fica pendente para o próximo `answer`. Com isso o teste cobre o fluxo inteiro de um handler que decide pelo retorno de `open_dialog`, e não só até o diálogo abrir.
+
 ## glacier-ui 0.157.0 — 2026-11-12
 
 - **`tela:eval(código)` no harness de testes (`glacier test`).** Roda um trecho Luau **dentro da VM do componente** carregado por `component()`: mesmo `ctx`, mesmos globais e o mesmo cache de `require` dos handlers. Antes, o teste e o componente tinham VMs separadas e um `require("state")` do teste devolvia outra tabela — então não havia como injetar um cliente de rede falso (`State.api`) e testar o caminho com conexão de um handler. Para ler algo de volta, grave no `ctx` e use `tela:get`.

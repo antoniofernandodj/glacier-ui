@@ -17,7 +17,8 @@
 //!   `:get(chave)`, `:set(chave, valor)`, `:data()`, `:toasts()` e
 //!   `:eval(código)` (roda um trecho Luau **na VM do componente**, para injetar o
 //!   que o handler usa — um `State.api` falso —, e só ali enxerga o `ctx` e o
-//!   `require` dele). O `ctx` inicial e o
+//!   `require` dele) e `:answer(valor)` (responde o diálogo em que o handler
+//!   suspendeu — `confirm`, `prompt`, `open_dialog` — e o retoma). O `ctx` inicial e o
 //!   `:set` aceitam tabelas (viram JSON, como `ctx.x = {...}` num script). Um handler
 //!   que falha **lança** o erro (em produção ele viraria um toast); `:missing()`
 //!   avalia o template contra o `ctx` de agora e devolve as chaves que o markup
@@ -31,8 +32,9 @@
 //! `require` funciona como no app (relativo ao arquivo de teste), então módulos
 //! Luau puros testam-se só com `require` + `assert_*`.
 //!
-//! Chamadas que suspendem (`fetch`, `confirm`, diálogos) não são resolvidas aqui:
-//! o handler roda até a suspensão e para.
+//! O `fetch` não é resolvido aqui: o handler roda até a suspensão e para. Um
+//! diálogo (`confirm`, `prompt`, `open_dialog`) também para o handler, mas dá para
+//! respondê-lo com `:answer(valor)`.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -506,9 +508,29 @@ struct TestComponent {
     toasts: RefCell<Vec<(String, String)>>,
     /// O viewport de `:set_viewport(w, h)`; `None` = o do motor (o padrão).
     viewport: Cell<Option<(f32, f32)>>,
+    /// O id da corrotina suspensa num diálogo (`confirm`, `prompt`, `open_dialog`),
+    /// à espera de um `:answer(valor)`.
+    pending_dialog: Cell<Option<u64>>,
 }
 
 impl TestComponent {
+    /// Depois de um `call`/`eval`/`answer`: junta os toasts e guarda o diálogo que
+    /// o handler abriu e suspendeu (um novo substitui o anterior).
+    fn colhe(&self, ctx: &mut Context) {
+        for t in std::mem::take(&mut ctx.toasts) {
+            self.toasts
+                .borrow_mut()
+                .push((format!("{:?}", t.kind).to_lowercase(), t.message));
+        }
+        match ctx.dialog.take() {
+            Some(crate::component::DialogAction::OpenNamedResumable(_, id))
+            | Some(crate::component::DialogAction::ShowResumable(_, id, _)) => {
+                self.pending_dialog.set(Some(id));
+            }
+            _ => {}
+        }
+    }
+
     /// Carrega, avalia contra o contexto de agora e entrega a árvore a `f`.
     fn arvore<R>(
         &self,
@@ -528,11 +550,7 @@ impl UserData for TestComponent {
                 .comp
                 .run_inner(&action, value.as_deref(), &mut ctx)
                 .map_err(|e| mlua::Error::runtime(format!("{action}: {e}")))?;
-            for t in std::mem::take(&mut ctx.toasts) {
-                this.toasts
-                    .borrow_mut()
-                    .push((format!("{:?}", t.kind).to_lowercase(), t.message));
-            }
+            this.colhe(&mut ctx);
             if !ran {
                 return Err(mlua::Error::runtime(format!(
                     "o componente não tem a função '{action}'"
@@ -552,11 +570,38 @@ impl UserData for TestComponent {
             this.comp
                 .eval_inner(&code, &mut ctx)
                 .map_err(|e| mlua::Error::runtime(format!("eval: {e}")))?;
-            for t in std::mem::take(&mut ctx.toasts) {
-                this.toasts
-                    .borrow_mut()
-                    .push((format!("{:?}", t.kind).to_lowercase(), t.message));
-            }
+            this.colhe(&mut ctx);
+            Ok(())
+        });
+        // `:answer(valor)`: responde o diálogo em que o handler SUSPENDEU
+        // (`confirm`, `prompt`, `open_dialog`) e o retoma: `true`/`false` para um
+        // `confirm{}`, uma string para o `value` de um `choice` (ou o texto de um
+        // `prompt`), `nil` para desistir. Sem diálogo pendente, lança. O handler
+        // retomado pode abrir outro (fica pendente para o próximo `:answer`).
+        methods.add_method("answer", |_, this, valor: Value| {
+            let Some(id) = this.pending_dialog.take() else {
+                return Err(mlua::Error::runtime(
+                    "answer: nenhum diálogo pendente (o handler não suspendeu em confirm/prompt/open_dialog)",
+                ));
+            };
+            let outcome = match valor {
+                Value::Nil => crate::component::DialogOutcome::Cancelled,
+                Value::Boolean(b) => crate::component::DialogOutcome::Confirmed(b),
+                Value::String(s) => crate::component::DialogOutcome::Value(s.to_str()?.to_string()),
+                outro => {
+                    return Err(mlua::Error::runtime(format!(
+                        "answer: esperava nil, boolean ou string, recebi {}",
+                        outro.type_name()
+                    )));
+                }
+            };
+            let mut data = this.data.borrow_mut();
+            let mut types = this.types.borrow_mut();
+            let mut ctx = Context::with_types(&mut data, &mut types);
+            this.comp
+                .resume_dialog_inner(id, outcome, &mut ctx)
+                .map_err(|e| mlua::Error::runtime(format!("answer: {e}")))?;
+            this.colhe(&mut ctx);
             Ok(())
         });
         methods.add_method("missing", |lua, this, ()| {
@@ -1138,6 +1183,7 @@ fn install_component(lua: &Lua) -> mlua::Result<()> {
             types: RefCell::new(types),
             toasts: RefCell::new(Vec::new()),
             viewport: Cell::new(None),
+            pending_dialog: Cell::new(None),
         })
     })?;
     lua.globals().set("component", component)?;
@@ -1247,6 +1293,61 @@ mod tests {
                    c:call('usa')\n\
                    assert_eq(c:get('lido'), 'falso')\n\
                    assert_fails(function() c:eval('error(\"boom\")') end, 'boom')\n\
+                 end",
+                tela.to_str().unwrap()
+            ),
+        )
+        .unwrap();
+        let s = run_file(&file, None, Options::default());
+        assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `:answer` retoma o handler suspenso num diálogo: `string` (um `choice`),
+    /// `nil` (desistiu) e `boolean` (um `confirm{}`); sem diálogo pendente, lança;
+    /// e um handler que abre outro diálogo deixa-o pendente para o próximo answer.
+    #[test]
+    fn answer_retoma_o_handler_suspenso_no_dialogo() {
+        let dir = std::env::temp_dir().join(format!("glacier_tans_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tela = dir.join("tela.xml");
+        std::fs::write(
+            &tela,
+            "<screen><script>\
+             function escolher() local r = open_dialog('x') ctx.r = type(r) .. ':' .. tostring(r) end\n\
+             function sim_nao() local ok = confirm({ title = 'T', message = 'M' }) ctx.c = tostring(ok) end\n\
+             function dois() local a = open_dialog('a') local b = open_dialog('b') ctx.d = tostring(a) .. '+' .. tostring(b) end\
+             </script></screen>",
+        )
+        .unwrap();
+        let file = dir.join("t.test.luau");
+        std::fs::write(
+            &file,
+            format!(
+                "function test_answer()\n\
+                   local c = component({:?}, {{}})\n\
+                   assert_fails(function() c:answer('x') end, 'nenhum diálogo pendente')\n\
+                   c:call('escolher')\n\
+                   assert_nil(c:get('r'))\n\
+                   c:answer('aceitar')\n\
+                   assert_eq(c:get('r'), 'string:aceitar')\n\
+                   c:call('escolher')\n\
+                   c:answer(nil)\n\
+                   assert_eq(c:get('r'), 'nil:nil')\n\
+                   c:call('sim_nao')\n\
+                   c:answer(true)\n\
+                   assert_eq(c:get('c'), 'true')\n\
+                   c:call('sim_nao')\n\
+                   c:answer(false)\n\
+                   assert_eq(c:get('c'), 'false')\n\
+                   c:call('dois')\n\
+                   c:answer('um')\n\
+                   assert_nil(c:get('d'))\n\
+                   c:answer('dois')\n\
+                   assert_eq(c:get('d'), 'um+dois')\n\
+                   assert_fails(function() c:answer('x') end, 'nenhum diálogo pendente')\n\
+                   c:call('escolher')\n\
+                   assert_fails(function() c:answer(5) end, 'esperava nil, boolean ou string')\n\
                  end",
                 tela.to_str().unwrap()
             ),
