@@ -14,8 +14,8 @@ container(padding = 20, align_x = Center, align_y = Center, width = fill, height
   column(spacing = 20, align_x = Center) {
     text(content = "Valor do Contador: {contador}", size = 28, bold = true, color = #ECEFF4)
     row(spacing = 15, align_y = Center) {
-      button(text = Diminuir, on_click = decrementar, color = #BF616A, padding = "10 20")
-      button(text = Aumentar, on_click = incrementar, color = #A3BE8C, padding = "10 20")
+      button("Diminuir", on_click = decrementar, color = #BF616A, padding = "10 20")
+      button("Aumentar", on_click = incrementar, color = #A3BE8C, padding = "10 20")
     }
   }
 }
@@ -889,7 +889,7 @@ let form = FormBuilder::new("login")
 form(on_submit = entrar, name = login, width = fill) {
   textinput(form_control = username, placeholder = usuário, width = fill)
   textinput(form_control = password, placeholder = senha, secure = true, width = fill)
-  button(text = Entrar, on_click = entrar)
+  button("Entrar", on_click = entrar)
 }
 ```
 
@@ -926,8 +926,8 @@ Cada tela é um componente registrado. Há três formas de trocar de tela:
 **1. Declarativa (atributos no `.gv`):**
 
 ```gv
-button(text = "Ver perfil", navigate_to = perfil)
-button(text = Voltar, navigate_back = true)
+button("Ver perfil", navigate_to = perfil)
+button("Voltar", navigate_back = true)
 ```
 
 **2. Imperativa (Rust):** de dentro do `update`, via `ctx.navigate_to(...)` /
@@ -973,7 +973,7 @@ app(id = meu_app) {
 
   screen(name = home, initial = true) {
     text("Olá, {usuario} — {visitas} visitas")
-    button(text = Contar, on_click = "app::registrar_visita")
+    button("Contar", on_click = "app::registrar_visita")
   }
 }
 ```
@@ -1049,8 +1049,8 @@ detecta o `script`, carrega o script e roteia cada ação
 **interpretado em tempo de execução**, sem recompilar.
 
 ```gv
-button(text = "+", on_click = incrementar)
-button(text = "-", on_click = decrementar)
+button("+", on_click = incrementar)
+button("-", on_click = decrementar)
 
 script """
   function init()        ctx.contador = ctx.contador or 0 end
@@ -1691,7 +1691,7 @@ runtime (o combo "Style:" do Widget Gallery do Qt), duas ações builtin — nen
 código de componente envolvido:
 
 ```gv
-button(text = Escuro, on_click = "style:fusion-dark")
+button("Escuro", on_click = "style:fusion-dark")
 select(:options = estilos, :value = glacier_style, on_change = "style:set")
 ```
 
@@ -1782,8 +1782,8 @@ Permitem montar uma barra de título customizada para uma janela sem decoraçõe
 row(width = fill, on_press = "window:drag") {
   text(content = "Meu App")
 }
-button(text = "—", on_click = "window:minimize")
-button(text = "✕", on_click = "window:close")
+button("—", on_click = "window:minimize")
+button("✕", on_click = "window:close")
 ```
 
 O `window:maximize` só **alterna**; para o botão refletir o estado, o daemon mantém
@@ -1792,9 +1792,9 @@ atualizado a cada resize — inclusive quando a WM maximiza (Super+↑, snap):
 
 ```
 if @glacier_window_maximized {
-  button(on_click = window:maximize, text = "❐")
+  button("❐", on_click = window:maximize)
 } else {
-  button(on_click = window:maximize, text = "▢")
+  button("▢", on_click = window:maximize)
 }
 ```
 

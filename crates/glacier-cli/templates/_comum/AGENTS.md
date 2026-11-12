@@ -61,7 +61,7 @@ screen(title = Contador, size = "320 240") {
       text(class = nota, content = "Clicou @n vezes.")
     }
 
-    button(class = btn, on_click = somar, text = "+")
+    button("+", class = btn, on_click = somar)
   }
 }
 ```
@@ -319,7 +319,7 @@ vazia vira `{}` em vez de `[]`, e o widget de coleção não acha itens.
 ### O ciclo de uma ação, passo a passo
 
 ```gv
-button(text = Salvar, on_click = salvar)
+button("Salvar", on_click = salvar)
 ```
 
 1. O clique vira a ação `"salvar"`.
@@ -339,7 +339,7 @@ sufixo depois do `:` vira o primeiro argumento. É como uma linha de lista passa
 o próprio id:
 
 ```gv
-button(for_each = itens, var = i, text = "✕", on_click = "remover:{i.id}")
+button("✕", for_each = itens, var = i, on_click = "remover:{i.id}")
 ```
 ```lua
 function remover(id: string): ()  …  end
@@ -370,15 +370,15 @@ gerenciador de janelas (Super+↑, snap). É o que deixa uma titlebar própria
 trocar o ícone:
 
 ```gv
-button(if = @glacier_window_maximized, on_click = "window:maximize", text = "❐")
-button(else, on_click = "window:maximize", text = "▢")
+button("❐", if = @glacier_window_maximized, on_click = "window:maximize")
+button("▢", else, on_click = "window:maximize")
 ```
 
 E um que é o oposto — `app:` **desmarca** a ação de quem a repassou:
 
 ```gv
 // dentro de um componente seu, repassando uma ação do app para um filho
-button(on_click = "app:{ao_salvar}", text = Salvar)
+button("Salvar", on_click = "app:{ao_salvar}")
 ```
 
 Sem o `app:`, uma ação que passa por dentro de um componente vira
@@ -390,7 +390,7 @@ um componente **repassar** uma ação que ele recebeu por prop.
 Cada tela é um componente registrado. Trocar de tela é uma ação:
 
 ```gv
-button(text = Sobre, navigate_to = sobre)  // do markup
+button("Sobre", navigate_to = sobre)  // do markup
 ```
 ```lua
 navigate("sobre")      navigate_back()          -- do script
@@ -432,7 +432,7 @@ app(id = meu_app) {
 
   screen(name = home, initial = true) {
     text(content = "Olá, {usuario} — {visitas} visitas")
-    button(text = "Contar", on_click = "app::registrar_visita")
+    button("Contar", on_click = "app::registrar_visita")
   }
 }
 ```
@@ -611,7 +611,7 @@ screen(title = Serviços, size = "720 520", min_size = "480 360") {
           text("{s.nome}", class = nome)
           space
           badge(badge_text = @s.estado)
-          button(class = btn, text = alternar, on_click = "alternar:{s.id}")
+          button("alternar", class = btn, on_click = "alternar:{s.id}")
         }
       }
     }
@@ -1733,8 +1733,8 @@ form(name = cadastro, on_submit = salvar, on_validation_error = apontar, validat
   select(form_control = uf, :options = ufs, rules = required)
   checkbox(form_control = aceite, rules = accepted, label = "Aceito os termos")
   text("{erro_nome}", class = erro, if = @erro_nome, not_empty)
-  button(type = reset, text = Limpar, on_click = limpar)
-  button(type = submit, text = Salvar)
+  button("Limpar", type = reset, on_click = limpar)
+  button("Salvar", type = submit)
 }
 ```
 
@@ -2182,7 +2182,7 @@ tableview(:items = linhas, var = c, :sort = ordem, :value = sel, row_key = id, h
   tablecolumn(key = tamanho, sort_key = tamanho_bytes, label = TAMANHO, width = 100, align = right)
   // sem key: a coluna não ordena; o clique no botão é dele, não da linha
   tablecolumn(label = AÇÃO, width = 120, align = right) {
-    button(class = remover, on_click = "remover:{c.id}", text = Remover)
+    button("Remover", class = remover, on_click = "remover:{c.id}")
   }
   // filhos que NÃO são tablecolumn: o conteúdo de "sem linhas"
   text("Nenhum item.", class = vazio)
@@ -2779,7 +2779,7 @@ screen {
       }
     }
   }
-  button(text = Editar, on_click = "dialog:editar_servico")
+  button("Editar", on_click = "dialog:editar_servico")
 }
 ```
 ```lua
@@ -2885,7 +2885,7 @@ component {
       }
     }
   }
-  button(text = "Editar…", on_click = "dialog:editor_rotulo_dlg")
+  button("Editar…", on_click = "dialog:editor_rotulo_dlg")
 }
 ```
 
@@ -4365,7 +4365,7 @@ form(on_submit = salvar, on_validation_error = apontar) {
   input(form_control = senha, secure = true, rules = "required|minlen:6", msg = "mínimo 6")
   text("{erro_email}", class = erro, if = @erro_email, not_empty)
   text("{erro_senha}", class = erro, if = @erro_senha, not_empty)
-  button(type = submit, text = Entrar)
+  button("Entrar", type = submit)
 }
 ```
 `salvar` só roda se tudo passou; `apontar` recebe as falhas em JSON. O
