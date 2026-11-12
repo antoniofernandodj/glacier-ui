@@ -457,9 +457,6 @@ pub enum Nav {
 pub enum DialogOutcome {
     /// `confirm{}`: o usuário escolheu, e a escolha é o booleano.
     Confirmed(bool),
-    /// `confirm{ extra_label = … }`: o usuário clicou no botão do meio — vira a
-    /// string `"extra"` no lado Luau.
-    Extra,
     /// `prompt{}`: o usuário aceitou, e este é o valor que estava na chave.
     Value(String),
     /// Cancelou ou dispensou clicando fora — vira `nil` no lado Luau.

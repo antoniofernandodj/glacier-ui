@@ -221,7 +221,7 @@ o que deixa o fluxo linear — a mesma aparência síncrona que o `fetch` tem.
 
 | Função | Devolve | Corpo |
 |---|---|---|
-| `confirm{}` | `boolean` (ou `"extra"`, ver abaixo) | nenhum (a caixa de mensagem de sempre) |
+| `confirm{}` | `boolean` | nenhum (a caixa de mensagem de sempre) |
 | `prompt{}` | `string` ou `nil` | `__inputdialog` |
 | `pick_color{}` | `"#rrggbb"` ou `nil` | `__colordialog` |
 | `progress{}` | **não suspende** | `__progressdialog` |
@@ -230,11 +230,6 @@ o que deixa o fluxo linear — a mesma aparência síncrona que o `fetch` tem.
 local nome = prompt({ title = "Renomear", label = "Novo nome", value = atual })
 if nome then ctx.servico = nome end
 ```
-
-`confirm{ extra_label = "Só este" }` ganha um terceiro botão, entre cancelar e
-confirmar, e devolve `true` (confirmou), `"extra"` (o do meio) ou `false`
-(cancelou). `"extra"` também é verdadeiro em Luau: com `extra_label`, compare
-explicitamente (`if r == true … elseif r == "extra" …`).
 
 O `nil` da desistência é a convenção que o `open_file()` já usava, e ela separa
 "não respondeu" de "respondeu vazio" (que chega como `""`).

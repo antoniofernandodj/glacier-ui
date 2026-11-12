@@ -8,10 +8,6 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## glacier-ui 0.154.0 — 2026-11-12
-
-- **`confirm{ extra_label = "…" }`**: terceiro botão opcional entre cancelar e confirmar (Rejeitar · Só este · Aceitar). Com ele o retorno é `true` (confirmou), `"extra"` (o botão do meio) ou `false` (cancelou); sem `extra_label` nada muda. Novo `DialogOutcome::Extra` (quem implementa `resume_dialog` à mão precisa tratar a variante).
-
 ## glacier-ui 0.153.0 — 2026-11-12
 
 - **`button("Salvar", on_click = salvar)`**: o `button` aceita, como o `text`, o primeiro argumento sem nome, que vale como o atributo `text` (o rótulo). `button(text = "Salvar")` continua funcionando. Os exemplos e os templates da CLI (`.gv`) foram migrados para a forma curta.

@@ -110,10 +110,7 @@ end
 --                destructive = true }) then
 --       -- fazer a ação
 --   end
--- `opts = { title, message, confirm_label?, cancel_label?, extra_label?, destructive? }`.
--- Com `extra_label` o diálogo ganha um terceiro botão entre cancelar e confirmar,
--- e o retorno passa a ser `true` (confirmou), `"extra"` (o do meio) ou `false`
--- (cancelou) — compare explicitamente, `"extra"` também é verdadeiro.
+-- `opts = { title, message, confirm_label?, cancel_label?, destructive? }`.
 function confirm(opts)
     return coroutine.yield({
         __glacier_dialog = true,
@@ -121,7 +118,6 @@ function confirm(opts)
         message = opts.message,
         confirm_label = opts.confirm_label,
         cancel_label = opts.cancel_label,
-        extra_label = opts.extra_label,
         destructive = opts.destructive,
     })
 end

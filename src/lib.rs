@@ -1927,9 +1927,6 @@ impl GlacierUI {
                 if let Some(p) = self.dialog_resume.take() {
                     let aceitou = action.as_str() == dialogs::CONFIRM_YES;
                     let saida = match (&p.resume_key, aceitou) {
-                        (None, _) if action.as_str() == dialogs::CONFIRM_EXTRA => {
-                            component::DialogOutcome::Extra
-                        }
                         (None, _) => component::DialogOutcome::Confirmed(aceitou),
                         (Some(chave), true) => component::DialogOutcome::Value(
                             self.context_data.get(chave).cloned().unwrap_or_default(),

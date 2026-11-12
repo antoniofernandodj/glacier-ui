@@ -64,9 +64,6 @@ impl DialogIcon {
 pub(crate) const CONFIRM_YES: &str = "\0glacier:confirm:yes";
 /// Par de [`CONFIRM_YES`] para o botão cancelar (retoma a corrotina com `false`).
 pub(crate) const CONFIRM_NO: &str = "\0glacier:confirm:no";
-/// Ação sentinela do **terceiro botão** opcional de um `confirm{ extra_label = … }`:
-/// retoma a corrotina com a string `"extra"` (ver `DialogOutcome::Extra`).
-pub(crate) const CONFIRM_EXTRA: &str = "\0glacier:confirm:extra";
 
 /// Ação sentinela do botão que **só fecha** — o `Fechar` que um
 /// `dialog(name = "…")` sem `buttons` ganha, e o que um `Cancelar::` sem ação
