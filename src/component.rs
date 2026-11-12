@@ -477,6 +477,10 @@ pub enum DialogAction {
     /// Ao clicar num botão, o motor retoma essa corrotina em vez de despachar a
     /// `action` do botão como uma ação normal (o que [`DialogAction::Show`] faz).
     ShowResumable(crate::dialogs::DialogSpec, u64, Option<String>),
+    /// Abre um `dialog(name = "…")` **declarado no markup**, pelo nome — o que
+    /// `on_click = "dialog:nome"` faz, mas pedido de dentro de um handler
+    /// ([`Context::open_dialog`]). Não suspende; o resultado é a ação do botão.
+    OpenNamed(String),
     Close,
 }
 
@@ -937,6 +941,14 @@ impl<'a> Context<'a> {
 
     /// Pede ao motor para fechar o diálogo em exibição (se houver) após o
     /// `update`, sem despachar nenhuma ação de botão.
+    /// Abre o `dialog(name = "…")` declarado no markup, como `dialog:nome` faz de
+    /// um `on_click`. As chaves `__dialog.*` escritas antes da chamada chegam ao
+    /// corpo (é como o handler o semeia). Um nome que não existe é ignorado em
+    /// silêncio, como na ação `dialog:`.
+    pub fn open_dialog(&mut self, name: impl Into<String>) {
+        self.dialog = Some(DialogAction::OpenNamed(name.into()));
+    }
+
     pub fn close_dialog(&mut self) {
         self.dialog = Some(DialogAction::Close);
     }

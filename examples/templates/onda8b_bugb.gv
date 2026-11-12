@@ -7,11 +7,15 @@ screen {
     """
 
     dialog(
-      name = editar, title = Editar,
-      buttons = "Cancelar::|Salvar:salvar:accept",
+      name = editar, title = Editar
     ) {
       column {
         textinput(:value = __dialog.nome, on_change = __dialog.nome)
+      }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar)
       }
     }
   }

@@ -202,14 +202,20 @@ pub enum TrayItemKind {
 /// aqui vira um [`crate::dialogs::DialogSpec`] em
 /// [`crate::GlacierUI::dialog_spec`].
 ///
-/// Os botões são escritos como uma lista compacta em `buttons`, na forma
-/// `Rótulo:acao:papel`, separados por `|`:
+/// Os botões são escritos num bloco `actions` dentro do `dialog`:
 ///
 /// ```gv
-/// dialog(name = editar_perfil, title = "Editar perfil", buttons = "Cancelar::neutral|Salvar:salvar_perfil:accept") {
+/// dialog(name = editar_perfil, title = "Editar perfil") {
 ///   form("…")
+///   actions {
+///     button("Cancelar")
+///     button("Salvar", on_click = salvar_perfil)
+///   }
 /// }
 /// ```
+///
+/// A lista compacta `buttons = "Cancelar::neutral|Salvar:salvar_perfil:accept"`,
+/// na forma `Rótulo:acao:papel`, segue valendo.
 ///
 /// Sem `buttons`, o diálogo nasce com um `OK`/`Cancelar` — o par que um
 /// `QDialog` padrão traz, e o que um formulário quer em 90% dos casos.
@@ -227,9 +233,25 @@ pub struct DialogMeta {
     pub icon: Option<String>,
     /// A lista compacta de botões, `Rótulo:acao:papel` separados por `|`.
     pub buttons: Option<String>,
+    /// Os botões escritos como filhos, num bloco `actions { button("…", on_click = …) }`.
+    /// `Some` (mesmo vazio) manda sobre `buttons`; `None` = bloco ausente. O rótulo
+    /// guarda o texto **cru**: `{t('…')}` e `{chave}` são resolvidos ao abrir.
+    pub actions: Option<Vec<DialogActionMeta>>,
     /// Se clicar no fundo escurecido fecha o diálogo. Default `true`, como no
     /// [`crate::dialogs::DialogSpec`] cru.
     pub dismissible: Option<bool>,
+}
+
+/// Um botão do bloco `actions` de um `dialog`: `button("Salvar", on_click = salvar,
+/// role = accept)`. Sem `on_click` o botão só fecha o diálogo.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DialogActionMeta {
+    /// O texto do botão, ainda com `{interpolação}`.
+    pub label: String,
+    /// A ação despachada ao clicar; ausente ou vazia = só fecha.
+    pub action: Option<String>,
+    /// `accept`/`neutral`/`destructive`. Ausente: `accept` se há ação, `neutral` se não.
+    pub role: Option<String>,
 }
 
 /// Uma prop declarada no `props` de um `component` — o **contrato** do
@@ -1329,6 +1351,31 @@ fn is_component_tag(tag: &str) -> bool {
 /// `dialog`/`dialogo`/`diálogo` — a declaração de modal da Onda 8.
 fn is_dialog_tag(tag: &str) -> bool {
     tag.eq_ignore_ascii_case("dialog")
+}
+
+/// O filho `actions` de um `dialog`.
+fn is_dialog_actions(node: Node) -> bool {
+    node.is_element() && node.tag_name().name().eq_ignore_ascii_case("actions")
+}
+
+/// Lê os botões do bloco `actions { button("…", on_click = …, role = …) }` de um
+/// `dialog`. `None` quando não há bloco; `Some(vazio)` para `actions {}`.
+fn dialog_actions(dialog: Node) -> Option<Vec<DialogActionMeta>> {
+    let bloco = dialog.children().find(|c| is_dialog_actions(*c))?;
+    Some(
+        bloco
+            .children()
+            .filter(|c| c.is_element() && c.tag_name().name().eq_ignore_ascii_case("button"))
+            .map(|b| DialogActionMeta {
+                label: Node::attribute(&b, "text")
+                    .or_else(|| Node::attribute(&b, "content"))
+                    .unwrap_or_default()
+                    .to_string(),
+                action: Node::attribute(&b, "on_click").map(str::to_string),
+                role: Node::attribute(&b, "role").map(str::to_string),
+            })
+            .collect(),
+    )
 }
 
 /// Confere um `dialog(name = X)` declarado dentro do `resources`.
@@ -6607,6 +6654,7 @@ impl UiNode {
                     message: Self::get_attr(&node, DIALOG_MESSAGE_ATTRS),
                     icon: Self::get_attr(&node, DIALOG_ICON_ATTRS),
                     buttons: Self::get_attr(&node, DIALOG_BUTTONS_ATTRS),
+                    actions: dialog_actions(node),
                     dismissible: Self::get_attr(&node, DIALOG_DISMISSIBLE_ATTRS)
                         .as_deref()
                         .and_then(parse_bool_value),
@@ -6738,6 +6786,11 @@ impl UiNode {
         );
         let mut children = Vec::new();
         for child in node.children().filter(|_| le_filhos) {
+            // O `actions` de um `dialog` são os botões da moldura (lidos em
+            // `dialog_actions`), não parte do corpo.
+            if matches!(kind, NodeType::DialogDef(_)) && is_dialog_actions(child) {
+                continue;
+            }
             if let Some(child_node) = Self::from_node(child) {
                 children.push(child_node);
             } else if wrap_loose_text && child.is_text() {

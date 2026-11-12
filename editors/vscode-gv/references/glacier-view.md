@@ -1378,10 +1378,14 @@ nome, e o que a faz aparecer é a ação `dialog:<nome>`.
 
 ```gv
 resources {
-  dialog(name = editar, title = "Editar serviço", buttons = "Cancelar::|Salvar:salvar:accept") {
+  dialog(name = editar, title = "Editar serviço") {
     column(spacing = 10, width = fill) {
       textinput(:value = "__dialog.nome", placeholder = api-gateway, width = fill)
       spinbox(:value = "__dialog.replicas", min = 1, max = 32)
+    }
+    actions {
+      button("Cancelar")
+      button("Salvar", on_click = salvar)
     }
   }
 }
@@ -1394,7 +1398,7 @@ button(text = Editar, on_click = "dialog:editar")
 | `title` | — | título do cartão; vazio esconde o cabeçalho |
 | `message` | — | texto acima do corpo; vazio some (não vira linha em branco) |
 | `icon` | — | `information`, `warning`, `error`, `question` |
-| `buttons` | um `Fechar` | lista `Rótulo:ação:papel` separada por `\|` |
+| `buttons` | um `Fechar` | lista `Rótulo:ação:papel` separada por `\|` (forma antiga; prefira o bloco `actions { button("…", on_click = …, role = …) }`, cujos botões quebram linha) |
 | `dismissible` | `true` | clicar fora fecha |
 
 - **`buttons`**: o rótulo sai do **primeiro** `:`, o papel (quando é palavra-chave

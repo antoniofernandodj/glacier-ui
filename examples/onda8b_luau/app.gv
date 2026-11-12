@@ -28,8 +28,7 @@ screen(
     // binding de cada campo (`__dialog.*`) fica aqui, literal; o handler
     // `salvar_perfil` mora no `scripts/app.luau` da tela.
     dialog(
-      name = editar_perfil, title = "Editar perfil",
-      buttons = "         Cancelar::|         Salvar:salvar_perfil:accept       ",
+      name = editar_perfil, title = "Editar perfil"
     ) {
       column(class = dlg-form) {
         CampoForm(label = Nome) {
@@ -46,6 +45,11 @@ screen(
             class = dlg-fill,
           )
         }
+      }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar_perfil)
       }
     }
   }

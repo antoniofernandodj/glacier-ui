@@ -5,8 +5,7 @@ component {
     // importado funciona. Abre com a ação `dialog:cat_form`, fecha ao clicar um
     // botão. Os campos gravam em chaves `__dialog.*` (limpas no fechamento).
     dialog(
-      name = cat_form, title = "Editar serviço", dismissible = true,
-      buttons = "Cancelar::|Salvar:dlg_salvar:accept",
+      name = cat_form, title = "Editar serviço", dismissible = true
     ) {
       column(class = coluna) {
         text(class = rotulo, content = "Nome")
@@ -18,6 +17,11 @@ component {
 
         text(class = rotulo, content = "Réplicas")
         spinbox(:value = __dialog.replicas, min = 1, max = 32, width = 110)
+      }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = dlg_salvar)
       }
     }
   }

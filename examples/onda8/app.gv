@@ -11,8 +11,7 @@ screen(title = "Glacier — Onda 8", size = "1000 720", min_size = "820 620") {
     // fechamento — sem isso, a segunda abertura viria preenchida com o que
     // ficou da primeira.
     dialog(
-      name = editar_servico, title = "Editar serviço",
-      buttons = "Cancelar::|Salvar:salvar_servico:accept",
+      name = editar_servico, title = "Editar serviço"
     ) {
       column(class = form) {
         column(class = campo) {
@@ -52,6 +51,11 @@ screen(title = "Glacier — Onda 8", size = "1000 720", min_size = "820 620") {
           on_toggle = __dialog.restart,
         )
       }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar_servico)
+      }
     }
 
     // Um segundo diálogo, para mostrar que o encadeamento funciona: o botão
@@ -59,9 +63,13 @@ screen(title = "Glacier — Onda 8", size = "1000 720", min_size = "820 620") {
     dialog(
       name = remover_servico, title = "Remover serviço?",
       message = "A ação não pode ser desfeita.", icon = warning,
-      dismissible = false,
-      buttons = "Voltar:dialog:editar_servico:neutral|Remover:remover_confirmado:destructive",
-    )
+      dismissible = false
+    ) {
+      actions {
+        button("Voltar", on_click = dialog:editar_servico, role = neutral)
+        button("Remover", on_click = remover_confirmado, role = destructive)
+      }
+    }
   }
 
   column(class = tela) {

@@ -3088,7 +3088,15 @@ impl GlacierUI {
             self.limpa_rascunho_de_dialogo();
             return iced::Task::none();
         }
-        if let Some(spec) = self.dialog_defs.get(alvo).cloned() {
+        if let Some(mut spec) = self.dialog_defs.get(alvo).cloned() {
+            // Título, mensagem e rótulos dos botões aceitam `{chave}` e
+            // `{t('…')}`: são resolvidos AQUI, contra o contexto do instante em
+            // que o diálogo abre (um handler pode ter semeado as chaves antes).
+            spec.title = self.interpolate(&spec.title);
+            spec.message = self.interpolate(&spec.message);
+            for b in &mut spec.buttons {
+                b.label = self.interpolate(&b.label);
+            }
             self.fixa_corpo_do_dialogo(&spec);
             self.dialog = Some(spec);
             // Um diálogo declarativo nunca retoma corrotina: se havia um
@@ -3341,6 +3349,10 @@ impl GlacierUI {
                     id,
                     resume_key,
                 });
+            }
+            Some(component::DialogAction::OpenNamed(nome)) => {
+                // Sem limpar o rascunho: o handler acabou de semear `__dialog.*`.
+                let _ = self.abre_dialogo_nomeado(&nome);
             }
             Some(component::DialogAction::Close) => {
                 self.dialog = None;

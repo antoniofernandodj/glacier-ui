@@ -14,8 +14,7 @@ screen(
     // corpo preencheu. O motor apaga essas chaves no fechamento — por isso a
     // segunda abertura vem limpa, não com o que ficou da primeira.
     dialog(
-      name = editar_rotulo, title = "Editar rótulo",
-      buttons = "         Cancelar::|         Salvar:salvar_rotulo:accept       ",
+      name = editar_rotulo, title = "Editar rótulo"
     ) {
       column(class = form) {
         column(class = campo) {
@@ -55,6 +54,11 @@ screen(
           on_toggle = __dialog.negrito,
         )
       }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar_rotulo)
+      }
     }
 
     // Um segundo `dialog`, sem corpo: a caixa de mensagem. O botão neutro
@@ -62,9 +66,13 @@ screen(
     // diálogo.
     dialog(
       name = descartar_rotulo, title = "Descartar alterações?",
-      message = "O que você digitou será perdido.", icon = warning,
-      buttons = "         Voltar:dialog:editar_rotulo:neutral|         Descartar:descartou_rotulo:destructive       ",
-    )
+      message = "O que você digitou será perdido.", icon = warning
+    ) {
+      actions {
+        button("Voltar", on_click = dialog:editar_rotulo, role = neutral)
+        button("Descartar", on_click = descartou_rotulo, role = destructive)
+      }
+    }
   }
 
   column(class = tela) {

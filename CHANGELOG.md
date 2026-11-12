@@ -8,6 +8,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.155.0 — 2026-11-12
+
+- **`dialog` com `actions { button(…) }`**: os botões do rodapé agora são filhos do `dialog`, com a forma curta `button("Salvar", on_click = salvar, role = accept)`. Sem `on_click` só fecha; com ação o papel default é `accept`; `role` aceita `accept`, `neutral`, `destructive`. Rótulos, `title` e `message` aceitam `{chave}` e `{t('…')}`, resolvidos na abertura. A lista compacta `buttons = "…"` continua valendo (havendo `actions`, ela é ignorada). Os exemplos e o catálogo da CLI foram migrados.
+- **Os botões do diálogo quebram linha** quando não cabem no cartão, alinhados à direita (antes o último botão vazava da moldura com rótulos longos ou traduzidos).
+- **`open_dialog("nome")` no Luau**: abre um `dialog` declarado, de dentro de um handler, sem suspender; a resposta é a **ação** do botão clicado. Semeie `__dialog.*` antes de chamar. Nome inexistente é ignorado. Novo `Context::open_dialog` e `DialogAction::OpenNamed` no lado Rust.
+- **`confirm{}` volta a devolver só booleano.** A 0.154.0 acrescentou `confirm{ extra_label }`, que devolvia `true`/`false`/`"extra"` (dois tipos); foi retirada. Quem precisa de mais de duas respostas usa um `dialog` com `actions` e `open_dialog`. Quem chegou a usar `extra_label` na 0.154.0 deve migrar (a opção agora é ignorada).
+
 ## glacier-ui 0.153.0 — 2026-11-12
 
 - **`button("Salvar", on_click = salvar)`**: o `button` aceita, como o `text`, o primeiro argumento sem nome, que vale como o atributo `text` (o rótulo). `button(text = "Salvar")` continua funcionando. Os exemplos e os templates da CLI (`.gv`) foram migrados para a forma curta.

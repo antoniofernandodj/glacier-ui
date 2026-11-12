@@ -270,6 +270,17 @@ function progress_set(value, label)
     end
 end
 
+-- Abre um `dialog(name = "…")` declarado no markup, como `on_click = "dialog:nome"`
+-- faz, mas de dentro de um handler. NÃO suspende: a resposta do usuário é a ACAO do
+-- botão que ele clicar (um handler de mesmo nome), não um valor de retorno. Escreva
+-- as chaves `__dialog.*` antes de chamar: elas semeiam o corpo. Nome inexistente é
+-- ignorado em silêncio.
+--   ctx["__dialog.plano"] = texto
+--   open_dialog("deploy_com_dependencias")
+function open_dialog(name)
+    return coroutine.yield({ __glacier_dialog_named = true, name = name })
+end
+
 -- Fecha o diálogo de progresso (ou qualquer diálogo em exibição).
 function progress_close()
     return coroutine.yield({ __glacier_dialog_close = true })

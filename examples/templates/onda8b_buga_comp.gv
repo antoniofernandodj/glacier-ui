@@ -3,11 +3,15 @@ component {
     script(src = onda8b_buga_comp.luau)
 
     dialog(
-      name = dlg_do_comp, title = X,
-      buttons = "Cancelar::|Salvar:CompX::salvar:accept",
+      name = dlg_do_comp, title = X
     ) {
       column {
         textinput(:value = __dialog.v, on_change = __dialog.v)
+      }
+
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = CompX::salvar)
       }
     }
   }

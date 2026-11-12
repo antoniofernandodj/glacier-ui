@@ -288,6 +288,20 @@ impl DialogSpec {
         )
         .with_body(meta.name.clone());
 
+        // O bloco `actions { button(…) }` manda sobre a lista compacta: é a forma
+        // nova, e quem a escreveu não quis a outra.
+        if let Some(acoes) = &meta.actions {
+            for a in acoes {
+                if let Some(botao) = botao_de_acao(a) {
+                    spec = spec.with_button(botao);
+                }
+            }
+            if let Some(d) = meta.dismissible {
+                spec = spec.dismissible(d);
+            }
+            return spec;
+        }
+
         match meta.buttons.as_deref().map(str::trim) {
             // Escrito e não-vazio: a lista manda, inclusive quando ela pede
             // botão nenhum (`buttons=""` é um diálogo que só o fundo fecha —
@@ -378,6 +392,28 @@ fn botao_de(bruto: &str) -> Option<DialogButton> {
     Some(DialogButton::new(label, acao, role))
 }
 
+/// Lê um botão do bloco `actions` — as mesmas regras de [`botao_de`]: sem ação
+/// o botão só fecha ([`DIALOG_CLOSE`]) e é `neutral`; com ação o papel default é
+/// `accept`; `role = …` manda. O rótulo segue cru (`{t('…')}` é resolvido ao abrir).
+fn botao_de_acao(a: &crate::parser::DialogActionMeta) -> Option<DialogButton> {
+    let label = a.label.trim();
+    if label.is_empty() {
+        return None;
+    }
+    let acao = a.action.as_deref().map(str::trim).unwrap_or_default();
+    let role = a
+        .role
+        .as_deref()
+        .and_then(papel_de)
+        .unwrap_or(if acao.is_empty() {
+            ButtonRole::Neutral
+        } else {
+            ButtonRole::Accept
+        });
+    let acao = if acao.is_empty() { DIALOG_CLOSE } else { acao };
+    Some(DialogButton::new(label, acao, role))
+}
+
 /// Uma palavra-chave de papel de botão de diálogo, ou `None`.
 fn papel_de(s: &str) -> Option<ButtonRole> {
     match s.trim().to_lowercase().as_str() {
@@ -454,11 +490,18 @@ pub fn overlay<'a>(
         card = card.push(container(body).width(Length::Fill));
     }
 
-    let mut buttons = row![Space::new().width(Length::Fill)].spacing(8);
+    // Os botões quebram linha quando não cabem no cartão (rótulos longos,
+    // traduções), alinhados à direita — um botão a mais nunca vaza da moldura.
+    let mut buttons = row![].spacing(8).width(Length::Fill);
     for b in &spec.buttons {
         buttons = buttons.push(dialog_button(b, palette));
     }
-    card = card.push(buttons);
+    card = card.push(
+        buttons
+            .wrap()
+            .vertical_spacing(8)
+            .align_x(iced::alignment::Horizontal::Right),
+    );
 
     // Elevação por fundo opaco, não por `shadow` — ver `TROUBLESHOOTING.md`.
     // Nos drivers Vulkan incompletos (Intel Ivy Bridge/Haswell na Mesa) o quad
@@ -642,6 +685,44 @@ mod tests {
     fn rotulo_vazio_descarta_o_botao() {
         assert!(botao_de(":acao:accept").is_none());
         assert!(botao_de("").is_none());
+    }
+
+    #[test]
+    fn from_meta_actions_mandam_sobre_buttons_com_papeis_default() {
+        use crate::parser::{DialogActionMeta as A, DialogMeta};
+        let acao = |l: &str, a: Option<&str>, r: Option<&str>| A {
+            label: l.into(),
+            action: a.map(Into::into),
+            role: r.map(Into::into),
+        };
+        let meta = DialogMeta {
+            name: "x".into(),
+            buttons: Some("Velho::".into()),
+            actions: Some(vec![
+                acao("Rejeitar", None, None),
+                acao("Só", Some("so"), Some("neutral")),
+                acao("Aceitar", Some("ok"), None),
+                acao("Remover", Some("rm"), Some("danger")),
+                acao("  ", Some("vazio"), None),
+            ]),
+            ..Default::default()
+        };
+        let b = DialogSpec::from_meta(&meta).buttons;
+        assert_eq!(b.len(), 4, "rótulo vazio é descartado; `buttons` é ignorado");
+        assert_eq!((b[0].action.as_str(), b[0].role), (DIALOG_CLOSE, ButtonRole::Neutral));
+        assert_eq!((b[1].action.as_str(), b[1].role), ("so", ButtonRole::Neutral));
+        assert_eq!((b[2].action.as_str(), b[2].role), ("ok", ButtonRole::Accept));
+        assert_eq!(b[3].role, ButtonRole::Destructive);
+    }
+
+    #[test]
+    fn from_meta_actions_vazio_nao_tem_botao() {
+        let meta = crate::parser::DialogMeta {
+            name: "x".into(),
+            actions: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(DialogSpec::from_meta(&meta).buttons.is_empty());
     }
 
     #[test]

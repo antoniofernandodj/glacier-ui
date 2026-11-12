@@ -1063,7 +1063,7 @@ e escuro: `link(rel = style)`"). Qualquer outro é erro na carga, com a lista na
 mensagem.
 
 O `dialog` tem seção própria ("O `dialog` — o modal com corpo em markup"),
-com o `buttons=` nos mínimos detalhes.
+com o `actions` (e o `buttons=` antigo) nos mínimos detalhes.
 
 **O aplicativo é a raiz do arquivo.** O que é do aplicativo — instância única,
 geometria lembrada, diretório de dados, a janela principal, a bandeja — mora no
@@ -2770,12 +2770,16 @@ qualquer botão/menuitem. Ele fecha sozinho quando um botão dele é clicado.
 ```gv
 screen {
   resources {
-    dialog(name = editar_servico, title = "Editar serviço", icon = none, dismissible = true, buttons = "Cancelar::|Salvar:salvar_servico:accept") {
+    dialog(name = editar_servico, title = "Editar serviço", icon = none, dismissible = true) {
       column(class = form) {
         text("Nome", class = rotulo)
         textinput(:value = "__dialog.nome", on_change = "__dialog.nome", placeholder = api-gateway, class = preenche)
         spinbox(:value = "__dialog.replicas", min = 1, max = 32, width = 110)
         checkbox(label = Reiniciar, :checked = "__dialog.restart", on_toggle = "__dialog.restart")
+      }
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar_servico)
       }
     }
   }
@@ -2800,37 +2804,81 @@ end
 | `title` | — | título do cartão; vazio esconde a linha do cabeçalho |
 | `message` | — | um texto acima do corpo; vazio some (não vira linha em branco). Quase sempre ausente num diálogo com conteúdo — o conteúdo já diz o que ele pede |
 | `icon` | `none` | `information` (`info`), `warning` (`warn`), `error` (`critical`), `question`, `none`. Um valor desconhecido vira `none`, sem erro |
-| `buttons` | um `Fechar` | a lista compacta — ver abaixo |
+| `buttons` | um `Fechar` | a lista compacta (forma antiga) — ver o fim da seção. Prefira o bloco `actions { … }` |
 | `dismissible` | `true` | se clicar no fundo escurecido fecha (sem despachar nada). `false` obriga a escolher um botão |
 
 Qualquer outro atributo é **erro posicionado** (linha e coluna).
 
-#### `buttons=` — a lista compacta
+#### `actions { … }` — os botões, como filhos
 
-Botões separados por `|`; cada um é **`Rótulo:ação:papel`** (ação e papel
-opcionais). O parsing:
+Os botões do rodapé são um bloco `actions` **dentro** do `dialog`, com `button`
+comuns — o texto é o primeiro argumento, como em qualquer `button("…")`:
+
+```gv
+dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
+  text("{__dialog.plano}")
+  actions {
+    button("{t('comum.rejeitar')}")
+    button("{t('deploy.so_o_servico')}", on_click = deploy_so_o_servico, role = neutral)
+    button("{t('comum.aceitar')}", on_click = deploy_aceitar)
+  }
+}
+```
+
+| escrita | vira |
+|---|---|
+| `button("Cancelar")` | sem `on_click` ⇒ **só fecha**, não despacha nada; papel `neutral` |
+| `button("Salvar", on_click = salvar)` | ação `salvar`; **com ação, o papel default é `accept`** |
+| `button("Voltar", on_click = dialog:editar, role = neutral)` | encadeia: fecha este, abre o `dialog(name = editar)` |
+| `button("Remover", on_click = remover, role = destructive)` | papel `destructive` (tom de perigo) |
+| `button("Salvar", on_click = MeuComp::salvar)` | ação `MeuComp::salvar` — o `::` de dono, para um modal encapsulado num componente (ver adiante) |
+
+- **Ordem:** a da escrita, da esquerda para a direita, alinhados à direita do
+  cartão. Quando não cabem numa linha (rótulos longos, traduções), **quebram
+  de linha** — nunca vazam da moldura.
+- **Rótulos** (e `title`/`message`) aceitam `{chave}` e `{t('…')}`, resolvidos
+  **na abertura** do diálogo — não reavaliam com o diálogo aberto.
+- Papéis (**só mudam a cor**, nunca o roteamento): `accept`, `neutral`/`cancel`,
+  `destructive`/`danger`. Dentro do `actions` o `role` é o papel do botão do
+  diálogo (não o papel de acessibilidade).
+- Só `button` é lido dentro do `actions`, e só `text`/primeiro argumento,
+  `on_click` e `role`; `if`, `disabled`, `class` etc. **não** valem aqui.
+- `actions {}` (presente e vazio) → **nenhum** botão, só o fundo fecha (útil num
+  `progress` que não dá para cancelar). Sem `actions` e sem `buttons` → um único
+  `Fechar` neutro que só fecha. Havendo `actions`, o `buttons=` é ignorado.
+
+##### Abrir de dentro de um handler: `open_dialog`
+
+`on_click = "dialog:X"` abre na hora. Quando o conteúdo depende de um trabalho
+antes (uma chamada de rede, um plano calculado), o handler faz o trabalho,
+semeia as chaves e abre:
+
+```lua
+function iniciar_deploy()
+  local plano = calcular_plano()          -- RPC, etc.
+  ctx.deploy_alvo = ctx.selected_service  -- os botões não levam argumento: guarde o alvo
+  ctx["__dialog.plano"] = plano           -- semeia o corpo
+  open_dialog("deploy")                   -- NÃO suspende
+end
+function deploy_aceitar() executar(ctx.deploy_alvo) end   -- a resposta é a AÇÃO do botão
+```
+
+`open_dialog` não devolve a escolha: ela chega como a ação do botão clicado,
+que roda o handler de mesmo nome. Um nome inexistente é ignorado em silêncio.
+
+#### `buttons=` — a lista compacta (forma antiga)
+
+Continua valendo, mas o bloco `actions` é a forma recomendada. Botões separados
+por `|`; cada um é **`Rótulo:ação:papel`** (ação e papel opcionais):
 
 - o **rótulo** sai do **primeiro** `:`;
 - o **papel**, quando é uma palavra-chave conhecida, sai do **último** `:`;
-- **o que sobra no meio é a ação inteira — `:` e tudo**. É isso que deixa
-  `Voltar:dialog:editar:neutral` chegar à ação `dialog:editar` (encadear para
-  outro modal) em vez de despachar só `"dialog"`.
+- **o que sobra no meio é a ação inteira — `:` e tudo**.
 
-| forma | vira |
-|---|---|
-| `Salvar:salvar_perfil:accept` | rótulo `Salvar`, ação `salvar_perfil`, papel `accept` |
-| `Salvar:salvar_perfil` | idem — **papel ausente com ação escrita ⇒ `accept`** |
-| `Cancelar::` / `Cancelar:` | rótulo `Cancelar`, **ação vazia ⇒ só fecha**, não despacha nada; papel `neutral` |
-| `Voltar:dialog:editar:neutral` | encadeia: fecha este, abre o `dialog(name = editar)` |
-| `Remover:remover:destructive` | papel `destructive` (tom de perigo) |
-| `Salvar:MeuComp::salvar:accept` | ação `MeuComp::salvar` — o `::` de dono, para um modal encapsulado num componente (ver adiante) |
+`Salvar:salvar_perfil:accept`, `Cancelar::` (só fecha), `Voltar:dialog:editar:neutral`,
+`Remover:remover:destructive` e `Salvar:MeuComp::salvar:accept` correspondem às
+linhas da tabela acima. `buttons=""` → nenhum botão.
 
-Papéis (**só mudam a cor**, nunca o roteamento): `accept`,
-`neutral`/`cancel`, `destructive`/`danger`.
-
-Casos de borda: `buttons=""` (presente e vazio) → **nenhum** botão, só o fundo
-fecha (útil num `progress` que não dá para cancelar). Sem o atributo → um único
-`Fechar` neutro que só fecha.
 
 #### O corpo e as chaves `__dialog.*`
 
@@ -2859,7 +2907,8 @@ instância**: o que o usuário digita mora numa chave comum, como em qualquer
 |---|---|
 | `on_click="dialog:X"` | qualquer `button`/`menuitem`, e um botão de outro diálogo |
 | `dialog:close` / `dialog:fechar` | fecha o que estiver aberto |
-| um botão com ação `dialog:Y` no `buttons=` | fecha este e abre o `Y` (wizard em modal) |
+| um botão com ação `dialog:Y` no `actions` | fecha este e abre o `Y` (wizard em modal) |
+| `open_dialog("X")` | do Luau, de um handler — abre o `dialog(name = X)` sem suspender (a resposta é a ação do botão) |
 | `ctx.show_dialog(DialogSpec::…)` | do Rust — recebe o **nome** de um template já registrado em `with_body` |
 | `confirm{}` / `prompt{}` / `pick_color{}` / `progress{}` | do Luau — os suspensivos, que **não** são markup |
 
@@ -2879,9 +2928,13 @@ botão que o abre e o `script` do handler **dentro do arquivo do componente**:
 component {
   resources {
     script(src = "editor_rotulo.luau")
-    dialog(name = editor_rotulo_dlg, title = "Editar rótulo", buttons = "Cancelar::|Salvar:EditorRotulo::salvar:accept") {
+    dialog(name = editor_rotulo_dlg, title = "Editar rótulo") {
       column(class = form) {
         textinput(:value = "__dialog.texto", on_change = "__dialog.texto", class = preenche)
+      }
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = EditorRotulo::salvar)
       }
     }
   }
@@ -2897,16 +2950,20 @@ component {
   `import` que trouxe o arquivo. Isso só resolve se o componente **tem
   `script`** — sem ele, `MeuComp::salvar` cai na tela ativa (é o comportamento
   correto: um componente sem script não é dono de handler nenhum, e aí o
-  handler mora na tela e o `buttons=` usa a forma simples `Salvar:salvar:accept`).
+  handler mora na tela e o `actions` usa a forma simples `button("Salvar", on_click = salvar)`).
 
 **2. Um `dialog` cujo corpo usa um componente.** O corpo é template comum:
 
 ```gv
-dialog(name = editar_perfil, buttons = "Cancelar::|Salvar:salvar_perfil:accept") {
+dialog(name = editar_perfil) {
   column(class = form) {
     CampoForm(label = Nome) {
       textinput(:value = "__dialog.nome", on_change = "__dialog.nome", class = preenche)
     }
+  }
+  actions {
+    button("Cancelar")
+    button("Salvar", on_click = salvar_perfil)
   }
 }
 ```

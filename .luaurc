@@ -24,6 +24,7 @@
         "prompt",
         "progress",
         "progress_close",
+        "open_dialog",
         "progress_set",
         "pick_color",
         "pick_font",

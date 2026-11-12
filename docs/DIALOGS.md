@@ -121,10 +121,14 @@ a mais é a moldura.
 ```gv
 screen {
   resources {
-    dialog(name = editar_servico, title = "Editar serviço", buttons = "Cancelar::|Salvar:salvar_servico:accept") {
+    dialog(name = editar_servico, title = "Editar serviço") {
       column(spacing = 10, width = fill) {
         textinput(:value = "__dialog.nome", placeholder = api-gateway, width = fill)
         spinbox(:value = "__dialog.replicas", min = 1, max = 32)
+      }
+      actions {
+        button("Cancelar")
+        button("Salvar", on_click = salvar_servico)
       }
     }
   }
@@ -139,7 +143,25 @@ Nada desenha onde a tag está escrita: a declaração viaja pendurada na raiz, c
 (`information`/`warning`/`error`/`question`), `buttons` e `dismissible`.
 Qualquer outro é erro posicionado, com a linha e a coluna.
 
-**`buttons`** é uma lista compacta, `Rótulo:ação:papel` separados por `|`:
+**`actions`** (0.155) é o jeito recomendado de escrever os botões: um bloco de
+`button` dentro do `dialog`, com o texto como primeiro argumento.
+
+```gv
+actions {
+  button("Cancelar")                                   // sem on_click: só fecha
+  button("Só o serviço", on_click = so_este, role = neutral)
+  button("Aceitar", on_click = aceitar)                // com ação: role default = accept
+}
+```
+
+Ordem da escrita, alinhados à direita; quando não cabem numa linha, **quebram de
+linha**. Rótulos, `title` e `message` aceitam `{chave}`/`{t('…')}`, resolvidos na
+abertura. Dentro do bloco só valem `text`, `on_click` e `role` (`accept`,
+`neutral`, `destructive`). `actions {}` vazio = nenhum botão; havendo `actions`,
+`buttons=` é ignorado.
+
+**`buttons`** é a forma compacta anterior (continua valendo), uma lista
+`Rótulo:ação:papel` separados por `|`:
 
 - o **rótulo** sai do primeiro `:`; o **papel**, quando é uma palavra-chave
   conhecida, do último `:`; o que sobra no meio é a ação **inteira, `:` e
@@ -154,6 +176,24 @@ Qualquer outro é erro posicionado, com a linha e a coluna.
 O botão que só fecha usa a sentinela `dialogs::DIALOG_CLOSE`, e ela existe para
 que um "Cancelar" não despache uma ação fantasma — no dia em que o app escrevesse
 um `update` chamado `cancelar`, ele passaria a disparar sozinho.
+
+### `open_dialog("nome")` — abrir de dentro de um handler
+
+`dialog:nome` só roda de um `on_click`. Quando o diálogo depende de um trabalho
+antes (um RPC, um plano calculado), o handler Luau faz o trabalho, semeia as
+chaves `__dialog.*` e abre:
+
+```lua
+function iniciar()
+    ctx.alvo = ctx.selecionado          -- os botões não levam argumento
+    ctx["__dialog.plano"] = montar_plano()
+    open_dialog("deploy")               -- não suspende
+end
+function aceitar() executar(ctx.alvo) end   -- a resposta é a ação do botão
+```
+
+Não devolve a escolha (diferente do `confirm{}`, que devolve sempre um
+booleano): ela chega como a ação do botão clicado. Nome inexistente é ignorado.
 
 ### A ação `dialog:`
 

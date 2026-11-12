@@ -800,6 +800,16 @@ impl LuauComponent {
                 continue;
             }
 
+            if req.get::<bool>("__glacier_dialog_named").unwrap_or(false) {
+                // `open_dialog("nome")`: abre um `dialog` declarado no markup.
+                // NÃO suspende — a resposta do usuário é a ação do botão, que
+                // chega ao handler como qualquer outra.
+                let nome: String = req.get::<Option<String>>("name")?.unwrap_or_default();
+                ctx.open_dialog(nome);
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_dialog_close").unwrap_or(false) {
                 ctx.close_dialog();
                 args = MultiValue::new();
@@ -3115,6 +3125,45 @@ mod tests {
             }
             _ => panic!("esperava um diálogo ShowResumable"),
         }
+    }
+
+    #[test]
+    fn confirm_ignora_extra_label_e_fica_com_dois_botoes() {
+        let comp = LuauComponent::from_source(
+            "function go() confirm({ title='T', message='M', extra_label='X' }) end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut ctx = Context::new(&mut data);
+        comp.run("go", None, &mut ctx);
+        match &ctx.dialog {
+            Some(crate::component::DialogAction::ShowResumable(spec, _, _)) => {
+                assert_eq!(spec.buttons.len(), 2);
+            }
+            _ => panic!("esperava um diálogo ShowResumable"),
+        }
+    }
+
+    #[test]
+    fn open_dialog_pede_o_dialogo_nomeado_sem_suspender() {
+        let comp = LuauComponent::from_source(
+            "function go() open_dialog('plano') ctx.depois = 'rodou' end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("go", None, &mut ctx);
+            match &ctx.dialog {
+                Some(crate::component::DialogAction::OpenNamed(n)) => assert_eq!(n, "plano"),
+                _ => panic!("esperava DialogAction::OpenNamed"),
+            }
+        }
+        assert_eq!(data.get("depois").map(String::as_str), Some("rodou"));
     }
 
     #[test]

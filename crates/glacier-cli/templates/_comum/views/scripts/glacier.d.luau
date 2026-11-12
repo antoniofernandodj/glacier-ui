@@ -276,6 +276,7 @@ declare function pick_font(opts: any): string?
 declare function progress(opts: any): ()
 declare function progress_set(value: (number | string)?, label: string?): ()
 declare function progress_close(): ()
+declare function open_dialog(name: string): ()
 
 declare function navigate(tela: string): ()
 declare function navigate_back(): ()
