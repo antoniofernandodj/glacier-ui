@@ -14,7 +14,10 @@
 //!   [`doc_above`]): aparece com `-vv` e **sempre** quando o teste falha;
 //! - `component(caminho, ctx_inicial?)`: carrega um `.gv`/`.gv` com `script`
 //!   como o motor carregaria e devolve um objeto com `:call(acao, valor?)`,
-//!   `:get(chave)`, `:set(chave, valor)`, `:data()` e `:toasts()`. O `ctx` inicial e o
+//!   `:get(chave)`, `:set(chave, valor)`, `:data()`, `:toasts()` e
+//!   `:eval(código)` (roda um trecho Luau **na VM do componente**, para injetar o
+//!   que o handler usa — um `State.api` falso —, e só ali enxerga o `ctx` e o
+//!   `require` dele). O `ctx` inicial e o
 //!   `:set` aceitam tabelas (viram JSON, como `ctx.x = {...}` num script). Um handler
 //!   que falha **lança** o erro (em produção ele viraria um toast); `:missing()`
 //!   avalia o template contra o `ctx` de agora e devolve as chaves que o markup
@@ -534,6 +537,25 @@ impl UserData for TestComponent {
                 return Err(mlua::Error::runtime(format!(
                     "o componente não tem a função '{action}'"
                 )));
+            }
+            Ok(())
+        });
+        // `:eval(código)`: roda um trecho Luau NA VM do componente — mesmo `ctx`,
+        // mesmos globais, mesmo cache de `require` dos handlers. É como um teste
+        // injeta o que o handler usa e não alcança de fora (um `State.api` falso):
+        // `tela:eval('require("state").api = { ... }')`. Para ler algo de volta,
+        // escreva no `ctx` (`ctx.x = …`) e use `tela:get("x")`.
+        methods.add_method("eval", |_, this, code: String| {
+            let mut data = this.data.borrow_mut();
+            let mut types = this.types.borrow_mut();
+            let mut ctx = Context::with_types(&mut data, &mut types);
+            this.comp
+                .eval_inner(&code, &mut ctx)
+                .map_err(|e| mlua::Error::runtime(format!("eval: {e}")))?;
+            for t in std::mem::take(&mut ctx.toasts) {
+                this.toasts
+                    .borrow_mut()
+                    .push((format!("{:?}", t.kind).to_lowercase(), t.message));
             }
             Ok(())
         });
@@ -1185,6 +1207,46 @@ mod tests {
                    c:call('inc')\n\
                    assert_eq(c:get('n'), '2')\n\
                    assert_fails(function() c:call('nao_existe') end, 'nao_existe')\n\
+                 end",
+                tela.to_str().unwrap()
+            ),
+        )
+        .unwrap();
+        let s = run_file(&file, None, Options::default());
+        assert_eq!((s.passed, s.failed, s.broken_files), (1, 0, 0), "{s:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `:eval` roda na VM do componente: enxerga o `ctx` e os globais dele, e o
+    /// `require` devolve o MESMO módulo que o handler usa (a prova: o handler lê o
+    /// que o `eval` gravou no módulo).
+    #[test]
+    fn eval_roda_na_vm_do_componente_e_compartilha_modulos_e_ctx() {
+        let dir = std::env::temp_dir().join(format!("glacier_te_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("estado.luau"), "return { api = nil }").unwrap();
+        let tela = dir.join("tela.xml");
+        std::fs::write(
+            &tela,
+            "<screen><script>\
+             local Estado = require('estado')\n\
+             function usa() ctx.lido = Estado.api and Estado.api.nome or 'sem api' end\
+             </script></screen>",
+        )
+        .unwrap();
+        let file = dir.join("t.test.luau");
+        std::fs::write(
+            &file,
+            format!(
+                "function test_eval()\n\
+                   local c = component({:?}, {{ n = 5 }})\n\
+                   c:call('usa')\n\
+                   assert_eq(c:get('lido'), 'sem api')\n\
+                   c:eval('require(\"estado\").api = {{ nome = \"falso\" }}; ctx.depois = ctx.n + 1')\n\
+                   assert_eq(c:get('depois'), '6')\n\
+                   c:call('usa')\n\
+                   assert_eq(c:get('lido'), 'falso')\n\
+                   assert_fails(function() c:eval('error(\"boom\")') end, 'boom')\n\
                  end",
                 tela.to_str().unwrap()
             ),

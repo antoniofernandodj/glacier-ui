@@ -640,6 +640,18 @@ impl LuauComponent {
         Ok(true)
     }
 
+    /// Roda um trecho Luau **dentro da VM deste componente**, com o mesmo `ctx`,
+    /// os mesmos globais e os mesmos módulos (`require`) que os handlers
+    /// enxergam — o `tela:eval(código)` do harness de testes. Serve para
+    /// preparar o que um handler usa e que o teste não alcança de fora (um
+    /// `State.api` falso, por exemplo). Como um handler: pode suspender.
+    fn eval_inner(&self, code: &str, ctx: &mut Context) -> mlua::Result<()> {
+        self.sync_to_luau(ctx)?;
+        let f = self.luau.load(code).set_name("=eval").into_function()?;
+        let thread = self.luau.create_thread(f)?;
+        self.drive(thread, MultiValue::new(), ctx)
+    }
+
     /// Retoma a corrotina suspensa `id` com o resultado do `fetch`.
     fn resume_inner(&self, id: u64, result: &FetchResult, ctx: &mut Context) -> mlua::Result<()> {
         self.progress_handlers.borrow_mut().remove(&id);

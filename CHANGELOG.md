@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.157.0 — 2026-11-12
+
+- **`tela:eval(código)` no harness de testes (`glacier test`).** Roda um trecho Luau **dentro da VM do componente** carregado por `component()`: mesmo `ctx`, mesmos globais e o mesmo cache de `require` dos handlers. Antes, o teste e o componente tinham VMs separadas e um `require("state")` do teste devolvia outra tabela — então não havia como injetar um cliente de rede falso (`State.api`) e testar o caminho com conexão de um handler. Para ler algo de volta, grave no `ctx` e use `tela:get`.
+
 ## glacier-ui 0.156.0 — 2026-11-12
 
 - **`open_dialog("nome")` agora suspende e devolve um valor.** Na 0.155.0 ele só abria o diálogo e a resposta chegava como a ação de um botão; agora o handler **espera** o clique e continua com o resultado: `string?`, o `value` do botão `choice` clicado, ou `nil` (um `button`, o fundo, ou um nome inexistente). Um tipo só, como o `prompt{}`.

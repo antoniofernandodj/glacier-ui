@@ -4231,6 +4231,36 @@ valor que não cabe no contexto (uma função) falha o teste em vez de sumir.
 `component()` **não chama o `init`** — chame `tela:call("init")` você mesmo,
 como o motor faria ao abrir a tela.
 
+**`tela:eval(código)` roda um trecho Luau dentro da VM do componente.** Cada
+`component()` tem a **sua** VM, separada da do arquivo de teste: um
+`require("state")` do teste devolve outra tabela, diferente da que os handlers
+usam. O `eval` entra na VM certa — mesmo `ctx`, mesmos globais, e o `require`
+devolve o **mesmo** módulo (o cache é por arquivo) — e é como um teste injeta o
+que o handler consome e que não alcança de fora, tipicamente um cliente de rede
+falso:
+
+```lua
+local function nova_com_api(respostas)
+    local tela = component("views/app.gv", {})
+    tela:call("init")
+    -- `ctx` e `require` aqui são os da VM da tela, não os do teste.
+    tela:eval([[
+        local State = require("state")
+        State.enviados = {}
+        State.api = { rpc_checked = function(_, cmd)
+            table.insert(State.enviados, next(cmd))
+            return true, { DeployBatch = {} }
+        end }
+        ctx.preparado = "sim"
+    ]])
+    return tela
+end
+```
+
+Para ler algo de volta, grave no `ctx` dentro do `eval` e use `tela:get`. Um erro
+no trecho lança no teste, com o prefixo `eval:`. Como um handler, o trecho **pode
+suspender** (e então para ali, como no resto do harness).
+
 **`tela:missing()` é o teste que pega a tela vazia.** Um handler que escreve
 `ctx.total` passa em todo teste de handler, e o `.gv` que lê `{totall}` aparece
 vazio, sem erro. `missing()` carrega o template como o motor o carrega, avalia
