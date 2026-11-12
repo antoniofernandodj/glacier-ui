@@ -65,6 +65,12 @@ pub(crate) const CONFIRM_YES: &str = "\0glacier:confirm:yes";
 /// Par de [`CONFIRM_YES`] para o botão cancelar (retoma a corrotina com `false`).
 pub(crate) const CONFIRM_NO: &str = "\0glacier:confirm:no";
 
+/// Prefixo da ação sentinela de um `choice(…, value = v)` de um `dialog`: a ação
+/// do botão é `CHOICE_PREFIX` + `v`. Se o diálogo foi aberto por um
+/// `open_dialog` suspensivo, o motor retoma a corrotina com `v`; senão o botão
+/// só fecha.
+pub(crate) const CHOICE_PREFIX: &str = "\0glacier:choice:";
+
 /// Ação sentinela do botão que **só fecha** — o `Fechar` que um
 /// `dialog(name = "…")` sem `buttons` ganha, e o que um `Cancelar::` sem ação
 /// escrita vira. O motor a reconhece, fecha o diálogo e **não roteia nada**:
@@ -400,6 +406,11 @@ fn botao_de_acao(a: &crate::parser::DialogActionMeta) -> Option<DialogButton> {
     if label.is_empty() {
         return None;
     }
+    // `choice`: devolve um valor (a ação é a sentinela com o valor dentro).
+    if let Some(valor) = a.value.as_deref().map(str::trim) {
+        let role = a.role.as_deref().and_then(papel_de).unwrap_or(ButtonRole::Neutral);
+        return Some(DialogButton::new(label, format!("{CHOICE_PREFIX}{valor}"), role));
+    }
     let acao = a.action.as_deref().map(str::trim).unwrap_or_default();
     let role = a
         .role
@@ -694,6 +705,7 @@ mod tests {
             label: l.into(),
             action: a.map(Into::into),
             role: r.map(Into::into),
+            value: None,
         };
         let meta = DialogMeta {
             name: "x".into(),

@@ -801,13 +801,15 @@ impl LuauComponent {
             }
 
             if req.get::<bool>("__glacier_dialog_named").unwrap_or(false) {
-                // `open_dialog("nome")`: abre um `dialog` declarado no markup.
-                // NÃO suspende — a resposta do usuário é a ação do botão, que
-                // chega ao handler como qualquer outra.
+                // `open_dialog("nome")`: abre um `dialog` declarado no markup e
+                // SUSPENDE (como `confirm`/`prompt`) até o usuário escolher. Volta
+                // com o `value` do `choice` clicado, ou `nil` (outro botão, fundo,
+                // nome inexistente).
                 let nome: String = req.get::<Option<String>>("name")?.unwrap_or_default();
-                ctx.open_dialog(nome);
-                args = MultiValue::new();
-                continue;
+                let id = self.alloc_id();
+                ctx.open_dialog_resumable(nome, id);
+                self.pending.borrow_mut().insert(id, thread);
+                return Ok(()); // suspende até a resposta do usuário
             }
 
             if req.get::<bool>("__glacier_dialog_close").unwrap_or(false) {
@@ -3147,23 +3149,41 @@ mod tests {
     }
 
     #[test]
-    fn open_dialog_pede_o_dialogo_nomeado_sem_suspender() {
-        let comp = LuauComponent::from_source(
-            "function go() open_dialog('plano') ctx.depois = 'rodou' end",
-            "t.gv",
-            "c",
-        )
-        .unwrap();
-        let mut data = HashMap::default();
-        {
-            let mut ctx = Context::new(&mut data);
-            comp.run("go", None, &mut ctx);
-            match &ctx.dialog {
-                Some(crate::component::DialogAction::OpenNamed(n)) => assert_eq!(n, "plano"),
-                _ => panic!("esperava DialogAction::OpenNamed"),
+    fn open_dialog_suspende_e_retoma_com_o_valor_do_choice_ou_nil() {
+        // Três desfechos: um `choice` (string), e `nil` para o resto. Nunca booleano.
+        let casos = [
+            (DialogOutcome::Value("aceitar".into()), "string:aceitar"),
+            (DialogOutcome::Cancelled, "nil"),
+        ];
+        for (outcome, esperado) in casos {
+            let mut comp = LuauComponent::from_source(
+                "function go()\n\
+                 local r = open_dialog('plano')\n\
+                 ctx.r = type(r) .. (r and (':' .. r) or '')\n\
+                 end",
+                "t.gv",
+                "c",
+            )
+            .unwrap();
+            let mut data = HashMap::default();
+            let id = {
+                let mut ctx = Context::new(&mut data);
+                comp.run("go", None, &mut ctx);
+                match ctx.dialog {
+                    Some(crate::component::DialogAction::OpenNamedResumable(n, id)) => {
+                        assert_eq!(n, "plano");
+                        id
+                    }
+                    _ => panic!("esperava DialogAction::OpenNamedResumable"),
+                }
+            };
+            assert_eq!(data.get("r"), None, "suspende: não resolve antes da escolha");
+            {
+                let mut ctx = Context::new(&mut data);
+                comp.resume_dialog(id, outcome, &mut ctx);
             }
+            assert_eq!(data.get("r").map(String::as_str), Some(esperado));
         }
-        assert_eq!(data.get("depois").map(String::as_str), Some("rodou"));
     }
 
     #[test]

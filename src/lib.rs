@@ -220,6 +220,10 @@ struct PendingDialogResume {
     /// contexto o tempo todo, como o de qualquer `textinput`, e este campo
     /// só guarda o endereço dele.
     resume_key: Option<String>,
+    /// `true` para o `open_dialog("nome")` do Luau: a resposta é o `value` do
+    /// `choice` clicado (`Value`) ou `nil` (`Cancelled`) — nunca um booleano —, e
+    /// o rascunho `__dialog.*` só é apagado **depois** de o handler retomado rodar.
+    nomeado: bool,
 }
 
 pub struct GlacierUI {
@@ -1903,6 +1907,7 @@ impl GlacierUI {
                     if let Some(p) = self.dialog_resume.take() {
                         let saida = match p.resume_key {
                             Some(_) => component::DialogOutcome::Cancelled,
+                            None if p.nomeado => component::DialogOutcome::Cancelled,
                             None => component::DialogOutcome::Confirmed(false),
                         };
                         let id = p.id;
@@ -1925,6 +1930,24 @@ impl GlacierUI {
                 // instância: o valor mora no contexto como o de qualquer
                 // `textinput`, e `resume_key` é só o endereço dele.
                 if let Some(p) = self.dialog_resume.take() {
+                    // `open_dialog("nome")`: um `choice` devolve o valor dele; qualquer
+                    // outro botão (o que só fecha, um `button(on_click)`) devolve `nil`.
+                    // O rascunho é lido pelo handler retomado, e só então apagado —
+                    // a menos que ele tenha aberto OUTRO diálogo, cujo rascunho vale.
+                    if p.nomeado {
+                        let saida = match action.strip_prefix(dialogs::CHOICE_PREFIX) {
+                            Some(v) => component::DialogOutcome::Value(v.to_string()),
+                            None => component::DialogOutcome::Cancelled,
+                        };
+                        let id = p.id;
+                        let tarefa = self.run_on_owner(&p.owner, false, move |comp, ctx| {
+                            comp.resume_dialog(id, saida, ctx);
+                        });
+                        if self.dialog.is_none() && self.dialog_resume.is_none() {
+                            self.limpa_rascunho_de_dialogo();
+                        }
+                        return tarefa;
+                    }
                     let aceitou = action.as_str() == dialogs::CONFIRM_YES;
                     let saida = match (&p.resume_key, aceitou) {
                         (None, _) => component::DialogOutcome::Confirmed(aceitou),
@@ -3206,11 +3229,23 @@ impl GlacierUI {
     /// [`GlacierUI::request_stream_reeval`] em vez de rodar a cada chamada — a
     /// menos que o handler tenha produzido uma mudança visual imediata (nav,
     /// dialog ou toast), caso em que reavalia na hora mesmo assim.
-    fn run_on_owner(
+    fn run_on_owner<'a>(
         &mut self,
         owner: &str,
         coalesce_reeval: bool,
-        run: impl FnOnce(&mut dyn component::Component, &mut component::Context),
+        run: impl FnOnce(&mut dyn component::Component, &mut component::Context) + 'a,
+    ) -> iced::Task<EngineMessage> {
+        self.run_on_owner_dyn(owner, coalesce_reeval, Box::new(run))
+    }
+
+    /// O corpo de [`GlacierUI::run_on_owner`], sem genéricos: ele se chama a si
+    /// mesmo (retomar uma corrotina cujo diálogo nem chegou a abrir), e um
+    /// genérico recursivo com closures diferentes estoura o limite de instanciação.
+    fn run_on_owner_dyn<'a>(
+        &mut self,
+        owner: &str,
+        coalesce_reeval: bool,
+        run: Box<dyn FnOnce(&mut dyn component::Component, &mut component::Context) + 'a>,
     ) -> iced::Task<EngineMessage> {
         // Disjoint per-field borrows (`components` vs `context_data`) are
         // accepted by the borrow checker when done inline like this.
@@ -3348,7 +3383,25 @@ impl GlacierUI {
                     owner: owner.to_string(),
                     id,
                     resume_key,
+                    nomeado: false,
                 });
+            }
+            Some(component::DialogAction::OpenNamedResumable(nome, id)) => {
+                if self.dialog_defs.contains_key(nome.trim()) {
+                    let _ = self.abre_dialogo_nomeado(&nome);
+                    self.dialog_resume = Some(PendingDialogResume {
+                        owner: owner.to_string(),
+                        id,
+                        resume_key: None,
+                        nomeado: true,
+                    });
+                } else {
+                    // Nome inexistente: nada abre, e a corrotina não pode ficar
+                    // presa — retoma já, com `nil`.
+                    nav_tasks.push(self.run_on_owner(owner, false, move |comp, ctx| {
+                        comp.resume_dialog(id, component::DialogOutcome::Cancelled, ctx);
+                    }));
+                }
             }
             Some(component::DialogAction::OpenNamed(nome)) => {
                 // Sem limpar o rascunho: o handler acabou de semear `__dialog.*`.

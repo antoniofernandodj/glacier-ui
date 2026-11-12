@@ -252,6 +252,9 @@ pub struct DialogActionMeta {
     pub action: Option<String>,
     /// `accept`/`neutral`/`destructive`. Ausente: `accept` se há ação, `neutral` se não.
     pub role: Option<String>,
+    /// `Some(valor)` quando é um `choice(…, value = …)`: o botão **devolve** esse
+    /// valor a quem abriu o diálogo com `open_dialog` (e não despacha ação).
+    pub value: Option<String>,
 }
 
 /// Uma prop declarada no `props` de um `component` — o **contrato** do
@@ -1365,8 +1368,17 @@ fn dialog_actions(dialog: Node) -> Option<Vec<DialogActionMeta>> {
     Some(
         bloco
             .children()
-            .filter(|c| c.is_element() && c.tag_name().name().eq_ignore_ascii_case("button"))
+            .filter(|c| {
+                c.is_element()
+                    && (c.tag_name().name().eq_ignore_ascii_case("button")
+                        || c.tag_name().name().eq_ignore_ascii_case("choice"))
+            })
             .map(|b| DialogActionMeta {
+                value: if b.tag_name().name().eq_ignore_ascii_case("choice") {
+                    Some(Node::attribute(&b, "value").unwrap_or_default().to_string())
+                } else {
+                    None
+                },
                 label: Node::attribute(&b, "text")
                     .or_else(|| Node::attribute(&b, "content"))
                     .unwrap_or_default()
@@ -1423,6 +1435,9 @@ fn validate_dialog(decl: Node) -> Option<Diagnostic> {
             diagnostic_at_attr(decl, attr, format!("atributo '{a}' no dialog")).with_hint(hint),
         );
     }
+    if let Some(d) = validate_dialog_actions(decl) {
+        return Some(d);
+    }
     if !tem_nome {
         return Some(
             diagnostic_at(
@@ -1434,6 +1449,53 @@ fn validate_dialog(decl: Node) -> Option<Diagnostic> {
                  on_click=\"dialog:editar_perfil\"); sem nome não há como abri-lo",
             ),
         );
+    }
+    None
+}
+
+/// Confere o bloco `actions` de um `dialog`: só `button` (dispara uma ação) e
+/// `choice` (devolve um valor) cabem ali, e cada um é uma coisa **ou** a outra.
+fn validate_dialog_actions(decl: Node) -> Option<Diagnostic> {
+    let bloco = decl.children().find(|c| is_dialog_actions(*c))?;
+    for filho in bloco.children().filter(Node::is_element) {
+        let tag = filho.tag_name().name();
+        let tem = |nome: &str| filho.attribute(nome).is_some();
+        if tag.eq_ignore_ascii_case("choice") {
+            if filho.attribute("value").map(str::trim).unwrap_or_default().is_empty() {
+                return Some(
+                    diagnostic_at(filho, "choice sem `value`".to_string()).with_hint(
+                        "o choice existe para devolver um valor a quem chamou open_dialog: \
+                         choice(\"Aceitar\", value = aceitar). Para só fechar, ou disparar uma \
+                         ação, use button",
+                    ),
+                );
+            }
+            if tem("on_click") {
+                return Some(
+                    diagnostic_at(filho, "choice com `on_click`".to_string()).with_hint(
+                        "um botão ou devolve um valor (choice + value) ou dispara uma ação \
+                         (button + on_click), nunca os dois",
+                    ),
+                );
+            }
+        } else if tag.eq_ignore_ascii_case("button") {
+            if tem("value") {
+                return Some(
+                    diagnostic_at(filho, "button com `value` dentro do actions".to_string())
+                        .with_hint(
+                            "quem devolve um valor é o choice: choice(\"Aceitar\", value = \
+                             aceitar). O button só dispara uma ação (on_click) ou fecha",
+                        ),
+                );
+            }
+        } else {
+            return Some(
+                diagnostic_at(filho, format!("`{tag}` dentro do actions")).with_hint(
+                    "o actions só tem button (dispara uma ação ou fecha) e choice (devolve \
+                     um valor)",
+                ),
+            );
+        }
     }
     None
 }

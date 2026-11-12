@@ -156,7 +156,7 @@ actions {
 
 Ordem da escrita, alinhados à direita; quando não cabem numa linha, **quebram de
 linha**. Rótulos, `title` e `message` aceitam `{chave}`/`{t('…')}`, resolvidos na
-abertura. Dentro do bloco só valem `text`, `on_click` e `role` (`accept`,
+abertura. Dentro do bloco só valem `text`, `on_click`/`value` e `role` (`accept`,
 `neutral`, `destructive`). `actions {}` vazio = nenhum botão; havendo `actions`,
 `buttons=` é ignorado.
 
@@ -177,23 +177,35 @@ O botão que só fecha usa a sentinela `dialogs::DIALOG_CLOSE`, e ela existe par
 que um "Cancelar" não despache uma ação fantasma — no dia em que o app escrevesse
 um `update` chamado `cancelar`, ele passaria a disparar sozinho.
 
-### `open_dialog("nome")` — abrir de dentro de um handler
+### `choice` e `open_dialog("nome")` — o diálogo que devolve um valor
 
-`dialog:nome` só roda de um `on_click`. Quando o diálogo depende de um trabalho
-antes (um RPC, um plano calculado), o handler Luau faz o trabalho, semeia as
-chaves `__dialog.*` e abre:
+Há dois fluxos, e cada diálogo usa **um**:
+
+- **A — formulário que salva:** `button("Salvar", on_click = salvar)`. O clique
+  dispara a **ação** `salvar`, outro handler.
+- **B — decisão que volta como valor:** `choice("Aceitar", value = aceitar)` +
+  `open_dialog`. O handler **espera** o clique e continua com o valor.
+
+`choice` é o botão que só **responde** a quem perguntou; `button` decide uma ação
+sozinho. `choice` com `on_click`, `choice` sem `value` e `button` com `value` são
+erros de carga.
 
 ```lua
 function iniciar()
-    ctx.alvo = ctx.selecionado          -- os botões não levam argumento
-    ctx["__dialog.plano"] = montar_plano()
-    open_dialog("deploy")               -- não suspende
+    local alvo = ctx.selecionado                  -- variável local: fluxo linear
+    ctx["__dialog.plano"] = montar_plano(alvo)    -- semeia o corpo
+    local escolha = open_dialog("deploy")         -- ⏸ suspende até o clique
+    if escolha == "aceitar" then executar(alvo)
+    elseif escolha == "so" then executar_so(alvo) end   -- nil = fechou
 end
-function aceitar() executar(ctx.alvo) end   -- a resposta é a ação do botão
 ```
 
-Não devolve a escolha (diferente do `confirm{}`, que devolve sempre um
-booleano): ela chega como a ação do botão clicado. Nome inexistente é ignorado.
+`open_dialog` devolve `string?`: o `value` do `choice` clicado, ou `nil` (um
+`button`, o fundo, ou um nome inexistente). Nunca um booleano — para sim/não use
+`confirm{}`. Num diálogo aberto por `open_dialog`, um `button(on_click)` fecha e
+devolve `nil` (não dispara a ação); num aberto por `dialog:nome`, um `choice` só
+fecha. O handler retomado ainda lê o rascunho `__dialog.*`; o motor o apaga
+depois que ele termina.
 
 ### A ação `dialog:`
 
@@ -256,12 +268,13 @@ gesto, que é o que faz o campo segui-la.
 
 ## Os diálogos suspensivos da camada Luau
 
-Quatro funções do prelúdio param a corrotina no diálogo e voltam com a resposta,
+Cinco funções do prelúdio param a corrotina no diálogo e voltam com a resposta,
 o que deixa o fluxo linear — a mesma aparência síncrona que o `fetch` tem.
 
 | Função | Devolve | Corpo |
 |---|---|---|
 | `confirm{}` | `boolean` | nenhum (a caixa de mensagem de sempre) |
+| `open_dialog(nome)` | `string` (o `value` de um `choice`) ou `nil` | o do `dialog(name = nome)` declarado |
 | `prompt{}` | `string` ou `nil` | `__inputdialog` |
 | `pick_color{}` | `"#rrggbb"` ou `nil` | `__colordialog` |
 | `progress{}` | **não suspende** | `__progressdialog` |

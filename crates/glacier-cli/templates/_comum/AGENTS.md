@@ -1774,12 +1774,42 @@ form(name = cadastro, on_submit = salvar, on_validation_error = apontar, validat
 - **`button(type = submit)`** dentro do `form` dispara o envio sem
   `on_click`; **`type="reset">`** apaga os `{erro_campo}` (e com eles o
   `:invalid`) e então roteia o próprio `on_click` — o handler só devolve os
-  valores ao estado inicial.
+  valores ao estado inicial. Detalhes abaixo, em "Como o envio funciona".
 - **`form_control` sem `value`/`on_change`** (ou `checked`/`on_toggle` num
   checkbox, `value` num select) liga o campo à chave de mesmo nome. Com eles
   explícitos, respeita o que você escreveu.
 - **Regra malformada** (`minlen` sem número, nome de regra desconhecido) sai no
   stderr e é ignorada — não trava o envio, mas o campo deixa de ser validado.
+
+#### Como o envio funciona (e o que NÃO repetir)
+
+O `form(on_submit = X)` tem **um** caminho de envio — rodar as `rules`, depois
+chamar `on_submit` (passou) ou `on_validation_error` (falhou) — e **duas** formas
+de entrar nele:
+
+1. **Enter** num campo do formulário;
+2. um **`button(type = submit)`** dentro do `form`.
+
+Regras que evitam os erros mais comuns:
+
+- **O botão de enviar leva `type = submit` e NÃO leva `on_click`.** Não repita o
+  handler do `on_submit` num `on_click`.
+- **Um `button` sem `type` dentro do `form` não é o envio.** `button("Salvar",
+  on_click = salvar)` ao lado de `form(on_submit = salvar)` chama o handler
+  **direto, pulando a validação** — o mesmo formulário valida pelo Enter e não
+  valida pelo clique. É o erro mais comum.
+- **`type = submit` + `on_click` no mesmo botão:** o envio vence e o `on_click` é
+  **ignorado** (código morto). Tire-o.
+- **`type = reset` é o oposto:** apaga os erros dos campos e *então* roteia o
+  `on_click`, que é onde o handler devolve os valores ao estado inicial.
+- **O `type` só vale dentro do `form`.** Fora dele, um `button(type = submit)` cai no
+  `on_click` que tiver.
+- **`disabled` no botão de enviar** (`disabled = @ocupado`) desliga o clique. O
+  Enter num campo não passa pelo botão: se o envio em andamento não pode repetir, o
+  handler confere o estado.
+- **Um `form` por unidade de envio.** Edição no lugar de uma linha de lista usa um
+  `form` pequeno por linha (`form(name = env_edit, on_submit = env_edit_apply) {
+  input(…) button("✓", type = submit) }`); `name` é o que os diferencia na tela.
 
 Os handlers, no `.luau`:
 
@@ -2841,30 +2871,83 @@ dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
 - Papéis (**só mudam a cor**, nunca o roteamento): `accept`, `neutral`/`cancel`,
   `destructive`/`danger`. Dentro do `actions` o `role` é o papel do botão do
   diálogo (não o papel de acessibilidade).
-- Só `button` é lido dentro do `actions`, e só `text`/primeiro argumento,
-  `on_click` e `role`; `if`, `disabled`, `class` etc. **não** valem aqui.
+- Só `button` e `choice` são lidos dentro do `actions`, e só `text`/primeiro argumento,
+  `on_click`/`value` e `role`; `if`, `disabled`, `class` etc. **não** valem aqui.
 - `actions {}` (presente e vazio) → **nenhum** botão, só o fundo fecha (útil num
   `progress` que não dá para cancelar). Sem `actions` e sem `buttons` → um único
   `Fechar` neutro que só fecha. Havendo `actions`, o `buttons=` é ignorado.
+  Os botões que devolvem valor são `choice` (ver abaixo).
 
-##### Abrir de dentro de um handler: `open_dialog`
+##### `button` e `choice`: o que o clique faz
 
-`on_click = "dialog:X"` abre na hora. Quando o conteúdo depende de um trabalho
-antes (uma chamada de rede, um plano calculado), o handler faz o trabalho,
-semeia as chaves e abre:
+Dentro do `actions` há **dois** tipos de filho, e cada botão é **um** dos dois:
 
+| escrita | o clique… |
+|---|---|
+| `button("Cancelar")` | só fecha |
+| `button("Salvar", on_click = salvar)` | fecha e **dispara a ação** `salvar` (handler de mesmo nome) |
+| `choice("Aceitar", value = aceitar)` | fecha e **devolve o valor** `"aceitar"` a quem abriu o diálogo com `open_dialog` |
+
+`choice` com `on_click`, `choice` sem `value` e `button` com `value` são **erros
+de carga** (linha e coluna). `choice` aceita `role` como o `button`.
+
+#### Os dois fluxos do `dialog` — escolha UM por diálogo
+
+**Fluxo A — formulário que salva (`button` + `on_click`).** O diálogo edita
+algo; o resultado do clique é "gravar". Abre com `on_click = "dialog:X"` (ou
+`open_dialog("X")`), e o handler da ação lê o rascunho `__dialog.*`.
+
+**Fluxo B — decisão que volta como valor (`choice` + `open_dialog`).** O handler
+faz um trabalho, mostra opções e precisa da escolha **para continuar**.
+`open_dialog` **suspende** o handler (como `confirm`/`prompt`) e devolve o
+`value` do `choice` clicado — sempre `string?`:
+
+```gv
+dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
+  text("{__dialog.plano}")
+  actions {
+    button("{t('comum.rejeitar')}")                              // fecha → nil
+    choice("{t('deploy.so_o_servico')}", value = so, role = neutral)
+    choice("{t('comum.aceitar')}", value = aceitar)
+  }
+}
+```
 ```lua
-function iniciar_deploy()
-  local plano = calcular_plano()          -- RPC, etc.
-  ctx.deploy_alvo = ctx.selected_service  -- os botões não levam argumento: guarde o alvo
-  ctx["__dialog.plano"] = plano           -- semeia o corpo
-  open_dialog("deploy")                   -- NÃO suspende
+function iniciar_deploy(): ()
+  local alvo = ctx.selecionado                 -- variáveis LOCAIS: o fluxo é linear
+  ctx["__dialog.plano"] = calcular_plano(alvo) -- semeia o corpo
+  local escolha = open_dialog("deploy")        -- ⏸ espera o clique
+  if escolha == "aceitar" then
+    deploy_com_deps(alvo)
+  elseif escolha == "so" then
+    deploy_simples(alvo)
+  end                                          -- nil: rejeitou, clicou fora ou o nome não existe
 end
-function deploy_aceitar() executar(ctx.deploy_alvo) end   -- a resposta é a AÇÃO do botão
 ```
 
-`open_dialog` não devolve a escolha: ela chega como a ação do botão clicado,
-que roda o handler de mesmo nome. Um nome inexistente é ignorado em silêncio.
+| o usuário… | `open_dialog` devolve |
+|---|---|
+| clica num `choice` | o `value` dele (`string`) |
+| clica num `button` (que só fecha) | `nil` |
+| clica no fundo (diálogo `dismissible`, o padrão) | `nil` |
+| (o `name` não existe) | `nil`, na hora |
+
+Regras:
+
+- **Não misture os fluxos no mesmo diálogo.** Aberto por `open_dialog`, um
+  `button(on_click = …)` **não dispara a ação**: fecha e devolve `nil`. Aberto por
+  `dialog:X`, um `choice` **só fecha** (ninguém espera o valor).
+- **O retorno é `string?`, nunca `boolean`.** Para um sim/não simples use
+  `confirm{}` (devolve `boolean`); para mais de duas respostas, `choice`.
+- **Por que B em vez de A para decisões:** com `on_click` a resposta chega a *outro*
+  handler, que não sabe de qual serviço/linha se trata — você teria de guardar o
+  alvo no contexto e dividir o fluxo em funções. Com `choice`, o alvo é uma variável
+  local do mesmo handler.
+- **O handler lê o rascunho depois do retorno.** Se o corpo tem campos
+  (`__dialog.*`), eles ainda estão no contexto quando `open_dialog` volta; o motor
+  só os apaga depois que o handler termina (a menos que ele abra outro diálogo).
+- **Abrir já preenchido:** escreva as chaves `__dialog.*` **antes** do
+  `open_dialog`/`dialog:X`.
 
 #### `buttons=` — a lista compacta (forma antiga)
 
@@ -2908,7 +2991,7 @@ instância**: o que o usuário digita mora numa chave comum, como em qualquer
 | `on_click="dialog:X"` | qualquer `button`/`menuitem`, e um botão de outro diálogo |
 | `dialog:close` / `dialog:fechar` | fecha o que estiver aberto |
 | um botão com ação `dialog:Y` no `actions` | fecha este e abre o `Y` (wizard em modal) |
-| `open_dialog("X")` | do Luau, de um handler — abre o `dialog(name = X)` sem suspender (a resposta é a ação do botão) |
+| `open_dialog("X")` | do Luau, de um handler — abre o `dialog(name = X)` e **suspende** até o clique; devolve o `value` do `choice` (`string?`) |
 | `ctx.show_dialog(DialogSpec::…)` | do Rust — recebe o **nome** de um template já registrado em `with_body` |
 | `confirm{}` / `prompt{}` / `pick_color{}` / `progress{}` | do Luau — os suspensivos, que **não** são markup |
 
@@ -3521,7 +3604,7 @@ viva. As demais cedem um pedido e retomam na hora.
 
 | suspendem | não suspendem |
 |---|---|
-| `fetch`, `confirm`, `prompt`, `pick_color`, `open_file`, `open_files`, `save_file`, `pick_folder` | todo o resto |
+| `fetch`, `confirm`, `prompt`, `pick_color`, `open_dialog`, `open_file`, `open_files`, `save_file`, `pick_folder` | todo o resto |
 
 ### Rede
 

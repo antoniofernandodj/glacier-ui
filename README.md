@@ -889,9 +889,39 @@ let form = FormBuilder::new("login")
 form(on_submit = entrar, name = login, width = fill) {
   textinput(form_control = username, placeholder = usuário, width = fill)
   textinput(form_control = password, placeholder = senha, secure = true, width = fill)
-  button("Entrar", on_click = entrar)
+  button("Entrar", type = submit)
 }
 ```
+
+### Como o envio funciona (e o que não repetir)
+
+O `form(on_submit = entrar)` tem **um** caminho de envio, e há duas formas de
+disparar esse caminho:
+
+1. **Enter** em qualquer campo do formulário;
+2. um **`button(type = submit)`** dentro do `form` (o botão de enviar).
+
+Os dois chegam ao mesmo lugar: o motor roda as regras (se houver `rules=` nos
+campos) e chama o `on_submit` — ou o `on_validation_error`, se alguma falhou.
+O botão de enviar **não** leva `on_click`: o `type = submit` já é o "enviar".
+
+- **Sem `type`, o botão não é o envio.** `button("Entrar", on_click = entrar)`
+  dentro de `form(on_submit = entrar)` chama o handler **direto**, **pulando a
+  validação** das regras, enquanto o Enter passaria por ela — o mesmo formulário
+  valida ou não conforme o jeito de enviar, e o handler fica duplicado em dois
+  lugares. É o erro mais comum; use `type = submit`.
+- **Com `type = submit`, o `on_click` é ignorado** (o envio do formulário tem
+  prioridade): escrevê-lo é código morto.
+- `button(type = reset)` apaga os erros dos campos e roteia o próprio `on_click`
+  (o handler devolve os valores ao estado inicial). Aqui o `on_click` faz sentido:
+  o `reset` não é o envio.
+- O `type` só vale **dentro** do `form`. Um `button(type = submit)` fora dele cai no
+  `on_click` que tiver — para enviar, o botão precisa estar dentro do `form`.
+- `disabled = @ocupado` num `type = submit` funciona como em qualquer botão:
+  desabilitado, o clique não faz nada. O Enter num campo não passa pelo botão, então
+  se o envio em andamento não pode repetir, o handler deve conferir o estado.
+- Regras, `validate_on`, `:invalid` e `rules="…"` estão na referência completa do
+  `AGENTS.md` (seção "Validação declarada no próprio `form`").
 
 `TextInput formControl="username"` sem `value`/`on_change` usa o nome do controle
 para os dois. No `update`, `Form::has_control` reconhece a ação de campo sem um
@@ -916,6 +946,187 @@ publica o primeiro erro de cada campo (`"{prefixo}{nome}"`) para exibir inline c
 `Text "{erro_username}"`. Enter em qualquer campo dispara o `on_submit` **e** avança
 o foco — dá para preencher e enviar o formulário sem tocar no mouse. Veja
 [`examples/formulario_login`](examples/formulario_login).
+
+---
+
+## Diálogos (modais)
+
+Um diálogo é um cartão que flutua sobre a tela, escurece o fundo e pede uma
+resposta. O motor tem **dois tipos**, e escolher o certo é metade do trabalho:
+
+| Preciso de… | Use | Como a resposta volta |
+|---|---|---|
+| sim/não (confirmar uma ação) | `confirm{}` | `boolean` — o handler **espera** |
+| um texto, número ou item digitado/escolhido | `prompt{}` | `string?` — o handler espera |
+| uma cor / uma fonte | `pick_color{}` / `pick_font{}` | `string?` — o handler espera |
+| **um formulário** com vários campos que salva ao clicar | `dialog` + `button(on_click)` | uma **ação** (outro handler roda) |
+| **escolher entre N opções** e seguir o fluxo no mesmo handler | `dialog` + `choice` + `open_dialog` | `string?` — o handler espera |
+
+Os quatro primeiros "suspensivos" (`confirm`, `prompt`, `pick_*`) já vêm prontos.
+O que segue é o `dialog` declarado no markup, para tudo que eles não cobrem.
+
+### Anatomia: corpo + botões
+
+```gv
+dialog(name = editar_servico, title = "Editar serviço", icon = question) {
+  // 1. O CORPO: markup comum, avaliado no contexto do app.
+  column(spacing = 10, width = fill) {
+    textinput(:value = "__dialog.nome", on_change = "__dialog.nome", placeholder = api-gateway)
+    spinbox(:value = "__dialog.replicas", min = 1, max = 32)
+  }
+
+  // 2. Os BOTÕES: o rodapé. Dois tipos de filho, e cada botão é UM dos dois.
+  actions {
+    button("Cancelar")                              // só fecha
+    button("Salvar", on_click = salvar_servico)     // dispara uma AÇÃO
+  }
+}
+```
+
+- O `dialog` é uma **declaração**: nada desenha onde ele está escrito. Vive no
+  `resources` da tela (ou de um componente) e só aparece quando alguém o **abre**
+  pelo `name`, que é único no app inteiro.
+- O **corpo** é um template como qualquer tela: enxerga o contexto, aceita
+  componentes, `if`, `for_each`.
+- O **`actions`** são os botões do rodapé, na ordem escrita, alinhados à direita;
+  quando não cabem numa linha, **quebram de linha** em vez de vazar do cartão.
+  Rótulos, `title` e `message` aceitam `{chave}` e `{t('…')}`, resolvidos **na
+  abertura**.
+
+### Os dois tipos de botão: `button` e `choice`
+
+O markup diz, só de olhar, **o que o clique faz**:
+
+| escrita | o clique… |
+|---|---|
+| `button("Cancelar")` | fecha o diálogo e mais nada |
+| `button("Salvar", on_click = salvar)` | fecha e **dispara a ação** `salvar` (um handler) |
+| `choice("Aceitar", value = aceitar)` | fecha e **devolve o valor** `"aceitar"` a quem abriu o diálogo |
+
+`button` decide uma ação por conta própria; `choice` só **responde** a quem
+perguntou. Os dois não se misturam: `choice` com `on_click`, `choice` sem `value`
+e `button` com `value` são **erros de carga**, com linha e coluna. Ambos aceitam
+`role = accept | neutral | destructive` (só a cor): com `on_click`, o padrão é
+`accept`; sem ação, `neutral`.
+
+### Como abrir
+
+| de onde | como |
+|---|---|
+| um botão/menu do markup | `on_click = "dialog:editar_servico"` |
+| um handler Luau | `open_dialog("editar_servico")` |
+| Rust | `ctx.open_dialog("editar_servico")` ou `ctx.show_dialog(DialogSpec…)` |
+
+`dialog:close` (ou `fechar`) fecha o que estiver aberto; um nome inexistente é
+ignorado em silêncio.
+
+### Fluxo A — o formulário que salva (`button` + `on_click`)
+
+Use quando o diálogo **edita algo** e o resultado é "gravar". O botão dispara uma
+ação, e o handler lê o que o corpo preencheu:
+
+```gv
+button("Editar", on_click = "dialog:editar_servico")
+```
+```lua
+function salvar_servico()
+  -- No clique, o rascunho AINDA está no contexto: leia aqui.
+  local nome = ctx["__dialog.nome"] or ""
+  local replicas = tonumber(ctx["__dialog.replicas"]) or 1
+  ctx.ultimo = nome .. " · " .. replicas
+end
+```
+
+O corpo escreve em chaves `__dialog.*` (o prefixo é a convenção). O motor as
+**apaga quando o diálogo fecha**, depois de o handler rodar — por isso a
+segunda abertura vem limpa, e não preenchida com o que sobrou da primeira. Para
+abrir **já preenchido** (editar um item existente), escreva as chaves antes de
+abrir: `ctx["__dialog.nome"] = item.nome; open_dialog("editar_servico")`.
+
+### Fluxo B — a decisão que volta como valor (`choice` + `open_dialog`)
+
+Use quando o handler precisa de **uma escolha para continuar**: ele faz um
+trabalho, mostra opções, e o que fazer depois depende da resposta. `open_dialog`
+**suspende** o handler até o clique, e devolve o `value` do `choice` escolhido —
+sempre `string?`, um tipo só:
+
+```gv
+dialog(name = deploy_plan, title = "Deploy com dependências", icon = question) {
+  column(spacing = 8, width = fill) {
+    text("Ordem em que entram na fila:", class = rotulo)
+    text("{__dialog.plano}")
+  }
+
+  actions {
+    button("Rejeitar")                                  // fecha → nil
+    choice("Só o serviço", value = so, role = neutral)  // → "so"
+    choice("Aceitar", value = aceitar)                  // → "aceitar"
+  }
+}
+```
+```lua
+function iniciar_deploy(): ()
+  local servico = ctx.selecionado
+  local plano = calcular_plano(servico)         -- um RPC, por exemplo
+
+  ctx["__dialog.plano"] = plano                  -- semeia o corpo
+  local escolha = open_dialog("deploy_plan")     -- ⏸ espera o usuário
+
+  if escolha == "aceitar" then
+    deploy_com_dependencias(servico)
+  elseif escolha == "so" then
+    deploy_simples(servico)
+  end                                            -- nil: rejeitou, clicou fora ou Esc
+end
+```
+
+Por que isto é melhor do que `button(on_click)` para esse caso: o `servico` e o
+`plano` continuam **variáveis locais** do mesmo handler. Com `on_click`, a
+resposta chegaria a *outro* handler, que não sabe de qual serviço se trata — e
+você teria de guardar o alvo no contexto e dividir o fluxo em três funções.
+
+O que `open_dialog` devolve:
+
+| o usuário… | retorno |
+|---|---|
+| clica num `choice` | o `value` dele (string) |
+| clica num `button` (o que só fecha) | `nil` |
+| clica no fundo escurecido (se o diálogo é `dismissible`, o padrão) | `nil` |
+| (o nome não existe) | `nil`, na hora |
+
+Duas regras para não se perder:
+
+- **`choice` só devolve valor em `open_dialog`.** Num diálogo aberto por
+  `dialog:nome` (do markup) não há ninguém esperando, então o `choice` apenas
+  fecha. E num diálogo aberto por `open_dialog`, um `button(on_click = …)` não
+  dispara a ação: ele fecha e devolve `nil`. Escolha o fluxo A ou o B por diálogo.
+- **O handler lê o rascunho depois do retorno.** Se o corpo tem campos
+  (`__dialog.*`), eles ainda estão no contexto quando `open_dialog` volta; o
+  motor só os apaga depois que o handler termina.
+
+### Dispensar, `dismissible` e `message`
+
+Clicar no fundo escurecido fecha o diálogo (devolvendo `nil` em `open_dialog`).
+`dismissible = false` obriga a escolher um botão — use em decisões que não podem
+ser abandonadas por um clique perdido. `message = "…"` põe um texto acima do corpo;
+um diálogo sem corpo e só com `message` é uma caixa de mensagem.
+
+### Armadilhas
+
+- **Nome único.** Os diálogos vivem num mapa global e só um fica aberto por vez.
+  Dois que usem a mesma chave `__dialog.nome` colidem.
+- **`dialog` fora do `resources`.** A tag é só uma declaração; fora do `resources`
+  ela não abre nada.
+- **Largura.** O cartão tem 380 px (só texto) ou 480 px (com corpo). Rótulos
+  longos de botão quebram de linha; um corpo largo demais não cabe.
+- **Rótulos reavaliam?** Não: `{chave}` e `{t('…')}` são resolvidos uma vez, na
+  abertura. Mudar o idioma com o diálogo aberto só aparece na próxima abertura.
+- **Lista antiga.** `buttons = "Cancelar::|Salvar:salvar:accept"` ainda funciona,
+  mas o `actions` é a forma recomendada (e a única com `choice`).
+
+Veja [`examples/onda8`](examples/onda8) (diálogo declarado, encadeado, sem corpo) e
+[`examples/onda8_luau`](examples/onda8_luau) (`prompt`, `pick_color`, `confirm`).
+A referência completa de atributos está em [`docs/DIALOGS.md`](docs/DIALOGS.md).
 
 ---
 

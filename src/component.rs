@@ -481,6 +481,11 @@ pub enum DialogAction {
     /// `on_click = "dialog:nome"` faz, mas pedido de dentro de um handler
     /// ([`Context::open_dialog`]). Não suspende; o resultado é a ação do botão.
     OpenNamed(String),
+    /// Como [`DialogAction::OpenNamed`], mas **suspensivo** (`open_dialog` do
+    /// Luau): carrega o `id` da corrotina que espera. O clique num `choice(…,
+    /// value = v)` retoma-a com `v`; qualquer outro botão, ou dispensar o
+    /// diálogo, com `nil`.
+    OpenNamedResumable(String, u64),
     Close,
 }
 
@@ -947,6 +952,13 @@ impl<'a> Context<'a> {
     /// silêncio, como na ação `dialog:`.
     pub fn open_dialog(&mut self, name: impl Into<String>) {
         self.dialog = Some(DialogAction::OpenNamed(name.into()));
+    }
+
+    /// Como [`Context::open_dialog`], mas associa o diálogo à corrotina Lua
+    /// suspensa `id` (o `open_dialog` do Luau): ela é retomada com o `value` do
+    /// `choice` clicado, ou com `nil` (outro botão, fundo, nome inexistente).
+    pub fn open_dialog_resumable(&mut self, name: impl Into<String>, id: u64) {
+        self.dialog = Some(DialogAction::OpenNamedResumable(name.into(), id));
     }
 
     pub fn close_dialog(&mut self) {

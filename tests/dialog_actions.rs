@@ -205,31 +205,93 @@ fn rotulos_e_titulo_interpolam_ao_abrir() {
     std::fs::remove_file(&c).ok();
 }
 
-/// `open_dialog` não suspende, semeia o corpo, e o clique vira uma AÇÃO.
+/// `choice(…, value = v)` vira um botão cuja ação é a sentinela com o valor.
 #[test]
-fn open_dialog_abre_declarado_e_o_botao_roteia_para_o_handler() {
+fn choice_vira_botao_que_devolve_valor() {
     let mut motor = GlacierUI::new();
     let c = escreve(
-        "open_dialog",
+        "choice_basico",
+        "xml",
+        r##"<screen>
+              <resources>
+                <dialog name="c" title="T">
+                  <text content="corpo" />
+                  <actions>
+                    <button text="Rejeitar" />
+                    <choice text="Só este" value="so" role="neutral" />
+                    <choice text="Aceitar" value="aceitar" role="accept" />
+                  </actions>
+                </dialog>
+              </resources>
+              <text content="tela" />
+            </screen>"##,
+    );
+    motor.register_component("tela", &c).unwrap();
+    motor.navigate_to("tela");
+    abre(&mut motor, "c");
+    let b = motor.dialog().unwrap().buttons.clone();
+    assert_eq!(b.len(), 3);
+    assert_eq!(b[0].action, DIALOG_CLOSE);
+    assert!(b[1].action.ends_with("so") && b[1].action != "so");
+    assert!(b[2].action.ends_with("aceitar"));
+    assert_eq!(b[2].role, ButtonRole::Accept);
+    std::fs::remove_file(&c).ok();
+}
+
+/// `choice` e `button` não se misturam: o markup diz, com a linha, o que está errado.
+#[test]
+fn choice_e_button_nao_se_misturam() {
+    for (nome, actions, trecho) in [
+        ("sem_value", r#"<choice text="A" />"#, "choice sem `value`"),
+        ("com_on_click", r#"<choice text="A" value="a" on_click="x" />"#, "choice com `on_click`"),
+        ("button_com_value", r#"<button text="A" value="a" />"#, "button com `value`"),
+        ("tag_estranha", r#"<text content="A" />"#, "dentro do actions"),
+    ] {
+        let mut motor = GlacierUI::new();
+        let c = escreve(
+            &format!("mistura_{nome}"),
+            "xml",
+            &format!(
+                r##"<screen><resources><dialog name="d" title="T"><text content="c" />
+                    <actions>{actions}</actions></dialog></resources>
+                    <text content="tela" /></screen>"##
+            ),
+        );
+        let erro = motor.register_component("tela", &c).expect_err(nome);
+        assert!(erro.to_string().contains(trecho), "{nome}: {erro}");
+        std::fs::remove_file(&c).ok();
+    }
+}
+
+/// `open_dialog` suspende e devolve o `value` do `choice`; o handler continua
+/// DEPOIS do retorno, com o estado que deixou antes, e lê o que o corpo gravou.
+#[test]
+fn open_dialog_devolve_o_valor_do_choice_e_o_handler_continua() {
+    let mut motor = GlacierUI::new();
+    let c = escreve(
+        "open_dialog_valor",
         "xml",
         r##"<screen>
               <resources>
                 <script>
                   function pedir()
-                    ctx.alvo = "svc-1"
+                    local alvo = "svc-1"
                     ctx["__dialog.plano"] = "1. db\n2. api"
-                    open_dialog("plano")
-                    ctx.depois = "rodou"
+                    ctx.antes = "rodou"
+                    local r = open_dialog("plano")
+                    ctx.tipo = type(r)
+                    ctx.lido = ctx["__dialog.nota"] or "vazio"
+                    if r == "aceitar" then ctx.resultado = "aceitou:" .. alvo
+                    elseif r == "so" then ctx.resultado = "so:" .. alvo
+                    else ctx.resultado = "nada" end
                   end
-                  function aceitar() ctx.resultado = "aceitou:" .. ctx.alvo end
-                  function so_este() ctx.resultado = "so:" .. ctx.alvo end
                 </script>
                 <dialog name="plano" title="Plano">
                   <text content="{__dialog.plano}" />
                   <actions>
                     <button text="Rejeitar" />
-                    <button text="Só este" on_click="so_este" role="neutral" />
-                    <button text="Aceitar" on_click="aceitar" />
+                    <choice text="Só este" value="so" role="neutral" />
+                    <choice text="Aceitar" value="aceitar" />
                   </actions>
                 </dialog>
               </resources>
@@ -242,60 +304,80 @@ fn open_dialog_abre_declarado_e_o_botao_roteia_para_o_handler() {
     let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
     let spec = motor.dialog().expect("open_dialog abriu o diálogo");
     assert_eq!(spec.title, "Plano");
-    assert_eq!(spec.buttons.len(), 3);
-    assert_eq!(
-        motor.get_data("depois").map(String::as_str),
-        Some("rodou"),
-        "open_dialog NÃO suspende: o handler continua até o fim"
-    );
+    assert_eq!(motor.get_data("antes").map(String::as_str), Some("rodou"));
+    assert_eq!(motor.get_data("resultado"), None, "suspende: ainda não escolheu");
     assert_eq!(
         motor.get_data("__dialog.plano").map(String::as_str),
         Some("1. db\n2. api"),
         "o rascunho semeado antes do open_dialog chega ao corpo"
     );
 
+    // Aceitar (o último botão): devolve "aceitar"; o handler enxerga a variável local.
     let aceitar = spec.buttons[2].action.clone();
+    motor.define_data("__dialog.nota", "digitado");
     let _ = motor.dispatch(&EngineMessage::DialogButton(aceitar));
+    assert_eq!(motor.get_data("tipo").map(String::as_str), Some("string"));
+    assert_eq!(motor.get_data("resultado").map(String::as_str), Some("aceitou:svc-1"));
     assert_eq!(
-        motor.get_data("resultado").map(String::as_str),
-        Some("aceitou:svc-1"),
-        "o handler do botão enxerga o estado que o handler de abertura deixou"
+        motor.get_data("lido").map(String::as_str),
+        Some("digitado"),
+        "o handler retomado ainda lê o rascunho __dialog.*"
     );
     assert!(motor.dialog().is_none());
+    assert_eq!(
+        motor.get_data("__dialog.nota"),
+        None,
+        "e o motor o apaga DEPOIS do handler"
+    );
 
+    // Só este.
     let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
     let so = motor.dialog().unwrap().buttons[1].action.clone();
     let _ = motor.dispatch(&EngineMessage::DialogButton(so));
     assert_eq!(motor.get_data("resultado").map(String::as_str), Some("so:svc-1"));
 
-    // Rejeitar só fecha: nada é roteado e o resultado anterior fica intacto.
+    // Rejeitar (um `button` que só fecha) devolve nil.
     let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
     let rej = motor.dialog().unwrap().buttons[0].action.clone();
     let _ = motor.dispatch(&EngineMessage::DialogButton(rej));
-    assert!(motor.dialog().is_none());
-    assert_eq!(motor.get_data("resultado").map(String::as_str), Some("so:svc-1"));
+    assert_eq!(motor.get_data("tipo").map(String::as_str), Some("nil"));
+    assert_eq!(motor.get_data("resultado").map(String::as_str), Some("nada"));
     std::fs::remove_file(&c).ok();
 }
 
+/// Dispensar o diálogo (clicar no fundo) também devolve `nil`, e uma corrotina
+/// nunca fica presa: um nome inexistente retoma na hora com `nil`.
 #[test]
-fn open_dialog_com_nome_inexistente_e_ignorado() {
+fn open_dialog_dispensar_e_nome_inexistente_devolvem_nil() {
     let mut motor = GlacierUI::new();
     let c = escreve(
-        "open_dialog_nada",
+        "open_dialog_nil",
         "xml",
         r##"<screen>
               <resources>
                 <script>
-                  function pedir() open_dialog("nao_existe") ctx.fim = "ok" end
+                  function dispensavel() ctx.r1 = tostring(open_dialog("d")) end
+                  function inexistente() ctx.r2 = tostring(open_dialog("nao_existe")) ctx.fim = "ok" end
                 </script>
+                <dialog name="d" title="T">
+                  <text content="c" />
+                  <actions><choice text="A" value="a" /></actions>
+                </dialog>
               </resources>
-              <button text="Pedir" on_click="pedir" />
+              <button text="x" on_click="dispensavel" />
             </screen>"##,
     );
     motor.register_component("tela", &c).unwrap();
     motor.navigate_to("tela");
-    let _ = motor.dispatch(&EngineMessage::UiClick("pedir".into()));
+    let _ = motor.dispatch(&EngineMessage::UiClick("dispensavel".into()));
+    assert!(motor.dialog().is_some());
+    let _ = motor.dispatch(&EngineMessage::DialogDismiss);
     assert!(motor.dialog().is_none());
+    assert_eq!(motor.get_data("r1").map(String::as_str), Some("nil"));
+
+    let _ = motor.dispatch(&EngineMessage::UiClick("inexistente".into()));
+    assert!(motor.dialog().is_none());
+    assert_eq!(motor.get_data("r2").map(String::as_str), Some("nil"));
     assert_eq!(motor.get_data("fim").map(String::as_str), Some("ok"));
     std::fs::remove_file(&c).ok();
 }

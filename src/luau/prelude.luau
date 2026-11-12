@@ -270,13 +270,14 @@ function progress_set(value, label)
     end
 end
 
--- Abre um `dialog(name = "…")` declarado no markup, como `on_click = "dialog:nome"`
--- faz, mas de dentro de um handler. NÃO suspende: a resposta do usuário é a ACAO do
--- botão que ele clicar (um handler de mesmo nome), não um valor de retorno. Escreva
--- as chaves `__dialog.*` antes de chamar: elas semeiam o corpo. Nome inexistente é
--- ignorado em silêncio.
+-- Abre um `dialog(name = "…")` declarado no markup e SUSPENDE (como `confirm` e
+-- `prompt`) até o usuário escolher. Devolve o `value` do `choice(…, value = v)` que
+-- ele clicou, ou `nil` se clicou num `button` do diálogo (o que só fecha), no fundo
+-- ou se o nome não existe — um único tipo: `string?`. Escreva as chaves `__dialog.*`
+-- antes de chamar (elas semeiam o corpo); o handler as lê depois do retorno.
 --   ctx["__dialog.plano"] = texto
---   open_dialog("deploy_com_dependencias")
+--   local escolha = open_dialog("deploy_com_dependencias")
+--   if escolha == "aceitar" then ... end
 function open_dialog(name)
     return coroutine.yield({ __glacier_dialog_named = true, name = name })
 end

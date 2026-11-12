@@ -8,6 +8,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.156.0 — 2026-11-12
+
+- **`open_dialog("nome")` agora suspende e devolve um valor.** Na 0.155.0 ele só abria o diálogo e a resposta chegava como a ação de um botão; agora o handler **espera** o clique e continua com o resultado: `string?`, o `value` do botão `choice` clicado, ou `nil` (um `button`, o fundo, ou um nome inexistente). Um tipo só, como o `prompt{}`.
+- **`choice("Aceitar", value = aceitar)` no `actions` do `dialog`.** O botão que **devolve** um valor a quem abriu o diálogo; `button` continua sendo o que dispara uma ação (`on_click`) ou só fecha. Cada botão é um dos dois: `choice` com `on_click`, `choice` sem `value` e `button` com `value` são erros de carga, com linha e coluna. `choice` aceita `role` como o `button`.
+- O handler retomado por `open_dialog` ainda lê o rascunho `__dialog.*`: o motor só o apaga depois que ele termina (a menos que ele abra outro diálogo).
+- **Quebra:** `open_dialog` deixou de ser fire-and-forget (0.155.0). Quem o chamava para abrir e tratar o clique como ação passa a usar `choice` + o valor de retorno, ou `dialog:nome` num `on_click`.
+- Documentação: README ganhou a seção **Diálogos (modais)** (os dois fluxos, `button` × `choice`, rascunho, armadilhas) e a de formulários explica como o envio funciona (`type = submit`, e por que não repetir o handler num `on_click`); o `AGENTS.md` dos templates e `docs/DIALOGS.md` acompanham.
+
 ## glacier-ui 0.155.0 — 2026-11-12
 
 - **`dialog` com `actions { button(…) }`**: os botões do rodapé agora são filhos do `dialog`, com a forma curta `button("Salvar", on_click = salvar, role = accept)`. Sem `on_click` só fecha; com ação o papel default é `accept`; `role` aceita `accept`, `neutral`, `destructive`. Rótulos, `title` e `message` aceitam `{chave}` e `{t('…')}`, resolvidos na abertura. A lista compacta `buttons = "…"` continua valendo (havendo `actions`, ela é ignorada). Os exemplos e o catálogo da CLI foram migrados.
