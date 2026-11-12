@@ -672,6 +672,7 @@ impl LuauComponent {
         self.sync_to_luau(ctx)?;
         let valor = match outcome {
             DialogOutcome::Confirmed(b) => Value::Boolean(b),
+            DialogOutcome::Extra => Value::String(self.luau.create_string("extra")?),
             DialogOutcome::Value(s) => Value::String(self.luau.create_string(&s)?),
             DialogOutcome::Cancelled => Value::Nil,
         };
@@ -1512,7 +1513,7 @@ pub(crate) struct PedidoDeDialogo {
 /// valores que ele aceita.
 fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     use crate::dialogs::{
-        ButtonRole, CONFIRM_NO, CONFIRM_YES, DIALOG_VALUE_KEY, DialogButton, DialogIcon, DialogSpec,
+        ButtonRole, CONFIRM_EXTRA, CONFIRM_NO, CONFIRM_YES, DIALOG_VALUE_KEY, DialogButton, DialogIcon, DialogSpec,
     };
     let title: String = req.get::<Option<String>>("title")?.unwrap_or_default();
     let message: String = req.get::<Option<String>>("message")?.unwrap_or_default();
@@ -1522,6 +1523,7 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
     let cancel_label = req
         .get::<Option<String>>("cancel_label")?
         .unwrap_or_else(|| "Cancelar".into());
+    let extra_label = req.get::<Option<String>>("extra_label")?;
     let destructive = req.get::<Option<bool>>("destructive")?.unwrap_or(false);
     let role = if destructive {
         ButtonRole::Destructive
@@ -1542,7 +1544,12 @@ fn build_dialog(req: &Table) -> mlua::Result<PedidoDeDialogo> {
             cancel_label,
             CONFIRM_NO,
             ButtonRole::Neutral,
-        ))
+        ));
+    // Terceiro botão opcional, entre cancelar e confirmar (Rejeitar · Só este · Aceitar).
+    if let Some(extra) = extra_label {
+        spec = spec.with_button(DialogButton::new(extra, CONFIRM_EXTRA, ButtonRole::Neutral));
+    }
+    let mut spec = spec
         .with_button(DialogButton::new(confirm_label, CONFIRM_YES, role))
         .dismissible(false);
 
