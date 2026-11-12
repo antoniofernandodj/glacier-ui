@@ -34,13 +34,15 @@ component {
 
         row(class = linha) {
           button(
-            class = btn, text = "pare o mouse aqui",
-            tooltip = "este é o balão de tooltip", on_click = dizer:tooltip,
+            "pare o mouse aqui",
+            class = btn,
+            tooltip = "este é o balão de tooltip", on_click = dizer:tooltip
           )
 
           button(
-            class = btn, text = "modo ajuda", on_click = whatsthis:toggle,
-            whats_this = "Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip.",
+            "modo ajuda",
+            class = btn, on_click = whatsthis:toggle,
+            whats_this = "Ligue o modo e paire sobre os controles: a ajuda fica no lugar do tooltip."
           )
         }
       }
@@ -55,7 +57,7 @@ component {
 
         row(class = linha) {
           popover(:value = ov_menu, placement = bottom, align = start) {
-            button(slot = anchor, class = btn, text = "Conta ▾")
+            button("Conta ▾", slot = anchor, class = btn)
 
             column(class = painel) {
               text(class = nota, content = "Perfil")
@@ -65,7 +67,7 @@ component {
           }
 
           popup(value = ov_pop) {
-            button(slot = anchor, class = btn, text = "Mostrar atalhos")
+            button("Mostrar atalhos", slot = anchor, class = btn)
 
             column(class = painel) {
               text(class = nota, content = "Ctrl+S — salvar")
@@ -107,8 +109,9 @@ component {
           }
 
           button(
-            class = btn, text = "alternar o ponto",
-            on_click = ov_alternar_notif,
+            "alternar o ponto",
+            class = btn,
+            on_click = ov_alternar_notif
           )
         }
       }
@@ -123,8 +126,9 @@ component {
         )
 
         button(
-          class = btn, text = "mostrar/esconder a splash",
-          on_click = ov_alternar_splash,
+          "mostrar/esconder a splash",
+          class = btn,
+          on_click = ov_alternar_splash
         )
 
         splashscreen(

@@ -45,12 +45,14 @@ app(
 
       column(class = acoes) {
         button(
-          class = btn_primario, text = "Abrir uma janela filha",
-          on_click = abrir_detalhe,
+          "Abrir uma janela filha",
+          class = btn_primario,
+          on_click = abrir_detalhe
         )
 
         button(
-          class = btn_ghost, text = "Notificação do sistema", on_click = avisar,
+          "Notificação do sistema",
+          class = btn_ghost, on_click = avisar
         )
       }
 

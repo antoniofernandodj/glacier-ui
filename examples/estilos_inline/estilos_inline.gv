@@ -61,7 +61,7 @@ screen(title = "Glacier - Estilos inline (XML)") {
         text(class = valor, content = "@valor")
 
         row(class = actions) {
-          button(class = "btn btn-menos", text = "−", on_click = decrementar)
+          button("−", class = "btn btn-menos", on_click = decrementar)
           button(class = "btn btn-mais", text = +, on_click = incrementar)
         }
 

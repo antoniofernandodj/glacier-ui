@@ -1113,9 +1113,12 @@ fn tag_inline(tag: &str) -> bool {
 /// contêineres (`prose`, `p`, `ul`, `ol`, `blockquote`, `figure`) ficam de fora: o texto
 /// vive nos filhos deles. Outras (`button` quer `text`, `textinput` quer
 /// `placeholder`…) ficam de fora de propósito: lá "o texto" é ambíguo, e
-/// `nome = valor` diz qual.
+/// `nome = valor` diz qual. O `button` entra com `text` (o rótulo).
 fn posicional(tag: &str) -> Option<&'static str> {
     let t = tag.to_ascii_lowercase();
+    if matches!(t.as_str(), "button") {
+        return Some("text");
+    }
     let carrega = matches!(t.as_str(), "text" | "texto" | "markdown" | "md")
         || (tag_inline(tag)
             && !matches!(t.as_str(), "prose" | "p" | "ul" | "ol" | "blockquote" | "figure"));

@@ -8,6 +8,10 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.153.0 — 2026-11-12
+
+- **`button("Salvar", on_click = salvar)`**: o `button` aceita, como o `text`, o primeiro argumento sem nome, que vale como o atributo `text` (o rótulo). `button(text = "Salvar")` continua funcionando. Os exemplos e os templates da CLI (`.gv`) foram migrados para a forma curta.
+
 ## glacier-ui 0.152.1 — 2026-11-07
 
 - **Correção: os diálogos que carregam corpo não montavam desde a 0.149.0.** `pedir_texto` (`__InputDialog`), `escolher_cor`, o seletor de fonte e o diálogo de progresso falhavam com "componente não registrado": os builtins passaram a ser registrados só em minúsculas, mas o motor ainda montava o corpo pelo nome antigo. Os corpos internos agora se chamam `__inputdialog`, `__colordialog`, `__fontdialog` e `__progressdialog`, e `builtin_aliases` registra também os builtins que já nascem em minúsculas. Quem referenciava esses nomes à mão (ação `__InputDialog::editar`, `render("__InputDialog")`) troca pela grafia em minúsculas.

@@ -11,7 +11,7 @@ screen(title = "Glacier - ciclo de vida (Rust)") {
         content = "Entradas no painel: @entradas · saídas: @saidas",
       )
       text(class = info, content = "Último gancho: @ultimo")
-      button(class = botao, on_click = ir, text = "Ir para o painel")
+      button("Ir para o painel", class = botao, on_click = ir)
     }
   }
 }

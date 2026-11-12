@@ -19,10 +19,10 @@ screen(title = Detalhe) {
     }
 
     column(class = acoes) {
-      button(class = btn_primario, on_click = contar, text = "Contar")
+      button("Contar", class = btn_primario, on_click = contar)
       button(
-        class = btn_ghost, on_click = avisar_e_fechar,
-        text = "Avisar o painel e fechar",
+        "Avisar o painel e fechar",
+        class = btn_ghost, on_click = avisar_e_fechar
       )
     }
   }

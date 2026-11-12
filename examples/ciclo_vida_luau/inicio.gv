@@ -17,7 +17,7 @@ screen(title = "Glacier - ciclo de vida (início)") {
         class = texto,
       )
 
-      button(on_click = ir_monitor, text = "Ir para o monitor", class = botao)
+      button("Ir para o monitor", on_click = ir_monitor, class = botao)
       text(content = "— último estado do monitor —", class = destaque)
       text(content = "ciclo: @ciclo", class = texto_2)
       text(content = "SSE: @sse_status", class = texto_2)

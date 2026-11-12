@@ -147,8 +147,9 @@ component {
         )
 
         button(
-          class = btn, text = "Abrir/fechar gaveta",
-          on_click = drawer::toggle:nv_gaveta,
+          "Abrir/fechar gaveta",
+          class = btn,
+          on_click = drawer::toggle:nv_gaveta
         )
 
         text(class = nota, content = "nv_gaveta = @nv_gaveta")

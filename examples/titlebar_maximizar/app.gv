@@ -7,11 +7,11 @@ screen(title = "Glacier - Titlebar") {
   column(width = fill, padding = 16, spacing = 12) {
     row(spacing = 8) {
       text(content = "maximizada: @glacier_window_maximized")
-      button(on_click = window:minimize, text = "—")
+      button("—", on_click = window:minimize)
       if @glacier_window_maximized {
-        button(on_click = window:maximize, text = "❐ restaurar")
+        button("❐ restaurar", on_click = window:maximize)
       } else {
-        button(on_click = window:maximize, text = "▢ maximizar")
+        button("▢ maximizar", on_click = window:maximize)
       }
     }
   }

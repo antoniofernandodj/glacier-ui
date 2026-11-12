@@ -60,9 +60,9 @@ app(
               text(class = titlebar_nome, content = "{{titulo}}")
             }
 
-            button(class = win_btn, text = "—", on_click = window:minimize)
-            button(class = win_btn, text = "▢", on_click = window:maximize)
-            button(class = win_fechar, text = "✕", on_click = window:close)
+            button("—", class = win_btn, on_click = window:minimize)
+            button("▢", class = win_btn, on_click = window:maximize)
+            button("✕", class = win_fechar, on_click = window:close)
           }
 
           row(class = corpo) {

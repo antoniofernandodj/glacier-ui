@@ -15,14 +15,14 @@ screen(title = "Glacier - Botões com gradiente") {
       text(class = titulo, content = "Botões com gradiente")
       text(class = fraco, content = "Último clique: @ultimo")
 
-      button(class = "botao azul", text = "Começar", on_click = azul)
-      button(class = "botao roxo", text = "Atualizar para Pro", on_click = roxo)
-      button(class = "botao verde", text = "Salvar alterações", on_click = verde)
-      button(class = "botao rosa", text = "Limpar tudo", on_click = rosa)
+      button("Começar", class = "botao azul", on_click = azul)
+      button("Atualizar para Pro", class = "botao roxo", on_click = roxo)
+      button("Salvar alterações", class = "botao verde", on_click = verde)
+      button("Limpar tudo", class = "botao rosa", on_click = rosa)
 
       row(spacing = 12) {
-        button(class = "botao pequeno azul", text = "Manter", on_click = azul)
-        button(class = "botao pequeno rosa", text = "Excluir", on_click = rosa)
+        button("Manter", class = "botao pequeno azul", on_click = azul)
+        button("Excluir", class = "botao pequeno rosa", on_click = rosa)
       }
     }
   }

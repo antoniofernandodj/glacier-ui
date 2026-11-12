@@ -9,8 +9,8 @@ screen(title = "{{titulo}}", size = "420 380", min_size = "340 320") {
     text(class = numero, content = "@contador")
 
     row(class = acoes) {
-      button(class = btn, on_click = subtrair, text = "-")
-      button(class = btn, on_click = somar, text = "+")
+      button("-", class = btn, on_click = subtrair)
+      button("+", class = btn, on_click = somar)
     }
 
     column(class = campo) {
@@ -22,6 +22,6 @@ screen(title = "{{titulo}}", size = "420 380", min_size = "340 320") {
       )
     }
 
-    button(class = btn_ghost, on_click = zerar, text = "zerar")
+    button("zerar", class = btn_ghost, on_click = zerar)
   }
 }

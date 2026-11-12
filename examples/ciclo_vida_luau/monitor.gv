@@ -17,10 +17,10 @@ screen(title = "Glacier - ciclo de vida (monitor)") {
       text(content = "— WebSocket (/ws, eco + tick) —", class = destaque)
       text(content = "@ws_status", class = texto_2)
       text(content = "@ws_msg", class = texto_3)
-      button(on_click = enviar_ws, text = "Enviar ping", class = botao_2)
+      button("Enviar ping", on_click = enviar_ws, class = botao_2)
       button(
-        on_click = voltar,
-        text = "Voltar (fecha os streams)", class = botao_3,
+        "Voltar (fecha os streams)",
+        on_click = voltar, class = botao_3
       )
     }
   }

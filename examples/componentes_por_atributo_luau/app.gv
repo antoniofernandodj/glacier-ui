@@ -98,12 +98,14 @@ screen(title = "Glacier - Componentes por atributo (Luau)", size = "900 720") {
           button(text = "Adicionar contato", on_click = adicionar)
 
           button(
-            class = btn-fraco, text = "Remover todos", on_click = remover_todos,
+            "Remover todos",
+            class = btn-fraco, on_click = remover_todos
           )
 
           button(
-            class = btn-fraco, text = "Trocar cabeçalho",
-            on_click = trocar_cabecalho,
+            "Trocar cabeçalho",
+            class = btn-fraco,
+            on_click = trocar_cabecalho
           )
         }
 

@@ -46,8 +46,9 @@ component {
         )
 
         button(
-          class = btn_prim, text = "Abrir o formulário",
-          on_click = dialog:cat_form,
+          "Abrir o formulário",
+          class = btn_prim,
+          on_click = dialog:cat_form
         )
 
         text(class = nota, content = "último salvo: @dlg_ultimo")
@@ -60,11 +61,11 @@ component {
         )
 
         row(class = linha) {
-          button(class = btn, text = "confirm@{}", on_click = dlg_confirmar)
-          button(class = btn, text = "prompt@{}", on_click = dlg_prompt)
-          button(class = btn, text = "pick_color@{}", on_click = dlg_cor)
-          button(class = btn, text = "open_file()", on_click = dlg_arquivo)
-          button(class = btn, text = "progress@{}", on_click = dlg_progresso)
+          button("confirm@{}", class = btn, on_click = dlg_confirmar)
+          button("prompt@{}", class = btn, on_click = dlg_prompt)
+          button("pick_color@{}", class = btn, on_click = dlg_cor)
+          button("open_file()", class = btn, on_click = dlg_arquivo)
+          button("progress@{}", class = btn, on_click = dlg_progresso)
         }
 
         text(class = nota, content = "resposta: @dlg_resposta")

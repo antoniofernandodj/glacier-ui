@@ -72,7 +72,8 @@ screen(title = "Controle externo", size = "1000 700", min_size = "480 360") {
       }
 
       button(
-        class = btn, text = "Reiniciar (clique humano)", on_click = reiniciar,
+        "Reiniciar (clique humano)",
+        class = btn, on_click = reiniciar
       )
     }
   }

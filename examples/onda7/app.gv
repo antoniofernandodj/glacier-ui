@@ -95,8 +95,9 @@ screen(title = "Glacier - Onda 7", size = "1060 840") {
                     )
 
                     button(
-                      class = btn, text = "no talo",
-                      on_click = app:set:volume:11,
+                      "no talo",
+                      class = btn,
+                      on_click = app:set:volume:11
                     )
                   }
                 }

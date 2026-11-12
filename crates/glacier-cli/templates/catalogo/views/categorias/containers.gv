@@ -69,9 +69,9 @@ component {
         )
 
         row(class = "linha linha_2") {
-          button(class = btn, text = "à esquerda", on_click = dizer:space)
+          button("à esquerda", class = btn, on_click = dizer:space)
           space
-          button(class = btn, text = "à direita", on_click = dizer:space)
+          button("à direita", class = btn, on_click = dizer:space)
         }
       }
 
@@ -172,8 +172,9 @@ component {
         )
 
         button(
-          class = btn, text = "mostrar/esconder detalhes",
-          on_click = ct_revelar,
+          "mostrar/esconder detalhes",
+          class = btn,
+          on_click = ct_revelar
         )
 
         reveal(open = @ct_revela) {

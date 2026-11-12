@@ -22,11 +22,11 @@ component {
     }
 
     row(class = barra) {
-      button(class = btn_primario, on_click = buscar_ip, text = "Buscar meu IP")
+      button("Buscar meu IP", class = btn_primario, on_click = buscar_ip)
 
       button(
-        class = btn_ghost, on_click = alternar_primeiro,
-        text = "Alternar o primeiro",
+        "Alternar o primeiro",
+        class = btn_ghost, on_click = alternar_primeiro
       )
 
       text(class = apagado, content = "@status")

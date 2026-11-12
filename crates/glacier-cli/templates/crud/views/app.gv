@@ -21,8 +21,8 @@ screen(
 
       space
       button(class = btn_prim, text = Novo, on_click = novo)
-      button(class = btn, on_click = editar, text = "Editar")
-      button(class = btn_danger, on_click = excluir, text = "Excluir")
+      button("Editar", class = btn, on_click = editar)
+      button("Excluir", class = btn_danger, on_click = excluir)
     }
 
     tableview(

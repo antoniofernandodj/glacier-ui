@@ -63,16 +63,18 @@ screen(title = "Glacier — Galeria de Estilos", size = "560 640") {
       row(class = grupos) {
         column(class = grupo) {
           text(class = titulo, content = "Botões")
-          button(class = botao, text = "Normal Push Button", on_click = noop)
+          button("Normal Push Button", class = botao, on_click = noop)
 
           button(
-            class = botao, text = "Disabled Push Button", on_click = noop,
-            disabled = true,
+            "Disabled Push Button",
+            class = botao, on_click = noop,
+            disabled = true
           )
 
           button(
-            class = "botao accent", text = "Accent Push Button",
-            on_click = noop,
+            "Accent Push Button",
+            class = "botao accent",
+            on_click = noop
           )
         }
 

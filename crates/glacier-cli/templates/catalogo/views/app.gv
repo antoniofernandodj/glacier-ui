@@ -91,8 +91,9 @@ screen(
 
     column(class = conteudo) {
       button(
-        class = menu_btn, text = "☰", on_click = drawer::toggle:menu,
-        tooltip = "Abrir e fechar o menu",
+        "☰",
+        class = menu_btn, on_click = drawer::toggle:menu,
+        tooltip = "Abrir e fechar o menu"
       )
 
       scrollable(class = rota) {

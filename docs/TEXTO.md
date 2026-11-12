@@ -154,9 +154,9 @@ Markdown precisa delas).
 
 - O texto sem nome vem **primeiro** na lista, e não pode coexistir com `content = …`
   na mesma tag (erro: "tem o texto duas vezes").
-- Fora das tags de texto continua erro (`button("Salvar")` → "não aceita texto sem
-  nome"): em `button` o texto é `text`, em `textinput` é `placeholder`, e `nome = valor`
-  diz qual. Estender é uma linha na tabela `posicional` de `src/gv.rs`.
+- `button("Salvar", on_click = salvar)` vale como `button(text = "Salvar", …)`.
+- Fora das tags de texto e do `button` continua erro (`textinput("x")` → "não aceita
+  texto sem nome"): em `textinput` o texto é `placeholder`, e `nome = valor` diz qual. Estender é uma linha na tabela `posicional` de `src/gv.rs`.
 - **O espaço é do texto**, não do formato: `"Olá, "` leva o espaço dentro das aspas, e a
   quebra de linha entre duas tags não conta. (Dentro de `prose` e das tags inline o
   dessugar põe essa quebra num comentário XML — mantém a contagem de linhas dos erros e

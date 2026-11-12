@@ -97,8 +97,8 @@ screen(
     }
 
     row(class = acoes) {
-      button(class = btn-prim, text = "Novo pedido", on_click = novo)
-      button(class = btn, text = "Limpar tudo", on_click = limpar)
+      button("Novo pedido", class = btn-prim, on_click = novo)
+      button("Limpar tudo", class = btn, on_click = limpar)
     }
 
     rule

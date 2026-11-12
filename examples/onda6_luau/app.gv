@@ -283,7 +283,8 @@ screen(title = "Glacier - Onda 6 (Luau)", size = "1060 820") {
                   text(class = crua, content = "@abertos")
 
                   button(
-                    class = btn, text = "Fechar tudo", on_click = fechar_tudo,
+                    "Fechar tudo",
+                    class = btn, on_click = fechar_tudo
                   )
                 }
               }

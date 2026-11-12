@@ -8,7 +8,7 @@ screen(title = "Glacier - ciclo de vida (painel)") {
       text(class = titulo, content = "Painel")
       text(class = info, content = "Entradas: @entradas · saídas: @saidas")
       text(class = info, content = "Último gancho: @ultimo")
-      button(class = botao, on_click = voltar, text = "Voltar")
+      button("Voltar", class = botao, on_click = voltar)
     }
   }
 }

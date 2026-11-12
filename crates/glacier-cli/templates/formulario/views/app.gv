@@ -116,10 +116,10 @@ screen(
 
       row(class = acoes) {
         button(
-          type = reset, class = btn-limpar, on_click = limpar,
-          text = "Limpar",
+          "Limpar",
+          type = reset, class = btn-limpar, on_click = limpar
         )
-        button(type = submit, class = btn-salvar, text = "Salvar")
+        button("Salvar", type = submit, class = btn-salvar)
       }
     }
   }
