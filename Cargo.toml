@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.159.0"
+version = "0.160.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -277,6 +277,8 @@ zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
 # `ANDROID_TODO.md` do preset `android` da CLI).
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
 rfd = "0.17"
+# `save_download`: a pasta Downloads do SO (XDG no Linux, ~/Downloads no macOS, Known Folder no Windows).
+dirs = "6"
 
 # ── Só na web (`wasm32-unknown-unknown`) ──────────────────────────────────────
 # SEM wgpu por padrão: só o tiny-skia, que desenha por software num canvas 2D.

@@ -1835,11 +1835,11 @@ dependencies = [
 
 [[package]]
 name = "glacier-cli"
-version = "0.28.10"
+version = "0.28.11"
 
 [[package]]
 name = "glacier-ui"
-version = "0.159.0"
+version = "0.160.0"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -1847,6 +1847,7 @@ dependencies = [
  "base64",
  "console_error_panic_hook",
  "console_log",
+ "dirs",
  "flate2",
  "fontdb",
  "futures",

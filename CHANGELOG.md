@@ -8,6 +8,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.160.0 — 2026-11-12
+
+- **`save_download(nome, conteúdo)`: grava na pasta Downloads do sistema, sem diálogo.** Devolve `true, caminho` ou `false, mensagem` (ex.: sem pasta Downloads — caia no `save_file`). **Nunca sobrescreve:** se `nome` já existe, grava `nome-1.ext`, `nome-2.ext`…; no Unix o arquivo nasce `0600` (costuma ser uma credencial) e um nome com `../` vira só o último componente. A pasta vem da crate `dirs` (XDG no Linux, `~/Downloads` no macOS, Known Folder no Windows); em wasm/Android responde `false, "indisponível nesta plataforma"`. Declarado no `glacier.d.luau` do template e no `AGENTS.md`.
+- **Corrige (Windows): a janela principal reabria inacessível.** Fechar o app **minimizado** gravava em `window-geometry.json` a posição `(-32000, -32000)` e um tamanho ~0 que o Windows reporta para janela recolhida; o boot seguinte abria a janela fora de qualquer monitor (aparecia na miniatura da barra de tarefas, mas nunca dava para acessá-la). Agora uma geometria assim **não é lembrada nem gravada** (tamanho < 100 px ou posição a ≥ 10 000 px da origem), e um arquivo já gravado por versão antiga tem a posição ignorada ao carregar (ou é descartado por inteiro se o tamanho também for inválido) — não precisa apagar o arquivo à mão. Vale também para a reabertura pela bandeja.
+
 ## glacier-ui 0.159.0 — 2026-11-12
 
 - **`open_dialog(nome, dados?)`: o segundo argumento são os dados do diálogo.** Em vez de escrever `ctx["__dialog.plano"] = …` antes de abrir, passa-se `open_dialog("deploy_plan", { plano = plano })`: cada par vira a chave `__dialog.<nome>`, que o corpo, o `title`, o `message` e os rótulos leem como `{__dialog.plano}`. Os valores seguem a regra de `ctx.x = …` (texto, número, booleano, tabela → JSON), e as chaves são apagadas quando o diálogo fecha, depois do handler retomado. Sem o argumento, nada muda; um segundo argumento que não é tabela lança. Quem escreve as chaves à mão (o caminho de `on_click = "dialog:nome"`) continua podendo.

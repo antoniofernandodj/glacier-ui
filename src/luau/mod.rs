@@ -350,6 +350,9 @@ impl LuauComponent {
         // A leitura correspondente é `fetch("file://…")` (ver `net::perform`).
         install_write_file(&luau)
             .map_err(|e| format!("Erro ao instalar `write_file` Luau: {}", e))?;
+        // Expõe `save_download(nome, conteúdo)`: grava na pasta Downloads do SO.
+        install_save_download(&luau)
+            .map_err(|e| format!("Erro ao instalar `save_download` Luau: {}", e))?;
         // Expõe o global `zip_dir(origem, destino)` (compactar um diretório).
         install_zip_dir(&luau).map_err(|e| format!("Erro ao instalar `zip_dir` Luau: {}", e))?;
         // Expõe `zip_write(destino, entradas)` e `zip_read(origem)` (zip de texto).
@@ -2733,6 +2736,78 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
     Ok(())
 }
 
+/// Grava `contents` em `dir/<nome>` **sem sobrescrever**: se o nome já existe, tenta `nome-1.ext`,
+/// `nome-2.ext`… (perder um arquivo antigo por colisão de nome é o pior desfecho para uma chave).
+/// No Unix o arquivo nasce `0600` (costuma ser uma credencial). Devolve o caminho gravado.
+fn save_unique(dir: &std::path::Path, filename: &str, contents: &str) -> std::io::Result<PathBuf> {
+    use std::io::Write;
+    // só o último componente: `../x` ou `/etc/x` não escapam da pasta
+    let name = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| !n.is_empty())
+        .unwrap_or("download.txt");
+    std::fs::create_dir_all(dir)?;
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (name.to_string(), String::new()),
+    };
+    for attempt in 0..1000u32 {
+        let candidate = if attempt == 0 {
+            dir.join(name)
+        } else {
+            dir.join(format!("{stem}-{attempt}{ext}"))
+        };
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        match options.open(&candidate) {
+            Ok(mut file) => {
+                file.write_all(contents.as_bytes())?;
+                return Ok(candidate);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "já existem 1000 arquivos com esse nome",
+    ))
+}
+
+/// Instala o global `save_download(nome, conteúdo)`: grava na pasta **Downloads** do sistema, sem
+/// diálogo e sem sobrescrever (ver `save_unique`). Síncrono, como o `write_file`.
+///
+/// - sucesso: `true, "/caminho/gravado"`
+/// - falha:   `false, "mensagem"` — inclusive "sem pasta Downloads" (ambiente headless), caso em que o
+///   chamador deve cair no `save_file` (diálogo).
+fn install_save_download(luau: &Lua) -> mlua::Result<()> {
+    let save_download = luau.create_function(|_, (filename, contents): (String, String)| {
+        #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+        {
+            let Some(dir) = dirs::download_dir() else {
+                return Ok((false, "o sistema não tem uma pasta Downloads".to_string()));
+            };
+            match save_unique(&dir, &filename, &contents) {
+                Ok(path) => Ok((true, path.display().to_string())),
+                Err(e) => Ok((false, e.to_string())),
+            }
+        }
+        #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+        {
+            let _ = (filename, contents);
+            Ok((false, "indisponível nesta plataforma".to_string()))
+        }
+    })?;
+    luau.globals().set("save_download", save_download)?;
+    Ok(())
+}
+
 /// Expõe `zip_dir(origem, destino)`: compacta a árvore de arquivos em
 /// `origem` num `.zip` escrito direto em `destino`. Mesma assinatura de
 /// retorno `(ok, erro?)` de `write_file`/`append_file`, e o mesmo raciocínio
@@ -3759,6 +3834,34 @@ mod tests {
         assert_eq!(data.get("ok").map(String::as_str), Some("true"));
         assert_eq!(data.get("err").map(String::as_str), Some(""));
         assert_eq!(std::fs::read_to_string(&alvo).unwrap(), "conteúdo do luau");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_unique_nao_sobrescreve_e_numera() {
+        let dir = temp_dir("save_unique");
+        let primeiro = save_unique(&dir, "chave.txt", "A").unwrap();
+        let segundo = save_unique(&dir, "chave.txt", "B").unwrap();
+        let terceiro = save_unique(&dir, "chave.txt", "C").unwrap();
+        assert_eq!(primeiro.file_name().unwrap(), "chave.txt");
+        assert_eq!(segundo.file_name().unwrap(), "chave-1.txt");
+        assert_eq!(terceiro.file_name().unwrap(), "chave-2.txt");
+        assert_eq!(std::fs::read_to_string(&primeiro).unwrap(), "A");
+        assert_eq!(std::fs::read_to_string(&segundo).unwrap(), "B");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&primeiro).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_unique_nao_escapa_da_pasta() {
+        let dir = temp_dir("save_unique_escape");
+        let caminho = save_unique(&dir, "../../fora.txt", "x").unwrap();
+        assert_eq!(caminho, dir.join("fora.txt"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

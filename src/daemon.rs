@@ -908,6 +908,22 @@ fn clamp_to_max(size: Size, max: Option<Size>) -> Size {
     }
 }
 
+/// O Windows reporta uma janela **minimizada** em `(-32000, -32000)` (e com tamanho 0 ou minúsculo). Se isso
+/// for gravado ao fechar, o próximo boot abre a janela fora de qualquer monitor: ela existe, aparece na
+/// miniatura da barra de tarefas, e nunca dá para alcançá-la. Estas duas funções separam a geometria de
+/// verdade da dessa janela recolhida: tamanho abaixo de 100 px ou posição a 10 000 px (ou mais) da origem
+/// não são uma janela que uma pessoa arrastou.
+fn plausible_size(size: Size) -> bool {
+    size.width.is_finite() && size.height.is_finite() && size.width >= 100.0 && size.height >= 100.0
+}
+
+fn plausible_position(position: Point) -> bool {
+    position.x.is_finite()
+        && position.y.is_finite()
+        && position.x.abs() < 10_000.0
+        && position.y.abs() < 10_000.0
+}
+
 /// Lê a geometria persistida sob `dir`, ou `None` se ausente/corrompida (é
 /// "best effort" — nunca deve impedir o app de abrir). Exige ao menos
 /// `width`/`height`; `x`/`y` são opcionais.
@@ -921,11 +937,14 @@ fn load_geometry(dir: &std::path::Path) -> Option<SavedGeometry> {
     let position = match (x, y) {
         (Some(x), Some(y)) => Some(Point::new(x as f32, y as f32)),
         _ => None,
-    };
-    Some(SavedGeometry {
-        size: Size::new(width, height),
-        position,
-    })
+    }
+    // um arquivo gravado por uma versão antiga pode ter a posição da janela minimizada: ignora-a
+    .filter(|p| plausible_position(*p));
+    let size = Size::new(width, height);
+    if !plausible_size(size) {
+        return None;
+    }
+    Some(SavedGeometry { size, position })
 }
 
 /// Grava a geometria sob `dir` (criando o diretório se preciso). Falhas de I/O
@@ -1201,7 +1220,10 @@ impl Runtime {
                 // para a bandeja, a reabertura ("Open Rustploy") nasce do mesmo
                 // tamanho/posição em vez do valor do boot. (Posição é `None` no
                 // Wayland — lá só o tamanho é lembrado.)
-                if id == self.main_id {
+                // Fechada MINIMIZADA (Windows: posição -32000, tamanho ~0), a geometria não vale
+                // nada: não a lembra nem a grava, senão a janela reabre fora da tela.
+                if id == self.main_id && plausible_size(size) {
+                    let position = position.filter(|p| plausible_position(*p));
                     self.main_settings.size = size;
                     if let Some(p) = position {
                         self.main_settings.position = window::Position::Specific(p);
@@ -2624,6 +2646,41 @@ text(content = x)
         assert_eq!(settings.size, Size::new(1000.0, 700.0));
         assert!(settings.resizable, "não declarado, então o builder fica");
         assert!(settings.min_size.is_none());
+    }
+
+    #[test]
+    fn geometria_de_janela_minimizada_nao_e_plausivel() {
+        // O que o Windows reporta para uma janela minimizada.
+        assert!(!plausible_position(Point::new(-32000.0, -32000.0)));
+        assert!(!plausible_size(Size::new(0.0, 0.0)));
+        assert!(!plausible_size(Size::new(160.0, 28.0)));
+        // Monitor à esquerda/acima do principal é legítimo (coordenadas negativas pequenas).
+        assert!(plausible_position(Point::new(-1920.0, -200.0)));
+        assert!(plausible_position(Point::new(100.0, 80.0)));
+        assert!(plausible_size(Size::new(1280.0, 820.0)));
+    }
+
+    #[test]
+    fn load_geometry_descarta_posicao_de_janela_minimizada() {
+        let dir = std::env::temp_dir().join(format!("glacier_geom_min_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // gravado por uma versão antiga, com o app fechado minimizado
+        std::fs::write(
+            dir.join(GEOMETRY_FILE),
+            r#"{"width":1280.0,"height":820.0,"x":-32000.0,"y":-32000.0}"#,
+        )
+        .unwrap();
+        let g = load_geometry(&dir).expect("o tamanho ainda é bom");
+        assert!(g.position.is_none(), "a posição fora da tela não volta");
+        assert_eq!(g.size, Size::new(1280.0, 820.0));
+        // tamanho de janela recolhida: nada é aproveitado
+        std::fs::write(
+            dir.join(GEOMETRY_FILE),
+            r#"{"width":0.0,"height":0.0,"x":-32000.0,"y":-32000.0}"#,
+        )
+        .unwrap();
+        assert!(load_geometry(&dir).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

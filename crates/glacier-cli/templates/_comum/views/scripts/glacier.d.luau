@@ -229,6 +229,10 @@ declare function write_file(path: string, contents: string): (boolean, string?)
 -- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um
 -- arquivo, use `fetch("file://…")`.
 declare function append_file(path: string, contents: string): (boolean, string?)
+-- Grava `contents` na pasta Downloads do sistema (sem diálogo), NUNCA sobrescrevendo: se `filename` já
+-- existe, grava `nome-1.ext`, `nome-2.ext`…; no Unix o arquivo nasce 0600. Síncrono. Devolve
+-- `true, caminho` ou `false, mensagem` (ex.: sem pasta Downloads — caia no `save_file`).
+declare function save_download(filename: string, contents: string): (boolean, string)
 -- Compacta a árvore de `origem` num `.zip` em `destino`. Síncrono (não suspende):
 -- é I/O local, não rede nem diálogo.
 declare function zip_dir(origem: string, destino: string): (boolean, string?)
