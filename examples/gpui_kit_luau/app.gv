@@ -28,6 +28,7 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
         menuitem(label = "Simular uma falha", on_click = "executar:erro")
       }
       button("Parar", class = "btn btn--perigo", on_click = parar)
+      button("Confirmar…", class = btn_fraco, on_click = confirmar_longo)
       space
       text("paleta de comandos:", class = dica)
       kbd("Ctrl+K")

@@ -97,6 +97,19 @@ function parar(): ()
     avisar("warning", `{servicos[atual].nome} parado`, "Os containers foram encerrados.")
 end
 
+-- O `confirm` do motor: com rótulos longos, o cartão alarga para os botões
+-- ficarem numa linha só (antes, a 380 px fixos, eles se empilhavam).
+function confirmar_longo(): ()
+    local ok = confirm {
+        title = "Subir a variável para o projeto?",
+        message = 'A variável "WORKER_PREFETCH" passa a valer para todos os serviços deste projeto.',
+        confirm_label = "Subir a variável para o projeto inteiro",
+    }
+    if ok then
+        avisar("info", "Variável no projeto", "Todos os serviços herdam WORKER_PREFETCH.")
+    end
+end
+
 function reverter(): ()
     avisar("warning", `{servicos[atual].nome} volta para o deploy anterior`, "")
 end

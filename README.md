@@ -1132,8 +1132,9 @@ um diálogo sem corpo e só com `message` é uma caixa de mensagem.
   Dois que usem a mesma chave `__dialog.nome` colidem.
 - **`dialog` fora do `resources`.** A tag é só uma declaração; fora do `resources`
   ela não abre nada.
-- **Largura.** O cartão tem 380 px (só texto) ou 480 px (com corpo). Rótulos
-  longos de botão quebram de linha; um corpo largo demais não cabe.
+- **Largura.** O cartão tem 380 px (só texto) ou 480 px (com corpo), e alarga
+  até 600 px para os botões caberem numa linha (0.167). Só além disso eles
+  quebram de linha; um corpo largo demais não cabe.
 - **Rótulos reavaliam?** Não: `{chave}` e `{t('…')}` são resolvidos uma vez, na
   abertura. Mudar o idioma com o diálogo aberto só aparece na próxima abertura.
 - **Lista antiga.** `buttons = "Cancelar::|Salvar:salvar:accept"` ainda funciona,

@@ -8,6 +8,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.167.0 — 2026-11-17
+
+- **Diálogos (`confirm`, `dialog`, `alert` do Luau):** o cartão alarga, até 600 px, para os botões caberem numa linha. A 380 px fixos, "Cancelar" + "Subir para o projeto" numa fonte monoespaçada passavam da largura por 3 px e os botões se empilhavam. A largura do rótulo é estimada por caractere no pior caso (monoespaçada de 16 px); a quebra de linha continua como último recurso.
+- Exemplo `gpui_kit_luau`: botão **Confirmar…** com rótulos longos, e o **Parar** com ação (sem `on_click` ele aparecia apagado).
+
 ## glacier-ui 0.166.0 — 2026-11-17
 
 O split button do rustploy saía azul do tema e mais baixo que o Stop ao lado:

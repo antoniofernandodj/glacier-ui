@@ -43,7 +43,10 @@ Campos: `icon` (`DialogIcon::Information|Warning|Error|Question|None`),
 `body: Option<String>` — o **nome de um template** montado entre a mensagem e os
 botões (0.94; ver a seção seguinte). Um diálogo com corpo nasce mais largo (480
 em vez de 380: 380 é a largura de uma frase, não de um formulário) e esconde a
-linha da mensagem quando ela está vazia.
+linha da mensagem quando ela está vazia. Nos dois casos o cartão alarga, até
+600, para os botões caberem numa linha só (0.167): a largura do rótulo é
+estimada pelo pior caso, fonte monoespaçada de 16 px; a quebra de linha fica
+como último recurso.
 
 Construtores de conveniência, cada um já com os botões e o `dismissible`
 corretos (o mesmo papel dos métodos estáticos de `QMessageBox`):

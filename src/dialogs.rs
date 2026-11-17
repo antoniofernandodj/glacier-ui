@@ -525,7 +525,16 @@ pub fn overlay<'a>(
     // 380 é a largura de uma frase; um formulário não cabe nela. Com corpo, o
     // cartão vai a 480 — ainda estreito o bastante para ler como modal, largo o
     // bastante para um `form` de duas colunas não quebrar.
-    let largura = if spec.body.is_some() { 480.0 } else { 380.0 };
+    //
+    // E o cartão alarga para os botões caberem numa linha só (até 600): dois
+    // botões empilhados num modal de confirmação leem como erro de layout. A
+    // largura do rótulo é estimada por caractere no pior caso — fonte
+    // monoespaçada de 16 px (≈ 0,6 em = 9,6 px por caractere), que é a de um
+    // app como o rustploy; numa fonte proporcional a estimativa só sobra
+    // folga. Sem medir o texto (isso é trabalho do layout), a quebra de linha
+    // continua lá como último recurso.
+    let base: f32 = if spec.body.is_some() { 480.0 } else { 380.0 };
+    let largura = base.max((largura_dos_botoes(&spec.buttons) + 40.0).min(600.0));
     let card_box = container(card)
         .width(Length::Fixed(largura))
         .padding(20)
@@ -574,6 +583,17 @@ pub fn overlay<'a>(
         .on_press(EngineMessage::DialogDismiss);
 
     iced::widget::stack![Element::from(backdrop_area), centered].into()
+}
+
+/// A largura estimada da fileira de botões: rótulo (9,6 px por caractere,
+/// o pior caso de uma fonte monoespaçada de 16 px) + padding horizontal (16 de
+/// cada lado) + 8 entre botões + uma folga de arredondamento.
+fn largura_dos_botoes(botoes: &[DialogButton]) -> f32 {
+    let soma: f32 = botoes
+        .iter()
+        .map(|b| b.label.chars().count() as f32 * 9.6 + 32.0)
+        .sum();
+    soma + 8.0 * botoes.len().saturating_sub(1) as f32 + 4.0
 }
 
 /// Renderiza um botão do diálogo, colorido pelo seu [`ButtonRole`].
