@@ -128,8 +128,9 @@ o reset do formulário, sem `on_click` — ver `form`.
 
 ### `textinput` (`input`)
 Campo de texto de uma linha. Atributos: `value`, `placeholder`, `on_change`,
-`secure`, `form_control`, `rules`, `msg`, `pattern` (os três últimos só valem
-com `form_control` dentro de um `form` — ver `form`).
+`secure`, `readonly` (seleciona e copia, não edita), `form_control`, `rules`,
+`msg`, `pattern` (os três últimos só valem com `form_control` dentro de um `form`
+— ver `form`).
 
 ### `textarea` (`editor`)
 Editor multilinha. Atributos: `value`, `placeholder`, `on_change`. Desenha a
@@ -732,7 +733,7 @@ dentro de outro `menu`, é um **submenu**, com profundidade arbitrária.
 | --- | --- | --- |
 | `label` | `""` | o texto do título |
 | `icon` | — | glifo ou caminho de `.svg` à esquerda |
-| `disabled` | `false` | inerte, esmaecido, não abre |
+| `disabled` | `false` | inerte, esmaecido, não abre; aceita `@chave` (vale também no `menuitem`) |
 | `items` | — | **nome da chave** com os itens em JSON, em vez de filhos escritos |
 | `variant` | — | `primary`/`secondary`: o gatilho com o estilo de botão do tema (fora de uma `menubar`) |
 | `on_click` | — | fora de uma `menubar`: o gatilho vira split button (o rótulo dispara a ação, o "▾" abre o menu) |

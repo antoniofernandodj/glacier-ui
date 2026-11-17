@@ -1663,7 +1663,9 @@ aquele nome, o motor faz `ctx[nome] = valor` sozinho. Preencha só quando quiser
 interceptar.
 
 **`textinput(:value = nome)`** — campo de uma linha. `placeholder`,
-`secure="true"` (senha), `on_change`.
+`secure="true"` (senha), `on_change`. `readonly = true` seleciona e copia mas
+não edita: é o valor que se mostra **para copiar** (uma URL, um comando), com a
+cara de campo — o par natural é um `inputgroup(action = Copiar, …)` em volta.
 
 **`textarea(:value = doc)`** — multi-linha. `placeholder`, `on_change`. Para
 um log vivo, use `readonly="true"` e escreva com `append_textarea` do Luau — que
@@ -2662,7 +2664,7 @@ declare `on_change` e no handler grave as chaves (`storage.set` no Luau).
 
 | tag | atributos |
 |---|---|
-| `menu` | `label`, `icon`, `disabled`, `items`, `variant` (`primary`/`secondary`: o gatilho com o estilo de botão do tema; vazio = chapado, como numa `menubar`), `on_click` (fora da `menubar`: vira split button — o rótulo dispara a ação, o "▾" abre o menu) |
+| `menu` | `label`, `icon`, `disabled` (aceita `@chave`, como o `busy_*` de uma ação em curso), `items`, `variant` (`primary`/`secondary`: o gatilho com o estilo de botão do tema; vazio = chapado, como numa `menubar`), `on_click` (fora da `menubar`: vira split button — o rótulo dispara a ação, o "▾" abre o menu) |
 | `menuitem` | `label`, `icon`, `on_click`, `checked` (nome de chave, truthy), `disabled` |
 | `menuseparator` | — |
 | `contextmenu(:items = acoes)` | botão direito no **primeiro** filho; o resto é o menu |

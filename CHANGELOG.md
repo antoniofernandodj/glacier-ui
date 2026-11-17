@@ -8,6 +8,15 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.165.0 — 2026-11-17
+
+O que a migração do rustploy para os widgets da fase gpui-kit pediu:
+
+- **`textinput(readonly = true)`**: seleciona e copia, mas não edita — o valor mostrado para ser copiado (URL, comando, token), com a cara de campo. Mesmo tratamento do `textarea(readonly)`: o motor descarta as edições. O par natural é `inputgroup(action = Copiar, on_action = …)`.
+- **`disabled = @chave` no `menu` e no `menuitem`**: o `disabled` próprio deles era lido no parse (literal); agora o `disabled` genérico, já interpolado, também desliga. É o que deixa um item de menu acompanhar o `busy_*` de uma ação em curso.
+- **`dropdownbutton`** repassa `disabled` (o botão inteiro) e `tooltip`/`tooltip_delay` ao `menu`.
+- Extensão Glacier View 0.31.0.
+
 ## glacier-ui 0.164.0 — 2026-11-17
 
 - **`otpinput`** — o código de uso único em caixinhas (o `OtpInput` do gpui-kit), primitiva nova em `src/otp.rs`: **um** widget com **um** valor, N caixas desenhadas. Digitar acrescenta, Backspace apaga o último, **Ctrl+V cola** o código inteiro (separadores somem), Esc ou clicar fora tira o foco, e ele entra na ordem de Tab. `value`, `length` (6), `mode` (`digits` · `alnum`, maiúscula), `secure`, `size`, `spacing`, `on_change` (vazio = grava sozinho) e `on_complete` (o código inteiro, depois de gravar).
