@@ -2200,6 +2200,7 @@ dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
 | `items` | — | **nome da chave** com o JSON do `menu` |
 | `variant` | `primary` | `flat` = transparente |
 | `caret` | `▾` | a seta do botão-menu (sem `on_click`) |
+| `button_class` | — | classe do botão; com `color`/`gradient` pinta como um `button` do app (fundo, hover, padding, size, raio) |
 
 `menuitem`/`menuseparator` dentro somam-se ao JSON; as ações são da tela. Abre
 no ponto do clique (é o `menu` do motor por baixo).

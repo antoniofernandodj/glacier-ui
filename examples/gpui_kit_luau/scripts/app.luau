@@ -93,6 +93,10 @@ function deploy_limpo(): ()
     avisar("info", `Deploy sem cache de {servicos[atual].nome}`, "As camadas da imagem serão refeitas.")
 end
 
+function parar(): ()
+    avisar("warning", `{servicos[atual].nome} parado`, "Os containers foram encerrados.")
+end
+
 function reverter(): ()
     avisar("warning", `{servicos[atual].nome} volta para o deploy anterior`, "")
 end

@@ -53,6 +53,15 @@
 /// - `disabled` — `true` (ou `@chave`, como o `busy_*` de uma ação em curso)
 ///   desliga o botão inteiro: a ação principal e a seta. Os itens têm o seu
 ///   próprio `disabled`, que também aceita `@chave` (0.165).
+/// - `button_class` — a classe do **botão** (as duas metades), como a de um
+///   `button`: com `color`/`gradient` na classe, o botão se pinta igual aos
+///   botões do app (fundo, rótulo, `:hover`, `:disabled`, `padding`, `size`,
+///   `border_radius`), em vez do primário do tema (0.166). `class` no uso
+///   continua pintando a raiz.
+///
+///   ```gv
+///   dropdownbutton(label = Deploy, on_click = deploy, button_class = "btn btn--primary") { … }
+///   ```
 /// - `tooltip` / `tooltip_delay` — o balão do botão, como em qualquer tag.
 /// - `caret`    — o glifo da seta no botão-menu (sem `on_click`). Default: `▾`.
 ///   No split button a seta é sempre `▾`.
@@ -74,12 +83,12 @@ impl Component for DropdownButton {
             r##"
                 row {
                   template(if = @on_click, not_equals = "") {
-                    menu(label = @label, on_click = "app:{on_click}", variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
+                    menu(label = @label, on_click = "app:{on_click}", class = @button_class, variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
                       slot
                     }
                   }
                   template(else) {
-                    menu(label = "{label} {caret|▾}", variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
+                    menu(label = "{label} {caret|▾}", class = @button_class, variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
                       slot
                     }
                   }

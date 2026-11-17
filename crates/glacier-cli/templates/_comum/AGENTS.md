@@ -2722,6 +2722,16 @@ dropdownbutton(label = Exportar, variant = flat) {
 | `items` | **nome da chave** com o JSON do `menu` (`{label, action, separator, items, …}`) |
 | `variant` | `primary` (o botão do tema) ou `flat` (transparente, para barra de ferramentas) |
 | `caret` | `▾` — a seta do botão-menu (sem `on_click`) |
+| `button_class` | — a classe do **botão**: com `color`/`gradient`, ele se pinta como um `button` do app (fundo, `text_color`, `:hover`, `:disabled`, `padding`, `size`, `border_radius`) em vez do primário do tema |
+
+Para o split button casar com os botões vizinhos, dê a ele a mesma classe deles:
+
+```gv
+row {
+  dropdownbutton(label = Deploy, on_click = deploy, button_class = "btn btn--primary") { … }
+  button("Stop", class = "btn btn--danger", on_click = parar)
+}
+```
 
 As opções vêm do markup (`menuitem`, `menuseparator`, `menu` para submenu), do
 JSON, ou dos dois somados — e todas as ações são da **tela**. Por baixo é o

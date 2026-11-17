@@ -2272,6 +2272,11 @@ pub enum NodeType {
         /// arredondam os cantos de fora — é o que as faz ler como um grupo.
         /// Namespaceada como o `on_click` de um `button`.
         on_click: Option<String>,
+        /// O fundo do gatilho, como o `color` de um `button` (o atributo ou
+        /// o `color` da classe `.gss`). Presente, o gatilho se pinta como um
+        /// botão do app — gradiente, `text_color`, `:hover`/`:disabled`,
+        /// `padding` e `size` da classe — em vez do botão do tema (0.166).
+        color: Option<String>,
     },
     /// A leaf, clickable menu row. `on_click` is namespaced exactly like
     /// [`NodeType::Button::on_click`]. `checked_var` is a context key read as
@@ -6573,6 +6578,7 @@ impl UiNode {
                     items,
                     variant: Self::get_attr(&node, &["variant"]),
                     on_click: Self::get_attr(&node, &["on_click"]),
+                    color: Self::get_attr(&node, &["color"]),
                 }
             }
             "menuitem" => {

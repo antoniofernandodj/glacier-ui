@@ -4765,119 +4765,13 @@ pub fn render_node<'a>(
                 .and_then(parse_hex_color)
                 .or_else(|| btn_gradient.is_some().then_some(Color::TRANSPARENT));
             if let Some(col) = btn_color {
-                let br_radius = node.border_radius.unwrap_or(0.0);
-                let br_cantos = node.border_radius_corners();
-                let br_width = node.border_width.unwrap_or(0.0);
-                let br_color = node
-                    .border_color()
-                    .and_then(parse_hex_color)
-                    .unwrap_or(Color::TRANSPARENT);
-                // Cor do rótulo: `textColor`/`.classe { text-color }`, senão
-                // branco (default histórico). O `color` do botão é o fundo.
-                let label_col = node
-                    .text_color()
-                    .and_then(parse_hex_color)
-                    .unwrap_or(Color::WHITE);
-                // Overlays por pseudo-estado (`.classe:hover/:active/:disabled { }`),
-                // já resolvidos em `eval.rs`; `None` quando o `.gss` não declara
-                // aquele estado — nesse caso cai no auto-derive histórico
-                // (±10% de luminância) ou, para `disabled`, 50% de alfa.
-                let hover_ov = node.hover_style().cloned();
-                let active_ov = node.active_style().cloned();
-                let disabled_ov = node.disabled_style().cloned();
+                let pintura = PinturaBotao::de(node, col, btn_gradient, None);
                 // `transition` do `.gss`: o estilo calculado abaixo passa por uma
                 // animação cujo estado mora na árvore (ver `crate::transition`).
                 let transicao_estilo = transicao;
                 let slot_estilo = slot.clone();
                 btn = btn.style(move |_theme, status| {
-                    use iced::widget::button::Status;
-                    let overlay = match status {
-                        Status::Hovered => hover_ov.as_ref(),
-                        Status::Pressed => active_ov.as_ref(),
-                        Status::Disabled => disabled_ov.as_ref(),
-                        Status::Active => None,
-                    };
-                    // O gradiente do próprio botão vale enquanto o `.gss` não
-                    // declara um fundo para o estado; hover clareia 10%,
-                    // pressed escurece 10%, disabled corta o alfa pela metade.
-                    let overlay_bg = overlay
-                        .and_then(|r| r.gradient.as_deref())
-                        .and_then(parse_gradient)
-                        .or_else(|| {
-                            overlay
-                                .and_then(|r| r.background.as_deref())
-                                .and_then(parse_hex_color)
-                                .map(|c| Gradient::Linear(Linear::new(Radians(0.0)).add_stop(0.0, c).add_stop(1.0, c)))
-                        });
-                    let background = if let Some(g) = overlay_bg {
-                        Background::Gradient(g)
-                    } else if let Some(g) = btn_gradient {
-                        Background::Gradient(match status {
-                            Status::Hovered => map_gradient(g, |c| Color {
-                                r: (c.r * 1.1).min(1.0),
-                                g: (c.g * 1.1).min(1.0),
-                                b: (c.b * 1.1).min(1.0),
-                                a: c.a,
-                            }),
-                            Status::Pressed => map_gradient(g, |c| Color {
-                                r: c.r * 0.9,
-                                g: c.g * 0.9,
-                                b: c.b * 0.9,
-                                a: c.a,
-                            }),
-                            Status::Disabled => map_gradient(g, |c| Color { a: c.a * 0.5, ..c }),
-                            Status::Active => g,
-                        })
-                    } else {
-                        Background::Color(
-                            overlay
-                                .and_then(|r| r.background.as_deref())
-                                .and_then(parse_hex_color)
-                                .unwrap_or_else(|| match status {
-                                    Status::Hovered => Color {
-                                        r: (col.r * 1.1).min(1.0),
-                                        g: (col.g * 1.1).min(1.0),
-                                        b: (col.b * 1.1).min(1.0),
-                                        a: col.a,
-                                    },
-                                    Status::Pressed => Color {
-                                        r: (col.r * 0.9).min(1.0),
-                                        g: (col.g * 0.9).min(1.0),
-                                        b: (col.b * 0.9).min(1.0),
-                                        a: col.a,
-                                    },
-                                    Status::Disabled => Color {
-                                        a: col.a * 0.5,
-                                        ..col
-                                    },
-                                    Status::Active => col,
-                                }),
-                        )
-                    };
-                    let text_color = overlay
-                        .and_then(|r| r.text_color.as_deref())
-                        .and_then(parse_hex_color)
-                        .unwrap_or(label_col);
-                    let radius = match overlay.and_then(|r| r.border_radius) {
-                        Some(r) => iced::border::Radius::new(r),
-                        None => raio_de(br_radius, br_cantos),
-                    };
-                    let width = overlay.and_then(|r| r.border_width).unwrap_or(br_width);
-                    let border_color = overlay
-                        .and_then(|r| r.border_color.as_deref())
-                        .and_then(parse_hex_color)
-                        .unwrap_or(br_color);
-                    let estilo = iced::widget::button::Style {
-                        background: Some(background),
-                        text_color,
-                        border: Border {
-                            radius,
-                            width,
-                            color: border_color,
-                        },
-                        shadow: iced::Shadow::default(),
-                        snap: false,
-                    };
+                    let estilo = pintura.estilo(status);
                     match (transicao_estilo, slot_estilo.borrow().clone()) {
                         (Some(tr), Some(anim)) => {
                             anim.borrow_mut().estilo(estilo, &tr, std::time::Instant::now())
@@ -7198,6 +7092,7 @@ pub fn render_node<'a>(
             items,
             variant,
             on_click,
+            color,
             ..
         } => {
             // Gatilho de dropdown: tanto o topo de uma `MenuBar` quanto um
@@ -7216,25 +7111,75 @@ pub fn render_node<'a>(
             let disabled = &(*disabled || node.disabled == Some(true));
             let abrir = (!*disabled).then(|| EngineMessage::OpenMenuBarDropdown { tree });
             let variante = variant.clone();
+            // Com `color` (a classe do app, `btn btn--primary`), o gatilho é
+            // pintado como um `button` do app: gradiente, rótulo, hover e
+            // disabled da classe, e o padding e o tamanho de texto dela.
+            // Sem, o botão do tema (`variant`) com as medidas de sempre.
+            let pintado = color.as_deref().and_then(parse_hex_color).map(|col| {
+                let gradiente = node.gradient().and_then(parse_gradient);
+                (node, col, gradiente)
+            });
+            let tamanho = node.text_size().unwrap_or(13.0);
+            let padding_classe = node.padding.is_some().then(|| parse_padding(&node.padding));
+            let negrito = node.text_bold() == Some(true) && node.font().is_none();
             let gatilho = |rotulo: &str, raio: iced::border::Radius, padding: [f32; 2]| {
                 let variante = variante.clone();
-                button(text(rotulo.to_string()).size(13))
-                    .padding(Padding::from(padding))
-                    .style(move |theme: &iced::Theme, status: button::Status| {
+                let mut t = text(rotulo.to_string()).size(tamanho);
+                if let Some(f) = font_for(node.font()) {
+                    t = t.font(f);
+                }
+                if negrito {
+                    t = t.font(Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    });
+                }
+                let b = button(t).padding(Padding::from(padding));
+                match pintado {
+                    Some((n, col, gradiente)) => {
+                        let pintura = PinturaBotao::de(n, col, gradiente, Some(raio));
+                        b.style(move |_theme: &iced::Theme, status: button::Status| pintura.estilo(status))
+                    }
+                    None => b.style(move |theme: &iced::Theme, status: button::Status| {
                         estilo_gatilho_menu(variante.as_deref(), raio, theme, status)
-                    })
+                    }),
+                }
             };
+            // O padding da classe vale nas duas metades na vertical (alturas
+            // iguais); na horizontal, a seta fica com pouco mais da metade.
+            let (pad_principal, pad_seta) = match padding_classe {
+                Some(p) => ([p.top, p.right], [p.top, (p.right * 0.6).round().max(6.0)]),
+                None => ([6.0, 12.0], [6.0, 8.0]),
+            };
+            // O raio da classe (ou 4) nos cantos de fora.
+            let r = node.border_radius.unwrap_or(4.0);
             match on_click {
                 // Split button: as duas metades com o mesmo texto e padding
                 // (alturas iguais), e só os cantos DE FORA arredondados — o
-                // que diz "isto é um grupo". A fresta de 1 px separa os alvos.
+                // que diz "isto é um grupo".
                 Some(acao) => {
-                    let principal = gatilho(label, iced::border::left(4.0), [6.0, 12.0])
+                    let principal = gatilho(label, iced::border::left(r), pad_principal)
                         .on_press_maybe((!*disabled).then(|| EngineMessage::UiClick(acao.clone())));
-                    let seta = gatilho("▾", iced::border::right(4.0), [6.0, 8.0]).on_press_maybe(abrir);
-                    row![principal, seta].spacing(1).into()
+                    let seta = gatilho("▾", iced::border::right(r), pad_seta).on_press_maybe(abrir);
+                    // O traço entre as metades é DESENHADO (preto translúcido,
+                    // da altura da linha), não uma fresta: a fresta mostrava o
+                    // fundo da janela e sumia ou aparecia conforme a cor e o
+                    // gradiente do botão. O traço escurece qualquer cor igual.
+                    // Altura por aritmética, não `Length::Fill`: numa linha que
+                    // encolhe, o `fill` estica até a janela inteira. O corpo do
+                    // texto do iced é `size × 1.3` (o `LineHeight` padrão) mais
+                    // o padding de cima e de baixo — a altura das metades.
+                    let altura = tamanho * 1.3 + pad_principal[0] * 2.0;
+                    let traco = container(Space::new())
+                        .width(Length::Fixed(1.0))
+                        .height(Length::Fixed(altura))
+                        .style(|_| container::Style {
+                            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.3))),
+                            ..container::Style::default()
+                        });
+                    crate::overflow::no_shrink(row![principal, traco, seta].align_y(iced::alignment::Vertical::Center)).into()
                 }
-                None => gatilho(label, iced::border::radius(4.0), [6.0, 12.0])
+                None => gatilho(label, iced::border::radius(r), pad_principal)
                     .on_press_maybe(abrir)
                     .into(),
             }
@@ -7473,6 +7418,124 @@ pub fn render_node<'a>(
 
 /// O raio de uma borda: os quatro cantos do `border_radius = "0 6 6 0"` quando
 /// existem, senão o raio único nos quatro.
+/// A pintura de um botão com cor própria (`color`/`gradient` do `.gss`):
+/// fundo, rótulo, borda e os overlays de `:hover`/`:active`/`:disabled`. É
+/// do `button` e também do gatilho de um `menu` com `class` (o split button
+/// do `dropdownbutton`), que assim fica igual a um botão do app. `raio`
+/// substitui o do nó — as metades do split button arredondam só por fora.
+#[derive(Clone)]
+struct PinturaBotao {
+    col: Color,
+    gradiente: Option<Gradient>,
+    hover: Option<crate::stylesheet::StyleRule>,
+    active: Option<crate::stylesheet::StyleRule>,
+    disabled: Option<crate::stylesheet::StyleRule>,
+    rotulo: Color,
+    raio: iced::border::Radius,
+    raio_fixo: bool,
+    borda: f32,
+    cor_borda: Color,
+}
+
+impl PinturaBotao {
+    fn de(node: &UiNode, col: Color, gradiente: Option<Gradient>, raio: Option<iced::border::Radius>) -> Self {
+        Self {
+            col,
+            gradiente,
+            hover: node.hover_style().cloned(),
+            active: node.active_style().cloned(),
+            disabled: node.disabled_style().cloned(),
+            // Cor do rótulo: `text_color` da classe, senão branco (default
+            // histórico). O `color` do botão é o fundo.
+            rotulo: node.text_color().and_then(parse_hex_color).unwrap_or(Color::WHITE),
+            raio_fixo: raio.is_some(),
+            raio: raio.unwrap_or_else(|| raio_de(node.border_radius.unwrap_or(0.0), node.border_radius_corners())),
+            borda: node.border_width.unwrap_or(0.0),
+            cor_borda: node.border_color().and_then(parse_hex_color).unwrap_or(Color::TRANSPARENT),
+        }
+    }
+
+    fn estilo(&self, status: button::Status) -> button::Style {
+        use iced::widget::button::Status;
+        let col = self.col;
+        // Overlays por pseudo-estado, já resolvidos em `eval.rs`; `None`
+        // quando o `.gss` não declara aquele estado — cai no auto-derive
+        // (±10% de luminância) ou, para `disabled`, 50% de alfa.
+        let overlay = match status {
+            Status::Hovered => self.hover.as_ref(),
+            Status::Pressed => self.active.as_ref(),
+            Status::Disabled => self.disabled.as_ref(),
+            Status::Active => None,
+        };
+        let overlay_bg = overlay
+            .and_then(|r| r.gradient.as_deref())
+            .and_then(parse_gradient)
+            .or_else(|| {
+                overlay
+                    .and_then(|r| r.background.as_deref())
+                    .and_then(parse_hex_color)
+                    .map(|c| Gradient::Linear(Linear::new(Radians(0.0)).add_stop(0.0, c).add_stop(1.0, c)))
+            });
+        let background = if let Some(g) = overlay_bg {
+            Background::Gradient(g)
+        } else if let Some(g) = self.gradiente {
+            Background::Gradient(match status {
+                Status::Hovered => map_gradient(g, |c| Color {
+                    r: (c.r * 1.1).min(1.0),
+                    g: (c.g * 1.1).min(1.0),
+                    b: (c.b * 1.1).min(1.0),
+                    a: c.a,
+                }),
+                Status::Pressed => map_gradient(g, |c| Color {
+                    r: c.r * 0.9,
+                    g: c.g * 0.9,
+                    b: c.b * 0.9,
+                    a: c.a,
+                }),
+                Status::Disabled => map_gradient(g, |c| Color { a: c.a * 0.5, ..c }),
+                Status::Active => g,
+            })
+        } else {
+            Background::Color(match status {
+                Status::Hovered => Color {
+                    r: (col.r * 1.1).min(1.0),
+                    g: (col.g * 1.1).min(1.0),
+                    b: (col.b * 1.1).min(1.0),
+                    a: col.a,
+                },
+                Status::Pressed => Color {
+                    r: (col.r * 0.9).min(1.0),
+                    g: (col.g * 0.9).min(1.0),
+                    b: (col.b * 0.9).min(1.0),
+                    a: col.a,
+                },
+                Status::Disabled => Color { a: col.a * 0.5, ..col },
+                Status::Active => col,
+            })
+        };
+        let text_color = overlay
+            .and_then(|r| r.text_color.as_deref())
+            .and_then(parse_hex_color)
+            .unwrap_or(self.rotulo);
+        let radius = match overlay.and_then(|r| r.border_radius) {
+            Some(r) if !self.raio_fixo => iced::border::Radius::new(r),
+            _ => self.raio,
+        };
+        let width = overlay.and_then(|r| r.border_width).unwrap_or(self.borda);
+        let border_color = overlay
+            .and_then(|r| r.border_color.as_deref())
+            .and_then(parse_hex_color)
+            .unwrap_or(self.cor_borda);
+        button::Style {
+            background: Some(background),
+            text_color,
+            border: Border { radius, width, color: border_color },
+            shadow: iced::Shadow::default(),
+            snap: false,
+        }
+    }
+}
+
 pub(crate) fn raio_de(uniforme: f32, cantos: Option<[f32; 4]>) -> iced::border::Radius {
     match cantos {
         Some([top_left, top_right, bottom_right, bottom_left]) => iced::border::Radius {

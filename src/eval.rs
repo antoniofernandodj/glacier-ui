@@ -3814,7 +3814,13 @@ fn eval_owned(
             items,
             variant,
             on_click,
+            color,
         } => NodeType::Menu {
+            color: color
+                .as_ref()
+                .map(|c| process_tpl(c, context))
+                .filter(|c| !c.trim().is_empty())
+                .or_else(|| style.color.clone()),
             label: process_tpl(label, context),
             icon: icon.as_ref().map(|i| process_tpl(i, context)),
             disabled: *disabled,

@@ -8,6 +8,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.166.0 — 2026-11-17
+
+O split button do rustploy saía azul do tema e mais baixo que o Stop ao lado:
+
+- **`dropdownbutton(button_class = …)`** / **`menu` com `color`**: com `color`/`gradient` na classe (ou `color` no atributo), o gatilho do `menu` se pinta como um `button` do app — fundo e gradiente, `text_color`, `:hover`/`:active`/`:disabled`, `padding`, `size`, `bold` e `border_radius` da classe. Sem `color`, o botão do tema de sempre. `button_class = "btn btn--primary"` deixa o split button igual aos botões vizinhos.
+- **Split button**: as duas metades agora se tocam, com um traço de 1 px em preto translúcido entre elas. A fresta de 1 px de antes mostrava o fundo da janela e sumia em botões com gradiente. O traço tem a altura das metades por aritmética (`size × 1.3 + padding`), não `fill` — numa linha que encolhe, o `fill` esticava o botão até a janela.
+- A pintura do `button` com cor (`PinturaBotao`) virou uma peça só, usada pelo `button` e pelo gatilho do `menu`.
+
 ## glacier-ui 0.165.0 — 2026-11-17
 
 O que a migração do rustploy para os widgets da fase gpui-kit pediu:

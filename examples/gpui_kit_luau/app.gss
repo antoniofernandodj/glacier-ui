@@ -16,3 +16,7 @@
 .nota    { size: 12; color: var(--fraco); }
 .acoes_otp { spacing: 10; align_y: center; }
 .btn_fraco { padding: 4 10; }
+.btn         { padding: 8 15; border_radius: 5; size: 13; }
+.btn--ok     { color: #238636; gradient: #2A9142 #1E7A30; }
+.btn--ok:hover { background: #2A9142; }
+.btn--perigo { color: #DA3633; gradient: #E5534B #C42B27; }
