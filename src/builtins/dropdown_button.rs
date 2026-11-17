@@ -50,6 +50,10 @@
 /// - `items`    — **nome da chave** com o array JSON das opções.
 /// - `variant`  — `primary` (default, o botão do tema) ou `flat` (fundo
 ///   transparente, como numa barra de ferramentas).
+/// - `disabled` — `true` (ou `@chave`, como o `busy_*` de uma ação em curso)
+///   desliga o botão inteiro: a ação principal e a seta. Os itens têm o seu
+///   próprio `disabled`, que também aceita `@chave` (0.165).
+/// - `tooltip` / `tooltip_delay` — o balão do botão, como em qualquer tag.
 /// - `caret`    — o glifo da seta no botão-menu (sem `on_click`). Default: `▾`.
 ///   No split button a seta é sempre `▾`.
 use crate::component::{Component, Context, Template};
@@ -70,12 +74,12 @@ impl Component for DropdownButton {
             r##"
                 row {
                   template(if = @on_click, not_equals = "") {
-                    menu(label = @label, on_click = "app:{on_click}", variant = "{variant|primary}", :items = "{items}") {
+                    menu(label = @label, on_click = "app:{on_click}", variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
                       slot
                     }
                   }
                   template(else) {
-                    menu(label = "{label} {caret|▾}", variant = "{variant|primary}", :items = "{items}") {
+                    menu(label = "{label} {caret|▾}", variant = "{variant|primary}", :items = "{items}", disabled = "{disabled|false}", tooltip = @tooltip, tooltip_delay = @tooltip_delay) {
                       slot
                     }
                   }

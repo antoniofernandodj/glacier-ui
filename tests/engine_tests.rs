@@ -8048,3 +8048,39 @@ fn test_tooltip_delay_unidades() {
     );
     assert_eq!(ev.children[0].tooltip_delay(), Some("800ms"), "interpola");
 }
+
+// --- 0.165: o que a migração do rustploy pediu -------------------------------
+
+#[test]
+fn test_textinput_readonly_e_menu_disabled_por_chave() {
+    let mut motor = GlacierUI::new();
+    motor.define_data("ocupado", "true");
+    let ev = tela_gpui(
+        &mut motor,
+        "t_ro",
+        r#"column {
+  input(:value = url, readonly = true)
+  input(:value = nome)
+  dropdownbutton(label = Deploy, on_click = deploy, disabled = @ocupado, tooltip = "faz o deploy") {
+    menuitem(label = Reload, on_click = reload, disabled = @ocupado)
+    menuitem(label = Export, on_click = export)
+  }
+}"#,
+    );
+    assert!(matches!(ev.children[0].kind, NodeType::TextInput { readonly: true, .. }));
+    assert!(matches!(ev.children[1].kind, NodeType::TextInput { readonly: false, .. }));
+
+    // o menu do dropdownbutton: desligado pela chave, e com o tooltip repassado
+    let menu = &ev.children[2].children[0];
+    assert!(matches!(menu.kind, NodeType::Menu { .. }));
+    assert_eq!(menu.disabled, Some(true), "disabled = @ocupado interpola");
+    assert_eq!(menu.tooltip(), Some("faz o deploy"));
+    // o item com `disabled = @ocupado` também
+    assert_eq!(menu.children[0].disabled, Some(true));
+    assert_ne!(menu.children[1].disabled, Some(true));
+
+    motor.define_data("ocupado", "false");
+    let _ = motor.reevaluate_all();
+    let ev = motor.evaluated("t_ro").unwrap().clone();
+    assert_eq!(ev.children[2].children[0].disabled, Some(false));
+}

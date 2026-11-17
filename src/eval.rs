@@ -2926,6 +2926,7 @@ fn eval_owned(
             secure,
             autofocus,
             menu_class,
+            readonly,
         } => NodeType::TextInput {
             placeholder: process_tpl(placeholder, context),
             value_var: process_tpl(value_var, context),
@@ -2933,6 +2934,7 @@ fn eval_owned(
             secure: *secure,
             autofocus: *autofocus,
             menu_class: menu_class.clone(),
+            readonly: *readonly,
         },
         NodeType::TextArea {
             fixo: Some(f),

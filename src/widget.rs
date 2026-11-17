@@ -1092,6 +1092,8 @@ fn single_line_editor<'a>(
         .autofocus(autofocus && !is_disabled);
 
     if !is_disabled {
+        // `readonly`: o motor descarta as edições (seleção e cópia seguem).
+        let somente_leitura = matches!(node.kind, NodeType::TextInput { readonly: true, .. });
         ed = ed.on_action(move |action| {
             use iced::widget::text_editor::{Action, Edit};
             if matches!(action, Action::Edit(Edit::Enter))
@@ -1103,7 +1105,7 @@ fn single_line_editor<'a>(
                 binding: binding.clone(),
                 on_change: on_change_owned.clone(),
                 action,
-                readonly: false,
+                readonly: somente_leitura,
                 single_line: true,
             }
         });
@@ -4938,6 +4940,7 @@ pub fn render_node<'a>(
             secure,
             autofocus,
             menu_class,
+            ..
         } => {
             let current_value = context.get(value_var).map(|s| s.as_str()).unwrap_or("");
             // Sem `disabled`, sem handler: o próprio iced reporta o
@@ -7208,6 +7211,9 @@ pub fn render_node<'a>(
                 items.as_deref(),
                 context,
             ));
+            // `disabled = @ocupado`: o genérico do nó vem interpolado; o próprio
+            // do `menu` é literal (lido no parse).
+            let disabled = &(*disabled || node.disabled == Some(true));
             let abrir = (!*disabled).then(|| EngineMessage::OpenMenuBarDropdown { tree });
             let variante = variant.clone();
             let gatilho = |rotulo: &str, raio: iced::border::Radius, padding: [f32; 2]| {

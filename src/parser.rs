@@ -1824,6 +1824,12 @@ pub enum NodeType {
         /// `.x-item:hover` / `.x-item:active` on the rows). `None` → the menu
         /// follows the active theme. See `GlacierUI::resolve_menu_style`.
         menu_class: Option<String>,
+        /// `readonly`: seleciona e copia, mas não edita — o valor que se mostra
+        /// para ser copiado (uma URL, um comando, um token), com a cara de
+        /// campo. O mesmo tratamento do `textarea(readonly)`: o motor descarta
+        /// toda edição (`UiEditorAction::readonly`). Só no campo comum (não
+        /// `secure`).
+        readonly: bool,
     },
     /// A multi-line text editor bound to a context key. Unlike [`NodeType::TextInput`]
     /// the engine keeps a stateful `text_editor::Content` for it (keyed by
@@ -5394,6 +5400,7 @@ impl UiNode {
                     secure,
                     autofocus,
                     menu_class,
+                    readonly: Self::get_attr_bool(&node, &["readonly"]),
                 }
             }
             "textarea" | "texteditor" | "editor" => {

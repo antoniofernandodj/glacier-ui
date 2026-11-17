@@ -236,7 +236,9 @@ pub fn build_tree(
                     icon: icon.clone(),
                     on_click: on_click.clone(),
                     checked,
-                    disabled: *disabled,
+                    // O `disabled` próprio é lido no parse (literal); o genérico
+                    // do nó já veio interpolado — `disabled = @ocupado` desliga.
+                    disabled: *disabled || child.disabled == Some(true),
                     separator: false,
                     children: Vec::new(),
                 });
@@ -252,7 +254,7 @@ pub fn build_tree(
                 icon: icon.clone(),
                 on_click: None,
                 checked: None,
-                disabled: *disabled,
+                disabled: *disabled || child.disabled == Some(true),
                 separator: false,
                 children: build_tree(&child.children, items.as_deref(), context),
             }),
