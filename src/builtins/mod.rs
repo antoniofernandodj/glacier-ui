@@ -92,6 +92,7 @@ mod command;
 mod command_link;
 mod description_list;
 mod drawer;
+mod field;
 mod font_dialog;
 mod font_select;
 mod frame;
@@ -132,6 +133,7 @@ use crate::builtins::command::Command;
 use crate::builtins::command_link::CommandLink;
 use crate::builtins::description_list::DescriptionList;
 use crate::builtins::drawer::Drawer;
+use crate::builtins::field::Field;
 // Consumidos pela camada Luau, que não existe no alvo web.
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::font_dialog::FONT_DIALOG_BODY;
@@ -186,6 +188,7 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(CommandLink),
         Box::new(DescriptionList),
         Box::new(Drawer),
+        Box::new(Field),
         Box::new(FontDialog),
         Box::new(FontSelect),
         Box::new(Frame),

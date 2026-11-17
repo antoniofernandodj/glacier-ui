@@ -7805,3 +7805,72 @@ fn test_condicao_matches_busca_por_palavras() {
     let achados: Vec<&str> = ev.children.iter().map(texto_de).collect();
     assert_eq!(achados, ["Servidor de borda", "Borda fria"]);
 }
+
+// --- `field` (0.162): a casca do campo de formulário -----------------------
+
+#[test]
+fn test_gpui_field_rotulo_obrigatorio_ajuda_e_erro() {
+    let mut motor = GlacierUI::new();
+    motor.define_data("erro_nome", "");
+    let gv = r#"form(on_submit = salvar) {
+  field(label = Nome, required = true, description = "como aparece na lista", error = @erro_nome) {
+    input(form_control = nome, rules = required)
+  }
+}"#;
+    let ev = tela_gpui(&mut motor, "t_field", gv);
+    let campo = &ev.children[0];
+    // rótulo (com *) > controle > ajuda
+    let rotulo = &campo.children[0];
+    assert_eq!(rotulo.kind, NodeType::Row);
+    assert_eq!(texto_de(&rotulo.children[0]), "Nome");
+    assert_eq!(texto_de(&rotulo.children[1]), "*", "required desenha a marca");
+    assert!(
+        matches!(&campo.children[1].kind, NodeType::TextInput { value_var, .. } if value_var == "nome"),
+        "o controle do slot, ligado ao form_control: {:?}",
+        campo.children[1].kind
+    );
+    assert_eq!(texto_de(&campo.children[2]), "como aparece na lista");
+    assert_eq!(campo.children.len(), 3);
+
+    // O motor publicou o erro do campo: ele toma o lugar da ajuda.
+    motor.define_data("erro_nome", "informe um nome");
+    let _ = motor.reevaluate_all();
+    let ev = motor.evaluated("t_field").unwrap().clone();
+    let campo = &ev.children[0];
+    assert_eq!(texto_de(&campo.children[2]), "informe um nome");
+    assert_eq!(campo.children.len(), 3, "erro NO LUGAR da ajuda, não junto");
+}
+
+#[test]
+fn test_gpui_field_sem_rotulo_e_rotulo_ao_lado() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(&mut motor, "t_field_nu", r#"field { input(form_control = x) }"#);
+    assert_eq!(ev.children.len(), 1, "sem label nem ajuda, só o controle");
+
+    let ev = tela_gpui(
+        &mut motor,
+        "t_field_left",
+        r#"field(label = Porta, label_position = left) { input(form_control = porta) }"#,
+    );
+    let linha = &ev.children[0];
+    assert_eq!(linha.kind, NodeType::Row);
+    assert_eq!(linha.children[0].width.as_deref(), Some("140"), "coluna do rótulo");
+    assert_eq!(texto_de(&linha.children[0].children[0]), "Porta");
+}
+
+#[test]
+fn test_gpui_field_slot_aside_ao_lado_do_rotulo() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(
+        &mut motor,
+        "t_field_aside",
+        r#"field(label = Token) {
+  template(slot = aside) { text("seguro") }
+  input(form_control = token)
+}"#,
+    );
+    let rotulo = &ev.children[0];
+    assert_eq!(texto_de(&rotulo.children[0]), "Token");
+    assert_eq!(texto_de(rotulo.children.last().unwrap()), "seguro");
+    assert!(matches!(ev.children[1].kind, NodeType::TextInput { .. }));
+}

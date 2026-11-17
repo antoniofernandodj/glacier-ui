@@ -2812,7 +2812,8 @@ A maior parte do catálogo do gpui-kit já existe aqui, às vezes com outro nome
 | Kbd | `kbd` | Built | P1 | ✅ **0.161** | a tampinha; fora do `prose` (dentro, `kbd` segue código inline) |
 | DescriptionList | `descriptionlist` | Built | P1 | ✅ **0.161** | `[{label, value}]`, rótulo de largura fixa, `layout = vertical` |
 | Command | `command` | Built + Motor | P1 | ✅ **0.161** | paleta; pediu a condição `matches=` no motor (busca por palavras, sem caixa) |
-| Form (layout) | `field` dentro de `form` | Built | P1 | 🟡 | a validação existe (`FormBuilder`, `rules=`); falta o **layout**: `field(label, description, required)`, `columns(n)`/`col_span`, rodapé de ações alinhado |
+| Form (layout) — `field` | `field` | Built | P1 | ✅ **0.162** | rótulo, `*`, ajuda, erro (`error = @erro_x`, no lugar da ajuda), `label_position = left`, `slot(name = aside)`. O rustploy migrou quatro telas e, no caminho, achou o bug do erro que nunca aparecia (abaixo) |
+| Form (layout) — grade e rodapé | `form(columns = n)`, `span`, `footer` | Motor | P2 | ⬜ | o `form` é primitiva (não tem `slot`), então colunas e rodapé são motor; o `grid` precisaria de célula que ocupa várias colunas |
 | DropdownButton | `dropdownbutton` (ou `menu=` no `toolbutton`) | Built | P2 | ⬜ | botão + `menu` ancorado; hoje se compõe à mão com `popover` |
 | Input Group | `inputgroup` | Built | P2 | ⬜ | prefixo/sufixo (ícone, `R$`, botão) colados ao campo, uma moldura só |
 | HoverCard | `hovercard` | Prim | P2 | ⬜ | o `popover` aberto por hover com atraso; precisa de hover com tempo no motor |
@@ -2848,9 +2849,25 @@ A maior parte do catálogo do gpui-kit já existe aqui, às vezes com outro nome
   resultado" também não: o template não conta o que o filtro deixou passar.
   Os dois são motor, não widget.
 
+### 7.5 O `field` (0.162) e o bug que ele expôs
+
+Migrar o rustploy para o `field` revelou que **nenhuma** mensagem de erro de
+campo do rustploy aparecia: as telas liam `{error_<campo>}`, o motor publica
+`{erro_<campo>}` (o `error_prefix` padrão, desde a 0.102), e nenhum dos 21
+`form` declarava o prefixo; seis telas ainda testavam a string com `not_empty`,
+que só vale para array JSON. Só a borda `:invalid` e o toast funcionavam. A
+correção do lado do app foi `error_prefix = error_` em cada `form`.
+
+É o argumento a favor do widget: a condição do erro (`not_equals = ""`) agora
+mora num lugar só, testada. O que ele ainda não resolve é o **nome** da chave —
+o `field` não vê o `form_control` do controle de dentro, então quem escreve
+ainda pode passar `@erro_nme`. Se isso morder de novo, o motor pode deixar o
+`form` dizer ao `field` qual é o controle dele.
+
 ### 7.4 A fila, por ordem
 
-1. **Form (layout)** — o maior ganho por linha: toda tela de configuração usa.
+1. ~~**Form (layout)**~~ — o `field` saiu na 0.162; colunas e rodapé ficam para
+   quando outra tela pedir.
 2. **DropdownButton** e **Input Group** — composições de coisas que existem.
 3. **HoverCard** e **OtpInput** — pedem motor (hover com atraso, foco que
    avança).

@@ -964,7 +964,7 @@ largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
 
 ## O catálogo de widgets
 
-São **115 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
+São **116 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
@@ -1846,6 +1846,53 @@ form(name = cadastro, on_submit = salvar, on_validation_error = apontar, validat
   explícitos, respeita o que você escreveu.
 - **Regra malformada** (`minlen` sem número, nome de regra desconhecido) sai no
   stderr e é ignorada — não trava o envio, mas o campo deixa de ser validado.
+
+#### `field` — a casca de cada campo
+
+Rótulo, marca de obrigatório, o controle, a ajuda e o erro: o que toda tela de
+formulário repetia à mão (`column > text(rótulo) > controle > text(erro, if …)`),
+escrito uma vez. O controle vai **dentro**; o erro chega por prop.
+
+```gv
+form(on_submit = salvar, on_validation_error = apontar) {
+  field(label = Nome, required = true, error = @erro_nome) {
+    input(form_control = nome, rules = required, msg = "informe um nome")
+  }
+  field(label = Descrição, description = "aparece na lista de projetos") {
+    input(form_control = descricao)
+  }
+  field(label = Porta, label_position = left, error = @erro_porta) {
+    spinbox(form_control = porta, :value = porta, min = 1, max = 65535)
+  }
+  button("Salvar", type = submit)
+}
+```
+
+| prop | default | o que faz |
+|---|---|---|
+| `label` | vazio | o rótulo; vazio = sem linha de rótulo |
+| `required` | `false` | `true` desenha um `*` depois do rótulo — **só a marca**; a regra continua no controle (`rules = required`) |
+| `description` | vazio | a ajuda, sob o controle |
+| `error` | vazio | a mensagem de erro — `@erro_<campo>`, o que o `form` publica. Com texto, ela aparece **no lugar** da ajuda |
+| `label_position` | `top` | `left` põe o rótulo ao lado, numa coluna de `label_width`: vários campos seguidos alinham os controles |
+| `label_width` | `140` | só no `left` |
+| `spacing` | `6` | entre rótulo, controle e ajuda |
+| `label_class`, `description_class`, `error_class` | — | classes dos textos de dentro |
+
+- **O `field` não lê o `form_control` do controle.** O conteúdo do `slot` é de
+  quem o escreveu; o widget não enxerga os atributos dele. Por isso o erro vem
+  por prop — e o nome é `{error_prefix}{form_control}` (`erro_` por padrão).
+- **Algo ao lado do rótulo** (um "seguro", um contador): o slot nomeado
+  `aside`, só no `label_position = top`:
+
+  ```gv
+  field(label = Token) {
+    template(slot = aside) { text("seguro", class = fraco) }
+    input(form_control = token, secure = true)
+  }
+  ```
+- Para repintar, redefina na sua folha `.field-label`, `.field-required`,
+  `.field-description` e `.field-error` (a folha do app vence por ordem).
 
 #### Como o envio funciona (e o que NÃO repetir)
 

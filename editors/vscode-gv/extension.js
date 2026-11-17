@@ -218,6 +218,8 @@ const NATIVE_TAGS = {
   Command: ["command"],
   DescriptionList: ["descriptionlist"],
   Drawer: ["drawer"],
+  // Fase gpui-kit (0.162): a casca de um campo de formulário.
+  Field: ["field"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
   // Fase gpui-kit (0.161): a tecla desenhada (fora do `prose`).

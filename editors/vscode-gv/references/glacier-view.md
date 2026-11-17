@@ -2121,6 +2121,34 @@ ctx.ficha = json.encode(json.array({
 
 Valor ausente ou vazio aparece como `—`.
 
+### `field`
+A casca de um campo de formulário: rótulo, `*` de obrigatório, o controle (dentro),
+a ajuda e o erro.
+
+```gv
+form(on_submit = salvar) {
+  field(label = Nome, required = true, error = @erro_nome) {
+    input(form_control = nome, rules = required)
+  }
+  field(label = Porta, label_position = left, description = "1 a 65535") {
+    spinbox(form_control = porta, :value = porta)
+  }
+}
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `label` | vazio | o rótulo |
+| `required` | `false` | desenha o `*` (a regra fica no controle) |
+| `description` | vazio | ajuda sob o controle |
+| `error` | vazio | `@erro_<campo>`; com texto, aparece no lugar da ajuda |
+| `label_position` | `top` | `left`: rótulo ao lado, em `label_width` (140) |
+| `spacing` | `6` | entre as partes |
+| `label_class` / `description_class` / `error_class` | — | classes de dentro |
+
+`template(slot = aside)` põe algo à direita do rótulo. Classes da lib:
+`.field-label`, `.field-required`, `.field-description`, `.field-error`.
+
 ### `command`
 A paleta de comandos: um campo que filtra uma lista de ações enquanto se
 digita. O clique num item chama `on_select` **na tela** com o `id`.

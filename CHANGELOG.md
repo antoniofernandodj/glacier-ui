@@ -8,6 +8,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.162.0 — 2026-11-16
+
+- **`field`** — a casca de um campo de formulário (o `Field` do gpui-kit): `label`, `required` (desenha o `*`; a regra continua no controle), `description` (ajuda), `error` (a mensagem do campo, `@erro_<campo>`, aparece **no lugar** da ajuda), `label_position = top | left` com `label_width` (140), `spacing` e `slot(name = aside)` à direita do rótulo. O controle vai dentro. Substitui o `column > text(rótulo) > controle > text(erro, if …)` que cada tela repetia — e errava: o rustploy lia `{error_…}` com o `error_prefix` padrão `erro_` e testava a string com `not_empty`, então nenhuma mensagem de campo aparecia. Classes da lib: `.field-label`, `.field-required`, `.field-description`, `.field-error`.
+- `PLANO_WIDGETS.md` §7: `field` ✅; colunas/`span`/rodapé do `form` ficam registrados como item de motor. Extensão Glacier View 0.28.0 conhece a tag.
+
 ## glacier-ui 0.161.0 — 2026-11-16
 
 Fase especial **gpui-kit** (`docs/arquivados/PLANO_WIDGETS.md` §7): a comparação com o catálogo do [gpui-kit](https://gpui-kit.com) e os quatro primeiros widgets que faltavam. Todos builtins, sem estado, sem registro.
