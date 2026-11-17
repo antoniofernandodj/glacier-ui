@@ -356,6 +356,8 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 | `prose` | — | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |
 | `markdown` | `markdown`, `md` | CommonMark (tabelas, imagens locais), `content`, `size` — [`docs/TEXTO.md`](docs/TEXTO.md) |
 | `form` | — | `on_submit`, `name` — renderiza como `column` |
+| `dropdownbutton` | — | o botão com menu: `label`, `on_click` (presente = *split button*, ação principal + "▾"; ausente = o botão inteiro abre o menu), `items` (chave com o JSON do `menu`), `variant` (`primary` · `flat`), `caret`; `menuitem`/`menuseparator` dentro somam-se ao JSON. Sobre o `menu` do motor. Builtin, fase gpui-kit |
+| `inputgroup` | — | o campo com acessórios numa moldura só: `prefix`/`suffix` (texto) ou os slots nomeados `prefix`/`suffix` (ícone, botão); tira a borda do `textinput`/`maskedinput`/`comboedit` de dentro. Builtin, fase gpui-kit |
 | `field` | — | a casca de um campo de formulário: `label`, `required` (só o `*`), `description` (ajuda), `error` (`@erro_<campo>`; no lugar da ajuda), `label_position` (`top` · `left`), `label_width`; o controle vai dentro, e `template(slot = aside)` põe algo ao lado do rótulo. Builtin, fase gpui-kit |
 | `select` | `dropdown`, `picklist`, `combobox`, `seletor` | `options`/`items` (chave com array JSON), `value`, `on_change`/`on_select`, `placeholder`, `label_field` (padrão `label`), `value_field` (padrão `value`) |
 | `image` | — | `source`/`src`, `clip="Circle"` (corte circular) |

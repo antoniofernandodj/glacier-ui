@@ -246,6 +246,7 @@ pub fn build_tree(
                 icon,
                 disabled,
                 items,
+                ..
             } => out.push(MenuNode {
                 label: label.clone(),
                 icon: icon.clone(),

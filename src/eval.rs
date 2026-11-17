@@ -3793,11 +3793,16 @@ fn eval_owned(
             icon,
             disabled,
             items,
+            variant,
         } => NodeType::Menu {
             label: process_tpl(label, context),
             icon: icon.as_ref().map(|i| process_tpl(i, context)),
             disabled: *disabled,
             items: items.as_ref().map(|i| process_tpl(i, context)),
+            variant: variant
+                .as_ref()
+                .map(|v| process_tpl(v, context))
+                .filter(|v| !v.trim().is_empty()),
         },
         NodeType::MenuItem {
             label,

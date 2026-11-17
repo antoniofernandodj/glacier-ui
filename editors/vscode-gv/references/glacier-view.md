@@ -734,6 +734,7 @@ dentro de outro `menu`, é um **submenu**, com profundidade arbitrária.
 | `icon` | — | glifo ou caminho de `.svg` à esquerda |
 | `disabled` | `false` | inerte, esmaecido, não abre |
 | `items` | — | **nome da chave** com os itens em JSON, em vez de filhos escritos |
+| `variant` | — | `primary`/`secondary`: o gatilho com o estilo de botão do tema (fora de uma `menubar`) |
 
 A forma dinâmica aceita a árvore inteira, submenus incluídos:
 
@@ -2148,6 +2149,48 @@ form(on_submit = salvar) {
 
 `template(slot = aside)` põe algo à direita do rótulo. Classes da lib:
 `.field-label`, `.field-required`, `.field-description`, `.field-error`.
+
+### `dropdownbutton`
+O botão com menu. Com `on_click`, *split button* (ação principal + "▾"); sem,
+o botão inteiro abre o menu.
+
+```gv
+dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
+  menuitem(label = Reverter, on_click = reverter)
+}
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `label` | vazio | o texto |
+| `on_click` | — | a ação principal; presente = split button |
+| `items` | — | **nome da chave** com o JSON do `menu` |
+| `variant` | `primary` | `flat` = transparente |
+| `caret` | `▾` | a seta |
+| `button_class` | — | classe do botão principal |
+
+`menuitem`/`menuseparator` dentro somam-se ao JSON; as ações são da tela. Abre
+no ponto do clique (é o `menu` do motor por baixo).
+
+### `inputgroup`
+O campo com acessórios numa moldura só.
+
+```gv
+inputgroup(prefix = "https://") {
+  input(:value = dominio, on_change = dominio)
+  template(slot = suffix) { button("Copiar", on_click = "clipboard:dominio") }
+}
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `prefix` / `suffix` | vazio | texto antes / depois; os slots de mesmo nome vencem |
+| `width` | `fill` | largura |
+| `addon_class` | — | classe dos textos |
+
+Tira a borda do `textinput`/`maskedinput`/`comboedit` de dentro (uma classe sua
+com `border_width` no campo vence isso). Sem anel de foco nem `:invalid` no
+campo — mostre o erro com um `field`.
 
 ### `command`
 A paleta de comandos: um campo que filtra uma lista de ações enquanto se

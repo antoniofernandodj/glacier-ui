@@ -92,12 +92,14 @@ mod command;
 mod command_link;
 mod description_list;
 mod drawer;
+mod dropdown_button;
 mod field;
 mod font_dialog;
 mod font_select;
 mod frame;
 mod group_box;
 mod input_dialog;
+mod input_group;
 mod kbd;
 pub(crate) mod list_view;
 mod notification_dot;
@@ -133,6 +135,7 @@ use crate::builtins::command::Command;
 use crate::builtins::command_link::CommandLink;
 use crate::builtins::description_list::DescriptionList;
 use crate::builtins::drawer::Drawer;
+use crate::builtins::dropdown_button::DropdownButton;
 use crate::builtins::field::Field;
 // Consumidos pela camada Luau, que não existe no alvo web.
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
@@ -145,6 +148,7 @@ use crate::builtins::group_box::GroupBox;
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::input_dialog::INPUT_DIALOG_BODY;
 use crate::builtins::input_dialog::InputDialog;
+use crate::builtins::input_group::InputGroup;
 use crate::builtins::kbd::Kbd;
 use crate::builtins::list_view::ListView;
 use crate::builtins::notification_dot::NotificationDot;
@@ -188,12 +192,14 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
         Box::new(CommandLink),
         Box::new(DescriptionList),
         Box::new(Drawer),
+        Box::new(DropdownButton),
         Box::new(Field),
         Box::new(FontDialog),
         Box::new(FontSelect),
         Box::new(Frame),
         Box::new(GroupBox),
         Box::new(InputDialog),
+        Box::new(InputGroup),
         Box::new(Kbd),
         Box::new(ListView),
         Box::new(NotificationDot),

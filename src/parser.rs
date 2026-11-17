@@ -2253,6 +2253,13 @@ pub enum NodeType {
         icon: Option<String>,
         disabled: bool,
         items: Option<String>,
+        /// Como o **gatilho** se desenha: vazio = o botão chapado de uma
+        /// `menubar` (fundo transparente, cinza no hover); `primary` /
+        /// `secondary` = o estilo de botão do tema, o mesmo de um `button`.
+        /// É o que deixa um `menu` avulso parecer um botão de verdade — o
+        /// `dropdownbutton` usa `primary` para a metade do "▾" casar com a
+        /// metade da ação principal. Só vale no gatilho; um submenu ignora.
+        variant: Option<String>,
     },
     /// A leaf, clickable menu row. `on_click` is namespaced exactly like
     /// [`NodeType::Button::on_click`]. `checked_var` is a context key read as
@@ -6494,6 +6501,7 @@ impl UiNode {
                     icon,
                     disabled,
                     items,
+                    variant: Self::get_attr(&node, &["variant"]),
                 }
             }
             "menuitem" => {

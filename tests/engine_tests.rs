@@ -7874,3 +7874,74 @@ fn test_gpui_field_slot_aside_ao_lado_do_rotulo() {
     assert_eq!(texto_de(rotulo.children.last().unwrap()), "seguro");
     assert!(matches!(ev.children[1].kind, NodeType::TextInput { .. }));
 }
+
+// --- `dropdownbutton` e `inputgroup` (0.163) --------------------------------
+
+#[test]
+fn test_gpui_dropdownbutton_split_e_menu_inteiro() {
+    let mut motor = GlacierUI::new();
+    motor.define_data("acoes", r#"[{"label":"Deploy sem cache","action":"deploy_limpo"}]"#);
+    let ev = tela_gpui(
+        &mut motor,
+        "t_dd_split",
+        r#"dropdownbutton(label = Deploy, on_click = deploy, :items = acoes) {
+  menuitem(label = Reverter, on_click = reverter)
+}"#,
+    );
+    // ação principal (da tela, sem dono) + o gatilho do menu, com a cara do tema
+    assert_eq!(ev.children.len(), 2);
+    assert_eq!(clique_de(&ev.children[0]), "deploy");
+    match &ev.children[1].kind {
+        NodeType::Menu { label, items, variant, .. } => {
+            assert_eq!(label, "▾");
+            assert_eq!(items.as_deref(), Some("acoes"), "items é o NOME da chave");
+            assert_eq!(variant.as_deref(), Some("primary"));
+        }
+        outro => panic!("esperava o menu, veio {outro:?}"),
+    }
+    // o menuitem do slot é da tela: a ação sai sem o prefixo do widget
+    match &ev.children[1].children[0].kind {
+        NodeType::MenuItem { on_click, .. } => assert_eq!(on_click.as_deref(), Some("reverter")),
+        outro => panic!("esperava o menuitem, veio {outro:?}"),
+    }
+
+    let ev = tela_gpui(&mut motor, "t_dd_menu", r#"dropdownbutton(label = Exportar, variant = flat)"#);
+    assert_eq!(ev.children.len(), 1, "sem on_click, o botão inteiro é o menu");
+    match &ev.children[0].kind {
+        NodeType::Menu { label, variant, .. } => {
+            assert_eq!(label, "Exportar ▾");
+            assert_eq!(variant.as_deref(), Some("flat"));
+        }
+        outro => panic!("esperava o menu, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn test_gpui_inputgroup_acessorios_e_campo_sem_borda() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(
+        &mut motor,
+        "t_ig",
+        r#"inputgroup(prefix = "R$", suffix = ",00") { input(form_control = preco) }"#,
+    );
+    assert_eq!(ev.kind, NodeType::Row);
+    assert_eq!(ev.border_width, Some(1.0), "a moldura é do grupo");
+    assert_eq!(ev.children.len(), 3);
+    assert_eq!(texto_de(&ev.children[0].children[0]), "R$");
+    assert_eq!(texto_de(&ev.children[2].children[0]), ",00");
+    let campo = &ev.children[1];
+    assert!(matches!(campo.kind, NodeType::TextInput { .. }));
+    assert_eq!(campo.border_width, Some(0.0), "o campo de dentro perde a borda própria");
+
+    // O slot nomeado vence a prop de mesmo nome.
+    let ev = tela_gpui(
+        &mut motor,
+        "t_ig_slot",
+        r#"inputgroup(suffix = "x") {
+  input(form_control = dominio)
+  template(slot = suffix) { button("Copiar", on_click = "clipboard:dominio") }
+}"#,
+    );
+    assert_eq!(ev.children.len(), 2);
+    assert_eq!(clique_de(&ev.children[1].children[0]), "clipboard:dominio");
+}

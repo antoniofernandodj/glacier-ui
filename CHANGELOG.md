@@ -8,6 +8,13 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.163.0 — 2026-11-17
+
+- **`dropdownbutton`** — o botão com menu (o `DropdownButton` do gpui-kit). Com `on_click`, *split button*: a ação principal e um "▾" colado com as alternativas; sem, o botão inteiro abre o menu. Opções por markup (`menuitem`, `menuseparator`, submenu) e/ou por chave JSON (`items`, o formato do `menu`), somadas; ações da tela. `variant = primary | flat`, `caret`, `button_class`.
+- **`inputgroup`** — o campo com acessórios numa moldura só: `prefix`/`suffix` em texto, ou os slots nomeados de mesmo nome para ícone/botão. A moldura é do grupo; uma regra da lib (`inputgroup textinput`, idem `maskedinput`/`comboedit`) tira a borda e o fundo do campo de dentro.
+- **`menu(variant = primary | secondary)`**: o gatilho de um `menu` avulso com o estilo de botão do tema, em vez do chapado da `menubar`. É o que deixa as duas metades do `dropdownbutton` casarem.
+- Exemplo `gpui_kit_luau` ganha os dois (e um `field` em volta do `inputgroup`). Extensão Glacier View 0.29.0. `PLANO_WIDGETS.md` §7.6.
+
 ## glacier-ui 0.162.0 — 2026-11-16
 
 - **`field`** — a casca de um campo de formulário (o `Field` do gpui-kit): `label`, `required` (desenha o `*`; a regra continua no controle), `description` (ajuda), `error` (a mensagem do campo, `@erro_<campo>`, aparece **no lugar** da ajuda), `label_position = top | left` com `label_width` (140), `spacing` e `slot(name = aside)` à direita do rótulo. O controle vai dentro. Substitui o `column > text(rótulo) > controle > text(erro, if …)` que cada tela repetia — e errava: o rustploy lia `{error_…}` com o `error_prefix` padrão `erro_` e testava a string com `not_empty`, então nenhuma mensagem de campo aparecia. Classes da lib: `.field-label`, `.field-required`, `.field-description`, `.field-error`.

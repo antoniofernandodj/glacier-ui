@@ -51,6 +51,13 @@ end
 
 function init(): ()
     ctx.busca = ""
+    ctx.dominio = "api.exemplo.com"
+    ctx.erro_dominio = ""
+    ctx.por_regiao = "1"
+    ctx.deploy_extras = json.encode(json.array({
+        { label = "Deploy sem cache", action = "deploy_limpo" },
+        { label = "Reverter para o anterior", action = "reverter" },
+    }))
     ctx.paleta = false
     ctx.ultimo = "nenhum"
     ctx.atalhos = json.encode(json.array({
@@ -73,6 +80,27 @@ end
 
 function fechar_aviso(): ()
     ctx.aviso = ""
+end
+
+-- O split button: a metade da esquerda chama `deploy`; as opções do JSON
+-- chamam `deploy_limpo`/`reverter`, e as do markup, o que escreveram.
+function deploy(): ()
+    avisar("success", `Deploy de {servicos[atual].nome} enfileirado`, "")
+end
+
+function deploy_limpo(): ()
+    avisar("info", `Deploy sem cache de {servicos[atual].nome}`, "As camadas da imagem serão refeitas.")
+end
+
+function reverter(): ()
+    avisar("warning", `{servicos[atual].nome} volta para o deploy anterior`, "")
+end
+
+-- O `inputgroup` não valida nada: quem diz que o domínio é ruim é o script,
+-- e o `field` em volta mostra a mensagem.
+function editar_dominio(texto: string): ()
+    ctx.dominio = texto
+    ctx.erro_dominio = if string.find(texto, "/", 1, true) then "só o domínio, sem caminho" else ""
 end
 
 -- `on_select = executar` — o `id` do item chega como argumento.

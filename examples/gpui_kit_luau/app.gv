@@ -11,6 +11,16 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
   column(class = tela) {
     row(class = topo) {
       text("Serviços", class = titulo)
+      // split button: a ação principal + as alternativas (JSON e markup somados)
+      dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
+        menuseparator
+        menuitem(label = "Simular uma falha", on_click = "executar:erro")
+      }
+      // sem on_click: o botão inteiro abre o menu
+      dropdownbutton(label = Ver, variant = flat) {
+        menuitem(label = "Abrir a paleta", on_click = alternar_paleta)
+        menuitem(label = "Fechar o aviso", on_click = fechar_aviso)
+      }
       space
       text("paleta de comandos:", class = dica)
       kbd("Ctrl+K")
@@ -32,6 +42,21 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
       column(class = coluna) {
         text("Serviço selecionado", class = secao)
         descriptionlist(:items = ficha)
+
+        // campo com acessórios: uma moldura só; o erro fica com o `field`
+        field(label = "Domínio", description = "sem https:// e sem caminho", error = @erro_dominio) {
+          inputgroup(prefix = "https://") {
+            input(:value = dominio, on_change = editar_dominio, placeholder = "app.exemplo.com")
+            template(slot = suffix) {
+              button("Copiar", class = copiar, on_click = "clipboard:dominio")
+            }
+          }
+        }
+        field(label = "Réplicas por região", label_position = left) {
+          inputgroup(suffix = "por região") {
+            input(:value = por_regiao, on_change = por_regiao)
+          }
+        }
       }
       column(class = coluna) {
         text("Atalhos", class = secao)

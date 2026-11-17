@@ -964,7 +964,7 @@ largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
 
 ## O catálogo de widgets
 
-São **116 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
+São **118 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
@@ -1669,6 +1669,34 @@ um log vivo, use `readonly="true"` e escreva com `append_textarea` do Luau — q
 insere no fim sem recriar o buffer, preservando o scroll. `font="JetBrains Mono"`
 (uma família registrada, ver "O que vale em qualquer tag") é o `QPlainTextEdit`:
 texto simples, mono declarável.
+
+**`inputgroup(prefix = "R$", suffix = ",00") { input(…) }`** — o campo com
+acessórios colados, numa **moldura só**: o grupo desenha a borda e tira a do
+campo de dentro.
+
+```gv
+field(label = Domínio, error = @erro_dominio) {
+  inputgroup(prefix = "https://") {
+    input(:value = dominio, on_change = editar_dominio)
+    template(slot = suffix) {
+      button("Copiar", on_click = "clipboard:dominio")
+    }
+  }
+}
+```
+
+| prop | default |
+|---|---|
+| `prefix`, `suffix` | texto antes / depois do campo. Para ícone ou botão, o slot nomeado de mesmo nome (`template(slot = suffix) { … }`), que vence a prop |
+| `width` | `fill` |
+| `addon_class` | classe dos dois textos |
+
+- A borda do campo some por uma regra da lib (`inputgroup textinput { … }`,
+  idem `maskedinput`/`comboedit`). Uma **classe** sua no campo com
+  `border_width` vence essa regra e devolve a borda dupla — dentro do grupo,
+  deixe borda e fundo para ele.
+- Sem anel de foco nem `:invalid` no campo (a borda dele é zero): mostre o erro
+  com um `field(error = …)` em volta.
 
 **`maskedinput(:value = cpf, mask = cpf)`** — guarda **cru** e exibe
 mascarado. A chave nunca contém pontuação: é isso que faz um CPF gravado ser
@@ -2604,7 +2632,7 @@ declare `on_change` e no handler grave as chaves (`storage.set` no Luau).
 
 | tag | atributos |
 |---|---|
-| `menu` | `label`, `icon`, `disabled`, `items` |
+| `menu` | `label`, `icon`, `disabled`, `items`, `variant` (`primary`/`secondary`: o gatilho com o estilo de botão do tema; vazio = chapado, como numa `menubar`) |
 | `menuitem` | `label`, `icon`, `on_click`, `checked` (nome de chave, truthy), `disabled` |
 | `menuseparator` | — |
 | `contextmenu(:items = acoes)` | botão direito no **primeiro** filho; o resto é o menu |
@@ -2636,6 +2664,38 @@ não recebe o prefixo do componente que o `on_click` escrito no markup recebe.
 Na prática funciona, porque uma ação sem prefixo cai de volta na tela ativa;
 para um menu que pertence a outro componente, escreva o prefixo à mão
 (`action = "OutroComponente::acao"`).
+
+Um `menu` **fora** de uma `menubar` também funciona: é um botão que abre o
+menu (no ponto do clique), e que fecha sozinho quando se escolhe um item.
+
+**`dropdownbutton(label = Deploy, on_click = deploy, :items = acoes)`** — o
+botão com menu. Com `on_click` é o *split button*: a ação principal à esquerda e
+um "▾" colado com as alternativas. Sem `on_click`, o botão inteiro abre o menu.
+
+```gv
+dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
+  menuseparator
+  menuitem(label = "Reverter", on_click = reverter)
+}
+dropdownbutton(label = Exportar, variant = flat) {
+  menuitem(label = CSV, on_click = exportar_csv)
+  menuitem(label = JSON, on_click = exportar_json)
+}
+```
+
+| prop | default |
+|---|---|
+| `label` | o texto do botão |
+| `on_click` | a ação principal; presente = split button |
+| `items` | **nome da chave** com o JSON do `menu` (`{label, action, separator, items, …}`) |
+| `variant` | `primary` (o botão do tema) ou `flat` (transparente, para barra de ferramentas) |
+| `caret` | `▾` |
+| `button_class` | classe do botão da ação principal |
+
+As opções vêm do markup (`menuitem`, `menuseparator`, `menu` para submenu), do
+JSON, ou dos dois somados — e todas as ações são da **tela**. Por baixo é o
+`menu` do motor: o painel tem a cor do tema e fecha ao escolher, mas abre no
+ponto do clique, não alinhado à borda do botão.
 
 **`toolbar` + `toolbutton`** — faixa de ações.
 

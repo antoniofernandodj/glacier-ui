@@ -7132,6 +7132,7 @@ pub fn render_node<'a>(
             label,
             disabled,
             items,
+            variant,
             ..
         } => {
             // Gatilho de dropdown: tanto o topo de uma `MenuBar` quanto um
@@ -7145,9 +7146,29 @@ pub fn render_node<'a>(
                 items.as_deref(),
                 context,
             ));
-            let mut btn = button(text(label.as_str()).size(13))
-                .padding(Padding::from([6.0, 12.0]))
-                .style(|theme: &iced::Theme, status: button::Status| {
+            let mut btn = button(text(label.as_str()).size(13)).padding(Padding::from([6.0, 12.0]));
+            btn = match variant.as_deref() {
+                // O estilo de botão do tema — o mesmo de um `button` sem
+                // `color` (primary) ou o neutro (secondary).
+                Some("primary") => btn.style(|theme: &iced::Theme, status: button::Status| {
+                    button::Style {
+                        border: Border {
+                            radius: iced::border::Radius::new(4.0),
+                            ..Border::default()
+                        },
+                        ..button::primary(theme, status)
+                    }
+                }),
+                Some("secondary") => btn.style(|theme: &iced::Theme, status: button::Status| {
+                    button::Style {
+                        border: Border {
+                            radius: iced::border::Radius::new(4.0),
+                            ..Border::default()
+                        },
+                        ..button::secondary(theme, status)
+                    }
+                }),
+                _ => btn.style(|theme: &iced::Theme, status: button::Status| {
                     let pal = theme.extended_palette();
                     let bg = match status {
                         button::Status::Hovered | button::Status::Pressed => {
@@ -7166,7 +7187,8 @@ pub fn render_node<'a>(
                         shadow: iced::Shadow::default(),
                         snap: false,
                     }
-                });
+                }),
+            };
             if !*disabled {
                 btn = btn.on_press(EngineMessage::OpenMenuBarDropdown { tree });
             }

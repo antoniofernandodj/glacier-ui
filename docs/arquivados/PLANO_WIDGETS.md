@@ -2814,8 +2814,8 @@ A maior parte do catálogo do gpui-kit já existe aqui, às vezes com outro nome
 | Command | `command` | Built + Motor | P1 | ✅ **0.161** | paleta; pediu a condição `matches=` no motor (busca por palavras, sem caixa) |
 | Form (layout) — `field` | `field` | Built | P1 | ✅ **0.162** | rótulo, `*`, ajuda, erro (`error = @erro_x`, no lugar da ajuda), `label_position = left`, `slot(name = aside)`. O rustploy migrou quatro telas e, no caminho, achou o bug do erro que nunca aparecia (abaixo) |
 | Form (layout) — grade e rodapé | `form(columns = n)`, `span`, `footer` | Motor | P2 | ⬜ | o `form` é primitiva (não tem `slot`), então colunas e rodapé são motor; o `grid` precisaria de célula que ocupa várias colunas |
-| DropdownButton | `dropdownbutton` (ou `menu=` no `toolbutton`) | Built | P2 | ⬜ | botão + `menu` ancorado; hoje se compõe à mão com `popover` |
-| Input Group | `inputgroup` | Built | P2 | ⬜ | prefixo/sufixo (ícone, `R$`, botão) colados ao campo, uma moldura só |
+| DropdownButton | `dropdownbutton` | Built + Motor | P2 | ✅ **0.163** | split button (com `on_click`) ou botão-menu; sobre o `menu` do motor, que ganhou `variant = primary/secondary` no gatilho. Abre no ponto do clique |
+| Input Group | `inputgroup` | Built | P2 | ✅ **0.163** | `prefix`/`suffix` (texto ou slot), moldura única; tira a borda do campo por regra de descendente (`inputgroup textinput`) |
 | HoverCard | `hovercard` | Prim | P2 | ⬜ | o `popover` aberto por hover com atraso; precisa de hover com tempo no motor |
 | OtpInput | `otpinput` | Built/Prim | P2 | ⬜ | N caixas de um dígito com foco que avança; o avanço de foco é o difícil |
 | Tag | `tag` | Built | P3 | 🟡 | o `chip` cobre; faltam variantes de cor por prop |
@@ -2864,11 +2864,36 @@ o `field` não vê o `form_control` do controle de dentro, então quem escreve
 ainda pode passar `@erro_nme`. Se isso morder de novo, o motor pode deixar o
 `form` dizer ao `field` qual é o controle dele.
 
+### 7.6 `dropdownbutton` e `inputgroup` (0.163)
+
+**O `dropdownbutton` já estava no motor.** O plano previa compô-lo com
+`popover`, e o caminho parecia certo: o `popover` ancora na borda do botão. Ele
+esbarrou em duas coisas. O painel do `popover` não tem fundo próprio, e o
+`.gss` não alcança as cores do tema — um fundo opaco escolhido no builtin fica
+errado em metade dos temas. E escolher um item precisa **fechar o painel e
+avisar a tela** no mesmo clique, o que pediria um prefixo de ação novo. O
+`menu` avulso (fora da `menubar`) já fazia as duas coisas, com a paleta do tema,
+separador, submenu e `checked`. Faltava só o gatilho com cara de botão: o
+`variant` do `menu`. O preço é a âncora — o painel abre no ponto do clique.
+
+A lição de sempre, desta vez a favor: antes de construir o habilitador, procurar
+quem já o tem.
+
+**O `inputgroup` e o pai do conteúdo de slot.** A regra que tira a borda do
+campo foi escrita primeiro como `.inputgroup textinput` (a classe da moldura) e
+não casou: o conteúdo de slot tem o **uso** como pai, não o nó de dentro do
+template. A regra certa nomeia o tipo do uso — `inputgroup textinput`, nas
+duas grafias. O teste da árvore avaliada (borda 0 no campo) pegou na primeira
+rodada.
+
+Fica de fora, por escrito: o anel de foco e o `:invalid` dentro do grupo (a
+borda do campo é zero, e o grupo não sabe do foco de dentro).
+
 ### 7.4 A fila, por ordem
 
 1. ~~**Form (layout)**~~ — o `field` saiu na 0.162; colunas e rodapé ficam para
    quando outra tela pedir.
-2. **DropdownButton** e **Input Group** — composições de coisas que existem.
+2. ~~**DropdownButton** e **Input Group**~~ — saíram na 0.163.
 3. **HoverCard** e **OtpInput** — pedem motor (hover com atraso, foco que
    avança).
 4. O resto da tabela, sob demanda.

@@ -14,3 +14,4 @@
 .coluna  { width: fill; spacing: 10; }
 .secao   { size: 13; bold: true; }
 .nota    { size: 12; color: var(--fraco); }
+.copiar  { padding: 4 10; }

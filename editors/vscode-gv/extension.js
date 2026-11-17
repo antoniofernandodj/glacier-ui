@@ -218,10 +218,14 @@ const NATIVE_TAGS = {
   Command: ["command"],
   DescriptionList: ["descriptionlist"],
   Drawer: ["drawer"],
+  // Fase gpui-kit (0.163): o split button sobre o `menu` do motor.
+  DropdownButton: ["dropdownbutton"],
   // Fase gpui-kit (0.162): a casca de um campo de formulário.
   Field: ["field"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
+  // Fase gpui-kit (0.163): o campo com acessórios numa moldura só.
+  InputGroup: ["inputgroup"],
   // Fase gpui-kit (0.161): a tecla desenhada (fora do `prose`).
   Kbd: ["kbd"],
   ListView: ["listview"],
